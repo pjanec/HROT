@@ -230,7 +230,7 @@ and CE-4154 (World Environment saved in the header) are needed before S1's objec
 | **S1-c** ONE owner of the links | `Subject` / `Parent` are PARAMS (`ObjectiveCommon.Subject`, `.Parent`, `EntityLink` — resolved by S0's walker at load); the behaviour copies them into `ObjectiveLinks` (`NoScenario`) each tick | ⭐ SR-53 said *"saved"* — saving a second copy beside the params gives two owners (CLAUDE.md *shared and unified*); the params are already saved, remapped and on the wire (`IntentJson`) |
 | **S1-d** "the subject's men" | the subject itself or anyone under it down `UnitSubordinate`, alive, in the fight, with a `SimTransform` — COUNTED AS MEN (`MinMen`; the showcase's *"min 6 men"*). An enemy = `ForceId` hostile to the subject's, in the fight, not neutral (`ThreatDanger`) | a squad commander has no body; counting bodies is what an area check can see |
 | **S1-e** lifecycle in S1 | `Pending` · `Active` · `Achieved` · `Failed` · `Inactive` + the deadline (`DeadlineSeconds`, sim s). `activeWhen` waits for S2's `when`; S1 has `StartActive` (default true). ⭐ the OnClose rules (SR-117) are pure functions with rails in S1, CALLED by S2's `EndExercise` | no end exists before S2 |
-| **S1-f** harm | `NoHarm` reads `DamageAssessedEvent` (`repo.ReadEvents`, the `HealthApplicationSystem` way) — victim `ForceId` vs `Protected`, `Source`'s side vs the subject's | §10.1: `Source` is set for gunfire, blasts and remote hits; drones / gas wait for CE-4155 |
+| **S1-f** harm | `NoHarm` reads `DamageAssessedEvent` (`repo.ReadEvents`, the `HealthApplicationSystem` way) — victim `ForceId` vs `Protected`, `Source`'s side vs the subject's | §10.1: `Source` is set for gunfire, blasts, remote hits, drones and gas clouds (CE-4155 ✅, §00.9); `attribute` = last / original / both |
 | **S1-g** the minimal summary | `GET /objectives` (DebugApi, any node — reads the replicated statuses, the tree by `Parent`) + one log line per state change | the HUD / rules view are S4 / S5 (ui) |
 
 ```mermaid
@@ -342,6 +342,13 @@ or `CMD_ABORT_ALL`; Running until the `MissionControlAckEvent` with that id: `Er
 params name no plan, and a `MissionPlan` in JSON would be a second plan format; the `Order` + `params` route (or a later `ArgsRef` plan) is where it would go. The ack is read from the event buffer, so the action must be ticked every frame while Running (`BrainTickSystem` does; a brain tick policy that skipped frames could miss it and time out).
 Rails: `ScenarioRulesTests.Verbs.cs` (Order accepted + with params + ordered before the next step; Order timeout and bad targets; Order validation; MissionCommand acked 0 / error / Abort / timeout / far task / Replace; pause once, none without, feature off, pack carries it, a real end) and `ActionListTests` (the lift, the seeding, the refusals).
 
+⭐ **CE-4205 AS BUILT `2026-11-02` (S2-b follow-up: ONE live evaluation of the loop predicates)** — `DataBreakpointManager`'s spatial / lifecycle / structural trackers keep their edge logic and known-sets and replace each private LEVEL test with the delegate from `IPredicateCompiler.CompileLevelPredicate(dto)`, compiled once at mount and stored in the tracker tuple (spatial = inside, lifecycle = matches, structural = has; the structural tracker compiles a copy with `AnyChange` because Removed is an edge there, the level is always "present"). Deleted from the manager: `MatchesLifecycleCriteria`, `ReadEntityName`, `ReadStringField`, `CompileSpatialPositionAccessor(+Generic)`, `ReadPosition2D`, `ReadFloatField`, `ComputeEffectivePresence`. The structural level arm now HONOURS `AuthorityRequirement` (component mask + `AuthorityMask`; it was ignored) so the breakpoint's authority rule lives in the one arm. `RecordingSearchService` keeps its scan loops but its private spatial read and lifecycle test went the same way (structural already shared `StructuralScanner`, CE-1302). Behaviour moves, all to the level arm's reading: a spatial dto with no `PositionComponentType` now reads `SimTransform.Position` (the tracker read (0,0) for everyone), an entity lacking the position component is outside (it read (0,0)), a managed position component is not read, the lifecycle `EcsHandle` arm requires the entity alive. A breakpoint spatial / lifecycle / structural tracker now needs the compiler: both production constructions (`CgfSubsystem`, `EditorSubsystem`) pass one; with none the breakpoint mounts no tracker (as component predicates already do). Rail `P11CorrectnessTests.SpatialTracker_AgreesWithTheCompilersLevelArm` (3 positions, red-proved with the level arm negated: it and 3 existing spatial rails red).
+
+⭐ **CE-2377 step 1 AS BUILT `2026-11-02` (one side-effect-free behaviour-params validation + a sweep; NO load refusal yet).** `BehaviorParamsValidation.Validate(registry, behaviourName, paramsJson)` (`Fdp.Toolkits/Behavior/`) returns the problems: unknown behaviour; the JSON read STRICTLY into the definition's `JsonParamsDtoType` (a copy of `BehaviorParams.JsonOptions` with `UnmappedMemberHandling = Disallow` — an unknown key is a problem; null / blank params are fine; a behaviour with no declared DTO skips this step); then the OPTIONAL `[BehaviorValidator(name)]` static `IEnumerable<string> Validate(string json)` bound in `BehaviorRegistry` (`RegisterValidator` / `TryGetValidator`, carried by `MergeFrom`, cleared by `Clear`). ⛔ no resolver call, no world. ONE discovery, beside the DTO declarations: `BehaviorSchemaDiscovery.BindValidators(registry, assembly)` — a reflection scan of the pinned AI assembly, called by the one loader `CgfBehaviorSetup.LoadFromAiAssembly` and by `AiHotReloadCoordinator` for the rebuilt copy (the `[BehaviorResolver]` source generator is not touched: validators are not codegen). The Trigger's `when` (compiles through `CompileLevelPredicate`) and `do` (`ActionList.Validate`) checks moved OUT of its resolver INTO its validator (`TriggerBehavior.Validate`); `Resolve` calls the same private `ValidateParams` and throws on a problem (one implementation; the CE-4163 refusal rail still holds). Ingress keeps its catch but now logs `Error` and appends the `Validate` problems when they explain the failure. **Sweep** (`BehaviorParamsSweepTests`, Hrot.SimHost.Tests): every `Behavior` / `Sop` slot of every `scenario.json` under `scenarios/`, `recipes/`, `macros/` through `Validate` on the production registry; the findings go to the test output, the count is asserted against `BehaviorParamsSweepAllowList` (group `"behaviour :: problem"` → scenarios; may only shrink). ⭐ **Measured: 601 slots, 0 findings — the allow-list is empty**, so step 2 (the load refusal in `ScenarioLoadStep` prepare) has nothing to wait for. Not swept: mission-plan task params and `test-data/scenario-corpus`. Rails: `BehaviorParamsValidationTests` (unknown name, unknown key, bad Trigger `do` / missing `when`, good params, empty params) — red-proved (strict → `Skip`, and the `ActionList.Validate` call removed: 3 red incl. the existing `ABadDoListOrWhen_FailsAssignment_NotTheFirstFiring`); the sweep red-proved with a bogus problem for one behaviour (9 scenarios named).
+
+⭐ **CE-2377 step 2 AS BUILT `2026-11-02` (the scenario load refuses a behaviour whose params do not validate).** ONE slot walker in production: `ScenarioBehaviorSlots.Enumerate(JsonNode)` (`Fdp.Toolkits/Behavior/`; the sweep test's private copy is deleted and calls it) and `ScenarioBehaviorSlots.Problems(registry, scenario)` = `Validate` over every slot → `"<entity key> <Behavior|Sop> '<name>': <problem>"`. `ScenarioLoadStep.PrepareAsync` runs it on the same `json` right after the macro validation and throws `InvalidOperationException` `"[LoadPhase/Scenario] '<id>' has N behaviour problem(s) — the load is refused:\n - …"` before the args bind / extract, so nothing is created. The registry is a new optional ctor parameter `behaviors`; the ONE production construction (`NodeBootstrapper`) passes `behaviorRemapper?.Registry` — chosen: a public `ScenarioBehaviorRemapper.Registry` getter (the remapper is built from the same registry by `CgfBehaviorSetup.CreateBehaviorRemapper(registry)`, so a host passes it once). ⚠ A params blob carrying a param binding (`"^name"` / a `Bind` map) is only whole after the args apply, so for it only the behaviour NAME is checked at prepare. ⚠ Slots inside macro FILES are NOT walked at prepare (`MacroValidator.CheckInstance` reads the file privately, and macro params carry `^param` forms): covered by the sweep (`macros/`) and by ingress at runtime. **Runtime journal**: the task path already wrote `TaskRefused`/`ParseFailed` (CE-1249); the SOP path (`StartSop`) wrote nothing — it does now, same kind and reason (the AAR / Brain tab shows it). Rails: `ScenarioLoadStepTests.CE2377_…` (typo'd key → throws naming the slot, key; nothing extracted; unknown behaviour; a good slot is not refused; no registry ⇒ skipped), `NodeBootstrapperReplayTests.CE2377_TheBehaviorRegistry_ReachesTheScenarioLoadStep` (forwarding), `SopSlotTests.CE2377_…` (journal, task + SOP path); each red-proved by a compiling mutation.
+
+
 ```mermaid
 classDiagram
     direction LR
@@ -416,6 +423,8 @@ graph TD
 *Caption:* the trigger and its actions run only where `BrainTickSystem` runs (the Brain node and the editor); every other node only RECEIVES — the
 status and result topics, the message event. The red edge: replay never fires a trigger (T10).
 
+⭐ **CE-4155 AS BUILT `2026-11-02` (SR-82 — who caused the harm; the S1-f row's "drones / gas wait for CE-4155" is closed).** Measured first: gunfire / blasts / remote hits already set `Source`; ⭐ **drones were already attributed** (the warhead's `DetonationNotification.Shooter` = the drone, `DroneImpactSystem.cs:115`; the sourceless event beside it is the drone's OWN destruction) and **ejection** is the crew leaving their own aircraft (no one's harm) — both now say so in a comment, no change. The two REAL gaps: ① **a gas cloud's pulse** — `AreaEffectCloud` gained `CreatorNetworkId` + `OriginalCreatorNetworkId` (appended; on `EntityAreaEffectCloud` and both translators), written by `AreaEffectSystem.RequestCloud` from the detonation's `Shooter` / `OriginalShooter`, resolved on the node that runs the cloud (`NetworkIdResolver.ResolveNetworkId`) and set as every pulse's `Source` / `OriginalSource`; a canister burning in a man's HAND names him (he is cooking it) with `HeldFuze.OriginalShooter` as the original. ② **a REthrown round** — `OriginalShooter` rides pick-up grant (`PickUpGrantEvent`, crossing as the interaction's `actor`) → `HeldFuze` → `WeaponFireIntent` (cook-off and the deliberate throw back via `ShootAtPoint(originalShooter:)`) → wire `WeaponFireRequest.OriginalShooterEntityId` → `BallisticProjectile` → `DetonationNotification` (`Detonate`, `GuidedRoundSystem`, `HitResolutionSystem`) → `DamageAssessedEvent.OriginalSource` (new; Null = the same as `Source`) → wire `EntityHitDamage.OriginalSourceEntityId`. A round already rethrown keeps ITS first thrower through the next pick-up (grant = round's `OriginalShooter`, else its `Shooter`). `NoHarm` gained `attribute` = `last` (default, `Source`) | `original` (`OriginalSource`, else `Source`) | `both` (`HarmAttribute`, `NoHarmBehavior.Attributed`). Every struct stays unmanaged; every new field is appended. Rails: `AreaEffectCloudTests.CE4155_*`, `RoundPickUpTests.CE4155_*`, `FireProcessingSystemTests.CE4155_*`, `WarheadFlightTests.CE4155_*`, `AreaEffectSystemTests.CE4155_*`, `DamageCalculationSystemTests.CE4155_*`, SimHost `HitDamageAcrossNodesTests` / `DamageAssessedEgressTranslatorTests` / `EntityHitDamageIngressTranslatorTests` / `WeaponFireIntentEgressTranslatorTests` / `InteractionTransportTests` / `BodyPartReplicationTests` / `ScenarioRulesTests.CE4155_NoHarm_Attribute_*`.
+
 #### 00.9.1 ⭐ LIVE — S2 on a cluster (`2026-11-02`, `--mode all`, `scenarios/sr-triggers-march`)
 
 | sim s | what happened |
@@ -431,6 +440,139 @@ status and result topics, the message event. The red edge: replay never fires a 
 a separate `FdpEventBus`, `HrotNodeBuilder.cs:143`) reaches the master — fixed `878168b5d` (both Brain hosts pass it through `CgfLogicPack`), rail
 `PauseOnEnd_GoesOutOnTheNodeBus_NotTheWorldBus_AndThePackForwardsIt`. ⚠ Open: the Player's subtitle / end summary (ui, `NOTE_Behaviors_To_Ui_Player_Messages_And_Exercise_End.md`) ·
 CE-2377 (a refused trigger at load is only a Warn) · `MissionCommand Replace` refused (needs a plan format) · `Order` reaches only units the Brain node owns.
+
+### 00.10 The rules view's data — on EVERY node *(behaviors, `2026-11-02`; `HANDOFF_Coordinator_To_Behaviors_Rules_S4_And_View_Data.md` Part A)*
+
+> 🔒 **User, `2026-11-02`:** *"The objective view and the summary panel should be displayable on any node so we need replication for necessary info."*
+
+📐 **A1 measured:** a rule entity's whole definition (`when`, `do`, deadline, delay …) travels as the brain-intent JSON (`EntityBrainIntent.IntentJson`,
+`BrainIntentTranslators.cs:69-85`), but its INGRESS is composed only where a behaviour registry is (`CognitiveTranslatorPack.cs:58-62`) ⇒ a Brain / editor
+receives it, ⛔ a Player / IG never does — and SR-120 already rejected every HUD parsing JSON. ⇒ the view's data rides the status topic every node has
+(`EntityObjectiveStatus`, 171, `SharedTranslatorPack`) as unmanaged fields, written by the owner.
+
+| # | decision | why |
+|---|---|---|
+| **V-1** links (A1/A2) | `ObjectiveStatus` gains `DependsOn` (≤ 8 net ids — the entities a trigger's `when` names: `OnEntity` refs, recursively) and `ActsOn` (≤ 8 — the targets its `do` names: `SetObjectiveActive` / `Order` / `MissionCommand` targets), written at assignment from the params (the behaviour already parses them) | one shape on one topic; static, so the change-only egress sends them once |
+| **V-2** timing (A2) | `ObjectiveStatus` gains `HoldFor`, `Delay`, `Cooldown`, `Deadline` (sim s, 0 = none) and `ExpectedAt` (sim s of the NEXT thing the owner already knows will happen: Waiting ⇒ edge + delay · Holding ⇒ since + holdFor · Cooldown ⇒ its end · an Active objective with a deadline ⇒ the deadline; 0 = unknown) | the view draws dashed expected bars from it; ⛔ the frontend never re-derives timing |
+| **V-3** live leaf values (A3) | a STATE topic `EntityRuleLeaves` (descriptor **174**): per trigger ≤ 8 leaves `{ FixedString32 Label, byte Value, float Measured }`, flattened from its `when` (each leaf compiled ONCE through `CompileLevelPredicate`; `Measured` = the property a PropertyMatch reads, else 0/1). Published by the owner at ≤ 2 Hz and ONLY while the node feature `ui.rules-live-values` is on (`AtLoad` off, `Live` on demand) | ⛔ never every frame for every trigger (the handoff) |
+| **V-4** runtime control (A4) | a small unmanaged component `RuleControl { byte Request (Fire · Disarm · Rearm · Reset · Activate · Deactivate); int Seq }` written through the EXISTING attribute path (`EntityWriteRouter.For(repo)`: local apply on the owner, a change-request to the owner elsewhere — recorded); `ObjectiveHost.Enter` honours a new `Seq` once and JOURNALS it with its origin (T9, SR-114) | ⛔ no new command transport; one owner of every rule entity's state |
+
+⭐ **AS BUILT — V-1 / V-2 (task 14, `2026-11-02`).** `ObjectiveStatus` (425) gained, at the end: `DependsOnCount`+`DependsOn` (`NetIds8`), `ActsOnCount`+`ActsOn`, `HoldFor`, `Delay`, `Cooldown`, `Deadline`, `ExpectedAt`.
+**Who writes:** `RuleLinks.Compute` (`Brains/Objectives/RuleLinks.cs`) — DependsOn = every `OnEntity` ref in the `when` JSON (Compound children, an OnEntity's / CountMatching's inner predicate walked); ActsOn = the `target`
+key of every `do` step's args (**the step's JSON args**, read as an `EntityLink`, not the action's params type — it never builds a slot; a `"@Key"` target resolves in the live world through `WorldRefScope`). Run at
+`TriggerBehavior.Resolve` and kept in the trigger's blackboard (`Block.DependsOn/ActsOn`); a ref not resolvable yet sets `LinksPending` and the tick asks again (≤ 30 tries). `TriggerBehavior.WriteViewData` copies them and
+HoldFor/Delay/Cooldown/Deadline into the status every tick and sets `ExpectedAt` (Waiting ⇒ `WaitUntil` = edge + holdFor + delay · Holding ⇒ edge + holdFor · Cooldown ⇒ its end · Armed with a deadline ⇒ the deadline · 0 otherwise / final).
+**Every kind:** `ObjectiveRules.Timing` (called from `ObjectiveHost.Enter`) writes `Deadline` and `ExpectedAt` = the deadline while Active; `Settle` / `OnClose` zero `ExpectedAt` once final — ONE place.
+**Wire:** `EntityObjectiveStatus` (171) carries them as `[DdsManaged] List<int> DependsOn / ActsOn` (null = none) + `HoldFor/Delay/Cooldown/Deadline` floats + `ExpectedAt` double (the ≤ 8 cap is the component's); all are in `SameDisplayAndState` ⇒ they go
+at once. **Route:** `GET /objectives` rows carry `dependsOn`, `actsOn`, `timing{holdFor,delay,cooldown,deadline,expectedAt}`. Rails: `ScenarioRulesTests.ViewData` (links, ExpectedAt while Waiting, objective deadline),
+`ObjectiveStatusWireTests` (full round trip + a second world's ingress + ExpectedAt at once), `TheObjectivesRouteShowsTheTreeTests`.
+
+⭐ **AS BUILT — V-4 (task 15, `2026-11-02`).** `RuleControl` (**430**, `Fdp.Toolkit.ScenarioRules/RuleControl.cs`, NoScenario, **brain-local — no descriptor**): `byte Request` (`RuleRequest`: NoRequest · Fire · Disarm · Rearm · Reset · Activate · Deactivate —
+⚠ `NoRequest`, not `None`: the assembly's enums share one IDL scope) · `byte Origin` (`RuleOrigin`: Unknown · DebugApi · Instructor) · `int Seq` · `int Done` (the last Seq the owner acted on; written by the owner only). ⚠ Two fields beyond the brief: `Origin`
+(the journal text needs it) and `Done` (the once-per-Seq memory). **Attribute path:** three attributes — `Rule.Request` (id 40) · `Rule.Seq` (41) · `Rule.Origin` (42) — declared in `AttributeVocabulary` with `BrainLocal: true` (the precedent: CE-4024's `CivilianState`
+fright, so `TheDescriptorMapIsWiredTests` needs no translator), JSON paths in `AttributeCompilerFactory.Build`, binary arm `RuleControlAttributeInstaller` (typed `RegisterHandler<RuleControl>` ⇒ gated on the owner's authority bit). **Atomic** by the router's list write: all three go in ONE
+`Write(entity, changes)` ⇒ ONE change-request, so the owner never sees a Seq without its Request. **Who may apply:** `ObjectiveHost.Enter` adds `RuleControl` to the entity AND sets its authority bit on the OWNER (the node whose Brain ticks it); a replica has neither, so the router's local attempt applies nothing and it publishes the request
+(rail `OnANodeThatDoesNotOwnTheRule…` applies the published changes through the owner's interpreter). **Honoured once:** `ObjectiveHost.HonourControl` acts on a `Seq` ≠ `Done` — Activate / Deactivate / Disarm / Reset through `ObjectiveRules.SetActive` (the ONE SR-114 implementation, shared with `SetObjectiveActive`); `Fire` / `Rearm`
+come back in `Frame.Control` for `TriggerBehavior.Control` (Fire = `StartActing` now, skipping holdFor / delay, only from Armed / Holding / Waiting / Cooldown; Rearm = Armed with `Prev` = the condition as it is now, no edge; a final one refuses — it needs a Reset). A refusal writes the entity's `Reason`.
+**Journal:** new `BrainJournalKind.RuleControl` (A = request, B = Seq, Origin, Cause 1 = refused), text "Disarm by Instructor" (`EntityBrainView`). **Route:** `POST /objectives/{networkId}/control {"request":"Disarm"}` → `DebugApiService.ControlObjective` (Seq = the last seen here + 1, or a node-local counter on a replica; answers `route: direct | requested`); RouteDoc `control_objective`,
+listed in `WorldChangingRoutes`, tool catalog + SKILL regenerated. Rails: `ScenarioRulesTests.Control` (fire · disarm→rearm · reset · same Seq once + journal · non-owner request), `TheObjectivesRouteShowsTheTreeTests` (owner direct, replica requested), `TheFourRoutingTablesAgreeTests` (the three rows).
+
+⭐ **AS BUILT — V-3 (task 16, `2026-11-02`).** `RuleLeaves` (**431**, `Fdp.Toolkit.ScenarioRules/RuleLeaves.cs`, NoScenario, Brain group): `byte Count` + `Leaf8` (InlineArray of `RuleLeaf { FixedString32 Label; byte Value; float Measured }`) — unmanaged, rewritten twice a second without allocating.
+**The plan:** `RuleLeafPlan.Of(when, IPredicateCompiler)` (`ScenarioRules/RuleLeafPlan.cs`; ⚠ the compiler is a parameter — the plan lives in Fdp.Toolkits, the shared compiler instance in `TriggerWhen`) flattens the `when` — descends `Compound` only, every other predicate (an `OnEntity` with its inner one included) is ONE leaf, ≤ 8 (`Truncated` says more existed) —
+each leaf compiled ONCE: its test through `CompileLevelPredicate` (the arm the trigger's own condition uses), its number through the NEW `IPredicateCompiler.CompileLeafMeasure` (default-throws like the level entry; `PredicateCompiler.Measure.cs`). **One reader, not two:** the PropertyMatch arms' member-chain walk is now `PredicateCompiler.FieldAccess` (both matchers and the measure use it), `ScenarioTime`'s clock is `ScenarioNow` (the predicate and the number),
+`CountMatching`'s counting is `MatchCounter` (the predicate counts up to Max, the number counts all). `Measured`: PropertyMatch ⇒ the numeric / enum / bool value of the property (an `OnEntity` reads it on the entity it resolves to; a non-numeric property ⇒ the 0/1) · ScenarioTime ⇒ now · CountMatching ⇒ the count · everything else ⇒ 0/1. Labels: `Health.Current` · `#9812 Health.Current` / `@Bridge Health.Current` (the target's AUTHORED ref text + the inner leaf) · `ScenarioTime` · `Count Health.Current` · `Spatial` · `Lifecycle` · `Has <Comp>` · `Event <T>`.
+**Cache:** `TriggerLeaves.Get(whenJson)` (Hrot.AI.Behaviors) — process-wide by JSON content, beside `TriggerWhen`, sharing its compiler; a `when` that does not compile caches null.
+**The sampler:** `RuleLeafSampler` (`Brains/Objectives/RuleLeafSampler.cs`), `[NodeFeature("ui.rules-live-values")]`, `FeatureDeclaration.Switch(…, FeatureChange.Live, _ => false)` ⇒ OFF at load, switched on demand; listed in `CgfCapabilities.Brain.Features` and `EditorCapabilities.Brain.Features` (and the integration `EditorHarness`'s gate), registered in `CgfLogicPack` right after `ExercisePauseOnEndSystem` (pack counts +1: 34 / 41).
+While the feature is OFF the scheduler skips the system — nothing is written, nothing flows. ON: at most one pass per `PeriodSeconds` (0.5 s) of SIM time (a clock that went back reopens the window) over every `ObjectiveStatus` with `Role == Trigger` THIS node owns — ⚠ the owner test is **`RuleControl` present + its authority bit** (the one V-4 already gives to the node whose Brain ticks the rule; a replica has neither),
+not a second definition — adds `RuleLeaves` when missing and overwrites it from the plan. **When the feature goes off the owner simply stops writing: the last sample STAYS on the entity and on every replica (a viewer shows it greyed; the RouteDoc says so).**
+**Wire:** `dtRuleLeaves = 174` → `GlobalComponentIds.RuleLeaves` in the Brain group (`HrotOwnershipGroups`, `NedOwnershipGroupBinding`); topic `EntityRuleLeaves` (key `EntityId`; `[DdsManaged] List<DdsRuleLeaf> Leaves` — null = none; ⚠ no separate `Count`: the list's count IS the count; `DdsRuleLeaf { string Label; byte Value; float Measured }`),
+IDL `hrot-scenario-rules`, QoS = `EntityObjectiveStatus`'s. `EntityRuleLeavesEgress/IngressTranslator` (`Replication/Map/EntityRuleLeavesTranslators.cs`): egress change-only, owner only — ⛔ no throttle of its own (the sampler is the throttle); ingress holds a sample for an unknown entity, drops the recorded owner's own; both in `SharedTranslatorPack`; `RuleLeaves` registered in `HrotSharedComponentRegistry`; NED inventory row added (`ned-wire-inventory.py --check` OK).
+**Route:** `GET /objectives` trigger rows add `leaves: [{label, value, measured}]` once sampled (absent before; never on a non-trigger). Rails: `ScenarioRulesTests.Leaves` (the plan: nested Compound(OnEntity(PropertyMatch), ScenarioTime, CountMatching) ⇒ 3 labelled leaves, measured values live, cache, ≤ 8 · the sampler: off ⇒ nothing, on ⇒ ≤ 2 Hz, owner only, the last sample stays when off · the pack carries it),
+`RuleLeavesWireTests` (round trip · change-only · owner only · a replica's ingress), `TheObjectivesRouteShowsTheTreeTests.ATriggerRow_CarriesItsLeaves…`; red-proofs: `Measured` forced to the 0/1 · `[NodeFeature]` removed · the 0.5 s window removed · `Measured` dropped from the wire form — each red.
+
+```mermaid
+classDiagram
+    direction LR
+    class ObjectiveStatus { <<425, on 171>> + DependsOn[8] · ActsOn[8] · HoldFor · Delay · Cooldown · Deadline · ExpectedAt }
+    class RuleLeaves { <<NEW component, on 174>> Leaf[8]: Label · Value · Measured }
+    class RuleControl { <<NEW component, attribute-written>> Request · Seq }
+    class TriggerBehavior { <<existing>> writes links + timing; feeds leaves }
+    class ObjectiveHost { <<existing>> honours RuleControl once, journals }
+    class EntityWriteRouter { <<existing>> local apply or change-request to the owner }
+    class LeafSampler { <<NEW system, Brain>> 2 Hz, only while ui.rules-live-values }
+    class Frontend { <<ui>> rules view · mission summary · HUD on ANY node }
+    TriggerBehavior ..> ObjectiveStatus
+    LeafSampler ..> RuleLeaves
+    Frontend ..> ObjectiveStatus : reads (replicated)
+    Frontend ..> RuleLeaves : reads (replicated)
+    Frontend ..> EntityWriteRouter : fire / disarm / reset
+    EntityWriteRouter ..> RuleControl
+    ObjectiveHost ..> RuleControl
+```
+
+```mermaid
+sequenceDiagram
+    participant IOS as instructor (any node)
+    participant WR as EntityWriteRouter
+    participant B as Brain (owner) · ObjectiveHost
+    participant W as egress 171 / 174
+    IOS->>WR: RuleControl.Request = Disarm (Seq n)
+    WR->>B: change-request (recorded) — or a local apply on the owner
+    B->>B: next tick: Seq new ⇒ Disarm · journal "disarmed by the instructor"
+    B->>W: ObjectiveStatus TriggerState Disarmed
+    W-->>IOS: the view updates
+```
+
+*What the pictures show that prose hid:* every frontend READS two topics and WRITES one attribute — the owner stays the one place a rule's state changes,
+so a disarm from a Player-node IOS and from the editor take the same path.
+
+### 00.11 S4 — per-member evaluation: build decisions *(behaviors, `2026-11-02`; handoff Part B; on backend's `InsertMacro` (Macros §16) and CE-4155)*
+
+| # | decision | why / basis |
+|---|---|---|
+| **E-1** `MemberEvaluation` | an objective KIND (TKB 8860, the task slot) whose `Subject` is a commander; params `{ common, library: "macros/evaluation/<set>", overrides: {key→macro} }`. Each tick it walks the subject's `UnitRoster` (ONE level — a role macro may itself hold a `MemberEvaluation`, SR-72) and, for a member it has not served, picks the macro by SR-81: `overrides[@RefKey]` → `<library>/<RefKey>` → `<library>/<TacticalDesignation>` → `<library>/<entity class>` → `<library>/Default` (first file the node's macro library HAS), and inserts it through the SAME request `InsertMacro` publishes (one helper, `MacroInsertion.Request`) with args `{ subject: <member>, parent: <this evaluation> }`. Served members are remembered in its blackboard (≤ 16 net ids); a casualty's instance STAYS (it keeps its result); a reinforcement gets one | SR-72 / 72a / 81; ⛔ no second insertion path |
+| **E-2** measures | kinds with `Role = Measure`, `Value` / `Target`, `Score` by `ObjectiveRules.Score` (clamp Value / Target; a "lower is better" measure declares `lowerIsBetter`): `HitRatio` (hits ÷ shots by the subject's men — `WeaponFireIntent` shooter, `DamageAssessedEvent.Source` on a hostile, CE-4155 `attribute` last / original / both) · `Count { what: shots / hits / kills / fratricide / civiliansHarmed / reports }` · `ReportLatency` (`SquadReportNotification` from the subject: `SentAt − ObservedAt`, the mean of the run so far) · `TimeTo { objective }` (scenario start → that objective's `ChangedAt` when Achieved) · ⭐ SR-20 adapters: `Sample { input, aggregate: mean / max / timeAbove }` reads a registered `[UtilityInput]` on the subject (no fourth registry) and the predicate leaf `InputAbove { input, threshold }` (a `SearchPredicateDto` leaf with a level arm) | SR-20, §10.3 |
+| **E-3** roll-up + groups | ⭐ nothing new to aggregate: an evaluation macro's ROOT is a composite (`WeightedMean` by default) with `Parent` = the commander's evaluation, so the tree IS the roll-up up the chain. `ObjectiveCommon` gains `group` (FixedString32: mission · fire · reports · conduct …, from the macro, ⛔ not hard-coded) and it rides the status (171). The per-side HEADLINE = the root composites by subject side (`Score`, pass mark = its `Target`) — read by a frontend from the replicated rows, the same at the end in `ExerciseResult` | SR-75, SR-111 |
+| **E-4** history (trend) | ⛔ no new store. Statuses are RECORDED components ⇒ after the run the recording gives any status's value over time (the Replay Browser's index); LIVE, a frontend keeps its own small ring of the replicated `Score` it receives (it is the one viewing). Measure first what the timeline index already offers; build only the gap | the handoff ("prefer the existing timeline index / recording") |
+| **E-5** debrief / HUD data | ⭐ comes FROM E-1…E-3: a trainee's standards = the statuses whose `Subject` is him (GO = Achieved, NO-GO = Failed / Skipped-required), his squad / platoon = their evaluations up the `Parent` chain, kills / assists = `Count` measures. ⛔ nothing computed twice; the screens are ui's | SR-112, R-4105 |
+
+```mermaid
+classDiagram
+    direction LR
+    class MemberEvaluation { <<NEW kind>> library · overrides · served[16] }
+    class MacroInsertion { <<NEW shared helper>> Request(macro, at, args, guid) }
+    class InsertMacro { <<existing verb, backend>> }
+    class IMacroLibrary { <<existing>> which macro files this node has }
+    class Measures { <<NEW kinds>> HitRatio · Count · ReportLatency · TimeTo · Sample }
+    class InputAbove { <<NEW predicate leaf>> [UtilityInput] over a threshold }
+    class UtilityInputs { <<existing registry>> [UtilityInput] }
+    class WeightedMean { <<existing aggregator>> the roll-up }
+    class ObjectiveStatus { <<existing 425 / 171>> + Group }
+    MemberEvaluation ..> MacroInsertion
+    InsertMacro ..> MacroInsertion
+    MemberEvaluation ..> IMacroLibrary : SR-81 lookup
+    Measures ..> UtilityInputs : Sample
+    InputAbove ..> UtilityInputs
+    Measures ..> ObjectiveStatus : Role Measure
+    WeightedMean ..> ObjectiveStatus : children by Parent
+```
+
+```mermaid
+sequenceDiagram
+    participant ME as MemberEvaluation on "1st Platoon"
+    participant L as macro library (node)
+    participant C as creation path
+    participant M as member macro (Rifleman 3's)
+    ME->>ME: tick — Rifleman 3 not served yet
+    ME->>L: @PL-Trainee? no · Rifleman? yes
+    ME->>C: MacroInsertion.Request(Rifleman, args {subject: R3, parent: ME})
+    C->>M: expanded: HitRatio · Count(fratricide) · WeightedMean root (Parent = ME)
+    M->>M: each tick: measures write Value / Score
+    ME->>ME: WeightedMean over its children (the members' roots) = the platoon's score
+```
+
+*What the pictures show that prose hid:* S4 adds kinds and one helper — the roll-up, the groups, the debrief and the HUD are READINGS of the status tree
+that already replicates to every node.
 
 ⭐ **SR-145** ✅ `2026-11-01` — **objectives and triggers have NO feature switch: they are scenario CONTENT, like cars.** 🔒 user, `2026-11-01`: *"The triggers and objectives, they are entities like cars or whatever else, and they are probably a core system feature as well. So is there anything that we can turn on or off? They are either present in the scenario or they don't. And if they are, they should be working, as the system knows how to handle them."* → *"Yes."* to the lean. ⭐ Measured against every reason to switch them off — free play (per scenario: the instructor disarms a trigger / switches an objective off, T9 / `SetObjectiveActive`, or a run variant / param, SR-101), debugging (the same), performance (a handful of entities, one small behaviour each), a node that cannot run them (any Brain node runs every behaviour), replay (brains do not tick, T10), old builds (no backward compatibility) — none holds. ⇒ ⛔ no `scenario.rules` feature; the ONLY check is the behaviour registry's: an unknown kind / action fails the load loudly. Real switches stay where the run is PRESENTED or PLAYED differently (`exercise.pause-on-end`, `hud.*`, `gameplay.team-kill`). Supersedes SR-6's "master refuses to start" clause and `DESIGN_Node_Features.md` F-17's `scenario.rules`.
 

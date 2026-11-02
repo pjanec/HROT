@@ -81,6 +81,7 @@ namespace Hrot.Network.NED.SimHost
                     EffectSeconds = evt.EffectSeconds,
                     SourceEntityId = sourceId,
                     SourceNodeId   = _localNodeId,   // ⭐ CE-3246 — so this node drops its own sample
+                    OriginalSourceEntityId = !evt.OriginalSource.IsNull && _entityMap.TryGetNetworkId(evt.OriginalSource, out int os) ? os : 0,   // ⭐ CE-4155 (SR-82)
                 });
                 SentSampleCount++;
             }

@@ -88,7 +88,13 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>Harm by anybody (BySide ignored).</summary>
         [JsonPropertyName("anySide")] public bool AnySide;
         [JsonPropertyName("maxCount")] public int MaxCount;
+        /// <summary>⭐ CE-4155 (SR-82) — whose side is judged for a RETHROWN round's harm: <c>last</c> (default; <c>DamageAssessedEvent.Source</c>), <c>original</c>
+        /// (the first thrower, <c>OriginalSource</c>, else the source), <c>both</c> (either side counts).</summary>
+        [JsonPropertyName("attribute"), JsonConverter(typeof(JsonStringEnumConverter))] public HarmAttribute Attribute;
     }
+
+    /// <summary>⭐ CE-4155 (SR-82) — which source of a harm a <c>NoHarm</c> judges. <c>Last</c> = 0 so an absent param keeps the old behaviour.</summary>
+    public enum HarmAttribute : byte { Last = 0, Original = 1, Both = 2 }
 
     /// <summary><c>WeightedMean</c>: a composite scoring its children (<c>ObjectiveLinks.Parent</c> = it) by weight.</summary>
     [ParamsDto]

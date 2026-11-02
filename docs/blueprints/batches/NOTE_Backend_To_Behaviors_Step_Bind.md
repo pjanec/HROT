@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — backend → behaviors: two items on the action machinery, found building macros S3b B1
+state: LIVE — backend → behaviors: four items on the action machinery, found building macros S3b B1
 updated: 2026-11-02
 current-answer: the whole note
 stale-below: nothing
@@ -34,5 +34,12 @@ Not done here: two other lanes' files.
 `StepRunner` chose to resolve a step's links by `EntityRefRemap.HoldsRefs(typeof(TP))` — the load's *"does it hold a network id to remap"* question,
 which leaves out `PointLink`. ⇒ `InsertMacro {"at":"@Drop"}` stood at (0,0,0) live. Now `HoldsLeaves` (resolution is an identity on a plain point or
 bearing). Rail `ScenarioRulesTests.InsertMacro_AtAKey_StandsAtThatEntity` (red-proved). ⚠ Any other verb whose only reference is a place had the same hole.
+
+## 4. FYI — your proficiency code gained the side AMPLIFIER (macros S3b B3, SR-100 / R-4106 / P-5) — `90d55774d`
+
+`CombatProficiency` (your CE-2273) has one more field, `SideTiers` (sbyte, on the wire dt 150); `ProficiencyOf.Value` now returns
+`Amplify(Own(p), p.SideTiers)` — with 0 tiers it is EXACTLY the old value (`Own` is the old body), so every existing reader and rail is unchanged.
+`ProficiencyFillSystem` gained `FillSideTiers`: every man with a brain gets his SIDE's tiers from the World Environment's `SkillAmplifier` (480),
+written only on a change. The verb `SetSkillAmplifier(side, tiers ±2)` is in your Verbs folder (`SkillVerbs.cs`). Design: macros §17.
 
 _backend lane, 2026-11-02_

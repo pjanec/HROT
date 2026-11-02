@@ -1098,6 +1098,15 @@ namespace Fdp.Core
         /// reason; <c>NodeStatus</c> carries none). Brain-local, NoScenario. Behaviors' block 418–433 (R-2056).</summary>
         public const int ActionFailure = 429;
 
+        /// <summary>⭐ rules V-4 (behaviors; 📄 docs/DESIGN_Scenario_Rules.md §00.10) — <c>RuleControl</c>: a runtime request to a rule entity (fire · disarm · rearm · reset ·
+        /// activate · deactivate), written through the attribute path (<c>Rule.Request</c> / <c>Rule.Seq</c> / <c>Rule.Origin</c>) and honoured ONCE per new Seq by the owner's
+        /// <c>ObjectiveHost.Enter</c>. Brain-local, NoScenario. Behaviors' block 418–433 (R-2056).</summary>
+        public const int RuleControl = 430;
+
+        /// <summary>⭐ rules V-3 (behaviors; 📄 docs/DESIGN_Scenario_Rules.md §00.10) — <c>RuleLeaves</c>: a trigger's <c>when</c> leaves with their live values (≤ 8: label, 0/1, measured number),
+        /// sampled at ≤ 2 Hz by the owner while the node feature <c>ui.rules-live-values</c> is on; Brain group, replicated as <c>dtRuleLeaves</c> (174), NoScenario. Behaviors' block 418–433 (R-2056).</summary>
+        public const int RuleLeaves = 431;
+
         /// <summary>⭐ <c>CE-3264</c> (backend, G1) — <c>Utterance</c>: what a man is saying now, Brain group, replicated as <c>dtUtterance</c>
         /// (152). 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.18. ⭐ From the TOP of backend's proposed block 434–449
         /// (NOTE_Backend_To_All_Lanes_Component_Id_Space.md), not the contested sequential top; measured free on every lane 2026-10-19.</summary>
@@ -1173,6 +1182,9 @@ namespace Fdp.Core
         /// that writes world state returns early while it is set (DESIGN_Replay_Time_Axis_And_Review §12l). Transient. 478 free on every
         /// lane by a census, 2026-10-26.</summary>
         public const int ReplayState = 478;
+        /// <summary>⭐ Macros S3b B3 (backend, SR-100 / R-4106 / P-5; backend's 434–449 is full) — <c>SkillAmplifier</c>: the per-SIDE AI skill
+        /// amplifier in tiers, on the World Environment; unmanaged, recorded, saved. 480 free on every lane by a census, 2026-11-02.</summary>
+        public const int SkillAmplifier = 480;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;

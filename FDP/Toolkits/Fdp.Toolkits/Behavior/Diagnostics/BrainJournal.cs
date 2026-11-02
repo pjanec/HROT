@@ -40,6 +40,8 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         OrderIssued,
         /// <summary>An HSM region's active state changed. Origin = the region, A = from state, B = to state (state indices).</summary>
         StateChanged,
+        /// <summary>⭐ rules V-4 — a rule entity honoured a runtime request. A = the <c>RuleRequest</c>, B = its Seq, Origin = the <c>RuleOrigin</c>, Cause = 1 when it was refused.</summary>
+        RuleControl,
     }
 
     /// <summary>⭐ <c>CE-1249</c> (BV-13) — why the gate refused an assignment.</summary>

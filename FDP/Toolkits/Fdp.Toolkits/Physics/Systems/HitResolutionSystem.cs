@@ -106,6 +106,7 @@ namespace Fdp.Toolkit.Physics.Systems
                     //   here — its TearDown is queued below).
                     float penetration = 0f, damage = 0f;
                     long ammo = 0;   // ⭐ CE-1032 W-2 — the round's munition type, for the area effect
+                    Entity originalShooter = Entity.Null;   // ⭐ CE-4155 (SR-82) — a rethrown round's first thrower
                     System.Numerics.Vector3? muzzle = null;   // ⭐ M1 — for a zero-length segment's travel
                     if (repo.IsAlive(bulletEntity)
                         && repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.BallisticProjectile>()
@@ -118,6 +119,7 @@ namespace Fdp.Toolkit.Physics.Systems
                         penetration = bp.Penetration;
                         damage      = bp.Damage;
                         ammo        = bp.Ammo;
+                        originalShooter = bp.OriginalShooter;
                         if ((bp.TerrainFlags & 1) != 0) muzzle = bp.Muzzle;
                         // ⭐ Buildings §3d P2 (R-217) — the walls/fences/floors between the MUZZLE and the struck unit: the round is
                         //   carried from where it was fired (its Damage/Penetration are the muzzle values), so this is exact however many
@@ -170,6 +172,7 @@ namespace Fdp.Toolkit.Physics.Systems
                         Penetration = penetration,
                         Damage      = damage,
                         Ammo        = ammo,
+                        OriginalShooter = originalShooter,   // ⭐ CE-4155
                         HasBodyPart = hit.HasBodyPart,   // ⭐ CE-3209 (HL-5) — the part met and the face entered
                         BodyPart    = hit.BodyPart,
                         Face        = hit.Face,

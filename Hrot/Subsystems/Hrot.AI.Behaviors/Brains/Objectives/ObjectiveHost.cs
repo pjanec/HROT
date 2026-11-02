@@ -19,6 +19,8 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             public bool Evaluate;
             /// <summary>⭐ SR-114 — this tick RESTARTED the objective (a reset was requested): the kind clears its own working state now.</summary>
             public bool Reset;
+            /// <summary>⭐ V-4 — a <see cref="RuleRequest"/> the trigger itself carries out this tick (<c>Fire</c> / <c>Rearm</c>); the rest the host already applied.</summary>
+            public RuleRequest Control;
         }
 
         /// <summary>⭐ SR-116 — how a status meets the exercise closing: <b>Own</b> = closed by its kind's OnClose rule at its next tick · <b>Composite</b> = closed
@@ -36,8 +38,15 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         {
             if (!world.HasComponent<ObjectiveStatus>(self)) world.AddComponent(self, new ObjectiveStatus());
             if (!world.HasComponent<ObjectiveLinks>(self)) world.AddComponent(self, new ObjectiveLinks());
+            if (world.IsComponentTypeRegistered<RuleControl>() && !world.HasComponent<RuleControl>(self))
+            {
+                // ⭐ V-4 — the OWNER holds the control component and its authority bit, so the attribute path's gate (CanWrite) lets a request in here and nowhere else
+                world.AddComponent(self, new RuleControl());
+                world.SetAuthority(self, ComponentTypeRegistry.GetOrRegisterManaged(typeof(RuleControl)), true);
+            }
             double now = Now(world);
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
+            var control = HonourControl(world, self, ref s, role, now);
             ref var l = ref world.GetComponentRW<ObjectiveLinks>(self);
             double dt = 0;
             byte then = 0;
@@ -55,6 +64,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             if (run.Began == 0)
             {
                 ObjectiveRules.Begin(ref s, ref l, in c, kind, role, now);
+                ObjectiveRules.Timing(ref s, in c);
                 if (then != 0) s.State = then == 1 ? ObjectiveState.Active : ObjectiveState.Inactive;
                 run.Began = 1;
                 Fdp.Core.Logging.FdpLog<Log>.Info($"objective '{s.Title}' {kind}: begins {s.State}");
@@ -63,13 +73,48 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             {
                 ObjectiveRules.CopyLinks(ref l, in c);
                 ObjectiveRules.Display(ref s, in c);
+                ObjectiveRules.Timing(ref s, in c);
                 dt = now > run.LastNow ? now - run.LastNow : 0;
             }
             run.LastNow = now;
             // ⭐ SR-116 — the exercise is closing (or ended): this status takes its kind's OnClose rule, once, and nothing changes it afterwards.
             if (close == CloseMode.Own && s.Closed == 0 && ExerciseResult.PhaseOf(world) != ExercisePhase.Running)
                 ObjectiveRules.OnClose(ref s, ObjectiveRules.CloseRuleOf(kind, capture), now);
-            return new Frame { Now = now, Dt = dt, Reset = then != 0, Evaluate = s.Closed == 0 && s.State == ObjectiveState.Active };
+            return new Frame { Now = now, Dt = dt, Reset = then != 0, Evaluate = s.Closed == 0 && s.State == ObjectiveState.Active, Control = control };
+        }
+
+        /// <summary>
+        /// ⭐ rules V-4 (§00.10) — honours a <see cref="RuleControl"/> request ONCE per new <c>Seq</c> (<c>Done</c> remembers the last), journals it on the entity
+        /// ("&lt;request&gt; by &lt;origin&gt;"). Activate / Deactivate / Disarm / Reset go through <see cref="ObjectiveRules.SetActive"/> — the ONE SR-114 implementation
+        /// (<c>SetObjectiveActive</c> calls it too); <c>Fire</c> / <c>Rearm</c> are a trigger's and come back for it to carry out.
+        /// </summary>
+        private static RuleRequest HonourControl(EntityRepository world, Entity self, ref ObjectiveStatus s, ObjectiveRole role, double now)
+        {
+            if (!world.IsComponentTypeRegistered<RuleControl>() || !world.HasComponent<RuleControl>(self)) return RuleRequest.NoRequest;
+            ref var rc = ref world.GetComponentRW<RuleControl>(self);
+            if (rc.Seq == rc.Done) return RuleRequest.NoRequest;
+            var request = (RuleRequest)rc.Request;
+            int seq = rc.Seq; byte origin = rc.Origin;
+            rc.Done = seq;
+            string? refused = null;
+            var forTrigger = RuleRequest.NoRequest;
+            switch (request)
+            {
+                case RuleRequest.Activate: refused = ObjectiveRules.SetActive(ref s, true, false, now); break;
+                case RuleRequest.Deactivate:
+                case RuleRequest.Disarm: refused = ObjectiveRules.SetActive(ref s, false, false, now); break;
+                case RuleRequest.Reset: refused = ObjectiveRules.SetActive(ref s, true, true, now); break;
+                case RuleRequest.Fire:
+                case RuleRequest.Rearm:
+                    if (role == ObjectiveRole.Trigger) forTrigger = request; else refused = $"{request} is a trigger's request";
+                    break;
+                default: refused = "no such request"; break;
+            }
+            if (refused != null) s.Reason = new FixedString64($"{request} refused: {refused}");
+            Fdp.Core.Logging.FdpLog<Log>.Info($"rule '{s.Title}': {request} by {(RuleOrigin)origin}" + (refused != null ? $" — refused: {refused}" : ""));
+            Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Write(world, self, Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.RuleControl,
+                a: (int)request, b: seq, origin: origin, cause: (byte)(refused != null ? 1 : 0));
+            return forTrigger;
         }
 
         /// <summary>⭐ SR-116 — a composite's close: once the exercise is closing and EVERY child is closed (its own verdict settled first), it is closed too.</summary>

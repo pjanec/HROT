@@ -36,7 +36,9 @@ related-designs:
 | S1 objectives | ✅ BUILT + LIVE — [design §00.8.1](../DESIGN_Scenario_Rules.md); scenario `sr-objectives-march`, `GET /objectives`. ⚠ open: a PLAYER node reading the statuses |
 | CE-4157 / CE-4159 | ✅ (mission triggers strict · unknown predicate type throws) |
 | S2 triggers | ✅ BUILT + LIVE — [design §00.9 / §00.9.1](../DESIGN_Scenario_Rules.md); `sr-triggers-march`: chain, end, close by kind, pause. CE-4157/4159/4160–4166 done; CE-2377 filed |
-| then | the handoff is DONE except: ui shows PlayerMessage / the end summary (note sent) · CE-2377 · next per the coordinator (S3 macros wait on backend's S3a; S4 evaluation) |
+| after-S2 handoff | ✅ PlayerMessage row · CE-4155 · CE-4205 · CE-2377 (steps 1+2) · filmed findings STOPPED by the user (CE-4135 + CE-4055 fixed, CE-4123/4124 measured, rest untouched) |
+| ⭐ NOW: S4 + view data | [handoff](batches/HANDOFF_Coordinator_To_Behaviors_Rules_S4_And_View_Data.md) · design §00.10 (view data V-1…V-4) + §00.11 (S4 E-1…E-5). Built: V-1/V-2 `d35517163`, V-4 `2e0f6162f`. Queued briefs (session scratchpad, re-derive from the design if lost): ⑯ V-3 live leaves · ⑰ backend's step-Bind note (typed ActionStep + LiveRefScope on sim time) · ⑱ MemberEvaluation · ⑲ measures + InputAbove + group · then a live run with a MemberEvaluation on a platoon + the ui note (data contract) |
+| standing order (user, 2026-11-02) | work overnight: after each piece fetch + merge `backend` / `ui`, follow NOTE / HANDOFF / bug reports addressed to behaviors FIRST (backend is building demo scenarios); ⛔ do not chase the filmed scenario findings |
 | standing Sonnet worker | agent `a851226344b2a12e2` (tasks ⑥–⑧; the first, `aa61f53891af259c3`, did ①–⑤ and filled up) — in-session ids; a new session needs a fresh one |
 
 ## N0. ⭐⭐ Now — START HERE *(written 2026-10-22 at `421c32cbf`)*

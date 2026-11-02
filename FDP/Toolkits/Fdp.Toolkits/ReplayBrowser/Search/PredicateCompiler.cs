@@ -164,12 +164,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             int typeId = ComponentTypeRegistry.GetId(typeof(T));
 
             var param = Expression.Parameter(typeof(T).MakeByRefType(), "comp");
-            Expression fieldAccess = param;
-            if (!string.IsNullOrEmpty(prop.PropertyPath))
-            {
-                foreach (string seg in prop.PropertyPath.Split('.'))
-                    fieldAccess = Expression.PropertyOrField(fieldAccess, seg);
-            }
+            Expression fieldAccess = FieldAccess(param, prop.PropertyPath);
 
             if (prop.Operator == SearchOperator.Changed) return BuildChangedMatcher<T>(typeId, param, fieldAccess, prop.PropertyPath);
 
@@ -225,12 +220,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         private static Func<EntityRepository, Entity, bool> BuildManagedMatcher<T>(PropertyMatchDto prop) where T : class
         {
             var param = Expression.Parameter(typeof(T), "comp");
-            Expression fieldAccess = param;
-            if (!string.IsNullOrEmpty(prop.PropertyPath))
-            {
-                foreach (string seg in prop.PropertyPath.Split('.'))
-                    fieldAccess = Expression.PropertyOrField(fieldAccess, seg);
-            }
+            Expression fieldAccess = FieldAccess(param, prop.PropertyPath);
 
             Expression condition = BuildConditionExpression(fieldAccess, prop.Operator, prop.Predicate);
             var matcher = Expression.Lambda<Func<T, bool>>(condition, param).Compile();

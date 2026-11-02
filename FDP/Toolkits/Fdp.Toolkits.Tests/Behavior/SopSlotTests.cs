@@ -356,6 +356,41 @@ namespace Fdp.Toolkit.Behavior.Tests
         private static Fdp.Toolkit.Behavior.Diagnostics.BrainJournal Journal(Fixture f)
             => f.World.GetComponent<Fdp.Toolkit.Behavior.Diagnostics.BrainJournal>(f.Unit);
 
+        /// <summary>⭐ <c>CE-2377</c> step 2 — an assignment whose params do not parse is refused AND journaled with its reason, on both paths:
+        /// a task, and an SOP (which journaled nothing before). 🔴 Red-proof: drop the journal write after <c>ParseIntoShadow</c> in <c>StartSop</c> ⇒ the SOP half is red.</summary>
+        [Fact]
+        public void CE2377_AnAssignmentWhoseParamsDoNotParse_IsJournaled_AsRefused_OnTheTaskAndTheSopPath()
+        {
+            using var f = new Fixture();
+            WithJournal(f);
+            foreach (var (name, id) in new[] { ("SopT_BadTask", 0x53F1), ("SopT_BadSop", 0x53F2) })
+            {
+                var d = Tree(name, SopDecides);
+                d.BlackboardLayoutType = typeof(int);
+                d.ParseParams = static (string _, byte* _, int _, EntityRepository _, Entity _) => throw new InvalidOperationException("bad params");
+                f.Registry.Register(id, name, d);
+            }
+
+            f.World.Bus.PublishManaged(new AssignBehaviorEvent { Entity = f.Unit, BehaviorName = "SopT_BadTask", JsonParams = "{\"x\":1}", Origin = BehaviorOrigin.Operator });
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);
+            var j = Journal(f);
+            var last = j.At(j.Count - 1);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskRefused, last.Kind);
+            Assert.Equal(0x53F1, last.A);
+            Assert.Equal((byte)Fdp.Toolkit.Behavior.Diagnostics.BrainRefusal.ParseFailed, last.Cause);
+
+            f.World.Bus.PublishManaged(new AssignSopEvent { Entity = f.Unit, BehaviorName = "SopT_BadSop", JsonParams = "{\"x\":1}", Origin = BehaviorOrigin.Operator });
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);
+            j = Journal(f);
+            last = j.At(j.Count - 1);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskRefused, last.Kind);
+            Assert.Equal(0x53F2, last.A);
+            Assert.Equal((byte)Fdp.Toolkit.Behavior.Diagnostics.BrainRefusal.ParseFailed, last.Cause);
+            Assert.Equal((byte)BehaviorOrigin.Operator, last.Origin);
+        }
+
         /// <summary>⭐ A reaction pausing the task writes Paused (the task) then Started (the reaction, its origin and urgency).
         /// 🔴 Red-proof: drop the TaskPaused write in <c>JournalStarted</c> ⇒ red.</summary>
         [Fact]

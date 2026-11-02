@@ -48,6 +48,9 @@ namespace Fdp.Toolkit.Combat
         public bool IsRemote;
         /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-5) — a venting canister's burn left (s): it goes on venting in his hand; 0 = none (APPENDED).</summary>
         public float BurnSeconds;
+        /// <summary>⭐ <c>CE-4155</c> (SR-82; APPENDED) — the first thrower of the round being granted: the round's own <c>OriginalShooter</c>, else
+        /// its <c>Shooter</c> (who threw it before this man picked it up); <see cref="Entity.Null"/> = unknown. Crosses nodes as the interaction's <c>actor</c>.</summary>
+        public Entity OriginalShooter;
     }
 
     /// <summary>
@@ -66,6 +69,9 @@ namespace Fdp.Toolkit.Combat
         /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-6) — a VENTING canister's burn left (s): it irritates him while it burns, and is gone (no
         /// burst) when it is out. 0 = a live round (<see cref="Remaining"/> is its fuze).</summary>
         public float BurnSeconds;
+        /// <summary>⭐ <c>CE-4155</c> (SR-82; APPENDED) — the first thrower of the round he holds (from the grant): thrown back, it is the
+        /// <c>OriginalShooter</c> of the new throw, and a canister burning in his hand names him as <c>Source</c> and this as <c>OriginalSource</c>.</summary>
+        public Entity OriginalShooter;
     }
 
     /// <summary>
@@ -156,7 +162,9 @@ namespace Fdp.Toolkit.Combat
                            == (WarheadRound.Vents | WarheadRound.Landed | WarheadRound.Lingers);
             grant = new PickUpGrantEvent { Man = man, Ammo = flight.Ammo, Rounds = 1,
                                            FuzeSeconds = live && !venting ? MathF.Max(flight.FuzeRemaining, 0.01f) : 0f,
-                                           BurnSeconds = venting ? MathF.Max(flight.FuzeRemaining, 0.01f) : 0f };
+                                           BurnSeconds = venting ? MathF.Max(flight.FuzeRemaining, 0.01f) : 0f,
+                                           // ⭐ CE-4155 (SR-82) — who threw it first: its own original thrower when it was already thrown back, else its shooter
+                                           OriginalShooter = flight.OriginalShooter.IsNull ? flight.Shooter : flight.OriginalShooter };
             return true;
         }
 
@@ -177,6 +185,15 @@ namespace Fdp.Toolkit.Combat
             return held.Ammo == ammo && held.BurnSeconds > 0f ? held.BurnSeconds : 0f;
         }
 
+        /// <summary>⭐ <c>CE-4155</c> (SR-82) — the first thrower of the live round of <paramref name="ammo"/> in <paramref name="man"/>'s hands
+        /// (<see cref="Entity.Null"/> when none / unknown): what a throw back and a burning canister carry as the original source.</summary>
+        public static Entity OriginalShooterOf(EntityRepository world, Entity man, long ammo)
+        {
+            if (ammo == 0 || !world.IsComponentTypeRegistered<HeldFuze>() || !world.HasComponent<HeldFuze>(man)) return Entity.Null;
+            ref readonly var held = ref world.GetComponentRO<HeldFuze>(man);
+            return held.Ammo == ammo ? held.OriginalShooter : Entity.Null;
+        }
+
         /// <summary>A round of <paramref name="ammo"/> left <paramref name="man"/>'s hands: a live (or venting) one of that kind is no longer held.</summary>
         public static void Thrown(EntityRepository world, Entity man, long ammo)
         {
@@ -188,7 +205,8 @@ namespace Fdp.Toolkit.Combat
         {
             if (!PersonHands.Give(world, grant.Man, grant.Ammo, grant.Rounds)) return false;
             if ((grant.FuzeSeconds > 0f || grant.BurnSeconds > 0f) && world.IsComponentTypeRegistered<HeldFuze>() && !world.HasComponent<HeldFuze>(grant.Man))
-                world.AddComponent(grant.Man, new HeldFuze { Ammo = grant.Ammo, Remaining = grant.FuzeSeconds, BurnSeconds = grant.BurnSeconds });
+                world.AddComponent(grant.Man, new HeldFuze { Ammo = grant.Ammo, Remaining = grant.FuzeSeconds, BurnSeconds = grant.BurnSeconds,
+                                                          OriginalShooter = grant.OriginalShooter });   // ⭐ CE-4155
             return true;
         }
 

@@ -98,7 +98,8 @@ namespace Fdp.Toolkit.Combat.Systems
                     float before = held.BurnSeconds;
                     held.BurnSeconds -= deltaTime;
                     if (held.BurnSeconds > 0f && MathF.Floor(held.BurnSeconds) != MathF.Floor(before)     // each whole second it still burns
-                        && AreaEffectCloudSystem.Irritate(repo, man, IrritantSeconds(repo, held.Ammo))) Irritated++;
+                        && AreaEffectCloudSystem.Irritate(repo, man, IrritantSeconds(repo, held.Ammo), source: man,   // ⭐ CE-4155 — he is cooking it
+                                                          original: held.OriginalShooter)) Irritated++;
                     if (held.BurnSeconds > 0f) continue;
                     PersonHands.Take(repo, man, held.Ammo);
                     BurntOut++;
@@ -107,13 +108,13 @@ namespace Fdp.Toolkit.Combat.Systems
                 }
                 held.Remaining -= deltaTime;
                 if (held.Remaining > 0f) continue;
-                CookOff(repo, man, held.Ammo);
+                CookOff(repo, man, held.Ammo, held.OriginalShooter);
                 _cooked.Add(man);
             }
             foreach (var man in _cooked) repo.RemoveComponent<HeldFuze>(man);
         }
 
-        private void CookOff(EntityRepository repo, Entity man, long ammo)
+        private void CookOff(EntityRepository repo, Entity man, long ammo, Entity original)
         {
             int index = PersonHands.MountIndex(repo, man);
             if (index < 0 || !repo.HasComponent<SimTransform>(man) || !repo.Bus.IsRegistered<WeaponFireIntent>()) return;
@@ -123,6 +124,7 @@ namespace Fdp.Toolkit.Combat.Systems
             {
                 Shooter = man, Target = Entity.Null, WeaponIndex = index, AtPoint = true, TargetPoint = at.Position + new Vector3(ahead.X, ahead.Y, 0f),
                 AmmoGuid = ammo, FuzeSeconds = CookOffFuzeSeconds, RaisedAt = HitModel.Now(repo),
+                OriginalShooter = original,   // ⭐ CE-4155 (SR-82) — it cooks off in his hand: he is the last thrower, whoever threw it before him the first
             });
             PersonHands.Take(repo, man, ammo);
             CookedOff++;

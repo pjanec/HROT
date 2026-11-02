@@ -1102,3 +1102,72 @@ expansion (validation, placement, reconcile, cascade) is the load's own.
 `MacroExpansionSystem.WorldRefScope` (S3a A1) · `Fdp.Toolkit.ScenarioRules.Actions.WorldRefScope` (behaviors CE-4162) · `Fdp.Toolkit.Scenario.LiveRefScope`
 (ui CE-4206 R1 — a cached index with the reverse maps an editor needs). ✅ The first is FOLDED into the second (`2d94b8fc6`). ⏭ The remaining two differ only in
 caching and the reverse maps; `LiveRefScope` is the superset ⇒ the step runner can use it and `WorldRefScope` retire — two other lanes' files, so filed, not done.
+
+## 17. S3b build design — run variants (B2), the skill amplifier and the director (B3) *(backend, `2026-11-02`)*
+
+**INVENTORY** *(graph + grep, `2026-11-02`)*: a skill amplifier — grep `SkillAmplifier|SkillTier|ai.skill-amplifier` over `Hrot`/`FDP` → **0** (ruled by R-4106 /
+P-5, never built) · the per-man level: `CombatProficiency` (presets, CE-2273) read in ONE place (`ProficiencyOf.Value`, 82 readers through it), filled by
+`ProficiencyFillSystem` (every tick, writes on change), on the wire as `dtCombatProficiency` 150 · randomness: `SimRng` (deliberately the same every run —
+the user's ruling) · the one params routine `ScenarioParams.Prepare` (load + expander) · the one stable hash `StableHash.Fnv1a32` · component ids:
+backend's block full ⇒ **480** (coordinator/new-lane block, free on every lane by a census).
+
+```mermaid
+classDiagram
+    direction LR
+    class ScenarioVariants { <<NEW, Fdp.Toolkits>> ArgName "$variant" · VariantOf(args) · Apply(dom, variant, salt) · Roll · Choose · ChoicesOf · Uses }
+    class ScenarioParams { <<existing>> Prepare(dom, header, args, outside, here, variant, salt) }
+    class MacroValidator { <<existing>> checks EVERY choice of a one-of-N }
+    class ScenarioDescriptionResident { <<existing>> Args — the applied args, "$variant" included }
+    class SkillAmplifier { <<NEW 480, unmanaged, recorded>> sbyte Friend · Hostile · Neutral }
+    class CombatProficiency { <<existing + SideTiers>> Authored · Unit · TypeDefault · Set · SideTiers }
+    class ProficiencyFillSystem { <<existing + FillSideTiers>> }
+    class ProficiencyOf { <<existing>> Value = Amplify(Own, SideTiers) }
+    class SkillVerbs { <<NEW>> SetSkillAmplifier(side, tiers) }
+    ScenarioParams --> ScenarioVariants : applies first
+    ScenarioVariants ..> ScenarioDescriptionResident : "$variant" recorded with the run
+    SkillVerbs --> SkillAmplifier : writes (World Environment)
+    ProficiencyFillSystem ..> SkillAmplifier : reads
+    ProficiencyFillSystem --> CombatProficiency : SideTiers by ForceId
+    ProficiencyOf ..> CombatProficiency : reads own + tiers
+```
+
+```mermaid
+sequenceDiagram
+    participant R as run setup ("$variant": N in the load args)
+    participant L as ScenarioLoadStep / MacroExpander (every node)
+    participant P as ScenarioParams.Prepare
+    participant T as a trigger (the director macro)
+    participant F as ProficiencyFillSystem
+    R->>L: load args {"$variant": N}
+    L->>P: Prepare(dom, …, variant N, salt = instance GUID or none)
+    P->>P: Presence rolls · one-of-N picks (variant 0 = as authored) · then the bindings
+    P-->>L: effective args incl. "$variant" (recorded)
+    T->>T: when scenario time ≥ delay (bound from the macro's param)
+    T->>T: InsertMacro · SetSkillAmplifier(Hostile, +1) · Message
+    F->>F: every man of that side: SideTiers = +1 (next tick, inserted men too)
+```
+
+*What the pictures show that prose hid:* a variant is ONE number that reaches every node by the args route the load already uses, and every choice it makes
+happens in the one routine params already pass through; the amplifier never writes a man's level — it rides on him as an offset the one reader applies.
+
+| | decision | why |
+|---|---|---|
+| B2 ① | the variant is the reserved arg **`"$variant"`** (`--param $variant=3`, `POST …/load/live {args:{"$variant":3}}`) | ⭐ the args route already reaches every node's load and is recorded (`RecordingMetadata.ScenarioArgs`) — no second channel. The run-setup picker (AQ108 D24) is ui's |
+| B2 ② | `"Presence": p` on an entity (unit, prop, macro instance); `"Macro": [a, {macro, weight}]` on an instance — applied in `Prepare`, BEFORE the bindings | SR-101 ① ②. ⭐ in the ONE routine, so a scenario and a macro file behave alike |
+| B2 ③ | variant 0 = AS AUTHORED (all present, the first choice) | SR-101's lean — the editor shows the authored layout |
+| B2 ④ | roll = `Fnv1a32(variant │ salt │ entity key │ what)`; salt = the instance GUID inside a macro | SR-101: by the STABLE key, never an index; two instances of one macro roll apart |
+| B3 ① | `SkillAmplifier` (480) on the World Environment, tiers ±2; `SetSkillAmplifier(side, tiers)` verb | SR-100 / P-5: per side, scenario-authored, changed live (trigger, director, game master) |
+| B3 ② | the fill copies the side's tiers onto each man WITH A BRAIN (`CombatProficiency.SideTiers`, on the wire); `ProficiencyOf.Value` = `Amplify(own, tiers)` | SR-100's storage lean: the man stays self-sufficient for the hit model on another node (BR-6); by SIDE, so an inserted man or one with no commander is reached |
+| B3 ③ | one tier = one preset step (fractions kept between presets), clamped Untrained … Elite; a raise never lowers, a cut never raises | R-4106 "never a leveller": 0 restores every man exactly — no own value is ever written |
+| B3 ④ | the counter-attack DIRECTOR is `macros/control/counter-attack` — one trigger, its `delay` bound through `ParamBindings` into the trigger's params JSON; used by `scenarios/test-director-early` (4 s) and `-late` (9 s) | SR-99: no director entity |
+
+📌 **LIVE `2026-11-02` (`--mode all`)** — `scenarios/test-director-early`: the director's trigger fired at **4.01 s** (its bound `delay`) → a hostile fire
+team inserted at `@CounterAttackFrom`, the World Environment's `SkillAmplifier` Hostile **+1**, and every Hostile man — the pre-placed sentry AND the four
+inserted men — read `CombatProficiency.SideTiers` 1 while the Friend defender stayed untouched · `scenarios/test-director-late` (the SAME macro, `delay` 9):
+fired at **9.02 s**. ⚠ The director's trigger entity itself has a brain and `ForceId` Hostile, so it carries `SideTiers` too — harmless.
+
+⚠ **Open / not here:** a variant's `delay: {min, max}` on a trigger (SR-101 ③) is the trigger's params — behaviors' · `InsertMacro` choosing one of N at
+RUNTIME needs the run's variant in the verb (it is readable from the resident args) — a follow-up · an EDIT load followed by a save keeps the chosen macro
+and drops `Presence` (they are authoring forms the extracted world does not hold) — the run-setup / authoring slice needs a `NoReplay` holder for them ·
+the amplifier is written on the node that runs the verb (the World Environment's owner, the Brain today — the other verbs' rule) · a step's own `Bind`
+(§16.2) would let the director bind its `do` args too.

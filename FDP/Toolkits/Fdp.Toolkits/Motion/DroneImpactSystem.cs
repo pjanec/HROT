@@ -117,6 +117,8 @@ namespace Fdp.Toolkit.Motion
                         });
                     }
                     float max = health && repo.HasComponent<Health>(d) ? MathF.Max(1f, repo.GetComponentRO<Health>(d).Max) : 1f;
+                    // ⭐ CE-4155 (SR-82) — NO Source on purpose: this is the drone's OWN destruction (HitEntity = d), nobody's harm. The harm it DID is
+                    //   the warhead above: its DetonationNotification.Shooter = d (a unit of a side), so every blast event names the drone as Source.
                     repo.Bus.Publish(new DamageAssessedEvent { HitEntity = d, TotalDamage = max * 10f });   // spent
                 }
 

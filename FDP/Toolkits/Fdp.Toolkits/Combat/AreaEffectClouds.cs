@@ -61,6 +61,15 @@ namespace Fdp.Toolkit.Combat
         /// <summary>1 once the owner asked the lifecycle to end it (a networked cloud's teardown, asked once).</summary>
         public byte Ending;
 
+        /// <summary>⭐ <c>CE-4155</c> (SR-82; APPENDED, on the wire — <c>dtAreaEffectCloud</c>) — the network id of who threw the round that made
+        /// it (the detonation's <c>Shooter</c>); each pulse's <c>DamageAssessedEvent.Source</c> is that unit, resolved on the node that owns the cloud.
+        /// 0 = unknown.</summary>
+        public int CreatorNetworkId;
+
+        /// <summary>⭐ <c>CE-4155</c> (SR-82; APPENDED, on the wire) — the network id of the FIRST thrower when the round was thrown back
+        /// (<c>DetonationNotification.OriginalShooter</c>); 0 = the creator threw it first. Each pulse's <c>OriginalSource</c>.</summary>
+        public int OriginalCreatorNetworkId;
+
         /// <summary>True once its time is up.</summary>
         public readonly bool IsOver(double now) => now >= BornAtSimSeconds + Seconds;
 

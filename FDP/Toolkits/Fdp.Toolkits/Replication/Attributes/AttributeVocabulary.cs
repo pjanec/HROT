@@ -69,6 +69,10 @@ public static class AttributeVocabulary
         new("FrightFrom.X",          AttributeIds.CivilianFrightFromX, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Civilians.CivilianState), BrainLocal: true),
         new("FrightFrom.Y",          AttributeIds.CivilianFrightFromY, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Civilians.CivilianState), BrainLocal: true),
         new("FrightFrom.Z",          AttributeIds.CivilianFrightFromZ, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Civilians.CivilianState), BrainLocal: true),
+        // ⭐ rules V-4 (§00.10) — a rule entity's runtime control: applied on the node that owns the entity, a change-request elsewhere; the component is brain-local (no descriptor)
+        new("Rule.Request",          AttributeIds.RuleRequest,         AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.ScenarioRules.RuleControl), BrainLocal: true),
+        new("Rule.Seq",              AttributeIds.RuleSeq,             AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.ScenarioRules.RuleControl), BrainLocal: true),
+        new("Rule.Origin",           AttributeIds.RuleOrigin,          AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.ScenarioRules.RuleControl), BrainLocal: true),
     };
 
     /// <summary>

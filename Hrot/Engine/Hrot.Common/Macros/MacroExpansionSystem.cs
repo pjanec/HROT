@@ -146,7 +146,7 @@ namespace Hrot.Common.Macros
                 : EntityGuidDerivation.Derive(Guid.Empty, "instance:" + instanceId);   // a transient instance (SR-167's runtime case is S3b)
             var anchor = repo.HasComponent<SimTransform>(e) ? repo.GetComponentRO<SimTransform>(e) : default;
 
-            var result = _expander.Expand(mi, instanceId, guid, _localNode, anchor, new Fdp.Toolkit.ScenarioRules.Actions.WorldRefScope(repo), _idAllocator);
+            var result = _expander.Expand(mi, instanceId, guid, _localNode, anchor, new Fdp.Toolkit.ScenarioRules.Actions.WorldRefScope(repo), _idAllocator, VariantOf(repo));
             if (!result.Ok)
             {
                 FdpLog<MacroExpansionSystem>.Error($"[Macros] instance #{instanceId} '{mi.Macro}' failed: {result.Failure}");
@@ -342,7 +342,7 @@ namespace Hrot.Common.Macros
             Guid guid = repo.IsComponentTypeRegistered<EntityGuid>() && repo.HasComponent<EntityGuid>(e) ? repo.GetComponentRO<EntityGuid>(e).Value
                       : EntityGuidDerivation.Derive(Guid.Empty, "instance:" + instanceId);
             var scope = new Fdp.Toolkit.ScenarioRules.Actions.WorldRefScope(repo);
-            var now = _expander!.Expand(mi, instanceId, guid, _localNode, anchor, scope, _idAllocator);
+            var now = _expander!.Expand(mi, instanceId, guid, _localNode, anchor, scope, _idAllocator, VariantOf(repo));
             if (!now.Ok)
             {
                 FdpLog<MacroExpansionSystem>.Error($"[Macros] instance #{instanceId} re-expansion of '{mi.Macro}' failed: {now.Failure} — its entities are left as they were");
@@ -396,6 +396,11 @@ namespace Hrot.Common.Macros
                 repo.SetManagedComponent(e, new MacroExpandedWith { Instance = view.GetManagedComponentRO<MacroInstance>(e)!, Anchor = AnchorOf(repo, e) });
         }
 
+        /// <summary>⭐ Macros S3b B2 — the run's variant, as the load recorded it in the world's scenario args (0 = as authored / none).</summary>
+        private static int VariantOf(EntityRepository repo)
+            => repo.HasSingletonManaged<ScenarioDescriptionResident>()
+                ? ScenarioVariants.VariantOf(repo.GetSingletonManaged<ScenarioDescriptionResident>()?.Args) : 0;
+
         private static Dictionary<Guid, Entity> LiveChildrenByGuid(EntityRepository repo)
         {
             var existing = new Dictionary<Guid, Entity>();
@@ -417,7 +422,7 @@ namespace Hrot.Common.Macros
             var anchor = target.Anchor;
             var mi = target.Instance;
             var now = new MacroExpander.Result(children, null);
-            var before = _expander!.Expand(with.Instance, instanceId, guid, _localNode, with.Anchor, scope, new Hrot.Core.Network.SequentialIdAllocator());
+            var before = _expander!.Expand(with.Instance, instanceId, guid, _localNode, with.Anchor, scope, new Hrot.Core.Network.SequentialIdAllocator(), VariantOf(repo));
             var madeBefore = new HashSet<Guid>();
             foreach (var c in before.Children) madeBefore.Add(GuidOf(c));
 

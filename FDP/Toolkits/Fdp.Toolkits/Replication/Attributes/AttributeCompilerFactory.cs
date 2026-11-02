@@ -116,6 +116,21 @@ public static class AttributeCompilerFactory
                 (ref Fdp.Toolkit.Civilians.CivilianState c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => CivilianFright.SetFrom(ref c, 2, r.GetDouble()),
                 kind: KindOf("FrightFrom.Z"));
 
+        // ── RuleControl — ⭐ rules V-4 (§00.10): an instructor's / agent's request to a rule entity, honoured once per Seq by the owner ───────
+        builder
+            .RegisterValuePath<Fdp.Toolkit.ScenarioRules.RuleControl>(
+                "Rule.Request",
+                (ref Fdp.Toolkit.ScenarioRules.RuleControl c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => c.Request = (byte)r.GetInt32(),
+                kind: KindOf("Rule.Request"))
+            .RegisterValuePath<Fdp.Toolkit.ScenarioRules.RuleControl>(
+                "Rule.Seq",
+                (ref Fdp.Toolkit.ScenarioRules.RuleControl c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => c.Seq = r.GetInt32(),
+                kind: KindOf("Rule.Seq"))
+            .RegisterValuePath<Fdp.Toolkit.ScenarioRules.RuleControl>(
+                "Rule.Origin",
+                (ref Fdp.Toolkit.ScenarioRules.RuleControl c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => c.Origin = (byte)r.GetInt32(),
+                kind: KindOf("Rule.Origin"));
+
         return builder.Build();
     }
 
@@ -174,7 +189,8 @@ public static class AttributeCompilerFactory
             //    SimTransformBridgeSystem.HeadingDegToRotation takes.
             .AddInstaller(new SimTransformHeadingInstaller())
             .AddInstaller(new ScenarioClockAttributeInstaller())    // ⭐ CE-3216 S1-0 — the scenario start time (no geo transform needed)
-            .AddInstaller(new CivilianFrightAttributeInstaller());  // ⭐ CE-4024 — a civilian's fright (AQ93 §15 K5)
+            .AddInstaller(new CivilianFrightAttributeInstaller())   // ⭐ CE-4024 — a civilian's fright (AQ93 §15 K5)
+            .AddInstaller(new RuleControlAttributeInstaller());     // ⭐ rules V-4 — a rule entity's runtime control
 
         return builder.Build();
     }

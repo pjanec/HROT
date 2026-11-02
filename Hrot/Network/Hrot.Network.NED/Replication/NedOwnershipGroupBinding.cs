@@ -143,6 +143,7 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtTrafficDemand, GlobalComponentIds.TrafficDemand);   // ⭐ AQ93 N4 — the traffic settings (Traffic group)
         map.RegisterMapping((long)EDescriptorType.dtObjectiveStatus, GlobalComponentIds.ObjectiveStatus);   // ⭐ rules S1-a — an objective's status (Brain group)
         map.RegisterMapping((long)EDescriptorType.dtExerciseResult, GlobalComponentIds.ExerciseResult);   // ⭐ rules S2-e — the exercise's phase and outcome (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtRuleLeaves, GlobalComponentIds.RuleLeaves);   // ⭐ rules V-3 — a trigger's when-leaves with their live values (Brain group)
         map.RegisterMapping((long)EDescriptorType.dtScenarioClock, GlobalComponentIds.ScenarioClock);   // ⭐ CE-3216 S1-0 — the scenario clock (Brain group)
         map.RegisterMapping((long)EDescriptorType.dtWeather, GlobalComponentIds.WeatherConditions);   // ⭐ CE-3216 S1 — authored weather (Brain group)   // ⭐ Weapon systems WS-1 — a weapon's deploy state (Brain group)
 

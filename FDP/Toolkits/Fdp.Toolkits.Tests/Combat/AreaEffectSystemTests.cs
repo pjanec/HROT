@@ -152,6 +152,28 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.All(_w.Bus.Read<DamageAssessedEvent>().ToArray(), d => Assert.True(d.Source.IsNull));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4155</c> (SR-82; §10.10) — a burst of a RETHROWN round makes damage whose <c>Source</c> is the last thrower and whose
+        /// <c>OriginalSource</c> is the first; a first throw leaves <c>OriginalSource</c> Null (= the same). ✅ Red-proof: the whole-body publish without
+        /// <c>OriginalSource</c> ⇒ Null ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4155_ARethrownBurst_NamesTheLastThrower_AndTheFirst()
+        {
+            var last = Soldier(-30, 0); var first = Soldier(-40, 0);
+            var near = Soldier(3, 0);
+            _w.Bus.Publish(new DetonationNotification { Shooter = last, OriginalShooter = first, HitX = 0f, HitY = 0f, HitZ = 0.1f, Ammo = Grenade });
+            _w.Bus.SwapBuffers();
+            _sys.Execute(_w, 0.016f);
+            _w.Bus.SwapBuffers();
+            var onNear = _w.Bus.Read<DamageAssessedEvent>().ToArray().Where(d => d.HitEntity == near).ToArray();
+            Assert.NotEmpty(onNear);
+            Assert.All(onNear, d => Assert.Equal((last, first), (d.Source, d.OriginalSource)));
+
+            Burst(Grenade, new Vector3(0, 0, 0.1f), near);   // no shooter at all
+            Assert.All(_w.Bus.Read<DamageAssessedEvent>().ToArray(), d => Assert.True(d.OriginalSource.IsNull));
+        }
+
         // ── W-6′ — a vehicle between the burst and a soldier stops the fragments ────────────
 
         [Fact]

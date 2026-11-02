@@ -14,7 +14,8 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
     /// <summary>⭐ rules S1-f — <c>NoHarm</c> (§10.2, a constraint): each tick it reads this frame's <see cref="DamageAssessedEvent"/>s (the
     /// <c>HealthApplicationSystem</c> way) and counts DISTINCT victims of the <c>protected</c> affiliation harmed by the side (default: the subject's;
     /// <c>anySide</c> for anybody). Failed when more than <c>maxCount</c>; JUDGED AT THE END (at the deadline Achieved). ⚠ Harm with no known source
-    /// (a cloud, a crash) counts only for <c>anySide</c> (§10.1: drones / gas wait for CE-4155).</summary>
+    /// (a crash, an ejection) counts only for <c>anySide</c>; a gas cloud's pulse names its creator, a drone's blast its drone (CE-4155). ⭐ <c>attribute</c>
+    /// (SR-82) says which source of a RETHROWN round's harm is judged: <c>last</c> (default) · <c>original</c> · <c>both</c>.</summary>
     public static class NoHarmBehavior
     {
         public const string Kind = BehaviorNames.NoHarm;
@@ -23,7 +24,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         public struct Block
         {
             public ObjectiveCommonBlock Common; public ObjectiveRun Run;
-            public ForceId Protected, BySide; public byte AnySide; public int MaxCount;
+            public ForceId Protected, BySide; public byte AnySide; public int MaxCount; public HarmAttribute Attribute;
             /// <summary>Working state: the victims counted so far (16 slots; beyond them harm is counted without dedupe).</summary>
             public Ids16 Victims; public int Counted, Overflow;
         }
@@ -36,7 +37,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             => bb.Block = new Block
             {
                 Common = ObjectiveCommonBlock.From(in authored.Common), Protected = authored.Protected, BySide = authored.BySide,
-                AnySide = (byte)(authored.AnySide ? 1 : 0), MaxCount = authored.MaxCount,
+                AnySide = (byte)(authored.AnySide ? 1 : 0), MaxCount = authored.MaxCount, Attribute = authored.Attribute,
             };
 
         [SharedAiAction]
@@ -54,7 +55,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 {
                     ref readonly var e = ref events[i];
                     if (e.TotalDamage <= 0f || e.HitEntity.IsNull || ObjectiveCensus.SideOf(world, e.HitEntity) != b.Protected) continue;
-                    if (b.AnySide == 0 && (e.Source.IsNull || ObjectiveCensus.SideOf(world, e.Source) != bySide)) continue;
+                    if (b.AnySide == 0 && !Attributed(world, in e, b.Attribute, bySide)) continue;
                     Count(ref b, (long)e.HitEntity.PackedValue);
                 }
                 int harmed = b.Counted + b.Overflow;
@@ -66,6 +67,16 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             }
             ObjectiveRules.WriteScore(ref s, judgedAtEnd: true);
             return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ CE-4155 (SR-82) — does this harm count as the side's? <c>Last</c>: its <c>Source</c>; <c>Original</c>: its <c>OriginalSource</c> (Null = the
+        /// same as <c>Source</c>, nothing was rethrown); <c>Both</c>: either. ⚠ Harm with no known source never counts (only <c>anySide</c> counts it).</summary>
+        internal static bool Attributed(EntityRepository world, in DamageAssessedEvent e, HarmAttribute attribute, ForceId bySide)
+        {
+            var original = e.OriginalSource.IsNull ? e.Source : e.OriginalSource;
+            bool last = !e.Source.IsNull && ObjectiveCensus.SideOf(world, e.Source) == bySide;
+            bool first = !original.IsNull && ObjectiveCensus.SideOf(world, original) == bySide;
+            return attribute switch { HarmAttribute.Original => first, HarmAttribute.Both => last || first, _ => last };
         }
 
         private static void Count(ref Block b, long victim)

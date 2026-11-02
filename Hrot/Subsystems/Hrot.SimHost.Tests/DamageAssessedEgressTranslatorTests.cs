@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using Hrot.NED.Messages;
@@ -110,6 +111,22 @@ namespace Hrot.SimHost.Tests
             _world.Bus.SwapBuffers();
             translator.ScanAndPublish(_world);
             Assert.Equal(new[] { 42, 0, 0 }, new[] { writer.Written[0].SourceEntityId, writer.Written[1].SourceEntityId, writer.Written[2].SourceEntityId });
+        }
+
+        /// <summary>⭐ <c>CE-4155</c> (SR-82) — a rethrown round's FIRST thrower crosses as his network id too; none (or unmapped) sends 0.
+        /// ✅ Red-proof: the egress without it ⇒ 0 ⇒ red.</summary>
+        [Fact]
+        public void CE4155_TheOriginalSourceCrosses_AsItsNetworkId_NoneIsZero()
+        {
+            var (translator, writer) = BuildTranslator();
+            var victim = RegisterEntity(netId: 7);
+            var last = RegisterEntity(netId: 42);
+            var first = RegisterEntity(netId: 43);
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = victim, TotalDamage = 5f, Source = last, OriginalSource = first });
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = victim, TotalDamage = 5f, Source = last });
+            _world.Bus.SwapBuffers();
+            translator.ScanAndPublish(_world);
+            Assert.Equal(new[] { (42, 43), (42, 0) }, writer.Written.Select(w => (w.SourceEntityId, w.OriginalSourceEntityId)).ToArray());
         }
 
         // ── SC-2: Zero events → no write ─────────────────────────────────────

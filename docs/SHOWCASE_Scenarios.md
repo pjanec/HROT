@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-01 (§2.7 carrying measured as built; no revisions kept)
+updated: 2026-11-02 (§3 `today` column refreshed to the measured state — showcase handoff item ⓪) · 2026-11-01 (§2.7 carrying measured as built)
 current-answer: §1 Bridgehead (military training) · §2 Crossfire (multiplayer game) · §3 the feature coverage · §4 how to use this document
 stale-below: nothing — superseded revisions removed 2026-11-01; full history at commit de422e11b (`git show de422e11b:docs/SHOWCASE_Scenarios.md`)
-known-rot: none — ⚠ describes the TARGET state: most of it is NOT built (objectives, triggers, macros, variants, the views). Each element names its SR row; the coverage table (§3) says what exists today
+known-rot: none — ⚠ describes the TARGET state: the mechanisms are mostly built (§3), the views (rules view, summaries, debrief, HUD) and the game profile (S6) are not. Each element names its SR row; the coverage table (§3) says what exists today
 known-conflict: none
 related-designs:
   - docs/DESIGN_Scenario_Rules.md — OWNS every mechanism these scenarios use (SR-…): objectives, triggers, macros, actions, variants, the rules view, the summaries, the HUD
@@ -19,7 +19,7 @@ related-designs:
 > ⭐ **The target, described as two playable scenarios.** One serious military training exercise, one multiplayer game. Each says what
 > happens, who does what (players and AI), the objectives and how they are scored, the triggers that steer it, what the instructor and the
 > players see, and how to demo it. ⭐ They are the **task for building the real scenarios**, the **acceptance test** for the features, and the
-> **demo script**. ⚠ Most of what they use is designed, not built — §3 says which.
+> **demo script**. ⚠ Part of what they use is designed, not built — §3 says which.
 
 ---
 
@@ -262,29 +262,29 @@ The flag's state on the HUD (*at base · carried by Hawk · dropped 12 s*) is on
 
 ## 3. Feature coverage — what each scenario exercises, and whether it exists
 
-| feature | design | Bridgehead | Crossfire | today |
+| feature | design | Bridgehead | Crossfire | today *(measured `2026-11-02`)* |
 |---|---|---|---|---|
 | maps, soldiers, vehicles, civilian behaviours, platoon attack | existing scenarios | ✅ | ✅ | ✅ built |
-| players joining + possession, Deploy, respawn | `DESIGN_Player_Join` | ✅ | ✅ | ⚠ partly (CE-4080 in progress) |
-| macros (forces, cars, crates, evaluation, awards) | SR-38…SR-57, SR-96 | ✅ | ✅ | ⛔ not built |
-| stable entity keys / RefKeys | SR-62…66, CE-4153 | ✅ | ✅ | ⚠ GUIDs built; RefKeys not |
-| objectives (Reach, Clear, Hold, NoHarm, Composite, Count) | §10, SR-72…77 | ✅ | ✅ | ⛔ |
-| measures (HitRatio, Exposure, ReportLatency, TimeTo) | §10.3 | ✅ | ⚠ (accuracy, time on point) | ⛔ |
-| member evaluation by role | SR-72 | ✅ | — | ⛔ |
-| triggers (edge, delay, holdFor, repeat, cooldown, maxFires) | T1–T10, SR-99 | ✅ | ✅ | 🧪 proven by the PoC (SR-108) |
-| shared actions: InsertMacro, Order, Message, SetObjectiveActive, SetSkillAmplifier, EndExercise | SR-93, SR-96, SR-100 | ✅ | ✅ | ⛔ (Order exists) |
-| conditions in the existing predicate language | SR-95 | ✅ | ✅ | ⚠ language built; area / event leaves CE-4164 |
-| scenario params + bindings | SR-41, SR-94 | ✅ | ✅ | ⛔ |
-| run variants | SR-101 | ✅ | ✅ | ⛔ |
-| adaptive exercise control (no director entity) | SR-99 | ✅ | ✅ (comeback) | ⛔ |
-| skill amplifier per side | R-4106, SR-100 | ✅ | ✅ | ⚠ CombatProficiency built; amplifier not |
-| player messages (subtitle + log) | SR-106 | ✅ | ✅ | ⛔ |
+| players joining + possession, Deploy, respawn | `DESIGN_Player_Join` | ✅ | ✅ | ⚠ joining + possession built; respawn (D-14) and score (D-15) ⛔ not built — rules S6 |
+| macros (forces, cars, crates, evaluation, awards) | SR-38…SR-57, SR-96 | ✅ | ✅ | ✅ built — S3a (instances, placement, params + bindings) + S3b (`InsertMacro`, variants, director); the evaluation / awards macros wait for S4 |
+| stable entity keys / RefKeys | SR-62…66, CE-4153 | ✅ | ✅ | ✅ built (GUIDs + `RefKey`, live-world `@Key`) |
+| objectives (Reach, Clear, Hold, NoHarm, Composite, Count) | §10, SR-72…77 | ✅ | ✅ | ✅ Reach / Hold (+ capture) / ClearArea / DestroyTargets / Protect / NoHarm + WeightedMean / AllMustPass (S1); ⛔ `Count` (S4, behaviors) |
+| measures (HitRatio, Exposure, ReportLatency, TimeTo) | §10.3 | ✅ | ⚠ (accuracy, time on point) | ⏳ S4 building (behaviors) |
+| member evaluation by role | SR-72 | ✅ | — | ⏳ S4 building (behaviors) |
+| triggers (edge, delay, holdFor, repeat, cooldown, maxFires) | T1–T10, SR-99 | ✅ | ✅ | ✅ built (S2) |
+| shared actions: InsertMacro, Order, Message, SetObjectiveActive, SetSkillAmplifier, EndExercise | SR-93, SR-96, SR-100 | ✅ | ✅ | ✅ built (+ `MissionCommand`); game actions (tickets, score) ⛔ — S6 |
+| conditions in the existing predicate language | SR-95 | ✅ | ✅ | ✅ built, area / event leaves included (CE-4164) |
+| scenario params + bindings | SR-41, SR-94 | ✅ | ✅ | ✅ built (a trigger step's own `Bind` ⛔ — B1b) |
+| run variants | SR-101 | ✅ | ✅ | ⚠ `$variant`, `Presence`, one-of-N macro built; a trigger's `delay {min, max}` and one-of-N positions ⛔ |
+| adaptive exercise control (no director entity) | SR-99 | ✅ | ✅ (comeback) | ✅ built (the director as a macro, `macros/control/counter-attack`) |
+| skill amplifier per side | R-4106, SR-100 | ✅ | ✅ | ✅ built (`SkillAmplifier` 480, `SetSkillAmplifier`) |
+| player messages (subtitle + log) | SR-106 | ✅ | ✅ | ⚠ `Message` verb + `PlayerMessage` wire built; the subtitle / log display is ui's |
 | rules view (dependency Gantt) | SR-105, SR-109, SR-110 | ✅ | ✅ | ⛔ (timeline panel built; TL-X1…X5 CE-4167) |
 | mission summary | SR-111 | ✅ | ✅ | ⛔ |
 | trainee debrief / round summary | SR-112 | ✅ | ✅ | ⛔ |
 | HUD training / game profiles | SR-112 | ✅ | ✅ | ⚠ possession HUD built |
 | awards macro | SR-112 | — | ✅ | ⛔ |
-| kill attribution (thrower, rethrow) | CE-4155 | ✅ | ✅ | ⛔ |
+| kill attribution (thrower, rethrow) | CE-4155 | ✅ | ✅ | ⚠ rethrow attribution + `NoHarm attribute` built (behaviors `0eebfc086`); the row is open |
 | game-master interventions | SR-104 | ✅ | ✅ | ⚠ add / order / Brain tab live; macros, action palette not |
 | AAR lanes for rules, replay from my eyes | SR-103 | ✅ | ✅ (best moment) | ⚠ lanes + film director built; rules lanes not |
 | every element a switchable feature | R-4108 | ✅ | ✅ | ⚠ Node Features built |

@@ -102,7 +102,7 @@ namespace Fdp.Toolkit.Combat.Tests
             // ⭐ CE-2180 + RaisedAt (double, Pack = 1) = 58, ⭐ CE-3235 + FuzeSeconds (float) = 62, ⭐ CE-3236 + BurnSeconds (float) = 66,
             // ⭐ Q94 A-1 (R-3018) + RequestId (uint) = 70, ⭐ CE-2326 (R-3030) + BodyStance (byte) = 71.
             // A LOCAL event — the wire (WeaponFireRequest) is mapped field by field.
-            Assert.Equal(71, Marshal.SizeOf<WeaponFireIntent>());
+            Assert.Equal(79, Marshal.SizeOf<WeaponFireIntent>());   // ⭐ CE-4155 — + OriginalShooter (Entity, 8)
         }
 
         /// <summary>
@@ -145,7 +145,7 @@ namespace Fdp.Toolkit.Combat.Tests
             // Damage (2×float) = 40, ⭐ CE-1032 + Ammo (long) = 48, ⭐ M1 + TravelX/Y/Z (3×float) = 60. A LOCAL event — the wire
             // message (MunitionDetonation) is mapped field by field, so the travel never reaches the wire. ⭐ CE-3209 + HasBodyPart,
             // BodyPart, Face (3×byte, Pack = 1) = 63. ⭐ CE-3236 + Round (Entity, local only) = 71.
-            Assert.Equal(71, Marshal.SizeOf<DetonationNotification>());
+            Assert.Equal(79, Marshal.SizeOf<DetonationNotification>());   // ⭐ CE-4155 — + OriginalShooter (Entity, 8)
         }
 
         /// <summary>
@@ -159,7 +159,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(typeof(DamageAssessedEvent).IsValueType);
             // Marshalled layout: Entity(8) + float(4) + bool(4, marshalled as a Win32 BOOL) + HasBodyPart(1) + BodyPart(1) (CE-3210)
             // + Effect(1, CE-3219) + pad(1) + EffectSeconds(4, CE-3219) = 24 bytes.
-            Assert.Equal(32, Marshal.SizeOf<DamageAssessedEvent>());   // ⭐ CE-3237 (B-15) — + Source (Entity, 8)
+            Assert.Equal(40, Marshal.SizeOf<DamageAssessedEvent>());   // ⭐ CE-3237 (B-15) — + Source (Entity, 8); ⭐ CE-4155 — + OriginalSource (Entity, 8)
         }
     }
 }

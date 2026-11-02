@@ -85,6 +85,8 @@ namespace Hrot.Common.EntityCreation
             });
 
             // ② then the aircraft is abandoned: all its health, through the one damage chain
+            //   ⭐ CE-4155 (SR-82) — Source stays Null on purpose: the crew abandoning their OWN aircraft is no one's harm (the airframe's health goes
+            //   through the damage chain only so the wreck is consistent)
             if (repo.Bus.IsRegistered<DamageAssessedEvent>())
                 repo.Bus.Publish(new DamageAssessedEvent { HitEntity = aircraft, TotalDamage = health.Current });
             Ejections++;

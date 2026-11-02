@@ -30,6 +30,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             => throw new NotSupportedException($"{GetType().Name} has no level mode — only PredicateCompiler implements CompileLevelPredicate.");
 
         /// <summary>
+        /// ⭐ rules V-3 (§00.10) — the NUMBER behind one leaf, for the rules view: a <c>PropertyMatch</c>'s property value (numeric / enum / bool), the scenario time of a
+        /// <c>ScenarioTime</c>, the count of a <c>CountMatching</c>; an <c>OnEntity</c> reads its inner leaf on the entity it resolves to. <c>null</c> = the leaf has no number
+        /// (spatial, lifecycle, structural, event, compound, a non-numeric property): the caller shows its 0/1. Same default-throws shape as <see cref="CompileLevelPredicate"/>.
+        /// </summary>
+        Func<EntityRepository, Entity, double>? CompileLeafMeasure(SearchPredicateDto leaf)
+            => throw new NotSupportedException($"{GetType().Name} has no leaf measure — only PredicateCompiler implements CompileLeafMeasure.");
+
+        /// <summary>
         /// Walks the predicate tree and returns the set of component types that MUST be
         /// present on an entity for the predicate to possibly match.
         /// Only AND-compound roots contribute; OR-compounds are excluded because they

@@ -769,6 +769,23 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(tf.Position, proj.PreviousPosition);   // the swept ray starts at the muzzle, not inside the shooter's spot
         }
 
+        /// <summary>⭐ <c>CE-4155</c> (SR-82) — a round THROWN BACK keeps its first thrower: the intent's <c>OriginalShooter</c> rides on the spawned
+        /// round (a first throw leaves it Null). ✅ Red-proof: the spawn not copying it ⇒ Null ⇒ red.</summary>
+        [Fact]
+        public void CE4155_AThrownBackRound_CarriesItsFirstThrower_OnTheBullet()
+        {
+            var shooter = SpawnShooter(new Vector3(10f, 20f, 0f));
+            var first   = SpawnShooter(new Vector3(40f, 20f, 0f));
+            var target  = SpawnTarget(new Vector3(20f, 20f, 0f));
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = shooter, Target = target, WeaponIndex = 0, OriginalShooter = first });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            Entity bullet = default;
+            foreach (var e in _world.Query().With<BallisticProjectile>().Build()) bullet = e;
+            var proj = _world.GetComponent<BallisticProjectile>(bullet);
+            Assert.Equal((shooter, first), (proj.Shooter, proj.OriginalShooter));
+        }
+
         /// <summary>⭐ CE-3059 — a target closer than twice the muzzle offset: the bullet starts half way, so it is never
         /// spawned past the target (the swept ray would skip it).</summary>
         [Fact]

@@ -357,6 +357,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     FuzeRemaining    = fuze,
                     ArcLifetimeTicks = arcLifetime,   // ⭐ IF-1 (I5) — 0 = the flat arc lifetime
                     BurnSeconds      = burn,          // ⭐ CE-3236 (B-14) — 0 = not a canister
+                    OriginalShooter  = evt.OriginalShooter,   // ⭐ CE-4155 (SR-82) — a thrown-back round keeps its first thrower
                 });
 
                 // ⭐⭐ LR-2 (§8.5, R-271) — a VISIBLE round (its munition has a look: a shell, a bomb, a grenade, a rocket, a missile, a

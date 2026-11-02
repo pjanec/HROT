@@ -72,6 +72,31 @@ namespace Hrot.Presentation.Behavior
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2377</c> — binds every <see cref="BehaviorValidatorAttribute"/> static method of <paramref name="assembly"/> (a
+        /// <c>IEnumerable&lt;string&gt; Validate(string json)</c>) into <paramref name="behaviorRegistry"/> by behaviour name. The one
+        /// discovery of validators, beside the params DTOs (<see cref="BindJsonParamsDtoTypes"/>); a mis-shaped method THROWS.
+        /// </summary>
+        public static void BindValidators(BehaviorRegistry behaviorRegistry, Assembly assembly)
+        {
+            if (behaviorRegistry is null) throw new System.ArgumentNullException(nameof(behaviorRegistry));
+            if (assembly is null) throw new System.ArgumentNullException(nameof(assembly));
+            System.Type[] types;
+            try { types = assembly.GetTypes(); }
+            catch (ReflectionTypeLoadException ex) { types = ex.Types.Where(t => t != null).ToArray()!; }
+            foreach (var type in types)
+                foreach (var m in type.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
+                {
+                    var attr = m.GetCustomAttribute<BehaviorValidatorAttribute>();
+                    if (attr == null) continue;
+                    var ps = m.GetParameters();
+                    if (ps.Length != 1 || ps[0].ParameterType != typeof(string) || !typeof(IEnumerable<string>).IsAssignableFrom(m.ReturnType))
+                        throw new System.InvalidOperationException($"[BehaviorValidator(\"{attr.BehaviorName}\")] {type.FullName}.{m.Name} must be 'static IEnumerable<string> {m.Name}(string json)'.");
+                    var del = (System.Func<string, IEnumerable<string>>)System.Delegate.CreateDelegate(typeof(System.Func<string, IEnumerable<string>>), m);
+                    behaviorRegistry.RegisterValidator(attr.BehaviorName, del);
+                }
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-2134</c> — the declared contracts, from the ONE scan (<see cref="ParamsDtoRegistry"/>): each behaviour's
         /// <c>[Behavior(Params = …)]</c>, wherever it sits (a curated topology or resolver, an intent mapper, an assembly).
         /// ⛔ HISTORY: it scanned <c>Hrot.Core</c> for <c>[BehaviorContract]</c> on the DTOs, so a DTO could serve one behaviour.

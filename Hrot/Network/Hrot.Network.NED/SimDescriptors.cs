@@ -221,6 +221,14 @@ namespace Hrot.NED.Descriptors
         public float Weight;
         /// <summary>Bit mask by <c>ForceId</c> value.</summary>
         public byte VisibleSides;
+        /// <summary>⭐ rules V-1 (§00.10): the network ids a trigger's <c>when</c> names (≤ 8; null = none).</summary>
+        [DdsManaged] public List<int> DependsOn;
+        /// <summary>⭐ rules V-1: the network ids a trigger's <c>do</c> steps target (≤ 8; null = none).</summary>
+        [DdsManaged] public List<int> ActsOn;
+        /// <summary>⭐ rules V-2: the authored timing (s; 0 = none) — a trigger's hold / delay / cooldown, every kind's deadline.</summary>
+        public float HoldFor, Delay, Cooldown, Deadline;
+        /// <summary>⭐ rules V-2: sim s of the next thing the owner knows will happen; 0 = unknown.</summary>
+        public double ExpectedAt;
     }
 
     // ⭐ rules S2-e (docs/DESIGN_Scenario_Rules.md §00.9, SR-122) — the exercise's RESULT: the phase (Running / Closing / Ended), when it ended, why, and the
@@ -249,6 +257,30 @@ namespace Hrot.NED.Descriptors
         public byte NeutralOutcome;
         public float NeutralPoints;
         public float NeutralScore;
+    }
+
+    /// <summary>⭐ rules V-3 — one leaf of <see cref="EntityRuleLeaves"/>: its label, whether it holds (0/1) and its measured number.</summary>
+    [DdsStruct]
+    public partial struct DdsRuleLeaf
+    {
+        [DdsManaged] public string Label;
+        public byte Value;
+        public float Measured;
+    }
+
+    // ⭐ rules V-3 (docs/DESIGN_Scenario_Rules.md §00.10) — a trigger's `when` LEAVES with their live values (≤ 8), for the rules view. State, keyed by the trigger entity, published by its
+    //   owner (the Brain that runs it) on change — the owner SAMPLES them at most twice a second and ONLY while the node feature ui.rules-live-values is on, so on a node nobody watches nothing
+    //   is written and nothing flows (the last sample stays when it is switched off). Same QoS as the status topic. Managed: it carries the labels.
+    [DdsTopic]
+    [DdsIdlFile("hrot-scenario-rules")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityRuleLeaves
+    {
+        [DdsKey]
+        public int EntityId;
+        /// <summary>The leaves (≤ 8; null = none yet); the count is the list's.</summary>
+        [DdsManaged] public List<DdsRuleLeaf> Leaves;
     }
 
     // ⭐ CE-3216 S1 (R-3012; docs/designs/weather/DESIGN_Weather_And_Time.md §1, W-0…W-3) — AUTHORED weather (WeatherConditions): the global
@@ -559,6 +591,8 @@ namespace Hrot.NED.Descriptors
         public float Unit;
         public float TypeDefault;
         public byte Set;
+        /// <summary>⭐ macros S3b B3 — his side's skill amplifier in tiers (SR-100); the hit model reads it here too.</summary>
+        public short SideTiers;
     }
 
     // ⭐ CE-3261 — a man's or a commander's sector (behaviors' EngagementArea, CE-2282), his brain's owner → every node, field for field
@@ -680,6 +714,10 @@ namespace Hrot.NED.Descriptors
         public float Seconds;
         /// <summary>⭐ CE-3236 (B-14, VC-4) — the venting canister it sits on; 0 = free (APPENDED, R-169).</summary>
         public int SourceNetworkId;
+        /// <summary>⭐ CE-4155 (SR-82) — the network id of who threw the round that made it; each pulse's damage names them. 0 = unknown (APPENDED, R-169).</summary>
+        public int CreatorNetworkId;
+        /// <summary>⭐ CE-4155 (SR-82) — the first thrower when the round was thrown back; 0 = the creator threw it first (APPENDED, R-169).</summary>
+        public int OriginalCreatorNetworkId;
     }
 
     // ⭐ CE-3210 (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-6) — the damage level per body part, the Health owner

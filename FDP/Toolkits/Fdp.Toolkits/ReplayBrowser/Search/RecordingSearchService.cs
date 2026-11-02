@@ -120,6 +120,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             // ⭐ CE-1302 — the ONE structural evaluation, shared with the timeline's Life lanes (StructuralScanner).
             var structuralScanner = root is StructuralPredicateDto structuralPred ? new StructuralScanner(structuralPred) : null;
             var spatialState = root is SpatialBoundingPredicateDto ? new HashSet<Entity>() : null;
+            // ⭐ CE-4205: "is inside" is the one compiler's level arm (compiled after the replay's components are registered); the enter / exit edge stays here
+            var spatialLevel = root is SpatialBoundingPredicateDto { PositionComponentType: not null } sp ? _predicateCompiler.CompileLevelPredicate(sp) : null;
 
             // Build EntityQuery for component and compound modes.
             EntityQuery? deltaQuery = BuildDeltaQuery(repo, root, mandatory);
@@ -169,9 +171,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 }
 
                 // ── Spatial mode ─────────────────────────────────────────────
-                if (root is SpatialBoundingPredicateDto spatial && spatialState != null)
+                if (root is SpatialBoundingPredicateDto spatial && spatialState != null && spatialLevel != null)
                 {
-                    RunSpatialFrame(repo, frame, ticks, spatial, spatialState, results, entityFilter);
+                    RunSpatialFrame(repo, frame, ticks, spatial, spatialLevel, spatialState, results, entityFilter);
                 }
 
                 // ── Structural mode ──────────────────────────────────────────
@@ -257,6 +259,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             var repo = new EntityRepository();
 
             RegisterAllComponents(repo, playback);
+            var matches = _predicateCompiler.CompileLevelPredicate(criteria);   // ⭐ CE-4205: "matches the criteria" = the one compiler's level arm
 
             int eofFrame = 0;
 
@@ -275,7 +278,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                     if (entityFilter != null && !entityFilter.Passes(repo, entity)) continue;
                     if (activeRanges.ContainsKey(entity)) continue;
 
-                    if (MatchesLifecycleCriteria(entity, repo, criteria))
+                    if (matches(repo, entity))
                         activeRanges[entity] = frame;
                 }
 
@@ -314,6 +317,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             int frame,
             long ticks,
             SpatialBoundingPredicateDto predicate,
+            Func<EntityRepository, Entity, bool> insideLevel,
             HashSet<Entity> insideZone,
             List<SearchResultDto> results,
             TargetEntityFilter? entityFilter)
@@ -325,7 +329,6 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
             // Build a query for entities with the position component.
             EntityQuery posQuery = repo.Query().WithComponentId(typeId).Build();
-            Fdp.Toolkit.Replication.AreaLink bounds = predicate.Bounds;   // ⭐ S0 item 5 (SR-134): ONE containment — AreaLink.Contains
             BoundaryEvent trigger = predicate.TriggerEvent;
 
             repo.QueryDelta(posQuery, 0, entity =>
@@ -333,11 +336,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 if (entityFilter != null && !entityFilter.Passes(repo, entity)) return;
                 if (!repo.HasComponentByTypeId(entity, typeId)) return;
 
-                // Read X and Y from the position component using direct reflection.
-                // (Expression-tree approach would be faster; this is acceptable for spatial mode.)
-                Vector2 pos = ReadPosition2D(repo, entity, predicate);
-
-                bool nowInside = bounds.Contains(repo, new Vector3(pos.X, pos.Y, 0f));
+                bool nowInside = insideLevel(repo, entity);
                 bool wasInside = insideZone.Contains(entity);
 
                 if (nowInside && !wasInside)
@@ -357,111 +356,6 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
         // ── Structural frame processing ──────────────────────────────────────
 
-
-        // ── Spatial helpers ──────────────────────────────────────────────────
-
-        private static Vector2 ReadPosition2D(
-            EntityRepository repo,
-            Entity entity,
-            SpatialBoundingPredicateDto predicate)
-        {
-            Type compType = predicate.PositionComponentType;
-            int typeId = ComponentTypeRegistry.GetId(compType);
-            if (typeId < 0) return Vector2.Zero;
-
-            object? comp = null;
-            if (compType.IsValueType)
-            {
-                // Box the unmanaged component using pointer + Marshal.
-                unsafe
-                {
-                    void* ptr = repo.GetComponentPointer(entity, typeId);
-                    if (ptr == null) return Vector2.Zero;
-                    comp = System.Runtime.InteropServices.Marshal.PtrToStructure(
-                        new IntPtr(ptr), compType);
-                }
-            }
-            else
-            {
-                comp = repo.GetManagedComponentByTypeId(entity, typeId);
-            }
-
-            if (comp == null) return Vector2.Zero;
-
-            float x = ReadFloatField(comp, predicate.PositionXPath);
-            float y = ReadFloatField(comp, predicate.PositionYPath);
-            return new Vector2(x, y);
-        }
-
-        private static float ReadFloatField(object obj, string fieldPath)
-        {
-            object? cur = obj;
-            string[] segments = fieldPath.Split('.');
-            foreach (string seg in segments)
-            {
-                if (cur == null) return 0f;
-                Type t = cur.GetType();
-                FieldInfo? fi = t.GetField(seg,
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (fi != null) { cur = fi.GetValue(cur); continue; }
-                PropertyInfo? pi = t.GetProperty(seg,
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (pi != null) { cur = pi.GetValue(cur); continue; }
-                return 0f;
-            }
-            return cur is float f ? f : (cur is double d ? (float)d : 0f);
-        }
-
-        // ── Lifecycle helpers ────────────────────────────────────────────────
-
-        private static bool MatchesLifecycleCriteria(
-            Entity entity,
-            EntityRepository repo,
-            LifecyclePredicateDto criteria)
-        {
-            switch (criteria.IdentifierType)
-            {
-                case EntityIdentifierType.EcsHandle:
-                    return int.TryParse(criteria.TargetValue, out int idx) && entity.Index == idx;
-
-                case EntityIdentifierType.NetworkId:
-                    // ⭐ RB-5 — the ONE network-id rule (the breakpoint's too). ⛔ Was: the target compared with the entity's INDEX.
-                    return LifecycleIdentity.IsNetworkId(repo, entity, criteria.TargetValue);
-
-                case EntityIdentifierType.NameSubstring:
-                {
-                    if (criteria.NameComponentType == null) return false;
-                    object? comp = ComponentBox.Read(repo, entity, criteria.NameComponentType);   // the shared read (the timeline's projection uses it too)
-                    if (comp == null) return false;
-
-                    string? name = ReadStringField(comp, criteria.NamePropertyPath);
-                    return name != null &&
-                           name.Contains(criteria.TargetValue, StringComparison.OrdinalIgnoreCase);
-                }
-
-                default:
-                    return false;
-            }
-        }
-
-        private static string? ReadStringField(object obj, string fieldPath)
-        {
-            object? cur = obj;
-            string[] segments = fieldPath.Split('.');
-            foreach (string seg in segments)
-            {
-                if (cur == null) return null;
-                Type t = cur.GetType();
-                FieldInfo? fi = t.GetField(seg,
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (fi != null) { cur = fi.GetValue(cur); continue; }
-                PropertyInfo? pi = t.GetProperty(seg,
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (pi != null) { cur = pi.GetValue(cur); continue; }
-                return null;
-            }
-            return cur?.ToString();
-        }
 
         private static string BuildLifecycleContext(Entity entity, LifecyclePredicateDto criteria)
         {

@@ -385,6 +385,7 @@ namespace Hrot.SimHost.Tests
             {
                 Kind = Fdp.Toolkit.Combat.CloudKind.TearGas, Radius = 6f, Height = 3f, SightTransmittance = 0.4f, IrritantSeconds = 2f,
                 BornAtSimSeconds = 12.5, Seconds = 60f, SourceNetworkId = 4711,   // ⭐ CE-3236 — the canister it sits on
+                CreatorNetworkId = 4712, OriginalCreatorNetworkId = 4713,   // ⭐ CE-4155 (SR-82) — who threw it, and who threw it first
             };
             var sample = EntityAreaEffectCloudEgressTranslator.ToSample(46, cloud);
 

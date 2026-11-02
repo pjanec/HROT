@@ -144,7 +144,7 @@ namespace Hrot.Editor.DebugApi
             ("POST", "/entities/{networkId}/order"), ("DELETE", "/entities/{networkId}/order"),
             ("POST", "/entities/{networkId}/possess"), ("DELETE", "/entities/{networkId}/possess"), ("POST", "/entities/{networkId}/control"),
             ("POST", "/orders"), ("POST", "/orders/side-lock"), ("POST", "/entities/{networkId}/sector"),
-            ("POST", "/entities/{networkId}/attribute"), ("POST", "/entities/{networkId}/component"),
+            ("POST", "/entities/{networkId}/attribute"), ("POST", "/entities/{networkId}/component"), ("POST", "/objectives/{networkId}/control"),
             ("POST", "/entities/{networkId}/ownership/transfer"), ("POST", "/entities/{networkId}/variable"),
             ("POST", "/entities/{networkId}/attach-blueprint"), ("POST", "/entities/{networkId}/detach-blueprint"),
             ("DELETE", "/entities/{networkId}"), ("POST", "/checkpoint"), ("POST", "/checkpoint/restore"),
@@ -1507,6 +1507,16 @@ namespace Hrot.Editor.DebugApi
             {
                 bool tree = ctx.Query("tree") is "1" or "true";
                 return RunMain(s => s.GetObjectives(tree));
+            }));
+
+            // ⭐ rules V-4 (§00.10) — an instructor's / agent's runtime request to a rule entity, through the attribute write path
+            _routes.Add(new("POST", "/objectives/{networkId}/control", async ctx =>
+            {
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                string? request = ctx.Body?["request"] is System.Text.Json.Nodes.JsonValue rv && rv.TryGetValue<string>(out var rs) ? rs : null;
+                var (node, error) = await _jobQueue.RunOnMainThread(() => Service().ControlObjective(id, request)).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
             }));
 
             // Group L — Live Mutation / Fault Injection (ADA-BATCH-13)

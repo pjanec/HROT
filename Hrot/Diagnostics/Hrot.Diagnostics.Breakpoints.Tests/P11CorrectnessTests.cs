@@ -89,7 +89,7 @@ public sealed class SpatialPositionAccessorTests
         var preTick  = new EntityRepository();
         var tc       = new MockDebugTimeController();
         var provider = new DebugSnapshotProvider(preTick);
-        return new DataBreakpointManager(liveRepo, preTick, provider, tc);
+        return new DataBreakpointManager(liveRepo, preTick, provider, tc, new PredicateCompiler(new ComponentEditServiceBuilder().Build()));
     }
 
     /// <summary>
@@ -159,6 +159,40 @@ public sealed class SpatialPositionAccessorTests
 
         Assert.False(manager.IsPaused, "Entity at (50, 50) should be outside [0-10, 0-10] bounds");
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-4205</c> — the ROUTE: the breakpoint's "is inside" IS the compiler's level arm. A spatial breakpoint (entry) fires
+    /// exactly when <c>CompileLevelPredicate</c> on the same dto says inside, for an inside, an outside and a boundary-straddling position.
+    /// </summary>
+    [Theory]
+    [InlineData(3.0f, 7.5f)]
+    [InlineData(50.0f, 50.0f)]
+    [InlineData(-2.0f, 4.0f)]
+    public void SpatialTracker_AgreesWithTheCompilersLevelArm(float x, float y)
+    {
+        ComponentTypeRegistry.Clear();
+        var liveRepo = new EntityRepository();
+        var compiler = new PredicateCompiler(new ComponentEditServiceBuilder().Build());
+        var preTick  = new EntityRepository();
+        var manager  = new DataBreakpointManager(liveRepo, preTick, new DebugSnapshotProvider(preTick), new MockDebugTimeController(), compiler);
+        liveRepo.RegisterComponent<TestPosition2D>();
+        var entity = liveRepo.CreateEntity();
+        liveRepo.AddComponent(entity, new TestPosition2D { X = x, Y = y });
+
+        var dto = new SpatialBoundingPredicateDto
+        {
+            PositionComponentType = typeof(TestPosition2D), PositionXPath = "X", PositionYPath = "Y",
+            TriggerEvent = BoundaryEvent.Entry,
+            Bounds = AreaBoxes.FromBox(new BoundingBox2D { Min = new Vector2(0f, 0f), Max = new Vector2(10f, 10f) }),
+        };
+        bool level = compiler.CompileLevelPredicate(dto)(liveRepo, entity);
+        manager.AddBreakpoint(dto);
+        manager.EvaluateStatefulBreakpoints(liveRepo);
+
+        bool expected = x >= 0f && x <= 10f && y >= 0f && y <= 10f;   // the box, stated independently of any arm
+        Assert.Equal(expected, level);
+        Assert.Equal(level, manager.IsPaused);
+    }
 }
 
 // =============================================================================
@@ -192,7 +226,7 @@ public sealed class LifecycleNetworkIdTests
         var preTick  = new EntityRepository();
         var tc       = new MockDebugTimeController();
         var provider = new DebugSnapshotProvider(preTick);
-        return new DataBreakpointManager(liveRepo, preTick, provider, tc);
+        return new DataBreakpointManager(liveRepo, preTick, provider, tc, new PredicateCompiler(new ComponentEditServiceBuilder().Build()));
     }
 
     /// <summary>

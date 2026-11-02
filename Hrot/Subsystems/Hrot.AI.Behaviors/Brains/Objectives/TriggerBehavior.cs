@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -25,7 +26,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
     /// </summary>
     public static class TriggerWhen
     {
-        private static readonly IPredicateCompiler Compiler = new PredicateCompiler(new ComponentEditServiceBuilder().Build());
+        internal static readonly IPredicateCompiler Compiler = new PredicateCompiler(new ComponentEditServiceBuilder().Build());
         private static readonly ConcurrentDictionary<string, Func<EntityRepository, Entity, bool>> ByContent = new();
         private static readonly ConditionalWeakTable<string, Func<EntityRepository, Entity, bool>> ByReference = new();
 
@@ -77,6 +78,9 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             public double EdgeAt, WaitUntil, CooldownUntil;
             /// <summary>The <c>do</c> list's runner state: <c>RunActions</c>' own params (list 1, depth 0) and its cursor.</summary>
             public RunActionsParams ListParams; public RunActionsState List;
+            /// <summary>⭐ V-1 — the entities the rule names (net ids): its <c>when</c> reads / its <c>do</c> acts on. <c>LinksPending</c> = some ref was not resolved yet (asked again each tick, <c>LinkTries</c> times at most).</summary>
+            public byte DependsOnCount, ActsOnCount, LinksPending, LinkTries;
+            public NetIds8 DependsOn, ActsOn;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -90,17 +94,9 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         [BehaviorResolver(BehaviorNames.Trigger)]
         public static void Resolve(in TriggerParamsJsonDto authored, ref TriggerBlackboard bb, EntityRepository world, Entity self)
         {
-            if (authored.When is null) throw new InvalidOperationException("Trigger: 'when' is required (a condition, e.g. {\"$type\":\"OnEntity\",...}).");
-            string whenJson = TriggerWhen.ToJson(authored.When);
-            string doJson = authored.Do?.ToJsonString() ?? "[]";
-            string[] extras;
-            try { (doJson, extras) = ActionList.ExtractParams(doJson, FirstExtraItem); }   // ⭐ S2 ⑨ — a step's nested "params" become extra ActionArgs items, its ArgsRef their index
-            catch (ActionListException ex) { throw new InvalidOperationException($"Trigger: 'do' is invalid — {ex.Message}", ex); }
-            try { TriggerWhen.Get(whenJson); }
-            catch (Exception ex) when (ex is not OutOfMemoryException)
-            { throw new InvalidOperationException($"Trigger: 'when' does not compile — {ex.GetType().Name}: {ex.Message}", ex); }
-            try { ActionList.Validate(doJson); }
-            catch (ActionListException ex) { throw new InvalidOperationException($"Trigger: 'do' is invalid — {ex.Message}", ex); }
+            // ⭐ CE-2377 — the checks live in ONE place, the validator (side-effect-free, also run by the scenario sweep / load prepare).
+            var problems = ValidateParams(in authored, out string whenJson, out string doJson, out string[] extras);
+            if (problems.Count > 0) throw new InvalidOperationException("Trigger: " + string.Join("; ", problems));
 
             var common = authored.Common;
             common.Scored ??= false;   // T8: a trigger is not scored unless it says so
@@ -112,6 +108,48 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 ListParams = new RunActionsParams { ListRef = DoItem, Depth = 0 },
             };
             if (world != null && world.IsAlive(self)) world.SetManagedComponent(self, new ActionArgs(new[] { whenJson, doJson }.Concat(extras).ToArray()));
+            ComputeLinks(ref bb.Block, world, whenJson, doJson);   // ⭐ V-1
+        }
+
+        private const byte MaxLinkTries = 30;
+
+        /// <summary>⭐ V-1 — DependsOn / ActsOn from the JSON; refs not resolved yet leave <c>LinksPending</c> (the tick asks again, a bounded number of times).</summary>
+        private static void ComputeLinks(ref Block b, EntityRepository? world, string whenJson, string doJson)
+        {
+            var r = RuleLinks.Compute(world, whenJson, doJson);
+            b.DependsOn = r.DependsOn; b.DependsOnCount = r.DependsOnCount; b.ActsOn = r.ActsOn; b.ActsOnCount = r.ActsOnCount;
+            b.LinksPending = (byte)(r.Complete ? 0 : 1);
+        }
+
+        /// <summary>⭐ <c>CE-2377</c> — the Trigger's params check, side-effect-free: <c>when</c> is present and compiles as a LEVEL predicate; <c>do</c> is a valid action list.</summary>
+        [BehaviorValidator(BehaviorNames.Trigger)]
+        public static IEnumerable<string> Validate(string json)
+        {
+            TriggerParamsJsonDto dto;
+            try { dto = JsonSerializer.Deserialize<TriggerParamsJsonDto>(json, BehaviorParams.JsonOptions); }
+            catch (JsonException ex) { return new[] { $"params are not valid JSON — {ex.Message}" }; }
+            return ValidateParams(in dto, out _, out _, out _);
+        }
+
+        private static List<string> ValidateParams(in TriggerParamsJsonDto authored, out string whenJson, out string doJson, out string[] extras)
+        {
+            var problems = new List<string>();
+            whenJson = ""; doJson = "[]"; extras = Array.Empty<string>();
+            if (authored.When is null) problems.Add("'when' is required (a condition, e.g. {\"$type\":\"OnEntity\",...}).");
+            else
+            {
+                whenJson = TriggerWhen.ToJson(authored.When);
+                try { TriggerWhen.Get(whenJson); }
+                catch (Exception ex) when (ex is not OutOfMemoryException) { problems.Add($"'when' does not compile — {ex.GetType().Name}: {ex.Message}"); }
+            }
+            doJson = authored.Do?.ToJsonString() ?? "[]";
+            try
+            {
+                (doJson, extras) = ActionList.ExtractParams(doJson, FirstExtraItem);   // ⭐ S2 ⑨ — a step's nested "params" become extra ActionArgs items, its ArgsRef their index
+                ActionList.Validate(doJson);
+            }
+            catch (ActionListException ex) { problems.Add($"'do' is invalid — {ex.Message}"); }
+            return problems;
         }
 
         private const double Eps = 1e-9;
@@ -123,6 +161,17 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Trigger, in b.Common, ref b.Run, ObjectiveHost.CloseMode.Hold);
             double now = f.Now;
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
+            if (b.LinksPending != 0 && b.LinkTries < MaxLinkTries)   // ⭐ V-1: a ref that did not resolve at assignment — ask again (the world fills in)
+            {
+                b.LinkTries++;
+                var items = ((ISimulationView)world).GetManagedComponentRO<ActionArgs>(self).Items;
+                ComputeLinks(ref b, world, items[WhenItem], items[DoItem]);
+            }
+            if (f.Control != RuleRequest.NoRequest)
+            {
+                Control(ref b, ref s, f.Control, self, world, now);   // ⭐ V-4: Fire / Rearm
+                s = ref world.GetComponentRW<ObjectiveStatus>(self);  // ⚠ re-acquire: the actions may have added components
+            }
             if (f.Reset)   // SR-114: a reset re-arms it from scratch
             {
                 b.Phase = TriggerState.Disarmed; b.Prev = 0; b.PrevKnown = 0; b.List = default;
@@ -142,7 +191,50 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 else if (s.State == ObjectiveState.Active) Step(ref b, ref s, self, world, now);
             }
             s.TriggerState = b.Phase;
+            WriteViewData(ref b, ref s);
             return NodeStatus.Running;
+        }
+
+        /// <summary>
+        /// ⭐ V-4 — an instructor's <c>Fire</c> (the actions run NOW, as if the edge rose: holdFor and delay skipped; only an armed / holding / waiting / cooling-down trigger) or
+        /// <c>Rearm</c> (Armed again, the condition as it is NOW counted as already seen — no edge, so no firing while it stays true; a final one needs a Reset). The
+        /// other requests (activate / disarm / reset) were applied by <see cref="ObjectiveHost"/>.
+        /// </summary>
+        private static void Control(ref Block b, ref ObjectiveStatus s, RuleRequest request, Entity self, EntityRepository world, double now)
+        {
+            if (s.Closed != 0 || s.IsFinal) { s.Reason = new FixedString64($"{request} refused: it is {s.State}"); return; }
+            if (request == RuleRequest.Fire)
+            {
+                if (s.State != ObjectiveState.Active || b.Phase is TriggerState.Disarmed or TriggerState.Acting or TriggerState.Fired or TriggerState.Done)
+                { s.Reason = new FixedString64($"Fire refused: {(s.State != ObjectiveState.Active ? "it is switched off" : b.Phase.ToString())}"); return; }
+                b.EdgeAt = now;
+                StartActing(ref b, ref s, self, world, now);
+                return;
+            }
+            // Rearm
+            if (b.Phase == TriggerState.Acting) { s.Reason = new FixedString64("Rearm refused: it is acting"); return; }
+            if (s.State != ObjectiveState.Active) ObjectiveRules.SetActive(ref s, true, false, now);
+            b.Prev = (byte)(TriggerWhen.Get(((ISimulationView)world).GetManagedComponentRO<ActionArgs>(self).Items[WhenItem])(world, self) ? 1 : 0);
+            b.PrevKnown = 1;
+            if (b.Phase != TriggerState.Armed) Go(ref b, ref s, TriggerState.Armed, "re-armed by request", now);
+        }
+
+        /// <summary>⭐ V-1 / V-2 — the rule's links and timing onto the status (the owner writes them every tick; the wire sends a change once). ExpectedAt: Waiting ⇒ the delay's end ·
+        /// Holding ⇒ edge + holdFor · Cooldown ⇒ its end · Armed with a deadline ⇒ the deadline · else 0.</summary>
+        private static void WriteViewData(ref Block b, ref ObjectiveStatus s)
+        {
+            RuleLinks.CopyTo(ref s, in b.DependsOn, b.DependsOnCount, in b.ActsOn, b.ActsOnCount);
+            s.HoldFor = b.HoldFor; s.Delay = b.Delay; s.Cooldown = b.Cooldown;
+            s.Deadline = b.Common.DeadlineSeconds;
+            if (s.Closed != 0 || s.IsFinal) { s.ExpectedAt = 0d; return; }
+            s.ExpectedAt = b.Phase switch
+            {
+                TriggerState.Waiting => b.WaitUntil,
+                TriggerState.Holding => b.EdgeAt + b.HoldFor,
+                TriggerState.Cooldown => b.CooldownUntil,
+                TriggerState.Armed when b.Common.DeadlineSeconds > 0f => b.Common.DeadlineSeconds,
+                _ => 0d,
+            };
         }
 
         /// <summary>Armed … Cooldown, evaluated while the objective state is Active.</summary>
