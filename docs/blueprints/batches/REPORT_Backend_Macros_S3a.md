@@ -37,7 +37,7 @@ Ids allocated: components 469–474; descriptors 158, 159, 170, 171, 172; TKB 88
 | orchestrator (whole) | `dotnet test Hrot/Subsystems/Hrot.Orchestrator.Tests --no-build` | 416/0 | — |
 | runner (filtered) | `--filter "RunMode\|Startup\|Configuration"` | 81/0 | — |
 | NED (whole) | `dotnet test Hrot/Network/Hrot.Network.NED.Tests --no-build` | 176/1 | the 1 red `AllTopicStructsHaveDdsTopicAttribute` (`FeatureOverrideWire`) is red at base |
-| `DistributedScenarioLoadTests` alone | `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests --filter DistributedScenarioLoadTests` | see §2a | — |
+| `DistributedScenarioLoadTests` alone | `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests --filter DistributedScenarioLoadTests` | ✅ 1/0 — §2a | — |
 | live `--mode all` | `scenarios/test-macro-two-teams --load live --param side=Friend` | ✅ — §2b | — |
 | docs | `tracker-counts.py --check` · `rulings-check.py` · `design-digest.py --check` · `mermaid-check.mjs` | OK · OK (3 "source changed" warnings, pre-existing) · OK · 14/14 | — |
 
@@ -46,7 +46,7 @@ item ⑥/⑤ a `Failed` slot ignored ⇒ `Placement_OneFailedSlot_…` red · it
 
 ### 2a. `DistributedScenarioLoadTests`
 
-*(filled in when the run returns)*
+✅ `DistributedLoad_TranslatesNetworkIds_AndSpawnsEntitiesWithRemappedMissionPlan` passed in **13 s** (a real 3-node boot + load; the summary line's `< 1 ms` is the runner's misreport — the per-test logger gives 13 s).
 
 ### 2b. The live run
 
