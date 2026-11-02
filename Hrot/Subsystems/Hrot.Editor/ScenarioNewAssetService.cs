@@ -168,7 +168,7 @@ public sealed class ScenarioNewAssetService : INewAssetService
         if (recipe is not ScenarioEditableAssetAdapter) return null;
         try
         {
-            var file = System.IO.Path.Combine(recipesRoot ?? AssetRoots.ScenariosRecipesRoot, recipe.Name, "scenario.json");
+            var file = System.IO.Path.Combine(recipesRoot ?? AssetRoots.ScenariosRecipesRoot, recipe.Name, Fdp.Toolkit.Orchestration.ContentLayout.ScenarioFileName);
             if (!System.IO.File.Exists(file)) return null;
             using var doc = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(file));
             if (doc.RootElement.TryGetProperty("header", out var header) && header.TryGetProperty("description", out var d)

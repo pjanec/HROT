@@ -17,6 +17,9 @@ namespace Fdp.Toolkit.Tests.Orchestration
 
         /// <summary>⭐ The tree of §1, spelled by ONE class — a segment renamed here moves every reader with it.</summary>
         [Fact]
+        public void TheScenarioFileNameIsOneConstant() => Assert.Equal("scenario.json", ContentLayout.ScenarioFileName);
+
+        [Fact]
         public void TheTreeOfTheDesign_IsWhatTheLayoutSpells()
         {
             var r = Path.Combine("x", "root");

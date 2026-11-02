@@ -52,7 +52,7 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
     public Func<bool>? SaveIntercept { get; set; }
 
     /// <summary>The file name every scenario directory stores its world under.</summary>
-    public const string ScenarioFileName = "scenario.json";
+    public const string ScenarioFileName = ContentLayout.ScenarioFileName;
 
     // ⭐ CE-1439 — BOTH null together on a host with no world of its own (the Orchestrator, the cluster master's window): the only three members that touch them
     //   (ClearWorld, SaveTo, GetMigrationSidecars) then have nothing local to act on. ⛔ Never one without the other.

@@ -247,7 +247,7 @@ public sealed class StorageProcessManager
 
         if (result.CanonicalDom != null)
         {
-            var canonicalFile = Path.Combine(scenarioDir, "scenario.json");
+            var canonicalFile = Path.Combine(scenarioDir, ContentLayout.ScenarioFileName);
             File.WriteAllText(canonicalFile,
                 result.CanonicalDom.ToJsonString(FdpJsonOptionsRegistry.DefaultRelaxed));
             FdpLog<StorageProcessManager>.Info(

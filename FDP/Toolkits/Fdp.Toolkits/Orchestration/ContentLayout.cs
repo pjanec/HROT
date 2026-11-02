@@ -29,6 +29,9 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary><c>scenarios</c> — ⛔ not a second constant: it IS <see cref="OrchestrationConstants.ScenariosDirectoryName"/>.</summary>
         public const string ScenariosDirectoryName = OrchestrationConstants.ScenariosDirectoryName;
 
+        /// <summary><c>scenario.json</c> — the ONE spelling of a scenario folder's file name (CE-4211).</summary>
+        public const string ScenarioFileName = "scenario.json";
+
         /// <summary><c>assets</c> — ⛔ one definition: <see cref="OrchestrationConstants.NasAssetsDirectoryName"/>.</summary>
         public const string AssetsDirectoryName = OrchestrationConstants.NasAssetsDirectoryName;
 

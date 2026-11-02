@@ -52,7 +52,7 @@ public static class ScenarioEnumeration
         bool hasMarker = false;
         foreach (string entry in Directory.EnumerateFiles(currentDir))
         {
-            if (string.Equals(Path.GetFileName(entry), "scenario.json", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(Path.GetFileName(entry), Fdp.Toolkit.Orchestration.ContentLayout.ScenarioFileName, StringComparison.OrdinalIgnoreCase))
             {
                 hasMarker = true;
                 break;

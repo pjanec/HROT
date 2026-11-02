@@ -37,7 +37,7 @@ namespace Hrot.ScenarioEditor.Handlers;
 public sealed class HrotScenarioSaveHandler : IClusterStateHandler
 {
     /// <summary>The canonical file name every scenario directory stores its world under (matches the load path).</summary>
-    public const string ScenarioFileName = "scenario.json";
+    public const string ScenarioFileName = ContentLayout.ScenarioFileName;
 
     /// <summary>The <c>$meta.docType</c> stamped on a saved scenario, regardless of which host wrote it.</summary>
     private const string ScenarioDocType = "Hrot.Scenario";
