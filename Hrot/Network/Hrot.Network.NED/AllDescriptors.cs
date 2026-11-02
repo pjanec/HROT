@@ -177,6 +177,8 @@ namespace Hrot.NED.Descriptors
         //   the players (an EVENT topic: published once by the raising node, raised again on every other).
         dtExerciseResult              = 172,
         dtPlayerMessage               = 173,
+        //   ⭐ rules V-3 (§00.10) — 174 a trigger's when-leaves with their live values (its owning Brain → every node; STATE, sampled ≤ 2 Hz and only while ui.rules-live-values is on).
+        dtRuleLeaves                  = 174,
         // etc., all known descriptor types here
     }
 

@@ -25,6 +25,7 @@ public sealed class TheObjectivesRouteShowsTheTreeTests : IDisposable
         _world.RegisterComponent<ObjectiveStatus>();
         _world.RegisterComponent<ObjectiveLinks>();
         _world.RegisterComponent<RuleControl>();
+        _world.RegisterComponent<RuleLeaves>();
         _svc = new DebugApiService(new PerspectiveScopedDispatcher(
             new ISubsystemDebugProvider[] { new SubsystemDebugProvider("CGF", "Scenario", world: () => _world, entityMap: () => _map) },
             currentPerspective: () => "Scenario", acksPending: null));
@@ -145,5 +146,28 @@ public sealed class TheObjectivesRouteShowsTheTreeTests : IDisposable
         Assert.Equal("requested", (string)ok!["route"]!);
         var e = _map.TryGetEntity(41, out var en) ? en : default;
         Assert.False(_world.HasComponent<RuleControl>(e));
+    }
+    /// <summary>⭐ rules V-3 — a TRIGGER row carries <c>leaves</c> (label, 0/1, measured) once the owner has sampled them, and none before; an objective row never does.
+    /// ✅ Red-proof: the <c>leaves</c> block removed from <c>GetObjectives</c> ⇒ red.</summary>
+    [Fact]
+    public void ATriggerRow_CarriesItsLeaves_OnceSampled_AndNoneBefore()
+    {
+        Add(30, "Gate", "Trigger", ObjectiveState.Active);
+        Add(31, "Obj", "ReachArea", ObjectiveState.Active);
+        _map.TryGetEntity(30, out var trig); _map.TryGetEntity(31, out var obj);
+        _world.GetComponentRW<ObjectiveStatus>(trig).Role = ObjectiveRole.Trigger;
+        Assert.Null(_svc.GetObjectives()["objectives"]!.AsArray().Single(r => (int)r!["networkId"]! == 30)!["leaves"]);   // not sampled yet
+
+        var c = new RuleLeaves { Count = 2 };
+        c.Leaves[0] = new RuleLeaf { Label = new FixedString32("@Bridge Health.Current"), Value = 1, Measured = 37.5f };
+        c.Leaves[1] = new RuleLeaf { Label = new FixedString32("ScenarioTime"), Value = 0, Measured = 12.25f };
+        _world.AddComponent(trig, c);
+        _world.AddComponent(obj, c);
+        var rows = _svc.GetObjectives()["objectives"]!.AsArray();
+        var leaves = rows.Single(r => (int)r!["networkId"]! == 30)!["leaves"]!.AsArray();
+        Assert.Equal(2, leaves.Count);
+        Assert.Equal(("@Bridge Health.Current", 1, 37.5f), ((string)leaves[0]!["label"]!, (int)leaves[0]!["value"]!.GetValue<byte>(), (float)leaves[0]!["measured"]!));
+        Assert.Equal(("ScenarioTime", 0, 12.25f), ((string)leaves[1]!["label"]!, (int)leaves[1]!["value"]!.GetValue<byte>(), (float)leaves[1]!["measured"]!));
+        Assert.Null(rows.Single(r => (int)r!["networkId"]! == 31)!["leaves"]);   // only a trigger has when-leaves
     }
 }

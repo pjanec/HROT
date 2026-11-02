@@ -296,7 +296,8 @@ public class TheDescriptorMapIsWiredTests
                     D(Hrot.NED.Descriptors.EDescriptorType.dtUtterance),             // ⭐ CE-3264 — speech
                     D(Hrot.NED.Descriptors.EDescriptorType.dtDemeanour),            // ⭐ CE-3265 — mood
                     D(Hrot.NED.Descriptors.EDescriptorType.dtObjectiveStatus),     // ⭐ rules S1-a — an objective's status
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtExerciseResult) },      // ⭐ rules S2-e — the exercise's phase and outcome
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtExerciseResult),      // ⭐ rules S2-e — the exercise's phase and outcome
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtRuleLeaves) },      // ⭐ rules V-3 — a trigger's when-leaves with their live values
             map.DescriptorsOf(Fdp.Core.NodeRole.Brain).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos), D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationStatus),

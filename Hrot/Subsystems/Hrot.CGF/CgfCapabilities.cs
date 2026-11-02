@@ -74,7 +74,7 @@ internal static class CgfCapabilities
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
         /// <summary>⭐ rules S2 ⑨ — <c>exercise.pause-on-end</c>: the pack carries <c>ExercisePauseOnEndSystem</c> (the editor's Brain declares the same one).</summary>
-        public IReadOnlyList<Hrot.Common.Infrastructure.FeatureDeclaration> Features { get; } = new[] { Hrot.AI.Behaviors.Brains.Objectives.ExercisePauseOnEndSystem.Feature };
+        public IReadOnlyList<Hrot.Common.Infrastructure.FeatureDeclaration> Features { get; } = new[] { Hrot.AI.Behaviors.Brains.Objectives.ExercisePauseOnEndSystem.Feature, Hrot.AI.Behaviors.Brains.Objectives.RuleLeafSampler.Feature };   // ⭐ rules V-3: + ui.rules-live-values
 
         /// <inheritdoc/>
         /// <remarks>

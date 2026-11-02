@@ -378,6 +378,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.EntityPartDamage` | descriptor | yes: entity id | S | Hrot.Network.NED | Damage level per body part |
 | `Hrot.NED.Descriptors.EntityPassengers` | descriptor | yes: entity id | S | Hrot.Network.NED | Passenger list of a vehicle |
 | `Hrot.NED.Descriptors.EntityPossessedBy` | descriptor | yes: entity id | S | Hrot.Network.NED | Which operator station holds the unit |
+| `Hrot.NED.Descriptors.EntityRuleLeaves` | descriptor | yes: entity id | S | Hrot.Network.NED | A trigger's `when` leaves (≤ 8: label, 0/1, measured number) for the rules view (rules V-3, dt 174); sampled ≤ 2 Hz by the owner ONLY while node feature `ui.rules-live-values` is on; the last sample stays when it goes off |
 | `Hrot.NED.Descriptors.EntityScenarioClock` | descriptor | yes: entity id | S | Hrot.Network.NED | Scenario start time and display UTC offset |
 | `Hrot.NED.Descriptors.EntitySpawnLevel` | descriptor | yes: entity id | S | Hrot.Network.NED | Birth level and whether position owner applied it |
 | `Hrot.NED.Descriptors.EntityTrafficDemand` | descriptor | yes: entity id | S | Hrot.Network.NED | Scenario traffic settings |

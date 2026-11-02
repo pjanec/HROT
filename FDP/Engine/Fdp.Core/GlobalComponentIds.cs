@@ -1103,6 +1103,10 @@ namespace Fdp.Core
         /// <c>ObjectiveHost.Enter</c>. Brain-local, NoScenario. Behaviors' block 418–433 (R-2056).</summary>
         public const int RuleControl = 430;
 
+        /// <summary>⭐ rules V-3 (behaviors; 📄 docs/DESIGN_Scenario_Rules.md §00.10) — <c>RuleLeaves</c>: a trigger's <c>when</c> leaves with their live values (≤ 8: label, 0/1, measured number),
+        /// sampled at ≤ 2 Hz by the owner while the node feature <c>ui.rules-live-values</c> is on; Brain group, replicated as <c>dtRuleLeaves</c> (174), NoScenario. Behaviors' block 418–433 (R-2056).</summary>
+        public const int RuleLeaves = 431;
+
         /// <summary>⭐ <c>CE-3264</c> (backend, G1) — <c>Utterance</c>: what a man is saying now, Brain group, replicated as <c>dtUtterance</c>
         /// (152). 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.18. ⭐ From the TOP of backend's proposed block 434–449
         /// (NOTE_Backend_To_All_Lanes_Component_Id_Space.md), not the contested sequential top; measured free on every lane 2026-10-19.</summary>

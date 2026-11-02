@@ -46,7 +46,8 @@ public sealed class RoleGroupOwnershipStrategyTests
         D(EDescriptorType.dtUtterance),             // ⭐ CE-3264 — speech
         D(EDescriptorType.dtDemeanour),             // ⭐ CE-3265 — mood
         D(EDescriptorType.dtObjectiveStatus),     // ⭐ rules S1-a — an objective's status (its own Brain)
-        D(EDescriptorType.dtExerciseResult) };      // ⭐ rules S2-e — the exercise's phase and outcome (the World Environment's Brain)
+        D(EDescriptorType.dtExerciseResult),      // ⭐ rules S2-e — the exercise's phase and outcome (the World Environment's Brain)
+        D(EDescriptorType.dtRuleLeaves) };      // ⭐ rules V-3 — a trigger's when-leaves with their live values (its owning Brain)
     private static readonly long[] Muscle     = { D(EDescriptorType.dtWorldPos), D(EDescriptorType.dtNavigationStatus),
         D(EDescriptorType.dtStanceStatus),    // ⭐ CE-2121 — the body's stance report
         D(EDescriptorType.dtTurretPose),      // ⭐ CE-1049 WL-1b — the turret pose, Muscle-owned

@@ -193,6 +193,9 @@ namespace Hrot.Map.Common.Translators
             // ⭐ rules S2-e — the exercise's phase and outcome per side (the World Environment's owner → every node; the ingress raises ExerciseEndedEvent once).
             yield return new EntityExerciseResultEgressTranslator(participant);
             yield return new EntityExerciseResultIngressTranslator(participant, entityMap);
+            // ⭐ rules V-3 — a trigger's when-leaves with their live values (the owner → every node, only while ui.rules-live-values is on there).
+            yield return new EntityRuleLeavesEgressTranslator(participant);
+            yield return new EntityRuleLeavesIngressTranslator(participant, entityMap);
             // ⭐ CE-3216 S1 — authored weather (the global and every region), owner → every node; WeatherField derives the rest.
             yield return new EntityWeatherEgressTranslator(participant);
             yield return new EntityWeatherIngressTranslator(participant, entityMap);

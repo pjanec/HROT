@@ -259,6 +259,30 @@ namespace Hrot.NED.Descriptors
         public float NeutralScore;
     }
 
+    /// <summary>⭐ rules V-3 — one leaf of <see cref="EntityRuleLeaves"/>: its label, whether it holds (0/1) and its measured number.</summary>
+    [DdsStruct]
+    public partial struct DdsRuleLeaf
+    {
+        [DdsManaged] public string Label;
+        public byte Value;
+        public float Measured;
+    }
+
+    // ⭐ rules V-3 (docs/DESIGN_Scenario_Rules.md §00.10) — a trigger's `when` LEAVES with their live values (≤ 8), for the rules view. State, keyed by the trigger entity, published by its
+    //   owner (the Brain that runs it) on change — the owner SAMPLES them at most twice a second and ONLY while the node feature ui.rules-live-values is on, so on a node nobody watches nothing
+    //   is written and nothing flows (the last sample stays when it is switched off). Same QoS as the status topic. Managed: it carries the labels.
+    [DdsTopic]
+    [DdsIdlFile("hrot-scenario-rules")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityRuleLeaves
+    {
+        [DdsKey]
+        public int EntityId;
+        /// <summary>The leaves (≤ 8; null = none yet); the count is the list's.</summary>
+        [DdsManaged] public List<DdsRuleLeaf> Leaves;
+    }
+
     // ⭐ CE-3216 S1 (R-3012; docs/designs/weather/DESIGN_Weather_And_Time.md §1, W-0…W-3) — AUTHORED weather (WeatherConditions): the global
     //   weather on the World Environment, a regional one on a Weather Region. Published by the owner (the creating Brain) on change, applied
     //   on every other node; every node derives the weather at any point itself (WeatherField). Flat fields (the dtPartDamage shape): 8 wind

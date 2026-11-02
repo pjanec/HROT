@@ -193,36 +193,59 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             double from = dto.FromSeconds, to = dto.ToSeconds;
             return (repo, _) =>
             {
-                double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : repo.SimulationTime;
+                double now = ScenarioNow(repo);
                 return now >= from && now < to;
             };
         }
 
-        private Func<EntityRepository, Entity, bool> CompileCountMatching(CountMatchingPredicateDto dto, PredicateMode mode)
+        /// <summary>The scenario time (s since the start) a <c>ScenarioTime</c> leaf compares — and the number the rules view shows for it (<see cref="CompileLeafMeasure"/>): ONE reader.</summary>
+        public static double ScenarioNow(EntityRepository repo)
+            => repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : repo.SimulationTime;
+
+        /// <summary>⭐ The counting half of <c>CountMatching</c>, shared by the predicate and the rules view's number (<see cref="CompileLeafMeasure"/>): how many entities match.</summary>
+        private sealed class MatchCounter
         {
-            var inner = Compile(dto.Predicate ?? throw new ArgumentException("CountMatching needs a predicate.", nameof(dto)), mode);
-            int min = dto.Min, max = dto.Max;
-            int withId = dto.WithComponent != null ? ComponentTypeRegistry.GetId(dto.WithComponent) : -1;
-            bool withNone = dto.WithComponent != null && withId < 0;
-            EntityQuery? query = null;
-            EntityRepository? queryRepo = null;
-            return (repo, _) =>
+            private readonly Func<EntityRepository, Entity, bool> _inner;
+            private readonly int _withId;
+            private readonly bool _withNone;
+            private EntityQuery? _query;
+            private EntityRepository? _queryRepo;
+
+            public MatchCounter(Func<EntityRepository, Entity, bool> inner, Type? withComponent)
             {
-                if (withNone) return min <= 0;   // an unregistered component: nobody has it
-                if (!ReferenceEquals(queryRepo, repo))
+                _inner = inner;
+                _withId = withComponent != null ? ComponentTypeRegistry.GetId(withComponent) : -1;
+                _withNone = withComponent != null && _withId < 0;
+            }
+
+            /// <summary>The entities matching, counted until it exceeds <paramref name="stopAbove"/> (then that is all it says: stopAbove + 1). An unregistered <c>WithComponent</c>: nobody has it, 0.</summary>
+            public int Count(EntityRepository repo, int stopAbove)
+            {
+                if (_withNone) return 0;
+                if (!ReferenceEquals(_queryRepo, repo))
                 {
                     var qb = repo.Query();
-                    query = (withId >= 0 ? qb.WithComponentId(withId) : qb.With<SimTransform>()).Build();
-                    queryRepo = repo;
+                    _query = (_withId >= 0 ? qb.WithComponentId(_withId) : qb.With<SimTransform>()).Build();
+                    _queryRepo = repo;
                 }
                 int n = 0;
-                foreach (var e in query!)
+                foreach (var e in _query!)
                 {
-                    if (!inner(repo, e)) continue;
-                    if (++n > max) return false;
+                    if (!_inner(repo, e)) continue;
+                    if (++n > stopAbove) return n;
                 }
-                return n >= min;
-            };
+                return n;
+            }
         }
+
+        private Func<EntityRepository, Entity, bool> CompileCountMatching(CountMatchingPredicateDto dto, PredicateMode mode)
+        {
+            var counter = BuildCounter(dto, mode);
+            int min = dto.Min, max = dto.Max;
+            return (repo, _) => { int n = counter.Count(repo, max); return n >= min && n <= max; };
+        }
+
+        private MatchCounter BuildCounter(CountMatchingPredicateDto dto, PredicateMode mode)
+            => new(Compile(dto.Predicate ?? throw new ArgumentException("CountMatching needs a predicate.", nameof(dto)), mode), dto.WithComponent);
     }
 }

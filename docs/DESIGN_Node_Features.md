@@ -220,6 +220,7 @@ the same path `MapInLoad` takes today — so a run cannot change outcome-affecti
 |---|---|---|---|---|
 | `map3d.in-load` | Player (`cap:image-generator`) | AtLoad | ON for `-m player` | R-1046 · **S1** (migrated) |
 | `exercise.pause-on-end` | Brain | Live | ON | Scenario Rules SR-9 / SR-116 · its S2 |
+| `ui.rules-live-values` | Brain | Live | OFF | Scenario Rules §00.10 V-3 — `RuleLeafSampler` samples each owned trigger's when-leaves (≤ 2 Hz) into `RuleLeaves` (`dtRuleLeaves` 174) only while on |
 | `hud.objectives` · `hud.own-evaluation` · `hud.messages` | Player | Live | ON (demo profile, SR-83) | Scenario Rules SR-106 / SR-112 · its S2 / S4 |
 | `hud.hit-marker` · `hud.damage-arc` · `hud.kill-cam` · `hud.squad-takeover-after-death` · `hud.spread-ring` · `hud.near-miss` | Player | Live | ON for `-m player` | `DESIGN_Player_Join.md` §7a G1–G6 · S2 |
 | `hud.kill-feed` · `hud.score-popups` · `hud.coaching` | Player | Live | game profile ON, training OFF | Scenario Rules SR-112 · its S6 |

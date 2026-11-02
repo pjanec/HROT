@@ -97,6 +97,8 @@ public static class HrotOwnershipGroups
         brain.SetBit(GlobalComponentIds.ObjectiveStatus);
         // ⭐ rules S2-e — the exercise's phase and outcome per side: the node that runs EndExercise (the World Environment's creating Brain) writes it (dtExerciseResult).
         brain.SetBit(GlobalComponentIds.ExerciseResult);
+        // ⭐ rules V-3 (§00.10) — a trigger's when-leaves with their live values: its owner (the Brain that runs it) samples and writes them (dtRuleLeaves).
+        brain.SetBit(GlobalComponentIds.RuleLeaves);
         // ⭐ CE-3216 S1 — authored weather: the Brain that creates the World Environment / a Weather Region owns it (dtWeather).
         brain.SetBit(GlobalComponentIds.WeatherConditions);
 

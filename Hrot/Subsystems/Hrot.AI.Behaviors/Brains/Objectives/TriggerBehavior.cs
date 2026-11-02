@@ -26,7 +26,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
     /// </summary>
     public static class TriggerWhen
     {
-        private static readonly IPredicateCompiler Compiler = new PredicateCompiler(new ComponentEditServiceBuilder().Build());
+        internal static readonly IPredicateCompiler Compiler = new PredicateCompiler(new ComponentEditServiceBuilder().Build());
         private static readonly ConcurrentDictionary<string, Func<EntityRepository, Entity, bool>> ByContent = new();
         private static readonly ConditionalWeakTable<string, Func<EntityRepository, Entity, bool>> ByReference = new();
 

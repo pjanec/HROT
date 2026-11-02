@@ -99,6 +99,15 @@ namespace Hrot.Editor.DebugApi
                     row["triggerState"] = s.TriggerState.ToString();
                     row["fireCount"] = s.FireCount;
                     row["lastFired"] = s.LastFired;
+                    // ⭐ rules V-3: the trigger's when-leaves with their live values — present only once the owner has sampled them (feature ui.rules-live-values on there); the last sample stays when it goes off
+                    if (_world.IsComponentTypeRegistered<RuleLeaves>() && _world.HasComponent<RuleLeaves>(e))
+                    {
+                        ref readonly var rl = ref _world.GetComponentRO<RuleLeaves>(e);
+                        var leaves = new JsonArray();
+                        for (int i = 0; i < rl.Count && i < RuleLeafPlan.MaxLeaves; i++)
+                            leaves.Add(new JsonObject { ["label"] = rl.Leaves[i].Label.ToString(), ["value"] = rl.Leaves[i].Value, ["measured"] = rl.Leaves[i].Measured });
+                        row["leaves"] = leaves;
+                    }
                 }
                 return row;
             }
