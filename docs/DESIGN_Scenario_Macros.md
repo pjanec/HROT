@@ -2,7 +2,7 @@
 state: LIVE
 build-state: ⏸ ON HOLD (user, 2026-11-02 — not to be started yet; reasons to follow) · §14 (SR-167…SR-176) ✅ accepted 2026-11-02 — READY-TO-BUILD after S0 + CE-4153 S9′ (accepted 2026-11-01: no reverse remap — authored refs are EntityLink, a rail, the migration writes GUIDs; DESIGN_Scenario_Entity_Keys.md S9′) — SR-146…SR-157 ✅ accepted 2026-11-01 (§9.y: the expander is the creation path's child branch) — slice S3 (§1); CE-4153 S9 (GUID file form) still a prerequisite
 updated: 2026-11-01 (split out of docs/DESIGN_Scenario_Rules.md §8 / §9.1–§9.7 — a MOVE: every decision id, its wording, its approval and every user quote kept verbatim; no id renumbered)
-current-answer: ⭐ §14.3 placement as a solver query + many instances (SR-184…SR-188, leans await the user) · §14.2 the user's answers (SR-177 withdrawn, SR-178 ✅, SR-179 superseded) + PLACEMENT (SR-180…SR-183 ✅) · §14.1 the four preconditions measured · §14 the critical review (SR-167…SR-176, ✅ accepted 2026-11-02) · §5.1 where a binding lives (SR-159…SR-166, ✅ accepted 2026-11-02 — §5.1.1 the example, §5.1.2 the generic binder + recording) · §10 relocation (SR-127, SR-131, SR-152…SR-157) · §9.y the gaps closed (SR-146…SR-151) · §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
+current-answer: ⭐ §14.4 preview (SR-189 ✅), avoiding existing entities (SR-190 ✅), the transient look (SR-191, lean) · §14.3 placement as a solver query + many instances (SR-184…SR-188, leans await the user) · §14.2 the user's answers (SR-177 withdrawn, SR-178 ✅, SR-179 superseded) + PLACEMENT (SR-180…SR-183 ✅) · §14.1 the four preconditions measured · §14 the critical review (SR-167…SR-176, ✅ accepted 2026-11-02) · §5.1 where a binding lives (SR-159…SR-166, ✅ accepted 2026-11-02 — §5.1.1 the example, §5.1.2 the generic binder + recording) · §10 relocation (SR-127, SR-131, SR-152…SR-157) · §9.y the gaps closed (SR-146…SR-151) · §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
   presets and their overrides (SR-27, SR-28, SR-32) · §5 the macro file, the instance, its bindings (SR-38…SR-43, SR-57, SR-69, SR-70) · §6 macro
   entities are full TRANSIENT entities (SR-42′, SR-44, SR-44a, SR-45) · §7 a macro is CLOSED (SR-58, SR-60) · §8 the three reference forms and
   RefKey (SR-63…SR-66, SR-68) · §9 expansion at load — the sequence, SR-80, GAP-1…GAP-5 · §10 relocation + the reference types (still in the
@@ -762,3 +762,29 @@ anything exists, so ONE request carries every child of every level, and the load
 - *One request per nesting level* — N round trips and N waits; flattening from the files needs none.
 - *A live drag ghost in v1* — real cost for a convenience; the drop already shows the outcome.
 - *Refusing duplicate keys* — an upper scenario legitimately references "the squad leader" of whichever platoon comes first (user).
+
+### 14.4 Previewing a runtime insertion · avoiding existing entities · telling transient from saved on the map *(`2026-11-02`)*
+
+> 🔒 **User, `2026-11-02`:** *"I'm thinking about a use case where the macro expansion is triggered by a trigger or a behavior action and only the
+> parameter … says where … So this is something which is not previewable in the scenario editor normally"* → *"Yes, to avoid existing entities
+> fix. Yes to the preview button."* · *"how on the map to differentiate the entities that are transient, meaning they will not be saved to a
+> scenario, from those they will … I need to see immediately what entities are what. So maybe by some visual indicator … maybe darkened color of
+> the entity shape or something like that."*
+
+| measured `2026-11-02` | where |
+|---|---|
+| an avatar's colour is its SIDE (`AffiliationColors.For`) | `EntityPresentationGizmo.cs:55, :71` |
+| ⭐ a per-entity CONDITION bitmask already reaches the renderer — `Damaged` 1 · `Immobile` 2 · `Destroyed` 4 (an X through the shape) | `GizmoMap.Presentation/Shapes/EntityShapeCondition.cs`; set in `EntityPresentationGizmo.cs:40-45` |
+| `ScenarioIgnoreTag` = *"never in the file"*: macro entities, live additions, sketches, traffic replicas (parts and terrain objects are not drawn as units) | `ScenarioSaveCore.cs:16`; §2.2 |
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **SR-189** ✅ `2026-11-02` | previewing an `InsertMacro` (a trigger's or a behaviour's) | ⭐ a **Preview** button on the action in the trigger's `do`-list editor (and wherever a behaviour's insert action is edited): it creates a TRANSIENT instance (`IsTransient` ⇒ `ScenarioIgnoreTag`, never saved) at the action's own anchor (`at` + `heading`) with the action's own args — the same expansion, solver placement included. ⭐ When the anchor is a point entity (`at: "@RallyPoint"`), dragging that point re-runs it (reconcile, SR-157). ⭐ Cleared by *Clear preview*, by Play and by Save. ⭐ The most faithful check stays *Play → fire the trigger by hand (game master Z2) → rewind* — it meets the run's real state |
+| **SR-190** ✅ `2026-11-02` *(amends SR-181)* | spots already occupied | ⭐ the solver also keeps clear of EXISTING entities near each slot (their footprints, `EntityFootprint`), not only of the slots placed in this expansion — the request carries no list; the solver reads the entities it already replicates. A slot that cannot get clear within `maxShift` fails like any other (SR-182) |
+| **SR-191** | how a transient entity looks on the map | ⭐ lean: one more CONDITION bit, `Transient = 8`, set from `ScenarioIgnoreTag` — drawn at **reduced opacity (≈ 55 %) of its normal side colour**, outline kept solid so the shape and side stay readable; ⭐ selecting a macro INSTANCE halos every entity it expanded. ⭐ Shown in the scenario EDITOR's authoring map only (in a run every entity is live — nobody needs the saved / not-saved split there); a map-layer toggle turns it off. ⭐ The same split is the ORBAT Scenario view's *Saved* / *Transient* groups (HV-3) |
+
+**Rejected — one line each (SR-191):**
+- *A darker shade of the side colour* — shades already separate sides and conditions; a dark-blue friend next to a dark-red enemy on a dark map stops reading.
+- *A dashed outline* — MIL-STD-2525's dashed frame means *planned / anticipated / suspected*; a military user would read a real, present unit as not there.
+- *A corner badge only* — precise, but unreadable at the zoom where a whole platoon is visible; ⏭ may be added beside the opacity.
+- *Always on, every map* — the Player and the instructor see live entities; the split is an authoring question.
