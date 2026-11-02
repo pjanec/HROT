@@ -25,8 +25,42 @@ namespace Fdp.Tests
         public List<int>? Numbers { get; set; }
     }
 
+    /// <summary>⭐ CE-4200 — a managed object that carries semantic value types (readonly structs).</summary>
+    public class TestSemanticIdsObject
+    {
+        public NodeId Node { get; set; }
+        public TkbTypeId Template;
+        public int After { get; set; }
+    }
+
     public class FdpAutoSerializerTests
     {
+        /// <summary>
+        /// ⭐ CE-4200 — a <see cref="NodeId"/> / <see cref="TkbTypeId"/> member is written as its STORAGE type (an int / a long: the bytes the plain
+        /// field wrote) and read back through the type's explicit conversion. ⛔ Before this the recursive case tried to assign the readonly
+        /// <c>Value</c> member and threw "Expression must be writeable" on the first managed event that carried one.
+        /// </summary>
+        [Fact]
+        public void SemanticIdMembers_RoundTrip_AsTheirStorageBytes()
+        {
+            using var ms = new MemoryStream();
+            using var writer = new BinaryWriter(ms);
+            FdpAutoSerializer.Serialize(new TestSemanticIdsObject { Node = new NodeId(300), Template = new TkbTypeId(7202), After = 5 }, writer);
+            writer.Flush();
+            Assert.Equal(4 + 8 + 4, ms.Length);                       // an int, a long, an int — no wrapper bytes
+
+            ms.Position = 0;
+            using var reader = new BinaryReader(ms);
+            Assert.Equal(5, reader.ReadInt32());                       // members are written in name order: After,
+            Assert.Equal(300, reader.ReadInt32());                     //   Node — the bytes the plain int wrote —
+            Assert.Equal(7202L, reader.ReadInt64());                   //   Template — the bytes the plain long wrote
+            ms.Position = 0;
+            var back = FdpAutoSerializer.Deserialize<TestSemanticIdsObject>(reader);
+            Assert.Equal(new NodeId(300), back.Node);
+            Assert.Equal(new TkbTypeId(7202), back.Template);
+            Assert.Equal(5, back.After);
+        }
+
         [Fact]
         public void Serialize_SimpleObject_WritesCorrectValues()
         {
