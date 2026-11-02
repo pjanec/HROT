@@ -212,7 +212,7 @@ public sealed class StorageProcessManager
     /// <c>scenarios/&lt;name&gt;/scenario.json</c> via <see cref="ScenarioMergeCore"/>, keep the foreign slices
     /// under <c>foreign/</c> for load-side push-back, and clean up the staging <c>.slices/</c>.
     /// </summary>
-    private void MergeScenarioSlices(string scenarioName, List<FileManifestEntry> manifest)
+    internal void MergeScenarioSlices(string scenarioName, List<FileManifestEntry> manifest)   // ⭐ CE-4210 MA-4 — internal so a rail drives the merge without the bus
     {
         var scenarioDir = Fdp.Toolkit.Orchestration.ContentLayout.ResolveScenarioDirectory(_nasBasePath, scenarioName);
         var slicesDir   = Path.Combine(scenarioDir, ".slices");

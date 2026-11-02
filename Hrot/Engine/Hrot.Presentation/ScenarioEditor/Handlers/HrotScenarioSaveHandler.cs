@@ -95,14 +95,13 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
 
         // The ONE host-neutral save implementation — gated ScenarioSerializer + this host's zones.
         // ⭐ CE-3015 — the terrain is stamped from what this node has RESIDENT. ⛔ R-4018: never a TKB name.
-        var header = new ScenarioHeader(ScenarioDocType,
-            TerrainName: Fdp.Toolkit.Terrain.TerrainDefinition.ResidentName(_world),
-            Description: Fdp.Toolkit.Scenario.ScenarioDescription.ResidentOf(_world));   // ⭐ CE-3288 — the loaded scenario's text (§4d)
+        // ⭐ CE-4210 MA-4 — terrain + description + the macro header fields, ALL from the world through the ONE helper.
+        var header = ScenarioSaveCore.HeaderOf(_world, ScenarioDocType);
         ScenarioSaveCore.Write(_serializer, _world, localFile, header);
 
         // The orchestrator pulls this to a per-node NAS slice; the merge combines slices → scenario.json.
-        var relativeDest = Path.Combine(
-            OrchestrationConstants.ScenariosDirectoryName, payload.ScenarioName, ".slices", $"node_{_nodeId}.json");
+        // ⭐ CE-4210 MA-4 — beside the CANONICAL file wherever the name resolves (the `macros/` arm too), so the merge finds the slices and cleans them up.
+        var relativeDest = SliceRelativePath(payload.ScenarioName, _nodeId);
 
         FdpLog<HrotScenarioSaveHandler>.Info(
             "[HrotScenarioSaveHandler] node {0} wrote scenario slice '{1}' ({2}).",
@@ -111,6 +110,11 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
         return Task.FromResult<object?>(
             new[] { new FileManifestResult(localFile, relativeDest, ScenarioDocType) });
     }
+
+    /// <summary>⭐ CE-4210 MA-4 — the NAS-relative path of this node's slice: <c>&lt;scenario folder&gt;/.slices/node_N.json</c>, the folder resolved by
+    /// <see cref="ContentLayout.ResolveScenarioDirectory"/> (<c>scenarios/x</c>, or <c>macros/x</c>) — the SAME resolver the merge reads.</summary>
+    public static string SliceRelativePath(string scenarioName, NodeId nodeId)
+        => Path.Combine(ContentLayout.ScenarioRelativeFolder(scenarioName), ".slices", $"node_{nodeId}.json");
 
     /// <inheritdoc />
     public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo) { }

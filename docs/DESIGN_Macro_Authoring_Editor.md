@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED 2026-11-02 (user: "then approved", with MA-1's always-visible button); P1 building
-updated: 2026-11-02
-build-state: BUILDING
-current-answer: §3 (decisions) · §4 (phases)
+updated: 2026-11-03 (§6 P1 as built)
+build-state: BUILDING — P1 (MA-4, MA-3) built, §6
+current-answer: §6 the P1 AS BUILT · §3 (decisions) · §4 (phases)
 stale-below: nothing
 known-rot: none
 related-designs:
@@ -162,3 +162,16 @@ the header through the resident, so no surface can keep a copy of its own.
 | no TypeId → CLR table exists | ✅ grep, none | ⛔ searched `docs/` for one, none found |
 | the binder is non-destructive, so the editor may hold bound values | ✅ §5.1.3 | ✅ SR-168 |
 | a managed record can be written to its owner from the inspector | ⛔ **unmeasured** — MA-8 only; P3 measures it before building | ✅ SR-175 (routes an args edit to the owner, `EntityWriteRouter`) |
+
+## 6. AS BUILT — P1 *(ui, `2026-11-03`; MA-4 the header owner, MA-3 `ParamTypes`)*
+
+| decision | as built | deviation |
+|---|---|---|
+| MA-4 the ONE owner | `ScenarioDescriptionResident.HeaderJson` (a flat string: exactly the object `ScenarioHeaderJson.Write` produces for Kind · Params · Anchor · Placement · Relocatable; empty = none). `ScenarioDescription.Stamp(…, headerJson)` · `HeaderJsonOf(ScenarioHeader / json)` · `HeaderOf(world)` (a `ScenarioHeader` with only those fields). `ScenarioLoadStep` stamps it from the loaded file's header (`_pendingHeaderJson`, with the description). A later stamp replaces the whole resident (`SetSingletonManaged`) | the design's `Header` property is a STRING (`HeaderJson`), not a typed record: the resident stays flat (CLAUDE.md "NEW COMPONENTS"); the typed view is `HeaderOf` |
+| MA-4 the save writes it | ONE helper, `ScenarioSaveCore.HeaderOf(world, docType)` (`Hrot.Core/Scenario/Map`): terrain + description + the resident's macro fields. Its two callers are the only production `new ScenarioHeader(` save sites — `HrotScenarioSaveHandler` (every host registers it: editor, CGF, SimHost, IG) and `ScenarioFileService.SaveScenario` (the editor's shim) | the other `new ScenarioHeader(` in production is `ScenarioHeaderJson.Read` (a reader) |
+| MA-4 the merge keeps it | `ScenarioMergeCore` (⚠ backend's, `Fdp.Toolkits`): the macro fields of the first slice that has any are written through `ScenarioHeaderJson.Write`; a differing later slice WARNS and the first is kept (the CE-3288 Description rule). No macro fields ⇒ the output is byte-for-byte today's | — |
+| MA-4 the slice path | `HrotScenarioSaveHandler.SliceRelativePath` builds `<folder>/.slices/node_N.json` from the new `ContentLayout.ScenarioRelativeFolder(name)` (the resolver against a virtual root: `scenarios/x`, `macros/x`, `recipes/scenarios/x`, `opened/…`) — the folder the merge reads and cleans. `StorageProcessManager.MergeScenarioSlices` is now `internal` for its rail | — |
+| MA-3 `ParamTypes` | `Fdp.Toolkits/Scenario/ParamTypes.cs`: `TryResolve(typeId, out Type)` (either spelling, case-insensitive) · `IdOf(Type, ParamTypeSpelling.Short \| Clr)` · `Fits(typeId, Type)` (the SAME type, or `Nullable<>` of it — nothing is converted) · `RegisterEnum`. Short: `EntityLink PointLink AreaLink Bearing WorldRotation float int bool string double` · CLR: their `FullName`s (`System.Single` …). Unknown id ⇒ resolves to nothing, fits nothing, never throws | ➕ `Vector3` / `System.Numerics.Vector3` (a `.params.json` field — `T41Params.Home` — has no other spelling). **Enums: ONE rule** — an enum is a param type when REGISTERED (`RegisterEnum`), found by name (`ForceId`) or full name; `Fdp.Core.ForceId` (what the macro samples and §5.1.1 spell) is registered; another enum is registered once by the feature that declares it. ⛔ not a scan of loaded assemblies (two enums of one name would resolve by load order). The validator's SR-162 type half (backend's file) is NOT changed — offered, not done |
+
+Rails (each in its feature's suite): `ScenarioMergeCoreTests` +3 · `HrotScenarioSaveHandlerTests` +2 · `ScenarioLoadStepTests` +1 · `StorageProcessManagerTests` +1 · `ContentLayoutTests` +1 · `ParamTypesTests` (new: no suite existed). Red-proofs: the merge not writing the fields · `HeaderOf` ignoring the resident · the load not passing `headerJson` — each fails its rail.
+

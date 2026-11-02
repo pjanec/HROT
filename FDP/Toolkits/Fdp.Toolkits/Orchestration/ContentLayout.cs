@@ -179,6 +179,17 @@ namespace Fdp.Toolkit.Orchestration
             return ResolveScenarioDirectory(contentRoot, scenarioName);
         }
 
+        /// <summary>
+        /// ⭐ CE-4210 MA-4 — the folder a scenario NAME resolves to, RELATIVE to the content root (<c>scenarios/x</c>, <c>macros/x</c>, <c>recipes/scenarios/x</c>,
+        /// <c>opened/…</c>): <see cref="ResolveScenarioDirectory"/> against a virtual root. For a writer that names a path RELATIVE to the NAS (a node's slice
+        /// <c>RelativeDest</c>) — ⛔ never <c>"scenarios/" + name</c> by hand: for <c>macros/x</c> that is a folder the merge never reads.
+        /// </summary>
+        public static string ScenarioRelativeFolder(string scenarioName)
+        {
+            string virtualRoot = Path.Combine(Path.GetTempPath(), "content-root");
+            return Path.GetRelativePath(virtualRoot, ResolveScenarioDirectory(virtualRoot, scenarioName));
+        }
+
         private static string Normalise(string? name) => (name ?? string.Empty).Replace('\\', '/');
 
         // ── behaviour kind ids (the asset-sync's lower-case ids) ↔ folders ──────────────────────────────
