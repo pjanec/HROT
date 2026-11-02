@@ -88,8 +88,6 @@ namespace Fdp.Toolkit.Orchestration
         public ClusterArmedMode? Armed;
         /// <summary>⭐ AQ108 D15 (CE-4100 ①) — the cluster's <i>Ask to keep recordings</i> setting; <see langword="null"/> = no change (an older sender, or one that sets only another setting).</summary>
         public bool? AskToKeepRecordings;
-        /// <summary>⭐ <c>CE-3354</c> ③ — the NAMES of the nodes whose scenario load also waits for their built 3-D map (the master holds the set); <see langword="null"/> = no change, empty = none.</summary>
-        public string[]? MapInLoadNodes;
         /// <summary>⭐ Node Features F-16 — the cluster's feature overrides (the whole list); <see langword="null"/> = no change, empty = none.</summary>
         public FeatureOverrideSpec[]? FeatureOverrides;
     }

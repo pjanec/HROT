@@ -39,9 +39,6 @@ public sealed partial class ClusterMaster
     /// <summary>⭐ AQ108 D15 (CE-4100 ①) — the cluster-wide <i>Ask to keep recordings</i> setting: when a live run ends, the operator UI asks Keep / Discard (default OFF — keep silently). Read by the UI off the broadcast; the master never acts on it.</summary>
     public bool AskToKeepRecordings { get; set; }
 
-    /// <summary>⭐ <c>CE-3354</c> ③ — the NAMES (case-insensitive, de-duplicated, in the order given) of the nodes whose scenario load also waits for their built 3-D map. A setting of the MASTER, keyed by NAME (it survives a node restart and a new node id); a name no node holds now is kept. Broadcast with the cluster state; stamped on each LOAD's per-node payload.</summary>
-    public IReadOnlyList<string> MapInLoadNodes { get; private set; } = Array.Empty<string>();
-
     /// <summary>⭐ Node Features F-16 — the cluster's feature overrides, held by the MASTER and broadcast with the cluster state; stamped per node onto each LOAD's payload.</summary>
     public IReadOnlyList<FeatureOverrideSpec> FeatureOverrides { get; private set; } = Array.Empty<FeatureOverrideSpec>();
 
@@ -80,10 +77,6 @@ public sealed partial class ClusterMaster
         }
         return layer;
     }
-
-    /// <summary>⭐ CE-3354 ③ — whether the node named <paramref name="nodeName"/> waits for its map in a load.</summary>
-    public bool MapInLoadFor(string? nodeName)
-        => !string.IsNullOrEmpty(nodeName) && MapInLoadNodes.Contains(nodeName, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// ⭐⭐ <c>CE-3341</c> (AQ108 D12a, R-3068) — the cluster's ARMED run mode: what ▶ runs next, ONE fact held HERE and broadcast with every cluster-state
@@ -133,9 +126,6 @@ public sealed partial class ClusterMaster
         if (intent.RecordLiveRuns is { } record) RecordLiveRuns = record;
         if (intent.Armed is { } armed) ArmedMode = armed;
         if (intent.AskToKeepRecordings is { } ask) AskToKeepRecordings = ask;   // ⭐ AQ108 D15 (CE-4100 ①)
-        if (intent.MapInLoadNodes is { } mapNodes)   // ⭐ CE-3354 ③ — null = no change, empty = none; a blank name or one with a comma cannot be a node name
-            MapInLoadNodes = mapNodes.Select(n => n?.Trim() ?? "").Where(n => n.Length > 0 && !n.Contains(','))
-                                     .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         if (intent.FeatureOverrides is { } featureOverrides)   // ⭐ Node Features F-8/F-16 — null = no change, empty = none; refused whole when a node lacks the feature
         {
             if (FeatureOverrideRefusal(featureOverrides) is { } refusal)

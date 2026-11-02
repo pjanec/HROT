@@ -20,23 +20,22 @@ namespace Hrot.Map.Common.ClusterLoad;
 public sealed class MapBuildLoadStep : ILoadPartProvider
 {
     private readonly Func<IMapBuildStatus?> _status;
-    private readonly bool _alwaysRequired;
+    private readonly Func<bool> _requiredNow;
     private volatile bool _required;   // ⭐ CE-3354 ③ — THIS load waits for the map (set by its prepare)
 
-    /// <param name="alwaysRequired">⭐ CE-3354 ③ — the node's PROFILE waits for its map in every load (the Player); otherwise a load waits only when its payload says <see cref="LoadPhaseContext.MapInLoad"/>
-    /// (the master's map-in-load set names this node). A load that does not wait resolves at once and never starts a build.</param>
-    public MapBuildLoadStep(Func<IMapBuildStatus?> status, bool alwaysRequired = false)
+    /// <param name="requiredNow">⭐ Node Features F-17 — whether THIS load waits for the map: the node's <c>map3d.in-load</c> feature, frozen by the load before its steps prepare. A load that does not wait resolves at once and never starts a build.</param>
+    public MapBuildLoadStep(Func<IMapBuildStatus?> status, Func<bool> requiredNow)
     {
         _status = status ?? throw new ArgumentNullException(nameof(status));
-        _alwaysRequired = alwaysRequired;
-        _required = alwaysRequired;
+        _requiredNow = requiredNow ?? throw new ArgumentNullException(nameof(requiredNow));
+        _required = _requiredNow();   // before a load's prepare: the node's answer as it stands (the prepare re-reads it after the load froze the feature)
     }
 
     public LoadPart Part => LoadPart.Map3D;
 
     public Task PrepareAsync(LoadPhaseContext context, CancellationToken ct)   // nothing to read: the map builds from the terrain this load commits
     {
-        _required = _alwaysRequired || context.MapInLoad;
+        _required = _requiredNow();
         return Task.CompletedTask;
     }
 
@@ -49,7 +48,7 @@ public sealed class MapBuildLoadStep : ILoadPartProvider
         // ⭐ CE-3354 — say it: an operator (and a live acceptance) can otherwise not tell whether this load waits for its 3-D map, nor for how long
         _waitStarted = System.Diagnostics.Stopwatch.StartNew();
         FdpLog<MapBuildLoadStep>.Info("[LoadPhase] this load waits for the node's 3-D map ({0}){1}.",
-            _alwaysRequired ? "the node's profile" : "map-in-load", status == null ? " — no map on this host (headless): nothing to wait for" : "");
+            "feature map3d.in-load", status == null ? " — no map on this host (headless): nothing to wait for" : "");
     }
 
     private System.Diagnostics.Stopwatch? _waitStarted;

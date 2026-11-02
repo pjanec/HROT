@@ -151,8 +151,6 @@ namespace Fdp.Toolkit.Orchestration
         public bool RecordLiveRunsOff;
         /// <summary>⭐ AQ108 D15 (CE-4100 ①) — the cluster's <i>Ask to keep recordings</i> SETTING is ON. Default false (a publisher that never sets it reads as OFF).</summary>
         public bool AskToKeepRecordings;
-        /// <summary>⭐ <c>CE-3354</c> ③ — the NAMES of the nodes whose scenario load also waits for their built 3-D map (the master's run setting); null/empty = none.</summary>
-        public string[]? MapInLoadNodes;
         /// <summary>⭐ Node Features F-16 — the cluster's feature overrides (the master's run setting); null/empty = none.</summary>
         public FeatureOverrideSpec[]? FeatureOverrides;
         /// <summary>⭐ <c>CE-3354</c> ⑦ — the request id of the cluster's CURRENT (last started) scenario load, the id <c>GET /status.load</c> and every outcome follow; <see cref="Guid.Empty"/> before any load.</summary>
@@ -251,8 +249,6 @@ namespace Fdp.Toolkit.Orchestration
         public bool RecordLiveRunsOff;
         /// <summary>⭐ AQ108 D15 (CE-4100 ①) — as <see cref="ClusterStateTransitionedEvent.AskToKeepRecordings"/>.</summary>
         public bool AskToKeepRecordings;
-        /// <summary>⭐ <c>CE-3354</c> ③ — as <see cref="ClusterStateTransitionedEvent.MapInLoadNodes"/>.</summary>
-        public string[]? MapInLoadNodes;
         /// <summary>⭐ Node Features F-16 — as <see cref="ClusterStateTransitionedEvent.FeatureOverrides"/>.</summary>
         public FeatureOverrideSpec[]? FeatureOverrides;
         /// <summary>⭐ CE-3354 ⑦ — as <see cref="ClusterStateTransitionedEvent.LastLoadRequestId"/>.</summary>

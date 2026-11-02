@@ -208,7 +208,7 @@ public abstract class SharedApplicationBootstrapper
 
                 // ⭐ Node Features — the registry of the composed capabilities' declarations, and the node's ONE reader (F-4).
                 //   An id declared by two capabilities throws here (F-2). 📄 docs/DESIGN_Node_Features.md §6.3.
-                context.Features = new NodeFeatures(new FeatureRegistry(_walk.Capabilities.SelectMany(c => c.Features)), role,
+                context.Features = new NodeFeatures(new FeatureRegistry(_walk.Capabilities.SelectMany(c => c.Features).Concat(HostFeatures)), role,
                     () => context.ClusterSlave.View.NodeName ?? "");
                 // ⭐ F-3 — declared ⇔ available: advertise hrot.feature.<id> on the durable NodeCapabilities descriptor (once, at join), and put the ON set on the heartbeat (F-16).
                 context.ClusterSlave.AppendCapabilities(context.Features.Registry.All.Select(d => FeatureRegistry.TokenOf(d.Id)));
@@ -568,6 +568,12 @@ public abstract class SharedApplicationBootstrapper
 
     /// <summary>⭐ CE-1446 B2 (CE-165) — deduplicate the input and simulation system lists by concrete type before the groups are built (default false). The editor composes both the Brain and MuscleGround packs, which share systems.</summary>
     protected virtual bool DeduplicateSystemsByType => false;
+
+    /// <summary>
+    /// ⭐ Node Features F-2 — features this HOST implements beside its capabilities' (the 3-D map in the load: a host that supplies a map status, whatever its role).
+    /// Declared exactly once, like a capability's; a duplicate id throws.
+    /// </summary>
+    protected virtual IEnumerable<FeatureDeclaration> HostFeatures => System.Array.Empty<FeatureDeclaration>();
 
     /// <summary>⭐ CE-1446 B1 — the node's togglable INPUT group (built in phase 4a, so readable from <c>BuildOrchestration</c> on): a host's replay load disables network input through it.</summary>
     protected TogglableInputGroup? InputGroup { get; private set; }

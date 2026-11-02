@@ -719,7 +719,7 @@ public sealed class LoadPhaseChainTests
     private static LoadPhaseChain MapChain(FakeMapStatus? status, NodeRole roles = NodeRole.Map2D, bool withProfilePart = true)
         => LoadPhaseChain.FromRoles(
             roles,
-            new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase), new FakeStep(LoadPart.Terrain), new MapBuildLoadStep(() => status, alwaysRequired: withProfilePart) },
+            new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase), new FakeStep(LoadPart.Terrain), new MapBuildLoadStep(() => status, () => withProfilePart) },
             world: null,
             profileParts: withProfilePart ? new[] { LoadPart.Map3D } : null);
 
@@ -786,18 +786,12 @@ public sealed class LoadPhaseChainTests
         await hold;   // the never-built map did not hold it
     }
 
-    private static LoadPhaseChain MapInLoadChain(FakeMapStatus status, bool profileAlways)
+    private static LoadPhaseChain MapInLoadChain(FakeMapStatus status, bool required)
         => LoadPhaseChain.FromRoles(
             NodeRole.Brain,
-            new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase), new FakeStep(LoadPart.Terrain), new FakeStep(LoadPart.ScenarioEntities), new MapBuildLoadStep(() => status, alwaysRequired: profileAlways) },
+            new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase), new FakeStep(LoadPart.Terrain), new FakeStep(LoadPart.ScenarioEntities), new MapBuildLoadStep(() => status, () => required)   },
             world: null,
             profileParts: new[] { LoadPart.Map3D });   // as EcsHostClusterHandlers composes it for any host that supplies a map
-
-    private static ExecuteNodeOpIntent LoadIntent(bool mapInLoad) => new()
-    {
-        Operation = NodeOpType.PrepareLive, TransactionId = Guid.NewGuid(),
-        DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.LoadingLive, MapInLoad: mapInLoad),
-    };
 
     /// <summary>
     /// ⭐ <c>CE-3354</c> ③ — a node NOT in the master's map-in-load set (<c>context.MapInLoad</c> false) and whose profile does not ask for the map: the map step resolves at once, <c>Request3D</c> is NEVER called, the load does not wait.
@@ -809,8 +803,8 @@ public sealed class LoadPhaseChainTests
     {
         // not named: no wait, no build
         var plain = new FakeMapStatus { IsBuilt = false, Step = "3-D map: terrain" };
-        var chain = MapInLoadChain(plain, profileAlways: false);
-        var load = LoadIntent(mapInLoad: false);
+        var chain = MapInLoadChain(plain, required: false);
+        var load = LoadIntent();
         await chain.PrepareAsync(load, CancellationToken.None);
         chain.Commit(load, null);
         var hold = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
@@ -820,8 +814,8 @@ public sealed class LoadPhaseChainTests
 
         // named: Request3D once at commit, the load holds until built
         var named = new FakeMapStatus { IsBuilt = false, Step = "3-D map: terrain" };
-        chain = MapInLoadChain(named, profileAlways: false);
-        load = LoadIntent(mapInLoad: true);
+        chain = MapInLoadChain(named, required: true);
+        load = LoadIntent();
         await chain.PrepareAsync(load, CancellationToken.None);
         Assert.Equal(0, named.Requests);             // not at prepare
         chain.Commit(load, null);
@@ -836,8 +830,8 @@ public sealed class LoadPhaseChainTests
 
         // the profile (the Player) waits without the flag
         var player = new FakeMapStatus { IsBuilt = false };
-        chain = MapInLoadChain(player, profileAlways: true);
-        load = LoadIntent(mapInLoad: false);
+        chain = MapInLoadChain(player, required: true);
+        load = LoadIntent();
         await chain.PrepareAsync(load, CancellationToken.None);
         chain.Commit(load, null);
         hold = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
@@ -859,11 +853,11 @@ public sealed class LoadPhaseChainTests
     public async Task CE3354_ALateJoinersCatchUp_HoldsUntilItsMapIsBuilt(bool profileAlways, bool mapInLoad)
     {
         var status = new FakeMapStatus { IsBuilt = false, Step = "3-D map: terrain" };
-        var chain  = MapInLoadChain(status, profileAlways);
+        var chain  = MapInLoadChain(status, profileAlways || mapInLoad);
         var catchUp = new ExecuteNodeOpIntent
         {
             Operation = NodeOpType.PrepareLive, TransactionId = Guid.NewGuid(),
-            DomainPayload = new EditLoadHandlerPayload(null, false, ClusterState.LoadingLive, IsCatchUp: true, MapInLoad: mapInLoad),
+            DomainPayload = new EditLoadHandlerPayload(null, false, ClusterState.LoadingLive, IsCatchUp: true),
         };
         await chain.PrepareAsync(catchUp, CancellationToken.None);
         chain.Commit(catchUp, null);

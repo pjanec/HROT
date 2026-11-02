@@ -4953,10 +4953,9 @@ public sealed class Map3DTests
         layers.ViewSwitch.Set(true, animate: false);
         Assert.True(layers.ViewSwitch.Is3D);                                         // … so the switch is immediate, as every existing rail relies on
 
-        foreach (var kind in new[] { Hrot.UI.Common.RunMode.RunHostKind.Editor, Hrot.UI.Common.RunMode.RunHostKind.Cgf, Hrot.UI.Common.RunMode.RunHostKind.SimHost, Hrot.UI.Common.RunMode.RunHostKind.Orchestrator })
-            Assert.Equal(Map3DBuildPolicy.OnFirst3DRequest, new Hrot.UI.Common.RunMode.NodeRunProfile(kind).MapBuildPolicy);
-        var player = new Hrot.UI.Common.RunMode.NodeRunProfile(Hrot.UI.Common.RunMode.RunHostKind.Ig, MapInLoad: true);
-        Assert.Equal(Map3DBuildPolicy.Eager, player.MapBuildPolicy);
+        // ⭐ Node Features F-17 — the policy is the `map3d.in-load` feature now: ON by default for the Player (the IG, Map2D), OFF for every other host, switchable by --feature.
+        Assert.True(Hrot.Common.Infrastructure.Map3dInLoadFeature.OnAtBoot(Fdp.Core.NodeRole.Map2D, onByDefault: true));
+        Assert.False(Hrot.Common.Infrastructure.Map3dInLoadFeature.OnAtBoot(Fdp.Core.NodeRole.Brain, onByDefault: false));
     }
 
     /// <summary>

@@ -114,7 +114,7 @@ public sealed class TheClusterMembershipRoutesTests
             },
             currentPerspective: () => "IG",
             acksPending: null));
-        string[]? Last() => _master.Sent.OfType<SetRunSettingsIntent>().Last().MapInLoadNodes;
+        string[]? Last() => MapInLoadOverrides.NodesOn(_master.Sent.OfType<SetRunSettingsIntent>().Last().FeatureOverrides).ToArray();   // ⭐ F-17 — the `map3d.in-load` override, read as a name list
 
         Assert.Null(svc.SetRunSettings(new JsonObject { ["mapInLoad"] = true }).Error);
         Assert.Equal(new[] { "film-cam" }, Last());                                   // this node's name, added
@@ -232,7 +232,7 @@ public sealed class TheClusterMembershipRoutesTests
 
     private static void Hear(Fdp.Core.FdpEventBus bus, ClusterView view, string[] names)
     {
-        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, MapInLoadNodes = names });
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, FeatureOverrides = MapInLoadOverrides.Replace(null, names) });
         bus.SwapBuffers();
         view.Update();
     }

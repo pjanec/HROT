@@ -103,12 +103,10 @@ public record SetRunSettingsPayloadDto(
     Fdp.Toolkit.Orchestration.ClusterArmedMode? Armed = null,
     [property: JsonPropertyName("AskToKeepRecordings")]
     bool? AskToKeepRecordings = null,   // ⭐ AQ108 D15 (CE-4100 ①) — appended; absent = no change
-    [property: JsonPropertyName("MapInLoadNodes")]
-    string[]? MapInLoadNodes = null,    // ⭐ CE-3354 ③ — appended; absent = no change, empty = none
     [property: JsonPropertyName("FeatureOverrides")]
     FeatureOverrideDto[]? FeatureOverrides = null)   // ⭐ Node Features F-16 — appended; absent = no change, empty = none
 {
-    public static SetRunSettingsPayloadDto From(Fdp.Toolkit.Orchestration.SetRunSettingsIntent intent) => new(intent.RecordLiveRuns, intent.Armed, intent.AskToKeepRecordings, intent.MapInLoadNodes,
+    public static SetRunSettingsPayloadDto From(Fdp.Toolkit.Orchestration.SetRunSettingsIntent intent) => new(intent.RecordLiveRuns, intent.Armed, intent.AskToKeepRecordings,
         intent.FeatureOverrides?.Select(o => new FeatureOverrideDto(o.Feature, o.Nodes.ToArray(), o.Json)).ToArray());
 
     /// <summary>⭐ The ONE decoding (the master's translator): an unreadable payload changes nothing (both fields null).
@@ -125,7 +123,6 @@ public record SetRunSettingsPayloadDto(
                     intent.RecordLiveRuns = dto.RecordLiveRuns;
                     intent.Armed = dto.Armed;
                     intent.AskToKeepRecordings = dto.AskToKeepRecordings;
-                    intent.MapInLoadNodes = dto.MapInLoadNodes;
                     intent.FeatureOverrides = dto.FeatureOverrides?.Select(o => new Fdp.Toolkit.Orchestration.FeatureOverrideSpec(o.Feature ?? "", o.Nodes ?? System.Array.Empty<string>(), o.Json ?? "")).ToArray();
                 }
             }
@@ -337,10 +334,6 @@ public record NodeTransitionPayloadDto(
     //   omitted ⇒ false ⇒ record, exactly as before.
     [property: JsonPropertyName("RecordingOff")]
     bool           RecordingOff = false,
-
-    // ⭐ CE-3354 ③ — this node's load also waits for its built 3-D map (stamped per node by the master). Additive; omitted ⇒ false.
-    [property: JsonPropertyName("MapInLoad")]
-    bool           MapInLoad = false,
 
     // ⭐ Node Features F-14 — per node: the cluster layer for this node's features (id → partial JSON object text). Additive; omitted ⇒ null.
     [property: JsonPropertyName("FeatureConfigsAtLoad")]

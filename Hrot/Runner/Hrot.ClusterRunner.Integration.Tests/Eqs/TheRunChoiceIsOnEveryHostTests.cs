@@ -342,11 +342,10 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         try
         {
             ig.Initialize(new SubsystemConfig { Headless = true, DomainId = DomainBase + Interlocked.Increment(ref _domain) });
-            Assert.True(Hrot.IG.IgApplication.RunProfile.MapInLoad);
+            Assert.True(Hrot.Common.Infrastructure.Map3dInLoadFeature.OnAtBoot(Fdp.Core.NodeRole.Map2D, onByDefault: true));   // ⭐ F-17 — the Player's feature default
             var status = ig.MapBuildStatus;
             var build = Assert.IsType<Fdp.Toolkit.Vis3D.Map3DBuild>(status);
             Assert.Equal(Fdp.Toolkit.Vis3D.Map3DBuildPolicy.Eager, build.Policy);
-            Assert.Equal(Hrot.IG.IgApplication.RunProfile.MapBuildPolicy, build.Policy);
             Assert.True(status!.IsBuilt);                              // headless: no window, nothing to build
             Assert.Null(status.Failure);
             Assert.Equal(string.Empty, status.Step);

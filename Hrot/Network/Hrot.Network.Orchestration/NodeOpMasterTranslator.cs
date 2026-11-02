@@ -144,7 +144,6 @@ public sealed class NodeOpMasterTranslator
                     IsCatchUp:       p.IsCatchUp,          // C7
                     CheckpointingSeconds: p.CheckpointingSeconds,   // D17
                     RecordingOff: p.RecordingOff,                   // CE-4090 D14
-                    MapInLoad: p.MapInLoad,                         // CE-3354 ③
                     FeatureConfigsAtLoad: p.FeatureConfigsAtLoad is null ? null : new Dictionary<string, string>(p.FeatureConfigsAtLoad)),   // Node Features F-14
                 _jsonOptions),
 

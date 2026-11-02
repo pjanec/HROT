@@ -703,12 +703,8 @@ public class IgApplication : IDisposable
             _cameraViewport,
             _fdpEventHistory,
             igConfig);
-        // ⭐ CE-4078 / CE-1446 (R-1046) — the profile says the load waits for the 3-D map: the chain gets the Map3D part, polled from this node's map build.
-        if (RunProfile.MapInLoad)
-        {
-            _igBootstrapper.ProfileLoadParts = new[] { Hrot.Map.Common.ClusterLoad.LoadPart.Map3D };
-            _igBootstrapper.MapBuildStatus   = () => MapBuildStatus;
-        }
+        // ⭐ CE-4078 / CE-1446 (R-1046) / Node Features F-17 — the Player supplies its map's build status; whether a load WAITS for it is the `map3d.in-load` feature (ON by default here).
+        _igBootstrapper.MapBuildStatus = () => MapBuildStatus;
 
         _igBootstrapper.ApplicationSystemsRegistrar = ctx =>
         {
@@ -864,7 +860,8 @@ public class IgApplication : IDisposable
             //   two constructors collapsed into one.
             // ⭐ CE-1033 — the shared attach: gizmo layer + draw buffer + the 3-D mode, the same on every host.
             var mapLayers = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
-                _canvas, _gizmoBuffer!, _interactionBus, () => _world, map3DBuildPolicy: RunProfile.MapBuildPolicy);   // ⭐ R-1046 — Eager because the profile says MapInLoad
+                _canvas, _gizmoBuffer!, _interactionBus, () => _world, map3DBuildPolicy: Hrot.Common.Infrastructure.Map3dInLoadFeature.OnAtBoot(NodeRole.Map2D, onByDefault: true)   // ⭐ R-1046 / F-17 — Eager when map3d.in-load is on
+                    ? Fdp.Toolkit.Vis3D.Map3DBuildPolicy.Eager : Fdp.Toolkit.Vis3D.Map3DBuildPolicy.OnFirst3DRequest);
             var gizmoLayer = mapLayers.GizmoLayer;
             _map3D = mapLayers.Map3D;
             _gizmoLayer = gizmoLayer;
@@ -1555,11 +1552,10 @@ public class IgApplication : IDisposable
     internal Fdp.Core.FdpEventBus? OrchestrationBus => _context?.EventBus;
 
     /// <summary>
-    /// ⭐⭐ <c>CE-1445</c> / <c>R-1046</c> — what makes the IG a PLAYER (R-1044): its kind (Player gate), the toolbar time control suppressed, and — R-1046 — <c>MapInLoad</c>: its load waits for the 3-D map, so the map builds eagerly.
-    /// ONE statement: the map's policy below and the run controls both read this profile.
+    /// ⭐⭐ <c>CE-1445</c> / <c>R-1046</c> — what makes the IG a PLAYER (R-1044): its kind (Player gate), the toolbar time control suppressed, (R-1046's 3-D map in the load is the `map3d.in-load` feature now, F-17).
     /// </summary>
     internal static readonly Hrot.UI.Common.RunMode.NodeRunProfile RunProfile = new(
-        Hrot.UI.Common.RunMode.RunHostKind.Ig, Control: null, SuppressTimeControl: true, MapInLoad: true);
+        Hrot.UI.Common.RunMode.RunHostKind.Ig, Control: null, SuppressTimeControl: true);
 
     private Fdp.Toolkit.Vis3D.Map3DBuild? _map3D;
 

@@ -63,9 +63,6 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐ AQ108 D15 (CE-4100 ①) — the cluster's <i>Ask to keep recordings</i> setting is ON, as the master's last broadcast said (false = OFF, also before a broadcast and for a sender that does not set it).</summary>
         public bool AskToKeepRecordings { get; private set; }
 
-        /// <summary>⭐ <c>CE-3354</c> ③ — the NAMES of the nodes whose scenario load also waits for their built 3-D map (the master's run setting, off its broadcast); empty = none.</summary>
-        public IReadOnlyList<string> MapInLoadNodes { get; private set; } = Array.Empty<string>();
-
         /// <summary>⭐ Node Features F-16 — the cluster's feature overrides, off the master's broadcast; empty = none. A NEW list object per broadcast, so a reader can compare references.</summary>
         public IReadOnlyList<FeatureOverrideSpec> FeatureOverrides { get; private set; } = Array.Empty<FeatureOverrideSpec>();
 
@@ -255,7 +252,6 @@ namespace Fdp.Toolkit.Orchestration
                     RunNotRecorded = ev.RunNotRecorded;        // ⭐ CE-4090 D14
                     RecordLiveRunsOff = ev.RecordLiveRunsOff;
                     AskToKeepRecordings = ev.AskToKeepRecordings;   // ⭐ AQ108 D15 (CE-4100 ①)
-                    MapInLoadNodes = ev.MapInLoadNodes ?? Array.Empty<string>();   // ⭐ CE-3354 ③
                     FeatureOverrides = ev.FeatureOverrides ?? Array.Empty<FeatureOverrideSpec>();   // ⭐ Node Features F-16
                     ArmedMode = ev.ArmedMode;                  // ⭐ CE-3341 R-3068
                     LastLoadMode = ev.LastLoadMode;            // ⭐ R-1043

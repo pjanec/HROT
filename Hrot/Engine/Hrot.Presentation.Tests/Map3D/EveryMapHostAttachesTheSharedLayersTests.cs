@@ -84,9 +84,9 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
         var files = ProductionFiles().ToList();
         var passers = files.Where(f => f.Text.Contains("map3DBuildPolicy:") && !f.Rel.EndsWith("MapInteractionPack.cs")).ToList();
         Assert.Equal(new[] { "Hrot/Subsystems/Hrot.IG" }, passers.Select(f => HostOf(f.Rel)).Distinct().ToArray());
-        Assert.Contains("map3DBuildPolicy: RunProfile.MapBuildPolicy", passers.Single().Text);
+        Assert.Contains("map3DBuildPolicy: Hrot.Common.Infrastructure.Map3dInLoadFeature.OnAtBoot(", passers.Single().Text);   // ⭐ F-17 — the policy reads the `map3d.in-load` feature
         var eager = files.Where(f => f.Text.Contains("Map3DBuildPolicy.Eager")).Select(f => f.Rel).OrderBy(r => r).ToArray();
-        Assert.Equal(new[] { "Hrot/Engine/Hrot.Presentation/RunMode/NodeRunControls.cs" }, eager);
+        Assert.Equal(new[] { "Hrot/Subsystems/Hrot.IG/IgApplication.cs" }, eager);   // ⭐ F-17 — the one place that turns the feature into the policy
     }
 
     [Theory]

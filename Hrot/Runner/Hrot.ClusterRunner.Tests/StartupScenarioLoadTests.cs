@@ -50,7 +50,7 @@ public sealed class StartupScenarioLoadTests
         load.Tick();
 
         Assert.Equal(2, _master.Sent.Count);
-        Assert.Equal(new[] { "film-cam" }, Assert.IsType<SetRunSettingsIntent>(_master.Sent[0]).MapInLoadNodes);   // first
+        Assert.Equal(new[] { "film-cam" }, MapInLoadOverrides.NodesOn(Assert.IsType<SetRunSettingsIntent>(_master.Sent[0]).FeatureOverrides));   // first
         var intent = Assert.IsType<TransitionStateIntent>(_master.Sent[1]);
         Assert.Equal((ClusterState.OperatingLive, "scn", "Deterministic"), (intent.TargetState, intent.ScenarioId, intent.TimeMode));
         Assert.NotEqual(Guid.Empty, intent.ExerciseId);

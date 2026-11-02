@@ -281,6 +281,10 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     /// <summary>⭐ CE-4078 — where the 3-D map step polls the map's build from (the application's <c>MapBuildStatus</c>; null result = no map attached, resolved).</summary>
     public System.Func<Fdp.Toolkit.Orchestration.IMapBuildStatus?>? MapBuildStatus { get; set; }
 
+    /// <summary>⭐ Node Features F-17 — this host supplies a 3-D map status, so it declares `map3d.in-load` (default true here).</summary>
+    protected override System.Collections.Generic.IEnumerable<Hrot.Common.Infrastructure.FeatureDeclaration> HostFeatures
+        => new[] { Hrot.Common.Infrastructure.Map3dInLoadFeature.Declaration(onByDefault: true) };
+
     protected override ClusterSlave BuildOrchestration(
         HrotNodeContext context,
         TogglableSimulationGroup simGroup,

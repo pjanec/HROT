@@ -76,7 +76,7 @@ public sealed class StartupScenarioLoad
             var master = _master();
             if (master is null || _state() is null) return;   // the host (and its master) is not up yet
             if (_plan.MapInLoadNodes is { } names)
-                master.SetRunSettings(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), MapInLoadNodes = names.ToArray() });   // BEFORE the load: the load's per-node stamp reads it
+                master.SetRunSettings(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), FeatureOverrides = MapInLoadOverrides.Replace(null, names) });   // BEFORE the load: the load's per-node stamp reads it
             if (_plan.Scenario is { } scenario)
             {
                 var intent = _plan.Live

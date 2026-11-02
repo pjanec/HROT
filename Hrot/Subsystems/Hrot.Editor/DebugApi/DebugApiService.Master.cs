@@ -173,7 +173,7 @@ namespace Hrot.Editor.DebugApi
 
         /// <summary>⭐ CE-3354 ③ — the master's map-in-load set as this host's cluster view last heard it (empty where there is no view).</summary>
         internal IReadOnlyList<string> MapInLoadNodesNow()
-            => (_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode)?.MapInLoadNodes ?? Array.Empty<string>();
+            => MapInLoadOverrides.NodesOn((_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode)?.FeatureOverrides);   // ⭐ Node Features F-17 — the `map3d.in-load` overrides, read as a name list
 
         /// <summary>
         /// ⭐ <c>CE-4090</c> (AQ108 D14) — <c>POST /run-settings {recordLiveRuns: bool}</c>: the cluster-wide <i>Record live runs</i> setting (default ON),
@@ -233,7 +233,8 @@ namespace Hrot.Editor.DebugApi
             if (record is null && armed is null && ask is null && mapNodes is null) return (null, usage, DebugApiHints.Scenario);
             var master = MasterOrNull;
             if (master is null) return (null, NoMaster, DebugApiHints.Panel);
-            var intent = new SetRunSettingsIntent { RequestId = Guid.NewGuid(), RecordLiveRuns = record, Armed = armed, AskToKeepRecordings = ask, MapInLoadNodes = mapNodes };
+            var intent = new SetRunSettingsIntent { RequestId = Guid.NewGuid(), RecordLiveRuns = record, Armed = armed, AskToKeepRecordings = ask,
+                FeatureOverrides = mapNodes is null ? null : MapInLoadOverrides.Replace((_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode)?.FeatureOverrides, mapNodes) };
             master.SetRunSettings(intent);
             var result = new JsonObject
             {

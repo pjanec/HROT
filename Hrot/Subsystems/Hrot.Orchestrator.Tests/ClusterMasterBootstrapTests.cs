@@ -1443,39 +1443,37 @@ public sealed class ClusterMasterBootstrapTests
     }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-3354</c> ③ — the master holds the map-in-load set (case-insensitive, de-duplicated; null = no change, empty = none; a blank name or one with a comma is no node name), BROADCASTS it (every node's
-    /// <c>ClusterView</c> reads it) and it survives a load; and a scenario load's PREPARE payload carries <c>MapInLoad = true</c> for the node named in the set ONLY — the other node gets the plain one, and CommitState is untouched.
-    /// 🔴 Mutations (each compiles): <c>FanOutLoadPrepare</c> stamping every node / none ⇒ the payload cells red; the set matched case-sensitively ⇒ the "Film-Cam" cell reds; the de-duplication removed ⇒ the count cell reds;
-    /// the set not on the broadcast ⇒ the view cells red; the set cleared by a load ⇒ the survives cell reds.
+    /// ⭐⭐ <c>CE-3354</c> ③ re-pointed at the feature (Node Features F-17) — the map-in-load set is the <c>map3d.in-load</c> override: the master holds it, BROADCASTS it (every node's
+    /// <c>ClusterView</c> reads it), it survives a load, and a scenario load's PREPARE payload carries the feature's config for the node named in it ONLY (that advertises the feature).
+    /// 🔴 Mutations (each compiles): <c>FanOutLoadPrepare</c> stamping every node / none ⇒ the payload cells red; the set matched case-sensitively ⇒ the "Film-Cam" cell reds; the set not on the broadcast ⇒ the view cells red.
     /// </summary>
     [Fact(Timeout = 10_000)]
-    public void CE3354_MapInLoad_TheSetIsHeldAndBroadcast_AndOnlyTheNamedNodesLoadPayloadCarriesTheFlag()
+    public void CE3354_MapInLoad_TheSetIsHeldAndBroadcast_AndOnlyTheNamedNodesLoadPayloadCarriesTheStamp()
     {
         var bus = new FdpEventBus();
         using var master = new ClusterMaster(bus, NoRolesConfig());
         var view = new ClusterView(bus, nodeId: CgfNode);
-        PhaseBeat(bus, master, CgfNode, NodePhase.Ready, advert: new[] { NodeRoleTokens.Brain }, name: "CGF", nodeName: "film-cam");
-        PhaseBeat(bus, master, SimHostNode, NodePhase.Ready, advert: new[] { NodeRoleTokens.MuscleGround }, name: "SimHost", nodeName: "sim-1");
+        const string token = "hrot.feature.map3d.in-load";
+        PhaseBeat(bus, master, CgfNode, NodePhase.Ready, advert: new[] { NodeRoleTokens.Brain, token }, name: "CGF", nodeName: "film-cam");
+        PhaseBeat(bus, master, SimHostNode, NodePhase.Ready, advert: new[] { NodeRoleTokens.MuscleGround, token }, name: "SimHost", nodeName: "sim-1");
 
-        void Set(string[]? names) { bus.PublishManaged(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), MapInLoadNodes = names }); Step(bus, master); view.Update(); }
-        Set(new[] { "Film-Cam", "film-cam", " sim-9 ", "", "bad,name" });
-        Assert.Equal(new[] { "Film-Cam", "sim-9" }, master.MapInLoadNodes);          // de-duplicated case-insensitively, junk dropped
-        Assert.Equal(new[] { "Film-Cam", "sim-9" }, view.MapInLoadNodes);            // broadcast
-        Set(null);
-        Assert.Equal(2, master.MapInLoadNodes.Count);                                // null = no change
+        void Set(string[] names) { bus.PublishManaged(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), FeatureOverrides = Fdp.Toolkit.Orchestration.MapInLoadOverrides.Replace(null, names) }); Step(bus, master); view.Update(); }
+        Set(new[] { "Film-Cam", "film-cam", "sim-9" });                                 // sim-9 is no node now: kept (a restart), de-duplicated case-insensitively
+        Assert.Equal(new[] { "Film-Cam", "sim-9" }, Fdp.Toolkit.Orchestration.MapInLoadOverrides.NodesOn(master.FeatureOverrides));
+        Assert.Equal(new[] { "Film-Cam", "sim-9" }, Fdp.Toolkit.Orchestration.MapInLoadOverrides.NodesOn(view.FeatureOverrides));   // broadcast
 
         bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
         bus.PublishManaged(new TransitionStateIntent { TransactionId = Guid.NewGuid(), TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive });
         Step(bus, master);
         var ops = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
-        bool Flag(int node) => Assert.IsType<Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload>(
-            ops.Single(i => i.Operation == FdpNodeOpType.PrepareLive && i.TargetNodeId == node).DomainPayload).MapInLoad;
-        Assert.True(Flag(CgfNode));                                                  // named (case-insensitively)
-        Assert.False(Flag(SimHostNode));                                             // not named
+        System.Collections.Generic.IReadOnlyDictionary<string, string>? Stamp(int node) => Assert.IsType<Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload>(
+            ops.Single(i => i.Operation == FdpNodeOpType.PrepareLive && i.TargetNodeId == node).DomainPayload).FeatureConfigsAtLoad;
+        Assert.Equal("{\"Enabled\":true}", Stamp(CgfNode)!["map3d.in-load"]);          // named (case-insensitively)
+        Assert.Null(Stamp(SimHostNode));                                              // not named
         Assert.All(ops.Where(i => i.Operation == FdpNodeOpType.CommitState), i => Assert.IsType<CommitStatePayload>(i.DomainPayload));
-        Assert.Equal(2, master.MapInLoadNodes.Count);                                // survives the load
+        Assert.Equal(2, Fdp.Toolkit.Orchestration.MapInLoadOverrides.NodesOn(master.FeatureOverrides).Count);   // survives the load
         Set(Array.Empty<string>());
-        Assert.Empty(view.MapInLoadNodes);                                           // empty = none
+        Assert.Empty(view.FeatureOverrides);                                          // empty = none
     }
 
     /// <summary>
