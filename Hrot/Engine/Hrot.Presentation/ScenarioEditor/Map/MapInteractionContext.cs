@@ -64,6 +64,10 @@ namespace Hrot.ScenarioEditor.Map
     /// </summary>
     public sealed class MapInteractionContext
     {
+        /// <summary>⭐ CE-4148 (Node Features S2) — this host's feature gate, read lazily (the node may not exist yet): the shared effect system
+        /// records the hit memory only while a <c>hud.*</c> reader of it is on. A host that has a node PASSES it; null ⇒ ungated.</summary>
+        public Func<Fdp.ModuleHost.IFeatureGate?>? FeatureGate { get; init; }
+
         /// <summary>The world the gizmo systems will run over. Required.</summary>
         public required EntityRepository World { get; init; }
 

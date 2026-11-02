@@ -32,12 +32,23 @@ namespace Hrot.UI.Common.Map3D
 
         /// <param name="bodies">⭐ CE-1073 — the drawn figures: the eyes come from the drawn head, and the held unit's head is not
         /// drawn. Null (a host or rail without 3-D bodies) keeps the perception eye height above the unit's position.</param>
-        public PossessionStation(MapViewSwitch view, Func<EntityRepository?> world, EntityBodyLayer3D? bodies = null)
+        /// <param name="featureGate">⭐ CE-4148 (Node Features S2) — this node's feature gate, read lazily (the map is built before the node exists):
+        /// the <c>hud.*</c> features switch the hit marker, the damage arc, the kill cam, the squad takeover, the spread ring and the near-miss
+        /// shock. A host that HAS a gate passes it (the forwarding rail checks); null (a rail, a tool) ⇒ ungated, all on, as before.</param>
+        public PossessionStation(MapViewSwitch view, Func<EntityRepository?> world, EntityBodyLayer3D? bodies = null,
+                                 Func<Fdp.ModuleHost.IFeatureGate?>? featureGate = null)
         {
+            FeatureGate = featureGate;
             _view = view ?? throw new ArgumentNullException(nameof(view));
             _world = world ?? throw new ArgumentNullException(nameof(world));
             Bodies = bodies;
         }
+
+        /// <summary>⭐ CE-4148 — the node's feature gate provider (null = ungated).</summary>
+        public Func<Fdp.ModuleHost.IFeatureGate?>? FeatureGate { get; }
+
+        /// <summary>⭐ CE-4148 — is the HUD feature <paramref name="id"/> on, on this node, now?</summary>
+        internal bool HudOn(string id) => Hrot.Common.Infrastructure.HudFeatures.IsOn(FeatureGate?.Invoke(), id);
 
         /// <summary>⭐ CE-1073 — the figures the eye is read from (the forwarding rail checks the pack passes them).</summary>
         public EntityBodyLayer3D? Bodies { get; }
@@ -125,7 +136,7 @@ namespace Hrot.UI.Common.Map3D
             if (w is not null) { StepHandOver(w); ReleaseOrphanRiders(w); }
             // ⭐ CE-1216 (§8k S-2) — a round passing his ear (the audio's own rule, RoundPasses) shocks the view; it fades in ShockSeconds
             Shock = MathF.Max(0f, Shock - dt / ShockSeconds);
-            if (_driver != null && w is not null)
+            if (_driver != null && w is not null && HudOn(Hrot.Common.Infrastructure.HudFeatures.NearMiss))   // ⭐ CE-4148 hud.near-miss
                 Shock = MathF.Min(1f, Shock + ShockPerPass * _passes.Scan(w, _driver.Unit, _view.Camera3D.Eye));
             var held = w is null ? Entity.Null : HeldHere(w, out _);
             bool handing = _step != HandOverStep.None || !_getOutRider.IsNull;
@@ -140,8 +151,10 @@ namespace Hrot.UI.Common.Map3D
                 // ⭐ CE-1220 (§8k K-1) — released because he FELL: the fall screen holds the view; a release just after a hit waits a
                 //   moment for his death to arrive (the release and the health may replicate in either order)
                 var gone = _driver.Unit;
-                if (held.IsNull && w is not null && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(w, gone)) BeginFall(w, gone);
-                else if (held.IsNull && w is not null && !handing && JustHit(w, gone) && WaitingForDeath()) { /* keep the view a moment */ }
+                //   ⭐ CE-4148 hud.kill-cam: OFF ⇒ a killed unit is released to the map (the operator's view) — no fall screen, no kill cam.
+                bool killed = held.IsNull && w is not null && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(w, gone);
+                if (killed && HudOn(Hrot.Common.Infrastructure.HudFeatures.KillCam)) BeginFall(w!, gone);
+                else if (!killed && held.IsNull && w is not null && !handing && JustHit(w, gone) && WaitingForDeath()) { /* keep the view a moment */ }
                 else Leave(restore: !handing);
             }
             else _releasedAt = -1f;
@@ -449,6 +462,8 @@ namespace Hrot.UI.Common.Map3D
             if (Hrot.UI.Common.Effects.HitFeedback.Of(w) is not { } feedback) return;
             var unit = _driver!.Unit;
             double now = Fdp.Toolkit.Time.SimClock.Of(w).TotalTime;
+            // ⭐ CE-4148 — the marker is hud.hit-marker, the arc is hud.damage-arc
+            if (HudOn(Hrot.Common.Infrastructure.HudFeatures.HitMarker))
             foreach (var hit in feedback.Recent(now, Hrot.UI.Common.Effects.HitFeedback.MarkerSeconds))
             {
                 if (hit.Shooter != unit) continue;
@@ -458,6 +473,7 @@ namespace Hrot.UI.Common.Map3D
                         Raylib.DrawLineEx(new Vector2(cx + sx * 7, cy + sy * 7), new Vector2(cx + sx * 14, cy + sy * 14), 2f, colour);
                 break;
             }
+            if (!HudOn(Hrot.Common.Infrastructure.HudFeatures.DamageArc)) return;
             float radius = MathF.Min(camera.Viewport.X, camera.Viewport.Y) * 0.38f;
             foreach (var hit in feedback.Recent(now, Hrot.UI.Common.Effects.HitFeedback.ArcSeconds))
             {
@@ -536,7 +552,7 @@ namespace Hrot.UI.Common.Map3D
         /// leader, his own men — <see cref="SquadRoster"/>); nothing when none is left.</summary>
         internal void FallToSquadMate()
         {
-            if (Fall == null || _world() is not { } w) return;
+            if (Fall == null || _world() is not { } w || !HudOn(Hrot.Common.Infrastructure.HudFeatures.SquadTakeoverAfterDeath)) return;   // ⭐ CE-4148
             var roster = SquadRoster.Of(w, Fall.Dead);
             if (roster.Count > 0) SwitchTo(roster[0].Unit);
         }
@@ -553,7 +569,7 @@ namespace Hrot.UI.Common.Map3D
             if (fade < 1f && !cam) return;
             string head = cam ? $"KILL CAM - {fall.KillerName(w)}" : $"KILLED - by {fall.KillerName(w)}";
             var options = new List<string>();
-            if (SquadRoster.Of(w, fall.Dead).Count > 0) options.Add("Tab  a squad mate");
+            if (HudOn(Hrot.Common.Infrastructure.HudFeatures.SquadTakeoverAfterDeath) && SquadRoster.Of(w, fall.Dead).Count > 0) options.Add("Tab  a squad mate");
             if (fall.CanKillCam(w)) options.Add("K  who hit you");
             options.Add("Esc  the map");
             string opts = string.Join("     ", options);
@@ -678,9 +694,11 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>⭐ <c>CE-1216</c> (§8k S-1, S-2) — the spread ring round the crosshair, and the edges darkened by near misses.</summary>
         private void DrawSpreadAndShock(EntityRepository w, MapCamera3D camera, int cx, int cy)
         {
-            float r = SpreadRadiusPx(SpreadOf(w, _driver!.Unit, _driver.Mount), camera.FovyDegrees, camera.Viewport.Y);
+            // ⭐ CE-4148 — the ring is hud.spread-ring, the dark edges hud.near-miss
+            float r = HudOn(Hrot.Common.Infrastructure.HudFeatures.SpreadRing)
+                ? SpreadRadiusPx(SpreadOf(w, _driver!.Unit, _driver.Mount), camera.FovyDegrees, camera.Viewport.Y) : 0f;
             if (r >= 4f) Raylib.DrawCircleLines(cx, cy, MathF.Min(r, camera.Viewport.Y / 2f), new Color(255, 255, 255, 110));
-            if (Shock <= 0f) return;
+            if (Shock <= 0f || !HudOn(Hrot.Common.Infrastructure.HudFeatures.NearMiss)) return;
             int width = (int)camera.Viewport.X, height = (int)camera.Viewport.Y, band = (int)(MathF.Min(width, height) * 0.18f);
             var dark = new Color(0, 0, 0, (int)(170 * Shock));
             var clear = new Color(0, 0, 0, 0);

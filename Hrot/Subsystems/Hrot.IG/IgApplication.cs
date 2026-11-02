@@ -741,6 +741,7 @@ public class IgApplication : IDisposable
                 new Hrot.ScenarioEditor.Map.MapInteractionContext
                 {
                     World = ctx.World,
+                    FeatureGate = () => _context?.Features,   // ⭐ CE-4148 — the hud.* features
                     Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
                     // ⭐ CE-3123 — constructor services for reflected projectors. IG holds no BehaviorRegistry: its labels
                     //   carry the id and the hit points, not the behaviour name (has data = can draw).
@@ -861,7 +862,8 @@ public class IgApplication : IDisposable
             // ⭐ CE-1033 — the shared attach: gizmo layer + draw buffer + the 3-D mode, the same on every host.
             var mapLayers = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
                 _canvas, _gizmoBuffer!, _interactionBus, () => _world, map3DBuildPolicy: Hrot.Common.Infrastructure.Map3dInLoadFeature.OnAtBoot(NodeRole.Map2D, onByDefault: true)   // ⭐ R-1046 / F-17 — Eager when map3d.in-load is on
-                    ? Fdp.Toolkit.Vis3D.Map3DBuildPolicy.Eager : Fdp.Toolkit.Vis3D.Map3DBuildPolicy.OnFirst3DRequest);
+                    ? Fdp.Toolkit.Vis3D.Map3DBuildPolicy.Eager : Fdp.Toolkit.Vis3D.Map3DBuildPolicy.OnFirst3DRequest,
+                featureGate: () => _context?.Features);   // ⭐ CE-4148 — the hud.* features
             var gizmoLayer = mapLayers.GizmoLayer;
             _map3D = mapLayers.Map3D;
             _gizmoLayer = gizmoLayer;

@@ -403,6 +403,7 @@ namespace Hrot.SimHost
                     new Hrot.ScenarioEditor.Map.MapInteractionContext
                     {
                         World = ctx.World,
+                        FeatureGate = () => _context?.Features,   // ⭐ CE-4148 — the hud.* features
                         Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
                         // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
                         Services = Hrot.ScenarioEditor.Map.MapServices.Of(_geoTransform, _behaviorRegistry),
@@ -563,7 +564,7 @@ namespace Hrot.SimHost
             {
                 var roadNetwork = _bootstrapper!.RoadNetwork ?? new CarKinem.Road.RoadNetworkBlob();
                 var configuredFactory = _networkFactory?.ConfigureForNode(_context, _role, _behaviorRegistry);
-                _vis = new SimHostVisualization();
+                _vis = new SimHostVisualization { FeatureGate = () => _context?.Features };   // ⭐ CE-4148
                 _vis.Initialize(
                     _world,
                     _kernel,

@@ -361,7 +361,8 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
 
     /// <summary>⭐ Node Features F-17 — this host supplies a 3-D map status, so it declares `map3d.in-load` (default false here).</summary>
     protected override System.Collections.Generic.IEnumerable<Hrot.Common.Infrastructure.FeatureDeclaration> HostFeatures
-        => new[] { Hrot.Common.Infrastructure.Map3dInLoadFeature.Declaration(onByDefault: false) };
+        => new[] { Hrot.Common.Infrastructure.Map3dInLoadFeature.Declaration(onByDefault: false) }
+           .Concat(Hrot.Common.Infrastructure.HudFeatures.Declarations(playerDefault: false));   // ⭐ CE-4148 — the gameplay HUD aids (hud.*), default ON for the Player only
 
     protected override ClusterSlave BuildOrchestration(
         HrotNodeContext context,
