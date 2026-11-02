@@ -16,7 +16,7 @@ namespace Hrot.ClusterRunner;
 public sealed class StartupScenarioLoad
 {
     /// <summary>What the command line asked for. <see cref="Scenario"/> null = only the setting.</summary>
-    public sealed record Plan(string? Scenario, bool Live, bool Run, IReadOnlyList<string>? MapInLoadNodes)
+    public sealed record Plan(string? Scenario, bool Live, bool Run, IReadOnlyList<string>? MapInLoadNodes, string? ScenarioArgsJson = null)
     {
         /// <summary>The plan the validated <paramref name="config"/> describes, or null when it asks for nothing at startup. <paramref name="ownNodeNames"/> are this process' node names (what an empty <c>--map-in-load</c> means).</summary>
         public static Plan? From(HrotRunnerConfiguration config, IReadOnlyList<string> ownNodeNames)
@@ -25,7 +25,8 @@ public sealed class StartupScenarioLoad
             var map = config.MapInLoad?.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()).ToList();
             if (config.MapInLoad != null && (map == null || map.Count == 0)) map = ownNodeNames.ToList();   // given with no name = this process' own nodes
             if (!load && map == null) return null;
-            return new Plan(load ? config.ScenarioName.Trim() : null, load && config.StartupLoadsLive, load && config.Play, map);
+            return new Plan(load ? config.ScenarioName.Trim() : null, load && config.StartupLoadsLive, load && config.Play, map,
+                            load ? config.ScenarioArgsJson() : null);   // ⭐ macros S3a ⑦ — --param name=value
         }
     }
 
@@ -80,7 +81,7 @@ public sealed class StartupScenarioLoad
             if (_plan.Scenario is { } scenario)
             {
                 var intent = _plan.Live
-                    ? ScenarioLoadSequence.LiveLoadIntent(scenario, startPaused: !_plan.Run)
+                    ? ScenarioLoadSequence.LiveLoadIntent(scenario, startPaused: !_plan.Run, scenarioArgsJson: _plan.ScenarioArgsJson)
                     : ScenarioLoadSequence.EditLoadIntent(scenario);
                 LoadRequestId = intent.TransactionId;
                 _sequence = new ScenarioLoadSequence(master.Transition, () => _state() ?? ClusterState.Idle);

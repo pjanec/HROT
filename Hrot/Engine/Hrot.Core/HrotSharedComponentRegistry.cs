@@ -103,6 +103,12 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.HitMarks>();     // ⭐ CE-3210 — where rounds struck (dtHitMarks)
         world.RegisterComponent<Fdp.Toolkit.Motion.Descent>();                  // ⭐ airborne B-1 — a man coming down (dtDescent)
         world.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();            // ⭐ CE-4153 — the scenario file's stable entity key (dtEntityGuid)
+        world.RegisterManagedComponent<Fdp.Toolkit.Scenario.MacroExpansionIntent>();
+        world.RegisterManagedComponent<Fdp.Toolkit.Scenario.MacroExpandedWith>();     // ⭐ macros S3a ⑥ — the reconcile's baseline (transient)  // ⭐ macros S3a ④ — the wait of one expansion (transient)
+        world.RegisterManagedComponent<Fdp.Toolkit.Scenario.ParamBindings>();  // ⭐ macros S3a ① (SR-161) — scalar bindings to params; NoReplay, saved by its translator
+        world.RegisterManagedComponent<Fdp.Toolkit.Scenario.MacroInstance>();       // ⭐ macros S3a ③ (SR-170) — a macro instance (dtMacroInstance); saved by its translator
+        world.RegisterComponent<Fdp.Toolkit.Scenario.MacroExpansionStatus>();       // ⭐ macros S3a ③ (SR-175) — the expansion verdict (dtMacroExpansionStatus); NoScenario
+        world.RegisterComponent<Fdp.Toolkit.Scenario.MacroOrigin>();                // ⭐ macros S3a ③ (SR-178) — an expanded entity's origin (dtMacroOrigin); NoScenario
         world.RegisterComponent<Fdp.Toolkit.Motion.EjectionDone>();             // ⭐ R-3039 S1 — this aircraft's crew has ejected (EjectionSystem)
 
         // ── Terrain / zone loading ────────────────────────────────────────────

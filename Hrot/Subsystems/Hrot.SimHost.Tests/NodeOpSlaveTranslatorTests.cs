@@ -255,6 +255,11 @@ public sealed class NodeOpSlaveTranslatorTests
         var payload = Assert.IsType<EditLoadHandlerPayload>(NodeOpSlaveTranslator.DeserializeNodePayload(
             NedNodeOpType.PrepareLive, "{\"TargetState\":\"LoadingLive\",\"ScenarioId\":\"s\",\"FeatureConfigsAtLoad\":{\"gameplay.team-kill\":\"{\\\"Enabled\\\":false}\"}}"));
         Assert.Equal("{\"Enabled\":false}", payload.FeatureConfigsAtLoad!["gameplay.team-kill"]);
+        // ⭐ macros S3a ⑦ (SR-41) — the load's scenario args cross with the same payload; an older sender omits them ⇒ null
+        var withArgs = Assert.IsType<EditLoadHandlerPayload>(NodeOpSlaveTranslator.DeserializeNodePayload(
+            NedNodeOpType.PrepareLive, "{\"TargetState\":\"LoadingLive\",\"ScenarioId\":\"s\",\"ScenarioArgs\":\"{\\\"side\\\":\\\"Friend\\\"}\"}"));
+        Assert.Equal("{\"side\":\"Friend\"}", withArgs.ScenarioArgsJson);
+        Assert.Null(payload.ScenarioArgsJson);
 
         var beat = Hrot.Common.Orchestration.NodeHeartbeatWire.ToEvent(Hrot.Common.Orchestration.NodeHeartbeatWire.ToTopic(
             new NodeHeartbeatEvent { SubsystemName = "IG", FeaturesOn = new System.Collections.Generic.List<string> { "map3d.in-load" } }));

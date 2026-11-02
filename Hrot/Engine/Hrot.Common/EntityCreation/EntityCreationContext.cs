@@ -160,6 +160,13 @@ namespace Hrot.Common.EntityCreation
         /// </summary>
         public IOwnershipDistributionStrategy? OwnershipStrategy { get; init; }
 
+        /// <summary>
+        /// ⭐ Macros S3a ④ (docs/DESIGN_Scenario_Macros.md §15 E-4) — the expander of macro instances this node creates. ⛔ A host that LOADS
+        /// scenarios (it holds the scenario extractor) must pass it — the forwarding rail checks the constructed pack. <c>null</c> on a host
+        /// that may not extract (IG, Node Roles §7.1): an instance created there is refused loudly (status Failed), never left unexpanded.
+        /// </summary>
+        public Hrot.Common.Macros.MacroExpander? Macros { get; init; }
+
 
         /// <summary>
         /// Optional resolver of the peer node set a creator must collect Active acks from before a

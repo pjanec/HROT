@@ -68,14 +68,18 @@ public record TransitionPayloadDto(
     // ⭐ CE-4090 (AQ108 D14) — a live load that records whatever the cluster's "Record live runs" setting says (the scenario verifier).
     //   Additive on the wire; omitted ⇒ false ⇒ follow the setting.
     [property: JsonPropertyName("ForceRecording")]
-    bool           ForceRecording = false
+    bool           ForceRecording = false,
+
+    // ⭐ Macros S3a ⑦ (SR-41) — a load's scenario args (a JSON object text). Additive on the wire; omitted ⇒ null ⇒ the header's defaults.
+    [property: JsonPropertyName("ScenarioArgs")]
+    string?        ScenarioArgs = null
 )
 {
     /// <summary>⭐ R-3055 — the ONE encoding of a transition on the wire (every node's egress).</summary>
     public static TransitionPayloadDto From(Fdp.Toolkit.Orchestration.TransitionStateIntent intent) => new(
         TargetState: (ClusterState)(int)intent.TargetState, ScenarioId: intent.ScenarioId, ExerciseId: intent.ExerciseId,
         TimeMode: intent.TimeMode, CheckpointingSeconds: intent.CheckpointingSeconds, TargetWallTicks: intent.TargetWallTicks,
-        TargetSimSeconds: intent.TargetSimSeconds, ForceRecording: intent.ForceRecording);
+        TargetSimSeconds: intent.TargetSimSeconds, ForceRecording: intent.ForceRecording, ScenarioArgs: intent.ScenarioArgsJson);
 
     /// <summary>⭐ R-3055 — the ONE decoding (the master's translator and its request adapter): nothing on the wire is dropped.</summary>
     public Fdp.Toolkit.Orchestration.TransitionStateIntent ToIntent(Guid requestId) => new()
@@ -89,6 +93,7 @@ public record TransitionPayloadDto(
         TargetWallTicks      = TargetWallTicks,
         TargetSimSeconds     = TargetSimSeconds,   // CE-3329 R11
         ForceRecording       = ForceRecording,     // CE-4090 D14
+        ScenarioArgsJson     = ScenarioArgs,       // macros S3a ⑦
     };
 }
 
@@ -337,7 +342,11 @@ public record NodeTransitionPayloadDto(
 
     // ⭐ Node Features F-14 — per node: the cluster layer for this node's features (id → partial JSON object text). Additive; omitted ⇒ null.
     [property: JsonPropertyName("FeatureConfigsAtLoad")]
-    System.Collections.Generic.Dictionary<string, string>? FeatureConfigsAtLoad = null
+    System.Collections.Generic.Dictionary<string, string>? FeatureConfigsAtLoad = null,
+
+    // ⭐ Macros S3a ⑦ (SR-41) — the load's scenario args, the same on every node. Additive; omitted ⇒ null.
+    [property: JsonPropertyName("ScenarioArgs")]
+    string? ScenarioArgs = null
 );
 
 /// <summary>Node-level episode payload DTO for <c>StartEpisode</c> / <c>StopEpisode</c>.</summary>

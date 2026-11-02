@@ -741,6 +741,56 @@ namespace Hrot.NED.Descriptors
         public long Hi;
     }
 
+    // ⭐ macros S3a ③ (docs/DESIGN_Scenario_Macros.md §14 SR-170, R-134) — a macro INSTANCE: which macro and its args (a JSON object text). Published by the
+    //   node that owns the descriptor (the instance's creator — no group) on change; every node then knows what was instanced. TransientLocal + KeepLast(1).
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityMacroInstance
+    {
+        [DdsKey]
+        public int EntityId;
+
+        /// <summary>The macro's path under <c>macros/</c>.</summary>
+        public string Macro;
+
+        /// <summary>The instance's args — a JSON object, <c>"{}"</c> = none.</summary>
+        public string ArgsJson;
+    }
+
+    // ⭐ macros S3a ③ (SR-175) — the expander's verdict on an instance: <c>MacroExpansionState</c> (0 None · 1 Expanding · 2 Done · 3 Failed) and why it failed.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityMacroExpansionStatus
+    {
+        [DdsKey]
+        public int EntityId;
+
+        public byte State;
+
+        public string Reason;
+    }
+
+    // ⭐ macros S3a ③ (SR-178) — which instance (its network id) and macro-local file key (a GUID as two longs, as <c>EntityStableGuid</c>) an expanded entity came from.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityMacroOrigin
+    {
+        [DdsKey]
+        public int EntityId;
+
+        /// <summary>The instance entity's network id.</summary>
+        public int Instance;
+
+        public long LocalLo;
+
+        public long LocalHi;
+    }
+
     // ── Navigation CQRS descriptors (MOD1-P1T1) ──────────────────────────────
     // These are the DDS wire representations of the engine-side NavigationIntent and
     // NavigationStatus ECS components.  The engine-side enums (NavigationMode,
@@ -1045,6 +1095,56 @@ namespace Hrot.NED.Descriptors
         /// <summary>High-precision anchor (local ENU metres, AQ107 B) for coordinate reconstruction on the Brain node.</summary>
         public Vec3d                 BatchOrigin;
         [DdsManaged] public List<DdsPathResult> Results;
+    }
+
+    // ── Placement pipeline (macros S3a ⑤, docs/DESIGN_Scenario_Macros.md §14.2 SR-180, R-134) — the pathfinding pair's shape ──────────────
+
+    /// <summary>One thing to place: a macro-local key, its wanted point (ENU offset from the batch origin), layer (<c>PlacementLayer</c>) and half-footprint radius.</summary>
+    [DdsStruct]
+    public partial struct DdsPlacementSlot
+    {
+        public int             Key;
+        public RelativeVector3 Point;
+        /// <summary>0 Infantry · 1 Vehicle · 2 Amphibious · 3 Air.</summary>
+        public byte            Layer;
+        public float           Radius;
+    }
+
+    /// <summary>A placement request from the asking node toward the Navigation Solver (one request per sample).</summary>
+    [DdsTopic]
+    // ⭐ Reliable + KeepAll (the CE-3095 rule for events): 📌 measured live 2026-11-02 — two instances expanding in one frame sent TWO
+    //   requests and the solver's reader (default keep-last-1) received ONE; the dropped expansion fell back to its own terrain.
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
+    public partial struct PlacementRequestBatchWire
+    {
+        [DdsKey] public int SourceNodeId;
+        public long         RequestId;
+        public float        MaxShift;
+        public Vec3d        BatchOrigin;   // local ENU metres (AQ107 B): the anchor the RelativeVector3 offsets are measured from
+        [DdsManaged] public List<DdsPlacementSlot> Slots;
+    }
+
+    /// <summary>The answer for one slot: <c>PlacementOutcome</c> (0 Exact · 1 Shifted · 2 Failed), the point (offset from the batch origin) and a reason.</summary>
+    [DdsStruct]
+    public partial struct DdsPlacementAnswer
+    {
+        public int             Key;
+        public byte            Outcome;
+        public RelativeVector3 Point;
+        [DdsManaged] public string Reason;
+    }
+
+    /// <summary>The Navigation Solver's answers, addressed to the asking node.</summary>
+    [DdsTopic]
+    // ⭐ Reliable + KeepAll (the CE-3095 rule for events): 📌 measured live 2026-11-02 — two instances expanding in one frame sent TWO
+    //   requests and the solver's reader (default keep-last-1) received ONE; the dropped expansion fell back to its own terrain.
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
+    public partial struct PlacementResponseBatchWire
+    {
+        [DdsKey] public int TargetNodeId;
+        public long         RequestId;
+        public Vec3d        BatchOrigin;
+        [DdsManaged] public List<DdsPlacementAnswer> Answers;
     }
 
     // ── Ground Clamping IG contract (MOD1-P7T1) ──────────────────────────────

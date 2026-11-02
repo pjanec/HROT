@@ -73,8 +73,9 @@ namespace Fdp.Toolkit.Orchestration
         /// waits for ▶), <see langword="null"/> when the load must RUN once loaded (the master runs it when every node's load succeeded, CE-3354 ⑤); <paramref name="forceRecording"/> is the scenario verifier's
         /// (CE-4090 D14 §5a: it records whatever the cluster's "Record live runs" setting says).
         /// </summary>
-        public static TransitionStateIntent LiveLoadIntent(string scenario, bool startPaused = true, bool forceRecording = false) => new()
+        public static TransitionStateIntent LiveLoadIntent(string scenario, bool startPaused = true, bool forceRecording = false, string? scenarioArgsJson = null) => new()
         {
+            ScenarioArgsJson = scenarioArgsJson,   // ⭐ macros S3a ⑦ (SR-41) — HTTP's {args}, the command line's --param
             TransactionId  = Guid.NewGuid(),
             TargetState    = ClusterState.OperatingLive,
             ScenarioId     = scenario,

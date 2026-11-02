@@ -23,6 +23,10 @@ namespace Fdp.Toolkit.Scenario
 
         /// <summary>⭐ <c>CE-4058</c> ② — the hash of the scenario as loaded (<see cref="ScenarioDescription.HashOf"/>); empty when none.</summary>
         public string Hash { get; set; } = string.Empty;
+
+        /// <summary>⭐ Macros S3a ⑦ (SR-176) — the scenario args the load APPLIED (a JSON object text: the header's defaults ▸ the run's args);
+        /// empty when the scenario declares no params. A recording keeps it (<c>RecordingMetadata.ScenarioArgs</c>).</summary>
+        public string Args { get; set; } = string.Empty;
     }
 
     /// <summary>
@@ -68,11 +72,22 @@ namespace Fdp.Toolkit.Scenario
         /// <summary>Makes <paramref name="text"/> the loaded scenario's description in <paramref name="world"/>, with its
         /// <paramref name="name"/> and <paramref name="hash"/> (CE-4058 ②); null clears each (a new scenario, or one without a
         /// description, must not keep the previous one's).</summary>
-        public static void Stamp(EntityRepository world, string? text, string? name = null, string? hash = null)
+        public static void Stamp(EntityRepository world, string? text, string? name = null, string? hash = null, string? args = null)
         {
             if (world == null) return;
             if (string.IsNullOrWhiteSpace(text) && string.IsNullOrEmpty(name) && !world.HasSingletonManaged<ScenarioDescriptionResident>()) return;
-            world.SetSingletonManaged(new ScenarioDescriptionResident { Text = text ?? string.Empty, Name = name ?? string.Empty, Hash = hash ?? string.Empty });
+            world.SetSingletonManaged(new ScenarioDescriptionResident
+            {
+                Text = text ?? string.Empty, Name = name ?? string.Empty, Hash = hash ?? string.Empty, Args = args ?? string.Empty,
+            });
+        }
+
+        /// <summary>⭐ Macros S3a ⑦ (SR-176) — the scenario args the resident load applied, or null.</summary>
+        public static string? ArgsOf(EntityRepository? world)
+        {
+            if (world == null || !world.HasSingletonManaged<ScenarioDescriptionResident>()) return null;
+            var held = world.GetSingletonManaged<ScenarioDescriptionResident>();
+            return string.IsNullOrEmpty(held?.Args) ? null : held!.Args;
         }
 
         /// <summary>⭐ <c>CE-4058</c> ② — the loaded scenario's name and hash in <paramref name="world"/>, or nulls.</summary>

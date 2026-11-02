@@ -443,16 +443,17 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("no entity with key 'RedHQ' here", ex.Message);
         }
 
-        /// <summary>⭐ S0 item 3 — two entities with one key fail the load LOUDLY (a key is unique per scope).</summary>
+        /// <summary>⭐ SR-188 (supersedes S0's "a duplicate key fails the load") — two entities with one key: the load goes on, the
+        /// reference resolves to the FIRST in file order (two instances of one macro legitimately give two "@SL"s).</summary>
         [Fact]
-        public void S0_ADuplicateKey_FailsTheLoadLoudly()
+        public void SR188_ADuplicateKey_ResolvesToTheFirst_TheLoadGoesOn()
         {
             KeyedHqAndAUnitThatNamesIt("{}");
             var twin = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(twin, new NetworkIdentity { Value = 1003 });
             _goldRepo.SetComponent(twin, new Fdp.Toolkit.Scenario.RefKey("BlueHQ"));
-            var ex = Assert.Throws<InvalidOperationException>(() => ExtractWithLinkProbe());
-            Assert.Contains("two entities carry the key 'BlueHQ'", ex.Message);
+            var ex = Record.Exception(() => ExtractWithLinkProbe());
+            Assert.Null(ex);
         }
 
         // ── Test 4: Network ID remapping in ActiveMissionPlan BehaviorParams ──────

@@ -341,6 +341,16 @@ namespace Hrot.Common.Systems
                     fallbackComponents.Add(new Fdp.Toolkit.Behavior.Components.SeatPresetsFilled { Filled = 1 });
                 }
 
+                // 3.7 ⭐ Macros S3a ④ (DESIGN_Scenario_Macros §15 E-1/E-5) — an instance THIS node creates expands here: it is born Expanding with
+                //   the wait the load gate knows (MacroExpansionSystem does the work). ⭐ A nested instance arrives Done (its parent's expansion
+                //   flattened it); a ghost / promotion never passes here, so it never expands (SR-174).
+                if (fallbackComponents != null && fallbackComponents.Exists(c => c is Fdp.Toolkit.Scenario.MacroInstance)
+                    && !fallbackComponents.Exists(c => c is Fdp.Toolkit.Scenario.MacroExpansionStatus))
+                {
+                    fallbackComponents.Add(new Fdp.Toolkit.Scenario.MacroExpansionStatus { State = Fdp.Toolkit.Scenario.MacroExpansionState.Expanding });
+                    fallbackComponents.Add(new Fdp.Toolkit.Scenario.MacroExpansionIntent());
+                }
+
                 // 4. Publish SpawnEntityCommand — NetworkSpawningSystem handles all ECS work.
                 if (view is EntityRepository repo)
                 {
