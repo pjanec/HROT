@@ -85,6 +85,13 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-4153 — an entity's stable scenario key, creator → every node (no group; immutable, so published once and held until its entity is here).
             yield return new EntityStableGuidEgressTranslator(participant);
             yield return new EntityStableGuidIngressTranslator(participant, entityMap);
+            // ⭐ macros S3a ③ — a macro instance, its expansion verdict and an expanded entity's origin, creator → every node (no group).
+            yield return new EntityMacroInstanceEgressTranslator(participant);
+            yield return new EntityMacroInstanceIngressTranslator(participant, entityMap);
+            yield return new EntityMacroExpansionStatusEgressTranslator(participant);
+            yield return new EntityMacroExpansionStatusIngressTranslator(participant, entityMap);
+            yield return new EntityMacroOriginEgressTranslator(participant);
+            yield return new EntityMacroOriginIngressTranslator(participant, entityMap);
             // ⭐ WL-1b (CE-1049) — a turret part's pose, the dtTurretPose owner (the Muscle) → every node. 📄 DESIGN_Weapon_Layers §5b.
             yield return new EntityTurretPoseEgressTranslator(participant);
             yield return new EntityTurretPoseIngressTranslator(participant, entityMap);

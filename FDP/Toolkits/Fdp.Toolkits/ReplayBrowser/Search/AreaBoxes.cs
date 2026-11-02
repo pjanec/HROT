@@ -25,7 +25,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         {
             if (!area.IsShape) return null;
             var c = new Vector2(area.Center.X, area.Center.Y);
-            var half = area.Spec.Form == RefForm.Circle ? new Vector2(area.Size.X, area.Size.X) : area.Size * 0.5f;
+            var half = area.Spec.Effective == RefForm.Circle ? new Vector2(area.Size.X, area.Size.X) : area.Size * 0.5f;
             return new BoundingBox2D { Min = c - half, Max = c + half };
         }
     }

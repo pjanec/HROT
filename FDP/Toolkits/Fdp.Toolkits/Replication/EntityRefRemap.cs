@@ -9,6 +9,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Fdp.Core;
 using Fdp.Core.Serialization;
+using Fdp.Toolkit.Scenario;
 
 namespace Fdp.Toolkit.Replication
 {
@@ -37,7 +38,7 @@ namespace Fdp.Toolkit.Replication
         /// <summary>The leaf types the plan finds.</summary>
         private enum LeafKind : byte { EntityRef, EntityLink, WorldPoint, PointLink, AreaLink, WorldRotation, Bearing }
 
-        private enum Kind : byte { Leaf, LeafSequence, Nested, NestedSequence }
+        private enum Kind : byte { Leaf, LeafSequence, Nested, NestedSequence, Poly, PolySequence }
 
         private sealed class Entry
         {
@@ -57,6 +58,7 @@ namespace Fdp.Toolkit.Replication
             public bool HoldsIds;                          // any leaf that carries a network id (EntityRef / EntityLink / AreaLink), here or nested
             public string[]? Retired;                      // [RetiredJsonKeys]: keys an old form used — refused by a strict applier
             public Type Type = null!;                      // the contract this plan was built for
+            public bool Bindable;                          // ⭐ SR-160/SR-164: the type is a BindableNode — the applier's Node hook sees it
         }
 
         private static readonly ConditionalWeakTable<Type, StrongBox<Plan?>> _plans = new();
@@ -109,6 +111,9 @@ namespace Fdp.Toolkit.Replication
                         Add(ref plan, p, p.PropertyType, visiting);
                 foreach (var f in type.GetFields(Public))
                     Add(ref plan, f, f.FieldType, visiting);
+                // ⭐ SR-164 — a BindableNode always has a plan (its Bind map is applied even when it holds no leaf).
+                if (plan == null && typeof(BindableNode).IsAssignableFrom(type)) plan = new Plan();
+                if (plan != null) plan.Bindable = typeof(BindableNode).IsAssignableFrom(type);
                 if (plan != null)
                 {
                     plan.Type = type;
@@ -123,7 +128,13 @@ namespace Fdp.Toolkit.Replication
         {
             Entry? e = null;
             bool ids = false;
-            if (LeafOf(memberType) is { } leaf)
+            // ⭐ SR-164 — a member typed as a BindableNode (a predicate, a do entry) is POLYMORPHIC: walked by the RUNTIME type's plan
+            //   (the JSON's discriminator), so a tree of predicates is reached at any depth.
+            if (typeof(BindableNode).IsAssignableFrom(memberType))
+            { e = new Entry { Kind = Kind.Poly }; ids = PolyHoldsIds(memberType, visiting); }
+            else if (ElementType(memberType) is { } pe && typeof(BindableNode).IsAssignableFrom(pe))
+            { e = new Entry { Kind = Kind.PolySequence }; ids = PolyHoldsIds(pe, visiting); }
+            else if (LeafOf(memberType) is { } leaf)
             { e = new Entry { Kind = Kind.Leaf, Leaf = leaf }; ids = CarriesIds(leaf); }
             else if (ElementType(memberType) is { } elem && LeafOf(elem) is { } elemLeaf)
             { e = new Entry { Kind = Kind.LeafSequence, Leaf = elemLeaf }; ids = CarriesIds(elemLeaf); }
@@ -140,6 +151,58 @@ namespace Fdp.Toolkit.Replication
             plan ??= new Plan();
             plan.Entries.Add(e);
             plan.HoldsIds |= ids;
+        }
+
+        // ── polymorphic BindableNode members (SR-164) ─────────────────────────────────────────────────────────────
+
+        private static readonly ConditionalWeakTable<Type, Dictionary<string, Type>> _derived = new();
+
+        /// <summary>The concrete types a member declared as <paramref name="declared"/> may hold: its <c>[JsonDerivedType]</c> list
+        /// (declared on it or a base), plus itself when concrete. Keyed by the discriminator text.</summary>
+        private static Dictionary<string, Type> DerivedOf(Type declared)
+        {
+            if (_derived.TryGetValue(declared, out var map)) return map;
+            map = new Dictionary<string, Type>(StringComparer.Ordinal);
+            for (var t = declared; t != null && t != typeof(object); t = t.BaseType)
+            {
+                var attrs = t.GetCustomAttributes<JsonDerivedTypeAttribute>(inherit: false);
+                bool any = false;
+                foreach (var a in attrs)
+                {
+                    any = true;
+                    if (a.TypeDiscriminator is { } d && declared.IsAssignableFrom(a.DerivedType)) map[d.ToString()!] = a.DerivedType;
+                }
+                if (any) break;
+            }
+            lock (_gate) { if (!_derived.TryGetValue(declared, out var raced)) _derived.Add(declared, map); else map = raced; }
+            return map;
+        }
+
+        private static string Discriminator(Type declared)
+        {
+            for (var t = declared; t != null && t != typeof(object); t = t.BaseType)
+                if (t.GetCustomAttribute<JsonPolymorphicAttribute>(inherit: false) is { } p)
+                    return p.TypeDiscriminatorPropertyName ?? "$type";
+            return "$type";
+        }
+
+        /// <summary>The runtime type a JSON object of a member declared as <paramref name="declared"/> holds — by its discriminator,
+        /// else the declared type itself when concrete; <c>null</c> when it cannot be told (left as is).</summary>
+        private static Type? RuntimeTypeOf(Type declared, JsonObject obj)
+        {
+            if (obj[Discriminator(declared)] is JsonValue v && v.TryGetValue<string>(out var disc)
+                && DerivedOf(declared).TryGetValue(disc, out var t)) return t;
+            return declared.IsAbstract || declared.IsInterface ? null : declared;
+        }
+
+        private static bool PolyHoldsIds(Type declared, HashSet<Type> visiting)
+        {
+            bool ids = false;
+            if (!declared.IsAbstract && !declared.IsInterface)
+                ids |= (Existing(declared, visiting) ?? Build(declared, visiting))?.HoldsIds == true;
+            foreach (var d in DerivedOf(declared).Values)
+                ids |= (Existing(d, visiting) ?? Build(d, visiting))?.HoldsIds == true;
+            return ids;
         }
 
         /// <summary>An already-built plan (outside a cycle), so a shared nested type is planned once.</summary>
@@ -230,8 +293,8 @@ namespace Fdp.Toolkit.Replication
                 foreach (var (key, _) in obj)
                     if (Array.Exists(retired, r => r.Equals(key, StringComparison.OrdinalIgnoreCase)))
                         throw new JsonException($"'{key}' is a retired params key (CE-4153 S10: no backward compatibility) — migrate the file with hrot-content-migrate");
+            bool changed = plan.Bindable && applier.NodeJson(plan.Type, obj);   // ⭐ SR-164: a node's Bind before its leaves
             var keys = Keys(plan);
-            bool changed = false;
             List<(string Key, JsonNode? Node)>? rewrites = null;
             foreach (var (key, node) in obj)
             {
@@ -240,6 +303,14 @@ namespace Fdp.Toolkit.Replication
                 {
                     case Kind.Leaf:
                         if (TryApply(node, e.Leaf, applier, key, out var replaced)) (rewrites ??= new()).Add((key, replaced));
+                        break;
+                    case Kind.Poly when node is JsonObject pc:
+                        if (RuntimeTypeOf(e.MemberType, pc) is { } pt && PlanOf(pt) is { } pp) changed |= WalkObject(pc, pp, applier);
+                        break;
+                    case Kind.PolySequence when node is JsonArray pa:
+                        var pd = ElementType(e.MemberType)!;
+                        foreach (var item in pa)
+                            if (item is JsonObject po && RuntimeTypeOf(pd, po) is { } it && PlanOf(it) is { } ip) changed |= WalkObject(po, ip, applier);
                         break;
                     case Kind.LeafSequence when node is JsonArray arr:
                         for (int i = 0; i < arr.Count; i++)
@@ -306,6 +377,15 @@ namespace Fdp.Toolkit.Replication
                     case Kind.NestedSequence when node is JsonArray seq:
                         for (int i = 0; i < seq.Count; i++)
                             if (seq[i] is JsonObject o) changed |= VisitObject(o, e.Nested!, visit, visitObject, $"{at}[{i}]");
+                        break;
+                    case Kind.Poly when node is JsonObject pc:
+                        if (RuntimeTypeOf(e.MemberType, pc) is { } pt && PlanOf(pt) is { } pp) changed |= VisitObject(pc, pp, visit, visitObject, at);
+                        break;
+                    case Kind.PolySequence when node is JsonArray pa:
+                        var pd = ElementType(e.MemberType)!;
+                        for (int i = 0; i < pa.Count; i++)
+                            if (pa[i] is JsonObject po && RuntimeTypeOf(pd, po) is { } it && PlanOf(it) is { } ip)
+                                changed |= VisitObject(po, ip, visit, visitObject, $"{at}[{i}]");
                         break;
                 }
             }
@@ -381,7 +461,7 @@ namespace Fdp.Toolkit.Replication
 
         private static bool Apply(object target, LeafApplier applier, Plan plan)
         {
-            bool changed = false;
+            bool changed = plan.Bindable && target is BindableNode node && applier.Node(node);   // ⭐ SR-164: a node's Bind before its leaves
             foreach (var e in plan.Entries)
             {
                 object? v = Get(e.Member, target);
@@ -405,6 +485,13 @@ namespace Fdp.Toolkit.Replication
                         // A struct comes back BOXED: rewrite the box, then store it back into the member.
                         if (Apply(v, applier, e.Nested!) && (!e.MemberType.IsValueType || TrySet(e.Member, target, v))) changed = true;
                         break;
+                    case Kind.Poly:
+                        if (PlanOf(v.GetType()) is { } pp && Apply(v, applier, pp)) changed = true;   // a class: mutated in place
+                        break;
+                    case Kind.PolySequence:
+                        foreach (var item in (IList)v)
+                            if (item is not null && PlanOf(item.GetType()) is { } ip && Apply(item, applier, ip)) changed = true;
+                        break;
                     case Kind.NestedSequence:
                         var seq = (IList)v;
                         for (int i = 0; i < seq.Count; i++)
@@ -418,6 +505,17 @@ namespace Fdp.Toolkit.Replication
                 }
             }
             return changed;
+        }
+
+        /// <summary>⭐ Applies <paramref name="applier"/> to ONE value — a leaf itself (an <see cref="EntityLink"/>, a <see cref="WorldPoint"/> …) or
+        /// anything holding leaves (a struct is walked boxed) — and returns the new value. (A param's value resolved in the scope
+        /// outside a macro, SR-164.)</summary>
+        public static object? ApplyTo(object? value, LeafApplier applier)
+        {
+            if (value is null) return null;
+            if (LeafOf(value.GetType()) is { } leaf) return ApplyLeaf(value, leaf, applier);
+            WalkObject(value, applier);
+            return value;
         }
 
         private static object ApplyLeaf(object v, LeafKind leaf, LeafApplier a) => leaf switch
@@ -461,6 +559,11 @@ namespace Fdp.Toolkit.Replication
         public virtual AreaLink Area(AreaLink a) => a;
         public virtual WorldRotation Rotation(WorldRotation r) => r;
         public virtual Bearing Bearing(Bearing b) => b;
+
+        /// <summary>⭐ SR-164 — every <see cref="BindableNode"/> the walk reaches (an in-memory value), before its leaves. <c>true</c> = changed.</summary>
+        public virtual bool Node(BindableNode node) => false;
+        /// <summary>⭐ SR-164 — every <see cref="BindableNode"/> the walk reaches in JSON (<paramref name="nodeType"/> = its runtime type), before its leaves.</summary>
+        public virtual bool NodeJson(Type nodeType, JsonObject obj) => false;
 
         /// <summary>⛔ CE-4153 S10 — <c>true</c> for an applier over AUTHORED content at load (<see cref="RefResolve"/>): a leaf its converter cannot
         /// read, or a key the contract marks <see cref="RetiredJsonKeysAttribute"/>, is a LOUD error instead of being left for later.</summary>
@@ -557,7 +660,7 @@ namespace Fdp.Toolkit.Replication
 
         public override PointLink PointLink(PointLink p) => p.Spec.IsNone ? p.WithLocal(Point(p.Local)) : p;
 
-        public override AreaLink Area(AreaLink a) => a.IsShape ? a.WithPlacement(Point(a.Center), Bearing(a.Heading)) : a;
+        public override AreaLink Area(AreaLink a) => a.IsLiteralShape ? a.WithPlacement(Point(a.Center), Bearing(a.Heading)) : a;   // a param-bound shape stays (SR-131)
 
         public override WorldRotation Rotation(WorldRotation r)
             => ((Quaternion)r).LengthSquared() < 1e-6f ? r : (WorldRotation)Quaternion.Normalize(_turn * (Quaternion)r);

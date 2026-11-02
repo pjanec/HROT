@@ -285,6 +285,7 @@ public sealed class EntityTypeCatalogTests
         8810 World Environment | dis - | family Unknown | folder Other | icon -
         8811 Weather Region | dis - | family Unknown | folder Other | icon -
         8812 Stone Source | dis - | family Unknown | folder Other | icon -
+        8813 Scenario Macro | dis 5.0.0.90.0.0.0 | family Unknown | folder Cultural Feature/Scenario Macro (HROT) | icon -
         8850 Traffic | dis - | family Unknown | folder Other | icon -
         8851 SUMO car | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         """;

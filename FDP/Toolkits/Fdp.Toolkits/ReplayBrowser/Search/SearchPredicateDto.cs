@@ -47,7 +47,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     [JsonDerivedType(typeof(BehaviourStepPredicateDto),      "BehaviourStep")]
     [JsonDerivedType(typeof(RingEntryPredicateDto),          "RingEntry")]
     [JsonDerivedType(typeof(ValueChangePredicateDto),        "ValueChange")]
-    public abstract class SearchPredicateDto { }
+    // ⭐ SR-160 — every predicate node may bind its own properties to macro / scenario params (Bind); the trigger's do entries share the base.
+    public abstract class SearchPredicateDto : Fdp.Toolkit.Scenario.BindableNode { }
 
     // ──────────────────────────────────────────────────────────────────────────
     // Compound

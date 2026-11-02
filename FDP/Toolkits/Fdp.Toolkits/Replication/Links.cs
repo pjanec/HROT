@@ -48,6 +48,9 @@ namespace Fdp.Toolkit.Replication
         /// <summary>The same authored form with a new answer (what resolution and remapping produce).</summary>
         public EntityLink WithRef(EntityRef reference) => new(reference, Spec);
 
+        /// <summary>⭐ SR-168 — this <c>"^param"</c> binding takes <paramref name="value"/>'s answer and KEEPS its form (the binder, SR-164).</summary>
+        public EntityLink BoundTo(EntityLink value) => new(value.Ref, Spec.WithBound(value.Spec.Effective));
+
         /// <summary>A link written as a bare reference (code → param: the picker's id pick, a test, a migration).</summary>
         public static implicit operator EntityLink(EntityRef reference) => new(reference);
 
@@ -85,6 +88,10 @@ namespace Fdp.Toolkit.Replication
 
         /// <summary>The same authored form with a new answer.</summary>
         public PointLink WithLocal(WorldPoint local) => new(local, Spec);
+
+        /// <summary>⭐ SR-168 — this <c>"^param"</c> binding takes <paramref name="value"/>'s place and KEEPS its form (the binder, SR-164).
+        /// ⭐ Not relocated afterwards: a value that came in through a param belongs to the world outside the macro (SR-131).</summary>
+        public PointLink BoundTo(PointLink value) => new(value.Local, Spec.WithBound(value.Spec.Effective));
 
         /// <summary>Coordinates written as a literal (a picked map point, a test, a migration).</summary>
         public static implicit operator PointLink(WorldPoint local) => new(local);
@@ -148,8 +155,16 @@ namespace Fdp.Toolkit.Replication
         /// <summary>The same shape moved / turned (relocation): a new centre and heading, the size kept.</summary>
         public AreaLink WithPlacement(WorldPoint center, Bearing heading) => new(Area, Spec, center, Size, heading);
 
-        /// <summary><c>true</c> for a circle or a rectangle (the shape is in the value); <c>false</c> for an area entity.</summary>
-        public bool IsShape => Spec.Form is RefForm.Circle or RefForm.Rectangle;
+        /// <summary>⭐ SR-168 — this <c>"^param"</c> binding takes <paramref name="value"/> (a shape or an area entity) and KEEPS its form;
+        /// <see cref="RefSpec.Bound"/> records which, so <see cref="IsShape"/> and <see cref="Contains"/> read it as that.</summary>
+        public AreaLink BoundTo(AreaLink value)
+            => new(value.Area, Spec.WithBound(value.Spec.Effective), value.Center, value.Size, value.Heading);
+
+        /// <summary><c>true</c> for a circle or a rectangle (the shape is in the value — authored, or a param bound to one); <c>false</c> for an area entity.</summary>
+        public bool IsShape => Spec.Effective is RefForm.Circle or RefForm.Rectangle;
+
+        /// <summary><c>true</c> for a shape WRITTEN in this value (a literal) — what relocation moves; a shape that came in through a param does not move (SR-131).</summary>
+        public bool IsLiteralShape => Spec.Form is RefForm.Circle or RefForm.Rectangle;
 
         /// <summary><c>true</c> when nothing is described.</summary>
         public bool IsNone => !IsShape && Area.IsNone && Spec.IsNone;
@@ -162,7 +177,7 @@ namespace Fdp.Toolkit.Replication
         public bool Contains(EntityRepository? world, Vector3 point)
         {
             var d = new Vector2(point.X - Center.X, point.Y - Center.Y);
-            switch (Spec.Form)
+            switch (Spec.Effective)
             {
                 case RefForm.Circle:
                     return d.LengthSquared() <= Size.X * Size.X;
@@ -180,6 +195,13 @@ namespace Fdp.Toolkit.Replication
             }
         }
 
+        /// <summary>The bound shape as a literal (a param binding's display / writer).</summary>
+        internal AreaLink WithoutParam() => Spec.Effective is RefForm.Circle or RefForm.Rectangle
+            ? new(default, RefSpec.Shape(Spec.Effective), Center, Size, Heading) : this;
+
+        /// <summary>A shape read back WITH its <c>"^param"</c> binding (the writer's <c>{"circle": …, "Ref": "^area"}</c>).</summary>
+        internal AreaLink WithParam(RefSpec param) => new(Area, param.WithBound(Spec.Effective), Center, Size, Heading);
+
         public bool Equals(AreaLink other)
             => Area == other.Area && Spec == other.Spec && Center == other.Center && Size == other.Size && Heading.Equals(other.Heading);
         public override bool Equals(object? obj) => obj is AreaLink a && Equals(a);
@@ -189,6 +211,7 @@ namespace Fdp.Toolkit.Replication
 
         public override string ToString() => Spec.Form switch
         {
+            RefForm.Param when IsShape => $"{Spec} → " + WithoutParam().ToString(),
             RefForm.Circle    => $"circle r={Size.X:0.#} m at {Center}",
             RefForm.Rectangle => $"rect {Size.X:0.#}×{Size.Y:0.#} m at {Center}, {Heading}",
             RefForm.None      => Area.ToString(),
@@ -208,7 +231,7 @@ namespace Fdp.Toolkit.Replication
                 if (RefSpec.TryParse(text, out var spec)) return spec;
             }
             catch (ArgumentException ex) { throw new JsonException($"{type}: {ex.Message}", ex); }
-            throw new JsonException($"{type}: '{text}' is neither \"@Key\" nor an entity GUID.");
+            throw new JsonException($"{type}: '{text}' is neither \"@Key\", \"^param\" nor an entity GUID.");
         }
 
         public static int ReadId(ref Utf8JsonReader reader, string type) => reader.TokenType switch
@@ -333,7 +356,8 @@ namespace Fdp.Toolkit.Replication
                             spec = LinkJson.Spec(reader.GetString(), nameof(AreaLink));
                         else reader.Skip();
                     }
-                    return shape ?? AreaLink.OfEntity(new EntityRef(area), spec);
+                    if (shape is { } sh) return spec.Form == RefForm.Param ? sh.WithParam(spec) : sh;   // SR-168: a bound shape + its binding
+                    return AreaLink.OfEntity(new EntityRef(area), spec);
                 default:
                     throw new JsonException($"AreaLink: unexpected {reader.TokenType}.");
             }
@@ -362,20 +386,17 @@ namespace Fdp.Toolkit.Replication
 
         public override void Write(Utf8JsonWriter writer, AreaLink value, JsonSerializerOptions options)
         {
+            // ⭐ SR-168 — a "^param" bound to a SHAPE: the shape (the live value) PLUS the binding, so the next load re-binds it.
+            if (value.Spec.Form == RefForm.Param && value.IsShape)
+            {
+                WriteShape(writer, value.WithoutParam(), options, value.Spec.ToString());
+                return;
+            }
             switch (value.Spec.Form)
             {
                 case RefForm.Circle:
-                    writer.WriteStartObject(); writer.WritePropertyName("circle"); writer.WriteStartObject();
-                    writer.WritePropertyName("center"); JsonSerializer.Serialize(writer, (Vector3)value.Center, options);
-                    writer.WriteNumber("radius", value.Size.X);
-                    writer.WriteEndObject(); writer.WriteEndObject();
-                    return;
                 case RefForm.Rectangle:
-                    writer.WriteStartObject(); writer.WritePropertyName("rect"); writer.WriteStartObject();
-                    writer.WritePropertyName("center"); JsonSerializer.Serialize(writer, (Vector3)value.Center, options);
-                    writer.WritePropertyName("size"); JsonSerializer.Serialize(writer, value.Size, options);
-                    writer.WriteNumber("heading", value.Heading.Degrees);
-                    writer.WriteEndObject(); writer.WriteEndObject();
+                    WriteShape(writer, value, options, null);
                     return;
                 case RefForm.None:
                     if (value.Area.IsNone) writer.WriteNullValue(); else writer.WriteNumberValue(value.Area.NetworkId);
@@ -388,6 +409,23 @@ namespace Fdp.Toolkit.Replication
                     writer.WriteEndObject();
                     return;
             }
+        }
+
+        private static void WriteShape(Utf8JsonWriter writer, AreaLink shape, JsonSerializerOptions options, string? paramRef)
+        {
+            writer.WriteStartObject();
+            writer.WritePropertyName(shape.Spec.Form == RefForm.Circle ? "circle" : "rect");
+            writer.WriteStartObject();
+            writer.WritePropertyName("center"); JsonSerializer.Serialize(writer, (Vector3)shape.Center, options);
+            if (shape.Spec.Form == RefForm.Circle) writer.WriteNumber("radius", shape.Size.X);
+            else
+            {
+                writer.WritePropertyName("size"); JsonSerializer.Serialize(writer, shape.Size, options);
+                writer.WriteNumber("heading", shape.Heading.Degrees);
+            }
+            writer.WriteEndObject();
+            if (paramRef is not null) writer.WriteString("Ref", paramRef);
+            writer.WriteEndObject();
         }
     }
 }

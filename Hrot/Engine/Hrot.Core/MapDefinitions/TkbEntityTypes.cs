@@ -128,6 +128,11 @@ namespace Hrot.Map.Common
         //   inside tops a man's hands up with stones (ItemSourceDto on its template; ItemSources.Refill). Its OWN type, like the Weather
         //   Region. 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.10 PU-7.
         public const long StoneSource = 8812;
+
+        // ⛔ PERMANENT WIRE VALUE (as above). ⭐ macros S3a ③ (SR-178, docs/DESIGN_Scenario_Macros.md §14) — a SCENARIO MACRO instance: the marker
+        //   entity (it HAS a position, SR-70 — a SimTransform arrives with its request) carrying MacroInstance; the expander makes the macro's entities
+        //   beside it. 8813 measured free on all four lanes 2026-11-02. Its OWN type, like the Weather Region.
+        public const long ScenarioMacro = 8813;
         // ⭐ AQ93 — the TRAFFIC block 8850–8859 (SUMO), kept clear of the sequential 88xx run so two lanes cannot collide again:
         //   8812 was allocated twice on 2026-10-17 (the backend's Stone Source kept it, the traffic types moved here).
         // ⛔ PERMANENT WIRE VALUE (as above). ⭐ AQ93 R-4021 — the scenario's TRAFFIC settings: positionless like the World Environment,

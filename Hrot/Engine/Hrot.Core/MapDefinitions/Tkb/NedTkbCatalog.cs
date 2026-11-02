@@ -1114,6 +1114,9 @@ namespace Hrot.Map.Definitions.Tkb
             var weather = new TkbTemplate("Weather Region", TkbEntityTypes.WeatherRegion);
             weather.AddDescriptor(new MapGraphicDef());   // ⭐ CE-2324 — an area, not a body
             tkbDb.Register(weather);
+            // ⭐ macros S3a ③ (SR-178) — a Scenario Macro instance marker: a bare template like the World Environment's, but it HAS a position (a
+            //   SimTransform arrives with the request, SR-70) and a DIS type (Kind 5, Category 90 — the ScenarioMacro class) so the map draws it.
+            tkbDb.Register(new TkbTemplate("Scenario Macro", TkbEntityTypes.ScenarioMacro) { DisType = new DISEntityType { Kind = 5, Category = 90 } });
             // ⭐ CE-3235 (B-13, AW-8) — a Stone Source: an area like the Weather Region; its template names what a hand takes there
             var stones = new TkbTemplate("Stone Source", TkbEntityTypes.StoneSource);
             stones.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.ItemSourceDto { Ammo = Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone, UpTo = 5 });
