@@ -937,7 +937,7 @@ namespace Hrot.SimHost.Tests
 
             var sensor = Fdp.Toolkit.Perception.Sensors.UnitSensors.Of(w.Repo, w.Unit, SensorModality.DangerArea);
             Assert.False(sensor.IsNull, "the tree's first step makes the run's danger sensor");
-            Assert.Equal(new Vector3(300f, 300f, 0f), w.Repo.GetComponentRO<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>(sensor).Settings.RoutePoint);
+            Assert.Equal(new Fdp.Core.WorldPoint(300f, 300f, 0f), w.Repo.GetComponentRO<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>(sensor).Settings.RoutePoint);
             Assert.Equal(new Vector3(300f, 300f, 0f), w.Destination());               // no answer yet: walks
             Assert.Equal(1.5f, Speed(w));
 
@@ -994,7 +994,7 @@ namespace Hrot.SimHost.Tests
             Assert.False(sensor.IsNull, "SpawnSensor(DangerArea) makes the run's sensor");
             var settings = w.Repo.GetComponentRO<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>(sensor).Settings;
             Assert.Equal(Fdp.Toolkit.Squad.DangerArea.DangerRouteSource.ToPoint, settings.RouteSource);   // never the unit's own move
-            Assert.Equal(new Vector3(300f, 300f, 0f), settings.RoutePoint);
+            Assert.Equal(new Fdp.Core.WorldPoint(300f, 300f, 0f), settings.RoutePoint);
             Assert.Equal(new Vector3(300f, 300f, 0f), w.Destination());   // no answer: walks
             Assert.Equal(1.5f, Speed(w));
 

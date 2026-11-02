@@ -216,7 +216,7 @@ public static class DangerCrossingBp_6DD5A9BE_Bp
     {
         var __t0 = (global::Fdp.Toolkit.Squad.DangerArea.DangerRouteSource)2;
         var __t1 = __bb.In.Objective;
-        var __t2 = (global::System.Numerics.Vector3)__t1;
+        var __t2 = (global::Fdp.Core.WorldPoint)__t1;
         global::Fdp.Core.Entity __t3 = default;
         // BEGIN SpawnSensorNode
         {

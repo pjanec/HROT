@@ -6727,7 +6727,7 @@ namespace Hrot.SimHost.Tests
             Assert.False(sensor.IsNull);
             var settings = w.Repo.GetComponentRO<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>(sensor).Settings;
             Assert.Equal(Fdp.Toolkit.Squad.DangerArea.DangerRouteSource.ToPoint, settings.RouteSource);
-            Assert.Equal(new Vector3(0f, 100f, 0f), settings.RoutePoint);
+            Assert.Equal(new Fdp.Core.WorldPoint(0f, 100f, 0f), settings.RoutePoint);
         }
 
         /// <summary>⭐ <c>CE-2161</c> — the march asks its route sensor for OPEN GROUND only when the order says <c>OpenGround</c>

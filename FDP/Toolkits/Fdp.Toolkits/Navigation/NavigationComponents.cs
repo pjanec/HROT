@@ -504,7 +504,7 @@ namespace Fdp.Toolkit.Navigation
     public struct PreviewWaypoint
     {
         /// <summary>World-space position of the waypoint.</summary>
-        public System.Numerics.Vector3 Position;
+        public Fdp.Core.WorldPoint Position;   // ⭐ S0 item 8 — a world place (the nested scan found it)
 
         /// <summary>How the agent traverses the edge leading to this waypoint.</summary>
         public TraversalKind Traversal;

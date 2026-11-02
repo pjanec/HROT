@@ -21,13 +21,24 @@ namespace Fdp.Toolkits.Tests.Replication
     /// </summary>
     public sealed class S0ComponentTypesRailTests
     {
-        private static IEnumerable<Assembly> ComponentAssemblies() => new[]
+        /// <summary>⭐ Every engine assembly this test can see — the four it names, plus every <c>Fdp.*</c> / <c>Hrot.*</c> assembly in its output
+        /// folder — so a component assembly this project comes to reference is scanned by construction, not by remembering to list it.</summary>
+        private static IEnumerable<Assembly> ComponentAssemblies()
         {
-            typeof(SimTransform).Assembly,                                       // Fdp.Core
-            typeof(EntityRef).Assembly,                                          // Fdp.Toolkits
-            typeof(Hrot.Map.Definitions.Behavior.ParamsDtoRegistry).Assembly,   // Hrot.Core
-            typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly,                 // Hrot.AI.Behaviors
-        };
+            var named = new[]
+            {
+                typeof(SimTransform).Assembly,                                       // Fdp.Core
+                typeof(EntityRef).Assembly,                                          // Fdp.Toolkits
+                typeof(Hrot.Map.Definitions.Behavior.ParamsDtoRegistry).Assembly,   // Hrot.Core
+                typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly,                 // Hrot.AI.Behaviors
+            };
+            var found = System.IO.Directory.EnumerateFiles(AppContext.BaseDirectory, "*.dll")
+                .Where(f => { var n = System.IO.Path.GetFileName(f); return (n.StartsWith("Fdp.", StringComparison.Ordinal) || n.StartsWith("Hrot.", StringComparison.Ordinal))
+                                                                       && !n.Contains(".Tests", StringComparison.Ordinal); })
+                .Select(f => { try { return Assembly.LoadFrom(f); } catch (Exception) { return null; } })
+                .Where(a => a != null).Select(a => a!);
+            return named.Concat(found).Distinct();
+        }
 
         /// <summary><c>Type.Member</c> → what it is instead of a place / world orientation / world bearing. ⭐ A decision each; never a silencer.</summary>
         internal static readonly Dictionary<string, string> NotSpatial = new(StringComparer.Ordinal)
@@ -68,6 +79,26 @@ namespace Fdp.Toolkits.Tests.Replication
             return null;
         }
 
+        /// <summary>A struct of the engine's own (not a primitive, an enum, a BCL / numerics type or one of the S0 types) — its members are the
+        /// component's members too, so the scan walks into it (<c>WeaponPosture.Point</c> sits inside a saved component).</summary>
+        private static bool Nested(Type t)
+            => t.IsValueType && !t.IsPrimitive && !t.IsEnum && Offence(t, "") == null
+               && t.Assembly.GetName().Name is { } a && (a.StartsWith("Fdp.", StringComparison.Ordinal) || a.StartsWith("Hrot.", StringComparison.Ordinal))
+               && t != typeof(WorldPoint) && t != typeof(WorldRotation) && t != typeof(Bearing);
+
+        /// <summary>Every public instance field of <paramref name="t"/>, nested structs walked, as (<c>Comp.Field[.Inner…]</c>, field type).</summary>
+        private static IEnumerable<(string Key, Type Type)> Members(Type t, string prefix, int depth = 0)
+        {
+            foreach (var f in t.GetFields(BindingFlags.Public | BindingFlags.Instance))
+            {
+                var ft = f.FieldType.IsArray ? f.FieldType.GetElementType()! : f.FieldType;
+                string key = prefix + "." + f.Name;
+                yield return (key, ft);
+                if (depth < 4 && Nested(ft) && ft != t)
+                    foreach (var inner in Members(ft, key, depth + 1)) yield return inner;
+            }
+        }
+
         [Fact]
         public void S0_EverySavedComponentMember_SaysWhatItMeansByItsType()
         {
@@ -76,12 +107,9 @@ namespace Fdp.Toolkits.Tests.Replication
             Assert.True(comps.Count >= 90, $"only {comps.Count} saved components found — the scan lost its assemblies");
             var offences = new List<string>();
             foreach (var c in comps)
-                foreach (var f in c.GetFields(BindingFlags.Public | BindingFlags.Instance))
-                {
-                    var t = f.FieldType.IsArray ? f.FieldType.GetElementType()! : f.FieldType;
-                    if (Offence(t, f.Name) is { } why && !NotSpatial.ContainsKey(c.Name + "." + f.Name))
-                        offences.Add($"{c.FullName}.{f.Name} ({f.FieldType.Name}) — {why}");
-                }
+                foreach (var (key, t) in Members(c, c.Name))
+                    if (Offence(t, key.Substring(key.LastIndexOf('.') + 1)) is { } why && !NotSpatial.ContainsKey(key))
+                        offences.Add($"{c.Namespace}.{key} ({t.Name}) — {why}");
             var sb = new StringBuilder();
             foreach (var o in offences.OrderBy(s => s, StringComparer.Ordinal)) sb.AppendLine(o);
             Assert.True(offences.Count == 0, $"{offences.Count} saved component members do not say what they mean:\n{sb}");
@@ -90,7 +118,7 @@ namespace Fdp.Toolkits.Tests.Replication
         [Fact]
         public void S0_EveryNotSpatialEntry_StillNamesAComponentMember()
         {
-            var live = new HashSet<string>(SavedComponents().SelectMany(c => c.GetFields(BindingFlags.Public | BindingFlags.Instance).Select(f => c.Name + "." + f.Name)));
+            var live = new HashSet<string>(SavedComponents().SelectMany(c => Members(c, c.Name).Select(m => m.Key)));
             var stale = NotSpatial.Keys.Where(k => !live.Contains(k)).ToList();
             Assert.True(stale.Count == 0, "NotSpatial entries name no member any more: " + string.Join(", ", stale));
         }

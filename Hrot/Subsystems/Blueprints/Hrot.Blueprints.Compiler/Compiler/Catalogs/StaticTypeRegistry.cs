@@ -62,6 +62,7 @@ public sealed class StaticTypeRegistry : ITypeRegistry
             ["Fdp.Toolkit.Replication.AreaLink"]   = new IrTypeRef { FullName = "Fdp.Toolkit.Replication.AreaLink",   IsUnmanaged = true, SizeBytes = 72, SizeReliable = false },
             ["Fdp.Core.WorldPoint"]                = Unmanaged("Fdp.Core.WorldPoint", 12),
             ["Fdp.Core.Bearing"]                   = Unmanaged("Fdp.Core.Bearing", 4),
+            ["Fdp.Core.WorldRotation"]             = Unmanaged("Fdp.Core.WorldRotation", 16),   // S0 item 6: a world orientation — a Quaternion's memory
             ["Fdp.Core.TkbTypeId"]                 = Unmanaged("Fdp.Core.TkbTypeId", 8),   // ⭐ CE-4200 SV-2: a template id — a long's memory
             ["Fdp.Core.NodeId"]                    = Unmanaged("Fdp.Core.NodeId", 4),   // ⭐ CE-4200 SV-3: a cluster node id — an int's memory
 
@@ -164,8 +165,17 @@ public sealed class StaticTypeRegistry : ITypeRegistry
         {
             // S0: an authored point reads as its Vector3 (PointLink has the implicit conversion; the reverse is not offered)
             { ("Fdp.Toolkit.Replication.PointLink", "System.Numerics.Vector3"), "(global::System.Numerics.Vector3)($expr)" },
+            { ("Fdp.Toolkit.Replication.PointLink", "Fdp.Core.WorldPoint"),     "(global::Fdp.Core.WorldPoint)($expr)" },   // its Local IS a WorldPoint
             // S0: a literal reference (an EntityRef from a node) fills an authored link — implicit in C# (an empty RefSpec = "not authored by reference")
             { ("Fdp.Toolkit.Replication.EntityRef", "Fdp.Toolkit.Replication.EntityLink"), "(global::Fdp.Toolkit.Replication.EntityLink)($expr)" },
+            // S0: the three semantic value types and their storage types — SAME BYTES, implicit both ways in C# (DESIGN_Scenario_Rules §9.8.11),
+            //     so a Vector3 node output wires into a WorldPoint pin (a retyped component field) and back
+            { ("System.Numerics.Vector3",    "Fdp.Core.WorldPoint"),             "(global::Fdp.Core.WorldPoint)($expr)" },
+            { ("Fdp.Core.WorldPoint",        "System.Numerics.Vector3"),         "(global::System.Numerics.Vector3)($expr)" },
+            { ("System.Numerics.Quaternion", "Fdp.Core.WorldRotation"),          "(global::Fdp.Core.WorldRotation)($expr)" },
+            { ("Fdp.Core.WorldRotation",     "System.Numerics.Quaternion"),      "(global::System.Numerics.Quaternion)($expr)" },
+            { ("System.Single",              "Fdp.Core.Bearing"),                "(global::Fdp.Core.Bearing)($expr)" },
+            { ("Fdp.Core.Bearing",           "System.Single"),                   "(float)($expr)" },
 
             // sbyte -> short, int, long, float, double
             { ("System.SByte",  "System.Int16"),  "(short)$expr"  },
