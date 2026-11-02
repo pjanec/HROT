@@ -93,6 +93,8 @@ public static class HrotOwnershipGroups
         brain.SetBit(GlobalComponentIds.WeaponSystemState);
         // ⭐ CE-3216 S1-0 (R-3012, W-6) — the scenario clock: the Brain that loads the scenario creates and owns it, applies an edit (dtScenarioClock).
         brain.SetBit(GlobalComponentIds.ScenarioClock);
+        // ⭐ rules S1-a (DESIGN_Scenario_Rules §00.8) — an objective's status (and its links, on the same topic): its own behaviour writes it (dtObjectiveStatus).
+        brain.SetBit(GlobalComponentIds.ObjectiveStatus);
         // ⭐ CE-3216 S1 — authored weather: the Brain that creates the World Environment / a Weather Region owns it (dtWeather).
         brain.SetBit(GlobalComponentIds.WeatherConditions);
 

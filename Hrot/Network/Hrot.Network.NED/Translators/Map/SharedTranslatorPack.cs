@@ -180,6 +180,9 @@ namespace Hrot.Map.Common.Translators
             yield return new EntityTrafficDemandEgressTranslator(participant);                 // ⭐ AQ93 N4 — the traffic settings
             yield return new EntityTrafficDemandIngressTranslator(participant, entityMap);
             yield return new EntityScenarioClockIngressTranslator(participant, entityMap);
+            // ⭐ rules S1-a (DESIGN_Scenario_Rules §00.8) — an objective's status and links, owner (its Brain) → every node.
+            yield return new EntityObjectiveStatusEgressTranslator(participant);
+            yield return new EntityObjectiveStatusIngressTranslator(participant, entityMap);
             // ⭐ CE-3216 S1 — authored weather (the global and every region), owner → every node; WeatherField derives the rest.
             yield return new EntityWeatherEgressTranslator(participant);
             yield return new EntityWeatherIngressTranslator(participant, entityMap);

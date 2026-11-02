@@ -1074,6 +1074,16 @@ namespace Fdp.Core
         /// grenades, contacts); brain-local, NoScenario. Behaviors' block 418–433 (R-2056).</summary>
         public const int CalloutState = 424;
 
+        /// <summary>⭐ rules S1-a (behaviors; 📄 docs/DESIGN_Scenario_Rules.md §00.8) — <c>ObjectiveStatus</c>: an objective / measure / trigger
+        /// entity's state, progress, score and display projection; Brain group, replicated as <c>dtObjectiveStatus</c> (170), NoScenario.
+        /// Behaviors' block 418–433 (R-2056).</summary>
+        public const int ObjectiveStatus = 425;
+
+        /// <summary>⭐ rules S1-a (behaviors; 📄 docs/DESIGN_Scenario_Rules.md §00.8 S1-c) — <c>ObjectiveLinks</c>: an objective's subject and
+        /// parent (network ids) — a copy of its params the behaviour rewrites each tick, so the tree is readable; NoScenario. 427 is kept for
+        /// S2's <c>ExerciseResult</c>.</summary>
+        public const int ObjectiveLinks = 426;
+
         /// <summary>⭐ <c>CE-3264</c> (backend, G1) — <c>Utterance</c>: what a man is saying now, Brain group, replicated as <c>dtUtterance</c>
         /// (152). 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.18. ⭐ From the TOP of backend's proposed block 434–449
         /// (NOTE_Backend_To_All_Lanes_Component_Id_Space.md), not the contested sequential top; measured free on every lane 2026-10-19.</summary>

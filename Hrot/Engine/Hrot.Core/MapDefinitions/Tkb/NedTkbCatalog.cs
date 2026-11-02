@@ -1096,6 +1096,19 @@ namespace Hrot.Map.Definitions.Tkb
             // ⭐ CE-3216 (W-0) — the scenario's World Environment: a bare template like the door's — its ScenarioClock arrives with the
             //   creation request on the creator and through dtScenarioClock everywhere else. No SimTransform: it is nowhere.
             tkbDb.Register(new TkbTemplate("World Environment", TkbEntityTypes.WorldEnvironment));
+            // ⭐ rules S1-a (DESIGN_Scenario_Rules §00.8) — an Objective: a positionless entity with a BRAIN and no body — it runs one objective
+            //   behaviour (params in the scenario record) and keeps ObjectiveStatus. Cannot move, shoot or interact; never in the palette.
+            var objective = new TkbTemplate("Objective", TkbEntityTypes.Objective);
+            objective.AddDescriptor(new BehaviorProfileDto
+            {
+                SimTier     = Fdp.Toolkit.Behavior.BehaviorConstants.SimTierTactical,
+                BrainTier   = Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree,
+                CanMove     = false,
+                CanShoot    = false,
+                CanInteract = false,
+                Faction     = ForceId.Neutral,
+            });
+            tkbDb.Register(objective);
             // ⭐ CE-3216 S1 (W-1) — a Weather Region: an area like TacGraphic_Area; its outline, position and WeatherConditions arrive with
             //   the request on the creator and on their descriptors everywhere else.
             var weather = new TkbTemplate("Weather Region", TkbEntityTypes.WeatherRegion);

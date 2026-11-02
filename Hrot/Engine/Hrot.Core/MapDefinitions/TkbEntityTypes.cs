@@ -138,6 +138,12 @@ namespace Hrot.Map.Common
         //   kinematics — the mirror writes its pose every frame), with the civilian car's DIS type. Never in the palette.
         public const long TrafficCar = 8851;
 
+        // ⭐ rules S1-a (📄 docs/DESIGN_Scenario_Rules.md §00.8) — the RULES block 8860–8869 (objectives, triggers, measures), a block like Traffic's
+        //   so two lanes cannot collide. 8861 Trigger (S2); 8862 is held for backend's ScenarioMacro (S3a).
+        // ⛔ PERMANENT WIRE VALUE (as above). ⭐ rules S1 — an OBJECTIVE (or a measure / aggregator): positionless like the World Environment, a
+        //   brain with no body that runs one objective behaviour (ReachArea, HoldArea ...) and carries ObjectiveStatus. Never in the palette.
+        public const long Objective = 8860;
+
         // ⭐ CE-1041 — Aircraft (400–499): CG-referenced bodies resting on their gear (Body.Geometry).
         //   📄 docs/DESIGN_Body_Geometry_And_Ground_Contact.md G4.
         public const long Heli_UH60  = 400;

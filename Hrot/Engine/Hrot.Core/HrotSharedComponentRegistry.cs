@@ -166,6 +166,8 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
         world.RegisterComponent<Fdp.Toolkit.Weather.ScenarioClock>();   // ⭐ CE-3216 S1-0 — the World Environment's clock, on every node
+        world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>();   // ⭐ rules S1-a — an objective's status, on every node (dtObjectiveStatus)
+        world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveLinks>();    // ⭐ rules S1-a — an objective's subject / parent, on every node
         world.RegisterComponent<Fdp.Toolkit.Weather.WeatherConditions>();   // ⭐ CE-3216 S1 — authored weather (global and regional), on every node
         world.RegisterComponent<Fdp.Toolkit.Traffic.TrafficDemand>();   // ⭐ AQ93 R-4021 — the scenario's traffic settings, on every node
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();   // ⭐ CE-2152 — a person type that carries / drags a casualty
