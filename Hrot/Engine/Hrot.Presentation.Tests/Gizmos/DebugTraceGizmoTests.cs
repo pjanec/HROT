@@ -381,4 +381,95 @@ public sealed class DebugTraceGizmoTests : IDisposable
 
         Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => gizmo.Draw(_w, unit, d), DebugTraceLayers.Paths);
     }
+
+    // ── ⭐ SR-192 / SR-178 — a macro instance's member lines and marker (docs/DESIGN_Scenario_Macros.md §14.2, §14.4) ─────
+
+    private Entity MacroInstanceAt(int netId, Vector3 at, Fdp.Toolkit.Scenario.MacroExpansionState state = Fdp.Toolkit.Scenario.MacroExpansionState.Done, string reason = "")
+    {
+        _w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        _w.RegisterComponent<Fdp.Toolkit.Scenario.MacroExpansionStatus>();
+        _w.RegisterComponent<Fdp.Toolkit.Scenario.MacroOrigin>();
+        var inst = _w.CreateEntity();
+        _w.AddComponent(inst, new SimTransform { Position = at });
+        _w.AddComponent(inst, new Fdp.Toolkit.Replication.Components.NetworkIdentity(netId));
+        _w.AddComponent(inst, new Fdp.Toolkit.Scenario.MacroExpansionStatus { State = state, Reason = reason });
+        return inst;
+    }
+
+    private Entity MemberOf(int instanceNetId, Vector3 at)
+    {
+        var m = _w.CreateEntity();
+        _w.AddComponent(m, new SimTransform { Position = at });
+        _w.AddComponent(m, new Fdp.Toolkit.Scenario.MacroOrigin { Instance = new Fdp.Toolkit.Replication.EntityRef(instanceNetId), Local = System.Guid.NewGuid() });
+        return m;
+    }
+
+    [Fact]
+    public void SR192_ASelectedInstanceWithThreeMembers_DrawsThreeLines_InTheMarkerColour_NeverTheSideColour()
+    {
+        var inst = MacroInstanceAt(77, new Vector3(5, 5, 0));
+        var ends = new[] { new Vector3(10, 0, 0), new Vector3(0, 10, 0), new Vector3(-10, 0, 0) };
+        foreach (var e in ends) MemberOf(77, e);
+        MemberOf(88, new Vector3(99, 99, 0));   // another instance's member: no line
+
+        new MacroMembersGizmo().Draw(_w, inst, _draw);
+
+        var lines = _draw.GetFrame().ToArray().Where(p => p.Shape == DebugPrimitiveShape.Line).ToArray();
+        Assert.Equal(3, lines.Length);
+        Assert.Equal(ends.OrderBy(v => v.X).ThenBy(v => v.Y), lines.Select(p => p.LineEnd).OrderBy(v => v.X).ThenBy(v => v.Y));
+        Assert.All(lines, p => Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MacroMarker.LineColour, p.Color));
+        Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => new MacroMembersGizmo().Draw(_w, inst, d), DebugTraceLayers.SquadCommand);
+    }
+
+    [Fact]
+    public void SR192_TheFamilyDrawsForTheSelectedInstanceOnly()
+    {
+        _w.RegisterComponent<Hrot.IG.Components.SelectionState>();
+        var inst = MacroInstanceAt(77, Vector3.Zero);
+        _w.AddComponent(inst, new Hrot.IG.Components.SelectionState { IsSelected = false });
+        var policy = new Hrot.ScenarioEditor.Map.GizmoFamilyVisibilityPolicy(new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry(),
+            Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.MacroMembers);
+
+        Assert.Equal(GizmoScope.SelectedOrPinned, GizmoFamilies.DefaultScope(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.MacroMembers));   // not a brain family
+        Assert.False(policy.IsEntityVisible(_w, inst), "an unselected instance draws no lines");
+        _w.SetComponent(inst, new Hrot.IG.Components.SelectionState { IsSelected = true });
+        Assert.True(policy.IsEntityVisible(_w, inst), "selecting the instance is the switch");
+        Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.MacroMembers,
+            ((Fdp.Toolkit.Diagnostics.Gizmos.GizmoProjectorAttribute)System.Attribute.GetCustomAttribute(typeof(MacroMembersGizmo),
+                typeof(Fdp.Toolkit.Diagnostics.Gizmos.GizmoProjectorAttribute))!).Family);
+    }
+
+    [Fact]
+    public void SR192_AFailedInstance_DrawsNoLines_AndItsReasonOverTheMarker()
+    {
+        var inst = MacroInstanceAt(77, new Vector3(5, 5, 0), Fdp.Toolkit.Scenario.MacroExpansionState.Failed, "no such macro 'test/nope'");
+        MemberOf(77, new Vector3(10, 0, 0));   // even a stale member is not linked
+
+        new MacroMembersGizmo().Draw(_w, inst, _draw);
+
+        var frame = _draw.GetFrame().ToArray();
+        Assert.DoesNotContain(frame, p => p.Shape == DebugPrimitiveShape.Line);
+        var text = Assert.Single(frame, p => p.Shape == DebugPrimitiveShape.Text);
+        Assert.Contains("no such macro 'test/nope'", _draw.InternMap.TryResolve(text.StringHash));
+    }
+
+    [Fact]
+    public void SR178_TheInstanceMarker_IsItsOwnProfile_InTheMarkerColour_OtherEntitiesKeepTheirSide()
+    {
+        _w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        _w.RegisterManagedComponent<Fdp.Toolkit.Scenario.MacroInstance>();
+        var inst = _w.CreateEntity();
+        _w.SetManagedComponent(inst, new Fdp.Toolkit.Scenario.MacroInstance { Macro = "test/fire-team" });
+        var unit = _w.CreateEntity();
+
+        Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MacroMarker.Colour, EntityPresentationGizmo.ColourOf(_w, inst));
+        Assert.Equal(Hrot.Common.Diagnostics.Gizmos.AffiliationColors.For(_w, unit), EntityPresentationGizmo.ColourOf(_w, unit));
+        Assert.NotEqual(Hrot.Common.Diagnostics.Gizmos.MacroMarker.Colour, Hrot.Common.Diagnostics.Gizmos.AffiliationColors.For(_w, unit));
+
+        // the class table's ScenarioMacro row points at the marker's own profile (not the cultural-feature footprint), and it is solid lines only
+        Assert.Equal(GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.ScenarioMacro,
+            Hrot.Presentation.Map.EntityClassShapeLibrary.ProfileOfClass["ScenarioMacro"]);
+        Assert.True(new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary().TryGetProfile("scenario_macro", out var profile));
+        Assert.True(profile.Elements.Count >= 2);   // the frame and the M
+    }
 }

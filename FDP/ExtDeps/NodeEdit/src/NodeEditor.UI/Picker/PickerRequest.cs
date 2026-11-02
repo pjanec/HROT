@@ -13,6 +13,16 @@ namespace NodeEditor.UI.Picker;
 public sealed record CategoryNode(string Name, IReadOnlyList<CategoryNode> Children);
 
 /// <summary>
+/// ⭐ CE-4142 (GL3) — a GROUP sidebar for the Grid layout (the thumbnail gallery): the groups to list in the request's own order, each with a
+/// count, empty ones faded. Entries belong to a group by the first segment of <see cref="PickerEntry.Category"/>
+/// (<c>"Ground vehicles/Tank"</c> = group + chip); the second segment is the chip row on top of the grid.
+/// </summary>
+/// <param name="Order">Group names, top to bottom.</param>
+/// <param name="RecentGroup">The name of the VIRTUAL first group that holds no category: it lists the entries that are recent or starred
+/// (G10); null ⇒ no such group.</param>
+public sealed record PickerGroupSidebar(IReadOnlyList<string> Order, string? RecentGroup = null);
+
+/// <summary>
 /// Caller-supplied input to open a picker via <see cref="PickerRegistry.OpenPicker"/>.
 /// Fully data-driven — the picker window renders items and emits the choice.
 /// </summary>
@@ -88,4 +98,7 @@ public sealed class PickerRequest
     /// <summary>⭐ P4 — layouts the user may toggle between (e.g. Tree ⇄ Grid); the choice is remembered per <see cref="ContextKey"/>
     /// in the registry's <see cref="PickerViewStore"/>. Null/empty ⇒ no toggle. <see cref="Layout"/> is the first-use layout.</summary>
     public IReadOnlyList<PickerLayout>? LayoutChoices { get; init; }
+
+    /// <summary>⭐ CE-4142 (GL3) — show the group sidebar (and chips, tile-size slider) in the Grid layout. Null ⇒ the classic Grid.</summary>
+    public PickerGroupSidebar? GroupSidebar { get; init; }
 }

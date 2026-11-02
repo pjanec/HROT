@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading;
 using Fdp.Core;
@@ -130,4 +131,62 @@ public sealed class HrotScenarioSaveHandlerTests : IDisposable
         Assert.True(handler.CanHandle(NodeOpType.SerializeLocal));
         Assert.False(handler.CanHandle(NodeOpType.PrepareState));
     }
+
+    // ── ⭐ CE-4210 MA-4 — the macro header survives the save, and the slice lands beside the canonical file ──────────────────────
+
+    private static ScenarioHeader MacroHeader() => new("Hrot.Scenario")
+    {
+        Kind = ScenarioHeader.MacroKind,
+        Params = new[] { new ScenarioParamDecl("side", "ForceId", JsonValue.Create("Hostile"), "which force") },
+        Anchor = new MacroAnchor(new WorldPoint(10f, 20f, 0f), new Bearing(90f)),
+        MaxShift = 12.5f,
+        Relocatable = false,
+    };
+
+    [Fact]
+    public void CE4210_AMacroOpenedInTheEditor_IsSavedWithItsHeader_AndItsSliceBesideTheMacro()
+    {
+        var repo = BuildWorld();
+        ScenarioDescription.Stamp(repo, "What: a macro.", "macros/test/x", "0123456789abcdef", null, ScenarioDescription.HeaderJsonOf(MacroHeader()));   // what the load stamps
+        string name = "macros/" + _scenarioName;
+        var handler = new HrotScenarioSaveHandler(new ScenarioSerializerBuilder("Hrot.Scenario").Build(), world: repo, nodeId: NodeId);
+        var intent = new ExecuteNodeOpIntent { Operation = NodeOpType.SerializeLocal, TransactionId = Guid.NewGuid(), DomainPayload = new ScenarioSaveHandlerPayload(name) };
+        string sliceDir = Path.Combine(OrchestrationConstants.GetNodeScenariosRoot(NodeId), name);
+        try
+        {
+            var manifest = Assert.IsType<FileManifestResult[]>(handler.PrepareAsync(intent, CancellationToken.None).GetAwaiter().GetResult());
+
+            var header = ScenarioHeaderJson.Read(JsonNode.Parse(File.ReadAllText(Path.Combine(sliceDir, "scenario.json")))!.AsObject())!;
+            Assert.Equal("macro", header.Kind);
+            Assert.Equal("side", header.Params!.Single().Name);
+            Assert.Equal("ForceId", header.Params!.Single().TypeId);
+            Assert.Equal(90f, header.Anchor!.Value.Heading.Degrees);
+            Assert.Equal(12.5f, header.MaxShift);
+            Assert.False(header.Relocatable);
+            Assert.Equal("What: a macro.", header.Description);   // the description rides with it
+
+            // the slice goes where the MERGE reads and cleans: beside macros/<name>/scenario.json, not under scenarios/macros/…
+            Assert.Equal(Path.Combine("macros", _scenarioName, ".slices", $"node_{NodeId}.json"), manifest[0].RelativeDest);
+            Assert.Equal(Path.GetRelativePath("/n", ContentLayout.ResolveScenarioDirectory("/n", name)) + Path.DirectorySeparatorChar + ".slices" + Path.DirectorySeparatorChar + $"node_{NodeId}.json", manifest[0].RelativeDest);
+        }
+        finally { try { Directory.Delete(Path.Combine(OrchestrationConstants.GetNodeScenariosRoot(NodeId), "macros"), true); } catch { } }
+    }
+
+    [Fact]
+    public void CE4210_APlainScenario_IsSavedWithNoMacroFields_AndItsSliceStaysUnderScenarios()
+    {
+        var repo = BuildWorld();
+        ScenarioDescription.Stamp(repo, null, _scenarioName, "h", null, ScenarioDescription.HeaderJsonOf(new ScenarioHeader("Hrot.Scenario")));   // a scenario: nothing to hold
+        var handler = new HrotScenarioSaveHandler(new ScenarioSerializerBuilder("Hrot.Scenario").Build(), world: repo, nodeId: NodeId);
+        var intent = new ExecuteNodeOpIntent { Operation = NodeOpType.SerializeLocal, TransactionId = Guid.NewGuid(), DomainPayload = new ScenarioSaveHandlerPayload(_scenarioName) };
+
+        var manifest = Assert.IsType<FileManifestResult[]>(handler.PrepareAsync(intent, CancellationToken.None).GetAwaiter().GetResult());
+
+        var header = ScenarioHeaderJson.Read(JsonNode.Parse(File.ReadAllText(ExpectedSliceFile))!.AsObject());   // null: a plain scenario with no terrain or text has no header node at all
+        Assert.True(header is null || !ScenarioHeaderJson.HasAny(header), "a plain scenario carries none of the macro fields");
+        Assert.Equal(Path.Combine("scenarios", _scenarioName, ".slices", $"node_{NodeId}.json"), manifest[0].RelativeDest);
+        Assert.False(ScenarioHeaderJson.HasAny(ScenarioSaveCore_HeaderOf(repo)));   // the ONE helper: nothing held ⇒ nothing written
+    }
+
+    private static ScenarioHeader ScenarioSaveCore_HeaderOf(EntityRepository world) => Hrot.Map.Common.Scenario.ScenarioSaveCore.HeaderOf(world, "Hrot.Scenario");
 }

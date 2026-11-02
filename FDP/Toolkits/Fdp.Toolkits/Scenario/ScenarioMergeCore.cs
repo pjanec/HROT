@@ -38,7 +38,8 @@ public sealed record ScenarioMergeResult(JsonObject? CanonicalDom, IReadOnlyList
 ///     ⚠ I4 also covered a brain-only <c>Zones</c> SECTION; that section is retired (F2) — a zone is an
 ///     ordinary authored entity and merges through the <c>Entities</c> union like any other.</item>
 /// </list>
-/// ⇒ the merge is <c>{ $meta, Header, ⋃ Entities, ⋃ TerrainObjects }</c> (5e: a door's state is saved by its owner only). It NEVER remaps ids or fixes references, and it
+/// ⇒ ⭐ CE-4210 MA-4: the header also carries the MACRO fields (<c>Kind</c>, <c>Params</c>, <c>Anchor</c>, <c>Placement</c>, <c>Relocatable</c>) of the first slice that has any — before, a merged save dropped them and turned a macro into a plain scenario.
+/// the merge is <c>{ $meta, Header, ⋃ Entities, ⋃ TerrainObjects }</c> (5e: a door's state is saved by its owner only). It NEVER remaps ids or fixes references, and it
 /// <b>fails loud</b> rather than silently corrupt — a schema/TerrainName mismatch and a key collision
 /// (I2 impossible) each throw.</para>
 ///
@@ -96,6 +97,8 @@ public static class ScenarioMergeCore
         // ── ⭐ Buildings 5e — TerrainObjects: disjoint union too (a door's state is written only by its owner, I1) ──
         var mergedTerrainObjects = new JsonObject();
         JsonObject? world = null;   // ⭐ CE-4154 — Header.World: ONE source (the Brain's slice, I4)
+        ScenarioHeader? macroHeader = null;   // ⭐ CE-4210 MA-4 — the macro fields (Kind, Params, Anchor, Placement, Relocatable): the first slice that has any
+        string? macroHeaderJson = null;
 
         foreach (var s in compatible)
         {
@@ -139,6 +142,17 @@ public static class ScenarioMergeCore
                         "[ScenarioMerge] Header.Description differs on node {0}; the first slice's is kept.", s.OriginNodeId);
             }
 
+            // ⭐ CE-4210 MA-4 — the macro header fields ride the slice that WROTE them (every node saves them from its resident, so normally every slice
+            //   carries the same). The Description rule (CE-3288): the first slice that has any is kept; a different one is a WARNING, not a failure.
+            if (ScenarioHeaderJson.Read(dom) is { } sliceHeader && ScenarioHeaderJson.HasAny(sliceHeader))
+            {
+                string sliceJson = ScenarioDescription.HeaderJsonOf(sliceHeader);
+                if (macroHeader == null) { macroHeader = sliceHeader; macroHeaderJson = sliceJson; }
+                else if (!string.Equals(macroHeaderJson, sliceJson, StringComparison.Ordinal))
+                    Fdp.Core.Logging.FdpLog<ScenarioSlice>.Warn(
+                        "[ScenarioMerge] the macro header fields (Kind/Params/Anchor/…) differ on node {0}; the first slice's are kept.", s.OriginNodeId);
+            }
+
             // ⛔⛔ F2 — THE `Zones` ARM IS GONE, and its absence is the point.
             //
             //   I4 said "Zones are brain-only", so the merge asserted that at most one slice carried a
@@ -179,11 +193,12 @@ public static class ScenarioMergeCore
         // ── Assemble: same shape/order as a single-node save (ScenarioSerializer + ScenarioSaveCore) ──
         var canonical = new JsonObject { ["Entities"] = mergedEntities };
         // ⛔⛔ R-4018 — the header carries the terrain name only; a legacy slice's TkbName is not carried over.
-        if (terrainName is not null || description is not null || world is not null)
+        if (terrainName is not null || description is not null || world is not null || macroHeader is not null)
         {
             var header = new JsonObject();
             if (terrainName is not null) header["TerrainName"] = JsonValue.Create(terrainName);
             if (description is not null) header["Description"] = JsonValue.Create(description);   // ⭐ CE-3288
+            if (macroHeader is not null) ScenarioHeaderJson.Write(header, macroHeader);   // ⭐ CE-4210 MA-4 — the ONE writer of these fields
             if (world is not null) header[ScenarioWorldSection.SectionName] = world;   // ⭐ CE-4154
             canonical["Header"] = header;
         }

@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — ✅ HV-1 … HV-5 ACCEPTED 2026-11-02 (user: "approved the switchable hierarchy view") · tracker CE-4213 (ui)
-updated: 2026-11-02 (first version)
-current-answer: the whole note — §1 the relations that exist · §2 the views · §3 decisions
+build-state: BUILT — Command + Structure (§4), Scenario (§5); ✅ HV-1 … HV-5 ACCEPTED 2026-11-02 (user: "approved the switchable hierarchy view") · tracker CE-4213 (ui)
+updated: 2026-11-03 (§5 the Scenario view as built)
+current-answer: §4 + §5 the AS BUILT (Structure, Scenario) · §1 the relations that exist · §2 the views · §3 decisions
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -91,4 +91,16 @@ plumbing are one implementation, so a new relation is one small class, never a n
 
 Rails: `EditorOrbatStructureViewTests` (5, in `AdapterTests.cs`): Command unchanged · a sensor and an embarked passenger under the vehicle ·
 a part with a dead parent is a root · Structure refuses reparent · the span enumerator. Red-proof: Structure ignoring `PartMetadata` fails.
-⚠ No frame rail — `SharedOrbatPanel` has none (model-dump and drop-logic tests only). Scenario view: ⏳ macros S3a (`MacroOrigin`).
+⚠ No frame rail — `SharedOrbatPanel` has none (model-dump and drop-logic tests only). Scenario view: ✅ built, §5.
+
+## 5. AS BUILT — the Scenario view *(ui, `2026-11-03`, CE-4213 ⑥; macros S3a merged)*
+
+| decision | as built | deviation |
+|---|---|---|
+| HV-3 the parent rule | `ScenarioHierarchyAdapter` (`Hrot.Presentation/Adapters`): parent = `MacroOrigin.Instance.Resolve(view)` when that instance is alive (the stale-checked network-id resolver); else a root. Members: named entities and macro instances (`MacroInstance` is managed — the instance has a name only if someone gave it one, else *macro <path>*). `CanReparent` is the default (false) | — |
+| the two groups | the tree is built from entity indices and a group has no entity, so `ScenarioOrbatAdapter` files the roots under two SYNTHETIC rows with negative keys (`GroupSavedId = -1`, `GroupTransientId = -2`; `OrbatNodeViewModel.IsGroup`), named *Saved (n)* / *Transient (n)* by `ScenarioIgnoreTag`. An empty group has no row; a filter opens the groups so its matches show. The panel draws a group row as a plain label — no select, drag, drop or menu | ⚠ the smallest way in (one record field + one branch in the tree builder), not a new tree type |
+| switch | `SharedOrbatPanel`: the disabled *Scenario (needs macros)* is now the live *Scenario* radio; no drag sources or drop targets (as Structure) | — |
+| Command refuses a macro entity | `IHierarchyAdapter.ReparentRefusal(view, child, newParent)` (new default member, null) · `CommandHierarchyAdapter` answers *"from macro <path> — edit the macro or its args"* for an entity with `MacroOrigin` (path = the instance's `MacroInstance.Macro`; `?` when the instance is gone) and its `CanReparent` is now `ReparentRefusal is null`. `ScenarioOrbatAdapter.RequestAssignSubordinate` / `RequestRemoveSubordinate` stop on it and set `LastDropRefusal` (`IOrbatDataProvider.LastDropRefusal`, default null), which the panel shows in amber under the relation switch until the next drop that goes through | embark is not refused (it changes the vehicle, not the chain of command) |
+
+Rails: `EditorOrbatStructureViewTests` (`Hrot.Editor.Tests/Adapters/AdapterTests.cs`, +4): members under their instance, Saved / Transient roots · an empty group has no row, a collapsed one hides its members · a dead instance ⇒ its member is a root · Scenario read-only and the Command view refuses a macro entity naming the macro. ⚠ Still no frame rail for `SharedOrbatPanel`.
+

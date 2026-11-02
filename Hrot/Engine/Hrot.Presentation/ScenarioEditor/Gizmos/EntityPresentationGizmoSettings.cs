@@ -50,6 +50,16 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// <inheritdoc cref="DefaultDamagedThreshold"/>
         public static readonly GizmoSettingValue DefaultImmobileThreshold = GizmoSettingValue.From(90f);
 
+        // ── transient look (SR-191) ────────────────────────────────────────────────────────────
+
+        /// <summary>⭐ SR-191 (docs/DESIGN_Scenario_Macros.md §14.4) — draw an entity that carries <c>ScenarioIgnoreTag</c> (one a scenario save never
+        /// writes: macro entities, live additions, sketches) dimmed, so the author sees at once what will be saved.</summary>
+        public const string DimTransient = Fdp.Toolkit.Diagnostics.Gizmos.TransientLookSetting.Key;   // ⭐ one definition, shared with the layer panel
+
+        /// <summary>⭐ Default OFF: in a run every entity is live and nobody needs the saved / not-saved split. ONLY the scenario editor's authoring
+        /// map turns it on (<c>MapInteractionContext.DimTransientEntities</c>).</summary>
+        public static readonly GizmoSettingValue DefaultDimTransient = GizmoSettingValue.From(false);
+
         public static void Register(GizmoSettingsRegistry settings)
         {
             if (settings == null) return;
@@ -57,6 +67,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             settings.RegisterSetting(CullOffscreen,     DefaultCullOffscreen);
             settings.RegisterSetting(DamagedThreshold,  DefaultDamagedThreshold);
             settings.RegisterSetting(ImmobileThreshold, DefaultImmobileThreshold);
+            settings.RegisterSetting(DimTransient,      DefaultDimTransient);
         }
     }
 }

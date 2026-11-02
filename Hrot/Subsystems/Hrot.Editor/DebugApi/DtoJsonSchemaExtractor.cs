@@ -202,6 +202,10 @@ namespace Hrot.Editor.DebugApi
             // ⭐ DESIGN_Map_Picking_Unification P5 + S0 item 5 — a PointLink / WorldPoint is a map-picked world location (local metres), an EntityLink a map-picked entity, by TYPE.
             if (member.Type == typeof(Fdp.Toolkit.Replication.PointLink) || member.Type == typeof(Fdp.Core.WorldPoint)) schema["picker"] = "worldLocation";
             else if (member.Type == typeof(Fdp.Toolkit.Replication.EntityLink)) schema["picker"] = "entity";
+            // ⭐ CE-4206 R3 (F9) — an AreaLink is a map-edited area (circle / rectangle / area entity), a Bearing a compass dial, a WorldRotation a heading + pitch + roll: the TYPE says which picker an editor offers.
+            else if (member.Type == typeof(Fdp.Toolkit.Replication.AreaLink)) schema["picker"] = "area";
+            else if (member.Type == typeof(Fdp.Core.Bearing)) schema["picker"] = "bearing";
+            else if (member.Type == typeof(Fdp.Core.WorldRotation)) schema["picker"] = "rotation";
 
             // The editor already declares these on the very same members; surfacing them is what
             // lets an agent tell "a string" from "a property path it must discover".
@@ -211,7 +215,6 @@ namespace Hrot.Editor.DebugApi
                 {
                     case "PropertyPathPickerAttribute":       schema["picker"] = "propertyPath"; break;
                     case "MapPickableEntityAttribute":        schema["picker"] = "entity"; break;
-                    case "MapPickableBoundingBoxAttribute":   schema["picker"] = "boundingBox"; break;
                 }
             }
 
@@ -265,11 +268,12 @@ namespace Hrot.Editor.DebugApi
             if (type == typeof(Fdp.Core.NodeId))
                 return new JsonObject { ["type"] = "integer", ["format"] = "nodeId", ["description"] = "the id of a cluster node (a SimHost, a Brain, an IG, the editor); a tool shows its role and name through the cluster view" };
             if (type == typeof(Fdp.Core.Bearing))
-                return new JsonObject { ["type"] = "number", ["format"] = "bearing", ["description"] = "a compass bearing in degrees: 0 = north (+Y), 90 = east (+X), clockwise" };
+                return new JsonObject { ["type"] = "number", ["format"] = "bearing", ["picker"] = "bearing", ["description"] = "a compass bearing in degrees: 0 = north (+Y), 90 = east (+X), clockwise" };
             if (type == typeof(Fdp.Core.WorldRotation))
             {
                 var shape = Describe(Fdp.Core.SemanticValueTypes.StorageTypeOf(type));
                 shape["format"] = "worldRotation";
+                shape["picker"] = "rotation";
                 return shape;
             }
             if (type == typeof(Vector3))
@@ -289,7 +293,7 @@ namespace Hrot.Editor.DebugApi
                 return new JsonObject { ["type"] = "array", ["items"] = new JsonObject { ["type"] = "number" }, ["minItems"] = 2, ["maxItems"] = 3, ["format"] = "pointLink", ["picker"] = "worldLocation",
                                         ["description"] = "a place in LOCAL metres [x, y, z] (or an entity reference whose position it is)" };
             if (type == typeof(Fdp.Toolkit.Replication.AreaLink))
-                return new JsonObject { ["type"] = "object", ["format"] = "areaLink",
+                return new JsonObject { ["type"] = "object", ["format"] = "areaLink", ["picker"] = "area",
                                         ["description"] = "an area: {\"circle\": …} / {\"rect\": …, \"heading\": …} / an area entity reference" };
 
             if (type.IsArray)

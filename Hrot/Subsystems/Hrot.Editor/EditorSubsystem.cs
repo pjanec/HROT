@@ -2291,6 +2291,7 @@ namespace Hrot.Editor
                 {
                     World = _world,
                     FeatureGate = () => _node?.Features,   // ⭐ CE-4148 — the hud.* features
+                    DimTransientEntities = true,   // ⭐ SR-191 — the authoring map shows what a save will NOT write, dimmed
                     Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
                     // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
                     Services = Hrot.ScenarioEditor.Map.MapServices.Of(geoTransform, _behaviorRegistry),

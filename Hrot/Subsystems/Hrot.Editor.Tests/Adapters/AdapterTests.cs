@@ -1070,6 +1070,40 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.Equal(start, await ((Hrot.UI.Common.Facades.IMapPickService)new DefaultOnlyPickService()).EditAreaAsync(start));
         }
 
+        private sealed class SpyCamera : Fdp.Toolkit.Vis2D.Components.MapCamera
+        {
+            public List<System.Numerics.Vector2> Focused { get; } = new();
+            public override void FocusOn(System.Numerics.Vector2 position, float zoom = -1f) => Focused.Add(position);
+        }
+
+        /// <summary>⭐ CE-4206 R3 (F8) — Show on map: the broker forwards to the service, and the canvas adapter centres its camera on a point and on an entity (the Center View move). Red-proof: the broker not forwarding ⇒ red.</summary>
+        [Fact]
+        public void CE4206_R3_ShowOnMap_GoesBrokerToServiceToTheCanvasCamera_ForAPointAndAnEntity()
+        {
+            using var world = new EntityRepository();
+            world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            world.RegisterComponent<Fdp.Core.SimTransform>();
+            var e = world.CreateEntity();
+            world.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(4242));
+            world.AddComponent(e, new Fdp.Core.SimTransform { Position = new System.Numerics.Vector3(70f, 80f, 0f) });
+            var cam = new SpyCamera();
+            _canvas.Camera = cam;
+            var adapter = new CanvasMapPickAdapter(_canvas, world);
+            var broker = new Hrot.Presentation.Facades.MapPickBroker(adapter);
+
+            Assert.True(broker.CanShowOnMap);
+            broker.ShowOnMap(new Fdp.Core.WorldPoint(10f, 20f, 0f));
+            broker.ShowOnMap(new Fdp.Toolkit.Replication.EntityRef(4242));
+            broker.ShowOnMap(new Fdp.Toolkit.Replication.EntityRef(999));                 // unknown ⇒ no move
+            Assert.Equal(new[] { new System.Numerics.Vector2(10f, 20f), new System.Numerics.Vector2(70f, 80f) }, cam.Focused);
+
+            Assert.False(new Hrot.Presentation.Facades.MapPickBroker(new DefaultOnlyPickService()).CanShowOnMap);   // a service that cannot ⇒ the leaf draws no button
+            var scoped = new Fdp.Presentation.Editing.ScopedMapPickContext(broker, "$.x");
+            Assert.True(scoped.CanShowOnMap);
+            scoped.ShowOnMap(new Fdp.Core.WorldPoint(1f, 2f, 0f));
+            Assert.Equal(3, cam.Focused.Count);
+        }
+
         private sealed class DefaultOnlyPickService : Hrot.UI.Common.Facades.IMapPickService
         {
             public Task<Hrot.Core.Mission.GeoPoint> PickLocationAsync(CancellationToken ct = default) => throw new NotSupportedException();
@@ -1510,6 +1544,12 @@ namespace Hrot.Editor.Tests.Adapters
             _world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponMountInfo>();
             _world.RegisterComponent<Fdp.Toolkit.Combat.Components.TurretPose>();
             _world.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorTag>();
+            // ⭐ CE-4213 ⑥ — the Scenario view's inputs
+            _world.RegisterComponent<NetworkIdentity>();
+            _world.RegisterComponent<Fdp.Toolkit.Scenario.MacroOrigin>();
+            _world.RegisterComponent<Fdp.Toolkit.Scenario.MacroExpansionStatus>();
+            _world.RegisterComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>();
+            _world.RegisterManagedComponent<Fdp.Toolkit.Scenario.MacroInstance>();
         }
 
         public void Dispose() => _world.Dispose();
@@ -1617,6 +1657,107 @@ namespace Hrot.Editor.Tests.Adapters
             adapter.RequestRemoveSubordinate(a.Index);
             Assert.False(_world.HasComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>(a));
             _spawn.VerifyNoOtherCalls();
+        }
+
+        // ── ⭐ CE-4213 ⑥ — the Scenario view (docs/DESIGN_Entity_Hierarchy_Views.md §5) ──────────────────────────────────
+
+        private Entity MacroInstanceEntity(string name, int netId, string macro = "test/fire-team")
+        {
+            var inst = Named(name);
+            _world.AddComponent(inst, new NetworkIdentity(netId));
+            _world.AddComponent(inst, new Fdp.Toolkit.Scenario.MacroExpansionStatus { State = Fdp.Toolkit.Scenario.MacroExpansionState.Done });
+            _world.SetManagedComponent(inst, new Fdp.Toolkit.Scenario.MacroInstance { Macro = macro });
+            return inst;
+        }
+
+        private Entity MemberOfInstance(string name, int instanceNetId, bool transient = true)
+        {
+            var m = Named(name);
+            _world.AddComponent(m, new Fdp.Toolkit.Scenario.MacroOrigin { Instance = new Fdp.Toolkit.Replication.EntityRef(instanceNetId), Local = Guid.NewGuid() });
+            if (transient) _world.AddComponent(m, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
+            return m;
+        }
+
+        [Fact]
+        public void Scenario_view_puts_the_members_under_their_instance_and_the_rest_under_Saved_and_Transient()
+        {
+            _world.CreateEntity();
+            var inst = MacroInstanceEntity("Fire team A", 50);
+            MemberOfInstance("Blue 1", 50);
+            MemberOfInstance("Blue 2", 50);
+            Named("Hand-placed tank");                                                       // a saved root
+            var live = Named("Live addition");                                               // a transient root: nobody expanded it from a macro
+            _world.AddComponent(live, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
+
+            var expanded = new HashSet<int> { ScenarioOrbatAdapter.GroupSavedId, ScenarioOrbatAdapter.GroupTransientId, inst.Index };
+            var nodes = Adapter(EntityTreeRelation.Scenario).GetVisibleNodes("", expanded);
+
+            var saved = nodes.Single(n => n.IsGroup && n.EntityId == ScenarioOrbatAdapter.GroupSavedId);
+            var transient = nodes.Single(n => n.IsGroup && n.EntityId == ScenarioOrbatAdapter.GroupTransientId);
+            Assert.Equal("Saved (2)", saved.Name);        // the instance and the hand-placed tank — its members are NOT roots
+            Assert.Equal("Transient (1)", transient.Name);   // only the live addition
+            Assert.Contains(nodes, n => n.Name == "Fire team A" && n.Depth == 1 && n.HasChildren);
+            Assert.Contains(nodes, n => n.Name == "Blue 1" && n.Depth == 2);
+            Assert.Contains(nodes, n => n.Name == "Blue 2" && n.Depth == 2);
+            Assert.Contains(nodes, n => n.Name == "Hand-placed tank" && n.Depth == 1);
+            Assert.Contains(nodes, n => n.Name == "Live addition" && n.Depth == 1);
+            Assert.All(nodes, n => Assert.False(n.CanAcceptSubordinates));
+            Assert.All(nodes.Where(n => n.IsGroup), n => Assert.True(n.EntityId < 0 && n.NetworkId == 0));   // a group row is no entity
+        }
+
+        [Fact]
+        public void Scenario_view_an_empty_group_has_no_row_and_collapsed_groups_hide_their_members()
+        {
+            _world.CreateEntity();
+            Named("Only a saved tank");
+
+            var collapsed = Adapter(EntityTreeRelation.Scenario).GetVisibleNodes("", new HashSet<int>());
+
+            var only = Assert.Single(collapsed);              // no "Transient (0)" row; the group is collapsed, so the tank is hidden
+            Assert.True(only.IsGroup);
+            Assert.Equal("Saved (1)", only.Name);
+        }
+
+        [Fact]
+        public void Scenario_view_a_member_of_a_dead_instance_is_a_root()
+        {
+            _world.CreateEntity();
+            var inst = MacroInstanceEntity("Fire team A", 50);
+            MemberOfInstance("Orphan", 50);
+            _world.DestroyEntity(inst);
+
+            var nodes = Adapter(EntityTreeRelation.Scenario).GetVisibleNodes("", new HashSet<int> { ScenarioOrbatAdapter.GroupTransientId });
+
+            Assert.Contains(nodes, n => n.IsGroup && n.Name == "Transient (1)");
+            var orphan = Assert.Single(nodes, n => n.Name == "Orphan");
+            Assert.Equal(1, orphan.Depth);   // a root of its group, not under a ghost
+        }
+
+        [Fact]
+        public void Scenario_view_is_read_only_and_the_Command_view_refuses_to_move_a_macro_entity_saying_which_macro()
+        {
+            _world.CreateEntity();
+            var inst = MacroInstanceEntity("Fire team A", 50, "test/fire-team");
+            var member = MemberOfInstance("Blue 1", 50);
+            var leader = Named("Platoon leader");
+            var plain = Named("Hand-placed tank");
+
+            Assert.False(((IHierarchyAdapter)new ScenarioHierarchyAdapter()).CanReparent(_world, member, leader));
+            var command = (IHierarchyAdapter)new CommandHierarchyAdapter();
+            Assert.False(command.CanReparent(_world, member, leader));
+            Assert.Equal("from macro test/fire-team — edit the macro or its args", command.ReparentRefusal(_world, member, leader));
+            Assert.True(command.CanReparent(_world, plain, leader));   // an ordinary entity may move
+            Assert.Null(command.ReparentRefusal(_world, plain, leader));
+
+            var adapter = Adapter(EntityTreeRelation.Command);
+            adapter.GetVisibleNodes("", new HashSet<int>());
+            adapter.RequestAssignSubordinate(member.Index, leader.Index);
+            Assert.Equal("from macro test/fire-team — edit the macro or its args", adapter.LastDropRefusal);   // what the panel shows
+            adapter.RequestRemoveSubordinate(member.Index);
+            Assert.False(_world.HasComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>(member));
+            adapter.RequestAssignSubordinate(plain.Index, leader.Index);
+            Assert.Null(adapter.LastDropRefusal);                    // a drop that goes through clears it
+            Assert.NotNull(inst.ToString());
         }
 
         [Fact]

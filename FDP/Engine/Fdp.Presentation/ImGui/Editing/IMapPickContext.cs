@@ -56,6 +56,15 @@ namespace Fdp.Presentation.Editing
         /// places a new circle). A no-op where the host cannot.</summary>
         void RequestAreaEdit(string jsonPath, Fdp.Toolkit.Replication.AreaLink start) { }
 
+        /// <summary>⭐ <c>CE-4206</c> R3 (F8) — this context can centre the map on a value (the leaves then draw <i>Show on map</i>).</summary>
+        bool CanShowOnMap => false;
+
+        /// <summary>⭐ <c>CE-4206</c> R3 (F8) — centres the map on the entity <paramref name="entity"/> (the map menu's Center View move). A no-op where <see cref="CanShowOnMap"/> is false.</summary>
+        void ShowOnMap(Fdp.Toolkit.Replication.EntityRef entity) { }
+
+        /// <summary>⭐ <c>CE-4206</c> R3 (F8) — centres the map on the point <paramref name="point"/> (local metres).</summary>
+        void ShowOnMap(Fdp.Core.WorldPoint point) { }
+
         /// <summary>⭐ <c>CE-4206</c> R2 — a finished area edit for <paramref name="jsonPath"/>, once. <see langword="false"/> while none is ready (or it was cancelled).</summary>
         bool TryConsumeAreaEdit(string jsonPath, out Fdp.Toolkit.Replication.AreaLink area) { area = default; return false; }
     }

@@ -16,6 +16,16 @@ namespace Fdp.Toolkit.Tests.Orchestration
             => Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "content-layout-" + Guid.NewGuid().ToString("N"))).FullName;
 
         /// <summary>⭐ The tree of §1, spelled by ONE class — a segment renamed here moves every reader with it.</summary>
+        /// <summary>⭐ CE-4210 MA-4 — the folder a name resolves to, relative to the content root: what a node's slice <c>RelativeDest</c> is built from.</summary>
+        [Fact]
+        public void CE4210_ScenarioRelativeFolder_FollowsTheResolver_ForEveryNameShape()
+        {
+            Assert.Equal(Path.Combine("scenarios", "a", "b"), ContentLayout.ScenarioRelativeFolder("a/b"));
+            Assert.Equal(Path.Combine("macros", "test", "fire-team"), ContentLayout.ScenarioRelativeFolder("macros/test/fire-team"));
+            Assert.Equal(Path.Combine("recipes", "scenarios", "seed"), ContentLayout.ScenarioRelativeFolder(ContentLayout.ScenarioRecipeName("seed")));
+            Assert.Equal(Path.Combine("opened", "recorded", "e1"), ContentLayout.ScenarioRelativeFolder(ContentLayout.OpenedCopyName("recorded", "e1")));
+        }
+
         [Fact]
         public void TheScenarioFileNameIsOneConstant() => Assert.Equal("scenario.json", ContentLayout.ScenarioFileName);
 
@@ -31,6 +41,7 @@ namespace Fdp.Toolkit.Tests.Orchestration
             Assert.Equal(Path.Combine(r, "assets", "terrain"), ContentLayout.TerrainAssets(r));
             Assert.Equal(Path.Combine(r, "assets", "buildings"), ContentLayout.BuildingAssets(r));
             Assert.Equal(Path.Combine(r, "assets", "icons"), ContentLayout.IconAssets(r));
+            Assert.Equal(Path.Combine(r, "assets", "thumbnails"), ContentLayout.ThumbnailAssets(r));
             Assert.Equal(Path.Combine(r, "assets", "audio"), ContentLayout.AudioAssets(r));
             Assert.Equal(Path.Combine(r, "assets", "textures"), ContentLayout.TextureAssets(r));
             Assert.Equal(Path.Combine(r, "recipes", "scenarios"), ContentLayout.ScenarioRecipes(r));

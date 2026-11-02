@@ -44,6 +44,7 @@ namespace Fdp.Toolkit.Orchestration
         public const string TerrainDirectoryName = "terrain";
         public const string BuildingsDirectoryName = "buildings";
         public const string IconsDirectoryName = "icons";
+        public const string ThumbnailsDirectoryName = "thumbnails";
         public const string AudioDirectoryName = "audio";
         public const string TexturesDirectoryName = "textures";
 
@@ -106,6 +107,8 @@ namespace Fdp.Toolkit.Orchestration
         public static string TerrainAssets(string root) => Path.Combine(Assets(root), TerrainDirectoryName);
         public static string BuildingAssets(string root) => Path.Combine(Assets(root), BuildingsDirectoryName);
         public static string IconAssets(string root) => Path.Combine(Assets(root), IconsDirectoryName);
+        /// <summary>⭐ CE-4142 — <c>{root}/assets/thumbnails</c>: the Add Entity gallery's <c>groups.json</c>, <c>map.json</c> and the thumbnail PNGs.</summary>
+        public static string ThumbnailAssets(string root) => Path.Combine(Assets(root), ThumbnailsDirectoryName);
         public static string AudioAssets(string root) => Path.Combine(Assets(root), AudioDirectoryName);
         public static string TextureAssets(string root) => Path.Combine(Assets(root), TexturesDirectoryName);
 
@@ -174,6 +177,17 @@ namespace Fdp.Toolkit.Orchestration
             var contentRoot = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(scenariosRoot)))
                               ?? throw new ArgumentException("The scenarios root has no parent content root.", nameof(scenariosRoot));
             return ResolveScenarioDirectory(contentRoot, scenarioName);
+        }
+
+        /// <summary>
+        /// ⭐ CE-4210 MA-4 — the folder a scenario NAME resolves to, RELATIVE to the content root (<c>scenarios/x</c>, <c>macros/x</c>, <c>recipes/scenarios/x</c>,
+        /// <c>opened/…</c>): <see cref="ResolveScenarioDirectory"/> against a virtual root. For a writer that names a path RELATIVE to the NAS (a node's slice
+        /// <c>RelativeDest</c>) — ⛔ never <c>"scenarios/" + name</c> by hand: for <c>macros/x</c> that is a folder the merge never reads.
+        /// </summary>
+        public static string ScenarioRelativeFolder(string scenarioName)
+        {
+            string virtualRoot = Path.Combine(Path.GetTempPath(), "content-root");
+            return Path.GetRelativePath(virtualRoot, ResolveScenarioDirectory(virtualRoot, scenarioName));
         }
 
         private static string Normalise(string? name) => (name ?? string.Empty).Replace('\\', '/');

@@ -25,4 +25,7 @@ public interface IOrbatDataProvider
     /// Default <see cref="EntityTreeRelation.Command"/>; a provider without other relations ignores the setter.
     /// </summary>
     EntityTreeRelation Relation { get => EntityTreeRelation.Command; set { } }
+
+    /// <summary>⭐ CE-4213 ⑥ — why the last drop was refused (a macro entity cannot be moved in the chain of command), or null. The panel shows it.</summary>
+    string? LastDropRefusal => null;
 }

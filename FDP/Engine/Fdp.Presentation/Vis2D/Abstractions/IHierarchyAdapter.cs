@@ -36,6 +36,10 @@ public interface IHierarchyAdapter
     /// <summary>⭐ CE-4213 — may <paramref name="child"/> be re-parented under <paramref name="newParent"/> in this relation? Default: no (read-only).</summary>
     bool CanReparent(ISimulationView view, Entity child, Entity newParent) => false;
 
+    /// <summary>⭐ CE-4213 ⑥ — WHY <paramref name="child"/> may not be re-parented under <paramref name="newParent"/> (<c>Entity.Null</c> = removed from its
+    /// parent), in words a person reads; null when nothing forbids it. The panel shows it where it shows a refused drop. Default: no reason.</summary>
+    string? ReparentRefusal(ISimulationView view, Entity child, Entity newParent) => null;
+
     /// <summary>⭐ CE-4213 — re-parents (only when <see cref="CanReparent"/>); a read-only relation does nothing.</summary>
     void Reparent(ISimulationView view, Entity child, Entity newParent) { }
 }

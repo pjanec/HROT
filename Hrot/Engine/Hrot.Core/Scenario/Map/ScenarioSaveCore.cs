@@ -35,6 +35,27 @@ namespace Hrot.Map.Common.Scenario;
 public static class ScenarioSaveCore
 {
     /// <summary>
+    /// ⭐ CE-4210 MA-4 — THE save header, built from what the WORLD holds: its terrain (CE-3015; ⛔ R-4018 never a TKB name), its description (CE-3288) and the
+    /// MACRO header fields the load stamped resident (<c>Kind</c>, <c>Params</c>, <c>Anchor</c>, <c>Placement.MaxShift</c>, <c>Relocatable</c>). Both save sites call this
+    /// — <c>HrotScenarioSaveHandler</c> (every host's distributed save) and <c>ScenarioFileService</c> (the editor's shim) — so no host can forget a field, and
+    /// opening a macro and saving it no longer turns it into a plain scenario.
+    /// </summary>
+    public static ScenarioHeader HeaderOf(EntityRepository world, string docType)
+    {
+        var resident = ScenarioDescription.HeaderOf(world);
+        return new ScenarioHeader(docType,
+            TerrainName: Fdp.Toolkit.Terrain.TerrainDefinition.ResidentName(world),
+            Description: ScenarioDescription.ResidentOf(world))
+        {
+            Kind        = resident?.Kind,
+            Params      = resident?.Params,
+            Anchor      = resident?.Anchor,
+            MaxShift    = resident?.MaxShift,
+            Relocatable = resident?.Relocatable ?? true,
+        };
+    }
+
+    /// <summary>
     /// Builds the scenario DOM: the gated entity serialization, which stamps <c>$meta</c>.
     /// </summary>
     public static JsonObject BuildDom(

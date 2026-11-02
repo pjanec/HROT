@@ -57,6 +57,18 @@ public sealed class EntityAuthoringPackTests : IDisposable
     }
 
     [Fact]
+    public void CE4142_GL4_ThePack_ForwardsTheGalleryData_ToTheAddEntityAction()
+    {
+        var gallery = EntityTypeCatalogTests.ShippedGallery();
+        var withData = Build(Inputs() with { Gallery = () => gallery });
+        var request = withData.EntityAuthoring!.AddEntity.RequestFor(GlobalActionIds.AddEntityFriendly);
+        Assert.NotNull(request!.GroupSidebar);                         // a host that HAS the gallery data shows the gallery
+
+        var without = Build(Inputs() with { Gallery = () => null });
+        Assert.Null(without.EntityAuthoring!.AddEntity.RequestFor(GlobalActionIds.AddEntityFriendly)!.GroupSidebar);   // none ⇒ the tree
+    }
+
+    [Fact]
     public void CE1017_AHostThatCannotAuthor_StillGetsACanvasMenu_WithoutAddEntity()
     {
         var mi = Build(null);

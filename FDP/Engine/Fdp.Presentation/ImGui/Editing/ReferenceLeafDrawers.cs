@@ -26,7 +26,8 @@ public static class ReferenceLeafDrawers
 {
     /// <summary>Does this class draw a field of <paramref name="type"/>?</summary>
     public static bool Handles(Type type)
-        => type == typeof(EntityLink) || type == typeof(PointLink) || type == typeof(EntityRef) || type == typeof(WorldPoint) || type == typeof(AreaLink);
+        => type == typeof(EntityLink) || type == typeof(PointLink) || type == typeof(EntityRef) || type == typeof(WorldPoint) || type == typeof(AreaLink)
+           || type == typeof(Bearing) || type == typeof(RefKey);
 
     /// <summary>The words shown beside an entity written as a bare id.</summary>
     public const string NoStableId = "no stable id — will not survive a save";
@@ -239,6 +240,129 @@ public static class ReferenceLeafDrawers
         return changed;
     }
 
+    // ═══ CE-4206 R3 — F7 Bearing, F8 Show on map, F9a RefKey ═══════════════════════════════════════════════════════════════════
+
+    /// <summary>The place a reference value stands for, for <i>Show on map</i>: an entity (centred by its position), a point, or nothing (a value with no place).</summary>
+    public static (EntityRef Entity, WorldPoint? Point) ShowTarget(object? value, LiveRefScope? refs)
+    {
+        switch (value)
+        {
+            case EntityRef e: return (e, null);
+            case EntityLink l:
+                if (!l.Ref.IsNone) return (l.Ref, null);
+                return refs != null && !l.Spec.IsNone && refs.TryResolve(l.Spec, out var r) ? (r, null) : (EntityRef.None, null);
+            case WorldPoint p: return (EntityRef.None, p);
+            case PointLink pl: return (EntityRef.None, pl.Local);
+            case AreaLink a when a.IsShape: return (EntityRef.None, a.Center);
+            case AreaLink a:
+                if (!a.Area.IsNone) return (a.Area, null);
+                return refs != null && !a.Spec.IsNone && refs.TryResolve(a.Spec, out var ar) ? (ar, null) : (EntityRef.None, null);
+            default: return (EntityRef.None, null);
+        }
+    }
+
+    /// <summary>F8 — centres the map on <paramref name="value"/> through the pick context; <c>false</c> when the context cannot or the value stands for no place.</summary>
+    public static bool ShowOnMap(object? value, IMapPickContext? ctx)
+    {
+        if (ctx is not { CanShowOnMap: true }) return false;
+        var (entity, point) = ShowTarget(value, ctx.References);
+        if (!entity.IsNone) { ctx.ShowOnMap(entity); return true; }
+        if (point is { } p) { ctx.ShowOnMap(p); return true; }
+        return false;
+    }
+
+    private static void DrawShowOnMap(EditNode node, IMapPickContext? ctx)
+    {
+        if (ctx is not { CanShowOnMap: true }) return;
+        var (entity, point) = ShowTarget(node.Binding?.GetBoxed(), ctx.References);
+        if (entity.IsNone && point is null) return;
+        ImGuiApi.SameLine();
+        if (ImGuiApi.SmallButton($"Show##sm{node.Id.Value}")) ShowOnMap(node.Binding?.GetBoxed(), ctx);
+        if (ImGuiApi.IsItemHovered()) ImGuiApi.SetTooltip("Show on map");
+    }
+
+    // ── F7: Bearing — degrees + a compass dial ───────────────────────────────────────────────────────────────────────────────
+
+    private static bool DrawBearing(EditNode node, float width)
+    {
+        float deg = node.Binding?.GetBoxed() is Bearing b ? b.Degrees : 0f;
+        bool changed = false;
+        ImGuiApi.SetNextItemWidth(Math.Max(width - 64f, 60f));
+        float typed = deg;
+        if (ImGuiApi.InputFloat($"##brg{node.Id.Value}", ref typed, 0f, 0f, "%.1f°"))
+        {
+            deg = BearingDial.Wrap(typed);
+            changed = true;
+        }
+        ImGuiApi.SameLine();
+        const float radius = 22f;
+        var origin = ImGuiApi.GetCursorScreenPos();
+        var centre = new System.Numerics.Vector2(origin.X + radius, origin.Y + radius);
+        ImGuiApi.InvisibleButton($"##dial{node.Id.Value}", new System.Numerics.Vector2(radius * 2f, radius * 2f));
+        if (ImGuiApi.IsItemActive())
+        {
+            float dragged = BearingDial.FromDrag(centre, ImGuiApi.GetMousePos());
+            if (MathF.Abs(dragged - BearingDial.Wrap(deg)) > 0.05f) { deg = MathF.Round(dragged); changed = true; }
+        }
+        var dl = ImGuiApi.GetWindowDrawList();
+        uint rim = ImGuiApi.GetColorU32(ImGuiNET.ImGuiCol.TextDisabled), needle = ImGuiApi.GetColorU32(ImGuiNET.ImGuiCol.PlotHistogramHovered);
+        dl.AddCircle(centre, radius - 1f, rim, 24);
+        dl.AddText(new System.Numerics.Vector2(centre.X - 3f, origin.Y - 1f), rim, "N");
+        dl.AddLine(centre, BearingDial.NeedleEnd(centre, radius - 3f, deg), needle, 2f);
+        if (changed) node.Binding?.SetBoxed(new Bearing(deg));
+        return changed;
+    }
+
+    /// <summary>F7 — the muted read-out under a <see cref="WorldRotation"/> editor (<c>HPR [090.0, 0.0, 0.0] …</c>), through the ONE <see cref="OrientationText"/>.</summary>
+    public static string RotationReadout(object? value)
+        => value is WorldRotation r ? OrientationText.Format(r) : value is System.Numerics.Quaternion q ? OrientationText.Format(q) : "";
+
+    // ── F9a: RefKey — the entity's authored name, unique per scope ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// F9a — why <paramref name="text"/> cannot be this entity's key (red under the box), or <c>null</c> when it can. A key equal to the <paramref name="current"/> one is fine; empty clears
+    /// the key; a key over 31 UTF-8 bytes is refused; a key another entity already carries is refused with that entity's name (SR-126: loud, and NOT applied).
+    /// </summary>
+    public static string? RefKeyProblem(string text, RefKey current, LiveRefScope? refs)
+    {
+        if (string.IsNullOrEmpty(text)) return null;
+        if (text.TrimStart('@') == current.Value.ToString()) return null;
+        RefSpec spec;
+        try { spec = RefSpec.ByKey(text); }
+        catch (ArgumentException e) { return e.Message.Split('\n')[0]; }
+        if (refs == null) return null;
+        string key = spec.KeyText;
+        if (refs.HasDuplicate(key)) return $"key '{key}' is already used by more than one entity";
+        return refs.TryResolve(spec, out var other) ? $"key '{key}' is already used by {refs.NameOf(other)}" : null;
+    }
+
+    /// <summary>F9a — the <see cref="RefKey"/> a text writes, or <c>false</c> (with the problem) when it must not be applied.</summary>
+    public static bool TryApplyRefKey(string text, RefKey current, LiveRefScope? refs, out RefKey applied, out string? problem)
+    {
+        problem = RefKeyProblem(text, current, refs);
+        applied = current;
+        if (problem != null) return false;
+        applied = string.IsNullOrEmpty(text) ? default : new RefKey(text.TrimStart('@'));
+        return true;
+    }
+
+    private static bool DrawRefKey(EditNode node, float width, IMapPickContext? ctx, State st)
+    {
+        var current = node.Binding?.GetBoxed() is RefKey k ? k : default;
+        string path = node.JsonPath;
+        string text = st.KeyText.TryGetValue(path, out var t) ? t : current.Value.ToString();
+        ImGuiApi.SetNextItemWidth(Math.Max(width - 8f, 80f));
+        bool changed = false;
+        if (ImGuiApi.InputText($"##refkey{node.Id.Value}", ref text, 64))
+        {
+            st.KeyText[path] = text;
+            if (TryApplyRefKey(text, current, ctx?.References, out var applied, out _)) { node.Binding?.SetBoxed(applied); changed = true; }
+        }
+        if (RefKeyProblem(text, current, ctx?.References) is { } problem)
+            ImGuiApi.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), problem);   // refused: the box shows what was typed, the entity keeps its key
+        return changed;
+    }
+
     // ═══ drawing ═════════════════════════════════════════════════════════════════════════════════════════════════════════════
 
     /// <summary>Draws the whole value cell of one reference field (the form switch, the value, the pick buttons); <c>true</c> when it wrote the binding.</summary>
@@ -246,11 +370,15 @@ public static class ReferenceLeafDrawers
     public static bool Draw(EditNode node, float reserveRight, IMapPickContext? ctx, State state)
     {
         float width = Math.Max(ImGuiApi.GetContentRegionAvail().X - reserveRight, 60f);
-        if (node.ClrType == typeof(EntityLink)) return DrawEntityLink(node, width, ctx, state);
-        if (node.ClrType == typeof(PointLink)) return DrawPointLink(node, width, ctx, state);
-        if (node.ClrType == typeof(AreaLink)) return DrawAreaLink(node, width, ctx, state);
-        if (node.ClrType == typeof(EntityRef)) return DrawEntityRef(node, width, ctx);
-        return DrawWorldPoint(node, width, ctx);
+        if (node.ClrType == typeof(EntityLink)) { bool c = DrawEntityLink(node, width, ctx, state); DrawShowOnMap(node, ctx); return c; }
+        if (node.ClrType == typeof(PointLink)) { bool c = DrawPointLink(node, width, ctx, state); DrawShowOnMap(node, ctx); return c; }
+        if (node.ClrType == typeof(Bearing)) return DrawBearing(node, width);
+        if (node.ClrType == typeof(RefKey)) return DrawRefKey(node, width, ctx, state);
+        bool changed = node.ClrType == typeof(AreaLink) ? DrawAreaLink(node, width, ctx, state)
+                     : node.ClrType == typeof(EntityRef) ? DrawEntityRef(node, width, ctx)
+                     : DrawWorldPoint(node, width, ctx);
+        DrawShowOnMap(node, ctx);
+        return changed;
     }
 
     private static string[]? Presets(EditNode node)
