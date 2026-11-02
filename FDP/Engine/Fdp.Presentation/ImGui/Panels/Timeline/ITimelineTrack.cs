@@ -13,7 +13,22 @@ public enum TimelineTrackItemKind : byte { Key, Segment }
 /// </summary>
 /// <param name="To">The end of a segment, else null (a key).</param>
 /// <param name="Colour">⭐ <c>CE-4059</c> — the item's own colour (ABGR; null = the row's): the director draws a key scoped to one segment apart.</param>
-public sealed record TimelineTrackItem(string Id, double From, double? To, string Label, TimelineTrackItemKind Kind, bool Selected, uint? Colour = null);
+/// <param name="Style">⭐ <c>CE-4167</c> X2 (docs/DESIGN_Rules_View_UI.md RV-1) — how the item is DRAWN; <see cref="TimelineTrackItemStyle.Solid"/> (the default) is today's look, so a track that never sets it is unchanged.</param>
+public sealed record TimelineTrackItem(string Id, double From, double? To, string Label, TimelineTrackItemKind Kind, bool Selected, uint? Colour = null,
+    TimelineTrackItemStyle Style = TimelineTrackItemStyle.Solid);
+
+/// <summary>
+/// ⭐ <c>CE-4167</c> X2 — an item's look. <b>Solid</b> today's. <b>Expected</b> a dashed outline, no fill (a thing that is planned, not yet real — a segment, or a hollow diamond for a key).
+/// <b>Hatched</b> diagonal hatch lines inside the segment (a wait: delay, cooldown). <b>Pinned</b> a diamond at the item's start with a vertical tick (bound to a clock instant; on a segment
+/// the segment is drawn solid and the diamond marks its start).
+/// </summary>
+public enum TimelineTrackItemStyle : byte { Solid, Expected, Hatched, Pinned }
+
+/// <summary>
+/// ⭐ <c>CE-4167</c> X3 — a track row header: the label column becomes a TREE row. <paramref name="Depth"/> indents it; <paramref name="Collapsible"/> adds an expand arrow (a collapsed node hides the
+/// FOLLOWING tracks whose depth is greater — tracks arrive in tree order); <paramref name="Status"/> is right-aligned in <paramref name="StatusColour"/> (ABGR).
+/// </summary>
+public sealed record TrackHeader(int Depth, string Text, string? Status = null, uint? StatusColour = null, string? Icon = null, bool Collapsible = false);
 
 /// <summary>⭐ <c>CE-1364</c> — which part of an item a gesture grabbed: the body (moves the whole item) or, on a segment, one of its two edges.</summary>
 public enum TrackItemPart : byte { Body, StartEdge, EndEdge }
@@ -27,6 +42,9 @@ public interface ITimelineTrack
 {
     string Id { get; }
     string Label { get; }
+
+    /// <summary>⭐ <c>CE-4167</c> X3 — a tree row header, or null (the default): the label is drawn flat, as before.</summary>
+    TrackHeader? Header => null;
 
     /// <summary>The items now (SIM seconds); read every frame.</summary>
     IReadOnlyList<TimelineTrackItem> Items { get; }

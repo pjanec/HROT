@@ -201,6 +201,97 @@ public sealed class TimelinePanelFrameRail
         Assert.Equal(0, Drawn(shown with { Hidden = true }, "timeline-hidden-1-hidden.png"));
     }
 
+    // ── ⭐ CE-4167 part 1 (X2 item styles, X3 tree rows, RV-2 extent from the tracks) ─────────────────────────────────────────────────
+
+    private sealed class SynthTrack : ITimelineTrack
+    {
+        public SynthTrack(string id, TrackHeader? header, params TimelineTrackItem[] items) { Id = id; Header = header; Items = items; }
+        public string Id { get; }
+        public string Label => Id;
+        public TrackHeader? Header { get; }
+        public IReadOnlyList<TimelineTrackItem> Items { get; }
+        public void Select(string itemId) { }
+        public void Move(string itemId, double toSimSeconds, bool commit) { }
+        public bool Key(char key, double atSimSeconds) => false;
+        public IEnumerable<TimelineMenuItem> MenuItems(string? itemId) => Array.Empty<TimelineMenuItem>();
+    }
+
+    private static int CountColour(string path, uint abgr, int x0 = 0, int x1 = int.MaxValue, int tol = 24)
+    {
+        byte r = (byte)(abgr & 0xFF), g = (byte)(abgr >> 8 & 0xFF), b = (byte)(abgr >> 16 & 0xFF);
+        var image = Raylib.LoadImage(path);
+        try
+        {
+            int n = 0;
+            for (int y = 0; y < image.Height; y++)
+                for (int x = Math.Max(0, x0); x < Math.Min(image.Width, x1); x++)
+                {
+                    var px = Raylib.GetImageColor(image, x, y);
+                    if (Math.Abs(px.R - r) <= tol && Math.Abs(px.G - g) <= tol && Math.Abs(px.B - b) <= tol) n++;
+                }
+            return n;
+        }
+        finally { Raylib.UnloadImage(image); }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4167</c> part 1 — a synthetic rules-view-like set of tracks in a REAL frame with NO recording (an empty index, no time map): a two-level tree with statuses,
+    /// and one item of every style in its own colour. The tracks draw at all (RV-2), each style leaves its own mark (X2: a hollow dashed outline, hatch lines, a diamond with a tick),
+    /// the status text is in its colour (X3), and collapsing the node removes its child row. Screenshots land in <c>HROT_TIMELINE_SHOTS</c> — look at them; ⛔ never committed.
+    /// 🔴 Red-proofs: RV-2 — <c>ExtentOfTracks</c> returning null ⇒ "No recording." and nothing drawn · X2 — <c>DrawOf</c> giving <c>Expected</c> a fill ⇒ the interior is no longer empty · X3 — <c>Visible</c> not hiding ⇒ the child status stays.
+    /// </summary>
+    [SkippableFact]
+    public void CE4167_R1_TracksWithStylesAndATree_DrawWithNoRecording()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        const uint Magenta = 0xFFFF00FF, Cyan = 0xFFFFFF00, Yellow = 0xFF00FFFF, Green = 0xFF00FF00, Orange = 0xFF0080FF, Purple = 0xFFFF40C0;
+        TimelineTrackItem Seg(string id, double a, double b, TimelineTrackItemStyle st, uint col) => new(id, a, b, id, TimelineTrackItemKind.Segment, false, col, st);
+        TimelineTrackItem Key(string id, double at, TimelineTrackItemStyle st, uint col) => new(id, at, null, id, TimelineTrackItemKind.Key, false, col, st);
+        var tracks = new ITimelineTrack[]
+        {
+            new SynthTrack("ambush", new TrackHeader(0, "Ambush", "Active 6:10", Orange, "T", Collapsible: true),
+                Seg("expected", 20, 70, TimelineTrackItemStyle.Expected, Yellow)),
+            new SynthTrack("fire", new TrackHeader(1, "Fire at target", "Acting 2/3", Purple),
+                Seg("hatched", 10, 40, TimelineTrackItemStyle.Hatched, Green), Key("pinned", 50, TimelineTrackItemStyle.Pinned, Cyan)),
+            new SynthTrack("solid", null, Key("plain", 5, TimelineTrackItemStyle.Solid, Magenta)),
+        };
+        var source = new Source { Index = TimelineIndex.Empty };
+        var cursor = new Cursor { ExtentFrom = 0, ExtentTo = 0, Now = 0 };   // no extent at all: the index is empty
+        var panel = new TimelinePanel { Tracks = () => tracks };
+        using var frame = UiFrameHarness.Begin(1280, 300);
+
+        string Shoot(TimelinePanel p, ITimelineTrack[] shown, string name)
+        {
+            p.Tracks = () => shown;
+            frame.StepN(4, () =>
+            {
+                ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(1280, 300));
+                ImGui.Begin("Event Timeline", ImGuiWindowFlags.NoCollapse);
+                p.Draw(source, cursor, Array.Empty<TimelineLaneDescriptor>());
+                ImGui.End();
+            });
+            string path = ShotPath(name);
+            frame.Screenshot(path);
+            return path;
+        }
+
+        string empty = Shoot(new TimelinePanel(), Array.Empty<ITimelineTrack>(), "timeline-r1-0-no-tracks.png");
+        Assert.Equal(0, CountColour(empty, Yellow) + CountColour(empty, Cyan) + CountColour(empty, Magenta));   // control: no tracks, no recording ⇒ nothing
+
+        string open = Shoot(panel, tracks, "timeline-r1-1-styles-and-tree.png");
+        Assert.True(CountColour(open, Magenta, x0: 240) > 10, "RV-2 / Solid: the plain key draws with no recording");
+        Assert.True(CountColour(open, Yellow, x0: 240) > 40, "X2 Expected: the dashed outline is drawn");
+        Assert.True(CountColour(open, Green, x0: 240) > 30, "X2 Hatched: the diagonal lines are drawn");
+        Assert.True(CountColour(open, Cyan, x0: 240) > 20, "X2 Pinned: the diamond and its tick are drawn");
+        Assert.True(CountColour(open, Orange, 0, 240) > 20, "X3: the node's status is drawn in its colour in the label column");
+        Assert.True(CountColour(open, Purple, 0, 240) > 20, "X3: the child's status is drawn");
+        panel.SetCollapsed("ambush", true);
+        string shut = Shoot(panel, tracks, "timeline-r1-2-collapsed.png");
+        Assert.Equal(0, CountColour(shut, Purple, 0, 240));   // the child row is gone
+        Assert.True(CountColour(shut, Orange, 0, 240) > 20, "the node itself stays, with its status");
+        Assert.True(CountColour(shut, Magenta, x0: 240) > 10, "a header-less track below it is not hidden");
+    }
+
     /// <summary>A cursor on the SIM axis over a straight-run map (sim = frame / 60, no pauses), counting its seeks.</summary>
     private sealed class SimCursor : ITimelineCursor
     {

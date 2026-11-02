@@ -18,6 +18,135 @@ public static class TrackLayout
 {
     public const float KeySlackPx = 5f;
 
+    // ── ⭐ CE-4167 X2 — how an item is drawn (pure, so each style's geometry is a rail) ──────────────────────────────────────────────
+
+    /// <summary>What to draw for one item: <c>Fill</c> a filled body · <c>Dashed</c> a dashed outline (else a solid one) · <c>Hatch</c> diagonal lines inside · <c>Handles</c> the two edge grips ·
+    /// <c>Diamond</c> a diamond at the start · <c>HollowDiamond</c> the diamond unfilled · <c>Tick</c> a vertical tick through the row at the start.</summary>
+    public readonly record struct ItemDraw(bool Fill, bool Dashed, bool Hatch, bool Handles, bool Diamond, bool HollowDiamond, bool Tick);
+
+    /// <summary>The look of <paramref name="item"/> when its body is <paramref name="widthPx"/> wide. ⭐ <see cref="TimelineTrackItemStyle.Solid"/> is exactly the pre-X2 drawing.</summary>
+    public static ItemDraw DrawOf(TimelineTrackItem item, float widthPx)
+    {
+        bool segment = item.Kind == TimelineTrackItemKind.Segment;
+        if (!segment)
+            return item.Style switch
+            {
+                TimelineTrackItemStyle.Expected => new(false, true, false, false, true, true, false),
+                TimelineTrackItemStyle.Pinned => new(false, false, false, false, true, false, true),
+                _ => new(false, false, false, false, true, false, false),   // Solid (and Hatched, which a key has no body for)
+            };
+        bool handles = widthPx >= 6f;
+        return item.Style switch
+        {
+            TimelineTrackItemStyle.Expected => new(false, true, false, false, false, false, false),
+            TimelineTrackItemStyle.Hatched => new(false, false, true, false, false, false, false),
+            TimelineTrackItemStyle.Pinned => new(true, false, false, handles, true, false, true),
+            _ => new(true, false, false, handles, false, false, false),
+        };
+    }
+
+    /// <summary>The dashes of a line from <paramref name="a"/> to <paramref name="b"/>: <paramref name="dash"/> on, <paramref name="gap"/> off, the last one clipped to the end.</summary>
+    public static List<(float A, float B)> Dashes(float a, float b, float dash = 4f, float gap = 3f)
+    {
+        var list = new List<(float, float)>();
+        if (b <= a || dash <= 0f) return list;
+        for (float x = a; x < b; x += dash + gap) list.Add((x, Math.Min(x + dash, b)));
+        return list;
+    }
+
+    /// <summary>The diagonal hatch of a <paramref name="width"/> × <paramref name="height"/> rectangle (relative to its top-left): lines rising to the right every <paramref name="spacing"/> px,
+    /// each clipped to the rectangle — (x0, y0) to (x1, y1).</summary>
+    public static List<(float X0, float Y0, float X1, float Y1)> HatchLines(float width, float height, float spacing = 5f)
+    {
+        var list = new List<(float, float, float, float)>();
+        if (width <= 0f || height <= 0f || spacing <= 0f) return list;
+        for (float start = -height; start < width; start += spacing)
+        {
+            // the line y = height − (x − start), from (start, height) up to (start + height, 0), clipped to x in [0, width]
+            float xa = Math.Max(start, 0f), xb = Math.Min(start + height, width);
+            if (xb <= xa) continue;
+            list.Add((xa, height - (xa - start), xb, height - (xb - start)));
+        }
+        return list;
+    }
+
+    // ── ⭐ CE-4167 X3 — tree rows ────────────────────────────────────────────────────────────────────────────────────────────────────
+
+    public const float IndentPx = 12f, ArrowPx = 12f, IconPx = 14f, LabelPadPx = 4f;
+
+    /// <summary>The label column's width: the flat <paramref name="flat"/> one unless some track has a <see cref="TrackHeader"/> (a tree needs room), then <paramref name="tree"/>.</summary>
+    public static float LabelWidthFor(IReadOnlyList<ITimelineTrack>? tracks, float flat, float tree)
+    {
+        if (tracks != null) foreach (var t in tracks) if (t.Header != null) return tree;
+        return flat;
+    }
+
+    /// <summary>Where a header's parts sit in a label column <paramref name="labelWidth"/> wide: the arrow, the icon, the text (x from the column's left) and the status (right-aligned by
+    /// <paramref name="statusWidth"/>, null when there is none or it would not fit after the text).</summary>
+    public readonly record struct HeaderPlan(float? ArrowX, float? IconX, float TextX, float? StatusX);
+
+    public static HeaderPlan PlanHeader(TrackHeader h, float labelWidth, float textWidth, float statusWidth)
+    {
+        float x = LabelPadPx + Math.Max(0, h.Depth) * IndentPx;
+        float? arrow = null, icon = null;
+        if (h.Collapsible) { arrow = x; x += ArrowPx; }
+        else if (h.Depth > 0 || h.Icon != null) x += 0f;
+        if (h.Icon is { Length: > 0 }) { icon = x; x += IconPx; }
+        float textX = x;
+        float? statusX = null;
+        if (h.Status is { Length: > 0 })
+        {
+            float sx = labelWidth - LabelPadPx - statusWidth;
+            if (sx >= textX + textWidth + LabelPadPx) statusX = sx;
+        }
+        return new HeaderPlan(arrow, icon, textX, statusX);
+    }
+
+    /// <summary>The tracks to DRAW: in the given (tree) order, minus those hidden by a collapsed node — a collapsible header whose id is in <paramref name="collapsed"/> hides the tracks after it that are
+    /// DEEPER, up to the next track at its depth or shallower (siblings stay; a header-less track is depth 0, so it ends any collapse). No header anywhere ⇒ the very same list.</summary>
+    public static IReadOnlyList<ITimelineTrack> Visible(IReadOnlyList<ITimelineTrack> tracks, ICollection<string> collapsed)
+    {
+        if (collapsed.Count == 0) return tracks;
+        var list = new List<ITimelineTrack>(tracks.Count);
+        int hideBelow = int.MaxValue;   // while a collapsed node is open: its depth
+        foreach (var t in tracks)
+        {
+            int depth = t.Header?.Depth ?? 0;
+            if (hideBelow != int.MaxValue && depth > hideBelow) continue;
+            hideBelow = int.MaxValue;
+            list.Add(t);
+            if (t.Header is { Collapsible: true } && collapsed.Contains(t.Id)) hideBelow = depth;
+        }
+        return list;
+    }
+
+    // ── ⭐ CE-4167 RV-2 — an extent from the tracks ──────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>The shortest extent the tracks alone give (s): the view's own minimum span stays untouched.</summary>
+    public const double MinTrackExtentSeconds = 10.0;
+
+    /// <summary>
+    /// ⭐ RV-2 — with no recording the panel has no extent, so the TRACKS give one: <c>[min(0, every item's From), max(now, every item's To (else From))]</c> in sim seconds, at least
+    /// <see cref="MinTrackExtentSeconds"/> wide. Null when no track holds an item (nothing to draw). ⛔ Only used when the index has none — a recording keeps its own extent.
+    /// </summary>
+    public static (double From, double To)? ExtentOfTracks(IReadOnlyList<ITimelineTrack>? tracks, double nowSim)
+    {
+        if (tracks == null) return null;
+        double from = 0d, to = Math.Max(0d, nowSim);
+        bool any = false;
+        foreach (var t in tracks)
+            foreach (var it in t.Items)
+            {
+                any = true;
+                from = Math.Min(from, it.From);
+                to = Math.Max(to, it.To ?? it.From);
+                to = Math.Max(to, it.From);
+            }
+        if (!any) return null;
+        if (to - from < MinTrackExtentSeconds) to = from + MinTrackExtentSeconds;
+        return (from, to);
+    }
+
     /// <summary>Whether items can be placed on <paramref name="axis"/> at all (Sim: always; Wall: only with a map that has sim time).</summary>
     public static bool Drawable(TimelineAxis axis, ReplayTimeMap? map) => axis.IsSim || map is { HasSimTime: true };
 

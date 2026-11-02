@@ -21,7 +21,15 @@ namespace Fdp.Presentation.Panels.Timeline;
 /// </summary>
 public sealed class TimelinePanel
 {
-    private const float LabelWidth = 84f, RowHeight = 16f, OverviewHeight = 14f, RulerHeight = 18f, EdgeGrabPx = 4f;
+    /// <summary>⭐ CE-4167 X3 — the label column: <see cref="FlatLabelWidth"/> as ever, <see cref="TreeLabelWidth"/> while any shown track has a <see cref="TrackHeader"/> (a tree needs room).</summary>
+    private const float FlatLabelWidth = 84f, TreeLabelWidth = 240f;
+    private float _labelWidth = FlatLabelWidth;
+    /// <summary>⭐ CE-4167 RV-2 — the sim axis the TRACKS sit on while the extent comes from them (no recording, no wall time map); null otherwise.</summary>
+    private TimelineAxis? _rvAxis;
+    private static readonly Fdp.Core.FlightRecorder.ReplayTimeMap IdentitySimMap = Fdp.Core.FlightRecorder.ReplayTimeMap.FromFrames(
+        new[] { 0L, TimeSpan.TicksPerSecond }, new[] { 0d, 1d }, new Fdp.Core.FlightRecorder.FrameFlags[2]);
+    private readonly HashSet<string> _collapsed = new(StringComparer.Ordinal);
+    private const float RowHeight = 16f, OverviewHeight = 14f, RulerHeight = 18f, EdgeGrabPx = 4f;
 
     /// <summary>The presets 0…3 (§10b): the last 30 s, 2 min, 10 min, everything.</summary>
     private static readonly long[] Presets = { 30 * TimeSpan.TicksPerSecond, 120 * TimeSpan.TicksPerSecond, 600 * TimeSpan.TicksPerSecond, 0 };
@@ -130,10 +138,12 @@ public sealed class TimelinePanel
         if (_gesture.Active && ImGui.IsMouseReleased(ImGuiMouseButton.Left)) _gesture.Release();   // ⭐ CE-1364 T2 — commits once, wherever it is released (T10's lesson)
         _trackHits.Clear();
         _tracksNow = Tracks?.Invoke();
+        _labelWidth = TrackLayout.LabelWidthFor(_tracksNow, FlatLabelWidth, TreeLabelWidth);   // ⭐ CE-4167 X3
         // ⭐ CE-3330 T13 — everything below is on the ACTIVE axis: the index's frame times, the extent, "now" and every seek go through it
         var axis = cursor?.Axis ?? TimelineAxis.Wall;
         if (_axis != null && !ReferenceEquals(axis, _axis) && axis.IsSim != _axis.IsSim) Remap(_axis, axis);   // §10b: the same FRAMES stay in view
         _axis = axis;
+        _rvAxis = null;
         _timeMap = cursor?.TimeMap;
         if (cursor != null && axis.IsSim) cursor = new AxisCursor(cursor, axis);
         _livePoint = cursor?.LivePoint;
@@ -143,13 +153,25 @@ public sealed class TimelinePanel
         long to = cursor?.ExtentTo ?? (index.FrameTicks.Count > 0 ? index.FrameTicks[^1] : 0);
         if (to <= from)
         {
-            Plain(source == null ? "No recording." : "Indexing...", Dim);
-            return;
+            // ⭐ CE-4167 RV-2 — no recording, but TRACKS (a rules view in edit mode): their items give the extent, [min(0, From), max(now, To)], so they draw. The lanes keep their own rule (no index ⇒ none).
+            var ext = TrackLayout.ExtentOfTracks(_tracksNow, SimNow(cursor));
+            if (ext is { } e)
+            {
+                // the items are SIM seconds: a host with no recording has no time map to place them on the wall axis, so they sit on a plain sim axis (ticks = seconds) of their own
+                if (!TrackLayout.Drawable(axis, _timeMap)) _rvAxis = TimelineAxis.Sim(IdentitySimMap);
+                var tracksAxis = _rvAxis ?? axis;
+                from = TrackLayout.AxisTicks(e.From, tracksAxis, _timeMap) ?? 0; to = TrackLayout.AxisTicks(e.To, tracksAxis, _timeMap) ?? 0;
+            }
+            if (to <= from)
+            {
+                Plain(source == null ? "No recording." : "Indexing...", Dim);
+                return;
+            }
         }
         long spacing = TimelineLayout.FrameSpacing(index);
         if (spacing > 0) _view.MinSpan = spacing * TimelineView.MinSpanFrames;
         _view.OnExtent(from, to);   // ⭐ T1 — kept, not reset
-        long now = cursor?.Now ?? from;
+        long now = _rvAxis != null ? 0L : cursor?.Now ?? from;   // ⭐ CE-4167 RV-2: on the tracks' own sim axis the playhead is its sim zero (the host's wall ticks mean nothing there)
         _view.KeepInView(now, cursor?.IsPlaying ?? false);   // ⭐ T12
 
         if (source?.Error is { } error) Plain($"Index stopped at {source.Progress * 100f:0}%: {error}", new Vector4(1f, 0.5f, 0.4f, 1f));
@@ -157,14 +179,14 @@ public sealed class TimelinePanel
 
         var io = ImGui.GetIO();
         var dl = ImGui.GetWindowDrawList();
-        float width = Math.Max(10f, ImGui.GetContentRegionAvail().X - LabelWidth);
+        float width = Math.Max(10f, ImGui.GetContentRegionAvail().X - _labelWidth);
         bool focused = ImGui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows);
         if (ImGui.IsMouseReleased(ImGuiMouseButton.Left) && _drag != Drag.None) EndDrag(index, cursor);   // ⭐ T10 — wherever it is released
         _hoverX = -1f;
 
         var all = new string[lanes.Count];
         for (int i = 0; i < all.Length; i++) all[i] = lanes[i].Id;
-        float x0 = ImGui.GetCursorScreenPos().X + LabelWidth;
+        float x0 = ImGui.GetCursorScreenPos().X + _labelWidth;
         DrawOverview(dl, index, all, width, now);
         DrawRuler(dl, index, width, now, cursor);
 
@@ -174,7 +196,7 @@ public sealed class TimelinePanel
         var cdl = ImGui.GetWindowDrawList();
         float lanesTop = ImGui.GetCursorScreenPos().Y;
         if (_tracksNow != null)   // ⭐ CE-1364 T2 — the editable tracks, ABOVE the lanes
-            foreach (var track in _tracksNow) DrawTrack(cdl, track, index, width, cursor);
+            foreach (var track in TrackLayout.Visible(_tracksNow, _collapsed)) DrawTrack(cdl, track, index, width, cursor);   // ⭐ CE-4167 X3 — a collapsed node hides its deeper tracks
         foreach (var (group, members) in Groups(lanes))
         {
             bool open = !_groupOpen.TryGetValue(group, out var o) || o;
@@ -196,11 +218,21 @@ public sealed class TimelinePanel
         DrawMenu(index, cursor);
     }
 
+    /// <summary>⭐ CE-4167 RV-2 — the playhead as sim seconds (0 without a cursor or a way to place it).</summary>
+    private double SimNow(ITimelineCursor? cursor)
+        => cursor is null ? 0d : TrackLayout.SimSeconds(cursor.Now, _axis ?? TimelineAxis.Wall, _timeMap) ?? 0d;
+
+    /// <summary>⭐ CE-4167 X3 — is the tree node <paramref name="trackId"/> collapsed (its deeper tracks hidden)?</summary>
+    public bool IsCollapsed(string trackId) => _collapsed.Contains(trackId);
+
+    /// <summary>⭐ CE-4167 X3 — collapses / expands a tree node (the panel keeps the set by track id; a host may restore it).</summary>
+    public void SetCollapsed(string trackId, bool collapsed) { if (collapsed) _collapsed.Add(trackId); else _collapsed.Remove(trackId); }
+
     // ── the overview strip ────────────────────────────────────────────────────────────────────────────────────
 
     private void DrawOverview(ImDrawListPtr dl, TimelineIndex index, string[] allLanes, float width, long now)
     {
-        ImGui.Dummy(new Vector2(LabelWidth, OverviewHeight));
+        ImGui.Dummy(new Vector2(_labelWidth, OverviewHeight));
         ImGui.SameLine(0, 0);
         var p = ImGui.GetCursorScreenPos();
         ImGui.InvisibleButton("##tl-overview", new Vector2(width, OverviewHeight));
@@ -245,7 +277,7 @@ public sealed class TimelinePanel
 
     private void DrawRuler(ImDrawListPtr dl, TimelineIndex index, float width, long now, ITimelineCursor? cursor)
     {
-        ImGui.Dummy(new Vector2(LabelWidth, RulerHeight));
+        ImGui.Dummy(new Vector2(_labelWidth, RulerHeight));
         ImGui.SameLine(0, 0);
         var p = ImGui.GetCursorScreenPos();
         ImGui.InvisibleButton("##tl-ruler", new Vector2(width, RulerHeight), ImGuiButtonFlags.MouseButtonLeft | ImGuiButtonFlags.MouseButtonRight);
@@ -351,9 +383,9 @@ public sealed class TimelinePanel
         if (label.Length > 0)
         {
             Plain(label, ImGui.ColorConvertU32ToFloat4(ColorOf(lanes[0])));
-            ImGui.SameLine(LabelWidth);
+            ImGui.SameLine(_labelWidth);
         }
-        else ImGui.SameLine(LabelWidth);
+        else ImGui.SameLine(_labelWidth);
         var p = ImGui.GetCursorScreenPos();
         ImGui.InvisibleButton("##tl-row" + string.Join("-", lanes), new Vector2(width, RowHeight),
             ImGuiButtonFlags.MouseButtonLeft | ImGuiButtonFlags.MouseButtonRight | ImGuiButtonFlags.MouseButtonMiddle);
@@ -414,14 +446,15 @@ public sealed class TimelinePanel
 
     private void DrawTrack(ImDrawListPtr dl, ITimelineTrack track, TimelineIndex index, float width, ITimelineCursor? cursor)
     {
-        Plain(track.Label, Dim);
-        ImGui.SameLine(LabelWidth);
+        if (track.Header is { } header) DrawHeader(dl, track, header);
+        else Plain(track.Label, Dim);
+        ImGui.SameLine(_labelWidth);
         var p = ImGui.GetCursorScreenPos();
         ImGui.InvisibleButton("##tl-track" + track.Id, new Vector2(width, RowHeight), ImGuiButtonFlags.MouseButtonLeft | ImGuiButtonFlags.MouseButtonRight);
         bool hovered = ImGui.IsItemHovered();
         dl.AddRectFilled(p, p + new Vector2(width, RowHeight), 0x28FFB060);
         var w = _view.Window;
-        var axis = _axis ?? TimelineAxis.Wall;
+        var axis = _rvAxis ?? _axis ?? TimelineAxis.Wall;   // ⭐ CE-4167 RV-2: the tracks' own sim axis while the extent comes from them
         var map = axis.Map ?? _timeMap;
         bool drawable = TrackLayout.Drawable(axis, map);
         var items = track.Items;
@@ -431,22 +464,31 @@ public sealed class TimelinePanel
             if (TrackLayout.SpanOf(it, w, width, axis, map) is not { } s) continue;
             float cy = p.Y + RowHeight / 2;
             uint col = it.Selected ? 0xFFFFFFFF : it.Colour ?? TrackKeyColour;
+            var look = TrackLayout.DrawOf(it, Math.Max(s.X1, s.X0 + 2f) - s.X0);   // ⭐ CE-4167 X2 — Solid is exactly the drawing below
             if (it.Kind == TimelineTrackItemKind.Segment)
             {
                 var a = new Vector2(p.X + s.X0, p.Y + 2);
                 var b = new Vector2(p.X + Math.Max(s.X1, s.X0 + 2f), p.Y + RowHeight - 2);
-                dl.AddRectFilled(a, b, TrackSegmentColour);
-                dl.AddRect(a, b, it.Selected ? 0xFFFFFFFF : 0xFFC09050);
-                if (b.X - a.X >= 6f)   // CE-1364: the two edge handles
+                uint edge = it.Selected ? 0xFFFFFFFF : it.Colour ?? 0xFFC09050;
+                if (look.Fill) dl.AddRectFilled(a, b, TrackSegmentColour);
+                if (look.Dashed) DashedRect(dl, a, b, edge);
+                else dl.AddRect(a, b, it.Selected ? 0xFFFFFFFF : 0xFFC09050);
+                if (look.Hatch)
+                    foreach (var (hx0, hy0, hx1, hy1) in TrackLayout.HatchLines(b.X - a.X, b.Y - a.Y))
+                        dl.AddLine(a + new Vector2(hx0, hy0), a + new Vector2(hx1, hy1), edge);
+                if (look.Handles)   // CE-1364: the two edge handles
                 {
                     dl.AddRectFilled(a, new Vector2(a.X + 3f, b.Y), 0xFFE0B070);
                     dl.AddRectFilled(new Vector2(b.X - 3f, a.Y), b, 0xFFE0B070);
                 }
+                if (look.Diamond) DrawKeyDiamond(dl, new Vector2(p.X + s.X0, cy), col, hollow: false);
+                if (look.Tick) dl.AddLine(new Vector2(p.X + s.X0, p.Y), new Vector2(p.X + s.X0, p.Y + RowHeight), col);
             }
             else
             {
                 var c = new Vector2(p.X + s.X0, cy);
-                dl.AddQuadFilled(c + new Vector2(0, -5), c + new Vector2(5, 0), c + new Vector2(0, 5), c + new Vector2(-5, 0), col);
+                DrawKeyDiamond(dl, c, col, look.HollowDiamond);
+                if (look.Tick) dl.AddLine(new Vector2(c.X, p.Y), new Vector2(c.X, p.Y + RowHeight), col);
             }
             _trackHits.Add(new TrackItemHit(track.Id, it.Id, p.X + s.X0 + (it.Kind == TimelineTrackItemKind.Segment ? 2f : 0f), cy));
         }
@@ -484,6 +526,38 @@ public sealed class TimelinePanel
             _trackMenu.AddRange(track.MenuItems(hit >= 0 ? items[hit].Id : null, TrackLayout.SimAtX(mx, w, width, axis, map) ?? 0d));
             OpenMenu(index, cursor, null, w.TicksAt(mx, width), null, _trackMenu);
         }
+    }
+
+    private static void DrawKeyDiamond(ImDrawListPtr dl, Vector2 c, uint col, bool hollow)
+    {
+        var top = c + new Vector2(0, -5); var right = c + new Vector2(5, 0); var bottom = c + new Vector2(0, 5); var left = c + new Vector2(-5, 0);
+        if (!hollow) { dl.AddQuadFilled(top, right, bottom, left, col); return; }
+        dl.AddLine(top, right, col); dl.AddLine(right, bottom, col); dl.AddLine(bottom, left, col); dl.AddLine(left, top, col);   // ⭐ X2 Expected: an outline, nothing inside
+    }
+
+    private static void DashedRect(ImDrawListPtr dl, Vector2 a, Vector2 b, uint col)
+    {
+        foreach (var (x0, x1) in TrackLayout.Dashes(a.X, b.X)) { dl.AddLine(new Vector2(x0, a.Y), new Vector2(x1, a.Y), col); dl.AddLine(new Vector2(x0, b.Y), new Vector2(x1, b.Y), col); }
+        foreach (var (y0, y1) in TrackLayout.Dashes(a.Y, b.Y)) { dl.AddLine(new Vector2(a.X, y0), new Vector2(a.X, y1), col); dl.AddLine(new Vector2(b.X, y0), new Vector2(b.X, y1), col); }
+    }
+
+    /// <summary>⭐ CE-4167 X3 — a tree row's label column: indent by depth, the expand arrow (a click toggles the node), the icon, the text and the status right-aligned in its colour.</summary>
+    private void DrawHeader(ImDrawListPtr dl, ITimelineTrack track, TrackHeader h)
+    {
+        var o = ImGui.GetCursorScreenPos();
+        ImGui.Dummy(new Vector2(_labelWidth, RowHeight));
+        bool collapsed = _collapsed.Contains(track.Id);
+        var plan = TrackLayout.PlanHeader(h, _labelWidth, ImGui.CalcTextSize(h.Text).X, h.Status is { Length: > 0 } st ? ImGui.CalcTextSize(st).X : 0f);
+        float ty = o.Y + (RowHeight - ImGui.GetTextLineHeight()) / 2f;
+        dl.PushClipRect(o, o + new Vector2(_labelWidth, RowHeight), true);
+        if (plan.ArrowX is { } ax) dl.AddText(new Vector2(o.X + ax, ty), 0xFFC0C0C0, collapsed ? ">" : "v");
+        if (plan.IconX is { } ix && h.Icon != null) dl.AddText(new Vector2(o.X + ix, ty), 0xFFE0C080, h.Icon);
+        dl.AddText(new Vector2(o.X + plan.TextX, ty), 0xFFA0A0A0, h.Text);
+        if (plan.StatusX is { } sx && h.Status != null) dl.AddText(new Vector2(o.X + sx, ty), h.StatusColour ?? 0xFFA0A0A0, h.Status);
+        dl.PopClipRect();
+        if (h.Collapsible && ImGui.IsWindowHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left)
+            && ImGui.GetIO().MousePos is var m && m.X >= o.X && m.X < o.X + _labelWidth && m.Y >= o.Y && m.Y < o.Y + RowHeight)
+            SetCollapsed(track.Id, !collapsed);
     }
 
     // ── what is drawn over the lanes ─────────────────────────────────────────────────────────────────────────

@@ -63,6 +63,21 @@ public sealed class DirectorTracksTests : IDisposable
 
     /// <summary>A committed Move changes the key's time in the TAKE, and Save writes it (v2: <c>keys[]</c>) — the file says the new time.
     /// 🔴 Mutation: <c>TakeEditor.Retimed</c> keeping the old time ⇒ both the take and the file assertions fail.</summary>
+    /// <summary>⭐ CE-4167 (X2 / X3) — every new panel member defaults OFF on the director's tracks: no header, every item Solid ⇒ the panel draws them as it always did.</summary>
+    [Fact]
+    public void CE4167_TheDirectorsTracks_KeepTheNewMembersAtTheirDefaults()
+    {
+        Write("main", V2);
+        var (_, tracks, _) = Open("main");
+        Assert.NotEmpty(tracks.Tracks);
+        foreach (var track in tracks.Tracks)
+        {
+            Assert.Null(track.Header);
+            Assert.All(track.Items, i => Assert.Equal(Fdp.Presentation.Panels.Timeline.TimelineTrackItemStyle.Solid, i.Style));
+        }
+        Assert.Equal(84f, Fdp.Presentation.Panels.Timeline.TrackLayout.LabelWidthFor(tracks.Tracks, 84f, 240f));   // the flat label column stays
+    }
+
     [Fact]
     public void CE1364_T3_ACommittedMove_ChangesTheKeysTime_AndSaveWritesIt()
     {
