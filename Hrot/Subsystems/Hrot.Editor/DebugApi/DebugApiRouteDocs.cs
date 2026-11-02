@@ -2828,6 +2828,21 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{}",
             ExampleGist: "how is the squad doing against its objectives"),
 
+        [("POST", "/objectives/{networkId}/control")] = new RouteDoc(
+            Tool:    "control_objective",
+            Group:   "L — Mutation / fault injection",
+            Summary: "Ask a rule entity (a trigger or an objective) to do something NOW (rules V-4): fire · disarm · rearm · reset · activate · deactivate. Written through the attribute write path — applied here when this node owns the entity, a change-request to the owner otherwise; the owner honours each new request once and journals it (\"Disarm by DebugApi\").",
+            Returns: "{ networkId, request, seq, route:'direct'|'requested' } — 'requested' acts after the owner's next tick; read GET /objectives (triggerState, state) to see the effect",
+            Hint:    "Req: networkId (path), request (string: Fire, Disarm, Rearm, Reset, Activate, Deactivate). Example: control_objective({networkId:12, request:'Disarm'})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID of the trigger / objective (see GET /objectives)"),
+                new("request", "string", true, "Fire (a trigger runs its do list now) · Disarm / Deactivate (switch it off) · Rearm (armed again, no edge while the condition stays true) · Reset (restart, even a finished one) · Activate (switch it on)"),
+            },
+            Notes: new[] { "Fire / Rearm are a trigger's; the others work on any objective (SR-114 rules: a final one needs Reset; a closed one takes nothing — the entity's reason says why)." },
+            ExampleArgsJson: "{\"networkId\":12,\"request\":\"Disarm\"}",
+            ExampleGist: "switch the trigger off"),
+
         [("GET", "/entities/{networkId}/squad")] = new RouteDoc(
             Tool:    "get_entity_squad",
             Group:   "K — AI behavior traces",

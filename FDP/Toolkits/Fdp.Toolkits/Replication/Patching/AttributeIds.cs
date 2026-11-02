@@ -138,4 +138,16 @@ public static class AttributeIds
 
     /// <summary>⭐ <c>CivilianState.FrightFrom.Z</c>. See <see cref="CivilianFrightFromX"/>.</summary>
     public const ushort CivilianFrightFromZ = 33;
+
+    // ── rules V-4 (docs/DESIGN_Scenario_Rules.md §00.10) — runtime control of a rule entity (an instructor / an agent: fire · disarm · rearm · reset · activate · deactivate) ──
+    // ⭐ Brain-local, never replicated: the request is APPLIED on the node that owns the rule entity (a write elsewhere becomes the router's change-request).
+
+    /// <summary>⭐ <c>RuleControl.Request</c> — a <c>RuleRequest</c> value. Value type: <c>Int32</c>.</summary>
+    public const ushort RuleRequest = 40;
+
+    /// <summary>⭐ <c>RuleControl.Seq</c> — the request's sequence number; the owner acts ONCE per new value. <c>Int32</c>.</summary>
+    public const ushort RuleSeq = 41;
+
+    /// <summary>⭐ <c>RuleControl.Origin</c> — who asked (<c>RuleOrigin</c>: 1 debug API, 2 instructor), for the journal. <c>Int32</c>.</summary>
+    public const ushort RuleOrigin = 42;
 }

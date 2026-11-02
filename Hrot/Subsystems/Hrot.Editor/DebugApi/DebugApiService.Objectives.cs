@@ -16,6 +16,35 @@ namespace Hrot.Editor.DebugApi
     {
         private sealed record ObjRow(int NetId, Entity Entity);
 
+        private int _ruleSeq = (int)(System.DateTime.UtcNow.Ticks / 10000 & 0x3FFFFFFF);
+
+        /// <summary>
+        /// ⭐ rules V-4 (§00.10) — <c>POST /objectives/{networkId}/control {"request":"Disarm"}</c>: writes the rule entity's <see cref="RuleControl"/> (<c>Rule.Request</c> / <c>Rule.Seq</c> /
+        /// <c>Rule.Origin</c>, ONE change list) through <see cref="Fdp.Toolkit.Replication.Attributes.EntityWriteRouter"/> — applied here when this node owns the entity, a change-request to
+        /// the owner otherwise (the instructor's UI uses the same path). <c>Seq</c> = the last one seen here + 1 (a node that holds no <see cref="RuleControl"/> keeps its own counter: the owner
+        /// acts on any Seq it has not yet seen). The answer says how it was routed (<c>direct</c> / <c>requested</c>); a <c>requested</c> one acts after the owner's next tick.
+        /// </summary>
+        public (JsonNode? result, string? error) ControlObjective(int networkId, string? request)
+        {
+            if (!_entityMap.TryGetEntity(networkId, out var entity) || !_world.IsAlive(entity))
+                return (null, $"Entity {networkId} not found. List the rule entities with GET /objectives.");
+            if (!System.Enum.TryParse<RuleRequest>(request, ignoreCase: true, out var what) || what == RuleRequest.NoRequest || !System.Enum.IsDefined(what))
+                return (null, $"'request' must be one of: {string.Join(", ", System.Enum.GetNames<RuleRequest>().Skip(1))}.");
+            int seq = _world.IsComponentTypeRegistered<RuleControl>() && _world.HasComponent<RuleControl>(entity)
+                ? _world.GetComponentRO<RuleControl>(entity).Seq : _ruleSeq;
+            seq = seq == int.MaxValue ? 1 : seq + 1;
+            _ruleSeq = seq;
+            var route = Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(_world).Write(entity, new[]
+            {
+                Fdp.Toolkit.Replication.Patching.EntityAttributeChange.Double(Fdp.Toolkit.Replication.Patching.AttributeIds.RuleRequest, (int)what),
+                Fdp.Toolkit.Replication.Patching.EntityAttributeChange.Double(Fdp.Toolkit.Replication.Patching.AttributeIds.RuleOrigin, (int)RuleOrigin.DebugApi),
+                Fdp.Toolkit.Replication.Patching.EntityAttributeChange.Double(Fdp.Toolkit.Replication.Patching.AttributeIds.RuleSeq, seq),
+            });
+            if (route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused)
+                return (null, $"Entity {networkId}: nothing was written (this node has no way to ask the owner). Nothing was requested.");
+            return (new JsonObject { ["networkId"] = networkId, ["request"] = what.ToString(), ["seq"] = seq, ["route"] = route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct ? "direct" : "requested" }, null);
+        }
+
         /// <summary><c>GET /objectives[?tree=1]</c>.</summary>
         public JsonNode GetObjectives(bool tree = false)
         {

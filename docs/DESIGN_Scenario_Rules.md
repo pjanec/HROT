@@ -467,6 +467,16 @@ HoldFor/Delay/Cooldown/Deadline into the status every tick and sets `ExpectedAt`
 at once. **Route:** `GET /objectives` rows carry `dependsOn`, `actsOn`, `timing{holdFor,delay,cooldown,deadline,expectedAt}`. Rails: `ScenarioRulesTests.ViewData` (links, ExpectedAt while Waiting, objective deadline),
 `ObjectiveStatusWireTests` (full round trip + a second world's ingress + ExpectedAt at once), `TheObjectivesRouteShowsTheTreeTests`.
 
+⭐ **AS BUILT — V-4 (task 15, `2026-11-02`).** `RuleControl` (**430**, `Fdp.Toolkit.ScenarioRules/RuleControl.cs`, NoScenario, **brain-local — no descriptor**): `byte Request` (`RuleRequest`: NoRequest · Fire · Disarm · Rearm · Reset · Activate · Deactivate —
+⚠ `NoRequest`, not `None`: the assembly's enums share one IDL scope) · `byte Origin` (`RuleOrigin`: Unknown · DebugApi · Instructor) · `int Seq` · `int Done` (the last Seq the owner acted on; written by the owner only). ⚠ Two fields beyond the brief: `Origin`
+(the journal text needs it) and `Done` (the once-per-Seq memory). **Attribute path:** three attributes — `Rule.Request` (id 40) · `Rule.Seq` (41) · `Rule.Origin` (42) — declared in `AttributeVocabulary` with `BrainLocal: true` (the precedent: CE-4024's `CivilianState`
+fright, so `TheDescriptorMapIsWiredTests` needs no translator), JSON paths in `AttributeCompilerFactory.Build`, binary arm `RuleControlAttributeInstaller` (typed `RegisterHandler<RuleControl>` ⇒ gated on the owner's authority bit). **Atomic** by the router's list write: all three go in ONE
+`Write(entity, changes)` ⇒ ONE change-request, so the owner never sees a Seq without its Request. **Who may apply:** `ObjectiveHost.Enter` adds `RuleControl` to the entity AND sets its authority bit on the OWNER (the node whose Brain ticks it); a replica has neither, so the router's local attempt applies nothing and it publishes the request
+(rail `OnANodeThatDoesNotOwnTheRule…` applies the published changes through the owner's interpreter). **Honoured once:** `ObjectiveHost.HonourControl` acts on a `Seq` ≠ `Done` — Activate / Deactivate / Disarm / Reset through `ObjectiveRules.SetActive` (the ONE SR-114 implementation, shared with `SetObjectiveActive`); `Fire` / `Rearm`
+come back in `Frame.Control` for `TriggerBehavior.Control` (Fire = `StartActing` now, skipping holdFor / delay, only from Armed / Holding / Waiting / Cooldown; Rearm = Armed with `Prev` = the condition as it is now, no edge; a final one refuses — it needs a Reset). A refusal writes the entity's `Reason`.
+**Journal:** new `BrainJournalKind.RuleControl` (A = request, B = Seq, Origin, Cause 1 = refused), text "Disarm by Instructor" (`EntityBrainView`). **Route:** `POST /objectives/{networkId}/control {"request":"Disarm"}` → `DebugApiService.ControlObjective` (Seq = the last seen here + 1, or a node-local counter on a replica; answers `route: direct | requested`); RouteDoc `control_objective`,
+listed in `WorldChangingRoutes`, tool catalog + SKILL regenerated. Rails: `ScenarioRulesTests.Control` (fire · disarm→rearm · reset · same Seq once + journal · non-owner request), `TheObjectivesRouteShowsTheTreeTests` (owner direct, replica requested), `TheFourRoutingTablesAgreeTests` (the three rows).
+
 ```mermaid
 classDiagram
     direction LR

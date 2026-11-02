@@ -24,6 +24,7 @@ public sealed class TheObjectivesRouteShowsTheTreeTests : IDisposable
         _world.RegisterComponent<NetworkIdentity>();
         _world.RegisterComponent<ObjectiveStatus>();
         _world.RegisterComponent<ObjectiveLinks>();
+        _world.RegisterComponent<RuleControl>();
         _svc = new DebugApiService(new PerspectiveScopedDispatcher(
             new ISubsystemDebugProvider[] { new SubsystemDebugProvider("CGF", "Scenario", world: () => _world, entityMap: () => _map) },
             currentPerspective: () => "Scenario", acksPending: null));
@@ -111,5 +112,38 @@ public sealed class TheObjectivesRouteShowsTheTreeTests : IDisposable
         Assert.Equal(new[] { 9 }, row["actsOn"]!.AsArray().Select(n => n!.GetValue<int>()));
         var t = row["timing"]!;
         Assert.Equal((1.5f, 2f, 3f, 60f, 12.5), ((float)t["holdFor"]!, (float)t["delay"]!, (float)t["cooldown"]!, (float)t["deadline"]!, (double)t["expectedAt"]!));
+    }
+
+    /// <summary>⭐ rules V-4 — <c>POST /objectives/{id}/control</c> writes <c>RuleControl</c> through the attribute write path: on the owner (the component and its authority bit are here) it lands directly, with
+    /// <c>Seq</c> = the last + 1 and the debug API as the origin; a bad request name is refused. ✅ Red-proof: the route not writing <c>Rule.Request</c> ⇒ red.</summary>
+    [Fact]
+    public void TheControlRoute_WritesRuleControlThroughTheRouter_OnTheOwner()
+    {
+        Add(40, "T", "Trigger", ObjectiveState.Active);
+        var e = _map.TryGetEntity(40, out var en) ? en : default;
+        _world.AddComponent(e, new RuleControl { Seq = 4, Done = 4 });
+        _world.SetAuthority(e, ComponentTypeRegistry.GetOrRegisterManaged(typeof(RuleControl)), true);
+
+        var (ok, err) = _svc.ControlObjective(40, "Disarm");
+        Assert.Null(err);
+        Assert.Equal(("direct", 5), ((string)ok!["route"]!, (int)ok["seq"]!));
+        var rc = _world.GetComponentRO<RuleControl>(e);
+        Assert.Equal(((byte)RuleRequest.Disarm, 5, (byte)RuleOrigin.DebugApi), (rc.Request, rc.Seq, rc.Origin));
+        Assert.Equal(4, rc.Done);                                          // honoured by the owner's next tick, not here
+
+        Assert.NotNull(_svc.ControlObjective(40, "Explode").error);
+        Assert.NotNull(_svc.ControlObjective(999, "Fire").error);
+    }
+
+    /// <summary>⭐ rules V-4 — on a node that holds only a replica (no <c>RuleControl</c>) the same route answers <c>requested</c> — a change-request for the owner, nothing applied here.</summary>
+    [Fact]
+    public void TheControlRoute_OnAReplica_IsAChangeRequest()
+    {
+        Add(41, "T", "Trigger", ObjectiveState.Active);
+        var (ok, err) = _svc.ControlObjective(41, "Fire");
+        Assert.Null(err);
+        Assert.Equal("requested", (string)ok!["route"]!);
+        var e = _map.TryGetEntity(41, out var en) ? en : default;
+        Assert.False(_world.HasComponent<RuleControl>(e));
     }
 }

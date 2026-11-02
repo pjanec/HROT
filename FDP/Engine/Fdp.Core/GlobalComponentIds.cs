@@ -1098,6 +1098,11 @@ namespace Fdp.Core
         /// reason; <c>NodeStatus</c> carries none). Brain-local, NoScenario. Behaviors' block 418–433 (R-2056).</summary>
         public const int ActionFailure = 429;
 
+        /// <summary>⭐ rules V-4 (behaviors; 📄 docs/DESIGN_Scenario_Rules.md §00.10) — <c>RuleControl</c>: a runtime request to a rule entity (fire · disarm · rearm · reset ·
+        /// activate · deactivate), written through the attribute path (<c>Rule.Request</c> / <c>Rule.Seq</c> / <c>Rule.Origin</c>) and honoured ONCE per new Seq by the owner's
+        /// <c>ObjectiveHost.Enter</c>. Brain-local, NoScenario. Behaviors' block 418–433 (R-2056).</summary>
+        public const int RuleControl = 430;
+
         /// <summary>⭐ <c>CE-3264</c> (backend, G1) — <c>Utterance</c>: what a man is saying now, Brain group, replicated as <c>dtUtterance</c>
         /// (152). 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.18. ⭐ From the TOP of backend's proposed block 434–449
         /// (NOTE_Backend_To_All_Lanes_Component_Id_Space.md), not the contested sequential top; measured free on every lane 2026-10-19.</summary>

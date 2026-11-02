@@ -66,6 +66,10 @@ public class TheFourRoutingTablesAgreeTests
         ("FrightFrom.X", AttributeIds.CivilianFrightFromX, "{\"FrightFrom\":{\"X\":10.0}}"),
         ("FrightFrom.Y", AttributeIds.CivilianFrightFromY, "{\"FrightFrom\":{\"Y\":20.0}}"),
         ("FrightFrom.Z", AttributeIds.CivilianFrightFromZ, "{\"FrightFrom\":{\"Z\":1.0}}"),
+        // ⭐ rules V-4 (§00.10) — a rule entity's runtime control
+        ("Rule.Request", AttributeIds.RuleRequest,         "{\"Rule\":{\"Request\":2}}"),
+        ("Rule.Seq",     AttributeIds.RuleSeq,             "{\"Rule\":{\"Seq\":1}}"),
+        ("Rule.Origin",  AttributeIds.RuleOrigin,          "{\"Rule\":{\"Origin\":1}}"),
     };
 
     public static IEnumerable<object[]> VocabularyCases()
@@ -102,7 +106,7 @@ public class TheFourRoutingTablesAgreeTests
         const string all = "{\"Name\":\"Charlie\",\"Affiliation\":\"FORCE_OPPOSING\",\"Heading\":90.0," +
                            "\"Position\":{\"X\":32.0,\"Y\":34.0,\"Z\":100.0}," +
                            "\"ScenarioStartUtcTicks\":638450000000000000,\"ScenarioUtcOffsetMinutes\":120," +
-                           "\"Fear\":1.0,\"FrightFrom\":{\"X\":10.0,\"Y\":20.0,\"Z\":1.0}}";
+                           "\"Fear\":1.0,\"FrightFrom\":{\"X\":10.0,\"Y\":20.0,\"Z\":1.0},\"Rule\":{\"Request\":2,\"Seq\":1,\"Origin\":1}}";
 
         var emitter = Emit(AttributeCompilerFactory.BuildEdgeCompiler(), all);
 
@@ -419,6 +423,8 @@ public class TheFourRoutingTablesAgreeTests
         repo.SetAuthority<SimTransform>(e, true);
         repo.SetAuthority<Fdp.Toolkit.Weather.ScenarioClock>(e, true);
         repo.SetAuthority<Fdp.Toolkit.Civilians.CivilianState>(e, true);
+        repo.AddComponent(e, default(Fdp.Toolkit.ScenarioRules.RuleControl));   // ⭐ rules V-4 — the control's three attributes
+        repo.SetAuthority<Fdp.Toolkit.ScenarioRules.RuleControl>(e, true);
         return (repo, e);
     }
 

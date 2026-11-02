@@ -167,6 +167,11 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 var items = ((ISimulationView)world).GetManagedComponentRO<ActionArgs>(self).Items;
                 ComputeLinks(ref b, world, items[WhenItem], items[DoItem]);
             }
+            if (f.Control != RuleRequest.NoRequest)
+            {
+                Control(ref b, ref s, f.Control, self, world, now);   // ⭐ V-4: Fire / Rearm
+                s = ref world.GetComponentRW<ObjectiveStatus>(self);  // ⚠ re-acquire: the actions may have added components
+            }
             if (f.Reset)   // SR-114: a reset re-arms it from scratch
             {
                 b.Phase = TriggerState.Disarmed; b.Prev = 0; b.PrevKnown = 0; b.List = default;
@@ -188,6 +193,30 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             s.TriggerState = b.Phase;
             WriteViewData(ref b, ref s);
             return NodeStatus.Running;
+        }
+
+        /// <summary>
+        /// ⭐ V-4 — an instructor's <c>Fire</c> (the actions run NOW, as if the edge rose: holdFor and delay skipped; only an armed / holding / waiting / cooling-down trigger) or
+        /// <c>Rearm</c> (Armed again, the condition as it is NOW counted as already seen — no edge, so no firing while it stays true; a final one needs a Reset). The
+        /// other requests (activate / disarm / reset) were applied by <see cref="ObjectiveHost"/>.
+        /// </summary>
+        private static void Control(ref Block b, ref ObjectiveStatus s, RuleRequest request, Entity self, EntityRepository world, double now)
+        {
+            if (s.Closed != 0 || s.IsFinal) { s.Reason = new FixedString64($"{request} refused: it is {s.State}"); return; }
+            if (request == RuleRequest.Fire)
+            {
+                if (s.State != ObjectiveState.Active || b.Phase is TriggerState.Disarmed or TriggerState.Acting or TriggerState.Fired or TriggerState.Done)
+                { s.Reason = new FixedString64($"Fire refused: {(s.State != ObjectiveState.Active ? "it is switched off" : b.Phase.ToString())}"); return; }
+                b.EdgeAt = now;
+                StartActing(ref b, ref s, self, world, now);
+                return;
+            }
+            // Rearm
+            if (b.Phase == TriggerState.Acting) { s.Reason = new FixedString64("Rearm refused: it is acting"); return; }
+            if (s.State != ObjectiveState.Active) ObjectiveRules.SetActive(ref s, true, false, now);
+            b.Prev = (byte)(TriggerWhen.Get(((ISimulationView)world).GetManagedComponentRO<ActionArgs>(self).Items[WhenItem])(world, self) ? 1 : 0);
+            b.PrevKnown = 1;
+            if (b.Phase != TriggerState.Armed) Go(ref b, ref s, TriggerState.Armed, "re-armed by request", now);
         }
 
         /// <summary>⭐ V-1 / V-2 — the rule's links and timing onto the status (the owner writes them every tick; the wire sends a change once). ExpectedAt: Waiting ⇒ the delay's end ·
