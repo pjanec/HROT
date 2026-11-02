@@ -17,11 +17,13 @@ namespace Hrot.Network.Routing
     public interface IClusterStateCache
     {
         /// <summary>
-        /// Returns the node ID of the preferred active node (no load is measured today: the lowest node id) that carries
-        /// <paramref name="requiredRole"/>, or <c>null</c> if no such node is currently known.
+        /// ⭐ The node a ROLE's work goes to: the LOWEST node id among the currently-known nodes that carry <paramref name="requiredRole"/>, or
+        /// <c>null</c> when none is known. ⭐ This is the CONTRACT, not a placeholder: deterministic (every caller on every node picks the same
+        /// node from the same membership). ⚠ It is not a load balance — no load is measured (<c>CE-4075</c> dropped the heartbeat's
+        /// <c>CpuUsage</c>, always 0) — which is why it is no longer called <c>GetLeastLoadedNode</c> (renamed, user <c>2026-11-02</c>).
         /// </summary>
         /// <param name="requiredRole">The capability role the target node must fulfil.</param>
-        int? GetLeastLoadedNode(NodeRole requiredRole);
+        int? PickNodeForRole(NodeRole requiredRole);
 
         /// <summary>
         /// The node ids of every currently-known present node (a point-in-time snapshot).

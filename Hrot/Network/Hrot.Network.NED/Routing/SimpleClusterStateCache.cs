@@ -57,7 +57,7 @@ namespace Hrot.Network.Routing
         }
 
         /// <inheritdoc/>
-        public int? GetLeastLoadedNode(NodeRole requiredRole)
+        public int? PickNodeForRole(NodeRole requiredRole)
         {
             lock (_lock)
             {

@@ -1021,3 +1021,76 @@ land on each other.
 | A6 | a child's placement layer and radius come from its TKB template: `LocomotionDto.Class` (Pedestrian ⇒ infantry · Wheeled/Tracked ⇒ vehicle · Surface ⇒ amphibious · Rotorcraft/FixedWing ⇒ air), radius half of max(Length, Width) from `VehicleParametersDto`; no template ⇒ the DIS-type rule of §15.2 | `MacroExpansionSystem.LayerOf` (the pack passes `ctx.TkbDb`) | — |
 | 📌 LIVE `2026-11-02` (`--mode all`, `test-macro-two-teams`) | Team East moved (60,100) → (100,60): the solver re-placed its four men through their owner (leader at the new anchor, riflemen around it) · checkpoint `macro-b` → restore (every node resumed) → both instances `Done` with a baseline → Team Turned moved (60,140) → (140,140): reconciled, its men followed · no error in the log | — | ⚠ found: `POST /entities/{id}/component` on `MacroInstance` with `{"Args":{…}}` answers `ok` and changes nothing (the dictionary is not reached by the StructEdit patch) — args are edited through the editor's own surface (ui, S3b) |
 | A7 | `EveryEcsHostComposesTheLoadPhaseChainRails` ×2 were red because CE-1446 moved CGF's and the editor's node build into `CgfNodeBootstrapper` / `EditorNodeBootstrapper` (→ the shared `NodeBootstrapper`); four more source rails read the same stale files | `CompositionRootSource.ReadEffectiveRoot` — ONE follower of a root's delegation, used by the load-phase, cluster-handler, translator-set and live-plan rails | production was right; the rails were reading the wrong file |
+
+## 16. S3b build design — `InsertMacro` at runtime *(backend, `2026-11-02` — `HANDOFF_Coordinator_To_Backend_Macros_Debt_And_S3b.md` Part B, released by `NOTE_Coordinator_To_Backend_Start_S3b.md`)*
+
+**INVENTORY** *(graph + grep, `2026-11-02`)*: `search_graph name_pattern=".*(PointLink|Bearing|EntityLink)$"` → 1 (ImGui only; the structs are found by grep:
+`Replication/Links.cs`, `World/Bearing.cs`) · runtime creation-request producers (grep `new EntityCreationRequest`, production): 8 — `OneManCommand` is the
+behaviour-side precedent · the action machinery: `ActionCatalogue`, `StepRunner` (seeds params by `BehaviorParams.OverlayFlat`, resolves `"@Key"` links at step
+start), `ActionList.ExtractParams` (a step's nested `"params"` → `ActionArgs.Items[ArgsRef]` — `Order` uses it), `ActionFailure` (the reason channel) ·
+the creation path already expands any request carrying a `MacroInstance` (`CreateEntityRequestSystem` §3.7) · live-world ref scopes: **3** — see §16.3.
+
+```mermaid
+classDiagram
+    direction LR
+    class MacroVerbs { <<NEW, Hrot.AI.Behaviors>> InsertMacro(ref InsertMacroParams, ref InsertMacroState, self, world) NodeStatus }
+    class InsertMacroParams { <<NEW, unmanaged>> FixedString64 Macro · PointLink At · Bearing Heading · int ArgsRef }
+    class InsertMacroState { <<NEW, unmanaged>> Began · GuidLo/GuidHi · AskedAt }
+    class ActionList { <<existing, behaviors>> ExtractParams: step "params" → ArgsRef }
+    class ActionArgs { <<existing>> Items }
+    class StepRunner { <<existing>> seeds params · resolves @Key }
+    class EntityCreationRequest { <<existing>> }
+    class CreateEntityRequestSystem { <<existing>> MacroInstance ⇒ Expanding + intent }
+    class MacroExpansionSystem { <<existing>> expands, writes MacroExpansionStatus }
+    class MacroExpansionStatus { <<existing, replicated dt 159>> State · Reason }
+    StepRunner --> MacroVerbs : ticks the step
+    ActionList ..> ActionArgs : lifts params
+    MacroVerbs ..> ActionArgs : reads Items[ArgsRef]
+    MacroVerbs ..> EntityCreationRequest : publishes ONE (transient, derived GUID)
+    EntityCreationRequest --> CreateEntityRequestSystem
+    CreateEntityRequestSystem --> MacroExpansionSystem
+    MacroExpansionSystem --> MacroExpansionStatus : writes
+    MacroVerbs ..> MacroExpansionStatus : reads only (SR-96)
+```
+
+```mermaid
+sequenceDiagram
+    participant T as Trigger (do list, any node with the brain)
+    participant V as InsertMacro step
+    participant C as creation path (the servicing node)
+    participant X as MacroExpansionSystem
+    T->>V: step starts (params seeded, at resolved if "@Key")
+    V->>C: EntityCreationRequest (TkbType 8813, IsTransient, SimTransform at+heading, EntityGuid, MacroInstance{macro, params JSON})
+    V-->>T: Running
+    C->>X: instance born Expanding
+    X->>X: expand · place · create the children
+    X-->>V: MacroExpansionStatus (replicated) Done / Failed
+    V-->>T: Success, or Failure with the expander's reason (ActionFailure)
+```
+
+*What the pictures show that prose hid:* the verb adds NO second creation or expansion path — it is one request and one status read, and every part of the
+expansion (validation, placement, reconcile, cascade) is the load's own.
+
+### 16.1 Decisions (B1, as built)
+
+| | decision | why |
+|---|---|---|
+| ① | the macro's args travel as the step's nested **`"params"`** (⇒ `ArgsRef`), not a `macroArgs` key (SR-94's example) | ⭐ ONE mechanism: `ActionList.ExtractParams` lifts exactly `"params"` for every action with an `int ArgsRef` (`Order` takes a behaviour's params by it). A second key would need a second lift |
+| ② | the instance GUID is `Derive(inserter's EntityGuid, "insert:<self index>:<sim tick>")` | SR-167: replay and a restore re-insert the SAME ids; the tick separates two inserts by one trigger |
+| ③ | the instance is `IsTransient` | SR-171: the trigger is what is saved, never what it inserted |
+| ④ | Success / Failure come only from `MacroExpansionStatus` (+ a 30 s "never appeared") | SR-96: the action never counts parts |
+| ⑤ | the verb lives with the other scenario verbs (`Hrot.AI.Behaviors/.../Verbs/MacroVerbs.cs`) | ⭐ `ActionCatalogue` discovers it there like any `[SharedAiAction]` — any trigger, BTree or HSM can call it (SR-93) |
+
+| 📌 LIVE `2026-11-02` (`--mode all`, `scenarios/test-macro-insert`) | a trigger at sim 3 s inserted `test/fire-team` → instance `Done`, 4 transient men carrying the step's args (`Hostile`), the trigger ended `Done` after its `Message` · 🔴 **but the instance stood at (0,0,0), not at `@Drop`**: `StepRunner` resolved a step's links only when its params held a network id (`EntityRefRemap.HoldsRefs` — the LOAD's remap question), so a `PointLink` written as `"@Key"` was never resolved. ⇒ `HoldsLeaves` (resolution is an identity on a plain point). Rail `InsertMacro_AtAKey_StandsAtThatEntity`; a fix in behaviors' `StepRunner`, said in the commit and the note | — |
+
+### 16.2 Not in B1 — **B1b: a step's own `Bind` (SR-94 / SR-160)**
+
+⚠ A `do` entry's `Bind` is **not applied anywhere yet**: SR-160 makes a step a typed `BindableNode`, but the trigger's params contract carries `do` as a free-form
+`JsonNode`, so `ParamBinder`'s walker never reaches a step. ⭐ Closing it = typing the step (`{Act, Args, Bind}` : `BindableNode`) in the trigger's contract —
+**behaviors' type** — and the scenario load then binds it through the ONE binder with no new code. ⇒ filed for behaviors (`NOTE_Backend_To_Behaviors_Step_Bind.md`).
+
+### 16.3 ⚠ Found — **three implementations of "the reference scope of a live world"**
+
+`MacroExpansionSystem.WorldRefScope` (S3a A1) · `Fdp.Toolkit.ScenarioRules.Actions.WorldRefScope` (behaviors CE-4162) · `Fdp.Toolkit.Scenario.LiveRefScope`
+(ui CE-4206 R1 — a cached index with the reverse maps an editor needs). ✅ The first is FOLDED into the second (`2d94b8fc6`). ⏭ The remaining two differ only in
+caching and the reverse maps; `LiveRefScope` is the superset ⇒ the step runner can use it and `WorldRefScope` retire — two other lanes' files, so filed, not done.

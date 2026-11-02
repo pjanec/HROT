@@ -68,8 +68,18 @@ skipped ⇒ `A4_AfterARestore…` red · A6 the template ignored ⇒ `A6_AVehicl
 | ⚠ found, not fixed (ui's surface) | `POST /entities/{id}/component` on `MacroInstance` with `{"Args":{…}}` answers `ok` and changes nothing — the StructEdit patch does not reach the args dictionary. ⇒ the live A4 proof used a MOVE after the restore, not an args edit (the args-edit path is the A4 unit rail) |
 | ⚠ A2 scope | reservations live in one solver instance; two solvers answering one cluster would not share them (one answers today) |
 
-## 4. Part B — S3b: **BLOCKED**, not started
+## 4. Part B — S3b *(released by `NOTE_Coordinator_To_Backend_Start_S3b.md`, merged `coordinator@474077b06`)*
 
-The handoff gates Part B on behaviors' rules S2 (the trigger runtime) being on `behaviors`. At `origin/behaviors@ecedba770` S2 is **partly**
-built: ⑤ `2487aa4c4`, ⑥ `593138a39`, ⑦ the Trigger behaviour `4302e2d97` — ⑧ (the verbs, END, PlayerMessage) is still in build
-(`RESUME_Behaviors_Command_And_Platoon.md` §R0). `InsertMacro` (B1) is one of those verbs' kind, so B1–B3 wait for ⑧.
+| # | what | commit | design |
+|---|---|---|---|
+| C1 | `GetLeastLoadedNode` → **`PickNodeForRole`** through Roslyn (preview → diff read → apply: 5 sites, `find_references` agreed; grep after: a Stride comment + the live UML/API docs updated, dated finding rows left as history); its doc now states the contract (lowest node id with the role, deterministic). ⚠ the test METHOD `…FallsBackToTheLeastLoaded` keeps its name (a symbol — a Roslyn rename of its own, not worth a cold workspace) | `445f9202a` | `DESIGN_Ownership_Groups_And_Grants.md` UML |
+| B1 | `InsertMacro` — a `[SharedAiAction]` verb: one transient creation request (TKB 8813, derived GUID, the step's `"params"` via `ArgsRef`), then reads `MacroExpansionStatus` only | `0aa4da397` | macros §16 |
+| B1, live | 🔴 a step's `"@Key"` POINT was never resolved (`StepRunner` used `HoldsRefs`) ⇒ fixed in behaviors' `StepRunner` (`HoldsLeaves`) | `6476a15a3` | macros §16, note §3 |
+| B1b | a `do` entry's own `Bind` (SR-94/160) — **filed**: needs behaviors' trigger contract to type its steps | — | macros §16.2, `NOTE_Backend_To_Behaviors_Step_Bind.md` |
+| B2 · B3 | run variants · `SetSkillAmplifier` + the director macro | ⏭ next | — |
+
+**Gates (Part B so far):** `Hrot.Network.NED.Tests` 177/0 · SimHost `ScenarioRulesTests|MacroExpander` 56/0 · toolkits `ScenarioRules|Behavior|EntityRefRemap` 659/0 ·
+red-proofs: B1 Success-after-asking ⇒ both B1 rails red · `HoldsRefs` back ⇒ `InsertMacro_AtAKey…` red · docs gates OK (496/496, 17/17 mermaid).
+
+**Live (`--mode all`, `scenarios/test-macro-insert`):** a trigger at sim 3 s inserted `test/fire-team` at `"@Drop"` — first run at (0,0,0) (the defect above);
+after `6476a15a3`: instance at **(150,100)** `Done`, 4 transient men around it carrying the step's args (`Hostile`), the trigger `Done` after its `Message`.
