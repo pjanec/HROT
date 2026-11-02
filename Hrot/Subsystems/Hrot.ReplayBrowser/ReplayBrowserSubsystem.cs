@@ -125,6 +125,12 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem? _statelessGizmoSystem;
     // ⭐ CE-1042 E2 — the realism effects, driven here like the other map systems (this host runs them from Update).
     private Hrot.UI.Common.Effects.EffectSpawnSystem? _effectSpawn;
+
+    private Hrot.Common.Infrastructure.NodeFeatures? _features;
+
+    /// <summary>⭐ CE-4148 — this host's feature gate: a Replay Browser builds its own (no cluster node), the editor's defaults (the Player-only HUD aids OFF) plus this process's
+    /// <c>--feature</c> overrides. Live features are not recorded, so a replay uses THIS host's settings.</summary>
+    internal Hrot.Common.Infrastructure.NodeFeatures Features => _features ??= Hrot.Common.Infrastructure.HudFeatures.BootGate(playerDefault: false);
     private Fdp.Toolkit.Time.LifespanSystem? _lifespan;
     private Hrot.UI.Common.Effects.WreckSpawnSystem? _wreckSpawn;
     private Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer? _gizmoLayer;
@@ -211,7 +217,8 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
             //   stored nowhere. See DebugGizmoLayer._world.
             // ⭐ CE-1033 — the shared attach (gizmo layer + draw buffer + the 3-D mode), the same on every host.
             _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
-                _canvas, _gizmoBuffer!, _interactionBus!, () => _activeRepo).GizmoLayer;   // set by BuildMapInteraction above
+                _canvas, _gizmoBuffer!, _interactionBus!, () => _activeRepo,
+                featureGate: () => Features).GizmoLayer;   // ⭐ CE-4148 — the hud.* features   // set by BuildMapInteraction above
 
             _diffService = new ComponentDiffService();
             _exportService = new RecordingExportService(_scenarioSerializer, _diffService);
@@ -280,6 +287,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
             new Hrot.ScenarioEditor.Map.MapInteractionContext
             {
                 World = world,
+                FeatureGate = () => Features,   // ⭐ CE-4148 — the hud.* features
                 // ⭐ CE-3327 RB-7 (DESIGN_Replay_Browser_Debug_Http.md §7.4) — the selection lives in the world SHOWN now (a node's sandbox
                 //   or the merged world), never the one the pack was built over: the views switch under one map.
                 SelectionWorld = () => _activeRepo ?? world,

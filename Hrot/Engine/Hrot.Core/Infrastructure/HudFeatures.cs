@@ -1,4 +1,6 @@
+using Fdp.Core;
 using Fdp.ModuleHost;
+using Fdp.Toolkit.Orchestration;
 
 namespace Hrot.Common.Infrastructure;
 
@@ -31,6 +33,20 @@ public static class HudFeatures
         yield return FeatureDeclaration.Switch(SquadTakeoverAfterDeath, "After death, Tab takes a living squad mate", FeatureChange.Live, _ => playerDefault);
         yield return FeatureDeclaration.Switch(SpreadRing, "The weapon's real spread as a ring round the crosshair", FeatureChange.Live, _ => true);
         yield return FeatureDeclaration.Switch(NearMiss, "A round passing your ear darkens the screen edges", FeatureChange.Live, _ => true);
+    }
+
+    /// <summary>
+    /// A host that builds NO node of its own (the Replay Browser) builds its gate here: the HUD declarations with <paramref name="playerDefault"/>, the
+    /// <c>--feature</c> overrides of this process applied (as <see cref="Map3dInLoadFeature.OnAtBoot"/> does). Live features are not recorded, so a replay uses THIS host's settings.
+    /// </summary>
+    public static NodeFeatures BootGate(bool playerDefault, NodeRole role = NodeRole.Map2D)
+    {
+        var declarations = Declarations(playerDefault).ToArray();
+        NodeFeatureOverrides.NoteDeclared(declarations.Select(d => d.Id));
+        var gate = new NodeFeatures(new FeatureRegistry(declarations), role);
+        foreach (var (id, json) in NodeFeatureOverrides.FromCommandLine)
+            if (gate.Registry.Available(id)) gate.SetNodeOverride(id, json);
+        return gate;
     }
 
     /// <summary>

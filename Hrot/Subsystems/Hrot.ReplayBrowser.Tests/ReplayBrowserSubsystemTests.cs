@@ -51,6 +51,27 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     /// registers a toolkit's lane provider by hand any more. 🔴 Red-proof: the Replay Browser's field re-registering the providers by hand
     /// (behind a runtime-false guard) ⇒ the source half fails.
     /// </summary>
+    /// <summary>⭐ CE-4148 — the Replay Browser builds its own feature gate: the editor's defaults (the Player-only HUD aids OFF, spread ring / near miss ON) plus this process's
+    /// <c>--feature</c> overrides (live features are not recorded, so a replay uses THIS host's settings).</summary>
+    [Fact]
+    public void CE4148_TheReplayBrowser_BuildsItsOwnHudGate_WithTheCommandLineOverrides()
+    {
+        var before = Hrot.Common.Infrastructure.NodeFeatureOverrides.FromCommandLine.ToArray();
+        try
+        {
+            Hrot.Common.Infrastructure.NodeFeatureOverrides.Set(System.Array.Empty<(string, string)>());
+            var plain = new ReplayBrowserSubsystem().Features;
+            Assert.False(Hrot.Common.Infrastructure.HudFeatures.IsOn(plain, Hrot.Common.Infrastructure.HudFeatures.KillCam));
+            Assert.True(Hrot.Common.Infrastructure.HudFeatures.IsOn(plain, Hrot.Common.Infrastructure.HudFeatures.SpreadRing));
+
+            Hrot.Common.Infrastructure.NodeFeatureOverrides.Set(new[] { ("hud.kill-cam", "{\"Enabled\":true}") });
+            var overridden = new ReplayBrowserSubsystem().Features;
+            Assert.True(Hrot.Common.Infrastructure.HudFeatures.IsOn(overridden, Hrot.Common.Infrastructure.HudFeatures.KillCam));
+            Assert.False(Hrot.Common.Infrastructure.HudFeatures.IsOn(overridden, Hrot.Common.Infrastructure.HudFeatures.HitMarker));
+        }
+        finally { Hrot.Common.Infrastructure.NodeFeatureOverrides.Set(before); }
+    }
+
     [Fact]
     public void CE3330_Node_TheReplayBrowser_ComposesTheShippedCatalogue()
     {

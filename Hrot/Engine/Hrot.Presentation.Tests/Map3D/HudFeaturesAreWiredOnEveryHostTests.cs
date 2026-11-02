@@ -7,12 +7,10 @@ namespace Hrot.Presentation.Tests.Map3D;
 /// ⭐ CE-4148 (Node Features S2) — the silent-default rule for the HUD gate: a production caller that HAS a node (so a feature gate) must PASS it
 /// to the map pack — <c>AttachMapLayers(… featureGate:)</c> for the station and <c>MapInteractionContext.FeatureGate</c> for the effect system's hit
 /// memory — and each map host declares the <c>hud.*</c> features with the right default (ON for the Player/IG only).
-/// The Replay Browser has no node (it replays recordings in sandbox worlds: no feature gate exists there) and is the one named exemption.
+/// ⭐ No exemption: the Replay Browser builds its own gate (<c>HudFeatures.BootGate</c>) and passes it like the other hosts.
 /// </summary>
 public sealed class HudFeaturesAreWiredOnEveryHostTests
 {
-    private const string NoNodeHost = "Hrot/Subsystems/Hrot.ReplayBrowser";
-
     private static IEnumerable<(string Rel, string Text)> HostFiles()
     {
         var root = TestRepo.Root;
@@ -30,12 +28,12 @@ public sealed class HudFeaturesAreWiredOnEveryHostTests
     public void EveryHostWithANode_PassesTheGateToTheStationAndTheEffectSystem()
     {
         var files = HostFiles().ToList();
-        var attach = files.Where(f => f.Text.Contains("MapInteractionPack.AttachMapLayers(") && !HostOf(f.Rel).Equals(NoNodeHost)).ToList();
-        Assert.True(attach.Count >= 4, "IG, CGF, Editor, SimHost attach the layers");
+        var attach = files.Where(f => f.Text.Contains("MapInteractionPack.AttachMapLayers(")).ToList();
+        Assert.True(attach.Count >= 5, "IG, CGF, Editor, SimHost and the Replay Browser attach the layers");
         foreach (var f in attach) Assert.True(f.Text.Contains("featureGate:"), $"{f.Rel} attaches the map layers without the node's feature gate");
 
-        var build = files.Where(f => f.Text.Contains("MapInteractionPack.Build(") && !HostOf(f.Rel).Equals(NoNodeHost)).ToList();
-        Assert.True(build.Count >= 4);
+        var build = files.Where(f => f.Text.Contains("MapInteractionPack.Build(")).ToList();
+        Assert.True(build.Count >= 5);
         foreach (var f in build) Assert.True(f.Text.Contains("FeatureGate = "), $"{f.Rel} builds the map interaction without the node's feature gate");
     }
 
