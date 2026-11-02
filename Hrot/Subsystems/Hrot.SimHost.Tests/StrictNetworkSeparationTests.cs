@@ -297,15 +297,6 @@ public class StrictNetworkSeparationTests
     /// <summary>⭐ Pending (CE-4208, being moved / split) — "Type.FullName" or "Type.Field" → why it is still here. ⛔ Must shrink to EMPTY.</summary>
     private static readonly Dictionary<string, string> PendingCe4208 = new(StringComparer.Ordinal)
     {
-        // ── MOVE to Hrot.Network.NED (only its translators use them; namespaces kept, so the derived topic names do not change) ──
-        ["Fdp.Toolkit.Spatial.Eqs.Topics."] = "MOVE: the EQS wire file (translators in Hrot.Network.NED)",
-        ["EqsResultTopic.Results"] = "MOVE: follows its element type",
-        ["EqsSensorConfigTopic.ContextPoints"] = "MOVE: follows its element type",
-        ["Fdp.Toolkit.Squad.DangerArea.Topics."] = "MOVE: the danger-area wire + DangerAreaWireMap (translators in Hrot.Network.NED)",
-        ["DangerAreaResultTopic.Areas"] = "MOVE: follows its element type",
-        ["Fdp.Toolkit.Perception.Survey.Topics."] = "MOVE: the world-survey wire (translators in Hrot.Network.NED)",
-        ["Hrot.IG.Gizmos.IGCapabilitiesAnnounce"] = "MOVE: to Hrot.Network.NED (Hrot.IG already references it; the publisher stays IG's egress)",
-        ["IGCapabilitiesAnnounce.SupportedTargets"] = "SPLIT the ENUM: the engine's PipelineTarget (GizmoMap.Contracts) on the wire — a numerically identical wire enum, converted at the publisher / receiver",
         // ── STOPPED (design call): the time network layer lives in Fdp.Toolkits, and TimeSyncRequest / TimeSyncResponse are ALSO internal
         //    bus events (SlaveSyncController, HrotSharedComponentRegistry) ⇒ a split + the translators' move — DESIGN_Time_Architecture ──
         ["Fdp.Toolkit.Time.Messages."] = "STOPPED: time network layer placement + the TimeSync event split (design call, reported)",

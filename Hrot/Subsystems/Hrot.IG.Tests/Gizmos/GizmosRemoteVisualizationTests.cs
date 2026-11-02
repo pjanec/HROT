@@ -102,7 +102,7 @@ namespace Hrot.IG.Tests.Gizmos
             sys.Execute(repo, 0f);
 
             Assert.Single(writer.Written);
-            Assert.Equal(PipelineTarget.Map2D, writer.Written[0].SupportedTargets);
+            Assert.Equal(PipelineTargetWire.Map2D, writer.Written[0].SupportedTargets);
             Assert.Equal(0xFFFF, writer.Written[0].SupportedLayerMask);
         }
 

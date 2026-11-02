@@ -40,7 +40,7 @@ namespace Hrot.IG.Gizmos
             _writer.Write(new IGCapabilitiesAnnounce
             {
                 NodeId               = _nodeId,
-                SupportedTargets     = _supportedTargets,
+                SupportedTargets     = (PipelineTargetWire)(byte)_supportedTargets, // CE-4208: engine enum -> wire twin (rail: PipelineTargetWireTests)
                 SupportedLayerMask   = 0xFFFF,
                 SupportedShapeMask   = shapeMask,
                 LayerNamesJson       = "[]",
