@@ -131,12 +131,12 @@ public class MapRouteTranslatorTests
         plan = plan.WithWaypoints(wps => wps.Add(new RouteWaypoint
         {
             Position = new Vector3(1, 2, 3), Kind = Fdp.Toolkit.Navigation.RouteWaypointKind.Ground, HeightAgl = 45f,
-            Hold = Fdp.Toolkit.Navigation.RouteHold.Unload, HoldSeconds = 4f, HoldUnit = 7701,
+            Hold = Fdp.Toolkit.Navigation.RouteHold.Unload, HoldSeconds = 4f, HoldUnit = new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(7701)),
         }));
         world.SetManagedComponent(entity, plan);
         egress.ScanAndPublish(world);
         var wire = writer.Publishes[0].Points![0];
-        Assert.Equal(((byte)1, 45f, (byte)2, 4f, 7701L), (wire.Kind, wire.HeightAgl, wire.Hold, wire.HoldSeconds, wire.HoldUnit));
+        Assert.Equal(((byte)1, 45f, (byte)2, 4f, 7701), (wire.Kind, wire.HeightAgl, wire.Hold, wire.HoldSeconds, wire.HoldUnit));
 
         using var other = CreateEcsWorld();
         var otherMap = new NetworkEntityMap();
@@ -144,8 +144,8 @@ public class MapRouteTranslatorTests
         otherMap.Register(3, replica);
         new MapRouteIngressTranslator(null, otherMap).ApplyToEntity(replica, writer.Publishes[0], other);
         var back = ((ISimulationView)other).GetManagedComponentRO<RoutePlan>(replica).Waypoints[0];
-        Assert.Equal((Fdp.Toolkit.Navigation.RouteWaypointKind.Ground, 45f, Fdp.Toolkit.Navigation.RouteHold.Unload, 4f, 7701L),
-                     (back.Kind, back.HeightAgl, back.Hold, back.HoldSeconds, back.HoldUnit));
+        Assert.Equal((Fdp.Toolkit.Navigation.RouteWaypointKind.Ground, 45f, Fdp.Toolkit.Navigation.RouteHold.Unload, 4f, 7701),
+                     (back.Kind, back.HeightAgl, back.Hold, back.HoldSeconds, back.HoldUnit.Ref.NetworkId));
     }
 
     [Fact]
