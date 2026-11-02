@@ -128,6 +128,70 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("ceiling")] public float? Ceiling;
     }
 
+    // ⭐ rules S4 E-2 (📄 docs/DESIGN_Scenario_Rules.md §00.11, §10.3) — the MEASURES of what the subject's men DID. Every one is a Measure (Value against Target, Score by
+    //   ObjectiveRules.Score); `target` null = the kind's own default. ⛔ not the Counter (a pool the scenario moves).
+
+    /// <summary><c>HitRatio</c>: hits ÷ shots by the subject's men (default target 0.30); <see cref="Attribute"/> says which source of a rethrown round's hit counts (CE-4155).</summary>
+    [ParamsDto]
+    public struct HitRatioParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.HitRatio;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        [JsonPropertyName("attribute"), JsonConverter(typeof(JsonStringEnumConverter))] public HarmAttribute Attribute;
+        [JsonPropertyName("target")] public float? Target;
+    }
+
+    /// <summary>What a <c>Count</c> counts.</summary>
+    public enum CountWhat : byte { Shots = 0, Hits = 1, Kills = 2, Fratricide = 3, CiviliansHarmed = 4, Reports = 5 }
+
+    /// <summary><c>Count</c>: how many <see cref="What"/> by the subject's men. fratricide / civiliansHarmed are lower-is-better with target 0; the others higher-is-better with target
+    /// <see cref="Target"/> (default 1).</summary>
+    [ParamsDto]
+    public struct CountParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.Count;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        [JsonPropertyName("what"), JsonConverter(typeof(JsonStringEnumConverter))] public CountWhat What;
+        [JsonPropertyName("attribute"), JsonConverter(typeof(JsonStringEnumConverter))] public HarmAttribute Attribute;
+        [JsonPropertyName("target")] public float? Target;
+    }
+
+    /// <summary><c>ReportLatency</c>: the mean of <c>SentAt − ObservedAt</c> of the subject's reports so far (lower is better; default target 60 s).</summary>
+    [ParamsDto]
+    public struct ReportLatencyParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.ReportLatency;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        [JsonPropertyName("target")] public float? Target;
+    }
+
+    /// <summary><c>TimeTo</c>: the scenario time <see cref="Objective"/> became Achieved (lower is better); never achieved ⇒ Value = now, score 0. <see cref="Target"/> in seconds, default 0.</summary>
+    [ParamsDto]
+    public struct TimeToParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.TimeTo;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        [JsonPropertyName("objective")] public EntityLink Objective;
+        [JsonPropertyName("target")] public float? Target;
+    }
+
+    /// <summary>How a <c>Sample</c> folds its readings.</summary>
+    public enum SampleAggregate : byte { Mean = 0, Max = 1, TimeAbove = 2 }
+
+    /// <summary><c>Sample</c> (SR-20): a registered <c>[UtilityInput("name")]</c> read on the subject every tick it is Active — the <see cref="Aggregate"/> mean / max / seconds above
+    /// <see cref="Threshold"/> is the Value. <see cref="Target"/> default 1; <see cref="LowerIsBetter"/> for an input like stress.</summary>
+    [ParamsDto]
+    public struct SampleParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.Sample;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        [JsonPropertyName("input")] public string Input;
+        [JsonPropertyName("aggregate"), JsonConverter(typeof(JsonStringEnumConverter))] public SampleAggregate Aggregate;
+        [JsonPropertyName("threshold")] public float Threshold;
+        [JsonPropertyName("target")] public float? Target;
+        [JsonPropertyName("lowerIsBetter")] public bool LowerIsBetter;
+    }
+
     /// <summary><c>WeightedMean</c>: a composite scoring its children (<c>ObjectiveLinks.Parent</c> = it) by weight.</summary>
     [ParamsDto]
     public struct WeightedMeanParamsJsonDto

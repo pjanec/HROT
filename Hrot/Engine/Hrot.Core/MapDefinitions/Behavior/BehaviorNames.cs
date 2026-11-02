@@ -299,6 +299,12 @@ namespace Hrot.Map.Definitions.Behavior
         public const string MemberEvaluation = "MemberEvaluation";
         /// <summary>⭐ rules S6 (DESIGN_Scenario_Rules §00.11 G-2) — a MEASURE: a number that starts at <c>start</c>, that verbs (<c>AddToCounter</c>) and the deaths of a side move (a ticket pool, a lead).</summary>
         public const string Counter = "Counter";
+        /// <summary>⭐ rules S4 E-2 — MEASURES of what the subject's men DID (a hit ratio, counts, report latency, time to an objective, a sampled utility input); <see cref="Counter"/> is the other thing (a pool the scenario moves).</summary>
+        public const string HitRatio = "HitRatio";
+        public const string Count = "Count";
+        public const string ReportLatency = "ReportLatency";
+        public const string TimeTo = "TimeTo";
+        public const string Sample = "Sample";
         // ⭐ rules S2-c (DESIGN_Scenario_Rules §10.11) — the trigger: the one behaviour of a Trigger entity (TKB 8861)
         /// <summary>when a condition rises: hold, wait, run a list of actions, cool down (§10.11).</summary>
         public const string Trigger = "Trigger";

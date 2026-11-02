@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Utility;
 
 namespace Fdp.Toolkit.ReplayBrowser.Search
 {
@@ -40,6 +41,11 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 {
                     var counter = BuildCounter(count, PredicateMode.State);
                     return (repo, _) => counter.Count(repo, int.MaxValue - 1);
+                }
+                case InputAbovePredicateDto inputAbove when !string.IsNullOrEmpty(inputAbove.Input):
+                {
+                    string name = inputAbove.Input;
+                    return (repo, e) => UtilityInputReaderStore.TryRead(repo, name, e, Entity.Null, out float v) ? v : 0d;   // ⭐ the same reader the leaf tests
                 }
                 case OnEntityPredicateDto onEntity:
                 {

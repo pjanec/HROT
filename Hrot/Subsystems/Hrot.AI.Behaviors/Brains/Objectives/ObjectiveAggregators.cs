@@ -36,7 +36,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 if (c.State != ObjectiveState.Pending && c.State != ObjectiveState.Inactive) t.Started++;
                 if (c.State == ObjectiveState.Achieved) t.Achieved++;
                 if (c.State == ObjectiveState.Skipped && c.Required == 0) t.SkippedIgnored++;
-                if (c.IsFinal) t.Final++;
+                if (c.IsFinal || (c.Role == ObjectiveRole.Measure && c.Closed != 0)) t.Final++;   // ⭐ S4 E-2: a measure never ends by itself; once the exercise closed it its value is frozen = final
                 if (c.Closed != 0) t.Closed++;
                 bool failed = c.State == ObjectiveState.Failed || (c.State == ObjectiveState.Skipped && c.Required != 0);   // SR-117: a required Skipped counts as failed
                 if (failed)

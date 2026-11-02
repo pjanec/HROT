@@ -41,6 +41,8 @@ namespace Fdp.Toolkit.ScenarioRules
         [JsonPropertyName("startActive")] public bool? StartActive;
         /// <summary>Bit mask by <see cref="ForceId"/> value; 0 = everybody.</summary>
         [JsonPropertyName("visibleSides")] public byte VisibleSides;
+        /// <summary>⭐ rules S4 E-3 — the evaluation group the objective / measure is shown under (mission · fire · reports · conduct …); authored by the macro, ≤ 32 chars. Display only.</summary>
+        [JsonPropertyName("group")] public string? Group;
     }
 
     /// <summary>⭐ rules S1 — the unmanaged twin of <see cref="ObjectiveCommon"/> a blackboard can hold (defaults applied).</summary>
@@ -48,13 +50,15 @@ namespace Fdp.Toolkit.ScenarioRules
     public struct ObjectiveCommonBlock
     {
         public FixedString64 Title;
+        /// <summary>⭐ rules S4 E-3 — see <see cref="ObjectiveCommon.Group"/>.</summary>
+        public FixedString32 Group;
         public EntityRef Subject, Parent;
         public byte Required, Scored, StartActive, VisibleSides;
         public float Weight, Points, DeadlineSeconds;
 
         public static ObjectiveCommonBlock From(in ObjectiveCommon c) => new()
         {
-            Title = new FixedString64(c.Title ?? string.Empty),
+            Title = new FixedString64(c.Title ?? string.Empty), Group = new FixedString32(c.Group ?? string.Empty),
             Subject = c.Subject.Ref, Parent = c.Parent.Ref,
             Required = (byte)(c.Required ? 1 : 0),
             Scored = (byte)(c.Scored ?? true ? 1 : 0),
@@ -95,7 +99,7 @@ namespace Fdp.Toolkit.ScenarioRules
         /// <summary>The display fields (a projection of the params — never written back).</summary>
         public static void Display(ref ObjectiveStatus s, in ObjectiveCommonBlock c)
         {
-            s.Title = c.Title; s.Required = c.Required; s.Scored = c.Scored; s.Weight = c.Weight; s.Points = c.Points; s.VisibleSides = c.VisibleSides;
+            s.Title = c.Title; s.Group = c.Group; s.Required = c.Required; s.Scored = c.Scored; s.Weight = c.Weight; s.Points = c.Points; s.VisibleSides = c.VisibleSides;
         }
 
         /// <summary>⭐ V-2 — every kind's deadline and the next expected moment (the deadline while Active; 0 once final / closed / inactive). ONE place; a trigger overrides ExpectedAt.</summary>
@@ -149,11 +153,14 @@ namespace Fdp.Toolkit.ScenarioRules
         /// Active / Pending / Inactive 0 for an ordinary objective; a <paramref name="judgedAtEnd"/> constraint scores 1 while Active (within
         /// limits); a Measure is its value against its target.
         /// </summary>
-        public static float Score(in ObjectiveStatus s, bool judgedAtEnd = false)
+        public static float Score(in ObjectiveStatus s, bool judgedAtEnd = false, bool lowerIsBetter = false)
         {
             if (s.State == ObjectiveState.Skipped) return float.NaN;
             if (s.Role == ObjectiveRole.Measure)
             {
+                // ⭐ rules S4 E-2 — a "lower is better" measure (fratricide, report latency, time to): 1 when the value is within its target, else target / value. The ONE
+                // formula for every such measure; a Counter (a pool the scenario moves) never asks for it.
+                if (lowerIsBetter) return s.Value <= s.Target ? 1f : Math.Clamp(s.Target / Math.Max(s.Value, LowerEpsilon), 0f, 1f);
                 if (s.Target <= 0f) return s.Value <= 0f ? 1f : 0f;
                 return Math.Clamp(s.Value / s.Target, 0f, 1f);
             }
@@ -166,10 +173,13 @@ namespace Fdp.Toolkit.ScenarioRules
             };
         }
 
+        /// <summary>The smallest value a lower-is-better score divides by (a Value just over a zero Target is a near-zero score, never infinity).</summary>
+        public const float LowerEpsilon = 1e-6f;
+
         /// <summary>Writes <see cref="Score"/> into the status (a parent reads one field); an excluded status stores 0 (the state says Skipped).</summary>
-        public static void WriteScore(ref ObjectiveStatus s, bool judgedAtEnd = false)
+        public static void WriteScore(ref ObjectiveStatus s, bool judgedAtEnd = false, bool lowerIsBetter = false)
         {
-            float v = Score(in s, judgedAtEnd);
+            float v = Score(in s, judgedAtEnd, lowerIsBetter);
             s.Score = float.IsNaN(v) ? 0f : v;
         }
 

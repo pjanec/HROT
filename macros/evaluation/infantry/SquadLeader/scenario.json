@@ -52,7 +52,7 @@
    },
    "Behavior": {
     "Name": "NoHarm",
-    "Params": "{\"common\": {\"title\": \"No harm\", \"subject\": \"^subject\", \"parent\": \"e7a10000-0000-4000-8000-000000000001\", \"required\": true}, \"protected\": \"Neutral\", \"maxCount\": 0}",
+    "Params": "{\"common\": {\"title\": \"No harm\", \"subject\": \"^subject\", \"parent\": \"e7a10000-0000-4000-8000-000000000001\", \"required\": true, \"group\": \"conduct\"}, \"protected\": \"Neutral\", \"maxCount\": 0}",
     "Origin": "Superior"
    }
   },
@@ -67,6 +67,62 @@
    "Behavior": {
     "Name": "MemberEvaluation",
     "Params": "{\"common\": {\"title\": \"Squad's men\", \"subject\": \"^subject\", \"parent\": \"e7a10000-0000-4000-8000-000000000001\"}, \"library\": \"macros/evaluation/infantry\"}",
+    "Origin": "Superior"
+   }
+  },
+  "e7a10000-0000-4000-8000-000000000256": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Hit ratio",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "HitRatio",
+    "Params": "{\"common\": {\"group\": \"fire\", \"title\": \"Hit ratio\", \"subject\": \"^subject\", \"parent\": \"e7a10000-0000-4000-8000-000000000001\"}}",
+    "Origin": "Superior"
+   }
+  },
+  "e7a10000-0000-4000-8000-000000000257": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "No fratricide",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Count",
+    "Params": "{\"common\": {\"group\": \"conduct\", \"required\": true, \"title\": \"No fratricide\", \"subject\": \"^subject\", \"parent\": \"e7a10000-0000-4000-8000-000000000001\"}, \"what\": \"fratricide\"}",
+    "Origin": "Superior"
+   }
+  },
+  "e7a10000-0000-4000-8000-000000000258": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Report latency",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "ReportLatency",
+    "Params": "{\"common\": {\"group\": \"reports\", \"title\": \"Report latency\", \"subject\": \"^subject\", \"parent\": \"e7a10000-0000-4000-8000-000000000001\"}}",
+    "Origin": "Superior"
+   }
+  },
+  "e7a10000-0000-4000-8000-000000000259": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Reports made",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Count",
+    "Params": "{\"common\": {\"group\": \"reports\", \"title\": \"Reports made\", \"subject\": \"^subject\", \"parent\": \"e7a10000-0000-4000-8000-000000000001\"}, \"what\": \"reports\", \"target\": 3}",
     "Origin": "Superior"
    }
   }

@@ -58,6 +58,7 @@ namespace Fdp.Toolkit.ScenarioRules
             PropertyMatchDto p => string.IsNullOrEmpty(p.PropertyPath) ? p.ComponentType?.Name ?? "Property" : $"{p.ComponentType?.Name}.{p.PropertyPath}",
             OnEntityPredicateDto o => $"{RefText(o.Ref)} {(o.Predicate is null ? "?" : LabelOf(o.Predicate))}",
             ScenarioTimePredicateDto => "ScenarioTime",
+            InputAbovePredicateDto i => $"Input {i.Input}",
             CountMatchingPredicateDto c => $"Count {(c.Predicate is null ? "?" : LabelOf(c.Predicate))}",
             SpatialBoundingPredicateDto => "Spatial",
             LifecyclePredicateDto => "Lifecycle",

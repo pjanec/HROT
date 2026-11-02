@@ -3,6 +3,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using Fdp.Core;
+using Fdp.Toolkit.Utility;
 using StructEdit.Core;
 
 namespace Fdp.Toolkit.ReplayBrowser.Search
@@ -236,6 +237,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 }
                 return n;
             }
+        }
+
+        /// <summary>⭐ rules S4 E-2 (SR-20) — the registered <c>[UtilityInput]</c> on the entity asked about, above the threshold: ONE reader (<see cref="UtilityInputReaderStore.TryRead"/>), shared with the <c>Sample</c> measure and the rules view's number.</summary>
+        private static Func<EntityRepository, Entity, bool> CompileInputAbove(InputAbovePredicateDto dto)
+        {
+            if (string.IsNullOrEmpty(dto.Input)) throw new ArgumentException("InputAbove needs the name of a [UtilityInput].", nameof(dto));
+            string name = dto.Input; float threshold = dto.Threshold;
+            return (repo, e) => UtilityInputReaderStore.TryRead(repo, name, e, Entity.Null, out float v) && v > threshold;
         }
 
         private Func<EntityRepository, Entity, bool> CompileCountMatching(CountMatchingPredicateDto dto, PredicateMode mode)

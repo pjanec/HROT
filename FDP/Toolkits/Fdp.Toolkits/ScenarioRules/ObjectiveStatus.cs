@@ -45,6 +45,8 @@ namespace Fdp.Toolkit.ScenarioRules
         public FixedString64 Reason;
         public FixedString64 Title;
         public FixedString32 Kind;
+        /// <summary>⭐ rules S4 E-3 — the evaluation group (mission · fire · reports · conduct …) a frontend sections the rows by; "" = none. A projection of <c>common.group</c>.</summary>
+        public FixedString32 Group;
         public byte Required;
         public byte Scored;
         public float Weight;

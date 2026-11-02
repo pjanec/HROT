@@ -38,7 +38,7 @@ public sealed class TheObjectivesRouteShowsTheTreeTests : IDisposable
         var e = _world.CreateEntity();
         _map.Register(id, e);
         _world.AddComponent(e, new NetworkIdentity(id));
-        _world.AddComponent(e, new ObjectiveStatus { Title = new FixedString64(title), Kind = new FixedString32(kind), State = state, Score = score, ProgressCur = 1, ProgressNeed = 4, Reason = new FixedString64("1/4") });
+        _world.AddComponent(e, new ObjectiveStatus { Title = new FixedString64(title), Kind = new FixedString32(kind), State = state, Score = score, ProgressCur = 1, ProgressNeed = 4, Reason = new FixedString64("1/4"), Group = new FixedString32(kind == "ReachArea" ? "fire" : "") });
         _world.AddComponent(e, new ObjectiveLinks { Parent = new EntityRef(parent), Subject = new EntityRef(900) });
     }
 
@@ -59,6 +59,7 @@ public sealed class TheObjectivesRouteShowsTheTreeTests : IDisposable
         Assert.Equal(new[] { 12, 11 }, rows[0]!["children"]!.AsArray().Select(n => n!.GetValue<int>()));
         Assert.Equal("Active", (string)rows[0]!["state"]!);
         Assert.Equal(("Achieved", "ReachArea", 1f, 10, 900), ((string)rows[2]!["state"]!, (string)rows[2]!["kind"]!, (float)rows[2]!["score"]!, (int)rows[2]!["parent"]!, (int)rows[2]!["subject"]!));
+        Assert.Equal(("fire", ""), ((string)rows[2]!["group"]!, (string)rows[1]!["group"]!));   // ⭐ rules S4 E-3: the evaluation group
         Assert.Equal((1, 4, "1/4"), ((int)rows[2]!["progress"]!["cur"]!, (int)rows[2]!["progress"]!["need"]!, (string)rows[2]!["reason"]!));
         Assert.Null(rows[0]!["parent"]);
 

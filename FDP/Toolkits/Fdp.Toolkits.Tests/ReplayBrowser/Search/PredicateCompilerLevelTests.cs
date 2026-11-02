@@ -262,6 +262,31 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             long perEval = (GC.GetAllocatedBytesForCurrentThread() - before) / 1000;
             Assert.True(perEval <= 0, $"a compiled level evaluation allocated {perEval} B per call");
         }
+
+        /// <summary>⭐ rules S4 E-2 (SR-20) — <c>InputAbove</c>: the registered [UtilityInput] read on the entity asked about (the same reader a consideration evaluates), above the threshold; Level and Search mode
+        /// agree; the leaf's number (<c>CompileLeafMeasure</c>) is the reading; an unregistered input reads 0 (false); no name is a loud error. ✅ Red-proof: the arm comparing <c>v &lt; threshold</c> ⇒ red.</summary>
+        [Fact]
+        public void InputAbove_ReadsTheRegisteredUtilityInput_AboveTheThreshold()
+        {
+            Fdp.Toolkit.Utility.StandardInputs.RegisterAll();
+            if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>()) _w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            var e = At(0, 0);
+            _w.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 3f, Max = 10f });   // HealthFraction 0.3
+            var bare = At(1, 1);
+            InputAbovePredicateDto Leaf(string input, float t) => new() { Input = input, Threshold = t };
+            foreach (var compile in new Func<SearchPredicateDto, Func<EntityRepository, Entity, bool>>[] { Level, Search })
+            {
+                Assert.True(compile(Leaf("HealthFraction", 0.2f))(_w, e));
+                Assert.False(compile(Leaf("HealthFraction", 0.5f))(_w, e));
+                Assert.False(compile(Leaf("HealthFraction", 0.2f))(_w, bare));        // no Health => the reader says 0
+                Assert.False(compile(Leaf("NoSuchInputAnywhere", -1f))(_w, e));       // unregistered => nothing read
+            }
+            Assert.Equal(0.3d, _c.CompileLeafMeasure(Leaf("HealthFraction", 0.2f))!(_w, e), 3);
+            Assert.Throws<ArgumentException>(() => Level(Leaf("", 0f)));
+            Assert.Equal("Input HealthFraction", RuleLeafPlan.LabelOf(Leaf("HealthFraction", 0f)));
+            var round = JsonSerializer.Deserialize<SearchPredicateDto>(JsonSerializer.Serialize<SearchPredicateDto>(Leaf("HealthFraction", 0.25f)));
+            Assert.Equal((0.25f, "HealthFraction"), (((InputAbovePredicateDto)round!).Threshold, ((InputAbovePredicateDto)round).Input));
+        }
     }
 
     /// <summary>A predicate DTO the compiler has no arm for.</summary>

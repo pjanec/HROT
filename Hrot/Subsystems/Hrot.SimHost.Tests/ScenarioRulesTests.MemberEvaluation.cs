@@ -217,7 +217,18 @@ namespace Hrot.SimHost.Tests
             {
                 var kinds = Behaviours(json).Select(kv => kv.Value!["Behavior"]!["Name"]!.GetValue<string>()).ToList();
                 Assert.Contains("WeightedMean", kinds); Assert.Contains("NoHarm", kinds);
+                Assert.Contains("HitRatio", kinds); Assert.Contains("ReportLatency", kinds);   // ⭐ S4 E-2: the measures
+                // every measure's params parse as the kind's own DTO, carry a group, and hang under the root
+                foreach (var kv in Behaviours(json))
+                {
+                    var b = kv.Value!["Behavior"]!; string kind = b["Name"]!.GetValue<string>();
+                    if (kind is not ("HitRatio" or "Count" or "ReportLatency")) continue;
+                    var common = JsonNode.Parse(b["Params"]!.GetValue<string>())!["common"]!;
+                    Assert.False(string.IsNullOrEmpty(common["group"]?.GetValue<string>()), kind);
+                    Assert.NotNull(common["parent"]);
+                }
             }
+            Assert.Contains("reports", Behaviours(slJson).Select(kv => kv.Value!["Behavior"]!["Params"]!.GetValue<string>()).Where(p => p.Contains("\"what\"")).Single(p => p.Contains("reports")));
             var nested = Behaviours(slJson).Select(kv => kv.Value!["Behavior"]!).Single(b => b["Name"]!.GetValue<string>() == "MemberEvaluation");
 
             var w = EvalWorld(files);
