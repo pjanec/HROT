@@ -278,6 +278,104 @@ public class StrictNetworkSeparationTests
         return string.Empty;   // unreachable
     }
 
+    // ══ ③ CE-4208 — every DDS type lives on the NETWORK side, and none is built from an engine type ══════════
+    //
+    // 🔒 User, 2026-11-02: "whenever there is the same structure that serves as a network structure and internal structure, this is not
+    //    desired … even if we need to duplicate the structures … Same approach is taken for any enum values as well."
+    // ⭐ With ① / ② (an engine assembly cannot SEE a network assembly), these two make the separation hold by construction:
+    //    a DDS type declared only in a network assembly cannot be named by engine code, and a DDS type built only from
+    //    network-side or BCL types cannot drag an engine type onto the wire (an internal enum twin is the R-134 pattern).
+
+    /// <summary>The assemblies that ARE the network side (translators, wire types, the DDS modules).</summary>
+    private static bool IsNetworkAssembly(string name)
+        => name.StartsWith("Hrot.Network.", StringComparison.Ordinal)
+        || name.StartsWith("Fdp.Network.", StringComparison.Ordinal)
+        || name.StartsWith("Hrot.NED", StringComparison.Ordinal)
+        || name == "Hrot.Animation.Replication"    // the animation channels' DDS module: its types and translators only
+        || name == "GizmoMap.Network";             // the gizmo wire (DebugPrimitivesBatch, interaction batches) and its enums
+
+    /// <summary>⭐ Pending (CE-4208, being moved / split) — "Type.FullName" or "Type.Field" → why it is still here. ⛔ Must shrink to EMPTY.</summary>
+    private static readonly Dictionary<string, string> PendingCe4208 = new(StringComparer.Ordinal)
+    {
+        // ── MOVE to Hrot.Network.NED (only its translators use them; namespaces kept, so the derived topic names do not change) ──
+        ["Fdp.Toolkit.Spatial.Eqs.Topics."] = "MOVE: the EQS wire file (translators in Hrot.Network.NED)",
+        ["EqsResultTopic.Results"] = "MOVE: follows its element type",
+        ["EqsSensorConfigTopic.ContextPoints"] = "MOVE: follows its element type",
+        ["Fdp.Toolkit.Squad.DangerArea.Topics."] = "MOVE: the danger-area wire + DangerAreaWireMap (translators in Hrot.Network.NED)",
+        ["DangerAreaResultTopic.Areas"] = "MOVE: follows its element type",
+        ["Fdp.Toolkit.Perception.Survey.Topics."] = "MOVE: the world-survey wire (translators in Hrot.Network.NED)",
+        ["Hrot.IG.Gizmos.IGCapabilitiesAnnounce"] = "MOVE: to Hrot.Network.NED (Hrot.IG already references it; the publisher stays IG's egress)",
+        ["IGCapabilitiesAnnounce.SupportedTargets"] = "SPLIT the ENUM: the engine's PipelineTarget (GizmoMap.Contracts) on the wire — a numerically identical wire enum, converted at the publisher / receiver",
+        // ── STOPPED (design call): the time network layer lives in Fdp.Toolkits, and TimeSyncRequest / TimeSyncResponse are ALSO internal
+        //    bus events (SlaveSyncController, HrotSharedComponentRegistry) ⇒ a split + the translators' move — DESIGN_Time_Architecture ──
+        ["Fdp.Toolkit.Time.Messages."] = "STOPPED: time network layer placement + the TimeSync event split (design call, reported)",
+    };
+
+    private static IEnumerable<Assembly> EngineAndNetworkAssemblies()
+        => Directory.EnumerateFiles(AppContext.BaseDirectory, "*.dll")
+            .Select(Path.GetFileNameWithoutExtension)
+            .Where(n => n != null && (n.StartsWith("Fdp.", StringComparison.Ordinal) || n.StartsWith("Hrot.", StringComparison.Ordinal)
+                                      || n.StartsWith("GizmoMap.", StringComparison.Ordinal))
+                        && !n.Contains("Tests", StringComparison.Ordinal))
+            .Select(n => { try { return Assembly.Load(n!); } catch (Exception) { return null; } })
+            .Where(a => a != null).Select(a => a!).Distinct();
+
+    private static Type[] TypesOf(Assembly a)
+    {
+        try { return a.GetTypes(); }
+        catch (ReflectionTypeLoadException e) { return e.Types.Where(t => t != null).Select(t => t!).ToArray(); }
+    }
+
+    private static bool IsDdsDeclared(Type t)
+        => t.GetCustomAttributes(false).Any(a => a.GetType().Name is "DdsTopicAttribute" or "DdsStructAttribute");
+
+    private static IEnumerable<string> Ce4208Offences()
+    {
+        var all = EngineAndNetworkAssemblies().ToList();
+        foreach (var asm in all)
+        {
+            bool network = IsNetworkAssembly(asm.GetName().Name!);
+            foreach (var t in TypesOf(asm).Where(IsDdsDeclared))
+            {
+                if (!network) yield return $"{t.FullName} — a DDS type declared in engine assembly {asm.GetName().Name}";
+                foreach (var f in t.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+                    foreach (var used in Unwrap(f.FieldType))
+                        if (used.Assembly.GetName().Name is { } un && !IsNetworkAssembly(un) && IsEngineAssembly(un))
+                            yield return $"{t.Name}.{f.Name} — a DDS field of engine type {used.FullName} ({un})";
+            }
+        }
+    }
+
+    private static bool IsEngineAssembly(string name)
+        => name.StartsWith("Fdp.", StringComparison.Ordinal) || name.StartsWith("Hrot.", StringComparison.Ordinal)
+        || name.StartsWith("GizmoMap.", StringComparison.Ordinal);
+
+    private static IEnumerable<Type> Unwrap(Type t)
+    {
+        if (t.IsByRef || t.IsArray || t.IsPointer) { foreach (var e in Unwrap(t.GetElementType()!)) yield return e; yield break; }
+        if (t.IsGenericType) { foreach (var g in t.GetGenericArguments()) foreach (var e in Unwrap(g)) yield return e; }
+        yield return t;
+    }
+
+    [Fact]
+    public void CE4208_EveryDdsType_LivesOnTheNetworkSide_AndIsBuiltFromNoEngineType()
+    {
+        var offences = Ce4208Offences().Distinct().Where(o => !PendingCe4208.Keys.Any(k => o.StartsWith(k, StringComparison.Ordinal))).OrderBy(o => o).ToList();
+        Assert.True(offences.Count == 0, $"{offences.Count} DDS placement offences (R-134 / CE-4208):\n" + string.Join("\n", offences));
+    }
+
+    [Fact]
+    public void CE4208_TheScanSeesBothSides_AndEveryPendingEntryStillOffends()
+    {
+        var names = EngineAndNetworkAssemblies().Select(a => a.GetName().Name!).ToList();
+        Assert.Contains("Hrot.Network.NED", names);
+        Assert.Contains("Fdp.Toolkits", names);
+        Assert.Contains("Hrot.IG", names);   // its IGCapabilitiesAnnounce — the scan was blind to it until the reference was added
+        var offences = Ce4208Offences().ToList();
+        var stale = PendingCe4208.Keys.Where(k => !offences.Any(o => o.StartsWith(k, StringComparison.Ordinal))).ToList();
+        Assert.True(stale.Count == 0, "Pending CE-4208 entries that no longer offend — delete them: " + string.Join(", ", stale));
+    }
+
     // ══ helpers ══════════════════════════════════════════════════════════════════
 
     /// <summary>⭐⭐ The FDP-internal apply stack — installers, factory, provider, writer, router, requests.</summary>
