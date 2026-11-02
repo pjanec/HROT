@@ -911,6 +911,20 @@ namespace Hrot.NED.Descriptors
         public long LocalHi;
     }
 
+    // ⭐ macros wire fix — an entity's authored name (<c>RefKey</c>, "@Key"): the creator publishes it once, so a runtime-inserted entity's key reaches every node's ghost (a loaded one has it from the file everywhere).
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityRefKey
+    {
+        [DdsKey]
+        public int EntityId;
+
+        /// <summary>The key text (at most 31 UTF-8 bytes, no <c>@</c>).</summary>
+        public string Value;
+    }
+
     // ── Navigation CQRS descriptors (MOD1-P1T1) ──────────────────────────────
     // These are the DDS wire representations of the engine-side NavigationIntent and
     // NavigationStatus ECS components.  The engine-side enums (NavigationMode,

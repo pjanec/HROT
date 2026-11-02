@@ -138,6 +138,7 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtMacroInstance, GlobalComponentIds.MacroInstance);
         map.RegisterMapping((long)EDescriptorType.dtMacroExpansionStatus, GlobalComponentIds.MacroExpansionStatus);
         map.RegisterMapping((long)EDescriptorType.dtMacroOrigin, GlobalComponentIds.MacroOrigin);
+        map.RegisterMapping((long)EDescriptorType.dtRefKey, GlobalComponentIds.RefKey);   // ⭐ macros wire fix — no group: the entity's creator keeps its authored name "@Key"
         map.RegisterMapping((long)EDescriptorType.dtPassengerBuffer, GlobalComponentIds.PassengerBuffer);   // ⭐ CE-3110 I-2b — the vehicle's passengers (Brain group)
         map.RegisterMapping((long)EDescriptorType.dtWeaponSystemState, GlobalComponentIds.WeaponSystemState);
         map.RegisterMapping((long)EDescriptorType.dtTrafficDemand, GlobalComponentIds.TrafficDemand);   // ⭐ AQ93 N4 — the traffic settings (Traffic group)

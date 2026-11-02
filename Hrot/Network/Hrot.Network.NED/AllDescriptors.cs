@@ -179,6 +179,10 @@ namespace Hrot.NED.Descriptors
         dtPlayerMessage               = 173,
         //   ⭐ rules V-3 (§00.10) — 174 a trigger's when-leaves with their live values (its owning Brain → every node; STATE, sampled ≤ 2 Hz and only while ui.rules-live-values is on).
         dtRuleLeaves                  = 174,
+        // ⭐ macros wire fix — an entity's authored name (<c>RefKey</c>, "@Key"), its creator → every node (no group, as dtMacroOrigin): a RUNTIME-inserted entity carries its key only
+        //   on the creating node otherwise, and the live "@Key" scope finds nothing on the others. 182 measured free on backend, ui, behaviors, coordinator 2026-11-02 (180/181 are the
+        //   placement pair; 175–179 stay the rules block's).
+        dtRefKey                      = 182,
         // etc., all known descriptor types here
     }
 

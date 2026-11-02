@@ -12,7 +12,7 @@ using Hrot.Map.Definitions.Behavior;
 namespace Hrot.AI.Behaviors.Brains.Objectives
 {
     /// <summary>
-    /// ⭐ rules S6 G-2 (📄 docs/DESIGN_Scenario_Rules.md §00.11) — <c>Counter</c>, a MEASURE (<see cref="ObjectiveRole.Measure"/>): <c>Value</c> starts at <c>start</c>
+    /// ⭐ rules S6 G-2 (📄 docs/DESIGN_Scenario_Rules.md §00.12) — <c>Counter</c>, a MEASURE (<see cref="ObjectiveRole.Measure"/>): <c>Value</c> starts at <c>start</c>
     /// (= its <c>Target</c>, so the score is value / start); the <c>AddToCounter</c> verb adds to it; each <c>deaths</c> rule adds <c>per</c> for every man of its side newly
     /// OUT of the fight (<see cref="ObjectiveCensus.DownOf"/>, counted once — a revived man refunds nothing). The value is kept within [<c>floor</c> (default 0), <c>ceiling</c>].
     /// A thin behaviour like every kind: it reads the census and writes <see cref="ObjectiveStatus"/> through <see cref="ObjectiveHost"/>.

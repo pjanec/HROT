@@ -92,6 +92,9 @@ namespace Hrot.Map.Common.Translators
             yield return new EntityMacroExpansionStatusIngressTranslator(participant, entityMap);
             yield return new EntityMacroOriginEgressTranslator(participant);
             yield return new EntityMacroOriginIngressTranslator(participant, entityMap);
+            // ⭐ macros wire fix — an entity's authored name (RefKey, "@Key"), creator → every node (no group): a runtime-inserted entity's key must resolve on every node.
+            yield return new EntityRefKeyEgressTranslator(participant);
+            yield return new EntityRefKeyIngressTranslator(participant, entityMap);
             // ⭐ WL-1b (CE-1049) — a turret part's pose, the dtTurretPose owner (the Muscle) → every node. 📄 DESIGN_Weapon_Layers §5b.
             yield return new EntityTurretPoseEgressTranslator(participant);
             yield return new EntityTurretPoseIngressTranslator(participant, entityMap);
