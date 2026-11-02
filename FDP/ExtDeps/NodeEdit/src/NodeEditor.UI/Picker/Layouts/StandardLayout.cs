@@ -34,7 +34,7 @@ internal static class StandardLayout
 
     private static void DrawList(PickerState state, IPickerRenderContext ctx, float width)
     {
-        float height = ImGui.GetContentRegionAvail().Y - ImGui.GetFrameHeightWithSpacing(); // leave room for OK/Cancel
+        float height = ImGui.GetContentRegionAvail().Y - PickerLayoutMetrics.FooterReserve(state); // leave room for OK/Cancel
         if (ImGui.BeginChild("##picker_list", new Vector2(width, height), ImGuiChildFlags.None))
         {
             try
@@ -56,7 +56,7 @@ internal static class StandardLayout
 
     private static void DrawDetail(PickerState state, IPickerRenderContext ctx, float width)
     {
-        float height = ImGui.GetContentRegionAvail().Y - ImGui.GetFrameHeightWithSpacing();
+        float height = ImGui.GetContentRegionAvail().Y - PickerLayoutMetrics.FooterReserve(state);
         if (ImGui.BeginChild("##picker_detail", new Vector2(width, height), ImGuiChildFlags.None,
                 ImGuiWindowFlags.NoScrollbar))
         {
