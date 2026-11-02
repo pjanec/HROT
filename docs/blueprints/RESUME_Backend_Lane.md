@@ -1,9 +1,11 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-29
-current-answer: ⭐ NOW (2026-10-30) — §NOW below (the 2026-10-30 one): the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
+updated: 2026-11-02
+current-answer: ⭐ NOW (2026-11-02 night) — §SHOWCASE below: the showcase scenarios Bridgehead + Crossfire v1, S6, the RefKey wire fix — what is built, what is open. (2026-10-30, kept below: the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
+  - docs/SHOWCASE_Scenarios.md — §1.7 / §2.8 Bridgehead and Crossfire v1 AS BUILT (this lane, 2026-11-02)
+  - docs/DESIGN_Scenario_Rules.md — §00.12 S6 the game profile v1 (this lane)
   - docs/DESIGN_Replay_Time_Axis_And_Review.md — the NEXT build (handoff HANDOFF_Backend_Replay_Review_Build.md): sim axis, During Action Review, §12 the wire
   - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — the CURRENT programme (CE-3299): decisions D1–D18 (§5), measurements (§6), rails (§7), build order B0–B5 (§8).
   - docs/DESIGN_System_State_Inventory.md — R-3039: every system field classified (K/A/B/C/S/X), S1 (§6), S2 (§7), S3 (§8) as built.
@@ -14,6 +16,28 @@ related-designs:
   - docs/DESIGN_Subsystem_Composition_Unification.md — B5 (not started) gates CE-3006 / CE-524 / CE-513.
 -->
 # RESUME — backend lane
+
+## ⭐ SHOWCASE (`2026-11-02` night) — user: *"follow coordinator handoff regarding demo scenarios … make the scenario running and working, use XVFB … keep checking other lanes … write notes"* · then *"run the scenario with AI entities on both sides … check the objectives and evaluation … give me some screenshots"*
+
+| done (all on `backend`) | |
+|---|---|
+| ⓪ SHOWCASE §3 `today` refreshed | `0beedd59d` |
+| ① **Bridgehead v1** (`scenarios/showcase-bridgehead`, `scripts/gen-showcase-bridgehead.py`, macros `forces/red-qrf` · `forces/red-outpost` · `inject/civilian-car`) | chain + QRF + inject + ease-off + the Members branch (S4); SR-101 ④ `Positions`; rail `ShowcaseScenarioTests`; `checks.json` (+ `later`, cross-lane in ui's verifier) |
+| ② **S6 game profile v1** (`DESIGN_Scenario_Rules.md` §00.12) | `b71dd5bbe` — captureSeconds by side · `Counter` · `AddToCounter` · trigger `whileTrue` (cross-lane in behaviors' files) |
+| ③ **Crossfire v1** (`scenarios/showcase-crossfire`, `scripts/gen-showcase-crossfire.py`, macros `game/bot` · `game/supply-crate`) | points, tickets, drain, sudden death, crates, comeback, bot respawn, domination, end — live round measured |
+| found LIVE + fixed | **CE-3360** a runtime-inserted `@Key` only resolved on the creating node: `dtRefKey` 182 + `StepRunner` 300-tick grace (cross-lane) · Crossfire bases were INSIDE buildings · body-less team's PlatoonHold overrode its squads |
+| other | ui note ① `macros/` seeded (`3855d1fcc`) · catalogue count pin 14→17 · notes → behaviors (`NOTE_Backend_To_Behaviors_Showcase_Findings.md`), → ui (`NOTE_Backend_To_Ui_Showcase_And_Macros.md`) · tracker CE-3359 / 3360 / 3361 |
+
+| open | |
+|---|---|
+| CE-3361 → behaviors | Red-on-Red fire; Blue breaks under `PlatoonDefend` (Hold never completes) |
+| ui note ② | `ParamTypes.Fits` in the validator — lean in the ui note (a binding-target-type resolver from the load step) |
+| Crossfire `checks.json` full run | the smoke + the live round passed the mechanisms; the headless 760 s verify after the squad fix not yet run |
+| the replay-review build | `HANDOFF_Backend_Replay_Review_Build.md` — still unstarted (this session took the showcase handoff instead) |
+| live-run tooling | the Xvfb live script used tonight: launch `--mode all` under Xvfb (2240×1260), `POST /run-settings {mapInLoad:true}`, `/scenario/load/live {startPaused:false}`, `POST /film/shot {lookAt, distance, yawDeg, pitchDeg}` (the 2-D map does not frame cqb-village), then every 30 s `import -window root` + `GET /objectives` — ⚠ check the port is free first (a leftover cluster swallowed a load once) |
+
+The standing Sonnet worker of this session: agent `a56894bb34feba069` (S6 G-1…G-4, dtRefKey, StepRunner grace) — gone with the container.
+
 
 ## ⭐ NOW (`2026-10-30`) — user: *"unify the ecs host bootstrap, fix the bugs reported and also retire the excon, keep writing notes to ui and read theirs"*
 
