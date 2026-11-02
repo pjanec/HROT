@@ -31,8 +31,6 @@ namespace Hrot.Network.NED.SimHost
             yield return new PathRequestBrainEgressTranslator(participant, entityMap, geoTransform, localNodeId);
             yield return new PathResponseBrainIngressTranslator(participant, entityMap, geoTransform, trajectoryPool, localNodeId);
             // ⭐ macros S3a ⑤ — the placement query pair rides the same pack.
-            yield return new PlacementRequestBrainEgressTranslator(participant, localNodeId);
-            yield return new PlacementResponseBrainIngressTranslator(participant, localNodeId);
         }
     }
 }

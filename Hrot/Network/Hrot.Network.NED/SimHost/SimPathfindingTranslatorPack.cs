@@ -30,8 +30,6 @@ namespace Hrot.Network.NED.SimHost
             yield return new PathRequestSolverIngressTranslator(participant, entityMap, geoTransform);
             yield return new PathResponseSolverEgressTranslator(participant, entityMap, geoTransform, trajectoryPool);
             // ⭐ macros S3a ⑤ — the placement query pair rides the same pack: every host with path translators gets them.
-            yield return new PlacementRequestSolverIngressTranslator(participant);
-            yield return new PlacementResponseSolverEgressTranslator(participant);
         }
     }
 }

@@ -1112,7 +1112,9 @@ namespace Hrot.NED.Descriptors
 
     /// <summary>A placement request from the asking node toward the Navigation Solver (one request per sample).</summary>
     [DdsTopic]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile)]
+    // ⭐ Reliable + KeepAll (the CE-3095 rule for events): 📌 measured live 2026-11-02 — two instances expanding in one frame sent TWO
+    //   requests and the solver's reader (default keep-last-1) received ONE; the dropped expansion fell back to its own terrain.
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct PlacementRequestBatchWire
     {
         [DdsKey] public int SourceNodeId;
@@ -1134,7 +1136,9 @@ namespace Hrot.NED.Descriptors
 
     /// <summary>The Navigation Solver's answers, addressed to the asking node.</summary>
     [DdsTopic]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile)]
+    // ⭐ Reliable + KeepAll (the CE-3095 rule for events): 📌 measured live 2026-11-02 — two instances expanding in one frame sent TWO
+    //   requests and the solver's reader (default keep-last-1) received ONE; the dropped expansion fell back to its own terrain.
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct PlacementResponseBatchWire
     {
         [DdsKey] public int TargetNodeId;
