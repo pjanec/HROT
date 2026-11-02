@@ -2,7 +2,7 @@
 state: LIVE
 build-state: ⏸ ON HOLD (user, 2026-11-02 — not to be started yet; reasons to follow) · otherwise READY-TO-BUILD after S0 + CE-4153 S9′ (accepted 2026-11-01: no reverse remap — authored refs are EntityLink, a rail, the migration writes GUIDs; DESIGN_Scenario_Entity_Keys.md S9′) — SR-146…SR-157 ✅ accepted 2026-11-01 (§9.y: the expander is the creation path's child branch) — slice S3 (§1); CE-4153 S9 (GUID file form) still a prerequisite
 updated: 2026-11-01 (split out of docs/DESIGN_Scenario_Rules.md §8 / §9.1–§9.7 — a MOVE: every decision id, its wording, its approval and every user quote kept verbatim; no id renumbered)
-current-answer: ⭐ §5.1 where a binding lives (SR-159…SR-163, draft) · §10 relocation (SR-127, SR-131, SR-152…SR-157) · §9.y the gaps closed (SR-146…SR-151) · §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
+current-answer: ⭐ §5.1 where a binding lives (SR-159…SR-166, draft — §5.1.1 the example, §5.1.2 the generic binder + recording) · §10 relocation (SR-127, SR-131, SR-152…SR-157) · §9.y the gaps closed (SR-146…SR-151) · §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
   presets and their overrides (SR-27, SR-28, SR-32) · §5 the macro file, the instance, its bindings (SR-38…SR-43, SR-57, SR-69, SR-70) · §6 macro
   entities are full TRANSIENT entities (SR-42′, SR-44, SR-44a, SR-45) · §7 a macro is CLOSED (SR-58, SR-60) · §8 the three reference forms and
   RefKey (SR-63…SR-66, SR-68) · §9 expansion at load — the sequence, SR-80, GAP-1…GAP-5 · §10 relocation + the reference types (still in the
@@ -254,6 +254,33 @@ lose it, the loader finds it by type, and save writes it with no extra step.
 - *`[JsonExtensionData]` on every DTO* — the binding would survive but no editor would SEE it; editing the bound field silently diverges from it.
 - *A `Bindable<T>` wrapper on every bindable field* — every params struct and blob layout changes, ~36 bytes per field, for a minority of fields.
 - *Path-keyed bindings for predicate nodes* — reordering conditions would break the paths (the SR-94 objection); the node carries its own.
+
+#### 5.1.2 Applying bindings generically, and what is recorded *(`2026-11-02` — leans SR-164 … SR-166 await the user)*
+
+> 🔒 **User, `2026-11-02`:** *"It's not yet clear to me how I, in the editor, can pick that the field will be fed from a scenario macro parameter. or
+> maybe basically from any kind of parameter, because for example the predicate conditions, I guess they are used in many other places … are the
+> parameter expansion implemented in a somewhat generic way, like that when the JSON is deserialized, we pass to the deserializer some interface
+> that provides the actual values for the parameters? How the components keeping the bindings are saved to the recordings? Are they managed
+> components? … any managed component means that during the replay we will need to reinstantiate it … which increases the garbage collection
+> pressure, and it's in general undesired."*
+
+| measured `2026-11-02` | where |
+|---|---|
+| S0's ONE walker has an operation per leaf TYPE (`LeafApplier`: `Ref`, `Link`, `Point`, `PointLink`, `Area`, `Rotation`, `Bearing`) — it visits typed reference / place leaves, ⛔ not scalars | `Fdp.Toolkits/Replication/EntityRefRemap.cs:455-470` (backend) |
+| the flight recorder writes a managed component as a DELTA — only when it changed since the previous tick; playback re-creates the object on those frames and on a keyframe / seek | `Fdp.Core/FlightRecorder/RecorderSystem.cs:24-40, :96-140, :283` |
+| `DataPolicy.NoReplay` keeps a component out of the recorder and checkpoints | `Fdp.Core/DataPolicyAttribute.cs:41` |
+| the condition language is shared by data breakpoints, the timeline's indexed lanes, the Blueprint `When` node and the triggers (SR-95) | ⚠ the film director's cues were NOT measured for it |
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **SR-164** | ONE generic binder, any parameter source | ⭐ `IParamSource { bool TryGet(string name, Type target, out object value) }` and ONE `ParamBinder.Apply(value, IParamSource)` that does all three kinds: a `ParamBind : LeafApplier` on the walker for the `Param` FORM (①), the type plan extended to visit a `BindableNode`'s `Bind` (②), and `ParamBindings` paths set by name (③). ⭐ It runs AFTER deserialising, on the typed value — ⛔ NOT inside the JSON converter: the EDITOR must deserialise WITHOUT applying (or it would lose the binding it is editing), the runtime with. ⭐ Any host passes its own source: the macro expander (the instance's args ▸ the header defaults), a scenario load (the scenario's params, SR-41), and later any other user of the shared languages (a film take, a blueprint asset with params) — ⛔ never a second binder |
+| **SR-165** | is `ParamBindings` recorded? — ⛔ NO | it is an AUTHORING instruction, not runtime state: the binder applies it and the component is NOT put on the created / loaded entity (SR-57: *"does NOT copy it onto the created entities"*) — so a live or replayed world never holds one. ⭐ Declared `DataPolicy.NoReplay` as well, so even an edit world's checkpoint never carries it. ⇒ no managed allocation in replay from bindings. It may stay a managed component (a small path → name map) because it exists only in the authoring world |
+| **SR-166** | the trigger's `When` / `Do` (a managed record, SR-97) IS recorded | ⚠ stated honestly: it is runtime state of the trigger entity (a branch to live from a checkpoint needs it), so it is recorded — but written once (it never changes after assignment), so the recorder's delta writes it at the keyframes only and playback allocates it on a seek, not per frame. ⭐ If that proves measurable, the lean is to keep it out of the recording (`NoReplay`) and re-derive it on a branch from the scenario's own trigger entity — a rules-S2 measurement, not a macro one |
+
+**Rejected — one line each:**
+- *Applying bindings inside the JSON converter* — the editor deserialises the same JSON and would lose the binding it is editing.
+- *One binder per host (macro, scenario, film, blueprint)* — four copies of one mechanism.
+- *Recording `ParamBindings`* — nothing at runtime reads it.
 
 ## 6. Macro entities are full, TRANSIENT entities, not parts *(was §9.3, `2026-10-31`; SR-47…SR-51 stayed in the rules doc)*
 
