@@ -437,6 +437,51 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target), "a wrecked friendly hull still stops the round");
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2379</c> — a round meets a PERSON by his body-part boxes, so the line-of-fire hold counts him by their reach, not his bare
+        /// collider radius (Bridgehead Red-on-Red: an arm box reached past the collider). A friend whose centre is beyond his radius but within
+        /// his pose's reach holds the shot (entity AND point form); one beyond the reach does not; a neutral at the same offset holds too.
+        /// 🔴 Red-proof: <c>LineOfFire.StrikeRadius</c> returning the bare collider radius.
+        /// </summary>
+        [Fact]
+        public void CE2379_ALineOfFireHold_CountsAPersonByTheReachOfHisBodyParts()
+        {
+            _world.RegisterComponent<EntityInfo>();
+            _world.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            _world.RegisterComponent<Health>();
+            if (!_world.IsComponentTypeRegistered<global::CarKinem.Core.VehicleParams>()) _world.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+            var target = SpawnTarget(new Vector3(40f, 0f, 0f));
+            _world.AddComponent(target, new EntityInfo { ForceId = ForceId.Hostile });
+            var (shooter, _) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.05f);
+            _world.AddComponent(shooter, new EntityInfo { ForceId = ForceId.Friend });
+            var point = new Vector3(40f, 0f, 0f);
+
+            var pose = Fdp.Toolkit.Physics.BodyParts.PersonPose.CivilianStanding;   // no weapon on the probe man
+            float reach = Fdp.Toolkit.Physics.BodyParts.PersonBody.HorizontalReach(pose);
+            const float radius = 0.2f;
+            Assert.True(reach > radius + 0.1f, "the premise: his parts reach past the collider");
+
+            Entity Man(ForceId force, float offset)
+            {
+                var e = Neutral(new Vector3(20f, offset, 0f), person: true, radius: radius);
+                _world.GetComponentRW<EntityInfo>(e).ForceId = force;
+                _world.AddComponent(e, new Health { Current = 100f, Max = 100f });
+                return e;
+            }
+
+            var friend = Man(ForceId.Friend, radius + (reach - radius) * 0.5f);   // centre beyond the collider, inside the arm reach
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target), "entity form: his arm covers the line");
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point), "point form: the same");
+            _world.GetComponentRW<SimTransform>(friend).Position = new Vector3(20f, reach + 0.2f, 0f);
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target), "beyond his reach: not held");
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point));
+
+            _world.DestroyEntity(friend);
+            Man(ForceId.Neutral, radius + (reach - radius) * 0.5f);
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, 0f), "a neutral at the same offset holds it");
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, point, 0f));
+        }
+
         // ── AW-20 — a neutral in the line or the spread holds the shot ─────────────────────────────────────────────────────
 
         /// <summary>A NEUTRAL entity at <paramref name="at"/> with a collider; a PERSON (pedestrian kinematics) when <paramref name="person"/>.</summary>

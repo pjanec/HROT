@@ -41,6 +41,28 @@ namespace Fdp.Toolkit.Physics.BodyParts
         /// <summary>The bounding sphere of <paramref name="pose"/> (body frame, reference size) — tier ② (HL-2).</summary>
         public static (Vector3 Centre, float Radius) Bound(PersonPose pose) => BoundsLazy.Value[(int)pose];
 
+        private static readonly Lazy<float[]> ReachLazy = new(BuildReach);
+
+        /// <summary>
+        /// ⭐ CE-2379 — the horizontal reach of <paramref name="pose"/>: the farthest any box corner lies from the body origin in the ground
+        /// plane (reference size). Computed from the same generated tables the round is tested against, so a line-of-fire hold counts a man
+        /// by what a round can strike, not by his bare collider.
+        /// </summary>
+        public static float HorizontalReach(PersonPose pose) => ReachLazy.Value[(int)pose];
+
+        private static float[] BuildReach()
+        {
+            var reach = new float[Tables.Length];
+            Span<Vector3> corners = stackalloc Vector3[8];
+            for (int i = 0; i < Tables.Length; i++)
+                foreach (var box in Tables[i])
+                {
+                    Corners(box, corners);
+                    foreach (var c in corners) reach[i] = MathF.Max(reach[i], MathF.Sqrt(c.X * c.X + c.Y * c.Y));
+                }
+            return reach;
+        }
+
         /// <summary>The largest bounding radius of any pose (reference size) — the broad phase's pad for a person.</summary>
         public static float MaxBoundRadius => MaxRadiusLazy.Value;
 
