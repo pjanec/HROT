@@ -3910,7 +3910,8 @@ namespace Hrot.Editor
                     openPicker:   _shellPickers.OpenPicker,
                     catalog:      catalog,
                     router:       _assetPickRouter,
-                    hasInventory: () => _timeTransport?.RunChoice?.Gate.HasInventory ?? true)   // ⭐ CE-1442
+                    hasInventory: () => _timeTransport?.RunChoice?.Gate.HasInventory ?? true,   // ⭐ CE-1442
+                    runChoice:    () => _timeTransport?.RunChoice)   // ⭐ CE-4141 — Open and go live
                 : null;
 
             // ⭐⭐ CE-049 (Axis-C E2) — both helpers now live in the shared

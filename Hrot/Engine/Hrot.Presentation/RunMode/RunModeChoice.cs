@@ -275,6 +275,24 @@ public sealed class RunModeChoice
         _door.Open(scenarioName);
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-4141</c> (AQ108 D25) — why <i>Open and go live</i> (the scenario picker's second button) cannot run now, or <see langword="null"/>: the run gate first, then a host with no scenario session
+    /// (an Orchestrator-less viewer). Independent of the ARMED mode — the button names its own mode.
+    /// </summary>
+    public string? OpenAndGoLiveDisabledReason
+        => ClosedReason ?? (_door is null ? "No scenario session on this host — Live cannot be started from here" : null);
+
+    /// <summary>
+    /// ⭐ <c>CE-4141</c> (AQ108 D25, D4) — opens <paramref name="scenarioName"/> straight into LIVE: the session's ONE guarded door asks what it asks (<i>Stop &amp; Load</i> over a run,
+    /// <i>Save / Discard / Cancel</i> over unsaved edits — D4), then loads for live; the load lands paused and the clock resumes once Live is up, as ▶ does. ⛔ Sends no armed mode.
+    /// Does nothing when <see cref="OpenAndGoLiveDisabledReason"/> says why not.
+    /// </summary>
+    public void OpenAndGoLive(string scenarioName)
+    {
+        if (OpenAndGoLiveDisabledReason is not null || string.IsNullOrWhiteSpace(scenarioName)) return;
+        _door!.LoadLive(scenarioName, then: () => _resumeWhenLive = true);
+    }
+
     // ── ⭐ AQ108 D21 — the timeline's menu: a mode change at the clicked moment, without asking ─────────────────────────
 
     /// <summary>Why "AAR from here" cannot be offered now (null = it can): only a live run, and only a RECORDED one, has a recording to open.</summary>

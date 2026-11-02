@@ -2036,7 +2036,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             openPicker:   _shellPickers.OpenPicker,
             catalog:      catalog,
             router:       router,
-            hasInventory: () => _clusterTimeAdapter?.RunChoice?.Gate.HasInventory ?? true);   // ⭐ CE-1442
+            hasInventory: () => _clusterTimeAdapter?.RunChoice?.Gate.HasInventory ?? true,   // ⭐ CE-1442
+            runChoice:    () => _clusterTimeAdapter?.RunChoice);   // ⭐ CE-4141 — Open and go live
 
         // ⭐⭐ The New-Asset flow: recipe picker → Save-As browser for the name/folder → the ONE
         //    create-core. ⚠ `_assetCreateController` is non-null here because WireAssetCreation runs

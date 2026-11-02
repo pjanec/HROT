@@ -2,6 +2,7 @@ using Hrot.Editor;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Browser;
 using Hrot.Editor.AiShared.Catalog;
+using System.IO;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Picker;
 
@@ -381,5 +382,155 @@ public sealed class AssetPickerLauncherTests
 
         arrived = true;
         Assert.DoesNotContain(launcher.Entries(AssetKindFilter.Scenario), e => e.Id == AssetPickerLauncher.WaitingEntryId);
+    }
+
+    // ═══ CE-4141 (AQ108 D25) — the scenario picker as the first source of the generic side pane ═══════════════════════════════════
+    // Red-proof (compiles): the go-live branch of Open dropped (the action id ignored) ⇒ CE4141_OpenAndGoLive_… fails.
+
+    private sealed class RecordingControl : Hrot.UI.Common.RunMode.IRunScenarioControl
+    {
+        public List<string> LiveLoads { get; } = new();
+        public List<string> EditOpens { get; } = new();
+        public string? LoadedScenarioName => "s";
+        public void LoadForLive(string scenarioName) => LiveLoads.Add(scenarioName);
+        public void OpenForEdit(string scenarioName) => EditOpens.Add(scenarioName);
+        public void OpenRecording(Guid exerciseId) { }
+        public void SaveCurrent() { }
+        public void TakeCheckpoint() { }
+    }
+
+    private static Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceOver(RecordingControl control)
+        => Hrot.UI.Common.RunMode.NodeRunControls.For(new Fdp.Core.FdpEventBus(), () => null, () => 0.0, null,
+               new Hrot.UI.Common.RunMode.NodeRunProfile(Hrot.UI.Common.RunMode.RunHostKind.Editor, control)).RunChoice;
+
+    private static string TempScenario(out string json, string name = "alpha", bool withPreview = false, string headerJson = "\"terrainName\":\"Hill\",\"description\":\"A hill attack.\",\"subsystemType\":\"CGF\"")
+    {
+        string root = Path.Combine(Path.GetTempPath(), "pk4141-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, name));
+        json = Path.Combine(root, name, "scenario.json");
+        File.WriteAllText(json, "{\"header\":{" + headerJson + "},\"entities\":{\"a\":{},\"b\":{},\"c\":{}}}");
+        if (withPreview) File.WriteAllBytes(Path.Combine(root, name, "preview.png"), new byte[] { 1 });
+        return root;
+    }
+
+    [Fact]
+    public void CE4141_AScenarioRequest_HasTheSidePane_TheTwoActions_AndThePreviewKeyOnlyWhenTheFileExists()
+    {
+        string root = TempScenario(out var json, "with", withPreview: true);
+        TempScenarioAt(root, "without", out var json2);
+        try
+        {
+            var catalog = new FakeCatalog(new StubAsset { Kind = AssetKind.Scenario, Name = "with", SourceFilePath = json },
+                                          new StubAsset { Kind = AssetKind.Scenario, Name = "without", SourceFilePath = json2 });
+            var picker = new FakeOpenPicker();
+            new AssetPickerLauncher(picker.OpenPicker, catalog, MakeRouter(), baseFolderResolver: _ => "").Open(AssetKindFilter.Scenario);
+
+            var req = picker.CapturedRequest!;
+            Assert.True(req.ShowSidePane);
+            Assert.NotNull(req.DrawPane);
+            Assert.Equal(new[] { "open", "go-live" }, req.Actions!.Select(a => a.Id).ToArray());
+            Assert.True(req.Actions![0].IsDefault);
+            var entries = req.ItemsProvider().ToList();
+            Assert.EndsWith("preview.png", entries.Single(e => e.Name == "with").ImageKey);
+            Assert.Null(entries.Single(e => e.Name == "without").ImageKey);
+
+            // a picker of other kinds is the classic one: no pane, no actions
+            var other = new FakeOpenPicker();
+            new AssetPickerLauncher(other.OpenPicker, new FakeCatalog(new StubAsset { Kind = AssetKind.BTree, Name = "p" }), MakeRouter(), baseFolderResolver: _ => "").Open(AssetKindFilter.BTree);
+            Assert.False(other.CapturedRequest!.ShowSidePane);
+            Assert.Null(other.CapturedRequest.Actions);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    private static void TempScenarioAt(string root, string name, out string json)
+    {
+        Directory.CreateDirectory(Path.Combine(root, name));
+        json = Path.Combine(root, name, "scenario.json");
+        File.WriteAllText(json, "{\"header\":{},\"entities\":{}}");
+    }
+
+    [Fact]
+    public void CE4141_TheFactsAreReadFromScenarioJson_LazilyAndCached_AndAbsentFieldsStayAbsent()
+    {
+        string root = TempScenario(out var json);
+        try
+        {
+            int before = ScenarioPaneFacts.Parses;
+            var f = ScenarioPaneFacts.Get(json, nowMs: 1_000)!;
+            Assert.Equal(("A hill attack.", "Hill", "CGF", 3), (f.Description, f.TerrainName, f.SubsystemType, f.EntityCount));
+            Assert.Same(f, ScenarioPaneFacts.Get(json, nowMs: 1_500));          // a frame later: the cache, no parse
+            Assert.Equal(before + 1, ScenarioPaneFacts.Parses);
+            Assert.Same(f, ScenarioPaneFacts.Get(json, nowMs: 9_000));          // re-checked, the write time unchanged ⇒ still no parse
+            Assert.Equal(before + 1, ScenarioPaneFacts.Parses);
+
+            string root2 = TempScenario(out var json2, headerJson: "");
+            try
+            {
+                var bare = ScenarioPaneFacts.Get(json2)!;
+                Assert.Null(bare.TerrainName); Assert.Null(bare.Description);   // only what the file has — no placeholder
+            }
+            finally { Directory.Delete(root2, true); }
+            Assert.Null(ScenarioPaneFacts.Get(Path.Combine(root, "missing", "scenario.json")));
+            Assert.Null(ScenarioPaneFacts.Get(""));
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public void CE4141_OpenAndGoLive_RoutesToTheRunChoice_AndOpenStaysTheRouter()
+    {
+        var control = new RecordingControl();
+        var choice = RunChoiceOver(control);
+        var asset = new StubAsset { Kind = AssetKind.Scenario, Name = "alpha" };
+        var picker = new FakeOpenPicker();
+        var opened = new List<string>();
+        new AssetPickerLauncher(picker.OpenPicker, new FakeCatalog(asset), MakeRouter(onLoad: opened.Add), baseFolderResolver: _ => "", runChoice: () => choice)
+            .Open(AssetKindFilter.Scenario);
+
+        picker.InvokeHandler(new PickerResult(new[] { EntryFor(asset) }) { ActionId = AssetPickerLauncher.GoLiveActionId });
+        Assert.Equal(new[] { "alpha" }, control.LiveLoads);                      // the door loaded it for LIVE
+        Assert.Empty(opened);                                                     // and the Open router did not run
+
+        picker.InvokeHandler(new PickerResult(new[] { EntryFor(asset) }) { ActionId = AssetPickerLauncher.OpenActionId });
+        Assert.Equal(new[] { "alpha" }, opened);                                  // Open = today's route
+        Assert.Single(control.LiveLoads);
+    }
+
+    [Fact]
+    public void CE4141_GoLive_IsDisabledWithAReason_WhenTheHostHasNoRunChoice_OrPicksNoScenario()
+    {
+        var asset = new StubAsset { Kind = AssetKind.Scenario, Name = "alpha" };
+        var launcher = new AssetPickerLauncher(new FakeOpenPicker().OpenPicker, new FakeCatalog(asset), MakeRouter(), baseFolderResolver: _ => "");
+        Assert.Contains("no run controls", launcher.GoLiveDisabledReason(EntryFor(asset)));
+        Assert.Equal("Pick a scenario first", launcher.GoLiveDisabledReason(null));
+
+        var withChoice = new AssetPickerLauncher(new FakeOpenPicker().OpenPicker, new FakeCatalog(asset), MakeRouter(), baseFolderResolver: _ => "", runChoice: () => RunChoiceOver(new RecordingControl()));
+        Assert.Null(withChoice.GoLiveDisabledReason(EntryFor(asset)));
+        Assert.Equal("Pick a scenario first", withChoice.GoLiveDisabledReason(EntryFor(new StubAsset { Kind = AssetKind.BTree, Name = "p" })));
+    }
+
+    [Fact]
+    public void CE4141_ARemoteHost_HasNoFileToRead_SoItsPaneSaysSo()
+    {
+        Assert.Equal("preview and description not available on this host", AssetPickerLauncher.NoPreviewNotice);
+        Assert.Null(ScenarioPaneFacts.PreviewOf(""));                              // an empty SourceFilePath (no local root) ⇒ no preview, no facts
+        Assert.Null(ScenarioPaneFacts.Get(""));
+    }
+
+    /// <summary>⭐ CE-4141 (the silent-default rule) — the hosts that build the launcher AND hold a run choice must pass it, or <i>Open and go live</i> is dead there.</summary>
+    [Fact]
+    public void CE4141_EveryHostThatBuildsTheLauncher_PassesItsRunChoice()
+    {
+        string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../.."));
+        while (!File.Exists(Path.Combine(root, "HROT.sln")) && Directory.GetParent(root) != null) root = Directory.GetParent(root)!.FullName;
+        foreach (var rel in new[] { "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs", "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs", "Hrot/Subsystems/Hrot.Orchestrator/OrchestratorSubsystem.cs" })
+        {
+            var text = File.ReadAllText(Path.Combine(root, rel));
+            int at = text.IndexOf("new Hrot.Editor.AiShared.Browser.AssetPickerLauncher(", StringComparison.Ordinal);
+            Assert.True(at >= 0, rel);
+            string call = text.Substring(at, Math.Min(900, text.Length - at));
+            Assert.Contains("runChoice:", call);
+        }
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Catalog;
 using NodeEditor.Core.Interfaces;
@@ -28,6 +29,16 @@ public sealed class AssetPickerLauncher
     private readonly Func<AssetKind, string?>? _baseFolderResolver;
     private readonly Func<IEditableAsset, string?> _describe;
     private readonly Func<bool>? _hasInventory;
+    private readonly Func<Hrot.UI.Common.RunMode.RunModeChoice?>? _runChoice;
+
+    /// <summary>⭐ CE-4141 (AQ108 D25) — the id of the scenario picker's default footer action (<i>Open</i>).</summary>
+    public const string OpenActionId = "open";
+
+    /// <summary>⭐ CE-4141 (AQ108 D25) — the id of <i>Open and go live</i>.</summary>
+    public const string GoLiveActionId = "go-live";
+
+    /// <summary>The muted line of a host with no local scenarios folder (a remote host): the pane has no file to read.</summary>
+    public const string NoPreviewNotice = "preview and description not available on this host";
 
     /// <summary>The id of the waiting row (<see cref="InventoryWaiting"/>) shown while the cluster's scenario list has not arrived.</summary>
     public const string WaitingEntryId = "scenario.waiting-for-inventory";
@@ -50,15 +61,19 @@ public sealed class AssetPickerLauncher
     /// </param>
     /// <param name="hasInventory">⭐ CE-1442 (§11.7 ⑤) — the cluster's lists have arrived (<c>RunGate.HasInventory</c>, through the host's run choice). Until then a picker that lists
     /// SCENARIOS (the cluster's list) leads with the waiting row instead of looking empty; the other kinds (files on disk) list as before. Null ⇒ always arrived (a rail). ⭐ A host with a run choice must pass it.</param>
+    /// <param name="runChoice">⭐ CE-4141 (AQ108 D25) — the host's run choice (read at use: it is built after the picker). It makes <i>Open and go live</i> run (<see cref="Hrot.UI.Common.RunMode.RunModeChoice.OpenAndGoLive"/>: the door asks D4's
+    /// questions, then loads for live); without it the button is disabled with its reason. ⭐ A host that HAS a run choice must pass it (the forwarding rail checks the Editor, CGF and the Orchestrator).</param>
     public AssetPickerLauncher(
         Action<PickerRequest, Action<PickerResult>> openPicker,
         IAssetCatalog catalog,
         AssetPickActionRouter router,
         Func<AssetKind, string?>? baseFolderResolver = null,
         Func<IEditableAsset, string?>? describe = null,
-        Func<bool>? hasInventory = null)
+        Func<bool>? hasInventory = null,
+        Func<Hrot.UI.Common.RunMode.RunModeChoice?>? runChoice = null)
     {
         _hasInventory = hasInventory;
+        _runChoice = runChoice;
         _openPicker = openPicker ?? throw new ArgumentNullException(nameof(openPicker));
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _router = router ?? throw new ArgumentNullException(nameof(router));
@@ -84,6 +99,9 @@ public sealed class AssetPickerLauncher
     private IReadOnlyList<PickerEntry> Entries(AssetKindFilter kinds, AssetPickerSource source)
     {
         var entries = source.BuildEntries("", null);
+        if ((kinds & AssetKindFilter.Scenario) != 0)
+            entries = entries.Select(e => e.Tag is IEditableAsset { Kind: AssetKind.Scenario } a && ScenarioPaneFacts.PreviewOf(a.SourceFilePath) is { } png
+                ? e with { ImageKey = png } : e).ToList();   // ⭐ CE-4141 — the pane's picture: preview.png in the scenario's folder, when there is one
         if ((kinds & AssetKindFilter.Scenario) == 0 || _hasInventory is null || _hasInventory()) return entries;
         var withWaiting = new List<PickerEntry>(entries.Count + 1) { InventoryWaiting.Entry(WaitingEntryId) };
         withWaiting.AddRange(entries);
@@ -102,6 +120,7 @@ public sealed class AssetPickerLauncher
             SelectionMode = PickerSelectionMode.Single,
             ItemsProvider = () => Entries(kinds, source),
         };
+        if ((kinds & AssetKindFilter.Scenario) != 0) request = ScenarioPane(request, kinds, source);
 
         _openPicker(request, result =>
         {
@@ -110,11 +129,64 @@ public sealed class AssetPickerLauncher
 
             if (result.First?.Tag is IEditableAsset asset)
             {
+                // ⭐ CE-4141 — Open and go live: the run choice's door asks D4's questions, then loads for live
+                if (result.ActionId == GoLiveActionId)
+                {
+                    if (asset.Kind == AssetKind.Scenario) _runChoice?.Invoke()?.OpenAndGoLive(asset.Name);
+                    return;
+                }
                 if (onPicked != null)
                     onPicked(asset);
                 else
                     _router.Route(asset);
             }
         });
+    }
+
+    /// <summary>
+    /// ⭐ CE-4141 (AQ108 D25) — the scenario picker is the first SOURCE of the generic picker's side pane (CE-4168): the pane shows the entry's <c>preview.png</c>, name and description, then facts read from
+    /// its <c>scenario.json</c> (terrain, subsystem, entity count — only what the file has); a host with no local scenarios folder says so. The footer offers <i>Open</i> (default) and <i>Open and go live</i>.
+    /// ⏳ The run-setup expanders of D24 (variant, scenario params) are NOT here: scenario variants and params are macros S3 (backend's) and do not exist yet.
+    /// </summary>
+    private PickerRequest ScenarioPane(PickerRequest basis, AssetKindFilter kinds, AssetPickerSource source) => new()
+    {
+        ContextKey = basis.ContextKey,
+        Title = basis.Title,
+        Layout = basis.Layout,
+        SelectionMode = basis.SelectionMode,
+        ItemsProvider = basis.ItemsProvider,
+        ShowSidePane = true,
+        DrawPaneAfterDefault = true,
+        // ⏳ AQ108 D24 — the run setup (variant, scenario params; collapsed expanders) goes HERE once scenario variants / params exist (macros S3, backend's).
+        DrawPane = (entry, pane) => DrawScenarioFacts(entry, pane),
+        Actions = new[]
+        {
+            new PickerAction(OpenActionId, "Open", IsDefault: true),
+            new PickerAction(GoLiveActionId, "Open and go live", DisabledReason: GoLiveDisabledReason),
+        },
+    };
+
+    /// <summary>Why <i>Open and go live</i> cannot run for <paramref name="entry"/> now, or <see langword="null"/>.</summary>
+    public string? GoLiveDisabledReason(PickerEntry? entry)
+    {
+        if (entry?.Tag is not IEditableAsset { Kind: AssetKind.Scenario }) return "Pick a scenario first";
+        var choice = _runChoice?.Invoke();
+        return choice is null ? "This host has no run controls — Live cannot be started from here" : choice.OpenAndGoLiveDisabledReason;
+    }
+
+    private static void DrawScenarioFacts(PickerEntry entry, NodeEditor.UI.Picker.PickerPaneContext pane)
+    {
+        if (entry.Tag is not IEditableAsset { Kind: AssetKind.Scenario } asset) return;
+        void Muted(string text) { ImGuiNET.ImGui.PushStyleColor(ImGuiNET.ImGuiCol.Text, pane.Theme.TextMuted); ImGuiNET.ImGui.TextUnformatted(text); ImGuiNET.ImGui.PopStyleColor(); }
+        if (string.IsNullOrEmpty(asset.SourceFilePath)) { Muted(NoPreviewNotice); return; }   // a remote host: the name alone
+        if (ScenarioPaneFacts.Get(asset.SourceFilePath) is not { } f) return;                   // absent ⇒ nothing, no placeholder
+        ImGuiNET.ImGui.Separator();
+        if (string.IsNullOrEmpty(entry.Description) && f.Description is { } d)
+        {
+            ImGuiNET.ImGui.PushTextWrapPos(0f); ImGuiNET.ImGui.TextUnformatted(d); ImGuiNET.ImGui.PopTextWrapPos();
+        }
+        if (f.TerrainName is { } terrain) Muted("Terrain: " + terrain);
+        if (f.SubsystemType is { } sub) Muted("Subsystem: " + sub);
+        if (f.EntityCount > 0) Muted("Entities: " + f.EntityCount);
     }
 }
