@@ -454,6 +454,8 @@ public sealed class EntityTypeCatalogTests
         8813 Scenario Macro | dis 5.0.0.90.0.0.0 | family Unknown | folder Cultural Feature/Scenario Macro (HROT) | icon -
         8850 Traffic | dis - | family Unknown | folder Other | icon -
         8851 SUMO car | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        8860 Objective | dis - | family Unknown | folder Other | icon -
+        8861 Trigger | dis - | family Unknown | folder Other | icon -
         """;
 
     /// <summary>⭐ The DIS names as <c>DisNames.json</c> held them — the class table must name exactly these levels; ⭐ C3 adds the

@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED 2026-11-02 (user: "then approved", with MA-1's always-visible button); P1 building
-updated: 2026-11-03 (§6 P1 as built)
-build-state: BUILDING — P1 (MA-4, MA-3) built, §6
-current-answer: §6 the P1 AS BUILT · §3 (decisions) · §4 (phases)
+updated: 2026-11-03 (§7 P2 as built)
+build-state: BUILDING — P1 (MA-4, MA-3) built §6 · P2 (MA-1, MA-2, MA-5) built §7
+current-answer: §7 the P2 AS BUILT · §6 the P1 AS BUILT · §3 (decisions) · §4 (phases)
 stale-below: nothing
 known-rot: none
 related-designs:
@@ -174,4 +174,29 @@ the header through the resident, so no surface can keep a copy of its own.
 | MA-3 `ParamTypes` | `Fdp.Toolkits/Scenario/ParamTypes.cs`: `TryResolve(typeId, out Type)` (either spelling, case-insensitive) · `IdOf(Type, ParamTypeSpelling.Short \| Clr)` · `Fits(typeId, Type)` (the SAME type, or `Nullable<>` of it — nothing is converted) · `RegisterEnum`. Short: `EntityLink PointLink AreaLink Bearing WorldRotation float int bool string double` · CLR: their `FullName`s (`System.Single` …). Unknown id ⇒ resolves to nothing, fits nothing, never throws | ➕ `Vector3` / `System.Numerics.Vector3` (a `.params.json` field — `T41Params.Home` — has no other spelling). **Enums: ONE rule** — an enum is a param type when REGISTERED (`RegisterEnum`), found by name (`ForceId`) or full name; `Fdp.Core.ForceId` (what the macro samples and §5.1.1 spell) is registered; another enum is registered once by the feature that declares it. ⛔ not a scan of loaded assemblies (two enums of one name would resolve by load order). The validator's SR-162 type half (backend's file) is NOT changed — offered, not done |
 
 Rails (each in its feature's suite): `ScenarioMergeCoreTests` +3 · `HrotScenarioSaveHandlerTests` +2 · `ScenarioLoadStepTests` +1 · `StorageProcessManagerTests` +1 · `ContentLayoutTests` +1 · `ParamTypesTests` (new: no suite existed). Red-proofs: the merge not writing the fields · `HeaderOf` ignoring the resident · the load not passing `headerJson` — each fails its rail.
+
+## 7. AS BUILT — P2 *(ui, `2026-11-03`; MA-1 the affordance, MA-2 the three homes, MA-5 the params source)*
+
+```mermaid
+graph TD
+  D[ComponentEditDrawer.DrawLeafNode] -->|BindView| M[ParamBindModel - pure]
+  M -->|ctx.Params / BoundTo / Bind| C[IParamBindContext]
+  C --> E[EntityBindContext - ParamBindings under prefix.path]
+  H1[FdpEntityInspectorHelper.BindContextFactory] --> E
+  H2[EntityAiDetailsView.BindsFor] --> E
+  E -->|params in scope| P[HeaderParams.Of - resident header]
+  S[HeaderParamsSchemaSource] -->|Stamp new resident| P
+  S -->|rename / count / find| U[ParamUsage - walker + Bind maps + ParamBindings]
+  W[ParametersWindow] --> S
+  POP[bind popup New parameter] -->|DeclareParam| S
+```
+*Caption: who feeds the drawer its context (every host that holds the world), and the ONE scan (`ParamUsage`) behind the count, the remove refusal and the rename.*
+
+**As built, and where it differs from §2/§3:**
+- `IParamBindContext` + `ParamBindModel` (pure: bindable, home, chip/button/red, bind/unbind) + `EntityBindContext` live in `Fdp.Presentation/ImGui/Editing/`. The drawer takes the context as the **4th** optional ctor argument (not the 3rd — a 3rd would break positional `customDrawers` callers); `ComponentEditWindow` and `BehaviorParamsForm.DrawFields` forward it. Unbound bindable row: a faint drawn chain button at the right edge (the font has no ⛓); bound: solid chip in front of the value; red chip with the reason on a problem; click / label right-click opens *Bind to ▸ · New parameter… · Unbind*. A field whose path has an index is not bindable (SR-161).
+- Homes decided by the drawer: link leaves (`EntityLink`/`PointLink`/`AreaLink`) → Param form via new `BindToParam/UnbindParam` on the link types (`Links.cs`); nearest container a `BindableNode` → its `Bind` map (+ `MarkStructuralChange`); else `ctx.Bind(path)`.
+- Hosts: the diagnostics bundle (`FdpEntityInspectorHelper.WireInspectorWithInspectContextMenu` now takes the world getter, required) wires the panel's and every watch window's reflector, so IG/CGF/SimHost/Editor agree by construction; `EntityAiDetailsView` gives the task / SOP params forms prefixes `Behavior.Params` / `Sop.Params` (instance rows and mission/order forms have no entity ⇒ none).
+- ⚠ **Deviation — undo of an inspector bind:** no component-edit undo seam exists in the inspector (`IInspectableSession.SetComponent` is the one write path), so a bind/unbind there is one `SetComponent` of a NEW `ParamBindings` (not on an undo stack). The Parameters window has its own history (`ParamsEditHistory`): add/remove/move/edit/rename are undoable, a rename (declaration + every binding in all three homes) is ONE step.
+- MA-5: `HeaderParamsSchemaSource : IVariablesSchemaSource` over the resident header's `Params` (each edit stamps a NEW resident); Remove is refused while bound, naming the bindings; the reference count is the binding count (cached ≤ 1 s). Opened from *Scenario ▸ Parameters…* and by the popup's *New parameter…* (`DiagnosticsHostServices.DeclareParam`, only the editor passes it). `ParamTypes.All()` supplies the type choices. ⛔ The `.params.json` source is not built.
+- Live check (real editor under Xvfb, `macros/test/fire-team`): the Scenario menu shows *Parameters…*, the window lists `side : ForceId` from the loaded macro, the entities carry `EntityInfo.ForceId → side`, and a save to a copy wrote the 4 bindings back with `Header.Params`. ⚠ The popup click and the in-table rename could not be driven by xdotool (ImGui double-click timing); both are railed instead.
 

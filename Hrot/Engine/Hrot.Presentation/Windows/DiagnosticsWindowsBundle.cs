@@ -78,7 +78,9 @@ public sealed class DiagnosticsWindowsBundle : IUiBundle
             h.Perspective,
             h.RepoAdapter,
             h.PickBroker,
-            h.TitleBarColor);
+            h.TitleBarColor,
+            h.World,
+            h.DeclareParam);
 
         ctx.Windows.RegisterWindow(new FdpEventBrowserWindow(
             EventsId(h.IdPrefix), $"{h.TitlePrefix} Event Browser", h.Perspective,
@@ -181,4 +183,6 @@ public sealed record DiagnosticsHostServices(
     ArchitectureDiagnosticsPanel? ArchitecturePanel = null,
     Func<List<ModuleStats>?>? ExecutionStats = null,
     MapPickBroker? PickBroker = null,
-    Func<CycloneDDS.Runtime.DdsParticipant?>? WireParticipant = null);
+    Func<CycloneDDS.Runtime.DdsParticipant?>? WireParticipant = null,
+    // ⭐ CE-4210 P2 — a host that AUTHORS scenario params passes how a bind popup's "New parameter…" declares one; null ⇒ the popup offers only the declared ones.
+    Func<Type, string, object?, Fdp.Presentation.Editing.ParamInScope?>? DeclareParam = null);

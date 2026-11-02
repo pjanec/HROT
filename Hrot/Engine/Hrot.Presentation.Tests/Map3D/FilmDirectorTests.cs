@@ -807,8 +807,19 @@ public sealed class FilmDirectorTests
                     count++;
                 }
         }
+        foreach (var (name, take) in V1Fixtures())   // ⭐ the v1 paths the seeded set no longer covers (CE-4127)
+        {
+            var keys = CameraKeys.Of(take);
+            int plain = take.Shots.Count(s => s.Replay == null), flies = take.Shots.Count(s => s.Replay == null && s.To is { Count: > 0 });
+            withTo += flies;
+            Assert.Equal(plain + flies, keys.Count);
+            Assert.Equal(flies, keys.Count(k => k.In.Kind == KeyTransitionKind.Fly));
+            var back = TakeJson.WriteTake(take);
+            Assert.False(back.ContainsKey("keys"), $"{name} wrote keys");
+            Assert.False(back.ContainsKey("segments"), $"{name} wrote segments");
+        }
         Assert.True(count >= 55, $"{count} seeded takes");
-        Assert.True(withTo > 0, "no seeded take has a `to` — the fly derivation went unexercised");
+        Assert.True(withTo > 0, "no v1 take has a `to` — the fly derivation went unexercised");
         // ⭐ CE-4127 (user 2026-10-30: "replace the main takes") — the recording-era takes (PLAN_Feature_Films §1c) write back exactly what they read
         Assert.True(recordingEra.Count >= 5, $"{recordingEra.Count} recording-era takes");
         foreach (var (scenario, name, take) in recordingEra)
@@ -960,7 +971,8 @@ public sealed class FilmDirectorTests
                 Shot("""{"at":8,"seconds":2,"eye":[0,0,5],"target":[10,10,0]}"""),
             },
         }));
-        Assert.True(takes.Count >= 45, $"{takes.Count} v1 takes");
+        takes.AddRange(V1Fixtures());   // ⭐ CE-4127 left 5 seeded v1 takes — the fixtures keep the comparison wide
+        Assert.True(takes.Count >= 4, $"{takes.Count} v1 takes");
 
         var units = new HashUnits();
         int compared = 0;
@@ -984,7 +996,7 @@ public sealed class FilmDirectorTests
                 compared++;
             }
         }
-        Assert.True(compared > 500, $"{compared} samples");
+        Assert.True(compared > 200, $"{compared} samples");   // ⭐ CE-4127 left 5 seeded v1 takes; the floor was sized for the old ~50 (the fixtures give ~230)
     }
 
     private sealed class HashUnits : IShotWorld
@@ -1201,8 +1213,23 @@ public sealed class FilmDirectorTests
                     }
                 }
         }
-        Assert.True(withText > 50, $"only {withText} captioned samples — the seeded takes' captions went unexercised");
-        Assert.True(compared > 500, $"{compared} samples");
+        foreach (var (_, take) in V1Fixtures())   // ⭐ CE-4127 — the seeded v1 takes left are few; the fixtures carry captions on purpose
+        {
+            Func<string, double?> anchors = a => 5d + 3d * (a.Sum(c => c) % 7);
+            var plan = TakeTimeline.Plan(take, anchors);
+            var subs = TakeSubtitles.Of(take, plan);
+            for (double t = 0; t <= plan.End + 1; t += 0.25)
+            {
+                var shot = plan.At(t);
+                string? before = shot == null ? null : shot.Shot.Caption ?? take.Caption;
+                if (string.IsNullOrWhiteSpace(before)) before = null;
+                Assert.Equal(before, TakeSubtitles.At(subs, anchors, t)?.Text);
+                if (before != null) withText++;
+                compared++;
+            }
+        }
+        Assert.True(withText > 50, $"only {withText} captioned samples — the v1 captions went unexercised");
+        Assert.True(compared > 200, $"{compared} samples");   // ⭐ CE-4127 left 5 seeded v1 takes; the floor was sized for the old ~50 (the fixtures give ~230)
 
         var own = new Take { Caption = "old", Subtitles = new[] { new Subtitle { At = new AtExpr(1), Until = new AtExpr(3), Text = "new", Fade = 0.5 } } };
         var sub = TakeSubtitles.At(TakeSubtitles.Of(own, TakeTimeline.Plan(own, _ => null)), _ => null, 1.25);
@@ -1413,6 +1440,36 @@ public sealed class FilmDirectorTests
 
     /// <summary>⭐ <c>CE-4127</c> — a seeded take rewritten for films from recordings (PLAN_Feature_Films §1c): keys, segments or subtitles of its own.
     /// ⛔ Not a v1 take — the rails that pin how an OLD take still reads skip it.</summary>
+    /// <summary>
+    /// ⭐ The v1 (shot-based) takes the derivation rails need. CE-4127 replaced the seeded takes with recording-era (v2) ones, which left 5 v1
+    /// takes, none flying (<c>to</c>) and few captioned, so the seeded set alone no longer exercises the v1 → keys / captions → subtitles paths.
+    /// These hand-made takes keep them exercised; the seeded v1 takes that remain are still checked one by one.
+    /// </summary>
+    private static IReadOnlyList<(string Name, Take Take)> V1Fixtures() => new[]
+    {
+        ("v1/flies", new Take
+        {
+            Caption = "The approach",
+            Shots = new[]
+            {
+                Shot("""{"at":1,"seconds":3,"follow":"A","distance":12,"yaw":10,"orbit":5,"fov":50,"to":{"distance":30,"yaw":90,"fov":30},"ease":"in","caption":"Alpha moves up"}"""),
+                Shot("""{"at":6,"seconds":2,"lookAt":[1,2,3],"distance":20,"to":{"pitch":-60},"ease":"linear"}"""),
+                Shot("""{"at":8,"seconds":4,"follow":"B","distance":25,"to":{"distance":10,"yaw":45},"caption":"Bravo covers"}"""),
+                Shot("""{"at":13,"seconds":3,"eye":[0,0,5],"target":[10,10,0],"caption":"The bridge"}"""),
+            },
+        }),
+        ("v1/captions", new Take
+        {
+            Caption = "Contact",
+            Shots = new[]
+            {
+                Shot("""{"at":2,"seconds":5,"follow":"C","distance":15,"caption":"Charlie halts"}"""),
+                Shot("""{"at":8,"seconds":5,"follow":"D","distance":18,"to":{"yaw":120},"ease":"out"}"""),
+                Shot("""{"at":14,"seconds":6,"lookAt":[5,5,0],"distance":40,"caption":"The village"}"""),
+            },
+        }),
+    };
+
     private static bool IsRecordingEra(Take take) => take.Keys.Count > 0 || take.Segments.Count > 0 || take.Subtitles.Count > 0;
 
     private static IEnumerable<(TakeStore Store, string Scenario, string Name)> SeededTakes()
