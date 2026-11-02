@@ -22,11 +22,11 @@ Dispatch: [`HANDOFF_Coordinator_To_Backend_Scenario_Macros_S3a.md`](HANDOFF_Coor
 | ② | the macro FILE: `macros/<path>/scenario.json`, header `Kind`/`Params`/`Anchor`/`Placement.MaxShift`/`Relocatable`; sample `macros/test/fire-team` | `6fc54c7e7` | §15 |
 | ③ | `MacroInstance` (470, immutable record), `MacroExpansionStatus` (471, unmanaged), `MacroOrigin` (472, unmanaged), wire twins (dt 158/159/170), TKB `ScenarioMacro` 8813 | `29c2ea623` | §15 |
 | ④ | the EXPANDER on the creation path: files → ordinary child requests (flatten, bind, resolve, relocate, GUID `macro:<local>`, transient), `MacroExpansionSystem`, the load waits on `MacroExpansionIntent` (473) | `02659da06` | §15.1 |
-| ⑤ | PLACEMENT as a solver query: `PlacementRequestBatch` → `PlacementSolverSystem` → `PlacementResponseBatch`, wire dt 171/172; one batch per expansion, any `Failed` slot fails it all, no answer in 300 frames ⇒ the same solver code on this node (E-6) | `92ed7a881` + wiring in `96078e74a` + live fixes `832bc466a` | §15.2 |
+| ⑤ | PLACEMENT as a solver query: `PlacementRequestBatch` → `PlacementSolverSystem` → `PlacementResponseBatch`, wire dt 180/181 (moved from 171/172 — the rules' block, see §3); one batch per expansion, any `Failed` slot fails it all, no answer in 300 frames ⇒ the same solver code on this node (E-6) | `92ed7a881` + wiring in `96078e74a` + live fixes `832bc466a` | §15.2 |
 | ⑥ | VALIDATOR in the prepare (SR-149/161/162/156) · `@Key` duplicates first-match with a warning (SR-188) · reconcile by GUID on an args/anchor edit, destroyed stays destroyed (SR-150/172) · cascade on instance removal (SR-170) · `MacroExpandedWith` (474) | `96078e74a` | §15.2 |
 | ⑦ | the macros package to EVERY node (SR-80/148) · scenario args from `POST /scenario/load/live {args}` and `--param name=value` to every node's load, applied by the ONE params routine (`ScenarioParams`, the expander uses it too), kept as `RecordingMetadata.ScenarioArgs` (SR-41/176) | `d8991c55b`, `33321d750` | §15.3 |
 
-Ids allocated: components 469–474; descriptors 158, 159, 170, 171, 172; TKB 8813. No tracker row allocated.
+Ids allocated: components 469–474 (⚠ in ui's block — backend's 434–449 is full; §3); descriptors 158, 159, 170, 180, 181; TKB 8813. No tracker row allocated.
 
 ## 2. Gates
 
@@ -61,4 +61,5 @@ args `Friend` / `Hostile`, the turned team rotated; the observer is `Friend` (th
 | ⚠ deviation E-3 | the extractor is NOT moved to `Hrot.Common`: IG may not wire one (`NodeRolePersistenceRails`), so the expander takes the existing `IScenarioEntityExtractor` seam — §15.1 |
 | ⚠ found while building ⑤ | the navigation solver ticks only when sim time advances, but a scenario loads PAUSED ⇒ placement now runs every frame on the main thread — §15.2 |
 | 🔴 found LIVE, fixed | the placement translators sat in pool-gated packs CGF composes without a pool ⇒ CGF never asked; and both topics were keep-last-1 ⇒ two requests in one frame lost one. Neither is visible to a unit rail — §15.2 |
+| ⚠ ids, found at the end-of-batch lane fetch | ① placement descriptors moved **171/172 → 180/181**: behaviors' rules block is 171–179 (`dtObjectiveStatus` 171 on `behaviors`, `NOTE_Behaviors_To_Backend_Descriptor_170.md`); nothing had shipped on the old numbers. ② components **469–474 stay** (never renumbered) but sit in **ui's** block 460–475 because backend's 434–449 is full — ui keeps 461 and 475. ⚠ The whole component space is nearly out (`NOTE_Backend_To_All_Lanes_Component_Id_Space.md`: the 512-bit mask) |
 | ⏭ open | `@Key` args resolve only by GUID at runtime (the live world does not register `RefKey`) · two instances in one frame are placed against the same world (may overlap each other) · a reconcile re-applies only `SimTransform`/`EntityInfo` and does not re-place · after a restore `MacroExpandedWith` is absent ⇒ no reconcile until the next expansion · an edit load takes no scenario args · a child's layer comes from its file's DIS type (0 ⇒ infantry) |

@@ -932,7 +932,7 @@ sequenceDiagram
     M->>M: Expand (files → children) · BuildPlacement (one slot per body — a nested instance is a marker, not placed)
     M->>B: PlacementRequestBatch (RequestId, SourceNodeId, MaxShift = top macro's)
     M->>M: intent.Parked = children (nothing created yet)
-    B->>S: request (in-process, or dtPlacementRequestBatch 171)
+    B->>S: request (in-process, or dtPlacementRequestBatch 180)
     S-->>B: PlacementResponseBatch (dt 172 back to SourceNodeId)
     alt an answer within 300 frames
         alt any slot Failed

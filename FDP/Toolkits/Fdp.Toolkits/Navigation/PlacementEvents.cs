@@ -9,7 +9,7 @@ namespace Fdp.Toolkit.Navigation
     // The expander (Hrot.Common) asks "where may these N things stand, near these points?" and the solver — the one owner of the navmesh and
     // the terrain a node holds — answers per slot: Exact · Shifted (within MaxShift) · Failed. A LIST per request ⇒ MANAGED events (classes,
     // PublishManagedEvent / RegisterManagedEvent), the shape of PathfindingEvents.cs but batched. Wire twins: PlacementRequestBatchWire /
-    // PlacementResponseBatchWire (dtPlacementRequestBatch 171 · dtPlacementResponseBatch 172, Hrot.Network.NED) — R-134, no DDS type here.
+    // PlacementResponseBatchWire (dtPlacementRequestBatch 180 · dtPlacementResponseBatch 181, Hrot.Network.NED) — R-134, no DDS type here.
     // ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 
     /// <summary>⭐ SR-181 — which ground a placed thing stands on: picks the navmesh layer (and whether water is acceptable).</summary>

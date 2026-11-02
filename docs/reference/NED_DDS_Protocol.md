@@ -416,8 +416,8 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.NavigationStatus` | descriptor | yes: entity id | S | Hrot.Network.NED | Muscle's navigation feedback (CQRS status side) |
 | `Hrot.NED.Descriptors.PathRequestBatch` | message | yes: source node id | B | Hrot.Network.NED | Batched path requests to the navigation solver |
 | `Hrot.NED.Descriptors.PathResponseBatch` | message | yes: target node id | B | Hrot.Network.NED | Batched path answers |
-| `Hrot.NED.Descriptors.PlacementRequestBatchWire` | message | yes: source node id | B | Hrot.Network.NED | Placement query (slots: key, point, layer, radius; MaxShift) to the navigation solver (`dtPlacementRequestBatch` 171, macros S3a item 5) |
-| `Hrot.NED.Descriptors.PlacementResponseBatchWire` | message | yes: target node id | B | Hrot.Network.NED | The solver's per-slot placement answers (Exact / Shifted / Failed, point, reason) (`dtPlacementResponseBatch` 172) |
+| `Hrot.NED.Descriptors.PlacementRequestBatchWire` | message | yes: source node id | B | Hrot.Network.NED | Placement query (slots: key, point, layer, radius; MaxShift) to the navigation solver (`dtPlacementRequestBatch` 180, macros S3a item 5) |
+| `Hrot.NED.Descriptors.PlacementResponseBatchWire` | message | yes: target node id | B | Hrot.Network.NED | The solver's per-slot placement answers (Exact / Shifted / Failed, point, reason) (`dtPlacementResponseBatch` 181) |
 | `Hrot.NED.Descriptors.RaycastRequestBatch` | message | yes: source node id | B | Hrot.Network.NED | Batched raycast requests to the navigation solver |
 | `Hrot.NED.Descriptors.RaycastResponseBatch` | message | yes: target node id | B | Hrot.Network.NED | Batched raycast answers |
 | `Hrot.NED.Descriptors.SensorConfig` | descriptor | yes: entity id | S | Hrot.Network.NED | Sensor configuration of an observer entity |

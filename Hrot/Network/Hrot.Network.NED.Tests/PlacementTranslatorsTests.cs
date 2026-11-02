@@ -56,8 +56,8 @@ namespace Hrot.Network.NED.Tests
         [Fact]
         public void TheOrdinals_AreTheMeasuredFreeOnes()
         {
-            Assert.Equal(171, (int)Hrot.NED.Descriptors.EDescriptorType.dtPlacementRequestBatch);
-            Assert.Equal(172, (int)Hrot.NED.Descriptors.EDescriptorType.dtPlacementResponseBatch);
+            Assert.Equal(180, (int)Hrot.NED.Descriptors.EDescriptorType.dtPlacementRequestBatch);   // not 171–179: the rules block (behaviors)
+            Assert.Equal(181, (int)Hrot.NED.Descriptors.EDescriptorType.dtPlacementResponseBatch);
         }
     }
 }
