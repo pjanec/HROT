@@ -29,4 +29,10 @@ ui's `Fdp.Toolkit.Scenario.LiveRefScope` (CE-4206 R1: the same lookups plus the 
 ⭐ **Lean:** `StepRunner` resolves through `LiveRefScope` and `WorldRefScope` retires (a per-step scope rebuilt from scratch is the uncached special case).
 Not done here: two other lanes' files.
 
+## 3. ✅ Fixed in your `StepRunner` (found live) — a `"@Key"` POINT was never resolved
+
+`StepRunner` chose to resolve a step's links by `EntityRefRemap.HoldsRefs(typeof(TP))` — the load's *"does it hold a network id to remap"* question,
+which leaves out `PointLink`. ⇒ `InsertMacro {"at":"@Drop"}` stood at (0,0,0) live. Now `HoldsLeaves` (resolution is an identity on a plain point or
+bearing). Rail `ScenarioRulesTests.InsertMacro_AtAKey_StandsAtThatEntity` (red-proved). ⚠ Any other verb whose only reference is a place had the same hole.
+
 _backend lane, 2026-11-02_

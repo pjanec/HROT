@@ -60,6 +60,23 @@ namespace Hrot.SimHost.Tests
             Assert.NotEqual(ObjectiveState.Failed, w.S(t).State);
         }
 
+        /// <summary>⭐ B1, found LIVE — <c>at: "@Key"</c> (SR-157) puts the instance at the keyed entity's position. 📌 Live it landed at (0,0,0): the step runner
+        /// resolved links only for params holding a network id (<c>HoldsRefs</c>), never a <c>PointLink</c>. 🔴 Red-proof: <c>HoldsRefs</c> back ⇒ X = 0.</summary>
+        [Fact]
+        public void InsertMacro_AtAKey_StandsAtThatEntity()
+        {
+            var w = new ObjWorld();
+            AllowCreation(w);
+            if (!w.Repo.IsComponentTypeRegistered<RefKey>()) w.Repo.RegisterComponent<RefKey>();
+            var drop = w.Man(new System.Numerics.Vector3(150, 100, 0), ForceId.Neutral);
+            w.Repo.AddComponent(drop, new RefKey("Drop"));
+            var src = Cond(w);
+            Fire(w, src, Do(Step("InsertMacro", "{\"macro\":\"test/fire-team\",\"at\":\"@Drop\",\"heading\":90}")));
+            Flip(w, src, true); w.Run(1);
+            var at = Assert.Single(w.Created).InitialComponents!.OfType<SimTransform>().Single();
+            Assert.Equal((150f, 100f), (at.Position.X, at.Position.Y));
+        }
+
         /// <summary>⭐ B1 / SR-96 — a FAILED expansion fails the step with the expander's own reason.</summary>
         [Fact]
         public void InsertMacro_AFailedExpansion_FailsTheStep_WithItsReason()

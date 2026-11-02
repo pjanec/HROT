@@ -1081,6 +1081,8 @@ expansion (validation, placement, reconcile, cascade) is the load's own.
 | ④ | Success / Failure come only from `MacroExpansionStatus` (+ a 30 s "never appeared") | SR-96: the action never counts parts |
 | ⑤ | the verb lives with the other scenario verbs (`Hrot.AI.Behaviors/.../Verbs/MacroVerbs.cs`) | ⭐ `ActionCatalogue` discovers it there like any `[SharedAiAction]` — any trigger, BTree or HSM can call it (SR-93) |
 
+| 📌 LIVE `2026-11-02` (`--mode all`, `scenarios/test-macro-insert`) | a trigger at sim 3 s inserted `test/fire-team` → instance `Done`, 4 transient men carrying the step's args (`Hostile`), the trigger ended `Done` after its `Message` · 🔴 **but the instance stood at (0,0,0), not at `@Drop`**: `StepRunner` resolved a step's links only when its params held a network id (`EntityRefRemap.HoldsRefs` — the LOAD's remap question), so a `PointLink` written as `"@Key"` was never resolved. ⇒ `HoldsLeaves` (resolution is an identity on a plain point). Rail `InsertMacro_AtAKey_StandsAtThatEntity`; a fix in behaviors' `StepRunner`, said in the commit and the note | — |
+
 ### 16.2 Not in B1 — **B1b: a step's own `Bind` (SR-94 / SR-160)**
 
 ⚠ A `do` entry's `Bind` is **not applied anywhere yet**: SR-160 makes a step a typed `BindableNode`, but the trigger's params contract carries `do` as a free-form
