@@ -47,4 +47,15 @@ public sealed class HudFeaturesAreWiredOnEveryHostTests
         var text = HostFiles().Single(f => f.Rel.EndsWith("/" + file)).Text;
         Assert.Contains($"HudFeatures.Declarations(playerDefault: {playerDefault})", text);
     }
+
+    /// <summary>⭐ CE-1461 W-M7 — <c>hud.messages</c> is READ by both seats of it (the effect system records, the station draws), through the same gate the pack forwards.</summary>
+    [Fact]
+    public void TheMessagesFeature_IsReadByTheRecorderAndTheStation()
+    {
+        var root = TestRepo.Root;
+        string Src(string rel) => File.ReadAllText(Path.Combine(root, "Hrot", "Engine", "Hrot.Presentation", rel));
+        Assert.Contains("HudFeatures.Messages", Src("Effects/EffectSystems.cs"));
+        Assert.Contains("HudFeatures.Messages", Src("Map3D/PossessionStation.cs"));
+        Assert.Contains(Hrot.Common.Infrastructure.HudFeatures.Messages, Hrot.Common.Infrastructure.HudFeatures.All);
+    }
 }

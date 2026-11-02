@@ -19,12 +19,14 @@ public static class HudFeatures
     public const string SquadTakeoverAfterDeath = "hud.squad-takeover-after-death";
     public const string SpreadRing = "hud.spread-ring";
     public const string NearMiss = "hud.near-miss";
+    /// <summary>⭐ CE-1461 W-M7 (docs/DESIGN_Node_Features.md §10) — SR-106 player messages: the subtitle and the message log.</summary>
+    public const string Messages = "hud.messages";
 
     /// <summary>Every HUD feature id this class declares.</summary>
-    public static readonly string[] All = { HitMarker, DamageArc, KillCam, SquadTakeoverAfterDeath, SpreadRing, NearMiss };
+    public static readonly string[] All = { HitMarker, DamageArc, KillCam, SquadTakeoverAfterDeath, SpreadRing, NearMiss, Messages };
 
-    /// <summary>The six declarations for a host. <paramref name="playerDefault"/>: the default of the hit marker, damage arc, kill cam and squad
-    /// takeover (true for the Player, false elsewhere); the spread ring and the near miss are ON on every host.</summary>
+    /// <summary>The seven declarations for a host. <paramref name="playerDefault"/>: the default of the hit marker, damage arc, kill cam and squad
+    /// takeover (true for the Player, false elsewhere); the spread ring, the near miss and the messages are ON on every host.</summary>
     public static IEnumerable<FeatureDeclaration> Declarations(bool playerDefault)
     {
         yield return FeatureDeclaration.Switch(HitMarker, "A cross round the crosshair when you hit someone (red when he is down)", FeatureChange.Live, _ => playerDefault);
@@ -33,6 +35,7 @@ public static class HudFeatures
         yield return FeatureDeclaration.Switch(SquadTakeoverAfterDeath, "After death, Tab takes a living squad mate", FeatureChange.Live, _ => playerDefault);
         yield return FeatureDeclaration.Switch(SpreadRing, "The weapon's real spread as a ring round the crosshair", FeatureChange.Live, _ => true);
         yield return FeatureDeclaration.Switch(NearMiss, "A round passing your ear darkens the screen edges", FeatureChange.Live, _ => true);
+        yield return FeatureDeclaration.Switch(Messages, "Messages to the player: a timed subtitle at the bottom, and a log on N", FeatureChange.Live, _ => true);
     }
 
     /// <summary>

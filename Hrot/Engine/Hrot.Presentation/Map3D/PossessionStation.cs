@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Fdp.Core;
@@ -58,6 +59,73 @@ namespace Hrot.UI.Common.Map3D
         /// the next possession. ⭐ <c>CE-1293</c> (docs/DESIGN_Unit_Camera.md UC-3) — ON by default: move over the shoulder, aim from the
         /// eyes (RMB).</summary>
         public bool OverShoulder { get; set; } = true;
+
+        /// <summary>⭐ CE-1461 W-M7 (docs/DESIGN_Node_Features.md §10 M-3) — the player's message log is open (N while <c>hud.messages</c> is on).</summary>
+        public bool MessageLogOpen { get; private set; }
+
+        /// <summary>N: opens / closes the message log. Nothing when <c>hud.messages</c> is off.</summary>
+        public void ToggleMessageLog() { if (HudOn(Hrot.Common.Infrastructure.HudFeatures.Messages)) MessageLogOpen = !MessageLogOpen; }
+
+        /// <summary>⭐ CE-1461 W-M7 — who is looking, for the message filter: the held unit's network id and side, and this station's id (the node id it posts orders as; 0 when it cannot be told).</summary>
+        internal MessageViewer ViewerOf(EntityRepository w, Entity unit)
+        {
+            if (unit.IsNull || !w.IsAlive(unit)) return default;
+            var map = w.HasSingletonManaged<NetworkEntityMap>() ? w.GetSingletonManaged<NetworkEntityMap>() : null;
+            int net = map is not null && map.TryGetNetworkId(unit, out int id) ? id : 0;
+            var side = w.IsComponentTypeRegistered<EntityInfo>() && w.HasComponent<EntityInfo>(unit) ? w.GetComponentRO<EntityInfo>(unit).ForceId : ForceId.Neutral;
+            int station = map is not null ? (int)new EntityOrders(w, map, geo: null).StationFor(unit) : 0;
+            return new MessageViewer(net, side, station);
+        }
+
+        /// <summary>⭐ CE-1461 W-M7 — what the HUD shows of the messages at the world's sim time: the subtitles and (with the log open) the log; null when <c>hud.messages</c> is off or nothing was ever recorded.</summary>
+        internal (IReadOnlyList<PlayerMessages.Entry> Subtitles, IReadOnlyList<PlayerMessages.Entry>? Log, double Now)? MessagesToShow(EntityRepository w, Entity unit)
+        {
+            if (!HudOn(Hrot.Common.Infrastructure.HudFeatures.Messages) || PlayerMessages.Of(w) is not { } store) return null;
+            var viewer = ViewerOf(w, unit);
+            double now = Fdp.Toolkit.Time.SimClock.Of(w).TotalTime;
+            return (store.Active(now, viewer), MessageLogOpen ? store.Log(viewer) : null, now);
+        }
+
+        /// <summary>
+        /// ⭐ CE-1461 W-M7 (SR-106) — the subtitles (bottom-centre, up to two, fading over their last half second) and, with N, the log; both from the ONE
+        /// <see cref="PlayerMessages"/> store, drawn with <see cref="HudText"/>. Nothing when <c>hud.messages</c> is off.
+        /// </summary>
+        private void DrawMessages(EntityRepository w, Entity unit, Vector2 size, Font? font)
+        {
+            if (MessagesToShow(w, unit) is not var (subtitles, openLog, now)) return;
+            float maxWidth = size.X * 0.7f;
+            int y = (int)size.Y - 130;   // above the key lines at the bottom-left, which are wide
+            foreach (var entry in subtitles.Reverse())   // the strongest ends up lowest
+            {
+                var lines = PlayerMessages.Wrap(entry.Text, t => HudText.Measure(font, t), maxWidth);
+                float a = PlayerMessages.Alpha(entry, now);
+                y -= lines.Count * HudLineHeight + 8;
+                int yy = y;
+                foreach (var line in lines)
+                {
+                    int lw = (int)HudText.Measure(font, line);
+                    int x = (int)size.X / 2 - lw / 2;
+                    Raylib.DrawRectangle(x - 8, yy - 3, lw + 16, HudLineHeight, new Color(0, 0, 0, (int)(150 * a)));
+                    HudText.Draw(font, line, x, yy, new Color(255, 255, 255, (int)(255 * a)));
+                    yy += HudLineHeight;
+                }
+            }
+            if (openLog is not { } log) return;
+            const int rows = 12;
+            int shown = Math.Min(rows, log.Count);
+            int pw = (int)Math.Min(size.X * 0.6f, 720f), ph = (shown + 2) * HudLineHeight + 12;
+            int px = (int)size.X / 2 - pw / 2, py = (int)size.Y / 2 - ph / 2;
+            Raylib.DrawRectangle(px, py, pw, ph, new Color(0, 0, 0, 200));
+            Raylib.DrawRectangleLines(px, py, pw, ph, Color.Gold);
+            HudText.Draw(font, $"Messages ({log.Count})   N closes", px + 10, py + 6, Color.Gold);
+            if (log.Count == 0) HudText.Draw(font, "no messages yet", px + 10, py + 6 + HudLineHeight, Color.LightGray);
+            for (int i = 0; i < shown; i++)
+            {
+                string line = PlayerMessages.Clock(log[i].SentAt) + "  " + log[i].Text;
+                while (line.Length > 8 && HudText.Measure(font, line) > pw - 20) line = line[..^2] + "…";
+                HudText.Draw(font, line, px + 10, py + 6 + (i + 1) * HudLineHeight, Color.White);
+            }
+        }
 
         /// <summary>⭐ <c>CE-1293</c> (docs/DESIGN_Unit_Camera.md UC-11, R-1033) — the shoulder view's camera distance per kind (a person,
         /// a vehicle, a flyer), set with the wheel (R-1034); a station setting, so it stays for the next possession.</summary>
@@ -448,7 +516,7 @@ namespace Hrot.UI.Common.Map3D
             {
                 HudText.Draw(font, lines[i], x, y, Hud.ColourOf(w, _driver.Unit, lines[i], i == lines.Length - 1));
                 y += HudLineHeight;
-            }
+            }            DrawMessages(w, _driver.Unit, size, font);   // ⭐ CE-1461 W-M7 (SR-106) — last, so nothing draws over a subtitle or the log
         }
 
         /// <summary>
@@ -1436,6 +1504,8 @@ namespace Hrot.UI.Common.Map3D
 
         /// <summary>⭐ <c>CE-1201</c> (§8p OS-1) — O toggles the over-the-shoulder view while in first person.</summary>
         public const KeyboardKey ShoulderKey = KeyboardKey.O;
+        /// <summary>⭐ CE-1461 W-M7 (docs/DESIGN_Node_Features.md §10 M-3) — N opens / closes the player's message log (L is the fire mode).</summary>
+        public const KeyboardKey MessageLogKey = KeyboardKey.N;
 
         /// <summary>⭐ <c>CE-1293</c> (UC-11) — the camera stands back this frame: the shoulder view is on and RMB is not aiming from the eyes.</summary>
         public bool ShoulderViewOn => _station.OverShoulder && !Zooming;
@@ -1802,6 +1872,7 @@ namespace Hrot.UI.Common.Map3D
                 if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.Z)) _stance = ToggleProne(_stance.Value);
                 _crouchHeld = input.IsKeyDown(MapKeyboardKey.LeftControl) || input.IsKeyDown(MapKeyboardKey.RightControl);
             }
+            if (input.IsKeyPressed((MapKeyboardKey)MessageLogKey)) _station.ToggleMessageLog();   // ⭐ CE-1461 W-M7 (SR-106)
             if (input.IsKeyPressed((MapKeyboardKey)ShoulderKey)) _station.OverShoulder = !_station.OverShoulder;   // ⭐ CE-1201 (§8p OS-1)
             Place(camera);   // ⭐ CE-1073 — this frame's look shows this frame (Update ran before the input)
 
