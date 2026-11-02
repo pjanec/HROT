@@ -262,6 +262,9 @@ namespace Hrot.Editor
         private ScenarioFileService?    _scenarioFileService;
 
         private EntityRepository?       _world;
+        private readonly Hrot.Editor.Scenario.HeaderParamsSchemaSource _headerParams;   // ⭐ CE-4210 P2 (MA-5)
+        private Hrot.Editor.Scenario.ParametersWindow? _parametersWindow;
+        private Action<Action<string>>? _openMacroPicker;   // ⭐ CE-4210 MA-8 — the scenario picker's Macros group, for the instance's "Change…" (set once the picker exists)
 
         // ⭐ CE-3330 (DAR §9e, row 28; DESIGN_Director_Timeline_Editor.md §2d) — the event timeline on the EDITOR is its NODE CONTEXT's: the
         //   lanes, the live index and the lane context are the ones every ECS node has (HrotNodeContext.Timeline); the editor runs its own
@@ -1254,6 +1257,7 @@ namespace Hrot.Editor
         // ctor for unit tests
         public EditorSubsystem()
         {
+            _headerParams = new Hrot.Editor.Scenario.HeaderParamsSchemaSource(() => _world, new Hrot.Editor.Scenario.ParamsEditHistory());
             // ⭐⭐⭐ Batch 95 (95b) — EVERY selection store this editor holds reads ONE entity cell.
             // 🔴🔴 The bridge connects exactly one store (_aiEditorSelectionStore), and the three
             //    PERSPECTIVE stores were connected to nothing ⇒ their SelectedEntity was null for
@@ -2324,6 +2328,8 @@ namespace Hrot.Editor
                         //   Add Entity stays on in Preview. ⛔ Was: SuspendedReason "suspended in Preview". An entity added in Preview
                         //   lives until Stop: leaving Preview rewinds the whole world and the id allocator (the one dry-run handler, D14).
                         HostPickers     = () => _shellPickers,
+                        // ⭐ CE-4210 MA-7 — Add Entity ▸ Macros: the macro files on the NAS root the load resolves against (the same listing the scenario picker's Macros group uses)
+                        Macros          = Hrot.Editor.AiShared.Browser.MacroPickerEntries.Paths,
                     },
                     // GZH-003: the editor is interactive and always has a window at startup. It is not
                     // under the cluster runner, so PerspectiveCoordinatorSystem never attaches a viewer
@@ -2637,7 +2643,7 @@ namespace Hrot.Editor
         }
 
         /// <summary>⭐ CE-1290 — the loaded scenario's name, for the window title (null after New / clear).</summary>
-        public string? WindowTitleDetail => _editorLogic?.LoadedScenarioName;
+        public string? WindowTitleDetail => EditorWindowTitle.Detail(_editorLogic?.LoadedScenarioName);   // ⭐ CE-4210 MA-6 — "Macro: <path>"
 
         /// <inheritdoc/>
         /// <remarks>
@@ -3155,6 +3161,19 @@ namespace Hrot.Editor
                 SelectionStore: _aiEditorSelectionStore));
             _scenarioWorkspace = _scenarioDetailsBundle.Workspace;
             ScenarioDetails    = _scenarioDetailsBundle.Window;
+
+            // ⭐⭐ CE-4210 MA-8 (SR-39a) — the MACRO section of Details for a macro instance: status, the macro (the same picker's Macros group), the args form.
+            //   ⚠ Its own StructEdit service (the facet service is built later); picks resolved at call time like the AI section's.
+            var macroArgsEditService = Hrot.Editor.AiShared.Inspector.ActionBinding.AiFacetEditService.Build();
+            var macroArgPicks = new Hrot.Presentation.Facades.MapPickBroker(() => _mapPickAdapter);
+            _scenarioWorkspace.DetailsViews.Add(
+                Hrot.Editor.Scenario.MacroInstanceDetailsViewDescriptor.For(
+                    world:      () => _world,
+                    session:    () => _fdpRepoAdapter,
+                    macrosRoot: () => Hrot.Editor.AiShared.Browser.MacroPickerEntries.Root(),
+                    editService: () => macroArgsEditService,
+                    picks:      () => macroArgPicks,
+                    pickMacro:  cb => _openMacroPicker?.Invoke(cb)));
 
             // ⭐⭐ CE-1161 (CE-3217; Weather and Time §7) — the MAP-BACKGROUND views: the Scenario view (start time; the global weather
             //   drawn by the SAME borrowed inspector as the Components view) and the Zones view (built by BP-542, never registered).
@@ -3684,7 +3703,8 @@ namespace Hrot.Editor
                     new ScenarioNewAssetService(
                         new EditorLogicSessionAdapter(_editorApp),
                         () => Fdp.Toolkit.Orchestration.ContentSeed.CuratedRelPaths(
-                                  Hrot.Editor.AiShared.AssetRoots.ScenariosRecipesRoot));
+                                  Hrot.Editor.AiShared.AssetRoots.ScenariosRecipesRoot),
+                        () => _world);   // ⭐ CE-4210 MA-6 — New macro… stamps its header into the edit world
             }
 
             // Save-As blueprint file-save delegate (mint-only, so the dialog performs the save).
@@ -3912,7 +3932,10 @@ namespace Hrot.Editor
                     catalog:      catalog,
                     router:       _assetPickRouter,
                     hasInventory: () => _timeTransport?.RunChoice?.Gate.HasInventory ?? true,   // ⭐ CE-1442
-                    runChoice:    () => _timeTransport?.RunChoice)   // ⭐ CE-4141 — Open and go live
+                    runChoice:    () => _timeTransport?.RunChoice,   // ⭐ CE-4141 — Open and go live
+                    // ⭐ CE-4210 MA-6 — the Macros group: the NAS macros/ root, the root the load resolves against (ContentLayout.ResolveScenarioDirectory)
+                    macroPaths:   Hrot.Editor.AiShared.Browser.MacroPickerEntries.Paths,
+                    macrosRoot:   Hrot.Editor.AiShared.Browser.MacroPickerEntries.Root)
                 : null;
 
             // ⭐⭐ CE-049 (Axis-C E2) — both helpers now live in the shared
@@ -3956,6 +3979,24 @@ namespace Hrot.Editor
                     _saveAllStatus  = status;
                 });
             }
+
+            // ⭐ CE-4210 MA-6 — New macro…: the same dialog, the name lands under macros/ (ContentLayout.MacroName), and ScenarioNewAssetService.CreateNew stamps the macro header (IsMacroName).
+            void ShowNewMacroDialog(Hrot.Editor.AiShared.AssetKind kind, Hrot.Editor.AiShared.IEditableAsset recipe)
+            {
+                if (_newAssetServices == null) return;
+                var request = BuildSaveAsRequest(kind, "New Macro", "NewMacro", "", "Create",
+                    new Hrot.Editor.AiShared.Browser.FolderPickerState(Array.Empty<string>()));
+                _saveAsBrowser?.Open(request, result =>
+                {
+                    if (!result.Confirmed) return;
+                    string dest = (result.DestinationPath ?? "").Trim('/');
+                    var (_, status) = CreateAssetCore(kind, recipe, result.Name,
+                        dest.Length == 0 ? Fdp.Toolkit.Orchestration.ContentLayout.MacrosDirectoryName : Fdp.Toolkit.Orchestration.ContentLayout.MacroName(dest));
+                    _saveAllStatus = status;
+                });
+            }
+
+            _openMacroPicker = cb => assetPickerLauncher?.OpenMacros(cb);   // ⭐ CE-4210 MA-8
 
             // ⭐⭐⭐ AQ56 / MA-001 — THE CREATE PATH: TWO surfaces, ONE implementation.
             //    📄 docs/DESIGN_Mcp_Authoring.md §7 ③.
@@ -4021,8 +4062,13 @@ namespace Hrot.Editor
                     showNewAssetDialog: ShowNewAssetDialog,
                     // ⭐ CE-4140 — a scenario recipe's description is its scenario.json header's (the Blueprint seam knows only blueprints)
                     describe:           a => Hrot.Blueprints.Editor.RecipeMetadataAdapter.DescribeRecipe(a) ?? ScenarioNewAssetService.DescribeRecipe(a),
-                    recipeCategory:     Hrot.Blueprints.Editor.RecipeMetadataAdapter.RecipeCategory)
+                    recipeCategory:     Hrot.Blueprints.Editor.RecipeMetadataAdapter.RecipeCategory,
+                    showNewMacroDialog: ShowNewMacroDialog)   // ⭐ CE-4210 MA-6
                 : null;
+
+            // ⭐ CE-4210 MA-6 — Scenario ▸ New Macro…  (a macro starts from a scenario recipe's terrain, like New Scenario…)
+            if (newAssetLauncher is { CanOpenMacro: true })
+                windowManager.GlobalMenu.RegisterItem("Scenario/New Macro…", () => newAssetLauncher.OpenMacro(), "Scenario", allowedInIdle: false);
 
             // ⭐⭐ CE-4098 (AQ108 D16/D19) — File › Open Recording: the master's exercise inventory (the core's cluster read model, the SAME
             //   list GET /exercises serves) in the shared picker; a pick opens into AAR through the session's ONE replay intent.
@@ -4833,6 +4879,11 @@ namespace Hrot.Editor
             Func<System.Collections.Generic.List<Fdp.ModuleHost.ModuleStats>?>? editorExecutionStats =
                 _kernel != null ? () => _kernel?.GetExecutionStats() : null;
 
+            // ⭐ CE-4210 P2 (MA-5) — Scenario ▸ Parameters…: the loaded scenario / macro's params in the shared Variables table.
+            _parametersWindow = new Hrot.Editor.Scenario.ParametersWindow(_headerParams);
+            windowManager.RegisterWindow(_parametersWindow);
+            windowManager.GlobalMenu.RegisterItem("Scenario/Parameters…", () => _parametersWindow?.Show(), "Scenario");
+
             Fdp.Toolkit.Runner.UiBundleHost.Compose(
                 new Fdp.Toolkit.Runner.IUiBundle[]
                 {
@@ -4857,7 +4908,9 @@ namespace Hrot.Editor
                         PickBroker: _mapPickAdapter != null
                             ? new MapPickBroker(_mapPickAdapter)
                             : null,
-                        WireParticipant: () => _networkFactory.Participant)),   // ⭐ AQ109 X5 — null offline
+                        WireParticipant: () => _networkFactory.Participant,   // ⭐ AQ109 X5 — null offline
+                        // ⭐ CE-4210 P2 — the inspector's bind popup declares a parameter through the SAME source the Parameters window edits.
+                        DeclareParam: (t, n, v) => { var p = _headerParams.Declare(t, n, v); if (p is not null) _parametersWindow?.Show(); return p; })),
                 },
                 new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 

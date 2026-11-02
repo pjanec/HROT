@@ -51,6 +51,12 @@ namespace Fdp.Toolkit.Replication
         /// <summary>⭐ SR-168 — this <c>"^param"</c> binding takes <paramref name="value"/>'s answer and KEEPS its form (the binder, SR-164).</summary>
         public EntityLink BoundTo(EntityLink value) => new(value.Ref, Spec.WithBound(value.Spec.Effective));
 
+        /// <summary>⭐ CE-4210 MA-2 — this link written as the binding <c>"^name"</c> (the Param form), its live answer kept: what the editor writes when a field is fed from a param.</summary>
+        public EntityLink BindToParam(string name) => new(Ref, RefSpec.ByParam(name).WithBound(Spec.Effective));
+
+        /// <summary>⭐ CE-4210 MA-2 — the binding removed: the link as a bare id of its live answer (the literal stays). A link that is not bound is returned as it is.</summary>
+        public EntityLink UnbindParam() => Spec.Form == RefForm.Param ? new EntityLink(Ref) : this;
+
         /// <summary>A link written as a bare reference (code → param: the picker's id pick, a test, a migration).</summary>
         public static implicit operator EntityLink(EntityRef reference) => new(reference);
 
@@ -92,6 +98,12 @@ namespace Fdp.Toolkit.Replication
         /// <summary>⭐ SR-168 — this <c>"^param"</c> binding takes <paramref name="value"/>'s place and KEEPS its form (the binder, SR-164).
         /// ⭐ Not relocated afterwards: a value that came in through a param belongs to the world outside the macro (SR-131).</summary>
         public PointLink BoundTo(PointLink value) => new(value.Local, Spec.WithBound(value.Spec.Effective));
+
+        /// <summary>⭐ CE-4210 MA-2 — this place written as the binding <c>"^name"</c>, its live answer kept.</summary>
+        public PointLink BindToParam(string name) => new(Local, RefSpec.ByParam(name).WithBound(Spec.Effective));
+
+        /// <summary>⭐ CE-4210 MA-2 — the binding removed: the place as plain coordinates (the literal stays).</summary>
+        public PointLink UnbindParam() => Spec.Form == RefForm.Param ? new PointLink(Local) : this;
 
         /// <summary>Coordinates written as a literal (a picked map point, a test, a migration).</summary>
         public static implicit operator PointLink(WorldPoint local) => new(local);
@@ -148,6 +160,12 @@ namespace Fdp.Toolkit.Replication
         public static AreaLink OfEntity(EntityRef area, RefSpec spec = default)
             => spec.Form is RefForm.Circle or RefForm.Rectangle ? throw new ArgumentException("an entity area is written as a key, a GUID or an id", nameof(spec))
                                                                 : new(area, spec, default, default, default);
+
+        /// <summary>⭐ CE-4210 MA-2 — this area (a shape or an area entity) written as the binding <c>"^name"</c>, its live answer and form kept.</summary>
+        public AreaLink BindToParam(string name) => WithParam(RefSpec.ByParam(name));
+
+        /// <summary>⭐ CE-4210 MA-2 — the binding removed, the shape / area entity kept as the literal. A value that is not bound is returned as it is.</summary>
+        public AreaLink UnbindParam() => Spec.Form != RefForm.Param ? this : Spec.Effective is RefForm.Circle or RefForm.Rectangle ? WithoutParam() : new(Area, default, default, default, default);
 
         /// <summary>The same authored form with a new area entity answer.</summary>
         public AreaLink WithArea(EntityRef area) => new(area, Spec, Center, Size, Heading);

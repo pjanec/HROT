@@ -87,6 +87,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 case OnEntityPredicateDto onEntity: return CompileOnEntity(onEntity, mode);
                 case ScenarioTimePredicateDto time: return CompileScenarioTime(time);
                 case CountMatchingPredicateDto count: return CompileCountMatching(count, mode);
+                case InputAbovePredicateDto inputAbove: return CompileInputAbove(inputAbove);
 
                 // Specialized loop predicates: SEARCH mode passes through; handled by the service (edge / loop scanners).
                 case StructuralPredicateDto _:
@@ -164,12 +165,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             int typeId = ComponentTypeRegistry.GetId(typeof(T));
 
             var param = Expression.Parameter(typeof(T).MakeByRefType(), "comp");
-            Expression fieldAccess = param;
-            if (!string.IsNullOrEmpty(prop.PropertyPath))
-            {
-                foreach (string seg in prop.PropertyPath.Split('.'))
-                    fieldAccess = Expression.PropertyOrField(fieldAccess, seg);
-            }
+            Expression fieldAccess = FieldAccess(param, prop.PropertyPath);
 
             if (prop.Operator == SearchOperator.Changed) return BuildChangedMatcher<T>(typeId, param, fieldAccess, prop.PropertyPath);
 
@@ -225,12 +221,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         private static Func<EntityRepository, Entity, bool> BuildManagedMatcher<T>(PropertyMatchDto prop) where T : class
         {
             var param = Expression.Parameter(typeof(T), "comp");
-            Expression fieldAccess = param;
-            if (!string.IsNullOrEmpty(prop.PropertyPath))
-            {
-                foreach (string seg in prop.PropertyPath.Split('.'))
-                    fieldAccess = Expression.PropertyOrField(fieldAccess, seg);
-            }
+            Expression fieldAccess = FieldAccess(param, prop.PropertyPath);
 
             Expression condition = BuildConditionExpression(fieldAccess, prop.Operator, prop.Predicate);
             var matcher = Expression.Lambda<Func<T, bool>>(condition, param).Compile();
@@ -580,7 +571,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         private static void CollectMandatoryComponents(SearchPredicateDto dto, List<Type> result)
         {
             // ⭐ CE-4164 — OnEntity / CountMatching evaluate OTHER entities (ScenarioTime none), so they contribute nothing to THIS entity's mandatory set.
-            if (dto is OnEntityPredicateDto or ScenarioTimePredicateDto or CountMatchingPredicateDto) return;
+            if (dto is OnEntityPredicateDto or ScenarioTimePredicateDto or CountMatchingPredicateDto or InputAbovePredicateDto) return;
             if (dto is CompoundPredicateDto compound && compound.Operator == LogicalOperator.And)
             {
                 foreach (var condition in compound.Conditions)

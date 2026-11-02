@@ -30,6 +30,8 @@ namespace Fdp.Toolkit.Scenario
         private readonly Dictionary<Guid, EntityRef> _byGuid = new();
         private readonly Dictionary<string, EntityRef> _byKey = new(StringComparer.Ordinal);
         private readonly HashSet<string> _duplicateKeys = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, int> _keyCounts = new(StringComparer.Ordinal);
+        private readonly TimeSpan _interval;
         private readonly Dictionary<int, Guid> _guidOf = new();
         private readonly Dictionary<int, string> _keyOf = new();
         private readonly Dictionary<int, string> _nameOf = new();
@@ -43,10 +45,27 @@ namespace Fdp.Toolkit.Scenario
 
         /// <param name="world">The running world.</param>
         /// <param name="nowTicks">A monotonic clock in <see cref="Stopwatch"/> ticks (tests inject one); default: wall clock.</param>
-        public LiveRefScope(EntityRepository world, Func<long>? nowTicks = null)
+        /// <param name="rebuildInterval">The least time between version-caused rebuilds (default <see cref="RebuildInterval"/>).</param>
+        public LiveRefScope(EntityRepository world, Func<long>? nowTicks = null, TimeSpan? rebuildInterval = null)
         {
             _world = world ?? throw new ArgumentNullException(nameof(world));
             _nowTicks = nowTicks ?? (() => Stopwatch.GetTimestamp());
+            _interval = rebuildInterval ?? RebuildInterval;
+        }
+
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<EntityRepository, LiveRefScope> _simScopes = new();
+
+        /// <summary>
+        /// ⭐ THE live-world scope for SIM code (a step runner, a rule's link reader, the macro expander) — ONE cached instance per world.
+        /// ⛔ Sim must not depend on wall time (a replay of the same ticks must resolve the same targets), so this one has NO wall-clock window:
+        /// it rebuilds on a spawn / destroy (count, highest index) AND whenever the world's <see cref="EntityRepository.GlobalVersion"/> (the frame
+        /// clock — a tick, a restore) moved. It is stale only WITHIN one tick, identically in a live run and its replay. The editor builds its own
+        /// (<c>new LiveRefScope(repo)</c>, the 250 ms wall-clock policy) — that one never decides a simulation outcome.
+        /// </summary>
+        public static LiveRefScope Of(EntityRepository world)
+        {
+            if (world == null) throw new ArgumentNullException(nameof(world));
+            return _simScopes.GetValue(world, w => new LiveRefScope(w, () => 0, TimeSpan.Zero));
         }
 
         /// <inheritdoc/>
@@ -64,14 +83,14 @@ namespace Fdp.Toolkit.Scenario
             if (!structural && _world.GlobalVersion != _version)
             {
                 double elapsedMs = (_nowTicks() - _builtAt) * 1000.0 / Stopwatch.Frequency;
-                structural = elapsedMs >= RebuildInterval.TotalMilliseconds;
+                structural = elapsedMs >= _interval.TotalMilliseconds;
             }
             if (structural) Rebuild();
         }
 
         private void Rebuild()
         {
-            _byGuid.Clear(); _byKey.Clear(); _duplicateKeys.Clear();
+            _byGuid.Clear(); _byKey.Clear(); _duplicateKeys.Clear(); _keyCounts.Clear();
             _guidOf.Clear(); _keyOf.Clear(); _nameOf.Clear(); _positions.Clear();
             Rebuilds++;
 
@@ -90,6 +109,7 @@ namespace Fdp.Toolkit.Scenario
                     { _byGuid[g] = r; _guidOf[id] = g; }
                     if (hasKey && _world.HasComponent<RefKey>(e) && _world.GetComponent<RefKey>(e).Value.ToString() is { Length: > 0 } k)
                     {
+                        _keyCounts[k] = _keyCounts.TryGetValue(k, out var c) ? c + 1 : 1;
                         if (_byKey.ContainsKey(k)) _duplicateKeys.Add(k); else _byKey[k] = r;
                         _keyOf[id] = k;
                     }
@@ -151,6 +171,18 @@ namespace Fdp.Toolkit.Scenario
         {
             Refresh();
             return _duplicateKeys.Contains(key.StartsWith('@') ? key.Substring(1) : key);
+        }
+
+        /// <summary>⭐ SR-188 — keys two or more entities carry, with how many (a resolve answers the FIRST).</summary>
+        public IReadOnlyDictionary<string, int> Ambiguous
+        {
+            get
+            {
+                Refresh();
+                var d = new Dictionary<string, int>(StringComparer.Ordinal);
+                foreach (var k in _duplicateKeys) d[k] = _keyCounts[k];
+                return d;
+            }
         }
 
         /// <summary>The entity's <see cref="EntityInfo.Name"/>, else <c>#id</c> (<c>(none)</c> for none).</summary>

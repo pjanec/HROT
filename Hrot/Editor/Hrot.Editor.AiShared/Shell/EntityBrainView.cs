@@ -305,6 +305,7 @@ public static class BrainJournalText
             BrainJournalKind.PlayPhase => $"play {e.A}: phase {e.B}",
             BrainJournalKind.PlayEnded => $"play {e.A} ended",
             BrainJournalKind.OrderIssued => $"ordered #{e.A}: {name(e.B)}",
+            BrainJournalKind.RuleControl => $"{(Fdp.Toolkit.ScenarioRules.RuleRequest)e.A} by {(Fdp.Toolkit.ScenarioRules.RuleOrigin)e.Origin}" + (e.Cause != 0 ? " (refused)" : ""),   // ⭐ rules V-4
             BrainJournalKind.StateChanged => (e.A & 0xFFFF) == 0xFFFF   // from no state: the region was entered
                 ? $"{name(e.B)} region {e.Origin}: entered {BrainRegions.StateName(definition, e.B, (ushort)((uint)e.A >> 16))}"
                 : $"{name(e.B)} region {e.Origin}: {BrainRegions.StateName(definition, e.B, (ushort)(e.A & 0xFFFF))}"

@@ -13,6 +13,22 @@ namespace Fdp.Toolkit.ScenarioRules.Actions
     /// <summary>One step of a list: the action's name and its JSON args.</summary>
     public sealed record StepSpec(string Act, string ArgsJson);
 
+    /// <summary>
+    /// ⭐ SR-94 / SR-160 — a step of a trigger's <c>do</c> list AS A TYPED NODE of the params contract: <c>{ "act", "args", "bind"? }</c>.
+    /// It is a <see cref="Fdp.Toolkit.Scenario.BindableNode"/>, so the ONE binder (<c>ParamBinder</c>) reaches it with no step-specific code: a
+    /// <c>Bind</c> key is a property of the step or a dotted path into its args (<c>"args.text": "msg"</c>). The JSON form is the old one; a step's
+    /// nested <c>"params"</c> stays INSIDE <c>args</c> (<see cref="ActionList.ExtractParams"/> lifts it at assignment). Immutable (init-only).
+    /// </summary>
+    public sealed class ActionStep : Fdp.Toolkit.Scenario.BindableNode
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("act")] public string Act { get; init; } = "";
+        [System.Text.Json.Serialization.JsonPropertyName("args")] public JsonObject? Args { get; init; }
+
+        /// <summary>The list as the JSON string the runtime keeps (<see cref="ActionList.Get"/> parses it): ONE serialisation, the params contract's own.</summary>
+        public static string ToJson(System.Collections.Generic.IEnumerable<ActionStep>? steps)
+            => steps == null ? "[]" : System.Text.Json.JsonSerializer.Serialize(steps, Fdp.Toolkit.Behavior.BehaviorParams.JsonOptions);
+    }
+
     /// <summary>⭐ CE-4163 — a step list refused at assignment: names the step index and its action.</summary>
     public sealed class ActionListException : InvalidOperationException
     {

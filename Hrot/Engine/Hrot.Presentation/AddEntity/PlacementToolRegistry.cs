@@ -99,6 +99,18 @@ public static class PlacementToolRegistry
     }
 
     /// <summary>The initial-properties JSON carrying a side.</summary>
+    /// <summary>
+    /// ⭐ CE-4210 MA-7 — arms the ordinary point tool for a macro FILE: the macro instance type (8813) with the macro's path riding in the placement JSON (<see cref="MacroBirth"/> reads it at the tool's commit, in the ONE
+    /// adapter every host's point commit passes, and gives the new entity its <c>MacroInstance</c>).
+    /// </summary>
+    public static bool ArmMacro(ISpawnController spawn, string macroPath, eForceIdentifier side)
+    {
+        ArgumentNullException.ThrowIfNull(spawn);
+        if (string.IsNullOrWhiteSpace(macroPath)) return false;
+        spawn.StartPlacementMode(TkbEntityTypes.ScenarioMacro, MacroBirth.PlacementJson(side, macroPath));
+        return true;
+    }
+
     public static string AffiliationJson(eForceIdentifier side)
         => JsonSerializer.Serialize(new { Affiliation = side.ToString() }, FdpJsonOptionsRegistry.DefaultRelaxed);
 }

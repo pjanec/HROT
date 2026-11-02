@@ -176,8 +176,10 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Weather.ScenarioClock>();   // ⭐ CE-3216 S1-0 — the World Environment's clock, on every node
         world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>();   // ⭐ rules S1-a — an objective's status, on every node (dtObjectiveStatus)
         world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveLinks>();    // ⭐ rules S1-a — an objective's subject / parent, on every node
+        world.RegisterComponent<Fdp.Toolkit.ScenarioRules.RuleLeaves>();        // ⭐ rules V-3 — a trigger's when-leaves with their live values, on every node (dtRuleLeaves)
         world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ExerciseResult>();    // ⭐ rules S2-e — the exercise's phase and outcome per side, on every node (dtExerciseResult)
         world.RegisterManagedComponent<Fdp.Toolkit.ScenarioRules.Actions.ActionArgs>();   // ⭐ rules S2-d — the step lists an entity's actions run (immutable record, 428)
+        world.RegisterComponent<Fdp.Toolkit.ScenarioRules.RuleControl>();                  // ⭐ rules V-4 — a rule entity's runtime control (430), brain-local
         world.RegisterComponent<Fdp.Toolkit.ScenarioRules.Actions.ActionFailure>();      // ⭐ rules S2-d — the reason a shared action failed (CE-4165, 429)
         world.RegisterComponent<Fdp.Toolkit.Weather.WeatherConditions>();   // ⭐ CE-3216 S1 — authored weather (global and regional), on every node
         world.RegisterComponent<Fdp.Toolkit.Traffic.TrafficDemand>();   // ⭐ AQ93 R-4021 — the scenario's traffic settings, on every node

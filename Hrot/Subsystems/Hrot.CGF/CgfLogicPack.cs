@@ -260,6 +260,8 @@ namespace Hrot.CGF
             foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simList.Add(s);
             // ⭐ rules S2 ⑨ (SR-116) — the exercise ended ⇒ ask the cluster to pause, once; after the brain tick that ran EndExercise. [NodeFeature("exercise.pause-on-end")], default ON.
             simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.ExercisePauseOnEndSystem(nodeBus));   // ⭐ the NODE bus — a production host passes HrotNodeContext.EventBus
+            // ⭐ rules V-3 (§00.10) — each owned trigger's when-leaves with their live values, ≤ 2 Hz of sim time; [NodeFeature("ui.rules-live-values")], OFF at load (switched Live on demand).
+            simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.RuleLeafSampler());
             foreach (var s in _actionDispatchModule.SimulationSystems)   simList.Add(s);
             // ⭐ CE-2319 / CE-2320 (AQ96 §2c) — a soldier's move under fire: AFTER the dispatchers, so a move issued this frame already has its
             //   intent when the reflex halts or re-paces it.

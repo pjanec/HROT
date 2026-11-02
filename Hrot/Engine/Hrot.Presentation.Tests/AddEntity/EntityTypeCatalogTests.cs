@@ -317,6 +317,78 @@ public sealed class EntityTypeCatalogTests
 
         Assert.Empty(spawn.Calls);
     }
+    // ── ⭐ CE-4210 MA-7 — Add Entity ▸ Macros ────────────────────────────────────────────────────
+
+    private static readonly string[] SomeMacros = { "test/fire-team", "forces/squad", "solo" };
+
+    [Fact]
+    public void CE4210_MA7_TheBareMacroInstanceType_IsNotAPlaceableProp()
+    {
+        var c = EntityTypeCatalog.Build(BuiltIn(), gallery: ShippedGallery());
+        Assert.DoesNotContain(c, e => e.TkbType == TkbEntityTypes.ScenarioMacro && e.MacroPath is null);   // 8813 (DIS 5.0.0.90) used to land in Props
+        Assert.DoesNotContain(c, e => e.Group == "Props" && e.DisText == "5.0.0.90");
+        Assert.DoesNotContain(EntityTypeCatalog.SpawnerEntries(BuiltIn()), e => (long)e.TkbId == TkbEntityTypes.ScenarioMacro);
+    }
+
+    [Fact]
+    public void CE4210_MA7_TheMacroFiles_AreTheMacrosGroup_EachWithItsPath()
+    {
+        var c = EntityTypeCatalog.Build(BuiltIn(), gallery: ShippedGallery(), macros: SomeMacros);
+
+        var macros = c.Where(e => e.MacroPath is not null).ToList();
+        Assert.Equal(SomeMacros.OrderBy(x => x), macros.Select(e => e.MacroPath!).OrderBy(x => x));
+        Assert.All(macros, e => { Assert.Equal("Macros", e.Group); Assert.True(e.HasSide); Assert.Equal(PlacementToolKind.Point, e.Tool); Assert.Equal(TkbEntityTypes.ScenarioMacro, (long)e.TkbType); });
+        var fire = macros.Single(e => e.MacroPath == "test/fire-team");
+        Assert.Equal("fire-team", fire.Name);
+        Assert.Equal("test", fire.Chip);                       // the folder is the chip
+        Assert.Equal("Macros/test", fire.GalleryCategory);
+        Assert.Equal("Macros", macros.Single(e => e.MacroPath == "solo").GalleryCategory);
+        Assert.Contains("Macros", ShippedGallery().Groups.SidebarOrder);
+        Assert.Equal(EntityTypeCatalog.ToPickerEntries(c, sideBearing: true, gallery: true).Count(p => ((EntityTypeEntry)p.Tag!).MacroPath is not null), 3);
+    }
+
+    [Fact]
+    public void CE4210_MA7_WithNoMacroListing_ThereAreNoMacroEntries()
+        => Assert.DoesNotContain(EntityTypeCatalog.Build(BuiltIn(), gallery: ShippedGallery()), e => e.MacroPath is not null);
+
+    [Fact]
+    public void CE4210_MA7_ArmMacro_ArmsThePointToolOnTheInstanceType_WithThePathInTheJson()
+    {
+        var spawn = new RecordingSpawn();
+        Assert.True(PlacementToolRegistry.ArmMacro(spawn, "test/fire-team", eForceIdentifier.FORCE_FRIENDLY));
+        var call = Assert.Single(spawn.Calls);
+        Assert.StartsWith($"point {TkbEntityTypes.ScenarioMacro} ", call);
+        var (rest, macro) = MacroBirth.Split(call.Substring(call.IndexOf('{')));
+        Assert.Equal("test/fire-team", macro);
+        Assert.Contains("FORCE_FRIENDLY", rest);   // the affiliation stays for the attribute compiler
+        Assert.False(PlacementToolRegistry.ArmMacro(spawn, " ", eForceIdentifier.FORCE_FRIENDLY));
+    }
+
+    [Fact]
+    public void CE4210_MA7_MacroBirth_SplitsThePathOut_AndAddsTheInstanceOnce()
+    {
+        Assert.Equal(("{\"Affiliation\":\"x\"}", null), MacroBirth.Split("{\"Affiliation\":\"x\"}"));
+        Assert.Equal((null, "p"), MacroBirth.Split("{\"$macro\":\"p\"}"));
+        Assert.Equal((null, null), MacroBirth.Split(null));
+
+        var comps = new List<object>();
+        MacroBirth.BornWith(TkbEntityTypes.ScenarioMacro, "p", comps);
+        MacroBirth.BornWith(TkbEntityTypes.ScenarioMacro, "p", comps);                       // never twice
+        var mi = Assert.IsType<Fdp.Toolkit.Scenario.MacroInstance>(Assert.Single(comps));
+        Assert.Equal(("p", "{}"), (mi.Macro, mi.ArgsJson));
+        var other = new List<object>();
+        MacroBirth.BornWith(TkbEntityTypes.Tank_T72, "p", other);                            // only the instance type
+        MacroBirth.BornWith(TkbEntityTypes.ScenarioMacro, null, other);                      // and only with a path
+        Assert.Empty(other);
+    }
+
+    [Fact]
+    public void CE4210_MA7_TheGroupsFile_MayNameAMacrosGroup_ButItTakesNoMasks()
+    {
+        Assert.Equal("Macros", GalleryGroups.Parse("""{ "groups": [ { "name": "Macros", "macros": true } ] }""").MacrosName);
+        Assert.Throws<FormatException>(() => GalleryGroups.Parse("""{ "groups": [ { "name": "M", "macros": true, "masks": [ "1" ] } ] }"""));
+    }
+
     // ── CE-2138 C2 — the class table must not move a built-in type (handoff Track C §3: a golden taken BEFORE C2) ─────────
 
     /// <summary>Every built-in type's 3-D family, picker folder and fallback icon, one line each, ordered by type.</summary>
@@ -454,6 +526,8 @@ public sealed class EntityTypeCatalogTests
         8813 Scenario Macro | dis 5.0.0.90.0.0.0 | family Unknown | folder Cultural Feature/Scenario Macro (HROT) | icon -
         8850 Traffic | dis - | family Unknown | folder Other | icon -
         8851 SUMO car | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        8860 Objective | dis - | family Unknown | folder Other | icon -
+        8861 Trigger | dis - | family Unknown | folder Other | icon -
         """;
 
     /// <summary>⭐ The DIS names as <c>DisNames.json</c> held them — the class table must name exactly these levels; ⭐ C3 adds the

@@ -24,6 +24,8 @@ public sealed class TheObjectivesRouteShowsTheTreeTests : IDisposable
         _world.RegisterComponent<NetworkIdentity>();
         _world.RegisterComponent<ObjectiveStatus>();
         _world.RegisterComponent<ObjectiveLinks>();
+        _world.RegisterComponent<RuleControl>();
+        _world.RegisterComponent<RuleLeaves>();
         _svc = new DebugApiService(new PerspectiveScopedDispatcher(
             new ISubsystemDebugProvider[] { new SubsystemDebugProvider("CGF", "Scenario", world: () => _world, entityMap: () => _map) },
             currentPerspective: () => "Scenario", acksPending: null));
@@ -36,7 +38,7 @@ public sealed class TheObjectivesRouteShowsTheTreeTests : IDisposable
         var e = _world.CreateEntity();
         _map.Register(id, e);
         _world.AddComponent(e, new NetworkIdentity(id));
-        _world.AddComponent(e, new ObjectiveStatus { Title = new FixedString64(title), Kind = new FixedString32(kind), State = state, Score = score, ProgressCur = 1, ProgressNeed = 4, Reason = new FixedString64("1/4") });
+        _world.AddComponent(e, new ObjectiveStatus { Title = new FixedString64(title), Kind = new FixedString32(kind), State = state, Score = score, ProgressCur = 1, ProgressNeed = 4, Reason = new FixedString64("1/4"), Group = new FixedString32(kind == "ReachArea" ? "fire" : "") });
         _world.AddComponent(e, new ObjectiveLinks { Parent = new EntityRef(parent), Subject = new EntityRef(900) });
     }
 
@@ -57,6 +59,7 @@ public sealed class TheObjectivesRouteShowsTheTreeTests : IDisposable
         Assert.Equal(new[] { 12, 11 }, rows[0]!["children"]!.AsArray().Select(n => n!.GetValue<int>()));
         Assert.Equal("Active", (string)rows[0]!["state"]!);
         Assert.Equal(("Achieved", "ReachArea", 1f, 10, 900), ((string)rows[2]!["state"]!, (string)rows[2]!["kind"]!, (float)rows[2]!["score"]!, (int)rows[2]!["parent"]!, (int)rows[2]!["subject"]!));
+        Assert.Equal(("fire", ""), ((string)rows[2]!["group"]!, (string)rows[1]!["group"]!));   // ⭐ rules S4 E-3: the evaluation group
         Assert.Equal((1, 4, "1/4"), ((int)rows[2]!["progress"]!["cur"]!, (int)rows[2]!["progress"]!["need"]!, (string)rows[2]!["reason"]!));
         Assert.Null(rows[0]!["parent"]);
 
@@ -92,5 +95,80 @@ public sealed class TheObjectivesRouteShowsTheTreeTests : IDisposable
         var trig = rows.Single(r => (int)r!["networkId"]! == 30)!;
         Assert.Equal(("Trigger", "Cooldown", 2, 12.5), ((string)trig["role"]!, (string)trig["triggerState"]!, (int)trig["fireCount"]!, (double)trig["lastFired"]!));
         Assert.Null(rows.Single(r => (int)r!["networkId"]! == 31)!["triggerState"]);
+    }
+
+    /// <summary>⭐ rules V-1 / V-2 — every row carries <c>dependsOn</c> / <c>actsOn</c> (net-id arrays) and <c>timing</c> {holdFor, delay, cooldown, deadline, expectedAt}, read off the status (so any node answers).
+    /// ✅ Red-proof: <c>actsOn</c> not written ⇒ red.</summary>
+    [Fact]
+    public void ARowShowsWhatTheRuleNames_AndItsTiming()
+    {
+        Add(30, "Fire when", "Trigger", ObjectiveState.Active);
+        var e = _map.TryGetEntity(30, out var en) ? en : default;
+        var ids = default(NetIds8); ids[0] = 7; ids[1] = 8;
+        var acts = default(NetIds8); acts[0] = 9;
+        ref var s = ref _world.GetComponentRW<ObjectiveStatus>(e);
+        s.DependsOnCount = 2; s.DependsOn = ids; s.ActsOnCount = 1; s.ActsOn = acts;
+        s.HoldFor = 1.5f; s.Delay = 2f; s.Cooldown = 3f; s.Deadline = 60f; s.ExpectedAt = 12.5;
+        var row = _svc.GetObjectives()["objectives"]![0]!;
+        Assert.Equal(new[] { 7, 8 }, row["dependsOn"]!.AsArray().Select(n => n!.GetValue<int>()));
+        Assert.Equal(new[] { 9 }, row["actsOn"]!.AsArray().Select(n => n!.GetValue<int>()));
+        var t = row["timing"]!;
+        Assert.Equal((1.5f, 2f, 3f, 60f, 12.5), ((float)t["holdFor"]!, (float)t["delay"]!, (float)t["cooldown"]!, (float)t["deadline"]!, (double)t["expectedAt"]!));
+    }
+
+    /// <summary>⭐ rules V-4 — <c>POST /objectives/{id}/control</c> writes <c>RuleControl</c> through the attribute write path: on the owner (the component and its authority bit are here) it lands directly, with
+    /// <c>Seq</c> = the last + 1 and the debug API as the origin; a bad request name is refused. ✅ Red-proof: the route not writing <c>Rule.Request</c> ⇒ red.</summary>
+    [Fact]
+    public void TheControlRoute_WritesRuleControlThroughTheRouter_OnTheOwner()
+    {
+        Add(40, "T", "Trigger", ObjectiveState.Active);
+        var e = _map.TryGetEntity(40, out var en) ? en : default;
+        _world.AddComponent(e, new RuleControl { Seq = 4, Done = 4 });
+        _world.SetAuthority(e, ComponentTypeRegistry.GetOrRegisterManaged(typeof(RuleControl)), true);
+
+        var (ok, err) = _svc.ControlObjective(40, "Disarm");
+        Assert.Null(err);
+        Assert.Equal(("direct", 5), ((string)ok!["route"]!, (int)ok["seq"]!));
+        var rc = _world.GetComponentRO<RuleControl>(e);
+        Assert.Equal(((byte)RuleRequest.Disarm, 5, (byte)RuleOrigin.DebugApi), (rc.Request, rc.Seq, rc.Origin));
+        Assert.Equal(4, rc.Done);                                          // honoured by the owner's next tick, not here
+
+        Assert.NotNull(_svc.ControlObjective(40, "Explode").error);
+        Assert.NotNull(_svc.ControlObjective(999, "Fire").error);
+    }
+
+    /// <summary>⭐ rules V-4 — on a node that holds only a replica (no <c>RuleControl</c>) the same route answers <c>requested</c> — a change-request for the owner, nothing applied here.</summary>
+    [Fact]
+    public void TheControlRoute_OnAReplica_IsAChangeRequest()
+    {
+        Add(41, "T", "Trigger", ObjectiveState.Active);
+        var (ok, err) = _svc.ControlObjective(41, "Fire");
+        Assert.Null(err);
+        Assert.Equal("requested", (string)ok!["route"]!);
+        var e = _map.TryGetEntity(41, out var en) ? en : default;
+        Assert.False(_world.HasComponent<RuleControl>(e));
+    }
+    /// <summary>⭐ rules V-3 — a TRIGGER row carries <c>leaves</c> (label, 0/1, measured) once the owner has sampled them, and none before; an objective row never does.
+    /// ✅ Red-proof: the <c>leaves</c> block removed from <c>GetObjectives</c> ⇒ red.</summary>
+    [Fact]
+    public void ATriggerRow_CarriesItsLeaves_OnceSampled_AndNoneBefore()
+    {
+        Add(30, "Gate", "Trigger", ObjectiveState.Active);
+        Add(31, "Obj", "ReachArea", ObjectiveState.Active);
+        _map.TryGetEntity(30, out var trig); _map.TryGetEntity(31, out var obj);
+        _world.GetComponentRW<ObjectiveStatus>(trig).Role = ObjectiveRole.Trigger;
+        Assert.Null(_svc.GetObjectives()["objectives"]!.AsArray().Single(r => (int)r!["networkId"]! == 30)!["leaves"]);   // not sampled yet
+
+        var c = new RuleLeaves { Count = 2 };
+        c.Leaves[0] = new RuleLeaf { Label = new FixedString32("@Bridge Health.Current"), Value = 1, Measured = 37.5f };
+        c.Leaves[1] = new RuleLeaf { Label = new FixedString32("ScenarioTime"), Value = 0, Measured = 12.25f };
+        _world.AddComponent(trig, c);
+        _world.AddComponent(obj, c);
+        var rows = _svc.GetObjectives()["objectives"]!.AsArray();
+        var leaves = rows.Single(r => (int)r!["networkId"]! == 30)!["leaves"]!.AsArray();
+        Assert.Equal(2, leaves.Count);
+        Assert.Equal(("@Bridge Health.Current", 1, 37.5f), ((string)leaves[0]!["label"]!, (int)leaves[0]!["value"]!.GetValue<byte>(), (float)leaves[0]!["measured"]!));
+        Assert.Equal(("ScenarioTime", 0, 12.25f), ((string)leaves[1]!["label"]!, (int)leaves[1]!["value"]!.GetValue<byte>(), (float)leaves[1]!["measured"]!));
+        Assert.Null(rows.Single(r => (int)r!["networkId"]! == 31)!["leaves"]);   // only a trigger has when-leaves
     }
 }

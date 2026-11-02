@@ -195,7 +195,8 @@ namespace Hrot.UI.Common.Adapters
             var tkbType = LastSelectedTkbType;
 
             // ⭐⭐ CONSUMED, not merely read — the toolbar path must see null, exactly as it did before.
-            var initialPropertiesJson = _pendingPropertiesJson;
+            // ⭐ CE-4210 MA-7 — a macro placement rides its path in the JSON; split it out here, in the ONE point commit every host passes
+            var (initialPropertiesJson, macroPath) = Hrot.UI.Common.AddEntity.MacroBirth.Split(_pendingPropertiesJson);
             _pendingPropertiesJson    = null;
 
             var id = GlobalGizmoManager.NewId();
@@ -203,6 +204,7 @@ namespace Hrot.UI.Common.Adapters
                 onEntityCreated: cmd =>
                 {
                     cmd.InitialComponents ??= new System.Collections.Generic.List<object>();
+                    Hrot.UI.Common.AddEntity.MacroBirth.BornWith(cmd.TkbType, macroPath, cmd.InitialComponents);   // ⭐ CE-4210 MA-7 — the instance is born with its MacroInstance
 
                     // Seed a baseline EntityInfo so the entity is guaranteed to appear
                     // in the ORBAT tree even when no Name property is supplied in JSON.

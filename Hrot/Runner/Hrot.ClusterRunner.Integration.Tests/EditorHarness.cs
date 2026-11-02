@@ -249,7 +249,7 @@ public sealed class EditorHarness : IDisposable
         //   composed capabilities; this harness composes CgfLogicPack by hand, so it declares what that pack's Brain capability declares
         //   (EditorCapabilities.Brain.Features — rules S2 ⑨ ExercisePauseOnEndSystem), before any module registers.
         Kernel.FeatureGate = new Hrot.Common.Infrastructure.NodeFeatures(
-            new Hrot.Common.Infrastructure.FeatureRegistry(new[] { Hrot.AI.Behaviors.Brains.Objectives.ExercisePauseOnEndSystem.Feature }),
+            new Hrot.Common.Infrastructure.FeatureRegistry(new[] { Hrot.AI.Behaviors.Brains.Objectives.ExercisePauseOnEndSystem.Feature, Hrot.AI.Behaviors.Brains.Objectives.RuleLeafSampler.Feature }),
             Hrot.Editor.EditorCapabilities.DefaultRole);
         _physicsModule = new PhysicsToolkitModule();
         _physicsModule.Initialize(Repo);

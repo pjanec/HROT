@@ -2818,7 +2818,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_objectives",
             Group:   "K — AI behavior traces",
             Summary: "The minimal mission summary (rules S1-g): every objective / measure status on THIS node and the tree by parent — on a non-Brain node these are the REPLICATED statuses (dtObjectiveStatus).",
-            Returns: "{ objectives:[{networkId, title, kind, role, state, closed, owner, progress:{cur, need}, value, target, score, points, weight, required, scored, changedAt, reason, subject, parent, children:[networkId]; Role=Trigger rows add triggerState, fireCount, lastFired}], roots:[networkId] } — roots first, depth-first by title",
+            Returns: "{ objectives:[{networkId, title, kind, group (the evaluation group: mission · fire · reports · conduct …; empty = none), role, state, closed, owner, progress:{cur, need}, value, target, score, points, weight, required, scored, changedAt, reason, subject, parent, children:[networkId], dependsOn:[networkId] (what a trigger's when names), actsOn:[networkId] (what its do targets), timing:{holdFor, delay, cooldown, deadline, expectedAt} (sim s; 0 = none / unknown); Role=Trigger rows add triggerState, fireCount, lastFired, and leaves:[{label, value 0/1, measured}] (the when-leaves with their live values — present once the owner has sampled them; the owner samples ≤ 2 Hz and ONLY while node feature ui.rules-live-values is on (off at load, switched Live on demand; GET /features shows it); when it goes off the last sample STAYS — show it greyed)}], roots:[networkId] } — roots first, depth-first by title",
             Hint:    "Optional: tree=1 (children nested as objects). Read on any node. Example: get_objectives({})",
             Params: new RouteParam[]
             {
@@ -2827,6 +2827,21 @@ namespace Hrot.Editor.DebugApi
             Notes: new[] { "A state is one of Pending, Active, Achieved, Failed, Inactive, Skipped; Score is 0..1 (a Skipped one is excluded from its parent's mean)." },
             ExampleArgsJson: "{}",
             ExampleGist: "how is the squad doing against its objectives"),
+
+        [("POST", "/objectives/{networkId}/control")] = new RouteDoc(
+            Tool:    "control_objective",
+            Group:   "L — Mutation / fault injection",
+            Summary: "Ask a rule entity (a trigger or an objective) to do something NOW (rules V-4): fire · disarm · rearm · reset · activate · deactivate. Written through the attribute write path — applied here when this node owns the entity, a change-request to the owner otherwise; the owner honours each new request once and journals it (\"Disarm by DebugApi\").",
+            Returns: "{ networkId, request, seq, route:'direct'|'requested' } — 'requested' acts after the owner's next tick; read GET /objectives (triggerState, state) to see the effect",
+            Hint:    "Req: networkId (path), request (string: Fire, Disarm, Rearm, Reset, Activate, Deactivate). Example: control_objective({networkId:12, request:'Disarm'})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID of the trigger / objective (see GET /objectives)"),
+                new("request", "string", true, "Fire (a trigger runs its do list now) · Disarm / Deactivate (switch it off) · Rearm (armed again, no edge while the condition stays true) · Reset (restart, even a finished one) · Activate (switch it on)"),
+            },
+            Notes: new[] { "Fire / Rearm are a trigger's; the others work on any objective (SR-114 rules: a final one needs Reset; a closed one takes nothing — the entity's reason says why)." },
+            ExampleArgsJson: "{\"networkId\":12,\"request\":\"Disarm\"}",
+            ExampleGist: "switch the trigger off"),
 
         [("GET", "/entities/{networkId}/squad")] = new RouteDoc(
             Tool:    "get_entity_squad",

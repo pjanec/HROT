@@ -32,6 +32,7 @@ public sealed class NewAssetLauncher
     private readonly Action<AssetKind, IEditableAsset> _showNewAssetDialog;
     private readonly Func<IEditableAsset, string?> _describe;
     private readonly Func<IEditableAsset, string?> _recipeCategory;
+    private readonly Action<AssetKind, IEditableAsset>? _showNewMacroDialog;
 
     /// <summary>
     /// Initializes the launcher.
@@ -61,8 +62,10 @@ public sealed class NewAssetLauncher
         IReadOnlyDictionary<AssetKind, INewAssetService> services,
         Action<AssetKind, IEditableAsset> showNewAssetDialog,
         Func<IEditableAsset, string?>? describe = null,
-        Func<IEditableAsset, string?>? recipeCategory = null)
+        Func<IEditableAsset, string?>? recipeCategory = null,
+        Action<AssetKind, IEditableAsset>? showNewMacroDialog = null)
     {
+        _showNewMacroDialog = showNewMacroDialog;
         _openPicker = openPicker ?? throw new ArgumentNullException(nameof(openPicker));
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _showNewAssetDialog = showNewAssetDialog ?? throw new ArgumentNullException(nameof(showNewAssetDialog));
@@ -91,7 +94,13 @@ public sealed class NewAssetLauncher
     /// </summary>
     public void Open(AssetKind kind) => OpenCore(product: null, only: kind);
 
-    private void OpenCore(AuthoringProduct? product, AssetKind? only = null)
+    /// <summary>⭐ CE-4210 MA-6 — <i>New macro…</i>: the SAME scenario-recipe picker (a macro starts from a seed's terrain), then the host's macro naming dialog (a name under <c>macros/</c>) and the same <c>CreateNew</c>.
+    /// ⛔ A host with no such dialog (<c>showNewMacroDialog</c> null) opens nothing — the caller greys the item.</summary>
+    public bool CanOpenMacro => _showNewMacroDialog is not null && _services.ContainsKey(AssetKind.Scenario);
+
+    public void OpenMacro() => OpenCore(product: null, only: AssetKind.Scenario, macro: true);
+
+    private void OpenCore(AuthoringProduct? product, AssetKind? only = null, bool macro = false)
     {
         var services = only is { } k
             ? _services.Where(s => s.Key == k).ToDictionary(s => s.Key, s => s.Value)
@@ -100,9 +109,9 @@ public sealed class NewAssetLauncher
 
         var request = new PickerRequest
         {
-            ContextKey = only is { } ok ? $"assets.new.{ok.ToString().ToLowerInvariant()}"
+            ContextKey = macro ? "assets.new.macro" : only is { } ok ? $"assets.new.{ok.ToString().ToLowerInvariant()}"
                        : product is { } p ? $"assets.new.{p.ToString().ToLowerInvariant()}" : "assets.new",
-            Title = only is { } tk ? $"New {tk}" : source.Title,
+            Title = macro ? "New Macro" : only is { } tk ? $"New {tk}" : source.Title,
             // ⭐ CE-460 (D2) — the product's default technology is pre-selected: Enter takes it.
             InitialSelectionId = source.DefaultEntryId(),
             Layout = PickerLayout.Tree,
@@ -116,7 +125,10 @@ public sealed class NewAssetLauncher
                 return;
 
             if (result.First?.Tag is RecipeChoice rc)
-                _showNewAssetDialog(rc.Kind, rc.Recipe);
+            {
+                if (macro) _showNewMacroDialog?.Invoke(rc.Kind, rc.Recipe);
+                else _showNewAssetDialog(rc.Kind, rc.Recipe);
+            }
         });
     }
 }

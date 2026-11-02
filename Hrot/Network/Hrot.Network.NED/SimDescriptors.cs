@@ -221,6 +221,16 @@ namespace Hrot.NED.Descriptors
         public float Weight;
         /// <summary>Bit mask by <c>ForceId</c> value.</summary>
         public byte VisibleSides;
+        /// <summary>⭐ rules V-1 (§00.10): the network ids a trigger's <c>when</c> names (≤ 8; null = none).</summary>
+        [DdsManaged] public List<int> DependsOn;
+        /// <summary>⭐ rules V-1: the network ids a trigger's <c>do</c> steps target (≤ 8; null = none).</summary>
+        [DdsManaged] public List<int> ActsOn;
+        /// <summary>⭐ rules V-2: the authored timing (s; 0 = none) — a trigger's hold / delay / cooldown, every kind's deadline.</summary>
+        public float HoldFor, Delay, Cooldown, Deadline;
+        /// <summary>⭐ rules V-2: sim s of the next thing the owner knows will happen; 0 = unknown.</summary>
+        public double ExpectedAt;
+        /// <summary>⭐ rules S4 E-3: the evaluation group (mission · fire · reports · conduct …); "" = none. A display field, goes at once.</summary>
+        public string Group;
     }
 
     // ⭐ rules S2-e (docs/DESIGN_Scenario_Rules.md §00.9, SR-122) — the exercise's RESULT: the phase (Running / Closing / Ended), when it ended, why, and the
@@ -249,6 +259,30 @@ namespace Hrot.NED.Descriptors
         public byte NeutralOutcome;
         public float NeutralPoints;
         public float NeutralScore;
+    }
+
+    /// <summary>⭐ rules V-3 — one leaf of <see cref="EntityRuleLeaves"/>: its label, whether it holds (0/1) and its measured number.</summary>
+    [DdsStruct]
+    public partial struct DdsRuleLeaf
+    {
+        [DdsManaged] public string Label;
+        public byte Value;
+        public float Measured;
+    }
+
+    // ⭐ rules V-3 (docs/DESIGN_Scenario_Rules.md §00.10) — a trigger's `when` LEAVES with their live values (≤ 8), for the rules view. State, keyed by the trigger entity, published by its
+    //   owner (the Brain that runs it) on change — the owner SAMPLES them at most twice a second and ONLY while the node feature ui.rules-live-values is on, so on a node nobody watches nothing
+    //   is written and nothing flows (the last sample stays when it is switched off). Same QoS as the status topic. Managed: it carries the labels.
+    [DdsTopic]
+    [DdsIdlFile("hrot-scenario-rules")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityRuleLeaves
+    {
+        [DdsKey]
+        public int EntityId;
+        /// <summary>The leaves (≤ 8; null = none yet); the count is the list's.</summary>
+        [DdsManaged] public List<DdsRuleLeaf> Leaves;
     }
 
     // ⭐ CE-3216 S1 (R-3012; docs/designs/weather/DESIGN_Weather_And_Time.md §1, W-0…W-3) — AUTHORED weather (WeatherConditions): the global

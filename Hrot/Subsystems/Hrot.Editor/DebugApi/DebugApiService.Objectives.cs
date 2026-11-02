@@ -16,6 +16,35 @@ namespace Hrot.Editor.DebugApi
     {
         private sealed record ObjRow(int NetId, Entity Entity);
 
+        private int _ruleSeq = (int)(System.DateTime.UtcNow.Ticks / 10000 & 0x3FFFFFFF);
+
+        /// <summary>
+        /// ⭐ rules V-4 (§00.10) — <c>POST /objectives/{networkId}/control {"request":"Disarm"}</c>: writes the rule entity's <see cref="RuleControl"/> (<c>Rule.Request</c> / <c>Rule.Seq</c> /
+        /// <c>Rule.Origin</c>, ONE change list) through <see cref="Fdp.Toolkit.Replication.Attributes.EntityWriteRouter"/> — applied here when this node owns the entity, a change-request to
+        /// the owner otherwise (the instructor's UI uses the same path). <c>Seq</c> = the last one seen here + 1 (a node that holds no <see cref="RuleControl"/> keeps its own counter: the owner
+        /// acts on any Seq it has not yet seen). The answer says how it was routed (<c>direct</c> / <c>requested</c>); a <c>requested</c> one acts after the owner's next tick.
+        /// </summary>
+        public (JsonNode? result, string? error) ControlObjective(int networkId, string? request)
+        {
+            if (!_entityMap.TryGetEntity(networkId, out var entity) || !_world.IsAlive(entity))
+                return (null, $"Entity {networkId} not found. List the rule entities with GET /objectives.");
+            if (!System.Enum.TryParse<RuleRequest>(request, ignoreCase: true, out var what) || what == RuleRequest.NoRequest || !System.Enum.IsDefined(what))
+                return (null, $"'request' must be one of: {string.Join(", ", System.Enum.GetNames<RuleRequest>().Skip(1))}.");
+            int seq = _world.IsComponentTypeRegistered<RuleControl>() && _world.HasComponent<RuleControl>(entity)
+                ? _world.GetComponentRO<RuleControl>(entity).Seq : _ruleSeq;
+            seq = seq == int.MaxValue ? 1 : seq + 1;
+            _ruleSeq = seq;
+            var route = Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(_world).Write(entity, new[]
+            {
+                Fdp.Toolkit.Replication.Patching.EntityAttributeChange.Double(Fdp.Toolkit.Replication.Patching.AttributeIds.RuleRequest, (int)what),
+                Fdp.Toolkit.Replication.Patching.EntityAttributeChange.Double(Fdp.Toolkit.Replication.Patching.AttributeIds.RuleOrigin, (int)RuleOrigin.DebugApi),
+                Fdp.Toolkit.Replication.Patching.EntityAttributeChange.Double(Fdp.Toolkit.Replication.Patching.AttributeIds.RuleSeq, seq),
+            });
+            if (route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused)
+                return (null, $"Entity {networkId}: nothing was written (this node has no way to ask the owner). Nothing was requested.");
+            return (new JsonObject { ["networkId"] = networkId, ["request"] = what.ToString(), ["seq"] = seq, ["route"] = route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct ? "direct" : "requested" }, null);
+        }
+
         /// <summary><c>GET /objectives[?tree=1]</c>.</summary>
         public JsonNode GetObjectives(bool tree = false)
         {
@@ -52,7 +81,7 @@ namespace Hrot.Editor.DebugApi
                 int subject = SubjectOf(e), parent = ParentOf(e);
                 var row = new JsonObject
                 {
-                    ["networkId"] = id, ["title"] = s.Title.ToString(), ["kind"] = s.Kind.ToString(), ["role"] = s.Role.ToString(),
+                    ["networkId"] = id, ["title"] = s.Title.ToString(), ["kind"] = s.Kind.ToString(), ["group"] = s.Group.ToString(), ["role"] = s.Role.ToString(),
                     ["state"] = s.State.ToString(), ["closed"] = s.Closed != 0, ["owner"] = s.Owner.ToString(),
                     ["progress"] = new JsonObject { ["cur"] = s.ProgressCur, ["need"] = s.ProgressNeed },
                     ["value"] = s.Value, ["target"] = s.Target, ["score"] = s.Score, ["points"] = s.Points, ["weight"] = s.Weight,
@@ -60,11 +89,25 @@ namespace Hrot.Editor.DebugApi
                     ["subject"] = subject != 0 ? subject : null, ["parent"] = parent != 0 && rows.ContainsKey(parent) ? parent : null,
                     ["children"] = new JsonArray(children.TryGetValue(id, out var kids) ? kids.Select(k => (JsonNode)k).ToArray() : System.Array.Empty<JsonNode>()),
                 };
+                // ⭐ rules V-1 / V-2 (§00.10): what the rule names, and its timing — on the status, so ANY node answers the same
+                var dep = new JsonArray(); for (int i = 0; i < s.DependsOnCount && i < 8; i++) dep.Add(s.DependsOn[i]);
+                var act = new JsonArray(); for (int i = 0; i < s.ActsOnCount && i < 8; i++) act.Add(s.ActsOn[i]);
+                row["dependsOn"] = dep; row["actsOn"] = act;
+                row["timing"] = new JsonObject { ["holdFor"] = s.HoldFor, ["delay"] = s.Delay, ["cooldown"] = s.Cooldown, ["deadline"] = s.Deadline, ["expectedAt"] = s.ExpectedAt };
                 if (s.Role == ObjectiveRole.Trigger)   // ⭐ rules S2-c (T8): the §10.11 machine's state, as a string, and how often it fired
                 {
                     row["triggerState"] = s.TriggerState.ToString();
                     row["fireCount"] = s.FireCount;
                     row["lastFired"] = s.LastFired;
+                    // ⭐ rules V-3: the trigger's when-leaves with their live values — present only once the owner has sampled them (feature ui.rules-live-values on there); the last sample stays when it goes off
+                    if (_world.IsComponentTypeRegistered<RuleLeaves>() && _world.HasComponent<RuleLeaves>(e))
+                    {
+                        ref readonly var rl = ref _world.GetComponentRO<RuleLeaves>(e);
+                        var leaves = new JsonArray();
+                        for (int i = 0; i < rl.Count && i < RuleLeafPlan.MaxLeaves; i++)
+                            leaves.Add(new JsonObject { ["label"] = rl.Leaves[i].Label.ToString(), ["value"] = rl.Leaves[i].Value, ["measured"] = rl.Leaves[i].Measured });
+                        row["leaves"] = leaves;
+                    }
                 }
                 return row;
             }

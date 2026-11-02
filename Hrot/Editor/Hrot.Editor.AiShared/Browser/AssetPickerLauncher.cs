@@ -30,6 +30,8 @@ public sealed class AssetPickerLauncher
     private readonly Func<IEditableAsset, string?> _describe;
     private readonly Func<bool>? _hasInventory;
     private readonly Func<Hrot.UI.Common.RunMode.RunModeChoice?>? _runChoice;
+    private readonly Func<IReadOnlyList<string>>? _macroPaths;
+    private readonly Func<string?>? _macrosRoot;
 
     /// <summary>⭐ CE-4141 (AQ108 D25) — the id of the scenario picker's default footer action (<i>Open</i>).</summary>
     public const string OpenActionId = "open";
@@ -73,8 +75,13 @@ public sealed class AssetPickerLauncher
         Func<AssetKind, string?>? baseFolderResolver = null,
         Func<IEditableAsset, string?>? describe = null,
         Func<bool>? hasInventory = null,
-        Func<Hrot.UI.Common.RunMode.RunModeChoice?>? runChoice = null)
+        Func<Hrot.UI.Common.RunMode.RunModeChoice?>? runChoice = null,
+        Func<IReadOnlyList<string>>? macroPaths = null,
+        Func<string?>? macrosRoot = null)
     {
+        // ⭐ CE-4210 MA-6 — a host that EDITS macros passes the listing of the NAS `macros/` root (the root the load resolves against); null ⇒ no Macros group (macro authoring is the editor's).
+        _macroPaths = macroPaths;
+        _macrosRoot = macrosRoot;
         _hasInventory = hasInventory;
         _runChoice = runChoice;
         _openPicker = openPicker ?? throw new ArgumentNullException(nameof(openPicker));
@@ -105,6 +112,12 @@ public sealed class AssetPickerLauncher
         if ((kinds & AssetKindFilter.Scenario) != 0)
             entries = entries.Select(e => e.Tag is IEditableAsset { Kind: AssetKind.Scenario } a && ScenarioPaneFacts.PreviewOf(a.SourceFilePath) is { } png
                 ? e with { ImageKey = png } : e).ToList();   // ⭐ CE-4141 — the pane's picture: preview.png in the scenario's folder, when there is one
+        if ((kinds & AssetKindFilter.Scenario) != 0 && _macroPaths is not null)
+        {
+            var withMacros = entries.ToList();
+            withMacros.AddRange(MacroPickerEntries.Entries(_macroPaths(), _macrosRoot?.Invoke()));
+            entries = withMacros;
+        }
         if ((kinds & AssetKindFilter.Scenario) == 0 || _hasInventory is null || _hasInventory()) return entries;
         var withWaiting = new List<PickerEntry>(entries.Count + 1) { InventoryWaiting.Entry(WaitingEntryId) };
         withWaiting.AddRange(entries);
@@ -151,6 +164,27 @@ public sealed class AssetPickerLauncher
     /// its <c>scenario.json</c> (terrain, subsystem, entity count — only what the file has); a host with no local scenarios folder says so. The footer offers <i>Open</i> (default) and <i>Open and go live</i>.
     /// ⏳ The run-setup expanders of D24 (variant, scenario params) are NOT here: scenario variants and params are macros S3 (backend's) and do not exist yet.
     /// </summary>
+    /// <summary>
+    /// ⭐ CE-4210 MA-8 — the SAME picker's Macros group on its own (the instance's <i>Change…</i>): lists the macro files and calls back with the chosen macro's PATH under <c>macros/</c>.
+    /// ⛔ Nothing when this host passed no macro listing.
+    /// </summary>
+    public bool OpenMacros(Action<string> onPicked)
+    {
+        if (_macroPaths is null || onPicked is null) return false;
+        _openPicker(new PickerRequest
+        {
+            ContextKey = "assets.open.macros",
+            Title = "Pick a macro",
+            Layout = PickerLayout.Tree,
+            SelectionMode = PickerSelectionMode.Single,
+            ItemsProvider = () => MacroPickerEntries.Entries(_macroPaths(), _macrosRoot?.Invoke()),
+        }, result =>
+        {
+            if (!result.Cancelled && result.First?.Tag is MacroPickerEntries.MacroAsset a) onPicked(a.Path_);
+        });
+        return true;
+    }
+
     private PickerRequest ScenarioPane(PickerRequest basis, AssetKindFilter kinds, AssetPickerSource source) => new()
     {
         ContextKey = basis.ContextKey,

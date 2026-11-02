@@ -30,6 +30,9 @@ public sealed record EntityAuthoringInputs(
     /// <summary>⭐ CE-4142 — the gallery data (groups + thumbnail map) the Add Entity picker uses; null ⇒ the NAS's <c>assets/thumbnails</c>.
     /// A rail passes its own folder so it never reads the real NAS.</summary>
     public Func<GalleryData?>? Gallery { get; init; }
+
+    /// <summary>⭐ CE-4210 MA-7 — the macro files (paths under <c>macros/</c>) Add Entity offers in its Macros group, read from the NAS root the load resolves against. ⛔ A host that expands macros (the editor) passes it; null ⇒ no Macros group.</summary>
+    public Func<IReadOnlyList<string>>? Macros { get; init; }
 }
 
 /// <summary>
@@ -60,7 +63,7 @@ public sealed class EntityAuthoring
         _tools = tools;
         if (inputs.HostPickers is null) _ownPickers = CreatePickers();
         AddEntity = new AddEntityAction(_in.Tkb, () => Pickers is { } p ? p.OpenPicker : null, () => Spawn, _in.SuspendedReason,
-                                    gallery: _in.Gallery ?? GalleryData.Shipped);   // ⭐ CE-4142 — every host opens the gallery; a host with none of the data files gets the tree
+                                    gallery: _in.Gallery ?? GalleryData.Shipped, macros: _in.Macros);   // ⭐ CE-4142 — every host opens the gallery; a host with none of the data files gets the tree
         CanvasMenu = new Hrot.Presentation.Systems.CanvasMenuUpdateSystem(AddEntity);
     }
 

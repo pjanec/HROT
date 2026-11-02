@@ -45,6 +45,8 @@ namespace Fdp.Toolkit.ScenarioRules
         public FixedString64 Reason;
         public FixedString64 Title;
         public FixedString32 Kind;
+        /// <summary>⭐ rules S4 E-3 — the evaluation group (mission · fire · reports · conduct …) a frontend sections the rows by; "" = none. A projection of <c>common.group</c>.</summary>
+        public FixedString32 Group;
         public byte Required;
         public byte Scored;
         public float Weight;
@@ -61,6 +63,17 @@ namespace Fdp.Toolkit.ScenarioRules
         /// <c>SetObjectiveActive</c>, honoured (and cleared) by <c>ObjectiveHost.Enter</c> — the ONE place a run is re-begun. Local: never on the wire.
         /// </summary>
         public byte ResetRequested;
+
+        /// <summary>⭐ rules V-1 (§00.10) — the network ids of the entities a trigger's <c>when</c> NAMES (<c>OnEntity</c> refs, recursively): the first <see cref="DependsOnCount"/> of <see cref="DependsOn"/>. Static; on the wire.</summary>
+        public byte DependsOnCount;
+        public NetIds8 DependsOn;
+        /// <summary>⭐ rules V-1 — the targets a trigger's <c>do</c> list NAMES (any step's <c>target</c>): the first <see cref="ActsOnCount"/> of <see cref="ActsOn"/>.</summary>
+        public byte ActsOnCount;
+        public NetIds8 ActsOn;
+        /// <summary>⭐ rules V-2 — the authored timing (s; 0 = none) of a trigger; <see cref="Deadline"/> is every kind's <c>common.deadlineSeconds</c> (sim s since the start).</summary>
+        public float HoldFor, Delay, Cooldown, Deadline;
+        /// <summary>⭐ rules V-2 — sim s of the NEXT thing the owner already knows will happen (Waiting ⇒ the delay's end · Holding ⇒ edge + holdFor · Cooldown ⇒ its end · an Active one with a deadline ⇒ the deadline); 0 = unknown / final.</summary>
+        public double ExpectedAt;
 
         /// <summary>Achieved, Failed or Skipped — it will not change by itself.</summary>
         public readonly bool IsFinal => State == ObjectiveState.Achieved || State == ObjectiveState.Failed || State == ObjectiveState.Skipped;

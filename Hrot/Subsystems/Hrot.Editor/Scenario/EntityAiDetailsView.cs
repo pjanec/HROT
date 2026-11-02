@@ -228,6 +228,7 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
     private readonly EntityAiEditModel _model;
     private readonly Func<IComponentEditService?> _editService;
     private readonly Func<Fdp.Presentation.Editing.IMapPickContext?> _picks;   // ⭐ CE-1023 — the editor's broker
+    private readonly Func<EntityRepository?> _world;   // ⭐ CE-4210 P2 — the world whose resident header declares the params
     private Entity _entity = Entity.Null;
     private string _taskPick = "", _sopPick = "";
     private IEditSession? _taskForm, _sopForm;
@@ -238,8 +239,10 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
     /// <param name="picks">⭐ CE-1023 — the map picks a param field of type <c>EntityRef</c> / <c>PickableGeoPoint</c> asks;
     /// ⛔ a host that holds a pick service must pass it (the silent-default rule); null ⇒ no Pick buttons.</param>
     public EntityAiDetailsView(EntityAiEditModel model, Func<IComponentEditService?> editService,
-                               Func<Fdp.Presentation.Editing.IMapPickContext?>? picks = null)
+                               Func<Fdp.Presentation.Editing.IMapPickContext?>? picks = null,
+                               Func<EntityRepository?>? world = null)
     {
+        _world       = world ?? (() => null);
         _model       = model ?? throw new ArgumentNullException(nameof(model));
         _editService = editService ?? throw new ArgumentNullException(nameof(editService));
         _picks       = picks ?? (() => null);
@@ -248,6 +251,14 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
     /// <summary>⭐ CE-1023 — the pick context of one row's form: the editor's broker, scoped to the row (null ⇒ none).</summary>
     public Fdp.Presentation.Editing.IMapPickContext? PicksFor(string scope)
         => _picks() is { } p ? new Fdp.Presentation.Editing.ScopedMapPickContext(p, scope) : null;
+
+    /// <summary>⭐ CE-4210 P2 (MA-1, D) — the bind context of one params form of the selected entity: <c>ParamBindings</c> under <paramref name="prefix"/>
+    /// (<c>"Behavior.Params"</c> for the task, <c>"Sop.Params"</c> for the SOP); null when this host has no world (⛔ the descriptor passes it — silent-default rule).</summary>
+    public Fdp.Presentation.Editing.IParamBindContext? BindsFor(Entity entity, string prefix)
+        => _world() is { } w && !entity.IsNull
+            ? new Fdp.Presentation.Editing.EntityBindContext(new Fdp.Presentation.Adapters.RepositoryAdapter(w), entity, prefix,
+                  () => Fdp.Presentation.Editing.HeaderParams.Of(w))
+            : null;
 
     public EntityAiEditModel Model => _model;
 
@@ -320,7 +331,8 @@ public sealed class EntityAiDetailsView : IDetailsViewInstance
             form = BehaviorParamsForm.Open(svc, type, pick == current ? currentParams : "{}");
             formType = type;
         }
-        if (type != null && form != null) BehaviorParamsForm.DrawFields(form, PicksFor("$." + id));
+        if (type != null && form != null) BehaviorParamsForm.DrawFields(form, PicksFor("$." + id), "params",
+            id == "sop" ? BindsFor(_entity, "Sop.Params") : id == "task" ? BindsFor(_entity, "Behavior.Params") : null);
 
         if (ImGui.Button("Apply") && pick.Length > 0)
         {
@@ -369,7 +381,7 @@ public static class EntityAiDetailsViewDescriptor
                                             Func<Fdp.Toolkit.Blueprints.BlueprintRegistry?>? blueprints = null,
                                             Func<Fdp.Presentation.Editing.IMapPickContext?>? picks = null)
     {
-        var instance = new EntityAiDetailsView(new EntityAiEditModel(world, registry, blueprints), editService, picks);
+        var instance = new EntityAiDetailsView(new EntityAiEditModel(world, registry, blueprints), editService, picks, world);
         return new DetailsViewDescriptor(
             Id:        ViewId,
             Title:     "Assign: task, SOP, ROE",   // ⭐ CE-1314 — a section of the Brain tab now

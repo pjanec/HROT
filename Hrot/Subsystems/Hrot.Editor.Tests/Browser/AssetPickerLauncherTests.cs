@@ -535,4 +535,92 @@ public sealed class AssetPickerLauncherTests
             Assert.Contains("runChoice:", call);
         }
     }
+
+    // ── ⭐ CE-4210 MA-6 — the Macros group ────────────────────────────────────────────────────────
+
+    private static string MakeMacrosRoot(params string[] paths)
+    {
+        string root = Path.Combine(Path.GetTempPath(), "macros-" + Guid.NewGuid().ToString("N"));
+        foreach (var p in paths)
+        {
+            var dir = Path.Combine(root, p.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(Path.Combine(dir, "scenario.json"), "{}");
+        }
+        Directory.CreateDirectory(root);
+        return root;
+    }
+
+    [Fact]
+    public void TheMacrosGroup_ListsExactlyTheMacroFolders_AndNoneOfTheScenarios()
+    {
+        string root = MakeMacrosRoot("test/fire-team", "forces/squad");
+        try
+        {
+            var scenario = new StubAsset { Kind = AssetKind.Scenario, Name = "Combat/mine" };
+            var launcher = new AssetPickerLauncher(new FakeOpenPicker().OpenPicker, new FakeCatalog(scenario), MakeRouter(), _ => "",
+                macroPaths: () => ScenarioEnumeration.EnumerateRelPaths(root), macrosRoot: () => root);
+
+            var entries = launcher.Entries(AssetKindFilter.Scenario);
+            var macros = entries.Where(e => e.Category is { } c && (c == "Macros" || c.StartsWith("Macros/"))).ToList();
+
+            Assert.Equal(new[] { "macros/forces/squad", "macros/test/fire-team" }, macros.Select(e => ((IEditableAsset)e.Tag!).Name).OrderBy(n => n).ToArray());
+            Assert.All(macros, e => Assert.Equal(AssetKind.Scenario, ((IEditableAsset)e.Tag!).Kind));   // a pick is the ordinary scenario open of "macros/<path>"
+            Assert.Contains(entries, e => e.Tag == scenario);                                            // the scenario list is untouched
+            Assert.DoesNotContain(macros, e => ((IEditableAsset)e.Tag!).Name.Contains("Combat"));
+            var asset = (MacroPickerEntries.MacroAsset)macros.First(e => e.Name == "fire-team").Tag!;
+            Assert.Equal(Path.Combine(root, "test", "fire-team", "scenario.json"), asset.SourceFilePath);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public void AnEmptyMacrosRoot_SaysSo_AndNeverFallsBackToTheRepo()
+    {
+        string root = MakeMacrosRoot();
+        try
+        {
+            var launcher = new AssetPickerLauncher(new FakeOpenPicker().OpenPicker, new FakeCatalog(), MakeRouter(), _ => "",
+                macroPaths: () => ScenarioEnumeration.EnumerateRelPaths(root), macrosRoot: () => root);
+            var hint = Assert.Single(launcher.Entries(AssetKindFilter.Scenario));
+            Assert.Equal("No macros on the server — see macros/ seeding", hint.Name);
+            Assert.False(hint.IsEnabled);
+            Assert.Null(hint.Tag);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public void AHostWithNoMacroListing_OffersNoMacrosGroup()
+    {
+        var launcher = new AssetPickerLauncher(new FakeOpenPicker().OpenPicker, new FakeCatalog(), MakeRouter(), _ => "");
+        Assert.Empty(launcher.Entries(AssetKindFilter.Scenario));
+        Assert.False(launcher.OpenMacros(_ => { }));
+    }
+
+    [Fact]
+    public void PickingAMacroInTheMacrosPicker_ReturnsItsPath()
+    {
+        string root = MakeMacrosRoot("test/fire-team");
+        try
+        {
+            var picker = new FakeOpenPicker();
+            var launcher = new AssetPickerLauncher(picker.OpenPicker, new FakeCatalog(), MakeRouter(), _ => "",
+                macroPaths: () => ScenarioEnumeration.EnumerateRelPaths(root), macrosRoot: () => root);
+            string? got = null;
+            Assert.True(launcher.OpenMacros(p => got = p));
+            var entry = picker.CapturedRequest!.ItemsProvider().Single();
+            picker.InvokeHandler(ConfirmResult(entry));
+            Assert.Equal("test/fire-team", got);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public void TheWindowTitle_NamesAMacro()
+    {
+        Assert.Equal("Macro: test/fire-team", EditorWindowTitle.Detail("macros/test/fire-team"));
+        Assert.Equal("Combat/mine", EditorWindowTitle.Detail("Combat/mine"));
+        Assert.Null(EditorWindowTitle.Detail(null));
+    }
 }

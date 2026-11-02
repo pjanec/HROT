@@ -73,10 +73,18 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         /// same as <c>Source</c>, nothing was rethrown); <c>Both</c>: either. ⚠ Harm with no known source never counts (only <c>anySide</c> counts it).</summary>
         internal static bool Attributed(EntityRepository world, in DamageAssessedEvent e, HarmAttribute attribute, ForceId bySide)
         {
+            Sources(in e, attribute, out var last, out var first);
+            return (!last.IsNull && ObjectiveCensus.SideOf(world, last) == bySide) || (!first.IsNull && ObjectiveCensus.SideOf(world, first) == bySide);
+        }
+
+        /// <summary>⭐ CE-4155 / rules S4 E-2 — the source(s) of a harm that <paramref name="attribute"/> judges: <paramref name="last"/> = its <c>Source</c> (Null unless <c>Last</c> / <c>Both</c>),
+        /// <paramref name="first"/> = its <c>OriginalSource</c>, or <c>Source</c> when nothing was rethrown (Null unless <c>Original</c> / <c>Both</c>). The ONE reading of the attribute — the
+        /// side test (<see cref="Attributed"/>) and the measures' men test (<c>MeasureEvidence</c>) both go through it.</summary>
+        internal static void Sources(in DamageAssessedEvent e, HarmAttribute attribute, out Entity last, out Entity first)
+        {
             var original = e.OriginalSource.IsNull ? e.Source : e.OriginalSource;
-            bool last = !e.Source.IsNull && ObjectiveCensus.SideOf(world, e.Source) == bySide;
-            bool first = !original.IsNull && ObjectiveCensus.SideOf(world, original) == bySide;
-            return attribute switch { HarmAttribute.Original => first, HarmAttribute.Both => last || first, _ => last };
+            last = attribute != HarmAttribute.Original ? e.Source : Entity.Null;
+            first = attribute != HarmAttribute.Last ? original : Entity.Null;
         }
 
         private static void Count(ref Block b, long victim)

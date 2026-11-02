@@ -106,6 +106,49 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.Equal(1, manager.ActiveCount);
         }
 
+        /// <summary>
+        /// ⭐ CE-4210 MA-7 — a macro placed from its FILE: the ordinary point tool's commit (the ONE adapter every host passes) requests TKB 8813 born with <c>MacroInstance { Macro = path, ArgsJson = "{}" }</c>;
+        /// the path rode in the placement JSON and never reached the attribute compiler; a plain type gets none. Observed on the creation request the adapter's tail publishes.
+        /// </summary>
+        [Fact]
+        public void CE4210_MA7_PlacingAMacro_CreatesTheInstanceType_BornWithItsMacroInstance()
+        {
+            var req = Place(Hrot.Map.Common.TkbEntityTypes.ScenarioMacro,
+                Hrot.UI.Common.AddEntity.MacroBirth.PlacementJson(eForceIdentifier.FORCE_FRIENDLY, "test/fire-team"));
+
+            Assert.Equal(Hrot.Map.Common.TkbEntityTypes.ScenarioMacro, (long)req.TkbType);
+            var mi = Assert.Single(req.InitialComponents!.OfType<Fdp.Toolkit.Scenario.MacroInstance>());
+            Assert.Equal("test/fire-team", mi.Macro);
+            Assert.Equal("{}", mi.ArgsJson);
+            Assert.DoesNotContain(Hrot.UI.Common.AddEntity.MacroBirth.MacroKey, req.InitialAttributesJson ?? "");   // the attribute compiler never saw the path
+        }
+
+        [Fact]
+        public void CE4210_MA7_APlainType_IsBornWithNoMacroInstance()
+        {
+            var req = Place(2001L, null);
+            Assert.DoesNotContain(req.InitialComponents ?? new List<object>(), c => c is Fdp.Toolkit.Scenario.MacroInstance);
+        }
+
+        private Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest Place(long tkbType, string? json)
+        {
+            var manager = MakeManager();
+            var adapter = new ScenarioSpawnAdapter(_creation, globalGizmoManager: manager);
+            adapter.StartPlacementMode(tkbType, json);
+            ActiveGizmoOf(manager).OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, new System.Numerics.Vector3(10f, 20f, 0f));
+            _world.Bus.SwapBuffers();
+            return Assert.Single(_world.Bus.ReadManaged<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>());
+        }
+
+        private static Hrot.ScenarioEditor.Gizmos.EntityPlacementGizmo ActiveGizmoOf(GlobalGizmoManager manager)
+        {
+            var field = typeof(GlobalGizmoManager).GetField("_activeGizmos", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            var dict = (System.Collections.IDictionary)field.GetValue(manager)!;
+            foreach (System.Collections.DictionaryEntry kv in dict)
+                if (kv.Value is Hrot.ScenarioEditor.Gizmos.EntityPlacementGizmo g) return g;
+            throw new InvalidOperationException("no placement gizmo is registered");
+        }
+
         [Fact]
         public void StartAreaAuthoringMode_RegistersGizmoWithManager()
         {

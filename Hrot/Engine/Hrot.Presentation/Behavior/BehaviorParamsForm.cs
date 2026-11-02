@@ -66,13 +66,14 @@ public static class BehaviorParamsForm
     /// <summary>
     /// ⭐ Draws the session's fields as a two-column table; a pickable field asks <paramref name="picks"/> (null ⇒ no Pick button).
     /// Give each form on one screen its own scope (<see cref="ScopedMapPickContext"/>) — one broker holds one pending pick.
+    /// ⭐ CE-4210 P2 — <paramref name="binds"/>: a caller that HAS the entity passes its bind context (prefix <c>"Behavior.Params"</c> …) so a params field can be fed from a parameter; null ⇒ no bind button (a mission task / order has no entity).
     /// </summary>
-    public static void DrawFields(IEditSession session, IMapPickContext? picks, string tableId = "params")
+    public static void DrawFields(IEditSession session, IMapPickContext? picks, string tableId = "params", Fdp.Presentation.Editing.IParamBindContext? binds = null)
     {
         if (session is null) throw new ArgumentNullException(nameof(session));
         if (!ImGuiNET.ImGui.BeginTable(tableId, 2, ImGuiNET.ImGuiTableFlags.Borders | ImGuiNET.ImGuiTableFlags.RowBg)) return;
         if (session.RebuildState == EditRebuildState.RebuildRequired) session.RebuildDocument();
-        new ComponentEditDrawer(session, picks).DrawRoot(session.Document.Root);
+        new ComponentEditDrawer(session, picks, null, binds).DrawRoot(session.Document.Root);
         ImGuiNET.ImGui.EndTable();
     }
 
