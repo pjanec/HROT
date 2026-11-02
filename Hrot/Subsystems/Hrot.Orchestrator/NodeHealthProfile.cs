@@ -38,6 +38,12 @@ public sealed class NodeHealthProfile
     /// advertisement is seen. Queried via <see cref="NodeRoster.Supports"/>.</summary>
     public IReadOnlySet<string> Capabilities { get; set; } = new HashSet<string>();
 
+    /// <summary>⭐ Node Features F-16 — the ids ON on the node, from its latest heartbeat (empty from an older sender). The operator grid's input.</summary>
+    public IReadOnlyList<string> FeaturesOn { get; set; } = System.Array.Empty<string>();
+
+    /// <summary>⭐ Node Features F-26 — the override layers the node REFUSED, from its latest heartbeat (empty = none).</summary>
+    public IReadOnlyList<string> FeatureErrors { get; set; } = System.Array.Empty<string>();
+
     /// <summary>CPU utilisation reported by the node in the last heartbeat (0–100 %).</summary>
     public float CpuUsagePercent { get; set; }
 

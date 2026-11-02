@@ -213,6 +213,7 @@ public abstract class SharedApplicationBootstrapper
                 // ⭐ F-3 — declared ⇔ available: advertise hrot.feature.<id> on the durable NodeCapabilities descriptor (once, at join), and put the ON set on the heartbeat (F-16).
                 context.ClusterSlave.AppendCapabilities(context.Features.Registry.All.Select(d => FeatureRegistry.TokenOf(d.Id)));
                 context.ClusterSlave.FeaturesOnProvider = context.Features.OnSet;
+                context.ClusterSlave.FeatureErrorsProvider = context.Features.ProblemList;   // F-26 — a refused override layer is reported, not swallowed
                 context.Kernel.FeatureGate = context.Features;   // F-13 — the scheduler's view, set before any system registers
                 NodeFeatureOverrides.NoteDeclared(context.Features.Registry.All.Select(d => d.Id));   // F-18 — so the runner can refuse an id NO node declares
                 foreach (var (fid, fjson) in NodeFeatureOverrides.FromCommandLine)   // F-7 — --feature; an id this node does not declare is another node's

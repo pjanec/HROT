@@ -124,4 +124,33 @@ public sealed class NodeFeaturesTests
         }
         finally { NodeFeatureOverrides.Set(saved); }
     }
+
+    [Fact]
+    public void AnOverrideWithAKeyTheConfigTypeLacks_IsRefusedByTheNode_AndReportedAsAProblem()   // CE-4215 ③ (F-26)
+    {
+        var f = new NodeFeatures(Registry(), NodeRole.Brain, () => "Player-2");
+        Assert.Empty(f.ProblemList());
+        f.SetClusterOverrides(new[] { new FeatureOverrideSpec("hud.kill-cam", Array.Empty<string>(), "{\"Lost\":1}") });
+        var problem = Assert.Single(f.ProblemList());
+        Assert.Contains("hud.kill-cam", problem);
+        Assert.Contains("Lost", problem);
+        Assert.False(f.On("hud.kill-cam"));                    // the refused layer changed nothing
+        f.SetClusterOverrides(Array.Empty<FeatureOverrideSpec>());
+        Assert.Empty(f.ProblemList());                          // fixed ⇒ the report clears
+    }
+
+    [Fact]
+    public void Describe_NamesTheLayerEachValueCameFrom()   // CE-4215 ② (§7.1 ⑥)
+    {
+        var f = new NodeFeatures(Registry(), NodeRole.Map2D, () => "Player-2");
+        f.SetClusterOverrides(new[] { new FeatureOverrideSpec("hud.kill-cam", new[] { "Player-2" }, "{\"Seconds\":3}") });
+        var cam = f.Describe()["hud.kill-cam"]!.AsObject();
+        var src = cam["source"]!.AsObject();
+        Assert.Equal("role default", (string?)src["Enabled"]);       // Map2D role default {"Enabled":true,"Seconds":5}
+        Assert.Equal("cluster", (string?)src["Seconds"]);            // the cluster layer wins over the role's 5
+        Assert.Equal("type default", (string?)src["ShowKiller"]);
+        Assert.Equal(3d, (double)cam["Seconds"]!);
+        f.SetNodeOverride("hud.kill-cam", "{\"ShowKiller\":true}");
+        Assert.Equal("node", (string?)f.Describe()["hud.kill-cam"]!["source"]!["ShowKiller"]);
+    }
 }

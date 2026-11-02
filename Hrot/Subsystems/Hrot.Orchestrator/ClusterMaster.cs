@@ -615,6 +615,8 @@ public sealed partial class ClusterMaster : IDisposable
                 Phase                   = hb.Phase,       // ⭐ CE-3345 (AQ110 A) — what the node says about ITSELF
                 Step                    = hb.Step ?? string.Empty,
                 Reason                  = hb.Reason ?? string.Empty,
+                FeaturesOn              = hb.FeaturesOn ?? (System.Collections.Generic.IReadOnlyList<string>)System.Array.Empty<string>(),       // ⭐ Node Features F-16
+                FeatureErrors           = hb.FeatureErrors ?? (System.Collections.Generic.IReadOnlyList<string>)System.Array.Empty<string>(),   // ⭐ Node Features F-26
                 Capabilities            = new System.Collections.Generic.HashSet<string>(tokens),
                 Roles                   = NodeRoleTokens.MaskFromTokens(tokens),
             };

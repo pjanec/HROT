@@ -259,6 +259,10 @@ public sealed class NodeOpSlaveTranslatorTests
         var beat = Hrot.Common.Orchestration.NodeHeartbeatWire.ToEvent(Hrot.Common.Orchestration.NodeHeartbeatWire.ToTopic(
             new NodeHeartbeatEvent { SubsystemName = "IG", FeaturesOn = new System.Collections.Generic.List<string> { "map3d.in-load" } }));
         Assert.Equal(new[] { "map3d.in-load" }, beat.FeaturesOn);
+        var errBeat = Hrot.Common.Orchestration.NodeHeartbeatWire.ToEvent(Hrot.Common.Orchestration.NodeHeartbeatWire.ToTopic(   // CE-4215 ③ — F-26
+            new NodeHeartbeatEvent { SubsystemName = "IG", FeatureErrors = new System.Collections.Generic.List<string> { "hud.kill-cam (cluster override): no field 'Lost'" } }));
+        Assert.Equal(new[] { "hud.kill-cam (cluster override): no field 'Lost'" }, errBeat.FeatureErrors);
+        Assert.Null(beat.FeatureErrors);   // none = null (an older sender reads the same)
     }
 
     /// <summary>

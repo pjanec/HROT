@@ -41,6 +41,40 @@ namespace Hrot.SimHost.Tests
             try { Directory.Delete(_tempDir, recursive: true); } catch { }
         }
 
+        /// <summary>
+        /// ⭐ CE-4215 ④ (Node Features F-15) — a branch whose parent recording names a feature this build does not declare REFUSES the
+        /// PrepareLive/branch recording loudly, before any recording module is installed. A parent whose features are all declared branches fine.
+        /// 🔴 Mutation: drop the <c>FreezeRecorded</c> call in <c>PrepareRecordingAsync</c> ⇒ the first cell goes red.
+        /// </summary>
+        [Fact(Timeout = 10_000)]
+        public async Task PrepareRecordingAsync_ABranchWhoseRecordingNamesAFeatureThisBuildLacks_IsRefused()
+        {
+            _kernel.FeatureGate = new Hrot.Common.Infrastructure.NodeFeatures(new Hrot.Common.Infrastructure.FeatureRegistry(new[]
+            {
+                Hrot.Common.Infrastructure.FeatureDeclaration.Switch("gameplay.team-kill", "team kill", Hrot.Common.Infrastructure.FeatureChange.AtLoad),
+            }), NodeRole.Brain);
+            var controller = new EcsRecordReplayController(_kernel, nodeId: 1, _world);
+            using var cts = new CancellationTokenSource();
+            var loopTask = RunKernelLoop(_kernel, cts.Token);
+
+            string Parent(string feature)
+            {
+                var path = Path.Combine(_tempDir, $"parent_{Guid.NewGuid():N}.fdp");
+                var meta = new Fdp.Core.FlightRecorder.Metadata.RecordingMetadata();
+                meta.FeatureConfigsAtLoad[feature] = "{\"Enabled\":false}";
+                File.WriteAllText(path + ".meta.json", Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Serialize(meta));
+                return path;
+            }
+
+            var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => controller.PrepareRecordingAsync(
+                Guid.NewGuid(), _tempDir, new Fdp.Core.FlightRecorder.RecordingBranch(Parent("gone.feature"), 10, Guid.NewGuid(), 0)));
+            Assert.Contains("gone.feature", refused.Message);
+            Assert.Null(controller.ActiveRecordingModule);   // nothing was installed
+
+            cts.Cancel();
+            try { await loopTask; } catch (OperationCanceledException) { }
+        }
+
         // ── MOD1-P8T1 success condition 1 ────────────────────────────────────────
 
         [Fact(Timeout = 10_000)]

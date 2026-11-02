@@ -71,6 +71,9 @@ namespace Fdp.Toolkit.Orchestration
 
         /// <summary>⭐ Node Features F-16 — the ids of the features ON now, set by the shared bootstrapper; the heartbeat carries them.</summary>
         public Func<System.Collections.Generic.List<string>>? FeaturesOnProvider { get; set; }
+
+        /// <summary>⭐ Node Features F-26 — the override layers this node refused (rides the heartbeat as <c>FeatureErrors</c>).</summary>
+        public Func<System.Collections.Generic.List<string>>? FeatureErrorsProvider { get; set; }
         private string? _failureReason;                         // set ⇒ Phase Failed, until the next transaction
         private Guid _failedTransactionId;
         private bool _loadIsCatchUp;                            // the load in flight is a late joiner's catch-up
@@ -549,7 +552,8 @@ namespace Fdp.Toolkit.Orchestration
             View.NoteLocalPhase(phase, step, reason);   // the node's own report, for its own host's gate (the ONE ClusterView)
 
             var featuresOn = FeaturesOnProvider?.Invoke();
-            string featuresKey = featuresOn == null ? "" : string.Join(",", featuresOn);
+            var featureErrors = FeatureErrorsProvider?.Invoke();
+            string featuresKey = (featuresOn == null ? "" : string.Join(",", featuresOn)) + "|" + (featureErrors == null ? "" : string.Join(";", featureErrors));
             bool changed = phase != _lastBeatPhase || step != _lastBeatStep || reason != _lastBeatReason || featuresKey != _lastBeatFeatures;
             if (!changed && _heartbeatTimer.Elapsed.TotalSeconds < 1.0) return;
 
@@ -567,6 +571,7 @@ namespace Fdp.Toolkit.Orchestration
                 Step          = step,
                 Reason        = reason,
                 FeaturesOn    = featuresOn,            // ⭐ Node Features F-16
+                FeatureErrors = featureErrors is { Count: > 0 } ? featureErrors : null,   // ⭐ Node Features F-26
                 // CE-286 (C-roles): the heartbeat is telemetry-only; the role mask travels as fdp.role.*
                 // tokens on the durable NodeCapabilities descriptor (published once at join above).
             });

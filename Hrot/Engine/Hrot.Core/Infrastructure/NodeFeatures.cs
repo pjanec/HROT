@@ -128,6 +128,7 @@ public sealed class NodeFeatures : IFeatureGate, IFeatureRecording
     private readonly Dictionary<string, string> _frozenLayer = new(StringComparer.Ordinal);   // AtLoad: the cluster layer stamped at load
     private readonly Dictionary<string, string> _frozenFull = new(StringComparer.Ordinal);    // AtLoad: a recorded FULL config (branch to live)
     private readonly List<string> _problems = new();
+    private readonly Dictionary<string, string>[] _sources;   // per feature: field → the layer its value came from (GET /features)
 
     public NodeFeatures(FeatureRegistry registry, NodeRole role, Func<string>? nodeName = null)
     {
@@ -136,6 +137,7 @@ public sealed class NodeFeatures : IFeatureGate, IFeatureRecording
         _nodeName = nodeName ?? (() => "");
         _slots = new Array[registry.All.Count];
         _on = new bool[registry.All.Count];
+        _sources = new Dictionary<string, string>[registry.All.Count];
         Recompute();
     }
 
@@ -243,6 +245,30 @@ public sealed class NodeFeatures : IFeatureGate, IFeatureRecording
         if (!ReferenceEquals(fromView, _cluster)) SetClusterOverrides(fromView);
     }
 
+    /// <summary>A copy of <see cref="Problems"/> (heartbeat <c>FeatureErrors</c>, F-26): empty when every layer applied.</summary>
+    public List<string> ProblemList() => new(_problems);
+
+    /// <summary>
+    /// §7.1 ⑥ (<c>GET /features</c>) — every declared feature's effective config as <c>{ field…, "source": { field: layer } }</c>; a layer is
+    /// <c>type default</c> · <c>role default</c> · <c>node</c> · <c>cluster</c> · <c>recording</c>.
+    /// </summary>
+    public JsonObject Describe()
+    {
+        var all = new JsonObject();
+        for (int i = 0; i < _slots.Length; i++)
+        {
+            var d = _registry.All[i];
+            var cfg = (JsonNode.Parse(d.Ops.ToJson(_slots[i])) as JsonObject) ?? new JsonObject();
+            var src = new JsonObject();
+            foreach (var kv in cfg)
+                src[kv.Key] = _sources[i] != null && _sources[i].TryGetValue(kv.Key, out var l) ? l : "type default";
+            cfg["source"] = src;
+            cfg["change"] = d.Change.ToString();
+            all[d.Id] = cfg;
+        }
+        return all;
+    }
+
     /// <summary>The ids that are ON (heartbeat <c>FeaturesOn</c>).</summary>
     public List<string> OnSet()
     {
@@ -259,19 +285,20 @@ public sealed class NodeFeatures : IFeatureGate, IFeatureRecording
         {
             var d = _registry.All[i];
             var slot = d.Ops.NewSlot();
+            var src = _sources[i] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             if (d.Change == FeatureChange.AtLoad && _frozenFull.TryGetValue(d.Id, out var full))
-                Try(d, slot, full, "recording");
+                Try(d, slot, full, "recording", src);
             else
             {
-                Try(d, slot, d.DefaultFor(_role), "role default");
+                Try(d, slot, d.DefaultFor(_role), "role default", src);
                 if (_nodeOverrides.TryGetValue(d.Id, out var mine))
-                    foreach (var j in mine) Try(d, slot, j, "node override");
+                    foreach (var j in mine) Try(d, slot, j, "node override", src);
                 if (d.Change == FeatureChange.AtLoad && _frozenLayer.TryGetValue(d.Id, out var layer))
-                    Try(d, slot, layer, "load");
+                    Try(d, slot, layer, "load", src);
                 else if (d.Change == FeatureChange.Live || _frozenLayer.Count == 0)
                     foreach (var o in _cluster)
                         if (o.Feature == d.Id && (o.Nodes.Count == 0 || Contains(o.Nodes, me)))
-                            Try(d, slot, o.Json, "cluster override");
+                            Try(d, slot, o.Json, "cluster override", src);
             }
             _slots[i] = slot;
             _on[i] = d.Ops.IsEnabled(slot);
@@ -285,9 +312,17 @@ public sealed class NodeFeatures : IFeatureGate, IFeatureRecording
         return false;
     }
 
-    private void Try(FeatureDeclaration d, Array slot, string? json, string layer)
+    private void Try(FeatureDeclaration d, Array slot, string? json, string layer, Dictionary<string, string> src)
     {
-        try { d.Ops.Overlay(slot, json); }
+        try
+        {
+            d.Ops.Overlay(slot, json);
+            if (!string.IsNullOrWhiteSpace(json) && JsonNode.Parse(json!) is JsonObject o)
+            {
+                string label = layer switch { "node override" => "node", "cluster override" or "load" => "cluster", _ => layer };
+                foreach (var kv in o) src[kv.Key] = label;
+            }
+        }
         catch (JsonException e) { _problems.Add($"{d.Id} ({layer}): {e.Message}"); }
     }
 }

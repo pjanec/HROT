@@ -106,6 +106,8 @@ namespace Fdp.Toolkit.Orchestration
         // orchestrator/cache DERIVE the mask at ingest (AQ-70 §Q70-C). The heartbeat is telemetry-only again.
             /// <summary>⭐ Node Features F-16 — the ids of the features that are ON on this node (the operator grid); null = none or an older sender.</summary>
         public System.Collections.Generic.List<string>? FeaturesOn;
+        /// <summary>⭐ Node Features F-26 — the override layers this node REFUSED (an unknown key, malformed JSON), one text each; null = none or an older sender.</summary>
+        public System.Collections.Generic.List<string>? FeatureErrors;
     }
 
     /// <summary>
