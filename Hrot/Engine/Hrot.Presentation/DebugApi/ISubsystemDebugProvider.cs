@@ -355,6 +355,9 @@ public interface ISubsystemDebugProvider
     /// </summary>
     Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService? Architecture { get; }
 
+    /// <summary>⭐ Node Features §7.1 ⑥ — this subsystem's node features (<c>GET /features</c>); <see langword="null"/> for a host with no node context.</summary>
+    Hrot.Common.Infrastructure.NodeFeatures? Features => null;
+
     /// <summary>
     /// ⭐⭐ <c>CE-4002</c> — the cluster roster as the MASTER holds it, or <see langword="null"/> when no master runs in
     /// this subsystem. ⚠ Only a subsystem that hosts the <c>ClusterMaster</c> (the orchestrator; the editor's in-process
@@ -423,6 +426,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<ClusterState?>? _clusterState;
     private readonly Func<IReadOnlyList<string>?>? _availableScenarios;
     private readonly Func<Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService?>? _architecture;
+    private readonly Func<Hrot.Common.Infrastructure.NodeFeatures?>? _features;
     private readonly Func<DiagnosticDumpStatus?>? _dumpStatus;
     private readonly Func<Action<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>?>? _requestOwnershipTransfer;   // CE-276
     private readonly Func<Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap?>? _descriptorMap;   // CE-276
@@ -505,8 +509,11 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         // ⭐⭐ CE-3344 (R-3069) — this node's ONE cluster read model, whose CanOperate the HTTP cluster routes gate on
         Func<Fdp.Toolkit.Orchestration.ClusterView?>? clusterView = null,
         // ⭐ CE-1451 — the host's run choice, read without a drive (a Player has none)
-        Func<Hrot.UI.Common.RunMode.RunModeChoice?>? runChoice = null)
+        Func<Hrot.UI.Common.RunMode.RunModeChoice?>? runChoice = null,
+        // ⭐ Node Features §7.1 ⑥ — the node's features (GET /features); appended last
+        Func<Hrot.Common.Infrastructure.NodeFeatures?>? features = null)
     {
+        _features = features;
         _runChoice = runChoice;
         _clusterView = clusterView;
         _followedClusterState = followedClusterState;
@@ -697,6 +704,9 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public bool MasterGone => _masterGone?.Invoke() ?? false;                                                       // ⭐ CE-4096
     public IReadOnlyList<string>? AvailableScenarios => _availableScenarios?.Invoke();
     public Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService? Architecture => _architecture?.Invoke();
+
+    /// <inheritdoc/>
+    public Hrot.Common.Infrastructure.NodeFeatures? Features => _features?.Invoke();
     public DiagnosticDumpStatus? DumpStatus => _dumpStatus?.Invoke();
     public Action<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>? RequestOwnershipTransfer => _requestOwnershipTransfer?.Invoke();
     public Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap? DescriptorMap => _descriptorMap?.Invoke();

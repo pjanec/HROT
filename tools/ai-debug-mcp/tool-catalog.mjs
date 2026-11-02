@@ -183,10 +183,17 @@ export const TOOLS_CATALOG = [
         "type": "number",
         "required": false,
         "description": "Wall-clock ticks the transition should take effect at"
+      },
+      {
+        "name": "discardUnsaved",
+        "type": "boolean",
+        "required": false,
+        "description": "⭐ CE-4101 — for a move that leaves an open scenario (Idle, OperatingReplay, a scenario load): go even though it has unsaved changes (they are lost). Without it such a move answers 409."
       }
     ],
     "returns": "{ published:true, transactionId, target, note }",
     "notes": [
+      "⭐ CE-4101 (AQ108 §2.11a) — a transition to Idle, OperatingReplay, or OperatingEdit / OperatingLive WITH a scenario is the editor's guarded door's decision: while a scenario is open for editing with unsaved changes it answers 409 \"the scenario has unsaved changes\" unless discardUnsaved:true; a running run is simply stopped. Every other target is the master's raw verb by name.",
       "ASYNCHRONOUS: the answer confirms the intent was PUBLISHED, not that the cluster reached the state — poll get_status or get_cluster_roster.",
       "Pass the returned transactionId to cancel_cluster_operation to cancel it; a cancel returns the cluster to Idle (R-4004).",
       "Any node with an orchestration bus can publish it; a host without one answers 503."
@@ -288,7 +295,7 @@ export const TOOLS_CATALOG = [
       "path": "/status"
     },
     "params": [],
-    "returns": "{ scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording, perspective, routedTo, scenarioDirty, armedMode }",
+    "returns": "{ scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording, perspective, routedTo, scenarioDirty, armedMode, canOperate, notOperable, load, runGate, loadingScreen }",
     "notes": [
       "⭐ CE-4097 (AQ108 D22) — `armedMode` is what the toolbar's ▶ would run from editing on this host: preview | live | aar (set_run_mode changes it); null when the host has no run choice. play / step never follow it.",
       "Use this to verify the runner is alive and check current run state before driving the sim.",
@@ -300,7 +307,7 @@ export const TOOLS_CATALOG = [
       "args": {},
       "gist": "check runner liveness and sim state"
     },
-    "hint": "No params. Example: get_status({})",
+    "hint": "No params. Example: get_status({}). load = this node's heartbeat phase/step (e.g. \"3-D map: terrain\" while its map builds); runGate = the gate its controls read; loadingScreen = what its waiting screen says; each null where the host has none.",
     "manualVerify": false
   },
 
@@ -1772,6 +1779,12 @@ export const TOOLS_CATALOG = [
         "description": "Wait until the cluster reports OperatingReplay"
       },
       {
+        "name": "discardUnsaved",
+        "type": "boolean",
+        "required": false,
+        "description": "⭐ CE-4101 — open the recording even though the scenario open for editing has unsaved changes (they are lost). Without it such an open answers 409."
+      },
+      {
         "name": "path",
         "type": "string",
         "required": false,
@@ -2189,9 +2202,18 @@ export const TOOLS_CATALOG = [
         "type": "boolean",
         "required": false,
         "description": "Wait until the cluster reports Idle"
+      },
+      {
+        "name": "discardUnsaved",
+        "type": "boolean",
+        "required": false,
+        "description": "⭐ CE-4101 — stop even though the scenario open for editing has unsaved changes (they are lost). Without it a stop while editing answers 409."
       }
     ],
     "returns": "{ published, transactionId, target } (+ awaited, reached with waitForReady).",
+    "notes": [
+      "⭐ CE-4101 (AQ108 §2.11a) — the OUT door: while a scenario is open for EDITING with unsaved changes this answers 409 \"the scenario has unsaved changes\" unless discardUnsaved:true; a running run is simply stopped."
+    ],
     "example": {
       "args": {
         "waitForReady": true
@@ -2345,7 +2367,7 @@ export const TOOLS_CATALOG = [
       "path": "/run-settings"
     },
     "params": [],
-    "returns": "{ recordLiveRuns, armed }",
+    "returns": "{ recordLiveRuns, armed, askToKeepRecordings }",
     "notes": [
       "A set_run_settings is visible here once the master has broadcast it (a frame or two)."
     ],
@@ -2377,9 +2399,15 @@ export const TOOLS_CATALOG = [
         "type": "string",
         "required": false,
         "description": "The cluster's armed run mode: preview | live | aar (default live); absent = unchanged. ⛔ No load route sends one (D22)"
+      },
+      {
+        "name": "askToKeepRecordings",
+        "type": "boolean",
+        "required": false,
+        "description": "⭐ CE-4100 (AQ108 D15) — whether the operator UI asks Keep / Discard when a live run ends (default false: keep silently); absent = unchanged"
       }
     ],
-    "returns": "{ published, requestId, recordLiveRuns?, armed?, note }",
+    "returns": "{ published, requestId, recordLiveRuns?, armed?, askToKeepRecordings?, note }",
     "notes": [
       "The scenario verifier always records, whatever this says.",
       "A replay → live branch follows the setting like any live run."
@@ -2390,7 +2418,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "run live without recording"
     },
-    "hint": "At least one of: recordLiveRuns (bool), armed (preview|live|aar); an absent one changes nothing. recordLiveRuns applies from the NEXT live load; the run on screen keeps its mode (get_status → recording). Example: set_run_settings({recordLiveRuns:false})",
+    "hint": "At least one of: recordLiveRuns (bool), armed (preview|live|aar), askToKeepRecordings (bool); an absent one changes nothing. recordLiveRuns applies from the NEXT live load; the run on screen keeps its mode (get_status → recording). Example: set_run_settings({recordLiveRuns:false})",
     "manualVerify": false
   },
 
@@ -6998,6 +7026,28 @@ export const TOOLS_CATALOG = [
       "gist": "read a fresh verify job's report"
     },
     "hint": "Req: job (from director_verify {fresh:true}). Poll until state is done. Example: director_verify_job({job:\"v1-101500\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_node_features",
+    "group": "Y — node diagnostics",
+    "summary": "This NODE's declared features: each one's effective config and, per value, the layer it came from (type default / role default / node / cluster / recording); plus any layer the node refused.",
+    "http": {
+      "method": "GET",
+      "path": "/features"
+    },
+    "params": [],
+    "returns": "{ subsystems[{ subsystem, perspective, features{ <id>: { <field>…, source{ <field>: layer }, change } }, problems[] }] }",
+    "notes": [
+      "Per SUBSYSTEM, like get_architecture_diagnostics: a --mode all node holds one feature registry per hosted subsystem.",
+      "problems lists the override layers THIS node refused (an unknown key, malformed JSON); the same list rides its heartbeat as FeatureErrors."
+    ],
+    "example": {
+      "args": {},
+      "gist": "see which features this node has on and where each value came from"
+    },
+    "hint": "No arguments. Example: get_node_features({})",
     "manualVerify": false
   },
 

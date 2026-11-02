@@ -872,6 +872,21 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{}",
             ExampleGist: "see what modules and translators this node is running"),
 
+        [("GET", "/features")] = new RouteDoc(
+            Tool:    "get_node_features",
+            Group:   "Y — node diagnostics",
+            Summary: "This NODE's declared features: each one's effective config and, per value, the layer it came from (type default / role default / node / cluster / recording); plus any layer the node refused.",
+            Returns: "{ subsystems[{ subsystem, perspective, features{ <id>: { <field>…, source{ <field>: layer }, change } }, problems[] }] }",
+            Hint:    "No arguments. Example: get_node_features({})",
+            Params: new RouteParam[] { },
+            Notes: new[]
+            {
+                "Per SUBSYSTEM, like get_architecture_diagnostics: a --mode all node holds one feature registry per hosted subsystem.",
+                "problems lists the override layers THIS node refused (an unknown key, malformed JSON); the same list rides its heartbeat as FeatureErrors.",
+            },
+            ExampleArgsJson: "{}",
+            ExampleGist: "see which features this node has on and where each value came from"),
+
         [("GET", "/assets/recipes")] = new RouteDoc(
             Tool:    "list_asset_recipes",
             Group:   "W — AI-asset authoring",

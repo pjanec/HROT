@@ -1787,6 +1787,13 @@ namespace Hrot.Editor.DebugApi
                 return error != null ? Fail(503, error, hintCategory) : Ok(result);
             })));
 
+            // ⭐ Node Features §7.1 ⑥ — the node's declared features, effective config and per-value source (this node only).
+            _routes.Add(new("GET", "/features", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.GetFeatures();
+                return error != null ? Fail(503, error, hintCategory) : Ok(result);
+            })));
+
             // ⭐⭐ MD-002 — diagnostics live on the SHARED service so a cluster-limited node (a SimHost
             //    node) answers for its OWN kernel. 📄 DESIGN_Mcp_Diagnostics_Federation §1/§2.2.
             _routes.Add(new("GET", "/diagnostics/architecture", ctx => RunMainResult(s =>

@@ -203,6 +203,28 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary>
+        /// <c>GET /features</c> — Node Features §7.1 ⑥: per subsystem of this node, every declared feature's effective config with the layer each
+        /// value came from (<c>source</c>), and the layers the node refused (F-26 <c>problems</c>).
+        /// </summary>
+        public (JsonNode? Result, string? Error, string? HintCategory) GetFeatures()
+        {
+            var subsystems = new JsonArray();
+            if (_dispatcher != null)
+                foreach (var p in _dispatcher.AllProviders)
+                    if (p.Features is { } f)
+                        subsystems.Add(new JsonObject
+                        {
+                            ["subsystem"] = p.SubsystemName,
+                            ["perspective"] = p.Perspective,
+                            ["features"] = f.Describe(),
+                            ["problems"] = new JsonArray(f.ProblemList().Select(x => (JsonNode?)x).ToArray()),
+                        });
+            if (subsystems.Count == 0)
+                return (null, "This host reports no node features (no ECS node context).", DebugApiHints.Panel);
+            return (new JsonObject { ["subsystems"] = subsystems }, null, null);
+        }
+
+        /// <summary>
         /// <c>GET /diagnostics/architecture[?subsystem=SimHost]</c> — this node's modules, systems and
         /// translators, per subsystem.
         /// </summary>

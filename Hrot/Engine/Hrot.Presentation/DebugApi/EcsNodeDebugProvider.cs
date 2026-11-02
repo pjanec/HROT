@@ -68,7 +68,8 @@ public static class EcsNodeDebugProvider
             timeline:      () => node() is { } n ? TimelineOf(n) : null,
             architecture:  () => node()?.Kernel is { } kernel
                 ? new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => kernel)
-                : null);
+                : null,
+            features:      () => node()?.Features);   // ⭐ Node Features §7.1 ⑥ — GET /features
     }
 
     // one access per context: the provider re-reads the node on every call and the access is a constant of it
