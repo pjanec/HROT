@@ -310,7 +310,8 @@ namespace Hrot.SimHost
                 //   the serializer, so every ECS host — muscle included — saves its OWNED slice.
                 //   📄 DESIGN_Distributed_Scenario_Persistence.md §4 · DESIGN_Unified_Cluster_Handler_Registration.md.
                 scenarioSaveHandler = new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
-                    scenarioSerializer, world, nodeId);
+                    scenarioSerializer, world, nodeId,
+                    behaviorRemapper: behaviorRemapper);   // ⭐ CE-4210 W-M6 — the node's own remapper: a params-blob reference is rebound by Save selection as macro (silent-default rule)
 
                 // ⭐⭐ L4a — the ONE scenario step, offered to the chain; whether it is REQUIRED is the ROLE's answer, and a
                 //   Brain node missing these deps fails loudly at composition instead of loading an empty world.

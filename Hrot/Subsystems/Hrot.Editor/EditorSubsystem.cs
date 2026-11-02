@@ -4891,7 +4891,9 @@ namespace Hrot.Editor
                 var selectionFlow = new Hrot.Editor.Scenario.SaveSelectionAsMacroFlow(
                     world:     () => _world,
                     selection: () => (System.Collections.Generic.IReadOnlyCollection<Fdp.Core.Entity>?)_selectionState?.SelectedEntities ?? System.Array.Empty<Fdp.Core.Entity>(),
-                    save:      (name, guids, header) => _editorApp.ScenarioSession.SaveSelectionAs(name, guids, header));
+                    save:      (name, guids, header) => _editorApp.ScenarioSession.SaveSelectionAs(name, guids, header),
+                    // ⭐ CE-4210 W-M6 — a reference inside a unit's params blob (a task / SOP / mission task) is part of the closure; the editor HOLDS the registry, so it passes the remapper (silent-default rule)
+                    behaviorRemapper: _behaviorRegistry is null ? null : Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(_behaviorRegistry));
                 _saveSelectionWindow = new Hrot.Editor.Scenario.SaveSelectionAsMacroWindow(selectionFlow);
                 windowManager.RegisterWindow(_saveSelectionWindow);
                 windowManager.GlobalMenu.RegisterItem("Scenario/Save Selection as Macro…", () => _saveSelectionWindow?.Start(), "Scenario");

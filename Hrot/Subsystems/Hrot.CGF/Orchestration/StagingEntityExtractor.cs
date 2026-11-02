@@ -423,7 +423,7 @@ namespace Hrot.CGF.Orchestration
             ExtractionPasses? passes = null)
         {
             // ⭐ Macros S3a ④ (§10.1) — BIND first: a "^param" leaf / a node's Bind takes the macro's value before anything resolves.
-            if (passes?.BeforeResolve is { } bind) ApplyPass(comps, behaviorRemapper, bind);
+            if (passes?.BeforeResolve is { } bind) Hrot.Map.Common.Scenario.ScenarioEntityWalk.Apply(comps, behaviorRemapper, bind);
 
             // Remap BehaviorParams network IDs in-place on any ActiveMissionPlan
             // component (intentional mutation — staging repo is transient).
@@ -501,39 +501,7 @@ namespace Hrot.CGF.Orchestration
                 EntityRefRemap.WalkObject(comps[ci], resolve);
 
             // ⭐ Macros S3a ④ (§10.1) — RELOCATE last: what came from a reference is already an answer and stays (SR-131).
-            if (passes?.AfterResolve is { } relocate) ApplyPass(comps, behaviorRemapper, relocate);
-        }
-
-        /// <summary>⭐ One walker pass over every component (in place; a boxed struct in its box), every brain-slot / mission-task params
-        /// blob (through the behaviour's contract), and every route's waypoints (an immutable record — a NEW plan goes back in the list).</summary>
-        private static void ApplyPass(List<object> comps, ScenarioBehaviorRemapper? behaviorRemapper, LeafApplier pass)
-        {
-            for (int ci = 0; ci < comps.Count; ci++)
-            {
-                switch (comps[ci])
-                {
-                    case ActiveMissionPlan plan when behaviorRemapper != null:
-                        foreach (var task in plan.Plan.Tasks)
-                            task.BehaviorParams = behaviorRemapper.ApplyJson(task.BehaviorName, task.BehaviorParams, pass) ?? task.BehaviorParams;
-                        break;
-                    case InitialBrainIntent brain when behaviorRemapper != null:
-                        if (brain.Behavior is { } b) b.Params = behaviorRemapper.ApplyJson(b.Name, b.Params, pass) ?? b.Params;
-                        if (brain.Sop is { } sop) sop.Params = behaviorRemapper.ApplyJson(sop.Name, sop.Params, pass) ?? sop.Params;
-                        break;
-                    case Hrot.Map.Common.Components.RoutePlan route:
-                        comps[ci] = route.WithWaypoints(list =>
-                        {
-                            for (int i = 0; i < list.Count; i++)
-                            {
-                                var w = list[i];
-                                w.Position = (System.Numerics.Vector3)pass.Point(new WorldPoint(w.Position));
-                                list[i] = w;
-                            }
-                        });
-                        continue;
-                }
-                EntityRefRemap.WalkObject(comps[ci], pass);
-            }
+            if (passes?.AfterResolve is { } relocate) Hrot.Map.Common.Scenario.ScenarioEntityWalk.Apply(comps, behaviorRemapper, relocate);
         }
 
         /// <summary>⭐ S0 — this load's <see cref="Fdp.Toolkit.Scenario.ScenarioRefScope"/>: every staging entity with a network id, by its

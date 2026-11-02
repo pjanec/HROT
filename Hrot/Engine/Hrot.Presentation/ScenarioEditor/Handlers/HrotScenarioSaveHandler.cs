@@ -45,12 +45,16 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
     private readonly ScenarioSerializer   _serializer;
     private readonly EntityRepository     _world;
     private readonly NodeId                  _nodeId;
+    private readonly Fdp.Toolkit.Behavior.ScenarioBehaviorRemapper? _behaviorRemapper;
 
     public HrotScenarioSaveHandler(
         ScenarioSerializer   serializer,
         EntityRepository     world,
-        int                  nodeId)
+        int                  nodeId,
+        Fdp.Toolkit.Behavior.ScenarioBehaviorRemapper? behaviorRemapper = null)
     {
+        // ⭐ CE-4210 W-M6 — the SAME remapper (so the same behaviour registry) the node loads scenarios with: Save selection as macro rebinds a reference inside a params blob through it.
+        _behaviorRemapper = behaviorRemapper;
         _serializer    = serializer    ?? throw new ArgumentNullException(nameof(serializer));
         _world         = world          ?? throw new ArgumentNullException(nameof(world));
         _nodeId        = (Fdp.Core.NodeId)(nodeId);
@@ -98,7 +102,7 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
         // ⭐ CE-4210 MA-4 — terrain + description + the macro header fields, ALL from the world through the ONE helper.
         // ⭐ CE-4210 MA-9 — Save selection as macro: the payload's optional header (macro fields) and entity filter go through the SAME core; null / empty = the whole scenario from the resident, exactly as before.
         var header = ScenarioSaveCore.HeaderOf(_world, ScenarioDocType, payload.HeaderJson);
-        ScenarioSaveCore.Write(_serializer, _world, localFile, header, payload.OnlyGuids);
+        ScenarioSaveCore.Write(_serializer, _world, localFile, header, payload.OnlyGuids, _behaviorRemapper);
 
         // The orchestrator pulls this to a per-node NAS slice; the merge combines slices → scenario.json.
         // ⭐ CE-4210 MA-4 — beside the CANONICAL file wherever the name resolves (the `macros/` arm too), so the merge finds the slices and cleans them up.

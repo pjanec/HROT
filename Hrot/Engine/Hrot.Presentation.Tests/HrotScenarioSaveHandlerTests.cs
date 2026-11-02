@@ -291,6 +291,66 @@ public sealed class HrotScenarioSaveHandlerTests : IDisposable
         Assert.Equal(Fdp.Core.RefForm.None, repo.GetComponent<LinkMarker>(a).Follow.Spec.Form);
     }
 
+    // ── ⭐ CE-4210 W-M6 — a reference inside a params BLOB is rebound like a typed leaf (SR-159), in the saved DOM only ───────────────────────────────────
+
+    public sealed class AttackParams { public Fdp.Toolkit.Replication.EntityLink Target { get; set; } }
+
+    private static string Blob(string g) => "{\"Target\":\"" + g + "\"}";
+
+    private static JsonObject BlobDom(string hill, string other) => new()
+    {
+        ["Entities"] = new JsonObject
+        {
+            ["e1"] = new JsonObject
+            {
+                ["Behavior"] = new JsonObject { ["Name"] = "Attack", ["Params"] = Blob(hill), ["Origin"] = "Superior" },
+                ["Sop"] = new JsonObject { ["Name"] = "Attack", ["Params"] = Blob(hill), ["Origin"] = "Sop" },
+                ["MissionPlan"] = new JsonObject { ["PlanData"] = new JsonObject { ["tasks"] = new JsonArray(
+                    new JsonObject { ["behaviorName"] = "Attack", ["behaviorParams"] = Blob(hill) },
+                    new JsonObject { ["behaviorName"] = "Attack", ["behaviorParams"] = Blob(other) }) } },
+                ["ParamBindings"] = new JsonObject { ["Bindings"] = new JsonArray(hill) },   // a binding, not a reference
+            },
+        },
+    };
+
+    [Fact]
+    public void CE4210_W_M6_MakeParameters_RebindsAReferenceInsideBehaviorSopAndMissionBlobs_AndLeavesParamBindingsAlone()
+    {
+        const string hill = "5d0b0001-0000-4000-8000-000000000002", other = "5d0b0001-0000-4000-8000-000000000009";
+        var remapper = new Fdp.Toolkit.Behavior.ScenarioBehaviorRemapper();
+        remapper.Register<AttackParams>("Attack");
+        var header = new ScenarioHeader("") { Kind = ScenarioHeader.MacroKind, Params = new[] { new ScenarioParamDecl("target", "EntityLink", JsonValue.Create(hill)) } };
+        var dom = BlobDom(hill, other);
+        var serializer = new ScenarioSerializerBuilder("Hrot.Scenario").Build();
+        string bindingsBefore = dom["Entities"]!["e1"]!["ParamBindings"]!.ToJsonString();
+
+        int n = Hrot.Map.Common.Scenario.ScenarioSaveCore.RebindOutsideReferences(dom, header, world: null, serializer, remapper);
+
+        var e1 = dom["Entities"]!["e1"]!;
+        Assert.Equal("^target", (string?)JsonNode.Parse((string)e1["Behavior"]!["Params"]!)!["Target"]);
+        Assert.Equal("^target", (string?)JsonNode.Parse((string)e1["Sop"]!["Params"]!)!["Target"]);
+        var tasks = e1["MissionPlan"]!["PlanData"]!["tasks"]!.AsArray();
+        Assert.Equal("^target", (string?)JsonNode.Parse((string)tasks[0]!["behaviorParams"]!)!["Target"]);
+        Assert.Equal(other, (string?)JsonNode.Parse((string)tasks[1]!["behaviorParams"]!)!["Target"]);   // a different target: not this param's
+        Assert.Equal(bindingsBefore, e1["ParamBindings"]!.ToJsonString());
+        Assert.Equal(3, n);   // Behavior, Sop and the mission plan
+
+        // no remapper (a host with no behaviour contracts): the blobs are left as saved — the reason the handler must be handed one
+        var plain = BlobDom(hill, other);
+        Assert.Equal(0, Hrot.Map.Common.Scenario.ScenarioSaveCore.RebindOutsideReferences(plain, header, null, serializer));
+        Assert.Equal(Blob(hill), (string?)plain["Entities"]!["e1"]!["Behavior"]!["Params"]);
+    }
+
+    [Fact]
+    public void CE4210_W_M6_TheHandler_IsHandedTheNodesBehaviourRemapper_AndSavesThroughIt()
+    {
+        var remapper = new Fdp.Toolkit.Behavior.ScenarioBehaviorRemapper();
+        using var repo = SelectionWorld(out _, out _, out _, out _);
+        var handler = new HrotScenarioSaveHandler(new ScenarioSerializerBuilder("Hrot.Scenario").Build(), world: repo, nodeId: NodeId, behaviorRemapper: remapper);
+        var field = typeof(HrotScenarioSaveHandler).GetField("_behaviorRemapper", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        Assert.Same(remapper, field.GetValue(handler));   // asserted on the CONSTRUCTED object (silent-default rule)
+    }
+
     [Fact]
     public void CE4210_APlainScenario_IsSavedWithNoMacroFields_AndItsSliceStaysUnderScenarios()
     {

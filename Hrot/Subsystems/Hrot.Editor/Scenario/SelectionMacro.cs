@@ -6,9 +6,12 @@ using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Presentation.Adapters;
 using Fdp.Presentation.Editing;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Scenario;
+using Hrot.Map.Common.Scenario;
 
 namespace Hrot.Editor.Scenario;
 
@@ -35,8 +38,9 @@ public static class MacroClosure
     private sealed class Collector : LeafApplier
     {
         public readonly List<(string Field, string Kind, EntityRef Ref, RefSpec Spec)> Found = new();
-        private string _field = "";
-        public override void Visiting(string member) => _field = member;
+        private string _field = "", _slot = "";
+        public override void Entering(string slot) => _slot = slot;
+        public override void Visiting(string member) => _field = _slot.Length == 0 ? member : _slot + "." + member;
         public override EntityLink Link(EntityLink l) { if (!l.IsNone && l.Spec.Form != RefForm.Param) Found.Add((_field, "EntityLink", l.Ref, l.Spec)); return l; }
         public override AreaLink Area(AreaLink a) { if (!a.IsShape && !a.IsNone && a.Spec.Form != RefForm.Param) Found.Add((_field, "AreaLink", a.Area, a.Spec)); return a; }
         public override PointLink PointLink(PointLink p) { if (!p.Spec.IsNone && p.Spec.Form != RefForm.Param) Found.Add((_field, "PointLink", default, p.Spec)); return p; }
@@ -60,19 +64,34 @@ public static class MacroClosure
     private static string NameOf(EntityRepository w, Entity e)
         => w.IsAlive(e) && w.IsComponentTypeRegistered<EntityInfo>() && w.HasComponent<EntityInfo>(e) && w.GetComponent<EntityInfo>(e).Name.ToString() is { Length: > 0 } n ? n : $"entity {e.Index}";
 
-    /// <summary>Every reference of the selection to something outside it. Inside references are ignored; a reference already bound to a parameter (<c>^name</c>) is not a reference to anything here.</summary>
-    public static IReadOnlyList<OutsideRef> Walk(EntityRepository world, IReadOnlyList<(Entity Entity, Guid Guid)> selected)
+    /// <summary>Every reference of the selection to something outside it. Inside references are ignored; a reference already bound to a parameter (<c>^name</c>) is not a reference to anything here.
+    /// ⭐ CE-4210 W-M6 — a reference INSIDE a params blob (a unit's task / SOP, a mission plan's tasks) counts like a typed leaf (SR-159): the blobs are walked by the ONE <see cref="ScenarioEntityWalk"/>
+    /// through <paramref name="behaviorRemapper"/>'s contracts (null ⇒ blobs are not walked: a host with no behaviour registry).</summary>
+    public static IReadOnlyList<OutsideRef> Walk(EntityRepository world, IReadOnlyList<(Entity Entity, Guid Guid)> selected, ScenarioBehaviorRemapper? behaviorRemapper = null)
     {
         var inside = new HashSet<Entity>(selected.Select(s => s.Entity));
         var session = new RepositoryAdapter(world);
         var types = session.GetAllComponentTypes().Where(EntityRefRemap.HoldsLeaves).ToList();
         var result = new List<OutsideRef>();
         foreach (var (e, _) in selected)
+        {
+            // (component label, the boxed values to walk) — typed components one by one, then the blob holders as the save writes them
+            var units = new List<(string Component, object Value)>();
             foreach (var t in types)
+                if (session.HasComponent(e, t) && session.GetComponent(e, t) is { } value) units.Add((t.Name, value));
+            if (behaviorRemapper is not null)
             {
-                if (!session.HasComponent(e, t) || session.GetComponent(e, t) is not { } value) continue;
+                if (behaviorRemapper.Registry is { } registry)
+                    units.Add(("Brain", BrainIntentReader.Read(world, e, registry, BrainIntentScope.Ordered)));   // exactly the slots the save writes
+                if (world.TryGetTable(typeof(ActiveMissionPlan), out _) && world.HasManagedComponent<ActiveMissionPlan>(e)
+                    && ((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetManagedComponentRO<ActiveMissionPlan>(e) is { } plan)
+                    units.Add(("MissionPlan", plan));
+            }
+            foreach (var (component, value) in units)
+            {
                 var c = new Collector();
-                EntityRefRemap.WalkObject(value, c);
+                var one = new List<object> { value };
+                ScenarioEntityWalk.Apply(one, behaviorRemapper, c);
                 foreach (var (field, kind, reference, spec) in c.Found)
                 {
                     var target = reference.IsNone ? Entity.Null : reference.Resolve(world);
@@ -91,10 +110,11 @@ public static class MacroClosure
                         "PointLink" => "a point on an entity has no parameter form yet",
                         _ => "a plain entity reference (EntityRef) has no parameter form",
                     };
-                    result.Add(new OutsideRef(e, NameOf(world, e), t.Name, field, kind, targetName, key ?? (spec.Form == RefForm.Key ? spec.ToString() : null), guid,
+                    result.Add(new OutsideRef(e, NameOf(world, e), component, field, kind, targetName, key ?? (spec.Form == RefForm.Key ? spec.ToString() : null), guid,
                                               text, why is null ? kind : null, why));
                 }
             }
+        }
         return result;
     }
 
@@ -153,10 +173,10 @@ public sealed record SelectionMacroPlan(
             Anchor = Anchor,
         });
 
-    public static SelectionMacroPlan Build(EntityRepository world, IEnumerable<Entity> selection, string macroPath)
+    public static SelectionMacroPlan Build(EntityRepository world, IEnumerable<Entity> selection, string macroPath, ScenarioBehaviorRemapper? behaviorRemapper = null)
     {
         var selected = MacroClosure.Savable(world, selection);
-        var outside = selected.Count == 0 ? Array.Empty<OutsideRef>() : MacroClosure.Walk(world, selected);
+        var outside = selected.Count == 0 ? Array.Empty<OutsideRef>() : MacroClosure.Walk(world, selected, behaviorRemapper);
         var (ps, blockers) = MacroClosure.ParamsFor(outside);
         return new SelectionMacroPlan(macroPath, selected, outside, ps, blockers, CentroidOf(world, selected));
     }
@@ -183,6 +203,7 @@ public sealed class SaveSelectionAsMacroFlow
     private readonly Func<EntityRepository?> _world;
     private readonly Func<IReadOnlyCollection<Entity>> _selection;
     private readonly Action<string, Guid[], string?> _save;
+    private readonly ScenarioBehaviorRemapper? _behaviorRemapper;
 
     public StepKind Step { get; private set; }
     public string Name { get; set; } = "";
@@ -190,8 +211,9 @@ public sealed class SaveSelectionAsMacroFlow
     public SelectionMacroPlan? Plan { get; private set; }
     public int SaveCalls { get; private set; }
 
-    public SaveSelectionAsMacroFlow(Func<EntityRepository?> world, Func<IReadOnlyCollection<Entity>> selection, Action<string, Guid[], string?> save)
+    public SaveSelectionAsMacroFlow(Func<EntityRepository?> world, Func<IReadOnlyCollection<Entity>> selection, Action<string, Guid[], string?> save, ScenarioBehaviorRemapper? behaviorRemapper = null)
     {
+        _behaviorRemapper = behaviorRemapper;   // ⭐ CE-4210 W-M6 — the editor's own (it has the behaviour registry): blob references are part of the closure
         _world = world ?? throw new ArgumentNullException(nameof(world));
         _selection = selection ?? throw new ArgumentNullException(nameof(selection));
         _save = save ?? throw new ArgumentNullException(nameof(save));
@@ -222,7 +244,7 @@ public sealed class SaveSelectionAsMacroFlow
         if (PathOf(Name) is not { } path) { Message = "A macro name is letters, digits, - _ and / for folders."; return; }
         if (_world() is not { } w) return;
         Message = "";
-        Plan = SelectionMacroPlan.Build(w, _selection(), path);
+        Plan = SelectionMacroPlan.Build(w, _selection(), path, _behaviorRemapper);
         if (Plan.Selected.Count == 0) { Step = StepKind.Done; Message = "Nothing in the selection can be saved (transient or unidentified entities)."; return; }
         if (Plan.IsClosed) Save(withParams: false);
         else Step = StepKind.Closure;

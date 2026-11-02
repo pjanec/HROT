@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Fdp.Core;
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Serialization;
@@ -86,11 +87,12 @@ public static class ScenarioSaveCore
         ScenarioSerializer serializer,
         EntityRepository   world,
         ScenarioHeader     header,
-        IReadOnlyCollection<Guid>? onlyGuids)
+        IReadOnlyCollection<Guid>? onlyGuids,
+        ScenarioBehaviorRemapper? behaviorRemapper = null)
     {
         var set = onlyGuids is { Count: > 0 } ? new HashSet<Guid>(onlyGuids) : null;
         var dom = serializer.Serialize(world, header, set);
-        if (set is not null) RebindOutsideReferences(dom, header, world, serializer);
+        if (set is not null) RebindOutsideReferences(dom, header, world, serializer, behaviorRemapper);
         return dom;
     }
 
@@ -101,7 +103,7 @@ public static class ScenarioSaveCore
     /// A reference matches a param by the authored form it carries (key / GUID) OR by the network id of the entity the param's default names in <paramref name="world"/> (how an unauthored runtime reference is written).
     /// Params that are not references are ignored. Returns the number of components rewritten.
     /// </summary>
-    public static int RebindOutsideReferences(JsonObject dom, ScenarioHeader header, EntityRepository? world, ScenarioSerializer serializer)
+    public static int RebindOutsideReferences(JsonObject dom, ScenarioHeader header, EntityRepository? world, ScenarioSerializer serializer, ScenarioBehaviorRemapper? behaviorRemapper = null)
     {
         if (header.Params is not { Count: > 0 } ps || dom["Entities"] is not JsonObject entities) return 0;
         var targets = new List<RebindTarget>();
@@ -121,6 +123,7 @@ public static class ScenarioSaveCore
             if (ent is not JsonObject components) continue;
             foreach (var key in components.Select(kv => kv.Key).ToList())
             {
+                if (behaviorRemapper is not null && RebindBlobs(key, components[key], behaviorRemapper, applier, out bool blobChanged)) { if (blobChanged) n++; continue; }
                 if (!typeByName.TryGetValue(key, out var type) || components[key] is not JsonObject comp) continue;
                 string before = comp.ToJsonString();
                 string? after = EntityRefRemap.WalkJson(type, before, applier);
@@ -128,6 +131,39 @@ public static class ScenarioSaveCore
             }
         }
         return n;
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4210 W-M6 — the params BLOBS of a saved entity (SR-159: a reference inside params is bound as its Param form, like a typed leaf): the brain slots <c>Behavior</c> / <c>Sop</c> (<c>{Name, Params, Origin}</c>, <c>Params</c> a JSON string)
+    /// and the mission plan's tasks (<c>MissionPlan.PlanData.tasks[].behaviorName / behaviorParams</c>), each walked through the behaviour's own contract by <see cref="ScenarioBehaviorRemapper.ApplyJson"/> — the ONE blob parser
+    /// (the very call <see cref="ScenarioEntityWalk"/> makes on the live side). ⛔ <c>ParamBindings</c> strings are bindings, not references: not a blob here, left as saved. Returns true when <paramref name="key"/> named a blob holder.
+    /// </summary>
+    private static bool RebindBlobs(string key, JsonNode? node, ScenarioBehaviorRemapper remapper, LeafApplier applier, out bool changed)
+    {
+        changed = false;
+        switch (key)
+        {
+            case "Behavior" or "Sop" when node is JsonObject slot:
+                changed = RebindBlob(slot, "Name", "Params", remapper, applier);
+                return true;
+            case "MissionPlan" when node is JsonObject plan:
+                if (plan["PlanData"]?["tasks"] is JsonArray tasks)
+                    foreach (var task in tasks)
+                        if (task is JsonObject t) changed |= RebindBlob(t, "behaviorName", "behaviorParams", remapper, applier);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static bool RebindBlob(JsonObject holder, string nameKey, string paramsKey, ScenarioBehaviorRemapper remapper, LeafApplier applier)
+    {
+        if (holder[nameKey] is not JsonValue nv || !nv.TryGetValue<string>(out var name)
+            || holder[paramsKey] is not JsonValue pv || !pv.TryGetValue<string>(out var json)) return false;
+        var after = remapper.ApplyJson(name, json, applier);
+        if (after is null || after == json) return false;
+        holder[paramsKey] = after;
+        return true;
     }
 
     private sealed record RebindTarget(string Param, string Text, int NetworkId, string? Guid);
@@ -190,9 +226,10 @@ public static class ScenarioSaveCore
         EntityRepository   world,
         string             filePath,
         ScenarioHeader     header,
-        IReadOnlyCollection<Guid>? onlyGuids)
+        IReadOnlyCollection<Guid>? onlyGuids,
+        ScenarioBehaviorRemapper? behaviorRemapper = null)
     {
-        var dom = BuildDom(serializer, world, header, onlyGuids);
+        var dom = BuildDom(serializer, world, header, onlyGuids, behaviorRemapper);
 
         // CE-3187 (R-2005): a DOM ignores the naming policy, so the shared minified options are byte-identical.
         var json     = JsonSerializer.Serialize(dom, FdpJsonOptionsRegistry.DefaultRelaxed);

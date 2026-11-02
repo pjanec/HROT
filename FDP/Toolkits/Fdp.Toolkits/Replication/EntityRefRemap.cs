@@ -299,6 +299,7 @@ namespace Fdp.Toolkit.Replication
             foreach (var (key, node) in obj)
             {
                 if (node is null || !keys.TryGetValue(key, out var e)) continue;
+                applier.Visiting(key);   // ⭐ CE-4210 W-M6 — a params BLOB names its field too
                 switch (e.Kind)
                 {
                     case Kind.Leaf:
@@ -566,6 +567,9 @@ namespace Fdp.Toolkit.Replication
 
         /// <summary>⭐ CE-4210 MA-9 — called by the walker before it visits each member (its JSON key), so a collecting applier can say WHICH field a leaf came from. Does nothing by default; never changes a value.</summary>
         public virtual void Visiting(string member) { }
+
+        /// <summary>⭐ CE-4210 W-M6 — called by <c>ScenarioEntityWalk</c> before it walks a params BLOB, naming the slot it belongs to (<c>"Behavior.Params"</c>, <c>"Sop.Params"</c>, <c>"task 2"</c>). Does nothing by default; never changes a value.</summary>
+        public virtual void Entering(string slot) { }
         /// <summary>⭐ SR-164 — every <see cref="BindableNode"/> the walk reaches in JSON (<paramref name="nodeType"/> = its runtime type), before its leaves.</summary>
         public virtual bool NodeJson(Type nodeType, JsonObject obj) => false;
 
