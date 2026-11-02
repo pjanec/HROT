@@ -88,6 +88,7 @@ class Program
         try
         {
             config.Validate();
+            Hrot.Common.Infrastructure.NodeFeatureOverrides.Set(config.FeatureOverrides);   // ⭐ Node Features F-7 — every node of this process applies its own
         }
         catch (InvalidOperationException ex)
         {

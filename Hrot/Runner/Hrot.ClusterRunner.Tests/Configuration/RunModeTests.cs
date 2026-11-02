@@ -326,6 +326,26 @@ namespace Hrot.ClusterRunner.Tests.Configuration
             Assert.Equal("live", c.LoadTarget);
         }
 
+        /// <summary>⭐ Node Features S1 (c) — <c>--feature</c> is repeatable, <c>id=on|off</c> is the short form of <c>{"Enabled":…}</c>, <c>id={json}</c> passes the partial object, anything else is refused.</summary>
+        [Fact]
+        public void NodeFeatures_FeatureOption_ParsesRepeatably_IntoTheNodeOverrideLayer()
+        {
+            static HrotRunnerConfiguration Parse(params string[] args)
+            {
+                HrotRunnerConfiguration? got = null;
+                Parser.Default.ParseArguments<HrotRunnerConfiguration>(HrotRunnerConfiguration.NormaliseArgs(args)).WithParsed(c => got = c);
+                Assert.NotNull(got);
+                got!.NoWait = true; got.Validate();
+                return got;
+            }
+            Assert.Empty(Parse("-m", "all").FeatureOverrides);
+            var c = Parse("-m", "all", "--feature", "hud.kill-cam=off", "--feature", "hud.kill-cam={\"Seconds\":3}", "--feature", "map3d.in-load=ON");
+            Assert.Equal(new[] { ("hud.kill-cam", "{\"Enabled\":false}"), ("hud.kill-cam", "{\"Seconds\":3}"), ("map3d.in-load", "{\"Enabled\":true}") }, c.FeatureOverrides);
+            Assert.Throws<InvalidOperationException>(() => Parse("-m", "all", "--feature", "hud.kill-cam"));
+            Assert.Throws<InvalidOperationException>(() => Parse("-m", "all", "--feature", "x=maybe"));
+            Assert.Throws<InvalidOperationException>(() => Parse("-m", "all", "--feature", "x={bad"));
+        }
+
         /// <summary>
         /// ⭐ <c>CE-3354</c> ② — refused at startup, clearly: <c>--node-name</c> with several nodes in one process (ambiguous), a <c>--node-names</c> key that is not a node of the process,
         /// a malformed pair, and one name given to two nodes. 🔴 Mutation: the ambiguity check removed ⇒ the first cell does not throw.

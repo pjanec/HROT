@@ -37,6 +37,13 @@ namespace Hrot.ClusterRunner.Configuration
         [Option("map-in-load", Required = false, HelpText = "These nodes' loads wait for their 3-D map (comma-separated node names); with no names: this process' own nodes.")]
         public string? MapInLoadText { get; set; }
 
+        /// <summary>⭐ Node Features F-7 — <c>--feature id=on|off</c> / <c>--feature id={json}</c>, repeatable: this process' node override layer.</summary>
+        [Option("feature", Required = false, HelpText = "A node feature override, repeatable: id=on|off, or id={\"Key\":value} (a partial config). E.g. --feature hud.kill-cam=off --feature hud.kill-cam={\"Seconds\":3}")]
+        public IEnumerable<string>? FeatureTexts { get; set; }
+
+        /// <summary>The parsed <see cref="FeatureTexts"/> (valid after <see cref="Validate"/>).</summary>
+        public IReadOnlyList<(string Id, string Json)> FeatureOverrides { get; private set; } = Array.Empty<(string Id, string Json)>();
+
         /// <summary>The sentinel a bare <c>--map-in-load</c> becomes: this process' own nodes.</summary>
         public const string OwnNodes = "*";
 
@@ -44,11 +51,15 @@ namespace Hrot.ClusterRunner.Configuration
         public static string[] NormaliseArgs(string[] args)
         {
             var result = new List<string>(args.Length);
+            var features = new List<string>();   // ⭐ Node Features F-7 — the parser takes an option once; repeated --feature are folded into ONE sequence
             for (int i = 0; i < args.Length; i++)
             {
+                if (args[i] == "--feature" && i + 1 < args.Length) { features.Add(args[++i]); continue; }
+                if (args[i].StartsWith("--feature=")) { features.Add(args[i].Substring("--feature=".Length)); continue; }
                 bool bare = args[i] == "--map-in-load" && (i + 1 >= args.Length || args[i + 1].StartsWith('-'));
                 result.Add(bare ? "--map-in-load=" + OwnNodes : args[i]);
             }
+            if (features.Count > 0) { result.Add("--feature"); result.AddRange(features); }
             return result.ToArray();
         }
 
@@ -280,6 +291,11 @@ namespace Hrot.ClusterRunner.Configuration
                 MapInLoad = MapInLoadText.Trim() == OwnNodes
                     ? Array.Empty<string>()
                     : MapInLoadText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            try
+            {
+                FeatureOverrides = (FeatureTexts ?? Array.Empty<string>()).Select(Hrot.Common.Infrastructure.NodeFeatureOverrides.Parse).ToList();
+            }
+            catch (FormatException e) { throw new InvalidOperationException(e.Message); }
             bool ci = RequestedSubsystems.Contains("ci");
             bool other = RequestedSubsystems.Contains("migrate") || RequestedSubsystems.Contains("dump-api");
             bool scenario = !string.IsNullOrWhiteSpace(ScenarioName);
