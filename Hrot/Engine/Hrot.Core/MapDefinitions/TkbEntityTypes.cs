@@ -144,7 +144,7 @@ namespace Hrot.Map.Common
         public const long TrafficCar = 8851;
 
         // ⭐ rules S1-a (📄 docs/DESIGN_Scenario_Rules.md §00.8) — the RULES block 8860–8869 (objectives, triggers, measures), a block like Traffic's
-        //   so two lanes cannot collide. 8861 Trigger (S2); 8862 is held for backend's ScenarioMacro (S3a).
+        //   so two lanes cannot collide. 8861 Trigger (S2). (Backend's ScenarioMacro took 8813, so 8862 is free.)
         // ⛔ PERMANENT WIRE VALUE (as above). ⭐ rules S1 — an OBJECTIVE (or a measure / aggregator): positionless like the World Environment, a
         //   brain with no body that runs one objective behaviour (ReachArea, HoldArea ...) and carries ObjectiveStatus. Never in the palette.
         public const long Objective = 8860;

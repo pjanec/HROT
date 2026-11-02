@@ -164,9 +164,10 @@ namespace Hrot.NED.Descriptors
         // ⭐ AQ93 §12 N4 (R-4056) — the TRAFFIC block 160–169, kept clear of the sequential run so lanes cannot collide (TKB 8812
         //   was allocated twice on 2026-10-17). The scenario's traffic settings: the Brain creates them, the Traffic group serves them.
         dtTrafficDemand               = 160,
-        // ⭐ rules S1-a (docs/DESIGN_Scenario_Rules.md §00.8) — the RULES block 170–179: 170 an objective / measure / trigger's status (its Brain →
-        //   every node); 171 dtExerciseResult and 172 dtPlayerMessage are S2's. Measured free on all lanes 2026-11-02.
-        dtObjectiveStatus             = 170,
+        // ⭐ rules S1-a (docs/DESIGN_Scenario_Rules.md §00.8) — the RULES block 171–179: 171 an objective / measure / trigger's status (its Brain →
+        //   every node); 172 dtExerciseResult and 173 dtPlayerMessage are S2's. ⚠ 170 went to backend's dtMacroOrigin the same afternoon
+        //   (both lanes measured it free 2026-11-02, two hours apart) — the rules moved up one; macros and rules share the 170s.
+        dtObjectiveStatus             = 171,
         // etc., all known descriptor types here
     }
 
