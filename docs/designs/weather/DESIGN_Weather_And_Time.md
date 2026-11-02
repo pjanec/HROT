@@ -23,6 +23,9 @@ related-designs:
 
 # Weather and time of day — regional weather, one global environment, a sun
 
+> ⚠ **`2026-11-02` — C-3 / W-8's SAVED form changed (CE-4154, `DESIGN_Scenario_Rules.md` SR-71):** the World Environment is saved in the scenario's `header.world` (not as an entity; at runtime it stays an entity), and the clock's file form is ONE ISO-8601 string with offset — `"ScenarioClock": { "Start": "2025-06-21T08:00:00+02:00" }` = `StartUtcTicks` + `DisplayUtcOffsetMinutes`; an offset-less string fails the load. W-8 (authored, never the wall clock) and the C-3 default are unchanged.
+
+
 **What it does:** the scenario states the weather — globally, and in regions that blend smoothly into it — and the date and time.
 Every node derives, at any point and moment, the air temperature and pressure, the wind at any height, visibility, cloud, the sun's
 position and the light level. Sensors, motion models, rendering and audio read that one answer.
