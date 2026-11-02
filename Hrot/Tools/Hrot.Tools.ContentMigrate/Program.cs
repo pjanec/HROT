@@ -108,7 +108,6 @@ public sealed class ParamsMigrator
         var sites = ParamsSites(bytes);
         var ids = NetworkIdsToKeys(bytes);   // S9': this file's entity network id -> its file key (the GUID)
         var holds = ids.Count == 0 ? new List<(int Start, int Length, long Value)>() : HoldUnitSites(bytes);
-        if (sites.Count == 0 && holds.Count == 0) return result;
 
         WGS84Transform? geo = null;
         string? terrain = TerrainName(bytes);
@@ -129,18 +128,25 @@ public sealed class ParamsMigrator
                 edits.Add((h.Start, h.Length, Encoding.UTF8.GetBytes("\"" + key + "\"")));
                 result.Changes.Add($"HoldUnit {h.Value} -> {key}");
             }
-        if (edits.Count == 0 || !write) return result;
 
-        using var ms = new MemoryStream(bytes.Length + 256);
-        int at = 0;
-        foreach (var e in edits.OrderBy(e => e.Start))
+        byte[] output = bytes;
+        if (edits.Count > 0)
         {
-            ms.Write(bytes, at, e.Start - at);
-            ms.Write(e.Text);
-            at = e.Start + e.Length;
+            using var ms = new MemoryStream(bytes.Length + 256);
+            int at = 0;
+            foreach (var e in edits.OrderBy(e => e.Start))
+            {
+                ms.Write(bytes, at, e.Start - at);
+                ms.Write(e.Text);
+                at = e.Start + e.Length;
+            }
+            ms.Write(bytes, at, bytes.Length - at);
+            output = ms.ToArray();
         }
-        ms.Write(bytes, at, bytes.Length - at);
-        File.WriteAllBytes(path, ms.ToArray());
+        // S8 - a scenario file carries no network id: every entity's NetworkIdentity is removed (after the references that used it became GUIDs above)
+        var stripped = StripNetworkIdentity(output, out int removed);
+        if (removed > 0) { output = stripped; result.Changes.Add($"NetworkIdentity removed from {removed} entit{(removed == 1 ? "y" : "ies")}"); }
+        if (write && !ReferenceEquals(output, bytes)) File.WriteAllBytes(path, output);
         return result;
     }
 
@@ -305,6 +311,47 @@ public sealed class ParamsMigrator
         }
         catch (JsonException) { return new(); }
         return sites;
+    }
+
+    /// <summary>S8 - removes <c>entities.&lt;key&gt;.NetworkIdentity</c> (and its comma) from the raw bytes, leaving every other byte as it was.</summary>
+    public static byte[] StripNetworkIdentity(byte[] bytes, out int removed)
+    {
+        removed = 0;
+        var cuts = new List<(int Start, int End)>();
+        var reader = new Utf8JsonReader(bytes, new JsonReaderOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
+        try
+        {
+            while (reader.Read())
+            {
+                if (reader.TokenType != JsonTokenType.PropertyName || reader.CurrentDepth != 3 || !reader.ValueTextEquals("NetworkIdentity")) continue;
+                int start = (int)reader.TokenStartIndex;
+                reader.Read();
+                reader.Skip();
+                int end = (int)reader.BytesConsumed;
+                int after = end;
+                while (after < bytes.Length && (bytes[after] == ' ' || bytes[after] == '\t' || bytes[after] == '\r' || bytes[after] == '\n')) after++;
+                if (after < bytes.Length && bytes[after] == ',')
+                {
+                    after++;
+                    while (after < bytes.Length && (bytes[after] == ' ' || bytes[after] == '\t' || bytes[after] == '\r' || bytes[after] == '\n')) after++;
+                    cuts.Add((start, after));
+                }
+                else
+                {
+                    int before = start;
+                    while (before > 0 && (bytes[before - 1] == ' ' || bytes[before - 1] == '\t' || bytes[before - 1] == '\r' || bytes[before - 1] == '\n')) before--;
+                    cuts.Add(before > 0 && bytes[before - 1] == ',' ? (before - 1, end) : (start, end));
+                }
+            }
+        }
+        catch (JsonException) { return bytes; }
+        if (cuts.Count == 0) return bytes;
+        removed = cuts.Count;
+        using var ms = new MemoryStream(bytes.Length);
+        int pos = 0;
+        foreach (var (cs, ce) in cuts) { ms.Write(bytes, pos, cs - pos); pos = ce; }
+        ms.Write(bytes, pos, bytes.Length - pos);
+        return ms.ToArray();
     }
 
     private static List<Site> ParamsSites(byte[] bytes)

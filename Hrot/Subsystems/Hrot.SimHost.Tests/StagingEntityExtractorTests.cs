@@ -129,6 +129,7 @@ namespace Hrot.SimHost.Tests
             _goldRepo.RegisterComponent<SimVelocity>();
             _goldRepo.RegisterComponent<TkbIdentity>();
             _goldRepo.RegisterComponent<NetworkIdentity>();
+            _goldRepo.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();   // S8: allocation + references are keyed by the GUID
             _goldRepo.RegisterComponent<NetworkAuthority>();
             _goldRepo.RegisterComponent<PartMetadata>();
             _goldRepo.RegisterComponent<WeaponState>();
@@ -156,8 +157,22 @@ namespace Hrot.SimHost.Tests
             return builder.Build();
         }
 
+        /// <summary>S8: the GUID a test entity is saved under = its old test network id (so a stub can name it), else its index.</summary>
+        private static Guid GuidFor(int id) => new Guid(id, 0, 0, new byte[8]);
+
+        private static Fdp.Toolkit.Replication.EntityLink GuidLink(int id)
+            => new Fdp.Toolkit.Replication.EntityLink(default, Fdp.Core.RefSpec.ByExact(GuidFor(id)));
+
         private static string SerializeGoldRepo(EntityRepository repo, ScenarioSerializer serializer)
-            => serializer.Serialize(repo, new ScenarioHeader(SubsystemType)).ToJsonString();
+        {
+            for (int i = 0; i <= repo.MaxEntityIndex; i++)
+            {
+                var e = repo.GetEntityByIndex(i);
+                if (e == Entity.Null || !repo.IsAlive(e) || repo.HasComponent<Fdp.Toolkit.Scenario.EntityGuid>(e)) continue;
+                repo.SetComponent(e, new Fdp.Toolkit.Scenario.EntityGuid(GuidFor(repo.HasComponent<NetworkIdentity>(e) ? repo.GetComponent<NetworkIdentity>(e).Value : 100000 + i)));
+            }
+            return serializer.Serialize(repo, new ScenarioHeader(SubsystemType)).ToJsonString();
+        }
 
         // ── BP-509: the staging→runtime id table is HANDED OUT ────────────────────
 
@@ -230,7 +245,7 @@ namespace Hrot.SimHost.Tests
             extractor.Extract(serializer, json, new StubIdAllocator(500));
 
             Assert.NotNull(published);
-            Assert.Empty(published!);
+            Assert.Single(published!);   // S8: the table is guid -> runtime id for every keyed entity (a scenario with none would be empty)
         }
 
         /// <summary>
@@ -461,7 +476,7 @@ namespace Hrot.SimHost.Tests
                         new DomainMissionTask
                         {
                             BehaviorName     = "FireAtTarget",
-                            BehaviorParams = "{\"targetNetworkId\":1001,\"maxRounds\":5,\"cooldownSeconds\":1.0}",
+                            BehaviorParams = "{\"targetNetworkId\":\"000003e9-0000-0000-0000-000000000000\",\"maxRounds\":5,\"cooldownSeconds\":1.0}",
                         }
                     }
                 }
@@ -510,7 +525,7 @@ namespace Hrot.SimHost.Tests
                         new DomainMissionTask
                         {
                             BehaviorName   = "FireAtTarget",
-                            BehaviorParams = "{\"targetNetworkId\":1001,\"maxRounds\":5,\"cooldownSeconds\":1.0}",
+                            BehaviorParams = "{\"targetNetworkId\":\"000003e9-0000-0000-0000-000000000000\",\"maxRounds\":5,\"cooldownSeconds\":1.0}",
                         }
                     }
                 }
@@ -641,7 +656,7 @@ namespace Hrot.SimHost.Tests
                 .Extract(serializer, json, new StubIdAllocator(100));
 
             var req = Assert.Single(requests);
-            Assert.Equal(0L, req.PreAllocatedNetworkId);
+            Assert.Equal(100L, req.PreAllocatedNetworkId);   // S8: every GUID-keyed file entity gets a fresh id
             // ⭐ CE-3324 — a scenario load SAYS so, even with no id to infer it from (its subordinates are roots in the file too)
             Assert.True(req.IsScenarioLoad);
         }
@@ -782,7 +797,7 @@ namespace Hrot.SimHost.Tests
                 if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
                 var id = ((JsonObject)raw)["PassengerId"]!.GetValue<int>();
                 var intent = new InitialPassengersIntent();
-                intent.PassengerNetworkIds.Add(new EntityRef(id));
+                intent.PassengerNetworkIds.Add(GuidLink(id));
                 repo.SetManagedComponent(entity, intent);
             }
         }
@@ -825,7 +840,7 @@ namespace Hrot.SimHost.Tests
 
             // Passenger old ID 2001 must have been remapped to 3002.
             Assert.Equal(1, intent.PassengerNetworkIds.Count);
-            Assert.Equal(3002L, intent.PassengerNetworkIds[0].NetworkId);
+            Assert.Equal(3002L, intent.PassengerNetworkIds[0].Ref.NetworkId);
         }
 
         /// <summary>A stub translator that writes an <see cref="InitialTargetsIntent"/> naming one target.</summary>
@@ -850,7 +865,7 @@ namespace Hrot.SimHost.Tests
                 if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
                 var id = ((JsonObject)raw)["TargetId"]!.GetValue<int>();
                 var intent = new InitialTargetsIntent();
-                intent.Entries.Add(new TargetEntry { NetworkId = new EntityRef(id), PosX = 1f, PosY = 2f, PosZ = 7.5f, Score = 0.25f });
+                intent.Entries.Add(new TargetEntry { NetworkId = GuidLink(id), PosX = 1f, PosY = 2f, PosZ = 7.5f, Score = 0.25f });
                 repo.SetManagedComponent(entity, intent);
             }
         }
@@ -875,7 +890,7 @@ namespace Hrot.SimHost.Tests
 
             var entry = requests.Single(r => r.PreAllocatedNetworkId == 3001L).InitialComponents!
                 .OfType<InitialTargetsIntent>().Single().Entries.Single();
-            Assert.Equal(new EntityRef(3002), entry.NetworkId);
+            Assert.Equal(new EntityRef(3002), entry.NetworkId.Ref);
             Assert.Equal(7.5f, entry.PosZ);
             Assert.Equal(0.25f, entry.Score);
         }
@@ -906,7 +921,7 @@ namespace Hrot.SimHost.Tests
                 var unitNode = ((JsonObject)raw)["HoldUnit"]!;
                 var unit = unitNode.GetValueKind() == System.Text.Json.JsonValueKind.String
                     ? new Fdp.Toolkit.Replication.EntityLink(default, Fdp.Core.RefSpec.ByExact(System.Guid.Parse(unitNode.GetValue<string>())))
-                    : new Fdp.Toolkit.Replication.EntityLink(new EntityRef(unitNode.GetValue<int>()));
+                    : GuidLink(unitNode.GetValue<int>());
                 var plan = new Hrot.Map.Common.Components.RoutePlan();
                 plan = plan.WithWaypoints(l =>
                 {
@@ -986,7 +1001,7 @@ namespace Hrot.SimHost.Tests
             {
                 if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
                 var id = ((JsonObject)raw)["TargetId"]!.GetValue<int>();
-                string Params() => $"{{\"targetNetworkId\":{id},\"maxRounds\":3,\"cooldownSeconds\":1}}";
+                string Params() => $"{{\"targetNetworkId\":\"{GuidFor(id)}\",\"maxRounds\":3,\"cooldownSeconds\":1}}";
                 repo.SetManagedComponent(entity, new InitialBrainIntent
                 {
                     Behavior = new SavedBrainSlot { Name = BehaviorNames.FireAtTarget, Params = Params() },
@@ -1019,8 +1034,8 @@ namespace Hrot.SimHost.Tests
 
             var brain = requests.Single(r => r.PreAllocatedNetworkId == 3001L).InitialComponents!
                 .OfType<InitialBrainIntent>().Single();
-            Assert.Contains("\"targetNetworkId\":3002", brain.Behavior!.Params);
-            Assert.Contains("\"targetNetworkId\":3002", brain.Sop!.Params);
+            Assert.Contains("3002", brain.Behavior!.Params);   // S8: the GUID resolved to the new id
+            Assert.Contains("3002", brain.Sop!.Params);
             Assert.Contains("\"maxRounds\":3", brain.Behavior.Params);
             Assert.Equal(BehaviorOrigin.Sop, brain.Sop.Origin);
         }
@@ -1030,7 +1045,7 @@ namespace Hrot.SimHost.Tests
         // STABILITY(Broken): EditablePolyline managed component not registered — missing component in test fixture; investigate StagingEntityExtractor setup
         [Trait("Stability", "Broken")]
         [Fact]
-        public void Extract_InitialPassengersIntent_PreservesUnknownNetworkId()
+        public void Extract_InitialPassengersIntent_ARefToAGuidNotInTheFile_FailsTheLoad()
         {
             const int vehicleOldId      = 1001;
             const int unknownPassengerId = 9999; // no entity with this NetworkIdentity exists
@@ -1044,17 +1059,8 @@ namespace Hrot.SimHost.Tests
             var serializer = BuildSerializer(new StubPassengersIntentTranslator(unknownPassengerId));
             var json = SerializeGoldRepo(_goldRepo, serializer);
 
-            var requests = new StagingEntityExtractor()
-                .Extract(serializer, json, allocator);
-
-            var req = Assert.Single(requests);
-            var intent = req.InitialComponents!
-                .OfType<InitialPassengersIntent>()
-                .Single();
-
-            // Unknown ID 9999 has no mapping — it must be preserved unchanged.
-            Assert.Equal(1, intent.PassengerNetworkIds.Count);
-            Assert.Equal(unknownPassengerId, intent.PassengerNetworkIds[0].NetworkId);
+            // S8: a reference to a GUID that is not in the file fails the load loudly (no silent pass-through of a stale id).
+            Assert.ThrowsAny<Exception>(() => new StagingEntityExtractor().Extract(serializer, json, allocator));
         }
 
         // ── Test 15: Child entity InitialPassengersIntent NetworkId remapped (S313) ─
@@ -1106,7 +1112,7 @@ namespace Hrot.SimHost.Tests
 
             // passengerOldId 2000 must have been remapped to 3002.
             Assert.Equal(1, intent.PassengerNetworkIds.Count);
-            Assert.Equal(3002L, intent.PassengerNetworkIds[0].NetworkId);
+            Assert.Equal(3002L, intent.PassengerNetworkIds[0].Ref.NetworkId);
         }
 
         // ── CS027-T01: InitialUnitSubordinateIntent CommanderNetworkId remapped ────
@@ -1142,7 +1148,7 @@ namespace Hrot.SimHost.Tests
             {
                 if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
                 var id = ((JsonObject)raw)["CommanderId"]!.GetValue<int>();
-                repo.SetManagedComponent(entity, new InitialUnitSubordinateIntent { CommanderNetworkId = new EntityRef(id) });
+                repo.SetManagedComponent(entity, new InitialUnitSubordinateIntent { CommanderNetworkId = GuidLink(id) });
             }
         }
 
@@ -1176,7 +1182,7 @@ namespace Hrot.SimHost.Tests
                 .Single();
 
             // commanderOldId 2001 must have been remapped to 3002.
-            Assert.Equal(3002L, intent.CommanderNetworkId.NetworkId);
+            Assert.Equal(3002L, intent.CommanderNetworkId.Ref.NetworkId);
         }
 
         // ── CS027-T02: Unknown CommanderNetworkId preserved as-is ─────────────────
@@ -1184,7 +1190,7 @@ namespace Hrot.SimHost.Tests
         // STABILITY(Broken): EditablePolyline managed component not registered — missing component in test fixture; investigate StagingEntityExtractor setup
         [Trait("Stability", "Broken")]
         [Fact]
-        public void Extract_InitialUnitSubordinateIntent_PreservesUnknownCommanderNetworkId()
+        public void Extract_InitialUnitSubordinateIntent_ARefToAGuidNotInTheFile_FailsTheLoad_Commander()
         {
             const int subordinateOldId     = 1001;
             const int unknownCommanderId   = 9999;
@@ -1198,16 +1204,7 @@ namespace Hrot.SimHost.Tests
             var serializer = BuildSerializer(new StubUnitSubordinateIntentTranslator(unknownCommanderId));
             var json = SerializeGoldRepo(_goldRepo, serializer);
 
-            var requests = new StagingEntityExtractor()
-                .Extract(serializer, json, allocator);
-
-            var req = Assert.Single(requests);
-            var intent = req.InitialComponents!
-                .OfType<InitialUnitSubordinateIntent>()
-                .Single();
-
-            // Unknown ID 9999 has no mapping — must be preserved unchanged.
-            Assert.Equal(unknownCommanderId, intent.CommanderNetworkId.NetworkId);
+            Assert.ThrowsAny<Exception>(() => new StagingEntityExtractor().Extract(serializer, json, allocator));   // S8: loud, not preserved
         }
     }
 }

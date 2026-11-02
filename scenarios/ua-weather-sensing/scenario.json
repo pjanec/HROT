@@ -14,9 +14,6 @@
       "TkbIdentity": {
         "TkbType": 8810
       },
-      "NetworkIdentity": {
-        "Value": 40300
-      },
       "ScenarioClock": {
         "StartUtcTicks": 638860968000000000,
         "DisplayUtcOffsetMinutes": 120
@@ -135,9 +132,6 @@
           1
         ]
       },
-      "NetworkIdentity": {
-        "Value": 40301
-      },
       "TkbIdentity": {
         "TkbType": 8811
       },
@@ -242,9 +236,6 @@
         "Current": 100,
         "Max": 100
       },
-      "NetworkIdentity": {
-        "Value": 40310
-      },
       "TkbIdentity": {
         "TkbType": 2002
       },
@@ -283,9 +274,6 @@
       "Health": {
         "Current": 100,
         "Max": 100
-      },
-      "NetworkIdentity": {
-        "Value": 40311
       },
       "TkbIdentity": {
         "TkbType": 2003
@@ -326,9 +314,6 @@
         "Current": 100,
         "Max": 100
       },
-      "NetworkIdentity": {
-        "Value": 40312
-      },
       "TkbIdentity": {
         "TkbType": 2002
       },
@@ -367,9 +352,6 @@
       "Health": {
         "Current": 100,
         "Max": 100
-      },
-      "NetworkIdentity": {
-        "Value": 40313
       },
       "TkbIdentity": {
         "TkbType": 2003

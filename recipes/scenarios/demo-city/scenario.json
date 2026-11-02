@@ -11,9 +11,6 @@
   },
   "entities": {
     "a9930000-0000-4000-8000-000000000001": {
-      "NetworkIdentity": {
-        "Value": 9301
-      },
       "TkbIdentity": {
         "TkbType": 8850
       },
@@ -41,9 +38,6 @@
       "Health": {
         "Current": 100,
         "Max": 100
-      },
-      "NetworkIdentity": {
-        "Value": 9302
       },
       "TkbIdentity": {
         "TkbType": 2002
@@ -78,9 +72,6 @@
       "Health": {
         "Current": 100,
         "Max": 100
-      },
-      "NetworkIdentity": {
-        "Value": 9303
       },
       "TkbIdentity": {
         "TkbType": 2002

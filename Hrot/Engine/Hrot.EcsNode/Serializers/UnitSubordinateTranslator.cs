@@ -81,30 +81,9 @@ namespace Hrot.SimHost.Serializers
             Enum.TryParse<TacticalDesignation>(dto.Designation, out var designation);
             Enum.TryParse<FireTeam>(dto.FireTeam, ignoreCase: true, out var team);
 
-            Entity resolved = resolver.Resolve(dto.CommanderGuid);
-            int networkId;
-            if (resolved.IsNull || !repo.IsAlive(resolved))
-            {
-                FdpLog<UnitSubordinateTranslator>.Warn(
-                    "[UnitSubordinateTranslator] Commander GUID '{0}' could not be resolved; " +
-                    "attaching intent with CommanderNetworkId = 0.", dto.CommanderGuid);
-                networkId = 0;
-            }
-            else if (!repo.HasComponent<NetworkIdentity>(resolved))
-            {
-                FdpLog<UnitSubordinateTranslator>.Warn(
-                    "[UnitSubordinateTranslator] Resolved commander entity has no NetworkIdentity; " +
-                    "attaching intent with CommanderNetworkId = 0.");
-                networkId = 0;
-            }
-            else
-            {
-                networkId = repo.GetComponent<NetworkIdentity>(resolved).Value;
-            }
-
             repo.SetManagedComponent(entity, new InitialUnitSubordinateIntent
             {
-                CommanderNetworkId = new EntityRef(networkId),
+                CommanderNetworkId = FileLinks.FromGuidText(dto.CommanderGuid),
                 Designation        = designation,
                 FireTeam           = team,
             });

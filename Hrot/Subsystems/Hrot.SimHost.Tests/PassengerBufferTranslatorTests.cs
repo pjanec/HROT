@@ -58,14 +58,14 @@ namespace Hrot.SimHost.Tests
             _repo.SetComponent(passenger, new NetworkIdentity { Value = 42 });
 
             var resolver = new StubResolver();
-            resolver.Register(passenger, "guid-passenger");
+            resolver.Register(passenger, "1c9229ae-cdcd-5eb5-9bc0-77969ab97539");
 
             var dom = new Dictionary<string, object>
             {
                 ["PassengerBuffer"] = new JsonObject
                 {
                     ["Count"]      = 1,
-                    ["Passengers"] = new JsonArray { "guid-passenger" },
+                    ["Passengers"] = new JsonArray { "1c9229ae-cdcd-5eb5-9bc0-77969ab97539" },
                 }
             };
 
@@ -75,7 +75,7 @@ namespace Hrot.SimHost.Tests
             Assert.True(_repo.HasManagedComponent<InitialPassengersIntent>(entity));
             var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialPassengersIntent>(entity);
             Assert.Equal(1, intent!.PassengerNetworkIds.Count);
-            Assert.Equal(42L, intent.PassengerNetworkIds[0].NetworkId);
+            Assert.Equal(Fdp.Core.RefSpec.ByExact(System.Guid.Parse("1c9229ae-cdcd-5eb5-9bc0-77969ab97539")), intent.PassengerNetworkIds[0].Spec);
         }
 
         [Fact]
@@ -85,14 +85,14 @@ namespace Hrot.SimHost.Tests
             _repo.SetComponent(passenger, new NetworkIdentity { Value = 42 });
 
             var resolver = new StubResolver();
-            resolver.Register(passenger, "guid-passenger");
+            resolver.Register(passenger, "1c9229ae-cdcd-5eb5-9bc0-77969ab97539");
 
             var dom = new Dictionary<string, object>
             {
                 ["PassengerBuffer"] = new JsonObject
                 {
                     ["Count"]      = 1,
-                    ["Passengers"] = new JsonArray { "guid-passenger" },
+                    ["Passengers"] = new JsonArray { "1c9229ae-cdcd-5eb5-9bc0-77969ab97539" },
                 }
             };
 
@@ -114,7 +114,7 @@ namespace Hrot.SimHost.Tests
             _repo.SetComponent(vehicle, buffer);
 
             var resolver = new StubResolver();
-            resolver.Register(passenger, "guid-p");
+            resolver.Register(passenger, "74210a8c-691d-5428-b54a-d9f587de9f88");
 
             var dom = new PassengerBufferTranslator().Extract(_repo, vehicle, resolver);
 
@@ -122,7 +122,7 @@ namespace Hrot.SimHost.Tests
             var obj = (JsonObject)dom["PassengerBuffer"];
             var arr = (JsonArray)obj["Passengers"]!;
             Assert.Equal(1, arr.Count);
-            Assert.Equal("guid-p", arr[0]?.GetValue<string>());
+            Assert.Equal("74210a8c-691d-5428-b54a-d9f587de9f88", arr[0]?.GetValue<string>());
         }
 
         /// <summary>
@@ -145,19 +145,19 @@ namespace Hrot.SimHost.Tests
             buffer.Count = 2;
             _repo.SetComponent(pickup, buffer);
             var resolver = new StubResolver();
-            resolver.Register(gunner, "guid-gunner");
-            resolver.Register(m2, "guid-m2");
+            resolver.Register(gunner, "a1f1260e-379b-5ad2-b3ea-2ee258695232");
+            resolver.Register(m2, "cbfa0d1f-2250-5f93-b4e0-ee1ee846183f");
 
             var dom = new PassengerBufferTranslator().Extract(_repo, pickup, resolver);
             var loaded = _repo.CreateEntity();
             new PassengerBufferTranslator().Inject(_repo, loaded, dom, resolver);
 
             var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialPassengersIntent>(loaded)!;
-            Assert.Equal(new[] { 41, 42 }, intent.PassengerNetworkIds.ConvertAll(r => r.NetworkId));
+            Assert.Equal(2, intent.PassengerNetworkIds.Count);   // S8: links, resolved by the extractor
             Assert.Equal(new[] { 1, 2 }, intent.Seats);
 
             var older = new Dictionary<string, object> { ["PassengerBuffer"] = new JsonObject
-                { ["Count"] = 1, ["Passengers"] = new JsonArray { "guid-gunner" } } };
+                { ["Count"] = 1, ["Passengers"] = new JsonArray { "a1f1260e-379b-5ad2-b3ea-2ee258695232" } } };
             var old = _repo.CreateEntity();
             new PassengerBufferTranslator().Inject(_repo, old, older, resolver);
             Assert.Empty(((ISimulationView)_repo).GetManagedComponentRO<InitialPassengersIntent>(old)!.Seats);

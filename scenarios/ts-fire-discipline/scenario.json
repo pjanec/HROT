@@ -28,9 +28,6 @@
         "Current": 100000,
         "Max": 100000
       },
-      "NetworkIdentity": {
-        "Value": 10801
-      },
       "TkbIdentity": {
         "TkbType": 2002
       },
@@ -70,9 +67,6 @@
       "Health": {
         "Current": 100000,
         "Max": 100000
-      },
-      "NetworkIdentity": {
-        "Value": 10802
       },
       "TkbIdentity": {
         "TkbType": 2002
@@ -114,9 +108,6 @@
         "Current": 100000,
         "Max": 100000
       },
-      "NetworkIdentity": {
-        "Value": 10803
-      },
       "TkbIdentity": {
         "TkbType": 2002
       },
@@ -156,9 +147,6 @@
       "Health": {
         "Current": 100000,
         "Max": 100000
-      },
-      "NetworkIdentity": {
-        "Value": 10804
       },
       "TkbIdentity": {
         "TkbType": 2002
@@ -200,9 +188,6 @@
         "Current": 100000,
         "Max": 100000
       },
-      "NetworkIdentity": {
-        "Value": 10821
-      },
       "TkbIdentity": {
         "TkbType": 2009
       },
@@ -241,9 +226,6 @@
       "Health": {
         "Current": 100000,
         "Max": 100000
-      },
-      "NetworkIdentity": {
-        "Value": 10811
       },
       "TkbIdentity": {
         "TkbType": 2002
@@ -289,9 +271,6 @@
         "Current": 100000,
         "Max": 100000
       },
-      "NetworkIdentity": {
-        "Value": 10812
-      },
       "TkbIdentity": {
         "TkbType": 2002
       },
@@ -335,9 +314,6 @@
       "Health": {
         "Current": 100000,
         "Max": 100000
-      },
-      "NetworkIdentity": {
-        "Value": 10813
       },
       "TkbIdentity": {
         "TkbType": 2002
@@ -383,9 +359,6 @@
         "Current": 100000,
         "Max": 100000
       },
-      "NetworkIdentity": {
-        "Value": 10814
-      },
       "TkbIdentity": {
         "TkbType": 2002
       },
@@ -429,9 +402,6 @@
       "Health": {
         "Current": 100000,
         "Max": 100000
-      },
-      "NetworkIdentity": {
-        "Value": 10822
       },
       "TkbIdentity": {
         "TkbType": 2009

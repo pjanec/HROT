@@ -79,9 +79,6 @@
         "HasArrived": 0,
         "IsBlocked": 0
       },
-      "NetworkIdentity": {
-        "Value": 1000
-      },
       "NetworkAuthority": {
         "PrimaryOwnerId": 0,
         "LocalNodeId": 0
@@ -212,9 +209,6 @@
       "Health": {
         "Current": 50,
         "Max": 50
-      },
-      "NetworkIdentity": {
-        "Value": 1001
       },
       "NetworkAuthority": {
         "PrimaryOwnerId": 0,
@@ -352,9 +346,6 @@
         "Current": 50,
         "Max": 50
       },
-      "NetworkIdentity": {
-        "Value": 1002
-      },
       "NetworkAuthority": {
         "PrimaryOwnerId": 0,
         "LocalNodeId": 0
@@ -490,9 +481,6 @@
       "Health": {
         "Current": 50,
         "Max": 50
-      },
-      "NetworkIdentity": {
-        "Value": 1003
       },
       "NetworkAuthority": {
         "PrimaryOwnerId": 0,
@@ -630,9 +618,6 @@
         "Current": 50,
         "Max": 50
       },
-      "NetworkIdentity": {
-        "Value": 1004
-      },
       "NetworkAuthority": {
         "PrimaryOwnerId": 0,
         "LocalNodeId": 0
@@ -716,9 +701,6 @@
           0,
           0
         ]
-      },
-      "NetworkIdentity": {
-        "Value": 1005
       },
       "NetworkAuthority": {
         "PrimaryOwnerId": 0,
@@ -842,9 +824,6 @@
       "Health": {
         "Current": 50,
         "Max": 50
-      },
-      "NetworkIdentity": {
-        "Value": 1006
       },
       "NetworkAuthority": {
         "PrimaryOwnerId": 0,
@@ -977,9 +956,6 @@
       "Health": {
         "Current": 50,
         "Max": 50
-      },
-      "NetworkIdentity": {
-        "Value": 1007
       },
       "NetworkAuthority": {
         "PrimaryOwnerId": 0,

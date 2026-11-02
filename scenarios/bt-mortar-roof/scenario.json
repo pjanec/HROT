@@ -28,9 +28,6 @@
     "Current": 100,
     "Max": 100
    },
-   "NetworkIdentity": {
-    "Value": 7411
-   },
    "TkbIdentity": {
     "TkbType": 2002
    },
@@ -73,9 +70,6 @@
    "Health": {
     "Current": 100,
     "Max": 100
-   },
-   "NetworkIdentity": {
-    "Value": 7412
    },
    "TkbIdentity": {
     "TkbType": 2002
@@ -120,9 +114,6 @@
     "Current": 100,
     "Max": 100
    },
-   "NetworkIdentity": {
-    "Value": 7413
-   },
    "TkbIdentity": {
     "TkbType": 2002
    },
@@ -161,9 +152,6 @@
    "Health": {
     "Current": 100,
     "Max": 100
-   },
-   "NetworkIdentity": {
-    "Value": 7414
    },
    "TkbIdentity": {
     "TkbType": 2002
@@ -204,9 +192,6 @@
     "Current": 100,
     "Max": 100
    },
-   "NetworkIdentity": {
-    "Value": 7415
-   },
    "TkbIdentity": {
     "TkbType": 2002
    },
@@ -246,9 +231,6 @@
     "Current": 100,
     "Max": 100
    },
-   "NetworkIdentity": {
-    "Value": 7416
-   },
    "TkbIdentity": {
     "TkbType": 610
    },
@@ -280,9 +262,6 @@
    "Health": {
     "Current": 100,
     "Max": 100
-   },
-   "NetworkIdentity": {
-    "Value": 7417
    },
    "TkbIdentity": {
     "TkbType": 610

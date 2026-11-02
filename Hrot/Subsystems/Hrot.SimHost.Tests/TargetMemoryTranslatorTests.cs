@@ -57,7 +57,7 @@ namespace Hrot.SimHost.Tests
             _repo.SetComponent(target, new NetworkIdentity { Value = 33 });
 
             var resolver = new StubResolver();
-            resolver.Register(target, "guid-target");
+            resolver.Register(target, "f2763bca-f26e-5ee6-846a-a57d20ee4f29");
 
             var dom = new Dictionary<string, object>
             {
@@ -67,7 +67,7 @@ namespace Hrot.SimHost.Tests
                     {
                         new JsonObject
                         {
-                            ["Entity"]   = "guid-target",
+                            ["Entity"]   = "f2763bca-f26e-5ee6-846a-a57d20ee4f29",
                             ["PosX"]     = 10f,
                             ["PosY"]     = 20f,
                             ["Score"]    = 0.8f,
@@ -86,7 +86,7 @@ namespace Hrot.SimHost.Tests
             var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialTargetsIntent>(entity);
             Assert.NotNull(intent);
             Assert.Equal(1, intent!.Entries.Count);
-            Assert.Equal(33L, intent.Entries[0].NetworkId.NetworkId);
+            Assert.Equal(Fdp.Core.RefSpec.ByExact(System.Guid.Parse("f2763bca-f26e-5ee6-846a-a57d20ee4f29")), intent.Entries[0].NetworkId.Spec);
             Assert.Equal(10f, intent.Entries[0].PosX);
             Assert.Equal(20f, intent.Entries[0].PosY);
             Assert.Equal(0.8f, intent.Entries[0].Score, precision: 5);
@@ -102,10 +102,10 @@ namespace Hrot.SimHost.Tests
             var target = _repo.CreateEntity();
             _repo.SetComponent(target, new NetworkIdentity { Value = 11 });
 
-            // "guid-dead" is not in the resolver — simulates GUID that can't resolve to a live entity
+            // "4ff5972e-b957-57a5-ac84-86e2e0993691" is not in the resolver — simulates GUID that can't resolve to a live entity
             var resolver = new StubResolver();
-            resolver.Register(target, "guid-live");
-            // "guid-dead" resolves to Entity.Null
+            resolver.Register(target, "773bd61f-d8bd-5fc2-b5db-c290eef1a366");
+            // "4ff5972e-b957-57a5-ac84-86e2e0993691" resolves to Entity.Null
 
             var dom = new Dictionary<string, object>
             {
@@ -113,8 +113,8 @@ namespace Hrot.SimHost.Tests
                 {
                     ["Entries"] = new JsonArray
                     {
-                        new JsonObject { ["Entity"] = "guid-live",  ["PosX"] = 1f, ["PosY"] = 2f, ["Score"] = 0.5f, ["Tick"] = 0L, ["Modality"] = 0 },
-                        new JsonObject { ["Entity"] = "guid-dead",  ["PosX"] = 3f, ["PosY"] = 4f, ["Score"] = 0.9f, ["Tick"] = 0L, ["Modality"] = 0 },
+                        new JsonObject { ["Entity"] = "773bd61f-d8bd-5fc2-b5db-c290eef1a366",  ["PosX"] = 1f, ["PosY"] = 2f, ["Score"] = 0.5f, ["Tick"] = 0L, ["Modality"] = 0 },
+                        new JsonObject { ["Entity"] = "4ff5972e-b957-57a5-ac84-86e2e0993691",  ["PosX"] = 3f, ["PosY"] = 4f, ["Score"] = 0.9f, ["Tick"] = 0L, ["Modality"] = 0 },
                     }
                 }
             };
@@ -123,9 +123,9 @@ namespace Hrot.SimHost.Tests
             new TargetMemoryTranslator().Inject(_repo, entity, dom, resolver);
 
             var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialTargetsIntent>(entity);
-            // Only the live entry should be added
-            Assert.Equal(1, intent!.Entries.Count);
-            Assert.Equal(11L, intent.Entries[0].NetworkId.NetworkId);
+            // S8: the translator no longer resolves - both entries are kept as links; a dead GUID fails the extractor loudly
+            Assert.Equal(2, intent!.Entries.Count);
+            Assert.Equal(Fdp.Core.RefSpec.ByExact(System.Guid.Parse("773bd61f-d8bd-5fc2-b5db-c290eef1a366")), intent.Entries[0].NetworkId.Spec);
         }
 
         /// <summary>
@@ -159,7 +159,7 @@ namespace Hrot.SimHost.Tests
                 intent = ((ISimulationView)loaded).GetManagedComponentRO<InitialTargetsIntent>(e);
             Assert.NotNull(intent);
             Assert.Single(intent!.Entries);
-            Assert.Equal(502L, intent.Entries[0].NetworkId.NetworkId);
+            Assert.Equal(Fdp.Core.RefForm.Exact, intent.Entries[0].NetworkId.Spec.Form);   // S8: the saved GUID of the later-saved target
             Assert.Equal(3, intent.Entries[0].SeenStance);   // ⭐ CE-2326 (R-3030) — the stance he was last seen in survives the save
         }
     }

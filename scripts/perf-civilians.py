@@ -47,7 +47,6 @@ def scenario(count):
         ents[f"c3222000-0000-4000-8000-{i + 1:012d}"] = {
             "SimTransform": {"Position": [round(x, 2), round(y, 2), 0], "Rotation": [0, 0, 0, 1]},
             "Health": {"Current": 100, "Max": 100},
-            "NetworkIdentity": {"Value": 32220000 + i + 1},
             "TkbIdentity": {"TkbType": CIVILIAN_TYPES[i % len(CIVILIAN_TYPES)]},
             "EntityInfo": {"Name": f"Civilian {i + 1}", "ForceId": "Neutral"},
             "TargetMemory": {"Entries": []},

@@ -15,9 +15,6 @@
     "Position": [53.0, 114.0, 0],
     "Rotation": [0, 0, 0, 1]
    },
-   "NetworkIdentity": {
-    "Value": 12001
-   },
    "TkbIdentity": {
     "TkbType": 302
    },
@@ -52,9 +49,6 @@
     "Current": 100,
     "Max": 100
    },
-   "NetworkIdentity": {
-    "Value": 12002
-   },
    "TkbIdentity": {
     "TkbType": 2002
    },
@@ -78,9 +72,6 @@
    "Health": {
     "Current": 100,
     "Max": 100
-   },
-   "NetworkIdentity": {
-    "Value": 12003
    },
    "TkbIdentity": {
     "TkbType": 2002
@@ -106,9 +97,6 @@
     "Current": 100,
     "Max": 100
    },
-   "NetworkIdentity": {
-    "Value": 12004
-   },
    "TkbIdentity": {
     "TkbType": 2002
    },
@@ -132,9 +120,6 @@
    "Health": {
     "Current": 100,
     "Max": 100
-   },
-   "NetworkIdentity": {
-    "Value": 12005
    },
    "TkbIdentity": {
     "TkbType": 2002
@@ -160,9 +145,6 @@
     "Current": 100,
     "Max": 100
    },
-   "NetworkIdentity": {
-    "Value": 12006
-   },
    "TkbIdentity": {
     "TkbType": 2002
    },
@@ -187,9 +169,6 @@
     "Current": 100,
     "Max": 100
    },
-   "NetworkIdentity": {
-    "Value": 12007
-   },
    "TkbIdentity": {
     "TkbType": 2002
    },
@@ -213,9 +192,6 @@
    "Health": {
     "Current": 100,
     "Max": 100
-   },
-   "NetworkIdentity": {
-    "Value": 12008
    },
    "TkbIdentity": {
     "TkbType": 2002
@@ -253,9 +229,6 @@
    "Health": {
     "Current": 100,
     "Max": 100
-   },
-   "NetworkIdentity": {
-    "Value": 12009
    },
    "TkbIdentity": {
     "TkbType": 2002

@@ -92,12 +92,7 @@ namespace Hrot.SimHost.Serializers
 
                     if (string.IsNullOrEmpty(guidStr)) continue;
 
-                    Entity resolved = resolver.Resolve(guidStr);
-                    if (resolved.IsNull || !repo.IsAlive(resolved)) continue;
-                    if (!repo.HasComponent<NetworkIdentity>(resolved)) continue;
-
-                    int networkId = repo.GetComponent<NetworkIdentity>(resolved).Value;
-                    intent.PassengerNetworkIds.Add(new EntityRef(networkId));
+                    intent.PassengerNetworkIds.Add(FileLinks.FromGuidText(guidStr));
                     if (seats != null && index < seats.Count) intent.Seats.Add(seats[index]!.GetValue<int>());
                 }
             }

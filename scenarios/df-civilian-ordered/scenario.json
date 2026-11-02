@@ -28,9 +28,6 @@
         "Current": 100,
         "Max": 100
       },
-      "NetworkIdentity": {
-        "Value": 9901
-      },
       "TkbIdentity": {
         "TkbType": 1101
       },
@@ -61,9 +58,6 @@
       "Health": {
         "Current": 100,
         "Max": 100
-      },
-      "NetworkIdentity": {
-        "Value": 9902
       },
       "TkbIdentity": {
         "TkbType": 1101
@@ -101,9 +95,6 @@
         "Current": 100000,
         "Max": 100000
       },
-      "NetworkIdentity": {
-        "Value": 9911
-      },
       "TkbIdentity": {
         "TkbType": 2002
       },
@@ -137,9 +128,6 @@
       "Health": {
         "Current": 100000,
         "Max": 100000
-      },
-      "NetworkIdentity": {
-        "Value": 9912
       },
       "TkbIdentity": {
         "TkbType": 2002

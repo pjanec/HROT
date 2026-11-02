@@ -24,9 +24,6 @@
           0.70710678
         ]
       },
-      "NetworkIdentity": {
-        "Value": 9500
-      },
       "TkbIdentity": {
         "TkbType": 2001
       },
@@ -61,9 +58,6 @@
           0,
           1
         ]
-      },
-      "NetworkIdentity": {
-        "Value": 9502
       },
       "TkbIdentity": {
         "TkbType": 8802
@@ -106,9 +100,6 @@
           1
         ]
       },
-      "NetworkIdentity": {
-        "Value": 9510
-      },
       "TkbIdentity": {
         "TkbType": 302
       },
@@ -140,9 +131,6 @@
           0,
           1
         ]
-      },
-      "NetworkIdentity": {
-        "Value": 9511
       },
       "TkbIdentity": {
         "TkbType": 2002
@@ -180,9 +168,6 @@
           1
         ]
       },
-      "NetworkIdentity": {
-        "Value": 9512
-      },
       "TkbIdentity": {
         "TkbType": 2002
       },
@@ -218,9 +203,6 @@
           0,
           1
         ]
-      },
-      "NetworkIdentity": {
-        "Value": 9513
       },
       "TkbIdentity": {
         "TkbType": 2002
@@ -258,9 +240,6 @@
           1
         ]
       },
-      "NetworkIdentity": {
-        "Value": 9514
-      },
       "TkbIdentity": {
         "TkbType": 2002
       },
@@ -296,9 +275,6 @@
           0,
           1
         ]
-      },
-      "NetworkIdentity": {
-        "Value": 9515
       },
       "TkbIdentity": {
         "TkbType": 2002
@@ -336,9 +312,6 @@
           1
         ]
       },
-      "NetworkIdentity": {
-        "Value": 9520
-      },
       "TkbIdentity": {
         "TkbType": 618
       },
@@ -360,9 +333,6 @@
           0,
           1
         ]
-      },
-      "NetworkIdentity": {
-        "Value": 9521
       },
       "TkbIdentity": {
         "TkbType": 2003
@@ -403,9 +373,6 @@
           0
         ]
       },
-      "NetworkIdentity": {
-        "Value": 9522
-      },
       "TkbIdentity": {
         "TkbType": 2003
       },
@@ -444,9 +411,6 @@
           1,
           0
         ]
-      },
-      "NetworkIdentity": {
-        "Value": 9523
       },
       "TkbIdentity": {
         "TkbType": 2002

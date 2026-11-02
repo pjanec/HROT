@@ -24,9 +24,6 @@
           1
         ]
       },
-      "NetworkIdentity": {
-        "Value": 5001
-      },
       "TkbIdentity": {
         "TkbType": 305
       },
@@ -54,9 +51,6 @@
           1
         ]
       },
-      "NetworkIdentity": {
-        "Value": 5002
-      },
       "TkbIdentity": {
         "TkbType": 302
       },
@@ -82,9 +76,6 @@
           0,
           1
         ]
-      },
-      "NetworkIdentity": {
-        "Value": 5011
       },
       "TkbIdentity": {
         "TkbType": 2002
@@ -119,9 +110,6 @@
           1
         ]
       },
-      "NetworkIdentity": {
-        "Value": 5012
-      },
       "TkbIdentity": {
         "TkbType": 2002
       },
@@ -154,9 +142,6 @@
           0,
           1
         ]
-      },
-      "NetworkIdentity": {
-        "Value": 5013
       },
       "TkbIdentity": {
         "TkbType": 2002
@@ -191,9 +176,6 @@
           1
         ]
       },
-      "NetworkIdentity": {
-        "Value": 5014
-      },
       "TkbIdentity": {
         "TkbType": 2002
       },
@@ -227,9 +209,6 @@
           1
         ]
       },
-      "NetworkIdentity": {
-        "Value": 5003
-      },
       "TkbIdentity": {
         "TkbType": 302
       },
@@ -255,9 +234,6 @@
           0,
           1
         ]
-      },
-      "NetworkIdentity": {
-        "Value": 5015
       },
       "TkbIdentity": {
         "TkbType": 2002
@@ -292,9 +268,6 @@
           1
         ]
       },
-      "NetworkIdentity": {
-        "Value": 5016
-      },
       "TkbIdentity": {
         "TkbType": 2002
       },
@@ -327,9 +300,6 @@
           0,
           1
         ]
-      },
-      "NetworkIdentity": {
-        "Value": 5017
       },
       "TkbIdentity": {
         "TkbType": 2002
@@ -364,9 +334,6 @@
           1
         ]
       },
-      "NetworkIdentity": {
-        "Value": 5018
-      },
       "TkbIdentity": {
         "TkbType": 2002
       },
@@ -400,9 +367,6 @@
           1
         ]
       },
-      "NetworkIdentity": {
-        "Value": 5004
-      },
       "TkbIdentity": {
         "TkbType": 302
       },
@@ -428,9 +392,6 @@
           0,
           1
         ]
-      },
-      "NetworkIdentity": {
-        "Value": 5019
       },
       "TkbIdentity": {
         "TkbType": 2002
@@ -465,9 +426,6 @@
           1
         ]
       },
-      "NetworkIdentity": {
-        "Value": 5020
-      },
       "TkbIdentity": {
         "TkbType": 2002
       },
@@ -501,9 +459,6 @@
           1
         ]
       },
-      "NetworkIdentity": {
-        "Value": 5021
-      },
       "TkbIdentity": {
         "TkbType": 2002
       },
@@ -536,9 +491,6 @@
           0,
           1
         ]
-      },
-      "NetworkIdentity": {
-        "Value": 5022
       },
       "TkbIdentity": {
         "TkbType": 2002

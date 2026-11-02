@@ -61,11 +61,7 @@ namespace Hrot.SimHost.Serializers
             var guidStr = obj["Route"]?.GetValue<string?>();
             if (string.IsNullOrEmpty(guidStr)) return;
 
-            Entity resolved = resolver.Resolve(guidStr);
-            if (resolved.IsNull || !repo.IsAlive(resolved)) return;
-
-            int networkId = repo.GetComponent<NetworkIdentity>(resolved).Value;
-            repo.SetManagedComponent(entity, new InitialRouteIntent { RouteNetworkId = new EntityRef(networkId) });
+            repo.SetManagedComponent(entity, new InitialRouteIntent { RouteNetworkId = FileLinks.FromGuidText(guidStr) });
         }
 
         public IEnumerable<string> GetOutputDomKeys() => Array.Empty<string>();

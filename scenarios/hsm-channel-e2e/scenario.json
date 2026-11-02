@@ -116,9 +116,6 @@
         "Current": 100,
         "Max": 100
       },
-      "NetworkIdentity": {
-        "Value": 2001
-      },
       "NetworkAuthority": {
         "PrimaryOwnerId": 0,
         "LocalNodeId": 0
@@ -278,9 +275,6 @@
         "Current": 100,
         "Max": 100
       },
-      "NetworkIdentity": {
-        "Value": 2002
-      },
       "NetworkAuthority": {
         "PrimaryOwnerId": 0,
         "LocalNodeId": 0
@@ -426,9 +420,6 @@
       "Health": {
         "Current": 500,
         "Max": 500
-      },
-      "NetworkIdentity": {
-        "Value": 2050
       },
       "NetworkAuthority": {
         "PrimaryOwnerId": 0,

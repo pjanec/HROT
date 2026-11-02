@@ -91,7 +91,7 @@ for g, e in s.ents.items():
 waverer = copy.deepcopy(next(e for e in s.ents.values() if e.get("EntityInfo", {}).get("Name") == "Coward"))
 waverer["EntityInfo"]["Name"], waverer["Temperament"] = "Waverer", {"resolve": 0.2}
 waverer["SimTransform"]["Position"] = [53.3, 100.7, 0]
-waverer["NetworkIdentity"]["Value"] = 12399
+waverer.pop("NetworkIdentity", None)   # S8: a scenario file carries no network id
 waverer["Behavior"]["Params"] = json.dumps({"Advance": {"Objective": [53.3, 100.7, 0], "ArrivalRadius": 1}, "Stay": True,
                                             "Post": {"Point": [53.3, 100.7, 0], "Radius": 1.0}})
 s.ents["a1040003-0000-4000-8000-000000000099"] = waverer

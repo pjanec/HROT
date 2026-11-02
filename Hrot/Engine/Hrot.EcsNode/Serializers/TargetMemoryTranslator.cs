@@ -92,14 +92,9 @@ namespace Hrot.SimHost.Serializers
                 var guidStr = entry["Entity"]?.GetValue<string>();
                 if (string.IsNullOrEmpty(guidStr)) continue;
 
-                Entity resolved = resolver.Resolve(guidStr);
-                if (resolved.IsNull || !repo.IsAlive(resolved)) continue;
-                if (!repo.HasComponent<NetworkIdentity>(resolved)) continue;
-                int networkId = repo.GetComponent<NetworkIdentity>(resolved).Value;
-
                 intent.Entries.Add(new TargetEntry
                 {
-                    NetworkId    = new EntityRef(networkId),
+                    NetworkId    = FileLinks.FromGuidText(guidStr),
                     PosX         = entry["PosX"]?.GetValue<float>()  ?? 0f,
                     PosY         = entry["PosY"]?.GetValue<float>()  ?? 0f,
                     PosZ         = entry["PosZ"]?.GetValue<float>()  ?? 0f,

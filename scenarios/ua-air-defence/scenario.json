@@ -24,9 +24,6 @@
           1
         ]
       },
-      "NetworkIdentity": {
-        "Value": 8201
-      },
       "TkbIdentity": {
         "TkbType": 406
       },
@@ -57,9 +54,6 @@
           0,
           1
         ]
-      },
-      "NetworkIdentity": {
-        "Value": 8202
       },
       "TkbIdentity": {
         "TkbType": 404
@@ -92,9 +86,6 @@
           1
         ]
       },
-      "NetworkIdentity": {
-        "Value": 8211
-      },
       "TkbIdentity": {
         "TkbType": 106
       },
@@ -124,9 +115,6 @@
           1
         ]
       },
-      "NetworkIdentity": {
-        "Value": 8212
-      },
       "TkbIdentity": {
         "TkbType": 106
       },
@@ -155,9 +143,6 @@
           0,
           1
         ]
-      },
-      "NetworkIdentity": {
-        "Value": 8221
       },
       "TkbIdentity": {
         "TkbType": 202
@@ -192,9 +177,6 @@
           0,
           1
         ]
-      },
-      "NetworkIdentity": {
-        "Value": 8222
       },
       "TkbIdentity": {
         "TkbType": 110

@@ -22,7 +22,7 @@ class Scn:
         g = self.guid()
         e = {"SimTransform": {"Position": list(at), "Rotation": rot(facing)},
              "Health": {"Current": health, "Max": health},
-             "NetworkIdentity": {"Value": nid},
+
              "TkbIdentity": {"TkbType": tkb},
              "EntityInfo": {"Name": name, "ForceId": force},
              "TargetMemory": {"Entries": []}}
@@ -35,7 +35,7 @@ class Scn:
     def squad(self, name, force, at, nid, sop=None):
         g = self.guid()
         e = {"SimTransform": {"Position": list(at), "Rotation": [0, 0, 0, 1]},
-             "NetworkIdentity": {"Value": nid}, "TkbIdentity": {"TkbType": 302},
+"TkbIdentity": {"TkbType": 302},
              "EntityInfo": {"Name": name, "ForceId": force}}
         if sop: e["Sop"] = sop
         self.ents[g] = e
@@ -44,7 +44,7 @@ class Scn:
     def car(self, name, at, heading=90, nid=0):
         g = self.guid()
         self.ents[g] = {"SimTransform": {"Position": list(at), "Rotation": rot(heading)},
-                        "NetworkIdentity": {"Value": nid}, "TkbIdentity": {"TkbType": 8806},
+"TkbIdentity": {"TkbType": 8806},
                         "EntityInfo": {"Name": name},
                         "ObstacleShape": {"Length": 4.5, "Width": 1.8, "Height": 1.5}}
         return g

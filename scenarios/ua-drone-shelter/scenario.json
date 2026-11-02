@@ -24,9 +24,6 @@
           1
         ]
       },
-      "NetworkIdentity": {
-        "Value": 9101
-      },
       "TkbIdentity": {
         "TkbType": 100
       },
@@ -57,9 +54,6 @@
           1
         ]
       },
-      "NetworkIdentity": {
-        "Value": 9102
-      },
       "TkbIdentity": {
         "TkbType": 403
       },
@@ -86,9 +80,6 @@
           0,
           1
         ]
-      },
-      "NetworkIdentity": {
-        "Value": 9103
       },
       "TkbIdentity": {
         "TkbType": 100
@@ -119,9 +110,6 @@
           0,
           1
         ]
-      },
-      "NetworkIdentity": {
-        "Value": 9104
       },
       "TkbIdentity": {
         "TkbType": 403

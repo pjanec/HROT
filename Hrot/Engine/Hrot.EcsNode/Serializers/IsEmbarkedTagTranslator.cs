@@ -61,13 +61,9 @@ namespace Hrot.SimHost.Serializers
             var guidStr = obj["Vehicle"]?.GetValue<string?>();
             if (string.IsNullOrEmpty(guidStr)) return;
 
-            Entity resolved = resolver.Resolve(guidStr);
-            if (resolved.IsNull || !repo.IsAlive(resolved)) return;
-
-            int networkId = repo.GetComponent<NetworkIdentity>(resolved).Value;
             repo.SetManagedComponent(entity, new InitialVehicleIntent
             {
-                VehicleNetworkId = new EntityRef(networkId),
+                VehicleNetworkId = FileLinks.FromGuidText(guidStr),
                 Seat = obj["Seat"]?.GetValue<int>() ?? -1,   // ⭐ WS-4 — absent in an older save
             });
         }

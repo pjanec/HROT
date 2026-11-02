@@ -24,9 +24,6 @@
           1
         ]
       },
-      "NetworkIdentity": {
-        "Value": 7951
-      },
       "TkbIdentity": {
         "TkbType": 405
       },
@@ -58,9 +55,6 @@
         "Current": 100,
         "Max": 100
       },
-      "NetworkIdentity": {
-        "Value": 7952
-      },
       "TkbIdentity": {
         "TkbType": 104
       },
@@ -89,9 +83,6 @@
       "Health": {
         "Current": 100,
         "Max": 100
-      },
-      "NetworkIdentity": {
-        "Value": 7953
       },
       "TkbIdentity": {
         "TkbType": 104

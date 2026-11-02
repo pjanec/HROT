@@ -28,9 +28,6 @@
                 "Current": 100,
                 "Max": 100
             },
-            "NetworkIdentity": {
-                "Value": 9961
-            },
             "TkbIdentity": {
                 "TkbType": 1101
             },
@@ -112,9 +109,6 @@
                 "Current": 100,
                 "Max": 100
             },
-            "NetworkIdentity": {
-                "Value": 9962
-            },
             "TkbIdentity": {
                 "TkbType": 2002
             },
@@ -149,9 +143,6 @@
                     0,
                     1
                 ]
-            },
-            "NetworkIdentity": {
-                "Value": 9963
             },
             "TkbIdentity": {
                 "TkbType": 617

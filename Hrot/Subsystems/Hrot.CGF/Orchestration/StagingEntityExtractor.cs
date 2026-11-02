@@ -133,7 +133,7 @@ namespace Hrot.CGF.Orchestration
         /// ⭐⭐⭐ <b><c>BP-509</c> — the staging→runtime id table, handed OUT.</b>
         /// 📄 <c>DESIGN_Variable_Watch_Pinning.md</c> §5 · §8 ① · §8a.
         ///
-        /// <para>⛔⛔ <b>Pass 1's <c>oldToNewMap</c> was a LOCAL that died here</b>, so anything keyed on a
+        /// <para>⛔⛔ <b>Pass 1's <c>guidToNew</c> was a LOCAL that died here</b>, so anything keyed on a
         /// runtime network id — a watch pin, a breakpoint — broke on every scenario reload with no way to
         /// recover the correspondence. ⭐ This publishes the table; ⛔ <b>the remap CODE does not move and
         /// is not copied</b> *(ruling 9 · <c>R-79</c>)</b>.</para>
@@ -251,28 +251,26 @@ namespace Hrot.CGF.Orchestration
                 // Pre-allocate new network IDs for every entity (root and child) that
                 // carries a NetworkIdentity in the staging DOM.  Build the translation
                 // map so behavior BehaviorParams can be patched in Pass 2.
-                var oldToNewMap = new Dictionary<int, int>();
-                var guidToNew = new Dictionary<Guid, int>();   // S8 prerequisite: what the Watch pins key on
+                // S8 (B): a scenario file carries no network id - every staging entity KEYED by an EntityGuid gets its runtime id here, by entity index.
+                var newIdByIndex = new Dictionary<int, int>();
+                var guidToNew = new Dictionary<Guid, int>();   // what the Watch pins key on
                 for (int i = 0; i <= maxIdx; i++)
                 {
                     var maskP1 = stagingRepo.GetEntityIndex().GetComponentMask(i);
                     ref readonly var metaP1 = ref stagingRepo.GetEntityIndex().GetMetadata(i);
-                    if (!metaP1.IsActive) continue;
-                    if (!maskP1.IsSet(GlobalComponentIds.NetworkIdentity)) continue;
-
+                    if (!metaP1.IsActive || !maskP1.IsSet(GlobalComponentIds.EntityGuid)) continue;
                     var e = stagingRepo.GetEntityByIndex(i);
                     if (e == Entity.Null) continue;
-
-                    int oldId = stagingRepo.GetComponent<NetworkIdentity>(e).Value;
                     int newId = idAllocator.AllocateId();
-                    oldToNewMap[oldId] = newId;
-                    if (maskP1.IsSet(GlobalComponentIds.EntityGuid) && stagingRepo.GetComponent<Fdp.Toolkit.Scenario.EntityGuid>(e).Value is var pg && pg != Guid.Empty) guidToNew[pg] = newId;
+                    newIdByIndex[i] = newId;
+                    var pg = stagingRepo.GetComponent<Fdp.Toolkit.Scenario.EntityGuid>(e).Value;
+                    if (pg != Guid.Empty) guidToNew[pg] = newId;
                 }
 
                 // ⭐⭐ S0 item 3 (DESIGN_Scenario_Rules.md SR-126) — the SCENARIO scope authored references resolve in: every entity's
                 //   RefKey and EntityGuid → the id it will have, and its position (a point written as a reference takes it). Built
                 //   after Pass 1 so the answers are the NEW ids; a duplicate key throws here, before anything is created.
-                var refScope = BuildRefScope(stagingRepo, maxIdx, oldToNewMap);
+                var refScope = BuildRefScope(stagingRepo, maxIdx, newIdByIndex);
 
                 // ── Pass 2: Classification and extraction ──────────────────────────
                 // Root entities (no PartMetadata) are extracted into requests.
@@ -307,12 +305,7 @@ namespace Hrot.CGF.Orchestration
                         // ── Child entity ───────────────────────────────────────────
                         var partMeta = stagingRepo.GetComponent<PartMetadata>(e);
 
-                        int childPreAllocId = 0;
-                        if (mask.IsSet(GlobalComponentIds.NetworkIdentity))
-                        {
-                            int childOldId = stagingRepo.GetComponent<NetworkIdentity>(e).Value;
-                            oldToNewMap.TryGetValue(childOldId, out childPreAllocId);
-                        }
+                        newIdByIndex.TryGetValue(i, out int childPreAllocId);
 
                         var childComps = ExtractEntityComponents(
                             registeredTables, i, in mask, in childExclusionMask);
@@ -332,12 +325,7 @@ namespace Hrot.CGF.Orchestration
 
                         ulong disType = meta.DisType.Value;
 
-                        int preAllocId = 0;
-                        if (mask.IsSet(GlobalComponentIds.NetworkIdentity))
-                        {
-                            int oldId = stagingRepo.GetComponent<NetworkIdentity>(e).Value;
-                            oldToNewMap.TryGetValue(oldId, out preAllocId);
-                        }
+                        newIdByIndex.TryGetValue(i, out int preAllocId);
 
                         var comps = ExtractEntityComponents(
                             registeredTables, i, in mask, in exclusionMask);
@@ -354,7 +342,7 @@ namespace Hrot.CGF.Orchestration
                     var comps = rd.components;
 
                     // Remap BehaviorParams and cross-entity network IDs in-place.
-                    RemapComponentNetworkIds(comps, oldToNewMap, behaviorRemapper, refScope);
+                    RemapComponentNetworkIds(comps, behaviorRemapper, refScope);
 
                     // Append EpisodeTag last when an episode ID is provided.
                     if (episodeId.HasValue)
@@ -369,7 +357,7 @@ namespace Hrot.CGF.Orchestration
                         var overrideDict = new Dictionary<int, (int, IReadOnlyList<object>)>(harvested.Count);
                         foreach (var kvp in harvested)
                         {
-                            RemapComponentNetworkIds(kvp.Value.components, oldToNewMap, behaviorRemapper, refScope);
+                            RemapComponentNetworkIds(kvp.Value.components, behaviorRemapper, refScope);
                             overrideDict[kvp.Key] = (kvp.Value.preAllocId, kvp.Value.components);
                         }
                         childOverrides = overrideDict;
@@ -420,7 +408,6 @@ namespace Hrot.CGF.Orchestration
         /// </summary>
         private static void RemapComponentNetworkIds(
             List<object> comps,
-            Dictionary<int, int> oldToNewMap,
             ScenarioBehaviorRemapper? behaviorRemapper,
             Fdp.Toolkit.Scenario.ScenarioRefScope refScope)
         {
@@ -434,12 +421,6 @@ namespace Hrot.CGF.Orchestration
                     {
                         foreach (var task in plan.Plan.Tasks)
                         {
-                            task.BehaviorParams =
-                                behaviorRemapper.RemapJson(
-                                    task.BehaviorName,
-                                    task.BehaviorParams,
-                                    oldToNewMap)
-                                ?? task.BehaviorParams;
                             task.BehaviorParams = behaviorRemapper.ResolveJson(task.BehaviorName, task.BehaviorParams, refScope) ?? task.BehaviorParams;
                         }
                     }
@@ -455,17 +436,17 @@ namespace Hrot.CGF.Orchestration
             }
 
             // S9' — HoldUnit is an EntityLink: an authored GUID / @Key resolves through the scope into .Ref; a legacy numeric ref is remapped old->new.
-            static Fdp.Toolkit.Replication.EntityLink ResolveHold(Fdp.Toolkit.Replication.EntityLink l, Dictionary<int, int> map, Fdp.Toolkit.Scenario.ScenarioRefScope scope)
+            static Fdp.Toolkit.Replication.EntityLink ResolveHold(Fdp.Toolkit.Replication.EntityLink l, Fdp.Toolkit.Scenario.ScenarioRefScope scope)
             {
                 if (!l.Spec.IsNone && scope.TryResolve(l.Spec, out var hit)) return l.WithRef(hit);
-                if (!l.Ref.IsNone && map.TryGetValue(l.Ref.NetworkId, out var renamed)) return l.WithRef(new Fdp.Toolkit.Replication.EntityRef(renamed));
+                if (!l.Ref.IsNone) throw new InvalidOperationException("A scenario file may not name an entity by network id (S8): " + l.Ref);
                 return l;
             }
 
-            static Hrot.Map.Common.Components.RoutePlan RemapHoldUnits(Hrot.Map.Common.Components.RoutePlan route, Dictionary<int, int> map, Fdp.Toolkit.Scenario.ScenarioRefScope scope)
+            static Hrot.Map.Common.Components.RoutePlan RemapHoldUnits(Hrot.Map.Common.Components.RoutePlan route, Fdp.Toolkit.Scenario.ScenarioRefScope scope)
             {
                 bool any = false;
-                foreach (var w in route.Waypoints) any |= !w.HoldUnit.IsNone && ResolveHold(w.HoldUnit, map, scope) != w.HoldUnit;
+                foreach (var w in route.Waypoints) any |= !w.HoldUnit.IsNone && ResolveHold(w.HoldUnit, scope) != w.HoldUnit;
                 if (!any) return route;
                 // CE-4046 — RoutePlan is an immutable record: the remapped plan is a NEW value the caller puts back in the list.
                 return route.WithWaypoints(list =>
@@ -473,7 +454,7 @@ namespace Hrot.CGF.Orchestration
                     for (int i = 0; i < list.Count; i++)
                     {
                         var w = list[i];
-                        w.HoldUnit = ResolveHold(w.HoldUnit, map, scope);
+                        w.HoldUnit = ResolveHold(w.HoldUnit, scope);
                         list[i] = w;
                     }
                 });
@@ -482,8 +463,7 @@ namespace Hrot.CGF.Orchestration
             void RemapSlot(SavedBrainSlot? slot)
             {
                 if (slot == null) return;
-                slot.Params = behaviorRemapper!.RemapJson(slot.Name, slot.Params, oldToNewMap) ?? slot.Params;
-                slot.Params = behaviorRemapper.ResolveJson(slot.Name, slot.Params, refScope) ?? slot.Params;   // ⭐ S0 — "@Key" / GUID → the answer
+                slot.Params = behaviorRemapper!.ResolveJson(slot.Name, slot.Params, refScope) ?? slot.Params;   // ⭐ S0 — "@Key" / GUID → the answer
             }
 
             // ⭐ CE-2226 — a route's Pickup waypoint names the unit it waits for (RouteWaypoint.HoldUnit, a network id). The type plan
@@ -491,15 +471,14 @@ namespace Hrot.CGF.Orchestration
             //   brain params above. 🔴 Measured live on ua-air-rescue: the hold kept the saved id, named nothing, and the UH-60 waited
             //   at the LZ with every man aboard until the casualty it had picked up died.
             for (int ri = 0; ri < comps.Count; ri++)
-                if (comps[ri] is Hrot.Map.Common.Components.RoutePlan route) comps[ri] = RemapHoldUnits(route, oldToNewMap, refScope);
+                if (comps[ri] is Hrot.Map.Common.Components.RoutePlan route) comps[ri] = RemapHoldUnits(route, refScope);
 
             // ⭐⭐ DESIGN_Entity_Reference.md D4 — every EntityRef inside every component (the Initial*Intent DTOs the
             // scenario translators write, and any other component holding one) is rewritten by the ONE type plan, in place
             // (a boxed struct in its box). The staging repository is transient, so mutating its components is intended.
             // 🔴 This replaced six hand-coded per-intent cases: a new intent was silently left with staging ids, and the
             // TargetEntry copy had dropped PosZ (P3D-206) on every scenario load.
-            for (int ci = 0; ci < comps.Count; ci++)
-                EntityRefRemap.RemapObject(comps[ci], oldToNewMap);
+
 
             // ⭐ S0 item 3 — then every AUTHORED reference in a component (an EntityLink / PointLink / AreaLink) is resolved in this
             //   scenario, by the same walker. ⛔ A key that names nothing throws: the load fails loudly, naming the key.
@@ -510,17 +489,17 @@ namespace Hrot.CGF.Orchestration
 
         /// <summary>⭐ S0 — this load's <see cref="Fdp.Toolkit.Scenario.ScenarioRefScope"/>: every staging entity with a network id, by its
         /// <see cref="Fdp.Toolkit.Scenario.RefKey"/> and <see cref="Fdp.Toolkit.Scenario.EntityGuid"/>, answering with its NEW id and its position.</summary>
-        private static Fdp.Toolkit.Scenario.ScenarioRefScope BuildRefScope(EntityRepository stagingRepo, int maxIdx, Dictionary<int, int> oldToNewMap)
+        private static Fdp.Toolkit.Scenario.ScenarioRefScope BuildRefScope(EntityRepository stagingRepo, int maxIdx, Dictionary<int, int> newIdByIndex)
         {
             var scope = new Fdp.Toolkit.Scenario.ScenarioRefScope("this scenario");
             for (int i = 0; i <= maxIdx; i++)
             {
+                if (!newIdByIndex.TryGetValue(i, out int newId)) continue;
                 var mask = stagingRepo.GetEntityIndex().GetComponentMask(i);
-                if (!stagingRepo.GetEntityIndex().GetMetadata(i).IsActive || !mask.IsSet(GlobalComponentIds.NetworkIdentity)) continue;
                 var e = stagingRepo.GetEntityByIndex(i);
-                if (e == Entity.Null || !oldToNewMap.TryGetValue(stagingRepo.GetComponent<NetworkIdentity>(e).Value, out int newId)) continue;
+                if (e == Entity.Null) continue;
                 string? key = mask.IsSet(GlobalComponentIds.RefKey) ? stagingRepo.GetComponent<Fdp.Toolkit.Scenario.RefKey>(e).Value.ToString() : null;
-                Guid guid = mask.IsSet(GlobalComponentIds.EntityGuid) ? stagingRepo.GetComponent<Fdp.Toolkit.Scenario.EntityGuid>(e).Value : Guid.Empty;
+                Guid guid = stagingRepo.GetComponent<Fdp.Toolkit.Scenario.EntityGuid>(e).Value;
                 WorldPoint? at = mask.IsSet(GlobalComponentIds.SimTransform) ? stagingRepo.GetComponent<SimTransform>(e).Position : null;
                 scope.Add(new EntityRef(newId), key, guid, at);
             }

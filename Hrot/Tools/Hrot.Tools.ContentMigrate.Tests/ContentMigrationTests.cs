@@ -90,7 +90,8 @@ public sealed class ContentMigrationTests
         try
         {
             var first = Migrator.MigrateFile(file, write: true);
-            Assert.Equal(2, first.Changes.Count);   // the params link + the first HoldUnit; 999 names nobody in the file and stays
+            Assert.Equal(3, first.Changes.Count);   // the params link + the first HoldUnit (999 names nobody and stays) + the NetworkIdentity strip
+            Assert.DoesNotContain("NetworkIdentity", File.ReadAllText(file));
             string text = File.ReadAllText(file);
             Assert.Contains(g2, text.Substring(text.IndexOf("routeEntityId", StringComparison.Ordinal)));
             Assert.Contains("\"HoldUnit\":\"" + g1 + "\"", text.Replace(" ", ""));
