@@ -135,6 +135,7 @@ namespace Hrot.Map.Definitions.Tkb
                 ShowLabel    = visualDef.ShowLabel,
                 MapShapeName = visualDef.MapShapeName,
                 IconName     = visualDef.IconName,   // CE-1017 S0
+                ThumbnailName = visualDef.ThumbnailName,   // CE-4142 G4
             });
             // IgVisualDef.LayerName is deliberately NOT carried across: layer membership is
             // COMPUTED by MapLayerAssignmentSystem from the entity's DIS type and components,

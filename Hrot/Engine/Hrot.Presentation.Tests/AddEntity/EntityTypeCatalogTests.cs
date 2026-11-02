@@ -1,3 +1,5 @@
+using Fdp.Core;
+using Fdp.Toolkit.Orchestration;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Tkb;
 using Fdp.Toolkit.Tkb.Domain;
@@ -25,6 +27,8 @@ public sealed class EntityTypeCatalogTests
         CivilianTkbCatalog.RegisterAll(db);   // ⭐ CE-3220 — part of the built-in set (HrotEnvironment.RegisterBuiltInTkb)
         return db;
     }
+
+    private static DISEntityType Dis(string text) { Assert.True(DISEntityType.TryParse(text, out var t)); return t; }
 
     private static EntityTypeEntry Of(IReadOnlyList<EntityTypeEntry> c, long tkbType) => Assert.Single(c, e => e.TkbType == tkbType);
 
@@ -104,6 +108,168 @@ public sealed class EntityTypeCatalogTests
         Assert.All(graphics, p => Assert.IsType<EntityTypeEntry>(p.Tag));
         Assert.Contains(graphics, p => p.Name == "Fire Line" && !p.IsEnabled && p.Description is { Length: > 0 });
     }
+
+    // ── ⭐ CE-4142 GL1 — the gallery's groups and chips ──────────────────────────
+
+    /// <summary>The SHIPPED <c>assets/thumbnails</c> of the repository (the folder a dev start seeds the NAS from).</summary>
+    internal static GalleryData ShippedGallery()
+    {
+        string folder = ContentLayout.ThumbnailAssets(ContentLayout.TryFindSourceTree()!);
+        var g = GalleryData.TryLoad(folder, out var error);
+        Assert.True(g is not null, "assets/thumbnails did not load: " + error);
+        return g!;
+    }
+
+    [Fact]
+    public void CE4142_GL1_EveryShippedTkbType_IsInExactlyOneGroup_OrOther()
+    {
+        var gallery = ShippedGallery();
+        var c = EntityTypeCatalog.Build(BuiltIn(), gallery: gallery);
+
+        var listed = gallery.Groups.SidebarOrder.Where(n => n != gallery.Groups.RecentName).ToHashSet();
+        Assert.NotEmpty(c);
+        Assert.All(c, e => Assert.Contains(e.Group, listed));            // one group each, never empty, never the virtual Recent group
+        Assert.Equal(c.Count, c.GroupBy(e => (long)e.TkbType).Count());   // and each type appears once in the catalogue
+        Assert.Equal(c.Count, listed.Sum(n => c.Count(e => e.Group == n)));   // the groups partition the catalogue
+
+        // The shipped groups reach the shipped types — a mask typo would shove a class into Other.
+        Assert.Equal("Soldiers", Of(c, TkbEntityTypes.Infantry_Rifleman).Group);
+        Assert.Equal("Ground vehicles", Of(c, TkbEntityTypes.Tank_T72).Group);
+        Assert.Equal("Aircraft", Of(c, TkbEntityTypes.Heli_UH60).Group);
+        Assert.Equal("Units", Of(c, TkbEntityTypes.Unit_TankPlatoon).Group);
+        Assert.DoesNotContain(c, e => e.Group == GalleryGroups.OtherName && e.HasSide);   // the built-in TKB leaves nothing over
+    }
+
+    [Fact]
+    public void CE4142_GL1_MapGraphics_GoToTheirToolsGroup()
+    {
+        var c = EntityTypeCatalog.Build(BuiltIn(), gallery: ShippedGallery());
+
+        Assert.Equal("Tactical symbols", Of(c, TkbEntityTypes.TacGraphic_FireLine).Group);   // the tool-less graphic
+        foreach (long t in new[] { TkbEntityTypes.TacGraphic_Area, TkbEntityTypes.TacGraphic_Route, TkbEntityTypes.TerrainZone,
+                                   TkbEntityTypes.WeatherRegion, TkbEntityTypes.StoneSource })
+            Assert.Equal("Areas & routes", Of(c, t).Group);
+        Assert.All(c.Where(e => !e.HasSide), e => Assert.Null(e.Chip));
+    }
+
+    [Fact]
+    public void CE4142_GL1_Chips_AreTheNextDisLevel_NamedByDisNameTable()
+    {
+        var names = DisNameTable.Default;
+        var c = EntityTypeCatalog.Build(BuiltIn(), names, ShippedGallery());
+
+        Assert.Equal(names.CategoryName(1, 1, 1), Of(c, TkbEntityTypes.Tank_T72).Chip);           // "Tank", not a country, not "Land"
+        Assert.Equal("Tank", Of(c, TkbEntityTypes.Tank_T72).Chip);
+        Assert.Equal("Ground vehicles/Tank", Of(c, TkbEntityTypes.Tank_T72).GalleryCategory);
+        Assert.Equal(names.CategoryName(1, 2, 21), Of(c, TkbEntityTypes.Heli_UH60).Chip);   // an aircraft chip is its category
+        Assert.Equal(names.CategoryName(11, 1, 2), Of(c, TkbEntityTypes.Unit_TankPlatoon).Chip);  // a unit chip is its arm ("Armor")
+        Assert.Equal("Soldiers/" + names.CategoryName(3, 1, 1), Of(c, TkbEntityTypes.Infantry_Rifleman).GalleryCategory);
+    }
+
+    [Fact]
+    public void CE4142_GL1_TheMostSpecificMask_WinsAcrossGroups_ATieGoesToTheFirstListed()
+    {
+        var groups = GalleryGroups.Parse("""
+            { "groups": [
+              { "name": "Vehicles", "masks": [ "1.1" ] },
+              { "name": "Weapons",  "masks": [ "1.1.*.50" ] },
+              { "name": "Twin A",   "masks": [ "1.2.*.1" ] },
+              { "name": "Twin B",   "masks": [ "1.2.*.1" ] } ] }
+            """);
+        var names = DisNameTable.Default;
+
+        Assert.Equal("Weapons", groups.Classify(Dis("1.1.225.50.2"), PlacementToolKind.Point, true, names).Group);
+        Assert.Equal("Vehicles", groups.Classify(Dis("1.1.225.1.1"), PlacementToolKind.Point, true, names).Group);
+        Assert.Equal("Twin A", groups.Classify(Dis("1.2.225.1.1"), PlacementToolKind.Point, true, names).Group);
+        Assert.Equal(GalleryGroups.OtherName, groups.Classify(Dis("2.1.225.1"), PlacementToolKind.Point, true, names).Group);
+        Assert.Equal(GalleryGroups.OtherName, groups.Classify(null, PlacementToolKind.Point, true, names).Group);   // no DIS type
+    }
+
+    [Theory]
+    [InlineData("""{ "groups": [ { "name": "A", "masks": [ "x.y" ] } ] }""")]                       // not a mask
+    [InlineData("""{ "groups": [ { "name": "A", "tools": [ "Teleport" ] } ] }""")]                  // not a tool
+    [InlineData("""{ "groups": [ { "name": "A", "masks": [ "1" ] }, { "name": "a", "masks": [ "2" ] } ] }""")]   // twice
+    [InlineData("""{ "groups": [ { "name": "Other", "masks": [ "1" ] } ] }""")]                     // the catch-all is built in
+    [InlineData("""{ "groups": [ { "name": "A" } ] }""")]                                           // takes nothing
+    [InlineData("""{ "nothing": 1 }""")]
+    public void CE4142_GL1_ABrokenGroupsFile_IsRefused_NotHalfRead(string json)
+        => Assert.Throws<FormatException>(() => GalleryGroups.Parse(json));
+
+    [Fact]
+    public void CE4142_GL1_WithoutAGalleryTheCatalogueIsTheOldTree()
+    {
+        var c = EntityTypeCatalog.Build(BuiltIn());
+
+        Assert.All(c, e => { Assert.Equal("", e.Group); Assert.Null(e.Thumbnail); });
+        Assert.Equal(Of(c, TkbEntityTypes.Tank_T72).Category, Of(c, TkbEntityTypes.Tank_T72).GalleryCategory);
+    }
+
+    // ── ⭐ CE-4142 GL2 — which thumbnail (G4 precedence) ─────────────────────────
+
+    private static TkbDatabase OneTank(string? explicitThumb)
+    {
+        var db = new TkbDatabase();
+        var t = new TkbTemplate("Tank X", 90100) { DisType = Dis("1.1.225.1.1.1.0") };
+        t.AddDescriptor(new TkbMasterDto { CustomName = "Tank X", DisType = "1.1.225.1.1.1.0" });
+        t.AddDescriptor(new VisualDefinitionDto { ThumbnailName = explicitThumb });
+        db.Register(t);
+        return db;
+    }
+
+    private static GalleryData Gallery(params string[] existingFiles)
+    {
+        var map = ThumbnailMap.Parse("""
+            { "thumbnails": [ { "mask": "1.1", "file": "land.png" }, { "mask": "1.1.*.1", "file": "tank.png" }, { "mask": "3", "file": "man.png" } ] }
+            """, "/th", p => existingFiles.Contains(Path.GetFileName(p)));
+        return new GalleryData(ShippedGallery().Groups, map);
+    }
+
+    [Fact]
+    public void CE4142_GL2_Precedence_ExplicitName_BeatsTheMask_BeatsTheGlyph()
+    {
+        string P(string f) => Path.Combine("/th", f);
+
+        // ① the explicit name wins over every mask
+        Assert.Equal(P("mine.png"), Of(EntityTypeCatalog.Build(OneTank("mine"), gallery: Gallery("mine.png", "tank.png", "land.png")), 90100).Thumbnail);
+        // ② no explicit name: the MOST SPECIFIC mask (tank beats land, though land is listed first)
+        Assert.Equal(P("tank.png"), Of(EntityTypeCatalog.Build(OneTank(null), gallery: Gallery("tank.png", "land.png")), 90100).Thumbnail);
+        // ② a missing file is skipped: the next mask answers
+        Assert.Equal(P("land.png"), Of(EntityTypeCatalog.Build(OneTank(null), gallery: Gallery("land.png")), 90100).Thumbnail);
+        // an explicit name whose file is missing falls through to the mask, not to a broken tile
+        Assert.Equal(P("tank.png"), Of(EntityTypeCatalog.Build(OneTank("gone"), gallery: Gallery("tank.png")), 90100).Thumbnail);
+        // ③ nothing there ⇒ null (the tile draws the DIS glyph on a dashed tile) and the entry keeps its icon key
+        var none = Of(EntityTypeCatalog.Build(OneTank(null), gallery: Gallery()), 90100);
+        Assert.Null(none.Thumbnail);
+        Assert.StartsWith("entity/", EntityTypeCatalog.IconKeyOf(none));
+    }
+
+    [Fact]
+    public void CE4142_GL2_TheThumbnailPath_IsThePickerEntrysImageKey_OnlyInTheGallery()
+    {
+        var db = OneTank("mine");
+        var g = Gallery("mine.png");
+        var c = EntityTypeCatalog.Build(db, gallery: g);
+
+        Assert.Equal(Path.Combine("/th", "mine.png"), EntityTypeCatalog.ToPickerEntries(c, true, gallery: true).Single().ImageKey);
+        Assert.Null(EntityTypeCatalog.ToPickerEntries(c, true).Single().ImageKey);   // the plain tree row stays as it was
+    }
+
+    [Fact]
+    public void CE4142_GL2_ShippedMapJson_Parses_AndAnExplicitNameSurvivesTheTkbBuilder()
+    {
+        Assert.NotNull(ShippedGallery().Thumbnails);   // map.json shipped (empty until the director-stills run) and valid
+
+        var db = new TkbDatabase();
+        db.Register(new TkbTemplate("Thing", 90101));
+        new NedTkbBuilder(db).WithVisual(90101, v => v.ThumbnailName = "thing");
+        Assert.Equal("thing", db.GetByType(90101).GetDescriptor<VisualDefinitionDto>()!.ThumbnailName);
+    }
+
+    [Theory]
+    [InlineData("""{ "thumbnails": [ { "mask": "q", "file": "a.png" } ] }""")]
+    [InlineData("""{ "thumbnails": [ { "mask": "1.1" } ] }""")]
+    public void CE4142_GL2_ABrokenMapFile_IsRefused(string json)
+        => Assert.Throws<FormatException>(() => ThumbnailMap.Parse(json, "/th"));
 
     // ── PlacementToolRegistry.Arm ────────────────────────────────────────────
 
