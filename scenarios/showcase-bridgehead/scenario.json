@@ -1158,7 +1158,7 @@
    },
    "Behavior": {
     "Name": "WeightedMean",
-    "Params": "{\"common\": {\"title\": \"Conduct\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\", \"parent\": \"b41d6e00-0000-4000-8000-000000000034\", \"weight\": 0.3}, \"passScore\": 0.6}",
+    "Params": "{\"common\": {\"title\": \"Conduct\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\", \"parent\": \"b41d6e00-0000-4000-8000-000000000034\", \"weight\": 0.3, \"required\": true}, \"passScore\": 0.6}",
     "Origin": "Superior"
    }
   },

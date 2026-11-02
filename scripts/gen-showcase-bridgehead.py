@@ -237,7 +237,7 @@ def scenario():
 
     root = objective("WeightedMean", "Bridgehead", {"common": common("Bridgehead"), "passScore": 0.6}, key="Bridgehead")
     mission = objective("WeightedMean", "Mission", {"common": common("Mission", root, weight=0.4), "passScore": 0.6})
-    conduct = objective("WeightedMean", "Conduct", {"common": common("Conduct", root, weight=0.3), "passScore": 0.6})
+    conduct = objective("WeightedMean", "Conduct", {"common": common("Conduct", root, weight=0.3, required=True), "passScore": 0.6})   # ⭐ §1.6 line 4: No harm fails the TREE
     reach = objective("ReachArea", "Reach phase line RED", {"common": common("Reach phase line RED", mission, deadlineSeconds=900, weight=1),
                       "area": {"circle": {"center": PHASE_LINE, "radius": PHASE_LINE_R}}, "minMen": 4}, key="PhaseLineRed")
     clear = objective("ClearAreaObjective", "Clear the crossroads", {"common": common("Clear the crossroads", mission, required=True, startActive=False, weight=1),
