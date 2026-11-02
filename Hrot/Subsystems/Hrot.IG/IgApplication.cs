@@ -684,7 +684,7 @@ public class IgApplication : IDisposable
 
         _debugPanel         = new IgDebugPanel(_debugPanelState);
 
-        _waypointEditorPanel = new Hrot.UI.Common.Panels.WaypointEditorPanel(() => RouteWaypointGizmo.Current);   // ⭐ CE-1096 — moved to Presentation
+        _waypointEditorPanel = Hrot.UI.Common.Panels.WaypointEditorPanelFactory.Create(() => _world, () => _entityMap);   // CE-4214: the factory supplies the GUID lookup   // ⭐ CE-1096 — moved to Presentation
 
 
         _performanceMetrics = new PerformanceMetrics();

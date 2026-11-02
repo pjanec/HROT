@@ -4778,7 +4778,7 @@ namespace Hrot.Editor
 
             // ⭐ CE-1096 (ROUTES1 §11.4 W-1) — the waypoint editor: the editor drew and moved routes but could set nothing on a waypoint
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.WaypointEditorWindow(
-                new Hrot.UI.Common.Panels.WaypointEditorPanel(() => Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmo.Current),
+                Hrot.UI.Common.Panels.WaypointEditorPanelFactory.Create(() => _world, () => _entityMap),   // CE-4214
                 Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorWaypoint, "Scenario", EditorWindowColor.TitleBar));
 
             // ⭐ CE-3330 (DAR row 28; Director Timeline §2d / §2e) — the shared event timeline on the cluster: live (enters a review from the menu),
