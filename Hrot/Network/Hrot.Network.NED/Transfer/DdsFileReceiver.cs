@@ -57,7 +57,7 @@ public sealed class DdsFileReceiver : IDisposable
                 }
                 if (!_seen.Add(offer.TransferId)) continue;
                 var targets = JsonSerializer.Deserialize<int[]>(offer.TargetsJson ?? "[]", Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed) ?? Array.Empty<int>();
-                if (Array.IndexOf(targets, _nodeId) < 0) continue;   // a bystander takes nothing (and joins no partition)
+                if (Array.IndexOf(targets, _nodeId.Value) < 0) continue;   // a bystander takes nothing (and joins no partition)
                 Accept(offer);
             }
 

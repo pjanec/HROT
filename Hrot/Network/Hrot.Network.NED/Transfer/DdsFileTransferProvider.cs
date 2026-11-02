@@ -136,7 +136,7 @@ public sealed class DdsFileTransferProvider : IFileTransferProvider, IDisposable
         private void Send(Inbox box)
         {
             var ct = _cts.Token;
-            var targets = _request.Targets.Select(t => t.NodeId).Distinct().ToArray();
+            var targets = _request.Targets.Select(t => t.NodeId.Value).Distinct().ToArray();
 
             // ① describe the files (a missing or oversized source fails the whole transfer for every target, loudly)
             var items = _request.Items.Select(i =>

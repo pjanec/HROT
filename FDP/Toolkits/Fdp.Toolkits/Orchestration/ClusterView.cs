@@ -147,7 +147,7 @@ namespace Fdp.Toolkit.Orchestration
         public IReadOnlyList<int> InSyncNodeIds => _inSyncNodeIds;
 
         /// <summary>⭐ <c>CE-3344</c> — is THIS view's node in the master's in-sync set? <see langword="true"/> when the view has no <see cref="NodeId"/>.</summary>
-        public bool IsInSync => NodeId is not { } id || (HasInSyncSet && Array.IndexOf(_inSyncNodeIds, id) >= 0);
+        public bool IsInSync => NodeId is not { } id || (HasInSyncSet && Array.IndexOf(_inSyncNodeIds, id.Value) >= 0);
 
         /// <summary>
         /// ⭐⭐⭐ <c>CE-3344</c> (R-3069) — <b>why the cluster cannot be operated from this node right now</b>, or <see langword="null"/> when it can. The ONE text the
