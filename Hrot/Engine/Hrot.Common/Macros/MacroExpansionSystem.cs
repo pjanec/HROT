@@ -146,7 +146,7 @@ namespace Hrot.Common.Macros
                 : EntityGuidDerivation.Derive(Guid.Empty, "instance:" + instanceId);   // a transient instance (SR-167's runtime case is S3b)
             var anchor = repo.HasComponent<SimTransform>(e) ? repo.GetComponentRO<SimTransform>(e) : default;
 
-            var result = _expander.Expand(mi, instanceId, guid, _localNode, anchor, new Fdp.Toolkit.ScenarioRules.Actions.WorldRefScope(repo), _idAllocator, VariantOf(repo));
+            var result = _expander.Expand(mi, instanceId, guid, _localNode, anchor, Fdp.Toolkit.Scenario.LiveRefScope.Of(repo), _idAllocator, VariantOf(repo));
             if (!result.Ok)
             {
                 FdpLog<MacroExpansionSystem>.Error($"[Macros] instance #{instanceId} '{mi.Macro}' failed: {result.Failure}");
@@ -341,7 +341,7 @@ namespace Hrot.Common.Macros
 
             Guid guid = repo.IsComponentTypeRegistered<EntityGuid>() && repo.HasComponent<EntityGuid>(e) ? repo.GetComponentRO<EntityGuid>(e).Value
                       : EntityGuidDerivation.Derive(Guid.Empty, "instance:" + instanceId);
-            var scope = new Fdp.Toolkit.ScenarioRules.Actions.WorldRefScope(repo);
+            var scope = Fdp.Toolkit.Scenario.LiveRefScope.Of(repo);
             var now = _expander!.Expand(mi, instanceId, guid, _localNode, anchor, scope, _idAllocator, VariantOf(repo));
             if (!now.Ok)
             {
@@ -418,7 +418,7 @@ namespace Hrot.Common.Macros
             if (!_entityMap.TryGetNetworkId(e, out int instanceId)) return;
             Guid guid = repo.IsComponentTypeRegistered<EntityGuid>() && repo.HasComponent<EntityGuid>(e) ? repo.GetComponentRO<EntityGuid>(e).Value
                       : EntityGuidDerivation.Derive(Guid.Empty, "instance:" + instanceId);
-            var scope = new Fdp.Toolkit.ScenarioRules.Actions.WorldRefScope(repo);
+            var scope = Fdp.Toolkit.Scenario.LiveRefScope.Of(repo);
             var anchor = target.Anchor;
             var mi = target.Instance;
             var now = new MacroExpander.Result(children, null);

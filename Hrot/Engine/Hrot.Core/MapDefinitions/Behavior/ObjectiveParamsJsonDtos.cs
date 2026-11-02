@@ -140,7 +140,7 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("maxFires")] public int MaxFires;
         /// <summary>CE-4166 — a condition already TRUE when the trigger arms counts as an edge (default: it does not).</summary>
         [JsonPropertyName("fireIfTrueWhenArmed")] public bool FireIfTrueWhenArmed;
-        /// <summary>The actions: <c>[{"act":"Message","args":{...}}, ...]</c>, run in order (SR-93).</summary>
-        [JsonPropertyName("do")] public JsonNode? Do;
+        /// <summary>The actions: <c>[{"act":"Message","args":{...},"bind":{...}?}, ...]</c>, run in order (SR-93). ⭐ Typed (SR-94): a step is a <c>BindableNode</c>, so the one param binder reaches its <c>bind</c>.</summary>
+        [JsonPropertyName("do")] public System.Collections.Generic.List<Fdp.Toolkit.ScenarioRules.Actions.ActionStep>? Do;
     }
 }

@@ -142,7 +142,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 try { TriggerWhen.Get(whenJson); }
                 catch (Exception ex) when (ex is not OutOfMemoryException) { problems.Add($"'when' does not compile — {ex.GetType().Name}: {ex.Message}"); }
             }
-            doJson = authored.Do?.ToJsonString() ?? "[]";
+            doJson = ActionStep.ToJson(authored.Do);
             try
             {
                 (doJson, extras) = ActionList.ExtractParams(doJson, FirstExtraItem);   // ⭐ S2 ⑨ — a step's nested "params" become extra ActionArgs items, its ArgsRef their index

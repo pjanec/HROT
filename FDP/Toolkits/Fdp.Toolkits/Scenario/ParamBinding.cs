@@ -146,6 +146,7 @@ namespace Fdp.Toolkit.Scenario
             var type = node.GetType();
             foreach (var (prop, param) in bind)
             {
+                if (prop.IndexOf('.') > 0) { changed |= BindPathIn(node, type, prop, param); continue; }
                 var p = PropertyOf(type, prop);
                 var v = Get(param, p.PropertyType);
                 if (Equals(p.GetValue(node), v)) continue;
@@ -163,6 +164,15 @@ namespace Fdp.Toolkit.Scenario
             {
                 if (paramNode is not JsonValue pv || !pv.TryGetValue<string>(out var param))
                     throw new InvalidOperationException($"'{nodeType.Name}.Bind.{prop}' must name a param (a string), saw {paramNode?.ToJsonString() ?? "null"}");
+                if (prop.IndexOf('.') > 0)
+                {
+                    int dot = prop.IndexOf('.');
+                    var holder = PropertyOf(nodeType, prop.Substring(0, dot));
+                    var hkey = FindKey(obj, JsonNameOf(holder)) ?? JsonNameOf(holder);
+                    if (obj[hkey] is not JsonObject inner) throw new InvalidOperationException($"'{nodeType.Name}.Bind.{prop}': '{holder.Name}' holds no JSON object to bind into");
+                    changed |= SetNested(inner, prop.Substring(dot + 1), param, nodeType.Name, prop);
+                    continue;
+                }
                 var p = PropertyOf(nodeType, prop);
                 var key = FindKey(obj, JsonNameOf(p)) ?? JsonNameOf(p);
                 var written = JsonSerializer.SerializeToNode(Get(param, p.PropertyType), p.PropertyType, _options);
@@ -171,6 +181,35 @@ namespace Fdp.Toolkit.Scenario
                 changed = true;
             }
             return changed;
+        }
+
+        /// <summary>⭐ SR-94 — a Bind key <c>"Args.text"</c>: a dotted PATH into a JSON-object property of the node (a step's args): the param's raw JSON lands there.</summary>
+        private bool BindPathIn(BindableNode node, Type type, string path, string param)
+        {
+            int dot = path.IndexOf('.');
+            var holder = PropertyOf(type, path.Substring(0, dot));
+            if (!typeof(JsonObject).IsAssignableFrom(holder.PropertyType))
+                throw new InvalidOperationException($"'{type.Name}.Bind.{path}': a dotted path goes into a JSON object property, '{holder.Name}' is a {holder.PropertyType.Name}");
+            var inner = holder.GetValue(node) as JsonObject;
+            if (inner is null) { inner = new JsonObject(); holder.SetValue(node, inner); }
+            return SetNested(inner, path.Substring(dot + 1), param, type.Name, path);
+        }
+
+        private bool SetNested(JsonObject inner, string rest, string param, string typeName, string path)
+        {
+            var parts = rest.Split('.');
+            var raw = (JsonNode?)Get(param, typeof(JsonNode));
+            for (int i = 0; i < parts.Length - 1; i++)
+            {
+                var k = FindKey(inner, parts[i]) ?? parts[i];
+                if (inner[k] is JsonObject next) inner = next;
+                else if (inner[k] is null) { var made = new JsonObject(); inner[k] = made; inner = made; }
+                else throw new InvalidOperationException($"'{typeName}.Bind.{path}': '{parts[i]}' is not an object");
+            }
+            var last = FindKey(inner, parts[^1]) ?? parts[^1];
+            if (JsonNode.DeepEquals(inner[last], raw)) return false;
+            inner[last] = raw?.DeepClone();
+            return true;
         }
 
         private static PropertyInfo PropertyOf(Type type, string name)
