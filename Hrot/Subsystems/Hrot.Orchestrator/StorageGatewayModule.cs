@@ -390,6 +390,11 @@ public sealed class StorageGatewayModule
         if (!string.IsNullOrWhiteSpace(tkbName))
             SyncTkb(tkbName!, distinctTargets, nasBasePath, ref success, ref failure, _provider, ct);
 
+        // ⭐⭐ Macros S3a ⑦ (SR-80 / SR-148, docs/DESIGN_Scenario_Macros.md §15.3) — the WHOLE macros tree to EVERY node: any node
+        //   that creates an instance expands it, and which macros a scenario needs is not known without expanding.
+        ct.ThrowIfCancellationRequested();
+        StageMacros(distinctTargets, nasBasePath, ref success, ref failure);
+
         // ⭐⭐ CE-3020 — the behaviour-asset trees each node needs or authors, INSIDE the prefetch saga (B4a): this task
         //   is what the parked transition waits on, so a sync failure fails the request the same way (B6).
         ct.ThrowIfCancellationRequested();
@@ -603,6 +608,37 @@ public sealed class StorageGatewayModule
                         "[Gateway] Asset sync {0} → node {1} at '{2}' FAILED: {3}", a.Kind, target.NodeId, a.DestinationRoot, ex.Message);
                     Interlocked.Increment(ref failure);
                 }
+            }
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ Macros S3a ⑦ (SR-80, SR-148) — mirror <c>{nas}/macros</c> into every target's node root (<c>{node}/macros</c>, the parent of its TKB
+    /// directory — the root <c>FileMacroLibrary.ForNode</c> reads). ⭐ The asset tree sync the terrain folder uses (one copier); a node
+    /// already holding a file's bytes is not rewritten. ⚠ No macros tree on the NAS stages nothing and is not a failure; a sync that throws is.
+    /// </summary>
+    public static void StageMacros(IReadOnlyList<NodeDistributionTarget> targets, string nasBasePath, ref int success, ref int failure)
+    {
+        var source = ContentLayout.Macros(nasBasePath);
+        if (!Directory.Exists(source)) return;
+        var done = new HashSet<string>(StringComparer.Ordinal);
+        var sync = new Fdp.Toolkit.Orchestration.Assets.AssetTreeSync();
+        foreach (var target in targets)
+        {
+            if (string.IsNullOrEmpty(target.TkbDestinationPath)) continue;
+            var nodeRoot = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(target.TkbDestinationPath))!;
+            var dest = ContentLayout.Macros(nodeRoot);
+            if (!done.Add(Path.GetFullPath(dest))) continue;
+            try
+            {
+                var r = sync.Sync(source, dest);
+                Interlocked.Increment(ref success);
+                FdpLog<StorageGatewayModule>.Info($"[Gateway] Macros → node {target.NodeId}: {r.Writes} written, {r.Deleted} deleted.");
+            }
+            catch (Exception ex)
+            {
+                FdpLog<StorageGatewayModule>.Error("[Gateway] Macros → node {0} at '{1}' FAILED: {2}", target.NodeId, dest, ex.Message);
+                Interlocked.Increment(ref failure);
             }
         }
     }

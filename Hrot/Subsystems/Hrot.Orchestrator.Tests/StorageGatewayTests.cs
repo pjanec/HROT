@@ -1374,4 +1374,46 @@ public sealed class StorageGatewayTkbConsensusTests
         foreach (var d in dirs)
             try { if (Directory.Exists(d)) Directory.Delete(d, recursive: true); } catch { }
     }
+
+    /// <summary>⭐ Macros S3a ⑦ (SR-80 / SR-148) — the whole <c>{nas}/macros</c> tree reaches EVERY node's root (beside its TKB directory, where
+    /// <c>FileMacroLibrary.ForNode</c> reads); two nodes sharing one root copy it once; no macros tree on the NAS stages nothing.</summary>
+    [Fact]
+    public void StageMacros_MirrorsTheWholeTree_ToEveryNodeRoot()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "macros-stage-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var nas = Path.Combine(root, "nas");
+            var file = Path.Combine(ContentLayout.Macros(nas), "forces", "fire-team", ContentLayout.ScenarioFileName);
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            File.WriteAllText(file, "{\"header\": {\"Kind\": \"macro\"}, \"entities\": {}}");
+
+            NodeDistributionTarget Node(int id, string nodeDir) => new()
+            {
+                NodeId = (Fdp.Core.NodeId)id,
+                DestinationPath = Path.Combine(root, nodeDir, "scenarios", "s"),
+                TkbDestinationPath = Path.Combine(root, nodeDir, OrchestrationConstants.TkbDirectoryName),
+            };
+            var targets = new List<NodeDistributionTarget> { Node(1, "node-1"), Node(2, "node-2"), Node(3, "node-2") };
+
+            int ok = 0, failed = 0;
+            StorageGatewayModule.StageMacros(targets, nas, ref ok, ref failed);
+
+            Assert.Equal((2, 0), (ok, failed));   // node-2's root once
+            foreach (var n in new[] { "node-1", "node-2" })
+            {
+                var lib = Fdp.Toolkit.Scenario.FileMacroLibrary.ForNode(Path.Combine(root, n));
+                Assert.True(lib.TryRead("forces/fire-team", out var json, out var why), why);
+                Assert.Contains("macro", json);
+            }
+
+            int ok2 = 0, failed2 = 0;
+            StorageGatewayModule.StageMacros(targets, Path.Combine(root, "empty-nas"), ref ok2, ref failed2);
+            Assert.Equal((0, 0), (ok2, failed2));
+        }
+        finally
+        {
+            try { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); } catch { }
+        }
+    }
 }
