@@ -85,7 +85,7 @@ public class MissionControlExecutionSystemTests
         var entityMap = new NetworkEntityMap();
         using var repo = CreateWorld();
         var entity = repo.CreateEntity();
-        entityMap.Register(1L, entity);
+        entityMap.Register(1, entity);
 
         var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
 
@@ -95,7 +95,7 @@ public class MissionControlExecutionSystemTests
         system.TestHook_ProcessIntent(repo, new MissionControlIntent
         {
             RequestId      = requestId,
-            TargetEntityId = 1L,
+            TargetEntityId = 1,
             BaseVersion    = 0,
             Payload = new MissionCommandPayload
             {
@@ -129,12 +129,12 @@ public class MissionControlExecutionSystemTests
         using var repo = CreateWorld();
         var entity = repo.CreateEntity();
         var map = new NetworkEntityMap();
-        map.Register(1L, entity);
+        map.Register(1, entity);
         Guid a = Guid.NewGuid(), b = Guid.NewGuid(), c = Guid.NewGuid();
         new Hrot.Common.Systems.MissionControlExecutionSystem(map, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry())
             .TestHook_ProcessIntent(repo, new MissionControlIntent
             {
-                RequestId = Guid.NewGuid(), TargetEntityId = 1L, BaseVersion = 0,
+                RequestId = Guid.NewGuid(), TargetEntityId = 1, BaseVersion = 0,
                 Payload = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_REPLACE_MISSION, FullMissionData = MakePlan(a, b, c) },
             });
 
@@ -142,12 +142,12 @@ public class MissionControlExecutionSystemTests
         using var fresh = CreateWorld();
         Fdp.Toolkit.Replay.WorldKeyframes.Apply(fresh, kf);
         var freshMap = new NetworkEntityMap();
-        freshMap.Register(1L, entity);
+        freshMap.Register(1, entity);
         var sys = new Hrot.Common.Systems.MissionControlExecutionSystem(freshMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
 
         sys.TestHook_ProcessIntent(fresh, new MissionControlIntent
         {
-            RequestId = Guid.NewGuid(), TargetEntityId = 1L,
+            RequestId = Guid.NewGuid(), TargetEntityId = 1,
             Payload = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_JUMP_TO_TASK, TargetTaskId = c },
         });
         Assert.Equal(2, fresh.GetComponent<MissionPlanQueue>(entity).CurrentPhase);
@@ -155,7 +155,7 @@ public class MissionControlExecutionSystemTests
         var replace = Guid.NewGuid();
         sys.TestHook_ProcessIntent(fresh, new MissionControlIntent
         {
-            RequestId = replace, TargetEntityId = 1L, BaseVersion = 2,
+            RequestId = replace, TargetEntityId = 1, BaseVersion = 2,
             Payload = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_REPLACE_MISSION, FullMissionData = MakePlan(a) },
         });
         fresh.Bus.SwapBuffers();
@@ -178,7 +178,7 @@ public class MissionControlExecutionSystemTests
         var entityMap = new NetworkEntityMap();
         using var repo = CreateWorld();
         var entity = repo.CreateEntity();
-        entityMap.Register(1L, entity);
+        entityMap.Register(1, entity);
 
         var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
 
@@ -187,7 +187,7 @@ public class MissionControlExecutionSystemTests
         system.TestHook_ProcessIntent(repo, new MissionControlIntent
         {
             RequestId      = Guid.NewGuid(),
-            TargetEntityId = 1L,
+            TargetEntityId = 1,
             BaseVersion    = 0,
             Payload = new MissionCommandPayload
             {
@@ -206,7 +206,7 @@ public class MissionControlExecutionSystemTests
         system.TestHook_ProcessIntent(repo, new MissionControlIntent
         {
             RequestId      = conflictId,
-            TargetEntityId = 1L,
+            TargetEntityId = 1,
             BaseVersion    = 99,
             Payload = new MissionCommandPayload
             {
@@ -240,7 +240,7 @@ public class MissionControlExecutionSystemTests
         system.TestHook_ProcessIntent(repo, new MissionControlIntent
         {
             RequestId      = requestId,
-            TargetEntityId = 999L,
+            TargetEntityId = 999,
             BaseVersion    = 0,
             Payload = new MissionCommandPayload
             {
@@ -280,7 +280,7 @@ public class MissionControlExecutionSystemTests
         system.TestHook_ProcessIntent(repo, new MissionControlIntent
         {
             RequestId      = requestId,
-            TargetEntityId = 42L,
+            TargetEntityId = 42,
             BaseVersion    = 0,
             Payload = new MissionCommandPayload
             {
@@ -293,7 +293,7 @@ public class MissionControlExecutionSystemTests
 
         // Register entity before retry drains.
         var entity = repo.CreateEntity();
-        entityMap.Register(42L, entity);
+        entityMap.Register(42, entity);
 
         system.TestHook_DrainRetryQueue(repo);
 
@@ -318,7 +318,7 @@ public class MissionControlExecutionSystemTests
         var entityMap = new NetworkEntityMap();
         using var repo = CreateWorld();
         var entity = repo.CreateEntity();
-        entityMap.Register(1L, entity);
+        entityMap.Register(1, entity);
 
         var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
 
@@ -329,7 +329,7 @@ public class MissionControlExecutionSystemTests
         system.TestHook_ProcessIntent(repo, new MissionControlIntent
         {
             RequestId      = Guid.NewGuid(),
-            TargetEntityId = 1L,
+            TargetEntityId = 1,
             BaseVersion    = 0,
             Payload = new MissionCommandPayload
             {
@@ -352,7 +352,7 @@ public class MissionControlExecutionSystemTests
         system.TestHook_ProcessIntent(repo, new MissionControlIntent
         {
             RequestId      = Guid.NewGuid(),
-            TargetEntityId = 1L,
+            TargetEntityId = 1,
             BaseVersion    = 1,
             Payload        = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_ABORT_ALL }
         });
@@ -374,7 +374,7 @@ public class MissionControlExecutionSystemTests
         var entityMap = new NetworkEntityMap();
         using var repo = CreateWorld();
         var entity = repo.CreateEntity();
-        entityMap.Register(1L, entity);
+        entityMap.Register(1, entity);
 
         var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
 
@@ -385,7 +385,7 @@ public class MissionControlExecutionSystemTests
         system.TestHook_ProcessIntent(repo, new MissionControlIntent
         {
             RequestId      = Guid.NewGuid(),
-            TargetEntityId = 1L,
+            TargetEntityId = 1,
             BaseVersion    = 0,
             Payload = new MissionCommandPayload
             {
@@ -413,14 +413,14 @@ public class MissionControlExecutionSystemTests
         var entityMap = new NetworkEntityMap();
         using var repo = CreateWorld();
         var entity = repo.CreateEntity();
-        entityMap.Register(1L, entity);
+        entityMap.Register(1, entity);
 
         var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
 
         system.TestHook_ProcessIntent(repo, new MissionControlIntent
         {
             RequestId      = Guid.NewGuid(),
-            TargetEntityId = 1L,
+            TargetEntityId = 1,
             BaseVersion    = 0,
             Payload = new MissionCommandPayload
             {
@@ -447,11 +447,11 @@ public class MissionControlExecutionSystemTests
         using var repo = CreateWorld();
         repo.RegisterEvent<Fdp.Toolkit.Behavior.Events.ClearBehaviorEvent>();
         var entity = repo.CreateEntity();
-        entityMap.Register(1L, entity);
+        entityMap.Register(1, entity);
         var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
         system.TestHook_ProcessIntent(repo, new MissionControlIntent
         {
-            RequestId = Guid.NewGuid(), TargetEntityId = 1L, BaseVersion = 0,
+            RequestId = Guid.NewGuid(), TargetEntityId = 1, BaseVersion = 0,
             Payload = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_REPLACE_MISSION, FullMissionData = MakePlan(Guid.NewGuid(), Guid.NewGuid()) },
         });
         Assert.Equal(2, repo.GetComponentRO<MissionPlanQueue>(entity).PhaseCount);

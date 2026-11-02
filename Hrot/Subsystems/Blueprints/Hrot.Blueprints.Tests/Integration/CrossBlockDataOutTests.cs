@@ -12,6 +12,7 @@ using NLog.Config;
 using NodeEditor.Core.Commands;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
+using NodeId = NodeEditor.Primitives.NodeId;
 
 namespace Hrot.Blueprints.Tests.Integration;
 

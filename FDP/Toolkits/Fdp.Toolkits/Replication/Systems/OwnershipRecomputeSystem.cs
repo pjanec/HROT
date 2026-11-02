@@ -59,7 +59,7 @@ namespace Fdp.Toolkit.Replication.Systems
     {
 
         private readonly NetworkEntityMap       _entityMap;
-        private readonly int                    _localNodeId;
+        private readonly NodeId                    _localNodeId;
         private readonly DescriptorOwnershipMap _descriptorMap;
 
         private readonly HashSet<Entity> _touched = new();
@@ -78,7 +78,7 @@ namespace Fdp.Toolkit.Replication.Systems
         public OwnershipRecomputeSystem(NetworkEntityMap entityMap, int localNodeId, DescriptorOwnershipMap descriptorMap)
         {
             _entityMap     = entityMap     ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId   = localNodeId;
+            _localNodeId   = (Fdp.Core.NodeId)(localNodeId);
             _descriptorMap = descriptorMap ?? throw new ArgumentNullException(nameof(descriptorMap));
         }
 

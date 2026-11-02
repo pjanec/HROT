@@ -26,7 +26,7 @@ namespace Hrot.AI.Behaviors.Brains
         public const float OnTheGroundMetres = 1.5f;
 
         /// <summary>True when <paramref name="aircraft"/>'s current Unload / Pickup hold may end (see the class remarks); false at any other time.</summary>
-        public static bool ShouldRelease(EntityRepository world, Entity aircraft, long routeNetworkId)
+        public static bool ShouldRelease(EntityRepository world, Entity aircraft, int routeNetworkId)
         {
             if (!world.HasComponent<NavigationStatus>(aircraft)) return false;
             var phase = world.GetComponentRO<NavigationStatus>(aircraft).Phase;
@@ -72,7 +72,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>The unit the route's Pickup waypoint nearest to <paramref name="aircraft"/> waits for (its <c>HoldUnit</c>); Null when the
         /// route, the waypoint or the unit is not known here.</summary>
-        public static Entity PickupUnitAt(EntityRepository world, long routeNetworkId, Entity aircraft)
+        public static Entity PickupUnitAt(EntityRepository world, int routeNetworkId, Entity aircraft)
         {
             if (routeNetworkId <= 0 || !world.HasComponent<SimTransform>(aircraft)) return Entity.Null;
             var route = Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(world, routeNetworkId);
@@ -80,7 +80,7 @@ namespace Hrot.AI.Behaviors.Brains
             var plan = ((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetManagedComponentRO<RoutePlan>(route);
             if (plan == null) return Entity.Null;
             var at = world.GetComponentRO<SimTransform>(aircraft).Position;
-            long unit = 0;
+            int unit = 0;
             float best = float.MaxValue;
             foreach (var w in plan.Waypoints)
             {

@@ -25,10 +25,10 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 public sealed class DebugApiServiceTests
 {
     private const long TestTkbType   = 1L;   // matches TkbTemplate registered in EditorHarness
-    private const long TestNetworkId = 42L;
+    private const int TestNetworkId = 42;
     private const int  PumpTimeoutMs = 5_000;
 
-    private static void SpawnTestEntity(EditorHarness h, long networkId, string? name = null, Vector3 pos = default)
+    private static void SpawnTestEntity(EditorHarness h, int networkId, string? name = null, Vector3 pos = default)
     {
         var cmd = new SpawnEntityCommand
         {
@@ -77,7 +77,7 @@ public sealed class DebugApiServiceTests
         var list = svc.ListEntities().AsArray();
         Assert.Single(list);
         var e = list[0]!.AsObject();
-        Assert.Equal(TestNetworkId, e["networkId"]!.GetValue<long>());
+        Assert.Equal(TestNetworkId, e["networkId"]!.GetValue<int>());
         Assert.Equal("Alpha", e["name"]!.GetValue<string>());
         Assert.Contains(e["components"]!.AsArray().Select(n => n!.GetValue<string>()), c => c == "EntityInfo");
     }

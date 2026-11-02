@@ -1,3 +1,4 @@
+using Fdp.Core;
 ﻿using CommandLine;
 
 namespace Fdp.Toolkit.Runner

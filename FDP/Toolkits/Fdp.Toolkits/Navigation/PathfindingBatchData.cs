@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Navigation
         /// Propagated from <see cref="PathRequest.SourceNodeId"/> by <c>PathfindingSolverSystem</c>.
         /// Used by the egress translator to route the result back to the originating Brain.
         /// </summary>
-        public int   SourceNodeId;
+        public NodeId   SourceNodeId;
     }
 
     // ── Singleton ECS component ───────────────────────────────────────────────────

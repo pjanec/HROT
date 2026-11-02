@@ -59,7 +59,7 @@ namespace Fdp.Toolkit.Tests.Combat
         {
             var e = _world.CreateEntity();
             _world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-            _world.AddComponent(e, new TkbIdentity { TkbType = RiflemanType });
+            _world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(RiflemanType) });
             _world.AddComponent(e, new EntityInfo { ForceId = ForceId.Hostile });
             _world.AddComponent(e, default(BehaviorState));
             _world.SetAuthority<BehaviorState>(e, brainHere);
@@ -152,7 +152,7 @@ namespace Fdp.Toolkit.Tests.Combat
             _db.Register(civ);
             PersonHands.EnsureOnPersons(_db);
             var man = _world.CreateEntity();
-            _world.AddComponent(man, new TkbIdentity { TkbType = CivilianType });
+            _world.AddComponent(man, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(CivilianType) });
             _world.AddComponent(man, default(BehaviorState));
             _world.SetAuthority<BehaviorState>(man, true);
             _db.TryGetByType(CivilianType, out var ct);

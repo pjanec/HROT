@@ -14,8 +14,8 @@ namespace Hrot.IG.Tests
 {
     public class EntityDamageTranslatorTests
     {
-        private const long KnownId   = 42L;
-        private const long UnknownId = 99L;
+        private const int KnownId   = 42;
+        private const int UnknownId = 99;
 
         [Fact]
         public void Decode_KnownEntity_WritesTheAuthoritysHealth()

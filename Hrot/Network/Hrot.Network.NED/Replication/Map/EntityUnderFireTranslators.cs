@@ -22,7 +22,7 @@ namespace Hrot.Map.Common.Replication.Egress
     public sealed class EntityUnderFireEgressTranslator : IDescriptorTranslator
     {
         private readonly IDdsWriter<EntityUnderFire>? _writer;
-        private readonly Dictionary<long, EntityUnderFire> _last = new();
+        private readonly Dictionary<int, EntityUnderFire> _last = new();
         private int _worldEpoch;
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.UnderFire };
@@ -58,7 +58,7 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var e in view.Query().With<UnderFire>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(e, packedKey)) continue;
-                long netId = view.GetComponentRO<NetworkIdentity>(e).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(e).Value;
                 var sample = ToSample(netId, view.GetComponentRO<UnderFire>(e));
                 // ⭐ a man under a machine gun is re-stamped by every near miss: a stamp within RefreshSeconds of the last one sent changes
                 //   no remote window by more than that (HitModel.UnderFireSeconds is 5 s), so it is not sent — never a sample per round
@@ -71,12 +71,12 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>The wire form (the test seam).</summary>
-        internal static EntityUnderFire ToSample(long netId, in UnderFire c) => new() { EntityId = netId, LastTime = c.LastTime };
+        internal static EntityUnderFire ToSample(int netId, in UnderFire c) => new() { EntityId = netId, LastTime = c.LastTime };
 
-        public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityUnderFire { EntityId = networkEntityId });
         }
@@ -139,6 +139,6 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

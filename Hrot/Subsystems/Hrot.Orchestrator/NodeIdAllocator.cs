@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Fdp.Core;
 
 namespace Hrot.Orchestrator;
 
@@ -23,18 +24,18 @@ public sealed class NodeIdAllocator
     private int _next = FirstDynamicId;
 
     /// <summary>The answer for one request.</summary>
-    public readonly record struct Outcome(int NodeId, bool Refused, string Reason);
+    public readonly record struct Outcome(NodeId NodeId, bool Refused, string Reason);
 
     /// <param name="isLive">Whether a node id is currently live in the roster.</param>
     public Outcome Grant(string computerName, int processId, int forcedId, int preferredId, Func<int, bool> isLive)
     {
         var who = ((computerName ?? string.Empty).ToUpperInvariant(), processId);
-        if (_granted.TryGetValue(who, out var already)) return new Outcome(already, false, "already granted");
+        if (_granted.TryGetValue(who, out var already)) return new Outcome((Fdp.Core.NodeId)(already), false, "already granted");
 
         if (forcedId > 0)
         {
             if (_holderOf.TryGetValue(forcedId, out var holder) && holder != who && isLive(forcedId))
-                return new Outcome(0, true,
+                return new Outcome((Fdp.Core.NodeId)(0), true,
                     $"node id {forcedId} is held by a live process ({holder.Computer} pid {holder.Pid})");
             return Record(who, forcedId);
         }
@@ -50,6 +51,6 @@ public sealed class NodeIdAllocator
     {
         _granted[who] = id;
         _holderOf[id] = who;
-        return new Outcome(id, false, string.Empty);
+        return new Outcome((Fdp.Core.NodeId)(id), false, string.Empty);
     }
 }

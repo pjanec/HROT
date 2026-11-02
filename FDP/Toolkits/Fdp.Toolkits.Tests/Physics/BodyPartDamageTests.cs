@@ -82,7 +82,7 @@ namespace Fdp.Toolkit.Physics.Tests
         private Entity Body(long type, float health = 100f)
         {
             var e = _world.CreateEntity();
-            _world.AddComponent(e, new TkbIdentity { TkbType = type });
+            _world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             _world.AddComponent(e, new Health { Current = health, Max = health });
             _world.AddComponent(e, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
             _world.AddComponent(e, new NetworkIdentity(9000 + e.Index));

@@ -11,7 +11,7 @@ namespace Hrot.Traffic;
 /// <param name="NextNetworkId">⭐ N2 (R-4054) — the cluster's id allocator: a car's network id IS its SUMO vehicle id.</param>
 /// <param name="Participant">⭐ N7 — the node's DDS participant; null (the networkless editor) ⇒ no DDS tee.</param>
 /// <param name="Source">⭐ H8 — this node's key on SUMO's topics (its node id), so several traffic nodes never collide (R-4055).</param>
-public sealed record TrafficServeOptions(Func<long> NextNetworkId, DdsParticipant? Participant, uint Source);
+public sealed record TrafficServeOptions(Func<int> NextNetworkId, DdsParticipant? Participant, uint Source);
 
 /// <summary>
 /// ⭐ AQ93 EM-1/EM-5 (R-4045), §12 N2/N3/N7 (R-4054, R-4056) — one running SUMO: SumoSharp's <see cref="LiveCitySim"/> (its proven engine +
@@ -183,16 +183,16 @@ public sealed class TrafficSession : IDisposable
     private TrafficHandover[]? _appliedHandovers;
 
     // id → the intent its shadow serves; a shadow that ARRIVED stays here (not respawned) until the intent changes.
-    private readonly Dictionary<long, uint> _shadows = new();
-    private readonly Dictionary<long, double> _refused = new();   // id → when SUMO last refused it (retried after RetrySeconds)
-    private readonly HashSet<long> _wanted = new();
-    private readonly List<long> _drop = new();
+    private readonly Dictionary<int, uint> _shadows = new();
+    private readonly Dictionary<int, double> _refused = new();   // id → when SUMO last refused it (retried after RetrySeconds)
+    private readonly HashSet<int> _wanted = new();
+    private readonly List<int> _drop = new();
 
     /// <summary>A refused hand-over (no lane near the vehicle, no route) is retried after this long, in SUMO time.</summary>
     public const double RetrySeconds = 2.0;
 
     /// <summary>The shadows SUMO is driving now (or has just arrived), by network id — rails and diagnostics.</summary>
-    public IReadOnlyCollection<long> Shadows => _shadows.Keys;
+    public IReadOnlyCollection<int> Shadows => _shadows.Keys;
 
     // ⭐ SumoSharp H13 (f252ddc): SpawnExternalVehicle routes "hrot:<id>" from the vehicle's lane to the destination's lane offset;
     //   DespawnExternalVehicle takes it back. Ownership never moves — the body's owner follows the shadow (TrafficShadowFollowSystem).

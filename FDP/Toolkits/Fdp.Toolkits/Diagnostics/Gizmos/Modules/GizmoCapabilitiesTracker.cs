@@ -25,7 +25,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Modules
         // Called once per received IGCapabilitiesAnnounce sample.
         // isAlive: true when the sample is a normal data sample; false when the DDS
         // instance state indicates the remote writer has gone non-alive (disconnect/crash).
-        public void OnSample(long nodeId, bool isAlive)
+        public void OnSample(int nodeId, bool isAlive)
         {
             if (isAlive)
             {

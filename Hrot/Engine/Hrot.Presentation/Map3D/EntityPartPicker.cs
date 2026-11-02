@@ -64,7 +64,7 @@ public sealed class EntityPartPicker : IPicker3D
             else continue;
             if (t > best) continue;
             best = t;
-            long net = hasNet && world.HasComponent<NetworkIdentity>(e) ? world.GetComponentRO<NetworkIdentity>(e).Value : 0;
+            int net = hasNet && world.HasComponent<NetworkIdentity>(e) ? world.GetComponentRO<NetworkIdentity>(e).Value : 0;
             hit = new PickResult(origin + direction * t, PickKind.Entity, t, net);
         }
         return hit.Kind == PickKind.Entity;

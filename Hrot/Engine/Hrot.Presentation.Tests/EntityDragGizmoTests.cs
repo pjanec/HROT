@@ -28,7 +28,7 @@ public class EntityDragGizmoTests
 
         _entity = _repo.CreateEntity();
         _repo.AddComponent(_entity, new SimTransform { Position = new Vector3(10f, 20f, 0f) });
-        _repo.AddComponent(_entity, new NetworkIdentity { Value = 55L });
+        _repo.AddComponent(_entity, new NetworkIdentity { Value = 55 });
     }
 
     // EDG-001: UpdateAndDraw emits a Box2D primitive with valid entity pick token.
@@ -292,7 +292,7 @@ public class TheDragCommitsThroughTheWriteRouterTests
 
         _entity = _repo.CreateEntity();
         _repo.AddComponent(_entity, new SimTransform { Position = new Vector3(10f, 20f, 5f) });
-        _repo.AddComponent(_entity, new NetworkIdentity { Value = 55L });
+        _repo.AddComponent(_entity, new NetworkIdentity { Value = 55 });
         // ⭐ CE-4073 — NO IGeographicTransform singleton on purpose: the drag writes local ENU metres, so the world needs no geodetic
         //   frame at all (it used to fall back to a direct write that never reached the owner when the frame was absent).
     }
@@ -367,7 +367,7 @@ public class TheDragCommitsThroughTheWriteRouterTests
         Assert.Equal(0, writer.Calls);
 
         // ⭐ …and the preview DID move the entity locally, so "no request" is not "nothing happened".
-        Assert.NotEqual(new Vector3(10f, 20f, 5f), _repo.GetComponent<SimTransform>(_entity).Position);
+        Assert.NotEqual<System.Numerics.Vector3>(new Vector3(10f, 20f, 5f), _repo.GetComponent<SimTransform>(_entity).Position);
     }
 
     /// <summary>
@@ -419,7 +419,7 @@ public class TheDragCommitsThroughTheWriteRouterTests
         _repo.GetComponentRW<SimTransform>(_entity).Position = new Vector3(10f, 20f, 5f);   // undo the local preview: the owner's copy
         interpreter.Apply(ctx, writer.Last.ToArray());
 
-        Assert.Equal(new Vector3(210f, 170f, 5f), _repo.GetComponent<SimTransform>(_entity).Position);
+        Assert.Equal<System.Numerics.Vector3>(new Vector3(210f, 170f, 5f), _repo.GetComponent<SimTransform>(_entity).Position);
     }
 
     /// <summary>

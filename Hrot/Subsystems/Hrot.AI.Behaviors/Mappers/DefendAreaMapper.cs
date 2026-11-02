@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.TacticalOrderMapper;
@@ -57,7 +58,7 @@ namespace Hrot.AI.Behaviors.Mappers
 
             var tkbType = repo.GetComponent<TkbIdentity>(self).TkbType;
 
-            string behaviorName = tkbType switch
+            string behaviorName = (long)tkbType switch
             {
                 TkbEntityTypes.MilitaryApc     => "ConvoyEscort",
                 TkbEntityTypes.InfantrySoldier => BehaviorNames.CombatPosture,
@@ -113,11 +114,8 @@ namespace Hrot.AI.Behaviors.Mappers
 
         private static System.Numerics.Vector3 CentreOf(EntityRepository repo, DefendAreaIntentDto? area)
         {
-            var geo = repo.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
-                ? repo.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>() : null;
-            if (area == null || (area.CenterLat == 0 && area.CenterLon == 0) || geo == null) return System.Numerics.Vector3.Zero;
-            var c = geo.ToCartesian(area.CenterLat, area.CenterLon, 0.0);
-            return new System.Numerics.Vector3(c.X, c.Y, 0f);
+            // ⭐ S0 item 5 (SR-135): the centre is an authored PointLink — local metres already, no geodetic conversion
+            return area == null ? System.Numerics.Vector3.Zero : (System.Numerics.Vector3)area.Center;
         }
 
         /// <summary>The area as CombatPosture's contract: advance to the centre (lat/lon → this node's sim frame), arrive within the
@@ -127,14 +125,7 @@ namespace Hrot.AI.Behaviors.Mappers
             var options = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
             var area = string.IsNullOrWhiteSpace(jsonParams) ? null
                 : System.Text.Json.JsonSerializer.Deserialize<DefendAreaIntentDto>(jsonParams, options);
-            var centre = System.Numerics.Vector3.Zero;
-            var geo = repo.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
-                ? repo.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>() : null;
-            if (area != null && (area.CenterLat != 0 || area.CenterLon != 0) && geo != null)
-            {
-                var c = geo.ToCartesian(area.CenterLat, area.CenterLon, 0.0);
-                centre = new System.Numerics.Vector3(c.X, c.Y, 0f);
-            }
+            var centre = CentreOf(repo, area);
             var posture = new CombatPostureParamsJsonDto
             {
                 Advance = new CombatPostureAdvanceJsonDto { Objective = centre, ArrivalRadius = area?.RadiusMeters ?? 0f },

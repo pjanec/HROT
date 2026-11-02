@@ -190,7 +190,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
                 {
                     var name = cgf.GetComponent<EntityInfo>(roster.SubordinateEntities[i]).Name.ToString();
                     var body = ByName(sim, name);
-                    r += $" | m{i} el={Squad().Elements.MemberElements[i]} at={(body.IsNull ? "?" : sim.GetComponent<SimTransform>(body).Position.ToString("F0", null))}";
+                    r += $" | m{i} el={Squad().Elements.MemberElements[i]} at={(body.IsNull ? "?" : ((System.Numerics.Vector3)sim.GetComponent<SimTransform>(body).Position).ToString("F0", null))}";
                 }
                 return r;
             }
@@ -294,7 +294,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
                 for (int i = 0; i < roster.Count; i++)
                 {
                     var body = ByName(sim, cgf.GetComponent<EntityInfo>(roster.SubordinateEntities[i]).Name.ToString());
-                    r[i] = body.IsNull ? new Vector3(float.NaN) : sim.GetComponent<SimTransform>(body).Position;
+                    r[i] = body.IsNull ? new Vector3(float.NaN) : (Vector3)sim.GetComponent<SimTransform>(body).Position;
                 }
                 return r;
             }
@@ -393,7 +393,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
             Vector3[] Bodies() => Members().Select(m =>
             {
                 var body = ByName(sim, cgf.GetComponent<EntityInfo>(m).Name.ToString());
-                return body.IsNull ? new Vector3(float.NaN) : sim.GetComponent<SimTransform>(body).Position;
+                return body.IsNull ? new Vector3(float.NaN) : (Vector3)sim.GetComponent<SimTransform>(body).Position;
             }).ToArray();
             int Running(Entity e) => cgf.HasComponent<BehaviorState>(e) ? cgf.GetComponent<BehaviorState>(e).ActiveBehaviorHash : 0;
             string State() => $"t={SimNow():F1}s kind={cgf.GetComponent<SquadCognitiveState>(leader).ManeuverKind} task={Running(leader)} | "

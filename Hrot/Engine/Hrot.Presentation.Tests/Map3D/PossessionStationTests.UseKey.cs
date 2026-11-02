@@ -28,9 +28,9 @@ namespace Hrot.Presentation.Tests.Map3D;
 public sealed partial class PossessionStationTests
 {
     /// <summary>A picker that answers a unit 1 m ahead (network id <paramref name="id"/>).</summary>
-    private sealed class Ahead(long id) : IPicker3D
+    private sealed class Ahead(int id) : IPicker3D
     {
-        public long Id { get; set; } = id;
+        public int Id { get; set; } = id;
         public PickFilter Kind => PickFilter.EntityParts;
         public bool TryPick(Vector3 origin, Vector3 direction, float maxDistance, out PickResult hit)
         {
@@ -66,12 +66,12 @@ public sealed partial class PossessionStationTests
             W.SetSingletonManaged(Map);
             W.SetSingletonManaged<ITkbDatabase>(_db);
             Me = Soldier(Vector3.Zero, 100f, 4242);
-            W.AddComponent(Me, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            W.AddComponent(Me, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
         }
 
         public void Dispose() => W.Dispose();
 
-        public Entity OfType(string name, Vector3 at, long netId, CarrierDefDto? carrier = null, WeaponSystemDto? weapon = null, InjuryDefDto? injury = null)
+        public Entity OfType(string name, Vector3 at, int netId, CarrierDefDto? carrier = null, WeaponSystemDto? weapon = null, InjuryDefDto? injury = null)
         {
             var e = W.CreateEntity();
             W.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
@@ -92,7 +92,7 @@ public sealed partial class PossessionStationTests
             return e;
         }
 
-        public Entity Soldier(Vector3 at, float health, long netId)
+        public Entity Soldier(Vector3 at, float health, int netId)
         {
             var e = OfType("Rifleman", at, netId, CarrierDefDto.PersonCarrier(), injury: new InjuryDefDto());
             W.AddComponent(e, new Health { Current = health, Max = 100f });
@@ -100,15 +100,15 @@ public sealed partial class PossessionStationTests
             return e;
         }
 
-        public Entity Vehicle(Vector3 at, long netId) => OfType("BMP-2", at, netId, new CarrierDefDto
+        public Entity Vehicle(Vector3 at, int netId) => OfType("BMP-2", at, netId, new CarrierDefDto
         {
             Seats = { new SeatDto { Role = SeatRole.Driver }, new SeatDto { Role = SeatRole.Passenger } },
         });
 
-        public Entity Tripod(Vector3 at, long netId) => OfType("ZU-23-2", at, netId,
+        public Entity Tripod(Vector3 at, int netId) => OfType("ZU-23-2", at, netId,
             new CarrierDefDto { Seats = { new SeatDto { Role = SeatRole.Gunner } } }, new WeaponSystemDto { NeedsOperator = true });
 
-        public Entity Door(Vector3 at, TerrainDoorState state, long netId)
+        public Entity Door(Vector3 at, TerrainDoorState state, int netId)
         {
             var d = W.CreateEntity();
             W.AddComponent(d, new SimTransform { Position = at, Rotation = Quaternion.Identity });
@@ -136,7 +136,7 @@ public sealed partial class PossessionStationTests
         }
     }
 
-    private static (PossessionStation Station, MapViewSwitch Switch, Ahead Crosshair) Station(UseWorld u, long aimAt)
+    private static (PossessionStation Station, MapViewSwitch Switch, Ahead Crosshair) Station(UseWorld u, int aimAt)
     {
         var (_, sw, _) = Map();
         var crosshair = new Ahead(aimAt);
@@ -372,7 +372,7 @@ public sealed partial class PossessionStationTests
         Assert.True(orders.Possess(4343).Accepted);
         u.ApplyPossession();
         Assert.False(u.W.HasComponent<PossessedBy>(u.Me));
-        Assert.Equal(other, PossessionStation.HeldHere(u.W, out long id));
+        Assert.Equal(other, PossessionStation.HeldHere(u.W, out int id));
         Assert.Equal(4343L, id);
 
         Assert.True(orders.Possess(4343, PossessionMode.Riding).Accepted);
@@ -382,7 +382,7 @@ public sealed partial class PossessionStationTests
         Assert.Equal(PossessionMode.Riding, u.W.GetComponentRO<PossessedBy>(other).Mode);   // the rider stays held
         Assert.Equal(third, PossessionStation.HeldHere(u.W, out _));
 
-        u.W.SetComponent(third, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Riding, Epoch = 9 });
+        u.W.SetComponent(third, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Riding, Epoch = 9 });
         Assert.Equal(Entity.Null, PossessionStation.HeldHere(u.W, out _));     // only riders: nothing to drive
     }
 
@@ -398,7 +398,7 @@ public sealed partial class PossessionStationTests
     {
         using var u = new UseWorld();
         var theirs = u.Soldier(new Vector3(5f, 0f, 0f), 100f, 4343);
-        u.W.AddComponent(theirs, new PossessedBy { StationNodeId = 77, Mode = PossessionMode.Fps, Epoch = 1 });
+        u.W.AddComponent(theirs, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(77), Mode = PossessionMode.Fps, Epoch = 1 });
         u.Soldier(new Vector3(6f, 0f, 0f), 100f, 4444);
         var orders = new EntityOrders(u.W, u.Map, geo: null);
 
@@ -409,7 +409,7 @@ public sealed partial class PossessionStationTests
         u.W.Bus.SwapBuffers();
         Assert.Equal(0, u.W.Bus.IsRegistered<PossessRequestEvent>() ? u.W.Bus.Read<PossessRequestEvent>().ToArray().Length : 0);   // no request
         Assert.Equal(0, u.W.Bus.IsRegistered<ReleasePossessionEvent>() ? u.W.Bus.Read<ReleasePossessionEvent>().ToArray().Length : 0);   // nothing let go
-        Assert.Equal(77L, orders.HolderOf(4343));
+        Assert.Equal(77, orders.HolderOf(4343));
 
         Assert.True(orders.Possess(4242, PossessionMode.Riding).Accepted);      // my own unit: my own mode change
         Assert.True(orders.Possess(4444).Accepted);                              // a free unit: as ever
@@ -424,12 +424,12 @@ public sealed partial class PossessionStationTests
     {
         using var u = new UseWorld();
         u.W.AddComponent(u.Me, new EntityInfo { ForceId = ForceId.Friend });      // this station is a blue player
-        Entity Rider(long netId, ForceId side, long station, Entity vehicle)
+        Entity Rider(int netId, ForceId side, int station, Entity vehicle)
         {
             var r = u.Soldier(new Vector3(8f, 1f, 0f), 100f, netId);
             u.W.AddComponent(r, new EntityInfo { ForceId = side });
             Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(u.W, r, vehicle));
-            u.W.AddComponent(r, new PossessedBy { StationNodeId = station, Mode = PossessionMode.Fps, Epoch = 1 });
+            u.W.AddComponent(r, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(station), Mode = PossessionMode.Fps, Epoch = 1 });
             return r;
         }
         var redTank = u.Vehicle(new Vector3(8f, 0f, 0f), 5001);

@@ -73,8 +73,8 @@ namespace Fdp.Examples.Scenarios.Physics
         private readonly NetworkEntityMap _entityMap = new NetworkEntityMap();
 
         // Network IDs assigned to shooter and target.
-        private const long ShooterNetId = 1L;
-        private const long TargetNetId  = 2L;
+        private const int ShooterNetId = 1;
+        private const int TargetNetId  = 2;
 
         // ── Observable state for test assertions ──────────────────────────────
 

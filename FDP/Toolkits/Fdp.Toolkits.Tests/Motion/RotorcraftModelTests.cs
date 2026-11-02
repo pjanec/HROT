@@ -232,18 +232,18 @@ namespace Fdp.Toolkit.Tests.Motion
             var ground = Drone(new Vector3(0, 0, 0), LocomotionClass.Wheeled);
             _w.SetComponent(ground, new NavigationIntent { Mode = NavigationMode.DirectPoint, FinalDestination = new Vector3(100, 0, 0), TargetSpeed = 10 });
             Run(10);
-            Assert.Equal(Vector3.Zero, _w.GetComponent<SimTransform>(ground).Position);
+            Assert.Equal<System.Numerics.Vector3>(Vector3.Zero, _w.GetComponent<SimTransform>(ground).Position);
 
             var drone = Drone(new Vector3(0, 0, 10));
             _w.SetComponent(drone, new SimVelocity { Linear = new Vector3(5, 0, 0) });
             new LinearKinematicsSystem().Execute(_w, 1f);
-            Assert.Equal(new Vector3(0, 0, 10), _w.GetComponent<SimTransform>(drone).Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(0, 0, 10), _w.GetComponent<SimTransform>(drone).Position);
 
             // ⭐ Air Ops slice 4 — MD-H's FixedWing row is built (FixedWingModel): a plane is moved, not refused
             var plane = Drone(new Vector3(0, 0, 100), LocomotionClass.FixedWing);
             Run(1);
             Assert.IsType<FixedWingModel>(MotionModelTable.Model(LocomotionClass.FixedWing));
-            Assert.NotEqual(new Vector3(0, 0, 100), _w.GetComponent<SimTransform>(plane).Position);
+            Assert.NotEqual<System.Numerics.Vector3>(new Vector3(0, 0, 100), _w.GetComponent<SimTransform>(plane).Position);
             Assert.Throws<NotSupportedException>(() => MotionModelTable.Model(LocomotionClass.Surface));
             Assert.Null(MotionModelTable.Model(LocomotionClass.Tracked));   // v1: the ground still runs CarKinematics
             Assert.Equal(MotionDomain.Air, Locomotions.DomainOf(LocomotionClass.Rotorcraft));
@@ -258,8 +258,8 @@ namespace Fdp.Toolkit.Tests.Motion
         private sealed class Routes : IRouteSource
         {
             public readonly System.Collections.Generic.List<NavRouteWaypoint> Waypoints = new();
-            public bool TryGetTrajectory(EntityRepository repo, long routeNetworkId, out int trajectoryId) { trajectoryId = 0; return false; }
-            public bool TryGetRoute(EntityRepository repo, long routeNetworkId, System.Collections.Generic.List<NavRouteWaypoint> into, out bool loop, out int version)
+            public bool TryGetTrajectory(EntityRepository repo, int routeNetworkId, out int trajectoryId) { trajectoryId = 0; return false; }
+            public bool TryGetRoute(EntityRepository repo, int routeNetworkId, System.Collections.Generic.List<NavRouteWaypoint> into, out bool loop, out int version)
             {
                 into.Clear(); into.AddRange(Waypoints); loop = false; version = 1;
                 return into.Count > 0;
@@ -288,13 +288,13 @@ namespace Fdp.Toolkit.Tests.Motion
             var e = Drone(at);
             _w.SetComponent(e, FlightParams.From(new FlightParamsDto { MaxSpeedMps = 40f, ClimbMps = 8f, HoverHeightM = 30f, TurnRadiusM = 60f }));
             _w.SetComponent(e, new FlightState { Airborne = (byte)(onTheGround ? 0 : 1) });
-            _w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = HeliType });
+            _w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(HeliType) });
             var routes = new Routes();
             return (e, new AirMotionSystem { RouteSource = routes }, routes);
         }
 
         private static NavRouteWaypoint Wp(float x, float y, RouteWaypointKind kind = RouteWaypointKind.Pass, RouteHold hold = RouteHold.None)
-            => new(new Vector3(x, y, 0f), 0f, kind, 0f, hold, 0f, 0L);
+            => new(new Vector3(x, y, 0f), 0f, kind, 0f, hold, 0f, 0);
 
         private void Order(Entity e) => _w.SetComponent(e, new NavigationIntent { Mode = NavigationMode.FollowRoute, IntentId = 1, RouteEntityId = 900 });
 
@@ -469,7 +469,7 @@ namespace Fdp.Toolkit.Tests.Motion
         public void B3_ARopeHoldHigherThanItsRope_IsRefused_AndFlownThrough()
         {
             var (heli, air, routes) = Heli(new Vector3(0, 0, 30), onTheGround: false, new CarrierDefDto { RopeLengthM = 20f });
-            routes.Waypoints.AddRange(new[] { Wp(0, 0), new NavRouteWaypoint(new Vector3(200, 0, 0), 0f, RouteWaypointKind.Pass, 30f, RouteHold.Rope, 0f, 0L), Wp(400, 0) });
+            routes.Waypoints.AddRange(new[] { Wp(0, 0), new NavRouteWaypoint(new Vector3(200, 0, 0), 0f, RouteWaypointKind.Pass, 30f, RouteHold.Rope, 0f, 0), Wp(400, 0) });
             Order(heli);
             var seen = new System.Collections.Generic.HashSet<NavigationPhase>();
             for (int i = 0; i < 60 * 60 && _w.GetComponent<NavigationStatus>(heli).Result != NavigationResult.Arrived; i++)

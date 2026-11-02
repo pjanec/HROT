@@ -108,7 +108,7 @@ public sealed class SelectionInteractionSystem
             //     payload is gone.
             //   ⚠ Entity.Null still means "empty space" and still starts a rubber band: an AnchorId of
             //     0 or -1 (the canvas sentinel) resolves to nothing, which is the same signal.
-            var entity = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(
+            var entity = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveAnchorId(
                 _world, evt.Token.AnchorId);
 
             // ⭐⭐⭐ UXI-11 S-4b — §2.3's rows are BUTTON-SPECIFIC, so this is where the two gestures

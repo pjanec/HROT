@@ -95,7 +95,7 @@ namespace Hrot.SimHost.Serializers
                 Entity resolved = resolver.Resolve(guidStr);
                 if (resolved.IsNull || !repo.IsAlive(resolved)) continue;
                 if (!repo.HasComponent<NetworkIdentity>(resolved)) continue;
-                long networkId = repo.GetComponent<NetworkIdentity>(resolved).Value;
+                int networkId = repo.GetComponent<NetworkIdentity>(resolved).Value;
 
                 intent.Entries.Add(new TargetEntry
                 {

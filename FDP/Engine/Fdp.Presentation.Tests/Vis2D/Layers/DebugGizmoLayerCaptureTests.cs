@@ -37,7 +37,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         public void SC_B28_4_ExclusiveBinding_CarriesAnchorAndFlags()
         {
             var prim = DebugPrimitive.MakeInputCaptureBinding(
-                networkId: 90210L, subElementId: 2, exclusive: true, wantsRawInput: true);
+                networkId: 90210, subElementId: 2, exclusive: true, wantsRawInput: true);
 
             Assert.Equal(DebugPrimitiveShape.InputCaptureBinding, prim.Shape);
             Assert.Equal(90210L, prim.StructNetworkId);
@@ -52,7 +52,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         public void SC_B28_5_NonExclusiveBinding_LeavesTheExclusiveBitClear()
         {
             var prim = DebugPrimitive.MakeInputCaptureBinding(
-                networkId: 90210L, subElementId: 0, exclusive: false, wantsRawInput: false);
+                networkId: 90210, subElementId: 0, exclusive: false, wantsRawInput: false);
 
             Assert.Equal(0u, prim.ConditionMask & 1u);
             Assert.Equal(0u, prim.ConditionMask & 2u);

@@ -52,10 +52,10 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 if (c.EntityId == -1L) continue;
                 var at = new Vector3(c.PositionX, c.PositionY, c.PositionZ);
                 var d = new Vector2(toward.X - at.X, toward.Y - at.Y);
-                if (d.LengthSquared() < 1e-4f) { c.EntityId = -1L; continue; }
+                if (d.LengthSquared() < 1e-4f) { c.EntityId = -1; continue; }
                 d = Vector2.Normalize(d) * ReachMetres;
                 var from = at + new Vector3(0f, 0f, HeightMetres);
-                if (los.HasLineOfSight(from, from + new Vector3(d.X, d.Y, 0f))) c.EntityId = -1L;   // nothing in front of him
+                if (los.HasLineOfSight(from, from + new Vector3(d.X, d.Y, 0f))) c.EntityId = -1;   // nothing in front of him
             }
         }
     }

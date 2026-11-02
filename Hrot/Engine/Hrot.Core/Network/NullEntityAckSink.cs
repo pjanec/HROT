@@ -17,5 +17,5 @@ public sealed class NullEntityAckSink : IEntityAckSink
 {
     /// <inheritdoc/>
     /// <remarks>No-op: offline mode has no recipient for ACK messages.</remarks>
-    public void WriteAck(Guid requestId, long entityId, EntityOperationStatus status) { }
+    public void WriteAck(Guid requestId, int entityId, EntityOperationStatus status) { }
 }

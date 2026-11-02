@@ -78,7 +78,7 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
             Assert.Equal(NavigationMode.PathToPoint, intent.Mode);    // ⭐ CE-3026 — planned, never straight
             Assert.Equal((uint)NavLayerMask.Vehicle, intent.LayerMask);              // ⭐ rides the intent across the wire
             Assert.Equal((byte)NavigationBackend.Navmesh, intent.BackendForce);
-            Assert.Equal(new Vector3(destination.X, destination.Y, 0f), intent.FinalDestination); // raw Cartesian copy
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(destination.X, destination.Y, 0f), intent.FinalDestination); // raw Cartesian copy
             Assert.Equal(15f, intent.TargetSpeed);
             Assert.Equal(5f,  intent.ArrivalRadius);
             Assert.Equal(NodeStatus.Running, channel.Status);

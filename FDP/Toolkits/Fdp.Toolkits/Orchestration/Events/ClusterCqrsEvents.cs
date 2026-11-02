@@ -44,7 +44,7 @@ namespace Fdp.Toolkit.Orchestration
     public struct ExecuteNodeOpIntent
     {
         public Guid TransactionId;
-        public int TargetNodeId;
+        public NodeId TargetNodeId;
         public NodeOpType Operation;
         /// <summary>
         /// Strongly-typed payload struct (e.g. <c>TransitionNodePayload</c>).
@@ -65,7 +65,7 @@ namespace Fdp.Toolkit.Orchestration
     {
         public Guid TransactionId;
         public NodeOpType Operation;
-        public int NodeId;
+        public NodeId NodeId;
         public OrchestrationStatusCode StatusCode;
         public bool IsParticipating;
         /// <summary>
@@ -87,7 +87,7 @@ namespace Fdp.Toolkit.Orchestration
     [DataPolicy(DataPolicy.NoReplay)]
     public struct NodeHeartbeatEvent
     {
-        public int    NodeId;
+        public NodeId    NodeId;
         public int    LocalStateId;
         public long   WallTicksUtc;
         public string SubsystemName;
@@ -119,7 +119,7 @@ namespace Fdp.Toolkit.Orchestration
     [DataPolicy(DataPolicy.NoReplay)]
     public struct NodeCapabilitiesEvent
     {
-        public int      NodeId;
+        public NodeId      NodeId;
         public string[] Capabilities;
     }
 
@@ -217,7 +217,7 @@ namespace Fdp.Toolkit.Orchestration
     {
         public string ComputerName;
         public int ProcessId;
-        public int NodeId;
+        public NodeId NodeId;
         public System.Guid SessionId;
         public bool Refused;
         public string Reason;

@@ -272,7 +272,9 @@ public class TheHeadingConversionIsSharedTests
     /// </summary>
     private static readonly HashSet<string> Allowed = new(StringComparer.Ordinal)
     {
-        "SimTransformBridgeSystem.cs",              // ⭐ the ONE canonical conversion (and its inverse)
+        "WorldRotation.cs",                         // ⭐ the ONE canonical conversion (and its inverse) — S0 moved it down into Fdp.Core
+                                                    //   (DESIGN_Scenario_Rules §9.8.11); SimTransformBridgeSystem now ROUTES to it, so it is no
+                                                    //   longer allowed: a formula reappearing there would be a second copy again
     };
 
     // ══ helpers ══════════════════════════════════════════════════════════════════

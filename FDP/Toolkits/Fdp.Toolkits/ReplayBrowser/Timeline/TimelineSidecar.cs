@@ -75,7 +75,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
                         }
                     }
                     // ⭐ CE-4059 — the position track: per unit (ascending id) its sample count and samples
-                    var units = new List<long>(index.Positions.UnitIds);
+                    var units = new List<int>(index.Positions.UnitIds);
                     units.Sort();
                     w.Write(units.Count);
                     foreach (var unit in units)
@@ -123,14 +123,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
                     hashes[id] = r.ReadString();
                     var events = new TimelineEvent[r.ReadInt32()];
                     for (int i = 0; i < events.Length; i++)
-                        events[i] = new TimelineEvent(r.ReadInt32(), id, r.ReadInt64(), r.ReadInt64(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
+                        events[i] = new TimelineEvent(r.ReadInt32(), id, r.ReadInt32(), r.ReadInt64(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
                     lanes[id] = events;
                 }
                 int unitCount = r.ReadInt32();
-                var units = new Dictionary<long, PositionSample[]>(unitCount);
+                var units = new Dictionary<int, PositionSample[]>(unitCount);
                 for (int u = 0; u < unitCount; u++)
                 {
-                    long unit = r.ReadInt64();
+                    int unit = r.ReadInt32();
                     var samples = new PositionSample[r.ReadInt32()];
                     for (int i = 0; i < samples.Length; i++)
                         samples[i] = new PositionSample(r.ReadInt32(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle());

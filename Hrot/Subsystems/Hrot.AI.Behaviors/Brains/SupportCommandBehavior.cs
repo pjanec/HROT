@@ -90,7 +90,7 @@ namespace Hrot.AI.Behaviors.Brains
                     if (!plane.IsNull)
                     {
                         CommandOrders.Order(world, self, plane, nameof(OrderKind.Strike),
-                            JsonSerializer.Serialize(new StrikeOrder { Location = OrderGeo.ToGeo(world, aa) }, json), newOrder: true);
+                            JsonSerializer.Serialize(new StrikeOrder { Location = aa }, json), newOrder: true);
                         ws.AirDefenceStrikes++;
                     }
                 }
@@ -100,10 +100,10 @@ namespace Hrot.AI.Behaviors.Brains
                     var battery = heli.IsNull ? Free(world, self, SupportAsset.Battery, Entity.Null) : Entity.Null;
                     if (!heli.IsNull)
                         CommandOrders.Assign(world, self, heli, BehaviorNames.AirArmedSearch,
-                            JsonSerializer.Serialize(new AirArmedSearchOrder { Location = OrderGeo.ToGeo(world, point) }, json), newOrder: true);
+                            JsonSerializer.Serialize(new AirArmedSearchOrder { Location = point }, json), newOrder: true);
                     else if (!battery.IsNull)
                         CommandOrders.Order(world, self, battery, nameof(OrderKind.Strike),
-                            JsonSerializer.Serialize(new StrikeOrder { Location = OrderGeo.ToGeo(world, point), Method = FireMissionMethod.FireForEffect }, json),
+                            JsonSerializer.Serialize(new StrikeOrder { Location = point, Method = FireMissionMethod.FireForEffect }, json),
                             newOrder: true);
                     if (!heli.IsNull || !battery.IsNull)
                     {
@@ -210,7 +210,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>A roster member whose picture id is <paramref name="netId"/> (a world with no network: its handle).</summary>
-        private static Entity SubordinateByNetId(EntityRepository world, Entity self, long netId)
+        private static Entity SubordinateByNetId(EntityRepository world, Entity self, int netId)
         {
             if (!world.HasComponent<UnitRoster>(self)) return Entity.Null;
             ref readonly var roster = ref world.GetComponentRO<UnitRoster>(self);

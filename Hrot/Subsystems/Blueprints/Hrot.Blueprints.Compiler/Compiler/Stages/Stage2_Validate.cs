@@ -1334,7 +1334,9 @@ internal sealed class V_WhenNodeRules : IValidator
             bool isFloatingPoint = resolvedType == typeof(float)
                 || resolvedType == typeof(double)
                 || resolvedType == typeof(System.Numerics.Vector2)
-                || resolvedType == typeof(System.Numerics.Vector3);
+                || resolvedType == typeof(System.Numerics.Vector3)
+                // ⭐ S0 item 6 — the semantic value types (Fdp.Core is not referenced here, so by NAME): a place / compass bearing is a float aggregate as its storage type is
+                || resolvedType?.FullName is "Fdp.Core.WorldPoint" or "Fdp.Core.Bearing" or "Fdp.Core.WorldRotation";
             if (resolvedType != null && !isFloatingPoint)
                 ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP2014,
                     "WhenNode ValueChanged: Epsilon is non-zero. "

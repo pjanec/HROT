@@ -96,7 +96,7 @@ public sealed class NodeOpMasterTranslator
             {
                 TransactionId   = status.TransactionId,
                 Operation       = fdpOp,
-                NodeId          = status.NodeId,
+                NodeId          = (Fdp.Core.NodeId)(status.NodeId),
                 StatusCode      = statusCode,
                 IsParticipating = status.IsParticipating,
                 ResultPayload   = resultPayload,

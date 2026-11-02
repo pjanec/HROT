@@ -100,7 +100,7 @@ internal sealed class LookAtChannelIntentEgressTranslator : INetworkTranslator
             if (ch.ActiveAction == LookAtActionIds.LookAtEntity)
             {
                 var p = (LookAtEntityParams*)pMsg->ActionParams;
-                long targetNetId = 0;
+                int targetNetId = 0;
                 bool mapped = view is EntityRepository repo && repo.GetEntityByIndex((int)p->TargetEntityId) is var target
                               && repo.IsAlive(target) && _entityMap.TryGetNetworkId(target, out targetNetId);
                 if (!mapped)

@@ -63,7 +63,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
         /// <summary>Seconds between answers (0 = the solver's default).</summary>
         public float RefreshSeconds;
         /// <summary>The route's end for <see cref="DangerRouteSource.ToPoint"/>.</summary>
-        public Vector3 RoutePoint;
+        public Fdp.Core.WorldPoint RoutePoint;   // ⭐ S0 item 8 — a world place (the nested scan found it)
         /// <summary>The planned route for <see cref="DangerRouteSource.Handle"/>.</summary>
         public uint RouteHandle;
         /// <summary>
@@ -79,7 +79,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
         };
 
         /// <summary>Watch the route from the unit to <paramref name="point"/> (see <see cref="DangerRouteSource.ToPoint"/>).</summary>
-        public static DangerAreaSettings ToPoint(Vector3 point)
+        public static DangerAreaSettings ToPoint(Fdp.Core.WorldPoint point)
         {
             var s = Default;
             s.RouteSource = DangerRouteSource.ToPoint;

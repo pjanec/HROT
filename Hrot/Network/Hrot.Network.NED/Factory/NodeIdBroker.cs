@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Threading;
 using CycloneDDS.Runtime;
 using Hrot.NED.Descriptors.Orchestration;
+using Fdp.Core;
 
 namespace Hrot.Network.NED.Factory;
 
@@ -14,7 +15,7 @@ namespace Hrot.Network.NED.Factory;
 public static class NodeIdBroker
 {
     /// <summary>The master's answer.</summary>
-    public readonly record struct Grant(int NodeId, Guid SessionId, bool Refused, string Reason);
+    public readonly record struct Grant(NodeId NodeId, Guid SessionId, bool Refused, string Reason);
 
     public static Grant AwaitGrant(uint domainId, int forcedId, int preferredId, Action<string> log, CancellationToken ct = default)
     {
@@ -43,7 +44,7 @@ public static class NodeIdBroker
                     if (!sample.IsValid) continue;
                     var g = sample.Data;
                     if (g.ComputerHash != hash || g.ProcessId != pid) continue;   // another process's answer
-                    return new Grant(g.NodeId, g.SessionId, g.Refused, g.Reason ?? string.Empty);
+                    return new Grant((Fdp.Core.NodeId)(g.NodeId), g.SessionId, g.Refused, g.Reason ?? string.Empty);
                 }
 
             if (sinceLog.Elapsed.TotalSeconds >= 5)

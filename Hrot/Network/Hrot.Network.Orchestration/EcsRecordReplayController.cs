@@ -75,7 +75,7 @@ namespace Hrot.SimHost.Modules.Orchestration
         }
 
         private readonly ModuleHostKernel _kernel;
-        private readonly int              _nodeId;
+        private readonly NodeId              _nodeId;
         private readonly EntityRepository _repo;
         private readonly Action?          _afterSeek;
 
@@ -96,7 +96,7 @@ namespace Hrot.SimHost.Modules.Orchestration
         public bool IsReplayActive => _activeReplayModule != null;
 
         /// <inheritdoc />
-        public long ActiveMaxNetworkId => _activeReplayModule?.MaxNetworkId ?? 0;
+        public int ActiveMaxNetworkId => _activeReplayModule?.MaxNetworkId ?? 0;
 
         /// <inheritdoc />
         public long ActiveRecordingStartWallTicks => _activeReplayModule?.RecordingStartWallTicks ?? 0;
@@ -220,7 +220,7 @@ namespace Hrot.SimHost.Modules.Orchestration
         {
             _kernel    = kernel ?? throw new ArgumentNullException(nameof(kernel));
             _repo      = repo   ?? throw new ArgumentNullException(nameof(repo));
-            _nodeId    = nodeId;
+            _nodeId    = (Fdp.Core.NodeId)(nodeId);
             Fdp.Toolkit.Replay.ReplayState.Ensure(_repo);   // ⭐ CE-3329 P2 — created here, on the composing thread; prepare only flips it
 
             // Unify NetworkEntityMap resync for all subsystems (Editor, SimHost, CGF, etc.)
@@ -295,7 +295,7 @@ namespace Hrot.SimHost.Modules.Orchestration
         /// Highest network entity ID used during the recording session.  Pass <c>0</c> (or omit)
         /// when no network map is available (e.g. offline / test scenarios).
         /// </param>
-        public async Task FinalizeRecordingAsync(long maxNetworkId = 0)
+        public async Task FinalizeRecordingAsync(int maxNetworkId = 0)
         {
             if (_activeRecordingModule == null)
             {
@@ -325,7 +325,7 @@ namespace Hrot.SimHost.Modules.Orchestration
                 FilePath     = filePath,
                 EntityFilter = BuildEpisodeFilter(episodeId),
                 ExerciseId      = episodeId,
-                NodeId = 0,
+                NodeId = (Fdp.Core.NodeId)(0),
             };
             var module = new EpisodeRecorderModule(config);
             _episodeModules[episodeId] = module;

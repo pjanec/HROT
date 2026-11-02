@@ -46,12 +46,12 @@ namespace Hrot.IG.Systems;
 public class StyleResolutionSystem : IEcsModuleSystem
 {
     private readonly MapUserConfig _userConfig;
-    private readonly long _localNodeId;
+    private readonly NodeId _localNodeId;
 
-    public StyleResolutionSystem(MapUserConfig userConfig, long localNodeId = 0)
+    public StyleResolutionSystem(MapUserConfig userConfig, int localNodeId = 0)
     {
         _userConfig = userConfig ?? throw new ArgumentNullException(nameof(userConfig));
-        _localNodeId = localNodeId;
+        _localNodeId = (Fdp.Core.NodeId)(localNodeId);
     }
 
     /// <inheritdoc/>

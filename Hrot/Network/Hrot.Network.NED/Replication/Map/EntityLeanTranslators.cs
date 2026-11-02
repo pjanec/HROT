@@ -19,7 +19,7 @@ namespace Hrot.Map.Common.Replication.Egress
     public sealed class EntityLeanEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<EntityLean>? _writer;
-        private readonly Dictionary<long, EntityLean> _last = new();
+        private readonly Dictionary<int, EntityLean> _last = new();
         private int _worldEpoch;
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.Lean };
@@ -49,7 +49,7 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var unit in view.Query().With<Lean>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(unit, packedKey)) continue;
-                long netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
                 var sample = ToSample(netId, view.GetComponentRO<Lean>(unit));
                 if (_last.TryGetValue(netId, out var prev) && prev.Equals(sample)) continue;
                 _last[netId] = sample;
@@ -59,13 +59,13 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>The wire form (the test seam).</summary>
-        internal static EntityLean ToSample(long netId, in Lean c)
+        internal static EntityLean ToSample(int netId, in Lean c)
             => new() { EntityId = netId, Side = (byte)c.Side, Depth = c.Depth };
 
-        public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityLean { EntityId = networkEntityId });
         }
@@ -122,6 +122,6 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

@@ -20,12 +20,12 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The legs' ends, in order (sim metres; ≤ <see cref="MaxLegs"/>). Win over <see cref="Route"/> when both are set.</summary>
         [JsonPropertyName("Legs")]
-        public Vector3[]? Legs;
+        public Fdp.Toolkit.Replication.PointLink[]? Legs;
 
         /// <summary>A route entity whose waypoints are the legs (used when <see cref="Legs"/> is empty).</summary>
         [JsonPropertyName("Route")]
         [MapPickableEntity("road_graphs")]
-        public EntityRef Route;
+        public EntityLink Route;
 
         /// <summary>The squads' marching speed (m/s); 0 = 1.5.</summary>
         [JsonPropertyName("Speed")]

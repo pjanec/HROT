@@ -69,7 +69,7 @@ namespace Hrot.Editor.DebugApi
         /// no-op). Params attached here now survive save→reload (MX-031/032).</para>
         /// </remarks>
         public (JsonNode? result, string? error, string? hintCategory) AttachBlueprint(
-            long networkId, string? blueprint, string? paramsJson)
+            int networkId, string? blueprint, string? paramsJson)
         {
             if (!TryResolveBlueprint(networkId, blueprint, out var entity, out int blueprintId,
                                      out var def, out var error, out var hint))
@@ -133,7 +133,7 @@ namespace Hrot.Editor.DebugApi
         /// Run-state-aware, exactly as <see cref="AttachBlueprint"/>. Must run on the main thread.
         /// </summary>
         public (JsonNode? result, string? error, string? hintCategory) DetachBlueprint(
-            long networkId, string? blueprint)
+            int networkId, string? blueprint)
         {
             if (!TryResolveBlueprint(networkId, blueprint, out var entity, out int blueprintId,
                                      out var def, out var error, out var hint))
@@ -180,7 +180,7 @@ namespace Hrot.Editor.DebugApi
         /// (Q61-B/MX-035), read from the same slot table <c>BlueprintStateTranslator.Extract</c> snapshots.
         /// Lets an agent see what it has assigned before editing. Must run on the main thread.
         /// </summary>
-        public (JsonNode? result, string? error, string? hintCategory) GetEntityBlueprints(long networkId)
+        public (JsonNode? result, string? error, string? hintCategory) GetEntityBlueprints(int networkId)
         {
             if (!_entityMap.TryGetEntity(networkId, out var entity))
                 return (null, $"Entity {networkId} not found. List entities with GET /entities.", DebugApiHints.Entity);
@@ -219,7 +219,7 @@ namespace Hrot.Editor.DebugApi
         /// Resolves the entity and the blueprint together — by name, by asset Guid, or by the raw int id.
         /// </summary>
         private bool TryResolveBlueprint(
-            long networkId, string? blueprint, out Entity entity, out int blueprintId,
+            int networkId, string? blueprint, out Entity entity, out int blueprintId,
             out BlueprintDefinition? def, out string error, out string? hintCategory)
         {
             entity      = default;
@@ -321,7 +321,7 @@ namespace Hrot.Editor.DebugApi
         /// same component the full dump returns. A field whose component the entity does not carry is
         /// OMITTED rather than defaulted — a zero position would be indistinguishable from the origin.
         /// </remarks>
-        public (JsonNode? result, string? error, string? hintCategory) GetEntityState(long networkId)
+        public (JsonNode? result, string? error, string? hintCategory) GetEntityState(int networkId)
         {
             if (!_entityMap.TryGetEntity(networkId, out var entity))
                 return (null, $"Entity {networkId} not found.", DebugApiHints.Entity);

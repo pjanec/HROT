@@ -212,7 +212,7 @@ namespace Hrot.AI.Behaviors.Brains
             switch (p.Order)
             {
                 case OrderKind.Move:
-                    json = JsonSerializer.Serialize(new MoveOrder { Location = OrderGeo.ToGeo(world, p.Point), Speed = p.Speed, ArrivalRadius = p.ArrivalRadius },
+                    json = JsonSerializer.Serialize(new MoveOrder { Location = p.Point, Speed = p.Speed, ArrivalRadius = p.ArrivalRadius },
                                                     Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
                     break;
                 case OrderKind.Hold:
@@ -287,7 +287,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (p.Kind != ReportKind.Progress && p.Kind != ReportKind.Request) return NodeStatus.Failure;
             float now = CommandPictureOps.Now(world);
-            var at = world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position : Vector3.Zero;
+            var at = world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position : Fdp.Core.WorldPoint.Zero;
             return ReportQueue.Enqueue(world, self, new CommandReport
             {
                 Kind = p.Kind, Subtype = p.Subtype, Count = p.Count, At = at, ObservedAt = now,

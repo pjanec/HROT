@@ -20,7 +20,7 @@ public sealed class NedIgTranslators : IIgTranslators
         NetworkEntityMap entityMap,
         FdpEventBus bus,
         GhostCreationSystem? ghostCreationSystem,
-        long localNodeId,
+        int localNodeId,
         bool headless)
     {
         // ⭐ CE-1148 S3 (docs/DESIGN_Node_Roles_And_Policies.md §3.5) — the order egress (CE-3169) is no longer built here: the IG

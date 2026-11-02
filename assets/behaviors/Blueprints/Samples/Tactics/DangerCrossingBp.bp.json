@@ -203,7 +203,7 @@
               },
               {
                 "Name": "RoutePoint",
-                "TypeId": "System.Numerics.Vector3"
+                "TypeId": "Fdp.Core.WorldPoint"
               },
               {
                 "Name": "RouteHandle",
@@ -322,7 +322,7 @@
               "Name": "RoutePoint",
               "Direction": "In",
               "TypeRef": {
-                "TypeId": "System.Numerics.Vector3",
+                "TypeId": "Fdp.Core.WorldPoint",
                 "IsArray": false,
                 "GenericArgs": []
               },
@@ -457,7 +457,7 @@
                 },
                 {
                   "Name": "RoutePoint",
-                  "TypeId": "System.Numerics.Vector3"
+                  "TypeId": "Fdp.Core.WorldPoint"
                 },
                 {
                   "Name": "RouteHandle",
@@ -635,7 +635,7 @@
               },
               {
                 "Name": "RoutePoint",
-                "TypeId": "System.Numerics.Vector3"
+                "TypeId": "Fdp.Core.WorldPoint"
               },
               {
                 "Name": "RouteHandle",

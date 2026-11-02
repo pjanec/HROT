@@ -86,7 +86,7 @@ namespace Hrot.SimHost.Tests
             var e = _w.CreateEntity();
             _w.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
             _w.AddComponent(e, new SimVelocity());
-            _w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });
+            _w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             _w.AddComponent(e, new Fdp.Toolkit.Motion.Locomotion { Class = locomotion });
             _w.AddComponent(e, new LocomotionChannel());
             _w.AddComponent(e, new WeaponChannel());
@@ -573,7 +573,7 @@ namespace Hrot.SimHost.Tests
             var e = _w.CreateEntity();
             _w.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
             _w.AddComponent(e, new SimVelocity());
-            _w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = DoorHeli });
+            _w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(DoorHeli) });
             _w.AddComponent(e, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
             _w.AddComponent(e, new LocomotionChannel());
             _w.AddComponent(e, new WeaponChannel());
@@ -592,7 +592,7 @@ namespace Hrot.SimHost.Tests
                 if (gun)
                 {
                     _w.AddComponent(r, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 });
-                    _w.AddComponent(r, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = DoorGun });
+                    _w.AddComponent(r, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(DoorGun) });
                     _w.AddComponent(r, new WeaponState { Ammo = 3000, MuzzleVelocity = DoorGunMuzzle });
                 }
                 else _w.AddComponent(r, new Health { Current = 100f, Max = 100f });

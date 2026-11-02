@@ -10,5 +10,5 @@ namespace Hrot.Common.Events;
 public struct SelectEntityCommand
 {
     /// <summary>Network entity ID to select.</summary>
-    public long NetworkId;
+    public int NetworkId;
 }

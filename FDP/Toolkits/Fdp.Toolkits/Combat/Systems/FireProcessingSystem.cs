@@ -305,7 +305,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 // ⭐ CE-3059 — the shot starts MuzzleOffsetMeters along the aim line (never past half way to the target), so a
                 //   bullet does not spawn inside a squad-mate standing on the shooter's spot. 📐 Measured on the split cluster:
                 //   four dismounted soldiers on one point, 90 rounds, every hit on the squad.
-                var muzzlePos = fromBarrel ? origin
+                var muzzlePos = fromBarrel ? (WorldPoint)origin
                               : shooterPos + direction * MathF.Min(CombatConstants.MuzzleOffsetMeters, delta.Length() * 0.5f);
                 if ((warheadBits & WarheadRound.Arc) != 0) muzzlePos = origin;   // an arc leaves from the hand / tube
 
@@ -475,7 +475,7 @@ namespace Fdp.Toolkit.Combat.Systems
             var db = repo.GetSingletonManaged<ITkbDatabase>();
             if (db == null || !db.TryGetByType(munitionType, out var type) || type == null
                 || type.GetDescriptor<Fdp.Toolkit.Tkb.Domain.MunitionVisualDto>() == null) return false;
-            repo.AddComponent(round, new TkbIdentity { TkbType = munitionType });
+            repo.AddComponent(round, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(munitionType) });
             repo.AddComponent(round, default(Fdp.Toolkit.Replication.Components.LightweightRound));
             repo.SetDisType(round, type.DisType);
             if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>())

@@ -34,7 +34,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         private readonly IDdsWriter<DeleteEntityRequest> _writer;
         private readonly FdpEventBus _eventBus;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
         private readonly NetworkEntityMap? _entityMap;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DeleteEntityRequest>();
@@ -48,7 +48,7 @@ namespace Hrot.Map.Common.Replication.Egress
             DdsParticipant participant,
             FdpEventBus eventBus,
             NetworkEntityMap entityMap,
-            long localNodeId = 0)
+            int localNodeId = 0)
             : this(new DdsWriterAdapter<DeleteEntityRequest>(participant), eventBus, localNodeId, entityMap)
         {
         }
@@ -57,12 +57,12 @@ namespace Hrot.Map.Common.Replication.Egress
         internal DestroyEntityCommandEgressTranslator(
             IDdsWriter<DeleteEntityRequest> writer,
             FdpEventBus eventBus,
-            long localNodeId = 0,
+            int localNodeId = 0,
             NetworkEntityMap? entityMap = null)
         {
             _writer   = writer    ?? throw new ArgumentNullException(nameof(writer));
             _eventBus = eventBus  ?? throw new ArgumentNullException(nameof(eventBus));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _entityMap   = entityMap;
         }
 
@@ -100,13 +100,13 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>This node owns the entity's master, so its ELM teardown writes the dispose itself. Unknown ⇒ false (forward).</summary>
-        private bool OwnsMaster(ISimulationView view, long networkId)
+        private bool OwnsMaster(ISimulationView view, int networkId)
             => _entityMap != null && _entityMap.TryGetEntity(networkId, out var entity) && view.IsAlive(entity)
                && view.HasAuthority(entity, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)Hrot.NED.Descriptors.EDescriptorType.dtEntityMaster, 0));
 
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

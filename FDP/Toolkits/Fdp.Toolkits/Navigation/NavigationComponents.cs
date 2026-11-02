@@ -282,7 +282,7 @@ namespace Fdp.Toolkit.Navigation
         public byte ReverseAllowed;
 
         /// <summary>Target position in FDP Cartesian metres (Sim Z-up; Z carried, steering 2D-projected).</summary>
-        public Vector3 FinalDestination;
+        public WorldPoint FinalDestination;
 
         /// <summary>Desired travel speed (m/s).</summary>
         public float TargetSpeed;
@@ -373,7 +373,7 @@ namespace Fdp.Toolkit.Navigation
         /// <see cref="TrajectoryId"/> is a LOCAL pool index that never crosses the wire, so on a split cluster it is 0 and the route was
         /// never driven. 0 = none (the local <see cref="TrajectoryId"/> alone, as before).
         /// </summary>
-        public long RouteEntityId;
+        public int RouteEntityId;
     }
 
     /// <summary>
@@ -504,7 +504,7 @@ namespace Fdp.Toolkit.Navigation
     public struct PreviewWaypoint
     {
         /// <summary>World-space position of the waypoint.</summary>
-        public System.Numerics.Vector3 Position;
+        public Fdp.Core.WorldPoint Position;   // ⭐ S0 item 8 — a world place (the nested scan found it)
 
         /// <summary>How the agent traverses the edge leading to this waypoint.</summary>
         public TraversalKind Traversal;

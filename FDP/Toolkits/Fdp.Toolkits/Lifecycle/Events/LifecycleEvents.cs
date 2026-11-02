@@ -116,9 +116,9 @@ namespace Fdp.Toolkit.Lifecycle.Events
         /// <summary>The entity, on this node. ⚠ When <see cref="Succeeded"/> is false it is already being destroyed.</summary>
         public Entity Entity;
         /// <summary>Its cluster-wide id (<c>NetworkIdentity</c>); 0 when it has none.</summary>
-        public long NetworkId;
+        public int NetworkId;
         /// <summary>Its TKB type (the construction's blueprint id).</summary>
-        public long TkbType;
+        public TkbTypeId TkbType;
         /// <summary>The creation request that made it (<c>CreationRequestId</c>); <see cref="Guid.Empty"/> when none did.</summary>
         public Guid RequestId;
         /// <summary>This node owns it (<c>NetworkAuthority.HasAuthority</c>); true when it carries no authority at all.</summary>
@@ -144,8 +144,8 @@ namespace Fdp.Toolkit.Lifecycle.Events
     {
         /// <summary>The entity's handle on this node — dead when the event is read; for matching only.</summary>
         public Entity Entity;
-        public long NetworkId;
-        public long TkbType;
+        public int NetworkId;
+        public TkbTypeId TkbType;
         public Guid RequestId;
         public bool IsLocallyOwned;
         /// <summary>A module never acked: the teardown timed out and the entity was deleted anyway.</summary>

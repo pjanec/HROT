@@ -116,11 +116,11 @@ public sealed class StrideVisualBindingIntegrationTests : IDisposable
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = tkbType,
+            TkbType            = (Fdp.Core.TkbTypeId)(tkbType),
             InitialComponents  = new List<object>
             {
                 new SimTransform { Position = position },
-                new TkbIdentity  { TkbType = tkbType   },
+                new TkbIdentity  { TkbType = (Fdp.Core.TkbTypeId)(tkbType)   },
             },
         };
     }

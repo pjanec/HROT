@@ -18,7 +18,7 @@ namespace Fdp.Toolkit.Replication.Messages
     {
         public string ClientId = string.Empty;
         
-        public long StartId;
+        public int StartId;
         
         public int Count;
     }

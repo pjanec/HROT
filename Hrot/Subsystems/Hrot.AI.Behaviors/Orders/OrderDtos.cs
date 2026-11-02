@@ -3,7 +3,6 @@ using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 using Fbt.Kernel;
 using Fdp.Toolkit.Replication;
-using Fdp.Toolkit.Behavior.Params;
 using Fdp.Toolkit.Navigation;
 using Hrot.Map.Definitions.Behavior.Orders;
 
@@ -22,7 +21,7 @@ namespace Hrot.AI.Behaviors.Orders
         /// <summary>Where to go (geodetic). ⭐ <c>CE-2148</c> — required: a move without a point is refused.</summary>
         [Required]
         [JsonPropertyName("Location")]
-        public PickableGeoPoint Location;
+        public Fdp.Toolkit.Replication.PointLink Location;
 
         /// <summary>The asked speed (m/s); 0 = the behaviour's default.</summary>
         [JsonPropertyName("Speed")]
@@ -48,7 +47,7 @@ namespace Hrot.AI.Behaviors.Orders
         /// <summary>The entity to attack. ⭐ <c>CE-2148</c> — required.</summary>
         [Required]
         [JsonPropertyName("Target")]
-        public EntityRef Target;
+        public Fdp.Toolkit.Replication.EntityLink Target;
     }
 
     /// <summary>
@@ -74,11 +73,11 @@ namespace Hrot.AI.Behaviors.Orders
         /// <summary>Where to strike (geodetic). Required.</summary>
         [Required]
         [JsonPropertyName("Location")]
-        public PickableGeoPoint Location;
+        public Fdp.Toolkit.Replication.PointLink Location;
 
         /// <summary>An entity at the place to track (optional).</summary>
         [JsonPropertyName("Target")]
-        public EntityRef Target;
+        public Fdp.Toolkit.Replication.EntityLink Target;
 
         // ⭐⭐ CE-2176 IF-2 (IF-D, R-2018; 📄 docs/designs/indirect-fire/DESIGN_Indirect_Fire.md §4) — the FIRE MISSION fields: a battery
         //   or a self-propelled gun reads them; an aircraft reads only Location / Target. A zero field keeps the RTS default
@@ -110,7 +109,7 @@ namespace Hrot.AI.Behaviors.Orders
 
         /// <summary>The observer who called it (IF-3).</summary>
         [JsonPropertyName("Observer")]
-        public EntityRef Observer;
+        public Fdp.Toolkit.Replication.EntityLink Observer;
 
         /// <summary>Fire although friends are within 600 m of the point (FM-5).</summary>
         [JsonPropertyName("DangerClose")]
@@ -147,16 +146,16 @@ namespace Hrot.AI.Behaviors.Orders
         /// <summary>The target (geodetic). Required.</summary>
         [Required]
         [JsonPropertyName("Location")]
-        public PickableGeoPoint Location;
+        public Fdp.Toolkit.Replication.PointLink Location;
 
         /// <summary>An entity at the place to track (optional).</summary>
         [JsonPropertyName("Target")]
-        public EntityRef Target;
+        public Fdp.Toolkit.Replication.EntityLink Target;
 
         /// <summary>The battery (or self-propelled gun) to call. Required.</summary>
         [Required]
         [JsonPropertyName("Battery")]
-        public EntityRef Battery;
+        public Fdp.Toolkit.Replication.EntityLink Battery;
 
         /// <summary>How the observer located the target: the first round's error (map / eye ≈ 150 m, laser ≈ 10 m — IF-F).</summary>
         [JsonPropertyName("Locating")]

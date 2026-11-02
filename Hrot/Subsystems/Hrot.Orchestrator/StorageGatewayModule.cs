@@ -12,6 +12,7 @@ using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Transfer;
 using Hrot.Network.Orchestration;
 using Fdp.Core.Serialization;
+using Fdp.Core;
 
 namespace Hrot.Orchestrator;
 
@@ -21,7 +22,7 @@ namespace Hrot.Orchestrator;
 public sealed record NodeDistributionTarget
 {
     /// <summary>Roster identifier of the target node.</summary>
-    public int NodeId { get; init; }
+    public NodeId NodeId { get; init; }
 
     /// <summary>
     /// Full UNC or local destination path for the pushed file on the target node
@@ -154,9 +155,9 @@ public sealed class StorageGatewayModule
     /// <summary>⭐ The push of ONE file into one directory per target (<c>{dir}/{fileName}</c>).</summary>
     private static Task<TransferStatus> DeliverFileAsync(
         IFileTransferProvider provider, string sourcePath, string fileName,
-        IEnumerable<(int NodeId, string Directory)> targets, CancellationToken ct = default)
+        IEnumerable<(NodeId NodeId, string Directory)> targets, CancellationToken ct = default)
         => DeliverAsync(provider,
-            targets.Select(t => new TransferTarget(t.NodeId, t.Directory)).ToList(),
+            targets.Select(t => new TransferTarget((Fdp.Core.NodeId)(t.NodeId), t.Directory)).ToList(),
             new[] { new TransferItem(sourcePath, fileName) }, ct);
 
     /// <summary>

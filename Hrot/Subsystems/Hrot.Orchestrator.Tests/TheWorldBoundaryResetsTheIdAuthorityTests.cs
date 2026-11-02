@@ -30,8 +30,8 @@ public sealed class TheWorldBoundaryResetsTheIdAuthorityTests
     /// <summary>Records what the master asked of the authority, so both firing AND silence are checkable.</summary>
     private sealed class RecordingAuthority : IWorldIdAuthority
     {
-        public List<long> Resets { get; } = new();
-        public void ResetToBase(long firstId) => Resets.Add(firstId);
+        public List<int> Resets { get; } = new();
+        public void ResetToBase(int firstId) => Resets.Add(firstId);
     }
 
     private static ClusterConfiguration NoMandatoryConfig() => new ClusterConfiguration
@@ -46,13 +46,13 @@ public sealed class TheWorldBoundaryResetsTheIdAuthorityTests
     {
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = 1,
+            NodeId        = (Fdp.Core.NodeId)(1),
             SubsystemName = "SimHost",
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
         });
         // CE-4087 — a scenario load needs a Brain and a MuscleGround node: this one node plays both (the all-in-one case).
-        bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = 1, Capabilities = new[] { Fdp.Core.NodeRoleTokens.Brain, Fdp.Core.NodeRoleTokens.MuscleGround } });
+        bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = (Fdp.Core.NodeId)(1), Capabilities = new[] { Fdp.Core.NodeRoleTokens.Brain, Fdp.Core.NodeRoleTokens.MuscleGround } });
         bus.SwapBuffers();
         master.Tick();
         bus.SwapBuffers();

@@ -97,7 +97,7 @@ namespace Hrot.SimHost.Tests
                 } });
                 db.Register(type);
                 Repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
-                Repo.AddComponent(Unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 77 });
+                Repo.AddComponent(Unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(77) });
                 if (!Repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponMountInfo>())
                     Repo.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponMountInfo>();   // CGF registers it (CgfComponentRegistry)
                 var grenade = Repo.CreateEntity();
@@ -937,7 +937,7 @@ namespace Hrot.SimHost.Tests
 
             var sensor = Fdp.Toolkit.Perception.Sensors.UnitSensors.Of(w.Repo, w.Unit, SensorModality.DangerArea);
             Assert.False(sensor.IsNull, "the tree's first step makes the run's danger sensor");
-            Assert.Equal(new Vector3(300f, 300f, 0f), w.Repo.GetComponentRO<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>(sensor).Settings.RoutePoint);
+            Assert.Equal(new Fdp.Core.WorldPoint(300f, 300f, 0f), w.Repo.GetComponentRO<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>(sensor).Settings.RoutePoint);
             Assert.Equal(new Vector3(300f, 300f, 0f), w.Destination());               // no answer yet: walks
             Assert.Equal(1.5f, Speed(w));
 
@@ -994,7 +994,7 @@ namespace Hrot.SimHost.Tests
             Assert.False(sensor.IsNull, "SpawnSensor(DangerArea) makes the run's sensor");
             var settings = w.Repo.GetComponentRO<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>(sensor).Settings;
             Assert.Equal(Fdp.Toolkit.Squad.DangerArea.DangerRouteSource.ToPoint, settings.RouteSource);   // never the unit's own move
-            Assert.Equal(new Vector3(300f, 300f, 0f), settings.RoutePoint);
+            Assert.Equal(new Fdp.Core.WorldPoint(300f, 300f, 0f), settings.RoutePoint);
             Assert.Equal(new Vector3(300f, 300f, 0f), w.Destination());   // no answer: walks
             Assert.Equal(1.5f, Speed(w));
 
@@ -1071,7 +1071,7 @@ namespace Hrot.SimHost.Tests
             var cfg = w.Repo.GetComponentRO<EqsSensor>(sensor);
             Assert.True(cfg.ContextSlot1.IsNull, "a heard contact is not an entity");
             Assert.Equal(EqsSensor.Point1Bit, cfg.ContextPointMask);
-            Assert.Equal(new Vector3(80f, 20f, 0f), cfg.ContextPoint1);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(80f, 20f, 0f), cfg.ContextPoint1);
             uint epoch = cfg.Epoch;
 
             w.Answer(sensor, 5, -30f, -40f);
@@ -1386,7 +1386,7 @@ namespace Hrot.SimHost.Tests
             StepAt(w, 28.5);
             Assert.Equal(UnderFirePhase.Moving, Reflex(w).Phase);
             Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Stance(w));
-            Assert.Equal(move.Destination, Intent(w).FinalDestination);
+            Assert.Equal<System.Numerics.Vector3>(move.Destination, Intent(w).FinalDestination);
             Assert.Equal(UnderFire.RushSpeed, Intent(w).TargetSpeed);
             Assert.Equal(0u, Reflex(w).HoldIntentId);
 
@@ -1451,7 +1451,7 @@ namespace Hrot.SimHost.Tests
 
             var w = Crawled(new Vector3(0f, 6f, 0f));   // the post: past the berm, in the enemy's view
             Assert.Equal(UnderFirePhase.Moving, Reflex(w).Phase);
-            Assert.Equal(new Vector3(2f, 2.25f, 0f), Intent(w).FinalDestination);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(2f, 2.25f, 0f), Intent(w).FinalDestination);
             Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Stance(w));
 
             var c = Crawled(new Vector3(6f, 0f, 0f));   // the post: on his side of it
@@ -1495,7 +1495,7 @@ namespace Hrot.SimHost.Tests
                 var toShooter = Vector3.Normalize(new Vector3(0f, 100f, 0f) - at);
                 Assert.Equal(0f, Vector3.Dot(off, toShooter), 3);                    // square to the line to the shooter
                 Assert.InRange(off.Length(), UnderFire.ScootMinMetres, UnderFire.ScootMaxMetres);
-                Assert.Equal(Reflex(w).SubTarget, Intent(w).FinalDestination);
+                Assert.Equal<System.Numerics.Vector3>(Reflex(w).SubTarget, Intent(w).FinalDestination);
                 side = MathF.Sign(off.X);
                 // there: down again, his play's move still in hand
                 w.Repo.GetComponentRW<SimTransform>(w.Unit).Position = Reflex(w).SubTarget;
@@ -1648,7 +1648,7 @@ namespace Hrot.SimHost.Tests
             IdleAt(w, Restlessness.StillSeconds + 0.1);
             Assert.NotEqual(before, Intent(w).IntentId);
             Assert.Equal(Settle(w).HoldIntentId, Intent(w).IntentId);       // the reflex's own intent
-            Assert.InRange(Intent(w).FinalDestination.Length(), Restlessness.StepMinMetres - 1e-3f, Restlessness.StepMaxMetres + 1e-3f);
+            Assert.InRange(((System.Numerics.Vector3)Intent(w).FinalDestination).Length(), Restlessness.StepMinMetres - 1e-3f, Restlessness.StepMaxMetres + 1e-3f);
             Assert.Equal(0, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);   // the play's channel untouched
 
             double t = Restlessness.StillSeconds + 0.2;
@@ -1662,7 +1662,7 @@ namespace Hrot.SimHost.Tests
                 Assert.InRange(wait, Restlessness.StandMinSeconds, Restlessness.StandMaxSeconds);
                 IdleAt(w, r.NextAt + 0.01);
                 Assert.Equal(1, Settle(w).Moving);
-                Assert.True(Intent(w).FinalDestination.Length() <= Restlessness.TetherMetres + 1e-3f,
+                Assert.True(((System.Numerics.Vector3)Intent(w).FinalDestination).Length() <= Restlessness.TetherMetres + 1e-3f,
                             $"shift {shift} to {Intent(w).FinalDestination}, past the 3 m tether");
                 t = r.NextAt + 0.02;
             }
@@ -1720,7 +1720,7 @@ namespace Hrot.SimHost.Tests
             Idler(calm, Fdp.Toolkit.Tkb.Domain.StanceId.Prone);
             IdleAt(calm, 0.0);
             IdleAt(calm, Restlessness.StillSeconds + 0.1);
-            Assert.InRange(Intent(calm).FinalDestination.Length(), Restlessness.CrawlMinMetres - 1e-3f, Restlessness.CrawlMaxMetres + 1e-3f);
+            Assert.InRange(((System.Numerics.Vector3)Intent(calm).FinalDestination).Length(), Restlessness.CrawlMinMetres - 1e-3f, Restlessness.CrawlMaxMetres + 1e-3f);
 
             var shot = new World();
             Idler(shot, Fdp.Toolkit.Tkb.Domain.StanceId.Prone);
@@ -2131,7 +2131,7 @@ namespace Hrot.SimHost.Tests
 
         // ── ⭐ CE-3170 — an ATTACK order: CombatPosture with a designated target (docs/DESIGN_Entity_Control.md C-5) ──────────
 
-        private const long NamedId = 2000;
+        private const int NamedId = 2000;
 
         /// <summary>The enemy an attack order names: alive, on the map at <paramref name="at"/>, known to the node by
         /// <see cref="NamedId"/>, and NOT in the unit's memory yet.</summary>

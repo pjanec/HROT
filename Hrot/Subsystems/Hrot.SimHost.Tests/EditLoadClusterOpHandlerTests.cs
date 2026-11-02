@@ -61,7 +61,7 @@ namespace Hrot.SimHost.Tests
             new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareState,
                 DomainPayload = new EditLoadHandlerPayload(scenarioId, IsNewScenario: isNew),
             };

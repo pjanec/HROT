@@ -4,7 +4,7 @@ build-state: SPLIT — the PREVIEW half (§4c/§4d) is BUILT `2026-08-24`. ⭐�
   one id authority per world, reset to 1000 at world reset, HN-037) is NEW and READY-TO-BUILD, with its
   current-vs-new UML in §11a/§11b. ⛔ §4's items ①–⑤ and §4b's recommendation are the PRE-BUILD preview
   design and are SUPERSEDED where §4c/§4d disagree — do not quote §4 ③/④ or §4b's "pooled allocators opt out".
-updated: 2026-08-24
+updated: 2026-11-02 (CE-4200: entity network ids are 32-bit — see the as-built note under the STATUS block)
 current-answer: TWO halves. PREVIEW (BUILT): §4d — the as-built; §1 requirement, §2b enumeration, §4c approach,
   §5 as-built UML, §6 rails. SCENARIO-LOAD (READY-TO-BUILD): §11 — one authority per world reset to 1000 at
   the world boundary; §11c is the three-reset-policy reconciliation, §11d the lane-tagged change points.
@@ -32,6 +32,8 @@ related-designs:
   - docs/designs/mgmt-1/DESIGN.md — §8.10/§8.5 — what must happen to entity lifecycle during replay; the other rewind trigger.
   - docs/DESIGN_Entity_State_Sourcing.md — the recorded-vs-re-derived principle that decides what a participant may re-derive.
 -->
+
+> ⭐ **AS-BUILT `2026-11-02` — CE-4200: a network id is an `int` (32-bit), engine and wire alike.** Every `long` in the allocator signatures below is `int` now: `INetworkIdAllocator.AllocateId() : int`, `Reset(int startId = 0)`, `IWorldIdAuthority.ResetToBase(int)`, the `BlockIdManager` / `DdsIdAllocator` queues are `Queue<int>`, and `IdRequest` / `IdResponse` `Start` / `Count` are `uint`. ⛔ **An id above `int.MaxValue` is refused LOUDLY, never wrapped:** the one guard `NetworkIdLimit.Checked` (`INetworkIdAllocator.cs`) throws `InvalidOperationException` naming the id, from `SequentialIdAllocator` / `IgSequentialIdAllocator.AllocateId`, `BlockIdManager.AddBlock` (before anything is queued), `DdsIdAllocatorServer.HandleAlloc` (before the high-water mark moves) and the `DdsIdAllocator` client (a block whose last id does not fit). Rails: `EntityMasterTranslatorTests.CE4200_*`. The `long` / `Queue<long>` text further down describes the pre-CE-4200 shapes.
 # DESIGN — **a preview must leave no trace** *(the network-id counter, and what else)*
 
 ## 1. ⭐⭐⭐ THE REQUIREMENT — **user, `2026-08-23`**

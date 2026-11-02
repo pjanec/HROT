@@ -48,13 +48,13 @@ public sealed class RoutingTransferProviderTests
         var dir1 = Path.Combine(NodeRoot(1), "scenarios", "s1");
         var dir2 = Path.Combine(NodeRoot(2), "scenarios", "s1");
         router.Start(new TransferRequest(
-            new[] { new TransferTarget(1, dir1), new TransferTarget(2, dir2) },
+            new[] { new TransferTarget((Fdp.Core.NodeId)(1), dir1), new TransferTarget((Fdp.Core.NodeId)(2), dir2) },
             new[] { new TransferItem("/nas/s1/scenario.json", "scenario.json") }));
 
         var viaShare = Assert.Single(share.Requests);
-        Assert.Equal(new[] { 1 }, viaShare.Targets.Select(t => t.NodeId));
+        Assert.Equal(new[] { 1 }, viaShare.Targets.Select(t => t.NodeId.Value));
         var viaDds = Assert.Single(dds.Requests);
-        Assert.Equal(new[] { 2 }, viaDds.Targets.Select(t => t.NodeId));
+        Assert.Equal(new[] { 2 }, viaDds.Targets.Select(t => t.NodeId.Value));
         Assert.Equal(Path.Combine("scenarios", "s1", "scenario.json"), viaDds.Items.Single().RelativePath);
     }
 
@@ -69,10 +69,10 @@ public sealed class RoutingTransferProviderTests
         var dds = new Spy();
         var router = new RoutingTransferProvider(share, dds, hasShare: _ => false, nodeRootSeenByMaster: NodeRoot,
                                                  canReceiveDds: id => id == 2);
-        router.Start(new TransferRequest(new[] { new TransferTarget(300, NodeRoot(300)), new TransferTarget(2, NodeRoot(2)) },
+        router.Start(new TransferRequest(new[] { new TransferTarget((Fdp.Core.NodeId)(300), NodeRoot(300)), new TransferTarget((Fdp.Core.NodeId)(2), NodeRoot(2)) },
             new[] { new TransferItem("/nas/x", "x") }));
-        Assert.Equal(new[] { 300 }, Assert.Single(share.Requests).Targets.Select(t => t.NodeId));
-        Assert.Equal(new[] { 2 }, Assert.Single(dds.Requests).Targets.Select(t => t.NodeId));
+        Assert.Equal(new[] { 300 }, Assert.Single(share.Requests).Targets.Select(t => t.NodeId.Value));
+        Assert.Equal(new[] { 2 }, Assert.Single(dds.Requests).Targets.Select(t => t.NodeId.Value));
     }
 
     [Fact]
@@ -80,9 +80,9 @@ public sealed class RoutingTransferProviderTests
     {
         var share = new Spy();
         var router = new RoutingTransferProvider(share, dds: null, hasShare: _ => false, nodeRootSeenByMaster: NodeRoot);
-        router.Start(new TransferRequest(new[] { new TransferTarget(1, NodeRoot(1)), new TransferTarget(2, NodeRoot(2)) },
+        router.Start(new TransferRequest(new[] { new TransferTarget((Fdp.Core.NodeId)(1), NodeRoot(1)), new TransferTarget((Fdp.Core.NodeId)(2), NodeRoot(2)) },
             new[] { new TransferItem("/nas/x", "x") }));
-        Assert.Equal(new[] { 1, 2 }, Assert.Single(share.Requests).Targets.Select(t => t.NodeId));
+        Assert.Equal(new[] { 1, 2 }, Assert.Single(share.Requests).Targets.Select(t => t.NodeId.Value));
     }
 
     [Fact]

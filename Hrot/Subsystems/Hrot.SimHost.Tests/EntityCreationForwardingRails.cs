@@ -44,7 +44,7 @@ namespace Hrot.SimHost.Tests
         {
             RequestId          = System.Guid.NewGuid(),
             OwnerAppInstanceId = owner,
-            TkbType            = 42L,
+            TkbType            = (Fdp.Core.TkbTypeId)(42L),
         };
 
         private static (List<EntityCreationRequest> handled, RecordingEgress egress) Drain(

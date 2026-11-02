@@ -111,11 +111,11 @@ public sealed class WeaponSystemsAcrossNodesTests : IDisposable
         int belt0 = cgf.GetComponentRO<WeaponState>(m2).Ammo;
 
         var simMap = harness.SimHost.App.TestHook_EntityMap;
-        Assert.True(simMap.TryGetNetworkId(ByName(sim, "Technical"), out long pickupId));
+        Assert.True(simMap.TryGetNetworkId(ByName(sim, "Technical"), out int pickupId));
         Assert.True(harness.PumpUntil(() => !ByName(sim, "Target").IsNull, timeoutFrames: 600));
-        Assert.True(simMap.TryGetNetworkId(ByName(sim, "Target"), out long targetId));
+        Assert.True(simMap.TryGetNetworkId(ByName(sim, "Target"), out int targetId));
         var cgfMap = harness.Cgf!.GhostEntityMap!;
-        Assert.True(cgfMap.TryGetNetworkId(m2, out long m2Id), "the M2 has a network id");
+        Assert.True(cgfMap.TryGetNetworkId(m2, out int m2Id), "the M2 has a network id");
 
         // ⭐ the pickup's brain on CGF is given FireAtTarget from the MUSCLE node (the order API, R-278's one path) — the library behaviour
         //   that fires its primary at a named target. ⛔ Not the Attack order: for a land platform that runs VehicleFightFromCover
@@ -127,10 +127,10 @@ public sealed class WeaponSystemsAcrossNodesTests : IDisposable
         bool fired = harness.PumpUntil(() =>
         {
             var log = ShotLog.Peek(sim);
-            return log != null && log.Recent(ShotLog.Capacity).Any(s => simMap.TryGetNetworkId(s.Shooter, out long id) && id == m2Id);
+            return log != null && log.Recent(ShotLog.Capacity).Any(s => simMap.TryGetNetworkId(s.Shooter, out int id) && id == m2Id);
         }, timeoutFrames: 3000);
         var shots = ShotLog.Peek(sim)?.Recent(ShotLog.Capacity) ?? Array.Empty<ShotRecord>();
-        _out.WriteLine($"SimHost shots: {shots.Count}; by the M2: {shots.Count(s => simMap.TryGetNetworkId(s.Shooter, out long id) && id == m2Id)}; " +
+        _out.WriteLine($"SimHost shots: {shots.Count}; by the M2: {shots.Count(s => simMap.TryGetNetworkId(s.Shooter, out int id) && id == m2Id)}; " +
                        $"M2 belt on CGF {cgf.GetComponentRO<WeaponState>(m2).Ammo}/{belt0}");
         Diagnose(cgf, sim, pickup, m2, ByName(cgf, "Target"), simMap, m2Id);
         Assert.True(fired, "the round must leave the M2 on the muscle node (SimHost), fired by the pickup's brain on CGF");
@@ -139,7 +139,7 @@ public sealed class WeaponSystemsAcrossNodesTests : IDisposable
     }
 
     /// <summary>Each link of the chain: the brain's weapon row and choice, the M2's fire gate, its turret's task on both nodes.</summary>
-    private void Diagnose(EntityRepository cgf, EntityRepository sim, Entity pickup, Entity m2, Entity target, Fdp.Toolkit.Replication.Services.NetworkEntityMap simMap, long m2Id)
+    private void Diagnose(EntityRepository cgf, EntityRepository sim, Entity pickup, Entity m2, Entity target, Fdp.Toolkit.Replication.Services.NetworkEntityMap simMap, int m2Id)
     {
         if (cgf.HasComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(pickup))
         {

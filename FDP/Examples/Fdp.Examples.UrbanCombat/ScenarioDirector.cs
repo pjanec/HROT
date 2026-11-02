@@ -70,7 +70,7 @@ namespace Fdp.Examples.UrbanCombat
         private readonly IReadOnlyList<ITkbEntityTranslator> _translators;
 
         // Auto-incrementing network ID counter used when _entityMap is provided.
-        private long _nextNetId = 1;
+        private int _nextNetId = 1;
 
         // Cached APC HSM structure hash so the root HSM slot can be pre-initialised (O7c-④).
         private readonly uint _apcHsmStructureHash;

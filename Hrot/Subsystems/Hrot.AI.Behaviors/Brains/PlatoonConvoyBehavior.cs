@@ -35,7 +35,7 @@ namespace Hrot.AI.Behaviors.Brains
         public const byte PhasePlan = 0, PhaseMove = 1, PhaseContact = 2, PhaseSecure = 3, PhaseRemount = 4;
         public const byte VehicleNone = 0, VehicleRoute = 1, VehicleHold = 2;
 
-        public long RouteNet;
+        public int RouteNet;
         public Vector3 RouteEnd;
         public float Speed;
         public float ClearSeconds;
@@ -95,7 +95,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             block.Plan = default;
             block.Keep = default;
-            block.Plan.RouteNet = authored.Route.NetworkId;
+            block.Plan.RouteNet = authored.Route.Ref.NetworkId;
             block.Plan.Speed = authored.Speed;
             block.Plan.ClearSeconds = authored.ClearSeconds > 0f ? authored.ClearSeconds : DefaultClearSeconds;
         }
@@ -330,7 +330,7 @@ namespace Hrot.AI.Behaviors.Brains
                     if (p.OnFoot[slot] == 0) return false;
                     behaviour = "Move";
                     isAbstract = true;
-                    order = JsonSerializer.Serialize(new MoveOrder { Location = OrderGeo.ToGeo(world, p.RouteEnd), Speed = p.Speed, ArrivalRadius = FootArrivalMetres }, json);
+                    order = JsonSerializer.Serialize(new MoveOrder { Location = p.RouteEnd, Speed = p.Speed, ArrivalRadius = FootArrivalMetres }, json);
                     return true;
                 case ConvoyPlan.PhaseSecure:   // DA-101 — only a squad with a man out; one still aboard stays
                     if (!Dismounted(world, squad)) return false;
@@ -343,7 +343,7 @@ namespace Hrot.AI.Behaviors.Brains
                     return true;
                 case ConvoyPlan.PhaseRemount:   // DA-102 — its wounded first, kept carried, then aboard its vehicle
                     if (p.OnFoot[slot] != 0 || v.IsNull || SquadEmbarkBehavior.AboardIt(world, squad, v)) return false;
-                    var vat = world.HasComponent<SimTransform>(v) ? world.GetComponentRO<SimTransform>(v).Position : Vector3.Zero;
+                    var vat = world.HasComponent<SimTransform>(v) ? world.GetComponentRO<SimTransform>(v).Position : Fdp.Core.WorldPoint.Zero;
                     var casualty = p.Recovers[slot] < MaxRecovers ? Casualty(world, squad, 0) : Entity.Null;
                     if (!casualty.IsNull)
                     {

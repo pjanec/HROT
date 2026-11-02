@@ -17,7 +17,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The vehicle to board.</summary>
         [JsonPropertyName("vehicle")]
-        public EntityRef Vehicle;
+        public EntityLink Vehicle;
 
         /// <summary>Walking speed to the vehicle (m/s); 0 ⇒ the node's default.</summary>
         [JsonPropertyName("speed")]
@@ -35,7 +35,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The weapon system to man.</summary>
         [JsonPropertyName("weapon")]
-        public EntityRef Weapon;
+        public EntityLink Weapon;
 
         /// <summary>Walking speed to it (m/s); 0 ⇒ the node's default.</summary>
         [JsonPropertyName("speed")]
@@ -50,7 +50,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The weapon system.</summary>
         [JsonPropertyName("weapon")]
-        public EntityRef Weapon;
+        public EntityLink Weapon;
 
         /// <summary>Walking speed to it (m/s); 0 ⇒ the node's default.</summary>
         [JsonPropertyName("speed")]
@@ -65,7 +65,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The weapon system.</summary>
         [JsonPropertyName("weapon")]
-        public EntityRef Weapon;
+        public EntityLink Weapon;
 
         /// <summary>Walking speed to it (m/s); 0 ⇒ the node's default.</summary>
         [JsonPropertyName("speed")]
@@ -80,7 +80,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The weapon system.</summary>
         [JsonPropertyName("weapon")]
-        public EntityRef Weapon;
+        public EntityLink Weapon;
 
         /// <summary>Walking speed to it (m/s); 0 ⇒ the node's default.</summary>
         [JsonPropertyName("speed")]
@@ -123,7 +123,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The vehicle to board.</summary>
         [JsonPropertyName("vehicle")]
-        public EntityRef Vehicle;
+        public EntityLink Vehicle;
 
         /// <summary>Failure when somebody is still out after this long (s); 0 ⇒ 60.</summary>
         [JsonPropertyName("timeoutSeconds")]
@@ -145,7 +145,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The vehicle to load into and board.</summary>
         [JsonPropertyName("vehicle")]
-        public EntityRef Vehicle;
+        public EntityLink Vehicle;
 
         /// <summary>Walking speed to the vehicle (m/s); 0 ⇒ the node's default.</summary>
         [JsonPropertyName("speed")]
@@ -174,7 +174,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>A jumper's landing point (zero = wherever he comes down).</summary>
         [JsonPropertyName("landing")]
-        public System.Numerics.Vector3 Landing;
+        public Fdp.Toolkit.Replication.PointLink Landing;
     }
 
     /// <summary>⭐ CE-1118 H-1 (§6) — the authored contract of the squad <c>SquadFastRope</c> (on the commander; the SOP gives it with <c>{}</c>).</summary>
@@ -219,7 +219,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The rally point (zero ⇒ the mean of the squad where it stands).</summary>
         [JsonPropertyName("point")]
-        public System.Numerics.Vector3 Point;
+        public Fdp.Toolkit.Replication.PointLink Point;
 
         /// <summary>The ring's radius (m); 0 ⇒ 8.</summary>
         [JsonPropertyName("ringRadius")]

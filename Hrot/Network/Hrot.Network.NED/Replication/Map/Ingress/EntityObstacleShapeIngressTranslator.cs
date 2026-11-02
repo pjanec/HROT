@@ -24,7 +24,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly DdsReader<EntityObstacleShape>? _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly GhostCreationSystem _ghostCreationSystem;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityObstacleShape>();
         public long DescriptorOrdinal => OrdinalValue;
@@ -33,12 +33,12 @@ namespace Hrot.Map.Common.Replication.Ingress
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
         public EntityObstacleShapeIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap,
-            GhostCreationSystem ghostCreationSystem, long localNodeId)
+            GhostCreationSystem ghostCreationSystem, int localNodeId)
         {
             _reader = participant is not null ? new DdsReader<EntityObstacleShape>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <inheritdoc />
@@ -58,7 +58,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         private void Apply(in EntityObstacleShape data, IEntityCommandBuffer cmd, ISimulationView view)
         {
-            long netId = data.EntityId;
+            int netId = data.EntityId;
             if (!_entityMap.TryGetEntity(netId, out var entity))
             {
                 if (view is not EntityRepository repo)
@@ -82,7 +82,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             repo.SetComponent(entity, ToShape(shape));
         }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         private static ObstacleShape ToShape(in EntityObstacleShape d)
             => new() { Length = d.Length, Width = d.Width, Height = d.Height };

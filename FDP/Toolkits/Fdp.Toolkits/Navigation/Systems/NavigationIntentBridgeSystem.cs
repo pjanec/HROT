@@ -421,7 +421,7 @@ namespace Fdp.Toolkit.Navigation.Systems
 
                         var from = repo.HasComponent<SimTransform>(entity)
                             ? repo.GetComponent<SimTransform>(entity).Position
-                            : Vector3.Zero;
+                            : WorldPoint.Zero;
 
                         // Carry the Brain-allocated RouteHandle through if the entity
                         // has a NavigationIntent with a pre-allocated handle.
@@ -524,7 +524,7 @@ namespace Fdp.Toolkit.Navigation.Systems
         {
             var from = repo.HasComponent<SimTransform>(entity)
                 ? repo.GetComponent<SimTransform>(entity).Position
-                : Vector3.Zero;
+                : WorldPoint.Zero;
             // ⭐ CE-3128 — built in ONE place with the replan (PathRequests), so the road use reaches the solver on both paths.
             repo.Bus.Publish(PathRequests.FromIntent(repo, entity, in intent, from, ((long)entity.Index << 32) | (uint)repo.GlobalVersion));
         }
@@ -536,7 +536,7 @@ namespace Fdp.Toolkit.Navigation.Systems
             if (_dtCrowd == null || repo.HasComponent<VehicleState>(entity)) return true;
             var from = repo.HasComponent<SimTransform>(entity)
                 ? repo.GetComponent<SimTransform>(entity).Position
-                : Vector3.Zero;
+                : WorldPoint.Zero;
             var profile = repo.HasComponent<NavAgentProfile>(entity)
                 ? repo.GetComponent<NavAgentProfile>(entity)
                 : default;

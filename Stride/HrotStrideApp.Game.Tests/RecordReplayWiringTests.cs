@@ -58,7 +58,7 @@ public sealed class RecordReplayWiringTests : IDisposable
     private static ExecuteNodeOpIntent Intent(NodeOpType op, Guid exerciseId) => new()
     {
         TransactionId = Guid.NewGuid(),
-        TargetNodeId  = 0,
+        TargetNodeId  = (Fdp.Core.NodeId)(0),
         Operation     = op,
         DomainPayload = exerciseId,
     };
@@ -133,7 +133,7 @@ public sealed class RecordReplayWiringTests : IDisposable
         for (int i = 0; i < 10; i++) sut.Tick(1f / 60f);
 
         var pos = sut.World.GetComponentRO<SimTransform>(e).Position;
-        Assert.Equal(startPos, pos);
+        Assert.Equal<System.Numerics.Vector3>(startPos, pos);
     }
 
     // ════════════════════════════════════════════════════════════════════════

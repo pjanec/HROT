@@ -77,7 +77,7 @@ namespace Fdp.Toolkit.Replication.Tests
             repo.RegisterEvent<ConstructionOrder>();
 
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new TkbIdentity { TkbType = 123 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(123) });
             repo.AddComponent(entity, new GhostStateTracker { FirstSeenFrame = 0 });
             repo.SetLifecycleState(entity, EntityLifecycle.Ghost);
 
@@ -113,7 +113,7 @@ namespace Fdp.Toolkit.Replication.Tests
             for (int i = 0; i < ghosts; i++)
             {
                 var e = repo.CreateEntity();
-                repo.AddComponent(e, new TkbIdentity { TkbType = 123 });
+                repo.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(123) });
                 repo.AddComponent(e, new GhostStateTracker { FirstSeenFrame = 0 });
                 repo.SetLifecycleState(e, EntityLifecycle.Ghost);
             }
@@ -141,7 +141,7 @@ namespace Fdp.Toolkit.Replication.Tests
             repo.RegisterEvent<ConstructionOrder>();
 
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new TkbIdentity { TkbType = 123 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(123) });
             // Deliberately do NOT set lifecycle to Ghost (stays at default Active)
 
             sys.Execute(repo, 0f);
@@ -188,7 +188,7 @@ namespace Fdp.Toolkit.Replication.Tests
                 .RegisterFromTranslator(10L, new[] { ComponentType<SimTransform>.ID });
 
             var ghost = repo.CreateEntity();
-            repo.AddComponent(ghost, new TkbIdentity { TkbType = 4242 });
+            repo.AddComponent(ghost, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(4242) });
             repo.AddComponent(ghost, new GhostStateTracker { FirstSeenFrame = 0 });
             repo.SetLifecycleState(ghost, EntityLifecycle.Ghost);
 
@@ -265,7 +265,7 @@ namespace Fdp.Toolkit.Replication.Tests
                 .RegisterFromTranslator(10L, new[] { ComponentType<SimTransform>.ID });
 
             var ghost = repo.CreateEntity();
-            repo.AddComponent(ghost, new TkbIdentity { TkbType = 4243 });
+            repo.AddComponent(ghost, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(4243) });
             repo.AddComponent(ghost, new GhostStateTracker { FirstSeenFrame = 0 });
             repo.SetLifecycleState(ghost, EntityLifecycle.Ghost);
 
@@ -301,7 +301,7 @@ namespace Fdp.Toolkit.Replication.Tests
             // no descriptor pairing registered: the live ordering (the map fills on the network module's first tick) means NO gate, promoted at once
 
             var ghost = repo.CreateEntity();
-            repo.AddComponent(ghost, new TkbIdentity { TkbType = 4244 });
+            repo.AddComponent(ghost, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(4244) });
             repo.AddComponent(ghost, new GhostStateTracker { FirstSeenFrame = 0 });
             repo.SetLifecycleState(ghost, EntityLifecycle.Ghost);
 
@@ -309,7 +309,7 @@ namespace Fdp.Toolkit.Replication.Tests
 
             Assert.Equal(EntityLifecycle.Constructing, repo.GetLifecycleState(ghost));
             Assert.True(repo.HasComponent<SimTransform>(ghost));
-            Assert.Equal(System.Numerics.Quaternion.Identity, repo.GetComponentRO<SimTransform>(ghost).Rotation);
+            Assert.Equal<System.Numerics.Quaternion>(System.Numerics.Quaternion.Identity, repo.GetComponentRO<SimTransform>(ghost).Rotation);
         }
     }
 }

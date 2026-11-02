@@ -62,7 +62,7 @@ namespace Hrot.Common.Systems
             public RequestKind Kind;
         }
 
-        private readonly Dictionary<long, PendingRequest> _tracked   = new();
+        private readonly Dictionary<int, PendingRequest> _tracked   = new();
         private int _worldEpoch;
         private readonly IEntityAckSink                    _ackSink;
         private readonly NetworkEntityMap                  _entityMap;
@@ -80,7 +80,7 @@ namespace Hrot.Common.Systems
         /// Called by <see cref="CreateEntityRequestSystem"/> or <see cref="DeleteEntityRequestSystem"/>
         /// immediately after dispatching the Phase-1 InProgress ACK.
         /// </summary>
-        internal void Track(long networkId, Guid requestId, RequestKind kind)
+        internal void Track(int networkId, Guid requestId, RequestKind kind)
         {
             _tracked[networkId] = new PendingRequest { RequestId = requestId, Kind = kind };
         }
@@ -93,11 +93,11 @@ namespace Hrot.Common.Systems
                 return;
 
             // Collect IDs resolved this frame to avoid mutating the dictionary mid-iteration.
-            var toRemove = new List<long>(_tracked.Count);
+            var toRemove = new List<int>(_tracked.Count);
 
             foreach (var kvp in _tracked)
             {
-                long networkId   = kvp.Key;
+                int networkId   = kvp.Key;
                 var  pending     = kvp.Value;
                 bool resolved    = false;
                 var  finalStatus = EntityOperationStatus.EntityNotFound;

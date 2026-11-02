@@ -482,7 +482,7 @@ namespace Hrot.SimHost.Tests
                 {
                     ref var c = ref candidates[i];
                     if (c.EntityId == -1L) continue;
-                    if (Vector2.Distance(new Vector2(self.X, self.Y), new Vector2(c.PositionX, c.PositionY)) > range) c.EntityId = -1L;
+                    if (Vector2.Distance(new Vector2(self.X, self.Y), new Vector2(c.PositionX, c.PositionY)) > range) c.EntityId = -1;
                 }
             }
         }
@@ -570,7 +570,7 @@ namespace Hrot.SimHost.Tests
             public FixedCostGenerator(int n) => _n = n;
             public int Generate(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
             {
-                for (int i = 0; i < _n; i++) candidates[i] = new EqsResult { EntityId = 0L, PositionX = i, Score = 1f };
+                for (int i = 0; i < _n; i++) candidates[i] = new EqsResult { EntityId = 0, PositionX = i, Score = 1f };
                 return _n;
             }
         }
@@ -1171,7 +1171,7 @@ namespace Hrot.SimHost.Tests
                     tkb.GetByType(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Mortar81)!);
                 Assert.True(_world.HasComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>(tube), "the tube carries its own report");
 
-                Entity Listener(float east, long netId)
+                Entity Listener(float east, int netId)
                 {
                     var unit = _world.CreateEntity();
                     _world.AddComponent(unit, new SimTransform { Position = at + new Vector3(east, 0f, 0f), Rotation = Quaternion.Identity });
@@ -1250,7 +1250,7 @@ namespace Hrot.SimHost.Tests
                 _world.AddComponent(ours, new Fdp.Toolkit.Perception.Signatures.AcousticEmitter
                     { FiringAudibleRange = 3000f, FiringClass = (byte)SoundSourceClass.HeavyWeapon });
 
-                Entity Soldier(float east, long netId)
+                Entity Soldier(float east, int netId)
                 {
                     var unit = _world.CreateEntity();
                     _world.AddComponent(unit, new SimTransform { Position = at + new Vector3(east, 0f, 0f), Rotation = Quaternion.Identity });
@@ -1355,7 +1355,7 @@ namespace Hrot.SimHost.Tests
             _world.AddComponent(tube, new EntityInfo { ForceId = ForceId.Hostile });
             new Fdp.Toolkit.Perception.Signatures.SignatureTkbTranslator().Inject(_world, tube,
                 Hrot.Map.Common.HrotEnvironment.CreateTkb().GetByType(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Mortar81)!);
-            _world.AddComponent(tube, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Mortar81 });
+            _world.AddComponent(tube, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Mortar81) });
             var man = _world.CreateEntity();
             _world.AddComponent(man, new SimTransform { Position = new Vector3(1530f, 100f, 0f), Rotation = Quaternion.Identity });
             _world.AddComponent(man, new EntityInfo { ForceId = ForceId.Friend });

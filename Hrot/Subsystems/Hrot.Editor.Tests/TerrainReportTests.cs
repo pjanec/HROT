@@ -100,12 +100,12 @@ namespace Hrot.Editor.Tests
             repo.RegisterComponent<Fdp.Toolkit.Terrain.DoorState>();
             repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
             var e = repo.CreateEntity();
-            repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(1007L));
+            repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(1007));
             repo.AddComponent(e, new Fdp.Toolkit.Terrain.DoorState { State = Fdp.Toolkit.Terrain.TerrainDoorState.Open });
             repo.SetManagedComponent(e, new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = "range/H/front" });
 
             var door = Assert.Single((JsonArray)TerrainReport.Doors(repo)["doors"]!)!;
-            Assert.Equal(1007L, (long)door["runtimeId"]!);
+            Assert.Equal(1007, (int)door["runtimeId"]!);
             Assert.Equal("Open", (string?)door["entityState"]);
             Assert.Equal("Open", (string?)door["state"]);     // ⭐ R-219 — the state is the world's door entity, read from this view
         }

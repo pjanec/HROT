@@ -47,7 +47,7 @@ public sealed class GeoSpatialIngressTranslatorTests
             IGeographicTransform geoTransform,
             NetworkEntityMap     entityMap,
             GhostCreationSystem  ghostSystem,
-            long                 localNodeId)
+            int                 localNodeId)
             : base(participant: null, entityMap, ghostSystem, localNodeId)
         { }
 
@@ -90,7 +90,7 @@ public sealed class GeoSpatialIngressTranslatorTests
     }
 
     /// <summary>Creates a WorldPos sample at an arbitrary local-ENU position (AQ107 B / D): identity rotation, no motion.</summary>
-    private static WorldPos MakeSample(long entityId, float x = 1f, float y = 2f)
+    private static WorldPos MakeSample(int entityId, float x = 1f, float y = 2f)
         => WorldPosCodec.Encode(entityId, simTimeSeconds: 5.0, new Vector3(x, y, 0f), Quaternion.Identity, Vector3.Zero, Vector3.Zero);
 
     // ── GEOINGRESS-1: Remote entity — ingress updates SimTransform ────────────
@@ -106,7 +106,7 @@ public sealed class GeoSpatialIngressTranslatorTests
         var (translator, map) = CreateTranslator();
 
         var entity = world.CreateEntity();
-        long netId = 99L;
+        int netId = 99;
         world.AddComponent(entity, new NetworkIdentity(netId));
         world.AddComponent(entity, new SimTransform());
         world.AddComponent(entity, new NetworkTransform());
@@ -154,17 +154,17 @@ public sealed class GeoSpatialIngressTranslatorTests
         world.RegisterComponent<SimVelocity>();
         var (translator, map) = CreateTranslator();
         var entity = world.CreateEntity();
-        world.AddComponent(entity, new NetworkIdentity(77L));
+        world.AddComponent(entity, new NetworkIdentity(77));
         world.AddComponent(entity, new SimTransform());
         world.AddComponent(entity, new NetworkTransform());
         world.AddComponent(entity, new NetworkVelocity());
         world.AddComponent(entity, new SimVelocity());
-        map.Register(77L, entity);
+        map.Register(77, entity);
 
         var position = new Vector3(1234.567f, -8765.432f, 42.125f);
         var linear   = new Vector3(1.5f, -2f, 0.25f);
         var angular  = new Vector3(0.1f, -0.2f, 0.3f);
-        var sample   = WorldPosCodec.Encode(77L, simTimeSeconds: 12.5, position, rotation, linear, angular);
+        var sample   = WorldPosCodec.Encode(77, simTimeSeconds: 12.5, position, rotation, linear, angular);
 
         ISimulationView view = world;
         var cmd = view.GetCommandBuffer();
@@ -194,21 +194,21 @@ public sealed class GeoSpatialIngressTranslatorTests
         using var world = CreateWorld();
         var (translator, map) = CreateTranslator();
         var entity = world.CreateEntity();
-        world.AddComponent(entity, new NetworkIdentity(78L));
+        world.AddComponent(entity, new NetworkIdentity(78));
         world.AddComponent(entity, new SimTransform());
         world.AddComponent(entity, new NetworkTransform());
         world.AddComponent(entity, new NetworkVelocity());
-        map.Register(78L, entity);
+        map.Register(78, entity);
 
         ISimulationView view = world;
         var cmd = view.GetCommandBuffer();
-        translator.TestDecode(new WorldPos { EntityId = 78L }, cmd, view);
+        translator.TestDecode(new WorldPos { EntityId = 78 }, cmd, view);
         ((EntityCommandBuffer)cmd).Playback(world);
 
         var st = world.GetComponent<SimTransform>(entity);
-        Assert.Equal(Quaternion.Identity, st.Rotation);
-        Assert.Equal(Quaternion.Identity, world.GetComponent<NetworkTransform>(entity).LastRotation);
-        Assert.Equal(Vector3.Zero, st.Position);
+        Assert.Equal<System.Numerics.Quaternion>(Quaternion.Identity, st.Rotation);
+        Assert.Equal<System.Numerics.Quaternion>(Quaternion.Identity, world.GetComponent<NetworkTransform>(entity).LastRotation);
+        Assert.Equal<System.Numerics.Vector3>(Vector3.Zero, st.Position);
         Assert.False(float.IsNaN(st.Rotation.X + st.Rotation.Y + st.Rotation.Z + st.Rotation.W + st.Position.X));
     }
 
@@ -224,13 +224,13 @@ public sealed class GeoSpatialIngressTranslatorTests
         using var world = CreateWorld();
         var (translator, map) = CreateTranslator();
         var entity = world.CreateEntity();
-        world.AddComponent(entity, new NetworkIdentity(79L));
+        world.AddComponent(entity, new NetworkIdentity(79));
         world.AddComponent(entity, new SimTransform());
         world.AddComponent(entity, new NetworkTransform());
         world.AddComponent(entity, new NetworkVelocity());
-        map.Register(79L, entity);
+        map.Register(79, entity);
 
-        var sample = MakeSample(79L) with { OrientationXyz = new OrientationQuat { X = x, Y = y, Z = z } };
+        var sample = MakeSample(79) with { OrientationXyz = new OrientationQuat { X = x, Y = y, Z = z } };
         ISimulationView view = world;
         var cmd = view.GetCommandBuffer();
         translator.TestDecode(sample, cmd, view);
@@ -238,7 +238,7 @@ public sealed class GeoSpatialIngressTranslatorTests
 
         var q = world.GetComponent<SimTransform>(entity).Rotation;
         Assert.False(float.IsNaN(q.X + q.Y + q.Z + q.W));
-        Assert.Equal(1f, q.Length(), 5);
+        Assert.Equal(1f, ((System.Numerics.Quaternion)q).Length(), 5);
     }
 
     // ── GEOINGRESS-2: Primary-owner loopback — SimTransform NOT updated ───────
@@ -254,7 +254,7 @@ public sealed class GeoSpatialIngressTranslatorTests
         var (translator, map) = CreateTranslator();
 
         var entity = world.CreateEntity();
-        long netId = 100L;
+        int netId = 100;
         world.AddComponent(entity, new NetworkIdentity(netId));
         world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: LocalNodeId, localNodeId: LocalNodeId));
         var originalPos = new Vector3(999f, 888f, 0f);
@@ -271,7 +271,7 @@ public sealed class GeoSpatialIngressTranslatorTests
         ((EntityCommandBuffer)cmd).Playback(world);
 
         var transform = world.GetComponent<SimTransform>(entity);
-        Assert.Equal(originalPos, transform.Position);
+        Assert.Equal<System.Numerics.Vector3>(originalPos, transform.Position);
     }
 
     /// <summary>
@@ -286,17 +286,17 @@ public sealed class GeoSpatialIngressTranslatorTests
         using var world = CreateWorld();
         var (translator, map) = CreateTranslator();
         var entity = world.CreateEntity();
-        world.AddComponent(entity, new NetworkIdentity(101L));
+        world.AddComponent(entity, new NetworkIdentity(101));
         world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: LocalNodeId, localNodeId: LocalNodeId));
         world.AddComponent(entity, new SimTransform());
         world.SetAuthority<SimTransform>(entity, true);
         world.AddComponent(entity, new NetworkTransform { LastVelocity = new Vector3(8f, 0f, 0f), LastSentTick = 4321 });
         world.AddComponent(entity, new NetworkVelocity());
-        map.Register(101L, entity);
+        map.Register(101, entity);
 
         ISimulationView view = world;
         var cmd = view.GetCommandBuffer();
-        translator.TestDecode(MakeSample(101L, x: 3f, y: 4f), cmd, view);
+        translator.TestDecode(MakeSample(101, x: 3f, y: 4f), cmd, view);
         ((EntityCommandBuffer)cmd).Playback(world);
 
         var shadow = world.GetComponent<NetworkTransform>(entity);
@@ -320,7 +320,7 @@ public sealed class GeoSpatialIngressTranslatorTests
         var (translator, map) = CreateTranslator();
 
         var entity = world.CreateEntity();
-        long netId = 101L;
+        int netId = 101;
         world.AddComponent(entity, new NetworkIdentity(netId));
         // Brain is primary owner — Muscle is NOT the primary owner.
         world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: RemoteNodeId, localNodeId: LocalNodeId));
@@ -342,7 +342,7 @@ public sealed class GeoSpatialIngressTranslatorTests
 
         // SimTransform must retain the physics position, not the loopback packet position.
         var transform = world.GetComponent<SimTransform>(entity);
-        Assert.Equal(physicsPos, transform.Position);
+        Assert.Equal<System.Numerics.Vector3>(physicsPos, transform.Position);
 
         // NetworkTransform IS still updated (used for ghost rendering on other nodes).
         var netTransform = world.GetComponent<NetworkTransform>(entity);
@@ -362,7 +362,7 @@ public sealed class GeoSpatialIngressTranslatorTests
         var (translator, map) = CreateTranslator();
 
         var entity = world.CreateEntity();
-        long netId = 102L;
+        int netId = 102;
         world.AddComponent(entity, new NetworkIdentity(netId));
         world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: RemoteNodeId, localNodeId: LocalNodeId));
         world.AddComponent(entity, new SimTransform { Position = Vector3.Zero });

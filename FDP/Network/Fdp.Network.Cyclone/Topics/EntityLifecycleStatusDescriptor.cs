@@ -32,7 +32,7 @@ namespace Fdp.Network.Cyclone.Topics
     public partial struct EntityLifecycleStatusDescriptor
     {
         /// <summary>Network entity id (same space as <c>EntityMaster.EntityId</c>).</summary>
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
 
         /// <summary>Reporting node's OWNERSHIP node id (§2b — matches <c>OwnershipUpdate.NewOwner</c>).</summary>
         [DdsKey] public int NodeId;

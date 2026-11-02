@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — ✅ ACCEPTED 2026-11-01 (user: "Okay, accepting your suggestions.") · tracker: SV-1 CE-4201 · SV-2 + SV-3 bundled into CE-4200 · SV-4 CE-4202 · SV-5 CE-4203 · SV-6 CE-4204
-updated: 2026-11-01 (first version — coordinator)
+build-state: DESIGN — ✅ ACCEPTED 2026-11-01 (user: "Okay, accepting your suggestions.") · SV-2 + SV-3 BUILT 2026-11-02 (CE-4200, §2.1 as-built) · tracker: SV-1 CE-4201 · SV-2 + SV-3 bundled into CE-4200 · SV-4 CE-4202 · SV-5 CE-4203 · SV-6 CE-4204
+updated: 2026-11-02 (SV-2 / SV-3 as-built folded in — backend)
 current-answer: §2 the candidates, ranked, with leans · §3 the shared pattern
 stale-below: nothing yet
 known-rot: none
@@ -62,6 +62,27 @@ name, a unit — and the instant / duration pair has the arithmetic built in (an
 | **SV-4** | **`Angle`** (`float`, radians, SI — AQ107 I) for RELATIVE angles | ⭐ **YES, small** | the unit is in a suffix or nowhere (`Yaw`, `Elevation`, `Azimuth`); tools show degrees; ⭐ `Bearing` (SR-143) stays the WORLD compass type — the pair says relative vs world | ~26 fields |
 | **SV-5** | **`StationId`** (`int`) | ⭐ **YES — from birth** | SR-76a's new station key; a type costs nothing on a new field; tools show the station's name | none (new) |
 | **SV-6** | typed `Guid` ids — **`ExerciseId`**, **`EpisodeId`** | ⭐ **only these two** | a tool can OPEN them (the exercise inventory, the recording); `RequestId` / `TransactionId` / `SessionId` are correlation tokens nobody navigates to — ⛔ leave them `Guid` | 7 fields |
+
+### 2.1 ⭐ AS-BUILT — SV-2 `TkbTypeId` and SV-3 `NodeId` *(CE-4200, `2026-11-02`)*
+
+| | `TkbTypeId` (SV-2) | `NodeId` (SV-3) |
+|---|---|---|
+| type | `Fdp.Core/World/TkbTypeId.cs` — over `long`, 8 B | `Fdp.Core/World/NodeId.cs` — over `int`, 4 B |
+| JSON · schema | a plain number · `{type: integer, format: tkbTypeId}` | a plain number · `{type: integer, format: nodeId}` |
+| conversions | implicit OUT to `long`; explicit IN from `long`; ⛔ none from `int` (an entity id never becomes a template id) | implicit OUT to `int`; explicit IN from `int` |
+| seams | `SemanticValueTypes`, `DtoJsonSchemaExtractor`, `StaticTypeRegistry` (unmanaged 8 B) | the same three (unmanaged 4 B) |
+| rail | `S0IdTypesRailTests.S0_EveryTemplateIdMember_IsATkbTypeId` (saved components + params DTOs; allow-list empty) | `S0IdTypesRailTests.S0_EveryNodeIdMember_IsANodeId` (every public non-wire type; `NotANodeId` holds 4 graph-node entries) |
+
+⭐ **CE-4209 rail for the STRING side** (the netstandard2.0 compiler / pin editors cannot see `Fdp.Core`, so they name these types by string): `SemanticValueTypesTests.EveryFdpCoreNameLiteral_*` / `EverySemanticNameLiteral_*` / `TheStaticTypeRegistry_HasAKeyForEverySemanticType` read `Stage2_Validate.cs`, `StaticTypeRegistry.cs` and `PinDefaultValueEditorRegistry.cs` and resolve every `"Fdp.Core.X"` literal against the real assembly.
+
+⚠ **Where the build DEVIATES from §2's lean — the prior statement is SUPERSEDED:**
+- ⛔ **No compiler coercion rung** for either type: `Stage3_NormalizationTests.CoercionTable_ContainsOnlyLosslessWidenings` pins the table to C#'s own widenings, and item 6's `WorldPoint` added none either. A graph crosses explicitly.
+- **Constructor parameters and locals stay `int` / `long`**; only fields, properties and record components carry the type. A `(NodeId)` / `(TkbTypeId)` cast sits at the assignment. ⭐ Reason: the typed fields are what a tool reads and what the rail scans; typing every parameter was ~400 more edits for no extra safety.
+- **The DDS wire stays plain primitives** (the IDL has no wrapper): the type stops at the topic boundary. `long` node ids on the wire (`SourceNodeId`, `OriginNodeId`, `StationNodeId`) became `int` — the width fix SV-3 asked for.
+- ⛔ **Not a template id, left `long`:** wire types and wire-derived interfaces (`INetworkMaster`, `IDerEntity`), the `(long, int)` loadout tuples, TKB catalogue constants.
+- ⛔ **Not a cluster node id, left `int`:** nav-graph `TargetNodeId` (`NavigationIntent`, `FollowRoadGraphParams`), road-graph `Start/EndNodeId`, `const int` node ids (a const cannot be a struct).
+- ⚠ **Name clashes:** `NodeEditor.Primitives.NodeId` (a `Guid`, `ExtDeps`) and `Hrot.NED.Common.NodeId` (a DDS struct) share the name. 14 files that import two of them take a `using NodeId = …` alias. ⭐ A future rename of `Fdp.Core.NodeId` would remove the aliases; none was needed for correctness.
+
 | ⛔ | speeds, distances | **NO** | one SI convention, no measured confusion — 300 fields of churn for nothing a tool needs | — |
 | ⛔ | ratios / scores 0..1 | **NO** | 19 fields, range is documentation-level; the evaluation `Score` (SR-75) is one field | — |
 

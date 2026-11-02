@@ -22,7 +22,7 @@ public static class EntityListSource
 
     /// <summary>The entities the list offers: networked, admitted by <paramref name="presets"/>, not in <paramref name="exclude"/>
     /// (the units being ordered), in name order.</summary>
-    public static IReadOnlyList<PickerEntry> Entries(EntityRepository world, string[]? presets, ICollection<long>? exclude = null)
+    public static IReadOnlyList<PickerEntry> Entries(EntityRepository world, string[]? presets, ICollection<int>? exclude = null)
     {
         if (world is null) throw new ArgumentNullException(nameof(world));
         var list = new List<PickerEntry>();
@@ -35,7 +35,7 @@ public static class EntityListSource
         bool info = world.IsComponentTypeRegistered<EntityInfo>();
         foreach (var e in world.Query().With<NetworkIdentity>().Build())
         {
-            long id = world.GetComponentRO<NetworkIdentity>(e).Value;
+            int id = world.GetComponentRO<NetworkIdentity>(e).Value;
             if (id <= 0 || (exclude != null && exclude.Contains(id))) continue;
             if (filter != null && !filter.IsMatch(e)) continue;
             string idText = "#" + id.ToString(CultureInfo.InvariantCulture);
@@ -62,7 +62,7 @@ public static class EntityListSource
     }
 
     /// <summary>The picker request for <see cref="Entries"/> (built lazily, so the list is fresh when it opens).</summary>
-    public static PickerRequest Request(EntityRepository world, string[]? presets, ICollection<long>? exclude = null)
+    public static PickerRequest Request(EntityRepository world, string[]? presets, ICollection<int>? exclude = null)
         => new()
         {
             ContextKey = ContextKey,
@@ -77,7 +77,7 @@ public static class EntityListSource
     /// read at OPEN time — hosts build their panels before their world, ⭐ <c>CE-1059</c>).
     /// </summary>
     public static Func<string[]?, Action<int>, bool> Opener(Func<EntityRepository?> world, Func<PickerRegistry?> pickers,
-        Func<ICollection<long>?>? exclude = null)
+        Func<ICollection<int>?>? exclude = null)
     {
         if (world is null) throw new ArgumentNullException(nameof(world));
         if (pickers is null) throw new ArgumentNullException(nameof(pickers));
@@ -86,7 +86,7 @@ public static class EntityListSource
             if (world() is not { } w || pickers() is not { } registry) return false;
             registry.OpenPicker(Request(w, presets, exclude?.Invoke()), result =>
             {
-                if (result.Selection.Count > 0 && result.Selection[0].Tag is long id) onChosen((int)id);
+                if (result.Selection.Count > 0 && result.Selection[0].Tag is int id) onChosen(id);
             });
             return true;
         };

@@ -218,8 +218,8 @@ public sealed class TheViewportInteractionIsSharedTests
     public void AReplaceRequestSelectsTheWholeSetAndMakesTheFirstPrimary()
     {
         var (world, a, _) = WorldWithEntity();
-        var b = AnotherEntity(world, 7001L);
-        var c = AnotherEntity(world, 7002L);
+        var b = AnotherEntity(world, 7001);
+        var c = AnotherEntity(world, 7002);
         var selection = new DefaultSelectionState();
         var system = new SelectionRequestSystem(() => selection);
 
@@ -236,7 +236,7 @@ public sealed class TheViewportInteractionIsSharedTests
     public void AddAndRemoveModesCombineWithTheExistingSelection()
     {
         var (world, a, _) = WorldWithEntity();
-        var b = AnotherEntity(world, 7003L);
+        var b = AnotherEntity(world, 7003);
         var selection = new DefaultSelectionState();
         var system = new SelectionRequestSystem(() => selection);
 
@@ -286,7 +286,7 @@ public sealed class TheViewportInteractionIsSharedTests
     public void ARequestNamingADeadEntitySelectsOnlyTheLiveOnes()
     {
         var (world, a, _) = WorldWithEntity();
-        var b = AnotherEntity(world, 7004L);
+        var b = AnotherEntity(world, 7004);
         var selection = new DefaultSelectionState();
         var system = new SelectionRequestSystem(() => selection);
 
@@ -309,7 +309,7 @@ public sealed class TheViewportInteractionIsSharedTests
     public void TheRequestSystemIsRegisteredBeforeTheToolDrainSoASelectThenArmSeesTheNewSelection()
     {
         var (world, a, _) = WorldWithEntity();
-        var b = AnotherEntity(world, 7005L);
+        var b = AnotherEntity(world, 7005);
         var selection = new DefaultSelectionState { PrimarySelected = a };
 
         var requests = new SelectionRequestSystem(() => selection);
@@ -337,7 +337,7 @@ public sealed class TheViewportInteractionIsSharedTests
     public void ApplyingARequestAnnouncesTheWholeNewSelection()
     {
         var (world, a, _) = WorldWithEntity();
-        var b = AnotherEntity(world, 7101L);
+        var b = AnotherEntity(world, 7101);
         var selection = new DefaultSelectionState();
         var system = new SelectionRequestSystem(() => selection);
 
@@ -381,7 +381,7 @@ public sealed class TheViewportInteractionIsSharedTests
     public void TheAnnouncedSetIsASnapshotNotTheLiveCollection()
     {
         var (world, a, _) = WorldWithEntity();
-        var b = AnotherEntity(world, 7102L);
+        var b = AnotherEntity(world, 7102);
         var selection = new DefaultSelectionState();
         var system = new SelectionRequestSystem(() => selection);
 
@@ -443,7 +443,7 @@ public sealed class TheViewportInteractionIsSharedTests
         Assert.Null(inspector.SelectedEntity);
     }
 
-    private static Entity AnotherEntity(EntityRepository world, long networkId)
+    private static Entity AnotherEntity(EntityRepository world, int networkId)
     {
         var e = world.CreateEntity();
         world.AddComponent(e, new SimTransform());
@@ -1124,8 +1124,8 @@ public sealed class TheViewportInteractionIsSharedTests
             Hrot.Map.Common.PresentationComponentRegistry.RegisterAll(world);
 
             // ⛔ Each publish is separate so the failure message names WHICH event is missing.
-            world.Bus.Publish(new CenterOnEntityCommand { NetworkId = 1L });
-            world.Bus.Publish(new SelectEntityCommand { NetworkId = 1L });
+            world.Bus.Publish(new CenterOnEntityCommand { NetworkId = 1 });
+            world.Bus.Publish(new SelectEntityCommand { NetworkId = 1 });
             world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Rotate));
             // ⭐⭐⭐ UXI-11 S-2 — the selection REQUEST joins the shared list, and this assertion is the
             //    reason it must. 📌 PresentationComponentRegistry's own note says it in as many words:
@@ -1163,7 +1163,7 @@ public sealed class TheViewportInteractionIsSharedTests
     private static DataDrivenGizmoSystem NewGizmoSystem()
         => new(new GizmoRegistry(), new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer());
 
-    private static (EntityRepository World, Entity Entity, long NetworkId) WorldWithEntity(
+    private static (EntityRepository World, Entity Entity, int NetworkId) WorldWithEntity(
         float x = 10f, float y = 20f)
     {
         var world = new EntityRepository();
@@ -1173,8 +1173,8 @@ public sealed class TheViewportInteractionIsSharedTests
 
         var e = world.CreateEntity();
         world.AddComponent(e, new SimTransform { Position = new System.Numerics.Vector3(x, y, 0f) });
-        world.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 4242L });
-        return (world, e, 4242L);
+        world.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 4242 });
+        return (world, e, 4242);
     }
 
     /// <summary>Reads a composition root's source; the source scan is the only way to see a local function.</summary>

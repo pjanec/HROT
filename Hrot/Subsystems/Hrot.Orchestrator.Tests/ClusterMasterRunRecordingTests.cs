@@ -36,7 +36,7 @@ public sealed class ClusterMasterRunRecordingTests
         var master = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId = NodeId, LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+            NodeId = (Fdp.Core.NodeId)(NodeId), LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc = DateTimeOffset.UtcNow.Ticks, SubsystemName = "SimHost",
         });
         bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
@@ -70,7 +70,7 @@ public sealed class ClusterMasterRunRecordingTests
                 prepares.Add(intent);
                 bus.PublishManaged(new NodeOpCompletedEvent
                 {
-                    TransactionId = intent.TransactionId, Operation = intent.Operation, NodeId = NodeId,
+                    TransactionId = intent.TransactionId, Operation = intent.Operation, NodeId = (Fdp.Core.NodeId)(NodeId),
                     StatusCode = OrchestrationStatusCode.Success, IsParticipating = true,
                 });
             }
@@ -412,7 +412,7 @@ public sealed class ClusterMasterRunRecordingTests
         var bus = new FdpEventBus();
         var master = new ClusterMaster(bus, new ClusterConfiguration { MandatoryRoles = Fdp.Core.NodeRole.None, InitialArmedMode = ClusterArmedMode.AAR });
         Assert.Equal(ClusterArmedMode.AAR, master.LastLoadMode);   // = the initial mode
-        bus.PublishManaged(new NodeHeartbeatEvent { NodeId = NodeId, LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle, WallTicksUtc = DateTimeOffset.UtcNow.Ticks, SubsystemName = "SimHost" });
+        bus.PublishManaged(new NodeHeartbeatEvent { NodeId = (Fdp.Core.NodeId)(NodeId), LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle, WallTicksUtc = DateTimeOffset.UtcNow.Ticks, SubsystemName = "SimHost" });
         bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
 
         var edit = Load(master, bus, "{\"TargetState\":\"OperatingEdit\"}");

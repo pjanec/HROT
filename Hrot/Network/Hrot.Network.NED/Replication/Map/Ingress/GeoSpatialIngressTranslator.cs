@@ -25,7 +25,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private const long OrdinalValue = (long)Hrot.NED.Descriptors.EDescriptorType.dtWorldPos;
 
         private readonly GhostCreationSystem _ghostCreationSystem;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public override TranslatorDirection Direction => TranslatorDirection.Ingress;
 
@@ -33,16 +33,16 @@ namespace Hrot.Map.Common.Replication.Ingress
             DdsParticipant? participant,
             NetworkEntityMap entityMap,
             GhostCreationSystem ghostCreationSystem,
-            long localNodeId)
+            int localNodeId)
             : base(participant, OrdinalValue, entityMap)
         {
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         protected override void Decode(in WorldPos data, IEntityCommandBuffer cmd, ISimulationView view)
         {
-            long netId = data.EntityId;
+            int netId = data.EntityId;
             var repo = view as EntityRepository;
             if (repo == null)
             {
@@ -114,7 +114,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         ///
         /// <para>See <c>docs/DESIGN_Dead_Reckoning.md</c> rule R6.</para>
         /// </summary>
-        private double CheckSimStamp(double simTime, ISimulationView view, long entityId)
+        private double CheckSimStamp(double simTime, ISimulationView view, int entityId)
         {
             if (simTime > 0.0)
                 return simTime;

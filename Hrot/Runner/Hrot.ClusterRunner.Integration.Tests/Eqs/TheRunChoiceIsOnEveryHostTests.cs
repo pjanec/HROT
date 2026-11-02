@@ -193,7 +193,7 @@ public sealed class TheRunChoiceIsOnEveryHostTests
     {
         node.EventBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state });
         if (node.ClusterSlave.View.NodeId is { } id)   // CE-1442 / CE-3344: the gate also wants this node in the master's in-sync set
-            node.EventBus.PublishManaged(new InSyncSetChangedEvent { NodeIds = new[] { id } });
+            node.EventBus.PublishManaged(new InSyncSetChangedEvent { NodeIds = new[] { id.Value } });
         node.EventBus.SwapBuffers();
         node.ClusterSlave.View.Update();
     }

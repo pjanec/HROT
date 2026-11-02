@@ -50,7 +50,7 @@ public sealed class TheSummaryViewTests : IDisposable
     {
         var e = world.CreateEntity();
         world.AddComponent(e, new NetworkIdentity(1043));
-        world.AddComponent(e, new TkbIdentity { TkbType = 101L });
+        world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(101L) });
         world.AddComponent(e, new SimTransform { Position = new Vector3(123.4f, 567.8f, 9f), Rotation = Quaternion.Identity });
         world.AddComponent(e, new EntityInfo { Name = new FixedString64("T-72"), ForceId = ForceId.Hostile });
         world.AddComponent(e, new Health { Current = 30f, Max = 120f });
@@ -65,8 +65,8 @@ public sealed class TheSummaryViewTests : IDisposable
 
         Assert.NotNull(s);
         Assert.Equal("T-72", s!.Name);
-        Assert.Equal(1043L, s.NetworkId);
-        Assert.Equal(101L, s.TkbType);
+        Assert.Equal(1043, s.NetworkId);
+        Assert.Equal(101L, s.TkbType?.Value);
         Assert.Equal(new Vector3(123.4f, 567.8f, 9f), s.Position);
         Assert.Equal(ForceId.Hostile, s.Side);
         Assert.Null(s.ShownAs);
@@ -141,6 +141,6 @@ public sealed class TheSummaryViewTests : IDisposable
         var dump = PanelSnapshot.TryGet($"details_ce1247/{EntitySummaryViewDescriptor.ViewId}")!.Dump();
         Assert.Equal("T-72", dump["name"]!.GetValue<string>());
         Assert.Equal("Hostile", dump["side"]!.GetValue<string>());
-        Assert.Equal(1043L, dump["networkId"]!.GetValue<long>());
+        Assert.Equal(1043L, dump["networkId"]!.GetValue<int>());
     }
 }

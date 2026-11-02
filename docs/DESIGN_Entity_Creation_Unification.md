@@ -1848,6 +1848,8 @@ on the checkpoint argument.**
 | ⭐ the editor applies `InitialAttributesJson` | `EditorSubsystem` passes `JsonAttributeCompiler` to its pack, as every networked host's factory does; `CreateEntityRequestSystem.AppliesAttributes` + rail `TheEditorAppliesRequestAttributesTests` | ⛔ the editor passed none: every request's attributes (a debug-API spawn's included) were silently dropped there |
 | ⚠ what still does NOT cross | every `InitialComponents` entry but the anchor `SimTransform` and the overlay / route / cloud descriptors (`CreateEntityRequestDescriptorBuilder.Build`) | a brain-local component travels as attributes instead (`CivilianState` ⇒ `Fear`, `FrightFrom.*`, [Q59 §15](blueprints/Architect_Question_59_Attribute_Vocabulary_Single_Source.md)) |
 
+| ⭐ the NED gateway's create (`CE-3356`, `2026-11-02`) | `NedTranslationHelper.BuildCreateEntityDescriptors` writes `EntityMaster.EntityId = 0` — "no id given, allocate here". ⛔ It wrote `-1`, which the CGF adapter took as an author-fixed id since the row above, so a gateway create MADE entity −1 and acked it. ⛔ No sentinel other than 0 on this path (0 is also `EntityRef.IsNone`; allocators start at 1000) | rail `TheNeutralLayerIsLocalEnuTests.CE3356_TheGatewayCreateRequest_AsksForNoId` (red on `-1`); both `*SpawnMovingVehicleViaGateway*` integration rails green (red since before S0) |
+
 ### 3.9a AS-BUILT `2026-10-25` — **a scenario load SAYS so (`CE-3324`)**
 
 | what | as built | why |

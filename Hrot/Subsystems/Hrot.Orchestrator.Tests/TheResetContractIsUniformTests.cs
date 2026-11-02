@@ -56,7 +56,7 @@ public sealed class TheResetContractIsUniformTests
 
         allocator.Reset(WorldIdAuthority.WorldBase);
 
-        Assert.Equal(new[] { 1000L, 1001L, 1002L },
+        Assert.Equal(new[] { 1000, 1001, 1002 },
             new[] { allocator.AllocateId(), allocator.AllocateId(), allocator.AllocateId() });
     }
 

@@ -31,7 +31,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
     {
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
-            long net = view.GetComponentRO<NetworkIdentity>(entity).Value;
+            int net = view.GetComponentRO<NetworkIdentity>(entity).Value;
             if (net == 0) return;
             draw.Card(net, DebugTraceLayers.Labels).Row(0).Frame(SidePalette.Of(view.GetComponentRO<EntityInfo>(entity).ForceId));
         }
@@ -46,7 +46,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
 
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
-            long net = view.GetComponentRO<NetworkIdentity>(entity).Value;
+            int net = view.GetComponentRO<NetworkIdentity>(entity).Value;
             if (net == 0) return;
             string name = view.GetComponentRO<EntityInfo>(entity).Name.ToString();
             draw.Card(net, DebugTraceLayers.Labels).Row(Row).Text(string.IsNullOrWhiteSpace(name) ? $"#{net}" : $"{name} #{net}", NameColour);

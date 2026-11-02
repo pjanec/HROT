@@ -113,7 +113,7 @@ namespace Fdp.Toolkit.Squad.Command
         }
 
         private static Vector3 PositionOf(EntityRepository repo, Entity e)
-            => repo.HasComponent<SimTransform>(e) ? repo.GetComponentRO<SimTransform>(e).Position : Vector3.Zero;
+            => repo.HasComponent<SimTransform>(e) ? repo.GetComponentRO<SimTransform>(e).Position : Fdp.Core.WorldPoint.Zero;
 
         /// <summary>SALUTE's S from a head count.</summary>
         public static ElementSize SizeOf(int count)
@@ -447,7 +447,7 @@ namespace Fdp.Toolkit.Squad.Command
         /// ⭐ <c>CE-2305</c> RQ-2 — a REQUEST keeps <paramref name="subject"/> (the notification's) as its network id.</summary>
         public static bool Fold(EntityRepository repo, Entity fromUnit, Entity toUnit, CommandReport r, float now, Entity subject = default)
         {
-            long from = CommandPictureOps.NetIdOf(repo, fromUnit);
+            int from = CommandPictureOps.NetIdOf(repo, fromUnit);
             int row = CommandPictureOps.EnsureRow(repo, toUnit, from);
             if (!repo.HasComponent<CommandPicture>(toUnit)) return false;
             ref var picture = ref repo.GetComponentRW<CommandPicture>(toUnit);
@@ -486,7 +486,7 @@ namespace Fdp.Toolkit.Squad.Command
             return true;
         }
 
-        private static void FoldElement(ref CommandPicture picture, long from, in CommandReport r, float now)
+        private static void FoldElement(ref CommandPicture picture, int from, in CommandReport r, float now)
         {
             int same = -1;
             float best = SameElementMetres;

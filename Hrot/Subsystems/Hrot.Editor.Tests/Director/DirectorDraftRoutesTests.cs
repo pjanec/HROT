@@ -76,7 +76,7 @@ public sealed class DirectorDraftRoutesTests : IDisposable
             ["combat.shot"] = new(new[] { new TimelineEvent(100, "combat.shot", 1, 2, 0f, 0f, 1f) }),
             ["combat.hit"] = new(new[] { new TimelineEvent(108, "combat.hit", 2, 0, 0f, 0f, 0f) }),
         };
-        var positions = new PositionTrack(new Dictionary<long, PositionSample[]>
+        var positions = new PositionTrack(new Dictionary<int, PositionSample[]>
         {
             [1] = Enumerable.Range(0, frames / 5 + 1).Select(i => new PositionSample(i * 5, i, 0f, 0f, 0f)).ToArray(),
             [2] = Enumerable.Range(0, frames / 5 + 1).Select(i => new PositionSample(i * 5, 60f, i, 0f, MathF.PI / 2)).ToArray(),

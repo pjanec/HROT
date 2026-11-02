@@ -26,7 +26,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
     public partial struct EqsSensorConfigTopic
     {
         /// <summary>Network ID of the parent agent entity (first key field of the compound key).</summary>
-        [DdsKey] public long ParentNetworkId;
+        [DdsKey] public int ParentNetworkId;
         /// <summary>PartMetadata.InstanceId of the child sensor; 0 for legacy single-sensor (second key field of the compound key).</summary>
         [DdsKey] public int LocalChildIndex;
         /// <summary>FNV-1a 32-bit hash of the query template BlueprintId.</summary>
@@ -46,11 +46,11 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
         /// <summary>Score change threshold for the ScoreDelta publish policy.</summary>
         public float ScoreDeltaThreshold;
         /// <summary>Network ID of the entity in context slot 0 (Self/Observer). 0 = not assigned.</summary>
-        public long ContextSlot0NetworkId;
+        public int ContextSlot0NetworkId;
         /// <summary>Network ID of the entity in context slot 1 (Target). 0 = not assigned.</summary>
-        public long ContextSlot1NetworkId;
+        public int ContextSlot1NetworkId;
         /// <summary>Network ID of the entity in context slot 2 (Leader). 0 = not assigned.</summary>
-        public long ContextSlot2NetworkId;
+        public int ContextSlot2NetworkId;
         /// <summary>
         /// ⭐ <c>CE-486</c> — the sensor has ended (non-key). A child sensor's instance is never disposed while its parent
         /// lives; the Brain writes the sensor's last config with this set, and the Muscle's carrier stops solving.
@@ -103,8 +103,9 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
     [DdsIdlFile("hrot-eqs-msgs")]
     public partial struct EqsResultEntry
     {
-        /// <summary>Packed entity value. 0 = positional candidate. -1 = rejected (should not appear on wire).</summary>
-        public long EntityId;
+        /// <summary>The candidate entity's NETWORK id (CE-4200: <c>int</c>); 0 = positional candidate. ⭐ CE-4207: a wire-only type — the
+        /// engine's twin is <see cref="EqsResult"/> (a packed LOCAL entity), and the translators are the only converters.</summary>
+        public int EntityId;
         /// <summary>World-space X coordinate.</summary>
         public float PositionX;
         /// <summary>World-space Y coordinate.</summary>
@@ -136,7 +137,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
     public partial struct EqsResultTopic
     {
         /// <summary>Network ID of the parent agent (first key field of the compound key).</summary>
-        [DdsKey] public long ParentNetworkId;
+        [DdsKey] public int ParentNetworkId;
         /// <summary>PartMetadata.InstanceId of the child sensor; 0 for legacy single-sensor (second key field of the compound key).</summary>
         [DdsKey] public int LocalChildIndex;
         /// <summary>Sensor epoch at solve time. Brain discards stale deliveries.</summary>

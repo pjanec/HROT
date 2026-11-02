@@ -22,8 +22,8 @@ namespace Hrot.Editor.AiShared.Shell;
 /// </summary>
 public sealed record EntitySummary(
     string? Name,
-    long? NetworkId,
-    long? TkbType,
+    int? NetworkId,
+    TkbTypeId? TkbType,
     Vector3? Position,
     ForceId? Side,
     ForceId? ShownAs,
@@ -78,7 +78,7 @@ public sealed record EntitySummary(
 /// <summary>The Summary view's dump — what a frame showed, for <c>GET /panels</c> and the rails.</summary>
 public sealed record EntitySummaryViewPanelViewModel(
     string PanelId, string PanelKind, bool HasTarget, int EntityIndex,
-    string? Name, long? NetworkId, long? TkbType, float? X, float? Y, float? Z,
+    string? Name, int? NetworkId, TkbTypeId? TkbType, float? X, float? Y, float? Z,
     string? Side, string? ShownAs, float? HealthCurrent, float? HealthMax) : IPanelViewModel
 {
     public JsonNode Dump() => PanelDump.Of(this);

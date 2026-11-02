@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             // Trivial generator: hardcodes 2 positional candidates at X=10 and X=20.
             var generator = new HardcodedTwoPointGenerator();
 
-            // Trivial filter: rejects the first candidate (index 0, X=10) by setting EntityId = -1L.
+            // Trivial filter: rejects the first candidate (index 0, X=10) by setting EntityId = -1.
             var filter = new RejectFirstCandidateFilter();
 
             var template = new EqsQueryTemplate
@@ -108,7 +108,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             public void ExecuteBatch(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
             {
                 if (candidates.Length > 0)
-                    candidates[0].EntityId = -1L;
+                    candidates[0].EntityId = -1;
             }
         }
 

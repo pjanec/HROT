@@ -245,6 +245,16 @@ namespace Fdp.Toolkit.Weather
             return true;
         }
 
+        /// <summary>⭐ S0 (<c>AreaLink.Contains</c>, SR-134) — whether world point <paramref name="p"/> (XY) is inside area entity
+        /// <paramref name="e"/>'s outline (relative to its <c>SimTransform</c> position): <see cref="TryOutline"/> + the even-odd test below,
+        /// the one area-entity containment. <c>false</c> when <paramref name="e"/> has no outline or no position.</summary>
+        public static bool AreaEntityContains(EntityRepository world, Entity e, Vector2 p)
+        {
+            if (!TryOutline(world, e, out var outline) || !world.HasComponent<SimTransform>(e)) return false;
+            var origin = world.GetComponentRO<SimTransform>(e).Position;
+            return Contains(new OffsetPolygon(outline, new Vector2(origin.X, origin.Y)), p);
+        }
+
         // ── the derived quantities (§4) ──────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>The wind at <paramref name="point"/> (m/s, toward; the height is the point's Z above sea level) — the light-weight

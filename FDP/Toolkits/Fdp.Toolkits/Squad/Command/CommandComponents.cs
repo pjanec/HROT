@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Squad.Command
         public ElementActivity Activity;
         public ElementEquipment Equipment;
         /// <summary>The reporting subordinate's network id.</summary>
-        public long FromNetId;
+        public int FromNetId;
         /// <summary>CB-31 — when it was observed (sim s); the element ages from it.</summary>
         public float ObservedAt;
         /// <summary>When the report arrived here (sim s) — CC-12 shows both.</summary>
@@ -49,7 +49,7 @@ namespace Fdp.Toolkit.Squad.Command
     public struct SubordinateRow
     {
         /// <summary>The subordinate's network id.</summary>
-        public long UnitNetId;
+        public int UnitNetId;
         /// <summary>The LATEST PROGRESS it reported for its current order (<see cref="ProgressKind"/>, not ordinal: FallingBack after
         /// Foothold is news, not a regression); reset when the commander orders it again (CC-B).</summary>
         public ProgressKind Progress;
@@ -81,13 +81,13 @@ namespace Fdp.Toolkit.Squad.Command
     [StructLayout(LayoutKind.Sequential)]
     public struct PendingRequest
     {
-        public long FromNetId;
+        public int FromNetId;
         public RequestKind Kind;
         public Vector3 At;
         public float ReceivedAt;
         public uint Seq;
         /// <summary>⭐ <c>CE-2305</c> RQ-2 — what it is about (the casualty of a Casevac): a network id, since the picture is replicated (0 = none).</summary>
-        public long SubjectNetId;
+        public int SubjectNetId;
     }
 
     [InlineArray(CommandPicture.MaxRequests)]

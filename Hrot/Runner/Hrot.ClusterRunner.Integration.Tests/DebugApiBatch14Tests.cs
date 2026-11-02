@@ -17,7 +17,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 [Collection("EditorOfflineTests")]
 public sealed class DebugApiBatch14Tests
 {
-    private const long TestNetworkId = 90_140L;
+    private const int TestNetworkId = 90_140;
 
     // ── T06b: Managed-event discovery ─────────────────────────────────────────
 

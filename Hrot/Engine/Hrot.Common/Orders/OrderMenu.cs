@@ -6,7 +6,6 @@ using System.Reflection;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Fdp.Core;
-using Fdp.Toolkit.Behavior.Params;
 using Fdp.Toolkit.Replication;
 using Hrot.Core.Tkb;
 using Hrot.Map.Definitions.Behavior;
@@ -43,7 +42,7 @@ namespace Hrot.Common.Orders
     /// <summary>⭐ <c>CE-2148</c> (F6) — what the operator's gesture points at: the clicked entity (network id) and / or the clicked
     /// point (geodetic <c>[lat, lon]</c>, or <c>[y, x]</c> on a node without a transform — OrderGeo's fallback). It fills a missing
     /// <c>[Required]</c> field of the same kind.</summary>
-    public readonly record struct OrderContext(long? Entity, JsonArray? Point)
+    public readonly record struct OrderContext(int? Entity, JsonArray? Point)
     {
         public static OrderContext None => default;
     }
@@ -53,7 +52,7 @@ namespace Hrot.Common.Orders
     /// <c>[Required]</c> fields still <see cref="Missing"/>. <see cref="Send"/> issues it to every unit (through <c>EntityOrders</c>)
     /// and answers one result per unit — what an order form calls when the operator presses Send.
     /// </summary>
-    public sealed record OrderDraft(IReadOnlyList<long> Units, OrderInfo Order, JsonObject Params, IReadOnlyList<OrderField> Missing,
+    public sealed record OrderDraft(IReadOnlyList<int> Units, OrderInfo Order, JsonObject Params, IReadOnlyList<OrderField> Missing,
         Func<string, IReadOnlyList<OrderResult>> Send)
     {
         /// <summary>True when nothing required is missing: the order can go as it is.</summary>
@@ -125,8 +124,8 @@ namespace Hrot.Common.Orders
         }
 
         /// <summary>⭐ <c>CE-2148</c> — the DTO's public fields as order fields (a property is still read, R-2002 forbids them; a
-        /// <c>[JsonIgnore]</c> member is never a field). The KIND comes from the type: a <see cref="PickableGeoPoint"/> is a point, an
-        /// <see cref="EntityRef"/> an entity (DESIGN_Map_Picking_Unification P5); <c>[Required]</c> marks it mandatory (F5).</summary>
+        /// <c>[JsonIgnore]</c> member is never a field). The KIND comes from the type: a <c>PointLink</c> is a point, an
+        /// <c>EntityLink</c> an entity (DESIGN_Map_Picking_Unification P5); <c>[Required]</c> marks it mandatory (F5).</summary>
         public static IReadOnlyList<OrderField> FieldsOf(Type dto)
         {
             const BindingFlags Public = BindingFlags.Public | BindingFlags.Instance;
@@ -137,7 +136,7 @@ namespace Hrot.Common.Orders
                 .Select(m => new OrderField(
                     m.Item1.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? m.Item1.Name,
                     m.Item2,
-                    m.Item2 == typeof(PickableGeoPoint) ? OrderFieldKind.MapPoint : m.Item2 == typeof(EntityRef) ? OrderFieldKind.MapEntity : OrderFieldKind.Value,
+                    m.Item2 == typeof(Fdp.Toolkit.Replication.PointLink) ? OrderFieldKind.MapPoint : m.Item2 == typeof(Fdp.Toolkit.Replication.EntityLink) ? OrderFieldKind.MapEntity : OrderFieldKind.Value,   // ⭐ S0 item 5: the AUTHORED types key the picker
                     m.Item1.IsDefined(typeof(RequiredAttribute), inherit: true),
                     m.Item1.GetCustomAttribute<Fdp.Toolkit.Behavior.Attributes.MapPickableEntityAttribute>()?.FilterPresets ?? Array.Empty<string>()))
                 .ToArray();
@@ -194,10 +193,13 @@ namespace Hrot.Common.Orders
                     if (string.Equals(kv.Key, f.Name, StringComparison.OrdinalIgnoreCase)) { value = kv.Value; break; }
                 if (value == null) continue;   // absent: MissingIn's question
                 string? why = null;
-                if (value is not JsonArray a || a.Count != 2) why = "is not [lat, lon]";
-                else if (!TryNumber(a[0], out double lat) || !TryNumber(a[1], out double lon)) why = "is not two numbers [lat, lon]";
-                else if (lat < -90.0 || lat > 90.0 || lon < -180.0 || lon > 180.0)
-                    why = $"[{lat}, {lon}] is out of range (|lat| ≤ 90, |lon| ≤ 180) — a local [y, x] is not a geodetic point";
+                // ⭐ S0 item 5 (SR-135): a place is LOCAL METRES [x, y(, z)] — or an authored reference ("@Key" / a GUID / {…}) a person wrote.
+                if (value is JsonArray a)
+                {
+                    if (a.Count is not (2 or 3)) why = "is not [x, y, z] local metres";
+                    else foreach (var n in a) if (!TryNumber(n, out _)) { why = "is not numbers [x, y, z] (local metres)"; break; }
+                }
+                else if (value is not (JsonValue or JsonObject)) why = "is not [x, y, z] local metres"; 
                 if (why != null) (bad ??= new List<(OrderField, string)>()).Add((f, why));
             }
             return bad ?? (IReadOnlyList<(OrderField, string)>)Array.Empty<(OrderField, string)>();
@@ -215,13 +217,13 @@ namespace Hrot.Common.Orders
         /// (⭐ <c>CE-2149</c>) the unit's <paramref name="designation"/>s the same way. Explicit values always win.
         /// <paramref name="send"/> is what <see cref="OrderDraft.Send"/> calls.
         /// </summary>
-        public static OrderDraft Draft(OrderInfo order, IReadOnlyList<long> units, OrderContext context,
+        public static OrderDraft Draft(OrderInfo order, IReadOnlyList<int> units, OrderContext context,
             Func<string, IReadOnlyList<OrderResult>> send, JsonObject? given = null,
-            Func<long, DesignationKind, JsonNode?>? designation = null)
+            Func<int, DesignationKind, JsonNode?>? designation = null)
         {
             var json = given != null ? (JsonObject)given.DeepClone() : new JsonObject();
             // ⭐ CE-2149 (§13.3) — a clicked ENTITY fills a target, never a route or a sector; a clicked point fills a point.
-            Fill(DesignationKind.Target, context.Entity is long e && e != 0 ? JsonValue.Create(e) : null);
+            Fill(DesignationKind.Target, context.Entity is int e && e != 0 ? JsonValue.Create(e) : null);
             Fill(DesignationKind.MapPoint, context.Point?.DeepClone());
             // ⭐ CE-2149 (F7 stage 1) — then the unit's standing designations, for an operator's draft of ONE unit (the per-unit store
             //   cannot speak for several); explicit values and the gesture already won above.

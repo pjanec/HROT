@@ -129,7 +129,7 @@
                             "taskId": "c2470001-0000-4000-8000-000000000201",
                             "executingEngine": "",
                             "behaviorName": "MoveToLocation",
-                            "behaviorParams": "{\"x\":130,\"y\":200,\"speed\":0.8,\"arrivalRadius\":1}",
+                            "behaviorParams": "{\"speed\":0.8,\"arrivalRadius\":1,\"target\":[130,200,0]}",
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",
@@ -141,7 +141,7 @@
                             "taskId": "c2470001-0000-4000-8000-000000000202",
                             "executingEngine": "",
                             "behaviorName": "MoveToLocation",
-                            "behaviorParams": "{\"x\":130,\"y\":220,\"speed\":1,\"arrivalRadius\":1}",
+                            "behaviorParams": "{\"speed\":1,\"arrivalRadius\":1,\"target\":[130,220,0]}",
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",

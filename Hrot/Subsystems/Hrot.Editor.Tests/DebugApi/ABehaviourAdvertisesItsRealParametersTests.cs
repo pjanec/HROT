@@ -78,15 +78,13 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
     {
         string[] advertised = PropertyNames(SchemaFor(LoadProductionRegistry(), "MoveToLocation"));
 
-        Assert.Contains("TargetLat", advertised);
-        Assert.Contains("TargetLon", advertised);
+        // ⭐ S0 item 5 (SR-135): the target is ONE authored point "target" (local metres [x, y, z], or a reference) —
+        //    the TargetLat/TargetLon pair, the X/Y Cartesian escape hatch and the composite are all retired.
+        Assert.Contains("Location", advertised);
         Assert.Contains("Speed", advertised);
         Assert.Contains("ArrivalRadius", advertised);
-
-        // 🔒 User ruling 2026-09-08: cartesian is origin-dependent so geo is canonical, "but for purpose
-        //    of ai driven development cartesian is much easier … so i would keep it". Advertised, not hidden.
-        Assert.Contains("X", advertised);
-        Assert.Contains("Y", advertised);
+        Assert.DoesNotContain("TargetLat", advertised);
+        Assert.DoesNotContain("X", advertised);
     }
 
     /// <summary>
@@ -117,8 +115,8 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
     {
         var props = (JsonObject)SchemaFor(LoadProductionRegistry(), "MoveToLocation")["properties"]!;
 
-        Assert.Equal("number", (string?)props["TargetLat"]!["type"]);
-        Assert.Equal("number", (string?)props["TargetLon"]!["type"]);
+        Assert.Equal("array", (string?)props["Location"]!["type"]);   // the point: [x, y, z]
+        Assert.Equal("worldLocation", (string?)props["Location"]!["picker"]);
         Assert.Equal("number", (string?)props["Speed"]!["type"]);
         Assert.Equal("number", (string?)props["ArrivalRadius"]!["type"]);
     }

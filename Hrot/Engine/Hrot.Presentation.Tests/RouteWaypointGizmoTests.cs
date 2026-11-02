@@ -19,7 +19,7 @@ public class RouteWaypointGizmoTests : IDisposable
 {
     private readonly EntityRepository _repo;
     private readonly Entity           _entity;
-    private const long NetworkId = 77L;
+    private const int NetworkId = 77;
 
     public RouteWaypointGizmoTests()
     {
@@ -183,7 +183,7 @@ public class RouteWaypointGizmoTests : IDisposable
         wp.Kind = Fdp.Toolkit.Navigation.RouteWaypointKind.Ground;
         wp.HeightAgl = 120f;
         wp.Hold = Fdp.Toolkit.Navigation.RouteHold.Pickup;
-        wp.HoldUnit = 4242L;
+        wp.HoldUnit = 4242;
         _repo.Bus.SwapBuffers();
         state.CommitEdits();
 
@@ -238,7 +238,7 @@ public class RouteWaypointGizmoTests : IDisposable
         public readonly List<Vector2> HandleCentres = new();
 
         public void EmitRaw(in DebugPrimitive prim) { Handles++; HandleCentres.Add(new Vector2(prim.BoxCenterX, prim.BoxCenterY)); }
-        public void DrawContextMenuBinding(long networkId, string menuJson) => MenuBindings++;
+        public void DrawContextMenuBinding(int networkId, string menuJson) => MenuBindings++;
 
         public void DrawLine(Vector3 s, Vector3 e, Rgba32 c, float t = 1f,
             SizeMode m = SizeMode.ScreenPixels,
@@ -258,9 +258,9 @@ public class RouteWaypointGizmoTests : IDisposable
             CoordinateSpace sp = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
         public void DrawEntityBadge(Entity e, Fdp.Core.FixedString32 rt,
             PipelineTarget tg = PipelineTarget.All) { }
-        public void DrawEntityLocal(long a, Vector3 ls, Vector3 le,
+        public void DrawEntityLocal(int a, Vector3 ls, Vector3 le,
             Rgba32 c, float t = 1f, byte l = 0) { }
-        public void DrawEntityLocalInteractive(long a, Vector3 ls, Vector3 le,
+        public void DrawEntityLocalInteractive(int a, Vector3 ls, Vector3 le,
             Rgba32 c, ushort sid, float t = 1f, byte l = 0) { }
     }
 }

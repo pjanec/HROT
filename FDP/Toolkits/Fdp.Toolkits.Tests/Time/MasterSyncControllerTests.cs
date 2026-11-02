@@ -175,7 +175,7 @@ namespace Fdp.Toolkit.Time.Tests
             Assert.Equal(1L, blocked1.FrameNumber);
 
             // Slave 1 ACKs — still waiting for slave 2
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 1 });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(1) });
             bus.SwapBuffers();
             ctrl.Update();
 
@@ -183,7 +183,7 @@ namespace Fdp.Toolkit.Time.Tests
             Assert.Equal(1L, blocked2.FrameNumber);
 
             // Slave 2 ACKs — now unlocked
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 2 });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(2) });
             bus.SwapBuffers();
             ctrl.Update();
 
@@ -208,7 +208,7 @@ namespace Fdp.Toolkit.Time.Tests
             ctrl.Update();
             Assert.Equal(1L, ctrl.Step(0.016f).FrameNumber);       // waits for {1, 2}
 
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 1 });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(1) });
             bus.PublishManaged(new SlaveNodeSetUpdatedEvent { SlaveNodeIds = new HashSet<int> { 1 } });   // node 2 left
             bus.SwapBuffers();
             ctrl.Update();
@@ -239,12 +239,12 @@ namespace Fdp.Toolkit.Time.Tests
             ctrl.Update();
 
             ctrl.Step(0.016f);                                                              // the next step …
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 1 });    // … node 1 acks
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(1) });    // … node 1 acks
             bus.SwapBuffers();
             ctrl.Update();
             Assert.True(ctrl.IsAwaitingStepAcks, "node 2 joined the step set after the pause and must gate the next step");
 
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 2 });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(2) });
             bus.SwapBuffers();
             ctrl.Update();
             Assert.False(ctrl.IsAwaitingStepAcks);
@@ -432,7 +432,7 @@ namespace Fdp.Toolkit.Time.Tests
             bus.SwapBuffers();
 
             // ACK from an unknown node (99 is not in _expectedSlaves)
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 99 });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(99) });
             bus.SwapBuffers();
             ctrl.Update(); // drains unknown ACK — should be silently discarded
 
@@ -542,8 +542,8 @@ namespace Fdp.Toolkit.Time.Tests
             ctrl.Step(0.016f); // frame → 1, _pendingAcks = {1, 2}
 
             // Publish ACKs for both nodes
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 1 });
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 2 });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(1) });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(2) });
             bus.SwapBuffers();
             ctrl.Update(); // drains ACKs → _pendingAcks = {}
 
@@ -571,8 +571,8 @@ namespace Fdp.Toolkit.Time.Tests
 
             ctrl.Step(0.016f); // frame → 1, _pendingAcks = {1, 2}
             // ACK both so we can step again
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 1 });
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 2 });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(1) });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(2) });
             bus.SwapBuffers();
             ctrl.Update();
 
@@ -588,8 +588,8 @@ namespace Fdp.Toolkit.Time.Tests
             ctrl.Step(0.016f); // frame → 2, _pendingAcks = {3}
 
             // ACKs from old nodes (1, 2) must be silently discarded
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 2, NodeID = 1 });
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 2, NodeID = 2 });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 2, NodeID = (Fdp.Core.NodeId)(1) });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 2, NodeID = (Fdp.Core.NodeId)(2) });
             bus.SwapBuffers();
             ctrl.Update();
 
@@ -598,7 +598,7 @@ namespace Fdp.Toolkit.Time.Tests
             Assert.Equal(2L, blocked.FrameNumber);
 
             // Now ACK from node 3 unblocks
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 2, NodeID = 3 });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 2, NodeID = (Fdp.Core.NodeId)(3) });
             bus.SwapBuffers();
             ctrl.Update();
 
@@ -665,12 +665,12 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Sync slave.
             slaveBus.SwapBuffers();
-            slaveBus.Read<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncProbeEvent>();
             slaveBus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = 0L });
             slaveBus.SwapBuffers();
             slave.Update();
             slaveBus.SwapBuffers();
-            slaveBus.Read<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncProbeEvent>();
 
             // Drain constructor event from masterBus before SwitchToDeterministic.
             masterBus.SwapBuffers();
@@ -771,12 +771,12 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Sync slave so _isTimeSynced = true.
             slaveBus.SwapBuffers();
-            slaveBus.Read<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncProbeEvent>();
             slaveBus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = 0L });
             slaveBus.SwapBuffers();
             slave.Update();
             slaveBus.SwapBuffers();
-            slaveBus.Read<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncProbeEvent>();
 
             // Transition master to Stepping
             // Drain constructor event first so only the Deterministic event is relayed.
@@ -1331,7 +1331,7 @@ namespace Fdp.Toolkit.Time.Tests
             Assert.Equal(1.0, ctrl.GetCurrentState().TotalTime, 3);
 
             // ACK clears → the queued step is released inside Update().
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 1 });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(1) });
             bus.SwapBuffers();
             var released = ctrl.Update();
 
@@ -1367,7 +1367,7 @@ namespace Fdp.Toolkit.Time.Tests
             // Drain: each ACK releases exactly one deferred step.
             for (long frame = 1; frame <= 3; frame++)
             {
-                bus.PublishManaged(new FrameStepCompletedEvent { FrameID = frame, NodeID = 1 });
+                bus.PublishManaged(new FrameStepCompletedEvent { FrameID = frame, NodeID = (Fdp.Core.NodeId)(1) });
                 bus.SwapBuffers();
                 ctrl.Update();
             }

@@ -34,7 +34,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
             {
                 candidates[i] = new EqsResult
                 {
-                    EntityId  = 0L, // Positional candidate.
+                    EntityId  = 0, // Positional candidate.
                     PositionX = rawPoints3D[i].X,
                     PositionY = rawPoints3D[i].Y,
                     PositionZ = rawPoints3D[i].Z, // altitude (P3D-203)

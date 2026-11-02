@@ -31,7 +31,7 @@ public class WhoOwnsTheBrainProbe
     {
         using var harness = new HrotRunnerHarness("simhost,cgf", Interlocked.Increment(ref _domainCounter));
 
-        long id = harness.SimHost.TestHook_SpawnEntity(TkbEntityTypes.Tank_M1Abrams,
+        int id = harness.SimHost.TestHook_SpawnEntity(TkbEntityTypes.Tank_M1Abrams,
             new CoreGeoPoint { Latitude = 52.524, Longitude = 13.415, Altitude = 0 });
 
         bool both = harness.PumpUntil(() =>
@@ -69,7 +69,7 @@ public class WhoOwnsTheBrainProbe
         _out.WriteLine($"[SimHost] moved {System.Numerics.Vector3.Distance(start, end):F2} m");
     }
 
-    private void Dump(string node, EntityRepository w, NetworkEntityMap map, long id)
+    private void Dump(string node, EntityRepository w, NetworkEntityMap map, int id)
     {
         if (!map.TryGetEntity(id, out var e) || !w.IsAlive(e)) { _out.WriteLine($"[{node}] entity {id} ABSENT"); return; }
 

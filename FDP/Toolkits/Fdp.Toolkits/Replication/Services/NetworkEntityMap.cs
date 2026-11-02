@@ -11,12 +11,12 @@ namespace Fdp.Toolkit.Replication.Services
     [ComponentId(GlobalComponentIds.NetworkEntityMap)]
     public class NetworkEntityMap
     {
-        private readonly Dictionary<long, Entity> _netToEntity = new();
-        private readonly Dictionary<Entity, long> _entityToNet = new();
+        private readonly Dictionary<int, Entity> _netToEntity = new();
+        private readonly Dictionary<Entity, int> _entityToNet = new();
         
         internal struct GraveyardEntry
         {
-            public long NetworkId;
+            public int NetworkId;
             public uint DeathFrame;
         }
 
@@ -28,14 +28,14 @@ namespace Fdp.Toolkit.Replication.Services
         /// Subscribers can use this to drain deferred retry queues keyed by network ID
         /// without having to poll on every simulation tick.
         /// </summary>
-        public event Action<long, Entity>? EntityRegistered;
+        public event Action<int, Entity>? EntityRegistered;
 
         public NetworkEntityMap(uint graveyardDurationFrames = 60)
         {
             _graveyardDurationFrames = graveyardDurationFrames;
         }
 
-        public IReadOnlyDictionary<long, Entity> Entries => _netToEntity;
+        public IReadOnlyDictionary<int, Entity> Entries => _netToEntity;
 
         // ── Preview dry-run capture / restore ─────────────────────────────────
 
@@ -44,8 +44,8 @@ namespace Fdp.Toolkit.Replication.Services
         /// </summary>
         public sealed class State
         {
-            internal Dictionary<long, Entity> NetToEntity = new();
-            internal Dictionary<Entity, long> EntityToNet = new();
+            internal Dictionary<int, Entity> NetToEntity = new();
+            internal Dictionary<Entity, int> EntityToNet = new();
             internal List<GraveyardEntry>     Graveyard   = new();
         }
 
@@ -65,8 +65,8 @@ namespace Fdp.Toolkit.Replication.Services
         /// </summary>
         public State CaptureState() => new State
         {
-            NetToEntity = new Dictionary<long, Entity>(_netToEntity),
-            EntityToNet = new Dictionary<Entity, long>(_entityToNet),
+            NetToEntity = new Dictionary<int, Entity>(_netToEntity),
+            EntityToNet = new Dictionary<Entity, int>(_entityToNet),
             Graveyard   = new List<GraveyardEntry>(_graveyard),
         };
 
@@ -117,7 +117,7 @@ namespace Fdp.Toolkit.Replication.Services
             _graveyard.Clear();
         }
 
-        public void Register(long netId, Entity entity)
+        public void Register(int netId, Entity entity)
         {
             if (_netToEntity.ContainsKey(netId))
                  throw new InvalidOperationException($"NetworkId {netId} already registered");
@@ -131,7 +131,7 @@ namespace Fdp.Toolkit.Replication.Services
             EntityRegistered?.Invoke(netId, entity);
         }
 
-        public void Unregister(long netId, uint currentFrame)
+        public void Unregister(int netId, uint currentFrame)
         {
             if (_netToEntity.TryGetValue(netId, out var entity))
             {
@@ -142,17 +142,17 @@ namespace Fdp.Toolkit.Replication.Services
             }
         }
 
-        public bool TryGetEntity(long netId, out Entity entity)
+        public bool TryGetEntity(int netId, out Entity entity)
         {
             return _netToEntity.TryGetValue(netId, out entity);
         }
         
-        public bool TryGetNetworkId(Entity entity, out long netId)
+        public bool TryGetNetworkId(Entity entity, out int netId)
         {
             return _entityToNet.TryGetValue(entity, out netId);
         }
 
-        public bool IsGraveyard(long id)
+        public bool IsGraveyard(int id)
         {
              foreach(var entry in _graveyard)
              {
@@ -161,7 +161,7 @@ namespace Fdp.Toolkit.Replication.Services
              return false;
         }
 
-        private void AddToGraveyard(long id, uint currentFrame)
+        private void AddToGraveyard(int id, uint currentFrame)
         {
             _graveyard.Add(new GraveyardEntry { NetworkId = id, DeathFrame = currentFrame });
         }
@@ -184,7 +184,7 @@ namespace Fdp.Toolkit.Replication.Services
         /// </summary>
         public void PruneDeadEntities(EntityRepository repo)
         {
-            var toRemove = new List<long>();
+            var toRemove = new List<int>();
             foreach (var kvp in _netToEntity)
             {
                 if (!repo.IsAlive(kvp.Value))
@@ -232,7 +232,7 @@ namespace Fdp.Toolkit.Replication.Services
 
             foreach (var e in q)
             {
-                long netId = repo.GetComponentRO<NetworkIdentity>(e).Value;
+                int netId = repo.GetComponentRO<NetworkIdentity>(e).Value;
                 if (netId != 0 && !TryGetEntity(netId, out _))
                     Register(netId, e);
             }

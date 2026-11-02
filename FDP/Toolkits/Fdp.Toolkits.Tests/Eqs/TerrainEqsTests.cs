@@ -59,7 +59,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             return e;
         }
 
-        private static EqsResult Point(float x, float y) => new() { EntityId = 0L, PositionX = x, PositionY = y };
+        private static EqsResult Point(float x, float y) => new() { EntityId = 0, PositionX = x, PositionY = y };
 
         // ── sight ────────────────────────────────────────────────────────────────────────────
 
@@ -742,7 +742,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             if (!_repo.IsComponentTypeRegistered<TkbIdentity>()) _repo.RegisterComponent<TkbIdentity>();
             if (!_repo.IsComponentTypeRegistered<VehicleParams>()) _repo.RegisterComponent<VehicleParams>();
             var e = At(x, y);
-            _repo.AddComponent(e, new TkbIdentity { TkbType = type });
+            _repo.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             if (cls != null) _repo.AddComponent(e, new VehicleParams { Class = cls.Value });
             return e;
         }

@@ -7,7 +7,7 @@ namespace Fdp.Presentation.Editing;
 
 public sealed class BoundingBoxFieldEditor : ICustomFieldEditor
 {
-    public Type TargetType => typeof(BoundingBox2D);
+    public Type TargetType => typeof(Fdp.Toolkit.Replication.AreaLink);
 
     public EditNode? CreateNode(
         EditNodeId id,
@@ -21,7 +21,7 @@ public sealed class BoundingBoxFieldEditor : ICustomFieldEditor
             name,
             jsonPath,
             EditNodeKind.Custom,
-            typeof(BoundingBox2D),
+            typeof(Fdp.Toolkit.Replication.AreaLink),
             binding,
             null,
             metadata);

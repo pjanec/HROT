@@ -56,7 +56,7 @@ namespace Hrot.AI.Behaviors.Brains
         [BehaviorResolver(BehaviorNames.AirArmedSearch)]
         public static void Resolve(in AirArmedSearchOrder order, ref AirArmedSearchBlackboard block, EntityRepository world, Entity self)
         {
-            var at = OrderGeo.ToLocal(world, order.Location, 0f);
+            var at = (System.Numerics.Vector3)order.Location;
             block.Search = new AirArmedSearchParams
             {
                 Centre = new Vector3(at.X, at.Y, Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(at.X, at.Y) ?? 0f),
@@ -120,7 +120,7 @@ namespace Hrot.AI.Behaviors.Orders
 
         /// <summary>The area's centre (geodetic).</summary>
         [System.Text.Json.Serialization.JsonPropertyName("Location")]
-        public Fdp.Toolkit.Behavior.Params.PickableGeoPoint Location;
+        public Fdp.Toolkit.Replication.PointLink Location;
 
         /// <summary>The area's radius (m); 0 = 400.</summary>
         [System.Text.Json.Serialization.JsonPropertyName("RadiusM")]

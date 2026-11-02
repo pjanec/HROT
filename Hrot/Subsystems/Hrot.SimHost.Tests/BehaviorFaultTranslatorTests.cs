@@ -34,7 +34,7 @@ namespace Hrot.SimHost.Tests
 
         public void Dispose() => _world.Dispose();
 
-        private Entity Spawn(long netId)
+        private Entity Spawn(int netId)
         {
             var e = _world.CreateEntity();
             _entityMap.Register(netId, e);

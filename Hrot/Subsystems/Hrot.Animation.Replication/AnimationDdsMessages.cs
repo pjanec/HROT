@@ -15,7 +15,7 @@ namespace Hrot.Animation.Replication;
 [StructLayout(LayoutKind.Sequential)]
 internal unsafe struct DdsAnimationChannelIntent
 {
-    public long EntityId;
+    public int EntityId;
     public ushort ActiveAction;
     public ushort Pad1;
     public uint ActionInstanceId;
@@ -27,7 +27,7 @@ internal unsafe struct DdsAnimationChannelIntent
 [StructLayout(LayoutKind.Sequential)]
 internal struct DdsAnimationChannelStatus
 {
-    public long EntityId;
+    public int EntityId;
     public byte Status;           // NodeStatus cast to byte
     public byte Pad1;
     public ushort Pad2;
@@ -44,7 +44,7 @@ internal struct DdsAnimationChannelStatus
 public unsafe partial struct DdsLookAtChannelIntent
 {
     [DdsKey]
-    public long EntityId;
+    public int EntityId;
     public ushort ActiveAction;
     public ushort Pad1;
     public uint ActionInstanceId;
@@ -60,7 +60,7 @@ public unsafe partial struct DdsLookAtChannelIntent
 public partial struct DdsLookAtChannelStatus
 {
     [DdsKey]
-    public long EntityId;
+    public int EntityId;
     public byte Status;           // NodeStatus cast to byte
     public byte Pad1;
     public ushort Pad2;
@@ -80,7 +80,7 @@ public partial struct DdsLookAtChannelStatus
 public partial struct DdsStanceIntent
 {
     [DdsKey]
-    public long EntityId;
+    public int EntityId;
     public byte TargetStance;     // StanceId cast to byte
     public byte Pad1;
     public ushort Pad2;
@@ -95,7 +95,7 @@ public partial struct DdsStanceIntent
 public partial struct DdsStanceStatus
 {
     [DdsKey]
-    public long EntityId;
+    public int EntityId;
     public byte CurrentStance;    // StanceId cast to byte
     public byte Phase;            // StanceTransitionPhase cast to byte
     public ushort Pad1;
@@ -108,7 +108,7 @@ public partial struct DdsStanceStatus
 [StructLayout(LayoutKind.Sequential)]
 internal unsafe struct DdsMontageQueue
 {
-    public long EntityId;
+    public int EntityId;
     public uint QueueVersion;
     public byte Count;
     private byte _pad0;
@@ -121,7 +121,7 @@ internal unsafe struct DdsMontageQueue
 [StructLayout(LayoutKind.Sequential)]
 internal struct DdsMontageQueueState
 {
-    public long EntityId;
+    public int EntityId;
     public byte CurrentEntryIndex;
     public byte InBlendOutWindow;  // bool as byte for blittability
     public ushort Pad;
@@ -133,7 +133,7 @@ internal struct DdsMontageQueueState
 [StructLayout(LayoutKind.Sequential)]
 internal struct DdsMontageStartedEvent
 {
-    public long Target;
+    public int Target;
     public int MontageId;
     public uint ActionInstanceId;
     public byte QueueIndex;
@@ -144,7 +144,7 @@ internal struct DdsMontageStartedEvent
 [StructLayout(LayoutKind.Sequential)]
 internal struct DdsMontageEndedEvent
 {
-    public long Target;
+    public int Target;
     public int MontageId;
     public uint ActionInstanceId;
     public byte QueueIndex;
@@ -155,7 +155,7 @@ internal struct DdsMontageEndedEvent
 [StructLayout(LayoutKind.Sequential)]
 internal struct DdsMontageSectionAdvancedEvent
 {
-    public long Target;
+    public int Target;
     public int MontageId;
     public byte FromSectionIndex;
     public byte ToSectionIndex;
@@ -165,7 +165,7 @@ internal struct DdsMontageSectionAdvancedEvent
 [StructLayout(LayoutKind.Sequential)]
 internal struct DdsStanceChangedEvent
 {
-    public long Target;
+    public int Target;
     public byte PreviousStance;   // StanceId cast to byte
     public byte NewStance;        // StanceId cast to byte
     private ushort _p;
@@ -174,7 +174,7 @@ internal struct DdsStanceChangedEvent
 [StructLayout(LayoutKind.Sequential)]
 internal struct DdsHitWindowOpenedEvent
 {
-    public long Target;
+    public int Target;
     public int MontageId;
     public byte WindowId;
     private byte _p0;
@@ -184,7 +184,7 @@ internal struct DdsHitWindowOpenedEvent
 [StructLayout(LayoutKind.Sequential)]
 internal struct DdsHitWindowClosedEvent
 {
-    public long Target;
+    public int Target;
     public int MontageId;
     public byte WindowId;
     private byte _p0;
@@ -194,7 +194,7 @@ internal struct DdsHitWindowClosedEvent
 [StructLayout(LayoutKind.Sequential)]
 internal struct DdsAnimNotifyEvent
 {
-    public long Target;
+    public int Target;
     public int MontageId;
     public uint MarkerHash;
     public float PayloadFloat;

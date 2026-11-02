@@ -65,9 +65,9 @@ public sealed class TrafficRuntimeTests
     [Fact]
     public void N2_T1_CarsAreNamedByTheAllocator_AndTypedByTheTkb()
     {
-        long next = 5000;
+        int next = 5000;
         var types = TrafficVehicleCatalog.From(HrotEnvironment.CreateTkb());
-        Assert.Equal(new long[] { 1002, 1050, 1051, 1052, 1053, 1054, 1055, 1056 }, types.Select(t => t.TkbType));
+        Assert.Equal(new long[] { 1002, 1050, 1051, 1052, 1053, 1054, 1055, 1056 }, types.Select(t => (long)t.TkbType));
         using var session = new TrafficSession(Key(), Options(() => Interlocked.Increment(ref next)), types, startTime: 0.0);
 
         session.StepTo(30.0);
@@ -141,7 +141,7 @@ public sealed class TrafficRuntimeTests
         Assert.Equal(4711, world.GetComponentRO<NetworkIdentity>(e).Value);
         Assert.Equal(9, world.GetComponentRO<NetworkAuthority>(e).PrimaryOwnerId);
         Assert.False(world.GetComponentRO<NetworkAuthority>(e).HasAuthority);   // a replica of node 9's car
-        Assert.Equal(1050, world.GetComponentRO<TkbIdentity>(e).TkbType);
+        Assert.Equal(1050L, (long)world.GetComponentRO<TkbIdentity>(e).TkbType);
         Assert.Equal(EntityAppearance.Of(0x33, 0x66, 0x99).ColorRgba, world.GetComponentRO<EntityAppearance>(e).ColorRgba);
         Assert.Equal(ReplicationRoute.SumoSharp, world.GetComponentRO<ReplicationRoute>(e).RouteId);
         Assert.True(world.HasComponent<ScenarioIgnoreTag>(e));
@@ -219,7 +219,7 @@ public sealed class TrafficRuntimeTests
         using var _ = world;
         RegisterReplicaComponents(world);
         world.RegisterComponent<TrafficDemand>();
-        long next = 70000;
+        int next = 70000;
         using var runtime = new TrafficRuntime(Options(() => Interlocked.Increment(ref next)));
         var mirror = new TrafficMirrorSystem(runtime, participant: null, entityMap: null, localNodeId: 1);
 
@@ -263,7 +263,7 @@ public sealed class TrafficRuntimeTests
         world.RegisterComponent<TrafficDemand>();
         int main = Environment.CurrentManagedThreadId;
         var callers = new System.Collections.Concurrent.ConcurrentBag<int>();
-        long next = 0;
+        int next = 0;
         using var runtime = new TrafficRuntime(Options(() => { callers.Add(Environment.CurrentManagedThreadId); return Interlocked.Increment(ref next); }));
         var mirror = new TrafficMirrorSystem(runtime, participant: null, entityMap: null, localNodeId: 1);
         var traffic = world.CreateEntity();
@@ -308,9 +308,9 @@ public sealed class TrafficRuntimeTests
 
     private static readonly IReadOnlyList<TrafficVehicleType> NoTypes = Array.Empty<TrafficVehicleType>();
 
-    private static TrafficServeOptions Options(Func<long>? ids = null)
+    private static TrafficServeOptions Options(Func<int>? ids = null)
     {
-        long n = 0;
+        int n = 0;
         return new TrafficServeOptions(ids ?? (() => Interlocked.Increment(ref n)), Participant: null, Source: 1);
     }
 
@@ -325,7 +325,7 @@ public sealed class TrafficRuntimeTests
         using var _ = world;
         RegisterReplicaComponents(world);
         world.RegisterComponent<TrafficDemand>();
-        long next = 80000;
+        int next = 80000;
         using var runtime = new TrafficRuntime(Options(() => Interlocked.Increment(ref next)));
         var mirror = new TrafficMirrorSystem(runtime, participant: null, entityMap: null, localNodeId: 1);
         var traffic = world.CreateEntity();
@@ -390,7 +390,7 @@ public sealed class TrafficRuntimeTests
         using var _ = world;
         RegisterReplicaComponents(world);
         world.RegisterComponent<TrafficDemand>();
-        long next = 90000;
+        int next = 90000;
         using var runtime = new TrafficRuntime(Options(() => Interlocked.Increment(ref next)));
         var mirror = new TrafficMirrorSystem(runtime, participant: null, entityMap: null, localNodeId: 1);
         var traffic = world.CreateEntity();
@@ -408,7 +408,7 @@ public sealed class TrafficRuntimeTests
         bool restoring = true;
         mirror.IsReplayRestoring = () => restoring;
         Frame(world, mirror, runtime, t += 0.25);
-        var ids = new List<long>();
+        var ids = new List<int>();
         foreach (var e in mirror.Replicas.Replicas.Values.ToArray())   // the recording replaces every replica entity
         {
             ids.Add(world.GetComponentRO<NetworkIdentity>(e).Value);
@@ -418,7 +418,7 @@ public sealed class TrafficRuntimeTests
         Frame(world, mirror, runtime, t += 0.25);
 
         Assert.Equal(rebuilds + 1, mirror.Replicas.Rebuilds);
-        foreach (long id in ids)
+        foreach (int id in ids)
             Assert.True(TrafficEntitiesWithId(world, id) <= 1, $"car {id} has a second replica");
         foreach (var e in mirror.Replicas.Replicas.Values) Assert.True(world.IsAlive(e));
         for (int i = 0; i < 8; i++) Frame(world, mirror, runtime, t += 0.25);
@@ -438,7 +438,7 @@ public sealed class TrafficRuntimeTests
         return copy;
     }
 
-    private static int TrafficEntitiesWithId(EntityRepository world, long id)
+    private static int TrafficEntitiesWithId(EntityRepository world, int id)
     {
         int n = 0;
         foreach (var e in world.Query().With<TrafficCar>().With<NetworkIdentity>().Build())
@@ -497,8 +497,8 @@ public sealed class TrafficRuntimeTests
         world.AddComponent(e, new PhysicsCollider { Radius = 0.4f, Height = 1.8f, CollisionLayer = 1 });
     }
 
-    private static TrafficCarPose Pose(VehicleHandle h, float x, int owner = 3, long netId = 0, long tkb = 0, uint color = 0)
-        => new(owner, h, "car" + h.Index, netId, tkb, color, x, 0f, 0f, 0f, 4.5f, 1.8f);
+    private static TrafficCarPose Pose(VehicleHandle h, float x, int owner = 3, int netId = 0, long tkb = 0, uint color = 0)
+        => new(owner, h, "car" + h.Index, netId, (Fdp.Core.TkbTypeId)(tkb), color, x, 0f, 0f, 0f, 4.5f, 1.8f);
 
     private static string TerrainRoot()
     {

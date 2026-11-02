@@ -52,7 +52,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 Observe = new ObserveFireParams
                 {
-                    Battery = order.Battery.Resolve(world), Rounds = order.Rounds, Sheaf = (byte)order.Sheaf, SheafWidthM = order.SheafWidthM,
+                    Battery = order.Battery.Ref.Resolve(world), Rounds = order.Rounds, Sheaf = (byte)order.Sheaf, SheafWidthM = order.SheafWidthM,
                     Control = (byte)order.Control, Locating = (byte)order.Locating,
                 },
                 MaxMetres = order.MaxMetres > 0f ? order.MaxMetres : DefaultMaxMetres,
@@ -163,7 +163,7 @@ namespace Hrot.AI.Behaviors.Orders
 
         /// <summary>The battery (or self-propelled gun) to call.</summary>
         [System.Text.Json.Serialization.JsonPropertyName("Battery")]
-        public Fdp.Toolkit.Replication.EntityRef Battery;
+        public Fdp.Toolkit.Replication.EntityLink Battery;
 
         /// <summary>He calls fire on what he sees within this distance (m); 0 = 1500.</summary>
         [System.Text.Json.Serialization.JsonPropertyName("MaxMetres")]

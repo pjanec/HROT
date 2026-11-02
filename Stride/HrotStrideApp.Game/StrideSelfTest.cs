@@ -66,7 +66,7 @@ public sealed class StrideSelfTest
 
     // ── Test parameters ──────────────────────────────────────────────────────
     private const long  SpawnTkbType   = 101L;  // IFV (TkbType 101) — the exact type the test-move scenario uses
-    private const long  SpawnNetId     = 9001L;
+    private const int  SpawnNetId     = 9001;
     private const float HoldTolerance  = 5.0f;  // metres (FDP X,Y)
 
     // IN-ARENA coords (arena ≈ FDP X∈[-10,10], Y∈[0,15]) so entities are on the floor.
@@ -234,7 +234,7 @@ public sealed class StrideSelfTest
         {
             RequestId             = Guid.NewGuid(),
             OwnerAppInstanceId    = 0,            // localNodeId=0 → WithOwned authority granted
-            TkbType               = SpawnTkbType,
+            TkbType               = (Fdp.Core.TkbTypeId)(SpawnTkbType),
             PreAllocatedNetworkId = SpawnNetId,
             InitialComponents     = new List<object>
             {
@@ -243,7 +243,7 @@ public sealed class StrideSelfTest
                     Position = PosA,
                     Rotation = System.Numerics.Quaternion.Identity,
                 },
-                new TkbIdentity { TkbType = SpawnTkbType },
+                new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(SpawnTkbType) },
             },
         });
 
@@ -316,7 +316,7 @@ public sealed class StrideSelfTest
         // Preserve the current rotation (only overwriting Position).
         var world = _ctx.World;
         var currentRot = world.HasComponent<SimTransform>(entity)
-            ? world.GetComponentRO<SimTransform>(entity).Rotation
+            ? (System.Numerics.Quaternion)world.GetComponentRO<SimTransform>(entity).Rotation
             : System.Numerics.Quaternion.Identity;
 
         // Write SimTransform directly — this mimics the operator drag path.

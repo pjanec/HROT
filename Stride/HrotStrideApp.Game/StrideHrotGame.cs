@@ -110,7 +110,7 @@ public sealed class StrideHrotGame : Game
     public int NodeDomainId { get; set; }
 
     /// <summary>Cluster node id for mode 2. Ignored in mode 1.</summary>
-    public int NodeId { get; set; } = StrideNodeShell.DefaultNodeId;
+    public NodeId NodeId { get; set; } = (Fdp.Core.NodeId)(StrideNodeShell.DefaultNodeId);
 
     private StrideNodeShell? _nodeShell;
 

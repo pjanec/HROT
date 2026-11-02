@@ -21,7 +21,7 @@ namespace Hrot.Map.Common.Replication.Egress
     public sealed class EntityStableGuidEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<EntityStableGuid>? _writer;
-        private readonly HashSet<long> _sent = new();
+        private readonly HashSet<int> _sent = new();
         private int _worldEpoch;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityStableGuid>();
@@ -43,7 +43,7 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var e in view.Query().With<EntityGuid>().DefaultRoutePublishable().WithLifecycle(EntityLifecycle.All).Build())
             {
                 if (!view.HasAuthority(e, packedKey)) continue;
-                long netId = view.GetComponentRO<NetworkIdentity>(e).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(e).Value;
                 if (!_sent.Add(netId)) continue;
                 _writer?.Write(ToSample(netId, view.GetComponentRO<EntityGuid>(e)));
                 SentSampleCount++;
@@ -51,7 +51,7 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>The wire form (the test seam, and the creation-request builder's).</summary>
-        public static EntityStableGuid ToSample(long netId, in EntityGuid g)
+        public static EntityStableGuid ToSample(int netId, in EntityGuid g)
         {
             Span<byte> b = stackalloc byte[16];
             g.Value.TryWriteBytes(b);
@@ -63,10 +63,10 @@ namespace Hrot.Map.Common.Replication.Egress
             };
         }
 
-        public void Dispose(long networkEntityId) => _sent.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _sent.Remove(networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_sent.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityStableGuid { EntityId = networkEntityId });
         }
@@ -87,8 +87,8 @@ namespace Hrot.Map.Common.Replication.Ingress
         private const long OrdinalValue = (long)EDescriptorType.dtEntityGuid;
         private readonly DdsReader<EntityStableGuid>? _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly Dictionary<long, Guid> _waiting = new();
-        private readonly List<long> _applied = new();
+        private readonly Dictionary<int, Guid> _waiting = new();
+        private readonly List<int> _applied = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityStableGuid>();
         public long DescriptorOrdinal => OrdinalValue;
@@ -127,7 +127,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         }
 
         /// <summary>Applies one sample (the test seam); false = its entity is not here yet.</summary>
-        internal bool TryApply(long netId, Guid guid, IEntityCommandBuffer cmd, ISimulationView view)
+        internal bool TryApply(int netId, Guid guid, IEntityCommandBuffer cmd, ISimulationView view)
         {
             if (!_entityMap.TryGetEntity(netId, out var e) || !view.IsAlive(e)) return false;
             if (view is EntityRepository repo)
@@ -152,6 +152,6 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { _waiting.Remove(networkEntityId); }
+        public void Dispose(int networkEntityId) { _waiting.Remove(networkEntityId); }
     }
 }

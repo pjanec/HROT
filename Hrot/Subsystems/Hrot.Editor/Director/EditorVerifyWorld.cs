@@ -33,17 +33,17 @@ namespace Hrot.Editor.Director
 
         private DebugApiService Service => _service() ?? throw new InvalidOperationException(NoService);
 
-        public System.Collections.Generic.IReadOnlyList<(long Id, string Name)> Named() => VerifyWorldNames.Named(_world());
+        public System.Collections.Generic.IReadOnlyList<(int Id, string Name)> Named() => VerifyWorldNames.Named(_world());
 
         public string? NameOfEntityIndex(int index) => VerifyWorldNames.NameOfEntityIndex(_world(), index);
 
-        public JsonObject? Components(long networkId) => Service.DumpEntity(networkId)?["Components"] as JsonObject;
+        public JsonObject? Components(int networkId) => Service.DumpEntity(networkId)?["Components"] as JsonObject;
 
         public JsonArray Shots() => Service.GetShots(int.MaxValue, null, null)["shots"] as JsonArray ?? new JsonArray();
 
         public JsonArray Blasts() => Service.GetDetonations(int.MaxValue)["detonations"] as JsonArray ?? new JsonArray();
 
-        public string? SetComponent(long networkId, string component, JsonObject patch)
+        public string? SetComponent(int networkId, string component, JsonObject patch)
             => Service.EditEntityComponent(networkId, component, patch.DeepClone()).error;
     }
 }

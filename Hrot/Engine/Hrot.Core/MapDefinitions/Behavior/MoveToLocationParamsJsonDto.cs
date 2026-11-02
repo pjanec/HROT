@@ -1,6 +1,5 @@
 using System.Text.Json.Serialization;
 using Fdp.Toolkit.Behavior.Attributes;
-using Fdp.Toolkit.Behavior.Params;
 using Fdp.Core;
 
 namespace Hrot.Map.Definitions.Behavior
@@ -25,17 +24,19 @@ namespace Hrot.Map.Definitions.Behavior
     /// blueprint's Behaviour Task passes its bytes and the typed resolver's from-bytes arm converts them. ⛔ It was a class,
     /// which the from-bytes arm cannot take. Same properties and JSON keys.</remarks>
     [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
+    [Fdp.Toolkit.Replication.RetiredJsonKeys("targetLat", "targetLon", "x", "y")]   // CE-4153 S10: S0 item 5 folded them into `target`
     public struct MoveToLocationParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.MoveToLocation;
 
-        /// <summary>Target latitude in degrees (flat JSON wire format).</summary>
-        [JsonPropertyName("targetLat")]
-        public double TargetLat;
-
-        /// <summary>Target longitude in degrees (flat JSON wire format).</summary>
-        [JsonPropertyName("targetLon")]
-        public double TargetLon;
+        /// <summary>
+        /// ⭐ <c>S0</c> item 5 (<c>DESIGN_Scenario_Rules</c> §9.8.0, SR-135) — WHERE to go: ONE authored place, local metres
+        /// (<c>[x, y, z]</c>) or an entity's position (<c>"@Key"</c> / a GUID). It replaces the lat/lon pair, the local <c>x</c> / <c>y</c>
+        /// fallback and the computed <c>PickableLocation</c>: the TYPE makes the field map-pickable and relocatable, and no latitude or
+        /// longitude exists inside the engine (the outer edge converts). ⛔ Migrating authored content is S0 item 9.
+        /// </summary>
+        [JsonPropertyName("target")]
+        public Fdp.Toolkit.Replication.PointLink Location;   // ⚠ the C# member is `Location`, the JSON key `target`: a blueprint SendIntent node names its pins by member, and its own entity pin is already called "Target"
 
         /// <summary>Travel speed in meters per second.</summary>
         [JsonPropertyName("speed")]
@@ -46,40 +47,6 @@ namespace Hrot.Map.Definitions.Behavior
         public double ArrivalRadius;
 
         /// <summary>
-        /// Local ENU easting in metres, relative to <b>this node's geographic origin</b>
-        /// (<c>GET /world/info</c> reports it).
-        ///
-        /// <para>
-        /// ⚠ <b>Origin-dependent, therefore NOT portable between nodes</b> — <c>TargetLat</c>/
-        /// <c>TargetLon</c> is the canonical form and the one to use for anything that travels.
-        /// 🔒 User ruling, <c>2026-09-08</c>: <i>"cartesian depends on geoconverter, different nodes
-        /// might use different origin, generic parameter for generic use should be geo always; for
-        /// purpose of ai driven development cartesian is much easier and matches the internal
-        /// components so it is still very useful so i would keep it."</i>
-        /// </para>
-        ///
-        /// <para>
-        /// ⭐ Advertised deliberately: the resolver has accepted it since <c>CE-224</c> proved it end to
-        /// end on the live host, and it is the only form that works on a node whose world is missing
-        /// the <c>IGeographicTransform</c> singleton (<c>CE-151</c>). An accepted-but-undocumented key
-        /// helps nobody.
-        /// </para>
-        ///
-        /// <para>
-        /// ⚠ Supplied only when <c>TargetLat</c> and <c>TargetLon</c> are both zero — the geo pair wins
-        /// when present. See <c>CgfNodes.ParseMoveToParams</c>.
-        /// </para>
-        /// </summary>
-        [JsonPropertyName("x")]
-        public float X;
-
-        /// <summary>
-        /// Local ENU northing in metres. Same origin-dependence and same precedence as <see cref="X"/>.
-        /// </summary>
-        [JsonPropertyName("y")]
-        public float Y;
-
-        /// <summary>
         /// ⭐ <c>CE-3130</c> (R-230) — how the mover treats the road network: <c>Never</c> (sneak, keep off it), <c>Neutral</c>,
         /// <c>Prefer</c>, <c>StronglyPrefer</c> (a convoy). <c>Unspecified</c> (omitted) leaves it to the unit's class: a vehicle
         /// prefers roads, infantry is neutral. 📄 docs/designs/navig-2/Navigation_Design_v2_0.md §5.2a D1.
@@ -88,21 +55,5 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonConverter(typeof(JsonStringEnumConverter))]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
         public Fdp.Toolkit.Navigation.RoadUse RoadUse;
-
-        /// <summary>
-        /// Composite facade exposing the target position as a single pickable value.
-        /// Excluded from JSON serialization; <see cref="TargetLat"/> and
-        /// <see cref="TargetLon"/> carry the wire representation.
-        /// </summary>
-        [JsonIgnore]
-        public PickableGeoPoint PickableLocation
-        {
-            get => new PickableGeoPoint(TargetLat, TargetLon);
-            set
-            {
-                TargetLat = value.Latitude;
-                TargetLon = value.Longitude;
-            }
-        }
     }
 }

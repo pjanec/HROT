@@ -38,7 +38,7 @@ public sealed class ClusterMasterBranchTests
 
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = nodeId,
+            NodeId        = (Fdp.Core.NodeId)(nodeId),
             SubsystemName = "SimHost",
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
@@ -99,7 +99,7 @@ public sealed class ClusterMasterBranchTests
             {
                 TransactionId   = intent.TransactionId,
                 Operation       = intent.Operation,
-                NodeId          = nodeId,
+                NodeId          = (Fdp.Core.NodeId)(nodeId),
                 StatusCode      = OrchestrationStatusCode.Success,
                 IsParticipating = true,
                 ResultPayload   = intent.Operation == FdpNodeOpType.PrepareLive
@@ -205,7 +205,7 @@ public sealed class ClusterMasterBranchTests
             foreach (var intent in bus.ReadManaged<ExecuteNodeOpIntent>().Where(i => i.Operation != FdpNodeOpType.CommitState).ToList())
                 bus.PublishManaged(new NodeOpCompletedEvent
                 {
-                    TransactionId = intent.TransactionId, Operation = intent.Operation, NodeId = nodeId,
+                    TransactionId = intent.TransactionId, Operation = intent.Operation, NodeId = (Fdp.Core.NodeId)(nodeId),
                     StatusCode = OrchestrationStatusCode.Success, IsParticipating = true,
                     ResultPayload = intent.Operation == FdpNodeOpType.PrepareLive
                         ? (object?)new LiveBranchResult(new Fdp.Core.GlobalTime { TotalWallTicks = 7777L, TotalTime = 3.0 }, true, parent, point)
@@ -272,7 +272,7 @@ public sealed class ClusterMasterBranchTests
         var master = new ClusterMaster(bus, MandatorySimHostConfig());
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId = 1, SubsystemName = "SimHost", LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+            NodeId = (Fdp.Core.NodeId)(1), SubsystemName = "SimHost", LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
         });
         bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
@@ -306,7 +306,7 @@ public sealed class ClusterMasterBranchTests
         var master = new ClusterMaster(bus, MandatorySimHostConfig());
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId = 1, SubsystemName = "SimHost", LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+            NodeId = (Fdp.Core.NodeId)(1), SubsystemName = "SimHost", LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
         });
         bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();

@@ -279,7 +279,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
             doors.Select(r => r.InitialComponents!.OfType<Fdp.Toolkit.Terrain.TerrainObjectKey>().Single().Key));
         Assert.All(doors, r => Assert.Equal(Hrot.Map.Common.TkbEntityTypes.Door, r.TkbType));
         Assert.All(doors, r => Assert.True(r.IsTransient));                     // K5 — never written into a scenario
-        Assert.Equal(new long[] { 100, 101 }, doors.Select(r => r.PreAllocatedNetworkId));   // K1 — the one allocator
+        Assert.Equal(new int[] { 100, 101 }, doors.Select(r => r.PreAllocatedNetworkId));   // K1 — the one allocator
         Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Locked,
             doors[0].InitialComponents!.OfType<Fdp.Toolkit.Terrain.DoorState>().Single().State);   // the instance override
         Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Open,
@@ -385,7 +385,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
         foreach (long start in new[] { authored, authored + TimeSpan.TicksPerHour })
         {
             var e = _goldRepo.CreateEntity();
-            _goldRepo.AddComponent(e, new TkbIdentity { TkbType = Hrot.Map.Common.TkbEntityTypes.WorldEnvironment });
+            _goldRepo.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Hrot.Map.Common.TkbEntityTypes.WorldEnvironment) });
             _goldRepo.AddComponent(e, new Fdp.Toolkit.Weather.ScenarioClock { StartUtcTicks = start, DisplayUtcOffsetMinutes = -300 });
         }
         // ⚠ a serializer built AFTER ScenarioClock is registered (FdpAutoSerializer compiles its roster at Build — the shared _serializer

@@ -2382,7 +2382,7 @@ public sealed partial class ClusterMaster : IDisposable
             _eventBus.PublishManaged(new ExecuteNodeOpIntent
             {
                 TransactionId = transactionId,
-                TargetNodeId  = nodeId,
+                TargetNodeId  = (Fdp.Core.NodeId)(nodeId),
                 Operation     = (Fdp.Toolkit.Orchestration.NodeOpType)(int)operation,
                 DomainPayload = domainPayload,
             });
@@ -2665,7 +2665,7 @@ public sealed partial class ClusterMaster : IDisposable
         {
             targets.Add(new NodeDistributionTarget
             {
-                NodeId          = kv.Key,
+                NodeId          = (Fdp.Core.NodeId)(kv.Key),
                 DestinationPath = Path.Combine(
                     OrchestrationConstants.GetNodeExercisesRoot(kv.Key),
                     exerciseIdText,
@@ -2725,7 +2725,7 @@ public sealed partial class ClusterMaster : IDisposable
         => _nodeCapabilities.ContainsKey(p.NodeId) && (p.Roles & SimulationRoles) == 0;
 
     /// <summary>The node this master runs IN (the orchestrator's own node, or the editor's) — set by the core.</summary>
-    public int LocalNodeId { get; set; } = int.MinValue;
+    public NodeId LocalNodeId { get; set; } = (Fdp.Core.NodeId)(int.MinValue);
 
     private HashSet<int> _lastStepRoster = new();
 

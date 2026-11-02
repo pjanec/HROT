@@ -70,7 +70,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>⭐ WL-2b (CE-1049, W-3) — applies a published <see cref="WeaponTaskStatus"/> to this node's turret part (the Brain's).</summary>
@@ -117,14 +117,14 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>⭐ WL-1b/WL-2b — this node's turret part for a wire key (hull network id, part id): the hull from the entity map, the
     /// part from <see cref="TurretParts.Find"/>; <see cref="Entity.Null"/> when either is not built here (yet).</summary>
     internal static class TurretPartLookup
     {
-        public static Entity Find(NetworkEntityMap map, ISimulationView view, long hullNetworkId, int partId)
+        public static Entity Find(NetworkEntityMap map, ISimulationView view, int hullNetworkId, int partId)
         {
             int index = TurretParts.IndexOf(partId);
             if (index < 0 || !map.TryGetEntity(hullNetworkId, out var hull)) return Entity.Null;

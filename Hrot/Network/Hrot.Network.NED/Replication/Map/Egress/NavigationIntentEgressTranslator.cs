@@ -14,6 +14,7 @@ using Fdp.ModuleHost.Abstractions;
 
 using EcsNavigationIntent = Fdp.Toolkit.Navigation.NavigationIntent;
 using EcsNavMode          = Fdp.Toolkit.Navigation.NavigationMode;
+using NodeId = Fdp.Core.NodeId;
 
 namespace Hrot.Map.Common.Replication.Egress
 {
@@ -26,7 +27,7 @@ namespace Hrot.Map.Common.Replication.Egress
     {
         private readonly IDdsWriter<Hrot.NED.Descriptors.NavigationIntent> _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
         // Tracks the tick of the last scan so QueryDelta can skip unchanged chunks.
         private uint _lastScanTick;
         // Fine-grained per-entity change filter: stores the last-published IntentId so that
@@ -34,7 +35,7 @@ namespace Hrot.Map.Common.Replication.Egress
         // without any executor coupling or shadow ECS component.
         // Key = full Entity handle (Index + Generation), Value = last IntentId that was
         // published to DDS for that exact entity instance.
-        private readonly System.Collections.Generic.HashSet<long> _publishedIds = new();   // ⭐ CE-4007
+        private readonly System.Collections.Generic.HashSet<int> _publishedIds = new();   // ⭐ CE-4007
         private int _worldEpoch;
         // ⭐ CE-2208 — the fingerprint is (IntentId, Flags): a FLAG change on the same command must cross too. The Brain's hold release
         //   (FlagBitReleaseHold, FollowRouteExecutor — a level, written without a new IntentId) never left the Brain node before, so on a
@@ -55,7 +56,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public NavigationIntentEgressTranslator(
             DdsParticipant      dds,
             NetworkEntityMap    entityMap,
-            long localNodeId)
+            int localNodeId)
             : this(new DdsWriterAdapter<Hrot.NED.Descriptors.NavigationIntent>(dds),
                    entityMap, localNodeId)
         {
@@ -68,11 +69,11 @@ namespace Hrot.Map.Common.Replication.Egress
         internal NavigationIntentEgressTranslator(
             IDdsWriter<Hrot.NED.Descriptors.NavigationIntent> writer,
             NetworkEntityMap    entityMap,
-            long localNodeId)
+            int localNodeId)
         {
             _writer       = writer       ?? throw new System.ArgumentNullException(nameof(writer));
             _entityMap    = entityMap    ?? throw new System.ArgumentNullException(nameof(entityMap));
-            _localNodeId  = localNodeId;
+            _localNodeId  = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <summary>No ingress for this translator.</summary>
@@ -186,10 +187,10 @@ namespace Hrot.Map.Common.Replication.Egress
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <summary>No DDS dispose needed for navigation intent.</summary>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget what was published so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_entityMap.TryGetEntity(networkEntityId, out var entity)) _lastPublishedIntentId.Remove(entity);
             _lastScanTick = 0;   // the next scan looks at every chunk again, so a reclaimed intent is republished

@@ -95,7 +95,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             void Muscle() { grid.Execute(_repo, 0.016f); kinematics.Execute(_repo, 0.016f); }
             _system.Execute(_repo, 0.016f);
             for (int i = 0; i < 30; i++) Muscle();   // the solver has not answered yet
-            Assert.InRange(_repo.GetComponent<SimTransform>(entity).Position.Length(), 0f, 0.01f);
+            Assert.InRange(((System.Numerics.Vector3)_repo.GetComponent<SimTransform>(entity).Position).Length(), 0f, 0.01f);
             Assert.Equal(0, _repo.GetComponent<NavState>(entity).HasArrived);
 
             _pool.RegisterTrajectoryWithKey(new[] { new Vector2(0f, 0f), new Vector2(0f, 100f) }, 7);
@@ -158,7 +158,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             var grid = new global::CarKinem.Systems.SpatialHashSystem();
             var kinematics = new global::CarKinem.Systems.CarKinematicsSystem(_pool);
             for (int i = 0; i < 30; i++) { grid.Execute(_repo, 0.016f); kinematics.Execute(_repo, 0.016f); }
-            Assert.InRange(_repo.GetComponent<SimTransform>(entity).Position.Length(), 0f, 0.01f);
+            Assert.InRange(((System.Numerics.Vector3)_repo.GetComponent<SimTransform>(entity).Position).Length(), 0f, 0.01f);
         }
 
         /// <summary>⭐ CE-3026 — DirectPoint means STRAIGHT: no path request, the vehicle drives at once.</summary>

@@ -107,7 +107,7 @@ public sealed class DirectorRunnerTests : IDisposable
             var o = System.Text.Json.Nodes.JsonNode.Parse(System.IO.File.ReadAllText(path))!;
             Verifier!.Fresh();
             if (!LoseHealthOnRestore)
-                foreach (var (id, hp) in o["health"]!.AsObject()) Verifier.Health[long.Parse(id, System.Globalization.CultureInfo.InvariantCulture)] = hp!.GetValue<double>();
+                foreach (var (id, hp) in o["health"]!.AsObject()) Verifier.Health[int.Parse(id, System.Globalization.CultureInfo.InvariantCulture)] = hp!.GetValue<double>();
             _snapTo = o["t"]!.GetValue<double>();   // the clock moves on a later frame, as ITimeCommands.SnapTo does
             return _snapTo.Value;
         }
@@ -140,7 +140,7 @@ public sealed class DirectorRunnerTests : IDisposable
         public bool IsOperatingReview { get; private set; }
         private double? _reviewAsk;
         private bool _exitAsk;
-        private (double SimTime, Dictionary<long, double> Health)? _checkpoint;
+        private (double SimTime, Dictionary<int, double> Health)? _checkpoint;
         public void EnterReview(double simSeconds) { Reviews++; _reviewAsk = simSeconds; }
         public void SeekReview(double simSeconds) { ReviewSeeks++; SeekAsks.Add(simSeconds); _reviewAsk = simSeconds; }
 
@@ -198,7 +198,7 @@ public sealed class DirectorRunnerTests : IDisposable
             {
                 _reviewAsk = null;
                 // ⭐ H1b — a seek in a replay is the same SeekReplayIntent; only a review (re)enters from the live run, with its checkpoint
-                if (!IsOperatingReplay && !IsOperatingReview) { _checkpoint = (SimTime, new Dictionary<long, double>(Verifier!.Health)); IsOperatingReview = true; IsOperatingLive = false; }
+                if (!IsOperatingReplay && !IsOperatingReview) { _checkpoint = (SimTime, new Dictionary<int, double>(Verifier!.Health)); IsOperatingReview = true; IsOperatingLive = false; }
                 double before = SimTime;
                 ShowRecorded(ask);
                 if (SeekBackStandsBehind && IsOperatingReplay && ask < before - 1e-9)
@@ -236,7 +236,7 @@ public sealed class DirectorRunnerTests : IDisposable
             var units = new System.Text.Json.Nodes.JsonObject();
             foreach (var e in Repo.Query().With<NetworkIdentity>().With<EntityInfo>().Build())
             {
-                long id = Repo.GetComponentRO<NetworkIdentity>(e).Value;
+                int id = Repo.GetComponentRO<NetworkIdentity>(e).Value;
                 units[id.ToString(System.Globalization.CultureInfo.InvariantCulture)] = new System.Text.Json.Nodes.JsonObject
                 {
                     ["name"] = Repo.GetComponentRO<EntityInfo>(e).Name.ToString(),
@@ -293,7 +293,7 @@ public sealed class DirectorRunnerTests : IDisposable
             }
             else if (_loadFrames == 0 && _pending != null)
             {
-                foreach (var (name, id) in new[] { ("Runner", 1L), ("Watcher " + _pending, 2L) })    // …and builds the scenario
+                foreach (var (name, id) in new[] { ("Runner", 1), ("Watcher " + _pending, 2) })    // …and builds the scenario
                 {
                     var e = Repo.CreateEntity();
                     Repo.AddComponent(e, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
@@ -960,7 +960,7 @@ public sealed class DirectorRunnerTests : IDisposable
     private sealed class FakeVerifyWorld : IVerifyWorld
     {
         private readonly FakeEditor _h;
-        public readonly Dictionary<long, double> Health = new();
+        public readonly Dictionary<int, double> Health = new();
         /// <summary>Each edit, at the sim time it landed.</summary>
         public readonly List<(double SimTime, long Id, string Component)> Edits = new();
 
@@ -985,7 +985,7 @@ public sealed class DirectorRunnerTests : IDisposable
             Health.Clear();
         }
 
-        public System.Text.Json.Nodes.JsonObject? Components(long id)
+        public System.Text.Json.Nodes.JsonObject? Components(int id)
         {
             Fresh();
             foreach (var e in _h.Repo.Query().With<NetworkIdentity>().Build())
@@ -1005,9 +1005,9 @@ public sealed class DirectorRunnerTests : IDisposable
             return null;
         }
 
-        public IReadOnlyList<(long Id, string Name)> Named()
+        public IReadOnlyList<(int Id, string Name)> Named()
         {
-            var list = new List<(long, string)>();
+            var list = new List<(int, string)>();
             foreach (var e in _h.Repo.Query().With<NetworkIdentity>().With<EntityInfo>().Build())
                 list.Add((_h.Repo.GetComponentRO<NetworkIdentity>(e).Value, _h.Repo.GetComponentRO<EntityInfo>(e).Name.ToString()));
             return list;
@@ -1018,7 +1018,7 @@ public sealed class DirectorRunnerTests : IDisposable
         public System.Text.Json.Nodes.JsonArray Shots() => new();
         public System.Text.Json.Nodes.JsonArray Blasts() => new();
 
-        public string? SetComponent(long id, string component, System.Text.Json.Nodes.JsonObject patch)
+        public string? SetComponent(int id, string component, System.Text.Json.Nodes.JsonObject patch)
         {
             Fresh();
             if (component != "Health") return "only Health here";
@@ -1053,10 +1053,10 @@ public sealed class DirectorRunnerTests : IDisposable
         EntityRepository? IVerifyWorld.World => null;
         IShotWorld IVerifyWorld.Units => throw new NotSupportedException();
         public string? BehaviourName(int hash) => null;
-        public IReadOnlyList<(long Id, string Name)> Named() =>
-            Units.Select(kv => (long.Parse(kv.Key, System.Globalization.CultureInfo.InvariantCulture), kv.Value!["name"]!.GetValue<string>())).ToList();
+        public IReadOnlyList<(int Id, string Name)> Named() =>
+            Units.Select(kv => (int.Parse(kv.Key, System.Globalization.CultureInfo.InvariantCulture), kv.Value!["name"]!.GetValue<string>())).ToList();
         public string? NameOfEntityIndex(int index) => null;
-        public System.Text.Json.Nodes.JsonObject? Components(long id)
+        public System.Text.Json.Nodes.JsonObject? Components(int id)
         {
             if (Units[id.ToString(System.Globalization.CultureInfo.InvariantCulture)] is not { } u) return null;
             return new System.Text.Json.Nodes.JsonObject
@@ -1067,7 +1067,7 @@ public sealed class DirectorRunnerTests : IDisposable
         }
         public System.Text.Json.Nodes.JsonArray Shots() => new();
         public System.Text.Json.Nodes.JsonArray Blasts() => new();
-        public string? SetComponent(long id, string component, System.Text.Json.Nodes.JsonObject patch) => "read only";
+        public string? SetComponent(int id, string component, System.Text.Json.Nodes.JsonObject patch) => "read only";
     }
 
     /// <summary>

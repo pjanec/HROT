@@ -36,12 +36,12 @@ namespace Hrot.Editor.Director
         /// <param name="options">The drafter's options (lens, aspect, tick rate, kind of a unit); the take's name is always <see cref="TakeName"/>.</param>
         public static Take From(
             ScenarioChecks checks, IReadOnlyList<Verdict> verdicts, TimelineIndex index,
-            Func<string, long?> idOf, Func<long, string?> nameOf, IReadOnlyCollection<string> unitNames, DraftOptions options)
+            Func<string, int?> idOf, Func<int, string?> nameOf, IReadOnlyCollection<string> unitNames, DraftOptions options)
         {
             var byName = verdicts.GroupBy(v => v.Name, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
             var sorted = unitNames.OrderBy(n => n, StringComparer.Ordinal).ToList();
 
-            long? Resolve(string? name)
+            int? Resolve(string? name)
             {
                 if (name is null) return null;
                 if (!name.StartsWith('*')) return idOf(name);
@@ -74,7 +74,7 @@ namespace Hrot.Editor.Director
                 var spec = check.Cue.Spec;
                 string? actorName = spec.By ?? spec.Who;
                 string? subjectName = spec.Target ?? check.Cue.Hit ?? (spec.By is not null ? spec.Who : null);   // a Who with a By is the one acted upon
-                long? actor = Resolve(actorName), subject = Resolve(subjectName);
+                int? actor = Resolve(actorName), subject = Resolve(subjectName);
                 if (actor is null) { actor = subject; subject = null; }   // only the subject is known: the shot is about it
 
                 bool wholeScene = actor is null;

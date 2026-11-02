@@ -215,7 +215,7 @@ namespace Hrot.Editor.DebugApi
                 if (body?["follow"] is JsonNode follow)
                     shot = new Hrot.UI.Common.Map3D.FilmShot
                     {
-                        Follow = follow.GetValue<long>(),
+                        Follow = follow.GetValue<int>(),
                         Distance = body["distance"]?.GetValue<float>() ?? 30f,
                         Yaw = Deg(body["yawDeg"], 0f),
                         Pitch = Deg(body["pitchDeg"], -20f),
@@ -358,7 +358,7 @@ namespace Hrot.Editor.DebugApi
 
         /// <summary>CE-276 — map an ownership endpoint's (result, error) to an HTTP result: 503 when the host
         /// wires no NED transport, 404 when the entity is unknown (both null), 400 on a bad request, else 200.</summary>
-        private static RouteResult OwnershipResult(JsonNode? result, string? error, long id)
+        private static RouteResult OwnershipResult(JsonNode? result, string? error, int id)
         {
             if (error == null)
                 return result is null
@@ -486,7 +486,7 @@ namespace Hrot.Editor.DebugApi
             }));
             _routes.Add(new("GET", "/entities/{networkId}", async ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 var node = await _jobQueue.RunOnMainThread(() => Service().DumpEntity(id)).ConfigureAwait(false);
                 return node is null
@@ -772,7 +772,7 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("GET", "/behaviors", ctx =>
             {
                 long? tkbType  = long.TryParse(ctx.Query("tkbType"),  out var t) ? t : null;
-                long? entityId = long.TryParse(ctx.Query("entityId"), out var e) ? e : null;
+                int? entityId = int.TryParse(ctx.Query("entityId"), out var e) ? e : null;
 
                 return RunMainResult(s =>
                 {
@@ -794,7 +794,7 @@ namespace Hrot.Editor.DebugApi
             // publish on the main thread and then await the returned task OFF it, with a bounded timeout.
             _routes.Add(new("GET", "/missions/{networkId}", ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Task.FromResult(Fail(400, "Invalid networkId."));
                 return RunMainResult(s =>
                 {
@@ -805,7 +805,7 @@ namespace Hrot.Editor.DebugApi
 
             _routes.Add(new("POST", "/missions/{networkId}/task", async ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 var behavior = ctx.Body?["behavior"]?.GetValue<string>();
                 var pars     = ctx.Body?["params"];
@@ -821,7 +821,7 @@ namespace Hrot.Editor.DebugApi
 
             _routes.Add(new("DELETE", "/missions/{networkId}/tasks", async ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
 
                 var (commit, meta, error, hint) = await _jobQueue
@@ -834,7 +834,7 @@ namespace Hrot.Editor.DebugApi
 
             _routes.Add(new("POST", "/missions/{networkId}/run", async ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 bool restart = ctx.Body?["restart"]?.GetValue<bool>() ?? false;
 
@@ -910,7 +910,7 @@ namespace Hrot.Editor.DebugApi
             // ⭐ Tuning T-4 — line of sight with its evidence (docs/DESIGN_Terrain_Combat_Tuning.md §4).
             _routes.Add(new("GET", "/perception/los", ctx =>
             {
-                if (!long.TryParse(ctx.Query("observer"), out var obs) || !long.TryParse(ctx.Query("target"), out var tgt))
+                if (!int.TryParse(ctx.Query("observer"), out var obs) || !int.TryParse(ctx.Query("target"), out var tgt))
                     return Task.FromResult(Fail(400, "Query 'observer' and 'target' (network ids) are required."));
                 var node = Service().ExplainLos(obs, tgt);
                 return Task.FromResult(node["error"] is JsonNode err ? Fail(404, (string)err!) : Ok(node));
@@ -919,7 +919,7 @@ namespace Hrot.Editor.DebugApi
             // ⭐ AQ106 L (R-3050) — hearing with its evidence: every sound near a listener, heard or why not, and the way it took.
             _routes.Add(new("GET", "/perception/hearing", ctx =>
             {
-                if (!long.TryParse(ctx.Query("listener"), out var who))
+                if (!int.TryParse(ctx.Query("listener"), out var who))
                     return Task.FromResult(Fail(400, "Query 'listener' (a network id) is required."));
                 double seconds = double.TryParse(ctx.Query("seconds"), System.Globalization.NumberStyles.Float,
                     System.Globalization.CultureInfo.InvariantCulture, out var sec) && sec > 0 ? sec : 10d;
@@ -931,8 +931,8 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("GET", "/combat/shots", ctx =>
             {
                 int last = int.TryParse(ctx.Query("last"), out var l) && l > 0 ? l : 20;
-                long? shooter = long.TryParse(ctx.Query("shooter"), out var sh) ? sh : null;
-                long? target = long.TryParse(ctx.Query("target"), out var tg) ? tg : null;
+                int? shooter = int.TryParse(ctx.Query("shooter"), out var sh) ? sh : null;
+                int? target = int.TryParse(ctx.Query("target"), out var tg) ? tg : null;
                 return Task.FromResult(Ok(Service().GetShots(last, shooter, target)));
             }));
 
@@ -1031,12 +1031,12 @@ namespace Hrot.Editor.DebugApi
 
             _routes.Add(new("POST", "/diff/capture", async ctx =>
             {
-                List<long>? ids = null;
+                List<int>? ids = null;
                 if (ctx.Body?["entities"] is JsonArray eArr)
                 {
-                    ids = new List<long>();
+                    ids = new List<int>();
                     foreach (var item in eArr)
-                        ids.Add(item!.GetValue<long>());
+                        ids.Add(item!.GetValue<int>());
                 }
                 var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
                 {
@@ -1051,12 +1051,12 @@ namespace Hrot.Editor.DebugApi
                 var baselineId = ctx.Body?["baselineId"]?.GetValue<string>();
                 if (string.IsNullOrWhiteSpace(baselineId))
                     return Fail(400, "baselineId is required.", DebugApiHints.Baseline);
-                List<long>? ids = null;
+                List<int>? ids = null;
                 if (ctx.Body?["entities"] is JsonArray eArr2)
                 {
-                    ids = new List<long>();
+                    ids = new List<int>();
                     foreach (var item in eArr2)
-                        ids.Add(item!.GetValue<long>());
+                        ids.Add(item!.GetValue<int>());
                 }
                 var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
                 {
@@ -1139,7 +1139,7 @@ namespace Hrot.Editor.DebugApi
             //   condition holds. Both scan the recording read-only; the replayed world is not touched.
             _routes.Add(new("GET", "/entities/{networkId}/journal/history", ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id)) return Task.FromResult(Fail(400, "Invalid networkId."));
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id)) return Task.FromResult(Fail(400, "Invalid networkId."));
                 int? from = int.TryParse(ctx.Query("from"), out var f) ? f : null;
                 int? to = int.TryParse(ctx.Query("to"), out var t) ? t : null;
                 return RunMainResult(s =>
@@ -1157,7 +1157,7 @@ namespace Hrot.Editor.DebugApi
             // Group K — AI Behavior Traces (ADA-BATCH-12)
             _routes.Add(new("POST", "/trace/observe", async ctx =>
             {
-                long networkId = ctx.Body?["networkId"]?.GetValue<long>() ?? 0;
+                int networkId = ctx.Body?["networkId"]?.GetValue<int>() ?? 0;
                 bool on        = ctx.Body?["on"]?.GetValue<bool>() ?? false;
                 if (networkId == 0) return Fail(400, "networkId is required.");
                 var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
@@ -1172,7 +1172,7 @@ namespace Hrot.Editor.DebugApi
 
             _routes.Add(new("GET", "/entities/{networkId}/trace", async ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 var node = await _jobQueue.RunOnMainThread(() => Service().GetEntityTrace(id)).ConfigureAwait(false);
                 return Ok(node);
@@ -1181,7 +1181,7 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-1248 (BV-8) — the Brain tab's snapshot; ⭐ CE-1249 — the brain journal after a Seq.
             _routes.Add(new("GET", "/entities/{networkId}/brain", async ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 var node = await _jobQueue.RunOnMainThread(() => Service().GetEntityBrain(id)).ConfigureAwait(false);
                 return Ok(node);
@@ -1189,7 +1189,7 @@ namespace Hrot.Editor.DebugApi
 
             _routes.Add(new("GET", "/entities/{networkId}/journal", async ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 uint since = uint.TryParse(ctx.Query("since"), out var s) ? s : 0u;
                 var node = await _jobQueue.RunOnMainThread(() => Service().GetEntityJournal(id, since)).ConfigureAwait(false);
@@ -1207,7 +1207,7 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-1293 (UC-10) — the map camera follows a unit (entity: null hands it back).
             _routes.Add(new("POST", "/view/follow", async ctx =>
             {
-                long? id = ctx.Body?["entity"] is JsonValue v && v.TryGetValue<long>(out var n) ? n : null;
+                int? id = ctx.Body?["entity"] is JsonValue v && v.TryGetValue<int>(out var n) ? n : null;
                 float? distance = ctx.Body?["distance"] is JsonValue dv && dv.TryGetValue<float>(out var dn) ? dn : null;
                 var (node, error) = await _jobQueue.RunOnMainThread(() => Service().FollowUnit(id, distance)).ConfigureAwait(false);
                 return error != null ? Fail(409, error) : Ok(node);
@@ -1226,7 +1226,7 @@ namespace Hrot.Editor.DebugApi
             {
                 int? from = int.TryParse(ctx.Query("from"), out var f) ? f : null;
                 int? to = int.TryParse(ctx.Query("to"), out var t) ? t : null;
-                long? entity = long.TryParse(ctx.Query("entity"), out var e) ? e : null;
+                long? entity = int.TryParse(ctx.Query("entity"), out var e) ? e : null;
                 int limit = int.TryParse(ctx.Query("limit"), out var l) && l > 0 ? Math.Min(l, 5000) : 500;
                 var (node, error) = s.GetTimelineEvents(ctx.Query("lane"), from, to, entity, limit);
                 return error is null ? Ok(node) : Fail(400, error);
@@ -1246,14 +1246,14 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-1329 (Brain View §12r BV-72) — a unit's debug settings (pins, trace, follow) in the one store; ⛔ SUPERSEDED: POST /debug.
             _routes.Add(new("GET", "/entities/{networkId}/debug-settings", async ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 var (node, error) = await _jobQueue.RunOnMainThread(() => Service().GetDebugSettings(id)).ConfigureAwait(false);
                 return error != null ? Fail(404, error) : Ok(node);
             }));
             _routes.Add(new("POST", "/entities/{networkId}/debug-settings", async ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 var body = ctx.Body;
                 var (node, error) = await _jobQueue.RunOnMainThread(() => Service().SetDebugSettings(id, body)).ConfigureAwait(false);
@@ -1263,7 +1263,7 @@ namespace Hrot.Editor.DebugApi
 
             _routes.Add(new("POST", "/entities/{networkId}/journal/break", async ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 string[]? kinds = ctx.Body?["kinds"] is JsonArray arr
                     ? System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select(arr, k => k?.GetValue<string>() ?? ""))
@@ -1275,7 +1275,7 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-3069 G2 — the utility record of a unit armed by POST /trace/observe.
             _routes.Add(new("GET", "/entities/{networkId}/utility", async ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 var node = await _jobQueue.RunOnMainThread(() => Service().GetEntityUtility(id)).ConfigureAwait(false);
                 return Ok(node);
@@ -1286,7 +1286,7 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("GET", "/utility/decisions/{key}", async ctx =>
             {
                 string key = Uri.UnescapeDataString(ctx.RouteValue("key") ?? "");
-                long? unit = long.TryParse(ctx.Query("networkId"), out var n) ? n : null;
+                int? unit = int.TryParse(ctx.Query("networkId"), out var n) ? n : null;
                 var node = await _jobQueue.RunOnMainThread(() => Service().GetUtilityDecision(key, unit)).ConfigureAwait(false);
                 return node is null ? Fail(404, $"No utility decision '{key}'. List them with GET /utility/decisions.") : Ok(node);
             }));
@@ -1300,7 +1300,7 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-3072 B5 — every sensor child of a unit, its kind / result family and its last answer in its own shape.
             _routes.Add(new("GET", "/entities/{networkId}/sensors", async ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 var node = await _jobQueue.RunOnMainThread(() => Service().GetEntitySensors(id)).ConfigureAwait(false);
                 return Ok(node);
@@ -1309,7 +1309,7 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-3144 — a unit's RAW TargetMemory (heard + unmappable slots too; GET /entities/{id} drops them).
             _routes.Add(new("GET", "/entities/{networkId}/memory", async ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 var node = await _jobQueue.RunOnMainThread(() => Service().GetEntityMemory(id)).ConfigureAwait(false);
                 return Ok(node);
@@ -1318,7 +1318,7 @@ namespace Hrot.Editor.DebugApi
             // ⭐⭐ CE-2288 (CC-16, R-2050) — every occurrence slot a unit carries (task, SOP, paused task, hosted children), named and decoded.
             _routes.Add(new("GET", "/entities/{networkId}/slots", async ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 var node = await _jobQueue.RunOnMainThread(() => Service().GetEntitySlots(id)).ConfigureAwait(false);
                 return Ok(node);
@@ -1328,7 +1328,7 @@ namespace Hrot.Editor.DebugApi
             //   shared with the map menu and the RTS tool; origin Operator; forwarded to the brain owner from any node.
             _routes.Add(new("POST", "/entities/{networkId}/order", ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Task.FromResult(Fail(400, "Invalid networkId."));
                 var body = ctx.Body;
                 return RunMainResult(s =>
@@ -1340,14 +1340,14 @@ namespace Hrot.Editor.DebugApi
 
             _routes.Add(new("GET", "/entities/{networkId}/order", ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Task.FromResult(Fail(400, "Invalid networkId."));
                 return RunMain(s => s.GetOrder(id));
             }));
 
             _routes.Add(new("DELETE", "/entities/{networkId}/order", ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Task.FromResult(Fail(400, "Invalid networkId."));
                 return RunMainResult(s =>
                 {
@@ -1359,7 +1359,7 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-3172 (docs/DESIGN_Entity_Control.md §8b) — possession: this node as a station drives one unit.
             _routes.Add(new("POST", "/entities/{networkId}/possess", ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Task.FromResult(Fail(400, "Invalid networkId."));
                 return RunMainResult(s =>
                 {
@@ -1370,7 +1370,7 @@ namespace Hrot.Editor.DebugApi
 
             _routes.Add(new("DELETE", "/entities/{networkId}/possess", ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Task.FromResult(Fail(400, "Invalid networkId."));
                 return RunMainResult(s =>
                 {
@@ -1381,7 +1381,7 @@ namespace Hrot.Editor.DebugApi
 
             _routes.Add(new("POST", "/entities/{networkId}/control", ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Task.FromResult(Fail(400, "Invalid networkId."));
                 var body = ctx.Body;
                 return RunMainResult(s =>
@@ -1394,7 +1394,7 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-2148 (P5-f) — the order vocabulary with each order's fields and schema; ?entityId= narrows it to that unit.
             _routes.Add(new("GET", "/orders", ctx =>
             {
-                long? entityId = long.TryParse(ctx.Query("entityId"), out var e) ? e : null;
+                int? entityId = int.TryParse(ctx.Query("entityId"), out var e) ? e : null;
                 return RunMainResult(s =>
                 {
                     var (result, status, error, hint) = s.GetOrders(entityId);
@@ -1436,9 +1436,9 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-3089 (G7) — a unit's weapon mounts; with ?target= the WeaponSelection inputs per mount and the choice.
             _routes.Add(new("GET", "/entities/{networkId}/weapons", async ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
-                long? target = long.TryParse(ctx.Query("target"), out var t) ? t : null;
+                int? target = int.TryParse(ctx.Query("target"), out var t) ? t : null;
                 var node = await _jobQueue.RunOnMainThread(() => Service().GetEntityWeapons(id, target)).ConfigureAwait(false);
                 return Ok(node);
             }));
@@ -1446,7 +1446,7 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-3087 (G3) — a squad as its commander sees it: members with their assigned targets + the merged contact pool.
             _routes.Add(new("GET", "/entities/{networkId}/squad", async ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 var node = await _jobQueue.RunOnMainThread(() => Service().GetEntitySquad(id)).ConfigureAwait(false);
                 return Ok(node);
@@ -1457,13 +1457,13 @@ namespace Hrot.Editor.DebugApi
             //   DESIGN_Command_Chain_Example.md §7c).
             _routes.Add(new("GET", "/entities/{networkId}/reports", ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Task.FromResult(Fail(400, "Invalid networkId."));
                 return RunMain(s => s.GetEntityReports(id));
             }));
             _routes.Add(new("POST", "/entities/{networkId}/reports", ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Task.FromResult(Fail(400, "Invalid networkId."));
                 var body = ctx.Body;
                 return RunMainResult(s =>
@@ -1474,7 +1474,7 @@ namespace Hrot.Editor.DebugApi
             }));
             _routes.Add(new("POST", "/entities/{networkId}/reports/mute", ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Task.FromResult(Fail(400, "Invalid networkId."));
                 var body = ctx.Body;
                 return RunMainResult(s =>
@@ -1486,7 +1486,7 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-2298 (LD-5, DA-26) — the operator sets a sector (the ROE-twin event, origin Operator) where the brain runs.
             _routes.Add(new("POST", "/entities/{networkId}/sector", ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Task.FromResult(Fail(400, "Invalid networkId."));
                 var body = ctx.Body;
                 return RunMainResult(s =>
@@ -1498,7 +1498,7 @@ namespace Hrot.Editor.DebugApi
             _routes.Add(new("GET", "/squad/reports", ctx =>
             {
                 int last = int.TryParse(ctx.Query("last"), out var l) && l > 0 ? l : 50;
-                long? unit = long.TryParse(ctx.Query("unit"), out var u) ? u : null;
+                int? unit = int.TryParse(ctx.Query("unit"), out var u) ? u : null;
                 return RunMain(s => s.GetSquadReports(last, unit));
             }));
 
@@ -1508,7 +1508,7 @@ namespace Hrot.Editor.DebugApi
 
             _routes.Add(new("POST", "/entities/{networkId}/attribute", async ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
 
                 // Accept patchJson as EITHER a JSON string OR a nested JSON object.
@@ -1533,7 +1533,7 @@ namespace Hrot.Editor.DebugApi
 
             _routes.Add(new("POST", "/entities/{networkId}/component", async ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 var componentType = ctx.Body?["componentType"]?.GetValue<string>();
                 var patch         = ctx.Body?["patch"];
@@ -1547,7 +1547,7 @@ namespace Hrot.Editor.DebugApi
             // ── CE-276 — descriptor ownership: read + transfer (NED nodes only) ───────────────
             _routes.Add(new("GET", "/entities/{networkId}/ownership", async ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 var (node, error) = await _jobQueue.RunOnMainThread(() =>
                     Service().GetEntityOwnership(id)).ConfigureAwait(false);
@@ -1555,7 +1555,7 @@ namespace Hrot.Editor.DebugApi
             }));
             _routes.Add(new("POST", "/entities/{networkId}/ownership/transfer", async ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 var (node, error) = await _jobQueue.RunOnMainThread(() =>
                     Service().TransferEntityOwnership(id, ctx.Body)).ConfigureAwait(false);
@@ -1570,7 +1570,7 @@ namespace Hrot.Editor.DebugApi
             // entity carries exactly one blueprint.
             _routes.Add(new("GET", "/entities/{networkId}/variables", ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Task.FromResult(Fail(400, "Invalid networkId.", DebugApiHints.Entity));
                 var asset = ctx.Query("asset");
                 return RunMainResult(s =>
@@ -1584,7 +1584,7 @@ namespace Hrot.Editor.DebugApi
 
             _routes.Add(new("GET", "/entities/{networkId}/variable", ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Task.FromResult(Fail(400, "Invalid networkId.", DebugApiHints.Entity));
                 var asset = ctx.Query("asset");
                 var path  = ctx.Query("path");
@@ -1601,7 +1601,7 @@ namespace Hrot.Editor.DebugApi
             //   a Details-panel edit does. Answering 200 with pending:true is the honest report.
             _routes.Add(new("POST", "/entities/{networkId}/variable", ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Task.FromResult(Fail(400, "Invalid networkId.", DebugApiHints.Entity));
                 var asset = ctx.Body?["asset"]?.GetValue<string>();
                 var path  = ctx.Body?["path"]?.GetValue<string>();
@@ -1643,7 +1643,7 @@ namespace Hrot.Editor.DebugApi
 
             _routes.Add(new("POST", "/entities/{networkId}/attach-blueprint", ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Task.FromResult(Fail(400, "Invalid networkId.", DebugApiHints.Entity));
                 var blueprint  = ctx.Body?["blueprint"]?.GetValue<string>();
                 var paramsJson = ctx.Body?["paramsJson"]?.ToJsonString();
@@ -1661,7 +1661,7 @@ namespace Hrot.Editor.DebugApi
 
             _routes.Add(new("POST", "/entities/{networkId}/detach-blueprint", ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Task.FromResult(Fail(400, "Invalid networkId.", DebugApiHints.Entity));
                 var blueprint = ctx.Body?["blueprint"]?.GetValue<string>();
                 return RunMainResult(s =>
@@ -1676,7 +1676,7 @@ namespace Hrot.Editor.DebugApi
             // Q61-B/MX-035 — the instance blueprints currently attached to the entity (the slot table).
             _routes.Add(new("GET", "/entities/{networkId}/blueprints", ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Task.FromResult(Fail(400, "Invalid networkId.", DebugApiHints.Entity));
                 return RunMainResult(s =>
                 {
@@ -1690,7 +1690,7 @@ namespace Hrot.Editor.DebugApi
             // ── Group R — the entity state dump (MX3) ─────────────────────────────────────────
             _routes.Add(new("GET", "/entities/{networkId}/state", ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Task.FromResult(Fail(400, "Invalid networkId.", DebugApiHints.Entity));
                 return RunMainResult(s =>
                 {
@@ -1999,7 +1999,7 @@ namespace Hrot.Editor.DebugApi
             //   /entities/* set was missing — place/configure/assign already had routes, delete did not.
             _routes.Add(new("DELETE", "/entities/{networkId}", ctx => RunMainResult(s =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var netId))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var netId))
                     return Fail(400, "networkId must be a number. List entities with GET /entities.",
                                 DebugApiHints.Entity);
                 var (result, error, hintCategory) = s.DeleteEntity(netId);
@@ -2042,7 +2042,7 @@ namespace Hrot.Editor.DebugApi
             // Group M — Focus + Annotations (ADA-BATCH-14)
             _routes.Add(new("POST", "/entities/{networkId}/focus", async ctx =>
             {
-                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 var node = await _jobQueue.RunOnMainThread(() => Service().FocusEntity(id)).ConfigureAwait(false);
                 return Ok(node);

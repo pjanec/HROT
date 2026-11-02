@@ -11,7 +11,6 @@ using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
-using Fdp.Toolkit.Behavior.Params;
 using Fdp.Toolkit.Blueprints.Partitioning;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Navigation;
@@ -453,7 +452,7 @@ namespace Hrot.AI.Behaviors.Brains
                 // Round-robin target assignment.
                 int targetIdx   = activeTankIndexInWave % targetModulus;
                 long targetPacked = targetIdx < targetCount ? targets[targetIdx] : 0L;
-                long targetNetId  = 0L;
+                int targetNetId  = 0;
                 if (targetPacked != 0L)
                 {
                     var targetEntity = new Entity((ulong)targetPacked);
@@ -500,7 +499,7 @@ namespace Hrot.AI.Behaviors.Brains
                     BaselineY = by,
                     AttackDirX = p.AttackDirX,
                     AttackDirY = p.AttackDirY,
-                    TargetNetworkId = targetNetId,
+                    TargetNetworkId = new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(targetNetId)),
                     ApproachSpeed = 15f,
                     CreepSpeed = 5f,   // ⭐ CE-2230 — one round per run is the tank's own doctrine now (R-2022)
                 };
@@ -937,28 +936,11 @@ namespace Hrot.AI.Behaviors.Brains
             };
 
             // Resolve firing-line and baseline positions.
-            if (geoTransform != null)
-            {
-                var start = geoTransform.ToCartesian(dto.FiringLineStart.Latitude, dto.FiringLineStart.Longitude, 0.0);
-                result.StartX = start.X; result.StartY = start.Y;
-
-                var end = geoTransform.ToCartesian(dto.FiringLineEnd.Latitude, dto.FiringLineEnd.Longitude, 0.0);
-                result.EndX = end.X; result.EndY = end.Y;
-
-                var baselineStart = geoTransform.ToCartesian(dto.BaselineStart.Latitude, dto.BaselineStart.Longitude, 0.0);
-                result.BaselineStartX = baselineStart.X; result.BaselineStartY = baselineStart.Y;
-
-                var baselineEnd = geoTransform.ToCartesian(dto.BaselineEnd.Latitude, dto.BaselineEnd.Longitude, 0.0);
-                result.BaselineEndX = baselineEnd.X; result.BaselineEndY = baselineEnd.Y;
-            }
-            else
-            {
-                // Cartesian-only fallback (tests / offline contexts).
-                result.StartX = (float)dto.FiringLineStart.Longitude; result.StartY = (float)dto.FiringLineStart.Latitude;
-                result.EndX = (float)dto.FiringLineEnd.Longitude; result.EndY = (float)dto.FiringLineEnd.Latitude;
-                result.BaselineStartX = (float)dto.BaselineStart.Longitude; result.BaselineStartY = (float)dto.BaselineStart.Latitude;
-                result.BaselineEndX = (float)dto.BaselineEnd.Longitude; result.BaselineEndY = (float)dto.BaselineEnd.Latitude;
-            }
+            // ⭐ S0 item 5 (SR-135): the four authored places are PointLinks — local metres already; no geodetic conversion (the transform parameter is kept for callers).
+            result.StartX = dto.FiringLineStart.Local.X; result.StartY = dto.FiringLineStart.Local.Y;
+            result.EndX = dto.FiringLineEnd.Local.X; result.EndY = dto.FiringLineEnd.Local.Y;
+            result.BaselineStartX = dto.BaselineStart.Local.X; result.BaselineStartY = dto.BaselineStart.Local.Y;
+            result.BaselineEndX = dto.BaselineEnd.Local.X; result.BaselineEndY = dto.BaselineEnd.Local.Y;
 
             // Attack direction: the PERPENDICULAR of the firing line, signed to point AWAY
             // from the baseline.
@@ -1018,14 +1000,14 @@ namespace Hrot.AI.Behaviors.Brains
             }
 
             // Resolve target area entity.
-            if (!dto.TargetAreaNetworkId.IsNone && entityMap.TryGetEntity(dto.TargetAreaNetworkId.NetworkId, out var areaEntity))
+            if (!dto.TargetAreaNetworkId.IsNone && entityMap.TryGetEntity(dto.TargetAreaNetworkId.Ref.NetworkId, out var areaEntity))
             {
                 result.TargetAreaEntity = areaEntity;
             }
             else
             {
                 if (!dto.TargetAreaNetworkId.IsNone)
-                    BehaviorLog.ParseWarn("TargetAreaNetworkId=" + dto.TargetAreaNetworkId.NetworkId + " not found in entity map; area entity set to null.");
+                    BehaviorLog.ParseWarn("TargetAreaNetworkId=" + dto.TargetAreaNetworkId.Ref.NetworkId + " not found in entity map; area entity set to null.");
                 result.TargetAreaEntity = Entity.Null;
             }
 

@@ -205,7 +205,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             var tank = SpawnTarget();
             _world.AddComponent(tank, new SimTransform { Position = System.Numerics.Vector3.Zero, Rotation = System.Numerics.Quaternion.Identity });
-            _world.AddComponent(tank, new TkbIdentity { TkbType = TankType });
+            _world.AddComponent(tank, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TankType) });
             return tank;
         }
 

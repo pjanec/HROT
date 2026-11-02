@@ -80,12 +80,12 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
         // Register a fake node so FanOutNodeOp has a target to write PrefetchFiles to.
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId = 1, SubsystemName = "TestNode",
+            NodeId = (Fdp.Core.NodeId)(1), SubsystemName = "TestNode",
             LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
         });
         // CE-4087 — a scenario load needs a Brain and a MuscleGround node: this one node plays both (the all-in-one case).
-        bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = 1, Capabilities = new[] { Fdp.Core.NodeRoleTokens.Brain, Fdp.Core.NodeRoleTokens.MuscleGround } });
+        bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = (Fdp.Core.NodeId)(1), Capabilities = new[] { Fdp.Core.NodeRoleTokens.Brain, Fdp.Core.NodeRoleTokens.MuscleGround } });
         bus.SwapBuffers();
         exercise.Tick();     // ingest heartbeat into roster
         bus.SwapBuffers();
@@ -222,12 +222,12 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
     {
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId = 1, SubsystemName = "TestNode",
+            NodeId = (Fdp.Core.NodeId)(1), SubsystemName = "TestNode",
             LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
         });
         // CE-4087 — a scenario load needs a Brain and a MuscleGround node: this one node plays both (the all-in-one case).
-        bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = 1, Capabilities = new[] { Fdp.Core.NodeRoleTokens.Brain, Fdp.Core.NodeRoleTokens.MuscleGround } });
+        bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = (Fdp.Core.NodeId)(1), Capabilities = new[] { Fdp.Core.NodeRoleTokens.Brain, Fdp.Core.NodeRoleTokens.MuscleGround } });
         bus.SwapBuffers();
         master.Tick();
         bus.SwapBuffers();
@@ -545,12 +545,12 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
 
             bus.PublishManaged(new NodeHeartbeatEvent
             {
-                NodeId = 1, SubsystemName = "TestNode",
+                NodeId = (Fdp.Core.NodeId)(1), SubsystemName = "TestNode",
                 LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
                 WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
             });
             // CE-4087 — a scenario load needs a Brain and a MuscleGround node: this one node plays both (the all-in-one case).
-            bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = 1, Capabilities = new[] { Fdp.Core.NodeRoleTokens.Brain, Fdp.Core.NodeRoleTokens.MuscleGround } });
+            bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = (Fdp.Core.NodeId)(1), Capabilities = new[] { Fdp.Core.NodeRoleTokens.Brain, Fdp.Core.NodeRoleTokens.MuscleGround } });
             bus.SwapBuffers();
             master.Tick();
             bus.SwapBuffers();
@@ -639,7 +639,7 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
 
             bus.PublishManaged(new NodeHeartbeatEvent
             {
-                NodeId = 7, SubsystemName = "Player",
+                NodeId = (Fdp.Core.NodeId)(7), SubsystemName = "Player",
                 LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
                 WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
             });
@@ -680,7 +680,7 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
         {
             bus.PublishManaged(new NodeHeartbeatEvent
             {
-                NodeId = 7, SubsystemName = "Player",
+                NodeId = (Fdp.Core.NodeId)(7), SubsystemName = "Player",
                 LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
                 WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
             });
@@ -729,8 +729,8 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
         Assert.Equal(ClusterState.Idle, master.CurrentClusterState);
 
         // the node answers the abort and the Idle round
-        bus.PublishManaged(new NodeOpCompletedEvent { TransactionId = abort.TransactionId, Operation = abort.Operation, NodeId = 1 });
-        bus.PublishManaged(new NodeOpCompletedEvent { TransactionId = toIdle.TransactionId, Operation = toIdle.Operation, NodeId = 1 });
+        bus.PublishManaged(new NodeOpCompletedEvent { TransactionId = abort.TransactionId, Operation = abort.Operation, NodeId = (Fdp.Core.NodeId)(1) });
+        bus.PublishManaged(new NodeOpCompletedEvent { TransactionId = toIdle.TransactionId, Operation = toIdle.Operation, NodeId = (Fdp.Core.NodeId)(1) });
         bus.SwapBuffers();
         master.Tick();
         bus.SwapBuffers();
@@ -766,7 +766,7 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
         var loadOps = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
         var loadTx  = loadOps.First(i => i.Operation == FdpNodeOpType.PrepareLive).TransactionId;
         foreach (var op in loadOps.Where(i => i.Operation != FdpNodeOpType.CommitState))
-            bus.PublishManaged(new NodeOpCompletedEvent { TransactionId = op.TransactionId, Operation = op.Operation, NodeId = 1 });
+            bus.PublishManaged(new NodeOpCompletedEvent { TransactionId = op.TransactionId, Operation = op.Operation, NodeId = (Fdp.Core.NodeId)(1) });
         bus.SwapBuffers();
         master.Tick();
         bus.SwapBuffers();

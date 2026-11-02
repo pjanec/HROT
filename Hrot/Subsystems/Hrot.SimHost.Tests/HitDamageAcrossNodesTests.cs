@@ -49,7 +49,7 @@ namespace Hrot.SimHost.Tests
                 World.AddComponent(Victim, new Health { Current = 100f, Max = 100f });
                 World.AddComponent(Victim, new NetworkAuthority(primaryOwnerId: healthOwner, localNodeId: nodeId));
                 World.SetAuthority<Health>(Victim, nodeId == healthOwner);
-                Map.Register(50L, Victim);
+                Map.Register(50, Victim);
             }
 
             /// <summary>One frame: this frame's events become readable, the egress sends, the owner applies.</summary>

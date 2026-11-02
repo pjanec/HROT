@@ -50,7 +50,7 @@ namespace Hrot.Editor.Tests
               { "type": "Feature", "properties": { "kind": "wall", "height": 3, "label": "W" }, "geometry": { "type": "LineString", "coordinates": [[10,-5],[10,5]] } } ] }
             """));
             var map = new NetworkEntityMap();
-            Entity At(long id, float x, float y)
+            Entity At(int id, float x, float y)
             {
                 var e = world.CreateEntity();
                 world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, 0f), Rotation = Quaternion.Identity });

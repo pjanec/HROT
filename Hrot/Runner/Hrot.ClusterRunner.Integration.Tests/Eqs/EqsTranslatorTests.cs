@@ -41,7 +41,7 @@ public sealed class EqsTranslatorTests
         int domainId = NextDomain();
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
 
-        long networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
+        int networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         // Wait for the ghost entity to appear on the Muscle side.
@@ -79,7 +79,7 @@ public sealed class EqsTranslatorTests
         int domainId = NextDomain();
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
 
-        long networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
+        int networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         harness.PumpUntil(
@@ -116,7 +116,7 @@ public sealed class EqsTranslatorTests
         int domainId = NextDomain();
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
 
-        long networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
+        int networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         harness.PumpUntil(

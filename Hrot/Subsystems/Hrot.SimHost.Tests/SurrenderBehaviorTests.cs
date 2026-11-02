@@ -75,7 +75,7 @@ namespace Hrot.SimHost.Tests
                 Repo.SetAuthority<BehaviorState>(Unit, true);   // his brain is here ⇒ IsLaidDown reads his own mask
                 Repo.AddComponent(Unit, new LocomotionChannel());
                 Repo.AddComponent(Unit, new WeaponChannel());
-                Repo.AddComponent(Unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = RiflemanType });
+                Repo.AddComponent(Unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(RiflemanType) });
                 db.TryGetByType(RiflemanType, out var t);
                 new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator().Inject(Repo, Unit, t!);
                 Tick();

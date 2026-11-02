@@ -9,7 +9,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// <summary>
     /// Rejects candidates that are not reachable via the navmesh.
     /// Reachable candidates are marked with flag bit 3. Runs in FilterExpensive phase.
-    /// Rejection sentinel: EntityId = -1L.
+    /// Rejection sentinel: EntityId = -1.
     /// </summary>
     public sealed class NavmeshReachableTest : IEqsTest, IEqsCostWeight
     {
@@ -42,7 +42,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
                 if (!navmesh.PathExists(obsPos, targetPos, layer, doors))
                 {
-                    candidate.EntityId        = -1L; // Reject: unreachable.
+                    candidate.EntityId        = -1; // Reject: unreachable.
                     candidate.FlagsMeaningful |= (short)(1 << 3); // Bit 3 was computed (result = rejection).
                 }
                 else

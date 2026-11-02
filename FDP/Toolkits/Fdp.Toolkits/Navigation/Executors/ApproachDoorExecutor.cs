@@ -14,7 +14,7 @@ namespace Fdp.Toolkit.Navigation.Executors
     [StructLayout(LayoutKind.Sequential)]
     public struct ApproachDoorParams
     {
-        public long DoorNetworkId;
+        public int DoorNetworkId;
         public Vector3 DoorCentre;
         public float Speed;
         public float ArrivalRadius;

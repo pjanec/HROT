@@ -90,17 +90,17 @@ namespace Hrot.Editor.Director
 
         public EntityRepository? World => _repo;
         public IShotWorld Units { get; }
-        public IReadOnlyList<(long Id, string Name)> Named() => VerifyWorldNames.Named(_repo);
+        public IReadOnlyList<(int Id, string Name)> Named() => VerifyWorldNames.Named(_repo);
         public string? NameOfEntityIndex(int index) => VerifyWorldNames.NameOfEntityIndex(_repo, index);
         public string? BehaviourName(int hash) => _behaviourName(hash);
 
-        public JsonObject? Components(long networkId)
+        public JsonObject? Components(int networkId)
             => _extraction.ExtractEntities(new List<long> { networkId }) is { Count: > 0 } dumps
                 ? DebugApiService.DumpToJsonNode(dumps[0])["Components"] as JsonObject
                 : null;
 
         public JsonArray Shots() => new();
         public JsonArray Blasts() => new();
-        public string? SetComponent(long networkId, string component, JsonObject patch) => "a recording is read only";
+        public string? SetComponent(int networkId, string component, JsonObject patch) => "a recording is read only";
     }
 }

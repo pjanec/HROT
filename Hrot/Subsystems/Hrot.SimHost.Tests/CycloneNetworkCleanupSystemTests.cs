@@ -45,7 +45,7 @@ namespace Hrot.SimHost.Tests
         /// Creates an entity that is locally authoritative and adds it to the
         /// cleanup system's tracking set via a first Execute call.
         /// </summary>
-        private static Entity CreateAuthoritativeEntity(EntityRepository repo, long netId,
+        private static Entity CreateAuthoritativeEntity(EntityRepository repo, int netId,
             int primaryOwner = 1, int localNode = 1)
         {
             var entity = repo.CreateEntity();
@@ -75,13 +75,13 @@ namespace Hrot.SimHost.Tests
             public void ScanAndPublish(ISimulationView view) { }
             public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-            public void Dispose(long networkEntityId)
+            public void Dispose(int networkEntityId)
             {
                 if (ThrowOnDispose) throw new InvalidOperationException("Simulated disposal failure");
                 DisposedIds.Add(networkEntityId);
             }
 
-            public void ReleaseInstance(long networkEntityId, long instanceId)
+            public void ReleaseInstance(int networkEntityId, long instanceId)
             {
                 if (ThrowOnRelease) throw new InvalidOperationException("Simulated release failure");
                 Released.Add((networkEntityId, instanceId));
@@ -102,9 +102,9 @@ namespace Hrot.SimHost.Tests
             var t2 = new MockTranslator();
             var system = new CycloneNetworkCleanupSystem(new[] { t1, t2 });
 
-            var round = CreateAuthoritativeEntity(repo, netId: 900L);
+            var round = CreateAuthoritativeEntity(repo, netId: 900);
             repo.AddComponent(round, default(LightweightRound));
-            var remote = CreateAuthoritativeEntity(repo, netId: 901L, primaryOwner: 2, localNode: 1);
+            var remote = CreateAuthoritativeEntity(repo, netId: 901, primaryOwner: 2, localNode: 1);
             repo.AddComponent(remote, default(LightweightRound));
             system.Execute(repo, 0f);
             Assert.Empty(t1.DisposedIds);                      // alive: nothing yet
@@ -133,9 +133,9 @@ namespace Hrot.SimHost.Tests
             var t2 = new MockTranslator();
             var system = new CycloneNetworkCleanupSystem(new[] { t1, t2 });
 
-            CreateAuthoritativeEntity(repo, netId: 1001L);
-            CreateAuthoritativeEntity(repo, netId: 1002L);
-            CreateAuthoritativeEntity(repo, netId: 1300L, primaryOwner: 2, localNode: 1);   // a replica of node 2's
+            CreateAuthoritativeEntity(repo, netId: 1001);
+            CreateAuthoritativeEntity(repo, netId: 1002);
+            CreateAuthoritativeEntity(repo, netId: 1300, primaryOwner: 2, localNode: 1);   // a replica of node 2's
             system.Execute(repo, 0f);
             Assert.Empty(t1.DisposedIds);
 
@@ -157,7 +157,7 @@ namespace Hrot.SimHost.Tests
             var t3      = new MockTranslator();
             var system  = new CycloneNetworkCleanupSystem(new[] { t1, t2, t3 });
 
-            var entity = CreateAuthoritativeEntity(repo, netId: 100L);
+            var entity = CreateAuthoritativeEntity(repo, netId: 100);
 
             // First tick: system tracks the entity.
             system.Execute(repo, 0f);
@@ -185,7 +185,7 @@ namespace Hrot.SimHost.Tests
             var t3      = new MockTranslator();
             var system  = new CycloneNetworkCleanupSystem(new[] { t1, t2, t3 });
 
-            var entity = CreateAuthoritativeEntity(repo, netId: 200L);
+            var entity = CreateAuthoritativeEntity(repo, netId: 200);
 
             system.Execute(repo, 0f);
             PublishDestructionOrder(repo, entity);
@@ -205,7 +205,7 @@ namespace Hrot.SimHost.Tests
             var system = new CycloneNetworkCleanupSystem(new[] { t1 });
 
             // PrimaryOwner=2, Local=1 â†’ not authoritative
-            var entity = CreateAuthoritativeEntity(repo, netId: 300L, primaryOwner: 2, localNode: 1);
+            var entity = CreateAuthoritativeEntity(repo, netId: 300, primaryOwner: 2, localNode: 1);
 
             system.Execute(repo, 0f);
             PublishDestructionOrder(repo, entity);
@@ -222,7 +222,7 @@ namespace Hrot.SimHost.Tests
             var t1     = new MockTranslator();
             var system = new CycloneNetworkCleanupSystem(new[] { t1 });
 
-            CreateAuthoritativeEntity(repo, netId: 400L);
+            CreateAuthoritativeEntity(repo, netId: 400);
 
             system.Execute(repo, 0f);
             system.Execute(repo, 0f);
@@ -239,8 +239,8 @@ namespace Hrot.SimHost.Tests
             var t2     = new MockTranslator();
             var system = new CycloneNetworkCleanupSystem(new[] { t1, t2 });
 
-            var e1 = CreateAuthoritativeEntity(repo, netId: 500L);
-            var e2 = CreateAuthoritativeEntity(repo, netId: 501L);
+            var e1 = CreateAuthoritativeEntity(repo, netId: 500);
+            var e2 = CreateAuthoritativeEntity(repo, netId: 501);
 
             system.Execute(repo, 0f);
 
@@ -277,14 +277,14 @@ namespace Hrot.SimHost.Tests
             var t2 = new MockTranslator();
             var system = new CycloneNetworkCleanupSystem(new[] { t1, t2 });
 
-            var early = CreateAuthoritativeEntity(repo, netId: 2001L);   // alive at the seek target
-            var late  = CreateAuthoritativeEntity(repo, netId: 2002L);   // created AFTER the target
+            var early = CreateAuthoritativeEntity(repo, netId: 2001);   // alive at the seek target
+            var late  = CreateAuthoritativeEntity(repo, netId: 2002);   // created AFTER the target
             system.Execute(repo, 0f);
 
             // the keyframe of the target: the world cleared in place (as PlaybackSystem.ApplyFrame does for a keyframe), the early
             //   entity re-created, the late one absent
             repo.SoftClear();
-            CreateAuthoritativeEntity(repo, netId: 2001L);
+            CreateAuthoritativeEntity(repo, netId: 2001);
             system.Execute(repo, 0f);
 
             Assert.Equal(new[] { 2002L }, t1.DisposedIds);
@@ -308,14 +308,14 @@ namespace Hrot.SimHost.Tests
             var t1 = new MockTranslator();
             var system = new CycloneNetworkCleanupSystem(new[] { t1 });
 
-            for (int i = 0; i < 50; i++) CreateAuthoritativeEntity(repo, netId: 5000L + i);
+            for (int i = 0; i < 50; i++) CreateAuthoritativeEntity(repo, netId: 5000 + i);
             system.Execute(repo, 0f);                                    // the first run: one sweep learns the world
             int afterFirst = system.Sweeps;
             for (int frame = 0; frame < 20; frame++) { repo.Tick(); system.Execute(repo, 0f); }
             Assert.Equal(afterFirst, system.Sweeps);                     // ordinary frames: no sweep
 
             repo.Tick();
-            var spawned = CreateAuthoritativeEntity(repo, netId: 5999L);  // spawned mid-run: found by the delta
+            var spawned = CreateAuthoritativeEntity(repo, netId: 5999);  // spawned mid-run: found by the delta
             system.Execute(repo, 0f);
             repo.Tick();
             PublishDestructionOrder(repo, spawned);
@@ -339,7 +339,7 @@ namespace Hrot.SimHost.Tests
             var t1 = new MockTranslator();
             var system = new CycloneNetworkCleanupSystem(new[] { t1 });
 
-            var unit = CreateAuthoritativeEntity(repo, netId: 3001L);
+            var unit = CreateAuthoritativeEntity(repo, netId: 3001);
             system.Execute(repo, 0f);
 
             repo.SetComponent(unit, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));   // node 2 owns it now
@@ -370,7 +370,7 @@ namespace Hrot.SimHost.Tests
 
             repo.Bus.Publish(new Fdp.Toolkit.Replication.Messages.DescriptorHandedOver
             {
-                NetworkId = new NetworkIdentity(77L),
+                NetworkId = new NetworkIdentity(77),
                 PackedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(2, 0),
             });
             repo.Bus.SwapBuffers();
@@ -394,8 +394,8 @@ namespace Hrot.SimHost.Tests
         {
             private readonly CycloneDDS.Runtime.DdsWriter<Hrot.NED.Descriptors.EntityLean> _writer;
             public WriterHoldingTranslator(CycloneDDS.Runtime.DdsParticipant p) => _writer = new(p);
-            public void Retract(long id) => _writer.DisposeInstance(new Hrot.NED.Descriptors.EntityLean { EntityId = id });
-            public void Send(long id) => _writer.Write(new Hrot.NED.Descriptors.EntityLean { EntityId = id, Side = 1 });
+            public void Retract(int id) => _writer.DisposeInstance(new Hrot.NED.Descriptors.EntityLean { EntityId = id });
+            public void Send(int id) => _writer.Write(new Hrot.NED.Descriptors.EntityLean { EntityId = id, Side = 1 });
             public long DescriptorOrdinal => 0;
             public string TopicName => "writer-holder";
             public long ReceivedSampleCount => 0;
@@ -404,7 +404,7 @@ namespace Hrot.SimHost.Tests
             public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
             public void ScanAndPublish(ISimulationView view) { }
             public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-            public void Dispose(long networkEntityId) { }
+            public void Dispose(int networkEntityId) { }
         }
 
         /// <summary>
@@ -492,7 +492,7 @@ namespace Hrot.SimHost.Tests
             var t1 = new MockTranslator();
             var system = new CycloneNetworkCleanupSystem(new[] { t1 });
 
-            var unit = CreateAuthoritativeEntity(repo, netId: 4001L);
+            var unit = CreateAuthoritativeEntity(repo, netId: 4001);
             system.Execute(repo, 0f);
             repo.SetLifecycleState(unit, EntityLifecycle.TearDown);       // as NetworkSpawningSystem does, before the order
             PublishDestructionOrder(repo, unit);
@@ -504,7 +504,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(new[] { 4001L }, t1.DisposedIds);
 
             repo.SoftClear();                                           // a backward seek re-creates it
-            CreateAuthoritativeEntity(repo, netId: 4001L);
+            CreateAuthoritativeEntity(repo, netId: 4001);
             system.Execute(repo, 0f);
             repo.SoftClear();                                           // a forward seek past its death
             system.Execute(repo, 0f);

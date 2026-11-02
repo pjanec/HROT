@@ -20,7 +20,7 @@ public enum TrafficBodyKind : byte
 }
 
 /// <summary>⭐ AQ93 §13 — one of OUR bodies as SUMO sees it: NET coordinates (metres), velocity (m/s), footprint (metres).</summary>
-public readonly record struct TrafficBody(long NetworkId, TrafficBodyKind Kind, double X, double Y, double Vx, double Vy, float Length, float Width);
+public readonly record struct TrafficBody(int NetworkId, TrafficBodyKind Kind, double X, double Y, double Vx, double Vy, float Length, float Width);
 
 /// <summary>
 /// ⭐ AQ93 §13 (E4, R-4027) — each frame on a SERVING node's main thread: gathers our bodies and hands them to the stepping thread
@@ -92,7 +92,7 @@ public sealed class TrafficBodyFeedSystem : IEcsModuleSystem
             var (nx, ny) = placement.ToNet(p.X, p.Y);
             // A velocity is a direction, not a point: rotate it by the placement's local frame (sample one metre along it).
             var (ax, ay) = placement.ToNet(p.X + v.X, p.Y + v.Y);
-            long id = identity && world.HasComponent<NetworkIdentity>(e) ? world.GetComponentRO<NetworkIdentity>(e).Value : e.Index;
+            int id = identity && world.HasComponent<NetworkIdentity>(e) ? world.GetComponentRO<NetworkIdentity>(e).Value : e.Index;
             into.Add(new TrafficBody(id, kind, nx, ny, ax - nx, ay - ny, length, width));
         }
         return into.ToArray();

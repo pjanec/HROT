@@ -66,7 +66,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>
@@ -119,11 +119,11 @@ namespace Hrot.Map.Common.Replication.Ingress
                     cmd.RemoveComponent<PossessedBy>(unit);
                 return;
             }
-            cmd.AddComponent(unit, new PossessedBy { StationNodeId = d.StationNodeId, Mode = (PossessionMode)d.Mode, Epoch = d.Epoch });
+            cmd.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(d.StationNodeId), Mode = (PossessionMode)d.Mode, Epoch = d.Epoch });
         }
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

@@ -45,9 +45,9 @@ namespace Fdp.Toolkit.Squad.Command
         public CommandTraffic Traffic;
         public ReportFate Fate;
         /// <summary>The sender's network id.</summary>
-        public long FromNetId;
+        public int FromNetId;
         /// <summary>The addressee's network id.</summary>
-        public long ToNetId;
+        public int ToNetId;
         public CommandReport Report;
     }
 
@@ -80,7 +80,7 @@ namespace Fdp.Toolkit.Squad.Command
         public ushort Repeats;
         public int CauseA;
         /// <summary>The other side's network id — the member ordered, or the superior who ordered.</summary>
-        public long CounterpartNetId;
+        public int CounterpartNetId;
         /// <summary>The behaviour (or abstract order) hash — <see cref="Fdp.Toolkit.Behavior.BehaviorHash.FromName"/>.</summary>
         public int Behaviour;
     }

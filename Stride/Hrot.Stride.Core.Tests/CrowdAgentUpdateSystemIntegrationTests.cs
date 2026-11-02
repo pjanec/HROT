@@ -125,7 +125,7 @@ public sealed class CrowdAgentUpdateSystemIntegrationTests : IDisposable
     private Entity SpawnCrowdAgent(Vector3 pos)
     {
         var entity = _world.CreateEntity();
-        _world.AddComponent(entity, new TkbIdentity { TkbType = CapsuleTkbType });
+        _world.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(CapsuleTkbType) });
         _world.AddComponent(entity, new SimTransform { Position = pos });
         _world.AddComponent(entity, new SimVelocity());
         _world.AddComponent(entity, new NavigationStatus { Phase = NavigationPhase.Following });

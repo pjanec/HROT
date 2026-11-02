@@ -77,7 +77,7 @@ public sealed class DdsFileTransferTests : IDisposable
         Thread.Sleep(500);   // discovery
 
         var request = new TransferRequest(
-            new[] { new TransferTarget(1, ""), new TransferTarget(2, ""), new TransferTarget(3, "") },
+            new[] { new TransferTarget((Fdp.Core.NodeId)(1), ""), new TransferTarget((Fdp.Core.NodeId)(2), ""), new TransferTarget((Fdp.Core.NodeId)(3), "") },
             new[] { new TransferItem(big, "Terrain/t1/terrain.bin"), new TransferItem(small, "scenarios/s1/scenario.json") });
 
         var status = Run(provider, request, r1, r2, r3, bystander);
@@ -109,7 +109,7 @@ public sealed class DdsFileTransferTests : IDisposable
         using var provider = new DdsFileTransferProvider(masterP);
         using var r1 = new DdsFileReceiver(p1, 1, NodeRoot(1));
 
-        var status = Run(provider, new TransferRequest(new[] { new TransferTarget(1, "") },
+        var status = Run(provider, new TransferRequest(new[] { new TransferTarget((Fdp.Core.NodeId)(1), "") },
             new[] { new TransferItem(Path.Combine(_root, "nas", "absent.zip"), "TKB/absent.zip") }), r1);
 
         Assert.Equal(OrchestrationStatusCode.Failure, status.Code);

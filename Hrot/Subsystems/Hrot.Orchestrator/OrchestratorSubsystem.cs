@@ -211,7 +211,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
             Config            = _config,
             TimeCommands      = _timeCommands,
             TimeReads         = _masterSync,
-            StagingNodeId     = orchestratorNodeId,
+            StagingNodeId     = (Fdp.Core.NodeId)(orchestratorNodeId),
             // ⭐⭐⭐ HN-037 — type-tested: only the NED factory hosts a real authority (docs/DESIGN_Deterministic_Network_Ids.md §11).
             IdAuthority       = _idAllocatorServerHandle as Fdp.Toolkit.NetworkSpawning.IWorldIdAuthority,
             FileDialogService = _fileDialogService,
@@ -233,7 +233,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
             orchestratorLogService,
             new Hrot.Common.Infrastructure.HrotNodeConfig
             {
-                NodeId = orchestratorNodeId,
+                NodeId = (Fdp.Core.NodeId)(orchestratorNodeId),
                 SubsystemName = "Orchestrator",
                 LocalTempRoot = isolatedTempRoot,
                 LogDirectory = resolvedLogDir,

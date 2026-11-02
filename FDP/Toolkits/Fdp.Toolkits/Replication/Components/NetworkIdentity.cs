@@ -17,11 +17,12 @@ namespace Fdp.Toolkit.Replication.Components
     public struct NetworkIdentity
     {
         /// <summary>
-        /// Global ID (GUID-like or sequential unique ID).
+        /// Global ID — a sequential, forward-only 32-bit id (CE-4200: engine, wire and gateways all carry <c>int32</c>;
+        /// the allocators refuse loudly rather than issue an id above <see cref="int.MaxValue"/>).
         /// </summary>
-        public long Value;
+        public int Value;
 
-        public NetworkIdentity(long value)
+        public NetworkIdentity(int value)
         {
             Value = value;
         }

@@ -7,6 +7,6 @@ namespace Fdp.Modules.Geographic.Components
     [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct Position
     {
-        public Vector3 Value;
+        public WorldPoint Value;
     }
 }

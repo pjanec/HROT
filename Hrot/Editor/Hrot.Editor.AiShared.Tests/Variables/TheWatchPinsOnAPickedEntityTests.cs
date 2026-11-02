@@ -24,7 +24,7 @@ namespace Hrot.Editor.AiShared.Tests.Variables;
 public sealed class TheWatchPinsOnAPickedEntityTests
 {
     private static readonly Guid AssetA = Guid.Parse("aaaaaaaa-1111-1111-1111-111111111111");
-    private const long PickedNetworkId = 4242;
+    private const int PickedNetworkId = 4242;
 
     private static Entity Ent(int index) => new(index, 1);
 
@@ -74,7 +74,7 @@ public sealed class TheWatchPinsOnAPickedEntityTests
     private static AiWatchWindow Window(WatchEntityPicker? picker = null)
         => Registrar(picker).Watch!;
 
-    private static WatchEntityPicker Picks(Entity entity, long networkId = PickedNetworkId)
+    private static WatchEntityPicker Picks(Entity entity, int networkId = PickedNetworkId)
         => _ => Task.FromResult<EntityBinding?>(EntityBinding.Concrete(networkId, entity));
 
     // ══ the gesture itself ══════════════════════════════════════════════════════

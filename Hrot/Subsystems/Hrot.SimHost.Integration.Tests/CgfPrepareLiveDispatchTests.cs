@@ -68,7 +68,7 @@ public sealed class CgfPrepareLiveDispatchTests : IDisposable
         slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetNodeId  = 0,
+            TargetNodeId  = (Fdp.Core.NodeId)(0),
             Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
             DomainPayload = scenarioId,
         });
@@ -105,7 +105,7 @@ public sealed class CgfPrepareLiveDispatchTests : IDisposable
         slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetNodeId  = 0,
+            TargetNodeId  = (Fdp.Core.NodeId)(0),
             Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
             DomainPayload = null,  // no scenario ID → handler skips gracefully
         });
@@ -142,7 +142,7 @@ public sealed class CgfPrepareLiveDispatchTests : IDisposable
         var cmd = new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetNodeId  = 0,
+            TargetNodeId  = (Fdp.Core.NodeId)(0),
             Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
             DomainPayload = scenarioId,
         };

@@ -225,8 +225,8 @@ namespace Fdp.Toolkit.Replication.Tests
             foreach (var key in new[]
                      {
                          default(RoleShardKey),
-                         new RoleShardKey(1, 1001, default),
-                         new RoleShardKey(long.MaxValue, long.MaxValue, new DISEntityType { Value = 7 }),
+                         new RoleShardKey(1, (Fdp.Core.TkbTypeId)(1001), default),
+                         new RoleShardKey(int.MaxValue, (Fdp.Core.TkbTypeId)(long.MaxValue), new DISEntityType { Value = 7 }),
                      })
             {
                 Assert.Equal(first, policy.OwnableMask(template, isCreator: true, key));

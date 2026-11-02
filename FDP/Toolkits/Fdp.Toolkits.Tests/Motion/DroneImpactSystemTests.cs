@@ -69,7 +69,7 @@ namespace Fdp.Toolkit.Tests.Motion
             _w.AddComponent(d, new FlightState { Airborne = 1 });
             _w.AddComponent(d, new PhysicsCollider { Radius = 0.3f, Height = 0.3f });
             _w.AddComponent(d, new Health { Current = 10, Max = 10 });
-            _w.AddComponent(d, new TkbIdentity { TkbType = DroneType });
+            _w.AddComponent(d, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(DroneType) });
             _w.SetAuthority<SimTransform>(d, true);
             return d;
         }

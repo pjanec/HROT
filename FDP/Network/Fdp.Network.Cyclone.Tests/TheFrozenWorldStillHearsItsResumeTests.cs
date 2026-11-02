@@ -281,7 +281,7 @@ public sealed class TheFrozenWorldStillHearsItsResumeTests
         var system = new CycloneNetworkIngressSystem(new INetworkTranslator[] { state, events, control }) { IsReplayRestoring = () => held };
 
         using var writer = new CycloneDDS.Runtime.DdsWriter<Fdp.Network.Cyclone.Topics.EntityMasterTopic>(participant);
-        for (long id = 1; id <= 3; id++) writer.Write(new Fdp.Network.Cyclone.Topics.EntityMasterTopic { EntityId = id });
+        for (int id = 1; id <= 3; id++) writer.Write(new Fdp.Network.Cyclone.Topics.EntityMasterTopic { EntityId = id });
         await WaitFor(() => state.Peek() == 3);
 
         system.DiscardAtReplayExit();          // ⚠ asked while still held: nothing may be drained yet

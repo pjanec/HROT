@@ -20,7 +20,7 @@ namespace Fdp.Toolkit.Navigation
 
     /// <summary>One waypoint of a route as the motion side reads it — the engine-neutral view of the route entity's waypoint.</summary>
     public readonly record struct NavRouteWaypoint(Vector3 Position, float TargetSpeed, RouteWaypointKind Kind, float HeightAgl,
-                                                   RouteHold Hold, float HoldSeconds, long HoldUnit);
+                                                   RouteHold Hold, float HoldSeconds, int HoldUnit);
 
     /// <summary>
     /// ⭐⭐ <c>CE-2171</c> / Air Ops B1 (§5) — the route ENTITY, as the motion side resolves it from the network id the intent carries
@@ -30,9 +30,9 @@ namespace Fdp.Toolkit.Navigation
     public interface IRouteSource
     {
         /// <summary>The route's compiled ground trajectory in THIS node's pool; false while it is not compiled yet.</summary>
-        bool TryGetTrajectory(EntityRepository repo, long routeNetworkId, out int trajectoryId);
+        bool TryGetTrajectory(EntityRepository repo, int routeNetworkId, out int trajectoryId);
 
         /// <summary>The route's waypoints into <paramref name="into"/> (cleared first), its loop flag and version; false when unknown.</summary>
-        bool TryGetRoute(EntityRepository repo, long routeNetworkId, List<NavRouteWaypoint> into, out bool loop, out int version);
+        bool TryGetRoute(EntityRepository repo, int routeNetworkId, List<NavRouteWaypoint> into, out bool loop, out int version);
     }
 }

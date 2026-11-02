@@ -66,12 +66,12 @@ namespace Hrot.ScenarioEditor.Map
             int accepted = 0;
             foreach (var unit in _selected())
             {
-                if (unit.IsNull || unit.Equals(hit) || !map.TryGetNetworkId(unit, out long id)) continue;
+                if (unit.IsNull || unit.Equals(hit) || !map.TryGetNetworkId(unit, out int id)) continue;
                 // ⭐ CE-2143 (D4-F) — the order a GESTURE issues ([Order(Gesture = …)]), never a behaviour name: a hostile under the
                 //   cursor is the EnemyClick order (Attack), anything else the GroundClick order (Move) to the point.
                 // ⭐ CE-2148 (F6) — the click is the gesture's CONTEXT: it fills the order's one missing [Required] field of its kind;
                 //   an order it cannot complete goes to the order form (MenuOrders.OpenForm), never half-filled.
-                OrderResult r = !hit.IsNull && (forceAttack || IsHostile(unit, hit)) && map.TryGetNetworkId(hit, out long target)
+                OrderResult r = !hit.IsNull && (forceAttack || IsHostile(unit, hit)) && map.TryGetNetworkId(hit, out int target)
                     ? Gesture(orders, id, OrderGesture.EnemyClick, new OrderContext(target, null))
                     : Gesture(orders, id, OrderGesture.GroundClick, new OrderContext(null, Point(worldXY)));
                 if (r.Accepted) accepted++;
@@ -90,7 +90,7 @@ namespace Hrot.ScenarioEditor.Map
             return theirs != mine && theirs != ForceId.Neutral;
         }
 
-        private OrderResult Gesture(EntityOrders orders, long id, OrderGesture gesture, OrderContext context)
+        private OrderResult Gesture(EntityOrders orders, int id, OrderGesture gesture, OrderContext context)
         {
             if (OrderMenu.ByGesture(gesture) is not { } order)
                 return new OrderResult(OrderRefusal.BadRequest, $"No order is issued by a {gesture}.", string.Empty, string.Empty);

@@ -38,7 +38,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
         private const long TkbType    = 200L;
         private const int  LocalNode  = 5;
-        private const long NetworkId  = 111L;
+        private const int NetworkId  = 111;
 
         private EntityRepository   _repo       = null!;
         private TkbDatabase        _tkbDb      = null!;
@@ -94,8 +94,8 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             _repo.Bus.PublishManaged(new SpawnEntityCommand
             {
                 NetworkId   = NetworkId,
-                TkbType     = TkbType,
-                OwnerNodeId = 3,
+                TkbType     = (Fdp.Core.TkbTypeId)(TkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(3),
                 InitType    = ReliableInitType.None,
                 InitialComponents = new List<object>
                 {

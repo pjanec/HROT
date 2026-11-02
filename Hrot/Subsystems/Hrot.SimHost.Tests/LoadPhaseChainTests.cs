@@ -287,7 +287,7 @@ public sealed class LoadPhaseChainTests
         public int Started { get; private set; }
         public Guid LastExercise { get; private set; }
         public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory) { Started++; LastExercise = exerciseId; return Task.CompletedTask; }
-        public Task FinalizeRecordingAsync(long maxNetworkId = 0) => Task.CompletedTask;
+        public Task FinalizeRecordingAsync(int maxNetworkId = 0) => Task.CompletedTask;
         public Task PrepareReplayAsync(Guid exerciseId, string storageDirectory) => Task.CompletedTask;
         public void ProcessPlaybackTick(GlobalTime currentTime) { }
         public Task TeardownReplayAsync() => Task.CompletedTask;
@@ -299,7 +299,7 @@ public sealed class LoadPhaseChainTests
         public long ReplayAnchorWallTicks { get; set; }
         public string? ActiveReplayFilePath => null;
         public bool IsRestoringReplay => false;
-        public long ActiveMaxNetworkId => 0;
+        public int ActiveMaxNetworkId => 0;
         public Task<GlobalTime> SeekToTimeAsync(long targetWallClockTicks) => Task.FromResult(default(GlobalTime));
         public Task<string?> AwaitRetractionAcksAsync(TimeSpan timeout) => Task.FromResult<string?>(null);
         public void HoldEgress(string reason) { }

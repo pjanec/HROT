@@ -16,7 +16,7 @@ namespace Hrot.IG
         public long ShooterEntityId;
 
         /// <summary>Network entity ID of the intended target.</summary>
-        public long TargetEntityId;
+        public int TargetEntityId;
 
         /// <summary>Zero-based weapon slot index.</summary>
         public int WeaponIndex;

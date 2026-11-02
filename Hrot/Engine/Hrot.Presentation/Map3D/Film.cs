@@ -21,7 +21,7 @@ namespace Hrot.UI.Common.Map3D;
 public sealed record FilmShot
 {
     public CameraPose? Pose { get; init; }
-    public long Follow { get; init; }
+    public int Follow { get; init; }
     public float Distance { get; init; } = 30f;
     public float Yaw { get; init; }
     public float Pitch { get; init; } = -0.35f;

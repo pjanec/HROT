@@ -105,10 +105,10 @@ namespace Fdp.Toolkit.Behavior.Tests
             }
             // the column on the right (south of an east-facing hull): beside it, not where it boarded
             var placed = _world.GetComponentRO<SimTransform>(ours).Position;
-            Assert.Equal(Embarkation.DismountPoint(_world, apc, 0, 2), placed);
+            Assert.Equal<System.Numerics.Vector3>(Embarkation.DismountPoint(_world, apc, 0, 2), placed);
             Assert.True(placed.Y < 50f);
             // the other node owns that body's position — a write here would be overwritten next frame, so none is made
-            Assert.Equal(new Vector3(91, 50, 0), _world.GetComponentRO<SimTransform>(theirs).Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(91, 50, 0), _world.GetComponentRO<SimTransform>(theirs).Position);
             Assert.Equal(2, _system.Left);
         }
 
@@ -188,10 +188,10 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.SetComponent(apc, new SimTransform { Position = new Vector3(140, 60, 0), Rotation = heading });
             _system.Execute(_world, 0f);
 
-            Assert.Equal(new Vector3(140, 60, 0), _world.GetComponentRO<SimTransform>(ours).Position);
-            Assert.Equal(heading, _world.GetComponentRO<SimTransform>(ours).Rotation);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(140, 60, 0), _world.GetComponentRO<SimTransform>(ours).Position);
+            Assert.Equal<System.Numerics.Quaternion>(heading, _world.GetComponentRO<SimTransform>(ours).Rotation);
             Assert.Equal(new Vector3(8, 0, 0), _world.GetComponentRO<SimVelocity>(ours).Linear);   // dead reckoning on the other nodes
-            Assert.Equal(new Vector3(91, 50, 0), _world.GetComponentRO<SimTransform>(theirs).Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(91, 50, 0), _world.GetComponentRO<SimTransform>(theirs).Position);
         }
 
         /// <summary>

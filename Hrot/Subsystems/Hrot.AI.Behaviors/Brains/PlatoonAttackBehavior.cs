@@ -692,7 +692,7 @@ namespace Hrot.AI.Behaviors.Brains
             int reserve = FreeReserve(ref p, self, world);
             if (reserve < 0) return NodeStatus.Success;
             var to = CommandPictureOps.Subordinate(world, self, reserve) is var unit && world.HasComponent<SimTransform>(unit)
-                ? world.GetComponentRO<SimTransform>(unit).Position : p.ReserveAt;
+                ? (Vector3)world.GetComponentRO<SimTransform>(unit).Position : p.ReserveAt;
             if (CasevacAnswers.Answer(world, self, reserve, to, p.Speed)) p.Casevac[reserve] = 1;
             return NodeStatus.Success;
         }
@@ -754,7 +754,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             int index = CommandPictureOps.FirstRequest(world, self, RequestKind.Casevac);
             if (index < 0) return false;
-            long casualty = world.GetComponentRO<CommandPicture>(self).Requests.Items[index].SubjectNetId;
+            int casualty = world.GetComponentRO<CommandPicture>(self).Requests.Items[index].SubjectNetId;
             CommandPictureOps.Answered(world, self, index);
             if (casualty == 0) return false;
             var unit = CommandPictureOps.Subordinate(world, self, slot);

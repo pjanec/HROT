@@ -33,7 +33,7 @@ public class EntityDestroyIntegrationTests
         // Spawn directly on SimHost so SimHost is the authority (NetworkOwnership.HasAuthority=true).
         // This ensures CycloneNetworkCleanupSystem fires on destroy and publishes EntityMaster DISPOSE
         // to DDS, which causes EntityMasterIngressTranslator on IG to remove the ghost.
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, SpawnGeo);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, SpawnGeo);
 
         Entity simHostEntity = Entity.Null;
         bool simHostEntityReady = harness.PumpUntil(
@@ -69,7 +69,7 @@ public class EntityDestroyIntegrationTests
         Assert.True(igGhostRemoved, "IG ghost entity was not removed after destroy.");
     }
 
-    private static bool TryGetSimHostNetworkId(EntityRepository world, long tkbType, out long networkId)
+    private static bool TryGetSimHostNetworkId(EntityRepository world, long tkbType, out int networkId)
     {
         var view = (ISimulationView)world;
         var query = world.Query().IncludeAll().With<NetworkIdentity>().With<TkbIdentity>().Build();
@@ -88,7 +88,7 @@ public class EntityDestroyIntegrationTests
         return false;
     }
 
-    private static bool TryGetSimHostEntity(EntityRepository world, long networkId, out Entity entity)
+    private static bool TryGetSimHostEntity(EntityRepository world, int networkId, out Entity entity)
     {
         var view = (ISimulationView)world;
         var query = world.Query().IncludeAll().With<NetworkIdentity>().Build();
@@ -128,8 +128,8 @@ public class EntityDestroyIntegrationTests
         // ── Spawn two entities ────────────────────────────────────────────────
         // Both spawned directly on SimHost so SimHost is the authority and
         // CycloneNetworkCleanupSystem sends EntityMaster DISPOSE on destruction.
-        long networkId1 = harness.SimHost.TestHook_SpawnEntity(tkbType, SpawnGeo);
-        long networkId2 = harness.SimHost.TestHook_SpawnEntity(tkbType,
+        int networkId1 = harness.SimHost.TestHook_SpawnEntity(tkbType, SpawnGeo);
+        int networkId2 = harness.SimHost.TestHook_SpawnEntity(tkbType,
             new CoreGeoPoint { Latitude = 52.522, Longitude = 13.407, Altitude = 0 });
 
         bool bothOnIg = harness.PumpUntil(
@@ -169,7 +169,7 @@ public class EntityDestroyIntegrationTests
             $"ClearAll fix may not be routing through NetworkSpawningSystem.");
     }
 
-    private static bool IgHasEntityWithNetworkId(EntityRepository world, long networkId)
+    private static bool IgHasEntityWithNetworkId(EntityRepository world, int networkId)
     {
         var view = (ISimulationView)world;
         var query = world.Query().With<NetworkIdentity>().Build();

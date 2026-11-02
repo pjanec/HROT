@@ -55,7 +55,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
                     int n = 0;
                     for (int k = 0; k < PointsPerRing; k++)
                         if (EqsTerrainSight.TryPlace(world, DonutGenerator.Point(at, Radius, Rings, PointsPerRing, InnerFraction, r, k), cand.PositionZ, out var p))
-                            ring[n++] = new EqsResult { EntityId = 0L, PositionX = p.X, PositionY = p.Y, PositionZ = p.Z };
+                            ring[n++] = new EqsResult { EntityId = 0, PositionX = p.X, PositionY = p.Y, PositionZ = p.Z };
                     if (n == 0) continue;
                     _sees.ExecuteBatch(observer, ref sensor, view, ring.Slice(0, n));
                     float nearest = float.PositiveInfinity;

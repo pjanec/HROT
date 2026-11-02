@@ -311,7 +311,7 @@ public sealed class TestHarnessTests : IDisposable
             "Pass-B must have forward-synced the ghost's visual pose at least once");
 
         var lastVisualPose = factory.LastPose[handle];
-        Assert.True((lastVisualPose.Position - firstPos).Length() > 0.1f,
+        Assert.True(((System.Numerics.Vector3)lastVisualPose.Position - firstPos).Length() > 0.1f,
             "the ghost's visual must track the moved SimTransform (forward-sync LIVE)");
     }
 

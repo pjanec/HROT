@@ -296,7 +296,7 @@ namespace Hrot.SimHost.Tests
             var translator   = new GeoSpatialEgressTranslator(participant, entityMap, localNodeId: 0);
 
             // Call Dispose -- this should tombstone the WorldPos instance.
-            translator.Dispose(42L);
+            translator.Dispose(42);
 
             // Wait briefly for the loopback to complete.
             Thread.Sleep(200);
@@ -333,7 +333,7 @@ namespace Hrot.SimHost.Tests
             var translator   = new GeoSpatialEgressTranslator(participant, entityMap, localNodeId: 0);
 
             // Call Dispose -- base.Dispose should tombstone the GeoSpatial instance.
-            translator.Dispose(99L);
+            translator.Dispose(99);
 
             Thread.Sleep(200);
 

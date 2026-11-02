@@ -42,7 +42,7 @@ internal sealed class FakeDescriptorTranslator : IDescriptorTranslator
     public long SentSampleCount => 0;
 
     public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-    public void Dispose(long networkEntityId) { }
+    public void Dispose(int networkEntityId) { }
 
     // ⭐ Never exercised: this fake exists only to DECLARE a descriptor↔component pairing.
     public void PollIngress(Fdp.Interfaces.IEntityCommandBuffer ecb, Fdp.ModuleHost.Abstractions.ISimulationView view) { }

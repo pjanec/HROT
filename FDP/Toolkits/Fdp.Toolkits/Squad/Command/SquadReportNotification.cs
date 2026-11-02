@@ -26,6 +26,6 @@ namespace Fdp.Toolkit.Squad.Command
         /// <summary>The report itself (kind, subtype, the kind's fields, <c>ObservedAt</c>, <c>Seq</c>, <c>Synthetic</c>).</summary>
         public CommandReport Report;
         /// <summary>The node it was raised on: 0 = THIS node (the egress sends it); otherwise it arrived from that node.</summary>
-        public long OriginNodeId;
+        public NodeId OriginNodeId;
     }
 }

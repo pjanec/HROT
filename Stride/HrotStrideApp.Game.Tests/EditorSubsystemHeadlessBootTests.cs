@@ -138,7 +138,7 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
             OwnWindow        = false,
             Deterministic    = true,
             SubsystemName    = "Editor",
-            NodeId           = 0,
+            NodeId           = (Fdp.Core.NodeId)(0),
             IsActiveMapOwner = () => false,
         };
 
@@ -300,7 +300,7 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = TkbInfantrySoldier,
+            TkbType            = (Fdp.Core.TkbTypeId)(TkbInfantrySoldier),
             InitialComponents  = new List<object>
             {
                 new SimTransform { Position = F6StartFdp, Rotation = Quaternion.Identity },
@@ -426,7 +426,7 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = TkbMilitaryApc,
+            TkbType            = (Fdp.Core.TkbTypeId)(TkbMilitaryApc),
             InitialComponents  = new List<object>
             {
                 new SimTransform { Position = F7StartFdp, Rotation = Quaternion.Identity },
@@ -442,7 +442,7 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
 
         // Verify spawn position preserved (NoOp physics — BulletReverseSyncSystem inactive).
         var tf = world.GetComponent<SimTransform>(e);
-        float distToSpawn = (tf.Position - F7StartFdp).Length();
+        float distToSpawn = ((System.Numerics.Vector3)tf.Position - F7StartFdp).Length();
         Assert.True(distToSpawn < 0.5f,
             $"SI4: SimTransform.Position after spawn must be near F7StartFdp ({F7StartFdp}). " +
             $"Got {tf.Position} (dist={distToSpawn:F3} m).");

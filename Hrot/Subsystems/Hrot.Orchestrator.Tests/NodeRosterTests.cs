@@ -13,7 +13,7 @@ namespace Hrot.Orchestrator.Tests;
 public sealed class NodeRosterTests
 {
     private static NodeHealthProfile Node(int id, NodeRole roles) =>
-        new() { NodeId = id, Roles = roles, LastHeartbeatUtcSeconds = 1.0 };
+        new() { NodeId = (Fdp.Core.NodeId)(id), Roles = roles, LastHeartbeatUtcSeconds = 1.0 };
 
     [Fact]
     public void NodesWithRole_ResolvesSingleAndMultiRoleMasks()
@@ -37,7 +37,7 @@ public sealed class NodeRosterTests
     }
 
     private static NodeHealthProfile Named(int id, string name, double at = 1.0) =>
-        new() { NodeId = id, NodeName = name, SubsystemName = "IG", LastHeartbeatUtcSeconds = at };
+        new() { NodeId = (Fdp.Core.NodeId)(id), NodeName = name, SubsystemName = "IG", LastHeartbeatUtcSeconds = at };
 
     /// <summary>
     /// ⭐ <c>CE-3354</c> ② — a node name is unique among LIVE nodes: a second node id taking a held name is refused (not added, reported once), the holder re-heartbeating is

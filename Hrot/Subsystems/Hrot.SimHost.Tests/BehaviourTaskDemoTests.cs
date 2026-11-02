@@ -33,7 +33,7 @@ namespace Hrot.SimHost.Tests
     /// </summary>
     public sealed unsafe class BehaviourTaskDemoTests
     {
-        private const long HostileNetId = 777;
+        private const int HostileNetId = 777;
 
         private sealed class World
         {
@@ -158,9 +158,9 @@ namespace Hrot.SimHost.Tests
         }
 
         private static string MissionJson(int maxRounds) =>
-            "{\"Move\":{\"x\":100,\"y\":0,\"speed\":5,\"arrivalRadius\":2}," +
+            "{\"Move\":{\"target\":[100,0,0],\"speed\":5,\"arrivalRadius\":2}," +
             "\"Fire\":{\"targetNetworkId\":" + HostileNetId + ",\"maxRounds\":" + maxRounds + ",\"cooldownSeconds\":0.5}," +
-            "\"Home\":{\"x\":0,\"y\":0,\"speed\":5,\"arrivalRadius\":2}}";
+            "\"Home\":{\"target\":[0,0,0],\"speed\":5,\"arrivalRadius\":2}}";
 
         private static World Start(string behaviour, string json, bool weaponReady = true)
         {

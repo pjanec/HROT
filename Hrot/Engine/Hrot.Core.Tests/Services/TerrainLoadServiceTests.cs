@@ -56,7 +56,7 @@ namespace Hrot.Core.Tests.Services
                                       long tkbType = TkbEntityTypes.TerrainZone)
         {
             var e = repo.CreateEntity();
-            repo.AddComponent(e, new TkbIdentity { TkbType = tkbType });
+            repo.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(tkbType) });
             repo.AddComponent(e, new SimTransform { Position = origin });
             repo.SetManagedComponent(e, new EditablePolyline { Points = points });
             return e;

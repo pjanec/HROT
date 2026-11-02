@@ -59,7 +59,7 @@ public enum EntityBindingKind
 /// </param>
 public readonly record struct EntityBinding(
     EntityBindingKind Kind,
-    long              StagingNetworkId,
+    int              StagingNetworkId,
     Entity            Captured)
 {
     /// <summary>⭐⭐ *"This variable, on whoever is selected."*</summary>
@@ -75,7 +75,7 @@ public readonly record struct EntityBinding(
     /// within-session. <see cref="IsPersistable"/> says so rather than the caller having to know.
     /// </param>
     /// </summary>
-    public static EntityBinding Concrete(long stagingNetworkId, Entity captured)
+    public static EntityBinding Concrete(int stagingNetworkId, Entity captured)
         => new(EntityBindingKind.Concrete, stagingNetworkId, captured);
 
     /// <summary>

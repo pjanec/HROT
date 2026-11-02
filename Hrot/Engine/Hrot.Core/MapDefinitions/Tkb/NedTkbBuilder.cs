@@ -323,8 +323,8 @@ namespace Hrot.Map.Definitions.Tkb
                         MuzzleOffsetX     = wm.MuzzleOffset.X,       // ⭐ E4 VE-K
                         MuzzleOffsetY     = wm.MuzzleOffset.Y,
                         MuzzleOffsetZ     = wm.MuzzleOffset.Z,
-                        AmmoGuid          = unchecked((ulong)wm.AmmoTkb),        // ⭐ LR-1 (R-271)
-                        TracerAmmoGuid    = unchecked((ulong)wm.TracerAmmoTkb),
+                        AmmoGuid          = unchecked((ulong)(long)wm.AmmoTkb),        // ⭐ LR-1 (R-271)
+                        TracerAmmoGuid    = unchecked((ulong)(long)wm.TracerAmmoTkb),
                         TracerEvery       = wm.TracerEvery,
                         // ⭐ M5 — the loadout, firing on the move, the aim / lock time and the magazine
                         Loadout           = wm.Loadout?.ConvertAll(l => new AmmoLoadDto { AmmoGuid = unchecked((ulong)l.AmmoTkb), Rounds = l.Rounds }) ?? new(),

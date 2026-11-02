@@ -508,6 +508,14 @@ namespace Fdp.Core.FlightRecorder
                 return Expression.Call(writer, enumWriteMethod!, castExpr);
             }
 
+            // ⭐ CE-4200 — a SEMANTIC value type (NodeId, TkbTypeId, WorldPoint …) is its STORAGE type on the recording: the same bytes the plain
+            //   int / long / Vector3 wrote. ⛔ Not the recursive case below — these are readonly structs, whose members cannot be assigned on read.
+            if (Fdp.Core.SemanticValueTypes.IsSemantic(type))
+            {
+                var storage = Fdp.Core.SemanticValueTypes.StorageTypeOf(type);
+                return GenerateWriteExpression(storage, Expression.Convert(valueAccess, storage), writer);
+            }
+
             // CASE A3: Entity Handle (8-byte blit)
             if (type == typeof(Fdp.Core.Entity))
             {
@@ -625,6 +633,10 @@ namespace Fdp.Core.FlightRecorder
                 var readExpr = Expression.Call(reader, enumReadMethod!);
                 return Expression.Convert(readExpr, type);
             }
+
+            // ⭐ CE-4200 — see the write side: a semantic value type is read as its storage type and converted in.
+            if (Fdp.Core.SemanticValueTypes.IsSemantic(type))
+                return Expression.Convert(GenerateReadExpression(Fdp.Core.SemanticValueTypes.StorageTypeOf(type), reader), type);
 
             // CASE A3: Entity Handle (8-byte blit)
             if (type == typeof(Fdp.Core.Entity))

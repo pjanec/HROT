@@ -37,7 +37,7 @@ public sealed class PedestriansPanicIntoCiviliansTests
         h.Run(0.5);
 
         var e = Assert.Single(h.Mirror.Replicas!.Pedestrians.Where(kv => kv.Key.NetworkId == ped.NetworkId)).Value;
-        Assert.Equal(TrafficPanicSystem.TypeOf(ped.NetworkId), h.World.GetComponentRO<TkbIdentity>(e).TkbType);   // CE-4031: the type he converts into
+        Assert.Equal(TrafficPanicSystem.TypeOf(ped.NetworkId), h.World.GetComponentRO<TkbIdentity>(e).TkbType.Value);   // CE-4031: the type he converts into
         Assert.Equal(TrafficCar.KindPedestrian, h.World.GetComponentRO<TrafficCar>(e).Kind);
         Assert.Equal(ForceId.Neutral, h.World.GetComponentRO<EntityInfo>(e).ForceId);
         Assert.True(h.Map.TryGetEntity(ped.NetworkId, out var mapped) && mapped == e);
@@ -62,8 +62,8 @@ public sealed class PedestriansPanicIntoCiviliansTests
         {
             Assert.Equal(0, r.OwnerAppInstanceId);   // the system picks the brain node (R-4029)
             Assert.True(r.IsTransient);
-            Assert.InRange(r.TkbType, CivilianTkbCatalog.TkbCivilianAdultMale, CivilianTkbCatalog.TkbCivilianElderly);
-            Assert.Equal(TrafficPanicSystem.TypeOf(r.PreAllocatedNetworkId), r.TkbType);
+            Assert.InRange((long)r.TkbType, CivilianTkbCatalog.TkbCivilianAdultMale, CivilianTkbCatalog.TkbCivilianElderly);
+            Assert.Equal(TrafficPanicSystem.TypeOf(r.PreAllocatedNetworkId), (long)r.TkbType);
             var tf = Assert.IsType<SimTransform>(Assert.Single(r.InitialComponents!));
             Assert.True(Vector2.Distance(new(tf.Position.X, tf.Position.Y), new(at.X, at.Y)) <= TrafficDemand.DefaultShotPanicRadius + 5f);
             Assert.Contains("\"Fear\":1", r.InitialAttributesJson);
@@ -177,12 +177,12 @@ public sealed class PedestriansPanicIntoCiviliansTests
         var requests = h.RunCollecting(1.0);
 
         var ours = Assert.Single(requests, r => r.PreAllocatedNetworkId == car.NetworkId);
-        Assert.Equal(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianCar, ours.TkbType);   // no TKB car types here (T1): our civilian car
+        Assert.Equal(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianCar, (long)ours.TkbType);   // no TKB car types here (T1): our civilian car
         Assert.True(ours.IsTransient);
         var at = Assert.IsType<SimTransform>(Assert.Single(ours.InitialComponents!)).Position;
         Assert.True(Vector2.Distance(new(at.X, at.Y), new(car.X, car.Y)) < 15f, "our car stands where SUMO's was");
         var driver = Assert.Single(requests, r => r.PreAllocatedNetworkId == 0);
-        Assert.InRange(driver.TkbType, CivilianTkbCatalog.TkbCivilianAdultMale, CivilianTkbCatalog.TkbCivilianElderly);
+        Assert.InRange((long)driver.TkbType, CivilianTkbCatalog.TkbCivilianAdultMale, CivilianTkbCatalog.TkbCivilianElderly);
         Assert.Contains("\"Fear\":1", driver.InitialAttributesJson);
         Assert.DoesNotContain(h.Mirror.Cars, c => c.NetworkId == car.NetworkId);   // gone from SUMO's wire (H15)
         Assert.Contains(car.NetworkId, h.Panic.HeldHits);                          // its hit waits for our car
@@ -227,15 +227,15 @@ public sealed class PedestriansPanicIntoCiviliansTests
 
     private sealed class Harness : IDisposable
     {
-        public const long FirstId = 90000;
-        private long _next = FirstId;
+        public const int FirstId = 90000;
+        private int _next = FirstId;
         private double _t = 100.0;
         public EntityRepository World = null!;
         public TrafficRuntime Runtime = null!;
         public TrafficMirrorSystem Mirror = null!;
         public TrafficPanicSystem Panic = null!;
         public NetworkEntityMap Map = new();
-        public long LastId => Interlocked.Read(ref _next);
+        public int LastId => Interlocked.CompareExchange(ref _next, 0, 0);
 
         public static Harness Start(int walkers, int maxConverted = 0)
         {
@@ -290,7 +290,7 @@ public sealed class PedestriansPanicIntoCiviliansTests
             }
             var man = World.CreateEntity();
             World.AddComponent(man, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-            World.AddComponent(man, new TkbIdentity { TkbType = ThrowerType });
+            World.AddComponent(man, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(ThrowerType) });
             World.Bus.Publish(new WeaponFireNotification { Shooter = man, WeaponIndex = 0, Origin = at, Quantity = 1 });
         }
 

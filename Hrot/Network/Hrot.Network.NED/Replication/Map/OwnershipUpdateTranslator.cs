@@ -39,7 +39,7 @@ namespace Hrot.Map.Common.Replication
     public sealed class OwnershipUpdateTranslator : IDescriptorTranslator, IDiscardableIngress
     {
 
-        private readonly int _localNodeId;
+        private readonly NodeId _localNodeId;
         private readonly DdsReader<OwnershipUpdateWire>? _reader;
         private readonly DdsWriter<OwnershipUpdateWire>? _writer;
 
@@ -54,7 +54,7 @@ namespace Hrot.Map.Common.Replication
 
         public OwnershipUpdateTranslator(DdsParticipant? participant, int localNodeId)
         {
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             if (participant != null)
             {
                 _reader = new DdsReader<OwnershipUpdateWire>(participant);
@@ -125,8 +125,8 @@ namespace Hrot.Map.Common.Replication
                 {
                     NetworkId      = new NetworkIdentity { Value = msg.EntityId },
                     PackedKey      = packedKey,
-                    NewOwnerNodeId = msg.NewOwner,
-                    OriginNodeId   = msg.OriginNodeId,
+                    NewOwnerNodeId = (Fdp.Core.NodeId)(msg.NewOwner),
+                    OriginNodeId   = (Fdp.Core.NodeId)(msg.OriginNodeId),
                 });
 
                 FdpLog<OwnershipUpdateTranslator>.Debug(
@@ -137,6 +137,6 @@ namespace Hrot.Map.Common.Replication
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

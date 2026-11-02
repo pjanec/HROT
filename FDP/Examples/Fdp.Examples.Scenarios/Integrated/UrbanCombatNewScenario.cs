@@ -279,7 +279,7 @@ namespace Fdp.Examples.Scenarios.Integrated
         private RoadNetworkBlob?      _road;
         private TrajectoryPoolManager? _trajectoryPool;
 
-        private long _nextNetId = 1L;
+        private int _nextNetId = 1;
 
         // ── IScenario.Configure ───────────────────────────────────────────────
 
@@ -715,7 +715,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             foreach (var translator in _translators)
                 translator.Inject(world, entity, template);
 
-            world.AddComponent(entity, new TkbIdentity { TkbType = tkbTypeId });
+            world.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(tkbTypeId) });
 
             ref var tf   = ref world.GetComponentRW<SimTransform>(entity);
             tf.Position  = position;

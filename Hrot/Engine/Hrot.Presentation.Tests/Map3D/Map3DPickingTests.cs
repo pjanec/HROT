@@ -133,14 +133,14 @@ public sealed class Map3DPickingTests
         Assert.True(hit.Point.Z >= roofZ - 0.1f, $"hit {hit.Point} below the roof {roofZ} — went through the building");
     }
 
-    private static Entity Tank(EntityRepository world, Vector3 at, long netId)
+    private static Entity Tank(EntityRepository world, Vector3 at, int netId)
     {
         if (!world.IsComponentTypeRegistered<SimTransform>()) world.RegisterComponent<SimTransform>();
         if (!world.IsComponentTypeRegistered<TkbIdentity>()) world.RegisterComponent<TkbIdentity>();
         if (!world.IsComponentTypeRegistered<NetworkIdentity>()) world.RegisterComponent<NetworkIdentity>();
         var e = world.CreateEntity();
         world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-        world.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+        world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams) });
         world.AddComponent(e, new NetworkIdentity(netId));
         return e;
     }
@@ -219,10 +219,10 @@ public sealed class Map3DPickingTests
         Assert.Equal(5L, FpsCameraDriver.Aim(cam).Target);
     }
 
-    private static Entity Rifleman(EntityRepository world, Vector3 at, long netId)
+    private static Entity Rifleman(EntityRepository world, Vector3 at, int netId)
     {
         var e = Tank(world, at, netId);
-        world.SetComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+        world.SetComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman) });
         return e;
     }
 

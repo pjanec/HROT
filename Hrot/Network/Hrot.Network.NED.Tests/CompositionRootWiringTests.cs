@@ -180,7 +180,7 @@ namespace Hrot.DDS.DataModel.Tests
             //   the local focus holder, R-144), so the world needs the entity this batch names.
             repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 90210L });
+            repo.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 90210 });
 
             var batch = new GizmoInteractionBatch
             {

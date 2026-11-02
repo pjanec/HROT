@@ -95,7 +95,7 @@ namespace Hrot.SimHost.Tests
                 Repo.AddComponent(m, new WeaponChannel());
                 Repo.AddComponent(m, new StanceIntent());
                 Repo.AddComponent(m, new Health { Current = 100f, Max = 100f });
-                Repo.AddComponent(m, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = SoldierType });
+                Repo.AddComponent(m, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(SoldierType) });
                 Repo.SetAuthority<BehaviorState>(m, true);
                 new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator().Inject(Repo, m, _soldier);
                 if (proficiency is float v) Repo.AddComponent(m, new CombatProficiency { Authored = v, Set = CombatProficiency.AuthoredSet });
@@ -238,7 +238,7 @@ namespace Hrot.SimHost.Tests
             var replica = w.Repo.CreateEntity();   // appears at the thrower's hand, flies, lies by the men
             w.Repo.AddComponent(replica, new SimTransform { Position = new Vector3(0, 20, 0), Rotation = Quaternion.Identity });
             w.Repo.AddComponent(replica, new Fdp.Toolkit.Replication.Components.LightweightRound());
-            w.Repo.AddComponent(replica, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = GrenadeAmmo });
+            w.Repo.AddComponent(replica, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(GrenadeAmmo) });
             for (int i = 0; i < 12; i++)   // in FLIGHT: it moves every frame — 📐 live, a still-less replica read as lying in the air
             {
                 w.Repo.GetComponentRW<SimTransform>(replica).Position = new Vector3(0, 20 - i * 1.6f, 0);

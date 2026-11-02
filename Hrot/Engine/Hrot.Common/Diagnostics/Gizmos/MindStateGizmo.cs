@@ -75,7 +75,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (!draw.IsLayerActive(DebugTraceLayers.MindState) || view is not EntityRepository repo) return;
             if (!PhysicsColliderReaders.IsPerson(repo, entity) || CombatLife.IsDestroyed(repo, entity)) return;
             if (!repo.IsComponentTypeRegistered<NetworkIdentity>() || !view.HasComponent<NetworkIdentity>(entity)) return;   // a card is keyed by it
-            long net = view.GetComponentRO<NetworkIdentity>(entity).Value;
+            int net = view.GetComponentRO<NetworkIdentity>(entity).Value;
             if (net == 0) return;
             var (fill, tick, band) = MindStateBar.Of(view, entity);
             if (band == MindBand.None) return;

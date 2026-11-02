@@ -71,7 +71,7 @@ public sealed class FilmFrameRail
         var ground = new Vector3(mid.X, mid.Y, query.GroundHeightAt(mid.X, mid.Y));
         var tank = world.CreateEntity();
         world.AddComponent(tank, new SimTransform { Position = ground, Rotation = Quaternion.Identity });
-        world.AddComponent(tank, new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+        world.AddComponent(tank, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams) });
         world.AddComponent(tank, new StanceIntent { TargetStance = StanceId.Standing });
 
         string dir = Path.Combine(Path.GetTempPath(), "hrot-film-rail");
@@ -393,7 +393,7 @@ public sealed class FilmFrameRail
 
     private static Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo LayerControl() =>
         new(NetIdOf(1), new FdpEventBus(), new StructEdit.Reflection.ComponentEditServiceBuilder().Build());
-    private static long NetIdOf(long n) => n;
+    private static int NetIdOf(int n) => n;
 
     private static int Differing(Image a, Image b)
     {

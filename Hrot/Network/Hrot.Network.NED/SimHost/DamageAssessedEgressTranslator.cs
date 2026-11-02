@@ -29,7 +29,7 @@ namespace Hrot.Network.NED.SimHost
 
         private readonly IDdsWriter<EntityHitDamage> _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityHitDamage>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtEntityHitDamage;
@@ -38,15 +38,15 @@ namespace Hrot.Network.NED.SimHost
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         /// <summary>Production constructor â€” creates a live DDS writer.</summary>
-        public DamageAssessedEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, long localNodeId)
+        public DamageAssessedEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, int localNodeId)
             : this(new DdsWriterAdapter<EntityHitDamage>(participant), entityMap, localNodeId)
         {
         }
 
         /// <summary>Testable constructor â€” accepts an injected writer stub.</summary>
-        internal DamageAssessedEgressTranslator(IDdsWriter<EntityHitDamage> writer, NetworkEntityMap entityMap, long localNodeId)
+        internal DamageAssessedEgressTranslator(IDdsWriter<EntityHitDamage> writer, NetworkEntityMap entityMap, int localNodeId)
         {
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _writer    = writer    ?? throw new ArgumentNullException(nameof(writer));
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
@@ -69,9 +69,9 @@ namespace Hrot.Network.NED.SimHost
                 // ⭐ CE-3246 — the owner applies its own hit here (HealthApplicationSystem); only a hit this node cannot apply leaves it
                 if (Fdp.Toolkit.Combat.HealthOwnership.AppliesHere(repo, evt.HitEntity)) continue;
 
-                if (!_entityMap.TryGetNetworkId(evt.HitEntity, out long netId)) continue;
+                if (!_entityMap.TryGetNetworkId(evt.HitEntity, out int netId)) continue;
                 // ⭐ CE-3237 (B-15, DS-2) — who caused it, by network id; an unmapped or unknown source reads 0 on the wire
-                long sourceId = !evt.Source.IsNull && _entityMap.TryGetNetworkId(evt.Source, out long s) ? s : 0L;
+                int sourceId = !evt.Source.IsNull && _entityMap.TryGetNetworkId(evt.Source, out int s) ? s : 0;
                 _writer.Write(new EntityHitDamage
                 {
                     HitEntityId = netId,
@@ -90,6 +90,6 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

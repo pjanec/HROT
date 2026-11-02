@@ -102,7 +102,7 @@ public sealed class ResolverWorldReachTests
         using var world = new global::Fdp.Core.EntityRepository();
         global::Fdp.Core.Entity result = default;
 
-        var ex = Record.Exception(() => result = global::Hrot.AI.Behaviors.Brains.NetworkEntityMapOps.ResolveTarget(4242, world));
+        var ex = Record.Exception(() => result = global::Hrot.AI.Behaviors.Brains.NetworkEntityMapOps.ResolveTarget(new global::Fdp.Toolkit.Replication.EntityLink(new global::Fdp.Toolkit.Replication.EntityRef(4242)), world));
 
         Assert.Null(ex);
         Assert.Equal(global::Fdp.Core.Entity.Null, result);

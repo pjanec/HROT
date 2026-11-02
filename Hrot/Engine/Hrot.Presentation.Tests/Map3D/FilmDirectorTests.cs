@@ -27,10 +27,10 @@ public sealed class FilmDirectorTests
 {
     private sealed class Units : IShotWorld
     {
-        public readonly Dictionary<string, long> Ids = new();
-        public readonly Dictionary<long, Vector3> At = new();
-        public long? Resolve(string who) => long.TryParse(who, out var id) ? id : Ids.TryGetValue(who, out id) ? id : null;
-        public Vector3? PositionOf(long id) => At.TryGetValue(id, out var p) ? p : null;
+        public readonly Dictionary<string, int> Ids = new();
+        public readonly Dictionary<int, Vector3> At = new();
+        public int? Resolve(string who) => int.TryParse(who, out var id) ? id : Ids.TryGetValue(who, out id) ? id : null;
+        public Vector3? PositionOf(int id) => At.TryGetValue(id, out var p) ? p : null;
         public IReadOnlyCollection<string> Names => Ids.Keys;
     }
 
@@ -989,8 +989,8 @@ public sealed class FilmDirectorTests
 
     private sealed class HashUnits : IShotWorld
     {
-        public long? Resolve(string who) => long.TryParse(who, out var id) ? id : 1 + Math.Abs(who.Sum(c => c));
-        public Vector3? PositionOf(long id) => new Vector3(id * 2, id % 5, 0);
+        public int? Resolve(string who) => int.TryParse(who, out var id) ? id : 1 + Math.Abs(who.Sum(c => c));
+        public Vector3? PositionOf(int id) => new Vector3(id * 2, id % 5, 0);
         public IReadOnlyCollection<string> Names => Array.Empty<string>();
     }
 
@@ -1429,11 +1429,11 @@ public sealed class FilmDirectorTests
     // ── ⭐ CE-4117 (docs/DESIGN_Director_Timeline_Editor.md §11s-1) — `near` answered before play, from the position track ───────────────────────────
 
     /// <summary>A synthetic recording index: <paramref name="frames"/> frames, frame f at sim <c>f × step</c>; each unit's samples are <c>(frame, x(sim), 0)</c> from its first frame on.</summary>
-    private static Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex PositionIndex(int frames, double step, params (long Id, int FirstFrame, Func<double, double> X)[] units)
+    private static Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex PositionIndex(int frames, double step, params (int Id, int FirstFrame, Func<double, double> X)[] units)
     {
         var sim = new double[frames];
         for (int f = 0; f < frames; f++) sim[f] = f * step;
-        var tracks = new Dictionary<long, Fdp.Toolkit.ReplayBrowser.Timeline.PositionSample[]>();
+        var tracks = new Dictionary<int, Fdp.Toolkit.ReplayBrowser.Timeline.PositionSample[]>();
         foreach (var (id, first, x) in units)
             tracks[id] = Enumerable.Range(first, frames - first).Select(f => new Fdp.Toolkit.ReplayBrowser.Timeline.PositionSample(f, (float)x(sim[f]), 0f, 0f, 0f)).ToArray();
         return new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex(
@@ -1518,7 +1518,7 @@ public sealed class FilmDirectorTests
 
     // ── ⭐ CE-4117 N6 — the five STATE cues answered from the recording's state lanes ──────────────────────────────────────────────────────────────
 
-    private static Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent Ev(string lane, int frame, long subject, long other = 0, float x = 0, float value = 0)
+    private static Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent Ev(string lane, int frame, int subject, long other = 0, float x = 0, float value = 0)
         => new(frame, lane, subject, other, x, 0f, value);
 
     /// <summary>A synthetic recording index with state lanes: frame f at sim <c>f × 0.5</c>.</summary>

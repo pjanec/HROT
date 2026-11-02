@@ -24,16 +24,16 @@ namespace Hrot.Network.NED.SimHost
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
-        private readonly long _localNodeId;   // ⭐ CE-1148 S2 — stamped as SourceNodeId so this node's own ingress drops it
+        private readonly NodeId _localNodeId;   // ⭐ CE-1148 S2 — stamped as SourceNodeId so this node's own ingress drops it
 
-        public RoundImpactEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, long localNodeId)
+        public RoundImpactEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, int localNodeId)
             : this(new DdsWriterAdapter<RoundImpact>(participant), entityMap, localNodeId) { }
 
-        internal RoundImpactEgressTranslator(IDdsWriter<RoundImpact> writer, NetworkEntityMap entityMap, long localNodeId = 0)
+        internal RoundImpactEgressTranslator(IDdsWriter<RoundImpact> writer, NetworkEntityMap entityMap, int localNodeId = 0)
         {
             _writer    = writer    ?? throw new ArgumentNullException(nameof(writer));
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
@@ -43,7 +43,7 @@ namespace Hrot.Network.NED.SimHost
             foreach (ref readonly var evt in view.ReadEvents<RoundImpactNotification>())
             {
                 if (evt.IsRemote) continue;
-                _entityMap.TryGetNetworkId(evt.Shooter, out long shooterId);   // a mark needs no shooter: 0 when unknown
+                _entityMap.TryGetNetworkId(evt.Shooter, out int shooterId);   // a mark needs no shooter: 0 when unknown
                 _writer.Write(new RoundImpact
                 {
                     ShooterEntityId = shooterId, X = evt.X, Y = evt.Y, Z = evt.Z,
@@ -56,7 +56,7 @@ namespace Hrot.Network.NED.SimHost
         }
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>⭐ <c>CE-1128</c> — a DDS <c>RoundImpact</c> becomes a remote <see cref="RoundImpactNotification"/>, which
@@ -73,12 +73,12 @@ namespace Hrot.Network.NED.SimHost
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
-        public RoundImpactIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap, long localNodeId)
+        public RoundImpactIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap, int localNodeId)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _reader    = participant is not null ? new DdsReader<RoundImpact>(participant) : null;
         }
 
@@ -111,6 +111,6 @@ namespace Hrot.Network.NED.SimHost
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

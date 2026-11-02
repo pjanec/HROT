@@ -39,7 +39,7 @@ namespace Hrot.SimHost.UI
         private readonly TrajectoryPoolManager    _traj;
         private readonly FormationTemplateManager _formations;
         private readonly EntityCreation          _creation;
-        private readonly int                      _localNodeId;
+        private readonly NodeId                      _localNodeId;
         private readonly Random                   _rng = new();
 
         /// <param name="repo">Live entity repository.</param>
@@ -61,7 +61,7 @@ namespace Hrot.SimHost.UI
             _traj        = traj;
             _formations  = formations;
             _creation    = creation ?? throw new ArgumentNullException(nameof(creation));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         // ── Tick ─────────────────────────────────────────────────────────────

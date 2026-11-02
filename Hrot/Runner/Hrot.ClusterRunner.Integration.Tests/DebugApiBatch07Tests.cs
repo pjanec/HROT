@@ -170,7 +170,7 @@ public sealed class DebugApiBatch07Tests
 
         // Create a test entity and register it in the entity map
         var testEntity = h.Repo.CreateEntity();
-        const long testNetworkId = 77777L;
+        const int testNetworkId = 77777;
         h.EntityMap.Register(testNetworkId, testEntity);
 
         // Directly invoke OnHit to trigger the OnBreakpointHit event
@@ -183,6 +183,6 @@ public sealed class DebugApiBatch07Tests
         Assert.NotNull(status["lastHit"]);
         var lastHit = status["lastHit"]!.AsObject();
         Assert.Equal(bpId, lastHit["breakpointId"]!.GetValue<string>());
-        Assert.Equal(testNetworkId, lastHit["networkId"]!.GetValue<long>());
+        Assert.Equal(testNetworkId, lastHit["networkId"]!.GetValue<int>());
     }
 }

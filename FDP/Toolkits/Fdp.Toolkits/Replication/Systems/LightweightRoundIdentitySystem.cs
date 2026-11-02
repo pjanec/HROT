@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Replication.Systems
     {
         private readonly INetworkIdAllocator? _ids;
         private readonly NetworkEntityMap _entityMap;
-        private readonly int _localNodeId;
+        private readonly NodeId _localNodeId;
         private readonly List<Entity> _pending = new();
         private EntityRepository? _queryWorld;
         private EntityQuery? _query;
@@ -33,7 +33,7 @@ namespace Fdp.Toolkit.Replication.Systems
         {
             _ids = ids;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <summary>Rounds given an identity in the last tick — the rail's counter.</summary>
@@ -53,7 +53,7 @@ namespace Fdp.Toolkit.Replication.Systems
             foreach (var e in _query!) _pending.Add(e);
             foreach (var e in _pending)
             {
-                long id = _ids.AllocateId();
+                int id = _ids.AllocateId();
                 world.AddComponent(e, new NetworkIdentity(id));
                 world.AddComponent(e, new NetworkAuthority(_localNodeId, _localNodeId));
                 _entityMap.Register(id, e);

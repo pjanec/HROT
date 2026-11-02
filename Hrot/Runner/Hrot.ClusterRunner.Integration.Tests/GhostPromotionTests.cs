@@ -21,7 +21,7 @@ public class GhostPromotionTests
     {
         using var harness = new HrotRunnerHarness();
 
-        long networkId = 123_456_789L;
+        int networkId = 123_456_789;
         int entityId = (int)networkId;
         harness.Ig.App.TestHook_InjectGeoSpatialDescriptor(entityId, 32.0, 34.0, 10.0);
 

@@ -34,15 +34,15 @@ namespace Hrot.DDS.DataModel.Tests
 
             var sent = new[]
             {
-                (Listener: 1000L, Kind: (byte)2),   // the rifleman hears the shot …
-                (Listener: 1000L, Kind: (byte)1),   // … and the shooter's footsteps
-                (Listener: 1002L, Kind: (byte)2),   // the decoy hears the same shot, written last
+                (Listener: 1000, Kind: (byte)2),   // the rifleman hears the shot …
+                (Listener: 1000, Kind: (byte)1),   // … and the shooter's footsteps
+                (Listener: 1002, Kind: (byte)2),   // the decoy hears the same shot, written last
             };
             foreach (var (listener, kind) in sent)
                 writer.Write(new AudioTargetDetected { ListenerEntityId = listener, Kind = kind, Radius = 5f, SourceClass = 4 });
 
             Thread.Sleep(300);
-            var seen = new HashSet<(long, byte)>();
+            var seen = new HashSet<(int, byte)>();
             var deadline = DateTime.UtcNow.AddSeconds(4);
             while (seen.Count < sent.Length && DateTime.UtcNow < deadline)
             {
@@ -72,7 +72,7 @@ namespace Hrot.DDS.DataModel.Tests
             using var writer = new DdsWriter<AudioTargetDetected>(participant);
             Thread.Sleep(400); // DDS discovery
 
-            for (long listener = 1; listener <= 3; listener++)
+            for (int listener = 1; listener <= 3; listener++)
                 writer.Write(new AudioTargetDetected { ListenerEntityId = listener, Kind = 2, Radius = 5f });
             WaitUntilArrived(probe, 3);
 

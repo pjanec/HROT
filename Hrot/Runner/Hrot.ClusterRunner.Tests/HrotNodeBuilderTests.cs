@@ -19,7 +19,7 @@ public sealed class HrotNodeBuilderTests
     private static HrotNodeConfig HeadlessConfig(int nodeId = 99) => new()
     {
         DomainId      = 99,
-        NodeId        = nodeId,
+        NodeId        = (Fdp.Core.NodeId)(nodeId),
         SubsystemName = "TestNode",
         LocalTempRoot = System.IO.Path.GetTempPath(),
         Headless      = true,
@@ -607,14 +607,14 @@ public sealed class HrotNodeBuilderTests
         public bool IsRestoringReplay => false;
         public System.Threading.Tasks.Task<GlobalTime> SeekToTimeAsync(long targetWallClockTicks) => System.Threading.Tasks.Task.FromResult(default(GlobalTime));
         public System.Threading.Tasks.Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory) => System.Threading.Tasks.Task.CompletedTask;
-        public System.Threading.Tasks.Task FinalizeRecordingAsync(long maxNetworkId = 0) => System.Threading.Tasks.Task.CompletedTask;
+        public System.Threading.Tasks.Task FinalizeRecordingAsync(int maxNetworkId = 0) => System.Threading.Tasks.Task.CompletedTask;
         public System.Threading.Tasks.Task PrepareReplayAsync(Guid exerciseId, string storageDirectory) => System.Threading.Tasks.Task.CompletedTask;
         public void ProcessPlaybackTick(GlobalTime currentTime) { }
         public System.Threading.Tasks.Task TeardownReplayAsync() => System.Threading.Tasks.Task.CompletedTask;
         public bool IsReplayActive => true;
         public GlobalTime GetCurrentReplayTime() => default;
         public float ActiveReplayDurationSeconds => 0f;
-        public long ActiveMaxNetworkId => 0;
+        public int ActiveMaxNetworkId => 0;
     }
 
     private static void RegisterReplayHandler(HrotNodeContext ctx, string? path)

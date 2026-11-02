@@ -86,7 +86,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     {
                         var from = repo.IsAlive(evt.Shooter) && repo.HasComponent<SimTransform>(evt.Shooter)
                             ? repo.GetComponent<SimTransform>(evt.Shooter).Position
-                            : new Vector3(evt.HitX, evt.HitY, evt.HitZ);
+                            : new WorldPoint(evt.HitX, evt.HitY, evt.HitZ);
                         from.Z = targetTf.Position.Z;   // the legacy rule is horizontal
                         facing = ArmorModel.FacingOf(targetTf, from);
                     }

@@ -1,6 +1,7 @@
 using Sim.Core;
 using Sim.Replication;
 using Sim.Viewer.Motion;
+using Fdp.Core;
 
 namespace Hrot.Traffic;
 
@@ -9,7 +10,7 @@ namespace Hrot.Traffic;
 /// that sent it, N5), its network id (its SUMO vehicle id, N2; 0 when the sender named it otherwise), its TKB type (T1; 0 = not mapped)
 /// and its colour (0xRRGGBB, 0 = none, T2).
 /// </summary>
-public readonly record struct TrafficCarPose(int Owner, VehicleHandle Handle, string Id, long NetworkId, long TkbType, uint Color,
+public readonly record struct TrafficCarPose(int Owner, VehicleHandle Handle, string Id, int NetworkId, TkbTypeId TkbType, uint Color,
                                              float X, float Y, float Z, float YawRad, float Length, float Width);
 
 /// <summary>
@@ -67,9 +68,9 @@ public sealed class TrafficMirror
             float yaw = (float)(Math.PI / 2.0 - r.HeadingDeg * Math.PI / 180.0);
             source.Names.TryGetValue(handle, out var id);
             id ??= handle.Index.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            long netId = long.TryParse(id, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : 0;
+            int netId = int.TryParse(id, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : 0;
             source.Tags.TryGetValue(handle, out var tag);
-            into.Add(new TrafficCarPose(_owner, handle, id, netId, tag.ExternalType, tag.Color != 0 ? tag.Color : TrafficPaint.Of(id, tag.ExternalType),   // ⭐ CE-1457 (TC4)
+            into.Add(new TrafficCarPose(_owner, handle, id, netId, (Fdp.Core.TkbTypeId)(tag.ExternalType), tag.Color != 0 ? tag.Color : TrafficPaint.Of(id, tag.ExternalType),   // ⭐ CE-1457 (TC4)
                 (float)x, (float)y, (float)r.Z, yaw, dims.Length, dims.Width));
         }
 

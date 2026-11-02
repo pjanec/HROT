@@ -8,6 +8,7 @@ using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.NetworkSpawning.Systems;
 using Hrot.Common.Systems;
 using Hrot.Core.Network;
+using Fdp.Core;
 
 namespace Hrot.Common.EntityCreation
 {
@@ -52,7 +53,7 @@ namespace Hrot.Common.EntityCreation
             FinalizationSystem = finalizationSystem;
             SpawnSystem        = spawnSystem;
             PromotionSystem    = promotionSystem;
-            NodeId             = nodeId;
+            NodeId             = (Fdp.Core.NodeId)(nodeId);
             NetworkSystems     = networkSystems;
             World              = world;
         }
@@ -97,7 +98,7 @@ namespace Hrot.Common.EntityCreation
         /// handed to the request system and the spawn system; it simply was never surfaced, so an author
         /// wanting <c>owner: myNodeId</c> had to reach back to the host for a number the pack held.</para>
         /// </summary>
-        public int NodeId { get; }
+        public NodeId NodeId { get; }
 
         /// <summary>
         /// ⭐ The ONE list instance for this node. It has already been handed to
@@ -228,7 +229,7 @@ namespace Hrot.Common.EntityCreation
             {
                 RequestId             = requestId,
                 OwnerAppInstanceId    = owner,
-                TkbType               = tkbType,
+                TkbType               = (Fdp.Core.TkbTypeId)(tkbType),
                 DisType               = disType,
                 InitialComponents     = components,
                 InitialAttributesJson = initialAttributesJson,

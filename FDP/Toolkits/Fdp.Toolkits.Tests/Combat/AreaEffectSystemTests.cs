@@ -199,7 +199,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _w.AddComponent(hull, new SimTransform { Position = new Vector3(0, 4, 0), Rotation = Quaternion.Identity });
             _w.AddComponent(hull, new PhysicsCollider { Radius = 2f, Height = 2.5f });
             _w.AddComponent(hull, new Health { Current = 1000f, Max = 1000f });
-            _w.AddComponent(hull, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hull });
+            _w.AddComponent(hull, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Hull) });
 
             var (above, dAbove) = Burst(Grenade, new Vector3(0.3f, 4, 3.0f), hull);
             var (beside, dBeside) = Burst(Grenade, new Vector3(3.0f, 4, 0.1f), hull);
@@ -221,7 +221,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _w.AddComponent(e, new SimTransform { Position = new Vector3(x, y, 0), Rotation = Quaternion.Identity });
             _w.AddComponent(e, new PhysicsCollider { Radius = radius, Height = height });
             _w.AddComponent(e, new Health { Current = health, Max = health });
-            _w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });
+            _w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             return e;
         }
 
@@ -402,7 +402,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var e = _w.CreateEntity();
             _w.AddComponent(e, new SimTransform { Position = new Vector3(x, y, 0), Rotation = Quaternion.Identity });
             _w.AddComponent(e, new Health { Current = health, Max = health });
-            _w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });
+            _w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             return e;
         }
 
@@ -654,7 +654,7 @@ namespace Fdp.Toolkit.Combat.Tests
         private Entity Typed(long type, float x, float y)
         {
             var e = Soldier(x, y);
-            _w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });
+            _w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             return e;
         }
 

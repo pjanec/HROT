@@ -16,7 +16,7 @@ namespace Hrot.Map.Common.Replication.Utils
         /// <summary>The sample for an entity's pose. <paramref name="simTimeSeconds"/> is the cluster-synced simulation time it was
         /// sampled at (dead reckoning ages from it).</summary>
         public static WorldPos Encode(
-            long entityId, double simTimeSeconds,
+            int entityId, double simTimeSeconds,
             Vector3 position, Quaternion rotation, Vector3 linearVelocity, Vector3 angularVelocity)
         {
             QuaternionWireCodec.Encode(rotation, out float qx, out float qy, out float qz);

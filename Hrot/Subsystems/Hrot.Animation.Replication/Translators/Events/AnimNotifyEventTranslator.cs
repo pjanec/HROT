@@ -27,7 +27,7 @@ internal sealed class AnimNotifyEventTranslator
     protected override bool TryEncode(
         in AnimNotifyEvent ecs, out DdsAnimNotifyEvent dds)
     {
-        if (!EntityMap.TryGetNetworkId(ecs.Target, out long netId))
+        if (!EntityMap.TryGetNetworkId(ecs.Target, out int netId))
         {
             dds = default;
             return false;

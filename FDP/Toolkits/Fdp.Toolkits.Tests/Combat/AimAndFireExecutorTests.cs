@@ -682,7 +682,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
             var man = _world.CreateEntity();
             _world.AddComponent(man, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-            _world.AddComponent(man, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 9218 });
+            _world.AddComponent(man, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(9218) });
             return man;
         }
 
@@ -1270,7 +1270,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var target = SpawnTarget(new Vector3(300, 0, 0));
             _world.AddComponent(target, new Health { Current = 100, Max = 100 });
             var (shooter, channel) = SpawnShooter(Vector3.Zero, AmmoLoadout.From(gun.Loadout).Total, 0f, target, 1f);
-            _world.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = M8Rounds.TankGunType });
+            _world.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(M8Rounds.TankGunType) });
             _world.GetComponentRW<WeaponState>(shooter).ReloadSeconds = reloadSeconds;
             _world.AddComponent(shooter, AmmoLoadout.From(gun.Loadout));
             EnterAimed(shooter, ref channel);
@@ -1345,7 +1345,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             var target = SpawnTarget(new Vector3(range, 0, 0));
             var (shooter, channel) = SpawnShooter(Vector3.Zero, 10, 0f, target, 1f);
-            _world.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 9300 });
+            _world.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(9300) });
             _world.AddComponent(shooter, new SimVelocity { Linear = new Vector3(0, speed, 0) });
             EnterAimed(shooter, ref channel);
             return (shooter, channel, target);
@@ -1594,7 +1594,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             var target = SpawnTarget(new Vector3(0f, 100f, 2f));   // 90° left of the hull
             var (shooter, channel) = SpawnShooter(Vector3.Zero, ammo, 0f, target, cooldown);
-            _world.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 42 });
+            _world.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(42) });
             unsafe
             {
                 var p = new AimAndFireParams { Target = target, CooldownSeconds = cooldown, Rounds = rounds };
@@ -1626,7 +1626,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             var target = SpawnTarget(targetAt);
             var (shooter, channel) = SpawnShooter(Vector3.Zero, 50, 0f, target, 0.1f);
-            _world.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 43 });
+            _world.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(43) });
             unsafe
             {
                 var p = new AimAndFireParams { Target = target, CooldownSeconds = 0.1f, Rounds = rounds };
@@ -1810,7 +1810,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 db.Register(type);
                 _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
                 _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
-                _world.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 901 });
+                _world.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(901) });
             }
             var friend = _world.CreateEntity();
             _world.AddComponent(friend, new SimTransform { Position = new Vector3(8f, 1f, 0f), Rotation = Quaternion.Identity });
@@ -2005,7 +2005,7 @@ namespace Fdp.Toolkit.Combat.Tests
             {
                 var (shooter, channel) = SpawnShooter(new Vector3(releaseX - 600f, 0f, H), 4, 0f, at, 0f);
                 _world.AddComponent(shooter, new SimVelocity { Linear = v });
-                _world.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Plane });
+                _world.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Plane) });
                 var p = Unsafe.Read<AimAndFireParams>(Unsafe.AsPointer(ref channel.Params[0]));
                 p.Rounds = 1;
                 Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), p);
@@ -2070,7 +2070,7 @@ namespace Fdp.Toolkit.Combat.Tests
             {
                 var (plane, channel) = SpawnShooter(new Vector3(releaseX - 600f, 0f, H), 4, 0f, Entity.Null, 0f);
                 _world.AddComponent(plane, new SimVelocity { Linear = v });
-                _world.AddComponent(plane, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Plane });
+                _world.AddComponent(plane, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Plane) });
                 Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), new FireAtPointParams { Point = point, Rounds = 1 });
                 var executor = new FireAtPointExecutor();
                 executor.OnEnter(plane, ref channel, _world);
@@ -2125,7 +2125,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var start = new Vector3(releaseX - 600f, 0f, H);
 
             var (plane, channel) = SpawnShooter(start, 4, 0f, Entity.Null, 0f);
-            _world.AddComponent(plane, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Plane });
+            _world.AddComponent(plane, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Plane) });
             _world.AddComponent(plane, new SimVelocity());      // SpatialCoreTkbTranslator gives every entity a zero one, on every node
             _world.SetAuthority<SimTransform>(plane, false);   // SimHost owns the motion
             Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), new FireAtPointParams { Point = new Vector3(3000f, 0f, 0f), Rounds = 1 });
@@ -2181,7 +2181,7 @@ namespace Fdp.Toolkit.Combat.Tests
             double releaseTime = 603.0 / v.X + Dt;             // frame 0 is t = Dt (the clock starts after one frame)
 
             var (plane, channel) = SpawnShooter(start, 4, 0f, Entity.Null, 0f);
-            _world.AddComponent(plane, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Plane });
+            _world.AddComponent(plane, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Plane) });
             _world.AddComponent(plane, new SimVelocity { Linear = v });   // this node owns the motion here
             Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), new FireAtPointParams { Point = new Vector3(3000f, 0f, 0f), Rounds = 1 });
             var executor = new FireAtPointExecutor();
@@ -2224,7 +2224,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             var target = SpawnTarget(new Vector3(1000f, 0f, 0f));
             var (plane, channel) = SpawnShooter(new Vector3(0f, 0f, 300f), 100, 0f, target, 0.05f);
-            _world.AddComponent(plane, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Plane });
+            _world.AddComponent(plane, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Plane) });
             EnterAimed(plane, ref channel);
             var mount = CombatTkb.MountOf(_world, plane, 0);
 
@@ -2297,7 +2297,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var target = SpawnTarget(remembered);
             _world.AddComponent(target, new EntityInfo { ForceId = (Fdp.Core.ForceId)2 });
             var (unit, channel) = SpawnShooter(Vector3.Zero, 30, 0f, target, 0.5f);
-            _world.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 77 });
+            _world.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(77) });
             _world.AddComponent(unit, new EntityInfo { ForceId = (Fdp.Core.ForceId)1 });
             var mem = new Fdp.Toolkit.Perception.Components.TargetMemory { Count = 1 };
             mem.EntityIds[0] = (long)target.PackedValue;
@@ -2655,7 +2655,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var task = _world.GetComponent<WeaponTask>(turret);
             Assert.Equal(WeaponTaskMode.Track, task.Mode);
             Assert.True(task.Target.IsNull);
-            Assert.Equal(point, task.Point);
+            Assert.Equal<System.Numerics.Vector3>(point, task.Point);
             uint epoch = task.Epoch;
 
             AskOperator(ref channel, point, trigger: 1);
@@ -2671,7 +2671,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(shots >= 5, $"fired {shots} rounds in 2 s at a 0.2 s cooldown");
             task = _world.GetComponent<WeaponTask>(turret);
             Assert.Equal(epoch, task.Epoch);
-            Assert.Equal(point + new Vector3(0f, 3f, 0f), task.Point);
+            Assert.Equal<System.Numerics.Vector3>(point + new Vector3(0f, 3f, 0f), task.Point);
             Tick(shooter, ref channel, 1f / 60f);   // account the last reported round
             Assert.Equal(10 - shots, _world.GetComponent<WeaponState>(shooter).Ammo);
             Assert.Equal(NodeStatus.Running, channel.Status);
@@ -3058,7 +3058,7 @@ namespace Fdp.Toolkit.Combat.Tests
         {
             var w = _world.CreateEntity();
             _world.AddComponent(w, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-            _world.AddComponent(w, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });
+            _world.AddComponent(w, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             _world.AddComponent(w, new WeaponState { Ammo = 50, MuzzleVelocity = 800f });
             var t = _world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>()!.GetByType(type);
             new WeaponSystemTkbTranslator().Inject(_world, w, t);
@@ -3094,7 +3094,7 @@ namespace Fdp.Toolkit.Combat.Tests
             WeaponSystemTypes(stationArc: stationArc);
             var pickup = _world.CreateEntity();
             _world.AddComponent(pickup, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
-            _world.AddComponent(pickup, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = WsPickupType });
+            _world.AddComponent(pickup, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(WsPickupType) });
             var pt = new Fdp.Interfaces.TkbTemplate("Pickup", WsPickupType);
             pt.AddDescriptor(PickupSeats(stationArc));
             new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(_world, pickup, pt);
@@ -3370,7 +3370,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.PossessedBy>())
                 _world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
-            _world.AddComponent(pickup, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = 7 });
+            _world.AddComponent(pickup, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.NodeId)(7) });
             Assert.True(WeaponSystems.CanFire(_world, m2, out why), $"held by {why}");
         }
 
@@ -3389,7 +3389,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.PossessedBy>())
                 _world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
-            _world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = 7 });
+            _world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.NodeId)(7) });
             Assert.Equal(gunner, WeaponSystems.ControllerOf(_world, m2));                   // seat switching: the gunner's gun
             Span<Entity> keys = stackalloc Entity[4];
             Assert.Equal(1, WeaponSystems.Controlled(_world, gunner, keys));
@@ -3398,7 +3398,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(WeaponSystems.OperatesAStation(_world, gunner));
             Assert.True(WeaponSystems.CanFire(_world, m2, out var why), $"held by {why}");
 
-            _world.AddComponent(pickup, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = 7 });   // the driver seat too
+            _world.AddComponent(pickup, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.NodeId)(7) });   // the driver seat too
             Assert.Equal(pickup, WeaponSystems.ControllerOf(_world, m2));
             _world.RemoveComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(pickup);
             _world.RemoveComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(gunner);                         // released
@@ -3479,7 +3479,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             var tube = _world.CreateEntity();
             _world.AddComponent(tube, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
-            _world.AddComponent(tube, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = IfMortarType });
+            _world.AddComponent(tube, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(IfMortarType) });
             _world.AddComponent(tube, new WeaponState { Ammo = 10, MuzzleVelocity = 100f });
             new WeaponSystemTkbTranslator().Inject(_world, tube, tubeType);
             new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(_world, tube, tubeType);
@@ -3653,7 +3653,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             var gun = _world.CreateEntity();
             _world.AddComponent(gun, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
-            _world.AddComponent(gun, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 9955 });
+            _world.AddComponent(gun, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(9955) });
             _world.AddComponent(gun, new WeaponState { Ammo = 10, MuzzleVelocity = 300f });
             _world.AddComponent(gun, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
             var part = TurretParts.Ensure(_world, gun, 0);

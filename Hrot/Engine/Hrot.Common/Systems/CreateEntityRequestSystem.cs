@@ -73,7 +73,7 @@ namespace Hrot.Common.Systems
         private readonly IEntityAckSink                     _ackSink;
         private readonly ITkbDatabase                       _tkbDb;
         private readonly INetworkIdAllocator                _idAllocator;
-        private readonly int                                _localNodeId;
+        private readonly NodeId                                _localNodeId;
         private readonly bool                               _isDefaultProcessor;
         private readonly JsonAttributeCompiler?             _jsonCompiler;
 
@@ -135,7 +135,7 @@ namespace Hrot.Common.Systems
             _ackSink            = ackSink        ?? throw new ArgumentNullException(nameof(ackSink));
             _tkbDb              = tkbDb          ?? throw new ArgumentNullException(nameof(tkbDb));
             _idAllocator        = idAllocator    ?? throw new ArgumentNullException(nameof(idAllocator));
-            _localNodeId        = localNodeId;
+            _localNodeId        = (Fdp.Core.NodeId)(localNodeId);
             _isDefaultProcessor = isDefaultProcessor;
             _jsonCompiler       = jsonAttributeCompiler;
             _finalizationSystem = finalizationSystem;
@@ -214,7 +214,7 @@ namespace Hrot.Common.Systems
 
                 // Allocate (or use pre-allocated) network ID, then immediately send Phase 1 ACK
                 // (InProgress) so the client unblocks now.
-                long newNetworkId = request.PreAllocatedNetworkId != 0
+                int newNetworkId = request.PreAllocatedNetworkId != 0
                     ? request.PreAllocatedNetworkId
                     : _idAllocator.AllocateId();
                 _ackSink.WriteAck(request.RequestId, newNetworkId, EntityOperationStatus.InProgress);
@@ -369,7 +369,7 @@ namespace Hrot.Common.Systems
                     {
                         NetworkId         = pending.NetworkId,
                         TkbType           = pending.TkbType,
-                        OwnerNodeId       = assignedOwner,
+                        OwnerNodeId       = (Fdp.Core.NodeId)(assignedOwner),
                         DisType           = pending.DisType,
                         // ⭐⭐ CE-143 — was hardcoded ReliableInitType.AllPeers. The request now carries
                         //   the axis, defaulted to AllPeers, so every existing caller is unchanged and an
@@ -425,14 +425,14 @@ namespace Hrot.Common.Systems
                         var force = Hrot.Common.EntityCreation.SeatPresets.ForceOf(parentTemplate, allComponents);
                         foreach (var (seat, presetType) in seatPresets)
                         {
-                            long presetId = _idAllocator.AllocateId();
+                            int presetId = _idAllocator.AllocateId();
                             _tkbDb.TryGetByType(presetType, out var presetTemplate);
                             ulong presetDis = presetTemplate?.DisType.Value ?? 0UL;
                             repo.Bus.PublishManaged(new SpawnEntityCommand
                             {
                                 NetworkId           = presetId,
-                                TkbType             = presetType,
-                                OwnerNodeId         = assignedOwner,
+                                TkbType             = (Fdp.Core.TkbTypeId)(presetType),
+                                OwnerNodeId         = (Fdp.Core.NodeId)(assignedOwner),
                                 DisType             = presetDis,
                                 InitType            = pending.Request.InitType,
                                 ReliableInitTimeout = pending.Request.ReliableInitTimeout,
@@ -470,7 +470,7 @@ namespace Hrot.Common.Systems
                         foreach (var childDef in parentTemplate.ChildBlueprints)
                         {
                             // FIX: Explicitly initialize the tuple to satisfy definite assignment rules
-                            (long PreAllocatedId, IReadOnlyList<object> Components) overrideEntry = default;
+                            (int PreAllocatedId, IReadOnlyList<object> Components) overrideEntry = default;
             
                             bool hasOverride = pending.Request.ChildComponentOverrides != null
                                 && pending.Request.ChildComponentOverrides.TryGetValue(childDef.InstanceId, out overrideEntry);
@@ -483,7 +483,7 @@ namespace Hrot.Common.Systems
                             }
 
                             // Determine child network ID
-                            long childNetworkId;
+                            int childNetworkId;
                             if (hasOverride && overrideEntry.PreAllocatedId != 0)
                             {
                                 childNetworkId = overrideEntry.PreAllocatedId;
@@ -533,7 +533,7 @@ namespace Hrot.Common.Systems
                             {
                                 NetworkId         = childNetworkId,
                                 TkbType           = childDef.ChildTkbType,
-                                OwnerNodeId       = assignedOwner,
+                                OwnerNodeId       = (Fdp.Core.NodeId)(assignedOwner),
                                 DisType           = childDisType,
                                 // ⭐ CE-143 — children INHERIT the parent's InitType, decided explicitly
                                 //   rather than left implicit (Q65 §5.5's open line): a drawing's children
@@ -628,8 +628,8 @@ namespace Hrot.Common.Systems
         private struct PendingRequest
         {
             public EntityCreationRequest Request;
-            public long                  NetworkId;
-            public long                  TkbType;
+            public int                  NetworkId;
+            public TkbTypeId                  TkbType;
             public ulong                 DisType;
         }
     }

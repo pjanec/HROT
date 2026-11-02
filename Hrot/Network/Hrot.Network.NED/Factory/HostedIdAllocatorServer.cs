@@ -55,7 +55,7 @@ internal sealed class HostedIdAllocatorServer : IDisposable, Fdp.Toolkit.Network
     /// three null implementations that mean <i>"I am not an authority"</i>, which is exactly what a failed
     /// type-test already says. 📌 Same idiom as <c>IRestorableIdAllocator</c>.</para>
     /// </summary>
-    public void ResetToBase(long firstId) => _server.ResetToBase(firstId);
+    public void ResetToBase(int firstId) => _server.ResetToBase(firstId);
 
     /// <summary>
     /// Cancels the polling thread and waits (up to 2 seconds) for it to exit,

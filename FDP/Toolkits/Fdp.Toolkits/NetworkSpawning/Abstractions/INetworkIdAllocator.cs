@@ -2,9 +2,25 @@ using System;
 
 namespace Fdp.Toolkit.NetworkSpawning
 {
+    /// <summary>
+    /// ⭐ <c>CE-4200</c>: a network id is 32-bit. ⛔ An allocator never wraps and never truncates — the moment the next id would
+    /// exceed <see cref="int.MaxValue"/> it REFUSES, naming the id. Every allocator passes its candidate through
+    /// <see cref="Checked"/>, so the rule has ONE home.
+    /// </summary>
+    public static class NetworkIdLimit
+    {
+        /// <summary>The id as an <see cref="int"/>, or <see cref="InvalidOperationException"/> naming it when it does not fit.</summary>
+        public static int Checked(long id)
+            => id >= 0 && id <= int.MaxValue
+                ? (int)id
+                : throw new InvalidOperationException(
+                    $"Network id {id} does not fit in 32 bits (limit {int.MaxValue}): the id space is exhausted — " +
+                    "an allocator refuses rather than wrap or truncate (CE-4200).");
+    }
+
     public interface INetworkIdAllocator : IDisposable
     {
-        long AllocateId();
+        int AllocateId();
 
         /// <summary>
         /// ⭐⭐ <b>After this returns, the next id issued is <paramref name="startId"/>.</b>
@@ -15,7 +31,7 @@ namespace Fdp.Toolkit.NetworkSpawning
         /// a POOL with no authority to seed from, so it clears and waits for a block. ⛔ It is not on any
         /// authored-id path; see its own remarks.</para>
         /// </summary>
-        void Reset( long startId = 0 );
+        void Reset( int startId = 0 );
     }
 
     /// <summary>

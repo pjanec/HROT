@@ -145,7 +145,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _sys.Execute(_world, 0.016f);
 
             var proj = _world.GetComponent<BallisticProjectile>(bullet);
-            Assert.Equal(currentPos, proj.PreviousPosition);
+            Assert.Equal<System.Numerics.Vector3>(currentPos, proj.PreviousPosition);
         }
 
         // ── Test 3 ────────────────────────────────────────────────────────────
@@ -403,7 +403,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var p = _world.GetComponent<BallisticProjectile>(round);
             Assert.Equal(25f, p.Damage);                           // ⚠ the muzzle values: a hit carries from the muzzle, whenever it resolves
             Assert.Equal(5f, p.Penetration);
-            Assert.Equal(new Vector3(25, 15, 1.6f), p.Muzzle);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(25, 15, 1.6f), p.Muzzle);
             Assert.Equal(25f, p.FrontDamage, 3);
             Assert.Equal(2f, p.FrontPenetration, 3);               // 5 − 3
             Assert.Equal(0u, p.StoppedTick);

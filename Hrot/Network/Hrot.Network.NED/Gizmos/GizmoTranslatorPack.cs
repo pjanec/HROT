@@ -21,7 +21,7 @@ namespace Hrot.Network.NED.Gizmos
         public static GizmoInteractionIngressTranslator CreateIngress(
             DdsParticipant participant,
             FdpEventBus interactionBus,
-            long localNodeId)
+            int localNodeId)
         {
             // ⭐ Q73 — the node id is what a viewer names to address a canvas pick here; the SAME id this
             //   node publishes its primitives under (CreateGizmoPublisherSystem), so they cannot disagree.

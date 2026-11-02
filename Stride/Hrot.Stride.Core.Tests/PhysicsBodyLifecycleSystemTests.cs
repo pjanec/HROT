@@ -155,7 +155,7 @@ public sealed class PhysicsBodyLifecycleSystemTests : IDisposable
     private Entity SpawnOwned(long tkbType, Vector3 pos)
     {
         var entity = _world.CreateEntity();
-        _world.AddComponent(entity, new TkbIdentity { TkbType = tkbType });
+        _world.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(tkbType) });
         _world.AddComponent(entity, new SimTransform { Position = pos });
         // SetAuthority<SimTransform>(entity, true) sets the authority-mask bit that
         // WithOwned<SimTransform>() queries. This is the canonical way to make an

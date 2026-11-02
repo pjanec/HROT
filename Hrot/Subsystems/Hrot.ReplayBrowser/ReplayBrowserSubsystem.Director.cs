@@ -121,5 +121,5 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDirector
         => _timelineSource?.Index is { } index ? EventAnchors.NearestBefore(index, sim, DirectorUnitName) : null;
 
     // ⭐ CE-4059 (§11q D3) — the ONE network-id → name reading, shared with the editor
-    private string? DirectorUnitName(long networkId) => DirectorUnits.NameOf(_activeRepo, networkId);
+    private string? DirectorUnitName(int networkId) => DirectorUnits.NameOf(_activeRepo, networkId);
 }

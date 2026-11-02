@@ -32,7 +32,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// mover's defaults, as for <c>MoveToLocation</c>.</summary>
         public static CgfNodes.MoveToLocationParams From(in MoveOrder order, EntityRepository world)
         {
-            var at = OrderGeo.ToLocal(world, order.Location, 0f);
+            var at = (System.Numerics.Vector3)order.Location;
             return new CgfNodes.MoveToLocationParams
             {
                 X = at.X, Y = at.Y, Speed = order.Speed, ArrivalRadius = order.ArrivalRadius, RoadUse = order.RoadUse,

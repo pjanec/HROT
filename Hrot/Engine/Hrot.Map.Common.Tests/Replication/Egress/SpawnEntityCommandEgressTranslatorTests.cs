@@ -43,7 +43,7 @@ public class SpawnEntityCommandEgressTranslatorTests
         var translator = new SpawnEntityCommandEgressTranslator(writer, bus);
 
         var requestId = Guid.NewGuid();
-        bus.PublishManaged(new SpawnEntityCommand { TkbType = 1L, RequestId = requestId });
+        bus.PublishManaged(new SpawnEntityCommand { TkbType = (Fdp.Core.TkbTypeId)(1L), RequestId = requestId });
         bus.SwapBuffers();
 
         translator.PollIngress(null!, null!);
@@ -68,7 +68,7 @@ public class SpawnEntityCommandEgressTranslatorTests
 
         bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType           = 1001L,
+            TkbType           = (Fdp.Core.TkbTypeId)(1001L),
             RequestId         = Guid.NewGuid(),
             InitialComponents = new List<object>
             {
@@ -105,10 +105,10 @@ public class SpawnEntityCommandEgressTranslatorTests
 
         bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType = 1L, RequestId = Guid.NewGuid(),
+            TkbType = (Fdp.Core.TkbTypeId)(1L), RequestId = Guid.NewGuid(),
             SpawnHeight = new Fdp.Toolkit.NetworkSpawning.SpawnHeight(Fdp.Toolkit.NetworkSpawning.SpawnHeightMode.OnLevel, 3),
         });
-        bus.PublishManaged(new SpawnEntityCommand { TkbType = 1L, RequestId = Guid.NewGuid() });
+        bus.PublishManaged(new SpawnEntityCommand { TkbType = (Fdp.Core.TkbTypeId)(1L), RequestId = Guid.NewGuid() });
         bus.SwapBuffers();
 
         translator.PollIngress(null!, null!);

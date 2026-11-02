@@ -9,18 +9,18 @@ namespace Fdp.Presentation.Panels.ReplayBrowser.Drawers;
 using ImGuiApi = ImGuiNET.ImGui;
 
 /// <summary>
-/// Custom <see cref="IImGuiFieldDrawer"/> for <see cref="BoundingBox2D"/> fields.
+/// Custom <see cref="IImGuiFieldDrawer"/> for the spatial search AREA (<c>Fdp.Toolkit.Replication.AreaLink</c>, S0 item 5 / SR-134), drawn as its axis-aligned box.
 /// Renders two DragFloat2 controls for Min and Max. The "Pick Area" button is
 /// handled by <see cref="ComponentEditDrawer"/> via <see cref="ISpatialPickerContext"/>
 /// when the field carries <see cref="MapPickableBoundingBoxAttribute"/>.
 /// </summary>
 internal sealed class BoundingBoxFieldDrawer : IImGuiFieldDrawer
 {
-    public Type TargetType => typeof(BoundingBox2D);
+    public Type TargetType => typeof(Fdp.Toolkit.Replication.AreaLink);
 
     public bool DrawInput(ref object value, EditNode node)
     {
-        var box  = value is BoundingBox2D b ? b : default;
+        var box  = value is Fdp.Toolkit.Replication.AreaLink area && AreaBoxes.ToBox(area) is { } b ? b : default;
         var min  = box.Min;
         var max  = box.Max;
         bool changed = false;
@@ -32,7 +32,7 @@ internal sealed class BoundingBoxFieldDrawer : IImGuiFieldDrawer
         if (ImGuiApi.DragFloat2("Min##bbox", ref min, 0.5f))
         {
             box     = new BoundingBox2D { Min = min, Max = box.Max };
-            value   = box;
+            value   = AreaBoxes.FromBox(box);
             changed = true;
         }
 
@@ -40,7 +40,7 @@ internal sealed class BoundingBoxFieldDrawer : IImGuiFieldDrawer
         if (ImGuiApi.DragFloat2("Max##bbox", ref max, 0.5f))
         {
             box     = new BoundingBox2D { Min = box.Min, Max = max };
-            value   = box;
+            value   = AreaBoxes.FromBox(box);
             changed = true;
         }
 

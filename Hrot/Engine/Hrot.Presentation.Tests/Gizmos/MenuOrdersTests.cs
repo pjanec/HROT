@@ -27,7 +27,7 @@ namespace Hrot.Presentation.Tests.Gizmos;
 [Xunit.Collection(Hrot.Presentation.Tests.ImGuiTestCollection.Name)]   // ⭐ one global ImGui context
 public sealed class MenuOrdersTests : IDisposable
 {
-    private const long UnitId = 77, EnemyId = 88;
+    private const int UnitId = 77, EnemyId = 88;
     private readonly EntityRepository _w = new();
     private readonly NetworkEntityMap _map = new();
     private readonly Entity _unit;
@@ -48,7 +48,7 @@ public sealed class MenuOrdersTests : IDisposable
 
     public void Dispose() => _w.Dispose();
 
-    private Entity Add(long id)
+    private Entity Add(int id)
     {
         var e = _w.CreateEntity();
         _w.AddComponent(e, new SimTransform { Position = new Vector3(5, 5, 0) });
@@ -197,7 +197,7 @@ public sealed class MenuOrdersTests : IDisposable
         Assert.Equal(_unit, order.Entity);
         Assert.Equal("Order.Move", order.IntentId);                    // ⭐ CE-2143 — the ORDER; the unit picks how
         Assert.Equal(Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Operator, order.Origin);
-        Assert.Contains("\"Location\":[-40,120]", order.JsonParams);    // no transform: [y, x] (OrderGeo's fallback)
+        Assert.Contains("\"Location\":[-40,120,0]", order.JsonParams);    // ⭐ S0 item 5: local metres [x, y, z] (the stub has no frame: x = the longitude field)
     }
 
     [Fact]
@@ -382,8 +382,8 @@ public sealed class MenuOrdersTests : IDisposable
 
     private struct TwoPicks
     {
-        [System.ComponentModel.DataAnnotations.Required] public Fdp.Toolkit.Replication.EntityRef Who;
-        [System.ComponentModel.DataAnnotations.Required] public Fdp.Toolkit.Behavior.Params.PickableGeoPoint Where;
+        [System.ComponentModel.DataAnnotations.Required] public Fdp.Toolkit.Replication.EntityLink Who;
+        [System.ComponentModel.DataAnnotations.Required] public Fdp.Toolkit.Replication.PointLink Where;
     }
 
     private sealed class FakeForm : IOrderForm
@@ -445,7 +445,7 @@ public sealed class MenuOrdersTests : IDisposable
         pick.Enemy!.SetResult((int)EnemyId);
         Assert.Empty(Published(mi));                                      // a designation is not an order
         Assert.True(OrderDesignations.Of(_w)!.TryGet(UnitId, DesignationKind.Target, out var t));
-        Assert.Equal(EnemyId, t.GetValue<long>());
+        Assert.Equal(EnemyId, t.GetValue<int>());
 
         pick.Enemy = null;
         Click(mi, Id("Attack"));
@@ -505,7 +505,7 @@ public sealed class MenuOrdersTests : IDisposable
         var info = new OrderInfo("TwoPicks", typeof(TwoPicks), 0, Hrot.Map.Definitions.Behavior.Orders.OrderGesture.None,
             OrderMenu.PickOf(typeof(TwoPicks)).Pick, null, OrderMenu.FieldsOf(typeof(TwoPicks)));
         var sent = new List<(long Unit, string Json)>();
-        long[] units = { UnitId, 66 };
+        int[] units = { UnitId, 66 };
         var draft = OrderMenu.Draft(info, units, new OrderContext(EnemyId, null),
             json => units.Select(u => { sent.Add((u, json)); return new OrderResult(OrderRefusal.None, "", "", ""); }).ToArray());
         Assert.Equal(OrderPick.Several, info.Pick);
@@ -526,7 +526,7 @@ public sealed class MenuOrdersTests : IDisposable
         Assert.True(entry.Send());
         Assert.Equal(new[] { UnitId, 66L }, sent.Select(x => x.Unit));                 // once per unit
         Assert.All(sent, x => Assert.Contains($"\"Who\":{EnemyId}", x.Json));
-        Assert.All(sent, x => Assert.Contains("\"Where\":[50.5,14.25]", x.Json));
+        Assert.All(sent, x => Assert.Contains("\"Where\":[14.25,50.5,0]", x.Json));
         DrawFrame(form);
         Assert.Empty(form.Entries);                                                    // every unit accepted: the form closes
     }
@@ -579,7 +579,7 @@ public sealed class MenuOrdersTests : IDisposable
         {
             var e = _w.CreateEntity();
             _w.AddComponent(e, new SimTransform { Position = at });
-            _w.AddComponent(e, new TkbIdentity { TkbType = type });
+            _w.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             _w.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = kind, Point = aim });
             return e;
         }
@@ -628,7 +628,7 @@ public sealed class MenuOrdersTests : IDisposable
 
         Click(mi, GlobalActionIds.OrderWithOptionsBase + (Id("Move") - OrderMenu.ActionBase));
         var entry = Assert.Single(mi.OrderForm.Entries);
-        Assert.Equal(new[] { UnitId, 66L }, entry.Draft.Units);
+        Assert.Equal(new[] { UnitId, 66 }, entry.Draft.Units);
         Assert.Empty(Published(mi));                                                   // nothing until Send
 
         mi.OrderForm.PicksFor(entry).RequestLocationPick("$.Location");
@@ -641,7 +641,7 @@ public sealed class MenuOrdersTests : IDisposable
         Assert.Equal(2, orders.Length);
         Assert.All(orders, o => Assert.Equal("Order.Move", o.IntentId));
         Assert.Equal(new[] { _unit, other }, orders.Select(o => o.Entity).OrderBy(e => e.Index));
-        foreach (long u in new[] { UnitId, 66L })
+        foreach (int u in new[] { UnitId, 66L })
             Assert.True(OrderDesignations.Of(_w)!.TryGet(u, DesignationKind.MapPoint, out _), $"unit {u} remembers the point");
     }
 
@@ -677,7 +677,7 @@ public sealed class MenuOrdersTests : IDisposable
         Click(mi, GlobalActionIds.DesignateTarget);
         pick.Enemy!.SetResult((int)EnemyId);
         Published(mi);
-        foreach (long u in new[] { UnitId, 66L })
+        foreach (int u in new[] { UnitId, 66L })
             Assert.True(OrderDesignations.Of(_w)!.TryGet(u, DesignationKind.Target, out _), $"unit {u}");
 
         var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(capacity: 32);
@@ -711,8 +711,8 @@ public sealed class MenuOrdersTests : IDisposable
         Assert.Equal(EnemyId, picked.NetworkId);
 
         var entries = Hrot.Presentation.Orders.EntityListSource.Entries(_w, null, exclude: new[] { UnitId });
-        Assert.Contains(entries, e => e.Tag is long id && id == EnemyId);
-        Assert.DoesNotContain(entries, e => e.Tag is long id && id == UnitId);
+        Assert.Contains(entries, e => e.Tag is int id && id == EnemyId);
+        Assert.DoesNotContain(entries, e => e.Tag is int id && id == UnitId);
     }
 
     /// <summary>⭐ DAR F7 (D-E, <c>DESIGN_Replay_Time_Axis_And_Review.md</c> §12j row 41) — a map built LIVE hides its order items (and their

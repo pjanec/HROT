@@ -113,7 +113,7 @@ namespace Hrot.AI.Behaviors.Brains
             float nervous = StressModel.Nervousness(world, self);
             float step = ScanStepSeconds(p.StepSeconds > 0f ? p.StepSeconds : DefaultStepSeconds, nervous);
             ws.Bearing = half <= 0f ? bearing : nervous > 0f ? NervousScanBearing(self, bearing, half, step, now) : ScanBearing(bearing, half, step, now);
-            var origin = world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position : Vector3.Zero;
+            var origin = world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position : Fdp.Core.WorldPoint.Zero;
             LookRequest.AtPoint(world, self, PointAt(origin, ws.Bearing, p.Metres > 0f ? p.Metres : DefaultMetres), behaviorInstance: run,
                                 blendSeconds: BlendSeconds(nervous));
             return ws.Source = source;

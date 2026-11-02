@@ -54,7 +54,7 @@ namespace Hrot.SimHost.Tests
         public void Inject_WritesInitialTargetsIntent_NotTargetMemory()
         {
             var target = _repo.CreateEntity();
-            _repo.SetComponent(target, new NetworkIdentity { Value = 33L });
+            _repo.SetComponent(target, new NetworkIdentity { Value = 33 });
 
             var resolver = new StubResolver();
             resolver.Register(target, "guid-target");
@@ -100,7 +100,7 @@ namespace Hrot.SimHost.Tests
         {
             // Create target with NetworkIdentity
             var target = _repo.CreateEntity();
-            _repo.SetComponent(target, new NetworkIdentity { Value = 11L });
+            _repo.SetComponent(target, new NetworkIdentity { Value = 11 });
 
             // "guid-dead" is not in the resolver — simulates GUID that can't resolve to a live entity
             var resolver = new StubResolver();
@@ -139,8 +139,8 @@ namespace Hrot.SimHost.Tests
             _repo.RegisterComponent<TargetMemory>();
             var soldier   = _repo.CreateEntity();                       // saved first
             var insurgent = _repo.CreateEntity();                       // saved second — the forward reference
-            _repo.SetComponent(soldier,   new NetworkIdentity { Value = 501L });
-            _repo.SetComponent(insurgent, new NetworkIdentity { Value = 502L });
+            _repo.SetComponent(soldier,   new NetworkIdentity { Value = 501 });
+            _repo.SetComponent(insurgent, new NetworkIdentity { Value = 502 });
             var mem = new TargetMemory();
             TargetMemory.AddOrUpdateTarget(ref mem, entityId: (long)insurgent.PackedValue, posX: 1f, posY: 2f, scoreBoost: 100f, tick: 0u, seenStance: 3);
             _repo.SetComponent(soldier, mem);

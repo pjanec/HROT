@@ -89,12 +89,12 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
                $"keeperAlive={repo.IsAlive(keeper)} sketchAlive={repo.IsAlive(sketch)} · " +
                $"keeperIndex={keeper.Index} sketchIndex={sketch.Index}";
 
-        private static SpawnEntityCommand Cmd(long networkId, bool isTransient) => new()
+        private static SpawnEntityCommand Cmd(int networkId, bool isTransient) => new()
         {
             RequestId   = System.Guid.NewGuid(),
             NetworkId   = networkId,
-            TkbType     = TkbType,
-            OwnerNodeId = LocalNodeId,
+            TkbType     = (Fdp.Core.TkbTypeId)(TkbType),
+            OwnerNodeId = (Fdp.Core.NodeId)(LocalNodeId),
             InitType    = ReliableInitType.None,
             IsTransient = isTransient,
         };

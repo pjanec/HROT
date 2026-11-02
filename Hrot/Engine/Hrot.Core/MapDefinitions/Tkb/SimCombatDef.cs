@@ -45,10 +45,10 @@ namespace Hrot.Map.Definitions.Tkb
         public System.Numerics.Vector3 MuzzleOffset { get; set; }
 
         /// <summary>⭐ LR-1 (DESIGN_Visual_Effects.md §8.5, R-271: "Every ammo needs its tkb type, always") — the munition type it fires.</summary>
-        public long AmmoTkb { get; set; }
+        public TkbTypeId AmmoTkb { get; set; }
 
         /// <summary>⭐ LR-1 — the tracer munition mixed in, one in <see cref="TracerEvery"/> (0 = none).</summary>
-        public long TracerAmmoTkb { get; set; }
+        public TkbTypeId TracerAmmoTkb { get; set; }
 
         /// <inheritdoc cref="TracerAmmoTkb"/>
         public int TracerEvery { get; set; }

@@ -256,7 +256,7 @@ public sealed class ComponentEditDrawer
 
             if (_spatialPickerCtx.TryConsumeBoundingBoxPick(node.JsonPath, out var pickedBox))
             {
-                node.Binding?.SetBoxed(pickedBox);
+                node.Binding?.SetBoxed(Fdp.Toolkit.ReplayBrowser.Search.AreaBoxes.FromBox(pickedBox));   // ⭐ S0 item 5: the box the tool drew becomes the predicate's AreaLink
             }
         }
 
@@ -294,12 +294,13 @@ public sealed class ComponentEditDrawer
         if (canDelete) inputWidth -= 30f;
 
         // ⭐ DESIGN_Entity_Reference D5 — the TYPE makes a field pickable; the attribute only narrows the pick.
-        bool isEntityRef = node.ClrType == typeof(EntityRef);
+        // ⭐ S0 item 5 (SR-140): an AUTHORED reference (EntityLink) is picked by its TYPE exactly like the internal EntityRef.
+        bool isEntityRef = node.ClrType == typeof(EntityRef) || node.ClrType == typeof(Fdp.Toolkit.Replication.EntityLink);
         var entityAttr = node.Metadata.CustomAttributes.OfType<MapPickableEntityAttribute>().FirstOrDefault();
         if (isEntityRef && _pickerCtx != null) inputWidth -= _pickerCtx.CanListEntities ? 140f : 90f;   // ⭐ CE-1059 — + List…
 
-        // ⭐ DESIGN_Map_Picking_Unification P5 — a PickableGeoPoint is a pickable world location by its TYPE.
-        bool isLocation = node.ClrType == typeof(Fdp.Toolkit.Behavior.Params.PickableGeoPoint);
+        // ⭐ DESIGN_Map_Picking_Unification P5 + S0 item 5 (SR-135) — a PointLink (authored place) or a WorldPoint (internal place) is a pickable world location by its TYPE.
+        bool isLocation = node.ClrType == typeof(Fdp.Toolkit.Replication.PointLink) || node.ClrType == typeof(Fdp.Core.WorldPoint);
         if (isLocation && _pickerCtx != null) inputWidth -= 90f;
 
         if (inputWidth < 60f) inputWidth = 60f;
@@ -350,7 +351,9 @@ public sealed class ComponentEditDrawer
 
             if (_pickerCtx.TryConsumeEntityPick(node.JsonPath, out var picked))
             {
-                node.Binding?.SetBoxed(picked);
+                // a picked entity writes a bare reference: new EntityLink(new EntityRef(id)) for an authored field, the EntityRef itself otherwise
+                if (node.ClrType == typeof(Fdp.Toolkit.Replication.EntityLink)) node.Binding?.SetBoxed(new Fdp.Toolkit.Replication.EntityLink(picked));
+                else node.Binding?.SetBoxed(picked);
                 changed = true;
             }
         }
@@ -370,7 +373,9 @@ public sealed class ComponentEditDrawer
 
             if (_pickerCtx.TryConsumeLocationPick(node.JsonPath, out var location))
             {
-                node.Binding?.SetBoxed(location);
+                // a picked point writes coordinates: new PointLink(local) for an authored field, the WorldPoint itself otherwise
+                if (node.ClrType == typeof(Fdp.Core.WorldPoint)) node.Binding?.SetBoxed(location.Local);
+                else node.Binding?.SetBoxed(location);
                 changed = true;
             }
         }
@@ -395,7 +400,7 @@ public sealed class ComponentEditDrawer
 
             if (_spatialPickerCtx.TryConsumeBoundingBoxPick(node.JsonPath, out var pickedBox))
             {
-                node.Binding?.SetBoxed(pickedBox);
+                node.Binding?.SetBoxed(Fdp.Toolkit.ReplayBrowser.Search.AreaBoxes.FromBox(pickedBox));   // ⭐ S0 item 5: the box the tool drew becomes the predicate's AreaLink
                 changed = true;
             }
         }
@@ -432,18 +437,39 @@ public sealed class ComponentEditDrawer
 
         var meta = node.Metadata;
 
-        if (type == typeof(Fdp.Toolkit.Behavior.Params.PickableGeoPoint))
+        if (type == typeof(Fdp.Toolkit.Replication.PointLink) || type == typeof(Fdp.Core.WorldPoint))
         {
-            // Latitude and longitude, typed in or set by the map picker.
-            var gp = value is Fdp.Toolkit.Behavior.Params.PickableGeoPoint p ? p : default;
-            float half = (ImGuiApi.CalcItemWidth() - 4f) * 0.5f;
-            ImGuiApi.SetNextItemWidth(half);
-            bool latChanged = ImGuiApi.InputDouble("##lat", ref gp.Latitude, 0, 0, "%.6f");
+            // ⭐ S0 item 5 (SR-135) — a place in LOCAL METRES (x, y, z), typed in or set by the map picker; typed coordinates are a literal (no authored reference).
+            var local = value is Fdp.Toolkit.Replication.PointLink pl ? (Vector3)pl.Local : value is Fdp.Core.WorldPoint wp ? (Vector3)wp : default;
+            float third = (ImGuiApi.CalcItemWidth() - 8f) / 3f;
+            bool changedX, changedY, changedZ;
+            ImGuiApi.SetNextItemWidth(third);
+            changedX = ImGuiApi.InputFloat("##x", ref local.X, 0, 0, "%.2f");
             ImGuiApi.SameLine(0f, 4f);
-            ImGuiApi.SetNextItemWidth(half);
-            bool lonChanged = ImGuiApi.InputDouble("##lon", ref gp.Longitude, 0, 0, "%.6f");
-            if (latChanged || lonChanged) value = gp;
-            return latChanged || lonChanged;
+            ImGuiApi.SetNextItemWidth(third);
+            changedY = ImGuiApi.InputFloat("##y", ref local.Y, 0, 0, "%.2f");
+            ImGuiApi.SameLine(0f, 4f);
+            ImGuiApi.SetNextItemWidth(third);
+            changedZ = ImGuiApi.InputFloat("##z", ref local.Z, 0, 0, "%.2f");
+            if (changedX || changedY || changedZ)
+            {
+                value = type == typeof(Fdp.Core.WorldPoint) ? (object)(Fdp.Core.WorldPoint)local : new Fdp.Toolkit.Replication.PointLink(local);
+                return true;
+            }
+            return false;
+        }
+
+        if (type == typeof(Fdp.Toolkit.Replication.EntityLink))
+        {
+            // ⭐ S0 item 5 (SR-140) — the authored reference's ANSWER (the network id), typed in or set by the picker; 0 = none. A typed id is a bare reference.
+            string text = value is Fdp.Toolkit.Replication.EntityLink el ? el.Ref.NetworkId.ToString() : "0";
+            bool typed = ImGuiApi.InputText("##v", ref text, 64);
+            if (typed && int.TryParse(text, out int id))
+            {
+                value = new Fdp.Toolkit.Replication.EntityLink(new EntityRef(id));
+                return true;
+            }
+            return false;
         }
 
         if (type == typeof(Fdp.Toolkit.Utility.UtilityDecisionRef))
@@ -475,7 +501,7 @@ public sealed class ComponentEditDrawer
             // The network id, typed in or set by the picker; 0 = none.
             string strVal = value is EntityRef r ? r.NetworkId.ToString() : "0";
             bool ok = ImGuiApi.InputText("##v", ref strVal, 64);
-            if (ok && long.TryParse(strVal, out long parsed))
+            if (ok && int.TryParse(strVal, out int parsed))
             {
                 value = new EntityRef(parsed);
                 return true;
@@ -515,7 +541,7 @@ public sealed class ComponentEditDrawer
         {
             string strVal = value is long l ? l.ToString() : "0";
             bool ok = ImGuiApi.InputText("##v", ref strVal, 64);
-            if (ok && long.TryParse(strVal, out long parsed))
+            if (ok && int.TryParse(strVal, out int parsed))
             {
                 value = parsed;
                 return true;

@@ -253,7 +253,7 @@ namespace Hrot.SimHost.Tests
                 if (phone) man.AddDescriptor(new PocketItemsDto { Phone = true });
                 db.Register(man);
                 repo.SetSingletonManaged<ITkbDatabase>(db);
-                repo.AddComponent(W.Man, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TriggerManType });
+                repo.AddComponent(W.Man, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TriggerManType) });
                 if (!repo.HasComponent<WeaponPosture>(W.Man)) repo.AddComponent(W.Man, new WeaponPosture());
                 repo.GetComponentRW<EntityInfo>(W.Man).ForceId = ForceId.Hostile;
                 repo.AddComponent(W.Man, new Fdp.Toolkit.Perception.Components.TargetMemory());
@@ -267,7 +267,7 @@ namespace Hrot.SimHost.Tests
                 repo.AddComponent(Ied, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = IedNetId });
             }
 
-            public const long IedNetId = 5501;
+            public const int IedNetId = 5501;
 
             /// <summary>A thing he SEES at <paramref name="at"/>: a vehicle or a man on foot, of <paramref name="force"/>.</summary>
             public Entity Sees(Vector3 at, bool vehicle, ForceId force = ForceId.Friend)

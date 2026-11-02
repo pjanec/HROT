@@ -501,13 +501,30 @@ DERIVED instead of authored.
 
 #### 9.8.0 ⭐ CURRENT ANSWER — relocation and the reference types *(✅ ACCEPTED `2026-11-01` — user: *"Yes approved."* — SR-125…SR-143; §9.8.1–§9.8.10 carry the measurements and the reasons)*
 
+> ⭐ **S0 item 5 — AS BUILT `2026-11-01` (backend).** Every authored params / predicate DTO now uses the reference types; `PickableGeoPoint` and `OrderGeo` are **deleted** (no geodetic form inside the engine, SR-135). Gated by `S0AuthoredTypesRailTests` (Fdp.Toolkits.Tests) — a bare `Vector2/3`, a `*NetworkId` integer, a lat/lon float, a Bearing-named float or an `EntityRef` in a `[ParamsDto]` / `SearchPredicateDto` fails it unless `Allowed` names the member WITH a reason (today: `T09Params.HomePosition`, `T41Params.Home` — test-only fixtures whose offsets are pinned).
+>
+> | was | is | note |
+> |---|---|---|
+> | `EntityRef` / raw `*NetworkId` long | `EntityLink` | read through `.Ref`; `HullDownAttackParams` 48 → **88 B** (target @32 now 48 B, `GoAt` 40 → 80) — ⭐ **then 88 → 80 B with CE-4200 `2026-11-02`** (`EntityRef` is 4 B now: `EntityLink` 48 → **40**, `GoAt` @72) |
+> | `Vector3`, lat/lon pairs, `PickableGeoPoint` | `PointLink` | `MoveToLocation` is ONE `target` (`[x,y,z]` local metres) — `TargetLat/Lon`, `X/Y`, `PickableLocation` gone |
+> | `PlatoonDefend.Left/Right` | `Bearing` | |
+> | `SpatialBoundingPredicateDto.Bounds` | `AreaLink` | ONE containment (`AreaLink.Contains`) shared by `RecordingSearchService` and `DataBreakpointManager`; `AreaBoxes` converts the replay panel's box |
+> | picker seams | key on the TYPE | `IMapPickService.PickLocalAsync` (default derives local metres from `PickLocationAsync`: x = lon field, y = lat field — a host with a frame overrides it); `MapPickBroker` / `MenuOrders` / `OrderMenu.FieldsOf` / `DtoJsonSchemaExtractor` / `PickableLeafFieldEditor` for `PointLink`, `EntityLink`, `AreaLink` |
+>
+> ⭐ **Blueprint compiler:** the three types are registered (`StaticTypeRegistry`, ⭐ **40** / 48 / 72 B since CE-4200 — `EntityLink` was 48), with TWO coercion rungs — `PointLink → Vector3` (the load-time walker has already resolved the spec into `Local`) and `EntityRef → EntityLink` (a literal fills an authored link); both listed in `CoercionTable_ContainsOnlyLosslessWidenings`' allow-list with the reason. ⛔ No `Int64 ↔ EntityRef` rung (unchanged). `AuthoredPointOps.At(x, y)` builds a point for a baked `FunctionCall` (`SubordinateForEachDemo`).
+>
+> ⚠ **Found on the way (oracle, fixed):** Roslyn does not expose `StructLayout(Explicit)` / `FieldOffset` on a type loaded from metadata, so `RoslynStructLayout` laid `RefSpec` out Sequential (52 B, not 36) and every blackboard holding a link was mis-sized in the editor-side oracle. `RefSpec` is now in `KnownTypeLayouts`; `StructSizeResolverEnumTests` pins `PointLink` / `EntityLink` / `AreaLink` / `RefSpec` against the CLR.
+>
+> ✅ **Item 9 (content migration) — DONE, see §9.8.11 "item 9".** ⛔ SUPERSEDED: the list that stood here (three scenarios) was a grep's answer; the type-driven tool found **37 blobs in 25 files**, including `MoveToLocation` params nested inside a blueprint's (`mission-demo-bp`).
+
+
 ```mermaid
 classDiagram
     direction LR
     class EntityRef { <<internal, unchanged in shape; 4 B after CE-4200>> NetworkId }
     class WorldPoint { <<internal, NEW, 12 B = Vector3>> X, Y, Z local metres }
     class RefSpec { <<36 B, unmanaged>> Form · FixedString32 Key or Guid Exact }
-    class EntityLink { <<authored, 48 B>> EntityRef Ref · RefSpec Spec }
+    class EntityLink { <<authored, 40 B since CE-4200>> EntityRef Ref · RefSpec Spec }
     class PointLink { <<authored, 48 B>> WorldPoint Local · RefSpec Spec }
     class AreaLink { <<authored, 72 B>> EntityRef Area · RefSpec Spec · Center · Size · Heading }
     class TypePlan { <<EntityRefRemap, generalised>> finds every one of these by TYPE }
@@ -778,6 +795,79 @@ public struct WorldPoint
 - *Keep `Quaternion` for world rotations* — tools cannot tell a world orientation from a turret's local one, so none can draw it.
 - *An authored `BearingLink` (with `RefSpec`)* — a heading "toward an entity" is a point (`PointLink`), not an angle.
 - *Bearings in radians, math convention (CCW from east)* — every authored and displayed heading in the engine is compass degrees; one convention.
+
+#### 9.8.11 ⭐ AS-BUILT — S0 (`2026-11-01`, backend; the details step 0 left to the builder)
+
+```mermaid
+classDiagram
+    direction LR
+    class WorldPoint { <<Fdp.Core, struct 12 B>> X Y Z · implicit to/from Vector3 · point minus point = Vector3 }
+    class WorldRotation { <<Fdp.Core, struct 16 B>> X Y Z W · HeadingDeg · OWNS the compass convention }
+    class OrientationText { <<Fdp.Core>> the ONE HPR text, tokenised }
+    class Bearing { <<Fdp.Core, struct 4 B>> Degrees · implicit to/from float }
+    class RefSpec { <<Fdp.Core, 36 B explicit>> FixedString32 Key at 0 / Guid Exact at 0 · RefForm at 32 }
+    class SimTransformBridgeSystem { <<Fdp.Toolkits, existing>> routes to WorldRotation }
+    class OrientationDisplay { <<Fdp.Toolkits, existing>> maps OrientationText tokens to ddsmonitor colours }
+    class EntityLink { <<Fdp.Toolkits.Replication>> EntityRef Ref · RefSpec Spec }
+    class PointLink { <<Fdp.Toolkits.Replication>> WorldPoint Local · RefSpec Spec }
+    class AreaLink { <<Fdp.Toolkits.Replication>> EntityRef Area · RefSpec Spec · WorldPoint Center · Vector2 Size · Bearing Heading · Contains }
+    class EntityRefRemap { <<existing, generalised>> one plan per type · WalkJson · WalkObject }
+    class LeafApplier { <<abstract>> one virtual per leaf type }
+    class RefRemap
+    class RefResolve
+    class Relocation
+    class IRefScope { <<interface>> TryResolve · TryPositionOf }
+    class ScenarioRefScope { <<Fdp.Toolkits.Scenario>> RefKey + EntityGuid of one load }
+    class RefKey { <<component 468, saved>> FixedString32 Value }
+    class StagingEntityExtractor { <<existing>> builds the scope after Pass 1 }
+    class WeatherField { <<existing>> AreaEntityContains — the one area-entity test }
+    class SemanticValueTypes { <<Fdp.Core, static>> StorageTypeOf · ToStorage · FromStorage }
+    class GenericWidgets { <<existing>> inspector · FixedListFormatter · JsonShapeDescriber · blackboard · schemas }
+    GenericWidgets ..> SemanticValueTypes : field type routes through
+    SemanticValueTypes ..> WorldPoint
+    SemanticValueTypes ..> WorldRotation
+    SemanticValueTypes ..> Bearing
+    SimTransformBridgeSystem ..> WorldRotation : routes
+    OrientationDisplay ..> OrientationText : routes
+    WorldRotation ..> OrientationText : ToString
+    EntityLink *-- RefSpec
+    PointLink *-- WorldPoint
+    PointLink *-- RefSpec
+    AreaLink *-- RefSpec
+    AreaLink ..> WeatherField : entity form
+    EntityRefRemap ..> LeafApplier
+    LeafApplier <|-- RefRemap
+    LeafApplier <|-- RefResolve
+    LeafApplier <|-- Relocation
+    RefResolve ..> IRefScope
+    IRefScope <|.. ScenarioRefScope
+    ScenarioRefScope ..> RefKey
+    StagingEntityExtractor ..> ScenarioRefScope : builds
+    StagingEntityExtractor ..> RefResolve : after the remap
+```
+
+*What the picture shows that the prose hid:* the convention and the text moved DOWN into `Fdp.Core` (the only assembly `WorldPoint`'s users all
+reference), and the toolkit copies now route there; and the one walker is one plan with three appliers — remap, resolve and relocate are not three
+walkers.
+
+| decided by the builder | as built | why |
+|---|---|---|
+| assemblies | `WorldPoint` / `WorldRotation` / `Bearing` / `RefSpec` in **Fdp.Core** (`World/`); the `*Link`s beside `EntityRef` in **Fdp.Toolkits** (`Replication/Links.cs`) | `SimTransform` is in Fdp.Core; `EntityRef` in Fdp.Toolkits |
+| "`HeadingDeg` / `ToString` ROUTE to `SimTransformBridgeSystem` / `OrientationDisplay`" (§9.8.10) | ⚠ **DEVIATION — the direction is inverted**: the convention's bodies and the HPR text now live in `WorldRotation` / `OrientationText` (Fdp.Core) and the toolkit classes ROUTE to them | Fdp.Core cannot reference Fdp.Toolkits; still ONE copy (`S0TypesTests`, `SimTransformBridgeSystemTests`, `OrientationDisplayTests` green) |
+| JSON of the internal types | the converter hands the value to the OPTIONS' own `Vector3` / `Quaternion` / `float` handling | byte-identical by construction in files AND in the debug API's NaN-safe dump — no copy of either converter |
+| SR-138 ③ "the converter writes by CONTEXT" (file · wire · diagnostics) | ⚠ **DEVIATION — by the VALUE's state**: not authored ⇒ the bare answer · authored, unresolved ⇒ the text (`"@Key"` / GUID) · authored AND resolved ⇒ both (`{"NetworkId": n, "Ref": "@Key"}`, `{"Local": […], "Ref": …}`, `{"Area": n, "Ref": …}`) | load-time resolution rewrites params JSON in place and the behaviour must still read the answer, so a resolved link must carry it; one converter, no context flag. ⏭ A file saved after a load carries the both-form (it loads back identically — the form wins); writing only the text at save is the file-form applier, left for S3 / CE-4153 S9 |
+| `AreaLink` shapes | `Size` = (width across the heading, length along it), circle radius in `Size.X`; `Heading` a `Bearing`; `Center` a `WorldPoint`; an area entity's outline is relative to its `SimTransform` (as weather regions) | the area-entity case reuses `WeatherField.TryOutline` + its even-odd test (new public `WeatherField.AreaEntityContains`) — one containment |
+| the walker | `EntityRefRemap` keeps its name and API (`CompileJson`, `RemapObject`, `HoldsRefs` = holds a network id) and gains `WalkJson` / `WalkObject` + `LeafApplier`; a JSON leaf is read and written through its own converter, the string returned untouched when nothing changed; a leaf the type cannot read is left alone (the params parse reports it) | ⛔ no second plan; `RefResolve` throws on a reference that names nothing — the load fails loudly |
+| `Relocation` | translate X / Y, turn about the anchor by the heading difference (compass clockwise), Z by the anchors' height difference; `WorldRotation` pre-multiplied by the turn; `Bearing` + turn, normalised; a `PointLink` / `AreaLink` written as an entity is NOT moved | SR-127 / SR-131; rails `S0WalkerTests.Relocate_*` |
+| `RefKey` | component **468**, `DataPolicy.Default` (saved), `"RefKey": {"Value": "BlueHQ"}`; the scope is built by `StagingEntityExtractor` after Pass 1 from `RefKey` + `EntityGuid` + `SimTransform`, mapped to the NEW ids; a duplicate key throws; behaviour params resolve through `ScenarioBehaviorRemapper.ResolveJson` (the one contract lookup it shares with `RemapJson`) | rails `StagingEntityExtractorTests.S0_*` |
+| item 6 — saved components (`d298cd86d`) | ⭐ `WorldPoint`: `SimTransform.Position`, `NetworkTransform.LastPosition`, `NavState` / `NavigationIntent.FinalDestination`, geographic `Position.Value`, `BallisticProjectile.Muzzle` / `PreviousPosition`, `WeaponTask.Point`, `FakeCrowdAgentState.Target`, `EqsSensor.ContextPoint1`, `EngagementArea.ArcOrigin` · `WorldRotation`: `SimTransform.Rotation`, `NetworkTransform.LastRotation` · `Bearing`: `EngagementArea.Left/Right/WatchBearing`. Everything else vector-shaped is a velocity, a body-relative angle or a 2-D world XY (`FormationTarget.TargetPosition` — no 2-D point type until S3), each named with its reason in `S0ComponentTypesRailTests.NotSpatial` | memory identical ⇒ no golden moved. ⛔ SUPERSEDED by the item 8 row: ~~the rail scans DIRECT fields only and four named assemblies~~ — it now walks nested structs and every engine assembly in the test output |
+| the generic-widget seam | ⭐ ONE mapping `SemanticValueTypes` (Fdp.Core: `StorageTypeOf` / `ToStorage` / `FromStorage` / `IsSemantic`) — the inspector (renderer registry fallback, property tree, quaternion editor), `FixedListFormatter`, `JsonShapeDescriber`, the blackboard helpers and schema builders route through it; a schema KEEPS the semantic type name (`format: worldRotation`, `number/bearing`); ⚠ CORRECTED by item 8: ~~the blueprint compiler gains same-bytes rungs~~ — item 6 claimed them and did NOT add them (found when a `WorldPoint` pin failed BP1501); ⭐ item 8 added them: `Vector3↔WorldPoint`, `Quaternion↔WorldRotation`, `Single↔Bearing` both ways, plus `PointLink→WorldPoint` (the authored point read as its `Local`), `WorldRotation` registered (16 B); each in `CoercionTable_ContainsOnlyLosslessWidenings`' allow-list with its reason | rails `SemanticValueTypesTests`, `SemanticValueRoutingTests` |
+| ⚠ DEVIATION — `Stage2_Validate` (BP2014) | matches the three types by **full NAME**, not through `SemanticValueTypes` | `Hrot.Blueprints.Compiler` also targets `netstandard2.0`, where `Fdp.Core` is not referenced (the netstandard / net8.0 wall, `BATCH-03-REPORT.md:100`). One check, three names; the cure is a source file linked into both targets |
+| ⚠ `NodeEditor.UI` (ExtDep) | `PinDefaultValueEditorRegistry` maps `Fdp.Core.WorldPoint` by type NAME to `VectorPinEditor(3)` | the library cannot reference `Fdp.Core` |
+| item 7 — CE-4200 (ids) | ⭐ entity network ids are `int` in the engine AND on the wire; `TkbTypeId` (template id, `long`) and `NodeId` (cluster node, `int`) are types; one refusal guard `NetworkIdLimit.Checked` in every allocator — ⭐ the as-built lives in its owning designs: [`DESIGN_Semantic_Value_Types.md`](DESIGN_Semantic_Value_Types.md) §2.1 (the exclusions with reasons, the deviations) · [`NED_DDS_Protocol.md`](reference/NED_DDS_Protocol.md) (the wire) · AQ107 row E SUPERSEDED | rails `S0IdTypesRailTests`, `EntityMasterTranslatorTests.CE4200_*` |
+| item 8 — the rails | ⭐ `S0AuthoredTypesRailTests` (params / predicate DTOs: no bare `Vector3` / lat-lon / `long` id / `EntityRef`) · `S0ComponentTypesRailTests` (saved components: places `WorldPoint`, orientations `WorldRotation`, compass numbers `Bearing`) · `S0IdTypesRailTests` (template ids, node ids) · `CE4200_AnIdAboveInt32_IsRefusedAtTheAllocator` (replaces AQ107 E). ⭐ The component rail now WALKS NESTED STRUCTS of the engine's own and scans every `Fdp.*` / `Hrot.*` assembly in the test's output (not a hand list) — it found 9 more places: `NavigationCorridorPreview`'s `PreviewWaypoint.Position` and `DangerAreaSensor.Settings.RoutePoint` ⇒ both retyped to `WorldPoint` (the danger-area sensor's blueprint pin is now `Fdp.Core.WorldPoint`; `PointLink→WorldPoint` keeps the sample's `Get All Parameters` wire into it legal; `DangerCrossingBp.bp.json` re-baked, golden diff: its one emitted cast `(Vector3)` → `(WorldPoint)` and its persistence-shape line) | ⚠ still out of reach: component assemblies `Fdp.Toolkits.Tests` does not reference (`Hrot.Traffic`, `Hrot.IG`, `Hrot.CGF`, `Hrot.MuscleCharacter.Fake`) — a component there is not scanned |
+| item 9 — the content migration | ⭐ `hrot-content-migrate` (`Hrot/Tools/Hrot.Tools.ContentMigrate`, in `HROT.sln`): each params blob's contract from the behaviour registry every host builds (`CgfBehaviorSetup.LoadFromAiAssembly`), its places from the ONE walker (`EntityRefRemap.VisitLeaves` — leaves raw, plus each nested object with its contract type). Moves: a `PointLink` held as `[lat, lon]` → `[x, y, 0]` through the scenario terrain's geo origin (`WGS84Transform`, as `OrderGeo.ToLocal`); a pair that is no lat/lon → the old no-transform fallback `x = second, y = first` (`ua-air-strike`'s `[300,600]` → `[600,300,0]`); renamed keys at ANY depth (`MoveToLocation` `targetLat/targetLon` or `x/y` → `target`, `DefendArea` `CenterLat/CenterLon` → `Center`). Splices only the params string tokens (bytes elsewhere untouched, the file's `\u0022` / `\"` style kept). Ran over `scenarios/` + `recipes/` (`ContentLayout`): **37 blobs, 25 files, 37 lines in / 37 out**; a second run moves 0 | `test-data/scenario-corpus` holds no params (versioned format data) — not a default. Rails `ContentMigrationTests` (the repository's content is migrated AND every blob loads — red before the run, green after) |
+| item 9 — ⛔ an old form is a LOUD load error (CE-4153 S10) | `LeafApplier.RefusesOldForms` — `true` only for `RefResolve` (authored content at LOAD, `ScenarioBehaviorRemapper.ResolveJson` / `StagingEntityExtractor`): a leaf its converter cannot read throws `JsonException` naming the key; a key the contract marks `[RetiredJsonKeys]` throws the same. `RefRemap` and every other applier keep the old leniency (a saved blob is remapped, never refused) | ⚠ **why not "unknown keys are errors":** the params parse ignores unknown keys BY DECISION (`BTreeBridgeEmitCore.cs:1526`, pinned) — ⭐ only the keys a migration retired are refused, declared on their contract. Rails `S0WalkerTests.Resolve_AtLoad_RefusesAnOldForm_*`, `VisitLeaves_*` |
 
 ## 10. Objective KINDS, measures, triggers, actions, the director, views *(`2026-10-31` … `2026-11-01`)*
 

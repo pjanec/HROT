@@ -26,7 +26,7 @@ namespace Fdp.Network.Cyclone.Services
         private readonly DdsReader<IdStatus> _statusReader;
         private readonly string _clientId;
         private long _requestCounter = 0;
-        private readonly Queue<long> _availableIds = new();
+        private readonly Queue<int> _availableIds = new();
 
         private const int CHUNK_SIZE = 100;
         private const int LOW_WATER_MARK = 10;
@@ -103,7 +103,7 @@ namespace Fdp.Network.Cyclone.Services
 
         // ── INetworkIdAllocator ──────────────────────────────────────────────
 
-        public long AllocateId()
+        public int AllocateId()
         {
             // ── Step 1: wait for the server to be discovered ─────────────────
             // Block until the server's DDS reader is matched to our writer, or
@@ -160,7 +160,7 @@ namespace Fdp.Network.Cyclone.Services
                 ReqNo = _requestCounter++,
                 Type = EIdRequestType.Req_Alloc,
                 Start = 0, // Unused for Alloc
-                Count = (ulong)count
+                Count = (uint)count
             });
         }
 
@@ -182,9 +182,12 @@ namespace Fdp.Network.Cyclone.Services
                 if (response.Type == EIdResponseType.Resp_Alloc)
                 {
                     // Add chunk to local pool
-                    for (ulong i = 0; i < response.Count; i++)
+                    // ⭐ CE-4200: the server refuses to issue a block past int.MaxValue; this is the client-side belt —
+                    // the last id of the block must fit, or the whole block is refused (nothing half-queued).
+                    if (response.Count > 0) NetworkIdLimit.Checked((long)response.Start + response.Count - 1);
+                    for (uint i = 0; i < response.Count; i++)
                     {
-                        _availableIds.Enqueue((long)(response.Start + i));
+                        _availableIds.Enqueue((int)(response.Start + i));
                     }
                 }
                 else if (response.Type == EIdResponseType.Resp_Reset)
@@ -198,7 +201,7 @@ namespace Fdp.Network.Cyclone.Services
             }
         }
 
-        public void Reset(long startId)
+        public void Reset(int startId)
         {
             // Send reset request to server
             _requestWriter.Write(new IdRequest
@@ -206,7 +209,7 @@ namespace Fdp.Network.Cyclone.Services
                 ClientId = "", // Global request (empty ClientId)
                 ReqNo = _requestCounter++,
                 Type = EIdRequestType.Req_Reset,
-                Start = (ulong)startId,
+                Start = (uint)startId,
                 Count = 0
             });
             
@@ -253,7 +256,7 @@ namespace Fdp.Network.Cyclone.Services
         /// <inheritdoc/>
         public void RestoreIssuingPosition(object snapshot)
         {
-            if (snapshot is not long[] held) return;
+            if (snapshot is not int[] held) return;
 
             // ⭐ Replace: ids fetched during the preview must not be re-offered (see the remarks).
             // ⛔ No writer, no request, no server round-trip.

@@ -17,7 +17,7 @@ namespace Hrot.Network.NED.IG
         private readonly DdsReader<EntityMission> _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly GhostCreationSystem _ghostCreationSystem;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public long DescriptorOrdinal => 50;
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityMission>();
@@ -29,12 +29,12 @@ namespace Hrot.Network.NED.IG
             DdsParticipant participant,
             NetworkEntityMap entityMap,
             GhostCreationSystem ghostCreationSystem,
-            long localNodeId)
+            int localNodeId)
         {
             _reader = new DdsReader<EntityMission>(participant);
             _entityMap = entityMap;
             _ghostCreationSystem = ghostCreationSystem;
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <inheritdoc />
@@ -46,7 +46,7 @@ namespace Hrot.Network.NED.IG
 
             foreach (var sample in loan)
             {
-                long entityId;
+                int entityId;
                 if (sample.IsValid)
                 {
                     entityId = sample.Data.EntityId;
@@ -98,7 +98,7 @@ namespace Hrot.Network.NED.IG
             }
         }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         private static ActiveMissionPlan MapToPlan(EntityMission mission)
         {

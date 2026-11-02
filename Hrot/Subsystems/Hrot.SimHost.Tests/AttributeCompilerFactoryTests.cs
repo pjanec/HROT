@@ -175,7 +175,7 @@ namespace Hrot.SimHost.Tests
             compiler.Compile(patch, compiler.CreatePatchContext(repo, entity));
 
             var pos = repo.GetComponentRO<SimTransform>(entity).Position;
-            Assert.Equal(new Vector3(120.5f, -40.25f, 3.0f), pos);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(120.5f, -40.25f, 3.0f), pos);
         }
 
         [Fact]
@@ -190,7 +190,7 @@ namespace Hrot.SimHost.Tests
             var compiler = AttributeCompilerFactory.Build();
             compiler.Compile("{\"Position\":{\"X\":77.0}}", compiler.CreatePatchContext(repo, entity));
 
-            Assert.Equal(new Vector3(77f, 2f, 3f), repo.GetComponentRO<SimTransform>(entity).Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(77f, 2f, 3f), repo.GetComponentRO<SimTransform>(entity).Position);
         }
 
         [Fact]
@@ -240,7 +240,7 @@ namespace Hrot.SimHost.Tests
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = LocalNodeId,
-                TkbType            = ValidTkbType,
+                TkbType            = (Fdp.Core.TkbTypeId)(ValidTkbType),
                 DisType            = ValidDisType,
                 InitialAttributesJson = json,
             };

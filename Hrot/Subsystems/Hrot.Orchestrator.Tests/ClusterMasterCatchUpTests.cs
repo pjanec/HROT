@@ -32,7 +32,7 @@ public sealed class ClusterMasterCatchUpTests
         foreach (var id in nodeIds)
             bus.PublishManaged(new NodeHeartbeatEvent
             {
-                NodeId = id, SubsystemName = "TestNode",
+                NodeId = (Fdp.Core.NodeId)(id), SubsystemName = "TestNode",
                 LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
                 WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
             });
@@ -44,7 +44,7 @@ public sealed class ClusterMasterCatchUpTests
     /// <summary>A joiner whose capability advert (Brain + MuscleGround — the all-in-one case) lands in the same frame as its first heartbeat.</summary>
     private static void HeartbeatWithMuscle(FdpEventBus bus, ClusterMaster master, int nodeId)
     {
-        bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = nodeId, Capabilities = new[] { NodeRoleTokens.Brain, NodeRoleTokens.MuscleGround } });
+        bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = (Fdp.Core.NodeId)(nodeId), Capabilities = new[] { NodeRoleTokens.Brain, NodeRoleTokens.MuscleGround } });
         Heartbeat(bus, master, nodeId);
     }
 

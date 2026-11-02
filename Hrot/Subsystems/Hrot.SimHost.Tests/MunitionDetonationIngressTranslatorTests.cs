@@ -87,13 +87,13 @@ namespace Hrot.SimHost.Tests
 
             var shooterEntity = _world.CreateEntity();
             var targetEntity  = _world.CreateEntity();
-            _entityMap.Register(1L, shooterEntity);
-            _entityMap.Register(5L, targetEntity);
+            _entityMap.Register(1, shooterEntity);
+            _entityMap.Register(5, targetEntity);
 
             var msg = new MunitionDetonation
             {
-                ShooterEntityId = 1L,
-                HitEntityId     = 5L,
+                ShooterEntityId = 1,
+                HitEntityId     = 5,
                 HitX            = 10f,
                 HitY            = 20f,
                 HitZ            = 5f,
@@ -124,8 +124,8 @@ namespace Hrot.SimHost.Tests
 
             var msg = new MunitionDetonation
             {
-                ShooterEntityId = 1L,
-                HitEntityId     = 9999L,
+                ShooterEntityId = 1,
+                HitEntityId     = 9999,
             };
 
             var ex = Record.Exception(() =>
@@ -153,13 +153,13 @@ namespace Hrot.SimHost.Tests
         {
             var translator    = BuildTranslator();
             var targetEntity  = _world.CreateEntity();
-            _entityMap.Register(5L, targetEntity);
+            _entityMap.Register(5, targetEntity);
 
             // Shooter (1L) is NOT registered.
             var msg = new MunitionDetonation
             {
-                ShooterEntityId = 1L,
-                HitEntityId     = 5L,
+                ShooterEntityId = 1,
+                HitEntityId     = 5,
                 HitX            = 1f,
             };
 

@@ -7,6 +7,7 @@ using Hrot.Map.Common.Systems;
 using Hrot.NED.Common;
 using Hrot.NED.Messages;
 using Xunit;
+using NodeId = Hrot.NED.Common.NodeId;
 
 namespace Hrot.DDS.DataModel.Tests;
 

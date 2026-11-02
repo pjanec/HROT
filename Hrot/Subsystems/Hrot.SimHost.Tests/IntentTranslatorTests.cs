@@ -87,7 +87,7 @@ namespace Hrot.SimHost.Tests
         public void VisHierarchyNodeTranslator_Inject_WritesInitialHierarchyIntent()
         {
             var parent = _repo.CreateEntity();
-            _repo.SetComponent(parent, new NetworkIdentity { Value = 999L });
+            _repo.SetComponent(parent, new NetworkIdentity { Value = 999 });
 
             var entity = _repo.CreateEntity();
 
@@ -153,7 +153,7 @@ namespace Hrot.SimHost.Tests
         public void IsEmbarkedTagTranslator_Inject_WritesInitialVehicleIntent()
         {
             var vehicle = _repo.CreateEntity();
-            _repo.SetComponent(vehicle, new NetworkIdentity { Value = 777L });
+            _repo.SetComponent(vehicle, new NetworkIdentity { Value = 777 });
 
             var entity = _repo.CreateEntity();
 
@@ -200,7 +200,7 @@ namespace Hrot.SimHost.Tests
         public void PersonalRouteRefTranslator_Inject_WritesInitialRouteIntent()
         {
             var route = _repo.CreateEntity();
-            _repo.SetComponent(route, new NetworkIdentity { Value = 555L });
+            _repo.SetComponent(route, new NetworkIdentity { Value = 555 });
 
             var entity = _repo.CreateEntity();
 

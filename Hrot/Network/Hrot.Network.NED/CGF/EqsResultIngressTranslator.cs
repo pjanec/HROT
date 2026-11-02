@@ -24,7 +24,7 @@ namespace Hrot.Network.NED.CGF
         private readonly NetworkEntityMap _entityMap;
         // Dictionary-cached reverse lookup: (ParentNetworkId, LocalChildIndex) -> Brain-side entity.
         // Populated lazily on first miss by a one-shot scan of PartMetadata entities.
-        internal readonly Dictionary<(long ParentNetId, int ChildIndex), Entity> _childEntityCache = new();
+        internal readonly Dictionary<(int ParentNetId, int ChildIndex), Entity> _childEntityCache = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EqsResultTopic>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtEqsResult;
@@ -110,8 +110,7 @@ namespace Hrot.Network.NED.CGF
                         repo, observer, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, data.LocalChildIndex)))
                     continue;
 
-                // Bridge to the managed event bus so EqsResultUpdateSystem can consume it.
-                // EqsResultTopic.Results is List<EqsResultEntry> -- direct assignment works.
+                // Bridge to the managed event bus so EqsResultUpdateSystem can consume it — as ENGINE records (CE-4207).
                 repo.Bus.PublishManaged(new EqsResultUpdateEvent
                 {
                     Observer    = observer,
@@ -129,7 +128,7 @@ namespace Hrot.Network.NED.CGF
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         // ── Internal helpers (exposed for unit testing via InternalsVisibleTo) ─
 
@@ -144,17 +143,31 @@ namespace Hrot.Network.NED.CGF
         /// reader, including the blueprint <c>ReadEqsResult</c> node) was wrong exactly in the split. Design
         /// §4.1 says the id "resolves to local entity on Brain"; the area-query ingress always did.
         /// </remarks>
-        internal static List<EqsResultEntry> MapToLocal(List<EqsResultEntry>? results, NetworkEntityMap entityMap)
+        internal static List<EqsResult> MapToLocal(List<EqsResultEntry>? results, NetworkEntityMap entityMap)
         {
-            var mapped = new List<EqsResultEntry>(results?.Count ?? 0);
+            var mapped = new List<EqsResult>(results?.Count ?? 0);
             if (results is null) return mapped;
             foreach (var entry in results)
             {
-                if (entry.EntityId == 0L) { mapped.Add(entry); continue; }
-                if (!entityMap.TryGetEntity(entry.EntityId, out var local)) continue;
-                var copy = entry;
-                copy.EntityId = (long)local.PackedValue;
-                mapped.Add(copy);
+                long local = 0;   // positional candidate
+                if (entry.EntityId != 0)
+                {
+                    if (!entityMap.TryGetEntity(entry.EntityId, out var entity)) continue;
+                    local = (long)entity.PackedValue;
+                }
+                // ⭐ CE-4207 — the ONE wire → engine conversion (it used to be split between here and EqsResultUpdateSystem)
+                mapped.Add(new EqsResult
+                {
+                    EntityId        = local,
+                    PositionX       = entry.PositionX,
+                    PositionY       = entry.PositionY,
+                    PositionZ       = entry.PositionZ,
+                    Score           = entry.Score,
+                    Flags           = (short)entry.Flags,
+                    FlagsMeaningful = (short)entry.FlagsMeaningful,
+                    Stance          = entry.Stance,   // ⭐ CE-3135
+                    Kind            = entry.Kind,     // ⭐ CE-3158 G1
+                });
             }
             return mapped;
         }
@@ -163,7 +176,7 @@ namespace Hrot.Network.NED.CGF
         /// Removes a cache entry for the given composite key.
         /// Called when a NotAliveDisposed DDS sample is received.
         /// </summary>
-        internal void RemoveCacheEntry(long parentNetworkId, int localChildIndex)
+        internal void RemoveCacheEntry(int parentNetworkId, int localChildIndex)
             => _childEntityCache.Remove((parentNetworkId, localChildIndex));
     }
 }

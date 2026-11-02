@@ -52,7 +52,7 @@ public class DragDropIntegrationTests
         // ── 1. Spawn a tank on SimHost at a known geo position ────────────────
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnGeo = new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
         _out.WriteLine($"[D1] Spawned entity networkId={networkId}");
 
         // ── 2. Wait until the entity propagates to the IG ─────────────────────
@@ -179,7 +179,7 @@ public class DragDropIntegrationTests
         // ── 1. Spawn and wait for entity on IG ───────────────────────────────
         long tkbType   = TkbEntityTypes.Tank_M1Abrams;
         var  spawnGeo  = new CoreGeoPoint { Latitude = 52.522, Longitude = 13.407, Altitude = 0 };
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
 
         bool igHasEntity = harness.PumpUntil(
             () => IgHasNetworkEntity(harness, networkId),
@@ -223,7 +223,7 @@ public class DragDropIntegrationTests
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static bool IgHasNetworkEntity(HrotRunnerHarness harness, long networkId)
+    private static bool IgHasNetworkEntity(HrotRunnerHarness harness, int networkId)
     {
         var entityMap = harness.Ig.App.TestHook_EntityMap;
         if (!entityMap.TryGetEntity(networkId, out var entity)) return false;
@@ -233,7 +233,7 @@ public class DragDropIntegrationTests
         return world.IsAlive(entity) && world.HasComponent<SimTransform>(entity);
     }
 
-    private static SimTransform GetIgSimTransform(HrotRunnerHarness harness, long networkId)
+    private static SimTransform GetIgSimTransform(HrotRunnerHarness harness, int networkId)
     {
         var entityMap = harness.Ig.App.TestHook_EntityMap;
         if (!entityMap.TryGetEntity(networkId, out var entity))
@@ -246,7 +246,7 @@ public class DragDropIntegrationTests
 
     private static bool IgPositionWithinTolerance(
         HrotRunnerHarness harness,
-        long               networkId,
+        int               networkId,
         Vector3            expected,
         float              tolerance)
     {

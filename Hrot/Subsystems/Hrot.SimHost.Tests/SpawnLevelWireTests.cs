@@ -20,13 +20,13 @@ namespace Hrot.SimHost.Tests
             w.RegisterComponent<SpawnLevelRequest>();
             var map = new NetworkEntityMap();
             var man = w.CreateEntity();
-            map.Register(70L, man);
+            map.Register(70, man);
             return (w, map, man);
         }
 
         private static void Apply(EntityRepository w, NetworkEntityMap map, in SpawnLevelRequest r)
         {
-            var sample = EntitySpawnLevelEgressTranslator.ToSample(70L, r);
+            var sample = EntitySpawnLevelEgressTranslator.ToSample(70, r);
             using var cmd = new EntityCommandBuffer();
             new EntitySpawnLevelIngressTranslator(participant: null, map).Apply(in sample, cmd, w);
             cmd.Playback(w);

@@ -55,7 +55,7 @@ public sealed class DeterminismRails
         var rows = new List<string>();
         foreach (var e in entities.AsArray())
         {
-            var id    = e!["networkId"]!.GetValue<long>();
+            var id    = e!["networkId"]!.GetValue<int>();
             var name  = e["name"]?.GetValue<string>() ?? "";
             var comps = (e["components"] as JsonArray)?.Select(c => c!.GetValue<string>()).OrderBy(x => x, StringComparer.Ordinal)
                         ?? Enumerable.Empty<string>();

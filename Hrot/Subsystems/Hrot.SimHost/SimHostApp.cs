@@ -802,12 +802,12 @@ namespace Hrot.SimHost
         /// <summary>
         /// TestHook: spawns an entity via the network spawning pipeline and returns its network ID.
         /// </summary>
-        public long TestHook_SpawnEntity(long tkbType, GeoPoint position)
+        public int TestHook_SpawnEntity(long tkbType, GeoPoint position)
         {
             if (_world == null || _idAllocator == null || _entityMap == null)
                 throw new InvalidOperationException("SimHostApp is not initialized.");
 
-            long networkId = _idAllocator.AllocateId();
+            int networkId = _idAllocator.AllocateId();
 
             var initialComponents = new List<object>();
             if (_geoTransform != null)
@@ -834,7 +834,7 @@ namespace Hrot.SimHost
             {
                 RequestId             = Guid.NewGuid(),
                 OwnerAppInstanceId    = creation.NodeId,
-                TkbType               = tkbType,
+                TkbType               = (Fdp.Core.TkbTypeId)(tkbType),
                 InitType              = ReliableInitType.AllPeers,
                 InitialComponents     = initialComponents,
                 PreAllocatedNetworkId = networkId,
@@ -846,7 +846,7 @@ namespace Hrot.SimHost
         /// <summary>
         /// TestHook: teleports the entity to <paramref name="worldPos"/> (simulates an IG drag).
         /// </summary>
-        public void TestHook_SimulateDrag(long networkId, Vector2 worldPos)
+        public void TestHook_SimulateDrag(int networkId, Vector2 worldPos)
         {
             if (_world == null || _entityMap == null)
                 throw new InvalidOperationException("SimHostApp is not initialized.");
@@ -867,7 +867,7 @@ namespace Hrot.SimHost
         /// simulating the intent that would arrive from the CGF Brain over the network.
         /// This is the architecturally-correct way to trigger movement on the Muscle node in tests.
         /// </summary>
-        public void TestHook_SetMovementIntent(long networkId, Vector2 destination, float speed = 15f)
+        public void TestHook_SetMovementIntent(int networkId, Vector2 destination, float speed = 15f)
         {
             if (_world == null || _entityMap == null)
                 throw new InvalidOperationException("SimHostApp is not initialized.");
@@ -903,7 +903,7 @@ namespace Hrot.SimHost
         }
 
         /// <summary>TestHook: returns the current <see cref="SimTransform"/> of the entity, or default.</summary>
-        public SimTransform TestHook_GetSimTransform(long networkId)
+        public SimTransform TestHook_GetSimTransform(int networkId)
         {
             if (_world == null || _entityMap == null) return default;
             if (!_entityMap.TryGetEntity(networkId, out var entity)) return default;
@@ -1012,7 +1012,7 @@ namespace Hrot.SimHost
     /// <summary>No-op mission sender used when no INetworkFactory is injected.</summary>
     internal sealed class NullSimHostMissionSender : ISimHostMissionSender
     {
-        public void SendNavigateToPoint(long id, System.Numerics.Vector2 dest, float speed, float radius) { }
+        public void SendNavigateToPoint(int id, System.Numerics.Vector2 dest, float speed, float radius) { }
         public void Dispose() { }
     }
 }

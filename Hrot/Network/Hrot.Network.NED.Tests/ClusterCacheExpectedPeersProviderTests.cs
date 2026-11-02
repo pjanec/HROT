@@ -17,7 +17,7 @@ namespace Hrot.Network.NED.Tests
 
         private static NodeCapability Node(int id, NodeRole role, params string[] caps) => new()
         {
-            NodeId = id,
+            NodeId = (Fdp.Core.NodeId)(id),
             Role = role,
             Capabilities = new System.Collections.Generic.HashSet<string>(caps),
             LastSeenUtcSeconds = 1.0,

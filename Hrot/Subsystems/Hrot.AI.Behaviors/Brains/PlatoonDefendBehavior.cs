@@ -186,9 +186,9 @@ namespace Hrot.AI.Behaviors.Brains
                 if (slot < 0 || slot >= PlatoonDefencePlan.Capacity) continue;
                 plan.Authored = 1;
                 plan.Set(slot, s.Op ? PlatoonDefencePlan.Op : s.Reserve ? PlatoonDefencePlan.Reserve : PlatoonDefencePlan.Line,
-                         s.Point == Vector3.Zero ? authored.Position : s.Point, s.SearchRadius > 0f ? s.SearchRadius : authored.SearchRadius);
-                var back = s.Back == Vector3.Zero ? authored.Position : s.Back;   // ⭐ E-2 (DA-59)
-                plan.BackX[slot] = back.X; plan.BackY[slot] = back.Y; plan.BackZ[slot] = back.Z;
+                         (Vector3)s.Point == Vector3.Zero ? authored.Position : s.Point, s.SearchRadius > 0f ? s.SearchRadius : authored.SearchRadius);
+                var back = (Vector3)s.Back == Vector3.Zero ? authored.Position : s.Back;   // ⭐ E-2 (DA-59)
+                plan.BackX[slot] = back.Local.X; plan.BackY[slot] = back.Local.Y; plan.BackZ[slot] = back.Local.Z;
             }
         }
 

@@ -205,7 +205,7 @@ public sealed class HrotRunnerHarness : IDisposable
     /// </summary>
     public void StartLate(ISubsystem subsystem, int nodeId)
     {
-        var options = new RunnerOptions { Headless = true, DomainId = _options.DomainId, NodeId = nodeId, SeedContent = false };
+        var options = new RunnerOptions { Headless = true, DomainId = _options.DomainId, NodeId = (Fdp.Core.NodeId)(nodeId), SeedContent = false };
         var host = new SubsystemOrchestrator(new[] { subsystem }, options);
         _late.Add(host);
         host.Initialize();

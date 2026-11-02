@@ -16,6 +16,7 @@ using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.NED.Common;
 using Fdp.ModuleHost.Abstractions;
+using NodeId = Fdp.Core.NodeId;
 
 namespace Hrot.Map.Common.Replication.Egress
 {
@@ -45,7 +46,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly IDdsWriter<UpdateEntityDescriptorRequest> _writer;
         private readonly FdpEventBus _eventBus;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<UpdateEntityDescriptorRequest>();
         public long DescriptorOrdinal => OrdinalValue;
@@ -58,7 +59,7 @@ namespace Hrot.Map.Common.Replication.Egress
             DdsParticipant participant,
             FdpEventBus eventBus,
             NetworkEntityMap entityMap,
-            long localNodeId = 0)
+            int localNodeId = 0)
             : this(new DdsWriterAdapter<UpdateEntityDescriptorRequest>(participant),
                    eventBus, entityMap, localNodeId)
         {
@@ -69,12 +70,12 @@ namespace Hrot.Map.Common.Replication.Egress
             IDdsWriter<UpdateEntityDescriptorRequest> writer,
             FdpEventBus eventBus,
             NetworkEntityMap entityMap,
-            long localNodeId = 0)
+            int localNodeId = 0)
         {
             _writer       = writer    ?? throw new ArgumentNullException(nameof(writer));
             _eventBus     = eventBus  ?? throw new ArgumentNullException(nameof(eventBus));
             _entityMap    = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId  = localNodeId;
+            _localNodeId  = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <summary>
@@ -104,12 +105,12 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         // ── Private helpers ───────────────────────────────────────────────────
 
         private void ProcessOverlayUpdate(
-            long networkId, Guid requestId,
+            int networkId, Guid requestId,
             EditablePolyline polyline, ISimulationView view)
         {
             if (!_entityMap.TryGetEntity(networkId, out var entity))

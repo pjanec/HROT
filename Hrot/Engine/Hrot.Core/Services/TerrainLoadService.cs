@@ -199,7 +199,7 @@ namespace Hrot.Map.Common.Services
             var polyline = ((ISimulationView)repo).GetManagedComponentRO<EditablePolyline>(entity);
             var origin = repo.HasComponent<SimTransform>(entity)
                 ? repo.GetComponent<SimTransform>(entity).Position
-                : Vector3.Zero;
+                : Fdp.Core.WorldPoint.Zero;
 
             ulong current = ZoneFootprint.Compute(origin, polyline?.Points);
 

@@ -2,17 +2,18 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using Fdp.Core.Serialization.Migrations;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.Scenario;
 
 /// <summary>One node's contribution to a distributed save. <paramref name="Dom"/> is the parsed
 /// scenario DOM for a FORMAT-COMPATIBLE slice; it is <c>null</c> for a foreign slice (foreign files
 /// are routed by tag, never parsed — see <see cref="ScenarioMergeCore"/>).</summary>
-public sealed record ScenarioSlice(int OriginNodeId, string DocType, JsonObject? Dom);
+public sealed record ScenarioSlice(NodeId OriginNodeId, string DocType, JsonObject? Dom);
 
 /// <summary>A pulled slice whose <c>$meta.docType</c> is not ours; kept verbatim and pushed back to
 /// its origin node on load (§4c). The merge never opens it.</summary>
-public sealed record ForeignSlice(int OriginNodeId, string DocType);
+public sealed record ForeignSlice(NodeId OriginNodeId, string DocType);
 
 /// <summary>Result of a distributed-save merge: the ONE brain-canonical DOM (or <c>null</c> if every
 /// slice was foreign) plus the set of foreign slices to keep separate.</summary>

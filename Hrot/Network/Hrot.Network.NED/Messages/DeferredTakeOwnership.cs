@@ -47,7 +47,7 @@ namespace Hrot.NED.Messages
     {
         /// <summary>Network entity ID that this routing table targets.</summary>
         [DdsKey]
-        public long EntityId;
+        public int EntityId;
 
         /// <summary>
         /// Per-descriptor ownership assignments for this entity.

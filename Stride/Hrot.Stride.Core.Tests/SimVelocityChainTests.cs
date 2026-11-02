@@ -157,7 +157,7 @@ public sealed class SimVelocityChainTests : IDisposable
     private Entity SpawnWithBody(Vector3 pos, Vector3 intentVelocity)
     {
         var entity = _world.CreateEntity();
-        _world.AddComponent(entity, new TkbIdentity { TkbType = CapsuleTkbType });
+        _world.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(CapsuleTkbType) });
         _world.AddComponent(entity, new SimTransform { Position = pos });
         _world.AddComponent(entity, new SimVelocity());
         _world.AddComponent(entity, new CrowdMotorIntent { Velocity = intentVelocity });

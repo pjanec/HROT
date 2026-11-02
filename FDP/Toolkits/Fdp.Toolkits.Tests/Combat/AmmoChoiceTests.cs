@@ -94,7 +94,7 @@ namespace Fdp.Toolkit.Combat.Tests
             // facing the shooter at the origin (−X): a level shot meets the FRONT
             _w.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI) });
             _w.AddComponent(e, new Health { Current = health, Max = health });
-            _w.AddComponent(e, new TkbIdentity { TkbType = type });
+            _w.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             if (hull > 0f) _w.AddComponent(e, new PhysicsCollider { Radius = 2f, Height = hull });
             return e;
         }

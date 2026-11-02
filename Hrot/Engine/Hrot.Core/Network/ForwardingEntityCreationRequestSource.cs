@@ -1,5 +1,6 @@
 using System;
 using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Core;
 
 namespace Hrot.Core.Network;
 
@@ -53,7 +54,7 @@ public sealed class ForwardingEntityCreationRequestSource : IEntityCreationReque
 {
     private readonly IEntityCreationRequestSource  _local;
     private readonly IEntityCreationRequestEgress  _egress;
-    private readonly int                           _localNodeId;
+    private readonly NodeId                           _localNodeId;
     private readonly bool                          _isDefaultProcessor;
 
     /// <summary>Number of requests forwarded to the wire. Diagnostics and rails only.</summary>
@@ -79,7 +80,7 @@ public sealed class ForwardingEntityCreationRequestSource : IEntityCreationReque
     {
         _local              = local  ?? throw new ArgumentNullException(nameof(local));
         _egress             = egress ?? throw new ArgumentNullException(nameof(egress));
-        _localNodeId        = localNodeId;
+        _localNodeId        = (Fdp.Core.NodeId)(localNodeId);
         _isDefaultProcessor = isDefaultProcessor;
     }
 

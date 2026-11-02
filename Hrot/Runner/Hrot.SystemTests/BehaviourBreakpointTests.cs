@@ -27,10 +27,10 @@ public sealed class BehaviourBreakpointTests : SystemTestBase
         {
             (await Mcp.StepAsync(10)).EnsureOk();
 
-            long unit = 0;
+            int unit = 0;
             foreach (var e in (await Mcp.ListEntitiesAsync()).EnsureOk().Array())
             {
-                long n = e!["networkId"]?.GetValue<long>() ?? 0;
+                int n = e!["networkId"]?.GetValue<int>() ?? 0;
                 var slots = (await Mcp.GetEntitySlotsAsync(n)).Field("slots") as JsonArray;
                 foreach (var sl in slots ?? new JsonArray())
                     Output.WriteLine($"  #{n} {sl?["owner"]} {sl?["role"]} {sl?["behaviour"]} = {sl?["value"]?.ToJsonString()}");
@@ -69,7 +69,7 @@ public sealed class BehaviourBreakpointTests : SystemTestBase
             Output.WriteLine(status?.ToJsonString() ?? "(no hit in 30 s)");
             Assert.NotNull(status);
             var hit = status!["lastHit"]!;
-            Assert.Equal(unit, hit["networkId"]?.GetValue<long>());
+            Assert.Equal(unit, hit["networkId"]?.GetValue<int>());
             Assert.Equal("entered Firing", hit["what"]?.GetValue<string>());
 
             // a continue does not stop again on the same step

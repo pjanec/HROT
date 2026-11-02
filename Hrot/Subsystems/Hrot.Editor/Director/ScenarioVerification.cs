@@ -24,7 +24,7 @@ namespace Hrot.Editor.Director
 
         /// <summary>⭐ EVERY named unit with its network id, two that share a name included (📌 <c>hill-attack</c>'s two "M1 Abrams",
         /// <c>test-fire</c>'s two Bradleys) — a name in a check matches every unit that carries it.</summary>
-        IReadOnlyList<(long Id, string Name)> Named();
+        IReadOnlyList<(int Id, string Name)> Named();
 
         /// <summary>The name of the unit at entity INDEX <paramref name="index"/> (the dump writes a held handle as <c>"[index, vGen]"</c>);
         /// null when it has none.</summary>
@@ -34,7 +34,7 @@ namespace Hrot.Editor.Director
         string? BehaviourName(int hash);
 
         /// <summary>The unit's components as the entity dump writes them (<c>{"Health": {...}, ...}</c>); null when it is gone.</summary>
-        JsonObject? Components(long networkId);
+        JsonObject? Components(int networkId);
 
         /// <summary>The shot log's rows, newest first (the <c>/combat/shots</c> rows).</summary>
         JsonArray Shots();
@@ -43,7 +43,7 @@ namespace Hrot.Editor.Director
         JsonArray Blasts();
 
         /// <summary>Patches one component; null when written, else why not.</summary>
-        string? SetComponent(long networkId, string component, JsonObject patch);
+        string? SetComponent(int networkId, string component, JsonObject patch);
     }
 
     /// <summary>One expectation's verdict: <see cref="Time"/> is when it held (or, for <c>never</c>, when it was broken).</summary>
@@ -73,9 +73,9 @@ namespace Hrot.Editor.Director
         private readonly SortedDictionary<long, JsonObject> _shots = new();
         private readonly List<JsonObject> _blasts = new();
         private long _shotFloor = -1, _blastFloor = -1, _blastSeen = -1;
-        private Dictionary<long, string> _nameOf = new();
+        private Dictionary<int, string> _nameOf = new();
         private double _rel;
-        private readonly Dictionary<long, JsonObject?> _comps = new();
+        private readonly Dictionary<int, JsonObject?> _comps = new();
 
         /// <param name="t0">The sim time the run started at (rows carry absolute sim times).</param>
         public ConditionBook(ScenarioChecks checks, IVerifyWorld world, double t0)
@@ -197,13 +197,13 @@ namespace Hrot.Editor.Director
 
         private double Rel(JsonNode? firedAt) => (Num(firedAt) ?? _t0 + _rel) - _t0;
 
-        private JsonObject? Components(long id)
+        private JsonObject? Components(int id)
         {
             if (!_comps.TryGetValue(id, out var c)) _comps[id] = c = _w.Components(id);
             return c;
         }
 
-        private IEnumerable<long> UnitsNamed(string who)
+        private IEnumerable<int> UnitsNamed(string who)
         {
             if (who.StartsWith('*'))
             {
@@ -220,7 +220,7 @@ namespace Hrot.Editor.Director
         private bool Is(JsonNode? unit, string who)
         {
             if (unit is null) return false;
-            string? name = Num(unit) is { } id ? (_nameOf.TryGetValue((long)id, out var n) ? n : null) : unit.ToString();
+            string? name = Num(unit) is { } id ? (_nameOf.TryGetValue((int)id, out var n) ? n : null) : unit.ToString();
             if (name == null) return false;
             return who.StartsWith('*') ? name.Contains(who[1..], StringComparison.Ordinal) : string.Equals(name, who, StringComparison.Ordinal);
         }
@@ -235,7 +235,7 @@ namespace Hrot.Editor.Director
                 var row = (JsonObject)r.DeepClone();
                 row.Remove("crossings");
                 foreach (var k in new[] { "shooter", "target", "hit" })
-                    if (Num(row[k]) is { } id && _nameOf.TryGetValue((long)id, out var n)) row[k] = n;
+                    if (Num(row[k]) is { } id && _nameOf.TryGetValue((int)id, out var n)) row[k] = n;
                 _shots[seq] = row;
             }
             var fresh = new List<JsonObject>();
@@ -246,10 +246,10 @@ namespace Hrot.Editor.Director
                 var row = (JsonObject)r.DeepClone();
                 row.Remove("rays");
                 foreach (var k in new[] { "shooter", "struck" })
-                    if (Num(row[k]) is { } id && _nameOf.TryGetValue((long)id, out var n)) row[k] = n;
+                    if (Num(row[k]) is { } id && _nameOf.TryGetValue((int)id, out var n)) row[k] = n;
                 if (row["effects"] is JsonArray fx)
                     foreach (var x in fx.OfType<JsonObject>())
-                        if (Num(x["entity"]) is { } eid && _nameOf.TryGetValue((long)eid, out var en)) x["entity"] = en;
+                        if (Num(x["entity"]) is { } eid && _nameOf.TryGetValue((int)eid, out var en)) x["entity"] = en;
                 row["seenAt"] = Math.Round(_rel, 4);
                 fresh.Add(row);
             }

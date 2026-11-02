@@ -21,7 +21,7 @@ namespace Hrot.Map.Common.Replication.Egress
     public sealed class EntitySpawnLevelEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<EntitySpawnLevel>? _writer;
-        private readonly Dictionary<long, EntitySpawnLevel> _last = new();
+        private readonly Dictionary<int, EntitySpawnLevel> _last = new();
         private int _worldEpoch;
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.SpawnLevelRequest };
@@ -51,7 +51,7 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var e in view.Query().With<SpawnLevelRequest>().DefaultRoutePublishable().WithLifecycle(EntityLifecycle.All).Build())
             {
                 if (!view.HasAuthority(e, packedKey)) continue;
-                long netId = view.GetComponentRO<NetworkIdentity>(e).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(e).Value;
                 var sample = ToSample(netId, view.GetComponentRO<SpawnLevelRequest>(e));
                 if (_last.TryGetValue(netId, out var prev) && prev.Equals(sample)) continue;
                 _last[netId] = sample;
@@ -61,13 +61,13 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>The wire form (the test seam).</summary>
-        internal static EntitySpawnLevel ToSample(long netId, in SpawnLevelRequest c)
+        internal static EntitySpawnLevel ToSample(int netId, in SpawnLevelRequest c)
             => new() { EntityId = netId, Mode = (byte)c.Mode, Level = c.Level, Resolved = c.Resolved };
 
-        public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntitySpawnLevel { EntityId = networkEntityId });
         }
@@ -127,6 +127,6 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

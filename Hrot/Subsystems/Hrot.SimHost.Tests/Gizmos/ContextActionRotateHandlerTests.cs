@@ -38,7 +38,7 @@ namespace Hrot.SimHost.Tests.Gizmos
         public void SC_ER007_ValidActionName_KnownEntity_PublishesGlobalActionRequestedEvent()
         {
             var entity = _repo.CreateEntity();
-            _entityMap.Register(42L, entity);
+            _entityMap.Register(42, entity);
 
             var interactionBus = new FdpEventBus();
             var sys = new ContextActionIngressSystem(_entityMap, interactionBus);
@@ -91,9 +91,9 @@ namespace Hrot.SimHost.Tests.Gizmos
             var a = _repo.CreateEntity();
             var b = _repo.CreateEntity();
             var first = new NetworkEntityMap();
-            first.Register(7L, a);
+            first.Register(7, a);
             var second = new NetworkEntityMap();
-            second.Register(7L, b);
+            second.Register(7, b);
             NetworkEntityMap? current = first;
             var bus = new FdpEventBus();
             bus.Register<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoMenuActionEvent>();

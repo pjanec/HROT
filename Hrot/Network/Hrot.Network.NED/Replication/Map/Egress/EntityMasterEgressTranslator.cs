@@ -19,8 +19,8 @@ namespace Hrot.Map.Common.Replication.Egress
     {
         private readonly DdsWriter<EntityMaster> _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
-        private readonly HashSet<long> _publishedNetIds = new();
+        private readonly NodeId _localNodeId;
+        private readonly HashSet<int> _publishedNetIds = new();
         private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityMaster>();
@@ -37,11 +37,11 @@ namespace Hrot.Map.Common.Replication.Egress
         public EntityMasterEgressTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
-            long localNodeId)
+            int localNodeId)
         {
             _writer = new DdsWriter<EntityMaster>(participant);
             _entityMap = entityMap;
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <summary>
@@ -134,7 +134,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <summary>
         /// Sends a DDS dispose for the named EntityMaster instance.
         /// </summary>
-        public void Dispose(long networkEntityId)
+        public void Dispose(int networkEntityId)
         {
             _writer.DisposeInstance(new EntityMaster { EntityId = networkEntityId });
             _publishedNetIds.Remove(networkEntityId);

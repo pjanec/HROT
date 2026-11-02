@@ -33,7 +33,7 @@ namespace Hrot.Presentation.Tests.Gizmos
 
         public void Dispose() => _world.Dispose();
 
-        private Entity Spawn(long id)
+        private Entity Spawn(int id)
         {
             var e = _world.CreateEntity();
             _world.AddComponent(e, new SimTransform { Position = new Vector3(10f, 20f, 0f) });
@@ -160,7 +160,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void TheSelfCheck_ReportsOnceAndThenReportsRecovery()
         {
-            var entity = Spawn(400L);
+            var entity = Spawn(400);
 
             var reports = new List<string>();
             var buffer = new DebugPrimitiveBuffer();
@@ -180,7 +180,7 @@ namespace Hrot.Presentation.Tests.Gizmos
             {
                 buffer.Clear();
                 Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmoShared.DrawSemanticShape(
-                    buffer, 400L, 0UL, 5f, 2f, conditionMask: 0u);
+                    buffer, 400, 0UL, 5f, 2f, conditionMask: 0u);
                 selfCheck.Execute(_world, 0.016f);
             }
 

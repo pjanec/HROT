@@ -110,7 +110,7 @@ public sealed class TranslatorRoundTripTests : IDisposable
         //    we publish directly to bus so the master sees the node immediately) ──
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = 1,
+            NodeId        = (Fdp.Core.NodeId)(1),
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
             SubsystemName = "SimHost",

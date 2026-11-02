@@ -18,7 +18,7 @@ namespace Fdp.Toolkit.Motion
         public RouteWaypointKind Kind;
         public RouteHold Hold;
         public float HoldSeconds;
-        public long HoldUnit;
+        public int HoldUnit;
         /// <summary>The route's end (a non-looping route): the order is done here.</summary>
         public bool Last;
     }
@@ -43,7 +43,7 @@ namespace Fdp.Toolkit.Motion
         //   frame (docs/DESIGN_Replay_Census_H0.md §2), and a record per step would allocate per aircraft per frame.
 
         // ── what it was compiled from ──
-        public long RouteEntityId { get; init; }
+        public int RouteEntityId { get; init; }
         public int RouteVersion { get; init; }
         public uint IntentId { get; init; }
         public bool Loop { get; init; }

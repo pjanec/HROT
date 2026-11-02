@@ -70,7 +70,7 @@ public sealed class EqsDistributedTests
             int count = sensor.SearchRadius <= 10f ? 1 : 2;
             count = Math.Min(count, candidates.Length);
             for (int i = 0; i < count; i++)
-                candidates[i] = new EqsResult { EntityId = 0L, PositionX = (float)i, PositionY = 0f };
+                candidates[i] = new EqsResult { EntityId = 0, PositionX = (float)i, PositionY = 0f };
             return count;
         }
     }
@@ -97,7 +97,7 @@ public sealed class EqsDistributedTests
         harness.SimHost.World!.SetSingletonManaged<IEqsTemplateRegistry>(registry);
 
         // Spawn entity with split authority: Brain owns cognition, Muscle owns kinematics.
-        long networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
+        int networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         // Wait for the Muscle ghost entity to appear.
@@ -155,7 +155,7 @@ public sealed class EqsDistributedTests
         harness.SimHost.World!.SetSingletonManaged<IEqsTemplateRegistry>(registry);
 
         // Spawn entity with split authority.
-        long networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
+        int networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         bool entityReady = harness.PumpUntil(
@@ -198,9 +198,9 @@ public sealed class EqsDistributedTests
         });
 
         // Inject a stale EqsResultUpdateEvent (epoch=1, 99 fake results) directly on the Brain bus.
-        var staleResults = new List<EqsResultEntry>();
+        var staleResults = new List<EqsResult>();
         for (int i = 0; i < 99; i++)
-            staleResults.Add(new EqsResultEntry { EntityId = 0L });
+            staleResults.Add(new EqsResult { EntityId = 0 });
         harness.Cgf!.World!.Bus.PublishManaged(new EqsResultUpdateEvent
         {
             Observer    = cgfEntity,
@@ -249,7 +249,7 @@ public sealed class EqsDistributedTests
         harness.SimHost.World!.SetSingletonManaged<IEqsTemplateRegistry>(registry);
 
         // Spawn entity with split authority.
-        long networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
+        int networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         bool entityReady = harness.PumpUntil(
@@ -316,18 +316,18 @@ public sealed class EqsDistributedTests
         var sim = harness.SimHost.World!;
 
         // ── Muscle-owned world: the area and the targets (SimHost simulates them) ──
-        long areaNet     = SpawnOnMuscle(harness, TkbEntityTypes.TacGraphic_Area);
-        long hostileA    = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
-        long hostileB    = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
-        long hostileOut  = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
-        long friendlyIn  = SpawnOnMuscle(harness, TkbEntityTypes.Tank_M1Abrams);
-        long wreckIn     = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
+        int areaNet     = SpawnOnMuscle(harness, TkbEntityTypes.TacGraphic_Area);
+        int hostileA    = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
+        int hostileB    = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
+        int hostileOut  = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
+        int friendlyIn  = SpawnOnMuscle(harness, TkbEntityTypes.Tank_M1Abrams);
+        int wreckIn     = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
 
         // ── Brain-owned commander (every parent has a NetworkIdentity) ──
-        long commanderNet = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
+        int commanderNet = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
-        long[] everything = { areaNet, hostileA, hostileB, hostileOut, friendlyIn, wreckIn, commanderNet };
+        int[] everything = { areaNet, hostileA, hostileB, hostileOut, friendlyIn, wreckIn, commanderNet };
         Assert.True(harness.PumpUntil(() => everything.All(n =>
                 harness.SimHost.TestHook_EntityMap.TryGetEntity(n, out _)
              && harness.Cgf!.GhostEntityMap!.TryGetEntity(n, out _)), timeoutFrames: 3000),
@@ -369,7 +369,7 @@ public sealed class EqsDistributedTests
         cgf.AddComponent(sensor, EntitiesOfForceInArea.SensorFor(cgfArea, ForceId.Hostile));
         cgf.AddComponent(sensor, new EqsCognitiveBuffer());
 
-        var expected = new SortedSet<long> { hostileA, hostileB };
+        var expected = new SortedSet<int> { hostileA, hostileB };
 
         // Stage 1: the Muscle holds the carrier, with the area resolved, and a production registry.
         Assert.True(harness.PumpUntil(() => MuscleCarrierArea(harness, commanderNet) == SimEntity(harness, areaNet),
@@ -392,7 +392,7 @@ public sealed class EqsDistributedTests
 
         // ── A target leaves the area: EQS must drop it ──
         Place(sim, SimEntity(harness, hostileB), 400f, -300f, ForceId.Hostile);
-        var afterMove = new SortedSet<long> { hostileA };
+        var afterMove = new SortedSet<int> { hostileA };
         Assert.True(harness.PumpUntil(() => SameSet(EqsTargets(harness, sensor), afterMove), timeoutFrames: 3000),
             "EQS must drop a hostile that left the area.");
     }
@@ -415,8 +415,8 @@ public sealed class EqsDistributedTests
         sim.SetSingletonManaged(town);
         sim.SetSingletonManaged<ICoverProvider>(TerrainCoverProvider.Build(town));
 
-        long threatNet    = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
-        long commanderNet = SpawnOnMuscle(harness, TkbEntityTypes.Tank_M1Abrams);   // Muscle-owned: its position is placed there
+        int threatNet    = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
+        int commanderNet = SpawnOnMuscle(harness, TkbEntityTypes.Tank_M1Abrams);   // Muscle-owned: its position is placed there
         Assert.True(harness.PumpUntil(() => new[] { threatNet, commanderNet }.All(n =>
                 harness.SimHost.TestHook_EntityMap.TryGetEntity(n, out _)
              && harness.Cgf!.GhostEntityMap!.TryGetEntity(n, out _)), timeoutFrames: 3000),
@@ -484,8 +484,8 @@ public sealed class EqsDistributedTests
         // ⭐ CE-3138 — the crossing unit is a RIFLEMAN, as in the ua-danger-crossing demo (§10.3): to a person an armed watcher is
         //   danger 1. Since CE-2165 V1 a VEHICLE rates it by what penetrates its armour — a T-72 on an Abrams's front read 0.50,
         //   on the threshold, and this rail stayed red for that reason, not for the rating path it guards.
-        long unitNet    = SpawnOnMuscle(harness, TkbEntityTypes.Infantry_Rifleman);
-        long watcherNet = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
+        int unitNet    = SpawnOnMuscle(harness, TkbEntityTypes.Infantry_Rifleman);
+        int watcherNet = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
         Assert.True(harness.PumpUntil(() => new[] { unitNet, watcherNet }.All(n =>
                 harness.SimHost.TestHook_EntityMap.TryGetEntity(n, out _)
              && harness.Cgf!.GhostEntityMap!.TryGetEntity(n, out _)), timeoutFrames: 3000),
@@ -547,7 +547,7 @@ public sealed class EqsDistributedTests
         }
         int houseA = range.Buildings.ToList().FindIndex(b => b.Label == "House A");
 
-        long unitNet = SpawnOnMuscle(harness, TkbEntityTypes.Infantry_Rifleman);
+        int unitNet = SpawnOnMuscle(harness, TkbEntityTypes.Infantry_Rifleman);
         Assert.True(harness.PumpUntil(() => harness.SimHost.TestHook_EntityMap.TryGetEntity(unitNet, out _)
              && harness.Cgf!.GhostEntityMap!.TryGetEntity(unitNet, out _), timeoutFrames: 3000),
             "The unit must exist on the Muscle and the Brain.");
@@ -610,7 +610,7 @@ public sealed class EqsDistributedTests
         if (sim.HasSingletonManaged<CarKinem.Road.RoadNetworkHolder>()) sim.GetSingletonManaged<CarKinem.Road.RoadNetworkHolder>()!.Publish(roads);
         else sim.SetSingletonManaged(new CarKinem.Road.RoadNetworkHolder(roads, takeOwnership: true));
 
-        long unitNet = SpawnOnMuscle(harness, TkbEntityTypes.Tank_M1Abrams);
+        int unitNet = SpawnOnMuscle(harness, TkbEntityTypes.Tank_M1Abrams);
         Assert.True(harness.PumpUntil(() => harness.SimHost.TestHook_EntityMap.TryGetEntity(unitNet, out _)
              && harness.Cgf!.GhostEntityMap!.TryGetEntity(unitNet, out _), timeoutFrames: 3000),
             "The unit must exist on the Muscle and the Brain.");
@@ -646,14 +646,14 @@ public sealed class EqsDistributedTests
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
         var sim = harness.SimHost.World!;
 
-        long areaOne  = SpawnOnMuscle(harness, TkbEntityTypes.TacGraphic_Area);
-        long areaTwo  = SpawnOnMuscle(harness, TkbEntityTypes.TacGraphic_Area);
-        long inOne    = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
-        long inTwo    = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
-        long commanderNet = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
+        int areaOne  = SpawnOnMuscle(harness, TkbEntityTypes.TacGraphic_Area);
+        int areaTwo  = SpawnOnMuscle(harness, TkbEntityTypes.TacGraphic_Area);
+        int inOne    = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
+        int inTwo    = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
+        int commanderNet = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
-        long[] everything = { areaOne, areaTwo, inOne, inTwo, commanderNet };
+        int[] everything = { areaOne, areaTwo, inOne, inTwo, commanderNet };
         Assert.True(harness.PumpUntil(() => everything.All(n =>
                 harness.SimHost.TestHook_EntityMap.TryGetEntity(n, out _)
              && harness.Cgf!.GhostEntityMap!.TryGetEntity(n, out _)), timeoutFrames: 3000),
@@ -679,13 +679,13 @@ public sealed class EqsDistributedTests
         cgf.AddComponent(sensor, EntitiesOfForceInArea.SensorFor(cgfAreaOne, ForceId.Hostile, epoch: 1u));
         cgf.AddComponent(sensor, new EqsCognitiveBuffer());
 
-        Assert.True(harness.PumpUntil(() => SameSet(EqsTargets(harness, sensor), new SortedSet<long> { inOne }), timeoutFrames: 3000),
+        Assert.True(harness.PumpUntil(() => SameSet(EqsTargets(harness, sensor), new SortedSet<int> { inOne }), timeoutFrames: 3000),
             "The sensor must first report the hostile inside area one.");
 
         // Same sensor, new area, next epoch — no remove / re-add.
         cgf.SetComponent(sensor, EntitiesOfForceInArea.SensorFor(cgfAreaTwo, ForceId.Hostile, epoch: 2u));
 
-        Assert.True(harness.PumpUntil(() => SameSet(EqsTargets(harness, sensor), new SortedSet<long> { inTwo }), timeoutFrames: 3000),
+        Assert.True(harness.PumpUntil(() => SameSet(EqsTargets(harness, sensor), new SortedSet<int> { inTwo }), timeoutFrames: 3000),
             $"A parameter change must reach the Muscle and switch the answer to area two. " +
             $"muscle carrier slot1={MuscleCarrierArea(harness, commanderNet)} (areaTwo={SimEntity(harness, areaTwo)}, " +
             $"epoch={MuscleCarrierEpoch(harness, commanderNet)}); brain answer=[{string.Join(",", EqsTargets(harness, sensor))}] " +
@@ -706,11 +706,11 @@ public sealed class EqsDistributedTests
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
         var sim = harness.SimHost.World!;
 
-        long area         = SpawnOnMuscle(harness, TkbEntityTypes.TacGraphic_Area);
-        long inside       = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
-        long commanderNet = SpawnOnMuscle(harness, TkbEntityTypes.Tank_M1Abrams);   // ⭐ created by SimHost
+        int area         = SpawnOnMuscle(harness, TkbEntityTypes.TacGraphic_Area);
+        int inside       = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
+        int commanderNet = SpawnOnMuscle(harness, TkbEntityTypes.Tank_M1Abrams);   // ⭐ created by SimHost
 
-        long[] everything = { area, inside, commanderNet };
+        int[] everything = { area, inside, commanderNet };
         Assert.True(harness.PumpUntil(() => everything.All(n =>
                 harness.SimHost.TestHook_EntityMap.TryGetEntity(n, out _)
              && harness.Cgf!.GhostEntityMap!.TryGetEntity(n, out _)), timeoutFrames: 3000),
@@ -739,7 +739,7 @@ public sealed class EqsDistributedTests
         cgf.AddComponent(sensor, EntitiesOfForceInArea.SensorFor(cgfArea, ForceId.Hostile, epoch: 1u));
         cgf.AddComponent(sensor, new EqsCognitiveBuffer());
 
-        Assert.True(harness.PumpUntil(() => SameSet(EqsTargets(harness, sensor), new SortedSet<long> { inside }), timeoutFrames: 3000),
+        Assert.True(harness.PumpUntil(() => SameSet(EqsTargets(harness, sensor), new SortedSet<int> { inside }), timeoutFrames: 3000),
             $"EQS must answer for a sensor on a Muscle-created commander. muscle carrier slot1={MuscleCarrierArea(harness, commanderNet)}; " +
             $"brain answer=[{string.Join(",", EqsTargets(harness, sensor))}]");
     }
@@ -760,16 +760,16 @@ public sealed class EqsDistributedTests
     public void Parity_UnderRuntimeChanges()
     {
         using var rig = new ParityRig();
-        long area     = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
-        long stays    = rig.Spawn(TkbEntityTypes.Tank_T72);
-        long enters   = rig.Spawn(TkbEntityTypes.Tank_T72);
-        long dies     = rig.Spawn(TkbEntityTypes.Tank_T72);
-        long turnsHostile = rig.Spawn(TkbEntityTypes.Tank_M1Abrams);
-        long turnsFriend  = rig.Spawn(TkbEntityTypes.Tank_T72);
-        long deleted  = rig.Spawn(TkbEntityTypes.Tank_T72);
-        long leaves   = rig.Spawn(TkbEntityTypes.Tank_T72);
-        long atNewArea = rig.Spawn(TkbEntityTypes.Tank_T72);
-        long commander = rig.Commander();
+        int area     = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
+        int stays    = rig.Spawn(TkbEntityTypes.Tank_T72);
+        int enters   = rig.Spawn(TkbEntityTypes.Tank_T72);
+        int dies     = rig.Spawn(TkbEntityTypes.Tank_T72);
+        int turnsHostile = rig.Spawn(TkbEntityTypes.Tank_M1Abrams);
+        int turnsFriend  = rig.Spawn(TkbEntityTypes.Tank_T72);
+        int deleted  = rig.Spawn(TkbEntityTypes.Tank_T72);
+        int leaves   = rig.Spawn(TkbEntityTypes.Tank_T72);
+        int atNewArea = rig.Spawn(TkbEntityTypes.Tank_T72);
+        int commander = rig.Commander();
         rig.WaitReplicated();
 
         rig.Area(area, 100f, 100f, Square(50f));
@@ -823,17 +823,17 @@ public sealed class EqsDistributedTests
     public void Parity_OnConcaveAndIrregularAreas_WithConcurrentSensors()
     {
         using var rig = new ParityRig();
-        long lArea     = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
-        long triangle  = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
-        long inArmOne  = rig.Spawn(TkbEntityTypes.Tank_T72);
-        long inArmTwo  = rig.Spawn(TkbEntityTypes.Tank_T72);
-        long inNotch   = rig.Spawn(TkbEntityTypes.Tank_T72);
-        long onEdge    = rig.Spawn(TkbEntityTypes.Tank_T72);
-        long friendInL = rig.Spawn(TkbEntityTypes.Tank_M1Abrams);
-        long inTri     = rig.Spawn(TkbEntityTypes.Tank_T72);
-        long bboxOnly  = rig.Spawn(TkbEntityTypes.Tank_T72);
-        long commanderA = rig.Commander();
-        long commanderB = rig.Commander();
+        int lArea     = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
+        int triangle  = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
+        int inArmOne  = rig.Spawn(TkbEntityTypes.Tank_T72);
+        int inArmTwo  = rig.Spawn(TkbEntityTypes.Tank_T72);
+        int inNotch   = rig.Spawn(TkbEntityTypes.Tank_T72);
+        int onEdge    = rig.Spawn(TkbEntityTypes.Tank_T72);
+        int friendInL = rig.Spawn(TkbEntityTypes.Tank_M1Abrams);
+        int inTri     = rig.Spawn(TkbEntityTypes.Tank_T72);
+        int bboxOnly  = rig.Spawn(TkbEntityTypes.Tank_T72);
+        int commanderA = rig.Commander();
+        int commanderB = rig.Commander();
         rig.WaitReplicated();
 
         // L: arms along +x and +y, the notch is the square (20..60, 20..60).
@@ -870,9 +870,9 @@ public sealed class EqsDistributedTests
     public void MoreThan16Targets_EqsReturns16_AllOfThemInside()
     {
         using var rig = new ParityRig();
-        long area = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
+        int area = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
         var targets = Enumerable.Range(0, 20).Select(_ => rig.Spawn(TkbEntityTypes.Tank_T72)).ToArray();
-        long commander = rig.Commander();
+        int commander = rig.Commander();
         rig.WaitReplicated();
 
         rig.Area(area, 100f, 100f, Square(50f));
@@ -896,9 +896,9 @@ public sealed class EqsDistributedTests
     public void AnAreaWithoutAPolygon_EqsPublishesNothing_UntilThePolygonArrives()
     {
         using var rig = new ParityRig();
-        long area   = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
-        long inside = rig.Spawn(TkbEntityTypes.Tank_T72);
-        long commander = rig.Commander();
+        int area   = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
+        int inside = rig.Spawn(TkbEntityTypes.Tank_T72);
+        int commander = rig.Commander();
         rig.WaitReplicated();
 
         rig.Area(area, 100f, 100f, new(-50, -50), new(50, 50));
@@ -924,11 +924,11 @@ public sealed class EqsDistributedTests
     public void BeyondThePerceptionGrid_EqsSeesTargets()
     {
         using var rig = new ParityRig();
-        long farArea  = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
-        long westArea = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
-        long far  = rig.Spawn(TkbEntityTypes.Tank_T72);
-        long west = rig.Spawn(TkbEntityTypes.Tank_T72);
-        long commander = rig.Commander();
+        int farArea  = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
+        int westArea = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
+        int far  = rig.Spawn(TkbEntityTypes.Tank_T72);
+        int west = rig.Spawn(TkbEntityTypes.Tank_T72);
+        int commander = rig.Commander();
         rig.WaitReplicated();
 
         rig.Area(farArea,  1500f, 500f, Square(50f));   // beyond x = 1000
@@ -945,7 +945,7 @@ public sealed class EqsDistributedTests
     private static Vector2[] Square(float half)
         => new Vector2[] { new(-half, -half), new(half, -half), new(half, half), new(-half, half) };
 
-    private static SortedSet<long> Set(params long[] nets) => new(nets);
+    private static SortedSet<int> Set(params int[] nets) => new(nets);
 
     /// <summary>A real CGF Brain + SimHost Muscle over DDS, and the moves a parity scenario makes.</summary>
     private sealed class ParityRig : IDisposable
@@ -953,17 +953,17 @@ public sealed class EqsDistributedTests
         public readonly HrotRunnerHarness H;
         public EntityRepository Sim => H.SimHost.World!;
         public EntityRepository Cgf => H.Cgf!.World!;
-        private readonly List<long> _all = new();
+        private readonly List<int> _all = new();
 
         public ParityRig() => H = new HrotRunnerHarness("simhost,cgf", Interlocked.Increment(ref _domainCounter));
         public void Dispose() => H.Dispose();
 
-        public long Spawn(long tkbType) { long n = SpawnOnMuscle(H, tkbType); _all.Add(n); return n; }
+        public int Spawn(long tkbType) { int n = SpawnOnMuscle(H, tkbType); _all.Add(n); return n; }
 
         // Brain-owned, with a NetworkIdentity — every sensor parent has one.
-        public long Commander()
+        public int Commander()
         {
-            long n = H.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
+            int n = H.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
             _all.Add(n);
             return n;
         }
@@ -974,28 +974,28 @@ public sealed class EqsDistributedTests
                  && H.Cgf!.GhostEntityMap!.TryGetEntity(n, out _)), timeoutFrames: 3000),
                 "All entities must exist on both the Muscle and the Brain.");
 
-        public Entity Brain(long net)
+        public Entity Brain(int net)
         {
             Assert.True(H.Cgf!.GhostEntityMap!.TryGetEntity(net, out Entity e), $"{net} has no Brain entity");
             return e;
         }
 
         // Polygon points are RELATIVE to the area's position.
-        public void Area(long net, float x, float y, params Vector2[] points)
+        public void Area(int net, float x, float y, params Vector2[] points)
         {
             var e = SimEntity(H, net);
             Place(Sim, e, x, y, ForceId.Neutral);
             Sim.SetManagedComponent(e, new EditablePolyline { Points = new List<Vector2>(points) });
         }
 
-        public void Put(long net, float x, float y, ForceId force, float? health = null)
+        public void Put(int net, float x, float y, ForceId force, float? health = null)
         {
             Place(Sim, SimEntity(H, net), x, y, force);
             // ⭐ S8: Health is owned by the Brain group's holder — kill on that node, never on a replica.
             if (health is float h) { Assert.Equal(0f, h); KillOnTheHealthOwner(H, net); }
         }
 
-        public void Delete(long net)
+        public void Delete(int net)
         {
             var e = SimEntity(H, net);
             H.SimHost.World!.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand
@@ -1008,7 +1008,7 @@ public sealed class EqsDistributedTests
             _all.Remove(net);
         }
 
-        public Entity Sensor(long commanderNet, int childIndex, long areaNet, ForceId force)
+        public Entity Sensor(int commanderNet, int childIndex, int areaNet, ForceId force)
         {
             Entity sensor = Cgf.CreateEntity();
             Cgf.AddComponent(sensor, new PartMetadata { ParentEntity = Brain(commanderNet), InstanceId = childIndex });
@@ -1017,14 +1017,14 @@ public sealed class EqsDistributedTests
             return sensor;
         }
 
-        public void WaitForces(params (ForceId Force, long[] Nets)[] groups)
+        public void WaitForces(params (ForceId Force, int[] Nets)[] groups)
             => Assert.True(H.PumpUntil(() => groups.All(g => ForceIs(H, g.Force, g.Nets)), timeoutFrames: 2000),
                 $"Forces must settle on the Muscle. {Describe(H, _all.ToArray())}");
 
         /// <summary>EQS settles on <paramref name="expected"/> on the Brain.</summary>
         /// <remarks>⚠ <paramref name="commanderNet"/>, <paramref name="areaNet"/> and <paramref name="force"/>
         /// name the question for the failure message; they are what the retired AreaQuery comparison asked.</remarks>
-        public void Converge(string step, Entity sensor, long commanderNet, long areaNet, ForceId force, SortedSet<long> expected)
+        public void Converge(string step, Entity sensor, int commanderNet, int areaNet, ForceId force, SortedSet<int> expected)
             => Assert.True(H.PumpUntil(() => SameSet(EqsTargets(H, sensor), expected), timeoutFrames: 3000),
                 $"[{step}] EQS ({force} in area {areaNet}, commander {commanderNet}): expected [{string.Join(",", expected)}], " +
                 $"got [{string.Join(",", EqsTargets(H, sensor))}]. Muscle: {Describe(H, _all.ToArray())}");
@@ -1042,7 +1042,7 @@ public sealed class EqsDistributedTests
     private sealed class LifecycleRig : IDisposable
     {
         public readonly HrotRunnerHarness H;
-        public readonly long Commander;
+        public readonly int Commander;
         public EntityRepository Sim => H.SimHost.World!;
         public EntityRepository Cgf => H.Cgf!.World!;
 
@@ -1060,14 +1060,14 @@ public sealed class EqsDistributedTests
                 "The commander must exist on both nodes.");
         }
 
-        private long CreateThroughThePack(long tkb)
+        private int CreateThroughThePack(long tkb)
         {
             var creation = ((Hrot.Common.EntityCreation.IEntityCreationHost)H.Cgf!).EntityCreation!;
             creation.Publish(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
             {
-                RequestId = Guid.NewGuid(), OwnerAppInstanceId = H.Cgf!.TestHook_NodeId, TkbType = tkb,
+                RequestId = Guid.NewGuid(), OwnerAppInstanceId = H.Cgf!.TestHook_NodeId, TkbType = (Fdp.Core.TkbTypeId)(tkb),
             });
-            long net = 0;
+            int net = 0;
             Assert.True(H.PumpUntil(() =>
             {
                 foreach (var e in Cgf.Query().With<TkbIdentity>().With<NetworkIdentity>().Build())
@@ -1254,7 +1254,7 @@ public sealed class EqsDistributedTests
     {
         public int Generate(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
         {
-            candidates[0] = new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 0f, Score = 1f };
+            candidates[0] = new EqsResult { EntityId = 0, PositionX = 1f, PositionY = 0f, Score = 1f };
             return 1;
         }
     }
@@ -1719,7 +1719,7 @@ public sealed class EqsDistributedTests
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     // The Muscle-side carrier of the commander's area sensor, and the area it resolved.
-    private static Entity MuscleCarrierArea(HrotRunnerHarness harness, long commanderNet)
+    private static Entity MuscleCarrierArea(HrotRunnerHarness harness, int commanderNet)
     {
         var sim = harness.SimHost.World!;
         if (!harness.SimHost.TestHook_EntityMap.TryGetEntity(commanderNet, out Entity parent)) return Entity.Null;
@@ -1732,7 +1732,7 @@ public sealed class EqsDistributedTests
         return new Entity(ulong.MaxValue); // no carrier yet
     }
 
-    private static bool ForceIs(HrotRunnerHarness harness, ForceId force, params long[] nets)
+    private static bool ForceIs(HrotRunnerHarness harness, ForceId force, params int[] nets)
     {
         var sim = harness.SimHost.World!;
         foreach (var n in nets)
@@ -1743,7 +1743,7 @@ public sealed class EqsDistributedTests
         return true;
     }
 
-    private static string Describe(HrotRunnerHarness harness, long[] nets)
+    private static string Describe(HrotRunnerHarness harness, int[] nets)
     {
         var sim = harness.SimHost.World!;
         var parts = new List<string>();
@@ -1763,7 +1763,7 @@ public sealed class EqsDistributedTests
         return string.Join(" ", parts);
     }
 
-    private static uint MuscleCarrierEpoch(HrotRunnerHarness harness, long commanderNet)
+    private static uint MuscleCarrierEpoch(HrotRunnerHarness harness, int commanderNet)
     {
         var sim = harness.SimHost.World!;
         if (!harness.SimHost.TestHook_EntityMap.TryGetEntity(commanderNet, out Entity parent)) return 0;
@@ -1801,11 +1801,11 @@ public sealed class EqsDistributedTests
         return sb.ToString();
     }
 
-    private static long SpawnOnMuscle(HrotRunnerHarness harness, long tkbType)
+    private static int SpawnOnMuscle(HrotRunnerHarness harness, long tkbType)
         => harness.SimHost.TestHook_SpawnEntity(
             tkbType, new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 });
 
-    private static Entity SimEntity(HrotRunnerHarness harness, long networkId)
+    private static Entity SimEntity(HrotRunnerHarness harness, int networkId)
     {
         Assert.True(harness.SimHost.TestHook_EntityMap.TryGetEntity(networkId, out Entity e));
         return e;
@@ -1814,7 +1814,7 @@ public sealed class EqsDistributedTests
     // Sets position, force and (optionally) health on the Muscle, which owns these entities.
     /// <summary>Sets <see cref="Health"/> to 0 on whichever node claims it (the Brain group's owner); every replica then
     /// follows through <c>dtEntityDamage</c>.</summary>
-    private static void KillOnTheHealthOwner(HrotRunnerHarness harness, long net)
+    private static void KillOnTheHealthOwner(HrotRunnerHarness harness, int net)
     {
         Assert.True(harness.PumpUntil(() => Owner() != null, timeoutFrames: 2000),
             $"Some node must claim Health of {net}.");
@@ -1869,9 +1869,9 @@ public sealed class EqsDistributedTests
     }
 
     // The EQS answer on the Brain, as network ids (empty until the buffer is ready).
-    private static SortedSet<long> EqsTargets(HrotRunnerHarness harness, Entity sensor)
+    private static SortedSet<int> EqsTargets(HrotRunnerHarness harness, Entity sensor)
     {
-        var result = new SortedSet<long>();
+        var result = new SortedSet<int>();
         var world  = harness.Cgf!.World!;
         if (!world.HasComponent<EqsCognitiveBuffer>(sensor)) return result;
         ref readonly var buf = ref world.GetComponentRO<EqsCognitiveBuffer>(sensor);
@@ -1880,11 +1880,11 @@ public sealed class EqsDistributedTests
         for (int i = 0; i < buf.Count; i++)
         {
             var local = new Entity((ulong)span[i].EntityId);
-            result.Add(harness.Cgf!.GhostEntityMap!.TryGetNetworkId(local, out long net) ? net : -span[i].EntityId);
+            result.Add(harness.Cgf!.GhostEntityMap!.TryGetNetworkId(local, out int net) ? net : unchecked((int)-span[i].EntityId));
         }
         return result;
     }
 
 
-    private static bool SameSet(SortedSet<long> actual, SortedSet<long> expected) => actual.SetEquals(expected);
+    private static bool SameSet(SortedSet<int> actual, SortedSet<int> expected) => actual.SetEquals(expected);
 }

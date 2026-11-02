@@ -65,7 +65,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 var from = new Vector3(c.PositionX, c.PositionY, c.PositionZ + height + ClearanceM);
                 bool covered = !los.HasLineOfSight(from, from + new Vector3(0, 0, RangeM));
                 if (Require == OverheadRequire.Score) { if (covered) c.Score += Weight; }
-                else if (!covered) c.EntityId = -1L;
+                else if (!covered) c.EntityId = -1;
             }
         }
     }

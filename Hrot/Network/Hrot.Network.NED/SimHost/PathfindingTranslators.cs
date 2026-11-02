@@ -12,6 +12,7 @@ using Fdp.ModuleHost.Abstractions;
 using Hrot.Map.Common.Replication.Utils;
 using Hrot.NED.Common;
 using Hrot.NED.Descriptors;
+using NodeId = Fdp.Core.NodeId;
 
 namespace Hrot.Network.NED.SimHost
 {
@@ -27,7 +28,7 @@ namespace Hrot.Network.NED.SimHost
     public sealed class PathRequestBrainEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<PathRequestBatch>? _writer;
-        private readonly int _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtPathRequestBatch;
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<PathRequestBatch>();
@@ -41,7 +42,7 @@ namespace Hrot.Network.NED.SimHost
             IGeographicTransform geoTransform,
             int                  localNodeId = 0)
         {
-            _localNodeId  = localNodeId;
+            _localNodeId  = (Fdp.Core.NodeId)(localNodeId);
             _writer       = participant != null ? new DdsWriter<PathRequestBatch>(participant) : null;
         }
 
@@ -113,7 +114,7 @@ namespace Hrot.Network.NED.SimHost
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>
@@ -128,7 +129,7 @@ namespace Hrot.Network.NED.SimHost
     {
         private readonly DdsReader<PathResponseBatch>? _reader;
         private readonly TrajectoryPoolManager _trajectoryPool;
-        private readonly int _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtPathResponseBatch;
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<PathResponseBatch>();
@@ -144,7 +145,7 @@ namespace Hrot.Network.NED.SimHost
             int                   localNodeId = 0)
         {
             _trajectoryPool = trajectoryPool ?? throw new ArgumentNullException(nameof(trajectoryPool));
-            _localNodeId    = localNodeId;
+            _localNodeId    = (Fdp.Core.NodeId)(localNodeId);
             _reader         = participant != null ? new DdsReader<PathResponseBatch>(participant) : null;
         }
 
@@ -218,7 +219,7 @@ namespace Hrot.Network.NED.SimHost
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     // ── Solver-side pathfinding translators (NavigationSolver -> Brain) ────────────
@@ -292,14 +293,14 @@ namespace Hrot.Network.NED.SimHost
                     RoadUse         = (RoadUse)ddsReq.RoadUse,
                     TurnRadius      = ddsReq.TurnRadius,   // ⭐ CE-3200
                     // Stamp the originating Brain node ID for demultiplexing on egress.
-                    SourceNodeId    = data.SourceNodeId,
+                    SourceNodeId    = (Fdp.Core.NodeId)(data.SourceNodeId),
                 });
             }
         }
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>
@@ -423,7 +424,7 @@ namespace Hrot.Network.NED.SimHost
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }
 

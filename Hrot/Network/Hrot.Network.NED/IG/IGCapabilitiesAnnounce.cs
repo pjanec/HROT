@@ -1,5 +1,4 @@
 using CycloneDDS.Schema;
-using Fdp.Toolkit.Diagnostics.Gizmos;
 
 namespace Hrot.IG.Gizmos
 {
@@ -11,7 +10,7 @@ namespace Hrot.IG.Gizmos
     public partial struct IGCapabilitiesAnnounce
     {
         [DdsKey] public uint NodeId;
-        public PipelineTarget SupportedTargets;
+        public PipelineTargetWire SupportedTargets;
         public ushort SupportedLayerMask;
         public uint SupportedShapeMask;
         [DdsManaged] public string LayerNamesJson;
@@ -19,5 +18,21 @@ namespace Hrot.IG.Gizmos
         // "[]" for dumb-terminal IG (no local gizmo plugins after GZ038).
         // MUST NOT be conflated with LayerNamesJson (which describes the layer folder hierarchy).
         [DdsManaged] public string RegisteredGizmosJson;
+    }
+
+    /// <summary>
+    /// ⭐ CE-4208 (R-134) — the WIRE twin of the engine's <c>Fdp.Toolkit.Diagnostics.Gizmos.PipelineTarget</c> (GizmoMap.Contracts):
+    /// same member names, same values, same underlying type. Converted at the publisher / receiver, never cast on the engine path.
+    /// A rail pins every engine member to an equal-valued member here.
+    /// </summary>
+    [System.Flags]
+    public enum PipelineTargetWire : byte
+    {
+        None       = 0,
+        Map2D      = 1,
+        Viewport3D = 2,
+        NodeGraph  = 4,
+        All        = 7,
+        FlatOnly   = 8,
     }
 }

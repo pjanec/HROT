@@ -36,7 +36,7 @@
       },
       "Behavior": {
         "Name": "AirPlatformStrike",
-        "Params": "{\"Location\":[300,600],\"Target\":7952}",
+        "Params": "{\"Location\":[600,300,0],\"Target\":7952}",
         "Origin": "Superior"
       }
     },

@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System.Numerics;
 using System.Text.Json.Serialization;
 using Fdp.Core;
@@ -17,11 +18,11 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>Where the support squad goes (sim metres, Z up).</summary>
         [JsonPropertyName("SupportPoint")]
-        public Vector3 SupportPoint;
+        public PointLink SupportPoint;
 
         /// <summary>Where the assault squad goes once the support squad is set (sim metres, Z up).</summary>
         [JsonPropertyName("Objective")]
-        public Vector3 Objective;
+        public PointLink Objective;
 
         /// <summary>The support squad's place in the roster, 1-based; 0 = 2 (Bravo).</summary>
         [JsonPropertyName("SupportSquad")]

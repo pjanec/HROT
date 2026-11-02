@@ -116,7 +116,7 @@ namespace Fdp.Toolkit.Combat.Components
         /// Bullet's SimTransform.Position from the PREVIOUS frame.
         /// Set to origin on spawn; updated by BallisticsSystem BEFORE LinearKinematicsSystem runs.
         /// </summary>
-        public Vector3 PreviousPosition;
+        public WorldPoint PreviousPosition;
 
         /// <summary>Damage of one penetrating hit (⭐ <c>CE-3071</c>: the fired mount's <c>DamagePerHit</c>; 0 = unknown munition).</summary>
         public float Damage;
@@ -136,7 +136,7 @@ namespace Fdp.Toolkit.Combat.Components
         /// (<see cref="TerrainPenetration.Carry"/>) — exact however many ticks a segment's raycast takes to resolve (three: the
         /// request is played back after the next tick's Input, solved in the one after, its result read in the third).
         /// </summary>
-        public Vector3 Muzzle;
+        public WorldPoint Muzzle;
 
         /// <summary>⭐ R-217 — the round at its FLIGHT FRONT (after the terrain crossed so far): what <c>BallisticsSystem</c> decides a stop
         /// from, segment by segment. Never read for damage — the hit re-carries from <see cref="Muzzle"/>.</summary>

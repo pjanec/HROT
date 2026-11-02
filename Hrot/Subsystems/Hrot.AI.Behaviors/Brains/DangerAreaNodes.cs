@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Fbt;
@@ -109,7 +110,7 @@ namespace Hrot.AI.Behaviors.Brains
     public sealed class DangerCrossingParams
     {
         /// <summary>Where it walks — and the route its danger sensor watches (unit → objective).</summary>
-        public Vector3 Objective;
+        public PointLink Objective;
         /// <summary>Walking speed (m/s) — to the objective and to a near handle.</summary>
         public float WalkSpeed = 1.5f;
         /// <summary>Rush speed across an area (m/s).</summary>
@@ -160,8 +161,8 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (authored is null) return;
             block.sensor.RouteTo        = authored.Objective;
-            block.walk.X                = authored.Objective.X;
-            block.walk.Y                = authored.Objective.Y;
+            block.walk.X                = authored.Objective.Local.X;
+            block.walk.Y                = authored.Objective.Local.Y;
             block.walk.Speed            = authored.WalkSpeed;
             block.hold.Speed            = authored.WalkSpeed;
             block.cross.Speed           = authored.RushSpeed;

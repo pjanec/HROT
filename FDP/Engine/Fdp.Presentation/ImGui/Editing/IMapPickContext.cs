@@ -1,4 +1,3 @@
-using Fdp.Toolkit.Behavior.Params;
 using Fdp.Toolkit.Replication;
 
 namespace Fdp.Presentation.Editing
@@ -30,10 +29,10 @@ namespace Fdp.Presentation.Editing
 
         /// <summary>
         /// Attempts to consume a completed location pick.
-        /// Returns <see langword="true"/> and sets <paramref name="location"/> (geodetic latitude/longitude) when a
+        /// Returns <see langword="true"/> and sets <paramref name="location"/> (local metres, S0 item 5 / SR-135) when a
         /// result is available.
         /// </summary>
-        bool TryConsumeLocationPick(string jsonPath, out PickableGeoPoint location);
+        bool TryConsumeLocationPick(string jsonPath, out Fdp.Toolkit.Replication.PointLink location);
 
         /// <summary>
         /// ⭐ <c>CE-1059</c> — <see langword="true"/> when this context can also offer the operator a searchable LIST of entities

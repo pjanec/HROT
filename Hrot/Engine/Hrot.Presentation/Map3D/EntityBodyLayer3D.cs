@@ -38,7 +38,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// <summary>⭐ AQ93 §15.8 (CE-4031) — a body with NO entity, drawn as an entity of <paramref name="TkbType"/> would be: its look by
     /// the type, its clothes, face or paint seeded by <paramref name="Key"/> (its network id — the seed its replica would use), standing
     /// at <paramref name="Position"/> facing <paramref name="YawRad"/>; <paramref name="Colour"/> (0xRRGGBB, 0 = none) is a car's own paint.</summary>
-    public readonly record struct AmbientBody(long Key, long TkbType, Vector3 Position, float YawRad, uint Colour = 0);
+    public readonly record struct AmbientBody(long Key, TkbTypeId TkbType, Vector3 Position, float YawRad, uint Colour = 0);
 
     /// <summary>⭐ CE-4031 — the ambient bodies drawn by the last 3-D frame (people and vehicles).</summary>
     public int AmbientDrawn { get; private set; }
@@ -315,7 +315,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             if (canopy) DrawCanopy(world, e, body, shader, simTime);   // ⭐ CE-1119 (§6w AB-V3) — in his frame: it banks with him
             if (look.Family == VisualFamily.Person) DrawEjectionSeat(world, e, body, shader, simTime);   // ⭐ CE-1119 U-2
             // ⭐ CE-1033 S3 — where this body's labels sit: the top of the drawn box above the reference point.
-            if (hasNet && world.HasComponent<NetworkIdentity>(e) && world.GetComponentRO<NetworkIdentity>(e).Value is long net && net != 0)
+            if (hasNet && world.HasComponent<NetworkIdentity>(e) && world.GetComponentRO<NetworkIdentity>(e).Value is int net && net != 0)
                 _tops[net] = look.Family == VisualFamily.Person ? LabelTop(parts, size)   // ⭐ CE-1178 — above a raised sign or hands
                            : geometry != null ? geometry.BodyCentreZ + size.Z / 2f : size.Z;
             if (hasSelection && world.HasComponent<Hrot.IG.Components.SelectionState>(e))
@@ -1575,7 +1575,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
 
     /// <summary>⭐ CE-1098 / CE-1099 — a man's seed: his network id (the same on every node), else his entity index.</summary>
     private static long SeedOf(EntityRepository world, Entity e, bool hasNet)
-        => hasNet && world.HasComponent<NetworkIdentity>(e) && world.GetComponentRO<NetworkIdentity>(e).Value is long net && net != 0 ? net : e.Index;
+        => hasNet && world.HasComponent<NetworkIdentity>(e) && world.GetComponentRO<NetworkIdentity>(e).Value is int net && net != 0 ? net : e.Index;
 
     /// <summary>⭐ CE-1099 (§6q O-4) — his side (replicated <see cref="EntityInfo.ForceId"/>); Neutral where there is none.</summary>
     private static ForceId SideOf(EntityRepository world, Entity e)
@@ -1674,7 +1674,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
 
     /// <summary>⭐ CE-1033 S3 (M13) — the height of the top of an entity's DRAWN body above its position, by network id, from
     /// the last 3-D frame; null when the body was not drawn. The gizmo label overlay lifts the entity's labels to it.</summary>
-    public float? TopAbove(long networkId) => _tops.TryGetValue(networkId, out float top) ? top : null;
+    /// <summary>⭐ CE-4200: the gizmo layer's label-lift callback is keyed by a 64-bit gizmo anchor id; one outside the network-id range names no body.</summary>
+    public float? TopAbove(long anchorId) => anchorId is >= int.MinValue and <= int.MaxValue ? TopAbove((int)anchorId) : null;
+    public float? TopAbove(int networkId) => _tops.TryGetValue(networkId, out float top) ? top : null;
 
     /// <summary>Selection boxes drawn in the last 3-D frame.</summary>
     public int SelectionBoxesDrawn { get; private set; }

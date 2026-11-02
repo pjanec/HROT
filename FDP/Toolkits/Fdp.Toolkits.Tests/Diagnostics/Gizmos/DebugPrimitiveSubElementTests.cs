@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var buf = new DebugPrimitiveBuffer(16);
             // ⭐ CE-259z — a NETWORK id, not an Entity: offset 8 is the SpatialAnchor cache key.
             buf.DrawEntityLocalInteractive(
-                anchorNetworkId: 90210L, Vector3.Zero, Vector3.UnitX,
+                anchorNetworkId: 90210, Vector3.Zero, Vector3.UnitX,
                 Rgba32.Red, subElementId: 3);
 
             var frame = buf.GetFrame();
@@ -38,7 +38,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         public void SC_GZ030_3_TwoCalls_DifferentSubElementIds_AreDistinguishable()
         {
             var buf = new DebugPrimitiveBuffer(16);
-            const long netId = 90210L;
+            const int netId = 90210;
             buf.DrawEntityLocalInteractive(netId, Vector3.Zero, Vector3.UnitX, Rgba32.Red, subElementId: 1);
             buf.DrawEntityLocalInteractive(netId, Vector3.Zero, Vector3.UnitY, Rgba32.Red, subElementId: 2);
 
@@ -61,7 +61,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         public void SC_GZ030_5_DrawEntityLocal_SubElementIdIsZero()
         {
             var buf = new DebugPrimitiveBuffer(16);
-            buf.DrawEntityLocal(anchorNetworkId: 90210L, Vector3.Zero, Vector3.UnitX, Rgba32.Green);
+            buf.DrawEntityLocal(anchorNetworkId: 90210, Vector3.Zero, Vector3.UnitX, Rgba32.Green);
 
             var frame = buf.GetFrame();
             Assert.Equal(1, frame.Length);

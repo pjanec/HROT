@@ -64,7 +64,7 @@ public sealed class EqsFlagsMeaningfulTests : IDisposable
         {
             int count = Math.Min(_xs.Length, candidates.Length);
             for (int i = 0; i < count; i++)
-                candidates[i] = new EqsResult { EntityId = 0L, PositionX = _xs[i], PositionY = 0f, Score = 1f };
+                candidates[i] = new EqsResult { EntityId = 0, PositionX = _xs[i], PositionY = 0f, Score = 1f };
             return count;
         }
     }
@@ -159,7 +159,7 @@ public sealed class EqsFlagsMeaningfulTests : IDisposable
             ThreatThreshold = 50f, // threat (10) < threshold (50) → bypass
             ContextSlot1    = targetEntity1,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8200L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8200 });
 
         // Act: pump until buffer is ready.
         bool ready = _harness.PumpUntil(
@@ -225,7 +225,7 @@ public sealed class EqsFlagsMeaningfulTests : IDisposable
             ThreatThreshold = 50f, // threat (100) > threshold (50) → test runs
             ContextSlot1    = targetEntity3,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8201L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8201 });
 
         bool ready = _harness.PumpUntil(
             () => _harness.Repo.HasComponent<EqsCognitiveBuffer>(observer)
@@ -272,7 +272,7 @@ public sealed class EqsFlagsMeaningfulTests : IDisposable
         harness.SimHost.World!.SetSingletonManaged<IEqsTemplateRegistry>(registry);
 
         // Spawn entity with split authority (Brain = CGF, Muscle = SimHost).
-        long networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
+        int networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         // Wait for the Muscle ghost entity to appear.

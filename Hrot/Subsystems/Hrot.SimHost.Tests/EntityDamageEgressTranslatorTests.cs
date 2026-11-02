@@ -31,7 +31,7 @@ namespace Hrot.SimHost.Tests
 
         public void Dispose() => _world.Dispose();
 
-        private Entity SpawnEntity(long netId, float currentHealth, float maxHealth = 100f,
+        private Entity SpawnEntity(int netId, float currentHealth, float maxHealth = 100f,
             bool authoritative = true)
         {
             var entity = _world.CreateEntity();
@@ -61,7 +61,7 @@ namespace Hrot.SimHost.Tests
             var entityMap  = new NetworkEntityMap();
             var translator = new EntityDamageEgressTranslator(participant, entityMap);
 
-            var entity = SpawnEntity(netId: 42L, currentHealth: 70f, maxHealth: 100f);
+            var entity = SpawnEntity(netId: 42, currentHealth: 70f, maxHealth: 100f);
 
             Thread.Sleep(200);
             translator.ScanAndPublish(_world);
@@ -112,7 +112,7 @@ namespace Hrot.SimHost.Tests
             var entityMap  = new NetworkEntityMap();
             var translator = new EntityDamageEgressTranslator(participant, entityMap);
 
-            var entity = SpawnEntity(netId: 77L, currentHealth: 50f, maxHealth: 50f);
+            var entity = SpawnEntity(netId: 77, currentHealth: 50f, maxHealth: 50f);
 
             Thread.Sleep(200);
             translator.ScanAndPublish(_world);   // baseline publish
@@ -159,7 +159,7 @@ namespace Hrot.SimHost.Tests
             var entityMap  = new NetworkEntityMap();
             var translator = new EntityDamageEgressTranslator(participant, entityMap);
 
-            SpawnEntity(netId: 43L, currentHealth: 80f, maxHealth: 100f);
+            SpawnEntity(netId: 43, currentHealth: 80f, maxHealth: 100f);
 
             Thread.Sleep(200);
             // First publish — establishes baseline.
@@ -203,7 +203,7 @@ namespace Hrot.SimHost.Tests
             var entityMap  = new NetworkEntityMap();
             var translator = new EntityDamageEgressTranslator(participant, entityMap);
 
-            SpawnEntity(netId: 44L, currentHealth: 50f, authoritative: false);
+            SpawnEntity(netId: 44, currentHealth: 50f, authoritative: false);
 
             Thread.Sleep(200);
             translator.ScanAndPublish(_world);

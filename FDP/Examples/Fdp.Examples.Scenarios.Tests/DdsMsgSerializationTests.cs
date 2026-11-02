@@ -23,7 +23,7 @@ namespace Fdp.Examples.Scenarios.Tests
 
             var sent = new DemoTransformMsg
             {
-                NetworkId = 99L,
+                NetworkId = 99,
                 PosX = 1.5f,
                 PosY = 2.5f,
                 PosZ = 3.5f,
@@ -66,7 +66,7 @@ namespace Fdp.Examples.Scenarios.Tests
 
             var sent = new DemoSpawnMsg
             {
-                NetworkId   = 42L,
+                NetworkId   = 42,
                 TkbType     = 100L,
                 OwnerNodeId = 1,
                 IsDestroyed = false
@@ -101,8 +101,8 @@ namespace Fdp.Examples.Scenarios.Tests
 
             var sent = new DemoCombatInteractionMsg
             {
-                ShooterNetId = 1L,
-                TargetNetId  = 2L,
+                ShooterNetId = 1,
+                TargetNetId  = 2,
                 IsHit        = true,
                 Damage       = 50f
             };

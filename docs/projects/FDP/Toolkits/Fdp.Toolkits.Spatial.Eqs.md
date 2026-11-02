@@ -85,7 +85,9 @@ mechanism -- no bespoke subscribe message exists.
 4. `EqsResultEventEgressTranslator` dereferences the pool and publishes an `EqsResult` DDS
    topic sample with a `[DdsManaged] List<EqsResultEntry>` payload.
 5. On the Brain, `EqsResultIngressTranslator` reads the DDS sample and publishes a managed
-   `EqsResultUpdateEvent` onto the Brain event bus.
+   `EqsResultUpdateEvent` onto the Brain event bus. ⭐ CE-4207 (`2026-11-02`, R-134): the event carries
+   ENGINE records (`List<EqsResult>`, `EntityId` = this node's packed entity) — the translator converts the
+   wire's `EqsResultEntry` (an `int` network id) and drops an entity not known here; no DDS type is on the event.
 6. `EqsResultUpdateSystem` (Brain-tier, `SystemPhase.Simulation`) writes results into the
    entity's `EqsCognitiveBuffer` component.
 7. BTree/HSM nodes read from the buffer synchronously via `GetTop` / `GetSpanRO`.

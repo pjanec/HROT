@@ -90,7 +90,7 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
         Assert.True(spawnAck.EntityId > 0,
             "CreateUpdateDeleteEntityAck returned a zero/negative entity ID.");
 
-        long networkId = spawnAck.EntityId;
+        int networkId = spawnAck.EntityId;
         _out.WriteLine($"[G2] ACK received. networkId={networkId}.");
 
         // ── 3. Wait for the full async chain to complete (MissionControl included) ─
@@ -167,7 +167,7 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
         return false;
     }
 
-    private static bool IgEntityIsActive(HrotRunnerHarness harness, long networkId)
+    private static bool IgEntityIsActive(HrotRunnerHarness harness, int networkId)
     {
         var entityMap = harness.Ig.App.TestHook_EntityMap;
         if (!entityMap.TryGetEntity(networkId, out var entity)) return false;
@@ -176,7 +176,7 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
         return world.GetLifecycleState(entity) == EntityLifecycle.Active;
     }
 
-    private static SimTransform GetIgSimTransform(HrotRunnerHarness harness, long networkId)
+    private static SimTransform GetIgSimTransform(HrotRunnerHarness harness, int networkId)
     {
         var entityMap = harness.Ig.App.TestHook_EntityMap;
         if (!entityMap.TryGetEntity(networkId, out var entity))

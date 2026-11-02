@@ -123,7 +123,7 @@ namespace Hrot.SimHost.Tests
             var writer = new CapturingWriter<SquadReport>();
             var egress = new SquadReportEgressTranslator(writer, _senderMap, localNodeId: 3);
             _sender.Bus.PublishManaged(Spot(squad, platoon, stranger));
-            _sender.Bus.PublishManaged(new SquadReportNotification { FromUnit = squad, ToUnit = platoon, Report = new CommandReport { Kind = ReportKind.Sitrep }, OriginNodeId = 9 });
+            _sender.Bus.PublishManaged(new SquadReportNotification { FromUnit = squad, ToUnit = platoon, Report = new CommandReport { Kind = ReportKind.Sitrep }, OriginNodeId = (Fdp.Core.NodeId)(9) });
             _sender.Bus.SwapBuffers();
             egress.ScanAndPublish(_sender);
             Assert.Empty(writer.Written);

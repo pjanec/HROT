@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System.Numerics;
 using System.Text.Json.Serialization;
 using Fdp.Core;
@@ -17,7 +18,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>A point inside the room (sim metres; the storey's floor height in Z).</summary>
         [JsonPropertyName("Room")]
-        public Vector3 Room;
+        public PointLink Room;
 
         /// <summary>The men's asked speed (m/s); 0 = 2.</summary>
         [JsonPropertyName("Speed")]
@@ -54,7 +55,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>A point on or in the building (sim metres).</summary>
         [JsonPropertyName("Building")]
-        public Vector3 Building;
+        public PointLink Building;
 
         /// <summary>The men's asked speed (m/s); 0 = 2.</summary>
         [JsonPropertyName("Speed")]
@@ -83,7 +84,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The area's centre (sim metres).</summary>
         [JsonPropertyName("Centre")]
-        public Vector3 Centre;
+        public PointLink Centre;
 
         /// <summary>The area's radius (m); 0 = 30.</summary>
         [JsonPropertyName("Radius")]

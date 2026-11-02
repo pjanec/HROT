@@ -102,8 +102,8 @@ namespace Fdp.Toolkit.Tkb.Tests
             repo.Bus.PublishManaged(new SpawnEntityCommand
             {
                 NetworkId = 0,
-                TkbType = TestTkbType,
-                OwnerNodeId = 2
+                TkbType = (Fdp.Core.TkbTypeId)(TestTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(2)
             });
             repo.Bus.SwapBuffers();
 
@@ -125,7 +125,7 @@ namespace Fdp.Toolkit.Tkb.Tests
             var system = new GhostPromotionSystem(db, elm, Array.Empty<ITkbEntityTranslator>());
 
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new TkbIdentity { TkbType = TestTkbType });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TestTkbType) });
             repo.AddComponent(entity, new GhostStateTracker { FirstSeenFrame = 0 });
             repo.SetLifecycleState(entity, EntityLifecycle.Ghost);
 

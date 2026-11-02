@@ -107,15 +107,15 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             RunSpawn(repo, system, new SpawnEntityCommand
             {
                 NetworkId = 0,
-                TkbType   = DefaultTkbType,
-                OwnerNodeId = 2
+                TkbType   = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(2)
             });
 
             // Allocator was called → LastAllocatedId is 100
             Assert.Equal(100L, idAllocator.LastAllocatedId);
 
             // Entity is registered under the allocated ID
-            Assert.True(networkMap.TryGetEntity(100L, out var entity));
+            Assert.True(networkMap.TryGetEntity(100, out var entity));
 
             // NetworkIdentity carries the allocated ID
             var identity = repo.GetComponent<NetworkIdentity>(entity);
@@ -134,16 +134,16 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 999L,
-                TkbType     = DefaultTkbType,
-                OwnerNodeId = 2
+                NetworkId   = 999,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(2)
             });
 
             // No ID was allocated (LastAllocatedId stays at default 0)
             Assert.Equal(0L, idAllocator.LastAllocatedId);
 
             // Entity is registered under the explicitly provided ID
-            Assert.True(networkMap.TryGetEntity(999L, out var entity));
+            Assert.True(networkMap.TryGetEntity(999, out var entity));
 
             var identity = repo.GetComponent<NetworkIdentity>(entity);
             Assert.Equal(999L, identity.Value);
@@ -161,12 +161,12 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 7L,
-                TkbType     = DefaultTkbType,
-                OwnerNodeId = 2
+                NetworkId   = 7,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(2)
             });
 
-            Assert.True(networkMap.TryGetEntity(7L, out _));
+            Assert.True(networkMap.TryGetEntity(7, out _));
         }
 
         [Fact]
@@ -181,12 +181,12 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 10L,
-                TkbType     = DefaultTkbType,
-                OwnerNodeId = 3
+                NetworkId   = 10,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(3)
             });
 
-            Assert.True(networkMap.TryGetEntity(10L, out var entity));
+            Assert.True(networkMap.TryGetEntity(10, out var entity));
 
             var authority = repo.GetComponent<NetworkAuthority>(entity);
             Assert.Equal(LocalNodeId, authority.LocalNodeId);
@@ -206,16 +206,16 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 11L,
-                TkbType     = DefaultTkbType,
-                OwnerNodeId = LocalNodeId,
+                NetworkId   = 11,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(LocalNodeId),
                 InitialComponents = new List<object>
                 {
                     new TestPositionComponent { X = 1f, Y = 2f }
                 }
             });
 
-            Assert.True(networkMap.TryGetEntity(11L, out var entity));
+            Assert.True(networkMap.TryGetEntity(11, out var entity));
             Assert.True(repo.HasAuthority<NetworkIdentity>(entity));
             Assert.True(repo.HasAuthority<NetworkAuthority>(entity));
             Assert.True(repo.HasAuthority<TkbIdentity>(entity));
@@ -234,16 +234,16 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 20L,
-                TkbType     = DefaultTkbType,
-                OwnerNodeId = 1,
+                NetworkId   = 20,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(1),
                 InitialComponents = new List<object>
                 {
                     new TestPositionComponent { X = 3.5f, Y = 7.0f }
                 }
             });
 
-            Assert.True(networkMap.TryGetEntity(20L, out var entity));
+            Assert.True(networkMap.TryGetEntity(20, out var entity));
 
             var pos = repo.GetComponent<TestPositionComponent>(entity);
             Assert.Equal(3.5f, pos.X);
@@ -263,23 +263,23 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             // First spawn
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 50L,
-                TkbType     = DefaultTkbType,
-                OwnerNodeId = 1
+                NetworkId   = 50,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(1)
             });
 
-            Assert.True(networkMap.TryGetEntity(50L, out var firstEntity));
+            Assert.True(networkMap.TryGetEntity(50, out var firstEntity));
 
             // Second spawn with same ID — should be silently dropped
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 50L,
-                TkbType     = DefaultTkbType,
-                OwnerNodeId = 1
+                NetworkId   = 50,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(1)
             });
 
             // Map must still resolve to the SAME original entity
-            Assert.True(networkMap.TryGetEntity(50L, out var sameEntity));
+            Assert.True(networkMap.TryGetEntity(50, out var sameEntity));
             Assert.Equal(firstEntity, sameEntity);
         }
 
@@ -295,12 +295,12 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 60L,
-                TkbType     = 999L, // unknown type
-                OwnerNodeId = 1
+                NetworkId   = 60,
+                TkbType     = (Fdp.Core.TkbTypeId)(999L), // unknown type
+                OwnerNodeId = (Fdp.Core.NodeId)(1)
             });
 
-            Assert.False(networkMap.TryGetEntity(60L, out _));
+            Assert.False(networkMap.TryGetEntity(60, out _));
         }
 
         [Fact]
@@ -314,12 +314,12 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             var system      = CreateSystem(repo, networkMap, new StubIdAllocator(), tkb, elm);
             var request     = System.Guid.NewGuid();
 
-            RunSpawn(repo, system, new SpawnEntityCommand { NetworkId = 71L, TkbType = DefaultTkbType, OwnerNodeId = 1, RequestId = request });
-            RunSpawn(repo, system, new SpawnEntityCommand { NetworkId = 72L, TkbType = DefaultTkbType, OwnerNodeId = 1 });
+            RunSpawn(repo, system, new SpawnEntityCommand { NetworkId = 71, TkbType = (Fdp.Core.TkbTypeId)(DefaultTkbType), OwnerNodeId = (Fdp.Core.NodeId)(1), RequestId = request });
+            RunSpawn(repo, system, new SpawnEntityCommand { NetworkId = 72, TkbType = (Fdp.Core.TkbTypeId)(DefaultTkbType), OwnerNodeId = (Fdp.Core.NodeId)(1) });
 
-            Assert.True(networkMap.TryGetEntity(71L, out var asked));
+            Assert.True(networkMap.TryGetEntity(71, out var asked));
             Assert.Equal(request, repo.GetComponentRO<Fdp.Toolkit.Lifecycle.Components.CreationRequestId>(asked).Value);
-            Assert.True(networkMap.TryGetEntity(72L, out var unasked));
+            Assert.True(networkMap.TryGetEntity(72, out var unasked));
             Assert.False(repo.HasComponent<Fdp.Toolkit.Lifecycle.Components.CreationRequestId>(unasked));
         }
 
@@ -335,13 +335,13 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 70L,
-                TkbType     = DefaultTkbType,
-                OwnerNodeId = 1,
+                NetworkId   = 70,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(1),
                 InitType    = ReliableInitType.None
             });
 
-            Assert.True(networkMap.TryGetEntity(70L, out var entity));
+            Assert.True(networkMap.TryGetEntity(70, out var entity));
             Assert.False(repo.HasComponent<PendingNetworkAck>(entity),
                 "PendingNetworkAck must NOT be present when InitType is None");
         }
@@ -358,13 +358,13 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 80L,
-                TkbType     = DefaultTkbType,
-                OwnerNodeId = 1,
+                NetworkId   = 80,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(1),
                 InitType    = ReliableInitType.AllPeers
             });
 
-            Assert.True(networkMap.TryGetEntity(80L, out var entity));
+            Assert.True(networkMap.TryGetEntity(80, out var entity));
             Assert.True(repo.HasComponent<PendingNetworkAck>(entity),
                 "PendingNetworkAck MUST be present when InitType is AllPeers");
         }
@@ -383,14 +383,14 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             // Act: spawn entity with OwnerNodeId = 5
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 90L,
-                TkbType     = DefaultTkbType,
+                NetworkId   = 90,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
                 DisType     = 123UL,
-                OwnerNodeId = 5
+                OwnerNodeId = (Fdp.Core.NodeId)(5)
             });
 
             // Assert: TkbIdentity is permanently attached
-            Assert.True(networkMap.TryGetEntity(90L, out var entity));
+            Assert.True(networkMap.TryGetEntity(90, out var entity));
             Assert.True(repo.HasComponent<TkbIdentity>(entity),
                 "TkbIdentity must be present on every spawned entity.");
 
@@ -416,13 +416,13 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             // Act: spawn entity
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId   = 95L,
-                TkbType     = DefaultTkbType,
-                OwnerNodeId = 1
+                NetworkId   = 95,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(1)
             });
 
             // Assert: immediately after spawn the entity is in Constructing state
-            Assert.True(networkMap.TryGetEntity(95L, out var entity));
+            Assert.True(networkMap.TryGetEntity(95, out var entity));
             Assert.Equal(EntityLifecycle.Constructing, repo.GetLifecycleState(entity));
         }
 
@@ -464,13 +464,13 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             var system = CreateSystem(repo, map, new StubIdAllocator(), tkb, CreateElm(tkb));
             RunSpawn(repo, system, new SpawnEntityCommand
             {
-                NetworkId        = 7001L,
-                TkbType          = DefaultTkbType,
-                OwnerNodeId      = LocalNodeId,
+                NetworkId        = 7001,
+                TkbType          = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId      = (Fdp.Core.NodeId)(LocalNodeId),
                 InitialTransform = new SimTransform { Position = new System.Numerics.Vector3(x, y, sentZ), Rotation = System.Numerics.Quaternion.Identity },
                 SpawnHeight      = height,
             });
-            Assert.True(map.TryGetEntity(7001L, out e));
+            Assert.True(map.TryGetEntity(7001, out e));
             return repo;
         }
 

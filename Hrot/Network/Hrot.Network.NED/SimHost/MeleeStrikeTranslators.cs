@@ -20,7 +20,7 @@ namespace Hrot.Network.NED.SimHost
     {
         private readonly IDdsWriter<MeleeStrike> _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MeleeStrike>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtMeleeStrike;
@@ -28,14 +28,14 @@ namespace Hrot.Network.NED.SimHost
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
-        public MeleeStrikeEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, long localNodeId)
+        public MeleeStrikeEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, int localNodeId)
             : this(new DdsWriterAdapter<MeleeStrike>(participant), entityMap, localNodeId) { }
 
-        internal MeleeStrikeEgressTranslator(IDdsWriter<MeleeStrike> writer, NetworkEntityMap entityMap, long localNodeId = 0)
+        internal MeleeStrikeEgressTranslator(IDdsWriter<MeleeStrike> writer, NetworkEntityMap entityMap, int localNodeId = 0)
         {
             _writer = writer ?? throw new ArgumentNullException(nameof(writer));
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
@@ -45,15 +45,15 @@ namespace Hrot.Network.NED.SimHost
             if (view is EntityRepository repo && !repo.Bus.IsRegistered<StrikeNotification>()) return;
             foreach (ref readonly var evt in view.ReadEvents<StrikeNotification>())
             {
-                if (evt.IsRemote || !_entityMap.TryGetNetworkId(evt.Striker, out long strikerId)) continue;
-                long targetId = !evt.Target.IsNull && _entityMap.TryGetNetworkId(evt.Target, out long tid) ? tid : 0L;
+                if (evt.IsRemote || !_entityMap.TryGetNetworkId(evt.Striker, out int strikerId)) continue;
+                int targetId = !evt.Target.IsNull && _entityMap.TryGetNetworkId(evt.Target, out int tid) ? tid : 0;
                 _writer.Write(new MeleeStrike { SourceNodeId = _localNodeId, StrikerEntityId = strikerId, TargetEntityId = targetId, Weapon = (byte)evt.Weapon });
                 SentSampleCount++;
             }
         }
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>⭐ <c>CE-3266</c> — a <c>MeleeStrike</c> from another node becomes a remote <see cref="StrikeNotification"/> here (ui draws
@@ -62,7 +62,7 @@ namespace Hrot.Network.NED.SimHost
     {
         private readonly DdsReader<MeleeStrike>? _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MeleeStrike>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtMeleeStrike;
@@ -70,11 +70,11 @@ namespace Hrot.Network.NED.SimHost
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
-        public MeleeStrikeIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap, long localNodeId)
+        public MeleeStrikeIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap, int localNodeId)
         {
             _reader = participant is not null ? new DdsReader<MeleeStrike>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <inheritdoc />
@@ -106,6 +106,6 @@ namespace Hrot.Network.NED.SimHost
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

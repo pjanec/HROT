@@ -29,7 +29,7 @@ namespace Hrot.AI.Behaviors.Brains
         public struct TriggerIedParams
         {
             /// <summary>The charge's network id (resolved each tick: a load re-allocates handles).</summary>
-            public long Charge;
+            public int Charge;
             public float KillZoneMetres;
             public byte AnyTarget;
             public float TimeoutSeconds;
@@ -54,7 +54,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             block.Params = new TriggerIedParams
             {
-                Charge = authored.Charge.NetworkId,
+                Charge = authored.Charge.Ref.NetworkId,
                 KillZoneMetres = authored.KillZoneMetres > 0f ? authored.KillZoneMetres : DefaultKillZoneMetres,
                 AnyTarget = authored.AnyTarget ? (byte)1 : (byte)0,
                 TimeoutSeconds = Math.Max(0f, authored.TimeoutSeconds),

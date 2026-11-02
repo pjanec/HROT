@@ -20,7 +20,7 @@ namespace Fdp.Toolkit.Perception.Tests
         {
             // Arrange
             var mem = new TargetMemory();
-            const long entityId = 1L;
+            const long entityId = 1;
 
             // Act — first observation via visual
             TargetMemory.AddOrUpdateTarget(ref mem, entityId, 0f, 0f, 10f, 1u, SensorModality.Visual);

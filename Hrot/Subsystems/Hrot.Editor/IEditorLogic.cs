@@ -78,26 +78,26 @@ public interface IEditorLogic
     /// Publishes an <c>UpdateEntityCommand</c> for <paramref name="networkId"/>
     /// with the supplied component replacements.
     /// </summary>
-    void CommitPropertyEdit(long networkId, IReadOnlyList<object> updatedComponents);
+    void CommitPropertyEdit(int networkId, IReadOnlyList<object> updatedComponents);
 
 
     /// <summary>
     /// Pans and zooms the map canvas to centre on the entity identified by
     /// <paramref name="entityId"/>.
     /// </summary>
-    void CenterOnEntity(long entityId);
+    void CenterOnEntity(int entityId);
 
     /// <summary>
     /// Programmatically selects the entity identified by <paramref name="entityId"/>
     /// as the primary selection, switching to the Select tool if required.
     /// </summary>
-    void SelectEntity(long entityId);
+    void SelectEntity(int entityId);
 
     /// <summary>
     /// Opens the in-map rename dialog for the entity identified by
     /// <paramref name="entityId"/>.
     /// </summary>
-    void OpenRenameDialog(long entityId);
+    void OpenRenameDialog(int entityId);
 
     /// <summary>
     /// Invokes the MSBuild compiler on the AI Behaviors assembly in the background.

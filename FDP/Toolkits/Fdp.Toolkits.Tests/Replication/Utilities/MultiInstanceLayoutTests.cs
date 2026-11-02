@@ -7,9 +7,15 @@ namespace Fdp.Toolkit.Replication.Tests.Utilities
     {
         struct MultiData
         {
-            public long EntityId;
+            public int EntityId;
             public long InstanceId;
             public float X;
+        }
+
+        struct WideKeyData   // ⭐ CE-4209 — a 64-bit entity key: not allowed on a multi-instance descriptor
+        {
+            public long EntityId;
+            public long InstanceId;
         }
 
         struct IncompleteData
@@ -49,6 +55,14 @@ namespace Fdp.Toolkit.Replication.Tests.Utilities
         public void IsValid_StructWithOnlyEntityId_ReturnsFalse()
         {
             Assert.False(MultiInstanceLayout<IncompleteData>.IsValid);
+        }
+
+        [Fact]
+        public void A64BitEntityKey_FailsLoudlyAtFirstUse_NamingTheType()
+        {
+            var ex = Assert.Throws<System.TypeInitializationException>(() => MultiInstanceLayout<WideKeyData>.IsValid);
+            var inner = Assert.IsType<System.InvalidOperationException>(ex.InnerException);
+            Assert.Contains(nameof(WideKeyData), inner.Message);
         }
     }
 }

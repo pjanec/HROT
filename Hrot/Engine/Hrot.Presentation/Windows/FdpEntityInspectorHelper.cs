@@ -59,7 +59,7 @@ public static class FdpEntityInspectorHelper
             {
                 var session = sessionGetter();
                 bool isSingleton = entity == RepositoryAdapter.SingletonEntity;
-                long? netId = null;
+                int? netId = null;
                 if (!isSingleton && session != null &&
                     session.HasComponent(entity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity)))
                 {

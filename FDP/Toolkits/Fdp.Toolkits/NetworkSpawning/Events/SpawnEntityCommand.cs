@@ -22,12 +22,12 @@ namespace Fdp.Toolkit.NetworkSpawning.Events
         /// 0 = request new ID allocation (local authority creates new entity).
         /// Non-zero = replicate an existing network entity (ghost/replica path).
         /// </summary>
-        public long NetworkId;
+        public int NetworkId;
 
         /// <summary>
         /// TKB template type to instantiate. Must match a registered TkbDatabase entry.
         /// </summary>
-        public long TkbType;
+        public TkbTypeId TkbType;
 
         /// <summary>
         /// Raw DIS entity type associated with this spawn (from network descriptors).
@@ -39,7 +39,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Events
         /// For SimHost-spawned entities: SimHost's local node ID.
         /// For network-replicated ghosts: the remote node's ID.
         /// </summary>
-        public int OwnerNodeId;
+        public NodeId OwnerNodeId;
 
         /// <summary>
         /// Reliability mode for the Entity Lifecycle Module handshake.

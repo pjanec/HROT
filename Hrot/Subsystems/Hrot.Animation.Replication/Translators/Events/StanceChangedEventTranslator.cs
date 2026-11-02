@@ -27,7 +27,7 @@ internal sealed class StanceChangedEventTranslator
     protected override bool TryEncode(
         in StanceChangedEvent ecs, out DdsStanceChangedEvent dds)
     {
-        if (!EntityMap.TryGetNetworkId(ecs.Target, out long netId))
+        if (!EntityMap.TryGetNetworkId(ecs.Target, out int netId))
         {
             dds = default;
             return false;

@@ -38,7 +38,7 @@ namespace Hrot.Network.Translators
         private readonly DdsReader<DeferredTakeOwnership>? _reader;
         private readonly NetworkEntityMap                  _entityMap;
         private readonly GhostCreationSystem               _ghostCreationSystem;
-        private readonly int                               _localNodeId;
+        private readonly NodeId                               _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DeferredTakeOwnership>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtDeferredTakeOwnership;
@@ -57,7 +57,7 @@ namespace Hrot.Network.Translators
                 : null;
             _entityMap           = entityMap           ?? throw new ArgumentNullException(nameof(entityMap));
             _ghostCreationSystem = ghostCreationSystem  ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
-            _localNodeId         = localNodeId;
+            _localNodeId         = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <inheritdoc />
@@ -80,7 +80,7 @@ namespace Hrot.Network.Translators
 
         public void ApplyToEntity(Entity entity, object data, Fdp.Core.EntityRepository repo) { }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         // ── Private helpers ──────────────────────────────────────────────────────
 
@@ -91,7 +91,7 @@ namespace Hrot.Network.Translators
         {
             if (sample.Grants == null || sample.Grants.Count == 0) return;
 
-            long netId = sample.EntityId;
+            int netId = sample.EntityId;
             var  repo  = view as Fdp.Core.EntityRepository;
 
             // Filter: does any grant in this message target us?

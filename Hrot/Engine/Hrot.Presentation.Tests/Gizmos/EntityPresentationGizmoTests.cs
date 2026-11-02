@@ -48,7 +48,7 @@ namespace Hrot.Presentation.Tests.Gizmos
 
         public void Dispose() => _repo.Dispose();
 
-        private Entity Spawn(long networkId, Vector3 position)
+        private Entity Spawn(int networkId, Vector3 position)
         {
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new SimTransform { Position = position });
@@ -105,10 +105,10 @@ namespace Hrot.Presentation.Tests.Gizmos
         {
             if (!_repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>())
                 _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
-            var vehicle = Spawn(10L, new Vector3(50f, 50f, 0f));
-            var inside = Spawn(11L, new Vector3(50f, 50f, 0f));
+            var vehicle = Spawn(10, new Vector3(50f, 50f, 0f));
+            var inside = Spawn(11, new Vector3(50f, 50f, 0f));
             _repo.AddComponent(inside, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = vehicle, Exposed = 0 });
-            var rider = Spawn(12L, new Vector3(50f, 50f, 0f));
+            var rider = Spawn(12, new Vector3(50f, 50f, 0f));
             _repo.AddComponent(rider, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = vehicle, Exposed = 1 });
 
             var hidden = new DebugPrimitiveBuffer();
@@ -127,7 +127,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void CE1068_ADoor_HasAnAnchorAndAPickBox_ButNoSymbol()
         {
-            var door = Spawn(70L, new Vector3(5f, 5f, 0f));
+            var door = Spawn(70, new Vector3(5f, 5f, 0f));
             _repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();   // a fresh repository per test (xUnit)
             _repo.AddComponent(door, new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = "t/b/d1" });
 
@@ -145,7 +145,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void Draw_EmitsSpatialAnchorWithTheNetworkId()
         {
-            var entity = Spawn(42L, new Vector3(100f, 200f, 5f));
+            var entity = Spawn(42, new Vector3(100f, 200f, 5f));
 
             var buffer = new DebugPrimitiveBuffer();
             new EntityPresentationGizmo().Draw(_repo, entity, buffer);
@@ -164,7 +164,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void Draw_EmitsSemanticShapeAnchoredToTheNetworkId()
         {
-            var entity = Spawn(99L, new Vector3(50f, 60f, 0f));
+            var entity = Spawn(99, new Vector3(50f, 60f, 0f));
 
             var buffer = new DebugPrimitiveBuffer();
             new EntityPresentationGizmo().Draw(_repo, entity, buffer);
@@ -186,10 +186,10 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void Draw_AnchorIndexIsTheNetworkId_NotTheEntityIndex()
         {
-            var dummy = Spawn(0L, default);
+            var dummy = Spawn(0, default);
             Assert.True(dummy.Index >= 0);
 
-            const long networkId = 9999L;
+            const int networkId = 9999;
             var entity = Spawn(networkId, new Vector3(10f, 20f, 0f));
             Assert.NotEqual((int)networkId, entity.Index);
 
@@ -213,7 +213,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void Draw_WithVehicleParams_EmitsItsDimensions()
         {
-            var entity = Spawn(7L, Vector3.Zero);
+            var entity = Spawn(7, Vector3.Zero);
             _repo.AddComponent(entity, new VehicleParams { Length = 8f, Width = 3f });
 
             var buffer = new DebugPrimitiveBuffer();
@@ -248,7 +248,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void TheProjector_DrawsWhateverItIsHanded_AndNeverFiltersOnVisibility()
         {
-            var entity = Spawn(1L, new Vector3(10f, 20f, 0f));
+            var entity = Spawn(1, new Vector3(10f, 20f, 0f));
             _repo.AddComponent(entity, new CullingState { IsVisible = false });
 
             var buffer = new DebugPrimitiveBuffer();
@@ -264,7 +264,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void TheProjector_DrawsWhenThereIsNoCullingStateAtAll()
         {
-            var entity = Spawn(3L, new Vector3(10f, 20f, 0f));
+            var entity = Spawn(3, new Vector3(10f, 20f, 0f));
             Assert.False(_repo.HasComponent<CullingState>(entity));
 
             var buffer = new DebugPrimitiveBuffer();
@@ -279,7 +279,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void Draw_WithHighDamage_SetsTheDamagedConditionBit()
         {
-            var entity = Spawn(5L, new Vector3(10f, 20f, 0f));
+            var entity = Spawn(5, new Vector3(10f, 20f, 0f));
             _repo.AddComponent(entity, new Health { Current = 25f, Max = 100f });
 
             var buffer = new DebugPrimitiveBuffer();
@@ -298,7 +298,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void Draw_WithSevereDamage_SetsBothConditionBits()
         {
-            var entity = Spawn(6L, new Vector3(10f, 20f, 0f));
+            var entity = Spawn(6, new Vector3(10f, 20f, 0f));
             _repo.AddComponent(entity, new Health { Current = 5f, Max = 100f });
 
             var buffer = new DebugPrimitiveBuffer();
@@ -314,9 +314,9 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void Draw_WhenDestroyed_SetsTheDestroyedBit_TheMilStdX()
         {
-            var wreck = Spawn(7L, new Vector3(10f, 20f, 0f));
+            var wreck = Spawn(7, new Vector3(10f, 20f, 0f));
             _repo.AddComponent(wreck, new Health { Current = 0f, Max = 100f });
-            var hurt = Spawn(8L, new Vector3(30f, 20f, 0f));
+            var hurt = Spawn(8, new Vector3(30f, 20f, 0f));
             _repo.AddComponent(hurt, new Health { Current = 1f, Max = 100f });
 
             var buffer = new DebugPrimitiveBuffer();
@@ -332,7 +332,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void Draw_WithNoHealthState_EmitsAZeroConditionMask()
         {
-            var entity = Spawn(8L, new Vector3(10f, 20f, 0f));
+            var entity = Spawn(8, new Vector3(10f, 20f, 0f));
             Assert.False(_repo.HasComponent<Health>(entity));
 
             var buffer = new DebugPrimitiveBuffer();
@@ -352,7 +352,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void Draw_AlwaysEmitsThePickBox()
         {
-            var entity = Spawn(11L, new Vector3(30f, 40f, 0f));
+            var entity = Spawn(11, new Vector3(30f, 40f, 0f));
 
             var buffer = new DebugPrimitiveBuffer();
             new EntityPresentationGizmo().Draw(_repo, entity, buffer);
@@ -395,7 +395,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void Draw_EmitsNothing_WhenTheNetworkIdIsZero()
         {
-            var entity = Spawn(0L, new Vector3(30f, 40f, 0f));
+            var entity = Spawn(0, new Vector3(30f, 40f, 0f));
 
             var buffer = new DebugPrimitiveBuffer();
             new EntityPresentationGizmo().Draw(_repo, entity, buffer);
@@ -410,7 +410,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void Draw_StillEmits_WhenTheNetworkIdIsReal()
         {
-            var entity = Spawn(11L, new Vector3(30f, 40f, 0f));
+            var entity = Spawn(11, new Vector3(30f, 40f, 0f));
 
             var buffer = new DebugPrimitiveBuffer();
             new EntityPresentationGizmo().Draw(_repo, entity, buffer);
@@ -427,7 +427,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void Draw_EmitsAnOpaqueSemanticShape()
         {
-            var entity = Spawn(12L, new Vector3(30f, 40f, 0f));
+            var entity = Spawn(12, new Vector3(30f, 40f, 0f));
 
             var buffer = new DebugPrimitiveBuffer();
             new EntityPresentationGizmo().Draw(_repo, entity, buffer);
@@ -479,7 +479,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         public void CE1163_TheOutline_IsTheLiveSide_AndRedrawsTheMomentItFlips_AnUnknownSideKeepsTheCyan()
         {
             _repo.RegisterComponent<EntityInfo>();
-            var civilian = Spawn(21L, new Vector3(10f, 10f, 0f));
+            var civilian = Spawn(21, new Vector3(10f, 10f, 0f));
             _repo.AddComponent(civilian, new EntityInfo { ForceId = ForceId.Neutral });
             Assert.Equal(new Rgba32(ResolvedStyleConstants.NeutralTintR, ResolvedStyleConstants.NeutralTintG, ResolvedStyleConstants.NeutralTintB, 255),
                 OutlineColour(civilian));
@@ -488,7 +488,7 @@ namespace Hrot.Presentation.Tests.Gizmos
             Assert.Equal(new Rgba32(ResolvedStyleConstants.HostileTintR, ResolvedStyleConstants.HostileTintG, ResolvedStyleConstants.HostileTintB, 255),
                 OutlineColour(civilian));
 
-            var unknown = Spawn(22L, new Vector3(20f, 10f, 0f));
+            var unknown = Spawn(22, new Vector3(20f, 10f, 0f));
             Assert.Equal(Hrot.Common.Diagnostics.Gizmos.AffiliationColors.NoSide, OutlineColour(unknown));
         }
 
@@ -499,7 +499,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         {
             _repo.RegisterComponent<EntityInfo>();
             _repo.RegisterComponent<ResolvedStyle>();
-            var unit = Spawn(23L, new Vector3(10f, 10f, 0f));
+            var unit = Spawn(23, new Vector3(10f, 10f, 0f));
             _repo.AddComponent(unit, new EntityInfo { ForceId = ForceId.Hostile });
             var style = ResolvedStyle.CreateDefault();
             style.Tint = new Color32 { R = 10, G = 200, B = 30, A = 255 };
@@ -531,7 +531,7 @@ namespace Hrot.Presentation.Tests.Gizmos
             _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
             _repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(Hrot.Map.Common.HrotEnvironment.CreateTkb());
             var ied = Spawn(4401, new Vector3(50f, 60f, 0f));
-            _repo.AddComponent(ied, new TkbIdentity { TkbType = Hrot.Map.Common.TkbEntityTypes.WeaponSystem_ExplosiveCharge });
+            _repo.AddComponent(ied, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_ExplosiveCharge) });
 
             var draw = new DebugPrimitiveBuffer();
             new EntityPresentationGizmo().Draw(_repo, ied, draw);

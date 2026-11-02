@@ -108,7 +108,7 @@ namespace Hrot.SimHost.Integration.Tests
             {
                 RequestId          = requestId,
                 OwnerAppInstanceId = 1,   // must match localNodeId in SimHostInstance so the request is not silently dropped
-                TkbType            = 0,   // missing/invalid TkbType triggers error
+                TkbType            = (Fdp.Core.TkbTypeId)(0),   // missing/invalid TkbType triggers error
                 DisType            = 0,
             };
 
@@ -248,7 +248,7 @@ namespace Hrot.SimHost.Integration.Tests
                 {
                     RequestId          = reqId,
                     OwnerAppInstanceId = 1,
-                    TkbType            = TkbEntityTypes.Tank_M1Abrams,
+                    TkbType            = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams),
                     InitialComponents  = new List<object>
                     {
                         new SimTransform { Position = new System.Numerics.Vector3(120, 20, sentZ), Rotation = System.Numerics.Quaternion.Identity },
@@ -285,7 +285,7 @@ namespace Hrot.SimHost.Integration.Tests
             {
                 RequestId          = requestId,
                 OwnerAppInstanceId = 1,
-                TkbType            = TkbEntityTypes.Tank_M1Abrams,
+                TkbType            = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams),
                 DisType            = 0x0100_0000_0000_0001UL,   // Kind=1, Extra=1
                 InitialAttributesJson = initialAttributesJson,
             };

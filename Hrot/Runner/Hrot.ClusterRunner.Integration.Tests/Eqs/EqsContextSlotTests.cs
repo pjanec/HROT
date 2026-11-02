@@ -141,9 +141,9 @@ public sealed class EqsContextSlotTests : IDisposable
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
 
         // Spawn the observer (parent) and the slot target on Brain.
-        long parentNetworkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
+        int parentNetworkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
-        long targetNetworkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
+        int targetNetworkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         // Wait for both Muscle ghosts to appear.
@@ -210,7 +210,7 @@ public sealed class EqsContextSlotTests : IDisposable
         int domainId = NextDomain();
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
 
-        long networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
+        int networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         bool entityReady = harness.PumpUntil(
@@ -272,7 +272,7 @@ public sealed class EqsContextSlotTests : IDisposable
         var entityMap  = new NetworkEntityMap();
         var translator = new EqsSensorConfigIngressTranslator(participant: null, entityMap: entityMap);
 
-        Entity result = translator.ResolveSlot(999L);
+        Entity result = translator.ResolveSlot(999);
 
         Assert.True(result.IsNull, "Unresolved network ID must resolve to Entity.Null");
     }
@@ -392,7 +392,7 @@ public sealed class EqsContextSlotTests : IDisposable
             ThreatThreshold = 0f,
             ContextSlot1    = targetEntity,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8350L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8350 });
 
         // Pump until buffer is ready (even if empty).
         bool ready = _harness.PumpUntil(
@@ -471,7 +471,7 @@ public sealed class EqsContextSlotTests : IDisposable
             ThreatThreshold = 0f,
             ContextSlot1    = Entity.Null,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8360L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8360 });
 
         bool ready = _harness.PumpUntil(
             () => _harness.Repo.HasComponent<EqsCognitiveBuffer>(observer)
@@ -550,7 +550,7 @@ public sealed class EqsContextSlotTests : IDisposable
             ThreatThreshold = 0f,
             ContextSlot1    = targetEntity,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8370L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8370 });
 
         // Pump until the mock solver captures at least one raycast request.
         bool raySubmitted = _harness.PumpUntil(
@@ -571,7 +571,7 @@ public sealed class EqsContextSlotTests : IDisposable
             ISimulationView view, Span<EqsResult> candidates)
         {
             if (candidates.Length == 0) return 0;
-            candidates[0] = new EqsResult { EntityId = 0L, PositionX = 0f, PositionY = 0f, Score = 0f };
+            candidates[0] = new EqsResult { EntityId = 0, PositionX = 0f, PositionY = 0f, Score = 0f };
             return 1;
         }
     }

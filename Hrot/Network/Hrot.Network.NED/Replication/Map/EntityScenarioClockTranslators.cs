@@ -22,7 +22,7 @@ namespace Hrot.Map.Common.Replication.Egress
     public sealed class EntityScenarioClockEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<EntityScenarioClock>? _writer;
-        private readonly Dictionary<long, EntityScenarioClock> _last = new();
+        private readonly Dictionary<int, EntityScenarioClock> _last = new();
         private int _worldEpoch;
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.ScenarioClock };
@@ -54,7 +54,7 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var env in view.Query().With<ScenarioClock>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(env, packedKey)) continue;
-                long netId = view.GetComponentRO<NetworkIdentity>(env).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(env).Value;
                 var sample = ToSample(netId, view.GetComponentRO<ScenarioClock>(env));
                 if (_last.TryGetValue(netId, out var prev) && prev.Equals(sample)) continue;
                 _last[netId] = sample;
@@ -64,13 +64,13 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>The wire form (the test seam).</summary>
-        internal static EntityScenarioClock ToSample(long netId, in ScenarioClock c)
+        internal static EntityScenarioClock ToSample(int netId, in ScenarioClock c)
             => new() { EntityId = netId, StartUtcTicks = c.StartUtcTicks, DisplayUtcOffsetSeconds = WireUnits.MinutesToSeconds(c.DisplayUtcOffsetMinutes) };   // ⭐ AQ107 I — SI: seconds on the wire
 
-        public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityScenarioClock { EntityId = networkEntityId });
         }
@@ -90,8 +90,8 @@ namespace Hrot.Map.Common.Replication.Ingress
         private const long OrdinalValue = (long)EDescriptorType.dtScenarioClock;
         private readonly DdsReader<EntityScenarioClock>? _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly Dictionary<long, EntityScenarioClock> _pending = new();
-        private readonly List<long> _done = new();
+        private readonly Dictionary<int, EntityScenarioClock> _pending = new();
+        private readonly List<int> _done = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityScenarioClock>();
         public long DescriptorOrdinal => OrdinalValue;
@@ -153,6 +153,6 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) => _pending.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _pending.Remove(networkEntityId);
     }
 }

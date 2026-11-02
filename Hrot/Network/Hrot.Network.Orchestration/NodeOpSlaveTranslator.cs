@@ -38,7 +38,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
     /// ExCon's observer owns; its readers are null in tests / offline.</summary>
     private readonly ClusterFactsIngress       _facts;
     private readonly FdpEventBus                _bus;
-    private readonly int                        _nodeId;
+    private readonly NodeId                        _nodeId;
     private readonly JsonSerializerOptions      _jsonOptions;
 
     // CE-3187 (R-2005 / R-2007): the shared options — enums as names, fields, null-omitting, case-insensitive.
@@ -66,7 +66,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         _heartbeatWriter = heartbeatWriter ?? throw new ArgumentNullException(nameof(heartbeatWriter));
         _capabilitiesWriter = capabilitiesWriter;
         _bus             = bus             ?? throw new ArgumentNullException(nameof(bus));
-        _nodeId          = nodeId;
+        _nodeId          = (Fdp.Core.NodeId)(nodeId);
         _jsonOptions     = jsonOptions ?? DefaultOptions;
         _facts           = new ClusterFactsIngress(bus, clusterStateReader, inventoryReader, sessionReader, opStatusReader, contextReader);
     }
@@ -96,7 +96,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
             _bus.PublishManaged(new ExecuteNodeOpIntent
             {
                 TransactionId = cmd.TransactionId,
-                TargetNodeId  = cmd.TargetNodeId,
+                TargetNodeId  = (Fdp.Core.NodeId)(cmd.TargetNodeId),
                 Operation     = (FdpNodeOpType)(int)cmd.Operation,
                 DomainPayload = domainPayload,
             });

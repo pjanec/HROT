@@ -111,7 +111,7 @@ namespace Fdp.Toolkits.Tests.Perception
             db.Register(t);
             w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
             Assert.Equal(70f, Deg(LookOf.HeadLimit(w, man)), 3);   // no type yet
-            w.AddComponent(man, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = StiffNeck });
+            w.AddComponent(man, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(StiffNeck) });
             Assert.Equal(40f, Deg(LookOf.HeadLimit(w, man)), 3);
 
             LookOf.Want(w, man, new Vector3(0f, 10f, 0f));   // 90° left

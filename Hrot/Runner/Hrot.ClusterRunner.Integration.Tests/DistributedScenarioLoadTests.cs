@@ -39,8 +39,8 @@ public sealed class DistributedScenarioLoadTests : IDisposable
     // Offline staging IDs, given EXPLICITLY. ⛔ They used to be auto-allocated (1000/1001) — but the live cluster's
     // allocator also starts at 1000 (deterministic network ids), so offline and live ids coincided and the remap this
     // test exists to prove could not be observed. Ids outside the live range make the remap visible.
-    private const long OfflineAttackerId = 5000L;
-    private const long OfflineTargetId   = 5001L;
+    private const int OfflineAttackerId = 5000;
+    private const int OfflineTargetId   = 5001;
 
     private readonly string _scenarioId;
 
@@ -159,8 +159,8 @@ public sealed class DistributedScenarioLoadTests : IDisposable
         // Obtain new live network IDs from the CGF ghost entity map.
         var cgfMap = harness.Cgf.GhostEntityMap!;
 
-        bool gotAttackerNetId = cgfMap.TryGetNetworkId(attackerEntity, out long newAttackerId);
-        bool gotTargetNetId   = cgfMap.TryGetNetworkId(targetEntity,   out long newTargetId);
+        bool gotAttackerNetId = cgfMap.TryGetNetworkId(attackerEntity, out int newAttackerId);
+        bool gotTargetNetId   = cgfMap.TryGetNetworkId(targetEntity,   out int newTargetId);
 
         Assert.True(gotAttackerNetId, "Attacker entity must be registered in CGF ghost entity map.");
         Assert.True(gotTargetNetId,   "Target entity must be registered in CGF ghost entity map.");
@@ -204,18 +204,18 @@ public sealed class DistributedScenarioLoadTests : IDisposable
         // Spawn the attacker (offline ID 5000).
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType    = TkbEntityTypes.Tank_M1Abrams,   // ⛔ was 1L — not in the CLUSTER's TKB: CGF rejected both creates
+            TkbType    = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams),   // ⛔ was 1L — not in the CLUSTER's TKB: CGF rejected both creates
             NetworkId  = OfflineAttackerId,
-            OwnerNodeId = 0,
+            OwnerNodeId = (Fdp.Core.NodeId)(0),
             InitType   = ReliableInitType.None,
         });
 
         // Spawn the target (offline ID 5001).
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType    = TkbEntityTypes.Tank_M1Abrams,   // ⛔ was 1L — not in the CLUSTER's TKB: CGF rejected both creates
+            TkbType    = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams),   // ⛔ was 1L — not in the CLUSTER's TKB: CGF rejected both creates
             NetworkId  = OfflineTargetId,
-            OwnerNodeId = 0,
+            OwnerNodeId = (Fdp.Core.NodeId)(0),
             InitType   = ReliableInitType.None,
         });
 
@@ -269,7 +269,7 @@ public sealed class DistributedScenarioLoadTests : IDisposable
     private sealed class FireAtTargetParamsDto
     {
         [JsonPropertyName("targetNetworkId")]
-        public long TargetNetworkId { get; set; }
+        public int TargetNetworkId { get; set; }
     }
 
     private static bool IsPart(EntityRepository w, Entity e)

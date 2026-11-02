@@ -43,13 +43,13 @@ namespace Hrot.Editor.DebugApi
                 // ⭐ CE-3354 ② — a row carrying NameConflict is a REFUSED heartbeat (its name is held by another live node), not a member
                 if (r.NameConflict != null)
                 {
-                    conflicts.Add(new JsonObject { ["nodeId"] = r.NodeId, ["subsystem"] = r.Subsystem, ["name"] = r.Name, ["reason"] = r.NameConflict });
+                    conflicts.Add(new JsonObject { ["nodeId"] = r.NodeId.Value, ["subsystem"] = r.Subsystem, ["name"] = r.Name, ["reason"] = r.NameConflict });
                     continue;
                 }
                 var mapSet = MapInLoadNodesNow();
                 nodes.Add(new JsonObject
                 {
-                    ["nodeId"]                = r.NodeId,
+                    ["nodeId"]                = r.NodeId.Value,
                     ["name"]                  = r.Name,   // ⭐ CE-3354 ②
                     ["mapInLoad"]             = mapSet.Contains(r.Name, StringComparer.OrdinalIgnoreCase),   // ⭐ CE-3354 ③ — in the master's map-in-load set (a profile node, the IG, waits regardless)
                     ["subsystem"]             = r.Subsystem,

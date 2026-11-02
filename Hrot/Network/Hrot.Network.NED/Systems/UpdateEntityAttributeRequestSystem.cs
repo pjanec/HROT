@@ -16,6 +16,7 @@ using Fdp.Toolkit.Replication.Services;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.ModuleHost.Abstractions;
+using NodeId = Hrot.NED.Common.NodeId;
 
 namespace Hrot.Map.Common.Systems
 {
@@ -204,7 +205,7 @@ namespace Hrot.Map.Common.Systems
         private void ProcessRequest(UpdateEntityAttributeRequest req, ISimulationView view, EntityRepository repo)
         {
             // 1. Resolve the entity from the network ID.
-            if (!_entityMap.TryGetEntity((long)req.EntityId, out var entity))
+            if (!_entityMap.TryGetEntity(req.EntityId, out var entity))
             {
                 FdpLog<UpdateEntityAttributeRequestSystem>.Warn(
                     "[UpdAttrReq] Entity {0} not found. RequestId={1}",
@@ -336,7 +337,7 @@ namespace Hrot.Map.Common.Systems
         /// a sanitized JSON string without the "CommanderId" key.
         /// </summary>
         private string InterceptCommanderId(
-            string json, long entityNetId, Entity entity, ISimulationView view, EntityRepository repo,
+            string json, int entityNetId, Entity entity, ISimulationView view, EntityRepository repo,
             out bool intercepted)
         {
             intercepted = false;
@@ -347,7 +348,7 @@ namespace Hrot.Map.Common.Systems
                 if (!root.TryGetProperty("CommanderId", out var cmdIdProp))
                     return json;
 
-                long commanderNetId = cmdIdProp.GetInt64();
+                int commanderNetId = cmdIdProp.GetInt32();
                 long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(1L, 0);
                 if (!Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(view, entity, packedKey))
                 {

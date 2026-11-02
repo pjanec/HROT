@@ -27,7 +27,7 @@ namespace Hrot.Map.Definitions.Tkb
         {
             WeaponType = "7.62mm_coax", Ammunition = 2000, Range = 900, RateOfFire = 600, Penetration = 8, DamagePerHit = 30, DispersionMils = 3f,
             Category = WeaponCategory.MachineGun, TurretIndex = 0, MuzzleOffset = muzzle, MagazineSize = 200, ReloadSeconds = 6f,
-            AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball, TracerAmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Tracer, TracerEvery = 5,
+            AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball), TracerAmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Tracer), TracerEvery = 5,
         };
 
         /// <summary>⭐ <c>CE-3253</c> (BR-8, DA-19) — an INFANTRY light machine gun: a man's own mount (mount 0, where the rifleman has his M4),
@@ -38,7 +38,7 @@ namespace Hrot.Map.Definitions.Tkb
         {
             WeaponType = weaponType, Ammunition = ammunition, Range = range, RateOfFire = rateOfFire, Penetration = penetration, DamagePerHit = damage,
             DispersionMils = RifleDispersionMils, MagazineSize = belt, ReloadSeconds = 7f,
-            AmmoTkb = ammo, TracerAmmoTkb = tracer, TracerEvery = 5, Category = WeaponCategory.MachineGun,
+            AmmoTkb = (Fdp.Core.TkbTypeId)(ammo), TracerAmmoTkb = (Fdp.Core.TkbTypeId)(tracer), TracerEvery = 5, Category = WeaponCategory.MachineGun,
         };
 
         /// <summary>⭐ <c>CE-3254</c> (BR-9, DA-13) — a SCOPED rifle (mount 0): small arms, a slow precise shot, ×4 through a narrow scope while
@@ -48,7 +48,7 @@ namespace Hrot.Map.Definitions.Tkb
         {
             WeaponType = weaponType, Ammunition = ammunition, Range = range, RateOfFire = rateOfFire, Penetration = 8, DamagePerHit = 35,
             DispersionMils = dispersionMils, MagazineSize = magazine, ReloadSeconds = 4f, AimSeconds = 1.5f,
-            AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball, Category = WeaponCategory.SmallArms,
+            AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball), Category = WeaponCategory.SmallArms,
             ScopeMagnification = 4f, ScopeFovDegrees = scopeFovDegrees,
         };
 
@@ -82,7 +82,7 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorFront = 5; // Body armor
                     c.Weapons.Add(new WeaponMount { WeaponType = "M4_Carbine", Ammunition = 210, Range = 300, RateOfFire = 700, Penetration = 5, DamagePerHit = 25,
                         DispersionMils = RifleDispersionMils,   // ⭐ AQ85 C — the first opt-in (~50 % at 100 m standing still)
-                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball, TracerAmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Tracer, TracerEvery = 5,   // ⭐ LR-1 — 1 in 5 traces
+                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball), TracerAmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Tracer), TracerEvery = 5,   // ⭐ LR-1 — 1 in 5 traces
                         Category = WeaponCategory.SmallArms });
                     c.SensorRange = 500;
                 })
@@ -301,8 +301,8 @@ namespace Hrot.Map.Definitions.Tkb
                 {
                     c.ArmorFront = 5;
                     c.Weapons.Add(new WeaponMount { WeaponType = "M4_Carbine", Ammunition = 210, Range = 300, RateOfFire = 700, Penetration = 5, DamagePerHit = 25,
-                        DispersionMils = RifleDispersionMils, AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball,
-                        TracerAmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Tracer, TracerEvery = 5, Category = WeaponCategory.SmallArms });
+                        DispersionMils = RifleDispersionMils, AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball),
+                        TracerAmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Tracer), TracerEvery = 5, Category = WeaponCategory.SmallArms });
                     c.SensorRange = 5000;   // the launcher's sight: he must see an aircraft as far as the missile reaches
                 })
                 .WithFaction(type, faction)
@@ -333,8 +333,8 @@ namespace Hrot.Map.Definitions.Tkb
                 {
                     c.ArmorFront = 5;
                     c.Weapons.Add(new WeaponMount { WeaponType = "M4_Carbine", Ammunition = 210, Range = 300, RateOfFire = 700, Penetration = 5, DamagePerHit = 25,
-                        DispersionMils = RifleDispersionMils, AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball,
-                        TracerAmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Tracer, TracerEvery = 5, Category = WeaponCategory.SmallArms });
+                        DispersionMils = RifleDispersionMils, AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball),
+                        TracerAmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Tracer), TracerEvery = 5, Category = WeaponCategory.SmallArms });
                     c.SensorRange = 500;
                 })
                 .WithFaction(type, 1)
@@ -402,7 +402,7 @@ namespace Hrot.Map.Definitions.Tkb
         {
             WeaponType = name, Ammunition = 300, Range = 1500, RateOfFire = 600, DamagePerHit = 60,
             DispersionMils = 4f, MagazineSize = 50, ReloadSeconds = 8f, FireOnMove = true,
-            AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbHmgAp, Category = WeaponCategory.MachineGun, TurretIndex = 0,
+            AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbHmgAp), Category = WeaponCategory.MachineGun, TurretIndex = 0,
             MuzzleOffset = new System.Numerics.Vector3(1.6f, 0f, 0f),
         };
 
@@ -417,7 +417,7 @@ namespace Hrot.Map.Definitions.Tkb
                 new WeaponSystemDto { Portable = WeaponPortability.Static, MountKinds = MountKinds.Door | MountKinds.Pintle },
                 new WeaponMount { WeaponType = "7.62mm_M134", Ammunition = 3000, Range = 1000, RateOfFire = 3000, Penetration = 8, DamagePerHit = 30,
                     DispersionMils = 6f, MagazineSize = 1500, ReloadSeconds = 10f, FireOnMove = true, Category = WeaponCategory.MachineGun, TurretIndex = 0,
-                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball, TracerAmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Tracer, TracerEvery = 5,
+                    AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball), TracerAmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Tracer), TracerEvery = 5,
                     MuzzleOffset = new System.Numerics.Vector3(0.8f, 0f, 0f) },
                 Pintle(-60f, 30f, 120f, 90f, 0.3f), new(0.25f, 1f, 40f), report: HmgReport);
             var shoulder = new WeaponSystemDto { Portable = WeaponPortability.OneMan, MountKinds = MountKinds.Ground | MountKinds.Carried,
@@ -425,32 +425,32 @@ namespace Hrot.Map.Definitions.Tkb
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Javelin, "Javelin", 3, shoulder with { CarrySpeedFactor = 0.8f },
                 new WeaponMount { WeaponType = "Javelin_ATGM", Ammunition = 2, Range = 2500, RateOfFire = 3, DamagePerHit = 1500,
                     AimSeconds = 4f, MagazineSize = 1, ReloadSeconds = 20f, FireOnMove = false,
-                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbJavelinMissile, Category = WeaponCategory.Atgm }, turret: null, new(0.3f, 0f, 20f), report: LauncherReport);
+                    AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbJavelinMissile), Category = WeaponCategory.Atgm }, turret: null, new(0.3f, 0f, 20f), report: LauncherReport);
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Nlaw, "NLAW", 4, shoulder,
                 new WeaponMount { WeaponType = "NLAW", Ammunition = 1, Range = 800, RateOfFire = 3, DamagePerHit = 900,
                     AimSeconds = 2.5f, MagazineSize = 1, ReloadSeconds = 3f, FireOnMove = false,
-                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbNlawMissile, Category = WeaponCategory.Atgm }, turret: null, new(0.15f, 0f, 15f), report: LauncherReport);
+                    AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbNlawMissile), Category = WeaponCategory.Atgm }, turret: null, new(0.15f, 0f, 15f), report: LauncherReport);
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Law, "M72 LAW", 4, shoulder with { MountKinds = MountKinds.Carried },
                 new WeaponMount { WeaponType = "M72_LAW", Ammunition = 1, Range = 200, RateOfFire = 3, DamagePerHit = 600,
                     AimSeconds = 1.5f, MagazineSize = 1, ReloadSeconds = 3f, FireOnMove = false,
-                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbLawRocket }, turret: null, new(0.1f, 0f, 10f), report: LauncherReport);
+                    AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbLawRocket) }, turret: null, new(0.1f, 0f, 10f), report: LauncherReport);
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_KornetTripod, "Kornet (tripod)", 3, heavy with { DeploySeconds = 30f },
                 new WeaponMount { WeaponType = "Kornet_ATGM", Ammunition = 4, Range = 5000, RateOfFire = 2, DamagePerHit = 2000,   // as the M9 technical carried it
                     AimSeconds = 1.5f, MagazineSize = 1, ReloadSeconds = 20f, FireOnMove = false,
-                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbKornetMissile, Category = WeaponCategory.Atgm, TurretIndex = 0,
+                    AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbKornetMissile), Category = WeaponCategory.Atgm, TurretIndex = 0,
                     MuzzleOffset = new System.Numerics.Vector3(0.6f, 0f, 0.2f) },
                 Pintle(-10f, 20f, 40f, 20f, 0.3f), new(0.35f, 0f, 25f), report: AtgmReport);
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_TowTripod, "TOW (tripod)", 3, heavy with { DeploySeconds = 30f },
                 new WeaponMount { WeaponType = "TOW_ATGM", Ammunition = 4, Range = 3750, RateOfFire = 2, DamagePerHit = 1800,
                     AimSeconds = 1.5f, MagazineSize = 1, ReloadSeconds = 15f, FireOnMove = false,
-                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbTowMissile, Category = WeaponCategory.Atgm, TurretIndex = 0,
+                    AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbTowMissile), Category = WeaponCategory.Atgm, TurretIndex = 0,
                     MuzzleOffset = new System.Numerics.Vector3(0.7f, 0f, 0.2f) },
                 Pintle(-10f, 20f, 30f, 15f, 0.3f), new(0.4f, 0f, 25f), report: AtgmReport);
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_SentryGun, "Sentry gun", 5,
                 new WeaponSystemDto { NeedsOperator = false, Portable = WeaponPortability.Static, MountKinds = MountKinds.Ground | MountKinds.Pintle },
                 new WeaponMount { WeaponType = "7.62mm_RWS", Ammunition = 1000, Range = 900, RateOfFire = 600, Penetration = 8, DamagePerHit = 30,
                     DispersionMils = 3f, MagazineSize = 200, ReloadSeconds = 6f, FireOnMove = true, Category = WeaponCategory.MachineGun, TurretIndex = 0,
-                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball, MuzzleOffset = new System.Numerics.Vector3(0.7f, 0f, 0f) },
+                    AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball), MuzzleOffset = new System.Numerics.Vector3(0.7f, 0f, 0f) },
                 Pintle(-20f, 60f, 120f, 60f, 0.2f), new(0.3f, 1f, 30f), sensorRange: 1200f, report: MgReport);
 
             // ⭐⭐ Indirect fire IF-1 (I8, IF-G; docs/designs/indirect-fire/DESIGN_Indirect_Fire.md §4) — the tubes and the towed gun: weapon
@@ -486,11 +486,11 @@ namespace Hrot.Map.Definitions.Tkb
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Stinger, "Stinger (MANPADS)", 6, manpads,
                 new WeaponMount { WeaponType = "Stinger_SAM", Ammunition = 1, Range = 4800, RateOfFire = 3, DamagePerHit = 400,
                     AimSeconds = 4f, MagazineSize = 1, ReloadSeconds = 8f, FireOnMove = false,
-                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbStingerMissile, Category = WeaponCategory.Sam }, turret: null, new(0.15f, 0f, 15f), report: LauncherReport);
+                    AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbStingerMissile), Category = WeaponCategory.Sam }, turret: null, new(0.15f, 0f, 15f), report: LauncherReport);
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Igla, "Igla (MANPADS)", 6, manpads,
                 new WeaponMount { WeaponType = "Igla_SAM", Ammunition = 1, Range = 5200, RateOfFire = 3, DamagePerHit = 300,
                     AimSeconds = 4f, MagazineSize = 1, ReloadSeconds = 8f, FireOnMove = false,
-                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbIglaMissile, Category = WeaponCategory.Sam }, turret: null, new(0.15f, 0f, 15f), report: LauncherReport);
+                    AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbIglaMissile), Category = WeaponCategory.Sam }, turret: null, new(0.15f, 0f, 15f), report: LauncherReport);
             // ⭐ CE-3233 (civilians B-11, AW-6, §7.13 ST-7) — the PICK-UP rifle and pistol: the shoulder carry of one man, fired from his hands
             //   (FireWhileCarried) — not from his back or his hidden station (ST-5). Their mounts are the built-in soldier's rifle and pistol
             //   (UrbanCombatTkbCatalog), muzzle speed stated (the range fallback would fly them at 150 / 25 m/s).
@@ -498,13 +498,13 @@ namespace Hrot.Map.Definitions.Tkb
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_PickUpRifle, "Rifle (pick-up)", 8, pickUp,
                 new WeaponMount { WeaponType = "5.56mm_rifle", Ammunition = 150, Range = 300, Penetration = 5, DamagePerHit = 25, DispersionMils = 6f,
                     MagazineSize = 30, ReloadSeconds = 3f, MuzzleVelocity = 800f, FireOnMove = true, Category = WeaponCategory.SmallArms,
-                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball, TracerAmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Tracer, TracerEvery = 5 },
+                    AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball), TracerAmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Tracer), TracerEvery = 5 },
                 turret: null, new(0.1f, 0f, 10f), report: RifleReport);
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_PickUpPistol, "Pistol (pick-up)", 9, pickUp,
                 new WeaponMount { WeaponType = "9mm_pistol", Ammunition = 45, Range = 50, Penetration = Hrot.Core.Tkb.MunitionTkbCatalog.Pistol9mmPenetrationMm,
                     DamagePerHit = Hrot.Core.Tkb.MunitionTkbCatalog.Pistol9mmDamage, DispersionMils = 12f, MagazineSize = 15, ReloadSeconds = 2f,
                     MuzzleVelocity = 360f, FireOnMove = true, Category = WeaponCategory.SmallArms, Look = ItemLook.Pistol,
-                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbPistol9mm },
+                    AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbPistol9mm) },
                 turret: null, new(0.02f, 0f, 5f), report: PistolReport);
             // ⭐ CE-3233 (B-11b, AW-12, §7.13 ST-8) — the EXPLOSIVE CHARGE: one man carries it (worn hidden), it lies where it is placed, or
             //   it rides a vehicle's cargo station; a CHARGE never fires — Charges.Detonate sets it off where it stands.
@@ -512,13 +512,13 @@ namespace Hrot.Map.Definitions.Tkb
                 new WeaponSystemDto { Portable = WeaponPortability.OneMan, MountKinds = MountKinds.Ground | MountKinds.Carried | MountKinds.Cargo,
                                       Charge = true, CarrySpeedFactor = 0.9f, DeploySeconds = 0f, PackSeconds = 0f },
                 new WeaponMount { WeaponType = "explosive_charge", Ammunition = 1, Category = WeaponCategory.Grenade,
-                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbExplosiveCharge },
+                    AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbExplosiveCharge) },
                 turret: null, new(0.05f, 0f, 20f));
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Zu23, "ZU-23-2", 7, heavy with { DeploySeconds = 30f, PackSeconds = 20f, CarrySpeedFactor = 0.3f },
                 new WeaponMount { WeaponType = "2A14_23mm", Ammunition = 100, Range = 2500, RateOfFire = 400,
                     DamagePerHit = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryDamage(Hrot.Core.Tkb.MunitionTkbCatalog.Zu23ApiLibraryName),
                     DispersionMils = 3f, MagazineSize = 50, ReloadSeconds = 10f, FireOnMove = true, Category = WeaponCategory.MachineGun, TurretIndex = 0,
-                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb23mmApi, MuzzleOffset = new System.Numerics.Vector3(1.8f, 0f, 0f),
+                    AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb23mmApi), MuzzleOffset = new System.Numerics.Vector3(1.8f, 0f, 0f),
                     Loadout = new() { (Hrot.Core.Tkb.MunitionTkbCatalog.Tkb23mmApi, 50), (Hrot.Core.Tkb.MunitionTkbCatalog.Tkb23mmHei, 50) } },   // one box each
                 Pintle(-10f, 90f, 70f, 50f, 0.4f), new(1.0f, 3f, 120f), report: CannonReport);
         }
@@ -546,7 +546,7 @@ namespace Hrot.Map.Definitions.Tkb
                 WeaponType = name, Ammunition = rounds, Range = rangeM, RateOfFire = 60f / reloadSeconds,
                 DamagePerHit = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryDamage(libraryName), DispersionMils = dispersionMils,
                 AimSeconds = 2f, MagazineSize = 1, ReloadSeconds = reloadSeconds, FireOnMove = false,
-                AmmoTkb = ammo, Category = category, Arc = arc, MinElevationDeg = minElevationDeg, MaxElevationDeg = maxElevationDeg,
+                AmmoTkb = (Fdp.Core.TkbTypeId)(ammo), Category = category, Arc = arc, MinElevationDeg = minElevationDeg, MaxElevationDeg = maxElevationDeg,
             };
 
         /// <summary>
@@ -703,7 +703,7 @@ namespace Hrot.Map.Definitions.Tkb
                         DamagePerHit = 1200,
                         Category = WeaponCategory.TankGun, TurretIndex = 0,   // ⭐ WL-1
                         MuzzleOffset = new System.Numerics.Vector3(5.3f, 0f, 0f),   // ⭐ E4 — the 120 mm L/44 barrel from its trunnion
-                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb120mmApfsds,   // ⭐ LR-1 (R-271)
+                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb120mmApfsds),   // ⭐ LR-1 (R-271)
                         // ⭐ M5 (DESIGN_Missiles_And_Ammo §2) — the 42 rounds as a loadout the weapon brain picks from: APFSDS for armour,
                         //   HEAT-MP, HE-FRAG for men and soft targets
                         Loadout = TankLoadout(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb120mmApfsds, 20, 10, 12),
@@ -754,12 +754,12 @@ namespace Hrot.Map.Definitions.Tkb
                     c.BlastSusceptibility = 0.1f;   // ⭐ R-2019 D-M2 (AE3) — IFV: blast damages optics and running gear only
                     c.EyeHeight = 2.7f;   // ⭐ M5
                     c.Weapons.Add(new WeaponMount { WeaponType = "25mm_M242", Ammunition = 300, Range = 2500, RateOfFire = 200, Penetration = 60, DamagePerHit = 60,
-                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb25mmApdsT,   // ⭐ LR-1
+                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb25mmApdsT),   // ⭐ LR-1
                         Category = WeaponCategory.Autocannon, TurretIndex = 0,   // ⭐ WL-1 — the 25 mm and the TOW share one turret
                         MuzzleOffset = new System.Numerics.Vector3(2.6f, 0f, 0f) });   // ⭐ E4
 
                     c.Weapons.Add(new WeaponMount { WeaponType = "TOW_ATGM", Ammunition = 7, Range = 3750, RateOfFire = 2, Penetration = 800, DamagePerHit = 2000,
-                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbTowMissile,   // ⭐ LR-1
+                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbTowMissile),   // ⭐ LR-1
                         AimSeconds = 1.5f,   // ⭐ M5 (§5) — the gunner's lay before the launch; the TOW then flies command-guided (MissileDto)
                         Category = WeaponCategory.Atgm, TurretIndex = 0,
                         MuzzleOffset = new System.Numerics.Vector3(0.4f, 1.0f, 0.35f) });   // ⭐ E4 — the launcher on the turret's left
@@ -813,7 +813,7 @@ namespace Hrot.Map.Definitions.Tkb
                     c.BlastSusceptibility = 0f;   // ⭐ R-2019 D-M2 (AE3) — an MBT
                     c.EyeHeight = 2.2f;   // ⭐ M5
                     c.Weapons.Add(new WeaponMount { WeaponType = "125mm_2A46", Ammunition = 39, Range = 2800, RateOfFire = 8, Penetration = 600, DamagePerHit = 1100,
-                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb125mmApfsds,   // ⭐ LR-1
+                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb125mmApfsds),   // ⭐ LR-1
                         Category = WeaponCategory.TankGun, TurretIndex = 0,   // ⭐ WL-1
                         MuzzleOffset = new System.Numerics.Vector3(6.0f, 0f, 0f),   // ⭐ E4 — the 125 mm L/48 barrel
                         Loadout = TankLoadout(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb125mmApfsds, 18, 9, 12) });   // ⭐ M5 — the 39 as a loadout
@@ -902,7 +902,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithBehavior(TkbEntityTypes.Unit_TankPlatoon)
                 .AsComposite(TkbEntityTypes.Unit_TankPlatoon, comp =>
                 {
-                    comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Tank_M1Abrams, Count = 4, Designation = TacticalDesignation.Wingman });
+                    comp.Subordinates.Add(new TkbChildSlot { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams), Count = 4, Designation = TacticalDesignation.Wingman });
                     comp.Echelon = "Platoon";
                     comp.AutoCreateChildren = false; // Manual creation
                 })
@@ -922,8 +922,8 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithBehavior(TkbEntityTypes.Unit_InfantrySquad, defaultSop: "BasicSquadSop")   // ⭐ CE-2125 (R-272) — the squad's body-less commander runs the squad SOP and drills; ⭐ CE-2358 (AQ102 G) — by default: a squad with no SOP authored did nothing at all (rf-car-squads: 0 rounds, no task, 120 s)
                 .AsComposite(TkbEntityTypes.Unit_InfantrySquad, comp =>
                 {
-                    comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Infantry_Officer, Count = 1, Designation = TacticalDesignation.SquadLeader });
-                    comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Infantry_Rifleman, Count = 9, Designation = TacticalDesignation.Wingman });
+                    comp.Subordinates.Add(new TkbChildSlot { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Officer), Count = 1, Designation = TacticalDesignation.SquadLeader });
+                    comp.Subordinates.Add(new TkbChildSlot { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman), Count = 9, Designation = TacticalDesignation.Wingman });
                     comp.Echelon = "Squad";
                     comp.AutoCreateChildren = false;
                 })
@@ -944,7 +944,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithBehavior(TkbEntityTypes.Unit_InfantryPlatoon, defaultSop: "BasicPlatoonSop")
                 .AsComposite(TkbEntityTypes.Unit_InfantryPlatoon, comp =>
                 {
-                    comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Unit_InfantrySquad, Count = 3, Designation = TacticalDesignation.Wingman });
+                    comp.Subordinates.Add(new TkbChildSlot { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Unit_InfantrySquad), Count = 3, Designation = TacticalDesignation.Wingman });
                     comp.Echelon = "Platoon";
                     comp.AutoCreateChildren = false;
                 })
@@ -964,7 +964,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithBehavior(TkbEntityTypes.Unit_TankPlatoon_Auto)
                 .AsComposite(TkbEntityTypes.Unit_TankPlatoon_Auto, comp =>
                 {
-                    comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Tank_M1Abrams, Count = 4, Designation = TacticalDesignation.Wingman });
+                    comp.Subordinates.Add(new TkbChildSlot { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams), Count = 4, Designation = TacticalDesignation.Wingman });
                     comp.Echelon = "Platoon";
                     comp.AutoCreateChildren = true; // The engine will now auto-spawn 4x M1 Abrams when this is created
                 })
@@ -1063,7 +1063,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithBehavior(TkbEntityTypes.Unit_ArtilleryBattery)
                 .AsComposite(TkbEntityTypes.Unit_ArtilleryBattery, comp =>
                 {
-                    comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Sph_M109, Count = 3, Designation = TacticalDesignation.Wingman });
+                    comp.Subordinates.Add(new TkbChildSlot { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Sph_M109), Count = 3, Designation = TacticalDesignation.Wingman });
                     comp.Echelon = "Company";   // a battery is a company-level echelon
                     comp.AutoCreateChildren = false;
                 })
@@ -1167,7 +1167,7 @@ namespace Hrot.Map.Definitions.Tkb
                     c.EyeHeight = 0.1f;   // the camera on its nose
                     c.SensorRange = 1500;
                     c.Weapons.Add(new WeaponMount { WeaponType = "FPV_warhead", Ammunition = 1, Range = flight.ContactRadiusM, DamagePerHit = 450,
-                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbFpvWarhead });   // penetration: the warhead's own (400 mm)
+                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbFpvWarhead) });   // penetration: the warhead's own (400 mm)
                 })
                 .WithSignatures(type, new SignaturesDto { Acoustic = new AcousticSignatureDto
                     { MovingAudibleRange = 300f, MovingClass = SoundSourceClass.Rotor, DetonationAudibleRange = 800f, DetonationClass = SoundSourceClass.Explosion } })
@@ -1214,7 +1214,7 @@ namespace Hrot.Map.Definitions.Tkb
                     c.EyeHeight = 1f;
                     c.SensorRange = 5000;
                     c.Weapons.Add(new WeaponMount { WeaponType = "Mk-82 rack", Ammunition = 4, Range = 3000f, DamagePerHit = 1200,
-                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbMk82Bomb, Category = WeaponCategory.Bomb });
+                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbMk82Bomb), Category = WeaponCategory.Bomb });
                     // ⭐ Air Ops slice 6a (AW-1, AW-2; §7a) — the GAU-8: FIXED forward in the nose (its arc is a 5° cone round the body's
                     //   forward, so the gun run points the plane), 1150 rounds, ~3900 rounds/min; HEI loaded, the penetrator for armour
                     //   (AmmoChoice, M8). Every round's numbers are the library's (MunitionTkbCatalog); dispersion 5 mils (80 % in ~5 mil).
@@ -1224,7 +1224,7 @@ namespace Hrot.Map.Definitions.Tkb
                         Penetration = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryPenetration(Hrot.Core.Tkb.MunitionTkbCatalog.Gau8HeiLibraryName),
                         DamagePerHit = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryDamage(Hrot.Core.Tkb.MunitionTkbCatalog.Gau8HeiLibraryName),
                         Category = WeaponCategory.Autocannon, FixedConeDeg = 5f, FireOnMove = true,
-                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbGau8Hei,
+                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbGau8Hei),
                         Loadout = new() { (Hrot.Core.Tkb.MunitionTkbCatalog.TkbGau8Hei, 575), (Hrot.Core.Tkb.MunitionTkbCatalog.TkbGau8Api, 575) },
                         MuzzleOffset = new System.Numerics.Vector3(7.5f, 0f, -0.6f),
                     });
@@ -1287,7 +1287,7 @@ namespace Hrot.Map.Definitions.Tkb
                     {
                         WeaponType = "7.62mm_M134_chin", Ammunition = 4000, Range = 1000, RateOfFire = 3000, Penetration = 8, DamagePerHit = 30,
                         DispersionMils = 6f, MagazineSize = 4000, ReloadSeconds = 10f, FireOnMove = true, Category = WeaponCategory.MachineGun, TurretIndex = 0,
-                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball, TracerAmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Tracer, TracerEvery = 5,
+                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball), TracerAmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Tracer), TracerEvery = 5,
                         MuzzleOffset = new System.Numerics.Vector3(0.8f, 0f, 0f),
                     });
                     c.Weapons.Add(new WeaponMount
@@ -1296,7 +1296,7 @@ namespace Hrot.Map.Definitions.Tkb
                         Penetration = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryPenetration(Hrot.Core.Tkb.MunitionTkbCatalog.Hydra70LibraryName),
                         DamagePerHit = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryDamage(Hrot.Core.Tkb.MunitionTkbCatalog.Hydra70LibraryName),
                         Category = WeaponCategory.Rocket, FixedConeDeg = 8f, FireOnMove = true,
-                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbHydra70Rocket,
+                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbHydra70Rocket),
                         MuzzleOffset = new System.Numerics.Vector3(0.5f, 1.8f, -0.6f),   // the left stub wing
                     });
                     c.Weapons.Add(Dispenser(flares: 60, chaff: 60));   // ⭐ CE-2188 (BS-1 §5.4c) — the LAST mount
@@ -1313,7 +1313,7 @@ namespace Hrot.Map.Definitions.Tkb
         private static WeaponMount Dispenser(int flares, int chaff) => new()
         {
             WeaponType = "Flare / chaff dispenser", Ammunition = flares + chaff, RateOfFire = 120f, FireOnMove = true,
-            Category = WeaponCategory.Countermeasure, AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbFlare,
+            Category = WeaponCategory.Countermeasure, AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbFlare),
             Loadout = new() { (Hrot.Core.Tkb.MunitionTkbCatalog.TkbFlare, flares), (Hrot.Core.Tkb.MunitionTkbCatalog.TkbChaff, chaff) },
         };
 

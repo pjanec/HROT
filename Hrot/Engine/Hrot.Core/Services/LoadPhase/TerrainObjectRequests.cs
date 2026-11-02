@@ -50,7 +50,7 @@ public static class TerrainObjectRequests
             requests.Add(new EntityCreationRequest
             {
                 RequestId             = Guid.NewGuid(),
-                TkbType               = TkbEntityTypes.Door,
+                TkbType               = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Door),
                 PreAllocatedNetworkId = idAllocator.AllocateId(),
                 IsTransient           = true,
                 InitialComponents     = new List<object>

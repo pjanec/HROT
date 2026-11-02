@@ -663,7 +663,7 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
             formationTemplates:  new CarKinem.Formation.FormationTemplateManager(),
             missionSender:       _networkFactory!.CreateSimHostMissionSender(),
             eventHistoryService: new Fdp.Core.Diagnostics.DiagnosticEventHistoryService(),
-            idAllocator:         ctx.IdAllocator,
+            creation:            _bootstrapper.EntityCreation!,   // CE-259ax — the spawners ask the node's one creation path (was the id allocator)
             localNodeId:         ctx.NodeId);
 
         _operatorSelection = new EditorSelectionState();

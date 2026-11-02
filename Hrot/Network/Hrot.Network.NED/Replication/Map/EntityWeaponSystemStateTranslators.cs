@@ -20,7 +20,7 @@ namespace Hrot.Map.Common.Replication.Egress
     public sealed class EntityWeaponSystemStateEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<EntityWeaponSystemState>? _writer;
-        private readonly Dictionary<long, EntityWeaponSystemState> _last = new();
+        private readonly Dictionary<int, EntityWeaponSystemState> _last = new();
         private int _worldEpoch;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeaponSystemState>();
@@ -42,7 +42,7 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var weapon in view.Query().With<WeaponSystemState>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(weapon, packedKey)) continue;
-                long netId = view.GetComponentRO<NetworkIdentity>(weapon).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(weapon).Value;
                 var sample = ToSample(netId, view.GetComponentRO<WeaponSystemState>(weapon));
                 if (_last.TryGetValue(netId, out var prev) && prev.Equals(sample)) continue;
                 _last[netId] = sample;
@@ -52,13 +52,13 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>The wire form (the test seam).</summary>
-        internal static EntityWeaponSystemState ToSample(long netId, in WeaponSystemState s)
+        internal static EntityWeaponSystemState ToSample(int netId, in WeaponSystemState s)
             => new() { EntityId = netId, Deploy = (byte)s.Deploy, Until = s.Until };
 
-        public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityWeaponSystemState { EntityId = networkEntityId });
         }
@@ -78,8 +78,8 @@ namespace Hrot.Map.Common.Replication.Ingress
         private const long OrdinalValue = (long)EDescriptorType.dtWeaponSystemState;
         private readonly DdsReader<EntityWeaponSystemState>? _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly Dictionary<long, EntityWeaponSystemState> _pending = new();
-        private readonly List<long> _done = new();
+        private readonly Dictionary<int, EntityWeaponSystemState> _pending = new();
+        private readonly List<int> _done = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeaponSystemState>();
         public long DescriptorOrdinal => OrdinalValue;
@@ -137,6 +137,6 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) => _pending.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _pending.Remove(networkEntityId);
     }
 }

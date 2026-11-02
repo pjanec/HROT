@@ -16,7 +16,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The man to care for; none ⇒ the first member who is down and not yet cared for.</summary>
         [JsonPropertyName("casualty")]
-        public EntityRef Casualty;
+        public EntityLink Casualty;
 
         /// <summary>Walking speed (m/s); 0 ⇒ 3 m/s.</summary>
         [JsonPropertyName("speed")]

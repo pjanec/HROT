@@ -1,6 +1,6 @@
-StructureHash: 0x98E4DD6336798DD2
+StructureHash: 0x7EB16BFEBB1CD4AF
 Parameters:
-  TargetNetworkId : System.Int64 @0 size=8
+  TargetNetworkId : Fdp.Toolkit.Replication.EntityLink @0 size=40
 WorkingState:
   (empty)
 Variables:

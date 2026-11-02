@@ -27,17 +27,17 @@ namespace Hrot.Network.NED.SimHost
         // ⭐ CE-490 — the brain READS its own topic too: TransientLocal hands a node every live instance, including the
         //   ones a previous owner wrote. Only keys and last configs are kept — ⛔ no carrier is ever built on a brain.
         private readonly DdsReader<EqsSensorConfigTopic>? _reader;
-        private readonly Dictionary<(long ParentNetworkId, int LocalChildIndex), EqsSensorConfigTopic> _onWire = new();
+        private readonly Dictionary<(int ParentNetworkId, int LocalChildIndex), EqsSensorConfigTopic> _onWire = new();
         // Keys this node has already suspended and not seen re-activated since — one write per orphan, not one per scan.
-        private readonly HashSet<(long ParentNetworkId, int LocalChildIndex)> _suspendedByUs = new();
-        private readonly List<(long ParentNetworkId, int LocalChildIndex)> _orphans = new();
+        private readonly HashSet<(int ParentNetworkId, int LocalChildIndex)> _suspendedByUs = new();
+        private readonly List<(int ParentNetworkId, int LocalChildIndex)> _orphans = new();
         private readonly NetworkEntityMap _entityMap;
 
         // ⭐ CE-3002 / R-179 — the brain names each child sensor's solver. 📄 DESIGN_Ownership_Groups_And_Grants.md §5.8.
         private readonly Hrot.Network.Routing.IClusterStateCache? _clusterCache;
-        private readonly int _localNodeId;
-        private readonly Dictionary<(long ParentNetworkId, int LocalChildIndex), int> _solverOf = new();
-        private readonly Dictionary<(long ParentNetworkId, int LocalChildIndex), int> _recordedSolver = new();
+        private readonly NodeId _localNodeId;
+        private readonly Dictionary<(int ParentNetworkId, int LocalChildIndex), int> _solverOf = new();
+        private readonly Dictionary<(int ParentNetworkId, int LocalChildIndex), int> _recordedSolver = new();
         private OwnershipApplier? _applier;
         private int _worldEpoch;   // ⭐ CE-3076 — per-key bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
 
@@ -53,7 +53,7 @@ namespace Hrot.Network.NED.SimHost
         // The wire keys a LIVE local sensor holds this scan — every local sensor, with authority or not. CE-486: an ended
         // sensor whose key a live one now holds writes nothing (the same-scan write-then-end race, design §2 ①, cannot
         // happen). CE-490: an instance a local sensor holds is never an orphan.
-        private readonly HashSet<(long ParentNetworkId, int LocalChildIndex)> _liveKeys = new();
+        private readonly HashSet<(int ParentNetworkId, int LocalChildIndex)> _liveKeys = new();
         private readonly List<Entity> _gone = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EqsSensorConfigTopic>();
@@ -72,7 +72,7 @@ namespace Hrot.Network.NED.SimHost
             if (entityMap   == null) throw new ArgumentNullException(nameof(entityMap));
             _entityMap    = entityMap;
             _clusterCache = clusterCache;
-            _localNodeId  = localNodeId;
+            _localNodeId  = (Fdp.Core.NodeId)(localNodeId);
             _writer = new DdsWriter<EqsSensorConfigTopic>(participant);
             _reader = new DdsReader<EqsSensorConfigTopic>(participant);
         }
@@ -108,7 +108,7 @@ namespace Hrot.Network.NED.SimHost
             {
                 // The wire key — the ONE rule (EqsSensorKey). A child whose parent is gone or local-only, and a
                 // local-only sensor, publish nothing.
-                var kind = EqsSensorKey.Resolve(view, entity, out long parentNetworkId, out int localChildIndex, out var parent);
+                var kind = EqsSensorKey.Resolve(view, entity, out int parentNetworkId, out int localChildIndex, out var parent);
                 if (kind is EqsSensorKeyKind.None or EqsSensorKeyKind.LocalOnly) continue;
                 _liveKeys.Add((parentNetworkId, localChildIndex));
 
@@ -133,9 +133,9 @@ namespace Hrot.Network.NED.SimHost
 
                 // Hold while a context slot names an entity that has no network id yet: sending 0
                 // would tell the Muscle "no entity", and nothing would re-send once the id existed.
-                if (!TrySlotNetId(sensor.ContextSlot0, out long slot0)
-                    || !TrySlotNetId(sensor.ContextSlot1, out long slot1)
-                    || !TrySlotNetId(sensor.ContextSlot2, out long slot2))
+                if (!TrySlotNetId(sensor.ContextSlot0, out int slot0)
+                    || !TrySlotNetId(sensor.ContextSlot1, out int slot1)
+                    || !TrySlotNetId(sensor.ContextSlot2, out int slot2))
                     continue;
 
                 var topic = new EqsSensorConfigTopic
@@ -309,7 +309,7 @@ namespace Hrot.Network.NED.SimHost
         /// live only where those sensors are solved) finds them there. 🔒 User: <i>"when the brain picks a node for a sensor,
         /// prefer the node already solving another sensor of the same unit" — "yes"</i>.
         /// </summary>
-        private int SolverFor((long ParentNetworkId, int LocalChildIndex) key, uint blueprintId)
+        private int SolverFor((int ParentNetworkId, int LocalChildIndex) key, uint blueprintId)
         {
             if (_clusterCache == null) return 0;
             var known = _clusterCache.AllNodeIds();
@@ -323,8 +323,8 @@ namespace Hrot.Network.NED.SimHost
         }
 
         /// <summary>The solver of the unit's lowest-numbered OTHER sensor that is still known and carries <paramref name="role"/>.</summary>
-        internal static int? SiblingSolver(IReadOnlyDictionary<(long ParentNetworkId, int LocalChildIndex), int> solverOf,
-            (long ParentNetworkId, int LocalChildIndex) key, NodeRole role, IReadOnlyList<int> known,
+        internal static int? SiblingSolver(IReadOnlyDictionary<(int ParentNetworkId, int LocalChildIndex), int> solverOf,
+            (int ParentNetworkId, int LocalChildIndex) key, NodeRole role, IReadOnlyList<int> known,
             Hrot.Network.Routing.IClusterStateCache cache)
         {
             int? best = null; int bestIndex = int.MaxValue;
@@ -355,7 +355,7 @@ namespace Hrot.Network.NED.SimHost
 
         /// <summary>⭐ R-179: the config is the per-sensor grant — this node records the solver as the owner of result
         /// part <c>n</c>, as every Perception node does on reading the config.</summary>
-        private void RecordSolver(EntityRepository repo, Entity parent, (long ParentNetworkId, int LocalChildIndex) key, int solver)
+        private void RecordSolver(EntityRepository repo, Entity parent, (int ParentNetworkId, int LocalChildIndex) key, int solver)
         {
             if (_recordedSolver.TryGetValue(key, out int recorded) && recorded == solver) return;
             _applier ??= new OwnershipApplier(_localNodeId,
@@ -371,15 +371,15 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId)
+        public void Dispose(int networkEntityId)
         {
             _writer?.DisposeInstance(new EqsSensorConfigTopic { ParentNetworkId = networkEntityId, LocalChildIndex = 0 });
         }
 
         // A null slot is 0 on the wire. A non-null slot must have a network id; false = not yet.
-        private bool TrySlotNetId(Entity slotEntity, out long netId)
+        private bool TrySlotNetId(Entity slotEntity, out int netId)
         {
-            netId = 0L;
+            netId = 0;
             if (slotEntity.IsNull) return true;
             return _entityMap.TryGetNetworkId(slotEntity, out netId);
         }

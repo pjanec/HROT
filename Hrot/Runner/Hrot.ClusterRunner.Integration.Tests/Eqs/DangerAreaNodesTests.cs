@@ -77,7 +77,7 @@ public sealed class DangerAreaNodesTests : System.IDisposable
         Assert.Equal(child, UnitSensors.Of(_repo, _unit, SensorModality.DangerArea));
         var settings = _repo.GetComponentRO<DangerAreaSensor>(child).Settings;
         Assert.Equal(DangerRouteSource.ToPoint, settings.RouteSource);   // ③ — never the unit's own move (§10.2)
-        Assert.Equal(Objective, settings.RoutePoint);
+        Assert.Equal((Fdp.Core.WorldPoint)Objective, settings.RoutePoint);
         Assert.Equal(child, Sensor());                                     // find-or-create
     }
 

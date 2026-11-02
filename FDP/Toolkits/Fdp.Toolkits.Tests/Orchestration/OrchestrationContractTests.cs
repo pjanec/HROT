@@ -22,7 +22,7 @@ public sealed class OrchestrationContractTests
         var intent = new ExecuteNodeOpIntent
         {
             TransactionId = txId,
-            TargetNodeId  = 42,
+            TargetNodeId  = (Fdp.Core.NodeId)(42),
             Operation     = NodeOpType.PrepareLive,
             DomainPayload = "test-scenario",
         };

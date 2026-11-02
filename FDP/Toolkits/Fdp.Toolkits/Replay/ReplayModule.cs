@@ -220,7 +220,7 @@ namespace Fdp.Toolkit.Replay
         /// so the orchestrator can reset the ID allocator above the replay's ID space
         /// (CGF1-S0304).
         /// </summary>
-        public long MaxNetworkId => _playback?.Metadata.MaxNetworkId ?? 0;
+        public int MaxNetworkId => _playback?.Metadata.MaxNetworkId ?? 0;
 
         /// <summary>
         /// Starting wall-clock ticks of the recording timeline.

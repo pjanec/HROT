@@ -38,7 +38,7 @@ public sealed class UtilityDecisionViewTests : SystemTestBase
             (await Mcp.StepAsync(60)).EnsureOk();
             foreach (var e in (await Mcp.ListEntitiesAsync()).EnsureOk().Array())
             {
-                long n = e!["networkId"]?.GetValue<long>() ?? 0;
+                int n = e!["networkId"]?.GetValue<int>() ?? 0;
                 var live = (await Mcp.GetUtilityDecisionAsync("Combat posture", n)).Data?["live"];
                 if (live?["evaluations"]?.GetValue<int>() is not > 0) continue;
                 Output.WriteLine($"#{n}: {live.ToJsonString()}");

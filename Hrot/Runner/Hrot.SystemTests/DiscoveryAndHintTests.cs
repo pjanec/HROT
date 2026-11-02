@@ -91,7 +91,7 @@ public sealed class DiscoveryAndHintTests : SystemTestBase
         await LoadAndPreviewAsync("hill-attack", startPaused: true);
 
         var entity = (await Mcp.ListEntitiesAsync()).EnsureOk().Array()
-            .Select(e => e?["networkId"]?.GetValue<long>())
+            .Select(e => e?["networkId"]?.GetValue<int>())
             .First(id => id is not null)!.Value;
 
         var forEntity = await Mcp.GetBehaviorsAsync(entityId: entity);
@@ -118,7 +118,7 @@ public sealed class DiscoveryAndHintTests : SystemTestBase
     [SystemSmokeFact]
     public async Task An_unknown_entity_asking_for_behaviors_is_told_where_to_look()
     {
-        var result = await Mcp.GetBehaviorsAsync(entityId: 999_999_999L);
+        var result = await Mcp.GetBehaviorsAsync(entityId: 999_999_999);
 
         Assert.False(result.Ok);
         Assert.Equal(404, result.StatusCode);
@@ -145,7 +145,7 @@ public sealed class DiscoveryAndHintTests : SystemTestBase
     [SystemSmokeFact]
     public async Task The_back_filled_hints_reach_older_endpoints_too()
     {
-        var unknownEntity = await Mcp.GetEntityAsync(999_999_999L);
+        var unknownEntity = await Mcp.GetEntityAsync(999_999_999);
         Assert.False(unknownEntity.Ok);
         Assert.Equal("GET /entities", unknownEntity.HintEndpoint);
 

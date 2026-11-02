@@ -16,14 +16,14 @@ internal static class RunnerTestHelpers
     /// call on a command gateway: create the entity at a LOCAL ENU position, await its allocated id, then replace its mission with a single
     /// <c>WanderMilitary</c> task. Returns the entity id (0 on a failed create).
     /// </summary>
-    public static async System.Threading.Tasks.Task<long> SpawnWithWanderMissionAsync(
+    public static async System.Threading.Tasks.Task<int> SpawnWithWanderMissionAsync(
         Hrot.Core.Network.ICommandGateway gateway, long tkbType, int forceId, float x, float y)
     {
         int entityId = await gateway.CreateEntityAsync(new Hrot.Core.Network.CreateEntityCommand
         {
-            TkbType = tkbType, X = x, Y = y, Z = 0.0, ForceId = forceId,
+            TkbType = (Fdp.Core.TkbTypeId)(tkbType), X = x, Y = y, Z = 0.0, ForceId = forceId,
         });
-        if (entityId <= 0) return 0L;
+        if (entityId <= 0) return 0;
 
         var taskId = Guid.NewGuid();
         var plan = new Hrot.Core.Mission.MissionPlan

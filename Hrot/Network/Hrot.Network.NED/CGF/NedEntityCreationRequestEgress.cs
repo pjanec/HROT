@@ -74,7 +74,7 @@ public static class EntityCreationRequestFlags
 public sealed class NedEntityCreationRequestEgress : IEntityCreationRequestEgress, IDisposable
 {
     private readonly IDdsWriter<CreateEntityRequest> _writer;
-    private readonly long _localNodeId;
+    private readonly Fdp.Core.NodeId _localNodeId;
 
     /// <summary>Number of requests written to the wire. Diagnostics and rails only.</summary>
     public long SentSampleCount { get; private set; }
@@ -82,7 +82,7 @@ public sealed class NedEntityCreationRequestEgress : IEntityCreationRequestEgres
     /// <summary>Production constructor: creates a live DDS writer.</summary>
     public NedEntityCreationRequestEgress(
         DdsParticipant participant,
-        long localNodeId = 0)
+        int localNodeId = 0)
         : this(new DdsWriterAdapter<CreateEntityRequest>(participant),
                localNodeId)
     {
@@ -91,10 +91,10 @@ public sealed class NedEntityCreationRequestEgress : IEntityCreationRequestEgres
     /// <summary>Testable constructor: accepts an injected writer stub.</summary>
     public NedEntityCreationRequestEgress(
         IDdsWriter<CreateEntityRequest> writer,
-        long localNodeId = 0)
+        int localNodeId = 0)
     {
         _writer       = writer ?? throw new ArgumentNullException(nameof(writer));
-        _localNodeId  = localNodeId;
+        _localNodeId  = (Fdp.Core.NodeId)(localNodeId);
     }
 
     /// <inheritdoc/>
@@ -112,7 +112,7 @@ public sealed class NedEntityCreationRequestEgress : IEntityCreationRequestEgres
             preAllocatedNetworkId: request.PreAllocatedNetworkId);   // ⭐ CE-4024 — the id the author fixed travels
 
         // ⭐ The address travels: the builder is owner-agnostic, so the routing fields are applied here.
-        sample.Owner = new NodeId { AppDomainId = 0, AppInstanceId = request.OwnerAppInstanceId };
+        sample.Owner = new Hrot.NED.Common.NodeId { AppDomainId = 0, AppInstanceId = request.OwnerAppInstanceId };
         sample.Flags = EntityCreationRequestFlags.Encode(request.IsTransient, request.IsScenarioLoad);   // ⭐ CE-3324
         // ⭐ CE-1017 S2 — the birth-height request: explicit fields, 0 = Absolute = every sender before them.
         sample.SpawnHeightMode = (byte)(request.SpawnHeight?.Mode ?? Fdp.Toolkit.NetworkSpawning.SpawnHeightMode.Absolute);

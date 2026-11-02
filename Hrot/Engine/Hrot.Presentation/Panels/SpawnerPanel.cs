@@ -8,6 +8,7 @@ using Fdp.Interfaces;
 using Hrot.UI.Common.AddEntity;
 using NodeEditor.UI.Picker;
 using Fdp.Core.Serialization;
+using Fdp.Core;
 
 namespace Hrot.UI.Common.Panels;
 
@@ -18,7 +19,7 @@ namespace Hrot.UI.Common.Panels;
 /// </summary>
 /// <param name="TkbId">TKB type identifier (matches <c>TkbTemplate.TkbType</c>).</param>
 /// <param name="Name">Display name shown in the spawner list.</param>
-public sealed record TkbCatalogEntry(long TkbId, string Name);
+public sealed record TkbCatalogEntry(TkbTypeId TkbId, string Name);
 
 /// <summary>⭐⭐⭐ U-obs-5 — the whole of what <see cref="SpawnerPanel"/> shows, this frame. ⚠ See
 /// <c>ConfigPanel</c>'s remarks for the group-5 twin finding.</summary>

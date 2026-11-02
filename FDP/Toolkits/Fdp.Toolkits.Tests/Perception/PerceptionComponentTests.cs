@@ -39,7 +39,7 @@ namespace Fdp.Toolkit.Perception.Tests
         {
             // Arrange
             var mem = new TargetMemory();
-            const long expectedEntityId = 42L;
+            const long expectedEntityId = 42;
 
             // Act
             TargetMemory.AddOrUpdateTarget(ref mem,
@@ -62,7 +62,7 @@ namespace Fdp.Toolkit.Perception.Tests
         {
             // Arrange
             var mem = new TargetMemory();
-            const long entityId = 7L;
+            const long entityId = 7;
 
             // Act — add the same entity twice with different boosts
             TargetMemory.AddOrUpdateTarget(ref mem, entityId, 0f, 0f, 40f, 1u);
@@ -85,7 +85,7 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal(PerceptionConstants.MaxTrackedTargets, mem.Count); // table full
 
             // Act — add a 17th entry whose score (25) exceeds the current lowest (10, entity 1)
-            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 17L, 0f, 0f, 25f, 0u);
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 17, 0f, 0f, 25f, 0u);
 
             // Assert — count stays at MaxTrackedTargets and entity 1 (score 10) was evicted
             Assert.Equal(PerceptionConstants.MaxTrackedTargets, mem.Count);
@@ -127,7 +127,7 @@ namespace Fdp.Toolkit.Perception.Tests
             // Lowest score is entity 1 with score 5.
 
             // Add entity 17 with score higher than the lowest (5)
-            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 17L, 0f, 0f, 50f, 17u);
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 17, 0f, 0f, 50f, 17u);
 
             Assert.Equal(16, mem.Count);
 
@@ -159,7 +159,7 @@ namespace Fdp.Toolkit.Perception.Tests
                 TargetMemory.AddOrUpdateTarget(ref mem, entityId: (long)i, 0f, 0f, 100f + i, (uint)i);
             // All scores are >= 101; entity 1 (101) is the least dangerous. Add entity 17 with score 1.
 
-            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 17L, 0f, 0f, 1f, 17u);
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 17, 0f, 0f, 1f, 17u);
 
             Assert.Equal(16, mem.Count);
             bool found17 = false, found1 = false;

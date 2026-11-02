@@ -20,10 +20,10 @@ namespace Fdp.Network.Cyclone.Systems
     public class CycloneNetworkCleanupSystem : IEcsModuleSystem, Fdp.Core.Orchestration.IRetractionAckSource
     {
         private readonly Fdp.Interfaces.IDescriptorTranslator[] _translators;
-        private readonly Dictionary<long, Entity> _trackedEntities = new();
+        private readonly Dictionary<int, Entity> _trackedEntities = new();
         private readonly Dictionary<long, bool> _present = new();   // ⭐ CE-3329 W1 — this frame's networked ids → owned here?
-        private readonly List<long> _gone = new();
-        private readonly Dictionary<long, Entity> _trackedLightweight = new();   // LR-2 — the subset with no lifecycle
+        private readonly List<int> _gone = new();
+        private readonly Dictionary<int, Entity> _trackedLightweight = new();   // LR-2 — the subset with no lifecycle
         private uint _clearGeneration;   // ⭐ CE-3329 W1 — EntityRepository.ClearGeneration at the last sweep
         private uint _lastRunVersion;    // GlobalVersion at the last run — the delta query's horizon
         private EntityQuery? _query;
@@ -187,7 +187,7 @@ namespace Fdp.Network.Cyclone.Systems
                 _gone.Clear();
                 foreach (var (netId, round) in _trackedLightweight)
                     if (!view.IsAlive(round)) _gone.Add(netId);
-                foreach (long netId in _gone)
+                foreach (int netId in _gone)
                 {
                     _trackedLightweight.Remove(netId);
                     if (_trackedEntities.Remove(netId)) DisposeAll(netId);
@@ -201,7 +201,7 @@ namespace Fdp.Network.Cyclone.Systems
                     continue;
 
                 ref readonly var identity = ref view.GetComponentRO<NetworkIdentity>(evt.Entity);
-                long netId = identity.Value;
+                int netId = identity.Value;
 
                 if (_trackedEntities.Remove(netId))
                 {
@@ -247,7 +247,7 @@ namespace Fdp.Network.Cyclone.Systems
             foreach (var entity in BuildQuery(view))
             {
                 if (IsTearingDown(repo, entity)) continue;
-                long netId = view.GetComponentRO<NetworkIdentity>(entity).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(entity).Value;
                 bool owned = view.GetComponentRO<NetworkAuthority>(entity).HasAuthority;   // DB-MOD1-03 / CE-281
                 _present[netId] = owned;
                 if (owned) Track(view, entity, netId);
@@ -257,7 +257,7 @@ namespace Fdp.Network.Cyclone.Systems
             _gone.Clear();
             foreach (var netId in _trackedEntities.Keys)
                 if (!_present.TryGetValue(netId, out bool owned) || !owned) _gone.Add(netId);
-            foreach (long netId in _gone)
+            foreach (int netId in _gone)
             {
                 _trackedEntities.Remove(netId);
                 if (_present.ContainsKey(netId)) { ForgottenHandedOver++; continue; }   // a ghost now: its owner publishes it
@@ -316,12 +316,12 @@ namespace Fdp.Network.Cyclone.Systems
         private void Observe(ISimulationView view, EntityRepository repo, Entity entity)
         {
             if (IsTearingDown(repo, entity)) return;
-            long netId = view.GetComponentRO<NetworkIdentity>(entity).Value;
+            int netId = view.GetComponentRO<NetworkIdentity>(entity).Value;
             if (view.GetComponentRO<NetworkAuthority>(entity).HasAuthority) Track(view, entity, netId);
             else if (_trackedEntities.Remove(netId)) { _trackedLightweight.Remove(netId); ForgottenHandedOver++; }
         }
 
-        private void Track(ISimulationView view, Entity entity, long netId)
+        private void Track(ISimulationView view, Entity entity, int netId)
         {
             _trackedEntities[netId] = entity;   // new ⇒ tracked; known ⇒ the handle refreshed
             if (view.HasComponent<LightweightRound>(entity)) _trackedLightweight[netId] = entity;
@@ -333,7 +333,7 @@ namespace Fdp.Network.Cyclone.Systems
             => repo != null && repo.GetLifecycleState(entity) == EntityLifecycle.TearDown;
 
         /// <summary>Disposes <paramref name="netId"/> on every translator (writes "entity deleted" to the wire), timing each.</summary>
-        private void DisposeAll(long netId)
+        private void DisposeAll(int netId)
         {
             foreach (var translator in _translators)
             {

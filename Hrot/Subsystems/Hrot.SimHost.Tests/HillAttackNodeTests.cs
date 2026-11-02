@@ -146,7 +146,7 @@ namespace Hrot.SimHost.Tests
                 new HullDownAttackParams
                 {
                     BaselineX = 523f, BaselineY = 401f, SlotX = 530f, SlotY = 450f,
-                    AttackDirX = 0f, AttackDirY = 2f, TargetNetworkId = 4242, ApproachSpeed = 15f, CreepSpeed = 5f,
+                    AttackDirX = 0f, AttackDirY = 2f, TargetNetworkId = new Fdp.Toolkit.Replication.EntityRef(4242), ApproachSpeed = 15f, CreepSpeed = 5f,
                 },
                 Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
 
@@ -199,7 +199,7 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var tank = repo.CreateEntity();
-            repo.AddComponent(tank, new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+            repo.AddComponent(tank, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams) });
 
             var mapper = new HullDownAttackMapper();
             var ok = mapper.TryMap(tank, repo, "{}", out var assignment);
@@ -216,7 +216,7 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var infantry = repo.CreateEntity();
-            repo.AddComponent(infantry, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            repo.AddComponent(infantry, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman) });
 
             var mapper = new HullDownAttackMapper();
             var ok = mapper.TryMap(infantry, repo, "{}", out _);
@@ -877,8 +877,8 @@ namespace Hrot.SimHost.Tests
 
             var target1 = repo.CreateEntity();
             var target2 = repo.CreateEntity();
-            repo.AddComponent(target1, new NetworkIdentity { Value = 101L });
-            repo.AddComponent(target2, new NetworkIdentity { Value = 202L });
+            repo.AddComponent(target1, new NetworkIdentity { Value = 101 });
+            repo.AddComponent(target2, new NetworkIdentity { Value = 202 });
 
             AddRoster(repo, commander, subs);
 
@@ -907,7 +907,7 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal(3, events.Count);
 
                 // Parse TargetNetworkId from each event's JSON.
-                long[] netIds = new long[3];
+                int[] netIds = new int[3];
                 for (int i = 0; i < 3; i++)
                     netIds[i] = ParseTargetNetworkId(events[i].JsonParams!);
 
@@ -1377,10 +1377,10 @@ namespace Hrot.SimHost.Tests
             // So [y, x] → firingLineStart{x=0,y=0} → [0,0]; firingLineEnd{x=100,y=0} → [0,100];
             // baselineStart{x=0,y=50} → [50,0]; baselineEnd{x=100,y=50} → [50,100].
             const string json =
-                @"{""firingLineStart"":[0,0]," +
-                @"""firingLineEnd"":[0,100]," +
-                @"""baselineStart"":[50,0]," +
-                @"""baselineEnd"":[50,100]," +
+                @"{""firingLineStart"":[0,0,0]," +
+                @"""firingLineEnd"":[100,0,0]," +
+                @"""baselineStart"":[0,50,0]," +
+                @"""baselineEnd"":[100,50,0]," +
                 @"""targetAreaNetworkId"":0}";
             // (no tankSpacing => should default to 30f)
 
@@ -1406,10 +1406,10 @@ namespace Hrot.SimHost.Tests
         {
             // PickableGeoPoint uses [latitude, longitude] array format; Cartesian fallback: X=lon, Y=lat.
             const string json =
-                @"{""firingLineStart"":[0,0]," +
-                @"""firingLineEnd"":[0,100]," +
-                @"""baselineStart"":[50,0]," +
-                @"""baselineEnd"":[50,100]," +
+                @"{""firingLineStart"":[0,0,0]," +
+                @"""firingLineEnd"":[100,0,0]," +
+                @"""baselineStart"":[0,50,0]," +
+                @"""baselineEnd"":[100,50,0]," +
                 @"""tankSpacing"":30}";
 
             var result = new PlatoonHillAttackParams();
@@ -1450,10 +1450,10 @@ namespace Hrot.SimHost.Tests
         {
             // PickableGeoPoint is [latitude, longitude]; the Cartesian fallback maps X=lon, Y=lat.
             const string json =
-                @"{""firingLineStart"":[0,0]," +      // (x=0,   y=0)
-                @"""firingLineEnd"":[0,100]," +       // (x=100, y=0)
-                @"""baselineStart"":[50,-50]," +      // (x=-50, y=50)
-                @"""baselineEnd"":[50,50]," +         // (x=50,  y=50)
+                @"{""firingLineStart"":[0,0,0]," +      // (x=0,   y=0)
+                @"""firingLineEnd"":[100,0,0]," +       // (x=100, y=0)
+                @"""baselineStart"":[-50,50,0]," +      // (x=-50, y=50)
+                @"""baselineEnd"":[50,50,0]," +         // (x=50,  y=50)
                 @"""tankSpacing"":30}";
 
             var result = new PlatoonHillAttackParams();
@@ -1477,10 +1477,10 @@ namespace Hrot.SimHost.Tests
         public unsafe void SC_HA016_2c_AttackDir_FallsBackToTheApproachVector_WhenTheFiringLineIsAPoint()
         {
             const string json =
-                @"{""firingLineStart"":[0,0]," +
-                @"""firingLineEnd"":[0,0]," +          // degenerate: same point
-                @"""baselineStart"":[50,0]," +
-                @"""baselineEnd"":[50,100]," +
+                @"{""firingLineStart"":[0,0,0]," +
+                @"""firingLineEnd"":[0,0,0]," +          // degenerate: same point
+                @"""baselineStart"":[0,50,0]," +
+                @"""baselineEnd"":[100,50,0]," +
                 @"""tankSpacing"":30}";
 
             var result = new PlatoonHillAttackParams();
@@ -1507,15 +1507,15 @@ namespace Hrot.SimHost.Tests
 
             var areaEntity = repo.CreateEntity();
             var entityMap  = new NetworkEntityMap();
-            entityMap.Register(999L, areaEntity);
+            entityMap.Register(999, areaEntity);
 
             // PickableGeoPoint uses [latitude, longitude] array format.
             // In Cartesian fallback: StartX=longitude, StartY=latitude.
             string json =
-                @"{""firingLineStart"":[0,0]," +
-                @"""firingLineEnd"":[0,10]," +
-                @"""baselineStart"":[5,0]," +
-                @"""baselineEnd"":[5,10]," +
+                @"{""firingLineStart"":[0,0,0]," +
+                @"""firingLineEnd"":[10,0,0]," +
+                @"""baselineStart"":[0,5,0]," +
+                @"""baselineEnd"":[10,5,0]," +
                 @"""tankSpacing"":30," +
                 @"""targetAreaNetworkId"":999}";
 
@@ -1536,10 +1536,10 @@ namespace Hrot.SimHost.Tests
         public unsafe void SC_HA016_4_ParsePlatoonHillAttackParams_WritesEntityNull_WhenIdUnresolvable()
         {
             const string json =
-                @"{""firingLineStart"":{""x"":0,""y"":0}," +
-                @"""firingLineEnd"":{""x"":10,""y"":0}," +
-                @"""baselineStart"":{""x"":0,""y"":5}," +
-                @"""baselineEnd"":{""x"":10,""y"":5}," +
+                @"{""firingLineStart"":[0,0,0]," +
+                @"""firingLineEnd"":[10,0,0]," +
+                @"""baselineStart"":[0,5,0]," +
+                @"""baselineEnd"":[10,5,0]," +
                 @"""tankSpacing"":30," +
                 @"""targetAreaNetworkId"":12345}";
 
@@ -1590,7 +1590,7 @@ namespace Hrot.SimHost.Tests
         /// </para>
         /// </summary>
         [Fact]
-        public unsafe void SC_HA016_7_PlatoonHillAttack_Resolver_UsesWorldSingletonGeoTransform()
+        public unsafe void SC_HA016_7_PlatoonHillAttack_Resolver_TakesLocalPoints_NotConvertedByTheGeoSingleton()
         {
             using var repo = CreateWorld();
 
@@ -1609,10 +1609,10 @@ namespace Hrot.SimHost.Tests
 
             // PickableGeoPoint uses [latitude, longitude]. FiringLineStart = lat 2, lon 7.
             const string json =
-                @"{""firingLineStart"":[2,7]," +
-                @"""firingLineEnd"":[2,8]," +
-                @"""baselineStart"":[3,7]," +
-                @"""baselineEnd"":[3,8]," +
+                @"{""firingLineStart"":[7,2,0]," +
+                @"""firingLineEnd"":[8,2,0]," +
+                @"""baselineStart"":[7,3,0]," +
+                @"""baselineEnd"":[8,3,0]," +
                 @"""tankSpacing"":30}";
 
             repo.Bus.PublishManaged(new AssignBehaviorEvent
@@ -1630,10 +1630,11 @@ namespace Hrot.SimHost.Tests
                 repo, commander, out PlatoonHillAttackParams* parmsPtr));
             PlatoonHillAttackParams parms = *parmsPtr;
 
-            // FiringLineStart lon=7 -> X = 7*1000 = 7000 (geo used), NOT 7 (null fallback).
-            Assert.Equal(7000f, parms.StartX, 0.5f);
-            Assert.Equal(2000f, parms.StartY, 0.5f);
-            Assert.Equal(8000f, parms.EndX, 0.5f);
+            // ⭐ S0 item 5 (SR-135): an authored point is LOCAL METRES now (a pick converts once, at the gesture), so the
+            //   resolver passes it through — the world's geo singleton is NOT applied (7000 would mean it still was).
+            Assert.Equal(7f, parms.StartX, 0.5f);
+            Assert.Equal(2f, parms.StartY, 0.5f);
+            Assert.Equal(8f, parms.EndX, 0.5f);
         }
 
         /// <summary>Test geo transform that scales lon/lat by a fixed factor into Cartesian X/Y,
@@ -1651,15 +1652,15 @@ namespace Hrot.SimHost.Tests
 
         // ── Private helper: parse TargetNetworkId from dispatch event JSON ────────
 
-        private static long ParseTargetNetworkId(string json)
+        private static int ParseTargetNetworkId(string json)
         {
             using var doc = JsonDocument.Parse(json);
             if (doc.RootElement.TryGetProperty("TargetNetworkId", out var prop))
-                return prop.GetInt64();
+                return prop.GetInt32();
             // Try camelCase fallback.
             if (doc.RootElement.TryGetProperty("targetNetworkId", out prop))
-                return prop.GetInt64();
-            return 0L;
+                return prop.GetInt32();
+            return 0;
         }
     }
 }

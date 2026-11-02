@@ -125,7 +125,7 @@ public sealed class AccurateLosPhaseTests : IDisposable
             ThreatThreshold = 0f,
             ContextSlot1    = targetEntity,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 9001L + blueprintId });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = (int)(9001 + blueprintId) });
         return observer;
     }
 

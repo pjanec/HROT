@@ -27,7 +27,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     {
         private readonly DdsReader<Hrot.NED.Descriptors.NavigationIntent> _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<Hrot.NED.Descriptors.NavigationIntent>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationIntent;
@@ -38,11 +38,11 @@ namespace Hrot.Map.Common.Replication.Ingress
         public NavigationIntentIngressTranslator(
             DdsParticipant      dds,
             NetworkEntityMap    entityMap,
-            long localNodeId)
+            int localNodeId)
         {
             _reader       = new DdsReader<Hrot.NED.Descriptors.NavigationIntent>(dds);
             _entityMap    = entityMap    ?? throw new System.ArgumentNullException(nameof(entityMap));
-            _localNodeId  = localNodeId;
+            _localNodeId  = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <inheritdoc />
@@ -112,7 +112,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <summary>No DDS dispose needed.</summary>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         // ── Enum mapping ──────────────────────────────────────────────────────
 

@@ -23,7 +23,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private const long   OrdinalValue = (long)EDescriptorType.dtObstacleShape;
 
         private readonly DdsWriter<EntityObstacleShape> _writer;
-        private readonly Dictionary<long, ObstacleShape> _lastPublished = new();
+        private readonly Dictionary<int, ObstacleShape> _lastPublished = new();
         private int _worldEpoch;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityObstacleShape>();
@@ -54,7 +54,7 @@ namespace Hrot.Map.Common.Replication.Egress
             {
                 if (!view.HasAuthority(entity, packedKey)) continue;
 
-                long netId = view.GetComponentRO<NetworkIdentity>(entity).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(entity).Value;
                 var shape = view.GetComponentRO<ObstacleShape>(entity);
                 if (_lastPublished.TryGetValue(netId, out var prev)
                     && prev.Length == shape.Length && prev.Width == shape.Width && prev.Height == shape.Height) continue;
@@ -68,10 +68,10 @@ namespace Hrot.Map.Common.Replication.Egress
             }
         }
 
-        public void Dispose(long networkEntityId) => _lastPublished.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _lastPublished.Remove(networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_lastPublished.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityObstacleShape { EntityId = networkEntityId });
         }

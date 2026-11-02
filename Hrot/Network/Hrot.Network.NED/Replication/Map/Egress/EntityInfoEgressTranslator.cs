@@ -35,7 +35,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         private readonly IDdsWriter<Hrot.NED.Descriptors.EntityInfo> _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         /// <summary>
         /// ⭐⭐⭐ <b><c>Q59-E-pre</c> — the components this descriptor COVERS, declared so the FDP side never
@@ -68,7 +68,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public EntityInfoEgressTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
-            long localNodeId)
+            int localNodeId)
             : this(new DdsWriterAdapter<Hrot.NED.Descriptors.EntityInfo>(participant),
                    entityMap, localNodeId)
         {
@@ -81,11 +81,11 @@ namespace Hrot.Map.Common.Replication.Egress
         internal EntityInfoEgressTranslator(
             IDdsWriter<Hrot.NED.Descriptors.EntityInfo> writer,
             NetworkEntityMap entityMap,
-            long localNodeId)
+            int localNodeId)
         {
             _writer = writer ?? throw new System.ArgumentNullException(nameof(writer));
             _entityMap = entityMap ?? throw new System.ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         // â”€â”€ Ingress (egress-only â€” nothing to consume) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -123,7 +123,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 ref readonly var netId  = ref view.GetComponentRO<NetworkIdentity>(entity);
                 ref readonly var data   = ref view.GetComponentRO<Fdp.Core.EntityInfo>(entity);
 
-                long commanderNetId = 0;
+                int commanderNetId = 0;
                 var designation = eTacticalDesignation.Undefined;
                 byte team = 0;   // ⭐ CE-2281 / R-3019
                 if (view.HasComponent<UnitSubordinate>(entity))
@@ -166,7 +166,7 @@ namespace Hrot.Map.Common.Replication.Egress
 		/// <summary>
 		/// Sends a DDS dispose for the named <see cref="EntityInfo"/> instance.
 		/// </summary>
-		public void Dispose(long networkEntityId)
+		public void Dispose(int networkEntityId)
         {
 			_writer.DisposeInstance(new Hrot.NED.Descriptors.EntityInfo { EntityId = networkEntityId } );
         }

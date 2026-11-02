@@ -133,7 +133,7 @@ public sealed class ClusterScenarioPanel
                     RequestId = req.RequestId,
                     Refresh   = (FdpClusterOpType)(int)req.OperationType == FdpClusterOpType.RefreshAssets,
                     Kind      = dto?.Kind,
-                    NodeId    = dto?.NodeId ?? 0,
+                    NodeId    = (Fdp.Core.NodeId)(dto?.NodeId ?? 0),
                 });
                 break;
             }

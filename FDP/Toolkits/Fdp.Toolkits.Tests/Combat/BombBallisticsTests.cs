@@ -144,7 +144,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _w.AddComponent(aircraft, new SimVelocity { Linear = carrierV });
             _w.AddComponent(aircraft, new WeaponState { MuzzleVelocity = 0f, Ammo = 4 });
             _w.AddComponent(aircraft, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing });
-            _w.AddComponent(aircraft, new TkbIdentity { TkbType = PlaneType });
+            _w.AddComponent(aircraft, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(PlaneType) });
 
             var fire = new FireProcessingSystem();
             Vector3 atRaise = default; Vector3 predicted = default;

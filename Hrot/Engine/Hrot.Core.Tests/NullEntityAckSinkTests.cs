@@ -19,8 +19,8 @@ namespace Hrot.Core.Tests
             var sink = new NullEntityAckSink();
 
             // Should complete silently for all status values.
-            sink.WriteAck(Guid.NewGuid(), 0L, EntityOperationStatus.Success);
-            sink.WriteAck(Guid.Empty,     -1L, EntityOperationStatus.EntityNotFound);
+            sink.WriteAck(Guid.NewGuid(), 0, EntityOperationStatus.Success);
+            sink.WriteAck(Guid.Empty,     -1, EntityOperationStatus.EntityNotFound);
         }
 
         /// <summary>

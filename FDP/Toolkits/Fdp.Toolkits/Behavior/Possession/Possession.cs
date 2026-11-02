@@ -41,7 +41,7 @@ namespace Fdp.Toolkit.Behavior.Possession
         public Entity Unit;
         public PossessionMode Mode;
         /// <summary>The station — its node id (C-8: one operator per node).</summary>
-        public long StationNodeId;
+        public NodeId StationNodeId;
         public bool IsRemote;
     }
 
@@ -51,7 +51,7 @@ namespace Fdp.Toolkit.Behavior.Possession
     public struct ReleasePossessionEvent
     {
         public Entity Unit;
-        public long StationNodeId;
+        public NodeId StationNodeId;
         public bool IsRemote;
     }
 
@@ -64,7 +64,7 @@ namespace Fdp.Toolkit.Behavior.Possession
     public struct OperatorControlFrameEvent
     {
         public Entity Unit;
-        public long StationNodeId;
+        public NodeId StationNodeId;
         public uint Seq;
         public float Forward, Lateral, Steer, Yaw;
         /// <summary>⭐ CE-2168 (MD-D) — a flyer's climb axis ∈ [−1, 1].</summary>
@@ -88,7 +88,7 @@ namespace Fdp.Toolkit.Behavior.Possession
         /// <summary>⭐ CE-1079 (D-2) — <c>F</c> presses, counted: each one moves the selected weapon to its next round.</summary>
         public byte AmmoSeq;
         /// <summary>⭐ CE-1078 / CE-1080 — the network id of the unit under the crosshair at the last press (0 = the ground point).</summary>
-        public long ShotTarget;
+        public int ShotTarget;
         public bool IsRemote;
         /// <summary>⭐ CE-1151 (§8h U-2, appended) — the operator's USE presses, counted (wraps): a new value asks the brain to act on
         /// <see cref="UseTarget"/> (a door, a man who is down, a vehicle, a standalone weapon).</summary>
@@ -96,7 +96,7 @@ namespace Fdp.Toolkit.Behavior.Possession
         /// <summary>⭐ CE-1151 — which verb of the target's list (0 = the primary).</summary>
         public byte UseVerb;
         /// <summary>⭐ CE-1151 — the network id of what the crosshair rested on at the last use press (0 = nothing).</summary>
-        public long UseTarget;
+        public int UseTarget;
         /// <summary>⭐ CE-1212 (DESIGN_Entity_Control §8j L-1, appended) — the lean the operator holds (<c>LeanSide</c>: 0 none, 1 left, 2
         /// right) — a LEVEL, every frame: it lasts while Q / E is held.</summary>
         public byte Lean;
@@ -122,7 +122,7 @@ namespace Fdp.Toolkit.Behavior.Possession
     [DataPolicy(DataPolicy.NoScenario)]
     public struct PossessedBy
     {
-        public long StationNodeId;
+        public NodeId StationNodeId;
         public PossessionMode Mode;
         /// <summary>Bumped on every take-over.</summary>
         public uint Epoch;
@@ -146,11 +146,11 @@ namespace Fdp.Toolkit.Behavior.Possession
         public byte Stance;
         /// <summary>⭐ CE-1078 / CE-1079 — the frame's press counters and the shot's target (<see cref="OperatorControlFrameEvent"/>).</summary>
         public byte ShotSeq, CancelSeq, AmmoSeq;
-        public long ShotTarget;
+        public int ShotTarget;
         /// <summary>⭐ CE-1151 (§8h U-2, appended) — the use press counter, its verb (0 = primary) and its target network id
         /// (<see cref="OperatorControlFrameEvent.UseSeq"/>).</summary>
         public byte UseSeq, UseVerb;
-        public long UseTarget;
+        public int UseTarget;
         /// <summary>⭐ CE-1212 (§8j L-1, appended) — the lean the operator holds (<see cref="OperatorControlFrameEvent.Lean"/>).</summary>
         public byte Lean;
         /// <summary>⭐ CE-1219 (§8k B-1, appended) — binoculars up (<see cref="OperatorControlFrameEvent.Binoculars"/>).</summary>
@@ -304,10 +304,10 @@ namespace Fdp.Toolkit.Behavior.Possession
             }
         }
 
-        private void Possess(EntityRepository repo, Entity unit, long station, PossessionMode mode)
+        private void Possess(EntityRepository repo, Entity unit, int station, PossessionMode mode)
         {
             uint epoch = repo.HasComponent<PossessedBy>(unit) ? repo.GetComponentRO<PossessedBy>(unit).Epoch + 1 : 1;
-            var held = new PossessedBy { StationNodeId = station, Mode = mode == PossessionMode.None ? PossessionMode.Fps : mode, Epoch = epoch };
+            var held = new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(station), Mode = mode == PossessionMode.None ? PossessionMode.Fps : mode, Epoch = epoch };
             bool already = repo.GetComponentRO<BehaviorState>(unit).Origin == BehaviorOrigin.Possession;
             if (repo.HasComponent<PossessedBy>(unit)) repo.SetComponent(unit, held);
             else repo.AddComponent(unit, held);
@@ -328,11 +328,11 @@ namespace Fdp.Toolkit.Behavior.Possession
         }
 
         /// <summary>The station holding <paramref name="unit"/> (null = nobody).</summary>
-        public static long? HolderOf(EntityRepository repo, Entity unit)
+        public static int? HolderOf(EntityRepository repo, Entity unit)
             => repo.IsComponentTypeRegistered<PossessedBy>() && repo.HasComponent<PossessedBy>(unit)
                 ? repo.GetComponentRO<PossessedBy>(unit).StationNodeId : null;
 
-        private static bool HeldBy(EntityRepository repo, Entity unit, long station)
+        private static bool HeldBy(EntityRepository repo, Entity unit, int station)
             => repo.HasComponent<PossessedBy>(unit) && repo.GetComponentRO<PossessedBy>(unit).StationNodeId == station;
 
         /// <summary>This node runs <paramref name="unit"/>'s brain — it applies possession events about it (the interaction codecs

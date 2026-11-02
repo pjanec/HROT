@@ -21,7 +21,7 @@ namespace Hrot.Editor.DebugApi
         private const int SensorRankedListed = 5;
 
         /// <summary><c>GET /entities/{networkId}/sensors</c>.</summary>
-        public JsonNode GetEntitySensors(long networkId)
+        public JsonNode GetEntitySensors(int networkId)
         {
             if (!_entityMap.TryGetEntity(networkId, out var unit) || !_world.IsAlive(unit))
                 return new JsonObject { ["error"] = $"Entity {networkId} not found." };

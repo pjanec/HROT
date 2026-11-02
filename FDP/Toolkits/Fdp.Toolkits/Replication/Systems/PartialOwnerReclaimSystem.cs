@@ -38,7 +38,7 @@ namespace Fdp.Toolkit.Replication.Systems
     [TickMode(TickPolicy.EveryFrame)]
     public sealed class PartialOwnerReclaimSystem : IEcsModuleSystem
     {
-        private readonly int              _localNodeId;
+        private readonly NodeId              _localNodeId;
         private readonly OwnershipApplier _applier;
 
         private readonly List<(Entity Entity, long Key, int NewOwner)> _moves = new();
@@ -49,7 +49,7 @@ namespace Fdp.Toolkit.Replication.Systems
         public PartialOwnerReclaimSystem(int localNodeId, DescriptorOwnershipMap descriptorMap)
         {
             if (descriptorMap == null) throw new ArgumentNullException(nameof(descriptorMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _applier     = new OwnershipApplier(localNodeId, descriptorMap);
         }
 

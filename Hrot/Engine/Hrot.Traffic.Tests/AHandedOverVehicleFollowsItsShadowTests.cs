@@ -10,7 +10,7 @@ namespace Hrot.Traffic.Tests;
 /// that moves it; it is taken back when the shadow is gone; a shadow is never a replica.</summary>
 public sealed class AHandedOverVehicleFollowsItsShadowTests
 {
-    private const long Id = 4242;
+    private const int Id = 4242;
 
     [Fact]
     public void G4_NoShadowYet_TheBodyHolds_AsADeliberateHold()
@@ -21,7 +21,7 @@ public sealed class AHandedOverVehicleFollowsItsShadowTests
         new TrafficShadowFollowSystem().Execute(world, 0.05f);
 
         Assert.Equal(1, world.GetComponent<NavState>(e).IsBlocked);   // NavigationExecutionSystem: not "stuck"
-        Assert.Equal(new Vector3(10, 10, 0), world.GetComponent<SimTransform>(e).Position);
+        Assert.Equal<Vector3>(new Vector3(10, 10, 0), world.GetComponent<SimTransform>(e).Position);
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public sealed class AHandedOverVehicleFollowsItsShadowTests
         follow.Execute(world, 0.05f);
 
         var tf = world.GetComponent<SimTransform>(e);
-        Assert.Equal(new Vector3(105, 50, 0), tf.Position);
+        Assert.Equal<Vector3>(new Vector3(105, 50, 0), tf.Position);
         Assert.Equal(0.5f, 2f * MathF.Atan2(tf.Rotation.Z, tf.Rotation.W), 3);
         Assert.Equal(10f, world.GetComponent<VehicleState>(e).Speed, 3);   // 5 m in 0.5 s
         Assert.Equal(0, world.GetComponent<NavState>(e).IsBlocked);
@@ -68,7 +68,7 @@ public sealed class AHandedOverVehicleFollowsItsShadowTests
 
         new TrafficShadowFollowSystem().Execute(world, 0.05f);
 
-        Assert.Equal(new Vector3(10, 10, 0), world.GetComponent<SimTransform>(e).Position);
+        Assert.Equal<Vector3>(new Vector3(10, 10, 0), world.GetComponent<SimTransform>(e).Position);
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public sealed class AHandedOverVehicleFollowsItsShadowTests
     }
 
     private static TrafficCarPose Shadow(float x, float y, float yaw)
-        => new(Owner: 800, Handle: new VehicleHandle(7, 1), Id: TrafficShadowFollowSystem.ShadowIdOf(Id), NetworkId: Id, TkbType: 0, Color: 0,
+        => new(Owner: 800, Handle: new VehicleHandle(7, 1), Id: TrafficShadowFollowSystem.ShadowIdOf(Id), NetworkId: Id, TkbType: (Fdp.Core.TkbTypeId)(0), Color: 0,
                X: x, Y: y, Z: 0f, YawRad: yaw, Length: 5f, Width: 2f);
 
     private static void Frame(EntityRepository world, IReadOnlyList<TrafficCarPose> cars, double now)

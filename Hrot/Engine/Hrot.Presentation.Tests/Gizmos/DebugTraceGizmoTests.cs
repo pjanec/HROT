@@ -375,7 +375,7 @@ public sealed class DebugTraceGizmoTests : IDisposable
         var unit = _w.CreateEntity();
         _w.AddComponent(unit, new SimTransform { Position = new Vector3(0, 0, 0) });
         var plan = new Fdp.Toolkit.Behavior.Components.ActiveMissionPlan();
-        plan.Plan.Tasks.Add(new Fdp.Toolkit.Behavior.Components.DomainMissionTask { BehaviorParams = "{\"targetLat\":0.001,\"targetLon\":0.001}" });
+        plan.Plan.Tasks.Add(new Fdp.Toolkit.Behavior.Components.DomainMissionTask { BehaviorParams = "{\"target\":[100,100,0]}" });
         _w.SetManagedComponent(unit, plan);
         var gizmo = new MissionPresentationGizmo(new Fdp.Modules.Geographic.Transforms.WGS84Transform(0, 0, 0));
 

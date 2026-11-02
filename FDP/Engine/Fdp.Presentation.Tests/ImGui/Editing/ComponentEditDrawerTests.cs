@@ -107,9 +107,9 @@ file sealed class SpyPickerContext : IMapPickContext
         return !picked.IsNone;
     }
 
-    public Fdp.Toolkit.Behavior.Params.PickableGeoPoint? PendingLocation;
+    public Fdp.Toolkit.Replication.PointLink? PendingLocation;
 
-    public bool TryConsumeLocationPick(string jsonPath, out Fdp.Toolkit.Behavior.Params.PickableGeoPoint location)
+    public bool TryConsumeLocationPick(string jsonPath, out Fdp.Toolkit.Replication.PointLink location)
     {
         location = PendingLocation ?? default;
         bool had = PendingLocation.HasValue;
@@ -386,21 +386,21 @@ public class ComponentEditDrawerTests
 
     private struct LocComp
     {
-        public Fdp.Toolkit.Behavior.Params.PickableGeoPoint Where;
+        public Fdp.Toolkit.Replication.PointLink Where;
         public float X;
     }
 
     /// <summary>
-    /// ⭐⭐ <c>DESIGN_Map_Picking_Unification</c> P5 — a <c>PickableGeoPoint</c> field is ONE leaf with a map picker by its
+    /// ⭐⭐ <c>DESIGN_Map_Picking_Unification</c> P5 — a <c>PointLink</c> field (S0 item 5; was <c>PickableGeoPoint</c>) is ONE leaf with a map picker by its
     /// TYPE (no attribute), and a completed pick writes the geodetic point into the component. 🔴 Without the leaf editor
     /// it is a struct node the drawer offers no picker for.
     /// </summary>
     [Fact]
-    public void P5_APickableGeoPointField_IsOneLeaf_AndALocationPickLandsInTheComponent()
+    public void P5_APointLinkField_IsOneLeaf_AndALocationPickLandsInTheComponent()
     {
         var service = new ComponentEditServiceBuilder()
-            .RegisterFieldEditor<Fdp.Toolkit.Behavior.Params.PickableGeoPoint>(
-                new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Behavior.Params.PickableGeoPoint)))
+            .RegisterFieldEditor<Fdp.Toolkit.Replication.PointLink>(
+                new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.PointLink)))
             .Build();
         using var session = service.Open(new LocComp { X = 2f }, typeof(LocComp));
 
@@ -409,7 +409,7 @@ public class ComponentEditDrawerTests
         var where = structNode.Children.Single(c => c.Name == nameof(LocComp.Where));
         Assert.Equal(EditNodeKind.Scalar, where.Kind);
 
-        var picker = new SpyPickerContext { PendingLocation = new Fdp.Toolkit.Behavior.Params.PickableGeoPoint(50.1, 14.4) };
+        var picker = new SpyPickerContext { PendingLocation = new Fdp.Toolkit.Replication.PointLink(new System.Numerics.Vector3(50.1f, 14.4f, 0f)) };
         using (var imgui = new ImGuiTestFixture())
         {
             imgui.NewFrame();
@@ -424,8 +424,8 @@ public class ComponentEditDrawerTests
         }
 
         var committed = (LocComp)session.Commit();
-        Assert.Equal(50.1, committed.Where.Latitude);
-        Assert.Equal(14.4, committed.Where.Longitude);
+        Assert.Equal(50.1f, committed.Where.Local.X);   // a picked point writes new PointLink(local)
+        Assert.Equal(14.4f, committed.Where.Local.Y);
         Assert.Equal(2f, committed.X);
     }
 }

@@ -81,7 +81,7 @@ public sealed class EqsSolverSystemPhase2Tests : IDisposable
             SearchRadius  = 25f,
             FactionFilter = 4u, // bit 2 = Hostile only
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 5001L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 5001 });
 
         // Create 5 hostile entities at known positions.
         var enemyPositions = new[]
@@ -160,7 +160,7 @@ public sealed class EqsSolverSystemPhase2Tests : IDisposable
         {
             var e = _harness.Repo.CreateEntity();
             _harness.Repo.AddComponent(e, new EqsSensor { BlueprintId = 99u, Epoch = 1 });
-            _harness.Repo.AddComponent(e, new NetworkIdentity { Value = 6000L + i });
+            _harness.Repo.AddComponent(e, new NetworkIdentity { Value = 6000 + i });
             sensors[i] = e;
         }
 
@@ -190,7 +190,7 @@ public sealed class EqsSolverSystemPhase2Tests : IDisposable
         // Arrange: no registry registered (fallback path).
         var observer = _harness.Repo.CreateEntity();
         _harness.Repo.AddComponent(observer, new EqsSensor { BlueprintId = 1u, Epoch = 1 });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 7001L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 7001 });
 
         // Act: pump until buffer IsReady.
         bool ready = _harness.PumpUntil(

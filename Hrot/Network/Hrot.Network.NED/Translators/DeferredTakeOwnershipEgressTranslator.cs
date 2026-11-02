@@ -30,7 +30,7 @@ namespace Hrot.Network.Translators
     public sealed class DeferredTakeOwnershipEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<DeferredTakeOwnership>? _writer;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DeferredTakeOwnership>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtDeferredTakeOwnership;
@@ -38,12 +38,12 @@ namespace Hrot.Network.Translators
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
-        public DeferredTakeOwnershipEgressTranslator(DdsParticipant? participant, long localNodeId)
+        public DeferredTakeOwnershipEgressTranslator(DdsParticipant? participant, int localNodeId)
         {
             _writer = participant != null
                 ? new DdsWriter<DeferredTakeOwnership>(participant)
                 : null;
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { /* egress-only */ }
@@ -76,6 +76,6 @@ namespace Hrot.Network.Translators
 
         public void ApplyToEntity(Entity entity, object data, Fdp.Core.EntityRepository repo) { }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

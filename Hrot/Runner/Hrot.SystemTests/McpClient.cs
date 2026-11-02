@@ -61,7 +61,7 @@ public sealed class McpClient : IDisposable
         return GetAsync("/entities" + (q.Count > 0 ? "?" + string.Join("&", q) : ""), ct);
     }
 
-    public Task<ApiResult> GetEntityAsync(long networkId, CancellationToken ct = default)
+    public Task<ApiResult> GetEntityAsync(int networkId, CancellationToken ct = default)
         => GetAsync($"/entities/{networkId}", ct);
 
     // ── Group C / J — event history and logs ───────────────────────────────────
@@ -234,7 +234,7 @@ public sealed class McpClient : IDisposable
     // ── Group G — breakpoints ──────────────────────────────────────────────────
 
     /// <summary><paramref name="condition"/> is a polymorphic <c>SearchPredicateDto</c> — it needs its <c>$type</c> arm.</summary>
-    public Task<ApiResult> AddBreakpointAsync(JsonNode condition, long? filterNetworkId = null, int occurrenceThreshold = 1, string? name = null, CancellationToken ct = default)
+    public Task<ApiResult> AddBreakpointAsync(JsonNode condition, int? filterNetworkId = null, int occurrenceThreshold = 1, string? name = null, CancellationToken ct = default)
     {
         var body = new JsonObject
         {
@@ -303,18 +303,18 @@ public sealed class McpClient : IDisposable
 
     // ── Group K — behaviour traces ─────────────────────────────────────────────
 
-    public Task<ApiResult> ObserveTraceAsync(long networkId, bool on, CancellationToken ct = default)
+    public Task<ApiResult> ObserveTraceAsync(int networkId, bool on, CancellationToken ct = default)
         => PostAsync("/trace/observe", new JsonObject { ["networkId"] = networkId, ["on"] = on }, ct);
 
     /// <summary>⭐ CE-1329 — a unit's debug settings (pins, trace, follow) in the one store the Brain tab uses.</summary>
-    public Task<ApiResult> GetDebugSettingsAsync(long networkId, CancellationToken ct = default)
+    public Task<ApiResult> GetDebugSettingsAsync(int networkId, CancellationToken ct = default)
         => GetAsync($"/entities/{networkId}/debug-settings", ct);
 
     /// <summary>⭐ CE-1329 — sets what is given: pins (replaces the set), trace, follow, reset.</summary>
-    public Task<ApiResult> SetDebugSettingsAsync(long networkId, JsonNode body, CancellationToken ct = default)
+    public Task<ApiResult> SetDebugSettingsAsync(int networkId, JsonNode body, CancellationToken ct = default)
         => PostAsync($"/entities/{networkId}/debug-settings", body, ct);
 
-    public Task<ApiResult> GetEntityTraceAsync(long networkId, CancellationToken ct = default)
+    public Task<ApiResult> GetEntityTraceAsync(int networkId, CancellationToken ct = default)
         => GetAsync($"/entities/{networkId}/trace", ct);
 
     // ── Group L — live mutation / fault injection ──────────────────────────────
@@ -322,10 +322,10 @@ public sealed class McpClient : IDisposable
     public Task<ApiResult> GetAttributesSchemaAsync(CancellationToken ct = default) => GetAsync("/attributes/schema", ct);
 
     /// <summary><paramref name="patch"/> may be a JSON object or a JSON string — the host accepts both.</summary>
-    public Task<ApiResult> PatchEntityAttributeAsync(long networkId, JsonNode patch, CancellationToken ct = default)
+    public Task<ApiResult> PatchEntityAttributeAsync(int networkId, JsonNode patch, CancellationToken ct = default)
         => PostAsync($"/entities/{networkId}/attribute", new JsonObject { ["patchJson"] = patch.DeepClone() }, ct);
 
-    public Task<ApiResult> SetComponentAsync(long networkId, string componentType, JsonNode patch, CancellationToken ct = default)
+    public Task<ApiResult> SetComponentAsync(int networkId, string componentType, JsonNode patch, CancellationToken ct = default)
         => PostAsync($"/entities/{networkId}/component", new JsonObject
         {
             ["componentType"] = componentType,
@@ -339,16 +339,16 @@ public sealed class McpClient : IDisposable
 
     // ── CE-1325 — what a utility decision is, and which node binds it ──
     public Task<ApiResult> ListUtilityDecisionsAsync(CancellationToken ct = default) => GetAsync("/utility/decisions", ct);
-    public Task<ApiResult> GetUtilityDecisionAsync(string key, long? networkId = null, CancellationToken ct = default)
+    public Task<ApiResult> GetUtilityDecisionAsync(string key, int? networkId = null, CancellationToken ct = default)
         => GetAsync($"/utility/decisions/{Uri.EscapeDataString(key)}" + (networkId is { } n ? $"?networkId={n}" : ""), ct);
     public Task<ApiResult> GetBehaviourDecisionsAsync(string behaviour, CancellationToken ct = default)
         => GetAsync($"/behaviours/{Uri.EscapeDataString(behaviour)}/decisions", ct);
 
-    public Task<ApiResult> GetEntityVariablesAsync(long networkId, string? asset = null, CancellationToken ct = default)
+    public Task<ApiResult> GetEntityVariablesAsync(int networkId, string? asset = null, CancellationToken ct = default)
         => GetAsync($"/entities/{networkId}/variables"
                     + (string.IsNullOrWhiteSpace(asset) ? "" : $"?asset={Uri.EscapeDataString(asset)}"), ct);
 
-    public Task<ApiResult> GetEntityVariableAsync(long networkId, string path, string? asset = null, CancellationToken ct = default)
+    public Task<ApiResult> GetEntityVariableAsync(int networkId, string path, string? asset = null, CancellationToken ct = default)
     {
         var q = new List<string> { $"path={Uri.EscapeDataString(path)}" };
         if (!string.IsNullOrWhiteSpace(asset)) q.Add($"asset={Uri.EscapeDataString(asset)}");
@@ -357,7 +357,7 @@ public sealed class McpClient : IDisposable
 
     /// <summary>STAGES the write — it lands on the next advancing tick, not on the response.</summary>
     public Task<ApiResult> StageEntityVariableAsync(
-        long networkId, string path, JsonNode value, string? asset = null, CancellationToken ct = default)
+        int networkId, string path, JsonNode value, string? asset = null, CancellationToken ct = default)
     {
         var body = new JsonObject { ["path"] = path, ["value"] = value.DeepClone() };
         if (!string.IsNullOrWhiteSpace(asset)) body["asset"] = asset;
@@ -365,12 +365,12 @@ public sealed class McpClient : IDisposable
     }
 
     /// <summary>⭐ CE-1320 — every behaviour slot a unit carries, named and decoded.</summary>
-    public Task<ApiResult> GetEntitySlotsAsync(long networkId, CancellationToken ct = default)
+    public Task<ApiResult> GetEntitySlotsAsync(int networkId, CancellationToken ct = default)
         => GetAsync($"/entities/{networkId}/slots", ct);
 
     /// <summary>⭐ CE-1320 — STAGES a write to any behaviour slot's field (<c>owner</c>, <c>part</c>, <c>role</c>, <c>path</c>,
     /// <c>value</c>) — in place, no restart.</summary>
-    public Task<ApiResult> StageSlotFieldAsync(long networkId, JsonObject body, CancellationToken ct = default)
+    public Task<ApiResult> StageSlotFieldAsync(int networkId, JsonObject body, CancellationToken ct = default)
         => PostAsync($"/entities/{networkId}/variable", body, ct);
 
     /// <summary>Resume the debugger after a hit — also what drains anything staged while it was stopped.</summary>
@@ -387,20 +387,20 @@ public sealed class McpClient : IDisposable
 
     /// <summary>Queued — the ingress system applies it on the next tick, not on the response.</summary>
     public Task<ApiResult> AttachBlueprintAsync(
-        long networkId, string blueprint, JsonNode? paramsJson = null, CancellationToken ct = default)
+        int networkId, string blueprint, JsonNode? paramsJson = null, CancellationToken ct = default)
     {
         var body = new JsonObject { ["blueprint"] = blueprint };
         if (paramsJson is not null) body["paramsJson"] = paramsJson.DeepClone();
         return PostAsync($"/entities/{networkId}/attach-blueprint", body, ct);
     }
 
-    public Task<ApiResult> DetachBlueprintAsync(long networkId, string blueprint, CancellationToken ct = default)
+    public Task<ApiResult> DetachBlueprintAsync(int networkId, string blueprint, CancellationToken ct = default)
         => PostAsync($"/entities/{networkId}/detach-blueprint",
                      new JsonObject { ["blueprint"] = blueprint }, ct);
 
     // ── Group R — the entity state dump ────────────────────────────────────────
 
-    public Task<ApiResult> GetEntityStateAsync(long networkId, CancellationToken ct = default)
+    public Task<ApiResult> GetEntityStateAsync(int networkId, CancellationToken ct = default)
         => GetAsync($"/entities/{networkId}/state", ct);
 
     // ── Group T — the panel snapshot ───────────────────────────────────────────
@@ -510,7 +510,7 @@ public sealed class McpClient : IDisposable
 
     // ── Group M — focus / annotations ──────────────────────────────────────────
 
-    public Task<ApiResult> FocusEntityAsync(long networkId, CancellationToken ct = default)
+    public Task<ApiResult> FocusEntityAsync(int networkId, CancellationToken ct = default)
         => PostAsync($"/entities/{networkId}/focus", null, ct);
 
     public Task<ApiResult> AddAnnotationAsync(JsonNode body, CancellationToken ct = default)
@@ -604,7 +604,7 @@ public sealed class McpClient : IDisposable
         => GetAsync(kind == null ? "/assets/recipes" : $"/assets/recipes?kind={Uri.EscapeDataString(kind)}", ct);
 
     /// <summary>⭐ Scenario authoring's delete — world manipulation, queued like spawn.</summary>
-    public Task<ApiResult> DeleteEntityAsync(long networkId, CancellationToken ct = default)
+    public Task<ApiResult> DeleteEntityAsync(int networkId, CancellationToken ct = default)
         => SendAsync(HttpMethod.Delete, $"/entities/{networkId}", null, ct);
 
     // ── Group X — the union backbone, discovery and the editor command bus ────

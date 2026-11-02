@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Hrot.Network.Orchestration;
+using Fdp.Core;
 
 namespace Hrot.Orchestrator;
 
@@ -32,7 +33,7 @@ internal struct ExecutePrefetchIntent
 /// </summary>
 internal struct NodeJoinedRosterEvent
 {
-    public int NodeId;
+    public NodeId NodeId;
 }
 
 /// <summary>

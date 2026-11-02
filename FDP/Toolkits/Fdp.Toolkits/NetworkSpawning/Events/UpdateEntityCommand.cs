@@ -12,7 +12,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Events
         /// <summary>
         /// The network entity ID to update. Must be registered in NetworkEntityMap.
         /// </summary>
-        public long NetworkId;
+        public int NetworkId;
 
         /// <summary>
         /// List of component instances to apply. Each item replaces the existing component.

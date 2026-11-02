@@ -366,7 +366,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(NodeStatus.Success, CarryNodes.PutDown(ref leave, carrier, _w));
 
             Assert.False(_w.HasComponent<IsEmbarkedTag>(down));
-            Assert.Equal(new Vector3(29f, 0f, 0f), _w.GetComponentRO<SimTransform>(down).Position);          // C-b1: where he was held
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(29f, 0f, 0f), _w.GetComponentRO<SimTransform>(down).Position);          // C-b1: where he was held
             Assert.Equal((ActorCapabilities)0, _w.GetComponentRO<ActorCapabilityState>(down).Capabilities & MoveAndFire);   // still down
             Assert.Equal(MoveAndFire, _w.GetComponentRO<ActorCapabilityState>(carrier).Capabilities & MoveAndFire);         // C7: fire back
             var again = new PutDownNodeParams();
@@ -466,9 +466,9 @@ namespace Hrot.SimHost.Tests
             return _w.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()!;
         }
 
-        private long NetIdOf(Entity e)
+        private int NetIdOf(Entity e)
         {
-            long id = 7000 + e.Index;
+            int id = 7000 + e.Index;
             if (!NetMap().TryGetEntity(id, out _)) NetMap().Register(id, e);
             return id;
         }
@@ -570,7 +570,7 @@ namespace Hrot.SimHost.Tests
             Entity Op(long type)
             {
                 var op = Operator(Vector3.Zero);
-                _w.AddComponent(op, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });
+                _w.AddComponent(op, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
                 if (!_w.HasComponent<WeaponPosture>(op)) _w.AddComponent(op, new WeaponPosture());
                 return op;
             }
@@ -733,7 +733,7 @@ namespace Hrot.SimHost.Tests
             seats.Roles[0] = SeatRole.Gunner;
             _w.AddComponent(k, seats);
             _w.AddComponent(k, new WeaponSystemParams { NeedsOperator = 1 });
-            _w.AddComponent(k, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = KornetType });
+            _w.AddComponent(k, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(KornetType) });
             _w.AddComponent(k, new WeaponState { Ammo = 2 });
             return k;
         }
@@ -796,7 +796,7 @@ namespace Hrot.SimHost.Tests
             _w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
             var op = Operator(Vector3.Zero);
             _w.AddComponent(op, new WeaponChannel());
-            _w.AddComponent(op, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TurretMgType });
+            _w.AddComponent(op, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TurretMgType) });
             TurretParts.Ensure(_w, op, 0);
             return op;
         }

@@ -98,7 +98,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
                 var set = EffectTkbCatalog.EffectsFor(tkb, fired, mount?.DamagePerHit ?? 0f);
                 var at = view.GetComponentRO<SimTransform>(fire.Shooter).Position;
                 var toward = fire.Target != Entity.Null && view.IsAlive(fire.Target) && view.HasComponent<SimTransform>(fire.Target)
-                    ? view.GetComponentRO<SimTransform>(fire.Target).Position : Vector3.Zero;
+                    ? view.GetComponentRO<SimTransform>(fire.Target).Position : Fdp.Core.WorldPoint.Zero;
                 var anchor = new EffectAnchor { Shooter = fire.Shooter, WeaponIndex = fire.WeaponIndex, Toward = toward };
                 // ⭐ CE-1090 — the 3-D bodies: a launcher on the shoulder; ⭐ CE-1105 — and where it was aimed (the burst stream)
                 RecentShots.In(world).Record(fire.Shooter, fire.WeaponIndex, now,
@@ -118,7 +118,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
                 {
                     case Hrot.UI.Common.Map3D.FiringBlast.Backblast:
                     {
-                        var aimAt = toward != Vector3.Zero ? toward : AimPointOf(view, fire.Shooter);
+                        var aimAt = toward != Vector3.Zero ? (Vector3)toward : AimPointOf(view, fire.Shooter);
                         var back = Hrot.UI.Common.Map3D.WeaponKits.BackblastPoint(at, view.GetComponentRO<SimTransform>(fire.Shooter).Rotation, aimAt);
                         Spawn(cmd, tkb, EffectTkbCatalog.Backblast, back, null, now);
                         break;
@@ -262,7 +262,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
         {
             var e = cmd.CreateEntity();
             cmd.AddComponent(e, new SimTransform { Position = DecoyFlight.At(fire.Origin, fire.Velocity, exp.SinkMps, (float)(now - bornAt)), Rotation = Quaternion.Identity });
-            cmd.AddComponent(e, new TkbIdentity { TkbType = type });
+            cmd.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             cmd.AddComponent(e, Lifespan.Starting(bornAt, exp.LifeSeconds));
             cmd.AddComponent(e, new EffectFlight { Origin = fire.Origin, Velocity = fire.Velocity, SinkMps = exp.SinkMps, FiredAt = bornAt });
             cmd.AddComponent(e, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());   // VE-R: recorded, never saved
@@ -315,7 +315,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
         if (type == 0 || EffectTkbCatalog.VisualOf(tkb, type) is not { } look) return;
         var e = cmd.CreateEntity();
         cmd.AddComponent(e, new SimTransform { Position = at, Rotation = rotation ?? Quaternion.Identity });
-        cmd.AddComponent(e, new TkbIdentity { TkbType = type });
+        cmd.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
         cmd.AddComponent(e, Lifespan.Starting(now, look.Duration));
         if (anchor is { } a) cmd.AddComponent(e, a);
         cmd.AddComponent(e, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());   // VE-R: recorded, never saved with the scenario
@@ -432,7 +432,7 @@ public sealed class WreckSpawnSystem : IEcsModuleSystem
         if (EffectTkbCatalog.VisualOf(tkb, type) is not { } look) return;
         var e = cmd.CreateEntity();
         cmd.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-        cmd.AddComponent(e, new TkbIdentity { TkbType = type });
+        cmd.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
         cmd.AddComponent(e, Lifespan.Starting(now, look.Duration));
         cmd.AddComponent(e, new EffectAnchor { Shooter = wreck, Kind = EffectAnchorKind.Body });
         cmd.AddComponent(e, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());   // VE-R: recorded, never saved with the scenario

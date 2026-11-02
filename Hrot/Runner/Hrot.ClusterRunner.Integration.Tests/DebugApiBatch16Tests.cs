@@ -16,7 +16,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 [Collection("EditorOfflineTests")]
 public sealed class DebugApiBatch16Tests
 {
-    private const long TestNetworkId = 90_160L;
+    private const int TestNetworkId = 90_160;
 
     // ── T01: Unknown eventType names GET /commands ─────────────────────────────
 

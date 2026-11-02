@@ -16,13 +16,13 @@ namespace Hrot.SimHost.Tests
     public sealed class MoveToLocationRoadUseTests
     {
         [Theory]
-        [InlineData("{\"x\":10,\"y\":20,\"roadUse\":\"Never\"}", RoadUse.Never)]
-        [InlineData("{\"x\":10,\"y\":20,\"roadUse\":\"StronglyPrefer\"}", RoadUse.StronglyPrefer)]
-        [InlineData("{\"x\":10,\"y\":20}", RoadUse.Unspecified)]
+        [InlineData("{\"target\":[10,20,0],\"roadUse\":\"Never\"}", RoadUse.Never)]
+        [InlineData("{\"target\":[10,20,0],\"roadUse\":\"StronglyPrefer\"}", RoadUse.StronglyPrefer)]
+        [InlineData("{\"target\":[10,20,0]}", RoadUse.Unspecified)]
         public void CE3130_TheAuthoredRoadUse_ReachesTheBlackboard(string json, RoadUse expected)
         {
             var authored = JsonSerializer.Deserialize<MoveToLocationParamsJsonDto>(json, BehaviorParams.JsonOptions);   // CE-3184: the params options (fields)
-            var block = CgfNodes.ConvertMoveTo(authored, geoTransform: null);
+            var block = CgfNodes.ConvertMoveTo(authored);
             Assert.Equal(expected, block.RoadUse);
             Assert.Equal(10f, block.X);
         }
@@ -31,9 +31,9 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE3130_AnUnspecifiedRoadUse_IsNotWritten_ANamedOneIsWrittenByName()
         {
-            Assert.DoesNotContain("roadUse", JsonSerializer.Serialize(new MoveToLocationParamsJsonDto { X = 1, Y = 2 }, BehaviorParams.JsonOptions));
+            Assert.DoesNotContain("roadUse", JsonSerializer.Serialize(new MoveToLocationParamsJsonDto { Location = new System.Numerics.Vector3(1, 2, 0) }, BehaviorParams.JsonOptions));
             Assert.Contains("\"roadUse\":\"Prefer\"",
-                JsonSerializer.Serialize(new MoveToLocationParamsJsonDto { X = 1, Y = 2, RoadUse = RoadUse.Prefer }, BehaviorParams.JsonOptions));
+                JsonSerializer.Serialize(new MoveToLocationParamsJsonDto { Location = new System.Numerics.Vector3(1, 2, 0), RoadUse = RoadUse.Prefer }, BehaviorParams.JsonOptions));
         }
 
         [Fact]

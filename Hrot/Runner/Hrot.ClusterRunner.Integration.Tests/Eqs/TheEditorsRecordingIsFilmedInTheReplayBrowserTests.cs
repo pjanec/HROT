@@ -144,7 +144,7 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
         {
             _http = http;
             Browser = new ReplayBrowserSubsystem();
-            Browser.Initialize(new SubsystemConfig { DomainId = domain, Headless = true, OwnWindow = false, NodeId = 0, SubsystemName = "ReplayBrowser" });
+            Browser.Initialize(new SubsystemConfig { DomainId = domain, Headless = true, OwnWindow = false, NodeId = (Fdp.Core.NodeId)(0), SubsystemName = "ReplayBrowser" });
             Browser.RecordingsRoot = recordingsRoot;
             int port;
             using (var probe = new TcpListener(IPAddress.Loopback, 0)) { probe.Start(); port = ((IPEndPoint)probe.LocalEndpoint).Port; probe.Stop(); }

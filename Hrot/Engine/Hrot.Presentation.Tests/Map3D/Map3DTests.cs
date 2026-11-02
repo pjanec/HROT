@@ -611,7 +611,7 @@ public sealed class Map3DTests
         {
             var e = world.CreateEntity();
             world.AddComponent(e, new SimTransform { Position = new Vector3(5f, 5f, 0f), Rotation = Quaternion.Identity });
-            world.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman) });
             if (aboard) world.AddComponent(e, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { Exposed = exposed });
             return e;
         }
@@ -640,7 +640,7 @@ public sealed class Map3DTests
     {
         var e = world.CreateEntity();
         world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-        world.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });
+        world.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
         world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = health, Max = 100f });
         world.AddComponent(e, new Fdp.Toolkit.Combat.Components.InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f, WoundedSpeedFactor = 0.6f });
         return e;
@@ -862,7 +862,7 @@ public sealed class Map3DTests
         WeaponKind KindOfType(long type)
         {
             var e = world.CreateEntity();
-            world.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });
+            world.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             return WeaponKits.TypeOf(world, db, e).Kind;
         }
         Assert.Equal(WeaponKind.Rifle, KindOfType(TkbEntityTypes.WeaponSystem_PickUpRifle));
@@ -954,7 +954,7 @@ public sealed class Map3DTests
             var hmgType = new TkbTemplate("Test HMG", 990001) { DisType = Dis(50, 1) };
             ((TkbDatabase)db).Register(hmgType);
             var hmg = WeaponSystem(world, new Vector3(100f, 50f, 0f));
-            world.AddComponent(hmg, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 990001 });
+            world.AddComponent(hmg, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(990001) });
             var gunner = Man(world, new Vector3(100f, 50f, 0f));
             world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = hmg, Exposed = 1, Seat = 0 });
             var carriage = Carriage.Of(world, gunner, db);
@@ -1006,7 +1006,7 @@ public sealed class Map3DTests
 
             ((TkbDatabase)db).Register(new TkbTemplate("Test ZU-23", 990011) { DisType = Dis(50, 7) });
             var gun = WeaponSystem(world, new Vector3(100f, 50f, 0f));
-            world.AddComponent(gun, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 990011 });
+            world.AddComponent(gun, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(990011) });
             var gunner = Man(world, new Vector3(100f, 50f, 0f));
             world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = gun, Exposed = 1, Seat = 0 });
             var carriage = Carriage.Of(world, gunner, db);
@@ -1110,7 +1110,7 @@ public sealed class Map3DTests
             world.AddComponent(bearer, new Fdp.Toolkit.Combat.Components.WeaponPosture());
             var tube = world.CreateEntity();
             world.AddComponent(tube, new SimTransform { Position = new Vector3(10f, 0f, 0f), Rotation = Quaternion.Identity });
-            world.AddComponent(tube, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.WeaponSystem_Javelin });
+            world.AddComponent(tube, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.WeaponSystem_Javelin) });
             world.AddComponent(tube, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1, Portable = 1, FireWhileCarried = 1 });
             world.AddComponent(tube, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = Fdp.Toolkit.Combat.WeaponDeploy.Stowed });
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
@@ -1149,7 +1149,7 @@ public sealed class Map3DTests
             new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(world, man, ((TkbDatabase)db).GetByType(TkbEntityTypes.Infantry_Rifleman)!);
             var pistol = world.CreateEntity();
             world.AddComponent(pistol, new SimTransform { Position = new Vector3(10f, 20f, 0f), Rotation = Quaternion.Identity });
-            world.AddComponent(pistol, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.WeaponSystem_PickUpPistol });
+            world.AddComponent(pistol, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.WeaponSystem_PickUpPistol) });
             void CarryIn(int seat)
             {
                 var list = world.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(man);
@@ -1301,7 +1301,7 @@ public sealed class Map3DTests
         world.RegisterComponent<WeaponAmmo>();
         world.SetSingletonManaged<ITkbDatabase>(db);
         var plane = world.CreateEntity();
-        world.AddComponent(plane, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.Jet_AttackA10 });
+        world.AddComponent(plane, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Jet_AttackA10) });
         Assert.Equal(4, EntityBodyLayer3D.BombsLeft(world, plane, db));   // no mirror yet: the full load
         world.AddComponent(plane, new WeaponAmmo { Count = 1, Ammo0 = 1, Max0 = 4 });
         Assert.Equal(1, EntityBodyLayer3D.BombsLeft(world, plane, db));
@@ -2035,7 +2035,7 @@ public sealed class Map3DTests
             world.RegisterComponent<Fdp.Toolkit.Civilians.Demeanour>();
             world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             world.RegisterComponent<global::CarKinem.Core.VehicleParams>();
-            Entity Person(long net, Vector3 at)
+            Entity Person(int net, Vector3 at)
             {
                 var m = Man(world, at);
                 world.AddComponent(m, new global::CarKinem.Core.VehicleParams { Class = global::CarKinem.Core.VehicleClass.Pedestrian });
@@ -2207,11 +2207,11 @@ public sealed class Map3DTests
             world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
             var technical = world.CreateEntity();
             world.AddComponent(technical, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
-            world.AddComponent(technical, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.Technical_Dshk });
+            world.AddComponent(technical, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Technical_Dshk) });
             var gunner = Man(world, Vector3.Zero);
             var gun = world.CreateEntity();
             world.AddComponent(gun, new SimTransform { Position = new Vector3(-1.3f, 0f, 1.0f), Rotation = Quaternion.Identity });
-            world.AddComponent(gun, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.WeaponSystem_DshkHmg });
+            world.AddComponent(gun, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.WeaponSystem_DshkHmg) });
             world.AddComponent(gun, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = Fdp.Toolkit.Combat.WeaponDeploy.Deployed });
             var list = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = 3 };
             list.Passengers[1] = gunner; list.Passengers[2] = gun;
@@ -3795,7 +3795,7 @@ public sealed class Map3DTests
         var tank = w.CreateEntity();
         var yaw = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);   // facing north (+y)
         w.AddComponent(tank, new SimTransform { Position = new Vector3(10f, 20f, 0f), Rotation = yaw });
-        w.AddComponent(tank, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+        w.AddComponent(tank, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams) });
         Assert.True(Fdp.Toolkit.Combat.Muzzle.TryOf(w, tank, 0, out var muzzle, out var forward));
         Assert.InRange(Vector3.Distance(forward, Vector3.UnitY), 0f, 1e-4f);   // the barrel points where the hull does (turret neutral)
         Assert.True(muzzle.Y > 20f + 4f, $"the muzzle is at the barrel's end: {muzzle}");
@@ -3888,7 +3888,7 @@ public sealed class Map3DTests
         var def = terrain.Doors[0];
         var e = world.CreateEntity();
         world.AddComponent(e, new SimTransform { Position = new Vector3(def.Center, def.SillZ), Rotation = Quaternion.Identity });
-        world.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hrot.Map.Common.TkbEntityTypes.Door });
+        world.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Hrot.Map.Common.TkbEntityTypes.Door) });
         world.AddComponent(e, new DoorState { State = TerrainDoorState.Closed });
         world.AddComponent(e, new TerrainObjectKey { Key = def.Key });
 
@@ -4070,7 +4070,7 @@ public sealed class Map3DTests
     {
         var e = w.CreateEntity();
         w.AddComponent(e, Hrot.UI.Common.Map3D.MapCameraPose.ToTransform(pose));
-        w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hrot.Core.Tkb.MapCameraTkb.Type });
+        w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MapCameraTkb.Type) });
         return e;
     }
 
@@ -4138,7 +4138,7 @@ public sealed class Map3DTests
         {
             var e = w.CreateEntity();
             w.AddComponent(e, new SimTransform { Position = new Vector3(x, y, 0f), Rotation = Quaternion.Identity });
-            w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman) });
             return e;
         }
         var (canvas, sw, two) = Map(new Vector2(-5000f, -5000f), 1f);
@@ -4182,7 +4182,7 @@ public sealed class Map3DTests
         layer3.Update(0.016f);
         var e3 = w3.CreateEntity();
         w3.AddComponent(e3, new SimTransform { Position = new Vector3(5000f, 5000f, 0f), Rotation = Quaternion.Identity });
-        w3.AddComponent(e3, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+        w3.AddComponent(e3, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman) });
         for (int i = 0; i < 4; i++) layer3.Update(0.5f);
         Assert.False(layer3.Framed);
     }
@@ -4302,7 +4302,7 @@ public sealed class Map3DTests
         var e = w.CreateEntity();
         w.AddComponent(e, new SimTransform { Position = new Vector3(5f, 5f, 0f), Rotation = Quaternion.Identity });
         w.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(4712));
-        w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hrot.Core.Tkb.AreaEffectCloudTkb.Type });
+        w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.AreaEffectCloudTkb.Type) });
         w.AddComponent(e, new Fdp.Toolkit.Combat.AreaEffectCloud { Kind = Fdp.Toolkit.Combat.CloudKind.Smoke, Radius = 8f, Height = 4f, Seconds = 60f });
         Assert.True(Hrot.Common.Diagnostics.Gizmos.NotAUnit.Is(w, e));
 
@@ -4415,7 +4415,7 @@ public sealed class Map3DTests
         w.SetSingletonManaged<ITkbDatabase>(tkb);
         Assert.True(tkb.TryGetByType(type, out var tpl));
         var tank = w.CreateEntity();
-        w.AddComponent(tank, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });   // the spawn path stamps it
+        w.AddComponent(tank, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });   // the spawn path stamps it
         foreach (var t in TkbTranslatorSet.Base()) t.Inject(w, tank, tpl!);
         var hullRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.7f) * Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.1f);
         w.SetComponent(tank, new SimTransform { Position = new Vector3(30f, -20f, 4f), Rotation = hullRotation });

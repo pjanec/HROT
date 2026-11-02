@@ -66,7 +66,7 @@ public sealed class StrideKinematicsModuleIntegrationTests : IDisposable
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = tkbType,
+            TkbType            = (Fdp.Core.TkbTypeId)(tkbType),
             InitialComponents  = new List<object> { tf, vel },
         });
         _sut.Tick(1f / 60f);

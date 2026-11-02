@@ -92,6 +92,7 @@ public class ComponentReflector
     {
         _editService = BuildEditService();
         _fieldDrawers[typeof(Quaternion)] = new QuaternionEulerFieldDrawer();
+        _fieldDrawers[typeof(Fdp.Core.WorldRotation)] = new QuaternionEulerFieldDrawer(typeof(Fdp.Core.WorldRotation));   // ⭐ S0 item 6
         _fieldDrawers[typeof(Guid)] = new GuidFieldDrawer();
     }
 

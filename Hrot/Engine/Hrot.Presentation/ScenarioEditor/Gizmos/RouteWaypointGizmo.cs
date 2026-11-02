@@ -35,7 +35,7 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         private readonly EntityRepository    _repo;
         private readonly Entity              _entity;
-        private readonly long                _networkId;
+        private readonly int                _networkId;
         private readonly Action              _onRemove;
 
         // Working copy of waypoints.
@@ -64,7 +64,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         public bool IsFocused { get; private set; }
         public void SetFocus(bool isFocused) => IsFocused = isFocused;
 
-        public RouteWaypointGizmo(ISimulationView view, Entity entity, long networkId, Action onRemove)
+        public RouteWaypointGizmo(ISimulationView view, Entity entity, int networkId, Action onRemove)
         {
             _repo      = view as EntityRepository
                 ?? throw new ArgumentException("RouteWaypointGizmo requires EntityRepository access.", nameof(view));

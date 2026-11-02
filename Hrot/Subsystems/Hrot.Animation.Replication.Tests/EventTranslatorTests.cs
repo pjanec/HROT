@@ -21,7 +21,7 @@ public sealed class EventTranslatorTests : IDisposable
     private readonly EntityRepository _world;
     private readonly NetworkEntityMap _entityMap;
     private readonly Entity _entity;
-    private const long NetId = 9001L;
+    private const int NetId = 9001;
 
     public EventTranslatorTests()
     {
@@ -206,7 +206,7 @@ public sealed class EventTranslatorTests : IDisposable
         var translator = new MontageStartedEventTranslator(
             participant: null, _entityMap, TranslatorDirection.Ingress);
 
-        var dds = new DdsMontageStartedEvent { Target = 9999L }; // unknown net ID
+        var dds = new DdsMontageStartedEvent { Target = 9999 }; // unknown net ID
         Assert.False(translator.DecodeForTest(dds, out _));
     }
 

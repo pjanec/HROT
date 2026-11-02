@@ -57,7 +57,7 @@ public class SelectionInteractionSystemTests
     /// world, so two entities sharing <c>NetworkIdentity.Value = 1</c> (which is what this used to do)
     /// would make the second one unaddressable — the resolve answers with the first match.
     /// 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §6.7.</summary>
-    private long _nextNetId = 7041L;
+    private int _nextNetId = 7041;
 
     private Entity CreateSelectableEntity()
     {
@@ -146,7 +146,7 @@ public class SelectionInteractionSystemTests
         var entity1 = CreateSelectableEntity();
         var entity2 = _world.CreateEntity();
         _world.AddComponent(entity2, default(SimTransform));
-        _world.AddComponent(entity2, new NetworkIdentity { Value = 2L });
+        _world.AddComponent(entity2, new NetworkIdentity { Value = 2 });
         _world.AddComponent(entity2, new SelectionState());
 
         PublishStartedEvent(entity1);
@@ -707,7 +707,7 @@ public class SelectionInteractionSystemTests
         shown.RegisterComponent<SelectionState>();
         var unit = shown.CreateEntity();
         shown.AddComponent(unit, default(SimTransform));
-        shown.AddComponent(unit, new NetworkIdentity { Value = 9001L });
+        shown.AddComponent(unit, new NetworkIdentity { Value = 9001 });
         shown.AddComponent(unit, new SelectionState());
 
         EntityRepository current = _world;   // the boot world first, as on the Replay Browser before a recording opens

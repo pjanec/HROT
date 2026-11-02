@@ -65,7 +65,7 @@ public sealed class DebugApiBatch09Tests
             clusterState: () => Fdp.Toolkit.Orchestration.ClusterState.Idle);
 
         // Spawn entity via real pipeline so it gets NetworkIdentity.
-        const long networkId = 90_001L;
+        const int networkId = 90_001;
         h.Bus.PublishManaged(new SpawnEntityCommand
         {
             TkbType          = 1L,
@@ -123,7 +123,7 @@ public sealed class DebugApiBatch09Tests
             h.TimeController,
             clusterState: () => Fdp.Toolkit.Orchestration.ClusterState.Idle);
 
-        const long networkId = 90_002L;
+        const int networkId = 90_002;
         h.Bus.PublishManaged(new SpawnEntityCommand
         {
             TkbType = 1L, NetworkId = networkId, OwnerNodeId = 0,
@@ -168,7 +168,7 @@ public sealed class DebugApiBatch09Tests
             h.TimeController,
             clusterState: () => Fdp.Toolkit.Orchestration.ClusterState.Idle);
 
-        const long networkId = 90_003L;
+        const int networkId = 90_003;
         h.Bus.PublishManaged(new SpawnEntityCommand
         {
             TkbType = 1L, NetworkId = networkId, OwnerNodeId = 0,
@@ -210,7 +210,7 @@ public sealed class DebugApiBatch09Tests
         var dump = new EntityStateDumpDto
         {
             EntityId   = new[] { 0, 0 },
-            NetworkId  = 1L,
+            NetworkId  = 1,
             Components = new Dictionary<string, object>
             {
                 ["SimTransform"] = nanTransform,

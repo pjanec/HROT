@@ -38,7 +38,7 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
 {
     private readonly string _isolatedTempRoot;
     private readonly DiagnosticEventHistoryService _eventHistory;
-    private readonly Action<IReadOnlyDictionary<long, long>> _onStagingRemap;
+    private readonly Action<IReadOnlyDictionary<int, int>> _onStagingRemap;
 
     private BehaviorRegistry? _behaviorRegistry;
     private BlueprintRegistry? _blueprintRegistry;
@@ -46,7 +46,7 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
     private readonly Hrot.SimHost.NodeBootstrapper _nodeBootstrapper;
 
     public CgfNodeBootstrapper(INetworkFactory? networkFactory, string isolatedTempRoot, DiagnosticEventHistoryService eventHistory,
-                               Action<IReadOnlyDictionary<long, long>> onStagingRemap)
+                               Action<IReadOnlyDictionary<int, int>> onStagingRemap)
     {
         _isolatedTempRoot = isolatedTempRoot;
         _eventHistory     = eventHistory;

@@ -20,7 +20,7 @@ namespace Hrot.Map.Common.Tests.Replication.Ingress;
 /// </summary>
 public class MapVisualOverlayIngressTranslatorTests
 {
-    private const long NetId = 42;
+    private const int NetId = 42;
 
     [Fact]
     public void OnTheRecordedOwner_ItsOwnOverlayLoopingBack_IsNotApplied()

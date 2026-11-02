@@ -113,7 +113,7 @@ namespace Fdp.Toolkit.Time.Tests
         {
             var bus = new FdpEventBus();
             var translator = CreateNullParticipantTranslator(bus);
-            translator.Dispose(42L);
+            translator.Dispose(42);
         }
 
         // ── CreateDescriptorTranslator factory ─────────────────────────────────

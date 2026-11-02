@@ -99,17 +99,17 @@ public sealed class ScenarioBehaviorTests : SystemTestBase
 
     // ── helpers ────────────────────────────────────────────────────────────────
 
-    private readonly record struct Moved(long NetworkId, double Distance);
+    private readonly record struct Moved(int NetworkId, double Distance);
 
     /// <summary>Every entity's XY position, keyed by network id. Entities without one are skipped.</summary>
-    private async Task<Dictionary<long, (double X, double Y)>> PositionsAsync()
+    private async Task<Dictionary<int, (double X, double Y)>> PositionsAsync()
     {
         var listed = (await Mcp.ListEntitiesAsync(component: "SimTransform")).EnsureOk().Array();
-        var result = new Dictionary<long, (double X, double Y)>();
+        var result = new Dictionary<int, (double X, double Y)>();
 
         foreach (var row in listed)
         {
-            var id = row?["networkId"]?.GetValue<long>();
+            var id = row?["networkId"]?.GetValue<int>();
             if (id is null) continue;
 
             var dump = await Mcp.GetEntityAsync(id.Value);
@@ -122,8 +122,8 @@ public sealed class ScenarioBehaviorTests : SystemTestBase
     }
 
     private static Moved FurthestMoved(
-        Dictionary<long, (double X, double Y)> before,
-        Dictionary<long, (double X, double Y)> after)
+        Dictionary<int, (double X, double Y)> before,
+        Dictionary<int, (double X, double Y)> after)
     {
         var best = new Moved(0, 0);
         foreach (var (id, start) in before)

@@ -23,7 +23,7 @@ namespace Fdp.Toolkit.Vis3D
     /// hit, and for an entity its network id. The layers keep receiving X/Y; height reaches the gizmos through
     /// <see cref="Point"/>.<c>Z</c>.
     /// </summary>
-    public readonly record struct PickResult(Vector3 Point, PickKind Kind, float Distance, long NetworkId = 0)
+    public readonly record struct PickResult(Vector3 Point, PickKind Kind, float Distance, int NetworkId = 0)
     {
         public static readonly PickResult None = new(Vector3.Zero, PickKind.None, float.PositiveInfinity);
     }

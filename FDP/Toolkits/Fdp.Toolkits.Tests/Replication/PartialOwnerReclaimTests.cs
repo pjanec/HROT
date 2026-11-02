@@ -38,7 +38,7 @@ namespace Fdp.Toolkit.Replication.Tests
 
             var e = repo.CreateEntity();
             repo.AddComponent(e, new NetworkAuthority(primary, local));
-            repo.AddComponent(e, new TkbIdentity { TkbType = 1 });
+            repo.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(1) });
             repo.AddComponent(e, new NetworkTransform());
             repo.AddComponent(e, new NetworkVelocity());
 
@@ -50,7 +50,7 @@ namespace Fdp.Toolkit.Replication.Tests
 
         private static void Depart(EntityRepository repo, PartialOwnerReclaimSystem sys, int node)
         {
-            repo.Bus.Publish(new NodeDeparted { NodeId = node });
+            repo.Bus.Publish(new NodeDeparted { NodeId = (Fdp.Core.NodeId)(node) });
             repo.Bus.SwapBuffers();
             sys.Execute(repo, 0f);
         }

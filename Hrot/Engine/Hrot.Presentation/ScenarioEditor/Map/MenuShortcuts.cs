@@ -59,7 +59,7 @@ namespace Hrot.ScenarioEditor.Map
 
         /// <summary>The unit a shortcut means (the primary selection, else the only selected one) and the action its menu binds to
         /// <paramref name="key"/>; null when there is none.</summary>
-        public (long NetworkId, int ActionId)? Resolve(int key)
+        public (int NetworkId, int ActionId)? Resolve(int key)
         {
             var unit = _selection.PrimarySelected;
             if (unit is null || unit.Value.IsNull)
@@ -71,7 +71,7 @@ namespace Hrot.ScenarioEditor.Map
             var target = unit!.Value;
             if (!_world.IsAlive(target) || !_world.IsComponentTypeRegistered<NetworkIdentity>() || !_world.HasComponent<NetworkIdentity>(target))
                 return null;
-            long net = _world.GetComponentRO<NetworkIdentity>(target).Value;
+            int net = _world.GetComponentRO<NetworkIdentity>(target).Value;
             if (net == 0) return null;
             var items = JsonSerializer.Deserialize<ContextMenuItemDto[]>(
                 Hrot.Common.Diagnostics.Gizmos.ContextMenuProjectorGizmo.MenuJsonFor(_world, target), Options);

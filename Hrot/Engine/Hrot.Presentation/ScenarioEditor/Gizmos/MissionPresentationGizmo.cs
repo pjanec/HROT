@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using System.Numerics;
 using System.Text.Json;
@@ -22,11 +23,10 @@ namespace Hrot.ScenarioEditor.Gizmos
         private static readonly Rgba32 StartColor = new Rgba32(255, 165, 0, 200);  // orange
         private static readonly Rgba32 EndColor   = new Rgba32(0,   0, 139, 200);  // dark blue
 
-        private readonly IGeographicTransform _geoTransform;
-
+        /// <remarks>⭐ S0 item 5 (SR-135): a task's place is local metres (<c>"target"</c>, a <c>PointLink</c>) — the transform is no longer needed to draw it; the parameter stays so hosts keep composing the gizmo unchanged.</remarks>
         public MissionPresentationGizmo(IGeographicTransform geoTransform)
         {
-            _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
+            if (geoTransform == null) throw new ArgumentNullException(nameof(geoTransform));
         }
 
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
@@ -43,23 +43,19 @@ namespace Hrot.ScenarioEditor.Gizmos
             {
                 if (string.IsNullOrEmpty(task.BehaviorParams)) continue;
 
-                float targetLat = float.NaN;
-                float targetLon = float.NaN;
+                Vector3? target = null;
 
                 try
                 {
                     using var doc = JsonDocument.Parse(task.BehaviorParams);
-                    if (doc.RootElement.TryGetProperty("targetLat", out var latEl))
-                        targetLat = latEl.GetSingle();
-                    if (doc.RootElement.TryGetProperty("targetLon", out var lonEl))
-                        targetLon = lonEl.GetSingle();
+                    if (doc.RootElement.TryGetProperty("target", out var targetEl))
+                        target = JsonSerializer.Deserialize<Fdp.Toolkit.Replication.PointLink>(targetEl.GetRawText(), Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed).Local;   // the engine's options: a [x, y, z] is a Vector3 there
                 }
                 catch { }
 
-                if (!float.IsNaN(targetLat) && !float.IsNaN(targetLon))
+                if (target is { } at)
                 {
-                    var cartesian = _geoTransform.ToCartesian(targetLat, targetLon, 0.0);
-                    var targetPos = new Vector3((float)cartesian.X, (float)cartesian.Y, 0f);
+                    var targetPos = new Vector3(at.X, at.Y, 0f);
 
                     draw.DrawLineGradient(lastPos, targetPos, StartColor, EndColor, thickness: 2f, SizeMode.WorldMeters, layer: DebugTraceLayers.Paths);
 

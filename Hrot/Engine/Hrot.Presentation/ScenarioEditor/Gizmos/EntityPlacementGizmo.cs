@@ -256,8 +256,8 @@ namespace Hrot.ScenarioEditor.Gizmos
             var cmd = new SpawnEntityCommand
             {
                 NetworkId         = 0,
-                TkbType           = _tkbType,
-                OwnerNodeId       = 0,
+                TkbType           = (Fdp.Core.TkbTypeId)(_tkbType),
+                OwnerNodeId       = (Fdp.Core.NodeId)(0),
                 InitType          = ReliableInitType.AllPeers,
                 InitialTransform  = new SimTransform
                 {

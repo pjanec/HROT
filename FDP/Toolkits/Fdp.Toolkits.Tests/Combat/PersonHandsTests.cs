@@ -74,7 +74,7 @@ namespace Fdp.Toolkit.Tests.Combat
         {
             var e = _world.CreateEntity();
             _world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-            _world.AddComponent(e, new TkbIdentity { TkbType = type });
+            _world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             _world.AddComponent(e, new EntityInfo { ForceId = ForceId.Hostile });
             if (civilianClass) _world.SetDisType(e, new DISEntityType { Kind = 3, Domain = 1, Category = 2 });
             _db.TryGetByType(type, out var t);

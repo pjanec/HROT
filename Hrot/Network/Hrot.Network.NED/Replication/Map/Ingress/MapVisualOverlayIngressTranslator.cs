@@ -28,7 +28,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly DdsReader<MapVisualOverlay>? _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly GhostCreationSystem _ghostCreationSystem;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         /// <summary>
         /// Overlays deferred because the entity's <see cref="SimTransform"/> had not yet been
@@ -49,12 +49,12 @@ namespace Hrot.Map.Common.Replication.Ingress
             DdsParticipant? participant,
             NetworkEntityMap entityMap,
             GhostCreationSystem ghostCreationSystem,
-            long localNodeId)
+            int localNodeId)
         {
             _reader = participant is not null ? new DdsReader<MapVisualOverlay>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <inheritdoc />
@@ -116,7 +116,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             repo.SetComponent(entity, MapOverlayStyle.FromJson(overlay.StyleOverrideJson));
         }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         private static bool IsOwnedHere(EntityRepository repo, Entity entity)
             => Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(
@@ -124,7 +124,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         internal void ProcessSample(in MapVisualOverlay data, IEntityCommandBuffer cmd, EntityRepository? repo)
         {
-            long netId = data.EntityId;
+            int netId = data.EntityId;
             if (!_entityMap.TryGetEntity(netId, out var entity))
             {
                 if (repo == null)

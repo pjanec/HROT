@@ -39,7 +39,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             if (Fdp.Toolkit.Perception.PhysicalPresence.IsEnclosedPassenger(view, entity)) return;   // ⭐ CE-1058: no card for an unseen passenger
             if (Hrot.Common.Diagnostics.Gizmos.NotAUnit.Is(view, entity)) return;   // ⭐ CE-1165: no label for a cloud, a round, the camera
 
-            long net = view.GetComponentRO<NetworkIdentity>(entity).Value;
+            int net = view.GetComponentRO<NetworkIdentity>(entity).Value;
             if (net == 0) return;   // a card is keyed by the network id
             var card = draw.Card(net, DebugTraceLayers.Labels);
 

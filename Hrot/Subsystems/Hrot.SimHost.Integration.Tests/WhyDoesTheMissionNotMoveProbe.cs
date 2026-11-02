@@ -88,7 +88,7 @@ namespace Hrot.SimHost.Integration.Tests
                         {
                             BehaviorId = "MoveToLocation",
                             BehaviorParams =
-                                $"{{\"TargetLat\":{Inv(dest.Latitude)},\"TargetLon\":{Inv(dest.Longitude)}," +
+                                "{\"target\":[500,0,0]," +
                                  "\"Speed\":15.0,\"ArrivalRadius\":5.0}",
                         },
                     },

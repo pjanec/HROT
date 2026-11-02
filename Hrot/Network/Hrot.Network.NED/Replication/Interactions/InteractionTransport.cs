@@ -121,7 +121,7 @@ namespace Hrot.Map.Common.Replication.Interactions
             toPayload:   static (in PossessRequestEvent e) => new InteractionPayload
                 { Possess = new PossessInteractionPayload { StationNodeId = e.StationNodeId, Mode = (byte)e.Mode } },
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new PossessRequestEvent
-                { Unit = target, StationNodeId = p.Possess.StationNodeId, Mode = (PossessionMode)p.Possess.Mode, IsRemote = true });
+                { Unit = target, StationNodeId = (Fdp.Core.NodeId)(p.Possess.StationNodeId), Mode = (PossessionMode)p.Possess.Mode, IsRemote = true });
 
         /// <summary>⭐ CE-3172 S4e — a station lets its unit go.</summary>
         public static readonly IInteractionCodec ReleasePossession = new InteractionCodec<ReleasePossessionEvent>(
@@ -133,7 +133,7 @@ namespace Hrot.Map.Common.Replication.Interactions
             toPayload:   static (in ReleasePossessionEvent e) => new InteractionPayload
                 { ReleasePossession = new ReleasePossessionInteractionPayload { StationNodeId = e.StationNodeId } },
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new ReleasePossessionEvent
-                { Unit = target, StationNodeId = p.ReleasePossession.StationNodeId, IsRemote = true });
+                { Unit = target, StationNodeId = (Fdp.Core.NodeId)(p.ReleasePossession.StationNodeId), IsRemote = true });
 
         /// <summary>⭐ CE-3172 / CE-3173 S4e — one frame of a station's controls.</summary>
         public static readonly IInteractionCodec ControlFrame = new InteractionCodec<OperatorControlFrameEvent>(
@@ -158,7 +158,7 @@ namespace Hrot.Map.Common.Replication.Interactions
             },
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new OperatorControlFrameEvent
             {
-                Unit = target, StationNodeId = p.ControlFrame.StationNodeId, Seq = p.ControlFrame.Seq,
+                Unit = target, StationNodeId = (Fdp.Core.NodeId)(p.ControlFrame.StationNodeId), Seq = p.ControlFrame.Seq,
                 Forward = p.ControlFrame.Forward, Lateral = p.ControlFrame.Lateral, Steer = p.ControlFrame.Steer, Yaw = p.ControlFrame.Yaw,
                 Gait = p.ControlFrame.Gait, Trigger = p.ControlFrame.Trigger, Mount = p.ControlFrame.Mount, Vertical = p.ControlFrame.Vertical,
                 AimPoint = new System.Numerics.Vector3(p.ControlFrame.AimX, p.ControlFrame.AimY, p.ControlFrame.AimZ), Stance = p.ControlFrame.Stance,
@@ -185,7 +185,7 @@ namespace Hrot.Map.Common.Replication.Interactions
                                                Mode = (Fdp.Toolkit.Behavior.Components.CarryMode)p.Embark.Mode },
             // ⭐ T-a (R-2017 T1) — the team load's second man rides as a network id
             idsOut:      static (in EmbarkEntityCommand e, NetworkEntityMap map, ref InteractionPayload p)
-                => p.Embark.Assistant = !e.Assistant.IsNull && map.TryGetNetworkId(e.Assistant, out long id) ? id : 0,
+                => p.Embark.Assistant = !e.Assistant.IsNull && map.TryGetNetworkId(e.Assistant, out int id) ? id : 0,
             idsIn:       static (in InteractionPayload p, NetworkEntityMap map, ref EmbarkEntityCommand e)
                 => e.Assistant = p.Embark.Assistant != 0 && map.TryGetEntity(p.Embark.Assistant, out var a) ? a : Entity.Null);
 
@@ -332,14 +332,14 @@ namespace Hrot.Map.Common.Replication.Interactions
 
         private void Send(Entity target, Entity actor, in InteractionPayload payload)
         {
-            if (!_entityMap.TryGetNetworkId(target, out long targetId)) return;
-            long actorId = !actor.IsNull && _entityMap.TryGetNetworkId(actor, out long a) ? a : 0;
+            if (!_entityMap.TryGetNetworkId(target, out int targetId)) return;
+            int actorId = !actor.IsNull && _entityMap.TryGetNetworkId(actor, out int a) ? a : 0;
             _writer.Write(new EntityInteractionRequest { TargetId = targetId, ActorId = actorId, Payload = payload });
             SentSampleCount++;
         }
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>
@@ -395,6 +395,6 @@ namespace Hrot.Map.Common.Replication.Interactions
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

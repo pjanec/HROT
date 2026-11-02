@@ -81,7 +81,7 @@ public sealed class ClusterMasterBootstrapTests
         // ── Phase 2: Deliver SimHost heartbeat (Standby) → latch clears ──────
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = 1,
+            NodeId        = (Fdp.Core.NodeId)(1),
             SubsystemName = "SimHost",
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
@@ -136,7 +136,7 @@ public sealed class ClusterMasterBootstrapTests
         // Bootstrap: publish SimHost heartbeat once, let latch clear.
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = 1,
+            NodeId        = (Fdp.Core.NodeId)(1),
             SubsystemName = "SimHost",
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
@@ -206,14 +206,14 @@ public sealed class ClusterMasterBootstrapTests
         // Bootstrap: publish both SimHost (nodeId=1) and CGF (nodeId=400) as Standby.
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = 1,
+            NodeId        = (Fdp.Core.NodeId)(1),
             SubsystemName = "SimHost",
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
         });
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = 400,
+            NodeId        = (Fdp.Core.NodeId)(400),
             SubsystemName = "CGF",
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
@@ -384,7 +384,7 @@ public sealed class ClusterMasterBootstrapTests
         // Feed a heartbeat with mixed-case name "SimHost" (not "simhost")
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = 1,
+            NodeId        = (Fdp.Core.NodeId)(1),
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
             SubsystemName = "SimHost",  // different case from config
@@ -423,7 +423,7 @@ public sealed class ClusterMasterBootstrapTests
         // Feed a heartbeat with completely different name
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = 1,
+            NodeId        = (Fdp.Core.NodeId)(1),
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
             SubsystemName = "IG",
@@ -450,7 +450,7 @@ public sealed class ClusterMasterBootstrapTests
     private static void Beat(FdpEventBus bus, int nodeId, string name) =>
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId = nodeId, SubsystemName = name,
+            NodeId = (Fdp.Core.NodeId)(nodeId), SubsystemName = name,
             LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle, WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
         });
 
@@ -473,7 +473,7 @@ public sealed class ClusterMasterBootstrapTests
     private static void Ack(FdpEventBus bus, Guid tx, int nodeId) =>
         bus.PublishManaged(new NodeOpCompletedEvent
         {
-            TransactionId = tx, Operation = FdpNodeOpType.TakeSnapshot, NodeId = nodeId,
+            TransactionId = tx, Operation = FdpNodeOpType.TakeSnapshot, NodeId = (Fdp.Core.NodeId)(nodeId),
             StatusCode = OrchestrationStatusCode.Success, IsParticipating = true,
         });
 
@@ -537,7 +537,7 @@ public sealed class ClusterMasterBootstrapTests
         foreach (var p in prepares)
             bus.PublishManaged(new NodeOpCompletedEvent
             {
-                TransactionId = p.TransactionId, Operation = p.Operation, NodeId = 1,
+                TransactionId = p.TransactionId, Operation = p.Operation, NodeId = (Fdp.Core.NodeId)(1),
                 StatusCode = OrchestrationStatusCode.Success, IsParticipating = true,
             });
         Step(bus, master);
@@ -575,7 +575,7 @@ public sealed class ClusterMasterBootstrapTests
         // the node answers the FIRST prepare with an error and, like ClusterSlave after a faulted prepare, never answers the others
         bus.PublishManaged(new NodeOpCompletedEvent
         {
-            TransactionId = prepares[0].TransactionId, Operation = prepares[0].Operation, NodeId = 1,
+            TransactionId = prepares[0].TransactionId, Operation = prepares[0].Operation, NodeId = (Fdp.Core.NodeId)(1),
             StatusCode = OrchestrationStatusCode.Failure, IsParticipating = true,
         });
         Step(bus, master);
@@ -602,18 +602,18 @@ public sealed class ClusterMasterBootstrapTests
     {
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId = nodeId, SubsystemName = "Node", WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+            NodeId = (Fdp.Core.NodeId)(nodeId), SubsystemName = "Node", WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
             LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
         });
         if (roleToken != null)
-            bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = nodeId, Capabilities = new[] { roleToken } });
+            bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = (Fdp.Core.NodeId)(nodeId), Capabilities = new[] { roleToken } });
         Step(bus, master);
     }
 
     /// <summary>The advert of a node already in the roster arrives LATER than its heartbeat (R-4005, the join window).</summary>
     private static void AdvertLands(FdpEventBus bus, ClusterMaster master, int nodeId, string roleToken)
     {
-        bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = nodeId, Capabilities = new[] { roleToken } });
+        bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = (Fdp.Core.NodeId)(nodeId), Capabilities = new[] { roleToken } });
         Step(bus, master);
     }
 
@@ -1247,10 +1247,10 @@ public sealed class ClusterMasterBootstrapTests
     /// <summary>A node's heartbeat carrying what it reports about ITSELF (phase / step / reason), and — once, when <paramref name="advert"/> is given — its capability advert (an empty array = a node with no role at all).</summary>
     private static void PhaseBeat(FdpEventBus bus, ClusterMaster master, int nodeId, NodePhase phase, string? step = null, string[]? advert = null, string name = "Node", string? nodeName = null)
     {
-        if (advert != null) bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = nodeId, Capabilities = advert });
+        if (advert != null) bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = (Fdp.Core.NodeId)(nodeId), Capabilities = advert });
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId = nodeId, SubsystemName = name, NodeName = nodeName, WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+            NodeId = (Fdp.Core.NodeId)(nodeId), SubsystemName = name, NodeName = nodeName, WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
             LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle, Phase = phase, Step = step,
         });
         Step(bus, master);
@@ -1350,7 +1350,7 @@ public sealed class ClusterMasterBootstrapTests
         var failing = ops.First(i => i.TargetNodeId == CgfNode && i.Operation == FdpNodeOpType.PrepareLive);
         bus.PublishManaged(new NodeOpCompletedEvent
         {
-            TransactionId = failing.TransactionId, Operation = failing.Operation, NodeId = CgfNode,
+            TransactionId = failing.TransactionId, Operation = failing.Operation, NodeId = (Fdp.Core.NodeId)(CgfNode),
             StatusCode = OrchestrationStatusCode.Failure, IsParticipating = true, ResultPayload = reason,
         });
         Step(bus, master);
@@ -1398,7 +1398,7 @@ public sealed class ClusterMasterBootstrapTests
         var prepares = bus.ReadManaged<ExecuteNodeOpIntent>().Where(i => i.Operation != FdpNodeOpType.CommitState).ToList();
         var first = prepares.First();
         bus.PublishManaged(new NodeOpCompletedEvent
-            { TransactionId = first.TransactionId, Operation = first.Operation, NodeId = SimHostNode, StatusCode = OrchestrationStatusCode.Failure, IsParticipating = true, ResultPayload = "boom" });
+            { TransactionId = first.TransactionId, Operation = first.Operation, NodeId = (Fdp.Core.NodeId)(SimHostNode), StatusCode = OrchestrationStatusCode.Failure, IsParticipating = true, ResultPayload = "boom" });
         Step(bus, master);
 
         var status = Assert.Single(StatusesOf(bus, request));
@@ -1510,7 +1510,7 @@ public sealed class ClusterMasterBootstrapTests
         using var master = new ClusterMaster(bus, NoRolesConfig());
         void Beat(int id, string sub, string? name)
         {
-            bus.PublishManaged(new NodeHeartbeatEvent { NodeId = id, SubsystemName = sub, NodeName = name, WallTicksUtc = DateTimeOffset.UtcNow.Ticks });
+            bus.PublishManaged(new NodeHeartbeatEvent { NodeId = (Fdp.Core.NodeId)(id), SubsystemName = sub, NodeName = name, WallTicksUtc = DateTimeOffset.UtcNow.Ticks });
             Step(bus, master);
         }
         Beat(100, "IG", "film-cam");
@@ -1520,9 +1520,9 @@ public sealed class ClusterMasterBootstrapTests
 
         var rows = master.DescribeRoster();
         var members = rows.Where(r => r.NameConflict == null).ToDictionary(r => r.NodeId, r => r.Name);
-        Assert.Equal(new[] { 1, 100 }, members.Keys.OrderBy(x => x).ToArray());
-        Assert.Equal("film-cam", members[100]);
-        Assert.Equal("SimHost-1", members[1]);
+        Assert.Equal(new[] { 1, 100 }, members.Keys.OrderBy(x => x).Select(x => x.Value).ToArray());
+        Assert.Equal("film-cam", members[(Fdp.Core.NodeId)(100)]);
+        Assert.Equal("SimHost-1", members[(Fdp.Core.NodeId)(1)]);
         var conflict = Assert.Single(rows, r => r.NameConflict != null);
         Assert.Equal((101, "film-cam"), (conflict.NodeId, conflict.Name));
         Assert.Contains("100", conflict.NameConflict);

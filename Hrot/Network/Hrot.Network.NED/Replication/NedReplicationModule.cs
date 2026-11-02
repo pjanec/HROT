@@ -69,7 +69,7 @@ public sealed class NedReplicationModule : INedReplicationModule
     private readonly DdsParticipant?     _participant;
     private readonly NetworkEntityMap    _entityMap;
     private readonly FdpEventBus         _eventBus;
-    private readonly int                 _localNodeId;
+    private readonly NodeId                 _localNodeId;
 
     // ── Ghost lifecycle deps (IG role — GhostPromotionSystem) ─────────────────
     private readonly ITkbDatabase?         _tkbDb;
@@ -237,7 +237,7 @@ public sealed class NedReplicationModule : INedReplicationModule
         _role            = role;
         _entityMap       = entityMap  ?? throw new ArgumentNullException(nameof(entityMap));
         _eventBus        = eventBus   ?? throw new ArgumentNullException(nameof(eventBus));
-        _localNodeId     = localNodeId;
+        _localNodeId     = (Fdp.Core.NodeId)(localNodeId);
         _tkbDb           = tkbDb;
         _lifecycleModule = lifecycleModule;
         _tkbEntityTranslators = tkbEntityTranslators;
@@ -709,7 +709,7 @@ public sealed class NedReplicationModule : INedReplicationModule
     private sealed class LocalAuthorityYieldSystem : IEcsModuleSystem
     {
         private readonly NetworkEntityMap    _entityMap;
-        private readonly int                 _localNodeId;
+        private readonly NodeId                 _localNodeId;
         private readonly DescriptorOwnershipMap _descriptorMap;
 
         internal LocalAuthorityYieldSystem(
@@ -718,7 +718,7 @@ public sealed class NedReplicationModule : INedReplicationModule
             DescriptorOwnershipMap descriptorMap)
         {
             _entityMap    = entityMap;
-            _localNodeId  = localNodeId;
+            _localNodeId  = (Fdp.Core.NodeId)(localNodeId);
             _descriptorMap = descriptorMap;
         }
 

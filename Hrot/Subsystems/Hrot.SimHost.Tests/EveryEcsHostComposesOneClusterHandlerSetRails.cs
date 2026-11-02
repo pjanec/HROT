@@ -48,7 +48,7 @@ namespace Hrot.SimHost.Tests
                 Slave         = slave,
                 Kernel        = kernel,
                 World         = _world,
-                NodeId        = 7,
+                NodeId        = (Fdp.Core.NodeId)(7),
                 Role          = NodeRole.MuscleGround,
                 HostLabel     = "D16",
                 StagingRoot   = _staging,
@@ -78,7 +78,7 @@ namespace Hrot.SimHost.Tests
             var (providers, _) = HrotUniversalLoadParts.Build(null, _staging, new CarKinem.Road.RoadNetworkHolder(), null);
             var built = EcsHostClusterHandlers.Compose(new EcsHostClusterHandlerInputs
             {
-                Slave = slave, Kernel = kernel, World = _world, NodeId = 7, Role = role, HostLabel = "D16",
+                Slave = slave, Kernel = kernel, World = _world, NodeId = (Fdp.Core.NodeId)(7), Role = role, HostLabel = "D16",
                 StagingRoot = _staging, LoadProviders = providers, EventAccumulator = accumulator,
             });
 
@@ -167,7 +167,7 @@ namespace Hrot.SimHost.Tests
 
             var built = EcsHostClusterHandlers.Compose(new EcsHostClusterHandlerInputs
             {
-                Slave = slave, Kernel = kernel, World = _world, NodeId = 7, Role = NodeRole.MuscleGround, HostLabel = "D16",
+                Slave = slave, Kernel = kernel, World = _world, NodeId = (Fdp.Core.NodeId)(7), Role = NodeRole.MuscleGround, HostLabel = "D16",
                 StagingRoot = _staging, LoadProviders = providers, EventAccumulator = accumulator, ScenarioSaveHandler = save,
             });
 

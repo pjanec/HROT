@@ -300,7 +300,7 @@ public sealed class EpisodeInjectionTests : IDisposable
         new()
         {
             TransactionId = Guid.NewGuid(),
-            TargetNodeId  = 0,
+            TargetNodeId  = (Fdp.Core.NodeId)(0),
             Operation     = (Fdp.Toolkit.Orchestration.NodeOpType)op,
             DomainPayload = new EpisodeHandlerPayload(episodeId, scenarioId, IsStart: true),
         };
@@ -309,7 +309,7 @@ public sealed class EpisodeInjectionTests : IDisposable
         new()
         {
             TransactionId = Guid.NewGuid(),
-            TargetNodeId  = 0,
+            TargetNodeId  = (Fdp.Core.NodeId)(0),
             Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StopEpisode,
             DomainPayload = new EpisodeHandlerPayload(episodeId, ScenarioId: null, IsStart: false),
         };

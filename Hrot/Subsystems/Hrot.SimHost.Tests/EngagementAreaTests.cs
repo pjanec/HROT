@@ -49,7 +49,7 @@ namespace Hrot.SimHost.Tests
         private void Proficiency(Entity e, float value)
             => _w.AddComponent(e, new CombatProficiency { Authored = value, Set = CombatProficiency.AuthoredSet });
 
-        private bool Set(Entity e, float left, float right, BehaviorOrigin origin = BehaviorOrigin.Superior, long noFire = 0)
+        private bool Set(Entity e, float left, float right, BehaviorOrigin origin = BehaviorOrigin.Superior, int noFire = 0)
         {
             var evt = new SetEngagementAreaEvent { Entity = e, Origin = origin, ArcSet = 1, ArcOrigin = Pos(e), LeftBearing = left, RightBearing = right };
             if (noFire != 0) { evt.NoFire.Count = 1; evt.NoFire.Items[0] = noFire; }
@@ -59,7 +59,7 @@ namespace Hrot.SimHost.Tests
         private Vector3 Pos(Entity e) => _w.HasComponent<SimTransform>(e) ? _w.GetComponentRO<SimTransform>(e).Position : default;
 
         /// <summary>An area entity: a 20 m square around <paramref name="centre"/>, network id <paramref name="netId"/>.</summary>
-        private void Area(long netId, Vector3 centre)
+        private void Area(int netId, Vector3 centre)
         {
             var a = At(centre.X, centre.Y);
             _w.AddComponent(a, new NetworkIdentity(netId));
@@ -130,9 +130,9 @@ namespace Hrot.SimHost.Tests
             var man = At(0, 0);
             Assert.True(Set(man, -45, 45, BehaviorOrigin.Superior));
             Assert.False(Set(man, 45, 135, BehaviorOrigin.Sop));                        // lower than the setter
-            Assert.Equal(-45f, _w.GetComponentRO<EngagementArea>(man).LeftBearing);
+            Assert.Equal<float>(-45f, _w.GetComponentRO<EngagementArea>(man).LeftBearing);
             Assert.True(Set(man, 45, 135, BehaviorOrigin.Superior));                    // replaced
-            Assert.Equal(45f, _w.GetComponentRO<EngagementArea>(man).LeftBearing);
+            Assert.Equal<float>(45f, _w.GetComponentRO<EngagementArea>(man).LeftBearing);
             Assert.True(EngagementAreaSystem.Apply(_w, new SetEngagementAreaEvent { Entity = man, Origin = BehaviorOrigin.Superior }));
             Assert.Equal(BehaviorOrigin.Unmarked, _w.GetComponentRO<EngagementArea>(man).SetBy);
             Assert.True(EngagementAreas.Allows(_w, man, new Vector3(-100, 0, 0)));      // withdrawn ⇒ everything
@@ -193,7 +193,7 @@ namespace Hrot.SimHost.Tests
             Assert.True(PeekAndFireNodes.LockTarget(_w, man, new ThreatAim(east, 0, default)).IsNull);
         }
 
-        private static NoFireAreaList NoFire(long id)
+        private static NoFireAreaList NoFire(int id)
         {
             var l = new NoFireAreaList { Count = 1 };
             l.Items[0] = id;

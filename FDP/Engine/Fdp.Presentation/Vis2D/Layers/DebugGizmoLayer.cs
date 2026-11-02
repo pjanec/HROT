@@ -394,7 +394,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
                 _buffer.GetFrame(), worldPos, zoom);
             if (anchorId is not { } id) return null;
 
-            var entity = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(
+            var entity = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveAnchorId(   // ⭐ CE-4200: the one 64-bit-anchor rule
                 _worldProvider?.Invoke(), id);
             return entity.IsNull ? null : entity;
         }

@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System.Numerics;
 using System.Text.Json.Serialization;
 using Fdp.Core;
@@ -16,7 +17,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>Where the squad goes (sim metres, Z up).</summary>
         [JsonPropertyName("Objective")]
-        public Vector3 Objective;
+        public PointLink Objective;
 
         /// <summary>0 = File (on the lead's trail) · 1 = Wedge · 2 = Line.</summary>
         [JsonPropertyName("Shape")]

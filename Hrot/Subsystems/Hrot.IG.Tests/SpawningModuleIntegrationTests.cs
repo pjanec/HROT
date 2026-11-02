@@ -29,16 +29,16 @@ public class SpawningModuleIntegrationTests
 {
     // â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     private const long  TestTkbType   = 101L;
-    private const long  TestNetworkId = 500L;
+    private const int  TestNetworkId = 500;
 
     // â”€â”€ Stub allocator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private sealed class StubIdAllocator : INetworkIdAllocator
     {
-        private long _next;
-        public StubIdAllocator(long start = 1) => _next = start;
-        public long AllocateId() => _next++;
-        public void Reset(long startId = 0) => _next = startId;
+        private int _next;
+        public StubIdAllocator(int start = 1) => _next = start;
+        public int AllocateId() => _next++;
+        public void Reset(int startId = 0) => _next = startId;
         public void Dispose() { }
     }
 
@@ -116,8 +116,8 @@ public class SpawningModuleIntegrationTests
         repo.Bus.PublishManaged(new SpawnEntityCommand
         {
             NetworkId         = TestNetworkId,
-            TkbType           = TestTkbType,
-            OwnerNodeId       = IgNetworkConstants.LocalNodeId,
+            TkbType           = (Fdp.Core.TkbTypeId)(TestTkbType),
+            OwnerNodeId       = (Fdp.Core.NodeId)(IgNetworkConstants.LocalNodeId),
             InitType          = ReliableInitType.None,
             InitialComponents = new List<object>(),
             RequestId         = Guid.Empty,
@@ -144,8 +144,8 @@ public class SpawningModuleIntegrationTests
         repo.Bus.PublishManaged(new SpawnEntityCommand
         {
             NetworkId         = TestNetworkId,
-            TkbType           = TestTkbType,
-            OwnerNodeId       = IgNetworkConstants.LocalNodeId,
+            TkbType           = (Fdp.Core.TkbTypeId)(TestTkbType),
+            OwnerNodeId       = (Fdp.Core.NodeId)(IgNetworkConstants.LocalNodeId),
             InitType          = ReliableInitType.None,
             InitialComponents = new List<object>(),
             RequestId         = Guid.Empty,
@@ -172,8 +172,8 @@ public class SpawningModuleIntegrationTests
         var cmd = new SpawnEntityCommand
         {
             NetworkId         = TestNetworkId,
-            TkbType           = TestTkbType,
-            OwnerNodeId       = IgNetworkConstants.LocalNodeId,
+            TkbType           = (Fdp.Core.TkbTypeId)(TestTkbType),
+            OwnerNodeId       = (Fdp.Core.NodeId)(IgNetworkConstants.LocalNodeId),
             InitType          = ReliableInitType.None,
             InitialComponents = new List<object>(),
             RequestId         = Guid.Empty,

@@ -30,7 +30,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder drawBuilder)
         {
             if (!view.HasComponent<Health>(entity) || !view.HasComponent<NetworkIdentity>(entity)) return;
-            long net = view.GetComponentRO<NetworkIdentity>(entity).Value;
+            int net = view.GetComponentRO<NetworkIdentity>(entity).Value;
             if (net == 0) return;   // a card is keyed by the network id — none yet, no card
 
             // ⭐ Derived HERE, from the authority's own Current/Max, rather than read from a

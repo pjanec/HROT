@@ -26,7 +26,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
         private readonly EntityLifecycleModule _elm;
         private readonly NetworkEntityMap _networkMap;
         private readonly INetworkIdAllocator _idAllocator;
-        private readonly int _localNodeId;
+        private readonly NodeId _localNodeId;
         private readonly IReadOnlyList<ITkbEntityTranslator> _translators;
         private readonly Action<EntityRepository, Entity, bool>? _onEntitySpawned;
 
@@ -78,7 +78,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             _elm              = elm         ?? throw new ArgumentNullException(nameof(elm));
             _networkMap       = networkMap  ?? throw new ArgumentNullException(nameof(networkMap));
             _idAllocator      = idAllocator ?? throw new ArgumentNullException(nameof(idAllocator));
-            _localNodeId      = localNodeId;
+            _localNodeId      = (Fdp.Core.NodeId)(localNodeId);
             _translators      = translators ?? System.Array.Empty<ITkbEntityTranslator>();
             _onEntitySpawned  = onEntitySpawned;
             _expectedPeers    = expectedPeers;
@@ -114,7 +114,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             SpawnEntityCommand cmd, IEntityCommandBuffer cmdBuffer)
         {
             // 1. Resolve network ID (0 = allocate a new one)
-            long networkId = cmd.NetworkId != 0 ? cmd.NetworkId : _idAllocator.AllocateId();
+            int networkId = cmd.NetworkId != 0 ? cmd.NetworkId : _idAllocator.AllocateId();
             FdpLog<NetworkSpawningSystem>.Debug(
                 "[Node-{0}] ProcessSpawn: NetworkId={1} TkbType={2}", _localNodeId, networkId, cmd.TkbType);
 

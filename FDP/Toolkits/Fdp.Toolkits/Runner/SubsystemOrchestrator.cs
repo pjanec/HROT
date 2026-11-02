@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Fdp.Toolkit.Orchestration;
 using System.Numerics;
 using Fdp.Toolkit.Vis2D.Components;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.Runner
 {
@@ -33,7 +34,7 @@ namespace Fdp.Toolkit.Runner
         private readonly List<ISubsystem> _subsystems;
         private readonly bool _headless;
         private readonly int _domainId;
-        private readonly int _nodeId;
+        private readonly NodeId _nodeId;
         private readonly bool _deterministic;
         private readonly float _fixedDeltaSeconds;
         private readonly Func<string, int, int>? _nodeIdResolver;
@@ -101,7 +102,7 @@ namespace Fdp.Toolkit.Runner
                     SubsystemName     = subsystem.Name,
                     Deterministic     = _deterministic,
                     FixedDeltaSeconds = _fixedDeltaSeconds,
-                    NodeId            = _nodeIdResolver != null ? _nodeIdResolver(subsystem.Name, _nodeId) : _nodeId,
+                    NodeId            = (Fdp.Core.NodeId)(_nodeIdResolver != null ? _nodeIdResolver(subsystem.Name, _nodeId) : _nodeId),
                     NodeName          = _nodeNameResolver?.Invoke(subsystem.Name),   // ⭐ CE-3354 ②
                     // GZH-016: inject active-map-owner predicate so subsystems can gate canvas input.
                     IsActiveMapOwner  = () => _activeMapOwner == captured,

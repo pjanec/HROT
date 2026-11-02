@@ -135,15 +135,15 @@ namespace Hrot.AI.Behaviors.Brains
 
         [BehaviorResolver(BehaviorNames.SetUpWeapon)]
         public static void ResolveSetUp(in SetUpWeaponParamsJsonDto authored, ref WeaponTaskBlackboard block, EntityRepository world, Entity self)
-            => block = Block(authored.Weapon, authored.Speed, world, pack: false);
+            => block = Block(authored.Weapon.Ref, authored.Speed, world, pack: false);
 
         [BehaviorResolver(BehaviorNames.PackUpWeapon)]
         public static void ResolvePackUp(in PackUpWeaponParamsJsonDto authored, ref WeaponTaskBlackboard block, EntityRepository world, Entity self)
-            => block = Block(authored.Weapon, authored.Speed, world, pack: true);
+            => block = Block(authored.Weapon.Ref, authored.Speed, world, pack: true);
 
         [BehaviorResolver(BehaviorNames.CarryWeapon)]
         public static void ResolveCarry(in CarryWeaponParamsJsonDto authored, ref WeaponTaskBlackboard block, EntityRepository world, Entity self)
-            => block = Block(authored.Weapon, authored.Speed, world, pack: false);
+            => block = Block(authored.Weapon.Ref, authored.Speed, world, pack: false);
 
         /// <summary>Put it down (Success at once when carrying nothing) · walk to it and take its Gunner seat · set it up and wait.</summary>
         [Behavior(BehaviorNames.SetUpWeapon, Params = typeof(SetUpWeaponParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]

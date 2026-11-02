@@ -90,7 +90,7 @@ public class EntityInspectorContextMenuTests : IDisposable
     public void DeleteNetworkedEntity_PublishesDestroyEntityCommand()
     {
         var entity = _world.CreateEntity();
-        _world.AddComponent(entity, new NetworkIdentity { Value = 42L });
+        _world.AddComponent(entity, new NetworkIdentity { Value = 42 });
 
         var handler = BuildHandler();
 

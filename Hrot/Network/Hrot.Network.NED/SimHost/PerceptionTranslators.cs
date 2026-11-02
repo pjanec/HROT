@@ -19,6 +19,7 @@ using Fdp.Toolkit.Replication.Utilities;
 using Fdp.ModuleHost.Abstractions;
 using Hrot.NED.Common;
 using Hrot.NED.Descriptors;
+using NodeId = Fdp.Core.NodeId;
 
 namespace Hrot.Network.NED.SimHost
 {
@@ -92,13 +93,13 @@ namespace Hrot.Network.NED.SimHost
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        public void Dispose(long networkEntityId)
+        public void Dispose(int networkEntityId)
         {
             _writer?.DisposeInstance(new SensorConfig { EntityId = networkEntityId });
         }
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it. ⚠ A reclaim republishes through the dirty mark the ownership applier sets when this node gains the descriptor.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             _writer?.UnregisterInstance(new SensorConfig { EntityId = networkEntityId });
         }
@@ -114,7 +115,7 @@ namespace Hrot.Network.NED.SimHost
     {
         private readonly DdsWriter<RaycastRequestBatch>? _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly int _localNodeId;
+        private readonly NodeId _localNodeId;
 
         private uint _batchCorrelationId;
 
@@ -131,7 +132,7 @@ namespace Hrot.Network.NED.SimHost
             int                  localNodeId = 0)
         {
             _entityMap    = entityMap    ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId  = localNodeId;
+            _localNodeId  = (Fdp.Core.NodeId)(localNodeId);
             _writer       = participant != null ? new DdsWriter<RaycastRequestBatch>(participant) : null;
         }
 
@@ -152,7 +153,7 @@ namespace Hrot.Network.NED.SimHost
                 ref readonly var req = ref events[i];
 
                 // Network firewall: map local ECS entity handle to network ID.
-                long ignoreNetId = 0;
+                int ignoreNetId = 0;
                 if (!req.IgnoreEntity.IsNull)
                     _entityMap.TryGetNetworkId(req.IgnoreEntity, out ignoreNetId);
 
@@ -188,7 +189,7 @@ namespace Hrot.Network.NED.SimHost
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>
@@ -261,7 +262,7 @@ namespace Hrot.Network.NED.SimHost
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>
@@ -273,7 +274,7 @@ namespace Hrot.Network.NED.SimHost
     {
         private readonly DdsReader<RaycastResponseBatch>? _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly int _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtRaycastResponseBatch;
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<RaycastResponseBatch>();
@@ -287,7 +288,7 @@ namespace Hrot.Network.NED.SimHost
             int              localNodeId = 0)
         {
             _entityMap   = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _reader      = participant != null ? new DdsReader<RaycastResponseBatch>(participant) : null;
         }
 
@@ -332,7 +333,7 @@ namespace Hrot.Network.NED.SimHost
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     // ── Solver-side perception translators (Perception Solver -> Brain) ────────────
@@ -412,7 +413,7 @@ namespace Hrot.Network.NED.SimHost
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>
@@ -480,9 +481,9 @@ namespace Hrot.Network.NED.SimHost
                     int candidateCount = grid.QueryNeighbors(midpoint, queryRadius, candidates);
 
                     float bestT = float.MaxValue;
-                    long hitNetId = 0;
+                    int hitNetId = 0;
                     bool anyHit = false;
-                    long ignoreNetId = ddsReq.IgnoreEntityId;
+                    int ignoreNetId = ddsReq.IgnoreEntityId;
 
                     for (int i = 0; i < candidateCount; i++)
                     {
@@ -490,7 +491,7 @@ namespace Hrot.Network.NED.SimHost
                         if (!repo.IsAlive(candidate) || !repo.HasComponent<PhysicsCollider>(candidate)) continue;
 
                         if (ignoreNetId != 0 &&
-                            _entityMap.TryGetNetworkId(candidate, out long candidateNetId) &&
+                            _entityMap.TryGetNetworkId(candidate, out int candidateNetId) &&
                             candidateNetId == ignoreNetId)
                             continue;
 
@@ -526,7 +527,7 @@ namespace Hrot.Network.NED.SimHost
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>
@@ -572,9 +573,9 @@ namespace Hrot.Network.NED.SimHost
             foreach (ref readonly var evt in events)
             {
                 // Map local ECS observer handle to network ID.
-                if (!_entityMap.TryGetNetworkId(evt.Observer, out long observerNetId)) continue;
+                if (!_entityMap.TryGetNetworkId(evt.Observer, out int observerNetId)) continue;
                 // Map local ECS target handle to network ID.
-                if (!_entityMap.TryGetNetworkId(evt.Target, out long targetNetId)) continue;
+                if (!_entityMap.TryGetNetworkId(evt.Target, out int targetNetId)) continue;
 
                 _writer.Write(new SensorTrackState
                 {
@@ -593,7 +594,7 @@ namespace Hrot.Network.NED.SimHost
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>
@@ -649,7 +650,7 @@ namespace Hrot.Network.NED.SimHost
                 }
 
                 // Firewall: map local ECS hit handle to network ID.
-                long hitNetId = 0;
+                int hitNetId = 0;
                 if (hit.HasHit != 0 && !hit.HitEntity.IsNull)
                     _entityMap.TryGetNetworkId(hit.HitEntity, out hitNetId);
 
@@ -677,6 +678,6 @@ namespace Hrot.Network.NED.SimHost
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

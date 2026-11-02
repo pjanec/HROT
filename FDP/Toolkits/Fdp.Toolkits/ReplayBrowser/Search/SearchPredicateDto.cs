@@ -166,7 +166,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     public sealed class SpatialBoundingPredicateDto : SearchPredicateDto
     {
         [MapPickableBoundingBox]
-        public BoundingBox2D Bounds { get; set; }
+        public Fdp.Toolkit.Replication.AreaLink Bounds { get; set; }
 
         public BoundaryEvent TriggerEvent { get; set; } = BoundaryEvent.EntryOrExit;
 

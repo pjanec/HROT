@@ -37,7 +37,7 @@ public sealed class ClusterMasterSeekTests
     {
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = nodeId,
+            NodeId        = (Fdp.Core.NodeId)(nodeId),
             SubsystemName = subsystem,
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
@@ -84,7 +84,7 @@ public sealed class ClusterMasterSeekTests
 
         bus.PublishManaged(new NodeOpCompletedEvent
         {
-            TransactionId = seekTx, Operation = FdpNodeOpType.NodeReplaySeek, NodeId = 1, StatusCode = OrchestrationStatusCode.Success,
+            TransactionId = seekTx, Operation = FdpNodeOpType.NodeReplaySeek, NodeId = (Fdp.Core.NodeId)(1), StatusCode = OrchestrationStatusCode.Success,
             IsParticipating = true, ResultPayload = new ReplaySeekResult(new GlobalTime { TotalWallTicks = 9999L, TotalTime = 5.0 }),
         });
         bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();   // the seek lands; its snap reaches the clock a tick later
@@ -151,7 +151,7 @@ public sealed class ClusterMasterSeekTests
         {
             TransactionId   = fanOutIntent.TransactionId,
             Operation       = fanOutIntent.Operation,
-            NodeId          = 1,
+            NodeId          = (Fdp.Core.NodeId)(1),
             StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = true,
         });
@@ -282,7 +282,7 @@ public sealed class ClusterMasterSeekTests
         {
             TransactionId   = txId,
             Operation       = FdpNodeOpType.NodeReplaySeek,
-            NodeId          = 1,
+            NodeId          = (Fdp.Core.NodeId)(1),
             StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = true,
             ResultPayload   = new ReplaySeekResult(new GlobalTime
@@ -337,7 +337,7 @@ public sealed class ClusterMasterSeekTests
         {
             TransactionId   = txId,
             Operation       = FdpNodeOpType.NodeReplaySeek,
-            NodeId          = 1,
+            NodeId          = (Fdp.Core.NodeId)(1),
             StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = true,
             ResultPayload   = new ReplaySeekResult(default(GlobalTime)),
@@ -388,7 +388,7 @@ public sealed class ClusterMasterSeekTests
         {
             TransactionId   = txId,
             Operation       = intents[0].Operation,
-            NodeId          = 1,
+            NodeId          = (Fdp.Core.NodeId)(1),
             StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = true,
             ResultPayload   = null,
@@ -405,15 +405,15 @@ public sealed class ClusterMasterSeekTests
 
     private static ClusterMaster MasterWith(FdpEventBus bus, int localNodeId, params (int Id, string Name, string? Role)[] nodes)
     {
-        var master = new ClusterMaster(bus, NoMandatoryConfig()) { LocalNodeId = localNodeId };
+        var master = new ClusterMaster(bus, NoMandatoryConfig()) { LocalNodeId = (Fdp.Core.NodeId)(localNodeId) };
         foreach (var (id, name, role) in nodes)
         {
             bus.PublishManaged(new NodeHeartbeatEvent
             {
-                NodeId = id, SubsystemName = name, WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+                NodeId = (Fdp.Core.NodeId)(id), SubsystemName = name, WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
                 LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             });
-            if (role != null) bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = id, Capabilities = new[] { role } });
+            if (role != null) bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = (Fdp.Core.NodeId)(id), Capabilities = new[] { role } });
         }
         bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
         return master;
@@ -521,7 +521,7 @@ public sealed class ClusterMasterSeekTests
             {
                 TransactionId   = p.TransactionId,
                 Operation       = p.Operation,
-                NodeId          = 1,
+                NodeId          = (Fdp.Core.NodeId)(1),
                 StatusCode      = OrchestrationStatusCode.Success,
                 IsParticipating = true,
                 ResultPayload   = p.Operation == FdpNodeOpType.PrepareReplay
@@ -874,7 +874,7 @@ public sealed class ClusterMasterSeekTests
             {
                 TransactionId   = p.TransactionId,
                 Operation       = p.Operation,
-                NodeId          = 1,
+                NodeId          = (Fdp.Core.NodeId)(1),
                 StatusCode      = OrchestrationStatusCode.Success,
                 IsParticipating = true,
                 ResultPayload   = p.Operation == FdpNodeOpType.PrepareReplay ? prepared : null,

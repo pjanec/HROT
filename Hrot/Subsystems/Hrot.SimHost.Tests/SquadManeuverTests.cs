@@ -1470,17 +1470,17 @@ namespace Hrot.SimHost.Tests
 
         private static string MoveJson(Squad s, Vector3 to, string roadUse = "Unspecified")
         {
-            var (lat, lon, _) = s.Repo.GetSingletonManaged<IGeographicTransform>().ToGeodetic(to);
+            // ⭐ S0 item 5 (SR-135): a place is LOCAL METRES [x, y, z] on the wire; a pick converts once, at the gesture
             var inv = System.Globalization.CultureInfo.InvariantCulture;
-            return "{\"Location\":[" + lat.ToString("R", inv) + "," + lon.ToString("R", inv) + "],\"RoadUse\":\"" + roadUse + "\"}";   // enums are names (strict)
+            return "{\"Location\":[" + to.X.ToString("R", inv) + "," + to.Y.ToString("R", inv) + "," + to.Z.ToString("R", inv) + "],\"RoadUse\":\"" + roadUse + "\"}";   // enums are names (strict)
         }
 
         private static void Ticks(Squad s, int n) { for (int i = 0; i < n; i++) s.Tick(); }
 
-        /// <summary>⭐ D2-E/F — MOVE: a geodetic Location becomes the march's local objective; the squad chooses its shape — a Wedge
+        /// <summary>⭐ D2-E/F — MOVE: a local Location is the march's local objective; the squad chooses its shape — a Wedge
         /// (every follower goes to its slot at once), or File when the order prefers roads (followers wait for the lead's trail).</summary>
         [Fact]
-        public void CE2141_InfantrySquadMove_AGeodeticPoint_TheSquadMarchesThere_InAWedge_OrInFileOnARoad()
+        public void CE2141_InfantrySquadMove_ALocalPoint_TheSquadMarchesThere_InAWedge_OrInFileOnARoad()
         {
             var s = new Squad(members: 4);
             s.Order(MoveJson(s, new Vector3(0f, 80f, 0f)), BehaviorNames.InfantrySquadMove);
@@ -1610,7 +1610,7 @@ namespace Hrot.SimHost.Tests
             var o = s.Orders.Single();
             Assert.Equal("Order.Move", o.IntentId);
             var move = System.Text.Json.JsonSerializer.Deserialize<Hrot.AI.Behaviors.Orders.MoveOrder>(o.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
-            var back = s.Repo.GetSingletonManaged<IGeographicTransform>().ToCartesian(move.Location.Latitude, move.Location.Longitude, 0.0);
+            var back = move.Location.Local;
             Assert.InRange(Vector2.Distance(new Vector2(back.X, back.Y), new Vector2(30f, 40f)), 0f, 0.1f);
             Assert.Equal(2f, move.Speed);
         }
@@ -1718,7 +1718,7 @@ namespace Hrot.SimHost.Tests
             var o = Assert.Single(s.Orders.Where(x => x.Entity.Equals(s.Members[1])));
             Assert.Equal("Order.Move", o.IntentId);
             var move = System.Text.Json.JsonSerializer.Deserialize<Hrot.AI.Behaviors.Orders.MoveOrder>(o.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
-            var back = s.Repo.GetSingletonManaged<IGeographicTransform>().ToCartesian(move.Location.Latitude, move.Location.Longitude, 0.0);
+            var back = move.Location.Local;
             Assert.InRange(Vector2.Distance(new Vector2(back.X, back.Y), new Vector2(30f, 40f)), 0f, 0.1f);
             Assert.Contains(SubordinateOrders.Of(s.Repo, s.Commander)!.Orders, e => e.Member.Equals(s.Members[1]));
             var slot1 = new Fdp.Toolkit.Squad.Command.ProgressReachedParams { Slot = 1, Progress = Fdp.Toolkit.Squad.Command.ProgressKind.Set };
@@ -2341,7 +2341,7 @@ namespace Hrot.SimHost.Tests
             {
                 var dto = PostureOf(s, m);
                 var post = dto.Advance.Objective;
-                bool window = post != posts[3];
+                bool window = (Vector3)post != (Vector3)posts[3];
                 Assert.Equal(SquadDefendPlay.PostRadius, dto.Post.Radius);
                 Assert.Equal(post, dto.Post.Point);
                 Assert.Equal(window, dto.Post.Window);
@@ -2349,7 +2349,7 @@ namespace Hrot.SimHost.Tests
 
                 var block = default(CombatPostureBehavior.CombatPostureBlackboard);
                 CombatPostureBehavior.Resolve(in dto, ref block, s.Repo, m);
-                Assert.Equal(post, block.Peek.Anchor);
+                Assert.Equal<Vector3>(post, block.Peek.Anchor);
                 Assert.Equal(SquadDefendPlay.PostRadius, block.Peek.AnchorRadius);
                 // ⭐ D-2l (DA-77) — no proficiency ⇒ Regular ⇒ the frame lean, not the set-back; the survey found no window ⇒ the sill (DA-84)
                 Assert.False(dto.Post.SetBack);
@@ -2366,10 +2366,10 @@ namespace Hrot.SimHost.Tests
                 new Vector3(0, 5, 0), new Vector3(4, 5, 0), new Vector3(8, 5, 0), new Vector3(0, 9, 0));
             t.Orders.Clear();
             t.Tick(); t.Tick(); t.Tick();   // ⭐ CE-2373 — the coverage fan's round trip
-            var first = t.Members.Single(m => PostureOf(t, m).Advance.Objective == new Vector3(0, 5, 0));
+            var first = t.Members.Single(m => (Vector3)PostureOf(t, m).Advance.Objective == new Vector3(0, 5, 0));
             var spare = PostureOf(t, first).Post;
             Assert.True(spare.HasAlternate);
-            Assert.Equal(new Vector3(0, 9, 0), spare.Alternate);
+            Assert.Equal<Vector3>(new Vector3(0, 9, 0), spare.Alternate);
             Assert.True(spare.Window);
         }
 
@@ -2462,7 +2462,7 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal(Fdp.Toolkit.Spatial.Eqs.FindRoofPosts.BlueprintId, block.Peek.HideTemplate);
                 Assert.Equal(PeekMode.Stance, block.Peek.Mode);
                 Assert.Equal((byte)(Fdp.Toolkit.Tkb.Domain.StanceId.Prone + 1), block.Peek.HideStanceOverride);
-                Assert.Equal(dto.Post.Point, block.Peek.Anchor);
+                Assert.Equal<Vector3>(dto.Post.Point, block.Peek.Anchor);
             }
             Assert.Equal(2, onRoof);
         }
@@ -2561,7 +2561,7 @@ namespace Hrot.SimHost.Tests
             if (windowPosts < 4) AnswerAll(s, cover, new Vector3(4, 30, 0), new Vector3(12, 30, 0));
             else Assert.True(cover.IsNull, "every man holds a window post: no cover ask");
             s.Tick(); s.Tick();
-            var windows = s.Members.Select(m => PostureOf(s, m)).Where(d => d.Post.Window).Select(d => d.Post.Point.X).OrderBy(x => x).ToArray();
+            var windows = s.Members.Select(m => PostureOf(s, m)).Where(d => d.Post.Window).Select(d => d.Post.Point.Local.X).OrderBy(x => x).ToArray();
             Assert.Equal(windowPosts, windows.Length);
             if (windowPosts == 2) Assert.Equal(new[] { 2f, 10f }, windows);   // only the windows really set back
         }
@@ -2601,13 +2601,13 @@ namespace Hrot.SimHost.Tests
             foreach (var m in s.Members)
             {
                 var dto = PostureOf(s, m);
-                bool window = dto.Post.Point == authored[0];
+                bool window = (Vector3)dto.Post.Point == (Vector3)authored[0];
                 Assert.Equal(window, dto.Post.Window);
                 Assert.False(dto.Post.SetBack, "an authored post is where the author put him");
                 ref readonly var arc = ref s.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.EngagementArea>(m);
                 bool west = Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(dto.Post.Point, arc.LeftBearing, arc.RightBearing, 0f, 0f, dto.Post.Point + new Vector3(-50, 0, 0));
                 bool north = Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(dto.Post.Point, arc.LeftBearing, arc.RightBearing, 0f, 0f, dto.Post.Point + new Vector3(0, 50, 0));
-                if (dto.Post.Point == authored[3]) Assert.True(west && !north, "his watch point turned his arc west");
+                if ((Vector3)dto.Post.Point == (Vector3)authored[3]) Assert.True(west && !north, "his watch point turned his arc west");
                 else Assert.True(north && !west, "the others face the sector");
             }
 
@@ -2624,8 +2624,8 @@ namespace Hrot.SimHost.Tests
             foreach (var m in s2.Members)   // a Veteran squad sets its window posts back — but not the one the author placed (D-2b, D-2f)
             {
                 var dto = PostureOf(s2, m);
-                if (dto.Post.Point == new Vector3(2, 24, 0)) Assert.True(dto.Post.Window && !dto.Post.SetBack && !dto.Post.Frame, "the authored window: where he was put");
-                if (dto.Post.Point == new Vector3(6, 25, 0)) Assert.True(dto.Post.Window && !dto.Post.SetBack, "the terrain's window: a Regular squad's sill (no frame found)");
+                if ((Vector3)dto.Post.Point == new Vector3(2, 24, 0)) Assert.True(dto.Post.Window && !dto.Post.SetBack && !dto.Post.Frame, "the authored window: where he was put");
+                if ((Vector3)dto.Post.Point == new Vector3(6, 25, 0)) Assert.True(dto.Post.Window && !dto.Post.SetBack, "the terrain's window: a Regular squad's sill (no frame found)");
             }
         }
 
@@ -2714,9 +2714,9 @@ namespace Hrot.SimHost.Tests
             var east2 = new Vector3(10.85f, 24.5f, 0f);
             var first = given.Single(d => Vector3.Distance(d.Post.Point, east1) < 1e-3f);
             var second = given.Single(d => Vector3.Distance(d.Post.Point, east2) < 1e-3f);
-            var sill = given.Single(d => d.Post.Point == new Vector3(14, 24.5f, 0));
+            var sill = given.Single(d => (Vector3)d.Post.Point == new Vector3(14, 24.5f, 0));
             Assert.True(first.Post.Frame && second.Post.Frame && first.Post.Window && !first.Post.SetBack);
-            Assert.Equal(new Vector3(2f, 25f, 0f), first.Post.Opening);
+            Assert.Equal<Vector3>(new Vector3(2f, 25f, 0f), first.Post.Opening);
             Assert.InRange(Vector3.Distance(first.Post.FrameA, new Vector3(1.25f, 24.5f, 0f)), 0f, 1e-3f);
             Assert.InRange(Vector3.Distance(first.Post.FrameB, east1), 0f, 1e-3f);
             Assert.True(sill.Post.Window && !sill.Post.Frame, "a window the survey does not know: the sill (DA-84)");
@@ -2727,9 +2727,9 @@ namespace Hrot.SimHost.Tests
             var block = default(CombatPostureBehavior.CombatPostureBlackboard);
             CombatPostureBehavior.Resolve(in dto, ref block, s.Repo, m0);
             Assert.Equal((byte)1, block.Peek.Frame);
-            Assert.Equal(dto.Post.FrameA, block.Peek.FrameA);
-            Assert.Equal(dto.Post.FrameB, block.Peek.FrameB);
-            Assert.Equal(dto.Post.Opening, block.Peek.Opening);
+            Assert.Equal<Vector3>(dto.Post.FrameA, block.Peek.FrameA);
+            Assert.Equal<Vector3>(dto.Post.FrameB, block.Peek.FrameB);
+            Assert.Equal<Vector3>(dto.Post.Opening, block.Peek.Opening);
             Assert.Equal(Fdp.Toolkit.Spatial.Eqs.FindWindowFiringPosition.BlueprintId, block.Peek.HideTemplate);   // the fallback: the sill
         }
 
@@ -2760,13 +2760,13 @@ namespace Hrot.SimHost.Tests
             s.Orders.Clear();
             s.Tick(); s.Tick();
             var given = s.Members.Select(m => PostureOf(s, m)).ToList();
-            var deep = given.Single(d => d.Post.Point == new Vector3(2, 23, 0));
+            var deep = given.Single(d => (Vector3)d.Post.Point == new Vector3(2, 23, 0));
             Assert.True(deep.Post.SetBack && !deep.Post.Frame, "deep enough: the set-back post");
             var framed = given.Single(d => d.Post.Frame);
             Assert.InRange(Vector3.Distance(framed.Post.Point, new Vector3(10.85f, 24.5f, 0f)), 0f, 1e-3f);
             Assert.False(framed.Post.SetBack);
-            Assert.Contains(given, d => d.Post.Point == new Vector3(16, 30, 0) && !d.Post.Window);
-            Assert.DoesNotContain(given, d => d.Post.Point.X == 14f);
+            Assert.Contains(given, d => (Vector3)d.Post.Point == new Vector3(16, 30, 0) && !d.Post.Window);
+            Assert.DoesNotContain(given, d => d.Post.Point.Local.X == 14f);
         }
 
         /// <summary>
@@ -2822,7 +2822,7 @@ namespace Hrot.SimHost.Tests
             AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite), north, east, west);
             s.Orders.Clear();
             for (int i = 0; i < 4; i++) s.Tick();
-            Assert.Equal(east, PostureOf(s, s.Members[0]).Post.Point);
+            Assert.Equal<Vector3>(east, PostureOf(s, s.Members[0]).Post.Point);
 
             s.Teleport(s.Members[0], east);
             s.Tick();
@@ -2831,7 +2831,7 @@ namespace Hrot.SimHost.Tests
             Assert.Empty(s.Orders);   // not yet: 30 s on each post
             s.Pause(SquadDefendPlay.RoundDwellSeconds + 1);
             s.Tick(); s.Tick();
-            Assert.Equal(west, PostureOf(s, s.Members[0]).Post.Point);
+            Assert.Equal<Vector3>(west, PostureOf(s, s.Members[0]).Post.Point);
 
             s.Teleport(s.Members[0], west);
             s.Tick();
@@ -2841,7 +2841,7 @@ namespace Hrot.SimHost.Tests
             s.Orders.Clear();
             s.Pause(SquadDefendPlay.RoundDwellSeconds + 1);
             s.Tick(); s.Tick();
-            Assert.True(s.Orders.Count == 0 || PostureOf(s, s.Members[0]).Post.Point == west, "an enemy in the area: no round");
+            Assert.True(s.Orders.Count == 0 || PostureOf(s, s.Members[0]).Post.Point.Local.Equals((Fdp.Core.WorldPoint)west), "an enemy in the area: no round");
         }
 
         /// <summary>⭐ <c>CE-2373</c> D-2m — the pure greedy union and the round's next post: the post seeing most first, a post adding fewer than
@@ -3218,7 +3218,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, p.OrdersTo(p.Alpha, "Order.Move"));
             var move = System.Text.Json.JsonSerializer.Deserialize<Hrot.AI.Behaviors.Orders.MoveOrder>(
                 p.S.Orders.Last(o => o.Entity.Equals(p.Alpha)).JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
-            var back = p.S.Repo.GetSingletonManaged<IGeographicTransform>().ToCartesian(move.Location.Latitude, move.Location.Longitude, 0.0);
+            var back = move.Location.Local;
             Assert.InRange(Vector2.Distance(new Vector2(back.X, back.Y), new Vector2(50f, 200f)), 0f, 0.1f);
 
             p.ReportSet(p.Alpha, observedAgo: 5f);                       // observed before Alpha's order: the last order's
@@ -3399,7 +3399,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, SectorOf(p, p.Charlie).ArcSet);
             var reserve = DefendOrderTo(p, p.Charlie).Position;
             Assert.True(Vector3.Distance(reserve, new Vector3(0f, -40f, 0f)) < 0.01f, $"the reserve's point {reserve}");
-            Assert.Equal(Vector3.Zero, DefendOrderTo(p, p.Alpha).Position);
+            Assert.Equal<Vector3>(Vector3.Zero, DefendOrderTo(p, p.Alpha).Position);
             Assert.Equal((Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire, Fdp.Toolkit.Behavior.Components.RoeFire.HoldFire,
                           Fdp.Toolkit.Behavior.Components.RoeFire.ReturnFire), (FireOf(p, p.Alpha), FireOf(p, p.Bravo), FireOf(p, p.Charlie)));
             p.Ticks(10);
@@ -3652,7 +3652,7 @@ namespace Hrot.SimHost.Tests
             Assert.True(Vector3.Distance(DefendOrderTo(p, p.Bravo).Position, first.Support) < 0.5f, "the base of fire on the house first");
             p.ReportSet(p.Bravo); p.Ticks(4);
             p.ReportSet(p.Alpha); p.Ticks(4);
-            Assert.Equal(new Vector3(house.X, house.Y, 0f), OrderTo<ClearBuildingParamsJsonDto>(p, p.Alpha, BehaviorNames.ClearBuilding).Building);
+            Assert.Equal<Vector3>(new Vector3(house.X, house.Y, 0f), OrderTo<ClearBuildingParamsJsonDto>(p, p.Alpha, BehaviorNames.ClearBuilding).Building);
             p.Report(p.Alpha, new Fdp.Toolkit.Squad.Command.CommandReport
             {
                 Kind = Fdp.Toolkit.Squad.Command.ReportKind.Progress, Subtype = (byte)Fdp.Toolkit.Squad.Command.ProgressKind.BuildingClear,
@@ -3774,11 +3774,11 @@ namespace Hrot.SimHost.Tests
                 var roster = new UnitRoster();
                 UnitRoster.Add(ref roster, repo.CreateEntity());
                 repo.AddComponent(e, roster);
-                if (type != 0) repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });
+                if (type != 0) repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             }
             void Aircraft(Entity e, long type, Fdp.Toolkit.Tkb.Domain.LocomotionClass loco)
             {
-                repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });
+                repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
                 repo.AddComponent(e, new Fdp.Toolkit.Motion.Locomotion { Class = loco });
             }
             Unit(p.S.Members[0]);
@@ -3827,7 +3827,7 @@ namespace Hrot.SimHost.Tests
         {
             var order = System.Text.Json.JsonSerializer.Deserialize<Hrot.AI.Behaviors.Orders.StrikeOrder>(
                 p.S.Orders.Last(o => o.Entity.Equals(asset) && o.IntentId == StrikeIntent).JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
-            var at = Hrot.AI.Behaviors.Orders.OrderGeo.ToLocal(p.S.Repo, order.Location, 0f);
+            var at = (System.Numerics.Vector3)order.Location;
             return new Vector3(at.X, at.Y, 0f);
         }
 
@@ -3846,7 +3846,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, p.OrdersTo(heli, BehaviorNames.AirArmedSearch));
             var search = System.Text.Json.JsonSerializer.Deserialize<Hrot.AI.Behaviors.Orders.AirArmedSearchOrder>(
                 p.S.Orders.Last(o => o.Entity.Equals(heli)).JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
-            var at = Hrot.AI.Behaviors.Orders.OrderGeo.ToLocal(p.S.Repo, search.Location, 0f);
+            var at = (System.Numerics.Vector3)search.Location;
             Assert.True(Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(mortar.X, mortar.Y)) < 1f, $"searches {at}");
             Assert.Equal(0, Requests(PictureOf(p, p.S.Commander)).Length);
             Running(p, heli, BehaviorNames.AirArmedSearch);
@@ -3904,7 +3904,7 @@ namespace Hrot.SimHost.Tests
             p.Ticks(4);
             Assert.Equal(0, p.OrdersTo(p.S.Members[0], BehaviorNames.SquadDefend));
             Assert.Equal(1, p.OrdersTo(p.S.Members[3], BehaviorNames.SquadDefend));
-            Assert.Equal(at, DefendOrderTo(p, p.S.Members[3]).Position);
+            Assert.Equal<Vector3>(at, DefendOrderTo(p, p.S.Members[3]).Position);
             Assert.Empty(Requests(PictureOf(p, p.S.Commander)));
         }
 
@@ -4045,7 +4045,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fdp.Toolkit.Squad.Command.RequestKind.Casevac, r.Kind);
             Assert.Equal(Fdp.Toolkit.Squad.Command.CommandPictureOps.NetIdOf(c.S.Repo, man), r.SubjectNetId);
             Assert.Equal(Fdp.Toolkit.Squad.Command.CommandPictureOps.NetIdOf(c.S.Repo, c.S.Commander), r.FromNetId);
-            Assert.Equal(c.S.Repo.GetComponentRO<SimTransform>(man).Position, r.At);
+            Assert.Equal<System.Numerics.Vector3>(c.S.Repo.GetComponentRO<SimTransform>(man).Position, r.At);
             c.Ticks(20); c.S.Pause(3.1); c.Ticks(3);
             Assert.Equal(1, c.Picture.Requests.Count);                                   // once
             Down(c.S, man, 90f); c.Ticks(2);                                             // back in the fight
@@ -4069,7 +4069,7 @@ namespace Hrot.SimHost.Tests
             p.Ticks(4);
             Assert.Equal((1, 0, 0), (RecoverOrders(p, p.Charlie), RecoverOrders(p, p.Alpha), RecoverOrders(p, p.Bravo)));
             var order = RecoverOrderTo(p, p.Charlie);
-            Assert.Equal(Fdp.Toolkit.Squad.Command.CommandPictureOps.NetIdOf(p.S.Repo, man), order.Casualty.NetworkId);
+            Assert.Equal(Fdp.Toolkit.Squad.Command.CommandPictureOps.NetIdOf(p.S.Repo, man), order.Casualty.Ref.NetworkId);
             Assert.True(Vector3.Distance(order.To, new Vector3(0f, -40f, 0f)) < 0.01f, $"to {order.To}");
             Assert.True(order.PutDown);
             Assert.Equal(0, Requests(p));
@@ -4138,14 +4138,14 @@ namespace Hrot.SimHost.Tests
             p.S.Order("{\"Position\":[0,0,0],\"Left\":330,\"Right\":30,\"MaxRange\":400,\"Squads\":[{\"Squad\":1},{\"Squad\":2},"
                     + "{\"Squad\":3,\"Op\":true,\"Point\":[0,250,0],\"Back\":[0,-30,0]}]}", BehaviorNames.PlatoonDefend);
             p.Ticks(6);
-            Assert.Equal(new Vector3(0, 250, 0), DefendOrderTo(p, p.Charlie).Position);
+            Assert.Equal<Vector3>(new Vector3(0, 250, 0), DefendOrderTo(p, p.Charlie).Position);
             p.ReportSpot(p.Alpha, new Vector3(0f, 600f, 0f), 2);
             p.Ticks(4);
             Assert.Equal(1, DefendOrders(p, p.Charlie));
             p.ReportSpot(p.Alpha, new Vector3(0f, 500f, 0f), 2);
             p.Ticks(4);
             Assert.Equal(2, DefendOrders(p, p.Charlie));
-            Assert.Equal(new Vector3(0, -30, 0), DefendOrderTo(p, p.Charlie).Position);
+            Assert.Equal<Vector3>(new Vector3(0, -30, 0), DefendOrderTo(p, p.Charlie).Position);
             Assert.Equal(0, SectorOf(p, p.Charlie).ArcSet);
             p.Ticks(10);
             Assert.Equal(2, DefendOrders(p, p.Charlie));   // once
@@ -4199,7 +4199,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(2, DefendOrders(p, p.Charlie));
             var at = DefendOrderTo(p, p.Charlie).Position;
             Assert.InRange(Vector3.Distance(at, Vector3.Zero), 14.9f, 15.1f);
-            Assert.True(at.Y < 0f, "behind the squad, away from its slice");
+            Assert.True(at.Local.Y < 0f, "behind the squad, away from its slice");
             Assert.Equal((SectorOf(p, p.Bravo).LeftBearing, SectorOf(p, p.Bravo).RightBearing),
                          (SectorOf(p, p.Charlie).LeftBearing, SectorOf(p, p.Charlie).RightBearing));
             Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, FireOf(p, p.Charlie));
@@ -4314,7 +4314,7 @@ namespace Hrot.SimHost.Tests
             p.Ticks(8);
             Sitrep(p, p.Bravo, Fdp.Toolkit.Squad.Command.StatusColour.Red);   // one of two is half
             p.Ticks(8);
-            Assert.Equal(new Vector3(50f, -80f, 0f), BreakOrderTo(p, p.Bravo).To);
+            Assert.Equal<Vector3>(new Vector3(50f, -80f, 0f), BreakOrderTo(p, p.Bravo).To);
             p.ReportSpot(p.Bravo, new Vector3(100f, 0f, 0f), 2);   // a flank
             p.Ticks(12);
             Assert.Equal((1, 1), (DefendOrders(p, p.Alpha), DefendOrders(p, p.Bravo)));
@@ -4436,7 +4436,7 @@ namespace Hrot.SimHost.Tests
             q.Ticks(4);
             Assert.True(Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(q.S.Repo, q.S.Commander, PlatoonDefendBehavior.PositionsSite).IsNull,
                 "30 m is one position: no survey");
-            Assert.Equal((Vector3.Zero, Vector3.Zero), (DefendOrderTo(q, q.Alpha).Position, DefendOrderTo(q, q.Bravo).Position));
+            Assert.Equal((Vector3.Zero, Vector3.Zero), ((Vector3)DefendOrderTo(q, q.Alpha).Position, (Vector3)DefendOrderTo(q, q.Bravo).Position));
         }
 
         // ── ⭐ CE-2257 BC-1 — clear ONE room (Building Clearing §7.1, CB-48…CB-56) ──────────────────────────────────────────────
@@ -4469,7 +4469,7 @@ namespace Hrot.SimHost.Tests
             db.TryGetByType(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbAssaultRifleman, out var t);
             foreach (var m in s.Members)
             {
-                s.Repo.AddComponent(m, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbAssaultRifleman });
+                s.Repo.AddComponent(m, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbAssaultRifleman) });
                 new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator().Inject(s.Repo, m, t!);
             }
             s.Tick();
@@ -4627,15 +4627,15 @@ namespace Hrot.SimHost.Tests
             {
                 var post = PostureOf(s, s.Members[k]).Post;
                 Assert.True(post.Frame, $"#{k + 1} fights from a frame post");
-                Assert.True(post.Point.Y < 10f, $"#{k + 1} outside the room");
-                Assert.InRange(Vector2.Distance(new Vector2(post.Point.X, post.Point.Y), plan.Door), RoomDrill.PieMetres - 0.05f, RoomDrill.PieMetres + 0.05f);
-                Assert.True(Vector2.Dot(new Vector2(post.Point.X, post.Point.Y) - plan.Door, plan.Along) > 0.3f, $"#{k + 1} on the stack's side, out of the doorway's line");
+                Assert.True(post.Point.Local.Y < 10f, $"#{k + 1} outside the room");
+                Assert.InRange(Vector2.Distance(new Vector2(post.Point.Local.X, post.Point.Local.Y), plan.Door), RoomDrill.PieMetres - 0.05f, RoomDrill.PieMetres + 0.05f);
+                Assert.True(Vector2.Dot(new Vector2(post.Point.Local.X, post.Point.Local.Y) - plan.Door, plan.Along) > 0.3f, $"#{k + 1} on the stack's side, out of the doorway's line");
                 Near(new Vector3(plan.Door, 0f), post.Opening, "he leans toward the doorway");
             }
             Near(plan.Stack(2), PostureOf(s, s.Members[2]).Post.Point, "#3 holds the stack");
 
             // ⭐ slice the pie: each slice (2 s) nearer the doorway's line — the leaning man comes to see down it
-            float Off(Entity m) => Vector2.Dot(new Vector2(PostureOf(s, m).Post.Point.X, PostureOf(s, m).Post.Point.Y) - plan.Door, plan.Along);
+            float Off(Entity m) => Vector2.Dot(new Vector2(PostureOf(s, m).Post.Point.Local.X, PostureOf(s, m).Post.Point.Local.Y) - plan.Door, plan.Along);
             float first = Off(s.Members[0]);
             TickFor(s, RoomDrill.PieStepSeconds + 0.1);
             Assert.True(Off(s.Members[0]) < first - 0.2f, $"#1's next slice is nearer the doorway's line ({first:F2} → {Off(s.Members[0]):F2})");
@@ -5452,7 +5452,7 @@ namespace Hrot.SimHost.Tests
             {
                 var q = repo.CreateEntity();
                 repo.AddComponent(q, new EntityInfo { Name = "Guard (command)", ForceId = force });
-                repo.AddComponent(q, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hrot.Map.Common.TkbEntityTypes.Unit_InfantrySquad });
+                repo.AddComponent(q, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Hrot.Map.Common.TkbEntityTypes.Unit_InfantrySquad) });
                 return q;
             }
             Squad(ForceId.Friend);   // the other side's of that name: not his
@@ -5534,7 +5534,7 @@ namespace Hrot.SimHost.Tests
             p.Ticks(12);
             Assert.Equal(2, DefendOrders(p, p.Charlie));
             var order = DefendOrderTo(p, p.Charlie);
-            Assert.Equal((new Vector3(4f, 4f, 1.5f), PlatoonDefendBehavior.StairRadius), (order.Position, order.SearchRadius));
+            Assert.Equal((new Vector3(4f, 4f, 1.5f), PlatoonDefendBehavior.StairRadius), ((Vector3)order.Position, order.SearchRadius));
             Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeFire.FireAtWill, FireOf(p, p.Charlie));
             p.ReportSpot(p.Alpha, new Vector3(-2f, 2f, 3.5f), 2);   // inside, upstairs
             p.Ticks(12);
@@ -5574,8 +5574,8 @@ namespace Hrot.SimHost.Tests
                     + "{\"Squad\":1,\"Point\":[30,10,0]},{\"Squad\":2,\"Point\":[-30,10,0]},{\"Squad\":3,\"Reserve\":true,\"Point\":[0,-50,0]}]}",
                       BehaviorNames.PlatoonDefend);
             p.Ticks(6);
-            Assert.Equal(new Vector3(30f, 10f, 0f), DefendOrderTo(p, p.Alpha).Position);
-            Assert.Equal(new Vector3(0f, -50f, 0f), DefendOrderTo(p, p.Charlie).Position);
+            Assert.Equal<Vector3>(new Vector3(30f, 10f, 0f), DefendOrderTo(p, p.Alpha).Position);
+            Assert.Equal<Vector3>(new Vector3(0f, -50f, 0f), DefendOrderTo(p, p.Charlie).Position);
             Assert.Equal(328.5f, MathF.Round(SectorOf(p, p.Bravo).LeftBearing, 2));
             Assert.Equal(358.5f, MathF.Round(SectorOf(p, p.Alpha).LeftBearing, 2));
             Assert.Equal(0, SectorOf(p, p.Charlie).ArcSet);
@@ -5815,7 +5815,7 @@ namespace Hrot.SimHost.Tests
 
         // ── CE-2173 slice 3 (B10; docs/designs/air-attack/DESIGN_Air_Operations.md §9) — the squad Embark drill, the mirror of Dismount ──
 
-        private static Entity Helicopter(Squad s, Vector3 at, long networkId)
+        private static Entity Helicopter(Squad s, Vector3 at, int networkId)
         {
             var v = Carrier(s, at);
             s.Repo.AddComponent(v, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });
@@ -5883,7 +5883,7 @@ namespace Hrot.SimHost.Tests
         // ── CE-2173 slice 3 (B8, B10; Air Operations §9b) — riding, unloading, and the helicopter brain's hold release ──────────────
 
         /// <summary>A helicopter (Rotorcraft, a route phase) at <paramref name="at"/> with <paramref name="aboard"/> seated.</summary>
-        private static Entity AirCarrier(Squad s, Vector3 at, NavigationPhase phase, long networkId, params int[] aboard)
+        private static Entity AirCarrier(Squad s, Vector3 at, NavigationPhase phase, int networkId, params int[] aboard)
         {
             if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Locomotion>()) s.Repo.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
             if (!s.Repo.IsComponentTypeRegistered<NavigationStatus>()) s.Repo.RegisterComponent<NavigationStatus>();
@@ -6182,7 +6182,7 @@ namespace Hrot.SimHost.Tests
                         var exit = ExitOf(o);
                         Assert.Equal((byte)Fdp.Toolkit.Motion.ExitKind.JumpOut, exit.Exit);
                         Assert.True(Embarkation.Disembark(s.Repo, o.Entity, heli, Fdp.Toolkit.Motion.ExitKind.JumpOut, exit.AnchorIndex, exit.Landing));
-                        Assert.Equal(exit.Landing, s.Repo.GetComponentRO<Fdp.Toolkit.Motion.Descent>(o.Entity).Target);   // D-18
+                        Assert.Equal<Vector3>(exit.Landing, s.Repo.GetComponentRO<Fdp.Toolkit.Motion.Descent>(o.Entity).Target);   // D-18
                         jumps.Add((t, exit.AnchorIndex, exit.Landing, s.At(heli).X));
                         outAt[o.Entity] = (t, exit.Landing);
                     }
@@ -6290,7 +6290,7 @@ namespace Hrot.SimHost.Tests
             var sensor = s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(query);
             Assert.Equal(s.Members[2], sensor.ContextSlot0);                             // around Bravo's lead
             Assert.Equal(Fdp.Toolkit.Spatial.Eqs.EqsSensor.Point1Bit, sensor.ContextPointMask & Fdp.Toolkit.Spatial.Eqs.EqsSensor.Point1Bit);
-            Assert.Equal(new Vector3(0, 100, 0), sensor.ContextPoint1);                   // hidden from where the enemy is expected
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(0, 100, 0), sensor.ContextPoint1);                   // hidden from where the enemy is expected
             var b0 = new Vector3(9, 26, 0); var b1 = new Vector3(13, 25, 0);
             AnswerAll(s, query, new Vector3(8, -10, 0), b0, b1);
             s.Tick();
@@ -6655,7 +6655,7 @@ namespace Hrot.SimHost.Tests
                 var a = Sector(s, security[r]);
                 Assert.Equal(1, a.ArcSet);
                 Assert.Equal(BehaviorOrigin.Superior, a.SetBy);
-                Assert.Equal(orders[security[r]].Objective, a.ArcOrigin);              // from his spot
+                Assert.Equal<System.Numerics.Vector3>(orders[security[r]].Objective, a.ArcOrigin);              // from his spot
                 // the crossing runs north (+Y): rank 0 stands west of it and covers the west, rank 1 the east
                 float centre = r % 2 == 0 ? 270f : 90f;
                 Assert.Equal(centre - DangerCrossingPlay.SecurityArcHalfWidth, a.LeftBearing, 0.01f);
@@ -6727,7 +6727,7 @@ namespace Hrot.SimHost.Tests
             Assert.False(sensor.IsNull);
             var settings = w.Repo.GetComponentRO<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>(sensor).Settings;
             Assert.Equal(Fdp.Toolkit.Squad.DangerArea.DangerRouteSource.ToPoint, settings.RouteSource);
-            Assert.Equal(new Vector3(0f, 100f, 0f), settings.RoutePoint);
+            Assert.Equal(new Fdp.Core.WorldPoint(0f, 100f, 0f), settings.RoutePoint);
         }
 
         /// <summary>⭐ <c>CE-2161</c> — the march asks its route sensor for OPEN GROUND only when the order says <c>OpenGround</c>
@@ -6801,7 +6801,7 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < at.Length; i++)
             {
                 s.Teleport(s.Members[i], at[i]);
-                s.Repo.AddComponent(s.Members[i], new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = IfGunType });
+                s.Repo.AddComponent(s.Members[i], new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(IfGunType) });
                 s.Repo.AddComponent(s.Members[i], new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 20, MuzzleVelocity = 300f });
             }
             s.Repo.AddComponent(s.Commander, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Friend });
@@ -6813,7 +6813,7 @@ namespace Hrot.SimHost.Tests
                                    float width = 0f, bool dangerClose = false)
             => s.Order(System.Text.Json.JsonSerializer.Serialize(new Hrot.AI.Behaviors.Orders.StrikeOrder
             {
-                Location = Hrot.AI.Behaviors.Orders.OrderGeo.ToGeo(s.Repo, point), Control = control, Sheaf = sheaf, SheafWidthM = width,
+                Location = point, Control = control, Sheaf = sheaf, SheafWidthM = width,
                 DangerClose = dangerClose,
             }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed), BehaviorNames.ArtilleryUnitStrike);
 
@@ -7014,7 +7014,7 @@ namespace Hrot.SimHost.Tests
             var s = Battery(new Vector3(0f, -60f, 0f), new Vector3(0f, 5f, 0f), new Vector3(0f, 50f, 0f));
             s.Order(System.Text.Json.JsonSerializer.Serialize(new Hrot.AI.Behaviors.Orders.StrikeOrder
             {
-                Location = Hrot.AI.Behaviors.Orders.OrderGeo.ToGeo(s.Repo, point), Method = Hrot.AI.Behaviors.Orders.FireMissionMethod.Adjust,
+                Location = point, Method = Hrot.AI.Behaviors.Orders.FireMissionMethod.Adjust,
                 Rounds = 3, Sheaf = Hrot.AI.Behaviors.Orders.FireMissionSheaf.Parallel,
             }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed), BehaviorNames.ArtilleryUnitStrike);
             for (int i = 0; i < 4; i++) s.Tick();
@@ -7038,7 +7038,7 @@ namespace Hrot.SimHost.Tests
                 Entity = o, BehaviorName = BehaviorNames.PersonObserveFire, Origin = BehaviorOrigin.Superior,
                 JsonParams = System.Text.Json.JsonSerializer.Serialize(new Hrot.AI.Behaviors.Orders.ObserveFireOrder
                 {
-                    Location = Hrot.AI.Behaviors.Orders.OrderGeo.ToGeo(s.Repo, target), Battery = new Fdp.Toolkit.Replication.EntityRef(4242),
+                    Location = target, Battery = new Fdp.Toolkit.Replication.EntityRef(4242),
                     Rounds = rounds, Sheaf = Hrot.AI.Behaviors.Orders.FireMissionSheaf.Parallel,
                 }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed),
             });
@@ -7053,7 +7053,7 @@ namespace Hrot.SimHost.Tests
                 if (o.Entity.Equals(s.Commander) && o.IntentId == Hrot.Map.Definitions.Behavior.Orders.OrderAttribute.IntentFor("Strike"))
                 {
                     var order = System.Text.Json.JsonSerializer.Deserialize<Hrot.AI.Behaviors.Orders.StrikeOrder>(o.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
-                    var at = Hrot.AI.Behaviors.Orders.OrderGeo.ToLocal(s.Repo, order.Location, 0f);
+                    var at = (System.Numerics.Vector3)order.Location;
                     list.Add((order, new Vector3(at.X, at.Y, 0f)));
                 }
             return list;
@@ -7161,7 +7161,7 @@ namespace Hrot.SimHost.Tests
             Assert.Empty(Calls(s));
             Assert.False(ObserverFinished(s, observer, out _));
 
-            s.Repo.AddComponent(s.Members[1], new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = IfGunType });
+            s.Repo.AddComponent(s.Members[1], new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(IfGunType) });
             for (int i = 0; i < 3; i++) s.Tick();
             var first = Assert.Single(Calls(s));
             Assert.Equal(Hrot.AI.Behaviors.Orders.FireMissionMethod.Adjust, first.Order.Method);
@@ -7322,14 +7322,14 @@ namespace Hrot.SimHost.Tests
             var p = OnTheMove();
             Assert.Equal(BehaviorNames.UrbanMovement, p.S.TaskName);
             var lead = MarchOf(p, p.Alpha);
-            Assert.Equal((new Vector3(0f, 100f, 0f), true, 0), (lead.Objective, lead.DangerAreas, lead.Shape));
+            Assert.Equal((new Vector3(0f, 100f, 0f), true, 0), ((Vector3)lead.Objective, lead.DangerAreas, lead.Shape));
             Assert.False(MarchOf(p, p.Bravo).DangerAreas);
-            Assert.Equal(Vector3.Zero, MarchOf(p, p.Bravo).Objective);   // the lead has not moved on yet: the route's start
+            Assert.Equal<Vector3>(Vector3.Zero, MarchOf(p, p.Bravo).Objective);   // the lead has not moved on yet: the route's start
 
             p.S.Teleport(p.Alpha, new Vector3(1f, 50f, 0f));
             p.Ticks(3);
             Assert.InRange(Vector3.Distance(MarchOf(p, p.Bravo).Objective, new Vector3(0f, 20f, 0f)), 0f, 0.01f);   // 30 m behind him
-            Assert.Equal(Vector3.Zero, MarchOf(p, p.Charlie).Objective);                                           // 60 m behind: the start
+            Assert.Equal<Vector3>(Vector3.Zero, MarchOf(p, p.Charlie).Objective);                                           // 60 m behind: the start
             int bravoOrders = p.OrdersTo(p.Bravo, BehaviorNames.SquadMarch);
             p.S.Teleport(p.Alpha, new Vector3(1f, 55f, 0f));
             p.Ticks(3);
@@ -7337,7 +7337,7 @@ namespace Hrot.SimHost.Tests
 
             p.S.Teleport(p.Alpha, new Vector3(0f, 95f, 0f));
             p.Ticks(3);
-            Assert.Equal(new Vector3(100f, 100f, 0f), MarchOf(p, p.Alpha).Objective);                                // the next leg
+            Assert.Equal<Vector3>(new Vector3(100f, 100f, 0f), MarchOf(p, p.Alpha).Objective);                                // the next leg
             Assert.True(MarchOf(p, p.Alpha).DangerAreas);
 
             p.S.Teleport(p.Alpha, new Vector3(100f, 100f, 0f));
@@ -7378,7 +7378,7 @@ namespace Hrot.SimHost.Tests
             p.Ticks(15);
             Assert.Equal(BehaviorNames.UrbanMovement, p.S.TaskName);
             Assert.Equal((alpha + 1, charlie + 1), (p.OrdersTo(p.Alpha, BehaviorNames.SquadMarch), p.OrdersTo(p.Charlie, BehaviorNames.SquadMarch)));
-            Assert.Equal(new Vector3(0f, 100f, 0f), MarchOf(p, p.Alpha).Objective);                                  // the same leg
+            Assert.Equal<Vector3>(new Vector3(0f, 100f, 0f), MarchOf(p, p.Alpha).Objective);                                  // the same leg
         }
 
         /// <summary>
@@ -7396,7 +7396,7 @@ namespace Hrot.SimHost.Tests
             p.S.Teleport(p.Bravo, new Vector3(0f, 40f, 0f));
             p.S.Teleport(p.Charlie, new Vector3(0f, -20f, 0f));
             p.Ticks(5);
-            Assert.Equal(new Vector3(0f, 100f, 0f), MarchOf(p, p.Bravo).Objective);                                  // its point (10,100): the corner first
+            Assert.Equal<Vector3>(new Vector3(0f, 100f, 0f), MarchOf(p, p.Bravo).Objective);                                  // its point (10,100): the corner first
             Assert.InRange(Vector3.Distance(MarchOf(p, p.Charlie).Objective, new Vector3(0f, 80f, 0f)), 0f, 0.01f);   // its point is before the corner
             p.S.Teleport(p.Bravo, new Vector3(0f, 99f, 0f));
             p.Ticks(5);
@@ -7434,7 +7434,7 @@ namespace Hrot.SimHost.Tests
             p.S.Repo.DestroyEntity(p.Alpha);
             p.Ticks(3);
             var lead = MarchOf(p, p.Bravo);
-            Assert.Equal((new Vector3(0f, 100f, 0f), true), (lead.Objective, lead.DangerAreas));
+            Assert.Equal((new Vector3(0f, 100f, 0f), true), ((Vector3)lead.Objective, lead.DangerAreas));
         }
 
         // ── CE-2284 U-2 — fired on from a building on the move: clear it (the attack play's preset) or bypass (DA-18, UM-10…UM-13) ──
@@ -7496,7 +7496,7 @@ namespace Hrot.SimHost.Tests
             bool Consolidating() => new[] { p.Alpha, p.Bravo, p.Charlie }.All(sq =>
                 p.S.Orders.Last(o => o.Entity.Equals(sq)).IntentId == BehaviorNames.SquadDefend
                 && System.Text.Json.JsonSerializer.Deserialize<SquadDefendParamsJsonDto>(p.S.Orders.Last(o => o.Entity.Equals(sq)).JsonParams,
-                       Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed).Position == house);
+                       Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed).Position.Local.Equals((Fdp.Core.WorldPoint)house));
             for (int i = 0; i < 60 && !Consolidating(); i++) p.Tick();
             Assert.True(Consolidating(), "the house clear: every squad consolidates round it");
             foreach (var sq in new[] { p.Alpha, p.Bravo, p.Charlie }) p.ReportSet(sq);
@@ -7529,7 +7529,7 @@ namespace Hrot.SimHost.Tests
 
         // ── CE-2347 (R-2069) — PlatoonConvoy: ride, halt on contact, secure when quiet, remount, carry on (Defend & Attack §11a) ─────────
 
-        private static Entity ConvoyVehicle(Squad s, Vector3 at, long networkId, int passengerSeats, params Entity[] aboard)
+        private static Entity ConvoyVehicle(Squad s, Vector3 at, int networkId, int passengerSeats, params Entity[] aboard)
         {
             var v = s.Repo.CreateEntity();
             s.Repo.AddComponent(v, new SimTransform { Position = at, Rotation = Quaternion.Identity });
@@ -7545,7 +7545,7 @@ namespace Hrot.SimHost.Tests
             return v;
         }
 
-        private static void ConvoyRoute(Squad s, long networkId, params Vector3[] points)
+        private static void ConvoyRoute(Squad s, int networkId, params Vector3[] points)
         {
             var route = s.Repo.CreateEntity();
             s.Repo.AddComponent(route, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });
@@ -7607,7 +7607,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((1, 1), (p.OrdersTo(apc, "Order.Hold"), p.OrdersTo(ifv, "Order.Hold")));                           // secure: all wait
             var defend = System.Text.Json.JsonSerializer.Deserialize<SquadDefendParamsJsonDto>(
                 p.S.Orders.Last(o => o.Entity.Equals(p.Alpha)).JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
-            Assert.Equal(new Vector3(0f, 40f, 0f), defend.Position);                                                        // at its vehicle
+            Assert.Equal<Vector3>(new Vector3(0f, 40f, 0f), defend.Position);                                                        // at its vehicle
 
             p.ReportSet(p.Alpha);
             p.Ticks(3);
@@ -7732,9 +7732,9 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((1, 0), (p.OrdersTo(p.Alpha, BehaviorNames.SquadRecover), p.OrdersTo(p.Alpha, BehaviorNames.SquadEmbark)));
             var recover = System.Text.Json.JsonSerializer.Deserialize<SquadRecoverParamsJsonDto>(
                 p.S.Orders.Last(o => o.Entity.Equals(p.Alpha)).JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
-            Assert.Equal(7001L, recover.Casualty.NetworkId);
+            Assert.Equal(7001L, recover.Casualty.Ref.NetworkId);
             Assert.False(recover.PutDown);
-            Assert.Equal(new Vector3(0f, 40f, 0f), recover.To);
+            Assert.Equal<Vector3>(new Vector3(0f, 40f, 0f), recover.To);
             p.Ticks(5);
             Assert.Equal(1, p.OrdersTo(p.Alpha, BehaviorNames.SquadRecover));                                             // not re-sent
             p.Report(p.Alpha, new Fdp.Toolkit.Squad.Command.CommandReport

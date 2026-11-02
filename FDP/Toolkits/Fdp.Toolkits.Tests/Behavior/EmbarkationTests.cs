@@ -313,8 +313,8 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             Assert.True(Fdp.Toolkit.Motion.DescentRules.DoorPoint(_world, heli, 1, out var door));
             Assert.Equal(new Vector3(100, 50 - 1.2f, 20.5f), door);                      // the right door, 0.5 m up (no RopeAnchors stated)
-            Assert.Equal(door, _world.GetComponent<SimTransform>(man).Position);
-            Assert.NotEqual(Embarkation.DismountPoint(_world, heli, 0, 1), _world.GetComponent<SimTransform>(man).Position);
+            Assert.Equal<System.Numerics.Vector3>(door, _world.GetComponent<SimTransform>(man).Position);
+            Assert.NotEqual<System.Numerics.Vector3>(Embarkation.DismountPoint(_world, heli, 0, 1), _world.GetComponent<SimTransform>(man).Position);
             var d = _world.GetComponent<Fdp.Toolkit.Motion.Descent>(man);
             Assert.Equal((Fdp.Toolkit.Motion.DescentKind.FastRope, Fdp.Toolkit.Motion.DescentPhase.Exit, heli, (byte)1),
                          (d.Kind, d.Phase, d.Anchor, d.AnchorIndex));
@@ -338,7 +338,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.ParachuteDto { Canopy = Fdp.Toolkit.Motion.CanopyKind.RamAir });
             db.Register(t);
             _world.SetSingletonManaged<ITkbDatabase>(db);
-            _world.AddComponent(sf, new TkbIdentity { TkbType = 991L });
+            _world.AddComponent(sf, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(991L) });
             foreach (var m in new[] { para, sf }) Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, m, heli));
 
             foreach (var m in new[] { para, sf })   // ⭐ CE-1118 H-1 (D-18) — each with his landing point

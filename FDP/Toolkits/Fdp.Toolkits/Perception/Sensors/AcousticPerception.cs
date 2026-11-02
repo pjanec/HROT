@@ -290,7 +290,7 @@ namespace Fdp.Toolkit.Perception.Sensors
             var err = AcousticPerception.Error(source, listener, tick, radius);
             candidates[n++] = new EqsResult
             {
-                EntityId        = 0L,   // ⛔ anonymous: never the source
+                EntityId        = 0,   // ⛔ anonymous: never the source
                 PositionX       = from.X + err.X,
                 PositionY       = from.Y + err.Y,
                 PositionZ       = from.Z,

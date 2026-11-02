@@ -29,7 +29,7 @@ public class ContinuousDragTests
 {
     // ── Constants ─────────────────────────────────────────────────────────────
 
-    private const long NetworkId = 42L;
+    private const int NetworkId = 42;
 
     // 30 ms frame time: 3 × 0.033f = 0.099f < 0.1f (no trigger);
     // 4 × 0.033f = 0.132f > 0.1f → one call fires and timer resets.
@@ -63,7 +63,7 @@ public class ContinuousDragTests
     /// Creates an entity in the IgApplication world with a NetworkIdentity,
     /// registers it in the entity map, and injects the stub command gateway.
     /// </summary>
-    private static void SetupEntity(IgApplication app, long networkId, TallyGateway stub)
+    private static void SetupEntity(IgApplication app, int networkId, TallyGateway stub)
     {
         var entity = app.World.CreateEntity();
         app.World.AddComponent(entity, new NetworkIdentity(networkId));

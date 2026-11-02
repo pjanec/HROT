@@ -26,7 +26,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         private readonly DdsWriter<Hrot.NED.Descriptors.NavigationStatus> _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<Hrot.NED.Descriptors.NavigationStatus>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationStatus;
@@ -43,7 +43,7 @@ namespace Hrot.Map.Common.Replication.Egress
         // Keyed by Entity; value is the last-published (IntentId, Result, Phase).
         // ProgressS is omitted from the key — it is included unconditionally
         // in the publish payload but does not trigger a new publish on its own.
-        private readonly System.Collections.Generic.HashSet<long> _publishedIds = new();   // ⭐ CE-4007
+        private readonly System.Collections.Generic.HashSet<int> _publishedIds = new();   // ⭐ CE-4007
         private int _worldEpoch;
         private readonly Dictionary<Entity, (uint IntentId, EcsNavResult Result, NavigationPhase Phase)> _lastPublished = new();
 
@@ -54,11 +54,11 @@ namespace Hrot.Map.Common.Replication.Egress
         public NavigationStatusEgressTranslator(
             DdsParticipant   dds,
             NetworkEntityMap entityMap,
-            long localNodeId)
+            int localNodeId)
         {
             _writer    = new DdsWriter<Hrot.NED.Descriptors.NavigationStatus>(dds);
             _entityMap = entityMap ?? throw new System.ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <summary>No ingress for this translator.</summary>
@@ -137,14 +137,14 @@ namespace Hrot.Map.Common.Replication.Egress
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <summary>Cleans up the per-entity change-detection cache on entity disposal.</summary>
-        public void Dispose(long networkEntityId)
+        public void Dispose(int networkEntityId)
         {
             if (_entityMap.TryGetEntity(networkEntityId, out var entity))
                 _lastPublished.Remove(entity);
         }
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget what was published so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_entityMap.TryGetEntity(networkEntityId, out var entity)) _lastPublished.Remove(entity);
             if (_publishedIds.Remove(networkEntityId))

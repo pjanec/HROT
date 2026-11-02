@@ -82,7 +82,7 @@ namespace Hrot.SimHost.Serializers
             Enum.TryParse<FireTeam>(dto.FireTeam, ignoreCase: true, out var team);
 
             Entity resolved = resolver.Resolve(dto.CommanderGuid);
-            long networkId;
+            int networkId;
             if (resolved.IsNull || !repo.IsAlive(resolved))
             {
                 FdpLog<UnitSubordinateTranslator>.Warn(

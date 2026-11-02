@@ -20,7 +20,7 @@ namespace Hrot.Map.Common.Replication.Egress
     public sealed class EntityManualDriveEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<EntityManualDrive>? _writer;
-        private readonly Dictionary<long, EntityManualDrive> _last = new();
+        private readonly Dictionary<int, EntityManualDrive> _last = new();
         private int _worldEpoch;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityManualDrive>();
@@ -41,7 +41,7 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var unit in view.Query().With<ManualDrive>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(unit, packedKey)) continue;
-                long netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
                 var sample = ToSample(netId, view.GetComponentRO<ManualDrive>(unit));
                 if (_last.TryGetValue(netId, out var prev) && prev.Equals(sample)) continue;
                 _last[netId] = sample;
@@ -51,15 +51,15 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>The wire form (the test seam).</summary>
-        internal static EntityManualDrive ToSample(long netId, in ManualDrive d) => new()
+        internal static EntityManualDrive ToSample(int netId, in ManualDrive d) => new()
         {
             EntityId = netId, Forward = d.Forward, Lateral = d.Lateral, Steer = d.Steer, Yaw = d.Yaw, Gait = d.Gait, Seq = d.Seq, Vertical = d.Vertical,
         };
 
-        public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityManualDrive { EntityId = networkEntityId });
         }
@@ -74,9 +74,9 @@ namespace Hrot.Map.Common.Replication.Egress
     public sealed class EntityPossessedByEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<EntityPossessedBy>? _writer;
-        private readonly Dictionary<long, EntityPossessedBy> _last = new();
-        private readonly HashSet<long> _seen = new();
-        private readonly List<long> _gone = new();
+        private readonly Dictionary<int, EntityPossessedBy> _last = new();
+        private readonly HashSet<int> _seen = new();
+        private readonly List<int> _gone = new();
         private int _worldEpoch;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityPossessedBy>();
@@ -107,7 +107,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 foreach (var unit in view.Query().With<PossessedBy>().DefaultRoutePublishable().Build())
                 {
                     if (!view.HasAuthority(unit, packedKey)) continue;
-                    long netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
+                    int netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
                     var held = view.GetComponentRO<PossessedBy>(unit);
                     var sample = new EntityPossessedBy
                     {
@@ -121,7 +121,7 @@ namespace Hrot.Map.Common.Replication.Egress
             }
             _gone.Clear();
             foreach (var kv in _last) if (kv.Value.Held != 0 && !_seen.Contains(kv.Key)) _gone.Add(kv.Key);
-            foreach (long netId in _gone)
+            foreach (int netId in _gone)
             {
                 var release = new EntityPossessedBy { EntityId = netId, Held = 0, Epoch = _last[netId].Epoch };
                 _last[netId] = release;
@@ -130,10 +130,10 @@ namespace Hrot.Map.Common.Replication.Egress
             return outgoing;
         }
 
-        public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityPossessedBy { EntityId = networkEntityId });
         }

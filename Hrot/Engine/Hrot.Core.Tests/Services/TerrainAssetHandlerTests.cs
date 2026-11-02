@@ -55,10 +55,10 @@ namespace Hrot.Core.Tests.Services
             new Vector2(-53f, -88.5f), new Vector2(47f, -88.5f), new Vector2(47f, 11.5f),
         };
 
-        private static Entity NewZone(EntityRepository repo, long networkId, Vector3 origin)
+        private static Entity NewZone(EntityRepository repo, int networkId, Vector3 origin)
         {
             var e = repo.CreateEntity();
-            repo.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.TerrainZone });
+            repo.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.TerrainZone) });
             repo.AddComponent(e, new NetworkIdentity(networkId));
             repo.AddComponent(e, new SimTransform { Position = origin });
             repo.SetManagedComponent(e, new EditablePolyline { Points = Triangle() });
@@ -69,7 +69,7 @@ namespace Hrot.Core.Tests.Services
             => new ExecuteNodeOpIntent
             {
                 TransactionId = tx,
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = operation,
                 DomainPayload = payload,
             };

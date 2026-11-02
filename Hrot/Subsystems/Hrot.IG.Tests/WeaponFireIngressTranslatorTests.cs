@@ -86,13 +86,13 @@ namespace Hrot.IG.Tests
 
             var entityA = _world.CreateEntity();
             var entityB = _world.CreateEntity();
-            _entityMap.Register(1L, entityA);
-            _entityMap.Register(2L, entityB);
+            _entityMap.Register(1, entityA);
+            _entityMap.Register(2, entityB);
 
             var msg = new WeaponFire
             {
-                ShooterEntityId = 1L,
-                TargetEntityId  = 2L,
+                ShooterEntityId = 1,
+                TargetEntityId  = 2,
                 WeaponIndex     = 0,
                 RequestId       = 41u,                                        // ⭐ Q94 A-1 (R-3018)
                 Refusal         = (byte)Fdp.Toolkit.Combat.FireRefusal.Masked,
@@ -124,12 +124,12 @@ namespace Hrot.IG.Tests
 
             // Only target is known; shooter (id=5) is not in EntityMap.
             var entityB = _world.CreateEntity();
-            _entityMap.Register(2L, entityB);
+            _entityMap.Register(2, entityB);
 
             var msg = new WeaponFire
             {
-                ShooterEntityId = 5L,
-                TargetEntityId  = 2L,
+                ShooterEntityId = 5,
+                TargetEntityId  = 2,
                 WeaponIndex     = 1,
             };
 
@@ -157,8 +157,8 @@ namespace Hrot.IG.Tests
 
             var msg = new WeaponFire
             {
-                ShooterEntityId = 99L,
-                TargetEntityId  = 100L,
+                ShooterEntityId = 99,
+                TargetEntityId  = 100,
                 WeaponIndex     = 0,
             };
 

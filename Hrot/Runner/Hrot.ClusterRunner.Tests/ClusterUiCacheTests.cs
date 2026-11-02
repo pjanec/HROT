@@ -73,7 +73,7 @@ public sealed class ClusterUiCacheTests : IDisposable
         _bus.PublishManaged(new ExecuteNodeOpIntent
         {
             TransactionId = txId,
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             Operation     = FdpNodeOpType.PrepareState,
             DomainPayload = null,
         });
@@ -139,7 +139,7 @@ public sealed class ClusterUiCacheTests : IDisposable
         _bus.PublishManaged(new ExecuteNodeOpIntent
         {
             TransactionId = txId,
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             Operation     = FdpNodeOpType.PrepareState,
             DomainPayload = null,
         });
@@ -196,7 +196,7 @@ public sealed class ClusterUiCacheTests : IDisposable
         _bus.PublishManaged(new ExecuteNodeOpIntent
         {
             TransactionId = txId,
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             Operation     = FdpNodeOpType.PrepareState,
             DomainPayload = new EditLoadHandlerPayload(
                 ScenarioId:    null,
@@ -230,7 +230,7 @@ public sealed class ClusterUiCacheTests : IDisposable
         _bus.PublishManaged(new ExecuteNodeOpIntent
         {
             TransactionId = txId,
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             Operation     = FdpNodeOpType.PrepareReplay,
             DomainPayload = null,
         });
@@ -242,7 +242,7 @@ public sealed class ClusterUiCacheTests : IDisposable
         {
             RequestId     = txId,
             StatusCode    = OrchestrationStatusCode.Success,
-            ResultPayload = new ReplayPrepareResult(MaxNetworkId: 0L, DurationSeconds: expectedDuration),
+            ResultPayload = new ReplayPrepareResult(MaxNetworkId: 0, DurationSeconds: expectedDuration),
         });
         Tick();
 
@@ -265,7 +265,7 @@ public sealed class ClusterUiCacheTests : IDisposable
         _bus.PublishManaged(new ExecuteNodeOpIntent
         {
             TransactionId = txId,
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             Operation     = FdpNodeOpType.PrepareReplay,
             DomainPayload = null,
         });
@@ -277,7 +277,7 @@ public sealed class ClusterUiCacheTests : IDisposable
         {
             RequestId     = txId,
             StatusCode    = OrchestrationStatusCode.Success,
-            ResultPayload = new ReplayPrepareResult(MaxNetworkId: 0L, DurationSeconds: 180f),
+            ResultPayload = new ReplayPrepareResult(MaxNetworkId: 0, DurationSeconds: 180f),
         });
         Tick();
 

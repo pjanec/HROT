@@ -9,7 +9,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Events
         /// <summary>
         /// The network entity ID to destroy. Looked up in NetworkEntityMap.
         /// </summary>
-        public long NetworkId;
+        public int NetworkId;
 
         /// <summary>
         /// Human-readable reason (for logging/diagnostics).

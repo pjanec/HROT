@@ -20,7 +20,7 @@ namespace Hrot.Map.Common.Replication.Egress
     {
         private readonly DdsWriter<EntityWeaponPosture>? _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly Dictionary<long, EntityWeaponPosture> _last = new();
+        private readonly Dictionary<int, EntityWeaponPosture> _last = new();
         private int _worldEpoch;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeaponPosture>();
@@ -49,9 +49,9 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var unit in view.Query().With<WeaponPosture>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(unit, packedKey)) continue;
-                long netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
                 var posture = view.GetComponentRO<WeaponPosture>(unit);
-                long targetNet = 0;
+                int targetNet = 0;
                 if (!posture.Target.IsNull && !_entityMap.TryGetNetworkId(posture.Target, out targetNet)) targetNet = 0;
                 var sample = new EntityWeaponPosture
                 {
@@ -67,10 +67,10 @@ namespace Hrot.Map.Common.Replication.Egress
             }
         }
 
-        public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityWeaponPosture { EntityId = networkEntityId });
         }

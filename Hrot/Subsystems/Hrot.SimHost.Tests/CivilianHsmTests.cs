@@ -653,7 +653,7 @@ namespace Hrot.SimHost.Tests
             db.Register(grenade);
             PersonHands.EnsureOnPersons(db);
             w.Repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
-            w.Repo.AddComponent(w.Unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = CivilianType });
+            w.Repo.AddComponent(w.Unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(CivilianType) });
             if (!w.Repo.HasComponent<WeaponChannel>(w.Unit)) w.Repo.AddComponent(w.Unit, new WeaponChannel());
             db.TryGetByType(CivilianType, out var t);
             new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator().Inject(w.Repo, w.Unit, t!);
@@ -913,7 +913,7 @@ namespace Hrot.SimHost.Tests
             Assert.True(HostileActs.Commit(w.Repo, w.Unit, HostileActKind.NonLethal));
 
             var cop = Policeman(w, new Vector3(140, 230, 0));
-            w.Repo.AddComponent(cop, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityLauncher });
+            w.Repo.AddComponent(cop, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityLauncher) });
             Assert.True(db.TryGetByType(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityLauncher, out var t));
             new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator().Inject(w.Repo, cop, t!);
             w.Repo.AddComponent(cop, new WeaponPosture { Kind = WeaponPostureKind.Aimed, Target = w.Unit });

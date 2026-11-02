@@ -19,7 +19,7 @@ namespace Hrot.Map.Common.Replication.Egress
     public sealed class EntityGestureEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<EntityGesture>? _writer;
-        private readonly Dictionary<long, EntityGesture> _last = new();
+        private readonly Dictionary<int, EntityGesture> _last = new();
         private int _worldEpoch;
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.Gesture };
@@ -49,7 +49,7 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var unit in view.Query().With<Gesture>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(unit, packedKey)) continue;
-                long netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
                 var sample = ToSample(netId, view.GetComponentRO<Gesture>(unit));
                 if (_last.TryGetValue(netId, out var prev) && prev.Equals(sample)) continue;
                 _last[netId] = sample;
@@ -59,12 +59,12 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>The wire form (the test seam).</summary>
-        internal static EntityGesture ToSample(long netId, in Gesture g) => new() { EntityId = netId, Kind = (byte)g.Kind };
+        internal static EntityGesture ToSample(int netId, in Gesture g) => new() { EntityId = netId, Kind = (byte)g.Kind };
 
-        public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityGesture { EntityId = networkEntityId });
         }
@@ -121,6 +121,6 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

@@ -74,7 +74,7 @@ namespace Hrot.SimHost.Tests
             };
 
             var zone = repo.CreateEntity();
-            repo.AddComponent(zone, new TkbIdentity { TkbType = TkbEntityTypes.TerrainZone });
+            repo.AddComponent(zone, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.TerrainZone) });
             repo.AddComponent(zone, new SimTransform { Position = origin });
             repo.SetManagedComponent(zone, new EditablePolyline { Points = points });
 
@@ -128,7 +128,7 @@ namespace Hrot.SimHost.Tests
             var before = ZoneFootprint.Compute(new Vector3(670f, 473.5f, 0f), points);
 
             var zone = repo.CreateEntity();
-            repo.AddComponent(zone, new TkbIdentity { TkbType = TkbEntityTypes.TerrainZone });
+            repo.AddComponent(zone, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.TerrainZone) });
             repo.AddComponent(zone, new SimTransform { Position = new Vector3(770f, 473.5f, 0f) }); // moved
             repo.SetManagedComponent(zone, new EditablePolyline { Points = points });
 

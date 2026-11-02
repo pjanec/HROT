@@ -27,7 +27,7 @@ namespace Fdp.Toolkit.Orchestration
     /// </summary>
     public sealed class ClusterSlave : IDisposable
     {
-        private readonly int    _nodeId;
+        private readonly NodeId    _nodeId;
         private readonly string _subsystemName;
         private readonly string _nodeName;
         private readonly NodeRole _roles;   // P1: the node's declared role mask (now the SOURCE of fdp.role.* tokens).
@@ -93,7 +93,7 @@ namespace Fdp.Toolkit.Orchestration
             IReadOnlyList<string>? capabilities = null,
             string? nodeName = null)
         {
-            _nodeId        = nodeId;
+            _nodeId        = (Fdp.Core.NodeId)(nodeId);
             _subsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
             _nodeName      = string.IsNullOrWhiteSpace(nodeName) ? DefaultNodeName(subsystemName, nodeId) : nodeName.Trim();
             _eventBus      = eventBus;
@@ -118,7 +118,7 @@ namespace Fdp.Toolkit.Orchestration
         public ClusterSlave(FdpEventBus? eventBus = null, int nodeId = 0, string subsystemName = "TestNode",
             NodeRole roles = NodeRole.None, IReadOnlyList<string>? capabilities = null, string? nodeName = null)
         {
-            _nodeId        = nodeId;
+            _nodeId        = (Fdp.Core.NodeId)(nodeId);
             _subsystemName = subsystemName;
             _nodeName      = string.IsNullOrWhiteSpace(nodeName) ? DefaultNodeName(subsystemName, nodeId) : nodeName.Trim();
             _eventBus      = eventBus;

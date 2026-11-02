@@ -126,7 +126,7 @@ public sealed class PersonalRouteAuthoringSystem : IEcsModuleSystem
                 // can be embedded in PersonalRouteRef immediately.
                 var vehiclePos = repo.HasComponent<SimTransform>(vehicleEntity)
                     ? view.GetComponentRO<SimTransform>(vehicleEntity).Position
-                    : Vector3.Zero;
+                    : Fdp.Core.WorldPoint.Zero;
 
                 var newPlan = new RoutePlan { IsLoop = false }.WithWaypoints(wps =>
                 {
@@ -137,7 +137,7 @@ public sealed class PersonalRouteAuthoringSystem : IEcsModuleSystem
                 var childEntity = repo.CreateEntity();
                 repo.SetManagedComponent(childEntity, newPlan);
                 repo.AddComponent(childEntity, new PartMetadata { ParentEntity = vehicleEntity });
-                repo.AddComponent(childEntity, new TkbIdentity { TkbType = TkbEntityTypes.TacGraphic_Route });
+                repo.AddComponent(childEntity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Route) });
                 repo.AddComponent(childEntity, new SimTransform { Position = vehiclePos });
 
                 repo.AddComponent(vehicleEntity, new PersonalRouteRef { RouteEntity = childEntity, FollowPending = 1 });

@@ -59,6 +59,7 @@ public static class FixedListFormatter
 
     private static string FormatElement(ReadOnlySpan<byte> bytes, Type t)
     {
+        t = SemanticValueTypes.StorageTypeOf(t);   // ⭐ S0 item 6 — a WorldPoint element prints as the Vector3 did
         if (t == typeof(int))     return MemoryMarshal.Read<int>(bytes).ToString();
         if (t == typeof(float))   return MemoryMarshal.Read<float>(bytes).ToString();
         if (t == typeof(bool))    return (bytes[0] != 0).ToString();

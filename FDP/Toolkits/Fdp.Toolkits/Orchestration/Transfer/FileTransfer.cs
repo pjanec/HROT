@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.Orchestration.Transfer
 {
@@ -42,7 +43,7 @@ namespace Fdp.Toolkit.Orchestration.Transfer
     /// share it advertised, or (co-located) the path the orchestrator already uses. ⚠ Empty means "no share": only a
     /// transport that delivers into the node's own root (DDS) can reach it.
     /// </summary>
-    public sealed record TransferTarget(int NodeId, string Root);
+    public sealed record TransferTarget(NodeId NodeId, string Root);
 
     /// <summary>
     /// One file. <paramref name="RelativePath"/> is relative to the target's staging root, so the same item means the same

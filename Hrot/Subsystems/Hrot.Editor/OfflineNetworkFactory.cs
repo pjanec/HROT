@@ -49,7 +49,7 @@ public sealed class OfflineNetworkFactory : INetworkFactory
     public IIgTranslators CreateIgTranslators() => new NullIgTranslators();
 
     /// <inheritdoc/>
-    public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, long nodeId = 0)
+    public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, int nodeId = 0)
         => NullIgNetworkAdapter.Instance;
 
 
@@ -74,7 +74,7 @@ public sealed class OfflineNetworkFactory : INetworkFactory
     public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.IDescriptorTranslator> CreateIgEgressTranslators(
         CycloneDDS.Runtime.DdsParticipant participant,
         Fdp.Core.FdpEventBus bus,
-        long nodeId)
+        int nodeId)
         => System.Array.Empty<Fdp.Interfaces.IDescriptorTranslator>();
 
     /// <inheritdoc/>
@@ -109,12 +109,12 @@ public sealed class OfflineNetworkFactory : INetworkFactory
 
     /// <inheritdoc/>
     public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(
-        FdpEventBus interactionBus, long localNodeId, bool headless)
+        FdpEventBus interactionBus, int localNodeId, bool headless)
         => System.Array.Empty<Fdp.Interfaces.INetworkTranslator>();
 
     /// <inheritdoc/>
     public Fdp.ModuleHost.Abstractions.IEcsModuleSystem? CreateGizmoPublisherSystem(
-        Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer buffer, long localNodeId)
+        Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer buffer, int localNodeId)
         => null;
 
     // ---- null stubs -------------------------------------------------------
@@ -158,7 +158,7 @@ public sealed class OfflineNetworkFactory : INetworkFactory
 
     private sealed class NullSimHostMissionSender : ISimHostMissionSender
     {
-        public void SendNavigateToPoint(long entityNetworkId, Vector2 destination, float speed, float arrivalRadius) { }
+        public void SendNavigateToPoint(int entityNetworkId, Vector2 destination, float speed, float arrivalRadius) { }
         public void Dispose() { }
     }
 

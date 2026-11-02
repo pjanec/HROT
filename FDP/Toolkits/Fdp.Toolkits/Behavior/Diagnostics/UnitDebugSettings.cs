@@ -28,16 +28,16 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             public bool IsEmpty => Pins == AiOverlayFlags.None && !Trace;
         }
 
-        private readonly Dictionary<long, Entry> _remembered = new();
-        private readonly HashSet<long> _viewed = new();
-        private readonly HashSet<long> _armed = new();
-        private readonly HashSet<long> _managed = new();   // every unit whose DebugState bits the store has written (so a reset clears them)
+        private readonly Dictionary<int, Entry> _remembered = new();
+        private readonly HashSet<int> _viewed = new();
+        private readonly HashSet<int> _armed = new();
+        private readonly HashSet<int> _managed = new();   // every unit whose DebugState bits the store has written (so a reset clears them)
 
         /// <summary>Bumped on every change to what is REMEMBERED (a host saves when it moves).</summary>
         public int Version { get; private set; }
 
         /// <summary>The network id of the unit the 3-D camera follows (remembered), or null.</summary>
-        public long? Followed { get; private set; }
+        public int? Followed { get; private set; }
 
         /// <summary>The store of <paramref name="world"/> (created on first use).</summary>
         public static UnitDebugSettings Of(EntityRepository world)
@@ -54,38 +54,38 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             => world.HasSingletonManaged<UnitDebugSettings>() ? world.GetSingletonManaged<UnitDebugSettings>() : null;
 
         /// <summary>The unit's network id, or 0 when it has none (then the store cannot hold it).</summary>
-        public static long NetIdOf(EntityRepository world, Entity unit)
+        public static int NetIdOf(EntityRepository world, Entity unit)
             => unit != Entity.Null && world.IsAlive(unit) && world.IsComponentTypeRegistered<NetworkIdentity>() && world.HasComponent<NetworkIdentity>(unit)
                 ? world.GetComponentRO<NetworkIdentity>(unit).Value : 0;
 
-        public Entry Get(long netId) => _remembered.TryGetValue(netId, out var e) ? e : default;
-        public IReadOnlyDictionary<long, Entry> Remembered => _remembered;
+        public Entry Get(int netId) => _remembered.TryGetValue(netId, out var e) ? e : default;
+        public IReadOnlyDictionary<int, Entry> Remembered => _remembered;
 
-        public bool IsPinned(long netId, AiOverlayFlags family) => (Get(netId).Pins & family) != 0;
+        public bool IsPinned(int netId, AiOverlayFlags family) => (Get(netId).Pins & family) != 0;
 
-        public void SetPin(long netId, AiOverlayFlags family, bool on)
+        public void SetPin(int netId, AiOverlayFlags family, bool on)
         {
             var e = Get(netId);
             Put(netId, e with { Pins = on ? e.Pins | family : e.Pins & ~family });
         }
 
         /// <summary>Whether someone switched the unit's trace on (remembered) — not counting a tab or an arming.</summary>
-        public bool IsTraceSet(long netId) => Get(netId).Trace;
+        public bool IsTraceSet(int netId) => Get(netId).Trace;
 
-        public void SetTrace(long netId, bool on) => Put(netId, Get(netId) with { Trace = on });
+        public void SetTrace(int netId, bool on) => Put(netId, Get(netId) with { Trace = on });
 
         /// <summary>A Brain tab shows the unit (temporary, never saved).</summary>
-        public void SetViewed(long netId, bool on) => Toggle(_viewed, netId, on);
+        public void SetViewed(int netId, bool on) => Toggle(_viewed, netId, on);
 
         /// <summary>The API or a breakpoint armed the unit's trace (temporary, never saved).</summary>
-        public void SetArmed(long netId, bool on) => Toggle(_armed, netId, on);
+        public void SetArmed(int netId, bool on) => Toggle(_armed, netId, on);
 
-        public bool IsArmed(long netId) => _armed.Contains(netId);
+        public bool IsArmed(int netId) => _armed.Contains(netId);
 
         /// <summary>Whether the unit's trace runs: switched on, shown by a tab, or armed.</summary>
-        public bool TraceOn(long netId) => Get(netId).Trace || _viewed.Contains(netId) || _armed.Contains(netId);
+        public bool TraceOn(int netId) => Get(netId).Trace || _viewed.Contains(netId) || _armed.Contains(netId);
 
-        public void SetFollowed(long? netId)
+        public void SetFollowed(int? netId)
         {
             if (Followed == netId) return;
             Followed = netId;
@@ -93,7 +93,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         }
 
         /// <summary>Forgets everything remembered for one unit (the Brain tab's reset).</summary>
-        public void ResetUnit(long netId)
+        public void ResetUnit(int netId)
         {
             if (_remembered.Remove(netId)) Version++;
             if (Followed == netId) SetFollowed(null);
@@ -107,7 +107,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             Version++;
         }
 
-        private void Put(long netId, Entry e)
+        private void Put(int netId, Entry e)
         {
             if (e.IsEmpty) { if (!_remembered.Remove(netId)) return; }
             else if (_remembered.TryGetValue(netId, out var old) && old == e) return;
@@ -115,7 +115,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             Version++;
         }
 
-        private static void Toggle(HashSet<long> set, long netId, bool on)
+        private static void Toggle(HashSet<int> set, int netId, bool on)
         {
             if (on) set.Add(netId); else set.Remove(netId);
         }
@@ -132,7 +132,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             if (_remembered.Count == 0 && _viewed.Count == 0 && _armed.Count == 0 && _managed.Count == 0) return;
             foreach (var e in world.Query().With<NetworkIdentity>().Build())
             {
-                long id = world.GetComponentRO<NetworkIdentity>(e).Value;
+                int id = world.GetComponentRO<NetworkIdentity>(e).Value;
                 bool wanted = _remembered.ContainsKey(id) || _viewed.Contains(id) || _armed.Contains(id);
                 if (!wanted && !_managed.Contains(id)) continue;
                 var pins = Get(id).Pins;
@@ -175,7 +175,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
                 if (o["units"] is JsonObject units)
                     foreach (var (key, node) in units)
                     {
-                        if (!long.TryParse(key, out var id) || node is not JsonObject u) continue;
+                        if (!int.TryParse(key, out var id) || node is not JsonObject u) continue;
                         var pins = AiOverlayFlags.None;
                         if (u["pins"] is JsonArray arr)
                             foreach (var p in arr)
@@ -184,7 +184,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
                         var entry = new Entry(pins, trace);
                         if (!entry.IsEmpty) _remembered[id] = entry;
                     }
-                if (o["followed"] is JsonValue fv && fv.TryGetValue<long>(out var followed)) Followed = followed;
+                if (o["followed"] is JsonValue fv && fv.TryGetValue<int>(out var followed)) Followed = followed;
             }
             Version++;
         }

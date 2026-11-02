@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.DER
 {
@@ -13,12 +14,12 @@ namespace Fdp.Toolkit.DER
         /// <summary>
         /// Local DDS node ID of the application.
         /// </summary>
-        int LocalNodeId { get; }
+        NodeId LocalNodeId { get; }
 
         /// <summary>
         /// Retrieve entity by ID. Returns null if not found.
         /// </summary>
-        IDerEntity? GetEntity(long entityId);
+        IDerEntity? GetEntity(int entityId);
         
         /// <summary>
         /// Get all entities currently in repository.
@@ -29,12 +30,12 @@ namespace Fdp.Toolkit.DER
         /// Create new entity with specified ID and TKB type.
         /// Throws if entity ID already exists.
         /// </summary>
-        IDerEntity CreateEntity(long entityId, long tkbType);
+        IDerEntity CreateEntity(int entityId, long tkbType);
         
         /// <summary>
         /// Delete entity by ID. No-op if entity doesn't exist.
         /// </summary>
-        void DeleteEntity(long entityId);
+        void DeleteEntity(int entityId);
         
         /// <summary>
         /// Raised when new entity is created.

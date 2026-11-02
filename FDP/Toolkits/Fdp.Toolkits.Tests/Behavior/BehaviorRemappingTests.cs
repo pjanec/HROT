@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Replication;
-using Fdp.Toolkit.Behavior.Params;
 using Fdp.Toolkit.Behavior.Tests.Fixtures;
 using Xunit;
 
@@ -25,7 +24,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             var remap = EntityRefRemap.CompileJson(typeof(FireAtTargetParamsJsonDto));
             const string json = "{\"targetNetworkId\":1001,\"maxRounds\":5,\"cooldownSeconds\":1.0}";
-            var map = new Dictionary<long, long> { { 1001L, 2001L } };
+            var map = new Dictionary<int, int> { { 1001, 2001 } };
 
             var result = remap(json, map);
 
@@ -41,7 +40,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             var remap = EntityRefRemap.CompileJson(typeof(FollowRouteParamsJsonDto));
             const string json = "{\"routeEntityId\":999}";
-            var map = new Dictionary<long, long> { { 999L, 888L } };
+            var map = new Dictionary<int, int> { { 999, 888 } };
 
             var result = remap(json, map);
 
@@ -55,7 +54,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             var remap = EntityRefRemap.CompileJson(typeof(FireAtTargetParamsJsonDto));
             const string json = "{\"targetNetworkId\":1001,\"maxRounds\":3,\"cooldownSeconds\":0.5}";
-            var map = new Dictionary<long, long>();  // empty map
+            var map = new Dictionary<int, int>();  // empty map
 
             var result = remap(json, map);
 
@@ -68,7 +67,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         public void C005c_NullOrEmptyJson_ReturnsUnchanged()
         {
             var remap = EntityRefRemap.CompileJson(typeof(FireAtTargetParamsJsonDto));
-            var map   = new Dictionary<long, long> { { 1L, 2L } };
+            var map   = new Dictionary<int, int> { { 1, 2 } };
 
             Assert.Null(remap(null, map));
             Assert.Equal(string.Empty, remap(string.Empty, map));
@@ -78,9 +77,9 @@ namespace Fdp.Toolkit.Behavior.Tests
         [Fact]
         public void C005c_MoveToLocation_NoRemappableFields_IdentityDelegate()
         {
-            const string json = "{\"targetLat\":1.0,\"targetLon\":2.0,\"speed\":10.0,\"arrivalRadius\":5.0}";
+            const string json = "{\"target\":[1,2,0],\"speed\":10.0,\"arrivalRadius\":5.0}";
             var remap = EntityRefRemap.CompileJson(typeof(MoveToLocationParamsJsonDto));
-            var map   = new Dictionary<long, long> { { 1L, 99L } };
+            var map   = new Dictionary<int, int> { { 1, 99 } };
 
             var result = remap(json, map);
 
@@ -129,7 +128,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             [JsonPropertyName("maxRounds")] public int MaxRounds { get; set; }
         }
 
-        private static readonly Dictionary<long, long> Map = new() { [1006] = 1001, [7] = 70 };
+        private static readonly Dictionary<int, int> Map = new() { [1006] = 1001, [7] = 70 };
 
         /// <summary>
         /// ⭐⭐ The id one object down is rewritten; every other byte comes back as authored — no key added, none
@@ -199,7 +198,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             remapper.Register<FireAtTargetParamsJsonDto>("FireAtTarget");
 
             const string json = "{\"targetNetworkId\":1001,\"maxRounds\":2,\"cooldownSeconds\":0.5}";
-            var map = new Dictionary<long, long> { { 1001L, 2001L } };
+            var map = new Dictionary<int, int> { { 1001, 2001 } };
 
             var result = remapper.RemapJson("FireAtTarget", json, map);
 
@@ -214,7 +213,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             var remapper = new ScenarioBehaviorRemapper();
             const string json = "{\"targetNetworkId\":1001}";
-            var map = new Dictionary<long, long> { { 1001L, 2001L } };
+            var map = new Dictionary<int, int> { { 1001, 2001 } };
 
             var result = remapper.RemapJson("SomeUnknownBehavior", json, map);
 
@@ -242,7 +241,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         public void CE2023_AStructContract_IsRemappedInPlace()
         {
             var remap = EntityRefRemap.CompileJson(typeof(StructRemapDto));
-            string? result = remap("{\"targetNetworkId\":42,\"maxRounds\":3}", new Dictionary<long, long> { [42] = 1042 });
+            string? result = remap("{\"targetNetworkId\":42,\"maxRounds\":3}", new Dictionary<int, int> { [42] = 1042 });
             Assert.Contains("1042", result);
             Assert.Contains("\"maxRounds\":3", result);
         }

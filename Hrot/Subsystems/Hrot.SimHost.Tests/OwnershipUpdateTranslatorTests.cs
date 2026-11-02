@@ -32,16 +32,16 @@ namespace Hrot.SimHost.Tests
             {
                 NetworkId = new NetworkIdentity { Value = 1001 },
                 PackedKey = packedKey,
-                NewOwnerNodeId = localNodeId + 1,
-                OriginNodeId = localNodeId
+                NewOwnerNodeId = (Fdp.Core.NodeId)(localNodeId + 1),
+                OriginNodeId = (Fdp.Core.NodeId)(localNodeId)
             });
 
             repo.Bus.Publish(new OwnershipUpdateMsg
             {
                 NetworkId = new NetworkIdentity { Value = 1002 },
                 PackedKey = packedKey,
-                NewOwnerNodeId = localNodeId,
-                OriginNodeId = localNodeId + 1
+                NewOwnerNodeId = (Fdp.Core.NodeId)(localNodeId),
+                OriginNodeId = (Fdp.Core.NodeId)(localNodeId + 1)
             });
 
             repo.Bus.SwapBuffers();

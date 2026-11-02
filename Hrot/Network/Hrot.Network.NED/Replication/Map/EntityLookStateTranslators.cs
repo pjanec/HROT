@@ -27,7 +27,7 @@ namespace Hrot.Map.Common.Replication.Egress
         internal const float TargetEpsilon = 0.25f;
 
         private readonly DdsWriter<EntityLookState>? _writer;
-        private readonly Dictionary<long, EntityLookState> _last = new();
+        private readonly Dictionary<int, EntityLookState> _last = new();
         private int _worldEpoch;
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.LookState };
@@ -56,7 +56,7 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var unit in view.Query().With<LookState>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(unit, packedKey)) continue;
-                long netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
                 var sample = ToSample(netId, view.GetComponentRO<LookState>(unit));
                 if (_last.TryGetValue(netId, out var prev) && Same(prev, sample)) continue;
                 _last[netId] = sample;
@@ -66,7 +66,7 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>The wire form (the test seam).</summary>
-        internal static EntityLookState ToSample(long netId, in LookState l) => new()
+        internal static EntityLookState ToSample(int netId, in LookState l) => new()
         {
             EntityId = netId, TargetX = l.Target.X, TargetY = l.Target.Y, TargetZ = l.Target.Z, HasTarget = l.HasTarget,
             Source = (byte)l.Source, HeadYaw = l.HeadYaw,
@@ -77,10 +77,10 @@ namespace Hrot.Map.Common.Replication.Egress
                && Vector3.DistanceSquared(new Vector3(a.TargetX, a.TargetY, a.TargetZ), new Vector3(b.TargetX, b.TargetY, b.TargetZ))
                   < TargetEpsilon * TargetEpsilon;
 
-        public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityLookState { EntityId = networkEntityId });
         }
@@ -141,6 +141,6 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

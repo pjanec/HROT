@@ -78,18 +78,7 @@ namespace Hrot.SimHost.Systems
                 var span = buffer.GetSpanRW();
                 for (int i = 0; i < buffer.Count; i++)
                 {
-                    span[i] = new EqsResult
-                    {
-                        EntityId        = evt.Results[i].EntityId,
-                        PositionX       = evt.Results[i].PositionX,
-                        PositionY       = evt.Results[i].PositionY,
-                        PositionZ       = evt.Results[i].PositionZ,
-                        Score           = evt.Results[i].Score,
-                        Flags           = (short)evt.Results[i].Flags,
-                        FlagsMeaningful = (short)evt.Results[i].FlagsMeaningful,
-                        Stance          = evt.Results[i].Stance,   // ⭐ CE-3135
-                        Kind            = evt.Results[i].Kind,     // ⭐ CE-3158 G1
-                    };
+                    span[i] = evt.Results[i];   // ⭐ CE-4207: the event carries engine records (the ingress translator converted the wire)
                 }
                 NotifyTopChanged(repo, evt.Observer, topBefore, in buffer);
             }
@@ -113,7 +102,7 @@ namespace Hrot.SimHost.Systems
                 _byIndex.TryAdd(candidate.Index, candidate);   // a local-only sensor: matched by entity Index
                 // ⭐ The ONE wire-key rule (EqsSensorKey): a child sensor by (parent's network id, part id) — InstanceId 0 is a valid
                 //   first child index — or a legacy sensor on the networked entity itself.
-                if (EqsSensorKey.Resolve(view, candidate, out long net, out int index, out _) is EqsSensorKeyKind.Child or EqsSensorKeyKind.Legacy)
+                if (EqsSensorKey.Resolve(view, candidate, out int net, out int index, out _) is EqsSensorKeyKind.Child or EqsSensorKeyKind.Legacy)
                     _byKey.TryAdd((net, index), candidate);
             }
 

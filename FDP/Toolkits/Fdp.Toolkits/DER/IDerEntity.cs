@@ -11,7 +11,7 @@ namespace Fdp.Toolkit.DER
         /// <summary>
         /// Network entity ID (from EntityMaster).
         /// </summary>
-        long EntityId { get; }
+        int EntityId { get; }
         
         /// <summary>
         /// TKB entity type ID (from EntityMaster).

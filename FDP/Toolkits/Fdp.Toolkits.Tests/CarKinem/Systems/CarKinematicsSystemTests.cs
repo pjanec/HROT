@@ -1657,7 +1657,7 @@ namespace CarKinem.Tests.Systems
         {
             var (repo, e) = ManualWorld(VehicleClass.Pedestrian, drive: null);
             Run(repo, 1f);
-            Assert.Equal(Vector3.Zero, repo.GetComponent<SimTransform>(e).Position);
+            Assert.Equal<System.Numerics.Vector3>(Vector3.Zero, repo.GetComponent<SimTransform>(e).Position);
             repo.Dispose();
         }
 
@@ -1912,7 +1912,7 @@ namespace CarKinem.Tests.Systems
             aboard.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
             aboard.AddComponent(a, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag());
             Drive(aboard, 10);
-            Assert.Equal(new Vector3(10, 2, 0), aboard.GetComponent<SimTransform>(a).Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(10, 2, 0), aboard.GetComponent<SimTransform>(a).Position);
         }
 
         // ── ⭐ CE-2167 (V5, docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md §5) — an AI vehicle can REVERSE ────────────

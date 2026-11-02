@@ -50,10 +50,21 @@ public sealed class StaticTypeRegistry : ITypeRegistry
                 IsEntityHandle = true,
             },
 
-            // ⭐ The AUTHORED entity reference (DESIGN_Entity_Reference.md) -- a network id, 8 bytes, unmanaged. ⛔ NOT an
+            // ⭐ The AUTHORED entity reference (DESIGN_Entity_Reference.md) -- a network id, 4 bytes (CE-4200: int32), unmanaged. ⛔ NOT an
             //   entity handle: it never compares with Entity and is resolved by a node (Entity From Ref), not by IsEntityHandle.
-            ["Fdp.Toolkit.Replication.EntityRef"] = Unmanaged("Fdp.Toolkit.Replication.EntityRef", 8),
-            ["EntityRef"]                         = Unmanaged("Fdp.Toolkit.Replication.EntityRef", 8),
+            ["Fdp.Toolkit.Replication.EntityRef"] = Unmanaged("Fdp.Toolkit.Replication.EntityRef", 4),
+            ["EntityRef"]                         = Unmanaged("Fdp.Toolkit.Replication.EntityRef", 4),
+
+            // ⭐ S0 item 5 (DESIGN_Scenario_Rules §9.8.0) -- the AUTHORED types and the internal place / bearing: unmanaged structs a params DTO (and so a blueprint's
+            //   "Get All Parameters" / SendIntent pins) now carries. Composite, so SizeReliable=false: the layout comes from the runtime (Marshal.OffsetOf), never baked offsets.
+            ["Fdp.Toolkit.Replication.EntityLink"] = new IrTypeRef { FullName = "Fdp.Toolkit.Replication.EntityLink", IsUnmanaged = true, SizeBytes = 40, SizeReliable = false },
+            ["Fdp.Toolkit.Replication.PointLink"]  = new IrTypeRef { FullName = "Fdp.Toolkit.Replication.PointLink",  IsUnmanaged = true, SizeBytes = 48, SizeReliable = false },
+            ["Fdp.Toolkit.Replication.AreaLink"]   = new IrTypeRef { FullName = "Fdp.Toolkit.Replication.AreaLink",   IsUnmanaged = true, SizeBytes = 72, SizeReliable = false },
+            ["Fdp.Core.WorldPoint"]                = Unmanaged("Fdp.Core.WorldPoint", 12),
+            ["Fdp.Core.Bearing"]                   = Unmanaged("Fdp.Core.Bearing", 4),
+            ["Fdp.Core.WorldRotation"]             = Unmanaged("Fdp.Core.WorldRotation", 16),   // S0 item 6: a world orientation — a Quaternion's memory
+            ["Fdp.Core.TkbTypeId"]                 = Unmanaged("Fdp.Core.TkbTypeId", 8),   // ⭐ CE-4200 SV-2: a template id — a long's memory
+            ["Fdp.Core.NodeId"]                    = Unmanaged("Fdp.Core.NodeId", 4),   // ⭐ CE-4200 SV-3: a cluster node id — an int's memory
 
             // EQS sensor handle -- wraps Entity (8 bytes), unmanaged value type
             ["FDP.Eqs.EqsSensorHandle"] = new IrTypeRef
@@ -133,7 +144,7 @@ public sealed class StaticTypeRegistry : ITypeRegistry
         "float", "double",
         "Vector2", "Vector3", "Vector4", "Quaternion",
         "FixedString32", "FixedString64", "FixedString128",
-        "EntityRef",   // ⭐ DESIGN_Entity_Reference.md D6 — its two rungs (long <-> EntityRef) are below
+        "EntityRef",   // ⭐ DESIGN_Entity_Reference.md D6 — its two rungs (int <-> EntityRef) are below
     };
 
     // Coercion table: (fromFullName, toFullName) --> C# expression template
@@ -152,6 +163,20 @@ public sealed class StaticTypeRegistry : ITypeRegistry
     private static readonly IReadOnlyDictionary<(string From, string To), string> CoercionTable =
         new Dictionary<(string, string), string>
         {
+            // S0: an authored point reads as its Vector3 (PointLink has the implicit conversion; the reverse is not offered)
+            { ("Fdp.Toolkit.Replication.PointLink", "System.Numerics.Vector3"), "(global::System.Numerics.Vector3)($expr)" },
+            { ("Fdp.Toolkit.Replication.PointLink", "Fdp.Core.WorldPoint"),     "(global::Fdp.Core.WorldPoint)($expr)" },   // its Local IS a WorldPoint
+            // S0: a literal reference (an EntityRef from a node) fills an authored link — implicit in C# (an empty RefSpec = "not authored by reference")
+            { ("Fdp.Toolkit.Replication.EntityRef", "Fdp.Toolkit.Replication.EntityLink"), "(global::Fdp.Toolkit.Replication.EntityLink)($expr)" },
+            // S0: the three semantic value types and their storage types — SAME BYTES, implicit both ways in C# (DESIGN_Scenario_Rules §9.8.11),
+            //     so a Vector3 node output wires into a WorldPoint pin (a retyped component field) and back
+            { ("System.Numerics.Vector3",    "Fdp.Core.WorldPoint"),             "(global::Fdp.Core.WorldPoint)($expr)" },
+            { ("Fdp.Core.WorldPoint",        "System.Numerics.Vector3"),         "(global::System.Numerics.Vector3)($expr)" },
+            { ("System.Numerics.Quaternion", "Fdp.Core.WorldRotation"),          "(global::Fdp.Core.WorldRotation)($expr)" },
+            { ("Fdp.Core.WorldRotation",     "System.Numerics.Quaternion"),      "(global::System.Numerics.Quaternion)($expr)" },
+            { ("System.Single",              "Fdp.Core.Bearing"),                "(global::Fdp.Core.Bearing)($expr)" },
+            { ("Fdp.Core.Bearing",           "System.Single"),                   "(float)($expr)" },
+
             // sbyte -> short, int, long, float, double
             { ("System.SByte",  "System.Int16"),  "(short)$expr"  },
             { ("System.SByte",  "System.Int32"),  "(int)$expr"    },
@@ -205,7 +230,7 @@ public sealed class StaticTypeRegistry : ITypeRegistry
             // float -> double
             { ("System.Single", "System.Double"), "(double)$expr" },
 
-            // ⛔ No Int64 <-> EntityRef rung (DESIGN_Entity_Reference.md §5): a rung is inserted SILENTLY, and a silent
+            // ⛔ No Int32 <-> EntityRef rung (DESIGN_Entity_Reference.md §5): a rung is inserted SILENTLY, and a silent
             //   crossing between a bare number and a reference is exactly the ambiguity the type removes. A graph crosses
             //   explicitly — Ref From Entity / Entity From Ref.
         };

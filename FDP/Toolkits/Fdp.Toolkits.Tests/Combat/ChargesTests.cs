@@ -87,7 +87,7 @@ namespace Fdp.Toolkit.Tests.Combat
         {
             var e = _world.CreateEntity();
             _world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-            _world.AddComponent(e, new TkbIdentity { TkbType = type });
+            _world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             _world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot });
             var t = _db.GetByType(type);
             new CarrierTkbTranslator().Inject(_world, e, t);
@@ -117,7 +117,7 @@ namespace Fdp.Toolkit.Tests.Combat
             Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, vest, man));
             Assert.True(CarryStations.Move(_world, man, vest, CarryStations.Hidden(_world, man)));
             new Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem().Execute(_world, 0.1f);   // it stands at its carrier
-            Assert.Equal(new Vector3(10f, 20f, 0f), _world.GetComponentRO<SimTransform>(vest).Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(10f, 20f, 0f), _world.GetComponentRO<SimTransform>(vest).Position);
 
             Assert.True(Charges.IsCharge(_world, vest));
             Assert.False(WeaponSystems.CanFire(_world, vest));

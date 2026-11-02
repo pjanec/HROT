@@ -14,7 +14,7 @@ namespace Hrot.Editor.DebugApi
     public sealed partial class DebugApiService
     {
         /// <summary><c>GET /entities/{networkId}/memory</c>.</summary>
-        public unsafe JsonNode GetEntityMemory(long networkId)
+        public unsafe JsonNode GetEntityMemory(int networkId)
         {
             if (!_entityMap.TryGetEntity(networkId, out var unit) || !_world.IsAlive(unit))
                 return new JsonObject { ["error"] = $"Entity {networkId} not found." };
@@ -46,7 +46,7 @@ namespace Hrot.Editor.DebugApi
                     {
                         var e = new Entity((ulong)ids[i]);
                         slot["alive"] = !e.IsNull && _world.IsAlive(e);
-                        if (!e.IsNull && _entityMap.TryGetNetworkId(e, out long net)) slot["networkId"] = net;
+                        if (!e.IsNull && _entityMap.TryGetNetworkId(e, out int net)) slot["networkId"] = net;
                     }
                     slots.Add(slot);
                 }

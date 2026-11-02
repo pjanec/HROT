@@ -20,7 +20,7 @@ namespace Hrot.Map.Common.Replication.Egress
     public sealed class EntityPassengersEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<EntityPassengers>? _writer;
-        private readonly Dictionary<long, EntityPassengers> _last = new();
+        private readonly Dictionary<int, EntityPassengers> _last = new();
         private int _worldEpoch;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityPassengers>();
@@ -42,7 +42,7 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var vehicle in view.Query().With<PassengerBuffer>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(vehicle, packedKey)) continue;
-                long netId = view.GetComponentRO<NetworkIdentity>(vehicle).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(vehicle).Value;
                 var sample = ToSample(view, netId, view.GetComponentRO<PassengerBuffer>(vehicle));
                 if (_last.TryGetValue(netId, out var prev) ? prev.Equals(sample) : sample.Count == 0) continue;   // unchanged, or never filled
                 _last[netId] = sample;
@@ -53,9 +53,9 @@ namespace Hrot.Map.Common.Replication.Egress
 
         /// <summary>The wire form (the test seam): seat i carries the network id of the passenger in seat i, 0 for an empty seat or one with
         /// no network id; <c>Count</c> = the occupied seats. ⭐ CE-2151 B-b (R-2009 B4): slot-indexed — a slot IS a seat, so a hole is kept.</summary>
-        internal static EntityPassengers ToSample(ISimulationView view, long netId, in PassengerBuffer b)
+        internal static EntityPassengers ToSample(ISimulationView view, int netId, in PassengerBuffer b)
         {
-            Span<long> ids = stackalloc long[PassengerBuffer.Capacity];
+            Span<int> ids = stackalloc int[PassengerBuffer.Capacity];
             int n = 0;
             for (int i = 0; i < PassengerBuffer.Capacity; i++)
             {
@@ -76,10 +76,10 @@ namespace Hrot.Map.Common.Replication.Egress
             };
         }
 
-        public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityPassengers { EntityId = networkEntityId });
         }
@@ -100,8 +100,8 @@ namespace Hrot.Map.Common.Replication.Ingress
         private const long OrdinalValue = (long)EDescriptorType.dtPassengerBuffer;
         private readonly DdsReader<EntityPassengers>? _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly Dictionary<long, EntityPassengers> _pending = new();
-        private readonly List<long> _done = new();
+        private readonly Dictionary<int, EntityPassengers> _pending = new();
+        private readonly List<int> _done = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityPassengers>();
         public long DescriptorOrdinal => OrdinalValue;
@@ -154,7 +154,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (view is EntityRepository repo
                 && AuthorityExtensions.IsRecordedOwner(repo, vehicle, OwnershipExtensions.PackKey(OrdinalValue, 0))) return true;   // ours: drop
             var buffer = new PassengerBuffer();
-            Span<long> ids = stackalloc long[] { d.Passenger0, d.Passenger1, d.Passenger2, d.Passenger3, d.Passenger4, d.Passenger5, d.Passenger6, d.Passenger7,
+            Span<int> ids = stackalloc int[] { d.Passenger0, d.Passenger1, d.Passenger2, d.Passenger3, d.Passenger4, d.Passenger5, d.Passenger6, d.Passenger7,
                                                  d.Passenger8, d.Passenger9, d.Passenger10, d.Passenger11 };   // ⭐ F4 — 12 seats
             for (int i = 0; i < PassengerBuffer.Capacity; i++)   // ⭐ CE-2151 B-b — seat i from slot i; 0 = an empty seat
             {
@@ -175,6 +175,6 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) => _pending.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _pending.Remove(networkEntityId);
     }
 }

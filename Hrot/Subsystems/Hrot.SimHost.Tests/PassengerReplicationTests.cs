@@ -17,7 +17,7 @@ namespace Hrot.SimHost.Tests
     /// </summary>
     public sealed class PassengerReplicationTests
     {
-        private const long ApcId = 900L, AId = 901L, BId = 902L;
+        private const int ApcId = 900, AId = 901, BId = 902;
 
         private static EntityRepository World()
         {
@@ -29,7 +29,7 @@ namespace Hrot.SimHost.Tests
             return w;
         }
 
-        private static Entity Networked(EntityRepository w, NetworkEntityMap map, long netId, bool vehicle = false)
+        private static Entity Networked(EntityRepository w, NetworkEntityMap map, int netId, bool vehicle = false)
         {
             var e = w.CreateEntity();
             w.AddComponent(e, new NetworkIdentity { Value = netId });
@@ -168,7 +168,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void TA_TheSecondMan_TravelsWithTheList_HeldUntilHeIsKnown()
         {
-            const long CarrierId = 910L, CasualtyId = 911L, HelperId = 912L;
+            const int CarrierId = 910, CasualtyId = 911, HelperId = 912;
             using var owner = World();
             var ownerMap = new NetworkEntityMap();
             var carrier = Networked(owner, ownerMap, CarrierId, vehicle: true);
@@ -212,7 +212,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void F4_TheTwelfthSeat_AndItsMode_CrossTheWire()
         {
-            const long HeliId = 920L, FirstId = 921L, LastId = 922L;
+            const int HeliId = 920, FirstId = 921, LastId = 922;
             using var owner = World();
             var ownerMap = new NetworkEntityMap();
             var heli = Networked(owner, ownerMap, HeliId, vehicle: true);

@@ -380,7 +380,7 @@ public sealed class ClusterOpMasterTranslator
                     RequestId = req.RequestId,
                     Refresh   = req.OperationType == NedClusterOpType.RefreshAssets,
                     Kind      = dto.Kind,
-                    NodeId    = dto.NodeId,
+                    NodeId    = (Fdp.Core.NodeId)(dto.NodeId),
                 });
                 break;
             }

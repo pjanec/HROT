@@ -49,7 +49,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             block.Order = new SquadEmbarkParams
             {
-                Vehicle = authored.Vehicle.Resolve(world),
+                Vehicle = authored.Vehicle.Ref.Resolve(world),
                 TimeoutSeconds = authored.TimeoutSeconds > 0f ? authored.TimeoutSeconds : DefaultTimeoutSeconds,
                 Speed = authored.Speed,
             };

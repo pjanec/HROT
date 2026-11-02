@@ -50,7 +50,7 @@ namespace Hrot.SimHost.Tests
         {
             var unit = _w.CreateEntity();
             int nid = _nextNid++;
-            _w.AddComponent(unit, new TkbIdentity { TkbType = type });
+            _w.AddComponent(unit, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             _w.AddComponent(unit, new SimTransform { Position = at, Rotation = Quaternion.Identity });
             _w.AddComponent(unit, new Health { Current = 100, Max = 100 });
             var template = _tkb.GetByType(type);
@@ -63,7 +63,7 @@ namespace Hrot.SimHost.Tests
                     long start = carrier.Seats[seat].StartWith;
                     if (start == 0 || !_tkb.TryGetByType(start, out var weaponType) || weaponType!.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSystemDto>() == null) continue;
                     var weapon = _w.CreateEntity();
-                    _w.AddComponent(weapon, new TkbIdentity { TkbType = start });
+                    _w.AddComponent(weapon, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(start) });
                     new WeaponSystemTkbTranslator().Inject(_w, weapon, weaponType);
                     _w.AddComponent(weapon, new PresetSeatIntent { HostNetworkId = nid, Seat = (byte)seat });
                 }
@@ -178,7 +178,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(heli, aimedAt);
             Assert.Equal(NodeStatus.Success, status);
             Assert.InRange(frame * Dt, 5f + AirDefenceNodes.Defaults.ClearSeconds - 0.5f, 5f + AirDefenceNodes.Defaults.ClearSeconds + 1f);
-            Assert.Equal(new Vector3(300, 300, 0), _w.GetComponentRO<SimTransform>(tech).Position);   // it never moved
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(300, 300, 0), _w.GetComponentRO<SimTransform>(tech).Position);   // it never moved
         }
     }
 }

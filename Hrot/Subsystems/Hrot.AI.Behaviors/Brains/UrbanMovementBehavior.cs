@@ -35,7 +35,7 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed float Z[MaxPoints];
         /// <summary>The points held: before the plan the authored legs only; after it the start first.</summary>
         public int Count;
-        public long RouteNet;
+        public int RouteNet;
         public byte Made;
         /// <summary>The point the lead heads for (1 … <see cref="Count"/> − 1); <see cref="Count"/> = every leg done.</summary>
         public int Leg;
@@ -89,7 +89,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             block.Plan = default;
             block.Keep = default;
-            block.Plan.RouteNet = authored.Route.NetworkId;
+            block.Plan.RouteNet = authored.Route.Ref.NetworkId;
             block.Plan.Speed = authored.Speed > 0f ? authored.Speed : DefaultSpeed;
             block.Plan.Spacing = authored.Spacing > 0f ? authored.Spacing : DefaultSpacing;
             block.Plan.ArrivalRadius = authored.ArrivalRadius > 0f ? authored.ArrivalRadius : DefaultArrivalRadius;
@@ -261,9 +261,9 @@ namespace Hrot.AI.Behaviors.Brains
             UrbanMovementParamsJsonDto dto;
             try { dto = JsonSerializer.Deserialize<UrbanMovementParamsJsonDto>(record.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed); }
             catch (JsonException) { return points; }
-            if (dto.Legs != null && dto.Legs.Length > 0) { points.AddRange(dto.Legs); return points; }
+            if (dto.Legs != null && dto.Legs.Length > 0) { foreach (var leg in dto.Legs) points.Add(leg.Local); return points; }
             var waypoints = new List<NavRouteWaypoint>();
-            if (dto.Route.NetworkId != 0 && s_routes.TryGetRoute(world, dto.Route.NetworkId, waypoints, out _, out _))
+            if (dto.Route.Ref.NetworkId != 0 && s_routes.TryGetRoute(world, dto.Route.Ref.NetworkId, waypoints, out _, out _))
                 foreach (var w in waypoints) points.Add(w.Position);
             return points;
         }

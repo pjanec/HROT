@@ -16,17 +16,17 @@ namespace Hrot.Editor.Tests.Director;
 /// </summary>
 public sealed class DocumentationTakesTests
 {
-    private const long Tank = 1, EnemyTank = 2, RiflemanA = 3, RiflemanB = 4;
+    private const int Tank = 1, EnemyTank = 2, RiflemanA = 3, RiflemanB = 4;
     private const double Dt = 0.1;
 
-    private static readonly Dictionary<string, long> Ids = new(StringComparer.Ordinal)
+    private static readonly Dictionary<string, int> Ids = new(StringComparer.Ordinal)
     {
         ["Tank"] = Tank, ["Enemy Tank"] = EnemyTank, ["Rifleman A"] = RiflemanA, ["Rifleman B"] = RiflemanB,
     };
 
-    private static long? IdOf(string name) => Ids.TryGetValue(name, out var id) ? id : null;
+    private static int? IdOf(string name) => Ids.TryGetValue(name, out var id) ? id : null;
 
-    private static string? NameOf(long id) => Ids.FirstOrDefault(p => p.Value == id).Key;
+    private static string? NameOf(int id) => Ids.FirstOrDefault(p => p.Value == id).Key;
 
     private static int FrameOf(double sim) => (int)Math.Round(sim / Dt);
 
@@ -35,7 +35,7 @@ public sealed class DocumentationTakesTests
         int frames = FrameOf(61d) + 1;
         var ticks = Enumerable.Range(0, frames).Select(f => (long)f * 1_000_000).ToArray();
         var sim = Enumerable.Range(0, frames).Select(f => f * Dt).ToArray();
-        var samples = new Dictionary<long, List<PositionSample>> { [Tank] = new(), [EnemyTank] = new(), [RiflemanA] = new(), [RiflemanB] = new() };
+        var samples = new Dictionary<int, List<PositionSample>> { [Tank] = new(), [EnemyTank] = new(), [RiflemanA] = new(), [RiflemanB] = new() };
         for (int f = 0; f < frames; f += 5)
         {
             samples[Tank].Add(new PositionSample(f, (float)(2 * f * Dt), 0f, 0f, 0f));
@@ -151,7 +151,7 @@ public sealed class DocumentationTakesTests
         var take = Build(checks, verdicts, names: new[] { "Rifleman B", "Tank", "Rifleman A", "Enemy Tank" });
 
         var index = Index();
-        CameraSpec ThirdFor(long actor) =>
+        CameraSpec ThirdFor(int actor) =>
             Drafter.Draft(index, new DraftMoment("check", -1, FrameOf(5d), 5d, actor, EnemyTank, 1d), NameOf, new DraftOptions { Scenario = "ua-tank-ammo" }).Keys.Single(k => k.At.Offset == 5d - 0.7).Camera;
         Assert.NotEqual(ThirdFor(RiflemanA), ThirdFor(RiflemanB));
         Assert.Equal(ThirdFor(RiflemanA), Assert.Single(take.Keys).Camera);

@@ -85,7 +85,7 @@ namespace Fdp.Toolkit.Tests.Combat
         {
             var e = _world.CreateEntity();
             _world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-            _world.AddComponent(e, new TkbIdentity { TkbType = CivilianType });
+            _world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(CivilianType) });
             _world.AddComponent(e, new EntityInfo { ForceId = ForceId.Neutral });
             _world.AddComponent(e, new Health { Current = 100f, Max = 100f });
             _world.AddComponent(e, default(BehaviorState));

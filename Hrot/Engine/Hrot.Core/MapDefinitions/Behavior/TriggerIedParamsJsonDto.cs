@@ -16,7 +16,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The charge he sets off (a placed IED, a VBIED's cargo — any charge not his own).</summary>
         [JsonPropertyName("Charge")]
-        public EntityRef Charge;
+        public EntityLink Charge;
 
         /// <summary>The kill zone: within this distance of the charge (flat, m); 0 = 10.</summary>
         [JsonPropertyName("KillZoneMetres")]

@@ -109,7 +109,7 @@ namespace Fdp.Toolkit.Runner.Tests
             var options = new RunnerOptions
             {
                 Headless = true,
-                NodeId   = 1000,
+                NodeId   = (Fdp.Core.NodeId)(1000),
                 NodeIdResolver = (name, baseId) =>
                 {
                     resolvedName = name;
@@ -136,7 +136,7 @@ namespace Fdp.Toolkit.Runner.Tests
             var options = new RunnerOptions
             {
                 Headless       = true,
-                NodeId         = 500,
+                NodeId         = (Fdp.Core.NodeId)(500),
                 NodeIdResolver = null,
             };
 

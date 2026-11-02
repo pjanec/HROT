@@ -18,10 +18,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Modules
 
         // Creates the ECS system that publishes the gizmo primitive buffer to the network.
         // Returns null when the protocol does not support gizmo streaming.
-        IEcsModuleSystem? CreateGizmoPublisherSystem(DebugPrimitiveBuffer buffer, long localNodeId);
+        IEcsModuleSystem? CreateGizmoPublisherSystem(DebugPrimitiveBuffer buffer, int localNodeId);
 
         // Creates the gizmo interaction network translators (ingress and/or egress).
         // Returns an empty list when the protocol does not support gizmo streaming.
-        IReadOnlyList<INetworkTranslator> CreateGizmoTranslators(FdpEventBus interactionBus, long localNodeId, bool headless);
+        IReadOnlyList<INetworkTranslator> CreateGizmoTranslators(FdpEventBus interactionBus, int localNodeId, bool headless);
     }
 }

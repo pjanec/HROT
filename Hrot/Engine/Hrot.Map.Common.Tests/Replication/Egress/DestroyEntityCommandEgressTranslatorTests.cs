@@ -40,7 +40,7 @@ public class DestroyEntityCommandEgressTranslatorTests
         var writer     = new CapturingWriter<DeleteEntityRequest>();
         var translator = new DestroyEntityCommandEgressTranslator(writer, bus);
 
-        bus.PublishManaged(new DestroyEntityCommand { NetworkId = 42L, Reason = "test" });
+        bus.PublishManaged(new DestroyEntityCommand { NetworkId = 42, Reason = "test" });
         bus.SwapBuffers();
 
         translator.ScanAndPublish(null!);
@@ -64,7 +64,7 @@ public class DestroyEntityCommandEgressTranslatorTests
 
         bus.PublishManaged(new DestroyEntityCommand
         {
-            NetworkId = 99L,
+            NetworkId = 99,
             Reason    = "EntityMaster disposed",
             IsRemote  = true,
         });
@@ -87,15 +87,15 @@ public class DestroyEntityCommandEgressTranslatorTests
         using var repo = new EntityRepository();
         repo.RegisterComponent<NetworkAuthority>();
         var map = new NetworkEntityMap();
-        var mine   = repo.CreateEntity(); repo.AddComponent(mine,   new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1)); map.Register(10L, mine);
-        var theirs = repo.CreateEntity(); repo.AddComponent(theirs, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1)); map.Register(20L, theirs);
+        var mine   = repo.CreateEntity(); repo.AddComponent(mine,   new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1)); map.Register(10, mine);
+        var theirs = repo.CreateEntity(); repo.AddComponent(theirs, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1)); map.Register(20, theirs);
 
         var bus        = new FdpEventBus();
         var writer     = new CapturingWriter<DeleteEntityRequest>();
         var translator = new DestroyEntityCommandEgressTranslator(writer, bus, localNodeId: 1, entityMap: map);
 
-        bus.PublishManaged(new DestroyEntityCommand { NetworkId = 10L, Reason = "mine" });
-        bus.PublishManaged(new DestroyEntityCommand { NetworkId = 20L, Reason = "theirs" });
+        bus.PublishManaged(new DestroyEntityCommand { NetworkId = 10, Reason = "mine" });
+        bus.PublishManaged(new DestroyEntityCommand { NetworkId = 20, Reason = "theirs" });
         bus.SwapBuffers();
         translator.ScanAndPublish(repo);
 

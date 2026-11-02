@@ -54,7 +54,7 @@ public class NedEntityCreationRequestEgressRails
         {
             RequestId          = requestId,
             OwnerAppInstanceId = 7,
-            TkbType            = 42L,
+            TkbType            = (Fdp.Core.TkbTypeId)(42L),
         });
 
         var sample = Assert.Single(writer.Publishes);
@@ -69,8 +69,8 @@ public class NedEntityCreationRequestEgressRails
     public void Send_CarriesThePreAllocatedNetworkIdOntoTheWire()
     {
         var (egress, writer) = NewEgress();
-        egress.Send(new EntityCreationRequest { RequestId = Guid.NewGuid(), TkbType = 1101L, PreAllocatedNetworkId = 1216 });
-        egress.Send(new EntityCreationRequest { RequestId = Guid.NewGuid(), TkbType = 1101L });
+        egress.Send(new EntityCreationRequest { RequestId = Guid.NewGuid(), TkbType = (Fdp.Core.TkbTypeId)(1101L), PreAllocatedNetworkId = 1216 });
+        egress.Send(new EntityCreationRequest { RequestId = Guid.NewGuid(), TkbType = (Fdp.Core.TkbTypeId)(1101L) });
 
         var master = writer.Publishes.Select(p => p.InitialDescriptors.Single(d => d._d == EDescriptorType.dtEntityMaster).EntityMaster).ToArray();
         Assert.Equal(1216, master[0].EntityId);
@@ -90,7 +90,7 @@ public class NedEntityCreationRequestEgressRails
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 3,
-            TkbType            = 42L,
+            TkbType            = (Fdp.Core.TkbTypeId)(42L),
             IsTransient        = true,
         });
 
@@ -109,7 +109,7 @@ public class NedEntityCreationRequestEgressRails
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 3,
-            TkbType            = 42L,
+            TkbType            = (Fdp.Core.TkbTypeId)(42L),
         });
 
         var sample = Assert.Single(writer.Publishes);
@@ -136,7 +136,7 @@ public class NedEntityCreationRequestEgressRails
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 5,
-            TkbType            = 42L,
+            TkbType            = (Fdp.Core.TkbTypeId)(42L),
             InitialComponents  = new List<object> { transform, polyline },
         });
 
@@ -174,7 +174,7 @@ public class NedEntityCreationRequestEgressRails
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 9,
-            TkbType            = 42L,
+            TkbType            = (Fdp.Core.TkbTypeId)(42L),
             IsTransient        = isTransient,
         });
 
@@ -202,8 +202,8 @@ public class NedEntityCreationRequestEgressRails
         {
             RequestId             = Guid.NewGuid(),
             OwnerAppInstanceId    = 9,
-            TkbType               = 42L,
-            PreAllocatedNetworkId = 7001L,   // a fixed id says nothing about either claim
+            TkbType               = (Fdp.Core.TkbTypeId)(42L),
+            PreAllocatedNetworkId = 7001,   // a fixed id says nothing about either claim
             IsScenarioLoad        = isScenarioLoad,
             IsTransient           = isTransient,
         });
@@ -223,7 +223,7 @@ public class NedEntityCreationRequestEgressRails
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 1,
-            TkbType            = 4242L,
+            TkbType            = (Fdp.Core.TkbTypeId)(4242L),
         });
 
         var sample = Assert.Single(writer.Publishes);
@@ -251,7 +251,7 @@ public class NedEntityCreationRequestEgressRails
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 9,
-            TkbType            = 42L,
+            TkbType            = (Fdp.Core.TkbTypeId)(42L),
             SpawnHeight        = height,
         });
 
@@ -282,7 +282,7 @@ public class NedEntityCreationRequestEgressRails
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = Fdp.Toolkit.Combat.AreaEffectClouds.TkbType,
+            TkbType            = (Fdp.Core.TkbTypeId)(Fdp.Toolkit.Combat.AreaEffectClouds.TkbType),
             InitialComponents  = new List<object> { new SimTransform { Position = new Vector3(5f, 5f, 0f) }, cloud },
         });
 

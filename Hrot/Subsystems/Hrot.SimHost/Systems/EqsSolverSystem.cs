@@ -199,7 +199,7 @@ namespace Hrot.SimHost.Systems
             // --- the wire key: the ONE rule (EqsSensorKey) ---
             // A child whose parent is gone or local-only is not solved; a purely local sensor (offline / editor) is keyed
             // (0, its entity index) — the local path EqsResultUpdateSystem matches.
-            var kind = EqsSensorKey.Resolve(repo, entity, out long parentNetworkId, out int localChildIndex, out _);
+            var kind = EqsSensorKey.Resolve(repo, entity, out int parentNetworkId, out int localChildIndex, out _);
             if (kind == EqsSensorKeyKind.None) return 0;
             if (kind == EqsSensorKeyKind.LocalOnly) localChildIndex = entity.Index;
             keyed = true;
@@ -398,7 +398,7 @@ namespace Hrot.SimHost.Systems
         }
 
         // ⭐ CE-3072 B3 — the areas along the sensor's route, published for the egress (cluster) and the Brain (fused world).
-        private void SolveDangerArea(Entity entity, long parentNetworkId, int localChildIndex, in EqsSensor sensor)
+        private void SolveDangerArea(Entity entity, int parentNetworkId, int localChildIndex, in EqsSensor sensor)
         {
             var areas = new Fdp.Toolkit.Squad.DangerArea.DangerAreaDescriptor[8];
             int count = Fdp.Toolkit.Squad.DangerArea.DangerAlongRouteSolve.Solve(_currentRepo, entity, in sensor, areas,
@@ -421,7 +421,7 @@ namespace Hrot.SimHost.Systems
 
         // ⭐ CE-3249 (WS-7) — per survey: when it was last solved and published, and what it said (node-local; the epoch restarts it).
         private readonly record struct SurveyMemo(uint Epoch, double SolvedAt, double PublishedAt, ulong Hash);
-        private readonly Dictionary<(long, int), SurveyMemo> _surveys = new();
+        private readonly Dictionary<(int, int), SurveyMemo> _surveys = new();
         private int _worldEpoch;   // ⭐ CE-3301 — the world _surveys describes
         private readonly List<Fdp.Toolkit.World.TraceCrossing> _surveyScratch = new();
 
@@ -430,7 +430,7 @@ namespace Hrot.SimHost.Systems
 
         // Solves a survey when it is DUE (its RefreshSeconds, or a new epoch); publishes when the content changed, on a new epoch, or on the
         // heartbeat. Returns the work units spent (1 when not due).
-        private int SolveWorldSurvey(Entity entity, long parentNetworkId, int localChildIndex, in EqsSensor sensor)
+        private int SolveWorldSurvey(Entity entity, int parentNetworkId, int localChildIndex, in EqsSensor sensor)
         {
             var repo = _currentRepo;
             if (!repo.TryGetTable(typeof(Fdp.Toolkit.Perception.Survey.WorldSurveyRequest), out _)
@@ -466,7 +466,7 @@ namespace Hrot.SimHost.Systems
             return Fdp.Toolkit.Perception.Survey.WorldSurveySolve.CostOf(request);
         }
 
-        private void PublishEmpty(Entity entity, long parentNetworkId, int localChildIndex, uint epoch)
+        private void PublishEmpty(Entity entity, int parentNetworkId, int localChildIndex, uint epoch)
         {
             _memory.Observe(_currentView, entity, _currentTick, ReadOnlySpan<EqsResult>.Empty);
             _currentCmd.PublishEvent(new EqsResultEvent
@@ -520,7 +520,7 @@ namespace Hrot.SimHost.Systems
         }
 
         private void WriteResultsToPoolAndPublish(
-            long parentNetworkId,
+            int parentNetworkId,
             int  localChildIndex,
             uint epoch,
             ref SensorEvalState evalState,

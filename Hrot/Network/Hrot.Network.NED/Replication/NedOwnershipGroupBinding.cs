@@ -60,7 +60,7 @@ public static class NedOwnershipGroupBinding
     /// Registers the group descriptors and binds the groups. Call after every translator and explicit mapping is
     /// registered. Violations are logged as errors; the descriptor-map rails assert there are none.
     /// </summary>
-    public static void Apply(DescriptorOwnershipMap map, long localNodeId = 0)
+    public static void Apply(DescriptorOwnershipMap map, int localNodeId = 0)
     {
         // Brain group descriptors.
         map.RegisterMapping((long)EDescriptorType.dtNavigationIntent, NavigationContractsComponentIds.NavigationIntent);

@@ -61,7 +61,7 @@ public sealed class ReferenceHandlerTests
             var intent = new ExecuteNodeOpIntent
             {
                 TransactionId = txId,
-                TargetNodeId  = nodeId,
+                TargetNodeId  = (Fdp.Core.NodeId)(nodeId),
                 Operation     = NodeOpType.PrefetchFiles,
                 DomainPayload = new PrefetchHandlerPayload("test-scenario"),
             };
@@ -104,7 +104,7 @@ public sealed class ReferenceHandlerTests
             var intent   = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 1,
+                TargetNodeId  = (Fdp.Core.NodeId)(1),
                 Operation     = NodeOpType.PrefetchFiles,
                 DomainPayload = new PrefetchHandlerPayload("s1"),
             };
@@ -136,7 +136,7 @@ public sealed class ReferenceHandlerTests
         await handler.PrepareAsync(new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             Operation     = NodeOpType.NodeReplaySeek,
             DomainPayload = new ReplaySeekPayload(relativeTicks),
         }, CancellationToken.None);
@@ -154,7 +154,7 @@ public sealed class ReferenceHandlerTests
         await handler.PrepareAsync(new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             Operation     = NodeOpType.NodeReplaySeek,
             DomainPayload = new ReplaySeekPayload(5_000L),
         }, CancellationToken.None);
@@ -177,7 +177,7 @@ public sealed class ReferenceHandlerTests
         var result = await handler.PrepareAsync(new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             Operation     = NodeOpType.NodeReplaySeek,
             DomainPayload = new ReplaySeekPayload(7_000_000L, AnchorWallTicks: 4_000_000L),
         }, CancellationToken.None);
@@ -195,7 +195,7 @@ public sealed class ReferenceHandlerTests
         var result = await handler.PrepareAsync(new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             Operation     = NodeOpType.NodeReplaySeek,
             DomainPayload = new ReplaySeekPayload(0L, AnchorWallTicks: 4_000_000L),
         }, CancellationToken.None);
@@ -212,7 +212,7 @@ public sealed class ReferenceHandlerTests
         var result = await handler.PrepareAsync(new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             Operation     = NodeOpType.PrepareReplay,
             DomainPayload = Guid.NewGuid(),
         }, CancellationToken.None);
@@ -238,7 +238,7 @@ public sealed class ReferenceHandlerTests
         await handler.PrepareAsync(new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             Operation     = NodeOpType.NodeReplaySeek,
             DomainPayload = new ReplaySeekPayload(5_000L),
         }, CancellationToken.None);
@@ -252,7 +252,7 @@ public sealed class ReferenceHandlerTests
     // ── CE-4079 ④ — W3: a node answers only after its retraction disposes were acknowledged (bounded) ────────
 
     private static ExecuteNodeOpIntent SeekIntent()
-        => new() { TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.NodeReplaySeek, DomainPayload = new ReplaySeekPayload(5_000L) };
+        => new() { TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(1), Operation = NodeOpType.NodeReplaySeek, DomainPayload = new ReplaySeekPayload(5_000L) };
 
     private static async Task WaitUntilAsync(Func<bool> condition, string what)
     {
@@ -323,7 +323,7 @@ public sealed class ReferenceHandlerTests
         var handler = new ReferenceReplayLoadHandler(controller, null, null, null, null, null, Path.GetTempPath());
         var answer = handler.PrepareAsync(new ExecuteNodeOpIntent
         {
-            TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.PrepareReplay, DomainPayload = Guid.NewGuid(),
+            TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(1), Operation = NodeOpType.PrepareReplay, DomainPayload = Guid.NewGuid(),
         }, CancellationToken.None);
         await WaitUntilAsync(() => controller.AckAwaits == 1, "the handler asking for the acknowledgements");
         Assert.False(answer.IsCompleted);
@@ -372,7 +372,7 @@ public sealed class ReferenceHandlerTests
 
             var recording = new Fdp.Toolkit.Replay.RecordingModule(new Fdp.Toolkit.Replay.RecordingConfiguration
             {
-                FilePath = Path.Combine(dir, "node.fdp"), ExerciseId = Guid.NewGuid(), NodeId = 1, Blocking = true,
+                FilePath = Path.Combine(dir, "node.fdp"), ExerciseId = Guid.NewGuid(), NodeId = (Fdp.Core.NodeId)(1), Blocking = true,
             });
             var registry = new CapturingRegistry();
             recording.RegisterSystems(registry);
@@ -386,7 +386,7 @@ public sealed class ReferenceHandlerTests
                                                     resumeSchedule: null, storageDirectory: dir, episodeRecorders: () => new[] { episode });
 
             // ── ENTER: the handler waits for its keyframe — the "frames" keep coming meanwhile ──
-            var enter = new ExecuteNodeOpIntent { TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.PrepareReview };
+            var enter = new ExecuteNodeOpIntent { TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(1), Operation = NodeOpType.PrepareReview };
             var prepare = review.PrepareAsync(enter, CancellationToken.None);
             while (!prepare.IsCompleted) { Frame(); await Task.Delay(2); }
             Assert.IsType<ReplayPrepareResult>(await prepare);
@@ -408,7 +408,7 @@ public sealed class ReferenceHandlerTests
             Assert.Equal(sizeBefore, new FileInfo(Path.Combine(dir, "node.fdp")).Length);          // R8: nothing of the review written
 
             // ── RETURN ──
-            var exit = new ExecuteNodeOpIntent { TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.FinalizeReview };
+            var exit = new ExecuteNodeOpIntent { TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(1), Operation = NodeOpType.FinalizeReview };
             await review.PrepareAsync(exit, CancellationToken.None);
             review.Commit(exit, null);
 
@@ -464,7 +464,7 @@ public sealed class ReferenceHandlerTests
 
             var recording = new Fdp.Toolkit.Replay.RecordingModule(new Fdp.Toolkit.Replay.RecordingConfiguration
             {
-                FilePath = Path.Combine(dir, "node.fdp"), ExerciseId = Guid.NewGuid(), NodeId = 1, Blocking = true,
+                FilePath = Path.Combine(dir, "node.fdp"), ExerciseId = Guid.NewGuid(), NodeId = (Fdp.Core.NodeId)(1), Blocking = true,
             });
             var registry = new CapturingRegistry();
             recording.RegisterSystems(registry);
@@ -475,7 +475,7 @@ public sealed class ReferenceHandlerTests
             var review = new ReferenceReviewHandler(controller, () => recording, new ReferenceReplayLoadHandler(controller, null, null, null, null, null, dir),
                                                     world, accumulator: null, worldReplaced: null, resumeSchedule: null, storageDirectory: dir);
 
-            var enter = new ExecuteNodeOpIntent { TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.PrepareReview };
+            var enter = new ExecuteNodeOpIntent { TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(1), Operation = NodeOpType.PrepareReview };
             var prepare = review.PrepareAsync(enter, CancellationToken.None);
             int paused = 0;
             while (!prepare.IsCompleted)
@@ -488,7 +488,7 @@ public sealed class ReferenceHandlerTests
             review.Commit(enter, null);
 
             world.GetComponentRW<Fdp.Toolkits.Tests.Replay.KeyframeTestPos>(unit).X = -1f;   // the review's playback
-            var exit = new ExecuteNodeOpIntent { TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.FinalizeReview };
+            var exit = new ExecuteNodeOpIntent { TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(1), Operation = NodeOpType.FinalizeReview };
             await review.PrepareAsync(exit, CancellationToken.None);
             review.Commit(exit, null);
 
@@ -524,7 +524,7 @@ public sealed class ReferenceHandlerTests
         int before = Fdp.Toolkit.Replication.Services.WorldEpoch.RestoresOf(world);
 
         // ⚠ repo: null — exactly as ClusterSlave commits every op (my first rail passed the world here and hid that the live path got none)
-        handler.Commit(new ExecuteNodeOpIntent { TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.PrepareLive }, repo: null);
+        handler.Commit(new ExecuteNodeOpIntent { TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(1), Operation = NodeOpType.PrepareLive }, repo: null);
 
         Assert.Equal(before + 1, Fdp.Toolkit.Replication.Services.WorldEpoch.RestoresOf(world));   // ⭐ a restore, counted
         restore.Execute(world, 1f / 60f);                                                             // the branch's first step
@@ -548,7 +548,7 @@ public sealed class ReferenceHandlerTests
 
         var result = await handler.PrepareAsync(new ExecuteNodeOpIntent
         {
-            TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.PrepareLive, DomainPayload = Guid.NewGuid(),
+            TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(1), Operation = NodeOpType.PrepareLive, DomainPayload = Guid.NewGuid(),
         }, CancellationToken.None);
 
         var branch = Assert.IsType<LiveBranchResult>(result);
@@ -573,7 +573,7 @@ public sealed class ReferenceHandlerTests
 
         var result = await handler.PrepareAsync(new ExecuteNodeOpIntent
         {
-            TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.PrepareLive,
+            TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(1), Operation = NodeOpType.PrepareLive,
             DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.LoadingLive, ExerciseId: Guid.NewGuid(), RecordingOff: recordingOff),
         }, CancellationToken.None);
 
@@ -602,7 +602,7 @@ public sealed class ReferenceHandlerTests
 
         var result = await handler.PrepareAsync(new ExecuteNodeOpIntent
         {
-            TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.PrepareLive,
+            TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(1), Operation = NodeOpType.PrepareLive,
             DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.LoadingLive, ExerciseId: Guid.NewGuid()),
         }, CancellationToken.None);
 
@@ -625,12 +625,12 @@ public sealed class ReferenceHandlerTests
 
         await handler.PrepareAsync(new ExecuteNodeOpIntent
         {
-            TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.PrepareLive,
+            TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(1), Operation = NodeOpType.PrepareLive,
             DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.LoadingLive, ExerciseId: exercise, RecordingOff: recordingOff),
         }, CancellationToken.None);
         await handler.PrepareAsync(new ExecuteNodeOpIntent
         {
-            TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.PrepareState,
+            TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(1), Operation = NodeOpType.PrepareState,
             DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.OperatingLive, ExerciseId: exercise, RecordingOff: recordingOff),
         }, CancellationToken.None);
 
@@ -697,13 +697,13 @@ public sealed class ReferenceHandlerTests
         public Fdp.Core.FlightRecorder.RecordingBranch? RecordedBranch { get; private set; }
         public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory, Fdp.Core.FlightRecorder.RecordingBranch? branch, double checkpointingSeconds = 0)
         { RecordedBranch = branch; RecordingsStarted++; return Task.CompletedTask; }
-        public Task FinalizeRecordingAsync(long maxNetworkId = 0) => Task.CompletedTask;
+        public Task FinalizeRecordingAsync(int maxNetworkId = 0) => Task.CompletedTask;
         public Task PrepareReplayAsync(Guid exerciseId, string storageDirectory) => Task.CompletedTask;
         public void ProcessPlaybackTick(GlobalTime currentTime) { }
         public Task TeardownReplayAsync() => Task.CompletedTask;
         public bool IsReplayActive => true;
         public GlobalTime GetCurrentReplayTime() => default;
         public float ActiveReplayDurationSeconds => 0f;
-        public long ActiveMaxNetworkId => 0;
+        public int ActiveMaxNetworkId => 0;
     }
 }

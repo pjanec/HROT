@@ -42,7 +42,7 @@ namespace Hrot.Presentation.Tests.Tools
 
         public void Dispose() => _world.Dispose();
 
-        private long _nextNetId = 7041L;
+        private int _nextNetId = 7041;
 
         /// <summary>
         /// ⭐⭐⭐ <b>§6.8 — an entity a tool can actually be ARMED on: one with a network identity.</b>
@@ -759,7 +759,7 @@ namespace Hrot.Presentation.Tests.Tools
 
             var entity = NetworkedEntity();
             _world.SetManagedComponent(entity, new Hrot.IG.Components.EditablePolyline());
-            _world.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 7041L });
+            _world.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 7041 });
 
             ScenarioToolRegistrations.RegisterAll(
                 fx.Controller,

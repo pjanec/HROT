@@ -1,3 +1,5 @@
+using Fdp.Core;
+
 namespace Fdp.Toolkit.Time.Domain
 {
     public struct AdvanceFrameIntent
@@ -10,7 +12,7 @@ namespace Fdp.Toolkit.Time.Domain
     public struct FrameStepCompletedEvent
     {
         public long FrameID;
-        public int  NodeID;
+        public NodeId NodeID;
     }
 
     // Bus-driven time control intents (HEXAG2-S010/S011).

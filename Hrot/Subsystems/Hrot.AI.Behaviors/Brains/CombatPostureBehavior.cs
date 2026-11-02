@@ -98,7 +98,7 @@ namespace Hrot.AI.Behaviors.Brains
 
             // ⭐ CE-2297 LD-3e — the order carries the facing: a point he watches toward when no threat and no sector point his eyes,
             //   scanned ±30° (📄 Look Direction §3.3a)
-            if (authored.WatchTowards != Vector3.Zero && world.HasComponent<SimTransform>(self))
+            if ((Vector3)authored.WatchTowards != Vector3.Zero && world.HasComponent<SimTransform>(self))
             {
                 block.Look.Bearing = LookAt.BearingTo(world.GetComponentRO<SimTransform>(self).Position, authored.WatchTowards);
                 block.Look.BearingSet = 1;
@@ -109,13 +109,13 @@ namespace Hrot.AI.Behaviors.Brains
             //   goes to where the target is now (the unit closes in; the decision picks the way).
             if (authored.Target.IsNone) return;
             var map = world.HasSingletonManaged<NetworkEntityMap>() ? world.GetSingletonManaged<NetworkEntityMap>() : null;
-            if (map == null || !map.TryGetEntity(authored.Target.NetworkId, out var target) || !world.IsAlive(target))
+            if (map == null || !map.TryGetEntity(authored.Target.Ref.NetworkId, out var target) || !world.IsAlive(target))
             {
-                Hrot.AI.Behaviors.Logging.BehaviorLog.ParseWarn("CombatPosture target=" + authored.Target.NetworkId + " not found in entity map; the posture runs without one.");
+                Hrot.AI.Behaviors.Logging.BehaviorLog.ParseWarn("CombatPosture target=" + authored.Target.Ref.NetworkId + " not found in entity map; the posture runs without one.");
                 return;
             }
             block.Designate.TargetPacked = (long)target.PackedValue;
-            if (a.Objective == Vector3.Zero && world.HasComponent<SimTransform>(target))
+            if ((Vector3)a.Objective == Vector3.Zero && world.HasComponent<SimTransform>(target))
                 block.Advance.Objective = world.GetComponentRO<SimTransform>(target).Position;
         }
 

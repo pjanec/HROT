@@ -61,7 +61,7 @@ public static class EventAnchors
     /// The anchor for the nearest expressible event at or before <paramref name="sim"/>; null when none precedes it (a fixed time then).
     /// <paramref name="unitName"/> maps an event's network id to the unit's name (null = unknown / gone: that event is skipped).
     /// </summary>
-    public static EventAnchor? NearestBefore(TimelineIndex index, double sim, Func<long, string?> unitName, IReadOnlyList<string>? lanes = null)
+    public static EventAnchor? NearestBefore(TimelineIndex index, double sim, Func<int, string?> unitName, IReadOnlyList<string>? lanes = null)
     {
         int frame = FrameAt(index, sim);
         if (frame < 0) return null;
@@ -88,7 +88,7 @@ public static class EventAnchors
     /// <paramref name="lane"/> (what <see cref="NearestBefore"/> finds by time; the Drafter names an event it already chose). Null when the lane has no such
     /// event, the event is not expressible (see the class remarks) or its frame has no sim time. ⛔ The one naming switch: <see cref="NearestBefore"/> calls this.
     /// </summary>
-    public static EventAnchor? Of(TimelineIndex index, string lane, int eventIndex, Func<long, string?> unitName)
+    public static EventAnchor? Of(TimelineIndex index, string lane, int eventIndex, Func<int, string?> unitName)
     {
         var events = index.Lane(lane);
         if ((uint)eventIndex >= (uint)events.Count) return null;
@@ -98,7 +98,7 @@ public static class EventAnchors
         return new EventAnchor(spec.Name, spec.Spec, index.FrameSim[frame], lane, eventIndex);
     }
 
-    private static (string Name, AnchorSpec Spec)? Express(string lane, IReadOnlyList<TimelineEvent> events, int i, Func<long, string?> unitName,
+    private static (string Name, AnchorSpec Spec)? Express(string lane, IReadOnlyList<TimelineEvent> events, int i, Func<int, string?> unitName,
                                                            IReadOnlyList<TimelineEvent>? blasts)
     {
         var e = events[i];
@@ -125,7 +125,7 @@ public static class EventAnchors
         }
     }
 
-    private static TimelineEvent? FirstStruckBlast(IReadOnlyList<TimelineEvent> blasts, long unit)
+    private static TimelineEvent? FirstStruckBlast(IReadOnlyList<TimelineEvent> blasts, int unit)
     {
         foreach (var b in blasts) if (b.Other == unit) return b;
         return null;
@@ -140,7 +140,7 @@ public static class EventAnchors
     /// live run's start). Null: not (yet) in the index, the index has no sim clock, or the cue is not an event cue.
     /// </summary>
     /// <param name="isUnit">Whether the name (a unit's name, or <c>"*part"</c>) names the unit with this network id.</param>
-    public static double? TimeOf(TimelineIndex index, AnchorSpec spec, Func<string, long, bool> isUnit, double since = double.NegativeInfinity)
+    public static double? TimeOf(TimelineIndex index, AnchorSpec spec, Func<string, int, bool> isUnit, double since = double.NegativeInfinity)
     {
         var sim = index.FrameSim;
         double? SimOf(int frame) => frame >= 0 && frame < sim.Count && !double.IsNaN(sim[frame]) && sim[frame] >= since - 1e-9 ? sim[frame] : null;
@@ -165,7 +165,7 @@ public static class EventAnchors
                 foreach (var e in index.Lane("combat.hit"))
                     if (SimOf(e.Frame) is { } t && isUnit(spec.Target, e.Subject)) { first = t; break; }
                 foreach (var e in index.Lane("combat.blast"))
-                    if (SimOf(e.Frame) is { } t && isUnit(spec.Target, e.Other)) { if (first is not { } f || t < f) first = t; break; }
+                    if (SimOf(e.Frame) is { } t && e.Other is > 0 and <= int.MaxValue && isUnit(spec.Target, (int)e.Other)) { if (first is not { } f || t < f) first = t; break; }
                 return first;
             }
             default:
@@ -173,7 +173,7 @@ public static class EventAnchors
         }
     }
 
-    /// <summary>The cues <see cref="TimeOf(TimelineIndex, AnchorSpec, Func{string, long, bool}, double)"/> reads from an index (the rest observe the world).</summary>
+    /// <summary>The cues <see cref="TimeOf(TimelineIndex, AnchorSpec, Func{string, int, bool}, double)"/> reads from an index (the rest observe the world).</summary>
     public static bool IsEventCue(string on) => on is "shot" or "blast" or "hit";
 
     /// <summary>

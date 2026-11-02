@@ -343,7 +343,7 @@ namespace Hrot.SimHost
                 Slave              = clusterSlave,
                 Kernel             = kernel,
                 World              = world,
-                NodeId             = nodeId,
+                NodeId             = (Fdp.Core.NodeId)(nodeId),
                 Role               = role,
                 HostLabel          = subsystemName,
                 StagingRoot        = localTempRoot,

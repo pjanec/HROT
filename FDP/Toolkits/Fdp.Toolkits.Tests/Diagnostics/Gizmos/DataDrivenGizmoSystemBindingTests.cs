@@ -64,7 +64,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
         /// <summary>⭐ Deliberately far from any ECS index this fixture allocates, so a rail cannot pass
         /// by coincidence if the two id domains are ever confused again.</summary>
-        private const long NetId = 7041L;
+        private const int NetId = 7041;
 
         public void Dispose() => _repo.Dispose();
 

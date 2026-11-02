@@ -43,7 +43,7 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
 
     public void Dispose() => _world.Dispose();
 
-    private Entity SpawnEntity(long netId)
+    private Entity SpawnEntity(int netId)
     {
         var entity = _world.CreateEntity();
         _world.AddComponent(entity, new NetworkIdentity(netId));
@@ -58,7 +58,7 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
     {
         var writer = new CapturingWriter<DdsAnimationChannelIntent>();
         var translator = new AnimationChannelIntentEgressTranslator(writer, _entityMap);
-        var entity = SpawnEntity(100L);
+        var entity = SpawnEntity(100);
 
         _world.AddComponent(entity, new AnimationChannel
         {
@@ -83,7 +83,7 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
     {
         var writer = new CapturingWriter<DdsAnimationChannelIntent>();
         var translator = new AnimationChannelIntentEgressTranslator(writer, _entityMap);
-        var entity = SpawnEntity(101L);
+        var entity = SpawnEntity(101);
 
         _world.AddComponent(entity, new AnimationChannel { ActionInstanceId = 7 });
         translator.ScanAndPublish(_world); // First call — should publish
@@ -101,7 +101,7 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
     {
         var writer = new CapturingWriter<DdsAnimationChannelIntent>();
         var translator = new AnimationChannelIntentEgressTranslator(writer, _entityMap);
-        var entity = SpawnEntity(102L);
+        var entity = SpawnEntity(102);
 
         _world.AddComponent(entity, new AnimationChannel { ActionInstanceId = 1 });
         _world.AddComponent(entity, new AnimationChannelStatus());
@@ -121,7 +121,7 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
     {
         var writer = new CapturingWriter<DdsAnimationChannelStatus>();
         var translator = new AnimationChannelStatusEgressTranslator(writer, _entityMap);
-        var entity = SpawnEntity(200L);
+        var entity = SpawnEntity(200);
 
         _world.AddComponent(entity, new AnimationChannel());
         _world.AddComponent(entity, new AnimationChannelStatus
@@ -145,7 +145,7 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
     {
         var writer = new CapturingWriter<DdsAnimationChannelStatus>();
         var translator = new AnimationChannelStatusEgressTranslator(writer, _entityMap);
-        var entity = SpawnEntity(201L);
+        var entity = SpawnEntity(201);
 
         _world.AddComponent(entity, new AnimationChannel());
         _world.AddComponent(entity, new AnimationChannelStatus { Status = NodeStatus.Running });
@@ -164,7 +164,7 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
         // Egress side: create msg
         var egressWriter = new CapturingWriter<DdsAnimationChannelIntent>();
         var egressTranslator = new AnimationChannelIntentEgressTranslator(egressWriter, _entityMap);
-        var entity = SpawnEntity(300L);
+        var entity = SpawnEntity(300);
 
         _world.AddComponent(entity, new AnimationChannel
         {
@@ -185,7 +185,7 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
         var ingressEntity = ingressWorld.CreateEntity();
         ingressWorld.AddComponent(ingressEntity, new AnimationChannel());
         ingressWorld.AddComponent(ingressEntity, new AnimationChannelStatus { DispatchedInstanceId = 0xBEEF });
-        ingressEntityMap.Register(300L, ingressEntity);
+        ingressEntityMap.Register(300, ingressEntity);
 
         var ingressTranslator = new AnimationChannelIntentIngressTranslator(
             participant: null, ingressEntityMap);
@@ -212,7 +212,7 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
     {
         var egressWriter = new CapturingWriter<DdsLookAtChannelIntent>();
         var egressTranslator = new LookAtChannelIntentEgressTranslator(egressWriter, _entityMap);
-        var entity = SpawnEntity(400L);
+        var entity = SpawnEntity(400);
 
         _world.AddComponent(entity, new LookAtChannel
         {
@@ -240,19 +240,19 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
         // The muscle-side entity receiving the intent
         var muscleEntity = ingressWorld.CreateEntity();
         ingressWorld.AddComponent(muscleEntity, new LookAtChannel());
-        ingressMap.Register(500L, muscleEntity);
+        ingressMap.Register(500, muscleEntity);
 
         // A second entity that is the remap target (network ID 777 -> local entity)
         var targetEntity = ingressWorld.CreateEntity();
         // targetEntity.Index is the local index we expect to be written into TargetEntityId
-        ingressMap.Register(777L, targetEntity);
+        ingressMap.Register(777, targetEntity);
 
         var ingressTranslator = new LookAtChannelIntentIngressTranslator(participant: null, ingressMap);
 
         // Build a DdsLookAtChannelIntent with LookAtEntity action and TargetEntityId = 777
         var msg = new DdsLookAtChannelIntent
         {
-            EntityId = 500L,
+            EntityId = 500,
             ActiveAction = LookAtActionIds.LookAtEntity,
             ActionInstanceId = 10,
             BehaviorInstanceId = 1,
@@ -300,14 +300,14 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
             ActionInstanceId = 5,
         };
         ingressWorld.AddComponent(muscleEntity, originalChannel);
-        ingressMap.Register(501L, muscleEntity);
+        ingressMap.Register(501, muscleEntity);
         // Target entity 888 is NOT registered in the map
 
         var ingressTranslator = new LookAtChannelIntentIngressTranslator(participant: null, ingressMap);
 
         var msg = new DdsLookAtChannelIntent
         {
-            EntityId = 501L,
+            EntityId = 501,
             ActiveAction = LookAtActionIds.LookAtEntity,
             ActionInstanceId = 20,
         };
@@ -339,7 +339,7 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
         // a second publish must be issued.
         var writer = new CapturingWriter<DdsAnimationChannelIntent>();
         var translator = new AnimationChannelIntentEgressTranslator(writer, _entityMap);
-        var entity = SpawnEntity(600L);
+        var entity = SpawnEntity(600);
 
         var ch = new AnimationChannel
         {
@@ -378,7 +378,7 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
         // (same ActionInstanceId), a second publish must be issued.
         var writer = new CapturingWriter<DdsLookAtChannelIntent>();
         var translator = new LookAtChannelIntentEgressTranslator(writer, _entityMap);
-        var entity = SpawnEntity(700L);
+        var entity = SpawnEntity(700);
 
         var ch = new LookAtChannel
         {
@@ -416,7 +416,7 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
     {
         var writer = new CapturingWriter<DdsLookAtChannelIntent>();
         var translator = new LookAtChannelIntentEgressTranslator(writer, _entityMap);
-        var man = SpawnEntity(500L);
+        var man = SpawnEntity(500);
         var stranger = _world.CreateEntity();            // no network id yet
         var channel = new LookAtChannel { ActiveAction = LookAtActionIds.LookAtEntity, ActionInstanceId = 1 };
         ((LookAtEntityParams*)channel.Params)->TargetEntityId = (uint)stranger.Index;
@@ -426,8 +426,8 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
         Assert.Empty(writer.Written);
         Assert.Equal(1, translator.UnmappedTargetCount);
 
-        _world.AddComponent(stranger, new NetworkIdentity(777L));
-        _entityMap.Register(777L, stranger);
+        _world.AddComponent(stranger, new NetworkIdentity(777));
+        _entityMap.Register(777, stranger);
         translator.ScanAndPublish(_world);
         var msg = Assert.Single(writer.Written);
         Assert.Equal(777u, ((LookAtEntityParams*)msg.ActionParams)->TargetEntityId);

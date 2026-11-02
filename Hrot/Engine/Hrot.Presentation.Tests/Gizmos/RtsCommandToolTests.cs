@@ -53,7 +53,7 @@ public sealed class RtsCommandToolTests : IDisposable
         public int EntityAt(Vector2 worldXY) => Under.TryGetValue(worldXY, out int id) ? id : -1;
     }
 
-    private Entity Unit(long id, ForceId side, Vector2 at)
+    private Entity Unit(int id, ForceId side, Vector2 at)
     {
         var e = _w.CreateEntity();
         _w.AddComponent(e, new SimTransform { Position = new Vector3(at, 0) });

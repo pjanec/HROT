@@ -49,12 +49,12 @@ namespace Hrot.Network.NED.SimHost
                 {
                     Entity = entity, Origin = origin,
                     ArcSet = B(r, "Arc"), ArcOrigin = o, LeftBearing = F(r, "L"), RightBearing = F(r, "R"), MinRange = F(r, "Min"), MaxRange = F(r, "Max"),
-                    AllowArea = r.TryGetProperty("Allow", out var a) && a.TryGetInt64(out var av) ? av : 0L,
+                    AllowArea = r.TryGetProperty("Allow", out var a) && a.TryGetInt32(out var av) ? av : 0,
                     WatchBearing = F(r, "Watch"), WatchSet = B(r, "W"),
                 };
                 if (r.TryGetProperty("NoFire", out var nf) && nf.ValueKind == JsonValueKind.Array)
                     foreach (var id in nf.EnumerateArray())
-                        if (evt.NoFire.Count < EngagementArea.MaxNoFire && id.TryGetInt64(out var v)) evt.NoFire.Items[evt.NoFire.Count++] = v;
+                        if (evt.NoFire.Count < EngagementArea.MaxNoFire && id.TryGetInt32(out var v)) evt.NoFire.Items[evt.NoFire.Count++] = v;
                 return true;
             }
             catch (JsonException) { return false; }

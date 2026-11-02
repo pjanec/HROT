@@ -74,7 +74,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var e = _w.CreateEntity();
             _w.AddComponent(e, new SimTransform { Position = new Vector3(1000, 0, 300), Rotation = Quaternion.Identity });
             _w.AddComponent(e, new SimVelocity { Linear = new Vector3(0, 60, 0) });
-            _w.AddComponent(e, new TkbIdentity { TkbType = Helicopter });
+            _w.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Helicopter) });
             // what CombatTkbTranslator gives mount 0 on the owner: the total load and the loadout
             _w.AddComponent(e, new WeaponState { Ammo = 3, MaxAmmo = 3 });
             _w.AddComponent(e, AmmoLoadout.From(new[] { new AmmoLoadDto { AmmoGuid = Flare, Rounds = 2 }, new AmmoLoadDto { AmmoGuid = Chaff, Rounds = 1 } }));
@@ -240,7 +240,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _sys.Execute(_w, 1f);
             var decoy = Assert.Single(Decoys());
             var p = _w.GetComponentRO<SimTransform>(decoy).Position;
-            Assert.Equal(DecoyFlight.At(n.Origin, n.Velocity, 8f, (float)(102 - n.FiredAt)), p);
+            Assert.Equal<System.Numerics.Vector3>(DecoyFlight.At(n.Origin, n.Velocity, 8f, (float)(102 - n.FiredAt)), p);
             Assert.True(p.Z < 300f, "a flare sinks");
             Assert.True(p.Y > 0f && p.Y < 60f * 2f, "it keeps some of the aircraft's speed, and loses it");
             At(105.5);

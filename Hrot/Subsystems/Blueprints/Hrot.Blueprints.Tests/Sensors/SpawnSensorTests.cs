@@ -54,7 +54,7 @@ public sealed class SpawnSensorTests
         Assert.Equal("Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure", d.EnsureMethodFqn);
         Assert.Equal(typeof(DangerAreaSettings).FullName, d.SettingsTypeFqn);
         Assert.Equal(typeof(DangerAreaSettings).FullName + ".Default", d.SettingsDefaultFqn);
-        Assert.Contains(d.SettingsFields!, f => f.Name == nameof(DangerAreaSettings.RoutePoint) && f.TypeId == "System.Numerics.Vector3");
+        Assert.Contains(d.SettingsFields!, f => f.Name == nameof(DangerAreaSettings.RoutePoint) && f.TypeId == "Fdp.Core.WorldPoint");
         Assert.Contains(d.SettingsFields!, f => f.Name == nameof(DangerAreaSettings.RouteSource) && f.TypeId == "global::" + typeof(DangerRouteSource).FullName);
         Assert.Null(SensorKindBaker.Bake(SensorModality.Visual)!.EnsureMethodFqn);   // a TKB perception kind is read, not spawned
     }
@@ -80,7 +80,7 @@ public sealed class SpawnSensorTests
         Assert.Equal(new[] { ("In", "In"), ("Out", "Out") }, node.Pins.Where(p => p.IsExec).Select(p => (p.Name, p.Direction)));
         var data = node.Pins.Where(p => !p.IsExec).Select(p => (p.Name, p.Direction, p.TypeRef!.TypeId)).ToList();
         Assert.Equal(SpawnSensorNode.DataPins(node.Decl).ToList(), data);
-        Assert.Contains(("RoutePoint", "In", "System.Numerics.Vector3"), data);
+        Assert.Contains(("RoutePoint", "In", "Fdp.Core.WorldPoint"), data);
         Assert.Equal(("Sensor", "Out", "Fdp.Core.Entity"), data[^1]);
     }
 

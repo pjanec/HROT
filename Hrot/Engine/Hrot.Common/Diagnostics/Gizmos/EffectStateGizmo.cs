@@ -32,7 +32,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             // ⭐ CE-1178 (U17) — a row of his CARD: the card sits above the head in 3-D (its renderer lifts it to the body top) and above
             //   the symbol in 2-D. ⛔ It was loose ground text, which 3-D drew at his FEET. Loose text stays only for a man with no
             //   network id (a card is keyed by it).
-            long net = repo.IsComponentTypeRegistered<NetworkIdentity>() && view.HasComponent<NetworkIdentity>(entity)
+            int net = repo.IsComponentTypeRegistered<NetworkIdentity>() && view.HasComponent<NetworkIdentity>(entity)
                 ? view.GetComponentRO<NetworkIdentity>(entity).Value : 0;
             if (net != 0) { draw.Card(net, DebugTraceLayers.Labels).Row(Row).Text(text, Color, 12f); return; }
             ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);

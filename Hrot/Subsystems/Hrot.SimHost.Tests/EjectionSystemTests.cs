@@ -56,7 +56,7 @@ namespace Hrot.SimHost.Tests
             _w.AddComponent(e, new SimTransform { Position = new Vector3(100, 200, 300), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f) });
             _w.AddComponent(e, new SimVelocity { Linear = new Vector3(0, 150, 0) });
             _w.AddComponent(e, new Health { Current = health, Max = 600 });
-            _w.AddComponent(e, new TkbIdentity { TkbType = JetType });
+            _w.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(JetType) });
             return e;
         }
 
@@ -120,7 +120,7 @@ namespace Hrot.SimHost.Tests
             a10.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 600f, ArmorFront = 5f, ArmorSide = 5f, ArmorRear = 5f, ArmorTop = 5f });
             db.Register(a10);
             var jet = Jet(health: 0f);
-            _w.SetComponent(jet, new TkbIdentity { TkbType = JetType + 1 });
+            _w.SetComponent(jet, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(JetType + 1) });
             var parts = new Fdp.Toolkit.Physics.BodyParts.PartDamage { Plan = Fdp.Toolkit.Physics.BodyParts.BodyPlan.FixedWing };
             parts.Add(Fdp.Toolkit.Physics.BodyParts.AircraftPart.Tail, 200);
             _w.AddComponent(jet, parts);

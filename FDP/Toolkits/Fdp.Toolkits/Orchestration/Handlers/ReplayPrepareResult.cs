@@ -30,7 +30,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     /// <param name="TerrainName">⭐ AQ107 C — the terrain resident while this node's recording was made (its metadata), with <paramref name="GeoOrigin"/>.</param>
     /// <param name="RetractionAckTimeout">⭐⭐ <c>CE-4079</c> ④ (DESIGN_Replay_Time_Axis_And_Review §12c W3) — <see langword="null"/> when this node's
     /// retraction disposes were acknowledged before it reported prepared; otherwise the text of the bounded wait that timed out (reported, never fatal).</param>
-    public record struct ReplayPrepareResult(long MaxNetworkId, float DurationSeconds,
+    public record struct ReplayPrepareResult(int MaxNetworkId, float DurationSeconds,
                                              long FirstFrameWallTicks = 0, long LastFrameWallTicks = 0,
                                              Fdp.Core.FlightRecorder.ReplayTimeMap? TimeMap = null,
                                              Fdp.Core.FlightRecorder.Metadata.CheckpointMark[]? Checkpoints = null,

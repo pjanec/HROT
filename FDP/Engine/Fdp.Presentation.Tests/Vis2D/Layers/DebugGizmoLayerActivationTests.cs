@@ -39,7 +39,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         /// and since §6.7 that is the ONLY identity — the <c>AnchorIndex</c>+<c>StreamId</c> ECS payload
         /// is deleted. 📄 docs/DESIGN_Gizmo_Anchor_Identity.md §6.7.
         /// </summary>
-        private static GizmoPickToken TokenFor(long networkId = 90210L, uint subElementId = 0u)
+        private static GizmoPickToken TokenFor(int networkId = 90210, uint subElementId = 0u)
             => new GizmoPickToken
             {
                 AnchorId     = networkId,

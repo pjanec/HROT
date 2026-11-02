@@ -47,7 +47,7 @@ public sealed class TraceLoggingTests : IDisposable
         using var masterWriter = new DdsWriter<EntityMaster>(participant);
         using var geoWriter = new DdsWriter<WorldPos>(participant);
 
-        const long networkId = 9001;
+        const int networkId = 9001;
 
         masterWriter.Write(new EntityMaster
         {
@@ -92,7 +92,7 @@ public sealed class TraceLoggingTests : IDisposable
             BuildFailureMessage(logScope.Target.Logs, expected));
     }
 
-    private static bool TryGetEntity(EntityRepository world, long networkId, out Entity entity)
+    private static bool TryGetEntity(EntityRepository world, int networkId, out Entity entity)
     {
         var query = world.Query().With<NetworkIdentity>().WithLifecycle(EntityLifecycle.All).Build();
         foreach (var e in query)

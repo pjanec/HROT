@@ -277,7 +277,7 @@ public sealed class VehicleNavigationIntentSystem : IEcsModuleSystem
 
             // ── Movement-based stuck guard ──────────────────────────────────
             route.StuckWindowElapsed += deltaTime;
-            float displacement = (curPos - route.StuckWindowStartPos).Length();
+            float displacement = ((Vector3)curPos - route.StuckWindowStartPos).Length();
             if (displacement >= StuckDisplacementThresholdM)
             {
                 route.StuckWindowStartPos = curPos;

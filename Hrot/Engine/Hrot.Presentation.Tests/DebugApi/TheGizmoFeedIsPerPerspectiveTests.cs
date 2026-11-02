@@ -437,17 +437,17 @@ public sealed class TheGizmoFeedIsPerPerspectiveTests
         private static T No<T>() => throw new NotSupportedException(
             "FakeMissionEditor exists to be non-null; it models no behaviour.");
 
-        public IReadOnlyList<string> GetAvailableBehaviors(long entityId) => No<IReadOnlyList<string>>();
+        public IReadOnlyList<string> GetAvailableBehaviors(int entityId) => No<IReadOnlyList<string>>();
 
-        public (Hrot.Core.Mission.MissionPlan? Plan, long Version) GetMissionSnapshot(long entityId)
+        public (Hrot.Core.Mission.MissionPlan? Plan, long Version) GetMissionSnapshot(int entityId)
             => No<(Hrot.Core.Mission.MissionPlan?, long)>();
 
         public Task<Hrot.UI.Common.Models.MissionCommitResult> CommitMissionAsync(
-            long entityId, Hrot.Core.Mission.MissionPlan plan, long baseVersion)
+            int entityId, Hrot.Core.Mission.MissionPlan plan, long baseVersion)
             => No<Task<Hrot.UI.Common.Models.MissionCommitResult>>();
 
         public Task<Hrot.UI.Common.Models.MissionCommitResult> SendControlCommandAsync(
-            long entityId, Hrot.Core.Mission.eMissionCommandType type, Guid taskId)
+            int entityId, Hrot.Core.Mission.eMissionCommandType type, Guid taskId)
             => No<Task<Hrot.UI.Common.Models.MissionCommitResult>>();
     }
 }

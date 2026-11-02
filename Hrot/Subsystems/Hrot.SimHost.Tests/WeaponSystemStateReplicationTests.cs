@@ -16,7 +16,7 @@ namespace Hrot.SimHost.Tests
     /// </summary>
     public sealed class WeaponSystemStateReplicationTests
     {
-        private const long M2Id = 950L;
+        private const int M2Id = 950;
 
         private static EntityRepository World()
         {

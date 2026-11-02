@@ -29,6 +29,6 @@ namespace Fdp.Toolkit.Replication.Components
         /// <summary>
         /// The TKB template type key.  Must match an entry in <c>ITkbDatabase</c>.
         /// </summary>
-        public long TkbType;
+        public TkbTypeId TkbType;
     }
 }

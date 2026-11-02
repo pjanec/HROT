@@ -142,7 +142,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         {
             var dto = new SpatialBoundingPredicateDto
             {
-                Bounds        = new BoundingBox2D { Min = new Vector2(0f, 0f), Max = new Vector2(10f, 10f) },
+                Bounds        = AreaBoxes.FromBox(new BoundingBox2D { Min = new Vector2(0f, 0f), Max = new Vector2(10f, 10f) }),
                 TriggerEvent  = BoundaryEvent.Entry,
                 PositionXPath = "Position.X",
                 PositionYPath = "Position.Y"
@@ -151,7 +151,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             var back = JsonSerializer.Deserialize<SearchPredicateDto>(json, _options) as SpatialBoundingPredicateDto;
             Assert.NotNull(back);
             Assert.Equal(BoundaryEvent.Entry, back!.TriggerEvent);
-            Assert.Equal(10f, back.Bounds.Max.X, 3);
+            Assert.Equal(10f, AreaBoxes.ToBox(back.Bounds)!.Value.Max.X, 3);
         }
 
         // ── SR-T01h: StructuralPredicateDto with RequireGhost ────────────────

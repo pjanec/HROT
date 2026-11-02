@@ -81,7 +81,7 @@ namespace Hrot.IG.Tests
             PlaybackCommands(repo);
 
             var netTf = repo.GetComponent<NetworkTransform>(entity);
-            Assert.Equal(Vector3.Zero, netTf.LastPosition);
+            Assert.Equal<System.Numerics.Vector3>(Vector3.Zero, netTf.LastPosition);
             Assert.Equal(0.0, netTf.SimStamp);
         }
 
@@ -146,7 +146,7 @@ namespace Hrot.IG.Tests
             PlaybackCommands(repo);
 
             var netTf = repo.GetComponent<NetworkTransform>(entity);
-            Assert.Equal(new Vector3(4f, 5f, 6f), netTf.LastPosition);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(4f, 5f, 6f), netTf.LastPosition);
         }
 
         // ── MODINIT-S101 Success Condition 3 ─────────────────────────────────
@@ -182,8 +182,8 @@ namespace Hrot.IG.Tests
             // Both Active entities should have their SimTransform updated
             var tfA = repo.GetComponent<SimTransform>(entityA);
             var tfB = repo.GetComponent<SimTransform>(entityB);
-            Assert.NotEqual(Vector3.Zero, tfA.Position);
-            Assert.NotEqual(Vector3.Zero, tfB.Position);
+            Assert.NotEqual<System.Numerics.Vector3>(Vector3.Zero, tfA.Position);
+            Assert.NotEqual<System.Numerics.Vector3>(Vector3.Zero, tfB.Position);
         }
 
         // ── MODINIT-S101 Success Condition 4 ─────────────────────────────────
@@ -219,11 +219,11 @@ namespace Hrot.IG.Tests
 
             // Active entity must NOT be updated (excluded by Ghost lifecycle filter)
             var activeTf = repo.GetComponent<SimTransform>(activeEntity);
-            Assert.Equal(Vector3.Zero, activeTf.Position);
+            Assert.Equal<System.Numerics.Vector3>(Vector3.Zero, activeTf.Position);
 
             // Ghost lifecycle entity MUST be updated
             var ghostTf = repo.GetComponent<SimTransform>(ghostEntity);
-            Assert.NotEqual(Vector3.Zero, ghostTf.Position);
+            Assert.NotEqual<System.Numerics.Vector3>(Vector3.Zero, ghostTf.Position);
         }
     }
 }

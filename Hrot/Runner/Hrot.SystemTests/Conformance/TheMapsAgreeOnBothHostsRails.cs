@@ -222,7 +222,7 @@ public sealed class TheMapsAgreeOnBothHostsRails
             //   construction (the entity-inspector's own divergence entry names them), and reading a missing
             //   field as 0 would quietly widen `known` by the very id the stray filter excludes.
             var known = entities.Where(e => e?["networkId"] is not null)
-                                .Select(e => e!["networkId"]!.GetValue<long>())
+                                .Select(e => (long)e!["networkId"]!.GetValue<int>())
                                 .ToHashSet();
             var strays = frame.AnchorIds.Where(id => id != 0 && !known.Contains(id))
                                        .Distinct().OrderBy(x => x).ToArray();
@@ -285,7 +285,7 @@ public sealed class TheMapsAgreeOnBothHostsRails
 
         var entities = (await cgf.Client.ListEntitiesAsync()).EnsureOk().Array();
         var ids = entities.Where(e => e?["networkId"] is not null)
-                          .Select(e => e!["networkId"]!.GetValue<long>())
+                          .Select(e => e!["networkId"]!.GetValue<int>())
                           .Where(id => id > 0)
                           .OrderBy(id => id)
                           .ToArray();

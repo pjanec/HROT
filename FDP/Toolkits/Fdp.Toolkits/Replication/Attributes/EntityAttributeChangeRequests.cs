@@ -50,7 +50,7 @@ public static class EntityAttributeChangeRequests
         {
             if (changes == null || changes.Count == 0) return;
 
-            long networkId = NetworkIdResolver.RuntimeNetworkIdOf(repo, entity);
+            int networkId = NetworkIdResolver.RuntimeNetworkIdOf(repo, entity);
 
             if (networkId <= 0)
             {
@@ -92,7 +92,7 @@ public static class EntityAttributeChangeRequests
         ArgumentNullException.ThrowIfNull(repo);
         if (string.IsNullOrWhiteSpace(patchJson)) return false;
 
-        long networkId = NetworkIdResolver.RuntimeNetworkIdOf(repo, entity);
+        int networkId = NetworkIdResolver.RuntimeNetworkIdOf(repo, entity);
         if (networkId <= 0) return false;
 
         repo.Bus.PublishManaged(new UpdateEntityAttributeCommand

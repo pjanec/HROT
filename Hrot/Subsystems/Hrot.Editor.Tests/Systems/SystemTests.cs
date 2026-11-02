@@ -142,7 +142,7 @@ public sealed class EditorZoneAuthoringSystemTests : IDisposable
             TkbDb       = tkb,
             IdAllocator = new Hrot.Core.Network.SequentialIdAllocator(),
             Elm         = new Fdp.Toolkit.Lifecycle.EntityLifecycleModule(tkb, Array.Empty<int>()),
-            NodeId      = 7,
+            NodeId      = (Fdp.Core.NodeId)(7),
         });
 
         _world.Bus.PublishManaged(new SpawnZoneObstacleCommand

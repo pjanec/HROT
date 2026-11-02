@@ -27,7 +27,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly DdsReader<EntityDoorState>? _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly GhostCreationSystem _ghostCreationSystem;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityDoorState>();
         public long DescriptorOrdinal => OrdinalValue;
@@ -36,12 +36,12 @@ namespace Hrot.Map.Common.Replication.Ingress
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
         public EntityDoorStateIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap,
-            GhostCreationSystem ghostCreationSystem, long localNodeId)
+            GhostCreationSystem ghostCreationSystem, int localNodeId)
         {
             _reader = participant is not null ? new DdsReader<EntityDoorState>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <inheritdoc />
@@ -61,7 +61,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         private void Apply(in EntityDoorState data, IEntityCommandBuffer cmd, ISimulationView view)
         {
-            long netId = data.EntityId;
+            int netId = data.EntityId;
             if (!_entityMap.TryGetEntity(netId, out var entity))
             {
                 if (view is not EntityRepository repo)
@@ -90,7 +90,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (!string.IsNullOrEmpty(door.Key)) repo.SetManagedComponent(entity, new TerrainObjectKey { Key = door.Key });
         }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         private static bool OwnsTheDoorDescriptor(EntityRepository repo, Entity entity)
             => Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(

@@ -53,7 +53,7 @@ public sealed class MapEntityMenuHandler : IEntityContextMenuHandler
 
     /// <summary>⭐ <c>CE-1230</c> (canvas context menu §11 OM-1, R-1019) — the map's menu for the unit with network id
     /// <paramref name="networkId"/> (the ORBAT tree's row id). False when this host's map does not know it.</summary>
-    public bool PopulateMenuFor(long networkId, IContextMenuBuilder builder)
+    public bool PopulateMenuFor(int networkId, IContextMenuBuilder builder)
     {
         if (_host() is null || _world() is not { } world || networkId <= 0) return false;
         if (!world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()

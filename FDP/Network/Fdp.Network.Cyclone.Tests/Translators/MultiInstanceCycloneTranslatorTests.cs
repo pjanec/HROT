@@ -15,7 +15,7 @@ namespace Fdp.Network.Cyclone.Tests.Translators
     public partial struct MultiInstanceTestComponent
     {
         [DdsKey, DdsId(0)]
-        public long EntityId;
+        public int EntityId;
         [DdsKey, DdsId(1)]
         public long InstanceId;
         [DdsId(2)]
@@ -25,7 +25,7 @@ namespace Fdp.Network.Cyclone.Tests.Translators
     [StructLayout(LayoutKind.Sequential)]
     public struct InvalidMultiTestComponent
     {
-        public long EntityId;
+        public int EntityId;
         // Missing InstanceId field
         public int Value;
     }

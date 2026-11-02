@@ -13,15 +13,13 @@ namespace Hrot.Map.Definitions.Behavior.Intents
     /// </para>
     /// </summary>
     [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
+    [Fdp.Toolkit.Replication.RetiredJsonKeys("CenterLat", "CenterLon")]   // CE-4153 S10: S0 item 5 folded them into `Center`
     public sealed class DefendAreaIntentDto
     {
         public const string BehaviorId = BehaviorNames.DefendArea;
 
-        /// <summary>Latitude of the area center.</summary>
-        public double CenterLat;
-
-        /// <summary>Longitude of the area center.</summary>
-        public double CenterLon;
+        /// <summary>⭐ S0 item 5 (SR-135) — the area's centre: ONE authored place (local metres, or an entity's position). Replaces the lat/lon pair.</summary>
+        public Fdp.Toolkit.Replication.PointLink Center;
 
         /// <summary>Radius in meters.</summary>
         public float RadiusMeters;

@@ -57,7 +57,7 @@ namespace Hrot.Map.Common.Translators
         public static IEnumerable<INetworkTranslator> Create(
             DdsParticipant       participant,
             NetworkEntityMap     entityMap,
-            long                 localNodeId,
+            int                 localNodeId,
             FdpEventBus          eventBus,
             GhostCreationSystem  ghostCreationSystem)
         {

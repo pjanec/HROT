@@ -93,7 +93,7 @@ namespace Fdp.Toolkit.Tests.Perception
             Assert.Equal(unit, _repo.GetComponentRO<PartMetadata>(child).ParentEntity);
             var stored = _repo.GetComponentRO<DangerAreaSensor>(child);
             Assert.Equal(DangerRouteSource.ToPoint, stored.Settings.RouteSource);
-            Assert.Equal(new Vector3(350, 350, 0), stored.Settings.RoutePoint);
+            Assert.Equal(new Fdp.Core.WorldPoint(350, 350, 0), stored.Settings.RoutePoint);
             var transport = _repo.GetComponentRO<EqsSensor>(child);
             Assert.Equal(DangerAreaChildSensor.TemplateId, transport.BlueprintId);
             Assert.Equal(settings.CorridorHalfWidth, transport.SearchRadius);
@@ -156,7 +156,7 @@ namespace Fdp.Toolkit.Tests.Perception
             Assert.False(_repo.GetComponentRO<DangerAreaCognitiveBuffer>(child).IsReady);
             Assert.Equal(0, _repo.GetComponentRO<DangerAreaCognitiveBuffer>(child).Count);
             Assert.False(_repo.HasComponent<EqsCognitiveBuffer>(child));
-            Assert.Equal(new Vector3(10, 20, 0), _repo.GetComponentRO<EqsSensor>(child).ContextPoint1);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(10, 20, 0), _repo.GetComponentRO<EqsSensor>(child).ContextPoint1);
             Assert.Equal(DangerRouteSource.ToPoint, _repo.GetComponentRO<DangerAreaSensor>(child).Settings.RouteSource);
         }
 

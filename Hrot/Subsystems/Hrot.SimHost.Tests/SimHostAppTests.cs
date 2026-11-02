@@ -70,19 +70,19 @@ namespace Hrot.SimHost.Tests
             world.AddComponent(entity, new NavigationIntent { IntentId = 5u });
 
             var entityMap = new NetworkEntityMap();
-            entityMap.Register(42L, entity);
+            entityMap.Register(42, entity);
 
             var app = new SimHostApp();
             SetPrivateField(app, "_world", world);
             SetPrivateField(app, "_entityMap", entityMap);
 
             var destination = new Vector2(10f, 20f);
-            app.TestHook_SetMovementIntent(42L, destination, speed: 12f);
+            app.TestHook_SetMovementIntent(42, destination, speed: 12f);
 
             var intent = world.GetComponent<NavigationIntent>(entity);
             Assert.Equal(6u, intent.IntentId);
             Assert.Equal(NavigationMode.DirectPoint, intent.Mode);
-            Assert.Equal(new Vector3(destination.X, destination.Y, 0f), intent.FinalDestination);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(destination.X, destination.Y, 0f), intent.FinalDestination);
             Assert.Equal(12f, intent.TargetSpeed);
             Assert.Equal(20f, intent.ArrivalRadius);
         }

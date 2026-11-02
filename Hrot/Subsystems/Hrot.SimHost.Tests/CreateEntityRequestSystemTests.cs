@@ -21,12 +21,12 @@ namespace Hrot.SimHost.Tests
 
     internal sealed class StubIdAllocator : INetworkIdAllocator
     {
-        private long _next;
+        private int _next;
         public long LastAllocatedId { get; private set; }
 
-        public StubIdAllocator(long startId = 100) => _next = startId;
-        public long AllocateId() { LastAllocatedId = _next; return _next++; }
-        public void Reset(long startId = 0) => _next = startId;
+        public StubIdAllocator(int startId = 100) => _next = startId;
+        public int AllocateId() { LastAllocatedId = _next; return _next++; }
+        public void Reset(int startId = 0) => _next = startId;
         public void Dispose() { }
     }
 
@@ -57,7 +57,7 @@ namespace Hrot.SimHost.Tests
     {
         public List<AckRecord> WrittenAcks { get; } = new();
 
-        public void WriteAck(Guid requestId, long entityId, EntityOperationStatus status)
+        public void WriteAck(Guid requestId, int entityId, EntityOperationStatus status)
             => WrittenAcks.Add(new AckRecord
             {
                 RequestId  = requestId,
@@ -73,7 +73,7 @@ namespace Hrot.SimHost.Tests
         private readonly List<DescriptorGrant> _grants = new();
 
         public void AddGrant(long descriptorTypeId, int nodeId)
-            => _grants.Add(new DescriptorGrant { DescriptorTypeId = descriptorTypeId, NodeId = nodeId });
+            => _grants.Add(new DescriptorGrant { DescriptorTypeId = descriptorTypeId, NodeId = (Fdp.Core.NodeId)(nodeId) });
 
         public IReadOnlyList<DescriptorGrant> GetInitialGrants(in Fdp.Toolkit.Replication.Abstractions.GrantRequest request)
             => _grants;
@@ -116,7 +116,7 @@ namespace Hrot.SimHost.Tests
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = LocalNodeId,
-                TkbType            = tkbType,
+                TkbType            = (Fdp.Core.TkbTypeId)(tkbType),
                 DisType            = ValidDisType,
             };
 
@@ -152,7 +152,7 @@ namespace Hrot.SimHost.Tests
             var source = new StubRequestSource();
             source.Enqueue(new EntityCreationRequest
             {
-                RequestId = Guid.NewGuid(), OwnerAppInstanceId = LocalNodeId, TkbType = Hrot.Map.Common.TkbEntityTypes.Heli_UH60_DoorsOff, DisType = ValidDisType,
+                RequestId = Guid.NewGuid(), OwnerAppInstanceId = LocalNodeId, TkbType = (Fdp.Core.TkbTypeId)(Hrot.Map.Common.TkbEntityTypes.Heli_UH60_DoorsOff), DisType = ValidDisType,
                 InitialComponents = new List<object> { new EntityInfo { Name = "H1", ForceId = ForceId.Friend } },
             });
             var (system, _, _) = BuildSystem(tkb, source);
@@ -161,7 +161,7 @@ namespace Hrot.SimHost.Tests
             var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
             Assert.Equal(5, commands.Count);   // the helicopter + 2 door gunners + 2 M134s
             var seats = commands.Where(c => c.TkbType != Hrot.Map.Common.TkbEntityTypes.Heli_UH60_DoorsOff)
-                .Select(c => (c.TkbType, ((Fdp.Toolkit.Behavior.Components.PresetSeatIntent)c.InitialComponents!.Single(i => i is Fdp.Toolkit.Behavior.Components.PresetSeatIntent)).Seat))
+                .Select(c => ((long)c.TkbType, ((Fdp.Toolkit.Behavior.Components.PresetSeatIntent)c.InitialComponents!.Single(i => i is Fdp.Toolkit.Behavior.Components.PresetSeatIntent)).Seat))
                 .OrderBy(x => x.Seat).ToArray();
             Assert.Equal(new[] { (Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, (byte)8), (Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M134Minigun, (byte)9),
                                  (Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, (byte)10), (Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M134Minigun, (byte)11) }, seats);
@@ -235,7 +235,7 @@ namespace Hrot.SimHost.Tests
                 var source = new StubRequestSource();
                 source.Enqueue(new EntityCreationRequest
                 {
-                    RequestId = Guid.NewGuid(), OwnerAppInstanceId = LocalNodeId, TkbType = hostType, DisType = ValidDisType, PreAllocatedNetworkId = 900,
+                    RequestId = Guid.NewGuid(), OwnerAppInstanceId = LocalNodeId, TkbType = (Fdp.Core.TkbTypeId)(hostType), DisType = ValidDisType, PreAllocatedNetworkId = 900,
                     InitialComponents = new List<object> { mark },
                 });
                 var (system, _, _) = BuildSystem(tkb, source);
@@ -247,7 +247,7 @@ namespace Hrot.SimHost.Tests
             var commands = Place(new EntityInfo { Name = "V1", ForceId = ForceId.Friend });
             Assert.Equal(3, commands.Length);   // the vehicle + its weapon + its gunner
             var seats = commands.Where(c => c.TkbType != hostType)
-                .Select(c => (c.TkbType, ((Fdp.Toolkit.Behavior.Components.PresetSeatIntent)c.InitialComponents!.Single(i => i is Fdp.Toolkit.Behavior.Components.PresetSeatIntent)).Seat))
+                .Select(c => ((long)c.TkbType, ((Fdp.Toolkit.Behavior.Components.PresetSeatIntent)c.InitialComponents!.Single(i => i is Fdp.Toolkit.Behavior.Components.PresetSeatIntent)).Seat))
                 .OrderBy(x => x.Seat).ToArray();
             Assert.Equal(new[] { (gunnerType, (byte)gunnerSeat), (weaponType, (byte)stationSeat) }, seats);
             Assert.Single(Place(new Fdp.Toolkit.Behavior.Components.SeatPresetsFilled { Filled = 1 }));   // the saved vehicle: neither again
@@ -297,7 +297,7 @@ namespace Hrot.SimHost.Tests
             var source = new StubRequestSource();
             source.Enqueue(new EntityCreationRequest
             {
-                RequestId = Guid.NewGuid(), OwnerAppInstanceId = LocalNodeId, TkbType = Hrot.Map.Common.TkbEntityTypes.Infantry_StingerGunner,
+                RequestId = Guid.NewGuid(), OwnerAppInstanceId = LocalNodeId, TkbType = (Fdp.Core.TkbTypeId)(Hrot.Map.Common.TkbEntityTypes.Infantry_StingerGunner),
                 DisType = ValidDisType, PreAllocatedNetworkId = 901, InitialComponents = new List<object> { new EntityInfo { Name = "S1", ForceId = ForceId.Friend } },
             });
             var (system, _, _) = BuildSystem(tkb, source);
@@ -368,7 +368,7 @@ namespace Hrot.SimHost.Tests
             var source = new StubRequestSource();
             source.Enqueue(new EntityCreationRequest
             {
-                RequestId = Guid.NewGuid(), OwnerAppInstanceId = LocalNodeId, TkbType = PresetHost, DisType = ValidDisType,
+                RequestId = Guid.NewGuid(), OwnerAppInstanceId = LocalNodeId, TkbType = (Fdp.Core.TkbTypeId)(PresetHost), DisType = ValidDisType,
                 InitialComponents = new List<object> { new EntityInfo { Name = "T1", ForceId = ForceId.Hostile } },
             });
             var (system, _, _) = BuildSystem(PresetTkb(), source);
@@ -402,7 +402,7 @@ namespace Hrot.SimHost.Tests
             var source = new StubRequestSource();
             source.Enqueue(new EntityCreationRequest
             {
-                RequestId = Guid.NewGuid(), OwnerAppInstanceId = LocalNodeId, TkbType = PresetHost, DisType = ValidDisType,
+                RequestId = Guid.NewGuid(), OwnerAppInstanceId = LocalNodeId, TkbType = (Fdp.Core.TkbTypeId)(PresetHost), DisType = ValidDisType,
                 PreAllocatedNetworkId = 555,
                 InitialComponents = new List<object> { new Fdp.Toolkit.Behavior.Components.SeatPresetsFilled { Filled = 1 } },
             });
@@ -494,7 +494,7 @@ namespace Hrot.SimHost.Tests
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = LocalNodeId,
-                TkbType            = ValidTkbType,
+                TkbType            = (Fdp.Core.TkbTypeId)(ValidTkbType),
                 DisType            = ValidDisType,
                 InitType           = Fdp.Toolkit.Replication.ReliableInitType.None,
             });
@@ -572,7 +572,7 @@ namespace Hrot.SimHost.Tests
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = LocalNodeId,
-                TkbType            = ValidTkbType,
+                TkbType            = (Fdp.Core.TkbTypeId)(ValidTkbType),
                 DisType            = ValidDisType,
                 IsTransient        = true,
             });
@@ -619,7 +619,7 @@ namespace Hrot.SimHost.Tests
             {
                 RequestId           = Guid.NewGuid(),
                 OwnerAppInstanceId  = LocalNodeId,
-                TkbType             = ValidTkbType,
+                TkbType             = (Fdp.Core.TkbTypeId)(ValidTkbType),
                 DisType             = ValidDisType,
                 InitType            = Fdp.Toolkit.Replication.ReliableInitType.AllPeers,
                 ReliableInitTimeout = TimeSpan.FromSeconds(7),
@@ -669,7 +669,7 @@ namespace Hrot.SimHost.Tests
             var source = new StubRequestSource();
             source.Enqueue(new EntityCreationRequest
             {
-                RequestId = Guid.NewGuid(), OwnerAppInstanceId = LocalNodeId, TkbType = unitType, DisType = stale,
+                RequestId = Guid.NewGuid(), OwnerAppInstanceId = LocalNodeId, TkbType = (Fdp.Core.TkbTypeId)(unitType), DisType = stale,
             });
             source.Enqueue(MakeValidRequest());
             var (system, _, _) = BuildSystem(tkb, source);
@@ -692,7 +692,7 @@ namespace Hrot.SimHost.Tests
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = LocalNodeId,
-                TkbType            = ValidTkbType,
+                TkbType            = (Fdp.Core.TkbTypeId)(ValidTkbType),
                 DisType            = ValidDisType,
                 SpawnHeight        = height,
             });
@@ -906,7 +906,7 @@ namespace Hrot.SimHost.Tests
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = LocalNodeId,
-                TkbType            = ValidTkbType,
+                TkbType            = (Fdp.Core.TkbTypeId)(ValidTkbType),
                 DisType            = ValidDisType,
                 InitialAttributesJson = "{\"Name\":\"Delta\"}",
             };
@@ -1078,7 +1078,7 @@ namespace Hrot.SimHost.Tests
         {
             var db     = new TkbDatabase();
             var parent = new TkbTemplate("TestParent", ValidTkbType);
-            parent.ChildBlueprints.Add(new ChildBlueprintDefinition(childInstanceId, childTkbType));
+            parent.ChildBlueprints.Add(new ChildBlueprintDefinition(childInstanceId, (Fdp.Core.TkbTypeId)(childTkbType)));
             db.Register(parent);
             db.Register(new TkbTemplate("TestChild", childTkbType));
             return db;
@@ -1124,9 +1124,9 @@ namespace Hrot.SimHost.Tests
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = LocalNodeId,
-                TkbType            = ValidTkbType,
+                TkbType            = (Fdp.Core.TkbTypeId)(ValidTkbType),
                 DisType            = ValidDisType,
-                PreAllocatedNetworkId = 5555L,
+                PreAllocatedNetworkId = 5555,
             });
 
             var idAlloc = new StubIdAllocator(startId: 999);
@@ -1161,11 +1161,11 @@ namespace Hrot.SimHost.Tests
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = LocalNodeId,
-                TkbType            = ValidTkbType,
+                TkbType            = (Fdp.Core.TkbTypeId)(ValidTkbType),
                 DisType            = ValidDisType,
-                ChildComponentOverrides = new Dictionary<int, (long PreAllocatedId, IReadOnlyList<object> Components)>
+                ChildComponentOverrides = new Dictionary<int, (int PreAllocatedId, IReadOnlyList<object> Components)>
                 {
-                    { 2, (9001L, new List<object> { overrideComp }) },
+                    { 2, (9001, new List<object> { overrideComp }) },
                 },
             });
 
@@ -1200,12 +1200,12 @@ namespace Hrot.SimHost.Tests
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = LocalNodeId,
-                TkbType            = ValidTkbType,
+                TkbType            = (Fdp.Core.TkbTypeId)(ValidTkbType),
                 DisType            = ValidDisType,
-                PreAllocatedNetworkId = 5555L,   // parent pre-allocated — avoids parent alloc
-                ChildComponentOverrides = new Dictionary<int, (long PreAllocatedId, IReadOnlyList<object> Components)>
+                PreAllocatedNetworkId = 5555,   // parent pre-allocated — avoids parent alloc
+                ChildComponentOverrides = new Dictionary<int, (int PreAllocatedId, IReadOnlyList<object> Components)>
                 {
-                    { 2, (0L, new List<object>()) },   // 0 means "fall through"
+                    { 2, (0, new List<object>()) },   // 0 means "fall through"
                 },
             });
 
@@ -1232,8 +1232,8 @@ namespace Hrot.SimHost.Tests
             var repo = CreateWorld();
             var db   = new TkbDatabase();
             var parent = new TkbTemplate("TestParent2", ValidTkbType);
-            parent.ChildBlueprints.Add(new ChildBlueprintDefinition(1, 43L));
-            parent.ChildBlueprints.Add(new ChildBlueprintDefinition(2, 44L));
+            parent.ChildBlueprints.Add(new ChildBlueprintDefinition(1, (Fdp.Core.TkbTypeId)(43L)));
+            parent.ChildBlueprints.Add(new ChildBlueprintDefinition(2, (Fdp.Core.TkbTypeId)(44L)));
             db.Register(parent);
             db.Register(new TkbTemplate("Child1", 43L));
             db.Register(new TkbTemplate("Child2", 44L));
@@ -1244,7 +1244,7 @@ namespace Hrot.SimHost.Tests
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = LocalNodeId,
-                TkbType            = ValidTkbType,
+                TkbType            = (Fdp.Core.TkbTypeId)(ValidTkbType),
                 DisType            = ValidDisType,
             });
 
@@ -1284,13 +1284,13 @@ namespace Hrot.SimHost.Tests
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = LocalNodeId,
-                TkbType            = ValidTkbType,
+                TkbType            = (Fdp.Core.TkbTypeId)(ValidTkbType),
                 DisType            = ValidDisType,
-                PreAllocatedNetworkId = 5555L,
+                PreAllocatedNetworkId = 5555,
                 IsScenarioLoad        = true,   // ⭐ CE-3324 — what StagingEntityExtractor says
-                ChildComponentOverrides = new Dictionary<int, (long PreAllocatedId, IReadOnlyList<object> Components)>
+                ChildComponentOverrides = new Dictionary<int, (int PreAllocatedId, IReadOnlyList<object> Components)>
                 {
-                    { 99, (9999L, new List<object>()) },  // no entry for InstanceId 2
+                    { 99, (9999, new List<object>()) },  // no entry for InstanceId 2
                 },
             });
 
@@ -1325,9 +1325,9 @@ namespace Hrot.SimHost.Tests
             {
                 RequestId             = Guid.NewGuid(),
                 OwnerAppInstanceId    = LocalNodeId,
-                TkbType               = ValidTkbType,
+                TkbType               = (Fdp.Core.TkbTypeId)(ValidTkbType),
                 DisType               = ValidDisType,
-                PreAllocatedNetworkId = 5555L,   // fixed by its author — and nothing says "scenario load"
+                PreAllocatedNetworkId = 5555,   // fixed by its author — and nothing says "scenario load"
             });
 
             var idAlloc = new StubIdAllocator(startId: 100);

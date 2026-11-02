@@ -13,7 +13,7 @@ namespace Fdp.Interfaces
         /// <summary>
         /// Unique type identifier (primary key).
         /// </summary>
-        public long TkbType { get; }
+        public TkbTypeId TkbType { get; }
 
         /// <summary>
         /// Unique identifier for this template (Name).
@@ -165,7 +165,7 @@ namespace Fdp.Interfaces
                 throw new ArgumentException("TkbType cannot be zero", nameof(tkbType));
 
             Name         = name;
-            TkbType      = tkbType;
+            TkbType      = (Fdp.Core.TkbTypeId)(tkbType);
             CategoryPath = categoryPath ?? "";
         }
 

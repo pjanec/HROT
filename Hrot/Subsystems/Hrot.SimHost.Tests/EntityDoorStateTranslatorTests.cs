@@ -54,7 +54,7 @@ namespace Hrot.SimHost.Tests
 
             using var owner = World(out _);
             var door = owner.CreateEntity();
-            owner.AddComponent(door, new NetworkIdentity(5000L));
+            owner.AddComponent(door, new NetworkIdentity(5000));
             owner.AddComponent(door, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
             owner.AddComponent(door, new DoorState { State = TerrainDoorState.Open });
             owner.SetManagedComponent(door, new TerrainObjectKey { Key = "range/H/front" });
@@ -78,7 +78,7 @@ namespace Hrot.SimHost.Tests
 
             Thread.Sleep(200);
             Tick();
-            Assert.True(map.TryGetEntity(5000L, out var ghost));
+            Assert.True(map.TryGetEntity(5000, out var ghost));
             Assert.Equal("range/H/front", replica.GetComponent<TerrainObjectKey>(ghost).Key);
             Assert.Equal(TerrainDoorState.Open, replica.GetComponentRO<DoorState>(ghost).State);
             Assert.False(replicaTerrain.SegmentBlocked(from, to, DoorStates.Of(replica)));   // the owner's OPEN reached this node's view
@@ -112,12 +112,12 @@ namespace Hrot.SimHost.Tests
 
             using var owner = World(out _);
             var door = owner.CreateEntity();
-            owner.AddComponent(door, new NetworkIdentity(5100L));
+            owner.AddComponent(door, new NetworkIdentity(5100));
             owner.AddComponent(door, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
             owner.AddComponent(door, new DoorState { State = TerrainDoorState.Closed });
             owner.SetManagedComponent(door, new TerrainObjectKey { Key = "range/H/front" });
             var ownerMap = new NetworkEntityMap();
-            ownerMap.Register(5100L, door);
+            ownerMap.Register(5100, door);
             var stateOut   = new EntityDoorStateEgressTranslator(participant);
             var commandIn  = new InteractionIngressTranslator(participant, ownerMap);
             var commandOut = new InteractionEgressTranslator(participant, ownerMap);
@@ -142,7 +142,7 @@ namespace Hrot.SimHost.Tests
 
             Thread.Sleep(200);
             Pump();
-            Assert.True(replicaMap.TryGetEntity(5100L, out var ghost));
+            Assert.True(replicaMap.TryGetEntity(5100, out var ghost));
             Assert.Equal(TerrainDoorState.Closed, replica.GetComponentRO<DoorState>(ghost).State);
 
             replica.Bus.Publish(new DoorCommandEvent { Door = ghost, Verb = DoorVerb.Lock });

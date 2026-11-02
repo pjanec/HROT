@@ -27,11 +27,11 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 if (candidate.EntityId == -1L || candidate.EntityId == 0L) continue;
 
                 var target = new Entity((ulong)candidate.EntityId);
-                if (!view.IsAlive(target)) { candidate.EntityId = -1L; continue; }
+                if (!view.IsAlive(target)) { candidate.EntityId = -1; continue; }
 
                 // ⭐ CE-2155 (R-2011 I4) — the dead AND the incapacitated: a man down is no longer a target.
                 if (Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(view, target))
-                    candidate.EntityId = -1L;
+                    candidate.EntityId = -1;
             }
         }
     }

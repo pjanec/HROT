@@ -40,7 +40,7 @@ namespace Hrot.AI.Behaviors.StandardLibrary
 
         /// <summary>The entity a network id refers to on this node, or <see cref="Entity.Null"/> when it is not (yet) known.</summary>
         [BlueprintCallable("World", DisplayName = "Entity From Network Id")]
-        public static Entity EntityFromNetworkId(long networkId, ISimulationView view)
+        public static Entity EntityFromNetworkId(int networkId, ISimulationView view)
             => new Fdp.Toolkit.Replication.EntityRef(networkId).Resolve(view);   // ⭐ the one resolver (stale-checked)
 
         /// <summary>⭐ The entity an authored <see cref="Fdp.Toolkit.Replication.EntityRef"/> names on this node, or

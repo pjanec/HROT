@@ -94,8 +94,8 @@ public sealed class TrafficLayer3DTests
     {
         var walker = new TrafficPedPose(1, 7, "7", 10f, 0f, 0f, 0.5f);
         var replica = new TrafficPedPose(1, 8, "8", 12f, 0f, 0f, 0f);
-        var car = new TrafficCarPose(1, default, "c1", 41, 0, 0x336699, 20f, 5f, 0f, 1f, 4.5f, 1.8f);
-        var near = new TrafficCarPose(1, default, "c2", 42, 1050, 0, 30f, 5f, 0f, 0f, 4.5f, 1.8f);
+        var car = new TrafficCarPose(1, default, "c1", 41, (Fdp.Core.TkbTypeId)(0), 0x336699, 20f, 5f, 0f, 1f, 4.5f, 1.8f);
+        var near = new TrafficCarPose(1, default, "c2", 42, (Fdp.Core.TkbTypeId)(1050), 0, 30f, 5f, 0f, 0f, 4.5f, 1.8f);
         using var world = new Fdp.Core.EntityRepository();
         world.SetSingletonManaged(new TrafficFrame(new[] { car, near }, c => c.NetworkId == 42, new System.Collections.Generic.Dictionary<int, byte>(),
                                                    new[] { walker, replica }, p => p.NetworkId == 8));
@@ -104,7 +104,7 @@ public sealed class TrafficLayer3DTests
 
         Assert.Equal(2, bodies.Count);
         var man = Assert.Single(bodies, b => b.Key == 7);
-        Assert.Equal(TrafficPanicSystem.TypeOf(7), man.TkbType);
+        Assert.Equal(TrafficPanicSystem.TypeOf(7), (long)man.TkbType);
         Assert.Equal(TrafficReplicas.PedestrianTypeOf(7), man.TkbType);
         Assert.Equal(new Vector3(10f, 0f, 0f), man.Position);
         Assert.Equal(0.5f, man.YawRad);

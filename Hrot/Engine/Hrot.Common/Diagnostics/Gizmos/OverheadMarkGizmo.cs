@@ -126,7 +126,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (CombatLife.IsDestroyed(repo, entity)) return;
             var (kind, alpha) = Marks.Of(repo, entity, HitModel.Now(repo));
             if (kind == MarkKind.None || alpha <= 0f) return;
-            long net = view.GetComponentRO<NetworkIdentity>(entity).Value;
+            int net = view.GetComponentRO<NetworkIdentity>(entity).Value;
             if (net == 0) return;
             draw.Card(net, DebugTraceLayers.Labels).Row(Row).Text(Marks.Glyph(kind), Marks.Colour(kind, alpha), Marks.IsMood(kind) ? 12f : 14f);
         }

@@ -46,8 +46,8 @@ public sealed class SensorMechanismIntegrationTests
         int domainId = Interlocked.Increment(ref _domainCounter);
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
 
-        long observerNetId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
-        long targetNetId   = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_T72,     muscleNodeId: 1);
+        int observerNetId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
+        int targetNetId   = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_T72,     muscleNodeId: 1);
 
         bool entitiesReady = harness.PumpUntil(
             () =>

@@ -26,7 +26,7 @@ namespace Hrot.SimHost.Tests
             return w;
         }
 
-        private static Entity Spawn(EntityRepository w, long netId, NetworkEntityMap? map = null)
+        private static Entity Spawn(EntityRepository w, int netId, NetworkEntityMap? map = null)
         {
             var e = w.CreateEntity();
             w.AddComponent(e, new NetworkIdentity { Value = netId });

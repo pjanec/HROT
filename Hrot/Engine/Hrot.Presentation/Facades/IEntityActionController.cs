@@ -8,30 +8,30 @@ public interface IEntityActionController
 {
     /// <summary>Pans and zooms the map to centre on the specified entity.</summary>
     /// <param name="entityId">The network entity ID to centre on.</param>
-    void CenterOnEntity(long entityId);
+    void CenterOnEntity(int entityId);
 
     /// <summary>Requests deletion of the specified entity from the scenario.</summary>
     /// <param name="entityId">The network entity ID to delete.</param>
-    void DeleteEntity(long entityId);
+    void DeleteEntity(int entityId);
 
     /// <summary>Opens the overlay (tactical graphic) editor for the specified entity.</summary>
     /// <param name="entityId">The network entity ID whose overlay is to be edited.</param>
-    void EditOverlay(long entityId);
+    void EditOverlay(int entityId);
 
     /// <summary>Opens the route editor for the specified entity.</summary>
     /// <param name="entityId">The network entity ID whose route is to be edited.</param>
-    void EditRoute(long entityId);
+    void EditRoute(int entityId);
 
     /// <summary>Opens the rename dialog for the specified entity.</summary>
     /// <param name="entityId">The network entity ID to rename.</param>
-    void Rename(long entityId);
+    void Rename(int entityId);
 
     /// <summary>Activates the distance measurement tool on the map.</summary>
     void ActivateMeasureTool();
 
     /// <summary>Activates the entity rotation tool on the map for the specified entity.</summary>
     /// <param name="entityId">The network entity ID of the entity to rotate.</param>
-    void ActivateRotateTool(long entityId);
+    void ActivateRotateTool(int entityId);
 
     /// <summary>
     /// ⭐⭐⭐ <c>E2</c> — requests a CLUSTER-WIDE load of the terrain covering one zone.
@@ -47,5 +47,5 @@ public interface IEntityActionController
     /// it is deliberately never replicated (§9.1). ⇒ the menu item is always enabled.</para>
     /// </summary>
     /// <param name="entityId">The network entity ID of the zone to load. This is the zone's id on the wire.</param>
-    void LoadZone(long entityId);
+    void LoadZone(int entityId);
 }

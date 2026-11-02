@@ -17,10 +17,10 @@ namespace Hrot.NED.Messages
     public partial struct BehaviorFaultReport
     {
         /// <summary>Network entity id of the entity whose behaviour faulted.</summary>
-        public long EntityId;
+        public int EntityId;
 
         /// <summary>The node that raised the fault (lets a node skip its own sample).</summary>
-        public long OriginNodeId;
+        public int OriginNodeId;
 
         /// <summary>The behaviour's registered name — its hash as hex text when the registry has no name.</summary>
         public string BehaviorName;

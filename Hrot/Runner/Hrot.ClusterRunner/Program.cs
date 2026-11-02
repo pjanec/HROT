@@ -176,7 +176,7 @@ class Program
                 grantedNodeId = grant.NodeId;
                 Console.WriteLine($"[Runner] C1: the cluster master granted node id {grant.NodeId} (session {grant.SessionId}).");
             }
-            config.NodeId = 0;
+            config.NodeId = (Fdp.Core.NodeId)(0);
         }
         int ResolveNodeId(string subsystemName, int baseNodeId) => grantedNodeId ?? ResolveAppNodeId(subsystemName, baseNodeId);
         // ⭐ CE-3354 ⑥ — a node's name: the configured one, else the default <subsystem>-<nodeId> with the id the runner resolves for it. ⛔ The Editor is the exception: it fixes its own node id,
@@ -344,7 +344,7 @@ class Program
         {
             Headless       = config.Headless,
             DomainId       = config.DomainId,
-            NodeId         = config.NodeId,
+            NodeId         = (Fdp.Core.NodeId)(config.NodeId),
             // ⭐ Batch 103 (103a) — the layout reset is a RUNNER option, so the window controller reads
             //   it from the same place it reads the window size. ⛔ Not a static or an env var.
             // ⚠ `?? true` because the option is `bool?` — see HrotRunnerConfiguration.ResetLayout for

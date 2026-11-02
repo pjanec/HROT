@@ -171,14 +171,14 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <summary>
         /// Sends a DDS dispose for the named entity's mission topic instance.
         /// </summary>
-        public void Dispose(long networkEntityId)
+        public void Dispose(int networkEntityId)
         {
             _lastSentProgress.Remove(networkEntityId);
             _writer.DisposeInstance(new EntityMission { EntityId = networkEntityId });
         }
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget what was published so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             _lastSentProgress.Remove(networkEntityId);
             _writer.UnregisterInstance(new EntityMission { EntityId = networkEntityId });

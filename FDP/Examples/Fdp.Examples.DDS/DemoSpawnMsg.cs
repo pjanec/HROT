@@ -11,7 +11,7 @@ namespace Fdp.Examples.DDS
     {
         /// <summary>Unique long-lived network identifier for the entity.</summary>
         [DdsKey]
-        public long NetworkId;
+        public int NetworkId;
 
         /// <summary>TKB template type identifier (e.g. DemoTemplateIds.CommandTank = 100).</summary>
         public long TkbType;

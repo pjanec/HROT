@@ -44,7 +44,7 @@ namespace Hrot.Map.Common.Translators
             DdsParticipant       participant,
             NetworkEntityMap     entityMap,
             GhostCreationSystem? ghostCreationSystem = null,
-            long                 localNodeId = 0)
+            int                 localNodeId = 0)
         {
             yield return new NavigationStatusEgressTranslator(participant, entityMap, localNodeId);
             yield return new NavigationIntentIngressTranslator(participant, entityMap, localNodeId);

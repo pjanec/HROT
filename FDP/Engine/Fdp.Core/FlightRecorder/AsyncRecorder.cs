@@ -87,7 +87,7 @@ namespace Fdp.Core.FlightRecorder
         /// When left at the default of <c>0</c>, the field is written as <c>0</c>
         /// in the manifest (pre-feature recordings are treated as unknown).
         /// </summary>
-        public long MaxNetworkId { get; set; } = 0;
+        public int MaxNetworkId { get; set; } = 0;
 
         private bool _disposed;
         

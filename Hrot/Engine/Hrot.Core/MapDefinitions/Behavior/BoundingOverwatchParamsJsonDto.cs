@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System.Numerics;
 using System.Text.Json.Serialization;
 using Fdp.Core;
@@ -16,7 +17,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>Where the squad goes (sim metres, Z up).</summary>
         [JsonPropertyName("Objective")]
-        public Vector3 Objective;
+        public PointLink Objective;
 
         /// <summary>How far one bound carries the moving element (m); 0 = 30.</summary>
         [JsonPropertyName("BoundMetres")]

@@ -101,7 +101,7 @@ namespace Fdp.Toolkit.Perception.Survey
     public sealed class WorldSurveyResultEvent
     {
         /// <summary>The unit's network id (0 = a local-only sensor, keyed by its entity index).</summary>
-        public long ParentNetworkId;
+        public int ParentNetworkId;
         /// <summary>The sensor child's part id (or its entity index when local-only).</summary>
         public int LocalChildIndex;
         /// <summary>The sensor's epoch at solve time — a stale answer is dropped.</summary>

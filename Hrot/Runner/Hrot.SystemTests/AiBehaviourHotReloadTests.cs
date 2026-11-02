@@ -22,10 +22,10 @@ public sealed class AiBehaviourHotReloadTests : SystemTestBase
         {
             (await Mcp.StepAsync(5)).EnsureOk();
             var entities = (await Mcp.ListEntitiesAsync()).EnsureOk().Array();
-            long id = 0; string? before = null;
+            int id = 0; string? before = null;
             foreach (var e in entities)
             {
-                long n = e!["networkId"]?.GetValue<long>() ?? 0;
+                int n = e!["networkId"]?.GetValue<int>() ?? 0;
                 var slots = (await Mcp.GetEntitySlotsAsync(n)).Field("slots") as JsonArray;
                 var task = slots?.FirstOrDefault(s => s?["owner"]?.GetValue<string>() == "Task");
                 if (task is null) continue;

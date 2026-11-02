@@ -37,7 +37,7 @@ namespace Hrot.Presentation.Tests.Gizmos
 
         public void Dispose() => _repo.Dispose();
 
-        private Entity Spawn(long id, bool? visible = null)
+        private Entity Spawn(int id, bool? visible = null)
         {
             var e = _repo.CreateEntity();
             _repo.AddComponent(e, new SimTransform { Position = new Vector3(10f, 20f, 0f) });
@@ -65,7 +65,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void TheStatelessSystem_HonoursAPerEntityPolicy()
         {
-            var entity = Spawn(1L);
+            var entity = Spawn(1);
 
             // ⚠⚠ NOT NeverVisiblePolicy. That returns false from IsGloballyEnabled too, which the PRE-S4
             // system already honoured — so a rail using it passes with or without the per-entity call, and
@@ -85,7 +85,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void TheStatelessSystem_StillDrawsUnderTheDefaultPolicy()
         {
-            Spawn(2L);
+            Spawn(2);
 
             var registry = new StatelessGizmoRegistry();
             var probe = new CountingProbe();
@@ -102,7 +102,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void ThePolicy_HidesAnOffScreenEntityWhenTheHostAsked()
         {
-            var entity = Spawn(3L, visible: false);
+            var entity = Spawn(3, visible: false);
             var policy = new CullingStateVisibilityPolicy(CullingOn());
 
             Assert.False(policy.IsEntityVisible(_repo, entity));
@@ -112,7 +112,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void ThePolicy_ShowsAnOnScreenEntityWhenTheHostAsked()
         {
-            var entity = Spawn(4L, visible: true);
+            var entity = Spawn(4, visible: true);
             var policy = new CullingStateVisibilityPolicy(CullingOn());
 
             Assert.True(policy.IsEntityVisible(_repo, entity));
@@ -126,7 +126,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void ThePolicy_IgnoresCullingStateUnlessTheHostAsked()
         {
-            var entity = Spawn(5L, visible: false);
+            var entity = Spawn(5, visible: false);
             var policy = new CullingStateVisibilityPolicy(new GizmoSettingsRegistry());
 
             Assert.True(policy.IsEntityVisible(_repo, entity),
@@ -138,7 +138,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void ThePolicy_ShowsAnEntityThatCarriesNoCullingState()
         {
-            var entity = Spawn(6L);                       // no CullingState
+            var entity = Spawn(6);                       // no CullingState
             var policy = new CullingStateVisibilityPolicy(CullingOn());
 
             Assert.True(policy.IsEntityVisible(_repo, entity));
@@ -199,7 +199,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void AHostCanAttachItsOwnPolicyToAnyProjector()
         {
-            Spawn(30L);
+            Spawn(30);
 
             var mi = MapInteractionPack.Build(new MapInteractionContext
             {

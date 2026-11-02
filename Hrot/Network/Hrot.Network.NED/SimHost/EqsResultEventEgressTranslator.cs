@@ -78,7 +78,7 @@ namespace Hrot.Network.NED.SimHost
                         // ⭐ A target with no network id cannot be named on the wire — DROP it, as the
                         // area-query egress does. Sending it as 0 would make the Brain read it as a
                         // POSITIONAL candidate at the target's position.
-                        long resolvedNetId = 0L;
+                        int resolvedNetId = 0;
                         if (r.EntityId != 0L && r.EntityId != -1L)
                         {
                             var targetEntity = new Entity((ulong)r.EntityId);
@@ -120,7 +120,7 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }
 

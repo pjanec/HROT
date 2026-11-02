@@ -32,7 +32,7 @@ public sealed class StorageConsensusAggregatorTests
     {
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = nodeId,
+            NodeId        = (Fdp.Core.NodeId)(nodeId),
             SubsystemName = subsystem,
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
@@ -85,7 +85,7 @@ public sealed class StorageConsensusAggregatorTests
         {
             TransactionId   = txId,
             Operation       = Fdp.Toolkit.Orchestration.NodeOpType.SerializeLocal,
-            NodeId          = 1,
+            NodeId          = (Fdp.Core.NodeId)(1),
             StatusCode      = OrchestrationStatusCode.Success,
             ResultPayload   = manifest1,
             IsParticipating = true,
@@ -94,7 +94,7 @@ public sealed class StorageConsensusAggregatorTests
         {
             TransactionId   = txId,
             Operation       = Fdp.Toolkit.Orchestration.NodeOpType.SerializeLocal,
-            NodeId          = 2,
+            NodeId          = (Fdp.Core.NodeId)(2),
             StatusCode      = OrchestrationStatusCode.Success,
             ResultPayload   = manifest2,
             IsParticipating = true,
@@ -152,7 +152,7 @@ public sealed class StorageConsensusAggregatorTests
         {
             TransactionId   = txId,
             Operation       = Fdp.Toolkit.Orchestration.NodeOpType.SerializeLocal,
-            NodeId          = 1,
+            NodeId          = (Fdp.Core.NodeId)(1),
             StatusCode      = OrchestrationStatusCode.Success,
             ResultPayload   = manifest1,
             IsParticipating = true,
@@ -161,7 +161,7 @@ public sealed class StorageConsensusAggregatorTests
         {
             TransactionId   = txId,
             Operation       = Fdp.Toolkit.Orchestration.NodeOpType.SerializeLocal,
-            NodeId          = 2,
+            NodeId          = (Fdp.Core.NodeId)(2),
             StatusCode      = OrchestrationStatusCode.Success,
             ResultPayload   = malformedJson,  // String payload, will be serialized, then fail to deserialize
             IsParticipating = true,
@@ -213,7 +213,7 @@ public sealed class StorageConsensusAggregatorTests
         {
             TransactionId   = txId,
             Operation       = Fdp.Toolkit.Orchestration.NodeOpType.SerializeLocal,
-            NodeId          = 1,
+            NodeId          = (Fdp.Core.NodeId)(1),
             StatusCode      = OrchestrationStatusCode.Success,
             ResultPayload   = manifest1,
             IsParticipating = true,
@@ -269,7 +269,7 @@ public sealed class StorageConsensusAggregatorTests
         {
             TransactionId   = txId,
             Operation       = Fdp.Toolkit.Orchestration.NodeOpType.SerializeLocal,
-            NodeId          = 1,
+            NodeId          = (Fdp.Core.NodeId)(1),
             StatusCode      = OrchestrationStatusCode.Success,
             ResultPayload   = manifest1,
             IsParticipating = true,

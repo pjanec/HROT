@@ -17,7 +17,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
     public sealed class DangerAreaResultEvent
     {
         /// <summary>The unit's network id (0 = a local-only sensor, keyed by its entity index).</summary>
-        public long ParentNetworkId;
+        public int ParentNetworkId;
         /// <summary>The sensor child's part id (or its entity index when local-only).</summary>
         public int LocalChildIndex;
         /// <summary>The sensor's epoch at solve time — a stale answer is dropped.</summary>

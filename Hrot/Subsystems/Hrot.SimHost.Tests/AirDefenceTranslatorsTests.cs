@@ -35,7 +35,7 @@ namespace Hrot.SimHost.Tests
             public void DisposeInstance(T key) { }
         }
 
-        private const long AircraftId = 4242;
+        private const int AircraftId = 4242;
         private readonly EntityRepository _simHost = new(), _brain = new();
         private readonly NetworkEntityMap _simHostMap = new(), _brainMap = new();
         private readonly Entity _onSimHost, _onBrain;

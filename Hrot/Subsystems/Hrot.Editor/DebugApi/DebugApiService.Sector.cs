@@ -17,7 +17,7 @@ namespace Hrot.Editor.DebugApi
         /// area network ids). The arc's origin is where he stands now. An empty body withdraws the sector. A unit whose brain runs on
         /// another node gets it there (backend's tactical-intent kind 4, <c>CE-3261</c>).
         /// </summary>
-        public (JsonNode? result, int status, string? error) PostEntitySector(long networkId, JsonNode? body)
+        public (JsonNode? result, int status, string? error) PostEntitySector(int networkId, JsonNode? body)
         {
             if (!_entityMap.TryGetEntity(networkId, out var unit) || !_world.IsAlive(unit))
                 return (null, 404, $"Entity {networkId} not found.");
@@ -27,7 +27,7 @@ namespace Hrot.Editor.DebugApi
             if (body?["left"] != null || body?["right"] != null)
             {
                 evt.ArcSet = 1;
-                evt.ArcOrigin = _world.HasComponent<SimTransform>(unit) ? _world.GetComponentRO<SimTransform>(unit).Position : Vector3.Zero;
+                evt.ArcOrigin = _world.HasComponent<SimTransform>(unit) ? _world.GetComponentRO<SimTransform>(unit).Position : Fdp.Core.WorldPoint.Zero;
                 evt.LeftBearing = (float)Num(body?["left"], 0);
                 evt.RightBearing = (float)Num(body?["right"], 360);
                 evt.MinRange = (float)Num(body?["minRange"], 0);
@@ -38,10 +38,10 @@ namespace Hrot.Editor.DebugApi
                 evt.WatchSet = 1;
                 evt.WatchBearing = (float)Num(body?["watch"], 0);
             }
-            evt.AllowArea = (long)Num(body?["allowArea"], 0);
+            evt.AllowArea = (int)Num(body?["allowArea"], 0);
             if (body?["noFire"] is JsonArray noFire)
                 foreach (var id in noFire)
-                    if (evt.NoFire.Count < EngagementArea.MaxNoFire && id is JsonValue v && v.TryGetValue<long>(out long areaId))
+                    if (evt.NoFire.Count < EngagementArea.MaxNoFire && id is JsonValue v && v.TryGetValue<int>(out int areaId))
                         evt.NoFire.Items[evt.NoFire.Count++] = areaId;
 
             // ⭐ CE-3261 (backend, kind 4) — a unit whose brain runs on another node: the event goes there and its EngagementAreaSystem
@@ -59,8 +59,8 @@ namespace Hrot.Editor.DebugApi
             return (new JsonObject
             {
                 ["networkId"] = networkId,
-                ["arc"] = a.ArcSet != 0 ? new JsonObject { ["left"] = a.LeftBearing, ["right"] = a.RightBearing, ["minRange"] = a.MinRange, ["maxRange"] = a.MaxRange } : null,
-                ["watch"] = a.WatchSet != 0 ? a.WatchBearing : null,
+                ["arc"] = a.ArcSet != 0 ? new JsonObject { ["left"] = a.LeftBearing.Degrees, ["right"] = a.RightBearing.Degrees, ["minRange"] = a.MinRange, ["maxRange"] = a.MaxRange } : null,
+                ["watch"] = a.WatchSet != 0 ? a.WatchBearing.Degrees : null,
                 ["allowArea"] = a.AllowArea != 0 ? a.AllowArea : null,
                 ["noFire"] = a.NoFire.Count,
                 ["setBy"] = a.SetBy.ToString(),

@@ -169,7 +169,7 @@ public sealed partial class PossessionStationTests
             Assert.Null(sw.Camera3D.Driver);
 
             // possessing, the station's view IS his eyes: following refuses
-            w.AddComponent(unit, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = 0, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 });
             var station = new PossessionStation(sw, () => w);
             station.Update(0.016f);
             Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);

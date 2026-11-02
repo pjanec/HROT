@@ -49,7 +49,7 @@ namespace Fdp.Toolkit.Lifecycle
         
         private readonly int _timeoutFrames;
         
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
         
         private readonly Dictionary<Entity, PendingConstruction> _pendingConstruction = new();
         private readonly Dictionary<Entity, PendingDestruction> _pendingDestruction = new();
@@ -83,13 +83,13 @@ namespace Fdp.Toolkit.Lifecycle
             ITkbDatabase tkb,
             IEnumerable<int> participatingModuleIds,
             int timeoutFrames = 300,
-            long localNodeId = 0,
+            int localNodeId = 0,
             IReadOnlyList<ITkbEntityTranslator>? translators = null)
         {
             _tkb = tkb;
             _globalParticipants = new HashSet<int>(participatingModuleIds);
             _timeoutFrames = timeoutFrames;
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _translators = translators ?? System.Array.Empty<ITkbEntityTranslator>();
         }
         
@@ -573,18 +573,18 @@ namespace Fdp.Toolkit.Lifecycle
         private readonly struct Outcome
         {
             public readonly Entity Entity; public readonly bool Construction, Ok, Forced, Resumed;
-            public readonly long TkbType; public readonly FixedString64 Text; public readonly uint Frame;
-            public Outcome(Entity e, bool construction, bool ok, bool forced, bool resumed, long tkbType, FixedString64 text, uint frame)
+            public readonly TkbTypeId TkbType; public readonly FixedString64 Text; public readonly uint Frame;
+            public Outcome(Entity e, bool construction, bool ok, bool forced, bool resumed, TkbTypeId tkbType, FixedString64 text, uint frame)
             { Entity = e; Construction = construction; Ok = ok; Forced = forced; Resumed = resumed; TkbType = tkbType; Text = text; Frame = frame; }
         }
 
         private readonly List<Outcome> _outcomes = new();
 
         private void Constructed(PendingConstruction p, uint frame, bool succeeded, FixedString64 failure)
-            => _outcomes.Add(new Outcome(p.Entity, true, succeeded, false, p.Resumed, p.BlueprintId, failure, frame));
+            => _outcomes.Add(new Outcome(p.Entity, true, succeeded, false, p.Resumed, (Fdp.Core.TkbTypeId)(p.BlueprintId), failure, frame));
 
         private void Destructed(PendingDestruction p, uint frame, bool forced)
-            => _outcomes.Add(new Outcome(p.Entity, false, true, forced, false, 0, p.Reason, frame));
+            => _outcomes.Add(new Outcome(p.Entity, false, true, forced, false, (Fdp.Core.TkbTypeId)(0), p.Reason, frame));
 
         /// <summary>
         /// ⭐ AQ107 (CE-3323) — publishes <see cref="EntityConstructionCompleted"/> / <see cref="EntityDestructionCompleted"/> for every
@@ -600,8 +600,8 @@ namespace Fdp.Toolkit.Lifecycle
             foreach (var o in _outcomes)
             {
                 bool alive = view.IsAlive(o.Entity);
-                long networkId = alive && view.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(o.Entity)
-                    ? view.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(o.Entity).Value : 0L;
+                int networkId = alive && view.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(o.Entity)
+                    ? view.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(o.Entity).Value : 0;
                 long tkbType = o.TkbType != 0 || !alive || !view.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(o.Entity)
                     ? o.TkbType : view.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(o.Entity).TkbType;
                 Guid requestId = alive && view.HasComponent<Components.CreationRequestId>(o.Entity)
@@ -612,13 +612,13 @@ namespace Fdp.Toolkit.Lifecycle
                 if (o.Construction)
                     cmd.PublishEvent(new EntityConstructionCompleted
                     {
-                        Entity = o.Entity, NetworkId = networkId, TkbType = tkbType, RequestId = requestId, IsLocallyOwned = owned,
+                        Entity = o.Entity, NetworkId = networkId, TkbType = (Fdp.Core.TkbTypeId)(tkbType), RequestId = requestId, IsLocallyOwned = owned,
                         Succeeded = o.Ok, Resumed = o.Resumed, Failure = o.Ok ? default : o.Text, FrameNumber = o.Frame,
                     });
                 else
                     cmd.PublishEvent(new EntityDestructionCompleted
                     {
-                        Entity = o.Entity, NetworkId = networkId, TkbType = tkbType, RequestId = requestId, IsLocallyOwned = owned,
+                        Entity = o.Entity, NetworkId = networkId, TkbType = (Fdp.Core.TkbTypeId)(tkbType), RequestId = requestId, IsLocallyOwned = owned,
                         Forced = o.Forced, Reason = o.Text, FrameNumber = o.Frame,
                     });
             }

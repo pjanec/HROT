@@ -41,7 +41,7 @@ public sealed class TheBrainAndViewRoutesAnswerTests : IDisposable
 
     public void Dispose() => _world.Dispose();
 
-    private Entity Unit(long id, Vector3 at, bool brain = true)
+    private Entity Unit(int id, Vector3 at, bool brain = true)
     {
         var e = _world.CreateEntity();
         _map.Register(id, e);
@@ -120,7 +120,7 @@ public sealed class TheBrainAndViewRoutesAnswerTests : IDisposable
         Assert.Equal(2000L, view["aimTarget"]!.GetValue<long>());
         var inView = view["inView"]!.AsArray();
         Assert.Single(inView);
-        Assert.Equal(2000L, inView[0]!["networkId"]!.GetValue<long>());
+        Assert.Equal(2000L, inView[0]!["networkId"]!.GetValue<int>());
         Assert.Equal(2000L, _svc.GetSelection()["primary"]!.GetValue<long>());
     }
 
@@ -152,7 +152,7 @@ public sealed class TheBrainAndViewRoutesAnswerTests : IDisposable
             new Vector2(-50, -25), new Vector2(50, 25), Entity.Null, AimTarget: 0, ZoomFovDeg: null, PublishedAtSeconds: 0));
         var inView = _svc.GetView(50)["inView"]!.AsArray();
         Assert.Single(inView);
-        Assert.Equal(3000L, inView[0]!["networkId"]!.GetValue<long>());
+        Assert.Equal(3000L, inView[0]!["networkId"]!.GetValue<int>());
     }
 
     /// <summary>⭐ <c>CE-1293</c> (Unit Camera UC-10) — <c>POST /view/follow</c>: refused where no map draws the world; on a map, the camera
@@ -171,14 +171,14 @@ public sealed class TheBrainAndViewRoutesAnswerTests : IDisposable
 
         var (ok, error) = _svc.FollowUnit(4000, 20f);
         Assert.Null(error);
-        Assert.Equal(4000L, ok!["following"]!.GetValue<long>());
+        Assert.Equal(4000, ok!["following"]!.GetValue<int>());
         Assert.Equal(unit, Assert.IsType<FollowCameraDriver>(sw.Camera3D.Driver).Unit);
         Assert.Equal(20f, layer.Following!.Distance);
         Assert.NotNull(_svc.FollowUnit(9999, null).Error);                                    // no such unit
 
         ViewTelemetry.Publish(_world, new ViewSnapshot("3D", Vector3.Zero, Vector3.UnitY, 90f, 0f, 20f, 45f, new Vector2(1600, 900),
             null, null, Entity.Null, AimTarget: 0, ZoomFovDeg: null, PublishedAtSeconds: 0));
-        Assert.Equal(4000L, _svc.GetView(50)["following"]!.GetValue<long>());
+        Assert.Equal(4000, _svc.GetView(50)["following"]!.GetValue<int>());
 
         Assert.Null(_svc.FollowUnit(null, null).Error);                                       // entity: null — let go
         Assert.Null(sw.Camera3D.Driver);

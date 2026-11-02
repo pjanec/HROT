@@ -313,7 +313,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             block.Order = Defaults(authored.Speed);
             if (authored.CoverSearchRadius > 0f) block.Order.CoverSearchRadius = authored.CoverSearchRadius;
-            block.Order.Casualty = authored.Casualty.Resolve(world);
+            block.Order.Casualty = authored.Casualty.Ref.Resolve(world);
             block.State = default;
         }
 
@@ -342,8 +342,8 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Resolve(in SquadRecoverParamsJsonDto authored, ref CasualtyCareBehavior.CasualtyCareBlackboard block, EntityRepository world, Entity self)
         {
             block.Order = CasualtyCareBehavior.Defaults(authored.Speed);
-            block.Order.Casualty = authored.Casualty.Resolve(world);
-            if (authored.To != Vector3.Zero) { block.Order.Destination = authored.To; block.Order.HasDestination = 1; }
+            block.Order.Casualty = authored.Casualty.Ref.Resolve(world);
+            if ((Vector3)authored.To != Vector3.Zero) { block.Order.Destination = authored.To; block.Order.HasDestination = 1; }
             block.Order.Keep = authored.PutDown ? (byte)0 : (byte)1;
             block.State = default;
         }

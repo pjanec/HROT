@@ -26,9 +26,9 @@ namespace Fdp.Toolkit.Replication
     public readonly struct EntityRef : IEquatable<EntityRef>
     {
         /// <summary>The referenced entity's network id; <c>0</c> = no reference.</summary>
-        public readonly long NetworkId;
+        public readonly int NetworkId;
 
-        public EntityRef(long networkId) => NetworkId = networkId;
+        public EntityRef(int networkId) => NetworkId = networkId;
 
         /// <summary>No reference.</summary>
         public static readonly EntityRef None = default;
@@ -58,14 +58,14 @@ namespace Fdp.Toolkit.Replication
             => new(NetworkIdResolver.RuntimeNetworkIdOf(repo, entity));
 
         /// <summary>This reference with its id rewritten by <paramref name="oldToNew"/> (unchanged when absent).</summary>
-        public EntityRef Remap(IReadOnlyDictionary<long, long> oldToNew)
-            => !IsNone && oldToNew.TryGetValue(NetworkId, out long n) ? new EntityRef(n) : this;
+        public EntityRef Remap(IReadOnlyDictionary<int, int> oldToNew)
+            => !IsNone && oldToNew.TryGetValue(NetworkId, out int n) ? new EntityRef(n) : this;
 
         /// <summary>⭐ Explicit both ways: the same number, so a blueprint's coercion (a cast) and C# code can cross between a
         /// stored <c>long</c> id and a reference — but never silently.</summary>
-        public static explicit operator EntityRef(long networkId) => new(networkId);
+        public static explicit operator EntityRef(int networkId) => new(networkId);
         /// <inheritdoc cref="op_Explicit(long)"/>
-        public static explicit operator long(EntityRef reference) => reference.NetworkId;
+        public static explicit operator int(EntityRef reference) => reference.NetworkId;
 
         public bool Equals(EntityRef other) => NetworkId == other.NetworkId;
         public override bool Equals(object? obj) => obj is EntityRef o && Equals(o);
@@ -87,22 +87,22 @@ namespace Fdp.Toolkit.Replication
             switch (reader.TokenType)
             {
                 case JsonTokenType.Number:
-                    return new EntityRef(reader.GetInt64());
+                    return new EntityRef(reader.GetInt32());
                 case JsonTokenType.Null:
                     return EntityRef.None;
                 case JsonTokenType.String:
                     var s = reader.GetString();
                     return string.IsNullOrWhiteSpace(s) ? EntityRef.None
-                         : long.TryParse(s, out long fromString) ? new EntityRef(fromString)
+                         : int.TryParse(s, out int fromString) ? new EntityRef(fromString)
                          : throw new JsonException($"EntityRef: '{s}' is not a network id.");
                 case JsonTokenType.StartObject:
-                    long id = 0;
+                    int id = 0;
                     while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
                     {
                         if (reader.TokenType != JsonTokenType.PropertyName) continue;
                         bool isId = string.Equals(reader.GetString(), "NetworkId", StringComparison.OrdinalIgnoreCase);
                         reader.Read();
-                        if (isId && reader.TokenType == JsonTokenType.Number) id = reader.GetInt64();
+                        if (isId && reader.TokenType == JsonTokenType.Number) id = reader.GetInt32();
                         else reader.Skip();
                     }
                     return new EntityRef(id);

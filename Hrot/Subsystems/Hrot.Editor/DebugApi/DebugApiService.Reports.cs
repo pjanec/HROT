@@ -21,7 +21,7 @@ namespace Hrot.Editor.DebugApi
         public const float ReportOverdueSeconds = 60f;
 
         /// <summary><c>GET /entities/{networkId}/reports</c>.</summary>
-        public JsonNode GetEntityReports(long networkId)
+        public JsonNode GetEntityReports(int networkId)
         {
             if (!_entityMap.TryGetEntity(networkId, out var unit) || !_world.IsAlive(unit))
                 return new JsonObject { ["error"] = $"Entity {networkId} not found." };
@@ -99,7 +99,7 @@ namespace Hrot.Editor.DebugApi
         /// <summary><c>POST /entities/{networkId}/reports</c> — a report AS IF the unit's staff sent it (<see cref="ReportInjection.Inject"/>):
         /// <c>{kind, subtype?, count?, size?, activity?, equipment?, at?:[x,y,z] | x?, y?, radius?, strength?, ammo?, phase?,
         /// observedAgoSeconds?}</c>. Enums by name (R-2007).</summary>
-        public (JsonNode? result, int status, string? error) PostEntityReport(long networkId, JsonNode? body)
+        public (JsonNode? result, int status, string? error) PostEntityReport(int networkId, JsonNode? body)
         {
             if (!_entityMap.TryGetEntity(networkId, out var unit) || !_world.IsAlive(unit))
                 return (null, 404, $"Entity {networkId} not found.");
@@ -140,7 +140,7 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary><c>POST /entities/{networkId}/reports/mute {seconds}</c> — lost comms (CC-15); 0 restores the radio.</summary>
-        public (JsonNode? result, int status, string? error) PostEntityReportMute(long networkId, JsonNode? body)
+        public (JsonNode? result, int status, string? error) PostEntityReportMute(int networkId, JsonNode? body)
         {
             if (!_entityMap.TryGetEntity(networkId, out var unit) || !_world.IsAlive(unit))
                 return (null, 404, $"Entity {networkId} not found.");
@@ -151,7 +151,7 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary><c>GET /squad/reports?last=&amp;unit=</c> — the reports this node's inbox saw, newest first (PC-11).</summary>
-        public JsonNode GetSquadReports(int last, long? unitNetId)
+        public JsonNode GetSquadReports(int last, int? unitNetId)
         {
             var log = SquadReportLog.Peek(_world);
             if (log == null)
@@ -167,7 +167,7 @@ namespace Hrot.Editor.DebugApi
                 if (unitNetId.HasValue && from != unitNetId && to != unitNetId) continue;
                 var n = ReportNode(e.Report, now, null);
                 n["serial"] = e.Serial; n["seenAt"] = e.SeenAt; n["from"] = from; n["to"] = to;
-                n["originNode"] = e.OriginNodeId; n["verdict"] = e.Verdict;
+                n["originNode"] = e.OriginNodeId.Value; n["verdict"] = e.Verdict;
                 arr.Add(n);
             }
             return new JsonObject { ["count"] = log.Count, ["returned"] = arr.Count, ["reports"] = arr };

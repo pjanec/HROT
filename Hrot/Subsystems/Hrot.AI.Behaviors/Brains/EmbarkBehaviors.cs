@@ -23,7 +23,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The authored contract in (the vehicle by network id), the node's params out (the vehicle on this node).</summary>
         [BehaviorResolver(BehaviorNames.Embark)]
         public static void Resolve(in EmbarkParamsJsonDto authored, ref EmbarkBlackboard block, EntityRepository world, Entity self)
-            => block.Board = new EmbarkNodeParams { Vehicle = authored.Vehicle.Resolve(world), Speed = authored.Speed };
+            => block.Board = new EmbarkNodeParams { Vehicle = authored.Vehicle.Ref.Resolve(world), Speed = authored.Speed };
 
         [Behavior(BehaviorNames.Embark, Params = typeof(EmbarkParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent | BehaviorCategory.Civilian)]   // ⭐ CE-2134 (moved off the DTO at the merge)
         [BTreeDefinition(BehaviorNames.Embark, Curated = true, Group = "Library/Basic", ParamsType = typeof(EmbarkBlackboard))]
@@ -50,7 +50,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Resolve(in ManWeaponParamsJsonDto authored, ref ManWeaponBlackboard block, EntityRepository world, Entity self)
             => block.Board = new EmbarkNodeParams
             {
-                Vehicle = authored.Weapon.Resolve(world), Speed = authored.Speed, Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner,
+                Vehicle = authored.Weapon.Ref.Resolve(world), Speed = authored.Speed, Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner,
             };
 
         [Behavior(BehaviorNames.ManWeapon, Params = typeof(ManWeaponParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]
@@ -117,7 +117,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             block.Take = new PickUpNodeParams
             {
-                Casualty = authored.Casualty.Resolve(world),
+                Casualty = authored.Casualty.Ref.Resolve(world),
                 Mode = authored.Carry ? Fdp.Toolkit.Behavior.Components.CarryMode.Carried : Fdp.Toolkit.Behavior.Components.CarryMode.Dragged,
                 Speed = authored.Speed,
             };
@@ -155,7 +155,7 @@ namespace Hrot.AI.Behaviors.Brains
         [BehaviorResolver(BehaviorNames.LoadCasualty)]
         public static void Resolve(in LoadCasualtyParamsJsonDto authored, ref LoadCasualtyBlackboard block, EntityRepository world, Entity self)
         {
-            var vehicle = authored.Vehicle.Resolve(world);
+            var vehicle = authored.Vehicle.Ref.Resolve(world);
             block.Load = new LoadCasualtyNodeParams { Vehicle = vehicle, Speed = authored.Speed };
             block.Board = new EmbarkNodeParams { Vehicle = vehicle, Speed = authored.Speed };
         }

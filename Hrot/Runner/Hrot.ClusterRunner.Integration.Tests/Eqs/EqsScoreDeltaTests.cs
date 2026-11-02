@@ -46,7 +46,7 @@ public sealed class EqsScoreDeltaTests : IDisposable
         {
             int count = Math.Min(Scores.Length, candidates.Length);
             for (int i = 0; i < count; i++)
-                candidates[i] = new EqsResult { EntityId = 0L, PositionX = (float)i, PositionY = 0f, Score = Scores[i] };
+                candidates[i] = new EqsResult { EntityId = 0, PositionX = (float)i, PositionY = 0f, Score = Scores[i] };
             return count;
         }
     }
@@ -105,7 +105,7 @@ public sealed class EqsScoreDeltaTests : IDisposable
             PublishPolicy       = (byte)EqsPublishPolicy.ScoreDelta,
             ScoreDeltaThreshold = 0.1f,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8400L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8400 });
 
         // Phase 1: pump until buffer has first result (initial publish).
         bool phase1 = _harness.PumpUntil(
@@ -164,7 +164,7 @@ public sealed class EqsScoreDeltaTests : IDisposable
             SearchRadius  = 50f,
             PublishPolicy = (byte)EqsPublishPolicy.TopChanged,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8402L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8402 });
 
         bool first = _harness.PumpUntil(
             () => _harness.Repo.HasComponent<EqsCognitiveBuffer>(observer)
@@ -245,7 +245,7 @@ public sealed class EqsScoreDeltaTests : IDisposable
         int domainId = NextDomain();
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
 
-        long networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
+        int networkId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         // Wait for Muscle ghost to appear.

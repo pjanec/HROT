@@ -121,7 +121,7 @@ namespace Fdp.Interfaces
         /// </summary>
         void ApplyToEntity(Entity entity, object data, EntityRepository repo);
 
-        void Dispose(long networkEntityId);
+        void Dispose(int networkEntityId);
 
         /// <summary>
         /// ⭐⭐ <c>CE-4079</c> ② — this node's writer lets go of an instance it wrote <b>without disposing it</b>: the descriptor is now
@@ -139,6 +139,6 @@ namespace Fdp.Interfaces
         /// pose, weapon task), every instance this node wrote for the entity. Default: nothing to release (an ingress translator, a
         /// message topic).</para>
         /// </summary>
-        void ReleaseInstance(long networkEntityId, long instanceId) { }
+        void ReleaseInstance(int networkEntityId, long instanceId) { }
     }
 }

@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Determinism;   // ⭐ CE-2188 — SimRng moved to Fdp.Toolkits
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -89,7 +90,7 @@ namespace Hrot.AI.Behaviors.Brains
             public float Speed;
             public bool  Loop;
             /// <summary>⭐ CE-2145 — the route entity's network id, as the authored contract named it.</summary>
-            public long  RouteNetworkId;
+            public int  RouteNetworkId;
         }
 
         /// <summary>
@@ -103,7 +104,7 @@ namespace Hrot.AI.Behaviors.Brains
         public struct JoinFormationParams
         {
             // Reserved for future extension: nothing reads them yet, and a caller sending {} leaves both zero.
-            public int  LeaderNetworkId;
+            public Fdp.Toolkit.Replication.EntityLink LeaderNetworkId;
             public byte FormationTypeId;
         }
 
@@ -152,33 +153,21 @@ namespace Hrot.AI.Behaviors.Brains
         public static void ResolveMoveTo(in Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto authored,
             ref MoveToLocationParams block, EntityRepository world, Entity self)
         {
-            var geo = world.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
-                ? world.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
-                : null;
-            block = ConvertMoveTo(authored, geo);
+            block = ConvertMoveTo(authored);   // ⭐ S0 item 5 (SR-135): the authored place is local metres — no geodetic transform here
         }
 
-        /// <summary>The MoveTo conversion, given the node's geographic transform (null ⇒ Cartesian only).</summary>
+        /// <summary>The MoveTo conversion: the authored <c>Location</c> (JSON <c>target</c>, a <c>PointLink</c>, local metres) to the blackboard's X / Y.</summary>
         public static MoveToLocationParams ConvertMoveTo(
-            in Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto authored,
-            Fdp.Modules.Geographic.IGeographicTransform? geoTransform)
+            in Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto authored)
         {
             var p = new MoveToLocationParams
             {
                 Speed = authored.Speed > 0 ? (float)authored.Speed : DefaultMoveToSpeed,
                 ArrivalRadius = authored.ArrivalRadius > 0 ? (float)authored.ArrivalRadius : 5f,
-                X = authored.X,
-                Y = authored.Y,
+                X = authored.Location.Local.X,
+                Y = authored.Location.Local.Y,
                 RoadUse = authored.RoadUse,   // CE-3130
             };
-
-            // If geo-coords provided, map them
-            if ((authored.TargetLat != 0 || authored.TargetLon != 0) && geoTransform != null)
-            {
-                var cartesian = geoTransform.ToCartesian(authored.TargetLat, authored.TargetLon, 0.0);
-                p.X = cartesian.X;
-                p.Y = cartesian.Y;
-            }
             return p;
         }
 
@@ -203,13 +192,13 @@ namespace Hrot.AI.Behaviors.Brains
         {
             long targetPacked = 0;
             if (!authored.TargetNetworkId.IsNone
-                && entityMap.TryGetEntity(authored.TargetNetworkId.NetworkId, out var entity))
+                && entityMap.TryGetEntity(authored.TargetNetworkId.Ref.NetworkId, out var entity))
             {
                 targetPacked = (long)entity.PackedValue;
             }
             else if (!authored.TargetNetworkId.IsNone)
             {
-                BehaviorLog.ParseWarn("FireAtTarget TargetNetworkId=" + authored.TargetNetworkId.NetworkId + " not found in entity map; target will not fire.");
+                BehaviorLog.ParseWarn("FireAtTarget TargetNetworkId=" + authored.TargetNetworkId.Ref.NetworkId + " not found in entity map; target will not fire.");
             }
 
             return new FireAtTargetParams
@@ -232,7 +221,7 @@ namespace Hrot.AI.Behaviors.Brains
             ref FollowRouteParams block, EntityRepository world, Entity self)
         {
             // ⚠ an empty params string reaches a typed resolver as default — null for this class DTO (BehaviorParams.FromBlockResolver).
-            long route = authored is null || authored.RouteEntityId.IsNone ? 0 : authored.RouteEntityId.NetworkId;
+            int route = authored is null || authored.RouteEntityId.IsNone ? 0 : authored.RouteEntityId.Ref.NetworkId;
             block = new FollowRouteParams
             {
                 RouteNetworkId = route,
@@ -248,7 +237,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// (<see cref="Fdp.Toolkit.Replication.Services.NetworkIdResolver"/>, BP-508), then its <c>RouteTrajectoryCache</c>.
         /// False while the route is unknown or not compiled (<c>TrajectoryId == 0</c>).
         /// </summary>
-        public static bool TryFindRouteTrajectory(EntityRepository? world, long routeNetworkId, out int trajectoryId)
+        public static bool TryFindRouteTrajectory(EntityRepository? world, int routeNetworkId, out int trajectoryId)
         {
             trajectoryId = 0;
             if (world is null || routeNetworkId <= 0 || !world.IsComponentTypeRegistered<Hrot.Map.Common.Components.RouteTrajectoryCache>())

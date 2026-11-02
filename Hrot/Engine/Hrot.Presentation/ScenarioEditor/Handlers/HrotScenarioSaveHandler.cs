@@ -44,7 +44,7 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
 
     private readonly ScenarioSerializer   _serializer;
     private readonly EntityRepository     _world;
-    private readonly int                  _nodeId;
+    private readonly NodeId                  _nodeId;
 
     public HrotScenarioSaveHandler(
         ScenarioSerializer   serializer,
@@ -53,7 +53,7 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
     {
         _serializer    = serializer    ?? throw new ArgumentNullException(nameof(serializer));
         _world         = world          ?? throw new ArgumentNullException(nameof(world));
-        _nodeId        = nodeId;
+        _nodeId        = (Fdp.Core.NodeId)(nodeId);
     }
 
     /// <inheritdoc />

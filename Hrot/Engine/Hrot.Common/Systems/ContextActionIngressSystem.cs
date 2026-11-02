@@ -60,7 +60,7 @@ namespace Hrot.Common.Systems
 
                 Entity target = Entity.Null;
                 if (evt.EntityNetworkId != 0)
-                    entityMap?.TryGetEntity((long)evt.EntityNetworkId, out target);
+                    entityMap?.TryGetEntity(evt.EntityNetworkId, out target);
 
                 _interactionBus.Publish(new GlobalActionRequestedEvent
                 {
@@ -75,8 +75,8 @@ namespace Hrot.Common.Systems
             foreach (ref readonly var evt in _interactionBus.Read<GizmoMenuActionEvent>())
             {
                 Entity target = Entity.Null;
-                if (evt.AnchorId > 0)
-                    entityMap?.TryGetEntity(evt.AnchorId, out target);
+                if (evt.AnchorId > 0 && evt.AnchorId <= int.MaxValue)   // ⭐ CE-4200: the gizmo anchor id is 64-bit; above int.MaxValue it is no network id (see NetworkIdResolver.ResolveAnchorId)
+                    entityMap?.TryGetEntity((int)evt.AnchorId, out target);
 
                 _interactionBus.Publish(new GlobalActionRequestedEvent
                 {

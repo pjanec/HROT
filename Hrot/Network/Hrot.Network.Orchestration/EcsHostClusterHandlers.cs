@@ -22,7 +22,7 @@ namespace Hrot.SimHost.Modules.Orchestration
         public required ClusterSlave     Slave        { get; init; }
         public required ModuleHostKernel Kernel       { get; init; }
         public required EntityRepository World        { get; init; }
-        public required int              NodeId       { get; init; }
+        public required NodeId              NodeId       { get; init; }
         public required NodeRole         Role         { get; init; }
         public required string           HostLabel    { get; init; }
         /// <summary>The node's staging root — recordings, staged scenarios, the prefetch store.</summary>

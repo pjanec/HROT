@@ -36,7 +36,7 @@ public sealed class StanceTranslatorTests : IDisposable
 
     public void Dispose() => _world.Dispose();
 
-    private Entity SpawnEntity(long netId)
+    private Entity SpawnEntity(int netId)
     {
         var entity = _world.CreateEntity();
         _world.AddComponent(entity, new NetworkIdentity(netId));
@@ -51,7 +51,7 @@ public sealed class StanceTranslatorTests : IDisposable
     {
         var writer = new CapturingWriter<DdsStanceStatus>();
         var translator = new StanceStatusEgressTranslator(writer, _entityMap);
-        var entity = SpawnEntity(500L);
+        var entity = SpawnEntity(500);
 
         _world.AddComponent(entity, new StanceStatus
         {
@@ -78,7 +78,7 @@ public sealed class StanceTranslatorTests : IDisposable
     {
         var writer = new CapturingWriter<DdsStanceStatus>();
         var translator = new StanceStatusEgressTranslator(writer, _entityMap);
-        var entity = SpawnEntity(501L);
+        var entity = SpawnEntity(501);
 
         _world.AddComponent(entity, new StanceStatus
         {
@@ -111,7 +111,7 @@ public sealed class StanceTranslatorTests : IDisposable
     {
         var writer = new CapturingWriter<DdsStanceStatus>();
         var translator = new StanceStatusEgressTranslator(writer, _entityMap);
-        var entity = SpawnEntity(502L);
+        var entity = SpawnEntity(502);
 
         _world.AddComponent(entity, new StanceStatus { AckVersion = 0 });
         translator.ScanAndPublish(_world);
@@ -131,7 +131,7 @@ public sealed class StanceTranslatorTests : IDisposable
     {
         var egressWriter = new CapturingWriter<DdsStanceIntent>();
         var egressTranslator = new StanceIntentEgressTranslator(egressWriter, _entityMap);
-        var entity = SpawnEntity(600L);
+        var entity = SpawnEntity(600);
 
         _world.AddComponent(entity, new StanceIntent
         {
@@ -152,7 +152,7 @@ public sealed class StanceTranslatorTests : IDisposable
         var ingressWorld = new EntityRepository();
         ingressWorld.RegisterComponent<StanceIntent>();
         var ingressEntity = ingressWorld.CreateEntity();
-        ingressMap.Register(600L, ingressEntity);
+        ingressMap.Register(600, ingressEntity);
         ingressWorld.AddComponent(ingressEntity, new StanceIntent());
 
         var ingressTranslator = new StanceIntentIngressTranslator(participant: null, ingressMap);
@@ -176,7 +176,7 @@ public sealed class StanceTranslatorTests : IDisposable
     {
         var egressWriter = new CapturingWriter<DdsStanceStatus>();
         var egressTranslator = new StanceStatusEgressTranslator(egressWriter, _entityMap);
-        var entity = SpawnEntity(700L);
+        var entity = SpawnEntity(700);
 
         _world.AddComponent(entity, new StanceStatus
         {
@@ -193,7 +193,7 @@ public sealed class StanceTranslatorTests : IDisposable
         var ingressWorld = new EntityRepository();
         ingressWorld.RegisterComponent<StanceStatus>();
         var ingressEntity = ingressWorld.CreateEntity();
-        ingressMap.Register(700L, ingressEntity);
+        ingressMap.Register(700, ingressEntity);
         ingressWorld.AddComponent(ingressEntity, new StanceStatus());
 
         var ingressTranslator = new StanceStatusIngressTranslator(participant: null, ingressMap);

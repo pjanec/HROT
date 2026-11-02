@@ -16,7 +16,7 @@ namespace Hrot.SimHost.Tests
     /// </summary>
     public sealed class BodyPartReplicationTests
     {
-        private static (EntityRepository World, Entity Unit, NetworkEntityMap Map) Node(long netId)
+        private static (EntityRepository World, Entity Unit, NetworkEntityMap Map) Node(int netId)
         {
             var w = new EntityRepository();
             w.RegisterComponent<NetworkIdentity>();
@@ -45,9 +45,9 @@ namespace Hrot.SimHost.Tests
             damage.Add(PersonPart.Head, 200);
             damage.Add(PersonPart.ShinL, 64);
             damage.Add(15, 7);
-            var sample = EntityPartDamageEgressTranslator.ToSample(41L, damage);
+            var sample = EntityPartDamageEgressTranslator.ToSample(41, damage);
 
-            var (node, unit, map) = Node(41L);
+            var (node, unit, map) = Node(41);
             using (node)
             {
                 var ingress = new EntityPartDamageIngressTranslator(participant: null, map);
@@ -66,11 +66,11 @@ namespace Hrot.SimHost.Tests
             var marks = new HitMarks();
             for (int i = 0; i < HitMarks.Capacity + 5; i++)
                 marks.Add((byte)(i % 10), new Vector3(i / 100f, -0.25f, 0.5f), (byte)(i % 4), i % 2 == 0 ? HitMarkKind.Bullet : HitMarkKind.Fragment);
-            var sample = EntityHitMarksEgressTranslator.ToSample(42L, marks);
+            var sample = EntityHitMarksEgressTranslator.ToSample(42, marks);
             Assert.Equal(HitMarks.Capacity, sample.Marks.Count);
             Assert.Equal(5, sample.Marks[0].Seq);   // the oldest still in the ring
 
-            var (node, unit, map) = Node(42L);
+            var (node, unit, map) = Node(42);
             using (node)
             {
                 var ingress = new EntityHitMarksIngressTranslator(participant: null, map);
@@ -96,9 +96,9 @@ namespace Hrot.SimHost.Tests
         public void CE3219_F3_EffectState_WithCowering_ReachesTheOtherNode()
         {
             var effects = new Fdp.Toolkit.Combat.EffectState { StunnedUntil = 12.5, IrritatedUntil = 3, KnockedDownUntil = 7.25, Cowering = 1 };
-            var sample = EntityEffectStateEgressTranslator.ToSample(44L, effects);
+            var sample = EntityEffectStateEgressTranslator.ToSample(44, effects);
 
-            var (node, unit, map) = Node(44L);
+            var (node, unit, map) = Node(44);
             using (node)
             {
                 var ingress = new EntityEffectStateIngressTranslator(participant: null, map);
@@ -108,7 +108,7 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal(effects, node.GetComponentRO<Fdp.Toolkit.Combat.EffectState>(unit));
             }
 
-            Assert.NotEqual(sample, EntityEffectStateEgressTranslator.ToSample(44L, effects with { Cowering = 0 }));
+            Assert.NotEqual(sample, EntityEffectStateEgressTranslator.ToSample(44, effects with { Cowering = 0 }));
         }
 
         /// <summary>⭐ <c>CE-3224</c> (civilians B-6, §7.7) — a person's gesture reaches the other node, and going back to None is
@@ -117,9 +117,9 @@ namespace Hrot.SimHost.Tests
         public void CE3224_Gesture_ReachesTheOtherNode_AndNoneIsAChange()
         {
             var raised = new Fdp.Toolkit.Combat.Gesture { Kind = Fdp.Toolkit.Combat.GestureKind.FistRaised };
-            var sample = EntityGestureEgressTranslator.ToSample(45L, raised);
+            var sample = EntityGestureEgressTranslator.ToSample(45, raised);
 
-            var (node, unit, map) = Node(45L);
+            var (node, unit, map) = Node(45);
             using (node)
             {
                 var ingress = new EntityGestureIngressTranslator(participant: null, map);
@@ -129,7 +129,7 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal(Fdp.Toolkit.Combat.GestureKind.FistRaised, Fdp.Toolkit.Combat.Gestures.Of(node, unit));
             }
 
-            Assert.NotEqual(sample, EntityGestureEgressTranslator.ToSample(45L, default));
+            Assert.NotEqual(sample, EntityGestureEgressTranslator.ToSample(45, default));
         }
 
         /// <summary>⭐ <c>CE-3238</c> (civilians B-16, §7.16 HA-1) — a man's hostile act reaches the other node with its kind and its time, and
@@ -138,9 +138,9 @@ namespace Hrot.SimHost.Tests
         public void CE3238_HostileAct_ReachesTheOtherNode_AndAnUpgradeIsAChange()
         {
             var shot = new Fdp.Toolkit.Civilians.HostileAct { SinceSimTime = 12.5, Kind = Fdp.Toolkit.Civilians.HostileActKind.Lethal };
-            var sample = EntityHostileActEgressTranslator.ToSample(46L, shot);
+            var sample = EntityHostileActEgressTranslator.ToSample(46, shot);
 
-            var (node, unit, map) = Node(46L);
+            var (node, unit, map) = Node(46);
             using (node)
             {
                 var ingress = new EntityHostileActIngressTranslator(participant: null, map);
@@ -152,7 +152,7 @@ namespace Hrot.SimHost.Tests
                 Assert.True(Fdp.Toolkit.Civilians.HostileActs.Committed(node, unit));
             }
 
-            Assert.NotEqual(sample, EntityHostileActEgressTranslator.ToSample(46L, shot with { Kind = Fdp.Toolkit.Civilians.HostileActKind.NonLethal }));
+            Assert.NotEqual(sample, EntityHostileActEgressTranslator.ToSample(46, shot with { Kind = Fdp.Toolkit.Civilians.HostileActKind.NonLethal }));
         }
 
         /// <summary>⭐ <c>CE-3256</c> (BR-4, §7.6 CU-5) — a man's custody reaches the other node (detained, restrained, searched, being searched),
@@ -163,9 +163,9 @@ namespace Hrot.SimHost.Tests
         {
             Assert.Equal((long)Hrot.NED.Descriptors.EDescriptorType.dtCustody, Fdp.Toolkit.Civilians.CustodyRules.CustodyDescriptorOrdinal);
             var held = new Fdp.Toolkit.Civilians.Custody { Detained = 1, Restrained = 1, Searched = 1, Searching = 0 };
-            var sample = EntityCustodyEgressTranslator.ToSample(47L, held);
+            var sample = EntityCustodyEgressTranslator.ToSample(47, held);
 
-            var (node, unit, map) = Node(47L);
+            var (node, unit, map) = Node(47);
             using (node)
             {
                 var ingress = new EntityCustodyIngressTranslator(participant: null, map);
@@ -178,7 +178,7 @@ namespace Hrot.SimHost.Tests
                 Assert.True(Fdp.Toolkit.Civilians.CustodyRules.InCustody(node, unit));
             }
 
-            Assert.NotEqual(sample, EntityCustodyEgressTranslator.ToSample(47L, held with { Detained = 0, Restrained = 0 }));
+            Assert.NotEqual(sample, EntityCustodyEgressTranslator.ToSample(47, held with { Detained = 0, Restrained = 0 }));
         }
 
         /// <summary>⭐ <c>CE-3257</c> (BR-5, hit location §13 LN-1/LN-8) — a man's lean reaches the other node (sight, fire and ui read it there),
@@ -187,9 +187,9 @@ namespace Hrot.SimHost.Tests
         public void CE3257_Lean_ReachesTheOtherNode_AndStraighteningUpIsAChange()
         {
             var lean = new Fdp.Toolkit.Combat.Lean { Side = Fdp.Toolkit.Combat.LeanSide.LeanRight, Depth = 100 };   // ⭐ AQ104 G — and his depth
-            var sample = EntityLeanEgressTranslator.ToSample(48L, lean);
+            var sample = EntityLeanEgressTranslator.ToSample(48, lean);
 
-            var (node, unit, map) = Node(48L);
+            var (node, unit, map) = Node(48);
             using (node)
             {
                 var ingress = new EntityLeanIngressTranslator(participant: null, map);
@@ -200,8 +200,8 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal(100 / 255f * Fdp.Toolkit.Combat.Leans.MaxShift, Fdp.Toolkit.Combat.Leans.ShiftOf(node, unit), 4);   // ⭐ AQ104 G
             }
 
-            Assert.NotEqual(sample, EntityLeanEgressTranslator.ToSample(48L, default));
-            Assert.NotEqual(sample, EntityLeanEgressTranslator.ToSample(48L, lean with { Depth = 0 }));   // ⭐ AQ104 G — a deeper lean is a change
+            Assert.NotEqual(sample, EntityLeanEgressTranslator.ToSample(48, default));
+            Assert.NotEqual(sample, EntityLeanEgressTranslator.ToSample(48, lean with { Depth = 0 }));   // ⭐ AQ104 G — a deeper lean is a change
         }
 
         /// <summary>⭐ <c>CE-3259</c> (BR-6) — a soldier's proficiency reaches the node that resolves his shots with every source and set bit, so
@@ -215,9 +215,9 @@ namespace Hrot.SimHost.Tests
                 Authored = Fdp.Toolkit.Behavior.Components.ProficiencyOf.Militia, TypeDefault = Fdp.Toolkit.Behavior.Components.ProficiencyOf.Regular,
                 Set = Fdp.Toolkit.Behavior.Components.CombatProficiency.AuthoredSet | Fdp.Toolkit.Behavior.Components.CombatProficiency.TypeDefaultSet,
             };
-            var sample = EntityCombatProficiencyEgressTranslator.ToSample(49L, p);
+            var sample = EntityCombatProficiencyEgressTranslator.ToSample(49, p);
 
-            var (node, unit, map) = Node(49L);
+            var (node, unit, map) = Node(49);
             using (node)
             {
                 var ingress = new EntityCombatProficiencyIngressTranslator(participant: null, map);
@@ -228,7 +228,7 @@ namespace Hrot.SimHost.Tests
                                                                                                            // dropped Authored reads 0 = Untrained
             }
 
-            Assert.NotEqual(sample, EntityCombatProficiencyEgressTranslator.ToSample(49L, p with { Authored = Fdp.Toolkit.Behavior.Components.ProficiencyOf.Elite }));
+            Assert.NotEqual(sample, EntityCombatProficiencyEgressTranslator.ToSample(49, p with { Authored = Fdp.Toolkit.Behavior.Components.ProficiencyOf.Elite }));
         }
 
         /// <summary>⭐ <c>CE-3261</c> (behaviors' sectors note ②) — a commander's sector reaches the other node with every field, so a man
@@ -238,13 +238,13 @@ namespace Hrot.SimHost.Tests
         {
             var a = new Fdp.Toolkit.Behavior.Components.EngagementArea
             {
-                ArcSet = 1, ArcOrigin = new Vector3(1f, 2f, 3f), LeftBearing = 300f, RightBearing = 60f, MaxRange = 400f, AllowArea = 4711L,
+                ArcSet = 1, ArcOrigin = new Vector3(1f, 2f, 3f), LeftBearing = 300f, RightBearing = 60f, MaxRange = 400f, AllowArea = 4711,
                 WatchBearing = 15f, WatchSet = 1, SetBy = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior,
             };
-            a.NoFire.Items[0] = 4712L; a.NoFire.Items[1] = 4713L; a.NoFire.Count = 2;
-            var sample = EntityEngagementAreaEgressTranslator.ToSample(50L, a);
+            a.NoFire.Items[0] = 4712; a.NoFire.Items[1] = 4713; a.NoFire.Count = 2;
+            var sample = EntityEngagementAreaEgressTranslator.ToSample(50, a);
 
-            var (node, unit, map) = Node(50L);
+            var (node, unit, map) = Node(50);
             using (node)
             {
                 var ingress = new EntityEngagementAreaIngressTranslator(participant: null, map);
@@ -259,7 +259,7 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal(a.WatchBearing, got.WatchBearing, 1e-3f);
                 Assert.Equal((2, 4712L, 4713L), (got.NoFire.Count, got.NoFire.Items[0], got.NoFire.Items[1]));
             }
-            var withdrawn = EntityEngagementAreaEgressTranslator.ToSample(50L, default);
+            var withdrawn = EntityEngagementAreaEgressTranslator.ToSample(50, default);
             Assert.NotEqual(sample, withdrawn);
         }
 
@@ -275,13 +275,13 @@ namespace Hrot.SimHost.Tests
             {
                 ArcSet = 1, LeftBearing = 300f, RightBearing = 60f, MaxRange = 400f, WatchBearing = 15f, WatchSet = 1,
             };
-            var sample = EntityEngagementAreaEgressTranslator.ToSample(50L, a);
+            var sample = EntityEngagementAreaEgressTranslator.ToSample(50, a);
             Assert.Equal(5f * System.MathF.PI / 3f, sample.LeftBearing, 1e-5f);
             Assert.Equal(System.MathF.PI / 3f, sample.RightBearing, 1e-5f);
             Assert.Equal(System.MathF.PI / 12f, sample.WatchBearing, 1e-5f);
             Assert.Equal(400f, sample.MaxRange);   // a range is metres — untouched
 
-            var west = EntityEngagementAreaEgressTranslator.ToSample(50L, new Fdp.Toolkit.Behavior.Components.EngagementArea { ArcSet = 1, LeftBearing = -45f });
+            var west = EntityEngagementAreaEgressTranslator.ToSample(50, new Fdp.Toolkit.Behavior.Components.EngagementArea { ArcSet = 1, LeftBearing = -45f });
             Assert.Equal(-System.MathF.PI / 4f, west.LeftBearing, 1e-5f);
 
             var back = EntityEngagementAreaIngressTranslator.FromSample(in sample);
@@ -304,7 +304,7 @@ namespace Hrot.SimHost.Tests
             w.WindFromDeg[0] = 90f; w.WindSpeedMps[0] = 5f;
             w.WindFromDeg[1] = 270f; w.WindSpeedMps[1] = 8f;
 
-            var s = EntityWeatherEgressTranslator.ToSample(60L, w);
+            var s = EntityWeatherEgressTranslator.ToSample(60, w);
             Assert.Equal(288.15f, s.GroundTemperature, 1e-3f);
             Assert.Equal(0.0065f, s.LapseRate, 1e-7f);
             Assert.Equal(101325f, s.SeaLevelPressure, 0.05f);
@@ -336,7 +336,7 @@ namespace Hrot.SimHost.Tests
         public void AQ107I_ScenarioClockOffset_IsSecondsOnTheWire_AndMinutesInTheEcs(short minutes, int expectedSeconds)
         {
             var clock = new Fdp.Toolkit.Weather.ScenarioClock { StartUtcTicks = 637_000_000_000_000_000L, DisplayUtcOffsetMinutes = minutes };
-            var sample = EntityScenarioClockEgressTranslator.ToSample(61L, clock);
+            var sample = EntityScenarioClockEgressTranslator.ToSample(61, clock);
             Assert.Equal(expectedSeconds, sample.DisplayUtcOffsetSeconds);
             Assert.Equal(clock.StartUtcTicks, sample.StartUtcTicks);
 
@@ -353,11 +353,11 @@ namespace Hrot.SimHost.Tests
         public void AQ107I_BarrelHeat_IsAFractionOnTheWire_AndAPercentInTheEcs()
         {
             var ammo = new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = 4, Heat0 = 50, Heat1 = 100, Heat2 = 7, Heat3 = 0, Hot = 0b10 };
-            var sample = EntityWeaponAmmoEgressTranslator.ToSample(62L, ammo);
+            var sample = EntityWeaponAmmoEgressTranslator.ToSample(62, ammo);
             Assert.Equal((0.5f, 1f, 0.07f, 0f), (sample.Heat0, sample.Heat1, sample.Heat2, sample.Heat3));
             Assert.Equal((byte)0b10, sample.Hot);
 
-            var (node, unit, map) = Node(62L);
+            var (node, unit, map) = Node(62);
             using (node)
             {
                 node.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();
@@ -386,9 +386,9 @@ namespace Hrot.SimHost.Tests
                 Kind = Fdp.Toolkit.Combat.CloudKind.TearGas, Radius = 6f, Height = 3f, SightTransmittance = 0.4f, IrritantSeconds = 2f,
                 BornAtSimSeconds = 12.5, Seconds = 60f, SourceNetworkId = 4711,   // ⭐ CE-3236 — the canister it sits on
             };
-            var sample = EntityAreaEffectCloudEgressTranslator.ToSample(46L, cloud);
+            var sample = EntityAreaEffectCloudEgressTranslator.ToSample(46, cloud);
 
-            var (node, unit, map) = Node(46L);
+            var (node, unit, map) = Node(46);
             using (node)
             {
                 var ingress = new EntityAreaEffectCloudIngressTranslator(participant: null, map);
@@ -398,18 +398,18 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal(cloud, node.GetComponentRO<Fdp.Toolkit.Combat.AreaEffectCloud>(unit));
             }
 
-            Assert.NotEqual(sample, EntityAreaEffectCloudEgressTranslator.ToSample(46L, cloud with { SightTransmittance = 0.6f }));
+            Assert.NotEqual(sample, EntityAreaEffectCloudEgressTranslator.ToSample(46, cloud with { SightTransmittance = 0.6f }));
         }
 
         [Fact]
         public void CE3210_AnUnknownBody_IsDropped()
         {
-            var (node, _, map) = Node(43L);
+            var (node, _, map) = Node(43);
             using (node)
             {
                 var ingress = new EntityHitMarksIngressTranslator(participant: null, map);
                 using var cmd = new EntityCommandBuffer();
-                var sample = EntityHitMarksEgressTranslator.ToSample(999L, new HitMarks());
+                var sample = EntityHitMarksEgressTranslator.ToSample(999, new HitMarks());
                 ingress.Apply(in sample, cmd, node);
                 Assert.Equal(1, ingress.DroppedSampleCount);
             }
@@ -425,9 +425,9 @@ namespace Hrot.SimHost.Tests
                 Target = new Vector3(4f, 5f, 1.5f), HasTarget = 1, Source = Fdp.Toolkit.Perception.Look.LookSource.LookGlance, HeadYaw = 0.6f,
                 GlanceSince = 12.0, RestUntil = 3.0,   // the muscle's own timers — not on the wire
             };
-            var sample = Hrot.Map.Common.Replication.Egress.EntityLookStateEgressTranslator.ToSample(46L, look);
+            var sample = Hrot.Map.Common.Replication.Egress.EntityLookStateEgressTranslator.ToSample(46, look);
 
-            var (node, unit, map) = Node(46L);
+            var (node, unit, map) = Node(46);
             using (node)
             {
                 var ingress = new Hrot.Map.Common.Replication.Ingress.EntityLookStateIngressTranslator(participant: null, map);

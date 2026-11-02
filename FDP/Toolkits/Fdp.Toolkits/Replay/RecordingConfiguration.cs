@@ -40,7 +40,7 @@ namespace Fdp.Toolkit.Replay
         /// Node identifier embedded in the recording metadata.
         /// Identifies which distributed node produced this recording.
         /// </summary>
-        public required int NodeId { get; init; }
+        public required NodeId NodeId { get; init; }
 
         /// <summary>
         /// When <c>true</c>, <see cref="RecorderTickSystem"/> calls

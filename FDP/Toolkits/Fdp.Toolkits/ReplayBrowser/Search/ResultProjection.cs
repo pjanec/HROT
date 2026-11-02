@@ -30,7 +30,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     }
 
     /// <summary>⭐ What a projection kept: ids are NETWORK ids where the entity had one at that frame, else <c>-(index + 1)</c>, 0 for none.</summary>
-    public readonly record struct SearchResultPayload(long Subject, long Other, float X, float Y, float Value);
+    public readonly record struct SearchResultPayload(int Subject, long Other, float X, float Y, float Value);
 
     /// <summary>
     /// ⭐ A <see cref="ResultProjectionDto"/> compiled against the type its paths are read from — one getter per path, built once
@@ -68,17 +68,32 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         {
             object? source = SourceComponent == null ? matchedObject : ComponentBox.Read(repo, matched, SourceComponent);
             subject = matched;
-            long subjectId = ResultIds.Of(repo, matched), otherId = 0;
+            int subjectId = ResultIds.Of(repo, matched);
+            long otherId = 0;
             float x = 0, y = 0, value = 0;
             if (source != null)
             {
-                if (_subject != null) subjectId = IdOf(repo, _subject(source), ref subject);
+                if (_subject != null) subjectId = SubjectIdOf(repo, _subject(source), ref subject);
                 if (_other != null) { var ignored = Entity.Null; otherId = IdOf(repo, _other(source), ref ignored); }
                 x = Number(_x?.Invoke(source));
                 y = Number(_y?.Invoke(source));
                 value = Number(_value?.Invoke(source));
             }
             return new SearchResultPayload(subjectId, otherId, x, y, value);
+        }
+
+        /// <summary>⭐ CE-4200 — the subject is always an entity id (an int): an entity, or an id-valued / enum member. An out-of-range
+        /// value THROWS (<see cref="OverflowException"/>) — loud, never a truncating cast. <c>Other</c> stays long (<see cref="IdOf"/>).</summary>
+        private static int SubjectIdOf(EntityRepository repo, object? v, ref Entity entity)
+        {
+            switch (v)
+            {
+                case null: return 0;
+                case Entity e: entity = e; return ResultIds.Of(repo, e);
+                case Enum en: return Convert.ToInt32(en);
+                case IConvertible c: try { return c.ToInt32(null); } catch (FormatException) { return 0; } catch (InvalidCastException) { return 0; }
+                default: return 0;
+            }
         }
 
         private static long IdOf(EntityRepository repo, object? v, ref Entity entity)
@@ -112,15 +127,15 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     /// same thing in a search, the timeline's index, its sidecar and the live world.</summary>
     public static class ResultIds
     {
-        public static long Of(EntityRepository repo, Entity e)
+        public static int Of(EntityRepository repo, Entity e)
         {
             if (e.IsNull || e.Equals(default(Entity))) return 0;
             if (repo.IsComponentTypeRegistered<NetworkIdentity>())
             {
-                long net = NetworkIdResolver.RuntimeNetworkIdOf(repo, e);
+                int net = NetworkIdResolver.RuntimeNetworkIdOf(repo, e);
                 if (net > 0) return net;
             }
-            return -(e.Index + 1L);
+            return -(e.Index + 1);
         }
     }
 

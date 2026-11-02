@@ -30,13 +30,13 @@ namespace Hrot.Common.Orders
         /// <summary>The <c>[MapPickableEntity]</c> preset that makes an entity field an area (a sector).</summary>
         public const string AreaPreset = "tactical_graphics";
 
-        private readonly Dictionary<(long Unit, DesignationKind Kind), JsonNode> _values = new();
+        private readonly Dictionary<(int Unit, DesignationKind Kind), JsonNode> _values = new();
 
         /// <summary>Designates <paramref name="value"/> (a network id for an entity kind, <c>[lat, lon]</c> for a point) for the unit.</summary>
-        public void Set(long unit, DesignationKind kind, JsonNode value) => _values[(unit, kind)] = value.DeepClone();
+        public void Set(int unit, DesignationKind kind, JsonNode value) => _values[(unit, kind)] = value.DeepClone();
 
         /// <summary>The raw designation, stale or not.</summary>
-        public bool TryGet(long unit, DesignationKind kind, out JsonNode value)
+        public bool TryGet(int unit, DesignationKind kind, out JsonNode value)
         {
             if (_values.TryGetValue((unit, kind), out var v)) { value = v.DeepClone(); return true; }
             value = null!;
@@ -44,7 +44,7 @@ namespace Hrot.Common.Orders
         }
 
         /// <summary>Forgets every designation of the unit; answers how many there were.</summary>
-        public int ClearAll(long unit)
+        public int ClearAll(int unit)
         {
             var keys = _values.Keys.Where(k => k.Unit == unit).ToArray();
             foreach (var k in keys) _values.Remove(k);
@@ -52,7 +52,7 @@ namespace Hrot.Common.Orders
         }
 
         /// <summary>Every designation of the unit (what an overlay draws).</summary>
-        public IReadOnlyList<(DesignationKind Kind, JsonNode Value)> Of(long unit)
+        public IReadOnlyList<(DesignationKind Kind, JsonNode Value)> Of(int unit)
             => _values.Where(kv => kv.Key.Unit == unit).Select(kv => (kv.Key.Kind, kv.Value.DeepClone())).ToArray();
 
         /// <summary>
@@ -60,17 +60,26 @@ namespace Hrot.Common.Orders
         /// longer live (<paramref name="isLive"/>) is DROPPED here and not filled — a dead target must not silently become an order
         /// (§13.3 staleness); the gesture then picks, or the form opens.
         /// </summary>
-        public Func<long, DesignationKind, JsonNode?> Lookup(Func<long, bool> isLive)
+        public Func<int, DesignationKind, JsonNode?> Lookup(Func<int, bool> isLive)
             => (unit, kind) =>
             {
                 if (!_values.TryGetValue((unit, kind), out var v)) return null;
-                if (kind != DesignationKind.MapPoint && !(v is JsonValue jv && jv.TryGetValue<long>(out long id) && isLive(id)))
+                if (kind != DesignationKind.MapPoint && !(v is JsonValue jv && TryNetworkId(jv, out int id) && isLive(id)))
                 {
                     _values.Remove((unit, kind));
                     return null;
                 }
                 return v.DeepClone();
             };
+
+        /// <summary>⭐ CE-4200: a stored target is a network id — read as an <c>int</c>, or as a <c>long</c> holding an int (a <c>JsonValue</c>
+        /// built from a 64-bit number does not convert to <c>int</c> by itself).</summary>
+        internal static bool TryNetworkId(JsonValue value, out int id)
+        {
+            if (value.TryGetValue(out id)) return true;
+            if (value.TryGetValue<long>(out var wide) && wide is >= int.MinValue and <= int.MaxValue) { id = (int)wide; return true; }
+            id = 0; return false;
+        }
 
         /// <summary>The designation kind an order field takes, or null for a value typed in (§13.3 the kinds).</summary>
         public static DesignationKind? KindOf(OrderField field) => field.Kind switch
@@ -97,7 +106,7 @@ namespace Hrot.Common.Orders
 
         /// <summary>⭐ A designated entity is live while it exists on this node and is not killed (<c>Health</c> ≤ 0 — the CE-466 meaning of
         /// alive for a target); an entity without <c>Health</c> (a route, an area) is live while it exists.</summary>
-        public static bool IsLive(EntityRepository world, NetworkEntityMap map, long networkId)
+        public static bool IsLive(EntityRepository world, NetworkEntityMap map, int networkId)
         {
             if (!map.TryGetEntity(networkId, out var e) || !world.IsAlive(e)) return false;
             return !(world.IsComponentTypeRegistered<Health>() && world.HasComponent<Health>(e) && world.GetComponentRO<Health>(e).Current <= 0);

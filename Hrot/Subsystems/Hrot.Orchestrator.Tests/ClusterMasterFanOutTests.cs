@@ -45,13 +45,13 @@ public sealed class ClusterMasterFanOutTests
     {
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = nodeId,
+            NodeId        = (Fdp.Core.NodeId)(nodeId),
             SubsystemName = subsystem,
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
         });
         // CE-4087 — a scenario load needs a Brain and a MuscleGround node: this one node plays both (the all-in-one case).
-        bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = nodeId, Capabilities = new[] { Fdp.Core.NodeRoleTokens.Brain, Fdp.Core.NodeRoleTokens.MuscleGround } });
+        bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = (Fdp.Core.NodeId)(nodeId), Capabilities = new[] { Fdp.Core.NodeRoleTokens.Brain, Fdp.Core.NodeRoleTokens.MuscleGround } });
         bus.SwapBuffers();
         exercise.Tick();
         bus.SwapBuffers();
@@ -291,7 +291,7 @@ public sealed class ClusterMasterFanOutTests
         foreach (var p in bus.ReadManaged<ExecuteNodeOpIntent>().Where(i => i.Operation != FdpNodeOpType.CommitState).ToList())
             bus.PublishManaged(new NodeOpCompletedEvent
             {
-                TransactionId = p.TransactionId, Operation = p.Operation, NodeId = 1,
+                TransactionId = p.TransactionId, Operation = p.Operation, NodeId = (Fdp.Core.NodeId)(1),
                 StatusCode = OrchestrationStatusCode.Success, IsParticipating = true,
             });
         bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
@@ -416,7 +416,7 @@ public sealed class ClusterMasterFanOutTests
             foreach (var p in bus.ReadManaged<ExecuteNodeOpIntent>().Where(i => i.Operation != FdpNodeOpType.CommitState).ToList())
                 bus.PublishManaged(new NodeOpCompletedEvent
                 {
-                    TransactionId = p.TransactionId, Operation = p.Operation, NodeId = 1,
+                    TransactionId = p.TransactionId, Operation = p.Operation, NodeId = (Fdp.Core.NodeId)(1),
                     StatusCode = OrchestrationStatusCode.Rejected, IsParticipating = true,
                 });
             bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();

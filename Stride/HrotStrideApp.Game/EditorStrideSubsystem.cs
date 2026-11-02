@@ -689,7 +689,7 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
             OwnWindow        = false,
             Deterministic    = true,
             SubsystemName    = "Editor",
-            NodeId           = EditorNodeId,
+            NodeId           = (Fdp.Core.NodeId)(EditorNodeId),
             IsActiveMapOwner = () => false,
         };
         // ⭐ CE-3340 ③ — THE ONE HOST START THAT IS NOT THE ORCHESTRATOR: this Stride app hosts the editor itself (its own composition root, no SubsystemOrchestrator;

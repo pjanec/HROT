@@ -75,7 +75,7 @@ namespace Fdp.Toolkit.Diagnostics
                 if (entity == Entity.Null || !_repo.IsAlive(entity)) continue;
 
                 // Resolve network ID from NetworkIdentity component if available.
-                long networkId = 0;
+                int networkId = 0;
                 if (_repo.HasComponent<NetworkIdentity>(entity))
                     networkId = _repo.GetComponent<NetworkIdentity>(entity).Value;
 

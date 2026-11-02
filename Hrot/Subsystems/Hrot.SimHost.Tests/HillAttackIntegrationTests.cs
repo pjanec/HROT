@@ -248,10 +248,10 @@ namespace Hrot.SimHost.Tests
             brainTick.Execute(repo, dt);
         }
 
-        private static long ParseTargetNetworkId(string json)
+        private static int ParseTargetNetworkId(string json)
         {
             using var doc = JsonDocument.Parse(json);
-            return doc.RootElement.GetProperty("TargetNetworkId").GetInt64();
+            return doc.RootElement.GetProperty("TargetNetworkId").GetInt32();
         }
 
         private static (float SlotX, float SlotY) ParseSlot(string json)
@@ -272,7 +272,7 @@ namespace Hrot.SimHost.Tests
         public void SC_HA015_5_BehaviorIngress_ActivatesPlatoonHillAttack()
         {
             // Arrange
-            const long areaNetId = 9001L;
+            const int areaNetId = 9001;
             var areaEntity = CreateAreaEntity(new List<Vector2>
             {
                 new(10f, 10f), new(20f, 10f), new(20f, 20f), new(10f, 20f),
@@ -290,10 +290,10 @@ namespace Hrot.SimHost.Tests
             RootStateAccess.EnsureRootState(_repo, commander);
             _repo.AddComponent(commander, new NetworkIdentity { Value = 8000 + commander.Index });   // an EQS child sensor's parent needs one (EQS §16.2 H5)   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
-            string json = "{\"firingLineStart\":{\"x\":0,\"y\":0},"
-                        + "\"firingLineEnd\":{\"x\":60,\"y\":0},"
-                        + "\"baselineStart\":{\"x\":0,\"y\":50},"
-                        + "\"baselineEnd\":{\"x\":60,\"y\":50},"
+            string json = "{\"firingLineStart\":[0,0,0],"
+                        + "\"firingLineEnd\":[60,0,0],"
+                        + "\"baselineStart\":[0,50,0],"
+                        + "\"baselineEnd\":[60,50,0],"
                         + "\"tankSpacing\":30,"
                         + "\"targetAreaNetworkId\":9001}";
 
@@ -325,9 +325,9 @@ namespace Hrot.SimHost.Tests
         public void SC_HA015_4_DispatchWaveWithTargets_AssignsTargetsRoundRobin_ViaBTreeSystem()
         {
             // Arrange — 90 m firing line (3 slots at 30 m spacing), 2 hostiles inside polygon.
-            const long areaNetId = 9004L;
-            const long netId1    = 101L;
-            const long netId2    = 202L;
+            const int areaNetId = 9004;
+            const int netId1    = 101;
+            const int netId2    = 202;
 
             var areaEntity = CreateAreaEntity(new List<Vector2>
             {
@@ -356,17 +356,17 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 3; i++)
             {
                 subs[i] = _repo.CreateEntity();
-                _repo.AddComponent(subs[i], new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+                _repo.AddComponent(subs[i], new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams) });
                 _repo.AddComponent<BehaviorState>(subs[i], default);
                 _repo.AddComponent(subs[i], new NavigationStatus { Result = NavigationResult.Arrived });
             }
             AddRoster(_repo, commander, subs);
 
             // Publish AssignBehaviorEvent with a 90 m firing line (3 slots @ 30 m).
-            string json = "{\"firingLineStart\":[0,0],"
-                        + "\"firingLineEnd\":[0,90],"
-                        + "\"baselineStart\":[50,0],"
-                        + "\"baselineEnd\":[50,90],"
+            string json = "{\"firingLineStart\":[0,0,0],"
+                        + "\"firingLineEnd\":[90,0,0],"
+                        + "\"baselineStart\":[0,50,0],"
+                        + "\"baselineEnd\":[90,50,0],"
                         + "\"tankSpacing\":30,"
                         + $"\"targetAreaNetworkId\":{areaNetId}}}";
 
@@ -433,13 +433,13 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE485_TheRunsSensor_DiesWithTheRun_ReassignAndClear()
         {
-            const long areaNetId = 9485L;
+            const int areaNetId = 9485;
             var areaEntity = CreateAreaEntity(new List<Vector2> { new(10f, 10f), new(80f, 10f), new(80f, 80f), new(10f, 80f) });
             var entityMap = new NetworkEntityMap();
             entityMap.Register(areaNetId, areaEntity);
             _repo.SetSingletonManaged<NetworkEntityMap>(entityMap);
             var hostile = CreateHostileAt(40f, 40f);
-            _repo.AddComponent(hostile, new NetworkIdentity { Value = 101L });
+            _repo.AddComponent(hostile, new NetworkIdentity { Value = 101 });
 
             var (ingress, resolution, brainTick, eqs) = BuildPipeline(entityMap);
             var commander = _repo.CreateEntity();
@@ -450,13 +450,13 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 2; i++)
             {
                 subs[i] = _repo.CreateEntity();
-                _repo.AddComponent(subs[i], new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+                _repo.AddComponent(subs[i], new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams) });
                 _repo.AddComponent<BehaviorState>(subs[i], default);
                 _repo.AddComponent(subs[i], new NavigationStatus { Result = NavigationResult.Arrived });
             }
             AddRoster(_repo, commander, subs);
-            string json = "{\"firingLineStart\":[0,0],\"firingLineEnd\":[0,90],\"baselineStart\":[50,0],"
-                        + "\"baselineEnd\":[50,90],\"tankSpacing\":30," + $"\"targetAreaNetworkId\":{areaNetId}}}";
+            string json = "{\"firingLineStart\":[0,0,0],\"firingLineEnd\":[90,0,0],\"baselineStart\":[0,50,0],"
+                        + "\"baselineEnd\":[90,50,0],\"tankSpacing\":30," + $"\"targetAreaNetworkId\":{areaNetId}}}";
             void Assign() => _repo.Bus.PublishManaged(new AssignBehaviorEvent
                 { Entity = commander, BehaviorName = BehaviorNames.PlatoonHillAttack, JsonParams = json });
 
@@ -501,15 +501,15 @@ namespace Hrot.SimHost.Tests
             RootStateAccess.EnsureRootState(_repo, commander);
             _repo.AddComponent(commander, new NetworkIdentity { Value = 8000 + commander.Index });
             var sub = _repo.CreateEntity();
-            _repo.AddComponent(sub, new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+            _repo.AddComponent(sub, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams) });
             _repo.AddComponent<BehaviorState>(sub, default);
             _repo.AddComponent(sub, new NavigationStatus { Result = NavigationResult.Arrived });
             AddRoster(_repo, commander, new[] { sub });
             _repo.Bus.PublishManaged(new AssignBehaviorEvent
             {
                 Entity = commander, BehaviorName = BehaviorNames.PlatoonHillAttack,
-                JsonParams = "{\"firingLineStart\":[0,0],\"firingLineEnd\":[0,90],\"baselineStart\":[50,0],"
-                           + "\"baselineEnd\":[50,90],\"tankSpacing\":30,\"targetAreaNetworkId\":94820}",
+                JsonParams = "{\"firingLineStart\":[0,0,0],\"firingLineEnd\":[90,0,0],\"baselineStart\":[0,50,0],"
+                           + "\"baselineEnd\":[90,50,0],\"tankSpacing\":30,\"targetAreaNetworkId\":94820}",
             });
 
             TickBTreeOnly(_repo, ingress, resolution, brainTick);
@@ -524,7 +524,7 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("area", note.Message);
             Assert.Equal(0, _repo.GetComponentRO<BehaviorState>(commander).BrainTier);   // the finish ran the clear
             // ⭐ CE-484: the operator's "Behaviour Faults" tab got ONE Error row for this run, keyed by the network id.
-            long netId = 8000 + commander.Index;
+            int netId = 8000 + commander.Index;
             var rows = Fdp.Toolkit.Behavior.Events.BehaviorFaultLog.Shared.GetMessages()
                 .Where(m => m.Message.StartsWith($"entity {netId}:")).ToList();
             var row = Assert.Single(rows);
@@ -543,7 +543,7 @@ namespace Hrot.SimHost.Tests
         public void SC_HA015_2_DispatchWaveWithTargets_AssignsUniqueSlots_ViaBTreeSystem()
         {
             // Arrange — 3 tanks, 2 hostiles inside a 90 m polygon.
-            const long areaNetId = 9002L;
+            const int areaNetId = 9002;
 
             var areaEntity = CreateAreaEntity(new List<Vector2>
             {
@@ -556,8 +556,8 @@ namespace Hrot.SimHost.Tests
 
             var hostile1 = CreateHostileAt(40f, 40f);
             var hostile2 = CreateHostileAt(60f, 60f);
-            _repo.AddComponent(hostile1, new NetworkIdentity { Value = 101L });
-            _repo.AddComponent(hostile2, new NetworkIdentity { Value = 202L });
+            _repo.AddComponent(hostile1, new NetworkIdentity { Value = 101 });
+            _repo.AddComponent(hostile2, new NetworkIdentity { Value = 202 });
 
             var (ingress, resolution, brainTick, eqs) = BuildPipeline(entityMap);
 
@@ -570,16 +570,16 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 3; i++)
             {
                 subs[i] = _repo.CreateEntity();
-                _repo.AddComponent(subs[i], new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+                _repo.AddComponent(subs[i], new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams) });
                 _repo.AddComponent<BehaviorState>(subs[i], default);
                 _repo.AddComponent(subs[i], new NavigationStatus { Result = NavigationResult.Arrived });
             }
             AddRoster(_repo, commander, subs);
 
-            string json = "{\"firingLineStart\":[0,0],"
-                        + "\"firingLineEnd\":[0,90],"
-                        + "\"baselineStart\":[50,0],"
-                        + "\"baselineEnd\":[50,90],"
+            string json = "{\"firingLineStart\":[0,0,0],"
+                        + "\"firingLineEnd\":[90,0,0],"
+                        + "\"baselineStart\":[0,50,0],"
+                        + "\"baselineEnd\":[90,50,0],"
                         + "\"tankSpacing\":30,"
                         + $"\"targetAreaNetworkId\":{areaNetId}}}";
 
@@ -635,7 +635,7 @@ namespace Hrot.SimHost.Tests
         public unsafe void SC_HA015_3_IsWaveCompleted_BurnsSlotOfKilledTank_ViaBTreeSystem()
         {
             // Arrange — 2 subs, 2 hostiles inside polygon.
-            const long areaNetId = 9003L;
+            const int areaNetId = 9003;
 
             var areaEntity = CreateAreaEntity(new List<Vector2>
             {
@@ -648,8 +648,8 @@ namespace Hrot.SimHost.Tests
 
             var hostile1 = CreateHostileAt(40f, 40f);
             var hostile2 = CreateHostileAt(60f, 60f);
-            _repo.AddComponent(hostile1, new NetworkIdentity { Value = 301L });
-            _repo.AddComponent(hostile2, new NetworkIdentity { Value = 302L });
+            _repo.AddComponent(hostile1, new NetworkIdentity { Value = 301 });
+            _repo.AddComponent(hostile2, new NetworkIdentity { Value = 302 });
 
             var (ingress, resolution, brainTick, eqs) = BuildPipeline(entityMap);
 
@@ -663,16 +663,16 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 2; i++)
             {
                 subs[i] = _repo.CreateEntity();
-                _repo.AddComponent(subs[i], new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+                _repo.AddComponent(subs[i], new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams) });
                 _repo.AddComponent<BehaviorState>(subs[i], default);
                 _repo.AddComponent(subs[i], new NavigationStatus { Result = NavigationResult.Arrived });
             }
             AddRoster(_repo, commander, subs);
 
-            string json = "{\"firingLineStart\":[0,0],"
-                        + "\"firingLineEnd\":[0,60],"
-                        + "\"baselineStart\":[50,0],"
-                        + "\"baselineEnd\":[50,60],"
+            string json = "{\"firingLineStart\":[0,0,0],"
+                        + "\"firingLineEnd\":[60,0,0],"
+                        + "\"baselineStart\":[0,50,0],"
+                        + "\"baselineEnd\":[60,50,0],"
                         + "\"tankSpacing\":30,"
                         + $"\"targetAreaNetworkId\":{areaNetId}}}";
 
@@ -740,7 +740,7 @@ namespace Hrot.SimHost.Tests
         public void SC_HA015_1_FullEndToEnd_CommanderFinishes_WhenAreaIsEmpty()
         {
             // Arrange
-            const long areaNetId = 9001L;
+            const int areaNetId = 9001;
 
             // Empty target polygon — solver will find 0 hostile entities inside.
             var areaEntity = CreateAreaEntity(new List<Vector2>
@@ -782,10 +782,10 @@ namespace Hrot.SimHost.Tests
             // PickableGeoPoint uses [JsonConverter(typeof(PickableGeoPointArrayConverter))]
             // which expects [latitude, longitude] arrays. Cartesian fallback maps
             // Longitude→X, Latitude→Y, so {x,y} becomes [y, x] in the array.
-            string json = "{\"firingLineStart\":[0,0],"
-                        + "\"firingLineEnd\":[0,60],"
-                        + "\"baselineStart\":[50,0],"
-                        + "\"baselineEnd\":[50,60],"
+            string json = "{\"firingLineStart\":[0,0,0],"
+                        + "\"firingLineEnd\":[60,0,0],"
+                        + "\"baselineStart\":[0,50,0],"
+                        + "\"baselineEnd\":[60,50,0],"
                         + "\"tankSpacing\":30,"
                         + "\"targetAreaNetworkId\":9001}";
 

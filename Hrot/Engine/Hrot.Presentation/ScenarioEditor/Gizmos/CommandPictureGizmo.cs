@@ -139,7 +139,7 @@ public sealed class SectorArcGizmo : IStatelessGizmo
         if (!draw.IsLayerActive(DebugTraceLayers.Sectors)) return;
         ref readonly var a = ref view.GetComponentRO<EngagementArea>(entity);
         if (a.ArcSet == 0) return;
-        long net = view is EntityRepository repo && repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
+        int net = view is EntityRepository repo && repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
             && view.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity)
             ? view.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity).Value : entity.Index;
         DrawArc(draw, in a, SectorAreasGizmo.ColourOf(net));

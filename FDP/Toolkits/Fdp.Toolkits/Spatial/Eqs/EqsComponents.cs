@@ -221,7 +221,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// <c>2026-10-05</c>: "hide from a point is OK"). Read through <see cref="EqsContext.AnchorPosition"/> only when slot 1 is
         /// null and <see cref="ContextPointMask"/> has <see cref="Point1Bit"/>. 📄 <c>docs/DESIGN_Thermal_And_Acoustic_Sensing.md</c> §8.
         /// </summary>
-        public System.Numerics.Vector3 ContextPoint1;
+        public Fdp.Core.WorldPoint ContextPoint1;
 
         /// <summary>⭐ <c>CE-3063</c> — which context slots carry a point (bit = 1 &lt;&lt; slot; only slot 1 has one).</summary>
         public byte ContextPointMask;

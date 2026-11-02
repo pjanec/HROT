@@ -51,7 +51,7 @@ namespace Fdp.Core.Orchestration
         /// Highest network entity ID used during the recording session.  Pass <c>0</c>
         /// (or omit) when no network map is available (e.g. offline / test scenarios).
         /// </param>
-        Task FinalizeRecordingAsync(long maxNetworkId = 0);
+        Task FinalizeRecordingAsync(int maxNetworkId = 0);
 
         /// <summary>
         /// Opens a exercise recording for playback.  Installs the replay module and
@@ -191,6 +191,6 @@ namespace Fdp.Core.Orchestration
         /// <c>ResultJson</c> so the ID allocator can be reset above the replay's ID
         /// space before live entities are spawned (CGF1-S0304).
         /// </summary>
-        long ActiveMaxNetworkId { get; }
+        int ActiveMaxNetworkId { get; }
     }
 }

@@ -375,7 +375,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             + GlobalActionIds.ToggleShoulderView
             + ",\"label\":\"First Person: Over the Shoulder\"}]}]";
 
-        private readonly long _anchorId;
+        private readonly long _anchorId;   // a gizmo-manager TOOL id (NewId counter), not a network id
         private readonly FdpEventBus _interactionBus;
         private readonly StructInspectorProjector<LayerControlDto> _projector;
 
@@ -516,7 +516,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
 
             // Emit StructInspector panel when editing is active.
             if (_isEditing)
-                _projector.EmitAndSync(draw, _anchorId, SchemaHash, Current, ScreenAnchor.Center, SizeMode.ScreenPercent);
+                _projector.EmitAndSync(draw, unchecked((int)_anchorId), SchemaHash, Current, ScreenAnchor.Center, SizeMode.ScreenPercent);
         }
 
         // Called by GlobalGizmoManager when a GizmoStructUpdateEvent arrives for _anchorId.

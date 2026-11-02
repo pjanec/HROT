@@ -31,7 +31,7 @@ namespace Hrot.IG.Tests;
 public class EntityMasterTranslatorTests
 {
     // ── Test constants (§CODE-STANDARDS §1 — no magic numbers) ───────────────
-    private const long  TestNetworkId = 77L;
+    private const int  TestNetworkId = 77;
     private const long  TestTkbType   = 42L;
     // TestDisType is kept as ulong for assertion; the wire DisTypeStruct uses Extra=100.
     private const ulong TestDisType   = 100UL;
@@ -78,16 +78,16 @@ public class EntityMasterTranslatorTests
 
     // ── ⭐ AQ107 E (R-4093) — every entity id on the NED wire is int64 ───────────────────────────────────────────
 
-    /// <summary>⭐ AQ107 E — an entity whose network id does NOT fit in 32 bits goes out through <see cref="Hrot.Map.Common.Replication.Egress.EntityMasterEgressTranslator"/>
-    /// into the DDS <c>EntityMaster</c> sample and comes back through <see cref="EntityMasterIngressTranslator.PollIngress"/> as a ghost
-    /// under the SAME id (docs/blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md §4 row E). Over a real DDS domain, so the
-    /// wire field itself is what is measured. ✅ Red-proof: <c>EntityMaster.EntityId</c> back to <c>int</c> with the egress keeping a
-    /// <c>(int)</c> cast (it compiles) ⇒ the sample carries the truncated id ⇒ no ghost under the real id ⇒ red.</summary>
+    /// <summary>⭐ CE-4200 (supersedes AQ107 E's int64 rail) — an entity whose network id is NEAR <see cref="int.MaxValue"/> goes out through
+    /// <see cref="Hrot.Map.Common.Replication.Egress.EntityMasterEgressTranslator"/> into the DDS <c>EntityMaster</c> sample and comes back through
+    /// <see cref="EntityMasterIngressTranslator.PollIngress"/> as a ghost under the SAME id (the wire id is <c>int32</c> now, so the top of the
+    /// range is the boundary worth measuring). Over a real DDS domain, so the wire field itself is what is measured. ✅ Red-proof: the egress
+    /// writing <c>EntityId = id &amp; 0x00FFFFFF</c> (it compiles) ⇒ the sample carries a different id ⇒ no ghost under the real id ⇒ red.</summary>
     [Fact]
-    public void AQ107E_AnEntityIdAboveInt32_SurvivesEgressDdsAndIngress()
+    public void CE4200_AnEntityIdNearInt32Max_SurvivesEgressDdsAndIngress()
     {
         const uint domain = 172u;
-        const long bigId  = (long)int.MaxValue + 5;
+        const int bigId   = int.MaxValue - 5;
 
         using var senderParticipant   = new DdsParticipant(domain);
         using var receiverParticipant = new DdsParticipant(domain);
@@ -107,7 +107,7 @@ public class EntityMasterTranslatorTests
         var owned = senderRepo.CreateEntity();
         senderRepo.AddComponent(owned, new NetworkIdentity(bigId));
         senderRepo.AddComponent(owned, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
-        senderRepo.AddComponent(owned, new TkbIdentity { TkbType = TestTkbType });
+        senderRepo.AddComponent(owned, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TestTkbType) });
         var egress = new Hrot.Map.Common.Replication.Egress.EntityMasterEgressTranslator(senderParticipant, new NetworkEntityMap(), localNodeId: 1);
 
         Entity ghost = Entity.Null;
@@ -125,6 +125,31 @@ public class EntityMasterTranslatorTests
         Assert.NotEqual(Entity.Null, ghost);
         Assert.Equal(bigId, receiverRepo.GetComponentRO<NetworkIdentity>(ghost).Value);
         Assert.Equal(TestTkbType, receiverRepo.GetComponentRO<TkbIdentity>(ghost).TkbType);
+    }
+
+    /// <summary>⭐ CE-4200 — the id space is 32-bit and an allocator REFUSES LOUDLY, naming the id, instead of wrapping or truncating: the one
+    /// guard (<c>NetworkIdLimit.Checked</c>) every allocator passes through. Replaces AQ107 E's "an id above int.MaxValue survives the wire".
+    /// ✅ Red-proof: <c>NetworkIdLimit.Checked</c> returning <c>(int)id</c> unchecked (it compiles) ⇒ the allocator wraps to a negative id ⇒ red.</summary>
+    [Fact]
+    public void CE4200_AnIdAboveInt32_IsRefusedAtTheAllocator()
+    {
+        // the pre-increment local allocators (Hrot.Core / IG): the last representable id is issued, the next is refused
+        foreach (Fdp.Toolkit.NetworkSpawning.INetworkIdAllocator allocator in new Fdp.Toolkit.NetworkSpawning.INetworkIdAllocator[]
+                 { new Hrot.Core.Network.SequentialIdAllocator(), new Hrot.IG.IgSequentialIdAllocator() })
+        {
+            allocator.Reset(int.MaxValue);
+            Assert.Equal(int.MaxValue, allocator.AllocateId());
+            var ex = Assert.Throws<InvalidOperationException>(() => allocator.AllocateId());
+            Assert.Contains("2147483648", ex.Message);   // names the id
+        }
+
+        // the pooled allocator: a block whose LAST id would not fit is refused whole, nothing half-queued
+        var pool = new Fdp.Toolkit.Replication.Services.BlockIdManager();
+        var refused = Assert.Throws<InvalidOperationException>(() => pool.AddBlock(int.MaxValue - 1, 5));
+        Assert.Contains("2147483650", refused.Message);   // the block's last id: (int.MaxValue - 1) + 5 - 1
+        Assert.Equal(0, pool.AvailableCount);
+        pool.AddBlock(int.MaxValue - 4, 5);   // exactly the top of the range is fine
+        Assert.Equal(5, pool.AvailableCount);
     }
 
     // ── ⭐ LR-2 — lightweight rounds (docs/DESIGN_Visual_Effects.md §8.5, R-271) ──────────────────────
@@ -313,7 +338,7 @@ public class EntityMasterTranslatorTests
         var (repo, entityMap, _, translator) = CreateFixture();
         repo.RegisterComponent<NetworkAuthority>();
         var entity = repo.CreateEntity();
-        repo.AddComponent(entity, new NetworkAuthority { PrimaryOwnerId = -1, LocalNodeId = 1 });
+        repo.AddComponent(entity, new NetworkAuthority { PrimaryOwnerId = -1, LocalNodeId = (Fdp.Core.NodeId)(1) });
         entityMap.Register(TestNetworkId, entity);
         var master = new EntityMaster { EntityId = TestNetworkId, TkbType = TestTkbType };
         var cmd = new RecordingCommandBuffer();
@@ -331,7 +356,7 @@ public class EntityMasterTranslatorTests
         var (repo, entityMap, _, translator) = CreateFixture();
         repo.RegisterComponent<NetworkAuthority>();
         var entity = repo.CreateEntity();
-        repo.AddComponent(entity, new NetworkAuthority { PrimaryOwnerId = 3, LocalNodeId = 1 });
+        repo.AddComponent(entity, new NetworkAuthority { PrimaryOwnerId = 3, LocalNodeId = (Fdp.Core.NodeId)(1) });
         entityMap.Register(TestNetworkId, entity);
         var master = new EntityMaster { EntityId = TestNetworkId, TkbType = TestTkbType };
         var cmd = new RecordingCommandBuffer();
@@ -413,7 +438,7 @@ public class EntityMasterTranslatorTests
         var (repo, entityMap, eventBus, translator) = CreateFixture();
         repo.RegisterComponent<NetworkAuthority>();
         var entity = repo.CreateEntity();
-        repo.AddComponent(entity, new NetworkAuthority { PrimaryOwnerId = owner, LocalNodeId = 1 });
+        repo.AddComponent(entity, new NetworkAuthority { PrimaryOwnerId = owner, LocalNodeId = (Fdp.Core.NodeId)(1) });
         entityMap.Register(TestNetworkId, entity);
 
         translator.ProcessDispose(TestNetworkId, sender, repo);

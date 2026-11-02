@@ -29,7 +29,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 [Collection("EditorOfflineTests")]
 public sealed class EditorPreviewAndSaveIntegrationTests : IDisposable
 {
-    private const long   TestNetworkId  = 42L;
+    private const int   TestNetworkId  = 42;
     private const long   TestTkbType    = 1L;   // Matches TkbTemplate("TestUnit", 1L) in EditorHarness
     private const int    PumpTimeoutMs  = 5_000;
 
@@ -53,9 +53,9 @@ public sealed class EditorPreviewAndSaveIntegrationTests : IDisposable
         // â”€â”€ Step 2: Spawn entity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType     = TestTkbType,
+            TkbType     = (Fdp.Core.TkbTypeId)(TestTkbType),
             NetworkId   = TestNetworkId,
-            OwnerNodeId = 0,
+            OwnerNodeId = (Fdp.Core.NodeId)(0),
             InitType    = ReliableInitType.None,
             // ⭐ CE-4153 — this harness publishes the spawn itself, bypassing CreateEntityRequestSystem (the one place that mints the entity's
             //   stable key), and the test then SAVES: it plays the creator and stamps the key, as a production request would.

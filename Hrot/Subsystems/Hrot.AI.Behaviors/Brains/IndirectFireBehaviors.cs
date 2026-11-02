@@ -138,10 +138,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The point of a Strike: its Target where it stands now, else its Location on the ground.</summary>
         public static Vector3 PointOf(in StrikeOrder order, EntityRepository world)
         {
-            var target = order.Target.Resolve(world);
+            var target = order.Target.Ref.Resolve(world);
             if (!target.IsNull && world.IsAlive(target) && world.HasComponent<SimTransform>(target))
                 return world.GetComponentRO<SimTransform>(target).Position;
-            var at = OrderGeo.ToLocal(world, order.Location, 0f);
+            var at = (System.Numerics.Vector3)order.Location;
             return new Vector3(at.X, at.Y, Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(at.X, at.Y) ?? 0f);
         }
     }
@@ -501,7 +501,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.Observe = new ObserveFireParams
             {
                 Target = IndirectFireNodes.PointOf(in strike, world),
-                Battery = order.Battery.Resolve(world),
+                Battery = order.Battery.Ref.Resolve(world),
                 Rounds = order.Rounds,
                 Sheaf = (byte)order.Sheaf,
                 SheafWidthM = order.SheafWidthM,
@@ -677,7 +677,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             var order = new StrikeOrder
             {
-                Location = OrderGeo.ToGeo(world, p.Call),
+                Location = p.Call,
                 Method = method,
                 Rounds = method == FireMissionMethod.Adjust ? 1 : p.Rounds,
                 Sheaf = (FireMissionSheaf)p.Sheaf,

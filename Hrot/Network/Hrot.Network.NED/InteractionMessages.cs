@@ -50,7 +50,7 @@ namespace Hrot.NED.Messages
     [DdsIdlFile("hrot-sim-msgs")]
     public partial struct PossessInteractionPayload
     {
-        public long StationNodeId;
+        public int StationNodeId;
         public byte Mode;
     }
 
@@ -59,7 +59,7 @@ namespace Hrot.NED.Messages
     [DdsIdlFile("hrot-sim-msgs")]
     public partial struct ReleasePossessionInteractionPayload
     {
-        public long StationNodeId;
+        public int StationNodeId;
     }
 
     /// <summary>⭐ CE-3172 / CE-3173 — the <see cref="EInteractionKind.ControlFrame"/> case: one frame of the station's controls (M-6:
@@ -68,7 +68,7 @@ namespace Hrot.NED.Messages
     [DdsIdlFile("hrot-sim-msgs")]
     public partial struct ControlFrameInteractionPayload
     {
-        public long StationNodeId;
+        public int StationNodeId;
         public uint Seq;
         public float Forward;
         public float Lateral;
@@ -87,12 +87,12 @@ namespace Hrot.NED.Messages
         public byte ShotSeq;
         public byte CancelSeq;
         public byte AmmoSeq;
-        public long ShotTarget;
+        public int ShotTarget;
         /// <summary>⭐ CE-1151 (appended after ShotTarget; DESIGN_Entity_Control §8h U-2) — the use press counter, its verb (0 = primary)
         /// and the network id of what the crosshair rested on.</summary>
         public byte UseSeq;
         public byte UseVerb;
-        public long UseTarget;
+        public int UseTarget;
         /// <summary>⭐ CE-1212 (appended after UseTarget; DESIGN_Entity_Control §8j L-1) — the lean the operator holds (LeanSide).</summary>
         public byte Lean;
         /// <summary>⭐ CE-1219 (appended after Lean; §8k B-1) — 1 while his binoculars are held up.</summary>
@@ -120,7 +120,7 @@ namespace Hrot.NED.Messages
         public byte Mode;
 
         /// <summary>⭐ Team carry T-a (R-2017 T1) — the team load's second man, network id (0 = none); mapped by the codec. APPENDED (R-169).</summary>
-        public long Assistant;
+        public int Assistant;
     }
 
     /// <summary>⭐ CE-3110 I-2a — the <see cref="EInteractionKind.Disembark"/> case (target = the vehicle, actor = the passenger).</summary>
@@ -274,10 +274,10 @@ namespace Hrot.NED.Messages
     public partial struct EntityInteractionRequest
     {
         /// <summary>Network entity id of what is acted on.</summary>
-        public long TargetId;
+        public int TargetId;
 
         /// <summary>Network entity id of who acts, or 0 (an operator / unknown).</summary>
-        public long ActorId;
+        public int ActorId;
 
         public InteractionPayload Payload;
     }

@@ -130,7 +130,7 @@ namespace Fdp.Toolkit.Time.Tests
             bus.PublishManaged(new FrameStepCompletedEvent
             {
                 FrameID = 42L,
-                NodeID  = 5,
+                NodeID  = (Fdp.Core.NodeId)(5),
             });
 
             bus.SwapBuffers();

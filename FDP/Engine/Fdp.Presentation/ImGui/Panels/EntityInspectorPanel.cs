@@ -23,7 +23,7 @@ namespace Fdp.Presentation.Panels;
 /// §Example, U-obs-5. Mirrors <see cref="EntityInspectorPanel.GetEntityDisplayString"/>'s three parts by
 /// hand rather than as one formatted string, so a test can assert the network id independently of the
 /// label text.</summary>
-public sealed record EntityInspectorRowViewModel(string Label, long? NetworkId, string? Name);
+public sealed record EntityInspectorRowViewModel(string Label, int? NetworkId, string? Name);
 
 /// <summary>
 /// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="EntityInspectorPanel"/> shows, this frame.</b>
@@ -191,7 +191,7 @@ public class EntityInspectorPanel
     /// </summary>
     public ComponentReflector Reflector => _reflector;
 
-    private static long? GetNetworkId(IInspectableSession session, Entity entity)
+    private static int? GetNetworkId(IInspectableSession session, Entity entity)
     {
         if (session.HasComponent(entity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity)))
         {
@@ -214,7 +214,7 @@ public class EntityInspectorPanel
         return null;
     }
 
-    private static string GetEntityDisplayString(IInspectableSession session, Entity entity, out long? netId, out string? name)
+    private static string GetEntityDisplayString(IInspectableSession session, Entity entity, out int? netId, out string? name)
     {
         netId = null;
         name = null;
@@ -296,7 +296,7 @@ public class EntityInspectorPanel
         var rows = new List<EntityInspectorRowViewModel>(filtered.Count);
         foreach (var entity in filtered)
         {
-            string label = GetEntityDisplayString(session, entity, out long? netId, out string? name);
+            string label = GetEntityDisplayString(session, entity, out int? netId, out string? name);
             rows.Add(new EntityInspectorRowViewModel(label, netId, name));
         }
 
@@ -481,7 +481,7 @@ public class EntityInspectorPanel
             var entity = entities[vi];
             count++;
             bool isSingleton = entity == RepositoryAdapter.SingletonEntity;
-            GetEntityDisplayString(session, entity, out long? netId, out string? name);
+            GetEntityDisplayString(session, entity, out int? netId, out string? name);
             string baseLabel = isSingleton ? "[Singletons]" : $"[{entity.Index}, v{entity.Generation}]";
 
             // Single-select backward compat: also highlight from IInspectorContext.
@@ -790,7 +790,7 @@ public class EntityInspectorPanel
             }
             else
             {
-                GetEntityDisplayString(session, e, out long? netId, out string? name);
+                GetEntityDisplayString(session, e, out int? netId, out string? name);
                 ImGuiApi.TextUnformatted($"[{e.Index}, v{e.Generation}]");
                 if (netId.HasValue)
                 {

@@ -17,8 +17,8 @@ namespace Hrot.IG.Tests
 {
     public class GeoSpatialTranslatorTests
     {
-        private const long KnownId   = 5L;
-        private const long UnknownId = 88L;
+        private const int KnownId   = 5;
+        private const int UnknownId = 88;
 
         [Fact]
         public void Decode_KnownEntity_SetsNetworkPosition()
@@ -42,7 +42,7 @@ namespace Hrot.IG.Tests
             }, cmd, repo);
 
             Assert.True(cmd.SetNetworkPositionCalled);
-            Assert.Equal(new Vector3(1f, 2f, 3f), cmd.LastNetworkPosition!.Value.LastPosition);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(1f, 2f, 3f), cmd.LastNetworkPosition!.Value.LastPosition);
         }
 
         /// <summary>
@@ -79,7 +79,7 @@ namespace Hrot.IG.Tests
 
             Assert.True(cmd.SetSimTransformCalled,
                 "SetComponent<SimTransform> must be called to move the entity on the map");
-            Assert.Equal(newPos, cmd.LastSetSimTransform!.Value.Position);
+            Assert.Equal<System.Numerics.Vector3>(newPos, cmd.LastSetSimTransform!.Value.Position);
         }
 
         /// <summary>

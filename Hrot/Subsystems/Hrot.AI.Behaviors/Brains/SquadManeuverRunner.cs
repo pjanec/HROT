@@ -574,7 +574,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 Order(world, commander, member, nameof(OrderKind.Move), JsonSerializer.Serialize(new MoveOrder
                 {
-                    Location = OrderGeo.ToGeo(world, point), Speed = speed, ArrivalRadius = arrival,
+                    Location = point, Speed = speed, ArrivalRadius = arrival,
                 }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
                 return;
             }

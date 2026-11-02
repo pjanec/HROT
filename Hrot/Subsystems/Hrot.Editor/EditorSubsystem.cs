@@ -149,6 +149,7 @@ using Hrot.Hsm.Editor.Comparison;
 using Hrot.Blueprints.Editor.Comparison;
 
 using Hrot.Blueprints.Core.Debug;
+using NodeId = NodeEditor.Primitives.NodeId;
 
 namespace Hrot.Editor
 {
@@ -986,7 +987,7 @@ namespace Hrot.Editor
         /// <summary>⭐ CE-1323 — the behaviour-breakpoint reader (the API names a step that cannot resolve through it).</summary>
         internal Hrot.Editor.Debugging.NodeBreakpointEvaluator? StepEvaluator => _stepEvaluator;
 
-        private static long NetIdOf(EntityRepository w, Entity e)
+        private static int NetIdOf(EntityRepository w, Entity e)
             => w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>() && w.IsAlive(e)
                 ? Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(w, e) : 0;
 
@@ -1246,7 +1247,7 @@ namespace Hrot.Editor
         }
 
         // ⭐ CE-4059 (§11q D3) — the ONE network-id → name reading, shared with the Replay Browser
-        private string? UnitNameOf(long networkId) => Hrot.UI.Common.Map3D.Director.DirectorUnits.NameOf(_world, networkId);
+        private string? UnitNameOf(int networkId) => Hrot.UI.Common.Map3D.Director.DirectorUnits.NameOf(_world, networkId);
 
         // ?? ISubsystem lifecycle ??????????????????????????????????????????????
 
@@ -1305,7 +1306,7 @@ namespace Hrot.Editor
             _bootstrapper.ApplicationSystemsRegistrar = RegisterHostSystems;
             _bootstrapper.MapBuildStatus = () => _map3DBuild;   // ⭐ CE-3354 ③ — lazy: the map layers are attached after the bootstrap
             _node = _bootstrapper.BootstrapNode(
-                new HrotNodeConfig { NodeId = EditorNodeId, SubsystemName = "Editor", Headless = true, NodeName = _nodeName },
+                new HrotNodeConfig { NodeId = (Fdp.Core.NodeId)(EditorNodeId), SubsystemName = "Editor", Headless = true, NodeName = _nodeName },
                 EditorCapabilities.DefaultRole,
                 _networkFactory);
 
@@ -1355,7 +1356,7 @@ namespace Hrot.Editor
                 Config            = ClusterConfiguration.LoadFromWorkingDirectory().ForOneNodeCluster(),
                 TimeCommands      = _timeCommands!,
                 TimeReads         = _timeController!,
-                StagingNodeId     = EditorNodeId,
+                StagingNodeId     = (Fdp.Core.NodeId)(EditorNodeId),
                 // ⭐⭐ CE-4087 — the editor plays every simulation role in-process (the SAME mask it declares to the roster), so its
                 //   own master's load gate is satisfied at once — the editor never refuses itself, nor waits for its own advert.
                 LocalRoles        = EditorCapabilities.DefaultRole,
@@ -1685,9 +1686,9 @@ namespace Hrot.Editor
                     if (!_world.IsAlive(entity)) return;
                     if (entity == FdpRepositoryAdapter.SingletonEntity) return;
 
-                    long networkId = _world.HasComponent<NetworkIdentity>(entity)
+                    int networkId = _world.HasComponent<NetworkIdentity>(entity)
                         ? _world.GetComponentRO<NetworkIdentity>(entity).Value
-                        : 0L;
+                        : 0;
 
                     bool hasPolyline = _world.HasManagedComponent<EditablePolyline>(entity);
                     bool hasRoute    = _world.HasManagedComponent<RoutePlan>(entity);
@@ -2397,9 +2398,9 @@ namespace Hrot.Editor
             actionRegistry.Register(GlobalActionIds.Delete, (view, target) =>
             {
                 if (target == Entity.Null) return;
-                long netId = view.HasComponent<NetworkIdentity>(target)
+                int netId = view.HasComponent<NetworkIdentity>(target)
                     ? view.GetComponentRO<NetworkIdentity>(target).Value
-                    : 0L;
+                    : 0;
                 if (netId != 0)
                     _world!.Bus.PublishManaged(new DestroyEntityCommand { NetworkId = netId, Reason = "ContextMenu" });
                 else
@@ -5071,7 +5072,7 @@ namespace Hrot.Editor
         /// ⚠ <c>0</c> for the sentinel entity, a dead handle, or an entity with no <c>NetworkIdentity</c>
         /// — ⛔ all three mean "nothing durable to key on", which the pin reports rather than hides.
         /// </summary>
-        private long RuntimeNetworkIdOf(Entity entity)
+        private int RuntimeNetworkIdOf(Entity entity)
             // ⭐ AX-008 — ROUTED to the shared resolver `2026-08-25`; see NetworkIdResolver's own note.
             => Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(_world, entity);
 
@@ -5079,7 +5080,7 @@ namespace Hrot.Editor
         /// ⭐ <c>BP-508</c> — routed through the ONE resolver *(<c>R-77</c>)*. ⛔ This copy used
         /// <c>GetComponent</c> *(a struct copy)* and had no non-positive-id guard.
         /// </summary>
-        private Entity FindEntityByNetworkId(long networkId)
+        private Entity FindEntityByNetworkId(int networkId)
             => Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(_world, networkId);
 
         // ⭐⭐⭐ CE-051 (Axis-C E3) — `DrainToolActivationEvents` IS GONE. Its three concerns became
@@ -5479,7 +5480,7 @@ namespace Hrot.Editor
         /// (the context menu's), so there is one load path.</summary>
         private void LoadZoneById(string zoneId)
         {
-            if (_world == null || !long.TryParse(zoneId, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out long id)) return;
+            if (_world == null || !int.TryParse(zoneId, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int id)) return;
             var zone = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(_world, id);
             if (zone.IsNull) return;
             if (_editorMapInteraction?.Actions.TryGetHandler(GlobalActionIds.LoadZone, out var load) == true) load(_world, zone);

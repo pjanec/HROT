@@ -28,7 +28,7 @@ public sealed partial class PossessionStationTests
         {
             w.RegisterComponent<Locomotion>();
             w.AddComponent(car, new Locomotion { Class = LocomotionClass.Wheeled });
-            w.AddComponent(car, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(car, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
             var station = new PossessionStation(sw, () => w);
             Assert.True(station.OverShoulder);                                                                         // UC-3
@@ -50,7 +50,7 @@ public sealed partial class PossessionStationTests
 
             // an armed turret: the look is the gun's order — it stays where he put it
             w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
-            w.AddComponent(car, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 700 });
+            w.AddComponent(car, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(700) });
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
             var ifv = new Fdp.Interfaces.TkbTemplate("IFV", 700);
             ifv.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { Category = WeaponCategory.Autocannon, TurretIndex = 0 } } });
@@ -80,7 +80,7 @@ public sealed partial class PossessionStationTests
             w.AddComponent(truck, new SimTransform { Position = new Vector3(100f, 50f, 0f), Rotation = Quaternion.Identity });
             w.AddComponent(truck, new Locomotion { Class = LocomotionClass.Wheeled });
             w.AddComponent(gunner, new IsEmbarkedTag { VehicleEntity = truck });
-            w.AddComponent(gunner, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(gunner, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
             var station = new PossessionStation(sw, () => w);
             station.Update(0.016f);

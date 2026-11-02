@@ -154,7 +154,7 @@ namespace Fdp.Toolkit.Tests.Utility
         }
 
         /// <summary>⭐ <c>CE-3071</c> — gives <paramref name="e"/> the TKB type <paramref name="tkbType"/>.</summary>
-        public void SetType(Entity e, long tkbType) => Repo.AddComponent(e, new TkbIdentity { TkbType = tkbType });
+        public void SetType(Entity e, long tkbType) => Repo.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(tkbType) });
 
         /// <summary>
         /// Creates a child weapon-mount entity linked to <paramref name="owner"/>.

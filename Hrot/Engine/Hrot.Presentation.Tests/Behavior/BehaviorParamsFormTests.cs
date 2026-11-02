@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Fdp.Presentation.Editing;
-using Fdp.Toolkit.Behavior.Params;
 using Fdp.Toolkit.Replication;
 using Hrot.Map.Definitions.Behavior;
 using Hrot.Presentation.Behavior;
@@ -23,13 +22,13 @@ namespace Hrot.Presentation.Tests.Behavior
     {
         private sealed class PickingContext : IMapPickContext
         {
-            public long Entity;
-            public PickableGeoPoint? Location;
+            public int Entity;
+            public PointLink? Location;
             public readonly List<string> AskedPaths = new();
             public bool IsPickPendingFor(string path) => false;
             public bool TryConsumeEntityPick(string path, out EntityRef picked)
             { AskedPaths.Add(path); picked = new EntityRef(Entity); return Entity != 0; }
-            public bool TryConsumeLocationPick(string path, out PickableGeoPoint location)
+            public bool TryConsumeLocationPick(string path, out PointLink location)
             { AskedPaths.Add(path); location = Location ?? default; return Location.HasValue; }
             public void RequestEntityPick(string path, string[]? filterPresets) { }
             public void RequestLocationPick(string path) { }
@@ -79,15 +78,14 @@ namespace Hrot.Presentation.Tests.Behavior
         public void CE1023_ALocationPick_LandsInTheTasksJson()
         {
             Assert.True(typeof(MoveToLocationParamsJsonDto).IsValueType);
-            var form = FormOf(MoveToLocationParamsJsonDto.BehaviorId, "{\"targetLat\":1,\"targetLon\":2,\"speed\":5}");
+            var form = FormOf(MoveToLocationParamsJsonDto.BehaviorId, "{\"target\":[1,2,0],\"speed\":5}");
 
-            DrawOneFrame(form.Session!, new ScopedMapPickContext(new PickingContext { Location = new PickableGeoPoint(50.5, 14.25) },
+            DrawOneFrame(form.Session!, new ScopedMapPickContext(new PickingContext { Location = new PointLink(new Fdp.Core.WorldPoint(50.5f, 14.25f, 0f)) },
                                                                 MissionPanel.PickScope(0)));
             string? json = form.Edited();
 
             Assert.NotNull(json);
-            Assert.Contains("\"targetLat\":50.5", json);
-            Assert.Contains("\"targetLon\":14.25", json);
+            Assert.Contains("\"target\":[50.5, 14.25, 0]", json);
             Assert.Contains("\"speed\":5", json);
         }
 

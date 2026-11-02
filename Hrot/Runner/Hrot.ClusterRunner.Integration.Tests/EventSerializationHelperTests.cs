@@ -29,8 +29,8 @@ public sealed class EventSerializationHelperTests
     {
         var cmd = new SpawnEntityCommand
         {
-            TkbType           = 1L,
-            NetworkId         = 42L,
+            TkbType           = (Fdp.Core.TkbTypeId)(1L),
+            NetworkId         = 42,
             InitialComponents = new List<object>
             {
                 new EntityInfo { Name = new FixedString64("Alpha") },
@@ -82,7 +82,7 @@ public sealed class EventSerializationHelperTests
     [Fact]
     public void SerializeToJson_NoResolver_DoesNotThrow_AndProducesJson()
     {
-        var cmd = new SpawnEntityCommand { TkbType = 7L, NetworkId = 99L };
+        var cmd = new SpawnEntityCommand { TkbType = (Fdp.Core.TkbTypeId)(7L), NetworkId = 99 };
 
         // resolver omitted (no-resolver path)
         var json = EventSerializationHelper.SerializeToJson(cmd);

@@ -20,8 +20,11 @@ namespace Fdp.Presentation.Editing
                 .RegisterFieldEditor<Fdp.Core.FixedString64>(new FixedString64FieldEditor())
                 .RegisterFieldEditor<Fdp.Core.FixedString128>(new FixedString128FieldEditor())
                 .RegisterFieldEditor<Quaternion>(new QuaternionEulerFieldEditor())
+                .RegisterFieldEditor<Fdp.Core.WorldRotation>(new QuaternionEulerFieldEditor(typeof(Fdp.Core.WorldRotation)))   // ⭐ S0 item 6 — a world orientation edits as Y/P/R like a Quaternion
                 .RegisterFieldEditor<Fdp.Toolkit.Replication.EntityRef>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.EntityRef)))
-                .RegisterFieldEditor<Fdp.Toolkit.Behavior.Params.PickableGeoPoint>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Behavior.Params.PickableGeoPoint)))
+                .RegisterFieldEditor<Fdp.Toolkit.Replication.EntityLink>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.EntityLink)))   // ⭐ S0 item 5 — the authored types are pickable leaves by TYPE
+                .RegisterFieldEditor<Fdp.Toolkit.Replication.PointLink>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.PointLink)))
+                .RegisterFieldEditor<Fdp.Core.WorldPoint>(new PickableLeafFieldEditor(typeof(Fdp.Core.WorldPoint)))
                 // ⭐ CE-2068 — a utility decision reference is pickable by its TYPE (R-184): one leaf, drawn as a catalog combo.
                 .RegisterFieldEditor<Fdp.Toolkit.Utility.UtilityDecisionRef>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Utility.UtilityDecisionRef)))
                 .RegisterFieldEditor<Guid>(new StructEdit.Reflection.Editors.GuidFieldEditor());
@@ -56,7 +59,7 @@ namespace Fdp.Presentation.Editing
         public void RequestLocationPick(string jsonPath) => _inner.RequestLocationPick(Path(jsonPath));
         public bool TryConsumeEntityPick(string jsonPath, out Fdp.Toolkit.Replication.EntityRef picked)
             => _inner.TryConsumeEntityPick(Path(jsonPath), out picked);
-        public bool TryConsumeLocationPick(string jsonPath, out Fdp.Toolkit.Behavior.Params.PickableGeoPoint location)
+        public bool TryConsumeLocationPick(string jsonPath, out Fdp.Toolkit.Replication.PointLink location)
             => _inner.TryConsumeLocationPick(Path(jsonPath), out location);
         public bool CanListEntities => _inner.CanListEntities;   // ⭐ CE-1059
         public void RequestEntityListPick(string jsonPath, string[]? filterPresets) => _inner.RequestEntityListPick(Path(jsonPath), filterPresets);

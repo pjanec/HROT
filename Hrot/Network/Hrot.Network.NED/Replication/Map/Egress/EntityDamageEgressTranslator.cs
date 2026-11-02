@@ -52,7 +52,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// A dedicated lifecycle cleanup pass should be added in a future debt-burndown batch.
         /// </para>
         /// </summary>
-        private readonly Dictionary<long, (float Current, float Max)> _lastPublished = new();
+        private readonly Dictionary<int, (float Current, float Max)> _lastPublished = new();
         private int _worldEpoch;   // ⭐ CE-3076 — per-id bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityDamage>();
@@ -132,7 +132,7 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>Removes the entity from the published-value cache.</summary>
-        public void Dispose(long networkEntityId)
+        public void Dispose(int networkEntityId)
         {
             // TD-9: Trace disposal events so we can detect if cleanup is being skipped.
             // If this log never fires for a destroyed entity, the cache entry is leaking.
@@ -143,7 +143,7 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget what was published so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_lastPublished.Remove(networkEntityId)) _writer.UnregisterInstance(new EntityDamage { EntityId = networkEntityId });
         }

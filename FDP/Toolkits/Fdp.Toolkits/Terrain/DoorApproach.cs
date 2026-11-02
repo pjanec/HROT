@@ -16,7 +16,7 @@ namespace Fdp.Toolkit.Terrain
 
         /// <summary>The near side of the door with network id <paramref name="doorNetworkId"/> for a mover at <paramref name="from"/>;
         /// false when that id is not a door on this node.</summary>
-        public static bool TryPoint(EntityRepository repo, long doorNetworkId, Vector3 from, out Vector3 point)
+        public static bool TryPoint(EntityRepository repo, int doorNetworkId, Vector3 from, out Vector3 point)
         {
             point = default;
             var door = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(repo, doorNetworkId);

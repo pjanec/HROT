@@ -76,7 +76,7 @@ namespace Fdp.Toolkit.Time.Tests
             {
                 Role = TimeRole.Slave,
                 Mode = TimeMode.Deterministic,
-                LocalNodeId = 1
+                LocalNodeId = (Fdp.Core.NodeId)(1)
             };
 
             var controller = TimeControllerFactory.Create(new FdpEventBus(), config);
@@ -107,7 +107,7 @@ namespace Fdp.Toolkit.Time.Tests
             {
                 Role = TimeRole.Slave,
                 Mode = TimeMode.Continuous,
-                LocalNodeId = 5,
+                LocalNodeId = (Fdp.Core.NodeId)(5),
             };
 
             var controller = TimeControllerFactory.Create(new FdpEventBus(), config);
@@ -122,7 +122,7 @@ namespace Fdp.Toolkit.Time.Tests
             {
                 Role = TimeRole.Slave,
                 Mode = TimeMode.Deterministic,
-                LocalNodeId = 5,
+                LocalNodeId = (Fdp.Core.NodeId)(5),
             };
 
             var controller = TimeControllerFactory.Create(new FdpEventBus(), config);

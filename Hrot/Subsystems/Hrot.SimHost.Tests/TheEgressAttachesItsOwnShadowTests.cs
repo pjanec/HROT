@@ -223,7 +223,7 @@ namespace Hrot.SimHost.Tests
 
             var shadow = repo.GetComponent<NetworkTransform>(e);
             _out.WriteLine($"shadow after first scan: ({shadow.LastPosition.X}, {shadow.LastPosition.Y}, {shadow.LastPosition.Z})");
-            Assert.Equal(pos, shadow.LastPosition);
+            Assert.Equal<System.Numerics.Vector3>(pos, shadow.LastPosition);
         }
 
         /// <summary>

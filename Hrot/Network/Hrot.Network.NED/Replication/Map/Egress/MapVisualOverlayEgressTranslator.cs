@@ -16,6 +16,7 @@ using Fdp.Toolkit.Replication.Extensions;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Utilities;
 using Fdp.ModuleHost.Abstractions;
+using NodeId = Fdp.Core.NodeId;
 
 namespace Hrot.Map.Common.Replication.Egress
 {
@@ -29,8 +30,8 @@ namespace Hrot.Map.Common.Replication.Egress
 
         private readonly DdsWriter<MapVisualOverlay> _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly HashSet<long> _tracedNetIds = new();
-        private readonly long _localNodeId;
+        private readonly HashSet<int> _tracedNetIds = new();
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MapVisualOverlay>();
         public long DescriptorOrdinal => OrdinalValue;
@@ -46,11 +47,11 @@ namespace Hrot.Map.Common.Replication.Egress
         public MapVisualOverlayEgressTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
-            long localNodeId)
+            int localNodeId)
         {
             _writer = new DdsWriter<MapVisualOverlay>(participant);
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         // â”€â”€ Ingress (egress-only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -125,7 +126,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        public void Dispose(long networkEntityId)
+        public void Dispose(int networkEntityId)
         {
             _writer.DisposeInstance(new MapVisualOverlay { EntityId = networkEntityId });
         }

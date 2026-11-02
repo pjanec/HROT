@@ -4,7 +4,6 @@ using System.Linq;
 using System.Reflection;
 using System.Text.Json.Nodes;
 using Fdp.Toolkit.Behavior.Attributes;
-using Fdp.Toolkit.Behavior.Params;
 using Fdp.Toolkit.Replication;
 using Hrot.Common.Orders;
 using Hrot.Editor.DebugApi;
@@ -77,9 +76,9 @@ public sealed class OrderVocabularyTests
 
     // ── CE-2148 (P5, design §13.11) — mandatory fields, the completeness rule, the draft ──────────────────────────────
 
-    private struct TwoPicks { [Required] public EntityRef Who; [Required] public PickableGeoPoint Where; }
-    private struct NeedsANumber { [Required] public float Range; public EntityRef Optional; }
-    private struct OptionalPick { [MapPickableEntity("tactical_graphics")] public EntityRef Area; }
+    private struct TwoPicks { [Required] public EntityLink Who; [Required] public PointLink Where; }
+    private struct NeedsANumber { [Required] public float Range; public EntityLink Optional; }
+    private struct OptionalPick { [MapPickableEntity("tactical_graphics")] public EntityLink Area; }
 
     private static OrderInfo Probe(Type dto)
     {
@@ -136,23 +135,23 @@ public sealed class OrderVocabularyTests
     {
         Assert.True(OrderMenu.TryGetByName("Move", out var move));
         var point = new JsonArray(50.0, 14.0);
-        var d = OrderMenu.Draft(move, new long[] { 7 }, new OrderContext(88, point), _ => Array.Empty<OrderResult>());
+        var d = OrderMenu.Draft(move, new int[] { 7 }, new OrderContext(88, point), _ => Array.Empty<OrderResult>());
         Assert.True(d.IsComplete);
         Assert.Equal("[50,14]", d.Params["Location"]!.ToJsonString());
         Assert.False(d.Params.ContainsKey("Target"));
 
         var explicitPoint = new JsonObject { ["location"] = new JsonArray(1.0, 2.0) };
-        d = OrderMenu.Draft(move, new long[] { 7 }, new OrderContext(null, point), _ => Array.Empty<OrderResult>(), explicitPoint);
+        d = OrderMenu.Draft(move, new int[] { 7 }, new OrderContext(null, point), _ => Array.Empty<OrderResult>(), explicitPoint);
         Assert.Equal("[1,2]", d.Params["location"]!.ToJsonString());
         Assert.False(d.Params.ContainsKey("Location"));
 
         var two = Probe(typeof(TwoPicks));
-        d = OrderMenu.Draft(two, new long[] { 7 }, new OrderContext(88, null), _ => Array.Empty<OrderResult>());
-        Assert.Equal(88, d.Params["Who"]!.GetValue<long>());
+        d = OrderMenu.Draft(two, new int[] { 7 }, new OrderContext(88, null), _ => Array.Empty<OrderResult>());
+        Assert.Equal(88, d.Params["Who"]!.GetValue<int>());
         Assert.Equal("Where", d.Missing.Single().Name);
 
         var optional = Probe(typeof(OptionalPick));
-        d = OrderMenu.Draft(optional, new long[] { 7 }, new OrderContext(88, null), _ => Array.Empty<OrderResult>());
+        d = OrderMenu.Draft(optional, new int[] { 7 }, new OrderContext(88, null), _ => Array.Empty<OrderResult>());
         Assert.True(d.IsComplete);
         Assert.Empty(d.Params);
     }
@@ -170,11 +169,11 @@ public sealed class OrderVocabularyTests
 
     private struct NeedsAll
     {
-        [Required] public EntityRef Enemy;
-        [Required, MapPickableEntity("road_graphs")] public EntityRef Road;
-        [Required, MapPickableEntity("tactical_graphics")] public EntityRef Sector;
-        [Required] public PickableGeoPoint Spot;
-        public EntityRef OptionalTarget;
+        [Required] public EntityLink Enemy;
+        [Required, MapPickableEntity("road_graphs")] public EntityLink Road;
+        [Required, MapPickableEntity("tactical_graphics")] public EntityLink Sector;
+        [Required] public PointLink Spot;
+        public EntityLink OptionalTarget;
     }
 
     /// <summary>⭐ §13.3 the kinds — an order field's TYPE and picker preset decide which designation can fill it.</summary>
@@ -198,25 +197,25 @@ public sealed class OrderVocabularyTests
     {
         var info = Probe(typeof(NeedsAll));
         var store = new OrderDesignations();
-        store.Set(7, DesignationKind.Target, 11L);
-        store.Set(7, DesignationKind.Route, 22L);
-        store.Set(7, DesignationKind.Area, 33L);
+        store.Set(7, DesignationKind.Target, 11);
+        store.Set(7, DesignationKind.Route, 22);
+        store.Set(7, DesignationKind.Area, 33);
         store.Set(7, DesignationKind.MapPoint, new JsonArray(1.0, 2.0));
         var lookup = store.Lookup(_ => true);
 
-        var d = OrderMenu.Draft(info, new long[] { 7 }, new OrderContext(99, null), _ => Array.Empty<OrderResult>(), designation: lookup);
+        var d = OrderMenu.Draft(info, new int[] { 7 }, new OrderContext(99, null), _ => Array.Empty<OrderResult>(), designation: lookup);
         Assert.True(d.IsComplete);
-        Assert.Equal(99, d.Params["Enemy"]!.GetValue<long>());          // the gesture wins over the designation
-        Assert.Equal(22, d.Params["Road"]!.GetValue<long>());
-        Assert.Equal(33, d.Params["Sector"]!.GetValue<long>());
+        Assert.Equal(99, d.Params["Enemy"]!.GetValue<int>());          // the gesture wins over the designation
+        Assert.Equal(22, d.Params["Road"]!.GetValue<int>());
+        Assert.Equal(33, d.Params["Sector"]!.GetValue<int>());
         Assert.Equal("[1,2]", d.Params["Spot"]!.ToJsonString());
         Assert.False(d.Params.ContainsKey("OptionalTarget"));
 
-        d = OrderMenu.Draft(info, new long[] { 7, 8 }, OrderContext.None, _ => Array.Empty<OrderResult>(), designation: lookup);
+        d = OrderMenu.Draft(info, new int[] { 7, 8 }, OrderContext.None, _ => Array.Empty<OrderResult>(), designation: lookup);
         Assert.Equal(4, d.Missing.Count);                                 // several units: the per-unit store does not speak
 
         var stale = store.Lookup(id => id != 33);
-        d = OrderMenu.Draft(info, new long[] { 7 }, OrderContext.None, _ => Array.Empty<OrderResult>(), designation: stale);
+        d = OrderMenu.Draft(info, new int[] { 7 }, OrderContext.None, _ => Array.Empty<OrderResult>(), designation: stale);
         Assert.Equal("Sector", d.Missing.Single().Name);
         Assert.False(store.TryGet(7, DesignationKind.Area, out _));       // dropped, so it is not offered again
     }

@@ -42,7 +42,7 @@ namespace Hrot.SimHost.Tests
                 TkbDb                = tkb,
                 IdAllocator          = new SequentialIdAllocator(),
                 Elm                  = new EntityLifecycleModule(tkb, Array.Empty<int>()),
-                NodeId               = 7,
+                NodeId               = (Fdp.Core.NodeId)(7),
                 IsBroadcastArbiter   = arbiter,
                 ExtraTranslators     = extras,
                 TranslatorPlacements = placements,
@@ -513,7 +513,7 @@ namespace Hrot.SimHost.Tests
             }
             private sealed class NoAcks : IEntityAckSink
             {
-                public void WriteAck(Guid requestId, long entityId, EntityOperationStatus status) { }
+                public void WriteAck(Guid requestId, int entityId, EntityOperationStatus status) { }
             }
         }
 
@@ -815,7 +815,7 @@ namespace Hrot.SimHost.Tests
                 "the affordance's transform never reached the order — it is folded into " +
                 "InitialComponents and CreateEntityRequestSystem separates it back out; one of those " +
                 "two halves is broken.");
-            Assert.Equal(new System.Numerics.Vector3(10f, 20f, 30f), order.InitialTransform!.Value.Position);
+            Assert.Equal<System.Numerics.Vector3>(new System.Numerics.Vector3(10f, 20f, 30f), order.InitialTransform!.Value.Position);
         }
 
         /// <summary>

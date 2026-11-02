@@ -43,7 +43,7 @@
    },
    "Behavior": {
     "Name": "MoveToLocation",
-    "Params": "{\"x\":102,\"y\":104,\"speed\":2,\"arrivalRadius\":1}",
+    "Params": "{\"speed\":2,\"arrivalRadius\":1,\"target\":[102,104,0]}",
     "Origin": "Superior"
    },
    "Sop": {

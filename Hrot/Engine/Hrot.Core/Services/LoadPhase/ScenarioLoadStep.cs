@@ -75,7 +75,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     //   CreateEntityRequestSystem; NetworkSpawningSystem created the entities a frame later — the load resolved on an EMPTY world
     //   (`constructing=0 all=0`), so condition ② never saw a static obstacle Constructing and the vans of bt-window-duel joined the
     //   simulation on whatever step their wall-clock bake finished (3 under load, 9 idle, 20 in a batch). R-243 promises the opposite.
-    private readonly HashSet<long> _awaitedNetworkIds = new();
+    private readonly HashSet<int> _awaitedNetworkIds = new();
 
     /// <summary>⭐ CE-3304 — a published request that never produces an entity (rejected, routed to a node that is gone) stops being
     /// waited for after this many ticks; the load then proceeds and names it. Ticks, not seconds: the bound is the same on every machine.</summary>
@@ -237,7 +237,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     public static EntityCreationRequest WorldEnvironmentRequest(INetworkIdAllocator idAllocator) => new()
     {
         RequestId             = Guid.NewGuid(),
-        TkbType               = TkbEntityTypes.WorldEnvironment,
+        TkbType               = (Fdp.Core.TkbTypeId)(TkbEntityTypes.WorldEnvironment),
         PreAllocatedNetworkId = idAllocator.AllocateId(),
         InitialComponents     = new List<object> { Fdp.Toolkit.Weather.ScenarioClock.Default, Fdp.Toolkit.Weather.WeatherConditions.Standard },
     };

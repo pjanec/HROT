@@ -48,7 +48,7 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
     {
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId            = nodeId,
+            NodeId            = (Fdp.Core.NodeId)(nodeId),
             SubsystemName     = "SimHost",
             LocalStateId      = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc      = DateTimeOffset.UtcNow.Ticks,

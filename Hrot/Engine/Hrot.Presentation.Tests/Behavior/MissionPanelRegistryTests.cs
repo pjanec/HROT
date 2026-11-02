@@ -1,4 +1,3 @@
-using Fdp.Toolkit.Behavior.Params;
 using Hrot.Map.Definitions.Behavior;
 using Hrot.Core.Mission;
 using Hrot.Presentation.Behavior;
@@ -66,7 +65,7 @@ namespace Hrot.Presentation.Tests.Behavior
         // ── TryConsume through the panel's broker, keyed $.tasks[i].Prop ──────────────
 
         private static readonly string EntityPath   = MissionPanel.PickScope(0) + ".TargetNetworkId";
-        private static readonly string LocationPath = MissionPanel.PickScope(0) + ".PickableLocation";
+        private static readonly string LocationPath = MissionPanel.PickScope(0) + ".Location";
 
         [Fact]
         public void TryConsumeEntityPick_NoResolvedPick_ReturnsFalse()
@@ -98,10 +97,10 @@ namespace Hrot.Presentation.Tests.Behavior
         [Fact]
         public void TryConsumeLocationPick_NoResolvedPick_ReturnsFalse()
         {
-            bool result = new MissionPanel().Picks.TryConsumeLocationPick(LocationPath, out PickableGeoPoint loc);
+            bool result = new MissionPanel().Picks.TryConsumeLocationPick(LocationPath, out Fdp.Toolkit.Replication.PointLink loc);
             Assert.False(result);
-            Assert.Equal(0.0, loc.Latitude);
-            Assert.Equal(0.0, loc.Longitude);
+            Assert.Equal(0f, loc.Local.Y);
+            Assert.Equal(0f, loc.Local.X);
         }
 
         [Fact]
@@ -116,9 +115,10 @@ namespace Hrot.Presentation.Tests.Behavior
             pick.CompleteLocation(expectedLocation);
             await Task.Yield();
 
-            Assert.True(panel.Picks.TryConsumeLocationPick(LocationPath, out PickableGeoPoint loc));
-            Assert.Equal(expectedLocation.Latitude,  loc.Latitude,  precision: 6);
-            Assert.Equal(expectedLocation.Longitude, loc.Longitude, precision: 6);
+            Assert.True(panel.Picks.TryConsumeLocationPick(LocationPath, out Fdp.Toolkit.Replication.PointLink loc));
+            // the stub service has no frame: the default local conversion carries (lon, lat) as (x, y)
+            Assert.Equal(expectedLocation.Latitude,  loc.Local.Y, precision: 3);
+            Assert.Equal(expectedLocation.Longitude, loc.Local.X, precision: 3);
             Assert.False(panel.Picks.TryConsumeLocationPick(LocationPath, out _));
         }
 

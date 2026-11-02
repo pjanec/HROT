@@ -51,7 +51,7 @@ public sealed class EntityInfoEgressTranslatorTests
     private static Entity SpawnAuthoritativeEntity(EntityRepository world, uint netId, ForceId forceId = ForceId.Friend)
     {
         var e = world.CreateEntity();
-        world.AddComponent(e, new NetworkIdentity(netId));
+        world.AddComponent(e, new NetworkIdentity((int)netId));
         world.AddComponent(e, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
         world.AddComponent(e, new Fdp.Core.EntityInfo { Name = "TestUnit", ForceId = forceId });
         return e;

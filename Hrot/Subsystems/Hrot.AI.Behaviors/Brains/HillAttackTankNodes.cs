@@ -49,11 +49,11 @@ namespace Hrot.AI.Behaviors.Brains
             var dir = new Vector2(authored.AttackDirX, authored.AttackDirY);
             if (dir.LengthSquared() > 1e-6f) dir = Vector2.Normalize(dir);
             long target = 0;
-            if (authored.TargetNetworkId != 0)
+            if (!authored.TargetNetworkId.Ref.IsNone)
             {
                 var map = world.HasSingletonManaged<NetworkEntityMap>() ? world.GetSingletonManaged<NetworkEntityMap>() : null;
-                if (map != null && map.TryGetEntity(authored.TargetNetworkId, out var e)) target = (long)e.PackedValue;
-                else BehaviorLog.Warn(self, world, "TargetNetworkId=" + authored.TargetNetworkId + " not in the entity map; the run fights its top threat.");
+                if (map != null && map.TryGetEntity(authored.TargetNetworkId.Ref.NetworkId, out var e)) target = (long)e.PackedValue;
+                else BehaviorLog.Warn(self, world, "TargetNetworkId=" + authored.TargetNetworkId.Ref.NetworkId + " not in the entity map; the run fights its top threat.");
             }
             block.fight = new VehicleFightFromCoverParams
             {

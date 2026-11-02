@@ -85,7 +85,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             // is back to one job — emitting primitives. 📄 UX_Feature_Map_Parity.md §3.2f.
 
             ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
-            long networkId = netId.Value;
+            int networkId = netId.Value;
 
             // ⭐⭐⭐ §6.8 — the projector attribute guarantees the component is PRESENT, never that its
             //   value is usable. ⛔ With 0 this gizmo emits a SpatialAnchor nothing can reference, a pick

@@ -40,6 +40,11 @@ namespace Fdp.Toolkit.Behavior.Shared
                 { "System.Numerics.Vector3",    (12, 4) }, { "UnityEngine.Vector3",    (12, 4) }, { "Vector3",    (12, 4) },
                 { "System.Numerics.Vector4",    (16, 4) }, { "UnityEngine.Vector4",    (16, 4) }, { "Vector4",    (16, 4) },
                 { "System.Numerics.Quaternion", (16, 4) }, { "UnityEngine.Quaternion", (16, 4) }, { "Quaternion", (16, 4) },
+                // ⭐ S0 item 5: RefSpec (the authored-link tail of EntityLink / PointLink / AreaLink) is [StructLayout(Explicit, Size = 36)]
+                //   — and Roslyn does NOT expose StructLayout / FieldOffset on a type loaded from METADATA (they are metadata flags, not
+                //   attributes), so the algorithm below laid it out as Sequential: 52 bytes, and every blackboard holding a link was
+                //   mis-sized. Its CLR layout is fixed (FixedString32 / Guid overlaid, then the 1-byte form): 36, 4-aligned.
+                { "Fdp.Core.RefSpec", (36, 4) },
             };
 
         /// <summary>The (size, alignment) of a known type id — a CLR name, a C# alias or a short vector name.</summary>

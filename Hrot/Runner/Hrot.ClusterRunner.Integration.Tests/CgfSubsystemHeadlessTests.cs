@@ -73,7 +73,7 @@ public sealed class CgfSubsystemHeadlessTests
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new CoreGeoPoint { Latitude = 52.52, Longitude = 13.40, Altitude = 0 };
 
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
         _out.WriteLine($"[HT1] SimHost spawned networkId={networkId}");
 
         bool appeared = harness.PumpUntil(
@@ -108,7 +108,7 @@ public sealed class CgfSubsystemHeadlessTests
         long tkbType  = TkbEntityTypes.IFV_Bradley;
         var  spawnPos = new CoreGeoPoint { Latitude = 52.52, Longitude = 13.41, Altitude = 0 };
 
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
         _out.WriteLine($"[HT2] SimHost spawned IFV networkId={networkId}");
 
         bool appeared = harness.PumpUntil(
@@ -145,7 +145,7 @@ public sealed class CgfSubsystemHeadlessTests
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new CoreGeoPoint { Latitude = 52.52, Longitude = 13.42, Altitude = 0 };
 
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
         _out.WriteLine($"[HT3] SimHost spawned networkId={networkId}");
 
         // Wait for entity to appear in CGF ghost repo.
@@ -204,7 +204,7 @@ public sealed class CgfSubsystemHeadlessTests
         var  spawnPos = new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
 
         // Spawn entity so there is a network entity for the overlay to attach to.
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
 
         // Wait for entity on IG.
         bool igHasEntity = harness.PumpUntil(
@@ -261,7 +261,7 @@ public sealed class CgfSubsystemHeadlessTests
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new CoreGeoPoint { Latitude = 52.523, Longitude = 13.40, Altitude = 0 };
 
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
         _out.WriteLine($"[HT5] Spawned entity {networkId}");
 
         // Wait for entity to propagate to CGF ghost repo.
@@ -323,7 +323,7 @@ public sealed class CgfSubsystemHeadlessTests
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new CoreGeoPoint { Latitude = 52.520, Longitude = 13.405, Altitude = 0 };
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
 
         bool entityReady = harness.PumpUntil(
             () => harness.SimHost.World?.EntityCount > 0,
@@ -388,7 +388,7 @@ public sealed class CgfSubsystemHeadlessTests
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new CoreGeoPoint { Latitude = 52.524, Longitude = 13.406, Altitude = 0 };
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
 
         bool entityReady = harness.PumpUntil(
             () => harness.SimHost.World?.EntityCount > 0,
@@ -436,7 +436,7 @@ public sealed class CgfSubsystemHeadlessTests
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new CoreGeoPoint { Latitude = 52.525, Longitude = 13.40, Altitude = 0 };
 
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
 
         // Wait for the entity to reach CGF.
         bool appeared = harness.PumpUntil(
@@ -502,7 +502,7 @@ public sealed class CgfSubsystemHeadlessTests
         // Spawn near the map reference origin so a ghost tick targeting (0,0) would
         // immediately report "arrived" without the entity moving -- the failing scenario.
         var spawnPos = new CoreGeoPoint { Latitude = 52.524, Longitude = 13.415, Altitude = 0 };
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
 
         // Wait for CGF ghost entity to appear.
         bool cgfReady = harness.PumpUntil(
@@ -525,7 +525,7 @@ public sealed class CgfSubsystemHeadlessTests
         // ⛔ TestHook_GetSimTransform answers default(SimTransform) for a missing entity, and a (0,0,0) baseline
         //   would make any real position look like movement. The spawn is ~680 m from the origin, so a zero
         //   baseline can only mean "not read".
-        Assert.NotEqual(System.Numerics.Vector3.Zero, initialPos);
+        Assert.NotEqual<System.Numerics.Vector3>(System.Numerics.Vector3.Zero, initialPos);
 
         // Send a MoveToLocation mission via DDS.  Full Brain pipeline exercised:
         //   MissionControlRequest (DDS) -> MissionControlExecutionSystem (CGF)
@@ -555,9 +555,9 @@ public sealed class CgfSubsystemHeadlessTests
                         {
                             TaskId          = taskId,
                             BehaviorId      = "MoveToLocation",
-                            // Target ~1.2 km north-east: far enough that the entity cannot
+                            // Target ~2 km north-east (local metres; S0 item 5 retired targetLat/targetLon — was 52.535 N, 13.42 E): far enough that the entity cannot
                             // reach it within the test window even at maximum speed.
-                            BehaviorParams  = "{\"targetLat\":52.535,\"targetLon\":13.42,\"speed\":15,\"arrivalRadius\":5}",
+                            BehaviorParams  = "{\"target\":[1015,1668,0],\"speed\":15,\"arrivalRadius\":5}",
                             ExecutingEngine = "CGFX",
                             State           = eTaskState.TASK_ACTIVE,
                             Triggers        = new System.Collections.Generic.List<DdsMissionTrigger>
@@ -620,9 +620,9 @@ public sealed class CgfSubsystemHeadlessTests
     // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>Each link of brain → intent → SimHost kinematics, as one line.</summary>
-    private static string DescribeMoveChain(HrotRunnerHarness harness, long networkId)
+    private static string DescribeMoveChain(HrotRunnerHarness harness, int networkId)
     {
-        static string Node(Fdp.Core.EntityRepository? w, NetworkEntityMap? map, long id)
+        static string Node(Fdp.Core.EntityRepository? w, NetworkEntityMap? map, int id)
         {
             if (w == null || map == null || !map.TryGetEntity(id, out var e) || !w.IsAlive(e)) return "absent";
             var parts = new System.Collections.Generic.List<string>();
@@ -655,7 +655,7 @@ public sealed class CgfSubsystemHeadlessTests
                $"SimHost[{Node(harness.SimHost.App.WorldOrNull, harness.SimHost.TestHook_EntityMap, networkId)}]";
     }
 
-    private static Vector3 GetCgfGhostPosition(HrotRunnerHarness harness, long networkId)
+    private static Vector3 GetCgfGhostPosition(HrotRunnerHarness harness, int networkId)
     {
         var map   = harness.Cgf?.GhostEntityMap;
         var world = harness.Cgf?.World;
@@ -665,7 +665,7 @@ public sealed class CgfSubsystemHeadlessTests
         return world.GetComponent<SimTransform>(entity).Position;
     }
 
-    private static bool IgHasNetworkEntity(HrotRunnerHarness harness, long networkId)
+    private static bool IgHasNetworkEntity(HrotRunnerHarness harness, int networkId)
     {
         var map = harness.Ig.App.TestHook_EntityMap;
         if (!map.TryGetEntity(networkId, out var entity)) return false;
@@ -673,7 +673,7 @@ public sealed class CgfSubsystemHeadlessTests
         return world.IsAlive(entity) && world.HasComponent<SimTransform>(entity);
     }
 
-    private static SimTransform GetIgSimTransform(HrotRunnerHarness harness, long networkId)
+    private static SimTransform GetIgSimTransform(HrotRunnerHarness harness, int networkId)
     {
         var map = harness.Ig.App.TestHook_EntityMap;
         if (!map.TryGetEntity(networkId, out var entity)) return default;
@@ -682,7 +682,7 @@ public sealed class CgfSubsystemHeadlessTests
         return world.GetComponent<SimTransform>(entity);
     }
 
-    private static bool IgEntityHasEditablePolyline(HrotRunnerHarness harness, long networkId)
+    private static bool IgEntityHasEditablePolyline(HrotRunnerHarness harness, int networkId)
     {
         var map = harness.Ig.App.TestHook_EntityMap;
         if (!map.TryGetEntity(networkId, out var entity)) return false;

@@ -49,7 +49,7 @@ namespace Hrot.SimHost.Tests
             var entity = _world.CreateEntity();
             _world.AddComponent(entity, new BehaviorState());
             // Authority NOT set (remote entity)
-            _entityMap.Register(42L, entity);
+            _entityMap.Register(42, entity);
 
             _world.Bus.PublishManaged(new AssignTacticalIntentEvent
             {
@@ -99,11 +99,11 @@ namespace Hrot.SimHost.Tests
 
             var e1 = _world.CreateEntity();
             _world.AddComponent(e1, new BehaviorState());
-            _entityMap.Register(1L, e1);
+            _entityMap.Register(1, e1);
 
             var e2 = _world.CreateEntity();
             _world.AddComponent(e2, new BehaviorState());
-            _entityMap.Register(2L, e2);
+            _entityMap.Register(2, e2);
 
             _world.Bus.PublishManaged(new AssignTacticalIntentEvent { Entity = e1, IntentId = "DefendArea", JsonParams = "{}" });
             _world.Bus.PublishManaged(new AssignTacticalIntentEvent { Entity = e2, IntentId = "ConvoyEscort", JsonParams = "{}" });
@@ -124,7 +124,7 @@ namespace Hrot.SimHost.Tests
             var entity = _world.CreateEntity();
             _world.AddComponent(entity, new BehaviorState());
             _world.SetAuthority<BehaviorState>(entity, true);  // locally owned
-            _entityMap.Register(99L, entity);
+            _entityMap.Register(99, entity);
 
             _world.Bus.PublishManaged(new AssignTacticalIntentEvent
             {
@@ -147,7 +147,7 @@ namespace Hrot.SimHost.Tests
             var (translator, writer) = BuildTranslator();
             var entity = _world.CreateEntity();
             _world.AddComponent(entity, new BehaviorState());
-            _entityMap.Register(42L, entity);
+            _entityMap.Register(42, entity);
 
             _world.Bus.PublishManaged(new AssignTacticalIntentEvent
             {
@@ -172,7 +172,7 @@ namespace Hrot.SimHost.Tests
             var map = new NetworkEntityMap();
             var translator = new TacticalIntentEgressTranslator(writer, map);
             var entity = bare.CreateEntity();
-            map.Register(7L, entity);
+            map.Register(7, entity);
 
             bare.Bus.PublishManaged(new AssignTacticalIntentEvent { Entity = entity, IntentId = "Idle" });
             bare.Bus.SwapBuffers();
@@ -190,7 +190,7 @@ namespace Hrot.SimHost.Tests
             _world.Bus.Register<SetRoeEvent>();
             var entity = _world.CreateEntity();
             _world.AddComponent(entity, new BehaviorState());   // authority NOT set: the brain runs elsewhere
-            _entityMap.Register(42L, entity);
+            _entityMap.Register(42, entity);
 
             _world.Bus.Publish(new SetRoeEvent { Entity = entity, Fire = RoeFire.HoldFire, Origin = BehaviorOrigin.Superior,
                                                  ReturnFireWindowSeconds = 7.5f, ForceLevel = RoeForceLevel.NonLethal });
@@ -221,7 +221,7 @@ namespace Hrot.SimHost.Tests
             var entity = _world.CreateEntity();
             _world.AddComponent(entity, new BehaviorState());
             _world.SetAuthority<BehaviorState>(entity, true);
-            _entityMap.Register(42L, entity);
+            _entityMap.Register(42, entity);
 
             _world.Bus.Publish(new SetRoeEvent { Entity = entity, Fire = RoeFire.HoldFire });
             _world.Bus.SwapBuffers();
@@ -239,11 +239,11 @@ namespace Hrot.SimHost.Tests
             _world.Bus.Register<Fdp.Toolkit.Squad.Command.SetReportingEvent>();
             var remote = _world.CreateEntity();
             _world.AddComponent(remote, new BehaviorState());   // authority NOT set: the brain runs elsewhere
-            _entityMap.Register(42L, remote);
+            _entityMap.Register(42, remote);
             var local = _world.CreateEntity();
             _world.AddComponent(local, new BehaviorState());
             _world.SetAuthority<BehaviorState>(local, true);
-            _entityMap.Register(43L, local);
+            _entityMap.Register(43, local);
 
             _world.Bus.Publish(new Fdp.Toolkit.Squad.Command.SetReportingEvent { Entity = remote, Origin = BehaviorOrigin.Superior,
                 Ffir = Fdp.Toolkit.Squad.Command.FfirFlags.LaceAfterContact, SitrepEverySeconds = 60f });
@@ -267,18 +267,18 @@ namespace Hrot.SimHost.Tests
             _world.Bus.Register<SetEngagementAreaEvent>();
             var remote = _world.CreateEntity();
             _world.AddComponent(remote, new BehaviorState());   // authority NOT set: the brain runs elsewhere
-            _entityMap.Register(42L, remote);
+            _entityMap.Register(42, remote);
             var local = _world.CreateEntity();
             _world.AddComponent(local, new BehaviorState());
             _world.SetAuthority<BehaviorState>(local, true);
-            _entityMap.Register(43L, local);
+            _entityMap.Register(43, local);
 
             var evt = new SetEngagementAreaEvent
             {
                 Entity = remote, Origin = BehaviorOrigin.Superior, ArcSet = 1, ArcOrigin = new System.Numerics.Vector3(10f, 20f, 1.5f),
-                LeftBearing = 300f, RightBearing = 60f, MinRange = 5f, MaxRange = 400f, AllowArea = 4711L, WatchBearing = 15f, WatchSet = 1,
+                LeftBearing = 300f, RightBearing = 60f, MinRange = 5f, MaxRange = 400f, AllowArea = 4711, WatchBearing = 15f, WatchSet = 1,
             };
-            evt.NoFire.Items[0] = 4712L; evt.NoFire.Items[1] = 4713L; evt.NoFire.Count = 2;
+            evt.NoFire.Items[0] = 4712; evt.NoFire.Items[1] = 4713; evt.NoFire.Count = 2;
             _world.Bus.Publish(evt);
             _world.Bus.Publish(new SetEngagementAreaEvent { Entity = local, ArcSet = 1 });
             _world.Bus.SwapBuffers();

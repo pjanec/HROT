@@ -163,7 +163,7 @@ public static class Carriage
     /// </summary>
     public static Matrix4x4 TeamFrame(in SimTransform front, in SimTransform? rear)
     {
-        var at = rear is { } r ? (front.Position + r.Position) / 2f : front.Position;
+        var at = rear is { } r ? (front.Position + r.Position) / 2f : (Vector3)front.Position;
         return Matrix4x4.CreateFromQuaternion(front.Rotation) * Matrix4x4.CreateTranslation(at + new Vector3(0f, 0f, HandleHeight));
     }
 

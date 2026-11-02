@@ -27,6 +27,6 @@ internal static class TestEntityCreation
             TkbDb       = tkb,
             IdAllocator = new SequentialIdAllocator(),
             Elm         = new EntityLifecycleModule(tkb, Array.Empty<int>()),
-            NodeId      = nodeId,
+            NodeId      = (Fdp.Core.NodeId)(nodeId),
         });
 }

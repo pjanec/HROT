@@ -94,7 +94,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         ///
         /// <para>🔒 This is the step <c>.dev/_DONE/gizmos-1/feedback2.md:871</c> specified and nobody
         /// built: <i>"The Builder Interface: IDebugDrawBuilder is stripped of ECS awareness. Methods like
-        /// DrawEntityLocal will now accept <c>long anchorNetworkId</c> instead of an <c>Entity</c>."</i></para>
+        /// DrawEntityLocal will now accept <c>int anchorNetworkId</c> instead of an <c>Entity</c>."</i></para>
         ///
         /// <para>⛔⛔ It used to take an <c>Entity</c> and write <c>anchor.Index</c> into offset 8 — but the
         /// renderer resolves an <c>EntityLocal</c> primitive against a <c>SpatialAnchor</c> cache
@@ -109,7 +109,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// invariant). The implementation asserts it rather than wrapping in silence.</para>
         /// </summary>
         void DrawEntityLocal(
-            long anchorNetworkId, Vector3 localStart, Vector3 localEnd,
+            int anchorNetworkId, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, float thickness = 1f, byte layer = 0);
 
         /// <summary>
@@ -125,7 +125,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// ⭐ <paramref name="subElementId"/> at offset 52 is unaffected and still round-trips.</para>
         /// </summary>
         void DrawEntityLocalInteractive(
-            long anchorNetworkId, Vector3 localStart, Vector3 localEnd,
+            int anchorNetworkId, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, ushort subElementId,
             float thickness = 1f, byte layer = 0);
 
@@ -147,7 +147,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// Default no-op so existing stub implementations compile without changes.
         /// </summary>
         void DrawSpatialAnchor(
-            long  networkId,
+            int  networkId,
             float worldX,
             float worldY,
             float worldZ,
@@ -163,7 +163,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// Default no-op so existing stub implementations compile without changes.
         /// </summary>
         void DrawSemanticShape(
-            long   networkId,
+            int   networkId,
             ulong  profileId,
             float  lengthMeters  = 0f,
             float  widthMeters   = 0f,
@@ -179,7 +179,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// resolved back to JSON via the shared <c>StringInternBatch</c> DDS topic.
         /// Default no-op so existing stub implementations compile without changes.
         /// </summary>
-        void DrawContextMenuBinding(long networkId, string menuJson) { }
+        void DrawContextMenuBinding(int networkId, string menuJson) { }
 
         /// <summary>
         /// Emits a raw <see cref="DebugPrimitive"/> directly into the buffer without
@@ -213,7 +213,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// (<c>R-137</c>). 📄 <c>docs/DESIGN_Gizmo_Anchor_Identity.md</c> §6.7.</para>
         /// </summary>
         void DrawEntitySphere(
-            long    anchorNetworkId,
+            int    anchorNetworkId,
             Vector3 worldCenter,
             float   radius,
             Rgba32  color,

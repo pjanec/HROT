@@ -15,11 +15,11 @@ namespace Hrot.Presentation.Tests.Map3D;
 /// </summary>
 public sealed class DrafterTests
 {
-    private const long Alpha = 1, Bravo = 2;
+    private const int Alpha = 1, Bravo = 2;
     private const string Shot = "combat.shot", Hit = "combat.hit", Blast = "combat.blast";
     private const double Dt = 0.1;
 
-    private static string? NameOf(long id) => id switch { Alpha => "Alpha", Bravo => "Bravo", _ => null };
+    private static string? NameOf(int id) => id switch { Alpha => "Alpha", Bravo => "Bravo", _ => null };
 
     private static int FrameOf(double sim) => (int)Math.Round(sim / Dt);
 
@@ -42,7 +42,7 @@ public sealed class DrafterTests
             alpha.Add(new PositionSample(f, (float)(2 * s), 0f, 0f, 0f));
             bravo.Add(new PositionSample(f, (float)(2 * anchorSim + gap), (float)(4 * (s - anchorSim)), 0f, MathF.PI / 2));
         }
-        var positions = new PositionTrack(new Dictionary<long, PositionSample[]> { [Alpha] = alpha.ToArray(), [Bravo] = bravo.ToArray() });
+        var positions = new PositionTrack(new Dictionary<int, PositionSample[]> { [Alpha] = alpha.ToArray(), [Bravo] = bravo.ToArray() });
         return new TimelineIndex(lanes, new SharedList<long>(ticks), frames, frames, null, new SharedList<double>(sim), positions);
     }
 
@@ -399,7 +399,7 @@ public sealed class DrafterTests
             alpha.Add(new PositionSample(f, (float)(2 * f * Dt), 0f, 300f, 0f));
             bravo.Add(new PositionSample(f, 60f, 30f, 0f, 0f));
         }
-        var positions = new PositionTrack(new Dictionary<long, PositionSample[]> { [Alpha] = alpha.ToArray(), [Bravo] = bravo.ToArray() });
+        var positions = new PositionTrack(new Dictionary<int, PositionSample[]> { [Alpha] = alpha.ToArray(), [Bravo] = bravo.ToArray() });
         return new TimelineIndex(lanes, new SharedList<long>(ticks), frames, frames, null, new SharedList<double>(sim), positions);
     }
 

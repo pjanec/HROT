@@ -271,7 +271,7 @@ namespace Fdp.Toolkit.Behavior.Components
     [DataPolicy(DataPolicy.NoScenario)]
     public struct PresetSeatIntent
     {
-        public long HostNetworkId;
+        public int HostNetworkId;
         public byte Seat;
     }
 

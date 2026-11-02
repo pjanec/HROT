@@ -135,6 +135,15 @@ namespace Hrot.SimHost.Tests
                     any = true;
                     continue;
                 }
+                // ⭐ S0 item 5: an authored point is a READONLY struct (its fields cannot be set one by one) — set it whole, so a behaviour
+                //   that reads only its order's Location (AirPlatformStrike) is still exercised
+                if (f.FieldType == typeof(Fdp.Toolkit.Replication.PointLink))
+                {
+                    k++;
+                    f.SetValue(boxed, new Fdp.Toolkit.Replication.PointLink(new Fdp.Core.WorldPoint(7 + k, 8 + k, 0f)));
+                    any = true;
+                    continue;
+                }
                 // ⭐ one level into a value-type field (a PickableGeoPoint's Latitude / Longitude): a behaviour that reads only its
                 //   order's Location (AirPlatformStrike — a Strike order whose numbers are the fire mission's) is still exercised
                 if (!f.FieldType.IsValueType || f.FieldType.IsPrimitive || f.FieldType.IsEnum) continue;

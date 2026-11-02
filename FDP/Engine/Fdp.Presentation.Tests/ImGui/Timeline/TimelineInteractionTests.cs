@@ -25,7 +25,7 @@ public sealed class TimelineInteractionTests
         return new TimelineIndex(lanes, ticks, frames, frames);
     }
 
-    private static TimelineEvent E(int frame, string lane, long subject = 1) => new(frame, lane, subject, 0, 0, 0, 0);
+    private static TimelineEvent E(int frame, string lane, int subject = 1) => new(frame, lane, subject, 0, 0, 0, 0);
 
     /// <summary>⭐ T1 — a growing extent (a live source, every frame) never resets the view: a fitted view stays fitted, a zoom at the live
     /// edge TAILS (keeps its span, slides with the end), a zoom elsewhere is KEPT. 🔴 Red-proof: <c>OnExtent</c> refitting every change ⇒

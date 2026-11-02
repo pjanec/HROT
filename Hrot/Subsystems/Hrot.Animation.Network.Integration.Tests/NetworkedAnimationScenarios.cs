@@ -28,7 +28,7 @@ namespace Hrot.Animation.Network.Integration.Tests;
 /// </summary>
 public sealed class NetworkedAnimationScenarios : IClassFixture<AnimationNetworkLoopbackFixture>
 {
-    private const long NetId = 1001L;
+    private const int NetId = 1001;
     private const float Dt = 1f / 60f;
 
     // Extra frames to absorb round-trip latency beyond stage-1 budgets.

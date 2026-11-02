@@ -21,7 +21,7 @@ public interface IIgTranslators
         NetworkEntityMap entityMap,
         FdpEventBus bus,
         GhostCreationSystem? ghostCreationSystem,
-        long localNodeId,
+        int localNodeId,
         bool headless);
 }
 
@@ -33,7 +33,7 @@ public sealed class NullIgTranslators : IIgTranslators
         NetworkEntityMap entityMap,
         FdpEventBus bus,
         GhostCreationSystem? ghostCreationSystem,
-        long localNodeId,
+        int localNodeId,
         bool headless)
         => System.Array.Empty<INetworkTranslator>();
 }

@@ -63,7 +63,7 @@ public sealed class MapEntityMenuHandlerTests : IDisposable
         }
     }
 
-    private Entity Unit(long id, Vector3 at)
+    private Entity Unit(int id, Vector3 at)
     {
         var e = _w.CreateEntity();
         _w.AddComponent(e, new NetworkIdentity(id));

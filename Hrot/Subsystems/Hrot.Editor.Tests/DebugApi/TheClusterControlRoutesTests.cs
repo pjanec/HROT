@@ -596,7 +596,7 @@ public sealed class TheClusterControlRoutesTests
         repo.AddComponent(unit, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 1042 });
         repo.AddComponent(unit, new Fdp.Toolkit.Combat.Components.Health { Current = 100, Max = 100 });
         using var rec = new Fdp.Core.FlightRecorder.AsyncRecorder(path,
-            new Fdp.Core.FlightRecorder.Metadata.RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = 1 });
+            new Fdp.Core.FlightRecorder.Metadata.RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = (Fdp.Core.NodeId)(1) });
         repo.Tick();
         rec.CaptureKeyframe(repo, Zero, blocking: true, eventBus: repo.Bus);
         uint prev = repo.GlobalVersion;

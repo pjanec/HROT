@@ -43,7 +43,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 RequestId = Guid.NewGuid(),
                 OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,   // the system picks: the brain node
-                TkbType = Hrot.Map.Common.TkbEntityTypes.Unit_InfantrySquad,
+                TkbType = (Fdp.Core.TkbTypeId)(Hrot.Map.Common.TkbEntityTypes.Unit_InfantrySquad),
                 InitType = Fdp.Toolkit.Replication.ReliableInitType.None,   // nobody needs to ACK a squad node
                 InitialComponents = new List<object>
                 {

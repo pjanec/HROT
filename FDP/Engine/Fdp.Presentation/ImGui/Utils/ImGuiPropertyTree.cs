@@ -311,6 +311,7 @@ public static class ImGuiPropertyTree
     /// <summary>True for types rendered inline (primitives, string, enum, compact value types).</summary>
     public static bool IsLeafType(Type t)
     {
+        t = Fdp.Core.SemanticValueTypes.StorageTypeOf(t);   // ⭐ S0 item 6 — a WorldPoint is a leaf as the Vector3 was
         if (t.IsPrimitive || t == typeof(string) || t.IsEnum) return true;
         if (t == typeof(decimal) || t == typeof(Guid)) return true;
         // Compact well-known structs rendered inline by built-in renderers
@@ -416,6 +417,7 @@ public static class ImGuiPropertyTree
     public static string FormatLeaf(object? value)
     {
         if (value == null) return "null";
+        value = Fdp.Core.SemanticValueTypes.ToStorage(value);   // ⭐ S0 item 6 — a WorldPoint / WorldRotation / Bearing formats as its storage value did
         if (value is float  f) return f.ToString("G6");
         if (value is double d) return d.ToString("G6");
         if (value is Vector2 v2) return $"[{v2.X:G4}, {v2.Y:G4}]";
@@ -425,9 +427,9 @@ public static class ImGuiPropertyTree
         {
             // Delegate to quaternion renderer if available
             var r = ImGuiRendererRegistry.GetRenderer(typeof(Quaternion));
-            if (r != null) return r.GetSummary(value) ?? value.ToString() ?? "null";
+            if (r != null) return r.GetSummary(value) ?? value!.ToString() ?? "null";
         }
-        return value.ToString() ?? "null";
+        return value!.ToString() ?? "null";
     }
 
     // ── Reflection helpers (cached) ───────────────────────────────────────────

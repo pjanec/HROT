@@ -14,6 +14,7 @@ using Fdp.Toolkit.Replication.Extensions;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Network.Cyclone.Translators;
+using NodeId = Fdp.Core.NodeId;
 
 namespace Hrot.Map.Common.Replication.Egress
 {
@@ -23,8 +24,8 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public class GeoSpatialEgressTranslator : CycloneTranslator<WorldPos, WorldPos>
     {
-        private readonly HashSet<long> _tracedNetIds = new();
-        private readonly long _localNodeId;
+        private readonly HashSet<int> _tracedNetIds = new();
+        private readonly NodeId _localNodeId;
 
         private const long WorldPosOrdinal = (long)Hrot.NED.Descriptors.EDescriptorType.dtWorldPos;
 
@@ -46,10 +47,10 @@ namespace Hrot.Map.Common.Replication.Egress
         public GeoSpatialEgressTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
-            long localNodeId)
+            int localNodeId)
             : base(participant, ordinal: WorldPosOrdinal, entityMap)
         {
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <summary>
@@ -62,7 +63,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <summary>
         /// Tombstones the <see cref="WorldPos"/> topic instance to prevent descriptor leaks.
         /// </summary>
-        public override void Dispose(long networkEntityId)
+        public override void Dispose(int networkEntityId)
         {
             base.Dispose(networkEntityId);
         }

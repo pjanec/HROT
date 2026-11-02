@@ -35,7 +35,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Runtime: the posts and each man's count of rounds at him (the play's own memory).</summary>
         public DefencePosts Posts;
         /// <summary>⭐ <c>CE-2306</c> (DA-96) — an ambush's initiating charge (its network id; 0 = not an ambush).</summary>
-        public long InitiatedBy;
+        public int InitiatedBy;
     }
 
     /// <summary>⭐ <c>CE-2275</c> D-2f (DA-5, DA-46) — the authored fighting positions of a <c>SquadDefend</c> order (from
@@ -62,8 +62,8 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 var post = posts[i];
                 int k = a.Count++;
-                a.X[k] = post.Point.X; a.Y[k] = post.Point.Y; a.Z[k] = post.Point.Z;
-                a.WatchX[k] = post.WatchTowards.X; a.WatchY[k] = post.WatchTowards.Y; a.WatchZ[k] = post.WatchTowards.Z;
+                a.X[k] = post.Point.Local.X; a.Y[k] = post.Point.Local.Y; a.Z[k] = post.Point.Local.Z;
+                a.WatchX[k] = post.WatchTowards.Local.X; a.WatchY[k] = post.WatchTowards.Local.Y; a.WatchZ[k] = post.WatchTowards.Local.Z;
                 a.Window[k] = post.Window ? (byte)1 : (byte)0;
             }
             return a;
@@ -289,7 +289,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             block.Order = Defaults(authored.Position, authored.SearchRadius, authored.Speed);
             block.Order.Authored = AuthoredPosts.From(authored.Posts);   // ⭐ D-2f (DA-46)
-            block.Order.InitiatedBy = authored.InitiatedBy.NetworkId;      // ⭐ CE-2306 (DA-96)
+            block.Order.InitiatedBy = authored.InitiatedBy.Ref.NetworkId;      // ⭐ CE-2306 (DA-96)
             block.State = default;
         }
 
@@ -1046,7 +1046,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>⭐ <c>CE-2306</c> (DA-96) — the ambush's charge is gone: set off (spent, then torn down on every node) or destroyed.</summary>
-        private static bool Initiated(EntityRepository world, long charge)
+        private static bool Initiated(EntityRepository world, int charge)
         {
             var e = new Fdp.Toolkit.Replication.EntityRef(charge).Resolve(world);
             return e.IsNull || !Fdp.Toolkit.Combat.Charges.IsCharge(world, e);

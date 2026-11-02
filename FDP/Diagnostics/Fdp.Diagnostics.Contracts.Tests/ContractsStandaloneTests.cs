@@ -83,7 +83,7 @@ namespace Fdp.Diagnostics.Contracts.Tests
         {
             var prim = new DebugPrimitive();
             prim.Shape        = DebugPrimitiveShape.SpatialAnchor;
-            prim.NetworkId    = 42L;
+            prim.NetworkId    = 42;
             prim.AnchorWorldX = 100f;
             prim.AnchorWorldY = 200f;
             prim.AnchorWorldZ = 10f;
@@ -168,7 +168,7 @@ namespace Fdp.Diagnostics.Contracts.Tests
         {
             var prim = new DebugPrimitive();
             prim.Shape         = DebugPrimitiveShape.StructInspector;
-            prim.InspNetworkId = 12345L;
+            prim.InspNetworkId = 12345;
 
             Assert.Equal(12345L, prim.InspNetworkId);
         }
@@ -199,7 +199,7 @@ namespace Fdp.Diagnostics.Contracts.Tests
         public void SC_GZ051_5_DisplayLabel_ConstructableFromStructFields()
         {
             var prim = new DebugPrimitive();
-            prim.InspNetworkId  = 99L;
+            prim.InspNetworkId  = 99;
             prim.StructSchemaHash = 0xABCD1234u;
 
             string label = $"Entity:{prim.InspNetworkId} Schema:{prim.StructSchemaHash:X8}";
@@ -225,7 +225,7 @@ namespace Fdp.Diagnostics.Contracts.Tests
         public void DrawSpatialAnchor_EmitsCorrectShape()
         {
             var buffer = new DebugPrimitiveBuffer(capacity: 16);
-            buffer.DrawSpatialAnchor(networkId: 42L, worldX: 100f, worldY: 200f, worldZ: 5f, headingDeg: 45f);
+            buffer.DrawSpatialAnchor(networkId: 42, worldX: 100f, worldY: 200f, worldZ: 5f, headingDeg: 45f);
 
             var frame = buffer.GetFrame();
             Assert.Equal(1, frame.Length);
@@ -244,7 +244,7 @@ namespace Fdp.Diagnostics.Contracts.Tests
         {
             var buffer = new DebugPrimitiveBuffer(capacity: 16);
             buffer.DrawSemanticShape(
-                networkId:      42L,
+                networkId:      42,
                 profileId:      0xCAFEUL,
                 lengthMeters:   8f,
                 widthMeters:    3f,
@@ -268,7 +268,7 @@ namespace Fdp.Diagnostics.Contracts.Tests
         {
             // CE-3192: the anchor is the entity's NETWORK id now (a long), read back as PickToken.AnchorId.
             var buffer = new DebugPrimitiveBuffer(4);
-            const long anchorNetworkId = 7;
+            const int anchorNetworkId = 7;
             buffer.DrawEntitySphere(anchorNetworkId, System.Numerics.Vector3.Zero, 5f, new Rgba32(255, 0, 0, 255));
             var frames = buffer.GetFrame();
             Assert.Equal(1, frames.Length);
@@ -412,7 +412,7 @@ namespace Fdp.Diagnostics.Contracts.Tests
         public void SC_GZ_ANCHOR32_1_DrawSemanticShape_AnchorKeyIsTheNetworkId()
         {
             var buffer = new DebugPrimitiveBuffer(capacity: 4);
-            buffer.DrawSemanticShape(networkId: 90210L, profileId: 7UL);
+            buffer.DrawSemanticShape(networkId: 90210, profileId: 7UL);
 
             var frame = buffer.GetFrame();
             Assert.Equal(1, frame.Length);

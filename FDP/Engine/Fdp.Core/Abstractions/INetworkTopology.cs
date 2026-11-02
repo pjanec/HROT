@@ -10,7 +10,7 @@ namespace Fdp.Toolkit.Replication
         /// <summary>
         /// This node's unique identifier.
         /// </summary>
-        int LocalNodeId { get; }
+        NodeId LocalNodeId { get; }
         
         /// <summary>
         /// Gets the list of peer node IDs that should acknowledge construction

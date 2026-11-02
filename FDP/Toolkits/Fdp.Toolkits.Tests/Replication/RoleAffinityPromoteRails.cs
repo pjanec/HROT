@@ -50,7 +50,7 @@ namespace Fdp.Toolkit.Replication.Tests
         private static Entity Ghost(EntityRepository repo)
         {
             var e = repo.CreateEntity();
-            repo.AddComponent(e, new TkbIdentity { TkbType = TkbType });
+            repo.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbType) });
             repo.AddComponent(e, new GhostStateTracker { FirstSeenFrame = 0 });
             repo.AddComponent(e, new NetworkIdentity(4242));
             repo.AddComponent(e, new SimTransform());

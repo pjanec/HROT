@@ -134,7 +134,7 @@ namespace Hrot.ScenarioEditor.Tools
                     {
                         NetworkId         = 0,
                         TkbType           = tkbType,
-                        OwnerNodeId       = 0,
+                        OwnerNodeId       = (Fdp.Core.NodeId)(0),
                         InitType          = ReliableInitType.AllPeers,
                         RequestId         = Guid.NewGuid(),
                         InitialTransform  = new SimTransform { Position = anchor },
@@ -272,7 +272,7 @@ namespace Hrot.ScenarioEditor.Tools
     /// reddened <c>AreaTool_AfterCommit_ToolIsPopped</c> when this arm first landed.
     /// </param>
     public readonly record struct AreaAuthoringRequest(
-        long TkbType,
+        TkbTypeId TkbType,
         string StyleJson,
         Action<SpawnEntityCommand> OnCommit,
         Action? OnCancelled = null,

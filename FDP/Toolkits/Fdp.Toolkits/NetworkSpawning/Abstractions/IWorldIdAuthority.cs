@@ -38,7 +38,7 @@ namespace Fdp.Toolkit.NetworkSpawning
         /// OBSERVABLE — the next id — rather than in terms of a counter no two implementations agree on.
         /// </para>
         /// </summary>
-        void ResetToBase(long firstId);
+        void ResetToBase(int firstId);
     }
 
     /// <summary>
@@ -54,7 +54,7 @@ namespace Fdp.Toolkit.NetworkSpawning
         /// <para>⭐ It is a constant and not a per-host setting on purpose: the reproducible 1000-block and
         /// cross-host id parity are the SAME property, and they fall out of one number *(§11b)*.</para>
         /// </summary>
-        public const long WorldBase = 1000;
+        public const int WorldBase = 1000;
 
         /// <summary>
         /// ⭐ Adapts an allocator that IS its world's authority — the editor's offline one-node case.
@@ -74,7 +74,7 @@ namespace Fdp.Toolkit.NetworkSpawning
             // ⭐ Relies on the UNIFORM Reset contract (see ResetToBase's remarks). The two pre-increment
             //   allocators were corrected to match it rather than being special-cased here — a per-caller
             //   adjustment is exactly the silent divergence HN-037 already was.
-            public void ResetToBase(long firstId) => _allocator.Reset(firstId);
+            public void ResetToBase(int firstId) => _allocator.Reset(firstId);
         }
     }
 }

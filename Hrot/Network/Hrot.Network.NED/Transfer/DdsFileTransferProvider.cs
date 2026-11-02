@@ -123,7 +123,7 @@ public sealed class DdsFileTransferProvider : IFileTransferProvider, IDisposable
                     {
                         _errors.Add(ex.Message);
                         _failedNodes.Clear();
-                        _failedNodes.AddRange(_request.Targets.Select(t => t.NodeId).Distinct());
+                        _failedNodes.AddRange(_request.Targets.Select(t => t.NodeId.Value).Distinct());
                     }
                     _failed = _request.Items.Count * _request.Targets.Count;
                     _done = 0;
@@ -136,7 +136,7 @@ public sealed class DdsFileTransferProvider : IFileTransferProvider, IDisposable
         private void Send(Inbox box)
         {
             var ct = _cts.Token;
-            var targets = _request.Targets.Select(t => t.NodeId).Distinct().ToArray();
+            var targets = _request.Targets.Select(t => t.NodeId.Value).Distinct().ToArray();
 
             // ① describe the files (a missing or oversized source fails the whole transfer for every target, loudly)
             var items = _request.Items.Select(i =>

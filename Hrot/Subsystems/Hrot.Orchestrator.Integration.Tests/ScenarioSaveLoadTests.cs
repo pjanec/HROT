@@ -118,7 +118,7 @@ public sealed class ScenarioSaveLoadTests : IDisposable
             var cmd     = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
                 DomainPayload = scenarioId,
             };
@@ -321,7 +321,7 @@ public sealed class ScenarioSaveLoadTests : IDisposable
             var cmd     = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
                 DomainPayload = scenarioId,
             };

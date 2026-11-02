@@ -12,7 +12,7 @@ namespace Fdp.Toolkit.Time.Translators
     /// <summary>
     /// Slave-side NTP clock-sync translator.
     /// <para>
-    /// <b>Egress:</b> drains <see cref="TimeSyncRequest"/> from the <see cref="FdpEventBus"/>,
+    /// <b>Egress:</b> drains <see cref="TimeSyncProbeEvent"/> from the <see cref="FdpEventBus"/>,
     /// <b>overwrites</b> <c>ClientSendTicks</c> at the exact moment the packet hits the
     /// network (bypassing event-bus buffering delay), and writes to the DDS topic.
     /// </para>
@@ -36,7 +36,7 @@ namespace Fdp.Toolkit.Time.Translators
         private readonly DdsWriter<TimeSyncRequest>?  _requestWriter;
         private readonly DdsReader<TimeSyncResponse>? _responseReader;
         private readonly FdpEventBus _eventBus;
-        private readonly int         _localNodeId;
+        private readonly NodeId         _localNodeId;
         private readonly Func<long>  _getTick;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<TimeSyncResponse>();
@@ -67,7 +67,7 @@ namespace Fdp.Toolkit.Time.Translators
             Func<long>?     tickSource = null)
         {
             _eventBus    = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _getTick     = tickSource ?? HighResUtcClock.GetTicks;
 
             if (participant is not null)
@@ -78,16 +78,18 @@ namespace Fdp.Toolkit.Time.Translators
         }
 
         /// <summary>
-        /// Drains <see cref="TimeSyncRequest"/> from the bus and writes to DDS.
+        /// Drains <see cref="TimeSyncProbeEvent"/> from the bus and writes to DDS.
         /// <c>ClientSendTicks</c> is overwritten with the current tick at the moment of
         /// transmission, eliminating event-bus buffering from the t1 timestamp.
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
-            var requests = _eventBus.Read<TimeSyncRequest>();
-            foreach (var request in requests)
+            var probes = _eventBus.Read<TimeSyncProbeEvent>();
+            foreach (var probe in probes)
             {
                 if (_requestWriter is null) continue;
+                // CE-4208: the ONE probe -> wire conversion.
+                var request = new TimeSyncRequest { ClientNodeId = probe.ClientNodeId, ClientSendTicks = probe.ClientSendTicks };
 
                 // Overwrite t1 at the network boundary — not when the controller first
                 // published the request — so the RTT excludes event-bus delay.
@@ -144,6 +146,6 @@ namespace Fdp.Toolkit.Time.Translators
         }
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

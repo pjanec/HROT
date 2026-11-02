@@ -438,7 +438,7 @@ public sealed class DirectorPackTests : IDisposable
             bravo.Add(new(f, 80f, (float)(0.4 * (f - 100)), 0f, MathF.PI / 2));
         }
         var positions = new Fdp.Toolkit.ReplayBrowser.Timeline.PositionTrack(
-            new Dictionary<long, Fdp.Toolkit.ReplayBrowser.Timeline.PositionSample[]> { [1] = alpha.ToArray(), [2] = bravo.ToArray() });
+            new Dictionary<int, Fdp.Toolkit.ReplayBrowser.Timeline.PositionSample[]> { [1] = alpha.ToArray(), [2] = bravo.ToArray() });
         return new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex(lanes,
             new Fdp.Toolkit.ReplayBrowser.Timeline.SharedList<long>(Enumerable.Range(0, frames).Select(f => (long)f * 1_000_000).ToArray()), frames, frames, null,
             new Fdp.Toolkit.ReplayBrowser.Timeline.SharedList<double>(Enumerable.Range(0, frames).Select(f => f * dt).ToArray()), positions);
@@ -460,7 +460,7 @@ public sealed class DirectorPackTests : IDisposable
         var host = new LiveHost(store);
         var world = host.World;
         world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
-        foreach (var (id, name, cls) in new[] { (1L, "Alpha", Fdp.Toolkit.Tkb.Domain.LocomotionClass.Tracked), (2L, "Bravo", Fdp.Toolkit.Tkb.Domain.LocomotionClass.Pedestrian) })
+        foreach (var (id, name, cls) in new[] { (1, "Alpha", Fdp.Toolkit.Tkb.Domain.LocomotionClass.Tracked), (2, "Bravo", Fdp.Toolkit.Tkb.Domain.LocomotionClass.Pedestrian) })
         {
             var e = world.CreateEntity();
             world.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = id });
@@ -483,7 +483,7 @@ public sealed class DirectorPackTests : IDisposable
 
         var editor = pack.Session.Editor!;
         Assert.NotNull(editor);
-        Func<long, string?> names = id => DirectorUnits.NameOf(world, id);
+        Func<int, string?> names = id => DirectorUnits.NameOf(world, id);
         var expected = Drafter.Draft(index, Drafter.MomentAt(index, "combat.shot", 0, names)!, names,
                                      new DraftOptions { Scenario = "s-a", Name = "draft", Replay = true, Kind = _ => SubjectKind.Vehicle });
         Assert.Equal(TakeJson.WriteTake(expected with { Title = editor.Take.Title }).ToJsonString(), TakeJson.WriteTake(editor.Take).ToJsonString());

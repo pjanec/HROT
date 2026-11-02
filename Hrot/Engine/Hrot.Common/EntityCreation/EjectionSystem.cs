@@ -75,7 +75,7 @@ namespace Hrot.Common.EntityCreation
             {
                 RequestId = Guid.NewGuid(),
                 OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,
-                TkbType = ej.PilotType,
+                TkbType = (Fdp.Core.TkbTypeId)(ej.PilotType),
                 InitialComponents = new List<object>
                 {
                     new SimTransform { Position = seat, Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) },

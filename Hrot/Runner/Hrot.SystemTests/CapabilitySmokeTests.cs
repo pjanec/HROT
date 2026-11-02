@@ -68,7 +68,7 @@ public sealed class CapabilitySmokeTests : SystemTestBase
             "the loaded scenario to produce entities");
 
         var first = entities.Array()[0]!;
-        long networkId = first["networkId"]!.GetValue<long>();
+        int networkId = first["networkId"]!.GetValue<int>();
 
         var dump = (await Mcp.GetEntityAsync(networkId)).EnsureOk();
         // The dump is serialized from a DTO and keeps PascalCase, unlike the hand-built list rows —
@@ -83,7 +83,7 @@ public sealed class CapabilitySmokeTests : SystemTestBase
     [SystemSmokeFact]
     public async Task An_unknown_entity_is_a_404_that_says_where_to_look()
     {
-        var missing = await Mcp.GetEntityAsync(999_999_999L);
+        var missing = await Mcp.GetEntityAsync(999_999_999);
 
         Assert.False(missing.Ok);
         Assert.Equal(404, missing.StatusCode);
@@ -390,9 +390,9 @@ public sealed class CapabilitySmokeTests : SystemTestBase
 
     // ── helpers ────────────────────────────────────────────────────────────────
 
-    private Task<long> FirstEntityAsync() => FirstAddressableEntityAsync(null);
+    private Task<int> FirstEntityAsync() => FirstAddressableEntityAsync(null);
 
-    private Task<long> FirstEntityWithComponentAsync(string component) => FirstAddressableEntityAsync(component);
+    private Task<int> FirstEntityWithComponentAsync(string component) => FirstAddressableEntityAsync(component);
 
     /// <summary>
     /// Returns an entity that is both LISTED and ADDRESSABLE.
@@ -403,7 +403,7 @@ public sealed class CapabilitySmokeTests : SystemTestBase
     /// nothing to do with what they were testing. ⚠ This tolerates a straggler; it does NOT hide
     /// incoherence — if NOTHING listed resolves, it says so and fails.</para>
     /// </summary>
-    private async Task<long> FirstAddressableEntityAsync(string? component)
+    private async Task<int> FirstAddressableEntityAsync(string? component)
     {
         var listed = await WaitUntilAsync(
             () => Mcp.ListEntitiesAsync(component: component),
@@ -412,7 +412,7 @@ public sealed class CapabilitySmokeTests : SystemTestBase
                               : $"at least one entity carrying {component}");
 
         var ids = listed.Array()
-            .Select(n => n?["networkId"]?.GetValue<long>())
+            .Select(n => n?["networkId"]?.GetValue<int>())
             .Where(id => id is not null)
             .Select(id => id!.Value)
             .ToList();

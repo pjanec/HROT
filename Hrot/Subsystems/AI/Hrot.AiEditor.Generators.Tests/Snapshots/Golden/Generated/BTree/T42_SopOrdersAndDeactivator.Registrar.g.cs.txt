@@ -151,7 +151,7 @@ public static class T42_SopOrdersAndDeactivatorRegistrar
             Group        = "Tests/Authoring",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
-            BlueprintStructureHash = 3714622886969053754UL,   // CE-455: the root block's layout
+            BlueprintStructureHash = 11131888746500716258UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
                 new("hitSense", typeof(global::Fdp.Toolkit.Behavior.SopSenseParams), 0),

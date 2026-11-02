@@ -22,7 +22,7 @@ namespace Fdp.Toolkit.Replication.Tests
         private const long Master    = 7;   // stand-in for dtEntityMaster: NetworkIdentity
         private const long Info      = 8;   // a creator-kept descriptor: TkbIdentity
         private const long Kinematic = 9;   // a granted descriptor: NetworkTransform + NetworkVelocity
-        private const long NetId     = 4242;
+        private const int NetId     = 4242;
 
         private static long Key(long d) => OwnershipExtensions.PackKey(d, 0);
 
@@ -52,7 +52,7 @@ namespace Fdp.Toolkit.Replication.Tests
             public void Update(long d, int newOwner, int origin)
                 => Repo.Bus.Publish(new OwnershipUpdate
                 {
-                    NetworkId = new NetworkIdentity(NetId), PackedKey = Key(d), NewOwnerNodeId = newOwner, OriginNodeId = origin,
+                    NetworkId = new NetworkIdentity(NetId), PackedKey = Key(d), NewOwnerNodeId = (Fdp.Core.NodeId)(newOwner), OriginNodeId = (Fdp.Core.NodeId)(origin),
                 });
         }
 
@@ -76,7 +76,7 @@ namespace Fdp.Toolkit.Replication.Tests
             n.E = n.Repo.CreateEntity();
             n.Repo.AddComponent(n.E, new NetworkIdentity(NetId));
             n.Repo.AddComponent(n.E, new NetworkAuthority(primary, local));
-            n.Repo.AddComponent(n.E, new TkbIdentity { TkbType = 1 });
+            n.Repo.AddComponent(n.E, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(1) });
             n.Repo.AddComponent(n.E, new NetworkTransform());
             n.Repo.AddComponent(n.E, new NetworkVelocity());
             bool creator = primary == local;
@@ -331,7 +331,7 @@ namespace Fdp.Toolkit.Replication.Tests
         {
             var part = n.Repo.CreateEntity();
             n.Repo.AddComponent(part, new PartMetadata { ParentEntity = n.E, InstanceId = instance });
-            n.Repo.AddComponent(part, new TkbIdentity { TkbType = 1 });   // carries Info
+            n.Repo.AddComponent(part, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(1) });   // carries Info
             n.Repo.AddComponent(part, new NetworkTransform());           // carries Kinematic (one of its two components)
             return part;
         }
@@ -362,7 +362,7 @@ namespace Fdp.Toolkit.Replication.Tests
             n.Repo.Bus.Publish(new OwnershipUpdate
             {
                 NetworkId = new NetworkIdentity(NetId), PackedKey = OwnershipExtensions.PackKey(Kinematic, 3),
-                NewOwnerNodeId = Remote, OriginNodeId = Remote,
+                NewOwnerNodeId = (Fdp.Core.NodeId)(Remote), OriginNodeId = (Fdp.Core.NodeId)(Remote),
             });
             n.Frame();
 

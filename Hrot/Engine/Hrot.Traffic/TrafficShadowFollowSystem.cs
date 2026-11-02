@@ -31,7 +31,7 @@ public sealed class TrafficShadowFollowSystem : IEcsModuleSystem
 
     private readonly Dictionary<string, TrafficCarPose> _shadows = new(StringComparer.Ordinal);
 
-    public static string ShadowIdOf(long networkId) => ShadowPrefix + networkId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    public static string ShadowIdOf(int networkId) => ShadowPrefix + networkId.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     public void Execute(ISimulationView view, float deltaTime)
     {
@@ -51,7 +51,7 @@ public sealed class TrafficShadowFollowSystem : IEcsModuleSystem
         {
             var nav = world.GetComponent<NavState>(e);
             if (nav.Mode != KinematicsMode.Traffic) continue;
-            long id = world.GetComponentRO<NetworkIdentity>(e).Value;
+            int id = world.GetComponentRO<NetworkIdentity>(e).Value;
             var f = world.HasComponent<TrafficShadowFollow>(e) ? world.GetComponentRO<TrafficShadowFollow>(e) : default;
 
             if (_shadows.TryGetValue(ShadowIdOf(id), out var shadow))

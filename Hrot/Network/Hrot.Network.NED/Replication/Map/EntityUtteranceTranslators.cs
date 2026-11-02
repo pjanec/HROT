@@ -20,7 +20,7 @@ namespace Hrot.Map.Common.Replication.Egress
     public sealed class EntityUtteranceEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<EntityUtterance>? _writer;
-        private readonly Dictionary<long, EntityUtterance> _last = new();
+        private readonly Dictionary<int, EntityUtterance> _last = new();
         private int _worldEpoch;
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.Utterance };
@@ -55,9 +55,9 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var unit in view.Query().With<Utterance>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(unit, packedKey)) continue;
-                long netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
                 ref readonly var said = ref view.GetComponentRO<Utterance>(unit);
-                long targetId = !said.Target.IsNull && _entityMap.TryGetNetworkId(said.Target, out long tid) ? tid : 0L;
+                int targetId = !said.Target.IsNull && _entityMap.TryGetNetworkId(said.Target, out int tid) ? tid : 0;
                 var sample = ToSample(netId, said, targetId);
                 if (_last.TryGetValue(netId, out var prev) && prev.Equals(sample)) continue;
                 _last[netId] = sample;
@@ -67,13 +67,13 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>The wire form (the test seam).</summary>
-        internal static EntityUtterance ToSample(long netId, in Utterance c, long targetId)
+        internal static EntityUtterance ToSample(int netId, in Utterance c, int targetId)
             => new() { EntityId = netId, Kind = (byte)c.Kind, TargetId = targetId, Until = c.Until };
 
-        public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityUtterance { EntityId = networkEntityId });
         }
@@ -131,6 +131,6 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

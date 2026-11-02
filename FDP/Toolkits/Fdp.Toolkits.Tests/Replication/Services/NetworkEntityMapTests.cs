@@ -12,7 +12,7 @@ namespace Fdp.Toolkit.Replication.Tests.Services
         {
             var map = new NetworkEntityMap();
             var entity = new Entity(123);
-            long netId = 1001;
+            int netId = 1001;
 
             map.Register(netId, entity);
 
@@ -28,7 +28,7 @@ namespace Fdp.Toolkit.Replication.Tests.Services
         {
             var map = new NetworkEntityMap(graveyardDurationFrames: 10);
             var entity = new Entity(123);
-            long netId = 1001;
+            int netId = 1001;
             uint frame = 50;
 
             map.Register(netId, entity);
@@ -42,7 +42,7 @@ namespace Fdp.Toolkit.Replication.Tests.Services
         public void PruneGraveyard_RemovesOldEntries()
         {
             var map = new NetworkEntityMap(graveyardDurationFrames: 10);
-            long netId = 1001;
+            int netId = 1001;
             uint deathFrame = 50;
             
             // Manually simulate unregister (or just expose AddToGraveyard via internal/test helper, 
@@ -66,7 +66,7 @@ namespace Fdp.Toolkit.Replication.Tests.Services
         public void Register_ReusesGraveyardId_RemovesFromGraveyard()
         {
             var map = new NetworkEntityMap();
-            long netId = 1001;
+            int netId = 1001;
             map.Register(netId, new Entity(1));
             map.Unregister(netId, 10);
             
@@ -105,7 +105,7 @@ namespace Fdp.Toolkit.Replication.Tests.Services
             var sys  = new Fdp.Toolkit.Replication.Systems.DisposalMonitoringSystem(map);
 
             var entity = repo.CreateEntity();
-            const long netId = 4242;
+            const int netId = 4242;
             map.Register(netId, entity);
 
             repo.DestroyEntity(entity);

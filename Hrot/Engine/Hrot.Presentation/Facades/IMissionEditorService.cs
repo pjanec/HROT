@@ -16,7 +16,7 @@ public interface IMissionEditorService
     /// that are both registered in the live engine and valid for the entity's TKB type.
     /// </summary>
     /// <param name="entityId">The network entity ID.</param>
-    IReadOnlyList<string> GetAvailableBehaviors(long entityId);
+    IReadOnlyList<string> GetAvailableBehaviors(int entityId);
 
     /// <summary>
     /// ⭐⭐ <c>CE-462</c> (E4 ④, handoff D4) — the same list, each with the TECHNOLOGY that implements it, so
@@ -28,7 +28,7 @@ public interface IMissionEditorService
     /// </summary>
     /// <remarks>⚠ CE-1124: a double that returns no list (a Moq mock's default is <see langword="null"/>) is "no behaviours", not a
     /// throw — the panel calls this inside an ImGui window, and an exception there takes the whole test host down.</remarks>
-    IReadOnlyList<BehaviorChoice> GetAvailableBehaviorChoices(long entityId)
+    IReadOnlyList<BehaviorChoice> GetAvailableBehaviorChoices(int entityId)
         => (GetAvailableBehaviors(entityId) ?? Array.Empty<string>()).Select(n => new BehaviorChoice(n, null)).ToList();
 
     /// <summary>
@@ -36,7 +36,7 @@ public interface IMissionEditorService
     /// or <c>(null, 0)</c> when the entity has no active mission.
     /// </summary>
     /// <param name="entityId">The network entity ID.</param>
-    (Hrot.Core.Mission.MissionPlan? Plan, long Version) GetMissionSnapshot(long entityId);
+    (Hrot.Core.Mission.MissionPlan? Plan, long Version) GetMissionSnapshot(int entityId);
 
     /// <summary>
     /// Sends a full mission-replace command and waits asynchronously for acknowledgement.
@@ -47,7 +47,7 @@ public interface IMissionEditorService
     /// The optimistic-lock version the caller believes is current.
     /// The server rejects the commit when the actual version is greater.
     /// </param>
-    Task<MissionCommitResult> CommitMissionAsync(long entityId, Hrot.Core.Mission.MissionPlan plan, long baseVersion);
+    Task<MissionCommitResult> CommitMissionAsync(int entityId, Hrot.Core.Mission.MissionPlan plan, long baseVersion);
 
     /// <summary>
     /// Sends an imperative control command (e.g. jump-to-task, abort-all) and waits
@@ -59,7 +59,7 @@ public interface IMissionEditorService
     /// The target task GUID for commands that address a specific task;
     /// use <see cref="Guid.Empty"/> for commands such as <c>CMD_ABORT_ALL</c>.
     /// </param>
-    Task<MissionCommitResult> SendControlCommandAsync(long entityId, Hrot.Core.Mission.eMissionCommandType type, Guid taskId);
+    Task<MissionCommitResult> SendControlCommandAsync(int entityId, Hrot.Core.Mission.eMissionCommandType type, Guid taskId);
 }
 
 /// <summary>

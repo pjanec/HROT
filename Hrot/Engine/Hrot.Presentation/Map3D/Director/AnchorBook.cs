@@ -168,7 +168,7 @@ public sealed class AnchorBook
         return list;
     }
 
-    private NearWindow? NearWindowOf(string key, AnchorSpec a, Vector2 point, long id, TimelineIndex index, SharedList<double> fs)
+    private NearWindow? NearWindowOf(string key, AnchorSpec a, Vector2 point, int id, TimelineIndex index, SharedList<double> fs)
     {
         var samples = index.Positions.Samples(id).Span;
         double r2 = (double)a.Within * a.Within;
@@ -201,7 +201,7 @@ public sealed class AnchorBook
     }
 
     /// <summary>⭐ CE-4117 — the network ids of the units <paramref name="who"/> names (an exact name, or <c>"*part"</c>: every name containing it), as <see cref="IsUnit"/> reads them.</summary>
-    private static IEnumerable<long> UnitIdsNamed(string who, IShotWorld units)
+    private static IEnumerable<int> UnitIdsNamed(string who, IShotWorld units)
     {
         if (!who.StartsWith('*')) { if (units.Resolve(who) is { } id && id != 0) yield return id; yield break; }
         var part = who[1..];
@@ -226,7 +226,7 @@ public sealed class AnchorBook
                 return $"no unit named '{who}' in the shown world" + (alike.Count > 0 ? $" (alike: {string.Join(", ", alike)})" : "");
             }
         if (_index() is not { } index) return "no timeline index is shown (open the recording)";
-        bool Is(string who, long id) => IsUnit(who, id, units);
+        bool Is(string who, int id) => IsUnit(who, id, units);
         double? SimOf(int f) => f >= 0 && f < index.FrameSim.Count && !double.IsNaN(index.FrameSim[f]) && index.FrameSim[f] >= _t0 - 1e-9 ? index.FrameSim[f] : null;
         switch (a.On)
         {
@@ -294,7 +294,7 @@ public sealed class AnchorBook
     }
 
     /// <summary>Whether <paramref name="who"/> (a name, or <c>"*part"</c>) names the unit with network id <paramref name="networkId"/> (an index's subject id).</summary>
-    private static bool IsUnit(string who, long networkId, IShotWorld units)
+    private static bool IsUnit(string who, int networkId, IShotWorld units)
     {
         if (networkId == 0) return false;
         if (!who.StartsWith('*')) return units.Resolve(who) == networkId;
@@ -400,7 +400,7 @@ public sealed class AnchorBook
     }
 
     /// <summary>The first take second the cue holds for the unit, walking its lane entries in frame order (the unit's state carries over between entries); a state already holding at t0 holds at 0.</summary>
-    private double? StateTimeOf(AnchorSpec a, string lane, long id, TimelineIndex index, SharedList<double> fs)
+    private double? StateTimeOf(AnchorSpec a, string lane, int id, TimelineIndex index, SharedList<double> fs)
     {
         double? SimOf(int frame) => frame >= 0 && frame < fs.Count && !double.IsNaN(fs[frame]) ? fs[frame] : null;
         TimelineEvent? cur = null;
@@ -429,7 +429,7 @@ public sealed class AnchorBook
         return null;
     }
 
-    private static double? FirstSeenSim(TimelineIndex index, long id, SharedList<double> fs)
+    private static double? FirstSeenSim(TimelineIndex index, int id, SharedList<double> fs)
     {
         double? best = null;
         foreach (var lane in new[] { "life.spawned", "state.task", "state.side", "state.health", "state.embark", "state.gesture" })

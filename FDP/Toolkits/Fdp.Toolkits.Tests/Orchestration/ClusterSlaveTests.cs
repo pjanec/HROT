@@ -62,7 +62,7 @@ public sealed class ClusterSlaveTests
 
         slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
         {
-            TransactionId = Guid.NewGuid(), TargetNodeId = 1,
+            TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(1),
             Operation = (NodeOpType)opId,
         });
 
@@ -85,7 +85,7 @@ public sealed class ClusterSlaveTests
 
         slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
         {
-            TransactionId = Guid.NewGuid(), TargetNodeId = 1,
+            TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(1),
             Operation = (NodeOpType)opId,
         });
 
@@ -111,7 +111,7 @@ public sealed class ClusterSlaveTests
         using var slave = new ClusterSlave(bus, nodeId: 3);
         slave.RegisterHandler(handler);
         var txId = Guid.NewGuid();
-        bus.PublishManaged(new ExecuteNodeOpIntent { TransactionId = txId, TargetNodeId = 3, Operation = (NodeOpType)opId });
+        bus.PublishManaged(new ExecuteNodeOpIntent { TransactionId = txId, TargetNodeId = (Fdp.Core.NodeId)(3), Operation = (NodeOpType)opId });
 
         var seen = new List<OrchestrationStatusCode>();
         for (int frame = 0; frame < 3; frame++)   // ⭐ several frames while pending: still ONE report
@@ -164,10 +164,10 @@ public sealed class ClusterSlaveTests
         slave.RegisterHandler(second);
 
         var loadTx = Guid.NewGuid();
-        bus.PublishManaged(new ExecuteNodeOpIntent { TransactionId = loadTx, TargetNodeId = 3, Operation = (NodeOpType)opId });
+        bus.PublishManaged(new ExecuteNodeOpIntent { TransactionId = loadTx, TargetNodeId = (Fdp.Core.NodeId)(3), Operation = (NodeOpType)opId });
         bus.PublishManaged(new ExecuteNodeOpIntent
         {
-            TransactionId = loadTx, TargetNodeId = 3, Operation = NodeOpType.CommitState,
+            TransactionId = loadTx, TargetNodeId = (Fdp.Core.NodeId)(3), Operation = NodeOpType.CommitState,
             DomainPayload = new CommitStatePayload(ClusterState.OperatingLive),
         });
         bus.SwapBuffers();
@@ -178,7 +178,7 @@ public sealed class ClusterSlaveTests
         var abortTx = Guid.NewGuid();
         bus.PublishManaged(new ExecuteNodeOpIntent
         {
-            TransactionId = abortTx, TargetNodeId = 0, Operation = NodeOpType.AbortTransaction,
+            TransactionId = abortTx, TargetNodeId = (Fdp.Core.NodeId)(0), Operation = NodeOpType.AbortTransaction,
             DomainPayload = new AbortTransactionPayload(loadTx),
         });
         bus.SwapBuffers();
@@ -214,7 +214,7 @@ public sealed class ClusterSlaveTests
         bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, SessionId = first });
         bus.PublishManaged(new ExecuteNodeOpIntent
         {
-            TransactionId = Guid.NewGuid(), TargetNodeId = 3, Operation = NodeOpType.CommitState,
+            TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(3), Operation = NodeOpType.CommitState,
             DomainPayload = new CommitStatePayload(ClusterState.OperatingLive),
         });
         bus.SwapBuffers();
@@ -222,7 +222,7 @@ public sealed class ClusterSlaveTests
         Assert.Equal(first, slave.FollowingSessionId);
         Assert.Equal((int)ClusterState.OperatingLive, slave.LocalStateIdForTest);   // ⭐ adopting the first session resets nothing
 
-        bus.PublishManaged(new ExecuteNodeOpIntent { TransactionId = Guid.NewGuid(), TargetNodeId = 3, Operation = (NodeOpType)opId });
+        bus.PublishManaged(new ExecuteNodeOpIntent { TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(3), Operation = (NodeOpType)opId });
         bus.SwapBuffers();
         slave.Tick();                                              // a prepare of the old session is now stuck
         var second = Guid.NewGuid();
@@ -235,7 +235,7 @@ public sealed class ClusterSlaveTests
 
         bus.PublishManaged(new ExecuteNodeOpIntent
         {
-            TransactionId = Guid.NewGuid(), TargetNodeId = 3, Operation = NodeOpType.CommitState,
+            TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(3), Operation = NodeOpType.CommitState,
             DomainPayload = new CommitStatePayload(ClusterState.OperatingLive),
         });
         bus.SwapBuffers();
@@ -266,7 +266,7 @@ public sealed class ClusterSlaveTests
         {
             bus.PublishManaged(new ExecuteNodeOpIntent
             {
-                TransactionId = Guid.NewGuid(), TargetNodeId = 3, Operation = NodeOpType.CommitState,
+                TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(3), Operation = NodeOpType.CommitState,
                 DomainPayload = new CommitStatePayload(to),
             });
             bus.SwapBuffers();
@@ -383,7 +383,7 @@ public sealed class ClusterSlaveTests
 
         bus.PublishManaged(new ExecuteNodeOpIntent
         {
-            TransactionId = Guid.NewGuid(), TargetNodeId = 3, Operation = NodeOpType.CommitState,
+            TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(3), Operation = NodeOpType.CommitState,
             DomainPayload = new CommitStatePayload(ClusterState.LoadingLive),
         });
         bus.SwapBuffers();
@@ -423,7 +423,7 @@ public sealed class ClusterSlaveTests
         var txId = Guid.NewGuid();
         var intent = new ExecuteNodeOpIntent
         {
-            TransactionId = txId, TargetNodeId = 1,
+            TransactionId = txId, TargetNodeId = (Fdp.Core.NodeId)(1),
             Operation = (NodeOpType)opId,
         };
 
@@ -454,7 +454,7 @@ public sealed class ClusterSlaveTests
         slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetNodeId  = 0,
+            TargetNodeId  = (Fdp.Core.NodeId)(0),
             Operation     = NodeOpType.CommitState,
             DomainPayload = new CommitStatePayload((ClusterState)nextState),
         });
@@ -490,7 +490,7 @@ public sealed class ClusterSlaveTests
         eventBus.PublishManaged(new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetNodeId  = 0,
+            TargetNodeId  = (Fdp.Core.NodeId)(0),
             Operation     = (NodeOpType)opId,
         });
         eventBus.SwapBuffers();
@@ -518,7 +518,7 @@ public sealed class ClusterSlaveTests
         eventBus.PublishManaged(new ExecuteNodeOpIntent
         {
             TransactionId = txId,
-            TargetNodeId  = 0,
+            TargetNodeId  = (Fdp.Core.NodeId)(0),
             Operation     = (NodeOpType)opId,
         });
         eventBus.SwapBuffers();
@@ -575,9 +575,9 @@ public sealed class ClusterSlaveTests
         Thread.Sleep(1100);
         named.Tick(); plain.Tick(); blank.Tick();
         var beats = Beats(bus).ToDictionary(b => b.NodeId, b => b.NodeName);
-        Assert.Equal("film-cam", beats[7]);
-        Assert.Equal("SimHost-8", beats[8]);
-        Assert.Equal("CGF-9", beats[9]);
+        Assert.Equal("film-cam", beats[(Fdp.Core.NodeId)(7)]);
+        Assert.Equal("SimHost-8", beats[(Fdp.Core.NodeId)(8)]);
+        Assert.Equal("CGF-9", beats[(Fdp.Core.NodeId)(9)]);
         Assert.Equal("film-cam", named.View.NodeName);   // the view the HTTP /status reads
     }
 
@@ -667,13 +667,13 @@ public sealed class ClusterSlaveTests
         eventBus.PublishManaged(new ExecuteNodeOpIntent
         {
             TransactionId = txId,
-            TargetNodeId  = 0,
+            TargetNodeId  = (Fdp.Core.NodeId)(0),
             Operation     = (NodeOpType)opId,
         });
         eventBus.PublishManaged(new ExecuteNodeOpIntent
         {
             TransactionId = txId,
-            TargetNodeId  = 0,
+            TargetNodeId  = (Fdp.Core.NodeId)(0),
             Operation     = NodeOpType.CommitState,
             DomainPayload = new CommitStatePayload((ClusterState)targetState),
         });
@@ -748,12 +748,12 @@ public sealed class ClusterSlaveTests
         // Publish PrepareXxx + CommitState in the same write cycle.
         eventBus.PublishManaged(new ExecuteNodeOpIntent
         {
-            TransactionId = txId, TargetNodeId = 0,
+            TransactionId = txId, TargetNodeId = (Fdp.Core.NodeId)(0),
             Operation     = (NodeOpType)opId,
         });
         eventBus.PublishManaged(new ExecuteNodeOpIntent
         {
-            TransactionId = txId, TargetNodeId = 0,
+            TransactionId = txId, TargetNodeId = (Fdp.Core.NodeId)(0),
             Operation     = NodeOpType.CommitState, DomainPayload = new CommitStatePayload((ClusterState)targetState),
         });
 
@@ -787,7 +787,7 @@ public sealed class ClusterSlaveTests
         slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
         {
             TransactionId = txId,
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             Operation     = NodeOpType.CommitState,
             DomainPayload = new CommitStatePayload(TargetState: (ClusterState)5),
         });
@@ -810,14 +810,14 @@ public sealed class ClusterSlaveTests
         slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
         {
             TransactionId = txId,
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             Operation     = NodeOpType.CommitState,
             DomainPayload = new CommitStatePayload((ClusterState)2),
         });
         slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
         {
             TransactionId = txId,
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             Operation     = NodeOpType.CommitState,
             DomainPayload = new CommitStatePayload((ClusterState)5),
         });
@@ -885,7 +885,7 @@ public sealed class ClusterSlaveTests
     private static Guid Send(FdpEventBus bus, int nodeId, NodeOpType op, object? payload = null)
     {
         var tx = Guid.NewGuid();
-        bus.PublishManaged(new ExecuteNodeOpIntent { TransactionId = tx, TargetNodeId = nodeId, Operation = op, DomainPayload = payload });
+        bus.PublishManaged(new ExecuteNodeOpIntent { TransactionId = tx, TargetNodeId = (Fdp.Core.NodeId)(nodeId), Operation = op, DomainPayload = payload });
         return tx;
     }
 
@@ -1028,7 +1028,7 @@ public sealed class ClusterSlaveTests
         Acks(bus);
 
         // the same transaction's commit is queued behind the held prepare
-        bus.PublishManaged(new ExecuteNodeOpIntent { TransactionId = tx, TargetNodeId = 3, Operation = NodeOpType.CommitState, DomainPayload = new CommitStatePayload(ClusterState.LoadingLive) });
+        bus.PublishManaged(new ExecuteNodeOpIntent { TransactionId = tx, TargetNodeId = (Fdp.Core.NodeId)(3), Operation = NodeOpType.CommitState, DomainPayload = new CommitStatePayload(ClusterState.LoadingLive) });
         bus.SwapBuffers(); slave.Tick(); Acks(bus);
 
         Assert.True(slave.CancelLoad());
@@ -1045,7 +1045,7 @@ public sealed class ClusterSlaveTests
         Assert.Equal((int)ClusterState.Idle, slave.LocalStateIdForTest);
 
         // ⭐ and one that ARRIVES after the cancel (the master's fan-out was already on the wire) is dropped too — the node does not enter a load it abandoned
-        bus.PublishManaged(new ExecuteNodeOpIntent { TransactionId = tx, TargetNodeId = 3, Operation = NodeOpType.CommitState, DomainPayload = new CommitStatePayload(ClusterState.LoadingLive) });
+        bus.PublishManaged(new ExecuteNodeOpIntent { TransactionId = tx, TargetNodeId = (Fdp.Core.NodeId)(3), Operation = NodeOpType.CommitState, DomainPayload = new CommitStatePayload(ClusterState.LoadingLive) });
         bus.SwapBuffers(); slave.Tick();
         Assert.Equal((int)ClusterState.Idle, slave.LocalStateIdForTest);
     }

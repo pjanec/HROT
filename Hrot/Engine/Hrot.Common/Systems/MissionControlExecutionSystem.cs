@@ -99,14 +99,14 @@ namespace Hrot.Common.Systems
                 && repo.GetComponentRO<MissionPlanQueue>(entity).PhaseCount > 0;
             bool hasPlan = repo.HasManagedComponent<ActiveMissionPlan>(entity);
             if (!hasQueue && !hasPlan) return;
-            if (!_entityMap.TryGetNetworkId(entity, out long networkId)) networkId = 0;
+            if (!_entityMap.TryGetNetworkId(entity, out int networkId)) networkId = 0;
 
             EmptyPlan(repo, entity, networkId);
             BumpVersion(repo, entity);
         }
 
         /// <summary>⭐ <c>CE-3167</c> — the plan emptied, replicated, and this system's task order forgotten.</summary>
-        private void EmptyPlan(EntityRepository repo, Entity entity, long networkId)
+        private void EmptyPlan(EntityRepository repo, Entity entity, int networkId)
         {
             // ⭐ R-3039 S1 — the version outlives the plan (it is on the queue); the task order goes with the plan (ActiveMissionPlan).
             repo.SetComponent(entity, new MissionPlanQueue { PhaseCount = 0, CurrentPhase = 0, PhaseElapsedSeconds = 0f, Version = VersionOf(repo, entity) });

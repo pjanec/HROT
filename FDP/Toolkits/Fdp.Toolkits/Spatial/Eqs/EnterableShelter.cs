@@ -74,7 +74,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 ref var c = ref candidates[i];
                 if (c.EntityId == -1L) continue;
                 if (world == null || IsInside(world, new Vector2(c.PositionX, c.PositionY), out _)) continue;
-                c.EntityId = -1L;
+                c.EntityId = -1;
             }
         }
 

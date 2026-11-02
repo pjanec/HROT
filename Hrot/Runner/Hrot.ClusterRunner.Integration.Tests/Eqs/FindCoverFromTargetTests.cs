@@ -103,7 +103,7 @@ public sealed class FindCoverFromTargetTests : IDisposable
             ThreatThreshold = 50f,
             ContextSlot1    = targetEntity,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8001L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8001 });
 
         // Act: pump until the buffer is ready with results.
         bool ready = _harness.PumpUntil(
@@ -174,7 +174,7 @@ public sealed class FindCoverFromTargetTests : IDisposable
             ThreatThreshold = 50f,
             ContextSlot1    = nullThreatTarget,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8002L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8002 });
 
         // Act: pump until ready.
         bool ready = _harness.PumpUntil(

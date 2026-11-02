@@ -35,11 +35,11 @@ public sealed class EditorMissionWindowDumpsItsPlanTests : IDisposable
 
     private sealed class FakeMissionEditorService : IMissionEditorService
     {
-        public IReadOnlyList<string> GetAvailableBehaviors(long entityId) => Array.Empty<string>();
-        public (MissionPlan? Plan, long Version) GetMissionSnapshot(long entityId) => (null, 0);
-        public Task<MissionCommitResult> CommitMissionAsync(long entityId, MissionPlan plan, long baseVersion)
+        public IReadOnlyList<string> GetAvailableBehaviors(int entityId) => Array.Empty<string>();
+        public (MissionPlan? Plan, long Version) GetMissionSnapshot(int entityId) => (null, 0);
+        public Task<MissionCommitResult> CommitMissionAsync(int entityId, MissionPlan plan, long baseVersion)
             => Task.FromResult(new MissionCommitResult(true, 1, null));
-        public Task<MissionCommitResult> SendControlCommandAsync(long entityId, eMissionCommandType type, Guid taskId)
+        public Task<MissionCommitResult> SendControlCommandAsync(int entityId, eMissionCommandType type, Guid taskId)
             => Task.FromResult(new MissionCommitResult(true, 1, null));
     }
 

@@ -55,7 +55,7 @@ namespace Hrot.SimHost.Tests
             var cmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StartEpisode,
                 DomainPayload = new EpisodeHandlerPayload(Guid.Empty, "s1", IsStart: true),  // EpisodeId is Guid.Empty -> not valid
             };
@@ -83,7 +83,7 @@ namespace Hrot.SimHost.Tests
             var cmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StartEpisode,
                 DomainPayload = new EpisodeHandlerPayload(Guid.NewGuid(), ScenarioId: null, IsStart: true),  // no ScenarioId
             };
@@ -122,7 +122,7 @@ namespace Hrot.SimHost.Tests
             var cmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StartEpisode,
                 DomainPayload = new EpisodeHandlerPayload(episodeId, scenarioId, IsStart: true),
             };
@@ -147,7 +147,7 @@ namespace Hrot.SimHost.Tests
             var cmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StopEpisode,
                 DomainPayload = new EpisodeHandlerPayload(Guid.Empty, ScenarioId: null, IsStart: false),  // empty EpisodeId
             };
@@ -173,7 +173,7 @@ namespace Hrot.SimHost.Tests
             var cmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StopEpisode,
                 DomainPayload = new EpisodeHandlerPayload(episodeId, ScenarioId: null, IsStart: false),
             };

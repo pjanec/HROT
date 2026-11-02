@@ -340,7 +340,7 @@ namespace Hrot.ClusterRunner.Tests
         [Fact]
         public void NodeId_SetExplicitly_PreservedAfterValidate()
         {
-            var config = new RunnerConfiguration { ModeString = "simhost", NoWait = true, NodeId = 42 };
+            var config = new RunnerConfiguration { ModeString = "simhost", NoWait = true, NodeId = (Fdp.Core.NodeId)(42) };
             config.Validate();
             Assert.Equal(42, config.NodeId);
         }

@@ -63,7 +63,7 @@ public sealed class EqsMultiTemplateTests : IDisposable
             ISimulationView view, Span<EqsResult> candidates)
         {
             if (candidates.Length == 0) return 0;
-            candidates[0] = new EqsResult { EntityId = 0L, PositionX = _posX, PositionY = _posY, Score = 1f };
+            candidates[0] = new EqsResult { EntityId = 0, PositionX = _posX, PositionY = _posY, Score = 1f };
             return 1;
         }
     }
@@ -126,7 +126,7 @@ public sealed class EqsMultiTemplateTests : IDisposable
         // is reserved for sensors without PartMetadata). Deviation from spec's "no NetworkIdentity"
         // note -- observed runtime requirement.
         Entity observer = _harness.Repo.CreateEntity();
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 16001_9900L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 16001_9900 });
 
         // child[0]: PartMetadata{InstanceId=0} + EqsSensor for template A
         Entity child0 = _harness.Repo.CreateEntity();
@@ -316,7 +316,7 @@ public sealed class HideInCoverV2SmokeTests : IDisposable
 
         // Step 5: Pre-populate EqsCognitiveBuffer (simulates EqsSolverSystem output).
         var buf = new EqsCognitiveBuffer { Count = 1, LastUpdateTick = 1 };
-        buf.GetSpanRW()[0] = new EqsResult { EntityId = 0L, PositionX = coverX, PositionY = coverY, Score = 1f };
+        buf.GetSpanRW()[0] = new EqsResult { EntityId = 0, PositionX = coverX, PositionY = coverY, Score = 1f };
         _repo.AddComponent(child, buf);
 
         // Step 6: Action_WaitForChildSensor -- buffer ready -> Success.

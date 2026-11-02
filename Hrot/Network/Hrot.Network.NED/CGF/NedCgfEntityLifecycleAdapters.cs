@@ -40,7 +40,7 @@ public sealed class NedEntityCreationRequestSource : IEntityCreationRequestSourc
             // Extract TkbType and DisType from EntityMaster descriptor only.
             long  tkbType = 0;
             ulong disType = 0;
-            long  preAllocated = 0;   // ⭐ CE-4024 — the master's EntityId: an id the author fixed (0 = allocate here)
+            int  preAllocated = 0;   // ⭐ CE-4024 — the master's EntityId: an id the author fixed (0 = allocate here)
 
             if (msg.InitialDescriptors != null)
             {
@@ -83,7 +83,7 @@ public sealed class NedEntityCreationRequestSource : IEntityCreationRequestSourc
             {
                 RequestId             = msg.RequestId,
                 OwnerAppInstanceId    = msg.Owner.AppInstanceId,
-                TkbType               = tkbType,
+                TkbType               = (Fdp.Core.TkbTypeId)(tkbType),
                 PreAllocatedNetworkId = preAllocated,
                 DisType               = disType,
                 InitialAttributesJson = msg.InitialAttributesJson,
@@ -140,7 +140,7 @@ public sealed class NedEntityAckSink : IEntityAckSink
     public NedEntityAckSink(DdsParticipant participant)
         => _writer = new DdsWriter<CreateUpdateDeleteEntityAck>(participant);
 
-    public void WriteAck(Guid requestId, long entityId, EntityOperationStatus status)
+    public void WriteAck(Guid requestId, int entityId, EntityOperationStatus status)
         => _writer.Write(new CreateUpdateDeleteEntityAck
         {
             RequestId  = requestId,

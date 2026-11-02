@@ -145,7 +145,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
             // 4. Preserve existing rotation; update position only.
             var currentRot = view.HasComponent<SimTransform>(entity)
-                ? view.GetComponentRO<SimTransform>(entity).Rotation
+                ? (Quaternion)view.GetComponentRO<SimTransform>(entity).Rotation
                 : Quaternion.Identity;
 
             ((EntityRepository)view).SetComponent(entity, new SimTransform
@@ -162,7 +162,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             WriteAck(req.RequestId, req.EntityId, NedStatusCode.Success);
         }
 
-        private void WriteAck(Guid requestId, long entityId, NedStatusCode errorCode)
+        private void WriteAck(Guid requestId, int entityId, NedStatusCode errorCode)
         {
             _ackWriter.Write(new UpdateEntityDescriptorAck
             {
@@ -189,7 +189,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             // ⭐ AQ107 B — the wire's points are ABSOLUTE local ENU metres; the ECS polyline is relative to the entity's own position.
             Vector3 anchor = view.HasComponent<SimTransform>(entity)
                 ? view.GetComponentRO<SimTransform>(entity).Position
-                : Vector3.Zero;
+                : Fdp.Core.WorldPoint.Zero;
 
             var polylinePoints = new List<Vector2>(overlay.Points?.Count ?? 0);   // CE-4046 — EditablePolyline is an immutable record
             if (overlay.Points != null && overlay.Points.Count > 0)

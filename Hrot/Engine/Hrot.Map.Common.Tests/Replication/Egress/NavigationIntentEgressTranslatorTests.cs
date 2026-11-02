@@ -67,7 +67,7 @@ public sealed class NavigationIntentEgressTranslatorTests
     private static Entity SpawnAuthoritativeEntity(EntityRepository world, uint netId)
     {
         var e = world.CreateEntity();
-        world.AddComponent(e, new NetworkIdentity(netId));
+        world.AddComponent(e, new NetworkIdentity((int)netId));
         world.AddComponent(e, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
         world.AddComponent(e, new EcsNavigationIntent());
         return e;

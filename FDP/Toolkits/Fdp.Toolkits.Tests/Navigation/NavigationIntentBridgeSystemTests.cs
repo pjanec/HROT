@@ -49,7 +49,7 @@ namespace Fdp.Toolkit.Navigation.Tests
 
             var nav = repo.GetComponent<NavState>(entity);
             Assert.Equal(KinematicsMode.Direct, nav.Mode);
-            Assert.Equal(new Vector3(dest.X, dest.Y, 0f), nav.FinalDestination);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(dest.X, dest.Y, 0f), nav.FinalDestination);
             Assert.Equal(10f, nav.TargetSpeed);
             Assert.Equal(3.0f, nav.ArrivalRadius);
 
@@ -167,7 +167,7 @@ namespace Fdp.Toolkit.Navigation.Tests
 
             var nav = repo.GetComponent<NavState>(entity);
             Assert.Equal(KinematicsMode.Direct, nav.Mode);
-            Assert.Equal(new Vector3(500f, 500f, 0f), nav.FinalDestination);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(500f, 500f, 0f), nav.FinalDestination);
 
             repo.Dispose();
         }
@@ -264,12 +264,12 @@ namespace Fdp.Toolkit.Navigation.Tests
         {
             private readonly bool _loop;
             public OneRoute(bool loop) => _loop = loop;
-            public bool TryGetTrajectory(EntityRepository repo, long routeNetworkId, out int trajectoryId) { trajectoryId = 5; return true; }
-            public bool TryGetRoute(EntityRepository repo, long routeNetworkId, System.Collections.Generic.List<NavRouteWaypoint> into, out bool loop, out int version)
+            public bool TryGetTrajectory(EntityRepository repo, int routeNetworkId, out int trajectoryId) { trajectoryId = 5; return true; }
+            public bool TryGetRoute(EntityRepository repo, int routeNetworkId, System.Collections.Generic.List<NavRouteWaypoint> into, out bool loop, out int version)
             {
                 into.Clear();
-                into.Add(new NavRouteWaypoint(new Vector3(652, 30, 0), 8f, RouteWaypointKind.Ground, 0f, RouteHold.None, 0f, 0L));
-                into.Add(new NavRouteWaypoint(new Vector3(652, 380, 0), 8f, RouteWaypointKind.Ground, 0f, RouteHold.None, 0f, 0L));
+                into.Add(new NavRouteWaypoint(new Vector3(652, 30, 0), 8f, RouteWaypointKind.Ground, 0f, RouteHold.None, 0f, 0));
+                into.Add(new NavRouteWaypoint(new Vector3(652, 380, 0), 8f, RouteWaypointKind.Ground, 0f, RouteHold.None, 0f, 0));
                 loop = _loop; version = 1;
                 return true;
             }

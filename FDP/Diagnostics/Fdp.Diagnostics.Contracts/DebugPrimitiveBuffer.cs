@@ -370,7 +370,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         }
 
         public void DrawEntityLocal(
-            long anchorNetworkId, Vector3 localStart, Vector3 localEnd,
+            int anchorNetworkId, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, float thickness = 1f, byte layer = 0)
         {
             var p = default(DebugPrimitive);
@@ -395,7 +395,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         }
 
         public void DrawEntityLocalInteractive(
-            long anchorNetworkId, Vector3 localStart, Vector3 localEnd,
+            int anchorNetworkId, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, ushort subElementId,
             float thickness = 1f, byte layer = 0)
         {
@@ -426,7 +426,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         }
 
         public void DrawEntitySphere(
-            long    anchorNetworkId,
+            int    anchorNetworkId,
             Vector3 worldCenter,
             float   radius,
             Rgba32  color,
@@ -459,7 +459,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// ⚠ <c>Debug.Assert</c>, not a throw: a diagnostic emitter must never take down a frame, and
         /// production ids count from 1 (<c>SequentialIdAllocator</c>), so this is a latent limit.
         /// </summary>
-        private static void AssertFitsAnchorKey(long anchorNetworkId)
+        private static void AssertFitsAnchorKey(int anchorNetworkId)
             => System.Diagnostics.Debug.Assert(
                    anchorNetworkId >= int.MinValue && anchorNetworkId <= int.MaxValue,
                    $"EntityLocal anchor id {anchorNetworkId} does not fit the 32-bit SpatialAnchor cache "
@@ -470,7 +470,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         // GZ057: SpatialAnchor and SemanticShape emit implementations.
 
         public void DrawSpatialAnchor(
-            long  networkId,
+            int  networkId,
             float worldX,
             float worldY,
             float worldZ,
@@ -494,7 +494,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         }
 
         public void DrawSemanticShape(
-            long   networkId,
+            int   networkId,
             ulong  profileId,
             float  lengthMeters  = 0f,
             float  widthMeters   = 0f,
@@ -528,7 +528,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             Append(p);
         }
 
-        public void DrawContextMenuBinding(long networkId, string menuJson)
+        public void DrawContextMenuBinding(int networkId, string menuJson)
         {
             uint hash = StringInternMap.Fnv1a32(menuJson);
             _internMap.Intern(hash, menuJson);   // idempotent; allocates only on first call

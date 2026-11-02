@@ -130,8 +130,7 @@ namespace Hrot.SimHost.Integration.Tests
                         new Hrot.NED.Descriptors.MissionTask
                         {
                             BehaviorId     = "MoveToLocation",
-                            BehaviorParams = $"{{\"TargetLat\":{destGeo.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture)}," +
-                                             $"\"TargetLon\":{destGeo.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture)}," +
+                            BehaviorParams = $"{{\"target\":[{destCart.X.ToString(System.Globalization.CultureInfo.InvariantCulture)},{destCart.Y.ToString(System.Globalization.CultureInfo.InvariantCulture)},0]," +   // S0 item 5: ONE local point
                                              $"\"Speed\":15.0,\"ArrivalRadius\":10.0}}"
                         }
                     }

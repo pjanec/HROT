@@ -165,7 +165,7 @@ public sealed class PhysicsBodyLifecycleTickTests : IDisposable
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = InfantrySoldierTkbType,
+            TkbType            = (Fdp.Core.TkbTypeId)(InfantrySoldierTkbType),
             InitialComponents  = new System.Collections.Generic.List<object>
             {
                 new SimTransform { Position = new Vector3(0f, 0f, 0f) }
@@ -218,7 +218,7 @@ public sealed class PhysicsBodyLifecycleTickTests : IDisposable
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = InfantrySoldierTkbType,
+            TkbType            = (Fdp.Core.TkbTypeId)(InfantrySoldierTkbType),
             InitialComponents  = new System.Collections.Generic.List<object>
             {
                 new SimTransform()
@@ -256,7 +256,7 @@ public sealed class PhysicsBodyLifecycleTickTests : IDisposable
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = InfantrySoldierTkbType,
+            TkbType            = (Fdp.Core.TkbTypeId)(InfantrySoldierTkbType),
             InitialComponents  = new System.Collections.Generic.List<object>
             {
                 new SimTransform()

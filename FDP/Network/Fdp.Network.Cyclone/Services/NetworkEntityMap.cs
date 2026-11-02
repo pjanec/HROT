@@ -6,19 +6,19 @@ namespace Fdp.Network.Cyclone.Services
 {
     public class NetworkEntityMap
     {
-        private readonly ConcurrentDictionary<long, Entity> _map = new();
+        private readonly ConcurrentDictionary<int, Entity> _map = new();
 
-        public void Register(long networkId, Entity entity)
+        public void Register(int networkId, Entity entity)
         {
             _map[networkId] = entity;
         }
 
-        public void Unregister(long networkId)
+        public void Unregister(int networkId)
         {
             _map.TryRemove(networkId, out _);
         }
 
-        public bool TryGet(long networkId, out Entity entity)
+        public bool TryGet(int networkId, out Entity entity)
         {
             return _map.TryGetValue(networkId, out entity);
         }

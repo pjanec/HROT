@@ -105,6 +105,6 @@ namespace Fdp.Toolkit.Time.Translators
         }
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

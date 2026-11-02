@@ -36,7 +36,7 @@ namespace Hrot.Network.NED.Tests
 
             var sent = new PathfindingRequestEvent
             {
-                RequestId = 42, SourceNodeId = BrainNode, MobilityProfile = 2,
+                RequestId = 42, SourceNodeId = (Fdp.Core.NodeId)(BrainNode), MobilityProfile = 2,
                 Start = new Vector3(10f, 20f, 0f), End = new Vector3(110f, 60f, 0f),
                 BackendForce = NavigationBackend.NavRoadGraph, NavLayerMask = (int)NavLayerMask.Vehicle, RoadUse = RoadUse.Never,
                 TurnRadius = 7.25f,
@@ -80,8 +80,8 @@ namespace Hrot.Network.NED.Tests
             var egress = new PathResponseSolverEgressTranslator(participant: null, new NetworkEntityMap(), geo, solverPool);
             var batches = egress.BuildBatches(new[]
             {
-                new PathfindingResultEvent { RequestId = 11, IsReachable = true, RouteHandle = 1, SourceNodeId = BrainNode },
-                new PathfindingResultEvent { RequestId = 12, IsReachable = true, RouteHandle = 2, SourceNodeId = BrainNode },
+                new PathfindingResultEvent { RequestId = 11, IsReachable = true, RouteHandle = 1, SourceNodeId = (Fdp.Core.NodeId)(BrainNode) },
+                new PathfindingResultEvent { RequestId = 12, IsReachable = true, RouteHandle = 2, SourceNodeId = (Fdp.Core.NodeId)(BrainNode) },
             });
             var batch = Assert.Single(batches);
 

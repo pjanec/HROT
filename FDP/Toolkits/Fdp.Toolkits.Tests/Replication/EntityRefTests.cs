@@ -13,7 +13,7 @@ namespace Fdp.Toolkit.Tests.Replication
     /// </summary>
     public sealed class EntityRefTests
     {
-        private static readonly Dictionary<long, long> Map = new() { [1006] = 1001, [7] = 70, [8] = 80 };
+        private static readonly Dictionary<int, int> Map = new() { [1006] = 1001, [7] = 70, [8] = 80 };
 
         // ── D1: JSON is the bare number ──────────────────────────────────────────────────────────────────────────
 
@@ -81,7 +81,7 @@ namespace Fdp.Toolkit.Tests.Replication
             Assert.True(EntityRefRemap.RemapObject(o, Map));
 
             Assert.Equal(1001, o.Single.NetworkId);
-            Assert.Equal(new long[] { 70, 9 }, o.Many.ConvertAll(r => r.NetworkId));
+            Assert.Equal(new int[] { 70, 9 }, o.Many.ConvertAll(r => r.NetworkId));
             Assert.Equal(80, o.Entries[0].NetworkId.NetworkId);
             Assert.Equal(0.5f, o.Entries[0].Score);
             Assert.Equal(70, o.Inline.NetworkId.NetworkId);

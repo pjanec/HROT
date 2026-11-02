@@ -29,7 +29,7 @@ namespace Hrot.Editor.Tests.DebugApi;
 /// </summary>
 public sealed class TheWriteRoutesAskTheOwnerTests
 {
-    private const long NetworkId = 77_001L;
+    private const int NetworkId = 77_001;
 
     /// <summary><c>dtWorldPos</c>'s ordinal on NED — any ordinal would do; the map is what is under test.</summary>
     private const long WorldPosDescriptor = 2;

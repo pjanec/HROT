@@ -23,7 +23,7 @@ public sealed partial class PossessionStationTests
         var (w, unit, _) = World();
         using (w)
         {
-            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
             var station = new PossessionStation(sw, () => w) { OverShoulder = false };   // ⭐ CE-1293 — the eyes view (free look is its subject)
             station.Update(0.016f);
@@ -75,9 +75,9 @@ public sealed partial class PossessionStationTests
             Assert.Equal(driver.Yaw, relocked.Yaw);                                          // locked: the body turns to the look
 
             Frame(press: Raylib_cs.KeyboardKey.V);                                           // free again …
-            w.SetComponent(unit, new PossessedBy { StationNodeId = 77, Mode = PossessionMode.Fps, Epoch = 2 });
+            w.SetComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(77), Mode = PossessionMode.Fps, Epoch = 2 });
             station.Update(0.016f);
-            w.SetComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 3 });
+            w.SetComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 3 });
             station.Update(0.016f);
             var again = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
             Assert.NotSame(driver, again);

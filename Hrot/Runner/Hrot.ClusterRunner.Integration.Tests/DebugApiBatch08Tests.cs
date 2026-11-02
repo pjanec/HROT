@@ -104,7 +104,7 @@ public sealed class DebugApiBatch08Tests
         var svc = h.BuildDebugApiService();
 
         // Spawn entity via the real spawn pipeline (gives it NetworkIdentity + SimTransform)
-        const long networkId = 42_000L;
+        const int networkId = 42_000;
         const long tkbType   = 1L;
         var spawnCmd = new SpawnEntityCommand
         {
@@ -171,7 +171,7 @@ public sealed class DebugApiBatch08Tests
         var svc = h.BuildDebugApiService();
 
         // Spawn entity via real pipeline so it gets NetworkIdentity
-        const long networkId = 43_000L;
+        const int networkId = 43_000;
         h.Bus.PublishManaged(new SpawnEntityCommand
         {
             TkbType = 1L, NetworkId = networkId, OwnerNodeId = 0,
@@ -199,7 +199,7 @@ public sealed class DebugApiBatch08Tests
         var svc = h.BuildDebugApiService();
 
         // Spawn entity via real pipeline so it gets NetworkIdentity
-        const long networkId = 44_000L;
+        const int networkId = 44_000;
         h.Bus.PublishManaged(new SpawnEntityCommand
         {
             TkbType = 1L, NetworkId = networkId, OwnerNodeId = 0,
@@ -225,7 +225,7 @@ public sealed class DebugApiBatch08Tests
 
         // The changed entity should appear in the diff
         Assert.NotEmpty(entities);
-        Assert.Equal(networkId, entities[0]!["networkId"]!.GetValue<long>());
+        Assert.Equal(networkId, entities[0]!["networkId"]!.GetValue<int>());
         Assert.True(entities[0]!["changed"]!.GetValue<bool>());
     }
 
@@ -249,7 +249,7 @@ public sealed class DebugApiBatch08Tests
         var baselineId = captureResult["baselineId"]!.GetValue<string>();
 
         // Spawn a new entity AFTER capturing baseline (via real pipeline for NetworkIdentity)
-        const long newNetworkId = 45_000L;
+        const int newNetworkId = 45_000;
         h.Bus.PublishManaged(new SpawnEntityCommand
         {
             TkbType = 1L, NetworkId = newNetworkId, OwnerNodeId = 0,
@@ -266,7 +266,7 @@ public sealed class DebugApiBatch08Tests
         bool found = false;
         foreach (var e in entities)
         {
-            if (e!["networkId"]?.GetValue<long>() == newNetworkId)
+            if (e!["networkId"]?.GetValue<int>() == newNetworkId)
             {
                 found = true;
                 break;

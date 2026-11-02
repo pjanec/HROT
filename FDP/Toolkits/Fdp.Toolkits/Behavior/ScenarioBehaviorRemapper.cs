@@ -32,7 +32,7 @@ namespace Fdp.Toolkit.Behavior
     /// </summary>
     public sealed class ScenarioBehaviorRemapper
     {
-        private readonly Dictionary<string, Func<string?, IReadOnlyDictionary<long, long>, string?>> _registry = new();
+        private readonly Dictionary<string, Type> _registry = new();   // behaviour name → its params contract (the fallback table)
         private readonly BehaviorRegistry? _behaviors;
 
         /// <param name="behaviors">
@@ -61,7 +61,7 @@ namespace Fdp.Toolkit.Behavior
                 throw new InvalidOperationException(
                     $"ScenarioBehaviorRemapper: behaviorId '{behaviorId}' is already registered.");
 
-            _registry[behaviorId] = EntityRefRemap.CompileJson(typeof(TDto));
+            _registry[behaviorId] = typeof(TDto);
         }
 
         /// <summary>
@@ -77,20 +77,28 @@ namespace Fdp.Toolkit.Behavior
         /// <param name="idMap">Old-to-new network ID map built during two-pass extraction.</param>
         /// <returns>Remapped JSON, or the original <paramref name="json"/> when no mapping
         ///   applies.</returns>
-        public string? RemapJson(string behaviorId, string? json, IReadOnlyDictionary<long, long> idMap)
+        public string? RemapJson(string behaviorId, string? json, IReadOnlyDictionary<int, int> idMap)
+            => ContractOf(behaviorId) is { } contract ? EntityRefRemap.CompileJson(contract)(json, idMap) : json;
+
+        /// <summary>
+        /// ⭐ S0 item 3 (<c>docs/DESIGN_Scenario_Rules.md</c> SR-126) — RESOLVES every authored reference (<c>"@Key"</c> / a GUID) in
+        /// <paramref name="json"/> for <paramref name="behaviorId"/>'s contract, in <paramref name="scope"/>: the answer is filled, the form
+        /// kept (<see cref="RefResolve"/> over the one walker). ⛔ A key that names nothing throws — a scenario load fails loudly.
+        /// Unknown behaviour: <paramref name="json"/> unchanged.
+        /// </summary>
+        public string? ResolveJson(string behaviorId, string? json, IRefScope scope)
+            => ContractOf(behaviorId) is { } contract ? EntityRefRemap.WalkJson(contract, json, new RefResolve(scope)) : json;
+
+        /// <summary>The behaviour's params contract: the registry's when it knows the behaviour, else the <see cref="Register{TDto}"/>'d one.</summary>
+        private Type? ContractOf(string? behaviorId)
         {
-            if (behaviorId != null
-                && _behaviors != null
+            if (behaviorId == null) return null;
+            if (_behaviors != null
                 && _behaviors.TryGetId(behaviorId, out int id)
                 && _behaviors.TryGetDefinition(id, out var definition)
                 && definition.JsonParamsDtoType is { } contract)
-            {
-                return EntityRefRemap.CompileJson(contract)(json, idMap);
-            }
-
-            return behaviorId != null && _registry.TryGetValue(behaviorId, out var remap)
-                ? remap(json, idMap)
-                : json;
+                return contract;
+            return _registry.TryGetValue(behaviorId, out var registered) ? registered : null;
         }
     }
 }

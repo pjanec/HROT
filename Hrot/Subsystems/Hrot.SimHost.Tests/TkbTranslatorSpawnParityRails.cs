@@ -50,9 +50,9 @@ namespace Hrot.SimHost.Tests
         /// <summary>Minimal allocator — the spawn path only needs a monotonic id.</summary>
         private sealed class StubAllocator : INetworkIdAllocator
         {
-            private long _next = 500L;
-            public long AllocateId() => _next++;
-            public void Reset(long startId = 0) => _next = startId;
+            private int _next = 500;
+            public int AllocateId() => _next++;
+            public void Reset(int startId = 0) => _next = startId;
             public void Dispose() { }
         }
 
@@ -104,14 +104,14 @@ namespace Hrot.SimHost.Tests
             repo.Bus.PublishManaged(new SpawnEntityCommand
             {
                 NetworkId   = 0,
-                TkbType     = TestTkbType,
-                OwnerNodeId = LocalNodeId
+                TkbType     = (Fdp.Core.TkbTypeId)(TestTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(LocalNodeId)
             });
             repo.Bus.SwapBuffers();
 
             system.Execute(repo, 0f);
 
-            Assert.True(networkMap.TryGetEntity(500L, out var entity),
+            Assert.True(networkMap.TryGetEntity(500, out var entity),
                 "the spawn must have produced an entity, or the rail is measuring nothing.");
             return (repo, entity);
         }

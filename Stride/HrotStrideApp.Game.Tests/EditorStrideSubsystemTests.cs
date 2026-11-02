@@ -107,7 +107,7 @@ public sealed class EditorStrideSubsystemTests : IDisposable
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,           // localNodeId = EditorNodeId = 0
-            TkbType            = 1101L,        // CivilianAdultMale (the civilian family)
+            TkbType            = (Fdp.Core.TkbTypeId)(1101L),        // CivilianAdultMale (the civilian family)
             InitialComponents  = new System.Collections.Generic.List<object>
             {
                 new SimTransform { Position = new System.Numerics.Vector3(100f, 200f, 0f) }
@@ -177,7 +177,7 @@ public sealed class EditorStrideSubsystemTests : IDisposable
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = 2002L,        // InfantrySoldier (UrbanCombat templates)
+            TkbType            = (Fdp.Core.TkbTypeId)(2002L),        // InfantrySoldier (UrbanCombat templates)
             InitialComponents  = new System.Collections.Generic.List<object>
             {
                 new SimTransform()

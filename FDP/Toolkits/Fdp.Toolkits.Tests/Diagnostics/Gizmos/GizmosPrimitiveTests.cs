@@ -431,12 +431,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         //   SpatialAnchor.NetworkId (DebugPrimitiveRenderer2D.cs:63) and probes as
         //   `(long)AnchorIndex` (:105). An ECS index missed the cache ⇒ the primitive was SILENTLY
         //   SKIPPED. 🔒 .dev/_DONE/gizmos-1/feedback2.md:871 specified the fix — "DrawEntityLocal will
-        //   now accept `long anchorNetworkId` instead of an `Entity`" — and it was never built.
+        //   now accept `int anchorNetworkId` instead of an `Entity`" — and it was never built.
         [Fact]
         public void Buffer_DrawEntityLocal_SetsAnchorKeyAndSpace()
         {
             var buf = new DebugPrimitiveBuffer(16);
-            buf.DrawEntityLocal(anchorNetworkId: 90210L, Vector3.Zero, Vector3.UnitZ, Rgba32.Red);
+            buf.DrawEntityLocal(anchorNetworkId: 90210, Vector3.Zero, Vector3.UnitZ, Rgba32.Red);
 
             var frame = buf.GetFrame();
             Assert.Equal(CoordinateSpace.EntityLocal, frame[0].Space);
@@ -684,7 +684,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             // ⭐ §6.8 — a binding is keyed by StructNetworkId; a 0 there can never be routed to, and the
             //   identity invariant now says so. This rail is about STAMPING, so give it a real anchor.
             var binding = MakeShape(DebugPrimitiveShape.ContextMenuBinding);
-            binding.StructNetworkId = 7041L;
+            binding.StructNetworkId = 7041;
             buf.Append(binding);
 
             buf.StampGizmoTypeId(0, 99u);

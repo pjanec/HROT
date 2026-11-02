@@ -67,7 +67,8 @@ internal static class SubordinateForEachDemoAuthoring
         var members = ReflectionIntentContractProvider.PinnableMembers(typeof(Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto));
         var send = g.SendIntent("MoveToLocation", MoveDto, members.Select(m => (m.Name, m.TypeId)).ToArray());
         if (targetPin is null) g.D(target, send, "Target"); else g.D(target, targetPin, send, "Target");
-        g.D(x, send, "X"); g.D(y, send, "Y");
+        var at = g.Call("Hrot.AI.Behaviors.Brains.AuthoredPointOps", "At", true, FunctionCallContextKind.None, (x, null), (y, null));
+        g.D(at, send, "Location");
         g.D(g.Lit(Dbl, "5"), send, "Speed");
         g.D(g.Lit(Dbl, "2"), send, "ArrivalRadius");
         return send;

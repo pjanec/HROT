@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.UI
         // When uiPublisher is null, no JSON is allocated.
         public void EmitAndSync(
             IDebugDrawBuilder draw,
-            long networkId,
+            int networkId,
             uint schemaHash,
             T dto,
             ScreenAnchor anchor = ScreenAnchor.TopLeft,

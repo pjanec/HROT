@@ -161,7 +161,7 @@ namespace Fdp.Toolkit.Physics.Components
         /// the egress translator can demultiplex hits back to the requesting Brain node.
         /// 0 = local-only (no distributed routing required).
         /// </summary>
-        public int SourceNodeId;    }
+        public NodeId SourceNodeId;    }
 
     // ── RaycastHit ────────────────────────────────────────────────────────────────
 
@@ -199,7 +199,7 @@ namespace Fdp.Toolkit.Physics.Components
         /// Propagated from <see cref="RaycastRequest.SourceNodeId"/> by <c>RaycastSolverSystem</c>.
         /// Used by the egress translator to route the result back to the originating Brain.
         /// </summary>
-        public int SourceNodeId;
+        public NodeId SourceNodeId;
         /// <summary>World-space ray start point propagated from the original request. Used by <c>HitResolutionSystem</c> to compute detonation position.</summary>
         public Vector3 Start;
         /// <summary>World-space ray end point propagated from the original request.</summary>
