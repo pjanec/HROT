@@ -1,11 +1,12 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-22 (§N0 rewritten top: R-2071 E-1/E-2 built, CE-2232/2351/2352/3306 fixed, uc-urban-battle PASS 5/5 via CE-2353/2354; next: the embark that never completes, AQ101 awaits the user) · 2026-10-21 (N.1c PlatoonConvoy built, CE-2347) · 2026-10-21 (AQ99 built, both clearing twins pass — N.1a) · 2026-10-20 (CE-2318 fixed, AQ96 approved + built, description handed to backend; rewritten top: §N "now" is the start — the urban-battle plan is done; next: the user's live findings + Q95's behaviors half)
-current-answer: §N0 (start here, 2026-10-22) · then §N (2026-10-20/21) · then §2 for what the plan built · §5 measured traps
+updated: 2026-11-02 (§R0 new top: scenario rules S1 built + live, S2 in build — the coordinator's Objectives/Triggers handoff) · 2026-10-22 (§N0 rewritten top: R-2071 E-1/E-2 built, CE-2232/2351/2352/3306 fixed, uc-urban-battle PASS 5/5 via CE-2353/2354; next: the embark that never completes, AQ101 awaits the user) · 2026-10-21 (N.1c PlatoonConvoy built, CE-2347) · 2026-10-21 (AQ99 built, both clearing twins pass — N.1a) · 2026-10-20 (CE-2318 fixed, AQ96 approved + built, description handed to backend; rewritten top: §N "now" is the start — the urban-battle plan is done; next: the user's live findings + Q95's behaviors half)
+current-answer: §R0 (start here, 2026-11-02 — scenario rules) · then §N0 (2026-10-22, the command chain's open items) · then §N (2026-10-20/21) · then §2 for what the plan built · §5 measured traps
 stale-below: §N's ids row and its "unmerged" row (superseded by §N0) · §N.1c's "⑤ fails — waits on backend" (fixed 2026-10-22, §N0) · §0 and §1 (as of 2026-10-19 — superseded by §N) · §2b · §6's "first move" (that merge was done) · §7 — history. Every "open / not built / in flight" line anywhere here is a STATE claim: verify it against git and the tracker before acting
 known-rot: none.
 known-conflict: none.
 related-designs:
+  - docs/DESIGN_Scenario_Rules.md — §00.8 / §00.8.1 S1 (built), §00.9 S2 (in build): objectives, triggers, the end, messages
   - docs/DESIGN_Thermal_And_Acoustic_Sensing.md — §8.6a/§8.6b R-2071: a heard explosion is no enemy (E-1/E-2 built)
   - docs/blueprints/Architect_Question_101_Shelling_Fear_And_Shelled_Areas.md — E-3 soldier fear/panic, E-4 shelled area: leans, AWAITS THE USER
   - docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md — §4a CE-2232 (the hide a vehicle can fight from), CE-2352 (a threat's sight range bounds the exposure clock)
@@ -25,6 +26,18 @@ related-designs:
 # RESUME — behaviors lane: the command chain and the urban battle are built; now the live findings *(top rewritten 2026-10-20)*
 
 **RELEARN** — run the re-learn and open your first reply with the DESIGN BRIEF (`CLAUDE.md`).
+
+## R0. ⭐⭐⭐ Now — START HERE *(2026-11-02 — scenario rules, [HANDOFF_Coordinator_To_Behaviors_Objectives_Triggers](batches/HANDOFF_Coordinator_To_Behaviors_Objectives_Triggers.md))*
+
+| | |
+|---|---|
+| ids next free | `CE-2355` · `R-2072` · AQ `102`+ (check all lanes) · components 430+ (418–433) · rules descriptors 174+ (171–179) · TKB 8862+ (8860–8869) |
+| merged | `coordinator@02d0079ec`, `backend@29c2ea623` (its param binder) — at `92b681e37` |
+| S1 objectives | ✅ BUILT + LIVE — [design §00.8.1](../DESIGN_Scenario_Rules.md); scenario `sr-objectives-march`, `GET /objectives`. ⚠ open: a PLAYER node reading the statuses |
+| CE-4157 / CE-4159 | ✅ (mission triggers strict · unknown predicate type throws) |
+| S2 triggers | 🔨 design [§00.9](../DESIGN_Scenario_Rules.md) · worker tasks: ⑤ CE-4164 level compiler · ⑥ CE-4160…4165 action machinery from the PoC · ⑦ the Trigger behaviour · ⑧ verbs + END + PlayerMessage (briefs in the session scratchpad; re-derive from §00.9 if lost) |
+| then | a live run of a trigger chain + the end (extend `sr-objectives-march`) · a NOTE to `ui`: the Player subtitle/log from `PlayerMessageEvent` (S2-f) · fold §00.9's as-built |
+| standing Sonnet worker | agent `aa61f53891af259c3` (in-session id; a new session needs a fresh one) |
 
 ## N0. ⭐⭐ Now — START HERE *(written 2026-10-22 at `421c32cbf`)*
 
