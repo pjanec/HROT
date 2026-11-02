@@ -198,9 +198,9 @@ public sealed class EqsDistributedTests
         });
 
         // Inject a stale EqsResultUpdateEvent (epoch=1, 99 fake results) directly on the Brain bus.
-        var staleResults = new List<EqsResultEntry>();
+        var staleResults = new List<EqsResult>();
         for (int i = 0; i < 99; i++)
-            staleResults.Add(new EqsResultEntry { EntityId = 0 });
+            staleResults.Add(new EqsResult { EntityId = 0 });
         harness.Cgf!.World!.Bus.PublishManaged(new EqsResultUpdateEvent
         {
             Observer    = cgfEntity,

@@ -78,18 +78,7 @@ namespace Hrot.SimHost.Systems
                 var span = buffer.GetSpanRW();
                 for (int i = 0; i < buffer.Count; i++)
                 {
-                    span[i] = new EqsResult
-                    {
-                        EntityId        = evt.Results[i].EntityId,
-                        PositionX       = evt.Results[i].PositionX,
-                        PositionY       = evt.Results[i].PositionY,
-                        PositionZ       = evt.Results[i].PositionZ,
-                        Score           = evt.Results[i].Score,
-                        Flags           = (short)evt.Results[i].Flags,
-                        FlagsMeaningful = (short)evt.Results[i].FlagsMeaningful,
-                        Stance          = evt.Results[i].Stance,   // ⭐ CE-3135
-                        Kind            = evt.Results[i].Kind,     // ⭐ CE-3158 G1
-                    };
+                    span[i] = evt.Results[i];   // ⭐ CE-4207: the event carries engine records (the ingress translator converted the wire)
                 }
                 NotifyTopChanged(repo, evt.Observer, topBefore, in buffer);
             }

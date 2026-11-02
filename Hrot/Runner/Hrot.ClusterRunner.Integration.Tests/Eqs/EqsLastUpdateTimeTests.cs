@@ -107,7 +107,7 @@ public sealed class EqsLastUpdateTimeTests : IDisposable
             Observer    = entity,
             Epoch       = 2u,
             RefreshTick = 3u,
-            Results     = new List<EqsResultEntry>(),
+            Results     = new List<EqsResult>(),
         });
         _repo.Bus.SwapBuffers();
 

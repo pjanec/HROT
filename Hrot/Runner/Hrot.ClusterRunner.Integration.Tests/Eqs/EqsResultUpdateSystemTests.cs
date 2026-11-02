@@ -61,7 +61,7 @@ public sealed class EqsResultUpdateSystemTests : IDisposable
             Observer    = entity,
             Epoch       = 1,
             RefreshTick = 10,
-            Results     = new List<EqsResultEntry>
+            Results     = new List<EqsResult>
             {
                 new() { EntityId = 99, PositionX = 1f, PositionY = 2f, Score = 0.9f, Flags = 0 }
             },
@@ -93,7 +93,7 @@ public sealed class EqsResultUpdateSystemTests : IDisposable
             Observer    = entity,
             Epoch       = 2,
             RefreshTick = 5,
-            Results     = new List<EqsResultEntry>
+            Results     = new List<EqsResult>
             {
                 new() { EntityId = 10, PositionX = 100f, PositionY = 200f, PositionZ = 250f, Score = 0.8f, Flags = 1, Stance = 2, Kind = 2 },
                 new() { EntityId = 20, PositionX = 300f, PositionY = 400f, PositionZ = 17.5f, Score = 0.5f, Flags = 2 },
@@ -146,7 +146,7 @@ public sealed class EqsResultUpdateSystemTests : IDisposable
             Observer    = entity,
             Epoch       = 3,
             RefreshTick = 7,
-            Results     = new List<EqsResultEntry>
+            Results     = new List<EqsResult>
             {
                 new() { EntityId = 42, PositionX = 11f, PositionY = 22f, Score = 1.0f, Flags = 3 },
             },

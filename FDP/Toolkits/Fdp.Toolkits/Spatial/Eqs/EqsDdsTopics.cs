@@ -103,10 +103,9 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
     [DdsIdlFile("hrot-eqs-msgs")]
     public partial struct EqsResultEntry
     {
-        /// <summary>Packed entity value. 0 = positional candidate. -1 = rejected (should not appear on wire).
-        /// ⭐ CE-4200 EXCLUSION: stays <c>long</c> — this one struct is the wire payload AND the in-process result: on the wire it holds a NETWORK
-        /// id, but <c>EqsResultIngressTranslator.MapToLocal</c> rewrites it to the node-local packed entity handle (64-bit) before the Brain reads it.</summary>
-        public long EntityId;
+        /// <summary>The candidate entity's NETWORK id (CE-4200: <c>int</c>); 0 = positional candidate. ⭐ CE-4207: a wire-only type — the
+        /// engine's twin is <see cref="EqsResult"/> (a packed LOCAL entity), and the translators are the only converters.</summary>
+        public int EntityId;
         /// <summary>World-space X coordinate.</summary>
         public float PositionX;
         /// <summary>World-space Y coordinate.</summary>
