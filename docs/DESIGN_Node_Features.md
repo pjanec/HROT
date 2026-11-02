@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-build-state: S1 READY-TO-BUILD (2026-11-02 — with §7 F-21…F-26 ✅ accepted: a config per feature; §7 + §7.1 supersede §6.5's `bool On`, `FeaturesAtLoad` string[] and F-15/F-16's shapes) · first READY 2026-11-01 ( §4 F-13…F-18 ✅ ACCEPTED — user: "Approved.") · the model AGREED by the user 2026-10-31 ("Good, this sounds like what is needed", "Yes, please write it down") · S2, S3 DESIGN
+build-state: ⭐ S1 BUILT 2026-11-02 (coordinator lane; commits 21d6ae1a1 · b2bc4fc5d · fc338819b — §8 is the as-built, with its deviations) · S2, S3 DESIGN · (history: S1 READY-TO-BUILD 2026-11-02 — with §7 F-21…F-26 ✅ accepted: a config per feature; §7 + §7.1 supersede §6.5's `bool On`, `FeaturesAtLoad` string[] and F-15/F-16's shapes) · first READY 2026-11-01 ( §4 F-13…F-18 ✅ ACCEPTED — user: "Approved.") · the model AGREED by the user 2026-10-31 ("Good, this sounds like what is needed", "Yes, please write it down") · S2, S3 DESIGN
 updated: 2026-11-01 (S1 made buildable: the gate, the two delivery paths, the recording, the first two features — coordinator)
-current-answer: ⭐ §7 a feature carries a CONFIG (F-21…F-26 ✅) + §7.1 what travels, worked example · §2 the three tiers · §3 the diagrams · §4 decisions F-1…F-18 · §5 slices (S1 buildable) · ⭐ §6 the S1 technical spec (catalogue, C# shapes, where it lives, speed, wire, recording + going live)
+current-answer: ⭐ §8 AS-BUILT (what exists, where, and where the build deviated) · §7 a feature carries a CONFIG (F-21…F-26 ✅) + §7.1 what travels, worked example · §2 the three tiers · §3 the diagrams · §4 decisions F-1…F-18 · §5 slices (S1 buildable) · ⭐ §6 the S1 technical spec (catalogue, C# shapes, where it lives, speed, wire, recording + going live)
 stale-below: nothing
-known-rot: §6.2 / §6.5 / §6.6 still show the switch-only shapes (`bool On`, `string[] FeaturesAtLoad`, `FeaturesAtLoad` in the recording) — §7 (F-21…F-26) and §7.1 supersede them; S1 builds §7's shapes
+known-rot: ⛔ §6.2 / §6.5 / §6.6 show the switch-only shapes (`bool On`, `string[] FeaturesAtLoad`, `FeaturesAtLoad` in the recording) — SUPERSEDED by §7 and, for what was built, §8 (marked inline). §6.1 / §6.3 / §6.4 and §7.1's flow still hold except the two points §8 lists (the load payload carries the cluster LAYER, not the full config; `GET /features` is not built)
 known-conflict: none
 related-designs:
   - docs/DESIGN_Scenario_Macros.md — OWNS scenario macros (the expander, macro files, params + bindings, RefKey scoping); F-19: the expander is core, never behind a switch
@@ -230,7 +230,7 @@ the same path `MapInLoad` takes today — so a run cannot change outcome-affecti
 
 ⭐ The catalogue is CODE, not a file: each capability's `Features` list is the truth; a rail prints the table, so this one can be regenerated.
 
-### 6.2 The C# shapes
+### 6.2 The C# shapes — ⛔ SUPERSEDED (switch-only; see §7 and §8 for the shapes that exist)
 
 ```csharp
 public enum FeatureChange : byte { Live, AtLoad }
@@ -288,7 +288,7 @@ graph TD
 | `On(string)` | one `Dictionary<string,int>` lookup (~20 ns) | UI and rare checks — ⛔ not in a per-entity loop |
 | recompute `_on` | O(features), only when `ClusterView` changes or a load freezes | — |
 
-### 6.5 The wire *(measured shapes: `OrchestrationMessages.cs:150-200` `ClusterStateTopic`, `:426-445` `NodeHeartbeat`, `:463-472` `NodeCapabilitiesTopic`; `Payloads/OrchestrationPayloadDtos.cs:98-108` `SetRunSettingsPayloadDto`)*
+### 6.5 The wire — ⛔ SUPERSEDED by §7.1 / §8 (`FeatureOverrideWire` carries `Json`, not `bool On`; `FeaturesAtLoad` string[] is `FeatureConfigsAtLoad`) *(measured shapes: `OrchestrationMessages.cs:150-200` `ClusterStateTopic`, `:426-445` `NodeHeartbeat`, `:463-472` `NodeCapabilitiesTopic`; `Payloads/OrchestrationPayloadDtos.cs:98-108` `SetRunSettingsPayloadDto`)*
 
 ```csharp
 public partial struct FeatureOverrideWire {                // NEW, a DDS struct
@@ -314,7 +314,7 @@ conventions today — a comma string (`ClusterStateTopic.MapInLoadNodes`, CE-335
 use `string[]` because they are JSON. ⭐ Lean: NEW topic fields use the typed sequence (it already crosses the wire for missions);
 `MapInLoadNodes` goes with this slice. ⚠ Unifying the existing JSON-in-a-string lists is a separate, cheap finding — filed with this slice's row.
 
-### 6.6 The recording, and going live from it
+### 6.6 The recording, and going live from it — ⛔ the rows hold with `FeatureConfigsAtLoad` (full configs) in place of `FeaturesAtLoad`; the payload stamp differs, see §8
 
 | step | what happens | where |
 |---|---|---|
@@ -410,3 +410,22 @@ existing flat overlay applies in order — so the precedence, the editor and the
 
 ⛔ **Never on the wire:** the config TYPES (each node has them in code) · the full config on every heartbeat (rarely changes; ⑥ inspects it) ·
 anything during a REPLAY (the outcome is already recorded).
+
+## 8. AS BUILT — S1 *(`2026-11-02`, coordinator lane; ✅ built and gated, the prior shapes above are superseded where they differ)*
+
+| part | commit | what exists (file) |
+|---|---|---|
+| (a) model | `21d6ae1a1` | `IFeatureConfig`, `FeatureSwitch`, `FeatureChange`, `FeatureDeclaration` (`Of<T>` / `Switch`, `RoleDefault` a `Func<NodeRole,string?>` returning a partial JSON), `FeatureRegistry`, `NodeFeatures` (layers: type initialisers ▸ role default ▸ node override ▸ cluster override, each `BehaviorParams.OverlayFlat`; `On(handle)` a `bool[]` read; `Config<T>` a `ref readonly`; `Resolve` throws) in `Hrot.Core/Infrastructure/NodeFeatures.cs` (namespace `Hrot.Common.Infrastructure`, because `HrotNodeContext` is in `Hrot.Core`); `FeatureHandle`, `IFeatureGate`, `[NodeFeature]` in `Fdp.ModuleHost/Scheduling/FeatureGate.cs`; `INodeCapability.Features` default member; `HrotNodeContext.Features` built in the shared bootstrapper's `capabilities` step |
+| (b) gate | `6508be001` | `SystemScheduler` reads `[NodeFeature]` once per system (type or its module, inherited: `RegisterSystem(system, ownerModule)`) beside `TickModes`, skips while off; an undeclared id or no gate throws at registration; `ModuleHostKernel.FeatureGate` |
+| (c) CLI | `21d6ae1a1`.. | `--feature id=on\|off` / `id={json}`, repeatable (`NormaliseArgs` folds the repeats into one sequence — the parser takes an option once); process-wide `NodeFeatureOverrides.FromCommandLine` |
+| (d) wire | `b2bc4fc5d` | `FeatureOverrideWire` + `ClusterStateTopic.FeatureOverrides` (last), `NodeHeartbeat.FeaturesOn`, `SetRunSettingsPayloadDto.FeatureOverrides`, `FeatureOverrideSpec` (the internal twin, `Fdp.Toolkits/Orchestration/FeatureOverrideSpec.cs`; the ONE converter `FeatureOverrideWires`), master validation (`ClusterMaster.RunSettings.cs`), `EditLoadHandlerPayload.FeatureConfigsAtLoad`, `IRecordReplayController.FreezeFeaturesForLoad`, `RecordingMetadata.FeatureConfigsAtLoad` (written by `RecordingModule`, copied by `StartBranch`), `IFeatureRecording` |
+| (e) first feature | `fc338819b` | `map3d.in-load` (`Map3dInLoadFeature`); `NodeRunProfile.MapInLoad`, `ClusterView.MapInLoadNodes` and its event/topic/DTO fields, the master's set and `EditLoadHandlerPayload.MapInLoad` DELETED; `MapBuildLoadStep` asks the node's frozen feature |
+
+**Deviations from §6 / §7 — read before building on it**
+1. ⭐ **The load payload carries the cluster LAYER, not the full effective config.** The master knows availability tokens only, not config types or role defaults, so it cannot compute "the full effective JSON" (§7.1 ④). It stamps, per node and per feature the node advertises, the merged matching overrides (partial JSON, values are strings in a `Dictionary<string,string>`); the NODE freezes that layer (defaults ▸ role ▸ node override ▸ layer) and writes the FULL effective configs into its `RecordingMetadata.FeatureConfigsAtLoad` — the recording is what holds full objects. A branch to live re-applies them (`FreezeRecorded`; the recording wins).
+2. **`FeatureOverrides` on the run settings REPLACE the whole list** (null = no change); the master refuses the whole intent (`Rejected`) when a named node is in the roster and does not advertise `hrot.feature.<id>`, or an all-nodes override has no advertiser. A name no node holds now is kept (a restart), as `MapInLoadNodes` was.
+3. **`map3d.in-load` is declared by every host that supplies a map status** (IG default ON; CGF, SimHost, editor default OFF) through `SharedApplicationBootstrapper.HostFeatures`, not by the Player's capability alone — the old `--map-in-load` could name any of those hosts, and a Player-only declaration would have removed that. The map's eager build policy is decided at boot (`Map3dInLoadFeature.OnAtBoot`: default ▸ `--feature`), the load's wait at the load.
+4. **The node override layer is process-wide** (`NodeFeatureOverrides`), not a `HrotNodeConfig` field: every host reaches `NodeFeatures` through the one shared bootstrapper. A node applies entries whose feature it declares; ⚠ an id NO node declares is silently ignored (a typo is not reported yet).
+5. **Not built:** `GET /features` with `source` (§7.1 ⑥); reporting `NodeFeatures.Problems` (a refused layer, F-26) on the heartbeat — the list exists on the node; the `FeatureGridPanel` (S2); a controller-level rail for the branch refusal (the refusal is railed at `NodeFeatures.FreezeRecorded`, the metadata copy at `StartBranch`).
+6. `HrotNodeContext.Tick` folds `ClusterView.FeatureOverrides` into `NodeFeatures` each frame by reference comparison (the view builds a new list per broadcast).
+7. `Hrot.Orchestrator.Tests` compiles again (a missing `Hrot.Editor.AiShared` project reference — the pre-existing CS0234).
