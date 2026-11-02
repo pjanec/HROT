@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Fbt;
+using Fdp.Toolkit.ScenarioRules.Actions;
+using Fdp.Toolkit.ScenarioRules.Tests.Actions;
 using Fdp.Core;
 
 namespace Fdp.Toolkit.Behavior.Tests.TriggerPoc
@@ -29,7 +31,7 @@ namespace Fdp.Toolkit.Behavior.Tests.TriggerPoc
 
     /// <summary>
     /// ⭐ P5 — the minimal trigger driver: rising EDGE only, <c>delay</c> in sim seconds, <c>once</c> (or re-arm); on fire it runs
-    /// <c>PocRunActions</c> through <see cref="PocOuter"/>. State lives in the <see cref="PocTriggerState"/> component (restore-friendly).
+    /// <c>RunActions</c> through <see cref="ActionHost"/>. State lives in the <see cref="PocTriggerState"/> component (restore-friendly).
     /// Phase: 0 uninit · 1 armed · 2 waiting · 3 acting · 4 done.
     /// </summary>
     public sealed class PocTrigger
@@ -45,7 +47,7 @@ namespace Fdp.Toolkit.Behavior.Tests.TriggerPoc
         public NodeStatus Tick(EntityRepository w, Entity self, double simNow)
         {
             bool cond = _when(w, self);
-            // ⚠ the ref is HELD across PocOuter.Tick below (which may append a store block = AddComponent on this entity) — measured, not assumed
+            // ⚠ the ref is HELD across ActionHost.Tick below (which may append a store block = AddComponent on this entity) — measured, not assumed
             ref PocTriggerState st = ref w.GetComponentRW<PocTriggerState>(self);
 
             if (st.Phase == 0) { st.Prev = cond ? 1 : 0; st.Phase = 1; return NodeStatus.Running; }   // arm WITHOUT an edge: "already true at start" is not a rising edge
@@ -67,7 +69,7 @@ namespace Fdp.Toolkit.Behavior.Tests.TriggerPoc
 
             if (st.Phase == 3)
             {
-                var r = PocOuter.Tick(w, self, _listRef, out _);
+                var r = ActionHost.Tick(w, self, _listRef, out _);
                 if (r != NodeStatus.Running)
                 {
                     st.Result = r == NodeStatus.Success ? 1 : 2;     // ← written through the ref held since the top of the call

@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using Fbt;
+using Fdp.Toolkit.ScenarioRules.Actions;
+using Fdp.Toolkit.ScenarioRules.Tests.Actions;
 using Fdp.Core;
 using Fdp.Toolkit.Blueprints.Components;
 using Fdp.Toolkit.Blueprints.Partitioning;
@@ -50,7 +52,7 @@ namespace Fdp.Toolkit.Behavior.Tests.TriggerPoc
 
         private static void SetSignal(EntityRepository w, Entity e, int v) => w.GetComponentRW<PocSignal>(e).Value = v;
 
-        private static readonly string RecordOne = Steps(Step("PocRecord", "{\"value\":1}"));
+        private static readonly string RecordOne = Steps(Step("TestRecord", "{\"value\":1}"));
 
         [Fact]
         public void P5_AJsonPredicate_IsCompiledOnce_AndEvaluatesCheaply_PropertyMatchAndCompoundAnd()
@@ -90,11 +92,11 @@ namespace Fdp.Toolkit.Behavior.Tests.TriggerPoc
             Assert.Equal(1, w.GetComponentRO<PocTriggerState>(e).Fired);
             Tick(); Tick(); Tick(); Tick(); Tick();                              // true ×5 more: NO re-fire
             Assert.Equal(1, w.GetComponentRO<PocTriggerState>(e).Fired);         // ← red-proof: fire on `cond` instead of `cond && Prev==0` ⇒ Fired climbs
-            Assert.Equal(1, w.GetComponentRO<PocLog>(e).Count);
+            Assert.Equal(1, w.GetComponentRO<ActionTestLog>(e).Count);
 
             SetSignal(w, e, 0); Tick(); SetSignal(w, e, 10); Tick();             // drop then rise again ⇒ a second edge
             Assert.Equal(2, w.GetComponentRO<PocTriggerState>(e).Fired);
-            Assert.Equal(2, w.GetComponentRO<PocLog>(e).Count);
+            Assert.Equal(2, w.GetComponentRO<ActionTestLog>(e).Count);
         }
 
         [Fact]
@@ -115,7 +117,7 @@ namespace Fdp.Toolkit.Behavior.Tests.TriggerPoc
             using var w = NewWorld();
             var e = TriggerUnit(w, RecordOne);
             var trig = new PocTrigger(CompileWhen(SignalAbove5), delaySeconds: 0.5, once: true, 0);
-            int Count() => w.GetComponentRO<PocLog>(e).Count;
+            int Count() => w.GetComponentRO<ActionTestLog>(e).Count;
 
             trig.Tick(w, e, 0.9);                                                // arm (false)
             SetSignal(w, e, 10);
@@ -131,7 +133,7 @@ namespace Fdp.Toolkit.Behavior.Tests.TriggerPoc
         public void P5_Once_FiresOneTime_EvenAcrossLaterEdges_AndReportsTheListsResult()
         {
             using var w = NewWorld();
-            var e = TriggerUnit(w, Steps(Step("PocWaitTicks", "{\"ticks\":2}"), Step("PocRecord", "{\"value\":4}")));
+            var e = TriggerUnit(w, Steps(Step("TestWaitTicks", "{\"ticks\":2}"), Step("TestRecord", "{\"value\":4}")));
             var trig = new PocTrigger(CompileWhen(SignalAbove5), 0, once: true, 0);
             double t = 0;
             trig.Tick(w, e, t += 0.1);
@@ -142,14 +144,14 @@ namespace Fdp.Toolkit.Behavior.Tests.TriggerPoc
             Assert.Equal(1, w.GetComponentRO<PocTriggerState>(e).Result);
             for (int k = 0; k < 3; k++) { SetSignal(w, e, 0); trig.Tick(w, e, t += 0.1); SetSignal(w, e, 10); trig.Tick(w, e, t += 0.1); }
             Assert.Equal(1, w.GetComponentRO<PocTriggerState>(e).Fired);
-            Assert.Equal(1, w.GetComponentRO<PocLog>(e).Count);
+            Assert.Equal(1, w.GetComponentRO<ActionTestLog>(e).Count);
         }
 
         [Fact]
         public void P5_AFailingActionList_EndsTheTriggerWithFailureResult()
         {
             using var w = NewWorld();
-            var e = TriggerUnit(w, Steps(Step("PocFail", "{\"code\":3}")));
+            var e = TriggerUnit(w, Steps(Step("TestFail", "{\"code\":3}")));
             var trig = new PocTrigger(CompileWhen(SignalAbove5), 0, once: true, 0);
             trig.Tick(w, e, 0); SetSignal(w, e, 10);
             Assert.Equal(NodeStatus.Failure, trig.Tick(w, e, 0.1));
@@ -225,12 +227,12 @@ namespace Fdp.Toolkit.Behavior.Tests.TriggerPoc
         [Fact]
         public void P5_TheTriggersStateRef_HeldAcrossAStoreBlockAppend_StaysValid()
         {
-            // the trigger driver holds `ref PocTriggerState` while PocOuter.Tick may AddComponent(a bigger block) on the SAME entity
+            // the trigger driver holds `ref PocTriggerState` while ActionHost.Tick may AddComponent(a bigger block) on the SAME entity
             using var w = NewWorld();
             var e = w.CreateEntity();
-            w.AddComponent(e, new PocLog()); w.AddComponent(e, new PocLastReason()); w.AddComponent(e, new PocTriggerState());
+            w.AddComponent(e, new ActionTestLog()); w.AddComponent(e, new ActionFailure { Step = -1 }); w.AddComponent(e, new PocTriggerState());
             w.AddComponent(e, new PocSignal { Value = 0 });
-            w.SetManagedComponent(e, new PocActionArgs { Items = new[] { Steps(Step("PocFat", "{\"n\":8}"), Step("PocRecord", "{\"value\":1}")) } });
+            w.SetManagedComponent(e, new ActionArgs(new[] { Steps(Step("TestFat", "{\"n\":8}"), Step("TestRecord", "{\"value\":1}")) }));
             w.AddComponent(e, new BlueprintBlackboard256());                     // 256 only ⇒ the fat step MUST append a block
             ref var tier = ref w.GetComponentRW<BlueprintBlackboard256>(e);
             fixed (byte* mem = tier.Memory)
@@ -239,7 +241,7 @@ namespace Fdp.Toolkit.Behavior.Tests.TriggerPoc
             var trig = new PocTrigger(CompileWhen(SignalAbove5), 0, once: true, 0);
             trig.Tick(w, e, 0); SetSignal(w, e, 10);
             Assert.Equal(NodeStatus.Success, trig.Tick(w, e, 0.1));
-            Assert.True(PocOuter.BlockCount(w, e) >= 2, "the append was not reached");
+            Assert.True(ActionHost.BlockCount(w, e) >= 2, "the append was not reached");
             var st = w.GetComponentRO<PocTriggerState>(e);
             Assert.Equal((4, 1, 1), (st.Phase, st.Result, st.Fired));            // written through the ref held ACROSS the append
         }

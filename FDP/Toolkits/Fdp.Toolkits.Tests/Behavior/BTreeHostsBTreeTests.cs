@@ -919,7 +919,7 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
         for (int k = 0; k < LazySlots; k++)
         {
             ref var ws = ref OccurrenceWorkingState.ResolveOrAttach<BigWorkingState>(
-                ctx.World, ctx.Self, 0x7A000 + k, structureHash: 77, OccurrenceKind.BTree, out _);
+                ctx.World, ctx.Self, 0x7A000 + k, structureHash: 77, OccurrenceKind.Hsm, out _);
             ws.First = 1000 + k;
         }
         return NodeStatus.Success;

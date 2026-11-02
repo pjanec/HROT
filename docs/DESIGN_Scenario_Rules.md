@@ -282,6 +282,13 @@ exporter + 8 test doubles — ⛔ no failure-reason channel exists) · `.*(Assig
 | **S2-e** the end | `EndExercise` (SR-116): `ExerciseResult.Phase = Closing` → every objective's next tick (`ObjectiveHost.Enter`) sees Closing and runs `ObjectiveRules.OnClose(CloseRuleOf(kind))` → when every status is final (or 2 s sim) it writes per-side outcome, `Phase = Ended` → the ingress raises `ExerciseEnded` once on every node → the Brain node asks for the pause through `CgfClusterDebugTimeController.RequestPause` (the one cluster pause a Brain node has) | SR-116, SR-122; pause-after-close because a paused world runs no brain tick |
 | **S2-f** messages | `PlayerMessage` = the `SquadReport` event shape (SR-121): published by the `Message` action, raised as a local `PlayerMessageEvent` on every other node. ⭐ The subtitle + log on the Player is UI — handed to `ui` with the event as the contract | R-4105 |
 
+⭐ **S2-d AS BUILT `2026-11-02`** (`FDP/Toolkits/Fdp.Toolkits/ScenarioRules/Actions/`; the diagram below is unchanged — what it names is now real): `ActionCatalogue.Discover(assembly, alsoVisit)` is THE reflection pass
+(the editor's `ActionSchemaExporter` hands its per-method schema logic to it as `alsoVisit`); `ScenarioActions.RunActions` (`{ListRef, Depth}`) slot key `0x7C000001 ^ depth`;
+`StepRunner.Kind` = Hsm; `ActionFailure.Set / Stamp / Clear / TryGet`; `ActionList.Get / Validate` (`ActionListException` names step + act); `WorldRefScope` resolves a step's authored `"@Key"` / GUID
+`EntityLink` in the live world. ⚠ **Deviations from the row above:** a duplicate short name and an `Entity`-field params type are recorded on the catalogue entry and refused LOUDLY at lookup / run / Validate — not thrown at
+scan, because a scan over every loaded assembly must not be poisoned by two unrelated actions (a short name two actions carry throws at `TryGet(short)` naming both; the full name always works). ⚠ `Validate` checks the TOP-level args
+keys only. The PoC folder keeps only P5 (the `when` + `PocTrigger`) until S2-c re-homes it.
+
 ```mermaid
 classDiagram
     direction LR
