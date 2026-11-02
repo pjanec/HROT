@@ -219,7 +219,7 @@ def scenario():
                    "Behavior": {"Name": "CivilianHsm", "Params": json.dumps({"WanderRadius": 6, "PauseMinSeconds": 10, "PauseMaxSeconds": 30}), "Origin": "Superior"},
                    "Presence": 0.7}
 
-    # ── the evaluation tree (§1.2): mission 40 % · conduct 30 % (members 30 % waits for rules S4's member evaluation)
+    # ── the evaluation tree (§1.2): mission 40 % · conduct 30 % · members 30 % (rules S4's MemberEvaluation)
     def objective(kind, title, params, key=None):
         g = ids()
         ents[g] = {"TkbIdentity": {"TkbType": 8860}, "EntityInfo": {"Name": title, "ForceId": "Friend"},
@@ -248,6 +248,9 @@ def scenario():
                      key="HoldCrossroads")
     objective("NoHarm", "No harm to civilians", {"common": common("No harm to civilians", conduct, required=True), "protected": "Neutral", "maxCount": 0})
     objective("NoHarm", "No fratricide", {"common": common("No fratricide", conduct, required=True), "protected": "Friend", "maxCount": 0})
+    # ⭐ rules S4 (behaviors, DESIGN_Scenario_Rules §00.11 S4 E-1): the per-member standards — one evaluation macro per member of the platoon
+    #   (SR-81: by key / designation / class, else Default) from the shipped library, rolled up the chain under "Members"
+    objective("MemberEvaluation", "Members", {"common": common("Members", root, weight=0.3), "library": "macros/evaluation/infantry"})
 
     # ── the triggers (§1.3) — data, each a Trigger entity
     def trigger(title, when, do, **kw):
