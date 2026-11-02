@@ -23,7 +23,7 @@ namespace Hrot.Presentation.Tests.Effects;
 /// → effect mapping with a calibre-class default (VE-D), the spawn and lifetime systems on simulation time (VE-B, VE-G, VE-H,
 /// VE-J, VE-M), every map host scheduling them through the pack (VE-A, R-254), and the layer drawing them from the TKB (VE-F).
 /// </summary>
-public sealed class EffectTests
+public sealed partial class EffectTests
 {
     private static (EntityRepository World, ITkbDatabase Tkb) World()
     {

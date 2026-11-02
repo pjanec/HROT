@@ -695,6 +695,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             new Hrot.ScenarioEditor.Map.MapInteractionContext
             {
                 World = _context.World,
+                FeatureGate = () => _context?.Features,   // ⭐ CE-4148 — the hud.* features
                 Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
                 // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
                 Services = Hrot.ScenarioEditor.Map.MapServices.Of(_context.GeoTransform, _behaviorRegistry),
@@ -1109,7 +1110,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //      must PASS it. Every other host does.
             // ⭐ CE-1033 — the shared attach (gizmo layer + draw buffer + the 3-D mode), the same on every host.
             var cgfMapLayers = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
-                _canvas, _cgfGizmoBuffer!, _cgfInteractionBus!, () => _context.World);
+                _canvas, _cgfGizmoBuffer!, _cgfInteractionBus!, () => _context.World,
+                featureGate: () => _context?.Features);   // ⭐ CE-4148 — the hud.* features
             _cgfGizmoLayer = cgfMapLayers.GizmoLayer;
             _cgfMap3D = cgfMapLayers.Map3D;   // ⭐ CE-3354 ③ — the node's load chain polls this map when the master's map-in-load set names the node
 
@@ -2034,7 +2036,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             openPicker:   _shellPickers.OpenPicker,
             catalog:      catalog,
             router:       router,
-            hasInventory: () => _clusterTimeAdapter?.RunChoice?.Gate.HasInventory ?? true);   // ⭐ CE-1442
+            hasInventory: () => _clusterTimeAdapter?.RunChoice?.Gate.HasInventory ?? true,   // ⭐ CE-1442
+            runChoice:    () => _clusterTimeAdapter?.RunChoice);   // ⭐ CE-4141 — Open and go live
 
         // ⭐⭐ The New-Asset flow: recipe picker → Save-As browser for the name/folder → the ONE
         //    create-core. ⚠ `_assetCreateController` is non-null here because WireAssetCreation runs

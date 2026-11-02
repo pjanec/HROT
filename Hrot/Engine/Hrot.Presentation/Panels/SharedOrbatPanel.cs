@@ -17,7 +17,8 @@ namespace Hrot.UI.Common.Panels;
 /// flat, delegate-free DTO.</summary>
 public sealed record SharedOrbatPanelViewModel(
     string PanelId, string PanelKind, string FilterText,
-    IReadOnlyList<int> ExpandedNodeIds, IReadOnlyList<OrbatNodeViewModel> Nodes) : IPanelViewModel
+    IReadOnlyList<int> ExpandedNodeIds, IReadOnlyList<OrbatNodeViewModel> Nodes,
+    string Relation = "Command") : IPanelViewModel
 {
     /// <inheritdoc/>
     public JsonNode Dump() => PanelDump.Of(this);
@@ -50,6 +51,10 @@ public sealed class SharedOrbatPanel
 
     private string _filterText = string.Empty;
 
+    /// <summary>⭐ CE-4213 (DESIGN_Entity_Hierarchy_Views HV-2) — the relation this panel shows; applied to the provider every frame.
+    /// <see cref="EntityTreeRelation.Scenario"/> is not selectable yet (needs macros).</summary>
+    public EntityTreeRelation Relation { get; set; } = EntityTreeRelation.Command;
+
     /// <summary>⭐ <c>CE-1350</c> — a destroyed unit's row text (dark red, still readable on the dark theme).</summary>
     public static readonly System.Numerics.Vector4 DestroyedColour = new(0.72f, 0.16f, 0.14f, 1f);
     private readonly HashSet<int> _expandedNodes = new();
@@ -71,8 +76,9 @@ public sealed class SharedOrbatPanel
     /// <c>data.GetVisibleNodes</c>, the SAME source <see cref="DrawContent"/> reads.</summary>
     public SharedOrbatPanelViewModel BuildViewModel(IOrbatDataProvider data, string panelId, string panelKind)
     {
+        data.Relation = Relation;
         var nodes = data.GetVisibleNodes(_filterText, _expandedNodes);
-        return new SharedOrbatPanelViewModel(panelId, panelKind, _filterText, _expandedNodes.ToList(), nodes);
+        return new SharedOrbatPanelViewModel(panelId, panelKind, _filterText, _expandedNodes.ToList(), nodes, Relation.ToString());
     }
 
     // ── Render ────────────────────────────────────────────────────────────────
@@ -82,6 +88,17 @@ public sealed class SharedOrbatPanel
     /// </summary>
     public void DrawContent(IOrbatDataProvider data, IOrbatController ctrl)
     {
+        // ⭐ CE-4213 — the relation switch: ONE tree, the parent rule chosen here.
+        if (ImGui.RadioButton("Command", Relation == EntityTreeRelation.Command)) Relation = EntityTreeRelation.Command;
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Structure", Relation == EntityTreeRelation.Structure)) Relation = EntityTreeRelation.Structure;
+        ImGui.SameLine();
+        ImGui.BeginDisabled();
+        ImGui.RadioButton("Scenario (needs macros)", false);
+        ImGui.EndDisabled();
+        data.Relation = Relation;
+        bool editable = Relation == EntityTreeRelation.Command;   // Structure: no drag, no drop targets
+
         // Filter text box
         ImGui.InputText("##orbat_filter", ref _filterText, 128);
         ImGui.SameLine();
@@ -129,7 +146,7 @@ public sealed class SharedOrbatPanel
             // Drag source — unsafe pointer operations confined here
             unsafe
             {
-                if (ImGui.BeginDragDropSource())
+                if (editable && ImGui.BeginDragDropSource())
                 {
                     int id = node.EntityId;
                     ImGui.SetDragDropPayload("ORBAT_ENTITY", (nint)(&id), 4);
@@ -138,7 +155,7 @@ public sealed class SharedOrbatPanel
             }
 
             // Drop target
-            if (ImGui.BeginDragDropTarget())
+            if (editable && ImGui.BeginDragDropTarget())
             {
                 unsafe
                 {
@@ -168,7 +185,7 @@ public sealed class SharedOrbatPanel
 
         // Background drop target — dropping here removes the entity from its current command hierarchy.
         ImGui.Dummy(new Vector2(ImGui.GetContentRegionAvail().X, Math.Max(ImGui.GetContentRegionAvail().Y, 20f)));
-        if (ImGui.BeginDragDropTarget())
+        if (editable && ImGui.BeginDragDropTarget())
         {
             unsafe
             {

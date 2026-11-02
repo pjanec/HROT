@@ -99,9 +99,27 @@ public sealed class EntityAuthoring
             //   store (user folder), by construction. A rail passes its own store so it never touches the real user folder.
             Recent = recent ?? Hrot.UI.Common.Picker.UserRecentPicks.Shared,
         };
+        // ⭐ CE-4141 / CE-4168 P5 — THE shared lazy image cache of every shell picker, wired ONCE here with the Raylib loader (a scenario's preview.png today; an entity's picture next).
+        //   Loaded on demand on the render thread, bounded, a missing file is remembered as failed.
+        pickers.Images = new PickerImageCache(LoadPickerImage, UnloadPickerImage);
         var icons = new EntityIconLibrary(hostIcons);
         if (theme is not null) pickers.SetServices(icons, theme);
         else pickers.SetIcons(icons);
         return pickers;
     }
+
+    /// <summary>The picker image loader: a PNG path → a bilinear Raylib texture (id, width, height); a missing or unreadable file → null (the cache remembers the failure).</summary>
+    internal static (IntPtr tex, int w, int h)? LoadPickerImage(string path)
+    {
+        if (!System.IO.File.Exists(path)) return null;
+        var img = Raylib_cs.Raylib.LoadImage(path);
+        if (img.Width == 0) return null;
+        var tex = Raylib_cs.Raylib.LoadTextureFromImage(img);
+        Raylib_cs.Raylib.UnloadImage(img);
+        if (tex.Id == 0) return null;
+        Raylib_cs.Raylib.SetTextureFilter(tex, Raylib_cs.TextureFilter.Bilinear);
+        return ((IntPtr)tex.Id, tex.Width, tex.Height);
+    }
+
+    internal static void UnloadPickerImage(IntPtr id) => Raylib_cs.Raylib.UnloadTexture(new Raylib_cs.Texture2D { Id = (uint)id });
 }

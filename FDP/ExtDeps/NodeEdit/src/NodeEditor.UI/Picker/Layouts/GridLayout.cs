@@ -19,7 +19,7 @@ internal static class GridLayout
     /// <summary>Render the grid of tiles with a detail strip at the bottom.</summary>
     public static void Draw(PickerState state, IPickerRenderContext ctx)
     {
-        float listH  = ImGui.GetContentRegionAvail().Y - PreviewH - ImGui.GetFrameHeightWithSpacing() - 8f;
+        float listH  = ImGui.GetContentRegionAvail().Y - PreviewH - PickerLayoutMetrics.FooterReserve(state) - 8f;
         float listH2 = Math.Max(listH, TileHeight + TilePadding * 2f);
 
         if (ImGui.BeginChild("##picker_grid", new Vector2(0f, listH2), ImGuiChildFlags.None))
@@ -69,7 +69,15 @@ internal static class GridLayout
             // Thumbnail (use colored rect if no texture).
             var thumbPos  = pos;
             var thumbSize = new Vector2(TileWidth, TileHeight - 24f);
-            if (re.Entry.IconTextureId is IntPtr texId)
+            // ⭐ CE-4168 (AQ108 D26 P5) — the entry's lazily loaded picture, fitted into the tile keeping its aspect.
+            if (re.Entry.ImageKey is { Length: > 0 } imageKey && state.Images.TryGet(imageKey, out var img))
+            {
+                float scale = Math.Min(thumbSize.X / img.Width, thumbSize.Y / img.Height);
+                var drawSize = new Vector2(img.Width * scale, img.Height * scale);
+                ImGui.SetCursorScreenPos(thumbPos + (thumbSize - drawSize) * 0.5f);
+                ImGui.Image(img.Texture, drawSize);
+            }
+            else if (re.Entry.IconTextureId is IntPtr texId)
             {
                 ImGui.SetCursorScreenPos(thumbPos);
                 ImGui.Image(texId, thumbSize);

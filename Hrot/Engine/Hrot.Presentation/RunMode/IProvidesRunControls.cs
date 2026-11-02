@@ -13,8 +13,9 @@ public interface IProvidesRunControls
     RunHostKind HostKind { get; }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-3345</c> (R-3072, AQ110 D) — <b>what this host's controls wait on</b>: read from the ONE table (<see cref="HostGatePolicies.For"/>) by the host's declared <see cref="HostKind"/> — ⛔ a host does not override it.
-    /// The host's gate is <c>ClusterView.GateOpen(GatePolicy)</c> (the editor's, CGF's and the Orchestrator's run controls; the IG, a player, reads <see cref="HostGatePolicy.Player"/> through <see cref="RunHostKind.Ig"/>).
+    /// ⭐⭐ <c>CE-3345</c> (R-3072, AQ110 D) — <b>what this host's controls wait on</b>: the policy the host COMPOSES (⭐ CE-4149: the Player host returns the policy of its <see cref="NodeRunProfile"/>, <see cref="HostGatePolicy.Player"/>),
+    /// else the table's default for its <see cref="HostKind"/> (<see cref="HostGatePolicies.For"/>). Shared code reads this value, never <see cref="HostKind"/>.
+    /// The host's gate is <c>ClusterView.GateOpen(GatePolicy)</c>.
     /// </summary>
     Fdp.Toolkit.Orchestration.HostGatePolicy GatePolicy => HostGatePolicies.For(HostKind);
 

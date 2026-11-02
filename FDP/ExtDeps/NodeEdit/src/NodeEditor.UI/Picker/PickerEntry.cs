@@ -29,6 +29,11 @@ namespace NodeEditor.UI.Picker;
 /// a recording, a blueprint) names that kind here, so ONE list per kind is shared by every picker that offers it
 /// (the Open-Asset picker, the asset browser) and kinds never mix.
 /// </param>
+/// <param name="ImageKey">
+/// ⭐ CE-4168 (AQ108 D26 P5) — optional key (a path) of this entry's picture, resolved lazily through the shared
+/// <see cref="PickerImageCache"/>: the Grid tile and the side pane draw it when present. Distinct from
+/// <see cref="IconTextureId"/> (an already-loaded handle) and <see cref="IconKey"/> (an atlas cell).
+/// </param>
 public sealed record PickerEntry(
     string Id,
     string Name,
@@ -39,4 +44,5 @@ public sealed record PickerEntry(
     object? Tag,
     string? IconKey = null,
     bool IsEnabled = true,
-    string? RecentContext = null);
+    string? RecentContext = null,
+    string? ImageKey = null);

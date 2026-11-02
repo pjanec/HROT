@@ -221,6 +221,9 @@ memory is fed from the shared `EffectSpawnSystem` (`Effects/EffectSystems.cs:70,
 | **B2** | `IsPlayer` branches | `RunMode/NodeRunControls.cs:29, 56` · `Panels/LoadingScreen.cs:55-74` · `Hrot.ClusterRunner/Presentation/LocalWindowController.cs:148` | ✅ composition defect — follows B1 (they read the policy; fine once the policy is composed) | re-read from the composed policy |
 | — | NOT findings: seats, switching seats, embark / disembark, the use key, operator possession, the alive Tab squad switch, the command wheel, the compass and friend markers, `StationClaims` (R-4096: one station per unit — multi-operator concurrency; its `OtherSide` refusal is "you cannot board an enemy-crewed vehicle"), the civilians' laws-of-war rules (AW-22) | | military training | — |
 
+
+⭐ **AS BUILT `2026-11-02` (ui):** G1–G6 are the `hud.*` Node Features — `DESIGN_Node_Features.md` §9 (CE-4148 `69303ae00`). B1/B2 — the Player COMPOSES its gate policy: `NodeRunProfile.Policy` (optional; `GatePolicy = Policy ?? table`), `IgApplication.RunProfile` sets `HostGatePolicy.Player`, `IgSubsystem` returns it; `HostGatePolicies.For` answers `Operator` for every kind; grep rail `NoProductionCodeUnderHrotEngine_TestsRunHostKindIg` (CE-4149 `c24577f57`). The waiting screen is unchanged (`LoadingScreen` / `NodeRunControls` / `LocalWindowController` already read the policy).
+
 ## 8. ⛔ HISTORY — rev 1 (`2026-10-31`, superseded the same day)
 
 Rev 1 carried the request on the master's `ClusterOpRequest` (a new `ClusterOpType.Join`), put a `JoinProcessManager` into `OrchestratorCore`,

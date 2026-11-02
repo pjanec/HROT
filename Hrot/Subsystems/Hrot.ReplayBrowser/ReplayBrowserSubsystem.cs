@@ -125,6 +125,15 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem? _statelessGizmoSystem;
     // ⭐ CE-1042 E2 — the realism effects, driven here like the other map systems (this host runs them from Update).
     private Hrot.UI.Common.Effects.EffectSpawnSystem? _effectSpawn;
+
+    private Hrot.UI.Common.Facades.CanvasMapPickAdapter? _replayPickAdapter;   // ⭐ CE-4206 R2
+    private MapCanvas? _replayPickAdapterCanvas;
+
+    private Hrot.Common.Infrastructure.NodeFeatures? _features;
+
+    /// <summary>⭐ CE-4148 — this host's feature gate: a Replay Browser builds its own (no cluster node), the editor's defaults (the Player-only HUD aids OFF) plus this process's
+    /// <c>--feature</c> overrides. Live features are not recorded, so a replay uses THIS host's settings.</summary>
+    internal Hrot.Common.Infrastructure.NodeFeatures Features => _features ??= Hrot.Common.Infrastructure.HudFeatures.BootGate(playerDefault: false);
     private Fdp.Toolkit.Time.LifespanSystem? _lifespan;
     private Hrot.UI.Common.Effects.WreckSpawnSystem? _wreckSpawn;
     private Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer? _gizmoLayer;
@@ -211,7 +220,8 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
             //   stored nowhere. See DebugGizmoLayer._world.
             // ⭐ CE-1033 — the shared attach (gizmo layer + draw buffer + the 3-D mode), the same on every host.
             _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
-                _canvas, _gizmoBuffer!, _interactionBus!, () => _activeRepo).GizmoLayer;   // set by BuildMapInteraction above
+                _canvas, _gizmoBuffer!, _interactionBus!, () => _activeRepo,
+                featureGate: () => Features).GizmoLayer;   // ⭐ CE-4148 — the hud.* features   // set by BuildMapInteraction above
 
             _diffService = new ComponentDiffService();
             _exportService = new RecordingExportService(_scenarioSerializer, _diffService);
@@ -280,6 +290,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
             new Hrot.ScenarioEditor.Map.MapInteractionContext
             {
                 World = world,
+                FeatureGate = () => Features,   // ⭐ CE-4148 — the hud.* features
                 // ⭐ CE-3327 RB-7 (DESIGN_Replay_Browser_Debug_Http.md §7.4) — the selection lives in the world SHOWN now (a node's sandbox
                 //   or the merged world), never the one the pack was built over: the views switch under one map.
                 SelectionWorld = () => _activeRepo ?? world,
@@ -998,7 +1009,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         // Build search services.
         var editSvc = new ComponentEditServiceBuilder()
             .RegisterFieldEditor<Type>(new Fdp.Presentation.Editing.TypeFieldEditor())
-            .RegisterFieldEditor<Fdp.Toolkit.Replication.AreaLink>(new Fdp.Presentation.Editing.BoundingBoxFieldEditor())
+            .RegisterFieldEditor<Fdp.Toolkit.Replication.AreaLink>(new Fdp.Presentation.Editing.PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.AreaLink)))   // ⭐ CE-4206 R2 — the area is the ONE AreaLink leaf
             .RegisterFieldEditor<SearchPredicateDto>(new Fdp.Presentation.Editing.PredicateValueFieldEditor())
             .Build();
         // See BP-29: the registry is what makes BlueprintVariablePredicateDto evaluable.
@@ -1018,13 +1029,19 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         _searchPanel = new ReplaySearchPanel(
             editSvc, searchSvc, seekIntent, selectIntent, matchIntent,
             _behaviorRegistry, getSelectedEntity, getSelectedNetworkId);
-        if (_globalGizmoManager != null)
+        // ⭐ CE-4206 R2 — the search area is edited through the ONE pick context (DESIGN_Map_Picking_Unification P4): a broker over a canvas adapter
+        //   (the canvas is replaced on a view-mode switch, so the adapter follows it). 🔒 UXI-07 step 4b — the edit SUSPENDS the active tool.
+        _searchPanel.PickContext = new Hrot.Presentation.Facades.MapPickBroker(() =>
         {
-            // 🔒 UXI-07 step 4b — the bounds pick SUSPENDS the active tool instead of arming beside it.
-            _searchPanel.SpatialPickerCtx = new ReplaySpatialPickerContext(
-                new Hrot.ScenarioEditor.Tools.PickerToolHost(
-                    () => _replayToolController, () => _globalGizmoManager));
-        }
+            if (_canvas == null || _globalGizmoManager == null) return null;
+            if (_replayPickAdapter == null || !ReferenceEquals(_replayPickAdapterCanvas, _canvas))
+            {
+                _replayPickAdapterCanvas = _canvas;
+                _replayPickAdapter = new Hrot.UI.Common.Facades.CanvasMapPickAdapter(
+                    _canvas, _activeRepo, globalGizmoManager: _globalGizmoManager, tools: () => _replayToolController);
+            }
+            return _replayPickAdapter;
+        });
     }
 
     private async Task SeekToNextChangeAsync(Entity target, int direction)
@@ -1305,61 +1322,6 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
 
         public System.Threading.Tasks.Task<string[]?> ShowOpenMultipleFilesDialogAsync(string callSiteId, string extensionFilter)
             => System.Threading.Tasks.Task.FromResult<string[]?>(null);
-    }
-
-    private sealed class ReplaySpatialPickerContext : Fdp.Presentation.Editing.ISpatialPickerContext
-    {
-        private readonly Hrot.ScenarioEditor.Tools.PickerToolHost _pickers;
-        private string? _pendingPath;
-        private Fdp.Toolkit.ReplayBrowser.Search.BoundingBox2D? _resolvedBox;
-
-        /// <summary>
-        /// ⚠⚠ <b>The RE-HOMED half of the deleted <c>_activeGizmoId</c>.</b> That field did TWO jobs:
-        /// *"unregister my previous picker"* — ⛔ a private one-slot arbiter, now the controller's job —
-        /// and *"is a pick in flight"*, which <see cref="IsPickPendingFor"/> exposes to the search panel.
-        /// ⭐ Only the second is a real contract, so only the second survives, as a plain flag.
-        /// </summary>
-        private bool _pickActive;
-
-        public ReplaySpatialPickerContext(Hrot.ScenarioEditor.Tools.PickerToolHost pickers)
-        {
-            _pickers = pickers;
-        }
-
-        public bool IsPickPendingFor(string jsonPath) => _pickActive && _pendingPath == jsonPath;
-
-        public void RequestBoundingBoxPick(string jsonPath)
-        {
-            _pendingPath = jsonPath;
-            _resolvedBox = null;
-
-            // ⭐⭐⭐ UXI-07 step 4b — PUSH through the arbiter. 🔴 This used to Register straight on
-            //   GlobalGizmoManager and unregister its own previous gizmo first; re-arming is now a
-            //   RE-TARGET the controller handles, so that bookkeeping is gone (§4.12).
-            _pickActive = _pickers.PushPicker(
-                Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickBounds,
-                remove => new Fdp.Toolkit.ReplayBrowser.BoundingBoxPickerGizmo(
-                    box => _resolvedBox = box,
-                    () =>
-                    {
-                        remove();
-                        _pickActive = false;
-                    }));
-        }
-
-        public bool TryConsumeBoundingBoxPick(string jsonPath, out Fdp.Toolkit.ReplayBrowser.Search.BoundingBox2D box)
-        {
-            if (_pendingPath == jsonPath && _resolvedBox.HasValue)
-            {
-                box = _resolvedBox.Value;
-                _pendingPath = null;
-                _resolvedBox = null;
-                return true;
-            }
-
-            box = default;
-            return false;
-        }
     }
 
     private sealed class ReplaySpatialBoundsGizmo : Fdp.Toolkit.Diagnostics.Gizmos.IGlobalStatelessGizmo

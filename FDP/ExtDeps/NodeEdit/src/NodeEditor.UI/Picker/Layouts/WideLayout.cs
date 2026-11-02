@@ -15,7 +15,7 @@ internal static class WideLayout
     /// <summary>Render the wide layout with category sidebar and item list.</summary>
     public static void Draw(PickerState state, IPickerRenderContext ctx)
     {
-        float height = ImGui.GetContentRegionAvail().Y - ImGui.GetFrameHeightWithSpacing();
+        float height = ImGui.GetContentRegionAvail().Y - PickerLayoutMetrics.FooterReserve(state);
 
         // Category sidebar.
         if (ImGui.BeginChild("##picker_cats", new Vector2(SidebarWidth, height),

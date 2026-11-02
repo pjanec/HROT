@@ -1794,7 +1794,8 @@ namespace Hrot.Editor
                 //   passed so it still forces the grid on rather than becoming a control that does nothing.
                 var editorMapLayers = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
                     _canvas!, _gizmoBuffer!, interactionBus, () => _world, () => _tkbDatabase,
-                    gridAlsoWhen: () => _mapViewConfig?.ShowGrid ?? false);
+                    gridAlsoWhen: () => _mapViewConfig?.ShowGrid ?? false,
+                    featureGate: () => _node?.Features);   // ⭐ CE-4148 — the hud.* features
                 _gizmoLayer = editorMapLayers.GizmoLayer;
                 _map3DBuild = editorMapLayers.Map3D;
 
@@ -2289,6 +2290,7 @@ namespace Hrot.Editor
                 new Hrot.ScenarioEditor.Map.MapInteractionContext
                 {
                     World = _world,
+                    FeatureGate = () => _node?.Features,   // ⭐ CE-4148 — the hud.* features
                     Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
                     // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
                     Services = Hrot.ScenarioEditor.Map.MapServices.Of(geoTransform, _behaviorRegistry),
@@ -3908,7 +3910,8 @@ namespace Hrot.Editor
                     openPicker:   _shellPickers.OpenPicker,
                     catalog:      catalog,
                     router:       _assetPickRouter,
-                    hasInventory: () => _timeTransport?.RunChoice?.Gate.HasInventory ?? true)   // ⭐ CE-1442
+                    hasInventory: () => _timeTransport?.RunChoice?.Gate.HasInventory ?? true,   // ⭐ CE-1442
+                    runChoice:    () => _timeTransport?.RunChoice)   // ⭐ CE-4141 — Open and go live
                 : null;
 
             // ⭐⭐ CE-049 (Axis-C E2) — both helpers now live in the shared

@@ -56,4 +56,36 @@ public sealed class PickerRequest
     /// <summary>Tree layout: show a preview pane under the tree for the focused entry — a large icon
     /// (its <see cref="PickerEntry.IconKey"/>), the name, the category and the description.</summary>
     public bool ShowPreview { get; init; }
+
+    // ── CE-4168 (AQ108 D26) — five opt-in extensions; unset ⇒ the picker looks and behaves as before ──
+
+    /// <summary>⭐ P1 — show a resizable pane to the RIGHT of the list/tree/grid for the focused entry (default content: its
+    /// <see cref="PickerEntry.ImageKey"/> image scaled to the pane width, then name, category, description). Implied by <see cref="DrawPane"/>.
+    /// Replaces the Tree's under-tree <see cref="ShowPreview"/> strip.</summary>
+    public bool ShowSidePane { get; init; }
+
+    /// <summary>⭐ CE-4141 — the window's size when it opens (applied once, <c>ImGuiCond.Appearing</c>); <see langword="null"/> ⇒ the layout's own rule. A source with a side pane asks for a wide window
+    /// (the scenario picker: about 1000 × 640) so the preview picture is big enough to read.</summary>
+    public System.Numerics.Vector2? DefaultSize { get; init; }
+
+    /// <summary>⭐ P1 — initial side-pane width in pixels (a dragged width is remembered per <see cref="ContextKey"/>).</summary>
+    public float SidePaneWidth { get; init; } = 280f;
+
+    /// <summary>⭐ P1/P2 — draws the side pane's content for the focused entry (any ImGui widgets; their state lives in a host object —
+    /// hand it back through <see cref="CapturePaneState"/>). Replaces the default content unless <see cref="DrawPaneAfterDefault"/>.</summary>
+    public Action<PickerEntry, PickerPaneContext>? DrawPane { get; init; }
+
+    /// <summary>⭐ P1 — draw the default content first and <see cref="DrawPane"/> below it, instead of replacing it.</summary>
+    public bool DrawPaneAfterDefault { get; init; }
+
+    /// <summary>⭐ P2 — called at confirm with the entry chosen (null if none); its result is <see cref="PickerResult.PaneState"/>.</summary>
+    public Func<PickerEntry?, object?>? CapturePaneState { get; init; }
+
+    /// <summary>⭐ P3 — footer buttons that REPLACE OK; the confirming one is returned in <see cref="PickerResult.ActionId"/>.
+    /// Enter / double-click take the default action. Cancel stays.</summary>
+    public IReadOnlyList<PickerAction>? Actions { get; init; }
+
+    /// <summary>⭐ P4 — layouts the user may toggle between (e.g. Tree ⇄ Grid); the choice is remembered per <see cref="ContextKey"/>
+    /// in the registry's <see cref="PickerViewStore"/>. Null/empty ⇒ no toggle. <see cref="Layout"/> is the first-use layout.</summary>
+    public IReadOnlyList<PickerLayout>? LayoutChoices { get; init; }
 }

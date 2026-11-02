@@ -50,6 +50,16 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     private EntityRepository? _queryWorld;
     private EntityQuery? _query;
 
+    /// <summary>
+    /// ⭐ CE-4148 (Node Features S2) — this node's feature gate, read lazily (a host builds the map before its node exists). The hit memory
+    /// (<see cref="HitFeedback"/>) is recorded only while one of its readers — <c>hud.hit-marker</c>, <c>hud.damage-arc</c>, <c>hud.kill-cam</c> — is on
+    /// (<see cref="Hrot.Common.Infrastructure.HudFeatures.RecordsHitFeedback"/>). Null provider ⇒ ungated (today's behaviour).
+    /// </summary>
+    public Func<Fdp.ModuleHost.IFeatureGate?>? FeatureGate { get; set; }
+
+    /// <summary>Is the hit memory kept on this node right now?</summary>
+    internal bool RecordsHits => Hrot.Common.Infrastructure.HudFeatures.RecordsHitFeedback(FeatureGate?.Invoke());
+
     /// <summary>Effects made in the last tick, by kind — the rail's counter.</summary>
     public int Spawned { get; private set; }
 
@@ -60,13 +70,13 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     /// <c>StrikeNotification</c> is replayed onto the bus with each played or stepped frame. ⛔ Was inside the spawner's replay gate, so a
     /// replay never drew a swing.
     /// </summary>
-    private static void TrackStrikes(ISimulationView view, EntityRepository world, double now)
+    private static void TrackStrikes(ISimulationView view, EntityRepository world, double now, bool recordHits)
     {
         if (!world.Bus.IsRegistered<Fdp.Toolkit.Combat.StrikeNotification>()) return;
         foreach (ref readonly var strike in view.ReadEvents<Fdp.Toolkit.Combat.StrikeNotification>())
         {
             if (strike.Striker != Entity.Null) StrikeTracker.In(world).Record(strike.Striker, strike.Weapon, now);
-            if (strike.Target != Entity.Null && view.IsAlive(strike.Target) && view.HasComponent<SimTransform>(strike.Target))
+            if (recordHits && strike.Target != Entity.Null && view.IsAlive(strike.Target) && view.HasComponent<SimTransform>(strike.Target))
                 HitFeedback.In(world).Record(strike.Striker, strike.Target, view.GetComponentRO<SimTransform>(strike.Target).Position,
                                              Vector3.Zero, 0f, now);
         }
@@ -77,7 +87,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
         Spawned = 0;
         if (view is not EntityRepository world || !world.IsComponentTypeRegistered<Lifespan>()) return;
         double now = SimClock.Of(world).TotalTime;
-        TrackStrikes(view, world, now);   // ⭐ CE-4062 — BEFORE the replay gate: a replay's blows are drawn too
+        TrackStrikes(view, world, now, RecordsHits);   // ⭐ CE-4062 — BEFORE the replay gate: a replay's blows are drawn too
         if (Fdp.Toolkit.Replay.ReplayState.IsActive(world)) return;   // ⭐ CE-3329 P2 — the world says it is a replay
         var tkb = world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
         var cmd = view.GetCommandBuffer();
@@ -147,7 +157,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
                 var set = EffectTkbCatalog.EffectsFor(tkb, hit.Ammo, hit.Damage);
                 var point = new Vector3(hit.HitX, hit.HitY, hit.HitZ);
                 // ⭐ CE-1215 (§8j H-1, H-2) — a round that met someone: the first-person hit marker and damage arc read it
-                if (hit.Target != Entity.Null)
+                if (hit.Target != Entity.Null && RecordsHits)   // ⭐ CE-4148 — nothing recorded while every HUD reader of it is off
                     HitFeedback.In(world).Record(hit.Shooter, hit.Target, point, new Vector3(hit.TravelX, hit.TravelY, hit.TravelZ), hit.Damage, now);
                 // ⭐ CE-1194 — a thrown stone or blade LANDS, it does not burst: a little dust, no scorch, no bang
                 if (IsInertHandItem(tkb, hit.Ammo))

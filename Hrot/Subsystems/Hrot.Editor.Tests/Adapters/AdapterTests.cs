@@ -1011,6 +1011,72 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.Equal(lon, picked.Longitude, 9);
         }
 
+        /// <summary>⭐ CE-4206 R1 (F2) — the broker over an adapter that holds a repository carries the live reference scope (names, GUIDs, keys for the link
+        /// leaves); without a repository it carries none; an explicit scope wins. Red-proof: <c>CanvasMapPickAdapter.References</c> returning null ⇒ red.</summary>
+        [Fact]
+        public void CE4206_TheBrokerCarriesTheLiveReferenceScope_OfTheRepositoryItsAdapterHolds()
+        {
+            using var world = new EntityRepository();
+            var withRepo = new CanvasMapPickAdapter(_canvas, world);
+            var broker = new Hrot.Presentation.Facades.MapPickBroker(withRepo);
+            Assert.NotNull(broker.References);
+            Assert.Same(withRepo.References, broker.References);                    // one scope per adapter, not one per read
+
+            Assert.Null(new Hrot.Presentation.Facades.MapPickBroker(new CanvasMapPickAdapter(_canvas)).References);   // no repository (ExCon-like) ⇒ plain forms
+
+            var explicitScope = new Fdp.Toolkit.Scenario.LiveRefScope(world);
+            Assert.Same(explicitScope, new Hrot.Presentation.Facades.MapPickBroker(withRepo) { References = explicitScope }.References);
+
+            // a form's scoped view of the broker shares it
+            Assert.Same(broker.References, new Fdp.Presentation.Editing.ScopedMapPickContext(broker, "$.tasks[0]").References);
+        }
+
+        /// <summary>⭐ CE-4206 R2 — the broker's area edit: <c>RequestAreaEdit</c> → the service's <c>EditAreaAsync(start)</c> → the finished shape is consumed ONCE, for its path only;
+        /// a cancelled edit (Esc) consumes nothing; a scoped form's path is rewritten. Red-proof: <c>TryConsumeAreaEdit</c> not clearing the task ⇒ the second consume is true.</summary>
+        [Fact]
+        public async Task CE4206_R2_TheBrokerRunsAnAreaEdit_ThroughTheService_AndConsumesItOnce()
+        {
+            var start  = Fdp.Toolkit.Replication.AreaLink.Circle(new Fdp.Core.WorldPoint(1, 2, 0), 10f);
+            var edited = Fdp.Toolkit.Replication.AreaLink.Rectangle(new Fdp.Core.WorldPoint(3, 4, 0), 20f, 50f, new Fdp.Core.Bearing(75f));
+            var tcs = new TaskCompletionSource<Fdp.Toolkit.Replication.AreaLink>();
+            var service = new Mock<Hrot.UI.Common.Facades.IMapPickService>();
+            service.Setup(x => x.EditAreaAsync(start, It.IsAny<CancellationToken>())).Returns(tcs.Task);
+            var broker = new Hrot.Presentation.Facades.MapPickBroker(service.Object);
+
+            broker.RequestAreaEdit("$.Zone", start);
+            Assert.True(broker.IsPickPendingFor("$.Zone"));
+            Assert.False(broker.TryConsumeAreaEdit("$.Zone", out _));                // still editing
+            tcs.SetResult(edited);
+            await tcs.Task;
+            Assert.False(broker.TryConsumeAreaEdit("$.Other", out _));               // another path's result is not this one's
+            Assert.True(broker.TryConsumeAreaEdit("$.Zone", out var got));
+            Assert.Equal(edited, got);
+            Assert.False(broker.TryConsumeAreaEdit("$.Zone", out _));                // once
+
+            var cancelled = new TaskCompletionSource<Fdp.Toolkit.Replication.AreaLink>();
+            cancelled.SetCanceled();
+            service.Setup(x => x.EditAreaAsync(start, It.IsAny<CancellationToken>())).Returns(cancelled.Task);
+            broker.RequestAreaEdit("$.Zone", start);
+            Assert.False(broker.TryConsumeAreaEdit("$.Zone", out _));                // Esc ⇒ nothing is written
+
+            // the scoped view rewrites the path
+            var scoped = new Fdp.Presentation.Editing.ScopedMapPickContext(broker, "$.tasks[1]");
+            service.Setup(x => x.EditAreaAsync(start, It.IsAny<CancellationToken>())).Returns(Task.FromResult(edited));
+            scoped.RequestAreaEdit("$.Zone", start);
+            Assert.True(scoped.TryConsumeAreaEdit("$.Zone", out var viaScope));
+            Assert.Equal(edited, viaScope);
+
+            // a service that cannot edit answers the start unchanged (the interface default)
+            Assert.Equal(start, await ((Hrot.UI.Common.Facades.IMapPickService)new DefaultOnlyPickService()).EditAreaAsync(start));
+        }
+
+        private sealed class DefaultOnlyPickService : Hrot.UI.Common.Facades.IMapPickService
+        {
+            public Task<Hrot.Core.Mission.GeoPoint> PickLocationAsync(CancellationToken ct = default) => throw new NotSupportedException();
+            public Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default) => throw new NotSupportedException();
+            public Task<IReadOnlyList<int>> PickAreaEntitiesAsync(string[]? filterPresets = null, CancellationToken ct = default) => throw new NotSupportedException();
+        }
+
         /// <summary>⭐ A host that publishes the transform as a world singleton (SimHost) gets geodetic picks without
         /// passing it.</summary>
         [Fact]
@@ -1420,6 +1486,151 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.NotEqual(0u, canvas.ActiveLayerMask & Hrot.Map.Common.Config.MapLayerBits.GroundUnitsBit);
             Assert.NotEqual(0u, canvas.ActiveLayerMask & Hrot.Map.Common.Config.MapLayerBits.AirUnitsBit);
             Assert.NotEqual(0u, canvas.ActiveLayerMask & Hrot.Map.Common.Config.MapLayerBits.VehiclesBit);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ⭐ CE-4213 (DESIGN_Entity_Hierarchy_Views HV-2/HV-4) — the Structure relation of the ONE entity tree.
+    // Red-proof (compiles): StructureHierarchyAdapter.GetParent ignoring PartMetadata ⇒ the "sensor under its vehicle" rail fails.
+    // No frame rail: SharedOrbatPanel has no ImGui frame rail (only the model-dump + drop-logic tests), so the switch is covered by
+    // the view-model/relation rails here.
+    // ═══════════════════════════════════════════════════════════════════════════
+    [Collection(Hrot.Editor.Tests.Windows.PanelSnapshotTestCollection.Name)]
+    public sealed class EditorOrbatStructureViewTests : IDisposable
+    {
+        private readonly EntityRepository _world = new();
+        private readonly Mock<ISpawnController> _spawn = new();
+
+        public EditorOrbatStructureViewTests()
+        {
+            _world.RegisterComponent<EntityInfo>();
+            _world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            _world.RegisterComponent<PartMetadata>();
+            _world.RegisterComponent<IsEmbarkedTag>();
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponMountInfo>();
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.TurretPose>();
+            _world.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorTag>();
+        }
+
+        public void Dispose() => _world.Dispose();
+
+        private ScenarioOrbatAdapter Adapter(EntityTreeRelation r)
+            => new(_world, _world.Bus, _spawn.Object) { Relation = r };
+
+        private Entity Named(string name)
+        {
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new EntityInfo { Name = new FixedString64(name) });
+            return e;
+        }
+
+        [Fact]
+        public void Command_view_is_unchanged_by_parts_and_passengers()
+        {
+            _world.CreateEntity();
+            var tank = Named("Tank");
+            var sensor = _world.CreateEntity();
+            _world.AddComponent(sensor, new PartMetadata { ParentEntity = tank, InstanceId = 1000 });
+            var soldier = Named("Rifleman");
+            _world.AddComponent(soldier, new IsEmbarkedTag { VehicleEntity = tank });
+
+            var nodes = Adapter(EntityTreeRelation.Command).GetVisibleNodes("", new HashSet<int>());
+
+            Assert.Equal(new[] { "Tank", "Rifleman" }, nodes.Select(n => n.Name).OrderByDescending(n => n).ToArray());
+            Assert.All(nodes, n => Assert.Equal(0, n.Depth));   // the sensor is not a node; the passenger is a root of the command tree
+        }
+
+        [Fact]
+        public void Structure_view_shows_a_sensor_part_and_an_embarked_passenger_under_the_vehicle()
+        {
+            _world.CreateEntity();
+            var tank = Named("Tank");
+            var sensor = _world.CreateEntity();
+            _world.AddComponent(sensor, new PartMetadata { ParentEntity = tank, InstanceId = 3 });   // ⭐ the id says nothing; the SensorTag says it is a radar
+            _world.AddComponent(sensor, new Fdp.Toolkit.Perception.Components.SensorTag { Kind = Fdp.Toolkit.Perception.Components.SensorModality.Radar });
+            var soldier = Named("Rifleman");
+            _world.AddComponent(soldier, new IsEmbarkedTag { VehicleEntity = tank });
+
+            var nodes = Adapter(EntityTreeRelation.Structure).GetVisibleNodes("", new HashSet<int> { tank.Index });
+
+            Assert.Equal(3, nodes.Count);
+            Assert.Equal("Tank", nodes[0].Name);
+            Assert.True(nodes[0].HasChildren);
+            Assert.Contains(nodes, n => n.Depth == 1 && n.Name == "Tank · sensor Radar" && n.EntityId == sensor.Index);
+            Assert.Contains(nodes, n => n.Depth == 1 && n.Name == "Rifleman");
+            Assert.All(nodes, n => Assert.False(n.CanAcceptSubordinates));
+        }
+
+        [Fact]
+        public void Structure_view_a_part_with_a_dead_parent_is_a_root()
+        {
+            _world.CreateEntity();
+            var tank = Named("Tank");
+            var sensor = _world.CreateEntity();
+            _world.AddComponent(sensor, new PartMetadata { ParentEntity = tank, InstanceId = 2001 });
+            _world.AddComponent(sensor, default(Fdp.Toolkit.Combat.Components.TurretPose));
+            _world.DestroyEntity(tank);
+
+            var nodes = Adapter(EntityTreeRelation.Structure).GetVisibleNodes("", new HashSet<int>());
+
+            var only = Assert.Single(nodes);
+            Assert.Equal(0, only.Depth);
+            Assert.Equal("turret 1", only.Name);
+        }
+
+        /// <summary>⭐ CE-4213 / AQ79 §0.10 — a part is named by the component its creator gave it (its KIND), not by its instance id. Red-proof: Describe ignoring
+        /// WeaponMountInfo ⇒ the mount shows "part #1".</summary>
+        [Fact]
+        public void Structure_view_names_a_part_by_its_kind_component_not_its_instance_id()
+        {
+            _world.CreateEntity();
+            var soldier = Named("Blue 1");
+            var mount = _world.CreateEntity();
+            _world.AddComponent(mount, new PartMetadata { ParentEntity = soldier, InstanceId = 1 });
+            _world.AddComponent(mount, new Fdp.Toolkit.Combat.Components.WeaponMountInfo { MountIndex = 2, WeaponGuid = 7 });
+            var eqs = _world.CreateEntity();
+            _world.AddComponent(eqs, new PartMetadata { ParentEntity = soldier, InstanceId = 2 });
+            _world.AddComponent(eqs, new Fdp.Toolkit.Perception.Components.SensorTag { Kind = Fdp.Toolkit.Perception.Components.SensorModality.Visual });
+            var unknown = _world.CreateEntity();
+            _world.AddComponent(unknown, new PartMetadata { ParentEntity = soldier, InstanceId = 9 });
+
+            var names = Adapter(EntityTreeRelation.Structure).GetVisibleNodes("", new HashSet<int> { soldier.Index }).Select(n => n.Name).ToArray();
+
+            Assert.Contains("Blue 1 · weapon mount 2", names);
+            Assert.Contains("Blue 1 · sensor Visual", names);
+            Assert.Contains("Blue 1 · part #9", names);   // no kind component ⇒ the fallback
+            Assert.DoesNotContain(names, n => n.Contains("part #1") && !n.Contains("part #9"));
+        }
+
+        [Fact]
+        public void Structure_view_refuses_reparent_and_the_controller_publishes_nothing()
+        {
+            _world.CreateEntity();
+            var a = Named("A");
+            var b = Named("B");
+            var adapter = Adapter(EntityTreeRelation.Structure);
+            adapter.GetVisibleNodes("", new HashSet<int>());
+
+            Assert.False(((IHierarchyAdapter)new StructureHierarchyAdapter()).CanReparent(_world, a, b));
+
+            adapter.RequestAssignSubordinate(a.Index, b.Index);
+            adapter.RequestRemoveSubordinate(a.Index);
+            Assert.False(_world.HasComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>(a));
+            _spawn.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public void ChildEnumerator_walks_an_explicit_list_and_skips_dead_entities()
+        {
+            var a = _world.CreateEntity();
+            var dead = _world.CreateEntity();
+            var b = _world.CreateEntity();
+            _world.DestroyEntity(dead);
+
+            var seen = new List<Entity>();
+            foreach (var c in new ChildEnumerator(_world, new[] { a, dead, b })) seen.Add(c);
+
+            Assert.Equal(new[] { a, b }, seen);
         }
     }
 }

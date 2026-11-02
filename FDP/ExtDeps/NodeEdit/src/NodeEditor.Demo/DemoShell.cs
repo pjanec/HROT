@@ -111,6 +111,7 @@ public sealed class DemoShell
         _scenarios.Add(new S34_NodeAttachments());
         _scenarios.Add(new S35_ContainerNodes());
         _scenarios.Add(new S36_CustomRenderers());
+        _scenarios.Add(new S37_PickerExtensions());
 
         ApplyScenario(0);
     }

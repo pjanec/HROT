@@ -329,7 +329,8 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
             openPicker: OpenPicker,
             catalog:    catalog,
             router:     new Hrot.Editor.AiShared.Browser.AssetPickActionRouter(_ => { }, name => _scenarioSession.LoadScenario(name)),   // Open() below always passes its own onPicked
-            hasInventory: () => _timeTransport?.RunChoice?.Gate.HasInventory ?? true);   // ⭐ CE-1442 — "waiting for the cluster's list…" until it arrives
+            hasInventory: () => _timeTransport?.RunChoice?.Gate.HasInventory ?? true,   // ⭐ CE-1442 — "waiting for the cluster's list…" until it arrives
+            runChoice:    () => _timeTransport?.RunChoice);   // ⭐ CE-4141 — Open and go live
 
         Hrot.Editor.AiShared.Scenarios.ScenarioMenuCommands.Register(
             registerCommand:    windowManager.ShellCommands.Register,

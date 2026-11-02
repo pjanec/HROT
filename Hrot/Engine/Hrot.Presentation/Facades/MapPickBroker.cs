@@ -20,6 +20,7 @@ public sealed class MapPickBroker : IMapPickContext
     private string? _pendingPath;
     private Task<int>? _entityPickTask;
     private Task<Fdp.Core.WorldPoint>? _locationPickTask;
+    private Task<AreaLink>? _areaEditTask;   // ⭐ CE-4206 R2
 
     /// <summary>A broker over a fixed pick service.</summary>
     public MapPickBroker(Hrot.UI.Common.Facades.IMapPickService pickService)
@@ -32,6 +33,11 @@ public sealed class MapPickBroker : IMapPickContext
     /// panel's <c>DrawContent(service, pick)</c>). A request with no service available is ignored.</summary>
     public MapPickBroker(Func<Hrot.UI.Common.Facades.IMapPickService?> pickService)
         => _pickService = pickService ?? throw new ArgumentNullException(nameof(pickService));
+
+    /// <summary>⭐ <c>CE-4206</c> R1 (F2) — the live reference scope the reference leaves read: set explicitly, else the pick service's
+    /// (<see cref="Hrot.UI.Common.Facades.IMapPickService.References"/> — the canvas adapter builds one over the repository it holds).</summary>
+    public Fdp.Toolkit.Scenario.LiveRefScope? References { get => _references ?? _pickService()?.References; set => _references = value; }
+    private Fdp.Toolkit.Scenario.LiveRefScope? _references;
 
     /// <summary><c>true</c> while an entity pick is in flight (for any path).</summary>
     public bool IsEntityPickPending => _entityPickTask is { IsCompleted: false };
@@ -66,7 +72,31 @@ public sealed class MapPickBroker : IMapPickContext
 
     /// <inheritdoc/>
     public bool IsPickPendingFor(string jsonPath)
-        => _pendingPath == jsonPath && (IsEntityPickPending || IsLocationPickPending);
+        => _pendingPath == jsonPath && (IsEntityPickPending || IsLocationPickPending || _areaEditTask is { IsCompleted: false });
+
+    /// <inheritdoc/>
+    public void RequestAreaEdit(string jsonPath, AreaLink start)
+    {
+        var service = _pickService();
+        if (service == null) return;
+        _pendingPath      = jsonPath;
+        _areaEditTask     = service.EditAreaAsync(start);
+        _entityPickTask   = null;
+        _locationPickTask = null;
+    }
+
+    /// <inheritdoc/>
+    public bool TryConsumeAreaEdit(string jsonPath, out AreaLink area)
+    {
+        area = default;
+        if (_pendingPath != jsonPath || _areaEditTask is not { IsCompleted: true } task) return false;
+
+        _pendingPath  = null;
+        _areaEditTask = null;
+        if (!task.IsCompletedSuccessfully) return false;   // cancelled (Esc) or faulted
+        area = task.Result;
+        return true;
+    }
 
     /// <inheritdoc/>
     public void RequestEntityPick(string jsonPath, string[]? filterPresets)
@@ -76,6 +106,7 @@ public sealed class MapPickBroker : IMapPickContext
         _pendingPath      = jsonPath;
         _entityPickTask   = service.PickEntityAsync(filterPresets);
         _locationPickTask = null;
+        _areaEditTask     = null;
     }
 
     /// <inheritdoc/>
@@ -86,6 +117,7 @@ public sealed class MapPickBroker : IMapPickContext
         _pendingPath      = jsonPath;
         _locationPickTask = service.PickLocalAsync();   // ⭐ S0 item 5: local metres, written as a PointLink
         _entityPickTask   = null;
+        _areaEditTask     = null;
     }
 
     /// <inheritdoc/>

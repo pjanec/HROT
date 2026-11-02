@@ -185,12 +185,34 @@ public class TheStartGateIsComposedOnceTests
     [InlineData(RunHostKind.Orchestrator, Fdp.Toolkit.Orchestration.HostGatePolicy.Operator)]
     [InlineData(RunHostKind.SimHost, Fdp.Toolkit.Orchestration.HostGatePolicy.Operator)]
     [InlineData(RunHostKind.Other, Fdp.Toolkit.Orchestration.HostGatePolicy.Operator)]
-    [InlineData(RunHostKind.Ig, Fdp.Toolkit.Orchestration.HostGatePolicy.Player)]
-    public void CE3345_TheGatePolicy_IsPlayerForTheIg_OperatorElsewhere_AndAHostReadsTheTable(RunHostKind kind, Fdp.Toolkit.Orchestration.HostGatePolicy expected)
+    [InlineData(RunHostKind.Ig, Fdp.Toolkit.Orchestration.HostGatePolicy.Operator)]   // ⭐ CE-4149: the table has NO Player row — the Player host composes its own
+    public void CE3345_TheGateTable_IsOperatorForEveryKind_AndAHostThatComposesNothingReadsTheTable(RunHostKind kind, Fdp.Toolkit.Orchestration.HostGatePolicy expected)
     {
         Assert.Equal(expected, HostGatePolicies.For(kind));
         IProvidesRunControls host = new RunHost("h", kind, operatorHost: false, offers: false);
         Assert.Equal(expected, host.GatePolicy);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4149</c> (DESIGN_Player_Join §7a B1/B2) — the Player's gate policy is COMPOSED by the Player host (its profile's <c>Policy</c>) and everything downstream reads that:
+    /// the host's <c>GatePolicy</c>, the controls' cancel (a Player has none) and the waiting screen. A host of the SAME kind that composes nothing is an Operator — shared code tests no host kind.
+    /// 🔴 Mutation: <c>NodeRunProfile.GatePolicy</c> ignoring <c>Policy</c> ⇒ the composed-Player cells red.
+    /// </summary>
+    [Fact]
+    public void CE4149_ThePlayerHostComposesItsPolicy_SharedCodeReadsIt_NotTheKind()
+    {
+        var composed = new RunHost("IG", RunHostKind.Ig, operatorHost: false, suppressTimeControl: true, policy: Fdp.Toolkit.Orchestration.HostGatePolicy.Player);
+        Assert.Equal(Fdp.Toolkit.Orchestration.HostGatePolicy.Player, ((IProvidesRunControls)composed).GatePolicy);
+        Assert.True(new NodeRunProfile(RunHostKind.Ig, Policy: Fdp.Toolkit.Orchestration.HostGatePolicy.Player).IsPlayer);
+        Assert.False(new NodeRunProfile(RunHostKind.Ig).IsPlayer);                      // the kind alone makes no Player
+        var (ctrl, _) = Composed(composed);
+        Assert.True(ctrl.LoadingScreen!.IsPlayer);
+        Assert.False(ctrl.LoadingScreen.CanCancel);
+
+        var bare = new RunHost("IG", RunHostKind.Ig, operatorHost: false, suppressTimeControl: true);   // same kind, composes nothing
+        Assert.Equal(Fdp.Toolkit.Orchestration.HostGatePolicy.Operator, ((IProvidesRunControls)bare).GatePolicy);
+        var (ctrl2, _) = Composed(bare);
+        Assert.False(ctrl2.LoadingScreen!.IsPlayer);
     }
 
     // ── CE-1437 (AQ108 §2.10): the run controls are composed ONCE per process, picked BY RULE ────────────────────────
@@ -216,14 +238,18 @@ public class TheStartGateIsComposedOnceTests
         public void ComposeScenarioActions(Fdp.Presentation.WindowManager.WindowManager windowManager) => ScenarioActionsComposed++;
         /// <summary>⭐ CE-1445 — the role's explicit suppression of the toolbar time control (the Player's).</summary>
         public bool SuppressTimeControl { get; }
-        public RunHost(string name, RunHostKind kind, bool operatorHost, bool offers = true, bool suppressTimeControl = false) : base(name)
+        private readonly Fdp.Toolkit.Orchestration.HostGatePolicy? _policy;
+        /// <summary>⭐ CE-4149 — the policy this host COMPOSES (the real Player host: <c>IgSubsystem</c>); null ⇒ the table's default for its kind.</summary>
+        Fdp.Toolkit.Orchestration.HostGatePolicy IProvidesRunControls.GatePolicy => _policy ?? HostGatePolicies.For(HostKind);
+        public RunHost(string name, RunHostKind kind, bool operatorHost, bool offers = true, bool suppressTimeControl = false, Fdp.Toolkit.Orchestration.HostGatePolicy? policy = null) : base(name)
         {
             HostKind = kind;
+            _policy = policy;
             SuppressTimeControl = suppressTimeControl;
             if (!offers) return;
             // ⭐ CE-1445 — built through the ONE factory, as the real hosts are: the gate policy comes from the kind (the Player's for the IG)
             var adapter = NodeRunControls.For(new Fdp.Core.FdpEventBus(), () => null, () => 0.0, null,
-                new NodeRunProfile(kind, operatorHost ? new FakeControl() : null, SuppressTimeControl: suppressTimeControl));
+                new NodeRunProfile(kind, operatorHost ? new FakeControl() : null, SuppressTimeControl: suppressTimeControl, Policy: policy));
             RunChoice = adapter.RunChoice;
             Transport = adapter;
         }
@@ -310,7 +336,7 @@ public class TheStartGateIsComposedOnceTests
     [Fact]
     public void CE1445_APlayerOnlyProcess_ComposesTheWaitingScreenAndTheErrorSectionOnce_AndNoToolbarTimeControl()
     {
-        var ig = new RunHost("IG", RunHostKind.Ig, operatorHost: false, suppressTimeControl: true);
+        var ig = new RunHost("IG", RunHostKind.Ig, operatorHost: false, suppressTimeControl: true, policy: Fdp.Toolkit.Orchestration.HostGatePolicy.Player);
         var (ctrl, wm) = Composed(ig);
 
         Assert.Same(ig, ctrl.RunControlsOwner);
@@ -333,14 +359,14 @@ public class TheStartGateIsComposedOnceTests
         foreach (var igFirst in new[] { true, false })
         {
             var editor = new RunHost("Editor", RunHostKind.Editor, operatorHost: true);
-            var ig = new RunHost("IG", RunHostKind.Ig, operatorHost: false, suppressTimeControl: true);
+            var ig = new RunHost("IG", RunHostKind.Ig, operatorHost: false, suppressTimeControl: true, policy: Fdp.Toolkit.Orchestration.HostGatePolicy.Player);
             var (ctrl, wm) = Composed(igFirst ? new ISubsystem[] { ig, editor } : new ISubsystem[] { editor, ig });
             Assert.Same(editor, ctrl.RunControlsOwner);
             Assert.Equal(1, TimeControlEntries(wm));
             Assert.False(ctrl.LoadingScreen!.IsPlayer);
 
             var sim = new RunHost("SimHost", RunHostKind.SimHost, operatorHost: false);
-            var ig2 = new RunHost("IG", RunHostKind.Ig, operatorHost: false, suppressTimeControl: true);
+            var ig2 = new RunHost("IG", RunHostKind.Ig, operatorHost: false, suppressTimeControl: true, policy: Fdp.Toolkit.Orchestration.HostGatePolicy.Player);
             var (ctrl2, wm2) = Composed(igFirst ? new ISubsystem[] { ig2, sim } : new ISubsystem[] { sim, ig2 });
             Assert.Same(sim, ctrl2.RunControlsOwner);
             Assert.Equal(1, TimeControlEntries(wm2));
@@ -443,19 +469,18 @@ public class TheStartGateIsComposedOnceTests
             var model = ctrl.StartSurface!.Model();
             Assert.Equal(StartVariant.Actions, model.Variant);
             var byLabel = model.Buttons.ToDictionary(b => b.Label);
-            foreach (var label in new[] { "Load Scenario…", "New Scenario…", "Open Exercise Recording…", "Close" })   // ⭐ CE-1443: the first four + Close (Exit is the controller's)
+            foreach (var label in new[] { "Load Scenario…", "Open Exercise Recording…", "Close" })   // ⭐ CE-1443: the first four + Close (Exit is the controller's)
             {
                 Assert.True(byLabel.ContainsKey(label), $"the Start surface of an Orchestrator-only host must offer '{label}'; it offers: {string.Join(", ", model.Buttons.Select(b => b.Label))}");
                 Assert.True(byLabel[label].Enabled, label);
             }
 
-            // New Scenario → the session's ClearWorld (the menu's binding)
+            // ⭐ CE-4140 (bf3e8b629): New Scenario… is NEW FROM A RECIPE; the Orchestrator host composes no scenario-recipe service, so it is OFFERED but greyed
+            //   with its reason (⛔ was: enabled and bound to the session's ClearWorld — the test predated CE-4140)
+            var newScenario = Assert.Single(model.Buttons, b => b.Label.StartsWith("New Scenario…", StringComparison.Ordinal));
+            Assert.False(newScenario.Enabled);
+            Assert.Contains("no scenario recipes", newScenario.Label);
             var session = orch.ScenarioSessionForTest!;
-            session.OpenForEdit("earlier");
-            session.Update();
-            Assert.Equal("earlier", session.LoadedScenarioName);
-            byLabel["New Scenario…"].Invoke();
-            Assert.Null(session.LoadedScenarioName);
 
             // Load Scenario… → the scenario picker over the master's inventory; a pick LOADS into the cluster's armed mode (R-1043: Live, this cluster's master default) through the door (the request goes out)
             byLabel["Load Scenario…"].Invoke();

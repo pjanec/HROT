@@ -157,6 +157,9 @@ namespace Hrot.SimHost
         /// Must be called after the kernel is initialized and road/trajectory data
         /// are available (i.e. after <c>SimulationLogicModule.RegisterSystems</c>).
         /// </summary>
+        /// <summary>⭐ CE-4148 — the node's feature gate (the host sets it before <see cref="Initialize"/>): the station's hud.* features.</summary>
+        public Func<Fdp.ModuleHost.IFeatureGate?>? FeatureGate { get; init; }
+
         public void Initialize(
             EntityRepository        repo,
             ModuleHostKernel        kernel,
@@ -351,7 +354,7 @@ namespace Hrot.SimHost
             //   stored nowhere. See DebugGizmoLayer._world.
             // ⭐ CE-1033 — the shared attach (gizmo layer + draw buffer + the 3-D mode), the same on every host.
             var mapLayers = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
-                _map, _gizmoBuffer, interactionBus ?? repo.Bus, () => _repo);
+                _map, _gizmoBuffer, interactionBus ?? repo.Bus, () => _repo, featureGate: FeatureGate);
             _gizmoLayer = mapLayers.GizmoLayer;
             Map3D = mapLayers.Map3D;   // ⭐ CE-3354 ③
             _interactionBus = interactionBus;

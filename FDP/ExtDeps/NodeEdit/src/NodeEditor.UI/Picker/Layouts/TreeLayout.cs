@@ -22,7 +22,7 @@ internal static class TreeLayout
                             CategoryNode? explicitRoot = null,
                             bool foldSingleChildFolders = false, bool showPreview = false)
     {
-        float height = ImGui.GetContentRegionAvail().Y - ImGui.GetFrameHeightWithSpacing();
+        float height = ImGui.GetContentRegionAvail().Y - PickerLayoutMetrics.FooterReserve(state);
         if (showPreview)
             height -= PreviewH + ImGui.GetStyle().ItemSpacing.Y;
         if (ImGui.BeginChild("##picker_tree", new Vector2(0f, height), ImGuiChildFlags.None))

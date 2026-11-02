@@ -51,6 +51,22 @@ public sealed class PickerRegistry : IPickerRegistry
         set => _window.Recent = value;
     }
 
+    /// <summary>⭐ CE-4168 (AQ108 D26 P4/P1) — the remembered layout toggles and side-pane widths per picker context; a host sets a persisted store
+    /// (<see cref="PickerViewStore.Load"/>), the default is in-memory.</summary>
+    public PickerViewStore View
+    {
+        get => _window.View;
+        set => _window.View = value ?? new PickerViewStore();
+    }
+
+    /// <summary>⭐ CE-4168 (AQ108 D26 P5) — THE shared lazy image cache of every picker of this registry; a host swaps in one built with its
+    /// texture loader/unloader. The default loads nothing.</summary>
+    public PickerImageCache Images
+    {
+        get => _window.Images;
+        set => _window.Images = value;
+    }
+
     /// <summary>The one picker window — for the headless rails.</summary>
     internal PickerWindow Window => _window;
 
@@ -60,7 +76,7 @@ public sealed class PickerRegistry : IPickerRegistry
 
     /// <summary>⭐ CE-4098 — confirms the open picker's entry <paramref name="id"/> as a click on OK would (the pick reaches the host's
     /// callback and the entry's Recent list). False when none is open or the entry is not listed.</summary>
-    public bool ConfirmEntry(string id) => _window.ConfirmEntry(id);
+    public bool ConfirmEntry(string id, string? actionId = null) => _window.ConfirmEntry(id, actionId);
 
     // ── IPickerRegistry ───────────────────────────────────────────────────────
 

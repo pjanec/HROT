@@ -19,4 +19,10 @@ public interface IOrbatDataProvider
     /// Set of entity IDs whose children are currently expanded in the UI tree.
     /// </param>
     IReadOnlyList<OrbatNodeViewModel> GetVisibleNodes(string filterText, HashSet<int> expandedNodes);
+
+    /// <summary>
+    /// ⭐ CE-4213 (DESIGN_Entity_Hierarchy_Views HV-2) — the relation the tree is built on (the panel's [Command | Structure] switch).
+    /// Default <see cref="EntityTreeRelation.Command"/>; a provider without other relations ignores the setter.
+    /// </summary>
+    EntityTreeRelation Relation { get => EntityTreeRelation.Command; set { } }
 }

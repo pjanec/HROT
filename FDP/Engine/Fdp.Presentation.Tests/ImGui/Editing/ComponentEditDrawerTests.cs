@@ -82,7 +82,7 @@ file sealed class FakeContainerBinding : IContainerBinding
 /// <summary>
 /// IMapPickContext spy that records method calls.
 /// </summary>
-file sealed class SpyPickerContext : IMapPickContext
+internal sealed class SpyPickerContext : IMapPickContext
 {
     private readonly HashSet<string> _pendingPaths = new();
     public List<string> RequestEntityPickCalls { get; } = new();
@@ -99,6 +99,22 @@ file sealed class SpyPickerContext : IMapPickContext
         RequestLocationPickCalls.Add(jsonPath);
 
     public EntityRef PendingResult;
+
+    /// <summary>⭐ CE-4206 — the live reference scope this spy hands the leaves (null = a host with no repository).</summary>
+    public Fdp.Toolkit.Scenario.LiveRefScope? Refs;
+    public Fdp.Toolkit.Scenario.LiveRefScope? References => Refs;
+
+    /// <summary>⭐ CE-4206 R2 — area edits: the starts requested, and the finished edit the next consume returns.</summary>
+    public List<(string Path, Fdp.Toolkit.Replication.AreaLink Start)> AreaEditRequests { get; } = new();
+    public Fdp.Toolkit.Replication.AreaLink? PendingArea;
+    public void RequestAreaEdit(string jsonPath, Fdp.Toolkit.Replication.AreaLink start) => AreaEditRequests.Add((jsonPath, start));
+    public bool TryConsumeAreaEdit(string jsonPath, out Fdp.Toolkit.Replication.AreaLink area)
+    {
+        area = PendingArea ?? default;
+        bool had = PendingArea.HasValue;
+        PendingArea = null;
+        return had;
+    }
 
     public bool TryConsumeEntityPick(string jsonPath, out EntityRef picked)
     {
@@ -427,5 +443,274 @@ public class ComponentEditDrawerTests
         Assert.Equal(50.1f, committed.Where.Local.X);   // a picked point writes new PointLink(local)
         Assert.Equal(14.4f, committed.Where.Local.Y);
         Assert.Equal(2f, committed.X);
+    }
+
+    // ═══ CE-4206 R1 (DESIGN_Map_Picking_Unification §6.2–§6.3 F1–F5) — the reference leaves ═════════════════════════════════════════
+    // Red-proofs (each compiles): ReferenceLeafDrawers.PickToLink returning the bare `new EntityLink(picked)` ⇒ the Exact-GUID pick rail fails ·
+    // LiveRefScope never rebuilding after a spawn ⇒ (Fdp.Toolkits.Tests) A_spawn_after_the_first_query_is_found fails.
+
+    private struct LinkComp { public Fdp.Toolkit.Replication.EntityLink Link; }
+    private struct PointComp { public Fdp.Toolkit.Replication.PointLink Where; }
+
+    private sealed class RefWorld : IDisposable
+    {
+        public readonly EntityRepository Repo;
+        public readonly Fdp.Toolkit.Scenario.LiveRefScope Scope;
+        private int _next = 500;
+        public RefWorld()
+        {
+            Fdp.Core.ComponentTypeRegistry.Clear();
+            Repo = new EntityRepository();
+            Repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            Repo.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();
+            Repo.RegisterComponent<Fdp.Toolkit.Scenario.RefKey>();
+            Repo.RegisterComponent<Fdp.Core.EntityInfo>();
+            Repo.RegisterComponent<Fdp.Core.SimTransform>();
+            Scope = new Fdp.Toolkit.Scenario.LiveRefScope(Repo);
+        }
+        public EntityRef Spawn(string name, Guid? guid = null, string? key = null, System.Numerics.Vector3? at = null)
+        {
+            var e = Repo.CreateEntity();
+            int id = _next++;
+            Repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(id));
+            Repo.AddComponent(e, new Fdp.Core.EntityInfo { Name = new Fdp.Core.FixedString64(name) });
+            if (guid != null) Repo.AddComponent(e, new Fdp.Toolkit.Scenario.EntityGuid(guid.Value));
+            if (key != null) Repo.AddComponent(e, new Fdp.Toolkit.Scenario.RefKey(key));
+            if (at != null) Repo.AddComponent(e, new Fdp.Core.SimTransform { Position = at.Value });
+            return new EntityRef(id);
+        }
+        public void Dispose() => Repo.Dispose();
+    }
+
+    private static T DrawAndCommit<T>(T initial, SpyPickerContext picker, Type leafType) where T : struct
+    {
+        var builder = new ComponentEditServiceBuilder();
+        builder.RegisterFieldEditor<Fdp.Toolkit.Replication.EntityLink>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.EntityLink)))
+               .RegisterFieldEditor<Fdp.Toolkit.Replication.PointLink>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.PointLink)));
+        using var session = builder.Build().Open(initial, typeof(T));
+        using (var imgui = new ImGuiTestFixture())
+        {
+            imgui.NewFrame();
+            ImGuiNET.ImGui.Begin("R1");
+            if (ImGuiNET.ImGui.BeginTable("t", 2))
+            {
+                new ComponentEditDrawer(session, picker).DrawEditNode(session.Document.Root);
+                ImGuiNET.ImGui.EndTable();
+            }
+            ImGuiNET.ImGui.End();
+            imgui.Render();
+        }
+        return (T)session.Commit();
+    }
+
+    [Fact]
+    public void R1_AnEntityLinkPick_OfAnEntityWithAGuid_WritesExact()
+    {
+        using var w = new RefWorld();
+        var g = Guid.NewGuid();
+        var hq = w.Spawn("Blue HQ", guid: g);
+        var picker = new SpyPickerContext { Refs = w.Scope, PendingResult = hq };
+
+        var committed = DrawAndCommit(new LinkComp(), picker, typeof(Fdp.Toolkit.Replication.EntityLink));
+
+        Assert.Equal(new Fdp.Toolkit.Replication.EntityLink(hq, RefSpec.ByExact(g)), committed.Link);   // SR-133: the file keeps the GUID, not a number
+    }
+
+    [Fact]
+    public void R1_AnEntityLinkPick_OfAnEntityWithoutAGuid_WritesTheBareId_AndTheLeafWarns()
+    {
+        using var w = new RefWorld();
+        var bullet = w.Spawn("Bullet");
+        var picker = new SpyPickerContext { Refs = w.Scope, PendingResult = bullet };
+
+        var committed = DrawAndCommit(new LinkComp(), picker, typeof(Fdp.Toolkit.Replication.EntityLink));
+
+        Assert.Equal(new Fdp.Toolkit.Replication.EntityLink(bullet), committed.Link);
+        Assert.True(ReferenceLeafDrawers.NeedsStableIdWarning(committed.Link, w.Scope));
+        Assert.False(ReferenceLeafDrawers.NeedsStableIdWarning(committed.Link, null));   // no scope to ask ⇒ no claim
+    }
+
+    [Fact]
+    public void R1_AnEntityLinkPick_WithoutAScope_StillWritesTheBareId()
+    {
+        var committed = DrawAndCommit(new LinkComp(), new SpyPickerContext { PendingResult = new EntityRef(77) }, typeof(Fdp.Toolkit.Replication.EntityLink));
+        Assert.Equal(new Fdp.Toolkit.Replication.EntityLink(new EntityRef(77)), committed.Link);
+    }
+
+    [Fact]
+    public void R1_TheKeyForm_WritesByKey_ResolvedWhenAnEntityHasIt_NoneWhenNot_AndRefusesAnOverlongKeyWithoutThrowing()
+    {
+        using var w = new RefWorld();
+        var hq = w.Spawn("Blue HQ", key: "BlueHQ");
+
+        Assert.True(ReferenceLeafDrawers.TryKeyToLink("BlueHQ", w.Scope, out var found, out _));
+        Assert.Equal(new Fdp.Toolkit.Replication.EntityLink(hq, RefSpec.ByKey("BlueHQ")), found);
+        Assert.Null(ReferenceLeafDrawers.KeyProblem("BlueHQ", w.Scope));
+
+        Assert.True(ReferenceLeafDrawers.TryKeyToLink("Nowhere", w.Scope, out var none, out _));
+        Assert.True(none.Ref.IsNone);                                                       // an unresolvable key leaves Ref none …
+        Assert.Equal("Nowhere", none.Spec.KeyText);                                          // … but is still what was written
+        Assert.Equal("no entity with key 'Nowhere' here", ReferenceLeafDrawers.KeyProblem("Nowhere", w.Scope));
+
+        w.Spawn("Twin A", key: "Twin"); w.Spawn("Twin B", key: "Twin");
+        Assert.Equal("key 'Twin' is not unique", ReferenceLeafDrawers.KeyProblem("Twin", w.Scope));
+
+        string tooLong = new string('k', 40);
+        Assert.False(ReferenceLeafDrawers.TryKeyToLink(tooLong, w.Scope, out _, out var refusal));
+        Assert.Contains("at most 31", refusal);                                              // red text, not an exception
+        Assert.Contains("at most 31", ReferenceLeafDrawers.KeyProblem(tooLong, w.Scope));
+    }
+
+    [Fact]
+    public void R1_SwitchingForms_PrefillsTheKey_AndTakesTheGuid()
+    {
+        using var w = new RefWorld();
+        var g = Guid.NewGuid();
+        var hq = w.Spawn("Blue HQ", guid: g, key: "BlueHQ");
+
+        var toKey = ReferenceLeafDrawers.SwitchToKey(new Fdp.Toolkit.Replication.EntityLink(hq, RefSpec.ByExact(g)), w.Scope, out var text);
+        Assert.Equal("BlueHQ", text);
+        Assert.Equal(new Fdp.Toolkit.Replication.EntityLink(hq, RefSpec.ByKey("BlueHQ")), toKey);
+
+        var back = ReferenceLeafDrawers.SwitchToExact(new Fdp.Toolkit.Replication.EntityLink(EntityRef.None, RefSpec.ByKey("BlueHQ")), w.Scope);
+        Assert.Equal(new Fdp.Toolkit.Replication.EntityLink(hq, RefSpec.ByExact(g)), back);   // resolved through the key, then its GUID
+
+        var keyless = w.Spawn("Plain", guid: Guid.NewGuid());
+        var unchanged = ReferenceLeafDrawers.SwitchToKey(new Fdp.Toolkit.Replication.EntityLink(keyless), w.Scope, out var empty);
+        Assert.Equal("", empty);                                                            // no key to prefill ⇒ the link is left as it is
+        Assert.Equal(new Fdp.Toolkit.Replication.EntityLink(keyless), unchanged);
+    }
+
+    [Fact]
+    public void R1_APointLink_EntityForm_SnapshotsThePositionWhenAssigned()
+    {
+        using var w = new RefWorld();
+        var g = Guid.NewGuid();
+        var hq = w.Spawn("Blue HQ", guid: g, at: new System.Numerics.Vector3(100f, 200f, 5f));
+
+        // the helper: the entity's spec + its position now
+        var p = ReferenceLeafDrawers.PointFromSpec(RefSpec.ByExact(g), hq, new WorldPoint(1, 2, 3), w.Scope);
+        Assert.Equal(new Fdp.Toolkit.Replication.PointLink(new WorldPoint(100, 200, 5), RefSpec.ByExact(g)), p);
+
+        // through the drawer: a PointLink already in the Entity form (its Spec set) takes an entity pick → spec + snapshot
+        var other = w.Spawn("Red HQ", guid: Guid.NewGuid(), at: new System.Numerics.Vector3(7f, 8f, 0f));
+        var picker = new SpyPickerContext { Refs = w.Scope, PendingResult = other };
+        var start = new PointComp { Where = new Fdp.Toolkit.Replication.PointLink(new WorldPoint(100, 200, 5), RefSpec.ByExact(g)) };
+        var committed = DrawAndCommit(start, picker, typeof(Fdp.Toolkit.Replication.PointLink));
+        Assert.Equal(new WorldPoint(7, 8, 0), committed.Where.Local);
+        Assert.True(w.Scope.TryGuidOf(other, out var og));
+        Assert.Equal(RefSpec.ByExact(og), committed.Where.Spec);
+
+        // an entity with no GUID cannot be a reference: its position is copied as coordinates
+        var bullet = w.Spawn("Bullet", at: new System.Numerics.Vector3(9f, 9f, 9f));
+        var copy = ReferenceLeafDrawers.PointFromPick(bullet, default, w.Scope, out bool stable);
+        Assert.False(stable);
+        Assert.True(copy.Spec.IsNone);
+        Assert.Equal(new WorldPoint(9, 9, 9), copy.Local);
+    }
+
+    [Fact]
+    public void R1_TheLeafCoversTheFourReferenceTypes_AndNoOther()
+    {
+        foreach (var t in new[] { typeof(Fdp.Toolkit.Replication.EntityLink), typeof(Fdp.Toolkit.Replication.PointLink), typeof(EntityRef), typeof(Fdp.Core.WorldPoint) })
+            Assert.True(ReferenceLeafDrawers.Handles(t));
+        Assert.False(ReferenceLeafDrawers.Handles(typeof(float)));
+    }
+
+    // ═══ CE-4206 R2 (F6) — the AreaLink leaf ═════════════════════════════════════════════════════════════════════════════════════
+    // Red-proof (compiles): the leaf not writing the consumed edit (SetBoxed dropped) ⇒ R2_AFinishedMapEdit… fails.
+
+    private struct AreaComp { public Fdp.Toolkit.Replication.AreaLink Zone; }
+
+    private static T DrawAreaAndCommit<T>(T initial, SpyPickerContext picker) where T : struct
+    {
+        var builder = ComponentEditServices.CreateBuilder();   // the standard leaves include AreaLink
+        using var session = builder.Build().Open(initial, typeof(T));
+        using (var imgui = new ImGuiTestFixture())
+        {
+            imgui.NewFrame();
+            ImGuiNET.ImGui.Begin("R2");
+            if (ImGuiNET.ImGui.BeginTable("t", 2))
+            {
+                new ComponentEditDrawer(session, picker).DrawEditNode(session.Document.Root);
+                ImGuiNET.ImGui.EndTable();
+            }
+            ImGuiNET.ImGui.End();
+            imgui.Render();
+        }
+        return (T)session.Commit();
+    }
+
+    [Fact]
+    public void R2_AnAreaLinkField_IsOneLeaf_AndAFinishedMapEditIsWrittenOnce()
+    {
+        using var session = ComponentEditServices.CreateBuilder().Build().Open(new AreaComp(), typeof(AreaComp));
+        var root = session.Document.Root;
+        var structNode = root.Kind == EditNodeKind.SelectionRoot ? root.Children.First() : root;
+        Assert.Equal(EditNodeKind.Scalar, structNode.Children.Single(c => c.Name == nameof(AreaComp.Zone)).Kind);
+
+        var edited = Fdp.Toolkit.Replication.AreaLink.Rectangle(new WorldPoint(5, 6, 0), 30f, 80f, new Bearing(120f));
+        var picker = new SpyPickerContext { PendingArea = edited };
+        var committed = DrawAreaAndCommit(new AreaComp(), picker);
+        Assert.Equal(edited, committed.Zone);
+        Assert.Null(picker.PendingArea);                                              // consumed once
+        Assert.Equal(edited, DrawAreaAndCommit(new AreaComp { Zone = edited }, picker).Zone);   // a frame with nothing pending leaves it alone
+    }
+
+    [Fact]
+    public void R2_SwitchingCircleAndRectangle_KeepsTheCentre_AndTheEntityFormStartsEmpty()
+    {
+        var c = new WorldPoint(40, 50, 3);
+        var rect = ReferenceLeafDrawers.SwitchAreaForm(Fdp.Toolkit.Replication.AreaLink.Circle(c, 25f), AreaLeafForm.Rectangle, null);
+        Assert.Equal(c, rect.Center);
+        Assert.Equal(new System.Numerics.Vector2(50f, 50f), rect.Size);                  // diameter × diameter
+        var back = ReferenceLeafDrawers.SwitchAreaForm(Fdp.Toolkit.Replication.AreaLink.Rectangle(c, 20f, 80f, new Bearing(10f)), AreaLeafForm.Circle, null);
+        Assert.Equal(c, back.Center);
+        Assert.Equal(40f, back.Size.X);                                                   // the longer half
+        Assert.True(ReferenceLeafDrawers.SwitchAreaForm(rect, AreaLeafForm.Entity, null).IsNone);
+        Assert.Equal(AreaLeafForm.Circle, ReferenceLeafDrawers.AreaFormOf(default));
+        Assert.Equal(AreaLeafForm.Entity, ReferenceLeafDrawers.AreaFormOf(Fdp.Toolkit.Replication.AreaLink.OfEntity(new EntityRef(9))));
+
+        // from an area ENTITY the centre is the entity's position, when a scope can say
+        using var w = new RefWorld();
+        var zone = w.Spawn("Village", guid: Guid.NewGuid(), at: new System.Numerics.Vector3(7, 8, 0));
+        var fromEntity = ReferenceLeafDrawers.SwitchAreaForm(Fdp.Toolkit.Replication.AreaLink.OfEntity(zone), AreaLeafForm.Circle, w.Scope);
+        Assert.Equal(new WorldPoint(7, 8, 0), fromEntity.Center);
+    }
+
+    [Fact]
+    public void R2_TheEntityForm_RoundTripsThroughTheExactAndKeyControls()
+    {
+        using var w = new RefWorld();
+        var g = Guid.NewGuid();
+        var zone = w.Spawn("Village", guid: g, key: "Village");
+        var link = ReferenceLeafDrawers.PickToLink(zone, w.Scope);
+        var area = ReferenceLeafDrawers.AreaFromEntityLink(link);
+        Assert.Equal(Fdp.Toolkit.Replication.AreaLink.OfEntity(zone, RefSpec.ByExact(g)), area);
+        Assert.Equal(link, ReferenceLeafDrawers.AreaEntityAsLink(area, w.Scope));
+        var byKey = Fdp.Toolkit.Replication.AreaLink.OfEntity(EntityRef.None, RefSpec.ByKey("Village"));
+        Assert.Equal(zone, ReferenceLeafDrawers.AreaEntityAsLink(byKey, w.Scope).Ref);    // resolved through References
+    }
+
+    [Fact]
+    public void R2_TheSearchPredicatesBoundsField_IsDrawnByTheSameLeaf()
+    {
+        var edited = Fdp.Toolkit.Replication.AreaLink.Circle(new WorldPoint(1, 2, 0), 75f);
+        var picker = new SpyPickerContext { PendingArea = edited };
+        using var session = ComponentEditServices.CreateBuilder().Build().Open(new Fdp.Toolkit.ReplayBrowser.Search.SpatialBoundingPredicateDto(), typeof(Fdp.Toolkit.ReplayBrowser.Search.SpatialBoundingPredicateDto));
+        using (var imgui = new ImGuiTestFixture())
+        {
+            imgui.NewFrame();
+            ImGuiNET.ImGui.Begin("R2b");
+            if (ImGuiNET.ImGui.BeginTable("t", 2))
+            {
+                new ComponentEditDrawer(session, picker).DrawRoot(session.Document.Root);
+                ImGuiNET.ImGui.EndTable();
+            }
+            ImGuiNET.ImGui.End();
+            imgui.Render();
+        }
+        var committed = (Fdp.Toolkit.ReplayBrowser.Search.SpatialBoundingPredicateDto)session.Commit();
+        Assert.Equal(edited, committed.Bounds);
     }
 }

@@ -413,6 +413,7 @@ namespace Hrot.ScenarioEditor.Map
                 OrderForm      = orderForm,
                 Host           = host,   // ⭐ CE-1150
             };
+            map.EffectSpawn.FeatureGate = ctx.FeatureGate;   // ⭐ CE-4148 — the hit memory is recorded only while a hud.* reader is on
             return map;
         }
 
@@ -481,7 +482,8 @@ namespace Hrot.ScenarioEditor.Map
             Func<Fdp.Interfaces.ITkbDatabase?>? tkbProvider = null,
             int layerBitIndex = 31,
             Func<bool>? gridAlsoWhen = null,
-            Fdp.Toolkit.Vis3D.Map3DBuildPolicy map3DBuildPolicy = Fdp.Toolkit.Vis3D.Map3DBuildPolicy.OnFirst3DRequest)
+            Fdp.Toolkit.Vis3D.Map3DBuildPolicy map3DBuildPolicy = Fdp.Toolkit.Vis3D.Map3DBuildPolicy.OnFirst3DRequest,
+            Func<Fdp.ModuleHost.IFeatureGate?>? featureGate = null)
         {
             if (canvas is null) throw new ArgumentNullException(nameof(canvas));
             // ⭐⭐ CE-1227 (docs/DESIGN_Terrain_World.md §10) — the 2-D terrain FIRST, under every gizmo, as a retained layer: it takes no
@@ -569,7 +571,7 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-3174 (docs/DESIGN_Entity_Control.md §8d) — this map host as a first-person station: it follows the replicated
             //   PossessedBy, so a unit held by this node puts the map into its eyes (camera driver, cursor lock, HUD) and losing it
             //   leaves. Here, so no map host can lack it.
-            var possession = new Hrot.UI.Common.Map3D.PossessionStation(viewSwitch, worldProvider, bodies);   // ⭐ CE-1073 — the drawn heads
+            var possession = new Hrot.UI.Common.Map3D.PossessionStation(viewSwitch, worldProvider, bodies, featureGate);   // ⭐ CE-4148 — the host's gate: the hud.* features   // ⭐ CE-1073 — the drawn heads
             stats.Possession = possession;   // ⭐ CE-1262 (AV-1) — the view snapshot names the possessed unit and its crosshair target
             canvas.AddLayer(possession);
             viewMode.ToggleShoulder = () => possession.OverShoulder = !possession.OverShoulder;   // ⭐ CE-1201 (§8p OS-1)

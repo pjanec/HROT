@@ -65,6 +65,26 @@ internal sealed class PickerState
     /// <summary>Filtered index of a leaf the Tree layout must make the focused visual row on its next draw.</summary>
     public int FocusLeafOnDraw = -1;
 
+    // ── CE-4168 (AQ108 D26) ──────────────────────────────────────────────────
+    /// <summary>P5 — the shared lazy image cache the Grid tiles and the side pane read.</summary>
+    public PickerImageCache Images = new();
+
+    /// <summary>P1 — true while a layout is drawn INSIDE the side-pane split: the footer row is reserved by the split, not by the layout.</summary>
+    public bool InSidePane;
+
+    /// <summary>
+    /// The entry an action / the side pane is about: the first selected, else the keyboard-focused one, else null. (Disabled entries
+    /// included — an action's <see cref="PickerAction.DisabledReason"/> sees them and may say why it cannot run.)
+    /// </summary>
+    public PickerEntry? CurrentEntry()
+    {
+        if (Filtered.Count == 0) return null;
+        int idx = SelectedFilteredIndices.Count > 0
+            ? SelectedFilteredIndices.Where(i => i >= 0 && i < Filtered.Count).DefaultIfEmpty(-1).Min()
+            : KeyboardFocusIndex;
+        return idx >= 0 && idx < Filtered.Count ? Filtered[idx].Entry : null;
+    }
+
     // ── Misc ─────────────────────────────────────────────────────────────────
     public bool Confirmed;
     public bool FocusSearchNextFrame = true;

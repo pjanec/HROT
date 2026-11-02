@@ -25,6 +25,7 @@ namespace Fdp.Presentation.Editing
                 .RegisterFieldEditor<Fdp.Toolkit.Replication.EntityLink>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.EntityLink)))   // ⭐ S0 item 5 — the authored types are pickable leaves by TYPE
                 .RegisterFieldEditor<Fdp.Toolkit.Replication.PointLink>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.PointLink)))
                 .RegisterFieldEditor<Fdp.Core.WorldPoint>(new PickableLeafFieldEditor(typeof(Fdp.Core.WorldPoint)))
+                .RegisterFieldEditor<Fdp.Toolkit.Replication.AreaLink>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.AreaLink)))   // ⭐ CE-4206 R2 — an authored area (circle / rectangle / area entity) is one leaf by TYPE
                 // ⭐ CE-2068 — a utility decision reference is pickable by its TYPE (R-184): one leaf, drawn as a catalog combo.
                 .RegisterFieldEditor<Fdp.Toolkit.Utility.UtilityDecisionRef>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Utility.UtilityDecisionRef)))
                 .RegisterFieldEditor<Guid>(new StructEdit.Reflection.Editors.GuidFieldEditor());
@@ -63,5 +64,8 @@ namespace Fdp.Presentation.Editing
             => _inner.TryConsumeLocationPick(Path(jsonPath), out location);
         public bool CanListEntities => _inner.CanListEntities;   // ⭐ CE-1059
         public void RequestEntityListPick(string jsonPath, string[]? filterPresets) => _inner.RequestEntityListPick(Path(jsonPath), filterPresets);
+        public Fdp.Toolkit.Scenario.LiveRefScope? References => _inner.References;
+        public void RequestAreaEdit(string jsonPath, Fdp.Toolkit.Replication.AreaLink start) => _inner.RequestAreaEdit(Path(jsonPath), start);   // ⭐ CE-4206 R2
+        public bool TryConsumeAreaEdit(string jsonPath, out Fdp.Toolkit.Replication.AreaLink area) => _inner.TryConsumeAreaEdit(Path(jsonPath), out area);   // ⭐ CE-4206 — a form's view shares the host's scope
     }
 }
