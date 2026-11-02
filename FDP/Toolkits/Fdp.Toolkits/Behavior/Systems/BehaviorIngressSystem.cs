@@ -1032,6 +1032,9 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (!ParseIntoShadow(repo, entity, def, json, out int rootBytes, out Span<byte> shadow))
             {
                 SopRefusedCount++;
+                // ⭐ CE-2377 step 2 — the refusal is in the unit's journal (the AAR / Brain tab), as the task path's already is
+                BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskRefused, a: behaviorId, origin: (byte)origin,
+                    cause: (byte)BrainRefusal.ParseFailed);
                 return false;
             }
 

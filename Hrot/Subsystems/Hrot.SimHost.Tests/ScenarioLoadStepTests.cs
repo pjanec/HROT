@@ -223,6 +223,62 @@ public sealed class ScenarioLoadStepTests : IDisposable
         Assert.Contains("arg 'colour' is not a param", ex.Message);
     }
 
+    // ── ⭐ CE-2377 step 2 — the load refuses a behaviour whose params do not validate ─────────────────────────────
+
+    private static Fdp.Toolkit.Behavior.BehaviorRegistry ProductionBehaviors()
+    {
+        var registry = new Fdp.Toolkit.Behavior.BehaviorRegistry();
+        Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+        return registry;
+    }
+
+    /// <summary>The gold scenario with a <c>Behavior</c> slot on its first entity (the key under which the entity is stored).</summary>
+    private string WithBehavior(string name, string paramsJson)
+    {
+        _goldRepo.CreateEntity();
+        var dom = System.Text.Json.Nodes.JsonNode.Parse(SerializeGold())!.AsObject();
+        var entities = (System.Text.Json.Nodes.JsonObject)(dom["entities"] ?? dom["Entities"])!;
+        var first = (System.Text.Json.Nodes.JsonObject)entities.First().Value!;
+        first["Behavior"] = new System.Text.Json.Nodes.JsonObject { ["Name"] = name, ["Params"] = paramsJson, ["Origin"] = "Superior" };
+        return dom.ToJsonString();
+    }
+
+    private static ScenarioLoadStep MakeStepWithBehaviors(string json, FdpEventBus source, Fdp.Toolkit.Behavior.BehaviorRegistry? registry)
+        => new(new ScenarioSerializerBuilder(SubsystemType).Build(), new LambdaScenarioLoader(_ => json), new StagingEntityExtractor(),
+               source, new StubIdAllocator(100), behaviors: registry);
+
+    /// <summary>⭐ <c>CE-2377</c> step 2 — an unknown key in an entity's Behavior params (and an unknown behaviour) refuses the load in the PREPARE,
+    /// naming the entity, the slot, the behaviour and the key; nothing is extracted. A good slot still loads.
+    /// 🔴 Red-proof: drop the <c>_behaviors != null</c> block from <c>ScenarioLoadStep.PrepareAsync</c> ⇒ the first two asserts throw nothing ⇒ red.</summary>
+    [Fact]
+    public async Task CE2377_ABehaviourWhoseParamsDoNotValidate_RefusesTheLoad_NamingTheSlot_AndNothingIsExtracted()
+    {
+        var registry = ProductionBehaviors();
+
+        string bad = WithBehavior("ClearBuilding", "{\"Building\": [47, 105, 0], \"Spede\": 2}");   // a typo'd key
+        var bus = NewBus();
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => MakeStepWithBehaviors(bad, bus, registry).PrepareAsync(Ctx(Guid.NewGuid()), CancellationToken.None));
+        Assert.Contains("1 behaviour problem(s) — the load is refused", ex.Message);
+        Assert.Contains("Behavior 'ClearBuilding'", ex.Message);
+        Assert.Contains("Spede", ex.Message);
+        Assert.Empty(Drain(bus));
+
+        string unknown = WithBehavior("NoSuchBehaviour", "{}");
+        var ex2 = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => MakeStepWithBehaviors(unknown, NewBus(), registry).PrepareAsync(Ctx(Guid.NewGuid()), CancellationToken.None));
+        Assert.Contains("unknown behaviour 'NoSuchBehaviour'", ex2.Message);
+
+        // a good slot passes the check — ⚠ this test process does not register the Brain snapshot translator that reads a "Behavior" component, so the
+        // extraction AFTER the check may complain about it; the assertion is only that the behaviour check itself did not refuse. A step built
+        // with no registry skips the check (the optional-dependency contract).
+        string good = WithBehavior("ClearBuilding", "{\"Building\": [47, 105, 0], \"Speed\": 2}");
+        var okEx = await Record.ExceptionAsync(() => MakeStepWithBehaviors(good, NewBus(), registry).PrepareAsync(Ctx(Guid.NewGuid()), CancellationToken.None));
+        Assert.DoesNotContain("behaviour problem", okEx?.Message ?? "");
+        var skipEx = await Record.ExceptionAsync(() => MakeStepWithBehaviors(bad, NewBus(), null).PrepareAsync(Ctx(Guid.NewGuid()), CancellationToken.None));
+        Assert.DoesNotContain("behaviour problem", skipEx?.Message ?? "");
+    }
+
     /// <summary>⭐ <c>CE-3288</c> — the shipped scenario files write the header camelCase (<c>header.description</c>); a save writes it
     /// PascalCase. Both read; a scenario with none reads null and still loads.</summary>
     [Fact]

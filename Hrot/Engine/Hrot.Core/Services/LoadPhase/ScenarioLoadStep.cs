@@ -82,6 +82,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     /// waited for after this many ticks; the load then proceeds and names it. Ticks, not seconds: the bound is the same on every machine.</summary>
     public const int EntityWaitLimitTicks = 300;
     private readonly Fdp.Toolkit.Scenario.IMacroLibrary? _macros;   // ⭐ macros S3a ⑥ — the PREPARE validates every instance (SR-149)
+    private readonly Fdp.Toolkit.Behavior.BehaviorRegistry? _behaviors;   // ⭐ CE-2377 step 2 — the PREPARE validates every behaviour slot's params against it
     private bool _prepared;   // ⭐ CE-3216 C-3 — a Prepare ran and was neither committed nor aborted (a new scenario sets no transaction id)
 
     /// <param name="idAllocator">
@@ -103,9 +104,11 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         ScenarioBehaviorRemapper? behaviorRemapper = null,
         ReadOnlyMigrationAdapter? readOnlyMigrationAdapter = null,
         TerrainLoadService? terrainLoadService = null,
-        Fdp.Toolkit.Scenario.IMacroLibrary? macros = null)
+        Fdp.Toolkit.Scenario.IMacroLibrary? macros = null,
+        Fdp.Toolkit.Behavior.BehaviorRegistry? behaviors = null)
     {
         _macros             = macros;
+        _behaviors          = behaviors;
         _serializer         = serializer     ?? throw new ArgumentNullException(nameof(serializer));
         _scenarioLoader     = scenarioLoader ?? throw new ArgumentNullException(nameof(scenarioLoader));
         _extractor          = extractor      ?? throw new ArgumentNullException(nameof(extractor));
@@ -159,6 +162,19 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
                 throw new InvalidOperationException(
                     $"[LoadPhase/Scenario] '{context.ScenarioId}' has {problems.Count} macro problem(s) — the load is refused:\n - "
                   + string.Join("\n - ", problems));
+        }
+
+        // ⭐⭐ CE-2377 step 2 — every Behavior / Sop slot of THIS file (the ONE walker, ScenarioBehaviorSlots) must name a known behaviour whose
+        //   params read STRICTLY into its DTO and pass its validator: an unknown key refuses the load on every node with nothing created, instead
+        //   of the unit running nothing at ingress. ⚠ Slots inside a macro FILE are not walked here (MacroValidator.CheckInstance reads the file
+        //   privately, and its params may carry "^param" bindings that only the extract resolves): covered by the sweep test and, at runtime, ingress.
+        if (_behaviors != null)
+        {
+            var behaviourProblems = Fdp.Toolkit.Behavior.ScenarioBehaviorSlots.Problems(_behaviors, System.Text.Json.Nodes.JsonNode.Parse(json));
+            if (behaviourProblems.Count > 0)
+                throw new InvalidOperationException(
+                    $"[LoadPhase/Scenario] '{context.ScenarioId}' has {behaviourProblems.Count} behaviour problem(s) — the load is refused:\n - "
+                  + string.Join("\n - ", behaviourProblems));
         }
 
         // ⭐⭐ Macros S3a ⑦ (SR-41) — scenario PARAMS: the header's defaults ▸ the run's args (the load message), applied to the TOP-LEVEL

@@ -37,25 +37,6 @@ public sealed class BehaviorParamsSweepTests
     private static string Normalise(string problem)
         => Regex.Replace(problem, @"\s*Path: \S+( \| LineNumber: \d+)?( \| BytePositionInLine: \d+)?\.?", "").Trim();
 
-    private static IEnumerable<(string Slot, string Name, string? Params, string Entity)> Slots(JsonNode? node, string entity = "")
-    {
-        if (node is JsonObject o)
-        {
-            foreach (var (key, value) in o)
-            {
-                if ((key == "Behavior" || key == "Sop") && value is JsonObject slot && slot["Name"] is JsonValue nv && nv.TryGetValue<string>(out var name))
-                {
-                    string? p = slot["Params"] switch { JsonValue pv when pv.TryGetValue<string>(out var s) => s, null => null, var other => other.ToJsonString() };
-                    yield return (key, name, p, entity);
-                }
-                else
-                    foreach (var r in Slots(value, entity.Length == 0 && node.Parent is null && key == "entities" ? "" : entity.Length == 0 ? key : entity + "/" + key)) yield return r;
-            }
-        }
-        else if (node is JsonArray a)
-            foreach (var v in a) foreach (var r in Slots(v, entity)) yield return r;
-    }
-
     /// <summary>(behaviour, how its non-empty params were checked) → slots; informational, written to the output.</summary>
     private static readonly Dictionary<(string, string), int> CoverageTally = new();
 
@@ -74,7 +55,7 @@ public sealed class BehaviorParamsSweepTests
                 string rel = Path.GetRelativePath(root, Path.GetDirectoryName(file)!).Replace('\\', '/');
                 JsonNode? doc;
                 try { doc = JsonNode.Parse(File.ReadAllText(file)); } catch (Exception) { continue; }
-                foreach (var (slot, name, p, entity) in Slots(doc))
+                foreach (var (slot, name, p, entity) in ScenarioBehaviorSlots.Enumerate(doc))
                 {
                     checkedSlots++;
                     if (!string.IsNullOrWhiteSpace(p) && p != "{}")
