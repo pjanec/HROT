@@ -2,7 +2,7 @@
 state: LIVE
 build-state: ⏸ ON HOLD (user, 2026-11-02 — not to be started yet; reasons to follow) · otherwise READY-TO-BUILD after S0 + CE-4153 S9′ (accepted 2026-11-01: no reverse remap — authored refs are EntityLink, a rail, the migration writes GUIDs; DESIGN_Scenario_Entity_Keys.md S9′) — SR-146…SR-157 ✅ accepted 2026-11-01 (§9.y: the expander is the creation path's child branch) — slice S3 (§1); CE-4153 S9 (GUID file form) still a prerequisite
 updated: 2026-11-01 (split out of docs/DESIGN_Scenario_Rules.md §8 / §9.1–§9.7 — a MOVE: every decision id, its wording, its approval and every user quote kept verbatim; no id renumbered)
-current-answer: ⭐ §10 relocation (SR-127, SR-131, SR-152…SR-157) · §9.y the gaps closed (SR-146…SR-151) · §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
+current-answer: ⭐ §5.1 where a binding lives (SR-159…SR-163, draft) · §10 relocation (SR-127, SR-131, SR-152…SR-157) · §9.y the gaps closed (SR-146…SR-151) · §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
   presets and their overrides (SR-27, SR-28, SR-32) · §5 the macro file, the instance, its bindings (SR-38…SR-43, SR-57, SR-69, SR-70) · §6 macro
   entities are full TRANSIENT entities (SR-42′, SR-44, SR-44a, SR-45) · §7 a macro is CLOSED (SR-58, SR-60) · §8 the three reference forms and
   RefKey (SR-63…SR-66, SR-68) · §9 expansion at load — the sequence, SR-80, GAP-1…GAP-5 · §10 relocation + the reference types (still in the
@@ -149,6 +149,65 @@ entity is created TRANSIENT (SR-42′) and carries the tag the serializer alread
 
 **Still to measure before S3 builds:** ① the scenario editor opening and saving a file from `macros/` (SR-38) · ② the entity tree showing
 expanded entities under their instance (SR-43) · ③ how a non-unit positioned entity gets its map symbol (SR-70).
+
+### 5.1 Where a binding LIVES so no editor can drop it *(`2026-11-02` — leans SR-159 … SR-163 await the user; amends SR-129)*
+
+> 🔒 **User, `2026-11-02`:** *"how do we handle this during the macro expansion? How does the loader know that some parts use parameter binding?
+> And also, how are we going to save these bindings back to the scenario? How the editor who manages this predicate definition knows to save the
+> bindings? Because if it doesn't know, if it doesn't keep the binding information together with the predicate, the next write will lose it."*
+
+| measured `2026-11-02` | where |
+|---|---|
+| ⛔ the ONE params form HYDRATES the JSON into the typed params object and writes it back FROM that object — and the shared options *"ignore an unknown key"* ⇒ a `bind` key inside params JSON (SR-129 as written) is **LOST on the first save** | `Hrot.Presentation/Behavior/BehaviorParamsForm.cs:43-85` (`Hydrate`, `ToJson`); `Fdp.Toolkits/Behavior/BehaviorParams.cs:121-130` |
+| no params / predicate DTO has a catch-all (`[JsonExtensionData]`) | grep over `ReplayBrowser/Search`, `MapDefinitions/Behavior` — none |
+| SR-57's `ParamBindings` component is designed, not built | grep — no type |
+| ⭐ the authored types already carry HOW a value was written, inside the value, and round-trip through the typed form (the `Ref` forms) | S0 — `RefSpec` (`DESIGN_Scenario_Rules.md` §9.8.11) |
+
+⭐ **The rule:** a binding must live where the TYPED round-trip carries it — inside a type the editor of that value serialises, never as a stray
+key it does not know. That gives exactly THREE homes, one per kind of value:
+
+```mermaid
+classDiagram
+    direction LR
+    class RefSpec { <<existing, S0>> Form · Key / Exact — gains Form = Param }
+    class EntityLink { <<existing>> }
+    class PointLink { <<existing>> }
+    class AreaLink { <<existing>> }
+    class BindableNode { <<NEW base, managed DTO trees>> Bind: name → param (keys = THIS node's property names) }
+    class SearchPredicateDto { <<existing tree, gains the base>> }
+    class ActionEntry { <<the do entry, SR-94>> act · args · Bind }
+    class ParamBindings { <<NEW component, saved — SR-57>> field path → param }
+    class ParamsForm { <<existing, the ONE form>> reads + writes ParamBindings for its slot }
+    class PredicateBuilder { <<existing>> edits Bind with its node }
+    class Expander { <<SR-146>> step ① bind applies all three }
+    EntityLink *-- RefSpec
+    PointLink *-- RefSpec
+    AreaLink *-- RefSpec
+    SearchPredicateDto --|> BindableNode
+    ActionEntry --|> BindableNode
+    ParamsForm ..> ParamBindings
+    PredicateBuilder ..> BindableNode
+    Expander ..> RefSpec : Form Param
+    Expander ..> BindableNode : Bind
+    Expander ..> ParamBindings
+```
+
+*What the picture shows that prose hid:* every binding is inside something TYPED that its own editor already round-trips — so the editor cannot
+lose it, the loader finds it by type, and save writes it with no extra step.
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **SR-159** | ① a REFERENCE value (entity, point, area) | the binding is a FORM of the value: `RefSpec.Form = Param`, `Key` = the param's name — JSON `"^area"` (SR-55's shorthand, now real). The type round-trips it through every hydrate / write like `"@Key"`; the editor's leaf shows *"bound to ^area"* (CE-4206's form switch gains *Param*). ⭐ The commonest macro params — subject, area, position, target — are all this case |
+| **SR-160** | ② a node in a MANAGED DTO tree — a predicate node, a `do` entry | a typed `Bind` property on a shared base (`BindableNode`), keys = THAT node's own property names (`{"Min": "minDelay"}`) — ⭐ moving or reordering a node moves its bindings (SR-94's reason); the predicate builder and the `do`-list editor show a chip on the bound property and write `Bind` with the node. Supersedes SR-129's *"any JSON object may carry `bind`"* (an untyped key is exactly what a typed editor drops) |
+| **SR-161** | ③ a field of an UNMANAGED params struct or a typed COMPONENT (scalars, enums, strings) | the per-entity component `ParamBindings` (SR-57): `"<Component>.<field path>" → param` (`"Behavior.Params.Speed": "speed"`, `"EntityInfo.ForceId": "side"`), field paths by NAME (params structs carry no arrays of bound scalars — a rail refuses an index in a path). ⭐ The ONE params form and the component editor READ it to draw the chip on that field and WRITE it on *Bind / Unbind*; they never put a binding into the params JSON. ⛔ A `bind` key inside params JSON is refused at load (it would be dropped by the next save) |
+| **SR-162** | how the loader knows | ⭐ by TYPE, in the expansion's step ① (§10.1): the walker applies `RefSpec.Form = Param` leaves; the JSON walk applies every `Bind` of a `BindableNode`; `ParamBindings` is read per child entity. ⭐ The validator (SR-149) checks first: every bound name is a declared param of the macro (or scenario, SR-41) and its type fits the target (a `PointLink` ← a point param, a `float` ← a number). A binding is applied ONCE at expansion (SR-44); the live copy holds values only |
+| **SR-163** | how it is saved | ⭐ nothing extra: ① and ② are inside values the serializer already writes; ③ is a saved component with its own translator. The EXPANDED children are transient and never saved (SR-42′) — the bindings live in the macro FILE, whose entities are edited unexpanded (literal defaults + bindings). ⭐ A RAIL round-trips a macro with all three kinds through hydrate → edit an unrelated field → commit → save → load and asserts every binding survives |
+
+**Rejected — one line each:**
+- *`bind` keys inside the JSON (SR-129 as written)* — measured: the typed params form drops unknown keys on the first save.
+- *`[JsonExtensionData]` on every DTO* — the binding would survive but no editor would SEE it; editing the bound field silently diverges from it.
+- *A `Bindable<T>` wrapper on every bindable field* — every params struct and blob layout changes, ~36 bytes per field, for a minority of fields.
+- *Path-keyed bindings for predicate nodes* — reordering conditions would break the paths (the SR-94 objection); the node carries its own.
 
 ## 6. Macro entities are full, TRANSIENT entities, not parts *(was §9.3, `2026-10-31`; SR-47…SR-51 stayed in the rules doc)*
 
