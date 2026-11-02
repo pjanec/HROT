@@ -267,17 +267,20 @@ public sealed class EditorScenarioSessionLoadTests
     [Fact]
     public void CE1443_S3_LoadScenario_GoesIntoTheClustersArmedMode_ThroughTheDoor_AndSendsNoArmedMode()
     {
-        foreach (var (armed, target) in new[]
+        // ⭐ R-1043 (merged 9e00ef397): AAR armed follows the LAST load's mode, which the master broadcasts (ClusterView.LastLoadMode) — ⛔ was "AAR ⇒ edit",
+        //   written before that fact reached the cluster view; an unset LastLoadMode is Live (= 0), so each AAR row now states it.
+        foreach (var (armed, lastLoad, target) in new[]
         {
-            (ClusterArmedMode.Live,    ClusterState.OperatingLive),
-            (ClusterArmedMode.Preview, ClusterState.OperatingEdit),
-            (ClusterArmedMode.AAR,     ClusterState.OperatingEdit),
+            (ClusterArmedMode.Live,    ClusterArmedMode.Live,    ClusterState.OperatingLive),
+            (ClusterArmedMode.Preview, ClusterArmedMode.Live,    ClusterState.OperatingEdit),
+            (ClusterArmedMode.AAR,     ClusterArmedMode.Preview, ClusterState.OperatingEdit),
+            (ClusterArmedMode.AAR,     ClusterArmedMode.Live,    ClusterState.OperatingLive),
         })
         {
             var bus = new FdpEventBus();
             var session = NewSession(bus);
             WithChoice(bus, session);
-            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, ArmedMode = armed });   // the master's broadcast: at rest, armed as bootstrapped
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, ArmedMode = armed, LastLoadMode = lastLoad });   // the master's broadcast: at rest, armed as bootstrapped
             bus.SwapBuffers(); ViewOf(bus).Update(); session.Update();
 
             session.LoadScenario("hill");
