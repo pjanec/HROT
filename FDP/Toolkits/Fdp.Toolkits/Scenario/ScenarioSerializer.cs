@@ -261,17 +261,21 @@ namespace Fdp.Toolkit.Scenario
                 entitiesNode.Add(guidStr, entityNode);
             }
 
+            // ⭐ CE-4154 / SR-71 — the World Environment is saved in the HEADER, not as an entity (it stays an entity at runtime).
+            var worldNode = ScenarioWorldSection.TakeFrom(entitiesNode);
+
             // ── Assemble root DOM ────────────────────────────────────────────────
             var root = new JsonObject { ["Entities"] = entitiesNode };
 
             // ⚠ The Header node is written only when it has something to say. ⛔⛔ R-4018: never a TKB name —
             //   a scenario does not name a TKB (one TKB per deployment).
             //   ⭐ CE-3288 — and the scenario's description, when it has one (§4d)
-            if (header.TerrainName != null || !string.IsNullOrWhiteSpace(header.Description))
+            if (header.TerrainName != null || !string.IsNullOrWhiteSpace(header.Description) || worldNode != null)
             {
                 var headerNode = new JsonObject();
                 if (header.TerrainName != null) headerNode["TerrainName"] = JsonValue.Create(header.TerrainName);
                 if (!string.IsNullOrWhiteSpace(header.Description)) headerNode["Description"] = JsonValue.Create(header.Description);
+                if (worldNode != null) headerNode[ScenarioWorldSection.SectionName] = worldNode;   // ⭐ CE-4154
                 root["Header"] = headerNode;
             }
             // ⭐ Buildings 5e — the terrain objects' state (its doors), keyed by terrain-object key; absent when nothing differs from

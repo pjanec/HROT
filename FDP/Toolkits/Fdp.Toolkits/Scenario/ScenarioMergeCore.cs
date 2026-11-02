@@ -95,6 +95,7 @@ public static class ScenarioMergeCore
         var mergedEntities = new JsonObject();
         // ── ⭐ Buildings 5e — TerrainObjects: disjoint union too (a door's state is written only by its owner, I1) ──
         var mergedTerrainObjects = new JsonObject();
+        JsonObject? world = null;   // ⭐ CE-4154 — Header.World: ONE source (the Brain's slice, I4)
 
         foreach (var s in compatible)
         {
@@ -118,6 +119,14 @@ public static class ScenarioMergeCore
                 else if (!string.Equals(terrainName, v, StringComparison.Ordinal))
                     throw new InvalidOperationException(
                         $"Header.TerrainName mismatch across slices ('{terrainName}' vs '{v}', node {s.OriginNodeId}) — a cluster runs ONE terrain.");
+            }
+
+            // ⭐ CE-4154 / SR-71 — the World Environment section: globals have one source (I4); the entity has one owner, so a second slice carrying it is a broken save.
+            if (ScenarioWorldSection.Of(dom) is { } sliceWorld)
+            {
+                if (world != null)
+                    throw new InvalidOperationException($"Header.World appears in two slices (node {s.OriginNodeId}) — the World Environment is saved by its owner only (I4); refusing to pick one.");
+                world = (JsonObject)sliceWorld.DeepClone();
             }
 
             // ⭐ CE-3288 (§4d) — the scenario's description: only the Brain loads and saves the scenario as a whole, so normally ONE
@@ -170,11 +179,12 @@ public static class ScenarioMergeCore
         // ── Assemble: same shape/order as a single-node save (ScenarioSerializer + ScenarioSaveCore) ──
         var canonical = new JsonObject { ["Entities"] = mergedEntities };
         // ⛔⛔ R-4018 — the header carries the terrain name only; a legacy slice's TkbName is not carried over.
-        if (terrainName is not null || description is not null)
+        if (terrainName is not null || description is not null || world is not null)
         {
             var header = new JsonObject();
             if (terrainName is not null) header["TerrainName"] = JsonValue.Create(terrainName);
             if (description is not null) header["Description"] = JsonValue.Create(description);   // ⭐ CE-3288
+            if (world is not null) header[ScenarioWorldSection.SectionName] = world;   // ⭐ CE-4154
             canonical["Header"] = header;
         }
         if (mergedTerrainObjects.Count > 0) canonical[Fdp.Toolkit.Terrain.TerrainObjectsSection.Name] = mergedTerrainObjects;

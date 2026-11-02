@@ -375,7 +375,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
     /// <summary>
     /// ⭐ W-8 — a scenario that SAVED its World Environment loads it with the start time exactly as authored (the scenario serializer's
     /// default policy writes it, the extractor reads it back) and gets no second, default one; a second World Environment in the file is
-    /// ignored with a warning, the first kept (C-3). 🔴 Red-proof (by construction, not run): drop the one-environment guard ⇒ two requests.
+    /// ignored with a warning, the first kept (C-3). ⭐ CE-4154: the FIRST environment is saved in <c>Header.World</c> (the second stays an entity); the load builds the header's first. 🔴 Red-proof (by construction, not run): drop the one-environment guard ⇒ two requests.
     /// </summary>
     [Fact]
     public async Task CE3216_W8_ASavedStartTime_LoadsAsAuthored_AndASecondWorldEnvironmentIsIgnored()
@@ -391,7 +391,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
         // ⚠ a serializer built AFTER ScenarioClock is registered (FdpAutoSerializer compiles its roster at Build — the shared _serializer
         //   predates this test's registration; production registers ScenarioClock with every shared component, before any serializer)
         string json = new ScenarioSerializerBuilder(SubsystemType).Build().Serialize(_goldRepo, new ScenarioHeader(SubsystemType)).ToJsonString();
-        Assert.Contains(authored.ToString(), json);   // saved exactly as authored
+        Assert.Contains(Fdp.Toolkit.Scenario.ScenarioWorldSection.ClockToString(authored, -300), json);   // ⭐ CE-4154 — saved as authored, in the header, as ONE ISO string with its offset
 
         var source = NewBus();
         var step   = MakeStep(json, source);

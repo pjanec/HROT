@@ -7,16 +7,10 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "basic-desert",
-    "description": "What: night shortens sight (CE-4035 G-10; PerceptionWeather S2-1n: range x the light factor, floor 0.25), on basic-desert at 00:30 local (22:30 UTC), clear sky. Two identical pairs: 'Observer Clear' at (0, 0) and 'Observer Second' at (0, 300) (riflemen, sight 150 m, holding); 'Target Clear' and 'Target Second' (insurgents) walk west to them from 220 m at 1.4 m/s. Judge: each observer first SEES his target well inside 150 m — about 40 m (150 x 0.25). Compare: ua-weather-sensing (the same pairs by day, one in fog). Fail: a target seen beyond 75 m. Note: thermal sights are not in the catalogue yet (CE-4035 G-10 open). Check: python3 scripts/utility-demo-check.py --launch ua-night-sensing"
-  },
-  "entities": {
-    "c4035010-0000-4000-8000-000000000001": {
-      "TkbIdentity": {
-        "TkbType": 8810
-      },
+    "description": "What: night shortens sight (CE-4035 G-10; PerceptionWeather S2-1n: range x the light factor, floor 0.25), on basic-desert at 00:30 local (22:30 UTC), clear sky. Two identical pairs: 'Observer Clear' at (0, 0) and 'Observer Second' at (0, 300) (riflemen, sight 150 m, holding); 'Target Clear' and 'Target Second' (insurgents) walk west to them from 220 m at 1.4 m/s. Judge: each observer first SEES his target well inside 150 m — about 40 m (150 x 0.25). Compare: ua-weather-sensing (the same pairs by day, one in fog). Fail: a target seen beyond 75 m. Note: thermal sights are not in the catalogue yet (CE-4035 G-10 open). Check: python3 scripts/utility-demo-check.py --launch ua-night-sensing",
+    "world": {
       "ScenarioClock": {
-        "StartUtcTicks": 638861418000000000,
-        "DisplayUtcOffsetMinutes": 120
+        "Start": "2025-06-22T00:30:00+02:00"
       },
       "WeatherConditions": {
         "GroundTemperatureC": 15,
@@ -96,7 +90,9 @@
           0
         ]
       }
-    },
+    }
+  },
+  "entities": {
     "c4035010-0000-4000-8000-000000000010": {
       "SimTransform": {
         "Position": [

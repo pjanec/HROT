@@ -145,7 +145,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
               + "a broken deployment rather than a race (see docs/DESIGN_Cluster_Load_Phase.md §7).");
         }
 
-        _pendingRequests      = _extractor.Extract(_serializer, json, _idAllocator, _remapper);
+        _pendingRequests      = _extractor.Extract(_serializer, ScenarioWorldSection.InjectEntity(json, TkbEntityTypes.WorldEnvironment), _idAllocator, _remapper);   // ⭐ CE-4154 — Header.World becomes the World Environment entity; none ⇒ C-3 default at commit
         _pendingDoorStates    = Fdp.Toolkit.Terrain.TerrainObjectsSection.ReadDoors(json);   // ⭐ 5e — applied when the doors are created
         _pendingDescription   = ScenarioDescription.Read(json);   // ⭐ CE-3288 — held by the world so a save writes it back
         _pendingName          = context.ScenarioId;              // ⭐ CE-4058 ② — a recording names its scenario
