@@ -86,6 +86,10 @@ chance; now 30 variants twice) · no max/min guard ⇒ `B3_TheAmplifier…` red 
 Ids allocated: component **480** `SkillAmplifier` (coordinator/new-lane block, census-free on every lane — backend's block is full).
 
 **Gates (Part B so far):** `Hrot.Network.NED.Tests` 177/0 · SimHost `ScenarioRulesTests|MacroExpander` 56/0 · toolkits `ScenarioRules|Behavior|EntityRefRemap` 659/0 ·
+`DistributedScenarioLoadTests` alone ✅ 1/0 — ⚠ it was RED at `50ce793d3` (before B2/B3), not from Part B: behaviors' rules S2 (`fd4cdc44c`) added
+the `[NodeFeature("exercise.pause-on-end")]` `ExercisePauseOnEndSystem` to `CgfLogicPack`, and the integration `EditorHarness` builds its kernel with no
+feature gate ⇒ `SystemScheduler.ReadFeature` threw at `Initialize` — in every one of the 41 test files that build an `EditorHarness`. Fixed in the harness
+(cross-lane test file): it sets `Kernel.FeatureGate` from the system's own declaration, as `SharedApplicationBootstrapper` does from the capabilities ·
 red-proofs: B1 Success-after-asking ⇒ both B1 rails red · `HoldsRefs` back ⇒ `InsertMacro_AtAKey…` red · docs gates OK (496/496, 17/17 mermaid).
 
 **Live (`--mode all`, `scenarios/test-macro-insert`):** a trigger at sim 3 s inserted `test/fire-team` at `"@Drop"` — first run at (0,0,0) (the defect above);
