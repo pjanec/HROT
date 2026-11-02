@@ -73,9 +73,12 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>The marker file that identifies the repository (<c>HROT.sln</c> beside an <c>assets/</c> folder).</summary>
         public const string RepositoryMarkerFileName = "HROT.sln";
 
-        /// <summary>⭐ The three top-level folders a dev start copies from the repository into the NAS, in order.</summary>
+        /// <summary>⭐ The top-level folders a dev start copies from the repository into the NAS, in order. ⭐ <c>macros/</c> too (ui note
+        /// <c>NOTE_Ui_To_Backend_Macros_Seed_And_Param_Types.md</c> ①): an EDIT load of <c>macros/…</c> resolves to <c>{nas}/macros/…</c> and the prefetch
+        /// stages from the NAS — without it a repo-authored macro reached a node only through <c>FileMacroLibrary</c>'s content-source fallback.
+        /// Copied whole (like <c>assets/</c>), never as curated scenarios (<c>CuratedRelPaths</c> walks <c>scenarios/</c> only).</summary>
         public static IReadOnlyList<string> SeededDirectories { get; } =
-            new[] { ScenariosDirectoryName, AssetsDirectoryName, RecipesDirectoryName };
+            new[] { ScenariosDirectoryName, AssetsDirectoryName, RecipesDirectoryName, MacrosDirectoryName };
 
         // ── the roots, under ANY content root (the NAS, the repository, a test's temp tree) ─────────────
 
