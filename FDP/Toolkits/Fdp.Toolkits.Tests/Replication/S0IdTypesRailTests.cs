@@ -110,6 +110,7 @@ namespace Fdp.Toolkits.Tests.Replication
             ["RoadSegmentJson.StartNodeId"] = "a ROAD-GRAPH node (a junction in the car-kinematics network), not a cluster node",
             ["RoadSegmentJson.EndNodeId"] = "a ROAD-GRAPH node (a junction in the car-kinematics network), not a cluster node",
             ["FollowRoadGraphParams.TargetNodeId"] = "a ROAD-GRAPH node the follower heads for, not a cluster node",
+            ["RunnerConfiguration.NodeId"] = "a COMMAND-LINE option (`-n`, Default = -1): CommandLineParser sets the int default by reflection and cannot put it in a struct; the value becomes a NodeId in RunnerOptions / HrotNodeConfig",
             ["NavigationIntent.TargetNodeId"] = "a NAVIGATION-GRAPH node the unit heads for, not a cluster node",
         };
 
@@ -174,6 +175,10 @@ namespace Fdp.Toolkits.Tests.Replication
             var ops = typeof(NodeId).GetMethods(BindingFlags.Public | BindingFlags.Static).Where(m => m.Name == "op_Implicit").ToList();
             Assert.Single(ops);
             Assert.Equal(typeof(int), ops[0].ReturnType);
+            // the binder / parser seam: a string ("-n 3", a config value) and an int convert in, a string out
+            var tc = System.ComponentModel.TypeDescriptor.GetConverter(typeof(NodeId));
+            Assert.Equal(new NodeId(3), tc.ConvertFromInvariantString("3"));
+            Assert.Equal("3", tc.ConvertToInvariantString(new NodeId(3)));
         }
     }
 }

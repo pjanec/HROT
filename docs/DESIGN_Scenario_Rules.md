@@ -786,13 +786,13 @@ sequenceDiagram
 >
 > | was | is | note |
 > |---|---|---|
-> | `EntityRef` / raw `*NetworkId` long | `EntityLink` | read through `.Ref`; `HullDownAttackParams` 48 → **88 B** (target @32 now 48 B, `GoAt` 40 → 80) |
+> | `EntityRef` / raw `*NetworkId` long | `EntityLink` | read through `.Ref`; `HullDownAttackParams` 48 → **88 B** (target @32 now 48 B, `GoAt` 40 → 80) — ⭐ **then 88 → 80 B with CE-4200 `2026-11-02`** (`EntityRef` is 4 B now: `EntityLink` 48 → **40**, `GoAt` @72) |
 > | `Vector3`, lat/lon pairs, `PickableGeoPoint` | `PointLink` | `MoveToLocation` is ONE `target` (`[x,y,z]` local metres) — `TargetLat/Lon`, `X/Y`, `PickableLocation` gone |
 > | `PlatoonDefend.Left/Right` | `Bearing` | |
 > | `SpatialBoundingPredicateDto.Bounds` | `AreaLink` | ONE containment (`AreaLink.Contains`) shared by `RecordingSearchService` and `DataBreakpointManager`; `AreaBoxes` converts the replay panel's box |
 > | picker seams | key on the TYPE | `IMapPickService.PickLocalAsync` (default derives local metres from `PickLocationAsync`: x = lon field, y = lat field — a host with a frame overrides it); `MapPickBroker` / `MenuOrders` / `OrderMenu.FieldsOf` / `DtoJsonSchemaExtractor` / `PickableLeafFieldEditor` for `PointLink`, `EntityLink`, `AreaLink` |
 >
-> ⭐ **Blueprint compiler:** the three types are registered (`StaticTypeRegistry`, 48 / 48 / 72 B), with TWO coercion rungs — `PointLink → Vector3` (the load-time walker has already resolved the spec into `Local`) and `EntityRef → EntityLink` (a literal fills an authored link); both listed in `CoercionTable_ContainsOnlyLosslessWidenings`' allow-list with the reason. ⛔ No `Int64 ↔ EntityRef` rung (unchanged). `AuthoredPointOps.At(x, y)` builds a point for a baked `FunctionCall` (`SubordinateForEachDemo`).
+> ⭐ **Blueprint compiler:** the three types are registered (`StaticTypeRegistry`, ⭐ **40** / 48 / 72 B since CE-4200 — `EntityLink` was 48), with TWO coercion rungs — `PointLink → Vector3` (the load-time walker has already resolved the spec into `Local`) and `EntityRef → EntityLink` (a literal fills an authored link); both listed in `CoercionTable_ContainsOnlyLosslessWidenings`' allow-list with the reason. ⛔ No `Int64 ↔ EntityRef` rung (unchanged). `AuthoredPointOps.At(x, y)` builds a point for a baked `FunctionCall` (`SubordinateForEachDemo`).
 >
 > ⚠ **Found on the way (oracle, fixed):** Roslyn does not expose `StructLayout(Explicit)` / `FieldOffset` on a type loaded from metadata, so `RoslynStructLayout` laid `RefSpec` out Sequential (52 B, not 36) and every blackboard holding a link was mis-sized in the editor-side oracle. `RefSpec` is now in `KnownTypeLayouts`; `StructSizeResolverEnumTests` pins `PointLink` / `EntityLink` / `AreaLink` / `RefSpec` against the CLR.
 >
@@ -805,7 +805,7 @@ classDiagram
     class EntityRef { <<internal, 8 B, unchanged>> long NetworkId }
     class WorldPoint { <<internal, NEW, 12 B = Vector3>> X, Y, Z local metres }
     class RefSpec { <<36 B, unmanaged>> Form · FixedString32 Key or Guid Exact }
-    class EntityLink { <<authored, 48 B>> EntityRef Ref · RefSpec Spec }
+    class EntityLink { <<authored, 40 B (CE-4200: EntityRef is 4 B)>> EntityRef Ref · RefSpec Spec }
     class PointLink { <<authored, 48 B>> WorldPoint Local · RefSpec Spec }
     class AreaLink { <<authored, 72 B>> EntityRef Area · RefSpec Spec · Center · Size · Heading }
     class TypePlan { <<EntityRefRemap, generalised>> finds every one of these by TYPE }

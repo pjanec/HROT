@@ -37,7 +37,7 @@ namespace Fdp.Toolkit.Runner
         /// "not forced" — a single-subsystem launch then asks the cluster master for its id; any other launch uses base 0.
         /// </summary>
         [Option('n', "node-id", Default = -1, HelpText = "Base node ID for multi-instance offsetting. Absent: a single-subsystem node asks the cluster master for its id")]
-        public NodeId NodeId { get; set; }
+        public int NodeId { get; set; }
 
         /// <summary>⭐ C1 — true when no node id was given on the command line (or in the config file).</summary>
         public bool NodeIdAbsent => NodeId < 0;

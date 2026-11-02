@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -21,6 +22,7 @@ namespace Fdp.Core
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [JsonConverter(typeof(NodeIdJsonConverter))]
+    [TypeConverter(typeof(NodeIdTypeConverter))]
     [DebuggerDisplay("{ToString(),nq}")]
     public readonly struct NodeId : IEquatable<NodeId>, IComparable<NodeId>
     {
@@ -63,5 +65,32 @@ namespace Fdp.Core
 
         public override void Write(Utf8JsonWriter writer, NodeId value, JsonSerializerOptions options)
             => JsonSerializer.Serialize(writer, value.Value, options);
+    }
+
+    /// <summary>
+    /// ⭐ <see cref="NodeId"/> from / to a string or an <see cref="int"/> — what the command-line parser (<c>-n 3</c>) and the configuration binder
+    /// use to fill a node-id property. ⛔ Without it a runner option typed <see cref="NodeId"/> fails with "TypeConverter cannot convert from System.String".
+    /// </summary>
+    public sealed class NodeIdTypeConverter : TypeConverter
+    {
+        public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType) => sourceType == typeof(string) || sourceType == typeof(int) || base.CanConvertFrom(context, sourceType);
+        public override bool CanConvertTo(ITypeDescriptorContext? context, Type? destinationType) => destinationType == typeof(string) || destinationType == typeof(int) || base.CanConvertTo(context, destinationType);
+
+        public override object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value) => value switch
+        {
+            string s => new NodeId(int.Parse(s.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture)),
+            int i => new NodeId(i),
+            _ => base.ConvertFrom(context, culture, value),
+        };
+
+        public override object? ConvertTo(ITypeDescriptorContext? context, CultureInfo? culture, object? value, Type destinationType)
+        {
+            if (value is NodeId id)
+            {
+                if (destinationType == typeof(string)) return id.Value.ToString(CultureInfo.InvariantCulture);
+                if (destinationType == typeof(int)) return id.Value;
+            }
+            return base.ConvertTo(context, culture, value, destinationType);
+        }
     }
 }
