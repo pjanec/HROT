@@ -70,6 +70,9 @@ public sealed class PickerWindow
     /// <summary>The layout the open picker draws now (after a P4 toggle) — for the headless rails.</summary>
     internal PickerLayout CurrentLayout => _layout;
 
+    /// <summary>The window size the open picker asks for (a request's <c>DefaultSize</c>, else the layout's rule) — for the headless rails.</summary>
+    internal Vector2 DefaultSizeForRail => GetDefaultSize();
+
     /// <summary>True when the open request shows the side pane — for the headless rails.</summary>
     internal bool SidePaneOn => _sidePaneOn;
 
@@ -81,7 +84,9 @@ public sealed class PickerWindow
 
     // ── size helpers ──────────────────────────────────────────────────────────
 
-    private Vector2 GetDefaultSize() => _layout switch
+    private Vector2? _requestSize;   // ⭐ CE-4141 — PickerRequest.DefaultSize
+
+    private Vector2 GetDefaultSize() => _requestSize ?? _layout switch
     {
         PickerLayout.Compact => new Vector2(320f, 360f),
         PickerLayout.Wide    => new Vector2(800f, 600f),
@@ -105,6 +110,7 @@ public sealed class PickerWindow
         _foldSingleChildFolders = request.FoldSingleChildFolders;
         _showPreview    = request.ShowPreview;
         _sidePaneOn     = request.ShowSidePane || request.DrawPane is not null;
+        _requestSize    = request.DefaultSize;
         _paneWidth      = View.GetPaneWidth(request.ContextKey) ?? request.SidePaneWidth;
         _drawPane       = request.DrawPane;
         _drawPaneAfterDefault = request.DrawPaneAfterDefault;
@@ -148,6 +154,7 @@ public sealed class PickerWindow
         _foldSingleChildFolders = false;
         _showPreview    = false;
         _sidePaneOn     = false;
+        _requestSize    = null;
         _drawPane       = null;
         _capturePaneState = null;
         _actions        = null;

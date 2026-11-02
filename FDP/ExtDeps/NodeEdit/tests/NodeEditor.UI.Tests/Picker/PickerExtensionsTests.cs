@@ -337,4 +337,32 @@ public sealed class PickerExtensionsTests : IDisposable
         PickerImageCache.FitToWidth(400, 400, 200f, maxH: 100f).Should().Be(new System.Numerics.Vector2(100f, 100f));
         PickerImageCache.FitToWidth(0, 0, 200f).Should().Be(System.Numerics.Vector2.Zero);
     }
+
+    // ── CE-4141 polish: a wide window, and no "?" for a character the font cannot draw ─────────────────────────────────
+
+    [Fact]
+    public void A_request_default_size_is_the_windows_size_and_none_keeps_the_layouts_rule()
+    {
+        var w = new PickerWindow();
+        w.Open(Req(), _ => { });
+        var standard = w.DefaultSizeForRail;
+        w.Open(Req(r => new PickerRequest { ContextKey = "c", Title = "t", ItemsProvider = r.ItemsProvider, DefaultSize = new System.Numerics.Vector2(1000f, 640f) }), _ => { });
+        Assert.Equal(new System.Numerics.Vector2(1000f, 640f), w.DefaultSizeForRail);
+        w.Open(Req(), _ => { });
+        Assert.Equal(standard, w.DefaultSizeForRail);                              // the next, plain request is back to the layout's rule
+    }
+
+    /// <summary>Red-proof (compiles): <c>Drawable</c> keeping surrogates ⇒ the emoji rail fails.</summary>
+    [Fact]
+    public void PickerText_DropsEmojiAndCharactersTheFontCannotDraw_KeepsTextAndLineBreaks()
+    {
+        static bool Latin(char c) => c < 0x250 || c == '→';
+        Assert.Equal("see docs/x.md", PickerText.Drawable("see \U0001F4C4 docs/x.md", Latin));       // 📄 (a surrogate pair) gone, the double space squeezed
+        Assert.Equal("a→b", PickerText.Drawable("a→b", Latin));                                       // a drawable arrow stays
+        Assert.Equal("ab", PickerText.Drawable("a\u2603b", Latin));                                   // ☃ (BMP, no glyph) dropped
+        Assert.Equal("line1\nline2\ttab", PickerText.Drawable("line1\nline2\ttab", char.IsLetterOrDigit));   // whitespace never needs a glyph check
+        Assert.Equal("", PickerText.Drawable("\U0001F680\U0001F4C4", Latin));
+        Assert.Equal("", PickerText.Drawable("", Latin));
+        Assert.Equal("ab", PickerText.Drawable("a\U0001F4C4b", _ => true));                          // a surrogate pair goes even if a predicate claims a glyph for its halves
+    }
 }

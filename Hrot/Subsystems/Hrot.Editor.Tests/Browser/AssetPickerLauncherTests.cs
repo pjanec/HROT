@@ -427,6 +427,8 @@ public sealed class AssetPickerLauncherTests
 
             var req = picker.CapturedRequest!;
             Assert.True(req.ShowSidePane);
+            Assert.Equal(new System.Numerics.Vector2(1000f, 640f), req.DefaultSize);   // D25's wide picker: the preview must be readable
+            Assert.Equal(560f, req.SidePaneWidth);
             Assert.NotNull(req.DrawPane);
             Assert.Equal(new[] { "open", "go-live" }, req.Actions!.Select(a => a.Id).ToArray());
             Assert.True(req.Actions![0].IsDefault);

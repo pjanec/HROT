@@ -64,6 +64,10 @@ public sealed class PickerRequest
     /// Replaces the Tree's under-tree <see cref="ShowPreview"/> strip.</summary>
     public bool ShowSidePane { get; init; }
 
+    /// <summary>⭐ CE-4141 — the window's size when it opens (applied once, <c>ImGuiCond.Appearing</c>); <see langword="null"/> ⇒ the layout's own rule. A source with a side pane asks for a wide window
+    /// (the scenario picker: about 1000 × 640) so the preview picture is big enough to read.</summary>
+    public System.Numerics.Vector2? DefaultSize { get; init; }
+
     /// <summary>⭐ P1 — initial side-pane width in pixels (a dragged width is remembered per <see cref="ContextKey"/>).</summary>
     public float SidePaneWidth { get; init; } = 280f;
 

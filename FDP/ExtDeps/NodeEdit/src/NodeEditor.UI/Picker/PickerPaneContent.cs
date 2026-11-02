@@ -34,17 +34,17 @@ internal static class PickerPaneContent
 
         ImGui.PushStyleColor(ImGuiCol.Text, ctx.Theme.TextDefault);
         ImGui.PushTextWrapPos(0f);
-        ImGui.TextUnformatted(entry.Name);
+        ImGui.TextUnformatted(PickerText.Drawable(entry.Name));
         ImGui.PopTextWrapPos();
         ImGui.PopStyleColor();
 
         if (entry.Category is { Length: > 0 } cat)
-            DrawMuted(ctx.Theme, cat.Replace("/", PickerTreeBuilder.FoldSeparator));
+            DrawMuted(ctx.Theme, PickerText.Drawable(cat.Replace("/", PickerTreeBuilder.FoldSeparator)));
 
         if (entry.Description is { Length: > 0 } desc)
         {
             ImGui.PushTextWrapPos(0f);
-            ImGui.TextUnformatted(desc);
+            ImGui.TextUnformatted(PickerText.Drawable(desc));
             ImGui.PopTextWrapPos();
         }
     }

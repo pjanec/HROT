@@ -37,6 +37,9 @@ public sealed class AssetPickerLauncher
     /// <summary>⭐ CE-4141 (AQ108 D25) — the id of <i>Open and go live</i>.</summary>
     public const string GoLiveActionId = "go-live";
 
+    /// <summary>⭐ CE-4141 — the scenario picker's window and pane sizes (px): wide, so the preview picture can be read. A pane width the user dragged is remembered and wins.</summary>
+    public const float ScenarioPickerWidth = 1000f, ScenarioPickerHeight = 640f, ScenarioPaneWidth = 560f;
+
     /// <summary>The muted line of a host with no local scenarios folder (a remote host): the pane has no file to read.</summary>
     public const string NoPreviewNotice = "preview and description not available on this host";
 
@@ -156,6 +159,8 @@ public sealed class AssetPickerLauncher
         SelectionMode = basis.SelectionMode,
         ItemsProvider = basis.ItemsProvider,
         ShowSidePane = true,
+        DefaultSize = new System.Numerics.Vector2(ScenarioPickerWidth, ScenarioPickerHeight),   // ⭐ D25 "the wide picker": big enough to read the preview
+        SidePaneWidth = ScenarioPaneWidth,
         DrawPaneAfterDefault = true,
         // ⏳ AQ108 D24 — the run setup (variant, scenario params; collapsed expanders) goes HERE once scenario variants / params exist (macros S3, backend's).
         DrawPane = (entry, pane) => DrawScenarioFacts(entry, pane),
@@ -183,9 +188,9 @@ public sealed class AssetPickerLauncher
         ImGuiNET.ImGui.Separator();
         if (string.IsNullOrEmpty(entry.Description) && f.Description is { } d)
         {
-            ImGuiNET.ImGui.PushTextWrapPos(0f); ImGuiNET.ImGui.TextUnformatted(d); ImGuiNET.ImGui.PopTextWrapPos();
+            ImGuiNET.ImGui.PushTextWrapPos(0f); ImGuiNET.ImGui.TextUnformatted(NodeEditor.UI.Picker.PickerText.Drawable(d)); ImGuiNET.ImGui.PopTextWrapPos();
         }
-        if (f.TerrainName is { } terrain) Muted("Terrain: " + terrain);
+        if (f.TerrainName is { } terrain) Muted("Terrain: " + NodeEditor.UI.Picker.PickerText.Drawable(terrain));
         if (f.SubsystemType is { } sub) Muted("Subsystem: " + sub);
         if (f.EntityCount > 0) Muted("Entities: " + f.EntityCount);
     }
