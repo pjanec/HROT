@@ -172,6 +172,9 @@ namespace Fdp.Toolkit.Combat.Components
         /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-2) — a <see cref="WarheadRound.Vents"/> round's burn (s): the cloud it raises lasts this long
         /// and it vents that long where it lies. At fire: the thrown-back burn left, else its warhead's <c>CloudSeconds</c>. Owner only.</summary>
         public float BurnSeconds;
+        /// <summary>⭐ <c>CE-4155</c> (SR-82; APPENDED) — the FIRST thrower of a round that was picked up and thrown back (<see cref="Shooter"/> is
+        /// the last); <see cref="Entity.Null"/> = never rethrown. Rides to the detonation and from there to <c>DamageAssessedEvent.OriginalSource</c>.</summary>
+        public Entity OriginalShooter;
     }
 
     /// <summary>⭐ Stage 6 (<c>CE-1032</c>) — the warhead bits of <see cref="BallisticProjectile.Warhead"/>.</summary>

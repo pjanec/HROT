@@ -106,6 +106,8 @@ namespace Hrot.Network.NED.SimHost
                 FuzeSeconds = request.FuzeSeconds,   // ⭐ CE-3235
                 BurnSeconds = request.BurnSeconds,   // ⭐ CE-3236
                 RequestId   = request.RequestId,     // ⭐ Q94 A-1 (R-3018)
+                // ⭐ CE-4155 (SR-82) — a thrown-back round's first thrower; 0 / unknown here ⇒ Null (a first throw)
+                OriginalShooter = request.OriginalShooterEntityId != 0 && _entityMap.TryGetEntity(request.OriginalShooterEntityId, out var original) ? original : Entity.Null,
             });
         }
 

@@ -116,23 +116,28 @@ namespace Fdp.Toolkit.Combat.Systems
 
         /// <summary>⭐ <c>CE-3236</c> (B-14, VC-6) — one Irritant hit on <paramref name="person"/> (no damage, <paramref name="seconds"/> long),
         /// through the one damage chain: the cloud's pulse and a canister burning in a man's hand.</summary>
-        public static bool Irritate(EntityRepository repo, Entity person, float seconds)
+        public static bool Irritate(EntityRepository repo, Entity person, float seconds, Entity source = default, Entity original = default)
         {
             if (!repo.Bus.IsRegistered<DamageAssessedEvent>()) return false;
-            repo.Bus.Publish(new DamageAssessedEvent { HitEntity = person, TotalDamage = 0f, Effect = HitEffect.Irritant, EffectSeconds = seconds });
+            // ⭐ CE-4155 (SR-82) — the hit names who caused it: the cloud's creator, or the man cooking a canister in his hand (and who threw it first)
+            repo.Bus.Publish(new DamageAssessedEvent { HitEntity = person, TotalDamage = 0f, Effect = HitEffect.Irritant, EffectSeconds = seconds,
+                                                       Source = source, OriginalSource = original });
             return true;
         }
 
         private void Pulse(EntityRepository repo, in AreaEffectCloud cloud, Vector3 at)
         {
             if (!repo.IsComponentTypeRegistered<Health>() || !repo.Bus.IsRegistered<DamageAssessedEvent>()) return;
+            // ⭐ CE-4155 — the creator (and the first thrower), as this node's entities; a creator not (yet) known here reads Null = unknown
+            var creator = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(repo, cloud.CreatorNetworkId);
+            var original = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(repo, cloud.OriginalCreatorNetworkId);
             foreach (var p in repo.Query().With<Health>().With<SimTransform>().Build())
             {
                 if (!PhysicsColliderReaders.IsPerson(repo, p)) continue;               // people only — a vehicle is not gassed
                 if (repo.GetComponentRO<Health>(p).Current <= 0f) continue;
                 if (Perception.PhysicalPresence.IsHidden(repo, p)) continue;           // inside an enclosed hull
                 if (!AreaEffectClouds.Contains(in cloud, at, repo.GetComponentRO<SimTransform>(p).Position)) continue;
-                if (Irritate(repo, p, cloud.IrritantSeconds)) Pulses++;
+                if (Irritate(repo, p, cloud.IrritantSeconds, creator, original)) Pulses++;
             }
         }
     }

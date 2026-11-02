@@ -110,8 +110,17 @@ namespace Fdp.Toolkit.Combat.Systems
                 BornAtSimSeconds = Fdp.Toolkit.Time.SimClock.Of(repo).TotalTime,
                 Seconds = seconds,
                 SourceNetworkId = source,
+                // ⭐ CE-4155 (SR-82) — who threw it (and who threw it first): every pulse of the cloud names them
+                CreatorNetworkId = NetworkIdOf(repo, evt.Shooter),
+                OriginalCreatorNetworkId = NetworkIdOf(repo, evt.OriginalShooter),
             });
         }
+
+        /// <summary>⭐ <c>CE-4155</c> — <paramref name="e"/>'s network id, 0 when it has none (an offline world) or is null.</summary>
+        internal static int NetworkIdOf(EntityRepository repo, Entity e)
+            => !e.IsNull && repo.IsAlive(e) && repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
+               && repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e)
+                ? repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value : 0;
 
         /// <summary>The point of segment <paramref name="a"/>–<paramref name="b"/> closest to <paramref name="q"/>.</summary>
         private static Vector3 ClosestOnSegment(Vector3 a, Vector3 b, Vector3 q)
@@ -212,17 +221,17 @@ namespace Fdp.Toolkit.Combat.Systems
                     {
                         if (_partDamage[p] <= 0f) continue;
                         fragDamage += _partDamage[p];
-                        repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = _partDamage[p], HasBodyPart = 1, BodyPart = p, Source = evt.Shooter });
+                        repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = _partDamage[p], HasBodyPart = 1, BodyPart = p, Source = evt.Shooter, OriginalSource = evt.OriginalShooter });
                     }
-                    if (blastDamage > 0f) repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = blastDamage, Source = evt.Shooter });
+                    if (blastDamage > 0f) repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = blastDamage, Source = evt.Shooter, OriginalSource = evt.OriginalShooter });
                 }
                 float total = fragDamage + blastDamage;
-                if (!split && total > 0f) repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = total, Source = evt.Shooter });   // ⭐ CE-3237 (B-15, DS-1) — every burst event names who fired it
+                if (!split && total > 0f) repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = total, Source = evt.Shooter, OriginalSource = evt.OriginalShooter });   // ⭐ CE-3237 (B-15, DS-1) — every burst event names who fired it
                 // ⭐ CE-3219 (civilians B-1, CV-6) — a STUN burst stuns everyone its blast reaches, for its EffectSeconds scaled by the same blast
                 //   fall-off, barrier and shadow (a wall between a man and the flash spares him). Health is untouched; the owner stores it.
                 float stunSeconds = w.Kind == Fdp.Toolkit.Tkb.Domain.WarheadKind.Stun ? w.EffectSeconds * blastFall * barrier * shadow : 0f;
                 if (stunSeconds > 0.05f)
-                    repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = 0f, Effect = HitEffect.Stun, EffectSeconds = stunSeconds, Source = evt.Shooter });
+                    repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = 0f, Effect = HitEffect.Stun, EffectSeconds = stunSeconds, Source = evt.Shooter, OriginalSource = evt.OriginalShooter });
                 // ⭐ CE-3210 (HL-10) / CE-3212 (S3-5) — the marks the fragments leave on a man, as many as struck him (capped), seeded by the
                 //   burst so every run draws the same; on the parts by their shares when he has a body.
                 if (kind == AreaEffect.FragmentTarget.Person && strike is { Hits: >= 0.5f } s)

@@ -75,5 +75,10 @@ namespace Fdp.Toolkit.Combat.Contracts
         /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-3) — the round that burst, on the node that flew it (never sent: <see cref="Entity.Null"/>
         /// off the wire): the cloud request reads its burn and its network id (the cloud's source).</summary>
         public Entity Round;
+
+        /// <summary>⭐ <c>CE-4155</c> (SR-82) — APPENDED: the first thrower of a rethrown round (<see cref="Entity.Null"/> = <see cref="Shooter"/>
+        /// threw it first). Copied from <c>BallisticProjectile.OriginalShooter</c>; the damage steps put it on <c>DamageAssessedEvent.OriginalSource</c>.
+        /// Local to the node that flew the round (the area effect and the hit run there) — not on the munition-detonation wire.</summary>
+        public Entity OriginalShooter;
     }
 }

@@ -118,6 +118,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     Effect        = blunt ? HitEffect.Blunt : HitEffect.Kinetic,
                     EffectSeconds = blunt ? effectWarhead!.EffectSeconds : 0f,
                     Source        = evt.Shooter,   // ⭐ CE-3237 (B-15, DS-1) — who fired it
+                    OriginalSource = evt.OriginalShooter,   // ⭐ CE-4155 (SR-82) — the first thrower of a rethrown round (Null = the same)
                 });
             }
         }

@@ -137,7 +137,7 @@ namespace Fdp.Toolkit.Combat.Systems
             repo.Bus.Publish(new Fdp.Toolkit.Combat.Contracts.DetonationNotification
             {
                 Shooter = proj.Shooter, Target = g.Target, HitX = pos.X, HitY = pos.Y, HitZ = roof,
-                Penetration = proj.Penetration, Damage = proj.Damage, Ammo = proj.Ammo,
+                Penetration = proj.Penetration, Damage = proj.Damage, Ammo = proj.Ammo, OriginalShooter = proj.OriginalShooter,   // ⭐ CE-4155
                 TravelX = 0f, TravelY = 0f, TravelZ = -speed,
             });
             return true;

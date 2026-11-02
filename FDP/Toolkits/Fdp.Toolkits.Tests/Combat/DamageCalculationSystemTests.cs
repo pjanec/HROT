@@ -105,6 +105,23 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(striker, Assert.Single(_world.Bus.Read<DamageAssessedEvent>().ToArray()).Source);
         }
 
+        /// <summary>⭐ <c>CE-4155</c> (SR-82) — a hit by a rethrown round (a direct strike) carries the first thrower as <c>OriginalSource</c> beside
+        /// <c>Source</c>. ✅ Red-proof: the publish without <c>OriginalSource</c> ⇒ Null ⇒ red.</summary>
+        [Fact]
+        public void CE4155_TheDamageOfARethrownRound_NamesTheFirstThrowerToo()
+        {
+            _world.RegisterComponent<SimTransform>();
+            var target = SpawnTarget();
+            _world.AddComponent(target, new SimTransform { Position = System.Numerics.Vector3.Zero, Rotation = System.Numerics.Quaternion.Identity });
+            var last = ShooterAt(50f, 0f); var first = ShooterAt(60f, 0f);
+            _world.Bus.Publish(new DetonationNotification { Shooter = last, OriginalShooter = first, Target = target });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            _world.Bus.SwapBuffers();
+            var hit = Assert.Single(_world.Bus.Read<DamageAssessedEvent>().ToArray());
+            Assert.Equal((last, first), (hit.Source, hit.OriginalSource));
+        }
+
         /// <summary>⭐ <c>CE-3266</c> (G3, Civilians §7.18 ST-1) — a blow also raises its <see cref="StrikeNotification"/> — who, whom, with
         /// what — so ui can draw the swing. ✅ Red-proof: the notification not raised ⇒ red.</summary>
         [Fact]
