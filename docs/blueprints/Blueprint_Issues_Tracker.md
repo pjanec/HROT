@@ -65,20 +65,20 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 |---|---:|---:|
 | `WIRING` | 12 | 97 |
 | `RW-XS` | 5 | 10 |
-| `RW-S` | 178 | 797 |
+| `RW-S` | 177 | 798 |
 | `RW-L` | 144 | 244 |
 | `RW-M` | 234 | 794 |
 | `RW-H` | 23 | 87 |
 | `RW-XL` | 0 | 1 |
 | `OTHER` | 2 | 9 |
-| **Total** | **598** | **2039** |
+| **Total** | **597** | **2040** |
 | *(refuted on verification)* | | *14* |
 
 | Id family | Open | Done |
 |---|---:|---:|
 | `AX-` | 4 | 23 |
 | `BP-` | 105 | 386 |
-| `CE-` | 435 | 1472 |
+| `CE-` | 434 | 1473 |
 | `HN-` | 11 | 41 |
 | `MA-` | 2 | 21 |
 | `MD-` | 0 | 7 |
@@ -4569,7 +4569,7 @@ collides with work in flight.
 - [x] **CE-4211** · `RW-S` 📋 **OPEN `2026-11-02` (coordinator → **backend**) — ONE constant for the scenario FILE NAME.** 📐 Measured (macros §14.1 ①): `"scenario.json"` is a literal in FIVE places — `EditorScenarioSession.cs:55` (`ScenarioFileName`), `HrotScenarioSaveHandler.cs:40` (a second `ScenarioFileName`), `StorageProcessManager.cs:250`, `ScenarioEnumeration.cs:55`, `ScenarioNewAssetService.cs:171`. ⭐ Fix: one `ContentLayout.ScenarioFileName` (beside the folder names it already owns, *"every segment name of the tree is spelled HERE and nowhere else"*), every site reads it; a rail fails on the literal elsewhere. ⭐ Basis: CLAUDE.md *SHARED AND UNIFIED* (one constant per concept); macros reuse the same file name (SR-173). Done when: one definition, the rail green. · ✅ DONE 2026-11-02 f1832c018: ContentLayout.ScenarioFileName; 5 literal sites use it; ContentLayoutTests 13/13
 - [ ] **CE-4212** · `RW-S` 📋 **OPEN `2026-11-02` (coordinator → **backend**; MEASURE FIRST) — TWO DORMANT ENTITY TREES beside the command relation.** 📐 Measured (`DESIGN_Entity_Hierarchy_Views.md` §1): `VisHierarchyNode` + `AggregateState` (`Fdp.Presentation/Vis2D/Components/HierarchyComponents.cs`) — a SAVED "ORGBAT" tree with its own scenario translator (`VisHierarchyNodeTranslator`) and genesis intent (`InitialHierarchyIntent`), carried by **0 of 117 scenarios**; `HierarchyNode` + `HierarchyExtensions` (`Fdp.Core`) — no production user. ⚠ Both look like duplicates of `UnitSubordinate.Commander`, ⛔ but UNREFERENCED IS NOT UNINTENTIONAL: search `docs/` then `.dev/` for their intent (map aggregation of a unit's children?) before routing or deleting. ⭐ Basis: CLAUDE.md SHARED AND UNIFIED; HV-4 widens `IHierarchyAdapter` off `VisHierarchyNode`. Done when: each is classified (duplicate code / duplicate surface / dead, with its design record) and routed or removed accordingly.
 - [ ] **CE-4213** · `RW-M` 📋 **OPEN `2026-11-02` (coordinator → **ui**) — ONE entity tree panel, SWITCHABLE between relations: Command (today's ORBAT, unchanged) · Structure (parts under their parent, else the vehicle a passenger rides in) · Scenario (entities under the macro instance they came from; root groups Saved / Transient).** 🔒 User: *"approved the switchable hierarchy view"*. ⭐ Basis: `docs/DESIGN_Entity_Hierarchy_Views.md` HV-1…HV-5. ⭐ Scope: the existing ORBAT panel gains the switch; ONE relation seam — adopt `IHierarchyAdapter` (0 implementers) by widening its enumerator off `VisHierarchyNode` (HV-4); Structure + Scenario read-only; a macro entity dragged under a commander is refused (*"from macro X — edit the macro"*). Depends on: Scenario view — `MacroOrigin` (macros SR-170, S3a); Structure view — nothing new (buildable now). Done when: the three views draw from one tree implementation, selection stays synced with map and inspector in all three; frame rails under `xvfb-run -a`.
-- [ ] **CE-4214** · `RW-S` 📋 **OPEN `2026-11-02` (coordinator; review of S9′ (e)) — THE WAYPOINT PICK STILL WRITES A NUMBER: the GUID hook is wired by no host (the silent-default pattern).** 📐 S9′ (e) added `WaypointEditorPanel.EntityGuidOf` (`Hrot.Presentation/Panels/WaypointEditorPanel.cs:81-87`, null ⇒ the pick writes a bare id) and reported *"no production construction site"* — ⛔ wrong: THREE hosts construct the panel, none passes it — `IgApplication.cs:687`, `CgfSubsystem.cs:1305`, `EditorSubsystem.cs:4781`. ⭐ Fix by construction, not three times: ONE shared factory for the waypoint window (all three build the same `WaypointEditorWindow(new WaypointEditorPanel(() => RouteWaypointGizmo.Current), …)`) that takes the host's world + entity map and supplies the id → `EntityGuid` lookup; a forwarding rail asserts the CONSTRUCTED panel has the hook on every host (CLAUDE.md *THE SILENT-DEFAULT PATTERN*). Done when: a pick in each host writes the Exact form; the rail red-proved.
+- [x] **CE-4214** · `RW-S` 📋 **OPEN `2026-11-02` (coordinator; review of S9′ (e)) — THE WAYPOINT PICK STILL WRITES A NUMBER: the GUID hook is wired by no host (the silent-default pattern).** 📐 S9′ (e) added `WaypointEditorPanel.EntityGuidOf` (`Hrot.Presentation/Panels/WaypointEditorPanel.cs:81-87`, null ⇒ the pick writes a bare id) and reported *"no production construction site"* — ⛔ wrong: THREE hosts construct the panel, none passes it — `IgApplication.cs:687`, `CgfSubsystem.cs:1305`, `EditorSubsystem.cs:4781`. ⭐ Fix by construction, not three times: ONE shared factory for the waypoint window (all three build the same `WaypointEditorWindow(new WaypointEditorPanel(() => RouteWaypointGizmo.Current), …)`) that takes the host's world + entity map and supplies the id → `EntityGuid` lookup; a forwarding rail asserts the CONSTRUCTED panel has the hook on every host (CLAUDE.md *THE SILENT-DEFAULT PATTERN*). Done when: a pick in each host writes the Exact form; the rail red-proved. · ✅ DONE 2026-11-02 f9c0531c2: WaypointEditorPanelFactory (IG, CGF, Editor use it); WaypointEditorPanelFactoryTests 2/2, red-proved by re-inlining a construction
 
 ## Out of scope
 
