@@ -223,6 +223,7 @@ the verdict leaves the process **by its exit code** — the command line and a C
 | `anchors` | named cues whose first time other entries refer to (`"after": "riot"`, `"at": "contact+2"`) — the take's anchors |
 | `do` | `{"name"?, "at": t, "set": {"who", "component", "patch"}}` — what the old live checks did by hand (17 of 81 wound a man or set an attribute); a named action's time is a name too |
 | `expect` | `{"name", <cue>, "after"?, "before"?}` holds once in the window · `{"name", "never": <cue>, …}` never holds in it · `{"name", <cue>, "atEnd": true}` holds when the run ends |
+| `later` | ⭐ `[names]` (backend, `255920b93`) — units a trigger inserts DURING the run (a QRF macro, a respawned bot). The start-of-run cast check does not refuse them (nor a `*part` one of them carries); a cue that names one resolves it when it appears (`WorldUnits` re-indexes on a miss). Rail `Later_UnitsInsertedDuringTheRun_PassTheStartCastCheck` |
 
 | cue `on` | holds when | judged by |
 |---|---|---|

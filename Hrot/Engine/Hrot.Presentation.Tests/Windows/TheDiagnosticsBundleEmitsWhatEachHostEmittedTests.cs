@@ -95,6 +95,21 @@ public sealed class TheDiagnosticsBundleEmitsWhatEachHostEmittedTests
         return (w!.Title, w.OwningPerspective, w.TitleBarColor);
     }
 
+    /// <summary>⭐ CE-1463 (W-B1) — the Event Browser starts OPEN by default (the editor's, unchanged) and CLOSED where the host asks (CGF: it covered the map's top-left in every <c>--mode all</c> screenshot); either way it is registered, so it stays openable from the Window menu.</summary>
+    [Fact]
+    public void TheEventBrowser_StartsOpen_UnlessTheHostAsksForItClosed_AndCgfDoes()
+    {
+        var open = Compose(Services("ed_", "Editor", "Scenario", new Vector4(1, 1, 1, 1)));
+        Assert.True(open.TryGetWindow("ed_fdp_events", out var a)); Assert.True(a!.IsOpen);
+        var closed = Compose(Services("cgf_", "CGF", "Scenario", new Vector4(1, 1, 1, 1)) with { EventBrowserOpenByDefault = false });
+        Assert.True(closed.TryGetWindow("cgf_fdp_events", out var b)); Assert.False(b!.IsOpen);   // registered, not open
+
+        // the silent-default rule: CGF HAS the choice and must make it
+        string root = AppContext.BaseDirectory; while (!System.IO.File.Exists(System.IO.Path.Combine(root, "HROT.sln")) && System.IO.Directory.GetParent(root) != null) root = System.IO.Directory.GetParent(root)!.FullName;
+        var cgf = System.IO.File.ReadAllText(System.IO.Path.Combine(root, "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs"));
+        Assert.Contains("EventBrowserOpenByDefault: false", cgf);
+    }
+
     // ── the four hosts, against the literals they used to pass by hand ────────────
 
     /// <summary>

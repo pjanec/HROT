@@ -1337,7 +1337,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     // BP-327 — the module/system execution-stats profiler.
                     ExecutionStats: () => _context?.Kernel?.GetExecutionStats(),
                     PickBroker:     cgfPickBroker,
-                    WireParticipant: () => _context?.Participant)),   // ⭐ AQ109 X5
+                    WireParticipant: () => _context?.Participant,   // ⭐ AQ109 X5
+                    EventBrowserOpenByDefault: false)),   // ⭐ CE-1463 — closed by default on CGF: it covered the map's top-left in every screenshot
             },
             new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 

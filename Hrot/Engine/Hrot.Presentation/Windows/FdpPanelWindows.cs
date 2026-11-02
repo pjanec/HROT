@@ -84,11 +84,12 @@ public sealed class FdpEventBrowserWindow : ManagedWindow
         string title,
         string owningPerspective,
         EventBrowserPanel panel,
-        Vector4? titleBarColor = null)
+        Vector4? titleBarColor = null,
+        bool openByDefault = true)
         : base(id, title, owningPerspective, WindowScope.PerspectiveBound)
     {
         _panel = panel;
-        IsOpen = true;
+        IsOpen = openByDefault;   // ⭐ CE-1463 (W-B1) — a host where it is not the main tool starts it closed (still openable from the Window menu)
         TitleBarColor = titleBarColor;
 
         // ⭐⭐⭐ U-obs-5 — DECLARED AT CONSTRUCTION, ALWAYS, ungated on CaptureEnabled.

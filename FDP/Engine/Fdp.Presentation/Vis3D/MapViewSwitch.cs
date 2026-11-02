@@ -20,6 +20,9 @@ namespace Fdp.Toolkit.Vis3D
         private readonly MapCamera _camera2D;
         private bool _toggling;
 
+        /// <summary>⭐ CE-1462 — the 2-D camera this switch toggles to (the terrain framing moves it).</summary>
+        public MapCamera Camera2D => _camera2D;
+
         public MapCamera3D Camera3D { get; }
 
         /// <summary>The tilt the switch settles at (radians, negative = looking down).</summary>
