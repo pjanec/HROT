@@ -439,7 +439,7 @@ namespace Hrot.Common.Macros
                 {
                     foreach (var comp in c.InitialComponents!)
                     {
-                        if (comp is SimTransform st) repo.SetComponent(x, st);
+                        if (comp is SimTransform st) MoveKept(repo, x, st);
                         else if (comp is EntityInfo info) repo.SetComponent(x, info);
                     }
                     kept2++;
@@ -463,6 +463,27 @@ namespace Hrot.Common.Macros
                 }
             repo.SetManagedComponent(e, new MacroExpandedWith { Instance = mi, Anchor = anchor });
             FdpLog<MacroExpansionSystem>.Info($"[Macros] instance #{instanceId} reconciled: {kept2} kept, {created} created, {gone} removed");
+        }
+
+        /// <summary>
+        /// ⭐ Macros debt A3, found LIVE (<c>2026-11-02</c>) — a kept child's new pose. ⛔ Its <c>SimTransform</c> is usually NOT this node's:
+        /// split authority gives the body to the simulation node, so a write here lands in a REPLICA and the owner's next sample puts the man
+        /// back (📌 measured: "4 kept", the men never moved; the unit rails run one world and could not see it). ⭐ The engine's ONE
+        /// "not mine, ask the owner" route — the one <c>POST /entities/{id}/attribute</c> and the gizmo use — applies it there:
+        /// <see cref="Fdp.Toolkit.Replication.Attributes.EntityAttributeChangeRequests.TryPublishJsonPatch"/>, compiled by the owner's
+        /// <c>JsonAttributeCompiler</c> (<c>Position.X/Y/Z</c> + <c>Heading</c>). The ownership rule is the patch context's own:
+        /// the component's authority bit; no <see cref="NetworkAuthority"/> at all ⇒ a networkless world ⇒ local.
+        /// </summary>
+        private static void MoveKept(EntityRepository repo, Entity x, SimTransform st)
+        {
+            bool local = !repo.HasComponent<NetworkAuthority>(x) || repo.HasAuthority(x, ComponentType<SimTransform>.ID);
+            if (local) { repo.SetComponent(x, st); return; }
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            float heading = Fdp.Modules.Geographic.Systems.SimTransformBridgeSystem.RotationToHeadingDeg(st.Rotation);
+            string patch = string.Format(inv, "{{\"Position\":{{\"X\":{0},\"Y\":{1},\"Z\":{2}}},\"Heading\":{3}}}",
+                st.Position.X, st.Position.Y, st.Position.Z, heading);
+            if (!Fdp.Toolkit.Replication.Attributes.EntityAttributeChangeRequests.TryPublishJsonPatch(repo, x, patch))
+                FdpLog<MacroExpansionSystem>.Warn($"[Macros] a kept child {x} is owned elsewhere and has no network id — its new pose could not be requested");
         }
 
         private static Guid GuidOf(EntityCreationRequest r)

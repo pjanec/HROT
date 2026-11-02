@@ -400,6 +400,42 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(MacroExpansionState.Done, repo.GetComponentRO<MacroExpansionStatus>(inst).State);
         }
 
+        /// <summary>⭐ A3, found LIVE — under SPLIT AUTHORITY the men's body belongs to the simulation node, so the instance's node must ASK the
+        /// owner (the engine's one attribute-request route), never write its replica: 📌 live, "4 kept" and the men never moved. 🔴 Red-proof:
+        /// write the transform locally regardless of ownership ⇒ no request, and the replica is written.</summary>
+        [Fact]
+        public void A3_UnderSplitAuthority_TheMovedMen_AreRequestedFromTheirOwner_NotWrittenHere()
+        {
+            var (repo, sys, inst, men) = ExpandedTeam();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkAuthority>()) repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+            if (!repo.Bus.IsRegisteredManaged<Fdp.Toolkit.Replication.Events.UpdateEntityAttributeCommand>())
+                repo.Bus.RegisterManaged<Fdp.Toolkit.Replication.Events.UpdateEntityAttributeCommand>();
+            foreach (var m in men.Values)
+            {
+                repo.AddComponent(m, new Fdp.Toolkit.Replication.Components.NetworkAuthority { PrimaryOwnerId = 400, LocalNodeId = (Fdp.Core.NodeId)400 });
+                repo.SetAuthority(m, ComponentType<SimTransform>.ID, false);   // the body is the simulation node's
+            }
+            var before = men.ToDictionary(kv => kv.Key, kv => repo.GetComponentRO<SimTransform>(kv.Value).Position);
+            var moved = repo.GetComponentRO<SimTransform>(inst);
+            moved.Position = new WorldPoint(moved.Position.X + 50, moved.Position.Y, 0);
+            repo.SetComponent(inst, moved);
+
+            var ask = Assert.Single(Frame<Fdp.Toolkit.Navigation.PlacementRequestBatch>(repo, sys));
+            repo.Bus.PublishManaged(AnswerAll(ask, System.Numerics.Vector3.Zero));
+            repo.Bus.SwapBuffers();
+            var asked = Frame<Fdp.Toolkit.Replication.Events.UpdateEntityAttributeCommand>(repo, sys);
+
+            Assert.Equal(4, asked.Length);
+            foreach (var (g, m) in men)
+            {
+                Assert.Equal(before[g], repo.GetComponentRO<SimTransform>(m).Position);   // the replica is not written
+                int id = repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(m).Value;
+                var cmd = Assert.Single(asked, c => c.NetworkId == id);
+                Assert.Contains($"\"X\":{(before[g].X + 50).ToString(System.Globalization.CultureInfo.InvariantCulture)}", cmd.AttributePatchJson);
+                Assert.Contains("\"Heading\":", cmd.AttributePatchJson);
+            }
+        }
+
         /// <summary>⭐ A3 — a failed RE-placement fails loudly and leaves the old placement.</summary>
         [Fact]
         public void A3_AFailedRePlacement_IsLoud_AndLeavesTheOldPlacement()
