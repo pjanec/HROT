@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-01 (coordinator — first version, from the user's request)
+updated: 2026-11-01 (§2.7 carrying measured as built; no revisions kept)
 current-answer: §1 Bridgehead (military training) · §2 Crossfire (multiplayer game) · §3 the feature coverage · §4 how to use this document
-stale-below: nothing
+stale-below: nothing — superseded revisions removed 2026-11-01; full history at commit de422e11b (`git show de422e11b:docs/SHOWCASE_Scenarios.md`)
 known-rot: none — ⚠ describes the TARGET state: most of it is NOT built (objectives, triggers, macros, variants, the views). Each element names its SR row; the coverage table (§3) says what exists today
 known-conflict: none
 related-designs:
@@ -244,8 +244,7 @@ point) · *Sharpshooter* (accuracy ≥ 40 % with ≥ 10 hits) · *Crate hunter* 
 
 ### 2.7 The extension to true capture the flag *(a later variant — most of the carrying is already built)*
 
-⚠ *Corrected `2026-11-01` (user: "carrying entities and stuff is already implemented"): the first version of this section claimed no carry
-mechanic exists — it was written without searching. Measured:*
+*Measured `2026-11-01` (user: "carrying entities and stuff is already implemented"):*
 
 | CTF needs | what exists | gap |
 |---|---|---|

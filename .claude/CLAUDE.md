@@ -310,6 +310,20 @@ query, drive the server over stdio with a longer timeout instead.
 restart it between questions; **batch every symbol question into one run.** ⛔ **A one-shot CLI invocation
 pays the ~59 s every time.**
 
+## ⭐⭐⭐ NEW COMPONENTS — **UNMANAGED when recorded; a managed one is IMMUTABLE and REPLACED whole** *(user, `2026-11-02`)*
+
+> 🔒 **User, verbatim:** *"when creating new components, we should prefer unmanaged ones, for those that are going to be saved into the
+> recordings … because on every frame where the component was changed, we would need to reallocate it, which increases the garbage collection
+> pressure."* · *"all managed components are best defined as csharp records or classes with immutable fields which disallows in place mutation
+> by design."*
+
+| ⭐ the rule | why — measured `2026-11-02` |
+|---|---|
+| ⭐⭐⭐ **a component that is RECORDED is an unmanaged struct** — fixed-size fields (`FixedString32`, `EntityRef`, `WorldPoint` …), no `string` / array / class | ⭐ the recorder copies unmanaged chunks as bytes; ⛔ a managed component is serialised per entity, and **every frame it changes, replay must ALLOCATE a new object** to restore it ⇒ GC pressure in replay, seek and the snapshot ring |
+| ⭐⭐⭐ **a managed component (when unmanaged truly cannot hold it) is a `record` / class with `init`-only fields** — change it by building a NEW instance and `SetManagedComponent` | ⛔ change detection is the table's **chunk version**, bumped only by `Set` / `GetRW` (`ManagedComponentTable.cs:35-95, :153-205`) ⇒ a field mutated in place on a `Get` reference is **never recorded**. ⛔ And snapshots copy managed chunks **shallowly** (`ManagedComponentTable.cs:298-365`, `Array.Copy` of references) ⇒ an in-place mutation also rewrites every earlier snapshot holding that object |
+| ⭐⭐ **a managed component that is authoring-only or derivable is `[DataPolicy(NoReplay)]`** (`DataPolicyAttribute.cs:41`) and rebuilt on load | ⭐ it then costs nothing in replay — 📌 `ParamBindings` (macros SR-165) |
+| ⭐ **a managed component that is recorded must change RARELY** — and the design says how often | 📌 a trigger's `When`/`Do` (macros SR-166): written once ⇒ recorded at keyframes only |
+
 ## ⭐⭐⭐ SHARED AND UNIFIED, NEVER DUPLICATED — **the goal in EVERYTHING we build** *(user, `2026-10-26`)*
 
 > 🔒 **User, verbatim:** *"our desire in everything what we do is to do it in a shared and unified way wherever possible instead of duplications."*
