@@ -10,5 +10,7 @@ namespace Hrot.Map.Definitions.Behavior
         Insurgent   = 1 << 3,
         AllMilitary = MilitaryApc | Infantry | Insurgent,
         Commander   = 1 << 4,
+        /// <summary>⭐ rules S1 — an objective / aggregator: the brain of an Objective entity (TKB 8860), no body.</summary>
+        Objective   = 1 << 5,
     }
 }

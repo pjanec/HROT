@@ -278,5 +278,22 @@ namespace Hrot.Map.Definitions.Behavior
         public const string Flank = "Flank";
         public const string FiringPosition = "FiringPosition";
         public const string Sentry = "Sentry";
+        // ⭐ rules S1 (DESIGN_Scenario_Rules §10.2) — the objective kinds and aggregators (the brain of an Objective entity, TKB 8860)
+        /// <summary>at least MinMen of the subject's men inside an area.</summary>
+        public const string ReachArea = "ReachArea";
+        /// <summary>hold an area against enemy for a time (or capture it).</summary>
+        public const string HoldArea = "HoldArea";
+        /// <summary>no enemy inside for a time. ⚠ Named <c>ClearAreaObjective</c>: <c>ClearArea</c> is the building-clearing task.</summary>
+        public const string ClearAreaObjective = "ClearAreaObjective";
+        /// <summary>destroy the named targets.</summary>
+        public const string DestroyTargets = "DestroyTargets";
+        /// <summary>keep the named targets alive (judged at the end).</summary>
+        public const string Protect = "Protect";
+        /// <summary>a side is not harmed by another (judged at the end).</summary>
+        public const string NoHarm = "NoHarm";
+        /// <summary>a composite: the weighted mean of its children.</summary>
+        public const string WeightedMean = "WeightedMean";
+        /// <summary>a composite: every child must pass.</summary>
+        public const string AllMustPass = "AllMustPass";
     }
 }

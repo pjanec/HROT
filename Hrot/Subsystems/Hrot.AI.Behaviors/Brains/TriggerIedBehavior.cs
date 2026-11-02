@@ -110,9 +110,10 @@ namespace Hrot.AI.Behaviors.Brains
         public static bool Hostile(EntityRepository world, Entity a, Entity b)
         {
             if (!world.IsComponentTypeRegistered<EntityInfo>() || !world.HasComponent<EntityInfo>(a) || !world.HasComponent<EntityInfo>(b)) return false;
-            var mine = world.GetComponentRO<EntityInfo>(a).ForceId;
-            var theirs = world.GetComponentRO<EntityInfo>(b).ForceId;
-            return theirs != mine && theirs != ForceId.Neutral;
+            return Hostile(world.GetComponentRO<EntityInfo>(a).ForceId, world.GetComponentRO<EntityInfo>(b).ForceId);
         }
+
+        /// <summary>⭐ rules S1 — THE side rule, by <see cref="ForceId"/> (the objective census shares it): another force, not a neutral one.</summary>
+        public static bool Hostile(ForceId mine, ForceId theirs) => theirs != mine && theirs != ForceId.Neutral;
     }
 }
