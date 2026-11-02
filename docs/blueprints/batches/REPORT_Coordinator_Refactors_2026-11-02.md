@@ -20,3 +20,10 @@
 - Parts (b)-(e) and S8 not started. Budget.
 
 - `Hrot.Orchestrator.Tests` CS0234 at `ThePanelAsksTheOneRunSurfacesTests.cs:26`: `git log -1 --format=%h -- <file>` = `7484b25d7` (2026-10-30), i.e. the file PREDATES today's commits; the error is pre-existing and not caused by this batch.
+
+## S8 verification (after ead616df5)
+| Check | Command | Result |
+|---|---|---|
+| Editor tests | `Hrot.Editor.Tests --no-build --filter "~Scenario\|Load\|Save\|Staging\|Genesis"` | 227 pass, 1 skipped, 0 red |
+| CGF tests | no separate CGF test project exists (`git ls-files \| grep -i 'cgf.*tests.*csproj'` is empty); the CGF extractor / translator tests live in `Hrot.SimHost.Tests` (65/65 and 132/132, above) | - |
+| Live run | `--mode all` (port 8111), `POST /scenario/load/live {"name":"hill-attack","waitForReady":true,"startPaused":false}` | `ok`, `sawWorldChange` and `hadWorldAnchor` true, `OperatingLive`; `entityCount` 33 (the file has 8 entities; the rest were not itemised - presumably child parts and the world environment). 7 named tanks present; over 6.5 s of sim time (18.4 to 24.9) the 5 platoon tanks moved 63-64 m each and the 2 `M1 Abrams` stood still (0 m). Cluster stopped, 0 processes left. |
