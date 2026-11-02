@@ -367,7 +367,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>())
                 repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
             var entity = CreateAnimatedEntity(repo);
-            repo.AddComponent(entity, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = ClassId });   // as every TKB-spawned body
+            repo.AddComponent(entity, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)ClassId });   // as every TKB-spawned body
             new AnimationRuntimeBridgeSystem(backend, cache).Execute(repo, 0.016f);   // registered: BackendHandle now holds the encoded handle
 
             var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(repo, Fdp.Toolkit.Replay.CaptureOptions.Recording);

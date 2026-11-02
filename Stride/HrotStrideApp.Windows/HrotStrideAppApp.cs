@@ -25,7 +25,7 @@ try
     {
         game.NodeMode     = true;
         game.NodeDomainId = domain;
-        game.NodeId       = nodeId;
+        game.NodeId       = (Fdp.Core.NodeId)nodeId;
         Console.WriteLine($"[StrideApp] CE-207 mode 2 — joining DDS domain {domain} as node {nodeId}.");
     }
 
