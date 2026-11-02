@@ -3293,6 +3293,34 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "get_objectives",
+    "group": "K — AI behavior traces",
+    "summary": "The minimal mission summary (rules S1-g): every objective / measure status on THIS node and the tree by parent — on a non-Brain node these are the REPLICATED statuses (dtObjectiveStatus).",
+    "http": {
+      "method": "GET",
+      "path": "/objectives"
+    },
+    "params": [
+      {
+        "name": "tree",
+        "type": "number",
+        "required": false,
+        "description": "1 = nest each objective's children as objects"
+      }
+    ],
+    "returns": "{ objectives:[{networkId, title, kind, role, state, closed, owner, progress:{cur, need}, value, target, score, points, weight, required, scored, changedAt, reason, subject, parent, children:[networkId]}], roots:[networkId] } — roots first, depth-first by title",
+    "notes": [
+      "A state is one of Pending, Active, Achieved, Failed, Inactive, Skipped; Score is 0..1 (a Skipped one is excluded from its parent's mean)."
+    ],
+    "example": {
+      "args": {},
+      "gist": "how is the squad doing against its objectives"
+    },
+    "hint": "Optional: tree=1 (children nested as objects). Read on any node. Example: get_objectives({})",
+    "manualVerify": false
+  },
+
+  {
     "name": "explain_hearing",
     "group": "K — AI behavior traces",
     "summary": "What one unit could hear in the last seconds and why not, as this node's hearing sensor decides it — each sound's verdict (heard / beyond its carry / beyond his ear / walls or corners / his own side), the straight line's loss, the way round through doorways, windows, stairs and street corners, and where it seems to come from (AQ106 L).",

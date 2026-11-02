@@ -386,6 +386,47 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(ObjectiveState.Achieved, w.S(comp).State);
         }
 
+        /// <summary>⭐ S1-g — the hand-authored <c>scenarios/sr-objectives-march</c>: its five Objective entities are TKB 8860, name a registered
+        /// objective behaviour, and every Params string parses into that kind's DTO with the squad as Subject (its GUID), the root as Parent and the
+        /// authored circles. (The editor verifier needs a checks.json — the coordinator's.)</summary>
+        [Fact]
+        public void TheObjectivesScenarioFile_HasFiveObjectiveEntities_WhoseParamsParseIntoTheirDtos()
+        {
+            var dir = new System.IO.DirectoryInfo(System.AppContext.BaseDirectory);
+            while (dir != null && !System.IO.File.Exists(System.IO.Path.Combine(dir.FullName, "scenarios", "sr-objectives-march", "scenario.json"))) dir = dir.Parent;
+            Assert.NotNull(dir);
+            var doc = JsonNode.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(dir!.FullName, "scenarios", "sr-objectives-march", "scenario.json")))!;
+            var entities = doc["entities"]!.AsObject();
+            var objectives = entities.Where(kv => (long?)kv.Value!["TkbIdentity"]?["TkbType"] == TkbEntityTypes.Objective).ToList();
+            Assert.Equal(5, objectives.Count);
+            var registry = new BehaviorRegistry();
+            CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            var opts = BehaviorParams.JsonOptions;
+            string squad = entities.First(kv => (long?)kv.Value!["TkbIdentity"]?["TkbType"] == 302).Key;
+            string root = objectives.First(kv => (string)kv.Value!["Behavior"]!["Name"]! == "WeightedMean").Key;
+            foreach (var (guid, e) in objectives)
+            {
+                string name = (string)e!["Behavior"]!["Name"]!, json = (string)e["Behavior"]!["Params"]!;
+                Assert.True(registry.TryGetId(name, out _), name);
+                ObjectiveCommon common = name switch
+                {
+                    "WeightedMean" => JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.WeightedMeanParamsJsonDto>(json, opts).Common,
+                    "ReachArea" => JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.ReachAreaParamsJsonDto>(json, opts).Common,
+                    "HoldArea" => JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.HoldAreaParamsJsonDto>(json, opts).Common,
+                    "NoHarm" => JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.NoHarmParamsJsonDto>(json, opts).Common,
+                    _ => throw new Xunit.Sdk.XunitException("unexpected kind " + name),
+                };
+                Assert.Equal(System.Guid.Parse(squad), common.Subject.Spec.Exact);
+                if (guid != root) Assert.Equal(System.Guid.Parse(root), common.Parent.Spec.Exact);
+                if (name is "ReachArea" or "HoldArea")
+                {
+                    var area = name == "ReachArea" ? JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.ReachAreaParamsJsonDto>(json, opts).Area
+                                                   : JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.HoldAreaParamsJsonDto>(json, opts).Area;
+                    Assert.Equal(RefForm.Circle, area.Spec.Form);
+                }
+            }
+        }
+
         /// <summary>Rail 7 — the SAME kind twice with different params side by side: independent states.</summary>
         [Fact]
         public void TwoHoldAreas_WithDifferentAreas_RunIndependently()

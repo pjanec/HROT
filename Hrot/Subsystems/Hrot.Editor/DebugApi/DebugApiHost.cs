@@ -1502,6 +1502,13 @@ namespace Hrot.Editor.DebugApi
                 return RunMain(s => s.GetSquadReports(last, unit));
             }));
 
+            // ⭐ rules S1-g — the minimal mission summary: every objective status on this node (replicated ones on a non-Brain node), the tree by Parent
+            _routes.Add(new("GET", "/objectives", ctx =>
+            {
+                bool tree = ctx.Query("tree") is "1" or "true";
+                return RunMain(s => s.GetObjectives(tree));
+            }));
+
             // Group L — Live Mutation / Fault Injection (ADA-BATCH-13)
             _routes.Add(new("GET", "/attributes/schema", _ =>
                 Task.FromResult(Ok(Service().GetAttributesSchema()))));

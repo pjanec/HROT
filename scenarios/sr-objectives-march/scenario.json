@@ -1,0 +1,347 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: rules S1 (DESIGN_Scenario_Rules 00.8) - the ua-squad-march-loose squad marches ~110 m east to the crossroads at (175,60) on test-town, no enemy, judged by four Objective entities (TKB 8860) under a WeightedMean 'Squad mission' (pass 0.5). Judge: 'Reach the crossroads' (4 men within 15 m, deadline 300 s) ends Achieved; 'Hold the crossroads' (required, 4 men for 20 s) ends Achieved after it; 'Reach the far line' (circle at (400,400), deadline 60 s) ends Failed at 60 s; 'No harm to civilians' stays Active with Score 1 (judged at the end); the root stays Active (a constraint is not final) with Score 0.75 once the far line has failed. GET /objectives shows the tree under the root. Fail: a status stays Pending, the far line is Achieved, the root is Failed, or /objectives lists no tree. Check: GET /objectives"
+  },
+  "entities": {
+    "a2159f00-0000-4000-8000-0000000000c0": {
+      "SimTransform": {
+        "Position": [
+          72,
+          58,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Squad",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "SquadMarch",
+        "Params": "{\"Objective\": [175, 60, 0], \"Shape\": 0, \"Spacing\": 4}",
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a2159f00-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          60,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Leader",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2159f00-0000-4000-8000-0000000000c0",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a2159f00-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          64,
+          46,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2159f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a2159f00-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          68,
+          52,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2159f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a2159f00-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          72,
+          58,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2159f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a2159f00-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          76,
+          64,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 4",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2159f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a2159f00-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          80,
+          70,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 5",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2159f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a2159f00-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          84,
+          76,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 6",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2159f00-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "5a110000-0000-4000-8000-000000000001": {
+      "TkbIdentity": {
+        "TkbType": 8860
+      },
+      "EntityInfo": {
+        "Name": "Squad mission",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "WeightedMean",
+        "Params": "{\"common\": {\"title\": \"Squad mission\", \"subject\": \"a2159f00-0000-4000-8000-0000000000c0\"}, \"passScore\": 0.5}",
+        "Origin": "Superior"
+      }
+    },
+    "5a110000-0000-4000-8000-000000000002": {
+      "TkbIdentity": {
+        "TkbType": 8860
+      },
+      "EntityInfo": {
+        "Name": "Reach the crossroads",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "ReachArea",
+        "Params": "{\"common\": {\"title\": \"Reach the crossroads\", \"subject\": \"a2159f00-0000-4000-8000-0000000000c0\", \"parent\": \"5a110000-0000-4000-8000-000000000001\", \"deadlineSeconds\": 300, \"weight\": 1}, \"area\": {\"circle\": {\"center\": [175, 60, 0], \"radius\": 15}}, \"minMen\": 4}",
+        "Origin": "Superior"
+      }
+    },
+    "5a110000-0000-4000-8000-000000000003": {
+      "TkbIdentity": {
+        "TkbType": 8860
+      },
+      "EntityInfo": {
+        "Name": "Hold the crossroads",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "HoldArea",
+        "Params": "{\"common\": {\"title\": \"Hold the crossroads\", \"subject\": \"a2159f00-0000-4000-8000-0000000000c0\", \"parent\": \"5a110000-0000-4000-8000-000000000001\", \"required\": true}, \"area\": {\"circle\": {\"center\": [175, 60, 0], \"radius\": 15}}, \"minMen\": 4, \"maxEnemy\": 0, \"holdSeconds\": 20}",
+        "Origin": "Superior"
+      }
+    },
+    "5a110000-0000-4000-8000-000000000004": {
+      "TkbIdentity": {
+        "TkbType": 8860
+      },
+      "EntityInfo": {
+        "Name": "Reach the far line",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "ReachArea",
+        "Params": "{\"common\": {\"title\": \"Reach the far line\", \"subject\": \"a2159f00-0000-4000-8000-0000000000c0\", \"parent\": \"5a110000-0000-4000-8000-000000000001\", \"deadlineSeconds\": 60}, \"area\": {\"circle\": {\"center\": [400, 400, 0], \"radius\": 10}}, \"minMen\": 1}",
+        "Origin": "Superior"
+      }
+    },
+    "5a110000-0000-4000-8000-000000000005": {
+      "TkbIdentity": {
+        "TkbType": 8860
+      },
+      "EntityInfo": {
+        "Name": "No harm to civilians",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "NoHarm",
+        "Params": "{\"common\": {\"title\": \"No harm to civilians\", \"subject\": \"a2159f00-0000-4000-8000-0000000000c0\", \"parent\": \"5a110000-0000-4000-8000-000000000001\"}, \"protected\": \"Neutral\", \"maxCount\": 0}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}
