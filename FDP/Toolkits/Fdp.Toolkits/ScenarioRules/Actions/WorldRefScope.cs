@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Components;
@@ -10,7 +11,8 @@ namespace Fdp.Toolkit.ScenarioRules.Actions
     /// ⭐ rules S2-d (CE-4162) — the <see cref="IRefScope"/> of a LIVE world: every entity with a network id, by its <see cref="RefKey"/> and
     /// <see cref="EntityGuid"/>. What a step's authored <c>"@Key"</c> / GUID link resolves in when the step starts (the scenario-load scope is
     /// <see cref="ScenarioRefScope"/>; the walker — <see cref="RefResolve"/> — is the same). Built on the FIRST lookup only, so a step with
-    /// nothing to resolve pays nothing. ⛔ A key two entities carry is a loud error (a key is unique per scope).
+    /// nothing to resolve pays nothing. ⭐ SR-188: a key two entities carry resolves to the FIRST, with a warning (<see cref="Ambiguous"/>).
+    /// ⭐ Macros debt A1 — the ONE live-world scope: the macro expander resolves an instance's <c>@Key</c> / GUID args here too (it had its own copy).
     /// </summary>
     public sealed class WorldRefScope : IRefScope
     {
@@ -37,6 +39,9 @@ namespace Fdp.Toolkit.ScenarioRules.Actions
             }
             return scope;
         }
+
+        /// <summary>⭐ SR-188 — keys two or more entities carry, with how many (the first match is used).</summary>
+        public IReadOnlyDictionary<string, int> Ambiguous => Scope.Ambiguous;
 
         public bool TryResolve(in RefSpec spec, out EntityRef entity) => Scope.TryResolve(spec, out entity);
         public bool TryPositionOf(EntityRef entity, out WorldPoint position) => Scope.TryPositionOf(entity, out position);

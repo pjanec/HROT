@@ -146,7 +146,7 @@ namespace Hrot.Common.Macros
                 : EntityGuidDerivation.Derive(Guid.Empty, "instance:" + instanceId);   // a transient instance (SR-167's runtime case is S3b)
             var anchor = repo.HasComponent<SimTransform>(e) ? repo.GetComponentRO<SimTransform>(e) : default;
 
-            var result = _expander.Expand(mi, instanceId, guid, _localNode, anchor, new WorldRefScope(repo, _entityMap), _idAllocator);
+            var result = _expander.Expand(mi, instanceId, guid, _localNode, anchor, new Fdp.Toolkit.ScenarioRules.Actions.WorldRefScope(repo), _idAllocator);
             if (!result.Ok)
             {
                 FdpLog<MacroExpansionSystem>.Error($"[Macros] instance #{instanceId} '{mi.Macro}' failed: {result.Failure}");
@@ -341,7 +341,7 @@ namespace Hrot.Common.Macros
 
             Guid guid = repo.IsComponentTypeRegistered<EntityGuid>() && repo.HasComponent<EntityGuid>(e) ? repo.GetComponentRO<EntityGuid>(e).Value
                       : EntityGuidDerivation.Derive(Guid.Empty, "instance:" + instanceId);
-            var scope = new WorldRefScope(repo, _entityMap);
+            var scope = new Fdp.Toolkit.ScenarioRules.Actions.WorldRefScope(repo);
             var now = _expander!.Expand(mi, instanceId, guid, _localNode, anchor, scope, _idAllocator);
             if (!now.Ok)
             {
@@ -413,7 +413,7 @@ namespace Hrot.Common.Macros
             if (!_entityMap.TryGetNetworkId(e, out int instanceId)) return;
             Guid guid = repo.IsComponentTypeRegistered<EntityGuid>() && repo.HasComponent<EntityGuid>(e) ? repo.GetComponentRO<EntityGuid>(e).Value
                       : EntityGuidDerivation.Derive(Guid.Empty, "instance:" + instanceId);
-            var scope = new WorldRefScope(repo, _entityMap);
+            var scope = new Fdp.Toolkit.ScenarioRules.Actions.WorldRefScope(repo);
             var anchor = target.Anchor;
             var mi = target.Instance;
             var now = new MacroExpander.Result(children, null);
@@ -501,68 +501,4 @@ namespace Hrot.Common.Macros
         }
     }
 
-    /// <summary>
-    /// ⭐ Where an instance's ARGS resolve (SR-58: anything outside a macro comes in through its params) — the LIVE world of the expanding
-    /// node: an entity's <see cref="EntityGuid"/> (and its <see cref="RefKey"/> where the world registers one) → its network id and place.
-    /// </summary>
-    public sealed class WorldRefScope : IRefScope
-    {
-        private readonly EntityRepository _repo;
-        private readonly NetworkEntityMap _map;
-        private Dictionary<Guid, Entity>? _byGuid;
-        private Dictionary<string, Entity>? _byKey;
-
-        public WorldRefScope(EntityRepository repo, NetworkEntityMap map) { _repo = repo; _map = map; }
-
-        public string Describe => "the world outside the macro";
-
-        /// <summary>⭐ SR-188 — keys two or more live entities carry (the first match is used); a warning, not a refusal.</summary>
-        public HashSet<string> Ambiguous { get; } = new(StringComparer.Ordinal);
-
-        private void Index()
-        {
-            if (_byGuid != null) return;
-            _byGuid = new Dictionary<Guid, Entity>();
-            _byKey = new Dictionary<string, Entity>(StringComparer.Ordinal);
-            if (_repo.IsComponentTypeRegistered<EntityGuid>())
-                foreach (var e in _repo.Query().With<EntityGuid>().Build()) _byGuid[_repo.GetComponentRO<EntityGuid>(e).Value] = e;
-            if (_repo.IsComponentTypeRegistered<RefKey>())
-                foreach (var e in _repo.Query().With<RefKey>().Build())
-                {
-                    string key = _repo.GetComponentRO<RefKey>(e).Value.ToString();
-                    if (!_byKey.TryAdd(key, e)) Ambiguous.Add(key);   // SR-188: the first wins, the ambiguity is reported
-                }
-        }
-
-        public bool TryResolve(in RefSpec spec, out EntityRef entity)
-        {
-            entity = EntityRef.None;
-            Index();
-            Entity e = default;
-            bool hit = spec.Form switch
-            {
-                RefForm.Exact => _byGuid!.TryGetValue(spec.Exact, out e),
-                RefForm.Key   => _byKey!.TryGetValue(spec.KeyText, out e) && WarnIfAmbiguous(spec.KeyText),
-                _ => false,
-            };
-            if (!hit || !_map.TryGetNetworkId(e, out int id)) return false;
-            entity = new EntityRef(id);
-            return true;
-        }
-
-        private bool WarnIfAmbiguous(string key)
-        {
-            if (Ambiguous.Contains(key))
-                FdpLog<MacroExpansionSystem>.Warn($"[Macros] '@{key}' names more than one entity in the world — the first is used (SR-188)");
-            return true;
-        }
-
-        public bool TryPositionOf(EntityRef entity, out WorldPoint position)
-        {
-            position = default;
-            if (!_map.TryGetEntity(entity.NetworkId, out var e) || !_repo.HasComponent<SimTransform>(e)) return false;
-            position = _repo.GetComponentRO<SimTransform>(e).Position;
-            return true;
-        }
-    }
 }

@@ -359,6 +359,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.EntityDoorState` | descriptor | yes: entity id | S | Hrot.Network.NED | Live state of a terrain door |
 | `Hrot.NED.Descriptors.EntityEffectState` | descriptor | yes: entity id | S | Hrot.Network.NED | Stored non-lethal effects of a person |
 | `Hrot.NED.Descriptors.EntityEngagementArea` | descriptor | yes: entity id | S | Hrot.Network.NED | Sector assigned to a man or commander |
+| `Hrot.NED.Descriptors.EntityExerciseResult` | descriptor | yes: entity id | S | Hrot.Network.NED | The exercise's end: phase, reason and each side's outcome (rules S2, dt 172; on the World Environment) |
 | `Hrot.NED.Descriptors.EntityGesture` | descriptor | yes: entity id | S | Hrot.Network.NED | Arm gesture or idle mood of a person |
 | `Hrot.NED.Descriptors.EntityHitMarks` | descriptor | yes: entity id | SL | Hrot.Network.NED | Where rounds struck a body (ring) |
 | `Hrot.NED.Descriptors.EntityHostileAct` | descriptor | yes: entity id | S | Hrot.Network.NED | A man's hostile act and its kind |
@@ -367,6 +368,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.EntityLookState` | descriptor | yes: entity id | S | Hrot.Network.NED | Wanted look direction and head turn |
 | `Hrot.NED.Descriptors.EntityManualDrive` | descriptor | yes: entity id | SL | Hrot.Network.NED | Operator motion axes for a manually driven body |
 | `Hrot.NED.Descriptors.EntityMaster` | descriptor | yes: entity id | S | Hrot.Network.NED | Entity existence, TKB type, DIS type, flags |
+| `Hrot.NED.Descriptors.EntityObjectiveStatus` | descriptor | yes: entity id | S | Hrot.Network.NED | An objective's / measure's / trigger's state, progress and score (rules S1, dt 171) |
 | `Hrot.NED.Descriptors.EntityObstacleShape` | descriptor | yes: entity id | S | Hrot.Network.NED | Static obstacle box, applied before promotion |
 | `Hrot.NED.Descriptors.EntityStableGuid` | descriptor | yes: entity id | S | Hrot.Network.NED | Entity's stable scenario key (`dtEntityGuid` 157, CE-4153); no ownership group, published once by the creator; also rides a forwarded `CreateEntityRequest` |
 | `Hrot.NED.Descriptors.EntityMacroInstance` | descriptor | yes: entity id | S | Hrot.Network.NED | A macro instance: macro path + args JSON (`dtMacroInstance` 158, macros S3a ③); no ownership group, published by the creator on change; not a `CreateEntityRequest` union arm |

@@ -218,6 +218,7 @@ namespace Hrot.SimHost.Tests
                 var e = repo.CreateEntity();
                 repo.AddComponent(e, new RefKey(key));
                 repo.AddComponent(e, At(x, 0, 0));
+                repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = id });   // the live scope reads ids off the entity
                 map.Register(id, e);
                 return e;
             }
@@ -225,14 +226,14 @@ namespace Hrot.SimHost.Tests
             Keyed(901, "Ford", 20);
             Keyed(902, "Ford", 30);
 
-            var scope = new WorldRefScope(repo, map);
+            var scope = new Fdp.Toolkit.ScenarioRules.Actions.WorldRefScope(repo);   // ⭐ the ONE live-world scope (the expander's copy folded into it)
             Assert.True(scope.TryResolve(RefSpec.ByKey("Bridge"), out var bridge));
             Assert.Equal(900, bridge.NetworkId);
             Assert.True(scope.TryPositionOf(bridge, out var at));
             Assert.Equal(10f, at.X);
             Assert.True(scope.TryResolve(RefSpec.ByKey("Ford"), out var ford));
             Assert.Equal(901, ford.NetworkId);
-            Assert.Contains("Ford", scope.Ambiguous);
+            Assert.True(scope.Ambiguous.ContainsKey("Ford"));
             Assert.False(scope.TryResolve(RefSpec.ByKey("Nowhere"), out _));
         }
 
