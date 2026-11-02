@@ -67,8 +67,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
         /// <summary>
         /// Level mode: true when the entity being asked about is alive AND is the one the predicate identifies (an ECS handle / index, a network
-        /// id, or a name substring). ⚠ CE-4205: <c>DataBreakpointManager.MatchesLifecycleCriteria</c> keeps its own copy of the identification
-        /// (Hrot.Diagnostics) — unify it onto this one. <c>NameSubstring</c> reads the name by reflection: not allocation-free.
+        /// id, or a name substring). ⭐ CE-4205: the breakpoint manager's lifecycle tracker evaluates through this. <c>NameSubstring</c> reads the name by reflection: not allocation-free.
         /// </summary>
         private static Func<EntityRepository, Entity, bool> CompileLifecycleLevel(LifecyclePredicateDto dto)
         {
@@ -123,7 +122,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
         /// <summary>
         /// Level mode: true when the entity HAS <c>ComponentType</c> (<c>Added</c> / <c>AnyChange</c> ⇒ has; <c>Removed</c> ⇒ has not).
-        /// ⚠ <c>AuthorityRequirement</c> is IGNORED in Level mode (the live tracker's authority masks are not on the repository read path).
+        /// ⭐ <c>CE-4205</c>: <c>AuthorityRequirement</c> is honoured through the entity's component + authority masks (the breakpoint tracker's rule, now this one's).
         /// </summary>
         private static Func<EntityRepository, Entity, bool> CompileStructuralLevel(StructuralPredicateDto dto)
         {
@@ -132,10 +131,16 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             int typeId = ComponentTypeRegistry.GetId(type);
             bool wantHas = dto.ModificationType != StructuralModification.Removed;
             bool managed = !type.IsValueType;
+            var authority = dto.AuthorityRequirement;
             return (repo, e) =>
             {
                 if (!repo.IsAlive(e)) return false;
                 bool has = typeId >= 0 && (managed ? repo.GetManagedComponentByTypeId(e, typeId) != null : repo.HasComponentByTypeId(e, typeId));
+                if (has && authority != AuthorityRequirement.AnyAuthority)
+                {
+                    bool owned = repo.GetMetadata(e.Index).AuthorityMask.IsSet(typeId);
+                    has = authority == AuthorityRequirement.RequireAuthority ? owned : !owned;
+                }
                 return has == wantHas;
             };
         }

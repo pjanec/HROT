@@ -90,15 +90,15 @@ public sealed class DataBreakpointManager
     private readonly Dictionary<BreakpointId, CompiledEventScanner> _eventScanners = new();
 
     // Structural trackers: BreakpointId -> (Breakpoint, dto, set of entities known to have the component)
-    private readonly Dictionary<BreakpointId, (Breakpoint bp, StructuralPredicateDto dto, HashSet<Entity> knownSet)>
+    private readonly Dictionary<BreakpointId, (Breakpoint bp, StructuralPredicateDto dto, HashSet<Entity> knownSet, Func<EntityRepository, Entity, bool> has)>
         _structuralTrackers = new();
 
     // Spatial trackers: BreakpointId -> (Breakpoint, dto, set of entities currently inside the bounds, compiled position accessor)
-    private readonly Dictionary<BreakpointId, (Breakpoint bp, SpatialBoundingPredicateDto dto, HashSet<Entity> insideSet, Func<EntityRepository, Entity, Vector2>? posAccessor)>
+    private readonly Dictionary<BreakpointId, (Breakpoint bp, SpatialBoundingPredicateDto dto, HashSet<Entity> insideSet, Func<EntityRepository, Entity, bool> inside)>
         _spatialTrackers = new();
 
     // Lifecycle trackers: BreakpointId -> (Breakpoint, dto, set of known-alive entities)
-    private readonly Dictionary<BreakpointId, (Breakpoint bp, LifecyclePredicateDto dto, HashSet<Entity> knownAlive)>
+    private readonly Dictionary<BreakpointId, (Breakpoint bp, LifecyclePredicateDto dto, HashSet<Entity> knownAlive, Func<EntityRepository, Entity, bool> matches)>
         _lifecycleTrackers = new();
     // External-hit tag predicates: tag → list of (BreakpointId, optional remaining delegate).
     // Populated for ExternalHitTagPredicateDto conditions and for CompoundPredicateDto[And]
@@ -1121,16 +1121,25 @@ public sealed class DataBreakpointManager
                 break;
 
             case StructuralPredicateDto structuralDto:
-                _structuralTrackers[id] = (bp, structuralDto, new HashSet<Entity>());
+                // ⭐ CE-4205: "has the component" = the one compiler's level arm (Removed is an EDGE here, so the level is always "present")
+                if (_predicateCompiler != null)
+                    _structuralTrackers[id] = (bp, structuralDto, new HashSet<Entity>(),
+                        _predicateCompiler.CompileLevelPredicate(new StructuralPredicateDto
+                        {
+                            ComponentType = structuralDto.ComponentType,
+                            ModificationType = StructuralModification.AnyChange,
+                            AuthorityRequirement = structuralDto.AuthorityRequirement,
+                        }));
                 break;
 
             case SpatialBoundingPredicateDto spatialDto:
-                _spatialTrackers[id] = (bp, spatialDto, new HashSet<Entity>(),
-                    CompileSpatialPositionAccessor(spatialDto));
+                if (_predicateCompiler != null)   // ⭐ CE-4205: "is inside" = the level arm; the enter / exit edge stays here
+                    _spatialTrackers[id] = (bp, spatialDto, new HashSet<Entity>(), _predicateCompiler.CompileLevelPredicate(spatialDto));
                 break;
 
             case LifecyclePredicateDto lifecycleDto:
-                _lifecycleTrackers[id] = (bp, lifecycleDto, new HashSet<Entity>());
+                if (_predicateCompiler != null)   // ⭐ CE-4205: "matches the criteria" = the level arm
+                    _lifecycleTrackers[id] = (bp, lifecycleDto, new HashSet<Entity>(), _predicateCompiler.CompileLevelPredicate(lifecycleDto));
                 break;
         }
         _cachedComponentPredicates = null;
@@ -1182,17 +1191,13 @@ public sealed class DataBreakpointManager
     {
         if (_structuralTrackers.Count == 0) return;
 
-        foreach (var (bpId, (bp, dto, knownSet)) in _structuralTrackers)
+        foreach (var (bpId, (bp, dto, knownSet, hasLevel)) in _structuralTrackers)
         {
             if (!bp.Enabled) continue;
-
-            int typeId = ComponentTypeRegistry.GetId(dto.ComponentType);
-            if (typeId < 0) continue;
 
             int maxIdx = repo.MaxEntityIndex;
             for (int i = 0; i <= maxIdx; i++)
             {
-                ref var compMask = ref repo.GetComponentMask(i);
                 ref var meta     = ref repo.GetMetadata(i);
                 if (!meta.IsActive) continue;
 
@@ -1201,7 +1206,7 @@ public sealed class DataBreakpointManager
 
                 if (bp.FilterEntity is { } fe && fe != entity) continue;
 
-                bool present = ComputeEffectivePresence(ref compMask, ref meta, typeId, dto.AuthorityRequirement);
+                bool present = hasLevel(repo, entity);
                 bool was     = knownSet.Contains(entity);
 
                 if (present && !was)
@@ -1231,7 +1236,7 @@ public sealed class DataBreakpointManager
     {
         if (_spatialTrackers.Count == 0) return;
 
-        foreach (var (bpId, (bp, dto, insideSet, posAccessor)) in _spatialTrackers)
+        foreach (var (bpId, (bp, dto, insideSet, insideLevel)) in _spatialTrackers)
         {
             if (!bp.Enabled) continue;
 
@@ -1245,10 +1250,7 @@ public sealed class DataBreakpointManager
                 if (entity.IsNull) continue;
                 if (bp.FilterEntity is { } fe && fe != entity) continue;
 
-                Vector2 pos = posAccessor != null
-                    ? posAccessor(repo, entity)
-                    : ReadPosition2D(repo, entity, dto);  // fallback for managed components
-                bool isInside  = dto.Bounds.Contains(repo, new Vector3(pos.X, pos.Y, 0f));   // ⭐ S0 item 5 (SR-134): ONE containment — AreaLink.Contains
+                bool isInside  = insideLevel(repo, entity);   // ⭐ CE-4205: the one compiler's level arm (AreaLink.Contains inside)
                 bool wasInside = insideSet.Contains(entity);
 
                 if (isInside && !wasInside)
@@ -1278,7 +1280,7 @@ public sealed class DataBreakpointManager
     {
         if (_lifecycleTrackers.Count == 0) return;
 
-        foreach (var (bpId, (bp, dto, knownAlive)) in _lifecycleTrackers)
+        foreach (var (bpId, (bp, dto, knownAlive, matchesLevel)) in _lifecycleTrackers)
         {
             if (!bp.Enabled) continue;
 
@@ -1294,7 +1296,7 @@ public sealed class DataBreakpointManager
                 if (bp.FilterEntity is { } fe && fe != entity) continue;
                 if (knownAlive.Contains(entity)) continue;
 
-                if (MatchesLifecycleCriteria(repo, entity, dto))
+                if (matchesLevel(repo, entity))
                 {
                     knownAlive.Add(entity);
                     hits.Add((bp, entity));
@@ -1314,20 +1316,6 @@ public sealed class DataBreakpointManager
 
     // ---- Static helpers for stateful trackers ---------------------------
 
-    private static bool ComputeEffectivePresence(
-        ref BitMask512 componentMask,
-        ref EntityMetadataCold meta,
-        int typeId,
-        AuthorityRequirement req) =>
-        req switch
-        {
-            AuthorityRequirement.RequireAuthority =>
-                componentMask.IsSet(typeId) && meta.AuthorityMask.IsSet(typeId),
-            AuthorityRequirement.RequireGhost =>
-                componentMask.IsSet(typeId) && !meta.AuthorityMask.IsSet(typeId),
-            _ => componentMask.IsSet(typeId)
-        };
-
     /// <summary>
     /// Returns the CLR managed size of <paramref name="type"/> in bytes.
     /// Uses <c>ComponentType&lt;T&gt;.Size</c> (= <c>Unsafe.SizeOf&lt;T&gt;()</c>) rather than
@@ -1335,211 +1323,6 @@ public sealed class DataBreakpointManager
     /// components containing <c>fixed</c> buffers or bool fields with <c>[MarshalAs(UnmanagedType.I1)]</c>.
     /// </summary>
     private static int GetEcsComponentSize(Type type) => Fdp.Core.TypeLayout.SizeOf(type);   // ⭐ CE-2030
-
-    /// <summary>
-    /// Builds a compiled position accessor for unmanaged component type <paramref name="dto"/>.PositionComponentType.
-    /// Returns null if the type is null, not a value type, or its field paths cannot be resolved.
-    /// </summary>
-    private static Func<EntityRepository, Entity, Vector2>? CompileSpatialPositionAccessor(
-        SpatialBoundingPredicateDto dto)
-    {
-        Type? compType = dto.PositionComponentType;
-        if (compType == null || !compType.IsValueType) return null;
-
-        int typeId = ComponentTypeRegistry.GetId(compType);
-        if (typeId < 0) return null;
-
-        try
-        {
-            var method = typeof(DataBreakpointManager)
-                .GetMethod(nameof(CompileSpatialPositionAccessorGeneric),
-                    BindingFlags.NonPublic | BindingFlags.Static)!
-                .MakeGenericMethod(compType);
-            return (Func<EntityRepository, Entity, Vector2>)method.Invoke(null, new object[] { dto, typeId })!;
-        }
-        catch
-        {
-            return null; // Fall back to reflection-based ReadPosition2D if compilation fails.
-        }
-    }
-
-    private static Func<EntityRepository, Entity, Vector2>
-        CompileSpatialPositionAccessorGeneric<T>(SpatialBoundingPredicateDto dto, int typeId)
-        where T : unmanaged
-    {
-        // Build an expression tree: (ref T comp) => new Vector2(comp.XPath, comp.YPath)
-        var param = Expression.Parameter(typeof(T).MakeByRefType(), "comp");
-
-        Expression xExpr = param;
-        foreach (string seg in dto.PositionXPath.Split('.'))
-            xExpr = Expression.PropertyOrField(xExpr, seg);
-        if (xExpr.Type != typeof(float))
-            xExpr = Expression.Convert(xExpr, typeof(float));
-
-        Expression yExpr = param;
-        foreach (string seg in dto.PositionYPath.Split('.'))
-            yExpr = Expression.PropertyOrField(yExpr, seg);
-        if (yExpr.Type != typeof(float))
-            yExpr = Expression.Convert(yExpr, typeof(float));
-
-        var ctor     = typeof(Vector2).GetConstructor(new[] { typeof(float), typeof(float) })!;
-        var bodyExpr = Expression.New(ctor, xExpr, yExpr);
-        var accessor = Expression.Lambda<SpatialPositionDelegate<T>>(bodyExpr, param).Compile();
-
-        return (repo, entity) =>
-        {
-            if (!repo.HasComponentByTypeId(entity, typeId)) return Vector2.Zero;
-            ref readonly T comp = ref repo.GetComponentRO<T>(entity);
-            return accessor(ref Unsafe.AsRef(in comp));
-        };
-    }
-
-    private static Vector2 ReadPosition2D(EntityRepository repo, Entity entity, SpatialBoundingPredicateDto dto)
-    {
-        Type compType = dto.PositionComponentType;
-        if (compType == null) return Vector2.Zero;
-
-        int typeId = ComponentTypeRegistry.GetId(compType);
-        if (typeId < 0) return Vector2.Zero;
-
-        object? comp = null;
-        if (compType.IsValueType)
-        {
-            unsafe
-            {
-                void* ptr = repo.GetComponentPointer(entity, typeId);
-                if (ptr == null) return Vector2.Zero;
-                comp = Marshal.PtrToStructure(new IntPtr(ptr), compType);
-            }
-        }
-        else
-        {
-            comp = repo.GetManagedComponentByTypeId(entity, typeId);
-        }
-
-        if (comp == null) return Vector2.Zero;
-
-        float x = ReadFloatField(comp, dto.PositionXPath);
-        float y = ReadFloatField(comp, dto.PositionYPath);
-        return new Vector2(x, y);
-    }
-
-    private static float ReadFloatField(object obj, string fieldPath)
-    {
-        object? cur = obj;
-        string[] segments = fieldPath.Split('.');
-        foreach (string seg in segments)
-        {
-            if (cur == null) return 0f;
-            Type t = cur.GetType();
-            FieldInfo? fi = t.GetField(seg,
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            if (fi != null) { cur = fi.GetValue(cur); continue; }
-            PropertyInfo? pi = t.GetProperty(seg,
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            if (pi != null) { cur = pi.GetValue(cur); continue; }
-            return 0f;
-        }
-        return cur is float f ? f : (cur is double d ? (float)d : 0f);
-    }
-
-    /// <summary>
-    /// ⭐⭐⭐ <b><c>BP-512</c> — all three identifier kinds now ANSWER; none throws.</b>
-    /// 📄 <c>DESIGN_Variable_Watch_Pinning.md</c> §8a's open decision.
-    ///
-    /// <para>⛔⛔ <b>The <c>NetworkId</c> arm used to <c>throw NotSupportedException</c></b>, with a comment
-    /// prescribing *"pass an <c>INetworkEntityMap</c> to the constructor"*. ⚠⚠ <b>Measured
-    /// <c>2026-08-25</c>: <c>INetworkEntityMap</c> DOES NOT EXIST</b> — that name appears only in this
-    /// file's own comments. ⇒ ⭐ the prescription was a lead, never a seam.</para>
-    ///
-    /// <para>⭐⭐⭐ <b>THE DECISION §8a asked for, and it is NEITHER option it offered.</b> The design named
-    /// two candidates — the consolidated <c>NetworkIdResolver</c> scan, or the maintained
-    /// <c>NetworkEntityMap</c> index — and asked which the call site wants.
-    /// 📐 <b>Measured:</b> <see cref="EvaluateLifecycleTrackers"/> calls this <b>once per active entity,
-    /// per tracker, per tick</b>. ⇒ ⛔ <b>the scan is out</b> *(O(entities²) per tick)</b>, and
-    /// ⭐⭐ <b>the index is unnecessary</b>: this predicate does not ask *"which entity has id N?"* — it
-    /// asks *"is THIS entity the one with id N?"*, which the entity's own <c>NetworkIdentity</c> answers in
-    /// <b>O(1)</b> with no map to keep in step and nothing to go stale.</para>
-    ///
-    /// <para>⭐ It is also the shape the other two arms already have: <c>EcsHandle</c> compares the handle,
-    /// <c>NameSubstring</c> reads the entity's own name component. ⇒ ⛔ a lookup service here would have
-    /// been the only arm that reached outside the entity it was handed.</para>
-    ///
-    /// <para>⚠ <b><c>TargetValue</c> is a string</b>, as it is for every arm. A value that is not a
-    /// <c>long</c> matches nothing — ⛔ it does not throw: a malformed DTO must not take down the tick
-    /// loop, and 📄 <c>FINDINGS_Empty_Breakpoint_Bricks_The_Editor.md</c> is what happens when a
-    /// half-authored breakpoint reaches this path.</para>
-    /// </summary>
-    private static bool MatchesLifecycleCriteria(EntityRepository repo, Entity entity, LifecyclePredicateDto dto)
-    {
-        // ⚠ CE-4205: a second copy of this identification lives in PredicateCompiler.Level.cs (CompileLifecycleLevel, CE-4164) — unify this onto it.
-        return dto.IdentifierType switch
-        {
-            EntityIdentifierType.EcsHandle =>
-                entity.Index.ToString() == dto.TargetValue ||
-                entity.ToString() == dto.TargetValue,
-
-            EntityIdentifierType.NameSubstring =>
-                dto.NameComponentType != null
-                    ? ReadEntityName(repo, entity, dto) is { } n &&
-                      n.Contains(dto.TargetValue, StringComparison.OrdinalIgnoreCase)
-                    : entity.ToString().Contains(dto.TargetValue, StringComparison.OrdinalIgnoreCase),
-
-            // ⭐⭐⭐ BP-512 — asked of the ENTITY, not of a map. See the method remarks for why this is
-            //    neither of the two options the design offered: the predicate is "is THIS entity id N?",
-            //    which is O(1) off the entity's own component, and this runs per-entity-per-tick.
-            //    ⭐ RB-5 — the rule now lives in ONE place, shared with the replay search (which had compared the entity's INDEX).
-            EntityIdentifierType.NetworkId =>
-                Fdp.Toolkit.ReplayBrowser.Search.LifecycleIdentity.IsNetworkId(repo, entity, dto.TargetValue),
-
-            _ => false
-        };
-    }
-
-    private static string? ReadEntityName(EntityRepository repo, Entity entity, LifecyclePredicateDto dto)
-    {
-        int typeId = ComponentTypeRegistry.GetId(dto.NameComponentType!);
-        if (typeId < 0) return null;
-        if (!repo.HasComponentByTypeId(entity, typeId)) return null;
-
-        object? comp = null;
-        if (dto.NameComponentType!.IsValueType)
-        {
-            unsafe
-            {
-                void* ptr = repo.GetComponentPointer(entity, typeId);
-                if (ptr == null) return null;
-                comp = Marshal.PtrToStructure(new IntPtr(ptr), dto.NameComponentType);
-            }
-        }
-        else
-        {
-            comp = repo.GetManagedComponentByTypeId(entity, typeId);
-        }
-
-        if (comp == null) return null;
-
-        return ReadStringField(comp, dto.NamePropertyPath);
-    }
-
-    private static string? ReadStringField(object obj, string fieldPath)
-    {
-        object? cur = obj;
-        string[] segments = fieldPath.Split('.');
-        foreach (string seg in segments)
-        {
-            if (cur == null) return null;
-            Type t = cur.GetType();
-            FieldInfo? fi = t.GetField(seg,
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            if (fi != null) { cur = fi.GetValue(cur); continue; }
-            PropertyInfo? pi = t.GetProperty(seg,
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            if (pi != null) { cur = pi.GetValue(cur); continue; }
-            return null;
-        }
-        return cur?.ToString();
-    }
 
     private static bool HasExternalHitTag(CompoundPredicateDto compound)
         => compound.Conditions.Any(c => c is ExternalHitTagPredicateDto);
