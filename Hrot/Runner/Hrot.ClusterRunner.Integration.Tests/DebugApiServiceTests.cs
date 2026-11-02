@@ -37,12 +37,11 @@ public sealed class DebugApiServiceTests
             OwnerNodeId      = 0,
             InitType         = ReliableInitType.None,
             InitialTransform = new SimTransform { Position = pos },
+            // CE-3357: a raw spawn skips CreateEntityRequestSystem (the only minter of the save key); the save test below needs one.
+            InitialComponents = new System.Collections.Generic.List<object> { new Fdp.Toolkit.Scenario.EntityGuid(Guid.NewGuid()) },
         };
         if (name != null)
-            cmd.InitialComponents = new System.Collections.Generic.List<object>
-            {
-                new EntityInfo { Name = new FixedString64(name) },
-            };
+            cmd.InitialComponents.Add(new EntityInfo { Name = new FixedString64(name) });
         h.Bus.PublishManaged(cmd);
         Assert.True(h.PumpUntil(() => h.EntityMap.TryGetEntity(networkId, out _), PumpTimeoutMs));
     }

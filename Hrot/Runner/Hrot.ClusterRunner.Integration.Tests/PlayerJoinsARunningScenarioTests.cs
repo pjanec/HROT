@@ -124,6 +124,7 @@ public sealed class PlayerJoinsARunningScenarioTests : IDisposable
             editor.Bus.PublishManaged(new SpawnEntityCommand
             {
                 TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams), NetworkId = id, OwnerNodeId = (Fdp.Core.NodeId)(0), InitType = ReliableInitType.None,
+                InitialComponents = new System.Collections.Generic.List<object> { new Fdp.Toolkit.Scenario.EntityGuid(Guid.NewGuid()) },   // CE-3357
             });
         Assert.True(editor.PumpUntil(() => editor.Repo.EntityCount == 2, timeoutMs: 5_000), "EditorHarness must spawn 2 entities within 5 s.");
         editor.PumpFrames(2);

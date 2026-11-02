@@ -201,11 +201,14 @@ public sealed class DistributedScenarioLoadTests : IDisposable
     {
         using var harness = new EditorHarness();
 
+        var targetGuid = Guid.NewGuid();
+
         // Spawn the attacker (offline ID 5000).
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
             TkbType    = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams),   // ⛔ was 1L — not in the CLUSTER's TKB: CGF rejected both creates
             NetworkId  = OfflineAttackerId,
+            InitialComponents = new System.Collections.Generic.List<object> { new Fdp.Toolkit.Scenario.EntityGuid(Guid.NewGuid()) },   // CE-3357: a raw spawn skips CreateEntityRequestSystem, the only minter of the save key
             OwnerNodeId = (Fdp.Core.NodeId)(0),
             InitType   = ReliableInitType.None,
         });
@@ -215,6 +218,7 @@ public sealed class DistributedScenarioLoadTests : IDisposable
         {
             TkbType    = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams),   // ⛔ was 1L — not in the CLUSTER's TKB: CGF rejected both creates
             NetworkId  = OfflineTargetId,
+            InitialComponents = new System.Collections.Generic.List<object> { new Fdp.Toolkit.Scenario.EntityGuid(targetGuid) },
             OwnerNodeId = (Fdp.Core.NodeId)(0),
             InitType   = ReliableInitType.None,
         });
