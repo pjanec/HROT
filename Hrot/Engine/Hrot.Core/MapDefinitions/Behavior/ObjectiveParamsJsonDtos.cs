@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Fdp.Core;
@@ -104,6 +105,20 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("common")] public ObjectiveCommon Common;
         /// <summary>0 = 0.6.</summary>
         [JsonPropertyName("passScore")] public float PassScore;
+    }
+
+    /// <summary>⭐ rules S4 E-1 (SR-72 / SR-81) — <c>MemberEvaluation</c>: a composite over the men of its <c>common.subject</c> (a commander). For each member it inserts ONE macro
+    /// from <see cref="Library"/> (a folder under <c>macros/</c>): <c>overrides[@RefKey]</c> → <c>&lt;library&gt;/&lt;RefKey&gt;</c> → <c>&lt;library&gt;/&lt;TacticalDesignation&gt;</c> →
+    /// <c>&lt;library&gt;/&lt;entity class&gt;</c> → <c>&lt;library&gt;/Default</c>, the first the node's macro library HAS. <see cref="Overrides"/> maps <c>"@Key"</c> / a role / a class
+    /// name to a macro path (a flat map).</summary>
+    [ParamsDto]
+    public struct MemberEvaluationParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.MemberEvaluation;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        /// <summary>The macro folder, e.g. <c>macros/evaluation/infantry</c> (the leading <c>macros/</c> is optional).</summary>
+        [JsonPropertyName("library")] public string Library;
+        [JsonPropertyName("overrides")] public Dictionary<string, string>? Overrides;
     }
 
     /// <summary><c>AllMustPass</c>: a composite achieved when every child is.</summary>

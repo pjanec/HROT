@@ -107,6 +107,8 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
     public static class WeightedMeanBehavior
     {
         public const string Kind = BehaviorNames.WeightedMean;
+        /// <summary>The pass score when the params give none.</summary>
+        public const float DefaultPassScore = 0.6f;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct Block { public ObjectiveCommonBlock Common; public ObjectiveRun Run; public float PassScore; }
@@ -116,30 +118,34 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
 
         [BehaviorResolver(BehaviorNames.WeightedMean)]
         public static void Resolve(in WeightedMeanParamsJsonDto authored, ref WeightedMeanBlackboard bb, EntityRepository world, Entity self)
-            => bb.Block = new Block { Common = ObjectiveCommonBlock.From(in authored.Common), PassScore = authored.PassScore <= 0f ? 0.6f : authored.PassScore };
+            => bb.Block = new Block { Common = ObjectiveCommonBlock.From(in authored.Common), PassScore = authored.PassScore <= 0f ? DefaultPassScore : authored.PassScore };
 
         [SharedAiAction]
         public static NodeStatus Tick(ref Block b, Entity self, EntityRepository world)
         {
             var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Objective, in b.Common, ref b.Run, ObjectiveHost.CloseMode.Composite);
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
-            if (ObjectiveChildren.Evaluates(in s))
-            {
-                var t = ObjectiveChildren.Of(world, self);
-                float score = t.Weight > 0 ? (float)(t.WeightedScore / t.Weight) : 0f;
-                bool allFinal = t.Count > 0 && t.Final == t.Count;
-                bool pass = t.Weight <= 0 || score >= b.PassScore;
-                ObjectiveState next; string reason;
-                if (t.Started == 0) { next = ObjectiveState.Pending; reason = "no child active yet"; }
-                else if (t.FailedRequired > 0) { next = ObjectiveState.Failed; score = 0f; reason = $"required '{t.FirstFailed}' failed"; }
-                else if (allFinal) { next = pass ? ObjectiveState.Achieved : ObjectiveState.Failed; reason = $"score {score:0.00} of {b.PassScore:0.00}"; }
-                else { next = ObjectiveState.Active; reason = $"score {score:0.00}, {t.Final}/{t.Count} done"; }
-                s.Score = score; s.Value = score; s.Target = b.PassScore;
-                s.ProgressCur = t.Achieved; s.ProgressNeed = t.Count;
-                ObjectiveHost.Settle(ref s, Kind, next, reason, f.Now);
-            }
+            if (ObjectiveChildren.Evaluates(in s)) Aggregate(world, self, ref s, b.PassScore, f.Now);
             ObjectiveHost.CloseComposite(world, self, ref s, f.Now);
             return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ rules S4 E-1 — the ONE weighted-mean verdict over a composite's children (<c>MemberEvaluation</c> calls it too): the tally, the score, the
+        /// state and the line. <paramref name="note"/> is appended to the reason (what the caller itself has to say).</summary>
+        public static void Aggregate(EntityRepository world, Entity self, ref ObjectiveStatus s, float passScore, double now, string kind = Kind, string note = "")
+        {
+            var t = ObjectiveChildren.Of(world, self);
+            float score = t.Weight > 0 ? (float)(t.WeightedScore / t.Weight) : 0f;
+            bool allFinal = t.Count > 0 && t.Final == t.Count;
+            bool pass = t.Weight <= 0 || score >= passScore;
+            ObjectiveState next; string reason;
+            if (t.Started == 0) { next = ObjectiveState.Pending; reason = "no child active yet"; }
+            else if (t.FailedRequired > 0) { next = ObjectiveState.Failed; score = 0f; reason = $"required '{t.FirstFailed}' failed"; }
+            else if (allFinal) { next = pass ? ObjectiveState.Achieved : ObjectiveState.Failed; reason = $"score {score:0.00} of {passScore:0.00}"; }
+            else { next = ObjectiveState.Active; reason = $"score {score:0.00}, {t.Final}/{t.Count} done"; }
+            s.Score = score; s.Value = score; s.Target = passScore;
+            s.ProgressCur = t.Achieved; s.ProgressNeed = t.Count;
+            ObjectiveHost.Settle(ref s, kind, next, note.Length == 0 ? reason : reason + "; " + note, now);
         }
 
         [Behavior(BehaviorNames.WeightedMean, Params = typeof(WeightedMeanParamsJsonDto), Categories = BehaviorCategory.Objective)]

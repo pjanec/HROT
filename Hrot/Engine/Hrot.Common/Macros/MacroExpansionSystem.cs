@@ -65,6 +65,9 @@ namespace Hrot.Common.Macros
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // a replay: the recording owns the world
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<MacroExpansionStatus>()) return;
 
+            // ⭐ rules S4 E-1 — the node's macro library, where a BEHAVIOUR can ask "does macro X exist" (MemberEvaluation's lookup, SR-81): the expander's OWN instance, never a second reader.
+            if (_expander != null && !repo.HasSingletonManaged<Fdp.Toolkit.Scenario.IMacroLibrary>()) repo.SetSingletonManaged<Fdp.Toolkit.Scenario.IMacroLibrary>(_expander.Library);
+
             _frame++;
             _answers.Clear();
             if (repo.Bus.IsRegisteredManaged<Fdp.Toolkit.Navigation.PlacementResponseBatch>())

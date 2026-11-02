@@ -1,0 +1,60 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "Kind": "macro",
+  "description": "What: rules S4 E-1 - the default member standard of the infantry evaluation library (a WeightedMean root 'Member standards' of the subject, parented to the evaluation that inserted it, with a required NoHarm child; the measures arrive with S4 E-2). Judge: MemberEvaluation inserts it for a member no role / class macro covers.",
+  "Anchor": {
+   "Position": [
+    0,
+    0,
+    0
+   ],
+   "Heading": 0
+  },
+  "Params": [
+   {
+    "Name": "subject",
+    "TypeId": "EntityLink"
+   },
+   {
+    "Name": "parent",
+    "TypeId": "EntityLink"
+   }
+  ]
+ },
+ "entities": {
+  "e7a10000-0000-4000-8000-000000000001": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Member standards",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "WeightedMean",
+    "Params": "{\"common\": {\"title\": \"Member standards\", \"subject\": \"^subject\", \"parent\": \"^parent\"}}",
+    "Origin": "Superior"
+   }
+  },
+  "e7a10000-0000-4000-8000-000000000002": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "No harm",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "NoHarm",
+    "Params": "{\"common\": {\"title\": \"No harm\", \"subject\": \"^subject\", \"parent\": \"e7a10000-0000-4000-8000-000000000001\", \"required\": true}, \"protected\": \"Neutral\", \"maxCount\": 0}",
+    "Origin": "Superior"
+   }
+  }
+ }
+}
