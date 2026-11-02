@@ -97,6 +97,10 @@ namespace Hrot.Map.Common.Replication.Utils
                         result.Add(Hrot.Map.Common.Replication.Ingress.EntityStableGuidIngressTranslator.ComponentFrom(in d.StableGuid));
                         break;
 
+                    case EDescriptorType.dtMacroInstance:   // ⭐ macros S3a ③ — a forwarded instance keeps its MacroInstance
+                        result.Add(Hrot.Map.Common.Replication.Ingress.EntityMacroInstanceIngressTranslator.FromSample(in d.MacroInstance));
+                        break;
+
                     case EDescriptorType.dtEntityInfo:
                         result.Add(new Fdp.Core.EntityInfo
                         {

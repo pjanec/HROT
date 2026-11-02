@@ -1192,5 +1192,18 @@ namespace Fdp.Core
         /// macro / scenario params (<c>"Behavior.Params.Speed" → "speed"</c>). Managed, NoReplay (SR-165). ⚠ 469 measured free in backend,
         /// ui, behaviors and coordinator 2026-11-02.</summary>
         public const int ParamBindings = 469;
+
+        /// <summary><c>MacroInstance</c> — ⭐ macros S3a ③ (docs/DESIGN_Scenario_Macros.md SR-170): a macro INSTANCE marker (which macro, its args).
+        /// Managed immutable record; saved by <c>MacroInstanceTranslator</c>, recorded; wire <c>dtMacroInstance</c> 158. ⚠ 470 measured free on all
+        /// four lanes 2026-11-02.</summary>
+        public const int MacroInstance = 470;
+
+        /// <summary><c>MacroExpansionStatus</c> — ⭐ macros S3a ③ (SR-175): the expander's state on the instance. Unmanaged, NoScenario, recorded;
+        /// wire <c>dtMacroExpansionStatus</c> 159. ⚠ 471 measured free on all four lanes 2026-11-02.</summary>
+        public const int MacroExpansionStatus = 471;
+
+        /// <summary><c>MacroOrigin</c> — ⭐ macros S3a ③ (SR-178): which instance and macro-local key an expanded entity came from. Unmanaged,
+        /// NoScenario, recorded; wire <c>dtMacroOrigin</c> 170. ⚠ 472 measured free on all four lanes 2026-11-02.</summary>
+        public const int MacroOrigin = 472;
     }
 }

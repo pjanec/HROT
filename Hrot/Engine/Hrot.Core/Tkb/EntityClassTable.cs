@@ -109,6 +109,9 @@ namespace Hrot.Core.Tkb
             yield return C("Person", "Life Form", "3");
             yield return C("Environmental", "Environmental", "4");
             yield return C("CulturalFeature", "Cultural Feature", "5");
+            // ⭐ macros S3a ③ (SR-178, docs/DESIGN_Scenario_Macros.md §14) — a macro INSTANCE marker: a cultural feature of Category 90 (HROT; free — no other class
+            //   uses Kind 5 below the level). The mask names the level Kind 5 · Domain 0 · Category 90, so the picker names it (DisNameTable).
+            yield return C("ScenarioMacro", "Scenario Macro (HROT)", "5.0.*.90");
             yield return C("Supply", "Supply", "6");
             yield return C("Radio", "Radio", "7");
             yield return C("Expendable", "Expendable", "8");

@@ -741,6 +741,56 @@ namespace Hrot.NED.Descriptors
         public long Hi;
     }
 
+    // ⭐ macros S3a ③ (docs/DESIGN_Scenario_Macros.md §14 SR-170, R-134) — a macro INSTANCE: which macro and its args (a JSON object text). Published by the
+    //   node that owns the descriptor (the instance's creator — no group) on change; every node then knows what was instanced. TransientLocal + KeepLast(1).
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityMacroInstance
+    {
+        [DdsKey]
+        public int EntityId;
+
+        /// <summary>The macro's path under <c>macros/</c>.</summary>
+        public string Macro;
+
+        /// <summary>The instance's args — a JSON object, <c>"{}"</c> = none.</summary>
+        public string ArgsJson;
+    }
+
+    // ⭐ macros S3a ③ (SR-175) — the expander's verdict on an instance: <c>MacroExpansionState</c> (0 None · 1 Expanding · 2 Done · 3 Failed) and why it failed.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityMacroExpansionStatus
+    {
+        [DdsKey]
+        public int EntityId;
+
+        public byte State;
+
+        public string Reason;
+    }
+
+    // ⭐ macros S3a ③ (SR-178) — which instance (its network id) and macro-local file key (a GUID as two longs, as <c>EntityStableGuid</c>) an expanded entity came from.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityMacroOrigin
+    {
+        [DdsKey]
+        public int EntityId;
+
+        /// <summary>The instance entity's network id.</summary>
+        public int Instance;
+
+        public long LocalLo;
+
+        public long LocalHi;
+    }
+
     // ── Navigation CQRS descriptors (MOD1-P1T1) ──────────────────────────────
     // These are the DDS wire representations of the engine-side NavigationIntent and
     // NavigationStatus ECS components.  The engine-side enums (NavigationMode,
