@@ -1,0 +1,145 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "description": "What: macros S3a - a four-man fire team (a leader and three riflemen, standing idle) authored around its anchor, the sample macro of the live run. Judge: the file opens by the name macros/test/fire-team and round-trips through the scenario serializer with its header (kind, params, anchor).",
+    "Kind": "macro",
+    "Anchor": {
+      "Position": [
+        100,
+        100,
+        0
+      ],
+      "Heading": 0
+    },
+    "Params": [
+      {
+        "Name": "side",
+        "TypeId": "ForceId",
+        "Default": "Hostile"
+      }
+    ]
+  },
+  "entities": {
+    "fa7e7ea0-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          100,
+          100,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Leader",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "fa7e7ea0-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          104,
+          97,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman A",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "fa7e7ea0-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          96,
+          97,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman B",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "fa7e7ea0-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          108,
+          94,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman C",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    }
+  }
+}

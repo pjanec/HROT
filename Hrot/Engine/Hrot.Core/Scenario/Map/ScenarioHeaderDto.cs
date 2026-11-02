@@ -29,4 +29,19 @@ public sealed class ScenarioHeaderDto
     /// 📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4d.
     /// </summary>
     public string? Description { get; set; }
+
+    /// <summary>⭐ Macros S3a ② — <c>"macro"</c> for a macro file (SR-173); null for a scenario. See <c>ScenarioHeaderJson</c> (Fdp.Toolkits) for the typed read.</summary>
+    public string? Kind { get; set; }
+
+    /// <summary>⭐ SR-44 — the declared params rows (opaque JSON here; typed by <c>ScenarioHeaderJson.Read</c>).</summary>
+    public System.Text.Json.Nodes.JsonArray? Params { get; set; }
+
+    /// <summary>⭐ SR-152 — the authoring anchor <c>{Position:[x,y,z], Heading:deg}</c> (opaque JSON here).</summary>
+    public System.Text.Json.Nodes.JsonObject? Anchor { get; set; }
+
+    /// <summary>⭐ SR-182 — <c>{"MaxShift": m}</c> (opaque JSON here).</summary>
+    public System.Text.Json.Nodes.JsonObject? Placement { get; set; }
+
+    /// <summary>⭐ SR-156 — <c>false</c> pins a macro to its authored place; null/true = relocatable.</summary>
+    public bool? Relocatable { get; set; }
 }

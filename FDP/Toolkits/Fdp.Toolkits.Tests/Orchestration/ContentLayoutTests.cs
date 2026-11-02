@@ -119,6 +119,12 @@ namespace Fdp.Toolkit.Tests.Orchestration
             Assert.Equal(Path.Combine(nas, "recipes", "scenarios", "demo-city"), ContentLayout.ResolveScenarioDirectory(nas, "recipes/scenarios/demo-city"));
             Assert.Equal(Path.Combine(nas, "recipes", "scenarios", "demo-city"), ContentLayout.ResolveScenarioDirectory(nas, @"recipes\scenarios\demo-city"));
             Assert.Equal(Path.Combine(nas, "opened", "recorded", "abc"), ContentLayout.ResolveScenarioDirectory(nas, "opened/recorded/abc"));
+            // ⭐ Macros S3a ② — a macro is named by its folder under macros/; its file is the one name scenario.json
+            Assert.Equal(Path.Combine(nas, "macros", "test", "fire-team"), ContentLayout.ResolveScenarioDirectory(nas, "macros/test/fire-team"));
+            Assert.Equal(Path.Combine(nas, "macros", "test", "fire-team"), ContentLayout.ResolveScenarioDirectory(nas, ContentLayout.MacroName(@"test\fire-team")));
+            Assert.True(ContentLayout.IsMacroName("macros/x"));
+            Assert.False(ContentLayout.IsMacroName("scenarios/macros/x"));
+            Assert.Equal("scenario.json", ContentLayout.MacroFileName);
 
             // the spelling a caller loads a recipe by is the one the layout mints
             Assert.Equal("recipes/scenarios/demo-city", ContentLayout.ScenarioRecipeName("demo-city"));
@@ -166,6 +172,8 @@ namespace Fdp.Toolkit.Tests.Orchestration
                 Path.GetFullPath(ContentLayout.ResolveUnderScenariosRoot(scenarios, "recipes/scenarios/demo-city")));
             Assert.Equal(Path.GetFullPath(Path.Combine(nas, "opened", "recorded", "abc")),
                 Path.GetFullPath(ContentLayout.ResolveUnderScenariosRoot(scenarios, "opened/recorded/abc")));
+            Assert.Equal(Path.GetFullPath(Path.Combine(nas, "macros", "test", "fire-team")),
+                Path.GetFullPath(ContentLayout.ResolveUnderScenariosRoot(scenarios, "macros/test/fire-team")));
         }
     }
 }
