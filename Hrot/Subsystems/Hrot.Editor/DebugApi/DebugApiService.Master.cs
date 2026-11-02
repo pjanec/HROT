@@ -230,11 +230,29 @@ namespace Hrot.Editor.DebugApi
                 if (on) set.Add(mine);
                 mapNodes = set.ToArray();
             }
-            if (record is null && armed is null && ask is null && mapNodes is null) return (null, usage, DebugApiHints.Scenario);
+            // ⭐ Node Features CE-4215 — `featureOverrides: [{feature, nodes:[names] ([] = all), json:"{…partial…}"}]` REPLACES the whole cluster override list (§8 deviation 2); the master validates it.
+            FeatureOverrideSpec[]? general = null;
+            if (body?["featureOverrides"] is { } fv)
+            {
+                if (mapNodes != null) return (null, "Send featureOverrides (the whole list) or mapInLoad / mapInLoadNodes, not both.", DebugApiHints.Scenario);
+                if (fv is not JsonArray farr) return (null, "featureOverrides is an array of { feature, nodes, json }.", DebugApiHints.Scenario);
+                var specs = new List<FeatureOverrideSpec>();
+                foreach (var item in farr)
+                {
+                    string? fid = item?["feature"]?.GetValue<string>(), fjson = item?["json"]?.GetValue<string>();
+                    if (string.IsNullOrWhiteSpace(fid) || string.IsNullOrWhiteSpace(fjson))
+                        return (null, "each featureOverrides entry needs feature (id) and json (a partial config object as a string).", DebugApiHints.Scenario);
+                    var nodes = new List<string>();
+                    if (item?["nodes"] is JsonArray na) foreach (var n in na) if (n?.GetValue<string>() is { Length: > 0 } nn) nodes.Add(nn);
+                    specs.Add(new FeatureOverrideSpec(fid!, nodes, fjson!));
+                }
+                general = specs.ToArray();
+            }
+            if (record is null && armed is null && ask is null && mapNodes is null && general is null) return (null, usage, DebugApiHints.Scenario);
             var master = MasterOrNull;
             if (master is null) return (null, NoMaster, DebugApiHints.Panel);
             var intent = new SetRunSettingsIntent { RequestId = Guid.NewGuid(), RecordLiveRuns = record, Armed = armed, AskToKeepRecordings = ask,
-                FeatureOverrides = mapNodes is null ? null : MapInLoadOverrides.Replace((_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode)?.FeatureOverrides, mapNodes) };
+                FeatureOverrides = general ?? (mapNodes is null ? null : MapInLoadOverrides.Replace((_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode)?.FeatureOverrides, mapNodes)) };
             master.SetRunSettings(intent);
             var result = new JsonObject
             {
