@@ -1173,6 +1173,9 @@ namespace Fdp.Core
         /// that writes world state returns early while it is set (DESIGN_Replay_Time_Axis_And_Review §12l). Transient. 478 free on every
         /// lane by a census, 2026-10-26.</summary>
         public const int ReplayState = 478;
+        /// <summary>⭐ Macros S3b B3 (backend, SR-100 / R-4106 / P-5; backend's 434–449 is full) — <c>SkillAmplifier</c>: the per-SIDE AI skill
+        /// amplifier in tiers, on the World Environment; unmanaged, recorded, saved. 480 free on every lane by a census, 2026-11-02.</summary>
+        public const int SkillAmplifier = 480;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;

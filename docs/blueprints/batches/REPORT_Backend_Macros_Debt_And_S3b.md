@@ -76,7 +76,14 @@ skipped ⇒ `A4_AfterARestore…` red · A6 the template ignored ⇒ `A6_AVehicl
 | B1 | `InsertMacro` — a `[SharedAiAction]` verb: one transient creation request (TKB 8813, derived GUID, the step's `"params"` via `ArgsRef`), then reads `MacroExpansionStatus` only | `0aa4da397` | macros §16 |
 | B1, live | 🔴 a step's `"@Key"` POINT was never resolved (`StepRunner` used `HoldsRefs`) ⇒ fixed in behaviors' `StepRunner` (`HoldsLeaves`) | `6476a15a3` | macros §16, note §3 |
 | B1b | a `do` entry's own `Bind` (SR-94/160) — **filed**: needs behaviors' trigger contract to type its steps | — | macros §16.2, `NOTE_Backend_To_Behaviors_Step_Bind.md` |
-| B2 · B3 | run variants · `SetSkillAmplifier` + the director macro | ⏭ next | — |
+| B2 | run VARIANTS: the reserved arg `"$variant"` (recorded with the run) · `"Presence": p` on an entity / instance · `"Macro": [a, {macro, weight}]` one-of-N · variant 0 = as authored · rolls by `Fnv1a32(variant │ instance GUID │ entity key)` — all inside `ScenarioParams.Prepare` (load + expander); the validator checks every choice | this commit | macros §17 |
+| B3 | `SkillAmplifier` (component **480**, World Environment) + verb `SetSkillAmplifier(side, tiers ±2)` · the fill copies the side's tiers onto every man with a brain (`CombatProficiency.SideTiers`, on the wire dt 150) · `ProficiencyOf.Value = Amplify(own, tiers)`, never a leveller · the counter-attack DIRECTOR macro `macros/control/counter-attack` used by `test-director-early` (4 s) and `-late` (9 s) | this commit | macros §17 |
+
+**Gates (B2/B3):** toolkits `ScenarioParams|MacroValidator|CombatProficiency|HitModel|Scenario|Behavior` 834/0 · SimHost rules + macros + load + proficiency
+233/0 · NED 177/0 · red-proofs: random roll ⇒ `B2_AVariant…` red (⚠ the first form of that rail stayed green under a random roll — one variant twice can agree by
+chance; now 30 variants twice) · no max/min guard ⇒ `B3_TheAmplifier…` red · fill skipped ⇒ `B3_ASidesAmplifier…` red · binding dropped from the macro file ⇒
+`B3_TheDirectorMacro…` red. **Live:** director early fired 4.01 s / late 9.02 s; Hostile men (pre-placed and inserted) `SideTiers` 1, Friend untouched.
+Ids allocated: component **480** `SkillAmplifier` (coordinator/new-lane block, census-free on every lane — backend's block is full).
 
 **Gates (Part B so far):** `Hrot.Network.NED.Tests` 177/0 · SimHost `ScenarioRulesTests|MacroExpander` 56/0 · toolkits `ScenarioRules|Behavior|EntityRefRemap` 659/0 ·
 red-proofs: B1 Success-after-asking ⇒ both B1 rails red · `HoldsRefs` back ⇒ `InsertMacro_AtAKey…` red · docs gates OK (496/496, 17/17 mermaid).

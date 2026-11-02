@@ -524,5 +524,27 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(4, made.Length);                                                       // E-6: the load is not stuck
             Assert.Contains("placed unchecked", repo.GetComponentRO<MacroExpansionStatus>(inst).Reason.ToString());
         }
+
+        /// <summary>⭐ Macros S3b B3 (SR-99) — the counter-attack DIRECTOR is a macro (no director entity): the real
+        /// <c>macros/control/counter-attack</c> prepared with two different <c>delay</c> args (the ONE routine the expander uses) gives its trigger each
+        /// scenario's own fire time through the <c>ParamBindings</c> path into the trigger's params JSON; no args ⇒ the declared default.
+        /// 🔴 Red-proof: drop the binding from the file ⇒ every fire time is the authored 60.</summary>
+        [Fact]
+        public void B3_TheDirectorMacro_UsedTwice_WithDifferentParams()
+        {
+            string file = File.ReadAllText(Path.Combine(TestRepo.Root, "macros", "control", "counter-attack", "scenario.json"));
+            double FireTime(string args)
+            {
+                var dom = (JsonObject)JsonNode.Parse(file)!;
+                ScenarioParams.Prepare(dom, ScenarioHeaderJson.Read(dom), args, null, "macro 'control/counter-attack'", 0, Guid.NewGuid());
+                var trig = (JsonObject)((JsonObject)dom["entities"]!).Single().Value!;
+                var p = JsonNode.Parse(trig["Behavior"]!["Params"]!.GetValue<string>())!;
+                Assert.Equal("Trigger", trig["Behavior"]!["Name"]!.GetValue<string>());
+                return p["when"]!["fromSeconds"]!.GetValue<double>();
+            }
+            Assert.Equal(4, FireTime("""{"delay": 4}"""));
+            Assert.Equal(9, FireTime("""{"delay": 9}"""));
+            Assert.Equal(60, FireTime(""));
+        }
     }
 }

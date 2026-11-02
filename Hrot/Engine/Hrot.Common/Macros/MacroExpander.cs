@@ -66,14 +66,16 @@ namespace Hrot.Common.Macros
         /// <param name="anchor">The instance's place and heading (its <c>SimTransform</c>, SR-152).</param>
         /// <param name="outside">Where an arg's <c>@Key</c> / GUID resolves — the world OUTSIDE the macro (SR-58); <c>null</c> = args hold no references.</param>
         /// <param name="idAllocator">Fresh network ids for the children (SR-151).</param>
+        /// <param name="variant">⭐ macros S3b B2 — the run's variant (<see cref="ScenarioVariants"/>): presence and one-of-N inside the files, salted
+        /// by each instance's GUID. 0 = as authored.</param>
         public Result Expand(MacroInstance instance, int instanceNetworkId, Guid instanceGuid, NodeId owner, SimTransform anchor,
-                             IRefScope? outside, INetworkIdAllocator idAllocator)
+                             IRefScope? outside, INetworkIdAllocator idAllocator, int variant = 0)
         {
             var children = new List<EntityCreationRequest>();
             var top = new ScenarioHeader?[1];
             try
             {
-                Flatten(instance, instanceNetworkId, instanceGuid, owner, anchor, outside, idAllocator, new List<string>(), children, top);
+                Flatten(instance, instanceNetworkId, instanceGuid, owner, anchor, outside, idAllocator, new List<string>(), children, top, variant);
                 return new Result(children, null, top[0]?.EffectiveMaxShift ?? ScenarioHeader.DefaultMaxShift, top[0]?.Relocatable ?? true);
             }
             catch (Refused r) { return new Result(Array.Empty<EntityCreationRequest>(), r.Message); }
@@ -82,7 +84,7 @@ namespace Hrot.Common.Macros
         }
 
         private void Flatten(MacroInstance mi, int instanceId, Guid instanceGuid, NodeId owner, SimTransform anchor, IRefScope? outside,
-                             INetworkIdAllocator ids, List<string> path, List<EntityCreationRequest> into, ScenarioHeader?[] top)
+                             INetworkIdAllocator ids, List<string> path, List<EntityCreationRequest> into, ScenarioHeader?[] top, int variant)
         {
             string here = path.Count == 0 ? mi.Macro : string.Join(" / ", path) + " / " + mi.Macro;
             if (path.Contains(mi.Macro, StringComparer.Ordinal))
@@ -101,7 +103,7 @@ namespace Hrot.Common.Macros
             // ── params (SR-28 / SR-149 / SR-161): the header's defaults ▸ the instance's args, an undeclared arg refused, the file's
             //    ParamBindings applied — ⭐ the ONE routine a scenario load uses too (ScenarioParams, SR-41)
             ScenarioParams.Prepared bound;
-            try { bound = ScenarioParams.Prepare(dom, header, mi.ArgsJson, outside is null ? null : new RefResolve(outside), $"macro '{here}'"); }
+            try { bound = ScenarioParams.Prepare(dom, header, mi.ArgsJson, outside is null ? null : new RefResolve(outside), $"macro '{here}'", variant, instanceGuid); }
             catch (ScenarioParams.ArgsRefused r) { throw new Refused(r.Message); }
             var source = bound.Source;
 
@@ -142,7 +144,7 @@ namespace Hrot.Common.Macros
                 {
                     var nestedAnchor = comps.OfType<SimTransform>().FirstOrDefault();
                     path.Add(mi.Macro);
-                    try { Flatten(nested, r.PreAllocatedNetworkId, childGuid, owner, nestedAnchor, outside, ids, path, into, top); }
+                    try { Flatten(nested, r.PreAllocatedNetworkId, childGuid, owner, nestedAnchor, outside, ids, path, into, top, variant); }
                     finally { path.RemoveAt(path.Count - 1); }
                     comps.Add(new MacroExpansionStatus { State = MacroExpansionState.Done });   // E-2: never expanded again
                 }

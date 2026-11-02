@@ -61,7 +61,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         /// <summary>The wire form (the test seam).</summary>
         internal static EntityCombatProficiency ToSample(int netId, in CombatProficiency c)
-            => new() { EntityId = netId, Authored = c.Authored, Unit = c.Unit, TypeDefault = c.TypeDefault, Set = c.Set };
+            => new() { EntityId = netId, Authored = c.Authored, Unit = c.Unit, TypeDefault = c.TypeDefault, Set = c.Set, SideTiers = c.SideTiers };
 
         public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
 
@@ -118,7 +118,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (!_entityMap.TryGetEntity(d.EntityId, out var unit) || !view.IsAlive(unit)) { DroppedSampleCount++; return; }
             if (view is EntityRepository repo
                 && AuthorityExtensions.IsRecordedOwner(repo, unit, OwnershipExtensions.PackKey(OrdinalValue, 0))) return;
-            cmd.AddComponent(unit, new CombatProficiency { Authored = d.Authored, Unit = d.Unit, TypeDefault = d.TypeDefault, Set = d.Set });
+            cmd.AddComponent(unit, new CombatProficiency { Authored = d.Authored, Unit = d.Unit, TypeDefault = d.TypeDefault, Set = d.Set, SideTiers = (sbyte)System.Math.Clamp((int)d.SideTiers, -2, 2) });
         }
 
         public void ScanAndPublish(ISimulationView view) { }

@@ -102,5 +102,19 @@ namespace Fdp.Toolkits.Tests.Scenario
             Assert.Equal(2, scope.Ambiguous["SL"]);
             Assert.False(scope.TryResolve(RefSpec.ByKey("Nobody"), out _));   // a MISSING key still resolves to nothing (RefResolve throws)
         }
+
+        /// <summary>⭐ Macros S3b B2 (SR-101) — a ONE-OF-N instance: every choice is checked (any variant may pick it), each named.</summary>
+        [Fact]
+        public void B2_AOneOfNInstance_ChecksEveryChoice()
+        {
+            var lib = Lib(("team", Macro(Man)));
+            string inst = """
+                "bbbb0000-0000-4000-8000-000000000009": { "EntityInfo": {"Name": "choice"}, "SimTransform": {"Position": [0, 0, 0]},
+                    "MacroInstance": {"Macro": ["team", {"macro": "ghost", "weight": 2}], "Args": {}} }
+                """;
+            var problems = MacroValidator.Validate(Scenario(inst), lib);
+            var p = Assert.Single(problems);
+            Assert.Contains("choice 'ghost'", p);
+        }
     }
 }

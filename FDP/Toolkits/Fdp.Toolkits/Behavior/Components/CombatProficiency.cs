@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
@@ -27,6 +28,10 @@ namespace Fdp.Toolkit.Behavior.Components
         public float TypeDefault;
         /// <summary><see cref="AuthoredSet"/> | <see cref="UnitSet"/> | <see cref="TypeDefaultSet"/>.</summary>
         public byte Set;
+        /// <summary>⭐ Macros S3b B3 (SR-100 / R-4106) — his SIDE's amplifier in tiers (−2 … +2), copied onto him by the fill system so every reader
+        /// (the hit model on another node too) needs nothing but the man. ⭐ An OVERLAY: it never writes <see cref="Authored"/> / <see cref="Unit"/> /
+        /// <see cref="TypeDefault"/>, so the slider back to 0 restores his own level exactly.</summary>
+        public sbyte SideTiers;
 
         public const byte AuthoredSet = 1, UnitSet = 2, TypeDefaultSet = 4;
     }
@@ -63,16 +68,53 @@ namespace Fdp.Toolkit.Behavior.Components
         private static readonly float[] s_expose = { 1.8f, 1.4f, 1.0f, 0.85f, 0.7f };
         private static readonly float[] s_delay  = { 1.2f, 0.6f, 0f, 0f, 0f };
 
-        /// <summary>The man's proficiency: authored, else his unit's, else his type's, else Regular.</summary>
+        /// <summary>The man's proficiency: authored, else his unit's, else his type's, else Regular — then his side's amplifier (SR-100).</summary>
         public static float Value(ISimulationView view, Entity unit)
         {
             if (view is EntityRepository repo && !repo.IsComponentTypeRegistered<CombatProficiency>()) return Regular;
             if (!view.HasComponent<CombatProficiency>(unit)) return Regular;
             ref readonly var p = ref view.GetComponentRO<CombatProficiency>(unit);
+            return Amplify(Own(p), p.SideTiers);
+        }
+
+        /// <summary>His OWN level: authored, else his unit's, else his type's, else Regular (no amplifier).</summary>
+        public static float Own(in CombatProficiency p)
+        {
             if ((p.Set & CombatProficiency.AuthoredSet) != 0) return Clamp01(p.Authored);
             if ((p.Set & CombatProficiency.UnitSet) != 0) return Clamp01(p.Unit);
             if ((p.Set & CombatProficiency.TypeDefaultSet) != 0) return Clamp01(p.TypeDefault);
             return Regular;
+        }
+
+        /// <summary>
+        /// ⭐⭐ Macros S3b B3 (SR-100 / R-4106 / P-5) — <paramref name="own"/> moved by <paramref name="tiers"/> preset steps along the five presets
+        /// (a man between two presets moves the same fraction between the next two), clamped to Untrained … Elite. ⭐ Never a leveller: a raise never
+        /// LOWERS a man already above the top preset, a cut never RAISES one below the bottom; 0 tiers is his own level exactly.
+        /// </summary>
+        public static float Amplify(float own, int tiers)
+        {
+            if (tiers == 0) return own;
+            float at = PositionOf(own);
+            float to = Math.Clamp(at + tiers, 0f, s_presets.Length - 1);
+            float v = Lerp(s_presets, to, positional: true);
+            return tiers > 0 ? Math.Max(own, v) : Math.Min(own, v);
+        }
+
+        /// <summary>Where <paramref name="value"/> sits on the preset ladder (0 = Untrained … 4 = Elite; clamped at both ends).</summary>
+        public static float PositionOf(float value)
+        {
+            if (value <= s_presets[0]) return 0f;
+            for (int i = 1; i < s_presets.Length; i++)
+                if (value <= s_presets[i]) return i - 1 + (value - s_presets[i - 1]) / (s_presets[i] - s_presets[i - 1]);
+            return s_presets.Length - 1;
+        }
+
+        private static float Lerp(float[] atPresets, float position, bool positional)
+        {
+            int i = Math.Clamp((int)MathF.Floor(position), 0, atPresets.Length - 1);
+            if (i >= atPresets.Length - 1) return atPresets[^1];
+            float f = position - i;
+            return atPresets[i] + (atPresets[i + 1] - atPresets[i]) * f;
         }
 
         /// <summary>The preset nearest to <paramref name="value"/> (ties go up).</summary>

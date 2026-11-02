@@ -168,10 +168,12 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         _pendingArgs = null;
         if (System.Text.Json.Nodes.JsonNode.Parse(extractJson) is System.Text.Json.Nodes.JsonObject dom
             && Fdp.Toolkit.Scenario.ScenarioHeaderJson.Read(dom) is var header
-            && Fdp.Toolkit.Scenario.ScenarioParams.Applies(header, context.ScenarioArgsJson))
+            && (Fdp.Toolkit.Scenario.ScenarioParams.Applies(header, context.ScenarioArgsJson) || Fdp.Toolkit.Scenario.ScenarioVariants.Uses(dom)))
         {
             Fdp.Toolkit.Scenario.ScenarioParams.Prepared bound;
-            try { bound = Fdp.Toolkit.Scenario.ScenarioParams.Prepare(dom, header, context.ScenarioArgsJson, null, $"scenario '{context.ScenarioId}'"); }
+            // ⭐ macros S3b B2 — the run's variant (the reserved arg "$variant") picks presence and one-of-N, in the ONE routine
+            int variant = Fdp.Toolkit.Scenario.ScenarioVariants.VariantOf(context.ScenarioArgsJson);
+            try { bound = Fdp.Toolkit.Scenario.ScenarioParams.Prepare(dom, header, context.ScenarioArgsJson, null, $"scenario '{context.ScenarioId}'", variant); }
             catch (Fdp.Toolkit.Scenario.ScenarioParams.ArgsRefused r)
             { throw new InvalidOperationException($"[LoadPhase/Scenario] the load is refused: {r.Message}"); }
             _pendingArgs     = bound.EffectiveJson;

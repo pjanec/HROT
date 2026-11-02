@@ -92,5 +92,22 @@ namespace Hrot.SimHost.Tests
             w.Run(1);
             Assert.Contains("not found", w.S(t).Reason.ToString());
         }
+
+        /// <summary>⭐ Macros S3b B3 (SR-100) — a trigger's <c>SetSkillAmplifier</c> sets the side's amplifier on the World Environment (instant); tiers
+        /// outside ±2 are refused at assignment, and without a World Environment the step fails with its reason.</summary>
+        [Fact]
+        public void SetSkillAmplifier_SetsTheSidesTiers_OnTheWorldEnvironment()
+        {
+            var w = new ObjWorld();
+            if (!w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.SkillAmplifier>()) w.Repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.SkillAmplifier>();
+            var env = w.Environment();
+            var src = Cond(w);
+            var t = Fire(w, src, Do(Step("SetSkillAmplifier", "{\"side\":\"Hostile\",\"tiers\":-1}")));
+            Flip(w, src, true); w.Run(1);
+            Assert.NotEqual(TriggerState.Acting, Phase(w, t));
+            var amp = w.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.SkillAmplifier>(env);
+            Assert.Equal((-1, 0), (amp.TiersOf(ForceId.Hostile), amp.TiersOf(ForceId.Friend)));
+            Assert.Throws<FormatException>(() => Fdp.Toolkit.ScenarioRules.Actions.ActionCatalogue.RunnerFor("SetSkillAmplifier").CheckArgs("{\"side\":\"Hostile\",\"tiers\":3}"));
+        }
     }
 }

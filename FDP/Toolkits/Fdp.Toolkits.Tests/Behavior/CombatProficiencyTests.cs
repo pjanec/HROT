@@ -176,5 +176,62 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.AddComponent(e, new UnitSubordinate { Commander = commander });
             return e;
         }
+
+        // ════════ ⭐ Macros S3b B3 (SR-100 / R-4106 / P-5) — the per-SIDE skill AMPLIFIER: never a leveller ════════
+
+        /// <summary>⭐ B3 — one tier is one preset step; a man between presets moves the same fraction; the ends clamp but never LEVEL: a raise never
+        /// lowers a man above Elite, a cut never raises one below Untrained, and 0 tiers is his own value exactly. 🔴 Red-proof: drop the
+        /// max/min guard ⇒ the 1.0 man falls to 0.95 under +1.</summary>
+        [Fact]
+        public void B3_TheAmplifier_MovesByPresetSteps_AndNeverLevels()
+        {
+            Assert.Equal(ProficiencyOf.Veteran, ProficiencyOf.Amplify(ProficiencyOf.Regular, +1), 4);
+            Assert.Equal(ProficiencyOf.Elite, ProficiencyOf.Amplify(ProficiencyOf.Regular, +2), 4);
+            Assert.Equal(ProficiencyOf.Militia, ProficiencyOf.Amplify(ProficiencyOf.Regular, -1), 4);
+            Assert.Equal(ProficiencyOf.Elite, ProficiencyOf.Amplify(ProficiencyOf.Veteran, +2), 4);     // clamped at the top
+            Assert.Equal(1.0f, ProficiencyOf.Amplify(1.0f, +1), 4);                                         // above Elite: never lowered
+            Assert.Equal(0.05f, ProficiencyOf.Amplify(0.05f, -1), 4);                                       // below Untrained: never raised
+            float between = (ProficiencyOf.Regular + ProficiencyOf.Veteran) / 2;                             // half way Regular → Veteran
+            Assert.Equal((ProficiencyOf.Veteran + ProficiencyOf.Elite) / 2, ProficiencyOf.Amplify(between, +1), 4);
+            Assert.Equal(0.42f, ProficiencyOf.Amplify(0.42f, 0), 6);
+        }
+
+        /// <summary>⭐ B3 — the fill copies the SIDE's tiers onto every man with a brain (no commander needed); the reader applies them; back to 0
+        /// every man reads his OWN level again — nobody's own value was ever written. 🔴 Red-proof: the fill not run ⇒ no tiers on the men.</summary>
+        [Fact]
+        public void B3_ASidesAmplifier_ReachesEveryManOfThatSide_AndZeroRestoresThemExactly()
+        {
+            _world.RegisterComponent<SkillAmplifier>();
+            _world.RegisterComponent<EntityInfo>();
+            _world.RegisterComponent<BehaviorState>();
+            Entity Man(ForceId side, float? authored)
+            {
+                var e = _world.CreateEntity();
+                _world.AddComponent(e, new EntityInfo { ForceId = side });
+                _world.AddComponent(e, new BehaviorState());
+                if (authored is { } a) _world.AddComponent(e, new CombatProficiency { Authored = a, Set = CombatProficiency.AuthoredSet });
+                return e;
+            }
+            var vet = Man(ForceId.Hostile, ProficiencyOf.Veteran);
+            var plain = Man(ForceId.Hostile, null);
+            var elite = Man(ForceId.Hostile, ProficiencyOf.Elite);
+            var friend = Man(ForceId.Friend, ProficiencyOf.Regular);
+            var env = _world.CreateEntity();
+            var amp = new SkillAmplifier(); amp.Set(ForceId.Hostile, +1);
+            _world.AddComponent(env, amp);
+
+            var fill = new ProficiencyFillSystem();
+            fill.Execute(_world, 0f);
+            Assert.Equal(ProficiencyOf.Elite, ProficiencyOf.Value(_world, vet), 4);
+            Assert.Equal(ProficiencyOf.Veteran, ProficiencyOf.Value(_world, plain), 4);                // no component before: added with the tiers
+            Assert.Equal(ProficiencyOf.Elite, ProficiencyOf.Value(_world, elite), 4);                  // already at the top: stays there
+            Assert.Equal(ProficiencyOf.Regular, ProficiencyOf.Value(_world, friend), 4);               // another side: untouched
+
+            amp.Set(ForceId.Hostile, 0); _world.SetComponent(env, amp);
+            fill.Execute(_world, 0f);
+            Assert.Equal(ProficiencyOf.Veteran, ProficiencyOf.Value(_world, vet), 6);                  // exactly his own again
+            Assert.Equal(ProficiencyOf.Regular, ProficiencyOf.Value(_world, plain), 6);
+            Assert.Equal(ProficiencyOf.Veteran, _world.GetComponentRO<CombatProficiency>(vet).Authored, 6);   // never written
+        }
     }
 }
