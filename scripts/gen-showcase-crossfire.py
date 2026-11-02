@@ -4,7 +4,7 @@
   python3 scripts/gen-showcase-crossfire.py
 
 Domination on demo-city: three capture points, ticket pools, a comeback boost, supply drops, bot respawn waves — ALL data (objectives,
-triggers, macros, variants) on the rules S1/S2/S3 machinery plus the S6 v1 pieces (DESIGN_Scenario_Rules.md §00.11: timed capture by side,
+triggers, macros, variants) on the rules S1/S2/S3 machinery plus the S6 v1 pieces (DESIGN_Scenario_Rules.md §00.12: timed capture by side,
 the Counter measure, AddToCounter, trigger whileTrue). Nothing compiled per scenario (R-4112). Edit this script, not the files.
 
   scenarios/showcase-crossfire/scenario.json

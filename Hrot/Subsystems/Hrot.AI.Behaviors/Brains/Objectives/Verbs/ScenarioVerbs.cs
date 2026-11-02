@@ -85,7 +85,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
 
         // ═══════════════════════════════════════ AddToCounter (S6 G-3) ═══════════════════════════════════════
 
-        /// <summary>⭐ S6 G-3 (📄 DESIGN_Scenario_Rules §00.11) — adds <c>amount</c> to a <c>Counter</c> measure's value (the crate's +15, the drain's −1, the operator's hand edit: one
+        /// <summary>⭐ S6 G-3 (📄 DESIGN_Scenario_Rules §00.12) — adds <c>amount</c> to a <c>Counter</c> measure's value (the crate's +15, the drain's −1, the operator's hand edit: one
         /// shared action). Instant. The counter itself keeps the value within its floor / ceiling at its next tick. Failure: the target does not resolve, is no Counter, or is closed.</summary>
         [SharedAiAction]
         public static NodeStatus AddToCounter(ref AddToCounterParams p, ref VerbNoState s, Entity self, EntityRepository world)

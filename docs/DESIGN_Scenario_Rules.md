@@ -597,7 +597,7 @@ that already replicates to every node.
 - *A big result object on the wire* — the tree is the statuses (SR-122).
 - *Building S1 on today's `EntityRef` / polyline areas and migrating later* — the same files twice; S0 first.
 
-### 00.11 S6 — the game profile, v1 *(backend, `2026-11-02`; `HANDOFF_Coordinator_To_Backend_Showcase_Scenarios.md` item ②; ⏳ built on these leans — the user may overturn any G-row)*
+### 00.12 S6 — the game profile, v1 *(backend, `2026-11-02`; `HANDOFF_Coordinator_To_Backend_Showcase_Scenarios.md` item ②; ⏳ built on these leans — the user may overturn any G-row)*
 
 🔒 *User, `2026-11-02`: "backend can also add the missing infrastructure, whatever is needed."* ⭐ Crossfire (SHOWCASE §2) needs four things the
 rules do not have: a point captured **by outnumbering for N s**, a **ticket pool** that actions and deaths move, a trigger that **fires again

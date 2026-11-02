@@ -110,7 +110,7 @@ namespace Hrot.Map.Definitions.Behavior
     }
 
     /// <summary>
-    /// ⭐ S6 G-2 (📄 docs/DESIGN_Scenario_Rules.md §00.11) — <c>Counter</c>, a MEASURE (role Measure): <c>Value</c> starts at <see cref="Start"/> (also its
+    /// ⭐ S6 G-2 (📄 docs/DESIGN_Scenario_Rules.md §00.12) — <c>Counter</c>, a MEASURE (role Measure): <c>Value</c> starts at <see cref="Start"/> (also its
     /// <c>Target</c>, so the score is value / start); <c>AddToCounter</c> moves it; <see cref="Deaths"/> (at most two sides) moves it by <c>per</c> for every man of the side
     /// newly out of the fight (counted once; a revived man refunds nothing). Clamped to [<see cref="Floor"/>, <see cref="Ceiling"/>].
     /// </summary>

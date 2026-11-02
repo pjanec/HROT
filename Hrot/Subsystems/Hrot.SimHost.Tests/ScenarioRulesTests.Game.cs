@@ -9,7 +9,7 @@ using Xunit;
 namespace Hrot.SimHost.Tests
 {
     /// <summary>
-    /// ⭐ rules S6 (📄 docs/DESIGN_Scenario_Rules.md §00.11 G-1 … G-4) — the game profile v1: a point taken BY SIDE with a clock, the <c>Counter</c> measure,
+    /// ⭐ rules S6 (📄 docs/DESIGN_Scenario_Rules.md §00.12 G-1 … G-4) — the game profile v1: a point taken BY SIDE with a clock, the <c>Counter</c> measure,
     /// the <c>AddToCounter</c> verb and the trigger's <c>whileTrue</c>. Through the real load path, like the S1/S2 rails.
     /// </summary>
     public sealed partial class ScenarioRulesTests

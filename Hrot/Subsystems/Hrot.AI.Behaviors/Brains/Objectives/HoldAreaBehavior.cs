@@ -95,7 +95,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         }
 
         /// <summary>
-        /// ⭐ S6 G-1 (📄 DESIGN_Scenario_Rules §00.11) — capture BY SIDE with a clock. The leader = the side with strictly more men inside than the other (every man of the
+        /// ⭐ S6 G-1 (📄 DESIGN_Scenario_Rules §00.12) — capture BY SIDE with a clock. The leader = the side with strictly more men inside than the other (every man of the
         /// side) and at least <c>minMen</c>. The owner is lost AT ONCE (→ Neutral) when the other side outnumbers it; a leader that is not the owner accumulates
         /// <c>AdvantageFor</c> (reset when the leader changes or there is none) and becomes the Owner at <c>captureSeconds</c>. The state stays Active.
         /// </summary>
