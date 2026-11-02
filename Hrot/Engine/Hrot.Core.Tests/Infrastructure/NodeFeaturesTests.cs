@@ -1,5 +1,6 @@
 using System;
 using Fdp.Core;
+using Fdp.Toolkit.Orchestration;
 using Hrot.Common.Infrastructure;
 using Xunit;
 
@@ -81,7 +82,7 @@ public sealed class NodeFeaturesTests
     }
 
     [Fact]
-    public void AtLoadFreezeIgnoresLaterLayers_LiveStillFollows()
+    public void AtLoadFreezeTakesTheStampedClusterLayer_LaterBroadcastsReachOnlyLiveFeatures()
     {
         var f = new NodeFeatures(Registry(), NodeRole.Map2D, () => "P");
         f.FreezeAtLoad(new System.Collections.Generic.Dictionary<string, string> { ["gameplay.team-kill"] = "{\"Enabled\":false}" });
@@ -90,8 +91,22 @@ public sealed class NodeFeaturesTests
             new FeatureOverrideSpec("gameplay.team-kill", Array.Empty<string>(), "{\"Enabled\":true}"),
             new FeatureOverrideSpec("hud.kill-cam", Array.Empty<string>(), "{\"Enabled\":false}"),
         });
-        Assert.False(f.On("gameplay.team-kill"));              // AtLoad: frozen
+        Assert.False(f.On("gameplay.team-kill"));              // AtLoad: frozen at the stamped layer
         Assert.False(f.On("hud.kill-cam"));                    // Live: now
         Assert.Equal("{\"Enabled\":false}", f.AtLoadConfigs()["gameplay.team-kill"]);
+        f.FreezeAtLoad(new System.Collections.Generic.Dictionary<string, string>());   // the NEXT load, no stamp for it
+    }
+
+    [Fact]
+    public void ABranchFromARecording_ReappliesTheRecordedConfig_AndRefusesAFeatureTheBuildDoesNotDeclare()
+    {
+        var f = new NodeFeatures(Registry(), NodeRole.Brain);
+        Assert.True(f.On("gameplay.team-kill"));
+        f.FreezeRecorded(new System.Collections.Generic.Dictionary<string, string> { ["gameplay.team-kill"] = "{\"Enabled\":false}" });
+        Assert.False(f.On("gameplay.team-kill"));              // the recording wins over the role default
+        Assert.Throws<InvalidOperationException>(() => f.FreezeRecorded(new System.Collections.Generic.Dictionary<string, string> { ["gone.feature"] = "{}" }));
+        Assert.Throws<InvalidOperationException>(() => f.FreezeRecorded(new System.Collections.Generic.Dictionary<string, string> { ["hud.kill-cam"] = "{}" }));   // Live in this build
+        Assert.Throws<InvalidOperationException>(() => f.FreezeRecorded(new System.Collections.Generic.Dictionary<string, string> { ["gameplay.team-kill"] = "{\"Lost\":1}" }));   // a key the type lost
+        Assert.False(f.On("gameplay.team-kill"));              // a refused branch changes nothing
     }
 }

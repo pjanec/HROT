@@ -226,6 +226,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         _pendingRecordingOff         = context.RecordingOff;
         _loadTransactionId = intent.TransactionId;   // ⭐ P8 — the load an abort may name
         _loadContext       = context;
+        _recordingController?.FreezeFeaturesForLoad(context.FeatureConfigsAtLoad);   // ⭐ Node Features F-14 — frozen BEFORE any step is built or the recording opens
 
         // ⭐⭐ CE-2101 — the world boundary (a load entered from Idle) starts from an EMPTY world on every host: the load
         //   builds from the file, never on the previous run's entities. ⛔ Not on live-from-replay, which the master never

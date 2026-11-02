@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Text.Json.Serialization;
 using Hrot.NED.Descriptors.Orchestration;
 
@@ -103,9 +104,12 @@ public record SetRunSettingsPayloadDto(
     [property: JsonPropertyName("AskToKeepRecordings")]
     bool? AskToKeepRecordings = null,   // ⭐ AQ108 D15 (CE-4100 ①) — appended; absent = no change
     [property: JsonPropertyName("MapInLoadNodes")]
-    string[]? MapInLoadNodes = null)    // ⭐ CE-3354 ③ — appended; absent = no change, empty = none
+    string[]? MapInLoadNodes = null,    // ⭐ CE-3354 ③ — appended; absent = no change, empty = none
+    [property: JsonPropertyName("FeatureOverrides")]
+    FeatureOverrideDto[]? FeatureOverrides = null)   // ⭐ Node Features F-16 — appended; absent = no change, empty = none
 {
-    public static SetRunSettingsPayloadDto From(Fdp.Toolkit.Orchestration.SetRunSettingsIntent intent) => new(intent.RecordLiveRuns, intent.Armed, intent.AskToKeepRecordings, intent.MapInLoadNodes);
+    public static SetRunSettingsPayloadDto From(Fdp.Toolkit.Orchestration.SetRunSettingsIntent intent) => new(intent.RecordLiveRuns, intent.Armed, intent.AskToKeepRecordings, intent.MapInLoadNodes,
+        intent.FeatureOverrides?.Select(o => new FeatureOverrideDto(o.Feature, o.Nodes.ToArray(), o.Json)).ToArray());
 
     /// <summary>⭐ The ONE decoding (the master's translator): an unreadable payload changes nothing (both fields null).
     /// ⚠ CE-3341 changed this: before it, an unreadable payload meant "recording ON"; a no-op is the safer answer now that the op also carries the armed mode.</summary>
@@ -122,6 +126,7 @@ public record SetRunSettingsPayloadDto(
                     intent.Armed = dto.Armed;
                     intent.AskToKeepRecordings = dto.AskToKeepRecordings;
                     intent.MapInLoadNodes = dto.MapInLoadNodes;
+                    intent.FeatureOverrides = dto.FeatureOverrides?.Select(o => new Fdp.Toolkit.Orchestration.FeatureOverrideSpec(o.Feature ?? "", o.Nodes ?? System.Array.Empty<string>(), o.Json ?? "")).ToArray();
                 }
             }
             catch (System.Text.Json.JsonException) { }
@@ -129,6 +134,12 @@ public record SetRunSettingsPayloadDto(
         return intent;
     }
 }
+
+/// <summary>⭐ Node Features F-16 — one feature override in the JSON cluster-op channel: <c>Json</c> is a partial object (a string, as in the wire twin).</summary>
+public record FeatureOverrideDto(
+    [property: JsonPropertyName("Feature")] string Feature = "",
+    [property: JsonPropertyName("Nodes")] string[]? Nodes = null,
+    [property: JsonPropertyName("Json")] string Json = "{}");
 
 /// <summary>Payload DTO for <c>ClusterOpType.ManageEpisode</c> DDS requests.</summary>
 public record ManageEpisodePayloadDto(
@@ -329,7 +340,11 @@ public record NodeTransitionPayloadDto(
 
     // ⭐ CE-3354 ③ — this node's load also waits for its built 3-D map (stamped per node by the master). Additive; omitted ⇒ false.
     [property: JsonPropertyName("MapInLoad")]
-    bool           MapInLoad = false
+    bool           MapInLoad = false,
+
+    // ⭐ Node Features F-14 — per node: the cluster layer for this node's features (id → partial JSON object text). Additive; omitted ⇒ null.
+    [property: JsonPropertyName("FeatureConfigsAtLoad")]
+    System.Collections.Generic.Dictionary<string, string>? FeatureConfigsAtLoad = null
 );
 
 /// <summary>Node-level episode payload DTO for <c>StartEpisode</c> / <c>StopEpisode</c>.</summary>

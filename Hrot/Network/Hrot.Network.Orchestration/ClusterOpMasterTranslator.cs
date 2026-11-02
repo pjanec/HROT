@@ -1,3 +1,4 @@
+using Hrot.Common.Orchestration;
 using System;
 using System.Text.Json;
 using CycloneDDS.Runtime;
@@ -43,6 +44,7 @@ public sealed class ClusterOpMasterTranslator
         MapInLoadNodes   = string.Join(",", ev.MapInLoadNodes ?? System.Array.Empty<string>()),   // ⭐ CE-3354 ③
         LastLoadRequestId = ev.LastLoadRequestId,                  // ⭐ CE-3354 ⑦
         LastLoadScenario = ev.LastLoadScenario ?? string.Empty,
+        FeatureOverrides = FeatureOverrideWires.ToWire(ev.FeatureOverrides),   // ⭐ Node Features F-16
     };
 
     private readonly DdsReader<ClusterOpRequest>    _requestReader;

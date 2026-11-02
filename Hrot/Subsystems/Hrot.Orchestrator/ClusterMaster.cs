@@ -2309,6 +2309,7 @@ public sealed partial class ClusterMaster : IDisposable
             RecordLiveRunsOff = !RecordLiveRuns,
             AskToKeepRecordings = AskToKeepRecordings,   // ⭐ AQ108 D15 (CE-4100 ①)
             MapInLoadNodes = MapInLoadNodes.ToArray(),   // ⭐ CE-3354 ③
+            FeatureOverrides = FeatureOverrides.ToArray(),   // ⭐ Node Features F-16
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
             LastLoadMode = LastLoadMode,   // ⭐ R-1043
             LastLoadRequestId = LastLoadRequestId,   // ⭐ CE-3354 ⑦
@@ -2328,6 +2329,7 @@ public sealed partial class ClusterMaster : IDisposable
             RecordLiveRunsOff = !RecordLiveRuns,
             AskToKeepRecordings = AskToKeepRecordings,   // ⭐ AQ108 D15 (CE-4100 ①)
             MapInLoadNodes = MapInLoadNodes.ToArray(),   // ⭐ CE-3354 ③
+            FeatureOverrides = FeatureOverrides.ToArray(),   // ⭐ Node Features F-16
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
             LastLoadMode = LastLoadMode,   // ⭐ R-1043
             LastLoadRequestId = LastLoadRequestId,   // ⭐ CE-3354 ⑦
@@ -2398,7 +2400,11 @@ public sealed partial class ClusterMaster : IDisposable
         foreach (var nodeId in targetNodeIds)
         {
             bool map = _roster.ActiveNodes.TryGetValue(nodeId, out var p) && MapInLoadFor(p.NodeName);
-            FanOutNodeOp(operation, transactionId, map ? payload with { MapInLoad = true } : payload, new[] { nodeId });
+            var stamped = map ? payload with { MapInLoad = true } : payload;
+            // ⭐ Node Features F-14 — this node's cluster layer for the features it has; the node freezes it for the load and keeps the effective set in its recording.
+            var layer = FeatureLayerFor(nodeId, p?.NodeName);
+            if (layer.Count > 0) stamped = stamped with { FeatureConfigsAtLoad = layer };
+            FanOutNodeOp(operation, transactionId, stamped, new[] { nodeId });
         }
     }
 

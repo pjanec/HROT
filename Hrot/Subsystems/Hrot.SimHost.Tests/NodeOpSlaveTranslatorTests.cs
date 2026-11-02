@@ -231,6 +231,37 @@ public sealed class NodeOpSlaveTranslatorTests
     }
 
     /// <summary>
+    /// ⭐ Node Features S1 (d) F-16/F-14 (R-134) — the feature overrides cross the cluster-state broadcast both ways (the internal spec ↔ <c>FeatureOverrideWire</c>; an older sender's empty reads as none),
+    /// the run-settings op (null = no change, empty = none), the per-node <c>FeatureConfigsAtLoad</c> stamp crosses with the load payload, and the heartbeat carries <c>FeaturesOn</c>.
+    /// 🔴 Mutations: the topic field not written / read ⇒ the broadcast cell reds; the DTO dropping the field ⇒ the op cells red; the payload DTO dropping the stamp ⇒ the load cell reds.
+    /// </summary>
+    [Fact]
+    public void NodeFeatures_TheOverrides_TheLoadStamp_AndFeaturesOn_CrossTheWire()
+    {
+        var spec = new Fdp.Toolkit.Orchestration.FeatureOverrideSpec("hud.kill-cam", new[] { "Player-2" }, "{\"Seconds\":3}");
+        var topic = Hrot.Network.Orchestration.ClusterOpMasterTranslator.StateTopicOf(new ClusterStateTransitionedEvent
+            { NewStateId = Fdp.Toolkit.Orchestration.ClusterState.Idle, FeatureOverrides = new[] { spec } });
+        var back = Assert.Single(ClusterFactsIngress.StateOf(topic).FeatureOverrides!);
+        Assert.Equal(("hud.kill-cam", "{\"Seconds\":3}"), (back.Feature, back.Json));
+        Assert.Equal(new[] { "Player-2" }, back.Nodes);
+        Assert.Empty(ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle }).FeatureOverrides!);   // an older sender
+
+        var json = System.Text.Json.JsonSerializer.Serialize(Hrot.Network.Orchestration.SetRunSettingsPayloadDto.From(new SetRunSettingsIntent { FeatureOverrides = new[] { spec } }));
+        var decoded = Assert.Single(Hrot.Network.Orchestration.SetRunSettingsPayloadDto.Decode(Guid.NewGuid(), json).FeatureOverrides!);
+        Assert.Equal(("hud.kill-cam", "{\"Seconds\":3}"), (decoded.Feature, decoded.Json));
+        Assert.Null(Hrot.Network.Orchestration.SetRunSettingsPayloadDto.Decode(Guid.NewGuid(), "{\"RecordLiveRuns\":false}").FeatureOverrides);   // absent = no change
+        Assert.Empty(Hrot.Network.Orchestration.SetRunSettingsPayloadDto.Decode(Guid.NewGuid(), "{\"FeatureOverrides\":[]}").FeatureOverrides!);   // empty = none
+
+        var payload = Assert.IsType<EditLoadHandlerPayload>(NodeOpSlaveTranslator.DeserializeNodePayload(
+            NedNodeOpType.PrepareLive, "{\"TargetState\":\"LoadingLive\",\"ScenarioId\":\"s\",\"FeatureConfigsAtLoad\":{\"gameplay.team-kill\":\"{\\\"Enabled\\\":false}\"}}"));
+        Assert.Equal("{\"Enabled\":false}", payload.FeatureConfigsAtLoad!["gameplay.team-kill"]);
+
+        var beat = Hrot.Common.Orchestration.NodeHeartbeatWire.ToEvent(Hrot.Common.Orchestration.NodeHeartbeatWire.ToTopic(
+            new NodeHeartbeatEvent { SubsystemName = "IG", FeaturesOn = new System.Collections.Generic.List<string> { "map3d.in-load" } }));
+        Assert.Equal(new[] { "map3d.in-load" }, beat.FeaturesOn);
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-3354</c> ③ — the per-node <c>MapInLoad</c> stamp crosses the wire with the load payload (an older sender omits it ⇒ false), and the map-in-load SET crosses the cluster-state broadcast both ways
     /// (the master's <c>StateTopicOf</c>, every node's <c>StateOf</c>; an older sender's empty reads as none) and the run-settings op (<c>SetRunSettingsPayloadDto</c>: null = no change, empty = none).
     /// 🔴 Mutations (each compiles): the payload DTO / decode not carrying <c>MapInLoad</c> ⇒ the first cells red; <c>StateTopicOf</c> not joining / <c>StateOf</c> not splitting ⇒ the broadcast cell reds; the DTO dropping the field ⇒ the last cells red.

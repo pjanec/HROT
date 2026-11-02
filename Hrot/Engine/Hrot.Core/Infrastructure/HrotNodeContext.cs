@@ -57,6 +57,7 @@ public sealed record HrotNodeContext : IDisposable
     {
         SlaveTranslator?.Tick();
         ClusterSlave.Tick();
+        Features?.SyncCluster(ClusterSlave.View.FeatureOverrides);   // ⭐ Node Features F-16 — recomputes only when the master's broadcast changed it
         beforeKernel?.Invoke();
         Kernel.Update();
         afterKernel?.Invoke();

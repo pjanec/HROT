@@ -109,6 +109,12 @@ namespace Fdp.Core.FlightRecorder.Metadata
         /// </summary>
         public Guid ParentExerciseId { get; set; } = Guid.Empty;
 
+        /// <summary>
+        /// ⭐ Node Features F-15/F-24 — the effective FULL config (JSON object) of every AtLoad feature this node had when the run was loaded
+        /// (id → JSON). A branch to live from this recording re-applies it: the recording wins. Empty for a recording that predates features.
+        /// </summary>
+        public Dictionary<string, string> FeatureConfigsAtLoad { get; set; } = new Dictionary<string, string>();
+
         /// <summary>⭐ <c>D18</c> — the wall time of the branch point (0 when not a branch).</summary>
         public long BranchWallTicks { get; set; }
 

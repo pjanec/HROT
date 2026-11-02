@@ -436,6 +436,48 @@ namespace Fdp.Toolkit.Replay.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ Node Features S1 (d) F-15 — a recording writes the node's AtLoad feature configs into its metadata, and a BRANCH of it copies them
+        /// (the continued run plays by the same rules). 🔴 Mutations: the write dropped ⇒ the parent cell reds; <c>StartBranch</c> not copying ⇒ the branch cell reds.
+        /// </summary>
+        [Fact]
+        public void NodeFeatures_TheRecordingKeepsTheAtLoadConfigs_AndABranchCopiesThem()
+        {
+            using var world = CreateWorld();
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = new System.Numerics.Vector3(1, 2, 3) });
+            string Record(string name, RecordingBranch? branch, System.Collections.Generic.IReadOnlyDictionary<string, string>? features, Guid id)
+            {
+                var path = Path.Combine(_tempDir, name);
+                var module = new RecordingModule(new RecordingConfiguration
+                {
+                    FilePath = path, ExerciseId = id, NodeId = (Fdp.Core.NodeId)(3), Blocking = true,
+                    Branch = branch, FeatureConfigsAtLoad = features,
+                });
+                var captured = new CapturingSystemRegistry();
+                module.RegisterSystems(captured);
+                try
+                {
+                    foreach (var t in new long[] { 100, 200, 300 })
+                    {
+                        world.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1f, TotalWallTicks = t });
+                        world.Tick();
+                        foreach (var sys in captured.Systems) sys.Execute(world, 0.016f);
+                    }
+                }
+                finally { module.Dispose(); }
+                return path;
+            }
+            var parentId = Guid.NewGuid();
+            var parentPath = Record("feat-parent.fdp", null, new System.Collections.Generic.Dictionary<string, string> { ["gameplay.team-kill"] = "{\"Enabled\":false}" }, parentId);
+            var parentMeta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(MetaOf(parentPath));
+            Assert.Equal("{\"Enabled\":false}", parentMeta.FeatureConfigsAtLoad["gameplay.team-kill"]);
+
+            var branchPath = Record("feat-branch.fdp", new RecordingBranch(parentPath, 2, parentId, 0), null, Guid.NewGuid());
+            var branchMeta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(MetaOf(branchPath));
+            Assert.Equal("{\"Enabled\":false}", branchMeta.FeatureConfigsAtLoad["gameplay.team-kill"]);
+        }
+
+        /// <summary>
         /// ⭐⭐ CE-3299 B4 / D18 ② (R-3047) — a BRANCH recording opens with a byte copy of its parent up to the branch point, inherits the
         /// parent's checkpoints up to there and names its parent, then records on — its own first frame a keyframe, its own marks counted
         /// in the whole file. The parent is not written.

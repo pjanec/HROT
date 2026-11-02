@@ -42,6 +42,45 @@ public sealed partial class ClusterMaster
     /// <summary>⭐ <c>CE-3354</c> ③ — the NAMES (case-insensitive, de-duplicated, in the order given) of the nodes whose scenario load also waits for their built 3-D map. A setting of the MASTER, keyed by NAME (it survives a node restart and a new node id); a name no node holds now is kept. Broadcast with the cluster state; stamped on each LOAD's per-node payload.</summary>
     public IReadOnlyList<string> MapInLoadNodes { get; private set; } = Array.Empty<string>();
 
+    /// <summary>⭐ Node Features F-16 — the cluster's feature overrides, held by the MASTER and broadcast with the cluster state; stamped per node onto each LOAD's payload.</summary>
+    public IReadOnlyList<FeatureOverrideSpec> FeatureOverrides { get; private set; } = Array.Empty<FeatureOverrideSpec>();
+
+    /// <summary>
+    /// ⭐ Node Features F-8 — refuses an override naming a node that is in the roster and does NOT advertise <c>hrot.feature.&lt;id&gt;</c>, and an
+    /// all-nodes override of a feature no node advertises. A name no node holds now is kept (a node restarting). Returns the reason, or null.
+    /// </summary>
+    internal string? FeatureOverrideRefusal(IEnumerable<FeatureOverrideSpec> overrides)
+    {
+        foreach (var o in overrides)
+        {
+            if (string.IsNullOrWhiteSpace(o.Feature)) return "a feature override names no feature";
+            string token = "hrot.feature." + o.Feature;
+            if (o.Nodes.Count == 0)
+            {
+                if (!_roster.ActiveNodes.Keys.Any(id => _roster.Supports(id, token))) return $"feature '{o.Feature}' is not available on any node";
+                continue;
+            }
+            foreach (var name in o.Nodes)
+                foreach (var kv in _roster.ActiveNodes)
+                    if (string.Equals(kv.Value.NodeName, name, StringComparison.OrdinalIgnoreCase) && !_roster.Supports(kv.Key, token))
+                        return $"feature '{o.Feature}' is not available on node '{name}'";
+        }
+        return null;
+    }
+
+    /// <summary>⭐ Node Features F-14 — the cluster layer for ONE node's load: per feature the node advertises, its matching overrides merged in order (id → partial JSON).</summary>
+    internal Dictionary<string, string> FeatureLayerFor(int nodeId, string? nodeName)
+    {
+        var layer = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var o in FeatureOverrides)
+        {
+            if (!_roster.Supports(nodeId, "hrot.feature." + o.Feature)) continue;
+            if (o.Nodes.Count != 0 && !o.Nodes.Contains(nodeName ?? "", StringComparer.OrdinalIgnoreCase)) continue;
+            layer[o.Feature] = Fdp.Toolkit.Orchestration.FeatureJson.MergeFlat(layer.TryGetValue(o.Feature, out var have) ? have : null, o.Json);
+        }
+        return layer;
+    }
+
     /// <summary>⭐ CE-3354 ③ — whether the node named <paramref name="nodeName"/> waits for its map in a load.</summary>
     public bool MapInLoadFor(string? nodeName)
         => !string.IsNullOrEmpty(nodeName) && MapInLoadNodes.Contains(nodeName, StringComparer.OrdinalIgnoreCase);
@@ -97,6 +136,16 @@ public sealed partial class ClusterMaster
         if (intent.MapInLoadNodes is { } mapNodes)   // ⭐ CE-3354 ③ — null = no change, empty = none; a blank name or one with a comma cannot be a node name
             MapInLoadNodes = mapNodes.Select(n => n?.Trim() ?? "").Where(n => n.Length > 0 && !n.Contains(','))
                                      .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (intent.FeatureOverrides is { } featureOverrides)   // ⭐ Node Features F-8/F-16 — null = no change, empty = none; refused whole when a node lacks the feature
+        {
+            if (FeatureOverrideRefusal(featureOverrides) is { } refusal)
+            {
+                FdpLog<ClusterMaster>.Warn("[Orchestrator] Node Features: run settings refused — {0}.", refusal);
+                PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected);
+                return;
+            }
+            FeatureOverrides = featureOverrides.ToArray();   // a NEW array per change: every node compares the reference
+        }
         PublishClusterState(_currentDsmState);   // every host reads the settings off the broadcast, so tell them now
         FdpLog<ClusterMaster>.Info("[Orchestrator] CE-4090/CE-3341: run settings now: Record live runs {0} (from the next live load), armed mode {1}, ask to keep recordings {2}.", RecordLiveRuns, ArmedMode, AskToKeepRecordings);
         PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);

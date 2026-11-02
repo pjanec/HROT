@@ -51,7 +51,9 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         bool RecordingOff = false,
         // ⭐ CE-3354 ③ — true on the PREPARE of a load for a node whose NAME is in the master's map-in-load set: its load chain also starts its 3-D map build at the
         //   terrain commit and holds the load until the map is built. Stamped per node by the master. Appended; an older peer omits it ⇒ false (as before).
-        bool MapInLoad = false);
+        bool MapInLoad = false,
+        // ⭐ Node Features F-14 — per node: the cluster layer the master stamped for the AtLoad-capable features this node has (id → partial JSON); the node freezes it for the load.
+        System.Collections.Generic.IReadOnlyDictionary<string, string>? FeatureConfigsAtLoad = null);
 
     /// <summary>
     /// Reference implementation of the edit-load Cluster handler.

@@ -16,6 +16,12 @@ namespace Fdp.Core.Orchestration
     public interface IRecordReplayController
     {
         /// <summary>
+        /// ⭐ Node Features F-14 — a load starts: the node freezes its AtLoad features to the cluster layer the master stamped for it
+        /// (id → partial JSON; null = none). Default: nothing (a controller on a node with no feature reader).
+        /// </summary>
+        void FreezeFeaturesForLoad(System.Collections.Generic.IReadOnlyDictionary<string, string>? clusterLayer) { }
+
+        /// <summary>
         /// Opens a new exercise recording.  Installs the recording module into the
         /// kernel so that every subsequent frame is captured to disk.
         /// </summary>

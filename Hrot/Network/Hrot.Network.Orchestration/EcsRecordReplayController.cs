@@ -249,6 +249,9 @@ namespace Hrot.SimHost.Modules.Orchestration
         /// after this call the <see cref="RecorderTickSystem"/> is live in the
         /// topological graph and every frame is captured.
         /// </summary>
+        public void FreezeFeaturesForLoad(IReadOnlyDictionary<string, string>? clusterLayer)
+            => (_kernel.FeatureGate as Fdp.Toolkit.Orchestration.IFeatureRecording)?.FreezeAtLoad(clusterLayer);
+
         public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory)
             => PrepareRecordingAsync(exerciseId, storageDirectory, branch: null);
 
@@ -265,8 +268,21 @@ namespace Hrot.SimHost.Modules.Orchestration
             ReleaseReplayExit();   // ⭐ CE-3329 W5 — a node that starts a live recording is live: a hold an aborted exit left is lifted here
             var filePath = GetRecordingFilePath(exerciseId, storageDirectory);
             Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+            // ⭐ Node Features F-15 — a fresh recording keeps this node's AtLoad configs; a BRANCH re-applies its parent's (the recording wins), and a
+            //   recorded feature this build does not declare REFUSES the branch loudly, before anything is installed.
+            var features = _kernel.FeatureGate as Fdp.Toolkit.Orchestration.IFeatureRecording;
+            if (branch != null && features != null)
+            {
+                var parentMeta = branch.SourcePath + ".meta.json";
+                if (File.Exists(parentMeta))
+                {
+                    var recorded = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(File.ReadAllText(parentMeta)).FeatureConfigsAtLoad;
+                    if (recorded.Count > 0) features.FreezeRecorded(recorded);
+                }
+            }
             var config = new RecordingConfiguration
             {
+                FeatureConfigsAtLoad = branch == null ? features?.AtLoadConfigs() : null,
                 FilePath     = filePath,
                 EntityFilter = null,   // record all entities above MinRecordableId
                 ExerciseId      = exerciseId,

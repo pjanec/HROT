@@ -69,7 +69,8 @@ public readonly record struct LoadPhaseContext(
     bool IsCatchUp = false,
     double CheckpointingSeconds = 0,   // ⭐ CE-3299 D17 (R-3045) — the session's recording mode (0 = FULL)
     bool RecordingOff = false,
-    bool MapInLoad = false)            // ⭐ CE-3354 ③ — this node's load also waits for its built 3-D map (the master's map-in-load set, stamped per node)
+    bool MapInLoad = false,
+    System.Collections.Generic.IReadOnlyDictionary<string, string>? FeatureConfigsAtLoad = null)            // ⭐ CE-3354 ③ — this node's load also waits for its built 3-D map (the master's map-in-load set, stamped per node)
     // ⭐ CE-4090 (AQ108 D14) — this live run must not be recorded ("Record live runs" was off at its load)
 {
     /// <summary>⭐ Builds the context from a node-op intent, or <c>null</c> when it carries no load payload.</summary>
@@ -77,7 +78,7 @@ public readonly record struct LoadPhaseContext(
         => intent.DomainPayload is EditLoadHandlerPayload p
             ? new LoadPhaseContext(
                 intent.TransactionId, p.TargetState, p.ScenarioId,
-                p.TerrainName, p.ExerciseId, p.IsNewScenario, p.IsWorldBoundary, p.IsCatchUp, p.CheckpointingSeconds, p.RecordingOff, p.MapInLoad)
+                p.TerrainName, p.ExerciseId, p.IsNewScenario, p.IsWorldBoundary, p.IsCatchUp, p.CheckpointingSeconds, p.RecordingOff, p.MapInLoad, p.FeatureConfigsAtLoad)
             : null;
 
     /// <summary>⭐ True while the cluster is BUILDING a world — the phase in which content loads.</summary>

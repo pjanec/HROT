@@ -56,6 +56,9 @@ namespace Fdp.Toolkit.Replay
         /// </summary>
         public bool Blocking { get; init; } = false;
 
+        /// <summary>⭐ Node Features F-15 — the node's AtLoad feature configs, written into <c>RecordingMetadata.FeatureConfigsAtLoad</c>; null = none (a branch inherits its parent's).</summary>
+        public System.Collections.Generic.IReadOnlyDictionary<string, string>? FeatureConfigsAtLoad { get; init; }
+
         /// <summary>
         /// ⭐ <c>CE-3299</c> B4 / <c>D18</c> — when set, this recording is a BRANCH: its first frames are copied from the parent up
         /// to the branch point, then it records on (null: a recording that starts empty).

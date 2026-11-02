@@ -90,6 +90,8 @@ namespace Fdp.Toolkit.Orchestration
         public bool? AskToKeepRecordings;
         /// <summary>⭐ <c>CE-3354</c> ③ — the NAMES of the nodes whose scenario load also waits for their built 3-D map (the master holds the set); <see langword="null"/> = no change, empty = none.</summary>
         public string[]? MapInLoadNodes;
+        /// <summary>⭐ Node Features F-16 — the cluster's feature overrides (the whole list); <see langword="null"/> = no change, empty = none.</summary>
+        public FeatureOverrideSpec[]? FeatureOverrides;
     }
 
     /// <summary>

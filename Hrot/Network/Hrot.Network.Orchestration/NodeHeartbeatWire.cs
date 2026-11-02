@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Fdp.Toolkit.Orchestration;
 using Hrot.NED.Descriptors.Orchestration;
 using NedClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
@@ -27,6 +28,7 @@ public static class NodeHeartbeatWire
         Step              = hb.Step ?? string.Empty,
         Reason            = hb.Reason ?? string.Empty,
         NodeName          = hb.NodeName ?? string.Empty,   // ⭐ CE-3354 ②
+        FeaturesOn        = hb.FeaturesOn ?? new List<string>(),   // ⭐ Node Features F-16
         // CE-286 (C-roles): heartbeat no longer carries the role mask — roles travel as fdp.role.* capability tokens on the durable NodeCapabilities descriptor.
     };
 
@@ -42,5 +44,6 @@ public static class NodeHeartbeatWire
         Step          = string.IsNullOrEmpty(hb.Step) ? null : hb.Step,
         Reason        = string.IsNullOrEmpty(hb.Reason) ? null : hb.Reason,
         NodeName      = string.IsNullOrEmpty(hb.NodeName) ? null : hb.NodeName,   // ⭐ CE-3354 ②
+        FeaturesOn    = hb.FeaturesOn is { Count: > 0 } ? new List<string>(hb.FeaturesOn) : null,   // ⭐ Node Features F-16
     };
 }

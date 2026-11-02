@@ -104,6 +104,8 @@ namespace Fdp.Toolkit.Orchestration
         // CE-286 (C-roles): the `NodeRole Roles` field was REMOVED. Roles are static and now travel as
         // fdp.role.* tokens on the durable NodeCapabilities descriptor (NodeCapabilitiesEvent), from which the
         // orchestrator/cache DERIVE the mask at ingest (AQ-70 §Q70-C). The heartbeat is telemetry-only again.
+            /// <summary>⭐ Node Features F-16 — the ids of the features that are ON on this node (the operator grid); null = none or an older sender.</summary>
+        public System.Collections.Generic.List<string>? FeaturesOn;
     }
 
     /// <summary>
@@ -151,6 +153,8 @@ namespace Fdp.Toolkit.Orchestration
         public bool AskToKeepRecordings;
         /// <summary>⭐ <c>CE-3354</c> ③ — the NAMES of the nodes whose scenario load also waits for their built 3-D map (the master's run setting); null/empty = none.</summary>
         public string[]? MapInLoadNodes;
+        /// <summary>⭐ Node Features F-16 — the cluster's feature overrides (the master's run setting); null/empty = none.</summary>
+        public FeatureOverrideSpec[]? FeatureOverrides;
         /// <summary>⭐ <c>CE-3354</c> ⑦ — the request id of the cluster's CURRENT (last started) scenario load, the id <c>GET /status.load</c> and every outcome follow; <see cref="Guid.Empty"/> before any load.</summary>
         public Guid LastLoadRequestId;
         /// <summary>⭐ CE-3354 ⑦ — the scenario that load named; null/empty before any load.</summary>
@@ -249,6 +253,8 @@ namespace Fdp.Toolkit.Orchestration
         public bool AskToKeepRecordings;
         /// <summary>⭐ <c>CE-3354</c> ③ — as <see cref="ClusterStateTransitionedEvent.MapInLoadNodes"/>.</summary>
         public string[]? MapInLoadNodes;
+        /// <summary>⭐ Node Features F-16 — as <see cref="ClusterStateTransitionedEvent.FeatureOverrides"/>.</summary>
+        public FeatureOverrideSpec[]? FeatureOverrides;
         /// <summary>⭐ CE-3354 ⑦ — as <see cref="ClusterStateTransitionedEvent.LastLoadRequestId"/>.</summary>
         public Guid LastLoadRequestId;
         /// <summary>⭐ CE-3354 ⑦ — as <see cref="ClusterStateTransitionedEvent.LastLoadScenario"/>.</summary>

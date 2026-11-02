@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.ModuleHost;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Orchestration;
 
 namespace Hrot.Common.Infrastructure;
 
@@ -111,14 +112,11 @@ public sealed class FeatureRegistry
     public static string TokenOf(string id) => "hrot.feature." + id;
 }
 
-/// <summary>A cluster override as the node sees it (the wire twin is translated at the edge, R-134).</summary>
-public sealed record FeatureOverrideSpec(string Feature, IReadOnlyList<string> Nodes, string Json);
-
 /// <summary>
 /// ⭐ Node Features — the ONE reader, per node. Layers per feature: type initialisers ▸ role default ▸ node override ▸ cluster override
 /// (F-22), each applied with <c>BehaviorParams.OverlayFlat</c>, recomputed only when a layer changes (F-25).
 /// </summary>
-public sealed class NodeFeatures : IFeatureGate
+public sealed class NodeFeatures : IFeatureGate, IFeatureRecording
 {
     private readonly FeatureRegistry _registry;
     private readonly NodeRole _role;
@@ -127,7 +125,8 @@ public sealed class NodeFeatures : IFeatureGate
     private readonly bool[] _on;
     private readonly Dictionary<string, List<string>> _nodeOverrides = new(StringComparer.Ordinal);
     private IReadOnlyList<FeatureOverrideSpec> _cluster = Array.Empty<FeatureOverrideSpec>();
-    private readonly Dictionary<string, string> _frozen = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _frozenLayer = new(StringComparer.Ordinal);   // AtLoad: the cluster layer stamped at load
+    private readonly Dictionary<string, string> _frozenFull = new(StringComparer.Ordinal);    // AtLoad: a recorded FULL config (branch to live)
     private readonly List<string> _problems = new();
 
     public NodeFeatures(FeatureRegistry registry, NodeRole role, Func<string>? nodeName = null)
@@ -184,21 +183,64 @@ public sealed class NodeFeatures : IFeatureGate
         Recompute();
     }
 
-    /// <summary>F-14 — freezes the AtLoad features to the given FULL effective configs (id → JSON) for the load; layers no longer apply to them.</summary>
-    public void FreezeAtLoad(IReadOnlyDictionary<string, string>? configs)
+    /// <summary>
+    /// F-14 — a load starts: the AtLoad features freeze to the cluster layer the master stamped for this node (id → partial JSON; missing = no
+    /// cluster override). Defaults, role default and node override still apply under it; later cluster changes do not reach an AtLoad feature
+    /// until the next load. A previously recorded full config no longer applies.
+    /// </summary>
+    public void FreezeAtLoad(IReadOnlyDictionary<string, string>? clusterLayer)
     {
-        _frozen.Clear();
-        if (configs != null) foreach (var kv in configs) _frozen[kv.Key] = kv.Value;
+        _frozenFull.Clear();
+        _frozenLayer.Clear();
+        foreach (var d in _registry.All)
+        {
+            if (d.Change != FeatureChange.AtLoad) continue;
+            string json = "{}";
+            foreach (var o in _cluster)   // the node's own view of the layer, when the payload carries none (a node that never received one)
+                if (clusterLayer == null && o.Feature == d.Id && (o.Nodes.Count == 0 || Contains(o.Nodes, _nodeName())))
+                    json = FeatureJson.MergeFlat(json, o.Json);
+            if (clusterLayer != null && clusterLayer.TryGetValue(d.Id, out var stamped)) json = stamped;
+            _frozenLayer[d.Id] = json;
+        }
         Recompute();
     }
 
-    /// <summary>The effective JSON of every AtLoad feature this node has (what the master stamps / the recording keeps).</summary>
+    /// <summary>F-15/F-24 — a branch to live: the recorded FULL configs win for AtLoad features. THROWS on a feature this build does not declare, a Live one, or a key its type lost.</summary>
+    public void FreezeRecorded(IReadOnlyDictionary<string, string> recorded)
+    {
+        var scratch = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var kv in recorded)
+        {
+            if (!_registry.TryIndex(kv.Key, out int i))
+                throw new InvalidOperationException($"The recording needs feature '{kv.Key}', which this build does not declare — the branch is refused (F-15).");
+            var d = _registry.All[i];
+            if (d.Change != FeatureChange.AtLoad)
+                throw new InvalidOperationException($"The recording names '{kv.Key}' as an AtLoad feature, but this build declares it Live — the branch is refused.");
+            try { d.Ops.Overlay(d.Ops.NewSlot(), kv.Value); }
+            catch (JsonException e) { throw new InvalidOperationException($"The recorded config of feature '{kv.Key}' no longer fits its type: {e.Message} — the branch is refused (F-24)."); }
+            scratch[kv.Key] = kv.Value;
+        }
+        _frozenLayer.Clear();
+        _frozenFull.Clear();
+        foreach (var kv in scratch) _frozenFull[kv.Key] = kv.Value;
+        Recompute();
+    }
+
+    /// <summary>The effective FULL JSON of every AtLoad feature this node has (what the recording keeps).</summary>
     public Dictionary<string, string> AtLoadConfigs()
     {
         var d = new Dictionary<string, string>(StringComparer.Ordinal);
         for (int i = 0; i < _slots.Length; i++)
             if (_registry.All[i].Change == FeatureChange.AtLoad) d[_registry.All[i].Id] = _registry.All[i].Ops.ToJson(_slots[i]);
         return d;
+    }
+
+    IReadOnlyDictionary<string, string> IFeatureRecording.AtLoadConfigs() => AtLoadConfigs();
+
+    /// <summary>Folds the master's broadcast (a NEW list per broadcast): recomputes only when the reference changed.</summary>
+    public void SyncCluster(IReadOnlyList<FeatureOverrideSpec> fromView)
+    {
+        if (!ReferenceEquals(fromView, _cluster)) SetClusterOverrides(fromView);
     }
 
     /// <summary>The ids that are ON (heartbeat <c>FeaturesOn</c>).</summary>
@@ -217,16 +259,19 @@ public sealed class NodeFeatures : IFeatureGate
         {
             var d = _registry.All[i];
             var slot = d.Ops.NewSlot();
-            if (d.Change == FeatureChange.AtLoad && _frozen.TryGetValue(d.Id, out var frozen))
-                Try(d, slot, frozen, "load");
+            if (d.Change == FeatureChange.AtLoad && _frozenFull.TryGetValue(d.Id, out var full))
+                Try(d, slot, full, "recording");
             else
             {
                 Try(d, slot, d.DefaultFor(_role), "role default");
                 if (_nodeOverrides.TryGetValue(d.Id, out var mine))
                     foreach (var j in mine) Try(d, slot, j, "node override");
-                foreach (var o in _cluster)
-                    if (o.Feature == d.Id && (o.Nodes.Count == 0 || Contains(o.Nodes, me)))
-                        Try(d, slot, o.Json, "cluster override");
+                if (d.Change == FeatureChange.AtLoad && _frozenLayer.TryGetValue(d.Id, out var layer))
+                    Try(d, slot, layer, "load");
+                else if (d.Change == FeatureChange.Live || _frozenLayer.Count == 0)
+                    foreach (var o in _cluster)
+                        if (o.Feature == d.Id && (o.Nodes.Count == 0 || Contains(o.Nodes, me)))
+                            Try(d, slot, o.Json, "cluster override");
             }
             _slots[i] = slot;
             _on[i] = d.Ops.IsEnabled(slot);

@@ -1407,6 +1407,42 @@ public sealed class ClusterMasterBootstrapTests
     }
 
     /// <summary>
+    /// ⭐⭐ Node Features S1 (d) F-8/F-14/F-16 — the master VALIDATES a feature override against the tokens the nodes advertise (an override naming a node that lacks the
+    /// feature is refused whole, an all-nodes one needs a node that has it), BROADCASTS the list (every node's <c>ClusterView</c>), and a load's PREPARE payload carries
+    /// <c>FeatureConfigsAtLoad</c> = the merged cluster layer for the node that HAS the feature and is named — nothing for the others.
+    /// 🔴 Mutations (each compiles): the token check removed ⇒ the refusal cell reds; the stamp for every node ⇒ the other-node cell reds; the broadcast dropped ⇒ the view cell reds.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void NodeFeatures_TheMasterValidatesBroadcastsAndStampsTheClusterLayerPerNode()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoRolesConfig());
+        var view = new ClusterView(bus, nodeId: CgfNode);
+        PhaseBeat(bus, master, CgfNode, NodePhase.Ready, advert: new[] { NodeRoleTokens.Brain, "hrot.feature.gameplay.team-kill" }, name: "CGF", nodeName: "brain-1");
+        PhaseBeat(bus, master, SimHostNode, NodePhase.Ready, advert: new[] { NodeRoleTokens.MuscleGround }, name: "SimHost", nodeName: "sim-1");
+
+        void Set(params Fdp.Toolkit.Orchestration.FeatureOverrideSpec[] o) { bus.PublishManaged(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), FeatureOverrides = o }); Step(bus, master); view.Update(); }
+        Set(new Fdp.Toolkit.Orchestration.FeatureOverrideSpec("gameplay.team-kill", new[] { "sim-1" }, "{\"Enabled\":false}"));
+        Assert.Empty(master.FeatureOverrides);                                       // sim-1 lacks the token ⇒ refused whole
+        Set(new Fdp.Toolkit.Orchestration.FeatureOverrideSpec("no.such", Array.Empty<string>(), "{}"));
+        Assert.Empty(master.FeatureOverrides);                                       // no node has it
+        Set(new Fdp.Toolkit.Orchestration.FeatureOverrideSpec("gameplay.team-kill", Array.Empty<string>(), "{\"Enabled\":false}"));
+        Assert.Single(master.FeatureOverrides);
+        Assert.Single(view.FeatureOverrides);                                        // broadcast
+
+        bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        bus.PublishManaged(new TransitionStateIntent { TransactionId = Guid.NewGuid(), TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive });
+        Step(bus, master);
+        var ops = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload P(int node) => Assert.IsType<Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload>(
+            ops.Single(i => i.Operation == FdpNodeOpType.PrepareLive && i.TargetNodeId == node).DomainPayload);
+        Assert.Equal("{\"Enabled\":false}", P(CgfNode).FeatureConfigsAtLoad!["gameplay.team-kill"]);
+        Assert.Null(P(SimHostNode).FeatureConfigsAtLoad);                            // not advertised ⇒ no stamp
+        Set(Array.Empty<Fdp.Toolkit.Orchestration.FeatureOverrideSpec>());
+        Assert.Empty(view.FeatureOverrides);
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>CE-3354</c> ③ — the master holds the map-in-load set (case-insensitive, de-duplicated; null = no change, empty = none; a blank name or one with a comma is no node name), BROADCASTS it (every node's
     /// <c>ClusterView</c> reads it) and it survives a load; and a scenario load's PREPARE payload carries <c>MapInLoad = true</c> for the node named in the set ONLY — the other node gets the plain one, and CommitState is untouched.
     /// 🔴 Mutations (each compiles): <c>FanOutLoadPrepare</c> stamping every node / none ⇒ the payload cells red; the set matched case-sensitively ⇒ the "Film-Cam" cell reds; the de-duplication removed ⇒ the count cell reds;

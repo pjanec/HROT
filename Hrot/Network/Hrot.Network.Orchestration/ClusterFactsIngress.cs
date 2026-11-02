@@ -1,3 +1,4 @@
+using Hrot.Common.Orchestration;
 using System;
 using System.Text.Json;
 using CycloneDDS.Runtime;
@@ -181,6 +182,7 @@ public sealed class ClusterFactsIngress : IDisposable
                          : topic.MapInLoadNodes.Split(',', System.StringSplitOptions.RemoveEmptyEntries | System.StringSplitOptions.TrimEntries),   // ⭐ CE-3354 ③
         LastLoadRequestId = topic.LastLoadRequestId,                          // ⭐ CE-3354 ⑦
         LastLoadScenario = string.IsNullOrEmpty(topic.LastLoadScenario) ? null : topic.LastLoadScenario,
+        FeatureOverrides = FeatureOverrideWires.FromWire(topic.FeatureOverrides),   // ⭐ Node Features F-16
     };
 
     /// <summary>⭐ CE-3341 — an armed-mode wire int; a value this build does not know (a newer peer) reads as the default, Live.</summary>

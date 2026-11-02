@@ -189,6 +189,21 @@ namespace Hrot.NED.Descriptors.Orchestration
         public Guid LastLoadRequestId;
         /// <summary>⭐ CE-3354 ⑦ — the scenario that load named; empty = none or an older sender. Additive on the wire.</summary>
         [DdsManaged] public string LastLoadScenario;
+        /// <summary>⭐ Node Features F-16 — the cluster's feature overrides (feature, node names, partial JSON). ⭐ APPENDED LAST (R-42); additive on the wire: an older sender omits it, which reads as none.</summary>
+        [DdsManaged] public List<FeatureOverrideWire> FeatureOverrides;
+    }
+
+    /// <summary>⭐ Node Features F-16 (R-134) — the wire twin of <c>FeatureOverrideSpec</c>; only the translators convert.</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-orchestration")]
+    [DdsManaged]
+    public partial struct FeatureOverrideWire
+    {
+        [DdsManaged] public string Feature;
+        /// <summary>Node NAMES; empty = all nodes.</summary>
+        [DdsManaged] public List<string> Nodes;
+        /// <summary>A PARTIAL JSON object (the keys the override changes).</summary>
+        [DdsManaged] public string Json;
     }
 
     /// <summary>
@@ -437,6 +452,8 @@ namespace Hrot.NED.Descriptors.Orchestration
         [DdsManaged] public string Reason;
         /// <summary>⭐ CE-3354 ② — the node's unique human-given name (default <c>subsystem-nodeId</c>); empty from an older sender. Additive on the wire.</summary>
         [DdsManaged] public string NodeName;
+        /// <summary>⭐ Node Features F-16 — the ids of the features ON on this node. ⭐ APPENDED (R-42); additive.</summary>
+        [DdsManaged] public List<string> FeaturesOn;
         [DdsManaged] public string SubsystemName;
         public ClusterState LocalClusterState;
         public long WallTicksUtc;

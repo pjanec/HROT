@@ -210,6 +210,9 @@ public abstract class SharedApplicationBootstrapper
                 //   An id declared by two capabilities throws here (F-2). 📄 docs/DESIGN_Node_Features.md §6.3.
                 context.Features = new NodeFeatures(new FeatureRegistry(_walk.Capabilities.SelectMany(c => c.Features)), role,
                     () => context.ClusterSlave.View.NodeName ?? "");
+                // ⭐ F-3 — declared ⇔ available: advertise hrot.feature.<id> on the durable NodeCapabilities descriptor (once, at join), and put the ON set on the heartbeat (F-16).
+                context.ClusterSlave.AppendCapabilities(context.Features.Registry.All.Select(d => FeatureRegistry.TokenOf(d.Id)));
+                context.ClusterSlave.FeaturesOnProvider = context.Features.OnSet;
                 context.Kernel.FeatureGate = context.Features;   // F-13 — the scheduler's view, set before any system registers
                 foreach (var (fid, fjson) in NodeFeatureOverrides.FromCommandLine)   // F-7 — --feature; an id this node does not declare is another node's
                     if (context.Features.Registry.Available(fid)) context.Features.SetNodeOverride(fid, fjson);

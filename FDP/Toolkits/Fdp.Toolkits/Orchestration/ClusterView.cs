@@ -66,6 +66,9 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐ <c>CE-3354</c> ③ — the NAMES of the nodes whose scenario load also waits for their built 3-D map (the master's run setting, off its broadcast); empty = none.</summary>
         public IReadOnlyList<string> MapInLoadNodes { get; private set; } = Array.Empty<string>();
 
+        /// <summary>⭐ Node Features F-16 — the cluster's feature overrides, off the master's broadcast; empty = none. A NEW list object per broadcast, so a reader can compare references.</summary>
+        public IReadOnlyList<FeatureOverrideSpec> FeatureOverrides { get; private set; } = Array.Empty<FeatureOverrideSpec>();
+
         /// <summary>⭐⭐ <c>CE-3341</c> (AQ108 D12a, R-3068) — the cluster's ARMED run mode, as the master's last broadcast said: ONE fact, the same on every node
         /// (<see cref="ClusterArmedMode.Live"/> before a broadcast arrives and for a sender that does not set it).</summary>
         public ClusterArmedMode ArmedMode { get; private set; } = ClusterArmedMode.Live;
@@ -253,6 +256,7 @@ namespace Fdp.Toolkit.Orchestration
                     RecordLiveRunsOff = ev.RecordLiveRunsOff;
                     AskToKeepRecordings = ev.AskToKeepRecordings;   // ⭐ AQ108 D15 (CE-4100 ①)
                     MapInLoadNodes = ev.MapInLoadNodes ?? Array.Empty<string>();   // ⭐ CE-3354 ③
+                    FeatureOverrides = ev.FeatureOverrides ?? Array.Empty<FeatureOverrideSpec>();   // ⭐ Node Features F-16
                     ArmedMode = ev.ArmedMode;                  // ⭐ CE-3341 R-3068
                     LastLoadMode = ev.LastLoadMode;            // ⭐ R-1043
                     LastLoadRequestId = ev.LastLoadRequestId;  // ⭐ CE-3354 ⑦

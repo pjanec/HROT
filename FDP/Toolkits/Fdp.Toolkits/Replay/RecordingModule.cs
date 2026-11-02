@@ -54,6 +54,8 @@ namespace Fdp.Toolkit.Replay
             {
                 ExerciseId = _config.ExerciseId, NodeId = _config.NodeId, CheckpointingSeconds = Math.Max(0, _config.CheckpointingSeconds),
             };
+            if (_config.FeatureConfigsAtLoad != null)   // ⭐ Node Features F-15
+                foreach (var kv in _config.FeatureConfigsAtLoad) metadata.FeatureConfigsAtLoad[kv.Key] = kv.Value;
             // ⭐ D18 (R-3047) — a branch copies its parent's frames up to the branch point and appends after them; ⛔ never over a file.
             _recorder = _config.Branch is { } branch
                 ? new AsyncRecorder(_config.FilePath, StartBranch(branch, _config.FilePath, metadata), branch.FrameCount)
@@ -85,6 +87,7 @@ namespace Fdp.Toolkit.Replay
                 metadata.GeoOrigin   = parent.GeoOrigin;
                 metadata.MaxNetworkId = parent.MaxNetworkId;
                 metadata.CheckpointingSeconds = parent.CheckpointingSeconds;   // D17 — one session, one mode
+                metadata.FeatureConfigsAtLoad = new System.Collections.Generic.Dictionary<string, string>(parent.FeatureConfigsAtLoad);   // ⭐ Node Features F-15 — the continued run plays by the same rules
             }
             metadata.ParentExerciseId = branch.ParentExerciseId;
             metadata.BranchWallTicks  = branch.BranchWallTicks;
