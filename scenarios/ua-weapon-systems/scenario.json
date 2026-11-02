@@ -147,7 +147,7 @@
       },
       "Behavior": {
         "Name": "SetUpWeapon",
-        "Params": "{\"weapon\": 9303}",
+        "Params": "{\"weapon\":\"a2222d00-0000-4000-8000-000000000003\"}",
         "Origin": "Superior"
       },
       "Sop": {
@@ -218,7 +218,7 @@
       },
       "Behavior": {
         "Name": "CarryWeapon",
-        "Params": "{\"weapon\": 9305}",
+        "Params": "{\"weapon\":\"a2222d00-0000-4000-8000-000000000005\"}",
         "Origin": "Superior"
       },
       "Sop": {

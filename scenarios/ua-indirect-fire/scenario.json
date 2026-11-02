@@ -89,7 +89,7 @@
       },
       "Behavior": {
         "Name": "ManWeapon",
-        "Params": "{\"weapon\": 21762}",
+        "Params": "{\"weapon\":\"a2176400-0000-4000-8000-000000000002\"}",
         "Origin": "Superior"
       },
       "UnitSubordinate": {
@@ -151,7 +151,7 @@
       },
       "Behavior": {
         "Name": "ManWeapon",
-        "Params": "{\"weapon\": 21763}",
+        "Params": "{\"weapon\":\"a2176400-0000-4000-8000-000000000004\"}",
         "Origin": "Superior"
       },
       "UnitSubordinate": {
@@ -213,7 +213,7 @@
       },
       "Behavior": {
         "Name": "ManWeapon",
-        "Params": "{\"weapon\": 21764}",
+        "Params": "{\"weapon\":\"a2176400-0000-4000-8000-000000000006\"}",
         "Origin": "Superior"
       },
       "UnitSubordinate": {
@@ -367,7 +367,7 @@
       },
       "Behavior": {
         "Name": "PersonObserveFire",
-        "Params": "{\"Location\":[340,300,0],\"Battery\":21761,\"Sheaf\":\"Parallel\",\"Rounds\":2}",
+        "Params": "{\"Location\":[340,300,0],\"Battery\":\"a2176400-0000-4000-8000-000000000001\",\"Sheaf\":\"Parallel\",\"Rounds\":2}",
         "Origin": "Superior"
       },
       "Sop": {

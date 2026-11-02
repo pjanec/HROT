@@ -78,7 +78,7 @@
               "TaskId": "c4035011-0000-4000-8000-0000000000a1",
               "ExecutingEngine": "",
               "BehaviorName": "SetUpWeapon",
-              "BehaviorParams": "{\"weapon\": 41103}",
+              "BehaviorParams": "{\"weapon\":\"c4035011-0000-4000-8000-000000000001\"}",
               "Triggers": [
                 {
                   "Type": "BehaviorFinished",

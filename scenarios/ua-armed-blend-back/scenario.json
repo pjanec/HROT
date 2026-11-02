@@ -230,7 +230,7 @@
                             "taskId": "c2380005-0000-4000-8000-000000000032",
                             "executingEngine": "",
                             "behaviorName": "PersonAttack",
-                            "behaviorParams": "{\"Target\":9971}",
+                            "behaviorParams": "{\"Target\":\"c2380005-0000-4000-8000-000000000001\"}",
                             "triggers": [
                                 {
                                     "type": "TimerElapsed",

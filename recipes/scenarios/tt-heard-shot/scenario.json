@@ -95,7 +95,7 @@
               "taskId": "2a9600f1-0000-4000-8000-000000007103",
               "executingEngine": "",
               "behaviorName": "FireAtTarget",
-              "behaviorParams": "{\"targetNetworkId\":7103,\"maxRounds\":30,\"cooldownSeconds\":1}",
+              "behaviorParams": "{\"targetNetworkId\":\"2a960000-0000-4000-8000-000000000003\",\"maxRounds\":30,\"cooldownSeconds\":1}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",

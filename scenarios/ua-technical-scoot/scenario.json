@@ -80,7 +80,7 @@
       },
       "Behavior": {
         "Name": "LandPlatformAttack",
-        "Params": "{\"Target\": 8701}",
+        "Params": "{\"Target\":\"a2207d00-0000-4000-8000-000000000001\"}",
         "Origin": "Superior"
       }
     },
@@ -117,7 +117,7 @@
       },
       "Behavior": {
         "Name": "LandPlatformAttack",
-        "Params": "{\"Target\": 8701}",
+        "Params": "{\"Target\":\"a2207d00-0000-4000-8000-000000000001\"}",
         "Origin": "Superior"
       }
     }

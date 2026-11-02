@@ -36,7 +36,7 @@
       },
       "Behavior": {
         "Name": "FollowRoute",
-        "Params": "{\"routeEntityId\": 9402, \"Speed\": 15}",
+        "Params": "{\"routeEntityId\":\"a2173300-0000-4000-8000-000000000002\",\"Speed\":15}",
         "Origin": "Superior"
       },
       "PassengerBuffer": {

@@ -144,7 +144,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"target\": 8501, \"assault\": true}",
+        "Params": "{\"target\":\"a2200d00-0000-4000-8000-000000000001\",\"assault\":true}",
         "Origin": "Superior"
       },
       "Sop": {
@@ -186,7 +186,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"target\": 8501, \"assault\": true}",
+        "Params": "{\"target\":\"a2200d00-0000-4000-8000-000000000001\",\"assault\":true}",
         "Origin": "Superior"
       },
       "Sop": {

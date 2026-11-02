@@ -79,4 +79,24 @@ public sealed class ContentMigrationTests
         }
         Assert.True(problems.Count == 0, "run hrot-content-migrate:\n" + string.Join("\n", problems));
     }
+
+    [Fact]
+    public void ANumericEntityLink_NamingAnEntityOfTheFile_BecomesThatEntitysGuid_AndASecondRunChangesNothing()
+    {
+        const string g1 = "a1000000-0000-4000-8000-000000000001", g2 = "a1000000-0000-4000-8000-000000000002";
+        var file = Path.Combine(Path.GetTempPath(), "s9prime-" + Guid.NewGuid().ToString("N") + ".json");
+        File.WriteAllText(file, "{\"entities\":{\"" + g1 + "\":{\"NetworkIdentity\":{\"Value\":501},\"Behavior\":{\"Name\":\"FollowRoute\",\"Params\":\"{\\\"routeEntityId\\\": 502}\"}},"
+            + "\"" + g2 + "\":{\"NetworkIdentity\":{\"Value\":502},\"RoutePlan\":{\"Waypoints\":[{\"HoldUnit\":501},{\"HoldUnit\":999}]}}}}");
+        try
+        {
+            var first = Migrator.MigrateFile(file, write: true);
+            Assert.Equal(2, first.Changes.Count);   // the params link + the first HoldUnit; 999 names nobody in the file and stays
+            string text = File.ReadAllText(file);
+            Assert.Contains(g2, text.Substring(text.IndexOf("routeEntityId", StringComparison.Ordinal)));
+            Assert.Contains("\"HoldUnit\":\"" + g1 + "\"", text.Replace(" ", ""));
+            Assert.Contains("\"HoldUnit\": 999", text.Replace("\"HoldUnit\":999", "\"HoldUnit\": 999"));
+            Assert.Empty(Migrator.MigrateFile(file, write: true).Changes);   // idempotent
+        }
+        finally { File.Delete(file); }
+    }
 }

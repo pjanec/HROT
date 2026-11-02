@@ -39,7 +39,7 @@
       },
       "Behavior": {
         "Name": "FollowRoute",
-        "Params": "{\"routeEntityId\": 9502, \"Speed\": 8}",
+        "Params": "{\"routeEntityId\":\"d0c00000-0000-4000-8000-000000009502\",\"Speed\":8}",
         "Origin": "Superior"
       },
       "Sop": {
@@ -380,7 +380,7 @@
       },
       "Behavior": {
         "Name": "TriggerIed",
-        "Params": "{\"Charge\": 9520, \"KillZoneMetres\": 10}",
+        "Params": "{\"Charge\":\"d0c00000-0000-4000-8000-000000009520\",\"KillZoneMetres\":10}",
         "Origin": "Superior"
       },
       "Sop": {

@@ -58,6 +58,27 @@ namespace Fdp.Toolkits.Tests.Replication
             ["FormationTarget.TargetPosition"] = "world XY place, no 2-D point type yet (S3 relocator) — not invented here",
         };
 
+        /// <summary>S9' (c) — components saved through a GUID-keyed translator (DESIGN_Scenario_Entity_Keys §0a): their entity references are written as GUIDs, so an
+        /// <c>EntityRef</c> / id field in them is not a network id in the file.</summary>
+        internal static readonly HashSet<string> GuidKeyedTranslators = new(StringComparer.Ordinal)
+        {
+            "UnitSubordinate", "PassengerBuffer", "VisHierarchyNode", "TargetMemory", "IsEmbarkedTag", "PersonalRouteRef",
+        };
+
+        /// <summary>S9' (c) — an int / long member whose NAME says it holds an entity id.</summary>
+        internal static bool NamesAnEntityId(string name)
+            => name.EndsWith("Unit", StringComparison.Ordinal) || name.EndsWith("NetworkId", StringComparison.Ordinal)
+               || (name.Contains("Entity", StringComparison.Ordinal) && name.EndsWith("Id", StringComparison.Ordinal))
+               || (name.StartsWith("Target", StringComparison.Ordinal) && name.EndsWith("Id", StringComparison.Ordinal));
+
+        internal static string? IdOffence(Type componentType, Type t, string name)
+        {
+            if (GuidKeyedTranslators.Contains(componentType.Name)) return null;
+            if (t == typeof(EntityRef)) return "an EntityRef in an auto-serialized saved component — the file would hold a network id (S9': GUID-keyed translator, or an EntityLink the loader resolves)";
+            if ((t == typeof(int) || t == typeof(long)) && NamesAnEntityId(name)) return "an int/long named like an entity id in an auto-serialized saved component (S9')";
+            return null;
+        }
+
         private static bool Saved(Type t)
             => t.GetCustomAttribute<ComponentIdAttribute>() != null
                && (t.GetCustomAttribute<DataPolicyAttribute>()?.Policy & DataPolicy.NoScenario) != DataPolicy.NoScenario;
@@ -113,6 +134,75 @@ namespace Fdp.Toolkits.Tests.Replication
             var sb = new StringBuilder();
             foreach (var o in offences.OrderBy(s => s, StringComparer.Ordinal)) sb.AppendLine(o);
             Assert.True(offences.Count == 0, $"{offences.Count} saved component members do not say what they mean:\n{sb}");
+        }
+
+        /// <summary>S9' (c) — measured 2026-11-02: runtime-state members the rule flags that are NOT file references; each is a decision, never a silencer.</summary>
+        internal static readonly Dictionary<string, string> NotAFileReference = new(StringComparer.Ordinal)
+        {
+            ["NavigationIntent.TargetNodeId"] = "a navigation-graph node id, not an entity",
+            ["NavigationIntent.RouteEntityId"] = "runtime navigation state (CE-4153 S8 review: becomes an EntityRef-free GUID key or NoScenario)",
+            ["EpisodeReplayTag.OriginalEntityId"] = "replay bookkeeping of a recording, not a scenario file reference",
+            ["SensorEvalState.LastPublishedTopEntityId"] = "a per-frame sensor cache (CE-4153 S8 review: NoScenario)",
+        };
+
+        /// <summary>Members of the element structs of a managed component's list members (<c>RoutePlan.Waypoints[].HoldUnit</c>) — the field walk cannot see them.</summary>
+        private static IEnumerable<(string Key, Type Type)> ListElementMembers(Type c)
+        {
+            foreach (var p in c.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                var pt = p.PropertyType;
+                Type? el = pt.IsArray ? pt.GetElementType()
+                         : pt.IsGenericType && pt.GetGenericArguments().Length == 1 && typeof(System.Collections.IEnumerable).IsAssignableFrom(pt) ? pt.GetGenericArguments()[0] : null;
+                if (el is null || !Nested(el)) continue;
+                foreach (var m in Members(el, c.Name + "." + p.Name + "[]")) yield return m;
+            }
+        }
+
+        private static List<string> IdOffences()
+        {
+            var offences = new List<string>();
+            foreach (var c in SavedComponents())
+                foreach (var (key, t) in Members(c, c.Name).Concat(ListElementMembers(c)))
+                    if (IdOffence(c, t, key.Substring(key.LastIndexOf('.') + 1)) is { } why && !NotAFileReference.ContainsKey(key))
+                        offences.Add($"{c.Namespace}.{key} ({t.Name}) — {why}");
+            return offences;
+        }
+
+        [Fact]
+        public void S9Prime_NoSavedComponentHoldsAnEntityIdUnlessAGuidKeyedTranslatorWritesIt()
+        {
+            var offences = IdOffences();
+            var sb = new StringBuilder();
+            foreach (var o in offences.OrderBy(x => x, StringComparer.Ordinal)) sb.AppendLine(o);
+            Assert.True(offences.Count == 0, $"{offences.Count} saved component members hold an entity id:\n{sb}");
+        }
+
+        [Fact]
+        public void S9Prime_EveryNotAFileReferenceEntry_StillNamesAMember()
+        {
+            var live = new HashSet<string>(SavedComponents().SelectMany(c => Members(c, c.Name).Select(m => m.Key)));
+            var stale = NotAFileReference.Keys.Where(k => !live.Contains(k)).ToList();
+            Assert.True(stale.Count == 0, "NotAFileReference entries name no member any more: " + string.Join(", ", stale));
+        }
+
+        [Fact]
+        public void S9Prime_TheScanReachesRoutePlansHoldUnit_AsAnAuthoredLink()
+        {
+            var plan = SavedComponents().SingleOrDefault(t => t.Name == "RoutePlan");
+            Assert.NotNull(plan);   // else the scan lost the component and the rule passes on nothing
+            var hold = ListElementMembers(plan!).Single(m => m.Key == "RoutePlan.Waypoints[].HoldUnit");
+            Assert.Equal(typeof(EntityLink), hold.Type);                 // reverting it to an int/long makes IdOffence flag it (next test)
+            Assert.Null(IdOffence(plan!, hold.Type, "HoldUnit"));
+        }
+
+        [Fact]
+        public void S9Prime_TheIdRule_SeesEachShape()
+        {
+            Assert.NotNull(IdOffence(typeof(object), typeof(EntityRef), "Anything"));
+            Assert.NotNull(IdOffence(typeof(object), typeof(int), "HoldUnit"));
+            Assert.NotNull(IdOffence(typeof(object), typeof(long), "TargetId"));
+            Assert.Null(IdOffence(typeof(object), typeof(int), "Count"));
+            Assert.Null(IdOffence(typeof(Fdp.Toolkit.Replication.Components.PartMetadata), typeof(float), "Unit"));
         }
 
         [Fact]

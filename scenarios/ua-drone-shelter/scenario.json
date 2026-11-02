@@ -69,7 +69,7 @@
       },
       "Behavior": {
         "Name": "AirPlatformAttack",
-        "Params": "{\"Target\":9101}",
+        "Params": "{\"Target\":\"a2220000-0000-4000-8000-000000000001\"}",
         "Origin": "Superior"
       }
     },
@@ -132,7 +132,7 @@
       },
       "Behavior": {
         "Name": "AirPlatformAttack",
-        "Params": "{\"Target\":9103}",
+        "Params": "{\"Target\":\"a2220000-0000-4000-8000-000000000003\"}",
         "Origin": "Superior"
       }
     }

@@ -46,7 +46,7 @@
               "TaskId": "a1118300-0000-4000-8000-0000000000a1",
               "ExecutingEngine": "",
               "BehaviorName": "FollowRoute",
-              "BehaviorParams": "{\"routeEntityId\": 9002, \"Speed\": 150}",
+              "BehaviorParams": "{\"routeEntityId\":\"a1118300-0000-4000-8000-000000000002\",\"Speed\":150}",
               "Triggers": [
                 {
                   "Type": "TimerElapsed",

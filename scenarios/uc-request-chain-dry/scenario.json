@@ -539,7 +539,7 @@
       },
       "Behavior": {
         "Name": "ManWeapon",
-        "Params": "{\"weapon\": 9751}",
+        "Params": "{\"weapon\":\"d0c70000-0000-4000-8000-000000009751\"}",
         "Origin": "Superior"
       }
     },
@@ -605,7 +605,7 @@
       },
       "Behavior": {
         "Name": "ManWeapon",
-        "Params": "{\"weapon\": 9752}",
+        "Params": "{\"weapon\":\"d0c70000-0000-4000-8000-000000009752\"}",
         "Origin": "Superior"
       }
     },
@@ -684,7 +684,7 @@
       },
       "Behavior": {
         "Name": "SpotForFire",
-        "Params": "{\"Battery\": 9750, \"Rounds\": 2}",
+        "Params": "{\"Battery\":\"d0c70000-0000-4000-8000-000000009750\",\"Rounds\":2}",
         "Origin": "Superior"
       },
       "Sop": {

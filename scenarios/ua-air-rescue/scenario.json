@@ -36,7 +36,7 @@
       },
       "Behavior": {
         "Name": "FollowRoute",
-        "Params": "{\"routeEntityId\": 9502, \"Speed\": 15}",
+        "Params": "{\"routeEntityId\":\"a2173400-0000-4000-8000-000000000002\",\"Speed\":15}",
         "Origin": "Superior"
       },
       "PassengerBuffer": {
@@ -89,7 +89,7 @@
               "taskId": "b2173400-0000-4000-8000-000000000001",
               "executingEngine": "",
               "behaviorName": "SquadRecover",
-              "behaviorParams": "{\"casualty\": 9520, \"to\": [190, 334, 0]}",
+              "behaviorParams": "{\"casualty\":\"a2173400-0000-4000-8000-000000000003\",\"to\":[190,334,0]}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -101,7 +101,7 @@
               "taskId": "b2173400-0000-4000-8000-000000000002",
               "executingEngine": "",
               "behaviorName": "SquadEmbark",
-              "behaviorParams": "{\"vehicle\": 9500, \"timeoutSeconds\": 90}",
+              "behaviorParams": "{\"vehicle\":\"a2173400-0000-4000-8000-000000000001\",\"timeoutSeconds\":90}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -396,7 +396,7 @@
             "TargetSpeed": 3,
             "HeightAgl": 0,
             "Hold": "Pickup",
-            "HoldUnit": 9510
+            "HoldUnit": "a2173400-0000-4000-8000-0000000000c0"
           },
           {
             "X": 20,

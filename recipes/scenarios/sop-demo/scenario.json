@@ -58,7 +58,7 @@
               "taskId": "5d0b00f1-0000-4000-8000-000000006002",
               "executingEngine": "",
               "behaviorName": "FireAtTarget",
-              "behaviorParams": "{\"targetNetworkId\":6002,\"maxRounds\":30,\"cooldownSeconds\":1}",
+              "behaviorParams": "{\"targetNetworkId\":\"5d0b0001-0000-4000-8000-000000000002\",\"maxRounds\":30,\"cooldownSeconds\":1}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -174,7 +174,7 @@
               "taskId": "5d0b00f1-0000-4000-8000-000000006004",
               "executingEngine": "",
               "behaviorName": "FireAtTarget",
-              "behaviorParams": "{\"targetNetworkId\":6004,\"maxRounds\":30,\"cooldownSeconds\":1}",
+              "behaviorParams": "{\"targetNetworkId\":\"5d0b0001-0000-4000-8000-000000000004\",\"maxRounds\":30,\"cooldownSeconds\":1}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",

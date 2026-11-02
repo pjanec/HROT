@@ -106,20 +106,29 @@ public sealed class ParamsMigrator
         var result = new FileResult(new List<string>(), new List<string>());
         byte[] bytes = File.ReadAllBytes(path);
         var sites = ParamsSites(bytes);
-        if (sites.Count == 0) return result;
+        var ids = NetworkIdsToKeys(bytes);   // S9': this file's entity network id -> its file key (the GUID)
+        var holds = ids.Count == 0 ? new List<(int Start, int Length, long Value)>() : HoldUnitSites(bytes);
+        if (sites.Count == 0 && holds.Count == 0) return result;
 
         WGS84Transform? geo = null;
         string? terrain = TerrainName(bytes);
         var edits = new List<(int Start, int Length, byte[] Text)>();
         foreach (var site in sites)
         {
-            string? migrated = MigrateParams(site.Behavior, site.Value, () => geo ??= GeoFor(terrain, path), out string? what);
+            string? migrated = MigrateParams(site.Behavior, site.Value, () => geo ??= GeoFor(terrain, path), out string? what, ids);
             if (LoadRefusal(site.Behavior, migrated ?? site.Value) is { } refusal) result.Refusals.Add($"{site.Behavior}: {refusal}");
             if (migrated == null) continue;
             string raw = Encoding.UTF8.GetString(bytes, site.Start, site.Length);
             edits.Add((site.Start, site.Length, Encoding.UTF8.GetBytes(EncodeLike(raw, migrated))));
             result.Changes.Add($"{site.Behavior}: {what}");
         }
+        // S9' — a numeric RoutePlan waypoint HoldUnit that is some entity's network id in this file becomes that entity's GUID (the Exact form)
+        foreach (var h in holds)
+            if (ids.TryGetValue(h.Value, out var key))
+            {
+                edits.Add((h.Start, h.Length, Encoding.UTF8.GetBytes("\"" + key + "\"")));
+                result.Changes.Add($"HoldUnit {h.Value} -> {key}");
+            }
         if (edits.Count == 0 || !write) return result;
 
         using var ms = new MemoryStream(bytes.Length + 256);
@@ -136,7 +145,8 @@ public sealed class ParamsMigrator
     }
 
     /// <summary>The migrated params JSON, or null when nothing in it is in a retired form (or the behaviour / JSON is unknown).</summary>
-    public string? MigrateParams(string behavior, string? json, Func<IGeographicTransform> geo, out string? what)
+    public string? MigrateParams(string behavior, string? json, Func<IGeographicTransform> geo, out string? what,
+                               IReadOnlyDictionary<long, string>? ids = null)
     {
         what = null;
         if (string.IsNullOrWhiteSpace(json)) return null;
@@ -151,6 +161,12 @@ public sealed class ParamsMigrator
         EntityRefRemap.VisitLeaves(contract, obj,
             (leafType, node, key) =>
             {
+                // S9' — a NUMERIC EntityLink naming an entity of this file is written as that entity's GUID (the Exact form)
+                if (leafType == typeof(EntityLink) && ids != null && node is JsonValue jv && jv.TryGetValue<long>(out long n) && n != 0 && ids.TryGetValue(n, out var guid))
+                {
+                    moved.Add($"{key} {n} -> {guid}");
+                    return JsonValue.Create(guid);
+                }
                 if (leafType != typeof(PointLink) || node is not JsonArray a || a.Count != 2) return null;
                 moved.Add($"{key} [lat, lon] -> local");
                 return Point(GeoPair(a[0]!.GetValue<double>(), a[1]!.GetValue<double>(), geo));
@@ -252,6 +268,45 @@ public sealed class ParamsMigrator
     private sealed record Site(string Behavior, string Value, int Start, int Length);
 
     /// <summary>Every <c>{Name|behaviorName|BehaviorName, Params|behaviorParams|BehaviorParams}</c> pair: the params STRING token's byte range.</summary>
+    /// <summary>S9' — <c>entities.&lt;key&gt;.NetworkIdentity.Value</c> -> <c>key</c> for a scenario / recipe file (empty for any other shape).</summary>
+    public static Dictionary<long, string> NetworkIdsToKeys(byte[] bytes)
+    {
+        var map = new Dictionary<long, string>();
+        try
+        {
+            if (JsonNode.Parse(bytes, null, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true }) is not JsonObject root
+                || root["entities"] is not JsonObject entities) return map;
+            foreach (var (key, node) in entities)
+                if (node is JsonObject e && e["NetworkIdentity"] is JsonObject ni && ni["Value"] is JsonValue v && v.TryGetValue<long>(out long id) && id != 0)
+                    map[id] = key;
+        }
+        catch (JsonException) { }
+        return map;
+    }
+
+    /// <summary>S9' — every numeric <c>"HoldUnit"</c> member (RoutePlan waypoints) as raw byte ranges.</summary>
+    private static List<(int Start, int Length, long Value)> HoldUnitSites(byte[] bytes)
+    {
+        var sites = new List<(int, int, long)>();
+        var reader = new Utf8JsonReader(bytes, new JsonReaderOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
+        string? property = null;
+        try
+        {
+            while (reader.Read())
+            {
+                if (reader.TokenType == JsonTokenType.PropertyName) property = reader.GetString();
+                else
+                {
+                    if (reader.TokenType == JsonTokenType.Number && property == "HoldUnit" && reader.TryGetInt64(out long v))
+                        sites.Add(((int)reader.TokenStartIndex, reader.ValueSpan.Length, v));
+                    property = null;
+                }
+            }
+        }
+        catch (JsonException) { return new(); }
+        return sites;
+    }
+
     private static List<Site> ParamsSites(byte[] bytes)
     {
         var sites = new List<Site>();

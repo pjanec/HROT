@@ -187,7 +187,7 @@ public sealed class DistributedScenarioLoadTests : IDisposable
 
         // Core success condition: the targetNetworkId in the mission plan must equal the
         // new live network ID of the target entity, NOT the offline staging ID.
-        Assert.Equal(newTargetId, paramsDto!.TargetNetworkId);
+        Assert.Equal(newTargetId, paramsDto!.TargetNetworkId.Ref.NetworkId);   // S9': the GUID resolved to the target's live network id
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -234,7 +234,7 @@ public sealed class DistributedScenarioLoadTests : IDisposable
 
         // Build the ActiveMissionPlan with a FireAtTarget task referencing the target.
         var behaviorParams = JsonSerializer.Serialize(
-            new { targetNetworkId = OfflineTargetId, maxRounds = 5, cooldownSeconds = 1.0 });
+            new { targetNetworkId = targetGuid.ToString("D"), maxRounds = 5, cooldownSeconds = 1.0 });   // S9': the target is named by its GUID (Exact), never by a network id
 
         var missionPlan = new ActiveMissionPlan
         {
@@ -273,7 +273,7 @@ public sealed class DistributedScenarioLoadTests : IDisposable
     private sealed class FireAtTargetParamsDto
     {
         [JsonPropertyName("targetNetworkId")]
-        public int TargetNetworkId { get; set; }
+        public Fdp.Toolkit.Replication.EntityLink TargetNetworkId { get; set; }
     }
 
     private static bool IsPart(EntityRepository w, Entity e)

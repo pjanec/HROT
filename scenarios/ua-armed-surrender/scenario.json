@@ -61,7 +61,7 @@
                             "taskId": "c2410002-0000-4000-8000-000000000111",
                             "executingEngine": "",
                             "behaviorName": "PersonAttack",
-                            "behaviorParams": "{\"Target\":9923}",
+                            "behaviorParams": "{\"Target\":\"c2410002-0000-4000-8000-000000000002\"}",
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",
@@ -117,7 +117,7 @@
                             "taskId": "c2410002-0000-4000-8000-000000000120",
                             "executingEngine": "",
                             "behaviorName": "PersonAttack",
-                            "behaviorParams": "{\"Target\":9922}",
+                            "behaviorParams": "{\"Target\":\"c2410002-0000-4000-8000-000000000001\"}",
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",

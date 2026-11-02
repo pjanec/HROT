@@ -53,7 +53,7 @@
       },
       "Behavior": {
         "Name": "LandPlatformAttack",
-        "Params": "{\"Target\": 8611}",
+        "Params": "{\"Target\":\"a2200d00-0000-4000-8000-000000000002\"}",
         "Origin": "Superior"
       }
     },
@@ -90,7 +90,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"target\": 8601, \"advance\": {\"Objective\": [100, 225, 0], \"Speed\": 1, \"ArrivalRadius\": 3}}",
+        "Params": "{\"target\":\"a2200d00-0000-4000-8000-000000000001\",\"advance\":{\"Objective\":[100,225,0],\"Speed\":1,\"ArrivalRadius\":3}}",
         "Origin": "Superior"
       },
       "Sop": {
@@ -164,7 +164,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"target\": 8602, \"assault\": true}",
+        "Params": "{\"target\":\"a2200d00-0000-4000-8000-000000000003\",\"assault\":true}",
         "Origin": "Superior"
       },
       "Sop": {

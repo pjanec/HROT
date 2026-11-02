@@ -143,7 +143,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"target\": 10421, \"assault\": true}",
+        "Params": "{\"target\":\"a1040001-0000-4000-8000-000000000003\",\"assault\":true}",
         "Origin": "Superior"
       }
     }

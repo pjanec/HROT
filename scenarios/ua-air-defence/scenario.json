@@ -36,7 +36,7 @@
       },
       "Behavior": {
         "Name": "AirPlatformAttack",
-        "Params": "{\"Target\": 8211}",
+        "Params": "{\"Target\":\"a2191d00-0000-4000-8000-000000000003\"}",
         "Origin": "Superior"
       },
       "Health": {
@@ -70,7 +70,7 @@
       },
       "Behavior": {
         "Name": "AirPlatformAttack",
-        "Params": "{\"Target\": 8212}",
+        "Params": "{\"Target\":\"a2191d00-0000-4000-8000-000000000004\"}",
         "Origin": "Superior"
       },
       "Health": {
