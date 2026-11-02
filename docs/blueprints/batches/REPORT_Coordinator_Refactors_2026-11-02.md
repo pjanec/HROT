@@ -55,3 +55,15 @@
 | Item 3 live check | 8f95fa373 | `--mode all`, `hill-attack`, HTTP + `ddsmonitor` | see below | `POST /run-settings` could only turn the feature ON, so a `featureOverrides` body was added |
 
 Live numbers: `GET /features` on SimHost, IG, CGF (Traffic empty). IG `map3d.in-load` true (role default), heartbeat `FeaturesOn` [map3d.in-load]. After the override naming IG-100: IG false (cluster), heartbeat `FeaturesOn` [] and `FeatureErrors` [], broadcast `FeatureOverrides` Nodes [IG-100]; the other nodes unchanged. The load reached OperatingLive (33 entities). Not measured directly: the "no eager map build" (no log line separates it; the frozen feature says off). Cluster stopped, 0 processes. No reds besides the one test mistake above; no pre-existing reds hit.
+
+## Worker items (CE-4070 / 4071 / 4075 / 4069 + FeatureOverrideWire rail)
+
+| item | commit | gate command | counts | notes |
+|---|---|---|---|---|
+| CE-4070 orphan `Hrot.NED.Tests` | 9deff38c2 | none (deletion) | n/a | every test already in `Hrot.Network.NED.Tests` (identical or newer; the one name absent, `SystemStateTopicQosIsDurableTransientLocal`, is `ClusterStateTopicQosIsDurableTransientLocal` after a rename). Nothing moved. |
+| CE-4071 enum twins | 0a4ab2f42 | `dotnet test Hrot.Orchestrator.Tests --no-build --filter FdpOrchestrationEnumSyncTests` | 6 passed (2 new) | extended the EXISTING suite; both directions, name + value, wire-only `SaveScenario=17` listed. Red-proved (CheckUnsavedChanges 26 to 126: 2 failed), reverted. Comment now points at the rail. |
+| rail fix `AllTopicStructsHaveDdsTopicAttribute` | 3ee71c998 | `dotnet test Hrot.Network.NED.Tests --no-build --filter EqsSensorSolverPickTests\|OrchestrationSchemaTests\|ClusterCacheExpectedPeers\|RoleGroupOwnership` | 24 passed | nested `[DdsStruct]` element types need no `[DdsTopic]` (still must carry the orchestration IDL file). |
+| CE-4075 | 15d67c13e | same NED.Tests filter; `Hrot.SimHost.Tests --filter NodeOpSlaveTranslatorTests`; `ned-wire-inventory.py --check` | 24 passed; 31 passed; inventory OK (114) | one `NodeCapabilityFromHeartbeat.Map`; CpuUsage dropped everywhere. DECISION FOR REVIEW: `GetLeastLoadedNode` had no load figure left, so it now returns the lowest node id (was dictionary order, effectively arbitrary); `EqsSensorSolverPickTests` adjusted. `WireUnits.FractionToPercent` left (still public). |
+| CE-4069 | this commit | `tracker-counts.py --check` | OK | premise gone: no long ids on the wire, no `checked((int)` under Hrot/; closed OBSOLETE. |
+
+No reds. Not run: whole suites, full-solution build.
