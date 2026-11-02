@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: ⏸ ON HOLD (user, 2026-11-02 — not to be started yet; reasons to follow) · otherwise READY-TO-BUILD after S0 + CE-4153 S9′ (accepted 2026-11-01: no reverse remap — authored refs are EntityLink, a rail, the migration writes GUIDs; DESIGN_Scenario_Entity_Keys.md S9′) — SR-146…SR-157 ✅ accepted 2026-11-01 (§9.y: the expander is the creation path's child branch) — slice S3 (§1); CE-4153 S9 (GUID file form) still a prerequisite
+build-state: ⏸ ON HOLD (user, 2026-11-02 — not to be started yet; reasons to follow) · DESIGN until §14 (SR-167…SR-176) is settled, then READY-TO-BUILD after S0 + CE-4153 S9′ (accepted 2026-11-01: no reverse remap — authored refs are EntityLink, a rail, the migration writes GUIDs; DESIGN_Scenario_Entity_Keys.md S9′) — SR-146…SR-157 ✅ accepted 2026-11-01 (§9.y: the expander is the creation path's child branch) — slice S3 (§1); CE-4153 S9 (GUID file form) still a prerequisite
 updated: 2026-11-01 (split out of docs/DESIGN_Scenario_Rules.md §8 / §9.1–§9.7 — a MOVE: every decision id, its wording, its approval and every user quote kept verbatim; no id renumbered)
-current-answer: ⭐ §5.1 where a binding lives (SR-159…SR-166, draft — §5.1.1 the example, §5.1.2 the generic binder + recording) · §10 relocation (SR-127, SR-131, SR-152…SR-157) · §9.y the gaps closed (SR-146…SR-151) · §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
+current-answer: ⭐ §14 the critical review (SR-167…SR-176, leans await the user — S3a is NOT buildable until they are settled) · §5.1 where a binding lives (SR-159…SR-166, ✅ accepted 2026-11-02 — §5.1.1 the example, §5.1.2 the generic binder + recording) · §10 relocation (SR-127, SR-131, SR-152…SR-157) · §9.y the gaps closed (SR-146…SR-151) · §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
   presets and their overrides (SR-27, SR-28, SR-32) · §5 the macro file, the instance, its bindings (SR-38…SR-43, SR-57, SR-69, SR-70) · §6 macro
   entities are full TRANSIENT entities (SR-42′, SR-44, SR-44a, SR-45) · §7 a macro is CLOSED (SR-58, SR-60) · §8 the three reference forms and
   RefKey (SR-63…SR-66, SR-68) · §9 expansion at load — the sequence, SR-80, GAP-1…GAP-5 · §10 relocation + the reference types (still in the
@@ -51,7 +51,7 @@ saved); the file keeps only the instance and its args. A scenario with parameter
 
 | slice | builds | done when | prerequisites | build-state |
 |---|---|---|---|---|
-| **S3a — the macro CORE** *(split `2026-11-01`; ⏸ ON HOLD `2026-11-02` — user: *"I think we are not yet ready for starting the Scenario macros implementation I will explain later. So please delete the handoff"*; the queued handoff was deleted)* | the `MacroInstance` TKB type (on the map, SR-70) · the macro FILE (`macros/`, header params SR-44 + the authored anchor SR-152 + `relocatable`) · the `Expander` = `CreateEntityRequestSystem`'s child branch with a second source (SR-146: bind · resolve · relocate · create, derived `macro:` GUIDs, fresh ids SR-151) · `ParamBindings` (SR-57) and `bind` maps (SR-129) · the validator in the prepare (SR-149) · `MacroExpansionStatus` (SR-96) · reconcile-by-GUID on an args / anchor edit (SR-150, SR-157) · RefKey's LEXICAL lookup in macro scope (SR-65) · the relocators (SR-154) · the macros package staged on EVERY node (SR-80, SR-148) · scenario-level params in the header (SR-41) + `--param` / HTTP | the same platoon macro placed twice, rotated, both expand and play on a cluster; a nested macro composes its transforms; a missing macro / wrong binding / cycle fails the load naming the path, nothing created; an args edit keeps ids and outside references; a pinned macro placed elsewhere is refused | S0 · CE-4153 S9′ | ⭐ **READY-TO-BUILD** |
+| **S3a — the macro CORE** *(split `2026-11-01`; ⛔ NOT buildable until §14 is settled; ⏸ ON HOLD `2026-11-02` — user: *"I think we are not yet ready for starting the Scenario macros implementation I will explain later. So please delete the handoff"*; the queued handoff was deleted)* | the `MacroInstance` TKB type (on the map, SR-70) · the macro FILE (`macros/`, header params SR-44 + the authored anchor SR-152 + `relocatable`) · the `Expander` = `CreateEntityRequestSystem`'s child branch with a second source (SR-146: bind · resolve · relocate · create, derived `macro:` GUIDs, fresh ids SR-151) · `ParamBindings` (SR-57) and `bind` maps (SR-129) · the validator in the prepare (SR-149) · `MacroExpansionStatus` (SR-96) · reconcile-by-GUID on an args / anchor edit (SR-150, SR-157) · RefKey's LEXICAL lookup in macro scope (SR-65) · the relocators (SR-154) · the macros package staged on EVERY node (SR-80, SR-148) · scenario-level params in the header (SR-41) + `--param` / HTTP | the same platoon macro placed twice, rotated, both expand and play on a cluster; a nested macro composes its transforms; a missing macro / wrong binding / cycle fails the load naming the path, nothing created; an args edit keeps ids and outside references; a pinned macro placed elsewhere is refused | S0 · CE-4153 S9′ · §14 | ⏸ **DESIGN** (§14) |
 | **S3b — macros at runtime, variants, the director** | `InsertMacro` (the trigger action, reads `MacroExpansionStatus`) · run variants (SR-101) + the run setup in the picker (AQ108 D24, ui) · `SetSkillAmplifier` (SR-100) · the counter-attack director as a macro (SR-99) | the director is a macro used by two scenarios with different params; variant 3 replays identically | S3a · rules S2 (the trigger runtime) | DESIGN-complete, after S2 |
 
 ⭐ The module picture — who registers the Expander and who calls it (the creation path, at load and at runtime `InsertMacro`) — is
@@ -122,7 +122,7 @@ entity is created TRANSIENT (SR-42′) and carries the tag the serializer alread
 
 | # | decision | ⭐ current answer |
 |---|---|---|
-| **SR-27** | WHO expands — the entity CREATION path, not the scenario loader (`2026-10-31`) | the translator list (`TkbTranslatorSet.Base()`, called by `NetworkSpawningSystem.cs:144` and ghost promotion) runs for scenario load AND runtime spawn alike ⇒ a macro inserted at load, by the instructor mid-run or by a trigger expands the same way, through one path. What it creates: ordinary transient entities (SR-42′). ⛔ rejected: expansion in `ScenarioLoadStep` — a macro spawned at runtime would not expand (two paths) |
+| **SR-27** | WHO expands — the entity CREATION path, not the scenario loader (`2026-10-31`) | ⚠ **wording superseded by SR-146 + SR-174 (§14)** — the EXPANDER is `CreateEntityRequestSystem`'s child branch, which runs only where a creation REQUEST is processed, ⛔ NOT the translator list (that also runs at ghost promotion, which would expand a second time); the principle stands: one path for scenario load AND runtime spawn alike ⇒ a macro inserted at load, by the instructor mid-run or by a trigger expands the same way, through one path. What it creates: ordinary transient entities (SR-42′). ⛔ rejected: expansion in `ScenarioLoadStep` — a macro spawned at runtime would not expand (two paths) |
 | **SR-28** | how a child takes a macro's value (user, `2026-10-31`: *"The objectives inside a package can carry the values on their own, but they should be able to reference a parameter of the whole package instead of hard coding the values inside."*) | a child's value is EITHER a literal (fixed in the macro) OR bound to the enclosing macro's param (SR-40 / SR-57 `ParamBindings`, SR-129 `bind`). ⭐ The OVERRIDE surface is the macro's FLAT param list — exactly the existing `BehaviorParams.OverlayFlat` (DTO default ▸ macro default ▸ instance args, top-level keys only, §8.0) — so overriding never needs a deep merge into a child. ⇒ to make an inner literal overridable, the macro author PROMOTES it to a param. Applied once at expansion; a nested macro receives its args the same way (a binding refers only to the IMMEDIATE macro) |
 | **SR-32** | one mechanism for every kind of preset | missions, objective sets, evaluation criteria, triggers / directors are all scenario MACROS (SR-38); a preset of a preset (e.g. `SeizeVillageFast` = `SeizeArea` with `deadline: 30 min` fixed) is a macro containing one macro instance with some args fixed — no inheritance mechanism |
 
@@ -150,7 +150,7 @@ entity is created TRANSIENT (SR-42′) and carries the tag the serializer alread
 **Still to measure before S3 builds:** ① the scenario editor opening and saving a file from `macros/` (SR-38) · ② the entity tree showing
 expanded entities under their instance (SR-43) · ③ how a non-unit positioned entity gets its map symbol (SR-70).
 
-### 5.1 Where a binding LIVES so no editor can drop it *(`2026-11-02` — leans SR-159 … SR-163 await the user; amends SR-129)*
+### 5.1 Where a binding LIVES so no editor can drop it *(`2026-11-02` — ✅ SR-159 … SR-163 ACCEPTED — user: *"Approved."*; amends SR-129; ⚠ SR-165 amended by SR-168, §14)*
 
 > 🔒 **User, `2026-11-02`:** *"how do we handle this during the macro expansion? How does the loader know that some parts use parameter binding?
 > And also, how are we going to save these bindings back to the scenario? How the editor who manages this predicate definition knows to save the
@@ -206,7 +206,7 @@ lose it, the loader finds it by type, and save writes it with no extra step.
 #### 5.1.1 Example — a macro file with all three kinds *(illustrative names; ⚠ the trigger's definition component is named in rules S2 — SR-97's record)*
 
 ```jsonc
-// macros/forces/RedQRF.macro.json
+// macros/forces/RedQRF/macro.json — id "forces/RedQRF" (SR-173)
 {
   "header": {
     "kind": "macro",
@@ -255,7 +255,7 @@ lose it, the loader finds it by type, and save writes it with no extra step.
 - *A `Bindable<T>` wrapper on every bindable field* — every params struct and blob layout changes, ~36 bytes per field, for a minority of fields.
 - *Path-keyed bindings for predicate nodes* — reordering conditions would break the paths (the SR-94 objection); the node carries its own.
 
-#### 5.1.2 Applying bindings generically, and what is recorded *(`2026-11-02` — leans SR-164 … SR-166 await the user)*
+#### 5.1.2 Applying bindings generically, and what is recorded *(`2026-11-02` — ✅ SR-164 … SR-166 ACCEPTED — user: *"Approved."*; ⚠ SR-165 amended by SR-168, §14)*
 
 > 🔒 **User, `2026-11-02`:** *"It's not yet clear to me how I, in the editor, can pick that the field will be fed from a scenario macro parameter. or
 > maybe basically from any kind of parameter, because for example the predicate conditions, I guess they are used in many other places … are the
@@ -519,8 +519,8 @@ sequenceDiagram
 | SR-61 | rules §9.5 | groups by the command chain — a macro's roster can change without touching the objective |
 | SR-67 | rules §9.6 | per-member thresholds — nearest enclosing macro instance's `memberArgs` wins, the `RefKey` lexical rule (SR-65) |
 | SR-71 | rules §9.2 | the World Environment saved in the header |
-| SR-94 | rules §10.13 | a `do` entry carries its OWN `bind` — the rule SR-129 generalises to any JSON object, macro args included |
-| SR-96 | rules §10.13 | ⚠ a macro insertion reports its own completion — `MacroExpansionStatus`, ONE writer = the expanding Brain node; macro MECHANISM, kept there for now (its context is `InsertMacro`) — a candidate to move here |
+| SR-94 | rules §10.13 | a `do` entry carries its OWN `bind` — now the typed `Bind` of a `BindableNode` (SR-160, which supersedes SR-129's *"any JSON object"*) |
+| SR-96 | rules §10.13 | ⚠ a macro insertion reports its own completion — `MacroExpansionStatus`, ONE writer = the node that expands it (SR-148 — not the Brain by rule); macro MECHANISM, kept there for now (its context is `InsertMacro`) — a candidate to move here |
 | SR-99 | rules §10.13 | a director IS a macro of objectives + triggers |
 | SR-101 | rules §10.13 | run variants — `presence` on a macro instance, `InsertMacro` / a macro choosing ONE of N |
 | SR-125 … SR-143 | rules §9.8 | relocation and the reference types (§10 here) |
@@ -556,3 +556,69 @@ sequenceDiagram
 | §9.6 | §8 |
 | §9.7 | §9 |
 | §9.8 | not moved — still `DESIGN_Scenario_Rules.md` §9.8 (§10 here) |
+
+## 14. Critical review — what the design got wrong or left out *(`2026-11-02` — leans SR-167 … SR-176 await the user; S3a is not buildable until they are settled)*
+
+> 🔒 **User, `2026-11-02`:** *"Approved. Please take a wider critical look at the scenario macro feature and find gaps and flaws."*
+
+**INVENTORY** *(`2026-11-02`: read `CreateEntityRequestSystem.cs` :340-660 (the request + child branch); `ScenarioSaveCore.cs` :11-35;
+`DESIGN_Distributed_Scenario_Persistence.md` §6 (I1); grep `OwnerAppInstanceId =` over `Hrot/Engine` + `Hrot/Subsystems`; grep `InsertMacro` /
+`MacroOrigin` over the rules and macros docs; graph `.*(Rewind|Baseline|Revert).*` Class (17 — none is an authoring-vs-live split of the world);
+⚠ coverage unchecked — `check_index_coverage` is not in the CLI)*
+
+| measured | where | breaks |
+|---|---|---|
+| ⛔ **a TRANSIENT request gets NO GUID** — the GUID is minted only `if (!pending.Request.IsTransient)`, and `WithDerivedGuid` adds nothing when the parent GUID is empty | `CreateEntityRequestSystem.cs:352-366`, `:641-647` | macro children are transient (SR-42′) ⇒ no derived GUID ⇒ SR-150 reconcile, an Exact ref into a macro and nested derivation have nothing to key on |
+| ⛔ **children INHERIT the parent's transience** (*"a sketch's auto-spawned TKB children are part of the same sketch"*) | `CreateEntityRequestSystem.cs:439`, `:544-546` | a SAVED instance would give SAVED children ⇒ the expansion is written into the file and expanded again on the next load |
+| ⛔ **save writes the LIVE components** of every entity a node is primary owner of (`IsPrimaryOwner AND NOT ScenarioIgnoreTag`), from the editor or any node | `ScenarioSaveCore.cs:11-19`; persistence §6 I1 | a top-level entity is BOTH authored and live ⇒ a scenario-level binding (SR-41) applied at load is overwritten into a literal by the next save, and SR-165 has already removed its `ParamBindings` |
+| ⛔ **nothing links a TKB child to its parent** except the command hierarchy (`InitialUnitSubordinateIntent`); `SubEntityCleanupSystem` serves PARTS only | `CreateEntityRequestSystem.cs:512-519`; §6 row 2 | SR-39a (*deleting the instance removes its entities*), SR-43 (shown under the instance) and the reconcile scope have no mechanism |
+| ✅ **ownership is already right** — the child branch gives children the parent's owner + their own template's `DeferredTakeOwnership` grants, exactly what a top-level scenario entity gets (load requests are `Owner = 0`) | `CreateEntityRequestSystem.cs:407-460`, `:555-575`; `StagingEntityExtractor.cs:379` | nothing — split authority survives expansion |
+| ⚠ a runtime-inserted instance has no transience rule; the game-master's live additions lean transient | `DESIGN_Scenario_Rules.md` SR-104 Z6 | an `InsertMacro` mid-run, then a save ⇒ the instance is saved and inserted again on the next run |
+
+```mermaid
+classDiagram
+    direction LR
+    class ChildBranch { <<existing, CreateEntityRequestSystem>> one spawn loop, two sources (SR-146) }
+    class TkbSource { <<existing>> ChildBlueprints — transience INHERITED · GUID child:id }
+    class MacroSource { <<NEW>> macro file entities — ALWAYS transient · GUID ALWAYS derived macro:local }
+    class EntityGuid { <<existing, CE-4153>> IDENTITY — who it is }
+    class ScenarioIgnoreTag { <<existing>> SAVE — whether the file holds it }
+    class MacroOrigin { <<NEW, unmanaged, replicated>> EntityRef Instance · Guid Local }
+    class MacroInstance { <<NEW, immutable record>> macro path · args }
+    ChildBranch --> TkbSource
+    ChildBranch --> MacroSource
+    MacroSource ..> EntityGuid : always
+    MacroSource ..> ScenarioIgnoreTag : always
+    MacroSource ..> MacroOrigin : stamps on each child
+    MacroOrigin --> MacroInstance : Instance
+```
+
+*What the picture shows that prose hid:* today ONE flag (`IsTransient`) decides two things — whether an entity has an identity and whether it is
+saved. A macro child needs the identity WITHOUT the save, so the macro source must set them apart; and only an explicit `MacroOrigin` lets
+anything find a macro's entities again.
+
+| # | finding → decision | ⭐ lean |
+|---|---|---|
+| **SR-167** | ⛔ transient ⇒ no GUID (measured above) | ⭐ IDENTITY and SAVE are two axes: the macro source ALWAYS stamps `Derive(instanceGuid, "macro:<local GUID>")`, whatever the transience; a nested instance derives from its derived GUID. Sketches keep no GUID (unchanged). A runtime-inserted instance (SR-171) derives its GUID from the inserting trigger's GUID + its insertion count, so replay and a branch get the same ids. Rail: two instances of one macro ⇒ distinct, stable child GUIDs on every load and node |
+| **SR-168** *(amends SR-164, SR-165)* | ⛔ a scenario-level binding is lost on the next save (measured above); the same holds for a macro FILE opened in the editor | ⭐ the binder is NON-DESTRUCTIVE — it fills the live value and KEEPS the binding: ① a `Param`-form `RefSpec` keeps `Form = Param` and gets its live answer from the param's resolved value (as `@Key` keeps its key); ② `Bind` stays on its node; ③ `ParamBindings` stays on the entity (`NoReplay`). ⭐ It is removed only from TRANSIENT macro children, which are never saved. ⇒ a save writes the current value as the literal PLUS the binding, and the binding wins on the next load. ⇒ the editor MAY apply bindings (SR-164's *"must deserialise without applying"* is relaxed — applying is now harmless). Rail: load a scenario with params → save → every binding still there |
+| **SR-169** | ⛔ children inherit transience (measured above) | ⭐ the macro source sets `IsTransient = true` on every child; the TKB source keeps inheriting. Rail: load → save writes the instance and ⛔ none of its entities |
+| **SR-170** | ⛔ no child → instance link (measured above) | ⭐ `MacroOrigin {EntityRef Instance; Guid Local}` on every expanded entity — unmanaged (CLAUDE.md *"NEW COMPONENTS"*), replicated, recorded. ⭐ It serves: destroying an instance destroys every entity naming it (recursively, each through its owner); SR-43's tree and read-only marking; SR-150's reconcile scope; SR-96's tracking. ⛔ not `PartMetadata` (§6) |
+| **SR-171** | ⚠ a runtime-inserted instance gets saved (above) | ⭐ an instance created during a RUN (`InsertMacro`, the game-master's Z1) is TRANSIENT — it and its entities never reach the file; the trigger that inserted it is what is saved (consistent with SR-104 Z6) |
+| **SR-172** | ⛔ a live args edit RESURRECTS destroyed children — SR-150 creates *"a new GUID"*, and in a run a child killed and removed looks exactly like a new one | ⭐ the reconcile compares the OLD args' child set with the NEW args' child set (both computed from the file), ⛔ not with what currently exists: a child is created only if its GUID is new to the new set; one that the run destroyed stays destroyed. No tombstones |
+| **SR-173** | ⛔ the macro's id and layout disagree — SR-38 says `macros/<name>/macro.json`, §5.1.1 says `macros/forces/RedQRF.macro.json`, and `MacroInstance.macro` is a bare name although `macros/` is a tree | ⭐ the id is the RELATIVE PATH under `macros/` (`forces/RedQRF`), like scenarios' rel paths (`ScenarioEnumeration.EnumerateRelPaths`); one layout, `macros/<path>/macro.json` (a folder per macro, as for scenarios, so it can carry assets); §5.1.1 is corrected to it |
+| **SR-174** *(restates SR-27)* | ⚠ SR-27 named the translator list — which also runs at GHOST PROMOTION — as the expander | ⭐ expansion runs ONLY where a creation REQUEST is processed (SR-146); ⛔ never in a translator. Rail: a promoted ghost instance creates nothing |
+| **SR-175** | ⚠ `MacroInstance` has no wire, recording or edit-routing design (only `MacroExpansionStatus` is called replicated) | ⭐ `MacroInstance` is an immutable record written once (keyframes only); replicated as a reliable descriptor (an internal type + its wire twin, R-134) so a UI on a non-owning node shows it and routes an args edit to the owner (`EntityWriteRouter`). `MacroExpansionStatus` is unmanaged (`State` + a `FixedString128` reason) |
+| **SR-176** | ⚠ a run's scenario args are not recorded — the recording holds the entities, not which args produced them | ⭐ `RecordingMetadata.ScenarioArgs` beside `FeaturesAtLoad` (`DESIGN_Node_Features.md` §6) — an evaluation report and *"run it again with the same setup"* read it |
+
+⭐ **Also open, already listed, and now preconditions of S3a** (measure before the build, not during it): the scenario editor opening and
+saving a file under `macros/` (§5 ①) · the entity tree showing `ScenarioIgnoreTag` entities under their instance (§5 ②) · a map symbol for a
+non-unit positioned entity (§5 ③) · dismounted soldiers settling after a Z change (SR-157).
+
+⭐ **Editor work this adds** (ui, after S3a): *Save selection as macro* must turn every reference to an entity OUTSIDE the selection into a
+param (a macro is closed, SR-58) — or refuse, naming them. Filed with CE-4210.
+
+**Rejected — one line each:**
+- *Keep one `IsTransient` flag and give transient entities GUIDs everywhere* — sketches and other throwaway entities would get identities nobody uses; only the macro source needs both.
+- *Strip bindings at load and keep a side copy for the save* — a second store of one fact (R-132); the non-destructive binder needs none.
+- *Find a macro's entities by recomputing their GUIDs* — works for reconcile, not for a destroyed instance on another node or for the tree; an explicit link is cheaper and visible.
+- *Tombstones for destroyed children* — the old-vs-new args diff answers the question with no state.
