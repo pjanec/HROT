@@ -523,7 +523,7 @@ Deploy respawn (D-14) is Player Join S2.
 classDiagram
     direction LR
     class HoldAreaBehavior { <<existing S1 + captureSeconds>> Capture(): by SIDE, outnumber for captureSeconds }
-    class CounterBehavior { <<NEW, Measure>> Value = start + actions − perDeath × downs(side) }
+    class CounterBehavior { <<NEW, Measure>> Value = start + actions + Σ per × downs(side) }
     class ScenarioVerbs { <<existing + AddToCounter>> AddToCounter(target, amount) }
     class TriggerBehavior { <<existing S2 + whileTrue>> after cooldown, still true ⇒ fire again }
     class ObjectiveStatus { <<existing>> Owner · Value · Target · Score · FireCount }
@@ -567,12 +567,12 @@ COUNTER (one new measure kind) through ONE new verb — no ticket system, no gam
 | # | decision (⏳ lean, built) | why |
 |---|---|---|
 | **G-1** | `HoldArea` `capture` + **`captureSeconds` > 0** ⇒ counts men by **SIDE** (every man of the side, not the subject's roster); the side with MORE men inside (≥ `minMen`) than every other side, continuously for `captureSeconds`, becomes `Owner`; the moment another side outnumbers the owner, `Owner` = Neutral (the point is lost) and the outnumbering side's clock starts. `ProgressCur` = the seconds of advantage, `ProgressNeed` = `captureSeconds`. `captureSeconds` 0 = S1's rule unchanged | SHOWCASE §2.6 line 1 (*"captures only with more men for 10 s"*). By side: a game point belongs to a team, and a respawned bot is in no roster |
-| **G-2** | a **`Counter`** measure (TKB 8860, role Measure): `Value` starts at `start`; actions add to it; with `deathsOf` set, every man of that side newly OUT of the fight (`Injury.IsInTheFight` false, counted once — a revived man does not refund) takes `perDeath` (default 1). `Target` = `start` ⇒ score = tickets left / start. `floor` (default 0): Value never goes below | the ticket pool. ⚠ NOT S4's `Count` (*events BY the subject*: shots, kills): a pool is moved BY the scenario. When S4 lands, the deaths input may move to a `Count` measure (SR-20 adapters) — one counter either way |
+| **G-2** | a **`Counter`** measure (TKB 8860, role Measure): `Value` starts at `start`; actions add to it; `deaths: [{side, per}]` (at most Friend and Hostile) ADDS `per` for every man of that side newly OUT of the fight (`Injury.IsInTheFight` false, counted once — a revived man does not refund): tickets `[{"side": "Friend", "per": -1}]`, a lead `[{"side": "Hostile", "per": 1}, {"side": "Friend", "per": -1}]`. `Target` = `start` ⇒ score = tickets left / start. `floor` (default 0) / `ceiling` (default none) clamp it | the ticket pool. ⚠ NOT S4's `Count` (*events BY the subject*: shots, kills): a pool is moved BY the scenario. When S4 lands, the deaths input may move to a `Count` measure (SR-20 adapters) — one counter either way |
 | **G-3** | verb **`AddToCounter(target, amount)`** — instant; Failure when the target is no Counter, or is closed | SR-93: one shared action; the crate's +15, the drain's −1, the operator's hand edit all use it |
 | **G-4** | Trigger **`whileTrue`**: a repeating trigger whose condition is STILL true when its cooldown ends fires again (T2's "goes false again" is waived); `maxFires` still caps it | *"each held point drains 1 ticket / 10 s"* = `when A.Owner = Friend`, `repeat`, `cooldown 10`, `whileTrue` — the periodic rule as data |
 | **G-5** | respawn waves for BOTS = data: a trigger `when` *(fewer than N of the side's men in the fight)* `whileTrue`, `cooldown` = the wave interval, `do` `InsertMacro(<one-bot macro>, @<side>Base)` | D-14's bot half with no new runtime; the human half (the Deploy screen) is Player Join S2 |
 | **G-6** | domination = a trigger `when` all three points' `Owner` = the side, `holdFor 60` ⇒ `EndExercise` | SR-73: the condition vocabulary is the statuses |
-| **G-7** | the comeback boost compares TWO counters ⇒ a third Counter **`Lead`** moved by the same actions (Blue loses a ticket ⇒ Lead −1; Red ⇒ +1), and the boost triggers on `Lead ≥ 40` / `≤ −40` (`cooldown 120`, repeat) | the predicate language compares one entity's field with a constant; a difference of two is one more counter, not a new operator |
+| **G-7** | the comeback boost compares TWO counters ⇒ a third Counter **`Lead`** (`floor` −1000, `deaths` both sides, opposite signs) moved by the same drain actions (Red loses a drained ticket ⇒ Lead +1; Blue ⇒ −1), and the boost triggers on `Lead ≥ 40` / `≤ −40` (`cooldown 120`, repeat) | the predicate language compares one entity's field with a constant; a difference of two is one more counter, not a new operator |
 
 **Rejected — one line each:**
 - *A ticket SYSTEM per game mode* — nothing compiled per scenario (R-4112); a counter + triggers is the same with no new runtime.
