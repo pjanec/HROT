@@ -17,12 +17,20 @@ namespace Hrot.UI.Common.AddEntity;
 /// <param name="Tool">The tool a pick arms (D4).</param>
 /// <param name="HasSide">True for a type placed as Friendly/Hostile/Neutral (D6).</param>
 /// <param name="DisabledReason">Why it cannot be picked, or null when it can.</param>
+/// <param name="Thumbnail">⭐ CE-4142 (G4) — the full path of its gallery thumbnail (explicit name, else the most specific <c>map.json</c> mask), or null ⇒ the glyph on a dashed tile.</param>
+/// <param name="RoleLine">⭐ CE-4142 (G3) — the one line under its tile: the TKB master's short description, else <i>class · main weapon</i>; null for none.</param>
+/// <param name="Group">⭐ CE-4142 (G1) — its gallery group (<see cref="GalleryGroups"/>); empty when the catalogue was built without a gallery.</param>
+/// <param name="Chip">⭐ CE-4142 (G2) — its chip inside the group (the next DIS level), or null.</param>
 public sealed record EntityTypeEntry(
     TkbTypeId TkbType, string Name, string Category, string? DisText, string? IconName,
-    PlacementToolKind Tool, bool HasSide, string? DisabledReason = null)
+    PlacementToolKind Tool, bool HasSide, string? DisabledReason = null,
+    string? Thumbnail = null, string? RoleLine = null, string Group = "", string? Chip = null)
 {
     /// <summary>True when the entry can be picked.</summary>
     public bool IsEnabled => DisabledReason is null;
+
+    /// <summary>⭐ CE-4142 — the picker category of the GALLERY: <c>Group</c> or <c>Group/Chip</c>; the DIS <see cref="Category"/> when there is no group.</summary>
+    public string GalleryCategory => Group.Length == 0 ? Category : Chip is null ? Group : Group + "/" + Chip;
 }
 
 /// <summary>
@@ -51,7 +59,8 @@ public static class EntityTypeCatalog
     public const string IconKeyPrefix = "entity/";
 
     /// <summary>Builds the catalog from <paramref name="tkb"/>, ordered by folder then name.</summary>
-    public static IReadOnlyList<EntityTypeEntry> Build(ITkbDatabase tkb, DisNameTable? names = null)
+    /// <param name="gallery">⭐ CE-4142 — the gallery's groups and thumbnail map; null ⇒ entries carry no group and no thumbnail (the plain DIS tree).</param>
+    public static IReadOnlyList<EntityTypeEntry> Build(ITkbDatabase tkb, DisNameTable? names = null, GalleryData? gallery = null)
     {
         ArgumentNullException.ThrowIfNull(tkb);
         names ??= DisNameTable.Default;
@@ -68,13 +77,21 @@ public static class EntityTypeCatalog
             string? icon = t.GetDescriptor<VisualDefinitionDto>()?.IconName;
             icon = string.IsNullOrWhiteSpace(icon) ? FallbackIconName(t) : icon;
 
+            DISEntityType? type = t.DisType.Value != 0 ? t.DisType : null;
+            var (group, chip) = gallery?.Groups.Classify(type, PlacementToolKind.Point, hasSide: true, names) ?? ("", null);
+            string? thumb = gallery?.Thumbnails.Resolve(t.GetDescriptor<VisualDefinitionDto>()?.ThumbnailName, type);
+
             list.Add(new EntityTypeEntry(t.TkbType, name, CategoryOf(t, names), dis, icon,
-                                         PlacementToolKind.Point, HasSide: true));
+                                         PlacementToolKind.Point, HasSide: true,
+                                         Thumbnail: thumb, RoleLine: EntityRoleLine.Compose(t, master), Group: group, Chip: chip));
         }
 
         foreach (var g in PlacementToolRegistry.Graphics)
+        {
+            var (group, chip) = gallery?.Groups.Classify(null, g.Tool, hasSide: false, names) ?? ("", null);
             list.Add(new EntityTypeEntry(g.TkbType, g.Name, MapGraphicsFolder, null, g.IconName, g.Tool,
-                                         HasSide: false, g.DisabledReason));
+                                         HasSide: false, g.DisabledReason, Group: group, Chip: chip));
+        }
 
         list.Sort((a, b) =>
         {
@@ -99,7 +116,9 @@ public static class EntityTypeCatalog
     /// <summary>The picker rows for the side-bearing types (<paramref name="sideBearing"/> true — the Friendly/Hostile/
     /// Neutral items) or for the map graphics (false — <c>Map Graphics…</c>). <see cref="PickerEntry.Tag"/> carries
     /// the <see cref="EntityTypeEntry"/>.</summary>
-    public static IEnumerable<PickerEntry> ToPickerEntries(IEnumerable<EntityTypeEntry> catalog, bool sideBearing)
+    /// <param name="gallery">⭐ CE-4142 — true ⇒ the GALLERY's rows: <see cref="PickerEntry.Category"/> is <c>Group/Chip</c>, the description is the tile's
+    /// one line, <see cref="PickerEntry.ImageKey"/> its thumbnail path, and the keywords add the group, chip and line so a search over ALL groups finds it (G7).</param>
+    public static IEnumerable<PickerEntry> ToPickerEntries(IEnumerable<EntityTypeEntry> catalog, bool sideBearing, bool gallery = false)
     {
         foreach (var e in catalog)
         {
@@ -107,13 +126,14 @@ public static class EntityTypeCatalog
             yield return new PickerEntry(
                 Id: e.TkbType.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 Name: e.Name,
-                Description: e.DisabledReason ?? (e.DisText is null ? null : "DIS " + e.DisText),
-                Category: e.Category,
-                Keywords: Keywords(e),
+                Description: e.DisabledReason ?? (gallery ? e.RoleLine : null) ?? (e.DisText is null ? null : "DIS " + e.DisText),
+                Category: gallery ? e.GalleryCategory : e.Category,
+                Keywords: gallery ? GalleryKeywords(e) : Keywords(e),
                 IconTextureId: null,
                 Tag: e,
                 IconKey: IconKeyOf(e),
-                IsEnabled: e.IsEnabled);
+                IsEnabled: e.IsEnabled,
+                ImageKey: gallery ? e.Thumbnail : null);
         }
     }
 
@@ -135,6 +155,15 @@ public static class EntityTypeCatalog
     /// (<c>entity/_point</c>, <c>entity/_area</c> …) the icon library draws as a glyph (S5).</summary>
     public static string IconKeyOf(EntityTypeEntry e)
         => IconKeyPrefix + (e.IconName ?? "_" + e.Tool.ToString().ToLowerInvariant());
+
+    private static IReadOnlyList<string> GalleryKeywords(EntityTypeEntry e)
+    {
+        var k = new List<string>(Keywords(e));
+        if (e.Group.Length > 0) k.Add(e.Group);
+        if (e.Chip is not null) k.Add(e.Chip);
+        if (e.RoleLine is not null) k.Add(e.RoleLine);
+        return k;
+    }
 
     private static IReadOnlyList<string> Keywords(EntityTypeEntry e)
     {

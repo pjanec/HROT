@@ -31,6 +31,7 @@ namespace Fdp.Toolkit.Tests.Orchestration
             Assert.Equal(Path.Combine(r, "assets", "terrain"), ContentLayout.TerrainAssets(r));
             Assert.Equal(Path.Combine(r, "assets", "buildings"), ContentLayout.BuildingAssets(r));
             Assert.Equal(Path.Combine(r, "assets", "icons"), ContentLayout.IconAssets(r));
+            Assert.Equal(Path.Combine(r, "assets", "thumbnails"), ContentLayout.ThumbnailAssets(r));
             Assert.Equal(Path.Combine(r, "assets", "audio"), ContentLayout.AudioAssets(r));
             Assert.Equal(Path.Combine(r, "assets", "textures"), ContentLayout.TextureAssets(r));
             Assert.Equal(Path.Combine(r, "recipes", "scenarios"), ContentLayout.ScenarioRecipes(r));
