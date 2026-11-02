@@ -29,7 +29,7 @@ public class IgNodeBootstrapperTests
             userConfig:            new MapUserConfig(),
             cameraViewport:        new MapCameraViewport(),
             eventHistoryService:   null,
-            hrotConfig:            new HrotNodeConfig { NodeId = 300, SubsystemName = "IG" });
+            hrotConfig:            new HrotNodeConfig { NodeId = (Fdp.Core.NodeId)(300), SubsystemName = "IG" });
 
     /// <summary>
     /// ⭐ CE-4013 — the modules the BASE registers at <c>additional-modules</c> for this host: IG's resolved capabilities (protected

@@ -15,7 +15,7 @@ namespace Fdp.Toolkit.Replication.Abstractions
         {
             EntityType   = entityType;
             Template     = template;
-            MasterNodeId = masterNodeId;
+            MasterNodeId = (Fdp.Core.NodeId)(masterNodeId);
         }
 
         /// <summary>DIS entity type from EntityMaster.</summary>
@@ -28,7 +28,7 @@ namespace Fdp.Toolkit.Replication.Abstractions
         public TkbTemplate? Template { get; }
 
         /// <summary>Primary owner (EntityMaster owner / creator node ID).</summary>
-        public int MasterNodeId { get; }
+        public NodeId MasterNodeId { get; }
     }
 
     /// <summary>

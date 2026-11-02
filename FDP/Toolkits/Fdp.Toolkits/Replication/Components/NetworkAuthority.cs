@@ -23,7 +23,7 @@ namespace Fdp.Toolkit.Replication.Components
         /// <summary>
         /// ID of the local node.
         /// </summary>
-        public int LocalNodeId;
+        public NodeId LocalNodeId;
 
         /// <summary>
         /// True if the local node has authority over this entity.
@@ -33,7 +33,7 @@ namespace Fdp.Toolkit.Replication.Components
         public NetworkAuthority(int primaryOwnerId, int localNodeId)
         {
             PrimaryOwnerId = primaryOwnerId;
-            LocalNodeId = localNodeId;
+            LocalNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
     }
 }

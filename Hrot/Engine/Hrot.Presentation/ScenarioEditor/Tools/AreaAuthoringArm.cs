@@ -134,7 +134,7 @@ namespace Hrot.ScenarioEditor.Tools
                     {
                         NetworkId         = 0,
                         TkbType           = tkbType,
-                        OwnerNodeId       = 0,
+                        OwnerNodeId       = (Fdp.Core.NodeId)(0),
                         InitType          = ReliableInitType.AllPeers,
                         RequestId         = Guid.NewGuid(),
                         InitialTransform  = new SimTransform { Position = anchor },

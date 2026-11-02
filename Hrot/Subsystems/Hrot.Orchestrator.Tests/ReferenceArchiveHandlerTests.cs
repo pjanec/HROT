@@ -23,7 +23,7 @@ public sealed class ReferenceArchiveHandlerTests
             TransactionId = txId ?? Guid.NewGuid(),
             // 0 = broadcast: a fixed non-zero id was dropped by any slave whose nodeId differed
             //   (ClusterSlave.Tick's TargetNodeId filter) — the pre-existing reason Commit saw an empty result.
-            TargetNodeId  = 0,
+            TargetNodeId  = (Fdp.Core.NodeId)(0),
             Operation     = NodeOpType.SerializeLocal,
             DomainPayload = new ArchiveHandlerPayload(exerciseId),
         };

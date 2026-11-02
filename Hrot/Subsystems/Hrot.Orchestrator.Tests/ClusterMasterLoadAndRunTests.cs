@@ -30,11 +30,11 @@ public sealed class ClusterMasterLoadAndRunTests
         {
             bus.PublishManaged(new NodeHeartbeatEvent
             {
-                NodeId = id, SubsystemName = "TestNode",
+                NodeId = (Fdp.Core.NodeId)(id), SubsystemName = "TestNode",
                 LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
                 WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
             });
-            bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = id, Capabilities = new[] { NodeRoleTokens.Brain, NodeRoleTokens.MuscleGround } });
+            bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = (Fdp.Core.NodeId)(id), Capabilities = new[] { NodeRoleTokens.Brain, NodeRoleTokens.MuscleGround } });
         }
         bus.SwapBuffers();
         master.Tick();
@@ -47,7 +47,7 @@ public sealed class ClusterMasterLoadAndRunTests
     {
         foreach (var op in ops.Where(o => o.TargetNodeId == nodeId && o.Operation != FdpNodeOpType.CommitState))
             bus.PublishManaged(new NodeOpCompletedEvent
-                { TransactionId = op.TransactionId, Operation = op.Operation, NodeId = nodeId, StatusCode = OrchestrationStatusCode.Success });
+                { TransactionId = op.TransactionId, Operation = op.Operation, NodeId = (Fdp.Core.NodeId)(nodeId), StatusCode = OrchestrationStatusCode.Success });
         bus.SwapBuffers();
         master.Tick();
         bus.SwapBuffers();
@@ -158,7 +158,7 @@ public sealed class ClusterMasterLoadAndRunTests
         Heartbeat(bus, master, 1);
         var ops = Request(bus, master, "{\"TargetState\":\"OperatingLive\",\"ScenarioId\":\"s1\"}", "s1");
         foreach (var op in ops.Where(o => o.Operation != FdpNodeOpType.CommitState))
-            bus.PublishManaged(new NodeOpCompletedEvent { TransactionId = op.TransactionId, Operation = op.Operation, NodeId = 1, StatusCode = OrchestrationStatusCode.Failure });
+            bus.PublishManaged(new NodeOpCompletedEvent { TransactionId = op.TransactionId, Operation = op.Operation, NodeId = (Fdp.Core.NodeId)(1), StatusCode = OrchestrationStatusCode.Failure });
         bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
         Assert.Equal(0, Resumes(bus));
     }

@@ -60,10 +60,10 @@ public sealed class RoleGroupOwnershipStrategyTests
     {
         var cache = new SimpleClusterStateCache();
         if (withMuscle)
-            cache.UpdateNode(new NodeCapability { NodeId = SimHost, Role = NodeRole.MuscleGround | NodeRole.Perception | NodeRole.NavigationSolver });
+            cache.UpdateNode(new NodeCapability { NodeId = (Fdp.Core.NodeId)(SimHost), Role = NodeRole.MuscleGround | NodeRole.Perception | NodeRole.NavigationSolver });
         if (withBrain)
-            cache.UpdateNode(new NodeCapability { NodeId = Cgf, Role = NodeRole.Brain });
-        cache.UpdateNode(new NodeCapability { NodeId = Ig, Role = NodeRole.Map2D });
+            cache.UpdateNode(new NodeCapability { NodeId = (Fdp.Core.NodeId)(Cgf), Role = NodeRole.Brain });
+        cache.UpdateNode(new NodeCapability { NodeId = (Fdp.Core.NodeId)(Ig), Role = NodeRole.Map2D });
         return new RoleGroupOwnershipStrategy(cache, HrotOwnershipGroups.Table, NedOwnershipGroupBinding.GroupDescriptors);
     }
 

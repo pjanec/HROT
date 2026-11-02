@@ -15,8 +15,8 @@ namespace Hrot.Network.NED.Tests
         private static SimpleClusterStateCache Cache()
         {
             var cache = new SimpleClusterStateCache();
-            cache.UpdateNode(new NodeCapability { NodeId = 2, Role = NodeRole.Perception | NodeRole.NavigationSolver, CpuUsagePercent = 90f });
-            cache.UpdateNode(new NodeCapability { NodeId = 3, Role = NodeRole.Perception | NodeRole.MuscleGround, CpuUsagePercent = 5f });
+            cache.UpdateNode(new NodeCapability { NodeId = (Fdp.Core.NodeId)(2), Role = NodeRole.Perception | NodeRole.NavigationSolver, CpuUsagePercent = 90f });
+            cache.UpdateNode(new NodeCapability { NodeId = (Fdp.Core.NodeId)(3), Role = NodeRole.Perception | NodeRole.MuscleGround, CpuUsagePercent = 5f });
             return cache;
         }
 

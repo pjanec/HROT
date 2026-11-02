@@ -54,7 +54,7 @@ namespace Fdp.Tests
         [Fact]
         public void RBF_P1T1_Metadata_RoundTripsNodeId()
         {
-            var meta = new RecordingMetadata { NodeId = 7 };
+            var meta = new RecordingMetadata { NodeId = (Fdp.Core.NodeId)(7) };
             var json = MetadataSerializer.Serialize(meta);
             var result = MetadataSerializer.Deserialize(json);
             Assert.Equal(7, result.NodeId);
@@ -124,7 +124,7 @@ namespace Fdp.Tests
                 {
                     FilePath   = fdpPath,
                     ExerciseId = exerciseId,
-                    NodeId     = 0,
+                    NodeId     = (Fdp.Core.NodeId)(0),
                 };
                 var module = new RecordingModule(config);
                 var registry = new CapturingRegistry();
@@ -163,7 +163,7 @@ namespace Fdp.Tests
                 {
                     FilePath   = fdpPath,
                     ExerciseId = Guid.NewGuid(),
-                    NodeId     = 7,
+                    NodeId     = (Fdp.Core.NodeId)(7),
                 };
                 var module = new RecordingModule(config);
                 var registry = new CapturingRegistry();

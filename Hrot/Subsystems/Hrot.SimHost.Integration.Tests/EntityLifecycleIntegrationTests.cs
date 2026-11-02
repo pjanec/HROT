@@ -178,7 +178,7 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
             NetworkId = 0,
             TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Truck_HMMWV),
             DisType = 0,
-            OwnerNodeId = SimHostNetworkConstants.LocalNodeId,
+            OwnerNodeId = (Fdp.Core.NodeId)(SimHostNetworkConstants.LocalNodeId),
             InitType = ReliableInitType.AllPeers,
             InitialComponents = new List<object>
             {

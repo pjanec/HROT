@@ -48,7 +48,7 @@ public sealed class OfflineEditorIntegrationTests
         {
             TkbType     = (Fdp.Core.TkbTypeId)(TestTkbType),
             NetworkId   = TestNetworkId,
-            OwnerNodeId = 0,
+            OwnerNodeId = (Fdp.Core.NodeId)(0),
             InitType    = ReliableInitType.None,
         });
 
@@ -76,7 +76,7 @@ public sealed class OfflineEditorIntegrationTests
         {
             TkbType     = (Fdp.Core.TkbTypeId)(TestTkbType),
             NetworkId   = TestNetworkId,
-            OwnerNodeId = 0,
+            OwnerNodeId = (Fdp.Core.NodeId)(0),
             InitType    = ReliableInitType.None,
             InitialTransform = new SimTransform { Position = Vector3.Zero },
         });
@@ -120,7 +120,7 @@ public sealed class OfflineEditorIntegrationTests
         {
             TkbType     = (Fdp.Core.TkbTypeId)(TestTkbType),
             NetworkId   = TestNetworkId,
-            OwnerNodeId = 0,
+            OwnerNodeId = (Fdp.Core.NodeId)(0),
             InitType    = ReliableInitType.None,
         });
         Assert.True(harness.PumpUntil(() => harness.Repo.EntityCount == 1, PumpTimeoutMs));

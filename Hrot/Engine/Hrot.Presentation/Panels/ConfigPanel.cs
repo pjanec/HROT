@@ -4,6 +4,7 @@ using Fdp.Core.Logging;
 using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
+using Fdp.Core;
 
 namespace Hrot.UI.Common.Panels;
 
@@ -45,7 +46,7 @@ public sealed record ConfigPanelViewModel(
 public sealed class ConfigPanel
 {
     // ── State ─────────────────────────────────────────────────────────────────
-    private readonly long _localNodeId;
+    private readonly NodeId _localNodeId;
     private bool  _satelliteLayer   = true;
     private bool  _groundUnits      = true;
     private bool  _airUnits         = true;
@@ -56,7 +57,7 @@ public sealed class ConfigPanel
     private float _iconScale        = PanelConstants.IconScaleDefault;
 
     /// <summary>Creates a new <see cref="ConfigPanel"/> with an optional node ID for log messages.</summary>
-    public ConfigPanel(long localNodeId = 0) => _localNodeId = localNodeId;
+    public ConfigPanel(int localNodeId = 0) => _localNodeId = (Fdp.Core.NodeId)(localNodeId);
 
     // ── Public state accessors ────────────────────────────────────────────────
 

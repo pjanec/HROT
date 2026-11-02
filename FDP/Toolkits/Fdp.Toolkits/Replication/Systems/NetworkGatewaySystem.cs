@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Replication.Systems
     [TickMode(TickPolicy.EveryFrame)]
     public sealed class NetworkGatewaySystem : DeferredConstructionParticipant
     {
-        private readonly int _localNodeId;
+        private readonly NodeId _localNodeId;
 
         // Entity → the peer node ids we are still waiting for an Active ack from.
         private readonly Dictionary<Entity, HashSet<int>> _pendingPeerAcks = new();
@@ -78,7 +78,7 @@ namespace Fdp.Toolkit.Replication.Systems
             System.Action<int>? onPeerUnsupported = null)
             : base(gatewayModuleId, elm, reliableInitTimeoutFrames)
         {
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _onPeerUnsupported = onPeerUnsupported;
         }
 

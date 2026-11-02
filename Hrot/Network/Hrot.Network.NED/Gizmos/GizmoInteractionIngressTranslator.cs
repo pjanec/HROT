@@ -28,7 +28,7 @@ namespace Hrot.Network.NED.Gizmos
 
         /// <summary>⭐ Q73 — this node's id, which a viewer names in <c>PickStreamId</c> to address a CANVAS
         /// pick here (<see cref="GizmoMap.Network.GizmoPickScope"/>). 0 ⇒ no canvas pick is ever accepted.</summary>
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         // ⭐⭐⭐ S1 (DESIGN_Gizmo_Anchor_Identity.md §6) — RESOLVE, DO NOT REBUILD; then §6.7 — DO NOT
         //   EVEN RESOLVE.
@@ -52,10 +52,10 @@ namespace Hrot.Network.NED.Gizmos
         public GizmoInteractionIngressTranslator(
             IDdsReader<GizmoInteractionBatch>? reader,
             FdpEventBus interactionBus,
-            long localNodeId = 0)
+            int localNodeId = 0)
         {
             _reader         = reader;
-            _localNodeId    = localNodeId;
+            _localNodeId    = (Fdp.Core.NodeId)(localNodeId);
             _interactionBus = interactionBus ?? throw new ArgumentNullException(nameof(interactionBus));
         }
 

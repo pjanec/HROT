@@ -82,7 +82,7 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
                 if (!sample.IsValid) continue;
                 _bus.PublishManaged(new NodeCapabilitiesEvent
                 {
-                    NodeId       = sample.Data.NodeId,
+                    NodeId       = (Fdp.Core.NodeId)(sample.Data.NodeId),
                     Capabilities = DeserializeTokens(sample.Data.CapabilitiesJson),
                 });
             }

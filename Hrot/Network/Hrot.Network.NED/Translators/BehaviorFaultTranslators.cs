@@ -29,7 +29,7 @@ namespace Hrot.Network.Translators
         private readonly IDdsWriter<BehaviorFaultReport> _writer;
         private readonly NetworkEntityMap _entityMap;
         private readonly BehaviorRegistry? _behaviorRegistry;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<BehaviorFaultReport>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtBehaviorFault;
@@ -39,19 +39,19 @@ namespace Hrot.Network.Translators
 
         /// <summary>Production constructor — creates a live DDS writer.</summary>
         public BehaviorFaultEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap,
-                                             BehaviorRegistry? behaviorRegistry, long localNodeId)
+                                             BehaviorRegistry? behaviorRegistry, int localNodeId)
             : this(new DdsWriterAdapter<BehaviorFaultReport>(participant), entityMap, behaviorRegistry, localNodeId)
         {
         }
 
         /// <summary>Testable constructor — accepts an injected writer.</summary>
         internal BehaviorFaultEgressTranslator(IDdsWriter<BehaviorFaultReport> writer, NetworkEntityMap entityMap,
-                                               BehaviorRegistry? behaviorRegistry, long localNodeId)
+                                               BehaviorRegistry? behaviorRegistry, int localNodeId)
         {
             _writer           = writer    ?? throw new ArgumentNullException(nameof(writer));
             _entityMap        = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _behaviorRegistry = behaviorRegistry;
-            _localNodeId      = localNodeId;
+            _localNodeId      = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <inheritdoc/>
@@ -104,7 +104,7 @@ namespace Hrot.Network.Translators
 
         private readonly DdsReader<BehaviorFaultReport>? _reader;
         private readonly BehaviorFaultLog _log;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<BehaviorFaultReport>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtBehaviorFault;
@@ -113,10 +113,10 @@ namespace Hrot.Network.Translators
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
         /// <summary>Production constructor. A <c>null</c> participant makes <see cref="PollIngress"/> a no-op (tests).</summary>
-        public BehaviorFaultIngressTranslator(DdsParticipant? participant, long localNodeId, BehaviorFaultLog? log = null)
+        public BehaviorFaultIngressTranslator(DdsParticipant? participant, int localNodeId, BehaviorFaultLog? log = null)
         {
             _reader      = participant is not null ? new DdsReader<BehaviorFaultReport>(participant) : null;
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _log         = log ?? BehaviorFaultLog.Shared;
         }
 

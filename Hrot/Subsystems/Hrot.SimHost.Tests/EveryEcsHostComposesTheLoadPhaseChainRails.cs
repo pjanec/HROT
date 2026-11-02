@@ -179,7 +179,7 @@ namespace Hrot.SimHost.Tests
             bus.PublishManaged(new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 1,
+                TargetNodeId  = (Fdp.Core.NodeId)(1),
                 Operation     = NodeOpType.PrepareLive,
             });
             bus.SwapBuffers();

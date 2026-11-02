@@ -22,7 +22,7 @@ public sealed class TrafficNodeBootstrapperTests
             Headless             = true,
             SkipAllocatorRouting = true,
             SubsystemName        = "Traffic",
-            NodeId               = 807,
+            NodeId               = (Fdp.Core.NodeId)(807),
             LocalTempRoot        = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "hrot-traffic-node-tests"),
         }, TrafficNodeBootstrapper.Role, new Hrot.Editor.OfflineNetworkFactory());
         return bootstrapper;
@@ -74,7 +74,7 @@ public sealed class TrafficNodeBootstrapperTests
         node.BootstrapNode(new HrotNodeConfig
         {
             DomainId             = domain,
-            NodeId               = nodeId,
+            NodeId               = (Fdp.Core.NodeId)(nodeId),
             SkipAllocatorRouting = true,
             ExternalParticipant  = participant,
             SubsystemName        = "Traffic",

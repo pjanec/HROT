@@ -29,7 +29,7 @@ namespace Fdp.Toolkit.Physics
         /// <summary>Layer bitmask; entity is hit only if (LayerMask &amp; CollisionLayer) != 0.</summary>
         public int LayerMask;
         /// <summary>Originating Brain node ID for routing responses back.</summary>
-        public int SourceNodeId;
+        public NodeId SourceNodeId;
     }
 
     /// <summary>

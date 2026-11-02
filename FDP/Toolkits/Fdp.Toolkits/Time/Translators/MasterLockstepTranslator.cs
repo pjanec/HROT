@@ -111,7 +111,7 @@ namespace Fdp.Toolkit.Time.Translators
                 _eventBus.PublishManaged(new FrameStepCompletedEvent
                 {
                     FrameID = sample.Data.FrameID,
-                    NodeID  = sample.Data.NodeID,
+                    NodeID  = (Fdp.Core.NodeId)(sample.Data.NodeID),
                 });
             }
         }

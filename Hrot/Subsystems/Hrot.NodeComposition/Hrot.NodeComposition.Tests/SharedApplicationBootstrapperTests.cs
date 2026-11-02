@@ -412,13 +412,13 @@ public sealed class SharedApplicationBootstrapperTests
         public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators(GhostCreationSystem? ghost = null) => _base.CreateSimHostPerceptionTranslators(ghost);
         public IReadOnlyList<IEcsModuleSystem> CreateSimHostAttributeUpdateSystems() => EditHandlers ?? _base.CreateSimHostAttributeUpdateSystems();
         public IIgTranslators CreateIgTranslators() => _base.CreateIgTranslators();
-        public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? p, long n = 0) => _base.CreateIgNetworkAdapter(p, n);
+        public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? p, int n = 0) => _base.CreateIgNetworkAdapter(p, n);
         public ICgfEntityLifecycleAdapters? CreateCgfEntityLifecycleAdapters() => _base.CreateCgfEntityLifecycleAdapters();
         public IReadOnlyList<IDescriptorTranslator> CreateIgEgressTranslators(
-            CycloneDDS.Runtime.DdsParticipant participant, FdpEventBus bus, long nodeId)
+            CycloneDDS.Runtime.DdsParticipant participant, FdpEventBus bus, int nodeId)
             => _base.CreateIgEgressTranslators(participant, bus, nodeId);
-        public IReadOnlyList<INetworkTranslator> CreateGizmoTranslators(FdpEventBus b, long id, bool headless) => _base.CreateGizmoTranslators(b, id, headless);
-        public IEcsModuleSystem? CreateGizmoPublisherSystem(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer buf, long id) => _base.CreateGizmoPublisherSystem(buf, id);
+        public IReadOnlyList<INetworkTranslator> CreateGizmoTranslators(FdpEventBus b, int id, bool headless) => _base.CreateGizmoTranslators(b, id, headless);
+        public IEcsModuleSystem? CreateGizmoPublisherSystem(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer buf, int id) => _base.CreateGizmoPublisherSystem(buf, id);
     }
 
     /// <summary>
@@ -457,7 +457,7 @@ public sealed class SharedApplicationBootstrapperTests
         Headless             = true,
         SkipAllocatorRouting = true,
         SubsystemName        = "TestNode",
-        NodeId               = 1,
+        NodeId               = (Fdp.Core.NodeId)(1),
         LocalTempRoot        = @"C:\FDP_Temp",
     };
 

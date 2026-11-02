@@ -123,7 +123,7 @@ public sealed record HrotNodeContext : IDisposable
     public INetworkIdAllocator? IdAllocator { get; init; }
 
     /// <summary>The local node ID used for DDS identity and ID allocation.</summary>
-    public int NodeId { get; init; }
+    public NodeId NodeId { get; init; }
 
     /// <summary>
     /// The TKB (toolkit database) shared by <c>EntityLifecycleModule</c> and spawning systems.

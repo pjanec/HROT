@@ -422,7 +422,7 @@ public static class StrideGizmoReplayHarnessCases
         var intent = new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetNodeId  = 0,
+            TargetNodeId  = (Fdp.Core.NodeId)(0),
             Operation     = NodeOpType.PrepareReplay,
             DomainPayload = exerciseId,
         };
@@ -434,7 +434,7 @@ public static class StrideGizmoReplayHarnessCases
         var intent = new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetNodeId  = 0,
+            TargetNodeId  = (Fdp.Core.NodeId)(0),
             Operation     = NodeOpType.FinalizeReplay,
             DomainPayload = exerciseId,
         };

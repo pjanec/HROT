@@ -334,7 +334,7 @@ namespace Hrot.ClusterRunner.Tests
         public void Initialize_NodeIdZero_SetsSubsystemConfigNodeIdToZero()
         {
             var mock = new MockSubsystem("SimHost");
-            var options = new RunnerOptions { Headless = true, NodeId = 0 };
+            var options = new RunnerOptions { Headless = true, NodeId = (Fdp.Core.NodeId)(0) };
             var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, options);
 
             orchestrator.Initialize();
@@ -347,7 +347,7 @@ namespace Hrot.ClusterRunner.Tests
         {
             // SimHost offset = +0, so resolved = 10 + 0 = 10
             var mock = new MockSubsystem("SimHost");
-            var options = new RunnerOptions { Headless = true, NodeId = 10 };
+            var options = new RunnerOptions { Headless = true, NodeId = (Fdp.Core.NodeId)(10) };
             var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, options);
 
             orchestrator.Initialize();
@@ -360,7 +360,7 @@ namespace Hrot.ClusterRunner.Tests
         {
             // IG offset = +100, so resolved = 5 + 100 = 105
             var mock = new MockSubsystem("IG");
-            var options = new RunnerOptions { Headless = true, NodeId = 5, NodeIdResolver = ResolveHrotNodeId };
+            var options = new RunnerOptions { Headless = true, NodeId = (Fdp.Core.NodeId)(5), NodeIdResolver = ResolveHrotNodeId };
             var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, options);
 
             orchestrator.Initialize();
@@ -373,7 +373,7 @@ namespace Hrot.ClusterRunner.Tests
         {
             // ExCon offset = +200, so resolved = 5 + 200 = 205
             var mock = new MockSubsystem("ExCon");
-            var options = new RunnerOptions { Headless = true, NodeId = 5, NodeIdResolver = ResolveHrotNodeId };
+            var options = new RunnerOptions { Headless = true, NodeId = (Fdp.Core.NodeId)(5), NodeIdResolver = ResolveHrotNodeId };
             var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, options);
 
             orchestrator.Initialize();
@@ -386,7 +386,7 @@ namespace Hrot.ClusterRunner.Tests
         {
             // Catch-all offset = +600, so resolved = 3 + 600 = 603
             var mock = new MockSubsystem("OtherSub");
-            var options = new RunnerOptions { Headless = true, NodeId = 3, NodeIdResolver = ResolveHrotNodeId };
+            var options = new RunnerOptions { Headless = true, NodeId = (Fdp.Core.NodeId)(3), NodeIdResolver = ResolveHrotNodeId };
             var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, options);
 
             orchestrator.Initialize();
@@ -401,7 +401,7 @@ namespace Hrot.ClusterRunner.Tests
         {
             // Orchestrator offset = +300, so resolved = 10 + 300 = 310
             var mock = new MockSubsystem("Orchestrator");
-            var options = new RunnerOptions { Headless = true, NodeId = 10, NodeIdResolver = ResolveHrotNodeId };
+            var options = new RunnerOptions { Headless = true, NodeId = (Fdp.Core.NodeId)(10), NodeIdResolver = ResolveHrotNodeId };
             var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, options);
 
             orchestrator.Initialize();
@@ -414,7 +414,7 @@ namespace Hrot.ClusterRunner.Tests
         {
             // CGF offset = +400, so resolved = 10 + 400 = 410
             var mock = new MockSubsystem("CGF");
-            var options = new RunnerOptions { Headless = true, NodeId = 10, NodeIdResolver = ResolveHrotNodeId };
+            var options = new RunnerOptions { Headless = true, NodeId = (Fdp.Core.NodeId)(10), NodeIdResolver = ResolveHrotNodeId };
             var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, options);
 
             orchestrator.Initialize();
@@ -427,7 +427,7 @@ namespace Hrot.ClusterRunner.Tests
         {
             // CI offset = +500, so resolved = 10 + 500 = 510
             var mock = new MockSubsystem("CI");
-            var options = new RunnerOptions { Headless = true, NodeId = 10, NodeIdResolver = ResolveHrotNodeId };
+            var options = new RunnerOptions { Headless = true, NodeId = (Fdp.Core.NodeId)(10), NodeIdResolver = ResolveHrotNodeId };
             var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, options);
 
             orchestrator.Initialize();
@@ -443,7 +443,7 @@ namespace Hrot.ClusterRunner.Tests
             var ig      = new MockSubsystem("IG");
             var ios     = new MockSubsystem("ExCon");
             var orch    = new MockSubsystem("Orchestrator");
-            var options = new RunnerOptions { Headless = true, NodeId = 1, NodeIdResolver = ResolveHrotNodeId };
+            var options = new RunnerOptions { Headless = true, NodeId = (Fdp.Core.NodeId)(1), NodeIdResolver = ResolveHrotNodeId };
             var orchestrator = new SubsystemOrchestrator(
                 new ISubsystem[] { simHost, ig, ios, orch }, options);
 
@@ -465,7 +465,7 @@ namespace Hrot.ClusterRunner.Tests
             // CGF and Orchestrator previously collided on offset +300; verify they no longer do.
             var cgf  = new MockSubsystem("CGF");
             var orch = new MockSubsystem("Orchestrator");
-            var options = new RunnerOptions { Headless = true, NodeId = 1, NodeIdResolver = ResolveHrotNodeId };
+            var options = new RunnerOptions { Headless = true, NodeId = (Fdp.Core.NodeId)(1), NodeIdResolver = ResolveHrotNodeId };
             var orchestrator = new SubsystemOrchestrator(
                 new ISubsystem[] { cgf, orch }, options);
 

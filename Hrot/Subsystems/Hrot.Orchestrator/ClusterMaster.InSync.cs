@@ -9,6 +9,7 @@ using Fdp.Toolkit.Orchestration.Handlers;
 using ClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using NodeOpType    = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using FdpClusterState = Fdp.Toolkit.Orchestration.ClusterState;
+using Fdp.Core;
 
 namespace Hrot.Orchestrator;
 
@@ -41,7 +42,7 @@ public sealed partial class ClusterMaster
     /// <summary>One catch-up in flight per node.</summary>
     private sealed class CatchUp
     {
-        public int NodeId;
+        public NodeId NodeId;
         public int StartedAtEpoch;
         public Guid RequestId;
         public Guid TransactionId;
@@ -148,7 +149,7 @@ public sealed partial class ClusterMaster
     {
         var c = new CatchUp
         {
-            NodeId         = nodeId,
+            NodeId         = (Fdp.Core.NodeId)(nodeId),
             StartedAtEpoch = _transactionEpoch,
             RequestId      = Guid.NewGuid(),
             TransactionId  = Guid.NewGuid(),

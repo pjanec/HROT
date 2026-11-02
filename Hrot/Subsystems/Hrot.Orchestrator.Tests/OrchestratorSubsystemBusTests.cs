@@ -140,7 +140,7 @@ public sealed class OrchestratorSubsystemBusTests
         bus.PublishManaged(new ExecuteNodeOpIntent
         {
             TransactionId = txId,
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             Operation     = FdpNodeOpType.NodeReplaySeek,
             DomainPayload = new ReplaySeekPayload(12345L),
         });

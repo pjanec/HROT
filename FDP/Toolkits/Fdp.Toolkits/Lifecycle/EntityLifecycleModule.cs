@@ -49,7 +49,7 @@ namespace Fdp.Toolkit.Lifecycle
         
         private readonly int _timeoutFrames;
         
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
         
         private readonly Dictionary<Entity, PendingConstruction> _pendingConstruction = new();
         private readonly Dictionary<Entity, PendingDestruction> _pendingDestruction = new();
@@ -83,13 +83,13 @@ namespace Fdp.Toolkit.Lifecycle
             ITkbDatabase tkb,
             IEnumerable<int> participatingModuleIds,
             int timeoutFrames = 300,
-            long localNodeId = 0,
+            int localNodeId = 0,
             IReadOnlyList<ITkbEntityTranslator>? translators = null)
         {
             _tkb = tkb;
             _globalParticipants = new HashSet<int>(participatingModuleIds);
             _timeoutFrames = timeoutFrames;
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _translators = translators ?? System.Array.Empty<ITkbEntityTranslator>();
         }
         

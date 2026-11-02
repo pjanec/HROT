@@ -19,7 +19,7 @@ namespace Hrot.Map.Common.Replication.Egress
     {
         private readonly DdsWriter<EntityMaster> _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
         private readonly HashSet<int> _publishedNetIds = new();
         private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
 
@@ -37,11 +37,11 @@ namespace Hrot.Map.Common.Replication.Egress
         public EntityMasterEgressTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
-            long localNodeId)
+            int localNodeId)
         {
             _writer = new DdsWriter<EntityMaster>(participant);
             _entityMap = entityMap;
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <summary>

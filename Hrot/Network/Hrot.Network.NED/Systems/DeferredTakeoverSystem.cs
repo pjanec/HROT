@@ -44,7 +44,7 @@ namespace Hrot.Network.Systems
     public sealed class DeferredTakeoverSystem : IEcsModuleSystem
     {
         private readonly NetworkEntityMap      _entityMap;
-        private readonly int                   _localNodeId;
+        private readonly NodeId                   _localNodeId;
         private readonly DescriptorOwnershipMap _ownershipMap;
 
         private EntityQuery? _readyQuery;   // Constructing lifecycle
@@ -56,7 +56,7 @@ namespace Hrot.Network.Systems
             ITkbDatabase?          tkbDb = null) // tkbDb kept in signature for backward compatibility; unused
         {
             _entityMap    = entityMap    ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId  = localNodeId;
+            _localNodeId  = (Fdp.Core.NodeId)(localNodeId);
             _ownershipMap = ownershipMap ?? throw new ArgumentNullException(nameof(ownershipMap));
         }
 

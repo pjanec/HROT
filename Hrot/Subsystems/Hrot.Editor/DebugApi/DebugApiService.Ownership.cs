@@ -205,7 +205,7 @@ namespace Hrot.Editor.DebugApi
             publish(new TransferEntityOwnershipRequest
             {
                 NetworkId         = networkId,
-                NewOwnerNodeId    = newOwner,
+                NewOwnerNodeId    = (Fdp.Core.NodeId)(newOwner),
                 Scope             = scope,
                 DescriptorTypeIds = descriptorIds,
             });

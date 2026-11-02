@@ -62,7 +62,7 @@ namespace Hrot.Network.NED.SimHost
 
         // ⭐ CE-3002 / R-179 — the config names its solver; only that node builds a carrier. 📄
         //   DESIGN_Ownership_Groups_And_Grants.md §5.8.
-        private readonly int _localNodeId;
+        private readonly NodeId _localNodeId;
         private readonly Dictionary<(int ParentNetId, int ChildIndex), int> _recordedSolver = new();
         private OwnershipApplier? _applier;
         private int _worldEpoch;   // ⭐ CE-3076 — per-key bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
@@ -76,7 +76,7 @@ namespace Hrot.Network.NED.SimHost
         {
             if (entityMap == null) throw new ArgumentNullException(nameof(entityMap));
             _entityMap   = entityMap;
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _reader = participant != null
                 ? new DdsReader<EqsSensorConfigTopic>(participant)
                 : null;

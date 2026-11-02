@@ -24,16 +24,16 @@ namespace Hrot.Network.NED.SimHost
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
-        private readonly long _localNodeId;   // ⭐ CE-1148 S2 — stamped as SourceNodeId so this node's own ingress drops it
+        private readonly NodeId _localNodeId;   // ⭐ CE-1148 S2 — stamped as SourceNodeId so this node's own ingress drops it
 
-        public RoundImpactEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, long localNodeId)
+        public RoundImpactEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, int localNodeId)
             : this(new DdsWriterAdapter<RoundImpact>(participant), entityMap, localNodeId) { }
 
-        internal RoundImpactEgressTranslator(IDdsWriter<RoundImpact> writer, NetworkEntityMap entityMap, long localNodeId = 0)
+        internal RoundImpactEgressTranslator(IDdsWriter<RoundImpact> writer, NetworkEntityMap entityMap, int localNodeId = 0)
         {
             _writer    = writer    ?? throw new ArgumentNullException(nameof(writer));
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
@@ -73,12 +73,12 @@ namespace Hrot.Network.NED.SimHost
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
-        public RoundImpactIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap, long localNodeId)
+        public RoundImpactIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap, int localNodeId)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _reader    = participant is not null ? new DdsReader<RoundImpact>(participant) : null;
         }
 

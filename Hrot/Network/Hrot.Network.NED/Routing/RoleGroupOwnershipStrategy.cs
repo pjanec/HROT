@@ -58,7 +58,7 @@ namespace Hrot.Network.Routing
 
                 grants ??= new List<DescriptorGrant>();
                 foreach (long d in descriptors)
-                    grants.Add(new DescriptorGrant { DescriptorTypeId = d, NodeId = node.Value });
+                    grants.Add(new DescriptorGrant { DescriptorTypeId = d, NodeId = (Fdp.Core.NodeId)(node.Value) });
             }
             return grants ?? (IReadOnlyList<DescriptorGrant>)Array.Empty<DescriptorGrant>();
         }

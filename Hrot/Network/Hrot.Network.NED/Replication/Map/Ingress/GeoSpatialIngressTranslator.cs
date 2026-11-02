@@ -25,7 +25,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private const long OrdinalValue = (long)Hrot.NED.Descriptors.EDescriptorType.dtWorldPos;
 
         private readonly GhostCreationSystem _ghostCreationSystem;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public override TranslatorDirection Direction => TranslatorDirection.Ingress;
 
@@ -33,11 +33,11 @@ namespace Hrot.Map.Common.Replication.Ingress
             DdsParticipant? participant,
             NetworkEntityMap entityMap,
             GhostCreationSystem ghostCreationSystem,
-            long localNodeId)
+            int localNodeId)
             : base(participant, OrdinalValue, entityMap)
         {
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         protected override void Decode(in WorldPos data, IEntityCommandBuffer cmd, ISimulationView view)

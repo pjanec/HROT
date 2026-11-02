@@ -336,7 +336,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         Assert.True(simMap.TryGetNetworkId(onMuscle, out int id), "the Rifleman has a network id on SimHost");
         var first = new EntityOrders(sim, simMap, geo: null);
         var second = new EntityOrders(ig, igMap, geo: null);
-        long firstStation = first.StationFor(onMuscle), secondStation = second.StationFor(onIg);
+        int firstStation = first.StationFor(onMuscle), secondStation = second.StationFor(onIg);
         Assert.NotEqual(firstStation, secondStation);
 
         Assert.True(first.Possess(id).Accepted);
@@ -353,7 +353,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         if (!ig.Bus.IsRegistered<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>()) ig.Bus.Register<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>();
         ig.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.PossessRequestEvent
         {
-            Unit = onIg, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, StationNodeId = secondStation,
+            Unit = onIg, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, StationNodeId = (Fdp.Core.NodeId)(secondStation),
         });
         var start = sim.GetComponentRO<SimTransform>(onMuscle).Position;
         uint seq = 1;

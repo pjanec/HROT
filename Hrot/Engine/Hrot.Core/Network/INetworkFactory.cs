@@ -65,7 +65,7 @@ public interface INetworkFactory : IGizmoNetworkFactory
     /// Creates the IG network adapter wrapping all DDS writers and readers for the IG.
     /// Pass <c>null</c> for <paramref name="participant"/> in headless/offline mode.
     /// </summary>
-    IIgNetworkAdapter CreateIgNetworkAdapter(DdsParticipant? participant, long nodeId = 0);
+    IIgNetworkAdapter CreateIgNetworkAdapter(DdsParticipant? participant, int nodeId = 0);
 
     /// <summary>
     /// ⭐ <c>CE-3126</c> — the node's geo transform as this factory holds it, or <c>null</c> when it holds none. The node
@@ -83,7 +83,7 @@ public interface INetworkFactory : IGizmoNetworkFactory
     IReadOnlyList<IDescriptorTranslator> CreateIgEgressTranslators(
         DdsParticipant participant,
         FdpEventBus bus,
-        long nodeId);
+        int nodeId);
 
 
     /// <summary>
@@ -192,10 +192,10 @@ public interface INetworkFactory : IGizmoNetworkFactory
     /// When <c>true</c>, creates an ingress translator (node receives UI events from a remote viewer).
     /// When <c>false</c>, creates an egress translator (node forwards locally-generated UI events).
     /// </param>
-    new IReadOnlyList<INetworkTranslator> CreateGizmoTranslators(FdpEventBus interactionBus, long localNodeId, bool headless);
+    new IReadOnlyList<INetworkTranslator> CreateGizmoTranslators(FdpEventBus interactionBus, int localNodeId, bool headless);
 
     /// <summary>
     /// Creates the ECS system that publishes the gizmo primitive buffer to the network each frame.
     /// Returns <c>null</c> when the protocol does not support gizmo streaming.
     /// </summary>
-    new IEcsModuleSystem? CreateGizmoPublisherSystem(DebugPrimitiveBuffer buffer, long localNodeId);}
+    new IEcsModuleSystem? CreateGizmoPublisherSystem(DebugPrimitiveBuffer buffer, int localNodeId);}

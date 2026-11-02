@@ -114,7 +114,7 @@ namespace Hrot.NED.Messages
         public double FiredAt;
 
         /// <summary>Node that wrote this sample (CE-1148 S2, Node Roles §3.5): every node reads the topic and drops its own. 0 = unknown.</summary>
-        public long SourceNodeId;
+        public int SourceNodeId;
 
         // ⭐ Q94 A-1 (R-3018) — the request this answers, and why the muscle REFUSED it (Fdp.Toolkit.Combat.FireRefusal; 0 = fired).
         //   APPENDED: an older sender reads as fired.
@@ -159,7 +159,7 @@ namespace Hrot.NED.Messages
             HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 8)]
     public partial struct MeleeStrike
     {
-        public long SourceNodeId;
+        public int SourceNodeId;
         public int StrikerEntityId;
         public int TargetEntityId;
         /// <summary><c>Fdp.Toolkit.Combat.MeleeWeapon</c>.</summary>
@@ -203,7 +203,7 @@ namespace Hrot.NED.Messages
         public byte Kind;
 
         /// <summary>Node that wrote this sample (CE-1148 S2, Node Roles §3.5): every node reads the topic and drops its own. 0 = unknown.</summary>
-        public long SourceNodeId;
+        public int SourceNodeId;
     }
 
     // ── Air defence (CE-2189, DESIGN_Missiles_And_Ammo §3c) ───────────
@@ -260,7 +260,7 @@ namespace Hrot.NED.Messages
         public long MunitionType;
 
         /// <summary>Node that wrote this sample (CE-1148 S2, Node Roles §3.5): every node reads the topic and drops its own. 0 = unknown.</summary>
-        public long SourceNodeId;
+        public int SourceNodeId;
     }
 
     /// <summary>
@@ -295,6 +295,6 @@ namespace Hrot.NED.Messages
 
         /// <summary>⭐ <c>CE-3246</c> (BS-1 §6.4a, R-3015 — APPENDED) — the node that sent it, so a node drops its own sample; 0 = an older
         /// sender (taken).</summary>
-        public long SourceNodeId;
+        public int SourceNodeId;
     }
 }

@@ -33,14 +33,14 @@ public record struct FileManifestResult(string SourceUnc, string RelativeDest, s
 public sealed class ReferenceArchiveHandler : IClusterStateHandler
 {
     private readonly string _localTempRoot;
-    private readonly int    _nodeId;
+    private readonly NodeId    _nodeId;
 
     public ReferenceArchiveHandler(
         string                   localTempRoot,
         int                      nodeId)
     {
         _localTempRoot = localTempRoot ?? throw new ArgumentNullException(nameof(localTempRoot));
-        _nodeId        = nodeId;
+        _nodeId        = (Fdp.Core.NodeId)(nodeId);
     }
 
     /// <inheritdoc />

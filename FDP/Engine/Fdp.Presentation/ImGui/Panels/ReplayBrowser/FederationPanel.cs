@@ -6,13 +6,14 @@ using System.Text.Json.Nodes;
 using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Toolkit.ReplayBrowser.Federation;
 using ImGuiNET;
+using Fdp.Core;
 
 namespace Fdp.Presentation.Panels.ReplayBrowser;
 
 public enum ViewMode { SingleNode, Merged }
 
 /// <summary>⭐ One node's offset row, projected for the dump.</summary>
-public sealed record FederationNodeRowViewModel(int NodeId, long OffsetTicks);
+public sealed record FederationNodeRowViewModel(NodeId NodeId, long OffsetTicks);
 
 /// <summary>
 /// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="FederationPanel"/> shows, this frame.</b>
@@ -87,7 +88,7 @@ public sealed class FederationPanel
     {
         var nodes = _manager.Contexts.Keys.OrderBy(x => x)
             .Select(nodeId => new FederationNodeRowViewModel(
-                nodeId, _manager.NodeOffsets.TryGetValue(nodeId, out long off) ? off : 0L))
+                (Fdp.Core.NodeId)(nodeId), _manager.NodeOffsets.TryGetValue(nodeId, out long off) ? off : 0L))
             .ToList();
         return new FederationPanelViewModel(
             panelId, panelKind, ActiveMode, HasNonZeroOffset, _manager.LocalEntitiesProviderNodeId, nodes);

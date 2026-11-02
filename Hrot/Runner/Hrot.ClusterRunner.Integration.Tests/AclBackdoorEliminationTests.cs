@@ -85,7 +85,7 @@ public sealed class AclBackdoorEliminationTests
             TkbType     = (Fdp.Core.TkbTypeId)(1L),
             NetworkId   = 1,
             RequestId   = Guid.NewGuid(),
-            OwnerNodeId = 0,
+            OwnerNodeId = (Fdp.Core.NodeId)(0),
             InitType    = ReliableInitType.None,
         });
 

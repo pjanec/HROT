@@ -63,6 +63,7 @@ public sealed class StaticTypeRegistry : ITypeRegistry
             ["Fdp.Core.WorldPoint"]                = Unmanaged("Fdp.Core.WorldPoint", 12),
             ["Fdp.Core.Bearing"]                   = Unmanaged("Fdp.Core.Bearing", 4),
             ["Fdp.Core.TkbTypeId"]                 = Unmanaged("Fdp.Core.TkbTypeId", 8),   // ⭐ CE-4200 SV-2: a template id — a long's memory
+            ["Fdp.Core.NodeId"]                    = Unmanaged("Fdp.Core.NodeId", 4),   // ⭐ CE-4200 SV-3: a cluster node id — an int's memory
 
             // EQS sensor handle -- wraps Entity (8 bytes), unmanaged value type
             ["FDP.Eqs.EqsSensorHandle"] = new IrTypeRef

@@ -326,7 +326,7 @@ namespace Fdp.Toolkit.Physics.Tests
                 End          = new Vector3(10f, 0f, 0f),
                 RayId        = PhysicsConstants.PackBulletRayId(1),
                 LayerMask    = 1,
-                SourceNodeId = 7,
+                SourceNodeId = (Fdp.Core.NodeId)(7),
             });
 
             Assert.Equal(7, hit.SourceNodeId);
@@ -348,7 +348,7 @@ namespace Fdp.Toolkit.Physics.Tests
                 End          = new Vector3(5f, 0f, 0f),
                 RayId        = PhysicsConstants.PackBulletRayId(2),
                 LayerMask    = 1,
-                SourceNodeId = 42,
+                SourceNodeId = (Fdp.Core.NodeId)(42),
             });
 
             Assert.Equal(0, hit.HasHit);

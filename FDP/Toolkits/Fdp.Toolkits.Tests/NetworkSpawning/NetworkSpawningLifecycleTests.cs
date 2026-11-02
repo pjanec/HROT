@@ -95,7 +95,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             {
                 NetworkId   = NetworkId,
                 TkbType     = (Fdp.Core.TkbTypeId)(TkbType),
-                OwnerNodeId = 3,
+                OwnerNodeId = (Fdp.Core.NodeId)(3),
                 InitType    = ReliableInitType.None,
                 InitialComponents = new List<object>
                 {

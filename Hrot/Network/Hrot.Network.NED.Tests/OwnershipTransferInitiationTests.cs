@@ -66,7 +66,7 @@ namespace Hrot.Network.NED.Tests
             var (repo, e, sys) = Setup();
             Fire(repo, sys, new TransferEntityOwnershipRequest
             {
-                NetworkId = NetId, NewOwnerNodeId = 5, Scope = TransferScope.MasterOnly,
+                NetworkId = NetId, NewOwnerNodeId = (Fdp.Core.NodeId)(5), Scope = TransferScope.MasterOnly,
             });
 
             Assert.Equal(5, repo.GetComponentRO<NetworkAuthority>(e).PrimaryOwnerId);   // save ownership moved
@@ -91,7 +91,7 @@ namespace Hrot.Network.NED.Tests
 
             Fire(repo, sys, new TransferEntityOwnershipRequest
             {
-                NetworkId = NetId, NewOwnerNodeId = 5, Scope = TransferScope.MasterOnly,
+                NetworkId = NetId, NewOwnerNodeId = (Fdp.Core.NodeId)(5), Scope = TransferScope.MasterOnly,
             });
 
             Assert.Equal(5, repo.GetComponentRO<NetworkAuthority>(e).PrimaryOwnerId);
@@ -106,7 +106,7 @@ namespace Hrot.Network.NED.Tests
             var (repo, e, sys) = Setup();
             Fire(repo, sys, new TransferEntityOwnershipRequest
             {
-                NetworkId = NetId, NewOwnerNodeId = 5, Scope = TransferScope.AllOwnedByThisNode,
+                NetworkId = NetId, NewOwnerNodeId = (Fdp.Core.NodeId)(5), Scope = TransferScope.AllOwnedByThisNode,
             });
 
             Assert.Equal(5, repo.GetComponentRO<NetworkAuthority>(e).PrimaryOwnerId);
@@ -121,7 +121,7 @@ namespace Hrot.Network.NED.Tests
             var (repo, e, sys) = Setup();
             Fire(repo, sys, new TransferEntityOwnershipRequest
             {
-                NetworkId = NetId, NewOwnerNodeId = 5, Scope = TransferScope.SpecificDescriptors,
+                NetworkId = NetId, NewOwnerNodeId = (Fdp.Core.NodeId)(5), Scope = TransferScope.SpecificDescriptors,
                 DescriptorTypeIds = new long[] { OtherOrd },
             });
 
@@ -138,7 +138,7 @@ namespace Hrot.Network.NED.Tests
             var (repo, e, sys) = Setup();
             Fire(repo, sys, new TransferEntityOwnershipRequest
             {
-                NetworkId = NetId, NewOwnerNodeId = Local, Scope = TransferScope.AllOwnedByThisNode,
+                NetworkId = NetId, NewOwnerNodeId = (Fdp.Core.NodeId)(Local), Scope = TransferScope.AllOwnedByThisNode,
             });
 
             Assert.Equal(Local, repo.GetComponentRO<NetworkAuthority>(e).PrimaryOwnerId);

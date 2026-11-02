@@ -50,7 +50,7 @@ namespace Hrot.NED.Messages
     [DdsIdlFile("hrot-sim-msgs")]
     public partial struct PossessInteractionPayload
     {
-        public long StationNodeId;
+        public int StationNodeId;
         public byte Mode;
     }
 
@@ -59,7 +59,7 @@ namespace Hrot.NED.Messages
     [DdsIdlFile("hrot-sim-msgs")]
     public partial struct ReleasePossessionInteractionPayload
     {
-        public long StationNodeId;
+        public int StationNodeId;
     }
 
     /// <summary>⭐ CE-3172 / CE-3173 — the <see cref="EInteractionKind.ControlFrame"/> case: one frame of the station's controls (M-6:
@@ -68,7 +68,7 @@ namespace Hrot.NED.Messages
     [DdsIdlFile("hrot-sim-msgs")]
     public partial struct ControlFrameInteractionPayload
     {
-        public long StationNodeId;
+        public int StationNodeId;
         public uint Seq;
         public float Forward;
         public float Lateral;

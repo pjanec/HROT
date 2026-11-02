@@ -133,7 +133,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
                             Target       = Entity.Null,
                             LayerMask    = -1,
                             IgnoreEntity = observer,
-                            SourceNodeId = 0,
+                            SourceNodeId = (Fdp.Core.NodeId)(0),
                         });
                         globalState.AccurateRaysSubmittedThisTick++;
                     }

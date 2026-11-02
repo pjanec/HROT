@@ -36,7 +36,7 @@ namespace Fdp.Toolkit.Time.Translators
         private readonly DdsWriter<TimeSyncRequest>?  _requestWriter;
         private readonly DdsReader<TimeSyncResponse>? _responseReader;
         private readonly FdpEventBus _eventBus;
-        private readonly int         _localNodeId;
+        private readonly NodeId         _localNodeId;
         private readonly Func<long>  _getTick;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<TimeSyncResponse>();
@@ -67,7 +67,7 @@ namespace Fdp.Toolkit.Time.Translators
             Func<long>?     tickSource = null)
         {
             _eventBus    = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _getTick     = tickSource ?? HighResUtcClock.GetTicks;
 
             if (participant is not null)

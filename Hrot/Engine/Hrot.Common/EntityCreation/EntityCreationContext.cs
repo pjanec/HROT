@@ -53,7 +53,7 @@ namespace Hrot.Common.EntityCreation
         public required EntityLifecycleModule Elm { get; init; }
 
         /// <summary>This node's id, used as <c>OwnerNodeId</c> and for the self-targeting guard.</summary>
-        public required int NodeId { get; init; }
+        public required NodeId NodeId { get; init; }
 
         // ── The one value that differs between nodes ───────────────────────────────────────────
 

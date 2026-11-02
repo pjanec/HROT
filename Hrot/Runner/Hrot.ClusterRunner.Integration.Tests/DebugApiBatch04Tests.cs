@@ -28,7 +28,7 @@ public sealed class DebugApiBatch04Tests
         {
             TkbType          = (Fdp.Core.TkbTypeId)(TestTkbType),
             NetworkId        = networkId,
-            OwnerNodeId      = 0,
+            OwnerNodeId      = (Fdp.Core.NodeId)(0),
             InitType         = ReliableInitType.None,
             InitialTransform = new SimTransform { Position = pos },
         };

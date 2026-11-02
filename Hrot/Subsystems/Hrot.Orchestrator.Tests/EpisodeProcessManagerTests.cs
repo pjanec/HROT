@@ -41,7 +41,7 @@ public sealed class EpisodeProcessManagerTests
         // Bootstrap to OperatingLive.
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = 1,
+            NodeId        = (Fdp.Core.NodeId)(1),
             SubsystemName = "SimHost",
             LocalStateId  = (int)ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
@@ -83,7 +83,7 @@ public sealed class EpisodeProcessManagerTests
         {
             TransactionId   = txId,
             Operation       = FdpNodeOpType.StartEpisode,
-            NodeId          = 1,
+            NodeId          = (Fdp.Core.NodeId)(1),
             StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = true,
         });
@@ -122,7 +122,7 @@ public sealed class EpisodeProcessManagerTests
         // Bootstrap to OperatingLive.
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = 1,
+            NodeId        = (Fdp.Core.NodeId)(1),
             SubsystemName = "SimHost",
             LocalStateId  = (int)ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
@@ -161,7 +161,7 @@ public sealed class EpisodeProcessManagerTests
         {
             TransactionId   = startTxId,
             Operation       = FdpNodeOpType.StartEpisode,
-            NodeId          = 1,
+            NodeId          = (Fdp.Core.NodeId)(1),
             StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = true,
         });
@@ -193,7 +193,7 @@ public sealed class EpisodeProcessManagerTests
         {
             TransactionId   = stopTxId,
             Operation       = FdpNodeOpType.StopEpisode,
-            NodeId          = 1,
+            NodeId          = (Fdp.Core.NodeId)(1),
             StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = true,
         });
@@ -231,7 +231,7 @@ public sealed class EpisodeProcessManagerTests
         // Bootstrap to OperatingLive.
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = 1,
+            NodeId        = (Fdp.Core.NodeId)(1),
             SubsystemName = "SimHost",
             LocalStateId  = (int)ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
@@ -271,7 +271,7 @@ public sealed class EpisodeProcessManagerTests
         {
             TransactionId   = txId,
             Operation       = FdpNodeOpType.StartEpisode,
-            NodeId          = 1,
+            NodeId          = (Fdp.Core.NodeId)(1),
             StatusCode      = OrchestrationStatusCode.Timeout,  // error
             IsParticipating = true,
         });

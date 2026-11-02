@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Core;
 
 namespace Hrot.Orchestrator.Panels;
 
@@ -33,7 +34,7 @@ public sealed class TerrainBuildOutcomeTracker
     ///   failure is domain knowledge, and putting it in the view would mean every future view re-deciding.
     /// </param>
     public readonly record struct NodeOutcome(
-        int NodeId, OrchestrationStatusCode Status, NodeOpType Phase, bool Failed);
+        NodeId NodeId, OrchestrationStatusCode Status, NodeOpType Phase, bool Failed);
 
     private readonly Dictionary<int, NodeOutcome> _outcomes = new();
 
@@ -81,7 +82,7 @@ public sealed class TerrainBuildOutcomeTracker
     public void Record(int nodeId, NodeOpType phase, OrchestrationStatusCode status)
     {
         if (phase is not (NodeOpType.PrepareTerrainAsset or NodeOpType.CommitTerrainAsset)) return;
-        _outcomes[nodeId] = new NodeOutcome(nodeId, status, phase, status.IsError());
+        _outcomes[nodeId] = new NodeOutcome((Fdp.Core.NodeId)(nodeId), status, phase, status.IsError());
     }
 
     /// <summary>Drop everything — a cluster boundary, or the operator dismissing the result.</summary>

@@ -578,16 +578,16 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         {
             foreach (var role in new[] { Fdp.Core.NodeRole.MuscleGround, Fdp.Core.NodeRole.Perception })
                 foreach (long descriptor in groups.DescriptorsOf(role))
-                    dtoCmd.Grants.Add(new DescriptorGrant { DescriptorTypeId = descriptor, NodeId = muscleNodeId });
+                    dtoCmd.Grants.Add(new DescriptorGrant { DescriptorTypeId = descriptor, NodeId = (Fdp.Core.NodeId)(muscleNodeId) });
         }
         else
         {
             long worldPosId  = _networkFactory?.WorldPosDescriptorId        ?? 0;
             long navStatusId = _networkFactory?.NavigationStatusDescriptorId ?? 0;
             if (worldPosId != 0)
-                dtoCmd.Grants.Add(new DescriptorGrant { DescriptorTypeId = worldPosId,  NodeId = muscleNodeId });
+                dtoCmd.Grants.Add(new DescriptorGrant { DescriptorTypeId = worldPosId,  NodeId = (Fdp.Core.NodeId)(muscleNodeId) });
             if (navStatusId != 0)
-                dtoCmd.Grants.Add(new DescriptorGrant { DescriptorTypeId = navStatusId, NodeId = muscleNodeId });
+                dtoCmd.Grants.Add(new DescriptorGrant { DescriptorTypeId = navStatusId, NodeId = (Fdp.Core.NodeId)(muscleNodeId) });
         }
         _context.World.Bus.PublishManaged(dtoCmd);
 

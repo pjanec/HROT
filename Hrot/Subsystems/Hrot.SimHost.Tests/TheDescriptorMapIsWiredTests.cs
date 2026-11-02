@@ -378,7 +378,7 @@ public class TheDescriptorMapIsWiredTests
         var shared = new System.Collections.Generic.List<string>();
         foreach (long d in map.RegisteredDescriptors)
             foreach (int c in map.GetComponentIdsForDescriptor(d))
-                foreach (long other in map.RegisteredDescriptors)
+                foreach (int other in map.RegisteredDescriptors)
                     if (other != d && boxOf[other] != boxOf[d] && map.GetComponentIdsForDescriptor(other).ToArray().Contains(c))
                         shared.Add($"component {c}: descriptor {d} ({boxOf[d]}) and {other} ({boxOf[other]})");
         Assert.Empty(shared);

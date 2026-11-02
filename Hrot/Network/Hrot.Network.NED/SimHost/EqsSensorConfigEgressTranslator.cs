@@ -35,7 +35,7 @@ namespace Hrot.Network.NED.SimHost
 
         // ⭐ CE-3002 / R-179 — the brain names each child sensor's solver. 📄 DESIGN_Ownership_Groups_And_Grants.md §5.8.
         private readonly Hrot.Network.Routing.IClusterStateCache? _clusterCache;
-        private readonly int _localNodeId;
+        private readonly NodeId _localNodeId;
         private readonly Dictionary<(int ParentNetworkId, int LocalChildIndex), int> _solverOf = new();
         private readonly Dictionary<(int ParentNetworkId, int LocalChildIndex), int> _recordedSolver = new();
         private OwnershipApplier? _applier;
@@ -72,7 +72,7 @@ namespace Hrot.Network.NED.SimHost
             if (entityMap   == null) throw new ArgumentNullException(nameof(entityMap));
             _entityMap    = entityMap;
             _clusterCache = clusterCache;
-            _localNodeId  = localNodeId;
+            _localNodeId  = (Fdp.Core.NodeId)(localNodeId);
             _writer = new DdsWriter<EqsSensorConfigTopic>(participant);
             _reader = new DdsReader<EqsSensorConfigTopic>(participant);
         }

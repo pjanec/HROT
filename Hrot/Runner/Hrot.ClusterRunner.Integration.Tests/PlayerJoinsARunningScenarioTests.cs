@@ -123,7 +123,7 @@ public sealed class PlayerJoinsARunningScenarioTests : IDisposable
         foreach (var id in new[] { UnitAId, UnitBId })
             editor.Bus.PublishManaged(new SpawnEntityCommand
             {
-                TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams), NetworkId = id, OwnerNodeId = 0, InitType = ReliableInitType.None,
+                TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams), NetworkId = id, OwnerNodeId = (Fdp.Core.NodeId)(0), InitType = ReliableInitType.None,
             });
         Assert.True(editor.PumpUntil(() => editor.Repo.EntityCount == 2, timeoutMs: 5_000), "EditorHarness must spawn 2 entities within 5 s.");
         editor.PumpFrames(2);

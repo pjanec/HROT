@@ -52,7 +52,7 @@ namespace Fdp.Toolkit.Replication.Tests
             public void Update(long d, int newOwner, int origin)
                 => Repo.Bus.Publish(new OwnershipUpdate
                 {
-                    NetworkId = new NetworkIdentity(NetId), PackedKey = Key(d), NewOwnerNodeId = newOwner, OriginNodeId = origin,
+                    NetworkId = new NetworkIdentity(NetId), PackedKey = Key(d), NewOwnerNodeId = (Fdp.Core.NodeId)(newOwner), OriginNodeId = (Fdp.Core.NodeId)(origin),
                 });
         }
 
@@ -362,7 +362,7 @@ namespace Fdp.Toolkit.Replication.Tests
             n.Repo.Bus.Publish(new OwnershipUpdate
             {
                 NetworkId = new NetworkIdentity(NetId), PackedKey = OwnershipExtensions.PackKey(Kinematic, 3),
-                NewOwnerNodeId = Remote, OriginNodeId = Remote,
+                NewOwnerNodeId = (Fdp.Core.NodeId)(Remote), OriginNodeId = (Fdp.Core.NodeId)(Remote),
             });
             n.Frame();
 

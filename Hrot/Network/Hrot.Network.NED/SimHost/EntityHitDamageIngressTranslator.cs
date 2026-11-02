@@ -27,7 +27,7 @@ namespace Hrot.Network.NED.SimHost
 
         private readonly DdsReader<EntityHitDamage>? _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityHitDamage>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtEntityHitDamage;
@@ -42,10 +42,10 @@ namespace Hrot.Network.NED.SimHost
         public EntityHitDamageIngressTranslator(
             DdsParticipant? participant,
             NetworkEntityMap entityMap,
-            long localNodeId)
+            int localNodeId)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _reader    = participant is not null
                 ? new DdsReader<EntityHitDamage>(participant)
                 : null;

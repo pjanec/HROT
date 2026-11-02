@@ -29,12 +29,12 @@ namespace Fdp.Toolkit.Replication.Services
     /// </summary>
     public sealed class OwnershipApplier
     {
-        private readonly int                     _localNodeId;
+        private readonly NodeId                     _localNodeId;
         private readonly DescriptorOwnershipMap? _descriptorMap;
 
         public OwnershipApplier(int localNodeId, DescriptorOwnershipMap? descriptorMap)
         {
-            _localNodeId   = localNodeId;
+            _localNodeId   = (Fdp.Core.NodeId)(localNodeId);
             _descriptorMap = descriptorMap;
         }
 

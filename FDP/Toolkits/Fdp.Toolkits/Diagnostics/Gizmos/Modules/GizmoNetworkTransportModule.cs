@@ -38,7 +38,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Modules
             GizmoUiStateHub uiHub,
             IGizmoNetworkFactory networkFactory,
             DebugPrimitiveBuffer gizmoBuffer,
-            long localNodeId,
+            int localNodeId,
             FdpEventBus interactionBus)
         {
             _controller = controller ?? throw new ArgumentNullException(nameof(controller));

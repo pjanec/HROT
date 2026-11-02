@@ -36,16 +36,16 @@ namespace Fdp.Toolkit.Behavior.Possession
         /// station holds it itself, or when the held unit is killed (a killed holder frees it — its release is on its way). A null
         /// <paramref name="station"/> (a unit no station holds, e.g. an AI man using the key) counts every holder as another.
         /// </summary>
-        public static bool TryHeldByOther(EntityRepository repo, Entity unit, long? station, out long holder)
+        public static bool TryHeldByOther(EntityRepository repo, Entity unit, int? station, out int holder)
         {
             holder = 0;
-            if (PossessionSystem.HolderOf(repo, unit) is not long h || (station is long s && h == s) || !Live(repo, unit)) return false;
+            if (PossessionSystem.HolderOf(repo, unit) is not int h || (station is int s && h == s) || !Live(repo, unit)) return false;
             holder = h;
             return true;
         }
 
         /// <summary>The side of <paramref name="station"/>: the side of the unit it holds (its Riding soldier first); false when it holds nothing.</summary>
-        public static bool TrySideOf(EntityRepository repo, long station, out ForceId side)
+        public static bool TrySideOf(EntityRepository repo, int station, out ForceId side)
         {
             side = ForceId.Neutral;
             if (!repo.IsComponentTypeRegistered<PossessedBy>()) return false;
@@ -67,7 +67,7 @@ namespace Fdp.Toolkit.Behavior.Possession
         /// candidates are the vehicle itself and every man in its passenger list, each held by a station other than
         /// <paramref name="station"/>; that station's side is <see cref="TrySideOf"/>.
         /// </summary>
-        public static bool OtherSideAboard(EntityRepository repo, Entity vehicle, ForceId side, long? station, out long holder)
+        public static bool OtherSideAboard(EntityRepository repo, Entity vehicle, ForceId side, int? station, out int holder)
         {
             holder = 0;
             if (!repo.IsAlive(vehicle)) return false;
@@ -82,7 +82,7 @@ namespace Fdp.Toolkit.Behavior.Possession
             return false;
         }
 
-        private static bool OtherSide(EntityRepository repo, Entity unit, ForceId side, long? station, out long holder)
+        private static bool OtherSide(EntityRepository repo, Entity unit, ForceId side, int? station, out int holder)
             => TryHeldByOther(repo, unit, station, out holder) && TrySideOf(repo, holder, out var theirs) && theirs != side;
 
         /// <summary>
@@ -90,7 +90,7 @@ namespace Fdp.Toolkit.Behavior.Possession
         /// station holds it (<paramref name="holder"/>); <see cref="ClaimRefusal.OtherSide"/> when it carries a player of another side than the
         /// station's (<paramref name="holder"/> is that player's station). A station that holds nothing has no side and is not refused for it.
         /// </summary>
-        public static ClaimRefusal ForPossess(EntityRepository repo, Entity unit, long station, out long holder)
+        public static ClaimRefusal ForPossess(EntityRepository repo, Entity unit, int station, out int holder)
         {
             if (TryHeldByOther(repo, unit, station, out holder)) return ClaimRefusal.HeldByAnotherStation;
             if (TrySideOf(repo, station, out var mine) && OtherSideAboard(repo, unit, mine, station, out holder)) return ClaimRefusal.OtherSide;

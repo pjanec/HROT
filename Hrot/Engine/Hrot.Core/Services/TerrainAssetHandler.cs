@@ -75,7 +75,7 @@ namespace Hrot.Map.Common.Services
         public TerrainAssetHandler(
             TerrainLoadService? service,
             EntityRepository? world,
-            long nodeId = 0,
+            int nodeId = 0,
             string? localStagingRoot = null)
         {
             _service     = service;

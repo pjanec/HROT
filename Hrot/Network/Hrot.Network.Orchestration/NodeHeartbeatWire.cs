@@ -33,7 +33,7 @@ public static class NodeHeartbeatWire
     /// <summary>The DDS sample as the bus event. ⭐ A phase value this build does not know (a newer peer) reads as <see cref="NodePhase.Ready"/>.</summary>
     public static NodeHeartbeatEvent ToEvent(in NodeHeartbeat hb) => new()
     {
-        NodeId        = hb.NodeId,
+        NodeId        = (Fdp.Core.NodeId)(hb.NodeId),
         LocalStateId  = (int)hb.LocalClusterState,
         WallTicksUtc  = hb.WallTicksUtc,
         SubsystemName = hb.SubsystemName ?? string.Empty,

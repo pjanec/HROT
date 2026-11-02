@@ -105,7 +105,7 @@ namespace Hrot.SimHost.Tests
             {
                 NetworkId   = 0,
                 TkbType     = (Fdp.Core.TkbTypeId)(TestTkbType),
-                OwnerNodeId = LocalNodeId
+                OwnerNodeId = (Fdp.Core.NodeId)(LocalNodeId)
             });
             repo.Bus.SwapBuffers();
 

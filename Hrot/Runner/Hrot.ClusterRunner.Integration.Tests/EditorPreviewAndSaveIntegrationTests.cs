@@ -55,7 +55,7 @@ public sealed class EditorPreviewAndSaveIntegrationTests : IDisposable
         {
             TkbType     = (Fdp.Core.TkbTypeId)(TestTkbType),
             NetworkId   = TestNetworkId,
-            OwnerNodeId = 0,
+            OwnerNodeId = (Fdp.Core.NodeId)(0),
             InitType    = ReliableInitType.None,
             // ⭐ CE-4153 — this harness publishes the spawn itself, bypassing CreateEntityRequestSystem (the one place that mints the entity's
             //   stable key), and the test then SAVES: it plays the creator and stamps the key, as a production request would.

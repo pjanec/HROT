@@ -138,7 +138,7 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
             OwnWindow        = false,
             Deterministic    = true,
             SubsystemName    = "Editor",
-            NodeId           = 0,
+            NodeId           = (Fdp.Core.NodeId)(0),
             IsActiveMapOwner = () => false,
         };
 

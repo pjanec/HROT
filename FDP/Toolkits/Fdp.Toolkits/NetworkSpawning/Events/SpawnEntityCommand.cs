@@ -39,7 +39,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Events
         /// For SimHost-spawned entities: SimHost's local node ID.
         /// For network-replicated ghosts: the remote node's ID.
         /// </summary>
-        public int OwnerNodeId;
+        public NodeId OwnerNodeId;
 
         /// <summary>
         /// Reliability mode for the Entity Lifecycle Module handshake.

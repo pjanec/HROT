@@ -34,7 +34,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         private readonly IDdsWriter<DeleteEntityRequest> _writer;
         private readonly FdpEventBus _eventBus;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
         private readonly NetworkEntityMap? _entityMap;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DeleteEntityRequest>();
@@ -48,7 +48,7 @@ namespace Hrot.Map.Common.Replication.Egress
             DdsParticipant participant,
             FdpEventBus eventBus,
             NetworkEntityMap entityMap,
-            long localNodeId = 0)
+            int localNodeId = 0)
             : this(new DdsWriterAdapter<DeleteEntityRequest>(participant), eventBus, localNodeId, entityMap)
         {
         }
@@ -57,12 +57,12 @@ namespace Hrot.Map.Common.Replication.Egress
         internal DestroyEntityCommandEgressTranslator(
             IDdsWriter<DeleteEntityRequest> writer,
             FdpEventBus eventBus,
-            long localNodeId = 0,
+            int localNodeId = 0,
             NetworkEntityMap? entityMap = null)
         {
             _writer   = writer    ?? throw new ArgumentNullException(nameof(writer));
             _eventBus = eventBus  ?? throw new ArgumentNullException(nameof(eventBus));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _entityMap   = entityMap;
         }
 

@@ -14,6 +14,7 @@ using Fdp.ModuleHost.Abstractions;
 
 using EcsNavigationIntent = Fdp.Toolkit.Navigation.NavigationIntent;
 using EcsNavMode          = Fdp.Toolkit.Navigation.NavigationMode;
+using NodeId = Fdp.Core.NodeId;
 
 namespace Hrot.Map.Common.Replication.Egress
 {
@@ -26,7 +27,7 @@ namespace Hrot.Map.Common.Replication.Egress
     {
         private readonly IDdsWriter<Hrot.NED.Descriptors.NavigationIntent> _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
         // Tracks the tick of the last scan so QueryDelta can skip unchanged chunks.
         private uint _lastScanTick;
         // Fine-grained per-entity change filter: stores the last-published IntentId so that
@@ -55,7 +56,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public NavigationIntentEgressTranslator(
             DdsParticipant      dds,
             NetworkEntityMap    entityMap,
-            long localNodeId)
+            int localNodeId)
             : this(new DdsWriterAdapter<Hrot.NED.Descriptors.NavigationIntent>(dds),
                    entityMap, localNodeId)
         {
@@ -68,11 +69,11 @@ namespace Hrot.Map.Common.Replication.Egress
         internal NavigationIntentEgressTranslator(
             IDdsWriter<Hrot.NED.Descriptors.NavigationIntent> writer,
             NetworkEntityMap    entityMap,
-            long localNodeId)
+            int localNodeId)
         {
             _writer       = writer       ?? throw new System.ArgumentNullException(nameof(writer));
             _entityMap    = entityMap    ?? throw new System.ArgumentNullException(nameof(entityMap));
-            _localNodeId  = localNodeId;
+            _localNodeId  = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <summary>No ingress for this translator.</summary>

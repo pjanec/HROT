@@ -69,7 +69,7 @@ namespace Hrot.Core.Tests.Services
             => new ExecuteNodeOpIntent
             {
                 TransactionId = tx,
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = operation,
                 DomainPayload = payload,
             };

@@ -397,8 +397,8 @@ public sealed class ClusterOpMasterTranslatorTests
         }
 
         SendAndPump(() => panelBus.PublishManaged(new BuildTerrainAssetIntent { RequestId = buildId, Kinds = new[] { "roads" } }));
-        SendAndPump(() => panelBus.PublishManaged(new AssetOpIntent { RequestId = publishId, Refresh = false, Kind = "blueprint", NodeId = 3 }));
-        SendAndPump(() => panelBus.PublishManaged(new AssetOpIntent { RequestId = refreshId, Refresh = true, Kind = "btree", NodeId = 4 }));
+        SendAndPump(() => panelBus.PublishManaged(new AssetOpIntent { RequestId = publishId, Refresh = false, Kind = "blueprint", NodeId = (Fdp.Core.NodeId)(3) }));
+        SendAndPump(() => panelBus.PublishManaged(new AssetOpIntent { RequestId = refreshId, Refresh = true, Kind = "btree", NodeId = (Fdp.Core.NodeId)(4) }));
         // ⭐ CE-3024 — a zone load from a host without the master: the egress never wrote one before.
         var zoneReqId = Guid.NewGuid();
         SendAndPump(() => panelBus.PublishManaged(new LoadZoneIntent { RequestId = zoneReqId, ZoneId = "777" }));
@@ -438,7 +438,7 @@ public sealed class ClusterOpMasterTranslatorTests
 
         var ids = Enumerable.Range(0, 5).Select(_ => Guid.NewGuid()).ToArray();
         foreach (var (id, i) in ids.Select((id, i) => (id, i)))
-            panelBus.PublishManaged(new AssetOpIntent { RequestId = id, Refresh = i % 2 == 1, Kind = "blueprint", NodeId = i + 1 });
+            panelBus.PublishManaged(new AssetOpIntent { RequestId = id, Refresh = i % 2 == 1, Kind = "blueprint", NodeId = (Fdp.Core.NodeId)(i + 1) });
         panelBus.SwapBuffers();
         egress.Tick();                                   // all five written in one burst
 

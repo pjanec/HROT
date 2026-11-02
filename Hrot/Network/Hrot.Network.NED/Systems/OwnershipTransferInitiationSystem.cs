@@ -40,7 +40,7 @@ namespace Hrot.Network.Systems
     public sealed class OwnershipTransferInitiationSystem : IEcsModuleSystem
     {
         private readonly NetworkEntityMap       _entityMap;
-        private readonly int                    _localNodeId;
+        private readonly NodeId                    _localNodeId;
         private readonly DescriptorOwnershipMap _descriptorMap;
         private readonly OwnershipApplier       _applier;
 
@@ -52,7 +52,7 @@ namespace Hrot.Network.Systems
             DescriptorOwnershipMap descriptorMap)
         {
             _entityMap     = entityMap     ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId   = localNodeId;
+            _localNodeId   = (Fdp.Core.NodeId)(localNodeId);
             _descriptorMap = descriptorMap ?? throw new ArgumentNullException(nameof(descriptorMap));
             _applier       = new OwnershipApplier(localNodeId, descriptorMap);
         }

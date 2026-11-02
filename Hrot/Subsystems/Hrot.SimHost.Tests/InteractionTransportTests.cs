@@ -178,10 +178,10 @@ namespace Hrot.SimHost.Tests
             var egress = new InteractionEgressTranslator(writer, map);
 
             station.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.PossessRequestEvent
-                { Unit = unit, StationNodeId = 300, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps });
+                { Unit = unit, StationNodeId = (Fdp.Core.NodeId)(300), Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps });
             station.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent
             {
-                Unit = unit, StationNodeId = 300, Seq = 7, Forward = 1f, Lateral = -0.5f, Steer = 0.25f, Yaw = 1.5f, Gait = 1,
+                Unit = unit, StationNodeId = (Fdp.Core.NodeId)(300), Seq = 7, Forward = 1f, Lateral = -0.5f, Steer = 0.25f, Yaw = 1.5f, Gait = 1,
                 Trigger = 1, Mount = 2, AimPoint = new System.Numerics.Vector3(10f, 20f, 3f),
                 Stance = 2, ShotSeq = 5, CancelSeq = 3, AmmoSeq = 9, ShotTarget = 4242,   // ⭐ CE-1074 / CE-1078 / CE-1079
                 UseSeq = 6, UseVerb = 1, UseTarget = 777,   // ⭐ CE-1151
@@ -189,7 +189,7 @@ namespace Hrot.SimHost.Tests
                 Binoculars = 1,                              // ⭐ CE-1219
                 LookFrom = new System.Numerics.Vector3(1f, 2f, 3f), LookDir = new System.Numerics.Vector3(0f, 0.6f, 0.8f), FirePref = 2,   // ⭐ CE-4143
             });
-            station.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent { Unit = unit, StationNodeId = 300 });
+            station.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent { Unit = unit, StationNodeId = (Fdp.Core.NodeId)(300) });
             station.Bus.SwapBuffers();
             egress.ScanAndPublish(station);
 

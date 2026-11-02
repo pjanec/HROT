@@ -40,7 +40,7 @@ namespace Hrot.Editor.DebugApi
         /// <summary>⭐ CE-3354 ② — <c>GET /status.node</c>: the answering node's <c>{name, nodeId}</c>, from its cluster view (the same view <c>load</c> reads).</summary>
         private JsonNode? NodeOrNull()
             => (_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode) is { NodeId: { } id } view
-                ? new JsonObject { ["name"] = view.NodeName ?? "", ["nodeId"] = id }
+                ? new JsonObject { ["name"] = view.NodeName ?? "", ["nodeId"] = (int)id }
                 : null;
 
         /// <summary>⭐ CE-3354 ⑦ — the load <c>/status.load</c> follows: the master's broadcast current load (the cluster view), else the last this API sent.</summary>

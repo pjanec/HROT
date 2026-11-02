@@ -29,7 +29,7 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>Padding to maintain natural alignment.</summary>
         public byte _pad2;
         /// <summary>Originating Brain node ID for routing responses back.</summary>
-        public int SourceNodeId;
+        public NodeId SourceNodeId;
         /// <summary>Brain-allocated route handle (0 = anonymous; solver allocates its own handle).</summary>
         public int RouteHandle;
         /// <summary>Navmesh layer filter bitmask (0 = default layer).</summary>
@@ -67,7 +67,7 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>Handle into the shared route/waypoint store; echoed from the request. -1 if unreachable.</summary>
         public int RouteHandle;
         /// <summary>Originating Brain node ID, propagated from the request.</summary>
-        public int SourceNodeId;
+        public NodeId SourceNodeId;
         /// <summary>Navmesh version when the path was planned, for staleness detection.</summary>
         public int NavmeshVersionAtPlan;
         /// <summary>Reason the request failed; <see cref="NavigationFailureReason.NoFailure"/> on success.</summary>
@@ -93,7 +93,7 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>Handle of the corridor being followed.</summary>
         public int RouteHandle;
         /// <summary>Originating Brain node ID, propagated from the request.</summary>
-        public int SourceNodeId;
+        public NodeId SourceNodeId;
     }
 
     /// <summary>

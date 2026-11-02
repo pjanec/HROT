@@ -27,7 +27,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             File.WriteAllText(fdp, "fdp");
             File.WriteAllText(fdp + ".meta.json", MetadataSerializer.Serialize(new RecordingMetadata
             {
-                ExerciseId = exercise, NodeId = node, ParentExerciseId = parent, BranchWallTicks = branchTicks, Duration = TimeSpan.FromSeconds(10),
+                ExerciseId = exercise, NodeId = (Fdp.Core.NodeId)(node), ParentExerciseId = parent, BranchWallTicks = branchTicks, Duration = TimeSpan.FromSeconds(10),
                 ScenarioName = scenario ?? "",
             }));
         }

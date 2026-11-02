@@ -70,7 +70,7 @@ namespace Hrot.SimHost.Tests
             => new ExecuteNodeOpIntent
             {
                 TransactionId = txId,
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = NodeOpType.StartEpisode,
                 DomainPayload = new EpisodeHandlerPayload(episodeId, scenarioId, IsStart: true),
             };
@@ -79,7 +79,7 @@ namespace Hrot.SimHost.Tests
             => new ExecuteNodeOpIntent
             {
                 TransactionId = txId,
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = NodeOpType.StopEpisode,
                 DomainPayload = new EpisodeHandlerPayload(episodeId, null, IsStart: false),
             };

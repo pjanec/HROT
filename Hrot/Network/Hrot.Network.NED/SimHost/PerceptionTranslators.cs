@@ -19,6 +19,7 @@ using Fdp.Toolkit.Replication.Utilities;
 using Fdp.ModuleHost.Abstractions;
 using Hrot.NED.Common;
 using Hrot.NED.Descriptors;
+using NodeId = Fdp.Core.NodeId;
 
 namespace Hrot.Network.NED.SimHost
 {
@@ -114,7 +115,7 @@ namespace Hrot.Network.NED.SimHost
     {
         private readonly DdsWriter<RaycastRequestBatch>? _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly int _localNodeId;
+        private readonly NodeId _localNodeId;
 
         private uint _batchCorrelationId;
 
@@ -131,7 +132,7 @@ namespace Hrot.Network.NED.SimHost
             int                  localNodeId = 0)
         {
             _entityMap    = entityMap    ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId  = localNodeId;
+            _localNodeId  = (Fdp.Core.NodeId)(localNodeId);
             _writer       = participant != null ? new DdsWriter<RaycastRequestBatch>(participant) : null;
         }
 
@@ -273,7 +274,7 @@ namespace Hrot.Network.NED.SimHost
     {
         private readonly DdsReader<RaycastResponseBatch>? _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly int _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtRaycastResponseBatch;
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<RaycastResponseBatch>();
@@ -287,7 +288,7 @@ namespace Hrot.Network.NED.SimHost
             int              localNodeId = 0)
         {
             _entityMap   = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _reader      = participant != null ? new DdsReader<RaycastResponseBatch>(participant) : null;
         }
 

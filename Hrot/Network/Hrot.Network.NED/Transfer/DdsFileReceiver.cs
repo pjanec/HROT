@@ -7,6 +7,7 @@ using CycloneDDS.Runtime;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Orchestration;
 using Hrot.NED.Descriptors.Orchestration;
+using Fdp.Core;
 
 namespace Hrot.Network.NED.Transfer;
 
@@ -20,7 +21,7 @@ namespace Hrot.Network.NED.Transfer;
 public sealed class DdsFileReceiver : IDisposable
 {
     private readonly DdsParticipant _participant;
-    private readonly int _nodeId;
+    private readonly NodeId _nodeId;
     private readonly string _root;
     private readonly DdsReader<FileOffer> _offers;
     private readonly DdsWriter<FileNeed> _needs;
@@ -32,7 +33,7 @@ public sealed class DdsFileReceiver : IDisposable
     public DdsFileReceiver(DdsParticipant participant, int nodeId, string nodeStagingRoot)
     {
         _participant = participant ?? throw new ArgumentNullException(nameof(participant));
-        _nodeId = nodeId;
+        _nodeId = (Fdp.Core.NodeId)(nodeId);
         _root = nodeStagingRoot;
         _offers = new DdsReader<FileOffer>(participant);
         _needs  = new DdsWriter<FileNeed>(participant);

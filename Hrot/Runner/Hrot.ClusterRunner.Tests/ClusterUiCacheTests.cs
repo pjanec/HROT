@@ -73,7 +73,7 @@ public sealed class ClusterUiCacheTests : IDisposable
         _bus.PublishManaged(new ExecuteNodeOpIntent
         {
             TransactionId = txId,
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             Operation     = FdpNodeOpType.PrepareState,
             DomainPayload = null,
         });
@@ -139,7 +139,7 @@ public sealed class ClusterUiCacheTests : IDisposable
         _bus.PublishManaged(new ExecuteNodeOpIntent
         {
             TransactionId = txId,
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             Operation     = FdpNodeOpType.PrepareState,
             DomainPayload = null,
         });
@@ -196,7 +196,7 @@ public sealed class ClusterUiCacheTests : IDisposable
         _bus.PublishManaged(new ExecuteNodeOpIntent
         {
             TransactionId = txId,
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             Operation     = FdpNodeOpType.PrepareState,
             DomainPayload = new EditLoadHandlerPayload(
                 ScenarioId:    null,
@@ -230,7 +230,7 @@ public sealed class ClusterUiCacheTests : IDisposable
         _bus.PublishManaged(new ExecuteNodeOpIntent
         {
             TransactionId = txId,
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             Operation     = FdpNodeOpType.PrepareReplay,
             DomainPayload = null,
         });
@@ -265,7 +265,7 @@ public sealed class ClusterUiCacheTests : IDisposable
         _bus.PublishManaged(new ExecuteNodeOpIntent
         {
             TransactionId = txId,
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             Operation     = FdpNodeOpType.PrepareReplay,
             DomainPayload = null,
         });

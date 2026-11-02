@@ -149,6 +149,7 @@ using Hrot.Hsm.Editor.Comparison;
 using Hrot.Blueprints.Editor.Comparison;
 
 using Hrot.Blueprints.Core.Debug;
+using NodeId = NodeEditor.Primitives.NodeId;
 
 namespace Hrot.Editor
 {
@@ -1305,7 +1306,7 @@ namespace Hrot.Editor
             _bootstrapper.ApplicationSystemsRegistrar = RegisterHostSystems;
             _bootstrapper.MapBuildStatus = () => _map3DBuild;   // ⭐ CE-3354 ③ — lazy: the map layers are attached after the bootstrap
             _node = _bootstrapper.BootstrapNode(
-                new HrotNodeConfig { NodeId = EditorNodeId, SubsystemName = "Editor", Headless = true, NodeName = _nodeName },
+                new HrotNodeConfig { NodeId = (Fdp.Core.NodeId)(EditorNodeId), SubsystemName = "Editor", Headless = true, NodeName = _nodeName },
                 EditorCapabilities.DefaultRole,
                 _networkFactory);
 
@@ -1355,7 +1356,7 @@ namespace Hrot.Editor
                 Config            = ClusterConfiguration.LoadFromWorkingDirectory().ForOneNodeCluster(),
                 TimeCommands      = _timeCommands!,
                 TimeReads         = _timeController!,
-                StagingNodeId     = EditorNodeId,
+                StagingNodeId     = (Fdp.Core.NodeId)(EditorNodeId),
                 // ⭐⭐ CE-4087 — the editor plays every simulation role in-process (the SAME mask it declares to the roster), so its
                 //   own master's load gate is satisfied at once — the editor never refuses itself, nor waits for its own advert.
                 LocalRoles        = EditorCapabilities.DefaultRole,

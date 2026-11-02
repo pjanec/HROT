@@ -221,7 +221,7 @@ public sealed class AssetPrefetchProcessManager
                 _bus.PublishManaged(new ExecuteNodeOpIntent
                 {
                     TransactionId = txId,
-                    TargetNodeId  = nodeId,
+                    TargetNodeId  = (Fdp.Core.NodeId)(nodeId),
                     Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrefetchFiles,
                     DomainPayload = new PrefetchHandlerPayload(ev.ScenarioId),
                 });
@@ -366,7 +366,7 @@ public sealed class AssetPrefetchProcessManager
         {
             targets.Add(new NodeDistributionTarget
             {
-                NodeId          = nodeId,
+                NodeId          = (Fdp.Core.NodeId)(nodeId),
                 DestinationPath = Path.Combine(
                     Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeStagingRoot(_localStagingRoot, nodeId),
                     Fdp.Toolkit.Orchestration.OrchestrationConstants.ScenariosDirectoryName,

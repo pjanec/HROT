@@ -54,7 +54,7 @@ public sealed class TrafficReplicas
 
     private readonly EntityRepository _world;
     private readonly NetworkEntityMap? _entityMap;
-    private readonly int _localNodeId;
+    private readonly NodeId _localNodeId;
     private readonly Dictionary<(int Owner, VehicleHandle Handle), Entity> _replicas = new();
     private readonly List<Vector2> _anchors = new();
     private readonly HashSet<(int, VehicleHandle)> _seen = new();
@@ -70,7 +70,7 @@ public sealed class TrafficReplicas
     {
         _world = world ?? throw new ArgumentNullException(nameof(world));
         _entityMap = entityMap;
-        _localNodeId = localNodeId;
+        _localNodeId = (Fdp.Core.NodeId)(localNodeId);
     }
 
     /// <summary>The live replicas, by (sender, SUMO car).</summary>

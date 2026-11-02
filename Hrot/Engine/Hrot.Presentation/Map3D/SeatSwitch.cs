@@ -53,7 +53,7 @@ public static class SeatSwitch
     /// </summary>
     public static List<Entity> SeatsFor(EntityRepository w, Entity unit)
     {
-        long? me = Fdp.Toolkit.Behavior.Possession.PossessionSystem.HolderOf(w, unit);
+        int? me = Fdp.Toolkit.Behavior.Possession.PossessionSystem.HolderOf(w, unit);
         var seats = Seats(w, VehicleOf(w, unit));
         seats.RemoveAll(seat => seat != unit && Fdp.Toolkit.Behavior.Possession.StationClaims.TryHeldByOther(w, seat, me, out _));
         return seats;

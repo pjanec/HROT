@@ -58,7 +58,7 @@ namespace Fdp.Core.FlightRecorder.Metadata
         /// Identifier of the distributed node that produced this recording.
         /// Defaults to <c>0</c> for legacy recordings that pre-date federation support.
         /// </summary>
-        public int NodeId { get; set; } = 0;
+        public NodeId NodeId { get; set; } = (Fdp.Core.NodeId)(0);
 
         /// <summary>
         /// ⭐ <c>CE-3126</c> (R-229) — the terrain resident while recording (the name the scenario resolved it by), so a

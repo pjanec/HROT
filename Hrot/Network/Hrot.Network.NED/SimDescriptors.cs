@@ -345,7 +345,7 @@ namespace Hrot.NED.Descriptors
         [DdsKey] public int EntityId;
         /// <summary>1 = held, 0 = released.</summary>
         public byte Held;
-        public long StationNodeId;
+        public int StationNodeId;
         /// <summary><c>PossessionMode</c>: 1 Fps.</summary>
         public byte Mode;
         public uint Epoch;

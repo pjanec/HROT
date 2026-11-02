@@ -50,7 +50,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
         private string MakeNetworkRecording(int nodeId, Action<EntityRepository> setup)
         {
             var path = Path.Combine(_tempDir, $"node{nodeId}_{Guid.NewGuid():N}.fdp");
-            var meta = new RecordingMetadata { ExerciseId = _exerciseId, NodeId = nodeId };
+            var meta = new RecordingMetadata { ExerciseId = _exerciseId, NodeId = (Fdp.Core.NodeId)(nodeId) };
 
             using var repo = new EntityRepository();
             repo.RegisterComponent<NetworkIdentity>();
@@ -231,7 +231,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
                 var e = repo.CreateEntity();
                 repo.AddComponent(e, new NetworkIdentity { Value = 300 });
                 repo.AddComponent(e, new DummyPosition { X = 1f, Y = 0f, Z = 0f });
-                repo.AddComponent(e, new NetworkAuthority { PrimaryOwnerId = 1, LocalNodeId = 1 });
+                repo.AddComponent(e, new NetworkAuthority { PrimaryOwnerId = 1, LocalNodeId = (Fdp.Core.NodeId)(1) });
                 repo.SetAuthority<NetworkIdentity>(e, true);
                 repo.SetAuthority<DummyPosition>(e, true);
                 repo.SetAuthority<NetworkAuthority>(e, true);
@@ -241,7 +241,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
                 var e = repo.CreateEntity();
                 repo.AddComponent(e, new NetworkIdentity { Value = 300 });
                 repo.AddComponent(e, new DummyPosition { X = 99f, Y = 0f, Z = 0f });
-                repo.AddComponent(e, new NetworkAuthority { PrimaryOwnerId = 1, LocalNodeId = 2 });
+                repo.AddComponent(e, new NetworkAuthority { PrimaryOwnerId = 1, LocalNodeId = (Fdp.Core.NodeId)(2) });
                 repo.SetAuthority<NetworkIdentity>(e, true);
                 repo.SetAuthority<DummyPosition>(e, true);
                 repo.SetAuthority<NetworkAuthority>(e, true);

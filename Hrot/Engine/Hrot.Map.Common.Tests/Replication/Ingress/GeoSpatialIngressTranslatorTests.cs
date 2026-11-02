@@ -47,7 +47,7 @@ public sealed class GeoSpatialIngressTranslatorTests
             IGeographicTransform geoTransform,
             NetworkEntityMap     entityMap,
             GhostCreationSystem  ghostSystem,
-            long                 localNodeId)
+            int                 localNodeId)
             : base(participant: null, entityMap, ghostSystem, localNodeId)
         { }
 

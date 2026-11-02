@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Fdp.Core.FlightRecorder.Metadata;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.ReplayBrowser.Federation
 {
@@ -43,7 +44,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         /// NodeId of the context considered the canonical source of local entities.
         /// Defaults to the lowest NodeId in the loaded group.
         /// </summary>
-        public int LocalEntitiesProviderNodeId { get; private set; }
+        public NodeId LocalEntitiesProviderNodeId { get; private set; }
 
         /// <summary>Fired after every seek or after a local-entities-provider change.</summary>
         public event Action? OnTimeChanged;
@@ -58,7 +59,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
             Contexts = _contexts;
             NodeOffsets = _nodeOffsets;
             ExerciseId = exerciseId;
-            LocalEntitiesProviderNodeId = lowestNodeId;
+            LocalEntitiesProviderNodeId = (Fdp.Core.NodeId)(lowestNodeId);
         }
 
         /// <summary>
@@ -156,7 +157,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
             if (!_contexts.ContainsKey(nodeId))
                 throw new ArgumentOutOfRangeException(
                     nameof(nodeId), $"NodeId {nodeId} is not in the loaded group.");
-            LocalEntitiesProviderNodeId = nodeId;
+            LocalEntitiesProviderNodeId = (Fdp.Core.NodeId)(nodeId);
             OnTimeChanged?.Invoke();
         }
 

@@ -103,7 +103,7 @@ namespace Fdp.Toolkit.Tkb.Tests
             {
                 NetworkId = 0,
                 TkbType = (Fdp.Core.TkbTypeId)(TestTkbType),
-                OwnerNodeId = 2
+                OwnerNodeId = (Fdp.Core.NodeId)(2)
             });
             repo.Bus.SwapBuffers();
 

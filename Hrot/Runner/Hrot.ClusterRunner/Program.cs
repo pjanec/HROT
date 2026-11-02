@@ -176,7 +176,7 @@ class Program
                 grantedNodeId = grant.NodeId;
                 Console.WriteLine($"[Runner] C1: the cluster master granted node id {grant.NodeId} (session {grant.SessionId}).");
             }
-            config.NodeId = 0;
+            config.NodeId = (Fdp.Core.NodeId)(0);
         }
         int ResolveNodeId(string subsystemName, int baseNodeId) => grantedNodeId ?? ResolveAppNodeId(subsystemName, baseNodeId);
         // ⭐ CE-3354 ⑥ — a node's name: the configured one, else the default <subsystem>-<nodeId> with the id the runner resolves for it. ⛔ The Editor is the exception: it fixes its own node id,

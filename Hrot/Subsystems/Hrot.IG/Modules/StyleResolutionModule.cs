@@ -24,7 +24,7 @@ public class StyleResolutionModule : IEcsModule
     /// Operator configuration forwarded to <see cref="StyleResolutionSystem"/>
     /// as the Layer-3 highest-priority override source.
     /// </param>
-    public StyleResolutionModule(MapUserConfig config, long localNodeId = 0)
+    public StyleResolutionModule(MapUserConfig config, int localNodeId = 0)
         => _system = new StyleResolutionSystem(
             config ?? throw new ArgumentNullException(nameof(config)), localNodeId);
 

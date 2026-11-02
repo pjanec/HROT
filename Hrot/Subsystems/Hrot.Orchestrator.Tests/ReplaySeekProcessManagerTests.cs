@@ -43,7 +43,7 @@ public sealed class ReplaySeekProcessManagerTests
     {
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = nodeId,
+            NodeId        = (Fdp.Core.NodeId)(nodeId),
             SubsystemName = subsystem,
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
@@ -144,7 +144,7 @@ public sealed class ReplaySeekProcessManagerTests
         {
             TransactionId   = fanOut.TransactionId,
             Operation       = FdpNodeOpType.NodeReplaySeek,
-            NodeId          = 1,
+            NodeId          = (Fdp.Core.NodeId)(1),
             StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = true,
             // Typed payload: ConsumeNodeOpStatuses serializes to JSON for aggregator.
@@ -208,7 +208,7 @@ public sealed class ReplaySeekProcessManagerTests
         {
             TransactionId   = fanOut.TransactionId,
             Operation       = FdpNodeOpType.NodeReplaySeek,
-            NodeId          = 1,
+            NodeId          = (Fdp.Core.NodeId)(1),
             StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = true,
             ResultPayload   = new ReplaySeekResult(default(GlobalTime)),

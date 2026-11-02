@@ -48,7 +48,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         private readonly DdsReader<EntityMaster> _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
         private readonly FdpEventBus _eventBus;
         private readonly GhostCreationSystem _ghostCreationSystem;
         private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
@@ -64,7 +64,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         public EntityMasterIngressTranslator(
             DdsParticipant? participant,
             NetworkEntityMap entityMap,
-            long localNodeId,
+            int localNodeId,
             FdpEventBus eventBus,
             GhostCreationSystem ghostCreationSystem)
         {
@@ -73,7 +73,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             // CE-517: resolve each sample's writer to a node (a participant without sender tracking yields none).
             if (participant?.SenderRegistry is { } senders) _reader.EnableSenderTracking(senders);
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
         }
@@ -231,7 +231,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 cmd.AddComponent(entity, new NetworkAuthority
                 {
                     PrimaryOwnerId = writerNodeId,      // CE-517: the writer; -1 until its identity resolves
-                    LocalNodeId = (int)_localNodeId
+                    LocalNodeId = (Fdp.Core.NodeId)((int)_localNodeId)
                 });
 
                 // Reliable-init barrier (CE-283, §3a.2): the creator marked this entity WaitForAcks,
@@ -248,7 +248,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             {
                 // CE-517: an owner still unknown is filled from the writer; a known one is never overwritten (see class doc).
                 if (writerNodeId != UnknownOwner)
-                    cmd.SetComponent(entity, new NetworkAuthority { PrimaryOwnerId = writerNodeId, LocalNodeId = (int)_localNodeId });
+                    cmd.SetComponent(entity, new NetworkAuthority { PrimaryOwnerId = writerNodeId, LocalNodeId = (Fdp.Core.NodeId)((int)_localNodeId) });
             }
 
             // Reconstruct DISEntityType.Value from the 8 named DisTypeStruct fields.

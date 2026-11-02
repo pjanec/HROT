@@ -94,7 +94,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             RequestId   = System.Guid.NewGuid(),
             NetworkId   = networkId,
             TkbType     = (Fdp.Core.TkbTypeId)(TkbType),
-            OwnerNodeId = LocalNodeId,
+            OwnerNodeId = (Fdp.Core.NodeId)(LocalNodeId),
             InitType    = ReliableInitType.None,
             IsTransient = isTransient,
         };

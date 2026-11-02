@@ -47,7 +47,7 @@ public sealed class NedNetworkFactory : INetworkFactory
     // world bus where NetworkSpawningSystem can consume them.  Null when not wired via
     // ConfigureForNode(HrotNodeContext,...); falls back to _eventBus in that case.
     private readonly FdpEventBus?         _worldBus;
-    private readonly int                  _localNodeId;
+    private readonly NodeId                  _localNodeId;
     private readonly NodeRole             _role;
     private readonly ITkbDatabase?        _tkbDb;
 
@@ -79,7 +79,7 @@ public sealed class NedNetworkFactory : INetworkFactory
         _geoTransform     = geoTransform;
         _eventBus         = eventBus;
         _worldBus         = worldBus;
-        _localNodeId      = localNodeId;
+        _localNodeId      = (Fdp.Core.NodeId)(localNodeId);
         _role             = role;
         _tkbDb            = tkbDb;
         _lifecycleModule  = lifecycleModule;
@@ -182,7 +182,7 @@ public sealed class NedNetworkFactory : INetworkFactory
         => new Hrot.Network.NED.IG.NedIgTranslators();
 
     /// <inheritdoc/>
-    public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, long nodeId = 0)
+    public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, int nodeId = 0)
         => participant == null
            ? (IIgNetworkAdapter)Hrot.Core.Network.NullIgNetworkAdapter.Instance
            : new Hrot.Network.NED.IG.NedIgNetworkAdapter(participant, nodeId);
@@ -232,7 +232,7 @@ public sealed class NedNetworkFactory : INetworkFactory
     public IReadOnlyList<IDescriptorTranslator> CreateIgEgressTranslators(
         DdsParticipant participant,
         FdpEventBus bus,
-        long nodeId)
+        int nodeId)
     {
         // ⛔⛔ SpawnEntityCommandEgressTranslator is NO LONGER REGISTERED (host (f), 2026-09-02).
         //
@@ -334,7 +334,7 @@ public sealed class NedNetworkFactory : INetworkFactory
     /// <inheritdoc/>
     public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(
         FdpEventBus interactionBus,
-        long localNodeId,
+        int localNodeId,
         bool headless)
     {
         var list = new System.Collections.Generic.List<Fdp.Interfaces.INetworkTranslator>();
@@ -351,7 +351,7 @@ public sealed class NedNetworkFactory : INetworkFactory
     /// <inheritdoc/>
     public Fdp.ModuleHost.Abstractions.IEcsModuleSystem? CreateGizmoPublisherSystem(
         Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer buffer,
-        long localNodeId)
+        int localNodeId)
     {
         if (_participant == null) return null;
 
@@ -442,7 +442,7 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
             var tokens = _nodeCapabilities.TryGetValue(sample.Data.NodeId, out var t) ? t : System.Array.Empty<string>();
             _clusterCache.UpdateNode(new NodeCapability
             {
-                NodeId             = sample.Data.NodeId,
+                NodeId             = (Fdp.Core.NodeId)(sample.Data.NodeId),
                 // CE-286 (C-roles): the role mask is DERIVED from the fdp.role.* subset of the node's capability
                 // tokens (AQ-70 §Q70-C) — the heartbeat no longer carries RolesMask. An un-advertising / foreign
                 // node reads None, the correct "unknown role"; multi-role [Flags] masks survive.

@@ -48,6 +48,6 @@ namespace Fdp.Toolkit.Orchestration
         /// ⭐ The node that performed the extraction. ⚠ Present so a reader in a multi-node run can tell
         /// whose load it is looking at rather than assuming the last one wins.
         /// </summary>
-        public int SourceNodeId;
+        public NodeId SourceNodeId;
     }
 }

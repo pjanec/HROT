@@ -1,3 +1,4 @@
+using Fdp.Core;
 ﻿namespace Fdp.Toolkit.Runner
 {
     /// <summary>
@@ -54,7 +55,7 @@
         public bool ResetLayoutOnRun { get; set; } = true;
 
         /// <summary>Base node ID forwarded to the orchestrator for per-subsystem offset resolution (0 = use legacy constants).</summary>
-        public int NodeId { get; set; }
+        public NodeId NodeId { get; set; }
 
         /// <summary>When <c>true</c>, the orchestrator passes <see cref="FixedDeltaSeconds"/> to
         /// <c>Update()</c> instead of <c>Raylib.GetFrameTime()</c>. Use for CI / deterministic tests.</summary>

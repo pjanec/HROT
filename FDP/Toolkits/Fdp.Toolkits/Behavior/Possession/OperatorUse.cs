@@ -273,7 +273,7 @@ namespace Fdp.Toolkit.Behavior.Possession
             if (drive == EmbarkResult.Applied && !DriverSeatFree(world, vehicle)) drive = EmbarkResult.Full;
             // ⭐ R-4096 (C-3′) — a station that HOLDS the vehicle occupies its driver seat even with no man in it (it drives it from the menu):
             //   another player is never pushed from it, so Drive / Pilot is SeatTaken; a free passenger seat (O-4) still boards
-            long? me = PossessionSystem.HolderOf(world, actor);
+            int? me = PossessionSystem.HolderOf(world, actor);
             if (drive == EmbarkResult.Applied && StationClaims.TryHeldByOther(world, vehicle, me, out _)) drive = EmbarkResult.Full;
             var board = Embarkation.CanEmbark(world, actor, vehicle, SeatRole.Passenger);
             bool otherSide = OtherSideAboard(world, actor, vehicle, me);   // ⭐ R-4096 — an enemy player drives or sits in it
@@ -321,7 +321,7 @@ namespace Fdp.Toolkit.Behavior.Possession
 
         /// <summary>⭐ <c>R-4096</c> (C-3′) — does <paramref name="vehicle"/> carry (or is it driven by) a player of another side than the
         /// actor's? The actor's own station is never "another" station. An actor whose side is unknown is a Neutral one (<c>EntityInfo</c> absent).</summary>
-        private static bool OtherSideAboard(EntityRepository world, Entity actor, Entity vehicle, long? me)
+        private static bool OtherSideAboard(EntityRepository world, Entity actor, Entity vehicle, int? me)
             => StationClaims.OtherSideAboard(world, vehicle, StationClaims.ForceOf(world, actor), me, out _);
 
         private static UseAction Seat(UseVerbKind kind, string label, Entity vehicle, SeatRole role, EmbarkResult result, bool reach, bool otherSide)

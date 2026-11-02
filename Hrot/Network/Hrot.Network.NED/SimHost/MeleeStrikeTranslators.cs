@@ -20,7 +20,7 @@ namespace Hrot.Network.NED.SimHost
     {
         private readonly IDdsWriter<MeleeStrike> _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MeleeStrike>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtMeleeStrike;
@@ -28,14 +28,14 @@ namespace Hrot.Network.NED.SimHost
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
-        public MeleeStrikeEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, long localNodeId)
+        public MeleeStrikeEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, int localNodeId)
             : this(new DdsWriterAdapter<MeleeStrike>(participant), entityMap, localNodeId) { }
 
-        internal MeleeStrikeEgressTranslator(IDdsWriter<MeleeStrike> writer, NetworkEntityMap entityMap, long localNodeId = 0)
+        internal MeleeStrikeEgressTranslator(IDdsWriter<MeleeStrike> writer, NetworkEntityMap entityMap, int localNodeId = 0)
         {
             _writer = writer ?? throw new ArgumentNullException(nameof(writer));
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
@@ -62,7 +62,7 @@ namespace Hrot.Network.NED.SimHost
     {
         private readonly DdsReader<MeleeStrike>? _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MeleeStrike>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtMeleeStrike;
@@ -70,11 +70,11 @@ namespace Hrot.Network.NED.SimHost
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
-        public MeleeStrikeIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap, long localNodeId)
+        public MeleeStrikeIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap, int localNodeId)
         {
             _reader = participant is not null ? new DdsReader<MeleeStrike>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <inheritdoc />

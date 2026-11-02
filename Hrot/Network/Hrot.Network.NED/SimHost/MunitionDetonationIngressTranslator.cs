@@ -26,7 +26,7 @@ namespace Hrot.Network.NED.SimHost
 
         private readonly DdsReader<MunitionDetonation>? _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;   // ⭐ CE-1148 S2 — this node's own samples are dropped (SourceNodeId)
+        private readonly NodeId _localNodeId;   // ⭐ CE-1148 S2 — this node's own samples are dropped (SourceNodeId)
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MunitionDetonation>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtMunitionDetonation;
@@ -42,10 +42,10 @@ namespace Hrot.Network.NED.SimHost
         public MunitionDetonationIngressTranslator(
             DdsParticipant? participant,
             NetworkEntityMap entityMap,
-            long localNodeId)
+            int localNodeId)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _reader    = participant is not null
                 ? new DdsReader<MunitionDetonation>(participant)
                 : null;

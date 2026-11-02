@@ -117,7 +117,7 @@ public class SpawningModuleIntegrationTests
         {
             NetworkId         = TestNetworkId,
             TkbType           = (Fdp.Core.TkbTypeId)(TestTkbType),
-            OwnerNodeId       = IgNetworkConstants.LocalNodeId,
+            OwnerNodeId       = (Fdp.Core.NodeId)(IgNetworkConstants.LocalNodeId),
             InitType          = ReliableInitType.None,
             InitialComponents = new List<object>(),
             RequestId         = Guid.Empty,
@@ -145,7 +145,7 @@ public class SpawningModuleIntegrationTests
         {
             NetworkId         = TestNetworkId,
             TkbType           = (Fdp.Core.TkbTypeId)(TestTkbType),
-            OwnerNodeId       = IgNetworkConstants.LocalNodeId,
+            OwnerNodeId       = (Fdp.Core.NodeId)(IgNetworkConstants.LocalNodeId),
             InitType          = ReliableInitType.None,
             InitialComponents = new List<object>(),
             RequestId         = Guid.Empty,
@@ -173,7 +173,7 @@ public class SpawningModuleIntegrationTests
         {
             NetworkId         = TestNetworkId,
             TkbType           = (Fdp.Core.TkbTypeId)(TestTkbType),
-            OwnerNodeId       = IgNetworkConstants.LocalNodeId,
+            OwnerNodeId       = (Fdp.Core.NodeId)(IgNetworkConstants.LocalNodeId),
             InitType          = ReliableInitType.None,
             InitialComponents = new List<object>(),
             RequestId         = Guid.Empty,

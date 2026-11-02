@@ -16,6 +16,7 @@ using Fdp.Toolkit.Replication.Services;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.ModuleHost.Abstractions;
+using NodeId = Hrot.NED.Common.NodeId;
 
 namespace Hrot.Map.Common.Systems
 {

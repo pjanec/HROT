@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Fdp.Core;
 
 namespace Fdp.Toolkit.DER
 {
@@ -13,7 +14,7 @@ namespace Fdp.Toolkit.DER
         /// <summary>
         /// Local DDS node ID of the application.
         /// </summary>
-        int LocalNodeId { get; }
+        NodeId LocalNodeId { get; }
 
         /// <summary>
         /// Retrieve entity by ID. Returns null if not found.

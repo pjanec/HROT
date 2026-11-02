@@ -7,6 +7,7 @@ using Fdp.Core.Logging;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Assets;
 using Hrot.Network.Orchestration;
+using Fdp.Core;
 
 namespace Hrot.Orchestrator;
 
@@ -21,7 +22,7 @@ public enum AssetStaleness
 }
 
 /// <summary>One probe result: a node, a kind, and how its tree compares with NAS.</summary>
-public sealed record AssetProbeFinding(int NodeId, string Kind, AssetStaleness State, AssetTreeSummary Node, AssetTreeSummary Nas);
+public sealed record AssetProbeFinding(NodeId NodeId, string Kind, AssetStaleness State, AssetTreeSummary Node, AssetTreeSummary Nas);
 
 /// <summary>
 /// ⭐⭐ <b>Increment C — the explicit node↔NAS operations and the staleness probe</b> (docs/DESIGN_Asset_Management.md §5,
@@ -125,7 +126,7 @@ public sealed class AssetSyncService
                 var node = AssetTreeSummary.Of(AssetManifest.Scan(root));
                 var nas = AssetTreeSummary.Of(AssetManifest.Scan(OrchestrationConstants.GetNasAssetRoot(nasBasePath, kind)));
                 var state = Compare(node, nas);
-                if (state != AssetStaleness.InSync) findings.Add(new AssetProbeFinding(nodeId, kind, state, node, nas));
+                if (state != AssetStaleness.InSync) findings.Add(new AssetProbeFinding((Fdp.Core.NodeId)(nodeId), kind, state, node, nas));
             }
         }
         return findings;

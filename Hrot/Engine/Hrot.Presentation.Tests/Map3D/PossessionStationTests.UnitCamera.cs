@@ -61,7 +61,7 @@ public sealed partial class PossessionStationTests
         var (w, unit, _) = World();
         using (w)
         {
-            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var ammo = new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = 2 };                                       // two weapons
             ammo.Set(0, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 30, MaxAmmo = 30 });
             ammo.Set(1, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 10, MaxAmmo = 10 });

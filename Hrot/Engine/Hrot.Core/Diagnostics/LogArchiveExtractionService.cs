@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Fdp.Core;
 
 namespace Hrot.Core.Diagnostics
 {
@@ -24,7 +25,7 @@ namespace Hrot.Core.Diagnostics
     {
         private readonly string _logDirectory;
         private readonly string _subsystemName;
-        private readonly int    _nodeId;
+        private readonly NodeId    _nodeId;
 
         /// <param name="logDirectory">Directory that contains the log files.</param>
         /// <param name="subsystemName">Name prefix used to build the file glob pattern.</param>
@@ -33,7 +34,7 @@ namespace Hrot.Core.Diagnostics
         {
             _logDirectory  = logDirectory  ?? throw new ArgumentNullException(nameof(logDirectory));
             _subsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
-            _nodeId        = nodeId;
+            _nodeId        = (Fdp.Core.NodeId)(nodeId);
         }
 
         /// <inheritdoc/>

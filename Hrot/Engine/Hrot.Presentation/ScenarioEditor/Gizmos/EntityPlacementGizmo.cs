@@ -257,7 +257,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             {
                 NetworkId         = 0,
                 TkbType           = (Fdp.Core.TkbTypeId)(_tkbType),
-                OwnerNodeId       = 0,
+                OwnerNodeId       = (Fdp.Core.NodeId)(0),
                 InitType          = ReliableInitType.AllPeers,
                 InitialTransform  = new SimTransform
                 {

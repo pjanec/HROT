@@ -123,7 +123,7 @@ public sealed class DdsFileTransferProvider : IFileTransferProvider, IDisposable
                     {
                         _errors.Add(ex.Message);
                         _failedNodes.Clear();
-                        _failedNodes.AddRange(_request.Targets.Select(t => t.NodeId).Distinct());
+                        _failedNodes.AddRange(_request.Targets.Select(t => t.NodeId.Value).Distinct());
                     }
                     _failed = _request.Items.Count * _request.Targets.Count;
                     _done = 0;

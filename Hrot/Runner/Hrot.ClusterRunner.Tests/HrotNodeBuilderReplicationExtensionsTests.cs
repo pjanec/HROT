@@ -28,7 +28,7 @@ public sealed class HrotNodeBuilderReplicationExtensionsTests
     private static HrotNodeConfig HeadlessConfig() => new()
     {
         DomainId = 0,
-        NodeId   = 1,
+        NodeId   = (Fdp.Core.NodeId)(1),
         Headless = true,
     };
 

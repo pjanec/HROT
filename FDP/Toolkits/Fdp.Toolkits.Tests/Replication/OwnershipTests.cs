@@ -15,7 +15,7 @@ namespace Fdp.Toolkit.Replication.Tests
 {
     class MockNetworkTopology : INetworkTopology
     {
-        public int LocalNodeId { get; set; }
+        public Fdp.Core.NodeId LocalNodeId { get; set; }
         public int GetOptimisticPeerCount(DISEntityType entityType) => 0;
         public IReadOnlyList<int> GetParticipatingPeers(DISEntityType entityType) => new List<int>();
         public bool IsPeerAlive(int nodeId) => true;
@@ -36,7 +36,7 @@ namespace Fdp.Toolkit.Replication.Tests
             repo.RegisterEvent<OwnershipUpdate>();
 
             var map = new NetworkEntityMap();
-            var topo = new MockNetworkTopology { LocalNodeId = 1 };
+            var topo = new MockNetworkTopology { LocalNodeId = (Fdp.Core.NodeId)(1) };
             var sys = new OwnershipIngressSystem(map, topo);
 
             var entity = repo.CreateEntity();
@@ -48,7 +48,7 @@ namespace Fdp.Toolkit.Replication.Tests
             {
                 NetworkId = new NetworkIdentity(netId),
                 PackedKey = PackedKey.Create(1, 0),
-                NewOwnerNodeId = 5
+                NewOwnerNodeId = (Fdp.Core.NodeId)(5)
             };
             repo.Bus.Publish(msg);
             repo.Bus.SwapBuffers();
@@ -71,7 +71,7 @@ namespace Fdp.Toolkit.Replication.Tests
             repo.RegisterEvent<DescriptorAuthorityChanged>();
 
             var map = new NetworkEntityMap();
-            var topo = new MockNetworkTopology { LocalNodeId = 10 };
+            var topo = new MockNetworkTopology { LocalNodeId = (Fdp.Core.NodeId)(10) };
             var sys = new OwnershipIngressSystem(map, topo);
 
             var entity = repo.CreateEntity();
@@ -83,7 +83,7 @@ namespace Fdp.Toolkit.Replication.Tests
             {
                 NetworkId = new NetworkIdentity(netId),
                 PackedKey = PackedKey.Create(2, 0),
-                NewOwnerNodeId = 10
+                NewOwnerNodeId = (Fdp.Core.NodeId)(10)
             };
             repo.Bus.Publish(msg);
             repo.Bus.SwapBuffers();
@@ -133,7 +133,7 @@ namespace Fdp.Toolkit.Replication.Tests
             {
                 NetworkId      = new NetworkIdentity(netId),
                 PackedKey      = PackedKey.Create(MasterOrdinal, 0),
-                NewOwnerNodeId = 1
+                NewOwnerNodeId = (Fdp.Core.NodeId)(1)
             });
             repo.Bus.SwapBuffers();
 
@@ -169,7 +169,7 @@ namespace Fdp.Toolkit.Replication.Tests
             {
                 NetworkId      = new NetworkIdentity(netId),
                 PackedKey      = PackedKey.Create(MasterOrdinal, 0),
-                NewOwnerNodeId = 2
+                NewOwnerNodeId = (Fdp.Core.NodeId)(2)
             });
             repo.Bus.SwapBuffers();
 
@@ -206,7 +206,7 @@ namespace Fdp.Toolkit.Replication.Tests
             {
                 NetworkId      = new NetworkIdentity(netId),
                 PackedKey      = PackedKey.Create(3, 0),
-                NewOwnerNodeId = 2
+                NewOwnerNodeId = (Fdp.Core.NodeId)(2)
             });
             repo.Bus.SwapBuffers();
 
@@ -225,7 +225,7 @@ namespace Fdp.Toolkit.Replication.Tests
             repo.RegisterManagedComponent<DescriptorOwnership>();
             repo.RegisterEvent<OwnershipUpdate>();
 
-            var sys = new OwnershipEgressSystem(new MockNetworkTopology { LocalNodeId = 77 });
+            var sys = new OwnershipEgressSystem(new MockNetworkTopology { LocalNodeId = (Fdp.Core.NodeId)(77) });
 
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(1));

@@ -44,7 +44,7 @@ public sealed class NodeOpMasterTranslatorTests
         // Publish intent to bus (write buffer)
         bus.PublishManaged(new ExecuteNodeOpIntent
         {
-            TargetNodeId  = 2,
+            TargetNodeId  = (Fdp.Core.NodeId)(2),
             TransactionId = Guid.NewGuid(),
             Operation     = FdpNodeOpType.PrepareLive,
             DomainPayload = new EditLoadHandlerPayload("scene1", false, (FdpClusterState)(int)NedClusterState.LoadingLive),
@@ -90,7 +90,7 @@ public sealed class NodeOpMasterTranslatorTests
         var translator = new NodeOpMasterTranslator(new Dictionary<int, DdsWriter<NodeOpCommand>> { [2] = nodeWriter2 }, statusReader, bus);
         bus.PublishManaged(new ExecuteNodeOpIntent
         {
-            TargetNodeId = 2, TransactionId = Guid.NewGuid(), Operation = FdpNodeOpType.PrepareLive,
+            TargetNodeId = (Fdp.Core.NodeId)(2), TransactionId = Guid.NewGuid(), Operation = FdpNodeOpType.PrepareLive,
             DomainPayload = new EditLoadHandlerPayload("scene1", false, (FdpClusterState)(int)NedClusterState.LoadingLive, RecordingOff: true),
         });
         bus.SwapBuffers();
@@ -125,7 +125,7 @@ public sealed class NodeOpMasterTranslatorTests
 
         bus.PublishManaged(new ExecuteNodeOpIntent
         {
-            TargetNodeId  = 1,
+            TargetNodeId  = (Fdp.Core.NodeId)(1),
             TransactionId = Guid.NewGuid(),
             Operation     = FdpNodeOpType.CommitState,
             DomainPayload = null,
@@ -218,7 +218,7 @@ public sealed class NodeOpMasterTranslatorTests
         var txId = Guid.NewGuid();
         masterBus.PublishManaged(new ExecuteNodeOpIntent
         {
-            TargetNodeId  = nodeId,
+            TargetNodeId  = (Fdp.Core.NodeId)(nodeId),
             TransactionId = txId,
             Operation     = FdpNodeOpType.CommitState,
             DomainPayload = new CommitStatePayload(FdpClusterState.LoadingLive),

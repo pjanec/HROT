@@ -25,7 +25,7 @@ namespace Hrot.Network.NED.IG
 
         private readonly DdsReader<WeaponFire>? _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;   // ⭐ CE-1148 S2 — this node's own shots are dropped (SourceNodeId)
+        private readonly NodeId _localNodeId;   // ⭐ CE-1148 S2 — this node's own shots are dropped (SourceNodeId)
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<WeaponFire>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtWeaponFire;
@@ -40,10 +40,10 @@ namespace Hrot.Network.NED.IG
         public WeaponFireIngressTranslator(
             DdsParticipant? participant,
             NetworkEntityMap entityMap,
-            long localNodeId)
+            int localNodeId)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _reader    = participant is not null
                 ? new DdsReader<WeaponFire>(participant)
                 : null;

@@ -118,7 +118,7 @@ public sealed class FdpOrchestrationCqrsStructTests
         var intent = new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(),
-            TargetNodeId = 1,
+            TargetNodeId = (Fdp.Core.NodeId)(1),
             Operation = NodeOpType.PrepareLive,
             DomainPayload = null,
         };

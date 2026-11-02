@@ -9,6 +9,7 @@ using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using Fdp.Core;
+using NodeId = NodeEditor.Primitives.NodeId;
 using Hrot.Editor.AiShared;  // WHEN-M11-T5: Use canonical ReactiveGuardVocabulary
 
 namespace Hrot.Blueprints.Tests.Integration;

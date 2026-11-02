@@ -43,7 +43,7 @@ namespace Hrot.Network.NED.IG
         /// </summary>
         /// <param name="participant">Active DDS participant; must not be null.</param>
         /// <param name="nodeId">Node ID of this IG instance (used as MapId).</param>
-        public NedIgNetworkAdapter(DdsParticipant participant, long nodeId = 0)
+        public NedIgNetworkAdapter(DdsParticipant participant, int nodeId = 0)
         {
             if (participant == null) throw new ArgumentNullException(nameof(participant));
 

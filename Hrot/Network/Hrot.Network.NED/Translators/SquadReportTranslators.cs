@@ -24,7 +24,7 @@ namespace Hrot.Network.Translators
 
         private readonly IDdsWriter<SquadReport> _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<SquadReport>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtSquadReport;
@@ -36,17 +36,17 @@ namespace Hrot.Network.Translators
         public long RefusedCount { get; private set; }
 
         /// <summary>Production constructor — creates a live DDS writer.</summary>
-        public SquadReportEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, long localNodeId)
+        public SquadReportEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, int localNodeId)
             : this(new DdsWriterAdapter<SquadReport>(participant), entityMap, localNodeId)
         {
         }
 
         /// <summary>Testable constructor — accepts an injected writer.</summary>
-        internal SquadReportEgressTranslator(IDdsWriter<SquadReport> writer, NetworkEntityMap entityMap, long localNodeId)
+        internal SquadReportEgressTranslator(IDdsWriter<SquadReport> writer, NetworkEntityMap entityMap, int localNodeId)
         {
             _writer      = writer    ?? throw new ArgumentNullException(nameof(writer));
             _entityMap   = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <inheritdoc/>
@@ -77,7 +77,7 @@ namespace Hrot.Network.Translators
             return e.IsNull || _entityMap.TryGetNetworkId(e, out id);
         }
 
-        internal static SquadReport ToWire(SquadReportNotification n, int from, int to, int subject, long origin)
+        internal static SquadReport ToWire(SquadReportNotification n, int from, int to, int subject, int origin)
         {
             ref readonly var r = ref n.Report;
             return new SquadReport
@@ -115,7 +115,7 @@ namespace Hrot.Network.Translators
     {
         private readonly DdsReader<SquadReport>? _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<SquadReport>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtSquadReport;
@@ -127,11 +127,11 @@ namespace Hrot.Network.Translators
         public long UnknownKindCount { get; private set; }
 
         /// <summary>Production constructor. A <c>null</c> participant makes <see cref="PollIngress"/> a no-op (tests).</summary>
-        public SquadReportIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap, long localNodeId)
+        public SquadReportIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap, int localNodeId)
         {
             _reader      = participant is not null ? new DdsReader<SquadReport>(participant) : null;
             _entityMap   = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <inheritdoc />
@@ -166,7 +166,7 @@ namespace Hrot.Network.Translators
             {
                 FromUnit = EntityOf(report.FromUnit), ToUnit = EntityOf(report.ToUnit),
                 Subject = report.Subject == 0 ? Entity.Null : EntityOf(report.Subject), Building = report.Building, SentAt = report.SentAt,
-                Report = SquadReportEgressTranslator.FromWire(in report), OriginNodeId = report.OriginNodeId,
+                Report = SquadReportEgressTranslator.FromWire(in report), OriginNodeId = (Fdp.Core.NodeId)(report.OriginNodeId),
             });
             return true;
         }

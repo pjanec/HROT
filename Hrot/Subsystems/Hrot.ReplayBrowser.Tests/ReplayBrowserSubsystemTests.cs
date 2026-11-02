@@ -123,7 +123,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         DomainId      = 0,
         Headless      = true,
         OwnWindow     = false,
-        NodeId        = 0,
+        NodeId        = (Fdp.Core.NodeId)(0),
         SubsystemName = "ReplayBrowser",
     };
 
@@ -641,7 +641,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     private static string CreateMinimalFdpFile(string directory, Guid exerciseId, int nodeId)
     {
         var path = Path.Combine(directory, $"node{nodeId}.fdp");
-        var meta = new RecordingMetadata { ExerciseId = exerciseId, NodeId = nodeId };
+        var meta = new RecordingMetadata { ExerciseId = exerciseId, NodeId = (Fdp.Core.NodeId)(nodeId) };
         using var repo = new EntityRepository();
         using var recorder = new AsyncRecorder(path, meta);
         recorder.CaptureKeyframe(repo, 1_000_000L, blocking: true, eventBus: repo.Bus);
@@ -658,7 +658,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     private string MakeOneFrameRecording(int nodeId, Guid exerciseId)
     {
         string path = Path.Combine(_tempDir, $"node{nodeId}_{Guid.NewGuid():N}.fdp");
-        var meta = new RecordingMetadata { ExerciseId = exerciseId, NodeId = nodeId };
+        var meta = new RecordingMetadata { ExerciseId = exerciseId, NodeId = (Fdp.Core.NodeId)(nodeId) };
         using var repo = new EntityRepository();
         repo.RegisterComponent<NetworkIdentity>();
         var e = repo.CreateEntity();
@@ -1085,7 +1085,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     public void CE3126_TheRecordingCarriesItsOrigin_AndTheReplayUsesIt()
     {
         string path = Path.Combine(_tempDir, "geo.fdp");
-        var meta = new RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = 1 };
+        var meta = new RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = (Fdp.Core.NodeId)(1) };
         using (var repo = new EntityRepository())
         {
             var geo = new Fdp.Modules.Geographic.Transforms.WGS84Transform(48.1, 11.5, 500.0);
@@ -1135,7 +1135,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     private string RecordNamingTerrain(string file, string terrainName)
     {
         string path = Path.Combine(_tempDir, file);
-        var meta = new RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = 1 };
+        var meta = new RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = (Fdp.Core.NodeId)(1) };
         using var repo = new EntityRepository();
         repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainDefinition>();
         repo.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainDefinition { ResolvedName = terrainName });
@@ -1222,7 +1222,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         string dir = into ?? Path.Combine(stagingRoot, "nodes", $"node-{nodeId}", "exercises", exerciseId.ToString());
         Directory.CreateDirectory(dir);
         string path = Path.Combine(dir, $"node_{nodeId}.fdp");
-        var meta = new RecordingMetadata { ExerciseId = exerciseId, NodeId = nodeId };
+        var meta = new RecordingMetadata { ExerciseId = exerciseId, NodeId = (Fdp.Core.NodeId)(nodeId) };
         using var repo = new EntityRepository();
         repo.RegisterComponent<NetworkIdentity>();
         repo.AddComponent(repo.CreateEntity(), new NetworkIdentity { Value = nodeId * 100 });
@@ -1344,7 +1344,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         using (var repo = new EntityRepository())
         {
             repo.RegisterEvent<RbFramePing>();
-            using var rec = new AsyncRecorder(path, new RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = 1 });
+            using var rec = new AsyncRecorder(path, new RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = (Fdp.Core.NodeId)(1) });
             for (int f = 0; f <= 3; f++)
             {
                 repo.Bus.Publish(new RbFramePing { Frame = f });
@@ -1462,7 +1462,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             repo.RegisterComponent<NetworkIdentity>();
             repo.AddComponent(repo.CreateEntity(), new NetworkIdentity { Value = 100 });
             repo.AddComponent(repo.CreateEntity(), new NetworkIdentity { Value = 101 });
-            using var rec = new AsyncRecorder(path, new RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = 1 });
+            using var rec = new AsyncRecorder(path, new RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = (Fdp.Core.NodeId)(1) });
             rec.CaptureKeyframe(repo, TimeSpan.FromSeconds(1).Ticks, blocking: true, eventBus: repo.Bus);
         }
         _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
@@ -1510,7 +1510,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         {
             repo.RegisterComponent<NetworkIdentity>();
             repo.AddComponent(repo.CreateEntity(), new NetworkIdentity { Value = 100 });
-            using var rec = new AsyncRecorder(path, new RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = 1 });
+            using var rec = new AsyncRecorder(path, new RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = (Fdp.Core.NodeId)(1) });
             long t0 = TimeSpan.FromSeconds(1).Ticks;
             repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0d });
             rec.CaptureKeyframe(repo, t0, blocking: true, eventBus: repo.Bus);
@@ -1572,7 +1572,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             repo.AddComponent(striker, new NetworkIdentity { Value = 100 });
             victim = repo.CreateEntity();
             repo.AddComponent(victim, new NetworkIdentity { Value = 101 });
-            using var rec = new AsyncRecorder(path, new RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = 1 });
+            using var rec = new AsyncRecorder(path, new RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = (Fdp.Core.NodeId)(1) });
             long t0 = TimeSpan.FromSeconds(1).Ticks;
             repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0d, DeltaTime = 1f / 60f, TimeScale = 1f });
             rec.CaptureKeyframe(repo, t0, blocking: true, eventBus: repo.Bus);
@@ -1623,7 +1623,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     {
         Directory.CreateDirectory(dir);
         string path = Path.Combine(dir, "node_1.fdp");
-        var meta = new RecordingMetadata { ExerciseId = exerciseId ?? Guid.NewGuid(), NodeId = 1, ScenarioName = "s-film", ScenarioHash = scenarioHash };
+        var meta = new RecordingMetadata { ExerciseId = exerciseId ?? Guid.NewGuid(), NodeId = (Fdp.Core.NodeId)(1), ScenarioName = "s-film", ScenarioHash = scenarioHash };
         using var repo = new EntityRepository();
         repo.RegisterComponent<NetworkIdentity>();
         repo.AddComponent(repo.CreateEntity(), new NetworkIdentity { Value = 100 });
@@ -2543,7 +2543,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             string path = RecordFilmRun(dir, 6d);
             PutTakeBeside(dir, SegmentedTake());
             _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
-            _subsystem.Initialize(new SubsystemConfig { DomainId = 0, Headless = false, OwnWindow = false, NodeId = 0, SubsystemName = "ReplayBrowser" });
+            _subsystem.Initialize(new SubsystemConfig { DomainId = 0, Headless = false, OwnWindow = false, NodeId = (Fdp.Core.NodeId)(0), SubsystemName = "ReplayBrowser" });
             var (host, queue, port) = DirectorHttp();
             using var _ = host;
             using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(300) };
@@ -2770,7 +2770,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             // pilotLike: the pilot\'s shape — a bake with NO scenario hash (stale), the burst at 33.1 s of a 45 s recording, the contact sheets made BEFORE the play
             PutTakeBeside(dir, pilotLike ? PilotTake() with { Baked = new Hrot.UI.Common.Map3D.Director.BakedAnchors { Times = new Dictionary<string, double> { ["blast#1"] = 33.1 }, TickHz = 60, ScenarioHash = "" } } : PilotTake());
             _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
-            _subsystem.Initialize(new SubsystemConfig { DomainId = 0, Headless = false, OwnWindow = false, NodeId = 0, SubsystemName = "ReplayBrowser" });
+            _subsystem.Initialize(new SubsystemConfig { DomainId = 0, Headless = false, OwnWindow = false, NodeId = (Fdp.Core.NodeId)(0), SubsystemName = "ReplayBrowser" });
             var (host, queue, port) = DirectorHttp();
             using var _ = host;
             using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(300) };
@@ -3072,7 +3072,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             PutTakeBeside(dirA, SegmentedTake());
             PutTakeBeside(dirB, TwoShotTake());
             _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
-            _subsystem.Initialize(new SubsystemConfig { DomainId = 0, Headless = false, OwnWindow = false, NodeId = 0, SubsystemName = "ReplayBrowser" });
+            _subsystem.Initialize(new SubsystemConfig { DomainId = 0, Headless = false, OwnWindow = false, NodeId = (Fdp.Core.NodeId)(0), SubsystemName = "ReplayBrowser" });
             var (host, queue, port) = DirectorHttp();
             using var _ = host;
             using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(300) };
@@ -3155,7 +3155,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             PutTakeBeside(dirA, SegmentedTake());
             PutTakeBeside(dirB, TwoShotTake());
             _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
-            _subsystem.Initialize(new SubsystemConfig { DomainId = 0, Headless = false, OwnWindow = false, NodeId = 0, SubsystemName = "ReplayBrowser" });
+            _subsystem.Initialize(new SubsystemConfig { DomainId = 0, Headless = false, OwnWindow = false, NodeId = (Fdp.Core.NodeId)(0), SubsystemName = "ReplayBrowser" });
             void Frame()
             {
                 _subsystem.Update(1f / 60f);
@@ -3245,7 +3245,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             var missing = Fdp.Core.FlightRecorder.RecordedAssemblies.EnsureLoaded(
                 Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(File.ReadAllText(recording + ".meta.json")));
             Log($"recorded assemblies not carried: [{string.Join(", ", missing)}]");
-            _subsystem.Initialize(new SubsystemConfig { DomainId = 0, Headless = false, OwnWindow = false, NodeId = 0, SubsystemName = "ReplayBrowser" });
+            _subsystem.Initialize(new SubsystemConfig { DomainId = 0, Headless = false, OwnWindow = false, NodeId = (Fdp.Core.NodeId)(0), SubsystemName = "ReplayBrowser" });
 
             void Frame()
             {
@@ -3369,7 +3369,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             Hrot.UI.Common.Map3D.FilmStudio.Reset();
             Fdp.Core.FlightRecorder.RecordedAssemblies.EnsureLoaded(
                 Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(File.ReadAllText(recording + ".meta.json")));
-            _subsystem.Initialize(new SubsystemConfig { DomainId = 0, Headless = false, OwnWindow = false, NodeId = 0, SubsystemName = "ReplayBrowser" });
+            _subsystem.Initialize(new SubsystemConfig { DomainId = 0, Headless = false, OwnWindow = false, NodeId = (Fdp.Core.NodeId)(0), SubsystemName = "ReplayBrowser" });
             string? grabScreen = null;   // ⭐ CE-1380 — the WINDOW's own frame, grabbed beside the capture (what the screen shows vs what the film shows)
             void Frame()
             {

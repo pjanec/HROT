@@ -38,7 +38,7 @@ namespace Fdp.Toolkit.Replication.Messages
         public int NetworkId;
 
         /// <summary>The node to hand the descriptors to.</summary>
-        public int NewOwnerNodeId;
+        public NodeId NewOwnerNodeId;
 
         /// <summary>Which descriptors move.</summary>
         public TransferScope Scope;

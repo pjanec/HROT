@@ -110,7 +110,7 @@ public sealed class CqrsOrchestrationIntegrationTests
     {
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = nodeId,
+            NodeId        = (Fdp.Core.NodeId)(nodeId),
             LocalStateId  = (int)state,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
             SubsystemName = subsystem,
@@ -218,7 +218,7 @@ public sealed class CqrsOrchestrationIntegrationTests
         // Update heartbeat for new state.
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = 1,
+            NodeId        = (Fdp.Core.NodeId)(1),
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.LoadingLive,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
             SubsystemName = "SimHost",
@@ -238,7 +238,7 @@ public sealed class CqrsOrchestrationIntegrationTests
         // Update heartbeat to OperatingLive so master roster stays fresh.
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = 1,
+            NodeId        = (Fdp.Core.NodeId)(1),
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.OperatingLive,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
             SubsystemName = "SimHost",

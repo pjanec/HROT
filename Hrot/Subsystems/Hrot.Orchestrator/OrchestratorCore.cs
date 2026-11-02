@@ -30,7 +30,7 @@ public sealed class OrchestratorCoreOptions
     public required ITimeController TimeReads { get; init; }
 
     /// <summary>The node id whose staging folder the master's own files use (orchestrator: 300; editor: its node).</summary>
-    public required int StagingNodeId { get; init; }
+    public required NodeId StagingNodeId { get; init; }
 
     /// <summary>
     /// ⭐⭐ <c>CE-4087</c> — the roles the host plays IN-PROCESS: the editor composes all four simulation roles in the process that

@@ -281,7 +281,7 @@ public sealed class AConcretePinSurvivesAReloadTests
         bus.PublishManaged(new StagingRemapPublishedEvent
         {
             StagingToRuntime = new Dictionary<int, int> { [100] = 7000, [101] = 7001 },
-            SourceNodeId     = 7,
+            SourceNodeId     = (Fdp.Core.NodeId)(7),
         });
         bus.SwapBuffers();
 

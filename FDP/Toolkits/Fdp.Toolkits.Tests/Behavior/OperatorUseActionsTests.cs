@@ -174,11 +174,11 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         /// <summary>A player: <paramref name="unit"/> held by station <paramref name="station"/> and of side <paramref name="side"/>.</summary>
-        private Entity Player(Entity unit, long station, ForceId side, PossessionMode mode = PossessionMode.Fps)
+        private Entity Player(Entity unit, int station, ForceId side, PossessionMode mode = PossessionMode.Fps)
         {
             if (_world.HasComponent<EntityInfo>(unit)) _world.SetComponent(unit, new EntityInfo { ForceId = side });
             else _world.AddComponent(unit, new EntityInfo { ForceId = side });
-            _world.AddComponent(unit, new PossessedBy { StationNodeId = station, Mode = mode, Epoch = 1 });
+            _world.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(station), Mode = mode, Epoch = 1 });
             return unit;
         }
 

@@ -1497,7 +1497,7 @@ public sealed class Map3DFrameRail
         world.SetSingletonManaged(map);
         world.AddComponent(me, new Fdp.Toolkit.Behavior.Possession.PossessedBy
         {
-            StationNodeId = 0, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1,   // this node (no authority data ⇒ 0)
+            StationNodeId = (Fdp.Core.NodeId)(0), Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1,   // this node (no authority data ⇒ 0)
         });
 
         string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
@@ -1623,7 +1623,7 @@ public sealed class Map3DFrameRail
         Man(stand + new Vector2(6f, -0.4f), 10f, 1003, StanceId.Prone);   // another, out of reach
         world.AddComponent(me, new Fdp.Toolkit.Behavior.Possession.PossessedBy
         {
-            StationNodeId = 0, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1,
+            StationNodeId = (Fdp.Core.NodeId)(0), Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1,
         });
 
         string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");

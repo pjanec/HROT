@@ -105,7 +105,7 @@ namespace Hrot.Network.Routing
                 var tokens = _nodeCapabilities.TryGetValue(sample.Data.NodeId, out var t) ? t : Array.Empty<string>();
                 _cache.UpdateNode(new NodeCapability
                 {
-                    NodeId             = sample.Data.NodeId,
+                    NodeId             = (Fdp.Core.NodeId)(sample.Data.NodeId),
                     Role               = NodeRoleTokens.MaskFromTokens(tokens),
                     Capabilities       = new HashSet<string>(tokens),
                     CpuUsagePercent    = Hrot.NED.Descriptors.Orchestration.WireUnits.FractionToPercent(sample.Data.CpuUsage),   // ⭐ AQ107 I — the wire carries a fraction
@@ -132,7 +132,7 @@ namespace Hrot.Network.Routing
             Fdp.Core.Logging.FdpLog<ClusterCapabilityIngestSystem>.Info(
                 "[ClusterCapabilityIngest] node {0} left ({1}).", nodeId, state);
             if (view is EntityRepository repo)
-                repo.Bus.Publish(new Fdp.Toolkit.Replication.Messages.NodeDeparted { NodeId = nodeId });
+                repo.Bus.Publish(new Fdp.Toolkit.Replication.Messages.NodeDeparted { NodeId = (Fdp.Core.NodeId)(nodeId) });
         }
 
         private static string[] DeserializeTokens(string? json)

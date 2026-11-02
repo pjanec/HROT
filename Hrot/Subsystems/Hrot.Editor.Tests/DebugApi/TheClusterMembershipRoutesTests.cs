@@ -40,8 +40,8 @@ public sealed class TheClusterMembershipRoutesTests
     {
         var svc = Cluster(new[]
         {
-            new ClusterRosterEntry(100, "IG", "Idle", "Map2D", 0.4),
-            new ClusterRosterEntry(400, "CGF", "OperatingLive", "Brain", 0.2),
+            new ClusterRosterEntry((Fdp.Core.NodeId)(100), "IG", "Idle", "Map2D", 0.4),
+            new ClusterRosterEntry((Fdp.Core.NodeId)(400), "CGF", "OperatingLive", "Brain", 0.2),
         });
 
         var (result, error, _) = svc.GetClusterRoster();
@@ -63,8 +63,8 @@ public sealed class TheClusterMembershipRoutesTests
     {
         var svc = Cluster(new[]
         {
-            new ClusterRosterEntry(100, "IG", "Idle", "Map2D", 0.4, "film-cam"),
-            new ClusterRosterEntry(101, "IG", "Refused", "None", 0.1, "film-cam", "name 'film-cam' is held by live node 100"),
+            new ClusterRosterEntry((Fdp.Core.NodeId)(100), "IG", "Idle", "Map2D", 0.4, "film-cam"),
+            new ClusterRosterEntry((Fdp.Core.NodeId)(101), "IG", "Refused", "None", 0.1, "film-cam", "name 'film-cam' is held by live node 100"),
         });
 
         var (result, error, _) = svc.GetClusterRoster();
@@ -110,7 +110,7 @@ public sealed class TheClusterMembershipRoutesTests
             new ISubsystemDebugProvider[]
             {
                 new SubsystemDebugProvider("IG", "IG", master: () => _master, clusterView: () => view, recordLiveRunsOff: () => false,
-                    clusterRoster: () => new[] { new ClusterRosterEntry(7, "IG", "Idle", "Map2D", 0.1, "film-cam"), new ClusterRosterEntry(1, "SimHost", "Idle", "None", 0.1, "sim-1") }),
+                    clusterRoster: () => new[] { new ClusterRosterEntry((Fdp.Core.NodeId)(7), "IG", "Idle", "Map2D", 0.1, "film-cam"), new ClusterRosterEntry((Fdp.Core.NodeId)(1), "SimHost", "Idle", "None", 0.1, "sim-1") }),
             },
             currentPerspective: () => "IG",
             acksPending: null));

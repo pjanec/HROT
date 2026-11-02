@@ -26,7 +26,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
         private readonly EntityLifecycleModule _elm;
         private readonly NetworkEntityMap _networkMap;
         private readonly INetworkIdAllocator _idAllocator;
-        private readonly int _localNodeId;
+        private readonly NodeId _localNodeId;
         private readonly IReadOnlyList<ITkbEntityTranslator> _translators;
         private readonly Action<EntityRepository, Entity, bool>? _onEntitySpawned;
 
@@ -78,7 +78,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             _elm              = elm         ?? throw new ArgumentNullException(nameof(elm));
             _networkMap       = networkMap  ?? throw new ArgumentNullException(nameof(networkMap));
             _idAllocator      = idAllocator ?? throw new ArgumentNullException(nameof(idAllocator));
-            _localNodeId      = localNodeId;
+            _localNodeId      = (Fdp.Core.NodeId)(localNodeId);
             _translators      = translators ?? System.Array.Empty<ITkbEntityTranslator>();
             _onEntitySpawned  = onEntitySpawned;
             _expectedPeers    = expectedPeers;

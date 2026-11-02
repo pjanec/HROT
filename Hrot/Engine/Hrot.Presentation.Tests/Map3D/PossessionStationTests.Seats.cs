@@ -57,7 +57,7 @@ public sealed partial class PossessionStationTests
 
         // the station drives the pickup; G asks to possess the gunner (Fps — which releases the pickup)
         u.W.RemoveComponent<PossessedBy>(u.Me);
-        u.W.AddComponent(pickup, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+        u.W.AddComponent(pickup, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
         var (station, sw, _) = Station(u, 0);
         Assert.Equal(pickup, station.Unit);
         Assert.Equal("SEAT DRIVER  (G: next seat)", PossessionStation.Hud.SeatLine(u.W, pickup));
@@ -68,7 +68,7 @@ public sealed partial class PossessionStationTests
 
         // the brain applies it: now the gunner is held, the pickup free
         u.W.RemoveComponent<PossessedBy>(pickup);
-        u.W.AddComponent(gunner, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 2 });
+        u.W.AddComponent(gunner, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 2 });
         station.Update(0.016f);
         sw.Camera3D.Update(0.016f);
         var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
@@ -101,17 +101,17 @@ public sealed partial class PossessionStationTests
         using var u = new UseWorld();
         var (pickup, gunner, _) = Technical(u);
         u.W.RemoveComponent<PossessedBy>(u.Me);
-        u.W.AddComponent(gunner, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });   // I play the gun
+        u.W.AddComponent(gunner, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });   // I play the gun
         Assert.Equal(pickup, SeatSwitch.Next(u.W, gunner));                                        // the driver seat is nobody's: as before
 
-        u.W.AddComponent(pickup, new PossessedBy { StationNodeId = 77, Mode = PossessionMode.Fps, Epoch = 1 });   // another player drives
+        u.W.AddComponent(pickup, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(77), Mode = PossessionMode.Fps, Epoch = 1 });   // another player drives
         Assert.Equal(Entity.Null, SeatSwitch.Next(u.W, gunner));                                   // never pushed from it
         Assert.Null(PossessionStation.Hud.SeatLine(u.W, gunner));
 
         u.W.RemoveComponent<PossessedBy>(pickup);                                                  // I drive, he plays the gun
         u.W.RemoveComponent<PossessedBy>(gunner);
-        u.W.AddComponent(pickup, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 2 });
-        u.W.AddComponent(gunner, new PossessedBy { StationNodeId = 77, Mode = PossessionMode.Fps, Epoch = 1 });
+        u.W.AddComponent(pickup, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 2 });
+        u.W.AddComponent(gunner, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(77), Mode = PossessionMode.Fps, Epoch = 1 });
         Assert.Equal(Entity.Null, SeatSwitch.Next(u.W, pickup));
         Assert.Equal(new[] { pickup, gunner }, SeatSwitch.Seats(u.W, pickup));                     // the seats exist; they are just not mine to take
 

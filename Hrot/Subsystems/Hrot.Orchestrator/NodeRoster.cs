@@ -3,7 +3,7 @@ using Fdp.Core;
 namespace Hrot.Orchestrator;
 
 /// <summary>⭐ <c>CE-3354</c> ② — a heartbeat the roster REFUSED because its node name is held by a different live node.</summary>
-public sealed record NameConflict(string Name, int HolderNodeId, int RefusedNodeId, string RefusedSubsystem, double LastSeenUtcSeconds);
+public sealed record NameConflict(string Name, NodeId HolderNodeId, NodeId RefusedNodeId, string RefusedSubsystem, double LastSeenUtcSeconds);
 
 /// <summary>Active nodes keyed by DDS node id; stale entries removed by <see cref="ClusterMaster"/>.</summary>
 public sealed class NodeRoster
@@ -37,7 +37,7 @@ public sealed class NodeRoster
         _active[profile.NodeId] = profile;
     }
 
-    private readonly Dictionary<(string Name, int NodeId), NameConflict> _conflicts = new();
+    private readonly Dictionary<(string Name, NodeId NodeId), NameConflict> _conflicts = new();
 
     /// <summary>⭐ <c>CE-3354</c> ② — the heartbeats refused for a name another LIVE node holds (current ones only: an entry goes when the holder leaves, the refused
     /// node takes another name or falls silent).</summary>
@@ -58,7 +58,7 @@ public sealed class NodeRoster
             if (!string.Equals(kv.Value.NodeName, profile.NodeName, StringComparison.OrdinalIgnoreCase)) continue;
             var key = (profile.NodeName.ToLowerInvariant(), profile.NodeId);
             firstTime = !_conflicts.ContainsKey(key);
-            conflict = new NameConflict(profile.NodeName, kv.Key, profile.NodeId, profile.SubsystemName, profile.LastHeartbeatUtcSeconds);
+            conflict = new NameConflict(profile.NodeName, (Fdp.Core.NodeId)(kv.Key), profile.NodeId, profile.SubsystemName, profile.LastHeartbeatUtcSeconds);
             _conflicts[key] = conflict;
             return false;
         }

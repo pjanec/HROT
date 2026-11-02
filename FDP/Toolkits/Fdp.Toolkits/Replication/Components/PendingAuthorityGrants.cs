@@ -29,7 +29,7 @@ namespace Fdp.Toolkit.Replication.Components
         public IReadOnlyDictionary<long, int> GrantsByDescriptor { get; init; } = new Dictionary<long, int>();
 
         /// <summary>The node ID that sent the <c>DeferredTakeOwnership</c> message (the original creator).</summary>
-        public int CreatorNodeId { get; init; }
+        public NodeId CreatorNodeId { get; init; }
 
         /// <summary>A NEW value with the grant merged in (last-write-wins per descriptor); this instance is unchanged.</summary>
         public PendingAuthorityGrants WithGrant(long descriptorTypeId, int nodeId)

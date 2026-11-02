@@ -45,7 +45,7 @@ namespace Hrot.Map.Common.Services
             ClusterSlave slave,
             TerrainLoadService? service,
             EntityRepository? world,
-            long nodeId = 0,
+            int nodeId = 0,
             string? localStagingRoot = null)
         {
             if (slave is null) throw new ArgumentNullException(nameof(slave));

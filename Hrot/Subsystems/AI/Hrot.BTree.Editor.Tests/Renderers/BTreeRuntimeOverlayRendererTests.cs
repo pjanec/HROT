@@ -15,6 +15,7 @@ using NodeEditor.Core.View;
 using NodeEditor.Primitives;
 using Xunit;
 using Fdp.Toolkit.ReplayBrowser.Timeline;
+using NodeId = NodeEditor.Primitives.NodeId;
 
 namespace Hrot.BTree.Editor.Tests.Renderers;
 

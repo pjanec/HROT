@@ -14,6 +14,7 @@ namespace Fdp.Toolkits.Tests.Replication
             Assert.Equal(typeof(Quaternion), SemanticValueTypes.StorageTypeOf(typeof(WorldRotation)));
             Assert.Equal(typeof(float), SemanticValueTypes.StorageTypeOf(typeof(Bearing)));
             Assert.Equal(typeof(long), SemanticValueTypes.StorageTypeOf(typeof(TkbTypeId)));   // ⭐ CE-4200 SV-2
+            Assert.Equal(typeof(int), SemanticValueTypes.StorageTypeOf(typeof(NodeId)));       // ⭐ CE-4200 SV-3
             Assert.Equal(typeof(Vector3), SemanticValueTypes.StorageTypeOf(typeof(Vector3)));
             Assert.Equal(typeof(string), SemanticValueTypes.StorageTypeOf(typeof(string)));
         }
@@ -29,7 +30,9 @@ namespace Fdp.Toolkits.Tests.Replication
             Assert.Equal(45f, SemanticValueTypes.ToStorage(new Bearing(45f)));
             Assert.Equal(new Bearing(45f), SemanticValueTypes.FromStorage(45f, typeof(Bearing)));
             Assert.Equal(101L, SemanticValueTypes.ToStorage(new TkbTypeId(101)));              // ⭐ CE-4200 SV-2
+            Assert.Equal(7, SemanticValueTypes.ToStorage(new NodeId(7)));                      // ⭐ CE-4200 SV-3
             Assert.Equal(new TkbTypeId(101), SemanticValueTypes.FromStorage(101L, typeof(TkbTypeId)));
+            Assert.Equal(new NodeId(7), SemanticValueTypes.FromStorage(7, typeof(NodeId)));
         }
 
         [Fact]

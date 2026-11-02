@@ -570,7 +570,7 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
                 ["frames"]       = m != null && m.Contexts.TryGetValue(m.LocalEntitiesProviderNodeId, out var p) ? p.Playback?.TotalFrames : null,
                 ["atSeconds"]    = _host.ReplaySeconds is { } s ? Math.Round(s, 6) : null,
                 ["spanSeconds"]  = zero is { } z && end is { } e ? Math.Round((e - z) / (double)TimeSpan.TicksPerSecond, 6) : null,
-                ["primaryNode"]  = m?.LocalEntitiesProviderNodeId,
+                ["primaryNode"]  = m?.LocalEntitiesProviderNodeId.Value,
                 ["view"]         = _host.ViewMode == ViewMode.Merged ? "merged" : "node",
                 ["playing"]      = _host.IsPlaying,
                 ["rate"]         = _host.PlaybackRate,

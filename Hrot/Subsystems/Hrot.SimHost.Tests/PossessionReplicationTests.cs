@@ -76,13 +76,13 @@ namespace Hrot.SimHost.Tests
             int idle = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.Idle);
             Assert.Equal(idle, w.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(mine).ActiveBehaviorHash);
 
-            w.Bus.Publish(new PossessRequestEvent { Unit = mine, StationNodeId = 7, Mode = PossessionMode.Fps });
-            w.Bus.Publish(new PossessRequestEvent { Unit = theirs, StationNodeId = 9, Mode = PossessionMode.Fps });
+            w.Bus.Publish(new PossessRequestEvent { Unit = mine, StationNodeId = (Fdp.Core.NodeId)(7), Mode = PossessionMode.Fps });
+            w.Bus.Publish(new PossessRequestEvent { Unit = theirs, StationNodeId = (Fdp.Core.NodeId)(9), Mode = PossessionMode.Fps });
             Frame();
             foreach (var u in new[] { mine, theirs })
                 Assert.Equal(Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Possession, w.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(u).Origin);
 
-            w.Bus.Publish(new Fdp.Toolkit.Replication.Messages.NodeDeparted { NodeId = 7 });
+            w.Bus.Publish(new Fdp.Toolkit.Replication.Messages.NodeDeparted { NodeId = (Fdp.Core.NodeId)(7) });
             Frame();
 
             Assert.False(w.HasComponent<PossessedBy>(mine));                     // released — Held = 0 replicates to every node
@@ -129,30 +129,30 @@ namespace Hrot.SimHost.Tests
             int op = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.OperatorControl);
             int idle = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.Idle);
 
-            w.Bus.Publish(new PossessRequestEvent { Unit = unit, StationNodeId = 7, Mode = PossessionMode.Fps });
+            w.Bus.Publish(new PossessRequestEvent { Unit = unit, StationNodeId = (Fdp.Core.NodeId)(7), Mode = PossessionMode.Fps });
             Frame();
-            w.Bus.Publish(new OperatorControlFrameEvent { Unit = unit, StationNodeId = 7, Seq = 1, Forward = 1f });
+            w.Bus.Publish(new OperatorControlFrameEvent { Unit = unit, StationNodeId = (Fdp.Core.NodeId)(7), Seq = 1, Forward = 1f });
             Frame();
             Assert.Equal(1u, w.GetComponentRO<OperatorInput>(unit).Seq);                       // Fps: frames arrive
 
-            w.Bus.Publish(new PossessRequestEvent { Unit = unit, StationNodeId = 7, Mode = PossessionMode.Riding });
+            w.Bus.Publish(new PossessRequestEvent { Unit = unit, StationNodeId = (Fdp.Core.NodeId)(7), Mode = PossessionMode.Riding });
             Frame();
             Assert.Equal(PossessionMode.Riding, w.GetComponentRO<PossessedBy>(unit).Mode);
             var riding = w.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(unit);
             Assert.Equal(Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Possession, riding.Origin);   // the task stays paused
             Assert.Equal(op, riding.ActiveBehaviorHash);                                         // the operator behaviour kept running
-            w.Bus.Publish(new OperatorControlFrameEvent { Unit = unit, StationNodeId = 7, Seq = 2, Forward = 1f, UseSeq = 1 });
+            w.Bus.Publish(new OperatorControlFrameEvent { Unit = unit, StationNodeId = (Fdp.Core.NodeId)(7), Seq = 2, Forward = 1f, UseSeq = 1 });
             Frame();
             Assert.False(w.HasComponent<OperatorInput>(unit));                                   // a rider takes no frames
 
-            w.Bus.Publish(new PossessRequestEvent { Unit = unit, StationNodeId = 7, Mode = PossessionMode.Fps });
+            w.Bus.Publish(new PossessRequestEvent { Unit = unit, StationNodeId = (Fdp.Core.NodeId)(7), Mode = PossessionMode.Fps });
             Frame();
             Assert.Equal(op, w.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(unit).ActiveBehaviorHash);
-            w.Bus.Publish(new OperatorControlFrameEvent { Unit = unit, StationNodeId = 7, Seq = 3, Forward = 1f });
+            w.Bus.Publish(new OperatorControlFrameEvent { Unit = unit, StationNodeId = (Fdp.Core.NodeId)(7), Seq = 3, Forward = 1f });
             Frame();
             Assert.Equal(3u, w.GetComponentRO<OperatorInput>(unit).Seq);                       // Fps again: frames route
 
-            w.Bus.Publish(new ReleasePossessionEvent { Unit = unit, StationNodeId = 7 });
+            w.Bus.Publish(new ReleasePossessionEvent { Unit = unit, StationNodeId = (Fdp.Core.NodeId)(7) });
             Frame();
             Assert.Equal(idle, w.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(unit).ActiveBehaviorHash);   // the task resumes
         }
@@ -193,7 +193,7 @@ namespace Hrot.SimHost.Tests
                 var ingress = new EntityPossessedByIngressTranslator(participant: null, stationMap);
                 using var cmd = new EntityCommandBuffer();
 
-                brain.AddComponent(brainsUnit, new PossessedBy { StationNodeId = 300, Mode = PossessionMode.Fps, Epoch = 1 });
+                brain.AddComponent(brainsUnit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(300), Mode = PossessionMode.Fps, Epoch = 1 });
                 var held = Assert.Single(egress.Scan(brain));
                 Assert.Equal((byte)1, held.Held);
                 Assert.Empty(egress.Scan(brain));   // unchanged ⇒ nothing sent
@@ -201,7 +201,7 @@ namespace Hrot.SimHost.Tests
                 cmd.Playback(station);
                 Assert.Equal(300L, station.GetComponentRO<PossessedBy>(stationsUnit).StationNodeId);
 
-                brain.SetComponent(brainsUnit, new PossessedBy { StationNodeId = 400, Mode = PossessionMode.Fps, Epoch = 2 });   // a take-over
+                brain.SetComponent(brainsUnit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(400), Mode = PossessionMode.Fps, Epoch = 2 });   // a take-over
                 var taken = Assert.Single(egress.Scan(brain));
                 ingress.Apply(in taken, cmd, station);
                 cmd.Playback(station);
@@ -315,10 +315,10 @@ namespace Hrot.SimHost.Tests
                 return u;
             }
 
-            public void Request(Entity unit, long station, PossessionMode mode = PossessionMode.Fps)
-                => W.Bus.Publish(new PossessRequestEvent { Unit = unit, StationNodeId = station, Mode = mode });
+            public void Request(Entity unit, int station, PossessionMode mode = PossessionMode.Fps)
+                => W.Bus.Publish(new PossessRequestEvent { Unit = unit, StationNodeId = (Fdp.Core.NodeId)(station), Mode = mode });
 
-            public long? Holder(Entity unit) => PossessionSystem.HolderOf(W, unit);
+            public int? Holder(Entity unit) => PossessionSystem.HolderOf(W, unit);
             public void Kill(Entity unit) => W.SetComponent(unit, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
 
             public void Dispose() => W.Dispose();
@@ -344,11 +344,11 @@ namespace Hrot.SimHost.Tests
 
             n.Request(unit, station: 9);
             n.Request(unit, station: 9, PossessionMode.Riding);
-            n.W.Bus.Publish(new OperatorControlFrameEvent { Unit = unit, StationNodeId = 9, Seq = 1, Forward = -1f });
-            n.W.Bus.Publish(new OperatorControlFrameEvent { Unit = unit, StationNodeId = 7, Seq = 1, Forward = 1f });
+            n.W.Bus.Publish(new OperatorControlFrameEvent { Unit = unit, StationNodeId = (Fdp.Core.NodeId)(9), Seq = 1, Forward = -1f });
+            n.W.Bus.Publish(new OperatorControlFrameEvent { Unit = unit, StationNodeId = (Fdp.Core.NodeId)(7), Seq = 1, Forward = 1f });
             n.Frame();
 
-            Assert.Equal(7L, n.Holder(unit));                                                    // still his
+            Assert.Equal(7, n.Holder(unit));                                                    // still his
             Assert.Equal(1u, n.W.GetComponentRO<PossessedBy>(unit).Epoch);                       // never re-taken, so never bumped
             Assert.Equal(PossessionMode.Fps, n.W.GetComponentRO<PossessedBy>(unit).Mode);
             Assert.Equal(op, n.W.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(unit).ActiveBehaviorHash);
@@ -357,7 +357,7 @@ namespace Hrot.SimHost.Tests
 
             n.Request(unit, station: 7, PossessionMode.Riding);                                  // the HOLDER may still change its own mode
             n.Frame();
-            Assert.Equal((7L, PossessionMode.Riding), (n.Holder(unit), n.W.GetComponentRO<PossessedBy>(unit).Mode));
+            Assert.Equal((7, PossessionMode.Riding), (n.Holder(unit), n.W.GetComponentRO<PossessedBy>(unit).Mode));
         }
 
         /// <summary>
@@ -374,15 +374,15 @@ namespace Hrot.SimHost.Tests
             n.Request(killed, station: 7);
             n.Request(departed, station: 8);
             n.Frame();
-            Assert.Equal((7L, 8L), (n.Holder(killed), n.Holder(departed)));
+            Assert.Equal((7, 8), (n.Holder(killed), n.Holder(departed)));
 
             n.Kill(killed);
-            n.W.Bus.Publish(new Fdp.Toolkit.Replication.Messages.NodeDeparted { NodeId = 8 });
+            n.W.Bus.Publish(new Fdp.Toolkit.Replication.Messages.NodeDeparted { NodeId = (Fdp.Core.NodeId)(8) });
             n.Request(departed, station: 9);
             n.Request(killed, station: 9);                                                      // a killed unit itself is nobody's to take
             n.Frame();
 
-            Assert.Equal(9L, n.Holder(departed));                                               // the departed holder let go, the next took it
+            Assert.Equal(9, n.Holder(departed));                                               // the departed holder let go, the next took it
             Assert.Null(n.Holder(killed));                                                      // released on death, and not possessable dead
         }
 
@@ -402,7 +402,7 @@ namespace Hrot.SimHost.Tests
                 n.W.AddComponent(v, new PassengerBuffer());
                 return v;
             }
-            Entity Rider(ForceId side, long station, Entity truck)
+            Entity Rider(ForceId side, int station, Entity truck)
             {
                 var r = n.Unit(side);
                 n.W.AddComponent(r, new SimTransform { Position = n.W.GetComponentRO<SimTransform>(truck).Position, Rotation = Quaternion.Identity });
@@ -423,11 +423,11 @@ namespace Hrot.SimHost.Tests
             n.Request(withFriend, station: 9);
             n.Frame();
             Assert.Null(n.Holder(withEnemy));                                                    // refused: an enemy player sits in it
-            Assert.Equal(9L, n.Holder(withFriend));                                              // a blue player sits in this one: fine
+            Assert.Equal(9, n.Holder(withFriend));                                              // a blue player sits in this one: fine
 
             n.Request(withEnemy, station: 5);                                                    // station 5 holds nothing: no side to be refused for
             n.Frame();
-            Assert.Equal(5L, n.Holder(withEnemy));
+            Assert.Equal(5, n.Holder(withEnemy));
         }
 
         /// <summary>

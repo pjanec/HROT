@@ -142,7 +142,7 @@ namespace Fdp.Toolkit.Time.Tests
                 participant: null, eventBus: bus, localNodeId: 10);
 
             // Publish completion event and make it readable.
-            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 3, NodeID = 10 });
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 3, NodeID = (Fdp.Core.NodeId)(10) });
             bus.SwapBuffers();
 
             // Translator drains the event (DDS write is no-op with null participant).

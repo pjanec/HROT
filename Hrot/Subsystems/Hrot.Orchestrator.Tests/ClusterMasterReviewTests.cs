@@ -34,7 +34,7 @@ public sealed class ClusterMasterReviewTests
         master.RegisterAggregator(new ReplayProcessManager(bus, new StillClock()).CreateReviewAggregator());
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId = 1, SubsystemName = "SimHost", LocalStateId = (int)ClusterState.OperatingLive, WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+            NodeId = (Fdp.Core.NodeId)(1), SubsystemName = "SimHost", LocalStateId = (int)ClusterState.OperatingLive, WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
         });
         bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
         return master;
@@ -68,7 +68,7 @@ public sealed class ClusterMasterReviewTests
         foreach (var op in ops)
             bus.PublishManaged(new NodeOpCompletedEvent
             {
-                TransactionId = op.TransactionId, Operation = op.Operation, NodeId = 1, StatusCode = OrchestrationStatusCode.Success,
+                TransactionId = op.TransactionId, Operation = op.Operation, NodeId = (Fdp.Core.NodeId)(1), StatusCode = OrchestrationStatusCode.Success,
                 IsParticipating = true,
                 ResultPayload = op.Operation == FdpNodeOpType.PrepareReview
                     ? new Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult(0, 12f, 4_000_000L, 124_000_000L) : null,

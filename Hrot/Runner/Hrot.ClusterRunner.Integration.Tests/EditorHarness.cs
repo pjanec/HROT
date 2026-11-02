@@ -306,7 +306,7 @@ public sealed class EditorHarness : IDisposable
             TkbDb              = tkbDb,
             IdAllocator        = _idAllocator,
             Elm                = new EntityLifecycleModule(tkbDb, Array.Empty<int>()),
-            NodeId             = 0,
+            NodeId             = (Fdp.Core.NodeId)(0),
             IsBroadcastArbiter = true,
         });
         var elm      = EntityCreation.Elm;

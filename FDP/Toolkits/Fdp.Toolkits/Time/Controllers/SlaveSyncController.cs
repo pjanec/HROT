@@ -33,7 +33,7 @@ namespace Fdp.Toolkit.Time.Controllers
         private SwitchTimeModeEvent _pendingBarrierEvent; // to retain the payload tied to the barrier for application on barrier hit
 
 		// ── Identity ─────────────────────────────────────────────────────────
-		private readonly int _localNodeId;
+		private readonly NodeId _localNodeId;
 
         // ── Virtual wall clock baseline (set on resume) ──────────────────────
         private long   _baselineWallTicks;   // SyncedWallTicks when baseline was captured
@@ -86,7 +86,7 @@ namespace Fdp.Toolkit.Time.Controllers
             Func<long>?  tickSource = null)
         {
             _eventBus    = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _config      = config ?? TimeConfig.Default;
             _getTick     = tickSource ?? HighResUtcClock.GetTicks;
 

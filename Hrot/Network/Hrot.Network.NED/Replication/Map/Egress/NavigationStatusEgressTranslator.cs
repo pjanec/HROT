@@ -26,7 +26,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         private readonly DdsWriter<Hrot.NED.Descriptors.NavigationStatus> _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<Hrot.NED.Descriptors.NavigationStatus>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationStatus;
@@ -54,11 +54,11 @@ namespace Hrot.Map.Common.Replication.Egress
         public NavigationStatusEgressTranslator(
             DdsParticipant   dds,
             NetworkEntityMap entityMap,
-            long localNodeId)
+            int localNodeId)
         {
             _writer    = new DdsWriter<Hrot.NED.Descriptors.NavigationStatus>(dds);
             _entityMap = entityMap ?? throw new System.ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <summary>No ingress for this translator.</summary>

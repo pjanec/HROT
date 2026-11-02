@@ -231,12 +231,12 @@ public sealed class StorageProcessManager
             {
                 if (!File.Exists(pulledPath)) continue;
                 if (JsonNode.Parse(File.ReadAllText(pulledPath)) is JsonObject dom)
-                    slices.Add(new ScenarioSlice(nodeId, entry.DocType, dom));
+                    slices.Add(new ScenarioSlice((Fdp.Core.NodeId)(nodeId), entry.DocType, dom));
             }
             else
             {
                 // ⛔ Foreign: never parsed — routed by tag (§4c).
-                slices.Add(new ScenarioSlice(nodeId, entry.DocType, null));
+                slices.Add(new ScenarioSlice((Fdp.Core.NodeId)(nodeId), entry.DocType, null));
                 foreignFiles[nodeId] = pulledPath;
             }
         }
@@ -262,7 +262,7 @@ public sealed class StorageProcessManager
             {
                 if (foreignFiles.TryGetValue(f.OriginNodeId, out var src) && File.Exists(src))
                     File.Copy(src, Path.Combine(foreignDir, $"node_{f.OriginNodeId}.json"), overwrite: true);
-                index.Add(new JsonObject { ["OriginNodeId"] = f.OriginNodeId, ["DocType"] = f.DocType });
+                index.Add(new JsonObject { ["OriginNodeId"] = f.OriginNodeId.Value, ["DocType"] = f.DocType });
             }
             File.WriteAllText(Path.Combine(foreignDir, "index.json"), index.ToJsonString());
             FdpLog<StorageProcessManager>.Info(

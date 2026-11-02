@@ -58,7 +58,7 @@ namespace Hrot.Common.Systems
         private readonly IEntityAckSink               _ackSink;
         private readonly NetworkEntityMap             _entityMap;
         private readonly EntityRequestFinalizationSystem _finalizationSystem;
-        private readonly int                          _localNodeId;
+        private readonly NodeId                          _localNodeId;
 
         public DeleteEntityRequestSystem(
             IEntityDeletionRequestSource requestSource,
@@ -71,7 +71,7 @@ namespace Hrot.Common.Systems
             _ackSink            = ackSink            ?? throw new ArgumentNullException(nameof(ackSink));
             _entityMap          = entityMap          ?? throw new ArgumentNullException(nameof(entityMap));
             _finalizationSystem = finalizationSystem ?? throw new ArgumentNullException(nameof(finalizationSystem));
-            _localNodeId        = localNodeId;
+            _localNodeId        = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <inheritdoc />

@@ -15,8 +15,8 @@ namespace Fdp.Toolkit.Replication.Messages
     {
         public NetworkIdentity NetworkId;
         public long PackedKey;
-        public int NewOwnerNodeId;
-        public int OriginNodeId;
+        public NodeId NewOwnerNodeId;
+        public NodeId OriginNodeId;
 
         public override string ToString()
         {
@@ -70,7 +70,7 @@ namespace Fdp.Toolkit.Replication.Messages
     [DataPolicy(DataPolicy.NoReplay)]
     public struct NodeDeparted
     {
-        public int NodeId;
+        public NodeId NodeId;
 
         public override string ToString() => $"NodeDeparted(Node={NodeId})";
     }

@@ -23,7 +23,7 @@ namespace Hrot.NED.Messages
         /// <summary>Network id of the unit reported to.</summary>
         public int ToUnit;
         /// <summary>The node that raised it (a node skips its own sample).</summary>
-        public long OriginNodeId;
+        public int OriginNodeId;
         /// <summary><c>ReportKind</c> (behaviors' <c>CommandReport.Kind</c>, the closed set); an unknown value still crosses and is logged by the receiver.</summary>
         public byte Kind;
         /// <summary>The kind's subtype.</summary>

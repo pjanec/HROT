@@ -81,7 +81,7 @@ public sealed class TrafficPack : INodeCapability, IDisposable
             Runtime = new TrafficRuntime(new TrafficServeOptions(
                 NextNetworkId: ids is not null ? ids.AllocateId : () => Interlocked.Decrement(ref local),
                 Participant: context.Participant,
-                Source: (uint)context.NodeId));
+                Source: (uint)context.NodeId.Value));
             context.Kernel.RegisterModule(new TrafficSteppingModule(Runtime));
         }
         Mirror = new TrafficMirrorSystem(Runtime, context.Participant, context.EntityMap, context.NodeId);

@@ -404,7 +404,7 @@ public sealed class DebugApiOrdersTests
         // and the brain enforces it too, for a request that arrives anyway (two stations racing): ignored, the holder keeps the unit
         h.Repo.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.PossessRequestEvent
         {
-            Unit = unit, StationNodeId = 9, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps,
+            Unit = unit, StationNodeId = (Fdp.Core.NodeId)(9), Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps,
         });
         h.PumpFrames(4);
         Assert.Equal(7, a.HolderOf(UnitId));

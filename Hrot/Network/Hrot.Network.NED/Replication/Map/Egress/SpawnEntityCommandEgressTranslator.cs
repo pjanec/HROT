@@ -15,6 +15,7 @@ using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.NED.Common;
 using Fdp.ModuleHost.Abstractions;
+using NodeId = Fdp.Core.NodeId;
 
 namespace Hrot.Map.Common.Replication.Egress
 {
@@ -38,7 +39,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         private readonly IDdsWriter<CreateEntityRequest> _writer;
         private readonly FdpEventBus _eventBus;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<CreateEntityRequest>();
         public long DescriptorOrdinal => OrdinalValue;
@@ -50,7 +51,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public SpawnEntityCommandEgressTranslator(
             DdsParticipant participant,
             FdpEventBus eventBus,
-            long localNodeId = 0)
+            int localNodeId = 0)
             : this(new DdsWriterAdapter<CreateEntityRequest>(participant), eventBus, localNodeId)
         {
         }
@@ -59,11 +60,11 @@ namespace Hrot.Map.Common.Replication.Egress
         internal SpawnEntityCommandEgressTranslator(
             IDdsWriter<CreateEntityRequest> writer,
             FdpEventBus eventBus,
-            long localNodeId = 0)
+            int localNodeId = 0)
         {
             _writer       = writer    ?? throw new ArgumentNullException(nameof(writer));
             _eventBus     = eventBus  ?? throw new ArgumentNullException(nameof(eventBus));
-            _localNodeId  = localNodeId;
+            _localNodeId  = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <summary>

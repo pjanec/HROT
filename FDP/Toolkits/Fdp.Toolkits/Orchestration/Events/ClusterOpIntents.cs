@@ -344,6 +344,6 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>The behaviour-asset kind id (<c>blueprint</c>, <c>btree</c>, <c>hsm</c>).</summary>
         public string? Kind;
         /// <summary>The authoring node.</summary>
-        public int     NodeId;
+        public NodeId     NodeId;
     }
 }

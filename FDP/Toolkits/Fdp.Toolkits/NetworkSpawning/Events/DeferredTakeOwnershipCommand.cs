@@ -16,7 +16,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Events
         public long DescriptorTypeId;
 
         /// <summary>Node ID that will own this descriptor.</summary>
-        public int NodeId;
+        public NodeId NodeId;
     }
 
     /// <summary>

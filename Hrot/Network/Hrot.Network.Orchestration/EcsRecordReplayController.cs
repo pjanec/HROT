@@ -75,7 +75,7 @@ namespace Hrot.SimHost.Modules.Orchestration
         }
 
         private readonly ModuleHostKernel _kernel;
-        private readonly int              _nodeId;
+        private readonly NodeId              _nodeId;
         private readonly EntityRepository _repo;
         private readonly Action?          _afterSeek;
 
@@ -220,7 +220,7 @@ namespace Hrot.SimHost.Modules.Orchestration
         {
             _kernel    = kernel ?? throw new ArgumentNullException(nameof(kernel));
             _repo      = repo   ?? throw new ArgumentNullException(nameof(repo));
-            _nodeId    = nodeId;
+            _nodeId    = (Fdp.Core.NodeId)(nodeId);
             Fdp.Toolkit.Replay.ReplayState.Ensure(_repo);   // ⭐ CE-3329 P2 — created here, on the composing thread; prepare only flips it
 
             // Unify NetworkEntityMap resync for all subsystems (Editor, SimHost, CGF, etc.)
@@ -325,7 +325,7 @@ namespace Hrot.SimHost.Modules.Orchestration
                 FilePath     = filePath,
                 EntityFilter = BuildEpisodeFilter(episodeId),
                 ExerciseId      = episodeId,
-                NodeId = 0,
+                NodeId = (Fdp.Core.NodeId)(0),
             };
             var module = new EpisodeRecorderModule(config);
             _episodeModules[episodeId] = module;

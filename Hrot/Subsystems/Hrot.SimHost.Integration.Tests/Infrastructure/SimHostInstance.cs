@@ -352,7 +352,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 TkbDb                 = _tkbDb,
                 IdAllocator           = IdAllocator,
                 Elm                   = _elm,
-                NodeId                = LocalNodeId,
+                NodeId                = (Fdp.Core.NodeId)(LocalNodeId),
                 NetworkRequestSource  = RequestSource,
                 AckSink               = AckSink,
                 JsonAttributeCompiler = jsonAttributeCompiler,

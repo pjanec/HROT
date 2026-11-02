@@ -68,7 +68,7 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem, Fdp.Interfaces.IRepl
     private readonly TrafficRuntime? _runtime;
     private readonly DdsParticipant? _participant;
     private readonly NetworkEntityMap? _entityMap;
-    private readonly int _localNodeId;
+    private readonly NodeId _localNodeId;
     private readonly List<TrafficCarPose> _cars = new();
     private readonly List<TrafficPedPose> _peds = new();
     private readonly Dictionary<(int Owner, uint Source), TrafficPedMirror> _pedMirrors = new();
@@ -122,7 +122,7 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem, Fdp.Interfaces.IRepl
         _runtime = runtime;
         _participant = participant;
         _entityMap = entityMap;
-        _localNodeId = localNodeId;
+        _localNodeId = (Fdp.Core.NodeId)(localNodeId);
     }
 
     /// <summary>The cars of the last frame, every sender's, in terrain-local metres (for the car layer and rails).</summary>
@@ -201,9 +201,9 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem, Fdp.Interfaces.IRepl
         if (own is not null)
         {
             own.Source.Pump();
-            Mirror(_localNodeId, (uint)_localNodeId, own.Source, own.Lanes, at, resolve);
+            Mirror(_localNodeId, (uint)_localNodeId.Value, own.Source, own.Lanes, at, resolve);
             own.Pedestrians.Pump(now);
-            MirrorPeds(_localNodeId, (uint)_localNodeId, own.Pedestrians, at, resolve);
+            MirrorPeds(_localNodeId, (uint)_localNodeId.Value, own.Pedestrians, at, resolve);
         }
         if (_participant is not null)
         {
@@ -212,7 +212,7 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem, Fdp.Interfaces.IRepl
             _dds.Pump();
             foreach (var (src, source) in _dds.Sources)
             {
-                if (_runtime is not null && src == (uint)_localNodeId) continue;   // our own steps, already read in memory (N7)
+                if (_runtime is not null && src == (uint)_localNodeId.Value) continue;   // our own steps, already read in memory (N7)
                 int owner = _dds.SenderAppInstanceOf(src) ?? (int)src;
                 Mirror(owner, src, source, _netLanes!, at, resolve);
             }
@@ -221,7 +221,7 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem, Fdp.Interfaces.IRepl
             _pedDds.Pump();
             foreach (var (src, peds) in _pedDds.Sources)
             {
-                if (_runtime is not null && src == (uint)_localNodeId) continue;
+                if (_runtime is not null && src == (uint)_localNodeId.Value) continue;
                 MirrorPeds(_pedDds.SenderAppInstanceOf(src) ?? (int)src, src, peds, at, resolve);
             }
         }

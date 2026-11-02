@@ -41,7 +41,7 @@ namespace Fdp.Toolkit.Behavior.Possession
         public Entity Unit;
         public PossessionMode Mode;
         /// <summary>The station — its node id (C-8: one operator per node).</summary>
-        public long StationNodeId;
+        public NodeId StationNodeId;
         public bool IsRemote;
     }
 
@@ -51,7 +51,7 @@ namespace Fdp.Toolkit.Behavior.Possession
     public struct ReleasePossessionEvent
     {
         public Entity Unit;
-        public long StationNodeId;
+        public NodeId StationNodeId;
         public bool IsRemote;
     }
 
@@ -64,7 +64,7 @@ namespace Fdp.Toolkit.Behavior.Possession
     public struct OperatorControlFrameEvent
     {
         public Entity Unit;
-        public long StationNodeId;
+        public NodeId StationNodeId;
         public uint Seq;
         public float Forward, Lateral, Steer, Yaw;
         /// <summary>⭐ CE-2168 (MD-D) — a flyer's climb axis ∈ [−1, 1].</summary>
@@ -122,7 +122,7 @@ namespace Fdp.Toolkit.Behavior.Possession
     [DataPolicy(DataPolicy.NoScenario)]
     public struct PossessedBy
     {
-        public long StationNodeId;
+        public NodeId StationNodeId;
         public PossessionMode Mode;
         /// <summary>Bumped on every take-over.</summary>
         public uint Epoch;
@@ -304,10 +304,10 @@ namespace Fdp.Toolkit.Behavior.Possession
             }
         }
 
-        private void Possess(EntityRepository repo, Entity unit, long station, PossessionMode mode)
+        private void Possess(EntityRepository repo, Entity unit, int station, PossessionMode mode)
         {
             uint epoch = repo.HasComponent<PossessedBy>(unit) ? repo.GetComponentRO<PossessedBy>(unit).Epoch + 1 : 1;
-            var held = new PossessedBy { StationNodeId = station, Mode = mode == PossessionMode.None ? PossessionMode.Fps : mode, Epoch = epoch };
+            var held = new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(station), Mode = mode == PossessionMode.None ? PossessionMode.Fps : mode, Epoch = epoch };
             bool already = repo.GetComponentRO<BehaviorState>(unit).Origin == BehaviorOrigin.Possession;
             if (repo.HasComponent<PossessedBy>(unit)) repo.SetComponent(unit, held);
             else repo.AddComponent(unit, held);
@@ -328,11 +328,11 @@ namespace Fdp.Toolkit.Behavior.Possession
         }
 
         /// <summary>The station holding <paramref name="unit"/> (null = nobody).</summary>
-        public static long? HolderOf(EntityRepository repo, Entity unit)
+        public static int? HolderOf(EntityRepository repo, Entity unit)
             => repo.IsComponentTypeRegistered<PossessedBy>() && repo.HasComponent<PossessedBy>(unit)
                 ? repo.GetComponentRO<PossessedBy>(unit).StationNodeId : null;
 
-        private static bool HeldBy(EntityRepository repo, Entity unit, long station)
+        private static bool HeldBy(EntityRepository repo, Entity unit, int station)
             => repo.HasComponent<PossessedBy>(unit) && repo.GetComponentRO<PossessedBy>(unit).StationNodeId == station;
 
         /// <summary>This node runs <paramref name="unit"/>'s brain — it applies possession events about it (the interaction codecs

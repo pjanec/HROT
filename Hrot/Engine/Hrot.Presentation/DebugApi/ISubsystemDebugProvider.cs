@@ -82,7 +82,7 @@ public sealed record TimelineAccess(
 }
 
 public sealed record ClusterRosterEntry(
-    int NodeId, string Subsystem, string ReportedState, string Roles, double SecondsSinceHeartbeat,
+    NodeId NodeId, string Subsystem, string ReportedState, string Roles, double SecondsSinceHeartbeat,
     string Name = "", string? NameConflict = null);
 
 public interface ISubsystemDebugProvider

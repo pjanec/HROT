@@ -1,3 +1,4 @@
+using Fdp.Core;
 ﻿namespace Fdp.Toolkit.Runner
 {
     /// <summary>
@@ -24,7 +25,7 @@
         public string SubsystemName { get; set; } = string.Empty;
 
         /// <summary>Resolved node ID for this subsystem instance (0 = use legacy constants inside the subsystem).</summary>
-        public int NodeId { get; set; }
+        public NodeId NodeId { get; set; }
 
         /// <summary>⭐ <c>CE-3354</c> ② — the node's unique human-given NAME for this subsystem (<c>--node-name(s)</c>); null ⇒ the default <c>&lt;subsystem&gt;-&lt;nodeId&gt;</c> (made by the cluster slave).</summary>
         public string? NodeName { get; set; }

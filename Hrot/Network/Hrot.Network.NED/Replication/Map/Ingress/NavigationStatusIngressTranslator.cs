@@ -27,7 +27,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     {
         private readonly DdsReader<Hrot.NED.Descriptors.NavigationStatus> _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<Hrot.NED.Descriptors.NavigationStatus>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationStatus;
@@ -38,11 +38,11 @@ namespace Hrot.Map.Common.Replication.Ingress
         public NavigationStatusIngressTranslator(
             DdsParticipant   dds,
             NetworkEntityMap entityMap,
-            long localNodeId)
+            int localNodeId)
         {
             _reader    = new DdsReader<Hrot.NED.Descriptors.NavigationStatus>(dds);
             _entityMap = entityMap ?? throw new System.ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <inheritdoc />

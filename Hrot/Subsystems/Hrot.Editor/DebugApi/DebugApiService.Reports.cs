@@ -167,7 +167,7 @@ namespace Hrot.Editor.DebugApi
                 if (unitNetId.HasValue && from != unitNetId && to != unitNetId) continue;
                 var n = ReportNode(e.Report, now, null);
                 n["serial"] = e.Serial; n["seenAt"] = e.SeenAt; n["from"] = from; n["to"] = to;
-                n["originNode"] = e.OriginNodeId; n["verdict"] = e.Verdict;
+                n["originNode"] = e.OriginNodeId.Value; n["verdict"] = e.Verdict;
                 arr.Add(n);
             }
             return new JsonObject { ["count"] = log.Count, ["returned"] = arr.Count, ["reports"] = arr };

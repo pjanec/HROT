@@ -108,7 +108,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             {
                 NetworkId = 0,
                 TkbType   = (Fdp.Core.TkbTypeId)(DefaultTkbType),
-                OwnerNodeId = 2
+                OwnerNodeId = (Fdp.Core.NodeId)(2)
             });
 
             // Allocator was called → LastAllocatedId is 100
@@ -136,7 +136,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             {
                 NetworkId   = 999,
                 TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
-                OwnerNodeId = 2
+                OwnerNodeId = (Fdp.Core.NodeId)(2)
             });
 
             // No ID was allocated (LastAllocatedId stays at default 0)
@@ -163,7 +163,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             {
                 NetworkId   = 7,
                 TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
-                OwnerNodeId = 2
+                OwnerNodeId = (Fdp.Core.NodeId)(2)
             });
 
             Assert.True(networkMap.TryGetEntity(7, out _));
@@ -183,7 +183,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             {
                 NetworkId   = 10,
                 TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
-                OwnerNodeId = 3
+                OwnerNodeId = (Fdp.Core.NodeId)(3)
             });
 
             Assert.True(networkMap.TryGetEntity(10, out var entity));
@@ -208,7 +208,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             {
                 NetworkId   = 11,
                 TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
-                OwnerNodeId = LocalNodeId,
+                OwnerNodeId = (Fdp.Core.NodeId)(LocalNodeId),
                 InitialComponents = new List<object>
                 {
                     new TestPositionComponent { X = 1f, Y = 2f }
@@ -236,7 +236,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             {
                 NetworkId   = 20,
                 TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
-                OwnerNodeId = 1,
+                OwnerNodeId = (Fdp.Core.NodeId)(1),
                 InitialComponents = new List<object>
                 {
                     new TestPositionComponent { X = 3.5f, Y = 7.0f }
@@ -265,7 +265,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             {
                 NetworkId   = 50,
                 TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
-                OwnerNodeId = 1
+                OwnerNodeId = (Fdp.Core.NodeId)(1)
             });
 
             Assert.True(networkMap.TryGetEntity(50, out var firstEntity));
@@ -275,7 +275,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             {
                 NetworkId   = 50,
                 TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
-                OwnerNodeId = 1
+                OwnerNodeId = (Fdp.Core.NodeId)(1)
             });
 
             // Map must still resolve to the SAME original entity
@@ -297,7 +297,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             {
                 NetworkId   = 60,
                 TkbType     = (Fdp.Core.TkbTypeId)(999L), // unknown type
-                OwnerNodeId = 1
+                OwnerNodeId = (Fdp.Core.NodeId)(1)
             });
 
             Assert.False(networkMap.TryGetEntity(60, out _));
@@ -314,8 +314,8 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             var system      = CreateSystem(repo, networkMap, new StubIdAllocator(), tkb, elm);
             var request     = System.Guid.NewGuid();
 
-            RunSpawn(repo, system, new SpawnEntityCommand { NetworkId = 71, TkbType = (Fdp.Core.TkbTypeId)(DefaultTkbType), OwnerNodeId = 1, RequestId = request });
-            RunSpawn(repo, system, new SpawnEntityCommand { NetworkId = 72, TkbType = (Fdp.Core.TkbTypeId)(DefaultTkbType), OwnerNodeId = 1 });
+            RunSpawn(repo, system, new SpawnEntityCommand { NetworkId = 71, TkbType = (Fdp.Core.TkbTypeId)(DefaultTkbType), OwnerNodeId = (Fdp.Core.NodeId)(1), RequestId = request });
+            RunSpawn(repo, system, new SpawnEntityCommand { NetworkId = 72, TkbType = (Fdp.Core.TkbTypeId)(DefaultTkbType), OwnerNodeId = (Fdp.Core.NodeId)(1) });
 
             Assert.True(networkMap.TryGetEntity(71, out var asked));
             Assert.Equal(request, repo.GetComponentRO<Fdp.Toolkit.Lifecycle.Components.CreationRequestId>(asked).Value);
@@ -337,7 +337,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             {
                 NetworkId   = 70,
                 TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
-                OwnerNodeId = 1,
+                OwnerNodeId = (Fdp.Core.NodeId)(1),
                 InitType    = ReliableInitType.None
             });
 
@@ -360,7 +360,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             {
                 NetworkId   = 80,
                 TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
-                OwnerNodeId = 1,
+                OwnerNodeId = (Fdp.Core.NodeId)(1),
                 InitType    = ReliableInitType.AllPeers
             });
 
@@ -386,7 +386,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
                 NetworkId   = 90,
                 TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
                 DisType     = 123UL,
-                OwnerNodeId = 5
+                OwnerNodeId = (Fdp.Core.NodeId)(5)
             });
 
             // Assert: TkbIdentity is permanently attached
@@ -418,7 +418,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             {
                 NetworkId   = 95,
                 TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
-                OwnerNodeId = 1
+                OwnerNodeId = (Fdp.Core.NodeId)(1)
             });
 
             // Assert: immediately after spawn the entity is in Constructing state
@@ -466,7 +466,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             {
                 NetworkId        = 7001,
                 TkbType          = (Fdp.Core.TkbTypeId)(DefaultTkbType),
-                OwnerNodeId      = LocalNodeId,
+                OwnerNodeId      = (Fdp.Core.NodeId)(LocalNodeId),
                 InitialTransform = new SimTransform { Position = new System.Numerics.Vector3(x, y, sentZ), Rotation = System.Numerics.Quaternion.Identity },
                 SpawnHeight      = height,
             });

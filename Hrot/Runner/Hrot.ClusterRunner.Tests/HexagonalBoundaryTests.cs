@@ -224,20 +224,20 @@ public sealed class HexagonalBoundaryTests
         public ISimHostPerceptionTranslators    CreateSimHostPerceptionTranslators(Fdp.Toolkit.Replication.Systems.GhostCreationSystem? ghostCreationSystem = null) => _base.CreateSimHostPerceptionTranslators(ghostCreationSystem);
         public IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> CreateSimHostAttributeUpdateSystems()          => _base.CreateSimHostAttributeUpdateSystems();
         public IIgTranslators                   CreateIgTranslators()                                  => _base.CreateIgTranslators();
-        public IIgNetworkAdapter                CreateIgNetworkAdapter(DdsParticipant? p, long n = 0) => _base.CreateIgNetworkAdapter(p, n);
+        public IIgNetworkAdapter                CreateIgNetworkAdapter(DdsParticipant? p, int n = 0) => _base.CreateIgNetworkAdapter(p, n);
         public ICgfEntityLifecycleAdapters?     CreateCgfEntityLifecycleAdapters()                    => _base.CreateCgfEntityLifecycleAdapters();
         public Hrot.Common.Abstractions.IReplicationModule CreateReplicationModule()               => _base.CreateReplicationModule();
 
         public IReadOnlyList<IDescriptorTranslator> CreateIgEgressTranslators(
-            DdsParticipant participant, FdpEventBus bus, long nodeId)
+            DdsParticipant participant, FdpEventBus bus, int nodeId)
             => _base.CreateIgEgressTranslators(participant, bus, nodeId);
 
         public IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(
-            FdpEventBus interactionBus, long localNodeId, bool headless)
+            FdpEventBus interactionBus, int localNodeId, bool headless)
             => _base.CreateGizmoTranslators(interactionBus, localNodeId, headless);
 
         public Fdp.ModuleHost.Abstractions.IEcsModuleSystem? CreateGizmoPublisherSystem(
-            Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer buffer, long localNodeId)
+            Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer buffer, int localNodeId)
             => _base.CreateGizmoPublisherSystem(buffer, localNodeId);
 
     }

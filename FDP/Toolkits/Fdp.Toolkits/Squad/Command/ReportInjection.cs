@@ -16,7 +16,7 @@ namespace Fdp.Toolkit.Squad.Command
         public Entity ToUnit;
         public CommandReport Report;
         /// <summary>0 = raised here; else the node it arrived from (BR-3).</summary>
-        public long OriginNodeId;
+        public NodeId OriginNodeId;
         /// <summary>What the inbox did: "folded", "stale" (a late older report dropped), or "not-owned-here".</summary>
         public string Verdict = "";
     }

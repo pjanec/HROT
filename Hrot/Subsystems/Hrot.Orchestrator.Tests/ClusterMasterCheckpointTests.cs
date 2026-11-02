@@ -36,7 +36,7 @@ public sealed class ClusterMasterCheckpointTests
         // Register node via heartbeat.
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = NId,
+            NodeId        = (Fdp.Core.NodeId)(NId),
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
             SubsystemName = "SimHost",
@@ -67,7 +67,7 @@ public sealed class ClusterMasterCheckpointTests
                 {
                     TransactionId   = intent.TransactionId,
                     Operation       = intent.Operation,
-                    NodeId          = NId,
+                    NodeId          = (Fdp.Core.NodeId)(NId),
                     StatusCode      = OrchestrationStatusCode.Success,
                     IsParticipating = true,
                 });
@@ -124,7 +124,7 @@ public sealed class ClusterMasterCheckpointTests
         {
             TransactionId   = intents[0].TransactionId,
             Operation       = FdpNodeOpType.TakeSnapshot,
-            NodeId          = nodeId,
+            NodeId          = (Fdp.Core.NodeId)(nodeId),
             StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = true,
         });
@@ -173,7 +173,7 @@ public sealed class ClusterMasterCheckpointTests
 
         bus.PublishManaged(new NodeOpCompletedEvent
         {
-            TransactionId = sent.TransactionId, Operation = FdpNodeOpType.TakeSnapshot, NodeId = nodeId,
+            TransactionId = sent.TransactionId, Operation = FdpNodeOpType.TakeSnapshot, NodeId = (Fdp.Core.NodeId)(nodeId),
             StatusCode = OrchestrationStatusCode.Success, IsParticipating = true, ResultPayload = expected,
         });
         bus.SwapBuffers();
@@ -230,7 +230,7 @@ public sealed class ClusterMasterCheckpointTests
     {
         bus.PublishManaged(new NodeOpCompletedEvent
         {
-            TransactionId = sent.TransactionId, Operation = sent.Operation, NodeId = nodeId,
+            TransactionId = sent.TransactionId, Operation = sent.Operation, NodeId = (Fdp.Core.NodeId)(nodeId),
             StatusCode = code, IsParticipating = true, ResultPayload = result,
         });
     }

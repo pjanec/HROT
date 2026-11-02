@@ -73,7 +73,7 @@ namespace Hrot.Common.Systems
         private readonly IEntityAckSink                     _ackSink;
         private readonly ITkbDatabase                       _tkbDb;
         private readonly INetworkIdAllocator                _idAllocator;
-        private readonly int                                _localNodeId;
+        private readonly NodeId                                _localNodeId;
         private readonly bool                               _isDefaultProcessor;
         private readonly JsonAttributeCompiler?             _jsonCompiler;
 
@@ -135,7 +135,7 @@ namespace Hrot.Common.Systems
             _ackSink            = ackSink        ?? throw new ArgumentNullException(nameof(ackSink));
             _tkbDb              = tkbDb          ?? throw new ArgumentNullException(nameof(tkbDb));
             _idAllocator        = idAllocator    ?? throw new ArgumentNullException(nameof(idAllocator));
-            _localNodeId        = localNodeId;
+            _localNodeId        = (Fdp.Core.NodeId)(localNodeId);
             _isDefaultProcessor = isDefaultProcessor;
             _jsonCompiler       = jsonAttributeCompiler;
             _finalizationSystem = finalizationSystem;
@@ -369,7 +369,7 @@ namespace Hrot.Common.Systems
                     {
                         NetworkId         = pending.NetworkId,
                         TkbType           = pending.TkbType,
-                        OwnerNodeId       = assignedOwner,
+                        OwnerNodeId       = (Fdp.Core.NodeId)(assignedOwner),
                         DisType           = pending.DisType,
                         // ⭐⭐ CE-143 — was hardcoded ReliableInitType.AllPeers. The request now carries
                         //   the axis, defaulted to AllPeers, so every existing caller is unchanged and an
@@ -432,7 +432,7 @@ namespace Hrot.Common.Systems
                             {
                                 NetworkId           = presetId,
                                 TkbType             = (Fdp.Core.TkbTypeId)(presetType),
-                                OwnerNodeId         = assignedOwner,
+                                OwnerNodeId         = (Fdp.Core.NodeId)(assignedOwner),
                                 DisType             = presetDis,
                                 InitType            = pending.Request.InitType,
                                 ReliableInitTimeout = pending.Request.ReliableInitTimeout,
@@ -533,7 +533,7 @@ namespace Hrot.Common.Systems
                             {
                                 NetworkId         = childNetworkId,
                                 TkbType           = childDef.ChildTkbType,
-                                OwnerNodeId       = assignedOwner,
+                                OwnerNodeId       = (Fdp.Core.NodeId)(assignedOwner),
                                 DisType           = childDisType,
                                 // ⭐ CE-143 — children INHERIT the parent's InitType, decided explicitly
                                 //   rather than left implicit (Q65 §5.5's open line): a drawing's children

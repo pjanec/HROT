@@ -139,7 +139,7 @@ namespace Fdp.Toolkit.Time.Tests
             ctrl.Step(1.0f);
             Assert.True(ctrl.IsAwaitingStepAcks);    // mid-step
 
-            bus.PublishManaged(new Fdp.Toolkit.Time.Domain.FrameStepCompletedEvent { FrameID = 1, NodeID = 1 });
+            bus.PublishManaged(new Fdp.Toolkit.Time.Domain.FrameStepCompletedEvent { FrameID = 1, NodeID = (Fdp.Core.NodeId)(1) });
             bus.SwapBuffers();
             ticks += 1;
             ctrl.Update();

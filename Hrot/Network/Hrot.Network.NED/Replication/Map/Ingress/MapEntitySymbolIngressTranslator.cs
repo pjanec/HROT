@@ -25,7 +25,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly NetworkEntityMap _entityMap;
         private readonly int _mapGroupId;
         private readonly GhostCreationSystem _ghostCreationSystem;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MapEntitySymbol>();
         public long DescriptorOrdinal => OrdinalValue;
@@ -38,13 +38,13 @@ namespace Hrot.Map.Common.Replication.Ingress
             NetworkEntityMap entityMap,
             int mapGroupId,
             GhostCreationSystem ghostCreationSystem,
-            long localNodeId)
+            int localNodeId)
         {
             _reader = participant is not null ? new DdsReader<MapEntitySymbol>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _mapGroupId = mapGroupId;
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <inheritdoc />

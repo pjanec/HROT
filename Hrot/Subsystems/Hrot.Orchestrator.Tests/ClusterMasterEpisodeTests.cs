@@ -47,7 +47,7 @@ public sealed class ClusterMasterEpisodeTests
 
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = nodeId,
+            NodeId        = (Fdp.Core.NodeId)(nodeId),
             SubsystemName = "SimHost",
             LocalStateId  = (int)ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
@@ -121,7 +121,7 @@ public sealed class ClusterMasterEpisodeTests
         {
             TransactionId   = episodeTxId,
             Operation       = FdpNodeOpType.StartEpisode,
-            NodeId          = 1,
+            NodeId          = (Fdp.Core.NodeId)(1),
             StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = true,
         });
@@ -181,7 +181,7 @@ public sealed class ClusterMasterEpisodeTests
         {
             TransactionId   = episodeTxId,
             Operation       = FdpNodeOpType.StartEpisode,
-            NodeId          = 2,
+            NodeId          = (Fdp.Core.NodeId)(2),
             StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = false,   // ← non-participating
         });
@@ -236,7 +236,7 @@ public sealed class ClusterMasterEpisodeTests
         {
             TransactionId   = episodeTxId,
             Operation       = FdpNodeOpType.StartEpisode,
-            NodeId          = 3,
+            NodeId          = (Fdp.Core.NodeId)(3),
             StatusCode      = OrchestrationStatusCode.Timeout, // ← error
             IsParticipating = true,
         });
@@ -339,7 +339,7 @@ public sealed class ClusterMasterEpisodeTests
         {
             TransactionId   = episodeTxId,
             Operation       = FdpNodeOpType.StartEpisode,
-            NodeId          = 5,
+            NodeId          = (Fdp.Core.NodeId)(5),
             StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = true,
         });

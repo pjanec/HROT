@@ -73,7 +73,7 @@ namespace Hrot.SimHost.Tests
         private readonly List<DescriptorGrant> _grants = new();
 
         public void AddGrant(long descriptorTypeId, int nodeId)
-            => _grants.Add(new DescriptorGrant { DescriptorTypeId = descriptorTypeId, NodeId = nodeId });
+            => _grants.Add(new DescriptorGrant { DescriptorTypeId = descriptorTypeId, NodeId = (Fdp.Core.NodeId)(nodeId) });
 
         public IReadOnlyList<DescriptorGrant> GetInitialGrants(in Fdp.Toolkit.Replication.Abstractions.GrantRequest request)
             => _grants;

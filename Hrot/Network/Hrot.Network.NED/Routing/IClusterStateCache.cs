@@ -78,7 +78,7 @@ namespace Hrot.Network.Routing
     /// </summary>
     public sealed class NodeCapability
     {
-        public int    NodeId          { get; set; }
+        public NodeId    NodeId          { get; set; }
 
         /// <summary>CE-286 (C-roles): the node's <see cref="NodeRole"/> mask, DERIVED from the <c>fdp.role.*</c>
         /// subset of <see cref="Capabilities"/> via <see cref="NodeRoleTokens"/> (AQ-70 §Q70-C — no longer read

@@ -15,6 +15,7 @@ using Xunit;
 // Aliases to disambiguate generic tuples in the stub.
 using MountedPredicate = (Hrot.Diagnostics.Breakpoints.Breakpoint Breakpoint, Hrot.Diagnostics.Breakpoints.CompiledComponentPredicate Compiled);
 using MountedScanner  = (Hrot.Diagnostics.Breakpoints.Breakpoint Breakpoint, Hrot.Diagnostics.Breakpoints.CompiledEventScanner Scanner);
+using NodeId = NodeEditor.Primitives.NodeId;
 
 namespace Hrot.BTree.Editor.Tests.Host;
 

@@ -119,7 +119,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                     cmd.RemoveComponent<PossessedBy>(unit);
                 return;
             }
-            cmd.AddComponent(unit, new PossessedBy { StationNodeId = d.StationNodeId, Mode = (PossessionMode)d.Mode, Epoch = d.Epoch });
+            cmd.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(d.StationNodeId), Mode = (PossessionMode)d.Mode, Epoch = d.Epoch });
         }
 
         public void ScanAndPublish(ISimulationView view) { }

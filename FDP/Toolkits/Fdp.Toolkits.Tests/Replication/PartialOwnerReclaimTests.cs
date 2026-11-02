@@ -50,7 +50,7 @@ namespace Fdp.Toolkit.Replication.Tests
 
         private static void Depart(EntityRepository repo, PartialOwnerReclaimSystem sys, int node)
         {
-            repo.Bus.Publish(new NodeDeparted { NodeId = node });
+            repo.Bus.Publish(new NodeDeparted { NodeId = (Fdp.Core.NodeId)(node) });
             repo.Bus.SwapBuffers();
             sys.Execute(repo, 0f);
         }

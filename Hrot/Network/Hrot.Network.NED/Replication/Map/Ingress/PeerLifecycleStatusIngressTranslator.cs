@@ -27,7 +27,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly DdsReader<EntityLifecycleStatusDescriptor> _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly NetworkGatewaySystem _gateway;
-        private readonly int _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityLifecycleStatusDescriptor>();
         public long DescriptorOrdinal => -3;
@@ -39,12 +39,12 @@ namespace Hrot.Map.Common.Replication.Ingress
         public IReadOnlyList<int> TargetComponentIds => _targetIds;
 
         public PeerLifecycleStatusIngressTranslator(
-            DdsParticipant participant, NetworkEntityMap entityMap, NetworkGatewaySystem gateway, long localNodeId)
+            DdsParticipant participant, NetworkEntityMap entityMap, NetworkGatewaySystem gateway, int localNodeId)
         {
             _reader = participant is not null ? new DdsReader<EntityLifecycleStatusDescriptor>(participant) : null!;
             _entityMap = entityMap;
             _gateway = gateway;
-            _localNodeId = (int)localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)((int)localNodeId);
         }
 
         /// <inheritdoc />

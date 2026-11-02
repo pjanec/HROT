@@ -1,5 +1,6 @@
 using CycloneDDS.Runtime;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Core;
 
 namespace Hrot.Common.Infrastructure;
 
@@ -21,7 +22,7 @@ public sealed class HrotNodeConfig
         => new()
         {
             DomainId            = domainId,
-            NodeId              = nodeId,
+            NodeId              = (Fdp.Core.NodeId)(nodeId),
             SubsystemName       = subsystemName,
             NodeName            = nodeName,
             Headless            = false,   // a networked host always has its participant; Headless here is not the window
@@ -35,7 +36,7 @@ public sealed class HrotNodeConfig
     public int DomainId { get; set; }
 
     /// <summary>Logical node identifier used in DDS heartbeats, entity IDs, and recording file names.</summary>
-    public int NodeId { get; set; }
+    public NodeId NodeId { get; set; }
 
     /// <summary>Human-readable subsystem name published in heartbeats (e.g. "SimHost").</summary>
     public string SubsystemName { get; set; } = string.Empty;

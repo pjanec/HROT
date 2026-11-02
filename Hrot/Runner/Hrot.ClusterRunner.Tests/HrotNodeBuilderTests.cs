@@ -19,7 +19,7 @@ public sealed class HrotNodeBuilderTests
     private static HrotNodeConfig HeadlessConfig(int nodeId = 99) => new()
     {
         DomainId      = 99,
-        NodeId        = nodeId,
+        NodeId        = (Fdp.Core.NodeId)(nodeId),
         SubsystemName = "TestNode",
         LocalTempRoot = System.IO.Path.GetTempPath(),
         Headless      = true,

@@ -115,7 +115,7 @@ namespace Hrot.SimHost.Tests
             var cmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareReplay,
                 DomainPayload = payload,
             };
@@ -179,7 +179,7 @@ namespace Hrot.SimHost.Tests
             var prepareCmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareReplay,
                 DomainPayload = exerciseId,
             };
@@ -195,7 +195,7 @@ namespace Hrot.SimHost.Tests
             var finalizeCmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.FinalizeReplay,
                 DomainPayload = null,
             };
@@ -259,7 +259,7 @@ namespace Hrot.SimHost.Tests
             var cmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareReplay,
                 DomainPayload = exerciseId,
             };
@@ -320,7 +320,7 @@ namespace Hrot.SimHost.Tests
             var prepareCmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareReplay,
                 DomainPayload = exerciseId,
             };
@@ -337,7 +337,7 @@ namespace Hrot.SimHost.Tests
             var finalizeCmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.FinalizeReplay,
                 DomainPayload = null,
             };
@@ -398,7 +398,7 @@ namespace Hrot.SimHost.Tests
             var prepareCmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareReplay,
                 DomainPayload = exerciseId,
             };
@@ -414,7 +414,7 @@ namespace Hrot.SimHost.Tests
             var branchCmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive,
                 DomainPayload = Guid.NewGuid(),  // new branched exercise ID
             };
@@ -490,7 +490,7 @@ namespace Hrot.SimHost.Tests
             var cmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrepareReplay,
                 DomainPayload = exerciseId,
             };
@@ -576,7 +576,7 @@ namespace Hrot.SimHost.Tests
             handler.Commit(new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
-                TargetNodeId  = 0,
+                TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = NodeOpType.PrepareReplay,
                 DomainPayload = Guid.NewGuid(),
             }, repo: null);

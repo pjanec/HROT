@@ -338,7 +338,7 @@ public class EntityMasterTranslatorTests
         var (repo, entityMap, _, translator) = CreateFixture();
         repo.RegisterComponent<NetworkAuthority>();
         var entity = repo.CreateEntity();
-        repo.AddComponent(entity, new NetworkAuthority { PrimaryOwnerId = -1, LocalNodeId = 1 });
+        repo.AddComponent(entity, new NetworkAuthority { PrimaryOwnerId = -1, LocalNodeId = (Fdp.Core.NodeId)(1) });
         entityMap.Register(TestNetworkId, entity);
         var master = new EntityMaster { EntityId = TestNetworkId, TkbType = TestTkbType };
         var cmd = new RecordingCommandBuffer();
@@ -356,7 +356,7 @@ public class EntityMasterTranslatorTests
         var (repo, entityMap, _, translator) = CreateFixture();
         repo.RegisterComponent<NetworkAuthority>();
         var entity = repo.CreateEntity();
-        repo.AddComponent(entity, new NetworkAuthority { PrimaryOwnerId = 3, LocalNodeId = 1 });
+        repo.AddComponent(entity, new NetworkAuthority { PrimaryOwnerId = 3, LocalNodeId = (Fdp.Core.NodeId)(1) });
         entityMap.Register(TestNetworkId, entity);
         var master = new EntityMaster { EntityId = TestNetworkId, TkbType = TestTkbType };
         var cmd = new RecordingCommandBuffer();
@@ -438,7 +438,7 @@ public class EntityMasterTranslatorTests
         var (repo, entityMap, eventBus, translator) = CreateFixture();
         repo.RegisterComponent<NetworkAuthority>();
         var entity = repo.CreateEntity();
-        repo.AddComponent(entity, new NetworkAuthority { PrimaryOwnerId = owner, LocalNodeId = 1 });
+        repo.AddComponent(entity, new NetworkAuthority { PrimaryOwnerId = owner, LocalNodeId = (Fdp.Core.NodeId)(1) });
         entityMap.Register(TestNetworkId, entity);
 
         translator.ProcessDispose(TestNetworkId, sender, repo);

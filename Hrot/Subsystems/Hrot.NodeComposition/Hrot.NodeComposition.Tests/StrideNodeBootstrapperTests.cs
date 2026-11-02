@@ -35,7 +35,7 @@ public sealed class StrideNodeBootstrapperTests
         Headless             = true,
         SkipAllocatorRouting = true,
         SubsystemName        = "TestStride",
-        NodeId               = 1,
+        NodeId               = (Fdp.Core.NodeId)(1),
         LocalTempRoot        = @"C:\FDP_Temp",
     };
 
@@ -337,11 +337,11 @@ public sealed class StrideNodeBootstrapperTests
         public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators(Fdp.Toolkit.Replication.Systems.GhostCreationSystem? ghost = null) => _base.CreateSimHostPerceptionTranslators(ghost);
         public System.Collections.Generic.IReadOnlyList<IEcsModuleSystem> CreateSimHostAttributeUpdateSystems() => _base.CreateSimHostAttributeUpdateSystems();
         public IIgTranslators CreateIgTranslators() => _base.CreateIgTranslators();
-        public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? p, long n = 0) => _base.CreateIgNetworkAdapter(p, n);
+        public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? p, int n = 0) => _base.CreateIgNetworkAdapter(p, n);
         public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.IDescriptorTranslator> CreateIgEgressTranslators(
-            CycloneDDS.Runtime.DdsParticipant participant, FdpEventBus bus, long nodeId)
+            CycloneDDS.Runtime.DdsParticipant participant, FdpEventBus bus, int nodeId)
             => _base.CreateIgEgressTranslators(participant, bus, nodeId);
-        public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(FdpEventBus b, long id, bool headless) => _base.CreateGizmoTranslators(b, id, headless);
-        public IEcsModuleSystem? CreateGizmoPublisherSystem(DebugPrimitiveBuffer buf, long id) => _base.CreateGizmoPublisherSystem(buf, id);
+        public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(FdpEventBus b, int id, bool headless) => _base.CreateGizmoTranslators(b, id, headless);
+        public IEcsModuleSystem? CreateGizmoPublisherSystem(DebugPrimitiveBuffer buf, int id) => _base.CreateGizmoPublisherSystem(buf, id);
     }
 }

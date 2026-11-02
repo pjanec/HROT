@@ -42,7 +42,7 @@ namespace Hrot.SimHost.Tests
                 TkbDb                = tkb,
                 IdAllocator          = new SequentialIdAllocator(),
                 Elm                  = new EntityLifecycleModule(tkb, Array.Empty<int>()),
-                NodeId               = 7,
+                NodeId               = (Fdp.Core.NodeId)(7),
                 IsBroadcastArbiter   = arbiter,
                 ExtraTranslators     = extras,
                 TranslatorPlacements = placements,

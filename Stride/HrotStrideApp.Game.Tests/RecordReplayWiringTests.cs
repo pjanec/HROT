@@ -58,7 +58,7 @@ public sealed class RecordReplayWiringTests : IDisposable
     private static ExecuteNodeOpIntent Intent(NodeOpType op, Guid exerciseId) => new()
     {
         TransactionId = Guid.NewGuid(),
-        TargetNodeId  = 0,
+        TargetNodeId  = (Fdp.Core.NodeId)(0),
         Operation     = op,
         DomainPayload = exerciseId,
     };

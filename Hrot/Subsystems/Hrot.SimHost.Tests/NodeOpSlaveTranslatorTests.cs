@@ -157,7 +157,7 @@ public sealed class NodeOpSlaveTranslatorTests
         bus.PublishManaged(new NodeOpCompletedEvent
         {
             TransactionId   = txId,
-            NodeId          = nodeId,
+            NodeId          = (Fdp.Core.NodeId)(nodeId),
             StatusCode      = 0,
             IsParticipating = true,
             ResultPayload   = null,
@@ -409,7 +409,7 @@ public sealed class NodeOpSlaveTranslatorTests
 
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = nodeId,
+            NodeId        = (Fdp.Core.NodeId)(nodeId),
             LocalStateId  = (int)NedClusterState.LoadingLive,
             WallTicksUtc  = 12345L,
             SubsystemName = "SimHost",
@@ -445,10 +445,10 @@ public sealed class NodeOpSlaveTranslatorTests
     [Fact]
     public void CE3354_TheHeartbeat_CarriesTheNodeName_BothWays_NullIsEmpty()
     {
-        var named = new NodeHeartbeatEvent { NodeId = 9, SubsystemName = "IG", NodeName = "film-cam" };
+        var named = new NodeHeartbeatEvent { NodeId = (Fdp.Core.NodeId)(9), SubsystemName = "IG", NodeName = "film-cam" };
         Assert.Equal("film-cam", NodeHeartbeatWire.ToTopic(named).NodeName);
         Assert.Equal("film-cam", NodeHeartbeatWire.ToEvent(NodeHeartbeatWire.ToTopic(named)).NodeName);
-        Assert.Equal(string.Empty, NodeHeartbeatWire.ToTopic(new NodeHeartbeatEvent { NodeId = 9, SubsystemName = "IG" }).NodeName);   // null ⇒ empty
+        Assert.Equal(string.Empty, NodeHeartbeatWire.ToTopic(new NodeHeartbeatEvent { NodeId = (Fdp.Core.NodeId)(9), SubsystemName = "IG" }).NodeName);   // null ⇒ empty
         Assert.Null(NodeHeartbeatWire.ToEvent(new NodeHeartbeat { NodeId = 9, NodeName = string.Empty }).NodeName);                      // empty / an older sender ⇒ null
     }
 
@@ -461,8 +461,8 @@ public sealed class NodeOpSlaveTranslatorTests
     public void CE3345_TheHeartbeat_CarriesPhaseStepAndReason_BothWays_AndOverDds()
     {
         // the mapping, both halves
-        var loading = new NodeHeartbeatEvent { NodeId = 7, LocalStateId = (int)NedClusterState.LoadingLive, SubsystemName = "CGF", Phase = NodePhase.Loading, Step = "Terrain" };
-        var failed  = new NodeHeartbeatEvent { NodeId = 7, SubsystemName = "CGF", Phase = NodePhase.Failed, Reason = "cancelled by the user on node 7" };
+        var loading = new NodeHeartbeatEvent { NodeId = (Fdp.Core.NodeId)(7), LocalStateId = (int)NedClusterState.LoadingLive, SubsystemName = "CGF", Phase = NodePhase.Loading, Step = "Terrain" };
+        var failed  = new NodeHeartbeatEvent { NodeId = (Fdp.Core.NodeId)(7), SubsystemName = "CGF", Phase = NodePhase.Failed, Reason = "cancelled by the user on node 7" };
         Assert.Equal((2, "Terrain", string.Empty), (NodeHeartbeatWire.ToTopic(loading).Phase, NodeHeartbeatWire.ToTopic(loading).Step, NodeHeartbeatWire.ToTopic(loading).Reason));
         var back = NodeHeartbeatWire.ToEvent(NodeHeartbeatWire.ToTopic(loading));
         Assert.Equal((NodePhase.Loading, "Terrain", (string?)null, 7, "CGF"), (back.Phase, back.Step, back.Reason, back.NodeId, back.SubsystemName));

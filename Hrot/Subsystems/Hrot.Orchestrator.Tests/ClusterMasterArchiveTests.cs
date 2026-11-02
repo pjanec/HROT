@@ -58,7 +58,7 @@ public sealed class ClusterMasterArchiveTests
         // (otherwise the 0-node path completes synchronously and removes the CTS).
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId        = 1,
+            NodeId        = (Fdp.Core.NodeId)(1),
             SubsystemName = "TestNode",
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,

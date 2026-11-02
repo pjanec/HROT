@@ -2,6 +2,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
 using Fdp.Toolkit.Replication.Patching;
 using Hrot.NED.Messages;
+using Fdp.Core;
 
 namespace Hrot.Network.NED.Attributes
 {
@@ -17,7 +18,7 @@ namespace Hrot.Network.NED.Attributes
     [TickMode(TickPolicy.EveryFrame)]
     public sealed class EntityAttributeSchemaPublisherSystem : IEcsModuleSystem
     {
-        private readonly int                                    _nodeId;
+        private readonly NodeId                                    _nodeId;
         private readonly JsonAttributeCompiler?                 _compiler;
         private readonly IDdsWriter<EntityAttributeSchema>?     _writer;
         private readonly bool                                   _isDefaultProcessor;
@@ -29,7 +30,7 @@ namespace Hrot.Network.NED.Attributes
             IDdsWriter<EntityAttributeSchema>? writer,
             bool isDefaultProcessor)
         {
-            _nodeId             = nodeId;
+            _nodeId             = (Fdp.Core.NodeId)(nodeId);
             _compiler           = compiler;
             _writer             = writer;
             _isDefaultProcessor = isDefaultProcessor;

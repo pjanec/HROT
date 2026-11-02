@@ -46,7 +46,7 @@ namespace Hrot.Network.Translators
             NetworkEntityMap     entityMap,
             BehaviorRegistry?    behaviorRegistry,
             GhostCreationSystem  ghostCreationSystem,
-            long                 localNodeId = 0)
+            int                 localNodeId = 0)
         {
             yield return new NavigationIntentEgressTranslator(participant, entityMap, localNodeId);
             yield return new EntityMissionEgressTranslator(participant, entityMap, behaviorRegistry);

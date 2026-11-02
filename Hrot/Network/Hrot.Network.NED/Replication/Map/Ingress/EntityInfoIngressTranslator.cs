@@ -39,7 +39,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly NetworkEntityMap _entityMap;
         private readonly FdpEventBus _eventBus;
         private readonly GhostCreationSystem _ghostCreationSystem;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         // Keyed by commander net ID. Value = list of subordinate entities waiting for that commander.
         private readonly Dictionary<long, List<(Entity Subordinate, TacticalDesignation Designation, FireTeam Team)>> _pendingSubordinates = new();
@@ -62,14 +62,14 @@ namespace Hrot.Map.Common.Replication.Ingress
             NetworkEntityMap entityMap,
             FdpEventBus eventBus,
             GhostCreationSystem ghostCreationSystem,
-            long localNodeId)
+            int localNodeId)
         {
 			// participant may be null in unit-test mode — PollIngress becomes a no-op
 			_reader = participant is not null ? new DdsReader<Hrot.NED.Descriptors.EntityInfo>( participant ) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
             _entityMap.EntityRegistered += OnEntityRegistered;
         }
 

@@ -38,7 +38,7 @@ public sealed class ClusterMasterZoneRoundTests
         {
             bus.PublishManaged(new NodeHeartbeatEvent
             {
-                NodeId        = id,
+                NodeId        = (Fdp.Core.NodeId)(id),
                 LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
                 WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
                 SubsystemName = "SimHost",
@@ -94,7 +94,7 @@ public sealed class ClusterMasterZoneRoundTests
         bus.SwapBuffers();
         var prepares = ReadOps(bus, FdpNodeOpType.PrepareZone);
         Assert.Equal(2, prepares.Count);
-        Assert.Equal(new[] { NodeA, NodeB }, prepares.Select(p => p.TargetNodeId).OrderBy(x => x).ToArray());
+        Assert.Equal(new[] { NodeA, NodeB }, prepares.Select(p => p.TargetNodeId.Value).OrderBy(x => x).ToArray());
         Assert.Single(prepares.Select(p => p.TransactionId).Distinct());
         Assert.Empty(ReadOps(bus, FdpNodeOpType.CommitZone));   // ⛔ not yet
 
@@ -234,11 +234,11 @@ public sealed class ClusterMasterZoneRoundTests
         {
             bus.PublishManaged(new NodeHeartbeatEvent
             {
-                NodeId = id, SubsystemName = "Node", WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+                NodeId = (Fdp.Core.NodeId)(id), SubsystemName = "Node", WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
                 LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             });
             if (role != null)   // ⭐ null = the advert has NOT landed (clause ①)
-                bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = id, Capabilities = new[] { role } });
+                bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = (Fdp.Core.NodeId)(id), Capabilities = new[] { role } });
         }
         bus.SwapBuffers();
         master.Tick();

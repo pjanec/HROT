@@ -82,7 +82,7 @@ namespace Hrot.SimHost
         private readonly INetworkFactory? _networkFactory;
         private SimHostApp? _app;
         private bool _headless;
-        private int _nodeId;
+        private NodeId _nodeId;
         private ClusterTimeTransportAdapter? _clusterTimeAdapter;
         /// <summary>⭐ CE-4097 — this host's one run choice (no scenario session; default Live), for the wiring rail.</summary>
         internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _clusterTimeAdapter?.RunChoice;

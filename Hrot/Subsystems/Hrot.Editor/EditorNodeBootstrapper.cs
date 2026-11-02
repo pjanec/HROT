@@ -140,7 +140,7 @@ namespace Hrot.Editor;
 /// </summary>
 internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
 {
-    private readonly int _editorNodeId;
+    private readonly NodeId _editorNodeId;
     private readonly string _isolatedTempRoot;
     private readonly DiagnosticEventHistoryService _eventHistory;
     private readonly Fdp.Toolkit.Navigation.SwitchableNavmeshProvider _navmesh;
@@ -156,7 +156,7 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
         Func<MuscleModuleContext, IReadOnlyList<INodeCapability>>? muscleCapabilitiesFactory,
         IReadOnlyList<Hrot.Core.Tkb.TranslatorPlacement>? translatorPlacements)
     {
-        _editorNodeId = editorNodeId; _isolatedTempRoot = isolatedTempRoot; _eventHistory = eventHistory; _navmesh = navmesh;
+        _editorNodeId = (Fdp.Core.NodeId)(editorNodeId); _isolatedTempRoot = isolatedTempRoot; _eventHistory = eventHistory; _navmesh = navmesh;
         _blueprintRegistry = blueprintRegistry; _muscleCapabilitiesFactory = muscleCapabilitiesFactory; _translatorPlacements = translatorPlacements;
     }
 

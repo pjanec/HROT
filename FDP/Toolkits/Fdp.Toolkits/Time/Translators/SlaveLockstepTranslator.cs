@@ -35,7 +35,7 @@ namespace Fdp.Toolkit.Time.Translators
         private readonly DdsReader<FrameOrderDescriptor>? _orderReader;
         private readonly DdsWriter<FrameAckDescriptor>?   _ackWriter;
         private readonly FdpEventBus _eventBus;
-        private readonly int _localNodeId;
+        private readonly NodeId _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<FrameOrderDescriptor>();
         public long   DescriptorOrdinal => OrdinalValue;
@@ -66,7 +66,7 @@ namespace Fdp.Toolkit.Time.Translators
             int localNodeId = 0)
         {
             _eventBus    = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
 
             if (participant is not null)
             {

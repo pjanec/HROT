@@ -138,7 +138,7 @@ public sealed class StorageGatewayTests
         {
             var targets = destDirs.Select((d, i) => new NodeDistributionTarget
             {
-                NodeId          = i + 1,
+                NodeId          = (Fdp.Core.NodeId)(i + 1),
                 DestinationPath = Path.Combine(d, "scenario.json")
             }).ToList();
 
@@ -190,10 +190,10 @@ public sealed class StorageGatewayTests
         {
             var targets = new List<NodeDistributionTarget>
             {
-                new() { NodeId = 1, DestinationPath = Path.Combine(goodDir, "scenario.json") },
-                new() { NodeId = 2, DestinationPath = Path.Combine(goodDir, "sub", "scenario.json") },
+                new() { NodeId = (Fdp.Core.NodeId)(1), DestinationPath = Path.Combine(goodDir, "scenario.json") },
+                new() { NodeId = (Fdp.Core.NodeId)(2), DestinationPath = Path.Combine(goodDir, "sub", "scenario.json") },
                 // ⭐ Invalid on EVERY OS: `blocker` is a FILE, so creating a directory under it fails.
-                new() { NodeId = 3, DestinationPath = Path.Combine(blockerFile, "sub", "scenario.json") },
+                new() { NodeId = (Fdp.Core.NodeId)(3), DestinationPath = Path.Combine(blockerFile, "sub", "scenario.json") },
             };
 
             var gateway = new StorageGatewayModule();
@@ -323,7 +323,7 @@ public sealed class StorageGatewayTests
         {
             var targets = destDirs.Select((d, i) => new NodeDistributionTarget
             {
-                NodeId          = i + 1,
+                NodeId          = (Fdp.Core.NodeId)(i + 1),
                 DestinationPath = Path.Combine(d, "source.bin"),
             }).ToList();
 
@@ -388,7 +388,7 @@ public sealed class StorageGatewayTkbConsensusTests
             var gateway = new StorageGatewayModule();
             var targets = new List<NodeDistributionTarget>
             {
-                new NodeDistributionTarget { NodeId = 1, DestinationPath = destDir },
+                new NodeDistributionTarget { NodeId = (Fdp.Core.NodeId)(1), DestinationPath = destDir },
             };
 
             var result = await gateway.PrefetchScenarioAsync(scenarioId, targets, nasDir);
@@ -428,7 +428,7 @@ public sealed class StorageGatewayTkbConsensusTests
             var gateway = new StorageGatewayModule();
             var targets = new List<NodeDistributionTarget>
             {
-                new NodeDistributionTarget { NodeId = 1, DestinationPath = destDir },
+                new NodeDistributionTarget { NodeId = (Fdp.Core.NodeId)(1), DestinationPath = destDir },
             };
 
             var result = await gateway.PrefetchScenarioAsync(scenarioId, targets, nasDir);
@@ -464,7 +464,7 @@ public sealed class StorageGatewayTkbConsensusTests
             var gateway = new StorageGatewayModule();
             var targets = new List<NodeDistributionTarget>
             {
-                new NodeDistributionTarget { NodeId = 1, DestinationPath = destDir },
+                new NodeDistributionTarget { NodeId = (Fdp.Core.NodeId)(1), DestinationPath = destDir },
             };
 
             var result = await gateway.PrefetchScenarioAsync(scenarioId, targets, nasDir);
@@ -500,7 +500,7 @@ public sealed class StorageGatewayTkbConsensusTests
             var gateway = new StorageGatewayModule();
             var targets = new List<NodeDistributionTarget>
             {
-                new NodeDistributionTarget { NodeId = 1, DestinationPath = destDir },
+                new NodeDistributionTarget { NodeId = (Fdp.Core.NodeId)(1), DestinationPath = destDir },
             };
 
             var result = await gateway.PrefetchScenarioAsync(scenarioId, targets, nasDir);
@@ -535,7 +535,7 @@ public sealed class StorageGatewayTkbConsensusTests
             var gateway = new StorageGatewayModule();
             var targets = new List<NodeDistributionTarget>
             {
-                new NodeDistributionTarget { NodeId = 1, DestinationPath = destDir },
+                new NodeDistributionTarget { NodeId = (Fdp.Core.NodeId)(1), DestinationPath = destDir },
             };
 
             var result = await gateway.PrefetchScenarioAsync(scenarioId, targets, nasDir);
@@ -582,8 +582,8 @@ public sealed class StorageGatewayTkbConsensusTests
             var gateway = new StorageGatewayModule();
             var targets = new List<NodeDistributionTarget>
             {
-                new NodeDistributionTarget { NodeId = 100, DestinationPath = destEcs },
-                new NodeDistributionTarget { NodeId = 200, DestinationPath = destForeign },
+                new NodeDistributionTarget { NodeId = (Fdp.Core.NodeId)(100), DestinationPath = destEcs },
+                new NodeDistributionTarget { NodeId = (Fdp.Core.NodeId)(200), DestinationPath = destForeign },
             };
 
             var result = await gateway.PrefetchScenarioAsync(scenarioId, targets, nasDir);
@@ -640,7 +640,7 @@ public sealed class StorageGatewayTkbConsensusTests
 
     private static NodeDistributionTarget TargetIn(string root, int nodeId, string scenarioId) => new()
     {
-        NodeId             = nodeId,
+        NodeId             = (Fdp.Core.NodeId)(nodeId),
         DestinationPath    = Path.Combine(
             OrchestrationConstants.GetNodeStagingRoot(root, nodeId),
             OrchestrationConstants.ScenariosDirectoryName, scenarioId),
@@ -1300,7 +1300,7 @@ public sealed class StorageGatewayTkbConsensusTests
             });
 
             Assert.Equal(new[] { (1, AssetStaleness.Ahead), (2, AssetStaleness.Behind) },
-                findings.OrderBy(f => f.NodeId).Select(f => (f.NodeId, f.State)));
+                findings.OrderBy(f => f.NodeId).Select(f => (f.NodeId.Value, f.State)));
             Assert.Equal("b", File.ReadAllText(Path.Combine(behind, "x.bp.json")));                // ⛔ a probe never transfers
             Assert.Empty(AssetPrefetchProcessManager.ProbeOnLoad(nas, new Dictionary<int, string[]>()));   // the offline author
         }
@@ -1361,7 +1361,7 @@ public sealed class StorageGatewayTkbConsensusTests
         var bus = new Fdp.Core.FdpEventBus();
         using var master = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());
         var id = Guid.NewGuid();
-        bus.PublishManaged(new Fdp.Toolkit.Orchestration.AssetOpIntent { RequestId = id, Kind = "blueprint", NodeId = 1 });
+        bus.PublishManaged(new Fdp.Toolkit.Orchestration.AssetOpIntent { RequestId = id, Kind = "blueprint", NodeId = (Fdp.Core.NodeId)(1) });
         bus.SwapBuffers();
         master.Tick();
         bus.SwapBuffers();

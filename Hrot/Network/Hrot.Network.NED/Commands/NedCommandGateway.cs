@@ -10,6 +10,7 @@ using Fdp.Modules.Geographic;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Fdp.Core;
 
 namespace Hrot.Map.Common.Commands
 {
@@ -45,17 +46,17 @@ namespace Hrot.Map.Common.Commands
         private readonly DdsCommandClient<MissionControlRequest, MissionControlAck>            _missionControlClient;
         private readonly DdsWriter<UpdateEntityDescriptorRequest>                              _updateWriter;
         private readonly DdsWriter<UpdateEntityAttributeRequest>                               _attributeWriter;
-        private readonly long _localNodeId;
+        private readonly NodeId _localNodeId;
 
         /// <summary>
         /// creates a new gateway instance.
         /// </summary>
         /// <param name="participant">The DDS participant to use for communication.</param>
         /// <param name="localNodeId">Local node identifier; embedded in FdpLog messages.</param>
-        public NedCommandGateway(DdsParticipant participant, long localNodeId = 0)
+        public NedCommandGateway(DdsParticipant participant, int localNodeId = 0)
         {
             if (participant == null) throw new ArgumentNullException(nameof(participant));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
 
             // Initialize the client for CreateEntityRequest
             _createEntityClient = new DdsCommandClient<CreateEntityRequest, CreateUpdateDeleteEntityAck>(

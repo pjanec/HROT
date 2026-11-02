@@ -412,7 +412,7 @@ namespace Hrot.UI.Common.Adapters
                     {
                         NetworkId         = 0,
                         TkbType           = (Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Route),
-                        OwnerNodeId       = 0,
+                        OwnerNodeId       = (Fdp.Core.NodeId)(0),
                         InitType          = ReliableInitType.AllPeers,
                         RequestId         = System.Guid.NewGuid(),
                         InitialTransform  = new SimTransform { Position = anchor },

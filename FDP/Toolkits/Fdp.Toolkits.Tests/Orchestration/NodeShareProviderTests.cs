@@ -34,7 +34,7 @@ public sealed class NodeShareProviderTests : IDisposable
         return path;
     }
 
-    private TransferTarget Node(int id) => new(id, Path.Combine(_root, "nodes", $"node-{id}"));
+    private TransferTarget Node(int id) => new((Fdp.Core.NodeId)(id), Path.Combine(_root, "nodes", $"node-{id}"));
 
     [Fact(Timeout = 10_000)]
     public async Task OneRequest_DeliversEveryItem_ToEveryTarget_KeepingTheSourceTimestamp()
@@ -85,7 +85,7 @@ public sealed class NodeShareProviderTests : IDisposable
         var a = Source("a.json", "alpha");
         var blocker = Path.Combine(_root, "blocker");
         File.WriteAllText(blocker, "a file, so no directory can be created under it");
-        var bad = new TransferTarget(7, Path.Combine(blocker, "sub"));
+        var bad = new TransferTarget((Fdp.Core.NodeId)(7), Path.Combine(blocker, "sub"));
 
         var transfer = new NodeShareProvider().Start(new TransferRequest(new[] { Node(1), bad },
             new[] { new TransferItem(a, "a.json") }));
@@ -128,7 +128,7 @@ public sealed class NodeShareProviderTests : IDisposable
     public void ATargetWithNoShare_IsNotReachable_AndStartRefusesIt()
     {
         var provider = new NodeShareProvider();
-        var noShare = new TransferTarget(3, string.Empty);
+        var noShare = new TransferTarget((Fdp.Core.NodeId)(3), string.Empty);
         Assert.False(provider.CanReach(noShare));
         Assert.Throws<ArgumentException>(() => provider.Start(new TransferRequest(new[] { noShare }, Array.Empty<TransferItem>())));
     }

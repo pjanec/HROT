@@ -39,7 +39,7 @@ namespace Hrot.Network.NED.SimHost
 
         private readonly IDdsWriter<MunitionDetonation> _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly long _localNodeId;   // ⭐ CE-1148 S2 — stamped as SourceNodeId so this node's own ingress drops it
+        private readonly NodeId _localNodeId;   // ⭐ CE-1148 S2 — stamped as SourceNodeId so this node's own ingress drops it
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MunitionDetonation>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtMunitionDetonation;
@@ -48,17 +48,17 @@ namespace Hrot.Network.NED.SimHost
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         /// <summary>Production constructor â€” creates a live DDS writer.</summary>
-        public MunitionDetonationEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, long localNodeId)
+        public MunitionDetonationEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, int localNodeId)
             : this(new DdsWriterAdapter<MunitionDetonation>(participant), entityMap, localNodeId)
         {
         }
 
         /// <summary>Testable constructor â€” accepts an injected writer stub.</summary>
-        internal MunitionDetonationEgressTranslator(IDdsWriter<MunitionDetonation> writer, NetworkEntityMap entityMap, long localNodeId = 0)
+        internal MunitionDetonationEgressTranslator(IDdsWriter<MunitionDetonation> writer, NetworkEntityMap entityMap, int localNodeId = 0)
         {
             _writer    = writer     ?? throw new ArgumentNullException(nameof(writer));
             _entityMap = entityMap  ?? throw new ArgumentNullException(nameof(entityMap));
-            _localNodeId = localNodeId;
+            _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
 
         /// <inheritdoc/>

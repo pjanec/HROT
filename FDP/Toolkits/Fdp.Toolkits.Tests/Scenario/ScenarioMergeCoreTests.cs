@@ -39,8 +39,8 @@ namespace Fdp.Toolkit.Scenario.Tests
             return dom;
         }
 
-        private static ScenarioSlice Compatible(int node, JsonObject dom) => new(node, OurType, dom);
-        private static ScenarioSlice Foreign(int node, string docType)    => new(node, docType, null);
+        private static ScenarioSlice Compatible(int node, JsonObject dom) => new((Fdp.Core.NodeId)(node), OurType, dom);
+        private static ScenarioSlice Foreign(int node, string docType)    => new((Fdp.Core.NodeId)(node), docType, null);
 
         [Fact]
         public void DisjointEntities_Union_IntoOneCanonicalFile()   // I1 + I2
@@ -195,7 +195,7 @@ namespace Fdp.Toolkit.Scenario.Tests
         [Fact]
         public void CompatibleSliceWithNullDom_IsRejected()
         {
-            var bad = new ScenarioSlice(400, OurType, Dom: null);
+            var bad = new ScenarioSlice((Fdp.Core.NodeId)(400), OurType, Dom: null);
             Assert.Throws<System.ArgumentException>(() =>
                 ScenarioMergeCore.Merge(new[] { bad }, OurType));
         }

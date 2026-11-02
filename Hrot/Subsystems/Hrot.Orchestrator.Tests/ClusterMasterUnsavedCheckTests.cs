@@ -102,7 +102,7 @@ public sealed class ClusterMasterUnsavedCheckTests
             foreach (var n in nodes)
                 Inject(() => Bus.PublishManaged(new NodeHeartbeatEvent
                 {
-                    NodeId = n, LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+                    NodeId = (Fdp.Core.NodeId)(n), LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
                     WallTicksUtc = DateTimeOffset.UtcNow.Ticks, SubsystemName = "SimHost",
                 }));
             Frame();
@@ -196,7 +196,7 @@ public sealed class ClusterMasterUnsavedCheckTests
 
         var done = rig.Check();
 
-        var asked = rig.Intents.Where(i => i.Operation == FdpNodeOpType.CheckUnsaved).Select(i => i.TargetNodeId).OrderBy(x => x).ToArray();
+        var asked = rig.Intents.Where(i => i.Operation == FdpNodeOpType.CheckUnsaved).Select(i => i.TargetNodeId.Value).OrderBy(x => x).ToArray();
         Assert.Equal(new[] { A, B }, asked);
         var r = ResultOf(done);
         Assert.True(r.Changed);
