@@ -1205,5 +1205,9 @@ namespace Fdp.Core
         /// <summary><c>MacroOrigin</c> — ⭐ macros S3a ③ (SR-178): which instance and macro-local key an expanded entity came from. Unmanaged,
         /// NoScenario, recorded; wire <c>dtMacroOrigin</c> 170. ⚠ 472 measured free on all four lanes 2026-11-02.</summary>
         public const int MacroOrigin = 472;
+
+        /// <summary><c>MacroExpansionIntent</c> — ⭐ macros S3a ④ (docs/DESIGN_Scenario_Macros.md §15 E-5): the wait of one expansion on its
+        /// instance; the load gate waits while one exists. Transient. ⚠ 473 measured free in backend, ui, behaviors and coordinator 2026-11-02.</summary>
+        public const int MacroExpansionIntent = 473;
     }
 }

@@ -52,4 +52,23 @@ public interface IScenarioEntityExtractor
         INetworkIdAllocator idAllocator,
         Fdp.Toolkit.Behavior.ScenarioBehaviorRemapper? behaviorRemapper)
         => Extract(serializer, json, idAllocator);
+
+    /// <summary>
+    /// ⭐ Macros S3a ④ (docs/DESIGN_Scenario_Macros.md §10.1, §15) — the same extraction with two more walker passes over every
+    /// component and every params blob: <see cref="ExtractionPasses.BeforeResolve"/> (the BIND, SR-164) before the file's own
+    /// <c>@Key</c> / GUID references are resolved, <see cref="ExtractionPasses.AfterResolve"/> (the RELOCATE, SR-127) after — so a
+    /// point that came from a reference is never moved (SR-131). ⛔ Default: unsupported — an extractor that cannot run them must say so.
+    /// </summary>
+    IReadOnlyList<EntityCreationRequest> Extract(
+        ScenarioSerializer serializer,
+        string json,
+        INetworkIdAllocator idAllocator,
+        Fdp.Toolkit.Behavior.ScenarioBehaviorRemapper? behaviorRemapper,
+        ExtractionPasses passes)
+        => throw new System.NotSupportedException($"{GetType().Name} cannot run extraction passes (macro expansion)");
 }
+
+/// <summary>The extra walker passes of one extraction (macro expansion, §10.1): bind → (remap + resolve) → relocate.</summary>
+public sealed record ExtractionPasses(
+    Fdp.Toolkit.Replication.LeafApplier? BeforeResolve = null,
+    Fdp.Toolkit.Replication.LeafApplier? AfterResolve = null);

@@ -42,8 +42,10 @@ namespace Hrot.Common.EntityCreation
             Fdp.Core.EntityRepository world,
             Hrot.Map.Common.Services.StaticObstacleBakeSystem obstacleBakeSystem,
             SeatPresetSystem seatPresetSystem,
-            Fdp.Toolkit.NetworkSpawning.Systems.SpawnLevelSystem spawnLevelSystem)
+            Fdp.Toolkit.NetworkSpawning.Systems.SpawnLevelSystem spawnLevelSystem,
+            Hrot.Common.Macros.MacroExpansionSystem macroExpansionSystem)
         {
+            MacroExpansionSystem = macroExpansionSystem;
             SpawnLevelSystem   = spawnLevelSystem;
             ObstacleBakeSystem = obstacleBakeSystem;
             SeatPresetSystem   = seatPresetSystem;
@@ -79,6 +81,9 @@ namespace Hrot.Common.EntityCreation
         /// (<c>RegisterGlobalSystem</c>); <see cref="Unserviceable"/> names it when missing.
         /// </summary>
         public SeatPresetSystem SeatPresetSystem { get; }
+
+        /// <summary>⭐ Macros S3a ④ — expands the macro instances this node creates (§15).</summary>
+        public Hrot.Common.Macros.MacroExpansionSystem MacroExpansionSystem { get; }
 
         /// <summary>
         /// ⭐ <c>CE-3271</c> (Q94 D, R-3018) — applies a spawn's birth level on the node that owns its position. ⛔ Not optional: the spawn
@@ -313,11 +318,13 @@ namespace Hrot.Common.EntityCreation
             kernel.RegisterGlobalSystem(ObstacleBakeSystem);   // CE-3136 P-7a — static obstacles become terrain
             kernel.RegisterGlobalSystem(SeatPresetSystem);     // WS-4 (W-I) — a host's seat presets board their seats
             kernel.RegisterGlobalSystem(SpawnLevelSystem);     // CE-3271 (Q94 D) — the birth level, where the position is owned
+            kernel.RegisterGlobalSystem(MacroExpansionSystem); // macros S3a ④ — an instance created here expands here
             kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", SpawnSystem));   // BeforeSync
 
             var missing = Unserviceable(new object[]
             {
                 SpawnSystem, RequestSystem, FinalizationSystem, PromotionSystem, ObstacleBakeSystem, SeatPresetSystem, SpawnLevelSystem,
+                MacroExpansionSystem,
             }.Concat(NetworkSystems));
             if (missing.Length > 0)
                 Fdp.Core.Logging.FdpLog<EntityCreation>.Warn(missing);
@@ -354,6 +361,8 @@ namespace Hrot.Common.EntityCreation
             if (!seen.Contains(SpawnLevelSystem))
                 missing.Add($"{nameof(SpawnLevelSystem)} (CE-3271) — a spawn's requested level (Add Entity's ground / floor) is never applied: " +
                             "the entity keeps the sent height");
+            if (!seen.Contains(MacroExpansionSystem))
+                missing.Add($"{nameof(MacroExpansionSystem)} (macros S3a) — a macro instance created here stays Expanding forever and the load never finishes");
             if (!seen.Contains(FinalizationSystem))
                 missing.Add($"{nameof(FinalizationSystem)} — phase-2 ACKs will never be dispatched, so a " +
                             "requester waits forever");

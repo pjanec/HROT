@@ -89,6 +89,11 @@ namespace Fdp.Toolkit.Behavior
         public string? ResolveJson(string behaviorId, string? json, IRefScope scope)
             => ContractOf(behaviorId) is { } contract ? EntityRefRemap.WalkJson(contract, json, new RefResolve(scope)) : json;
 
+        /// <summary>⭐ Macros S3a ④ — any walker operation (<see cref="Fdp.Toolkit.Scenario.ParamBind"/>, <see cref="Relocation"/>) over
+        /// <paramref name="behaviorId"/>'s params contract in <paramref name="json"/>. Unknown behaviour: <paramref name="json"/> unchanged.</summary>
+        public string? ApplyJson(string behaviorId, string? json, LeafApplier applier)
+            => ContractOf(behaviorId) is { } contract ? EntityRefRemap.WalkJson(contract, json, applier) : json;
+
         /// <summary>The behaviour's params contract: the registry's when it knows the behaviour, else the <see cref="Register{TDto}"/>'d one.</summary>
         private Type? ContractOf(string? behaviorId)
         {

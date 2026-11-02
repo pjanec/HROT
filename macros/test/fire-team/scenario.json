@@ -52,6 +52,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
       }
     },
     "fa7e7ea0-0000-4000-8000-000000000002": {
@@ -81,6 +86,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
       }
     },
     "fa7e7ea0-0000-4000-8000-000000000003": {
@@ -110,6 +120,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
       }
     },
     "fa7e7ea0-0000-4000-8000-000000000004": {
@@ -139,6 +154,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
       }
     }
   }

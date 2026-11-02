@@ -302,6 +302,9 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
             foreach (var _ in world.Query().WithManaged<InitialTargetsIntent>().Build())          return false;
             foreach (var _ in world.Query().WithManaged<InitialRouteIntent>().Build())            return false;
             foreach (var _ in world.Query().WithManaged<InitialUnitSubordinateIntent>().Build())  return false;
+            // ⭐ Macros S3a ④ (DESIGN_Scenario_Macros §15 E-5, SR-147) — a macro instance still expanding (its children not all here yet).
+            if (world.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.MacroExpansionStatus>())
+                foreach (var _ in world.Query().WithManaged<Fdp.Toolkit.Scenario.MacroExpansionIntent>().Build()) return false;
         }
 
         // ④ zone terrain becomes resident HERE — the first moment the zone ENTITIES provably exist.

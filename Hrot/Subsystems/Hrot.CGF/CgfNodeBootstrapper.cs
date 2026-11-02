@@ -250,6 +250,12 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
                 new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
             },
             IsBroadcastArbiter = true,
+            // ⭐ Macros S3a ④ — the Brain loads scenarios, so it expands the macro instances it creates (§15 E-4: a host holding the extractor passes it).
+            Macros = new Hrot.Common.Macros.MacroExpander(
+                Fdp.Toolkit.Scenario.FileMacroLibrary.ForNode(_isolatedTempRoot),
+                new Hrot.CGF.Orchestration.StagingEntityExtractor(),   // its own instance: no BP-509 remap broadcast for a macro's file keys
+                ScenarioSerializer,
+                Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(BehaviorRegistry)),
         });
         EntityCreation = creation;   // CE-515
 
