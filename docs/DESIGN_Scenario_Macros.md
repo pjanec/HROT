@@ -991,14 +991,14 @@ sequenceDiagram
     M->>M: MaybeReconcile — the SAME record and the SAME anchor? nothing to do
     M->>M: expand "now" from the files (children keep their GUIDs)
     alt anchor moved and the macro is Relocatable
-        M->>S: PlacementRequestBatch, each slot's Self = the live child's network id (0 = a new child)
+        M->>S: PlacementRequestBatch, each slot's Self = the live child's network id (0 for a new child)
         M->>M: intent {Parked, ReconcileFrom = old, ReconcileTo = new}
         S->>S: the moving entities are no obstacle · its old reservations released · every other reservation is
         S-->>M: answer
         alt any slot Failed
-            M->>M: status Failed "re-placement: '<name>' — <reason>; old placement kept" · nothing moved · baseline = new (no retry loop)
+            M->>M: status Failed "re-placement: 'Lead' — no walkable ground, old placement kept" · nothing moved · baseline = new (no retry loop)
         else
-            M->>M: ApplyReconcile at the answered points (kept moved · new requested · gone destroyed)
+            M->>M: ApplyReconcile at the answered points (kept moved, asking the owner when not this node's · new requested · gone destroyed)
         end
     else args-only edit, or not relocatable
         M->>M: ApplyReconcile (no placement)
@@ -1015,7 +1015,9 @@ land on each other.
 | A1 SR-65/188 | the live world registers `RefKey` (every world, beside `EntityGuid`) ⇒ a runtime `@Key` arg resolves against the LIVE world; two entities carrying one key ⇒ the FIRST, with a warning (the load's rule, SR-188) | `HrotSharedComponentRegistry`; `MacroExpansionSystem.WorldRefScope` | — |
 | A2 SR-190 | the solver keeps every slot it handed out as TAKEN for `ReservedFrames` (600): the children are created a few ticks after the answer, so the world does not show them yet. A later batch — this tick's or the next — avoids them | `PlacementSolverSystem.SolveAndReserve` / `Reserve` | ⚠ reservations are per solver instance: two SimHosts answering one cluster do not share them (one solver answers today) |
 | A3 SR-157/180 | a moved anchor on a relocatable instance re-runs placement for every child (above); a failed re-placement is LOUD (error log + `Failed` status naming the slot) and moves nothing | `MacroExpansionSystem.MaybeReconcile` / `AwaitPlacement` / `ApplyReconcile`; `PlacementSlot.Self` (+ `DdsPlacementSlot.Self`) | 🔴 found by the rail: the early return was `ReferenceEquals(record) \|\| SameAnchor` ⇒ a move with the record unchanged never reconciled. Now `record unchanged && anchor unchanged` |
+| A3, found LIVE | ⭐⭐ a kept child's new pose is REQUESTED from its owner when this node does not hold its `SimTransform` (the engine's one "not mine, ask the owner" route, `EntityAttributeChangeRequests.TryPublishJsonPatch`: `Position.X/Y/Z` + `Heading`, applied by the owner's `JsonAttributeCompiler`); local when the component's authority bit is set (or the world is networkless) | `MacroExpansionSystem.MoveKept` | 🔴 the unit rails run ONE world. Live (`--mode all`): split authority gives the body to the simulation node, so the instance node's write landed in a REPLICA — "4 kept", and no man moved. Rail `A3_UnderSplitAuthority_…` |
 | A4 SR-150 | every frame, a `Done` top instance this node owns with no baseline and no intent gets `MacroExpandedWith` rebuilt from its current record and anchor ⇒ restore → edit args → reconcile works | `MacroExpansionSystem.RebuildBaselines` | the baseline is the restored state, not the pre-restore one — correct: the children on the restored world are what was made from it |
 | A5 SR-41 | an EDIT load takes scenario args too: `EditLoadIntent(scenario, argsJson)`; `POST /scenario/load/edit {args}`, `--param` with `--load edit` — the same route and the same `ScenarioParams.Prepare` as a live load | `ScenarioLoadSequence`; `DebugApiService.LoadScenarioEdit`; `StartupScenarioLoad` | — |
 | A6 | a child's placement layer and radius come from its TKB template: `LocomotionDto.Class` (Pedestrian ⇒ infantry · Wheeled/Tracked ⇒ vehicle · Surface ⇒ amphibious · Rotorcraft/FixedWing ⇒ air), radius half of max(Length, Width) from `VehicleParametersDto`; no template ⇒ the DIS-type rule of §15.2 | `MacroExpansionSystem.LayerOf` (the pack passes `ctx.TkbDb`) | — |
+| 📌 LIVE `2026-11-02` (`--mode all`, `test-macro-two-teams`) | Team East moved (60,100) → (100,60): the solver re-placed its four men through their owner (leader at the new anchor, riflemen around it) · checkpoint `macro-b` → restore (every node resumed) → both instances `Done` with a baseline → Team Turned moved (60,140) → (140,140): reconciled, its men followed · no error in the log | — | ⚠ found: `POST /entities/{id}/component` on `MacroInstance` with `{"Args":{…}}` answers `ok` and changes nothing (the dictionary is not reached by the StructEdit patch) — args are edited through the editor's own surface (ui, S3b) |
 | A7 | `EveryEcsHostComposesTheLoadPhaseChainRails` ×2 were red because CE-1446 moved CGF's and the editor's node build into `CgfNodeBootstrapper` / `EditorNodeBootstrapper` (→ the shared `NodeBootstrapper`); four more source rails read the same stale files | `CompositionRootSource.ReadEffectiveRoot` — ONE follower of a root's delegation, used by the load-phase, cluster-handler, translator-set and live-plan rails | production was right; the rails were reading the wrong file |
