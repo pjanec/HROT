@@ -70,7 +70,7 @@ def unit(tkb, name, force, at, facing=0, commander=None, behavior=None, key=None
 
 POINTS = {"A": [400, 400, 0], "B": [525, 400, 0], "C": [650, 400, 0]}
 POINT_R = 15
-BLUE_BASE, RED_BASE = [525, 150, 0], [525, 650, 0]          # 250 m south / north of B — the bot macro advances 250 m ahead
+BLUE_BASE, RED_BASE = [525, 275, 0], [525, 525, 0]          # 125 m south / north of B — the bot macro advances 125 m ahead
 CRATE_SPOTS = [[400, 275, 0], [650, 275, 0], [400, 525, 0], [650, 525, 0]]
 DROPS = [180, 360, 540, 720]                                  # 4 drops, 3 min apart (the first at 3:00 — the 2:30-3:30 range needs SR-101 ③)
 ROUND = 900
@@ -81,11 +81,11 @@ def macro_bot():
     g = ids()
     ents[g] = man("Bot", "Friend", (0, 0, 0), 0, bind_side=True)
     ents[g]["ParamBindings"]["Bindings"]["EntityInfo.Name"] = "name"
-    ents[g]["Behavior"] = {"Name": "AdvanceTo", "Params": json.dumps({"Objective": [0, 250, 0], "Speed": 3, "ArrivalRadius": 6}), "Origin": "Superior"}
+    ents[g]["Behavior"] = {"Name": "AdvanceTo", "Params": json.dumps({"Objective": [0, 125, 0], "Speed": 3, "ArrivalRadius": 6}), "Origin": "Superior"}
     ents[g]["Sop"] = {"Name": "BasicInfantrySop", "Params": "{}", "Origin": "Superior"}
     write("macros/game/bot/scenario.json", doc({
         "Kind": "macro",
-        "description": "What: SHOWCASE Crossfire (docs/SHOWCASE_Scenarios.md §2) - a respawn-wave BOT: one soldier of side 'side' who advances 250 m ahead of his anchor (along its heading; the expander turns the point with the instance) and fights what he meets (BasicInfantrySop). Judge: inserted at a team's base facing the centre, he runs AdvanceTo towards the middle capture point.",
+        "description": "What: SHOWCASE Crossfire (docs/SHOWCASE_Scenarios.md §2) - a respawn-wave BOT: one soldier of side 'side' who advances 125 m ahead of his anchor (along its heading; the expander turns the point with the instance) and fights what he meets (BasicInfantrySop). Judge: inserted at a team's base facing the centre, he runs AdvanceTo towards the middle capture point.",
         "Anchor": {"Position": [0, 0, 0], "Heading": 0},
         "Params": [{"Name": "side", "TypeId": "ForceId", "Default": "Friend"}, {"Name": "name", "TypeId": "string", "Default": "Bot"}],
     }, ents))
@@ -147,21 +147,23 @@ FRIEND, HOSTILE = 1, 2
 def scenario():
     ids, ents = Ids("cf6e0000"), {}
 
-    def team(name, force, base, facing, sq_dx):
+    def team(name, force, base, facing, goals):
+        """A body-less team (the subject of its counters) and two 4-man squads, each sent to hold ITS point (SquadDefend) — so the
+        points are contested apart, not all at B."""
         pl = ids()
-        ents[pl] = unit(305, f"{name} Team", force, base, facing, key=f"{name}Team",
-                        behavior=("PlatoonAttack", {"Position": POINTS["B"], "SearchRadius": 30, "Preset": "AttackPosition", "Speed": 3}))
-        for s, dx in enumerate((-sq_dx, sq_dx), 1):
+        ents[pl] = unit(305, f"{name} Team", force, base, facing, key=f"{name}Team")
+        for s, goal in enumerate(goals, 1):
             sq = ids()
-            at = (base[0] + dx, base[1], 0)
-            ents[sq] = unit(302, f"{name} Squad {s}", force, at, facing, commander=pl)
+            at = (base[0] + (s * 2 - 3) * 10, base[1], 0)
+            ents[sq] = unit(302, f"{name} Squad {s}", force, at, facing, commander=pl,
+                            behavior=("SquadDefend", {"Position": POINTS[goal], "SearchRadius": 12, "Speed": 3}))
             for i in range(4):
                 role = "SquadLeader" if i == 0 else ("MachineGunner" if i == 1 else "Wingman")
                 ents[ids()] = man(f"{name} {s}-{i + 1}", force, (at[0] - 3 + 2 * i, at[1], 0), facing, sq, role)
         return pl
 
-    blue = team("Blue", "Friend", BLUE_BASE, 0, 10)
-    red = team("Red", "Hostile", RED_BASE, 180, 10)
+    blue = team("Blue", "Friend", BLUE_BASE, 0, ("A", "B"))
+    red = team("Red", "Hostile", RED_BASE, 180, ("C", "B"))
 
     def objective(kind, title, params, key=None, force="Friend"):
         g = ids()
@@ -228,13 +230,13 @@ def scenario():
     trigger("Comeback Blue over", on_status(lead, "Value", -19.999, 1e6), [{"act": "SetSkillAmplifier", "args": {"side": "Friend", "tiers": 0}}],
             repeat=True, cooldown=120)
 
-    # ── respawn waves for bots (G-5): while a team has fewer than 10 men up, one bot every 15 s at its base, facing the centre
-    trigger("Blue respawn", alive_of_side_at_most(FRIEND, 9),
+    # ── respawn waves for bots (G-5): while a team has fewer than 8 men up, one bot every 15 s at its base, facing the centre
+    trigger("Blue respawn", alive_of_side_at_most(FRIEND, 7),
             [{"act": "InsertMacro", "args": {"macro": "game/bot", "at": BLUE_BASE, "heading": 0, "params": {"side": "Friend", "name": "Blue bot"}}}],
-            repeat=True, whileTrue=True, cooldown=15)
-    trigger("Red respawn", alive_of_side_at_most(HOSTILE, 9),
+            repeat=True, whileTrue=True, cooldown=15, fireIfTrueWhenArmed=True)
+    trigger("Red respawn", alive_of_side_at_most(HOSTILE, 7),
             [{"act": "InsertMacro", "args": {"macro": "game/bot", "at": RED_BASE, "heading": 180, "params": {"side": "Hostile", "name": "Red bot"}}}],
-            force="Hostile", repeat=True, whileTrue=True, cooldown=15)
+            force="Hostile", repeat=True, whileTrue=True, cooldown=15, fireIfTrueWhenArmed=True)
 
     # ── the end: a team out of tickets, a domination (all three points for 60 s), or 15 min
     trigger("Domination Blue", all_of(*[on_status(pts[p], "Owner", FRIEND, FRIEND) for p in POINTS]),
@@ -248,11 +250,11 @@ def scenario():
         "terrainName": "demo-city",
         "description": (
             "What: SHOWCASE 'Crossfire' (docs/SHOWCASE_Scenarios.md §2) - team domination, bots on both sides (players join on the Deploy screen). "
-            "Blue (2 squads x 4) from the south base (525,150), Red from the north (525,650), both ordered PlatoonAttack on point B. Three capture "
+            "Blue (2 squads x 4) from the south base (525,275) to points A and B, Red from the north (525,525) to C and B (each squad SquadDefend at its point). Three capture "
             "points A (400,400), B (525,400), C (650,400): a side captures with more men inside for 10 s (HoldArea capture, captureSeconds). Tickets: "
             "150 each (Counter), -1 per own man down, -1 per 10 s for each point the enemy holds (whileTrue drain triggers; doubled from 12:00, "
             "sudden death). 'Blue lead' = Blue minus Red; 40 behind => that side's bots +1 tier (never twice within 2 min). Supply crates at 3, 6, 9, "
-            "12 min, each at one of 4 spots (variant). A team with fewer than 10 men up gets a bot every 15 s at its base (game/bot). End: tickets 0, "
+            "12 min, each at one of 4 spots (variant). A team with fewer than 8 men up gets a bot every 15 s at its base (game/bot). End: tickets 0, "
             "domination (all three points 60 s) or 15 min. Judge: (1) a point's Owner flips only after 10 s of a majority; (2) while a point is held "
             "the other side's tickets fall ~1 per 10 s; (3) four crate drops, 3 min apart, each at one of the 4 spots; (4) the comeback raises only the "
             "losing side, at most once per 2 min; (5) bots respawn at their base. Generated by scripts/gen-showcase-crossfire.py."),
