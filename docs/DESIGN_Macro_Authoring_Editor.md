@@ -1,0 +1,164 @@
+<!--STATUS
+state: LIVE — DESIGN, leans MA-1 … MA-10 await the user
+updated: 2026-11-02
+build-state: DESIGN
+current-answer: §3 (decisions) · §4 (phases)
+stale-below: nothing
+known-rot: none
+related-designs:
+  - docs/DESIGN_Scenario_Macros.md — OWNS the macro model: §5.1 the three binding homes (SR-159…SR-166), §5.1.3 the binder as built, SR-39a the instance in Details, §14 SR-173 the macros/ layout; this doc owns only the EDITOR surfaces over it
+  - docs/blueprints/DESIGN_Map_Picking_Unification.md — §6 CE-4206: the reference leaves (EntityLink/PointLink/AreaLink, Exact · Key); MA-2 adds the Param form to the same leaf drawer
+  - docs/DESIGN_Entity_Hierarchy_Views.md — the Scenario view (macro entities under their instance); the instance is selected there and edited here
+  - docs/DESIGN_Add_Entity_Picker.md — §2g/§2h the gallery groups; MA-8 adds a Macros group
+  - docs/DESIGN_Node_Features.md — not affected
+-->
+
+# DESIGN — **authoring macros in the editor** *(CE-4210 + the editor half of SR-39a, SR-104 Z1, §14 "Save selection as macro")*
+
+[CE-4210](blueprints/Blueprint_Issues_Tracker.md) (feed a field from a parameter) · dispatched by
+[HANDOFF_Coordinator_To_Ui_Scenario_Authoring](blueprints/batches/HANDOFF_Coordinator_To_Ui_Scenario_Authoring.md) ⑤ and ⑧.
+The model is [`DESIGN_Scenario_Macros.md`](DESIGN_Scenario_Macros.md); nothing here changes it.
+
+## 1. INVENTORY *(`2026-11-02`)*
+
+**Queries:**
+- graph (⚠ the index pre-dated today's merges; re-indexed in the background, so the gaps were filled by grep):
+  - `.*Param(s)?(Form|Table|Editor|Panel|Window|Drawer)$` Class → 2 (`BehaviorParamsForm`, `BehaviorParamsEditor`);
+  - `.*Predicate.*(Builder|Editor|Panel|Window|Composer)$` → 1 (`PredicateValueFieldEditor`);
+  - `.*(Header|Scenario)(Params|Properties|Settings)(Panel|Window|Form|Editor)$` → **0**;
+  - after the re-index: `.*(Header|Scenario)(Params|Parameters|Properties|Settings|Header)(Panel|Window|Form|Editor|Resident)?$` → 1 (`ScenarioHeader`, the record — no editor of it) · `.*Macro.*` Class → 19, all the BLUEPRINT graph macros (`MacroCallNode`, `Stage2_5_ExpandMacros`, …), a different concept with no scenario UI.
+- grep: `new ComponentEditDrawer` (8 production sites) · `ScenarioHeader` in the editor (2) · `EnumerateRelPaths` (2) · `TypeId` mapping (none) · the save handler · `ScenarioMergeCore` · `EntityWriteRouter`.
+- ⚠ Coverage was not checked: `check_index_coverage` is not in the CLI.
+
+| measured | where | so |
+|---|---|---|
+| ⭐ **ONE field drawer** draws every editable value in the editor: the inspector (`ComponentReflector`), the ONE params form (`BehaviorParamsForm.DrawFields`), the params defaults, the Replay Search predicate editor, the node properties, the variable modal | `FDP/Engine/Fdp.Presentation/ImGui/Editing/ComponentEditDrawer.cs` (`DrawLeafNode` :253, `DrawContainerNode` :134); 8 `new ComponentEditDrawer` sites | ⭐ the bind affordance is ONE change here, and every editor gets it by construction |
+| the reference leaves (CE-4206) are drawn by ONE class through the same drawer; each leaf knows its `JsonPath` | `ReferenceLeafDrawers.cs` :166, :352 | the `Param` form is one more arm of an existing form switch |
+| the drawer's optional host services come in through ONE context (`IMapPickContext`), and a host that has none passes null | `ComponentEditDrawer` ctor | a bind context comes in the same way (⚠ the silent-default rule: every editor host that HAS a scope must pass it) |
+| the binder, its three homes and `ParamBindings` (469) are built; `BindableNode.Bind` is settable; `SearchPredicateDto : BindableNode` | `Fdp.Toolkits/Scenario/ParamBinding.cs`; DESIGN_Scenario_Macros §5.1.3 | the editor only WRITES the homes; it never applies them (SR-168: the binder is non-destructive) |
+| a param is `ScenarioParamDecl(Name, TypeId, Default, Comment)`; `TypeId` is a free string (`"AreaLink"`, `"float"`, `"ForceId"`); ⛔ **no table maps a TypeId to a CLR type** — the binder converts to the TARGET field's type | `ScenarioHeader.cs:73`; grep | the bind menu cannot filter params by type, and an args form cannot draw a typed row ⇒ MA-3 |
+| 🔴 **an editor SAVE drops the macro header**: the save handler builds `new ScenarioHeader(docType, TerrainName, Description)` — no `Kind`, `Params`, `Anchor`, `MaxShift`, `Relocatable` — and the slice merge's canonical header keeps only `TerrainName`, `World`, `Description` | `HrotScenarioSaveHandler.cs:98-100`; `ScenarioMergeCore.cs:98-188` | ⛔ opening a macro and saving it turns it into a plain scenario with no params; a scenario's own params (SR-41) are lost the same way ⇒ MA-4. Note: the serializer CAN write the macro header (`ScenarioSerializer.cs:273-279`, `ScenarioHeaderJson.Write`); nothing passes it |
+| ⚠ the save handler's slice path is `scenarios/<name>/.slices`, while the merge reads `ResolveScenarioDirectory(name)` | `HrotScenarioSaveHandler.cs:102`; `StorageProcessManager.cs:217` | for `macros/x` the slices land under `scenarios/macros/x/.slices` and are not cleaned up; the canonical file is right ⇒ fixed with MA-4 |
+| the load stamps the scenario's text and args resident (`ScenarioDescriptionResident {Text, Name, Hash, Args}`); the save reads `Description` back from it | `ScenarioDescription.cs:16-29`; save handler :100 | ⭐ the ONE owner of "the header of the scenario being edited" already exists — it just holds too little |
+| the resolver opens any `macros/<path>` name (`ResolveScenarioDirectory` arm); `ContentLayout.MacroName` / `IsMacroName` / `Macros(root)` exist | `Fdp.Toolkits/Orchestration/ContentLayout.cs:58-164` | Open / New / Save of a macro needs no new path code |
+| the scenario listing enumerates `scenarios/` only | `ScenarioEnumeration.EnumerateRelPaths`; `EditorSubsystem.cs:1376`; `CgfSubsystem.cs:2620` | a Macros group in the picker = the same enumeration over `ContentLayout.Macros(root)` |
+| the instance is TKB 8813 (`TkbEntityTypes.ScenarioMacro`), drawn today with the cultural-feature outline; the worker gives it its own marker (W-M1, SR-178) | `EntityClassShapeLibrary.cs:28` | Add Entity ▸ Macro creates an 8813 + `MacroInstance` |
+| ⚠ an args edit over the debug API (`POST /entities/{id}/component {"Args":…}`) answers ok and changes nothing | DESIGN_Scenario_Macros §15.4 (live) | the args form writes a NEW `MacroInstance` record (immutable, SR-175), never a patch |
+| the attribute write router is numeric (`Write(entity, attributeId, double)`); a managed record has no attribute route | `EntityWriteRouter.cs`, `IEntityComponentWriter.cs:40-55` | ⛔ unmeasured: how the editor's inspector commits a MANAGED component on an entity another node owns. MA-9 measures it first (§5) |
+
+## 2. The shape
+
+```mermaid
+classDiagram
+    direction LR
+    class ComponentEditDrawer { <<existing, the ONE field drawer>> DrawLeafNode · DrawContainerNode }
+    class IParamBindContext { <<NEW, optional, beside IMapPickContext>> ParamsInScope · BoundTo(path) · Bind(path, name) · Unbind(path) · Problem(path) }
+    class ReferenceLeafDrawers { <<existing CE-4206>> Exact · Key · gains Param }
+    class BindableNode { <<existing S3a>> Bind : name → param }
+    class ParamBindings { <<existing S3a, id 469>> path → param }
+    class ParamTypes { <<NEW, Fdp.Toolkits/Scenario>> TypeId ↔ CLR type · Fits(TypeId, Type) }
+    class ScenarioDescriptionResident { <<existing, grows>> Text · Name · Args · + Header (kind, params, anchor, placement) }
+    class ScenarioParamsPanel { <<NEW>> the header's params table: add · rename · type · default }
+    class RenameParamCommand { <<NEW, undoable>> rewrites every binding of a name }
+    class MacroArgsForm { <<NEW>> the instance's args: one typed row per header param }
+    class EntityBindContext { <<NEW>> the inspector's context: one entity's ParamBindings }
+    class HrotScenarioSaveHandler { <<existing>> writes the resident header }
+    class ScenarioMergeCore { <<existing, backend's file>> keeps the header from the first slice that has it }
+    ComponentEditDrawer ..> IParamBindContext : optional
+    ComponentEditDrawer ..> ReferenceLeafDrawers : Param form for a reference leaf
+    ComponentEditDrawer ..> BindableNode : Bind for a node property
+    IParamBindContext <|.. EntityBindContext
+    EntityBindContext ..> ParamBindings : any other field
+    IParamBindContext ..> ParamTypes : filters by type
+    IParamBindContext ..> ScenarioDescriptionResident : params in scope
+    ScenarioParamsPanel ..> ScenarioDescriptionResident : edits Header.Params
+    ScenarioParamsPanel ..> RenameParamCommand
+    MacroArgsForm ..> ParamTypes : a typed row per param
+    MacroArgsForm ..> ComponentEditDrawer : draws each row
+    HrotScenarioSaveHandler ..> ScenarioDescriptionResident : reads Header
+    ScenarioMergeCore ..> HrotScenarioSaveHandler : slices
+```
+
+*What the picture shows that prose hid:* the drawer picks the binding's HOME from the node it is drawing (a reference leaf, a property
+of a `BindableNode`, or neither). So the host passes only the params in scope and a place to write `ParamBindings`; no host can put a
+binding in the wrong home. And the header has ONE owner, the resident the load already fills, which the save writes back.
+
+```mermaid
+sequenceDiagram
+    participant U as author
+    participant D as ComponentEditDrawer
+    participant C as IParamBindContext (the host's)
+    participant H as the home
+    U->>D: right-click a field's label
+    D->>C: ParamsInScope (filtered by ParamTypes.Fits(param, node.ClrType))
+    C-->>D: area : AreaLink, zone : AreaLink
+    U->>D: Bind to parameter ▸ area
+    alt the leaf is a reference type (EntityLink · PointLink · AreaLink)
+        D->>H: the value's RefSpec Form = Param, Key = "area" (the binding.SetBoxed the form switch already does)
+    else the leaf's owner is a BindableNode
+        D->>H: owner.Bind[propertyName] = "area" (the same node, then MarkStructuralChange)
+    else any other field
+        D->>C: Bind(node.JsonPath, "area")
+        C->>H: ParamBindings on the entity, an undoable component edit
+    end
+    D-->>U: the chip "⛓ area" (the literal stays editable, the value used when the macro is opened alone)
+```
+
+```mermaid
+graph TD
+    LOAD["ScenarioLoadStep (every node)"] -->|"stamps (exists: Text, Args)"| RES["ScenarioDescriptionResident (+ Header)"]
+    PANEL["ScenarioParamsPanel (editor)"] -->|edits| RES
+    BIND["IParamBindContext (inspector · params form · predicate editor)"] -->|"reads params in scope"| RES
+    RES -->|"read by"| SAVE["HrotScenarioSaveHandler (every node's slice)"]
+    SAVE --> MERGE["ScenarioMergeCore (orchestrator): keeps Header from the first slice carrying it"]
+    MERGE --> FILE["macros/PATH/scenario.json or scenarios/NAME/scenario.json"]
+    PICK["scenario picker: Scenarios · Macros groups"] -->|"edit load of macros/PATH"| LOAD
+    GALLERY["Add Entity gallery: Macros group"] -->|"creation request: TKB 8813 + MacroInstance"| WORLD["the edit world"]
+    ARGS["MacroArgsForm (Details of a selected instance)"] -->|"a NEW MacroInstance record, to its owner"| WORLD
+    style MERGE stroke:#c00,stroke-width:2px
+    style SAVE stroke:#c00,stroke-width:2px
+```
+
+*What the picture shows that prose hid:* the two red boxes are where the header is dropped today (§1). Every editor surface reaches
+the header through the resident, so no surface can keep a copy of its own.
+
+## 3. Decisions
+
+| # | decision | ⭐ lean | blast radius |
+|---|---|---|---|
+| **MA-1** | the ONE affordance | ⭐ in `ComponentEditDrawer`: right-click a leaf's LABEL ⇒ *Bind to parameter ▸ (the params in scope whose type fits)* and *Unbind*. A bound leaf shows a chip *⛓ name* in front of its value, and the literal stays editable (it is the value used when the macro is opened alone, SR-168). The chip turns red, with the reason as its tooltip, when the name is not declared or the type does not fit (SR-149). ⭐ Only when the host passes an `IParamBindContext` with params in scope ⇒ a field outside any macro or scenario-with-params shows nothing new | one class (the drawer) + one optional ctor argument; every drawer host keeps compiling |
+| **MA-2** | where the write goes | ⭐ decided by the DRAWER from the node, never by the host: a reference leaf ⇒ the value's `Param` form (the CE-4206 form switch gains *Param*); a property of a `BindableNode` (the nearest container's value is one) ⇒ that node's `Bind`; anything else ⇒ `context.Bind(path)`, which the inspector's context writes to the entity's `ParamBindings` (`"<Component>.<field path>"`) as an undoable component edit | ⛔ never a key inside params JSON. ⭐ The params form's field paths step into a params blob (`Behavior.Params.Speed`, the binder's own path form) |
+| **MA-3** | params by type | ⭐ ONE `ParamTypes` table in `Fdp.Toolkits/Scenario`: `TypeId ↔ CLR type` (`EntityLink`, `PointLink`, `AreaLink`, `Bearing`, `WorldRotation`, `float`, `int`, `bool`, `string`, and enums by their registered name, e.g. `ForceId`), plus `Fits(typeId, Type)`. Used by the bind menu, the args form and the params panel's type combo — ⭐ and offered to the validator for SR-162's type half (backend's file; said in the note, not done here) | a new small table; an unknown TypeId fits nothing and is shown as such |
+| **MA-4** | 🔴 the header is dropped on save | ⭐ the resident is the ONE owner: `ScenarioDescriptionResident` gains `Header` (the macro fields: kind, params, anchor, placement, relocatable), stamped at load from the file. The save handler passes it to the serializer (which already writes it). `ScenarioMergeCore` keeps it from the first slice that carries it (the `Description` rule, CE-3288). The save handler's slice path goes through `ContentLayout` (the `macros/` arm). ⭐ Rail: load a macro → save → `Kind`, `Params`, `Anchor` are still in the file | ⚠ cross-lane: `ScenarioMergeCore` is in `Fdp.Toolkits` (backend). Small, symmetric with `Description`, said in the commit and the note |
+| **MA-5** | editing the params | ⭐ a *Scenario parameters* panel (Scenario menu; also opened from the bind menu's *New parameter…*) over the resident's `Header.Params`: add · type (a `ParamTypes` combo) · default (drawn by the ONE drawer for that type) · comment · delete (refused while bound, naming the bindings). ⭐ **Rename** is one undoable command that rewrites every binding of the name in the edit world — the walker's `Param` leaves, every `BindableNode.Bind`, every `ParamBindings` entry (`ParamBinder.BindingsOf` lists them) | the panel writes the resident only; the next save writes the file (MA-4) |
+| **MA-6** | Open / New macro | ⭐ the scenario picker (CE-4141) gains a **Macros** group = `ScenarioEnumeration` over `ContentLayout.Macros(root)`; a pick is an edit load of `ContentLayout.MacroName(path)` (the resolver arm exists). The title says *Macro: forces/RedQRF*. *New macro…* = a new scenario under `macros/` with `kind = macro` and the anchor at the origin, heading north | the picker's group list + one enumeration root; the load and save paths are unchanged |
+| **MA-7** | Add Entity ▸ Macro (SR-104 Z1) | ⭐ the Add Entity gallery gains a **Macros** group (`GalleryGroups` data, the same enumeration as MA-6). Placing one is the ordinary placement tool and creation request: TKB 8813 + `MacroInstance {Macro = path, ArgsJson = "{}"}` at the click, the heading from the tool. The edit world expands it (S3a), and the worker's member lines and dimmed members show what it put in | no new creation path; `MacroInstance` is saved by its translator |
+| **MA-8** | the instance in Details (SR-39a) | ⭐ the inspector draws a **Macro** section for an entity with `MacroInstance`: the macro (the same picker, Macros group) + `MacroArgsForm` — one row per header param of the picked macro (read through the content source): its default greyed until overridden, *reset to default*, each row drawn by the ONE drawer over a one-field typed holder (`ParamTypes` gives the type). A change builds a NEW `MacroInstance` record and writes it to the owner (S3a reconciles). The expansion status (`Done` / `Failed` + reason) is shown at the top | needs MA-3. ⚠ the owner write route for a managed record is measured first (§1 last row) |
+| **MA-9** | Save selection as macro (§14) | ⭐ one SAVE path, not a second serializer: the save payload gains `OnlyGuids` + a target name `macros/<path>` + a header (`kind = macro`, anchor = the selection's centroid, heading north). Each node writes only the selected entities it owns. ⭐ Before saving, the editor walks the selection's references (the S0 walker) and lists every reference to an entity OUTSIDE the selection. For each, either turn it into a param (default = its current key or GUID, type from the field) or cancel — a macro is closed (SR-58). v1 leaves the selection in place; *replace with an instance* is a later item | the save payload grows by optional fields; a node that ignores them would save everything ⇒ a rail per host (the silent-default rule) |
+| **MA-10** | Preview of an `InsertMacro` (SR-189) | ⏳ waits for behaviors' S2 (the `do`-list editor). The button calls MA-7's creation with `IsTransient`; noted, not designed further here | — |
+
+**Rejected — one line each:**
+- *A bind button in each editor (inspector, params form, predicate builder)* — three copies; the drawer is the one place every editor passes through.
+- *The host decides the home* — a host can then write `ParamBindings` for a reference leaf, which the next typed save keeps but the walker never reads.
+- *Keeping the header in the editor session* — a second owner beside the resident the load already fills; it also leaves CGF's and IG's slices without it.
+- *Patching `MacroInstance.ArgsJson` through the attribute route* — measured: the patch is accepted and changes nothing; the record is immutable by design.
+- *Save selection by serializing the editor's replica* — the editor does not own every selected entity (split authority); the ONE save path asks each owner.
+
+## 4. Phases
+
+| phase | items | gate |
+|---|---|---|
+| **P1** | MA-4 (the header owner + merge + slice path) · MA-3 (`ParamTypes`) | rail: macro load → save keeps the header; merge keeps it from the first slice; `ParamTypes` round-trips every shipped TypeId |
+| **P2** | MA-1 · MA-2 · MA-5 | rails: each home written by its node kind; the chip; rename follows all three homes; a frame rail of the bind menu under `xvfb-run -a` |
+| **P3** | MA-6 · MA-7 · MA-8 | rails: the Macros group lists `macros/`; placing creates 8813 + `MacroInstance`; the args form writes a new record; live check on `test/fire-team` |
+| **P4** | MA-9 | rails: an outside reference is listed; turned into a param; the file holds only the selection |
+
+## 5. Claim table *(the leans rest on)*
+
+| claim | code | design basis |
+|---|---|---|
+| every editor field goes through `ComponentEditDrawer` | ✅ 8 `new ComponentEditDrawer` sites | ✅ CE-1023 "the ONE params form" |
+| the header is dropped on save | ✅ `HrotScenarioSaveHandler.cs:98`, `ScenarioMergeCore.cs:98-188` | ✅ SR-163 says the save writes bindings "with no extra step" ⇒ the header must survive |
+| no TypeId → CLR table exists | ✅ grep, none | ⛔ searched `docs/` for one, none found |
+| the binder is non-destructive, so the editor may hold bound values | ✅ §5.1.3 | ✅ SR-168 |
+| a managed record can be written to its owner from the inspector | ⛔ **unmeasured** — MA-8 only; P3 measures it before building | ✅ SR-175 (routes an args edit to the owner, `EntityWriteRouter`) |
