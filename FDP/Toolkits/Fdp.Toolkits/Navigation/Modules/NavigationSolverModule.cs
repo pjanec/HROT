@@ -113,6 +113,7 @@ namespace Fdp.Toolkit.Navigation.Modules
         {
             reg.RegisterSystem(new PathfindingResultMaterializationSystem());
             _solverRun = reg.RegisterManualSystem(Solver());   // ⭐ CE-3293 S2 — ticked through the scheduler's one gate
+            _placementRun = reg.RegisterManualSystem(Placement());   // ⭐ macros S3a ⑤ — placement queries, the same gate
         }
 
         // ⭐ CE-3293 S2 — ONE solver for the module's life (it was built anew every tick): a system run through the scheduler
@@ -122,6 +123,11 @@ namespace Fdp.Toolkit.Navigation.Modules
         private IEcsModuleSystem? _solverRun;
         private PathfindingSolverSystem Solver()
             => _solver ??= new PathfindingSolverSystem(_roadNetwork, _trajectoryPool, _navmesh, _volumetric, _roadNetworkHolder);
+
+        // ⭐ macros S3a ⑤ (SR-180…SR-182) — the placement solver: ONE for the module's life, ticked beside the path solver with the module's navmesh.
+        private PlacementSolverSystem? _placement;
+        private IEcsModuleSystem? _placementRun;
+        private PlacementSolverSystem Placement() => _placement ??= new PlacementSolverSystem(_navmesh);
 
         /// <inheritdoc/>
         /// <remarks>
@@ -136,6 +142,7 @@ namespace Fdp.Toolkit.Navigation.Modules
         public void Tick(ISimulationView view, float dt)
         {
             (_solverRun ?? Solver()).Execute(view, dt);
+            (_placementRun ?? Placement()).Execute(view, dt);   // ⭐ macros S3a ⑤
         }
     }
 }

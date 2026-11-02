@@ -161,6 +161,10 @@ namespace Hrot.NED.Descriptors
         dtMacroInstance               = 158,
         dtMacroExpansionStatus        = 159,
         dtMacroOrigin                 = 170,
+        // ⭐ macros S3a ⑤ (docs/DESIGN_Scenario_Macros.md §14.2 SR-180, R-134) — the placement query pair, the dtPathRequestBatch / dtPathResponseBatch shape
+        //   (enum only: a topic of its own, not a creation-request arm). 171 / 172 measured free on ui, behaviors, coordinator, backend 2026-11-02.
+        dtPlacementRequestBatch       = 171,
+        dtPlacementResponseBatch      = 172,
         // ⭐ AQ93 §12 N4 (R-4056) — the TRAFFIC block 160–169, kept clear of the sequential run so lanes cannot collide (TKB 8812
         //   was allocated twice on 2026-10-17). The scenario's traffic settings: the Brain creates them, the Traffic group serves them.
         dtTrafficDemand               = 160,

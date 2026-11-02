@@ -1097,6 +1097,52 @@ namespace Hrot.NED.Descriptors
         [DdsManaged] public List<DdsPathResult> Results;
     }
 
+    // ── Placement pipeline (macros S3a ⑤, docs/DESIGN_Scenario_Macros.md §14.2 SR-180, R-134) — the pathfinding pair's shape ──────────────
+
+    /// <summary>One thing to place: a macro-local key, its wanted point (ENU offset from the batch origin), layer (<c>PlacementLayer</c>) and half-footprint radius.</summary>
+    [DdsStruct]
+    public partial struct DdsPlacementSlot
+    {
+        public int             Key;
+        public RelativeVector3 Point;
+        /// <summary>0 Infantry · 1 Vehicle · 2 Amphibious · 3 Air.</summary>
+        public byte            Layer;
+        public float           Radius;
+    }
+
+    /// <summary>A placement request from the asking node toward the Navigation Solver (one request per sample).</summary>
+    [DdsTopic]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile)]
+    public partial struct PlacementRequestBatchWire
+    {
+        [DdsKey] public int SourceNodeId;
+        public long         RequestId;
+        public float        MaxShift;
+        public Vec3d        BatchOrigin;   // local ENU metres (AQ107 B): the anchor the RelativeVector3 offsets are measured from
+        [DdsManaged] public List<DdsPlacementSlot> Slots;
+    }
+
+    /// <summary>The answer for one slot: <c>PlacementOutcome</c> (0 Exact · 1 Shifted · 2 Failed), the point (offset from the batch origin) and a reason.</summary>
+    [DdsStruct]
+    public partial struct DdsPlacementAnswer
+    {
+        public int             Key;
+        public byte            Outcome;
+        public RelativeVector3 Point;
+        [DdsManaged] public string Reason;
+    }
+
+    /// <summary>The Navigation Solver's answers, addressed to the asking node.</summary>
+    [DdsTopic]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile)]
+    public partial struct PlacementResponseBatchWire
+    {
+        [DdsKey] public int TargetNodeId;
+        public long         RequestId;
+        public Vec3d        BatchOrigin;
+        [DdsManaged] public List<DdsPlacementAnswer> Answers;
+    }
+
     // ── Ground Clamping IG contract (MOD1-P7T1) ──────────────────────────────
 
     /// <summary>
