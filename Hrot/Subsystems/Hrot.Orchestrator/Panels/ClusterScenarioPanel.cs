@@ -367,14 +367,13 @@ public sealed class ClusterScenarioPanel
         if (!ImGui.CollapsingHeader("Node Health", ImGuiTreeNodeFlags.DefaultOpen)) return;
 
         double nowSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
-        if (ImGui.BeginTable("NodeHealth", 6,
+        if (ImGui.BeginTable("NodeHealth", 5,
                 ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
         {
             ImGui.TableSetupColumn("NodeId");
             ImGui.TableSetupColumn("Subsystem");
             ImGui.TableSetupColumn("Last HB (ms ago)");
             ImGui.TableSetupColumn("State");
-            ImGui.TableSetupColumn("CPU %");
             ImGui.TableSetupColumn("RAM (MB)");
             ImGui.TableHeadersRow();
 
@@ -392,7 +391,6 @@ public sealed class ClusterScenarioPanel
                     ImGui.TableNextColumn(); ImGui.Text(p.SubsystemName ?? "—");
                     ImGui.TableNextColumn(); ImGui.Text(msAgo >= 0 ? msAgo.ToString() : "—");
                     ImGui.TableNextColumn(); ImGui.Text(p.LocalClusterState.ToString());
-                    ImGui.TableNextColumn(); ImGui.Text($"{p.CpuUsagePercent:F1}");
                     ImGui.TableNextColumn(); ImGui.Text($"{ramMb:F1}");
                 }
             }
@@ -411,7 +409,6 @@ public sealed class ClusterScenarioPanel
                     ImGui.TableNextColumn(); ImGui.Text(hb.SubsystemName ?? "—");
                     ImGui.TableNextColumn(); ImGui.Text(msAgo >= 0 ? msAgo.ToString() : "—");
                     ImGui.TableNextColumn(); ImGui.Text(hb.LocalClusterState.ToString());
-                    ImGui.TableNextColumn(); ImGui.Text($"{Hrot.NED.Descriptors.Orchestration.WireUnits.FractionToPercent(hb.CpuUsage):F1}");   // ⭐ AQ107 I — the wire carries a 0…1 fraction
                     ImGui.TableNextColumn(); ImGui.Text($"{ramMb:F1}");
                 }
             }
