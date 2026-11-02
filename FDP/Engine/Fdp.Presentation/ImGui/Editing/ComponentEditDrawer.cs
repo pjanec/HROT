@@ -22,19 +22,16 @@ public sealed class ComponentEditDrawer
     private readonly IEditSession _session;
     private readonly IMapPickContext? _pickerCtx;
     private readonly IReadOnlyDictionary<Type, IImGuiFieldDrawer> _customDrawers;
-    private readonly ISpatialPickerContext? _spatialPickerCtx;
     private readonly ReferenceLeafDrawers.State _refState = new();   // ⭐ CE-4206 — the form a person switched a link field to, the key being typed
 
     public ComponentEditDrawer(
         IEditSession session,
         IMapPickContext? pickerCtx,
-        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null,
-        ISpatialPickerContext? spatialPickerCtx = null)
+        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null)
     {
         _session            = session;
         _pickerCtx          = pickerCtx;
         _customDrawers      = customDrawers ?? new Dictionary<Type, IImGuiFieldDrawer>();
-        _spatialPickerCtx   = spatialPickerCtx;
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -237,30 +234,6 @@ public sealed class ComponentEditDrawer
             }
         }
 
-        // Picker: bounding box area (spatial search) for container-style nodes.
-        var bboxAttr = node.Metadata.CustomAttributes
-            .OfType<MapPickableBoundingBoxAttribute>().FirstOrDefault();
-        if (bboxAttr != null && _spatialPickerCtx != null)
-        {
-            ImGuiApi.SameLine();
-            if (_spatialPickerCtx.IsPickPendingFor(node.JsonPath))
-            {
-                ImGuiApi.TextColored(new Vector4(1f, 1f, 0f, 1f), "[Picking on Map...]");
-            }
-            else
-            {
-                if (ImGuiApi.Button($"...##{node.Id.Value}"))
-                    _spatialPickerCtx.RequestBoundingBoxPick(node.JsonPath);
-                if (ImGuiApi.IsItemHovered(ImGuiHoveredFlags.DelayNormal))
-                    ImGuiApi.SetTooltip("Define area boundaries on map");
-            }
-
-            if (_spatialPickerCtx.TryConsumeBoundingBoxPick(node.JsonPath, out var pickedBox))
-            {
-                node.Binding?.SetBoxed(Fdp.Toolkit.ReplayBrowser.Search.AreaBoxes.FromBox(pickedBox));   // ⭐ S0 item 5: the box the tool drew becomes the predicate's AreaLink
-            }
-        }
-
         if (opened)
         {
             int i = 0;
@@ -321,31 +294,6 @@ public sealed class ComponentEditDrawer
             {
                 RemoveElementAtIndex(parentContainer!, elementIndex);
                 _session.MarkStructuralChange();
-            }
-        }
-
-        // Picker: bounding box area (spatial search).
-        var bboxAttr = node.Metadata.CustomAttributes
-            .OfType<MapPickableBoundingBoxAttribute>().FirstOrDefault();
-        if (bboxAttr != null && _spatialPickerCtx != null)
-        {
-            ImGuiApi.SameLine();
-            if (_spatialPickerCtx.IsPickPendingFor(node.JsonPath))
-            {
-                ImGuiApi.TextColored(new Vector4(1f, 1f, 0f, 1f), "[Picking on Map...]");
-            }
-            else
-            {
-                if (ImGuiApi.Button($"...##{node.Id.Value}"))
-                    _spatialPickerCtx.RequestBoundingBoxPick(node.JsonPath);
-                if (ImGuiApi.IsItemHovered(ImGuiHoveredFlags.DelayNormal))
-                    ImGuiApi.SetTooltip("Define area boundaries on map");
-            }
-
-            if (_spatialPickerCtx.TryConsumeBoundingBoxPick(node.JsonPath, out var pickedBox))
-            {
-                node.Binding?.SetBoxed(Fdp.Toolkit.ReplayBrowser.Search.AreaBoxes.FromBox(pickedBox));   // ⭐ S0 item 5: the box the tool drew becomes the predicate's AreaLink
-                changed = true;
             }
         }
 

@@ -5,11 +5,15 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Scenario;
+using Fdp.Toolkit.Vis2D.Gizmos;
 using StructEdit.Core;
 
 namespace Fdp.Presentation.Editing;
 
 using ImGuiApi = ImGuiNET.ImGui;
+
+/// <summary>CE-4206 R2 — the form an <see cref="AreaLink"/> leaf shows.</summary>
+public enum AreaLeafForm { Circle, Rectangle, Entity }
 
 /// <summary>
 /// ⭐⭐ CE-4206 R1 (<c>docs/blueprints/DESIGN_Map_Picking_Unification.md</c> §6.2, F1) — the ONE drawer per reference TYPE, moved out of
@@ -22,7 +26,7 @@ public static class ReferenceLeafDrawers
 {
     /// <summary>Does this class draw a field of <paramref name="type"/>?</summary>
     public static bool Handles(Type type)
-        => type == typeof(EntityLink) || type == typeof(PointLink) || type == typeof(EntityRef) || type == typeof(WorldPoint);
+        => type == typeof(EntityLink) || type == typeof(PointLink) || type == typeof(EntityRef) || type == typeof(WorldPoint) || type == typeof(AreaLink);
 
     /// <summary>The words shown beside an entity written as a bare id.</summary>
     public const string NoStableId = "no stable id — will not survive a save";
@@ -34,6 +38,7 @@ public static class ReferenceLeafDrawers
         internal readonly Dictionary<string, string> KeyText = new();
         internal readonly Dictionary<string, bool> PointEntityForm = new();
         internal readonly Dictionary<string, string> Notice = new();
+        internal readonly Dictionary<string, AreaLeafForm> AreaForm = new();
     }
 
     // ═══ the pure rules (rails call these) ═══════════════════════════════════════════════════════════════════════════════════
@@ -112,6 +117,128 @@ public static class ReferenceLeafDrawers
         return PointFromSpec(link.Spec, picked, previousLocal, refs);
     }
 
+    // ═══ AreaLink (CE-4206 R2, F6) ═══════════════════════════════════════════════════════════════════════════════════════════
+
+    /// <summary>The form of an <see cref="AreaLink"/> value: a circle, a rectangle, or an area ENTITY (a key / GUID / id). A value with nothing in it reads as a circle.</summary>
+    public static AreaLeafForm AreaFormOf(AreaLink area)
+        => area.Spec.Form == RefForm.Rectangle ? AreaLeafForm.Rectangle
+         : area.Spec.Form == RefForm.Circle || area.IsNone ? AreaLeafForm.Circle
+         : AreaLeafForm.Entity;
+
+    /// <summary>
+    /// F6 — switching form keeps the CENTRE where it can: circle ⇄ rectangle keep <c>Center</c> (a circle's diameter becomes a square's side, a rectangle's longer half becomes
+    /// the radius, the heading is kept); from an area entity the centre is its position when a scope can say. To Entity: nothing chosen yet.
+    /// </summary>
+    public static AreaLink SwitchAreaForm(AreaLink current, AreaLeafForm to, LiveRefScope? refs)
+    {
+        var centre = current.IsShape ? current.Center : default;
+        if (!current.IsShape && !current.Area.IsNone && refs != null && refs.TryPositionOf(current.Area, out var at)) centre = at;
+        switch (to)
+        {
+            case AreaLeafForm.Circle:
+                return AreaLink.Circle(centre, current.Spec.Form == RefForm.Circle ? current.Size.X
+                    : current.Spec.Form == RefForm.Rectangle ? MathF.Max(current.Size.X, current.Size.Y) * 0.5f : AreaShapeHandles.DefaultRadius);
+            case AreaLeafForm.Rectangle:
+                return current.Spec.Form == RefForm.Rectangle ? current
+                    : current.Spec.Form == RefForm.Circle ? AreaLink.Rectangle(centre, current.Size.X * 2f, current.Size.X * 2f, default)
+                    : AreaLink.Rectangle(centre, AreaShapeHandles.DefaultRadius * 2f, AreaShapeHandles.DefaultRadius * 2f, default);
+            default:
+                return default(AreaLink);
+        }
+    }
+
+    /// <summary>The area an area ENTITY field holds as the EntityLink the Exact / Key controls edit.</summary>
+    public static EntityLink AreaEntityAsLink(AreaLink area, LiveRefScope? refs)
+    {
+        if (area.IsShape) return EntityLink.None;
+        var entity = area.Area;
+        if (entity.IsNone && refs != null && !area.Spec.IsNone) refs.TryResolve(area.Spec, out entity);
+        return new EntityLink(entity, area.Spec);
+    }
+
+    /// <summary>The area value an Exact / Key edit of the entity form writes.</summary>
+    public static AreaLink AreaFromEntityLink(EntityLink link) => AreaLink.OfEntity(link.Ref, link.Spec);
+
+    private static bool DrawAreaLink(EditNode node, float width, IMapPickContext? ctx, State st)
+    {
+        var area = node.Binding?.GetBoxed() is AreaLink a ? a : default;
+        string path = node.JsonPath;
+        var id = node.Id.Value;
+        var refs = ctx?.References;
+        var form = st.AreaForm.TryGetValue(path, out var o) ? o : AreaFormOf(area);
+        bool changed = false;
+
+        // ── the three-way switch ──────────────────────────────────────────────────────────────────────────────────────────
+        foreach (var (f, label) in new[] { (AreaLeafForm.Circle, "Circle"), (AreaLeafForm.Rectangle, "Rectangle"), (AreaLeafForm.Entity, "Area entity") })
+        {
+            if (ImGuiApi.RadioButton($"{label}##af{f}{id}", form == f) && form != f)
+            {
+                st.AreaForm[path] = form = f;
+                area = SwitchAreaForm(area, f, refs);
+                changed = true;
+            }
+            ImGuiApi.SameLine(0f, 4f);
+        }
+
+        if (form == AreaLeafForm.Entity)
+        {
+            ImGuiApi.NewLine();
+            var link = AreaEntityAsLink(area, refs);
+            if (DrawEntityLinkCore(node, ref link, width, ctx, st))
+            {
+                area = AreaFromEntityLink(link);
+                changed = true;
+            }
+        }
+        else
+        {
+            ImGuiApi.NewLine();
+            var c = new Vector2(area.IsShape ? area.Center.X : 0f, area.IsShape ? area.Center.Y : 0f);
+            float third = Math.Max((width - 32f) / 5f, 40f);
+            bool edited = false;
+            ImGuiApi.SetNextItemWidth(third); edited |= ImGuiApi.InputFloat($"##cx{id}", ref c.X, 0, 0, "x %.1f");
+            ImGuiApi.SameLine(0f, 4f);
+            ImGuiApi.SetNextItemWidth(third); edited |= ImGuiApi.InputFloat($"##cy{id}", ref c.Y, 0, 0, "y %.1f");
+            ImGuiApi.SameLine(0f, 4f);
+            if (form == AreaLeafForm.Circle)
+            {
+                float r = area.Spec.Form == RefForm.Circle ? area.Size.X : 0f;
+                ImGuiApi.SetNextItemWidth(third); edited |= ImGuiApi.InputFloat($"##r{id}", ref r, 0, 0, "r %.1f m");
+                if (edited) { area = AreaLink.Circle(new WorldPoint(c.X, c.Y, area.IsShape ? area.Center.Z : 0f), MathF.Max(0f, r)); changed = true; }
+            }
+            else
+            {
+                float w = area.Spec.Form == RefForm.Rectangle ? area.Size.X : 0f, l = area.Spec.Form == RefForm.Rectangle ? area.Size.Y : 0f;
+                float h = area.Spec.Form == RefForm.Rectangle ? area.Heading.Degrees : 0f;
+                ImGuiApi.SetNextItemWidth(third); edited |= ImGuiApi.InputFloat($"##w{id}", ref w, 0, 0, "w %.1f");
+                ImGuiApi.SameLine(0f, 4f);
+                ImGuiApi.SetNextItemWidth(third); edited |= ImGuiApi.InputFloat($"##l{id}", ref l, 0, 0, "l %.1f");
+                ImGuiApi.SameLine(0f, 4f);
+                ImGuiApi.SetNextItemWidth(third); edited |= ImGuiApi.InputFloat($"##h{id}", ref h, 0, 0, "hdg %.0f°");
+                if (edited) { area = AreaLink.Rectangle(new WorldPoint(c.X, c.Y, area.IsShape ? area.Center.Z : 0f), MathF.Max(0f, w), MathF.Max(0f, l), new Bearing(h)); changed = true; }
+            }
+
+            // ── Edit on map ───────────────────────────────────────────────────────────────────────────────────────────────
+            if (ctx != null)
+            {
+                ImGuiApi.SameLine();
+                if (ctx.IsPickPendingFor(path))
+                    ImGuiApi.TextColored(new Vector4(1f, 1f, 0f, 1f), "[Editing on map… Enter = done, Esc = cancel]");
+                else if (ImGuiApi.Button($"Edit on map##am{id}"))
+                    ctx.RequestAreaEdit(path, area.IsShape ? area : form == AreaLeafForm.Rectangle ? SwitchAreaForm(area, AreaLeafForm.Rectangle, refs) : default);
+                if (ctx.TryConsumeAreaEdit(path, out var edited2))
+                {
+                    area = edited2;
+                    st.AreaForm[path] = AreaFormOf(area);
+                    changed = true;
+                }
+            }
+        }
+
+        if (changed) node.Binding?.SetBoxed(area);
+        return changed;
+    }
+
     // ═══ drawing ═════════════════════════════════════════════════════════════════════════════════════════════════════════════
 
     /// <summary>Draws the whole value cell of one reference field (the form switch, the value, the pick buttons); <c>true</c> when it wrote the binding.</summary>
@@ -121,6 +248,7 @@ public static class ReferenceLeafDrawers
         float width = Math.Max(ImGuiApi.GetContentRegionAvail().X - reserveRight, 60f);
         if (node.ClrType == typeof(EntityLink)) return DrawEntityLink(node, width, ctx, state);
         if (node.ClrType == typeof(PointLink)) return DrawPointLink(node, width, ctx, state);
+        if (node.ClrType == typeof(AreaLink)) return DrawAreaLink(node, width, ctx, state);
         if (node.ClrType == typeof(EntityRef)) return DrawEntityRef(node, width, ctx);
         return DrawWorldPoint(node, width, ctx);
     }

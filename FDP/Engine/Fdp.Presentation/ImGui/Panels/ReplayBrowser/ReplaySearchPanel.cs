@@ -83,8 +83,11 @@ public sealed class ReplaySearchPanel
     /// </summary>
     public bool IsMergedViewActive { get; set; }
 
-    /// <summary>Optional spatial picker context; injected by the subsystem when needed.</summary>
-    public ISpatialPickerContext? SpatialPickerCtx { get; set; }
+    /// <summary>
+    /// ⭐ CE-4206 R2 — the ONE map pick context (P4) the predicate forms draw their reference leaves with: the spatial predicate's <c>AreaLink</c> area is edited on the map
+    /// with handles through it (replacing the separate bounding-box pick context). Injected by the subsystem; null ⇒ the leaves draw their numeric fields only.
+    /// </summary>
+    public IMapPickContext? PickContext { get; set; }
 
     /// <summary>Exposes currently configured spatial bounds for map overlay rendering.</summary>
     public BoundingBox2D? ActiveSpatialBounds
@@ -258,7 +261,6 @@ public sealed class ReplaySearchPanel
         var typeMode = _mode == SearchMode.Event ? TypeComboMode.Event : TypeComboMode.Component;
         var drawers = new Dictionary<Type, IImGuiFieldDrawer>
         {
-            [typeof(Fdp.Toolkit.Replication.AreaLink)] = new BoundingBoxFieldDrawer(),
             // ⭐ CE-308: int now has TWO pickers — the behaviour-hash combo and the occurrence
             //   SLOT combo — and ComponentEditDrawer allows one drawer per type, so they are
             //   routed on their attributes.
@@ -269,7 +271,7 @@ public sealed class ReplaySearchPanel
             [typeof(string)]        = new PropertyPathFieldDrawer(session, _behaviorRegistry),
             [typeof(SearchPredicateDto)] = new PredicateValueFieldDrawer(session, _behaviorRegistry),
         };
-        return new ComponentEditDrawer(session, pickerCtx: null, drawers, SpatialPickerCtx);
+        return new ComponentEditDrawer(session, PickContext, drawers);
     }
 
     private void DrawModeRadio()

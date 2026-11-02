@@ -99,6 +99,17 @@ public sealed class CanvasMapPickAdapter : IMapPickService
             ct);
 
     /// <inheritdoc/>
+    public Task<Fdp.Toolkit.Replication.AreaLink> EditAreaAsync(Fdp.Toolkit.Replication.AreaLink start, CancellationToken ct = default)
+        => _pickers.RunPickAsync<Fdp.Toolkit.Replication.AreaLink>(
+            Hrot.ScenarioEditor.Tools.ScenarioToolIds.EditAreaShape,
+            (tcs, remove) => new Fdp.Toolkit.Vis2D.Gizmos.AreaShapeGizmo(
+                start,
+                onDone: shape => tcs.TrySetResult(shape),
+                onRemove: remove,
+                onCancelled: () => tcs.TrySetCanceled()),
+            ct);
+
+    /// <inheritdoc/>
     /// <remarks>⭐ S0 item 5 — the clicked world point as it is (local metres, Z 0): no geodetic conversion.</remarks>
     public Task<Fdp.Core.WorldPoint> PickLocalAsync(CancellationToken ct = default)
         => _pickers.RunPickAsync<Fdp.Core.WorldPoint>(

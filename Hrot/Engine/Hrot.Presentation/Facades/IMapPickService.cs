@@ -19,6 +19,14 @@ public interface IMapPickService
     /// to a <see cref="TaskCanceledException"/> fault.
     /// </param>
     /// <summary>
+    /// ⭐ <c>CE-4206</c> R2 (DESIGN_Map_Picking_Unification §6.3 F6) — edits an <see cref="Fdp.Toolkit.Replication.AreaLink"/> SHAPE (circle / rectangle) on the map with
+    /// handles, starting from <paramref name="start"/> (a non-shape start = place a new circle with the first click). Completes with the edited shape on Enter / right-click;
+    /// the task is CANCELLED on Esc. The DEFAULT answers <paramref name="start"/> unchanged at once — a service that cannot edit on a map.
+    /// </summary>
+    Task<Fdp.Toolkit.Replication.AreaLink> EditAreaAsync(Fdp.Toolkit.Replication.AreaLink start, CancellationToken ct = default)
+        => Task.FromResult(start);
+
+    /// <summary>
     /// ⭐ <c>CE-4206</c> R1 — the live reference scope over the repository this service picks in (names, GUIDs, keys for the reference leaves);
     /// <see langword="null"/> for a service with no repository. <c>MapPickBroker.References</c> reads it.
     /// </summary>

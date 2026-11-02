@@ -51,5 +51,12 @@ namespace Fdp.Presentation.Editing
         /// (ExCon over DDS): the leaves then draw the plain forms, honestly.
         /// </summary>
         Fdp.Toolkit.Scenario.LiveRefScope? References => null;
+
+        /// <summary>⭐ <c>CE-4206</c> R2 (F6) — starts editing the AREA SHAPE at <paramref name="jsonPath"/> on the map, from <paramref name="start"/> (circle / rectangle; anything else
+        /// places a new circle). A no-op where the host cannot.</summary>
+        void RequestAreaEdit(string jsonPath, Fdp.Toolkit.Replication.AreaLink start) { }
+
+        /// <summary>⭐ <c>CE-4206</c> R2 — a finished area edit for <paramref name="jsonPath"/>, once. <see langword="false"/> while none is ready (or it was cancelled).</summary>
+        bool TryConsumeAreaEdit(string jsonPath, out Fdp.Toolkit.Replication.AreaLink area) { area = default; return false; }
     }
 }

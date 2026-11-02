@@ -1031,6 +1031,52 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.Same(broker.References, new Fdp.Presentation.Editing.ScopedMapPickContext(broker, "$.tasks[0]").References);
         }
 
+        /// <summary>⭐ CE-4206 R2 — the broker's area edit: <c>RequestAreaEdit</c> → the service's <c>EditAreaAsync(start)</c> → the finished shape is consumed ONCE, for its path only;
+        /// a cancelled edit (Esc) consumes nothing; a scoped form's path is rewritten. Red-proof: <c>TryConsumeAreaEdit</c> not clearing the task ⇒ the second consume is true.</summary>
+        [Fact]
+        public async Task CE4206_R2_TheBrokerRunsAnAreaEdit_ThroughTheService_AndConsumesItOnce()
+        {
+            var start  = Fdp.Toolkit.Replication.AreaLink.Circle(new Fdp.Core.WorldPoint(1, 2, 0), 10f);
+            var edited = Fdp.Toolkit.Replication.AreaLink.Rectangle(new Fdp.Core.WorldPoint(3, 4, 0), 20f, 50f, new Fdp.Core.Bearing(75f));
+            var tcs = new TaskCompletionSource<Fdp.Toolkit.Replication.AreaLink>();
+            var service = new Mock<Hrot.UI.Common.Facades.IMapPickService>();
+            service.Setup(x => x.EditAreaAsync(start, It.IsAny<CancellationToken>())).Returns(tcs.Task);
+            var broker = new Hrot.Presentation.Facades.MapPickBroker(service.Object);
+
+            broker.RequestAreaEdit("$.Zone", start);
+            Assert.True(broker.IsPickPendingFor("$.Zone"));
+            Assert.False(broker.TryConsumeAreaEdit("$.Zone", out _));                // still editing
+            tcs.SetResult(edited);
+            await tcs.Task;
+            Assert.False(broker.TryConsumeAreaEdit("$.Other", out _));               // another path's result is not this one's
+            Assert.True(broker.TryConsumeAreaEdit("$.Zone", out var got));
+            Assert.Equal(edited, got);
+            Assert.False(broker.TryConsumeAreaEdit("$.Zone", out _));                // once
+
+            var cancelled = new TaskCompletionSource<Fdp.Toolkit.Replication.AreaLink>();
+            cancelled.SetCanceled();
+            service.Setup(x => x.EditAreaAsync(start, It.IsAny<CancellationToken>())).Returns(cancelled.Task);
+            broker.RequestAreaEdit("$.Zone", start);
+            Assert.False(broker.TryConsumeAreaEdit("$.Zone", out _));                // Esc ⇒ nothing is written
+
+            // the scoped view rewrites the path
+            var scoped = new Fdp.Presentation.Editing.ScopedMapPickContext(broker, "$.tasks[1]");
+            service.Setup(x => x.EditAreaAsync(start, It.IsAny<CancellationToken>())).Returns(Task.FromResult(edited));
+            scoped.RequestAreaEdit("$.Zone", start);
+            Assert.True(scoped.TryConsumeAreaEdit("$.Zone", out var viaScope));
+            Assert.Equal(edited, viaScope);
+
+            // a service that cannot edit answers the start unchanged (the interface default)
+            Assert.Equal(start, await ((Hrot.UI.Common.Facades.IMapPickService)new DefaultOnlyPickService()).EditAreaAsync(start));
+        }
+
+        private sealed class DefaultOnlyPickService : Hrot.UI.Common.Facades.IMapPickService
+        {
+            public Task<Hrot.Core.Mission.GeoPoint> PickLocationAsync(CancellationToken ct = default) => throw new NotSupportedException();
+            public Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default) => throw new NotSupportedException();
+            public Task<IReadOnlyList<int>> PickAreaEntitiesAsync(string[]? filterPresets = null, CancellationToken ct = default) => throw new NotSupportedException();
+        }
+
         /// <summary>⭐ A host that publishes the transform as a world singleton (SimHost) gets geodetic picks without
         /// passing it.</summary>
         [Fact]

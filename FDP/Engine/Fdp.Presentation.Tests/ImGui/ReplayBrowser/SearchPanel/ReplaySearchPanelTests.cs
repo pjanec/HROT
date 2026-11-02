@@ -15,78 +15,8 @@ using Xunit;
 namespace Fdp.Presentation.ReplayBrowser.SearchPanel;
 
 // ── SR-T32 ────────────────────────────────────────────────────────────────
-// ISpatialPickerContext stub compiles, all methods callable without error,
-// and TryConsumeBoundingBoxPick returns the stored box.
-public class ISpatialPickerContextTests
-{
-    private sealed class StubSpatialPickerContext : ISpatialPickerContext
-    {
-        private readonly Dictionary<string, BoundingBox2D> _pending = new();
-        public List<string> RequestedPaths { get; } = new();
-
-        public void RequestBoundingBoxPick(string jsonPath)
-            => RequestedPaths.Add(jsonPath);
-
-        public bool IsPickPendingFor(string jsonPath)
-            => RequestedPaths.Contains(jsonPath);
-
-        public bool TryConsumeBoundingBoxPick(string jsonPath, out BoundingBox2D box)
-        {
-            if (_pending.TryGetValue(jsonPath, out box))
-            {
-                _pending.Remove(jsonPath);
-                return true;
-            }
-            return false;
-        }
-
-        public void SetPending(string jsonPath, BoundingBox2D box)
-            => _pending[jsonPath] = box;
-    }
-
-    [Fact]
-    public void SR_T32_StubSpatialPickerContext_AllMethodsInvocableWithoutError()
-    {
-        ISpatialPickerContext ctx = new StubSpatialPickerContext();
-        ctx.RequestBoundingBoxPick("$.Bounds");
-        ctx.TryConsumeBoundingBoxPick("$.Bounds", out _);
-    }
-
-    [Fact]
-    public void SR_T32_StubSpatialPickerContext_TryConsume_ReturnsStoredBox()
-    {
-        var stub = new StubSpatialPickerContext();
-        var expected = new BoundingBox2D
-        {
-            Min = new System.Numerics.Vector2(1f, 2f),
-            Max = new System.Numerics.Vector2(10f, 20f)
-        };
-        stub.SetPending("$.Bounds", expected);
-
-        bool result = stub.TryConsumeBoundingBoxPick("$.Bounds", out var actual);
-
-        Assert.True(result);
-        Assert.Equal(expected.Min, actual.Min);
-        Assert.Equal(expected.Max, actual.Max);
-    }
-
-    [Fact]
-    public void SR_T32_StubSpatialPickerContext_TryConsume_NoMatch_ReturnsFalse()
-    {
-        ISpatialPickerContext ctx = new StubSpatialPickerContext();
-        bool result = ctx.TryConsumeBoundingBoxPick("$.Bounds", out var box);
-        Assert.False(result);
-        Assert.Equal(default(BoundingBox2D), box);
-    }
-
-    [Fact]
-    public void SR_T32_StubSpatialPickerContext_RequestedPath_IsRecorded()
-    {
-        var stub = new StubSpatialPickerContext();
-        stub.RequestBoundingBoxPick("$.Area");
-        Assert.Contains("$.Area", stub.RequestedPaths);
-    }
-}
+// ⛔ DELETED (CE-4206 R2): the stub tests of ISpatialPickerContext — the search area is edited through the ONE IMapPickContext
+// (RequestAreaEdit / TryConsumeAreaEdit; rails in ComponentEditDrawerTests R2_* and MapPickBrokerTests).
 
 // ── SR-T33 ────────────────────────────────────────────────────────────────
 // BehaviorHashFieldDrawer: registering "Combat" in a test registry and asking
