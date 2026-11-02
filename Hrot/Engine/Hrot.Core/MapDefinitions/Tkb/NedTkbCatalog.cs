@@ -1109,6 +1109,18 @@ namespace Hrot.Map.Definitions.Tkb
                 Faction     = ForceId.Neutral,
             });
             tkbDb.Register(objective);
+            // ⭐ rules S2-c — a Trigger: the same shape as the Objective (a brain, no body), running the one `Trigger` behaviour (§10.11)
+            var trigger = new TkbTemplate("Trigger", TkbEntityTypes.Trigger);
+            trigger.AddDescriptor(new BehaviorProfileDto
+            {
+                SimTier     = Fdp.Toolkit.Behavior.BehaviorConstants.SimTierTactical,
+                BrainTier   = Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree,
+                CanMove     = false,
+                CanShoot    = false,
+                CanInteract = false,
+                Faction     = ForceId.Neutral,
+            });
+            tkbDb.Register(trigger);
             // ⭐ CE-3216 S1 (W-1) — a Weather Region: an area like TacGraphic_Area; its outline, position and WeatherConditions arrive with
             //   the request on the creator and on their descriptors everywhere else.
             var weather = new TkbTemplate("Weather Region", TkbEntityTypes.WeatherRegion);

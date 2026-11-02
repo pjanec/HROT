@@ -76,4 +76,21 @@ public sealed class TheObjectivesRouteShowsTheTreeTests : IDisposable
             currentPerspective: () => "Scenario", acksPending: null));
         Assert.Empty(svc.GetObjectives()["objectives"]!.AsArray());
     }
+
+    /// <summary>⭐ rules S2-c — a <c>Role = Trigger</c> row shows its <c>TriggerState</c> as a NAME plus <c>fireCount</c> / <c>lastFired</c>; an objective row does not carry them.
+    /// ✅ Red-proof: the <c>Role == Trigger</c> branch removed from <c>GetObjectives</c> ⇒ red.</summary>
+    [Fact]
+    public void ATriggerRow_ShowsItsTriggerStateAsAString_AnObjectiveRowDoesNot()
+    {
+        Add(30, "Start the attack", "Trigger", ObjectiveState.Active);
+        Add(31, "Hold", "HoldArea", ObjectiveState.Active);
+        _world.GetComponentRW<ObjectiveStatus>(_map.TryGetEntity(30, out var t) ? t : default).Role = ObjectiveRole.Trigger;
+        ref var s = ref _world.GetComponentRW<ObjectiveStatus>(t);
+        s.TriggerState = TriggerState.Cooldown; s.FireCount = 2; s.LastFired = 12.5;
+
+        var rows = _svc.GetObjectives()["objectives"]!.AsArray();
+        var trig = rows.Single(r => (int)r!["networkId"]! == 30)!;
+        Assert.Equal(("Trigger", "Cooldown", 2, 12.5), ((string)trig["role"]!, (string)trig["triggerState"]!, (int)trig["fireCount"]!, (double)trig["lastFired"]!));
+        Assert.Null(rows.Single(r => (int)r!["networkId"]! == 31)!["triggerState"]);
+    }
 }

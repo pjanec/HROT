@@ -287,7 +287,21 @@ exporter + 8 test doubles — ⛔ no failure-reason channel exists) · `.*(Assig
 `StepRunner.Kind` = Hsm; `ActionFailure.Set / Stamp / Clear / TryGet`; `ActionList.Get / Validate` (`ActionListException` names step + act); `WorldRefScope` resolves a step's authored `"@Key"` / GUID
 `EntityLink` in the live world. ⚠ **Deviations from the row above:** a duplicate short name and an `Entity`-field params type are recorded on the catalogue entry and refused LOUDLY at lookup / run / Validate — not thrown at
 scan, because a scan over every loaded assembly must not be poisoned by two unrelated actions (a short name two actions carry throws at `TryGet(short)` naming both; the full name always works). ⚠ `Validate` checks the TOP-level args
-keys only. The PoC folder keeps only P5 (the `when` + `PocTrigger`) until S2-c re-homes it.
+keys only. ~~The PoC folder keeps only P5~~ — the PoC folder is GONE (S2-c, below): its trigger rails live on the production `Trigger`, its compiler rail in `PredicateCompilerLevelTests`.
+
+⭐ **S2-c AS BUILT `2026-11-02`** (`Hrot.AI.Behaviors/Brains/Objectives/TriggerBehavior.cs`; the diagram below is unchanged). **TKB 8861 `Trigger`** (`NedTkbCatalog`, a brain with no body like 8860; `BehaviorCategory.Trigger`, so
+`BehaviorCatalog` lists only the `Trigger` behaviour for it). **`TriggerState`** (byte enum in `Fdp.Toolkit.ScenarioRules`: Disarmed · Armed · Holding · Waiting · Acting · Fired · Cooldown · Done) is a new field of
+`ObjectiveStatus` AND of the wire topic `EntityObjectiveStatus` (171; a state field ⇒ part of `SameDisplayAndState`, published at once); `GET /objectives` shows `triggerState` (name) + `fireCount` + `lastFired` on Role=Trigger rows.
+**`TriggerParamsJsonDto`** (`ObjectiveParamsJsonDtos.cs`): `common` (`scored` defaults FALSE — T8), `when` (`SearchPredicateDto`), `holdFor`, `delay`, `cooldown`, `repeat`, `maxFires`, `fireIfTrueWhenArmed`, `do` (a raw `JsonNode`).
+**Validation at assignment** (the `[BehaviorResolver]`): `when` must compile (`TriggerWhen.Get`) and `ActionList.Validate(do)` must pass; a throw makes `BehaviorIngressSystem.ParseIntoShadow` DROP the assignment with a `Warn`
+naming the behaviour, the entity and the message (step + act) — ⚠ it is logged, NOT propagated as an exception (`BehaviorIngressSystem.cs:861`, a deliberate "a parse failure must not crash the loop"): the entity keeps no behaviour, no status,
+no `ActionArgs`. A good one writes `ActionArgs [whenJson, doJson]` (replaced whole). **`TriggerWhen`**: the compiled LEVEL predicate cached process-wide by the JSON string (a `ConditionalWeakTable` on the very string the entity holds in front of a
+content-keyed dictionary). **The tick** (one `[SharedAiAction]`): `ObjectiveHost.Enter` (Role Trigger) then the §10.11 machine over the blackboard (`Phase`, `Prev/PrevKnown`, `EdgeAt`, `WaitUntil`, `CooldownUntil`, the embedded
+`RunActionsParams{ListRef=1,Depth=0}` + `RunActionsState`). Objective `State` mirrors it: Inactive = Disarmed (a direct write or, from S2-d's row 8, `SetObjectiveActive`; or the common `deadlineSeconds` passing — T4), Active = Armed … Cooldown,
+Achieved = Done, Failed = an action failed (final: the machine rests in Fired). Decisions the §10.11 text left open, pinned by rails: **(a)** `delay` counts from the moment the hold is satisfied (the edge when `holdFor` is 0);
+**(b)** `Fired` lasts one tick (so a HUD / the wire can see it), the next tick goes Done or Cooldown; **(c)** a `Disarm` is honoured in Armed / Holding / Waiting / Cooldown, NOT while Acting — a started list finishes
+("nothing already done is undone", T7); **(d)** a cooldown re-arms on *cooldown elapsed AND the condition false* (T2) — a drop INSIDE the cooldown does not re-arm early, and a rise that began and ended inside it is not seen;
+**(e)** FireCount / LastFired are written when the list ENDS (success or failure). **The editor's schema extractor** (`DtoJsonSchemaExtractor`) got a `JsonNode` arm (free-form JSON, `format: json`) — ⚠ without it `GET /behaviors` STACK-OVERFLOWED on `Trigger.do` (a `JsonNode`'s `Parent` loops back into the tree). **CE-4166 settled:** a condition already true when the trigger arms is NOT an edge (T1's corollary); `fireIfTrueWhenArmed` opts in.
 
 ```mermaid
 classDiagram

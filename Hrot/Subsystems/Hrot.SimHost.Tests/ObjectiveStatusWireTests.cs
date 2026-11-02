@@ -35,7 +35,7 @@ namespace Hrot.SimHost.Tests
             Role = ObjectiveRole.Measure, State = ObjectiveState.Failed, Closed = 1, Owner = ForceId.Hostile,
             ProgressCur = 3, ProgressNeed = 7, Value = 1.5f, Target = 9.25f, Score = 0.75f, Points = 12f, ChangedAt = 321.5,
             Reason = new FixedString64("held 60 s, 5 Blue / 0 Red"), Title = new FixedString64("Hold the bridge"), Kind = new FixedString32("HoldArea"),
-            Required = 1, Scored = 1, Weight = 2.5f, VisibleSides = 0b110, FireCount = 4, LastFired = 99.25,
+            Required = 1, Scored = 1, Weight = 2.5f, VisibleSides = 0b110, FireCount = 4, LastFired = 99.25, TriggerState = TriggerState.Cooldown,
         };
 
         private static ObjectiveLinks Links() => new() { Subject = new EntityRef(41), Parent = new EntityRef(42) };
@@ -72,6 +72,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("Hold the bridge", back.Title.ToString()); Assert.Equal("HoldArea", back.Kind.ToString());
             Assert.Equal(want.Required, back.Required); Assert.Equal(want.Scored, back.Scored); Assert.Equal(want.Weight, back.Weight);
             Assert.Equal(want.VisibleSides, back.VisibleSides); Assert.Equal(want.FireCount, back.FireCount); Assert.Equal(want.LastFired, back.LastFired);
+            Assert.Equal(TriggerState.Cooldown, back.TriggerState);   // ⭐ rules S2-c
             var links = EntityObjectiveStatusIngressTranslator.LinksFromSample(in sample);
             Assert.Equal((41, 42), (links.Subject.NetworkId, links.Parent.NetworkId));
         }
@@ -137,6 +138,26 @@ namespace Hrot.SimHost.Tests
                 egress.ScanAndPublish(w);
                 Assert.Equal(3, wire.Written.Count);
                 Assert.Equal(6, wire.Written[2].ProgressCur);
+            }
+        }
+
+        /// <summary>⭐ rules S2-c — a trigger's <c>TriggerState</c> is a STATE field: a change goes at once, inside the progress window. ✅ Red-proof: <c>TriggerState</c> left out of
+        /// <c>SameDisplayAndState</c> ⇒ red (the change counts as progress and waits).</summary>
+        [Fact]
+        public void ATriggerStateChange_GoesAtOnce_InsideTheProgressWindow()
+        {
+            var (w, _, e) = Node(primaryOwner: 1, localNode: 1);
+            using (w)
+            {
+                var wire = new CapturingWriter();
+                var egress = new EntityObjectiveStatusEgressTranslator(wire);
+                w.SetSimulationTime(10f);
+                egress.ScanAndPublish(w);
+                w.SetSimulationTime(10.1f);
+                w.GetComponentRW<ObjectiveStatus>(e).TriggerState = TriggerState.Armed;
+                egress.ScanAndPublish(w);
+                Assert.Equal(2, wire.Written.Count);
+                Assert.Equal((byte)TriggerState.Armed, wire.Written[1].TriggerState);
             }
         }
 

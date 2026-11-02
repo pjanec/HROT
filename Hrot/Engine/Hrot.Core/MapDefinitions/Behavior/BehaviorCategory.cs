@@ -12,5 +12,7 @@ namespace Hrot.Map.Definitions.Behavior
         Commander   = 1 << 4,
         /// <summary>⭐ rules S1 — an objective / aggregator: the brain of an Objective entity (TKB 8860), no body.</summary>
         Objective   = 1 << 5,
+        /// <summary>⭐ rules S2-c — the brain of a Trigger entity (TKB 8861): the §10.11 state machine, no body.</summary>
+        Trigger     = 1 << 6,
     }
 }

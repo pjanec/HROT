@@ -295,5 +295,8 @@ namespace Hrot.Map.Definitions.Behavior
         public const string WeightedMean = "WeightedMean";
         /// <summary>a composite: every child must pass.</summary>
         public const string AllMustPass = "AllMustPass";
+        // ⭐ rules S2-c (DESIGN_Scenario_Rules §10.11) — the trigger: the one behaviour of a Trigger entity (TKB 8861)
+        /// <summary>when a condition rises: hold, wait, run a list of actions, cool down (§10.11).</summary>
+        public const string Trigger = "Trigger";
     }
 }

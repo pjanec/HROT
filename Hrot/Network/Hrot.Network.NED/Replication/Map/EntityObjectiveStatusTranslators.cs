@@ -17,7 +17,7 @@ namespace Hrot.Map.Common.Replication.Egress
     /// <summary>
     /// ⭐ rules S1-a (📄 docs/DESIGN_Scenario_Rules.md §00.8, SR-120) — publishes an objective entity's <see cref="ObjectiveStatus"/> (with the
     /// subject and parent of its <see cref="ObjectiveLinks"/> as network ids) from the node owning its <c>dtObjectiveStatus</c> (Brain group),
-    /// on change. ⭐ Throttle (SR-120): a change in State / Closed / Owner / Title / Kind / Required / Scored / Weight / VisibleSides / FireCount /
+    /// on change. ⭐ Throttle (SR-120): a change in State / Closed / Owner / Title / Kind / Required / Scored / Weight / VisibleSides / FireCount / TriggerState /
     /// Subject / Parent goes AT ONCE; a change only in progress / value / score / points / reason / times goes at most every
     /// <see cref="ProgressRefreshSeconds"/> of sim time (<c>view.Time</c>; a clock that went back reopens the window). A held change is still compared against the
     /// last PUBLISHED sample, so the newest value goes out once the window has passed. Same shape as <see cref="EntityScenarioClockEgressTranslator"/>.
@@ -83,7 +83,7 @@ namespace Hrot.Map.Common.Replication.Egress
             EntityId = netId, Role = (byte)s.Role, State = (byte)s.State, Closed = s.Closed, Owner = (byte)s.Owner,
             ProgressCur = s.ProgressCur, ProgressNeed = s.ProgressNeed, Value = s.Value, Target = s.Target, Score = s.Score, Points = s.Points,
             ChangedAt = s.ChangedAt, Reason = s.Reason.ToString(), Subject = l.Subject.NetworkId, Parent = l.Parent.NetworkId,
-            FireCount = s.FireCount, LastFired = s.LastFired, Title = s.Title.ToString(), Kind = s.Kind.ToString(),
+            FireCount = s.FireCount, LastFired = s.LastFired, TriggerState = (byte)s.TriggerState, Title = s.Title.ToString(), Kind = s.Kind.ToString(),
             Required = s.Required, Scored = s.Scored, Weight = s.Weight, VisibleSides = s.VisibleSides,
         };
 
@@ -91,7 +91,7 @@ namespace Hrot.Map.Common.Replication.Egress
         internal static bool SameDisplayAndState(in EntityObjectiveStatus a, in EntityObjectiveStatus b)
             => a.Role == b.Role && a.State == b.State && a.Closed == b.Closed && a.Owner == b.Owner
                && a.Title == b.Title && a.Kind == b.Kind && a.Required == b.Required && a.Scored == b.Scored
-               && a.Weight == b.Weight && a.VisibleSides == b.VisibleSides && a.FireCount == b.FireCount
+               && a.Weight == b.Weight && a.VisibleSides == b.VisibleSides && a.FireCount == b.FireCount && a.TriggerState == b.TriggerState
                && a.Subject == b.Subject && a.Parent == b.Parent;
 
         /// <summary>Every field the same.</summary>
@@ -189,7 +189,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         {
             Role = (ObjectiveRole)d.Role, State = (ObjectiveState)d.State, Closed = d.Closed, Owner = (ForceId)d.Owner,
             ProgressCur = d.ProgressCur, ProgressNeed = d.ProgressNeed, Value = d.Value, Target = d.Target, Score = d.Score, Points = d.Points,
-            ChangedAt = d.ChangedAt, Reason = new FixedString64(d.Reason ?? string.Empty), FireCount = d.FireCount, LastFired = d.LastFired,
+            ChangedAt = d.ChangedAt, Reason = new FixedString64(d.Reason ?? string.Empty), FireCount = d.FireCount, LastFired = d.LastFired, TriggerState = (TriggerState)d.TriggerState,
             Title = new FixedString64(d.Title ?? string.Empty), Kind = new FixedString32(d.Kind ?? string.Empty),
             Required = d.Required, Scored = d.Scored, Weight = d.Weight, VisibleSides = d.VisibleSides,
         };

@@ -10,6 +10,12 @@ namespace Fdp.Toolkit.ScenarioRules
     public enum ObjectiveState : byte { Pending = 0, Active = 1, Achieved = 2, Failed = 3, Inactive = 4, Skipped = 5 }
 
     /// <summary>
+    /// ⭐ rules S2-c (§10.11 T8) — where a TRIGGER is in its state machine. Only a <see cref="ObjectiveRole.Trigger"/> carries a meaningful one (0 = Disarmed
+    /// for everything else). Published at once on change (it is a state field, not progress).
+    /// </summary>
+    public enum TriggerState : byte { Disarmed = 0, Armed = 1, Holding = 2, Waiting = 3, Acting = 4, Fired = 5, Cooldown = 6, Done = 7 }
+
+    /// <summary>
     /// ⭐ rules S1-a (📄 docs/DESIGN_Scenario_Rules.md §00.8, SR-120) — an objective / measure / trigger entity's status: lifecycle state,
     /// progress, value against target, score, and the DISPLAY projection of its params (title, kind, weights, who may see it) so a HUD
     /// reads one topic and never parses JSON. Written by the entity's own behaviour (Brain group), replicated as <c>dtObjectiveStatus</c>;
@@ -48,6 +54,8 @@ namespace Fdp.Toolkit.ScenarioRules
         public int FireCount;
         /// <summary>Triggers: sim time (s) of the last firing.</summary>
         public double LastFired;
+        /// <summary>Triggers (<see cref="ObjectiveRole.Trigger"/>): the §10.11 machine's state.</summary>
+        public TriggerState TriggerState;
 
         /// <summary>Achieved, Failed or Skipped — it will not change by itself.</summary>
         public readonly bool IsFinal => State == ObjectiveState.Achieved || State == ObjectiveState.Failed || State == ObjectiveState.Skipped;

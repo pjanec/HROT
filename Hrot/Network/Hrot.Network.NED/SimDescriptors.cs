@@ -212,6 +212,8 @@ namespace Hrot.NED.Descriptors
         public int FireCount;
         /// <summary>Triggers: sim time (s) of the last firing.</summary>
         public double LastFired;
+        /// <summary>⭐ rules S2-c: <c>TriggerState</c> (Disarmed 0 · Armed · Holding · Waiting · Acting · Fired · Cooldown · Done 7); a trigger only.</summary>
+        public byte TriggerState;
         public string Title;
         public string Kind;
         public byte Required;

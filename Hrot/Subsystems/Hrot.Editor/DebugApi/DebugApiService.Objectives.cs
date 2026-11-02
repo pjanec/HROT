@@ -50,7 +50,7 @@ namespace Hrot.Editor.DebugApi
                 var e = rows[id];
                 ref readonly var s = ref _world.GetComponentRO<ObjectiveStatus>(e);
                 int subject = SubjectOf(e), parent = ParentOf(e);
-                return new JsonObject
+                var row = new JsonObject
                 {
                     ["networkId"] = id, ["title"] = s.Title.ToString(), ["kind"] = s.Kind.ToString(), ["role"] = s.Role.ToString(),
                     ["state"] = s.State.ToString(), ["closed"] = s.Closed != 0, ["owner"] = s.Owner.ToString(),
@@ -60,6 +60,13 @@ namespace Hrot.Editor.DebugApi
                     ["subject"] = subject != 0 ? subject : null, ["parent"] = parent != 0 && rows.ContainsKey(parent) ? parent : null,
                     ["children"] = new JsonArray(children.TryGetValue(id, out var kids) ? kids.Select(k => (JsonNode)k).ToArray() : System.Array.Empty<JsonNode>()),
                 };
+                if (s.Role == ObjectiveRole.Trigger)   // ⭐ rules S2-c (T8): the §10.11 machine's state, as a string, and how often it fired
+                {
+                    row["triggerState"] = s.TriggerState.ToString();
+                    row["fireCount"] = s.FireCount;
+                    row["lastFired"] = s.LastFired;
+                }
+                return row;
             }
 
             JsonObject Nested(int id)

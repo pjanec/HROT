@@ -34,7 +34,7 @@ namespace Hrot.SimHost.Tests
     /// <see cref="BehaviorTkbTranslator"/> (the creation step), the scenario record's <c>"Behavior"</c> read by the production
     /// <see cref="BrainSnapshotTranslator"/>, the materialization and ingress, and the real <see cref="BrainTickSystem"/>.
     /// </summary>
-    public sealed class ScenarioRulesTests
+    public sealed partial class ScenarioRulesTests
     {
         /// <summary>The Objective type is in the catalogue as a brain with no body (cannot move, shoot or interact), and a scenario entity of
         /// that type whose record names <c>HoldStance</c> gets a ticking brain. ✅ Red-proof: the Objective template's
@@ -172,6 +172,17 @@ namespace Hrot.SimHost.Tests
                 Repo.AddComponent(e, new NetworkIdentity { Value = _net++ });
                 new BehaviorTkbTranslator().Inject(Repo, e, _db.GetByType(TkbEntityTypes.Objective));
                 Repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = behavior, JsonParams = json, Origin = BehaviorOrigin.Superior });
+                return e;
+            }
+
+            /// <summary>⭐ rules S2-c — A Trigger entity (TKB 8861) running the <c>Trigger</c> behaviour with <paramref name="json"/> params.</summary>
+            public Entity Trigger(string json)
+            {
+                var e = Repo.CreateEntity();
+                Repo.AddComponent(e, new TkbIdentity { TkbType = (TkbTypeId)TkbEntityTypes.Trigger });
+                Repo.AddComponent(e, new NetworkIdentity { Value = _net++ });
+                new BehaviorTkbTranslator().Inject(Repo, e, _db.GetByType(TkbEntityTypes.Trigger));
+                Repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = "Trigger", JsonParams = json, Origin = BehaviorOrigin.Superior });
                 return e;
             }
 

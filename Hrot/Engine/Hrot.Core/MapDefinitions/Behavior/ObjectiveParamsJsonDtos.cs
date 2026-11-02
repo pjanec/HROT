@@ -1,6 +1,8 @@
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Attributes;
+using Fdp.Toolkit.ReplayBrowser.Search;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.ScenarioRules;
 
@@ -104,5 +106,35 @@ namespace Hrot.Map.Definitions.Behavior
     {
         public const string BehaviorId = BehaviorNames.AllMustPass;
         [JsonPropertyName("common")] public ObjectiveCommon Common;
+    }
+    /// <summary>
+    /// ⭐ rules S2-c (📄 docs/DESIGN_Scenario_Rules.md §10.11, §00.9) — <c>Trigger</c>: when <see cref="When"/> RISES (false → true) wait out
+    /// <see cref="HoldFor"/>, then <see cref="Delay"/>, then run the <see cref="Do"/> list in order; once, or <see cref="Repeat"/> (a new edge after
+    /// <see cref="Cooldown"/>) up to <see cref="MaxFires"/>. <c>common.scored</c> defaults to FALSE for a trigger (T8); <c>common.startActive</c> false = Disarmed
+    /// until a <c>SetObjectiveActive</c> arms it.
+    /// <para>⭐ <c>when</c> and <c>do</c> are kept as the caller's JSON (in <c>ActionArgs</c>, items 0 and 1) and refused at ASSIGNMENT when they do not
+    /// compile / validate (CE-4163).</para>
+    /// </summary>
+    [ParamsDto]
+    public struct TriggerParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.Trigger;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        /// <summary>The condition — a polymorphic search predicate (<c>{"$type":"OnEntity",...}</c>), evaluated as a LEVEL each tick.</summary>
+        [JsonPropertyName("when")] public SearchPredicateDto? When;
+        /// <summary>The condition must hold this long (sim s) before it counts; 0 = no debounce.</summary>
+        [JsonPropertyName("holdFor")] public float HoldFor;
+        /// <summary>Fire this long (sim s) after the edge (or the hold), even if the condition drops meanwhile; 0 = at once.</summary>
+        [JsonPropertyName("delay")] public float Delay;
+        /// <summary>A repeating trigger re-arms no sooner than this (sim s) after it fired.</summary>
+        [JsonPropertyName("cooldown")] public float Cooldown;
+        /// <summary>Re-arm after firing (needs the condition to go false again); default once.</summary>
+        [JsonPropertyName("repeat")] public bool Repeat;
+        /// <summary>A repeating trigger stops after this many fires; 0 = unlimited.</summary>
+        [JsonPropertyName("maxFires")] public int MaxFires;
+        /// <summary>CE-4166 — a condition already TRUE when the trigger arms counts as an edge (default: it does not).</summary>
+        [JsonPropertyName("fireIfTrueWhenArmed")] public bool FireIfTrueWhenArmed;
+        /// <summary>The actions: <c>[{"act":"Message","args":{...}}, ...]</c>, run in order (SR-93).</summary>
+        [JsonPropertyName("do")] public JsonNode? Do;
     }
 }

@@ -148,6 +148,9 @@ namespace Hrot.Map.Common
         // ⛔ PERMANENT WIRE VALUE (as above). ⭐ rules S1 — an OBJECTIVE (or a measure / aggregator): positionless like the World Environment, a
         //   brain with no body that runs one objective behaviour (ReachArea, HoldArea ...) and carries ObjectiveStatus. Never in the palette.
         public const long Objective = 8860;
+        // ⛔ PERMANENT WIRE VALUE (as above). ⭐ rules S2-c — a TRIGGER: an objective-like entity (positionless, a brain with no body, ObjectiveStatus with
+        //   Role = Trigger) that runs the one `Trigger` behaviour — the §10.11 state machine. Never in the palette.
+        public const long Trigger = 8861;
 
         // ⭐ CE-1041 — Aircraft (400–499): CG-referenced bodies resting on their gear (Body.Geometry).
         //   📄 docs/DESIGN_Body_Geometry_And_Ground_Contact.md G4.

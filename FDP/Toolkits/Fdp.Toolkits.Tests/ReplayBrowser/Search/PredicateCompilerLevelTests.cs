@@ -229,6 +229,18 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             Assert.False(f(_w, watched));                      // outside the time window
         }
 
+        /// <summary>⭐ CE-4159 (re-homed from the trigger PoC) — a DTO the compiler does not know, nested in a Compound, is a LOUD error in both modes — it used to compile to a
+        /// constant TRUE that made the whole Compound true. ✅ Red-proof: the compiler's <c>default:</c> arm returning <c>(_, _) =&gt; true</c> again ⇒ red.</summary>
+        [Fact]
+        public void AnUnknownDtoNestedInACompound_IsALoudError_InBothModes()
+        {
+            var nested = new CompoundPredicateDto { Operator = LogicalOperator.Or, Conditions = new List<SearchPredicateDto> { new LvlUnknownDto() } };
+            var ex = Assert.Throws<NotSupportedException>(() => Search(nested));
+            Assert.Contains(nameof(LvlUnknownDto), ex.Message);
+            Assert.Throws<NotSupportedException>(() => Level(nested));
+            Assert.Throws<NotSupportedException>(() => Level(new LvlUnknownDto()));
+        }
+
         /// <summary>⭐ P5-style: a compiled Level Compound(PropertyMatch + ScenarioTime) allocates nothing per evaluation.</summary>
         [Fact]
         public void ACompiledLevelCompound_PropertyMatchAndScenarioTime_AllocatesNothingPerEvaluation()
@@ -251,6 +263,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             Assert.True(perEval <= 0, $"a compiled level evaluation allocated {perEval} B per call");
         }
     }
+
+    /// <summary>A predicate DTO the compiler has no arm for.</summary>
+    internal sealed class LvlUnknownDto : SearchPredicateDto { }
 
     [ComponentId(482)] internal struct LvlPos { public float East, North; }
     [ComponentId(483)] internal struct LvlPos2 { public int A; }
