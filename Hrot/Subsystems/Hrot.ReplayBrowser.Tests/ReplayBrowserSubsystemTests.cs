@@ -1787,6 +1787,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.InRange(sim, 3.5 - 1d / 60, 3.5 + 1d / 60);
         Assert.Equal(2, runner.Status()["shot"]!.GetValue<int>());
         Assert.Equal(Key2At, Camera());
+        Frame();                                                                       // ⭐ CE-4127 (ed569a146): a seeking host takes its step at the NEXT tick's start
         Assert.True(_subsystem.DirectorSimSeconds > sim);                              // and it plays on from there
     }
 
@@ -1949,7 +1950,8 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         int cut = Enumerable.Range(1, seen.Count - 1).FirstOrDefault(i => seen[i].Sim < seen[i - 1].Sim - 0.5);
         Assert.True(cut > 0, "the playhead never went back: no replay");
         Assert.InRange(seen[cut - 1].Sim, 4d - step, 4d + step);                              // the slow segment's end …
-        Assert.InRange(seen[cut].Sim - step, 1d - 1e-6, 1d + 1e-6);                           // … then ONE frame later the replay's first, at source 1.0
+        Assert.InRange(seen[cut].Sim, 1d - 1e-6, 1d + 1e-6);                                  // … then the replay's first, AT source 1.0 — ⭐ CE-4127 (ed569a146): a frame filmed from a
+                                                                                              //   recording is drawn at the moment it was framed (⛔ was "Sim - step": the old step-at-end showed one step past)
         Assert.InRange(seen[^1].Sim, 2d - step, 2d + step);                                    // the film ends with the replay
         Assert.Equal(1, Enumerable.Range(1, seen.Count - 1).Count(i => seen[i].Sim < seen[i - 1].Sim - 1e-6));   // one cut back, nothing else goes back
     }
