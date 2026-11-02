@@ -30,9 +30,12 @@ namespace Hrot.DDS.DataModel.Tests
 
             foreach (var t in topicStructs)
             {
+                // A [DdsStruct] is a nested ELEMENT type (e.g. FeatureOverrideWire inside ClusterStateTopic), not a topic: it carries no
+                // [DdsTopic], but it must still land in the orchestration IDL file (checked below).
+                var isNestedElement = t.GetCustomAttribute<DdsStructAttribute>() != null;
                 var topicAttr = t.GetCustomAttribute<DdsTopicAttribute>();
-                Assert.True(topicAttr != null,
-                    $"Type {t.Name} is missing [DdsTopic] attribute.");
+                Assert.True(topicAttr != null || isNestedElement,
+                    $"Type {t.Name} is missing [DdsTopic] attribute (or [DdsStruct] if it is a nested element type).");
 
                 var idlAttr = t.GetCustomAttribute<DdsIdlFileAttribute>();
                 Assert.True(idlAttr != null,
