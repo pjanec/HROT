@@ -51,6 +51,44 @@ namespace Fdp.Toolkit.ScenarioRules.Actions
         }
 
         /// <summary>
+        /// ⭐ rules S2 ⑨ (SR-97) — ASSIGNMENT-time lift of a step's nested <c>"params"</c> (any JSON object / string): it is taken OUT of the step's args and
+        /// returned as an extra string for the caller's <see cref="ActionArgs.Items"/>, and the step's <c>ArgsRef</c> is seeded with that item's index
+        /// (<paramref name="firstItem"/> + its position). Generic: any action whose params struct has an <c>int ArgsRef</c> gets it (<see cref="StepRunner.TakesArgsRef"/>);
+        /// an action without one refuses <c>params</c> by name. A list with no <c>params</c> comes back UNCHANGED (same string instance — the parse cache keys on it).
+        /// ⛔ Throws <see cref="ActionListException"/> naming the step.
+        /// </summary>
+        public static (string Json, string[] Extras) ExtractParams(string doJson, int firstItem)
+        {
+            JsonNode? root;
+            try { root = JsonNode.Parse(doJson); }
+            catch (System.Text.Json.JsonException ex) { throw new ActionListException(0, null, "the list is not valid JSON: " + ex.Message, ex); }
+            var arr = root as JsonArray ?? throw new ActionListException(0, null, "a step list must be a JSON array");
+            var extras = new System.Collections.Generic.List<string>();
+            for (int i = 0; i < arr.Count; i++)
+            {
+                if (arr[i] is not JsonObject step || step["args"] is not JsonObject args) continue;
+                string? key = args.Select(kv => kv.Key).FirstOrDefault(k => string.Equals(k, "params", StringComparison.OrdinalIgnoreCase));
+                if (key == null) continue;
+                string? act = step["act"] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
+                if (act != null)
+                {
+                    StepRunner? runner = null;
+                    try { runner = ActionCatalogue.RunnerFor(act); } catch (InvalidOperationException) { /* Validate names the unknown act */ }
+                    if (runner != null && !runner.TakesArgsRef)
+                        throw new ActionListException(i, act, $"'{act}' takes no nested \"params\" (its params have no int ArgsRef)");
+                }
+                if (args.Any(kv => string.Equals(kv.Key, "ArgsRef", StringComparison.OrdinalIgnoreCase)))
+                    throw new ActionListException(i, act, "a step gives either \"params\" or an ArgsRef, not both");
+                var value = args[key];
+                string text = value is JsonValue jv && jv.TryGetValue<string>(out var str) ? str : value?.ToJsonString() ?? "{}";
+                args.Remove(key);
+                args["ArgsRef"] = firstItem + extras.Count;
+                extras.Add(text);
+            }
+            return extras.Count == 0 ? (doJson, Array.Empty<string>()) : (arr.ToJsonString(), extras.ToArray());
+        }
+
+        /// <summary>
         /// ⭐ CE-4163 — checks a <c>do</c> list WITHOUT running anything: every step's action exists and can run as a step (no <c>Entity</c> param),
         /// and its args read STRICTLY into the action's params (an unknown property is an error). ⛔ Throws <see cref="ActionListException"/> naming the
         /// step index and act. Called when a trigger is ASSIGNED — never "at first use", when step 0 may already have run.

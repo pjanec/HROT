@@ -41,6 +41,9 @@ namespace Fdp.Toolkit.ScenarioRules.Actions
         /// read (strict enums) THROWS. Used at assignment; the runtime seeding stays the lenient overlay.</summary>
         public abstract void CheckArgs(string? argsJson);
 
+        /// <summary>⭐ rules S2 ⑨ — the action's params carry an <c>int ArgsRef</c>: a step may then bring a nested <c>"params"</c> value (<see cref="ActionList.ExtractParams"/>).</summary>
+        public abstract bool TakesArgsRef { get; }
+
         /// <summary>Frees the step's slot.</summary>
         public bool Detach(EntityRepository world, Entity self, int slotKey) => OccurrenceStoreAccess.TryDetachSlot(world, self, slotKey);
 
@@ -101,6 +104,8 @@ namespace Fdp.Toolkit.ScenarioRules.Actions
             catch (InvalidOperationException ex) { throw new UnresolvedReferenceException(ex.Message); }
             return (TP)boxed;
         }
+
+        public override bool TakesArgsRef => typeof(TP).GetField("ArgsRef", BindingFlags.Public | BindingFlags.Instance)?.FieldType == typeof(int);
 
         public override void CheckArgs(string? argsJson)
         {

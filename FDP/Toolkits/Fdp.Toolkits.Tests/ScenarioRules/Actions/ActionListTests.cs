@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Fdp.Toolkit.ScenarioRules.Actions;
 using Xunit;
 using static Fdp.Toolkit.ScenarioRules.Tests.Actions.ActionKit;
@@ -67,6 +68,42 @@ namespace Fdp.Toolkit.ScenarioRules.Tests.Actions
         {
             string json = Steps(Step("TestRecord", "{\"value\":1}"));
             Assert.Same(ActionList.Get(json), ActionList.Get(new string(json.AsSpan())));   // same content, a different string instance ⇒ the cache keys by value
+        }
+
+        /// <summary>⭐ rules S2 ⑨ — a step's nested <c>"params"</c> (an object, or a string) is lifted OUT of its args into extra items; its <c>ArgsRef</c> is the item's index; the
+        /// rewritten list validates and, RUN, the step reads the item its ArgsRef names. ✅ Red-proof: the <c>args["ArgsRef"] = …</c> seeding removed ⇒ both steps read item 0 ⇒ red.</summary>
+        [Fact]
+        public void ExtractParams_LiftsNestedParamsIntoItems_SeedsArgsRef_AndTheRunnerReadsTheRightItem()
+        {
+            var (json, extras) = ActionList.ExtractParams(
+                Steps(Step("TestRefLength", "{\"n\":5,\"params\":{\"a\":1}}"), Step("TestRecord", "{\"value\":9}"), Step("TestRefLength", "{\"params\":\"hello\"}")), firstItem: 2);
+            Assert.Equal(new[] { "{\"a\":1}", "hello" }, extras);
+            var steps = ActionList.Validate(json);
+            Assert.DoesNotContain("params", steps[0].ArgsJson, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("\"ArgsRef\":2", steps[0].ArgsJson);
+            Assert.Contains("\"ArgsRef\":3", steps[2].ArgsJson);
+            Assert.Equal("{\"value\":9}", steps[1].ArgsJson);                       // a step with no params is untouched
+
+            using var w = NewWorld();
+            var e = Unit(w, new[] { "when", json }.Concat(extras).ToArray());
+            Assert.Equal(Fbt.NodeStatus.Success, ActionHost.Tick(w, e, 1, out _));
+            var log = w.GetComponentRO<ActionTestLog>(e);
+            Assert.Equal((3, 7, 9, 5), (log.Count, log.V0, log.V1, log.V2));         // {"a":1} is 7 chars, then the record, then "hello"
+        }
+
+        [Fact]
+        public void ExtractParams_AListWithNoParams_ComesBackUnchanged_ParamsOnAnActionWithoutArgsRefAreRefused()
+        {
+            string plain = Steps(Step("TestRecord", "{\"value\":1}"));
+            var (same, none) = ActionList.ExtractParams(plain, 2);
+            Assert.Same(plain, same);                                                 // the parse cache keys on the very string
+            Assert.Empty(none);
+
+            var ex = Assert.Throws<ActionListException>(() => ActionList.ExtractParams(Steps(Step("TestRecord", "{\"value\":1}"), Step("TestRecord", "{\"params\":{\"x\":1}}")), 2));
+            Assert.Equal((1, "TestRecord"), (ex.Step, ex.Act));
+            Assert.Contains("ArgsRef", ex.Message);
+            var both = Assert.Throws<ActionListException>(() => ActionList.ExtractParams(Steps(Step("TestRefLength", "{\"argsRef\":0,\"params\":{}}")), 2));
+            Assert.Contains("not both", both.Message);
         }
     }
 }

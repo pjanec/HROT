@@ -1,10 +1,20 @@
+using System;
 using System.Linq;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.ScenarioRules;
 using Fdp.Toolkit.ScenarioRules.Actions;
 using Fdp.Toolkit.Weather;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Scheduling;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Time.Domain;
+using Hrot.AI.Behaviors.Brains.Objectives;
 using Hrot.AI.Behaviors.Brains.Objectives.Verbs;
+using Hrot.Common.Infrastructure;
+using Fdp.Toolkit.Tkb.Domain;
+using Hrot.Core.Mission;
+using Hrot.MuscleCharacter.Animation.Components;
 using Xunit;
 
 namespace Hrot.SimHost.Tests
@@ -183,6 +193,199 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("toKind", ex.Message);
             ActionList.Validate(Do(Step("Message", "{\"toKind\":\"Side\",\"toValue\":1,\"text\":\"" + new string('x', 127) + "\"}")));   // the limit itself passes
             Assert.Equal(6f, new MessageParams().Seconds);                          // the documented default
+        }
+
+        // ═════════════════════════════════════════ rules S2 ⑨ — pause-on-end, Order, MissionCommand ═════════════════════════════════════════
+
+        private static string OrderStep(ObjWorld w, Entity target, string behavior, string extra = "")
+            => Step("Order", $"{{\"target\":{w.Net(target)},\"behavior\":\"{behavior}\"{extra}}}");
+
+        /// <summary>SR-97 — <c>Order</c> through the real path: a trigger whose do = [Order(HoldStance, params {stance: Prone}), Message] — the order is Running until the unit's active behaviour IS
+        /// <c>HoldStance</c> (the hash), the unit runs it WITH the nested params (the stance it writes), and only then does the Message go. ✅ Red-proofs: <c>Order</c> returning Success on the first tick ⇒ the
+        /// message precedes the unit's behaviour ⇒ red; the <c>ArgsRef</c> seeding removed ⇒ the unit gets no params ⇒ red.</summary>
+        [Fact]
+        public void Order_RunsUntilTheUnitHoldsTheBehaviour_WithTheNestedParams_ThenTheNextStepGoes()
+        {
+            var w = new ObjWorld();
+            var unit = w.Unit();
+            var src = Cond(w);
+            w.Run(1);
+            Assert.Equal(0, w.Repo.GetComponentRO<BehaviorState>(unit).ActiveBehaviorHash);
+            var t = Fire(w, src, Do(OrderStep(w, unit, "HoldStance", ",\"params\":{\"stance\":\"Prone\"}"), Step("Message", "{\"text\":\"ordered\"}")));
+            int hold = Fdp.Toolkit.Behavior.BehaviorHash.FromName("HoldStance");
+            Flip(w, src, true);
+            w.Tick(0.5);
+            Assert.Equal(TriggerState.Acting, Phase(w, t));                                   // the order is out, not yet taken
+            Assert.Empty(w.Messages);
+            bool heldWhenMessageSeen = false;
+            for (int i = 0; i < 12 && w.Messages.Count == 0; i++) { w.Tick(0.5); heldWhenMessageSeen = w.Repo.GetComponentRO<BehaviorState>(unit).ActiveBehaviorHash == hold; }
+            Assert.Single(w.Messages);
+            Assert.True(heldWhenMessageSeen);                                                 // the next step came AFTER the unit held the behaviour
+            Assert.Equal(hold, w.Repo.GetComponentRO<BehaviorState>(unit).ActiveBehaviorHash);
+            w.Run(1.5);
+            Assert.Equal(StanceId.Prone, w.Repo.GetComponentRO<StanceIntent>(unit).TargetStance);   // it started WITH the params
+            Assert.Equal((TriggerState.Done, BehaviorOrigin.Superior), (Phase(w, t), w.Repo.GetComponentRO<BehaviorState>(unit).Origin));
+        }
+
+        /// <summary>SR-97 — an order nobody takes fails after 10 s of sim time with "not accepted" (and the Message after it never goes); a missing target and a target with no brain fail at once with their
+        /// reasons. ✅ Red-proof: the timeout test removed ⇒ the trigger stays Acting for ever ⇒ red.</summary>
+        [Fact]
+        public void Order_NotAccepted_FailsAfterTenSeconds_AndABadTargetFailsAtOnce()
+        {
+            var w = new ObjWorld { ResolveIntents = false };                                 // the intent is published and never turned into an assignment
+            var unit = w.Unit();
+            var man = w.Man(Inside, ForceId.Friend);                                         // no brain
+            var src = Cond(w);
+            var late = Fire(w, src, Do(OrderStep(w, unit, "HoldStance"), Step("Message", "{\"text\":\"never\"}")));
+            var ghost = Fire(w, src, Do(Step("Order", "{\"target\":99999,\"behavior\":\"HoldStance\"}")));
+            var mute = Fire(w, src, Do(OrderStep(w, man, "HoldStance")));
+            Flip(w, src, true); w.Run(9);
+            Assert.Equal(TriggerState.Acting, Phase(w, late));                                // still waiting at 9 s
+            Assert.Equal(ObjectiveState.Failed, w.S(ghost).State);
+            Assert.Contains("target not found", w.S(ghost).Reason.ToString());
+            Assert.Contains("target has no brain", w.S(mute).Reason.ToString());
+            w.Run(2);
+            Assert.Equal(ObjectiveState.Failed, w.S(late).State);
+            Assert.Contains("not accepted", w.S(late).Reason.ToString());
+            Assert.Empty(w.Messages);
+        }
+
+        /// <summary>SR-97 — a behaviour name this host does not declare is refused at ASSIGNMENT (not after the 10 s wait); so is a text-less name; <c>params</c> on an action with no <c>ArgsRef</c> too.</summary>
+        [Fact]
+        public void Order_IsValidatedAtAssignment_UnknownBehaviourAndMissingNameAreRefused()
+        {
+            var ex = Assert.Throws<ActionListException>(() => ActionList.Validate(Do(Step("Order", "{\"target\":5,\"behavior\":\"NoSuchBehaviour\"}"))));
+            Assert.Contains("unknown behaviour 'NoSuchBehaviour'", ex.Message);
+            Assert.Throws<ActionListException>(() => ActionList.Validate(Do(Step("Order", "{\"target\":5}"))));
+            ActionList.Validate(Do(Step("Order", "{\"target\":5,\"behavior\":\"HoldStance\",\"ArgsRef\":2}")));
+            Assert.Throws<ActionListException>(() => ActionList.ExtractParams(Do(Step("Message", "{\"text\":\"x\",\"params\":{}}")), 2));
+            Assert.Equal(-1, new OrderParams().ArgsRef);                                       // no params ⇒ none
+        }
+
+        private static (Entity Unit, Guid[] Tasks) PlannedUnit(ObjWorld w)
+        {
+            var unit = w.Unit();
+            try { Hrot.Map.Common.MissionComponentRegistry.RegisterAll(w.Repo); } catch (InvalidOperationException) { /* already registered by the host registry */ }
+            var tasks = new[] { Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid() };
+            w.Repo.SetManagedComponent(unit, new ActiveMissionPlan { TaskOrder = tasks });
+            return (unit, tasks);
+        }
+
+        /// <summary>MissionCommand — Jump publishes <c>MissionControlIntent</c> (CMD_JUMP_TO_TASK, the target's net id, the task id at <c>taskIndex</c> of its <c>TaskOrder</c>) with a fresh RequestId and
+        /// runs until the ack with that id: error 0 ⇒ Success, an error code ⇒ Failure "mission control error N". ✅ Red-proof: the ack matched on any id ⇒ (n/a, one request) — instead: the error branch
+        /// returning Success ⇒ the error rail goes red.</summary>
+        [Fact]
+        public void MissionCommand_Jump_PublishesTheIntent_AndSucceedsOrFailsOnTheAck()
+        {
+            foreach (var (code, ok) in new[] { (0, true), (5, false) })
+            {
+                var w = new ObjWorld { MissionAnswer = code };
+                var (unit, tasks) = PlannedUnit(w);
+                var src = Cond(w);
+                var t = Fire(w, src, Do(Step("MissionCommand", $"{{\"target\":{w.Net(unit)},\"command\":\"Jump\",\"taskIndex\":1}}"), Step("Message", "{\"text\":\"jumped\"}")));
+                Flip(w, src, true); w.Run(3);
+                var intent = Assert.Single(w.MissionIntents);
+                Assert.Equal((eMissionCommandType.CMD_JUMP_TO_TASK, tasks[1], w.Net(unit)), (intent.Payload.CommandType, intent.Payload.TargetTaskId, intent.TargetEntityId));
+                Assert.NotEqual(Guid.Empty, intent.RequestId);
+                if (ok) { Assert.Equal(TriggerState.Done, Phase(w, t)); Assert.Single(w.Messages); }
+                else
+                {
+                    Assert.Equal(ObjectiveState.Failed, w.S(t).State);
+                    Assert.Contains("mission control error 5", w.S(t).Reason.ToString());
+                    Assert.Empty(w.Messages);
+                }
+            }
+        }
+
+        /// <summary>MissionCommand — Abort needs no plan (CMD_ABORT_ALL); an unanswered request fails after 10 s ("no mission control ack"); a jump to a task the plan does not have fails at once;
+        /// Replace is refused at assignment (a verb carries no plan). ✅ Red-proof: the 10 s timeout removed ⇒ stays Acting ⇒ red.</summary>
+        [Fact]
+        public void MissionCommand_AbortAndTheFailurePaths()
+        {
+            var w = new ObjWorld { MissionAnswer = 0 };
+            var (unit, _) = PlannedUnit(w);
+            var src = Cond(w);
+            var abort = Fire(w, src, Do(Step("MissionCommand", $"{{\"target\":{w.Net(unit)},\"command\":\"Abort\"}}")));
+            Flip(w, src, true); w.Run(3);
+            Assert.Equal(TriggerState.Done, Phase(w, abort));
+            Assert.Equal(eMissionCommandType.CMD_ABORT_ALL, Assert.Single(w.MissionIntents).Payload.CommandType);
+
+            var w2 = new ObjWorld();                                                          // nobody answers
+            var (unit2, _) = PlannedUnit(w2);
+            var src2 = Cond(w2);
+            var silent = Fire(w2, src2, Do(Step("MissionCommand", $"{{\"target\":{w2.Net(unit2)},\"command\":\"Abort\"}}")));
+            var farTask = Fire(w2, src2, Do(Step("MissionCommand", $"{{\"target\":{w2.Net(unit2)},\"command\":\"Jump\",\"taskIndex\":7}}")));
+            Flip(w2, src2, true); w2.Run(9);
+            Assert.Equal(TriggerState.Acting, Phase(w2, silent));
+            Assert.Contains("has no task 7", w2.S(farTask).Reason.ToString());
+            w2.Run(2);
+            Assert.Equal(ObjectiveState.Failed, w2.S(silent).State);
+            Assert.Contains("no mission control ack", w2.S(silent).Reason.ToString());
+
+            var ex = Assert.Throws<ActionListException>(() => ActionList.Validate(Do(Step("MissionCommand", "{\"target\":5,\"command\":\"Replace\"}"))));
+            Assert.Contains("full mission plan", ex.Message);
+        }
+
+        private static int PausesAfter(EntityRepository repo, ExercisePauseOnEndSystem sys, Action<EntityRepository>? publish, Action? run = null)
+        {
+            repo.Bus.SwapBuffers();
+            publish?.Invoke(repo);
+            repo.Bus.SwapBuffers();
+            if (run != null) run(); else sys.Execute(repo, 0.1f);
+            repo.Bus.SwapBuffers();
+            return ((ISimulationView)repo).ReadManagedEvents<PauseTimeIntent>().Count;
+        }
+
+        /// <summary>SR-116 — pause-on-end: exactly ONE <c>PauseTimeIntent</c> per frame that carries an <c>ExerciseEndedEvent</c>, none without one, and none on the frame after (an event lives one frame — it is
+        /// not a toggle and does not repeat). ✅ Red-proof: the system publishing every frame ⇒ the "none without" rail goes red; publishing once per event but two events in one frame ⇒ n/a (the event is once per node).</summary>
+        [Fact]
+        public void PauseOnEnd_PublishesExactlyOnePauseIntentPerEnd_NoneWithoutOne()
+        {
+            var repo = new EntityRepository();
+            repo.Bus.Register<ExerciseEndedEvent>(); repo.Bus.RegisterManaged<PauseTimeIntent>();
+            var sys = new ExercisePauseOnEndSystem();
+            Assert.Equal(0, PausesAfter(repo, sys, null));
+            Assert.Equal(1, PausesAfter(repo, sys, r => r.Bus.Publish(new ExerciseEndedEvent { EndedAt = 5 })));
+            Assert.Equal(0, PausesAfter(repo, sys, null));                                    // the next frame: the event is gone, no second pause
+        }
+
+        /// <summary>SR-116 — the feature <c>exercise.pause-on-end</c> is declared by the Brain capabilities, ON by default; the scheduler runs the system only while it is on: off ⇒ no pause intent. The
+        /// pack carries the system. ✅ Red-proof: <c>[NodeFeature]</c> removed from the system ⇒ the off rail publishes ⇒ red.</summary>
+        [Fact]
+        public void PauseOnEnd_IsANodeFeature_OnByDefault_AndOffMeansNoPause_AndThePackCarriesIt()
+        {
+            var features = new NodeFeatures(new FeatureRegistry(new[] { ExercisePauseOnEndSystem.Feature }), NodeRole.Brain);
+            Assert.True(features.On(ExercisePauseOnEndSystem.FeatureId));
+            var repo = new EntityRepository();
+            repo.Bus.Register<ExerciseEndedEvent>(); repo.Bus.RegisterManaged<PauseTimeIntent>();
+            var sys = new ExercisePauseOnEndSystem();
+            var sch = new SystemScheduler { FeatureGate = features };
+            sch.RegisterSystem(sys); sch.BuildExecutionOrders();
+            void Phase() => sch.ExecutePhase(SystemPhase.Simulation, repo, 0.1f);
+            Assert.Equal(1, PausesAfter(repo, sys, r => r.Bus.Publish(new ExerciseEndedEvent { EndedAt = 1 }), Phase));
+            features.SetNodeOverride(ExercisePauseOnEndSystem.FeatureId, "{\"Enabled\":false}");
+            Assert.Equal(0, PausesAfter(repo, sys, r => r.Bus.Publish(new ExerciseEndedEvent { EndedAt = 2 }), Phase));
+
+            var pack = new Hrot.CGF.CgfLogicPack(new Fdp.Toolkit.Behavior.BehaviorRegistry(), new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
+                new Fdp.Toolkit.Behavior.TacticalOrderMapper.TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
+            Assert.Single(pack.SimulationSystems.OfType<ExercisePauseOnEndSystem>());
+        }
+
+        /// <summary>SR-116 end to end — a trigger ending the exercise: the pause is asked for ONCE after the end, and not again on the ticks after it.</summary>
+        [Fact]
+        public void PauseOnEnd_ARealEnd_AsksForThePauseOnce()
+        {
+            var w = new ObjWorld();
+            w.Environment();
+            var src = Cond(w);
+            Fire(w, src, Do(Step("EndExercise", "{\"reason\":\"done\"}")));
+            w.Run(2);
+            Assert.Equal(0, w.Pauses);
+            Flip(w, src, true); w.Run(4);
+            Assert.Equal(1, w.Ended);
+            Assert.Equal(1, w.Pauses);
+            w.Run(4);
+            Assert.Equal(1, w.Pauses);
         }
     }
 }

@@ -117,6 +117,8 @@ namespace Hrot.SimHost.Tests
             public readonly BehaviorRegistry Registry = new();
             private readonly BehaviorIngressSystem _ingress;
             private readonly BrainTickSystem _brain;
+            private readonly Hrot.CGF.Systems.TacticalIntentResolutionSystem _intents;
+            private readonly Hrot.AI.Behaviors.Brains.Objectives.ExercisePauseOnEndSystem _pause = new();
             private readonly TkbDatabase _db = new();
             private int _net = 100;
             public double Time;
@@ -134,6 +136,7 @@ namespace Hrot.SimHost.Tests
                 CgfBehaviorSetup.LoadFromAiAssembly(Registry);
                 _ingress = new BehaviorIngressSystem(Registry);
                 _brain = new BrainTickSystem(Registry);
+                _intents = new Hrot.CGF.Systems.TacticalIntentResolutionSystem(new Fdp.Toolkit.Behavior.TacticalOrderMapper.TacticalIntentMapperRegistry(), Registry);
                 Hrot.Map.Definitions.Tkb.NedTkbCatalog.RegisterAll(_db);
             }
 
@@ -196,9 +199,44 @@ namespace Hrot.SimHost.Tests
                 Repo.Bus.SwapBuffers();
                 if (Repo.Bus.IsRegistered<ExerciseEndedEvent>()) Ended += Repo.ReadEvents<ExerciseEndedEvent>().Length;
                 if (Repo.Bus.IsRegisteredManaged<PlayerMessageEvent>()) foreach (var m in ((Fdp.ModuleHost.Abstractions.ISimulationView)Repo).ReadManagedEvents<PlayerMessageEvent>()) Messages.Add(m);
+                // ⭐ rules S2 ⑨ — the mission-control seam: record what a verb asked, and answer it like MissionControlExecutionSystem would (the rail picks the code)
+                if (Repo.Bus.IsRegisteredManaged<Hrot.Common.Events.MissionControlIntent>())
+                    foreach (var mi in ((Fdp.ModuleHost.Abstractions.ISimulationView)Repo).ReadManagedEvents<Hrot.Common.Events.MissionControlIntent>())
+                    {
+                        MissionIntents.Add(mi);
+                        if (MissionAnswer is { } code)
+                        {
+                            if (!Repo.Bus.IsRegistered<Hrot.Common.Events.MissionControlAckEvent>()) Repo.Bus.Register<Hrot.Common.Events.MissionControlAckEvent>();
+                            Repo.Bus.Publish(new Hrot.Common.Events.MissionControlAckEvent { RequestId = mi.RequestId, ErrorCode = code });
+                        }
+                    }
+                if (Repo.Bus.IsRegisteredManaged<Fdp.Toolkit.Time.Domain.PauseTimeIntent>()) Pauses += ((Fdp.ModuleHost.Abstractions.ISimulationView)Repo).ReadManagedEvents<Fdp.Toolkit.Time.Domain.PauseTimeIntent>().Count;
+                if (ResolveIntents) _intents.Execute(Repo, (float)step);
                 _ingress.Execute(Repo, (float)step);
                 _brain.Execute(Repo, (float)step);
+                _pause.Execute(Repo, (float)step);
                 Repo.FlushCommandBuffers();
+            }
+
+            /// <summary>⭐ rules S2 ⑨ — a rail that wants an order to go UNANSWERED (nothing turns the intent into an assignment) switches this off.</summary>
+            public bool ResolveIntents = true;
+            /// <summary>⭐ rules S2 ⑨ — the <c>MissionControlIntent</c>s verbs published, and the <c>ErrorCode</c> the stand-in executor answers with (null = never answers).</summary>
+            public readonly List<Hrot.Common.Events.MissionControlIntent> MissionIntents = new();
+            public int? MissionAnswer;
+            /// <summary>⭐ rules S2 ⑨ — the <c>PauseTimeIntent</c>s published so far (read after each swap).</summary>
+            public int Pauses;
+
+            /// <summary>⭐ rules S2 ⑨ — an entity with a brain (the Objective template's, no body) that an <c>Order</c> can start a behaviour on; carries the stance a <c>HoldStance</c> writes.</summary>
+            public Entity Unit()
+            {
+                var e = Repo.CreateEntity();
+                Repo.AddComponent(e, new TkbIdentity { TkbType = (TkbTypeId)TkbEntityTypes.Objective });
+                Repo.AddComponent(e, new NetworkIdentity { Value = _net++ });
+                new BehaviorTkbTranslator().Inject(Repo, e, _db.GetByType(TkbEntityTypes.Objective));
+                if (!Repo.IsComponentTypeRegistered<StanceIntent>()) Repo.RegisterComponent<StanceIntent>();
+                Repo.AddComponent(e, new StanceIntent());
+                Repo.SetAuthority<BehaviorState>(e, true);   // the order's resolver acts on the owner's node only
+                return e;
             }
 
             public ObjectiveStatus S(Entity o) => Repo.GetComponentRO<ObjectiveStatus>(o);
