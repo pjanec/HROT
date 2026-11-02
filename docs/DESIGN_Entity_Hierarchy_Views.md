@@ -79,3 +79,16 @@ plumbing are one implementation, so a new relation is one small class, never a n
 - *Macro entities inside the ORBAT under their instance* — the user: a macro is a scenario part, not a unit; the command tree must stay the command tree.
 - *A separate panel per relation* — three trees, three filters, three selection syncs for one concept.
 - *A view that mixes relations (parts and commanders in one tree)* — an entity can have both parents; one tree cannot show both without duplicates.
+
+## 4. AS BUILT — the Structure view *(ui, `2026-11-02`, CE-4213 `91d6b69be`)*
+
+| decision | as built | deviation |
+|---|---|---|
+| HV-2 one panel | `SharedOrbatPanel` draws a relation switch *[Command \| Structure]* + a disabled *Scenario (needs macros)*; `IOrbatDataProvider.Relation` (`EntityTreeRelation`, default member so other providers are unaffected) | — |
+| HV-4 the seam | `IHierarchyAdapter` adopted and widened: `ChildEnumerator(view, ReadOnlySpan<Entity>)` beside the `VisHierarchyNode` walk; default members `Includes` · `CanReparent` (false) · `Reparent` (no-op). `CommandHierarchyAdapter` (the `UnitSubordinate` rule moved out of `ScenarioOrbatAdapter.GetVisibleNodes`) and `StructureHierarchyAdapter` (`PartMetadata.ParentEntity`, else `IsEmbarkedTag.VehicleEntity`; a dead parent ⇒ a root). `GetVisibleNodes` builds its parent map through the selected adapter — one tree for both views | ⚠ the panel still reads `IOrbatDataProvider`, not the adapter directly; the adapter is the parent rule inside it |
+| Structure is read-only | no drag sources / drop targets; assign / remove / embark requests do nothing; selection still syncs map + inspector | — |
+| part names | parts have no `EntityInfo`: *parent name + "sensor i"* (1000+i) / *"turret i"* (2000+i) / *"part #N"* | ⚠ AQ79 §0.10 not checked for a richer label |
+
+Rails: `EditorOrbatStructureViewTests` (5, in `AdapterTests.cs`): Command unchanged · a sensor and an embarked passenger under the vehicle ·
+a part with a dead parent is a root · Structure refuses reparent · the span enumerator. Red-proof: Structure ignoring `PartMetadata` fails.
+⚠ No frame rail — `SharedOrbatPanel` has none (model-dump and drop-logic tests only). Scenario view: ⏳ macros S3a (`MacroOrigin`).

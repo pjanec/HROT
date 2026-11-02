@@ -434,3 +434,16 @@ anything during a REPLAY (the outcome is already recorded).
    - **Still not built:** the `FeatureGridPanel` (S2) the operator UI sender of a general override. Over HTTP, `POST /run-settings` now takes `featureOverrides: [{feature, nodes:[names] ([]=all), json}]` (replaces the whole list; `mapInLoad` / `mapInLoadNodes` stay and can only turn `map3d.in-load` ON for named nodes). Live check `2026-11-02` (`--mode all`, `hill-attack`): IG `GET /features` `map3d.in-load` Enabled true/`role default` → false/`cluster` after an override naming `IG-100`; the IG heartbeat on the wire (`ddsmonitor`) `FeaturesOn` [`map3d.in-load`] → [], `FeatureErrors` []; the broadcast carried `FeatureOverrides` with `Nodes:["IG-100"]`.
 6. `HrotNodeContext.Tick` folds `ClusterView.FeatureOverrides` into `NodeFeatures` each frame by reference comparison (the view builds a new list per broadcast).
 7. `Hrot.Orchestrator.Tests` compiles again (a missing `Hrot.Editor.AiShared` project reference — the pre-existing CS0234).
+
+## 9. AS BUILT — S2, the HUD features *(ui, `2026-11-02`, CE-4148 `69303ae00`)*
+
+| | as built | deviation |
+|---|---|---|
+| declarations | `HudFeatures` (`Hrot.Core/Infrastructure`, the `Map3dInLoadFeature` pattern): `hud.hit-marker`, `hud.damage-arc`, `hud.kill-cam`, `hud.squad-takeover-after-death` (Live; ON for the Player, OFF elsewhere), `hud.spread-ring`, `hud.near-miss` (ON everywhere); declared in the IG (player default), CGF, Editor and SimHost `HostFeatures` | — |
+| gates | `PossessionStation`: hit marker, damage arc, kill cam (OFF ⇒ a killed unit is released to the map, no fall screen), Tab squad takeover, spread ring, near-miss shock + edge darkening · `EffectSpawnSystem` records `HitFeedback` only while hit-marker, damage-arc OR kill-cam is on (kill cam names the killer and the arc needs the memory) | ⚠ the recording gate is the OR of its three readers, not hit-marker alone |
+| wiring | the station and the effect system take a lazy `Func<IFeatureGate?>`, passed by `MapInteractionPack.AttachMapLayers(featureGate:)` / `MapInteractionContext.FeatureGate` from every host with a node; a null gate = ungated (all ON — the rails and tools), an undeclared id = OFF | ⚠ the Replay Browser has no node ⇒ ungated, the one named exemption in the forwarding rail |
+| `FeatureGridPanel` | ⏳ not built | — |
+
+Rails: `EffectTests.HudFeatures` · `PossessionStationTests.HudFeatures` · `HudFeaturesAreWiredOnEveryHostTests` (every host passes the gate; each
+bootstrapper declares with the right default). Red-proof: dropping hit-marker from `RecordsHitFeedback` fails. ⚠ The drawn marker / arc / ring are
+gated but not frame-tested.
