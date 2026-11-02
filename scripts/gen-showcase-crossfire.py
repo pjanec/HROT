@@ -70,7 +70,8 @@ def unit(tkb, name, force, at, facing=0, commander=None, behavior=None, key=None
 
 POINTS = {"A": [400, 400, 0], "B": [525, 400, 0], "C": [650, 400, 0]}
 POINT_R = 15
-BLUE_BASE, RED_BASE = [525, 275, 0], [525, 525, 0]          # 125 m south / north of B — the bot macro advances 125 m ahead
+BLUE_BASE, RED_BASE = [650, 275, 0], [650, 525, 0]          # on the x≈650 street, 125 m south / north of C (⚠ (525,275) and (525,525) are INSIDE
+                                                             #   restaurant_5 / office_10 — men spawned there stand on the roof); bots advance 125 m ahead ⇒ to C
 CRATE_SPOTS = [[400, 275, 0], [650, 275, 0], [400, 525, 0], [650, 525, 0]]
 DROPS = [180, 360, 540, 720]                                  # 4 drops, 3 min apart (the first at 3:00 — the 2:30-3:30 range needs SR-101 ③)
 ROUND = 900
@@ -154,7 +155,7 @@ def scenario():
         ents[pl] = unit(305, f"{name} Team", force, base, facing, key=f"{name}Team")
         for s, goal in enumerate(goals, 1):
             sq = ids()
-            at = (base[0] + (s * 2 - 3) * 10, base[1], 0)
+            at = (base[0], base[1] + (s * 2 - 3) * 8, 0)   # along the street (it is ~10 m wide: houses at x 639 / 661)
             ents[sq] = unit(302, f"{name} Squad {s}", force, at, facing, commander=pl,
                             behavior=("SquadDefend", {"Position": POINTS[goal], "SearchRadius": 12, "Speed": 3}))
             for i in range(4):
@@ -250,7 +251,7 @@ def scenario():
         "terrainName": "demo-city",
         "description": (
             "What: SHOWCASE 'Crossfire' (docs/SHOWCASE_Scenarios.md §2) - team domination, bots on both sides (players join on the Deploy screen). "
-            "Blue (2 squads x 4) from the south base (525,275) to points A and B, Red from the north (525,525) to C and B (each squad SquadDefend at its point). Three capture "
+            "Blue (2 squads x 4) from the south base (650,275) to points A and B, Red from the north (650,525) to C and B (each squad SquadDefend at its point). Three capture "
             "points A (400,400), B (525,400), C (650,400): a side captures with more men inside for 10 s (HoldArea capture, captureSeconds). Tickets: "
             "150 each (Counter), -1 per own man down, -1 per 10 s for each point the enemy holds (whileTrue drain triggers; doubled from 12:00, "
             "sudden death). 'Blue lead' = Blue minus Red; 40 behind => that side's bots +1 tier (never twice within 2 min). Supply crates at 3, 6, 9, "
