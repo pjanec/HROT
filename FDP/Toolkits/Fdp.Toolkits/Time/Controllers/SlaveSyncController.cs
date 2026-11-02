@@ -105,7 +105,7 @@ namespace Fdp.Toolkit.Time.Controllers
             // TimeSyncOffsetCalculatedEvent is the internal event published by SlaveTimeSyncTranslator
             // after computing the NTP formula at the network boundary (precise t4 capture).
             _eventBus.Register<TimeSyncOffsetCalculatedEvent>();
-            _eventBus.Register<TimeSyncRequest>();
+            _eventBus.Register<TimeSyncProbeEvent>();   // CE-4208: the engine-side probe; the wire TimeSyncRequest is the translator's
 
             // Send the initial handshake request.
             SendTimeSyncRequest();
@@ -218,7 +218,7 @@ namespace Fdp.Toolkit.Time.Controllers
         private void SendTimeSyncRequest()
         {
             _lastSyncRequestTicks = _getTick();
-            _eventBus.Publish(new TimeSyncRequest
+            _eventBus.Publish(new TimeSyncProbeEvent
             {
                 ClientNodeId    = _localNodeId,
                 ClientSendTicks = _lastSyncRequestTicks,

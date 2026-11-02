@@ -1721,6 +1721,15 @@ graph TD
 | ⛔ rejected: a new `Fdp.Time.Network` assembly | one more project for five files; Cyclone is already the FDP DDS assembly every caller references |
 | gates | `SimTimeSyncIntegrationTests`, `TimeControlIntegrationTests` (filtered, base `8769f1c4b`), `Fdp.Toolkits.Tests` Time, `Fdp.Network.Cyclone.Tests` |
 
+### ⭐ 19.1 AS-BUILT `2026-11-02` — deviations from the picture above
+
+| deviation | why |
+|---|---|
+| `TimeMessages.cs` was SPLIT, not moved whole: `SwitchTimeModeEvent` and `TimeSyncOffsetCalculatedEvent` are engine bus events and stay in `Fdp.Toolkits/Time/Messages/TimeBusEvents.cs` (namespace kept) beside the new `TimeSyncProbeEvent` | only the five DDS types left (`Fdp.Network.Cyclone/Time/Messages/TimeMessages.cs`) |
+| `TimeSyncProbeEvent.ClientNodeId` is a `Fdp.Core.NodeId`, not `int` | `S0IdTypesRailTests.S0_EveryNodeIdMember_IsANodeId` forbids a bare int node id; the translator converts to the wire `int` |
+| `HighResUtcClock` became `public` | the moved translators (another assembly) stamp t1/t4 with it; one clock, no copy |
+| tests: translator / wire tests (43) moved to `Fdp.Network.Cyclone.Tests/Time`; controller tests read `TimeSyncProbeEvent`; `ClockSkewDriftTests` feeds `TimeSyncOffsetCalculatedEvent` (the controller never read the wire response) | the claims stay; `TheHaltCannotStopTheClockTests` path list follows the files |
+
 ## ⭐ WHERE THE TASKS WENT
 
 ⛔ **This document is the ARCHITECTURE and the EVIDENCE. It carries no task list** — ⭐ that is

@@ -180,13 +180,13 @@ public sealed class TheHaltCannotStopTheClockTests
 
         Assert.Equal(new[]
         {
-            "FDP/Toolkits/Fdp.Toolkits/Time/SwitchTimeModeDescriptorTranslator.cs",
+            "FDP/Network/Fdp.Network.Cyclone/Time/SwitchTimeModeDescriptorTranslator.cs",
             // ⭐ CE-3329 W5 (2026-10-27) — the MASTER's two: found by EveryIngressTranslatorCanDiscardRail defaulting to WorldState, so a
             //   frozen or replay-restoring master stopped hearing its slaves' FrameAck / time sync (the deadlock their slave peers warn of)
-            "FDP/Toolkits/Fdp.Toolkits/Time/Translators/MasterLockstepTranslator.cs",
-            "FDP/Toolkits/Fdp.Toolkits/Time/Translators/MasterTimeSyncTranslator.cs",
-            "FDP/Toolkits/Fdp.Toolkits/Time/Translators/SlaveLockstepTranslator.cs",
-            "FDP/Toolkits/Fdp.Toolkits/Time/Translators/SlaveTimeSyncTranslator.cs",
+            "FDP/Network/Fdp.Network.Cyclone/Time/Translators/MasterLockstepTranslator.cs",
+            "FDP/Network/Fdp.Network.Cyclone/Time/Translators/MasterTimeSyncTranslator.cs",
+            "FDP/Network/Fdp.Network.Cyclone/Time/Translators/SlaveLockstepTranslator.cs",
+            "FDP/Network/Fdp.Network.Cyclone/Time/Translators/SlaveTimeSyncTranslator.cs",
         }, declaring);
     }
 

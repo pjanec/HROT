@@ -297,9 +297,6 @@ public class StrictNetworkSeparationTests
     /// <summary>⭐ Pending (CE-4208, being moved / split) — "Type.FullName" or "Type.Field" → why it is still here. ⛔ Must shrink to EMPTY.</summary>
     private static readonly Dictionary<string, string> PendingCe4208 = new(StringComparer.Ordinal)
     {
-        // ── STOPPED (design call): the time network layer lives in Fdp.Toolkits, and TimeSyncRequest / TimeSyncResponse are ALSO internal
-        //    bus events (SlaveSyncController, HrotSharedComponentRegistry) ⇒ a split + the translators' move — DESIGN_Time_Architecture ──
-        ["Fdp.Toolkit.Time.Messages."] = "STOPPED: time network layer placement + the TimeSync event split (design call, reported)",
     };
 
     private static IEnumerable<Assembly> EngineAndNetworkAssemblies()

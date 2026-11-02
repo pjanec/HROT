@@ -665,12 +665,12 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Sync slave.
             slaveBus.SwapBuffers();
-            slaveBus.Read<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncProbeEvent>();
             slaveBus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = 0L });
             slaveBus.SwapBuffers();
             slave.Update();
             slaveBus.SwapBuffers();
-            slaveBus.Read<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncProbeEvent>();
 
             // Drain constructor event from masterBus before SwitchToDeterministic.
             masterBus.SwapBuffers();
@@ -771,12 +771,12 @@ namespace Fdp.Toolkit.Time.Tests
 
             // Sync slave so _isTimeSynced = true.
             slaveBus.SwapBuffers();
-            slaveBus.Read<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncProbeEvent>();
             slaveBus.Publish(new TimeSyncOffsetCalculatedEvent { Rtt = 0L, NewOffset = 0L });
             slaveBus.SwapBuffers();
             slave.Update();
             slaveBus.SwapBuffers();
-            slaveBus.Read<TimeSyncRequest>();
+            slaveBus.Read<TimeSyncProbeEvent>();
 
             // Transition master to Stepping
             // Drain constructor event first so only the Deterministic event is relayed.

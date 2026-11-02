@@ -40,7 +40,7 @@ namespace Fdp.Toolkit.Time.Tests
         public void SlaveTimeSyncTranslator_NullParticipant_IsNoOp()
         {
             var bus = new FdpEventBus();
-            bus.Register<TimeSyncRequest>();
+            bus.Register<TimeSyncProbeEvent>();
             var t = new SlaveTimeSyncTranslator(participant: null, eventBus: bus, localNodeId: 1);
             t.ScanAndPublish(null!);
             t.PollIngress(null!, null!);    // must not throw
@@ -54,11 +54,11 @@ namespace Fdp.Toolkit.Time.Tests
         public void SlaveTimeSyncTranslator_ScanAndPublish_DrainsRequestsFromBus()
         {
             var bus = new FdpEventBus();
-            bus.Register<TimeSyncRequest>();
+            bus.Register<TimeSyncProbeEvent>();
             var t = new SlaveTimeSyncTranslator(participant: null, eventBus: bus, localNodeId: 1);
 
             // Publish a request and make it readable
-            bus.Publish(new TimeSyncRequest { ClientNodeId = 1, ClientSendTicks = 100 });
+            bus.Publish(new TimeSyncProbeEvent { ClientNodeId = 1, ClientSendTicks = 100 });
             bus.SwapBuffers();
 
             // Translator drains the request (DDS write is no-op with null participant)
@@ -66,7 +66,7 @@ namespace Fdp.Toolkit.Time.Tests
 
             // After swap, bus should be empty
             bus.SwapBuffers();
-            var remaining = bus.Read<TimeSyncRequest>();
+            var remaining = bus.Read<TimeSyncProbeEvent>();
             Assert.True(remaining.IsEmpty,
                 "SlaveTimeSyncTranslator should drain TimeSyncRequests from bus even with null participant");
         }
@@ -160,18 +160,18 @@ namespace Fdp.Toolkit.Time.Tests
         public void SlaveTimeSyncTranslator_ScanAndPublish_DrainsRequest_NullParticipant()
         {
             var bus = new FdpEventBus();
-            bus.Register<TimeSyncRequest>();
+            bus.Register<TimeSyncProbeEvent>();
             long ticks = 12345L;
             var t = new SlaveTimeSyncTranslator(participant: null, eventBus: bus, localNodeId: 1,
                 tickSource: () => ticks);
 
-            bus.Publish(new TimeSyncRequest { ClientNodeId = 1, ClientSendTicks = 1L });
+            bus.Publish(new TimeSyncProbeEvent { ClientNodeId = 1, ClientSendTicks = 1L });
             bus.SwapBuffers();
 
             t.ScanAndPublish(null!); // no-op for DDS write, but must drain bus
 
             bus.SwapBuffers();
-            Assert.True(bus.Read<TimeSyncRequest>().IsEmpty,
+            Assert.True(bus.Read<TimeSyncProbeEvent>().IsEmpty,
                 "Request must be drained from bus even with null DDS participant");
         }
     }
