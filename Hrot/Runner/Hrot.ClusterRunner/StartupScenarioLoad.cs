@@ -82,7 +82,7 @@ public sealed class StartupScenarioLoad
             {
                 var intent = _plan.Live
                     ? ScenarioLoadSequence.LiveLoadIntent(scenario, startPaused: !_plan.Run, scenarioArgsJson: _plan.ScenarioArgsJson)
-                    : ScenarioLoadSequence.EditLoadIntent(scenario);
+                    : ScenarioLoadSequence.EditLoadIntent(scenario, _plan.ScenarioArgsJson);
                 LoadRequestId = intent.TransactionId;
                 _sequence = new ScenarioLoadSequence(master.Transition, () => _state() ?? ClusterState.Idle);
                 _sequence.Request(intent);

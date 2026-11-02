@@ -103,6 +103,8 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.HitMarks>();     // ⭐ CE-3210 — where rounds struck (dtHitMarks)
         world.RegisterComponent<Fdp.Toolkit.Motion.Descent>();                  // ⭐ airborne B-1 — a man coming down (dtDescent)
         world.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();            // ⭐ CE-4153 — the scenario file's stable entity key (dtEntityGuid)
+        world.RegisterComponent<Fdp.Toolkit.Scenario.RefKey>();                // ⭐ macros debt A1 (SR-65, SR-188) — the authored name "@Key" resolves against the LIVE world too
+                                                                                //   (was registered only on the staging repo ⇒ a runtime `@Key` arg never resolved, and a save dropped the keys)
         world.RegisterManagedComponent<Fdp.Toolkit.Scenario.MacroExpansionIntent>();
         world.RegisterManagedComponent<Fdp.Toolkit.Scenario.MacroExpandedWith>();     // ⭐ macros S3a ⑥ — the reconcile's baseline (transient)  // ⭐ macros S3a ④ — the wait of one expansion (transient)
         world.RegisterManagedComponent<Fdp.Toolkit.Scenario.ParamBindings>();  // ⭐ macros S3a ① (SR-161) — scalar bindings to params; NoReplay, saved by its translator

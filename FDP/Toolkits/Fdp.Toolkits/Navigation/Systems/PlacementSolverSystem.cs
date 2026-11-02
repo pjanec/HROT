@@ -34,6 +34,12 @@ namespace Fdp.Toolkit.Navigation.Systems
 
         private readonly INavmeshProvider? _navmesh;
 
+        /// <summary>⭐ Macros debt A2 (SR-190) — frames a slot this solver handed out stays TAKEN for later requests: the children it placed
+        /// are created a few ticks after the answer, so until then the world does not show them and a second expansion could land on them.</summary>
+        public const int ReservedFrames = 600;
+        private readonly List<(Vector3 Position, float Radius, long Frame, int Self)> _reserved = new();
+        private long _frame;
+
         public PlacementSolverSystem(INavmeshProvider? navmesh = null) => _navmesh = navmesh;
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -45,10 +51,44 @@ namespace Fdp.Toolkit.Navigation.Systems
             // ⚠ the managed-event publish is on the concrete buffer (IEntityCommandBuffer has PublishEvent<unmanaged> only) — EqsSolverSystem's pattern.
             if (view.GetCommandBuffer() is not EntityCommandBuffer cmd) return;
             var terrain = view is EntityRepository repo && repo.HasSingletonManaged<TerrainWorld>() ? repo.GetSingletonManaged<TerrainWorld>() : null;
-            var existing = ExistingEntities(view);   // once per tick: every batch is placed against the same world
-
+            _frame++;
+            _reserved.RemoveAll(r => _frame - r.Frame > ReservedFrames);
+            // once per tick: every batch is placed against the same world PLUS every slot already handed out (this tick's earlier batches
+            // included) — ⭐ A2: two instances dropped on one spot do not overlap
             foreach (var req in requests)
-                cmd.PublishManagedEvent(Solve(req, terrain, existing));
+                cmd.PublishManagedEvent(SolveAndReserve(req, terrain, ExistingEntities(view, req)));   // ⭐ A3: per request — its moved entities are not obstacles
+        }
+
+        private static HashSet<int> SelvesOf(PlacementRequestBatch? req)
+        {
+            var set = new HashSet<int>();
+            if (req != null) foreach (var s in req.Slots) if (s.Self != 0) set.Add(s.Self);
+            return set;
+        }
+
+        /// <summary>⭐ A2 — remember the placed slots of <paramref name="answer"/> as taken (the test seam drives it through <see cref="SolveAndReserve"/>).</summary>
+        private void Reserve(PlacementRequestBatch req, PlacementResponseBatch answer)
+        {
+            var slots = new Dictionary<int, PlacementSlot>();
+            foreach (var s in req.Slots) slots[s.Key] = s;
+            foreach (var a in answer.Answers)
+                if (a.Outcome != PlacementOutcome.Failed && slots.TryGetValue(a.Key, out var slot))
+                {
+                    if (slot.Self != 0) _reserved.RemoveAll(r => r.Self == slot.Self);   // a moved entity's old reservation goes with it
+                    _reserved.Add((a.Point, MathF.Max(0f, slot.Radius), _frame, slot.Self));
+                }
+        }
+
+        /// <summary>⭐ A2 — <see cref="Solve"/> against <paramref name="existing"/> plus every slot this solver already handed out, then reserves this
+        /// answer's slots (what <see cref="Execute"/> does per request; the test seam).</summary>
+        public PlacementResponseBatch SolveAndReserve(PlacementRequestBatch req, TerrainWorld? terrain, List<(Vector3 Position, float Radius)> existing)
+        {
+            var world = new List<(Vector3 Position, float Radius)>(existing);
+            var moving = SelvesOf(req);
+            foreach (var r in _reserved) if (r.Self == 0 || !moving.Contains(r.Self)) world.Add((r.Position, r.Radius));
+            var answer = Solve(req, terrain, world);
+            Reserve(req, answer);
+            return answer;
         }
 
         /// <summary>Solves one request (the test seam). <paramref name="existing"/> are the footprints already in the world.</summary>
@@ -139,12 +179,16 @@ namespace Fdp.Toolkit.Navigation.Systems
 
         /// <summary>⭐ SR-190 — every entity with a <c>SimTransform</c>, with its footprint radius — ⛔ except a macro INSTANCE: it is a marker
         /// standing at its anchor, not a body, and its own children are placed around that very point.</summary>
-        public static List<(Vector3 Position, float Radius)> ExistingEntities(ISimulationView view)
+        /// <param name="moving">⭐ A3 — a request whose slots MOVE existing entities (<see cref="PlacementSlot.Self"/>): those entities are not obstacles.</param>
+        public static List<(Vector3 Position, float Radius)> ExistingEntities(ISimulationView view, PlacementRequestBatch? moving = null)
         {
             var list = new List<(Vector3, float)>();
+            var ignore = SelvesOf(moving);
             foreach (var e in view.Query().With<SimTransform>().Build())
             {
                 if (view.HasManagedComponent<Fdp.Toolkit.Scenario.MacroInstance>(e)) continue;
+                if (ignore.Count > 0 && view.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e)
+                    && ignore.Contains(view.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value)) continue;
                 var pos = view.GetComponentRO<SimTransform>(e).Position;
                 list.Add((new Vector3(pos.X, pos.Y, pos.Z), Diagnostics.Gizmos.EntityFootprint.InteractionRadiusMetres(view, e)));
             }

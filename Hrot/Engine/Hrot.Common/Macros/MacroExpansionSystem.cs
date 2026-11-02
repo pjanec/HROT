@@ -43,8 +43,14 @@ namespace Hrot.Common.Macros
         private readonly NodeId _localNode;
         private readonly List<Entity> _work = new();
 
-        public MacroExpansionSystem(MacroExpander? expander, NetworkEntityMap entityMap, INetworkIdAllocator idAllocator, NodeId localNode)
+        private readonly Fdp.Interfaces.ITkbDatabase? _tkb;
+
+        /// <param name="tkb">⭐ Macros debt A6 (SR-180) — the TKB a child's mobility LAYER comes from (its template's <c>LocomotionDto</c>); null =
+        /// the DIS-type guess (tests).</param>
+        public MacroExpansionSystem(MacroExpander? expander, NetworkEntityMap entityMap, INetworkIdAllocator idAllocator, NodeId localNode,
+                                    Fdp.Interfaces.ITkbDatabase? tkb = null)
         {
+            _tkb = tkb;
             _expander = expander;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _idAllocator = idAllocator ?? throw new ArgumentNullException(nameof(idAllocator));
@@ -72,6 +78,8 @@ namespace Hrot.Common.Macros
             // ⭐ SR-150 / SR-157 / SR-172 — an args / anchor edit of a done instance this node owns ⇒ RECONCILE by GUID
             if (_expander != null && repo.IsComponentTypeRegistered<MacroOrigin>())
             {
+                RebuildBaselines(repo);   // ⭐ debt A4 — a restore (or a branch) drops the transient baseline; rebuild it before comparing
+
                 _work.Clear();
                 foreach (var e in repo.Query().WithManaged<MacroExpandedWith>().Build()) _work.Add(e);
                 foreach (var e in _work) MaybeReconcile(repo, e);
@@ -148,7 +156,7 @@ namespace Hrot.Common.Macros
 
             // ⭐ ⑤ (SR-180, SR-185) — ONE placement query for the whole flattened tree; the children wait, parked on the intent
             if (result.Relocatable && repo.Bus.IsRegisteredManaged<Fdp.Toolkit.Navigation.PlacementRequestBatch>()
-                && BuildPlacement(result.Children, result.MaxShift) is { Slots.Count: > 0 } ask)
+                && BuildPlacement(result.Children, result.MaxShift, null, LayerOf) is { Slots.Count: > 0 } ask)
             {
                 ask.RequestId = ((long)(int)_localNode << 40) | ++_nextPlacementRequest;
                 ask.SourceNodeId = _localNode;
@@ -186,10 +194,10 @@ namespace Hrot.Common.Macros
             if (!_answers.TryGetValue(intent.PlacementRequestId, out var answer))
             {
                 if (_frame - intent.AskedAtFrame < PlacementWaitFrames) return;
-                var ask = BuildPlacement(parked, intent.MaxShift)!;
+                var ask = intent.Ask ?? BuildPlacement(parked, intent.MaxShift, null, LayerOf)!;
                 var terrain = repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() ? repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() : null;
                 answer = new Fdp.Toolkit.Navigation.Systems.PlacementSolverSystem(null)
-                    .Solve(ask, terrain, Fdp.Toolkit.Navigation.Systems.PlacementSolverSystem.ExistingEntities(repo));
+                    .Solve(ask, terrain, Fdp.Toolkit.Navigation.Systems.PlacementSolverSystem.ExistingEntities(repo, ask));
                 fallback = terrain is null ? "placed unchecked: no solver answered and this node holds no terrain" : "placed on terrain only: no solver answered";
                 FdpLog<MacroExpansionSystem>.Warn($"[Macros] {fallback} ({PlacementWaitFrames} frames)");
             }
@@ -199,6 +207,14 @@ namespace Hrot.Common.Macros
                 if (a.Key < 0 || a.Key >= parked.Count) continue;
                 if (a.Outcome == Fdp.Toolkit.Navigation.PlacementOutcome.Failed)
                 {
+                    if (intent.ReconcileFrom != null)
+                    {
+                        // ⭐ A3 — a failed RE-placement fails loudly and leaves the old placement (nothing moved, nothing made)
+                        FdpLog<MacroExpansionSystem>.Error($"[Macros] re-placement of '{NameOf(parked[a.Key])}' failed: {a.Reason} — the old placement is kept");
+                        Finish(repo, e, MacroExpansionState.Failed, $"re-placement: '{NameOf(parked[a.Key])}' — {a.Reason}; old placement kept");
+                        repo.SetManagedComponent(e, intent.ReconcileTo!);   // not retried until the next edit
+                        return;
+                    }
                     Finish(repo, e, MacroExpansionState.Failed, $"placement: '{NameOf(parked[a.Key])}' — {a.Reason}");
                     return;
                 }
@@ -209,6 +225,12 @@ namespace Hrot.Common.Macros
                         st.Position = new WorldPoint(a.Point.X, a.Point.Y, a.Point.Z);
                         comps[i] = st;
                     }
+            }
+            if (intent.ReconcileFrom != null)
+            {
+                repo.RemoveComponent<MacroExpansionIntent>(e);
+                ApplyReconcile(repo, e, intent.ReconcileTo!, parked, intent.ReconcileFrom);
+                return;
             }
             Publish(repo, e, parked, $"instance #{(_entityMap.TryGetNetworkId(e, out int id) ? id : 0)} (placed)");
             if (fallback.Length > 0)
@@ -221,7 +243,11 @@ namespace Hrot.Common.Macros
         /// <summary>One slot per child that stands on something: key = its index in <paramref name="children"/>; layer and radius from its DIS
         /// type (life form ⇒ infantry 0.5 m · land platform ⇒ vehicle 3 m · surface / subsurface ⇒ amphibious 5 m · air ⇒ air). ⛔ A nested
         /// instance is a marker, not a body — not placed (its men are).</summary>
-        public static Fdp.Toolkit.Navigation.PlacementRequestBatch? BuildPlacement(IReadOnlyList<EntityCreationRequest> children, float maxShift)
+        /// <param name="selfOf">⭐ A3 — the network id of the EXISTING entity a child stands for (a reconcile), 0 = a new one.</param>
+        /// <param name="layerOf">⭐ A6 — the layer and footprint radius a child's TEMPLATE states (null = not stated ⇒ the DIS-type guess).</param>
+        public static Fdp.Toolkit.Navigation.PlacementRequestBatch? BuildPlacement(IReadOnlyList<EntityCreationRequest> children, float maxShift,
+                                                                                  Func<EntityCreationRequest, int>? selfOf = null,
+                                                                                  Func<EntityCreationRequest, (Fdp.Toolkit.Navigation.PlacementLayer Layer, float Radius)?>? layerOf = null)
         {
             var ask = new Fdp.Toolkit.Navigation.PlacementRequestBatch { MaxShift = maxShift };
             for (int i = 0; i < children.Count; i++)
@@ -237,7 +263,7 @@ namespace Hrot.Common.Macros
                 }
                 if (at is not { } p || marker) continue;
                 var dis = new DISEntityType { Value = children[i].DisType };
-                var (layer, radius) = (dis.Kind, dis.Domain) switch
+                var (layer, radius) = layerOf?.Invoke(children[i]) ?? (dis.Kind, dis.Domain) switch
                 {
                     (1, 1) => (Fdp.Toolkit.Navigation.PlacementLayer.Vehicle, 3f),
                     (1, 2) => (Fdp.Toolkit.Navigation.PlacementLayer.Air, 5f),
@@ -247,9 +273,33 @@ namespace Hrot.Common.Macros
                 ask.Slots.Add(new Fdp.Toolkit.Navigation.PlacementSlot
                 {
                     Key = i, Point = new System.Numerics.Vector3(p.Position.X, p.Position.Y, p.Position.Z), Layer = layer, Radius = radius,
+                    Self = selfOf?.Invoke(children[i]) ?? 0,
                 });
             }
             return ask;
+        }
+
+        /// <summary>⭐ Macros debt A6 (SR-180: "the layer comes from the child's template mobility") — the template's <c>LocomotionDto.Class</c>:
+        /// pedestrian ⇒ infantry · wheeled / tracked ⇒ vehicle · rotorcraft / fixed wing ⇒ air · surface ⇒ amphibious; the radius is half the
+        /// template's larger footprint side (its <c>VehicleParametersDto</c>), else the class default. Null when the type has no template or
+        /// states no class — the caller falls back to the DIS type.</summary>
+        public (Fdp.Toolkit.Navigation.PlacementLayer Layer, float Radius)? LayerOf(EntityCreationRequest child)
+        {
+            if (_tkb is null || !_tkb.TryGetByType(child.TkbType, out var template)) return null;
+            var loco = template.GetDescriptor<Fdp.Toolkit.Tkb.Domain.LocomotionDto>();
+            if (loco is null) return null;
+            var vp = template.GetDescriptor<Fdp.Toolkit.Tkb.Domain.VehicleParametersDto>();
+            float half = vp is null ? 0f : MathF.Max(vp.Length, vp.Width) / 2f;
+            return loco.Class switch
+            {
+                Fdp.Toolkit.Tkb.Domain.LocomotionClass.Pedestrian => (Fdp.Toolkit.Navigation.PlacementLayer.Infantry, 0.5f),
+                Fdp.Toolkit.Tkb.Domain.LocomotionClass.Wheeled or Fdp.Toolkit.Tkb.Domain.LocomotionClass.Tracked
+                    => (Fdp.Toolkit.Navigation.PlacementLayer.Vehicle, half > 0f ? half : 3f),
+                Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft or Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing
+                    => (Fdp.Toolkit.Navigation.PlacementLayer.Air, half > 0f ? half : 5f),
+                Fdp.Toolkit.Tkb.Domain.LocomotionClass.Surface => (Fdp.Toolkit.Navigation.PlacementLayer.Amphibious, half > 0f ? half : 5f),
+                _ => null,
+            };
         }
 
         private static string NameOf(EntityCreationRequest r)
@@ -282,8 +332,11 @@ namespace Hrot.Common.Macros
             var with = view.GetManagedComponentRO<MacroExpandedWith>(e);
             var mi = repo.HasManagedComponent<MacroInstance>(e) ? view.GetManagedComponentRO<MacroInstance>(e) : null;
             if (with is null || mi is null || !view.HasAuthority(e)) return;
+            if (repo.HasManagedComponent<MacroExpansionIntent>(e)) return;   // an expansion or a re-placement is in flight
             var anchor = AnchorOf(repo, e);
-            if (ReferenceEquals(with.Instance, mi) || (with.Instance == mi && SameAnchor(with.Anchor, anchor))) return;
+            // ⚠ debt A3 — was `ReferenceEquals(with.Instance, mi) || …`: a MOVE keeps the same MacroInstance object, so a moved anchor never
+            //   reconciled. The record compares by value (args + macro); the anchor is compared on its own.
+            if (with.Instance == mi && SameAnchor(with.Anchor, anchor)) return;
             if (!_entityMap.TryGetNetworkId(e, out int instanceId)) return;
 
             Guid guid = repo.IsComponentTypeRegistered<EntityGuid>() && repo.HasComponent<EntityGuid>(e) ? repo.GetComponentRO<EntityGuid>(e).Value
@@ -297,14 +350,79 @@ namespace Hrot.Common.Macros
                 repo.SetManagedComponent(e, new MacroExpandedWith { Instance = mi, Anchor = anchor });
                 return;
             }
-            var before = _expander.Expand(with.Instance, instanceId, guid, _localNode, with.Anchor, scope, new Hrot.Core.Network.SequentialIdAllocator());
+            var target = new MacroExpandedWith { Instance = mi, Anchor = anchor };
+
+            // ⭐⭐ A3 (SR-157 / SR-180) — a MOVED anchor is a re-placement: every child (kept and new) is placed again by the solver, the kept
+            //   ones not counting as obstacles to themselves (PlacementSlot.Self); the answer is applied by GUID in ApplyReconcile.
+            if (!SameAnchor(with.Anchor, anchor) && now.Relocatable && repo.Bus.IsRegisteredManaged<Fdp.Toolkit.Navigation.PlacementRequestBatch>())
+            {
+                var live = LiveChildrenByGuid(repo);
+                var ask = BuildPlacement(now.Children, now.MaxShift,
+                    c => live.TryGetValue(GuidOf(c), out var x) && _entityMap.TryGetNetworkId(x, out int nid) ? nid : 0, LayerOf);
+                if (ask is { Slots.Count: > 0 })
+                {
+                    ask.RequestId = ((long)(int)_localNode << 40) | ++_nextPlacementRequest;
+                    ask.SourceNodeId = _localNode;
+                    repo.Bus.PublishManaged(ask);
+                    repo.SetManagedComponent(e, new MacroExpansionIntent
+                    {
+                        Parked = now.Children, PlacementRequestId = ask.RequestId, AskedAtFrame = _frame, MaxShift = now.MaxShift, Ask = ask,
+                        ReconcileFrom = with, ReconcileTo = target,
+                    });
+                    return;
+                }
+            }
+            ApplyReconcile(repo, e, target, now.Children, with);
+        }
+
+        /// <summary>
+        /// ⭐ Macros debt A4 (SR-150) — <see cref="MacroExpandedWith"/> is TRANSIENT (derivable, never recorded), so a restore, a branch or a
+        /// replay → live hand-over leaves a <c>Done</c> instance with none, and its next edit would not reconcile. Rebuilt here from the
+        /// instance as it now stands — what the restored world was expanded with. ⛔ Not for a NESTED instance (it carries
+        /// <see cref="MacroOrigin"/>): its men are reconciled by its parent's flattened set, and a second baseline would re-place them twice.
+        /// </summary>
+        private void RebuildBaselines(EntityRepository repo)
+        {
+            var view = (ISimulationView)repo;
+            _work.Clear();
+            foreach (var e in repo.Query().WithManaged<MacroInstance>().With<MacroExpansionStatus>().Build())
+            {
+                if (repo.GetComponentRO<MacroExpansionStatus>(e).State != MacroExpansionState.Done) continue;
+                if (repo.HasComponent<MacroOrigin>(e) || repo.HasManagedComponent<MacroExpandedWith>(e) || repo.HasManagedComponent<MacroExpansionIntent>(e)) continue;
+                if (!view.HasAuthority(e)) continue;
+                _work.Add(e);
+            }
+            foreach (var e in _work)
+                repo.SetManagedComponent(e, new MacroExpandedWith { Instance = view.GetManagedComponentRO<MacroInstance>(e)!, Anchor = AnchorOf(repo, e) });
+        }
+
+        private static Dictionary<Guid, Entity> LiveChildrenByGuid(EntityRepository repo)
+        {
+            var existing = new Dictionary<Guid, Entity>();
+            foreach (var x in repo.Query().With<MacroOrigin>().Build())
+                if (repo.HasComponent<EntityGuid>(x)) existing[repo.GetComponentRO<EntityGuid>(x).Value] = x;
+            return existing;
+        }
+
+        /// <summary>The reconcile's APPLY (SR-150 / SR-172): <paramref name="children"/> — the new args' set, placed — against the entities alive,
+        /// by GUID: kept ⇒ <see cref="SimTransform"/> + <c>EntityInfo</c> re-applied · new ⇒ requested · made before but destroyed ⇒ stays destroyed ·
+        /// no longer made ⇒ destroyed. <paramref name="with"/> is the baseline; <paramref name="target"/> becomes the new one.</summary>
+        private void ApplyReconcile(EntityRepository repo, Entity e, MacroExpandedWith target, IReadOnlyList<EntityCreationRequest> children,
+                                    MacroExpandedWith with)
+        {
+            if (!_entityMap.TryGetNetworkId(e, out int instanceId)) return;
+            Guid guid = repo.IsComponentTypeRegistered<EntityGuid>() && repo.HasComponent<EntityGuid>(e) ? repo.GetComponentRO<EntityGuid>(e).Value
+                      : EntityGuidDerivation.Derive(Guid.Empty, "instance:" + instanceId);
+            var scope = new WorldRefScope(repo, _entityMap);
+            var anchor = target.Anchor;
+            var mi = target.Instance;
+            var now = new MacroExpander.Result(children, null);
+            var before = _expander!.Expand(with.Instance, instanceId, guid, _localNode, with.Anchor, scope, new Hrot.Core.Network.SequentialIdAllocator());
             var madeBefore = new HashSet<Guid>();
             foreach (var c in before.Children) madeBefore.Add(GuidOf(c));
 
             // what exists now, by GUID (every level: a nested instance's men too)
-            var existing = new Dictionary<Guid, Entity>();
-            foreach (var x in repo.Query().With<MacroOrigin>().Build())
-                if (repo.HasComponent<EntityGuid>(x)) existing[repo.GetComponentRO<EntityGuid>(x).Value] = x;
+            var existing = LiveChildrenByGuid(repo);
 
             // a kept nested instance keeps its network id: a NEW child under it must name that id, not the fresh one
             var keptIds = new Dictionary<int, int>();
@@ -377,6 +495,9 @@ namespace Hrot.Common.Macros
 
         public string Describe => "the world outside the macro";
 
+        /// <summary>⭐ SR-188 — keys two or more live entities carry (the first match is used); a warning, not a refusal.</summary>
+        public HashSet<string> Ambiguous { get; } = new(StringComparer.Ordinal);
+
         private void Index()
         {
             if (_byGuid != null) return;
@@ -385,7 +506,11 @@ namespace Hrot.Common.Macros
             if (_repo.IsComponentTypeRegistered<EntityGuid>())
                 foreach (var e in _repo.Query().With<EntityGuid>().Build()) _byGuid[_repo.GetComponentRO<EntityGuid>(e).Value] = e;
             if (_repo.IsComponentTypeRegistered<RefKey>())
-                foreach (var e in _repo.Query().With<RefKey>().Build()) _byKey.TryAdd(_repo.GetComponentRO<RefKey>(e).Value.ToString(), e);   // SR-188: first wins
+                foreach (var e in _repo.Query().With<RefKey>().Build())
+                {
+                    string key = _repo.GetComponentRO<RefKey>(e).Value.ToString();
+                    if (!_byKey.TryAdd(key, e)) Ambiguous.Add(key);   // SR-188: the first wins, the ambiguity is reported
+                }
         }
 
         public bool TryResolve(in RefSpec spec, out EntityRef entity)
@@ -396,11 +521,18 @@ namespace Hrot.Common.Macros
             bool hit = spec.Form switch
             {
                 RefForm.Exact => _byGuid!.TryGetValue(spec.Exact, out e),
-                RefForm.Key   => _byKey!.TryGetValue(spec.KeyText, out e),
+                RefForm.Key   => _byKey!.TryGetValue(spec.KeyText, out e) && WarnIfAmbiguous(spec.KeyText),
                 _ => false,
             };
             if (!hit || !_map.TryGetNetworkId(e, out int id)) return false;
             entity = new EntityRef(id);
+            return true;
+        }
+
+        private bool WarnIfAmbiguous(string key)
+        {
+            if (Ambiguous.Contains(key))
+                FdpLog<MacroExpansionSystem>.Warn($"[Macros] '@{key}' names more than one entity in the world — the first is used (SR-188)");
             return true;
         }
 

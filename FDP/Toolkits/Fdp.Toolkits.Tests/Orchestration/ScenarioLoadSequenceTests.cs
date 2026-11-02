@@ -120,6 +120,12 @@ public class ScenarioLoadSequenceTests
         var e = ScenarioLoadSequence.EditLoadIntent("scn");
         Assert.Equal((ClusterState.OperatingEdit, "scn", Guid.Empty, (string?)null, false), (e.TargetState, e.ScenarioId, e.ExerciseId, e.TimeMode, e.ForceRecording));
         Assert.NotEqual(Guid.Empty, e.TransactionId);
+
+        // ⭐ macros S3a ⑦ / debt A5 (SR-41) — BOTH loads carry the scenario args; none given ⇒ null (the header's defaults)
+        Assert.Null(a.ScenarioArgsJson);
+        Assert.Null(e.ScenarioArgsJson);
+        Assert.Equal("{\"side\":\"Friend\"}", ScenarioLoadSequence.LiveLoadIntent("scn", scenarioArgsJson: "{\"side\":\"Friend\"}").ScenarioArgsJson);
+        Assert.Equal("{\"side\":\"Friend\"}", ScenarioLoadSequence.EditLoadIntent("scn", "{\"side\":\"Friend\"}").ScenarioArgsJson);
     }
 
     [Fact]

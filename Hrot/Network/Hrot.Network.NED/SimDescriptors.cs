@@ -1108,6 +1108,9 @@ namespace Hrot.NED.Descriptors
         /// <summary>0 Infantry · 1 Vehicle · 2 Amphibious · 3 Air.</summary>
         public byte            Layer;
         public float           Radius;
+        /// <summary>⭐ Macros debt A3 — the network id of the entity this slot MOVES (a reconcile re-placing a kept child); 0 = a new entity.
+        /// The solver does not count it as an obstacle to its own (or a sibling's) new spot.</summary>
+        public int             Self;
     }
 
     /// <summary>A placement request from the asking node toward the Navigation Solver (one request per sample).</summary>

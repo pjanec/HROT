@@ -85,8 +85,9 @@ namespace Fdp.Toolkit.Orchestration
         };
 
         /// <summary>⭐⭐ <c>CE-3354</c> ⑥ — <b>the ONE edit-load intent</b> (HTTP's and the command line's): <c>ExerciseId</c> is <see cref="Guid.Empty"/>, mirroring the orchestrator panel's "Load into Edit" — authoring is not an exercise run.</summary>
-        public static TransitionStateIntent EditLoadIntent(string scenario) => new()
+        public static TransitionStateIntent EditLoadIntent(string scenario, string? scenarioArgsJson = null) => new()
         {
+            ScenarioArgsJson = scenarioArgsJson,   // ⭐ macros debt A5 (SR-41) — an edit load binds the scenario's params too
             TransactionId = Guid.NewGuid(),
             TargetState   = ClusterState.OperatingEdit,
             ScenarioId    = scenario,

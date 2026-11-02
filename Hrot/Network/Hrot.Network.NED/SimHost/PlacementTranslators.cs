@@ -63,6 +63,7 @@ namespace Hrot.Network.NED.SimHost
                     Point = new RelativeVector3 { East = s.Point.X - anchor.X, North = s.Point.Y - anchor.Y, Up = s.Point.Z - anchor.Z },
                     Layer = (byte)s.Layer,
                     Radius = s.Radius,
+                    Self = s.Self,   // ⭐ macros debt A3 — the entity this slot moves (0 = a new one)
                 });
             return new PlacementRequestBatchWire
             {
@@ -117,6 +118,7 @@ namespace Hrot.Network.NED.SimHost
                         Point = anchor + new Vector3(s.Point.East, s.Point.North, s.Point.Up),
                         Layer = (PlacementLayer)s.Layer,
                         Radius = s.Radius,
+                        Self = s.Self,
                     });
             return req;
         }

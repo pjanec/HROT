@@ -291,7 +291,7 @@ namespace Hrot.SimHost.Tests
         [InlineData("Hrot/Subsystems/Hrot.NodeComposition/StrideNodeBootstrapper.cs")]
         public void EveryTkbSpawningHost_ObtainsTheSharedTranslatorSet(string relativePath)
         {
-            var src = ReadRepoSource(relativePath);
+            var src = CompositionRootSource.ReadEffectiveRoot(relativePath);   // ⭐ macros debt A7 — the root + the bootstrapper it delegates to (CE-1446)
 
             // ⭐⭐ CE-140 step 2 changed WHAT is asserted, and the change is the point. The claim used
             //    to be "this host constructs PresentationTkbTranslator itself" — five hosts each doing

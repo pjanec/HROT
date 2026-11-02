@@ -1283,7 +1283,7 @@ namespace Hrot.Editor.DebugApi
         /// <c>--mode all</c> an edit load is PARTIAL: SimHost loads, CGF does not. ⛔ Declared in the
         /// conformance baseline rather than crashing — which is why the content diff uses LIVE.</para>
         /// </summary>
-        public JsonNode LoadScenarioEdit(string name, HttpUnsavedGate? gate = null)
+        public JsonNode LoadScenarioEdit(string name, HttpUnsavedGate? gate = null, string? scenarioArgsJson = null)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Scenario name is required.", nameof(name));
@@ -1302,12 +1302,12 @@ namespace Hrot.Editor.DebugApi
 
             // no session door here (a cluster node, a fake editor logic): the SAME decision, made by HTTP's own deciding door; this host's execution below
             JsonNode? sent = null;
-            HttpDoor.Admit(DoorMove.OpeningScenario(name), asker, answered, () => sent = SendEditLoad(name));
+            HttpDoor.Admit(DoorMove.OpeningScenario(name), asker, answered, () => sent = SendEditLoad(name, scenarioArgsJson));
             if (asker.Refusal is { } refused) return new JsonObject { ["refused"] = refused };
             return sent ?? throw new InvalidOperationException("the door neither admitted nor refused the edit load");
         }
 
-        private JsonNode SendEditLoad(string name)
+        private JsonNode SendEditLoad(string name, string? scenarioArgsJson = null)
         {
             var stopped = LeaveRunForLoad();
             if (_editorLogic is not null)
@@ -1318,7 +1318,7 @@ namespace Hrot.Editor.DebugApi
             }
 
             // ⭐ CE-3354 ⑥ — the ONE edit-load intent (ScenarioLoadSequence.EditLoadIntent: no ExerciseId — authoring is not an exercise run), shared with the command line's startup load
-            var editIntent = Fdp.Toolkit.Orchestration.ScenarioLoadSequence.EditLoadIntent(name);
+            var editIntent = Fdp.Toolkit.Orchestration.ScenarioLoadSequence.EditLoadIntent(name, scenarioArgsJson);   // ⭐ macros debt A5 (SR-41)
             var editRequest = editIntent.TransactionId;
             NoteLoadSent(editRequest, name);   // ⭐ CE-3354 ④ — GET /status.load and waitForReady follow THIS request's outcome
             ScenarioLoads.Request(editIntent);

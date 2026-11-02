@@ -43,7 +43,7 @@ namespace Hrot.ClusterRunner.Configuration
 
         /// <summary>⭐ Macros S3a ⑦ (SR-41) — <c>--param name=value</c>, repeatable: a scenario arg of the startup LIVE load. The value is JSON when it
         /// parses (<c>--param count=3</c>, <c>--param side="Hostile"</c>), else a plain string (<c>--param side=Hostile</c>).</summary>
-        [Option("param", Required = false, HelpText = "A scenario arg for the startup live load, repeatable: name=value (value = JSON, else a string). E.g. --param side=Hostile --param count=3")]
+        [Option("param", Required = false, HelpText = "A scenario arg for the startup load (live or edit), repeatable: name=value (value = JSON, else a string). E.g. --param side=Hostile --param count=3")]
         public IEnumerable<string>? ParamTexts { get; set; }
 
         /// <summary>The <see cref="ParamTexts"/> as one JSON object (name → value), or null when none was given.</summary>

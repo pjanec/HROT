@@ -178,5 +178,35 @@ namespace Fdp.Toolkit.Navigation.Tests
             Assert.Equal(PlacementOutcome.Exact, a.Outcome);
             Assert.Equal("no terrain", a.Reason);
         }
+
+        /// <summary>⭐ Macros debt A2 (SR-190) — two instances dropped on ONE spot do not overlap: in the same frame (two batches answered in one
+        /// tick) and a frame apart (the first's men do not exist yet when the second is asked) — the solver keeps every slot it handed out taken.
+        /// 🔴 Red-proof: drop the reservation ⇒ both answers stand on the same point.</summary>
+        [Fact]
+        public void A2_TwoInstancesDroppedOnOneSpot_DoNotOverlap_InOneFrame_OrTheNext()
+        {
+            var solver = new PlacementSolverSystem(new BoxNavmesh());
+            var first = Assert.Single(Run(solver, Request(30f, Slot(1, 0, 0, radius: 1f))).Answers);
+            var second = Assert.Single(Run(solver, Request(30f, Slot(1, 0, 0, radius: 1f))).Answers);   // next frame: the first man is not created yet
+            Assert.NotEqual(PlacementOutcome.Failed, second.Outcome);
+            Assert.True(Vector2.Distance(new Vector2(first.Point.X, first.Point.Y), new Vector2(second.Point.X, second.Point.Y)) >= 2f - 1e-3f);
+
+            // two batches in ONE frame
+            var view = (ISimulationView)_world;
+            var fresh = new PlacementSolverSystem(new BoxNavmesh());
+            var a = Request(30f, Slot(1, 10, 10, radius: 1f)); a.RequestId = 1;
+            var b = Request(30f, Slot(1, 10, 10, radius: 1f)); b.RequestId = 2;
+            _world.Bus.PublishManaged(a);
+            _world.Bus.PublishManaged(b);
+            _world.Bus.SwapBuffers();
+            fresh.Execute(view, 0f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            _world.Bus.SwapBuffers();
+            var answers = view.ReadManagedEvents<PlacementResponseBatch>().ToArray();
+            Assert.Equal(2, answers.Length);
+            var p1 = answers.Single(r => r.RequestId == 1).Answers[0].Point;
+            var p2 = answers.Single(r => r.RequestId == 2).Answers[0].Point;
+            Assert.True(Vector2.Distance(new Vector2(p1.X, p1.Y), new Vector2(p2.X, p2.Y)) >= 2f - 1e-3f);
+        }
     }
 }

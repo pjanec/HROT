@@ -55,15 +55,8 @@ namespace Hrot.SimHost.Tests
         /// <c>Hrot.SimHost.NodeBootstrapper</c> composes its load phase THERE, so the rail reads that file.
         /// ⛔ Only a real delegation counts: the host must construct the shared bootstrapper AND call its
         /// <c>BuildOrchestration</c>.</summary>
-        private static string ReadEffectiveRoot(string relativePath)
-        {
-            var code = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(relativePath));
-            bool delegates = code.Contains("new Hrot.SimHost.NodeBootstrapper(", StringComparison.Ordinal)
-                          && code.Contains("_nodeBootstrapper.BuildOrchestration(", StringComparison.Ordinal);
-            return delegates
-                ? CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource("Hrot/Engine/Hrot.EcsNode/NodeBootstrapper.cs"))
-                : code;
-        }
+        /// <summary>⭐ macros debt A7 — the root plus every bootstrapper it delegates its node build to (the ONE follower, <see cref="CompositionRootSource.ReadEffectiveRoot"/>).</summary>
+        private static string ReadEffectiveRoot(string relativePath) => CompositionRootSource.ReadEffectiveRoot(relativePath);
 
         // ── ① it is composed at all ───────────────────────────────────────────────────────────
 

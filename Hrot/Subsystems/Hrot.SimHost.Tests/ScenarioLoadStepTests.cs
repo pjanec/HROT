@@ -209,6 +209,15 @@ public sealed class ScenarioLoadStepTests : IDisposable
         Assert.Equal("Friend", applied["side"]!.GetValue<string>());   // the run's arg
         Assert.Equal(2, applied["count"]!.GetValue<int>());             // the header's default
 
+        // ⭐ macros debt A5 — an EDIT load binds the same way (one ScenarioLoadStep serves both targets)
+        using var editWorld = new EntityRepository();
+        var editCtx = Ctx(Guid.NewGuid(), ClusterState.LoadingEdit) with { ScenarioArgsJson = """{"count": 5}""" };
+        var editStep = MakeStep(json, NewBus());
+        await editStep.PrepareAsync(editCtx, CancellationToken.None);
+        editStep.Commit(editCtx, editWorld);
+        var editApplied = System.Text.Json.Nodes.JsonNode.Parse(Fdp.Toolkit.Scenario.ScenarioDescription.ArgsOf(editWorld)!)!.AsObject();
+        Assert.Equal(("Hostile", 5), (editApplied["side"]!.GetValue<string>(), editApplied["count"]!.GetValue<int>()));
+
         var bad = Ctx(Guid.NewGuid()) with { ScenarioArgsJson = """{"colour": "red"}""" };
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => MakeStep(json, NewBus()).PrepareAsync(bad, CancellationToken.None));
         Assert.Contains("arg 'colour' is not a param", ex.Message);

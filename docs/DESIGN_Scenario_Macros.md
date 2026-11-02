@@ -2,7 +2,7 @@
 state: LIVE
 build-state: ⭐ S3a DISPATCHED to backend 2026-11-02 (user: "ok lets delegate the scenario macros feature to the backend" — the hold is lifted; HANDOFF_Coordinator_To_Backend_Scenario_Macros_S3a.md) · §14 (SR-167…SR-176) ✅ accepted 2026-11-02 — READY-TO-BUILD after S0 + CE-4153 S9′ (accepted 2026-11-01: no reverse remap — authored refs are EntityLink, a rail, the migration writes GUIDs; DESIGN_Scenario_Entity_Keys.md S9′) — SR-146…SR-157 ✅ accepted 2026-11-01 (§9.y: the expander is the creation path's child branch) — slice S3 (§1); CE-4153 S9 (GUID file form) still a prerequisite
 updated: 2026-11-01 (split out of docs/DESIGN_Scenario_Rules.md §8 / §9.1–§9.7 — a MOVE: every decision id, its wording, its approval and every user quote kept verbatim; no id renumbered)
-current-answer: ⭐ §14 is fully ACCEPTED (2026-11-02): §14.4 preview SR-189, existing entities SR-190, transient look SR-191, member lines SR-192 · §14.3 placement as a solver query + many instances SR-184…SR-188 · §14.2 the user's answers (SR-177 withdrawn, SR-178 ✅, SR-179 superseded) + PLACEMENT (SR-180…SR-183 ✅) · §14.1 the four preconditions measured · §14 the critical review (SR-167…SR-176, ✅ accepted 2026-11-02) · §5.1 where a binding lives (SR-159…SR-166, ✅ accepted 2026-11-02 — §5.1.1 the example, §5.1.2 the generic binder + recording) · §10 relocation (SR-127, SR-131, SR-152…SR-157) · §9.y the gaps closed (SR-146…SR-151) · §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
+current-answer: ⭐ §15.4 the S3a debt as built (A1–A7) · §14 is fully ACCEPTED (2026-11-02): §14.4 preview SR-189, existing entities SR-190, transient look SR-191, member lines SR-192 · §14.3 placement as a solver query + many instances SR-184…SR-188 · §14.2 the user's answers (SR-177 withdrawn, SR-178 ✅, SR-179 superseded) + PLACEMENT (SR-180…SR-183 ✅) · §14.1 the four preconditions measured · §14 the critical review (SR-167…SR-176, ✅ accepted 2026-11-02) · §5.1 where a binding lives (SR-159…SR-166, ✅ accepted 2026-11-02 — §5.1.1 the example, §5.1.2 the generic binder + recording) · §10 relocation (SR-127, SR-131, SR-152…SR-157) · §9.y the gaps closed (SR-146…SR-151) · §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
   presets and their overrides (SR-27, SR-28, SR-32) · §5 the macro file, the instance, its bindings (SR-38…SR-43, SR-57, SR-69, SR-70) · §6 macro
   entities are full TRANSIENT entities (SR-42′, SR-44, SR-44a, SR-45) · §7 a macro is CLOSED (SR-58, SR-60) · §8 the three reference forms and
   RefKey (SR-63…SR-66, SR-68) · §9 expansion at load — the sequence, SR-80, GAP-1…GAP-5 · §10 relocation + the reference types (still in the
@@ -953,12 +953,12 @@ solver gated on sim time (as the path solver is) would never answer, and an expa
 |---|---|---|
 | ⭐ the solver answers **every frame on the main thread**: `NavigationSolverModule.RegisterSystems` registers `PlacementSolverSystem` as an ordinary `EveryFrame` system — ⛔ NOT through the module's `WhenTimeAdvances` manual tick the path solver uses | `NavigationSolverModule.cs`; `PlacementSolverSystem.cs` | ⚠ measured: the module is `[TickMode(WhenTimeAdvances)]` + `SlowBackground`; a paused load would park its children for good. On the live world the solver also reads the resident `TerrainWorld` (a snapshot view cannot) |
 | the solver's existing-entity spacing (SR-190) **skips a macro instance** — a marker standing at the anchor its own children are placed around | `PlacementSolverSystem.ExistingEntities` | otherwise every child near the anchor is pushed off it |
-| slot layer and radius from the child's DIS type: life form ⇒ infantry 0.5 m · land platform ⇒ vehicle 3 m · surface / subsurface ⇒ amphibious 5 m · air ⇒ air | `MacroExpansionSystem.BuildPlacement` | ⚠ a child whose TKB template sets the DIS type but whose file entity does not reaches here as 0 ⇒ infantry |
+| (⭐ §15.4 A6: the TKB template's mobility first, then) slot layer and radius from the child's DIS type: life form ⇒ infantry 0.5 m · land platform ⇒ vehicle 3 m · surface / subsurface ⇒ amphibious 5 m · air ⇒ air | `MacroExpansionSystem.BuildPlacement` | ⚠ a child whose TKB template sets the DIS type but whose file entity does not reaches here as 0 ⇒ infantry |
 | no answer in `PlacementWaitFrames` (300) ⇒ the SAME `PlacementSolverSystem.Solve` on the creating node (navmesh none, its terrain if resident); the status reason says *"placed on terrain only"* / *"placed unchecked"* and stays on `Done` | `MacroExpansionSystem.AwaitPlacement` | E-6 / SR-184 — ⭐ one placement algorithm, two places it may run |
-| ⚠ two instances expanding in ONE frame are placed against the same world: their children may overlap each other (each batch avoids only its own and existing entities) | — | ⏭ rare at load (one request per instance); a scenario-wide batch is S3b |
+| ⛔ SUPERSEDED by §15.4 A2 — ~~two instances expanding in ONE frame are placed against the same world~~: the solver now reserves what it handed out | — | — |
 | ⭐ ⑥ the VALIDATOR runs in the load's PREPARE, before extraction: `MacroValidator.Validate(json, library)` — files, kind, args, cycle, depth, pinned anchor, every `ParamBindings` path / `"^name"` / `Bind` naming a declared param, a `bind` key inside a params blob (SR-161); any problem throws, naming every problem with its path ⇒ the load aborts on every node with nothing created | `Fdp.Toolkits/Scenario/Macros/MacroValidator.cs`; `ScenarioLoadStep.PrepareAsync`; `NodeBootstrapper` passes `FileMacroLibrary.ForNode` | SR-149 / SR-162. ⚠ a value's TYPE against its target (SR-162's second half) is still reported by the binder at expansion |
 | ⭐ SR-188 — a `@Key` two entities carry resolves to the FIRST, with a warning; the load goes on (was: refused) | `ScenarioRefScope.Add` / `TryKey` (`Ambiguous`) | — |
-| ⭐ RECONCILE (SR-150 / SR-157 / SR-172): a `Done` instance keeps `MacroExpandedWith{Instance, Anchor}` (474, transient); an edit (a new immutable `MacroInstance` record) or a moved anchor ⇒ expand old and new from the files, compare by GUID: kept ⇒ `SimTransform` + `EntityInfo` re-applied · new ⇒ requested · made before but destroyed in the run ⇒ stays destroyed · no longer made ⇒ destroyed | `MacroExpansionSystem.MaybeReconcile` | ⚠ a changed behaviour param reaches NEW children only (S3b); a re-expansion is not re-placed; after a restore `MacroExpandedWith` is absent ⇒ no reconcile until the next expansion |
+| ⭐ RECONCILE (SR-150 / SR-157 / SR-172): a `Done` instance keeps `MacroExpandedWith{Instance, Anchor}` (474, transient); an edit (a new immutable `MacroInstance` record) or a moved anchor ⇒ expand old and new from the files, compare by GUID: kept ⇒ `SimTransform` + `EntityInfo` re-applied · new ⇒ requested · made before but destroyed in the run ⇒ stays destroyed · no longer made ⇒ destroyed | `MacroExpansionSystem.MaybeReconcile` | ⚠ a changed behaviour param reaches NEW children only (S3b). ⛔ SUPERSEDED by §15.4 A3/A4: ~~a re-expansion is not re-placed; after a restore `MacroExpandedWith` is absent~~ |
 | ⭐ CASCADE (SR-170): an entity whose `MacroOrigin.Instance` is no longer in the map is destroyed by its owner | `MacroExpansionSystem.Cascade` | a nested instance going takes its own men by the same rule |
 | 📌 **LIVE RUN `2026-11-02`** (`--mode all`, `scenarios/test-macro-two-teams`, `--param side=Friend`): 3 entities extracted → 2 instances `Done` (no fallback reason) → 8 transient men, each `MacroOrigin` its own instance, team East (identity rotation = east) turned 90° from the north-authored anchor, per-instance args `Friend` / `Hostile`; the observer bound to the scenario param carries `Friend`. Placement translators: CGF sent 2, SimHost received 2 and answered 2 | — | ⚠ two defects the unit rails could not see, both fixed here: ① the placement translators sat inside the POOL-GATED pathfinding packs and CGF composes that set with no trajectory pool ⇒ the Brain never sent ⇒ every expansion fell back (E-6). Now gated by ROLE alone (`NedSimHostPathfindingTranslators`). ② both placement topics were keep-last-1 ⇒ two requests in one frame, one dropped. Now `KeepAll` (the CE-3095 rule for events) |
 | rails: `MacroValidatorTests` (4) · `MacroExpanderTests` + 3 placement rails driven through the system (asked once and parked · one Failed ⇒ nothing · no answer ⇒ placed here and said) · `PlacementSolverSystemTests` (9) · `PlacementTranslatorsTests` (3) | `Fdp.Toolkits.Tests`, `Hrot.SimHost.Tests`, `Hrot.Network.NED.Tests` | red-proofs in the report |
@@ -979,3 +979,43 @@ graph TD
 
 *What the picture shows that prose hid:* the args ride the SAME message every node already reads for the load (as `FeatureConfigsAtLoad`
 does) and leave the run through the SAME resident singleton that already names the scenario in its recording — no second channel either way.
+
+### 15.4 As-built — the S3a debt, A1–A7 *(backend, `2026-11-02` — `HANDOFF_Coordinator_To_Backend_Macros_Debt_And_S3b.md` Part A)*
+
+```mermaid
+sequenceDiagram
+    participant U as editor / API (moves the instance)
+    participant M as MacroExpansionSystem (instance owner)
+    participant S as PlacementSolverSystem (reservations, 600 frames)
+    U->>M: new MacroInstance record / anchor moved
+    M->>M: MaybeReconcile — the SAME record and the SAME anchor? nothing to do
+    M->>M: expand "now" from the files (children keep their GUIDs)
+    alt anchor moved and the macro is Relocatable
+        M->>S: PlacementRequestBatch, each slot's Self = the live child's network id (0 = a new child)
+        M->>M: intent {Parked, ReconcileFrom = old, ReconcileTo = new}
+        S->>S: the moving entities are no obstacle · its old reservations released · every other reservation is
+        S-->>M: answer
+        alt any slot Failed
+            M->>M: status Failed "re-placement: '<name>' — <reason>; old placement kept" · nothing moved · baseline = new (no retry loop)
+        else
+            M->>M: ApplyReconcile at the answered points (kept moved · new requested · gone destroyed)
+        end
+    else args-only edit, or not relocatable
+        M->>M: ApplyReconcile (no placement)
+    end
+```
+
+*What the picture shows that prose hid:* a re-placement is the SAME placement query as the first expansion — the only new field is
+`PlacementSlot.Self`, which tells the solver which existing bodies are the ones moving (so they are not in their own way); and the
+solver remembers what it handed out, so two expansions answered in one frame — or a frame apart, before the children exist — do not
+land on each other.
+
+| item | as built | where | deviation, and why |
+|---|---|---|---|
+| A1 SR-65/188 | the live world registers `RefKey` (every world, beside `EntityGuid`) ⇒ a runtime `@Key` arg resolves against the LIVE world; two entities carrying one key ⇒ the FIRST, with a warning (the load's rule, SR-188) | `HrotSharedComponentRegistry`; `MacroExpansionSystem.WorldRefScope` | — |
+| A2 SR-190 | the solver keeps every slot it handed out as TAKEN for `ReservedFrames` (600): the children are created a few ticks after the answer, so the world does not show them yet. A later batch — this tick's or the next — avoids them | `PlacementSolverSystem.SolveAndReserve` / `Reserve` | ⚠ reservations are per solver instance: two SimHosts answering one cluster do not share them (one solver answers today) |
+| A3 SR-157/180 | a moved anchor on a relocatable instance re-runs placement for every child (above); a failed re-placement is LOUD (error log + `Failed` status naming the slot) and moves nothing | `MacroExpansionSystem.MaybeReconcile` / `AwaitPlacement` / `ApplyReconcile`; `PlacementSlot.Self` (+ `DdsPlacementSlot.Self`) | 🔴 found by the rail: the early return was `ReferenceEquals(record) \|\| SameAnchor` ⇒ a move with the record unchanged never reconciled. Now `record unchanged && anchor unchanged` |
+| A4 SR-150 | every frame, a `Done` top instance this node owns with no baseline and no intent gets `MacroExpandedWith` rebuilt from its current record and anchor ⇒ restore → edit args → reconcile works | `MacroExpansionSystem.RebuildBaselines` | the baseline is the restored state, not the pre-restore one — correct: the children on the restored world are what was made from it |
+| A5 SR-41 | an EDIT load takes scenario args too: `EditLoadIntent(scenario, argsJson)`; `POST /scenario/load/edit {args}`, `--param` with `--load edit` — the same route and the same `ScenarioParams.Prepare` as a live load | `ScenarioLoadSequence`; `DebugApiService.LoadScenarioEdit`; `StartupScenarioLoad` | — |
+| A6 | a child's placement layer and radius come from its TKB template: `LocomotionDto.Class` (Pedestrian ⇒ infantry · Wheeled/Tracked ⇒ vehicle · Surface ⇒ amphibious · Rotorcraft/FixedWing ⇒ air), radius half of max(Length, Width) from `VehicleParametersDto`; no template ⇒ the DIS-type rule of §15.2 | `MacroExpansionSystem.LayerOf` (the pack passes `ctx.TkbDb`) | — |
+| A7 | `EveryEcsHostComposesTheLoadPhaseChainRails` ×2 were red because CE-1446 moved CGF's and the editor's node build into `CgfNodeBootstrapper` / `EditorNodeBootstrapper` (→ the shared `NodeBootstrapper`); four more source rails read the same stale files | `CompositionRootSource.ReadEffectiveRoot` — ONE follower of a root's delegation, used by the load-phase, cluster-handler, translator-set and live-plan rails | production was right; the rails were reading the wrong file |

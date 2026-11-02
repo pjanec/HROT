@@ -64,7 +64,7 @@ public sealed class LiveSimulationPlanRails
 
         foreach (string host in HostRoots)
         {
-            int calls = Regex.Matches(File.ReadAllText(Path.Combine(root, host)), @"LiveSimulationPlan\s*\(").Count;
+            int calls = Regex.Matches(CompositionRootSource.ReadEffectiveRoot(host), @"LiveSimulationPlan\s*\(").Count;   // ⭐ macros debt A7 — follows CE-1446's delegation
             Assert.True(calls >= (host.EndsWith("EditorCapabilities.cs") ? 2 : 1), $"{host} does not start its plan(s) from LiveSimulationPlan ({calls} calls)");
         }
     }

@@ -203,7 +203,40 @@ namespace Hrot.SimHost.Tests
             Fails(Expand(x, "test/not-a-macro", Guid.NewGuid(), At(0, 0, 0)), "not a macro");
             Assert.True(Expand(x, "test/pinned", Guid.NewGuid(), At(0, 0, 0)).Ok);   // a pinned macro AT its anchor expands
         }
-            // ════════ ⭐ ⑤ placement, driven through MacroExpansionSystem (§15.2: ask once, park, apply; any Failed ⇒ nothing; no answer ⇒ E-6) ════════
+            /// <summary>⭐ Macros debt A1 (SR-65, SR-188) — an <c>@Key</c> resolves against the LIVE world the production registry builds (it registered
+        /// <c>RefKey</c> only on the staging repo, so a runtime instance's <c>"@Bridge"</c> arg never resolved); a key two entities carry resolves to
+        /// the first and is reported.</summary>
+        [Fact]
+        public void A1_AnAtKey_ResolvesAgainstTheLiveWorld_TheFirstOfADuplicateWins()
+        {
+            using var repo = new EntityRepository();
+            HrotSharedComponentRegistry.RegisterAll(repo);
+            Assert.True(repo.IsComponentTypeRegistered<RefKey>());   // 🔴 the defect: false before A1
+            var map = new NetworkEntityMap();
+            Entity Keyed(int id, string key, float x)
+            {
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new RefKey(key));
+                repo.AddComponent(e, At(x, 0, 0));
+                map.Register(id, e);
+                return e;
+            }
+            Keyed(900, "Bridge", 10);
+            Keyed(901, "Ford", 20);
+            Keyed(902, "Ford", 30);
+
+            var scope = new WorldRefScope(repo, map);
+            Assert.True(scope.TryResolve(RefSpec.ByKey("Bridge"), out var bridge));
+            Assert.Equal(900, bridge.NetworkId);
+            Assert.True(scope.TryPositionOf(bridge, out var at));
+            Assert.Equal(10f, at.X);
+            Assert.True(scope.TryResolve(RefSpec.ByKey("Ford"), out var ford));
+            Assert.Equal(901, ford.NetworkId);
+            Assert.Contains("Ford", scope.Ambiguous);
+            Assert.False(scope.TryResolve(RefSpec.ByKey("Nowhere"), out _));
+        }
+
+        // ════════ ⭐ ⑤ placement, driven through MacroExpansionSystem (§15.2: ask once, park, apply; any Failed ⇒ nothing; no answer ⇒ E-6) ════════
 
         private static void Ensure<T>(EntityRepository repo) where T : class
         {
@@ -211,6 +244,12 @@ namespace Hrot.SimHost.Tests
         }
 
         private static (EntityRepository Repo, MacroExpansionSystem System, Entity Instance) ExpandingWorld()
+        {
+            var (repo, sys, inst, _) = ExpandingWorldWithMap();
+            return (repo, sys, inst);
+        }
+
+        private static (EntityRepository Repo, MacroExpansionSystem System, Entity Instance, NetworkEntityMap Map) ExpandingWorldWithMap()
         {
             var repo = new EntityRepository();
             HrotSharedComponentRegistry.RegisterAll(repo);
@@ -225,7 +264,7 @@ namespace Hrot.SimHost.Tests
             repo.AddComponent(inst, new MacroExpansionStatus { State = MacroExpansionState.Expanding });
             repo.SetManagedComponent(inst, new MacroExpansionIntent());
             map.Register(500, inst);
-            return (repo, new MacroExpansionSystem(Expander(Library()), map, new SequentialIdAllocator(), Owner), inst);
+            return (repo, new MacroExpansionSystem(Expander(Library()), map, new SequentialIdAllocator(), Owner), inst, map);
         }
 
         private static T[] Frame<T>(EntityRepository repo, MacroExpansionSystem sys) where T : class
@@ -233,6 +272,153 @@ namespace Hrot.SimHost.Tests
             sys.Execute(repo, 0f);
             repo.Bus.SwapBuffers();
             return ((ISimulationView)repo).ReadManagedEvents<T>().ToArray();
+        }
+
+        /// <summary>The creation path, in miniature: each request becomes an entity with its GUID, origin, place and identity, in the map.</summary>
+        private static Dictionary<Guid, Entity> Create(EntityRepository repo, NetworkEntityMap map, IEnumerable<EntityCreationRequest> made)
+        {
+            var byGuid = new Dictionary<Guid, Entity>();
+            foreach (var r in made)
+            {
+                var e = repo.CreateEntity();
+                foreach (var c in r.InitialComponents!)
+                    switch (c)
+                    {
+                        case EntityGuid g: repo.AddComponent(e, g); byGuid[g.Value] = e; break;
+                        case MacroOrigin o: repo.AddComponent(e, o); break;
+                        case SimTransform t: repo.AddComponent(e, t); break;
+                        case EntityInfo i: repo.AddComponent(e, i); break;
+                    }
+                repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = r.PreAllocatedNetworkId });
+                map.Register(r.PreAllocatedNetworkId, e);
+            }
+            return byGuid;
+        }
+
+        private static Fdp.Toolkit.Navigation.PlacementResponseBatch AnswerAll(Fdp.Toolkit.Navigation.PlacementRequestBatch ask, System.Numerics.Vector3 shift,
+                                                                               Fdp.Toolkit.Navigation.PlacementOutcome lastOutcome = Fdp.Toolkit.Navigation.PlacementOutcome.Shifted)
+        {
+            var answer = new Fdp.Toolkit.Navigation.PlacementResponseBatch { RequestId = ask.RequestId, SourceNodeId = Owner };
+            foreach (var slot in ask.Slots)
+                answer.Answers.Add(new Fdp.Toolkit.Navigation.PlacementAnswer
+                {
+                    Key = slot.Key, Point = slot.Point + shift, Reason = "no walkable ground within 30 m",
+                    Outcome = slot.Key == ask.Slots[^1].Key ? lastOutcome : Fdp.Toolkit.Navigation.PlacementOutcome.Shifted,
+                });
+            return answer;
+        }
+
+        private static (EntityRepository Repo, MacroExpansionSystem System, Entity Instance, Dictionary<Guid, Entity> Men) ExpandedTeam()
+        {
+            var (repo, sys, inst, map) = ExpandingWorldWithMap();
+            var ask = Assert.Single(Frame<Fdp.Toolkit.Navigation.PlacementRequestBatch>(repo, sys));
+            repo.Bus.PublishManaged(AnswerAll(ask, System.Numerics.Vector3.Zero));
+            repo.Bus.SwapBuffers();
+            sys.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var men = Create(repo, map, ((ISimulationView)repo).ReadManagedEvents<EntityCreationRequest>().ToArray());
+            sys.Execute(repo, 0f);   // every child exists ⇒ Done + the reconcile baseline
+            Assert.Equal(MacroExpansionState.Done, repo.GetComponentRO<MacroExpansionStatus>(inst).State);
+            return (repo, sys, inst, men);
+        }
+
+        /// <summary>⭐ Macros debt A6 (SR-180: "the layer comes from the child's template mobility") — a child whose FILE carries no DIS type
+        /// (0 ⇒ it used to be guessed infantry) is placed on the layer its TKB TEMPLATE states: a wheeled template ⇒ the vehicle layer, its
+        /// radius half the larger footprint side; a pedestrian one ⇒ infantry; no template ⇒ the DIS guess. 🔴 Red-proof: ignore the template ⇒
+        /// the vehicle child lands on the infantry layer.</summary>
+        [Fact]
+        public void A6_AVehicleChild_IsPlacedOnTheVehicleLayer_FromItsTemplate()
+        {
+            const long Truck = 7701, Man = 7702;
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var truck = new Fdp.Interfaces.TkbTemplate("Truck", Truck);
+            truck.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.LocomotionDto { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Wheeled });
+            truck.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.VehicleParametersDto { Length = 7f, Width = 2.5f });
+            db.Register(truck);
+            var man = new Fdp.Interfaces.TkbTemplate("Man", Man);
+            man.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.LocomotionDto { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Pedestrian });
+            db.Register(man);
+
+            var sys = new MacroExpansionSystem(null, new NetworkEntityMap(), new SequentialIdAllocator(), Owner, db);
+            EntityCreationRequest Child(long tkb) => new()
+            {
+                TkbType = (TkbTypeId)tkb, DisType = 0,   // ⚠ no DIS type in the file — what used to make every child "infantry"
+                InitialComponents = new List<object> { At(10, 10, 0) },
+            };
+            var ask = MacroExpansionSystem.BuildPlacement(new[] { Child(Truck), Child(Man), Child(9999) }, 30f, null, sys.LayerOf)!;
+
+            Assert.Equal((Fdp.Toolkit.Navigation.PlacementLayer.Vehicle, 3.5f), (ask.Slots[0].Layer, ask.Slots[0].Radius));
+            Assert.Equal(Fdp.Toolkit.Navigation.PlacementLayer.Infantry, ask.Slots[1].Layer);
+            Assert.Equal(Fdp.Toolkit.Navigation.PlacementLayer.Infantry, ask.Slots[2].Layer);   // no template ⇒ the DIS guess (0 ⇒ infantry)
+        }
+
+        /// <summary>⭐ Macros debt A4 (SR-150) — after a RESTORE the transient baseline is gone; it is rebuilt from the instance as it stands, so the
+        /// next args edit still reconciles (here: <c>side</c> → every man's <c>ForceId</c>). 🔴 Red-proof: skip the rebuild ⇒ the men keep Hostile.</summary>
+        [Fact]
+        public void A4_AfterARestore_AnArgsEdit_StillReconciles()
+        {
+            var (repo, sys, inst, men) = ExpandedTeam();
+            repo.RemoveComponent<MacroExpandedWith>(inst);                                       // what a restore leaves (the baseline is transient)
+
+            sys.Execute(repo, 0f);
+            Assert.True(repo.HasManagedComponent<MacroExpandedWith>(inst));                     // rebuilt from the instance as it stands
+
+            repo.SetManagedComponent(inst, new MacroInstance { Macro = FireTeam, ArgsJson = """{"side": "Friend"}""" });   // an edit: a NEW record
+            sys.Execute(repo, 0f);
+
+            Assert.All(men.Values, m => Assert.Equal("Friend", repo.GetComponentRO<EntityInfo>(m).ForceId.ToString()));
+        }
+
+        /// <summary>⭐ Macros debt A3 (SR-157 / SR-180) — MOVING an instance re-runs placement for its children: one request, every slot naming
+        /// the man it moves (so his old spot is not an obstacle), and the men stand where the solver said. 🔴 Red-proof: apply the moved transform
+        /// without asking ⇒ no request is published.</summary>
+        [Fact]
+        public void A3_MovingAnInstance_RePlacesItsMen_ThroughTheSolver()
+        {
+            var (repo, sys, inst, men) = ExpandedTeam();
+            var before = men.ToDictionary(kv => kv.Key, kv => repo.GetComponentRO<SimTransform>(kv.Value).Position);
+
+            var moved = repo.GetComponentRO<SimTransform>(inst);
+            moved.Position = new WorldPoint(moved.Position.X + 50, moved.Position.Y, 0);
+            repo.SetComponent(inst, moved);
+
+            var ask = Assert.Single(Frame<Fdp.Toolkit.Navigation.PlacementRequestBatch>(repo, sys));
+            Assert.Equal(4, ask.Slots.Count);
+            Assert.All(ask.Slots, s => Assert.NotEqual(0, s.Self));                    // each slot moves an existing man
+            Assert.All(men.Values, m => Assert.Equal(before[repo.GetComponentRO<EntityGuid>(m).Value], repo.GetComponentRO<SimTransform>(m).Position));   // nothing moved yet
+
+            repo.Bus.PublishManaged(AnswerAll(ask, new System.Numerics.Vector3(0, 3, 0)));
+            repo.Bus.SwapBuffers();
+            sys.Execute(repo, 0f);
+
+            foreach (var (g, m) in men)
+            {
+                var p = repo.GetComponentRO<SimTransform>(m).Position;
+                Assert.Equal(before[g].X + 50, p.X, 3);
+                Assert.Equal(before[g].Y + 3, p.Y, 3);                                  // where the SOLVER said, not just the relocated point
+            }
+            Assert.Equal(MacroExpansionState.Done, repo.GetComponentRO<MacroExpansionStatus>(inst).State);
+        }
+
+        /// <summary>⭐ A3 — a failed RE-placement fails loudly and leaves the old placement.</summary>
+        [Fact]
+        public void A3_AFailedRePlacement_IsLoud_AndLeavesTheOldPlacement()
+        {
+            var (repo, sys, inst, men) = ExpandedTeam();
+            var before = men.ToDictionary(kv => kv.Key, kv => repo.GetComponentRO<SimTransform>(kv.Value).Position);
+            var moved = repo.GetComponentRO<SimTransform>(inst);
+            moved.Position = new WorldPoint(moved.Position.X + 50, moved.Position.Y, 0);
+            repo.SetComponent(inst, moved);
+
+            var ask = Assert.Single(Frame<Fdp.Toolkit.Navigation.PlacementRequestBatch>(repo, sys));
+            repo.Bus.PublishManaged(AnswerAll(ask, System.Numerics.Vector3.Zero, Fdp.Toolkit.Navigation.PlacementOutcome.Failed));
+            repo.Bus.SwapBuffers();
+            sys.Execute(repo, 0f);
+
+            foreach (var (g, m) in men) Assert.Equal(before[g], repo.GetComponentRO<SimTransform>(m).Position);
+            var status = repo.GetComponentRO<MacroExpansionStatus>(inst);
+            Assert.Equal(MacroExpansionState.Failed, status.State);
+            Assert.Contains("old placement kept", status.Reason.ToString());
         }
 
         [Fact]

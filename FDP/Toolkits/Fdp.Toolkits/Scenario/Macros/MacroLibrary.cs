@@ -104,6 +104,16 @@ namespace Fdp.Toolkit.Scenario
 
         /// <summary>The top macro's <c>Placement.MaxShift</c>, kept for the local fallback.</summary>
         public float MaxShift { get; init; }
+
+        /// <summary>⭐ Macros debt A3 (SR-157 / SR-180) — the parked children are a RECONCILE's (a moved / edited instance) and are applied to the
+        /// existing entities by GUID, not published fresh; <see cref="ReconcileFrom"/> is the baseline it was computed against.</summary>
+        public MacroExpandedWith? ReconcileFrom { get; init; }
+
+        /// <summary>⭐ A3 — what a reconcile moves the instance TO (its <see cref="MacroInstance"/> and anchor when it asked).</summary>
+        public MacroExpandedWith? ReconcileTo { get; init; }
+
+        /// <summary>⭐ A3 — the placement request as sent (its slots carry <c>Self</c>), reused by the local fallback.</summary>
+        public Fdp.Toolkit.Navigation.PlacementRequestBatch? Ask { get; init; }
     }
 
     /// <summary>

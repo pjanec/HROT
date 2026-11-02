@@ -74,6 +74,40 @@ namespace Hrot.SimHost.Tests
         /// that actually bit — ⛔ it does not turn a text scan into a semantic one. For that the answer is
         /// Roslyn, and the rail should say so rather than imply coverage it has not got.</para>
         /// </remarks>
+        /// <summary>
+        /// ⭐⭐ Macros debt A7 — <b>a host's EFFECTIVE composition</b>: its root file, comments stripped, PLUS every bootstrapper it hands its
+        /// NODE build to, followed transitively. 📌 <c>CE-1446</c> (<c>e405d3662</c>) moved CGF's and the editor's node build out of
+        /// <c>CgfSubsystem.cs</c> / <c>EditorSubsystem.cs</c> into <c>CgfNodeBootstrapper</c> / <c>EditorNodeBootstrapper</c>, which delegate to
+        /// the shared <c>Hrot.SimHost.NodeBootstrapper</c> — and seven rails reading the root file alone went red on a composition that was
+        /// right. ⭐ ONE follower here, so no rail keeps its own copy of the delegation rules.
+        /// ⚠ The UNION of the files: a positive check finds the call wherever it moved; a negative check sees every file the host composes with.
+        /// </summary>
+        internal static string ReadEffectiveRoot(string relativePath)
+        {
+            var seen = new System.Collections.Generic.HashSet<string>(System.StringComparer.Ordinal);
+            var all = new System.Text.StringBuilder();
+            void Follow(string path)
+            {
+                if (!seen.Add(path)) return;
+                var code = StripComments(ReadRepoSource(path));
+                all.Append(code).Append('\n');
+                foreach (var (type, file) in Delegates)
+                    if (ConstructsType(code, type) || code.Contains(type + " _nodeBootstrapper = new(", System.StringComparison.Ordinal)
+                                                    || code.Contains(type + "? _bootstrapper", System.StringComparison.Ordinal))
+                        Follow(file);
+            }
+            Follow(relativePath);
+            return all.ToString();
+        }
+
+        /// <summary>The node bootstrappers a composition root may hand its node build to (type → file).</summary>
+        private static readonly (string Type, string File)[] Delegates =
+        {
+            ("CgfNodeBootstrapper",            "Hrot/Subsystems/Hrot.CGF/CgfNodeBootstrapper.cs"),
+            ("EditorNodeBootstrapper",         "Hrot/Subsystems/Hrot.Editor/EditorNodeBootstrapper.cs"),
+            ("Hrot.SimHost.NodeBootstrapper",  "Hrot/Engine/Hrot.EcsNode/NodeBootstrapper.cs"),
+        };
+
         internal static bool ConstructsType(string src, string typeName)
         {
             // new  [Optional.Dotted.Qualification.]TypeName  followed by ( or <

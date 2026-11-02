@@ -44,6 +44,10 @@ namespace Fdp.Toolkit.Navigation
         public Vector3 Point;
         public PlacementLayer Layer;
         public float Radius;
+        /// <summary>⭐ Macros debt A3 (SR-157 / SR-180) — the network id of the entity this slot MOVES (a reconcile re-placing a kept child of a
+        /// moved instance); 0 = a new entity. Every slot's <see cref="Self"/> is ignored as an obstacle for the whole batch, so a moved team is
+        /// not pushed away by where it stood before.</summary>
+        public int Self;
     }
 
     /// <summary>⭐ SR-180 — a request: place every <see cref="Slots"/> entry, none farther than <see cref="MaxShift"/> metres (XY) from its point.
