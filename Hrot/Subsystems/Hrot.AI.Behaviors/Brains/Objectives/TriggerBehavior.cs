@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -90,17 +91,9 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         [BehaviorResolver(BehaviorNames.Trigger)]
         public static void Resolve(in TriggerParamsJsonDto authored, ref TriggerBlackboard bb, EntityRepository world, Entity self)
         {
-            if (authored.When is null) throw new InvalidOperationException("Trigger: 'when' is required (a condition, e.g. {\"$type\":\"OnEntity\",...}).");
-            string whenJson = TriggerWhen.ToJson(authored.When);
-            string doJson = authored.Do?.ToJsonString() ?? "[]";
-            string[] extras;
-            try { (doJson, extras) = ActionList.ExtractParams(doJson, FirstExtraItem); }   // ⭐ S2 ⑨ — a step's nested "params" become extra ActionArgs items, its ArgsRef their index
-            catch (ActionListException ex) { throw new InvalidOperationException($"Trigger: 'do' is invalid — {ex.Message}", ex); }
-            try { TriggerWhen.Get(whenJson); }
-            catch (Exception ex) when (ex is not OutOfMemoryException)
-            { throw new InvalidOperationException($"Trigger: 'when' does not compile — {ex.GetType().Name}: {ex.Message}", ex); }
-            try { ActionList.Validate(doJson); }
-            catch (ActionListException ex) { throw new InvalidOperationException($"Trigger: 'do' is invalid — {ex.Message}", ex); }
+            // ⭐ CE-2377 — the checks live in ONE place, the validator (side-effect-free, also run by the scenario sweep / load prepare).
+            var problems = ValidateParams(in authored, out string whenJson, out string doJson, out string[] extras);
+            if (problems.Count > 0) throw new InvalidOperationException("Trigger: " + string.Join("; ", problems));
 
             var common = authored.Common;
             common.Scored ??= false;   // T8: a trigger is not scored unless it says so
@@ -112,6 +105,37 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 ListParams = new RunActionsParams { ListRef = DoItem, Depth = 0 },
             };
             if (world != null && world.IsAlive(self)) world.SetManagedComponent(self, new ActionArgs(new[] { whenJson, doJson }.Concat(extras).ToArray()));
+        }
+
+        /// <summary>⭐ <c>CE-2377</c> — the Trigger's params check, side-effect-free: <c>when</c> is present and compiles as a LEVEL predicate; <c>do</c> is a valid action list.</summary>
+        [BehaviorValidator(BehaviorNames.Trigger)]
+        public static IEnumerable<string> Validate(string json)
+        {
+            TriggerParamsJsonDto dto;
+            try { dto = JsonSerializer.Deserialize<TriggerParamsJsonDto>(json, BehaviorParams.JsonOptions); }
+            catch (JsonException ex) { return new[] { $"params are not valid JSON — {ex.Message}" }; }
+            return ValidateParams(in dto, out _, out _, out _);
+        }
+
+        private static List<string> ValidateParams(in TriggerParamsJsonDto authored, out string whenJson, out string doJson, out string[] extras)
+        {
+            var problems = new List<string>();
+            whenJson = ""; doJson = "[]"; extras = Array.Empty<string>();
+            if (authored.When is null) problems.Add("'when' is required (a condition, e.g. {\"$type\":\"OnEntity\",...}).");
+            else
+            {
+                whenJson = TriggerWhen.ToJson(authored.When);
+                try { TriggerWhen.Get(whenJson); }
+                catch (Exception ex) when (ex is not OutOfMemoryException) { problems.Add($"'when' does not compile — {ex.GetType().Name}: {ex.Message}"); }
+            }
+            doJson = authored.Do?.ToJsonString() ?? "[]";
+            try
+            {
+                (doJson, extras) = ActionList.ExtractParams(doJson, FirstExtraItem);   // ⭐ S2 ⑨ — a step's nested "params" become extra ActionArgs items, its ArgsRef their index
+                ActionList.Validate(doJson);
+            }
+            catch (ActionListException ex) { problems.Add($"'do' is invalid — {ex.Message}"); }
+            return problems;
         }
 
         private const double Eps = 1e-9;

@@ -387,6 +387,9 @@ namespace Fdp.Toolkit.Behavior
         // run before or after the [BlueprintRegistrar] scan that registers the topologies.
         private readonly Dictionary<string, Type> _jsonParamsDtoByName = new(StringComparer.Ordinal);
 
+        // ⭐ CE-2377: the optional side-effect-free params validators ([BehaviorValidator]), by behaviour name.
+        private readonly Dictionary<string, Func<string, IEnumerable<string>>> _validatorsByName = new(StringComparer.Ordinal);
+
         // ⭐⭐⭐ O7b-3: how much occurrence store each behaviour's HOSTED blueprints will need, so
         // BehaviorIngressSystem can size the tier before the first dispatch instead of defaulting to
         // the smallest. 📄 DESIGN_Occurrence_Scoped_Storage.md §27.7.
@@ -577,6 +580,17 @@ namespace Fdp.Toolkit.Behavior
             if (_nameToId.TryGetValue(name, out var id) && _definitions.TryGetValue(id, out var def))
                 def.JsonParamsDtoType = jsonParamsDtoType;
         }
+
+        /// <summary>⭐ <c>CE-2377</c> — binds a behaviour's optional params validator (<see cref="BehaviorValidatorAttribute"/>); order-independent, last wins.</summary>
+        public void RegisterValidator(string name, Func<string, IEnumerable<string>> validator)
+        {
+            if (name == null) throw new ArgumentNullException(nameof(name));
+            _validatorsByName[name] = validator ?? throw new ArgumentNullException(nameof(validator));
+        }
+
+        /// <summary>⭐ <c>CE-2377</c> — the validator bound to <paramref name="name"/>, if any.</summary>
+        public bool TryGetValidator(string name, [MaybeNullWhen(false)] out Func<string, IEnumerable<string>> validator)
+            => _validatorsByName.TryGetValue(name, out validator);
 
         /// <summary>
         /// ⭐⭐⭐ <c>O7b-3</c> — records how much occurrence store a behaviour's HOSTED blueprints will
@@ -873,6 +887,7 @@ namespace Fdp.Toolkit.Behavior
             _sourceResolversByName.Clear();
             _sourceTypesByName.Clear();
             _jsonParamsDtoByName.Clear();
+            _validatorsByName.Clear();
             // O7b-3: a stale demand outliving its behaviour would size the NEXT one's tier.
             _hostedDemandByName.Clear();
             _groupByName.Clear();
@@ -918,6 +933,9 @@ namespace Fdp.Toolkit.Behavior
                 _sourceResolversByName[name] = resolve;
             foreach (var (name, type) in source._sourceTypesByName)
                 _sourceTypesByName[name] = type;
+
+            foreach (var (name, v) in source._validatorsByName)
+                _validatorsByName[name] = v;
 
             // CE-235: same for authored JSON contracts — carried first so the copy below can bind them.
             foreach (var (name, jsonDto) in source._jsonParamsDtoByName)

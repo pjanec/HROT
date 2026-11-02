@@ -863,9 +863,17 @@ namespace Fdp.Toolkit.Behavior.Systems
                         // Suppress — do NOT rethrow; a parse failure must not crash the loop.
                         // ⭐ CE-2176 — but SAY it: 📐 measured live, an order whose resolver threw (a local [y, x] read as latitude -195°,
                         //   WGS84Transform.ToCartesian) vanished here without a word — accepted by the sender, no behaviour, no log line.
-                        Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Warn(
+                        // ⭐ CE-2377 — an ERROR, not a warning (the entity runs NOTHING), naming what the side-effect-free validation finds wrong when it explains it.
+                        string why = "";
+                        try
+                        {
+                            var problems = BehaviorParamsValidation.Validate(_registry, def.Name, json);
+                            if (problems.Count > 0) why = " | validation: " + string.Join("; ", problems);
+                        }
+                        catch (Exception) { /* the log line must never throw */ }
+                        Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Error(
                             "[BehaviorIngress] dropped '{0}' for entity #{1}: its params did not parse — {2}: {3}",
-                            def.Name, entity.Index, ex.GetType().Name, ex.Message);
+                            def.Name, entity.Index, ex.GetType().Name, ex.Message + why);
                         parseOk = false;
                     }
                 }

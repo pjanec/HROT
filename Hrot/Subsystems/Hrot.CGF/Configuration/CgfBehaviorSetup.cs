@@ -63,6 +63,8 @@ namespace Hrot.CGF.Configuration
             //   copy's DTO types to definitions built from this one.
             Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindJsonParamsDtoTypes(behaviorRegistry,
                 Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Pinning(aiAssembly));
+            // ⭐ CE-2377 — and the optional [BehaviorValidator] statics, from the same pinned copy.
+            Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindValidators(behaviorRegistry, aiAssembly);
         }
 
         /// <summary>
