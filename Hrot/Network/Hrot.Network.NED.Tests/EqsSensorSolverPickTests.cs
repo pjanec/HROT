@@ -27,7 +27,7 @@ namespace Hrot.Network.NED.Tests
             var solverOf = new Dictionary<(int, int), int> { [(7, 1000)] = 3 };
 
             Assert.Equal(3, EqsSensorConfigEgressTranslator.SiblingSolver(solverOf, (7, 1001), NodeRole.Perception, cache.AllNodeIds(), cache));
-            Assert.Equal(2, cache.GetLeastLoadedNode(NodeRole.Perception));   // what the plain pick would have chosen (the lowest node id: no load is measured)
+            Assert.Equal(2, cache.PickNodeForRole(NodeRole.Perception));   // what the plain pick would have chosen (the lowest node id: no load is measured)
         }
 
         [Fact]

@@ -666,7 +666,7 @@ public enum EDescriptorType
 ```csharp
 public interface IClusterStateCache
 {
-    int?  GetLeastLoadedNode(NodeRole requiredRole);
+    int?  PickNodeForRole(NodeRole requiredRole);   // the lowest node id carrying the role (deterministic; renamed from GetLeastLoadedNode 2026-11-02)
     void  UpdateNode(NodeCapability capability);
     void  PruneStale(double nowUtcSeconds, double maxSilenceSeconds = 10.0);
 }

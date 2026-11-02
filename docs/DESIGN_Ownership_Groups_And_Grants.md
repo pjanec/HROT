@@ -257,7 +257,7 @@ classDiagram
   }
   class IClusterStateCache {
     <<existing>>
-    +GetLeastLoadedNode(NodeRole) int?
+    +PickNodeForRole(NodeRole) int?
   }
   class CreateEntityRequestSystem { <<existing>> }
   class NetworkSpawningSystem { <<existing, changed: creator claims ALL>> }
@@ -458,7 +458,7 @@ classDiagram
     class EqsSensorConfigEgressTranslator { <<Brain · changed>> -solverOf: key → node · picks once per sensor, re-picks if gone }
     class EqsSensorConfigIngressTranslator { <<Perception node · changed>> carrier ONLY when SolverNodeId == me }
     class EqsResultEventEgressTranslator { <<Perception node · unchanged>> S6 gate on (dtEqsResult, part) }
-    class IClusterStateCache { <<existing>> +GetLeastLoadedNode(role) +AllNodeIds() }
+    class IClusterStateCache { <<existing>> +PickNodeForRole(role) +AllNodeIds() }
     class OwnershipApplier { <<existing>> +Apply(repo, entity, PackKey(d,i), node) — instance key ⇒ record only }
     EqsSensorConfigEgressTranslator ..> IClusterStateCache : least-loaded Perception node
     EqsSensorConfigEgressTranslator ..> OwnershipApplier : record (dtEqsResult, n) = solver
@@ -472,7 +472,7 @@ sequenceDiagram
     participant C as cluster cache
     participant P1 as Perception node chosen
     participant P2 as other Perception node
-    B->>C: GetLeastLoadedNode(Perception) — once per sensor
+    B->>C: PickNodeForRole(Perception) — once per sensor
     B->>B: record (dtEqsResult, n) = P1
     B->>P1: EqsSensorConfig[n] SolverNodeId = P1
     B->>P2: EqsSensorConfig[n] SolverNodeId = P1

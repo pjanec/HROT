@@ -53,7 +53,7 @@ namespace Hrot.Network.Routing
                 if (!group.AppliesTo(template)) continue;
                 if (!_descriptorsByRole.TryGetValue(role, out var descriptors) || descriptors.Count == 0) continue;
 
-                int? node = _clusterCache.GetLeastLoadedNode(role);
+                int? node = _clusterCache.PickNodeForRole(role);
                 if (!node.HasValue || node.Value == request.MasterNodeId) continue;
 
                 grants ??= new List<DescriptorGrant>();

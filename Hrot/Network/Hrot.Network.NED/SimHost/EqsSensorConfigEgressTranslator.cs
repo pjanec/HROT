@@ -317,7 +317,7 @@ namespace Hrot.Network.NED.SimHost
             var role = RoleFor(blueprintId);
             solver = _onWire.TryGetValue(key, out var wire) && wire.SolverNodeId != 0 && Contains(known, wire.SolverNodeId)
                 ? wire.SolverNodeId
-                : SiblingSolver(_solverOf, key, role, known, _clusterCache) ?? _clusterCache.GetLeastLoadedNode(role) ?? 0;
+                : SiblingSolver(_solverOf, key, role, known, _clusterCache) ?? _clusterCache.PickNodeForRole(role) ?? 0;
             if (solver != 0) _solverOf[key] = solver;
             return solver;
         }
