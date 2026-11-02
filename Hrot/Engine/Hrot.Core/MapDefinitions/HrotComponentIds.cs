@@ -19,8 +19,6 @@ namespace Hrot.Map.Definitions
         /// <summary><c>ActiveMissionPlan</c> — domain POCO mission plan (replaces EntityMissionHolder).</summary>
         public const byte ActiveMissionPlan = 162;
 
-        /// <summary><c>IgEntityData</c> — IG-internal entity metadata from EntityInfo.</summary>
-        public const byte IgEntityData        = 164;
 
         /// <summary>
         /// ⛔ RETIRED (CE-196) — was <c>IgHealthState</c>, an IG-internal damage percentage derived from
