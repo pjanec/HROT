@@ -165,8 +165,7 @@ namespace Hrot.UI.Common.Adapters
                 ? _world.GetComponent<EntityInfo>(parent).Name.ToString() : null;
             if (_world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>()
                 && _world.HasComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(entity))
-                return StructureHierarchyAdapter.PartLabel(
-                    parentName, _world.GetComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(entity).InstanceId);
+                return PartLabels.Describe(_world, entity, parentName);   // ⭐ CE-4213 — the part's KIND from its component (AQ79 §0.10)
             return parentName is null ? $"entity #{entity.Index}" : $"{parentName} · passenger";
         }
 

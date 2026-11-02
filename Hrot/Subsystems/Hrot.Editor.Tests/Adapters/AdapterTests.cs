@@ -1461,6 +1461,9 @@ namespace Hrot.Editor.Tests.Adapters
             _world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
             _world.RegisterComponent<PartMetadata>();
             _world.RegisterComponent<IsEmbarkedTag>();
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponMountInfo>();
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.TurretPose>();
+            _world.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorTag>();
         }
 
         public void Dispose() => _world.Dispose();
@@ -1497,7 +1500,8 @@ namespace Hrot.Editor.Tests.Adapters
             _world.CreateEntity();
             var tank = Named("Tank");
             var sensor = _world.CreateEntity();
-            _world.AddComponent(sensor, new PartMetadata { ParentEntity = tank, InstanceId = 1003 });
+            _world.AddComponent(sensor, new PartMetadata { ParentEntity = tank, InstanceId = 3 });   // ⭐ the id says nothing; the SensorTag says it is a radar
+            _world.AddComponent(sensor, new Fdp.Toolkit.Perception.Components.SensorTag { Kind = Fdp.Toolkit.Perception.Components.SensorModality.Radar });
             var soldier = Named("Rifleman");
             _world.AddComponent(soldier, new IsEmbarkedTag { VehicleEntity = tank });
 
@@ -1506,7 +1510,7 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.Equal(3, nodes.Count);
             Assert.Equal("Tank", nodes[0].Name);
             Assert.True(nodes[0].HasChildren);
-            Assert.Contains(nodes, n => n.Depth == 1 && n.Name == "Tank · sensor 3" && n.EntityId == sensor.Index);
+            Assert.Contains(nodes, n => n.Depth == 1 && n.Name == "Tank · sensor Radar" && n.EntityId == sensor.Index);
             Assert.Contains(nodes, n => n.Depth == 1 && n.Name == "Rifleman");
             Assert.All(nodes, n => Assert.False(n.CanAcceptSubordinates));
         }
@@ -1518,6 +1522,7 @@ namespace Hrot.Editor.Tests.Adapters
             var tank = Named("Tank");
             var sensor = _world.CreateEntity();
             _world.AddComponent(sensor, new PartMetadata { ParentEntity = tank, InstanceId = 2001 });
+            _world.AddComponent(sensor, default(Fdp.Toolkit.Combat.Components.TurretPose));
             _world.DestroyEntity(tank);
 
             var nodes = Adapter(EntityTreeRelation.Structure).GetVisibleNodes("", new HashSet<int>());
@@ -1525,6 +1530,30 @@ namespace Hrot.Editor.Tests.Adapters
             var only = Assert.Single(nodes);
             Assert.Equal(0, only.Depth);
             Assert.Equal("turret 1", only.Name);
+        }
+
+        /// <summary>⭐ CE-4213 / AQ79 §0.10 — a part is named by the component its creator gave it (its KIND), not by its instance id. Red-proof: Describe ignoring
+        /// WeaponMountInfo ⇒ the mount shows "part #1".</summary>
+        [Fact]
+        public void Structure_view_names_a_part_by_its_kind_component_not_its_instance_id()
+        {
+            _world.CreateEntity();
+            var soldier = Named("Blue 1");
+            var mount = _world.CreateEntity();
+            _world.AddComponent(mount, new PartMetadata { ParentEntity = soldier, InstanceId = 1 });
+            _world.AddComponent(mount, new Fdp.Toolkit.Combat.Components.WeaponMountInfo { MountIndex = 2, WeaponGuid = 7 });
+            var eqs = _world.CreateEntity();
+            _world.AddComponent(eqs, new PartMetadata { ParentEntity = soldier, InstanceId = 2 });
+            _world.AddComponent(eqs, new Fdp.Toolkit.Perception.Components.SensorTag { Kind = Fdp.Toolkit.Perception.Components.SensorModality.Visual });
+            var unknown = _world.CreateEntity();
+            _world.AddComponent(unknown, new PartMetadata { ParentEntity = soldier, InstanceId = 9 });
+
+            var names = Adapter(EntityTreeRelation.Structure).GetVisibleNodes("", new HashSet<int> { soldier.Index }).Select(n => n.Name).ToArray();
+
+            Assert.Contains("Blue 1 · weapon mount 2", names);
+            Assert.Contains("Blue 1 · sensor Visual", names);
+            Assert.Contains("Blue 1 · part #9", names);   // no kind component ⇒ the fallback
+            Assert.DoesNotContain(names, n => n.Contains("part #1") && !n.Contains("part #9"));
         }
 
         [Fact]
