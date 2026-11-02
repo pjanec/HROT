@@ -311,7 +311,7 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
         var extractor = new StagingEntityExtractor();
         // ⭐⭐⭐ BP-509 — the staging→runtime id table reaches the control-plane bus, wired by the subsystem (not the extractor).
         extractor.OnRemap = map => context.EventBus.PublishManaged(
-            new Fdp.Toolkit.Orchestration.StagingRemapPublishedEvent { StagingToRuntime = map, SourceNodeId = _editorNodeId });
+            new Fdp.Toolkit.Orchestration.StagingRemapPublishedEvent { GuidToRuntime = map, SourceNodeId = _editorNodeId });
 
         var diagnosticsDump = new DiagnosticsDumpClusterOpHandler(
             _eventHistory,

@@ -151,7 +151,7 @@ namespace Hrot.CGF.Orchestration
         /// <para>⚠ <b>Public</b>, unlike the disposal callback: that one is a test hook, this one is
         /// production wiring.</para>
         /// </summary>
-        public Action<IReadOnlyDictionary<int, int>>? OnRemap { get; set; }
+        public Action<IReadOnlyDictionary<Guid, int>>? OnRemap { get; set; }
 
         // ── IScenarioEntityExtractor ───────────────────────────────────────────────
 
@@ -252,6 +252,7 @@ namespace Hrot.CGF.Orchestration
                 // carries a NetworkIdentity in the staging DOM.  Build the translation
                 // map so behavior BehaviorParams can be patched in Pass 2.
                 var oldToNewMap = new Dictionary<int, int>();
+                var guidToNew = new Dictionary<Guid, int>();   // S8 prerequisite: what the Watch pins key on
                 for (int i = 0; i <= maxIdx; i++)
                 {
                     var maskP1 = stagingRepo.GetEntityIndex().GetComponentMask(i);
@@ -265,6 +266,7 @@ namespace Hrot.CGF.Orchestration
                     int oldId = stagingRepo.GetComponent<NetworkIdentity>(e).Value;
                     int newId = idAllocator.AllocateId();
                     oldToNewMap[oldId] = newId;
+                    if (maskP1.IsSet(GlobalComponentIds.EntityGuid) && stagingRepo.GetComponent<Fdp.Toolkit.Scenario.EntityGuid>(e).Value is var pg && pg != Guid.Empty) guidToNew[pg] = newId;
                 }
 
                 // ⭐⭐ S0 item 3 (DESIGN_Scenario_Rules.md SR-126) — the SCENARIO scope authored references resolve in: every entity's
@@ -397,7 +399,7 @@ namespace Hrot.CGF.Orchestration
                 //    ⛔ A copy, not the live dictionary: the subscriber keeps it for the lifetime of the
                 //    load and this one is a local that Pass 2 read from — handing out the instance would
                 //    make a future edit to Pass 2 visible to a reader that already published it.
-                OnRemap?.Invoke(new Dictionary<int, int>(oldToNewMap));
+                OnRemap?.Invoke(new Dictionary<Guid, int>(guidToNew));
 
                 return results;
             }

@@ -42,7 +42,7 @@ namespace Fdp.Toolkit.Orchestration
         /// <para>⚠ Never <c>null</c> in a published event, and it may legitimately be EMPTY — a scenario
         /// with no networked entities remaps nothing, and that is an answer.</para>
         /// </summary>
-        public IReadOnlyDictionary<int, int> StagingToRuntime;
+        public IReadOnlyDictionary<System.Guid, int> GuidToRuntime;
 
         /// <summary>
         /// ⭐ The node that performed the extraction. ⚠ Present so a reader in a multi-node run can tell

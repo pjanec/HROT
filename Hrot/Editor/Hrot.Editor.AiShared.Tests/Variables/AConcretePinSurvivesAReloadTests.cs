@@ -111,25 +111,25 @@ public sealed class AConcretePinSurvivesAReloadTests
         var (watch, remap, world) = Production();
 
         // ── load 1: authored 100 arrives as runtime 7000 on handle #1 ──
-        remap.Publish(new Dictionary<int, int> { [AuthoredId] = 7000 });
+        remap.Publish(new Dictionary<System.Guid, int> { [new System.Guid(AuthoredId, 0, 0, new byte[8])] = 7000 });
         world.Spawn(7000, Ent(1));
 
         // ⭐ The designer pins through the ORDINARY gesture path: BindingFor fills in the AUTHORED id.
         var binding = watch.BindingFor(Ent(1));
         Assert.Equal(EntityBindingKind.Concrete, binding.Kind);
-        Assert.Equal(AuthoredId, binding.StagingNetworkId);      // ⛔ NOT 7000
+        Assert.Equal(new System.Guid(AuthoredId, 0, 0, new byte[8]), binding.EntityGuid);      // ⛔ NOT 7000
         Assert.True(binding.IsPersistable);
         watch.Pinned.Pin(Row(Ent(1)), binding);
 
         // ── the reload: same authored entity, NEW runtime id, NEW handle ──
         world.Clear();
-        remap.Publish(new Dictionary<int, int> { [AuthoredId] = 9000 });
+        remap.Publish(new Dictionary<System.Guid, int> { [new System.Guid(AuthoredId, 0, 0, new byte[8])] = 9000 });
         world.Spawn(9000, Ent(42));
 
         Assert.Equal(1, watch.RebindConcretePins());
 
         var (row, rebound) = Assert.Single(watch.Pinned.PinnedWithBindings());
-        Assert.Equal(AuthoredId, rebound.StagingNetworkId);      // ⭐ the durable key never moved
+        Assert.Equal(new System.Guid(AuthoredId, 0, 0, new byte[8]), rebound.EntityGuid);      // ⭐ the durable key never moved
         Assert.Equal(Ent(42),    rebound.Captured);              // ⭐ the in-session handle did
         Assert.Equal(Ent(42),    row.Origin.Entity);             // ⭐ …and the row followed it
         Assert.False(row.IsStale);
@@ -145,13 +145,13 @@ public sealed class AConcretePinSurvivesAReloadTests
     {
         var (watch, remap, world) = Production();
 
-        remap.Publish(new Dictionary<int, int> { [AuthoredId] = 7000 });
+        remap.Publish(new Dictionary<System.Guid, int> { [new System.Guid(AuthoredId, 0, 0, new byte[8])] = 7000 });
         world.Spawn(7000, Ent(1));
         watch.Pinned.Pin(Row(Ent(1)), watch.BindingFor(Ent(1)));
 
         // ── a DIFFERENT scenario: authored 100 is not in it, and something else holds 7000 now ──
         world.Clear();
-        remap.Publish(new Dictionary<int, int> { [777] = 7000 });
+        remap.Publish(new Dictionary<System.Guid, int> { [new System.Guid(777, 0, 0, new byte[8])] = 7000 });
         world.Spawn(7000, Ent(9));
 
         Assert.Equal(0, watch.RebindConcretePins());
@@ -168,7 +168,7 @@ public sealed class AConcretePinSurvivesAReloadTests
         var (watch, remap, _) = Production();
 
         watch.Pinned.Pin(Row(default), EntityBinding.Chameleon);
-        remap.Publish(new Dictionary<int, int> { [AuthoredId] = 9000 });
+        remap.Publish(new Dictionary<System.Guid, int> { [new System.Guid(AuthoredId, 0, 0, new byte[8])] = 9000 });
 
         Assert.Equal(0, watch.RebindConcretePins());
         var (row, binding) = Assert.Single(watch.Pinned.PinnedWithBindings());
@@ -186,11 +186,11 @@ public sealed class AConcretePinSurvivesAReloadTests
     {
         var (watch, remap, world) = Production();
 
-        remap.Publish(new Dictionary<int, int> { [AuthoredId] = 7000 });
+        remap.Publish(new Dictionary<System.Guid, int> { [new System.Guid(AuthoredId, 0, 0, new byte[8])] = 7000 });
         world.Spawn(5555, Ent(3));                 // ⚠ a live entity with NO authored ancestor
 
         var binding = watch.BindingFor(Ent(3));
-        Assert.Equal(0, binding.StagingNetworkId);
+        Assert.Equal(System.Guid.Empty, binding.EntityGuid);
         Assert.False(binding.IsPersistable);
         watch.Pinned.Pin(Row(Ent(3)), binding);
 
@@ -212,16 +212,16 @@ public sealed class AConcretePinSurvivesAReloadTests
     {
         var remap = new StagingRemapView();
         Assert.False(remap.HasMap);
-        Assert.Equal(0, remap.ToRuntime(100));
-        Assert.Equal(0, remap.ToStaging(100));
+        Assert.Equal(0, remap.ToRuntime(new System.Guid(100, 0, 0, new byte[8])));
+        Assert.Equal(System.Guid.Empty, remap.ToGuid(100));
 
-        remap.Publish(new Dictionary<int, int> { [100] = 7000, [101] = 7001 });
+        remap.Publish(new Dictionary<System.Guid, int> { [new System.Guid(100, 0, 0, new byte[8])] = 7000, [new System.Guid(101, 0, 0, new byte[8])] = 7001 });
 
         Assert.True(remap.HasMap);
-        Assert.Equal(7000, remap.ToRuntime(100));
-        Assert.Equal(100,  remap.ToStaging(7000));
-        Assert.Equal(0,    remap.ToRuntime(999));
-        Assert.Equal(0,    remap.ToStaging(999));
+        Assert.Equal(7000, remap.ToRuntime(new System.Guid(100, 0, 0, new byte[8])));
+        Assert.Equal(new System.Guid(100, 0, 0, new byte[8]), remap.ToGuid(7000));
+        Assert.Equal(0,    remap.ToRuntime(new System.Guid(999, 0, 0, new byte[8])));
+        Assert.Equal(new System.Guid(0, 0, 0, new byte[8]), remap.ToGuid(999));
     }
 
     /// <summary>
@@ -234,14 +234,14 @@ public sealed class AConcretePinSurvivesAReloadTests
     {
         var remap = new StagingRemapView();
 
-        remap.Publish(new Dictionary<int, int> { [100] = 7000 });
+        remap.Publish(new Dictionary<System.Guid, int> { [new System.Guid(100, 0, 0, new byte[8])] = 7000 });
         Assert.Equal(1, remap.Generation);
 
-        remap.Publish(new Dictionary<int, int> { [101] = 8000 });
+        remap.Publish(new Dictionary<System.Guid, int> { [new System.Guid(101, 0, 0, new byte[8])] = 8000 });
         Assert.Equal(2, remap.Generation);
-        Assert.Equal(0, remap.ToRuntime(100));       // ⛔ the previous load's pair is GONE
-        Assert.Equal(0, remap.ToStaging(7000));
-        Assert.Equal(8000, remap.ToRuntime(101));
+        Assert.Equal(0, remap.ToRuntime(new System.Guid(100, 0, 0, new byte[8])));       // ⛔ the previous load's pair is GONE
+        Assert.Equal(System.Guid.Empty, remap.ToGuid(7000));
+        Assert.Equal(8000, remap.ToRuntime(new System.Guid(101, 0, 0, new byte[8])));
     }
 
     /// <summary>⚠ An EMPTY table is a legitimate answer *(a scenario with no networked entities)*, and a
@@ -251,7 +251,7 @@ public sealed class AConcretePinSurvivesAReloadTests
     {
         var remap = new StagingRemapView();
 
-        remap.Publish(new Dictionary<int, int>());
+        remap.Publish(new Dictionary<System.Guid, int>());
         Assert.False(remap.HasMap);
 
         remap.Publish(null);
@@ -280,19 +280,19 @@ public sealed class AConcretePinSurvivesAReloadTests
 
         bus.PublishManaged(new StagingRemapPublishedEvent
         {
-            StagingToRuntime = new Dictionary<int, int> { [100] = 7000, [101] = 7001 },
+            GuidToRuntime = new Dictionary<System.Guid, int> { [new System.Guid(100, 0, 0, new byte[8])] = 7000, [new System.Guid(101, 0, 0, new byte[8])] = 7001 },
             SourceNodeId     = (Fdp.Core.NodeId)(7),
         });
         bus.SwapBuffers();
 
         var received = Assert.Single(bus.ReadManaged<StagingRemapPublishedEvent>());
         Assert.Equal(7, received.SourceNodeId);
-        Assert.Equal(2, received.StagingToRuntime.Count);
+        Assert.Equal(2, received.GuidToRuntime.Count);
 
         // ⭐ …and it feeds the view the Watch actually reads, which is the point of publishing it.
         var remap = new StagingRemapView();
-        remap.Publish(received.StagingToRuntime);
-        Assert.Equal(7001, remap.ToRuntime(101));
-        Assert.Equal(101,  remap.ToStaging(7001));
+        remap.Publish(received.GuidToRuntime);
+        Assert.Equal(7001, remap.ToRuntime(new System.Guid(101, 0, 0, new byte[8])));
+        Assert.Equal(new System.Guid(101, 0, 0, new byte[8]), remap.ToGuid(7001));
     }
 }

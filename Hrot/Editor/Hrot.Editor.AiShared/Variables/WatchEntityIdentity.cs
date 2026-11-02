@@ -53,12 +53,12 @@ public sealed class WatchEntityIdentity
     /// ⚠ <c>0</c> for the sentinel entity, for an entity with no <c>NetworkIdentity</c>, and for one
     /// spawned at runtime. ⭐ All three mean the same thing to a pin: within-session only.
     /// </summary>
-    public int StagingIdOf(Entity entity)
+    public Guid GuidOf(Entity entity)
     {
-        if (entity.Equals(default(Entity))) return 0;
+        if (entity.Equals(default(Entity))) return Guid.Empty;
 
         int runtimeId = _runtimeIdOf(entity);
-        return runtimeId == 0 ? 0 : Remap.ToStaging(runtimeId);
+        return runtimeId == 0 ? Guid.Empty : Remap.ToGuid(runtimeId);
     }
 
     /// <summary>
@@ -68,11 +68,11 @@ public sealed class WatchEntityIdentity
     /// ⛔ It never falls back to treating the authored id AS a runtime id — 📌 the two are drawn from one
     /// numeric space, so that would silently resolve to the wrong entity.
     /// </summary>
-    public Entity EntityForStagingId(int stagingId)
+    public Entity EntityForGuid(Guid entityGuid)
     {
-        if (stagingId == 0) return default;
+        if (entityGuid == Guid.Empty) return default;
 
-        int runtimeId = Remap.ToRuntime(stagingId);
+        int runtimeId = Remap.ToRuntime(entityGuid);
         return runtimeId == 0 ? default : _entityByRuntimeId(runtimeId);
     }
 
@@ -97,7 +97,7 @@ public sealed class WatchEntityIdentity
             var entity = _entityByRuntimeId(runtimeId);
             if (entity.IsNull || entity.Equals(default(Entity))) return null;
 
-            return EntityBinding.Concrete(Remap.ToStaging(runtimeId), entity);
+            return EntityBinding.Concrete(Remap.ToGuid(runtimeId), entity);
         };
     }
 }

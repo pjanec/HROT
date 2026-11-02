@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Hrot.Editor.AiShared.Variables;
@@ -29,8 +30,8 @@ namespace Hrot.Editor.AiShared.Variables;
 /// </summary>
 public sealed class StagingRemapView
 {
-    private Dictionary<int, int> _stagingToRuntime = new();
-    private Dictionary<int, int> _runtimeToStaging = new();
+    private Dictionary<Guid, int> _stagingToRuntime = new();
+    private Dictionary<int, Guid> _runtimeToStaging = new();
 
     /// <summary>
     /// ⭐⭐ Bumped on every <see cref="Publish"/>. ⭐ A host watches this to know *"a load happened, rebind"*
@@ -54,10 +55,10 @@ public sealed class StagingRemapView
     /// hands out each id once)*; if one ever appeared, last-writer-wins here would hide it — ⭐ so it is
     /// asserted in the rail rather than defended against with a silent branch.</para>
     /// </summary>
-    public void Publish(IReadOnlyDictionary<int, int>? stagingToRuntime)
+    public void Publish(IReadOnlyDictionary<Guid, int>? stagingToRuntime)
     {
-        var forward = new Dictionary<int, int>();
-        var inverse = new Dictionary<int, int>();
+        var forward = new Dictionary<Guid, int>();
+        var inverse = new Dictionary<int, Guid>();
 
         if (stagingToRuntime != null)
             foreach (var (staging, runtime) in stagingToRuntime)
@@ -79,8 +80,8 @@ public sealed class StagingRemapView
     /// resolve to <i>whichever</i> entity happens to hold that number — 📌 the wrong-entity failure mode
     /// this whole mechanism exists to remove. ⭐ <c>0</c> means "not translatable", and the caller says so.</para>
     /// </summary>
-    public int ToRuntime(int stagingId)
-        => _stagingToRuntime.TryGetValue(stagingId, out var runtime) ? runtime : 0;
+    public int ToRuntime(Guid entityGuid)
+        => _stagingToRuntime.TryGetValue(entityGuid, out var runtime) ? runtime : 0;
 
     /// <summary>
     /// ⭐ The staging id that produced <paramref name="runtimeId"/>, or <c>0</c> when this entity did not
@@ -90,6 +91,6 @@ public sealed class StagingRemapView
     /// ⭐ <c>EntityBinding.IsPersistable</c> already reports exactly that, and the save path already
     /// skips-and-counts it.</para>
     /// </summary>
-    public int ToStaging(int runtimeId)
-        => _runtimeToStaging.TryGetValue(runtimeId, out var staging) ? staging : 0;
+    public Guid ToGuid(int runtimeId)
+        => _runtimeToStaging.TryGetValue(runtimeId, out var guid) ? guid : Guid.Empty;
 }

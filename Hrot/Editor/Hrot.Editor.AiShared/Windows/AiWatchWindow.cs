@@ -216,9 +216,9 @@ public sealed class AiWatchWindow : ManagedWindow, Variables.IVariableTableHost
         foreach (var (row, binding) in _pinned.PinnedWithBindings())
         {
             if (binding.Kind != EntityBindingKind.Concrete) continue;
-            if (binding.StagingNetworkId == 0) continue;   // ⚠ within-session pin — nothing durable to translate
+            if (binding.EntityGuid == Guid.Empty) continue;   // ⚠ within-session pin — nothing durable to translate
 
-            var entity = identity.EntityForStagingId(binding.StagingNetworkId);
+            var entity = identity.EntityForGuid(binding.EntityGuid);
 
             if (entity.Equals(default(Entity)))
             {
@@ -253,7 +253,7 @@ public sealed class AiWatchWindow : ManagedWindow, Variables.IVariableTableHost
     public EntityBinding BindingFor(Entity entity)
         => entity.Equals(default(Entity))
             ? EntityBinding.Chameleon
-            : EntityBinding.Concrete(_identity?.StagingIdOf(entity) ?? 0, entity);
+            : EntityBinding.Concrete(_identity?.GuidOf(entity) ?? Guid.Empty, entity);
 
     /// <summary>
     /// ⭐⭐⭐ <b><c>AQ55</c>'s <c>PinOnPickedEntity</c> — pin <paramref name="row"/> to an entity the

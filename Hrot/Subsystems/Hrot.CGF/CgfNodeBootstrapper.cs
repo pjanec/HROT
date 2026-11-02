@@ -38,7 +38,7 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
 {
     private readonly string _isolatedTempRoot;
     private readonly DiagnosticEventHistoryService _eventHistory;
-    private readonly Action<IReadOnlyDictionary<int, int>> _onStagingRemap;
+    private readonly Action<IReadOnlyDictionary<Guid, int>> _onStagingRemap;
 
     private BehaviorRegistry? _behaviorRegistry;
     private BlueprintRegistry? _blueprintRegistry;
@@ -46,7 +46,7 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
     private readonly Hrot.SimHost.NodeBootstrapper _nodeBootstrapper;
 
     public CgfNodeBootstrapper(INetworkFactory? networkFactory, string isolatedTempRoot, DiagnosticEventHistoryService eventHistory,
-                               Action<IReadOnlyDictionary<int, int>> onStagingRemap)
+                               Action<IReadOnlyDictionary<Guid, int>> onStagingRemap)
     {
         _isolatedTempRoot = isolatedTempRoot;
         _eventHistory     = eventHistory;
@@ -169,7 +169,7 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
         extractor.OnRemap = map =>
         {
             _onStagingRemap(map);
-            context.EventBus.PublishManaged(new StagingRemapPublishedEvent { StagingToRuntime = map, SourceNodeId = context.NodeId });
+            context.EventBus.PublishManaged(new StagingRemapPublishedEvent { GuidToRuntime = map, SourceNodeId = context.NodeId });
         };
 
         // CGF's own episode handler (the default ReferenceEpisodeLoadHandler would be a second one) — HN-037: authored ids come from the ONE allocator,

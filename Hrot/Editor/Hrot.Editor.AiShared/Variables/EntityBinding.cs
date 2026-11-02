@@ -1,3 +1,4 @@
+using System;
 using Fdp.Core;
 
 namespace Hrot.Editor.AiShared.Variables;
@@ -59,12 +60,12 @@ public enum EntityBindingKind
 /// </param>
 public readonly record struct EntityBinding(
     EntityBindingKind Kind,
-    int              StagingNetworkId,
+    Guid              EntityGuid,
     Entity            Captured)
 {
     /// <summary>⭐⭐ *"This variable, on whoever is selected."*</summary>
     public static EntityBinding Chameleon { get; } =
-        new(EntityBindingKind.Chameleon, 0, default);
+        new(EntityBindingKind.Chameleon, Guid.Empty, default);
 
     /// <summary>
     /// ⭐ *"This variable, on THIS entity."*
@@ -75,8 +76,8 @@ public readonly record struct EntityBinding(
     /// within-session. <see cref="IsPersistable"/> says so rather than the caller having to know.
     /// </param>
     /// </summary>
-    public static EntityBinding Concrete(int stagingNetworkId, Entity captured)
-        => new(EntityBindingKind.Concrete, stagingNetworkId, captured);
+    public static EntityBinding Concrete(Guid entityGuid, Entity captured)
+        => new(EntityBindingKind.Concrete, entityGuid, captured);
 
     /// <summary>
     /// ⭐⭐⭐ <b><c>BP-511</c> — the same binding, re-bound to a new load's entity.</b>
@@ -105,11 +106,11 @@ public readonly record struct EntityBinding(
     /// when its entity has an AUTHORED id; an editor-only or runtime-spawned entity has none, and a pin
     /// on it is a within-session pin. ⛔ Reported, never silently dropped.</para>
     /// </summary>
-    public bool IsPersistable => Kind == EntityBindingKind.Chameleon || StagingNetworkId != 0;
+    public bool IsPersistable => Kind == EntityBindingKind.Chameleon || EntityGuid != Guid.Empty;
 
     /// <summary>⭐ Short text for a tooltip or a header — ⛔ not a format anything parses.</summary>
     public override string ToString()
         => Kind == EntityBindingKind.Chameleon
             ? "chameleon (follows selection)"
-            : StagingNetworkId != 0 ? $"entity #{StagingNetworkId}" : "entity (no authored id)";
+            : EntityGuid != Guid.Empty ? $"entity {EntityGuid:D}" : "entity (no entity key)";
 }

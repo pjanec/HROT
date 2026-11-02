@@ -5053,7 +5053,7 @@ namespace Hrot.Editor
             bool published = false;
             foreach (var ev in _orchestrationBus.ReadManaged<Fdp.Toolkit.Orchestration.StagingRemapPublishedEvent>())
             {
-                _stagingRemap.Publish(ev.StagingToRuntime);
+                _stagingRemap.Publish(ev.GuidToRuntime);
                 published = true;
             }
             if (!published) return;

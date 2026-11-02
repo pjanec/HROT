@@ -62,7 +62,8 @@ public sealed class PinnedVariableEntry
     public string BindingKind  { get; set; } = "Concrete";
 
     /// <summary>⭐ The durable entity id for a concrete pin; <c>0</c> for a chameleon.</summary>
-    public int   NetworkId    { get; set; }
+    /// <summary>S8 prerequisite: the pinned entity's <c>EntityGuid</c> ("D" format; empty = within-session). Replaces the old authored <c>NetworkId</c> - no backward compatibility, an old pin is dropped.</summary>
+    public string EntityGuid  { get; set; } = "";
 }
 
 /// <summary>

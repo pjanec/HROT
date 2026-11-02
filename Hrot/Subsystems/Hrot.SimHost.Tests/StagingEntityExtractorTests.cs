@@ -181,14 +181,17 @@ namespace Hrot.SimHost.Tests
             var a = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(a, new SimTransform());
             _goldRepo.SetComponent(a, new NetworkIdentity(11));
+            _goldRepo.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();
+            _goldRepo.SetComponent(a, new Fdp.Toolkit.Scenario.EntityGuid(new Guid(11, 0, 0, new byte[8])));
             var b = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(b, new SimTransform());
             _goldRepo.SetComponent(b, new NetworkIdentity(22));
+            _goldRepo.SetComponent(b, new Fdp.Toolkit.Scenario.EntityGuid(new Guid(22, 0, 0, new byte[8])));
 
             var serializer = BuildSerializer();
             var json       = SerializeGoldRepo(_goldRepo, serializer);
 
-            IReadOnlyDictionary<int, int>? published = null;
+            IReadOnlyDictionary<Guid, int>? published = null;
             int calls = 0;
 
             var extractor = new StagingEntityExtractor
@@ -202,10 +205,10 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(2, published!.Count);
 
             // ⭐ AUTHORED id → RUNTIME id, in that direction.
-            Assert.Contains(11, published.Keys);
-            Assert.Contains(22, published.Keys);
+            Assert.Contains(new Guid(11, 0, 0, new byte[8]), published.Keys);
+            Assert.Contains(new Guid(22, 0, 0, new byte[8]), published.Keys);
             Assert.All(published.Values, v => Assert.InRange(v, 500, 501));
-            Assert.NotEqual(published[11], published[22]);
+            Assert.NotEqual(published[new Guid(11, 0, 0, new byte[8])], published[new Guid(22, 0, 0, new byte[8])]);
         }
 
         /// <summary>
@@ -222,7 +225,7 @@ namespace Hrot.SimHost.Tests
             var serializer = BuildSerializer();
             var json       = SerializeGoldRepo(_goldRepo, serializer);
 
-            IReadOnlyDictionary<int, int>? published = null;
+            IReadOnlyDictionary<Guid, int>? published = null;
             var extractor = new StagingEntityExtractor { OnRemap = map => published = map };
             extractor.Extract(serializer, json, new StubIdAllocator(500));
 
@@ -241,18 +244,20 @@ namespace Hrot.SimHost.Tests
             var a = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(a, new SimTransform());
             _goldRepo.SetComponent(a, new NetworkIdentity(11));
+            _goldRepo.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();
+            _goldRepo.SetComponent(a, new Fdp.Toolkit.Scenario.EntityGuid(new Guid(11, 0, 0, new byte[8])));
 
             var serializer = BuildSerializer();
             var json       = SerializeGoldRepo(_goldRepo, serializer);
 
-            IReadOnlyDictionary<int, int>? first = null;
+            IReadOnlyDictionary<Guid, int>? first = null;
             var extractor = new StagingEntityExtractor { OnRemap = map => first ??= map };
             extractor.Extract(serializer, json, new StubIdAllocator(500));
-            long firstRuntimeId = first![11];
+            long firstRuntimeId = first![new Guid(11, 0, 0, new byte[8])];
 
             // ⭐ A SECOND load allocates fresh ids; the first table must be unchanged by it.
             extractor.Extract(serializer, json, new StubIdAllocator(900));
-            Assert.Equal(firstRuntimeId, first[11]);
+            Assert.Equal(firstRuntimeId, first[new Guid(11, 0, 0, new byte[8])]);
         }
 
         // ── Test 1: Basic extraction — single root entity ─────────────────────────

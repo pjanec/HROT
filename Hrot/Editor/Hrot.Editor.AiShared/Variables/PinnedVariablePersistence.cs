@@ -72,7 +72,7 @@ public static class PinnedVariablePersistence
                 // ⭐⭐ BP-511 — the AUTHORED (staging) id, which is what makes the pin outlive a reload.
                 //    ⚠ The DTO field keeps its name (`NetworkId`) on purpose: it is a FILE FORMAT, and
                 //    renaming it would orphan every session file for a rename that changes nothing.
-                NetworkId    = binding.StagingNetworkId,
+                EntityGuid   = binding.EntityGuid == System.Guid.Empty ? "" : binding.EntityGuid.ToString("D"),   // S8 prerequisite: the pin is keyed on the entity's GUID, never a network id
             });
         }
 
@@ -121,7 +121,7 @@ public static class PinnedVariablePersistence
             var binding = kind == EntityBindingKind.Chameleon
                 ? EntityBinding.Chameleon
                 // ⛔ default(Entity): the handle is NOT in the file. The caller resolves NetworkId.
-                : EntityBinding.Concrete(e.NetworkId, default);   // ⭐ e.NetworkId holds the AUTHORED id (BP-511)
+                : EntityBinding.Concrete(Guid.TryParse(e.EntityGuid, out var g) ? g : Guid.Empty, default);   // ⭐ e.NetworkId holds the AUTHORED id (BP-511)
 
             pins.Add(new RestoredPin(e.AssetId, e.Section, e.VariablePath, e.AssetName, binding));
         }

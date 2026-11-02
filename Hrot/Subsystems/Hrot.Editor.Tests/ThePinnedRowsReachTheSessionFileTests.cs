@@ -109,9 +109,9 @@ public sealed class ThePinnedRowsReachTheSessionFileTests
         var blueprint = Registrar("Blueprint");
 
         btree.Watch!.Pinned.Pin(Row(AssetA, Ent(1), "Health"),
-                                EntityBinding.Concrete(11, Ent(1)));
+                                EntityBinding.Concrete(new System.Guid(11, 0, 0, new byte[8]), Ent(1)));
         hsm.Watch!.Pinned.Pin(Row(AssetB, Ent(2), "Ammo"),
-                              EntityBinding.Concrete(22, Ent(2)));
+                              EntityBinding.Concrete(new System.Guid(22, 0, 0, new byte[8]), Ent(2)));
         blueprint.Watch!.Pinned.Pin(Row(AssetA, default, "Speed"), EntityBinding.Chameleon);
 
         var path = TempFile();
@@ -122,11 +122,11 @@ public sealed class ThePinnedRowsReachTheSessionFileTests
         Assert.Equal(3, file!.PinnedVariables.Count);
 
         Assert.Contains(file.PinnedVariables,
-                        e => e.VariablePath == "Health" && e.NetworkId == 11 && e.BindingKind == "Concrete");
+                        e => e.VariablePath == "Health" && e.EntityGuid == new System.Guid(11, 0, 0, new byte[8]).ToString("D") && e.BindingKind == "Concrete");
         Assert.Contains(file.PinnedVariables,
-                        e => e.VariablePath == "Ammo"   && e.NetworkId == 22 && e.BindingKind == "Concrete");
+                        e => e.VariablePath == "Ammo"   && e.EntityGuid == new System.Guid(22, 0, 0, new byte[8]).ToString("D") && e.BindingKind == "Concrete");
         Assert.Contains(file.PinnedVariables,
-                        e => e.VariablePath == "Speed"  && e.NetworkId == 0  && e.BindingKind == "Chameleon");
+                        e => e.VariablePath == "Speed"  && e.EntityGuid == ""  && e.BindingKind == "Chameleon");
 
         // ⭐ …and it round-trips back into bindings, which is what a restore will consume.
         var restored = PinnedVariablePersistence.Restore(file, out int skipped);
@@ -143,9 +143,9 @@ public sealed class ThePinnedRowsReachTheSessionFileTests
     public void AnUnpersistablePinIsSkippedWithoutLosingTheOthers()
     {
         var btree = Registrar("BTree");
-        btree.Watch!.Pinned.Pin(Row(AssetA, Ent(1), "Health"), EntityBinding.Concrete(11, Ent(1)));
+        btree.Watch!.Pinned.Pin(Row(AssetA, Ent(1), "Health"), EntityBinding.Concrete(new System.Guid(11, 0, 0, new byte[8]), Ent(1)));
         // ⛔ NetworkId 0 on a CONCRETE binding — an editor-only entity.
-        btree.Watch!.Pinned.Pin(Row(AssetA, Ent(9), "EditorOnly"), EntityBinding.Concrete(0, Ent(9)));
+        btree.Watch!.Pinned.Pin(Row(AssetA, Ent(9), "EditorOnly"), EntityBinding.Concrete(new System.Guid(0, 0, 0, new byte[8]), Ent(9)));
 
         var path = TempFile();
         EditorSubsystem.WriteDebugSession(null, null, new[] { btree }, path);

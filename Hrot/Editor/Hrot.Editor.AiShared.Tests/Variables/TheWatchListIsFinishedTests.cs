@@ -110,7 +110,7 @@ public sealed class TheWatchListIsFinishedTests
         var pinned = new PinnedVariableRowSource();
         var target = Ent(7);
 
-        pinned.Pin(Row(AssetA, target, "Health", "Alpha"), EntityBinding.Concrete(4242, target));
+        pinned.Pin(Row(AssetA, target, "Health", "Alpha"), EntityBinding.Concrete(new System.Guid(4242, 0, 0, new byte[8]), target));
         pinned.Pin(Row(AssetB, target, "Ammo",   "Bravo"), EntityBinding.Chameleon);
 
         var rows = pinned.GetRows();
@@ -121,7 +121,7 @@ public sealed class TheWatchListIsFinishedTests
         // ⭐ The concrete row is pinned to the entity that was selected — it does not move.
         Assert.Equal(target, concrete.Origin.Entity);
         Assert.Equal(EntityBindingKind.Concrete, pinned.BindingOf(concrete.Origin)!.Value.Kind);
-        Assert.Equal(4242, pinned.BindingOf(concrete.Origin)!.Value.StagingNetworkId);
+        Assert.Equal(new System.Guid(4242, 0, 0, new byte[8]), pinned.BindingOf(concrete.Origin)!.Value.EntityGuid);
 
         // ⭐⭐ The chameleon carries the SENTINEL, which is what makes it follow the selection downstream.
         Assert.Equal(default(Entity), chameleon.Origin.Entity);
@@ -172,7 +172,7 @@ public sealed class TheWatchListIsFinishedTests
     public void APinnedRowSurvivesSaveAndReload()
     {
         var pinned = new PinnedVariableRowSource();
-        pinned.Pin(Row(AssetA, Ent(7), "Health", "Alpha"), EntityBinding.Concrete(4242, Ent(7)));
+        pinned.Pin(Row(AssetA, Ent(7), "Health", "Alpha"), EntityBinding.Concrete(new System.Guid(4242, 0, 0, new byte[8]), Ent(7)));
         pinned.Pin(Row(AssetB, default, "Ammo",  "Bravo"), EntityBinding.Chameleon);
 
         var entries = PinnedVariablePersistence.Capture(pinned, out int skipped);
@@ -200,13 +200,13 @@ public sealed class TheWatchListIsFinishedTests
             Assert.Equal(AssetA, concrete.AssetId);
             Assert.Equal("Alpha", concrete.AssetName);
             Assert.Equal(EntityBindingKind.Concrete, concrete.Binding.Kind);
-            Assert.Equal(4242, concrete.Binding.StagingNetworkId);
+            Assert.Equal(new System.Guid(4242, 0, 0, new byte[8]), concrete.Binding.EntityGuid);
             // ⛔ The in-session handle is NOT in the file — the caller resolves NetworkId.
             Assert.Equal(default(Entity), concrete.Binding.Captured);
 
             var chameleon = restored.Single(p => p.VariablePath == "Ammo");
             Assert.Equal(EntityBindingKind.Chameleon, chameleon.Binding.Kind);
-            Assert.Equal(0, chameleon.Binding.StagingNetworkId);
+            Assert.Equal(System.Guid.Empty, chameleon.Binding.EntityGuid);
         }
         finally
         {
@@ -243,7 +243,7 @@ public sealed class TheWatchListIsFinishedTests
         file.PinnedVariables.Add(new PinnedVariableEntry
         {
             AssetId = AssetA, Section = "s", VariablePath = "Health",
-            BindingKind = "SomethingFromTheFuture", NetworkId = 7,
+            BindingKind = "SomethingFromTheFuture", EntityGuid = "00000007-0000-0000-0000-000000000000",
         });
 
         var restored = PinnedVariablePersistence.Restore(file, out int dropped);

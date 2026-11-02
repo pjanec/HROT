@@ -308,7 +308,7 @@ public sealed class PinnedVariableRowSource : IVariableRowSource
             ? EntityBinding.Chameleon
             // ⚠ NetworkId 0: an inferred pin has no id source. It is a within-session pin, and
             //   IsPersistable reports that rather than the save path guessing.
-            : EntityBinding.Concrete(0, row.Origin.Entity));
+            : EntityBinding.Concrete(Guid.Empty, row.Origin.Entity));
 
         var stored = bind.OriginEntity.Equals(row.Origin.Entity)
             ? row
@@ -328,7 +328,7 @@ public sealed class PinnedVariableRowSource : IVariableRowSource
     /// <summary>⭐ Every pinned row with its binding — what the persistence layer saves.</summary>
     public IReadOnlyList<(VariableRow Row, EntityBinding Binding)> PinnedWithBindings()
         => _pinned.Select(r => (r, _bindings.TryGetValue(r.Origin.Key, out var b)
-                                   ? b : EntityBinding.Concrete(0, r.Origin.Entity))).ToList();
+                                   ? b : EntityBinding.Concrete(Guid.Empty, r.Origin.Entity))).ToList();
 
     public bool Unpin(VariableRowOrigin origin)
     {

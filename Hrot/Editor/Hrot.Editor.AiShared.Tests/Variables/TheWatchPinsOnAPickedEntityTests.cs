@@ -75,7 +75,7 @@ public sealed class TheWatchPinsOnAPickedEntityTests
         => Registrar(picker).Watch!;
 
     private static WatchEntityPicker Picks(Entity entity, int networkId = PickedNetworkId)
-        => _ => Task.FromResult<EntityBinding?>(EntityBinding.Concrete(networkId, entity));
+        => _ => Task.FromResult<EntityBinding?>(EntityBinding.Concrete(new System.Guid(networkId, 0, 0, new byte[8]), entity));
 
     // ══ the gesture itself ══════════════════════════════════════════════════════
 
@@ -94,7 +94,7 @@ public sealed class TheWatchPinsOnAPickedEntityTests
 
         var (row, binding) = Assert.Single(watch.Pinned.PinnedWithBindings());
         Assert.Equal(EntityBindingKind.Concrete, binding.Kind);
-        Assert.Equal(PickedNetworkId, binding.StagingNetworkId);
+        Assert.Equal(new System.Guid(PickedNetworkId, 0, 0, new byte[8]), binding.EntityGuid);
         Assert.Equal(Ent(7), binding.Captured);
         Assert.Equal(Ent(7), row.Origin.Entity);
         Assert.True(binding.IsPersistable);
