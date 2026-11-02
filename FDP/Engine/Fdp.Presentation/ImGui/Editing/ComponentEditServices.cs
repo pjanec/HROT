@@ -63,5 +63,6 @@ namespace Fdp.Presentation.Editing
             => _inner.TryConsumeLocationPick(Path(jsonPath), out location);
         public bool CanListEntities => _inner.CanListEntities;   // ⭐ CE-1059
         public void RequestEntityListPick(string jsonPath, string[]? filterPresets) => _inner.RequestEntityListPick(Path(jsonPath), filterPresets);
+        public Fdp.Toolkit.Scenario.LiveRefScope? References => _inner.References;   // ⭐ CE-4206 — a form's view shares the host's scope
     }
 }

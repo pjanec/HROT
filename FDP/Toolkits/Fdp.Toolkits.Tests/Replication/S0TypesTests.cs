@@ -131,6 +131,7 @@ namespace Fdp.Toolkits.Tests.Replication
             Assert.Equal("{\"NetworkId\":9812,\"Ref\":\"@BlueHQ\"}", Json(new EntityLink(new EntityRef(9812), RefSpec.ByKey("BlueHQ"))));
             var both = new EntityLink(new EntityRef(9812), RefSpec.ByExact(g));
             Assert.Equal(both, Read<EntityLink>(Json(both)));                                                    // every output reads back
+            Assert.Equal($"{{\"NetworkId\":9812,\"Ref\":\"{g:D}\"}}", Json(both));                                // ⭐ CE-4206 R1: what an Exact pick saves — the GUID form (S9′)
             Assert.Throws<JsonException>(() => Read<EntityLink>("\"BlueHQ\""));                                  // no @, not a GUID: loud
         }
 

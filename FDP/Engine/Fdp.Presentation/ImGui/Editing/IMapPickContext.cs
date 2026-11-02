@@ -44,5 +44,12 @@ namespace Fdp.Presentation.Editing
         /// <summary>⭐ <c>CE-1059</c> — opens the entity list for the field at <paramref name="jsonPath"/>, narrowed by
         /// <paramref name="filterPresets"/> as a map pick is. A no-op where <see cref="CanListEntities"/> is false.</summary>
         void RequestEntityListPick(string jsonPath, string[]? filterPresets) { }
+
+        /// <summary>
+        /// ⭐ <c>CE-4206</c> R1 (DESIGN_Map_Picking_Unification §6.2, F2) — the LIVE reference scope of the world this surface edits: the names, GUIDs and keys the
+        /// reference leaves (<c>EntityLink</c>, <c>PointLink</c>) show and write. <see langword="null"/> (the default) for a host with no repository
+        /// (ExCon over DDS): the leaves then draw the plain forms, honestly.
+        /// </summary>
+        Fdp.Toolkit.Scenario.LiveRefScope? References => null;
     }
 }

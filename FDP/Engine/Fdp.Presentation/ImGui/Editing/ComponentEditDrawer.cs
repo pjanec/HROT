@@ -23,6 +23,7 @@ public sealed class ComponentEditDrawer
     private readonly IMapPickContext? _pickerCtx;
     private readonly IReadOnlyDictionary<Type, IImGuiFieldDrawer> _customDrawers;
     private readonly ISpatialPickerContext? _spatialPickerCtx;
+    private readonly ReferenceLeafDrawers.State _refState = new();   // ⭐ CE-4206 — the form a person switched a link field to, the key being typed
 
     public ComponentEditDrawer(
         IEditSession session,
@@ -293,24 +294,24 @@ public sealed class ComponentEditDrawer
         float inputWidth = ImGuiApi.GetContentRegionAvail().X;
         if (canDelete) inputWidth -= 30f;
 
-        // ⭐ DESIGN_Entity_Reference D5 — the TYPE makes a field pickable; the attribute only narrows the pick.
-        // ⭐ S0 item 5 (SR-140): an AUTHORED reference (EntityLink) is picked by its TYPE exactly like the internal EntityRef.
-        bool isEntityRef = node.ClrType == typeof(EntityRef) || node.ClrType == typeof(Fdp.Toolkit.Replication.EntityLink);
-        var entityAttr = node.Metadata.CustomAttributes.OfType<MapPickableEntityAttribute>().FirstOrDefault();
-        if (isEntityRef && _pickerCtx != null) inputWidth -= _pickerCtx.CanListEntities ? 140f : 90f;   // ⭐ CE-1059 — + List…
+        bool changed;
+        if (ReferenceLeafDrawers.Handles(node.ClrType))
+        {
+            // ⭐ CE-4206 R1 (F1) — the reference types (EntityLink, PointLink, EntityRef, WorldPoint) are drawn by ONE class, one method per type:
+            //   the TYPE makes the field pickable (DESIGN_Entity_Reference D5, DESIGN_Map_Picking_Unification P5); the attribute only narrows the pick.
+            changed = ReferenceLeafDrawers.Draw(node, canDelete ? 30f : 0f, _pickerCtx, _refState);
+        }
+        else
+        {
+            if (inputWidth < 60f) inputWidth = 60f;
+            ImGuiApi.SetNextItemWidth(inputWidth);
 
-        // ⭐ DESIGN_Map_Picking_Unification P5 + S0 item 5 (SR-135) — a PointLink (authored place) or a WorldPoint (internal place) is a pickable world location by its TYPE.
-        bool isLocation = node.ClrType == typeof(Fdp.Toolkit.Replication.PointLink) || node.ClrType == typeof(Fdp.Core.WorldPoint);
-        if (isLocation && _pickerCtx != null) inputWidth -= 90f;
+            object value = node.Binding?.GetBoxed() ?? GetDefaultForType(node.ClrType);
+            changed = DrawPrimitiveInput(node.ClrType, ref value, node);
 
-        if (inputWidth < 60f) inputWidth = 60f;
-        ImGuiApi.SetNextItemWidth(inputWidth);
-
-        object value = node.Binding?.GetBoxed() ?? GetDefaultForType(node.ClrType);
-        bool changed = DrawPrimitiveInput(node.ClrType, ref value, node);
-
-        if (changed)
-            node.Binding?.SetBoxed(value);
+            if (changed)
+                node.Binding?.SetBoxed(value);
+        }
 
         // Delete button for resizable array elements.
         if (canDelete)
@@ -320,63 +321,6 @@ public sealed class ComponentEditDrawer
             {
                 RemoveElementAtIndex(parentContainer!, elementIndex);
                 _session.MarkStructuralChange();
-            }
-        }
-
-        // Picker: entity reference.
-        if (isEntityRef && _pickerCtx != null)
-        {
-            ImGuiApi.SameLine();
-            if (_pickerCtx.IsPickPendingFor(node.JsonPath))
-            {
-                ImGuiApi.TextColored(new Vector4(1f, 1f, 0f, 1f), "[Picking...]");
-            }
-            else
-            {
-                if (ImGuiApi.Button($"Pick Entity##{node.Id.Value}"))
-                    _pickerCtx.RequestEntityPick(
-                        node.JsonPath,
-                        entityAttr is { FilterPresets.Length: > 0 } ? entityAttr.FilterPresets : null);
-                // ⭐ CE-1059 (DESIGN_Orders_Params_Entity_Classes §13.12 O3) — or choose it from a searchable list, narrowed by the
-                //   same presets; the choice comes back through the same TryConsumeEntityPick.
-                if (_pickerCtx.CanListEntities)
-                {
-                    ImGuiApi.SameLine();
-                    if (ImGuiApi.Button($"List…##{node.Id.Value}"))
-                        _pickerCtx.RequestEntityListPick(
-                            node.JsonPath,
-                            entityAttr is { FilterPresets.Length: > 0 } ? entityAttr.FilterPresets : null);
-                }
-            }
-
-            if (_pickerCtx.TryConsumeEntityPick(node.JsonPath, out var picked))
-            {
-                // a picked entity writes a bare reference: new EntityLink(new EntityRef(id)) for an authored field, the EntityRef itself otherwise
-                if (node.ClrType == typeof(Fdp.Toolkit.Replication.EntityLink)) node.Binding?.SetBoxed(new Fdp.Toolkit.Replication.EntityLink(picked));
-                else node.Binding?.SetBoxed(picked);
-                changed = true;
-            }
-        }
-
-        // Picker: world location.
-        if (isLocation && _pickerCtx != null)
-        {
-            ImGuiApi.SameLine();
-            if (_pickerCtx.IsPickPendingFor(node.JsonPath))
-            {
-                ImGuiApi.TextColored(new Vector4(1f, 1f, 0f, 1f), "[Picking...]");
-            }
-            else if (ImGuiApi.Button($"Pick Map##{node.Id.Value}"))
-            {
-                _pickerCtx.RequestLocationPick(node.JsonPath);
-            }
-
-            if (_pickerCtx.TryConsumeLocationPick(node.JsonPath, out var location))
-            {
-                // a picked point writes coordinates: new PointLink(local) for an authored field, the WorldPoint itself otherwise
-                if (node.ClrType == typeof(Fdp.Core.WorldPoint)) node.Binding?.SetBoxed(location.Local);
-                else node.Binding?.SetBoxed(location);
-                changed = true;
             }
         }
 
@@ -437,41 +381,6 @@ public sealed class ComponentEditDrawer
 
         var meta = node.Metadata;
 
-        if (type == typeof(Fdp.Toolkit.Replication.PointLink) || type == typeof(Fdp.Core.WorldPoint))
-        {
-            // ⭐ S0 item 5 (SR-135) — a place in LOCAL METRES (x, y, z), typed in or set by the map picker; typed coordinates are a literal (no authored reference).
-            var local = value is Fdp.Toolkit.Replication.PointLink pl ? (Vector3)pl.Local : value is Fdp.Core.WorldPoint wp ? (Vector3)wp : default;
-            float third = (ImGuiApi.CalcItemWidth() - 8f) / 3f;
-            bool changedX, changedY, changedZ;
-            ImGuiApi.SetNextItemWidth(third);
-            changedX = ImGuiApi.InputFloat("##x", ref local.X, 0, 0, "%.2f");
-            ImGuiApi.SameLine(0f, 4f);
-            ImGuiApi.SetNextItemWidth(third);
-            changedY = ImGuiApi.InputFloat("##y", ref local.Y, 0, 0, "%.2f");
-            ImGuiApi.SameLine(0f, 4f);
-            ImGuiApi.SetNextItemWidth(third);
-            changedZ = ImGuiApi.InputFloat("##z", ref local.Z, 0, 0, "%.2f");
-            if (changedX || changedY || changedZ)
-            {
-                value = type == typeof(Fdp.Core.WorldPoint) ? (object)(Fdp.Core.WorldPoint)local : new Fdp.Toolkit.Replication.PointLink(local);
-                return true;
-            }
-            return false;
-        }
-
-        if (type == typeof(Fdp.Toolkit.Replication.EntityLink))
-        {
-            // ⭐ S0 item 5 (SR-140) — the authored reference's ANSWER (the network id), typed in or set by the picker; 0 = none. A typed id is a bare reference.
-            string text = value is Fdp.Toolkit.Replication.EntityLink el ? el.Ref.NetworkId.ToString() : "0";
-            bool typed = ImGuiApi.InputText("##v", ref text, 64);
-            if (typed && int.TryParse(text, out int id))
-            {
-                value = new Fdp.Toolkit.Replication.EntityLink(new EntityRef(id));
-                return true;
-            }
-            return false;
-        }
-
         if (type == typeof(Fdp.Toolkit.Utility.UtilityDecisionRef))
         {
             // ⭐ CE-2068 (R-184) — the TYPE makes the field pickable: the authored decisions, by display name.
@@ -494,19 +403,6 @@ public sealed class ComponentEditDrawer
                 ImGuiApi.EndCombo();
             }
             return picked;
-        }
-
-        if (type == typeof(EntityRef))
-        {
-            // The network id, typed in or set by the picker; 0 = none.
-            string strVal = value is EntityRef r ? r.NetworkId.ToString() : "0";
-            bool ok = ImGuiApi.InputText("##v", ref strVal, 64);
-            if (ok && int.TryParse(strVal, out int parsed))
-            {
-                value = new EntityRef(parsed);
-                return true;
-            }
-            return false;
         }
 
         if (type == typeof(float))

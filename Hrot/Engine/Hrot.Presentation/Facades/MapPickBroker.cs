@@ -33,6 +33,11 @@ public sealed class MapPickBroker : IMapPickContext
     public MapPickBroker(Func<Hrot.UI.Common.Facades.IMapPickService?> pickService)
         => _pickService = pickService ?? throw new ArgumentNullException(nameof(pickService));
 
+    /// <summary>⭐ <c>CE-4206</c> R1 (F2) — the live reference scope the reference leaves read: set explicitly, else the pick service's
+    /// (<see cref="Hrot.UI.Common.Facades.IMapPickService.References"/> — the canvas adapter builds one over the repository it holds).</summary>
+    public Fdp.Toolkit.Scenario.LiveRefScope? References { get => _references ?? _pickService()?.References; set => _references = value; }
+    private Fdp.Toolkit.Scenario.LiveRefScope? _references;
+
     /// <summary><c>true</c> while an entity pick is in flight (for any path).</summary>
     public bool IsEntityPickPending => _entityPickTask is { IsCompleted: false };
 

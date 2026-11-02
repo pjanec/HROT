@@ -1011,6 +1011,26 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.Equal(lon, picked.Longitude, 9);
         }
 
+        /// <summary>⭐ CE-4206 R1 (F2) — the broker over an adapter that holds a repository carries the live reference scope (names, GUIDs, keys for the link
+        /// leaves); without a repository it carries none; an explicit scope wins. Red-proof: <c>CanvasMapPickAdapter.References</c> returning null ⇒ red.</summary>
+        [Fact]
+        public void CE4206_TheBrokerCarriesTheLiveReferenceScope_OfTheRepositoryItsAdapterHolds()
+        {
+            using var world = new EntityRepository();
+            var withRepo = new CanvasMapPickAdapter(_canvas, world);
+            var broker = new Hrot.Presentation.Facades.MapPickBroker(withRepo);
+            Assert.NotNull(broker.References);
+            Assert.Same(withRepo.References, broker.References);                    // one scope per adapter, not one per read
+
+            Assert.Null(new Hrot.Presentation.Facades.MapPickBroker(new CanvasMapPickAdapter(_canvas)).References);   // no repository (ExCon-like) ⇒ plain forms
+
+            var explicitScope = new Fdp.Toolkit.Scenario.LiveRefScope(world);
+            Assert.Same(explicitScope, new Hrot.Presentation.Facades.MapPickBroker(withRepo) { References = explicitScope }.References);
+
+            // a form's scoped view of the broker shares it
+            Assert.Same(broker.References, new Fdp.Presentation.Editing.ScopedMapPickContext(broker, "$.tasks[0]").References);
+        }
+
         /// <summary>⭐ A host that publishes the transform as a world singleton (SimHost) gets geodetic picks without
         /// passing it.</summary>
         [Fact]

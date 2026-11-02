@@ -18,6 +18,12 @@ public interface IMapPickService
     /// Optional cancellation token. When cancelled the returned task transitions
     /// to a <see cref="TaskCanceledException"/> fault.
     /// </param>
+    /// <summary>
+    /// ⭐ <c>CE-4206</c> R1 — the live reference scope over the repository this service picks in (names, GUIDs, keys for the reference leaves);
+    /// <see langword="null"/> for a service with no repository. <c>MapPickBroker.References</c> reads it.
+    /// </summary>
+    Fdp.Toolkit.Scenario.LiveRefScope? References => null;
+
     Task<Hrot.Core.Mission.GeoPoint> PickLocationAsync(CancellationToken ct = default);
 
     /// <summary>
