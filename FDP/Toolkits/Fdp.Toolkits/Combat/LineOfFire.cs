@@ -105,6 +105,26 @@ namespace Fdp.Toolkit.Combat
             return TerrainPenetration.Carry(terrain, origin, end, ref damage, ref penetration, out _);
         }
 
+        /// <summary>
+        /// ⭐ CE-2379 — the horizontal radius within which a round can strike <paramref name="e"/>: his collider radius, and for a PERSON also
+        /// the reach of his CURRENT pose's body-part boxes (scaled by his height as <c>BodyPartRay.Person</c> scales) plus his lean shift —
+        /// a round meets a man by his parts, so an arm reaches past the collider (Bridgehead Red-on-Red, backend's report).
+        /// </summary>
+        public static float StrikeRadius(EntityRepository world, Entity e)
+        {
+            var collider = world.GetComponentRO<PhysicsCollider>(e);
+            float r = collider.Radius;
+            if (!PhysicsColliderReaders.IsPerson(world, e)) return r;
+            var pose = Fdp.Toolkit.Physics.BodyParts.PersonBody.PoseOf(world, e);
+            float reach = Fdp.Toolkit.Physics.BodyParts.PersonBody.HorizontalReach(pose) * Fdp.Toolkit.Physics.BodyParts.PersonBody.ScaleOf(collider.Height);
+            if (pose != Fdp.Toolkit.Physics.BodyParts.PersonPose.Downed)
+            {
+                var stance = Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(world, e);
+                if (Leans.SignOf(world, e, stance) != 0) reach += Leans.ShiftOf(world, e);
+            }
+            return MathF.Max(r, reach);
+        }
+
         private static bool Blocked(EntityRepository world, Entity shooter, Entity target, Vector3 b3)
         {
             if (!world.IsComponentTypeRegistered<PhysicsCollider>() || !world.IsComponentTypeRegistered<EntityInfo>()) return false;
@@ -127,6 +147,7 @@ namespace Fdp.Toolkit.Combat
                 if (PhysicsColliderReaders.IsPerson(world, e) && !Injury.IsInTheFight(world, e)) continue;
                 float r = world.GetComponentRO<PhysicsCollider>(e).Radius;
                 if (r <= 0f) continue;
+                r = StrikeRadius(world, e);
                 var p3 = world.GetComponentRO<SimTransform>(e).Position;
                 var ap = new Vector2(p3.X, p3.Y) - a;
                 float t = Vector2.Dot(ap, ab) / len2;
@@ -159,7 +180,7 @@ namespace Fdp.Toolkit.Combat
                 var ap = new Vector2(p3.X, p3.Y) - a;
                 float t = Vector2.Dot(ap, ab) / len2;
                 if (t <= 0f || t >= 1f) continue;                 // behind the shooter or beyond the target
-                float r = world.GetComponentRO<PhysicsCollider>(e).Radius + MathF.Max(0f, sigma) * t * len;
+                float r = StrikeRadius(world, e) + MathF.Max(0f, sigma) * t * len;
                 if (Vector2.DistanceSquared(ab * t, ap) < r * r) return true;
             }
             return false;

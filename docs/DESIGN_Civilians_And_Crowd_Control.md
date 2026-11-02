@@ -1170,6 +1170,8 @@ sight test uses the same 0.3 m collider), so no aimed shot is ever ready (the tw
 hold's own case is the NEAR MISS: a neutral beside the line, inside the spread. Pedestrians also keep ~1 m from each other, so a crowd
 packed closer than that spreads out.
 
+> ⭐ **CE-2379 (`2026-11-02`)** — the neutral's radius in this test is `LineOfFire.StrikeRadius` (collider radius, or his pose's body-part reach + lean shift if larger) plus the spread, as the friendly hold; see `designs/brain-split/BS-1-DESIGN.md` §5.1a.
+
 ### 5h.2 AS-BUILT — CV-13a, hands up holds fire *(behaviors, `CE-2241` ①, 2026-10-17)*
 
 ⭐ **Built exactly where CV-13a's owner column puts it, beside the CE-2233 neutral gate:** `ThreatDanger.ShowsHandsUp(view, target)`
