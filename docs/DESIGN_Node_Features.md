@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-build-state: S1 ⏸ DESIGN again (2026-11-02 — §7 F-21…F-26, a config per feature, awaits the user; it changes S1's wire, payload and recording) · was READY-TO-BUILD (2026-11-01, §4 F-13…F-18 ✅ ACCEPTED — user: "Approved.") · the model AGREED by the user 2026-10-31 ("Good, this sounds like what is needed", "Yes, please write it down") · S2, S3 DESIGN
+build-state: S1 READY-TO-BUILD (2026-11-02 — with §7 F-21…F-26 ✅ accepted: a config per feature; §7 + §7.1 supersede §6.5's `bool On`, `FeaturesAtLoad` string[] and F-15/F-16's shapes) · first READY 2026-11-01 ( §4 F-13…F-18 ✅ ACCEPTED — user: "Approved.") · the model AGREED by the user 2026-10-31 ("Good, this sounds like what is needed", "Yes, please write it down") · S2, S3 DESIGN
 updated: 2026-11-01 (S1 made buildable: the gate, the two delivery paths, the recording, the first two features — coordinator)
-current-answer: ⭐ §7 a feature carries a CONFIG (F-21…F-26, draft) · §2 the three tiers · §3 the diagrams · §4 decisions F-1…F-18 · §5 slices (S1 buildable) · ⭐ §6 the S1 technical spec (catalogue, C# shapes, where it lives, speed, wire, recording + going live)
+current-answer: ⭐ §7 a feature carries a CONFIG (F-21…F-26 ✅) + §7.1 what travels, worked example · §2 the three tiers · §3 the diagrams · §4 decisions F-1…F-18 · §5 slices (S1 buildable) · ⭐ §6 the S1 technical spec (catalogue, C# shapes, where it lives, speed, wire, recording + going live)
 stale-below: nothing
-known-rot: none
+known-rot: §6.2 / §6.5 / §6.6 still show the switch-only shapes (`bool On`, `string[] FeaturesAtLoad`, `FeaturesAtLoad` in the recording) — §7 (F-21…F-26) and §7.1 supersede them; S1 builds §7's shapes
 known-conflict: none
 related-designs:
   - docs/DESIGN_Scenario_Macros.md — OWNS scenario macros (the expander, macro files, params + bindings, RefKey scoping); F-19: the expander is core, never behind a switch
@@ -208,7 +208,7 @@ the same path `MapInLoad` takes today — so a run cannot change outcome-affecti
 
 | slice | builds | done when |
 |---|---|---|
-| **S1** ⭐ READY-TO-BUILD | `FeatureDeclaration` on `INodeCapability`, `FeatureRegistry`, `NodeFeatures` (`IFeatureGate`), `[NodeFeature]` + the `SystemScheduler` gate (F-13), `--feature`, `FeatureOverrides` on the run settings + the cluster facts + `ClusterView` (F-16), `FeaturesAtLoad` in the load payload (F-14) and in `RecordingMetadata` (F-15), the availability tokens, `FeaturesOn` on the heartbeat; **`map3d.in-load` migrated** (`MapInLoad` / `MapInLoadNodes` deleted) | a Player builds its 3-D map in the load exactly as today (the R-1046 / CE-3354 ③ rails unchanged, re-pointed); an override switches it on a named node at the next load; an override for a node without the feature is refused; a `[NodeFeature]` system is skipped while off (a rail beside the TickMode rails); a branch to live re-applies the recorded set; rails: every literal is declared, every `[NodeFeature]` id is declared |
+| **S1** ⭐ READY-TO-BUILD *(with §7: config types, `OverlayFlat` layers, partial-JSON overrides, `FeatureConfigsAtLoad`, `Config<T>`, `GET /features` with `source`)* | `FeatureDeclaration` on `INodeCapability`, `FeatureRegistry`, `NodeFeatures` (`IFeatureGate`), `[NodeFeature]` + the `SystemScheduler` gate (F-13), `--feature`, `FeatureOverrides` on the run settings + the cluster facts + `ClusterView` (F-16), `FeaturesAtLoad` in the load payload (F-14) and in `RecordingMetadata` (F-15), the availability tokens, `FeaturesOn` on the heartbeat; **`map3d.in-load` migrated** (`MapInLoad` / `MapInLoadNodes` deleted) | a Player builds its 3-D map in the load exactly as today (the R-1046 / CE-3354 ③ rails unchanged, re-pointed); an override switches it on a named node at the next load; an override for a node without the feature is refused; a `[NodeFeature]` system is skipped while off (a rail beside the TickMode rails); a branch to live re-applies the recorded set; rails: every literal is declared, every `[NodeFeature]` id is declared |
 | **S2** | the HUD features: `hud.hit-marker`, `hud.damage-arc`, `hud.kill-cam`, `hud.squad-takeover-after-death`, `hud.spread-ring`, `hud.near-miss` (CE-4148; Player Join §7a G1–G6) + the `FeatureGridPanel` | with each OFF nothing of it is drawn or recorded on any host; defaults: ON for `-m player`, OFF elsewhere (G5/G6 lean ON everywhere) |
 | **S3** | `gameplay.deploy-server` (Player Join D-3): "a server exists" = a node with the feature available AND on | a Player observes when no node has it on (R-4103) |
 
@@ -325,7 +325,7 @@ use `string[]` because they are JSON. ⭐ Lean: NEW topic fields use the typed s
 | a node that kept no recording | takes the master's current overrides, as on a fresh load | — |
 | a recorded feature this build does not declare | the branch is REFUSED loudly (*"recording needs feature X, not available on node Y"*) — ⛔ never a silent different run | the PrepareLive answer |
 
-## 7. A feature carries a CONFIGURATION, not just a switch *(`2026-11-02` — leans F-21 … F-26 await the user; S1 is not built yet, so this changes its spec, not code)*
+## 7. A feature carries a CONFIGURATION, not just a switch *(`2026-11-02` — ✅ F-21 … F-26 ACCEPTED — user: *"Accepted"*; S1 was not built, so this changed its spec, not code)*
 
 > 🔒 **User, `2026-11-02`:** *"I was thinking about whether the feature on/off setting is not just a reduced form of some wider feature
 > configuration and whether it could not be generalized as such (and transported as json object), if each feature can come with its json
@@ -377,3 +377,36 @@ existing flat overlay applies in order — so the precedence, the editor and the
 - *A free JSON blob read by the system itself* — untyped, parsed on the frame path, and no editor can draw it.
 - *Managed config classes* — recorded and read every frame; an unmanaged struct costs nothing in replay.
 - *Deep merge of nested objects* — `OverlayFlat` is flat on purpose (macros §4.0); a nested setting is promoted to the top level.
+
+### 7.1 What travels — a worked example *(`2026-11-02`, ✅ accepted with F-21…F-26; the shapes S1 builds)*
+
+⭐ The cluster: `Brain-1`, `Player-1`, `Player-2`. The operator shortens the kill cam on `Player-2` and turns team-kill off everywhere.
+
+| # | message | direction · when | carries |
+|---|---|---|---|
+| ① | `NodeCapabilitiesTopic` (existing, unchanged) | each node → all · ONCE at join | which features the node HAS — `hrot.feature.<id>` tokens |
+| ② | `SetRunSettings` (JSON, cluster-op channel) | operator → master · on a change | the overrides, each a PARTIAL object; the master refuses one for a node without the token |
+| ③ | `ClusterStateTopic.FeatureOverrides` (DDS, typed sequence, appended last) | master → all · broadcast | the same list; each node folds it into `ClusterView` and recomputes |
+| ④ | load PREPARE `FeatureConfigsAtLoad` (JSON) | master → each node · per load | the FULL effective config of every AtLoad feature that node has — frozen for the run, and written into its `RecordingMetadata` |
+| ⑤ | `NodeHeartbeat.FeaturesOn` (DDS, appended) | each node → all · every heartbeat | the ON set only, for the grid |
+| ⑥ | the node's debug API `GET /features` (HTTP) | on demand | effective values + the LAYER each value came from (`source`) |
+
+```text
+① Player-2 → all     CapabilitiesJson = ["fdp.role.player", "fdp.reliable-init",
+                                         "hrot.feature.map3d.in-load", "hrot.feature.hud.kill-cam", "hrot.feature.hud.hit-marker"]
+② operator → master  { "FeatureOverrides": [
+                         { "Feature": "hud.kill-cam",       "Nodes": ["Player-2"], "Json": "{\"Seconds\":3}" },
+                         { "Feature": "gameplay.team-kill", "Nodes": [],           "Json": "{\"Enabled\":false}" } ] }   // [] = all nodes
+③ master → all       FeatureOverrides = [ FeatureOverrideWire{ "hud.kill-cam", ["Player-2"], "{\"Seconds\":3}" },
+                                          FeatureOverrideWire{ "gameplay.team-kill", [], "{\"Enabled\":false}" } ]
+                     ⇒ hud.kill-cam is Live: applied now on Player-2 · team-kill is AtLoad: waits for the next load
+④ master → Brain-1   { "FeatureConfigsAtLoad": { "gameplay.team-kill": {"Enabled": false},
+                                                 "exercise.pause-on-end": {"Enabled": true}, "eval.performance": {"Enabled": true} } }
+  master → Player-2  { "FeatureConfigsAtLoad": { "map3d.in-load": {"Enabled": true} } }
+⑤ Player-2 heartbeat FeaturesOn = ["map3d.in-load", "hud.kill-cam", "hud.hit-marker"]
+⑥ GET /features      { "hud.kill-cam": { "Enabled": true, "Seconds": 3, "ShowKiller": true,
+     (Player-2)        "source": { "Enabled": "role default", "Seconds": "cluster", "ShowKiller": "type default" } } }
+```
+
+⛔ **Never on the wire:** the config TYPES (each node has them in code) · the full config on every heartbeat (rarely changes; ⑥ inspects it) ·
+anything during a REPLAY (the outcome is already recorded).
