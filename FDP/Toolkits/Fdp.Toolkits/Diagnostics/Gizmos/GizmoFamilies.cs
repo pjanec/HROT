@@ -48,7 +48,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         public static GizmoScope DefaultScope(AiOverlayFlags family) => IsBrainFamily(family) ? GizmoScope.PinnedOnly : GizmoScope.SelectedOrPinned;
 
         /// <summary>⭐ <c>CE-1329</c> — a family the Brain tab's <i>Show on map</i> owns (every family but <see cref="AiOverlayFlags.Path"/>).</summary>
-        public static bool IsBrainFamily(AiOverlayFlags family) => family != AiOverlayFlags.None && family != AiOverlayFlags.Path;
+        public static bool IsBrainFamily(AiOverlayFlags family) => family != AiOverlayFlags.None && family != AiOverlayFlags.Path
+            && family != AiOverlayFlags.MacroMembers;   // ⭐ SR-192: a macro instance is no unit — selecting it is the switch
 
         /// <summary>What the menu and the layer panel call a family.</summary>
         public static string Label(AiOverlayFlags family) => family switch
@@ -62,6 +63,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             AiOverlayFlags.Channels        => "Actions",
             AiOverlayFlags.CommandPicture  => "Command picture",
             AiOverlayFlags.SquadContacts   => "My units' contacts",
+            AiOverlayFlags.MacroMembers    => "Macro members",
             _                              => family.ToString(),
         };
 

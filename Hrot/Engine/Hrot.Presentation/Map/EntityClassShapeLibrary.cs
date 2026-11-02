@@ -25,7 +25,7 @@ public sealed class EntityClassShapeLibrary : IEntityShapeLibrary
         ["LandPlatform"] = DefaultEntityShapeLibrary.GroundVehicle,
         ["Person"] = DefaultEntityShapeLibrary.Humanoid,
         ["CulturalFeature"] = DefaultEntityShapeLibrary.CulturalFeature,   // ⭐ CE-3148 — a static obstacle's footprint
-        ["ScenarioMacro"] = DefaultEntityShapeLibrary.CulturalFeature,     // ⭐ macros S3a ③ — a macro instance marker: no marker outline exists, so the cultural-feature footprint (a deliberate ui-adjacent follow-up may give it its own)
+        ["ScenarioMacro"] = DefaultEntityShapeLibrary.ScenarioMacro,       // ⭐ SR-178 — the instance's OWN marker (a square frame with an M); its colour is Hrot.Common MacroMarker, set in EntityPresentationGizmo
     };
 
     public EntityShapeProfile GetShape(string? shapeName, ulong fallbackDisType)

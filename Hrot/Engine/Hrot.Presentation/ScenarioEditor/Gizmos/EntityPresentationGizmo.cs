@@ -41,10 +41,13 @@ namespace Hrot.ScenarioEditor.Gizmos
         private const uint ConditionImmobile = 1u << 1;
         /// <summary>⭐ W2 (docs/DESIGN_Visual_Effects.md §7 VE-O) — the MIL-STD-2525 X (<c>EntityShapeCondition.Destroyed</c>).</summary>
         private const uint ConditionDestroyed = 1u << 2;
+        /// <summary>⭐ SR-191 — <c>EntityShapeCondition.Transient</c>: the entity is never saved (<c>ScenarioIgnoreTag</c>).</summary>
+        private const uint ConditionTransient = 1u << 3;
 
         private readonly GizmoSettingsRegistry? _settings;
         private readonly uint _damagedKey;
         private readonly uint _immobileKey;
+        private readonly uint _dimTransientKey;
 
         /// <summary>
         /// Parameterless construction keeps every setting at its default — the shape a unit test wants,
@@ -64,7 +67,22 @@ namespace Hrot.ScenarioEditor.Gizmos
 
             _damagedKey  = GizmoSettingsRegistry.ComputeHash(EntityPresentationGizmoSettings.DamagedThreshold);
             _immobileKey = GizmoSettingsRegistry.ComputeHash(EntityPresentationGizmoSettings.ImmobileThreshold);
+            _dimTransientKey = GizmoSettingsRegistry.ComputeHash(EntityPresentationGizmoSettings.DimTransient);
         }
+
+        /// <summary>⭐ SR-191 — whether a transient entity is drawn dimmed (the setting; default off).</summary>
+        private bool DimTransient
+            => _settings != null
+                ? _settings.Read(_dimTransientKey).BoolValue
+                : EntityPresentationGizmoSettings.DefaultDimTransient.BoolValue;
+
+        /// <summary>⭐ SR-191 — the condition bits an entity's save-ability adds: <see cref="ConditionTransient"/> when it carries
+        /// <c>ScenarioIgnoreTag</c> and <paramref name="dimTransient"/> is on. ONE rule, railed without a frame.</summary>
+        internal static uint TransientBit(ISimulationView view, Entity entity, bool dimTransient)
+            => dimTransient
+               && (view is not EntityRepository repo || repo.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>())
+               && view.HasComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>(entity)
+                ? ConditionTransient : 0u;
 
         private float DamagedThreshold
             => _settings != null
@@ -75,6 +93,13 @@ namespace Hrot.ScenarioEditor.Gizmos
             => _settings != null
                 ? _settings.Read(_immobileKey).FloatValue
                 : EntityPresentationGizmoSettings.DefaultImmobileThreshold.FloatValue;
+
+        /// <summary>⭐ SR-178 — a macro INSTANCE's marker is the one macro colour (never a side colour); every other entity keeps its live side
+        /// (⭐ CE-1163). Railed without a frame.</summary>
+        internal static Fdp.Toolkit.Diagnostics.Gizmos.Rgba32 ColourOf(ISimulationView view, Entity entity)
+            => view.HasManagedComponent<Fdp.Toolkit.Scenario.MacroInstance>(entity)
+                ? Hrot.Common.Diagnostics.Gizmos.MacroMarker.Colour
+                : Hrot.Common.Diagnostics.Gizmos.AffiliationColors.For(view, entity);
 
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
@@ -142,6 +167,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             }
             // ⭐ W2 (VE-N) — the one "destroyed" test, shared with the 3-D wreck and the flames.
             if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(view, entity)) conditionMask |= ConditionDestroyed;
+            conditionMask |= TransientBit(view, entity, DimTransient);   // ⭐ SR-191
 
             // ⭐ CE-1068 — a TERRAIN OBJECT (a door) is picked and selected here, but it has NO symbol: the door layer draws its leaf
             //   (2-D) and the 3-D map its slab. 📄 DESIGN_Building_Interiors.md §3j 5b: "no symbol, no palette entry". ⛔ It drew the
@@ -167,7 +193,7 @@ namespace Hrot.ScenarioEditor.Gizmos
                 length,
                 width,
                 conditionMask,
-                colour: Hrot.Common.Diagnostics.Gizmos.AffiliationColors.For(view, entity));   // ⭐ CE-1163 — the live side
+                colour: ColourOf(view, entity));
         }
     }
 }

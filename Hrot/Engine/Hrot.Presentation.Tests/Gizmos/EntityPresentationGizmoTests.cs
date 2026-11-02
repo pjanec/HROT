@@ -44,6 +44,7 @@ namespace Hrot.Presentation.Tests.Gizmos
             _repo.RegisterComponent<CullingState>();
             _repo.RegisterComponent<Health>();
             _repo.RegisterComponent<VehicleParams>();
+            _repo.RegisterComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>();
         }
 
         public void Dispose() => _repo.Dispose();
@@ -326,6 +327,59 @@ namespace Hrot.Presentation.Tests.Gizmos
             buffer = new DebugPrimitiveBuffer();
             new EntityPresentationGizmo().Draw(_repo, hurt, buffer);
             Assert.Equal(0u, buffer.GetFrame()[2].ConditionMask & 4u);
+        }
+
+        // ── ⭐ SR-191 — the transient look (docs/DESIGN_Scenario_Macros.md §14.4) ───────────────────────────
+
+        private static GizmoSettingsRegistry DimSettings(bool on)
+        {
+            var s = new GizmoSettingsRegistry();
+            EntityPresentationGizmoSettings.Register(s);
+            s.Write(GizmoSettingsRegistry.ComputeHash(EntityPresentationGizmoSettings.DimTransient), GizmoSettingValue.From(on));
+            return s;
+        }
+
+        private uint MaskOf(Entity entity, GizmoSettingsRegistry? settings)
+        {
+            var buffer = new DebugPrimitiveBuffer();
+            new EntityPresentationGizmo(settings).Draw(_repo, entity, buffer);
+            return buffer.GetFrame()[2].ConditionMask;
+        }
+
+        [Fact]
+        public void SR191_ATaggedEntity_GetsTheTransientBit_WhenTheSettingIsOn()
+        {
+            var transient = Spawn(21, new Vector3(10f, 20f, 0f));
+            _repo.AddComponent(transient, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
+            var saved = Spawn(22, new Vector3(30f, 20f, 0f));
+
+            Assert.Equal((uint)GizmoMap.Presentation.Shapes.EntityShapeCondition.Transient, MaskOf(transient, DimSettings(true)) & 8u);
+            Assert.Equal(0u, MaskOf(saved, DimSettings(true)) & 8u);   // an entity the save writes is never dimmed
+        }
+
+        [Fact]
+        public void SR191_TheBitIsAbsent_WhenTheSettingIsOff_OrThereIsNoRegistry()
+        {
+            var transient = Spawn(23, new Vector3(10f, 20f, 0f));
+            _repo.AddComponent(transient, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
+
+            Assert.Equal(0u, MaskOf(transient, DimSettings(false)) & 8u);
+            Assert.Equal(0u, MaskOf(transient, null) & 8u);               // default OFF: a run's entities are all live
+        }
+
+        [Fact]
+        public void SR191_TheFill_IsAt55PercentOfTheSideColour_TheOutlineKeepsItsColour()
+        {
+            var side = new Raylib_cs.Color((byte)40, (byte)90, (byte)200, (byte)255);
+            var fill = GizmoMap.Presentation.Shapes.PerspectiveShapeRenderer.TransientFillColor(side);
+
+            Assert.Equal((byte)140, fill.A);                                  // 255 × 0.55
+            Assert.Equal((side.R, side.G, side.B), (fill.R, fill.G, fill.B)); // same hue: dimmed, not recoloured
+            Assert.Equal((byte)255, side.A);                                  // the outline is drawn with the colour the primitive carries: untouched
+
+            // and the fill covers the shape's footprint (a 4 × 2 m shape, unrotated)
+            var (a, b, c, d) = GizmoMap.Presentation.Shapes.PerspectiveShapeRenderer.FootprintCorners(new Vector2(10f, 20f), Quaternion.Identity, 4f, 2f);
+            Assert.Equal(new[] { new Vector2(8f, 19f), new Vector2(12f, 19f), new Vector2(12f, 21f), new Vector2(8f, 21f) }, new[] { a, b, c, d });
         }
 
         /// <summary>⭐ NEW — no health component means an UNDAMAGED mask, not a missing shape.</summary>
