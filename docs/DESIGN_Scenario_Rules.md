@@ -220,6 +220,39 @@ and CE-4154 (World Environment saved in the header) are needed before S1's objec
 | CE-4153 S9′ — references in a file carry their GUID | S3 | ✅ accepted `2026-11-01`: no reverse remap needed after S0 (authored refs are `EntityLink`, incl. `RoutePlan`'s `HoldUnit`; a rail; the migration writes GUIDs) — build right after S0 (`DESIGN_Scenario_Entity_Keys.md` S9′; §9.8's S9 notes are superseded by it) |
 | dismounted soldiers settle on the ground after relocation? (SR-127) | S3 | one rail |
 
+### 00.8 S1 — build decisions *(behaviors, `2026-11-02`; the details §00.6 left to the builder — measured on `behaviors` at `d7ff5d8e2`)*
+
+| # | decision | why / measured |
+|---|---|---|
+| **S1-a** ids | components **425** `ObjectiveStatus`, **426** `ObjectiveLinks` (427 kept for S2's `ExerciseResult`) — behaviors' block 418–433 · ⭐ a RULES descriptor block **170–179**: 170 `dtObjectiveStatus`, 171 `dtExerciseResult` (S2), 172 `dtPlayerMessage` (S2) · ⭐ a RULES TKB block **8860–8869**: 8860 `Objective`, 8861 `Trigger` (S2), 8862 held for backend's `ScenarioMacro` (S3a) | measured free on `backend`, `ui`, `coordinator`, `behaviors` (424 · 157/160 · 8812/8850 are the highest used); a block, like Traffic's, so two lanes cannot collide |
+| **S1-b** where | runtime types + the shared rule maths in `Fdp.Toolkits/ScenarioRules/` (`Fdp.Toolkit.ScenarioRules`); the kinds as C# behaviours in `Hrot.AI.Behaviors/Brains/Objectives/` (the `HoldStanceBehavior` pattern: params DTO in `Hrot.Map.Definitions.Behavior`, `[Behavior]` + `[BTreeDefinition]`); the topic in `Hrot.Network.NED` (`hrot-scenario-rules` IDL, SR-124) | C# trees (user: hard-coded C# trees over JSON assets) |
+| **S1-c** ONE owner of the links | `Subject` / `Parent` are PARAMS (`ObjectiveCommon.Subject`, `.Parent`, `EntityLink` — resolved by S0's walker at load); the behaviour copies them into `ObjectiveLinks` (`NoScenario`) each tick | ⭐ SR-53 said *"saved"* — saving a second copy beside the params gives two owners (CLAUDE.md *shared and unified*); the params are already saved, remapped and on the wire (`IntentJson`) |
+| **S1-d** "the subject's men" | the subject itself or anyone under it down `UnitSubordinate`, alive, in the fight, with a `SimTransform` — COUNTED AS MEN (`MinMen`; the showcase's *"min 6 men"*). An enemy = `ForceId` hostile to the subject's, in the fight, not neutral (`ThreatDanger`) | a squad commander has no body; counting bodies is what an area check can see |
+| **S1-e** lifecycle in S1 | `Pending` · `Active` · `Achieved` · `Failed` · `Inactive` + the deadline (`DeadlineSeconds`, sim s). `activeWhen` waits for S2's `when`; S1 has `StartActive` (default true). ⭐ the OnClose rules (SR-117) are pure functions with rails in S1, CALLED by S2's `EndExercise` | no end exists before S2 |
+| **S1-f** harm | `NoHarm` reads `DamageAssessedEvent` (`repo.ReadEvents`, the `HealthApplicationSystem` way) — victim `ForceId` vs `Protected`, `Source`'s side vs the subject's | §10.1: `Source` is set for gunfire, blasts and remote hits; drones / gas wait for CE-4155 |
+| **S1-g** the minimal summary | `GET /objectives` (DebugApi, any node — reads the replicated statuses, the tree by `Parent`) + one log line per state change | the HUD / rules view are S4 / S5 (ui) |
+
+```mermaid
+classDiagram
+    direction LR
+    class ObjectiveCommon { <<params, nested in every kind>> Title · Subject · Parent · Required · Scored · Weight · Points · DeadlineSeconds · StartActive · VisibleSides }
+    class ObjectiveStatus { <<425, unmanaged, NoScenario>> Role · State · Owner · ProgressCur/Need · Value · Target · Score · Points · ChangedAt · Reason · Title · Kind · Required · Scored · Weight · VisibleSides }
+    class ObjectiveLinks { <<426, NoScenario>> Subject · Parent (EntityRef) }
+    class ObjectiveRules { <<static, Fdp.Toolkit.ScenarioRules>> Begin · Settle · OnClose · Score · MenOf · EnemiesIn · ChildrenOf }
+    class Kinds { <<C# behaviours>> ReachArea · HoldArea · ClearArea · DestroyTargets · Protect · NoHarm }
+    class Aggregators { <<C# behaviours>> WeightedMean · AllMustPass }
+    class Translators { <<Hrot.Network.NED>> EntityObjectiveStatus egress · ingress (the ScenarioClock shape) }
+    Kinds ..> ObjectiveCommon
+    Kinds ..> ObjectiveRules
+    Aggregators ..> ObjectiveRules : ChildrenOf (ObjectiveLinks.Parent)
+    ObjectiveRules ..> ObjectiveStatus : writes
+    ObjectiveRules ..> ObjectiveLinks : writes
+    ObjectiveStatus ..> Translators
+```
+
+*What the picture shows that prose hid:* every kind is a thin behaviour over ONE static rule set — the lifecycle, the score and the census are
+written once, so no kind can decide "achieved" differently.
+
 ⭐ **SR-145** ✅ `2026-11-01` — **objectives and triggers have NO feature switch: they are scenario CONTENT, like cars.** 🔒 user, `2026-11-01`: *"The triggers and objectives, they are entities like cars or whatever else, and they are probably a core system feature as well. So is there anything that we can turn on or off? They are either present in the scenario or they don't. And if they are, they should be working, as the system knows how to handle them."* → *"Yes."* to the lean. ⭐ Measured against every reason to switch them off — free play (per scenario: the instructor disarms a trigger / switches an objective off, T9 / `SetObjectiveActive`, or a run variant / param, SR-101), debugging (the same), performance (a handful of entities, one small behaviour each), a node that cannot run them (any Brain node runs every behaviour), replay (brains do not tick, T10), old builds (no backward compatibility) — none holds. ⇒ ⛔ no `scenario.rules` feature; the ONLY check is the behaviour registry's: an unknown kind / action fails the load loudly. Real switches stay where the run is PRESENTED or PLAYED differently (`exercise.pause-on-end`, `hud.*`, `gameplay.team-kill`). Supersedes SR-6's "master refuses to start" clause and `DESIGN_Node_Features.md` F-17's `scenario.rules`.
 
 ⭐ **SR-144** ✅ `2026-11-01` — **macro expansion is CORE infrastructure, not part of the rules.** 🔒 user: *"Macro expansion is not part of scenario rules, is it? Isn't it a standalone feature which is usable in general, just being used by the rules system? So it should not be gated by scenario.rules. I think this is the core system feature."* ⭐ The `Expander` lives on the entity CREATION path (§9.7) and serves forces, units, props and events alike; the rules are one user of it (`InsertMacro`). ⇒ composed wherever entities are created, ⛔ never gated by `scenario.rules` (`DESIGN_Node_Features.md` F-19), and its slice (S3) does not depend on the rules' slices except for `InsertMacro`
