@@ -24,7 +24,7 @@ namespace Hrot.UI.Common.AddEntity;
 public sealed record EntityTypeEntry(
     TkbTypeId TkbType, string Name, string Category, string? DisText, string? IconName,
     PlacementToolKind Tool, bool HasSide, string? DisabledReason = null,
-    string? Thumbnail = null, string? RoleLine = null, string Group = "", string? Chip = null)
+    string? Thumbnail = null, string? RoleLine = null, string Group = "", string? Chip = null, string? MacroPath = null)
 {
     /// <summary>True when the entry can be picked.</summary>
     public bool IsEnabled => DisabledReason is null;
@@ -60,7 +60,10 @@ public static class EntityTypeCatalog
 
     /// <summary>Builds the catalog from <paramref name="tkb"/>, ordered by folder then name.</summary>
     /// <param name="gallery">⭐ CE-4142 — the gallery's groups and thumbnail map; null ⇒ entries carry no group and no thumbnail (the plain DIS tree).</param>
-    public static IReadOnlyList<EntityTypeEntry> Build(ITkbDatabase tkb, DisNameTable? names = null, GalleryData? gallery = null)
+    /// <summary>⭐ CE-4210 MA-7 — the folder name macro entries are listed under when no gallery group names them.</summary>
+    public const string MacrosFolder = "Macros";
+
+    public static IReadOnlyList<EntityTypeEntry> Build(ITkbDatabase tkb, DisNameTable? names = null, GalleryData? gallery = null, IReadOnlyList<string>? macros = null)
     {
         ArgumentNullException.ThrowIfNull(tkb);
         names ??= DisNameTable.Default;
@@ -69,6 +72,8 @@ public static class EntityTypeCatalog
         foreach (var t in tkb.GetAll())
         {
             if (!PlacementToolRegistry.HasSide(t.TkbType)) continue;   // a graphic: listed from the registry below
+            // ⭐ CE-4210 MA-7 — the bare macro-instance type (8813, DIS 5.0.0.90) is not a placeable prop: a macro is placed from its FILE (the Macros group below), which gives the instance its MacroInstance.
+            if (t.TkbType == (Fdp.Core.TkbTypeId)Hrot.Map.Common.TkbEntityTypes.ScenarioMacro) continue;
             var master = t.GetDescriptor<TkbMasterDto>();
             if (master is null || master.HideFromPalette) continue;
 
@@ -84,6 +89,21 @@ public static class EntityTypeCatalog
             list.Add(new EntityTypeEntry(t.TkbType, name, CategoryOf(t, names), dis, icon,
                                          PlacementToolKind.Point, HasSide: true,
                                          Thumbnail: thumb, RoleLine: EntityRoleLine.Compose(t, master), Group: group, Chip: chip));
+        }
+
+        // ⭐ CE-4210 MA-7 — the macro FILES, beside the type catalogue (not TKB types): each places the instance type with its MacroInstance (PlacementToolRegistry.ArmMacro).
+        if (macros is { Count: > 0 })
+        {
+            string? template = tkb.TryGetByType((Fdp.Core.TkbTypeId)Hrot.Map.Common.TkbEntityTypes.ScenarioMacro, out var inst) ? FallbackIconName(inst) : null;
+            foreach (var path in macros)
+            {
+                int slash = path.LastIndexOf('/');
+                string folder = slash > 0 ? path.Substring(0, slash) : "";
+                string group = gallery?.Groups.MacrosName ?? "";
+                list.Add(new EntityTypeEntry((Fdp.Core.TkbTypeId)Hrot.Map.Common.TkbEntityTypes.ScenarioMacro, slash >= 0 ? path.Substring(slash + 1) : path,
+                                             MacrosFolder + (folder.Length == 0 ? "" : "/" + folder), null, template, PlacementToolKind.Point, HasSide: true,
+                                             RoleLine: "Macro · " + path, Group: group, Chip: group.Length == 0 || folder.Length == 0 ? null : folder, MacroPath: path));
+            }
         }
 
         foreach (var g in PlacementToolRegistry.Graphics)

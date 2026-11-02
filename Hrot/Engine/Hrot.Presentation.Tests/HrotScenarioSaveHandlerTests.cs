@@ -173,6 +173,32 @@ public sealed class HrotScenarioSaveHandlerTests : IDisposable
     }
 
     [Fact]
+    public void CE4210_MA6_ANewMacro_IsSavedWithKindAnchorAndItsParams_ThroughTheSameSavePath()
+    {
+        var repo = BuildWorld();
+        ScenarioDescription.Stamp(repo, null, "macros/" + _scenarioName, "h", null, "");            // a seed's load
+        ScenarioDescription.StampNewMacro(repo);                                                      // what New macro… does after the seed loads
+        // the author declares a param in the Parameters window (it replaces the resident header)
+        var held = repo.GetSingletonManaged<ScenarioDescriptionResident>();
+        var withParam = ScenarioDescription.HeaderOf(repo)! with { Params = new[] { new ScenarioParamDecl("side", "ForceId") } };
+        ScenarioDescription.Stamp(repo, held.Text, held.Name, held.Hash, held.Args, ScenarioDescription.HeaderJsonOf(withParam));
+        string name = "macros/" + _scenarioName;
+        var handler = new HrotScenarioSaveHandler(new ScenarioSerializerBuilder("Hrot.Scenario").Build(), world: repo, nodeId: NodeId);
+        var intent = new ExecuteNodeOpIntent { Operation = NodeOpType.SerializeLocal, TransactionId = Guid.NewGuid(), DomainPayload = new ScenarioSaveHandlerPayload(name) };
+        string sliceDir = Path.Combine(OrchestrationConstants.GetNodeScenariosRoot(NodeId), name);
+        try
+        {
+            handler.PrepareAsync(intent, CancellationToken.None).GetAwaiter().GetResult();
+            var header = ScenarioHeaderJson.Read(JsonNode.Parse(File.ReadAllText(Path.Combine(sliceDir, "scenario.json")))!.AsObject())!;
+            Assert.Equal("macro", header.Kind);
+            Assert.Equal(0f, header.Anchor!.Value.Heading.Degrees);
+            Assert.Equal(default, header.Anchor.Value.Position);
+            Assert.Equal("side", header.Params!.Single().Name);
+        }
+        finally { try { Directory.Delete(Path.Combine(OrchestrationConstants.GetNodeScenariosRoot(NodeId), "macros"), true); } catch { } }
+    }
+
+    [Fact]
     public void CE4210_APlainScenario_IsSavedWithNoMacroFields_AndItsSliceStaysUnderScenarios()
     {
         var repo = BuildWorld();

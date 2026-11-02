@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED 2026-11-02 (user: "then approved", with MA-1's always-visible button); P1 building
-updated: 2026-11-03 (§7 P2 as built)
-build-state: BUILDING — P1 (MA-4, MA-3) built §6 · P2 (MA-1, MA-2, MA-5) built §7
-current-answer: §7 the P2 AS BUILT · §6 the P1 AS BUILT · §3 (decisions) · §4 (phases)
+updated: 2026-11-03 (§8 P3 as built)
+build-state: BUILDING — P1 (MA-4, MA-3) built §6 · P2 (MA-1, MA-2, MA-5) built §7 · P3 (MA-6, MA-7, MA-8) built §8
+current-answer: §8 the P3 AS BUILT · §7 the P2 AS BUILT · §6 the P1 AS BUILT · §3 (decisions) · §4 (phases)
 stale-below: nothing
 known-rot: none
 related-designs:
@@ -199,4 +199,29 @@ graph TD
 - ⚠ **Deviation — undo of an inspector bind:** no component-edit undo seam exists in the inspector (`IInspectableSession.SetComponent` is the one write path), so a bind/unbind there is one `SetComponent` of a NEW `ParamBindings` (not on an undo stack). The Parameters window has its own history (`ParamsEditHistory`): add/remove/move/edit/rename are undoable, a rename (declaration + every binding in all three homes) is ONE step.
 - MA-5: `HeaderParamsSchemaSource : IVariablesSchemaSource` over the resident header's `Params` (each edit stamps a NEW resident); Remove is refused while bound, naming the bindings; the reference count is the binding count (cached ≤ 1 s). Opened from *Scenario ▸ Parameters…* and by the popup's *New parameter…* (`DiagnosticsHostServices.DeclareParam`, only the editor passes it). `ParamTypes.All()` supplies the type choices. ⛔ The `.params.json` source is not built.
 - Live check (real editor under Xvfb, `macros/test/fire-team`): the Scenario menu shows *Parameters…*, the window lists `side : ForceId` from the loaded macro, the entities carry `EntityInfo.ForceId → side`, and a save to a copy wrote the 4 bindings back with `Header.Params`. ⚠ The popup click and the in-table rename could not be driven by xdotool (ImGui double-click timing); both are railed instead.
+
+## 8. AS BUILT — P3 *(ui, `2026-11-03`; MA-6 Open / New macro, MA-7 Add Entity ▸ Macros, MA-8 the instance in Details)*
+
+```mermaid
+graph TD
+  L[MacroPickerEntries.Paths - ScenarioEnumeration over ContentLayout.Macros NAS] --> P[AssetPickerLauncher - Macros group, OpenMacros]
+  L --> G[EntityAuthoringInputs.Macros -> AddEntityAction -> EntityTypeCatalog.Build macros]
+  P -->|pick = LoadScenario macros/path = OpenForEdit| T[EditorWindowTitle - Macro: path]
+  P -->|Change...| V[MacroInstanceDetailsView]
+  G -->|ArmMacro: point tool on 8813, path in the placement json| A[ScenarioSpawnAdapter.ArmPlacement - every host]
+  A -->|MacroBirth.Split / BornWith| I[MacroInstance in the new entity]
+  N[Scenario / New Macro...] --> C[ScenarioNewAssetService.CreateNew - name under macros/]
+  C -->|ScenarioDescription.StampNewMacro| R[resident header: Kind, Anchor] --> S[the ONE save path, MA-4]
+  I --> V
+  V -->|MacroArgs.With - NEW record| W[MacroArgs.Write - only where this node owns it] --> X[MacroExpansionSystem reconcile SR-150/157]
+```
+*Caption: one listing (the NAS `macros/` root the load resolves against) feeds both the picker and the gallery; the placement path-carrier and the birth component live in the one adapter every host's point commit passes; the args form writes only where the component is owned.*
+
+**As built:**
+- **MA-6.** The scenario picker (`AssetPickerLauncher`, new optional `macroPaths`/`macrosRoot`) gains a **Macros** group (`MacroPickerEntries`: folders → category `Macros/<folder>`, tag = a scenario-kind asset named `macros/<path>`, so a pick is the ordinary `LoadScenario` = `OpenForEdit`). The root is `ContentLayout.Macros(NasRoot)`, ⛔ never the repo; an empty root shows the disabled hint *No macros on the server — see macros/ seeding*. Only the editor passes it (macro authoring is the editor's; other hosts' pickers are unchanged). Title: `EditorWindowTitle.Detail` → *Macro: <path>*. **New macro…** is *Scenario ▸ New Macro…* → the same recipe picker (`NewAssetLauncher.OpenMacro`) → a macro naming dialog → the SAME `ScenarioNewAssetService.CreateNew`: a name under `macros/` (`IsMacroName`) stamps `Kind = macro` + anchor at the origin (`ScenarioDescription.StampNewMacro`) into the resident header after the seed loads, then the same save-as — the first save writes them (MA-4). A macro with no world to stamp is refused, never saved as a scenario. (Put in the *Scenario* menu, not *File*, to leave the File-menu layout golden alone.)
+- **MA-7.** `groups.json` gains `{ "name": "Macros", "macros": true }` (a group with no masks/tools; `GalleryGroups.MacrosName`). `EntityTypeCatalog.Build(…, macros)` lists each macro file as an entry on the instance type (`MacroPath`), group *Macros*, chip = its folder; the bare 8813 is **excluded from the catalogue** (it was in *Props*, and in the Spawner panel's list). Arming = `PlacementToolRegistry.ArmMacro` → the ordinary point tool on 8813 with the path riding in the placement JSON under `$macro`; `ScenarioSpawnAdapter.ArmPlacement` — the one point commit every host passes — splits it out (`MacroBirth.Split`, the attribute compiler never sees it) and `MacroBirth.BornWith` adds `MacroInstance { Macro = path, ArgsJson = "{}" }` (the sibling of `AreaAuthoringArm.BornWith`). `EntityAuthoringInputs.Macros` is passed by the editor only (the only host that expands macros in an edit world).
+- **MA-8.** A **Macro** tab in Details (`MacroInstanceDetailsView`, applies to one entity with a `MacroInstance`): the `MacroExpansionStatus` line (*Done* / *Failed: reason*), the macro + *Change…* (the picker's Macros group, `OpenMacros`; the args reset), and one row per header param (`ScenarioHeaderJson.Read` on `{macros root}/{path}/scenario.json`) drawn by the ONE drawer over `DefaultValueAuthoring`'s one-field holder (`VariableEditModal.ScalarRowOrRoot`, now public); default greyed with a *default* tag until overridden, then a *reset* button. `MacroArgs.With` builds a NEW record whose `ArgsJson` is merged key by key; a value equal to the default is no override.
+- **MEASURED — who may write the instance.** In the editor's edit world the node creates and owns what it spawns: `NetworkAuthority { PrimaryOwnerId = LocalNodeId = 1 }`, and the `MacroInstance` authority bit is set — so `MacroArgs.Write` (`IInspectableSession.SetComponent` → `SetManagedComponent` of the new record) lands, and the expander's reconcile re-expanded the members with the **same network ids** (live: `side` Hostile → Friend, the four members' `ForceId` followed). A component this node does NOT own (authority bit clear — a plain local entity in a rail, or another node's) is refused with *Edit on the owning node: this node does not own this instance*, the form read-only; nothing is written to a foreign instance. ⚠ Not measured: an instance owned by ANOTHER node of a multi-node edit cluster (no second node in the live run) — the refusal rail covers the mechanism, the cluster case is unobserved. ⛔ `POST /entities/{id}/component {"Args":…}` is not used (§15.4).
+- Live check (real editor, Xvfb, `macros/test/fire-team` seeded into the NAS): *File ▸ Load Scenario…* lists **Macros ▸ test ▸ fire-team** (with its description pane); *Open* loaded `macros/test/fire-team`, window title *HROT Cluster Runner — Macro: test/fire-team*; with a scenario loaded, a macro instance created by `POST /entities/spawn` (8813 + `MacroInstance`) expanded (`Done`, members 1011–1014); the **Macro** tab showed *Expansion: Done*, the macro and `side = Hostile (default)`; choosing *Friend* wrote `Args {"side":"Friend"}` and the members re-expanded with `ForceId Friend`; a save to a copy name wrote `"MacroInstance":{"Macro":"test/fire-team","Args":{"side":"Friend"}}` and no members. ⚠ **Not driven live:** the *Add Entity ▸ Macros* click (the canvas menu would not open under xdotool) — the placement is railed through the real adapter instead; and *New Macro…* through its dialogs.
+- ⚠ Findings: `Hrot.Editor.Tests` gains the `Hrot.Editor.UiFrameRail` reference and `Xunit.SkippableFact` (the Macro section's frame rail); the font draws `—`/`…` as `?`, so the new drawn strings use ASCII (the picker hint keeps the literal text the handoff specified).
 

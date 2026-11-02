@@ -363,7 +363,7 @@ public sealed class VariableEditModal
     /// The variable's own name. ⚠ Null or blank ⇒ the root is drawn as before, because a row that cannot
     /// say what it is must not be labelled with a guess.
     /// </param>
-    internal static EditNode ScalarRowOrRoot(EditNode root, string? name)
+    public static EditNode ScalarRowOrRoot(EditNode root, string? name)
     {
         if (root is null) return root!;
         if (string.IsNullOrWhiteSpace(name)) return root;

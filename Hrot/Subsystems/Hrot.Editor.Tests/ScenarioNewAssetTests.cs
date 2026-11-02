@@ -221,6 +221,49 @@ public sealed class AskingCreationSession : IScenarioCreationSession
 /// <summary>
 /// Fake implementation of <see cref="IScenarioCreationSession"/> for testing.
 /// </summary>
+public sealed class ScenarioNewMacroTests
+{
+    private static (Fdp.Core.EntityRepository Repo, FakeScenarioCreationSession Session, ScenarioNewAssetService Svc) Fixture(bool withWorld = true)
+    {
+        var repo = new Fdp.Core.EntityRepository();
+        var session = new FakeScenarioCreationSession();
+        var svc = new ScenarioNewAssetService(session, () => new[] { "basic-desert" }, withWorld ? () => repo : null);
+        return (repo, session, svc);
+    }
+
+    /// <summary>⭐ CE-4210 MA-6 — New macro is the SAME creator: a name under macros/ stamps Kind = macro and the anchor at the origin into the resident header, then the same save-as.</summary>
+    [Fact]
+    public void ANameUnderMacros_StampsTheMacroHeader_BeforeTheSaveAs()
+    {
+        var (repo, session, svc) = Fixture(); using var _r = repo;
+        svc.CreateNew(svc.AvailableRecipes().First(), "squad", "macros/test");
+
+        Assert.Equal(new[] { "macros/test/squad" }, session.SaveScenarioAsCalls);
+        var header = Fdp.Toolkit.Scenario.ScenarioDescription.HeaderOf(repo)!;
+        Assert.Equal("macro", header.Kind);
+        Assert.Equal(0f, header.Anchor!.Value.Heading.Degrees);
+        Assert.Equal(default, header.Anchor.Value.Position);
+        Assert.True(header.Relocatable);
+    }
+
+    [Fact]
+    public void APlainScenario_IsNotStamped()
+    {
+        var (repo, session, svc) = Fixture(); using var _r = repo;
+        svc.CreateNew(svc.AvailableRecipes().First(), "mine", "Combat");
+        Assert.Equal(new[] { "Combat/mine" }, session.SaveScenarioAsCalls);
+        Assert.Null(Fdp.Toolkit.Scenario.ScenarioDescription.HeaderOf(repo));
+    }
+
+    [Fact]
+    public void AMacro_WithNoWorldToStamp_IsRefused_NotSavedAsAScenario()
+    {
+        var (repo, session, svc) = Fixture(withWorld: false); using var _r = repo;
+        Assert.Throws<System.InvalidOperationException>(() => svc.CreateNew(svc.AvailableRecipes().First(), "x", "macros"));
+        Assert.Empty(session.SaveScenarioAsCalls);
+    }
+}
+
 public sealed class FakeScenarioCreationSession : IScenarioCreationSession
 {
     public int NewScenarioCallCount { get; private set; }
