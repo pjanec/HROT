@@ -121,6 +121,27 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         Assert.Equal("number", (string?)props["ArrivalRadius"]!["type"]);
     }
 
+    public sealed class PickerHintDto
+    {
+        public Fdp.Toolkit.Replication.AreaLink Zone { get; set; }
+        public Fdp.Core.Bearing Facing { get; set; }
+        public Fdp.Core.WorldRotation Turn { get; set; }
+        public Fdp.Toolkit.Replication.EntityLink Target { get; set; }
+        public Fdp.Core.WorldPoint Spot { get; set; }
+    }
+
+    /// <summary>⭐ CE-4206 R3 (F9b) — the agent schema names the picker by TYPE: area / bearing / rotation (and the old entity / worldLocation stay). Red-proof: the AreaLink hint reverted to "boundingBox" ⇒ red.</summary>
+    [Fact]
+    public void CE4206_TheSchemaNamesTheAreaBearingAndRotationPickers_ByType()
+    {
+        var props = (JsonObject)DtoJsonSchemaExtractor.ExtractParams(typeof(PickerHintDto))["properties"]!;
+        Assert.Equal("area", (string?)props["Zone"]!["picker"]);
+        Assert.Equal("bearing", (string?)props["Facing"]!["picker"]);
+        Assert.Equal("rotation", (string?)props["Turn"]!["picker"]);
+        Assert.Equal("entity", (string?)props["Target"]!["picker"]);
+        Assert.Equal("worldLocation", (string?)props["Spot"]!["picker"]);
+    }
+
     /// <summary>
     /// ⭐⭐ THE STRUCTURAL GUARANTEE, not one behaviour by luck: for EVERY behaviour that declares an
     /// authored contract, what the endpoint advertises IS that contract — entry for entry. This is what

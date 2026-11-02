@@ -713,4 +713,99 @@ public class ComponentEditDrawerTests
         var committed = (Fdp.Toolkit.ReplayBrowser.Search.SpatialBoundingPredicateDto)session.Commit();
         Assert.Equal(edited, committed.Bounds);
     }
+
+    // ═══ CE-4206 R3 (F7 Bearing · F8 Show on map · F9a RefKey) ════════════════════════════════════════════════════════════════
+    // Red-proofs (each compiles): BearingDial.FromDrag with X/Y swapped ⇒ the dial rail · RefKeyProblem not looking the key up ⇒ the duplicate rail.
+
+    [Fact]
+    public void R3_TheDialReadsTheCompass_NorthUp_ClockwiseWrapped()
+    {
+        var c = new System.Numerics.Vector2(100f, 100f);
+        Assert.Equal(0f,   BearingDial.FromDrag(c, new System.Numerics.Vector2(100f, 50f)), 3);    // up    = N
+        Assert.Equal(90f,  BearingDial.FromDrag(c, new System.Numerics.Vector2(150f, 100f)), 3);   // right = E
+        Assert.Equal(180f, BearingDial.FromDrag(c, new System.Numerics.Vector2(100f, 150f)), 3);   // down  = S
+        Assert.Equal(270f, BearingDial.FromDrag(c, new System.Numerics.Vector2(50f, 100f)), 3);    // left  = W
+        Assert.Equal(315f, BearingDial.FromDrag(c, new System.Numerics.Vector2(50f, 50f)), 3);     // up-left = NW (wrapped, not −45)
+        Assert.Equal(0f,   BearingDial.FromDrag(c, c));
+        Assert.Equal(10f,  BearingDial.Wrap(370f), 3);
+        Assert.Equal(350f, BearingDial.Wrap(-10f), 3);
+        var tip = BearingDial.NeedleEnd(c, 20f, 90f);
+        Assert.Equal(120f, tip.X, 3); Assert.Equal(100f, tip.Y, 3);
+    }
+
+    private struct BearingComp { public Bearing Heading; public WorldRotation Facing; }
+
+    [Fact]
+    public void R3_ABearingField_IsOneLeaf_AndAnUntouchedFrameKeepsItsDegrees_WorldRotationGetsAReadout()
+    {
+        using var session = ComponentEditServices.CreateBuilder().Build().Open(new BearingComp { Heading = new Bearing(123.5f), Facing = WorldRotation.Identity }, typeof(BearingComp));
+        var root = session.Document.Root;
+        var node = (root.Kind == EditNodeKind.SelectionRoot ? root.Children.First() : root).Children.Single(c => c.Name == nameof(BearingComp.Heading));
+        Assert.Equal(EditNodeKind.Scalar, node.Kind);
+        Assert.True(ReferenceLeafDrawers.Handles(typeof(Bearing)));
+        using (var imgui = new ImGuiTestFixture())
+        {
+            imgui.NewFrame();
+            ImGuiNET.ImGui.Begin("R3");
+            if (ImGuiNET.ImGui.BeginTable("t", 2)) { new ComponentEditDrawer(session, new SpyPickerContext()).DrawEditNode(root); ImGuiNET.ImGui.EndTable(); }
+            ImGuiNET.ImGui.End();
+            imgui.Render();
+        }
+        Assert.Equal(123.5f, ((BearingComp)session.Commit()).Heading.Degrees);
+        Assert.StartsWith("HPR", ReferenceLeafDrawers.RotationReadout(WorldRotation.Identity));
+        Assert.Equal("", ReferenceLeafDrawers.RotationReadout(5));
+    }
+
+    [Fact]
+    public void R3_TheRefKeyLeaf_RefusesADuplicateAndAnOverlongKey_AppliesAUniqueOne_NamingTheOwner()
+    {
+        using var w = new RefWorld();
+        w.Spawn("Blue HQ", key: "BlueHQ");
+        var mine = new Fdp.Toolkit.Scenario.RefKey("Mine");
+
+        Assert.False(ReferenceLeafDrawers.TryApplyRefKey("BlueHQ", mine, w.Scope, out var kept, out var problem));
+        Assert.Equal("key 'BlueHQ' is already used by Blue HQ", problem);
+        Assert.Equal(mine, kept);                                                          // NOT applied (SR-126)
+
+        Assert.False(ReferenceLeafDrawers.TryApplyRefKey(new string('k', 40), mine, w.Scope, out _, out var tooLong));
+        Assert.Contains("at most 31", tooLong);
+
+        Assert.True(ReferenceLeafDrawers.TryApplyRefKey("@Fresh", mine, w.Scope, out var applied, out var none));
+        Assert.Null(none);
+        Assert.Equal("Fresh", applied.Value.ToString());
+
+        Assert.True(ReferenceLeafDrawers.TryApplyRefKey("Mine", mine, w.Scope, out _, out _));        // its own key is not a duplicate
+        Assert.True(ReferenceLeafDrawers.TryApplyRefKey("", mine, w.Scope, out var cleared, out _));   // empty clears
+        Assert.Equal("", cleared.Value.ToString());
+        Assert.True(ReferenceLeafDrawers.Handles(typeof(Fdp.Toolkit.Scenario.RefKey)));
+    }
+
+    [Fact]
+    public void R3_ShowOnMap_PicksTheTargetOfEveryReferenceValue_AndAsksTheContext()
+    {
+        var spy = new ShowSpy();
+        Assert.True(ReferenceLeafDrawers.ShowOnMap(new EntityRef(7), spy));
+        Assert.True(ReferenceLeafDrawers.ShowOnMap(new Fdp.Toolkit.Replication.EntityLink(new EntityRef(8)), spy));
+        Assert.True(ReferenceLeafDrawers.ShowOnMap(new WorldPoint(1, 2, 3), spy));
+        Assert.True(ReferenceLeafDrawers.ShowOnMap(new Fdp.Toolkit.Replication.PointLink(new WorldPoint(4, 5, 6)), spy));
+        Assert.True(ReferenceLeafDrawers.ShowOnMap(Fdp.Toolkit.Replication.AreaLink.Circle(new WorldPoint(9, 9, 0), 10f), spy));
+        Assert.Equal(new[] { 7, 8 }, spy.Entities);
+        Assert.Equal(new[] { new WorldPoint(1, 2, 3), new WorldPoint(4, 5, 6), new WorldPoint(9, 9, 0) }, spy.Points);
+        Assert.False(ReferenceLeafDrawers.ShowOnMap(Fdp.Toolkit.Replication.EntityLink.None, spy));   // no place ⇒ no move
+        Assert.False(ReferenceLeafDrawers.ShowOnMap(new EntityRef(7), new SpyPickerContext()));         // a context that cannot ⇒ nothing
+    }
+
+    private sealed class ShowSpy : IMapPickContext
+    {
+        public List<int> Entities { get; } = new();
+        public List<WorldPoint> Points { get; } = new();
+        public bool IsPickPendingFor(string p) => false;
+        public void RequestEntityPick(string p, string[]? f) { }
+        public void RequestLocationPick(string p) { }
+        public bool TryConsumeEntityPick(string p, out EntityRef r) { r = default; return false; }
+        public bool TryConsumeLocationPick(string p, out Fdp.Toolkit.Replication.PointLink l) { l = default; return false; }
+        public bool CanShowOnMap => true;
+        public void ShowOnMap(EntityRef entity) => Entities.Add(entity.NetworkId);
+        public void ShowOnMap(WorldPoint point) => Points.Add(point);
+    }
 }

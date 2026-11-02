@@ -284,6 +284,9 @@ public sealed class ComponentEditDrawer
 
             if (changed)
                 node.Binding?.SetBoxed(value);
+            // ⭐ CE-4206 R3 F7 — a WorldRotation keeps its Y/P/R editor and gains a muted read-out line through OrientationText
+            if (node.ClrType == typeof(Fdp.Core.WorldRotation))
+                ImGuiApi.TextDisabled(ReferenceLeafDrawers.RotationReadout(changed ? value : node.Binding?.GetBoxed()));
         }
 
         // Delete button for resizable array elements.

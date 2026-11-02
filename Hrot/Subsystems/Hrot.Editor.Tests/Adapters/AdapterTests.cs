@@ -1070,6 +1070,40 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.Equal(start, await ((Hrot.UI.Common.Facades.IMapPickService)new DefaultOnlyPickService()).EditAreaAsync(start));
         }
 
+        private sealed class SpyCamera : Fdp.Toolkit.Vis2D.Components.MapCamera
+        {
+            public List<System.Numerics.Vector2> Focused { get; } = new();
+            public override void FocusOn(System.Numerics.Vector2 position, float zoom = -1f) => Focused.Add(position);
+        }
+
+        /// <summary>⭐ CE-4206 R3 (F8) — Show on map: the broker forwards to the service, and the canvas adapter centres its camera on a point and on an entity (the Center View move). Red-proof: the broker not forwarding ⇒ red.</summary>
+        [Fact]
+        public void CE4206_R3_ShowOnMap_GoesBrokerToServiceToTheCanvasCamera_ForAPointAndAnEntity()
+        {
+            using var world = new EntityRepository();
+            world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            world.RegisterComponent<Fdp.Core.SimTransform>();
+            var e = world.CreateEntity();
+            world.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(4242));
+            world.AddComponent(e, new Fdp.Core.SimTransform { Position = new System.Numerics.Vector3(70f, 80f, 0f) });
+            var cam = new SpyCamera();
+            _canvas.Camera = cam;
+            var adapter = new CanvasMapPickAdapter(_canvas, world);
+            var broker = new Hrot.Presentation.Facades.MapPickBroker(adapter);
+
+            Assert.True(broker.CanShowOnMap);
+            broker.ShowOnMap(new Fdp.Core.WorldPoint(10f, 20f, 0f));
+            broker.ShowOnMap(new Fdp.Toolkit.Replication.EntityRef(4242));
+            broker.ShowOnMap(new Fdp.Toolkit.Replication.EntityRef(999));                 // unknown ⇒ no move
+            Assert.Equal(new[] { new System.Numerics.Vector2(10f, 20f), new System.Numerics.Vector2(70f, 80f) }, cam.Focused);
+
+            Assert.False(new Hrot.Presentation.Facades.MapPickBroker(new DefaultOnlyPickService()).CanShowOnMap);   // a service that cannot ⇒ the leaf draws no button
+            var scoped = new Fdp.Presentation.Editing.ScopedMapPickContext(broker, "$.x");
+            Assert.True(scoped.CanShowOnMap);
+            scoped.ShowOnMap(new Fdp.Core.WorldPoint(1f, 2f, 0f));
+            Assert.Equal(3, cam.Focused.Count);
+        }
+
         private sealed class DefaultOnlyPickService : Hrot.UI.Common.Facades.IMapPickService
         {
             public Task<Hrot.Core.Mission.GeoPoint> PickLocationAsync(CancellationToken ct = default) => throw new NotSupportedException();

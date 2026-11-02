@@ -165,7 +165,6 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
     public sealed class SpatialBoundingPredicateDto : SearchPredicateDto
     {
-        [MapPickableBoundingBox]
         public Fdp.Toolkit.Replication.AreaLink Bounds { get; set; }
 
         public BoundaryEvent TriggerEvent { get; set; } = BoundaryEvent.EntryOrExit;
@@ -413,8 +412,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     // Custom attributes
     // ──────────────────────────────────────────────────────────────────────────
 
-    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
-    public sealed class MapPickableBoundingBoxAttribute : Attribute { }
+    // ⛔ CE-4206 R3: MapPickableBoundingBoxAttribute is GONE — its last reader (the agent schema's "boundingBox" hint) now reads the TYPE (AreaLink ⇒ "area"), as the drawer does.
 
     [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
     public sealed class BehaviorHashPickerAttribute : Attribute { }
