@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: S1 READY-TO-BUILD (2026-11-01, §4 F-13…F-18 ✅ ACCEPTED — user: "Approved.") · the model AGREED by the user 2026-10-31 ("Good, this sounds like what is needed", "Yes, please write it down") · S2, S3 DESIGN
+build-state: S1 ⏸ DESIGN again (2026-11-02 — §7 F-21…F-26, a config per feature, awaits the user; it changes S1's wire, payload and recording) · was READY-TO-BUILD (2026-11-01, §4 F-13…F-18 ✅ ACCEPTED — user: "Approved.") · the model AGREED by the user 2026-10-31 ("Good, this sounds like what is needed", "Yes, please write it down") · S2, S3 DESIGN
 updated: 2026-11-01 (S1 made buildable: the gate, the two delivery paths, the recording, the first two features — coordinator)
-current-answer: §2 the three tiers · §3 the diagrams · §4 decisions F-1…F-18 · §5 slices (S1 buildable) · ⭐ §6 the S1 technical spec (catalogue, C# shapes, where it lives, speed, wire, recording + going live)
+current-answer: ⭐ §7 a feature carries a CONFIG (F-21…F-26, draft) · §2 the three tiers · §3 the diagrams · §4 decisions F-1…F-18 · §5 slices (S1 buildable) · ⭐ §6 the S1 technical spec (catalogue, C# shapes, where it lives, speed, wire, recording + going live)
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -324,3 +324,56 @@ use `string[]` because they are JSON. ⭐ Lean: NEW topic fields use the typed s
 | ⭐ go live from the recording (`NodeOpType.PrepareLive`, `LiveBranchAggregator`) | each node's `StartBranch` already copies its parent's metadata (terrain, geo origin, checkpoints, parent id — `RecordingModule.cs:57-73`); it copies `FeaturesAtLoad` too, and the node FREEZES that set — ⭐ **the recording wins** for AtLoad features (the continued run plays by the same rules); Live features follow the cluster's current settings | `RecordingModule.StartBranch` |
 | a node that kept no recording | takes the master's current overrides, as on a fresh load | — |
 | a recorded feature this build does not declare | the branch is REFUSED loudly (*"recording needs feature X, not available on node Y"*) — ⛔ never a silent different run | the PrepareLive answer |
+
+## 7. A feature carries a CONFIGURATION, not just a switch *(`2026-11-02` — leans F-21 … F-26 await the user; S1 is not built yet, so this changes its spec, not code)*
+
+> 🔒 **User, `2026-11-02`:** *"I was thinking about whether the feature on/off setting is not just a reduced form of some wider feature
+> configuration and whether it could not be generalized as such (and transported as json object), if each feature can come with its json
+> serializable configuration DTO which contains the Enabled flag as a minimum."*
+
+**INVENTORY** *(`2026-11-02`: graph `.*Settings$` Class (16) and `.*(Config|Options|Profile)$` Class (~70); read `BehaviorParams.cs:121-190`,
+`NodeRunControls.cs:20-26`, `BrainSettings.cs`; ⚠ coverage unchecked)*
+
+| what exists | where | so |
+|---|---|---|
+| ⭐ the layered FLAT overlay of a JSON object onto a typed struct — DTO initialisers ▸ asset defaults ▸ the scenario / order JSON, top-level keys only, unknown keys ignored | `BehaviorParams.OverlayFlat<T>` (`Fdp.Toolkits/Behavior/BehaviorParams.cs:132`, `OverlayFlatAt` `:185`) | ⭐ exactly the precedence F-5 needs, already built ⇒ reuse it, per layer |
+| ⭐ the ONE params form draws any DTO type; a runtime-chosen type through `ScalarEditBox<T>` | `BehaviorParamsForm.cs:43-85`; `VariableEditModal.cs:340-380` (macros SR-44a) | the operator edits a feature's config with it — no new editor |
+| the node's run profile is a bag of per-host switches (`SuppressTimeControl`, `MapInLoad`) | `NodeRunControls.cs:20` | `MapInLoad` is already S1's first feature; the rest are host-kind facts, ⛔ not features |
+| most `*Settings` / `*Config` types are per-ENTITY components (`DangerAreaSettings`, `GroundClampingConfig`), per-unit brain settings (`BrainSettings`, R-1036) or per-WINDOW UI preferences (gizmo `*Settings`) | the graph lists above | ⛔ not features (§1 already ruled the UI preferences out); ⚠ node-level configs that MAY become feature configs — `TimeControllerConfig`, `LiveCityConfig`, `PedDemandConfig` — not measured |
+
+```mermaid
+classDiagram
+    direction LR
+    class IFeatureConfig { <<NEW>> bool Enabled }
+    class FeatureSwitch { <<NEW, unmanaged>> Enabled only — every switch-only feature }
+    class HudKillCamConfig { <<example, unmanaged>> Enabled · float Seconds · bool ShowKiller }
+    class FeatureDeclaration { <<S1, grows>> Id · Change · ConfigType · Default(role) as JSON }
+    class OverlayFlat { <<existing, BehaviorParams>> JSON object onto a struct, top-level keys }
+    class NodeFeatures { <<S1, grows>> On(handle) · Config~T~(handle) — ref readonly, no allocation }
+    class FeatureOverride { <<S1, changes>> Feature · Nodes · Json (a PARTIAL object) }
+    class ParamsForm { <<existing, the ONE form>> draws ConfigType }
+    FeatureSwitch ..|> IFeatureConfig
+    HudKillCamConfig ..|> IFeatureConfig
+    FeatureDeclaration ..> IFeatureConfig : ConfigType
+    NodeFeatures ..> OverlayFlat : one call per layer, on change
+    NodeFeatures ..> FeatureOverride
+    ParamsForm ..> FeatureDeclaration : edits an override
+```
+
+*What the picture shows that prose hid:* the switch becomes the `Enabled` field of a typed config, and the layers become JSON objects the
+existing flat overlay applies in order — so the precedence, the editor and the transport are all things the engine already has.
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **F-21** | a feature's state is a CONFIG, `Enabled` its minimum | ⭐ every feature declares a config type implementing `IFeatureConfig { bool Enabled }`; a switch-only feature uses the shared `FeatureSwitch`. ⭐ The type is an UNMANAGED struct where it can be (CLAUDE.md *"NEW COMPONENTS"*): it is read on the frame path and recorded |
+| **F-22** *(amends F-5, F-6, F-7, F-8)* | the layers | ⭐ each layer is a flat JSON OBJECT applied by `BehaviorParams.OverlayFlat<T>` in order: the type's initialisers ▸ the composition default (per role, F-6) ▸ the scenario's preset (P-7, `PLAN_Training_And_Gameplay_Engine.md`) ▸ the node override (`--feature hud.kill-cam={"Seconds":3}`; `--feature id=on\|off` stays as the short form of `{"Enabled":…}`) ▸ the cluster override. ⭐ A layer names only the keys it changes, so *"turn it off"* is `{"Enabled": false}` and keeps every other setting |
+| **F-23** *(amends F-16)* | the wire | ⭐ `FeatureOverrideWire { Feature, Nodes, Json }` — `Json` the partial object, replacing `bool On`; the load payload's `FeaturesAtLoad` becomes `FeatureConfigsAtLoad` (id → the EFFECTIVE full object of each AtLoad feature); `NodeHeartbeat.FeaturesOn` stays (the ON set, for the grid); the full effective configs are read on demand through the node's debug API, ⛔ not every heartbeat |
+| **F-24** *(amends F-15)* | the recording | `RecordingMetadata.FeatureConfigsAtLoad` — the effective objects; a branch to live re-applies them (unchanged rule: the recording wins for AtLoad). A recorded key this build's type no longer has ⇒ the branch is refused loudly, as an undeclared feature is today |
+| **F-25** | reading it | ⭐ `On(handle)` is unchanged (one `bool[]` read — the scheduler gate F-13 keeps working); `Config<T>(handle)` returns `ref readonly T` from the node's slot, recomputed only when a layer changes — ⛔ no allocation, no JSON on the frame path. Systems take the handle in their constructor |
+| **F-26** | Live vs AtLoad | ⭐ stays PER FEATURE (F-9): a feature whose settings mix both kinds is two features (F-1 — *"two switches that always move together are one feature"*, and the reverse). ⭐ An override with a key the type does not have is refused by the APPLYING node and reported on its heartbeat — the master only sees availability tokens, not the types |
+
+**Rejected — one line each:**
+- *Keep `bool On` and add a separate settings channel per feature* — two transports and two recordings for one fact.
+- *A free JSON blob read by the system itself* — untyped, parsed on the frame path, and no editor can draw it.
+- *Managed config classes* — recorded and read every frame; an unmanaged struct costs nothing in replay.
+- *Deep merge of nested objects* — `OverlayFlat` is flat on purpose (macros §4.0); a nested setting is promoted to the top level.
