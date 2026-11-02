@@ -409,7 +409,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Messages.WeaponFire` | message | no | Q | Hrot.Network.NED | A shot was fired (or refused) |
 | `Hrot.NED.Messages.WeaponFireRequest` | message | no | Q | Hrot.Network.NED | Brain asks Muscle to fire a weapon |
 
-### C. Mission, AI, perception and navigation — 16
+### C. Mission, AI, perception and navigation — 17
 
 | Full name | Kind | Keyed | QoS | Assembly | Role |
 |---|---|---|---|---|---|
@@ -429,6 +429,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Messages.EntityBrainIntent` | descriptor | yes: entity id | S | Hrot.Network.NED | Unit's AI task, SOP and ROE |
 | `Hrot.NED.Messages.MissionControlAck` | message | no | Q | Hrot.Network.NED | Reply to a mission control request |
 | `Hrot.NED.Messages.MissionControlRequest` | message | no | Q | Hrot.Network.NED | Command to start, stop or change a mission |
+| `Hrot.NED.Messages.PlayerMessage` | message | no | D | Hrot.Network.NED | A text a scenario trigger sends to players — subtitle + log (rules S2, dt 173; the SquadReport event shape) |
 | `Hrot.NED.Messages.SquadReport` | message | no | D | Hrot.Network.NED | Report up the chain of command |
 | `Hrot.NED.Messages.TacticalIntentRequest` | message | no | D | Hrot.Network.NED | Commander brain to subordinate brain intent |
 
