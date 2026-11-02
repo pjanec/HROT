@@ -39,7 +39,6 @@ namespace Hrot.Network.NED.Tests
             {
                 typeof(WorldPos).Assembly,                                                  // Hrot.Network.NED
                 typeof(Hrot.Animation.Replication.AnimationReplicationModule).Assembly,
-                typeof(Hrot.IG.Gizmos.IGCapabilitiesAnnounce).Assembly,                     // Hrot.IG — the second IGCapabilitiesAnnounce
             });
 
         /// <summary>The names that occur more than once (ordinal). Pure, so the rail can be proved on a list that does collide.</summary>
@@ -55,7 +54,7 @@ namespace Hrot.Network.NED.Tests
             Assert.True(types.Count >= 114, $"only {types.Count} [DdsTopic] types found — the assembly walk did not reach the production assemblies");
             foreach (var anchor in new[]
                      {
-                         typeof(WorldPos), typeof(EntityMaster), typeof(Hrot.IG.Gizmos.IGCapabilitiesAnnounce),
+                         typeof(WorldPos), typeof(EntityMaster),
                          typeof(Hrot.Animation.Replication.DdsStanceIntent),
                          typeof(Fdp.Network.Cyclone.Topics.OwnershipUpdate), typeof(Fdp.Toolkit.Time.Messages.TimeSyncRequest),
                          typeof(GizmoMap.Network.GizmoInteractionBatch),
@@ -92,14 +91,6 @@ namespace Hrot.Network.NED.Tests
             Assert.True(byName.Count == 0, "two types derive one topic name (they would share a topic):\n  " + string.Join("\n  ", byName));
             // the same check through the pure helper — over the names themselves
             Assert.Empty(Collisions(TopicTypes.Value.Select(t => DdsTopicName.Of(t))));
-        }
-
-        [Fact]
-        public void TheGizmoIGCapabilitiesAnnounceKeepsItsDerivedName()
-        {
-            // AQ107 A's pair: before it both wrote "IGCapabilitiesAnnounce". ⛔ R-3067 / AQ109 X4: the descriptors-namespace one is RETIRED (its name
-            //   Hrot_NED_Descriptors_IGCapabilitiesAnnounce is reserved, MapMessages.cs); the gizmo one stays under its derived name.
-            Assert.Equal("Hrot_IG_Gizmos_IGCapabilitiesAnnounce", DdsTopicName.Of<Hrot.IG.Gizmos.IGCapabilitiesAnnounce>());
         }
 
         [Fact]

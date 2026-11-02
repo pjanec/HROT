@@ -358,7 +358,7 @@ public class StrictNetworkSeparationTests
         var names = EngineAndNetworkAssemblies().Select(a => a.GetName().Name!).ToList();
         Assert.Contains("Hrot.Network.NED", names);
         Assert.Contains("Fdp.Toolkits", names);
-        Assert.Contains("Hrot.IG", names);   // its IGCapabilitiesAnnounce — the scan was blind to it until the reference was added
+        Assert.Contains("Hrot.IG", names);   // the IG assembly stays in the scan (CE-3358 retired its capabilities announce)
         var offences = Ce4208Offences().ToList();
         var stale = PendingCe4208.Keys.Where(k => !offences.Any(o => o.StartsWith(k, StringComparison.Ordinal))).ToList();
         Assert.True(stale.Count == 0, "Pending CE-4208 entries that no longer offend — delete them: " + string.Join(", ", stale));

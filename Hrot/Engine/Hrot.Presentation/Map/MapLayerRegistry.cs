@@ -19,7 +19,6 @@ namespace Hrot.Presentation.Map;
 /// <para>Consumers:</para>
 /// <list type="bullet">
 ///   <item><see cref="MapLayerAssignmentSystem"/> — calculates per-entity <c>MapDisplayComponent.LayerMask</c>.</item>
-///   <item><c>IgCapabilitiesPublisher</c> — populates <c>IGCapabilitiesAnnounce.LayerTreeJson</c>.</item>
 ///   <item><c>IgApplication.ParseAndApplyConfig</c> — translates ExCon JSON flags into <c>MapCanvas.ActiveLayerMask</c>.</item>
 /// </list>
 /// </summary>

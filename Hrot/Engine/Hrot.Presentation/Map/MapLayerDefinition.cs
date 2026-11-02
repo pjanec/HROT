@@ -11,8 +11,7 @@ namespace Hrot.Presentation.Map;
 /// </summary>
 /// <param name="Name">
 /// Standardised JSON string key for this layer (e.g. <c>"units_ground"</c>).
-/// Used both in <c>IGCapabilitiesAnnounce.LayerTreeJson</c> and in the JSON Merge
-/// Patch sent by the ExCon over the <c>MapInteractionConfig</c> DDS topic.
+/// Used in the JSON Merge Patch that selects active layers (the retired IG capabilities announce no longer carries it, CE-3358).
 /// </param>
 /// <param name="BitMask">
 /// Single power-of-two bit allocated to this layer within

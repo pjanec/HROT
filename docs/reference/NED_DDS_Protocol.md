@@ -454,7 +454,6 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 
 | Full name | Kind | Keyed | QoS | Assembly | Role |
 |---|---|---|---|---|---|
-| `Hrot.IG.Gizmos.IGCapabilitiesAnnounce` | descriptor | yes: node id | S | Hrot.IG | Same simple name as the NED type but a different type with a different layout, hence a different topic; its publisher is registered by no host and nothing reads it (§Not determinable 8) |
 | `Hrot.NED.Descriptors.MapEntitySymbol` | descriptor | yes: entity id + map group id | S | Hrot.Network.NED | Per-map-group symbol override for an entity |
 | `Hrot.NED.Descriptors.MapRoute` | descriptor | yes: entity id | S | Hrot.Network.NED | Waypoint route of an entity |
 | `Hrot.NED.Descriptors.MapVisualOverlay` | descriptor | yes: entity id | S | Hrot.Network.NED | Tactical graphic overlay attached to an entity |
@@ -618,7 +617,6 @@ Searches named where a claim says "not found". Each item is a claim I **could no
 | 5 | The staged TKB file format and location | `grep -rn "KnowledgeBase\|TkbFile\|tkb.json" --include=*.cs Hrot/Runner Hrot/Network/Hrot.Network.Orchestration` (no hit) |
 | 6 | The JSON payload of `ClusterOpRequest` per operation, and the exact sequence of ops a `NedSimControl` maps to | `grep -rn "ClusterOpType.TransitionState" Hrot FDP` (senders found, schema not read in full) |
 | 7 | CycloneDDS network configuration | `grep -rln "CYCLONEDDS_URI\|cyclonedds.xml"` — docs only |
-| 8 | Whether the `Hrot.IG.Gizmos.IGCapabilitiesAnnounce` variant is ever instantiated | `grep -rn "IGCapabilitiesPublisherSystem" Hrot` — its publisher system is registered nowhere in production code; the NED variant is what the IG actually writes (`Hrot/Subsystems/Hrot.IG/IgApplication.cs:1060` → `Replication`-side `IG/NedIgNetworkAdapter.cs:128`) |
 | 9 | Coverage of the code graph for absence claims | `scripts/cbm.sh check_index_coverage` is not available through the CLI (CLAUDE.md); absence claims are grep + `search_graph` only |
 | 10 | The *kind* column (descriptor / message) is assigned by a rule (keyed ∧ TransientLocal ⇒ descriptor) with four overrides (`EntityStateTopic`, `SensorTargets` forced to descriptor; `NodeIdRequest`, `NodeIdGrant` forced to message) | judgement, not from sources |
 | 11 | Descriptor role text in the inventory is paraphrased from comments at the type; ownership group per descriptor was taken from the Ownership Groups design (live `2026-10-14`), not re-measured | — |
