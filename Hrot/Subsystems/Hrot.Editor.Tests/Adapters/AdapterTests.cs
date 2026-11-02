@@ -1422,4 +1422,120 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.NotEqual(0u, canvas.ActiveLayerMask & Hrot.Map.Common.Config.MapLayerBits.VehiclesBit);
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ⭐ CE-4213 (DESIGN_Entity_Hierarchy_Views HV-2/HV-4) — the Structure relation of the ONE entity tree.
+    // Red-proof (compiles): StructureHierarchyAdapter.GetParent ignoring PartMetadata ⇒ the "sensor under its vehicle" rail fails.
+    // No frame rail: SharedOrbatPanel has no ImGui frame rail (only the model-dump + drop-logic tests), so the switch is covered by
+    // the view-model/relation rails here.
+    // ═══════════════════════════════════════════════════════════════════════════
+    [Collection(Hrot.Editor.Tests.Windows.PanelSnapshotTestCollection.Name)]
+    public sealed class EditorOrbatStructureViewTests : IDisposable
+    {
+        private readonly EntityRepository _world = new();
+        private readonly Mock<ISpawnController> _spawn = new();
+
+        public EditorOrbatStructureViewTests()
+        {
+            _world.RegisterComponent<EntityInfo>();
+            _world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            _world.RegisterComponent<PartMetadata>();
+            _world.RegisterComponent<IsEmbarkedTag>();
+        }
+
+        public void Dispose() => _world.Dispose();
+
+        private ScenarioOrbatAdapter Adapter(EntityTreeRelation r)
+            => new(_world, _world.Bus, _spawn.Object) { Relation = r };
+
+        private Entity Named(string name)
+        {
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new EntityInfo { Name = new FixedString64(name) });
+            return e;
+        }
+
+        [Fact]
+        public void Command_view_is_unchanged_by_parts_and_passengers()
+        {
+            _world.CreateEntity();
+            var tank = Named("Tank");
+            var sensor = _world.CreateEntity();
+            _world.AddComponent(sensor, new PartMetadata { ParentEntity = tank, InstanceId = 1000 });
+            var soldier = Named("Rifleman");
+            _world.AddComponent(soldier, new IsEmbarkedTag { VehicleEntity = tank });
+
+            var nodes = Adapter(EntityTreeRelation.Command).GetVisibleNodes("", new HashSet<int>());
+
+            Assert.Equal(new[] { "Tank", "Rifleman" }, nodes.Select(n => n.Name).OrderByDescending(n => n).ToArray());
+            Assert.All(nodes, n => Assert.Equal(0, n.Depth));   // the sensor is not a node; the passenger is a root of the command tree
+        }
+
+        [Fact]
+        public void Structure_view_shows_a_sensor_part_and_an_embarked_passenger_under_the_vehicle()
+        {
+            _world.CreateEntity();
+            var tank = Named("Tank");
+            var sensor = _world.CreateEntity();
+            _world.AddComponent(sensor, new PartMetadata { ParentEntity = tank, InstanceId = 1003 });
+            var soldier = Named("Rifleman");
+            _world.AddComponent(soldier, new IsEmbarkedTag { VehicleEntity = tank });
+
+            var nodes = Adapter(EntityTreeRelation.Structure).GetVisibleNodes("", new HashSet<int> { tank.Index });
+
+            Assert.Equal(3, nodes.Count);
+            Assert.Equal("Tank", nodes[0].Name);
+            Assert.True(nodes[0].HasChildren);
+            Assert.Contains(nodes, n => n.Depth == 1 && n.Name == "Tank · sensor 3" && n.EntityId == sensor.Index);
+            Assert.Contains(nodes, n => n.Depth == 1 && n.Name == "Rifleman");
+            Assert.All(nodes, n => Assert.False(n.CanAcceptSubordinates));
+        }
+
+        [Fact]
+        public void Structure_view_a_part_with_a_dead_parent_is_a_root()
+        {
+            _world.CreateEntity();
+            var tank = Named("Tank");
+            var sensor = _world.CreateEntity();
+            _world.AddComponent(sensor, new PartMetadata { ParentEntity = tank, InstanceId = 2001 });
+            _world.DestroyEntity(tank);
+
+            var nodes = Adapter(EntityTreeRelation.Structure).GetVisibleNodes("", new HashSet<int>());
+
+            var only = Assert.Single(nodes);
+            Assert.Equal(0, only.Depth);
+            Assert.Equal("turret 1", only.Name);
+        }
+
+        [Fact]
+        public void Structure_view_refuses_reparent_and_the_controller_publishes_nothing()
+        {
+            _world.CreateEntity();
+            var a = Named("A");
+            var b = Named("B");
+            var adapter = Adapter(EntityTreeRelation.Structure);
+            adapter.GetVisibleNodes("", new HashSet<int>());
+
+            Assert.False(((IHierarchyAdapter)new StructureHierarchyAdapter()).CanReparent(_world, a, b));
+
+            adapter.RequestAssignSubordinate(a.Index, b.Index);
+            adapter.RequestRemoveSubordinate(a.Index);
+            Assert.False(_world.HasComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>(a));
+            _spawn.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public void ChildEnumerator_walks_an_explicit_list_and_skips_dead_entities()
+        {
+            var a = _world.CreateEntity();
+            var dead = _world.CreateEntity();
+            var b = _world.CreateEntity();
+            _world.DestroyEntity(dead);
+
+            var seen = new List<Entity>();
+            foreach (var c in new ChildEnumerator(_world, new[] { a, dead, b })) seen.Add(c);
+
+            Assert.Equal(new[] { a, b }, seen);
+        }
+    }
 }

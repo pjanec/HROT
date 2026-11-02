@@ -5,6 +5,7 @@ using Fdp.Core.CommandHierarchy;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Hrot.Common.Events;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
@@ -33,6 +34,15 @@ namespace Hrot.UI.Common.Adapters
         private readonly HashSet<int>         _expandedNodes = new();
         private readonly Dictionary<int, Entity> _indexCache = new();
 
+        // ⭐ CE-4213 (HV-4) — the parent rule of each relation; ONE tree builder below serves both.
+        private readonly CommandHierarchyAdapter   _command   = new();
+        private readonly StructureHierarchyAdapter _structure = new();
+
+        /// <inheritdoc/>
+        public EntityTreeRelation Relation { get; set; } = EntityTreeRelation.Command;
+
+        private IHierarchyAdapter Adapter => Relation == EntityTreeRelation.Structure ? _structure : _command;
+
         /// <param name="world">Entity repository.</param>
         /// <param name="bus">Local FDP event bus for publishing embark/disembark commands.</param>
         // ⭐ CE-060 — the `IEditorLogic logic` parameter is GONE: its one use is now two shared bus
@@ -57,23 +67,30 @@ namespace Hrot.UI.Common.Adapters
             string filterText, HashSet<int> expandedNodes)
         {
             // ── Rebuild entity index cache ────────────────────────────────────
+            // ⭐ CE-4213 — the members of the selected relation (Command: the named entities; Structure: + parts and embarked ones).
+            var adapter = Adapter;
             _indexCache.Clear();
-            var q = _world.Query().With<EntityInfo>().Build();
-            foreach (var entity in q)
+            foreach (var entity in _world.Query().With<EntityInfo>().Build())
                 _indexCache[entity.Index] = entity;
+            if (Relation == EntityTreeRelation.Structure)
+            {
+                if (_world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>())
+                    foreach (var entity in _world.Query().With<Fdp.Toolkit.Replication.Components.PartMetadata>().Build())
+                        _indexCache[entity.Index] = entity;
+                if (_world.IsComponentTypeRegistered<IsEmbarkedTag>())
+                    foreach (var entity in _world.Query().With<IsEmbarkedTag>().Build())
+                        _indexCache[entity.Index] = entity;
+            }
 
-            // ── Build parent → children map ──────────────────────────────────
+            // ── Build parent → children map (through the selected relation's parent rule) ───
             var children = new Dictionary<int, List<int>>(); // parentIndex → child indices
             var rootIndices = new List<int>();
 
             foreach (var (idx, _) in _indexCache)
             {
                 var entity = _indexCache[idx];
-                Entity commander = Entity.Null;
-                if (_world.HasComponent<UnitSubordinate>(entity))
-                {
-                    commander = _world.GetComponent<UnitSubordinate>(entity).Commander;
-                }
+                if (!adapter.Includes(_world, entity)) continue;
+                var commander = adapter.GetParent(_world, entity);
 
                 if (commander.IsNull || !_world.IsAlive(commander))
                 {
@@ -98,8 +115,7 @@ namespace Hrot.UI.Common.Adapters
                 if (!visited.Add(idx)) return;
                 if (!_indexCache.TryGetValue(idx, out var entity)) return;
 
-                var info = _world.GetComponent<EntityInfo>(entity);
-                string name = info.Name.ToString();
+                string name = NameOf(entity, adapter);
 
                 // Apply filter
                 bool passesFilter = string.IsNullOrEmpty(filterText)
@@ -115,7 +131,7 @@ namespace Hrot.UI.Common.Adapters
                         Depth:          depth,
                         HasChildren:    hasChildren,
                         IsPendingDelete: false,
-                        CanAcceptSubordinates: _world.HasComponent<UnitRoster>(entity),
+                        CanAcceptSubordinates: Relation == EntityTreeRelation.Command && _world.HasComponent<UnitRoster>(entity),   // ⭐ CE-4213: Structure has no drop targets
                         NetworkId:      NetworkIdOf(entity),
                         IsDestroyed:    IsDestroyed(entity)));   // ⭐ CE-1350
                 }
@@ -136,6 +152,22 @@ namespace Hrot.UI.Common.Adapters
                 CollectNodes(root, 0);
 
             return result;
+        }
+
+        /// <summary>The row text: the entity's own name; a part with none is named from its parent plus the part kind.</summary>
+        private string NameOf(Entity entity, IHierarchyAdapter adapter)
+        {
+            if (_world.HasComponent<EntityInfo>(entity))
+                return _world.GetComponent<EntityInfo>(entity).Name.ToString();
+
+            var parent = adapter.GetParent(_world, entity);
+            string? parentName = !parent.IsNull && _world.HasComponent<EntityInfo>(parent)
+                ? _world.GetComponent<EntityInfo>(parent).Name.ToString() : null;
+            if (_world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>()
+                && _world.HasComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(entity))
+                return StructureHierarchyAdapter.PartLabel(
+                    parentName, _world.GetComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(entity).InstanceId);
+            return parentName is null ? $"entity #{entity.Index}" : $"{parentName} · passenger";
         }
 
         // ── IOrbatController ─────────────────────────────────────────────────
@@ -209,6 +241,7 @@ namespace Hrot.UI.Common.Adapters
         /// <inheritdoc/>
         public void RequestEmbark(int passengerEntityId, int vehicleEntityId)
         {
+            if (Relation != EntityTreeRelation.Command) return;   // ⭐ CE-4213: Structure is read-only
             if (!_indexCache.TryGetValue(passengerEntityId, out var passenger) ||
                 !_indexCache.TryGetValue(vehicleEntityId,   out var vehicle))
                 return;
@@ -229,6 +262,7 @@ namespace Hrot.UI.Common.Adapters
         /// <inheritdoc/>
         public void RequestAssignSubordinate(int subordinateEntityId, int commanderEntityId)
         {
+            if (Relation != EntityTreeRelation.Command) return;   // ⭐ CE-4213: Structure is read-only
             if (!_indexCache.TryGetValue(subordinateEntityId, out var sub) ||
                 !_indexCache.TryGetValue(commanderEntityId,   out var cmd))
             {
@@ -249,6 +283,7 @@ namespace Hrot.UI.Common.Adapters
         /// <inheritdoc/>
         public void RequestRemoveSubordinate(int subordinateEntityId)
         {
+            if (Relation != EntityTreeRelation.Command) return;   // ⭐ CE-4213: Structure is read-only
             if (!_indexCache.TryGetValue(subordinateEntityId, out var sub))
             {
                 FdpLog<ScenarioOrbatAdapter>.Warn(
