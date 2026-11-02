@@ -266,6 +266,96 @@ classDiagram
 ⚠ Open: a PLAYER node reading the statuses (no Player in `--mode all`) · OnClose is called by S2's `EndExercise` · an unresolved `DestroyTargets` / `Protect` target counts as not destroyed until seen.
 written once, so no kind can decide "achieved" differently.
 
+### 00.9 S2 — build decisions *(behaviors, `2026-11-02`; measured on `behaviors` at `5821ec2d1`, after merging `backend`'s binder `3683f1487`)*
+
+📐 Queries: `scripts/cbm.sh search_graph` `.*(ActionSchemaExporter|FailureReason|FailReason|BehaviorFailure|LastFailure).*` Class (9: the editor-side
+exporter + 8 test doubles — ⛔ no failure-reason channel exists) · `.*(AssignTacticalIntent|PauseRequest|RequestPause|SimPause).*` (20: the order event,
+`CgfClusterDebugTimeController.RequestPause` = the Brain node's cluster pause) · grep of `SearchPredicateDto.cs` (the loop DTOs' fields) and the PoC (1346 lines).
+⚠ coverage unchecked (`check_index_coverage` is not in the CLI).
+
+| # | decision | why / measured |
+|---|---|---|
+| **S2-a** ids | components **427** `ExerciseResult` (unmanaged, NoScenario, World Environment) · **428** `ActionArgs` (managed `sealed record`, init-only, written at assignment only — SR-97 / CLAUDE.md *NEW COMPONENTS*) · **429** `ActionFailure` (unmanaged `FixedString64 Reason` + `int Step`, the reason channel CE-4165) · descriptors **172** `dtExerciseResult` (state) · **173** `dtPlayerMessage` (event) · TKB **8861** `Trigger` | the blocks of §00.8 S1-a |
+| **S2-b** ONE compiler, TWO entry points | `IPredicateCompiler.CompileLevelPredicate(dto)` beside `CompileComponentPredicate`: the SAME arms; only the four loop kinds differ — LEVEL arms (`SpatialBounding` → the entity's position inside `Bounds` via `AreaLink.Contains` · `Lifecycle` → the target alive · `Structural` → has the component · `TransientEvent` → an event of that type naming the entity occurred this frame) where the search entry keeps its pass-through. New leaves (both entries): `OnEntity {Ref: EntityLink, Predicate}` · `ScenarioTime {From, To}` (sim s) · `CountMatching {Predicate, Min, Max}` | SR-158; ⛔ changing the existing entry would change `RecordingSearchService` and the breakpoints mid-flight (CE-4205 routes them later) |
+| **S2-c** the trigger | an Objective-like entity (TKB 8861) whose task slot runs ONE C# `Trigger` behaviour: params `{common, when, holdFor, delay, repeat, cooldown, maxFires, fireIfTrueWhenArmed, do[]}`. `when` + `do` are kept as JSON strings in the caller's `ActionArgs` (items 0 / 1), the compiled `when` cached per JSON string (process-wide, like the PoC's step list). Its state machine (§10.11) lives in its blackboard; it writes `ObjectiveStatus` with `Role = Trigger`, a NEW byte field `TriggerState` (Disarmed … Done, T8) and `FireCount` / `LastFired`; `State` mirrors it coarsely (Inactive = Disarmed, Achieved = Done after success, Failed = an action failed) so aggregators and the HUD read one shape | SR-88, SR-91, T1–T10; the PoC's `PocTrigger` |
+| **S2-d** actions | the PoC lifted into `Fdp.Toolkits/ScenarioRules/Actions/`: `ActionCatalogue` (reflects stateful `[SharedAiAction]`s, one cached runner per type — ⭐ `ActionSchemaExporter`'s runtime discovery CALLS it, no second reflection), `StepRunner<TP,TS>` (seed by `BehaviorParams.OverlayFlat`; an `Entity` field REFUSED loudly — authored refs are `EntityLink`, resolved at seeding, CE-4162), `RunActions` (stateful shared action, step key salted by depth, CE-4161; the lazy-attach seam refuses the root kinds `BTree` / `BlueprintBehavior`), validation at ASSIGNMENT (CE-4163). Verbs v1, each a stateful `[SharedAiAction]` naming its target in its params: `Message` · `SetObjectiveActive {target, active, reset}` · `EndExercise {reason}` · `Order {target, behavior, params}` (publishes `AssignTacticalIntentEvent`; done when the target's active behaviour is it) · `MissionCommand {target, command, task}` | SR-93, SR-97, SR-98, SR-108 |
+| **S2-e** the end | `EndExercise` (SR-116): `ExerciseResult.Phase = Closing` → every objective's next tick (`ObjectiveHost.Enter`) sees Closing and runs `ObjectiveRules.OnClose(CloseRuleOf(kind))` → when every status is final (or 2 s sim) it writes per-side outcome, `Phase = Ended` → the ingress raises `ExerciseEnded` once on every node → the Brain node asks for the pause through `CgfClusterDebugTimeController.RequestPause` (the one cluster pause a Brain node has) | SR-116, SR-122; pause-after-close because a paused world runs no brain tick |
+| **S2-f** messages | `PlayerMessage` = the `SquadReport` event shape (SR-121): published by the `Message` action, raised as a local `PlayerMessageEvent` on every other node. ⭐ The subtitle + log on the Player is UI — handed to `ui` with the event as the contract | R-4105 |
+
+```mermaid
+classDiagram
+    direction LR
+    class TriggerBehavior { <<C# behaviour, TKB 8861>> the §10.11 state machine }
+    class IPredicateCompiler { <<existing>> CompileComponentPredicate · CompileLevelPredicate NEW }
+    class LevelLeaves { <<NEW DTOs>> OnEntity · ScenarioTime · CountMatching }
+    class ActionArgs { <<428 managed record>> Items: when JSON · do JSON · step args }
+    class ActionCatalogue { <<NEW, Fdp.Toolkits>> stateful SharedAiAction to runner, cached }
+    class ActionSchemaExporter { <<existing, editor>> reads the catalogue }
+    class RunActions { <<NEW shared action>> one step slot at a time }
+    class Verbs { <<NEW shared actions>> Message · SetObjectiveActive · EndExercise · Order · MissionCommand }
+    class ActionFailure { <<429>> Step · Reason }
+    class ExerciseResult { <<427>> Phase · per side outcome · EndedAt · Reason }
+    class ObjectiveStatus { <<425, existing>> + TriggerState }
+    class ObjectiveHost { <<existing>> Enter sees Closing, runs OnClose }
+    TriggerBehavior ..> IPredicateCompiler : when, compiled once
+    IPredicateCompiler ..> LevelLeaves
+    TriggerBehavior ..> ActionArgs
+    TriggerBehavior ..> RunActions : on fire
+    RunActions ..> ActionCatalogue
+    ActionSchemaExporter ..> ActionCatalogue
+    RunActions ..> Verbs
+    Verbs ..> ActionFailure : on Failure
+    Verbs ..> ExerciseResult : EndExercise
+    TriggerBehavior ..> ObjectiveStatus : Role Trigger
+    ObjectiveHost ..> ExerciseResult : reads Phase
+```
+
+*What the picture shows that prose hid:* the trigger adds ONE behaviour and ONE loop; everything it fires is an ordinary shared action any BTree
+can call, and the end reaches every objective through the host they already share — no end-of-exercise system.
+
+```mermaid
+sequenceDiagram
+    participant T as Trigger "end" (Brain node)
+    participant RA as RunActions
+    participant EE as EndExercise
+    participant WE as World Environment
+    participant O as every objective (ObjectiveHost)
+    participant N as other nodes (ingress)
+    T->>T: when rises (level, compiled once) · holdFor · delay
+    T->>RA: Acting
+    RA->>EE: step 1 (slot attached, seeded)
+    EE->>WE: ExerciseResult.Phase = Closing
+    O->>O: next tick: OnClose by kind, Closed = 1
+    EE->>WE: all final (or 2 s): outcomes, Phase = Ended
+    EE-->>RA: Success (slot detached)
+    RA-->>T: Success → Done
+    WE-->>N: EntityExerciseResult → ExerciseEnded (once)
+    N->>N: Brain node: RequestPause
+```
+
+```mermaid
+graph TD
+    subgraph brain["Brain node / editor — CgfLogicPack"]
+        BTS["BrainTickSystem (every advancing frame)"] --> TRG["Trigger behaviour"]
+        BTS --> OBJ["objective kinds — ObjectiveHost"]
+        TRG --> RA["RunActions → verbs"]
+        RA --> EG1["ObjectiveStatus / ExerciseResult (components)"]
+        RA --> PM["PlayerMessage publish"]
+    end
+    subgraph every["every node — SharedTranslatorPack"]
+        EG["egress 171 / 172"] --> W(("DDS"))
+        W --> IG["ingress → ExerciseEnded · PlayerMessageEvent"]
+    end
+    EG1 --> EG
+    PM --> W
+    IG --> UI["Player subtitle + log (ui lane)"]
+    REP["replay"]:::dead -. "no brain tick: no trigger, no action, no PlayerMessage" .-> BTS
+    classDef dead fill:#fde2e2,stroke:#c33
+```
+
+*Caption:* the trigger and its actions run only where `BrainTickSystem` runs (the Brain node and the editor); every other node only RECEIVES — the
+status and result topics, the message event. The red edge: replay never fires a trigger (T10).
+
 ⭐ **SR-145** ✅ `2026-11-01` — **objectives and triggers have NO feature switch: they are scenario CONTENT, like cars.** 🔒 user, `2026-11-01`: *"The triggers and objectives, they are entities like cars or whatever else, and they are probably a core system feature as well. So is there anything that we can turn on or off? They are either present in the scenario or they don't. And if they are, they should be working, as the system knows how to handle them."* → *"Yes."* to the lean. ⭐ Measured against every reason to switch them off — free play (per scenario: the instructor disarms a trigger / switches an objective off, T9 / `SetObjectiveActive`, or a run variant / param, SR-101), debugging (the same), performance (a handful of entities, one small behaviour each), a node that cannot run them (any Brain node runs every behaviour), replay (brains do not tick, T10), old builds (no backward compatibility) — none holds. ⇒ ⛔ no `scenario.rules` feature; the ONLY check is the behaviour registry's: an unknown kind / action fails the load loudly. Real switches stay where the run is PRESENTED or PLAYED differently (`exercise.pause-on-end`, `hud.*`, `gameplay.team-kill`). Supersedes SR-6's "master refuses to start" clause and `DESIGN_Node_Features.md` F-17's `scenario.rules`.
 
 ⭐ **SR-144** ✅ `2026-11-01` — **macro expansion is CORE infrastructure, not part of the rules.** 🔒 user: *"Macro expansion is not part of scenario rules, is it? Isn't it a standalone feature which is usable in general, just being used by the rules system? So it should not be gated by scenario.rules. I think this is the core system feature."* ⭐ The `Expander` lives on the entity CREATION path (§9.7) and serves forces, units, props and events alike; the rules are one user of it (`InsertMacro`). ⇒ composed wherever entities are created, ⛔ never gated by `scenario.rules` (`DESIGN_Node_Features.md` F-19), and its slice (S3) does not depend on the rules' slices except for `InsertMacro`
