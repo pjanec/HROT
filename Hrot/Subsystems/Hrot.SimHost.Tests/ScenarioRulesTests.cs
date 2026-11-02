@@ -368,6 +368,24 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(ObjectiveState.Active, w.S(comp).State);
         }
 
+        /// <summary>⭐ 2b — a composite that starts Inactive is frozen; switched on later (what S2's SetObjectiveActive does: the State written
+        /// directly) it aggregates its children — for BOTH composites. ✅ Red-proof: the StartActive term back in the condition ⇒ red.</summary>
+        [Theory]
+        [InlineData("AllMustPass")]
+        [InlineData("WeightedMean")]
+        public void AComposite_StartedInactive_IsFrozen_ThenAggregatesOnceSwitchedOn(string kind)
+        {
+            var w = new ObjWorld();
+            var squad = w.Squad(ForceId.Friend, w.Man(Inside, ForceId.Friend));
+            var comp = w.Objective(kind, "{\"common\":{\"title\":\"C\",\"startActive\":false}}");
+            w.Objective("ReachArea", $"{{\"common\":{{\"subject\":{w.Net(squad)},\"parent\":{w.Net(comp)}}},\"area\":{Circle0}}}");
+            w.Run(3);
+            Assert.Equal(ObjectiveState.Inactive, w.S(comp).State);                     // frozen though its child is done
+            w.Repo.GetComponentRW<ObjectiveStatus>(comp).State = ObjectiveState.Active; // what the action will do
+            w.Run(2);
+            Assert.Equal(ObjectiveState.Achieved, w.S(comp).State);
+        }
+
         /// <summary>Rail 7 — the SAME kind twice with different params side by side: independent states.</summary>
         [Fact]
         public void TwoHoldAreas_WithDifferentAreas_RunIndependently()

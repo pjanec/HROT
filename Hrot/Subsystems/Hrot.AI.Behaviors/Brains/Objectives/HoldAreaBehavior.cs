@@ -66,6 +66,8 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             return NodeStatus.Running;
         }
 
+        private static readonly ForceId[] s_sides = { ForceId.Friend, ForceId.Hostile };
+
         /// <summary>Capture: the Owner is the subject's side while held, the enemy side while an enemy side has ≥ minMen inside and the subject's men
         /// are ≤ maxEnemy, else unchanged. The state stays Active.</summary>
         private static void Capture(ref Block b, ref ObjectiveStatus s, EntityRepository world, ForceId mine, int men, int enemy, bool held, double now)
@@ -73,7 +75,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             var owner = s.Owner;
             if (held) owner = mine;
             else if (men <= b.MaxEnemy)
-                foreach (var side in new[] { ForceId.Friend, ForceId.Hostile })
+                foreach (var side in s_sides)
                     if (side != mine && ObjectiveCensus.EnemiesInside(world, mine, in b.Area, side) >= b.MinMen) { owner = side; break; }
             bool dirty = owner != s.Owner || men != b.LastMen || enemy != b.LastEnemy;
             s.Owner = owner; b.LastMen = men; b.LastEnemy = enemy; s.ProgressCur = men; s.ProgressNeed = b.MinMen;

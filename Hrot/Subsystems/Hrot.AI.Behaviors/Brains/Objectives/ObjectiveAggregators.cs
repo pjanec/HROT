@@ -18,6 +18,8 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         public struct Tally
         {
             public int Count, Started, Achieved, Final, FailedRequired, FailedAny;
+            /// <summary>Skipped children that are not required (SR-117: excluded from aggregation).</summary>
+            public int SkippedIgnored;
             /// <summary>Σ w·score and Σ w over the scored children (a Skipped one only when required, as 0).</summary>
             public double WeightedScore, Weight;
             public string FirstFailed;
@@ -33,6 +35,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 t.Count++;
                 if (c.State != ObjectiveState.Pending && c.State != ObjectiveState.Inactive) t.Started++;
                 if (c.State == ObjectiveState.Achieved) t.Achieved++;
+                if (c.State == ObjectiveState.Skipped && c.Required == 0) t.SkippedIgnored++;
                 if (c.IsFinal) t.Final++;
                 bool failed = c.State == ObjectiveState.Failed || (c.State == ObjectiveState.Skipped && c.Required != 0);   // SR-117: a required Skipped counts as failed
                 if (failed)
@@ -74,13 +77,13 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         {
             var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Objective, in b.Common, ref b.Run);
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
-            if (ObjectiveChildren.Evaluates(in s) && b.Common.StartActive != 0 || s.State == ObjectiveState.Pending)
+            if (ObjectiveChildren.Evaluates(in s))   // ⭐ not StartActive: a composite that started Inactive and is switched on later (S2) must evaluate
             {
                 var t = ObjectiveChildren.Of(world, self);
-                int counted = t.Count; // every child counts except nothing: a non-required Skipped is simply never Achieved, so it is excluded below
+                int counted = t.Count - t.SkippedIgnored;
                 var next = t.Started == 0 ? ObjectiveState.Pending
                          : t.FailedAny > 0 ? ObjectiveState.Failed
-                         : t.Count > 0 && t.Achieved + SkippedIgnored(world, self) >= t.Count ? ObjectiveState.Achieved
+                         : counted > 0 && t.Achieved >= counted ? ObjectiveState.Achieved
                          : ObjectiveState.Active;
                 s.ProgressCur = t.Achieved; s.ProgressNeed = counted;
                 ObjectiveHost.Settle(ref s, Kind, next,
@@ -88,18 +91,6 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             }
             ObjectiveRules.WriteScore(ref s);
             return NodeStatus.Running;
-        }
-
-        private static int SkippedIgnored(EntityRepository world, Entity self)
-        {
-            int n = 0;
-            foreach (var e in world.Query().With<ObjectiveLinks>().With<ObjectiveStatus>().Build())
-            {
-                if (e == self || world.GetComponentRO<ObjectiveLinks>(e).Parent.Resolve(world) != self) continue;
-                ref readonly var c = ref world.GetComponentRO<ObjectiveStatus>(e);
-                if (c.State == ObjectiveState.Skipped && c.Required == 0) n++;
-            }
-            return n;
         }
 
         [Behavior(BehaviorNames.AllMustPass, Params = typeof(AllMustPassParamsJsonDto), Categories = BehaviorCategory.Objective)]
@@ -130,7 +121,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         {
             var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Objective, in b.Common, ref b.Run);
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
-            if (ObjectiveChildren.Evaluates(in s) && (b.Common.StartActive != 0 || s.State == ObjectiveState.Pending))
+            if (ObjectiveChildren.Evaluates(in s))
             {
                 var t = ObjectiveChildren.Of(world, self);
                 float score = t.Weight > 0 ? (float)(t.WeightedScore / t.Weight) : 0f;
