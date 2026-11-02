@@ -31,6 +31,7 @@ namespace Hrot.SimHost.Serializers
                 .RegisterTranslator(new PersonalRouteRefTranslator())
                 .RegisterTranslator(new UnitSubordinateTranslator())
                 .RegisterTranslator(new EditablePolylineTranslator())
+                .RegisterTranslator(new ParamBindingsTranslator())   // ⭐ macros S3a ① (SR-163) — a binding survives a save
                 .RegisterTranslator(new RoutePlanTranslator())
                 .RegisterTranslator(new BrainDiagnosticsTranslator(behaviorRegistry))
                 // ⛔ P4-① (2026-09-22): Blackboard1024Translator is GONE with its component. It was an

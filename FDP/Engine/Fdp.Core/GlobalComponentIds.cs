@@ -1187,5 +1187,10 @@ namespace Fdp.Core
         /// may use (<c>"@BlueHQ"</c>), unique per scope. Saved with the scenario. ⚠ 468 measured free in backend, ui, behaviors and
         /// coordinator 2026-11-01.</summary>
         public const int RefKey = 468;
+
+        /// <summary><c>ParamBindings</c> — ⭐ macros S3a ① (docs/DESIGN_Scenario_Macros.md SR-161 / SR-57): an entity's scalar-field bindings to
+        /// macro / scenario params (<c>"Behavior.Params.Speed" → "speed"</c>). Managed, NoReplay (SR-165). ⚠ 469 measured free in backend,
+        /// ui, behaviors and coordinator 2026-11-02.</summary>
+        public const int ParamBindings = 469;
     }
 }
