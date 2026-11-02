@@ -73,6 +73,8 @@ name, a unit — and the instant / duration pair has the arithmetic built in (an
 | seams | `SemanticValueTypes`, `DtoJsonSchemaExtractor`, `StaticTypeRegistry` (unmanaged 8 B) | the same three (unmanaged 4 B) |
 | rail | `S0IdTypesRailTests.S0_EveryTemplateIdMember_IsATkbTypeId` (saved components + params DTOs; allow-list empty) | `S0IdTypesRailTests.S0_EveryNodeIdMember_IsANodeId` (every public non-wire type; `NotANodeId` holds 4 graph-node entries) |
 
+⭐ **CE-4209 rail for the STRING side** (the netstandard2.0 compiler / pin editors cannot see `Fdp.Core`, so they name these types by string): `SemanticValueTypesTests.EveryFdpCoreNameLiteral_*` / `EverySemanticNameLiteral_*` / `TheStaticTypeRegistry_HasAKeyForEverySemanticType` read `Stage2_Validate.cs`, `StaticTypeRegistry.cs` and `PinDefaultValueEditorRegistry.cs` and resolve every `"Fdp.Core.X"` literal against the real assembly.
+
 ⚠ **Where the build DEVIATES from §2's lean — the prior statement is SUPERSEDED:**
 - ⛔ **No compiler coercion rung** for either type: `Stage3_NormalizationTests.CoercionTable_ContainsOnlyLosslessWidenings` pins the table to C#'s own widenings, and item 6's `WorldPoint` added none either. A graph crosses explicitly.
 - **Constructor parameters and locals stay `int` / `long`**; only fields, properties and record components carry the type. A `(NodeId)` / `(TkbTypeId)` cast sits at the assignment. ⭐ Reason: the typed fields are what a tool reads and what the rail scans; typing every parameter was ~400 more edits for no extra safety.
