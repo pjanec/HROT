@@ -381,7 +381,7 @@
       },
       "Behavior": {
         "Name": "MoveToLocation",
-        "Params": "{\"x\": 580, \"y\": 300, \"speed\": 6, \"arrivalRadius\": 5}",
+        "Params": "{\"speed\":6,\"arrivalRadius\":5,\"target\":[580,300,0]}",
         "Origin": "Superior"
       }
     },

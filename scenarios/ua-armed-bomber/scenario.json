@@ -496,7 +496,7 @@
               "taskId": "c2380006-0000-4000-8000-000000000902",
               "executingEngine": "",
               "behaviorName": "MoveToLocation",
-              "behaviorParams": "{\"x\":201,\"y\":200.5,\"speed\":1.4,\"arrivalRadius\":1}",
+              "behaviorParams": "{\"speed\":1.4,\"arrivalRadius\":1,\"target\":[201,200.5,0]}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",

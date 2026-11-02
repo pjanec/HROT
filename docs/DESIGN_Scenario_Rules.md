@@ -796,7 +796,7 @@ sequenceDiagram
 >
 > ⚠ **Found on the way (oracle, fixed):** Roslyn does not expose `StructLayout(Explicit)` / `FieldOffset` on a type loaded from metadata, so `RoslynStructLayout` laid `RefSpec` out Sequential (52 B, not 36) and every blackboard holding a link was mis-sized in the editor-side oracle. `RefSpec` is now in `KnownTypeLayouts`; `StructSizeResolverEnumTests` pins `PointLink` / `EntityLink` / `AreaLink` / `RefSpec` against the CLR.
 >
-> ⏭ **Item 9 (content migration, NOT done):** `scenarios/ua-hill-attack`, `hill-attack-close` (`firingLineStart/End`, `baselineStart/End` as `[lat, lon]`), `scenarios/tt-nav-los` (`targetLat` / `targetLon` on a MoveToLocation task) — each needs `[x, y, z]` local metres; `hill-attack`, `test-move` held no old-shape key.
+> ✅ **Item 9 (content migration) — DONE, see §9.8.11 "item 9".** ⛔ SUPERSEDED: the list that stood here (three scenarios) was a grep's answer; the type-driven tool found **37 blobs in 25 files**, including `MoveToLocation` params nested inside a blueprint's (`mission-demo-bp`).
 
 
 ```mermaid
@@ -805,7 +805,7 @@ classDiagram
     class EntityRef { <<internal, 8 B, unchanged>> long NetworkId }
     class WorldPoint { <<internal, NEW, 12 B = Vector3>> X, Y, Z local metres }
     class RefSpec { <<36 B, unmanaged>> Form · FixedString32 Key or Guid Exact }
-    class EntityLink { <<authored, 40 B (CE-4200: EntityRef is 4 B)>> EntityRef Ref · RefSpec Spec }
+    class EntityLink { <<authored, 40 B since CE-4200>> EntityRef Ref · RefSpec Spec }
     class PointLink { <<authored, 48 B>> WorldPoint Local · RefSpec Spec }
     class AreaLink { <<authored, 72 B>> EntityRef Area · RefSpec Spec · Center · Size · Heading }
     class TypePlan { <<EntityRefRemap, generalised>> finds every one of these by TYPE }
@@ -1323,6 +1323,8 @@ walkers.
 | the generic-widget seam | ⭐ ONE mapping `SemanticValueTypes` (Fdp.Core: `StorageTypeOf` / `ToStorage` / `FromStorage` / `IsSemantic`) — the inspector (renderer registry fallback, property tree, quaternion editor), `FixedListFormatter`, `JsonShapeDescriber`, the blackboard helpers and schema builders route through it; a schema KEEPS the semantic type name (`format: worldRotation`, `number/bearing`); the blueprint compiler gains same-bytes rungs `WorldPoint↔Vector3`, `WorldRotation↔Quaternion`, `Bearing↔Single` | rails `SemanticValueTypesTests`, `SemanticValueRoutingTests` |
 | ⚠ DEVIATION — `Stage2_Validate` (BP2014) | matches the three types by **full NAME**, not through `SemanticValueTypes` | `Hrot.Blueprints.Compiler` also targets `netstandard2.0`, where `Fdp.Core` is not referenced (the netstandard / net8.0 wall, `BATCH-03-REPORT.md:100`). One check, three names; the cure is a source file linked into both targets |
 | ⚠ `NodeEditor.UI` (ExtDep) | `PinDefaultValueEditorRegistry` maps `Fdp.Core.WorldPoint` by type NAME to `VectorPinEditor(3)` | the library cannot reference `Fdp.Core` |
+| item 9 — the content migration | ⭐ `hrot-content-migrate` (`Hrot/Tools/Hrot.Tools.ContentMigrate`, in `HROT.sln`): each params blob's contract from the behaviour registry every host builds (`CgfBehaviorSetup.LoadFromAiAssembly`), its places from the ONE walker (`EntityRefRemap.VisitLeaves` — leaves raw, plus each nested object with its contract type). Moves: a `PointLink` held as `[lat, lon]` → `[x, y, 0]` through the scenario terrain's geo origin (`WGS84Transform`, as `OrderGeo.ToLocal`); a pair that is no lat/lon → the old no-transform fallback `x = second, y = first` (`ua-air-strike`'s `[300,600]` → `[600,300,0]`); renamed keys at ANY depth (`MoveToLocation` `targetLat/targetLon` or `x/y` → `target`, `DefendArea` `CenterLat/CenterLon` → `Center`). Splices only the params string tokens (bytes elsewhere untouched, the file's `\u0022` / `\"` style kept). Ran over `scenarios/` + `recipes/` (`ContentLayout`): **37 blobs, 25 files, 37 lines in / 37 out**; a second run moves 0 | `test-data/scenario-corpus` holds no params (versioned format data) — not a default. Rails `ContentMigrationTests` (the repository's content is migrated AND every blob loads — red before the run, green after) |
+| item 9 — ⛔ an old form is a LOUD load error (CE-4153 S10) | `LeafApplier.RefusesOldForms` — `true` only for `RefResolve` (authored content at LOAD, `ScenarioBehaviorRemapper.ResolveJson` / `StagingEntityExtractor`): a leaf its converter cannot read throws `JsonException` naming the key; a key the contract marks `[RetiredJsonKeys]` throws the same. `RefRemap` and every other applier keep the old leniency (a saved blob is remapped, never refused) | ⚠ **why not "unknown keys are errors":** the params parse ignores unknown keys BY DECISION (`BTreeBridgeEmitCore.cs:1526`, pinned) — ⭐ only the keys a migration retired are refused, declared on their contract. Rails `S0WalkerTests.Resolve_AtLoad_RefusesAnOldForm_*`, `VisitLeaves_*` |
 
 ## 10. Objective KINDS, measures, status, the result *(rev 7 draft, `2026-10-31` — leans for the user)*
 

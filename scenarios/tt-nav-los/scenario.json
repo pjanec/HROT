@@ -19,7 +19,7 @@
               "taskId": "57e4221b-65d0-46ce-861f-093fe49cb439",
               "executingEngine": "",
               "behaviorName": "MoveToLocation",
-              "behaviorParams": "{\"targetLat\": 52.52229156472734, \"targetLon\": 13.406473277411921, \"speed\": 5, \"arrivalRadius\": 5}",
+              "behaviorParams": "{\"speed\":5,\"arrivalRadius\":5,\"target\":[100,255,0]}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",

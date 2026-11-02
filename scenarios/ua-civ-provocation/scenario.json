@@ -493,7 +493,7 @@
                             "taskId": "c2410002-0000-4000-8000-000000000100",
                             "executingEngine": "",
                             "behaviorName": "MoveToLocation",
-                            "behaviorParams": "{\"x\":194,\"y\":259,\"speed\":1.5,\"arrivalRadius\":1}",
+                            "behaviorParams": "{\"speed\":1.5,\"arrivalRadius\":1,\"target\":[194,259,0]}",
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",
@@ -586,7 +586,7 @@
                             "taskId": "c2410002-0000-4000-8000-000000000110",
                             "executingEngine": "",
                             "behaviorName": "MoveToLocation",
-                            "behaviorParams": "{\"x\":194,\"y\":265,\"speed\":1.5,\"arrivalRadius\":1}",
+                            "behaviorParams": "{\"speed\":1.5,\"arrivalRadius\":1,\"target\":[194,265,0]}",
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",
@@ -679,7 +679,7 @@
                             "taskId": "c2410002-0000-4000-8000-000000000120",
                             "executingEngine": "",
                             "behaviorName": "MoveToLocation",
-                            "behaviorParams": "{\"x\":194,\"y\":271,\"speed\":1.5,\"arrivalRadius\":1}",
+                            "behaviorParams": "{\"speed\":1.5,\"arrivalRadius\":1,\"target\":[194,271,0]}",
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",

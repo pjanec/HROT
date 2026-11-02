@@ -104,6 +104,56 @@ namespace Fdp.Toolkits.Tests.Replication
             Assert.Contains("no entity with key 'Nobody' here", ex.Message);
         }
 
+        // a contract one of whose fields was renamed (S0 item 5: targetLat/targetLon → Target)
+        [RetiredJsonKeys("targetLat", "targetLon")]
+        public sealed class RenamedParams { public PointLink Target; }
+
+        [Fact]
+        public void Resolve_AtLoad_RefusesAnOldForm_ARetiredKeyOrALeafItsConverterCannotRead_NamingIt_WhileRemapLeavesBoth()
+        {
+            var scope = new Scope();
+            // ⛔ CE-4153 S10 — a [lat, lon] pair where a PointLink is: LOUD at load, naming the key
+            var old = Assert.Throws<System.Text.Json.JsonException>(() =>
+                EntityRefRemap.WalkJson(typeof(OrderParams), "{\"Nested\":{\"At\":[52.5,13.4]}}", new RefResolve(scope)));
+            Assert.Contains("'At'", old.Message);
+            Assert.Contains("hrot-content-migrate", old.Message);
+            // … and inside a list
+            Assert.Throws<System.Text.Json.JsonException>(() =>
+                EntityRefRemap.WalkJson(typeof(OrderParams), "{\"Route\":[[1,1,0],[52.5,13.4]]}", new RefResolve(scope)));
+            // ⛔ a key the contract retired: LOUD at load, naming it
+            var key = Assert.Throws<System.Text.Json.JsonException>(() =>
+                EntityRefRemap.WalkJson(typeof(RenamedParams), "{\"TargetLat\":52.5,\"targetLon\":13.4}", new RefResolve(scope)));
+            Assert.Contains("TargetLat", key.Message);
+            // ⭐ the new forms load
+            Assert.NotNull(EntityRefRemap.WalkJson(typeof(RenamedParams), "{\"Target\":[1,2,0]}", new RefResolve(scope)));
+            // ⭐ every OTHER applier keeps the old leniency: a saved blob is remapped, never refused
+            var remapped = JsonNode.Parse(EntityRefRemap.CompileJson(typeof(OrderParams))(
+                "{\"Nested\":{\"At\":[52.5,13.4]},\"Target\":7}", new Dictionary<int, int> { [7] = 70 })!)!;
+            Assert.Equal(70, (long)remapped["Target"]!);
+            Assert.Equal("[52.5,13.4]", remapped["Nested"]!["At"]!.ToJsonString());
+            const string retired = "{\"targetLat\":1}";
+            Assert.Same(retired, EntityRefRemap.WalkJson(typeof(RenamedParams), retired, new RefRemap(new Dictionary<int, int>())));
+        }
+
+        [Fact]
+        public void VisitLeaves_SeesEachLeafRaw_WithItsTypeAndPath_AndAReturnReplacesIt()
+        {
+            var obj = JsonNode.Parse("{\"Objective\":[52.5,13.4],\"Route\":[[1,1,0],[52.6,13.5]],\"Nested\":{\"At\":[0,0],\"Escort\":7},\"Facing\":30}")!.AsObject();
+            var seen = new List<string>();
+            bool changed = EntityRefRemap.VisitLeaves(typeof(OrderParams), obj, (type, node, path) =>
+            {
+                seen.Add($"{type.Name}:{path}");
+                return type == typeof(PointLink) && node is JsonArray { Count: 2 } ? new JsonArray(9, 9, 0) : null;
+            });
+            Assert.True(changed);
+            Assert.Equal(new[] { "PointLink:Objective", "PointLink:Route[0]", "PointLink:Route[1]", "PointLink:Nested.At", "EntityLink:Nested.Escort", "Bearing:Facing" }, seen);
+            Assert.Equal("[9,9,0]", obj["Objective"]!.ToJsonString());
+            Assert.Equal("[1,1,0]", obj["Route"]![0]!.ToJsonString());   // a 3-element place is not the old form
+            Assert.Equal("[9,9,0]", obj["Route"]![1]!.ToJsonString());
+            Assert.Equal("[9,9,0]", obj["Nested"]!["At"]!.ToJsonString());
+            Assert.False(EntityRefRemap.VisitLeaves(typeof(OrderParams), obj, (_, _, _) => null));
+        }
+
         [Fact]
         public void Relocate_AParamsBlob_MovesAndTurnsLiterals_AndNeverMovesAReference()
         {

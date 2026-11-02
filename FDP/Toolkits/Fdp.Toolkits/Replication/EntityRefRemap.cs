@@ -55,6 +55,8 @@ namespace Fdp.Toolkit.Replication
             public readonly List<Entry> Entries = new();
             public Dictionary<string, Entry>? ByJsonKey;   // case-insensitive, built on demand
             public bool HoldsIds;                          // any leaf that carries a network id (EntityRef / EntityLink / AreaLink), here or nested
+            public string[]? Retired;                      // [RetiredJsonKeys]: keys an old form used — refused by a strict applier
+            public Type Type = null!;                      // the contract this plan was built for
         }
 
         private static readonly ConditionalWeakTable<Type, StrongBox<Plan?>> _plans = new();
@@ -107,6 +109,11 @@ namespace Fdp.Toolkit.Replication
                         Add(ref plan, p, p.PropertyType, visiting);
                 foreach (var f in type.GetFields(Public))
                     Add(ref plan, f, f.FieldType, visiting);
+                if (plan != null)
+                {
+                    plan.Type = type;
+                    if (type.GetCustomAttribute<RetiredJsonKeysAttribute>() is { } retired) plan.Retired = retired.Keys;
+                }
                 return plan;
             }
             finally { visiting.Remove(type); }
@@ -219,6 +226,10 @@ namespace Fdp.Toolkit.Replication
 
         private static bool WalkObject(JsonObject obj, Plan plan, LeafApplier applier)
         {
+            if (applier.RefusesOldForms && plan.Retired is { } retired)
+                foreach (var (key, _) in obj)
+                    if (Array.Exists(retired, r => r.Equals(key, StringComparison.OrdinalIgnoreCase)))
+                        throw new JsonException($"'{key}' is a retired params key (CE-4153 S10: no backward compatibility) — migrate the file with hrot-content-migrate");
             var keys = Keys(plan);
             bool changed = false;
             List<(string Key, JsonNode? Node)>? rewrites = null;
@@ -228,11 +239,11 @@ namespace Fdp.Toolkit.Replication
                 switch (e.Kind)
                 {
                     case Kind.Leaf:
-                        if (TryApply(node, e.Leaf, applier, out var replaced)) (rewrites ??= new()).Add((key, replaced));
+                        if (TryApply(node, e.Leaf, applier, key, out var replaced)) (rewrites ??= new()).Add((key, replaced));
                         break;
                     case Kind.LeafSequence when node is JsonArray arr:
                         for (int i = 0; i < arr.Count; i++)
-                            if (arr[i] is { } item && TryApply(item, e.Leaf, applier, out var ni)) { arr[i] = ni; changed = true; }
+                            if (arr[i] is { } item && TryApply(item, e.Leaf, applier, key, out var ni)) { arr[i] = ni; changed = true; }
                         break;
                     case Kind.Nested when node is JsonObject child:
                         changed |= WalkObject(child, e.Nested!, applier);
@@ -251,31 +262,98 @@ namespace Fdp.Toolkit.Replication
             return changed;
         }
 
+        // ── the raw visitor (S0 item 9: the content migration reads the SAME plan) ─────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ S0 item 9 — visits every leaf of <paramref name="contractType"/>'s plan inside <paramref name="obj"/> as its RAW JSON node (not read
+        /// through the leaf's converter, so a value in a retired form — a <c>[lat, lon]</c> pair where a <see cref="PointLink"/> is — is still seen),
+        /// with the leaf's type and its key path; a non-null return REPLACES the node. Returns <c>true</c> when any was replaced.
+        /// <paramref name="visitObject"/>, when given, first sees every OBJECT the plan reaches (the root included) with its contract type and
+        /// path — where a contract's renamed keys live, at any depth (a blueprint's params nesting a <c>MoveToLocation</c>'s).
+        /// ⛔ For migrating content only — the load path reads leaves through their converters (<see cref="WalkJson(Type, string?, LeafApplier)"/>).
+        /// </summary>
+        public static bool VisitLeaves(Type contractType, JsonObject obj, Func<Type, JsonNode, string, JsonNode?> visit,
+                                       Action<Type, JsonObject, string>? visitObject = null)
+        {
+            if (contractType == null) throw new ArgumentNullException(nameof(contractType));
+            if (LeafOf(contractType) != null) return false;
+            return PlanOf(contractType) is { } plan && VisitObject(obj, plan, visit, visitObject, "");
+        }
+
+        private static bool VisitObject(JsonObject obj, Plan plan, Func<Type, JsonNode, string, JsonNode?> visit,
+                                        Action<Type, JsonObject, string>? visitObject, string path)
+        {
+            visitObject?.Invoke(plan.Type, obj, path);
+            var keys = Keys(plan);
+            bool changed = false;
+            List<(string Key, JsonNode? Node)>? rewrites = null;
+            foreach (var (key, node) in obj)
+            {
+                if (node is null || !keys.TryGetValue(key, out var e)) continue;
+                string at = path.Length == 0 ? key : path + "." + key;
+                switch (e.Kind)
+                {
+                    case Kind.Leaf:
+                        if (visit(TypeOf(e.Leaf), node, at) is { } r) (rewrites ??= new()).Add((key, r));
+                        break;
+                    case Kind.LeafSequence when node is JsonArray arr:
+                        for (int i = 0; i < arr.Count; i++)
+                            if (arr[i] is { } item && visit(TypeOf(e.Leaf), item, $"{at}[{i}]") is { } ri) { arr[i] = ri; changed = true; }
+                        break;
+                    case Kind.Nested when node is JsonObject child:
+                        changed |= VisitObject(child, e.Nested!, visit, visitObject, at);
+                        break;
+                    case Kind.NestedSequence when node is JsonArray seq:
+                        for (int i = 0; i < seq.Count; i++)
+                            if (seq[i] is JsonObject o) changed |= VisitObject(o, e.Nested!, visit, visitObject, $"{at}[{i}]");
+                        break;
+                }
+            }
+            if (rewrites is not null) { foreach (var (key, n) in rewrites) obj[key] = n; changed = true; }
+            return changed;
+        }
+
+        private static Type TypeOf(LeafKind leaf) => leaf switch
+        {
+            LeafKind.EntityRef => typeof(EntityRef),
+            LeafKind.EntityLink => typeof(EntityLink),
+            LeafKind.WorldPoint => typeof(WorldPoint),
+            LeafKind.PointLink => typeof(PointLink),
+            LeafKind.AreaLink => typeof(AreaLink),
+            LeafKind.WorldRotation => typeof(WorldRotation),
+            LeafKind.Bearing => typeof(Bearing),
+            _ => typeof(object),
+        };
+
         /// <summary>One JSON leaf through its own converter: read, apply, and — only when the value changed — write it back.</summary>
-        private static bool TryApply(JsonNode node, LeafKind leaf, LeafApplier applier, out JsonNode? replaced)
+        private static bool TryApply(JsonNode node, LeafKind leaf, LeafApplier applier, string key, out JsonNode? replaced)
         {
             replaced = null;
             switch (leaf)
             {
-                case LeafKind.EntityRef:     return Step<EntityRef>(node, applier.Ref, out replaced);
-                case LeafKind.EntityLink:    return Step<EntityLink>(node, applier.Link, out replaced);
-                case LeafKind.WorldPoint:    return Step<WorldPoint>(node, applier.Point, out replaced);
-                case LeafKind.PointLink:     return Step<PointLink>(node, applier.PointLink, out replaced);
-                case LeafKind.AreaLink:      return Step<AreaLink>(node, applier.Area, out replaced);
-                case LeafKind.WorldRotation: return Step<WorldRotation>(node, applier.Rotation, out replaced);
-                case LeafKind.Bearing:       return Step<Bearing>(node, applier.Bearing, out replaced);
+                case LeafKind.EntityRef:     return Step<EntityRef>(node, applier.Ref, applier.RefusesOldForms ? key : null, out replaced);
+                case LeafKind.EntityLink:    return Step<EntityLink>(node, applier.Link, applier.RefusesOldForms ? key : null, out replaced);
+                case LeafKind.WorldPoint:    return Step<WorldPoint>(node, applier.Point, applier.RefusesOldForms ? key : null, out replaced);
+                case LeafKind.PointLink:     return Step<PointLink>(node, applier.PointLink, applier.RefusesOldForms ? key : null, out replaced);
+                case LeafKind.AreaLink:      return Step<AreaLink>(node, applier.Area, applier.RefusesOldForms ? key : null, out replaced);
+                case LeafKind.WorldRotation: return Step<WorldRotation>(node, applier.Rotation, applier.RefusesOldForms ? key : null, out replaced);
+                case LeafKind.Bearing:       return Step<Bearing>(node, applier.Bearing, applier.RefusesOldForms ? key : null, out replaced);
                 default:                 return false;
             }
         }
 
-        private static bool Step<T>(JsonNode node, Func<T, T> op, out JsonNode? replaced) where T : struct, IEquatable<T>
+        private static bool Step<T>(JsonNode node, Func<T, T> op, string? refuseAt, out JsonNode? replaced) where T : struct, IEquatable<T>
         {
             replaced = null;
             T before;
             // A value the leaf type cannot read is left as it is (the remap always skipped a non-number): the params parse that
             // follows reads it with the same converter and reports it loudly there. ⭐ An authored reference that names NOTHING is the
             // applier's to refuse (RefResolve), not this read's.
+            // ⛔ CE-4153 S10 — except for an applier that refuses old forms (RefResolve: authored content at LOAD): a value its leaf cannot
+            //   read there is a retired form (a [lat, lon] place) and the load fails, naming the key.
             try { before = node.Deserialize<T>(_options); }
+            catch (Exception ex) when (refuseAt is not null)
+            { throw new JsonException($"'{refuseAt}': {node.ToJsonString()} is not a {typeof(T).Name} (CE-4153 S10: no backward compatibility) — migrate the file with hrot-content-migrate", ex); }
             catch (Exception) { return false; }
             T after = op(before);
             if (after.Equals(before)) return false;
@@ -383,6 +461,10 @@ namespace Fdp.Toolkit.Replication
         public virtual AreaLink Area(AreaLink a) => a;
         public virtual WorldRotation Rotation(WorldRotation r) => r;
         public virtual Bearing Bearing(Bearing b) => b;
+
+        /// <summary>⛔ CE-4153 S10 — <c>true</c> for an applier over AUTHORED content at load (<see cref="RefResolve"/>): a leaf its converter cannot
+        /// read, or a key the contract marks <see cref="RetiredJsonKeysAttribute"/>, is a LOUD error instead of being left for later.</summary>
+        public virtual bool RefusesOldForms => false;
     }
 
     /// <summary>⭐ Old → new network ids (scenario load, D3): every <see cref="EntityRef"/>, a link's answer, an area entity.</summary>
@@ -415,6 +497,9 @@ namespace Fdp.Toolkit.Replication
     {
         private readonly IRefScope _scope;
         public RefResolve(IRefScope scope) => _scope = scope ?? throw new ArgumentNullException(nameof(scope));
+
+        /// <inheritdoc/>
+        public override bool RefusesOldForms => true;
 
         private EntityRef Find(in RefSpec spec)
             => _scope.TryResolve(spec, out var r) && !r.IsNone ? r
@@ -478,5 +563,17 @@ namespace Fdp.Toolkit.Replication
             => ((Quaternion)r).LengthSquared() < 1e-6f ? r : (WorldRotation)Quaternion.Normalize(_turn * (Quaternion)r);
 
         public override Bearing Bearing(Bearing b) => new Bearing(b.Degrees + _turnDeg).Normalized;
+    }
+
+    /// <summary>
+    /// ⛔ CE-4153 S10 — keys an OLD form of this params contract used (a renamed field: <c>targetLat</c> → <c>target</c>). An applier that
+    /// refuses old forms (<see cref="RefResolve"/>, scenario load) fails on them, naming the key; every other read ignores them as any unknown
+    /// key. ⭐ The migration (<c>hrot-content-migrate</c>) is what rewrites them.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false)]
+    public sealed class RetiredJsonKeysAttribute : Attribute
+    {
+        public RetiredJsonKeysAttribute(params string[] keys) => Keys = keys ?? Array.Empty<string>();
+        public string[] Keys { get; }
     }
 }

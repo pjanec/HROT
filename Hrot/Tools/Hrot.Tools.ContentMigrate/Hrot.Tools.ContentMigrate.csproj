@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- ⭐ S0 item 9 (docs/DESIGN_Scenario_Rules.md §9.8.11, CE-4153 S10): the one committed, idempotent migration of authored content
+       to the S0 reference / place types, driven by the engine's own type plan (the behaviour registry's contract + the walker). -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>hrot-content-migrate</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- CgfBehaviorSetup.LoadFromAiAssembly: the behaviour registry every host builds (each behaviour's params contract) -->
+    <ProjectReference Include="..\..\Subsystems\Hrot.CGF\Hrot.CGF.csproj" />
+  </ItemGroup>
+</Project>

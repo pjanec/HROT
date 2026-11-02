@@ -555,9 +555,9 @@ public sealed class CgfSubsystemHeadlessTests
                         {
                             TaskId          = taskId,
                             BehaviorId      = "MoveToLocation",
-                            // Target ~1.2 km north-east: far enough that the entity cannot
+                            // Target ~2 km north-east (local metres; S0 item 5 retired targetLat/targetLon — was 52.535 N, 13.42 E): far enough that the entity cannot
                             // reach it within the test window even at maximum speed.
-                            BehaviorParams  = "{\"targetLat\":52.535,\"targetLon\":13.42,\"speed\":15,\"arrivalRadius\":5}",
+                            BehaviorParams  = "{\"target\":[1015,1668,0],\"speed\":15,\"arrivalRadius\":5}",
                             ExecutingEngine = "CGFX",
                             State           = eTaskState.TASK_ACTIVE,
                             Triggers        = new System.Collections.Generic.List<DdsMissionTrigger>

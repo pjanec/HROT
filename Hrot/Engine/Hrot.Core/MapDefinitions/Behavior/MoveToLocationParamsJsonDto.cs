@@ -24,6 +24,7 @@ namespace Hrot.Map.Definitions.Behavior
     /// blueprint's Behaviour Task passes its bytes and the typed resolver's from-bytes arm converts them. ⛔ It was a class,
     /// which the from-bytes arm cannot take. Same properties and JSON keys.</remarks>
     [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
+    [Fdp.Toolkit.Replication.RetiredJsonKeys("targetLat", "targetLon", "x", "y")]   // CE-4153 S10: S0 item 5 folded them into `target`
     public struct MoveToLocationParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.MoveToLocation;

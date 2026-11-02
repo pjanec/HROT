@@ -76,7 +76,7 @@
       },
       "Behavior": {
         "Name": "MoveToLocation",
-        "Params": "{\"x\": 60, \"y\": 120}",
+        "Params": "{\"target\":[60,120,0]}",
         "Origin": "Superior"
       },
       "Sop": {

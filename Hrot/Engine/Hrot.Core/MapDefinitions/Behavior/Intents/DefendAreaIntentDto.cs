@@ -13,6 +13,7 @@ namespace Hrot.Map.Definitions.Behavior.Intents
     /// </para>
     /// </summary>
     [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
+    [Fdp.Toolkit.Replication.RetiredJsonKeys("CenterLat", "CenterLon")]   // CE-4153 S10: S0 item 5 folded them into `Center`
     public sealed class DefendAreaIntentDto
     {
         public const string BehaviorId = BehaviorNames.DefendArea;

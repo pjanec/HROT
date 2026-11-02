@@ -90,7 +90,7 @@
    },
    "Behavior": {
     "Name": "MoveToLocation",
-    "Params": "{\"x\": 198, \"y\": 150, \"speed\": 1.0, \"arrivalRadius\": 1}",
+    "Params": "{\"speed\":1.0,\"arrivalRadius\":1,\"target\":[198,150,0]}",
     "Origin": "Superior"
    },
    "Sop": {
@@ -132,7 +132,7 @@
    },
    "Behavior": {
     "Name": "MoveToLocation",
-    "Params": "{\"x\": 185, \"y\": 40, \"speed\": 1.5, \"arrivalRadius\": 1}",
+    "Params": "{\"speed\":1.5,\"arrivalRadius\":1,\"target\":[185,40,0]}",
     "Origin": "Superior"
    },
    "Sop": {

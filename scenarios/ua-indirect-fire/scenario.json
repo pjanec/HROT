@@ -247,7 +247,7 @@
       },
       "Behavior": {
         "Name": "ArtilleryUnitStrike",
-        "Params": "{\"Location\": [52.51824714412377, 13.415606623020576], \"Control\": \"TimeOnTarget\", \"Sheaf\": \"Parallel\", \"Rounds\": 1}",
+        "Params": "{\"Location\":[720,-195,0],\"Control\":\"TimeOnTarget\",\"Sheaf\":\"Parallel\",\"Rounds\":1}",
         "Origin": "Superior"
       }
     },
@@ -367,7 +367,7 @@
       },
       "Behavior": {
         "Name": "PersonObserveFire",
-        "Params": "{\"Location\": [52.52269586317618, 13.410009189052518], \"Battery\": 21761, \"Sheaf\": \"Parallel\", \"Rounds\": 2}",
+        "Params": "{\"Location\":[340,300,0],\"Battery\":21761,\"Sheaf\":\"Parallel\",\"Rounds\":2}",
         "Origin": "Superior"
       },
       "Sop": {
