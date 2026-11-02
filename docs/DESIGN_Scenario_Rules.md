@@ -593,6 +593,86 @@ that already replicates to every node.
 - *A big result object on the wire* — the tree is the statuses (SR-122).
 - *Building S1 on today's `EntityRef` / polyline areas and migrating later* — the same files twice; S0 first.
 
+### 00.11 S6 — the game profile, v1 *(backend, `2026-11-02`; `HANDOFF_Coordinator_To_Backend_Showcase_Scenarios.md` item ②; ⏳ built on these leans — the user may overturn any G-row)*
+
+🔒 *User, `2026-11-02`: "backend can also add the missing infrastructure, whatever is needed."* ⭐ Crossfire (SHOWCASE §2) needs four things the
+rules do not have: a point captured **by outnumbering for N s**, a **ticket pool** that actions and deaths move, a trigger that **fires again
+while its condition holds** (the drain *"1 ticket / 10 s per held point"*), and **bots that come back** (respawn waves). Everything else is
+data on S1 / S2 / S3. ⛔ Score per player, team-kill −200, awards and the bounty wait for S4's measures (behaviors) and CE-4155; the human
+Deploy respawn (D-14) is Player Join S2.
+
+**INVENTORY** *(graph + grep, `2026-11-02`)*: `search_graph` `.*(Ticket|Respawn|Domination).*` Class → **0** · `.*Counter(Behavior|Params|Verbs).*`
+→ 3, all test / demo blackboards (`DemoCounterNodes`) — no pool · `HoldAreaBehavior.Capture` (S1) flips `Owner` the instant the subject's men
+≥ minMen and enemies ≤ maxEnemy — no time, and it counts the SUBJECT's roster (a respawned bot is in no roster) · `TriggerBehavior.Step`
+(S2) re-arms a repeat only when the condition went FALSE again (T2) · `ObjectiveRole.Measure` exists, its score = `Value / Target`
+(`ObjectiveRules.Score`), a measure freezes its value at the close · `ObjectiveCensus.IsMan` / `Injury.IsInTheFight` decide "in the fight" ·
+`CountMatchingPredicateDto` counts entities in a condition · ⚠ coverage could not be checked through the CLI.
+
+```mermaid
+classDiagram
+    direction LR
+    class HoldAreaBehavior { <<existing S1 + captureSeconds>> Capture(): by SIDE, outnumber for captureSeconds }
+    class CounterBehavior { <<NEW, Measure>> Value = start + actions + Σ per × downs(side) }
+    class ScenarioVerbs { <<existing + AddToCounter>> AddToCounter(target, amount) }
+    class TriggerBehavior { <<existing S2 + whileTrue>> after cooldown, still true ⇒ fire again }
+    class ObjectiveStatus { <<existing>> Owner · Value · Target · Score · FireCount }
+    class ObjectiveCensus { <<existing + DownOf, MenOfSide>> }
+    HoldAreaBehavior --> ObjectiveStatus : Owner, ProgressCur = seconds of advantage
+    CounterBehavior --> ObjectiveStatus : Value, Target = start
+    ScenarioVerbs --> ObjectiveStatus : Value += amount (a Counter's)
+    CounterBehavior ..> ObjectiveCensus : downs of its side
+    HoldAreaBehavior ..> ObjectiveCensus : men of each side inside
+    TriggerBehavior ..> ScenarioVerbs : runs AddToCounter / InsertMacro / SetSkillAmplifier / EndExercise
+```
+
+```mermaid
+sequenceDiagram
+    participant P as point A (HoldArea capture, 10 s)
+    participant D as trigger "A drains Red" (whileTrue, cooldown 10)
+    participant C as counter "Red tickets" (start 150)
+    participant E as trigger "End"
+    P->>P: Blue outnumbers Red inside for 10 s ⇒ Owner = Friend
+    D->>D: when A.Owner = Friend — rises, fires
+    D->>C: AddToCounter(@RedTickets, −1)
+    D->>D: cooldown 10 s, A still Friend ⇒ fire again (whileTrue)
+    C->>C: a Red man down ⇒ Value −1 (its own census)
+    E->>E: when RedTickets.Value ≤ 0 OR elapsed ≥ 900
+    E->>E: EndExercise
+```
+
+```mermaid
+graph TD
+    CGF["Brain node (CGF) — the BehaviorSystem ticks every objective / trigger brain"] --> HA["HoldArea capture"]
+    CGF --> CO["Counter"]
+    CGF --> TR["Trigger (whileTrue)"]
+    TR --> V["verbs: AddToCounter · InsertMacro (respawn wave) · SetSkillAmplifier · EndExercise"]
+    HA --> W["ObjectiveStatus — on the wire (dt 171) to every node"]
+    CO --> W
+```
+
+*What the pictures show that prose hid:* nothing new runs anywhere but the Brain's existing objective host; the drain is a TRIGGER (data) moving a
+COUNTER (one new measure kind) through ONE new verb — no ticket system, no game-mode code; the respawn wave is a trigger + `InsertMacro`.
+
+| # | decision (⏳ lean, built) | why |
+|---|---|---|
+| **G-1** | `HoldArea` `capture` + **`captureSeconds` > 0** ⇒ counts men by **SIDE** (every man of the side, not the subject's roster); the side with MORE men inside (≥ `minMen`) than every other side, continuously for `captureSeconds`, becomes `Owner`; the moment another side outnumbers the owner, `Owner` = Neutral (the point is lost) and the outnumbering side's clock starts. `ProgressCur` = the seconds of advantage, `ProgressNeed` = `captureSeconds`. `captureSeconds` 0 = S1's rule unchanged | SHOWCASE §2.6 line 1 (*"captures only with more men for 10 s"*). By side: a game point belongs to a team, and a respawned bot is in no roster |
+| **G-2** | a **`Counter`** measure (TKB 8860, role Measure): `Value` starts at `start`; actions add to it; `deaths: [{side, per}]` (at most Friend and Hostile) ADDS `per` for every man of that side newly OUT of the fight (`Injury.IsInTheFight` false, counted once — a revived man does not refund): tickets `[{"side": "Friend", "per": -1}]`, a lead `[{"side": "Hostile", "per": 1}, {"side": "Friend", "per": -1}]`. `Target` = `start` ⇒ score = tickets left / start. `floor` (default 0) / `ceiling` (default none) clamp it | the ticket pool. ⚠ NOT S4's `Count` (*events BY the subject*: shots, kills): a pool is moved BY the scenario. When S4 lands, the deaths input may move to a `Count` measure (SR-20 adapters) — one counter either way |
+| **G-3** | verb **`AddToCounter(target, amount)`** — instant; Failure when the target is no Counter, or is closed | SR-93: one shared action; the crate's +15, the drain's −1, the operator's hand edit all use it |
+| **G-4** | Trigger **`whileTrue`**: a repeating trigger whose condition is STILL true when its cooldown ends fires again (T2's "goes false again" is waived); `maxFires` still caps it | *"each held point drains 1 ticket / 10 s"* = `when A.Owner = Friend`, `repeat`, `cooldown 10`, `whileTrue` — the periodic rule as data |
+| **G-5** | respawn waves for BOTS = data: a trigger `when` *(fewer than N of the side's men in the fight)* `whileTrue`, `cooldown` = the wave interval, `do` `InsertMacro(<one-bot macro>, @<side>Base)` | D-14's bot half with no new runtime; the human half (the Deploy screen) is Player Join S2 |
+| **G-6** | domination = a trigger `when` all three points' `Owner` = the side, `holdFor 60` ⇒ `EndExercise` | SR-73: the condition vocabulary is the statuses |
+| **G-7** | the comeback boost compares TWO counters ⇒ a third Counter **`Lead`** (`floor` −1000, `deaths` both sides, opposite signs) moved by the same drain actions (Red loses a drained ticket ⇒ Lead +1; Blue ⇒ −1), and the boost triggers on `Lead ≥ 40` / `≤ −40` (`cooldown 120`, repeat) | the predicate language compares one entity's field with a constant; a difference of two is one more counter, not a new operator |
+
+**Rejected — one line each:**
+- *A ticket SYSTEM per game mode* — nothing compiled per scenario (R-4112); a counter + triggers is the same with no new runtime.
+- *The drain inside `HoldArea` (`drains: @RedTickets`)* — couples the point to the pool; a trigger keeps it editable and visible in the rules view.
+- *Deaths decremented by a trigger per death* — a level condition has no per-death edge; the counter's own census counts each one once.
+- *A `Difference` predicate operator* — a language change for one use; G-7's counter is data.
+
+**Not here (named):** personal score, kill feed, team-kill −200 (S4 measures + CE-4155) · awards (S4) · bounty (S4 streak measure) · the
+human respawn (Player Join S2) · the game HUD (ui) · `Message` to one side (the `Side` filter is ui's HUD).
+
+
 ## 0. ✅ The user's first answers (`2026-10-31`)
 
 > 🔒 *"blueprint is just one way of creating some decision logic … authorable also using C# hard-coded methods … best if the rules are data … a

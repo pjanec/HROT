@@ -51,6 +51,28 @@ public sealed class ScenarioChecksTests
         Assert.Contains(problems, p => p.Contains("where filters a shot or a blast"));
     }
 
+    /// <summary>⭐ showcase scenarios — <c>"later"</c> names the units a trigger inserts DURING the run (a QRF macro): the start-of-run cast check does not
+    /// refuse them (nor a <c>*part</c> one of them carries), while any other missing name is still refused; a malformed list is named.
+    /// 🔴 Red-proof: drop the Later filter in <c>MissingNames</c> ⇒ "Red QRF" is reported missing.</summary>
+    [Fact]
+    public void Later_UnitsInsertedDuringTheRun_PassTheStartCastCheck()
+    {
+        var checks = Parse("""
+            { "runFor": 10, "later": ["Red QRF", "Red QRF Squad 1 Leader"],
+              "expect": [{"name": "the QRF attacks", "on": "task", "who": "Red QRF", "is": "PlatoonAttack"},
+                         {"name": "its men", "on": "health", "who": "*QRF Squad", "below": 0.5},
+                         {"name": "a typo", "on": "task", "who": "Blue Platon", "is": "SquadMarch"}] }
+            """, out var problems);
+        Assert.Empty(problems);
+        Assert.Equal(new[] { "Red QRF", "Red QRF Squad 1 Leader" }, checks.Later);
+        var units = new Units(); units.Ids["Blue Platoon"] = 1;
+        var missing = ScenarioVerification.MissingNames(checks, units);
+        Assert.Equal(new[] { "no unit named 'Blue Platon' in s" }, missing);
+
+        Parse("""{ "runFor": 10, "later": "Red QRF", "expect": [{"name": "x", "on": "task", "who": "A", "is": "B"}] }""", out var bad);
+        Assert.Contains(bad, p => p.Contains("later must be a list"));
+    }
+
     // ── a world the book reads ────────────────────────────────────────────────────────────────
 
     private sealed class Units : IShotWorld

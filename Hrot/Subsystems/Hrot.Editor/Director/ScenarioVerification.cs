@@ -759,8 +759,11 @@ namespace Hrot.Editor.Director
         public ScenarioGolden? Run => _run;
 
         /// <summary>The names the checks use that this scenario's cast does not carry (a <c>*part</c> needs one).</summary>
+        /// <para>⭐ A name the checks declare <see cref="ScenarioChecks.Later"/> (inserted during the run) — or a <c>*part</c> one of them contains — is not
+        /// asked of the start's cast.</para>
         public static IReadOnlyList<string> MissingNames(ScenarioChecks checks, IShotWorld units) =>
-            checks.Names().Where(n => n.StartsWith('*') ? !units.Names.Any(x => x.Contains(n[1..], StringComparison.Ordinal)) : units.Resolve(n) is null)
+            checks.Names().Where(n => !checks.Later.Any(l => n.StartsWith('*') ? l.Contains(n[1..], StringComparison.Ordinal) : string.Equals(l, n, StringComparison.Ordinal)))
+                  .Where(n => n.StartsWith('*') ? !units.Names.Any(x => x.Contains(n[1..], StringComparison.Ordinal)) : units.Resolve(n) is null)
                   .Select(n => $"no unit named '{n}' in {checks.Scenario}").ToList();
 
         public void Observe(double rel)

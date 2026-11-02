@@ -14,6 +14,9 @@ namespace Fdp.Toolkit.Scenario
     ///     run (<c>RecordingMetadata.ScenarioArgs</c>); ⛔ never a declared param.</item>
     ///   <item><c>"Presence": 0.6</c> on an entity (a unit, a prop, a macro instance) — kept when its roll is below it.</item>
     ///   <item><c>"MacroInstance": {"Macro": ["forces/RedQRF", {"macro": "forces/RedArmour", "weight": 2}]}</c> — ONE of N, weighted.</item>
+    ///   <item>⭐ SR-101 ④ (showcase scenarios, <c>2026-11-02</c>) — <c>"Positions": [[x, y, z], {"at": [x, y, z], "heading": 90, "weight": 2}]</c> on an
+    ///     entity (a unit, a marker, a macro instance — whose children follow it, the expander relocates them) — it STANDS at ONE of N places, weighted;
+    ///     <c>heading</c> (compass °) turns it too, else its authored rotation is kept.</item>
     ///   <item>⭐ variant 0 is AS AUTHORED: every entity present, the FIRST choice — what the editor shows.</item>
     ///   <item>⭐ each roll is <see cref="Roll"/>(variant, salt, the entity's key): the salt is the instance GUID inside a macro (two instances of one
     ///     macro roll apart), <see cref="Guid.Empty"/> for the scenario — ⛔ never an index, so the choice survives a reordered file.</item>
@@ -27,6 +30,8 @@ namespace Fdp.Toolkit.Scenario
         public const string ArgName = "$variant";
         /// <summary>The entity-level key of an optional entity's chance (0..1).</summary>
         public const string PresenceKey = "Presence";
+        /// <summary>⭐ SR-101 ④ — the entity-level key of a one-of-N place (<see cref="PositionsOf"/>).</summary>
+        public const string PositionsKey = "Positions";
 
         /// <summary>The run's variant in <paramref name="argsJson"/> (0 = as authored, also when absent or unreadable).</summary>
         public static int VariantOf(string? argsJson)
@@ -79,9 +84,42 @@ namespace Fdp.Toolkit.Scenario
             return list;
         }
 
+        /// <summary>⭐ SR-101 ④ — the places a <see cref="PositionsKey"/> value offers: each <c>[x, y, z]</c> (z optional) or
+        /// <c>{"at": [x, y, z], "heading": compass °, "weight": w}</c>. <c>null</c> when an item is malformed.</summary>
+        public static List<(double[] At, double? Heading, double Weight)>? PositionsOf(JsonNode? value)
+        {
+            if (value is not JsonArray a) return null;
+            var list = new List<(double[], double?, double)>();
+            foreach (var item in a)
+            {
+                double[]? at = null; double? heading = null; double w = 1;
+                if (item is JsonArray) at = Point(item);
+                else if (item is JsonObject o)
+                    foreach (var (k, v) in o)
+                    {
+                        if (k.Equals("at", StringComparison.OrdinalIgnoreCase)) at = Point(v);
+                        else if (k.Equals("heading", StringComparison.OrdinalIgnoreCase) && v is JsonValue hv && hv.TryGetValue<double>(out var h)) heading = h;
+                        else if (k.Equals("weight", StringComparison.OrdinalIgnoreCase) && v is JsonValue wv && wv.TryGetValue<double>(out var wd)) w = wd;
+                    }
+                if (at == null) return null;
+                list.Add((at, heading, w));
+            }
+            return list;
+
+            static double[]? Point(JsonNode? n)
+            {
+                if (n is not JsonArray p || p.Count < 2 || p.Count > 3) return null;
+                var r = new double[3];
+                for (int i = 0; i < p.Count; i++)
+                    if (p[i] is JsonValue v && v.TryGetValue<double>(out var d)) r[i] = d; else return null;
+                return r;
+            }
+        }
+
         /// <summary>
         /// Applies the variant to the file's entities IN PLACE: an entity whose <see cref="PresenceKey"/> roll fails is removed, every
-        /// <see cref="PresenceKey"/> is stripped, and every one-of-N <c>MacroInstance.Macro</c> becomes its chosen name. ⛔ Throws
+        /// <see cref="PresenceKey"/> is stripped, every <see cref="PositionsKey"/> becomes the chosen place in its <c>SimTransform</c>, and every
+        /// one-of-N <c>MacroInstance.Macro</c> becomes its chosen name. ⛔ Throws
         /// <see cref="ScenarioParams.ArgsRefused"/> (naming <paramref name="here"/>) on a malformed presence or an empty choice list.
         /// </summary>
         public static void Apply(JsonObject dom, int variant, Guid salt, string here)
@@ -100,6 +138,23 @@ namespace Fdp.Toolkit.Scenario
                     entity.Remove(pk);
                     if (variant != 0 && Roll(variant, salt, key, "presence") >= p) { absent.Add(key); continue; }
                 }
+                string? posKey = FindKey(entity, PositionsKey);
+                if (posKey != null)
+                {
+                    var places = PositionsOf(entity[posKey]);
+                    if (places == null || places.Count == 0)
+                        throw new ScenarioParams.ArgsRefused($"{here}: entity {key}'s Positions must be a non-empty list of [x, y, z] or {{\"at\": [x, y, z], \"heading\", \"weight\"}}");
+                    entity.Remove(posKey);
+                    var place = places[Pick(places.ConvertAll(p => p.Weight), variant, salt, key, "position")];
+                    string tk = FindKey(entity, "SimTransform") ?? "SimTransform";
+                    if (entity[tk] is not JsonObject t) entity[tk] = t = new JsonObject { ["Rotation"] = new JsonArray(0, 0, 0, 1) };
+                    t[FindKey(t, "Position") ?? "Position"] = new JsonArray(place.At[0], place.At[1], place.At[2]);
+                    if (place.Heading is double h)
+                    {
+                        var q = WorldRotation.HeadingDegToQuaternion((float)h);
+                        t[FindKey(t, "Rotation") ?? "Rotation"] = new JsonArray(q.X, q.Y, q.Z, q.W);
+                    }
+                }
                 string? mk = FindKey(entity, MacroInstance.ComponentName);
                 if (mk != null && entity[mk] is JsonObject mi && FindKey(mi, "Macro") is { } macroKey && mi[macroKey] is JsonArray)
                 {
@@ -116,7 +171,7 @@ namespace Fdp.Toolkit.Scenario
         {
             if ((dom["entities"] ?? dom["Entities"]) is not JsonObject entities) return false;
             foreach (var (_, node) in entities)
-                if (node is JsonObject e && (FindKey(e, PresenceKey) != null
+                if (node is JsonObject e && (FindKey(e, PresenceKey) != null || FindKey(e, PositionsKey) != null
                     || (FindKey(e, MacroInstance.ComponentName) is { } mk && e[mk] is JsonObject mi && FindKey(mi, "Macro") is { } k && mi[k] is JsonArray)))
                     return true;
             return false;
@@ -125,12 +180,20 @@ namespace Fdp.Toolkit.Scenario
         /// <summary>Variant 0 ⇒ the first; otherwise a weighted pick by <see cref="Roll"/>.</summary>
         public static string Choose(IReadOnlyList<(string Macro, double Weight)> choices, int variant, Guid salt, string key)
         {
-            if (variant == 0 || choices.Count == 1) return choices[0].Macro;
-            double total = 0; foreach (var c in choices) total += Math.Max(0, c.Weight);
-            if (total <= 0) return choices[0].Macro;
-            double r = Roll(variant, salt, key, "macro") * total;
-            foreach (var c in choices) { r -= Math.Max(0, c.Weight); if (r < 0) return c.Macro; }
-            return choices[^1].Macro;
+            var weights = new List<double>(choices.Count);
+            foreach (var c in choices) weights.Add(c.Weight);
+            return choices[Pick(weights, variant, salt, key, "macro")].Macro;
+        }
+
+        /// <summary>The index of a weighted one-of-N pick — variant 0 ⇒ the first; <paramref name="what"/> keeps two choices on one entity apart.</summary>
+        public static int Pick(IReadOnlyList<double> weights, int variant, Guid salt, string key, string what)
+        {
+            if (variant == 0 || weights.Count == 1) return 0;
+            double total = 0; foreach (var w in weights) total += Math.Max(0, w);
+            if (total <= 0) return 0;
+            double r = Roll(variant, salt, key, what) * total;
+            for (int i = 0; i < weights.Count; i++) { r -= Math.Max(0, weights[i]); if (r < 0) return i; }
+            return weights.Count - 1;
         }
 
         private static string? FindKey(JsonObject o, string name)

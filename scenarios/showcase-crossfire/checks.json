@@ -1,0 +1,24 @@
+{
+  "$doc": "docs/SHOWCASE_Scenarios.md §2.6 — Crossfire (a DEMO, bots both sides: conditions only, no golden). Lines 1 (capture after 10 s of a majority — the rail ScenarioRulesTests G1; here: a point is taken, and the drain moves the other side's tickets), 2 (four crate drops 3 min apart) and 4 (the comeback, at most once per 2 min) now; line 3 (team kill) after CE-4155 + S4; line 5 (awards) after S4. Variant 0: crate spots 1..4 in order.",
+  "runFor": 760,
+  "golden": false,
+  "later": ["Supply crate", "Blue bot", "Red bot"],
+  "anchors": {
+    "pointTaken": {"on": "field", "who": "*Point ", "path": "ObjectiveStatus.Owner", "op": "!=", "value": "Neutral"}
+  },
+  "expect": [
+    {"name": "both teams attack the middle point", "on": "task", "who": "*Team", "is": "PlatoonAttack", "before": 5},
+    {"name": "the kick-off message", "on": "field", "who": "Kick-off", "path": "ObjectiveStatus.FireCount", "op": ">=", "value": 1, "before": 10},
+    {"name": "(1) a point is captured", "on": "field", "who": "*Point ", "path": "ObjectiveStatus.Owner", "op": "!=", "value": "Neutral"},
+    {"name": "(1) the drain moves a team's tickets below 150 after a capture", "on": "field", "who": "*tickets", "path": "ObjectiveStatus.Value", "op": "<", "value": 150, "after": "pointTaken"},
+    {"name": "(2) crate 1 drops at 3:00", "on": "field", "who": "Crate drop 1", "path": "ObjectiveStatus.FireCount", "op": "==", "value": 1, "after": 179, "before": 182},
+    {"name": "(2) crate 2 drops at 6:00", "on": "field", "who": "Crate drop 2", "path": "ObjectiveStatus.FireCount", "op": "==", "value": 1, "after": 359, "before": 362},
+    {"name": "(2) crate 3 drops at 9:00", "on": "field", "who": "Crate drop 3", "path": "ObjectiveStatus.FireCount", "op": "==", "value": 1, "after": 539, "before": 542},
+    {"name": "(2) crate 4 drops at 12:00", "on": "field", "who": "Crate drop 4", "path": "ObjectiveStatus.FireCount", "op": "==", "value": 1, "after": 719, "before": 722},
+    {"name": "(2) the first crate lies at spot 1 (variant 0)", "on": "near", "who": "Supply crate", "point": [400, 275], "within": 6, "after": 180, "before": 200},
+    {"name": "(4) the Red comeback never fires twice within 2 min", "on": "field", "who": "Comeback Red", "path": "ObjectiveStatus.FireCount", "op": "<=", "value": 6, "atEnd": true},
+    {"name": "(5) a bot respawns", "on": "task", "who": "*bot", "is": "AdvanceTo"},
+    {"name": "no Blue round hits a Blue man", "never": {"on": "shot", "by": "*Blue", "hit": "*Blue"}},
+    {"name": "no Red round hits a Red man", "never": {"on": "shot", "by": "*Red", "hit": "*Red"}}
+  ]
+}
