@@ -27,6 +27,7 @@ namespace Hrot.SimHost.Tests
             w.RegisterManagedComponent<MacroInstance>();
             w.RegisterComponent<MacroExpansionStatus>();
             w.RegisterComponent<MacroOrigin>();
+            w.RegisterComponent<RefKey>();
             return w;
         }
 
@@ -143,6 +144,59 @@ namespace Hrot.SimHost.Tests
             Assert.False(new EntityMacroInstanceIngressTranslator(null, map).TryApply(88, new MacroInstance(), cmd, replica));
             Assert.False(new EntityMacroExpansionStatusIngressTranslator(null, map).TryApply(88, default, cmd, replica));
             Assert.False(new EntityMacroOriginIngressTranslator(null, map).TryApply(88, default, cmd, replica));
+        }
+
+        // ═══ ⭐ macros wire fix — dtRefKey 182: an entity's authored name ("@Key") reaches every node, so a RUNTIME-inserted entity resolves in the live "@Key" scope everywhere ═══
+
+        /// <summary>The ordinal is 182 (180/181 are the placement pair, 175–179 the rules block's) and the sample round-trips the key text.</summary>
+        [Fact]
+        public void TheRefKey_HasItsOrdinal_AndRoundTripsTheWire()
+        {
+            Assert.Equal(182, (int)EDescriptorType.dtRefKey);
+            var sample = EntityRefKeyEgressTranslator.ToSample(43, new FixedString32("RedQRF"));
+            Assert.Equal((43, "RedQRF"), (sample.EntityId, sample.Value));
+            Assert.Equal("RedQRF", EntityRefKeyIngressTranslator.FromSample(in sample).Value.ToString());
+        }
+
+        /// <summary>The creator publishes a keyed entity ONCE (and again only when re-keyed); an entity without a key, or with an empty one, publishes nothing; the replica's ghost gets the
+        /// key added, or its value set when it already has one; a sample ahead of its entity is held. ✅ Red-proof: the empty-key guard removed from <c>EntityRefKeyEgressTranslator.ScanAndPublish</c>
+        /// ⇒ the empty-keyed entity is sent ⇒ red.</summary>
+        [Fact]
+        public void TheRefKey_IsPublishedOnceForAKeyedEntity_NothingWithoutOne_AndTheGhostTakesIt()
+        {
+            using var owner = World();
+            var keyed = Spawn(owner, 71);
+            owner.AddComponent(keyed, new RefKey("RedQRF"));
+            var empty = Spawn(owner, 72);
+            owner.AddComponent(empty, default(RefKey));
+            Spawn(owner, 73);                                          // no RefKey at all
+
+            var egress = new EntityRefKeyEgressTranslator(participant: null);
+            egress.ScanAndPublish(owner); egress.ScanAndPublish(owner);
+            Assert.Equal(1, egress.SentSampleCount);                   // once, only the keyed one
+            owner.SetComponent(keyed, new RefKey("RedQRF2"));
+            egress.ScanAndPublish(owner);
+            Assert.Equal(2, egress.SentSampleCount);                   // re-keyed ⇒ republished
+
+            using var replica = World();
+            var map = new NetworkEntityMap();
+            var ghost = Spawn(replica, 71, map);                       // a runtime-inserted entity's ghost: no key yet
+            var ingress = new EntityRefKeyIngressTranslator(participant: null, map);
+            using (var cmd = new EntityCommandBuffer())
+            {
+                Assert.True(ingress.TryApply(71, new RefKey("RedQRF"), cmd, replica));
+                cmd.Playback(replica);
+            }
+            Assert.Equal("RedQRF", replica.GetComponentRO<RefKey>(ghost).Value.ToString());
+            using (var cmd = new EntityCommandBuffer())
+            {
+                Assert.True(ingress.TryApply(71, new RefKey("RedQRF2"), cmd, replica));   // present ⇒ set
+                cmd.Playback(replica);
+            }
+            Assert.Equal("RedQRF2", replica.GetComponentRO<RefKey>(ghost).Value.ToString());
+
+            using var cmd2 = new EntityCommandBuffer();
+            Assert.False(ingress.TryApply(88, new RefKey("Ahead"), cmd2, replica));       // ahead of its entity ⇒ held, never dropped
         }
     }
 }

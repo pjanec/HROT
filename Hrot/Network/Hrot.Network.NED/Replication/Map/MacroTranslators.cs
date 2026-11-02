@@ -173,6 +173,55 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
     }
+
+    /// <summary>⭐ <c>dtRefKey</c> — publishes an entity's <see cref="RefKey"/> (its authored name) from the node that owns the descriptor, ONCE per non-empty value; for every keyed entity (a loaded one's key is the same everywhere).</summary>
+    public sealed class EntityRefKeyEgressTranslator : IDescriptorTranslator
+    {
+        private readonly DdsWriter<EntityRefKey>? _writer;
+        private readonly Dictionary<int, FixedString32> _sent = new();
+        private int _worldEpoch;
+
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityRefKey>();
+        public long DescriptorOrdinal => (long)EDescriptorType.dtRefKey;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Egress;
+
+        public EntityRefKeyEgressTranslator(DdsParticipant? participant)
+            => _writer = participant is not null ? new DdsWriter<EntityRefKey>(participant) : null;
+
+        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
+
+        public void ScanAndPublish(ISimulationView view)
+        {
+            if (WorldEpoch.Moved(view, ref _worldEpoch)) _sent.Clear();
+            if (view is EntityRepository r && !r.IsComponentTypeRegistered<RefKey>()) return;
+            long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            foreach (var e in view.Query().With<RefKey>().DefaultRoutePublishable().WithLifecycle(EntityLifecycle.All).Build())
+            {
+                if (!view.HasAuthority(e, packedKey)) continue;
+                var key = view.GetComponentRO<RefKey>(e).Value;
+                if (key.Length == 0) continue;                                                 // an empty key names nothing
+                int netId = view.GetComponentRO<NetworkIdentity>(e).Value;
+                if (_sent.TryGetValue(netId, out var prev) && prev.Equals(key)) continue;      // a key is set once; a re-keyed entity republishes
+                _sent[netId] = key;
+                _writer?.Write(ToSample(netId, in key));
+                SentSampleCount++;
+            }
+        }
+
+        /// <summary>The wire form (the test seam).</summary>
+        public static EntityRefKey ToSample(int netId, in FixedString32 key) => new() { EntityId = netId, Value = key.ToString() };
+
+        public void Dispose(int networkEntityId) => _sent.Remove(networkEntityId);
+
+        public void ReleaseInstance(int networkEntityId, long instanceId)
+        {
+            if (_sent.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityRefKey { EntityId = networkEntityId });
+        }
+
+        public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
+    }
 }
 
 namespace Hrot.Map.Common.Replication.Ingress
@@ -363,6 +412,70 @@ namespace Hrot.Map.Common.Replication.Ingress
             System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(b.Slice(8), s.LocalHi);
             return new MacroOrigin { Instance = new EntityRef(s.Instance), Local = new Guid(b) };
         }
+
+        public void ScanAndPublish(ISimulationView view) { }
+        public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
+        public void Dispose(int networkEntityId) { _waiting.Remove(networkEntityId); }
+    }
+
+    /// <summary>⭐ <c>dtRefKey</c> — applies a published <see cref="RefKey"/> to the local ghost (add, or set when present); held until its entity is here, so the live "@Key" scope finds a runtime-inserted entity on every node.</summary>
+    public sealed class EntityRefKeyIngressTranslator : IDescriptorTranslator, IDiscardableIngress
+    {
+        private const long OrdinalValue = (long)EDescriptorType.dtRefKey;
+        private readonly DdsReader<EntityRefKey>? _reader;
+        private readonly NetworkEntityMap _entityMap;
+        private readonly Dictionary<int, RefKey> _waiting = new();
+        private readonly List<int> _applied = new();
+
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityRefKey>();
+        public long DescriptorOrdinal => OrdinalValue;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
+        public int WaitingCount => _waiting.Count;
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
+
+        public EntityRefKeyIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
+        {
+            _reader = participant is not null ? new DdsReader<EntityRefKey>(participant) : null;
+            _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+        }
+
+        public int DiscardIngress() { _waiting.Clear(); return _reader.DiscardAll(); }
+
+        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
+        {
+            if (_reader is not null)
+            {
+                using var loan = _reader.Take();
+                foreach (var sample in loan)
+                {
+                    if (!sample.IsValid || sample.Info.InstanceState != DdsInstanceState.Alive) continue;
+                    ReceivedSampleCount++;
+                    if (string.IsNullOrEmpty(sample.Data.Value)) continue;
+                    _waiting[sample.Data.EntityId] = FromSample(sample.Data);
+                }
+            }
+            if (_waiting.Count == 0) return;
+            _applied.Clear();
+            foreach (var (netId, k) in _waiting)
+                if (TryApply(netId, k, cmd, view)) _applied.Add(netId);
+            foreach (var id in _applied) _waiting.Remove(id);
+        }
+
+        internal bool TryApply(int netId, RefKey k, IEntityCommandBuffer cmd, ISimulationView view)
+        {
+            if (!_entityMap.TryGetEntity(netId, out var e) || !view.IsAlive(e)) return false;
+            if (view is EntityRepository repo)
+            {
+                if (AuthorityExtensions.IsRecordedOwner(repo, e, OwnershipExtensions.PackKey(OrdinalValue, 0))) return true;
+                if (!repo.IsComponentTypeRegistered<RefKey>()) return true;
+            }
+            if (view.HasComponent<RefKey>(e)) cmd.SetComponent(e, k); else cmd.AddComponent(e, k);
+            return true;
+        }
+
+        /// <summary>The component form. ⚠ A key longer than 31 bytes cannot arrive from a conforming sender; <see cref="FixedString32"/> truncates rather than throws.</summary>
+        public static RefKey FromSample(in EntityRefKey s) => new() { Value = new FixedString32(s.Value ?? string.Empty) };
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }

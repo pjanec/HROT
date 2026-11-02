@@ -374,6 +374,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.EntityMacroInstance` | descriptor | yes: entity id | S | Hrot.Network.NED | A macro instance: macro path + args JSON (`dtMacroInstance` 158, macros S3a ③); no ownership group, published by the creator on change; not a `CreateEntityRequest` union arm |
 | `Hrot.NED.Descriptors.EntityMacroExpansionStatus` | descriptor | yes: entity id | S | Hrot.Network.NED | A macro instance's expansion state (None/Expanding/Done/Failed) + reason (`dtMacroExpansionStatus` 159); no group, published on change |
 | `Hrot.NED.Descriptors.EntityMacroOrigin` | descriptor | yes: entity id | S | Hrot.Network.NED | An expanded entity's instance (network id) + macro-local key (`dtMacroOrigin` 170; 160–169 is Traffic's block); no group, published once |
+| `Hrot.NED.Descriptors.EntityRefKey` | descriptor | yes: entity id | S | Hrot.Network.NED | An entity's authored name (`RefKey`, the `@Key` of references; `dtRefKey` 182); no group, published by the creator for every keyed entity, applied to the ghost (add or set) — a runtime-inserted entity's key resolves on every node |
 | `Hrot.NED.Descriptors.EntityOperatorUseStatus` | descriptor | yes: entity id | S | Hrot.Network.NED | Verdict on the operator's last use press |
 | `Hrot.NED.Descriptors.EntityPartDamage` | descriptor | yes: entity id | S | Hrot.Network.NED | Damage level per body part |
 | `Hrot.NED.Descriptors.EntityPassengers` | descriptor | yes: entity id | S | Hrot.Network.NED | Passenger list of a vehicle |
