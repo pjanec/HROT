@@ -665,6 +665,12 @@ COUNTER (one new measure kind) through ONE new verb — no ticket system, no gam
 | **G-6** | domination = a trigger `when` all three points' `Owner` = the side, `holdFor 60` ⇒ `EndExercise` | SR-73: the condition vocabulary is the statuses |
 | **G-7** | the comeback boost compares TWO counters ⇒ a third Counter **`Lead`** (`floor` −1000, `deaths` both sides, opposite signs) moved by the same drain actions (Red loses a drained ticket ⇒ Lead +1; Blue ⇒ −1), and the boost triggers on `Lead ≥ 40` / `≤ −40` (`cooldown 120`, repeat) | the predicate language compares one entity's field with a constant; a difference of two is one more counter, not a new operator |
 
+**As built (`backend`, `2026-11-02`) — what the code settled that the rows left open:**
+- **G-1** — `HoldAreaBehavior.CaptureBySide`; a leader that already owns the point reads its clock FULL (`ProgressCur` = `ProgressNeed`), no leader / a tie reads 0 and the Owner stays unless outnumbered. `ObjectiveCensus.MenOfSideInside`.
+- **G-2** — `CounterBehavior`, `ObjectiveCensus.DownOf`. ⚠ The deaths census **follows** the downs (it is NOT a high-water mark): a corpse that is cleaned up or a man revived lowers it, so the NEXT man to go down counts again — a high mark would swallow every death until the census climbed back over its old peak (respawn waves + corpse cleanup ⇒ a silent pool). Cost: a man revived and downed again counts twice; one revive and one new down inside the SAME tick net to nothing. Men already down when the counter first evaluates are the baseline, not deaths. Value is clamped every evaluate, so an `AddToCounter` past `floor` / `ceiling` is pulled back at the counter's next tick.
+- **G-3** — `ScenarioVerbs.AddToCounter` does not clamp; the counter does (above).
+- **G-4** — a `whileTrue` re-fire is a fresh edge: `holdFor` then `delay` run again before the next fire.
+
 **Rejected — one line each:**
 - *A ticket SYSTEM per game mode* — nothing compiled per scenario (R-4112); a counter + triggers is the same with no new runtime.
 - *The drain inside `HoldArea` (`drains: @RedTickets`)* — couples the point to the pool; a trigger keeps it editable and visible in the rules view.

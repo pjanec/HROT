@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.InteropServices;
 using Fbt;
 using Fbt.Compiler;
@@ -24,6 +25,8 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             public int MinMen, MaxEnemy; public float HoldSeconds; public byte Capture;
             /// <summary>Working state (recorded with the blackboard): how long it has been held without a break; the last census.</summary>
             public double HeldFor; public int LastMen, LastEnemy;
+            /// <summary>⭐ S6 G-1 — <c>captureSeconds</c> (0 = the S1 rule); the side whose advantage is being timed; the seconds it has been the one with more men.</summary>
+            public float CaptureSeconds; public ForceId Challenger; public double AdvantageFor;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -36,22 +39,29 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 Common = ObjectiveCommonBlock.From(in authored.Common), Area = authored.Area,
                 MinMen = authored.MinMen <= 0 ? 4 : authored.MinMen, MaxEnemy = authored.MaxEnemy,
                 HoldSeconds = authored.HoldSeconds <= 0f ? 600f : authored.HoldSeconds, Capture = (byte)(authored.Capture ? 1 : 0),
+                CaptureSeconds = Math.Max(0f, authored.CaptureSeconds),
             };
 
         [SharedAiAction]
         public static NodeStatus Tick(ref Block b, Entity self, EntityRepository world)
         {
             var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Objective, in b.Common, ref b.Run, capture: b.Capture != 0);
-            if (f.Reset) { b.HeldFor = 0; b.LastMen = 0; b.LastEnemy = 0; }   // SR-114: a reset clears the working state
+            if (f.Reset) { b.HeldFor = 0; b.LastMen = 0; b.LastEnemy = 0; b.Challenger = ForceId.Neutral; b.AdvantageFor = 0; }   // SR-114: a reset clears the working state
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
             if (f.Evaluate)
             {
+                if (b.Capture != 0 && b.CaptureSeconds > 0f)   // ⭐ S6 G-1: the point is taken BY SIDE, not by the subject's roster
+                {
+                    CaptureBySide(ref b, ref s, world, f.Dt, f.Now);
+                    ObjectiveRules.WriteScore(ref s);
+                    return NodeStatus.Running;
+                }
                 var subject = b.Common.Subject.Resolve(world);
                 var mine = ObjectiveCensus.SideOf(world, subject);
                 int men = ObjectiveCensus.MenInside(world, b.Common.Subject, in b.Area);
                 int enemy = ObjectiveCensus.EnemiesInside(world, mine, in b.Area);
                 bool held = men >= b.MinMen && enemy <= b.MaxEnemy;
-                if (b.Capture != 0) Capture(ref b, ref s, world, mine, men, enemy, held, f.Now);
+                if (b.Capture != 0) Capture(ref b, ref s, world, mine, men, enemy, held, f.Dt, f.Now);
                 else
                 {
                     b.HeldFor = held ? b.HeldFor + f.Dt : 0;
@@ -71,7 +81,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
 
         /// <summary>Capture: the Owner is the subject's side while held, the enemy side while an enemy side has ≥ minMen inside and the subject's men
         /// are ≤ maxEnemy, else unchanged. The state stays Active.</summary>
-        private static void Capture(ref Block b, ref ObjectiveStatus s, EntityRepository world, ForceId mine, int men, int enemy, bool held, double now)
+        private static void Capture(ref Block b, ref ObjectiveStatus s, EntityRepository world, ForceId mine, int men, int enemy, bool held, double dt, double now)
         {
             var owner = s.Owner;
             if (held) owner = mine;
@@ -82,6 +92,33 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             s.Owner = owner; b.LastMen = men; b.LastEnemy = enemy; s.ProgressCur = men; s.ProgressNeed = b.MinMen;
             if (dirty || s.Reason.Length == 0)
                 ObjectiveHost.Settle(ref s, Kind, ObjectiveState.Active, $"{men}/{b.MinMen} men, {enemy} enemy, owner {owner}", now);
+        }
+
+        /// <summary>
+        /// ⭐ S6 G-1 (📄 DESIGN_Scenario_Rules §00.11) — capture BY SIDE with a clock. The leader = the side with strictly more men inside than the other (every man of the
+        /// side) and at least <c>minMen</c>. The owner is lost AT ONCE (→ Neutral) when the other side outnumbers it; a leader that is not the owner accumulates
+        /// <c>AdvantageFor</c> (reset when the leader changes or there is none) and becomes the Owner at <c>captureSeconds</c>. The state stays Active.
+        /// </summary>
+        private static void CaptureBySide(ref Block b, ref ObjectiveStatus s, EntityRepository world, double dt, double now)
+        {
+            int f = ObjectiveCensus.MenOfSideInside(world, ForceId.Friend, in b.Area), h = ObjectiveCensus.MenOfSideInside(world, ForceId.Hostile, in b.Area);
+            var leader = f > h && f >= b.MinMen ? ForceId.Friend : h > f && h >= b.MinMen ? ForceId.Hostile : ForceId.Neutral;
+            var owner = s.Owner;
+            if (owner == ForceId.Friend && h > f) owner = ForceId.Neutral;          // lost: outnumbered
+            else if (owner == ForceId.Hostile && f > h) owner = ForceId.Neutral;
+            if (leader == ForceId.Neutral) { b.Challenger = ForceId.Neutral; b.AdvantageFor = 0; }
+            else if (leader == owner) { b.Challenger = leader; b.AdvantageFor = b.CaptureSeconds; }   // held: the clock reads full
+            else
+            {
+                if (b.Challenger != leader) { b.Challenger = leader; b.AdvantageFor = 0; }
+                b.AdvantageFor += dt;
+                if (b.AdvantageFor >= b.CaptureSeconds - 1e-9) { owner = leader; b.AdvantageFor = b.CaptureSeconds; }
+            }
+            int cur = (int)b.AdvantageFor, need = (int)b.CaptureSeconds;
+            bool dirty = owner != s.Owner || f != b.LastMen || h != b.LastEnemy || cur != s.ProgressCur || need != s.ProgressNeed;
+            s.Owner = owner; b.LastMen = f; b.LastEnemy = h; s.ProgressCur = cur; s.ProgressNeed = need;
+            if (dirty || s.Reason.Length == 0)
+                ObjectiveHost.Settle(ref s, Kind, ObjectiveState.Active, $"F {f} / H {h} men, owner {owner}, {leader} {b.AdvantageFor:0}/{b.CaptureSeconds:0} s", now);
         }
 
         [Behavior(BehaviorNames.HoldArea, Params = typeof(HoldAreaParamsJsonDto), Categories = BehaviorCategory.Objective)]

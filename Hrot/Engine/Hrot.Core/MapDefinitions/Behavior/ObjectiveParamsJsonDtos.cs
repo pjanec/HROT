@@ -38,6 +38,10 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("holdSeconds")] public float HoldSeconds;
         /// <summary>Repeatable: never ends, the Owner flips.</summary>
         [JsonPropertyName("capture")] public bool Capture;
+        /// <summary>⭐ S6 G-1 — with <see cref="Capture"/>: &gt; 0 = the point is taken BY SIDE — the side with more men inside (every man of the side, not the
+        /// subject's roster) than the other, and at least <see cref="MinMen"/>, for this many seconds becomes the Owner; the moment the other side outnumbers
+        /// the owner the point is Neutral. 0 = the S1 rule (instant, the subject's roster).</summary>
+        [JsonPropertyName("captureSeconds")] public float CaptureSeconds;
     }
 
     /// <summary><c>ClearArea</c>: no more than MaxEnemy enemies inside for ForSeconds.</summary>
@@ -97,6 +101,33 @@ namespace Hrot.Map.Definitions.Behavior
     /// <summary>⭐ CE-4155 (SR-82) — which source of a harm a <c>NoHarm</c> judges. <c>Last</c> = 0 so an absent param keeps the old behaviour.</summary>
     public enum HarmAttribute : byte { Last = 0, Original = 1, Both = 2 }
 
+    /// <summary>⭐ S6 G-2 — one death rule of a <see cref="CounterParamsJsonDto"/>: each man of <see cref="Side"/> newly OUT of the fight adds <see cref="Per"/> to the value.</summary>
+    public struct CounterDeathsJsonDto
+    {
+        [JsonPropertyName("side"), JsonConverter(typeof(JsonStringEnumConverter))] public ForceId Side;
+        /// <summary>Added per man down (tickets: -1).</summary>
+        [JsonPropertyName("per")] public float Per;
+    }
+
+    /// <summary>
+    /// ⭐ S6 G-2 (📄 docs/DESIGN_Scenario_Rules.md §00.11) — <c>Counter</c>, a MEASURE (role Measure): <c>Value</c> starts at <see cref="Start"/> (also its
+    /// <c>Target</c>, so the score is value / start); <c>AddToCounter</c> moves it; <see cref="Deaths"/> (at most two sides) moves it by <c>per</c> for every man of the side
+    /// newly out of the fight (counted once; a revived man refunds nothing). Clamped to [<see cref="Floor"/>, <see cref="Ceiling"/>].
+    /// </summary>
+    [ParamsDto]
+    public struct CounterParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.Counter;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        [JsonPropertyName("start")] public float Start;
+        /// <summary>At most two entries (Friend, Hostile); a Neutral side is ignored.</summary>
+        [JsonPropertyName("deaths")] public CounterDeathsJsonDto[]? Deaths;
+        /// <summary>The value never goes below this; null = 0 (a lead counter sets a negative one).</summary>
+        [JsonPropertyName("floor")] public float? Floor;
+        /// <summary>The value never goes above this; null = no cap.</summary>
+        [JsonPropertyName("ceiling")] public float? Ceiling;
+    }
+
     /// <summary><c>WeightedMean</c>: a composite scoring its children (<c>ObjectiveLinks.Parent</c> = it) by weight.</summary>
     [ParamsDto]
     public struct WeightedMeanParamsJsonDto
@@ -155,6 +186,9 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("maxFires")] public int MaxFires;
         /// <summary>CE-4166 — a condition already TRUE when the trigger arms counts as an edge (default: it does not).</summary>
         [JsonPropertyName("fireIfTrueWhenArmed")] public bool FireIfTrueWhenArmed;
+        /// <summary>⭐ S6 G-4 — with <see cref="Repeat"/>: when the cooldown ends and the condition is STILL true, fire again (the periodic rule: "every 10 s while held");
+        /// without it a repeat needs the condition to go false and rise again (T2). <see cref="MaxFires"/> still caps it.</summary>
+        [JsonPropertyName("whileTrue")] public bool WhileTrue;
         /// <summary>The actions: <c>[{"act":"Message","args":{...},"bind":{...}?}, ...]</c>, run in order (SR-93). ⭐ Typed (SR-94): a step is a <c>BindableNode</c>, so the one param binder reaches its <c>bind</c>.</summary>
         [JsonPropertyName("do")] public System.Collections.Generic.List<Fdp.Toolkit.ScenarioRules.Actions.ActionStep>? Do;
     }
