@@ -7,6 +7,8 @@ using Fdp.Core;
 using Fdp.Testing;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Scenario;
 using Hrot.CGF.Orchestration;
 using Hrot.Common.Macros;
@@ -200,6 +202,104 @@ namespace Hrot.SimHost.Tests
             Fails(Expand(x, "test/pinned", Guid.NewGuid(), At(50, 0, 0)), "is pinned at its anchor");
             Fails(Expand(x, "test/not-a-macro", Guid.NewGuid(), At(0, 0, 0)), "not a macro");
             Assert.True(Expand(x, "test/pinned", Guid.NewGuid(), At(0, 0, 0)).Ok);   // a pinned macro AT its anchor expands
+        }
+            // ════════ ⭐ ⑤ placement, driven through MacroExpansionSystem (§15.2: ask once, park, apply; any Failed ⇒ nothing; no answer ⇒ E-6) ════════
+
+        private static void Ensure<T>(EntityRepository repo) where T : class
+        {
+            if (!repo.Bus.IsRegisteredManaged<T>()) repo.RegisterManagedEvent<T>();
+        }
+
+        private static (EntityRepository Repo, MacroExpansionSystem System, Entity Instance) ExpandingWorld()
+        {
+            var repo = new EntityRepository();
+            HrotSharedComponentRegistry.RegisterAll(repo);
+            Hrot.CGF.CgfComponentRegistry.RegisterAll(repo);
+            Ensure<EntityCreationRequest>(repo);
+            Ensure<Fdp.Toolkit.Navigation.PlacementRequestBatch>(repo);
+            Ensure<Fdp.Toolkit.Navigation.PlacementResponseBatch>(repo);
+            var map = new NetworkEntityMap();
+            var inst = repo.CreateEntity();
+            repo.AddComponent(inst, At(100, 100, 0));
+            repo.SetManagedComponent(inst, new MacroInstance { Macro = FireTeam });
+            repo.AddComponent(inst, new MacroExpansionStatus { State = MacroExpansionState.Expanding });
+            repo.SetManagedComponent(inst, new MacroExpansionIntent());
+            map.Register(500, inst);
+            return (repo, new MacroExpansionSystem(Expander(Library()), map, new SequentialIdAllocator(), Owner), inst);
+        }
+
+        private static T[] Frame<T>(EntityRepository repo, MacroExpansionSystem sys) where T : class
+        {
+            sys.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            return ((ISimulationView)repo).ReadManagedEvents<T>().ToArray();
+        }
+
+        [Fact]
+        public void Placement_IsAskedOnce_ChildrenWait_ThenStandWhereTheSolverSaid()
+        {
+            var (repo, sys, inst) = ExpandingWorld();
+
+            var ask = Assert.Single(Frame<Fdp.Toolkit.Navigation.PlacementRequestBatch>(repo, sys));
+            Assert.Equal(4, ask.Slots.Count);                                           // SR-185: one batch for the tree
+            Assert.Equal(ScenarioHeader.DefaultMaxShift, ask.MaxShift);
+            Assert.Empty(((ISimulationView)repo).ReadManagedEvents<EntityCreationRequest>());   // nothing created before the answer
+
+            var answer = new Fdp.Toolkit.Navigation.PlacementResponseBatch { RequestId = ask.RequestId, SourceNodeId = Owner };
+            foreach (var slot in ask.Slots)
+                answer.Answers.Add(new Fdp.Toolkit.Navigation.PlacementAnswer
+                {
+                    Key = slot.Key, Outcome = Fdp.Toolkit.Navigation.PlacementOutcome.Shifted, Point = slot.Point + new System.Numerics.Vector3(7, 0, 0),
+                });
+            repo.Bus.PublishManaged(answer);
+            repo.Bus.SwapBuffers();
+            sys.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+
+            var made = ((ISimulationView)repo).ReadManagedEvents<EntityCreationRequest>().ToArray();
+            Assert.Equal(4, made.Length);
+            var wanted = ask.Slots.Select(s => s.Point.X + 7).OrderBy(x => x).ToArray();
+            Assert.Equal(wanted, made.Select(c => One<SimTransform>(c).Position.X).OrderBy(x => x).ToArray());
+            Assert.True(((ISimulationView)repo).GetManagedComponentRO<MacroExpansionIntent>(inst)!.Published);
+        }
+
+        [Fact]
+        public void Placement_OneFailedSlot_FailsTheWholeExpansion_NamingTheMan_AndCreatesNothing()
+        {
+            var (repo, sys, inst) = ExpandingWorld();
+            var ask = Assert.Single(Frame<Fdp.Toolkit.Navigation.PlacementRequestBatch>(repo, sys));
+
+            var answer = new Fdp.Toolkit.Navigation.PlacementResponseBatch { RequestId = ask.RequestId, SourceNodeId = Owner };
+            foreach (var slot in ask.Slots)
+                answer.Answers.Add(new Fdp.Toolkit.Navigation.PlacementAnswer
+                {
+                    Key = slot.Key, Point = slot.Point, Reason = "no walkable ground within 30 m",
+                    Outcome = slot.Key == ask.Slots[^1].Key ? Fdp.Toolkit.Navigation.PlacementOutcome.Failed : Fdp.Toolkit.Navigation.PlacementOutcome.Exact,
+                });
+            repo.Bus.PublishManaged(answer);
+            repo.Bus.SwapBuffers();
+            sys.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+
+            Assert.Empty(((ISimulationView)repo).ReadManagedEvents<EntityCreationRequest>());   // SR-183: all or nothing
+            var status = repo.GetComponentRO<MacroExpansionStatus>(inst);
+            Assert.Equal(MacroExpansionState.Failed, status.State);
+            Assert.Contains("no walkable ground", status.Reason.ToString());
+            Assert.False(repo.HasManagedComponent<MacroExpansionIntent>(inst));
+        }
+
+        [Fact]
+        public void Placement_NoSolverAnswers_PlacesOnThisNode_AndSaysSo()
+        {
+            var (repo, sys, inst) = ExpandingWorld();
+            Assert.Single(Frame<Fdp.Toolkit.Navigation.PlacementRequestBatch>(repo, sys));
+
+            EntityCreationRequest[] made = Array.Empty<EntityCreationRequest>();
+            for (int i = 0; i <= MacroExpansionSystem.PlacementWaitFrames && made.Length == 0; i++)
+                made = Frame<EntityCreationRequest>(repo, sys);
+
+            Assert.Equal(4, made.Length);                                                       // E-6: the load is not stuck
+            Assert.Contains("placed unchecked", repo.GetComponentRO<MacroExpansionStatus>(inst).Reason.ToString());
         }
     }
 }

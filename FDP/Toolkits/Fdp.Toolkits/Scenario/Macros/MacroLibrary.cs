@@ -92,5 +92,30 @@ namespace Fdp.Toolkit.Scenario
 
         /// <summary><c>true</c> once the child requests are out (before that the expansion has not run).</summary>
         public bool Published { get; init; }
+
+        /// <summary>⭐ Macros S3a ⑤ (SR-180, SR-185) — the expanded children held back while their placement is asked; <c>null</c> = not asking.</summary>
+        public IReadOnlyList<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>? Parked { get; init; }
+
+        /// <summary>The <c>PlacementRequestBatch.RequestId</c> the parked children wait on.</summary>
+        public long PlacementRequestId { get; init; }
+
+        /// <summary>The expansion system's frame count when placement was asked (frames, not ticks: a load runs PAUSED).</summary>
+        public long AskedAtFrame { get; init; }
+
+        /// <summary>The top macro's <c>Placement.MaxShift</c>, kept for the local fallback.</summary>
+        public float MaxShift { get; init; }
+    }
+
+    /// <summary>
+    /// ⭐ Macros S3a ⑥ — what a done instance last expanded WITH (its <see cref="MacroInstance"/> and its anchor), on the node that owns it:
+    /// an edit is detected against it and the reconcile compares the OLD args' child set with the NEW (SR-150 / SR-172). Transient — after a
+    /// restore the instance has none, so it is not reconciled until it expands again.
+    /// </summary>
+    [Fdp.Core.DataPolicy(Fdp.Core.DataPolicy.Transient)]
+    [Fdp.Core.ComponentId(Fdp.Core.GlobalComponentIds.MacroExpandedWith)]
+    public sealed class MacroExpandedWith
+    {
+        public MacroInstance Instance { get; init; } = new();
+        public Fdp.Core.SimTransform Anchor { get; init; }
     }
 }

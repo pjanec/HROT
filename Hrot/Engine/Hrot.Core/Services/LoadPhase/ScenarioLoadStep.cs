@@ -80,6 +80,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     /// <summary>⭐ CE-3304 — a published request that never produces an entity (rejected, routed to a node that is gone) stops being
     /// waited for after this many ticks; the load then proceeds and names it. Ticks, not seconds: the bound is the same on every machine.</summary>
     public const int EntityWaitLimitTicks = 300;
+    private readonly Fdp.Toolkit.Scenario.IMacroLibrary? _macros;   // ⭐ macros S3a ⑥ — the PREPARE validates every instance (SR-149)
     private bool _prepared;   // ⭐ CE-3216 C-3 — a Prepare ran and was neither committed nor aborted (a new scenario sets no transaction id)
 
     /// <param name="idAllocator">
@@ -100,8 +101,10 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         INetworkIdAllocator idAllocator,
         ScenarioBehaviorRemapper? behaviorRemapper = null,
         ReadOnlyMigrationAdapter? readOnlyMigrationAdapter = null,
-        TerrainLoadService? terrainLoadService = null)
+        TerrainLoadService? terrainLoadService = null,
+        Fdp.Toolkit.Scenario.IMacroLibrary? macros = null)
     {
+        _macros             = macros;
         _serializer         = serializer     ?? throw new ArgumentNullException(nameof(serializer));
         _scenarioLoader     = scenarioLoader ?? throw new ArgumentNullException(nameof(scenarioLoader));
         _extractor          = extractor      ?? throw new ArgumentNullException(nameof(extractor));
@@ -143,6 +146,18 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
                 $"[LoadPhase/Scenario] No scenario file found for '{context.ScenarioId}'. The load step runs "
               + "only after the distribution of the scenario has been acknowledged by every node, so this is "
               + "a broken deployment rather than a race (see docs/DESIGN_Cluster_Load_Phase.md §7).");
+        }
+
+        // ⭐⭐ Macros S3a ⑥ (DESIGN_Scenario_Macros SR-149) — every macro instance, recursively through the macro files, is checked HERE, in
+        //   the prepare: a missing macro, an undeclared arg, a binding to no param, a cycle or a moved pinned macro aborts the load on every
+        //   node with nothing created. ⛔ Never discovered half-way through creation.
+        if (_macros != null)
+        {
+            var problems = Fdp.Toolkit.Scenario.MacroValidator.Validate(json, _macros, $"scenario '{context.ScenarioId}'");
+            if (problems.Count > 0)
+                throw new InvalidOperationException(
+                    $"[LoadPhase/Scenario] '{context.ScenarioId}' has {problems.Count} macro problem(s) — the load is refused:\n - "
+                  + string.Join("\n - ", problems));
         }
 
         _pendingRequests      = _extractor.Extract(_serializer, ScenarioWorldSection.InjectEntity(json, TkbEntityTypes.WorldEnvironment), _idAllocator, _remapper);   // ⭐ CE-4154 — Header.World becomes the World Environment entity; none ⇒ C-3 default at commit

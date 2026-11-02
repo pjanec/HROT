@@ -18,10 +18,11 @@ namespace Fdp.Toolkit.Navigation.Systems
     ///   <item>spacing (SR-190): never within (its Radius + the other's) of a slot already placed in the batch nor of an existing entity — a taken spot
     ///     continues the ring search under the same MaxShift budget.</item>
     /// </list>
-    /// Runs in <see cref="Modules.NavigationSolverModule"/> beside <see cref="PathfindingSolverSystem"/> (a SlowBackground snapshot view).
+    /// Registered by <see cref="Modules.NavigationSolverModule"/> as an ordinary main-thread system, ⭐ EVERY FRAME: a scenario loads while
+    /// the cluster is paused, and the load waits on the answer (§15.2). On the live world it also reads the resident <see cref="TerrainWorld"/>.
     /// </summary>
-    [UpdateInPhase(SystemPhase.Simulation)]
-    [TickMode(TickPolicy.WhenTimeAdvances)]
+    [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]
     public sealed class PlacementSolverSystem : IEcsModuleSystem
     {
         /// <summary>A projected point within this of the requested one counts as the requested one.</summary>
@@ -51,7 +52,7 @@ namespace Fdp.Toolkit.Navigation.Systems
         }
 
         /// <summary>Solves one request (the test seam). <paramref name="existing"/> are the footprints already in the world.</summary>
-        internal PlacementResponseBatch Solve(PlacementRequestBatch req, TerrainWorld? terrain, IReadOnlyList<(Vector3 Position, float Radius)> existing)
+        public PlacementResponseBatch Solve(PlacementRequestBatch req, TerrainWorld? terrain, IReadOnlyList<(Vector3 Position, float Radius)> existing)
         {
             var response = new PlacementResponseBatch { RequestId = req.RequestId, SourceNodeId = req.SourceNodeId };
             var placed = new List<(Vector3 Position, float Radius)>();
@@ -136,12 +137,14 @@ namespace Fdp.Toolkit.Navigation.Systems
 
         private static float Distance2D(Vector3 a, Vector3 b) => MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
 
-        /// <summary>⭐ SR-190 — every entity with a <c>SimTransform</c>, with its footprint radius.</summary>
-        private static List<(Vector3 Position, float Radius)> ExistingEntities(ISimulationView view)
+        /// <summary>⭐ SR-190 — every entity with a <c>SimTransform</c>, with its footprint radius — ⛔ except a macro INSTANCE: it is a marker
+        /// standing at its anchor, not a body, and its own children are placed around that very point.</summary>
+        public static List<(Vector3 Position, float Radius)> ExistingEntities(ISimulationView view)
         {
             var list = new List<(Vector3, float)>();
             foreach (var e in view.Query().With<SimTransform>().Build())
             {
+                if (view.HasManagedComponent<Fdp.Toolkit.Scenario.MacroInstance>(e)) continue;
                 var pos = view.GetComponentRO<SimTransform>(e).Position;
                 list.Add((new Vector3(pos.X, pos.Y, pos.Z), Diagnostics.Gizmos.EntityFootprint.InteractionRadiusMetres(view, e)));
             }

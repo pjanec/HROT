@@ -921,3 +921,43 @@ serves the whole tree, and a failure leaves nothing half-built.
 | ⚠ **measured while building:** an identity rotation faces EAST (compass 90°) — a macro authored with entities "unturned" faces east; the anchor's `Heading` 0 is north | `WorldRotation.ToHeadingDeg` | authors: an anchor heading and the entities' headings are in the same compass frame |
 | rails `MacroExpanderTests` (6): transient / owned / derived / marked · two instances distinct, one instance stable · moved + turned · an arg overrides the default through the file's bindings · nested, transforms composed · five refusals + a pinned macro at its anchor | `Hrot.SimHost.Tests` | red-proved (children not transient ⇒ red) |
 | ⏭ not in ④ | — | placement (⑤ — children are created at their relocated points), the validator in the PREPARE (⑥ — today a bad macro fails at expansion, after the load's prepare), reconcile on an args edit (⑥), staging of the package (⑦) |
+
+### 15.2 As-built — items ⑤ placement and ⑥ validator, reconcile, cascade *(backend, `2026-11-02`)*
+
+```mermaid
+sequenceDiagram
+    participant M as MacroExpansionSystem (creating node, EVERY frame)
+    participant B as bus (+ Brain/Sim pathfinding packs over DDS)
+    participant S as PlacementSolverSystem (every node with NavigationSolverModule, EVERY frame)
+    M->>M: Expand (files → children) · BuildPlacement (one slot per body — a nested instance is a marker, not placed)
+    M->>B: PlacementRequestBatch (RequestId, SourceNodeId, MaxShift = top macro's)
+    M->>M: intent.Parked = children (nothing created yet)
+    B->>S: request (in-process, or dtPlacementRequestBatch 171)
+    S-->>B: PlacementResponseBatch (dt 172 back to SourceNodeId)
+    alt an answer within 300 frames
+        alt any slot Failed
+            M->>M: status Failed "placement: 'Lead' — no walkable ground within 30 m" · nothing published
+        else
+            M->>B: each child at its answered point → the ONE request path
+        end
+    else no answer (no solver in reach — E-6)
+        M->>M: the same solver code, on THIS node's terrain (or unchecked) · status says so
+        M->>B: children
+    end
+```
+
+*What the picture shows that prose hid:* the wait is counted in FRAMES on both sides — a scenario loads while the cluster is paused, so a
+solver gated on sim time (as the path solver is) would never answer, and an expansion counting ticks would never time out.
+
+| as built | where | deviation from §15 / the rows above, and why |
+|---|---|---|
+| ⭐ the solver answers **every frame on the main thread**: `NavigationSolverModule.RegisterSystems` registers `PlacementSolverSystem` as an ordinary `EveryFrame` system — ⛔ NOT through the module's `WhenTimeAdvances` manual tick the path solver uses | `NavigationSolverModule.cs`; `PlacementSolverSystem.cs` | ⚠ measured: the module is `[TickMode(WhenTimeAdvances)]` + `SlowBackground`; a paused load would park its children for good. On the live world the solver also reads the resident `TerrainWorld` (a snapshot view cannot) |
+| the solver's existing-entity spacing (SR-190) **skips a macro instance** — a marker standing at the anchor its own children are placed around | `PlacementSolverSystem.ExistingEntities` | otherwise every child near the anchor is pushed off it |
+| slot layer and radius from the child's DIS type: life form ⇒ infantry 0.5 m · land platform ⇒ vehicle 3 m · surface / subsurface ⇒ amphibious 5 m · air ⇒ air | `MacroExpansionSystem.BuildPlacement` | ⚠ a child whose TKB template sets the DIS type but whose file entity does not reaches here as 0 ⇒ infantry |
+| no answer in `PlacementWaitFrames` (300) ⇒ the SAME `PlacementSolverSystem.Solve` on the creating node (navmesh none, its terrain if resident); the status reason says *"placed on terrain only"* / *"placed unchecked"* and stays on `Done` | `MacroExpansionSystem.AwaitPlacement` | E-6 / SR-184 — ⭐ one placement algorithm, two places it may run |
+| ⚠ two instances expanding in ONE frame are placed against the same world: their children may overlap each other (each batch avoids only its own and existing entities) | — | ⏭ rare at load (one request per instance); a scenario-wide batch is S3b |
+| ⭐ ⑥ the VALIDATOR runs in the load's PREPARE, before extraction: `MacroValidator.Validate(json, library)` — files, kind, args, cycle, depth, pinned anchor, every `ParamBindings` path / `"^name"` / `Bind` naming a declared param, a `bind` key inside a params blob (SR-161); any problem throws, naming every problem with its path ⇒ the load aborts on every node with nothing created | `Fdp.Toolkits/Scenario/Macros/MacroValidator.cs`; `ScenarioLoadStep.PrepareAsync`; `NodeBootstrapper` passes `FileMacroLibrary.ForNode` | SR-149 / SR-162. ⚠ a value's TYPE against its target (SR-162's second half) is still reported by the binder at expansion |
+| ⭐ SR-188 — a `@Key` two entities carry resolves to the FIRST, with a warning; the load goes on (was: refused) | `ScenarioRefScope.Add` / `TryKey` (`Ambiguous`) | — |
+| ⭐ RECONCILE (SR-150 / SR-157 / SR-172): a `Done` instance keeps `MacroExpandedWith{Instance, Anchor}` (474, transient); an edit (a new immutable `MacroInstance` record) or a moved anchor ⇒ expand old and new from the files, compare by GUID: kept ⇒ `SimTransform` + `EntityInfo` re-applied · new ⇒ requested · made before but destroyed in the run ⇒ stays destroyed · no longer made ⇒ destroyed | `MacroExpansionSystem.MaybeReconcile` | ⚠ a changed behaviour param reaches NEW children only (S3b); a re-expansion is not re-placed; after a restore `MacroExpandedWith` is absent ⇒ no reconcile until the next expansion |
+| ⭐ CASCADE (SR-170): an entity whose `MacroOrigin.Instance` is no longer in the map is destroyed by its owner | `MacroExpansionSystem.Cascade` | a nested instance going takes its own men by the same rule |
+| rails: `MacroValidatorTests` (4) · `MacroExpanderTests` + 3 placement rails driven through the system (asked once and parked · one Failed ⇒ nothing · no answer ⇒ placed here and said) · `PlacementSolverSystemTests` (9) · `PlacementTranslatorsTests` (3) | `Fdp.Toolkits.Tests`, `Hrot.SimHost.Tests`, `Hrot.Network.NED.Tests` | red-proofs in the report |

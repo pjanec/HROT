@@ -1209,5 +1209,9 @@ namespace Fdp.Core
         /// <summary><c>MacroExpansionIntent</c> — ⭐ macros S3a ④ (docs/DESIGN_Scenario_Macros.md §15 E-5): the wait of one expansion on its
         /// instance; the load gate waits while one exists. Transient. ⚠ 473 measured free in backend, ui, behaviors and coordinator 2026-11-02.</summary>
         public const int MacroExpansionIntent = 473;
+
+        /// <summary><c>MacroExpandedWith</c> — ⭐ macros S3a ⑥: what a done instance last expanded with (the reconcile's baseline). Transient.
+        /// ⚠ 474 measured free in backend, ui, behaviors and coordinator 2026-11-02.</summary>
+        public const int MacroExpandedWith = 474;
     }
 }

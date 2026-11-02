@@ -324,7 +324,10 @@ namespace Hrot.SimHost
                         behaviorRemapper: behaviorRemapper,
                         // ⭐ C3 — the LOCAL terrain invocation, made at the one frame the zone entities provably exist.
                         //   ⛔ Not a NodeOp: we are inside the cluster's own load transaction and a nested 2PC would deadlock.
-                        terrainLoadService: TerrainLoadService));
+                        terrainLoadService: TerrainLoadService,
+                        // ⭐ macros S3a ⑥ — the node that loads scenarios validates their macros in the prepare (SR-149), from its own staging
+                        //   root first (the package arrives there, SR-80) — built HERE so no host can hold an extractor and skip the check.
+                        macros: Fdp.Toolkit.Scenario.FileMacroLibrary.ForNode(localTempRoot)));
 
                     if (scenarioHandlers != null) handlersToRegister.AddRange(scenarioHandlers);
                     else handlersToRegister.Add(new ReferenceEpisodeLoadHandler(scenarioSerializer, scenarioLoader, world: null));

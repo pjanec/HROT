@@ -49,7 +49,10 @@ namespace Hrot.Common.Macros
         public IMacroLibrary Library => _library;
 
         /// <summary>The outcome: every child request (all levels), or the reason nothing may be created.</summary>
-        public sealed record Result(IReadOnlyList<EntityCreationRequest> Children, string? Failure)
+        /// <param name="MaxShift">⭐ SR-182 — the top macro's <c>Placement.MaxShift</c> (or its default): the farthest placement may move a child.</param>
+        /// <param name="Relocatable">⭐ SR-156 — <c>false</c> for a pinned macro: it stands where it was authored, so it is not placed.</param>
+        public sealed record Result(IReadOnlyList<EntityCreationRequest> Children, string? Failure,
+                                    float MaxShift = ScenarioHeader.DefaultMaxShift, bool Relocatable = true)
         {
             public bool Ok => Failure is null;
         }
@@ -67,10 +70,11 @@ namespace Hrot.Common.Macros
                              IRefScope? outside, INetworkIdAllocator idAllocator)
         {
             var children = new List<EntityCreationRequest>();
+            var top = new ScenarioHeader?[1];
             try
             {
-                Flatten(instance, instanceNetworkId, instanceGuid, owner, anchor, outside, idAllocator, new List<string>(), children);
-                return new Result(children, null);
+                Flatten(instance, instanceNetworkId, instanceGuid, owner, anchor, outside, idAllocator, new List<string>(), children, top);
+                return new Result(children, null, top[0]?.EffectiveMaxShift ?? ScenarioHeader.DefaultMaxShift, top[0]?.Relocatable ?? true);
             }
             catch (Refused r) { return new Result(Array.Empty<EntityCreationRequest>(), r.Message); }
             catch (Exception ex) when (ex is InvalidOperationException or System.Text.Json.JsonException or ArgumentException or NotSupportedException)
@@ -78,7 +82,7 @@ namespace Hrot.Common.Macros
         }
 
         private void Flatten(MacroInstance mi, int instanceId, Guid instanceGuid, NodeId owner, SimTransform anchor, IRefScope? outside,
-                             INetworkIdAllocator ids, List<string> path, List<EntityCreationRequest> into)
+                             INetworkIdAllocator ids, List<string> path, List<EntityCreationRequest> into, ScenarioHeader?[] top)
         {
             string here = path.Count == 0 ? mi.Macro : string.Join(" / ", path) + " / " + mi.Macro;
             if (path.Contains(mi.Macro, StringComparer.Ordinal))
@@ -92,6 +96,7 @@ namespace Hrot.Common.Macros
             var header = ScenarioHeaderJson.Read(dom);
             if (header is null || !header.IsMacro)
                 throw new Refused($"{here}: the file is not a macro (its header has no Kind \"macro\")");
+            if (path.Count == 0) top[0] = header;
 
             // ── params: the header's defaults ▸ the instance's args, flat (SR-28); an arg the macro does not declare is refused (SR-149)
             var declared = (header.Params ?? Array.Empty<ScenarioParamDecl>()).ToDictionary(p => p.Name, p => p, StringComparer.OrdinalIgnoreCase);
@@ -144,7 +149,7 @@ namespace Hrot.Common.Macros
                 {
                     var nestedAnchor = comps.OfType<SimTransform>().FirstOrDefault();
                     path.Add(mi.Macro);
-                    try { Flatten(nested, r.PreAllocatedNetworkId, childGuid, owner, nestedAnchor, outside, ids, path, into); }
+                    try { Flatten(nested, r.PreAllocatedNetworkId, childGuid, owner, nestedAnchor, outside, ids, path, into, top); }
                     finally { path.RemoveAt(path.Count - 1); }
                     comps.Add(new MacroExpansionStatus { State = MacroExpansionState.Done });   // E-2: never expanded again
                 }
