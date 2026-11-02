@@ -18,6 +18,18 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         Func<EntityRepository, Entity, bool> CompileComponentPredicate(SearchPredicateDto root);
 
         /// <summary>
+        /// ⭐ <c>CE-4164</c> (DESIGN_Scenario_Rules §00.9 S2-b) — the LEVEL entry point: the same compiler, the same arms, but the four
+        /// specialised loop predicates answer a STATE instead of passing through (SR-158) — spatial: the entity's position is inside
+        /// <c>Bounds</c> (<c>TriggerEvent</c> is ignored: an edge is the caller's job); lifecycle: the entity it identifies is alive; structural:
+        /// the entity has the component (Removed: has not); transient event: such an event occurred THIS frame (naming this entity when the
+        /// predicate points at an entity field). ONE implementation — <see cref="CompileComponentPredicate"/> is the Search mode of it.
+        /// </summary>
+        /// <remarks>A default that THROWS: <see cref="PredicateCompiler"/> is the one implementation; a test double that never asks for a level
+        /// predicate need not implement it, and one that does ask fails loudly instead of getting a Search-mode answer.</remarks>
+        Func<EntityRepository, Entity, bool> CompileLevelPredicate(SearchPredicateDto root)
+            => throw new NotSupportedException($"{GetType().Name} has no level mode — only PredicateCompiler implements CompileLevelPredicate.");
+
+        /// <summary>
         /// Walks the predicate tree and returns the set of component types that MUST be
         /// present on an entity for the predicate to possibly match.
         /// Only AND-compound roots contribute; OR-compounds are excluded because they

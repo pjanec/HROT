@@ -1472,6 +1472,7 @@ public sealed class DataBreakpointManager
     /// </summary>
     private static bool MatchesLifecycleCriteria(EntityRepository repo, Entity entity, LifecyclePredicateDto dto)
     {
+        // ⚠ CE-4205: a second copy of this identification lives in PredicateCompiler.Level.cs (CompileLifecycleLevel, CE-4164) — unify this onto it.
         return dto.IdentifierType switch
         {
             EntityIdentifierType.EcsHandle =>

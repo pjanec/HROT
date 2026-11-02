@@ -232,14 +232,23 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         /// </summary>
         internal static Entity TryExtractEntity(string value)
         {
-            // Expected format: "[42, v3]" or "[42,v3]"
-            if (string.IsNullOrEmpty(value) || value[0] != '[')
-                return Entity.Null;
-
-            int closeBracket = value.IndexOf(']');
-            if (closeBracket < 0) return Entity.Null;
-
-            string inner = value.Substring(1, closeBracket - 1); // "42, v3"
+            // Expected format: "[42, v3]" or "[42,v3]" — ⭐ CE-4164: and "Entity(42, v3)", which is what <see cref="Entity.ToString"/> (so an
+            //   Entity-typed event field's rendering) actually writes; the bracket form alone matched nothing a real event carried.
+            if (string.IsNullOrEmpty(value)) return Entity.Null;
+            string inner;
+            if (value[0] == '[')
+            {
+                int closeBracket = value.IndexOf(']');
+                if (closeBracket < 0) return Entity.Null;
+                inner = value.Substring(1, closeBracket - 1); // "42, v3"
+            }
+            else if (value.StartsWith("Entity(", StringComparison.Ordinal))
+            {
+                int close = value.IndexOf(')');
+                if (close < 0) return Entity.Null;
+                inner = value.Substring(7, close - 7);
+            }
+            else return Entity.Null;
             int commaIdx = inner.IndexOf(',');
             if (commaIdx < 0) return Entity.Null;
 

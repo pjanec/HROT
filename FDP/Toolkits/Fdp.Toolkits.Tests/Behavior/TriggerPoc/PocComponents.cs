@@ -3,11 +3,11 @@ using Fdp.Core;
 
 namespace Fdp.Toolkit.Behavior.Tests.TriggerPoc
 {
-    // ⭐ TRIGGER ACTION-SEQUENCE PoC (SR-93..98) — test-project-only components. Ids 425..430 are free in the 512-wide id space
+    // ⭐ TRIGGER ACTION-SEQUENCE PoC (SR-93..98) — test-project-only components. Ids 509, 492, 484, 485, 457, 458 are test-only here (425-430 became production ids: the objectives' 425/426, S2's 427-429)
     //   (FdpConfig.MAX_COMPONENT_TYPES = 512 — ⚠ the 9001/1001 ids other test projects use are OUT of range for a world that registers them).
 
     /// <summary>A test-visible log: <c>PocRecord</c> appends its param here.</summary>
-    [ComponentId(425)]
+    [ComponentId(509)]
     public struct PocLog
     {
         public int Count;
@@ -23,21 +23,21 @@ namespace Fdp.Toolkit.Behavior.Tests.TriggerPoc
     }
 
     /// <summary>A condition source for the <c>when</c> (PropertyMatch target).</summary>
-    [ComponentId(426)]
+    [ComponentId(492)]
     public struct PocSignal { public int Value; }
 
-    [ComponentId(427)]
+    [ComponentId(484)]
     public struct PocSignalB { public int Value; }
 
     /// <summary>⭐ SR-97 — ONE generic side record: the JSON of every list/arg-set the entity's actions use, indexed by an <c>int</c> ref.</summary>
-    [ComponentId(428)]
+    [ComponentId(485)]
     public sealed record PocActionArgs
     {
         public required IReadOnlyList<string> Items { get; init; }
     }
 
     /// <summary>The PoC trigger driver's state (Phase: 0 uninit · 1 armed · 2 waiting · 3 acting · 4 done).</summary>
-    [ComponentId(429)]
+    [ComponentId(457)]
     public struct PocTriggerState
     {
         public int Phase;
@@ -48,6 +48,6 @@ namespace Fdp.Toolkit.Behavior.Tests.TriggerPoc
     }
 
     /// <summary>NodeStatus carries no reason — a failing action leaves its reason here by convention (PoC finding).</summary>
-    [ComponentId(430)]
+    [ComponentId(458)]
     public struct PocLastReason { public int Code; }
 }
