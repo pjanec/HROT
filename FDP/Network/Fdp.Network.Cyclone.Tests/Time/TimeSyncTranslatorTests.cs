@@ -58,7 +58,7 @@ namespace Fdp.Toolkit.Time.Tests
             var t = new SlaveTimeSyncTranslator(participant: null, eventBus: bus, localNodeId: 1);
 
             // Publish a request and make it readable
-            bus.Publish(new TimeSyncProbeEvent { ClientNodeId = 1, ClientSendTicks = 100 });
+            bus.Publish(new TimeSyncProbeEvent { ClientNodeId = (Fdp.Core.NodeId)1, ClientSendTicks = 100 });
             bus.SwapBuffers();
 
             // Translator drains the request (DDS write is no-op with null participant)
@@ -165,7 +165,7 @@ namespace Fdp.Toolkit.Time.Tests
             var t = new SlaveTimeSyncTranslator(participant: null, eventBus: bus, localNodeId: 1,
                 tickSource: () => ticks);
 
-            bus.Publish(new TimeSyncProbeEvent { ClientNodeId = 1, ClientSendTicks = 1L });
+            bus.Publish(new TimeSyncProbeEvent { ClientNodeId = (Fdp.Core.NodeId)1, ClientSendTicks = 1L });
             bus.SwapBuffers();
 
             t.ScanAndPublish(null!); // no-op for DDS write, but must drain bus
