@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-01 (superseded revisions removed; §2f the thumbnail gallery accepted 2026-11-01, CE-4142)
-build-state: BUILT — all slices on Editor, CGF, SimHost and IG; Stride mode 2 deferred (CE-1030). Approved by the user 2026-10-07 (all leans, §2–§2e); CE-1031 is the terrain owner's follow-up; §2f (the gallery, CE-4142) is accepted, not built · §2g its UML, READY-TO-BUILD (`2026-11-02`)
-current-answer: §2 every decision D1–D10 in its final wording (+ retired ids) · §2a–§2e the measured basis and the shapes (SpawnHeight, wire fields) · ⭐ §2f THE THUMBNAIL GALLERY G1–G10 (mockup docs/designs/add-entity-picker/) · §3 diagrams · §5 slices and as-built
+updated: 2026-11-03 (§2h the gallery as built, CE-4142; §2f accepted 2026-11-01)
+build-state: BUILT — all slices on Editor, CGF, SimHost and IG; Stride mode 2 deferred (CE-1030). Approved by the user 2026-10-07 (all leans, §2–§2e); CE-1031 is the terrain owner's follow-up; §2f–§2h the thumbnail gallery (CE-4142) BUILT `2026-11-03` GL1–GL4 — ⏳ the PNG snapshots (director stills) and G8 smart tactical symbols (CE-4169) are later
+current-answer: §2 every decision D1–D10 in its final wording (+ retired ids) · §2a–§2e the measured basis and the shapes (SpawnHeight, wire fields) · ⭐ §2f THE THUMBNAIL GALLERY G1–G10 (mockup docs/designs/add-entity-picker/) · §2h the gallery AS BUILT (read it before §2g: it lists where the build deviates) · §3 diagrams · §5 slices and as-built
 stale-below: nothing — superseded revisions removed 2026-11-01; full history at commit de422e11b (`git show de422e11b:docs/DESIGN_Add_Entity_Picker.md`)
 known-rot: (2026-10-19, CE-3271) §2e / §5 "NetworkSpawningSystem resolves" — SUPERSEDED: 8b now only ASKS (a replicated SpawnLevelRequest) and SpawnLevelSystem resolves it on the node that owns the position (Q94 D, R-3018) — docs/blueprints/Architect_Question_94_Brain_Geometry_Sites.md §5.2a. The rule (SpawnHeight.Apply, level 0 = ground) is unchanged.
 known-rot: (2026-10-31, CE-259ax) §2e's "eleven direct SpawnEntityCommand publishers" was measured 2026-10-07; CE-259ax routed them through CreateEntityRequestSystem (docs/DESIGN_Scenario_Entity_Keys.md §00c)
@@ -387,6 +387,26 @@ graph TD
 | **GL3** | `CategorySidebar` shared by Wide and Grid; `PickerRequest.GroupSidebar`; tile line (G3); size slider + List ⇄ Thumbnails (G9, P4) | Wide unchanged; the Grid shows groups left, chips on top, tiles right |
 | **GL4** | the Add Entity request: side preset (G5), side pane facts + *Place on map* (G6), search across groups (G7), Recent & favourites first (G10) | the live editor shows it (xvfb screenshot) |
 | ⏳ | the PNGs themselves (snapshot run through the director's stills) and G8's smart tactical symbols (CE-4169) | — later; until then tiles show today's glyph on a dashed tile |
+
+## 2h. The gallery AS BUILT *(ui, `2026-11-03` — CE-4142 GL1–GL4; supersedes §2g's "READY-TO-BUILD" where a row says Deviation)*
+
+📸 Live (xvfb, editor): *Add Entity ▸ Friendly…* opens the 1100 × 700 gallery — ten groups with counts (empty ones faded), chips on top, 160 px tiles
+(dashed glyph tile while no PNG exists), the side pane with *Placed as / Speed / Weapons / DIS*, *Place on map*. Rendered to the session scratchpad, not committed.
+
+| decision | as built | deviation |
+|---|---|---|
+| **G1** groups | `assets/thumbnails/groups.json` → `GalleryGroups` (`Hrot.Presentation/AddEntity/GalleryGroups.cs`): a side-bearing type lands in the group of the MOST SPECIFIC matching mask (`DisTypeMask.Specificity`; tie ⇒ first listed), a graphic in the group listing its tool, else *Other*. Shipped masks: Soldiers `3` · Civilians `3.1.*.2` · Ground vehicles `1.1` · Weapon systems `1.1.*.50` · Aircraft `1.2` · Units `11.1`,`11` · Props `2,4-9` · Tactical symbols tool `None` · Areas & routes tools `Area,Route,Zone`. Rail: every type of the shipped TKB is in exactly one group, none in *Other* | ➕ `groups.json` carries an optional `"chips"` level per group (`next`·`kind`·`domain`·`category`·`none`); a broken file is REFUSED (`GalleryData.TryLoad` → null ⇒ Add Entity offers the old DIS tree, never a one-group gallery) |
+| **G2** chips | `GalleryGroups.ChipOf`: the first NAMED level (Domain, Category — a country is never a chip) below the winning mask, named by `DisNameTable`; the picker shows the chip row when a group has ≥ 2 chips | Soldiers chips are the category names *Infantry (HROT)* / *Security Force (HROT)* — the class table's own names |
+| **G3** tile line | `EntityRoleLine`: `TkbMasterDto.ShortDescription` (➕ new, empty = compose) else *class · main weapon* (class from `EntityClassTable`, weapon = first mount's category in words) | the weapon is the mount's CATEGORY (*Tank gun*), not the weapon template's name — a mount holds a GUID, not a name |
+| **G4** thumbnail | `ThumbnailMap` (`map.json`): explicit `ThumbnailName` (➕ on `IgVisualDef` and `VisualDefinitionDto`, copied by `NedTkbBuilder`) → most specific mask → null (glyph on a dashed tile); decided once in `EntityTypeCatalog.Build`; `PickerEntry.ImageKey` = the full path | an explicit name whose file is missing falls through to the mask. `map.json` ships EMPTY, no PNGs |
+| **G5** side | the menu item presets it (title, pane's *Placed as*) | no tint on the preview |
+| **G6** pane | the picker's default pane content + `AddEntityPane` rows; footer action *Place on map* (id `place`, default; Enter / double-click take it) arms exactly the tool the tree pick armed | *with crew* and drag-onto-map are not built |
+| **G7** search | `ToPickerEntries(gallery: true)` adds group, chip and tile line to the keywords; while the search box has text the group filter is off and tiles show their group | — |
+| **G9** toggle | `LayoutChoices [Tree, Grid]` (*List* ⇄ *Thumbnails*); tile width slider remembered per context in `PickerViewStore` (`TileWidths`) | *List* shows the GROUP ▸ CHIP tree (the picker entry's `Category`), not the DIS path; the DIS path stays in the keywords and the *DIS* fact |
+| **G10** recent | the first group is virtual (`PickerGroupSidebar.RecentGroup`): the rows that are recent or starred; the picker's own `RecentStore`; `F` over a tile (or right-click) stars it | the star store is the picker's in-memory `FavoritesStore` — not persisted across restarts |
+| **§2g classes** | `CategorySidebar` (NodeEditor.UI) moved out of `WideLayout` — Wide unchanged (rail); `PickerRequest.GroupSidebar` (`PickerGroupSidebar(Order, RecentGroup)`); the Grid draws the gallery only when it is set | the gallery request is `AddEntityAction.BuildRequest(…, gallery)`; the tree request stays for `SpawnerPanel` and the rooted *New Unit* request. The pack forwards the data (`EntityAuthoringInputs.Gallery`, default `GalleryData.Shipped` = the NAS `assets/thumbnails`, seeded from the repository's) — railed on the constructed pack |
+
+⏳ Not built: the PNG snapshots (a director-stills run writes them and fills `map.json`) · G8 smart tactical symbols (CE-4169) · persisted favourites.
 
 ## 3. Diagrams
 

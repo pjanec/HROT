@@ -61,7 +61,7 @@ public static class EntityRoleLine
         if (v is not null && v.MaxSpeedFwd > 0f)
             facts.Add(("Speed", string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{v.MaxSpeedFwd * 3.6f:0} km/h")));
         var carrier = t.GetDescriptor<CarrierDefDto>();
-        if (carrier is not null && carrier.Seats.Count > 0)
+        if (carrier is { Person: null } && carrier.Seats.Count > 0)   // a person-carrier seat is a carry slot, not crew
             facts.Add(("Seats", carrier.Seats.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)));
         var weapons = Weapons(t);
         if (weapons.Count > 0) facts.Add(("Weapons", string.Join(", ", weapons)));
