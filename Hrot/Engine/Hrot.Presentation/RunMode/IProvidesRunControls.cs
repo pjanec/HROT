@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Hrot.UI.Common.Facades;
 
 namespace Hrot.UI.Common.RunMode;
@@ -38,4 +39,10 @@ public interface IProvidesRunControls
     /// ▶, picked by the same rule, never to whichever host registered last.
     /// </summary>
     void ComposeScenarioActions(Fdp.Presentation.WindowManager.WindowManager windowManager) { }
+
+    /// <summary>
+    /// ⭐ CE-4141 / AQ108 D24 — the running scenario's run setup as menu lines (<see cref="RunSetupText.Of(Fdp.Core.EntityRepository?)"/>: the actual variant — <i>as authored</i> when there is none — and the params that differ from their defaults), read from what the
+    /// host's world holds resident. Drawn by the mode indicator's menu. Default: none (a host with no scenario world); ⭐ a host that HAS one (the Editor, CGF) overrides it — the forwarding rail checks them.
+    /// </summary>
+    IReadOnlyList<string> RunSetupLines => System.Array.Empty<string>();
 }

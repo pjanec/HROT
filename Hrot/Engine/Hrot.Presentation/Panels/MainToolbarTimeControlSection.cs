@@ -30,6 +30,7 @@ public sealed class MainToolbarTimeControlSection
     private TransportMode _lastMode;
     private bool _modeSeen;
     private DateTime? _returnedToLiveAt;
+    private readonly Func<IReadOnlyList<string>>? _runSetupLines;
 
     /// <summary>F15 — how long ■ ignores presses after a review returned to live.</summary>
     public static readonly TimeSpan StopGuard = TimeSpan.FromSeconds(3);
@@ -38,8 +39,9 @@ public sealed class MainToolbarTimeControlSection
     /// <param name="now">The clock of the F15 guard (tests inject one); default <see cref="DateTime.UtcNow"/>.</param>
     /// <param name="choice">⭐ CE-4097 (AQ108 §2.8) — the host's <see cref="RunModeChoice"/>: the indicator draws its <see cref="RunModeChoice.Indicator"/>, its menu is the
     /// choice's moves (each with its confirmation, drawn as a modal), ▶ ■ keep calling the facade. ⛔ A host that HAS one must pass it.</param>
-    public MainToolbarTimeControlSection(ITimeTransportFacade facade, Func<DateTime>? now = null, RunModeChoice? choice = null)
+    public MainToolbarTimeControlSection(ITimeTransportFacade facade, Func<DateTime>? now = null, RunModeChoice? choice = null, Func<IReadOnlyList<string>>? runSetupLines = null)
     {
+        _runSetupLines = runSetupLines;
         _facade = facade;
         _now = now ?? (() => DateTime.UtcNow);
         _choice = choice;
@@ -150,6 +152,19 @@ public sealed class MainToolbarTimeControlSection
     /// the deferred items — ⚑ mark, ⑂ go live from here, review from a checkpoint — are not built). Every action goes through the ONE facade.
     /// </summary>
     public ModeMenuModel? ModeMenu()
+    {
+        var model = ModeMenuBase();
+        // ⭐ AQ108 D24 — the running scenario's variant and changed params, as plain (disabled) lines under the moves
+        if (model is not null && _facade.Mode is not (TransportMode.Edit or TransportMode.Idle) && _runSetupLines?.Invoke() is { Count: > 0 } setup)
+        {
+            var items = new List<ModeMenuItem>(model.Items);
+            foreach (var line in setup) items.Add(new(line, null, Enabled: false));
+            model = new(model.Header, items);
+        }
+        return model;
+    }
+
+    private ModeMenuModel? ModeMenuBase()
     {
         var legacy = LegacyModeMenu();
         if (_choice is null) return legacy;

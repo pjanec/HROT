@@ -16,7 +16,8 @@ public static class ScenarioPaneFacts
     public const int RecheckMilliseconds = 2000;
 
     /// <summary>The facts of one scenario file.</summary>
-    public sealed record Facts(string? Description, string? TerrainName, string? SubsystemType, int EntityCount);
+    public sealed record Facts(string? Description, string? TerrainName, string? SubsystemType, int EntityCount,
+        IReadOnlyList<Fdp.Toolkit.Scenario.ScenarioParamDecl>? Params = null, bool UsesVariants = false);   // ⭐ AQ108 D24 — what the run setup offers: the header's params and whether the file has any variant content
 
     private sealed record Cached(DateTime Written, long CheckedAt, Facts? Facts);
     private static readonly Dictionary<string, Cached> Cache = new(StringComparer.Ordinal);
@@ -47,23 +48,22 @@ public static class ScenarioPaneFacts
         {
             Parses++;
             using var stream = File.OpenRead(path);
-            using var doc = JsonDocument.Parse(stream);
-            var root = doc.RootElement;
+            if (System.Text.Json.Nodes.JsonNode.Parse(stream) is not System.Text.Json.Nodes.JsonObject root) return null;
             string? desc = null, terrain = null, subsystem = null;
-            if (root.TryGetProperty("header", out var h) && h.ValueKind == JsonValueKind.Object)
+            if ((root["header"] ?? root["Header"]) is System.Text.Json.Nodes.JsonObject h)
             {
                 desc = Text(h, "description"); terrain = Text(h, "terrainName"); subsystem = Text(h, "subsystemType");
             }
-            int entities = root.TryGetProperty("entities", out var e) && e.ValueKind == JsonValueKind.Object ? e.EnumerateObject().Count() : 0;
-            return new Facts(desc, terrain, subsystem, entities);
+            int entities = (root["entities"] ?? root["Entities"]) is System.Text.Json.Nodes.JsonObject e ? e.Count : 0;
+            // ⭐ AQ108 D24 — the run setup's facts, read with the ONE header reader and the ONE variant test (the same ones the load uses)
+            var decls = Fdp.Toolkit.Scenario.ScenarioHeaderJson.Read(root)?.Params;
+            return new Facts(desc, terrain, subsystem, entities, decls, Fdp.Toolkit.Scenario.ScenarioVariants.Uses(root));
         }
         catch (Exception) { return null; }   // unreadable ⇒ no facts, the pane shows the name alone
     }
 
-    private static string? Text(JsonElement o, string name)
-        => o.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String && v.GetString() is { Length: > 0 } s ? s : null;
-
-    private static int Count(this JsonElement.ObjectEnumerator e) { int n = 0; foreach (var _ in e) n++; return n; }
+    private static string? Text(System.Text.Json.Nodes.JsonObject o, string name)
+        => o[name] is System.Text.Json.Nodes.JsonValue v && v.TryGetValue<string>(out var s) && s.Length > 0 ? s : null;
 
     /// <summary>The preview picture of a scenario folder (<c>preview.png</c> beside <c>scenario.json</c>) when it exists; else <see langword="null"/>.</summary>
     public static string? PreviewOf(string scenarioJsonPath)

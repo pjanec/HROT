@@ -224,25 +224,19 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
         });
     }
 
-    void IRunScenarioControl.LoadForLive(string scenarioName)
+    void IRunScenarioControl.LoadForLive(string scenarioName) => ((IRunScenarioControl)this).LoadForLive(scenarioName, null);
+
+    /// <summary>
+    /// ⭐ A fresh ExerciseId per load, mirroring the orchestrator panel's "Load into Live" button and DebugApiService.LoadScenarioLive: a live load IS a new exercise run, and the id is what recording/replay keys off.
+    /// ⭐ CE-295 — through the shared sequence: from Live or Edit it unloads first (a single request planned an empty path and only copied the files).
+    /// ⭐ CE-4141 / AQ108 D24 — the intent is the ONE <see cref="ScenarioLoadSequence.LiveLoadIntent"/> (this used to be a hand-written copy of it): paused at 0 (Q86 §4-G, 🔒 "Scenario load should reset the clock to zero and paused";
+    /// running after a load is a property of the load, and the editor's load does not ask for it) and, when the picker's run setup asked for any, the args every node's load reads.
+    /// </summary>
+    void IRunScenarioControl.LoadForLive(string scenarioName, string? argsJson)
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
         _leaveRun?.Invoke();
-
-        // ⭐ A fresh ExerciseId per load, mirroring the orchestrator panel's "Load into Live" button and
-        //   DebugApiService.LoadScenarioLive: a live load IS a new exercise run, and the id is what
-        //   recording/replay keys off. ⭐ CE-295 — through the shared sequence: from Live or Edit it unloads first
-        //   (a single request planned an empty path and only copied the files).
-        _loads.Request(new TransitionStateIntent
-        {
-            TransactionId = Guid.NewGuid(),
-            TargetState   = ClusterState.OperatingLive,
-            ScenarioId    = scenarioName,
-            ExerciseId    = Guid.NewGuid(),
-            // ⭐ Q86 §4-G — the editor loads to a clock at 0, PAUSED (🔒 "Scenario load should reset the clock to zero
-            //   and paused"); running after a load is a property of the load, and the editor's load does not ask for it.
-            TimeMode      = "Deterministic",
-        });
+        _loads.Request(ScenarioLoadSequence.LiveLoadIntent(scenarioName, startPaused: true, scenarioArgsJson: argsJson));
     }
 
     void IRunScenarioControl.OpenRecording(Guid exerciseId) => ((IRunScenarioControl)this).OpenRecording(exerciseId, null);

@@ -24,6 +24,7 @@ internal static class RunChoiceRig
         public string? LoadedScenarioName { get; set; } = "hill-attack";
         public readonly List<string> Calls = new();
         public void LoadForLive(string scenarioName) => Calls.Add($"LoadForLive:{scenarioName}");
+        public void LoadForLive(string scenarioName, string? argsJson) => Calls.Add($"LoadForLive:{scenarioName}:{argsJson}");   // ⭐ AQ108 D24 — a load WITH a run setup
         public void OpenForEdit(string scenarioName) => Calls.Add($"OpenForEdit:{scenarioName}");
         public void OpenRecording(Guid exerciseId) => Calls.Add($"OpenRecording:{exerciseId}");
         public void OpenRecording(Guid exerciseId, double? atSimSeconds) => Calls.Add($"OpenRecording:{exerciseId}@{atSimSeconds?.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}");

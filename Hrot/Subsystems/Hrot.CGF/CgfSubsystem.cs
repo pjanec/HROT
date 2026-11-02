@@ -213,6 +213,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     Hrot.UI.Common.RunMode.RunHostKind Hrot.UI.Common.RunMode.IProvidesRunControls.HostKind => Hrot.UI.Common.RunMode.RunHostKind.Cgf;
     Hrot.UI.Common.Facades.ITimeTransportFacade? Hrot.UI.Common.RunMode.IProvidesRunControls.Transport => _clusterTimeAdapter;
     Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _clusterTimeAdapter?.RunChoice;
+    /// <summary>⭐ AQ108 D24 — the running scenario's variant and changed params, for the mode indicator's menu (from what the load stamped resident).</summary>
+    System.Collections.Generic.IReadOnlyList<string> Hrot.UI.Common.RunMode.IProvidesRunControls.RunSetupLines => Hrot.UI.Common.RunMode.RunSetupText.Of(_context?.World);
 
     // ⭐ CE-4101 follow-up (AQ108 §2.11a ⑤) — the scenario menu (File › Open / New Scenario, Open Recording, Save…) registered ONCE, by the host the composer picked as the ▶ owner; built in RegisterWindows.
     private System.Action<Fdp.Presentation.WindowManager.WindowManager>? _composeScenarioMenu;
@@ -2037,7 +2039,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             catalog:      catalog,
             router:       router,
             hasInventory: () => _clusterTimeAdapter?.RunChoice?.Gate.HasInventory ?? true,   // ⭐ CE-1442
-            runChoice:    () => _clusterTimeAdapter?.RunChoice);   // ⭐ CE-4141 — Open and go live
+            runChoice:    () => _clusterTimeAdapter?.RunChoice,   // ⭐ CE-4141 — Open and go live
+            paramEditService: () => _facetEditService);   // ⭐ AQ108 D24 — the Run setup's typed param rows
 
         // ⭐⭐ The New-Asset flow: recipe picker → Save-As browser for the name/folder → the ONE
         //    create-core. ⚠ `_assetCreateController` is non-null here because WireAssetCreation runs

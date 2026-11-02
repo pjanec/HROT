@@ -7,17 +7,9 @@ using Fdp.Core;
 using Fdp.Presentation.Abstractions;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Scenario;
+using Hrot.Editor.AiShared.Scenarios;
 
 namespace Hrot.Editor.Scenario;
-
-/// <summary>One row of a macro instance's args form: the header's param, its default, and the instance's override (if any).</summary>
-public sealed record MacroArgRow(string Name, string TypeId, Type? Type, string? Comment, string? DefaultJson, string? OverrideJson)
-{
-    public bool IsOverridden => OverrideJson is not null;
-
-    /// <summary>What the expansion will use: the override, else the default (<c>null</c> literal when neither).</summary>
-    public string EffectiveJson => OverrideJson ?? DefaultJson ?? "null";
-}
 
 /// <summary>
 /// ⭐⭐ CE-4210 MA-8 (SR-39a; docs/DESIGN_Macro_Authoring_Editor.md) — the PURE half of the instance's args form: rows from the macro's HEADER params (read with <see cref="ScenarioHeaderJson.Read"/>, the same one the save and
@@ -51,17 +43,8 @@ public static class MacroArgs
     }
 
     /// <summary>One row per declared param of <paramref name="header"/>, in declaration order.</summary>
-    public static IReadOnlyList<MacroArgRow> Rows(ScenarioHeader? header, string? argsJson)
-    {
-        if (header?.Params is not { Count: > 0 } decls) return Array.Empty<MacroArgRow>();
-        var args = ArgsOf(argsJson);
-        return decls.Select(d =>
-        {
-            ParamTypes.TryResolve(d.TypeId, out var clr);
-            return new MacroArgRow(d.Name, d.TypeId, clr, d.Comment, d.Default?.ToJsonString(),
-                                   args.TryGetPropertyValue(d.Name, out var v) ? v?.ToJsonString() ?? "null" : null);
-        }).ToList();
-    }
+    public static IReadOnlyList<ParamArgRow> Rows(ScenarioHeader? header, string? argsJson)
+        => ParamArgRow.From(header?.Params, ArgsOf(argsJson));   // ⭐ the ONE row builder, shared with the picker's run setup
 
     /// <summary>A NEW instance whose args carry <paramref name="valueJson"/> for <paramref name="name"/> (merged into the existing args); a null value, or one equal to <paramref name="defaultJson"/>, removes the override.</summary>
     public static MacroInstance With(MacroInstance instance, string name, string? valueJson, string? defaultJson)

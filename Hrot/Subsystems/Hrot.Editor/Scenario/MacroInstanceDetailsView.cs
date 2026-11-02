@@ -7,6 +7,7 @@ using Fdp.Presentation.Editing;
 using Fdp.Toolkit.Scenario;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Inspector;
+using Hrot.Editor.AiShared.Scenarios;
 using Hrot.Editor.AiShared.Shell;
 using Hrot.Editor.AiShared.Variables;
 using ImGuiNET;
@@ -21,29 +22,20 @@ namespace Hrot.Editor.Scenario;
 /// </summary>
 public sealed class MacroInstanceDetailsView : IDetailsViewInstance
 {
-    private sealed class RowState : IDisposable
-    {
-        public IEditSession Session = null!;
-        public ComponentEditDrawer Drawer = null!;
-        public string ShownJson = "";
-        public Type Type = null!;
-        public void Dispose() => Session?.Dispose();
-    }
-
     private readonly Func<EntityRepository?> _world;
     private readonly Func<IInspectableSession?> _session;
     private readonly Func<string?> _macrosRoot;
     private readonly Func<IComponentEditService?> _editService;
     private readonly Func<IMapPickContext?> _picks;
     private readonly Action<Action<string>>? _pickMacro;
-    private readonly Dictionary<string, RowState> _rows = new();
+    private readonly ParamArgsTable _table;   // ⭐ the ONE typed args form (shared with the picker's run setup)
     private Entity _entity = Entity.Null;
     private string? _macro;
 
     /// <summary>What the last <see cref="Draw"/> showed (read by the frame rail): the status line, the rows drawn, the reset buttons, whether it was read-only.</summary>
     public string StatusText { get; private set; } = "";
-    public int RowsDrawn { get; private set; }
-    public int ResetButtons { get; private set; }
+    public int RowsDrawn => _table.RowsDrawn;
+    public int ResetButtons => _table.ResetButtons;
     public bool ReadOnly { get; private set; }
 
     /// <param name="pickMacro">Opens the scenario picker's Macros group and calls back with the chosen path (null ⇒ no Change… button). ⛔ A host that edits macros passes it.</param>
@@ -56,6 +48,7 @@ public sealed class MacroInstanceDetailsView : IDetailsViewInstance
         _editService = editService ?? throw new ArgumentNullException(nameof(editService));
         _picks = picks ?? (() => null);
         _pickMacro = pickMacro;
+        _table = new ParamArgsTable(_editService, _picks, "$.macroarg.");
     }
 
     /// <summary>The expansion status as one line: <c>Done</c>, <c>Failed: reason</c>, <c>Expanding…</c> or <c>Not expanded</c>.</summary>
@@ -74,7 +67,7 @@ public sealed class MacroInstanceDetailsView : IDetailsViewInstance
 
     public void Draw(DetailsContext context, string idScope)
     {
-        RowsDrawn = ResetButtons = 0;
+        _table.ResetCounts();
         if (context.Entities is not { Count: 1 }) { ImGui.TextDisabled("Select one macro instance."); return; }
         var entity = context.Entities[0];
         if (entity != _entity) { ClearRows(); _entity = entity; _macro = null; }
@@ -109,76 +102,12 @@ public sealed class MacroInstanceDetailsView : IDetailsViewInstance
 
         ImGui.Separator();
         ImGui.TextUnformatted("Arguments");
-        if (_editService() is not { } svc) { ImGui.TextDisabled("No editor service."); ImGui.PopID(); return; }
         ImGui.BeginDisabled(!owned);
-        if (ImGui.BeginTable("args", 3, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
-        {
-            ImGui.TableSetupColumn("Param", ImGuiTableColumnFlags.WidthFixed, 160f);
-            ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch);
-            ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed, 70f);
-            foreach (var row in rows)
-            {
-                var st = PrepareRow(svc, row);
-                if (st is null) continue;
-                ImGui.PushStyleVar(ImGuiStyleVar.Alpha, row.IsOverridden ? 1f : 0.55f);   // the default is greyed until it is overridden
-                st.Drawer.DrawRoot(VariableEditModal.ScalarRowOrRoot(st.Session.Document.Root, row.Name));
-                ImGui.PopStyleVar();
-                FinishRow(session, entity, instance, row, st);
-            }
-            ImGui.EndTable();
-        }
+        _table.Draw("args", rows,
+            onSet: (row, json) => Write(session, entity, MacroArgs.With(instance, row.Name, json, row.DefaultJson)),
+            onReset: row => Write(session, entity, MacroArgs.Reset(instance, row.Name)));
         ImGui.EndDisabled();
         ImGui.PopID();
-    }
-
-    /// <summary>The row's session (opened or reopened from the effective JSON); null for an unknown type (its row is already written).</summary>
-    private RowState? PrepareRow(IComponentEditService svc, MacroArgRow row)
-    {
-        if (row.Type is null)
-        {
-            ImGui.TableNextRow(); ImGui.TableSetColumnIndex(0); ImGui.TextUnformatted(row.Name);
-            ImGui.TableSetColumnIndex(1); ImGui.TextDisabled($"unknown type '{row.TypeId}'");
-            return null;
-        }
-        if (!_rows.TryGetValue(row.Name, out var st) || !string.Equals(st.ShownJson, row.EffectiveJson, StringComparison.Ordinal) || st.Type != row.Type)
-        {
-            st?.Dispose();
-            var entry = new BlackboardVariableEntry(row.Name, row.Type, row.Comment, DefaultValueJson: row.EffectiveJson);
-            var s = DefaultValueAuthoring.OpenSession(svc, entry);
-            st = new RowState { Session = s, Drawer = new ComponentEditDrawer(s, _picks() is { } p ? new ScopedMapPickContext(p, "$.macroarg." + row.Name) : null), ShownJson = row.EffectiveJson, Type = row.Type };
-            _rows[row.Name] = st;
-        }
-        if (st.Session.RebuildState == EditRebuildState.RebuildRequired) st.Session.RebuildDocument();
-        return st;
-    }
-
-    /// <summary>After the drawer drew the row: the reset column and the commit of an edit.</summary>
-    private void FinishRow(IInspectableSession session, Entity entity, MacroInstance instance, MacroArgRow row, RowState st)
-    {
-        RowsDrawn++;
-        ImGui.TableSetColumnIndex(2);
-        if (row.IsOverridden)
-        {
-            ResetButtons++;
-            if (ImGui.SmallButton("reset##" + row.Name))
-                Write(session, entity, MacroArgs.Reset(instance, row.Name));
-            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Reset to the default" + (row.DefaultJson is null ? "" : " (" + row.DefaultJson + ")"));
-        }
-        else ImGui.TextDisabled("default");
-
-        if (st.Session.IsDirty)
-        {
-            try
-            {
-                string json = DefaultValueAuthoring.CommitAndSerialize(st.Session, row.Type!);
-                if (!string.Equals(json, st.ShownJson, StringComparison.Ordinal))
-                {
-                    st.ShownJson = json;   // what the form now shows; the next frame's record carries it
-                    Write(session, entity, MacroArgs.With(instance, row.Name, json, row.DefaultJson));
-                }
-            }
-            catch (EditValidationException) { /* an invalid edit stays in the form; nothing is written */ }
-        }
     }
 
     private void Write(IInspectableSession session, Entity entity, MacroInstance next)
@@ -187,11 +116,7 @@ public sealed class MacroInstanceDetailsView : IDetailsViewInstance
         ClearRows();   // the record changed (or the write was refused): reopen the rows from the entity's own record next frame
     }
 
-    private void ClearRows()
-    {
-        foreach (var r in _rows.Values) r.Dispose();
-        _rows.Clear();
-    }
+    private void ClearRows() => _table.Clear();
 
     public void Dispose() => ClearRows();
 }

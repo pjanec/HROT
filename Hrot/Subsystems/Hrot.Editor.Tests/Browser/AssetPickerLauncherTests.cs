@@ -393,6 +393,8 @@ public sealed class AssetPickerLauncherTests
         public List<string> EditOpens { get; } = new();
         public string? LoadedScenarioName => "s";
         public void LoadForLive(string scenarioName) => LiveLoads.Add(scenarioName);
+        public List<(string Name, string? Args)> LiveLoadArgs { get; } = new();
+        public void LoadForLive(string scenarioName, string? argsJson) { LiveLoads.Add(scenarioName); LiveLoadArgs.Add((scenarioName, argsJson)); }   // ⭐ AQ108 D24
         public void OpenForEdit(string scenarioName) => EditOpens.Add(scenarioName);
         public void OpenRecording(Guid exerciseId) { }
         public void SaveCurrent() { }
@@ -499,6 +501,45 @@ public sealed class AssetPickerLauncherTests
         Assert.Single(control.LiveLoads);
     }
 
+    // ═══ AQ108 D24 (the ui half) — the picker's Run setup ═══════════════════════════════════════════════════════════════════════════
+    // Red-proof (compiles): the facts reader returning UsesVariants always false ⇒ the variant-facts rail fails; OpenAndGoLive not passing RunArgsFor ⇒ the frame rail's args assert fails.
+
+    [Fact]
+    public void D24_TheFacts_CarryTheHeadersParams_AndWhetherTheFileUsesVariants()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "pkd24-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "v")); Directory.CreateDirectory(Path.Combine(root, "plain"));
+            File.WriteAllText(Path.Combine(root, "v", "scenario.json"),
+                "{\"header\":{\"description\":\"d\",\"Params\":[{\"Name\":\"count\",\"TypeId\":\"int\",\"Default\":2},{\"Name\":\"side\",\"TypeId\":\"ForceId\",\"Default\":\"Hostile\"}]},\"entities\":{\"a\":{\"Presence\":0.6}}}");
+            File.WriteAllText(Path.Combine(root, "plain", "scenario.json"), "{\"header\":{\"description\":\"d\"},\"entities\":{\"a\":{}}}");
+
+            var v = ScenarioPaneFacts.Get(Path.Combine(root, "v", "scenario.json"))!;
+            Assert.True(v.UsesVariants);
+            Assert.Equal(new[] { "count", "side" }, v.Params!.Select(p => p.Name));
+            var plain = ScenarioPaneFacts.Get(Path.Combine(root, "plain", "scenario.json"))!;
+            Assert.False(plain.UsesVariants);                       // no variant row for it
+            Assert.Null(plain.Params);                              // and no param rows
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public void D24_AStartThatNeverOpenedTheExpander_PassesNothingExtra()
+    {
+        var control = new RecordingControl();
+        var choice = RunChoiceOver(control);
+        var asset = new StubAsset { Kind = AssetKind.Scenario, Name = "alpha" };
+        var picker = new FakeOpenPicker();
+        var launcher = new AssetPickerLauncher(picker.OpenPicker, new FakeCatalog(asset), MakeRouter(), baseFolderResolver: _ => "", runChoice: () => choice);
+        launcher.Open(AssetKindFilter.Scenario);
+        Assert.Null(launcher.RunArgsFor("alpha"));
+        picker.InvokeHandler(new PickerResult(new[] { EntryFor(asset) }) { ActionId = AssetPickerLauncher.GoLiveActionId });
+        Assert.Equal(new[] { "alpha" }, control.LiveLoads);
+        Assert.Empty(control.LiveLoadArgs);                         // the plain load: no args, no interaction
+    }
+
     [Fact]
     public void CE4141_GoLive_IsDisabledWithAReason_WhenTheHostHasNoRunChoice_OrPicksNoScenario()
     {
@@ -534,6 +575,24 @@ public sealed class AssetPickerLauncherTests
             string call = text.Substring(at, Math.Min(900, text.Length - at));
             Assert.Contains("runChoice:", call);
         }
+    }
+
+    /// <summary>⭐ AQ108 D24 (the silent-default rule) — the Editor and CGF HOLD a component edit service and a scenario world: they must pass the former to the launcher (else the Run setup's param rows are dead there) and override
+    /// <c>IProvidesRunControls.RunSetupLines</c> (else the indicator's menu never names the run's variant).</summary>
+    [Fact]
+    public void D24_TheEditorAndCgf_PassTheEditServiceToTheLauncher_AndOfferTheRunSetupLines()
+    {
+        string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../.."));
+        while (!File.Exists(Path.Combine(root, "HROT.sln")) && Directory.GetParent(root) != null) root = Directory.GetParent(root)!.FullName;
+        foreach (var rel in new[] { "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs", "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs" })
+        {
+            var text = File.ReadAllText(Path.Combine(root, rel));
+            int at = text.IndexOf("new Hrot.Editor.AiShared.Browser.AssetPickerLauncher(", StringComparison.Ordinal);
+            Assert.Contains("paramEditService:", text.Substring(at, Math.Min(1500, text.Length - at)));
+            Assert.Contains("IProvidesRunControls.RunSetupLines", text);
+        }
+        var local = File.ReadAllText(Path.Combine(root, "Hrot/Runner/Hrot.ClusterRunner/Presentation/LocalWindowController.cs"));
+        Assert.Contains("runSetupLines:", local);   // the ONE toolbar registration forwards the owner's lines
     }
 
     // ── ⭐ CE-4210 MA-6 — the Macros group ────────────────────────────────────────────────────────

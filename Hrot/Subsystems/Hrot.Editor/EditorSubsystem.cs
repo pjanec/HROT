@@ -262,6 +262,7 @@ namespace Hrot.Editor
         private ScenarioFileService?    _scenarioFileService;
 
         private EntityRepository?       _world;
+        private StructEdit.Core.IComponentEditService? _runSetupEditService;   // ⭐ AQ108 D24 — built on first use by the scenario picker's Run setup
         private readonly Hrot.Editor.Scenario.HeaderParamsSchemaSource _headerParams;   // ⭐ CE-4210 P2 (MA-5)
         private Hrot.Editor.Scenario.ParametersWindow? _parametersWindow;
         private Hrot.Editor.Scenario.SaveSelectionAsMacroWindow? _saveSelectionWindow;   // ⭐ CE-4210 MA-9
@@ -380,6 +381,8 @@ namespace Hrot.Editor
         Hrot.UI.Common.RunMode.RunHostKind Hrot.UI.Common.RunMode.IProvidesRunControls.HostKind => Hrot.UI.Common.RunMode.RunHostKind.Editor;
         Hrot.UI.Common.Facades.ITimeTransportFacade? Hrot.UI.Common.RunMode.IProvidesRunControls.Transport => _timeTransport;
         Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _timeTransport?.RunChoice;
+        /// <summary>⭐ AQ108 D24 — the running scenario's variant and changed params, for the mode indicator's menu (from what the load stamped resident).</summary>
+        System.Collections.Generic.IReadOnlyList<string> Hrot.UI.Common.RunMode.IProvidesRunControls.RunSetupLines => Hrot.UI.Common.RunMode.RunSetupText.Of(_world);
 
         // ⭐ CE-4101 follow-up (AQ108 §2.11a ⑤) — the scenario menu registered ONCE, by the composer's picked ▶ owner; built in RegisterWindows.
         private System.Action<Fdp.Presentation.WindowManager.WindowManager>? _composeScenarioMenu;
@@ -3936,7 +3939,9 @@ namespace Hrot.Editor
                     runChoice:    () => _timeTransport?.RunChoice,   // ⭐ CE-4141 — Open and go live
                     // ⭐ CE-4210 MA-6 — the Macros group: the NAS macros/ root, the root the load resolves against (ContentLayout.ResolveScenarioDirectory)
                     macroPaths:   Hrot.Editor.AiShared.Browser.MacroPickerEntries.Paths,
-                    macrosRoot:   Hrot.Editor.AiShared.Browser.MacroPickerEntries.Root)
+                    macrosRoot:   Hrot.Editor.AiShared.Browser.MacroPickerEntries.Root,
+                    // ⭐ AQ108 D24 — the run setup's typed scenario-param rows (the same one-field form as MA-8's args)
+                    paramEditService: () => _runSetupEditService ??= Hrot.Editor.AiShared.Inspector.ActionBinding.AiFacetEditService.Build())
                 : null;
 
             // ⭐⭐ CE-049 (Axis-C E2) — both helpers now live in the shared
