@@ -38,7 +38,7 @@
    },
    "Behavior": {
     "Name": "Points",
-    "Params": "{\"common\": {\"title\": \"Score\", \"subject\": \"^subject\", \"parent\": \"^parent\", \"group\": \"score\"}}",
+    "Params": "{\"common\": {\"title\": \"Score\", \"subject\": \"^subject\", \"parent\": \"^parent\", \"group\": \"score\"}, \"target\": 1000}",
     "Origin": "Superior"
    }
   },
