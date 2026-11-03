@@ -44,20 +44,12 @@ public static class PlayerHudLayer
         {
             var entries = RulesReader.Read(w, includeAuthored: false);
             if (training) t = TrainingHud.Build(entries, view, now, e => MissionSummaryModel.SideOfRule(w, e));
-            if (game) g = GameHud.Build(entries, view, now, net => StandsIn(w, unit, net), e => MissionSummaryModel.SideOfRule(w, e));
+            if (game) g = GameHud.Build(entries, view, now, w.HasComponent<SimTransform>(unit) ? new Vector2(w.GetComponentRO<SimTransform>(unit).Position.X, w.GetComponentRO<SimTransform>(unit).Position.Y) : null, e => MissionSummaryModel.SideOfRule(w, e));
             if (wantPopups) popups = ScorePopups.In(w).Update(entries, view.UnitNetId, now);
             if (wantBoard) board = Scoreboard.Build(entries, view.UnitNetId, e => MissionSummaryModel.SideOfRule(w, e), net => RulesModel.NameOf(w, NetworkIdResolver.FindEntityByNetworkId(w, net), net));
         }
         var kills = on(HudFeatures.KillFeed) && KillFeed.Of(w) is { } feed ? feed.Recent(now) : Array.Empty<KillFeed.Entry>();
         return new PlayerHudFrame(view, t, g, kills, now) { Board = board, Popups = popups };
-    }
-
-    /// <summary>Is <paramref name="unit"/> inside the area of the point with network id <paramref name="pointNet"/>, as this node knows it?</summary>
-    public static bool StandsIn(EntityRepository w, Entity unit, int pointNet)
-    {
-        if (!w.HasComponent<SimTransform>(unit)) return false;
-        var point = NetworkIdResolver.FindEntityByNetworkId(w, pointNet);
-        return PointAreas.AreaOf(w, point) is { } area && area.Contains(w, w.GetComponentRO<SimTransform>(unit).Position);
     }
 
     private static Color Rgb(uint rgb, int a = 255) => new((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb, (byte)a);

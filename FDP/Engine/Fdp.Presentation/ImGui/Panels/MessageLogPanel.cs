@@ -115,9 +115,8 @@ namespace Fdp.Presentation.Panels
             public readonly HashSet<string> HiddenLoggers = new();
             public string LoggerSearchText = string.Empty;
 
-            // Original-list indices of selected messages (unsorted during editing)
-            public readonly List<int> SelectedIndices = new();
-            public int LastClickedFilteredIndex = -1;
+            // ⭐ W-H3 — the selection is keyed by the MESSAGE, not its index (a trim or a filter change shifts indices)
+            public readonly MessageSelection Selection = new();
 
             // One-shot flag: set by the "scroll to bottom" button to force a
             // single jump even when the user has scrolled up.
@@ -363,7 +362,7 @@ namespace Fdp.Presentation.Panels
                 if (Gui.MenuItem("Clear"))
                 {
                     source.Clear();
-                    state.SelectedIndices.Clear();
+                    state.Selection.Clear();
                     state.HasUnobservedAttention = false;
                 }
                 Gui.EndPopup();
@@ -426,7 +425,7 @@ namespace Fdp.Presentation.Panels
             if (Gui.SmallButton($"Clear##{source.SourceId}"))
             {
                 source.Clear();
-                state.SelectedIndices.Clear();
+                state.Selection.Clear();
                 state.HasUnobservedAttention = false;
             }
             Gui.SameLine();
@@ -693,7 +692,7 @@ namespace Fdp.Presentation.Panels
             bool ctrl,
             bool shift)
         {
-            bool isSelected = state.SelectedIndices.Contains(msgIdx);
+            bool isSelected = state.Selection.Contains(msg);
 
             // 1. Save cursor so we can overlay colored text after the selectable.
             var startPos = Gui.GetCursorPos();
@@ -706,7 +705,7 @@ namespace Fdp.Presentation.Panels
                     isSelected,
                     ImGuiSelectableFlags.AllowOverlap))
             {
-                HandleRowClick(filteredList, filteredIdx, ctrl, shift, state);
+                state.Selection.Click(allMessages, filteredList, filteredIdx, ctrl, shift);
             }
 
             // Right-click context menu on the row
@@ -714,7 +713,7 @@ namespace Fdp.Presentation.Panels
             {
                 if (Gui.MenuItem("Copy"))
                 {
-                    if (state.SelectedIndices.Contains(msgIdx) && state.SelectedIndices.Count > 1)
+                    if (state.Selection.Contains(msg) && state.Selection.Count > 1)
                         CopySelectedToClipboard(allMessages, state);
                     else
                         Gui.SetClipboardText(msg.Message);
@@ -782,46 +781,12 @@ namespace Fdp.Presentation.Panels
         private static void CopySelectedToClipboard(
             IReadOnlyList<MessageLogEntry> messages, TabState state)
         {
-            if (state.SelectedIndices.Count == 0) return;
+            if (state.Selection.Count == 0) return;
 
-            var sorted = state.SelectedIndices.OrderBy(i => i).ToList();
             var sb = new StringBuilder();
-            foreach (int idx in sorted)
-            {
-                if (idx < messages.Count)
-                    sb.AppendLine(messages[idx].Message);
-            }
+            foreach (var m in state.Selection.InOrder(messages))
+                sb.AppendLine(m.Message);
             Gui.SetClipboardText(sb.ToString().TrimEnd('\r', '\n'));
-        }
-
-        private static void HandleRowClick(List<int> viewList, int clickedFilteredIndex, bool ctrl, bool shift, TabState state)
-        {
-            if (clickedFilteredIndex < 0 || clickedFilteredIndex >= viewList.Count) return;
-
-            if (shift && state.LastClickedFilteredIndex >= 0 && state.LastClickedFilteredIndex < viewList.Count)
-            {
-                int lo = Math.Min(state.LastClickedFilteredIndex, clickedFilteredIndex);
-                int hi = Math.Max(state.LastClickedFilteredIndex, clickedFilteredIndex);
-                for (int i = lo; i <= hi; i++)
-                {
-                    int msgIdx = viewList[i];
-                    if (!state.SelectedIndices.Contains(msgIdx))
-                        state.SelectedIndices.Add(msgIdx);
-                }
-            }
-            else if (ctrl)
-            {
-                int msgIdx = viewList[clickedFilteredIndex];
-                if (!state.SelectedIndices.Remove(msgIdx))
-                    state.SelectedIndices.Add(msgIdx);
-                state.LastClickedFilteredIndex = clickedFilteredIndex;
-            }
-            else
-            {
-                state.SelectedIndices.Clear();
-                state.SelectedIndices.Add(viewList[clickedFilteredIndex]);
-                state.LastClickedFilteredIndex = clickedFilteredIndex;
-            }
         }
 
         private static void TryOpenInEditor(string filePath)

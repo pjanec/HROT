@@ -239,10 +239,22 @@ public static class MissionSummaryModel
         return current - past;
     }
 
-    /// <summary>The side a rule is about: its subject's <c>EntityInfo.ForceId</c> when the subject has one, else the status's <c>Owner</c> (statuses of exercise-level rules carry no owner side).</summary>
+    /// <summary>
+    /// The side a rule belongs to — ⭐ W-H3 (backend's answer, <c>NOTE_Backend_To_Ui_Hud_Asks_Answered.md</c> ④): its OWN entity's <c>EntityInfo.ForceId</c> (authored per entity: Crossfire's <i>Red tickets</i>, Red's evaluation and Red's triggers are
+    /// Hostile) when that is a real side, else its SUBJECT's, else the status's <c>Owner</c>. ⚠ <c>Owner</c> is a CAPTURE field — who holds a point (<c>HoldAreaBehavior</c> writes it, nothing else does) — and is Neutral on every other rule, so it is the
+    /// last resort, never the first. ⚠ <b>Only an AUTHORED entity's side counts</b>: a rule expanded from a MACRO (<c>MacroInstance != 0</c>) carries the template's default side (the score macro says <i>Friend</i> for every man — measured live: Red's
+    /// scores landed on the Blue scoreboard), so its side is its subject's. Used by the rules view's side filter and grouping, the mission summary, the HUD and the scoreboard: ONE rule.
+    /// </summary>
     internal static ForceId SideOfRule(EntityRepository world, RulesReader.Entry e)
-        => e.SubjectNetworkId != 0 && NetworkIdResolver.FindEntityByNetworkId(world, e.SubjectNetworkId) is { IsNull: false } s && world.IsAlive(s) && world.HasComponent<EntityInfo>(s)
-            ? world.GetComponentRO<EntityInfo>(s).ForceId : e.Status.Owner;
+    {
+        if (world.IsComponentTypeRegistered<EntityInfo>())
+        {
+            if (e.MacroInstance == 0 && !e.Entity.IsNull && world.IsAlive(e.Entity) && world.HasComponent<EntityInfo>(e.Entity) && world.GetComponentRO<EntityInfo>(e.Entity).ForceId is var own && own != ForceId.Neutral) return own;
+            if (e.SubjectNetworkId != 0 && NetworkIdResolver.FindEntityByNetworkId(world, e.SubjectNetworkId) is { IsNull: false } s && world.IsAlive(s) && world.HasComponent<EntityInfo>(s)
+                && world.GetComponentRO<EntityInfo>(s).ForceId is var subj && subj != ForceId.Neutral) return subj;
+        }
+        return e.Status.Owner;
+    }
 
     private static KeyEvent? EventOf(EntityRepository world, Dictionary<int, RulesReader.Entry> byNet, SummaryLaneEntry h)
     {

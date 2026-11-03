@@ -71,7 +71,7 @@ public sealed class PlayerHudFrameRail
 
         int next = 100;
         Entity Rule(string title, string kind, ObjectiveRole role, ObjectiveState state, ForceId owner, int subject = 0, float value = 0, float target = 0, int cur = 0, int need = 0,
-                    float score = 0, float pass = 0, string reason = "", bool required = false, string? area = null)
+                    float score = 0, float pass = 0, string reason = "", bool required = false, bool capture = false, ForceId challenger = ForceId.Neutral, float areaX = 0, float areaY = 0, float areaRadius = 0)
         {
             var e = world.CreateEntity();
             world.AddComponent(e, new NetworkIdentity(next++));
@@ -79,9 +79,9 @@ public sealed class PlayerHudFrameRail
             {
                 Title = new FixedString64(title), Kind = new FixedString32(kind), Role = role, State = state, Owner = owner, Value = value, Target = target, ProgressCur = cur, ProgressNeed = need,
                 Score = score, Pass = pass, Reason = new FixedString64(reason), Required = (byte)(required ? 1 : 0), Scored = 1,
+                Capture = (byte)(capture ? 1 : 0), Challenger = challenger, AreaCenter = new Vector3(areaX, areaY, 0f), AreaRadius = areaRadius,
             });
             world.AddComponent(e, new ObjectiveLinks { Subject = new EntityRef(subject) });
-            if (area != null) world.SetManagedComponent(e, new BehaviorStartRecord { BehaviorName = "HoldArea", JsonParams = area, InstanceId = 1 });
             return e;
         }
         // training
@@ -93,10 +93,9 @@ public sealed class PlayerHudFrameRail
         // game
         Rule("Blue tickets", "Counter", ObjectiveRole.Objective, ObjectiveState.Active, ForceId.Friend, value: 87, target: 150);
         Rule("Red tickets", "Counter", ObjectiveRole.Objective, ObjectiveState.Active, ForceId.Hostile, value: 12, target: 150);
-        Rule("Point A", "HoldArea", ObjectiveRole.Objective, ObjectiveState.Active, ForceId.Friend, cur: 10, need: 10, reason: "F 3 / H 0 men, owner Friend");
-        Rule("Point B", "HoldArea", ObjectiveRole.Objective, ObjectiveState.Active, ForceId.Neutral, cur: 6, need: 10, reason: "F 2 / H 0 men, owner Neutral, Friend 6/10 s",
-             area: "{\"area\":{\"circle\":{\"center\":[100,50,0],\"radius\":15}}}");   // the held unit stands in it
-        Rule("Point C", "HoldArea", ObjectiveRole.Objective, ObjectiveState.Active, ForceId.Hostile, cur: 10, need: 10, reason: "F 0 / H 3 men, owner Hostile");
+        Rule("Point A", "HoldArea", ObjectiveRole.Objective, ObjectiveState.Active, ForceId.Friend, cur: 10, need: 10, capture: true, areaX: 400, areaY: 400, areaRadius: 15);
+        Rule("Point B", "HoldArea", ObjectiveRole.Objective, ObjectiveState.Active, ForceId.Neutral, cur: 6, need: 10, capture: true, challenger: ForceId.Friend, areaX: 100, areaY: 50, areaRadius: 15);   // the held unit stands in it
+        Rule("Point C", "HoldArea", ObjectiveRole.Objective, ObjectiveState.Active, ForceId.Hostile, cur: 10, need: 10, capture: true, areaX: 650, areaY: 400, areaRadius: 15);
         Rule("Streak", "Count", ObjectiveRole.Measure, ObjectiveState.Active, ForceId.Friend, subject: 4242, value: 3);
         var feed = KillFeed.In(world);
         feed.Record(new KillFeed.Entry(370, 4242, "Kral", ForceId.Friend, 9, "Raven", ForceId.Hostile, true, false, null, 212f));
