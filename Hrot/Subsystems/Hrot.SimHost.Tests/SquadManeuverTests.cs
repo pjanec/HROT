@@ -3361,6 +3361,58 @@ namespace Hrot.SimHost.Tests
             Assert.True(c.Picture.Elements.Items[0].ObservedAt > first + 14f);
         }
 
+        /// <summary>Four squads of <paramref name="men"/> men each under the platoon (the reserve too); returns every squad's men.</summary>
+        private static Entity[][] FourSquadsOf(Platoon p, int men)
+            => new[] { MakeSquad(p.S, 0, men, 100f), MakeSquad(p.S, 1, men, 100f), MakeSquad(p.S, 2, men, 100f), MakeSquad(p.S, 3, men, 100f) };
+
+        private static void Down(Platoon p, Entity[] men, int count)
+        {
+            for (int i = 0; i < count; i++) p.S.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(men[i]).Current = 0f;
+        }
+
+        /// <summary>⭐⭐ <c>CE-3361</c> ② (DA-67) — the fall-back judges what the DEFENCE has cost: two line squads that took the position with two of eight men
+        /// already down (their SITREP was Red from the assault — measured live, Bridgehead) do NOT trip it, whatever colour they report; losing 30 % or more of the
+        /// strength they HAD when the defence began on half the line DOES (one squad of three is not half; the second is); one man more (83 %) is not enough.
+        /// ✅ Red-proofs: the colour rule back in <c>SlotFailing</c> (absolute) ⇒ the depleted platoon falls back at once · the baseline not recorded ⇒ the same ·
+        /// <c>AmberFraction</c> read as 0.5 ⇒ the 50 % loss no longer trips it.</summary>
+        [Fact]
+        public void CE3361_PlatoonDefend_TheFallBackJudgesWhatTheDefenceCost_NotTheStrengthTheyCameIn()
+        {
+            var p = new Platoon(squads: 4);
+            var men = FourSquadsOf(p, 8);                                     // 8 men: a squad stays combat effective down to 4 (so no Black muddies the 70 % rule)
+            Down(p, men[0], 2); Down(p, men[1], 2);                           // the assault's casualties (6 of 8 left): BEFORE the defence is ordered
+            EngagedThreeLines(p);
+            Sitrep(p, p.Alpha, Fdp.Toolkit.Squad.Command.StatusColour.Red);   // what they report — and what the old rule read
+            Sitrep(p, p.Bravo, Fdp.Toolkit.Squad.Command.StatusColour.Red);
+            p.Ticks(12);
+            Assert.Equal((0, 0, 0), (p.OrdersTo(p.Alpha, BehaviorNames.BreakContact), p.OrdersTo(p.Bravo, BehaviorNames.BreakContact), p.OrdersTo(p.Charlie, BehaviorNames.BreakContact)));
+
+            Down(p, men[2], 1);                                               // Charlie: 7 of 8 ⇒ fine
+            Down(p, men[0], 3);                                               // Alpha: 5 of the 6 it had (83 %) ⇒ fine
+            p.Ticks(12);
+            Assert.Equal((0, 0, 0), (p.OrdersTo(p.Alpha, BehaviorNames.BreakContact), p.OrdersTo(p.Bravo, BehaviorNames.BreakContact), p.OrdersTo(p.Charlie, BehaviorNames.BreakContact)));
+
+            Down(p, men[0], 4);                                               // Alpha: 4 of 6 = 67 % ⇒ failing — but one line squad of three is not half
+            p.Ticks(12);
+            Assert.Equal(0, p.OrdersTo(p.Alpha, BehaviorNames.BreakContact));
+            Down(p, men[1], 4);                                               // Bravo too ⇒ 2 of 3 ⇒ FALL BACK
+            p.Ticks(12);
+            Assert.Equal((1, 1, 1), (p.OrdersTo(p.Alpha, BehaviorNames.BreakContact), p.OrdersTo(p.Bravo, BehaviorNames.BreakContact), p.OrdersTo(p.Charlie, BehaviorNames.BreakContact)));
+        }
+
+        /// <summary>CE-3361 ② — a line squad that LOSES ITS COMBAT EFFECTIVENESS (Black: fewer than min(4, ⌈n/2⌉) men fight) fails whatever its baseline; and a slot with no
+        /// baseline (a squad with no roster of men — the older rails' fixture) keeps today's colour rule: <c>CE2276_E3a_HalfTheLineRed_…</c> above.</summary>
+        [Fact]
+        public void CE3361_PlatoonDefend_ASquadThatIsNoLongerCombatEffective_Fails()
+        {
+            var p = new Platoon(squads: 4);
+            var men = FourSquadsOf(p, 4);
+            EngagedThreeLines(p);
+            Down(p, men[0], 3); Down(p, men[1], 3);                           // each: 1 of 4 left — below the 2 a squad of 4 needs ⇒ Black
+            p.Ticks(12);
+            Assert.Equal((1, 1, 1), (p.OrdersTo(p.Alpha, BehaviorNames.BreakContact), p.OrdersTo(p.Bravo, BehaviorNames.BreakContact), p.OrdersTo(p.Charlie, BehaviorNames.BreakContact)));
+        }
+
         // ── CE-2276 E-1 — PlatoonDefend: the platoon holds a position over its squads (Defend & Attack §8d) ─────────────────────
 
         /// <summary>The order: defend the origin, the engagement area north (330°…30°, out to 150 m), no squads named (DA-51 defaults).</summary>

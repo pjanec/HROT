@@ -73,6 +73,9 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed byte Casevac[Capacity];
         /// <summary>⭐ <c>CE-2305</c> — 1 = this reserve is spent: it blocks the stair (E-3b) and is no longer free for anything else.</summary>
         public fixed byte Spent[Capacity];
+        /// <summary>⭐ <c>CE-3361</c> ② (DA-67) — this slot's FIGHTING members when the plan was made (the defence began): the fall-back judges what the DEFENCE
+        /// has cost against it, not the colour a squad already carried in (0 = not recorded: the colour rule).</summary>
+        public fixed byte Baseline[Capacity];
 
         public Vector3 Point(int slot) => new(X[slot], Y[slot], Z[slot]);
 
@@ -308,6 +311,9 @@ namespace Hrot.AI.Behaviors.Brains
             if (p.Controls != 0)   // ⭐ E-3b (DA-72) — the defended building, surveyed once and kept (a standing sensor)
                 WorldSurveyChildSensor.Ensure(world, self, BuildingSite,
                     WorldSurveyRequest.OfArea(new Vector2(p.Position.X, p.Position.Y), BuildingAskMetres));
+            for (int slot = 0; slot < n && slot < PlatoonDefencePlan.Capacity; slot++)   // ⭐ CE-3361 ② — the line's strength as the defence begins
+                if (p.Role[slot] == PlatoonDefencePlan.Line && CommandPictureOps.Subordinate(world, self, slot) is { IsNull: false } unit && world.IsAlive(unit))
+                    p.Baseline[slot] = (byte)Math.Min(Fdp.Toolkit.Squad.CombatEffective.FightingMembers(world, unit), byte.MaxValue);
             p.Made = 1;
             return NodeStatus.Running;
         }
@@ -547,7 +553,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         // ── the fall-back (E-3a: DA-66…DA-70) ────────────────────────────────────────────────────────────────────────
 
-        /// <summary>Engage → FallBack (DA-67): half or more of the live line squads report SITREP Red or worse.</summary>
+        /// <summary>Engage → FallBack (DA-67): half or more of the live line squads are failing — <see cref="SlotFailing"/>.</summary>
         [SharedAiCondition]
         public static unsafe bool HalfTheLineFailing(ref PlatoonDefencePlan p, Entity self, EntityRepository world)
         {
@@ -556,10 +562,26 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (p.Role[s] != PlatoonDefencePlan.Line || !Alive(world, self, s)) continue;
                 lines++;
-                var colour = new SubordinateColourParams { Slot = s, AtLeast = StatusColour.Red };
-                if (PictureConditions.SubordinateColour(ref colour, self, world)) failing++;
+                if (SlotFailing(ref p, s, self, world)) failing++;
             }
             return failing > 0 && failing * 2 >= lines;
+        }
+
+        /// <summary>⭐ <c>CE-3361</c> ② (DA-67) — is line squad <paramref name="s"/> failing? With a recorded <see cref="PlatoonDefencePlan.Baseline"/>: it is no longer
+        /// combat effective (Black), or fewer than <see cref="Fdp.Toolkit.Squad.Command.StaffComposerSystem.AmberFraction"/> of the members it HAD when the defence began still
+        /// fight — what the defence has cost, so a squad that took the position already depleted (its SITREP was Red from the assault) does not trip the fall-back at once.
+        /// Without a baseline: today's rule, its reported SITREP Red or worse. ⛔ The shared SITREP colour (CB-37) is not changed.</summary>
+        private static unsafe bool SlotFailing(ref PlatoonDefencePlan p, int s, Entity self, EntityRepository world)
+        {
+            int baseline = p.Baseline[s];
+            if (baseline > 0)
+            {
+                var unit = CommandPictureOps.Subordinate(world, self, s);
+                if (!Fdp.Toolkit.Squad.CombatEffective.IsInTheFight(world, unit)) return true;
+                return Fdp.Toolkit.Squad.CombatEffective.FightingMembers(world, unit) / (float)baseline < Fdp.Toolkit.Squad.Command.StaffComposerSystem.AmberFraction;
+            }
+            var colour = new SubordinateColourParams { Slot = s, AtLeast = StatusColour.Red };
+            return PictureConditions.SubordinateColour(ref colour, self, world);
         }
 
         /// <summary>FallBack's entry (DA-68, DA-69): the platoon falls back — every squad is ordered again (<c>KeepDefence</c> picks the

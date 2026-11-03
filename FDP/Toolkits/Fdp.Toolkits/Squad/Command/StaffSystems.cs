@@ -341,6 +341,11 @@ namespace Fdp.Toolkit.Squad.Command
             repo.GetComponentRW<ReportOutbox>(unit).CasevacAsked = asked;
         }
 
+        /// <summary>The share of its members fighting at or above which a unit is GREEN / at or above which it is AMBER (below: RED while still combat
+        /// effective). ⭐ ONE place for the thresholds: <see cref="StrengthOf"/> and a reader that judges a unit against its own earlier strength
+        /// (<c>PlatoonDefend</c>'s fall-back, CE-3361 ②) both read them.</summary>
+        public const float GreenFraction = 0.9f, AmberFraction = 0.7f;
+
         /// <summary>A unit's strength as a colour: GREEN ≥ 90 % of its members fighting, AMBER ≥ 70 %, RED while still combat
         /// effective, BLACK once it is not (CB-37).</summary>
         public static StatusColour StrengthOf(ISimulationView view, Entity unit)
@@ -350,7 +355,7 @@ namespace Fdp.Toolkit.Squad.Command
             if (count == 0) return StatusColour.Black;
             if (!CombatEffective.IsInTheFight(view, unit)) return StatusColour.Black;
             float f = CombatEffective.FightingMembers(view, unit) / (float)count;
-            return f >= 0.9f ? StatusColour.Green : f >= 0.7f ? StatusColour.Amber : StatusColour.Red;
+            return f >= GreenFraction ? StatusColour.Green : f >= AmberFraction ? StatusColour.Amber : StatusColour.Red;
         }
 
         private void Flush(EntityRepository repo, Entity unit, float now)
