@@ -413,5 +413,31 @@ namespace Hrot.SimHost.Tests
             w.Run(4);
             Assert.Equal(1, w.Pauses);
         }
+
+        /// <summary>ui ⑥ — <c>EndExercise</c>'s optional <c>winner</c> NAMES the winner: Friend ⇒ Friend Win / Hostile Lose, Hostile ⇒ the reverse, Draw ⇒ both Draw (case-insensitive); absent ⇒ the SR-122 rule over the roots
+        /// (here: Friend's required ReachArea failed ⇒ Friend Lose, Hostile None); an unknown winner is refused at ASSIGNMENT by the arg check. ✅ Red-proof: the <c>NameTheWinner</c> call removed from <c>EndExercise</c> ⇒ red.</summary>
+        [Fact]
+        public void EndExercise_Winner_NamesTheOutcome_AbsentKeepsTheRule_UnknownIsRefused()
+        {
+            (SideOutcome F, SideOutcome H) Run(string args)
+            {
+                var w = new ObjWorld();
+                var env = w.Environment();
+                var squad = w.Squad(ForceId.Friend, w.Man(Outside, ForceId.Friend));
+                w.Objective("ReachArea", $"{{{Common(w, squad, ",\"required\":true")},\"area\":{Circle0}}}");   // Friend's required root: it will fail
+                var src = Cond(w);
+                Fire(w, src, Do(Step("EndExercise", args)));
+                w.Run(2); Flip(w, src, true); w.Run(4);
+                var r = w.Repo.GetComponentRO<ExerciseResult>(env);
+                Assert.Equal(ExercisePhase.Ended, r.Phase);
+                return (r.Friend.Outcome, r.Hostile.Outcome);
+            }
+            Assert.Equal((SideOutcome.Win, SideOutcome.Lose), Run("{\"reason\":\"r\",\"winner\":\"Friend\"}"));
+            Assert.Equal((SideOutcome.Lose, SideOutcome.Win), Run("{\"reason\":\"r\",\"winner\":\"hostile\"}"));
+            Assert.Equal((SideOutcome.Draw, SideOutcome.Draw), Run("{\"reason\":\"r\",\"winner\":\"DRAW\"}"));
+            Assert.Equal((SideOutcome.Lose, SideOutcome.None), Run("{\"reason\":\"r\"}"));                              // absent: the old rule
+            Assert.NotNull(Record.Exception(() => ActionList.Validate(Do(Step("EndExercise", "{\"winner\":\"Blue\"}")))));
+            Assert.Null(Record.Exception(() => ActionList.Validate(Do(Step("EndExercise", "{\"winner\":\"draw\"}")))));
+        }
     }
 }
