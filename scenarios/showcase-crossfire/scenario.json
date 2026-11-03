@@ -800,6 +800,78 @@
   },
   "cf6e0000-0000-4000-8000-000000000029": {
    "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "All players",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Points",
+    "Params": "{\"common\": {\"title\": \"All players\", \"group\": \"score\", \"scored\": false}}",
+    "Origin": "Superior"
+   },
+   "RefKey": {
+    "Value": "Scores"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000030": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Blue score",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "MemberEvaluation",
+    "Params": "{\"common\": {\"title\": \"Blue score\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"parent\": \"cf6e0000-0000-4000-8000-000000000029\", \"group\": \"score\", \"scored\": false}, \"library\": \"macros/game/score\", \"members\": \"side\", \"aggregate\": \"points\"}",
+    "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000031": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Red score",
+    "ForceId": "Hostile"
+   },
+   "Behavior": {
+    "Name": "MemberEvaluation",
+    "Params": "{\"common\": {\"title\": \"Red score\", \"subject\": \"cf6e0000-0000-4000-8000-000000000012\", \"parent\": \"cf6e0000-0000-4000-8000-000000000029\", \"group\": \"score\", \"scored\": false}, \"library\": \"macros/game/score\", \"members\": \"side\", \"aggregate\": \"points\"}",
+    "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000032": {
+   "SimTransform": {
+    "Position": [
+     525,
+     400,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 8813
+   },
+   "EntityInfo": {
+    "Name": "Awards"
+   },
+   "MacroInstance": {
+    "Macro": "game/awards",
+    "Args": {
+     "among": "@Scores"
+    }
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000033": {
+   "TkbIdentity": {
     "TkbType": 8861
    },
    "EntityInfo": {
@@ -812,7 +884,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000030": {
+  "cf6e0000-0000-4000-8000-000000000034": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -826,7 +898,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000031": {
+  "cf6e0000-0000-4000-8000-000000000035": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -840,7 +912,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000032": {
+  "cf6e0000-0000-4000-8000-000000000036": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -854,7 +926,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000033": {
+  "cf6e0000-0000-4000-8000-000000000037": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -868,7 +940,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000034": {
+  "cf6e0000-0000-4000-8000-000000000038": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -882,7 +954,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000035": {
+  "cf6e0000-0000-4000-8000-000000000039": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -896,7 +968,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000036": {
+  "cf6e0000-0000-4000-8000-000000000040": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -910,7 +982,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000037": {
+  "cf6e0000-0000-4000-8000-000000000041": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -924,7 +996,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000038": {
+  "cf6e0000-0000-4000-8000-000000000042": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -938,7 +1010,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000039": {
+  "cf6e0000-0000-4000-8000-000000000043": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -952,7 +1024,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000040": {
+  "cf6e0000-0000-4000-8000-000000000044": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -966,7 +1038,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000041": {
+  "cf6e0000-0000-4000-8000-000000000045": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -980,7 +1052,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000042": {
+  "cf6e0000-0000-4000-8000-000000000046": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -990,11 +1062,11 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Sudden death\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 720}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Sudden death - points count double\", \"seconds\": 6}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000031\", \"active\": true}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000033\", \"active\": true}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000035\", \"active\": true}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000037\", \"active\": true}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000039\", \"active\": true}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000041\", \"active\": true}}]}",
+    "Params": "{\"common\": {\"title\": \"Sudden death\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 720}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Sudden death - points count double\", \"seconds\": 6}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000035\", \"active\": true}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000037\", \"active\": true}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000039\", \"active\": true}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000041\", \"active\": true}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000043\", \"active\": true}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000045\", \"active\": true}}]}",
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000043": {
+  "cf6e0000-0000-4000-8000-000000000047": {
    "SimTransform": {
     "Position": [
      400,
@@ -1085,7 +1157,7 @@
     }
    ]
   },
-  "cf6e0000-0000-4000-8000-000000000044": {
+  "cf6e0000-0000-4000-8000-000000000048": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1099,7 +1171,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000045": {
+  "cf6e0000-0000-4000-8000-000000000049": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1113,7 +1185,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000046": {
+  "cf6e0000-0000-4000-8000-000000000050": {
    "SimTransform": {
     "Position": [
      650,
@@ -1204,7 +1276,7 @@
     }
    ]
   },
-  "cf6e0000-0000-4000-8000-000000000047": {
+  "cf6e0000-0000-4000-8000-000000000051": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1218,7 +1290,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000048": {
+  "cf6e0000-0000-4000-8000-000000000052": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1232,7 +1304,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000049": {
+  "cf6e0000-0000-4000-8000-000000000053": {
    "SimTransform": {
     "Position": [
      400,
@@ -1323,7 +1395,7 @@
     }
    ]
   },
-  "cf6e0000-0000-4000-8000-000000000050": {
+  "cf6e0000-0000-4000-8000-000000000054": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1337,7 +1409,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000051": {
+  "cf6e0000-0000-4000-8000-000000000055": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1351,7 +1423,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000052": {
+  "cf6e0000-0000-4000-8000-000000000056": {
    "SimTransform": {
     "Position": [
      650,
@@ -1442,7 +1514,7 @@
     }
    ]
   },
-  "cf6e0000-0000-4000-8000-000000000053": {
+  "cf6e0000-0000-4000-8000-000000000057": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1456,7 +1528,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000054": {
+  "cf6e0000-0000-4000-8000-000000000058": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1470,7 +1542,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000055": {
+  "cf6e0000-0000-4000-8000-000000000059": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1484,7 +1556,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000056": {
+  "cf6e0000-0000-4000-8000-000000000060": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1498,7 +1570,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000057": {
+  "cf6e0000-0000-4000-8000-000000000061": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1508,11 +1580,11 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Comeback Red\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 40, \"maxValue\": 1000000.0}}}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Hostile\", \"tiers\": 1}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Reinforcements: Red's squads are sharper\", \"seconds\": 6}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000055\", \"active\": true}}], \"repeat\": true, \"cooldown\": 120, \"holdFor\": 30}",
+    "Params": "{\"common\": {\"title\": \"Comeback Red\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 40, \"maxValue\": 1000000.0}}}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Hostile\", \"tiers\": 1}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Reinforcements: Red's squads are sharper\", \"seconds\": 6}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000059\", \"active\": true}}], \"repeat\": true, \"cooldown\": 120, \"holdFor\": 30}",
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000058": {
+  "cf6e0000-0000-4000-8000-000000000062": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1522,11 +1594,11 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Comeback Blue\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -1000000.0, \"maxValue\": -40}}}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Friend\", \"tiers\": 1}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Reinforcements: Blue's squads are sharper\", \"seconds\": 6}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000056\", \"active\": true}}], \"repeat\": true, \"cooldown\": 120, \"holdFor\": 30}",
+    "Params": "{\"common\": {\"title\": \"Comeback Blue\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -1000000.0, \"maxValue\": -40}}}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Friend\", \"tiers\": 1}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Reinforcements: Blue's squads are sharper\", \"seconds\": 6}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000060\", \"active\": true}}], \"repeat\": true, \"cooldown\": 120, \"holdFor\": 30}",
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000059": {
+  "cf6e0000-0000-4000-8000-000000000063": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1540,7 +1612,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000060": {
+  "cf6e0000-0000-4000-8000-000000000064": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1554,7 +1626,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000061": {
+  "cf6e0000-0000-4000-8000-000000000065": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1568,7 +1640,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000062": {
+  "cf6e0000-0000-4000-8000-000000000066": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1582,7 +1654,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000063": {
+  "cf6e0000-0000-4000-8000-000000000067": {
    "TkbIdentity": {
     "TkbType": 8861
    },
