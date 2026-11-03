@@ -369,3 +369,46 @@ by construction. The dashed edge is the one runtime piece that does not exist: u
 **Deviations / findings.** ① Tabs are a strip of buttons (ImGui's tab bar cannot be set from a rail and its `BeginTabItem` overload shows a close box). ② **Found live: the first click on *Undo* crashed the editor** — `CanUndo` changed between `BeginDisabled` and `EndDisabled` and ImGui asserts. Fixed (the state is read once) and the frame rail now CLICKS Undo in a real frame. ③ A `Type` field (`PropertyMatch.ComponentType`) draws as `RuntimeType` with a combo that does not list the component types: the standard services lack the Replay Browser's `TypeFieldEditor` — not a rule-editor blocker (the authored value round-trips), noted for R5b. ④ Nullable `Scored` / `StartActive` draw as tree rows, as in the AI section. ⑤ The pick context for entity links is a scoped `MapPickBroker` of its own (one broker holds one pending pick).
 
 Rails: `RuleEditorTests` (9: every field of every rule DTO in exactly one tab · the trigger's split · A4's member set · the standard services give a property match's value the leaf and OnEntity's sub-tree not · `EditHistory` push / undo / redo / redo-tail · Apply changes the params, ONE entry, undo restores, redo re-applies · a refused Apply changes nothing · A1 read-only · running / recording read-only) · `RulesWindowFrameRail.TheRuleEditor_…` (real frame: both tab sets, each tab's fields, Apply then a CLICK on Undo) · the Parameters window's rails (`ParamAuthoringRailsTests`) and the Replay Browser's (`Fdp.Presentation.Tests` Replay / Predicate / Editing / Search / Timeline: 212) green. Red-proof: `TabOfField` sending the Rules fields nowhere ⇒ `EveryFieldOfEveryRuleDto…` red (`TriggerParamsJsonDto.HoldFor … in 0`; reverted). **Live (`showcase-bridgehead`, EDIT mode):** *Counter-attack* ⇒ When tab shows its OnEntity condition; Rules tab, cooldown 0 → 25, **Apply** ⇒ `GET /entities/1045` `Cooldown 25`; **Undo** ⇒ 0; **Redo** ⇒ 25.
+
+### 7.7 AS BUILT — R5b *(ui, `2026-11-03`, CE-4220: RE-4 · RE-7 live · RE-3 live · the `Type` leaf)*
+
+⭐ Built as §7.3 / §7.4 say, **R5c** (RE-8 + Add, RE-9 drag to connect, the Bindings tab) not touched. Prior state: §7.6 said *"the Do tab draws a placeholder"* and *"a running rule is read-only: live edits come in R5b"* — both SUPERSEDED here.
+
+```mermaid
+classDiagram
+    direction LR
+    class RuleDetails { Do tab · Apply (edit = AssignNow, live = RuleCommands.Edit) · Live strip · live-values switch }
+    class ActionListFieldEditor { <<NEW, Fdp.Presentation, standard leaf by type>> List of ActionStep as ONE Custom node }
+    class ActionListFieldDrawer { <<NEW, Hrot.Presentation, stateful>> rows · args form per step · + Add step }
+    class ActionListEdit { <<NEW, pure>> Added · Removed · Moved · WithArgs · MergeArgs · PickerEntries }
+    class BehaviorParamsForm { <<existing>> Open · Hydrate · DrawFields + hostDrawers + StandardDrawers }
+    class FilteredTypeComboFieldDrawer { <<existing, now public>> Auto: component or event types }
+    class LiveLeafOverlay { <<NEW, pure>> RuleLeaves 431 matched by label }
+    class RuleLeafPlan { <<existing>> + LeavesOf, the ONE flattening }
+    class ActionCatalogue { <<existing>> }
+    class RuleCommands { <<existing>> Edit }
+    class ClusterTimeTransportAdapter { <<existing>> + SetFeatureOverride }
+    RuleDetails --> ActionListFieldDrawer
+    RuleDetails --> LiveLeafOverlay
+    RuleDetails ..> RuleCommands : live Apply
+    RuleDetails ..> ClusterTimeTransportAdapter : ui.rules-live-values on / off
+    ActionListFieldDrawer --> ActionListEdit
+    ActionListFieldDrawer ..> BehaviorParamsForm : each step's args
+    ActionListEdit ..> ActionCatalogue
+    BehaviorParamsForm ..> ActionListFieldEditor : leaf
+    BehaviorParamsForm ..> FilteredTypeComboFieldDrawer
+    LiveLeafOverlay ..> RuleLeafPlan
+```
+*What the picture shows:* the step list is one leaf of the ONE params form (its drawer is handed in by the host, because it holds the nested step sessions), and both live features end in existing paths — the write in `RuleCommands.Edit`, the leaf values in the cluster feature override.
+
+| | as built | where |
+|---|---|---|
+| **RE-4 Do tab** | one row per step: number, act, `^ v x`, the args INLINE as a params document of the action's `ParamsType` (same `BehaviorParamsForm.Open` / `ComponentEditDrawer` a task uses; an edit overlays the form's JSON on the step's original args, so a key the type does not know survives). *+ Add step* (leads the list, so a long list keeps it reachable) opens the ONE picker (`rules.add-step`): ShortName, full name as the detail, a refused action DISABLED with its reason. The list serialises with `ActionStep.ToJson` | `Behavior/ActionListFieldDrawer.cs`, `Fdp.Presentation/ImGui/Editing/ActionListFieldEditor.cs` |
+| **Type leaf** | `TypeFieldEditor` in `ComponentEditServices`; the combo is `FilteredTypeComboFieldDrawer` (public; new `Auto` mode: an `EventType` field lists event types, any other the component types — the Replay search's own `ComponentTypeRegistry` list). Every params form gets it through `BehaviorParamsForm.StandardDrawers`; the Replay Browser keeps its own registration | |
+| **step marker** | `StepCur / StepCount` while Acting: the row is marked (a drawn triangle — the panel font has no ▶) and *step n / N* shown; a failed step (index kept, not Acting) is red with the status `Reason` | |
+| **RE-7 live** | Apply = `RuleCommands.Edit` (complete params, origin `BehaviorOrigin.Operator`); never in `EditHistory` (the bar says *this run only*, Undo / Redo are off live). The verdict comes from the owner: *sent*, *pending (acting)* from the editor's own Seq, then the journal's *edited by …* ⇒ *applied - the rule's state is kept* or *edit refused by …* ⇒ *refused - edit refused: …* (the status Reason). A kind with no state keeper is read-only up front: **the editor's registry binds NO keepers** (`BindKeepers` runs in CGF's loader), so the editor DISCOVERS the keeper names (`BehaviorSchemaDiscovery.KeeperNames`, the same scan, nothing bound) | `Rules/RuleDetails.cs`, `EditorSubsystem.BuildRuleLiveServices` |
+| **RE-3 live** | the node feature `ui.rules-live-values` goes on, cluster-wide, while a When tab of a live trigger is open and off on leaving it or when the window is closed (`SetFeatureOverride` = `SetRunSettingsIntent { FeatureOverrides }`, other overrides kept). **Deviation: a Live strip under the When form, not a value beside each leaf** — the `when` is the polymorphic container, so a per-leaf value would need a drawer for every predicate kind. Matched by label, in order, on the label cut to a `FixedString32` (found live: the owner's OnEntity label arrives cut) | `Rules/LiveLeafOverlay.cs` |
+
+**Findings / deviations.** ① The step drawer lives in `Hrot.Presentation`, not `Fdp.Presentation` (RE-10): the picker (`NodeEditor.UI`) is not reachable from there; only the leaf editor is shared. ② ⛔ **R5a bug fixed:** `Prepare` ran twice a frame and the second call re-synced the form to the entity's OLD params, so a typed value snapped back (Apply still worked from the staged copy). The form now reopens only when the entity's params change. ③ ⛓ chips on step fields wait for the Bindings tab (R5c). ④ The editor crashed three times in the live check — **not this work**: the container's memory cap killed it twice (a build server and the editor together) and ImGui asserted once on a 16-bit vertex overflow from the Event Browser's long list; closing the right-hand panels and stopping the build servers made the run stable. ⑤ The picker's double-click does not confirm a row (OK does) — the picker's own behaviour.
+
+Rails: `RuleEditorR5bTests` (11: add / reorder / remove → what `ActionList.Get` / `Validate` parse · args round-trip and an unknown key kept · picker rows and a refused one disabled · the standard leaves · live Apply writes the complete JSON as Operator and never touches `EditHistory` · pending while Acting then applied · refusal shown · a kind with no keeper read-only · the strip matched by label, and a cut label) · `RulesWindowFrameRail.TheDoTab_…` (real frame, `xvfb-run`: rows, marker *step 2 / 3*, CLICKS on + Add step, ^ and x, live Apply, the When tab switching the feature on and the strip drawn, off on leaving) · `FilteredTypeComboFieldDrawerTests.CE4220_Auto_…` · existing `RuleEditorTests` 9 · `RulesModelTests` · `MissionSummaryModelTests` · `RulesWindowFrameRail` · `Fdp.Presentation.Tests` Replay / Predicate / Editing / Search / Timeline (213) green. Red-proof: the live origin sent as `Superior` ⇒ `LiveApply_WritesTheCompleteParams…` red (`Expected … 3, Actual … 2`; reverted). **Live (`showcase-bridgehead`, live run):** *Counter-attack* ⇒ Do tab rows (InsertMacro · Order · Message); cooldown 0 → 33, **Apply live** ⇒ `GET /objectives` `timing.cooldown 33`, `fireCount 0` (state kept), the History tab *edited by Operator*, the bar *applied - the rule's state is kept, this run only*; the When tab turned the feature on (the owner's `leaves` filled). **Edit mode:** + Add step ⇒ Message ⇒ Apply ⇒ `GET /entities/1045` carries four steps.

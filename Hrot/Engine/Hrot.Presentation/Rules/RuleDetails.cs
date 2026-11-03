@@ -8,7 +8,10 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.ScenarioRules;
 using Hrot.Presentation.Behavior;
+using Fdp.Toolkit.ReplayBrowser.Search;
+using Hrot.Map.Definitions.Behavior;
 using Hrot.Presentation.Edits;
+using NodeEditor.UI.Picker;
 using ImGuiNET;
 using StructEdit.Core;
 using StructEdit.Reflection;
@@ -18,15 +21,24 @@ namespace Hrot.UI.Common.Rules;
 /// <summary>One entry of a rule entity's brain journal (the Brain tab's own text — <c>BrainJournalText</c>).</summary>
 public sealed record RuleJournalEntry(uint Seq, float At, string Kind, string Text);
 
-/// <summary>What the host gives the rule editor: the ONE params form's service, the behaviour registry (the ONE params-type lookup), the edit-mode apply (the AI section's <c>EntityAiEditModel.ApplyTask</c>), the shared undo history, the journal reader.</summary>
+/// <summary>
+/// ⭐ CE-4220 (R5b, RE-7 live) — what a host with a LIVE run gives the rule editor: why a kind cannot be edited live (null = it can — the owner has a state keeper for it, <c>BehaviorRegistry.TryGetKeeper</c>), and the switch of the node feature
+/// <c>ui.rules-live-values</c> (the owner samples a trigger's <c>when</c> leaves only while it is on; the editor turns it on while a When tab is open).
+/// </summary>
+public sealed record RuleLiveServices(Func<string, string?> EditRefusal, Action<bool> SetLiveValues);
+
+/// <summary>What the host gives the rule editor: the ONE params form's service, the behaviour registry (the ONE params-type lookup), the edit-mode apply (the AI section's <c>EntityAiEditModel.ApplyTask</c>), the shared undo history, the journal reader — and, for R5b, the generic picker
+/// (<i>+ Add step</i>) and the live-run services (null ⇒ a running rule stays read-only).</summary>
 public sealed record RuleEditorServices(
     Func<IComponentEditService?> EditService, Func<Fdp.Toolkit.Behavior.BehaviorRegistry?> Registry,
     Func<Entity, string, string, bool> ApplyEditMode, EditHistory History,
-    Func<Entity, IReadOnlyList<RuleJournalEntry>> Journal, Func<IMapPickContext?>? Picks = null);
+    Func<Entity, IReadOnlyList<RuleJournalEntry>> Journal, Func<IMapPickContext?>? Picks = null,
+    Func<Action<PickerRequest, Action<PickerResult>>?>? OpenPicker = null, RuleLiveServices? Live = null);
 
-/// <summary>What the editor drew, as text — the rails read it (and an agent through the panel snapshot).</summary>
+/// <summary>What the editor drew, as text — the rails read it (and an agent through the panel snapshot). R5b adds the Do tab's rows, the running step, the live edit's state and the Live strip.</summary>
 public sealed record RuleDetailsProbe(string Tab, IReadOnlyList<string> Tabs, IReadOnlyList<string> Fields, bool Editable, string? ReadOnlyReason, bool Dirty,
-                                      string? Message, IReadOnlyList<string> History, IReadOnlyList<string> Results);
+                                      string? Message, IReadOnlyList<string> History, IReadOnlyList<string> Results,
+                                      IReadOnlyList<string>? Steps = null, string? StepMarker = null, string? LiveEdit = null, IReadOnlyList<string>? LiveStrip = null, bool LiveValuesWanted = false);
 
 /// <summary>
 /// ⭐⭐ CE-4218 (rules view R5a; docs/DESIGN_Rules_View_UI.md §7 RE-1 … RE-7, A1) — the RULE EDITOR: the right pane of the rules window as a TABBED panel over the selected rule entity's ONE params document (<c>BehaviorParamsEditor</c> → <c>BehaviorParamsForm</c>,
@@ -36,8 +48,10 @@ public sealed record RuleDetailsProbe(string Tab, IReadOnlyList<string> Tabs, IR
 /// </summary>
 public sealed class RuleDetails
 {
-    public const string LiveReadOnly = "live edits come in R5b";
-    public const string PlaceholderR5b = "R5b";
+    public const string LiveReadOnly = "live edits are not available on this host";
+    public const string PlaceholderR5b = "R5c";
+    /// <summary>The origin a live edit carries: a person at the instructor's console is a <see cref="BehaviorOrigin.Operator"/> (the journal shows <i>edited by Operator</i>).</summary>
+    public const BehaviorOrigin LiveOrigin = BehaviorOrigin.Operator;
 
     private readonly RuleEditorServices _svc;
     private readonly Func<EntityRepository?> _world;
@@ -45,20 +59,42 @@ public sealed class RuleDetails
     private readonly Action<int> _selectEntity;
     private readonly Action<RuleRow, double> _drawOverview;
     private readonly BehaviorParamsEditor _editor;
+    private readonly ActionListContext _stepCtx = new();
+    private readonly ActionListFieldDrawer _steps;
     private int _boundRule;
+    private string? _entityJson;           // the entity's params as the form was last opened from them: the form reopens only when THIS changes (an Apply, an undo, a live edit landing) — never because the form itself was edited
     private string? _pending;
     private RuleTab? _requestTab;
     private readonly Dictionary<int, RuleTab> _tabOf = new();
+    private readonly Dictionary<int, LiveEdit> _liveEdits = new();
+    private int _editSeq;
+    private bool _liveValuesOn;
+
+    /// <summary>The write of a live edit — <see cref="RuleCommands.Edit"/>, the ONE path the DebugApi's <c>/objectives/{id}/edit</c> also ends in. A seam only so a rail can see what was written without a write router in its world.</summary>
+    internal delegate Fdp.Toolkit.Replication.Patching.EntityWriteRoute LiveEditWriter(EntityRepository world, Entity entity, string paramsJson, int editOrigin, ref int lastSeq, out int seq);
+    internal LiveEditWriter LiveWriter { get; set; } = RuleCommands.Edit;
+    private IReadOnlyList<LiveLeafRow> _strip = Array.Empty<LiveLeafRow>();
     private RuleDetailsProbe _probe = new("", Array.Empty<string>(), Array.Empty<string>(), false, null, false, null, Array.Empty<string>(), Array.Empty<string>());
+
+    /// <summary>A live edit this editor sent: the sequence it used, the journal's length then (the owner's answer is the next entry), the JSON, whether the trigger was acting (the owner HOLDS the edit until its list ends), and the verdict once it came.</summary>
+    private sealed class LiveEdit
+    {
+        public int Seq, Mark; public string Json = ""; public bool WasActing; public string? Verdict; public bool Done;
+    }
 
     public RuleDetails(RuleEditorServices services, Func<EntityRepository?> world, Func<string?> blocked, Action<int> selectEntity, Action<RuleRow, double> drawOverview)
     {
         _svc = services ?? throw new ArgumentNullException(nameof(services));
         _world = world; _blocked = blocked; _selectEntity = selectEntity; _drawOverview = drawOverview;
-        _editor = new BehaviorParamsEditor(_svc.EditService() ?? throw new InvalidOperationException("The rule editor needs the params form's edit service."));
+        var service = _svc.EditService() ?? throw new InvalidOperationException("The rule editor needs the params form's edit service.");
+        _editor = new BehaviorParamsEditor(service);
+        _steps = new ActionListFieldDrawer(service, _stepCtx);
     }
 
     public RuleDetailsProbe Probe => _probe;
+
+    /// <summary>The do list's drawer (its probe: rows, marker; the rails read it).</summary>
+    internal ActionListFieldDrawer Steps => _steps;
 
     /// <summary>Where the Undo button was drawn (screen space) — a frame rail clicks it.</summary>
     internal (Vector2 Min, Vector2 Max) UndoRect { get; private set; }
@@ -75,44 +111,136 @@ public sealed class RuleDetails
         return rec == null ? null : (rec.BehaviorName, rec.JsonParams);
     }
 
-    /// <summary>Why the fields cannot be edited, or null when they can (edit mode, an own rule).</summary>
+    /// <summary>A row with a run behind it: its <c>ObjectiveStatus</c> is replicated (an authored row, before any run, has none).</summary>
+    public static bool IsLive(RuleRow row) => !row.Authored;
+
+    /// <summary>Why the fields cannot be edited, or null when they can (edit mode, an own rule — or, in a live run, a kind the owner can re-parameterise).</summary>
     public string? ReadOnlyReason(RuleRow row)
     {
         if (_blocked() is { } b) return b;
         if (row.Macro != null) return $"from macro {row.Macro} — edit the macro or its args";                 // A1
-        if (!row.Authored) return LiveReadOnly;                                                              // running: R5b
-        if (ParamsOf(row) is not { } p) return "this rule has no authored params on this node";
+        if (ParamsOf(row) is not { } p) return IsLive(row) && _svc.Live != null ? "the rule's params are not on this node" : IsLive(row) ? LiveReadOnly : "this rule has no authored params on this node";
         if (BehaviorParamsForm.ParamsTypeOf(p.Name, _svc.Registry()) is null) return $"{p.Name} has no params form";
+        if (IsLive(row))
+        {
+            if (_svc.Live is not { } live) return LiveReadOnly;
+            if (live.EditRefusal(p.Name) is { } why) return why;                                                // ⭐ RE-7 — a kind with no state keeper refuses: say so up front
+        }
         return null;
     }
 
     /// <summary>Binds the form to <paramref name="row"/>'s params and settles the probe (no ImGui) — <see cref="Draw"/> calls it first; a rail may call it alone.</summary>
     public void Prepare(RuleRow row, double now)
     {
-        if (row.NetworkId != _boundRule) { _boundRule = row.NetworkId; _pending = null; _editor.Sync(null, null); }
+        if (row.NetworkId != _boundRule) { _boundRule = row.NetworkId; _pending = null; _entityJson = null; _editor.Sync(null, null); _steps.Reset(); }
         var p = ParamsOf(row);
         var type = p is { } pp ? BehaviorParamsForm.ParamsTypeOf(pp.Name, _svc.Registry()) : null;
         if (p is { } pr && type != null)
         {
-            _editor.Sync(type, pr.Json);
+            // ⭐ reopen the form only when the ENTITY's params changed (an Apply landing, an undo, a live edit applied by the owner) — ⛔ not on every call: this runs twice a frame, and an edit the form holds is not the entity's yet
+            if (_entityJson != pr.Json || _editor.Session == null || _editor.Type != type)
+            { _entityJson = pr.Json; _editor.Sync(null, null); _editor.Sync(type, pr.Json); _steps.Reset(); _pending = null; }
             if (_editor.Edited() is { } edited) _pending = edited;
         }
-        else _editor.Sync(null, null);
+        else { _editor.Sync(null, null); _entityJson = null; }
         var tab = CurrentTab(row);
         var fields = type == null ? Array.Empty<string>() : (tab == RuleTab.Overview || tab == RuleTab.Status ? Array.Empty<string>() : RuleTabs.FieldsOf(type, tab).ToArray());
         string? ro = ReadOnlyReason(row);
         bool dirty = _pending != null && p is { } cur && _pending != cur.Json;
+        SettleLiveEdit(row);
+        _strip = LiveStripOf(row, type, tab);
+        FeedStepContext(row);
         _probe = new RuleDetailsProbe(tab.ToString(), RuleTabs.TabsFor(row.Status.Role).Select(RuleTabs.TitleOf).ToList(),
             (type != null ? new[] { RuleTabs.HeaderField } : Array.Empty<string>()).Concat(fields).ToList(), ro == null, ro, dirty, Message,
             tab == RuleTab.History ? _svc.Journal(row.Entity).Select(j => $"{j.At:0.0}s {j.Text}").ToList() : (IReadOnlyList<string>)Array.Empty<string>(),
-            tab == RuleTab.Results && _world() is { } w ? MissionSummaryModel.Build(w, new SummaryOptions(SummarySide.Both), null, now).Why(row.NetworkId).Select(x => $"{x.Title} | {(x.Go is { } g ? (g ? "pass" : "fail") : "—")}").ToList() : (IReadOnlyList<string>)Array.Empty<string>());
+            tab == RuleTab.Results && _world() is { } w ? MissionSummaryModel.Build(w, new SummaryOptions(SummarySide.Both), null, now).Why(row.NetworkId).Select(x => $"{x.Title} | {(x.Go is { } g ? (g ? "pass" : "fail") : "—")}").ToList() : (IReadOnlyList<string>)Array.Empty<string>(),
+            Steps: tab == RuleTab.Do ? _steps.Probe.Rows : null, StepMarker: tab == RuleTab.Do ? _steps.Probe.MarkerText : null,
+            LiveEdit: LiveEditLine(row), LiveStrip: _strip.Select(StripText).ToList(), LiveValuesWanted: WantsLiveValues(row, tab));
     }
 
-    /// <summary>⭐ RE-7 edit mode — writes the edited params to the scenario entity (the AI section's <c>ApplyTask</c> → <c>AssignNow</c>) and records ONE undo entry. False (and a message) when refused or there is nothing to apply.</summary>
+    private void FeedStepContext(RuleRow row)
+    {
+        var s = row.Status;
+        bool trigger = s.Role == ObjectiveRole.Trigger && !row.Authored;
+        bool acting = trigger && s.State == ObjectiveState.Active && s.TriggerState == TriggerState.Acting;
+        _stepCtx.RunningStep = trigger ? s.StepCur : 0;
+        _stepCtx.StepCount = trigger ? s.StepCount : 0;
+        _stepCtx.FailedReason = trigger && s.StepCur > 0 && !acting ? (s.Reason.ToString() is { Length: > 0 } r ? r : "a step failed") : null;   // a failed step keeps its index (the owner zeroes it on the next transition)
+        _stepCtx.OpenPicker = _svc.OpenPicker?.Invoke();
+        _stepCtx.Picks = _svc.Picks?.Invoke();
+    }
+
+    // ── RE-3 live: the Live strip ────────────────────────────────────────────────────────────────────────────────────────
+
+    private bool WantsLiveValues(RuleRow row, RuleTab tab)
+        => IsLive(row) && _svc.Live != null && row.Status.Role == ObjectiveRole.Trigger && tab == RuleTab.When && _blocked() == null;
+
+    private IReadOnlyList<LiveLeafRow> LiveStripOf(RuleRow row, Type? type, RuleTab tab)
+    {
+        if (!WantsLiveValues(row, tab) || type == null || _world() is not { } w || ParamsOf(row) is not { } p) return Array.Empty<LiveLeafRow>();
+        SearchPredicateDto? when = null;
+        try { if (BehaviorParamsForm.Hydrate(type, _pending ?? p.Json) is TriggerParamsJsonDto t) when = t.When; } catch (Exception ex) when (ex is InvalidCastException or NullReferenceException) { }
+        return LiveLeafOverlay.Match(LiveLeafOverlay.Read(w, row.Entity), when);
+    }
+
+    private static string StripText(LiveLeafRow r)
+        => r.Sampled ? $"{(r.Holds ? "yes" : "no")} | {r.Label} | {r.Measured:0.##}{(r.InForm ? "" : " | not in the form")}" : $"- | {r.Label} | not sampled yet";
+
+    /// <summary>⭐ RE-3 live — the node feature <c>ui.rules-live-values</c> is on while a When tab of a live trigger is open, off otherwise (and when the window closes: <see cref="Idle"/>).</summary>
+    private void SetLiveValues(bool on)
+    {
+        if (_liveValuesOn == on) return;
+        _liveValuesOn = on;
+        _svc.Live?.SetLiveValues(on);
+    }
+
+    /// <summary>The window is not drawn (closed): the live values are not wanted.</summary>
+    public void Idle() => SetLiveValues(false);
+
+    /// <summary>Whether this editor has the live-values feature switched on.</summary>
+    public bool LiveValuesOn => _liveValuesOn;
+
+    // ── RE-7 live: Apply = RuleCommands.Edit ─────────────────────────────────────────────────────────────────────────────
+
+    private int JournalMark(RuleRow row) => _svc.Journal(row.Entity).Count(j => IsEditEntry(j.Text));
+    private static bool IsEditEntry(string text) => text.StartsWith("edited by", StringComparison.Ordinal) || text.StartsWith("edit refused", StringComparison.Ordinal);
+
+    /// <summary>The owner's answer to the last live edit: the next journal entry (<i>edited by …</i> / <i>edit refused by …</i>), or — where no journal reaches this node — the params that landed / the status <c>Reason</c>.</summary>
+    private void SettleLiveEdit(RuleRow row)
+    {
+        if (!_liveEdits.TryGetValue(row.NetworkId, out var le) || le.Done) return;
+        var entries = _svc.Journal(row.Entity).Where(j => IsEditEntry(j.Text)).ToList();
+        string reason = row.Status.Reason.ToString();
+        bool refused = entries.Count > le.Mark ? entries[^1].Text.StartsWith("edit refused", StringComparison.Ordinal) : reason.StartsWith("edit refused", StringComparison.Ordinal);
+        bool applied = entries.Count > le.Mark ? !refused : ParamsOf(row) is { } cur && cur.Json == le.Json;
+        if (refused) { le.Done = true; le.Verdict = "refused - " + (reason.StartsWith("edit refused", StringComparison.Ordinal) ? reason : "the owner did not accept the edit"); }
+        else if (applied) { le.Done = true; le.Verdict = "applied - the rule's state is kept, this run only"; }
+        else le.Verdict = le.WasActing ? "pending (acting) - held until the do list ends" : "sent - waiting for the owner";
+    }
+
+    private string? LiveEditLine(RuleRow row) => _liveEdits.TryGetValue(row.NetworkId, out var le) ? le.Verdict : null;
+
+    /// <summary>⭐ RE-7 live — sends the edited params to the rule's owner through <see cref="RuleCommands.Edit"/> (the DebugApi's <c>POST /objectives/{id}/edit</c> writes the same). ⛔ Not pushed to the scenario's <see cref="EditHistory"/>: a live edit lasts this run only (SR-109).</summary>
+    private bool ApplyLive(RuleRow row, string json)
+    {
+        var w = _world();
+        if (w == null || !w.IsAlive(row.Entity)) { Message = "the rule is gone"; return false; }
+        bool acting = row.Status.Role == ObjectiveRole.Trigger && row.Status.State == ObjectiveState.Active && row.Status.TriggerState == TriggerState.Acting;
+        int mark = JournalMark(row);
+        var route = LiveWriter(w, row.Entity, json, (int)LiveOrigin, ref _editSeq, out int seq);
+        if (route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused) { Message = "nothing was written: this node has no way to ask the owner"; return false; }
+        _liveEdits[row.NetworkId] = new LiveEdit { Seq = seq, Mark = mark, Json = json, WasActing = acting };
+        SettleLiveEdit(row);
+        Message = route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct ? "live edit sent" : "live edit requested of the owner";
+        return true;
+    }
+
+    /// <summary>⭐ RE-7 — writes the edited params: EDIT mode = the scenario entity (the AI section's <c>ApplyTask</c> → <c>AssignNow</c>) with ONE undo entry; a LIVE run = <see cref="RuleCommands.Edit"/> (the rule keeps its state, this run only). False (and a message) when refused or there is nothing to apply.</summary>
     public bool Apply(RuleRow row)
     {
         if (ReadOnlyReason(row) is { } ro) { Message = ro; return false; }
         if (_pending is not { } json || ParamsOf(row) is not { } cur || json == cur.Json) { Message = "nothing to apply"; return false; }
+        if (IsLive(row)) return ApplyLive(row, json);
         string before = cur.Json, name = cur.Name;
         var entity = row.Entity;
         if (!_svc.ApplyEditMode(entity, name, json)) { Message = "refused: the assignment was not accepted"; return false; }
@@ -128,14 +256,14 @@ public sealed class RuleDetails
     /// <summary>Drops the edits not applied: the form reopens from the entity's params.</summary>
     public void Revert(RuleRow row)
     {
-        _pending = null;
-        if (ParamsOf(row) is { } p && BehaviorParamsForm.ParamsTypeOf(p.Name, _svc.Registry()) is { } t) { _editor.Sync(null, null); _editor.Sync(t, p.Json); }
+        _pending = null; _entityJson = null; _steps.Reset();
+        _liveEdits.Remove(row.NetworkId);
         Message = "reverted";
     }
 
     /// <summary>Undo / redo through the ONE history (the Parameters window's too).</summary>
-    public bool Undo() { bool ok = _svc.History.Undo(); Message = ok ? "undone" : "nothing to undo"; _pending = null; _editor.Sync(null, null); return ok; }
-    public bool Redo() { bool ok = _svc.History.Redo(); Message = ok ? "redone" : "nothing to redo"; _pending = null; _editor.Sync(null, null); return ok; }
+    public bool Undo() { bool ok = _svc.History.Undo(); Message = ok ? "undone" : "nothing to undo"; _pending = null; _entityJson = null; _steps.Reset(); return ok; }
+    public bool Redo() { bool ok = _svc.History.Redo(); Message = ok ? "redone" : "nothing to redo"; _pending = null; _entityJson = null; _steps.Reset(); return ok; }
 
     // ── drawing ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -161,7 +289,8 @@ public sealed class RuleDetails
             ImGui.SameLine();
         }
         ImGui.NewLine();
-        ImGui.BeginChild("##rule-tab-body", new Vector2(0, Math.Max(120f, ImGui.GetContentRegionAvail().Y - 64f)), ImGuiChildFlags.None, ImGuiWindowFlags.None);
+        SetLiveValues(WantsLiveValues(row, cur));                 // ⭐ RE-3 live: on while a When tab of a live trigger is open
+        ImGui.BeginChild("##rule-tab-body", new Vector2(0, Math.Max(120f, ImGui.GetContentRegionAvail().Y - 96f)), ImGuiChildFlags.None, ImGuiWindowFlags.None);
         DrawTab(row, cur, type, ro, now);
         ImGui.EndChild();
         DrawApplyBar(row, ro);
@@ -173,7 +302,6 @@ public sealed class RuleDetails
         {
             case RuleTab.Overview: case RuleTab.Status: _drawOverview(row, now); return;
             case RuleTab.Bindings: ImGui.TextDisabled(PlaceholderR5b); return;
-            case RuleTab.Do: ImGui.TextDisabled($"The step list editor — {PlaceholderR5b}"); return;
             case RuleTab.History:
                 var entries = _svc.Journal(row.Entity);
                 if (entries.Count == 0) ImGui.TextDisabled("No journal (the rule is not running on this node).");
@@ -193,23 +321,41 @@ public sealed class RuleDetails
         ImGui.TextDisabled("Header");
         BehaviorParamsForm.DrawFields(session, picks, "##rule-common", null, new HashSet<string> { RuleTabs.HeaderField });
         ImGui.Spacing();
-        BehaviorParamsForm.DrawFields(session, picks, "##rule-" + tab, null, RuleTabs.FieldsOf(type, tab).ToHashSet());
+        BehaviorParamsForm.DrawFields(session, picks, "##rule-" + tab, null, RuleTabs.FieldsOf(type, tab).ToHashSet(), new IImGuiFieldDrawer[] { _steps });
         if (ro != null) ImGui.EndDisabled();
+        if (tab == RuleTab.When && WantsLiveValues(row, tab)) DrawLiveStrip();
+    }
+
+    /// <summary>RE-3 live — the Live strip under the When form: each leaf, whether it holds and the number behind it, matched by label.</summary>
+    private void DrawLiveStrip()
+    {
+        ImGui.Spacing();
+        ImGui.TextDisabled("Live");
+        if (_strip.Count == 0) { ImGui.TextDisabled("waiting for the owner's samples (about twice a second)..."); return; }
+        foreach (var r in _strip)
+        {
+            if (!r.Sampled) { ImGui.TextDisabled($"-    {r.Label}   not sampled yet"); continue; }
+            ImGui.TextColored(ImGui.ColorConvertU32ToFloat4(r.Holds ? RulesModel.Achieved : RulesModel.Failed), r.Holds ? "yes" : "no ");
+            ImGui.SameLine();
+            ImGui.TextUnformatted($"{r.Label}   {r.Measured:0.##}{(r.InForm ? "" : "   (applied; not in the form)")}");
+        }
     }
 
     private void DrawApplyBar(RuleRow row, string? ro)
     {
         ImGui.Separator();
+        bool live = IsLive(row);
         bool dirty = _probe.Dirty;
         if (ro != null || !dirty) ImGui.BeginDisabled();
-        if (ImGui.Button("Apply")) Apply(row);
+        if (ImGui.Button(live ? "Apply live" : "Apply")) Apply(row);
         ImGui.SameLine();
         if (ImGui.Button("Revert")) Revert(row);
         if (ro != null || !dirty) ImGui.EndDisabled();
         if (ro != null && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(ro);
         ImGui.SameLine();
         // ⛔ read CanUndo / CanRedo ONCE: a click changes them between Begin- and EndDisabled, and ImGui asserts (found live: the editor died on the first Undo click)
-        bool canUndo = _svc.History.CanUndo, canRedo = _svc.History.CanRedo;
+        // a live run: the scenario's undo history is not this edit's (a live edit lasts this run only) ⇒ the buttons are off
+        bool canUndo = !live && _svc.History.CanUndo, canRedo = !live && _svc.History.CanRedo;
         string undoLabel = _svc.History.UndoLabel is { } ul ? $"Undo {ul}" : "Undo";
         if (!canUndo) ImGui.BeginDisabled();
         bool undo = ImGui.Button(undoLabel);
@@ -221,6 +367,9 @@ public sealed class RuleDetails
         if (!canRedo) ImGui.EndDisabled();
         if (undo) Undo();
         if (redo) Redo();
+        if (live && ro == null) ImGui.TextDisabled("a live edit lasts this run only: not saved with the scenario, not in Undo");
+        if (live && LiveEditLine(row) is { } line)
+            ImGui.TextColored(line.StartsWith("refused", StringComparison.Ordinal) ? new Vector4(0.9f, 0.4f, 0.35f, 1f) : new Vector4(0.9f, 0.7f, 0.3f, 1f), line);
         if (Message != null) ImGui.TextDisabled(Message);
     }
 }

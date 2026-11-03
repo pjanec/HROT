@@ -8,6 +8,7 @@ using Fdp.Presentation.Panels.Timeline;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.ScenarioRules;
+using Fdp.Toolkit.ScenarioRules.Actions;
 using Hrot.Editor.UiFrameRail;
 using Hrot.Presentation.Tests.Map3D;
 using Hrot.Presentation.Windows;
@@ -274,5 +275,91 @@ public sealed class RulesWindowFrameRail : IDisposable
         Assert.Contains("Common", window.Probe.Editor.Fields);
         Assert.True(window.Probe.Editor.Fields.Count > 1, "a kind's own fields are drawn on Settings");
         frame.Screenshot(ShotPath("rules-6-settings.png"));
+    }
+
+    /// <summary>
+    /// ⭐ CE-4220 (R5b) — the Do tab in a REAL frame, on a LIVE trigger that is acting at step 2 of 3: the rows, the running-step marker and "step 2 / 3"; CLICKS on <i>+ Add step</i> (the picker's answer comes back through the host's opener), on a row's ^ and x;
+    /// then Apply live writes the edited do list as the runtime parses it. The When tab turns the node feature <c>ui.rules-live-values</c> on and draws the Live strip; leaving it turns it off.
+    /// ✅ Red-proof: the marker taken from the wrong index (StepCur, not StepCur - 1) ⇒ the marked row moves ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void TheDoTab_DrawsTheStepRows_AndTheLiveStrip_InARealFrame()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        _world.RegisterComponent<RuleLeaves>();
+        _ = typeof(Hrot.AI.Behaviors.Brains.Objectives.ObjectiveStateKeepers).Assembly;
+        const string json = """{"common":{"title":"Counter-attack","subject":900},"when":{"$type":"OnEntity","ref":{"NetworkId":10},"predicate":{"$type":"PropertyMatch","ComponentType":"ObjectiveStatus","PropertyPath":"State","Operator":"Equals","Predicate":{"$type":"Numeric","MinValue":2,"MaxValue":2}}},"do":[{"act":"Message","args":{"Text":"one"}},{"act":"Message","args":{"Text":"two"}},{"act":"Message","args":{"Text":"three"}}]}""";
+        Add(20, "Counter-attack", 0, 900, ObjectiveState.Active, ObjectiveRole.Trigger, trig: TriggerState.Acting, stepCur: 2, stepCount: 3);
+        Entity rule = default; foreach (var re in _world.Query().With<ObjectiveStatus>().Build()) rule = re;
+        _world.SetManagedComponent(rule, new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = "Trigger", JsonParams = json, InstanceId = 1 });
+        _world.AddComponent(rule, new RuleLeaves());
+        string label = RuleLeafPlan.LabelOf(((Hrot.Map.Definitions.Behavior.TriggerParamsJsonDto)Hrot.Presentation.Behavior.BehaviorParamsForm.Hydrate(typeof(Hrot.Map.Definitions.Behavior.TriggerParamsJsonDto), json)).When!);
+        ref var leaves = ref _world.GetComponentRW<RuleLeaves>(rule);
+        leaves.Count = 1; leaves.Leaves[0] = new RuleLeaf { Label = new FixedString32(label), Value = 1, Measured = 2f };
+
+        var message = ActionCatalogue.All.Single(a => a.ShortName == "Message");
+        var written = new List<string>(); var liveValues = new List<bool>(); NodeEditor.UI.Picker.PickerRequest? asked = null;
+        var svc = new RuleEditorServices(() => Fdp.Presentation.Editing.ComponentEditServices.CreateBuilder().Build(), () => null, (e, n, j) => true, new Hrot.Presentation.Edits.EditHistory(), _ => Array.Empty<RuleJournalEntry>(),
+            OpenPicker: () => (req, answer) => { asked = req; answer(new NodeEditor.UI.Picker.PickerResult(new[] { req.ItemsProvider().First(x => x.Name == "Message") })); },
+            Live: new RuleLiveServices(k => null, on => liveValues.Add(on)));
+        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_do", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 5d, editor: svc);
+        window.Details!.LiveWriter = (EntityRepository w, Entity e, string j, int o, ref int last, out int seq) => { seq = ++last; written.Add(j); return Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct; };
+        using var frame = UiFrameHarness.Begin(1400, 1900);
+        void Step(Action<ImGuiIOPtr>? input = null, int n = 1)
+        {
+            for (int i = 0; i < n; i++)
+                frame.Step(() =>
+                {
+                    input?.Invoke(ImGui.GetIO());
+                    ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(1400, 1900));
+                    ImGui.Begin("Rules", ImGuiWindowFlags.NoCollapse);
+                    window.DrawContent();
+                    ImGui.End();
+                });
+        }
+        void Click((Vector2 Min, Vector2 Max) r)
+        {
+            var at = (r.Min + r.Max) / 2f;
+            Step(io => Pos(io, at.X, at.Y), 2);
+            Step(io => { Pos(io, at.X, at.Y); io.AddMouseButtonEvent(0, true); });
+            Step(io => Pos(io, at.X, at.Y));
+            Step(io => { Pos(io, at.X, at.Y); io.AddMouseButtonEvent(0, false); });
+            Step(null, 3);
+        }
+
+        window.SelectNetworkId(20);
+        window.Details!.RequestTab(RuleTab.Do);
+        Step(null, 5);
+        var ed = window.Probe.Editor!;
+        Assert.True(ed.Editable, ed.ReadOnlyReason);
+        Assert.Equal(new[] { "1. Message", "> 2. Message", "3. Message" }, ed.Steps);                       // the running step is marked
+        Assert.Equal("step 2 / 3", ed.StepMarker);
+        Assert.True(window.Details.Steps.Probe.AddEnabled);
+        frame.Screenshot(ShotPath("rules-7-do.png"));
+
+        Click(window.Details.Steps.AddRect);                                                                // + Add step ⇒ the generic picker answers Message
+        Assert.Equal("rules.add-step", asked!.ContextKey);
+        Assert.Equal(4, window.Probe.Editor!.Steps!.Count);
+        Assert.True(window.Probe.Editor.Dirty);
+        Click(window.Details.Steps.UpRects[3]);                                                             // the new step up one
+        Click(window.Details.Steps.RemoveRects[0]);                                                         // the first one out
+        Assert.Equal(3, window.Probe.Editor!.Steps!.Count);
+        frame.Screenshot(ShotPath("rules-8-do-edited.png"));
+
+        var row = RulesModel.Build(_world, new RulesOptions(), null, 5d).Find(20)!;
+        Assert.True(window.Details.Apply(row));                                                             // LIVE: RuleCommands.Edit's complete JSON
+        var sent = ActionList.Get(System.Text.Json.Nodes.JsonNode.Parse(written.Single())!["do"]!.ToJsonString());
+        Assert.Equal(new[] { "Message", "Message", "Message" }, sent.Select(x => x.Act));
+        Assert.Equal(new[] { "two", null, "three" }, sent.Select(x => (string?)System.Text.Json.Nodes.JsonNode.Parse(x.ArgsJson)!["Text"]));   // the first is gone; the new one went up one (above "three") with its args untouched
+        Assert.Equal("{}", sent[1].ArgsJson);
+
+        // RE-3 live: the When tab switches the feature on and draws the strip; leaving it switches it off
+        window.Details.RequestTab(RuleTab.When); Step(null, 5);
+        Assert.Equal(new[] { true }, liveValues);
+        Assert.True(window.Probe.Editor!.LiveValuesWanted);
+        Assert.Contains(window.Probe.Editor.LiveStrip!, t => t.StartsWith("yes | ") && t.EndsWith("| 2"));
+        frame.Screenshot(ShotPath("rules-9-when-live.png"));
+        window.Details.RequestTab(RuleTab.Rules); Step(null, 3);
+        Assert.Equal(new[] { true, false }, liveValues);
     }
 }

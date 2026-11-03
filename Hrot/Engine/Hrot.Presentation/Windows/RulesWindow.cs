@@ -183,6 +183,9 @@ public sealed class RulesWindow : ManagedWindow
         ImGui.SetNextWindowBgAlpha(1f);
     }
 
+    /// <summary>⭐ CE-4220 (R5b, RE-3 live) — a closed window wants no live leaf values: the node feature the When tab switched on goes off again.</summary>
+    protected override void OnRenderWhileClosed() => _details?.Idle();
+
     protected override void DrawClientArea()
     {
         BuildAndPublish();

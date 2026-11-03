@@ -68,13 +68,16 @@ public static class BehaviorParamsForm
     /// Give each form on one screen its own scope (<see cref="ScopedMapPickContext"/>) — one broker holds one pending pick.
     /// ⭐ CE-4210 P2 — <paramref name="binds"/>: a caller that HAS the entity passes its bind context (prefix <c>"Behavior.Params"</c> …) so a params field can be fed from a parameter; null ⇒ no bind button (a mission task / order has no entity).
     /// </summary>
-    public static void DrawFields(IEditSession session, IMapPickContext? picks, string tableId = "params", Fdp.Presentation.Editing.IParamBindContext? binds = null, System.Collections.Generic.IReadOnlySet<string>? only = null)
+    public static void DrawFields(IEditSession session, IMapPickContext? picks, string tableId = "params", Fdp.Presentation.Editing.IParamBindContext? binds = null, System.Collections.Generic.IReadOnlySet<string>? only = null,
+                                  System.Collections.Generic.IEnumerable<IImGuiFieldDrawer>? hostDrawers = null)
     {
         if (session is null) throw new ArgumentNullException(nameof(session));
         if (!ImGuiNET.ImGui.BeginTable(tableId, 2, ImGuiNET.ImGuiTableFlags.Borders | ImGuiNET.ImGuiTableFlags.RowBg)) return;
         if (session.RebuildState == EditRebuildState.RebuildRequired) session.RebuildDocument();
         // ⭐ CE-4218 — the value leaf of a property match (RE-3) draws through the ONE drawer the Replay Browser uses; ⭐ `only` = a tab's fields (RuleTabs): the root's fields by name, the rest of the document untouched
-        var drawers = new System.Collections.Generic.Dictionary<Type, IImGuiFieldDrawer> { [typeof(Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto)] = new PredicateValueFieldDrawer(session, null) };
+        // ⭐ CE-4220 — `hostDrawers`: a host's STATEFUL drawers (the rule editor's do-list drawer holds the step sessions, so it lives across frames); they win over the standard ones for their type
+        var drawers = StandardDrawers(session);
+        if (hostDrawers != null) foreach (var d in hostDrawers) drawers[d.TargetType] = d;
         var drawer = new ComponentEditDrawer(session, picks, drawers, binds);
         if (only != null && ComponentEditDrawer.FieldsOwner(session.Document.Root) is { } owner)
         {
@@ -83,6 +86,19 @@ public static class BehaviorParamsForm
         else drawer.DrawRoot(session.Document.Root);
         ImGuiNET.ImGui.EndTable();
     }
+
+    private static readonly Fdp.Presentation.Panels.ReplayBrowser.Drawers.FilteredTypeComboFieldDrawer TypeCombo = new(Fdp.Presentation.Panels.ReplayBrowser.Drawers.TypeComboMode.Auto);
+
+    /// <summary>
+    /// ⭐ CE-4220 — the drawers EVERY params form uses, in one place (the do-list rows draw their nested args with the same set): the property match's value leaf (RE-3) and the <c>Type</c> combo
+    /// (component types, or event types for an <c>EventType</c> field — the list the Replay search offers).
+    /// </summary>
+    public static System.Collections.Generic.Dictionary<Type, IImGuiFieldDrawer> StandardDrawers(IEditSession session)
+        => new()
+        {
+            [typeof(Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto)] = new PredicateValueFieldDrawer(session, null),
+            [typeof(Type)] = TypeCombo,
+        };
 
     /// <summary>Commits <paramref name="session"/> and returns the assignment's JSON.</summary>
     public static string CommitToJson(IEditSession session, Type paramsType)

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Fdp.Core;
 using Fdp.ModuleHost.Time;
 using Fdp.Toolkit.Orchestration;
@@ -337,6 +338,17 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
         RecordLiveRuns = recordLiveRuns,
         AskToKeepRecordings = askToKeepRecordings,   // null = unchanged; Armed stays null too (the intent's own default)
     });
+
+    /// <summary>
+    /// ⭐ CE-4220 (R5b) — switches a LIVE node feature on or off for the whole cluster: the cluster override list the master broadcasts (<c>ClusterView.FeatureOverrides</c>) with this feature's entry replaced (every node, <c>{"Enabled":…}</c>) and
+    /// sent as <c>SetRunSettingsIntent { FeatureOverrides }</c> — the ONE route the debug API's <c>/run-settings</c> takes. Other features' overrides are kept. The master refuses the whole list when no node advertises the feature.
+    /// </summary>
+    public void SetFeatureOverride(string featureId, bool on)
+    {
+        var keep = (View?.FeatureOverrides ?? System.Array.Empty<FeatureOverrideSpec>()).Where(o => o.Feature != featureId).ToList();
+        if (on) keep.Add(new FeatureOverrideSpec(featureId, System.Array.Empty<string>(), "{\"Enabled\":true}"));
+        _bus.PublishManaged(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), FeatureOverrides = keep.ToArray() });
+    }
 
     void IRunTransport.DiscardRecording(Guid exerciseId) => _bus.PublishManaged(new ExecuteStorageOpIntent { RequestId = Guid.NewGuid(), Operation = StorageOpType.Delete, ExerciseId = exerciseId });   // ⭐ CE-4100 — the ONE construction of the discard request
 

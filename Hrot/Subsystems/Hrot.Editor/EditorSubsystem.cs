@@ -297,7 +297,26 @@ namespace Hrot.Editor
                     var snap = Hrot.Editor.AiShared.Shell.BrainSnapshot.Read(w, entity, Name, hash => _behaviorRegistry is { } r && r.TryGetDefinition(hash, out var d) ? d : null);
                     return snap?.Changes.Select(c => new Hrot.UI.Common.Rules.RuleJournalEntry(c.Seq, c.At, c.Kind, c.Text)).ToList() ?? (System.Collections.Generic.IReadOnlyList<Hrot.UI.Common.Rules.RuleJournalEntry>)System.Array.Empty<Hrot.UI.Common.Rules.RuleJournalEntry>();
                 },
-                () => new Fdp.Presentation.Editing.ScopedMapPickContext(picks, "$.rule"));
+                () => new Fdp.Presentation.Editing.ScopedMapPickContext(picks, "$.rule"),
+                OpenPicker: () => _shellPickers is { } pickers ? pickers.OpenPicker : null,   // ⭐ CE-4220 — "+ Add step" opens the ONE generic picker
+                Live: BuildRuleLiveServices());
+        }
+
+        /// <summary>
+        /// ⭐ CE-4220 (R5b, RE-7 / RE-3 live) — a live run's edit and live-values services. A kind is editable live when the owner has a state keeper for it: the editor's registry does not load the AI assembly
+        /// (<c>BindKeepers</c> runs in CGF's loader), so the keepers' names are DISCOVERED from it — the same scan, nothing bound. The live leaf values are the node feature <c>ui.rules-live-values</c>, switched cluster-wide.
+        /// </summary>
+        private Hrot.UI.Common.Rules.RuleLiveServices BuildRuleLiveServices()
+        {
+            System.Collections.Generic.HashSet<string>? keepers = null;
+            string? Refusal(string kind)
+            {
+                if (_behaviorRegistry is { } r && r.TryGetKeeper(kind, out _)) return null;
+                keepers ??= Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.KeeperNames(typeof(Hrot.AI.Behaviors.Brains.Objectives.ObjectiveStateKeepers).Assembly).ToHashSet();
+                return keepers.Contains(kind) ? null : "not editable live, restart the rule";
+            }
+            return new Hrot.UI.Common.Rules.RuleLiveServices(Refusal,
+                on => _timeTransport?.SetFeatureOverride(Hrot.AI.Behaviors.Brains.Objectives.RuleLeafSampler.FeatureId, on));
         }
 
         internal bool SelectNetworkEntity(int networkId)

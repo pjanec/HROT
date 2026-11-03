@@ -98,6 +98,26 @@ public class FilteredTypeComboFieldDrawerTests
         Assert.Empty(result);
     }
 
+    /// <summary>
+    /// ⭐ CE-4220 (rules view R5b) — the rule editor's <c>Type</c> combo is the SAME list the Replay search shows: <c>Auto</c> offers the component types for a <c>ComponentType</c> field (exactly the Component mode's list)
+    /// and the event types for an <c>EventType</c> field (exactly the Event mode's). ✅ Red-proof: Auto always picking the component list ⇒ the event field's list differs ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4220_Auto_OffersTheReplaySearchsOwnLists_ByTheFieldsName()
+    {
+        ComponentTypeRegistry.GetOrRegisterManaged(typeof(Fdp.Toolkit.ScenarioRules.ObjectiveStatus));   // both registries must hold something, or "the same list" proves nothing
+        _ = EventType<Fdp.Toolkit.Combat.Contracts.HitEvent>.Id;
+        Assert.NotEmpty(ComponentTypeRegistry.GetAllRegistered()); Assert.NotEmpty(Fdp.Core.EventType.GetAllRegistered());
+        EditNode Field(string name) => new(new EditNodeId(1), name, "$." + name, EditNodeKind.Custom, typeof(Type));
+        var auto = new FilteredTypeComboFieldDrawer(TypeComboMode.Auto);
+        var component = new FilteredTypeComboFieldDrawer(TypeComboMode.Component);
+        var @event = new FilteredTypeComboFieldDrawer(TypeComboMode.Event);
+        Assert.Equal(component.TypesFor(Field("PositionComponentType")), auto.TypesFor(Field("PositionComponentType")));
+        Assert.Equal(@event.TypesFor(Field("EventType")), auto.TypesFor(Field("EventType")));
+        Assert.Equal(Fdp.Core.ComponentTypeRegistry.GetAllRegistered().OrderBy(t => t.Name), component.TypesFor(Field("ComponentType")));
+        Assert.Equal(Fdp.Core.EventType.GetAllRegistered().OrderBy(t => t.Name), @event.TypesFor(Field("EventType")));
+    }
+
     [Fact]
     public void SR_T44_FilteredTypeComboFieldDrawer_TargetType_IsTypeType()
     {
