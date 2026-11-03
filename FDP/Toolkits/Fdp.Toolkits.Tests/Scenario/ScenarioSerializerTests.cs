@@ -327,6 +327,54 @@ namespace Fdp.Toolkit.Scenario.Tests
             freshRepo.Dispose();
         }
 
+        // ── CE-4224 — a null entity reference is a valid reference ────────────────
+
+        /// <summary>
+        /// ⭐ CE-4224 — <c>Entity.Null</c> in an entity field (an <c>AmmoLoadout</c>'s unused rows) is saved as the EMPTY GUID and read back as
+        /// <c>Entity.Null</c>; it used to throw "entity Entity.Null is not in the save map" and kill every save of showcase-bridgehead.
+        /// </summary>
+        [Fact]
+        public void CE4224_ANullEntityField_IsSavedAsTheEmptyGuid_AndLoadedBackAsNull()
+        {
+            var tracker = _repo.CreateEntity();
+            _repo.AddComponent(tracker, new GuidedTarget { TargetId = Entity.Null });
+
+            var serializer = BuildSerializer();
+            var dom = serializer.Serialize(_repo, new ScenarioHeader("TestSubsystem"));
+
+            string? raw = null;
+            foreach (var ekv in (JsonObject)dom["Entities"]!)
+                if (ekv.Value is JsonObject eNode && eNode.ContainsKey("GuidedTarget"))
+                    raw = ((JsonObject)eNode["GuidedTarget"]!)["TargetId"]?.GetValue<string>();
+            Assert.Equal(Guid.Empty.ToString(), raw);
+
+            var fresh = new EntityRepository();
+            RegisterCommonComponents(fresh);
+            serializer.Deserialize(fresh, dom);
+            Entity loaded = default; bool found = false;
+            for (int i = 0; i <= fresh.MaxEntityIndex; i++)
+            {
+                var e = new Entity(i, fresh.GetMetadata(i).Generation);
+                if (fresh.IsAlive(e) && fresh.HasComponent<GuidedTarget>(e)) { loaded = e; found = true; break; }
+            }
+            Assert.True(found, "the tracker must load");
+            Assert.True(fresh.GetComponent<GuidedTarget>(loaded).TargetId.IsNull, "the empty GUID loads back as Entity.Null");
+            fresh.Dispose();
+        }
+
+        /// <summary>⭐ CE-4224 — only the NULL entity is exempt: any other entity that is not in the save map still throws, naming the component and the entity.</summary>
+        [Fact]
+        public void CE4224_AnyOtherUnresolvableEntity_StillThrows_NamingTheComponentAndTheEntity()
+        {
+            var tracker = _repo.CreateEntity();
+            var stranger = new Entity(900, 1);   // never created in this world ⇒ not in the save map
+            _repo.AddComponent(tracker, new GuidedTarget { TargetId = stranger });
+
+            var ex = Assert.Throws<InvalidOperationException>(() => BuildSerializer().Serialize(_repo, new ScenarioHeader("TestSubsystem")));
+            Assert.Contains("GuidedTarget", ex.Message);
+            Assert.Contains(stranger.ToString(), ex.Message);
+        }
+
         // �� DataPolicyNoSave_ComponentExcluded �����������������������������������
 
         /// <summary>
