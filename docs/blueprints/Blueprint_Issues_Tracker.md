@@ -64,21 +64,21 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 12 | 97 |
-| `RW-XS` | 4 | 12 |
+| `RW-XS` | 4 | 13 |
 | `RW-S` | 160 | 831 |
 | `RW-L` | 146 | 259 |
-| `RW-M` | 228 | 814 |
+| `RW-M` | 230 | 814 |
 | `RW-H` | 23 | 87 |
 | `RW-XL` | 0 | 1 |
 | `OTHER` | 2 | 9 |
-| **Total** | **575** | **2110** |
+| **Total** | **577** | **2111** |
 | *(refuted on verification)* | | *15* |
 
 | Id family | Open | Done |
 |---|---:|---:|
 | `AX-` | 4 | 23 |
 | `BP-` | 105 | 386 |
-| `CE-` | 412 | 1543 |
+| `CE-` | 414 | 1544 |
 | `HN-` | 11 | 41 |
 | `MA-` | 2 | 21 |
 | `MD-` | 0 | 7 |
