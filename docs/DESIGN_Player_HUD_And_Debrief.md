@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE — DESIGN, leans PH-1 … PH-8 await the user
-updated: 2026-11-03
+updated: 2026-11-03 (PH-6 / PH-7 rely on behaviors' S4 ①②④⑤ and backend's S7)
 build-state: DESIGN
 current-answer: §3 (decisions) · §4 (phases)
 stale-below: nothing
@@ -11,6 +11,8 @@ related-designs:
   - docs/DESIGN_Node_Features.md — §9 the hud.* features (CE-4148) and §10 hud.messages (CE-1461): every HUD element here is one more Node Feature on the same rails
   - docs/DESIGN_Rules_View_UI.md — the instructor's side (rules view, mission summary); this doc is the PLAYER's side of the same data
   - docs/blueprints/batches/HANDOFF_Coordinator_To_Ui_Rules_View_And_Summary.md — item ⑧
+  - docs/blueprints/batches/HANDOFF_Coordinator_To_Behaviors_Rules_S4_Scores.md — behaviors builds the debrief's reads: pass mark ②, role / squad composites ①, score lane ④, debrief fields ⑤
+  - docs/blueprints/batches/HANDOFF_Coordinator_To_Backend_Player_Score.md — backend builds the game score PH-7 reads (DESIGN_Scenario_Rules.md §00.13 S7 on backend)
 -->
 
 # DESIGN — **the player's HUD and debrief** *(handoff item ⑧; SR-107, SR-112)*
@@ -38,7 +40,7 @@ classDiagram
     direction LR
     class PossessionStation { <<existing>> DrawOverlay · the possessed unit }
     class HudText { <<existing, the ONE HUD text path>> }
-    class HudFeatures { <<existing, grows>> + hud.objectives · hud.own-evaluation · game.tickets · game.capture-points · game.round-timer · hud.kill-feed }
+    class HudFeatures { <<existing, grows>> + hud.objectives · hud.own-evaluation · game.tickets · game.capture-points · game.round-timer · hud.kill-feed · game.score-popups }
     class PlayerView { <<NEW, pure>> who am I: possessed unit · side · team (commander chain) }
     class RulesReader { <<NEW, pure, shared>> statuses as rows: by role · subject · side · group · parent }
     class TrainingHud { <<NEW, pure model + draw>> my mission objectives · my standards }
@@ -92,8 +94,8 @@ sequenceDiagram
 | **PH-3** | the training HUD | ⭐ `hud.objectives` (top-right): the objectives visible to my side, required first, in tree order; a ✓ / ● / ○ by state; the active one's progress bar (`ProgressCur / Need`) or its time (`Deadline` − now). ⭐ `hud.own-evaluation` (below it, *My standards*): the measures whose `Subject` is me (or my team when none is mine), each `Value` vs `Target` coloured by `Score`. ⏳ `hud.coaching` (a live hint) waits — it needs a live per-leaf signal (behaviors' V-3), OFF by default anyway |
 | **PH-4** | the game HUD | ⭐ `game.tickets` + `game.capture-points` + `game.round-timer` (one top bar): each side's `Counter` value · each point's letter coloured by `Owner`, the contested one striped by progress · the round time (the End trigger's `Deadline`, else elapsed); ⭐ a *Capturing B · 60 %* strip under it while the possessed man stands in a point that is changing hands. Which statuses are tickets / points is read from `Kind` (`Counter`, `HoldArea`) — ⛔ no hard-coded names |
 | **PH-5** | the kill feed | ⭐ `hud.kill-feed` (top-right in game): the last 5 downs from `DamageAssessedEvent` (a man goes down) as *killer → victim · distance*, side-coloured; `OriginalSource` when it differs (*"Fox (grenade, rethrown by Hawk) → Bobr"*). Recorded events ⇒ it also replays |
-| **PH-6** | the trainee debrief | ⭐ `TraineeDebrief` window, always available once `ExerciseResult` is `Ended` and on any recording (SR-112 ①, demo rule): for the chosen man (default: the possessed one) — each standard as a card (`Value`, `Target`, the squad's mean of the same measure, GO when `Score` ≥ its pass, else NO-GO), grouped by `Group`; his score vs his squad's and platoon's (the `MemberEvaluation` roots up the `Parent` chain); *went well / work on* = the measures with the best and worst margin. ⏳ *his moments* + *replay from my eyes* need the SR-103 rules lanes (RV-4) and the film director — a later phase. ⏳ progress across runs needs the trainee record (G7) |
-| **PH-7** | what waits | ⏳ score pop-ups, the scoreboard's points, awards, *your best moment* and the round summary's XP — all need the per-player game score (§00.12 *"wait"*); the round summary (`GameSummary`) is designed when that data lands |
+| **PH-6** | the trainee debrief | ⭐ `TraineeDebrief` window, always available once `ExerciseResult` is `Ended` and on any recording (SR-112 ①, demo rule): for the chosen man (default: the possessed one) — each standard as a card (`Value`, `Target`, the squad's mean = the same measure on his squad's / role's composite (behaviors S4 ①⑤), GO when `Score` ≥ `Pass` (S4 ②), else NO-GO), grouped by `Group`; his score vs his squad's and platoon's (the `MemberEvaluation` roots up the `Parent` chain); *went well / work on* = the measures with the best and worst margin. ⏳ *his moments* + *replay from my eyes* need the SR-103 rules lanes (RV-4) and the film director — a later phase. ⏳ progress across runs needs the trainee record (G7) |
+| **PH-7** | the game score screens — **on backend's S7** (§00.13) | ⭐ all reads of the status wire (S7 P-9): **scoreboard** = per team, the men's `Points` roots (title *Score*, `Subject` = the man) with their `Count` children as columns (kills · assists · deaths · captures · team kills) and the team total (`MemberEvaluation aggregate: points`) · **+100 pop-up** (`game.score-popups`) = a child measure's `Value` rising for the possessed man, × its `Points`, with the child's `Title` (*+100 elimination*) · **awards** = the awards macro's `Best` objectives once Achieved: `Title` + `Subject` (the winner) + `Value` · **your best moment** = the largest rise of his root's `Value` in the recording's `objective.score` lane (behaviors S4 ④), a seek into the film · **round summary** (`GameSummary` window) = the winner banner from `ExerciseResult` + the scoreboard + *your round* (his children) + the awards. ⏳ streaks / bounty wait for S7 P-8; level / XP is not designed anywhere — left out |
 | **PH-8** | the profiles | ⭐ a profile is just a feature set (SR-112): training = `hud.objectives` + `hud.own-evaluation` + `hud.messages`; game = the `game.*` + `hud.kill-feed` + `hud.messages`; each element ON by default only in its profile's scenarios — ⭐ lean: default OFF, the scenario (or the run setup) turns the profile's features on; `hud.messages` stays ON everywhere (CE-1461) |
 
 **Rejected — one line each:**
@@ -109,7 +111,7 @@ sequenceDiagram
 | **H1** | PH-1 `RulesReader` · PH-2 · PH-3 the training HUD | rails on the reader and the models (visibility by side, my measures, order, progress / time); a frame rail of the overlay; live: `showcase-bridgehead`, possess a Blue rifleman |
 | **H2** | PH-4 the game top bar + capture strip · PH-5 the kill feed | rails on the models from synthetic statuses / events; a frame rail; live: `showcase-crossfire` |
 | **D1** | PH-6 the trainee debrief | rails on the cards, GO / NO-GO, the chain comparison, went well / work on; a frame rail; live: a finished Bridgehead run and its recording |
-| ⏳ | PH-7 (score, awards, round summary) | when the per-player score lands |
+| **G1** | PH-7 the scoreboard, pop-ups, awards, round summary | as backend's S7 lands: model rails on synthetic `Points` / `Count` / `Best` statuses **against the as-built names**; a frame rail; live: `showcase-crossfire` |
 
 ## 5. Claim table
 
@@ -119,5 +121,5 @@ sequenceDiagram
 | the training HUD needs no new data | ✅ fields on dt 171 (§00.10 / §00.11) | ✅ SR-107, SR-112 |
 | the game bar needs no new data | ✅ `HoldArea` / `Counter` statuses (§00.12) | ✅ SR-112 game profile |
 | the kill feed can name the killer | ✅ CE-4155 as built | ✅ SR-112 (kills / assists via CE-4155) |
-| a per-player game score does not exist yet | ✅ §00.12 *"wait"* | — (PH-7 waits) |
+| the per-player game score is a tree of measures on the wire | ⚠ designed (S7, `backend@8437b7bff`), being built | ✅ S7 P-1…P-9; R-4105 |
 | the profile's features default OFF and the scenario turns them on | ⛔ **unmeasured**: how a scenario sets a feature today (`FeatureConfigsAtLoad`?) | ✅ SR-112 *"a scenario / cluster picks a profile = a feature set"* |
