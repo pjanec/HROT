@@ -156,7 +156,7 @@ def macro_awards():
         if lower:
             p["lowerIsBetter"] = True
         ents[ids()] = objective_entity("Best", title, p)
-    write("macros/game/awards/Default/scenario.json", doc({
+    write("macros/game/awards/scenario.json", doc({
         "Kind": "macro",
         "description": "What: rules S7 P-7 (docs/DESIGN_Scenario_Rules.md §00.13) - the round's awards: Top scorer, Most kills, Point keeper (captures), Sharpshooter (hit ratio >= 0.4), Untouchable (fewest deaths), each a Best over the score tree under 'among'. Judge: at the round's close each is Achieved with its Subject = the winner, or Failed when nobody qualifies.",
         "Anchor": {"Position": [0, 0, 0], "Heading": 0},

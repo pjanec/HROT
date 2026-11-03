@@ -116,7 +116,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             if (ObjectiveChildren.Evaluates(in s))
             {
                 string note = Serve(ref b, self, world);
-                string meansNote = ServeMeans(ref b, self, world);
+                string meansNote = b.Aggregate == 0 ? ServeMeans(ref b, self, world) : "";   // ⭐ S7 P-5: a game score (aggregate points) has no role / standard MEANS — those are the training debrief's (S4 ①)
                 if (note.Length == 0) note = meansNote;
                 if (note.Length == 0 && b.Unmatched > 0) note = $"{b.Unmatched} member(s) without a macro";
                 if (b.Aggregate == 0) WeightedMeanBehavior.Aggregate(world, self, ref s, s.Pass, f.Now, Kind, note);

@@ -145,7 +145,7 @@ namespace Hrot.Map.Definitions.Behavior
     public enum CountWhat : byte
     {
         Shots = 0, Hits = 1, Kills = 2, Fratricide = 3, CiviliansHarmed = 4, Reports = 5,
-        /// <summary>⭐ S7 P-3 — a hostile he harmed went down within 10 s of his last harm, another having the kill.</summary>
+        /// <summary>rules S4 ⑥ (behaviors): a hostile the subject's men hit and somebody else finished, within <c>assistSeconds</c> of the subject's last hit — once per victim.</summary>
         Assists = 6,
         /// <summary>⭐ S7 P-3 — a friend he harmed went down (never a kill). A fault: lower is better, target 0.</summary>
         TeamKills = 7,

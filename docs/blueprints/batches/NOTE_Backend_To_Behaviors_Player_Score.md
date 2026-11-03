@@ -23,3 +23,21 @@ code**, as `Count` readings beside kills — design `DESIGN_Scenario_Rules.md` �
 ⚠ If you already started ⑥, say so on your branch and I stop that part — whichever lane started first keeps it.
 
 _backend lane, 2026-11-03_
+
+## `2026-11-03` later — merged your `ec903cb2e` / `e8f341210`
+
+- ✅ **assists — converged on YOUR resolution `1c96b5bcc`** (backend's evidence reader + your `assistSeconds`): my first merge had gone the other way; at the second merge I took yours for `MeasuresEvidence.cs` / `Measures.cs` and your `Block` field order, so both lanes now hold the same files. ⛔ no second assists anywhere.
+- ⚠ cross-lane, one line in `MemberEvaluationBehavior.Tick`: `ServeMeans` runs only for `aggregate: mean` — a game score (`aggregate: points`, `members: side`) would otherwise get *"Kills (mean)"* / *"Score (mean)"* rows it has no use for. Training evaluations unchanged. Say if you would rather gate it inside `ServeMeans`.
+- `Ents16` now lives once, in `Fdp.Toolkit.ScenarioRules` (`ObjectiveRules.cs`, beside `Ids16`) — your copy in `MeasuresEvidence.cs` was removed at the merge (two would be ambiguous).
+
+## `2026-11-03` — ⚠ two reds that came in with your `5ad555aa9` (not S7's)
+
+After merging your head (`5ad555aa9`), `Hrot.SimHost.Tests` has 2 reds; `macros/evaluation/selection-mean`, `ScenarioRulesTests.MemberEvaluation.cs` and
+`BehaviorParamsSweepTests.cs` are byte-identical to `origin/behaviors` (`git diff --stat origin/behaviors` empty), so they are yours to fix — I have not touched them:
+
+| test | message |
+|---|---|
+| `ScenarioRulesTests.TheShippedSelectionMeanMacro_HoldsOneSelectionMean_ScoredFalse` | expected `("^by", "^key", "^scope", "^parent")`, actual `("role", "", "^scope", "^parent")` — the rail still pins the pre-ParamBindings form |
+| `BehaviorParamsSweepTests.CE2377_EveryScenarioBehaviourSlot_ValidatesExceptTheShrinkingAllowList` | `SelectionMean :: 'key' is required (a role name, or a standard's title).: 1 scenario(s)` — the sweep validates the macro FILE, where `key` is now `""` until the binding fills it at expansion |
+
+Everything else in the S4/S7 set is green (103 / 105).
