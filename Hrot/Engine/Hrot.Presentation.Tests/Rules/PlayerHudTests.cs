@@ -259,6 +259,9 @@ public sealed class PlayerHudTests : IDisposable
         Assert.Null(Hint());                                                     // nothing about me yet
         Leaves(Add(92, "My rule", role: ObjectiveRole.Trigger, subject: 1), ("in cover", true, 0f), ("speed", false, 7.5f), ("in the open", false, 0f));
         Assert.Equal("speed (7.5)", Hint());                                     // the first leaf that does not hold, with its number
+        Leaves(Add(93, "Phase 3 starts", role: ObjectiveRole.Trigger, subject: 1), ("b41d6e00-0000-4000-8000-0000000000", false, 0f));
+        Assert.Equal("speed (7.5)", Hint());                                     // the lower id still wins; a GUID-labelled leaf gets the rule's words once it is the only one:
+        Assert.Equal("Phase 3 starts: not yet", CoachingHint.Build(Entries().Where(e => e.NetworkId == 93).ToList(), Me(1, ForceId.Friend), e => LiveLeafOverlay.Read(_world, e.Entity)));
         Assert.Contains(Hrot.Common.Infrastructure.HudFeatures.Coaching, Hrot.Common.Infrastructure.HudFeatures.All);
         Assert.False(Hrot.Common.Infrastructure.HudFeatures.IsOn(Hrot.Common.Infrastructure.HudFeatures.BootGate(playerDefault: true), Hrot.Common.Infrastructure.HudFeatures.Coaching));   // OFF by default, even for the Player
     }

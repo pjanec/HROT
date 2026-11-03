@@ -62,7 +62,12 @@ public static class CoachingHint
         if (view.IsNone) return null;
         foreach (var e in entries.Where(e => !e.Authored && e.Status.Role == ObjectiveRole.Trigger && e.SubjectNetworkId == view.UnitNetId && e.Status.Closed == 0 && !e.Status.IsFinal).OrderBy(e => e.NetworkId))
             foreach (var l in leavesOf(e))
-                if (!l.Holds && l.Label.Length > 0) return l.Measured != 0f && l.Measured != 1f ? $"{l.Label} ({l.Measured:0.##})" : l.Label;
+                if (!l.Holds && l.Label.Length > 0)
+                {
+                    // ⚠ an OnEntity leaf's label starts with the authored ref (a GUID, cut to 32 chars): no words for a person ⇒ name the RULE instead
+                    string words = System.Text.RegularExpressions.Regex.IsMatch(l.Label, @"^[0-9a-fA-F]{8}-") ? $"{e.Status.Title}: not yet" : l.Label;
+                    return l.Measured != 0f && l.Measured != 1f ? $"{words} ({l.Measured:0.##})" : words;
+                }
         return null;
     }
 }

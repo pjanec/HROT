@@ -373,9 +373,11 @@ public sealed class RulesWindow : ManagedWindow
     {
         if (links.Count == 0) return;
         ImGui.TextDisabled(title);
+        bool first = true;
         foreach (var l in links)
         {
-            ImGui.SameLine(110f);
+            if (first) ImGui.SameLine(110f); else { ImGui.SameLine(); ImGui.TextDisabled("·"); ImGui.SameLine(); }   // ⭐ CE-4248 — every link sat at 110 px and drew over the one before
+            first = false;
             if (ImGui.Selectable($"{l.Text}##{title}{l.NetworkId}", false, ImGuiSelectableFlags.None, new Vector2(0, 0)))
             {
                 if (l.IsRule && _view.Find(l.NetworkId) is { } row) Select(row);   // a rule link selects THAT row
