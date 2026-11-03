@@ -91,14 +91,39 @@ namespace Fdp.Toolkit.ScenarioRules.Tests.Actions
         [Fact]
         public void CE4162_AnUnresolvedLink_FailsTheStep_WithAReason_AndLeavesNoSlot()
         {
+            // ⭐ the grace (found LIVE: a step naming what the previous step just created ran before the replicated entities arrived): Running while it waits, Failure when it is spent.
             using var w = LinkWorld();
             var e = Unit(w);
             var run = ActionCatalogue.RunnerFor("TestLogLink");
+            for (int i = 1; i < StepRunner.ResolveGraceTicks; i++)
+            {
+                Assert.Equal(NodeStatus.Running, run.Tick(w, e, Key, "{\"target\":\"@Nobody\"}"));
+                Assert.False(ActionHost.Holds(w, e, Key));                        // the half-seeded step slot is never kept
+            }
             Assert.Equal(NodeStatus.Failure, run.Tick(w, e, Key, "{\"target\":\"@Nobody\"}"));
             Assert.False(ActionHost.Holds(w, e, Key));
+            Assert.False(ActionHost.Holds(w, e, Key ^ StepRunner.ResolveWaitSalt));   // nor the wait counter
             Assert.True(ActionFailure.TryGet(w, e, out var f));
             Assert.Contains("Nobody", f.Reason.ToString());
+            Assert.Contains($"waited {StepRunner.ResolveGraceTicks} ticks", f.Reason.ToString());
             Assert.Equal(0, w.GetComponentRO<ActionTestLog>(e).Count);           // the action never ran
+        }
+
+        /// <summary>The link names something that is created a few ticks later (a replicated ghost): the step waits, then seeds and runs, and the wait counter is gone. ✅ Red-proof:
+        /// <c>ResolveGraceTicks</c> = 1 (or the retry dropped) ⇒ the step fails at once ⇒ red.</summary>
+        [Fact]
+        public void AnUnresolvedLink_ThatAppearsWithinTheGrace_Resolves()
+        {
+            using var w = LinkWorld();
+            var e = Unit(w);
+            var run = ActionCatalogue.RunnerFor("TestLogLink");
+            for (int i = 0; i < 5; i++) Assert.Equal(NodeStatus.Running, run.Tick(w, e, Key, "{\"target\":\"@Late\"}"));
+            Assert.True(ActionHost.Holds(w, e, Key ^ StepRunner.ResolveWaitSalt));     // counting
+            Keyed(w, "Late", 4712);                                                    // the entity arrives
+            Assert.Equal(NodeStatus.Success, run.Tick(w, e, Key, "{\"target\":\"@Late\"}"));
+            Assert.Equal(4712, w.GetComponentRO<ActionTestLog>(e).V0);                 // the action saw the entity
+            Assert.False(ActionHost.Holds(w, e, Key ^ StepRunner.ResolveWaitSalt));    // the wait slot is gone
+            Assert.False(ActionFailure.TryGet(w, e, out _));
         }
 
         [Fact]
