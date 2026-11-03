@@ -284,6 +284,8 @@ point) · *Sharpshooter* (accuracy ≥ 40 % with ≥ 10 hits) · *Crate hunter* 
 
 📐 **Round 7 (`2026-11-03`, full 900 s)** — ui's ⑤ ⑥: each man's `Score` now moves (target 1000; best 0.35 = 350 points) · the end NAMES the winner (G-9): *Red wins* fired at 900 s on *Blue lead* −70 ⇒ *"exercise ended at 900.799 s: Friend Lose, Hostile Win"* — the round summary can say RED WINS.
 
+📐 **Runnable by hand (`2026-11-03`, `HANDOFF_Coordinator_To_Backend_Rules_Runnable.md`)** — started by `./run_All.sh --scenario showcase-crossfire --play` (the manual-test guide §1.2): ⭐ **the instructor's End** — trigger *Instructor end* (RefKey `instructor-end`, its `when` never holds by itself) fired by hand (`POST /objectives/{id}/control {"request":"Fire"}`, ui's End button) arms three deciders on *Blue lead* ⇒ *Instructor end: Blue ahead* ⇒ *"exercise ended … Friend Win, Hostile Lose"* · ⭐ **crates are held for tickets** — a dormant HoldArea on each crate spot (its marker's area, so it follows the variant; ⚠ in the scenario, not inside `game/supply-crate`: a macro is closed, SR-58, and cannot reach the counters), switched on by the drop: a side outnumbering the other there for 20 s ⇒ +15 tickets once and a capture to each of its men — live: Blue Squad 1 ordered to crate 1 ⇒ *Crate 1 to Blue* at 258 s (the AI does not seek crates by itself) · *Untouchable* now needs ≥ 5 kills (`Best.also`).
+
 **Acceptance (§2.6):** line 1 — rail `G1_Capture_OutnumberFor10s_ThenLostWhenOutnumbered` + `checks.json` (a point taken, the drain moves tickets) ✅ · line 2 — `checks.json` ✅ · line 3 ⏳ CE-4155 + S4 · line 4 — `checks.json` (≤ 1 per 2 min) ✅ · line 5 ⏳ S4.
 
 ### 2.7 The extension to true capture the flag *(a later variant — most of the carrying is already built)*
