@@ -34,7 +34,7 @@ related-designs:
 | 3 | exercise control | pacing, difficulty, branches and the end, from the same pieces | ✅ data patterns · ⏳ a reusable control behaviour |
 | 4 | references and keys | how one thing points at another, with no network ids in a file | ✅ |
 | 5 | scenario macros | reusable parts, placed and expanded anywhere | ✅ · ⏳ preview of a runtime insert |
-| 6 | scoring and evaluation | scores per person, squad, platoon | ✅ tree, measures, pass mark, required measures (CE-2378) · ⏳ role composites, score history |
+| 6 | scoring and evaluation | scores per person, squad, platoon | ✅ tree, measures, pass mark, required measures (CE-2378), role / standard means, score-history lane (S4 ①–⑥, live gate passed) |
 | 7 | the game profile | capture points, tickets, respawn waves, per-player score | ✅ v1 · ✅ per-player score, awards, streaks, bounty (on leans P-1…P-9) |
 | 8 | messages and the end | briefings to players, the closing of the exercise | ✅ |
 | 9 | what people see | instructor, player, game master | ✅ data and entity tree · ⏳ most screens — designs approved, being built (ui) |
@@ -734,7 +734,7 @@ checks wait for it by construction (SR-146, SR-147). Any node that may extract e
 
 > **Status:** ✅ built — objectives, measures, composites and per-member evaluation (S1, S4 E-1…E-3 on `behaviors`, `DESIGN_Scenario_Rules.md` §00.8, §00.11);
 > ✅ built — the pass mark (`Pass` on the status, `ObjectiveRules.PassOf`) and CE-2378 (*a required measure below its pass fails its composite*, lean accepted by the user `2026-11-03`);
-> ⏳ dispatched, not confirmed built — role composites, the score-history lane, the debrief's data checks (`HANDOFF_Coordinator_To_Behaviors_Rules_S4_Scores.md`).
+> ✅ built — S4 ①–⑥ of `HANDOFF_Coordinator_To_Behaviors_Rules_S4_Scores.md`: role and standard means (`SelectionMean`), the score-history lane, the debrief's fields as reads; live gate passed on IG and SimHost (§00.11 *LIVE GATE*).
 > Decisions: SR-19, SR-72, SR-72a, SR-75, SR-78, SR-81, SR-82, SR-83, SR-117, SR-118, SR-122, E-1…E-5.
 
 ### 6.1 How it works
@@ -787,13 +787,13 @@ commander's evaluation, so squad and platoon scores are just the composites abov
 | **the roll-up** | the tree by `Parent`; per-side headline = the root composites by their subject's side; at the end `ExerciseResult` carries per side `{Outcome, Points, Score}` (§8). A grade (A–F, %) is NOT computed by the engine — a frontend derives it (R-4105) |
 | **attribution** | every damage names its source; a re-thrown grenade carries both `Source` (last thrower) and `OriginalSource`; a measure chooses `attribute: last \| original \| both` (default `last`) — SR-82, CE-4155 ✅ |
 
-### 6.2 What is designed next (not built)
+### 6.2 Means by role and by standard, and the score history *(✅ built, S4)*
 
-| item | what | where |
+| item | how it works | |
 |---|---|---|
-| role composites | one composite per role under the side root (*All riflemen*, *All MG gunners*), following the chain live | handoff item ① |
-| score-history lane | an indexed timeline lane of `Score` changes joined to the rules lanes provider (RV-4) | item ④, SR-103 |
-| the debrief's data | confirm every field is a read of the tree | item ⑤ |
+| **role / standard means** | kind **`SelectionMean`** `{ by: role \| standard, key, scope }` — a mean over a SELECTION of statuses, not over children: an objective has ONE `Parent` and a man's standards already belong to his commander's evaluation, so a second parent would count him twice. `by: role` = the men's roots under `scope` whose role is `key` (*All riflemen*); `by: standard` = every member's standard titled `key` (*Hit ratio* across the squad, its own men only). A casualty is remembered and keeps his result. `MemberEvaluation` inserts them (unscored) for `aggregate: mean` | `SelectionMeanBehavior.cs`, §00.11 |
+| **score-history lane** | an indexed timeline lane of `Score` changes beside the rules lanes (RV-4) — the trend, *went well / work on*, the best moment | `ScenarioRulesTimelineLanes` |
+| **the debrief's data** | every field PH-6 shows is a read of the tree (`Pass`, the means, the lane) | handoff item ⑤ |
 
 ### 6.3 How it is authored
 
@@ -810,7 +810,7 @@ commander's evaluation, so squad and platoon scores are just the composites abov
 | where | what | status |
 |---|---|---|
 | `GET /objectives` (`?tree=1`) | every status, the tree by `Parent`, trigger rows with their state, timing, links and live leaves | ✅ any node |
-| the instructor's **mission summary** — scores by command chain / objective / role, trend, *why this score* | RV-8 (approved) builds the first half (counts, forces, result) with NO score; scores by level need §6.2's role composites | ⏳ (§9) |
+| the instructor's **mission summary** — scores by command chain / objective / role, trend, *why this score* | the data is all built (the tree, `Pass`, the §6.2 means and lane); the screen is ui's RV-8 (approved) | ⏳ (§9) |
 | the rules view's **Results** tab (the composite tree, per member and role) | SR-109, RE-6 (approved) | ⏳ (§9) |
 | the trainee's own standards on the HUD and in the debrief — GO / NO-GO is now a read (`Score ≥ Pass`) | SR-83, PH-3, PH-6 (approved) | ⏳ (§9) |
 
@@ -874,7 +874,7 @@ computed on the **Brain** node, on the status wire (`dtObjectiveStatus`), record
 | **the inputs** | four new `Count` readings — **assists** (he harmed a hostile who went down within `assistSeconds`, default 10 s, while another man got the kill) · **team kills** (never a kill) · **deaths** · **captures** (a capture point publishes `ObjectiveCapturedEvent` naming the men inside) — all through the ONE evidence reader, and a kill is credited once from `ManDownedEvent` (CE-3364) with CE-4155's attribution (a rethrown grenade blames the rethrower) | P-3, P-4 |
 | **awards** | kind **`Best`** in an instanced macro `macros/game/awards`: *Top scorer* · *Most kills* · *Point keeper* · *Sharpshooter* (≥ 0.4) · *Untouchable*; live it shows the leader, at the close Achieved with `Subject` = the winner | P-7 |
 | **streaks and the bounty** | `Count streak` / `bestStreak` / `bountyKills` per man; a `Bounty` on a man with a streak of 5 stands while it lasts, a *Bounty announced* message names him (`{subject}`), killing him is worth 300; awards *Bounty hunter*, *Longest streak* | P-8 |
-| **what the screens read** | already the wire: a *+100* pop-up = a child measure's `Value` rising × its `points`; the scoreboard = the men's *Score* roots; the best moment = the largest rise in the recording (the score-history lane, ⏳) | P-9 |
+| **what the screens read** | already the wire: a *+100* pop-up = a child measure's `Value` rising × its `points`; the scoreboard = the men's *Score* roots; the best moment = the largest rise in the recording (the score-history lane, §6.2) | P-9 |
 
 **Measured live** (Crossfire round 4): 10 credited downings for 11 men downed — kills reconcile after CE-3364; streaks live (best 3); no bounty arose, so the
 bounty is proven by rails only (`ScenarioRulesTests.Score`). ⚠ v1 scores a PERSON ENTITY; a human player's score across lives waits for Player Join's respawn.
@@ -968,7 +968,7 @@ different numbers. The designed `RulesReader` is the single reading layer all of
 |---|---|---|---|
 | **statuses over HTTP** | `GET /objectives` (tree, trigger state, timing, links, leaves) | ✅ | — |
 | **rules view** — objectives and triggers on a sim-time Gantt with a NOW line: past at actual times, future as dashed *expected* bars after what they wait for, connectors from each trigger's `when` / `do`, a *Coming up* strip; trigger tabs *When · Do · Rules · History*, objective tabs *Status · Settings · Results · History*; live edits last for THIS run only | the data: links, timing, expected time, live leaf values (feature `ui.rules-live-values`), runtime control ✅ (V-1…V-4). The shared timeline panel's extensions (item styles, tree rows, extent without a recording) ✅ built (R1). The window, the rules lanes provider, connectors, *Coming up* | ⏳ RV-1…RV-9 ✅ approved, being built (ui) | [`Main`](designs/rules-view/mockup/Main.html) · [`TriggerDetails`](designs/rules-view/mockup/TriggerDetails.html) · [`ObjectiveDetails`](designs/rules-view/mockup/ObjectiveDetails.html) · [`EditAtRuntime`](designs/rules-view/mockup/EditAtRuntime.html) |
-| **mission summary** — read-only: headline score with trend and pass mark per side, required objectives n / N, forces, items needing attention, one table of scores by command chain (platoon ▸ squad ▸ person), by objective or by role, each row explaining *why*; opens on a recording too | RV-8 ✅ approved: the first half (counts, forces, result); the scores by level need §6.2's role composites ⏳ | ⏳ | [`MissionSummary`](designs/rules-view/mockup/MissionSummary.html) |
+| **mission summary** — read-only: headline score with trend and pass mark per side, required objectives n / N, forces, items needing attention, one table of scores by command chain (platoon ▸ squad ▸ person), by objective or by role, each row explaining *why*; opens on a recording too | RV-8 ✅ approved: the first half (counts, forces, result); the scores by level read §6.2's means ✅ | ⏳ | [`MissionSummary`](designs/rules-view/mockup/MissionSummary.html) |
 | **entity tree** — one panel, three relations | **Command** (the ORBAT) · **Structure** (parts, riders) · **Scenario** (members under their macro, *Saved* / *Transient*) | ✅ HV-1…HV-5 | — |
 | **macro surfaces** — marker, dimmed members, member lines, Macro tab | §5.3 | ✅ | — |
 | **game-master runtime controls** — add an entity, order, the Brain tab, time control; *Add ▸ Macros* | exist ✅ (SR-104). Fire / disarm / re-arm / reset / activate any rule: the data path exists (`RuleControl` written to the owner, journaled with its origin; `POST /objectives/{id}/control`) ✅, the buttons ⏳ RV-5 (approved). An action palette (run any shared action by hand), a per-side skill slider, the MSEL panel | ✅ / ⚠ / ⏳ | [`EditAtRuntime`](designs/rules-view/mockup/EditAtRuntime.html) |
