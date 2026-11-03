@@ -141,8 +141,8 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("target")] public float? Target;
     }
 
-    /// <summary>What a <c>Count</c> counts.</summary>
-    public enum CountWhat : byte { Shots = 0, Hits = 1, Kills = 2, Fratricide = 3, CiviliansHarmed = 4, Reports = 5 }
+    /// <summary>What a <c>Count</c> counts. <c>Assists</c> (rules S4 ⑥): a hostile the subject's men hit and somebody else finished, within <c>assistSeconds</c> of the subject's last hit — once per victim.</summary>
+    public enum CountWhat : byte { Shots = 0, Hits = 1, Kills = 2, Fratricide = 3, CiviliansHarmed = 4, Reports = 5, Assists = 6 }
 
     /// <summary><c>Count</c>: how many <see cref="What"/> by the subject's men. fratricide / civiliansHarmed are lower-is-better with target 0; the others higher-is-better with target
     /// <see cref="Target"/> (default 1).</summary>
@@ -154,6 +154,8 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("what"), JsonConverter(typeof(JsonStringEnumConverter))] public CountWhat What;
         [JsonPropertyName("attribute"), JsonConverter(typeof(JsonStringEnumConverter))] public HarmAttribute Attribute;
         [JsonPropertyName("target")] public float? Target;
+        /// <summary>⭐ rules S4 ⑥ — <c>assists</c> only: the window (s) before the kill inside which the subject's last hit still earns the assist; 0 = 10.</summary>
+        [JsonPropertyName("assistSeconds")] public float AssistSeconds;
     }
 
     /// <summary><c>ReportLatency</c>: the mean of <c>SentAt − ObservedAt</c> of the subject's reports so far (lower is better; default target 60 s).</summary>

@@ -33,12 +33,12 @@ public sealed class TheObjectivesRouteShowsTheTreeTests : IDisposable
 
     public void Dispose() => _world.Dispose();
 
-    private void Add(int id, string title, string kind, ObjectiveState state, int parent = 0, float score = 0f)
+    private void Add(int id, string title, string kind, ObjectiveState state, int parent = 0, float score = 0f, float pass = 0f)
     {
         var e = _world.CreateEntity();
         _map.Register(id, e);
         _world.AddComponent(e, new NetworkIdentity(id));
-        _world.AddComponent(e, new ObjectiveStatus { Title = new FixedString64(title), Kind = new FixedString32(kind), State = state, Score = score, ProgressCur = 1, ProgressNeed = 4, Reason = new FixedString64("1/4"), Group = new FixedString32(kind == "ReachArea" ? "fire" : "") });
+        _world.AddComponent(e, new ObjectiveStatus { Title = new FixedString64(title), Kind = new FixedString32(kind), State = state, Score = score, Pass = pass, ProgressCur = 1, ProgressNeed = 4, Reason = new FixedString64("1/4"), Group = new FixedString32(kind == "ReachArea" ? "fire" : "") });
         _world.AddComponent(e, new ObjectiveLinks { Parent = new EntityRef(parent), Subject = new EntityRef(900) });
     }
 
@@ -47,9 +47,9 @@ public sealed class TheObjectivesRouteShowsTheTreeTests : IDisposable
     [Fact]
     public void TheRoute_AnswersTheThreeRows_TheRootAndItsChildren_WithStateNames()
     {
-        Add(10, "Squad mission", "WeightedMean", ObjectiveState.Active);
+        Add(10, "Squad mission", "WeightedMean", ObjectiveState.Active, pass: 0.6f);
         Add(12, "Hold", "HoldArea", ObjectiveState.Failed, parent: 10);
-        Add(11, "Reach", "ReachArea", ObjectiveState.Achieved, parent: 10, score: 1f);
+        Add(11, "Reach", "ReachArea", ObjectiveState.Achieved, parent: 10, score: 1f, pass: 1f);
 
         var body = _svc.GetObjectives();
         var rows = body["objectives"]!.AsArray();
@@ -61,6 +61,7 @@ public sealed class TheObjectivesRouteShowsTheTreeTests : IDisposable
         Assert.Equal(("Achieved", "ReachArea", 1f, 10, 900), ((string)rows[2]!["state"]!, (string)rows[2]!["kind"]!, (float)rows[2]!["score"]!, (int)rows[2]!["parent"]!, (int)rows[2]!["subject"]!));
         Assert.Equal(("fire", ""), ((string)rows[2]!["group"]!, (string)rows[1]!["group"]!));   // ⭐ rules S4 E-3: the evaluation group
         Assert.Equal((1, 4, "1/4"), ((int)rows[2]!["progress"]!["cur"]!, (int)rows[2]!["progress"]!["need"]!, (string)rows[2]!["reason"]!));
+        Assert.Equal((0.6f, 1f), ((float)rows[0]!["pass"]!, (float)rows[2]!["pass"]!));   // ⭐ rules S4 ②: the pass mark — GO is score >= pass ✅ Red-proof: "pass" dropped from the row ⇒ red
         Assert.Null(rows[0]!["parent"]);
 
         var nested = _svc.GetObjectives(tree: true);

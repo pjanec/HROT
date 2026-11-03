@@ -59,7 +59,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
             if (f.Evaluate)
             {
-                MeasureEvidence.Update(world, b.Common.Subject.Resolve(world), b.Attribute, ref b.Tally);
+                MeasureEvidence.Update(world, b.Common.Subject.Resolve(world), b.Attribute, ref b.Tally, f.Now);
                 s.Target = b.Target;
                 s.Value = b.Tally.Shots > 0 ? (float)b.Tally.Hits / b.Tally.Shots : 0f;
                 var t = b.Tally;
@@ -79,7 +79,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
     // ═══ Count ══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// <c>Count { what }</c> — how many shots · hits · kills · fratricide · civiliansHarmed · reports by the subject's men (events BY the subject; ⛔ not <see cref="CounterBehavior"/>, a pool the scenario moves).
+    /// <c>Count { what }</c> — how many shots · hits · kills · assists · fratricide · civiliansHarmed · reports by the subject's men (events BY the subject; ⛔ not <see cref="CounterBehavior"/>, a pool the scenario moves).
     /// fratricide and civiliansHarmed are LOWER-is-better with Target 0 (any is a fault, a score of 0); the others higher-is-better with <c>target</c> (default 1).
     /// </summary>
     public static class CountBehavior
@@ -90,7 +90,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         public struct Block
         {
             public ObjectiveCommonBlock Common; public ObjectiveRun Run;
-            public CountWhat What; public HarmAttribute Attribute; public float Target;
+            public CountWhat What; public HarmAttribute Attribute; public float Target, AssistSeconds;
             public FireTally Tally; public int Reports; public float ShownValue; public int ShownN;
         }
 
@@ -106,6 +106,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             {
                 Common = ObjectiveCommonBlock.From(in authored.Common), What = authored.What, Attribute = authored.Attribute,
                 Target = IsFault(authored.What) ? 0f : authored.Target ?? 1f, ShownValue = float.NaN,
+                AssistSeconds = authored.AssistSeconds > 0f ? authored.AssistSeconds : MeasureEvidence.DefaultAssistSeconds,
             };
 
         [SharedAiAction]
@@ -118,12 +119,12 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             {
                 var subject = b.Common.Subject.Resolve(world);
                 if (b.What == CountWhat.Reports) { MeasureEvidence.Reports(world, subject, out int n, out _); b.Reports += n; }
-                else MeasureEvidence.Update(world, subject, b.Attribute, ref b.Tally);
+                else MeasureEvidence.Update(world, subject, b.Attribute, ref b.Tally, f.Now, b.AssistSeconds);
                 s.Target = b.Target;
                 s.Value = b.What switch
                 {
                     CountWhat.Shots => b.Tally.Shots, CountWhat.Hits => b.Tally.Hits, CountWhat.Kills => b.Tally.Kills,
-                    CountWhat.Fratricide => b.Tally.Fratricide, CountWhat.CiviliansHarmed => b.Tally.Civilians, _ => b.Reports,
+                    CountWhat.Fratricide => b.Tally.Fratricide, CountWhat.CiviliansHarmed => b.Tally.Civilians, CountWhat.Assists => b.Tally.Assists, _ => b.Reports,
                 };
                 if (MeasureHost.Changed(ref b.ShownValue, ref b.ShownN, s.Value, 0, in s))
                     ObjectiveHost.Settle(ref s, Kind, ObjectiveState.Active, $"{b.What} {s.Value:0} (target {b.Target:0.##})", f.Now);

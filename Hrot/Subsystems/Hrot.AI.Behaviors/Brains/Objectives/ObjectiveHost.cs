@@ -72,7 +72,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             else
             {
                 ObjectiveRules.CopyLinks(ref l, in c);
-                ObjectiveRules.Display(ref s, in c);
+                ObjectiveRules.Display(ref s, in c, kind, role);
                 ObjectiveRules.Timing(ref s, in c);
                 dt = now > run.LastNow ? now - run.LastNow : 0;
             }

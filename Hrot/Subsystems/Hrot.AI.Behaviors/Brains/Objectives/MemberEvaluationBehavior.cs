@@ -100,7 +100,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             {
                 string note = Serve(ref b, self, world);
                 if (note.Length == 0 && b.Unmatched > 0) note = $"{b.Unmatched} member(s) without a macro";
-                WeightedMeanBehavior.Aggregate(world, self, ref s, WeightedMeanBehavior.DefaultPassScore, f.Now, Kind, note);
+                WeightedMeanBehavior.Aggregate(world, self, ref s, s.Pass, f.Now, Kind, note);
             }
             ObjectiveHost.CloseComposite(world, self, ref s, f.Now);
             return NodeStatus.Running;

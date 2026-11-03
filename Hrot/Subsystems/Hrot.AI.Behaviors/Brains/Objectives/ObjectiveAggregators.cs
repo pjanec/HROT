@@ -108,7 +108,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
     {
         public const string Kind = BehaviorNames.WeightedMean;
         /// <summary>The pass score when the params give none.</summary>
-        public const float DefaultPassScore = 0.6f;
+        public const float DefaultPassScore = ObjectiveRules.DefaultCompositePass;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct Block { public ObjectiveCommonBlock Common; public ObjectiveRun Run; public float PassScore; }
@@ -118,7 +118,12 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
 
         [BehaviorResolver(BehaviorNames.WeightedMean)]
         public static void Resolve(in WeightedMeanParamsJsonDto authored, ref WeightedMeanBlackboard bb, EntityRepository world, Entity self)
-            => bb.Block = new Block { Common = ObjectiveCommonBlock.From(in authored.Common), PassScore = authored.PassScore <= 0f ? DefaultPassScore : authored.PassScore };
+        {
+            // ⭐ rules S4 ② — the composite's own passScore wins, else common.pass, else the default; Common.Pass carries it so ObjectiveRules.PassOf writes the same into the status.
+            var common = ObjectiveCommonBlock.From(in authored.Common);
+            if (authored.PassScore > 0f) common.Pass = Math.Min(authored.PassScore, 1f);
+            bb.Block = new Block { Common = common, PassScore = ObjectiveRules.PassOf(Kind, ObjectiveRole.Objective, common.Pass) };
+        }
 
         [SharedAiAction]
         public static NodeStatus Tick(ref Block b, Entity self, EntityRepository world)

@@ -231,6 +231,8 @@ namespace Hrot.NED.Descriptors
         public double ExpectedAt;
         /// <summary>⭐ rules S4 E-3: the evaluation group (mission · fire · reports · conduct …); "" = none. A display field, goes at once.</summary>
         public string Group;
+        /// <summary>⭐ rules S4 ②: the pass mark (0..1) — GO / NO-GO is <c>Score ≥ Pass</c>. A display field, goes at once.</summary>
+        public float Pass;
     }
 
     // ⭐ rules S2-e (docs/DESIGN_Scenario_Rules.md §00.9, SR-122) — the exercise's RESULT: the phase (Running / Closing / Ended), when it ended, why, and the

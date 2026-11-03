@@ -38,6 +38,8 @@ namespace Fdp.Toolkit.ScenarioRules
         public float Target;
         /// <summary>0..1.</summary>
         public float Score;
+        /// <summary>⭐ rules S4 ② — the pass mark (0..1): GO / NO-GO is the read <c>Score ≥ Pass</c>. Written in ONE place (<see cref="ObjectiveRules.PassOf"/>); on a composite this is the field to read (<c>Target</c> keeps the same number there for old screens).</summary>
+        public float Pass;
         public float Points;
         /// <summary>Sim time (s) of the last state change.</summary>
         public double ChangedAt;

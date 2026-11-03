@@ -217,5 +217,65 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((byte)1, w.S(m).Closed);
             Assert.Equal(ObjectiveState.Achieved, w.S(root).State);
         }
+
+        /// <summary>⭐ rules S4 ② — a pass mark on EVERY status (GO / NO-GO = <c>Score ≥ Pass</c>), written in one place (<c>ObjectiveRules.PassOf</c>) through the real load path:
+        /// a measure 1 (its target met), a Counter 0 (a pool, no verdict), an ordinary objective 1, <c>AllMustPass</c> 1, <c>WeightedMean</c> 0.6 / its <c>passScore</c> (<c>Target</c> keeps the same number),
+        /// <c>MemberEvaluation</c> 0.6; an authored <c>common.pass</c> wins on a measure. ✅ Red-proof: the measure default of <c>PassOf</c> changed to 0.5 ⇒ red.</summary>
+        [Fact]
+        public void Pass_OnEveryKind_OneDefaultEach_AnAuthoredPassWins()
+        {
+            var w = new ObjWorld();
+            var m = w.Man(Inside, ForceId.Friend);
+            var squad = w.Squad(ForceId.Friend, m);
+            var measure = w.Objective("Count", MeasureJson(w, squad, ",\"what\":\"shots\",\"target\":4"));
+            var authored = w.Objective("Count", MeasureJson(w, squad, ",\"what\":\"shots\",\"target\":4", ",\"pass\":0.75"));
+            var pool = w.Objective("Counter", CounterJson(10, "", ""));
+            var reach = w.Objective("ReachArea", $"{{{Common(w, squad)},\"area\":{Circle0}}}");
+            var all = w.Objective("AllMustPass", $"{{{NoSubject}}}");
+            var mean = w.Objective("WeightedMean", $"{{{NoSubject}}}");
+            var meanAuthored = w.Objective("WeightedMean", $"{{{NoSubject},\"passScore\":0.8}}");
+            w.Run(1);
+            Assert.Equal(1f, w.S(measure).Pass);
+            Assert.Equal(0.75f, w.S(authored).Pass);
+            Assert.Equal(0f, w.S(pool).Pass);
+            Assert.Equal(1f, w.S(reach).Pass);
+            Assert.Equal(1f, w.S(all).Pass);
+            Assert.Equal(0.6f, w.S(mean).Pass);
+            Assert.Equal(0.8f, w.S(meanAuthored).Pass);
+            Assert.Equal(0.8f, w.S(meanAuthored).Target);   // Target keeps the number it had
+            Shoot(w, m, 3); w.Tick();
+            Assert.Equal(0.75f, w.S(measure).Score, 3);
+            Assert.False(w.S(measure).Score >= w.S(measure).Pass);   // 3 of 4 shots: NO-GO at the default pass 1
+            Assert.True(w.S(authored).Score >= w.S(authored).Pass);   // GO at the authored 0.75
+        }
+
+        /// <summary>⭐ rules S4 ⑥ — <c>Count assists</c>: a hostile the subject's man hit and somebody else finished counts ONCE, when he goes down within <c>assistSeconds</c> of the subject's last hit;
+        /// not a kill (the killer's own victim is no assist), not after the window, never for a stranger's victim. ✅ Red-proof: the window test removed from <c>MeasureEvidence</c> ⇒ the late one counts ⇒ red.</summary>
+        [Fact]
+        public void Count_Assists_TheKillBySomebodyElse_OnceAndInsideTheWindow()
+        {
+            var w = new ObjWorld();
+            var m = w.Man(Inside, ForceId.Friend);
+            var squad = w.Squad(ForceId.Friend, m);
+            var buddy = w.Man(Inside, ForceId.Friend);                                  // not of the subject
+            var quick = w.Man(Inside, ForceId.Hostile, health: 10f);                    // hit by m, finished by buddy in time: an assist
+            var slow = w.Man(Inside, ForceId.Hostile, health: 10f);                     // hit by m, finished by buddy long after: none
+            var mine = w.Man(Inside, ForceId.Hostile, health: 10f);                     // m's own kill: a kill, not an assist
+            var theirs = w.Man(Inside, ForceId.Hostile, health: 10f);                   // only buddy hit him: nobody's assist
+            var assists = w.Objective("Count", MeasureJson(w, squad, ",\"what\":\"assists\",\"target\":3"));
+            var kills = w.Objective("Count", MeasureJson(w, squad, ",\"what\":\"kills\",\"target\":3"));
+            w.Run(1);
+            w.Harm(quick, m); w.Harm(slow, m); w.Harm(mine, m); w.Harm(theirs, buddy);
+            w.Tick();
+            w.Harm(quick, buddy); w.Harm(slow, buddy); w.Tick();                        // buddy's harm supersedes m's credit
+            w.Repo.GetComponentRW<Health>(quick).Current = 0f; w.Repo.GetComponentRW<Health>(mine).Current = 0f; w.Repo.GetComponentRW<Health>(theirs).Current = 0f;
+            w.Tick();
+            Assert.Equal((1f, 1f), (w.S(assists).Value, w.S(kills).Value));              // quick = assist, mine = kill
+            w.Harm(quick, buddy); w.Tick();                                              // a corpse shot again: still one
+            Assert.Equal(1f, w.S(assists).Value);
+            w.Run(12);                                                                  // past the 10 s window
+            w.Repo.GetComponentRW<Health>(slow).Current = 0f; w.Tick();
+            Assert.Equal((1f, 1f), (w.S(assists).Value, w.S(kills).Value));              // too late: not an assist, and not m's kill either
+        }
     }
 }
