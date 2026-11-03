@@ -21,6 +21,8 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
     {
         public const string Kind = BehaviorNames.Bounty;
         public const int DefaultMinStreak = 5;
+        /// <summary>P-8b′ — how long (sim s) an Active bounty whose man left the fight waits for the <see cref="ManDownedEvent"/> that claims it (the event can arrive a frame or two after the man is seen down).</summary>
+        public const double ClaimWaitSeconds = 3.0;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct Block
@@ -29,6 +31,8 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             public EntityRef Streak; public int MinStreak;
             /// <summary>Working state (recorded): 0 after a claim until the streak is seen below the minimum.</summary>
             public byte Armed; public byte Started;
+            /// <summary>P-8b′ — sim time his man was first seen out of the fight while the bounty stood (waiting for the downing event); <c>Waiting</c> says it is set.</summary>
+            public double DownSince; public byte Waiting;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -47,7 +51,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         {
             // Hold: this kind closes itself (its state is Pending between bounties, which the host would not evaluate)
             var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Objective, in b.Common, ref b.Run, ObjectiveHost.CloseMode.Hold);
-            if (f.Reset) { b.Armed = 1; b.Started = 0; }
+            if (f.Reset) { b.Armed = 1; b.Started = 0; b.Waiting = 0; }
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
             bool live = s.Closed == 0 && s.State is ObjectiveState.Active or ObjectiveState.Pending;
             if (live && ExerciseResult.PhaseOf(world) == ExercisePhase.Running)
@@ -56,11 +60,23 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 bool wasActive = s.State == ObjectiveState.Active && b.Started != 0;
                 if (wasActive && Claimed(world, subject, out var killer))
                 {
-                    s.FireCount++; s.LastFired = f.Now; b.Armed = 0;
+                    s.FireCount++; s.LastFired = f.Now; b.Armed = 0; b.Waiting = 0;
                     ObjectiveHost.Settle(ref s, Kind, ObjectiveState.Pending, $"claimed by {NameOf(world, killer)}", f.Now);
+                }
+                else if (wasActive && !(!subject.IsNull && world.IsAlive(subject) && Fdp.Toolkit.Combat.Injury.IsInTheFight(world, subject)))
+                {
+                    // ⭐ P-8b′ — his man left the fight: the bounty STANDS until the downing event claims it (above, next ticks) or ClaimWaitSeconds pass
+                    if (b.Waiting == 0) { b.Waiting = 1; b.DownSince = f.Now; }
+                    if (f.Now - b.DownSince >= ClaimWaitSeconds)
+                    {
+                        b.Waiting = 0;
+                        ObjectiveHost.Settle(ref s, Kind, ObjectiveState.Pending, "down, no claim", f.Now);
+                    }
+                    else ObjectiveHost.Settle(ref s, Kind, ObjectiveState.Active, "down — awaiting the downing", f.Now);
                 }
                 else
                 {
+                    b.Waiting = 0;
                     var link = b.Streak.Resolve(world);
                     float streak = !link.IsNull && world.IsAlive(link) && world.HasComponent<ObjectiveStatus>(link) ? world.GetComponentRO<ObjectiveStatus>(link).Value : 0f;
                     if (streak < b.MinStreak) b.Armed = 1;
