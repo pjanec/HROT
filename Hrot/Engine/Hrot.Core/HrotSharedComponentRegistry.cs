@@ -254,6 +254,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<TimeSyncOffsetCalculatedEvent>();
         world.RegisterEvent<Fdp.Toolkit.Replication.Components.DescriptorAuthorityChanged>();
         world.RegisterManagedEvent<Fdp.Toolkit.Replication.Events.UpdateEntityAttributeCommand>();
+        world.RegisterManagedEvent<Fdp.Toolkit.Replication.Edits.EditOutcome>();   // ⭐ CE-2380 part 1 — the outcome of a remote edit (EditOutcomes.Report / the wire ingress)
 
         // ── Ownership handover bus contract ───────────────────────────────────
         // ⭐⭐⭐ ADDED 2026-09-04 after a MEASURED live cluster failure: a `--mode all` run loaded

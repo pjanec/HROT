@@ -285,6 +285,34 @@ namespace Hrot.NED.Messages
         /// </summary>
         [DdsManaged]
         public List<AttributeRecord>? AttributeRecords;
+
+        /// <summary>
+        /// ⭐ CE-2380 part 1 (R-2082) — the requester wants an <see cref="EntityEditOutcome"/> from the owner. Separate from <see cref="RequireAck"/> (which
+        /// stays as it is): false (default) = no outcome is sent. Appended LAST so the field order of the older members is untouched.
+        /// </summary>
+        public bool WantOutcome;
+    }
+
+    // ⭐ CE-2380 part 1 (R-2082, 📄 docs/DESIGN_Remote_Edit_Outcome.md §2) — the outcome of a remote edit, owner → every node: applied / pending / refused, with the reason.
+    // Answers an UpdateEntityAttributeRequest that had WantOutcome set (or, later, a judge's final verdict under the same RequestId). ⛔ Not CreateUpdateDeleteEntityAck — that stays as it is.
+    [DdsTopic]
+    [DdsIdlFile("hrot-generic-msgs")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
+    public partial struct EntityEditOutcome
+    {
+        public Guid RequestId;
+
+        public int EntityId;
+
+        /// <summary>Fdp.Toolkit.Replication.Edits.EditStatus: 1=Applied, 2=Pending, 3=Refused.</summary>
+        public int Status;
+
+        /// <summary>The node that answered (a plain node id, as on every other wire message).</summary>
+        public int RespondingNode;
+
+        /// <summary>Why — for a refusal, what was not applied (capped at 1000 characters by the sender).</summary>
+        [DdsManaged]
+        public string Reason;
     }
 
     // Unified acknowledgment for entity creation, descriptor update, and deletion.

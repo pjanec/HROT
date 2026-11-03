@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Edits;
 using Fdp.Toolkit.Replication.Events;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Editor.DebugApi;
@@ -178,5 +179,68 @@ public sealed class TheWriteRoutesAskTheOwnerTests
 
         Assert.Null(error);
         Assert.Equal(999f, node.World.GetComponent<SimTransform>(node.Entity).Position.X, precision: 3);
+    }
+    // ── CE-2380 part 1 — the OUTCOME of the request comes back to the node that asked ───────
+
+    private sealed class OneShotSource : Hrot.Map.Common.Systems.IUpdateEntityAttributeRequestSource
+    {
+        public Hrot.NED.Messages.UpdateEntityAttributeRequest? Pending;
+        public void ProcessRequests(System.Action<Hrot.NED.Messages.UpdateEntityAttributeRequest> processor)
+        {
+            if (Pending is { } r) { Pending = null; processor(r); }
+        }
+    }
+
+    private sealed class NoAckSink : Hrot.Map.Common.Systems.IUpdateEntityAttributeAckSink
+    {
+        public void WriteAck(System.Guid requestId, int errorCode, Hrot.NED.Common.NodeId respondingNode, System.ReadOnlySpan<byte> opaqueData) { }
+        public void WriteErrorAck(System.Guid requestId, int errorCode) { }
+    }
+
+    private sealed class CapturedWire : Hrot.Map.Common.Dds.IDdsWriter<Hrot.NED.Messages.EntityEditOutcome>
+    {
+        public readonly System.Collections.Generic.List<Hrot.NED.Messages.EntityEditOutcome> Written = new();
+        public void Write(Hrot.NED.Messages.EntityEditOutcome sample) => Written.Add(sample);
+        public void DisposeInstance(Hrot.NED.Messages.EntityEditOutcome key) { }
+    }
+
+    /// <summary>
+    /// ⭐ CE-2380 part 1 (R-2082) — the whole loop on two worlds, no DDS: the REQUESTING node edits an entity it does not own (<c>EditRequests.WriteJson</c>), the command crosses to the
+    /// OWNER's <c>UpdateEntityAttributeRequestSystem</c> (the one hand-made hop: the command → <c>UpdateEntityAttributeRequest</c> conversion is the egress translator's, which needs a live
+    /// participant), the owner applies and answers, the outcome crosses back through the REAL egress / ingress pair, and the requesting node's <c>EditOutcomeLog</c> ends with Applied
+    /// for its request id. ✅ Red-proof: the owner's report removed from the request system ⇒ the log stays empty ⇒ red.
+    /// </summary>
+    [Fact]
+    public void An_edit_asked_of_the_owner_comes_back_applied_into_the_requesters_log()
+    {
+        using var requester = new Node(ownsSimTransform: false, simTransformIsNetworked: true);
+        using var owner = new Node(ownsSimTransform: true, simTransformIsNetworked: true);
+
+        var ticket = EditRequests.WriteJson(requester.World, requester.Entity, "{\"Heading\":90}");
+        Assert.Equal(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Requested, ticket.Route);
+        var cmd = Assert.Single(requester.PublishedRequests());
+        Assert.Equal((ticket.RequestId, true), (cmd.RequestId, cmd.WantOutcome));
+        Assert.False(EditOutcomeLog.Of(requester.World).TryGet(ticket.RequestId, out _));   // nothing known yet
+
+        var source = new OneShotSource
+        {
+            Pending = new Hrot.NED.Messages.UpdateEntityAttributeRequest
+            {
+                RequestId = cmd.RequestId, EntityId = cmd.NetworkId, AttributePatchJson = cmd.AttributePatchJson, WantOutcome = cmd.WantOutcome,
+            },
+        };
+        var system = new Hrot.Map.Common.Systems.UpdateEntityAttributeRequestSystem(source, new NoAckSink(), owner.EntityMap);
+        system.Execute(owner.World, 0f);
+        owner.World.Bus.SwapBuffers();
+
+        var wire = new CapturedWire();
+        new Hrot.Network.Translators.EditOutcomeEgressTranslator(wire).ScanAndPublish(owner.World);
+        var sample = Assert.Single(wire.Written);
+
+        var ingress = new Hrot.Network.Translators.EditOutcomeIngressTranslator(null, localNodeId: 1);
+        Assert.True(ingress.ProcessSample(in sample, requester.World));
+
+        Assert.True(EditOutcomeLog.Of(requester.World).TryGet(ticket.RequestId, out var outcome));
+        Assert.Equal((EditStatus.Applied, NetworkId, true), (outcome.Status, outcome.NetworkId, outcome.FromNetwork));
     }
 }
