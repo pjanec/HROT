@@ -47,10 +47,10 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             public Ids16 Served; public int ServedCount;
             /// <summary>How many members no macro covered (each is asked about once): the status says so.</summary>
             public int Unmatched;
-            /// <summary>⭐ S7 P-5 — <c>members</c> (0 roster · 1 side) and <c>aggregate</c> (0 mean · 1 points).</summary>
-            public byte Members, Aggregate;
             /// <summary>⭐ S4 ① — the means already inserted: role keys and standard titles (FNV-1a hashes, ≤ <see cref="MeansCap"/> of each; a full set inserts no more and says so).</summary>
             public Ids16 RoleMeans, StandardMeans; public int RoleMeanCount, StandardMeanCount;
+            /// <summary>⭐ S7 P-5 — <c>members</c> (0 roster · 1 side) and <c>aggregate</c> (0 mean · 1 points).</summary>
+            public byte Members, Aggregate;
         }
 
         /// <summary>The cap of role means, and of standard means, one evaluation keeps.</summary>
