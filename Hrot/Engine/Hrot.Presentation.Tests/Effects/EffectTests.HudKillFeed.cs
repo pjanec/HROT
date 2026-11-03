@@ -41,8 +41,8 @@ public sealed partial class EffectTests
     [Fact]
     public void CE4226_ThePlayerHudFeatures_AreDeclaredLive_OnEverywhere_AndListedInAll()
     {
-        string[] ids = { HudFeatures.Objectives, HudFeatures.OwnEvaluation, HudFeatures.Tickets, HudFeatures.CapturePoints, HudFeatures.RoundTimer, HudFeatures.KillFeed, HudFeatures.ScorePopups, HudFeatures.BountyMarker };
-        Assert.Equal(new[] { "hud.objectives", "hud.own-evaluation", "game.tickets", "game.capture-points", "game.round-timer", "hud.kill-feed", "game.score-popups", "game.bounty-marker" }, ids);
+        string[] ids = { HudFeatures.Objectives, HudFeatures.OwnEvaluation, HudFeatures.Tickets, HudFeatures.CapturePoints, HudFeatures.RoundTimer, HudFeatures.KillFeed, HudFeatures.ScorePopups, HudFeatures.BountyMarker, HudFeatures.Scoreboard };
+        Assert.Equal(new[] { "hud.objectives", "hud.own-evaluation", "game.tickets", "game.capture-points", "game.round-timer", "hud.kill-feed", "game.score-popups", "game.bounty-marker", "game.scoreboard" }, ids);
         foreach (var id in ids) Assert.Contains(id, HudFeatures.All);
         Assert.Equal(HudFeatures.All.Length, HudFeatures.Declarations(true).Count());
         Assert.Equal(HudFeatures.All.Length, HudFeatures.All.Distinct().Count());

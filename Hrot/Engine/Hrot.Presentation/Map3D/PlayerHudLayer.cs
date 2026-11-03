@@ -14,7 +14,13 @@ using Raylib_cs;
 namespace Hrot.UI.Common.Map3D;
 
 /// <summary>What the player's HUD shows this frame, as data (the draw and the rails read the same thing).</summary>
-public sealed record PlayerHudFrame(PlayerView View, TrainingHudModel? Training, GameHudModel? Game, IReadOnlyList<KillFeed.Entry> Kills, double Now);
+public sealed record PlayerHudFrame(PlayerView View, TrainingHudModel? Training, GameHudModel? Game, IReadOnlyList<KillFeed.Entry> Kills, double Now)
+{
+    /// <summary>⭐ G1 — the scoreboard, only while the key is held and <c>game.scoreboard</c> is on.</summary>
+    public ScoreboardModel? Board { get; init; }
+    /// <summary>⭐ G1 — the live "+100" pop-ups of the possessed man.</summary>
+    public IReadOnlyList<ScorePopup> Popups { get; init; } = Array.Empty<ScorePopup>();
+}
 
 /// <summary>
 /// ⭐⭐ H1 + H2 (CE-4226 … CE-4228; docs/DESIGN_Player_HUD_And_Debrief.md PH-3 … PH-5) — the player's HUD: <see cref="Compose"/> turns the ONE reader's rows
@@ -25,22 +31,25 @@ public sealed record PlayerHudFrame(PlayerView View, TrainingHudModel? Training,
 public static class PlayerHudLayer
 {
     /// <summary>The models for <paramref name="unit"/>, each only while its feature is on (<paramref name="on"/>). Null models ⇒ nothing to draw.</summary>
-    public static PlayerHudFrame Compose(EntityRepository w, Entity unit, double now, Func<string, bool> on)
+    public static PlayerHudFrame Compose(EntityRepository w, Entity unit, double now, Func<string, bool> on, bool scoreboardHeld = false)
     {
         var view = PlayerView.Of(w, unit);
         if (view.IsNone) return new PlayerHudFrame(view, null, null, Array.Empty<KillFeed.Entry>(), now);
 
         bool training = on(HudFeatures.Objectives) || on(HudFeatures.OwnEvaluation);
         bool game = on(HudFeatures.Tickets) || on(HudFeatures.CapturePoints) || on(HudFeatures.RoundTimer) || on(HudFeatures.ScorePopups) || on(HudFeatures.BountyMarker);
-        TrainingHudModel? t = null; GameHudModel? g = null;
-        if ((training || game) && w.IsComponentTypeRegistered<ObjectiveStatus>())
+        TrainingHudModel? t = null; GameHudModel? g = null; ScoreboardModel? board = null; IReadOnlyList<ScorePopup> popups = Array.Empty<ScorePopup>();
+        bool wantBoard = scoreboardHeld && on(HudFeatures.Scoreboard), wantPopups = on(HudFeatures.ScorePopups);
+        if ((training || game || wantBoard || wantPopups) && w.IsComponentTypeRegistered<ObjectiveStatus>())
         {
             var entries = RulesReader.Read(w, includeAuthored: false);
             if (training) t = TrainingHud.Build(entries, view, now, e => MissionSummaryModel.SideOfRule(w, e));
             if (game) g = GameHud.Build(entries, view, now, net => StandsIn(w, unit, net), e => MissionSummaryModel.SideOfRule(w, e));
+            if (wantPopups) popups = ScorePopups.In(w).Update(entries, view.UnitNetId, now);
+            if (wantBoard) board = Scoreboard.Build(entries, view.UnitNetId, e => MissionSummaryModel.SideOfRule(w, e), net => RulesModel.NameOf(w, NetworkIdResolver.FindEntityByNetworkId(w, net), net));
         }
         var kills = on(HudFeatures.KillFeed) && KillFeed.Of(w) is { } feed ? feed.Recent(now) : Array.Empty<KillFeed.Entry>();
-        return new PlayerHudFrame(view, t, g, kills, now);
+        return new PlayerHudFrame(view, t, g, kills, now) { Board = board, Popups = popups };
     }
 
     /// <summary>Is <paramref name="unit"/> inside the area of the point with network id <paramref name="pointNet"/>, as this node knows it?</summary>
@@ -59,13 +68,15 @@ public static class PlayerHudLayer
     public const int Top = 62;
 
     /// <summary>Paints the HUD: the game bar top-centre, the kill feed, the mission list and my standards in the top-right column, the streak under the crosshair, bounty marks over men.</summary>
-    public static void Draw(EntityRepository w, Entity unit, MapCamera3D camera, Vector2 size, Font? font, Func<string, bool> on)
+    public static void Draw(EntityRepository w, Entity unit, MapCamera3D camera, Vector2 size, Font? font, Func<string, bool> on, bool scoreboardHeld = false)
     {
-        var f = Compose(w, unit, Fdp.Toolkit.Time.SimClock.Of(w).TotalTime, on);
+        var f = Compose(w, unit, Fdp.Toolkit.Time.SimClock.Of(w).TotalTime, on, scoreboardHeld);
         if (f.View.IsNone) return;
         if (f.Game is { } g) DrawBar(g, f.View, size, font, on);
         DrawRightColumn(f, size, font, on);
         if (f.Game is { Streak: >= GameHud.StreakShownFrom } s && on(HudFeatures.ScorePopups)) DrawStreak(s.Streak, camera, font);
+        DrawPopups(f, camera, font);
+        if (f.Board is { IsGame: true } board) DrawBoard(board, size, font);
         if (f.Game is { BountyOn.Count: > 0 } b && on(HudFeatures.BountyMarker)) DrawBounties(w, b.BountyOn, camera, font);
     }
 
@@ -229,6 +240,54 @@ public static class PlayerHudLayer
             Raylib.DrawPoly(new Vector2(s.X, s.Y + 16), 4, 7f, 45f, new Color(255, 210, 122, 255));
             float tw = HudText.Measure(font, "BOUNTY", 14);
             HudText.Draw(font, "BOUNTY", s.X - tw / 2, s.Y - 6, 14, new Color(255, 210, 122, 255));
+        }
+    }
+
+    // ── G1: the "+100" pop-ups and the scoreboard (hold K)
+
+    private static void DrawPopups(PlayerHudFrame f, MapCamera3D camera, Font? font)
+    {
+        var vc = camera.ViewCentre;
+        int i = 0;
+        foreach (var p in f.Popups.OrderByDescending(p => p.At).Take(4))
+        {
+            float age = (float)Math.Clamp((f.Now - p.At) / ScorePopups.ShowSeconds, 0, 1);
+            string text = $"+{p.Points:0.##} {p.Title}";
+            float tw = HudText.Measure(font, text, 22);
+            HudText.Draw(font, text, vc.X - tw / 2, vc.Y + 70 - age * 30 - i * 24, 22, new Color(255, 210, 122, (int)(255 * (1 - age * age))));
+            i++;
+        }
+    }
+
+    private static void DrawBoard(ScoreboardModel board, Vector2 size, Font? font)
+    {
+        string[] heads = { "K", "D", "A", "CAPT", "TK", "STREAK", "SCORE" };
+        const int rowH = 22, nameW = 190, colW = 62;
+        int Rows(ScoreTeam t) => Math.Min(8, t.Rows.Count) + (t.Rows.Skip(8).Any(r => r.Me) ? 1 : 0);
+        int lines = board.Teams.Sum(t => Rows(t) + 1);
+        float w = 40 + nameW + heads.Length * colW, h = 24 + lines * rowH + 12;
+        var centre = Fdp.Presentation.WindowManager.OpenMapArea.Centre(size);
+        float x = centre.X - w / 2, y = Math.Max(Top + 60, size.Y / 2 - h / 2);
+        Raylib.DrawRectangleRounded(new Rectangle(x, y, w, h), 0.03f, 6, new Color(8, 10, 12, 215));
+        float cy = y + 12;
+        foreach (var t in board.Teams)
+        {
+            var head = t.Side == ForceId.Friend ? new Color(127, 182, 255, 255) : new Color(255, 138, 115, 255);
+            HudText.Draw(font, $"{t.Name.ToUpperInvariant()}   {t.Total:0.##}", x + 16, cy, 18, head);
+            for (int c = 0; c < heads.Length; c++) HudText.Draw(font, heads[c], x + 40 + nameW + c * colW, cy + 3, 13, new Color(160, 166, 175, 255));
+            cy += rowH + 2;
+            int n = 0;
+            foreach (var r in t.Rows.Where((r, idx) => idx < 8 || r.Me))
+            {
+                if (r.Me) Raylib.DrawRectangle((int)x + 8, (int)cy - 1, (int)w - 16, rowH, new Color(255, 255, 255, 30));
+                string name = (r.SubjectNet == t.MvpSubject ? "* " : "") + (r.Me ? "You - " : "") + r.Name;
+                while (name.Length > 6 && HudText.Measure(font, name, 15) > nameW - 8) name = name[..^2] + "…";
+                HudText.Draw(font, name, x + 24, cy + 2, 15, Color.White);
+                string[] vals = { r.Kills.ToString("0"), r.Deaths.ToString("0"), r.Assists.ToString("0"), r.Captures.ToString("0"), r.TeamKills.ToString("0"), $"{r.Streak:0}/{r.BestStreak:0}", r.Score.ToString("0.##") };
+                for (int c = 0; c < vals.Length; c++) HudText.Draw(font, vals[c], x + 40 + nameW + c * colW, cy + 2, 15, c == vals.Length - 1 ? new Color(255, 210, 122, 255) : new Color(225, 228, 232, 255));
+                cy += rowH; n++;
+            }
+            cy += rowH * 0.0f + 4;
         }
     }
 }

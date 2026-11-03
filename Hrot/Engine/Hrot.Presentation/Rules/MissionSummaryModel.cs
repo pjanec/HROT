@@ -178,7 +178,7 @@ public static class MissionSummaryModel
         GameCard? GameOf(ForceId side)
         {
             // ⭐ a GAME scenario = a Points-kind root exists (S7 §00.13): the card's headline is the side's team total = the Value of the MemberEvaluation (members: side) whose children are those roots.
-            var roots = entries.Where(e => e.Status.Kind.ToString() == PointsKind && byNet.TryGetValue(e.ParentNetworkId, out var par) && IsEvaluation(par) && SubjectSide(e) == side).ToList();
+            var roots = PointsRoots(entries, byNet, side, SubjectSide);
             if (roots.Count == 0) return null;
             var team = byNet[roots[0].ParentNetworkId];
             var players = roots.Select(r => new PlayerRow(r.SubjectNetworkId == 0 ? r.NetworkId : r.SubjectNetworkId,
@@ -225,6 +225,10 @@ public static class MissionSummaryModel
         }
     }
 
+    /// <summary>⭐ G1 — the game score's per-man roots of <paramref name="side"/>: <c>Points</c>-kind statuses whose parent is a <c>MemberEvaluation</c>. The ONE selection the game card, the scoreboard and the round summary share.</summary>
+    internal static List<RulesReader.Entry> PointsRoots(IReadOnlyList<RulesReader.Entry> entries, Dictionary<int, RulesReader.Entry> byNet, ForceId side, Func<RulesReader.Entry, ForceId> sideOf)
+        => entries.Where(e => e.Status.Kind.ToString() == PointsKind && byNet.TryGetValue(e.ParentNetworkId, out var par) && par.Status.Kind.ToString() == MemberEvaluation && sideOf(e) == side).ToList();
+
     /// <summary>The trend: <paramref name="current"/> minus the score <see cref="TrendSeconds"/> ago (the last entry at or before it), else minus the first entry (since the start); null with fewer than two points of history.</summary>
     public static float? Trend(IReadOnlyList<(double Time, float Score)>? scores, float current, double now)
     {
@@ -266,7 +270,7 @@ public static class MissionSummaryModel
         }
     }
 
-    private static ExercisePhase ExercisePhaseOf(EntityRepository world, out ExerciseResult result)
+    internal static ExercisePhase ExercisePhaseOf(EntityRepository world, out ExerciseResult result)
     {
         result = default;
         if (!world.IsComponentTypeRegistered<ExerciseResult>()) return ExercisePhase.Running;

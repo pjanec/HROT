@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE — DESIGN ✅ PH-1 … PH-7 APPROVED, PH-8 APPROVED AMENDED (R-4115: features stay ON by default; a scenario preset switches the other profile's elements off) (user, `2026-11-03`: *"approved"*)
 updated: 2026-11-03 (H1 + H2 BUILT — §6 AS BUILT; PH-5 / PH-6 read ManDownedEvent; PH-6 / PH-7 rely on behaviors' S4 ①②④⑤ and backend's S7)
-build-state: H1 BUILT · H2 BUILT · D1 DESIGN · G1 DESIGN
-current-answer: §3 (decisions) · §4 (phases) · §6 (AS BUILT H1 + H2 — wins where it differs from §2)
+build-state: H1 BUILT · H2 BUILT · D1 BUILT · G1 BUILT
+current-answer: §3 (decisions) · §4 (phases) · §6 (AS BUILT H1 + H2) · §7 (AS BUILT D1 + G1) — both win where they differ from §2
 stale-below: nothing
 known-rot: none
 related-designs:
@@ -112,8 +112,8 @@ sequenceDiagram
 |---|---|---|
 | **H1** ✅ BUILT (§6) | PH-1 `RulesReader` · PH-2 · PH-3 the training HUD | rails on the reader and the models (visibility by side, my measures, order, progress / time); a frame rail of the overlay; live: `showcase-bridgehead`, possess a Blue rifleman |
 | **H2** ✅ BUILT (§6) | PH-4 the game top bar + capture strip · PH-5 the kill feed | rails on the models from synthetic statuses / events; a frame rail; live: `showcase-crossfire` |
-| **D1** | PH-6 the trainee debrief | rails on the cards, GO / NO-GO, the chain comparison, went well / work on; a frame rail; live: a finished Bridgehead run and its recording |
-| **G1** | PH-7 the scoreboard, pop-ups, awards, round summary | ✅ S7 is merged (`Points` roots, `Count` assists / teamKills / deaths / captures, `Best`): model rails on synthetic statuses against the as-built names; ✅ kills / assists / team kills read `ManDownedEvent` (CE-3364, `908dc63ad`); a frame rail; live: `showcase-crossfire` |
+| **D1** ✅ BUILT (§7) | PH-6 the trainee debrief | rails on the cards, GO / NO-GO, the chain comparison, went well / work on; a frame rail; live: a finished Bridgehead run and its recording |
+| **G1** ✅ BUILT (§7) | PH-7 the scoreboard, pop-ups, awards, round summary | ✅ S7 is merged (`Points` roots, `Count` assists / teamKills / deaths / captures, `Best`): model rails on synthetic statuses against the as-built names; ✅ kills / assists / team kills read `ManDownedEvent` (CE-3364, `908dc63ad`); a frame rail; live: `showcase-crossfire` |
 
 ## 5. Claim table
 
@@ -175,3 +175,51 @@ classDiagram
 **Live (`2026-11-03`):** bridgehead — mission list + *Team standards* (the man has none of his own: his squad's, by the commander chain) drawn; crossfire — `149 A B C 149 0:46` bar, kill feed with head marks and distances, ticket / point / clock from `Kind`. The capturing strip and the streak / bounty were not seen live (no man stood in a changing point; no kill chain long enough) — covered by the model and frame rails only.
 
 **Rails:** `PlayerHudTests` (the models, 18) · `KillFeedTests` (6) · `EffectTests.HudKillFeed` (the recorder gate + the declarations) · `HudFeaturesAreWiredOnEveryHostTests.ThePlayerHud_…` · `PlayerHudFrameRail` (xvfb: each part drawn, each feature off removes exactly its part).
+
+## 7. AS BUILT — D1 + G1 *(ui, `2026-11-03`; CE-4231 the build, CE-4232 / CE-4233 the gaps below)*
+
+```mermaid
+classDiagram
+    direction LR
+    class TraineeDebriefWindow { <<NEW, Window ▸ Trainee debrief>> editor + Replay Browser }
+    class GameSummaryWindow { <<NEW, Window ▸ Game summary>> editor + Replay Browser }
+    class DebriefInputs { <<NEW, internal>> rows · ExerciseResult · possessed man · lane history }
+    class TraineeDebrief { <<NEW, pure>> Build → cards · levels · well / work on · moments }
+    class GameSummary { <<NEW, pure>> Build → banner · subline · your round · awards · best moment }
+    class Scoreboard { <<NEW, pure>> per team: Points roots by Count title }
+    class ScorePopups { <<NEW, presentation memory>> a child Count that ROSE }
+    class PlayerHudLayer { <<existing, H1/H2>> + DrawBoard (hold K) + DrawPopups }
+    class MissionSummaryModel { <<existing>> PointsRoots (extracted) · SideOfRule · TitleOf · ExercisePhaseOf }
+    class RulesReader { <<existing, the ONE reader>> }
+    class IndexSummaryHistory { <<existing>> objective.state · objective.score · combat.downed }
+    TraineeDebriefWindow ..> DebriefInputs
+    GameSummaryWindow ..> DebriefInputs
+    DebriefInputs ..> RulesReader
+    DebriefInputs ..> IndexSummaryHistory
+    TraineeDebriefWindow ..> TraineeDebrief
+    GameSummaryWindow ..> GameSummary
+    GameSummary ..> Scoreboard
+    GameSummary ..> GameHud : tickets / points held
+    Scoreboard ..> MissionSummaryModel : PointsRoots
+    TraineeDebrief ..> MissionSummaryModel : TitleOf
+    PlayerHudLayer ..> Scoreboard
+    PlayerHudLayer ..> ScorePopups
+```
+*Caption — what the picture shows: nothing new is READ — the debrief, the board, the pop-ups and the summary are four views of the same `RulesReader` rows and the same lane history the mission summary uses; `PointsRoots` was EXTRACTED from the summary's game card (not copied), so card, scoreboard and summary select the same men.*
+
+| PH said | built | deviation — why |
+|---|---|---|
+| debrief for the chosen man, default the possessed one; a picker of men with a member root | `TraineeDebrief.Roots` = children of a `MemberEvaluation` that are about somebody; picker = their subjects | ⚠ on `showcase-bridgehead` the roots are the SQUADS' (`Member standards`, subject *Blue Squad 1*), not riflemen: a man with no root of his own is shown by the nearest of his commander chain that has one, and the header says so (*"…his standards are Blue Squad 1's"*) |
+| each standard a card: Value, Target, squad mean, GO / NO-GO, by Group | `StandardCard`; the mean = the evaluation's `"<title> (mean)"` `SelectionMean` (S4 ① ⑤), labelled by the evaluation's subject (*"Blue Platoon mean 0.10"* — a platoon, where only the platoon has an evaluation) | the mean is the evaluation's, not always a *squad's* |
+| his score vs squad vs platoon | the `Scored` objective ancestors of his root, nearest first | labelled by their subject; two levels on bridgehead (*Members*, *Bridgehead*) |
+| went well / work on = best / worst margin | the 3 best `Score − Pass` ≥ 0 / the 3 worst < 0 | data lines (*"Hit ratio: 0.12 · standard 0.25"*), not narrative |
+| his moments = a strip | a **list** of `objective.state` changes of his standards + `combat.downed` he suffered (Subject) or caused (Other), each a seek | no drawn strip — a list with the same seeks |
+| *"you were downed by X (head)"* from the recorded `ManDownedEvent` if readable | **from the `combat.downed` lane, WITHOUT the body part** — said on the card. A `TimelineIndex` holds lane entries, not the events | the head mark needs the recorded event at that frame: not readable from the index (CE-4233) |
+| ⏳ replay from my eyes · progress across runs | two disabled buttons naming why (film director · gap G7) | — |
+| `+100` pop-up | `ScorePopups`: a scored child of the possessed man's `Points` root whose `Value` rose × its `Points`, named by its `Title`; 2.5 s, floats up (`game.score-popups`) | a presentation memory (last values); first sight / a fall re-baselines |
+| scoreboard | **hold K** (Tab is *next man*; K was free) → `PossessionStation.ScoreboardHeld` → `PlayerHudLayer.DrawBoard`; feature **`game.scoreboard`** (new, ON) | per team ≤ 8 rows + the viewer's own row, columns K D A CAPT TK STREAK SCORE (streak = live / best) |
+| team total = the side `MemberEvaluation` (aggregate points) | its `Value` | — |
+| GameSummary window | `GameSummary.Build`: banner from `SideResult.Outcome`, subline = points held + tickets (the HUD's own reading) + `Reason`, the board, *your round* (K/D, best streak, team kills + his scored children), awards (`Best` + Achieved: title, `Subject`, `Value`) | no level / XP (not designed); the mockup's accuracy / longest hit / time on point are not statuses and are left out; always opens (a running round says *ROUND IN PROGRESS*), `Available` only gates the label |
+| *your best moment* = the largest rise of his root's `Value` in `objective.score` | the largest rise of that LANE if any, **else the densest 15 s of the kills he caused** (`combat.downed`, Other = him), the text says which | ⚠ the `objective.score` lane carries `Score`, and a `Points` root has NO target ⇒ its `Score` stays 0 ⇒ the lane never rises (CE-4232) |
+
+**Rails:** `DebriefModelTests` (10: every card / screen field from synthetic statuses and lane entries) · `DebriefWindowsFrameRail` (both windows in a real ImGui frame, probe asserted) · `ScoreHudFrameRail` (xvfb: the board while K is held, a rise floats up, each feature off removes its part) · `EffectTests` declarations (16 features). Red-proof: awards without the *Achieved* filter fails `TheRoundSummary_…`.

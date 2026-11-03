@@ -960,6 +960,20 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
             "rb_mission_summary", perspective, color,
             showMoments: n => { _rulesWindow?.ShowSubtree(n); if (_rulesWindow != null) windowManager.FocusWindow(_rulesWindow.Id); }) { IsOpen = false });
 
+        // ⭐⭐ CE-4231 (D1 / G1) — the trainee debrief and the game summary on a RECORDING, their moments seeking it through the viewer's cursor
+        windowManager.RegisterWindow(new Hrot.Presentation.Windows.TraineeDebriefWindow(
+            () => _activeRepo, () => _timelineSource,
+            new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager, () => _manager?.LocalEntitiesProviderNodeId ?? 0,
+                isPlaying: () => !Transport.IsPaused, togglePlay: () => Transport.TogglePlayPause(),
+                timeMap: () => CachedTimeMap, simAxis: () => Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim),
+            "rb_trainee_debrief", perspective, color) { IsOpen = false });
+        windowManager.RegisterWindow(new Hrot.Presentation.Windows.GameSummaryWindow(
+            () => _activeRepo, () => _timelineSource,
+            new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager, () => _manager?.LocalEntitiesProviderNodeId ?? 0,
+                isPlaying: () => !Transport.IsPaused, togglePlay: () => Transport.TogglePlayPause(),
+                timeMap: () => CachedTimeMap, simAxis: () => Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim),
+            "rb_game_summary", perspective, color) { IsOpen = false });
+
         windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.ComponentDiffWindow(
             "rb_diff", "Frame Diff Viewer", perspective, diffPanel, color));
 

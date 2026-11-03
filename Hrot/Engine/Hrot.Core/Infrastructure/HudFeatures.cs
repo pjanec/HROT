@@ -40,10 +40,12 @@ public static class HudFeatures
     public const string ScorePopups = "game.score-popups";
     /// <summary>Game HUD: a gold marker over a man carrying a bounty.</summary>
     public const string BountyMarker = "game.bounty-marker";
+    /// <summary>⭐ G1 (CE-4231) — Game HUD: the scoreboard while the scoreboard key (K) is held.</summary>
+    public const string Scoreboard = "game.scoreboard";
 
     /// <summary>Every HUD feature id this class declares.</summary>
     public static readonly string[] All = { HitMarker, DamageArc, KillCam, SquadTakeoverAfterDeath, SpreadRing, NearMiss, Messages,
-        Objectives, OwnEvaluation, Tickets, CapturePoints, RoundTimer, KillFeed, ScorePopups, BountyMarker };
+        Objectives, OwnEvaluation, Tickets, CapturePoints, RoundTimer, KillFeed, ScorePopups, BountyMarker, Scoreboard };
 
     /// <summary>The declarations for a host (the seven aids, then the player HUD's eight). <paramref name="playerDefault"/>: the default of the hit marker, damage arc, kill cam and squad
     /// takeover (true for the Player, false elsewhere); the spread ring, the near miss and the messages are ON on every host.</summary>
@@ -64,6 +66,7 @@ public static class HudFeatures
         yield return FeatureDeclaration.Switch(KillFeed, "The kill feed: the last five downings, killer to victim", FeatureChange.Live, _ => true);
         yield return FeatureDeclaration.Switch(ScorePopups, "Game HUD: score pop-ups and the kill streak under them", FeatureChange.Live, _ => true);
         yield return FeatureDeclaration.Switch(BountyMarker, "Game HUD: a gold marker over a man with a bounty on him", FeatureChange.Live, _ => true);
+        yield return FeatureDeclaration.Switch(Scoreboard, "Game HUD: the scoreboard while K is held", FeatureChange.Live, _ => true);
     }
 
     /// <summary>

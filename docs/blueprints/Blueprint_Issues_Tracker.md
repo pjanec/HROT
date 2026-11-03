@@ -66,12 +66,12 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 | `WIRING` | 12 | 97 |
 | `RW-XS` | 4 | 12 |
 | `RW-S` | 161 | 824 |
-| `RW-L` | 146 | 251 |
+| `RW-L` | 148 | 252 |
 | `RW-M` | 229 | 809 |
 | `RW-H` | 23 | 87 |
 | `RW-XL` | 0 | 1 |
 | `OTHER` | 2 | 9 |
-| **Total** | **577** | **2090** |
+| **Total** | **579** | **2091** |
 | *(refuted on verification)* | | *14* |
 
 | Id family | Open | Done |
@@ -4604,6 +4604,9 @@ collides with work in flight.
 - [x] **CE-4228** · `RW-L` ✅ **DONE `2026-11-03` (ui, W-H2) — THE KILL FEED (`hud.kill-feed`): last 5 `ManDownedEvent`s, killer » victim in side colours, down / killed, (head), (rethrown by X), distance.** `EffectSpawnSystem.TrackKills` → `KillFeed.In(world)` beside the messages; replays refill it (recorded events). Live on crossfire and bridgehead.
 - [ ] **CE-4229** · `RW-L` 🔧 **OPEN (ui) — NO SCENARIO CAN SWITCH THE OTHER PROFILE'S HUD OFF: P-7 (scenario-stored feature presets) is unbuilt, and the bounty has no 2-D map marker.** PH-8 (amended) says a scenario's preset switches the other profile's elements off; measured: `scenarios/*/scenario.json` has no feature field — only `--feature id=off` per process or a cluster `FeatureOverrides` run setting. Until then an element with no data draws nothing (a training scenario shows no bar; a game no mission list). Presets each scenario needs once P-7 exists: *showcase-bridgehead* `game.tickets / game.capture-points / game.round-timer / game.score-popups / game.bounty-marker / hud.kill-feed` = off; *showcase-crossfire* `hud.objectives / hud.own-evaluation` = off. Also open: the bounty marker on the 2-D map (needs a new map layer; possession view only today).
 - [ ] **CE-4230** · `RW-L` 🔧 **OPEN (ui → backend) — THE STATUS CARRIES NO CAPTURE FLAG, NO CHALLENGER, NO AREA: the HUD infers them.** A capture point is read as a `HoldArea` whose `Reason` contains *owner*; a neutral point's challenger is parsed out of the S6 reason text; the point's area comes from the authored params (`BehaviorStartRecord`), which exist only on the node that runs the brain — a remote Player node shows no capturing strip. Ask: a `Capture` flag / Kind and `Challenger` on `ObjectiveStatus`; and `deadlineSeconds` on crossfire's *End* trigger for a countdown (it counts up now).
+- [x] **CE-4231** · `RW-L` ✅ **DONE `2026-11-03` (ui, W-D1+G1) — THE TRAINEE DEBRIEF AND THE GAME SCORE SCREENS: Window ▸ Trainee debrief, Window ▸ Game summary (editor + Replay Browser), the `+100` pop-ups (`game.score-popups`) and the scoreboard (hold K, `game.scoreboard`).** `TraineeDebrief` / `GameSummary` / `Scoreboard` / `ScorePopups` (pure, `Rules/`) over the ONE reader and the lanes the mission summary reads; `MissionSummaryModel.PointsRoots` extracted (not copied). Design: `DESIGN_Player_HUD_And_Debrief.md` §7. Cross-lane file: `Hrot.Core/Infrastructure/HudFeatures.cs` (`game.scoreboard`).
+- [ ] **CE-4232** · `RW-L` 🔧 **OPEN (ui → backend) — A `Points` ROOT HAS NO TARGET, SO THE `objective.score` LANE (which carries `Score`) NEVER RISES: "your best moment" cannot read the rise of his score.** Measured in design: `PointsBehavior` writes `Score = Value / target` and the macro sets none ⇒ 0 always. The screen falls back to the densest burst of kills he caused (`combat.downed`, Other = him) and says so. Ask: a `target` on the score root (or a lane that carries `Value`).
+- [ ] **CE-4233** · `RW-L` 🔧 **OPEN (ui) — THE DEBRIEF'S "(head)" MARK NEEDS THE RECORDED `ManDownedEvent`, WHICH A `TimelineIndex` DOES NOT HOLD.** The downed card is read from the `combat.downed` lane (Subject, Other, State, side) — no body part. Also still later, each a disabled line naming why: *replay from my eyes* (film director), *compared to your earlier runs* (trainee record, G7).
 
 ## Out of scope
 
