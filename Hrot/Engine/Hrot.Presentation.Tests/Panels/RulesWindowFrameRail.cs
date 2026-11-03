@@ -254,7 +254,7 @@ public sealed class RulesWindowFrameRail : IDisposable
         // ⭐ found LIVE: clicking Undo changed CanUndo between BeginDisabled and EndDisabled and ImGui asserted (the editor died). Apply, then CLICK Undo in the frame.
         window.SelectNetworkId(20);
         Step(null, 3);
-        window.Details!.StagePending("""{"common":{"title":"Counter-attack","subject":900},"cooldown":33}""");
+        window.Details!.StagePending("""{"common":{"title":"Counter-attack","subject":900},"when":{"$type":"ScenarioTime","FromSeconds":1,"ToSeconds":2},"cooldown":33}""");   // ⭐ CE-4249: a trigger without a `when` is refused at Apply, as the runtime does
         Step(null, 2);
         Assert.True(window.Details.Apply(Hrot.UI.Common.Rules.RulesModel.Build(_world, new Hrot.UI.Common.Rules.RulesOptions(), null, 5d).Find(20)!));
         Step(null, 3);

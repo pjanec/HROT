@@ -261,7 +261,9 @@ public sealed class RuleDetails
         if (IsLive(row)) return ApplyLive(row, json);
         string before = cur.Json, name = cur.Name;
         var entity = row.Entity;
-        if (!_svc.ApplyEditMode(entity, name, json)) { Message = "refused: the assignment was not accepted"; return false; }
+        // ⭐ CE-4249 — a brand-new trigger has no `when` yet and the runtime refuses it ("'when' is required") with the reason only in the LOG: say it here, before the assignment
+        if (name == RuleAdd.TriggerKind && System.Text.Json.Nodes.JsonNode.Parse(json) is System.Text.Json.Nodes.JsonObject o && o["when"] is null) { Message = "refused: a trigger needs a When — pick a condition on the When tab, then Apply"; return false; }
+        if (!_svc.ApplyEditMode(entity, name, json)) { Message = "refused: the behaviour did not accept these params (the reason is in the log)"; return false; }
         _svc.History.Push($"edit {row.Title}", () => _svc.ApplyEditMode(entity, name, json), () => _svc.ApplyEditMode(entity, name, before));
         _pending = null;
         Message = $"applied — undo: \"edit {row.Title}\"";

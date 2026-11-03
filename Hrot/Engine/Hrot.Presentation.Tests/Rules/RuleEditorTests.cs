@@ -206,6 +206,26 @@ public sealed class RuleEditorTests : IDisposable
         Assert.False(d.Probe.Editable);
     }
 
+    /// <summary>
+    /// ⭐ CE-4249 — a NEW trigger (<i>+ Add ▸ Trigger</i>) has no <c>when</c>; Apply on its title alone is REFUSED in words that name the cause (the runtime's reason used to be only in the log: "refused: the assignment was not accepted"), nothing is written and no undo entry is made;
+    /// once a When is set the edit is written, shows on reselect (the entity's params) and is ONE undo entry. ✅ Red-proof: the <c>when</c> pre-check removed ⇒ the refusal text is the generic one / the title-only edit is written ⇒ red.
+    /// </summary>
+    [Fact]
+    public void ANewTrigger_RefusesATitleOnlyApply_SayingWhy_AndKeepsTheEditOnceItHasAWhen()
+    {
+        const string fresh = """{"common":{"title":"New Trigger"}}""";
+        var e = Rule(30, "Trigger", fresh);
+        var d = Details(); var row = RowOf(30);
+        d.Prepare(row, 10); d.StagePending("""{"common":{"title":"ManualTest"}}""");
+        Assert.False(d.Apply(row));
+        Assert.Contains("needs a When", d.Message);
+        Assert.Equal((fresh, 0), (Params(e), _history.Count));
+        d.StagePending("""{"common":{"title":"ManualTest"},"when":{"$type":"ScenarioTime","FromSeconds":60,"ToSeconds":1e9}}""");
+        Assert.True(d.Apply(row));
+        Assert.Contains("ManualTest", Params(e));                                  // what a reselect reads
+        Assert.Equal(1, _history.Count);
+    }
+
     [Fact]
     public void ARunningRule_IsReadOnlyInLive_AndARecordingIsReadOnlyWithItsReason()
     {
