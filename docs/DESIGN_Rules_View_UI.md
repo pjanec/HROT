@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE — DESIGN, leans RV-1 … RV-9 await the user
-updated: 2026-11-03 (RV-4 built by behaviors; R3 all on the wire; ManDownedEvent for casualties; RV-8 extended to the whole summary on behaviors' B3–B5 + backend's S7; RV-6 Waits on / Starts)
+updated: 2026-11-03 (§7 the rule editor designed; RV-4 built by behaviors; R3 all on the wire; ManDownedEvent for casualties; RV-8 extended to the whole summary on behaviors' B3–B5 + backend's S7; RV-6 Waits on / Starts)
 build-state: DESIGN
-current-answer: §3 (decisions) · §4 (phases)
+current-answer: §3 (decisions) · §4 (phases) · §7 (the rule editor, RE-1 … RE-10)
 stale-below: nothing
 known-rot: none
 related-designs:
@@ -125,7 +125,7 @@ graph TD
 | **RV-3** | the rows | ⭐ one `RuleTrack` per entity with `ObjectiveStatus` (objectives, measures, triggers). The tree comes from `ObjectiveLinks.Parent`. **Group by** macro (`MacroOrigin.Instance` → its `MacroInstance.Macro`, else *Scenario*) · subject (`ObjectiveLinks.Subject`'s name) · side (`Owner`). **Side** filter = `Owner`, which also respects `VisibleSides`. The state in words follows the mockup: *Achieved* · *Active 6:10* (since `ChangedAt`) · *Armed* · *Cooldown · 1/2* (`FireCount` of max when known) · *Acting* (the step count waits for A1). The status colour follows the legend |
 | **RV-4** | the PAST at actual times | ✅ **BUILT by behaviors** (`4e6d57c10`, [NOTE_Behaviors_To_Ui_Rules_Timeline_Lanes_Built](blueprints/batches/NOTE_Behaviors_To_Ui_Rules_Timeline_Lanes_Built.md)): `ScenarioRulesTimelineLanes` (`Fdp.Toolkits/ScenarioRules/`) in the one shipped catalogue — `objective.state` (Value = the `ObjectiveState` number), `rules.fired` (Value = `FireCount`; ⚠ the first sight carries the count it has — skip Value 0), `objective.score` (hidden; Value = `Score`, X = `Target`). ⭐ ui reads them, never a second provider; a new rules lane goes INTO that class. ⭐ `rules.fired` as the COUNT moving (not the `Fired` state edge) is right for the view: one diamond per fire, even a fire that re-arms within the frame. The row's past = those entries + the current span `ChangedAt → now`. ⭐ **Casualties** for *key events* (RV-8) and the debrief's moments: ✅ **`combat.downed`** (behaviors `532b79c4d`, `CombatTimelineLanes.Downed`): Subject = the victim, Other = who downed him (`Source`), Value = `InjuryState` (2 down · 3 dead), X = the victim's side — live and recorded |
 | **RV-5** | acting on a row | ⭐ click = select the row (the Overview) AND its SUBJECT through the selection singleton; *Show on map* = the broker's existing focus. The right-click menu and the details' buttons: *Fire now* · *Disarm* · *Re-arm* · *Reset* (triggers) · *Activate* / *Deactivate* (objectives) — each ONE `EntityWriteRouter.For(world).Write(entity, [Rule.Request, Rule.Seq, Rule.Origin = Instructor])`, `Seq` = the last seen + 1 (behaviors' `DebugApiService.ControlObjective` is the precedent: reuse its rule, not a copy). An item not valid in the row's state is disabled with the reason (a final trigger: *"needs Reset"*). ⭐ A live edit is FOR THIS RUN ONLY (SR-109) — the view never writes the scenario file. ⭐ The result shows as the row's new state and the owner's `Reason`, not as a ui-side guess |
-| **RV-6** | the window | ⭐ `RulesWindow` (*Window ▸ Rules*), PerspectiveBound like the timeline windows. Toolbar: *Group by*, *Side*, *Follow now*, search; *Timeline* only (Graph / List later). Centre: the panel in a Rules host (its own lanes hidden except the rules lanes). Right: details of the selected row with the **Overview / Status** tab: title, kind, state, owner, subject (link), progress, value / target, score, required / scored, reason, fired n× / last, ⭐ **Waits on** (`DependsOn`, each a link that selects that row) and **Starts** (`ActsOn`, the entities its Do creates or orders — a macro instance named with its unit count). ⏳ When / Do / Rules / History / Bindings tabs need A1–A4. ⭐ Opens on a recording too, through the Replay Browser's source |
+| **RV-6** | the window | ⭐ `RulesWindow` (*Window ▸ Rules*), PerspectiveBound like the timeline windows. Toolbar: *Group by*, *Side*, *Follow now*, search; *Timeline* only (Graph / List later). Centre: the panel in a Rules host (its own lanes hidden except the rules lanes). Right: details of the selected row with the **Overview / Status** tab: title, kind, state, owner, subject (link), progress, value / target, score, required / scored, reason, fired n× / last, ⭐ **Waits on** (`DependsOn`, each a link that selects that row) and **Starts** (`ActsOn`, the entities its Do creates or orders — a macro instance named with its unit count). ⭐ the other tabs: **§7 the rule editor** (RE-1 … RE-10). ⭐ Opens on a recording too, through the Replay Browser's source |
 | **RV-7** | *"objectives about this unit"* (SR-56) | ⭐ one section in the entity inspector (the CE-1134 inspector): every row whose `ObjectiveLinks.Subject` is this entity, each with its state words and a link that selects it in the rules view. Empty ⇒ not drawn |
 | **RV-8** | the mission summary (⑥ + ⑦), as the mockup | ⭐ `MissionSummaryModel` (pure) + `MissionSummaryWindow` (read-only, *Window ▸ Mission summary*, side switch *Blue / Red / Both*). ⛔ **Every number is a READ** of the replicated tree — behaviors builds the aggregation (S4 ①②④⑤), backend the game score (S7); the ui sums nothing. Per side: **headline** = the side's evaluation root (the `MemberEvaluation` whose `Subject` is the side / its top unit) — `Score`, the **trend** (its change over the last 10 min from the `objective.score` lane, RV-4) and the **pass mark** (`Pass`, S4 ②; *"not yet decided"* while the root is not closed) · **required objectives n / N** (`Required`, role Objective, `Owner` = side) with each state and progress · **forces** = strength (alive men with `EntityInfo` of the side), **wounded** / **down** / **dead** (`Injury.StateOf` = `Wounded` / `Incapacitated` / `Dead` — a STATE read, so a revived man counts as alive again, which an event count would not), macro-inserted (`MacroOrigin`, named by its instance) · **attention** = the measures of that side whose `Score < Pass`, worst margin first, each *"`Title` `Value` (target `Target`)"* · **result** from `ExerciseResult`. Below: **scores by level** — a tree table with three groupings: *Command chain* (the `MemberEvaluation` roots up `ObjectiveLinks.Parent`: platoon ▸ squad ▸ man), *Objectives* (the objective tree), *Roles* (the role composites, S4 ①); columns = `Score`, trend, and one column per measure `Group` (the member's child composite or measure in that group) · **why this score** for the selected row = its children: `Title`, `Value` vs `Target`, `Weight`, pass / fail, `Required` ✓ — and *Show the moments on the timeline →* (opens the rules view filtered to that row's subtree) · **mission objectives** (the list) · **key events** = the `objective.state` and `rules.fired` lane entries of the run + casualties from `combat.downed` (X = side ⇒ the side filter) (*"Blue KIA: Rifleman Svoboda"*, *"down"* for Incapacitated), newest first, each a seek on the timeline. ⭐ **A game scenario** (the game profile, S7): the card's headline is the side's team points (`MemberEvaluation aggregate: points`) and *scores by level* lists the men's `Points` roots — the same tree read, no game-specific model. ⏳ *Export report* later. ⭐ The same window opens on a recording |
 | **RV-9** | where they live | ⭐ models in `Hrot.Presentation` (`Rules/`), pure and railed as data. The panel extensions in `Fdp.Presentation` (the panel's own assembly). The lanes provider in `Fdp.Toolkits/ScenarioRules`. Frame rails under `xvfb-run -a` for the panel extensions (one per X) and one for each window |
@@ -171,3 +171,132 @@ graph TD
 | **RV-2** extent | no recording (index extent `to <= from`) but tracks with items ⇒ the extent is `[min(0, every From), max(now, every To / From)]` in sim seconds, at least 10 s wide (`ExtentOfTracks`), and the tracks and the ruler draw instead of *"No recording."*. `now` = the cursor's playhead on a sim axis, else 0. ⚠ **Deviation / finding:** a host with no recording has NO wall time map, so on its wall axis a sim-second item cannot be placed — the panel then puts the tracks on a plain sim axis of its own (`TimelineAxis.Sim` over an identity map, ticks = seconds) for that frame, and the playhead is its sim zero. A recording keeps its own extent; the lanes keep their own rule (no index ⇒ none). `TimelineView.MinSpan` needed no change (default 1/6 s; the extent is never narrower than 10 s) | `TimelinePanel.Draw`, `TrackLayout.ExtentOfTracks` |
 
 Rails: `TimelineTrackStylesAndTreeTests` (pure: each style's geometry, dashes and hatch bounds, header indent / arrow / icon / status, collapse hides deeper not siblings, label width, extent from tracks) · `DirectorTracksTests.CE4167_…` (director tracks at the defaults) · `TimelinePanelFrameRail.CE4167_R1_…` (a real frame, NO recording: every style, a two-level tree with statuses, collapse; screenshots viewed, not committed). Red-proofs (each compiles): X2 — `Expected` given a fill · X3 — `Visible` hiding every following track (siblings too) · RV-2 — the extent starting at the first item instead of `min(0, …)`.
+
+## 7. The rule editor — the trigger and objective tabs *(DESIGN, `2026-11-03`; handoff items ④ ⑤; leans RE-1 … RE-10 await the user)*
+
+🔒 *User, `2026-11-03`: "What is the status of trigger editor, are you planning to implement it together with the objective view/editor? Are they
+related?"* → *"yes, send the asks to behaviors and design the editor"*. Mockups: [`TriggerDetails`](designs/rules-view/mockup/TriggerDetails.html) ·
+[`ObjectiveDetails`](designs/rules-view/mockup/ObjectiveDetails.html) · [`EditAtRuntime`](designs/rules-view/mockup/EditAtRuntime.html); decisions SR-109, SR-95, SR-93/94.
+
+### 7.1 INVENTORY *(`2026-11-03`)*
+**Queries:** graph `.*(Trigger|Objective|Rule|Action)(Params|Step|Catalog|Catalogue|Dto|Spec).*` Class → `BehaviorActionCatalog` (the BLUEPRINT action catalogue, not the rule steps) + test doubles · graph `.*(ParamsPanel|ParamsForm|ParamsEditor|StructEdit|DtoForm|FieldEditor|AssetEditCommand).*` Class → 25, among them **`BehaviorParamsForm` / `BehaviorParamsEditor`** (`Hrot.Presentation/Behavior/`), `PredicateValueFieldEditor`, `PickableLeafFieldEditor`, `AssetEditCommand` · graph `.*(Predicate|Condition)(Builder|Editor|Form|Panel|Widget).*` → `PredicateBuilderState` (breakpoints) only · grep `RegisterFieldEditor<` · `TriggerParamsJsonDto` · `ActionStep` · `RunActionsState` · `ApplyTask`. ⚠ coverage not checked (no `check_index_coverage` in the CLI).
+
+| measured | where | so |
+|---|---|---|
+| a rule entity runs a behaviour whose params are ONE DTO: a trigger = `TriggerParamsJsonDto { common, when: SearchPredicateDto, holdFor, delay, cooldown, repeat, maxFires, fireIfTrueWhenArmed, whileTrue, do: List<ActionStep> }`; an objective / measure = its kind's DTO (`HoldAreaParamsJsonDto`, `CountParamsJsonDto` …, each with `common`) | `Hrot.Core/MapDefinitions/Behavior/ObjectiveParamsJsonDtos.cs:18-313` | the tabs are VIEWS of one params document, not separate models |
+| **THE ONE PARAMS FORM** edits any behaviour's params as a StructEdit document and gives back the JSON an assignment carries; the AI section and the mission panel draw it | `BehaviorParamsForm.cs:24-139` (CE-3043 / CE-1023) | ⭐ the editor draws THIS. ⛔ no rule-specific form |
+| the editor already applies a task's params: edit mode `BehaviorIngress.AssignNow` (the scenario entity), running `AssignBehaviorEvent` (a RE-assign) | `EntityAiDetailsView.cs:171-173` | edit mode needs nothing new. ⚠ running restarts the rule (its fire count, cooldown and progress are lost) ⇒ ask ② |
+| the condition builder for `SearchPredicateDto` exists: `PredicateValueFieldDrawer`, but it is `internal` to `ReplaySearchPanel`, and its field editor is registered only in the Replay Browser's service, gated by the field NAME `Predicate` | `ReplaySearchPanel.cs:272`, `PredicateValueFieldDrawer.cs:23`, `PredicateValueFieldEditor.cs:19`, `ReplayBrowserSubsystem.cs:1013`; the standard `ComponentEditServices` (`:19-28`) lacks it | ⭐ make it a STANDARD leaf (by type), so `when` gets the same builder the replay search and breakpoints use |
+| a step = `ActionStep : BindableNode { act, args: JsonObject }`; the catalogue gives each action's `ShortName`, `Fqn`, `ParamsType` and a `Refusal` | `ActionList.cs:22-30`, `ActionCatalogue.cs:19` | the Do row's args are a params document of `ParamsType`, drawn by the same form machinery; ⛓ binds through `BindableNode` (MA-1) |
+| live leaf values `RuleLeaves` (431, ≤ 8 `{Label, Value, Measured}`), sent only while `ui.rules-live-values` is on; runtime control `RuleControl` | §00.10 V-3 / V-4 as built (behaviors) | the When tab shows a value per leaf; the buttons are RV-5 |
+| ⛔ no step progress on the status: `RunActionsState { Index, Failed, FailedStep }` stays in the runner | `ActionList.cs:132`; `ObjectiveStatus.cs` | ask ① |
+
+### 7.2 The shape
+
+```mermaid
+classDiagram
+    direction LR
+    class RulesWindow { <<RV-6>> tree · timeline · Details }
+    class RuleDetails { <<NEW>> the selected rule entity: one params document · tabs · Apply / Revert }
+    class RuleTabs { <<NEW, pure>> which fields each tab shows: When = when · Do = do · Rules = holdFor … whileTrue · Settings = the kind's fields · Header = common }
+    class BehaviorParamsEditor { <<existing, THE ONE params form>> Sync(type, json) · edited JSON }
+    class PredicateFieldLeaf { <<MOVED, shared>> the condition builder as a standard leaf (by type) }
+    class ActionListFieldEditor { <<NEW leaf>> the do list: rows, reorder, add from the catalogue, each args a nested params document }
+    class ActionCatalogue { <<existing>> ShortName · Fqn · ParamsType · Refusal }
+    class LiveLeafOverlay { <<NEW, pure>> RuleLeaves 431 matched to the builder's leaves by Label }
+    class RuleApply { <<NEW>> edit mode = AssignNow · live = the state-keeping edit (ask ②) }
+    class EntityAiEditModel { <<existing>> ApplyTask · Ingress }
+    class BrainJournalView { <<existing, CE-1249>> the History tab }
+    RulesWindow --> RuleDetails
+    RuleDetails --> RuleTabs
+    RuleDetails --> BehaviorParamsEditor
+    BehaviorParamsEditor ..> PredicateFieldLeaf : when
+    BehaviorParamsEditor ..> ActionListFieldEditor : do
+    ActionListFieldEditor ..> ActionCatalogue
+    ActionListFieldEditor ..> BehaviorParamsEditor : each step's args
+    RuleDetails ..> LiveLeafOverlay
+    RuleDetails ..> RuleApply
+    RuleApply ..> EntityAiEditModel
+    RuleDetails ..> BrainJournalView
+```
+*What the picture shows that prose hid:* there is ONE params document per selected rule and ONE form. The tabs only choose which of its fields to
+draw. The condition builder and the step list are field editors INSIDE that form, so the same builder serves the trigger, the replay search and
+the breakpoints, and a step's arguments are drawn exactly as a task's params are.
+
+```mermaid
+sequenceDiagram
+    participant U as instructor / author
+    participant D as RuleDetails
+    participant F as BehaviorParamsEditor
+    participant A as RuleApply
+    participant W as the rule entity (its owner)
+    U->>D: select a row, open the When tab
+    D->>F: Sync(TriggerParamsJsonDto, the entity's params JSON)
+    D->>W: live only — turn ui.rules-live-values on while the tab is open
+    W-->>D: RuleLeaves (≤ 2 Hz) → a value beside each leaf
+    U->>F: edit a leaf / add a step / change the cooldown
+    U->>D: Apply
+    D->>A: the edited JSON
+    alt edit mode
+        A->>W: AssignNow on the scenario entity, saved with the scenario
+    else live
+        A->>W: the state-keeping edit (ask ②), journaled as Instructor, this run only
+    end
+    W-->>D: the new status + Reason (a refusal names the step, CE-4163)
+```
+
+```mermaid
+graph TD
+    ED["Editor composition (EditorSubsystem)"] -->|registers| RW["RulesWindow → RuleDetails"]
+    CES["ComponentEditServices (the standard leaves)"] -->|"+ the SearchPredicateDto leaf, moved · + the ActionStep list leaf"| F["BehaviorParamsForm sessions — every host"]
+    RB["Replay Browser search"] -->|uses the same leaf| CES
+    RW -->|draws| F
+    RW -->|"edit mode apply"| ING["BehaviorIngress.AssignNow (editor world)"]
+    RW -->|"live apply"| WR["EntityWriteRouter → the rule's owner (Brain node)"]
+    WR -.->|"state-keeping re-parameterise: ask ② (behaviors), not built"| BR["the rule behaviour"]
+    BR -->|RuleLeaves 431 · ObjectiveStatus 171 · BrainJournal| RW
+    style BR stroke-dasharray: 5 5
+```
+*What the module diagram shows:* moving the predicate leaf into the standard services makes the Replay Browser and the editor share ONE builder
+by construction. The dashed edge is the one runtime piece that does not exist: until it does, live mode offers the control buttons only.
+
+### 7.3 Decisions
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **RE-1** | trigger and objective editors | ⭐ ONE `RuleDetails` panel in the rules view (RV-6's right pane): trigger tabs **Overview · When · Do · Rules · History · Bindings**, objective tabs **Status · Settings · Results · History** (the mockups). The same panel opens from the entity inspector's *objectives about this unit* (RV-7) |
+| **RE-2** | the form | ⭐ `BehaviorParamsEditor` on the rule entity's behaviour params; `RuleTabs` (pure) maps each tab to its fields. **Header** (every tab's top) = `common` (title, required, scored, points, group, visible to). ⛔ No per-tab DTO, no second form |
+| **RE-3** | the When tab | ⭐ move `PredicateValueFieldDrawer` out of `ReplaySearchPanel` into `Fdp.Presentation/ImGui/Editing` as a standard leaf, registered in `ComponentEditServices` by TYPE (drop the `Predicate` name gate); the Replay Browser keeps drawing it. The two rule additions (`OnEntity` with its ref, `ScenarioTime`) use the existing ref picking (CE-4206). **Live:** `LiveLeafOverlay` shows `RuleLeaves` beside each leaf (✓ / ✗ and `Measured`), matched by `Label`; `ui.rules-live-values` is on only while a When tab is open. ⏳ the *true over time* strip (a leaf history) later |
+| **RE-4** | the Do tab | ⭐ `ActionListFieldEditor`, a standard leaf for `List<ActionStep>`: one row per step (drag to reorder, ✕); *+ Add step* opens the ONE generic picker (CE-4168) over the `ActionCatalogue` (ShortName, Fqn on hover; an action with a `Refusal` shown disabled with it); the step's `args` are a nested params document of the action's `ParamsType`, inline under the row. ⛓ chips on step fields (MA-1, `BindableNode`). **Live:** the running step marked, *step 2 / 3* — ⏳ needs ask ① |
+| **RE-5** | the Rules tab (trigger) · Settings (objective) | ⭐ the remaining fields of the same document: holdFor · delay · cooldown · repeat · maxFires · fire if true when armed · while true; the objective's kind fields (area, min men, hold seconds …). Area / entity fields pick on the map (`PickableLeafFieldEditor`, existing) |
+| **RE-6** | History · Results · Status | ⭐ History = the rule entity's brain journal (CE-1249, the Brain tab's drawing), instructor edits included, each a timeline seek. Results = its children (RV-8's *why this score*, the same model). Status / Overview = RV-6 |
+| **RE-7** | applying an edit | ⭐ **Apply / Revert** buttons (no write per keystroke). **Edit mode:** `AssignNow` on the scenario entity, as the AI section does (`EntityAiDetailsView.ApplyTask`); saved with the scenario. **Live:** a live edit lasts this run only and never writes the scenario file (SR-109). ⛔ Not by the existing running path, because `AssignBehaviorEvent` restarts the rule. ⏳ It waits for ask ② (a state-keeping edit); until then the fields are read-only in live mode with *"needs the live edit (behaviors)"*, and the RV-5 buttons work. An assignment refusal (CE-4163) shows under the field or step it names |
+| **RE-8** | *+ Add* | ⭐ a menu of rule kinds: Trigger + every objective / measure kind from the behaviour registry (those whose params carry `common`). It creates a rule entity (TKB `Trigger` 8861 / `Objective` 8860) through the ONE entity-creation path the Add Entity picker uses, parented to the selected row, and opens its form. Edit mode only (a live insert is a macro insertion, SR-191) |
+| **RE-9** | drag to connect (X4) | ⭐ on a Trigger row: dropping a row on it ANDs `OnEntity { Ref: the dropped row, Predicate: ObjectiveStatus.State == Achieved }` into its `when` (wrapped in `And` when one exists) **in the same form document**, so it shows in the When tab and is applied by RE-7. Edit mode only |
+| **RE-10** | where | ⭐ `RuleDetails`, `RuleTabs`, `LiveLeafOverlay`, `RuleApply` in `Hrot.Presentation/Rules/`; the predicate leaf and `ActionListFieldEditor` in `Fdp.Presentation/ImGui/Editing/` (shared by every host). ⏳ *Graph* / *List* views later |
+
+**Rejected — one line each:**
+- *A trigger-specific form per tab* — `BehaviorParamsForm` is the ruled one form (CE-1023 deleted the last second one).
+- *A second condition builder for `when`* — the replay search's builder edits the same `SearchPredicateDto` (SR-95: one condition language).
+- *Live edits by re-assigning the behaviour* — it restarts the rule; the mockup's live edit keeps it running (SR-109).
+- *Writing on every keystroke* — a half-typed condition would be assigned and refused; Apply also gives one journal entry per edit.
+- *Editing the step list as raw JSON* — the catalogue knows each action's params type; a typed form is checked before it is sent.
+
+### 7.4 Phases
+
+| phase | items | gate |
+|---|---|---|
+| **R5** | RE-1 … RE-6, RE-7 edit mode, RE-8, RE-9, RE-10 | rails: `RuleTabs` (every DTO's fields land in exactly one tab) · the predicate leaf drawn from the standard services (and still in the Replay Browser) · `ActionListFieldEditor` (add / reorder / remove → the JSON the runtime parses; a refused action disabled) · `LiveLeafOverlay` matching · Apply in edit mode = the scenario entity's params · connect writes the `OnEntity` AND · frame rails for the two tab sets; live: author a trigger on `showcase-bridgehead`, save, reload |
+| **R6** | RE-4 live step marks (ask ①) · RE-7 live edits (ask ②) | as behaviors' asks land: rails against the as-built names; a live run: change a cooldown while armed, the fire count stays |
+
+### 7.5 Claim table
+
+| claim | code | design basis |
+|---|---|---|
+| the tabs need no new data model | ✅ `TriggerParamsJsonDto` and the kind DTOs hold every field the mockup shows | ✅ SR-109 tab list |
+| one form edits behaviour params everywhere | ✅ `BehaviorParamsForm.cs:24` | ✅ CE-3043 / CE-1023 |
+| the condition builder can be shared | ✅ `PredicateValueFieldDrawer` draws `SearchPredicateDto`; ⚠ `internal` and name-gated today | ✅ SR-95 (one condition language) |
+| edit mode applies through the existing ingress | ✅ `EntityAiDetailsView.cs:171-173` | ✅ §7.6 of `DESIGN_Sensors_And_Doctrine.md` (the AI section) |
+| the live path today restarts the rule | ✅ `AssignBehaviorEvent` = a re-assign | ✅ SR-109 wants this run only, state kept ⇒ ask ② |
+| ⛔ **undo** of an edit-mode Apply | ⛔ **not measured**: whether `AssignNow` on a scenario entity is on the editor's undo stack | — measure at R5 start; if not, it joins the one undo path the scenario edits use, never a rules-only stack |
+| ⛔ **+ Add** creates a rule entity through the Add Entity path | ⛔ **not measured**: that the creation request carries a behaviour + params for a non-spatial entity | the catalogue lists `Objective` 8860 / `Trigger` 8861 (`EntityTypeCatalogTests` golden) — measure at R5 start |
