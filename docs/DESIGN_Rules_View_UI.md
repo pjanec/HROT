@@ -6,6 +6,7 @@ current-answer: §3 (decisions) · §4 (phases) · §7 (the rule editor, RE-1 �
 stale-below: nothing
 known-rot: none
 related-designs:
+  - docs/DESIGN_Remote_Edit_Outcome.md — OWNS the answer to a remote edit; RE-7's refusal under the field comes from it (R-2082)
   - docs/DESIGN_Scenario_Rules.md — OWNS the decisions this builds: SR-56 (objectives view), SR-103 (rules lanes), SR-105 / SR-109 / SR-110 (the rules view), SR-111 (mission summary), SR-112 (debrief / HUD — later here)
   - docs/designs/rules-view/README.md — the nine mockups (Main, MissionSummary, …); the SR rows win where they differ
   - docs/DESIGN_Director_Timeline_Editor.md — OWNS the ONE timeline panel (TE-21 / R-4075) and its lanes (§9c); TL-X1…X5 here extend it for every host
