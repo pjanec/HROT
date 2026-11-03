@@ -60,6 +60,9 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     /// <summary>Is the hit memory kept on this node right now?</summary>
     internal bool RecordsHits => Hrot.Common.Infrastructure.HudFeatures.RecordsHitFeedback(FeatureGate?.Invoke());
 
+    /// <summary>⭐ CE-1461 W-M7 — are the player's messages kept on this node right now (<c>hud.messages</c>)?</summary>
+    internal bool RecordsMessages => Hrot.Common.Infrastructure.HudFeatures.IsOn(FeatureGate?.Invoke(), Hrot.Common.Infrastructure.HudFeatures.Messages);
+
     /// <summary>Effects made in the last tick, by kind — the rail's counter.</summary>
     public int Spawned { get; private set; }
 
@@ -82,11 +85,20 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
         }
     }
 
+    /// <summary>⭐ CE-1461 W-M7 (SR-106) — every <see cref="Fdp.Toolkit.ScenarioRules.PlayerMessageEvent"/> of this frame goes into the world's <see cref="Hrot.UI.Common.Map3D.PlayerMessages"/> (the subtitle and the log read that one store).</summary>
+    private void TrackMessages(ISimulationView view, EntityRepository world)
+    {
+        if (!RecordsMessages || !world.Bus.IsRegisteredManaged<Fdp.Toolkit.ScenarioRules.PlayerMessageEvent>()) return;
+        foreach (var m in view.ReadManagedEvents<Fdp.Toolkit.ScenarioRules.PlayerMessageEvent>())
+            Hrot.UI.Common.Map3D.PlayerMessages.In(world).Record(m);
+    }
+
     public void Execute(ISimulationView view, float deltaTime)
     {
         Spawned = 0;
         if (view is not EntityRepository world || !world.IsComponentTypeRegistered<Lifespan>()) return;
         double now = SimClock.Of(world).TotalTime;
+        TrackMessages(view, world);   // ⭐ CE-1461 W-M7 — presentation memory too, so before the replay gate as well
         TrackStrikes(view, world, now, RecordsHits);   // ⭐ CE-4062 — BEFORE the replay gate: a replay's blows are drawn too
         if (Fdp.Toolkit.Replay.ReplayState.IsActive(world)) return;   // ⭐ CE-3329 P2 — the world says it is a replay
         var tkb = world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;

@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: ⭐ S1 BUILT 2026-11-02 (coordinator lane; commits 21d6ae1a1 · b2bc4fc5d · fc338819b — §8 is the as-built, with its deviations) · S2, S3 DESIGN · (history: S1 READY-TO-BUILD 2026-11-02 — with §7 F-21…F-26 ✅ accepted: a config per feature; §7 + §7.1 supersede §6.5's `bool On`, `FeaturesAtLoad` string[] and F-15/F-16's shapes) · first READY 2026-11-01 ( §4 F-13…F-18 ✅ ACCEPTED — user: "Approved.") · the model AGREED by the user 2026-10-31 ("Good, this sounds like what is needed", "Yes, please write it down") · S2, S3 DESIGN
-updated: 2026-11-01 (S1 made buildable: the gate, the two delivery paths, the recording, the first two features — coordinator)
-current-answer: ⭐ §8 AS-BUILT (what exists, where, and where the build deviated) · §7 a feature carries a CONFIG (F-21…F-26 ✅) + §7.1 what travels, worked example · §2 the three tiers · §3 the diagrams · §4 decisions F-1…F-18 · §5 slices (S1 buildable) · ⭐ §6 the S1 technical spec (catalogue, C# shapes, where it lives, speed, wire, recording + going live)
+build-state: ⭐ S2b hud.messages BUILT 2026-11-03 (ui, CE-1461, §10) · S1 BUILT 2026-11-02 (coordinator lane; commits 21d6ae1a1 · b2bc4fc5d · fc338819b — §8 is the as-built, with its deviations) · S2, S3 DESIGN · (history: S1 READY-TO-BUILD 2026-11-02 — with §7 F-21…F-26 ✅ accepted: a config per feature; §7 + §7.1 supersede §6.5's `bool On`, `FeaturesAtLoad` string[] and F-15/F-16's shapes) · first READY 2026-11-01 ( §4 F-13…F-18 ✅ ACCEPTED — user: "Approved.") · the model AGREED by the user 2026-10-31 ("Good, this sounds like what is needed", "Yes, please write it down") · S2, S3 DESIGN
+updated: 2026-11-03 (§10 hud.messages as built) (S1 made buildable: the gate, the two delivery paths, the recording, the first two features — coordinator)
+current-answer: ⭐ §10 hud.messages AS-BUILT · §8 AS-BUILT (what exists, where, and where the build deviated) · §7 a feature carries a CONFIG (F-21…F-26 ✅) + §7.1 what travels, worked example · §2 the three tiers · §3 the diagrams · §4 decisions F-1…F-18 · §5 slices (S1 buildable) · ⭐ §6 the S1 technical spec (catalogue, C# shapes, where it lives, speed, wire, recording + going live)
 stale-below: nothing
 known-rot: ⛔ §6.2 / §6.5 / §6.6 show the switch-only shapes (`bool On`, `string[] FeaturesAtLoad`, `FeaturesAtLoad` in the recording) — SUPERSEDED by §7 and, for what was built, §8 (marked inline). §6.1 / §6.3 / §6.4 and §7.1's flow still hold except the two points §8 lists (the load payload carries the cluster LAYER, not the full config; `GET /features` is not built)
 known-conflict: none
@@ -448,3 +448,72 @@ anything during a REPLAY (the outcome is already recorded).
 Rails: `EffectTests.HudFeatures` · `PossessionStationTests.HudFeatures` · `HudFeaturesAreWiredOnEveryHostTests` (every host passes the gate; each
 bootstrapper declares with the right default). Red-proof: dropping hit-marker from `RecordsHitFeedback` fails. ⚠ The drawn marker / arc / ring are
 gated but not frame-tested.
+
+## 10. S2b — `hud.messages`: player messages on the HUD *(ui, `2026-11-03`, CE-1461, `build-state: BUILT` below)*
+
+Owns the PLAYER's side of `PlayerMessageEvent` (SR-106 accepted, SR-121 the event: [`DESIGN_Scenario_Rules.md`](DESIGN_Scenario_Rules.md) — it owns the event, the `Message` action and the wire; this section owns the subtitle, the log and the feature). Not here: the instructor's *what went to whom* (the rules view, SR-105) and any editor / no-possession display.
+
+**INVENTORY** *(queries run `2026-11-03`: `search_graph` `.*Subtitle.*` ⇒ 0 HUD hits, only node-editor `INodeModel.Subtitle` · `.*(Caption|FilmText|Feedback|KillFeed|MessageLog|PlayerMessage|ChatLog).*` Class ⇒ `HitFeedback` (the one HUD memory), editor `MessageLog*` (ImGui, unrelated) · `search_code hud.messages` ⇒ 0 in code; grep `PlayerMessageEvent` ⇒ raised by `ScenarioVerbs.Message`, `PlayerMessageEgress/IngressTranslator` (NED), read by NO presentation code)* —
+
+| precedent | what it gives |
+|---|---|
+| `HitFeedback` (`Hrot.Presentation/Effects`) + `EffectSpawnSystem.TrackStrikes` | the shape to follow: a world-keyed presentation memory (`ConditionalWeakTable`), written by the effect system from the bus each sim frame (on every map host), read by the station, recorded only while a feature reader is on |
+| `HudText` (`Map3D/HudText.cs`) | the ONE HUD / film text path; `PossessionStation.DrawOverlay` draws everything with it |
+| `HudFeatures` + `HudFeaturesAreWiredOnEveryHostTests` | the `hud.*` declarations and the forwarding rail (gate passed by every host) |
+| `PossessedBy.StationNodeId` / `EntityOrders.StationFor(unit)` | what a **station** id IS: the node id the station posts orders as — so `ToKind = Station` matches `ToValue == StationFor(possessed unit)` |
+
+```mermaid
+classDiagram
+  class PlayerMessageEvent { +MessageId +OriginNodeId +ToKind +ToValue +Text +Seconds +Priority +SentAt }
+  class PlayerMessages { +Record(evt) bool +Active(now, viewer) +Log(viewer) +Alpha(entry, now)$ +Addressed(kind, value, viewer)$ +Wrap(text, measure, max)$ +In(world)$ }
+  class Viewer { +UnitNetId +Side +StationId }
+  class EffectSpawnSystem { +FeatureGate +RecordsMessages }
+  class PossessionStation { +MessageLogOpen +DrawOverlay() +ViewerOf(w) }
+  class FpsCameraDriver { +MessageLogKey = N }
+  class HudFeatures { +Messages = hud.messages }
+  EffectSpawnSystem ..> PlayerMessages : records into
+  EffectSpawnSystem ..> PlayerMessageEvent : reads (bus)
+  PossessionStation ..> PlayerMessages : reads
+  PossessionStation ..> Viewer : builds from the possessed unit
+  FpsCameraDriver ..> PossessionStation : toggles the log
+  EffectSpawnSystem ..> HudFeatures : gate
+  PossessionStation ..> HudFeatures : gate
+```
+*Caption — ONE store (`PlayerMessages`): the subtitle and the log read the same list; the filter is applied at READ time, so switching to another unit re-addresses the log (a message to side X shows once you hold an X unit). Existing: `PlayerMessageEvent`, `EffectSpawnSystem`, `PossessionStation`, `FpsCameraDriver`, `HudFeatures`; new: `PlayerMessages`, `Viewer`.*
+
+```mermaid
+sequenceDiagram
+  participant N as NED ingress (any node)
+  participant B as Bus
+  participant E as EffectSpawnSystem (sim frame)
+  participant M as PlayerMessages (per world)
+  participant S as PossessionStation.DrawOverlay (render frame)
+  N->>B: PublishManaged(PlayerMessageEvent, Origin = sender)
+  E->>B: ReadManagedEvents (only if hud.messages is ON)
+  E->>M: Record(evt), dedupe by MessageId + Origin
+  S->>S: HudOn(messages) then ViewerOf(possessed unit)
+  S->>M: Active(now, viewer) / Log(viewer)
+  S->>S: HudText subtitle bottom-centre, fade over last 0.5 s, N toggles the log panel
+```
+
+```mermaid
+graph TD
+  Pack["MapInteractionPack (every map host with a node)"] -->|featureGate| ES[EffectSpawnSystem]
+  Pack -->|featureGate| PS[PossessionStation]
+  ES --> PM[(PlayerMessages)]
+  PS --> PM
+  FD["FpsCameraDriver.HandleInput"] -->|N| PS
+  Replay["Replay: EffectSpawnSystem records BEFORE the replay gate"] -.-> ES
+```
+*Caption — who calls what each frame: the recorder is the effect system the pack already runs on IG, CGF, Editor, SimHost and the Replay Browser; the station only reads. The Editor and a station with no possessed unit draw nothing (M-4).*
+
+| id | decision | measured basis |
+|---|---|---|
+| **M-1** | one pure model `PlayerMessages` (no ImGui). Viewer filter: `All` always · `Unit` ⇒ `ToValue` = the possessed unit's network id · `Side` ⇒ = its `EntityInfo.ForceId` · `Station` ⇒ = `EntityOrders.StationFor(unit)` · `Instructor` ⇒ never on the player HUD. Active subtitles: up to 2, higher `Priority` first then newest, while `0 ≤ now − SentAt ≤ Seconds`. Log: newest first, cap 100 (raw store cap 300, filtered at read). Dedupe by (`MessageId`, `OriginNodeId`) | the event shape (`ExerciseResult.cs`); station id from `PossessionStation.cs:183,307` |
+| **M-2** | subtitle bottom-centre in `DrawOverlay` with `HudText`, word-wrapped to 70 % of the width, fading over its last 0.5 s; ONLY when `hud.messages` is on — declared in `HudFeatures` (Live, ON on every host: a game and a training both want it, the Editor never draws it) | `HudFeatures.cs`, wired-on-every-host rail |
+| **M-3** | the log: key **`N`** (⚠ deviation from the lean `L`: `L` is already `FpsCameraDriver.FireModeKey`; keys taken by the station: A B C D E F G I K L M O Q R S T V W X Z Tab Space Esc 1-9 — `N` is free). Toggles a panel, one line per message *mm:ss  text*, newest first | `PossessionStation.cs` key constants, `FallScreen.cs:74` (K) |
+| **M-4** | not in scope: the instructor's *what went to whom*, an editor / no-possession display | — |
+
+Rails: `PlayerMessagesTests` (filter per kind, lifetime + stacking + priority, log order + cap, dedupe, wrap, fade) · `EffectTests.HudMessages` (recorded only while the feature is on) · `PossessionStationTests.HudMessages` (feature off ⇒ nothing; key toggles) · `HudFeaturesAreWiredOnEveryHostTests` (declared with the right default) · a frame rail of the overlay showing the subtitle and the open log. Station-kind addressing is the one filter that needs a node (`StationFor`); a station with no `NetworkEntityMap` matches nothing, and says so in the rail.
+
+📌 **Live check `2026-11-03`** (ui, the editor under Xvfb, `scenarios/test-macro-insert`, `--mode editor`): loaded live and played; at sim 3.6 s the trigger `Reinforce` inserted `test/fire-team` and sent `Message` *"Reinforcements inserted"* to All; `POST /entities/1019/possess` (the Leader) → `N` opened the log showing **`0:03 Reinforcements inserted`**. ⚠ The subtitle itself had already faded (possession took ~9 s; the default 6 s lifetime) — its drawing is proven by the frame rail; a scenario whose message comes AFTER a unit can be possessed would show it live.

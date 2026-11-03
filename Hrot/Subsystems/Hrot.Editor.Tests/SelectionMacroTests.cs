@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Scenario;
@@ -19,6 +21,9 @@ public sealed class SelectionMacroTests : IDisposable
     [ComponentId(250)]
     public struct Refs { public EntityLink Follow; public AreaLink Zone; public EntityRef Plain; }
 
+    /// <summary>A behaviour's params contract holding a reference (the shape of an Attack / Order target).</summary>
+    public sealed class AttackParams { public EntityLink Target { get; set; } }
+
     private readonly EntityRepository _w = new();
     private Entity _a, _b, _c, _outside;   // a, b, c are the "men"; outside is the key'd entity none of them is part of
 
@@ -31,6 +36,7 @@ public sealed class SelectionMacroTests : IDisposable
         _w.RegisterComponent<RefKey>();
         _w.RegisterComponent<ScenarioIgnoreTag>();
         _w.RegisterComponent<Refs>();
+        _w.RegisterManagedComponent<ActiveMissionPlan>();
         Entity Make(int net, string name, float x, float y, float z)
         {
             var e = _w.CreateEntity();
@@ -220,4 +226,56 @@ public sealed class SelectionMacroTests : IDisposable
     [InlineData("macros/test/sel", "test/sel")]
     [InlineData(" /test\\sel/ ", "test/sel")]
     public void ThePathOfATypedName(string typed, string path) => Assert.Equal(path, SaveSelectionAsMacroFlow.PathOf(typed));
+
+    // ── ⭐ CE-4210 W-M6 — a reference INSIDE a params blob is part of the closure (SR-159: bound as its Param form, like a typed leaf) ─────────────────────
+
+    private static ScenarioBehaviorRemapper Remapper() { var r = new ScenarioBehaviorRemapper(); r.Register<AttackParams>("Attack"); return r; }
+
+    private void GiveMission(Entity e, params string[] taskParams)
+    {
+        var plan = new DomainMissionPlan();
+        foreach (var p in taskParams) plan.Tasks.Add(new DomainMissionTask { TaskId = Guid.NewGuid(), BehaviorName = "Attack", BehaviorParams = p });
+        _w.SetManagedComponent(e, new ActiveMissionPlan { Plan = plan });
+    }
+
+    [Fact]
+    public void W_M6_TheWalk_ListsAReferenceInsideAMissionTasksParamsBlob_LikeATypedLeaf()
+    {
+        GiveMission(_a, "{\"Target\":4}");                                                       // task 1 attacks the outside entity (network id 4)
+        GiveMission(_b, "{\"Target\":1}");                                                       // b's task names a: inside
+        var selected = MacroClosure.Savable(_w, Men);
+
+        var outside = Assert.Single(MacroClosure.Walk(_w, selected, Remapper()));
+        Assert.Equal("Alpha", outside.SourceName);
+        Assert.Equal("MissionPlan", outside.Component);
+        Assert.Contains("task 1", outside.Field);                                                  // WHICH task ...
+        Assert.EndsWith("Target", outside.Field, StringComparison.OrdinalIgnoreCase);              // ... and which field of its params
+        Assert.Equal("Hill", outside.TargetName);
+        Assert.True(outside.CanParameterise);                                                      // an EntityLink: Make parameters can bind it
+
+        var plan = SelectionMacroPlan.Build(_w, Men, "x", Remapper());
+        Assert.Equal("@Hill", Assert.Single(plan.Params).Default!.GetValue<string>());
+        Assert.True(plan.CanMakeParameters);
+        Assert.Contains("\"Target\":4", ((Fdp.ModuleHost.Abstractions.ISimulationView)_w).GetManagedComponentRO<ActiveMissionPlan>(_a)!.Plan.Tasks[0].BehaviorParams);   // the walk never writes the world
+    }
+
+    [Fact]
+    public void W_M6_TheWalk_ListsABlobReference_OnlyWhenGivenTheRemapper_TheSilentDefault()
+    {
+        GiveMission(_a, "{\"Target\":4}");
+        Assert.Empty(MacroClosure.Walk(_w, MacroClosure.Savable(_w, Men)));                        // no remapper: no contract to read the blob by
+        Assert.Single(MacroClosure.Walk(_w, MacroClosure.Savable(_w, Men), Remapper()));
+    }
+
+    [Fact]
+    public void W_M6_TheFlow_GivenTheRemapper_AsksAboutABlobReference()
+    {
+        GiveMission(_a, "{\"Target\":4}");
+        var sink = new List<(string, Guid[], string?)>();
+        var flow = new SaveSelectionAsMacroFlow(() => _w, () => Men.ToArray(), (n, g, h) => sink.Add((n, g, h)), Remapper());
+        flow.Begin(); flow.Name = "x"; flow.Confirm();
+        Assert.Equal(SaveSelectionAsMacroFlow.StepKind.Closure, flow.Step);
+        Assert.Equal("MissionPlan", Assert.Single(flow.Plan!.Outside).Component);
+        Assert.Empty(sink);
+    }
 }

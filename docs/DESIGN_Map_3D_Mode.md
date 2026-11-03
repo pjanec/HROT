@@ -3477,6 +3477,19 @@ point under `c`; `c = null` byte-identical to today; 2-D `AnchorAt` keeps a worl
 
 Rails: `Map3DTests.CE4084_*` (off-centre projection / pick = draw / frustum NDC; centred = the old formulas; the wheel keeps the point under c; 2-D ↔ 3-D keeps it) · `MapCameraTests.CE4084_*` (`AnchorAt` keeps every world point; `FocusOn` lands at c, with and without smoothing; no area ⇒ the window's middle) · `PossessionStationTests.CE4084_*` (the aim pick is at c; `OpenMapArea.Centre` and the camera's default source).
 
+### 6ag. CE-1462 — the 2-D map frames its terrain when it is loaded — AS-BUILT `2026-11-03` (ui, W-B1; backend's [note](blueprints/batches/NOTE_Backend_To_Ui_Showcase_And_Macros.md) §3 ②)
+
+**Measured:** nothing framed a terrain on load — `GET /view`'s `rect2D` stayed at the pixel default `[0, −1200, 2200, 0]` (Zoom 1, Target 0); `demo-city` only looked framed because it falls inside that rectangle, `cqb-village` (330 × 232 m) did not. The 3-D camera has no terrain framing of its own (no terrain use in `MapCamera3D`); it takes the 2-D camera's pose when the map is switched to 3-D (`OverheadMatching`), so a framed 2-D map frames the first 3-D view too — a map STARTED in 3-D (e.g. `mapInLoad`) is not framed: left as it is.
+
+| | as built |
+|---|---|
+| the fit | `MapFraming.Fit(rectMin, rectMax, area, viewCentre, margin = 5 %, minZoom, maxZoom)` (`Fdp.Presentation/Vis2D/Components`): centre = target, the largest zoom that shows the rectangle plus the margin in the visible area (`OpenMapArea.Current`, else the viewport), clamped to the camera's limits. ⚠ `Film.cs:354` is NOT a fit (it rescales the same picture to a frame's size), so there is no second fit computation to unify |
+| when | `MapFraming.Framer` (pure): the first frame a terrain is resident and drawable, and whenever `TerrainDefinition.ResidentName` changes; an unload forgets it, so the next load frames again; ⛔ never otherwise — the user's pans and zooms win |
+| who | `TerrainFramingLayer` (`Hrot.Presentation/Map2D`), added by `MapInteractionPack.AttachMapLayers` — so the editor, CGF, SimHost, IG and the Replay Browser all get it by construction. Reads the terrain's bounds from the `TerrainWorld` singleton (the one `TerrainLayer2D` draws); a roads-only terrain has none and is not framed. `MapViewSwitch.Camera2D` is the camera it moves |
+| left alone | the 3-D map on screen, any 3-D camera driver (a followed unit, a possession station, the film director) or a station in first person: that terrain is CONSUMED unframed (not framed later behind the user's back); a switch in flight waits one more frame |
+
+Rails: `MapFramingTests` (the fit for a small and a big terrain, the margin, the framer: once, on change, after an unload, and left-alone) · `TerrainFramingLayerTests` (over a real world and camera: frames cqb-village's bounds with the margin, a pan is never undone, a change re-frames, a driven or 3-D camera is untouched). Red-proof: the framer not remembering what it framed ⇒ the "never re-frames" rail red.
+
 ## 7. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |

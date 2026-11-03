@@ -272,13 +272,13 @@ public sealed class ScenarioDoor
     }
 
     /// <summary>Loads <paramref name="scenarioName"/> LIVE (the Orchestrator panel's <i>Load into Live</i>) — the same decision as <see cref="Open"/>.</summary>
-    public void LoadLive(string scenarioName, IDoorAsker? asker = null, UnsavedAnswer? answered = null, Action? then = null)
+    public void LoadLive(string scenarioName, IDoorAsker? asker = null, UnsavedAnswer? answered = null, Action? then = null, string? argsJson = null)
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
         var raw = Raw;
         Admit(DoorMove.LoadingLive(scenarioName), asker, answered, () =>
         {
-            raw.LoadForLive(scenarioName);
+            if (argsJson is null) raw.LoadForLive(scenarioName); else raw.LoadForLive(scenarioName, argsJson);   // ⭐ D24 — the run setup rides the load
             then?.Invoke();
         });
     }

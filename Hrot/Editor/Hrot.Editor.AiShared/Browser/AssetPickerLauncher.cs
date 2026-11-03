@@ -32,6 +32,9 @@ public sealed class AssetPickerLauncher
     private readonly Func<Hrot.UI.Common.RunMode.RunModeChoice?>? _runChoice;
     private readonly Func<IReadOnlyList<string>>? _macroPaths;
     private readonly Func<string?>? _macrosRoot;
+    private readonly Hrot.Editor.AiShared.Scenarios.ParamArgsTable? _paramTable;
+    private readonly Dictionary<string, Hrot.UI.Common.RunMode.RunSetup> _runSetups = new(StringComparer.Ordinal);
+    private string? _paramTableFor;
 
     /// <summary>⭐ CE-4141 (AQ108 D25) — the id of the scenario picker's default footer action (<i>Open</i>).</summary>
     public const string OpenActionId = "open";
@@ -68,6 +71,7 @@ public sealed class AssetPickerLauncher
     /// SCENARIOS (the cluster's list) leads with the waiting row instead of looking empty; the other kinds (files on disk) list as before. Null ⇒ always arrived (a rail). ⭐ A host with a run choice must pass it.</param>
     /// <param name="runChoice">⭐ CE-4141 (AQ108 D25) — the host's run choice (read at use: it is built after the picker). It makes <i>Open and go live</i> run (<see cref="Hrot.UI.Common.RunMode.RunModeChoice.OpenAndGoLive"/>: the door asks D4's
     /// questions, then loads for live); without it the button is disabled with its reason. ⭐ A host that HAS a run choice must pass it (the forwarding rail checks the Editor, CGF and the Orchestrator).</param>
+    /// <param name="paramEditService">⭐ AQ108 D24 — the host's component edit service: the run setup's scenario-param rows are drawn by the ONE component drawer through it. ⭐ A host that HAS one must pass it (the forwarding rail checks the Editor and CGF).</param>
     public AssetPickerLauncher(
         Action<PickerRequest, Action<PickerResult>> openPicker,
         IAssetCatalog catalog,
@@ -77,8 +81,11 @@ public sealed class AssetPickerLauncher
         Func<bool>? hasInventory = null,
         Func<Hrot.UI.Common.RunMode.RunModeChoice?>? runChoice = null,
         Func<IReadOnlyList<string>>? macroPaths = null,
-        Func<string?>? macrosRoot = null)
+        Func<string?>? macrosRoot = null,
+        Func<StructEdit.Core.IComponentEditService?>? paramEditService = null)
     {
+        // ⭐ AQ108 D24 — the run setup's typed param rows are the ONE args form (ParamArgsTable); a host with a component edit service passes it (the Editor, CGF), else the params rows say there is none and only the variant is offered
+        _paramTable = paramEditService is null ? null : new Hrot.Editor.AiShared.Scenarios.ParamArgsTable(paramEditService, pickScope: "$.runsetup.");
         // ⭐ CE-4210 MA-6 — a host that EDITS macros passes the listing of the NAS `macros/` root (the root the load resolves against); null ⇒ no Macros group (macro authoring is the editor's).
         _macroPaths = macroPaths;
         _macrosRoot = macrosRoot;
@@ -138,6 +145,7 @@ public sealed class AssetPickerLauncher
         };
         if ((kinds & AssetKindFilter.Scenario) != 0) request = ScenarioPane(request, kinds, source);
 
+        _runSetups.Clear();   // ⭐ AQ108 D24 — a run setup lives for one picker session: a fresh picker starts at the defaults
         _openPicker(request, result =>
         {
             if (result.Cancelled)
@@ -148,7 +156,7 @@ public sealed class AssetPickerLauncher
                 // ⭐ CE-4141 — Open and go live: the run choice's door asks D4's questions, then loads for live
                 if (result.ActionId == GoLiveActionId)
                 {
-                    if (asset.Kind == AssetKind.Scenario) _runChoice?.Invoke()?.OpenAndGoLive(asset.Name);
+                    if (asset.Kind == AssetKind.Scenario) _runChoice?.Invoke()?.OpenAndGoLive(asset.Name, RunArgsFor(asset.Name));   // ⭐ D24 — only what the OPEN expander chose; closed ⇒ null
                     return;
                 }
                 if (onPicked != null)
@@ -162,7 +170,7 @@ public sealed class AssetPickerLauncher
     /// <summary>
     /// ⭐ CE-4141 (AQ108 D25) — the scenario picker is the first SOURCE of the generic picker's side pane (CE-4168): the pane shows the entry's <c>preview.png</c>, name and description, then facts read from
     /// its <c>scenario.json</c> (terrain, subsystem, entity count — only what the file has); a host with no local scenarios folder says so. The footer offers <i>Open</i> (default) and <i>Open and go live</i>.
-    /// ⏳ The run-setup expanders of D24 (variant, scenario params) are NOT here: scenario variants and params are macros S3 (backend's) and do not exist yet.
+    /// ⭐ AQ108 D24 — under the facts, a collapsed <i>Run setup</i> expander (the variant and the scenario's params); closed = the defaults.
     /// </summary>
     /// <summary>
     /// ⭐ CE-4210 MA-8 — the SAME picker's Macros group on its own (the instance's <i>Change…</i>): lists the macro files and calls back with the chosen macro's PATH under <c>macros/</c>.
@@ -196,7 +204,7 @@ public sealed class AssetPickerLauncher
         DefaultSize = new System.Numerics.Vector2(ScenarioPickerWidth, ScenarioPickerHeight),   // ⭐ D25 "the wide picker": big enough to read the preview
         SidePaneWidth = ScenarioPaneWidth,
         DrawPaneAfterDefault = true,
-        // ⏳ AQ108 D24 — the run setup (variant, scenario params; collapsed expanders) goes HERE once scenario variants / params exist (macros S3, backend's).
+        // ⭐ AQ108 D24 — the collapsed Run setup expander (variant, scenario params) is drawn under the facts
         DrawPane = (entry, pane) => DrawScenarioFacts(entry, pane),
         Actions = new[]
         {
@@ -213,7 +221,7 @@ public sealed class AssetPickerLauncher
         return choice is null ? "This host has no run controls — Live cannot be started from here" : choice.OpenAndGoLiveDisabledReason;
     }
 
-    private static void DrawScenarioFacts(PickerEntry entry, NodeEditor.UI.Picker.PickerPaneContext pane)
+    private void DrawScenarioFacts(PickerEntry entry, NodeEditor.UI.Picker.PickerPaneContext pane)
     {
         if (entry.Tag is not IEditableAsset { Kind: AssetKind.Scenario } asset) return;
         void Muted(string text) { ImGuiNET.ImGui.PushStyleColor(ImGuiNET.ImGuiCol.Text, pane.Theme.TextMuted); ImGuiNET.ImGui.TextUnformatted(text); ImGuiNET.ImGui.PopStyleColor(); }
@@ -227,5 +235,53 @@ public sealed class AssetPickerLauncher
         if (f.TerrainName is { } terrain) Muted("Terrain: " + NodeEditor.UI.Picker.PickerText.Drawable(terrain));
         if (f.SubsystemType is { } sub) Muted("Subsystem: " + sub);
         if (f.EntityCount > 0) Muted("Entities: " + f.EntityCount);
+        DrawRunSetup(asset.Name, f, Muted);
     }
+
+    /// <summary>The label of the variant row's default choice.</summary>
+    public const string RandomVariantLabel = "random (drawn at start)";
+
+    /// <summary>
+    /// ⭐⭐ AQ108 D24 — the <b>Run setup</b> expander, COLLAPSED by default: closed = the defaults (a start needs no interaction). Open: the <b>variant</b> (<i>random (drawn at start)</i> — the default, drawn by the load path, never here — or a number;
+    /// <c>0</c> = as authored; shown only when the file uses variants) and one typed row per <c>header.params</c> entry (the ONE args form, each at its declared default). Only an OPEN expander contributes args: closing it drops the setup.
+    /// </summary>
+    private void DrawRunSetup(string name, ScenarioPaneFacts.Facts f, Action<string> muted)
+    {
+        if (!f.UsesVariants && f.Params is not { Count: > 0 }) return;   // nothing to set up: no expander at all
+        var im = ImGuiNET.ImGui.CollapsingHeader("Run setup##runsetup");
+        if (!im) { _runSetups.Remove(name); return; }   // closed ⇒ the defaults, nothing remembered
+        if (!_runSetups.TryGetValue(name, out var setup)) _runSetups[name] = setup = new Hrot.UI.Common.RunMode.RunSetup(f.Params, f.UsesVariants);
+        if (setup.UsesVariants)
+        {
+            bool random = setup.RandomVariant;
+            if (ImGuiNET.ImGui.RadioButton(RandomVariantLabel + "##variant", random)) setup.RandomVariant = true;
+            ImGuiNET.ImGui.SameLine();
+            if (ImGuiNET.ImGui.RadioButton("number##variant", !random)) setup.RandomVariant = false;
+            if (!setup.RandomVariant)
+            {
+                ImGuiNET.ImGui.SameLine();
+                int v = setup.Variant;
+                ImGuiNET.ImGui.SetNextItemWidth(90f);
+                if (ImGuiNET.ImGui.InputInt("##variantnumber", ref v, 1, 10)) setup.Variant = Math.Max(0, v);
+                muted("0 = as authored");
+            }
+        }
+        if (setup.Params.Count > 0)
+        {
+            if (_paramTable is null) { muted("Scenario params cannot be edited on this host."); return; }
+            if (!string.Equals(_paramTableFor, name, StringComparison.Ordinal)) { _paramTable.Clear(); _paramTableFor = name; }
+            _paramTable.Draw("runsetup-params", Hrot.Editor.AiShared.Scenarios.ParamArgRow.From(setup.Params, setup.Overrides),
+                onSet: (row, json) => setup.Set(row.Name, json),
+                onReset: row => { setup.Reset(row.Name); _paramTable.Clear(); });
+        }
+    }
+
+    /// <summary>The run setup the OPEN expander holds for <paramref name="scenarioName"/> (null while closed / never drawn) — what the frame rail drives.</summary>
+    public Hrot.UI.Common.RunMode.RunSetup? RunSetupOf(string scenarioName) => _runSetups.TryGetValue(scenarioName, out var s) ? s : null;
+
+    /// <summary>How many typed param rows the Run setup drew last frame (the frame rail reads it).</summary>
+    public int RunSetupRowsDrawn => _paramTable?.RowsDrawn ?? 0;
+
+    /// <summary>The args <i>Open and go live</i> passes for <paramref name="scenarioName"/>: what the open Run setup expander chose, else <see langword="null"/> (a start with nothing chosen passes nothing).</summary>
+    public string? RunArgsFor(string scenarioName) => _runSetups.TryGetValue(scenarioName, out var s) ? s.ArgsJson() : null;
 }

@@ -74,6 +74,29 @@ public sealed class SharedOrbatPanel
     /// <summary>Set of expanded node IDs managed by this panel instance.</summary>
     public IReadOnlySet<int> ExpandedNodes => _expandedNodes;
 
+    /// <summary>Expands a node (a host restoring the tree's state; the frame rail's seam). The arrow button toggles the same set.</summary>
+    public void Expand(int entityId) => _expandedNodes.Add(entityId);
+
+    // ── ⭐ CE-4213 — what the last <see cref="DrawContent"/> actually EMITTED (the frame rail asserts on it; not a model projection) ──
+
+    /// <summary>One row as drawn: its text, depth, whether it was a group label or a selectable entity row, and the arrow it carried (null = none, else expanded or not).</summary>
+    public readonly record struct DrawnRow(string Text, int Depth, bool IsGroup, bool? ArrowExpanded, System.Numerics.Vector2 Min = default, System.Numerics.Vector2 Max = default);
+
+    /// <summary>The relation switch's three radio buttons as laid out: label and screen rectangle (what a click lands on).</summary>
+    public readonly record struct DrawnSwitch(string Label, System.Numerics.Vector2 Min, System.Numerics.Vector2 Max);
+
+    private readonly List<DrawnRow> _drawn = new();
+    private readonly List<DrawnSwitch> _switch = new();
+
+    /// <summary>The rows the last frame drew, top to bottom.</summary>
+    public IReadOnlyList<DrawnRow> DrawnRows => _drawn;
+
+    /// <summary>The relation switch the last frame drew.</summary>
+    public IReadOnlyList<DrawnSwitch> RelationSwitch => _switch;
+
+    /// <summary>The refusal line the last frame drew, or null.</summary>
+    public string? DrawnRefusal { get; private set; }
+
     // ── Public BUILD entry point (U-obs-5) ───────────────────────────────
     /// <summary>⭐⭐⭐ BUILD — a pure projection of the visible tree. No ImGui. ⭐ Calls
     /// <c>data.GetVisibleNodes</c>, the SAME source <see cref="DrawContent"/> reads.</summary>
@@ -91,12 +114,16 @@ public sealed class SharedOrbatPanel
     /// </summary>
     public void DrawContent(IOrbatDataProvider data, IOrbatController ctrl)
     {
+        _drawn.Clear(); _switch.Clear(); DrawnRefusal = null;
         // ⭐ CE-4213 — the relation switch: ONE tree, the parent rule chosen here.
         if (ImGui.RadioButton("Command", Relation == EntityTreeRelation.Command)) Relation = EntityTreeRelation.Command;
+        _switch.Add(new("Command", ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
         ImGui.SameLine();
         if (ImGui.RadioButton("Structure", Relation == EntityTreeRelation.Structure)) Relation = EntityTreeRelation.Structure;
+        _switch.Add(new("Structure", ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
         ImGui.SameLine();
         if (ImGui.RadioButton("Scenario", Relation == EntityTreeRelation.Scenario)) Relation = EntityTreeRelation.Scenario;
+        _switch.Add(new("Scenario", ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
         data.Relation = Relation;
         bool editable = Relation == EntityTreeRelation.Command;   // Structure and Scenario: no drag, no drop targets
 
@@ -106,6 +133,7 @@ public sealed class SharedOrbatPanel
             ImGui.PushStyleColor(ImGuiCol.Text, RefusalColour);
             ImGui.PushTextWrapPos(0f);
             ImGui.TextUnformatted(refusal);
+            DrawnRefusal = refusal;
             ImGui.PopTextWrapPos();
             ImGui.PopStyleColor();
         }
@@ -127,9 +155,11 @@ public sealed class SharedOrbatPanel
                 ImGui.Indent(node.Depth * 12f);
 
             // Arrow toggle for nodes with children
+            bool? arrow = null;
             if (node.HasChildren)
             {
                 bool expanded = _expandedNodes.Contains(node.EntityId);
+                arrow = expanded;
                 if (ImGui.ArrowButton($"##arr_{node.EntityId}", expanded ? ImGuiDir.Down : ImGuiDir.Right))
                 {
                     if (expanded)
@@ -145,13 +175,16 @@ public sealed class SharedOrbatPanel
             if (node.IsGroup)
             {
                 ImGui.TextUnformatted(node.Name);
+                _drawn.Add(new(node.Name, node.Depth, true, arrow, ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
                 if (node.Depth > 0) ImGui.Unindent(node.Depth * 12f);
                 continue;
             }
 
             // Selectable row — ⭐ CE-1350: a destroyed unit's name in dark red; a double-click centres the map on it (Center View)
             if (node.IsDestroyed) ImGui.PushStyleColor(ImGuiCol.Text, DestroyedColour);
-            if (ImGui.Selectable($"{node.Name}##{node.EntityId}", false, ImGuiSelectableFlags.AllowDoubleClick))
+            bool picked = ImGui.Selectable($"{node.Name}##{node.EntityId}", false, ImGuiSelectableFlags.AllowDoubleClick);
+            _drawn.Add(new(node.Name, node.Depth, false, arrow, ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
+            if (picked)
             {
                 if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left)) ctrl.CenterOn(node.EntityId);
                 else ctrl.SelectEntity(node.EntityId);

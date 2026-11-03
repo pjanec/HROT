@@ -287,11 +287,20 @@ public sealed class RunModeChoice
     /// <i>Save / Discard / Cancel</i> over unsaved edits — D4), then loads for live; the load lands paused and the clock resumes once Live is up, as ▶ does. ⛔ Sends no armed mode.
     /// Does nothing when <see cref="OpenAndGoLiveDisabledReason"/> says why not.
     /// </summary>
-    public void OpenAndGoLive(string scenarioName)
+    public void OpenAndGoLive(string scenarioName, string? argsJson = null)
     {
         if (OpenAndGoLiveDisabledReason is not null || string.IsNullOrWhiteSpace(scenarioName)) return;
-        _door!.LoadLive(scenarioName, then: () => _resumeWhenLive = true);
+        _lastRunSetup[scenarioName] = argsJson;   // ⭐ AQ108 D24 — ▶ on this scenario later reuses it
+        _door!.LoadLive(scenarioName, then: () => _resumeWhenLive = true, argsJson: argsJson);
     }
+
+    private readonly Dictionary<string, string?> _lastRunSetup = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// ⭐ AQ108 D24 — the run setup (the load's args: changed params and a chosen <c>$variant</c>) this scenario was last started with from this session, or <see langword="null"/> (the defaults). ▶ on an already-open scenario reuses it
+    /// (<see cref="GoLive"/>); the picker's <i>Run setup</i> expander starts from it. Session memory only — not persisted.
+    /// </summary>
+    public string? LastRunSetupOf(string scenarioName) => _lastRunSetup.TryGetValue(scenarioName, out var args) ? args : null;
 
     // ── ⭐ AQ108 D21 — the timeline's menu: a mode change at the clicked moment, without asking ─────────────────────────
 
@@ -391,7 +400,8 @@ public sealed class RunModeChoice
     private void GoLive(string scenario)
     {
         _resumeWhenLive = true;
-        _control!.LoadForLive(scenario);
+        if (LastRunSetupOf(scenario) is { } setup) _control!.LoadForLive(scenario, setup);   // ⭐ AQ108 D24 — ▶ reuses the scenario's last run setup
+        else _control!.LoadForLive(scenario);
     }
 
     // ── ■ (R2) ────────────────────────────────────────────────────────────────────────

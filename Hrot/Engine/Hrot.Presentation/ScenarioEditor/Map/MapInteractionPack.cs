@@ -580,6 +580,9 @@ namespace Hrot.ScenarioEditor.Map
             var possession = new Hrot.UI.Common.Map3D.PossessionStation(viewSwitch, worldProvider, bodies, featureGate);   // ⭐ CE-4148 — the host's gate: the hud.* features   // ⭐ CE-1073 — the drawn heads
             stats.Possession = possession;   // ⭐ CE-1262 (AV-1) — the view snapshot names the possessed unit and its crosshair target
             canvas.AddLayer(possession);
+            // ⭐ CE-1462 (W-B1) — the 2-D map frames its terrain when one is loaded (and when it changes), on EVERY host: here, so no host can lack it. Never a camera the user or a station owns (3-D on screen, a driver, first person).
+            canvas.AddLayer(new Hrot.UI.Common.Map2D.TerrainFramingLayer(worldProvider, () => viewSwitch.Camera2D,
+                leaveAlone: () => viewSwitch.Is3D || viewSwitch.Camera3D.Driver != null || possession.InFps, switching: () => viewSwitch.IsSwitching));
             viewMode.ToggleShoulder = () => possession.OverShoulder = !possession.OverShoulder;   // ⭐ CE-1201 (§8p OS-1)
             // ⭐ CE-1293 (UC-2, UC-10) — watching a unit: the 3-D camera follows it (menu and POST /view/follow; not while possessing)
             viewMode.World = worldProvider;

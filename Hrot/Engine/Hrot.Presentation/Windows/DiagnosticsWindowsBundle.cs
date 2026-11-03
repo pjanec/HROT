@@ -85,7 +85,8 @@ public sealed class DiagnosticsWindowsBundle : IUiBundle
         ctx.Windows.RegisterWindow(new FdpEventBrowserWindow(
             EventsId(h.IdPrefix), $"{h.TitlePrefix} Event Browser", h.Perspective,
             h.EventBrowser,
-            h.TitleBarColor));
+            h.TitleBarColor,
+            openByDefault: h.EventBrowserOpenByDefault));
 
         // ⭐⭐ RULING 49 — absent-and-explained beats present-and-broken. A host that cannot service
         //    these two does not register them, which is exactly what the editor's `if (_kernel != null)`
@@ -185,4 +186,6 @@ public sealed record DiagnosticsHostServices(
     MapPickBroker? PickBroker = null,
     Func<CycloneDDS.Runtime.DdsParticipant?>? WireParticipant = null,
     // ⭐ CE-4210 P2 — a host that AUTHORS scenario params passes how a bind popup's "New parameter…" declares one; null ⇒ the popup offers only the declared ones.
-    Func<Type, string, object?, Fdp.Presentation.Editing.ParamInScope?>? DeclareParam = null);
+    Func<Type, string, object?, Fdp.Presentation.Editing.ParamInScope?>? DeclareParam = null,
+    // ⭐ CE-1463 (W-B1; backend's note §3 ①) — the Event Browser starts OPEN (the editor's default, unchanged); a host where it is not the main tool passes false (CGF: it covered the top-left of the map in every --mode all screenshot). It stays openable from the Window menu.
+    bool EventBrowserOpenByDefault = true);

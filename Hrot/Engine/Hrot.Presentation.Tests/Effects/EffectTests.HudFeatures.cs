@@ -58,7 +58,7 @@ public sealed partial class EffectTests
     {
         var player = Gate(playerDefault: true);
         var other = Gate(playerDefault: false);
-        Assert.Equal(6, HudFeatures.All.Length);
+        Assert.Equal(7, HudFeatures.All.Length);   // ⭐ CE-1461 — hud.messages joined
         foreach (var id in new[] { HudFeatures.HitMarker, HudFeatures.DamageArc, HudFeatures.KillCam, HudFeatures.SquadTakeoverAfterDeath })
         {
             Assert.True(HudFeatures.IsOn(player, id), id);

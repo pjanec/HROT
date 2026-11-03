@@ -40,6 +40,12 @@ public interface IRunScenarioControl
     void LoadForLive(string scenarioName);
 
     /// <summary>
+    /// ⭐ CE-4141 / AQ108 D24 — the same load with the run's SETUP: <paramref name="argsJson"/> (the scenario's params that differ from their defaults, and the reserved <c>$variant</c> when a number was chosen) goes out as the load intent's
+    /// <c>ScenarioArgsJson</c>, the route every node's load already reads. A control that cannot carry args keeps the default (the plain load) — ⛔ the editor session overrides it.
+    /// </summary>
+    void LoadForLive(string scenarioName, string? argsJson) => LoadForLive(scenarioName);
+
+    /// <summary>
     /// ⭐⭐⭐ <b>Open for AUTHORING, cluster-wide</b> — the <c>/scenario/load/edit</c> path. Asks for Idle, wipes locally once idle, then
     /// requests <c>OperatingEdit</c>. ⭐ <c>ExerciseId</c> is deliberately fresh-per-transaction here as it always was; authoring is not an
     /// exercise run.
