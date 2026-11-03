@@ -75,7 +75,9 @@ namespace Fdp.Toolkit.Orchestration
         /// </summary>
         public static TransitionStateIntent LiveLoadIntent(string scenario, bool startPaused = true, bool forceRecording = false, string? scenarioArgsJson = null) => new()
         {
-            ScenarioArgsJson = scenarioArgsJson,   // ⭐ macros S3a ⑦ (SR-41) — HTTP's {args}, the command line's --param
+            // ⭐ macros S3a ⑦ (SR-41) — HTTP's {args}, the command line's --param · ⭐⭐ AQ108 D24 — no $variant ⇒ one is DRAWN here, the ONE live
+            //   intent, so every way into Live (HTTP, --scenario/--play, the editor's ▶) gets the default random variant by construction
+            ScenarioArgsJson = Fdp.Toolkit.Scenario.ScenarioVariants.WithDefaultVariant(scenarioArgsJson),
             TransactionId  = Guid.NewGuid(),
             TargetState    = ClusterState.OperatingLive,
             ScenarioId     = scenario,

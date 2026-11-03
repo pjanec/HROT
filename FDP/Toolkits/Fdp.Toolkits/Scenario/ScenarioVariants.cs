@@ -51,6 +51,33 @@ namespace Fdp.Toolkit.Scenario
             return 0;
         }
 
+        /// <summary>⭐ AQ108 D24 — the args NAME a variant (an explicit <c>0</c> = as authored counts; absent / unreadable does not).</summary>
+        public static bool HasVariant(string? argsJson)
+        {
+            if (string.IsNullOrWhiteSpace(argsJson)) return false;
+            try { return JsonNode.Parse(argsJson) is JsonObject o && o.ContainsKey(ArgName); }
+            catch (System.Text.Json.JsonException) { return false; }
+        }
+
+        /// <summary>⭐⭐ AQ108 D24 (✅ user: <i>"default random, no interaction"</i>) — a LIVE run's default variant: when the args name none, a
+        /// non-zero variant is DRAWN and written into them as <see cref="ArgName"/>, so it is recorded with the run
+        /// (<c>RecordingMetadata.ScenarioArgs</c>) and can be shown; args that name one (a number, <c>0</c> included) are returned unchanged.
+        /// ⚠ Unreadable args are returned unchanged (the load reports them). <paramref name="draw"/> is for rails; default 1..9999.</summary>
+        public static string? WithDefaultVariant(string? argsJson, Func<int>? draw = null)
+        {
+            if (HasVariant(argsJson)) return argsJson;
+            JsonObject o;
+            if (string.IsNullOrWhiteSpace(argsJson)) o = new JsonObject();
+            else
+            {
+                try { if (JsonNode.Parse(argsJson) is JsonObject p) o = p; else return argsJson; }
+                catch (System.Text.Json.JsonException) { return argsJson; }
+            }
+            int v = draw?.Invoke() ?? Random.Shared.Next(1, 10000);
+            o[ArgName] = v == 0 ? 1 : v;
+            return o.ToJsonString();
+        }
+
         /// <summary>A uniform [0, 1) draw that depends ONLY on its inputs (stable across processes — <see cref="StableHash"/>).</summary>
         public static double Roll(int variant, Guid salt, string key, string what)
             => StableHash.Fnv1a32($"{variant}|{salt:N}|{key}|{what}") / 4294967296.0;

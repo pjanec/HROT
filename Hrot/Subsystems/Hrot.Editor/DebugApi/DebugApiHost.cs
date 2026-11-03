@@ -2119,6 +2119,25 @@ namespace Hrot.Editor.DebugApi
             bool waitForReady = ctx.Body?["waitForReady"]?.GetValue<bool>() ?? false;
             bool startPaused  = ctx.Body?["startPaused"]?.GetValue<bool>() ?? true;   // Q86 §4-G: a property of the load
             string? scenarioArgs = ctx.Body?["args"] is System.Text.Json.Nodes.JsonObject argsObj ? argsObj.ToJsonString() : null;   // ⭐ macros S3a ⑦ / debt A5 (SR-41) — a live AND an edit load
+            // ⭐ AQ108 D22/D24 — {"variant": n | "random"}: a number is the run's variant ($variant, 0 = as authored); "random" or absent leaves it to the
+            //   live intent's default draw (ScenarioLoadSequence.LiveLoadIntent). It overrides a $variant inside args.
+            switch (ctx.Body?["variant"])
+            {
+                case null: break;
+                case System.Text.Json.Nodes.JsonValue vv when vv.TryGetValue<int>(out int vn):
+                {
+                    var o = scenarioArgs is null ? new System.Text.Json.Nodes.JsonObject() : (System.Text.Json.Nodes.JsonObject)System.Text.Json.Nodes.JsonNode.Parse(scenarioArgs)!;
+                    o[Fdp.Toolkit.Scenario.ScenarioVariants.ArgName] = vn;
+                    scenarioArgs = o.ToJsonString();
+                    break;
+                }
+                case System.Text.Json.Nodes.JsonValue vs when vs.TryGetValue<string>(out var s) && s == "random":
+                    if (scenarioArgs is not null && System.Text.Json.Nodes.JsonNode.Parse(scenarioArgs) is System.Text.Json.Nodes.JsonObject ro && ro.Remove(Fdp.Toolkit.Scenario.ScenarioVariants.ArgName))
+                        scenarioArgs = ro.ToJsonString();
+                    break;
+                default:
+                    return Fail(400, "variant is a number (0 = as authored) or \"random\"");
+            }
 
             // ⭐ The count BEFORE the request: with CE-295's unload-first the world empties during the unload, which is
             //   the edge the readiness check needs to see.

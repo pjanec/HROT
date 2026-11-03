@@ -1452,7 +1452,8 @@ namespace Hrot.Editor
                     //   POST /scenario/load/live (the debug service, late-bound as the verify world is), stopped through the editor's master,
                     //   its file named by the ONE recorder, and played back in this process by the product's player
                     loadLive: name => (_debugApiService ?? throw new InvalidOperationException(
-                        "a live verify run loads through the debug service — set HROT_DEBUG_API_PORT (--verify sets one)")).LoadScenarioLive(name, startPaused: true, forceRecording: true),   // ⭐ CE-4090 D14 — a verify run always records
+                        "a live verify run loads through the debug service — set HROT_DEBUG_API_PORT (--verify sets one)")).LoadScenarioLive(name, startPaused: true, forceRecording: true,
+                            scenarioArgsJson: "{\"" + ScenarioVariants.ArgName + "\":0}"),   // ⭐ CE-4090 D14 — a verify run always records · ⭐ AQ108 D24 — and judges the scenario AS AUTHORED (variant 0), never the live default's random draw
                     master: new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _orchestrationBus),   // ⭐ H5 — stop and review
                     state: () => _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle,
                     recordingPath: () => _clusterHandlers!.RecordReplayController?.ActiveRecordingModule?.FilePath,

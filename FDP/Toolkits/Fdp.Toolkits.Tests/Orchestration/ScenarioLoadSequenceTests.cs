@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Scenario;
 using Xunit;
 
 namespace Fdp.Toolkit.Orchestration.Tests;
@@ -121,10 +122,17 @@ public class ScenarioLoadSequenceTests
         Assert.Equal((ClusterState.OperatingEdit, "scn", Guid.Empty, (string?)null, false), (e.TargetState, e.ScenarioId, e.ExerciseId, e.TimeMode, e.ForceRecording));
         Assert.NotEqual(Guid.Empty, e.TransactionId);
 
-        // ⭐ macros S3a ⑦ / debt A5 (SR-41) — BOTH loads carry the scenario args; none given ⇒ null (the header's defaults)
-        Assert.Null(a.ScenarioArgsJson);
+        // ⭐ macros S3a ⑦ / debt A5 (SR-41) — BOTH loads carry the scenario args; none given ⇒ null for an edit (the header's defaults)
         Assert.Null(e.ScenarioArgsJson);
-        Assert.Equal("{\"side\":\"Friend\"}", ScenarioLoadSequence.LiveLoadIntent("scn", scenarioArgsJson: "{\"side\":\"Friend\"}").ScenarioArgsJson);
+        // ⭐⭐ AQ108 D24 — a LIVE load with no $variant draws one (non-zero) and keeps the other args; a named one (0 included) is kept
+        Assert.NotEqual(0, ScenarioVariants.VariantOf(a.ScenarioArgsJson));
+        Assert.True(ScenarioVariants.HasVariant(a.ScenarioArgsJson));
+        var withSide = ScenarioLoadSequence.LiveLoadIntent("scn", scenarioArgsJson: "{\"side\":\"Friend\"}").ScenarioArgsJson;
+        Assert.Equal("Friend", System.Text.Json.Nodes.JsonNode.Parse(withSide!)!["side"]!.GetValue<string>());
+        Assert.NotEqual(0, ScenarioVariants.VariantOf(withSide));
+        Assert.Equal("{\"$variant\":0}", ScenarioLoadSequence.LiveLoadIntent("scn", scenarioArgsJson: "{\"$variant\":0}").ScenarioArgsJson);
+        Assert.Equal("{\"$variant\":7}", ScenarioVariants.WithDefaultVariant("{\"$variant\":7}", () => 3));
+        Assert.Equal("{\"$variant\":3}", ScenarioVariants.WithDefaultVariant(null, () => 3));
         Assert.Equal("{\"side\":\"Friend\"}", ScenarioLoadSequence.EditLoadIntent("scn", "{\"side\":\"Friend\"}").ScenarioArgsJson);
     }
 
