@@ -10,7 +10,7 @@ namespace Fdp.Toolkit.Scenario
     public enum ParamTypeSpelling
     {
         /// <summary>The short names a scenario / macro header's <c>Params</c> use (<c>"float"</c>, <c>"AreaLink"</c>, <c>"ForceId"</c>).</summary>
-        ShortName,
+        Short,
         /// <summary>The CLR names a <c>.params.json</c> uses (<c>"System.Single"</c>, <c>"System.Numerics.Vector3"</c>).</summary>
         Clr,
     }
@@ -77,13 +77,13 @@ namespace Fdp.Toolkit.Scenario
         }
 
         /// <summary>The id of <paramref name="type"/> in the list's own <paramref name="spelling"/>; null when the type is not a param type.</summary>
-        public static string? IdOf(Type? type, ParamTypeSpelling spelling = ParamTypeSpelling.ShortName)
+        public static string? IdOf(Type? type, ParamTypeSpelling spelling = ParamTypeSpelling.Short)
         {
             if (type == null) return null;
             foreach (var (s, c, t) in Plain)
-                if (t == type) return spelling == ParamTypeSpelling.ShortName ? s : c;
+                if (t == type) return spelling == ParamTypeSpelling.Short ? s : c;
             lock (Gate)
-                if (Enums.Contains(type)) return spelling == ParamTypeSpelling.ShortName ? type.Name : type.FullName;
+                if (Enums.Contains(type)) return spelling == ParamTypeSpelling.Short ? type.Name : type.FullName;
             return null;
         }
 
