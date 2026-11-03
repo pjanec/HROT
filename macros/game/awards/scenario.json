@@ -90,7 +90,7 @@
    },
    "Behavior": {
     "Name": "Best",
-    "Params": "{\"common\": {\"title\": \"Untouchable\", \"parent\": \"^among\", \"group\": \"awards\", \"scored\": false}, \"among\": \"^among\", \"measure\": \"Deaths\", \"min\": 0, \"lowerIsBetter\": true}",
+    "Params": "{\"common\": {\"title\": \"Untouchable\", \"parent\": \"^among\", \"group\": \"awards\", \"scored\": false}, \"among\": \"^among\", \"measure\": \"Deaths\", \"min\": 0, \"lowerIsBetter\": true, \"also\": {\"measure\": \"Kills\", \"min\": 5}}",
     "Origin": "Superior"
    }
   },
