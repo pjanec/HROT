@@ -103,6 +103,7 @@ public sealed class TrafficNodeBootstrapper : SharedApplicationBootstrapper, IDi
             participant:         context.Participant,
             subsystemName:       BootConfig!.SubsystemName,
             eventBus:            context.EventBus,
+            features:             () => context.Features,   // ⭐ P-7 F-28 — this caller HAS the node's features, so the scenario step can hand it the header's preset
             scenarioSerializer:  serializer,
             localTempRoot:       BootConfig.LocalTempRoot,
             tkbDb:               context.TkbDb,

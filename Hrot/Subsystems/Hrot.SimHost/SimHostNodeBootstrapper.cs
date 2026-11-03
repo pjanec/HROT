@@ -393,6 +393,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             participant:          context.Participant,
             subsystemName:        "SimHost",
             eventBus:             context.EventBus,
+            features:             () => context.Features,   // ⭐ P-7 F-28 — this caller HAS the node's features, so the scenario step can hand it the header's preset
             // CE-279 — pass the serializer this override already receives (was null); every ECS host saves
             //   its owned slice via the shared serializer. Load handlers stay off (no authoring deps here).
             scenarioSerializer:   serializer,

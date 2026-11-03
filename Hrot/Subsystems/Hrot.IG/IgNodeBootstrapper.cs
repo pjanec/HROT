@@ -312,6 +312,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             participant:         context.Participant,
             subsystemName:       _hrotConfig.SubsystemName,
             eventBus:            context.EventBus,
+            features:             () => context.Features,   // ⭐ P-7 F-28 — this caller HAS the node's features, so the scenario step can hand it the header's preset
             scenarioSerializer:  serializer,   // CE-275 ③ — IG saves its owned slice through the shared handler
             localTempRoot:       storageDirectory,
             tkbDb:               context.TkbDb,

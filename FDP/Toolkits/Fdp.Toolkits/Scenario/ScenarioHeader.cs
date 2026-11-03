@@ -46,6 +46,9 @@ namespace Fdp.Toolkit.Scenario
         /// <summary>⭐ SR-182 — the default <see cref="MaxShift"/> in metres when the header gives none.</summary>
         public const float DefaultMaxShift = 30f;
 
+        /// <summary>⭐ P-7 / F-27 (DESIGN_Node_Features §11) — the scenario's feature PRESET: feature id → partial config JSON (<c>"on"</c> / <c>"off"</c> in the file are the short forms of <c>{"Enabled":true}</c> / <c>{"Enabled":false}</c>); null = none.</summary>
+        public IReadOnlyDictionary<string, string>? Features { get; init; }
+
         /// <summary><see cref="MacroKind"/> for a macro file; null for a scenario.</summary>
         public string? Kind { get; init; }
 
@@ -82,7 +85,7 @@ namespace Fdp.Toolkit.Scenario
     public static class ScenarioHeaderJson
     {
         public static bool HasAny(ScenarioHeader h)
-            => h.Kind != null || h.Params is { Count: > 0 } || h.Anchor != null || h.MaxShift != null || !h.Relocatable;
+            => h.Kind != null || h.Params is { Count: > 0 } || h.Anchor != null || h.MaxShift != null || !h.Relocatable || h.Features is { Count: > 0 };
 
         public static void Write(JsonObject headerNode, ScenarioHeader h)
         {
@@ -107,6 +110,18 @@ namespace Fdp.Toolkit.Scenario
                 };
             if (h.MaxShift is { } m) headerNode["Placement"] = new JsonObject { ["MaxShift"] = m };
             if (!h.Relocatable) headerNode["Relocatable"] = false;
+            if (h.Features is { Count: > 0 })   // ⭐ P-7 F-27 — back to the short form where it is exactly {"Enabled": bool}
+            {
+                var f = new JsonObject();
+                foreach (var kv in h.Features)
+                {
+                    JsonNode? v;
+                    try { v = JsonNode.Parse(kv.Value); } catch (System.Text.Json.JsonException) { v = JsonValue.Create(kv.Value); }
+                    if (v is JsonObject o && o.Count == 1 && o["Enabled"] is JsonValue ev && ev.TryGetValue(out bool en)) v = JsonValue.Create(en ? "on" : "off");
+                    f[kv.Key] = v;
+                }
+                headerNode["Features"] = f;
+            }
         }
 
         /// <summary>Reads a scenario DOM's <c>Header</c> (<c>Header</c>/<c>header</c>, either key case) into a <see cref="ScenarioHeader"/>; null when the DOM has no header.
@@ -138,6 +153,19 @@ namespace Fdp.Toolkit.Scenario
 
             bool relocatable = !(Get(h, "Relocatable") is JsonValue rv && rv.TryGetValue(out bool rb) && !rb);
 
+            Dictionary<string, string>? features = null;
+            if (Get(h, "Features") is JsonObject fo)
+            {
+                features = new Dictionary<string, string>(fo.Count, StringComparer.Ordinal);
+                foreach (var kv in fo)
+                {
+                    if (kv.Value is JsonValue sv && sv.TryGetValue(out string? word))
+                        features[kv.Key] = string.Equals(word, "on", StringComparison.OrdinalIgnoreCase) ? "{\"Enabled\":true}"
+                                         : string.Equals(word, "off", StringComparison.OrdinalIgnoreCase) ? "{\"Enabled\":false}" : word ?? "{}";   // anything else is passed on and reported by the node (F-30)
+                    else if (kv.Value is JsonObject fobj) features[kv.Key] = fobj.ToJsonString();
+                }
+            }
+
             return new ScenarioHeader(Str(h, "SubsystemType") ?? subsystemType, Str(h, "TerrainName"), Str(h, "Description"))
             {
                 Kind = Str(h, "Kind"),
@@ -145,6 +173,7 @@ namespace Fdp.Toolkit.Scenario
                 Anchor = anchor,
                 MaxShift = maxShift,
                 Relocatable = relocatable,
+                Features = features,
             };
 
             static string? Str(JsonObject o, string key) => Get(o, key) is JsonValue v && v.TryGetValue(out string? s) ? s : null;

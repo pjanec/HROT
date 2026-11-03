@@ -39,6 +39,7 @@ namespace Hrot.SimHost.Tests
             DependsOnCount = 2, DependsOn = Ids(101, 102), ActsOnCount = 3, ActsOn = Ids(201, 202, 203),
             HoldFor = 1.5f, Delay = 2.5f, Cooldown = 3.5f, Deadline = 60f, ExpectedAt = 77.25,
             Group = new FixedString32("fire"), Pass = 0.8f, StepCur = 2, StepCount = 3,
+            Capture = 1, Challenger = ForceId.Friend, AreaCenter = new WorldPoint(12.5f, -3f, 4f), AreaRadius = 37.5f,
         };
 
         private static NetIds8 Ids(params int[] v) { var ids = default(NetIds8); for (int i = 0; i < v.Length; i++) ids[i] = v[i]; return ids; }
@@ -81,6 +82,8 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("fire", sample.Group); Assert.Equal("fire", back.Group.ToString());   // ⭐ rules S4 E-3: the evaluation group crosses ✅ Red-proof: Group dropped from ToSample / FromSample ⇒ red
             Assert.Equal(0.8f, sample.Pass); Assert.Equal(0.8f, back.Pass);   // ⭐ rules S4 ②: the pass mark crosses ✅ Red-proof: Pass dropped from ToSample / FromSample ⇒ red
             Assert.Equal((2, 3), (sample.StepCur, sample.StepCount)); Assert.Equal((2, 3), (back.StepCur, back.StepCount));   // ⭐ rule editor ①: the do-step counter crosses ✅ Red-proof: StepCur dropped from ToSample / FromSample ⇒ red
+            Assert.Equal((1, (byte)ForceId.Friend, 12.5f, -3f, 4f, 37.5f), (sample.Capture, sample.Challenger, sample.AreaX, sample.AreaY, sample.AreaZ, sample.AreaRadius));   // ⭐ G-8 (CE-4230): the capture point's facts cross ✅ Red-proof: any of the four dropped from ToSample / FromSample ⇒ red
+            Assert.Equal((1, ForceId.Friend, new WorldPoint(12.5f, -3f, 4f), 37.5f), (back.Capture, back.Challenger, back.AreaCenter, back.AreaRadius));
             // ⭐ rules V-1 / V-2: the rule's links and timing cross too (so ANY node answers GET /objectives with them)
             Assert.Equal((2, 101, 102), (back.DependsOnCount, back.DependsOn[0], back.DependsOn[1]));
             Assert.Equal((3, 201, 202, 203), (back.ActsOnCount, back.ActsOn[0], back.ActsOn[1], back.ActsOn[2]));
@@ -188,6 +191,25 @@ namespace Hrot.SimHost.Tests
                 egress.ScanAndPublish(w);
                 Assert.Equal(2, wire.Written.Count);
                 Assert.Equal(3, wire.Written[1].StepCur);
+            }
+        }
+
+        /// <summary>⭐ G-8 (CE-4230) — the capture point's facts are DISPLAY fields: a change of the challenger goes at once, inside the progress window. ✅ Red-proof: <c>Challenger</c> left out of <c>SameDisplayAndState</c> ⇒ red.</summary>
+        [Fact]
+        public void AChallengerChange_GoesAtOnce_InsideTheProgressWindow()
+        {
+            var (w, _, e) = Node(primaryOwner: 1, localNode: 1);
+            using (w)
+            {
+                var wire = new CapturingWriter();
+                var egress = new EntityObjectiveStatusEgressTranslator(wire);
+                w.SetSimulationTime(10f);
+                egress.ScanAndPublish(w);
+                w.SetSimulationTime(10.1f);
+                w.GetComponentRW<ObjectiveStatus>(e).Challenger = ForceId.Hostile;
+                egress.ScanAndPublish(w);
+                Assert.Equal(2, wire.Written.Count);
+                Assert.Equal((byte)ForceId.Hostile, wire.Written[1].Challenger);
             }
         }
 

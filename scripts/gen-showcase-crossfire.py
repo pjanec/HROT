@@ -341,6 +341,8 @@ def scenario():
             [msg("Round over", 8), {"act": "EndExercise", "args": {"reason": "tickets or time"}}])
 
     write("scenarios/showcase-crossfire/scenario.json", doc({
+        # ⭐ P-7 (DESIGN_Node_Features.md §11, F-27): this scenario's feature preset — the scenario layer under the node / cluster overrides (ui's lists, PH-8)
+        "features": {"hud.objectives": "off", "hud.own-evaluation": "off"},
         "terrainName": "demo-city",
         "description": (
             "What: SHOWCASE 'Crossfire' (docs/SHOWCASE_Scenarios.md §2) - team domination, bots on both sides (players join on the Deploy screen). "

@@ -326,6 +326,7 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
             participant:         context.Participant,
             subsystemName:       BootConfig!.SubsystemName,
             eventBus:            context.EventBus,
+            features:             () => context.Features,   // ⭐ P-7 F-28 — this caller HAS the node's features, so the scenario step can hand it the header's preset
             // CE-279 — pass the serializer this override already receives (was null): the Stride SimHost saves
             //   its owned slice via the shared serializer like every ECS host. Load handlers stay off here.
             scenarioSerializer:  serializer,
