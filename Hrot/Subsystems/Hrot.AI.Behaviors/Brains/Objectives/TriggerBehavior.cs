@@ -309,11 +309,15 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         private static void Act(ref Block b, ref ObjectiveStatus s, Entity self, EntityRepository world, double now)
         {
             var st = ScenarioActions.RunActions(ref b.ListParams, ref b.List, self, world);
-            if (st == NodeStatus.Running) return;
             // ⚠ re-acquire: the list may have added components to this entity (a failure record, a step slot block)
             s = ref world.GetComponentRW<ObjectiveStatus>(self);
+            // ⭐ rule editor ① — the ONE place the step counter is written: the running (or failed) step, 1-based, of the list's length.
+            int count = ActionList.Get(((ISimulationView)world).GetManagedComponentRO<ActionArgs>(self).Items[DoItem]).Length;
+            s.StepCount = (byte)Math.Min(count, 255);
+            s.StepCur = (byte)Math.Min(Math.Min(b.List.Index + 1, count), 255);
+            if (st == NodeStatus.Running) return;
             s.FireCount++; s.LastFired = now;
-            if (st == NodeStatus.Success) { Go(ref b, ref s, TriggerState.Fired, $"fired ({s.FireCount})", now); return; }
+            if (st == NodeStatus.Success) { s.StepCur = 0; s.StepCount = 0; Go(ref b, ref s, TriggerState.Fired, $"fired ({s.FireCount})", now); return; }
             string reason = ActionFailure.TryGet(world, self, out var fail) ? $"step {fail.Step}: {fail.Reason}" : "an action failed";
             ObjectiveHost.Settle(ref s, Kind, ObjectiveState.Failed, reason, now);   // final: the machine ends here, in Fired
             Go(ref b, ref s, TriggerState.Fired, reason, now);
@@ -349,6 +353,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             b.Phase = next;
             s.TriggerState = next;
             if (s.Closed == 0) s.Reason = new FixedString64(reason);
+            if (next != TriggerState.Acting && next != TriggerState.Fired) { s.StepCur = 0; s.StepCount = 0; }   // ⭐ rule editor ①: only Acting (and the failed Fired) keeps a step
             Fdp.Core.Logging.FdpLog<Log>.Info($"trigger '{s.Title}': {old} → {next} ({reason}) at {now:0.###} s");
         }
 

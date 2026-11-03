@@ -19,6 +19,8 @@ namespace Hrot.SimHost.Tests
     public struct TrgRecordParams { public int Value; }
     public struct TrgFailParams { public int Code; }
     public struct TrgNoState { public int Pad; }
+    public struct TrgWaitParams { public int Ticks; }
+    public struct TrgWaitState { public int Elapsed; }
 
     /// <summary>⭐ rules S2-c — the test vocabulary of the trigger rails: an action that appends to a log, and one that fails with a reason.
     /// (A thread-static log: the brain tick runs on the test's own thread.)</summary>
@@ -33,6 +35,14 @@ namespace Hrot.SimHost.Tests
         {
             if (s.Pad == 0) { Calls.Add(p.Value); s.Pad = 1; }   // once per step run
             return NodeStatus.Success;
+        }
+
+        /// <summary>Runs for <c>Ticks</c> ticks, then succeeds (a step that is "running" for a while).</summary>
+        [SharedAiAction]
+        public static NodeStatus TrgWait(ref TrgWaitParams p, ref TrgWaitState s, Entity self, EntityRepository world)
+        {
+            s.Elapsed++;
+            return s.Elapsed >= p.Ticks ? NodeStatus.Success : NodeStatus.Running;
         }
 
         [SharedAiAction]
@@ -215,6 +225,37 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("code 3", w.S(t).Reason.ToString());
             w.Run(3); Flip(w, src, false); w.Run(1); Flip(w, src, true); w.Run(1);
             Assert.Equal((TriggerState.Fired, 1, 1), (Phase(w, t), w.S(t).FireCount, TrgActions.Calls.Count));   // final: it does not run again
+        }
+
+        /// <summary>⭐ rule editor ① — while Acting the status shows the running step (1-based) of the list's length: 1/3 on the first step, 2/3 on the wait, 3/3 on the last,
+        /// 0/0 once Done. ✅ Red-proof: <c>StepCur</c> not written in <c>TriggerBehavior.Act</c> ⇒ red.</summary>
+        [Fact]
+        public void AnActingTrigger_ShowsItsStep_AndNothingWhenDone()
+        {
+            TrgActions.Reset();
+            var w = new ObjWorld(); var src = Source(w);
+            var t = w.Trigger(TrigJson(w.Net(src), doList: "[{\"act\":\"TrgRecord\",\"args\":{\"value\":1}},{\"act\":\"TrgWait\",\"args\":{\"ticks\":4}},{\"act\":\"TrgRecord\",\"args\":{\"value\":2}}]"));
+            w.Run(1);
+            Assert.Equal((0, 0), (w.S(t).StepCur, w.S(t).StepCount));          // armed: nothing
+            Flip(w, src, true); w.Tick(0.5);
+            Assert.Equal((TriggerState.Acting, 2, 3), (Phase(w, t), (int)w.S(t).StepCur, (int)w.S(t).StepCount));   // step 1 ran in the firing tick, now on the wait
+            w.Tick(0.5);
+            Assert.Equal((TriggerState.Acting, 2, 3), (Phase(w, t), (int)w.S(t).StepCur, (int)w.S(t).StepCount));
+            w.Run(3);
+            Assert.Equal(new[] { 1, 2 }, TrgActions.Calls);
+            Assert.Equal((TriggerState.Done, 0, 0), (Phase(w, t), (int)w.S(t).StepCur, (int)w.S(t).StepCount));
+        }
+
+        /// <summary>⭐ rule editor ① — a failed step keeps its index (the reason is in Reason). ✅ Red-proof: the failure path zeroing <c>StepCur</c> ⇒ red.</summary>
+        [Fact]
+        public void AFailedStep_KeepsItsIndex()
+        {
+            TrgActions.Reset();
+            var w = new ObjWorld(); var src = Source(w);
+            var t = w.Trigger(TrigJson(w.Net(src), doList: "[{\"act\":\"TrgRecord\",\"args\":{\"value\":1}},{\"act\":\"TrgFail\",\"args\":{\"code\":3}},{\"act\":\"TrgRecord\",\"args\":{\"value\":2}}]"));
+            w.Run(1);
+            Flip(w, src, true); w.Run(0.5);
+            Assert.Equal((TriggerState.Fired, ObjectiveState.Failed, 2, 3), (Phase(w, t), w.S(t).State, (int)w.S(t).StepCur, (int)w.S(t).StepCount));
         }
 
         /// <summary>T4 — an Inactive objective state DISARMS the trigger (the real <c>SetObjectiveActive</c> action is S2's next row — a direct write stands in): a rise while

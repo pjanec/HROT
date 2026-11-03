@@ -38,7 +38,7 @@ namespace Hrot.SimHost.Tests
             Required = 1, Scored = 1, Weight = 2.5f, VisibleSides = 0b110, FireCount = 4, LastFired = 99.25, TriggerState = TriggerState.Cooldown,
             DependsOnCount = 2, DependsOn = Ids(101, 102), ActsOnCount = 3, ActsOn = Ids(201, 202, 203),
             HoldFor = 1.5f, Delay = 2.5f, Cooldown = 3.5f, Deadline = 60f, ExpectedAt = 77.25,
-            Group = new FixedString32("fire"), Pass = 0.8f,
+            Group = new FixedString32("fire"), Pass = 0.8f, StepCur = 2, StepCount = 3,
         };
 
         private static NetIds8 Ids(params int[] v) { var ids = default(NetIds8); for (int i = 0; i < v.Length; i++) ids[i] = v[i]; return ids; }
@@ -80,6 +80,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(TriggerState.Cooldown, back.TriggerState);   // ⭐ rules S2-c
             Assert.Equal("fire", sample.Group); Assert.Equal("fire", back.Group.ToString());   // ⭐ rules S4 E-3: the evaluation group crosses ✅ Red-proof: Group dropped from ToSample / FromSample ⇒ red
             Assert.Equal(0.8f, sample.Pass); Assert.Equal(0.8f, back.Pass);   // ⭐ rules S4 ②: the pass mark crosses ✅ Red-proof: Pass dropped from ToSample / FromSample ⇒ red
+            Assert.Equal((2, 3), (sample.StepCur, sample.StepCount)); Assert.Equal((2, 3), (back.StepCur, back.StepCount));   // ⭐ rule editor ①: the do-step counter crosses ✅ Red-proof: StepCur dropped from ToSample / FromSample ⇒ red
             // ⭐ rules V-1 / V-2: the rule's links and timing cross too (so ANY node answers GET /objectives with them)
             Assert.Equal((2, 101, 102), (back.DependsOnCount, back.DependsOn[0], back.DependsOn[1]));
             Assert.Equal((3, 201, 202, 203), (back.ActsOnCount, back.ActsOn[0], back.ActsOn[1], back.ActsOn[2]));
@@ -168,6 +169,25 @@ namespace Hrot.SimHost.Tests
                 egress.ScanAndPublish(w);
                 Assert.Equal(2, wire.Written.Count);
                 Assert.Equal("reports", wire.Written[1].Group);
+            }
+        }
+
+        /// <summary>⭐ rule editor ① — a step change is STATE: it goes at once, inside the progress window. ✅ Red-proof: <c>StepCur</c> left out of <c>SameDisplayAndState</c> ⇒ red.</summary>
+        [Fact]
+        public void AStepChange_GoesAtOnce_InsideTheProgressWindow()
+        {
+            var (w, _, e) = Node(primaryOwner: 1, localNode: 1);
+            using (w)
+            {
+                var wire = new CapturingWriter();
+                var egress = new EntityObjectiveStatusEgressTranslator(wire);
+                w.SetSimulationTime(10f);
+                egress.ScanAndPublish(w);
+                w.SetSimulationTime(10.1f);
+                w.GetComponentRW<ObjectiveStatus>(e).StepCur = 3;
+                egress.ScanAndPublish(w);
+                Assert.Equal(2, wire.Written.Count);
+                Assert.Equal(3, wire.Written[1].StepCur);
             }
         }
 

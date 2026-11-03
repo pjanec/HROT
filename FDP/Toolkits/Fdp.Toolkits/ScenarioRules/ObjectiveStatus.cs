@@ -66,6 +66,9 @@ namespace Fdp.Toolkit.ScenarioRules
         /// </summary>
         public byte ResetRequested;
 
+        /// <summary>⭐ rule editor ① (§00.11a) — Triggers, while <see cref="TriggerState.Acting"/>: the 1-based index of the running <c>do</c> step and the list's length (0 / 0 otherwise); after a FAILED step <see cref="StepCur"/> stays at that step (its reason is in <see cref="Reason"/>). Written in ONE place (<c>TriggerBehavior.Act</c>). On the wire.</summary>
+        public byte StepCur, StepCount;
+
         /// <summary>⭐ rules V-1 (§00.10) — the network ids of the entities a trigger's <c>when</c> NAMES (<c>OnEntity</c> refs, recursively): the first <see cref="DependsOnCount"/> of <see cref="DependsOn"/>. Static; on the wire.</summary>
         public byte DependsOnCount;
         public NetIds8 DependsOn;

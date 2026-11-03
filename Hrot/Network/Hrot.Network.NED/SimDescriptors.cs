@@ -233,6 +233,8 @@ namespace Hrot.NED.Descriptors
         public string Group;
         /// <summary>⭐ rules S4 ②: the pass mark (0..1) — GO / NO-GO is <c>Score ≥ Pass</c>. A display field, goes at once.</summary>
         public float Pass;
+        /// <summary>⭐ rule editor ①: a trigger's running <c>do</c> step (1-based) and the list's length; 0 / 0 when not acting. A state field, goes at once.</summary>
+        public byte StepCur, StepCount;
     }
 
     // ⭐ rules S2-e (docs/DESIGN_Scenario_Rules.md §00.9, SR-122) — the exercise's RESULT: the phase (Running / Closing / Ended), when it ended, why, and the

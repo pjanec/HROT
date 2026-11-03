@@ -17,7 +17,7 @@ namespace Hrot.Map.Common.Replication.Egress
     /// <summary>
     /// ⭐ rules S1-a (📄 docs/DESIGN_Scenario_Rules.md §00.8, SR-120) — publishes an objective entity's <see cref="ObjectiveStatus"/> (with the
     /// subject and parent of its <see cref="ObjectiveLinks"/> as network ids) from the node owning its <c>dtObjectiveStatus</c> (Brain group),
-    /// on change. ⭐ Throttle (SR-120): a change in State / Closed / Owner / Title / Kind / Group / Pass / Required / Scored / Weight / VisibleSides / FireCount / TriggerState /
+    /// on change. ⭐ Throttle (SR-120): a change in State / Closed / Owner / Title / Kind / Group / Pass / StepCur / StepCount / Required / Scored / Weight / VisibleSides / FireCount / TriggerState /
     /// Subject / Parent / DependsOn / ActsOn / HoldFor / Delay / Cooldown / Deadline / ExpectedAt (V-1/V-2) goes AT ONCE; a change only in progress / value / score / points / reason / times goes at most every
     /// <see cref="ProgressRefreshSeconds"/> of sim time (<c>view.Time</c>; a clock that went back reopens the window). A held change is still compared against the
     /// last PUBLISHED sample, so the newest value goes out once the window has passed. Same shape as <see cref="EntityScenarioClockEgressTranslator"/>.
@@ -87,7 +87,7 @@ namespace Hrot.Map.Common.Replication.Egress
             Required = s.Required, Scored = s.Scored, Weight = s.Weight, VisibleSides = s.VisibleSides,
             DependsOn = ToList(s.DependsOnCount, in s.DependsOn), ActsOn = ToList(s.ActsOnCount, in s.ActsOn),
             HoldFor = s.HoldFor, Delay = s.Delay, Cooldown = s.Cooldown, Deadline = s.Deadline, ExpectedAt = s.ExpectedAt,
-            Group = s.Group.ToString(), Pass = s.Pass,
+            Group = s.Group.ToString(), Pass = s.Pass, StepCur = s.StepCur, StepCount = s.StepCount,
         };
 
         private static List<int> ToList(byte count, in NetIds8 ids)
@@ -109,7 +109,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <summary>The fields whose change goes at once (everything but progress / value / score / points / reason / times).</summary>
         internal static bool SameDisplayAndState(in EntityObjectiveStatus a, in EntityObjectiveStatus b)
             => a.Role == b.Role && a.State == b.State && a.Closed == b.Closed && a.Owner == b.Owner
-               && a.Title == b.Title && a.Kind == b.Kind && a.Group == b.Group && a.Pass == b.Pass && a.Required == b.Required && a.Scored == b.Scored
+               && a.Title == b.Title && a.Kind == b.Kind && a.Group == b.Group && a.Pass == b.Pass && a.StepCur == b.StepCur && a.StepCount == b.StepCount && a.Required == b.Required && a.Scored == b.Scored
                && a.Weight == b.Weight && a.VisibleSides == b.VisibleSides && a.FireCount == b.FireCount && a.TriggerState == b.TriggerState
                && a.Subject == b.Subject && a.Parent == b.Parent
                && SameIds(a.DependsOn, b.DependsOn) && SameIds(a.ActsOn, b.ActsOn)   // ⭐ V-1/V-2: the links and the timing are display / state: at once
@@ -216,7 +216,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             DependsOnCount = (byte)Math.Min(d.DependsOn?.Count ?? 0, 8), DependsOn = ToIds(d.DependsOn),
             ActsOnCount = (byte)Math.Min(d.ActsOn?.Count ?? 0, 8), ActsOn = ToIds(d.ActsOn),
             HoldFor = d.HoldFor, Delay = d.Delay, Cooldown = d.Cooldown, Deadline = d.Deadline, ExpectedAt = d.ExpectedAt,
-            Group = new FixedString32(d.Group ?? string.Empty), Pass = d.Pass,
+            Group = new FixedString32(d.Group ?? string.Empty), Pass = d.Pass, StepCur = d.StepCur, StepCount = d.StepCount,
         };
 
         private static NetIds8 ToIds(List<int>? l)

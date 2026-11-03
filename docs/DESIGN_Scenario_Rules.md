@@ -674,6 +674,8 @@ classDiagram
 | L4 | ⭐ refused: a change of KIND, bad params (the CE-2377 validator) — the reason on the status + the journal | — |
 | L5 | ⭐ SR-109 "this run only": the scenario file is untouched; the status and the journal (both recorded) carry the edit, so the AAR shows it | write it back to the scenario: SR-109 says no |
 
+⭐ **① AS BUILT `2026-11-03` (behaviors, task 26):** `ObjectiveStatus.StepCur` / `StepCount` (bytes) are written in ONE place — `TriggerBehavior.Act`, right after `ScenarioActions.RunActions` (`StepCur = RunActionsState.Index + 1`, `StepCount` = the `do` list's length, read from `ActionList.Get`; the runner itself is unchanged). `Go` zeroes both on every transition except into `Acting` and the failed `Fired` (a failed step keeps its index; its reason is in `Reason`); a successful list zeroes them before `Fired`. On the 171 wire (`EntityObjectiveStatus.StepCur/StepCount`, `ToSample` / `FromSample`, inside `SameDisplayAndState` — a step change goes at once, like `Pass`); `GET /objectives` rows `stepCur` / `stepCount`. Rails (red-proved): `ScenarioRulesTests.Trigger` `AnActingTrigger_ShowsItsStep_AndNothingWhenDone`, `AFailedStep_KeepsItsIndex`; `ObjectiveStatusWireTests` `EveryField_RoundTrips` + `AStepChange_GoesAtOnce_InsideTheProgressWindow`; `TheObjectivesRouteShowsTheTreeTests`.
+
 ### 00.12 S6 — the game profile, v1 *(backend, `2026-11-02`; `HANDOFF_Coordinator_To_Backend_Showcase_Scenarios.md` item ②; ✅ G-1…G-7 APPROVED `2026-11-03` — user: *"G1 to G7 approved."*)*
 
 🔒 *User, `2026-11-02`: "backend can also add the missing infrastructure, whatever is needed."* ⭐ Crossfire (SHOWCASE §2) needs four things the
