@@ -44,6 +44,8 @@ design-basis: UX_Feature_Authority_Aware_Writes.md §3.3b-c (UXI-30/UXI-29 rulin
 known-conflict: ✅ parallel-safe with the MCP create-recipes session (disjoint files; the ONE shared file is
   CgfSubsystem.cs — this session keeps to gizmo registration, MCP keeps to the asset-service dict). ⛔ Do NOT
   add an MCP route (the MCP session owns the generated catalog) — test via integration rails + existing entity ops.
+related-designs:
+  - docs/DESIGN_Remote_Edit_Outcome.md — OWNS the ANSWER to a remote edit (applied / pending / refused + reason, R-2082); this design owns the write router it answers
 -->
 # DESIGN — **Axis-B first cut: the subsystem-agnostic write path, proven with ROTATION** *(UXI-30 + rotation)*
 
