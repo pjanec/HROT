@@ -103,10 +103,12 @@ public sealed class ActionListContext
     public int StepCount { get; set; }
     /// <summary>A step that FAILED keeps its index in <see cref="RunningStep"/>; this is why (the status <c>Reason</c>).</summary>
     public string? FailedReason { get; set; }
+    /// <summary>⭐ CE-4241 — a line under a step (what went to whom for a <c>Message</c>), or null; the host fills it from the world.</summary>
+    public Func<ActionStep, string?>? NoteOf { get; set; }
 }
 
 /// <summary>What the step list drew — the rails and the panel snapshot read it.</summary>
-public sealed record ActionListProbe(IReadOnlyList<string> Rows, int Marked, string? MarkerText, bool AddEnabled);
+public sealed record ActionListProbe(IReadOnlyList<string> Rows, int Marked, string? MarkerText, bool AddEnabled, IReadOnlyList<string>? Notes = null);
 
 /// <summary>
 /// ⭐⭐ CE-4220 (rules view R5b, RE-4) — the do list as ROWS: one per step (its number and action, ▲ ▼ reorder, ✕ remove), each step's <c>args</c> drawn INLINE as a nested params document of the action's <see cref="ActionEntry.ParamsType"/> by the same
@@ -164,6 +166,7 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
         Sync(list);
 
         var shown = new List<string>(list.Count);
+        var noted = new List<string>();
         UpRects.Clear(); DownRects.Clear(); RemoveRects.Clear();
         // the add button leads the list: a long list scrolls, and the button must stay reachable
         bool canAdd = _ctx.OpenPicker != null;
@@ -200,6 +203,7 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
             RemoveRects.Add((ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Remove this step");
             if (marked && _ctx.FailedReason != null) ImGui.TextColored(new Vector4(0.9f, 0.4f, 0.35f, 1f), "failed: " + _ctx.FailedReason);
+            if (_ctx.NoteOf?.Invoke(list[i]) is { } note) { ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled]); ImGui.TextWrapped(note); ImGui.PopStyleColor(); noted.Add($"{i + 1}. {note}"); }   // ⭐ CE-4241
             shown.Add((marked ? "> " : "") + $"{i + 1}. {row.Act}" + (row.Problem != null ? $" ({row.Problem})" : ""));
 
             if (row.Problem != null) ImGui.TextColored(new Vector4(0.9f, 0.7f, 0.3f, 1f), row.Problem);
@@ -232,7 +236,7 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
         else if (up is { } u) { list = ActionListEdit.Moved(list, u, -1); changed = true; }
         else if (down is { } dn) { list = ActionListEdit.Moved(list, dn, +1); changed = true; }
 
-        _probe = new ActionListProbe(shown, _ctx.RunningStep, _ctx.RunningStep > 0 && _ctx.StepCount > 0 ? $"step {_ctx.RunningStep} / {_ctx.StepCount}" : null, canAdd);
+        _probe = new ActionListProbe(shown, _ctx.RunningStep, _ctx.RunningStep > 0 && _ctx.StepCount > 0 ? $"step {_ctx.RunningStep} / {_ctx.StepCount}" : null, canAdd, noted);
         if (changed) value = list;
         return changed;
     }

@@ -21,6 +21,11 @@ public sealed class CommandHierarchyAdapter : IHierarchyAdapter
     }
 
     /// <inheritdoc/>
+    /// <remarks>⭐ CE-4239 — the Command ORBAT lists what can be SEEN: the one <see cref="Hrot.Common.Diagnostics.Gizmos.Seeable"/> rule the map's projectors use (no objective, trigger, score or evaluation instance).</remarks>
+    public bool Includes(ISimulationView view, Entity entity)
+        => view.HasComponent<EntityInfo>(entity) && Hrot.Common.Diagnostics.Gizmos.Seeable.OnMap(view, entity);
+
+    /// <inheritdoc/>
     /// <remarks>⭐ CE-4213 ⑥ — an entity a macro expansion made takes its place from the MACRO: moving it in the chain of command would be undone by the
     /// next re-expansion, so it is refused with the macro named (the path the instance expands).</remarks>
     public string? ReparentRefusal(ISimulationView view, Entity child, Entity newParent)

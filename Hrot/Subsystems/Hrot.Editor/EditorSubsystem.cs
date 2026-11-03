@@ -339,6 +339,16 @@ namespace Hrot.Editor
         /// <summary>⭐ CE-4218 (R5a) — THE editor undo history: the Parameters window and the rule editor push to it.</summary>
         internal Hrot.Presentation.Edits.EditHistory EditHistory { get; } = new();
         private Hrot.Presentation.Windows.RulesWindow? _rulesWindow;
+        private Fdp.Toolkit.ScenarioRules.ExercisePhase _lastExercisePhase = Fdp.Toolkit.ScenarioRules.ExercisePhase.Running;
+        /// <summary>⭐ CE-4240 — Running → Ended seen on this node's world: opens Window ▸ Mission summary once (the debrief / game summary stay one click away in the Window menu).</summary>
+        private void OpenSummaryWhenTheExerciseEnds()
+        {
+            if (_world == null || _rulesWindowManager == null) return;
+            var phase = Fdp.Toolkit.ScenarioRules.ExerciseResult.PhaseOf(_world);
+            if (phase == Fdp.Toolkit.ScenarioRules.ExercisePhase.Ended && _lastExercisePhase != Fdp.Toolkit.ScenarioRules.ExercisePhase.Ended)
+                _rulesWindowManager.FocusWindow("editor_mission_summary");
+            _lastExercisePhase = phase;
+        }
         private Fdp.Presentation.WindowManager.WindowManager? _rulesWindowManager;
         internal Hrot.Presentation.Windows.RulesWindow? RulesWindow => _rulesWindow;
         private void OpenRuleInRulesView(int networkId)
@@ -2659,6 +2669,7 @@ namespace Hrot.Editor
             _orchestratorCore?.UiCache.Update();
             _timeTransport?.Update();                  // ⭐ CE-3329 row 21 — the one facade reads what the cache reads
             _editorLogic?.Update();
+            OpenSummaryWhenTheExerciseEnds();   // ⭐ CE-4240 — the round ended (by rule or by the instructor's End): the Mission summary opens on it
             _orchestratorCore?.ScenarioPanel.Update(deltaTime);
 
             // ⭐⭐⭐ CE-051 — the drain MOVED to the shared ToolActivationDrainSystem /

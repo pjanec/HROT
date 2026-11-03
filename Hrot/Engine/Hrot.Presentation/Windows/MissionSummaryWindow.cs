@@ -41,6 +41,7 @@ public sealed class MissionSummaryWindow : ManagedWindow
     private readonly ITimelineCursor? _cursor;
     private readonly Action<int> _showMoments;
     private readonly Func<double>? _now;
+    private readonly InstructorEndControl _end;
     private TimelineIndex? _historyOf; private int _historyFrames = -1; private IndexSummaryHistory? _history;
     private MissionSummary _summary = new(0, Fdp.Toolkit.ScenarioRules.ExercisePhase.Running, Array.Empty<SideCard>(), Array.Empty<LevelTable>(), Array.Empty<RequiredItem>(), Array.Empty<KeyEvent>());
     private SummarySide _side = SummarySide.Both;
@@ -50,9 +51,10 @@ public sealed class MissionSummaryWindow : ManagedWindow
 
     /// <param name="showMoments">⭐ <i>Show the moments on the timeline →</i>: the host opens the Rules window filtered to the subtree of this rule (network id).</param>
     public MissionSummaryWindow(Func<EntityRepository?> world, Func<ITimelineSource?> source, ITimelineCursor? cursor, string id, string perspective, Vector4 titleBarColor,
-        Action<int> showMoments, Func<double>? now = null)
+        Action<int> showMoments, Func<double>? now = null, Func<string?>? blocked = null)
         : base(id, "Mission summary", perspective, WindowScope.PerspectiveBound)
     {
+        _end = new InstructorEndControl(world, blocked ?? (() => null));   // ⭐ CE-4240 — the instructor's End
         _world = world; _source = source; _cursor = cursor; _showMoments = showMoments; _now = now;
         TitleBarColor = titleBarColor;
         IsOpen = true;
@@ -64,6 +66,8 @@ public sealed class MissionSummaryWindow : ManagedWindow
     public int Level { get => _level; set => _level = Math.Clamp(value, 0, LevelNames.Length - 1); }
     public MissionSummary Summary => _summary;
     public MissionSummaryProbe Probe => _probe;
+    /// <summary>⭐ CE-4240 — the instructor's End (the same control the Rules toolbar draws).</summary>
+    public InstructorEndControl End => _end;
 
     /// <summary>Seeks the host's timeline to a key event's frame (no-op where the cursor cannot seek).</summary>
     public bool SeekTo(KeyEvent e)
@@ -152,6 +156,9 @@ public sealed class MissionSummaryWindow : ManagedWindow
             ImGui.SameLine();
         }
         ImGui.TextDisabled($"  {_summary.Phase} · {RulesModel.Clock(_summary.Now)}");
+        ImGui.SameLine();
+        _end.Draw("ms-end");
+        if (_end.Message != null) { ImGui.SameLine(); ImGui.TextDisabled(_end.Message); }
         ImGui.SameLine();
         ImGui.BeginDisabled();
         ImGui.Button("Export report");

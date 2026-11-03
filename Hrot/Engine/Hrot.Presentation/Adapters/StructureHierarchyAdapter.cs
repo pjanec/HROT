@@ -38,8 +38,9 @@ public sealed class StructureHierarchyAdapter : IHierarchyAdapter
     public bool IsSpatialLeaf(ISimulationView view, Entity entity) => !GetChildren(view, entity).MoveNext();
 
     /// <inheritdoc/>
-    public bool Includes(ISimulationView view, Entity entity)
-        => view.HasComponent<EntityInfo>(entity)
+    public bool Includes(ISimulationView view, Entity entity)   // ⭐ CE-4239 — the same "seeable" rule as the Command view and the map
+        => (view.HasComponent<EntityInfo>(entity)
            || HierarchyProbe.Has<PartMetadata>(view, entity)
-           || HierarchyProbe.Has<IsEmbarkedTag>(view, entity);
+           || HierarchyProbe.Has<IsEmbarkedTag>(view, entity))
+           && Hrot.Common.Diagnostics.Gizmos.Seeable.OnMap(view, entity);
 }

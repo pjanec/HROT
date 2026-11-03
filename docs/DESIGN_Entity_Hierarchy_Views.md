@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT — Command + Structure (§4), Scenario (§5); ✅ HV-1 … HV-5 ACCEPTED 2026-11-02 (user: "approved the switchable hierarchy view") · tracker CE-4213 (ui)
-updated: 2026-11-03 (§5 the Scenario view as built)
-current-answer: §4 + §5 the AS BUILT (Structure, Scenario) · §1 the relations that exist · §2 the views · §3 decisions
+updated: 2026-11-03 (§6 the ONE seeable rule as built)
+current-answer: §6 the seeable rule · §4 + §5 the AS BUILT (Structure, Scenario) · §1 the relations that exist · §2 the views · §3 decisions
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -105,3 +105,40 @@ a part with a dead parent is a root · Structure refuses reparent · the span en
 Rails: `EditorOrbatStructureViewTests` (`Hrot.Editor.Tests/Adapters/AdapterTests.cs`, +4): members under their instance, Saved / Transient roots · an empty group has no row, a collapsed one hides its members · a dead instance ⇒ its member is a root · Scenario read-only and the Command view refuses a macro entity naming the macro. ⚠ Still no frame rail for `SharedOrbatPanel`.
 
 ⭐ **Frame rail `2026-11-03` (ui, W-T1, CE-4213 closed):** `Hrot.Editor.Tests/Windows/TheSharedOrbatPanelDrawsTests` draws the REAL `SharedOrbatPanel` through the existing `UiFrameRail` harness (`xvfb-run -a`; the premise "a GL pixel rail would be new infrastructure" was wrong) over one world holding all three relations, and asserts on what the draw loop EMITTED (`SharedOrbatPanel.DrawnRows` / `RelationSwitch`: each row with its depth, group-ness, arrow and rectangle) plus pixels: Command (commander + two units, no sensor row), Structure (tank, its radar part and the embarked passenger at depth 1), Scenario (Saved / Transient group labels, the instance with its two members, a transient root); a real mouse click on each relation radio switches the view, and a click on a row selects THAT entity through the one pick route (the part in Structure, the member in Scenario) while a group label selects nothing. Red-proof: `DrawContent` handing the provider `Command` instead of `Relation` reddens it.
+
+## 6. AS BUILT — ONE "seeable on the map" rule *(ui, `2026-11-03`, CE-4239 = CE-3365 + CE-4152; handoff Rules_Runnable ⑧)*
+
+```mermaid
+classDiagram
+    direction LR
+    class Seeable { <<NEW, Hrot.Common, pure>> OnMap(view, entity) · cache of instances with a seeable member (per world version) }
+    class NotAUnit { <<existing>> camera · round · cloud }
+    class EntityPresentationGizmo { <<existing>> symbol · anchor · pick box }
+    class EntityNameGizmo { <<existing>> name card }
+    class EntityCardFrameGizmo { <<existing>> card frame }
+    class EntityEditorLabelGizmo { <<existing>> behaviour row }
+    class EntityRotationGizmo { <<existing>> heading arrow }
+    class CommandHierarchyAdapter { <<existing>> Includes }
+    class StructureHierarchyAdapter { <<existing>> Includes }
+    class ScenarioHierarchyAdapter { <<existing>> Includes: ALL named + instances }
+    Seeable ..> NotAUnit
+    EntityPresentationGizmo ..> Seeable
+    EntityNameGizmo ..> Seeable
+    EntityCardFrameGizmo ..> Seeable
+    EntityEditorLabelGizmo ..> Seeable
+    EntityRotationGizmo ..> Seeable
+    CommandHierarchyAdapter ..> Seeable
+    StructureHierarchyAdapter ..> Seeable
+    ScenarioHierarchyAdapter ..> ScenarioHierarchyAdapter : lists the virtual ones (HV-3), no Seeable
+```
+*What the picture shows that prose hid:* the map's five per-entity projectors and the two ORBAT relations that mean "things you can look at" ask ONE function; the Scenario view (and the rules view) deliberately do not.
+
+| | as built |
+|---|---|
+| **the predicate** | `Hrot.Common.Diagnostics.Gizmos.Seeable.OnMap`: not seeable = ① `NotAUnit` (the camera, a round, a cloud) · ② a RULE (carries `ObjectiveStatus`, or TKB `Objective` 8860 / `Trigger` 8861 before a run) · ③ the World Environment (carries `ScenarioClock`) · ④ a MACRO INSTANCE that expanded (`MacroExpansionState.Done`) into nothing seeable — decided by its members through `MacroOrigin`, nested instances by a fixpoint (≤ 8 deep), one pass over the members per world version. An instance still `Expanding` / `None` or `Failed` stays seeable (a macro just placed must show where; a failed one shows its reason over its marker, `MacroMembersGizmo`). Areas (`MapGraphic`) stay seeable — they are drawn (CE-4152's *areas kept*) |
+| **measured why** | objectives / triggers are positionless brains (no `SimTransform`) so the map never drew THEM — what drew *game/score/Default #1781* was the macro INSTANCE entity of the evaluation macro, which `MemberEvaluation` places at the man; and every rule entity has an `EntityInfo`, which is the whole of the old ORBAT filter |
+| **the map** | `EntityPresentationGizmo` (anchor, pick box, symbol), `EntityNameGizmo` + `EntityCardFrameGizmo` (the card), `EntityEditorLabelGizmo`, `EntityRotationGizmo` replace their `NotAUnit` test (or add the test) with `Seeable.OnMap` |
+| **the ORBAT** | `CommandHierarchyAdapter.Includes` and `StructureHierarchyAdapter.Includes` = their old membership AND `Seeable.OnMap`. `ScenarioHierarchyAdapter` is unchanged: it lists the virtual ones (HV-3) |
+| **deviation from the handoff's wording** | it asked for "a transform + a TKB type that is not a rule" — a transform is NOT required: a body-less unit commander has one only by accident of authoring and must stay in the ORBAT; the rule is the exclusion list above |
+
+Rails: `RunnableRulesTests.ARuleIsNotSeeable_AUnitIs` · `AMacroInstanceIsSeeableOnlyThroughASeeableMember_NestedToo` · `AnInstanceStillExpandingOrFailedStaysSeeable_SoItIsFoundAndItsReasonShows` · `TheCommandAndStructureOrbat_AskTheSameRuleAsTheMap_TheScenarioViewStillListsTheVirtualOnes`.

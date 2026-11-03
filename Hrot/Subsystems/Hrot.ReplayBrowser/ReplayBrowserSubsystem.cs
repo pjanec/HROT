@@ -958,7 +958,8 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
                 isPlaying: () => !Transport.IsPaused, togglePlay: () => Transport.TogglePlayPause(),
                 timeMap: () => CachedTimeMap, simAxis: () => Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim),
             "rb_mission_summary", perspective, color,
-            showMoments: n => { _rulesWindow?.ShowSubtree(n); if (_rulesWindow != null) windowManager.FocusWindow(_rulesWindow.Id); }) { IsOpen = false });
+            showMoments: n => { _rulesWindow?.ShowSubtree(n); if (_rulesWindow != null) windowManager.FocusWindow(_rulesWindow.Id); },
+            blocked: () => "a recording is read-only") { IsOpen = false });
 
         // ⭐⭐ CE-4231 (D1 / G1) — the trainee debrief and the game summary on a RECORDING, their moments seeking it through the viewer's cursor
         windowManager.RegisterWindow(new Hrot.Presentation.Windows.TraineeDebriefWindow(

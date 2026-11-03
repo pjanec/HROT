@@ -309,6 +309,9 @@ public static class RulesModel
         return pins;
     }
 
+    /// <summary>⭐ CE-4240 — a clock leaf this far out (≥ 1e8 s ≈ 3 sim-years) is a PLACEHOLDER that never holds (the showcases' <i>Instructor end</i> trigger, fired by hand): it is not a moment, so it is no pin and never in <i>Coming up</i>.</summary>
+    public const double NeverSeconds = 1e8;
+
     private static void CollectClock(System.Text.Json.JsonElement el, List<ClockPin> into)
     {
         switch (el.ValueKind)
@@ -321,7 +324,7 @@ public static class RulesModel
                     else if (p.Name.Equals("fromSeconds", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == System.Text.Json.JsonValueKind.Number) from = p.Value.GetDouble();
                     else CollectClock(p.Value, into);
                 }
-                if (clock && from > 0) into.Add(new ClockPin(from, $"clock {Clock(from)}"));
+                if (clock && from > 0 && from < NeverSeconds) into.Add(new ClockPin(from, $"clock {Clock(from)}"));
                 break;
             case System.Text.Json.JsonValueKind.Array:
                 foreach (var item in el.EnumerateArray()) CollectClock(item, into);

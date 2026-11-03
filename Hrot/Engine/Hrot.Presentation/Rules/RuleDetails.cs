@@ -168,6 +168,8 @@ public sealed class RuleDetails
         _stepCtx.RunningStep = trigger ? s.StepCur : 0;
         _stepCtx.StepCount = trigger ? s.StepCount : 0;
         _stepCtx.FailedReason = trigger && s.StepCur > 0 && !acting ? (s.Reason.ToString() is { Length: > 0 } r ? r : "a step failed") : null;   // a failed step keeps its index (the owner zeroes it on the next transition)
+        int source = row.NetworkId;
+        _stepCtx.NoteOf = step => MessageDelivery.StepNote(_world(), source, step);   // ⭐ CE-4241 — what went to whom, under each Message step
         _stepCtx.OpenPicker = _svc.OpenPicker?.Invoke();
         _stepCtx.Picks = _svc.Picks?.Invoke();
     }

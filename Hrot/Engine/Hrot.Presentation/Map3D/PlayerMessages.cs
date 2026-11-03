@@ -25,8 +25,8 @@ public sealed class PlayerMessages
     public const float FadeSeconds = 0.5f;
     private const int RawCap = 300;
 
-    /// <summary>One message as the HUD needs it (<see cref="ToKind"/> / <see cref="ToValue"/> kept for the read-time filter).</summary>
-    public readonly record struct Entry(int MessageId, int Origin, string ToKind, int ToValue, string Text, float Seconds, byte Priority, double SentAt);
+    /// <summary>One message as the HUD needs it (<see cref="ToKind"/> / <see cref="ToValue"/> kept for the read-time filter; ⭐ CE-4241 <c>Source</c> = the network id of the trigger that sent it — what the rules view's <i>what went to whom</i> reads).</summary>
+    public readonly record struct Entry(int MessageId, int Origin, string ToKind, int ToValue, string Text, float Seconds, byte Priority, double SentAt, int Source = 0);
 
     private readonly List<Entry> _all = new();   // arrival order
 
@@ -36,7 +36,7 @@ public sealed class PlayerMessages
         if (m is null || string.IsNullOrWhiteSpace(m.Text)) return false;
         foreach (var e in _all)
             if (e.MessageId == m.MessageId && e.Origin == m.OriginNodeId) return false;
-        _all.Add(new Entry(m.MessageId, (int)m.OriginNodeId, m.ToKind ?? "All", m.ToValue, m.Text, m.Seconds, m.Priority, m.SentAt));
+        _all.Add(new Entry(m.MessageId, (int)m.OriginNodeId, m.ToKind ?? "All", m.ToValue, m.Text, m.Seconds, m.Priority, m.SentAt, m.Source));
         if (_all.Count > RawCap) _all.RemoveRange(0, _all.Count - RawCap);
         return true;
     }
@@ -56,6 +56,9 @@ public sealed class PlayerMessages
         => _all.Where(e => Addressed(e.ToKind, e.ToValue, viewer) && now >= e.SentAt && now - e.SentAt <= e.Seconds)
                .OrderByDescending(e => e.Priority).ThenByDescending(e => e.SentAt).ThenByDescending(e => e.MessageId)
                .Take(SubtitleMax).ToList();
+
+    /// <summary>⭐ CE-4241 — every message recorded so far, in arrival order (the rules view reads what a trigger sent, regardless of who is looking).</summary>
+    public IReadOnlyList<Entry> All => _all;
 
     /// <summary>The log for <paramref name="viewer"/>: newest first, at most <see cref="LogCap"/>.</summary>
     public IReadOnlyList<Entry> Log(MessageViewer viewer)

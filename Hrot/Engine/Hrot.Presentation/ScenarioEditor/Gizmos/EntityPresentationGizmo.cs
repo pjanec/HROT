@@ -122,7 +122,7 @@ namespace Hrot.ScenarioEditor.Gizmos
 
             // ⭐ CE-1033 S5 (R-260) the map CAMERA, ⭐ LR-3 (R-271) a replicated ROUND, ⭐ CE-1165 a gas / smoke CLOUD — each drawn by its own
             //   layer, not a thing on the map: no symbol, no anchor, no pick box (the one rule, Hrot.Common NotAUnit).
-            if (Hrot.Common.Diagnostics.Gizmos.NotAUnit.Is(view, entity)) return;
+            if (!Hrot.Common.Diagnostics.Gizmos.Seeable.OnMap(view, entity)) return;   // ⭐ CE-4239 — the ONE "has a physical presence" rule (NotAUnit + a rule / the World Environment / a macro instance with no seeable member)
             // ⭐ CE-1058 — a passenger inside an ENCLOSED vehicle has no symbol, anchor or pick box of its own (the vehicle's is
             //   the one on the map); an exposed rider keeps them. The engine's one rule (PhysicalPresence, R-271).
             if (Fdp.Toolkit.Perception.PhysicalPresence.IsEnclosedPassenger(view, entity)) return;

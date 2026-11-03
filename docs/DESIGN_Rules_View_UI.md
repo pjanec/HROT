@@ -495,6 +495,42 @@ Rails: `RuleEditorR5cTests` (A2 by kind · none / one / wrapped / camelCase-appe
 
 Rails: `RuleEditorR5cTests.AConnectsLinkAndANewRulesParent_AreWrittenInTheStableForm_TheEntitysGuid` (the `ref` and the `parent` carry the GUID; a copy each; a stale id with the right GUID is the same rule; no GUID ⇒ bare id) · `AuthoredRules_ResolveAGuidOnly_AKey_AndAStaleIdWithTheRightGuid_BeforeARun` (GUID-only, `@Key`, stale id + right GUID → the rule the GUID names; a bare id stays an id; an unknown key is none). Red-proof: `LinkOf` passing no scope (the bare id) ⇒ the first rail red; reverted.
 
+### 7.10 AS BUILT — Rules Runnable ② ③ *(ui, `2026-11-03`, CE-4240 the instructor's End · CE-4241 what went to whom)*
+
+```mermaid
+classDiagram
+    direction LR
+    class InstructorEnd { <<NEW, pure>> Find(world) by RefKey instructor-end · Of(world, blocked) : Offer }
+    class InstructorEndControl { <<NEW>> Ask · Cancel · Fire · Draw(id) — button + modal }
+    class RuleCommands { <<existing>> Control(Fire, RuleOrigin.Instructor) · DisabledReason }
+    class RulesWindow { <<existing>> toolbar draws End }
+    class MissionSummaryWindow { <<existing>> toolbar draws End }
+    class EditorSubsystem { <<existing>> Running to Ended opens the Mission summary }
+    class MessageDelivery { <<NEW, pure>> Recipients · SentBy(source) · LinesOf · StepNote }
+    class PlayerMessages { <<existing>> + Source on Entry · All }
+    class ActionListContext { <<existing>> + NoteOf(step) }
+    InstructorEndControl ..> InstructorEnd
+    InstructorEndControl ..> RuleCommands : Fire
+    RulesWindow *-- InstructorEndControl
+    MissionSummaryWindow *-- InstructorEndControl
+    EditorSubsystem ..> MissionSummaryWindow : opens on Ended
+    MessageDelivery ..> PlayerMessages : keyed by Source = the trigger's network id
+    ActionListContext ..> MessageDelivery : the Do tab's note under a Message step
+    RulesWindow ..> MessageDelivery : Overview Sent lines
+```
+*What the picture shows that prose hid:* the End button adds NO command path (it is `Fire` on a rule found by KEY, so a round ends by the very path an automatic end takes, SR-116), and *what went to whom* adds NO record (it reads the store the player's message log already fills, keyed by the event's own `Source`).
+
+| | as built |
+|---|---|
+| **② which trigger** | the entity carrying `RefKey` **`instructor-end`** (backend's content, `163c88934`: both showcases), found by that KEY — ⛔ never by title (the title is prose and translated). No such entity ⇒ the button is **disabled and says *"this scenario has no instructor-end trigger"***; authored-not-running ⇒ *"not running — start the exercise"*; the exercise already past Running ⇒ *"the exercise has already ended"*; a recording ⇒ its read-only reason; otherwise the owner's own words (`RuleCommands.DisabledReason(Fire)`, e.g. *"it is fired"*) |
+| **② where** | the Rules toolbar and the Mission summary toolbar, ONE `InstructorEndControl` each over the same `InstructorEnd.Of`. A click opens the modal *End the exercise now?* (End now / Cancel); *End now* writes `RuleCommands.Control(Fire, RuleOrigin.Instructor)` — the same write the DebugApi's `POST /objectives/{id}/control` makes. The answer (`done here` / `requested of the owner`) shows beside the button |
+| **② opens on the end** | `EditorSubsystem` sees the world's `ExerciseResult.Phase` go Running → Ended and focuses **Window ▸ Mission summary** (once per run). ⚠ the Trainee debrief needs a man chosen and the Game summary is a game's: both stay one click away in the Window menu — not opened for the user |
+| **③ the data (measured)** | `PlayerMessageEvent { MessageId · OriginNodeId · ToKind (All/Side/Station/Unit/Instructor) · ToValue · Text · Seconds · SentAt · Source }`: a managed bus event (not `[EventId]`-recorded), carried on the `PlayerMessage` topic **with `Source` = the sending trigger's network id** (`PlayerMessageTranslators.cs`), kept per world in `PlayerMessages` while `hud.messages` is on (ON by default on every host). `Entry` simply never copied `Source`: now it does (+ `All`). **No cross-lane edit, no wire change** |
+| **③ shown** | the **Overview** of a trigger lists *Sent: 0:05  to everyone (every side, unit and player): "Seize the crossroads…"* (one line per delivery, oldest first); the **Do tab** puts a line under every *Message* step — its authored address in words (*the Blue side… · unit "Alpha 1-1" (#12, Red) and its player · the player at station 3 · the instructor only*) and *not sent yet* or *sent 1x, at 1:01* (delivered text matched to the step's, a `{subject}` template included). Players are named by address (a side, a unit, a station) — which man sits at a station is not in the message |
+| **③ limit** | the store is this node's MEMORY (cap 300): a message sent before the node started, or on a recording opened cold, is not in it — the step then reads *not sent yet*. A recorded `PlayerMessage` lane would make it replayable: not built (no demand yet) |
+
+Rails: `RunnableRulesTests` — `TheEndButton_IsDisabledSayingWhy_WhenThereIsNoInstructorEndTrigger` (a trigger titled *End* / a wrong key is not it) · `…FindsTheTriggerByItsKey…` · `…RefusesWithTheOwnersReason_AfterTheEnd_OnARecording_AndWhileTheTriggerIsNotRunning` · `TheEndControl_AsksBeforeFiring_CancelWritesNothing` · `TheRulesAndSummaryWindows_BothCarryTheSameEndControl` · `ABriefingToAll_NamesItsRecipientsAndWhen` · `Recipients_ResolveSideUnitStationAndInstructor` · `AMessageStep_ShowsItsAuthoredAddress_NotSentYet_ThenWhenItWasSent_ASubjectTemplateMatches` · `ThePlayerMessageStore_KeepsTheSource_AndStillAddressesByViewer`.
+
 ## 8. The game-master palette *(DESIGN, `2026-11-03`; `HANDOFF_Coordinator_To_Ui_Rules_Runnable.md` ⑥; SR-104 Z2 · Z3 · Z4; leans GM-1 … GM-5)*
 
 ### 8.1 INVENTORY *(`2026-11-03`)*

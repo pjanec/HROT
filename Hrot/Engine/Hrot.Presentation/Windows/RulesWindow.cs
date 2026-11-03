@@ -44,6 +44,7 @@ public sealed class RulesWindow : ManagedWindow
     private readonly Func<string?> _blocked;
     private readonly Action<int> _selectEntity, _showOnMap;
     private readonly TimelinePanel _panel = new();
+    private readonly InstructorEndControl _end;
     private readonly RuleTrackHooks _hooks;
     private IReadOnlyList<ITimelineTrack> _tracks = Array.Empty<ITimelineTrack>();
     private RulesView _view = new(Array.Empty<RuleGroup>(), 0);
@@ -70,6 +71,7 @@ public sealed class RulesWindow : ManagedWindow
         : base(id, "Rules", perspective, WindowScope.PerspectiveBound)
     {
         _world = world; _source = source; _cursor = cursor; _now = now;
+        _end = new InstructorEndControl(world, blocked ?? (() => null));   // ⭐ CE-4240 — the instructor's End
         _selectEntity = selectEntity; _showOnMap = showOnMap; _blocked = blocked ?? (() => null);
         _hooks = new RuleTrackHooks(r => Select(r), Ask, r => { if (r.SubjectNetworkId != 0) _showOnMap(r.SubjectNetworkId); }, null,
             CanConnect: editor == null ? null : ConnectRefusal, Connect: editor == null ? null : ConnectRows);   // ⭐ CE-4222 RE-9 — only a host with the rule editor connects
@@ -96,6 +98,9 @@ public sealed class RulesWindow : ManagedWindow
 
     /// <summary>⭐ R5a — the rule editor (null where the host gave no editor services: the pane then shows the Overview only).</summary>
     public RuleDetails? Details => _details;
+
+    /// <summary>⭐ CE-4240 — the instructor's End (toolbar); the Mission summary draws its own over the same trigger.</summary>
+    public InstructorEndControl End => _end;
 
     public string Search { get => _search; set => _search = value ?? ""; }
     public int? SelectedNetworkId => _selected;
@@ -242,6 +247,7 @@ public sealed class RulesWindow : ManagedWindow
             foreach (var l in RulesModel.OverviewOf(sel, now)) details.Add($"{l.Label}: {l.Value}");
             foreach (var l in sel.WaitsOn) details.Add($"Waits on: {l.Text}");
             foreach (var l in sel.Starts) details.Add($"Starts: {l.Text}");
+            foreach (var l in MessageDelivery.LinesOf(world, sel.NetworkId)) details.Add($"Sent: {l}");   // ⭐ CE-4241
             foreach (var a in RulesModel.ActionsOf(sel)) buttons.Add((a.Label, block ?? a.DisabledReason));
             buttons.Add(("Show on map", sel.SubjectNetworkId != 0 ? null : "this rule has no subject"));
         }
@@ -314,6 +320,8 @@ public sealed class RulesWindow : ManagedWindow
                 ImGui.EndPopup();
             }
         }
+        ImGui.SameLine();
+        _end.Draw("rules-end");   // ⭐ CE-4240 — never hidden: disabled with the reason when the scenario has no instructor-end trigger
         if (_subtree != 0)
         {
             ImGui.SameLine();
@@ -339,6 +347,8 @@ public sealed class RulesWindow : ManagedWindow
         }
         DrawLinks("Waits on", sel.WaitsOn);
         DrawLinks("Starts", sel.Starts);
+        var sent = MessageDelivery.LinesOf(_world(), sel.NetworkId);   // ⭐ CE-4241 — what went to whom
+        if (sent.Count > 0) { ImGui.TextDisabled("Sent"); foreach (var l in sent) { ImGui.SameLine(110f); ImGui.TextWrapped(l); } }
         ImGui.Separator();
         string? block = _blocked();
         foreach (var a in RulesModel.ActionsOf(sel))
