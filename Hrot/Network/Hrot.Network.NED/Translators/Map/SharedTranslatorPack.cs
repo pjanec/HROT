@@ -162,6 +162,9 @@ namespace Hrot.Map.Common.Translators
             //   node does not apply (HealthOwnership.AppliesHere), the ingress drops its own sample; HealthApplicationSystem applies it once.
             yield return new Hrot.Network.NED.SimHost.DamageAssessedEgressTranslator(participant, entityMap, localNodeId);
             yield return new Hrot.Network.NED.SimHost.EntityHitDamageIngressTranslator(participant, entityMap, localNodeId);
+            // ⭐ CE-3364 D5 — a man taken out of the fight (the Health owner's ManDownedEvent → every other node: kill feed, summary, debrief).
+            yield return new Hrot.Network.NED.SimHost.ManDownedEgressTranslator(participant, entityMap, localNodeId);
+            yield return new Hrot.Network.NED.SimHost.ManDownedIngressTranslator(participant, entityMap, localNodeId);
             // ⭐ CE-3252 (LD-1 / LD-2) — where a person looks (Muscle → every node: vision, the map's cone, HTTP).
             yield return new Hrot.Map.Common.Replication.Egress.EntityLookStateEgressTranslator(participant);
             yield return new Hrot.Map.Common.Replication.Ingress.EntityLookStateIngressTranslator(participant, entityMap);

@@ -7,7 +7,7 @@ namespace Fdp.Toolkit.Combat.Events
     /// ⭐⭐ <c>CE-3364</c> (docs/DESIGN_Injury_States.md §ManDowned, docs/DESIGN_Scenario_Rules.md §00.13) — the ONE kill authority: a HIT took <see cref="Victim"/> out of the fight
     /// (Ok / Wounded → Incapacitated or Dead), raised ONCE by <c>HealthApplicationSystem</c> on the node that owns the victim's Health (the Brain — Health is in the Brain group, so
     /// the scenario measures read it on the same node). Never for a body a hit finds already down, never for a bleed-out (Incapacitated → Dead: he was already out).
-    /// ⛔ No wire topic: a kill feed on other nodes would add one.
+    /// ⭐ D5: <c>dtManDowned</c> (175) carries it to every OTHER node; there it is raised again with <see cref="IsRemote"/> set.
     /// </summary>
     [EventId(CombatConstants.ManDownedEventId)]
     [StructLayout(LayoutKind.Sequential)]
@@ -27,5 +27,7 @@ namespace Fdp.Toolkit.Combat.Events
         public byte BodyPart;
         /// <summary>The victim's force at that moment (<c>Neutral</c> when he has none).</summary>
         public ForceId VictimSide;
+        /// <summary>⭐ D5 — true when it ARRIVED over <c>dtManDowned</c> (never sent again). ⚠ The measures count a downing once per node whichever way it got here: the Health owner raises it locally, every other node only by wire.</summary>
+        [MarshalAs(UnmanagedType.I1)] public bool IsRemote;
     }
 }

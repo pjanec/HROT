@@ -305,4 +305,30 @@ namespace Hrot.NED.Messages
         /// (<see cref="SourceEntityId"/> is the last); ⭐ 0 = the same as <see cref="SourceEntityId"/> (never rethrown, or an older sender).</summary>
         public int OriginalSourceEntityId;
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3364</c> D5 (📄 docs/DESIGN_Man_Downed_Event.md §3, ui's ask 2026-11-03) — a man was taken out of the fight by a hit: the <c>ManDownedEvent</c> of the node that applies
+    /// his Health, carried to every OTHER node (the kill feed, the summary's key events and the debrief read it there). Event-shaped on the <see cref="EntityHitDamage"/> pattern
+    /// (<c>ManDownedEgressTranslator</c> / <c>ManDownedIngressTranslator</c>, both on every node); <see cref="SourceNodeId"/> skips a node's own sample. Ordinal
+    /// <see cref="Hrot.NED.Descriptors.EDescriptorType.dtManDowned"/> = 175. ⛔ Not a state topic: a late joiner gets no old downings.
+    /// </summary>
+    [DdsTopic]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
+    public partial struct EntityManDowned
+    {
+        /// <summary>Network entity ID of the man who went down.</summary>
+        public int VictimEntityId;
+        /// <summary>Network id of who dealt the hit; 0 = unknown.</summary>
+        public int SourceEntityId;
+        /// <summary>Network id of the first thrower of a rethrown round; 0 = the same as <see cref="SourceEntityId"/>.</summary>
+        public int OriginalSourceEntityId;
+        /// <summary><c>InjuryState</c> the hit made of him (Incapacitated / Dead).</summary>
+        public byte State;
+        /// <summary>The part id + 1 of the downing hit (a person's <c>PersonPart</c>); 0 = none — the <see cref="EntityHitDamage.BodyPart"/> convention.</summary>
+        public byte BodyPart;
+        /// <summary>The victim's force (<c>ForceId</c>) at that moment.</summary>
+        public byte VictimSide;
+        /// <summary>The node that sent it, so a node drops its own sample.</summary>
+        public int SourceNodeId;
+    }
 }

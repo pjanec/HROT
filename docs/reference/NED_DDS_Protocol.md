@@ -395,12 +395,13 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.GroundClampingOverride` | descriptor | yes: entity id | S | Hrot.Network.NED | Per-entity ground clamping override for the IG |
 | `Hrot.NED.Descriptors.WorldPos` | descriptor | yes: entity id | SL | Hrot.Network.NED | Local-ENU pose: position, quaternion, velocity, angular velocity, sim time (AQ107 D) |
 
-### B. Interactions and events (fire, impact, damage, interaction) — 11
+### B. Interactions and events (fire, impact, damage, interaction) — 12
 
 | Full name | Kind | Keyed | QoS | Assembly | Role |
 |---|---|---|---|---|---|
 | `Hrot.NED.Descriptors.AudioTargetDetected` | message | no | L | Hrot.Network.NED | Sound contact heard by a listener |
 | `Hrot.NED.Messages.EntityHitDamage` | message | no | Q | Hrot.Network.NED | Computed damage applied to a struck entity (+ `SourceEntityId` the last thrower, `OriginalSourceEntityId` the first when a round was thrown back, CE-4155) |
+| `Hrot.NED.Messages.EntityManDowned` | message | no | Q | Hrot.Network.NED | A man taken out of the fight by a hit (the `ManDownedEvent` of the node that applies his Health → every other node; CE-3364 D5, dt 175; the `EntityHitDamage` event shape) |
 | `Hrot.NED.Messages.EntityInteractionRequest` | message | no | Q | Hrot.Network.NED | Actor asks the target's owner to apply an interaction |
 | `Hrot.NED.Messages.FireInteractionEvent` | message | no | D | Hrot.Network.NED | Shooter-to-target line for the IG (2-D) |
 | `Hrot.NED.Messages.MeleeStrike` | message | no | L | Hrot.Network.NED | A blow was struck (cosmetic) |

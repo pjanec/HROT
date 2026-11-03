@@ -336,10 +336,10 @@ public sealed class NedReplicationModuleTests
         foreach (var egress in registry.Systems.OfType<Fdp.Network.Cyclone.Systems.CycloneEgressSystem>())
             foreach (var t in egress.Translators) sent.Add(t.GetType().Name);
         foreach (var name in new[] { "WeaponFireIngressTranslator", "MunitionDetonationIngressTranslator", "RoundImpactIngressTranslator",
-                                     "EntityHitDamageIngressTranslator" })   // ⭐ CE-3246 (BS-1 §6.4a)
+                                     "EntityHitDamageIngressTranslator", "ManDownedIngressTranslator" })   // ⭐ CE-3246 (BS-1 §6.4a); ⭐ CE-3364 D5
             Assert.Equal(1, polled.Count(n => n == name));
         foreach (var name in new[] { "WeaponFireNotificationEgressTranslator", "MunitionDetonationEgressTranslator", "RoundImpactEgressTranslator",
-                                     "DamageAssessedEgressTranslator" })
+                                     "DamageAssessedEgressTranslator", "ManDownedEgressTranslator" })
             Assert.Equal(1, sent.Count(n => n == name));
     }
 }

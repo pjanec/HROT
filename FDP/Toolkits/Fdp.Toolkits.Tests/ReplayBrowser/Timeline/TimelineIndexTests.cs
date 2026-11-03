@@ -373,7 +373,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             var shipped = ShippedTimelineLanes.Catalog();
 
             Assert.Equal(Shipped().Lanes(ctx).Select(l => l.Id), shipped.Lanes(ctx).Select(l => l.Id));
-            Assert.Equal(17, shipped.Lanes(ctx).Count);                    // the three toolkits' nine + the five hidden state lanes (CE-4117) + the rules' three (SR-103, S4 score)
+            Assert.Equal(18, shipped.Lanes(ctx).Count);                    // the three toolkits' ten (combat.downed, CE-3364) + the five hidden state lanes (CE-4117) + the rules' three (SR-103, S4 score)
             Assert.Contains(CombatTimelineLanes.Shot.Id, shipped.Lanes(ctx).Select(l => l.Id));
             Assert.NotSame(shipped, ShippedTimelineLanes.Catalog());
             shipped.Register(new IndexedLaneDefinition(new TimelineLaneDescriptor("mine", "Mine"),
@@ -421,6 +421,32 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             Assert.Equal(oldEvents, now.Lane(ReplicationTimelineLanes.Spawned.Id).Take(oldEvents.Length).ToArray());   // the new one holds old + new
             Assert.Equal(oldTicks, now.FrameTicks.Take(oldTicks.Length).ToArray());
             Assert.Throws<ArgumentOutOfRangeException>(() => old.FrameTicks[oldTicks.Length]);          // a reader cannot reach past its snapshot
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3364</c> D5 — the downing IS in the recording and the <c>combat.downed</c> lane indexes it: a <see cref="ManDownedEvent"/> published on frame 1 (the recorder keeps every
+        /// event not marked <c>NoReplay</c>, <c>RecorderSystem.ShouldRecordEvent</c>) is one entry on the lane: Subject = the victim's network id, Other = the man who downed him,
+        /// Value = the injury state, X = the victim's side. 🔴 Red-proof: <c>[DataPolicy(NoReplay)]</c> on <c>ManDownedEvent</c> ⇒ no entry ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3364_AManDownedEvent_IsRecorded_AndIndexedOnTheDownedLane()
+        {
+            using var harness = new FdpRecordingHarness();
+            var repo = harness.Repository;
+            repo.RegisterComponent<NetworkIdentity>();
+            var victim = repo.CreateEntity(); repo.AddComponent(victim, new NetworkIdentity(Commander));
+            var killer = repo.CreateEntity(); repo.AddComponent(killer, new NetworkIdentity(Soldier));
+            harness.Tick().RecordKeyframe(100_000L);                                                          // frame 0
+            harness.FireUnmanagedEvent(new ManDownedEvent { Victim = victim, Source = killer, State = InjuryState.Dead, VictimSide = ForceId.Hostile });
+            harness.Tick().RecordDelta(200_000L);                                                             // frame 1
+            harness.Tick().RecordDelta(300_000L);                                                             // frame 2: nothing
+            string path = harness.BuildToTempFile();
+
+            var index = TimelineIndexBuilder.Build(path, Lanes, Compiler());
+
+            Assert.Empty(index.LaneErrors);
+            var down = Assert.Single(index.Lane(CombatTimelineLanes.Downed.Id));
+            Assert.Equal((1, Commander, (long)Soldier, (float)InjuryState.Dead, (float)ForceId.Hostile), (down.Frame, down.Subject, down.Other, down.Value, down.X));
         }
 
         private static (int Frame, int Subject, long Other)[] Of(TimelineIndex index, TimelineLaneDescriptor lane)

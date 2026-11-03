@@ -297,6 +297,24 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((1f, 0f), (w.S(ka).Value, w.S(kb).Value));
         }
 
+        /// <summary>⭐⭐ <c>CE-3364</c> D5 — a downing that ARRIVED over <c>dtManDowned</c> (<c>IsRemote</c>; the Health owner is another Brain node, so no Health was applied HERE) is a kill for the
+        /// measure on THIS node, counted ONCE however many frames later it is read; a downing raised here counts once too. The own-sample echo is dropped by the ingress (ManDownedWireTests), so a
+        /// node never sees one downing twice. ✅ Red-proof: the measure skipping <c>IsRemote</c> events ⇒ the remote kill is lost ⇒ red.</summary>
+        [Fact]
+        public void CE3364_ARemoteDowning_IsAKillOnThisNode_OnceOnly()
+        {
+            var w = new ObjWorld();
+            var a = w.Man(Inside, ForceId.Friend);
+            var sa = w.Squad(ForceId.Friend, a);
+            var foe = w.Man(Inside, ForceId.Hostile, health: 10f);
+            var ka = w.Objective("Count", MeasureJson(w, sa, ",\"what\":\"kills\",\"target\":3"));
+            w.Run(1);
+            w.Repo.Bus.Publish(new Fdp.Toolkit.Combat.Events.ManDownedEvent { Victim = foe, Source = a, State = Fdp.Toolkit.Combat.InjuryState.Dead, VictimSide = ForceId.Hostile, IsRemote = true });
+            w.Tick();
+            w.Tick(); w.Tick();
+            Assert.Equal(1f, w.S(ka).Value);
+        }
+
         /// <summary>The exercise ends (EndExercise): every measure is closed — its value frozen.</summary>
         private static void CloseExercise(ObjWorld w)
         {

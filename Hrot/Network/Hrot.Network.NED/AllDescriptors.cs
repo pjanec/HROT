@@ -179,6 +179,8 @@ namespace Hrot.NED.Descriptors
         dtPlayerMessage               = 173,
         //   ⭐ rules V-3 (§00.10) — 174 a trigger's when-leaves with their live values (its owning Brain → every node; STATE, sampled ≤ 2 Hz and only while ui.rules-live-values is on).
         dtRuleLeaves                  = 174,
+        //   ⭐ CE-3364 D5 — 175 a man taken out of the fight by a hit (the ManDownedEvent of the node that applies his Health → every other node; an EVENT topic, the dtPlayerMessage shape). 175 measured free on all four lanes 2026-11-03.
+        dtManDowned                   = 175,
         // ⭐ macros wire fix — an entity's authored name (<c>RefKey</c>, "@Key"), its creator → every node (no group, as dtMacroOrigin): a RUNTIME-inserted entity carries its key only
         //   on the creating node otherwise, and the live "@Key" scope finds nothing on the others. 182 measured free on backend, ui, behaviors, coordinator 2026-11-02 (180/181 are the
         //   placement pair; 175–179 stay the rules block's).

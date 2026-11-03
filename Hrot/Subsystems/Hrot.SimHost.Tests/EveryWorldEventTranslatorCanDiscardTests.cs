@@ -26,7 +26,7 @@ public sealed class EveryWorldEventTranslatorCanDiscardTests
         Assert.All(events, t => Assert.True(typeof(IDiscardableIngress).IsAssignableFrom(t),
             $"{t.Name} declares WorldEvent but cannot discard (IDiscardableIngress)."));
         Assert.Equal(
-            new[] { "EntityHitDamageIngressTranslator", "MissionControlIngressTranslator", "MunitionDetonationIngressTranslator",
+            new[] { "EntityHitDamageIngressTranslator", "ManDownedIngressTranslator", "MissionControlIngressTranslator", "MunitionDetonationIngressTranslator",
                     "WeaponFireIngressTranslator", "WeaponFireRequestIngressTranslator" },
             events.Select(t => t.Name).OrderBy(n => n).ToArray());
     }

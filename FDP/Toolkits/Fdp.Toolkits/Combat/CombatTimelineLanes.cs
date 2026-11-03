@@ -13,7 +13,9 @@ namespace Fdp.Toolkit.Combat
     /// <list type="bullet">
     /// <item>Shot — a <see cref="WeaponFireNotification"/> that FIRED (a refusal is not a shot); who, at whom, the muzzle, the rounds;</item>
     /// <item>Hit — a <see cref="HitEvent"/>; who was hit;</item>
-    /// <item>Blast — a <see cref="DetonationNotification"/>; who fired, at whom, the point, the damage.</item>
+    /// <item>Blast — a <see cref="DetonationNotification"/>; who fired, at whom, the point, the damage;</item>
+    /// <item>⭐ <c>CE-3364</c> D5 — Downed — a <see cref="ManDownedEvent"/> (the one kill authority; recorded: it carries no <c>NoReplay</c>): Subject = the victim, Other = who
+    ///   downed him, Value = the <see cref="InjuryState"/> number (Incapacitated 2 / Dead 3), X = the victim's <see cref="ForceId"/> number.</item>
     /// </list>
     /// <para>⭐ <c>CE-4117</c> — two hidden STATE lanes (group <c>State</c>, value-change lanes: an entry when a unit's state changes, its first
     /// seen state included — the director's <c>health</c> / <c>gesture</c> cues read them):</para>
@@ -29,6 +31,8 @@ namespace Fdp.Toolkit.Combat
         public static readonly TimelineLaneDescriptor Shot = new("combat.shot", "Shot", Group: Group, Priority: 3, Color: 0xFF40D0E0);
         public static readonly TimelineLaneDescriptor Hit = new("combat.hit", "Hit", Group: Group, Priority: 4, Color: 0xFF3090F0);
         public static readonly TimelineLaneDescriptor Blast = new("combat.blast", "Blast", Group: Group, Priority: 5, Color: 0xFF2040FF);
+
+        public static readonly TimelineLaneDescriptor Downed = new("combat.downed", "Downed", Group: Group, Priority: 6, Color: 0xFF3030D0);
 
         public const string StateGroup = "State";
         public static readonly TimelineLaneDescriptor HealthState = new("state.health", "Health", Group: StateGroup, Hidden: true);
@@ -52,9 +56,13 @@ namespace Fdp.Toolkit.Combat
                 new TransientEventPredicateDto { EventType = typeof(DetonationNotification), AnyOccurrence = true },
                 new ResultProjectionDto { SubjectPath = nameof(DetonationNotification.Shooter), OtherPath = nameof(DetonationNotification.Target),
                     XPath = nameof(DetonationNotification.HitX), YPath = nameof(DetonationNotification.HitY), ValuePath = nameof(DetonationNotification.Damage) }),
+            new(Downed,
+                new TransientEventPredicateDto { EventType = typeof(ManDownedEvent), AnyOccurrence = true },
+                new ResultProjectionDto { SubjectPath = nameof(ManDownedEvent.Victim), OtherPath = nameof(ManDownedEvent.Source),
+                    ValuePath = nameof(ManDownedEvent.State), XPath = nameof(ManDownedEvent.VictimSide) }),
         };
 
-        public IReadOnlyList<TimelineLaneDescriptor> Lanes { get; } = new[] { Shot, Hit, Blast, HealthState, GestureState };
+        public IReadOnlyList<TimelineLaneDescriptor> Lanes { get; } = new[] { Shot, Hit, Blast, Downed, HealthState, GestureState };
         public IReadOnlyList<IndexedLaneDefinition> Indexed => Definitions;
         public bool Applies(TimelineLaneContext context) => context.Indexing;   // ⭐ CE-3330 — a recording's index or the live one
     }
