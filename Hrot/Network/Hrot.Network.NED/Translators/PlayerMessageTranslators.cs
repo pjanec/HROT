@@ -105,7 +105,7 @@ namespace Hrot.Network.Translators
             if (!repo.Bus.IsRegisteredManaged<PlayerMessageEvent>()) repo.Bus.RegisterManaged<PlayerMessageEvent>();
             repo.Bus.PublishManaged(new PlayerMessageEvent
             {
-                MessageId = m.MessageId, OriginNodeId = m.OriginNodeId, ToKind = m.ToKind ?? "All", ToValue = m.ToValue, Text = m.Text ?? "",
+                MessageId = m.MessageId, OriginNodeId = (Fdp.Core.NodeId)(m.OriginNodeId), ToKind = m.ToKind ?? "All", ToValue = m.ToValue, Text = m.Text ?? "",
                 Seconds = m.Seconds, Priority = m.Priority, SentAt = m.SentAt, Source = m.Source,
             });
             return true;

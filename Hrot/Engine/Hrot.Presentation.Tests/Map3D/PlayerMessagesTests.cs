@@ -16,7 +16,7 @@ public sealed class PlayerMessagesTests
     private static readonly MessageViewer Me = new(UnitNetId: 42, Side: ForceId.Friend, StationId: 7);
 
     private static PlayerMessageEvent M(int id, string kind = "All", int value = 0, string text = "hello", float seconds = 6f, byte priority = 0, double at = 10, int origin = 0)
-        => new() { MessageId = id, OriginNodeId = origin, ToKind = kind, ToValue = value, Text = text, Seconds = seconds, Priority = priority, SentAt = at };
+        => new() { MessageId = id, OriginNodeId = (Fdp.Core.NodeId)origin, ToKind = kind, ToValue = value, Text = text, Seconds = seconds, Priority = priority, SentAt = at };
 
     [Fact]
     public void TheFilter_AllAlways_UnitBySideAndStation_ByTheViewer_InstructorNever()

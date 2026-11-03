@@ -36,7 +36,7 @@ public sealed class PlayerMessages
         if (m is null || string.IsNullOrWhiteSpace(m.Text)) return false;
         foreach (var e in _all)
             if (e.MessageId == m.MessageId && e.Origin == m.OriginNodeId) return false;
-        _all.Add(new Entry(m.MessageId, m.OriginNodeId, m.ToKind ?? "All", m.ToValue, m.Text, m.Seconds, m.Priority, m.SentAt));
+        _all.Add(new Entry(m.MessageId, (int)m.OriginNodeId, m.ToKind ?? "All", m.ToValue, m.Text, m.Seconds, m.Priority, m.SentAt));
         if (_all.Count > RawCap) _all.RemoveRange(0, _all.Count - RawCap);
         return true;
     }

@@ -72,7 +72,7 @@ namespace Fdp.Toolkit.ScenarioRules
     {
         public int MessageId;
         /// <summary>The node that raised it: 0 = THIS node (the egress sends it); otherwise it arrived from that node.</summary>
-        public int OriginNodeId;
+        public Fdp.Core.NodeId OriginNodeId;
         /// <summary>All / Side / Station / Unit / Instructor.</summary>
         public string ToKind = "All";
         /// <summary>Which side (a <see cref="ForceId"/>) / station / unit (network id) <see cref="ToKind"/> names; 0 for All / Instructor.</summary>
