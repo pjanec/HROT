@@ -282,6 +282,8 @@ point) · *Sharpshooter* (accuracy ≥ 40 % with ≥ 10 hits) · *Crate hunter* 
 
 📐 **Rounds 5–6, the bounty live (`2026-11-03`; the bounty threshold lowered to 2 in the run's staged copy only — the shipped macro keeps 5)**: round 5 found two faults — a bounty dropped to Pending the instant its man was down, before his downing event could claim it (fixed: P-8b′ waits up to 3 s), and the scenario preset reached the CGF node only (fixed: F-28′, a preset step on every ECS node). ✅ **Round 6**: three bounties stood, were announced, and were **claimed** (*claimed by Blue 1-4* ×2, *claimed by Red 2-3*); the killers' **bounty kills** = exactly those three (Blue 1-4: 2, Red 2-3: 1) · ✅ **kills reconcile fully** — 12 kills + 2 team kills = 14 = men downed · ✅ the preset applies on **IG** (the player HUD) and CGF (`GET /features` source `scenario`); ⚠ SimHost still reads `role default` — it holds no staged copy of the scenario (it draws no player HUD). ⚠ Round 5 had 2 downings with no `ManDownedEvent` on the Brain — handed to behaviors (`NOTE_Backend_To_Behaviors_Uncredited_Downings.md`); none in round 6.
 
+📐 **Round 7 (`2026-11-03`, full 900 s)** — ui's ⑤ ⑥: each man's `Score` now moves (target 1000; best 0.35 = 350 points) · the end NAMES the winner (G-9): *Red wins* fired at 900 s on *Blue lead* −70 ⇒ *"exercise ended at 900.799 s: Friend Lose, Hostile Win"* — the round summary can say RED WINS.
+
 **Acceptance (§2.6):** line 1 — rail `G1_Capture_OutnumberFor10s_ThenLostWhenOutnumbered` + `checks.json` (a point taken, the drain moves tickets) ✅ · line 2 — `checks.json` ✅ · line 3 ⏳ CE-4155 + S4 · line 4 — `checks.json` (≤ 1 per 2 min) ✅ · line 5 ⏳ S4.
 
 ### 2.7 The extension to true capture the flag *(a later variant — most of the carrying is already built)*
