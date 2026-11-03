@@ -258,5 +258,115 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((byte)1, w.S(none).Closed);
             Assert.True(w.Repo.GetComponentRO<ObjectiveLinks>(none).Subject.IsNone);
         }
+
+        private static Entity Named(ObjWorld w, Entity e, string name) { w.Repo.GetComponentRW<EntityInfo>(e).Name = new FixedString64(name); return e; }
+
+        /// <summary>P-8a — <c>streak</c> / <c>bestStreak</c>: kills by his men since the subject last LOST a man, read from the ManDownedEvents in order. 3 kills ⇒ 3 / 3; one of his men downed ⇒ 0 / 3; two more ⇒ 2 / 3.
+        /// ✅ Red-proof: the <c>IsHis … Streak = 0</c> reset removed from <c>MeasureEvidence.Update</c> ⇒ the streak goes on to 5 ⇒ red.</summary>
+        [Fact]
+        public void P8a_Streak_CountsKillsSinceHeLostAMan_BestStreakStays()
+        {
+            var w = new ObjWorld();
+            var m = w.Man(Inside, ForceId.Friend, 10f); var m2 = w.Man(Inside, ForceId.Friend, 10f); var squad = w.Squad(ForceId.Friend, m, m2);
+            var foes = Enumerable.Range(0, 6).Select(_ => w.Man(Inside, ForceId.Hostile, 10f)).ToArray();
+            var streak = CountOf(w, squad, "streak"); var best = CountOf(w, squad, "bestStreak");
+            w.Run(1);
+            for (int i = 0; i < 3; i++) { w.Kill(foes[i], m); w.Tick(); }
+            Assert.Equal((3f, 3f), (w.S(streak).Value, w.S(best).Value));
+            w.Kill(m, foes[3]); w.Tick();                                                   // one of HIS men is downed
+            Assert.Equal((0f, 3f), (w.S(streak).Value, w.S(best).Value));
+            Assert.Equal(1f, w.S(streak).Target);                                           // higher is better: not a fault (a fault's target is 0)
+            for (int i = 4; i < 6; i++) { w.Kill(foes[i], m2); w.Tick(); }
+            Assert.Equal((2f, 3f), (w.S(streak).Value, w.S(best).Value));
+        }
+
+        private static (Entity Bounty, Entity Streak) BountyOn(ObjWorld w, Entity man, int min = 5)
+        {
+            var streak = w.Objective("Count", $"{{{Cm("Streak", w.Net(man))},\"what\":\"streak\"}}");
+            var bounty = w.Objective("Bounty", $"{{{Cm("Bounty", w.Net(man), ",\"scored\":false")},\"streak\":{w.Net(streak)},\"minStreak\":{min}}}");
+            return (bounty, streak);
+        }
+
+        /// <summary>P-8b — <c>Bounty</c>: starts Pending; Active when the linked streak reaches 5 and he is in the fight; his downing claims it (Pending, FireCount 1, LastFired, "claimed by …"); it is Active again only
+        /// once the streak went below 5 and back to 5 (FireCount stays 1 until the next claim); below 5 it stays Pending. At the close: Achieved if it stands, else Skipped. ✅ Red-proof: the claim branch
+        /// (<c>wasActive &amp;&amp; Claimed</c>) removed ⇒ it never goes Pending ⇒ red.</summary>
+        [Fact]
+        public void P8b_Bounty_ActiveWhileItStands_ClaimedByHisDowning_ReArmedByANewStreak_ClosesByIt()
+        {
+            var w = new ObjWorld();
+            var hawk = Named(w, w.Man(Inside, ForceId.Friend, 10f), "Hawk"); var raven = Named(w, w.Man(Inside, ForceId.Hostile, 10f), "Raven");
+            var foes = Enumerable.Range(0, 12).Select(_ => w.Man(Inside, ForceId.Hostile, 10f)).ToArray();
+            var (bounty, streak) = BountyOn(w, hawk);
+            w.Run(1);
+            Assert.Equal((ObjectiveState.Pending, 0), (w.S(bounty).State, w.S(bounty).FireCount));
+            int k = 0;
+            for (; k < 4; k++) { w.Kill(foes[k], hawk); w.Tick(); }
+            w.Run(1);
+            Assert.Equal(ObjectiveState.Pending, w.S(bounty).State);                           // 4 of 5
+            w.Kill(foes[k++], hawk); w.Run(1.5);
+            Assert.Equal((ObjectiveState.Active, 5f), (w.S(bounty).State, w.S(streak).Value));
+            w.Kill(hawk, raven); w.Run(1.5);                                                   // Hawk is downed by Raven
+            Assert.Equal((ObjectiveState.Pending, 1), (w.S(bounty).State, w.S(bounty).FireCount));
+            Assert.True(w.S(bounty).LastFired > 0);
+            Assert.Equal("claimed by Raven", w.S(bounty).Reason.ToString());
+            w.Repo.GetComponentRW<Health>(hawk).Current = 10f; w.Run(1);                       // revived
+            for (int i = 0; i < 4; i++) { w.Kill(foes[k++], hawk); w.Tick(); }
+            w.Run(1);
+            Assert.Equal((ObjectiveState.Pending, 4f), (w.S(bounty).State, w.S(streak).Value));   // below 5 stays Pending
+            w.Kill(foes[k++], hawk); w.Run(1.5);
+            Assert.Equal((ObjectiveState.Active, 1), (w.S(bounty).State, w.S(bounty).FireCount));   // a new streak of 5: it stands again, FireCount unchanged
+            EndTheExercise(w);
+            w.Run(6);
+            Assert.Equal((ObjectiveState.Achieved, (byte)1), (w.S(bounty).State, w.S(bounty).Closed));   // it still stood at the end
+
+            var w2 = new ObjWorld();
+            var nobody = w2.Man(Inside, ForceId.Friend, 10f);
+            var (b2, _) = BountyOn(w2, nobody);
+            w2.Run(2); EndTheExercise(w2); w2.Run(6);
+            Assert.Equal((ObjectiveState.Skipped, (byte)1), (w2.S(b2).State, w2.S(b2).Closed));    // never stood
+        }
+
+        /// <summary>P-8c — <c>bountyKills</c>: a kill whose victim's <c>Bounty</c> is Active (or was claimed at this very time) counts, whichever of the bounty and the count ticks first in the frame; a kill of a man with no
+        /// bounty does not. ✅ Red-proof: the <c>b.LastFired == now</c> clause removed from <c>BountyStands</c> ⇒ the bounty-ticks-first order misses it ⇒ red.</summary>
+        [Fact]
+        public void P8c_BountyKills_CreditAKillOnABountyMan_InEitherTickOrder_NotOnAnyoneElse()
+        {
+            foreach (bool countFirst in new[] { true, false })
+            {
+                var w = new ObjWorld();
+                var hawk = Named(w, w.Man(Inside, ForceId.Hostile, 10f), "Hawk"); var plain = w.Man(Inside, ForceId.Hostile, 10f);
+                var dummy = w.Man(Inside, ForceId.Friend, 10f); var killer = w.Man(Inside, ForceId.Friend, 10f);
+                Entity count = default, bounty = default, streak;
+                if (countFirst) count = w.Objective("Count", $"{{{Cm("BK", w.Net(killer))},\"what\":\"bountyKills\"}}");
+                streak = w.Objective("Count", $"{{{Cm("Streak", w.Net(hawk))},\"what\":\"streak\"}}");
+                bounty = w.Objective("Bounty", $"{{{Cm("Bounty", w.Net(hawk), ",\"scored\":false")},\"streak\":{w.Net(streak)},\"minStreak\":1}}");
+                if (!countFirst) count = w.Objective("Count", $"{{{Cm("BK", w.Net(killer))},\"what\":\"bountyKills\"}}");
+                var kills = w.Objective("Count", $"{{{Cm("K", w.Net(killer))},\"what\":\"kills\"}}");
+                w.Run(1);
+                w.Kill(dummy, hawk); w.Run(1.5);                                              // Hawk's streak is 1 ⇒ the bounty stands
+                Assert.Equal(ObjectiveState.Active, w.S(bounty).State);
+                w.Kill(hawk, killer); w.Run(1.5);
+                Assert.Equal((1f, 1f, ObjectiveState.Pending), (w.S(count).Value, w.S(kills).Value, w.S(bounty).State));
+                w.Kill(plain, killer); w.Run(1.5);
+                Assert.Equal((1f, 2f), (w.S(count).Value, w.S(kills).Value));                  // a man with no bounty: a kill, not a bounty kill
+            }
+        }
+
+        /// <summary>P-8d — <c>{subject}</c> in a <c>Message</c> is the name of the sending trigger's subject (empty name ⇒ "#netid"). ✅ Red-proof: the replace removed from <c>ScenarioVerbs.WithSubject</c> ⇒ the text keeps
+        /// the literal <c>{subject}</c> ⇒ red.</summary>
+        [Fact]
+        public void P8d_Message_SubjectIsTheTriggersSubjectsName()
+        {
+            var w = new ObjWorld();
+            var hawk = Named(w, w.Man(Inside, ForceId.Friend), "Hawk"); var anon = w.Man(Inside, ForceId.Friend);
+            w.Environment();
+            var src = Cond(w);
+            string json(Entity who) => "{\"common\":{\"title\":\"T\",\"subject\":" + w.Net(who) + "},\"when\":" + WhenAchieved(w.Net(src)) + ",\"do\":"
+                + Do(Step("Message", "{\"toKind\":\"All\",\"text\":\"Bounty on {subject}!\"}")) + ",\"repeat\":true}";
+            var t1 = w.Trigger(json(hawk)); var t2 = w.Trigger(json(anon));
+            w.Run(1.5);
+            Flip(w, src, true); w.Run(1.5);
+            Assert.Equal(new[] { "Bounty on #" + w.Net(anon) + "!", "Bounty on Hawk!" }, w.Messages.Select(m => m.Text).OrderBy(x => x, StringComparer.Ordinal).ToArray());
+        }
     }
 }

@@ -311,6 +311,8 @@ namespace Hrot.Map.Definitions.Behavior
         public const string Points = "Points";
         /// <summary>⭐ rules S7 P-7 — an award: among the measures titled <c>measure</c> under <c>among</c>, the best value wins; at the close Achieved with <c>ObjectiveLinks.Subject</c> = the winner.</summary>
         public const string Best = "Best";
+        /// <summary>⭐ rules S7 P-8b — a bounty on a man: Active while his kill streak stands, Pending once claimed (his downing).</summary>
+        public const string Bounty = "Bounty";
         // ⭐ rules S2-c (DESIGN_Scenario_Rules §10.11) — the trigger: the one behaviour of a Trigger entity (TKB 8861)
         /// <summary>when a condition rises: hold, wait, run a list of actions, cool down (§10.11).</summary>
         public const string Trigger = "Trigger";

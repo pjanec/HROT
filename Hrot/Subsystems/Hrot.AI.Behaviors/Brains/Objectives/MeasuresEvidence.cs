@@ -41,6 +41,8 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         /// <summary>⭐ S7 P-3 — assists (another source downed a hostile the man had harmed within <see cref="MeasureEvidence.AssistSeconds"/> of his last harm), team kills (a friend his man downed — never a kill),
         /// deaths (his men going out of the fight, once each), captures (an <see cref="ObjectiveCapturedEvent"/> naming one of his men).</summary>
         public int Assists, TeamKills, Deaths, Captures;
+        /// <summary>⭐ S7 P-8 — kills since the subject last lost a man; the highest so far; kills whose victim carried a standing / just-claimed bounty.</summary>
+        public int Streak, BestStreak, BountyKills;
         /// <summary>⭐ CE-3364 — hostiles a man of the subject harmed, with the sim time of his LAST harm: it feeds ONLY assists (a kill is a <c>ManDownedEvent</c> naming the man, never guessed from health).</summary>
         public Credits Helped;
         /// <summary>The men in the fight at the last tick (a man now out of the fight, still an entity, is a death).</summary>
@@ -96,11 +98,17 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 for (int i = 0; i < downs.Length; i++)
                 {
                     ref readonly var d = ref downs[i];
+                    if (IsHis(in t, d.Victim)) t.Streak = 0;   // ⭐ P-8a: he LOST a man (in event order)
                     NoHarmBehavior.Sources(d.Source, d.OriginalSource, attribute, out var last, out var first);
                     var credited = !last.IsNull && s_men.Contains(last) ? last : !first.IsNull && s_men.Contains(first) ? first : Entity.Null;
                     if (!credited.IsNull)
                     {
-                        if (KillZone.Hostile(side, d.VictimSide)) t.Kills++;
+                        if (KillZone.Hostile(side, d.VictimSide))
+                        {
+                            t.Kills++;
+                            if (++t.Streak > t.BestStreak) t.BestStreak = t.Streak;
+                            if (BountyStands(world, d.Victim, now)) t.BountyKills++;   // ⭐ P-8c
+                        }
                         else if (d.VictimSide == side && d.Victim != credited) t.TeamKills++;
                     }
                     else if (KillZone.Hostile(side, d.VictimSide)) AssistIfHelped(ref t, d.Victim, now, assistSeconds > 0 ? assistSeconds : AssistSeconds);
@@ -117,6 +125,28 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             }
             s_men.Clear();
         }
+
+        /// <summary>One of the subject's men: in the census now, or in the fight at the last tick (the census already dropped him if this very downing took him out).</summary>
+        private static bool IsHis(in FireTally t, Entity e)
+        {
+            if (s_men.Contains(e)) return true;
+            for (int i = 0; i < t.InFightCount; i++) if (t.InFight[i] == e) return true;
+            return false;
+        }
+
+        /// <summary>⭐ S7 P-8c — whether <paramref name="victim"/> carries a <c>Bounty</c> status that stands (Active) or was claimed at THIS time (<c>LastFired == now</c> — so the order of the bounty's and the count's ticks does not matter).</summary>
+        private static bool BountyStands(EntityRepository world, Entity victim, double now)
+        {
+            foreach (var e in world.Query().With<ObjectiveLinks>().With<ObjectiveStatus>().Build())
+            {
+                ref readonly var b = ref world.GetComponentRO<ObjectiveStatus>(e);
+                if (b.Role == ObjectiveRole.Measure || !b.Kind.Equals(BountyKind) || world.GetComponentRO<ObjectiveLinks>(e).Subject.Resolve(world) != victim) continue;
+                if (b.State == ObjectiveState.Active || b.LastFired == now) return true;
+            }
+            return false;
+        }
+
+        private static readonly FixedString32 BountyKind = new(Hrot.Map.Definitions.Behavior.BehaviorNames.Bounty);
 
         /// <summary>The man of the subject a harm / downing is credited to by <paramref name="attribute"/> (Last = Source, Original = the first thrower, Both = either), else Null.</summary>
         private static Entity Credited(in DamageAssessedEvent e, HarmAttribute attribute)

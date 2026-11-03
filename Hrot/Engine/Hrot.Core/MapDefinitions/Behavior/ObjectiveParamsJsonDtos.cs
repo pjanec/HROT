@@ -153,6 +153,12 @@ namespace Hrot.Map.Definitions.Behavior
         Deaths = 8,
         /// <summary>⭐ S7 P-3 — capture points that changed hands to his side with one of his men inside.</summary>
         Captures = 9,
+        /// <summary>⭐ S7 P-8a — kills by his men since the subject last LOST a man (a downing of one of his men resets it). Higher is better; not a fault.</summary>
+        Streak = 10,
+        /// <summary>⭐ S7 P-8a — the highest <see cref="Streak"/> so far.</summary>
+        BestStreak = 11,
+        /// <summary>⭐ S7 P-8c — kills whose victim carried a standing (or just-claimed) <c>Bounty</c>.</summary>
+        BountyKills = 12,
     }
 
     /// <summary><c>Count</c>: how many <see cref="What"/> by the subject's men. fratricide / civiliansHarmed / teamKills / deaths are lower-is-better with target 0; the others higher-is-better with target
@@ -226,6 +232,18 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("measure")] public string? Measure;
         [JsonPropertyName("min")] public float? Min;
         [JsonPropertyName("lowerIsBetter")] public bool LowerIsBetter;
+    }
+
+    /// <summary>⭐ rules S7 P-8b — <c>Bounty</c> on a man (<c>common.subject</c>): Active while his <see cref="Streak"/> measure's Value ≥ <see cref="MinStreak"/> (default 5) and he is in the fight; his downing while Active claims it (Pending,
+    /// FireCount +1, LastFired = now, Reason "claimed by …"); re-armed once the streak fell below the minimum.</summary>
+    [ParamsDto]
+    public struct BountyParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.Bounty;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        /// <summary>His <c>Count streak</c> measure.</summary>
+        [JsonPropertyName("streak")] public EntityLink Streak;
+        [JsonPropertyName("minStreak")] public int? MinStreak;
     }
 
     /// <summary><c>WeightedMean</c>: a composite scoring its children (<c>ObjectiveLinks.Parent</c> = it) by weight.</summary>

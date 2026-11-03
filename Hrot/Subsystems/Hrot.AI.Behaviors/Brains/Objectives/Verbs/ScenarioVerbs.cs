@@ -208,11 +208,26 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
             world.Bus.PublishManaged(new PlayerMessageEvent
             {
                 MessageId = System.Threading.Interlocked.Increment(ref s_messageSeq), OriginNodeId = Fdp.Core.NodeId.None,
-                ToKind = p.ToKind.Length == 0 ? "All" : p.ToKind.ToString(), ToValue = p.ToValue, Text = p.Text.ToString(),
+                ToKind = p.ToKind.Length == 0 ? "All" : p.ToKind.ToString(), ToValue = p.ToValue, Text = WithSubject(world, self, p.Text.ToString()),
                 Seconds = p.Seconds, Priority = p.Priority, SentAt = ObjectiveHost.Now(world),
                 Source = world.HasComponent<NetworkIdentity>(self) ? world.GetComponentRO<NetworkIdentity>(self).Value : 0,
             });
             return NodeStatus.Success;
+        }
+
+        /// <summary>⭐ S7 P-8d — <c>{subject}</c> in a message is the name of the sending trigger's subject (<c>ObjectiveLinks.Subject</c>; <c>EntityInfo.Name</c>, else "#netid"): one macro serves every man.</summary>
+        internal static string WithSubject(EntityRepository world, Entity self, string text)
+        {
+            if (!text.Contains("{subject}")) return text;
+            string name = "";
+            if (world.HasComponent<ObjectiveLinks>(self))
+            {
+                var who = world.GetComponentRO<ObjectiveLinks>(self).Subject;
+                var e = who.Resolve(world);
+                if (!e.IsNull && world.IsAlive(e) && world.HasComponent<EntityInfo>(e)) name = world.GetComponentRO<EntityInfo>(e).Name.ToString();
+                if (name.Length == 0 && !who.IsNone) name = "#" + who.NetworkId;
+            }
+            return text.Replace("{subject}", name);
         }
 
         private static NodeStatus Fail(EntityRepository world, Entity self, string reason)

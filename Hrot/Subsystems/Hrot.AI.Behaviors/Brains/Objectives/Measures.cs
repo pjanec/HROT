@@ -126,7 +126,8 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 {
                     CountWhat.Shots => b.Tally.Shots, CountWhat.Hits => b.Tally.Hits, CountWhat.Kills => b.Tally.Kills,
                     CountWhat.Fratricide => b.Tally.Fratricide, CountWhat.CiviliansHarmed => b.Tally.Civilians,
-                    CountWhat.Assists => b.Tally.Assists, CountWhat.TeamKills => b.Tally.TeamKills, CountWhat.Deaths => b.Tally.Deaths, CountWhat.Captures => b.Tally.Captures, _ => b.Reports,
+                    CountWhat.Assists => b.Tally.Assists, CountWhat.TeamKills => b.Tally.TeamKills, CountWhat.Deaths => b.Tally.Deaths, CountWhat.Captures => b.Tally.Captures,
+                    CountWhat.Streak => b.Tally.Streak, CountWhat.BestStreak => b.Tally.BestStreak, CountWhat.BountyKills => b.Tally.BountyKills, _ => b.Reports,
                 };
                 if (MeasureHost.Changed(ref b.ShownValue, ref b.ShownN, s.Value, 0, in s))
                     ObjectiveHost.Settle(ref s, Kind, ObjectiveState.Active, $"{b.What} {s.Value:0} (target {b.Target:0.##})", f.Now);
