@@ -628,6 +628,52 @@ that already replicates to every node.
 - *A big result object on the wire* — the tree is the statuses (SR-122).
 - *Building S1 on today's `EntityRef` / polyline areas and migrating later* — the same files twice; S0 first.
 
+### 00.11a Live edit of a rule + the step progress *(behaviors, `2026-11-03`; ui's [`NOTE_Ui_To_Behaviors_Rule_Editor_Asks.md`](blueprints/batches/NOTE_Ui_To_Behaviors_Rule_Editor_Asks.md) ① ②; SR-109; ⏳ ② awaits the user)*
+
+```mermaid
+sequenceDiagram
+    participant E as rule editor (ui, any node)
+    participant R as EntityWriteRouter
+    participant O as owner Brain: ObjectiveHost.Enter (each kind's tick)
+    participant V as BehaviorParamsValidation (CE-2377)
+    participant K as the kind's [BehaviorStateKeeper]
+    E->>R: Rule.Params = json · Rule.EditSeq += 1 · Rule.Origin
+    R->>O: RuleEdit (433) written on the owner (a change request from a non-owner)
+    O->>O: EditSeq ≠ the applied one?
+    O->>V: Validate(kind, json) — the load-time check, unchanged
+    alt refused (bad params · a kind change · no keeper for this kind)
+        O-->>E: Reason "edit refused: …" + journal (origin)
+    else accepted
+        O->>O: resolve json into a SCRATCH blackboard (the kind's own resolver)
+        O->>K: Keep(ref fresh, in old) — copies the RUNTIME fields (Run, timers, counters, served sets)
+        O->>O: fresh replaces the blackboard · journal "edited by <origin>"
+    end
+```
+*What the sequence shows:* the edit is params-in, state-kept: the kind's own resolver builds the new params exactly as a load would, and the
+ONLY per-kind code is the list of fields that are runtime state. A trigger `Acting` keeps running its OLD `do` list; the new list is taken
+when that run ends.
+
+```mermaid
+classDiagram
+    class RuleControl { <<existing 430>> Request · Seq · Origin (Fire, Disarm …) }
+    class RuleEdit { <<NEW 433, managed record, init-only>> Json · Seq · Origin }
+    class ObjectiveHost { <<existing>> Enter(): honours RuleControl, NOW also RuleEdit }
+    class BehaviorStateKeeperAttribute { <<NEW, discovered like BehaviorValidator>> Keep(ref fresh, in old) }
+    class ObjectiveStatus { <<existing 425>> + StepCur · StepCount (①) }
+    ObjectiveHost ..> RuleControl
+    ObjectiveHost ..> RuleEdit
+    ObjectiveHost ..> BehaviorStateKeeperAttribute : per kind
+```
+
+| # | decision (⭐ lean) | rejected (one line each) |
+|---|---|---|
+| ① | ✅ build: `StepCur` / `StepCount` (bytes) on `ObjectiveStatus`, appended on 171, written where `RunActionsState.Index` moves (`ActionList.cs:132`) | the runner's state on the wire: it is a blackboard detail |
+| L1 | ⭐ transport: router attributes `Rule.Params` (CsString — `Name`'s kind, `AttributeVocabulary.cs:47`) + `Rule.EditSeq` onto a NEW managed record `RuleEdit` (433, the last free id of the block) — the `RuleControl` path (V-4) | `AssignBehaviorEvent`: local bus only and it RE-ASSIGNS (loses the state) · a field on `RuleControl`: unmanaged, a params JSON has no fixed size |
+| L2 | ⭐ apply = the kind's own resolver into a scratch blackboard + a per-kind `[BehaviorStateKeeper]` that copies only the runtime fields | split every blackboard into params + state structs: a refactor of ~20 kinds for the same result · copy fields by name heuristics: silent mistakes |
+| L3 | ⭐ a kind WITHOUT a keeper refuses the live edit ("restart the rule") — keepers land kind by kind (Trigger, the area objectives, the measures first) | a default keeper that keeps nothing: that is today's re-assign, silently |
+| L4 | ⭐ refused: a change of KIND, bad params (the CE-2377 validator) — the reason on the status + the journal | — |
+| L5 | ⭐ SR-109 "this run only": the scenario file is untouched; the status and the journal (both recorded) carry the edit, so the AAR shows it | write it back to the scenario: SR-109 says no |
+
 ### 00.12 S6 — the game profile, v1 *(backend, `2026-11-02`; `HANDOFF_Coordinator_To_Backend_Showcase_Scenarios.md` item ②; ✅ G-1…G-7 APPROVED `2026-11-03` — user: *"G1 to G7 approved."*)*
 
 🔒 *User, `2026-11-02`: "backend can also add the missing infrastructure, whatever is needed."* ⭐ Crossfire (SHOWCASE §2) needs four things the
