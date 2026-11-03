@@ -115,7 +115,11 @@ SCORE_TABLE = [  # (title, Count what, points, scored)
     ("Captures", "captures", 150, True),
     ("Team kills", "teamKills", -200, True),
     ("Deaths", "deaths", 0, False),          # shown (K/D), never scored
+    ("Bounty kills", "bountyKills", 300, True),   # S7 P-8c — a kill of a man with a standing bounty
+    ("Streak", "streak", 0, False),          # S7 P-8a — kills since he was last downed (the HUD's STREAK xn)
+    ("Best streak", "bestStreak", 0, False), # S7 P-8a — the round's best (scoreboard, summary, the award)
 ]
+BOUNTY_STREAK = 5   # SHOWCASE §2.2: "a player's streak >= 5"
 
 
 def macro_score():
@@ -124,16 +128,27 @@ def macro_score():
     ids, ents = Ids("cf0d0000"), {}
     root = ids()
     ents[root] = objective_entity("Points", "Score", {"common": {"title": "Score", "subject": "^subject", "parent": "^parent", "group": "score"}})
+    measure = {}
     for title, what, points, scored in SCORE_TABLE:
         c = {"title": title, "subject": "^subject", "parent": root, "group": "score", "points": points}
         if not scored:
             c["scored"] = False
-        ents[ids()] = objective_entity("Count", title, {"common": c, "what": what})
+        measure[what] = ids()
+        ents[measure[what]] = objective_entity("Count", title, {"common": c, "what": what})
+    # S7 P-8b / P-8d — his bounty (Active while it stands: the map / HUD marker) and the trigger that announces it, once per bounty
+    bounty = ids()
+    ents[bounty] = objective_entity("Bounty", "Bounty", {"common": {"title": "Bounty", "subject": "^subject", "parent": root, "group": "score",
+                                                                   "scored": False}, "streak": measure["streak"], "minStreak": BOUNTY_STREAK})
+    g = ids()
+    ents[g] = {"TkbIdentity": {"TkbType": 8861}, "EntityInfo": {"Name": "Bounty announced", "ForceId": "Friend"},
+               "Behavior": {"Name": "Trigger", "Params": json.dumps({
+                   "common": {"title": "Bounty announced", "subject": "^subject", "parent": root, "group": "score", "scored": False},
+                   "when": on_status(bounty, "State", 1, 1), "do": [msg("Bounty on {subject}!", 6)], "repeat": True}), "Origin": "Superior"}}
     ents[ids()] = objective_entity("HitRatio", "Hit ratio", {"common": {"title": "Hit ratio", "subject": "^subject", "parent": root, "group": "fire",
                                                                          "scored": False}})
     write("macros/game/score/Default/scenario.json", doc({
         "Kind": "macro",
-        "description": "What: rules S7 P-1 (docs/DESIGN_Scenario_Rules.md §00.13) - ONE man's game score: a Points root 'Score' = kills x100 + assists x50 + captures x150 + team kills x-200 (CE-4155 attribution; a team kill is never a kill), deaths shown unscored, an unscored Hit ratio. Judge: MemberEvaluation (members side, aggregate points) inserts it for every man of its side; the man's 'Score' rises by 100 when he kills a hostile.",
+        "description": "What: rules S7 P-1 / P-8 (docs/DESIGN_Scenario_Rules.md §00.13) - ONE man's game score: a Points root 'Score' = kills x100 + assists x50 + captures x150 + team kills x-200 + bounty kills x300 (the ONE kill authority ManDownedEvent; a team kill is never a kill); deaths, streak, best streak and a hit ratio shown unscored; his Bounty (Active while a streak of 5 stands) and a trigger 'Bounty announced' that tells everybody 'Bounty on <his name>!'. Judge: MemberEvaluation (members side, aggregate points) inserts it for every man of its side; the man's 'Score' rises by 100 when he kills a hostile.",
         "Anchor": {"Position": [0, 0, 0], "Heading": 0},
         "Params": [{"Name": "subject", "TypeId": "EntityLink"}, {"Name": "parent", "TypeId": "EntityLink"}],
     }, ents))
@@ -145,6 +160,8 @@ AWARDS = [  # (title, the measure each man's score macro carries, min, lowerIsBe
     ("Point keeper", "Captures", 1, False),
     ("Sharpshooter", "Hit ratio", 0.4, False),
     ("Untouchable", "Deaths", 0, True),
+    ("Bounty hunter", "Bounty kills", 1, False),   # S7 P-8e
+    ("Longest streak", "Best streak", 3, False),   # S7 P-8e
 ]
 
 
