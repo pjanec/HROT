@@ -277,5 +277,87 @@ namespace Hrot.SimHost.Tests
             w.Repo.GetComponentRW<Health>(slow).Current = 0f; w.Tick();
             Assert.Equal((1f, 1f), (w.S(assists).Value, w.S(kills).Value));              // too late: not an assist, and not m's kill either
         }
+
+        /// <summary>The exercise ends (EndExercise): every measure is closed — its value frozen.</summary>
+        private static void CloseExercise(ObjWorld w)
+        {
+            w.Environment();
+            var src = Cond(w);
+            Fire(w, src, Do(Step("EndExercise", "{\"reason\":\"done\"}")));
+            Flip(w, src, true);
+            w.Run(4);
+        }
+
+        private static (Entity Root, Entity Measure, Entity Squad, Entity Man, Entity Pal) RequiredFratricide(ObjWorld w, bool required, string rootKind = "WeightedMean")
+        {
+            var (squad, m, _, pal, _) = FireWorld(w);
+            var root = w.Objective(rootKind, $"{{{NoSubject}}}");
+            var req = required ? ",\"required\":true" : "";
+            var measure = w.Objective("Count", $"{{\"common\":{{\"title\":\"No fratricide\",\"subject\":{w.Net(squad)},\"parent\":{w.Net(root)}{req}}},\"what\":\"fratricide\",\"target\":0}}");
+            w.Run(2);
+            return (root, measure, squad, m, pal);
+        }
+
+        /// <summary>⭐ CE-2378 — a REQUIRED measure that the exercise closed below its pass fails its parent (one clause beside SR-117's required-Skipped): a required Count fratricide
+        /// (target 0) with one fratricide ⇒ the evaluation's <c>WeightedMean</c> is Failed "required 'No fratricide' failed"; the measure's own state is untouched (a number, not a verdict).
+        /// ✅ Red-proof: the <c>Required</c> guard removed ⇒ the not-required rail's parent fails for the same reason ⇒ red; the <c>Closed</c> guard removed ⇒ the before-the-close rail ⇒ red.</summary>
+        [Fact]
+        public void CE2378_ARequiredMeasure_ClosedBelowItsPass_FailsItsParent_ItsOwnStateUnchanged()
+        {
+            var w = new ObjWorld();
+            var (root, measure, _, m, pal) = RequiredFratricide(w, required: true);
+            w.Harm(pal, m); w.Tick();
+            Assert.Equal(0f, w.S(measure).Score);
+            var before = w.S(measure).State;
+            CloseExercise(w);
+            Assert.Equal((byte)1, w.S(measure).Closed);
+            Assert.Equal(ObjectiveState.Failed, w.S(root).State);
+            Assert.Contains("required 'No fratricide' failed", w.S(root).Reason.ToString());
+            Assert.Equal(before, w.S(measure).State);                       // the measure itself is no verdict
+        }
+
+        /// <summary>CE-2378 — not required ⇒ the measure only moves the parent's score (no "required … failed"); a required measure that meets its pass ⇒ no failure.</summary>
+        [Fact]
+        public void CE2378_NotRequired_OnlyTheScore_AndARequiredOneMeetingItsPass_NoFailure()
+        {
+            var w1 = new ObjWorld();
+            var (root1, _, _, m1, pal1) = RequiredFratricide(w1, required: false);
+            w1.Harm(pal1, m1); w1.Tick();
+            CloseExercise(w1);
+            Assert.DoesNotContain("required", w1.S(root1).Reason.ToString());      // the mean's own verdict (score 0 of 0.60), not the required rule
+
+            var wa = new ObjWorld();                                               // AllMustPass counts ANY failed child — a not-required measure is none (the Required guard)
+            var (rootA, _, _, ma, pala) = RequiredFratricide(wa, required: false, "AllMustPass");
+            wa.Harm(pala, ma); wa.Tick();
+            CloseExercise(wa);
+            Assert.DoesNotContain("No fratricide", wa.S(rootA).Reason.ToString());   // a not-required measure is no failed child (the close may still end the root "not achieved")
+
+            var w2 = new ObjWorld();
+            var (root2, measure2, _, _, _) = RequiredFratricide(w2, required: true);   // no fratricide: score 1 = its pass
+            CloseExercise(w2);
+            Assert.Equal(1f, w2.S(measure2).Score);
+            Assert.Equal(ObjectiveState.Achieved, w2.S(root2).State);
+        }
+
+        /// <summary>CE-2378 — BEFORE the close the exercise is still running: a required measure below its pass fails nothing yet (the number may still recover); and a required <c>Counter</c> (Pass 0, a pool
+        /// that gives no verdict) never fails its parent.</summary>
+        [Fact]
+        public void CE2378_BeforeTheClose_NoFailure_AndACounterNeverFails()
+        {
+            var w = new ObjWorld();
+            var (root, _, _, m, pal) = RequiredFratricide(w, required: true);
+            w.Harm(pal, m); w.Tick(); w.Run(2);
+            Assert.NotEqual(ObjectiveState.Failed, w.S(root).State);
+            Assert.DoesNotContain("required", w.S(root).Reason.ToString());
+
+            var w2 = new ObjWorld();
+            var root2 = w2.Objective("WeightedMean", $"{{{NoSubject}}}");
+            var counter = w2.Objective("Counter", $"{{\"common\":{{\"title\":\"Pool\",\"parent\":{w2.Net(root2)},\"required\":true}},\"start\":0}}");
+            w2.Run(2);
+            CloseExercise(w2);
+            Assert.Equal((byte)1, w2.S(counter).Closed);
+            Assert.Equal(0f, w2.S(counter).Pass);
+            Assert.DoesNotContain("required", w2.S(root2).Reason.ToString());
+        }
     }
 }
