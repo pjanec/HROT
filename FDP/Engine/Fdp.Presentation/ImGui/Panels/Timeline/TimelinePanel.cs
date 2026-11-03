@@ -93,6 +93,9 @@ public sealed class TimelinePanel
     /// Camera); null or empty = none, every existing host unchanged. The panel draws, hit-tests, selects and drags; it knows nothing about takes.</summary>
     public Func<IReadOnlyList<ITimelineTrack>>? Tracks { get; set; }
 
+    /// <summary>⭐ <c>CE-4216</c> (RV-3a) — draw the ruler and the tracks' headers even when no track holds an item yet (the rules view before a run: authored rows have no past). Off by default: the director's empty tracks keep "No recording.".</summary>
+    public bool ExtentWithoutItems { get; set; }
+
     /// <summary>⭐ <c>CE-1364</c> T3 (TE-14) — Ctrl+Z / Ctrl+Y (Ctrl+Shift+Z) while the panel is focused AND it shows tracks: the host's undo of a track edit (the
     /// editor's existing stack). Null = the key does nothing here.</summary>
     public Action? Undo { get; set; }
@@ -154,7 +157,7 @@ public sealed class TimelinePanel
         if (to <= from)
         {
             // ⭐ CE-4167 RV-2 — no recording, but TRACKS (a rules view in edit mode): their items give the extent, [min(0, From), max(now, To)], so they draw. The lanes keep their own rule (no index ⇒ none).
-            var ext = TrackLayout.ExtentOfTracks(_tracksNow, SimNow(cursor));
+            var ext = TrackLayout.ExtentOfTracks(_tracksNow, SimNow(cursor), ExtentWithoutItems);
             if (ext is { } e)
             {
                 // the items are SIM seconds: a host with no recording has no time map to place them on the wall axis, so they sit on a plain sim axis (ticks = seconds) of their own

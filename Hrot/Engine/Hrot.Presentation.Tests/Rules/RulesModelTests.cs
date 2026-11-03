@@ -28,6 +28,8 @@ public sealed class RulesModelTests : IDisposable
         _world.RegisterComponent<ObjectiveLinks>();
         _world.RegisterComponent<MacroOrigin>();
         _world.RegisterManagedComponent<MacroInstance>();
+        _world.RegisterManagedComponent<Fdp.Toolkit.Behavior.Components.BehaviorStartRecord>();
+        _world.RegisterComponent<EntityInfo>();
     }
 
     public void Dispose() => _world.Dispose();
@@ -321,5 +323,103 @@ public sealed class RulesModelTests : IDisposable
         Assert.Equal(Build().Find(3)!.StateWords, rows.Single(r => r.NetworkId == 3).StateWords);
         var other = _world.CreateEntity(); _world.AddComponent(other, new NetworkIdentity(950));
         Assert.Empty(ObjectivesAboutModel.Of(_world, other, 100));   // empty ⇒ the section is not offered
+    }
+
+    // ── RV-3a: the rows BEFORE a run (authored params, no status) ─────────────────────────────────────────────────────────
+
+    private Entity Authored(int id, string kind, string json)
+    {
+        var e = _world.CreateEntity();
+        _byId[id] = e;
+        _world.AddComponent(e, new NetworkIdentity(id));
+        _world.SetManagedComponent(e, new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = kind, JsonParams = json, InstanceId = 1 });
+        return e;
+    }
+
+    private void Unit(int id, ForceId side, string name)
+    {
+        var e = _world.CreateEntity();
+        _byId[id] = e;
+        _world.AddComponent(e, new NetworkIdentity(id));
+        _world.AddComponent(e, new EntityInfo { Name = new FixedString64(name), ForceId = side });
+    }
+
+    /// <summary>One row type, two sources: with no status the row is read from the authored <c>common</c> block — tree from <c>parent</c>, title, subject, group, state <i>Authored</i> (grey), no past, every action disabled with the reason. ✅ Red-proof: the authored pass dropped from <c>RulesReader.Read</c> ⇒ no rows ⇒ red.</summary>
+    [Fact]
+    public void AnAuthoredRule_HasARow_FromItsCommonBlock_TreeFromParent_AuthoredState_ActionsDisabledWithTheReason()
+    {
+        Authored(10, "WeightedMean", """{"common":{"title":"Mission","subject":{"NetworkId":900,"Ref":"@Blue"},"group":"mission","required":true}}""");
+        Authored(11, "ReachArea", """{"common":{"title":"Reach the bridge","parent":{"NetworkId":10,"Ref":"@M"},"subject":901}}""");
+        var rows = Build().Rows.ToList();
+        Assert.Equal(new[] { 10, 11 }, rows.Select(r => r.NetworkId));
+        Assert.Equal(new[] { 0, 1 }, rows.Select(r => r.Depth));
+        var m = rows[0];
+        Assert.Equal(("Mission", RulesModel.AuthoredWords, RulesModel.Grey, true, 900), (m.Title, m.StateWords, m.StateColour, m.Authored, m.SubjectNetworkId));
+        Assert.Empty(m.Spans);
+        Assert.Equal(("WeightedMean", "mission", (byte)1), (m.Status.Kind.ToString(), m.Status.Group.ToString(), m.Status.Required));
+        var actions = RulesModel.ActionsOf(m);
+        Assert.Equal(new[] { "Activate", "Deactivate", "Reset" }, actions.Select(a => a.Label));
+        Assert.All(actions, a => Assert.Equal(RulesModel.NotRunning, a.DisabledReason));
+    }
+
+    [Theory]
+    [InlineData("Trigger", ObjectiveRole.Trigger)]
+    [InlineData("Count", ObjectiveRole.Measure)]
+    [InlineData("SelectionMean", ObjectiveRole.Measure)]
+    [InlineData("ReachArea", ObjectiveRole.Objective)]
+    public void TheRoleOfAnAuthoredRule_IsDecidedByItsKind(string kind, ObjectiveRole role)
+    {
+        Authored(10, kind, """{"common":{"title":"x"}}""");
+        var row = Build().Find(10)!;
+        Assert.Equal((role, kind), (row.Status.Role, row.Status.Kind.ToString()));
+        Assert.Equal(RulesModel.IconOf(role), row.Icon);
+        if (role == ObjectiveRole.Trigger) Assert.Equal(new[] { "Fire now", "Disarm", "Re-arm", "Reset" }, RulesModel.ActionsOf(row).Select(a => a.Label));
+    }
+
+    [Fact]
+    public void AuthoredRules_GroupBySubject_BySide_AndByMacro_LikeRunningOnes()
+    {
+        Unit(900, ForceId.Hostile, "Red squad"); Unit(901, ForceId.Friend, "Blue squad");
+        Authored(10, "ReachArea", """{"common":{"title":"A","subject":900}}""");
+        Authored(11, "ReachArea", """{"common":{"title":"B","subject":901}}""");
+        Authored(12, "ReachArea", """{"common":{"title":"C"}}""");
+        Macro(12, 500, "test/fire-team");
+        Assert.Equal(new[] { "Blue", "Red", "Neutral" }, Build(new RulesOptions(RulesGroupBy.Side)).Groups.Select(g => g.Name));
+        Assert.Equal(new[] { "Blue squad", "Red squad", RulesModel.NoSubjectGroup }, Build(new RulesOptions(RulesGroupBy.Subject)).Groups.Select(g => g.Name).OrderBy(n => n == RulesModel.NoSubjectGroup ? 1 : 0).ThenBy(n => n));
+        Assert.Equal(new[] { "Scenario", "test/fire-team" }, Build(new RulesOptions(RulesGroupBy.Macro)).Groups.Select(g => g.Name));
+        Assert.Equal(new[] { 11 }, Build(new RulesOptions(Side: ForceId.Friend)).Rows.Select(r => r.NetworkId));
+    }
+
+    /// <summary>Waits on = every <c>ref</c> in the <c>when</c> (recursively); Starts = every <c>target</c> / <c>ref</c> of the <c>do</c> steps. ✅ Red-proof: <c>Collect</c> not recursing into arrays ⇒ the nested ref is lost ⇒ red.</summary>
+    [Fact]
+    public void WaitsOnAndStarts_AreDerivedFromTheAuthoredWhenAndDo()
+    {
+        Authored(20, "ReachArea", """{"common":{"title":"Prerequisite"}}""");
+        Authored(21, "Trigger", """
+            {"common":{"title":"Counter-attack"},
+             "when":{"$type":"And","all":[{"$type":"OnEntity","ref":{"NetworkId":20,"Ref":"@P"},"predicate":{}},{"$type":"OnEntity","ref":1038,"predicate":{}}]},
+             "do":[{"act":"InsertMacro","target":{"NetworkId":500}},{"act":"Say","ref":20},{"act":"Wait"}]}
+            """);
+        var row = Build().Find(21)!;
+        Assert.Equal(new[] { (20, true), (1038, false) }, row.WaitsOn.Select(l => (l.NetworkId, l.IsRule)));
+        Assert.Equal(new[] { (500, false), (20, true) }, row.Starts.Select(l => (l.NetworkId, l.IsRule)));
+    }
+
+    [Fact]
+    public void WhenARuleHasAStatus_TheStatusWins_NoSecondRow()
+    {
+        Add(10, "Running title", state: ObjectiveState.Active);
+        _world.SetManagedComponent(_byId[10], new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = "ReachArea", JsonParams = """{"common":{"title":"Authored title"}}""", InstanceId = 1 });   // the SAME entity carries both
+        var row = Assert.Single(Build().Rows);
+        Assert.False(row.Authored);
+        Assert.Equal("Running title", row.Title);
+    }
+
+    [Fact]
+    public void AParamsBlobWithoutACommonBlock_IsNotARule()
+    {
+        Authored(10, "SomeTask", """{"speed":4}""");
+        Authored(11, "Broken", "{not json");
+        Assert.Empty(Build().Rows);
     }
 }

@@ -5,6 +5,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.ReplayBrowser.Timeline;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.ScenarioRules;
 
@@ -28,7 +29,7 @@ public sealed record RuleRow(
     string Title, string Icon, string StateWords, uint StateColour,
     int SubjectNetworkId, string? SubjectName,
     IReadOnlyList<RuleSpan> Spans, IReadOnlyList<double> Fires, double? ExpectedAt,
-    IReadOnlyList<RuleLink> WaitsOn, IReadOnlyList<RuleLink> Starts);
+    IReadOnlyList<RuleLink> WaitsOn, IReadOnlyList<RuleLink> Starts, bool Authored = false);
 
 /// <summary>A section of rows: the name it is shown by and its rows in tree order.</summary>
 public sealed record RuleGroup(string Name, IReadOnlyList<RuleRow> Rows);
@@ -76,22 +77,36 @@ public sealed class IndexRulesHistory : IRulesHistory
 public static class RulesReader
 {
     /// <summary>One rule entity as stored: the status, its parent / subject network ids, and the macro path it was expanded from (null = authored in the scenario).</summary>
-    public sealed record Entry(Entity Entity, int NetworkId, ObjectiveStatus Status, int ParentNetworkId, int SubjectNetworkId, string? Macro);
+    public sealed record Entry(Entity Entity, int NetworkId, ObjectiveStatus Status, int ParentNetworkId, int SubjectNetworkId, string? Macro, bool Authored = false);
 
     public static IReadOnlyList<Entry> Read(EntityRepository world)
     {
         var list = new List<Entry>();
-        if (!world.IsComponentTypeRegistered<ObjectiveStatus>()) return list;
-        bool links = world.IsComponentTypeRegistered<ObjectiveLinks>();
+        var seen = new HashSet<int>();
         bool origin = world.IsComponentTypeRegistered<MacroOrigin>();
-        foreach (var e in world.Query().With<ObjectiveStatus>().Build())
+        string? MacroFor(Entity e) => origin && world.HasComponent<MacroOrigin>(e) ? MacroOf(world, world.GetComponentRO<MacroOrigin>(e).Instance.NetworkId) : null;
+        if (world.IsComponentTypeRegistered<ObjectiveStatus>())
         {
-            int net = NetworkIdResolver.RuntimeNetworkIdOf(world, e);
-            if (net == 0) continue;   // a row with no durable identity cannot be asked, linked or selected
-            var l = links && world.HasComponent<ObjectiveLinks>(e) ? world.GetComponentRO<ObjectiveLinks>(e) : default;
-            list.Add(new Entry(e, net, world.GetComponentRO<ObjectiveStatus>(e), l.Parent.NetworkId, l.Subject.NetworkId,
-                               origin && world.HasComponent<MacroOrigin>(e) ? MacroOf(world, world.GetComponentRO<MacroOrigin>(e).Instance.NetworkId) : null));
+            bool links = world.IsComponentTypeRegistered<ObjectiveLinks>();
+            foreach (var e in world.Query().With<ObjectiveStatus>().Build())
+            {
+                int net = NetworkIdResolver.RuntimeNetworkIdOf(world, e);
+                if (net == 0) continue;   // a row with no durable identity cannot be asked, linked or selected
+                var l = links && world.HasComponent<ObjectiveLinks>(e) ? world.GetComponentRO<ObjectiveLinks>(e) : default;
+                seen.Add(net);
+                list.Add(new Entry(e, net, world.GetComponentRO<ObjectiveStatus>(e), l.Parent.NetworkId, l.Subject.NetworkId, MacroFor(e)));
+            }
         }
+        // ⭐ RV-3a — BEFORE a run no status exists: a rule entity carries only its AUTHORED params. ONE row type, two sources: the status (above) wins
+        if (world.TryGetTable(typeof(BehaviorStartRecord), out _))
+            foreach (var e in world.Query().WithManaged<BehaviorStartRecord>().Build())
+            {
+                int net = NetworkIdResolver.RuntimeNetworkIdOf(world, e);
+                if (net == 0 || seen.Contains(net)) continue;
+                var rec = ((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetManagedComponentRO<BehaviorStartRecord>(e);
+                if (rec == null || AuthoredRules.Parse(world, e, net, rec.BehaviorName, rec.JsonParams) is not { } a) continue;
+                list.Add(new Entry(e, net, a.Status, a.ParentNetworkId, a.SubjectNetworkId, MacroFor(e), Authored: true));
+            }
         return list;
     }
 
@@ -111,7 +126,7 @@ public static class RulesReader
 /// </summary>
 public static class RulesModel
 {
-    public const string ScenarioGroup = "Scenario", NoSubjectGroup = "(no subject)";
+    public const string ScenarioGroup = "Scenario", NoSubjectGroup = "(no subject)", AuthoredWords = "Authored", NotRunning = "not running — start the exercise";
 
     // ABGR (ImGui's packed colour) of the mockup's legend (docs/designs/rules-view/mockup/Main.html)
     public static uint Rgb(byte r, byte g, byte b) => 0xFF000000u | (uint)b << 16 | (uint)g << 8 | r;
@@ -245,6 +260,9 @@ public static class RulesModel
         for (int i = 0; i < Math.Min((int)s.DependsOnCount, 8); i++) if (s.DependsOn[i] != 0) waits.Add(link(s.DependsOn[i]));
         for (int i = 0; i < Math.Min((int)s.ActsOnCount, 8); i++) if (s.ActsOn[i] != 0) starts.Add(link(s.ActsOn[i]));
         string? subject = e.SubjectNetworkId != 0 ? NameOf(world, NetworkIdResolver.FindEntityByNetworkId(world, e.SubjectNetworkId), e.SubjectNetworkId) : null;
+        if (e.Authored)   // ⭐ RV-3a — authored, not running: no state, no past, nothing expected
+            return new RuleRow(e.NetworkId, e.Entity, depth, hasChildren, s, TitleOf(s, e.NetworkId), IconOf(s.Role), AuthoredWords, Grey,
+                               e.SubjectNetworkId, subject, Array.Empty<RuleSpan>(), Array.Empty<double>(), null, waits, starts, Authored: true);
         return new RuleRow(e.NetworkId, e.Entity, depth, hasChildren, s, TitleOf(s, e.NetworkId), IconOf(s.Role), StateWords(s, now), ColourOf(s),
                            e.SubjectNetworkId, subject, SpansOf(s, history?.StateChanges(e.NetworkId), now), FiresOf(s, history?.Fires(e.NetworkId)),
                            s.ExpectedAt > now ? s.ExpectedAt : null, waits, starts);
@@ -290,6 +308,11 @@ public static class RulesModel
             : new[] { A("Activate", RuleRequest.Activate), A("Deactivate", RuleRequest.Deactivate), A("Reset", RuleRequest.Reset) };
     }
 
+    /// <summary>⭐ RV-5 / RV-3a — the actions of a ROW: an authored one (no status yet) lists the same items, every one disabled with <see cref="NotRunning"/>.</summary>
+    public static IReadOnlyList<RuleAction> ActionsOf(RuleRow row)
+        => !row.Authored ? ActionsOf(row.Status)
+         : ActionsOf(row.Status).Select(a => a with { DisabledReason = NotRunning }).ToList();
+
     // ── RV-6 the Overview
 
     /// <summary>One line of the Overview: a label and its value; <see cref="Colour"/> 0 = the default.</summary>
@@ -302,21 +325,21 @@ public static class RulesModel
         var lines = new List<OverviewLine>
         {
             new("Title", row.Title),
-            new("Kind", s.Kind.ToString() is { Length: > 0 } k ? $"{s.Role} · {k}" : s.Role.ToString()),
+            new("Kind", s.Kind.ToString() is { Length: > 0 } k && !k.Equals(s.Role.ToString(), StringComparison.OrdinalIgnoreCase) ? $"{s.Role} · {k}" : s.Role.ToString()),
             new("State", row.StateWords, row.StateColour),
             new("Owner", SideName(s.Owner)),
         };
         if (row.SubjectName != null) lines.Add(new("Subject", row.SubjectName));
         if (s.ProgressNeed > 0) lines.Add(new("Progress", $"{s.ProgressCur} / {s.ProgressNeed}"));
         if (s.Role == ObjectiveRole.Measure || s.Target != 0f) lines.Add(new("Value / target", $"{s.Value:0.##} / {s.Target:0.##}"));
-        if (s.Role != ObjectiveRole.Trigger)
+        if (s.Role != ObjectiveRole.Trigger && !row.Authored)
         {
             lines.Add(new("Score", $"{s.Score:0.##}"));
             if (s.Pass > 0f) lines.Add(new("Pass", $"{s.Pass:0.##} — {(s.Score >= s.Pass ? "GO" : "NO-GO")}"));
             lines.Add(new("Required / scored", $"{(s.Required != 0 ? "required" : "optional")} · {(s.Scored != 0 ? "scored" : "not scored")}"));
         }
         if (s.Reason.ToString() is { Length: > 0 } reason) lines.Add(new("Reason", reason));
-        if (s.Role == ObjectiveRole.Trigger)
+        if (s.Role == ObjectiveRole.Trigger && !row.Authored)
             lines.Add(new("Fired", s.FireCount == 0 ? "never" : $"{s.FireCount}× · last at {Clock(s.LastFired)}"));
         if (s.Deadline > 0f) lines.Add(new("Deadline", Clock(s.Deadline)));
         return lines;

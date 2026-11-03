@@ -68,6 +68,7 @@ public sealed class RulesWindow : ManagedWindow
         _selectEntity = selectEntity; _showOnMap = showOnMap; _blocked = blocked ?? (() => null);
         _hooks = new RuleTrackHooks(r => Select(r), Ask, r => { if (r.SubjectNetworkId != 0) _showOnMap(r.SubjectNetworkId); }, null);
         _panel.Tracks = () => _tracks;
+        _panel.ExtentWithoutItems = true;   // ⭐ RV-3a: authored rows have no spans — the ruler and the headers still draw
         TitleBarColor = titleBarColor;
         IsOpen = true;
         PanelSnapshot.DeclareInstrumented(Id);
@@ -143,7 +144,7 @@ public sealed class RulesWindow : ManagedWindow
             foreach (var l in RulesModel.OverviewOf(sel, now)) details.Add($"{l.Label}: {l.Value}");
             foreach (var l in sel.WaitsOn) details.Add($"Waits on: {l.Text}");
             foreach (var l in sel.Starts) details.Add($"Starts: {l.Text}");
-            foreach (var a in RulesModel.ActionsOf(sel.Status)) buttons.Add((a.Label, block ?? a.DisabledReason));
+            foreach (var a in RulesModel.ActionsOf(sel)) buttons.Add((a.Label, block ?? a.DisabledReason));
             buttons.Add(("Show on map", sel.SubjectNetworkId != 0 ? null : "this rule has no subject"));
         }
         _probe = new RulesWindowProbe(_view.Rows.Select(r => $"{new string(' ', r.Depth * 2)}{r.Title} | {r.StateWords}").ToList(), _selected, details, buttons, GroupNames[_groupBy], SideNames[_side], _search);
@@ -213,7 +214,7 @@ public sealed class RulesWindow : ManagedWindow
         DrawLinks("Starts", sel.Starts);
         ImGui.Separator();
         string? block = _blocked();
-        foreach (var a in RulesModel.ActionsOf(sel.Status))
+        foreach (var a in RulesModel.ActionsOf(sel))
         {
             string? why = block ?? a.DisabledReason;
             Button(a.Label, why, () => Ask(sel, a.Request));

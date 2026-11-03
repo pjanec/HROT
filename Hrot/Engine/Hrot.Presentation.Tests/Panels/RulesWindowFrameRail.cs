@@ -11,6 +11,7 @@ using Fdp.Toolkit.ScenarioRules;
 using Hrot.Editor.UiFrameRail;
 using Hrot.Presentation.Tests.Map3D;
 using Hrot.Presentation.Windows;
+using Hrot.UI.Common.Rules;
 using ImGuiNET;
 using Raylib_cs;
 using Xunit;
@@ -31,6 +32,7 @@ public sealed class RulesWindowFrameRail : IDisposable
         _world.RegisterComponent<NetworkIdentity>();
         _world.RegisterComponent<ObjectiveStatus>();
         _world.RegisterComponent<ObjectiveLinks>();
+        _world.RegisterManagedComponent<Fdp.Toolkit.Behavior.Components.BehaviorStartRecord>();
     }
 
     public void Dispose() => _world.Dispose();
@@ -145,5 +147,56 @@ public sealed class RulesWindowFrameRail : IDisposable
         var row = Hrot.UI.Common.Rules.RulesModel.Build(_world, new Hrot.UI.Common.Rules.RulesOptions(), null, 5d).Find(12)!;
         window.Ask(row, RuleRequest.Fire);
         Assert.Equal("a recording is read-only", window.Message);          // refused before any write: this world has no write router, so a write would have thrown
+    }
+
+    /// <summary>
+    /// ⭐ RV-3a — EDIT MODE: the rules exist only as authored params (no <c>ObjectiveStatus</c>, so no spans and no index): the rows are STILL drawn, in the real frame, with the ruler — not "Indexing..." — and a click selects.
+    /// ✅ Red-proof: <c>ExtentWithoutItems</c> off ⇒ no extent ⇒ the panel draws nothing ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void InEditMode_TheAuthoredRulesAreDrawn_WithNoStatusAndNoIndex()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        void Rule(int id, string kind, string json)
+        {
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new NetworkIdentity(id));
+            _world.SetManagedComponent(e, new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = kind, JsonParams = json, InstanceId = 1 });
+        }
+        Rule(10, "WeightedMean", """{"common":{"title":"Mission","subject":900}}""");
+        Rule(11, "Trigger", """{"common":{"title":"Counter-attack","parent":10,"subject":900},"when":{"$type":"OnEntity","ref":{"NetworkId":10}}}""");
+
+        var picked = new List<int>();
+        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_edit", "Scenario", Vector4.One, picked.Add, _ => { });
+        using var frame = UiFrameHarness.Begin(1280, 300);
+        void Step(Action<ImGuiIOPtr>? input = null, int n = 1)
+        {
+            for (int i = 0; i < n; i++)
+                frame.Step(() =>
+                {
+                    input?.Invoke(ImGui.GetIO());
+                    ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(1280, 300));
+                    ImGui.Begin("Rules", ImGuiWindowFlags.NoCollapse);
+                    window.DrawContent();
+                    ImGui.End();
+                });
+        }
+        Step(null, 5);
+        Assert.Equal(new[] { "Mission | Authored", "  Counter-attack | Authored" }, window.Probe.Rows);
+        Assert.True(window.Panel.View.HasExtent, "the ruler has an extent although no track holds an item");
+        Assert.Empty(window.Panel.LastTrackHits);                                    // no spans: nothing to hit, the headers are the rows
+        frame.Screenshot(ShotPath("rules-3-authored.png"));
+
+        // a click on the header of the trigger picks it: its details say Authored, every button carries the reason
+        Step(io => Pos(io, 120f, 138f), 2);
+        Step(io => { Pos(io, 120f, 138f); io.AddMouseButtonEvent(0, true); });
+        Step(io => Pos(io, 120f, 138f));
+        Step(io => { Pos(io, 120f, 138f); io.AddMouseButtonEvent(0, false); });
+        Step(null, 2);
+        Assert.Equal(11, window.SelectedNetworkId);
+        Assert.Equal(new[] { 900 }, picked);
+        Assert.Contains("State: Authored", window.Probe.Details);
+        Assert.Contains("Waits on: Mission", window.Probe.Details);
+        Assert.All(window.Probe.Buttons.Where(b => b.Label != "Show on map"), b => Assert.Equal(RulesModel.NotRunning, b.Reason));
     }
 }

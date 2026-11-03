@@ -67,7 +67,7 @@ public sealed class RuleTrack : ITimelineTrack
     {
         if (_row == null) yield break;
         var row = _row;
-        foreach (var a in RulesModel.ActionsOf(row.Status))
+        foreach (var a in RulesModel.ActionsOf(row))
         {
             string? why = _hooks.Blocked ?? a.DisabledReason;
             yield return new TimelineMenuItem(why == null ? a.Label : $"{a.Label} — {why}", () => _hooks.Ask(row, a.Request), why == null);
