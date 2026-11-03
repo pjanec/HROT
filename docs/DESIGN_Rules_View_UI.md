@@ -494,3 +494,71 @@ Rails: `RuleEditorR5cTests` (A2 by kind · none / one / wrapped / camelCase-appe
 | **CE-4224** | found on the way: `SaveResolver` threw on `Entity.Null` (`AmmoLoadout`'s unused rows) and the editor died on EVERY save of `showcase-bridgehead`. A null entity now saves as the empty GUID and loads as `Entity.Null`; the error names the component. No unit rail yet (the live round trip is the evidence) |
 
 Rails: `RuleEditorR5cTests.AConnectsLinkAndANewRulesParent_AreWrittenInTheStableForm_TheEntitysGuid` (the `ref` and the `parent` carry the GUID; a copy each; a stale id with the right GUID is the same rule; no GUID ⇒ bare id) · `AuthoredRules_ResolveAGuidOnly_AKey_AndAStaleIdWithTheRightGuid_BeforeARun` (GUID-only, `@Key`, stale id + right GUID → the rule the GUID names; a bare id stays an id; an unknown key is none). Red-proof: `LinkOf` passing no scope (the bare id) ⇒ the first rail red; reverted.
+
+## 8. The game-master palette *(DESIGN, `2026-11-03`; `HANDOFF_Coordinator_To_Ui_Rules_Runnable.md` ⑥; SR-104 Z2 · Z3 · Z4; leans GM-1 … GM-5)*
+
+### 8.1 INVENTORY *(`2026-11-03`)*
+**Queries:** grep `SetSkillAmplifier` → `SkillVerbs.cs:13-41` (`SetSkillAmplifierParams { Side, Tiers −2…+2 }`, instant, writes on the World Environment's owner) · grep route docs `/(action|run|verb)` → none (no "run an action now" path exists) · `RuleAdd` / `RuleCommands` (built here, R5c / R2) · `TriggerBehavior.cs:140` (*"'when' is required"*) · CE-4166 (a condition already true at arming is not an edge, unless `fireIfTrueWhenArmed`) · `EntityCreationRequest.IsTransient` (`EntityCreationRequest.cs:106-126`, → `ScenarioIgnoreTag`, SR-104 Z6) · `ScenarioTimePredicateDto` (`SearchPredicateDto.cs:52, :71`). ⚠ coverage not checked (no `check_index_coverage` in the CLI).
+
+```mermaid
+classDiagram
+    direction LR
+    class GameMasterWindow { <<NEW>> Run an action · Skill per side · the live rules it made }
+    class ActionListFieldDrawer { <<existing R5b>> picker over ActionCatalogue + the args form }
+    class GmOneShot { <<NEW, pure>> TriggerParamsJson(step) : when = ScenarioTime(min 0) · fireIfTrueWhenArmed · maxFires 1 · do = [step] }
+    class RuleAdd { <<existing R5c>> TkbOf · the ONE creation path }
+    class EntityCreation { <<existing>> RequestEntityCreation(..., IsTransient) }
+    class TriggerBehavior { <<existing>> fires once, journals }
+    class RulesWindow { <<existing>> rows grouped "Game master (live)" · History tab }
+    GameMasterWindow ..> ActionListFieldDrawer : one step
+    GameMasterWindow ..> GmOneShot
+    GmOneShot ..> RuleAdd
+    RuleAdd ..> EntityCreation : transient, live
+    EntityCreation ..> TriggerBehavior
+    RulesWindow ..> TriggerBehavior : its row, its History
+```
+*What the picture shows that prose hid:* the palette adds NO command path — a hand-run action is a one-shot TRIGGER made through the one creation
+path, so it fires through the same runner, journals itself, and shows in the rules view like any rule.
+
+```mermaid
+sequenceDiagram
+    participant G as game master
+    participant W as GameMasterWindow
+    participant C as EntityCreation (transient)
+    participant T as the one-shot trigger (Brain)
+    G->>W: pick Message, args (side Blue, text) · Run
+    W->>C: RequestEntityCreation(TKB 8861, Trigger params from GmOneShot, IsTransient)
+    C-->>T: spawned, armed — when is already true, fireIfTrueWhenArmed ⇒ fires once
+    T->>T: runs the step (the normal step runner), journals "fired", Done
+    W-->>G: the row "GM · Message" under "Game master (live)" — state Done, History
+```
+
+```mermaid
+graph TD
+    ED["Editor / CGF / SimHost composition (the server UI, R-4107)"] -->|registers| GW["GameMasterWindow (Window ▸ Game master) — feature gm.palette"]
+    GW -->|"RequestEntityCreation (transient)"| NS["NetworkSpawning → the Brain node"]
+    NS --> TB["TriggerBehavior + StepRunner (unchanged)"]
+    TB -->|ObjectiveStatus 171 · BrainJournal| RV["RulesWindow rows + History"]
+```
+
+### 8.2 Decisions *(leans — the handoff's two leans taken)*
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **GM-1** | *run any shared action by hand* | ⭐ a **transient one-shot trigger** — `when = ScenarioTime { Clock: Elapsed, Min: 0 }` (always true) + `fireIfTrueWhenArmed: true` + `maxFires: 1` + `do = [the step]`, `common.title` *"GM · <action>"*, created through `RuleAdd`'s ONE creation path with `IsTransient` (never saved, SR-104 Z6). The step is edited with the Do tab's own drawer (picker + args form, R5b). ⛔ no new command, no second runner |
+| **GM-2** | *on the selection* | ⭐ the args form pre-fills the first `EntityLink` target field from the current selection and the first side field from the selection's side; the user can change both |
+| **GM-3** | the per-side skill slider | ⭐ one row per side, −2…+2 tiers, showing the current `SkillAmplifier`; a change is GM-1 with `SetSkillAmplifier { Side, Tiers }` (no direct write — the verb is the one writer) |
+| **GM-4** | where the made rules show | ⭐ the rules view groups them under **"Game master (live)"** (their `common.title` prefix); their History is the journal. Edit mode: the palette is disabled — *"the game master acts on a running exercise"* |
+| **GM-5** | MSEL | ⭐ **= the rules view's *Coming up* + the timeline** (the handoff's lean) — no separate panel |
+
+**Rejected — one line each:**
+- *A debug-API "run action" route called by the window* — a second path beside the triggers; nothing journals it as a rule.
+- *A permanent GM trigger re-armed with new params* — a live edit per click; a transient one-shot is simpler and leaves a row per action.
+- *Writing the skill amplifier directly* — `SetSkillAmplifier` is its one writer.
+
+| claim | code | design basis |
+|---|---|---|
+| no run-action path exists | ✅ route docs grep: none | ✅ SR-104 Z3 ("one action palette, nothing separate") |
+| a trigger needs a `when`; an already-true one fires only with `fireIfTrueWhenArmed` | ✅ `TriggerBehavior.cs:140`; CE-4166 | ✅ §00.9 S2-c |
+| a transient entity is never saved | ✅ `EntityCreationRequest.cs:106-126` | ✅ SR-104 Z6 |
+| ⛔ a rule entity created LIVE through the creation path gets its brain on the Brain node | ⛔ **not measured live** — `+ Add` was proven in EDIT mode only | measure first at build |

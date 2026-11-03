@@ -135,7 +135,7 @@ the header through the resident, so no surface can keep a copy of its own.
 | **MA-7** | Add Entity ▸ Macro (SR-104 Z1) | ⭐ the Add Entity gallery gains a **Macros** group (`GalleryGroups` data, the same enumeration as MA-6). Placing one is the ordinary placement tool and creation request: TKB 8813 + `MacroInstance {Macro = path, ArgsJson = "{}"}` at the click, the heading from the tool. The edit world expands it (S3a), and the worker's member lines and dimmed members show what it put in | no new creation path; `MacroInstance` is saved by its translator |
 | **MA-8** | the instance in Details (SR-39a) | ⭐ the inspector draws a **Macro** section for an entity with `MacroInstance`: the macro (the same picker, Macros group) + `MacroArgsForm` — one row per header param of the picked macro (read through the content source): its default greyed until overridden, *reset to default*, each row drawn by the ONE drawer over a one-field typed holder (`ParamTypes` gives the type). A change builds a NEW `MacroInstance` record and writes it to the owner (S3a reconciles). The expansion status (`Done` / `Failed` + reason) is shown at the top | needs MA-3. ⚠ the owner write route for a managed record is measured first (§1 last row) |
 | **MA-9** | Save selection as macro (§14) | ⭐ one SAVE path, not a second serializer: the save payload gains `OnlyGuids` + a target name `macros/<path>` + a header (`kind = macro`, anchor = the selection's centroid, heading north). Each node writes only the selected entities it owns. ⭐ Before saving, the editor walks the selection's references (the S0 walker) and lists every reference to an entity OUTSIDE the selection. For each, either turn it into a param (default = its current key or GUID, type from the field) or cancel — a macro is closed (SR-58). v1 leaves the selection in place; *replace with an instance* is a later item | the save payload grows by optional fields; a node that ignores them would save everything ⇒ a rail per host (the silent-default rule) |
-| **MA-10** | Preview of an `InsertMacro` (SR-189) | ⏳ waits for behaviors' S2 (the `do`-list editor). The button calls MA-7's creation with `IsTransient`; noted, not designed further here | — |
+| **MA-10** | Preview of an `InsertMacro` (SR-189) | ⭐ **designed `2026-11-03` in §10** (MP-1 … MP-4): ghosts from the pure expander, nothing created until *Insert*. ⛔ Superseded lean: *"the button calls MA-7's creation with `IsTransient`"* | §10 |
 
 **Rejected — one line each:**
 - *A bind button in each editor (inspector, params form, predicate builder)* — three copies; the drawer is the one place every editor passes through.
@@ -260,3 +260,68 @@ sequenceDiagram
 - **Live check** (real editor, Xvfb, `ua-fire-and-movement`): two men selected (`SelectionChangeRequest`), *Scenario ▸ Save Selection as Macro…*, a name, *Save* → the selection was closed (no outside reference), so it saved at once: `macros/<name>/scenario.json` has `Kind: macro`, `Anchor: [200, 285, 0] heading 0` and exactly the two men; the scenario on screen (name, entity count) is unchanged; copies deleted. ⚠ **Not live:** the *Make parameters* branch — no registered, saved component of a unit holds an `EntityLink` / `AreaLink` leaf (measured: the only such leaves are in params DTOs and JSON blobs), so there is no real unit to reference an outside entity; that branch is railed through the REAL save handler + serializer with a link-bearing component. (The unit-menu item and an in-field ctrl-select could not be driven under xdotool; the menu route was.)
 - ✅ **CLOSED `2026-11-03` (W-M6) — references inside JSON blobs.** *Prior state (SUPERSEDED): the closure walk saw typed leaves only, a blob reference was invisible.* SR-159 rules it: a reference inside params is bound as its Param form, so a blob reference is treated exactly like a typed leaf — listed, and *Make parameters* rebinds it to `^name`; no refusal. As built: ① the per-component pass that `StagingEntityExtractor` had privately (`ApplyPass`) moved to ONE public static `ScenarioEntityWalk.Apply(comps, behaviorRemapper, pass)` in `Hrot.Core` (`Scenario/Map/`, cross-lane edit: backend's CGF extractor now calls it, no copy left); it walks typed leaves, `ActiveMissionPlan` tasks' and `InitialBrainIntent`'s params blobs through `ScenarioBehaviorRemapper.ApplyJson` (the one blob parser) and route waypoints. ② `MacroClosure.Walk(world, selected, behaviorRemapper)` feeds it the unit's brain slots as the save writes them (`BrainIntentReader.Read(..., Ordered)`, needs the remapper's registry) and its `ActiveMissionPlan`; the walker says which slot (`LeafApplier.Entering`: `Behavior.Params`, `Sop.Params`, `task n (name) params`) and which field (`Visiting` now also fires in the JSON walk). ③ The saved DOM: `ScenarioSaveCore.RebindOutsideReferences(..., behaviorRemapper)` runs the same `ApplyJson` with the rebinding applier over `Behavior` / `Sop` `Params` and `MissionPlan.PlanData.tasks[].behaviorParams` (links there are GUID / key strings). ④ `ParamBindings` strings are bindings, not references: skipped, saved as they are. ⑤ The remapper (hence the behaviour registry) is handed through: the editor's flow gets one built from its registry; `HrotScenarioSaveHandler` takes the node's own (`NodeBootstrapper` passes it) — a forwarding rail asserts it on the constructed handler. Without a remapper blobs are left alone (a host with no contracts). ⚠ **Known gap (not ui's): a trigger's `do`-list is NOT walked.** *Superseded claim: "trigger `do`-lists are typed `BindableNode`s, reached by the typed walk" — unmeasured, and wrong:* `DESIGN_Scenario_Macros.md` §16.2 measured that the trigger's params contract carries `do` as a free-form `JsonNode`, so the contract-typed blob walk never types a step and a reference inside a `do` step (an `Order` target) is neither listed nor rebound. It closes by construction when behaviors types the step (`{Act, Args, Bind}` : `BindableNode`, B1b, `NOTE_Backend_To_Behaviors_Step_Bind.md`) — no ui change then. Rails: `SelectionMacroTests.W_M6_*` (3), `HrotScenarioSaveHandlerTests.CE4210_W_M6_*` (2); red-proof: disabling the mission-plan arm in the shared walk reddens all 3 closure rails.
 
+
+## 10. MA-10 — preview a macro before committing *(DESIGN, `2026-11-03`; `HANDOFF_Coordinator_To_Ui_Rules_Runnable.md` ⑦; SR-189; leans MP-1 … MP-4)*
+
+### 10.1 INVENTORY *(`2026-11-03`)*
+**Queries:** grep `class MacroExpander` → `Hrot.Common/Macros/MacroExpander.cs:29` (THE expander; a second same-named one in the Blueprints compiler is unrelated) · read its header: *"turns ONE macro instance into the ordinary creation requests of every entity it makes … from the FILES — before anything exists … ⛔ Pure: it publishes nothing; a failure comes back as the reason"*; `Result(Children: EntityCreationRequest[], Failure, MaxShift, Relocatable)` · MA-7 as built (§8: `ScenarioSpawnAdapter.ArmPlacement` places TKB 8813 + `MacroInstance`; `MacroBirth`) · the `InsertMacro` step (R5b's Do tab). ⚠ coverage not checked (no `check_index_coverage` in the CLI).
+
+| measured | so |
+|---|---|
+| the expander is PURE and returns every child's creation request (type, position, heading, name …) before anything exists | ⭐ a preview needs NO entity: expand, draw the requests dimmed, create nothing |
+| a transient INSTANCE (the handoff's lean, MA-10's note) in a LIVE run spawns members that start their brains at once — they move, see and shoot, and the recording keeps it | ⛔ *Cancel* could not undo what they did; a preview must not run |
+
+```mermaid
+classDiagram
+    direction LR
+    class MacroPreview { <<NEW, pure>> Of(macro path, args, anchor, heading) → ghosts or the failure }
+    class MacroExpander { <<existing, pure>> Expand(instance) → Result(Children, Failure) }
+    class MacroPreviewLayer { <<NEW map layer>> draws the ghosts dimmed (icon + name), the anchor, a footprint }
+    class PreviewBar { <<NEW>> Insert · Cancel · the failure text }
+    class ArmPlacement { <<existing MA-7>> the placement tool, TKB 8813 + MacroInstance }
+    class InsertMacroStep { <<existing R5b>> the Do tab's step row }
+    InsertMacroStep ..> MacroPreview : Preview button
+    ArmPlacement ..> MacroPreview : while the tool hovers
+    MacroPreview ..> MacroExpander
+    MacroPreviewLayer ..> MacroPreview
+    PreviewBar ..> ArmPlacement : Insert = the ordinary placement / creation
+```
+*What the picture shows that prose hid:* the preview and the real insert read the SAME expander, so the ghosts are exactly what *Insert* will
+create, and nothing exists until *Insert* (MA-7's creation, or the step's own `InsertMacro`).
+
+```mermaid
+sequenceDiagram
+    participant U as author / instructor
+    participant P as MacroPreview
+    participant X as MacroExpander
+    participant L as MacroPreviewLayer
+    U->>P: Add ▸ Macros ▸ forces/red-qrf (hover) — or the Do tab's Preview on an InsertMacro step
+    P->>X: Expand(a throw-away MacroInstance at the anchor, the args)
+    X-->>P: Children (requests) or Failure
+    P->>L: ghosts (dimmed) + the anchor
+    alt Insert
+        U->>P: click / Insert
+        P->>P: the ordinary path — MA-7's creation (edit or live) / the step stays as authored
+    else Cancel / Esc
+        P->>L: clear — nothing was ever created
+    end
+```
+
+### 10.2 Decisions
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **MP-1** | how a preview is made | ⭐ **ghosts from the pure expander**, never a transient instance: `MacroPreview.Of(path, args, anchor, heading)` builds a throw-away `MacroInstance` in memory, calls the ONE `MacroExpander`, and returns each child's type / name / position / heading (or the expander's failure text). ⚠ **Deviates from the handoff's lean** (*"a transient instance … Cancel deletes it"*): measured, a live transient instance's members start acting at once, so a cancel cannot undo it. The ghosts give the same picture with nothing to clean up |
+| **MP-2** | where it shows | ⭐ (a) **Add ▸ Macros** placement: the ghosts follow the cursor (anchor = the hover point, heading from the tool), a click inserts (MA-7, unchanged), Esc cancels. (b) the Do tab's **Preview** on an `InsertMacro` step: the ghosts at the step's anchor and args with an *Insert now* (live only: the step's macro inserted once via the same creation) / *Close* bar |
+| **MP-3** | drawing | ⭐ a map layer: each ghost as its type icon at 50 % alpha with its name, a dashed line to the anchor, the expander's failure in red on the bar. 2-D first; 3-D only if the existing placement ghost already has a 3-D path (reuse it, never a second one) |
+| **MP-4** | a failure | ⭐ shown as text, nothing drawn, *Insert* disabled with the reason (the expander's own words) |
+
+**Rejected — one line each:**
+- *A transient instance, deleted on Cancel* — in a live run its members act and are recorded before you cancel.
+- *A frozen transient instance* (brains paused) — a new pause state on spawned entities for one screen; the ghosts need none.
+
+| claim | code | design basis |
+|---|---|---|
+| the expander is pure and returns the children's requests | ✅ `MacroExpander.cs:1-29` (header), `Result` | ✅ macros §15 (S3a ④) |
+| a live transient member acts at once | ⛔ **inferred** (members are ordinary entities with their brain intents; nothing pauses them) — measure at build | — |
+| MA-7's placement is the one insert path | ✅ §8 as built | ✅ MA-7 |
