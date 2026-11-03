@@ -1,5 +1,6 @@
 <!--STATUS
-state: LIVE — coordinator → behaviors: finish the scenario-rules programme's behaviors half (the four open asks from ui and backend + the showcase AI findings)
+state: WITHDRAWN AND REPLACED 2026-11-03 (never started — no lane contained 313f42a67) by HANDOFF_Coordinator_To_Behaviors_Rules_Runnable.md; user: "rewrite the handoffs (no one took them), to the level all the features are runnable and testable manually, no need to have all bugs fixed"
+superseded-by: docs/blueprints/batches/HANDOFF_Coordinator_To_Behaviors_Rules_Runnable.md
 updated: 2026-11-03
 current-answer: the whole handoff
 stale-below: nothing

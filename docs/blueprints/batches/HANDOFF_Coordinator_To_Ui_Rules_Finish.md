@@ -1,5 +1,6 @@
 <!--STATUS
-state: LIVE — coordinator → ui: finish the rules view / HUD programme's ui half (close-outs, the map's "seeable" rule, the waits on behaviors, small open rows)
+state: WITHDRAWN AND REPLACED 2026-11-03 (never started — no lane contained 313f42a67) by HANDOFF_Coordinator_To_Ui_Rules_Runnable.md; user: "rewrite the handoffs (no one took them), to the level all the features are runnable and testable manually, no need to have all bugs fixed"
+superseded-by: docs/blueprints/batches/HANDOFF_Coordinator_To_Ui_Rules_Runnable.md
 updated: 2026-11-03
 current-answer: the whole handoff
 stale-below: nothing
