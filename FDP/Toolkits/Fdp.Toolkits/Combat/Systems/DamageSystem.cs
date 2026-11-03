@@ -68,6 +68,8 @@ namespace Fdp.Toolkit.Combat.Systems
                 float damage = view.GetComponentRO<BallisticProjectile>(evt.BulletEntity).Damage;
 
                 // 5. Apply damage to the hit entity's health.
+                bool before = Fdp.Toolkit.Combat.ManDowned.Before(repo, evt.HitEntity);   // ⭐ CE-3364 — a hit that downs him publishes through the same helper as HealthApplicationSystem
+                var shooter = view.GetComponentRO<BallisticProjectile>(evt.BulletEntity).Shooter;
                 ref var health = ref repo.GetComponentRW<Health>(evt.HitEntity);
                 health.Current -= damage;
                 if (health.Current < 0f) health.Current = 0f;
@@ -82,6 +84,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 //    existence with combat-death. Removed.
                 // ⭐ CE-3092 — the ONE rule for what a hit does to capabilities (shared with HealthApplicationSystem).
                 Fdp.Toolkit.Combat.CombatLife.ApplyHitCapabilities(repo, evt.HitEntity, in health);
+                Fdp.Toolkit.Combat.ManDowned.PublishIfDowned(repo, evt.HitEntity, before, shooter, Entity.Null);
             }
         }
     }

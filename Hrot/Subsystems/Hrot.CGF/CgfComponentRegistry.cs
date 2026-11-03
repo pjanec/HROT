@@ -50,6 +50,7 @@ public static class CgfComponentRegistry
         world.RegisterComponent<Hrot.CGF.Components.MissionAdapterState>();
 
         world.RegisterEvent<DamageAssessedEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Combat.Events.ManDownedEvent>();   // ⭐ CE-3364 — the one kill authority, read by the scenario measures
         world.RegisterEvent<WeaponFireIntent>();
         world.RegisterEvent<SensorTrackStateEvent>();
 

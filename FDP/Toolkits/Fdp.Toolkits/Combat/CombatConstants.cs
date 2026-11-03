@@ -76,6 +76,9 @@ namespace Fdp.Toolkit.Combat
         /// on every lane 2026-10-19.</summary>
         public const int StrikeNotificationEventId = 5016;
 
+        /// <summary>⭐ <c>CE-3364</c> — <see cref="Events.ManDownedEvent"/>: a hit took a man out of the fight (the one kill authority). Measured free 2026-11-03.</summary>
+        public const int ManDownedEventId = 5017;
+
 
         /// <summary>⭐ <c>CE-3064</c> (R-206) — a bullet passing within this distance (m) of a unit it was not fired by is a near miss.</summary>
         public const float NearMissRadius = 3f;

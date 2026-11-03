@@ -87,7 +87,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0f, w.S(c["fratricide"]).Score);                          // one fault ⇒ target 0 / value 1 = 0
             Assert.Equal(0f, w.S(c["civiliansHarmed"]).Score);
 
-            w.Repo.GetComponentRW<Health>(foe).Current = 0f;                       // the hostile goes down
+            w.Kill(foe, m);                                                        // the hostile goes down, by m's hit
             w.Tick();
             Assert.Equal(1f, w.S(c["kills"]).Value);
             w.Harm(foe, m); w.Tick();                                              // a corpse shot again
@@ -268,14 +268,33 @@ namespace Hrot.SimHost.Tests
             w.Harm(quick, m); w.Harm(slow, m); w.Harm(mine, m); w.Harm(theirs, buddy);
             w.Tick();
             w.Harm(quick, buddy); w.Harm(slow, buddy); w.Tick();                        // buddy's harm supersedes m's credit
-            w.Repo.GetComponentRW<Health>(quick).Current = 0f; w.Repo.GetComponentRW<Health>(mine).Current = 0f; w.Repo.GetComponentRW<Health>(theirs).Current = 0f;
+            w.Kill(quick, buddy); w.Kill(mine, m); w.Kill(theirs, buddy);
             w.Tick();
             Assert.Equal((1f, 1f), (w.S(assists).Value, w.S(kills).Value));              // quick = assist, mine = kill
             w.Harm(quick, buddy); w.Tick();                                              // a corpse shot again: still one
             Assert.Equal(1f, w.S(assists).Value);
             w.Run(12);                                                                  // past the 10 s window
-            w.Repo.GetComponentRW<Health>(slow).Current = 0f; w.Tick();
+            w.Kill(slow, buddy); w.Tick();
             Assert.Equal((1f, 1f), (w.S(assists).Value, w.S(kills).Value));              // too late: not an assist, and not m's kill either
+        }
+
+        /// <summary>⭐ <c>CE-3364</c> — ONE kill authority: two men of one side, each with his own <c>Count kills</c> measure. A downs a hostile; B then shoots the corpse ⇒ A has 1 kill, B 0 (the credit is the
+        /// <c>ManDownedEvent</c> of the hit that did it, never "a hit, then he is down"); the corpse shot by A again is no second kill; a rethrown round credits by <c>attribute</c>.
+        /// ✅ Red-proof: kills credited from the <c>DamageAssessedEvent</c> + the victim's health instead ⇒ B's corpse hit is his kill ⇒ red.</summary>
+        [Fact]
+        public void CE3364_AKillIsCreditedToTheHitThatDownedHim_NotToASecondManShootingTheCorpse()
+        {
+            var w = new ObjWorld();
+            var a = w.Man(Inside, ForceId.Friend); var b = w.Man(Inside, ForceId.Friend);
+            var sa = w.Squad(ForceId.Friend, a); var sb = w.Squad(ForceId.Friend, b);
+            var foe = w.Man(Inside, ForceId.Hostile, health: 10f);
+            var ka = w.Objective("Count", MeasureJson(w, sa, ",\"what\":\"kills\",\"target\":3"));
+            var kb = w.Objective("Count", MeasureJson(w, sb, ",\"what\":\"kills\",\"target\":3"));
+            w.Run(1);
+            w.Harm(foe, a); w.Kill(foe, a); w.Tick();                    // A's hit downs him
+            w.Harm(foe, b); w.Tick();                                    // B shoots the corpse
+            w.Harm(foe, a); w.Tick();                                    // …and A does again
+            Assert.Equal((1f, 0f), (w.S(ka).Value, w.S(kb).Value));
         }
 
         /// <summary>The exercise ends (EndExercise): every measure is closed — its value frozen.</summary>

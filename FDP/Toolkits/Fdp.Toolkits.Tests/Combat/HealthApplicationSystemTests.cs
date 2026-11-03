@@ -27,6 +27,9 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.RegisterComponent<NetworkAuthority>();
             _world.RegisterComponent<NetworkIdentity>();
             _world.RegisterEvent<DamageAssessedEvent>();
+            _world.RegisterEvent<ManDownedEvent>();                // ⭐ CE-3364
+            _world.RegisterComponent<InjuryThresholds>();
+            _world.RegisterComponent<BleedOut>();
             _world.RegisterManagedEvent<DestroyEntityCommand>();   // CE-267
 
             _sys = new HealthApplicationSystem();
@@ -521,6 +524,57 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal((ActorCapabilities)0, _world.GetComponentRO<ActorCapabilityState>(dead).Capabilities & both);
             Assert.Equal(both, _world.GetComponentRO<ActorCapabilityState>(alive).Capabilities & both);
             Assert.Equal(both, _world.GetComponentRO<ActorCapabilityState>(notMine).Capabilities & both);
+        }
+
+        // ── CE-3364 — ONE kill authority: ManDownedEvent ──────────────────────────────────────────
+
+        private ManDownedEvent[] Downed() { _world.Bus.SwapBuffers(); return _world.ReadEvents<ManDownedEvent>().ToArray(); }
+
+        private void Hit(Entity victim, float damage, Entity source = default, Entity original = default)
+        {
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = victim, TotalDamage = damage, Source = source, OriginalSource = original, HasBodyPart = 1, BodyPart = 7 });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+        }
+
+        /// <summary>⭐ <c>CE-3364</c> — the hit that takes a man out of the fight publishes ONE <see cref="ManDownedEvent"/> naming him, the state it made of him and the hit's Source / OriginalSource / part; a hit on a
+        /// body already down publishes none (⇒ a corpse is never a second man's kill); a hit that wounds but leaves him in the fight publishes none. ✅ Red-proof: the <c>before</c> guard removed from
+        /// <c>ManDowned.PublishIfDowned</c> ⇒ the corpse hit publishes ⇒ red.</summary>
+        [Fact]
+        public void CE3364_AKillingHit_PublishesOneManDowned_ACorpseHitAndAWoundNone()
+        {
+            var shooter = _world.CreateEntity(); var first = _world.CreateEntity();
+            var man = SpawnTarget(currentHealth: 40f);
+            Hit(man, 10f, shooter);                                          // 30 left: wounds, still fighting
+            Assert.Empty(Downed());
+            Hit(man, 50f, shooter, first);                                   // the killing hit
+            var killed = Downed();
+            Assert.Single(killed);
+            Assert.Equal((man, shooter, first, InjuryState.Dead, (byte)1, (byte)7), (killed[0].Victim, killed[0].Source, killed[0].OriginalSource, killed[0].State, killed[0].HasBodyPart, killed[0].BodyPart));
+            Hit(man, 10f, _world.CreateEntity());                            // a second man shoots the corpse
+            Assert.Empty(Downed());
+        }
+
+        /// <summary>⭐ <c>CE-3364</c> — an INCAPACITATED man (down, bleeding) is the downing (state Incapacitated); his bleed-out to Dead publishes nothing (he was already out), and a hit on him now none either.
+        /// ✅ Red-proof: the same <c>before</c> guard ⇒ the finishing hit would publish ⇒ red.</summary>
+        [Fact]
+        public void CE3364_IncapacitatedIsTheDowning_TheBleedOutToDeadIsNot()
+        {
+            var shooter = _world.CreateEntity();
+            var man = SpawnTarget(currentHealth: 100f);
+            _world.AddComponent(man, new InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.25f, BleedPerSecond = 0.1f });
+            Hit(man, 30f, shooter);                                          // 70 %: Ok
+            Assert.Empty(Downed());
+            Hit(man, 50f, shooter);                                          // 20 %: incapacitated
+            var down = Downed();
+            Assert.Single(down);
+            Assert.Equal((InjuryState.Incapacitated, shooter), (down[0].State, down[0].Source));
+            var bleed = new BleedOutSystem();
+            for (int i = 0; i < 4; i++) { bleed.Execute(_world, 1f); _world.Bus.SwapBuffers(); }   // 10 % of Max a second: dead after two
+            Assert.Equal(0f, _world.GetComponentRO<Health>(man).Current);
+            Assert.Empty(_world.ReadEvents<ManDownedEvent>().ToArray());
+            Hit(man, 5f, shooter);                                           // shooting the dead man
+            Assert.Empty(Downed());
         }
     }
 }

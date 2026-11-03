@@ -71,6 +71,7 @@ namespace Hrot.SimHost
             world.RegisterEvent<Fdp.Toolkit.Combat.Events.MissileWarningEvent>();            // ⭐ CE-2189 — Muscle → Brain
             world.RegisterEvent<HitEvent>();
             world.RegisterEvent<DamageAssessedEvent>();
+            world.RegisterEvent<Fdp.Toolkit.Combat.Events.ManDownedEvent>();   // ⭐ CE-3364 — the one kill authority
             world.RegisterEvent<FireRequestEvent>();
         }
     }

@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-03
-build-state: BUILDING — CE-3364 (behaviors; user, 2026-11-03: "Approved add that event")
-current-answer: §1 the picture · §2 the rule · §3 decisions · §5 as built (once built)
+build-state: BUILT — CE-3364 (behaviors; user, 2026-11-03: "Approved add that event")
+current-answer: §1 the picture · §2 the rule · §3 decisions · §5 as built
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -116,4 +116,12 @@ needs no wire today. The dashed edge is the one reader that WILL need a wire.
 
 ## 5. ⏳ As built
 
-*(filled by the build — CE-3364)*
+**Matches §1** (every box and edge). Built: `ManDownedEvent` (`Combat/Events/ManDownedEvent.cs`, id `CombatConstants.ManDownedEventId` = 5017, registered beside `DamageAssessedEvent` in `CombatComponentRegistry` (SimHost) and `CgfComponentRegistry`); `ManDowned` (`Combat/ManDowned.cs`: `Before`, `PublishIfDowned` with a `DamageAssessedEvent` overload and a Source/OriginalSource overload); called by `HealthApplicationSystem` (`before` taken ahead of the Health write, publish after the catastrophic-zone 0 and the capability strip) and by `DamageSystem` (Source = the bullet's `Shooter`). Publishing is skipped when the event is not registered on the world (a host that does not read it).
+
+**Other writers of `Health.Current`, enumerated** (grep `Health>(` + `GetComponentRW<Health>`): `HealthApplicationSystem` (a hit, publishes) · `DamageSystem` (a hit, FDP examples only, publishes through the same helper) · `BleedOutSystem` (Incapacitated → Dead: not a downing) · `EntityDamageIngressTranslator.cs:80/94` (replicates Health on a node that does not own it: not a hit here) · tests / debug edits (no event, by §2).
+
+**Readers.** `MeasureEvidence.Update`: kills / team kills from `ManDownedEvent` (credited by the measure's `attribute` through `NoHarmBehavior.Sources(Entity, Entity, …)` — the ONE choice, now an overload shared with the `DamageAssessedEvent` one); assists = a downing credited to nobody of his, with his man's last harm on the victim in `FireTally.Helped` within `assistSeconds`. Deleted: `Foes` / `Friends` / `Killed` / `TeamKilled` / `Settle` / `Remember` / `Forget`. `FireTally` stays unmanaged. `Deaths` kept as it was: it is STATE (his man out of the fight by ANY cause, incl. an authored body or an edit, read from the replicated Health), while the event is the downing BY A HIT on the Health owner — a different question, so not folded in.
+
+**Cross-node.** The event is raised on the Health-owning node = the Brain (Health is in the Brain group, §4 row 2), where the measures run; no wire topic (D5).
+
+**Rails.** `HealthApplicationSystemTests` (Fdp.Toolkits.Tests): `CE3364_AKillingHit_PublishesOneManDowned_ACorpseHitAndAWoundNone`, `CE3364_IncapacitatedIsTheDowning_TheBleedOutToDeadIsNot` (red-proof: the `before` guard removed ⇒ both red). `ScenarioRulesTests.CE3364_AKillIsCreditedToTheHitThatDownedHim_NotToASecondManShootingTheCorpse` (SimHost; red-proof: kills credited from the `DamageAssessedEvent` + health ⇒ red). The S4/S7 rails that downed a man by editing Health now go through `ObjWorld.Kill` (the production helper).

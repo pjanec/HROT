@@ -78,10 +78,10 @@ namespace Hrot.SimHost.Tests
             w.Harm(foe, m); w.Harm(late, m); w.Harm(mine, m); w.Tick();
             w.Harm(foe, other); w.Harm(late, other); w.Harm(mine, other); w.Tick();      // somebody else's harm: the credit is dropped
             w.Harm(mine, m); w.Tick();                                                   // …but he harms `mine` again: it is his kill, if it comes
-            Down(w, foe); w.Tick();                                                      // ≈ 1.5 s after his harm
+            w.Kill(foe, other); w.Tick();                                                // ≈ 1.5 s after his harm
             Assert.Equal((1f, 0f), (w.S(assists).Value, w.S(kills).Value));
             w.Run(12);
-            Down(w, late); Down(w, mine); w.Tick();                                      // `late` goes down > 10 s after his last harm; `mine` is his kill
+            w.Kill(late, other); w.Kill(mine, m); w.Tick();                                                                   // `late` goes down > 10 s after his last harm; `mine` is his kill
             Assert.Equal((1f, 1f), (w.S(assists).Value, w.S(kills).Value));
             w.Tick(); w.Tick();
             Assert.Equal(1f, w.S(assists).Value);                                        // once
@@ -97,12 +97,12 @@ namespace Hrot.SimHost.Tests
             w.Run(1);
             Assert.Equal((0f, 1f), (w.S(tk).Value, w.S(tk).Score));
             w.Harm(pal, m); w.Tick();
-            Down(w, pal); w.Tick();
+            w.Kill(pal, m); w.Tick();
             Assert.Equal((1f, 0f, 0f, 1f), (w.S(tk).Value, w.S(tk).Score, w.S(kills).Value, w.S(fr).Value));
             w.Harm(pal, m); w.Tick(); w.Tick();                                          // a corpse shot again
             Assert.Equal(1f, w.S(tk).Value);
             w.Harm(other, m); w.Tick(); SetHealth(w, other, 1f); w.Harm(foe, m); w.Tick();
-            Down(w, other); w.Tick();
+            w.Kill(other, m); w.Tick();
             Assert.Equal((2f, 0f), (w.S(tk).Value, w.S(kills).Value));
         }
 
@@ -164,7 +164,8 @@ namespace Hrot.SimHost.Tests
             w.Run(1);
             foreach (var victim in new[] { foe, f2, f3 }) w.Harm(victim, m);
             w.Harm(pal, m); Shoot(w, m, 4); w.Tick();
-            foreach (var v in new[] { foe, f2, f3, pal, dying }) Down(w, v);
+            foreach (var v in new[] { foe, f2, f3, pal }) w.Kill(v, m);
+            Down(w, dying);                                                              // an own man going down by nobody's credited hit: a death, no kill
             w.Tick(); w.Tick();
             Assert.Equal((3f, 1f, 1f), (w.S(kills).Value, w.S(tks).Value, w.S(deaths).Value));
             Assert.Equal((4f, ObjectiveRole.Measure, ObjectiveState.Active), (w.S(inner).Value, w.S(inner).Role, w.S(inner).State));

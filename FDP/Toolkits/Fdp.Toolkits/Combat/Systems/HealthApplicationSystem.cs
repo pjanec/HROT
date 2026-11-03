@@ -103,6 +103,9 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (!HealthOwnership.AppliesHere(repo, targetEntity))
                     continue;
 
+                // ⭐ CE-3364 — was he in the fight before this hit? (the ONE kill authority: ManDowned.PublishIfDowned below)
+                bool before = ManDowned.Before(repo, targetEntity);
+
                 // Apply damage with a floor of 0.
                 ref var health = ref repo.GetComponentRW<Health>(targetEntity);
                 health.Current = MathF.Max(0f, health.Current - evt.TotalDamage);
@@ -149,6 +152,9 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   masked is being chased separately, not by deleting the corpse.
                 // ⭐ CE-3092 — the ONE rule for what a hit does to capabilities (death; a non-lethal hit only on an opted-in type).
                 Fdp.Toolkit.Combat.CombatLife.ApplyHitCapabilities(repo, targetEntity, in health);
+
+                // ⭐⭐ CE-3364 — a hit that took him out of the fight (the catastrophic-zone 0 included) is ONE ManDownedEvent with this hit's attribution; a corpse, or a wound that leaves him fighting, none.
+                ManDowned.PublishIfDowned(repo, targetEntity, before, in evt);
             }
         }
     }

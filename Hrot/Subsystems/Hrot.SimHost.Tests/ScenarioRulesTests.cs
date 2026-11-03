@@ -258,6 +258,14 @@ namespace Hrot.SimHost.Tests
                 return e;
             }
 
+            /// <summary>⭐ CE-3364 — a hit takes <paramref name="victim"/> out of the fight: Health to 0 and ONE <c>ManDownedEvent</c> through the production helper (<c>ManDowned</c>), as <c>HealthApplicationSystem</c> does.</summary>
+            public void Kill(Entity victim, Entity source, Entity original = default)
+            {
+                bool before = Fdp.Toolkit.Combat.ManDowned.Before(Repo, victim);
+                Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(victim).Current = 0f;
+                Fdp.Toolkit.Combat.ManDowned.PublishIfDowned(Repo, victim, before, source, original);
+            }
+
             public void Harm(Entity victim, Entity source, float damage = 5f, Entity original = default)
                 => Repo.Bus.Publish(new Fdp.Toolkit.Combat.Events.DamageAssessedEvent { HitEntity = victim, Source = source, TotalDamage = damage, OriginalSource = original });
         }

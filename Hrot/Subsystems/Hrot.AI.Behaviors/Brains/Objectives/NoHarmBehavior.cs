@@ -81,9 +81,13 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         /// <paramref name="first"/> = its <c>OriginalSource</c>, or <c>Source</c> when nothing was rethrown (Null unless <c>Original</c> / <c>Both</c>). The ONE reading of the attribute — the
         /// side test (<see cref="Attributed"/>) and the measures' men test (<c>MeasureEvidence</c>) both go through it.</summary>
         internal static void Sources(in DamageAssessedEvent e, HarmAttribute attribute, out Entity last, out Entity first)
+            => Sources(e.Source, e.OriginalSource, attribute, out last, out first);
+
+        /// <summary>⭐ CE-3364 — the same ONE choice for any event carrying a <c>Source</c> / <c>OriginalSource</c> pair (the <c>ManDownedEvent</c> of a kill too).</summary>
+        internal static void Sources(Entity source, Entity originalSource, HarmAttribute attribute, out Entity last, out Entity first)
         {
-            var original = e.OriginalSource.IsNull ? e.Source : e.OriginalSource;
-            last = attribute != HarmAttribute.Original ? e.Source : Entity.Null;
+            var original = originalSource.IsNull ? source : originalSource;
+            last = attribute != HarmAttribute.Original ? source : Entity.Null;
             first = attribute != HarmAttribute.Last ? original : Entity.Null;
         }
 

@@ -801,6 +801,8 @@ under one new summing composite; the only new runtime inputs are four `Count` re
 
 **Live (`2026-11-03`, Crossfire `--mode all`)** — SHOWCASE §2.8: 28 per-man scores incl. respawned bots, team totals by `aggregate: points`, five awards decided at the close with their winners. ⚠ Open, measured there: ① **kills are over-credited across men** (20 credited vs 9 deaths) — kill credit is PER MEASURE, so a corpse a second man shoots is a fresh victim to HIS measure; with one measure per man that is common. ⭐ Lean (CE-3364, a design call): ONE kill authority — an engine event published ONCE when a man goes out of the fight, naming who downed him (`Source` / `OriginalSource`, CE-4155), read by `Count` kills / team kills / assists, the kill feed (PH-7) and the kill cam (today `HitFeedback`, a presentation ring) — ⛔ not a per-measure guess · ② a score instance's map label (CE-3365) · ③ *Untouchable* needs a kills floor and a tie rule (`Best` takes the first).
 
+**CE-3364 AS BUILT (`2026-11-03`, behaviors):** the one kill authority is `ManDownedEvent`, published once by `HealthApplicationSystem` when a hit takes a man out of the fight (never for a corpse); `Count` kills / team kills / assists (P-3) read it and the per-measure `Foes`/`Settle` guessing is gone. 📄 [`DESIGN_Man_Downed_Event.md`](DESIGN_Man_Downed_Event.md) §5.
+
 **Rejected — one line each:**
 - *A score SYSTEM beside the objectives* — two counters (SR-84 says one); the measures already count kills with attribution.
 - *Points as a table on the `Points` root keyed by child* — a child's own `points` is the existing field and travels on the wire.
