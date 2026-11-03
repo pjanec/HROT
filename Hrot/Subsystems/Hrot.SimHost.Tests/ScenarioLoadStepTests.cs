@@ -58,14 +58,16 @@ public sealed class ScenarioLoadStepTests : IDisposable
     private static ScenarioLoadStep MakeStep(
         string? json,
         FdpEventBus source,
-        TerrainLoadService? terrain = null)
+        TerrainLoadService? terrain = null,
+        Func<Hrot.Common.Infrastructure.NodeFeatures?>? features = null)
         => new ScenarioLoadStep(
             new ScenarioSerializerBuilder(SubsystemType).Build(),
             new LambdaScenarioLoader(_ => json),
             new StagingEntityExtractor(),
             source,
             new StubIdAllocator(100),
-            terrainLoadService: terrain);
+            terrainLoadService: terrain,
+            features: features);
 
     private static LoadPhaseContext Ctx(
         Guid txId,
@@ -93,6 +95,28 @@ public sealed class ScenarioLoadStepTests : IDisposable
     }
 
     // ── extraction and enqueue ────────────────────────────────────────────────────────────────
+
+    /// <summary>⭐ P-7 F-28 — a load hands the header's <c>features</c> to the node's <c>NodeFeatures</c> at Commit (and not at Prepare); the next load of a scenario without them clears the preset. ✅ Red-proof: the
+    /// <c>SetScenarioPreset</c> call removed from <c>ScenarioLoadStep.Commit</c> ⇒ the feature stays on ⇒ red.</summary>
+    [Fact]
+    public async Task Commit_HandsTheHeadersFeaturesToTheNodesFeatures_AndTheNextLoadReplacesThem()
+    {
+        var nf = new Hrot.Common.Infrastructure.NodeFeatures(new Hrot.Common.Infrastructure.FeatureRegistry(new[]
+            { Hrot.Common.Infrastructure.FeatureDeclaration.Switch("hud.kill-feed", "kill feed", Hrot.Common.Infrastructure.FeatureChange.Live, _ => true) }), NodeRole.Map2D);
+        var withPreset = new ScenarioHeader(SubsystemType) { Features = new Dictionary<string, string> { ["hud.kill-feed"] = "{\"Enabled\":false}" } };
+        var json = _serializer.Serialize(_goldRepo, withPreset).ToJsonString();
+        var ctx = Ctx(Guid.NewGuid());
+        var step = MakeStep(json, NewBus(), features: () => nf);
+        await step.PrepareAsync(ctx, CancellationToken.None);
+        Assert.True(nf.On("hud.kill-feed"));                       // nothing before the commit
+        step.Commit(ctx, null);
+        Assert.False(nf.On("hud.kill-feed"));                      // the scenario switched it off
+        var plain = MakeStep(SerializeGold(), NewBus(), features: () => nf);
+        var ctx2 = Ctx(Guid.NewGuid());
+        await plain.PrepareAsync(ctx2, CancellationToken.None);
+        plain.Commit(ctx2, null);
+        Assert.True(nf.On("hud.kill-feed"));                       // a scenario without the field clears the last one's
+    }
 
     /// <summary>⭐ Re-homed from the CGF suite: valid JSON with two roots enqueues exactly two requests.</summary>
     [Fact]

@@ -267,7 +267,9 @@ namespace Hrot.SimHost
             IReadOnlyList<LoadPart>? profileLoadParts = null,
             Func<Fdp.Toolkit.Orchestration.IMapBuildStatus?>? mapBuildStatus = null,
             // ⭐ CE-3354 ② — the node's name for the slave built here (only when no slave is passed; a caller with a context passes ITS slave, which carries it).
-            string? nodeName = null)
+            string? nodeName = null,
+            // ⭐ P-7 F-28 — the node's feature reader (HrotNodeContext.Features, built AFTER this runs, hence a delegate): the scenario step hands it the header's preset on every load. ⛔ A caller that HAS a context passes it.
+            Func<Hrot.Common.Infrastructure.NodeFeatures?>? features = null)
         {
             if (!offline && participant == null && role.HasFlag(NodeRole.Brain))
                 throw new ArgumentNullException(nameof(participant),
@@ -331,7 +333,8 @@ namespace Hrot.SimHost
                         terrainLoadService: TerrainLoadService,
                         // ⭐ macros S3a ⑥ — the node that loads scenarios validates their macros in the prepare (SR-149), from its own staging
                         //   root first (the package arrives there, SR-80) — built HERE so no host can hold an extractor and skip the check.
-                        macros: Fdp.Toolkit.Scenario.FileMacroLibrary.ForNode(localTempRoot)));
+                        macros: Fdp.Toolkit.Scenario.FileMacroLibrary.ForNode(localTempRoot),
+                        features: features));   // ⭐ P-7 F-28
 
                     if (scenarioHandlers != null) handlersToRegister.AddRange(scenarioHandlers);
                     else handlersToRegister.Add(new ReferenceEpisodeLoadHandler(scenarioSerializer, scenarioLoader, world: null));

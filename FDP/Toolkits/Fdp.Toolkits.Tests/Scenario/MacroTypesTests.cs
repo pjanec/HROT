@@ -28,6 +28,23 @@ namespace Fdp.Toolkits.Tests.Scenario
 
         // ── ② the macro file ─────────────────────────────────────────────────────────────────────────────
 
+        /// <summary>⭐ P-7 F-27 — <c>Header.Features</c>: "on"/"off" read as {"Enabled":…}, an object as its JSON; written back in the short form, so an editor save keeps the preset. ✅ Red-proof: the
+        /// <c>Features</c> write removed from <c>ScenarioHeaderJson.Write</c> ⇒ the round trip loses it ⇒ red.</summary>
+        [Fact]
+        public void TheScenarioHeaderFeatures_ReadAsConfigs_AndRoundTripThroughSerialize()
+        {
+            var dom = (JsonObject)JsonNode.Parse("{\"header\":{\"SubsystemType\":\"Hrot.Scenario\",\"features\":{\"game.tickets\":\"off\",\"hud.kill-feed\":\"on\",\"hud.kill-cam\":{\"Seconds\":3}}}}")!;
+            var h = ScenarioHeaderJson.Read(dom)!;
+            Assert.Equal("{\"Enabled\":false}", h.Features!["game.tickets"]);
+            Assert.Equal("{\"Enabled\":true}", h.Features["hud.kill-feed"]);
+            Assert.Equal("{\"Seconds\":3}", h.Features["hud.kill-cam"]);
+            ComponentTypeRegistry.Clear();
+            using var repo = new EntityRepository();
+            var back = ScenarioHeaderJson.Read(new ScenarioSerializerBuilder("Hrot.Scenario").Build().Serialize(repo, h))!;
+            Assert.Equal(h.Features.OrderBy(k => k.Key), back.Features!.OrderBy(k => k.Key));
+            Assert.Null(ScenarioHeaderJson.Read((JsonObject)JsonNode.Parse("{\"header\":{\"SubsystemType\":\"x\"}}")!)!.Features);
+        }
+
         [Fact]
         public void TheMacroHeader_EveryField_RoundTripsThroughSerializeAndRead()
         {
