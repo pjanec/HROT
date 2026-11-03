@@ -240,6 +240,8 @@ namespace Hrot.NED.Descriptors
         public byte Challenger;
         public float AreaX, AreaY, AreaZ;
         public float AreaRadius;
+        /// <summary>⭐ CE-4238 follow-up: 1 = the trigger's <c>do</c> list holds an <c>EndExercise</c> step (static; a display field, goes at once).</summary>
+        public byte EndsExercise;
     }
 
     // ⭐ rules S2-e (docs/DESIGN_Scenario_Rules.md §00.9, SR-122) — the exercise's RESULT: the phase (Running / Closing / Ended), when it ended, why, and the

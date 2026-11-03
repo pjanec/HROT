@@ -124,6 +124,7 @@ namespace Hrot.Editor.DebugApi
                 if (s.Role == ObjectiveRole.Trigger)   // ⭐ rules S2-c (T8): the §10.11 machine's state, as a string, and how often it fired
                 {
                     row["triggerState"] = s.TriggerState.ToString();
+                    row["endsExercise"] = s.EndsExercise != 0;   // ⭐ CE-4238 follow-up: its do list holds EndExercise (the round clock counts down to the soonest such trigger)
                     row["fireCount"] = s.FireCount;
                     row["lastFired"] = s.LastFired;
                     // ⭐ rules V-3: the trigger's when-leaves with their live values — present only once the owner has sampled them (feature ui.rules-live-values on there); the last sample stays when it goes off

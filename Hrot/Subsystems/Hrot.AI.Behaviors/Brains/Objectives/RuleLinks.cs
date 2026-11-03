@@ -28,6 +28,8 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             public NetIds8 DependsOn, ActsOn;
             /// <summary>false = some reference is still unresolved (its id is 0 / left out) — ask again later.</summary>
             public bool Complete;
+            /// <summary>1 = a step of the <c>do</c> list is <c>EndExercise</c> (CE-4238 follow-up).</summary>
+            public byte EndsExercise;
         }
 
 #pragma warning disable CS0649 // filled by OverlayFlat (reflection)
@@ -39,6 +41,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         {
             var dep = new List<int>(); var act = new List<int>();
             bool complete = true;
+            byte endsExercise = 0;
             LiveRefScope? scope = null;
             int Id(EntityLink l)
             {
@@ -64,6 +67,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 {
                     foreach (var step in ActionList.Get(doJson))
                     {
+                        if (string.Equals(step.Act, "EndExercise", StringComparison.OrdinalIgnoreCase)) endsExercise = 1;
                         if (JsonNode.Parse(step.ArgsJson) is not JsonObject args) continue;
                         foreach (var (key, value) in args)
                         {
@@ -76,7 +80,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 }
                 catch (Exception ex) when (ex is JsonException or FormatException or InvalidOperationException) { }
             }
-            var r = new Result { Complete = complete };
+            var r = new Result { Complete = complete, EndsExercise = endsExercise };
             Fill(dep, ref r.DependsOn, out r.DependsOnCount);
             Fill(act, ref r.ActsOn, out r.ActsOnCount);
             return r;

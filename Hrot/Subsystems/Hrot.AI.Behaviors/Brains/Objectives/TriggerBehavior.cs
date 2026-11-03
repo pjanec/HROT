@@ -144,6 +144,8 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             public NetIds8 DependsOn, ActsOn;
             /// <summary>⭐ S6 G-4 — a repeat fires again when the cooldown ends with the condition STILL true (no fall-and-rise needed).</summary>
             public byte WhileTrue;
+            /// <summary>⭐ CE-4238 follow-up — the <c>do</c> list holds an <c>EndExercise</c> step (copied onto the status for every node's HUD).</summary>
+            public byte EndsExercise;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -180,7 +182,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         private static void ComputeLinks(ref Block b, EntityRepository? world, string whenJson, string doJson)
         {
             var r = RuleLinks.Compute(world, whenJson, doJson);
-            b.DependsOn = r.DependsOn; b.DependsOnCount = r.DependsOnCount; b.ActsOn = r.ActsOn; b.ActsOnCount = r.ActsOnCount;
+            b.DependsOn = r.DependsOn; b.DependsOnCount = r.DependsOnCount; b.ActsOn = r.ActsOn; b.ActsOnCount = r.ActsOnCount; b.EndsExercise = r.EndsExercise;
             b.LinksPending = (byte)(r.Complete ? 0 : 1);
         }
 
@@ -298,6 +300,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             RuleLinks.CopyTo(ref s, in b.DependsOn, b.DependsOnCount, in b.ActsOn, b.ActsOnCount);
             s.HoldFor = b.HoldFor; s.Delay = b.Delay; s.Cooldown = b.Cooldown;
             s.Deadline = b.Common.DeadlineSeconds;
+            s.EndsExercise = b.EndsExercise;
             if (s.Closed != 0 || s.IsFinal) { s.ExpectedAt = 0d; return; }
             s.ExpectedAt = b.Phase switch
             {

@@ -87,6 +87,9 @@ namespace Fdp.Toolkit.ScenarioRules
         public WorldPoint AreaCenter;
         public float AreaRadius;
 
+        /// <summary>⭐ CE-4238 follow-up (ui's ask) — 1 = this trigger's <c>do</c> list holds an <c>EndExercise</c> step, so a HUD on ANY node (the authored params live only on the Brain) can count down to the round's end. Static, set at assignment with <see cref="ActsOn"/>; on the wire.</summary>
+        public byte EndsExercise;
+
         /// <summary>Achieved, Failed or Skipped — it will not change by itself.</summary>
         public readonly bool IsFinal => State == ObjectiveState.Achieved || State == ObjectiveState.Failed || State == ObjectiveState.Skipped;
     }
