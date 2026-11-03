@@ -83,7 +83,8 @@ public static class RulesReader
     /// <summary>One rule entity as stored: the status, its parent / subject network ids, and the macro path it was expanded from (null = authored in the scenario).</summary>
     public sealed record Entry(Entity Entity, int NetworkId, ObjectiveStatus Status, int ParentNetworkId, int SubjectNetworkId, string? Macro, bool Authored = false, int MacroInstance = 0);
 
-    public static IReadOnlyList<Entry> Read(EntityRepository world)
+    /// <param name="includeAuthored">⭐ H1 — false skips the RV-3a authored rows (a rule not yet running): the player's HUD shows what RUNS, and parsing every rule's JSON each frame is the rules window's cost, not the HUD's.</param>
+    public static IReadOnlyList<Entry> Read(EntityRepository world, bool includeAuthored = true)
     {
         var list = new List<Entry>();
         var seen = new HashSet<int>();
@@ -103,7 +104,7 @@ public static class RulesReader
             }
         }
         // ⭐ RV-3a — BEFORE a run no status exists: a rule entity carries only its AUTHORED params. ONE row type, two sources: the status (above) wins
-        if (world.TryGetTable(typeof(BehaviorStartRecord), out _))
+        if (includeAuthored && world.TryGetTable(typeof(BehaviorStartRecord), out _))
             foreach (var e in world.Query().WithManaged<BehaviorStartRecord>().Build())
             {
                 int net = NetworkIdResolver.RuntimeNetworkIdOf(world, e);
@@ -177,7 +178,8 @@ public static class RulesModel
     /// <summary>The colour of a PAST span (the lane's state) — hatched spans (a wait) take the cooldown colour.</summary>
     public static uint ColourOfSpan(in RuleSpan span) => span.Hatched ? Cooldown : span.State switch { ObjectiveState.Achieved => Achieved, ObjectiveState.Active => Active, ObjectiveState.Failed => Failed, _ => Grey };
 
-    private static bool ShownTo(in ObjectiveStatus s, ForceId side)
+    /// <summary>⭐ H1 — is this status for <paramref name="side"/>: its owner, or a side named by <c>VisibleSides</c>. ONE rule for the rules view and the player HUD.</summary>
+    public static bool ShownTo(in ObjectiveStatus s, ForceId side)
         => s.Owner == side || (s.VisibleSides != 0 && (s.VisibleSides & (1 << (int)side)) != 0);
 
     private static string TitleOf(in ObjectiveStatus s, int net) => s.Title.ToString() is { Length: > 0 } t ? t : $"rule #{net}";

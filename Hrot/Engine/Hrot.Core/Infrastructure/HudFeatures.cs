@@ -22,10 +22,30 @@ public static class HudFeatures
     /// <summary>⭐ CE-1461 W-M7 (docs/DESIGN_Node_Features.md §10) — SR-106 player messages: the subtitle and the message log.</summary>
     public const string Messages = "hud.messages";
 
-    /// <summary>Every HUD feature id this class declares.</summary>
-    public static readonly string[] All = { HitMarker, DamageArc, KillCam, SquadTakeoverAfterDeath, SpreadRing, NearMiss, Messages };
+    // ⭐ H1 / H2 (CE-4226..4228; docs/DESIGN_Player_HUD_And_Debrief.md PH-3…PH-5, PH-8 amended) — the player's training HUD and game HUD. Every one is ON by default
+    //   (R-4115: gameplay features are on where installed); a scenario's feature preset switches the OTHER profile's elements off. An element with no data draws nothing.
+    /// <summary>Training HUD (top-right): the objectives my side may see, required first, with the active one's progress.</summary>
+    public const string Objectives = "hud.objectives";
+    /// <summary>Training HUD (below the objectives): <i>My standards</i> — the measures about me, value against target.</summary>
+    public const string OwnEvaluation = "hud.own-evaluation";
+    /// <summary>Game HUD (top bar): each side's tickets.</summary>
+    public const string Tickets = "game.tickets";
+    /// <summary>Game HUD (top bar): the capture points, and the <i>Capturing B</i> strip while I stand in one that is changing hands.</summary>
+    public const string CapturePoints = "game.capture-points";
+    /// <summary>Game HUD (top bar): the round time — a countdown to a deadline, else the elapsed time.</summary>
+    public const string RoundTimer = "game.round-timer";
+    /// <summary>The kill feed (top-right): the last five downings, killer to victim.</summary>
+    public const string KillFeed = "hud.kill-feed";
+    /// <summary>Game HUD: the score pop-ups and, under them, the kill streak.</summary>
+    public const string ScorePopups = "game.score-popups";
+    /// <summary>Game HUD: a gold marker over a man carrying a bounty.</summary>
+    public const string BountyMarker = "game.bounty-marker";
 
-    /// <summary>The seven declarations for a host. <paramref name="playerDefault"/>: the default of the hit marker, damage arc, kill cam and squad
+    /// <summary>Every HUD feature id this class declares.</summary>
+    public static readonly string[] All = { HitMarker, DamageArc, KillCam, SquadTakeoverAfterDeath, SpreadRing, NearMiss, Messages,
+        Objectives, OwnEvaluation, Tickets, CapturePoints, RoundTimer, KillFeed, ScorePopups, BountyMarker };
+
+    /// <summary>The declarations for a host (the seven aids, then the player HUD's eight). <paramref name="playerDefault"/>: the default of the hit marker, damage arc, kill cam and squad
     /// takeover (true for the Player, false elsewhere); the spread ring, the near miss and the messages are ON on every host.</summary>
     public static IEnumerable<FeatureDeclaration> Declarations(bool playerDefault)
     {
@@ -36,6 +56,14 @@ public static class HudFeatures
         yield return FeatureDeclaration.Switch(SpreadRing, "The weapon's real spread as a ring round the crosshair", FeatureChange.Live, _ => true);
         yield return FeatureDeclaration.Switch(NearMiss, "A round passing your ear darkens the screen edges", FeatureChange.Live, _ => true);
         yield return FeatureDeclaration.Switch(Messages, "Messages to the player: a timed subtitle at the bottom, and a log on N", FeatureChange.Live, _ => true);
+        yield return FeatureDeclaration.Switch(Objectives, "Training HUD: the objectives you may see, with the active one's progress", FeatureChange.Live, _ => true);
+        yield return FeatureDeclaration.Switch(OwnEvaluation, "Training HUD: your own standards - value against target, coloured by how you are doing", FeatureChange.Live, _ => true);
+        yield return FeatureDeclaration.Switch(Tickets, "Game HUD: each side's tickets in the top bar", FeatureChange.Live, _ => true);
+        yield return FeatureDeclaration.Switch(CapturePoints, "Game HUD: the capture points in the top bar and the capturing strip", FeatureChange.Live, _ => true);
+        yield return FeatureDeclaration.Switch(RoundTimer, "Game HUD: the round time in the top bar", FeatureChange.Live, _ => true);
+        yield return FeatureDeclaration.Switch(KillFeed, "The kill feed: the last five downings, killer to victim", FeatureChange.Live, _ => true);
+        yield return FeatureDeclaration.Switch(ScorePopups, "Game HUD: score pop-ups and the kill streak under them", FeatureChange.Live, _ => true);
+        yield return FeatureDeclaration.Switch(BountyMarker, "Game HUD: a gold marker over a man with a bounty on him", FeatureChange.Live, _ => true);
     }
 
     /// <summary>

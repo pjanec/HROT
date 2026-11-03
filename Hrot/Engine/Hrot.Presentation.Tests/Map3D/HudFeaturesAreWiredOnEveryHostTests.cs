@@ -58,4 +58,16 @@ public sealed class HudFeaturesAreWiredOnEveryHostTests
         Assert.Contains("HudFeatures.Messages", Src("Map3D/PossessionStation.cs"));
         Assert.Contains(Hrot.Common.Infrastructure.HudFeatures.Messages, Hrot.Common.Infrastructure.HudFeatures.All);
     }
+    /// <summary>⭐ H1 / H2 (CE-4226..4228) — the player HUD: the kill feed is recorded by the effect system and every element is drawn by the layer through the station's own gate (<c>HudOn</c>) — the one the pack forwards.</summary>
+    [Fact]
+    public void ThePlayerHud_IsReadByTheRecorderTheLayerAndTheStation_ThroughTheOneGate()
+    {
+        var root = TestRepo.Root;
+        string Src(string rel) => File.ReadAllText(Path.Combine(root, "Hrot", "Engine", "Hrot.Presentation", rel));
+        Assert.Contains("HudFeatures.KillFeed", Src("Effects/EffectSystems.cs"));
+        Assert.Contains("PlayerHudLayer.Draw(w, _driver.Unit, camera, size, font, HudOn)", Src("Map3D/PossessionStation.cs"));
+        var layer = Src("Map3D/PlayerHudLayer.cs");
+        foreach (var id in new[] { "Objectives", "OwnEvaluation", "Tickets", "CapturePoints", "RoundTimer", "KillFeed", "ScorePopups", "BountyMarker" })
+            Assert.Contains("HudFeatures." + id, layer);
+    }
 }

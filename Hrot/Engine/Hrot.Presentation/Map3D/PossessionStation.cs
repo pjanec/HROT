@@ -516,7 +516,9 @@ namespace Hrot.UI.Common.Map3D
             {
                 HudText.Draw(font, lines[i], x, y, Hud.ColourOf(w, _driver.Unit, lines[i], i == lines.Length - 1));
                 y += HudLineHeight;
-            }            DrawMessages(w, _driver.Unit, size, font);   // ⭐ CE-1461 W-M7 (SR-106) — last, so nothing draws over a subtitle or the log
+            }
+            PlayerHudLayer.Draw(w, _driver.Unit, camera, size, font, HudOn);   // ⭐ H1 / H2 (CE-4226..4228) — the training and game HUD, the kill feed, the streak, the bounty
+            DrawMessages(w, _driver.Unit, size, font);   // ⭐ CE-1461 W-M7 (SR-106) — last, so nothing draws over a subtitle or the log
         }
 
         /// <summary>

@@ -63,6 +63,9 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     /// <summary>⭐ CE-1461 W-M7 — are the player's messages kept on this node right now (<c>hud.messages</c>)?</summary>
     internal bool RecordsMessages => Hrot.Common.Infrastructure.HudFeatures.IsOn(FeatureGate?.Invoke(), Hrot.Common.Infrastructure.HudFeatures.Messages);
 
+    /// <summary>⭐ H2 / PH-5 (CE-4228) — is the kill feed kept on this node right now (<c>hud.kill-feed</c>)?</summary>
+    internal bool RecordsKills => Hrot.Common.Infrastructure.HudFeatures.IsOn(FeatureGate?.Invoke(), Hrot.Common.Infrastructure.HudFeatures.KillFeed);
+
     /// <summary>Effects made in the last tick, by kind — the rail's counter.</summary>
     public int Spawned { get; private set; }
 
@@ -93,12 +96,24 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
             Hrot.UI.Common.Map3D.PlayerMessages.In(world).Record(m);
     }
 
+    /// <summary>
+    /// ⭐ H2 / PH-5 (CE-4228) — every <see cref="Fdp.Toolkit.Combat.Events.ManDownedEvent"/> of this frame (behaviors' ONE kill authority, once per downing on every node) goes into the
+    /// world's <see cref="Hrot.UI.Common.Map3D.KillFeed"/>. Presentation memory, so it runs in a replay too (the recorded events come back on the bus).
+    /// </summary>
+    private void TrackKills(ISimulationView view, EntityRepository world, double now)
+    {
+        if (!RecordsKills || !world.Bus.IsRegistered<Fdp.Toolkit.Combat.Events.ManDownedEvent>()) return;
+        foreach (ref readonly var down in view.ReadEvents<Fdp.Toolkit.Combat.Events.ManDownedEvent>())
+            Hrot.UI.Common.Map3D.KillFeed.In(world).Record(world, in down, now);
+    }
+
     public void Execute(ISimulationView view, float deltaTime)
     {
         Spawned = 0;
         if (view is not EntityRepository world || !world.IsComponentTypeRegistered<Lifespan>()) return;
         double now = SimClock.Of(world).TotalTime;
         TrackMessages(view, world);   // ⭐ CE-1461 W-M7 — presentation memory too, so before the replay gate as well
+        TrackKills(view, world, now); // ⭐ CE-4228 — and the kill feed
         TrackStrikes(view, world, now, RecordsHits);   // ⭐ CE-4062 — BEFORE the replay gate: a replay's blows are drawn too
         if (Fdp.Toolkit.Replay.ReplayState.IsActive(world)) return;   // ⭐ CE-3329 P2 — the world says it is a replay
         var tkb = world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
