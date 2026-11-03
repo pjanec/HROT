@@ -89,6 +89,7 @@ namespace Hrot.Map.Common.Replication.Egress
             HoldFor = s.HoldFor, Delay = s.Delay, Cooldown = s.Cooldown, Deadline = s.Deadline, ExpectedAt = s.ExpectedAt,
             Group = s.Group.ToString(), Pass = s.Pass, StepCur = s.StepCur, StepCount = s.StepCount,
             Capture = s.Capture, Challenger = (byte)s.Challenger, AreaX = s.AreaCenter.X, AreaY = s.AreaCenter.Y, AreaZ = s.AreaCenter.Z, AreaRadius = s.AreaRadius,
+            EndsExercise = s.EndsExercise,
         };
 
         private static List<int> ToList(byte count, in NetIds8 ids)
@@ -112,7 +113,7 @@ namespace Hrot.Map.Common.Replication.Egress
             => a.Role == b.Role && a.State == b.State && a.Closed == b.Closed && a.Owner == b.Owner
                && a.Title == b.Title && a.Kind == b.Kind && a.Group == b.Group && a.Pass == b.Pass && a.StepCur == b.StepCur && a.StepCount == b.StepCount
                && a.Capture == b.Capture && a.Challenger == b.Challenger && a.AreaX == b.AreaX && a.AreaY == b.AreaY && a.AreaZ == b.AreaZ && a.AreaRadius == b.AreaRadius && a.Required == b.Required && a.Scored == b.Scored
-               && a.Weight == b.Weight && a.VisibleSides == b.VisibleSides && a.FireCount == b.FireCount && a.TriggerState == b.TriggerState
+               && a.EndsExercise == b.EndsExercise && a.Weight == b.Weight && a.VisibleSides == b.VisibleSides && a.FireCount == b.FireCount && a.TriggerState == b.TriggerState
                && a.Subject == b.Subject && a.Parent == b.Parent
                && SameIds(a.DependsOn, b.DependsOn) && SameIds(a.ActsOn, b.ActsOn)   // ⭐ V-1/V-2: the links and the timing are display / state: at once
                && a.HoldFor == b.HoldFor && a.Delay == b.Delay && a.Cooldown == b.Cooldown && a.Deadline == b.Deadline && a.ExpectedAt == b.ExpectedAt;
@@ -220,6 +221,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             HoldFor = d.HoldFor, Delay = d.Delay, Cooldown = d.Cooldown, Deadline = d.Deadline, ExpectedAt = d.ExpectedAt,
             Group = new FixedString32(d.Group ?? string.Empty), Pass = d.Pass, StepCur = d.StepCur, StepCount = d.StepCount,
             Capture = d.Capture, Challenger = (ForceId)d.Challenger, AreaCenter = new WorldPoint(d.AreaX, d.AreaY, d.AreaZ), AreaRadius = d.AreaRadius,
+            EndsExercise = d.EndsExercise,
         };
 
         private static NetIds8 ToIds(List<int>? l)

@@ -45,6 +45,14 @@ public sealed class BinaryPatchContext
     /// </summary>
     public IEntityPatchContext PatchContext { get; }
 
+    // ── CE-2380 part 2 — the edit this Apply carries ─────────────────────────
+
+    /// <summary>⭐ The remote-edit request id this Apply belongs to (<see cref="Guid.Empty"/> = none). A handler whose effect is judged LATER stores it on the record it writes, so the judge can report the verdict under it.</summary>
+    public Guid RequestId { get; set; }
+
+    /// <summary>⭐ Set by a handler whose effect is judged later (a rule's live edit / control): the owner then reports <c>Pending</c> instead of <c>Applied</c>, and the judge reports the final verdict.</summary>
+    public bool Deferred { get; set; }
+
     // ── Scratchpad ────────────────────────────────────────────────────────────
 
     /// <summary>

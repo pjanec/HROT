@@ -117,10 +117,23 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 default: refused = "no such request"; break;
             }
             if (refused != null) s.Reason = new FixedString64($"{request} refused: {refused}");
+            // ⭐ CE-2380 part 2 — the final verdict of a request that came with an id (Fire / Rearm are carried out by the trigger, which reports them: TriggerBehavior.Control)
+            if (forTrigger == RuleRequest.NoRequest) ReportControl(world, self, refused == null ? null : $"{request} refused: {refused}");
             Fdp.Core.Logging.FdpLog<Log>.Info($"rule '{s.Title}': {request} by {(RuleOrigin)origin}" + (refused != null ? $" — refused: {refused}" : ""));
             Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Write(world, self, Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.RuleControl,
                 a: (int)request, b: seq, origin: origin, cause: (byte)(refused != null ? 1 : 0));
             return forTrigger;
+        }
+
+        /// <summary>⭐ CE-2380 part 2 — reports the verdict of the pending <see cref="RuleControl"/> request of <paramref name="self"/> (its id from <see cref="RuleRequestIds"/>): Applied when <paramref name="refusedWhy"/> is null, else Refused with the text.</summary>
+        public static void ReportControl(EntityRepository world, Entity self, string? refusedWhy)
+        {
+            var id = RuleRequestIds.Take(world, self);
+            if (id == Guid.Empty) return;
+            int node = Fdp.Toolkit.Replication.Edits.EditOutcomes.LocalNodeOf(world, self);
+            Fdp.Toolkit.Replication.Edits.EditOutcomes.Report(world, id, Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(world, self),
+                refusedWhy == null ? Fdp.Toolkit.Replication.Edits.EditStatus.Applied : Fdp.Toolkit.Replication.Edits.EditStatus.Refused,
+                refusedWhy ?? "applied", node >= 0 ? node : null);
         }
 
         /// <summary>⭐ SR-116 — a composite's close: once the exercise is closing and EVERY child is closed (its own verdict settled first), it is closed too.</summary>

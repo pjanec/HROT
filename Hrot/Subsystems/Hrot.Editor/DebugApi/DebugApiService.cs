@@ -3020,6 +3020,7 @@ namespace Hrot.Editor.DebugApi
                 return (null, $"Attribute patch failed: {ex.Message}");
             }
 
+            Fdp.Toolkit.Replication.Edits.EditTicket requestTicket = default;
             string route = ctx.HasRefusedAny ? "requested" : ctx.HasAppliedAny ? "direct" : "noMatch";
             if (ctx.HasRefusedAny)
             {
@@ -3031,10 +3032,21 @@ namespace Hrot.Editor.DebugApi
                         "and no network descriptor carries them, so there is no owner to ask. Nothing was requested." +
                         (ctx.HasAppliedAny ? " The components this node owns WERE applied." : ""));
 
-                if (!Fdp.Toolkit.Replication.Attributes.EntityAttributeChangeRequests.TryPublishJsonPatch(_world, entity, patchJson!))
+                // ⭐ CE-2380 part 2 — through EditRequests: the request carries an id and asks for the owner's outcome
+                requestTicket = Fdp.Toolkit.Replication.Edits.EditRequests.WriteJson(_world, entity, patchJson!);
+                if (requestTicket.Route != Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Requested)
                     return (null,
                         $"Entity {networkId} has no network identity on this node, so its owner cannot be addressed. Nothing was requested." +
                         (ctx.HasAppliedAny ? " The components this node owns WERE applied." : ""));
+            }
+
+            // ⭐ CE-2380 part 2 — an id for the answer: the request's own when one went out, else a fresh one whose outcome is reported here (applied here / nothing matched)
+            var requestId = requestTicket.RequestId;
+            if (requestId == System.Guid.Empty)
+            {
+                requestId = System.Guid.NewGuid();
+                if (ctx.HasAppliedAny) Fdp.Toolkit.Replication.Edits.EditOutcomes.Report(_world, requestId, networkId, Fdp.Toolkit.Replication.Edits.EditStatus.Applied, "applied on this node");
+                else Fdp.Toolkit.Replication.Edits.EditOutcomes.Report(_world, requestId, networkId, Fdp.Toolkit.Replication.Edits.EditStatus.Refused, "no key of the patch matched an attribute");
             }
 
             // Return the updated entity dump, with how the write was routed.
@@ -3048,6 +3060,7 @@ namespace Hrot.Editor.DebugApi
                 obj["write"] = new JsonObject
                 {
                     ["route"]               = route,
+                    ["requestId"]           = requestId.ToString(),
                     ["appliedComponents"]   = applied,
                     ["requestedComponents"] = requested,
                 };

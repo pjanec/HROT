@@ -40,6 +40,7 @@ namespace Hrot.SimHost.Tests
             HoldFor = 1.5f, Delay = 2.5f, Cooldown = 3.5f, Deadline = 60f, ExpectedAt = 77.25,
             Group = new FixedString32("fire"), Pass = 0.8f, StepCur = 2, StepCount = 3,
             Capture = 1, Challenger = ForceId.Friend, AreaCenter = new WorldPoint(12.5f, -3f, 4f), AreaRadius = 37.5f,
+            EndsExercise = 1,
         };
 
         private static NetIds8 Ids(params int[] v) { var ids = default(NetIds8); for (int i = 0; i < v.Length; i++) ids[i] = v[i]; return ids; }
@@ -88,6 +89,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((2, 101, 102), (back.DependsOnCount, back.DependsOn[0], back.DependsOn[1]));
             Assert.Equal((3, 201, 202, 203), (back.ActsOnCount, back.ActsOn[0], back.ActsOn[1], back.ActsOn[2]));
             Assert.Equal((1.5f, 2.5f, 3.5f, 60f, 77.25), (back.HoldFor, back.Delay, back.Cooldown, back.Deadline, back.ExpectedAt));
+            Assert.Equal((1, (byte)1), (sample.EndsExercise, back.EndsExercise));   // ⭐ CE-4238 follow-up: the EndExercise flag crosses ✅ Red-proof: EndsExercise dropped from FromSample ⇒ red
             var links = EntityObjectiveStatusIngressTranslator.LinksFromSample(in sample);
             Assert.Equal((41, 42), (links.Subject.NetworkId, links.Parent.NetworkId));
         }

@@ -237,10 +237,44 @@ public sealed class TheWriteRoutesAskTheOwnerTests
         new Hrot.Network.Translators.EditOutcomeEgressTranslator(wire).ScanAndPublish(owner.World);
         var sample = Assert.Single(wire.Written);
 
-        var ingress = new Hrot.Network.Translators.EditOutcomeIngressTranslator(null, localNodeId: 1);
+        var ingress = new Hrot.Network.Translators.EditOutcomeIngressTranslator(null);
         Assert.True(ingress.ProcessSample(in sample, requester.World));
 
         Assert.True(EditOutcomeLog.Of(requester.World).TryGet(ticket.RequestId, out var outcome));
         Assert.Equal((EditStatus.Applied, NetworkId, true), (outcome.Status, outcome.NetworkId, outcome.FromNetwork));
+    }
+    /// <summary>
+    /// CE-2380 part 2 — <c>POST /entities/{id}/attribute</c> answers a <c>write.requestId</c> (the request's own when it went to the owner, a fresh one when the write landed here) and
+    /// <c>GET /edits/{requestId}</c> returns what the node's <c>EditOutcomeLog</c> holds: nothing yet for a request still out ⇒ the not-found answer, the outcome once one is logged, and a bad id is
+    /// refused. ✅ Red-proof: <c>GetEditOutcome</c> reading a fresh log instead of <c>EditOutcomeLog.Of(_world)</c> ⇒ the status assert reddens.
+    /// </summary>
+    [Fact]
+    public void The_write_answers_a_request_id_and_GET_edits_reads_the_log()
+    {
+        using var node = new Node(ownsSimTransform: false, simTransformIsNetworked: true);
+
+        var (result, error) = node.Service.PatchEntityAttribute(NetworkId, "{\"Heading\":90}");
+        Assert.Null(error);
+        var idText = result!["write"]!["requestId"]!.GetValue<string>();
+        Assert.True(System.Guid.TryParse(idText, out var id));
+        Assert.Equal(id, Assert.Single(node.PublishedRequests()).RequestId);                       // the id on the wire request is the one answered
+
+        var (none, notYet) = node.Service.GetEditOutcome(idText);
+        Assert.Null(none);
+        Assert.StartsWith("No outcome known", notYet);
+
+        EditOutcomes.Report(node.World, id, NetworkId, EditStatus.Refused, "the owner said no", respondingNode: 4);
+        var (got, err) = node.Service.GetEditOutcome(idText);
+        Assert.Null(err);
+        Assert.Equal(("Refused", "the owner said no", 4), (got!["status"]!.GetValue<string>(), got["reason"]!.GetValue<string>(), got["respondingNode"]!.GetValue<int>()));
+
+        Assert.NotNull(node.Service.GetEditOutcome("not-a-guid").error);
+
+        // a write that lands HERE is reported at once under its own id
+        using var owner = new Node(ownsSimTransform: true, simTransformIsNetworked: true);
+        var (direct, e2) = owner.Service.PatchEntityAttribute(NetworkId, "{\"Heading\":90}");
+        Assert.Null(e2);
+        var (applied, _) = owner.Service.GetEditOutcome(direct!["write"]!["requestId"]!.GetValue<string>());
+        Assert.Equal("Applied", applied!["status"]!.GetValue<string>());
     }
 }

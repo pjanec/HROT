@@ -106,5 +106,17 @@ namespace Hrot.SimHost.Tests
             w.Run(1.5);
             Assert.Equal(60d, w.S(t).ExpectedAt);
         }
+        /// <summary>CE-4238 follow-up (ui's ask) — a trigger whose <c>do</c> list holds an <c>EndExercise</c> step carries <c>EndsExercise</c> = 1 on its status (so a HUD on any node can read it); one without carries 0.
+        /// ✅ Red-proof: <c>RuleLinks.Compute</c> not setting <c>EndsExercise</c> ⇒ the first assert reddens.</summary>
+        [Fact]
+        public void CE4238_ATriggerWhoseDoHoldsEndExercise_SaysSo_OnItsStatus()
+        {
+            var w = new ObjWorld(); var src = Source(w);
+            var ends = w.Trigger(TrigJson(w.Net(src), "", Do(Step("TrgRecord", "{\"value\":1}"), Step("EndExercise", "{\"reason\":\"time is up\"}"))));
+            var plain = w.Trigger(TrigJson(w.Net(src)));
+            w.Run(1.5);
+            Assert.Equal((byte)1, w.S(ends).EndsExercise);
+            Assert.Equal((byte)0, w.S(plain).EndsExercise);
+        }
     }
 }

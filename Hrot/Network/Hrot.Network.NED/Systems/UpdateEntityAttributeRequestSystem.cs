@@ -239,6 +239,8 @@ namespace Hrot.Map.Common.Systems
                 //    context built by Create() has an empty ROUTING map but its dirty set is live.
                 var ecsPatchCtx  = EcsPatchContext.Create(repo, entity);
                 var binaryCtx    = _binaryInterpreter!.CreateContext(ecsPatchCtx);
+                // ⭐ CE-2380 part 2 — the same context the local write router fills (Repo / Entity / RequestId), so a handler behaves alike on both paths and a deferred one can store the id.
+                binaryCtx.Repo = repo; binaryCtx.Entity = entity; binaryCtx.RequestId = req.RequestId;
 
                 // ⭐⭐⭐ R-134 — THE INGRESS BOUNDARY. The DDS record is converted to the FDP-internal
                 //    EntityAttributeChange HERE, and nothing downstream sees a network type: the
@@ -263,7 +265,11 @@ namespace Hrot.Map.Common.Systems
                     }
                     return;
                 }
-                if (req.WantOutcome) ReportOutcome(repo, entity, req, EditStatus.Applied, "applied");
+                if (req.WantOutcome)   // ⭐ CE-2380 part 2: a deferred handler (a rule's edit / control) → Pending, its judge answers the verdict
+                {
+                    if (binaryCtx.Deferred) ReportOutcome(repo, entity, req, EditStatus.Pending, "taken by the owner; its verdict follows");
+                    else ReportOutcome(repo, entity, req, EditStatus.Applied, "applied");
+                }
 
                 // OPT-IN ACK.
                 if (req.RequireAck)

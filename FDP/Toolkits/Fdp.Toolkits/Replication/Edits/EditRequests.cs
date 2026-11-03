@@ -24,12 +24,12 @@ namespace Fdp.Toolkit.Replication.Edits
             ArgumentNullException.ThrowIfNull(repo);
             ArgumentNullException.ThrowIfNull(changes);
             var id = Guid.NewGuid();
-            var writer = new AttributeEntityComponentWriter(repo, AttributeInterpreterProvider.GetOrCreate(repo), EntityAttributeChangeRequests.PublishOnto(repo, id, wantOutcome: true));
+            var writer = new AttributeEntityComponentWriter(repo, AttributeInterpreterProvider.GetOrCreate(repo), EntityAttributeChangeRequests.PublishOnto(repo, id, wantOutcome: true)) { RequestId = id };
             var route = writer.Write(entity, changes);
             int netId = repo.IsAlive(entity) ? NetworkIdResolver.RuntimeNetworkIdOf(repo, entity) : 0;
             // an unreplicated entity: the router "requested" but PublishOnto had nobody to address (it only warns) ⇒ say so
             if (route == EntityWriteRoute.Requested && netId <= 0) route = EntityWriteRoute.Refused;
-            ReportRoute(repo, id, netId, route, EditOutcomes.LocalNodeOf(repo, entity), changes.Count == 0 ? "no change was given" : repo.IsAlive(entity) ? null : "the entity is gone");
+            ReportRoute(repo, id, netId, route, writer.LastWriteDeferred, EditOutcomes.LocalNodeOf(repo, entity), changes.Count == 0 ? "no change was given" : repo.IsAlive(entity) ? null : "the entity is gone");
             return new EditTicket(id, route);
         }
 
@@ -41,16 +41,17 @@ namespace Fdp.Toolkit.Replication.Edits
             int netId = repo.IsAlive(entity) ? NetworkIdResolver.RuntimeNetworkIdOf(repo, entity) : 0;
             bool sent = EntityAttributeChangeRequests.TryPublishJsonPatch(repo, entity, patchJson, id, wantOutcome: true);
             var route = sent ? EntityWriteRoute.Requested : EntityWriteRoute.Refused;
-            ReportRoute(repo, id, netId, route, EditOutcomes.LocalNodeOf(repo, entity), null);
+            ReportRoute(repo, id, netId, route, false, EditOutcomes.LocalNodeOf(repo, entity), null);
             return new EditTicket(id, route);
         }
 
-        private static void ReportRoute(EntityRepository repo, Guid id, int netId, EntityWriteRoute route, int node, string? why)
+        private static void ReportRoute(EntityRepository repo, Guid id, int netId, EntityWriteRoute route, bool deferred, int node, string? why)
         {
             switch (route)
             {
                 case EntityWriteRoute.Direct:
-                    EditOutcomes.Report(repo, id, netId, EditStatus.Applied, "applied on this node", node);
+                    if (deferred) EditOutcomes.Report(repo, id, netId, EditStatus.Pending, "taken by this node; its verdict follows", node);   // a rule's live edit / control: the judge answers later (lean C)
+                    else EditOutcomes.Report(repo, id, netId, EditStatus.Applied, "applied on this node", node);
                     break;
                 case EntityWriteRoute.Refused:
                     EditOutcomes.Report(repo, id, netId, EditStatus.Refused,

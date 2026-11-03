@@ -48,5 +48,7 @@ namespace Fdp.Toolkit.ScenarioRules
         public int Origin { get; init; }
         /// <summary>The last <see cref="Seq"/> the owner applied or refused (written by the owner only — never through the attribute path).</summary>
         public int Done { get; init; }
+        /// <summary>⭐ CE-2380 part 2 — the remote-edit request id this edit came with (<see cref="System.Guid.Empty"/> = none); the judge (<c>RuleEditSystem</c>) reports its verdict under it. Set by the attribute handlers from <c>BinaryPatchContext.RequestId</c>.</summary>
+        public System.Guid RequestId { get; init; }
     }
 }

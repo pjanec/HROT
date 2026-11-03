@@ -50,23 +50,20 @@ namespace Hrot.Network.Translators
 
     /// <summary>
     /// ⭐ CE-2380 part 1 — an outcome answered by another node arrives here: it is added to this node's <see cref="EditOutcomeLog"/> and raised again as an
-    /// <see cref="EditOutcome"/> with <c>FromNetwork</c> true (the editor / HTTP reads either). A node skips its own samples (<c>RespondingNode</c>).
+    /// <see cref="EditOutcome"/> with <c>FromNetwork</c> true (the editor / HTTP reads either). A sample this node already holds (its own answer coming back) is skipped by a dedupe against the log.
     /// </summary>
     public sealed class EditOutcomeIngressTranslator : INetworkEventTranslator, IDiscardableIngress
     {
         private readonly DdsReader<EntityEditOutcome>? _reader;
-        private readonly int _localNodeId;
-
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityEditOutcome>();
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
 
         /// <summary>Production constructor. A <c>null</c> participant makes <see cref="PollIngress"/> a no-op (tests).</summary>
-        public EditOutcomeIngressTranslator(DdsParticipant? participant, int localNodeId)
+        public EditOutcomeIngressTranslator(DdsParticipant? participant)
         {
             _reader = participant is not null ? new DdsReader<EntityEditOutcome>(participant) : null;
-            _localNodeId = localNodeId;
         }
 
         /// <inheritdoc />
@@ -88,7 +85,9 @@ namespace Hrot.Network.Translators
         public bool ProcessSample(in EntityEditOutcome m, EntityRepository repo)
         {
             ReceivedSampleCount++;
-            if (m.RespondingNode == _localNodeId) return false;   // our own answer — reported here already
+            // ⭐ CE-2380 part 2 — not "from my own node id" (some nodes fall back to id 0, so two nodes can share one): an answer THIS node already holds
+            //   (same request, same status, same responder) is its own coming back — skip it. Another node's answer, even from id 0, is a different tuple.
+            if (EditOutcomeLog.Of(repo).Holds(m.RequestId, (EditStatus)m.Status, m.RespondingNode)) return false;
             var outcome = EditOutcome.Create(m.RequestId, m.EntityId, (EditStatus)m.Status, m.Reason, m.RespondingNode, at: repo.HasSingletonUnmanaged<GlobalTime>() ? repo.GetSingletonUnmanaged<GlobalTime>().TotalTime : 0d, fromNetwork: true);
             EditOutcomeLog.Of(repo).Add(outcome);
             EditOutcomes.Publish(repo, outcome);

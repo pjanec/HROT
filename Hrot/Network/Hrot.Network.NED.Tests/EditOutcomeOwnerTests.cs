@@ -144,6 +144,27 @@ public sealed class EditOutcomeOwnerTests
         public void DisposeInstance(EntityEditOutcome key) { }
     }
 
+    /// <summary>CE-2380 part 2 — the ingress dedupes against the LOG, not a node id (some nodes fall back to id 0): the same answer arriving twice is logged once, and another node's answer is logged even when its id is 0.
+    /// ✅ Red-proof: the dedupe removed ⇒ the first assert reddens; the dedupe keyed on the responder alone ⇒ the 0-id answer is dropped ⇒ red.</summary>
+    [Fact]
+    public void TheIngressDedupesAgainstTheLog_NotAgainstANodeId()
+    {
+        var node = new Node(owns: false, OtherNode);
+        var id = Guid.NewGuid();
+        var ingress = new EditOutcomeIngressTranslator(null);
+        var own = new EntityEditOutcome { RequestId = id, EntityId = NetId, Status = (int)EditStatus.Applied, RespondingNode = 0, Reason = "" };
+
+        EditOutcomes.Report(node.World, id, NetId, EditStatus.Applied, "", respondingNode: 0);   // this node's own answer (id 0), logged locally
+        Assert.False(ingress.ProcessSample(in own, node.World));                                // …and coming back: not doubled
+        Assert.Equal(1, EditOutcomeLog.Of(node.World).Count);
+
+        var other = own; other.RespondingNode = 9;                                              // another node's answer
+        Assert.True(ingress.ProcessSample(in other, node.World));
+        var zero = new EntityEditOutcome { RequestId = id, EntityId = NetId, Status = (int)EditStatus.Pending, RespondingNode = 0, Reason = "" };   // a different status from a 0-id node
+        Assert.True(ingress.ProcessSample(in zero, node.World));
+        Assert.Equal(3, EditOutcomeLog.Of(node.World).Count);
+    }
+
     /// <summary>Egress → wire → ingress: the owner's outcome reaches ANOTHER node's log and bus (FromNetwork); the sender's own node ignores its sample; an arrived outcome is never re-sent.
     /// ✅ Red-proof: the ingress's log Add removed ⇒ red.</summary>
     [Fact]
@@ -160,14 +181,14 @@ public sealed class EditOutcomeOwnerTests
         var wire = Assert.Single(writer.Written);
         Assert.Equal((req.RequestId, NetId, (int)EditStatus.Applied, OwnerNode), (wire.RequestId, wire.EntityId, wire.Status, wire.RespondingNode));
 
-        var ingress = new EditOutcomeIngressTranslator(null, localNodeId: OtherNode);
+        var ingress = new EditOutcomeIngressTranslator(null);
         Assert.True(ingress.ProcessSample(in wire, requester.World));
         Assert.True(EditOutcomeLog.Of(requester.World).TryGet(req.RequestId, out var arrived));
         Assert.Equal((EditStatus.Applied, true), (arrived.Status, arrived.FromNetwork));
 
-        // the owner's own node skips its own sample
-        var ownIngress = new EditOutcomeIngressTranslator(null, localNodeId: OwnerNode);
-        Assert.False(ownIngress.ProcessSample(in wire, owner.World));
+        // the owner's own node skips its own sample (the log already holds that request / status / responder)
+        Assert.False(ingress.ProcessSample(in wire, owner.World));
+        Assert.Equal(1, EditOutcomeLog.Of(owner.World).Count);
 
         // an arrived outcome is not sent again by the requester's egress
         requester.World.Bus.SwapBuffers();
