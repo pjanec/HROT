@@ -45,6 +45,9 @@ public enum LoadPart
     /// <c>LoadPhaseChain.FromRoles(profileParts)</c>, and placed AFTER the role parts so it runs after <see cref="Terrain"/> (the map builds from the terrain a load commits).
     /// </summary>
     Map3D = 3,
+
+    /// <summary>⭐ P-7 / F-28′ — the scenario header's feature preset, handed to the node's <c>NodeFeatures</c>. ⛔ A PROFILE-style part like <see cref="Map3D"/> (never in <see cref="RoleLoadRequirements.PartsFor"/>): <c>NodeBootstrapper</c> requests it for EVERY ECS node, whatever its roles.</summary>
+    ScenarioFeatures = 4,
 }
 
 /// <summary>

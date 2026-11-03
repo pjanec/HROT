@@ -1,20 +1,19 @@
 using System;
 using System.Reflection;
-using Fdp.Presentation.Editing;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using StructEdit.Core;
 
-namespace Fdp.Presentation.Panels.ReplayBrowser.Drawers;
+namespace Fdp.Presentation.Editing;
 
 using ImGuiApi = ImGuiNET.ImGui;
 
-internal sealed class PredicateValueFieldDrawer : IImGuiFieldDrawer
+public sealed class PredicateValueFieldDrawer : IImGuiFieldDrawer
 {
     private readonly IEditSession _session;
-    private readonly BehaviorRegistry _behaviorRegistry;
+    private readonly BehaviorRegistry? _behaviorRegistry;
 
-    public PredicateValueFieldDrawer(IEditSession session, BehaviorRegistry behaviorRegistry)
+    public PredicateValueFieldDrawer(IEditSession session, BehaviorRegistry? behaviorRegistry)
     {
         _session = session;
         _behaviorRegistry = behaviorRegistry;
@@ -218,7 +217,7 @@ internal sealed class PredicateValueFieldDrawer : IImGuiFieldDrawer
             {
                 if (child.Binding?.GetBoxed() is int hash
                     && hash != 0
-                    && _behaviorRegistry.TryGetDefinition(hash, out var def))
+                    && _behaviorRegistry != null && _behaviorRegistry.TryGetDefinition(hash, out var def))
                 {
                     // ⭐ The SAME resolver the compiler binds through — see CE-308.
                     return BehaviorParamSlotResolver.ResolveDtoType(def, workingSlotKey);

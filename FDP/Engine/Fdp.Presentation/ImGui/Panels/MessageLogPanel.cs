@@ -115,9 +115,8 @@ namespace Fdp.Presentation.Panels
             public readonly HashSet<string> HiddenLoggers = new();
             public string LoggerSearchText = string.Empty;
 
-            // Original-list indices of selected messages (unsorted during editing)
-            public readonly List<int> SelectedIndices = new();
-            public int LastClickedFilteredIndex = -1;
+            // ⭐ W-H3 — the selection is keyed by the MESSAGE, not its index (a trim or a filter change shifts indices)
+            public readonly MessageSelection Selection = new();
 
             // One-shot flag: set by the "scroll to bottom" button to force a
             // single jump even when the user has scrolled up.
@@ -363,7 +362,7 @@ namespace Fdp.Presentation.Panels
                 if (Gui.MenuItem("Clear"))
                 {
                     source.Clear();
-                    state.SelectedIndices.Clear();
+                    state.Selection.Clear();
                     state.HasUnobservedAttention = false;
                 }
                 Gui.EndPopup();
@@ -426,7 +425,7 @@ namespace Fdp.Presentation.Panels
             if (Gui.SmallButton($"Clear##{source.SourceId}"))
             {
                 source.Clear();
-                state.SelectedIndices.Clear();
+                state.Selection.Clear();
                 state.HasUnobservedAttention = false;
             }
             Gui.SameLine();
@@ -632,11 +631,32 @@ namespace Fdp.Presentation.Panels
                 bool ctrl  = Gui.GetIO().KeyCtrl;
                 bool shift = Gui.GetIO().KeyShift;
 
+                // ⭐ W-P1 — VIRTUALISED: only the rows in (or one viewport from) the visible band are built. Every row used to be (a Selectable, a popup, 3+ coloured texts and
+                //   three string allocations each, for ALL messages, every frame) — the cost the editor slowed to ~1 s per frame on. A row is `lines × text height + item spacing`
+                //   tall (a multi-line message is several lines); the rows outside the band are two Dummy items of their summed height, so the scroll bar, the sticky-bottom
+                //   snap and the selection indices are unchanged.
+                float lineH = Gui.GetTextLineHeight(), spacing = Gui.GetStyle().ItemSpacing.Y;
+                float scrollY = Gui.GetScrollY(), viewH = Gui.GetWindowHeight();
+                float from = scrollY - viewH, to = scrollY + 2f * viewH;   // a viewport of margin each side: a frame's lag in the scroll never shows a gap
+                float y = 0f, topH = 0f, bottomH = 0f; int first = -1, last = -1;
                 for (int fi = 0; fi < filtered.Count; fi++)
+                {
+                    float h = LinesOf(messages[filtered[fi]]) * lineH + spacing;
+                    if (y + h < from) topH += h;
+                    else if (y > to) bottomH += h;
+                    else { if (first < 0) first = fi; last = fi; }
+                    y += h;
+                }
+                if (first < 0) { first = 0; last = -1; }
+                if (topH > 0f) Gui.Dummy(new Vector2(1f, Math.Max(0f, topH - spacing)));
+                RowsDrawn = 0;
+                for (int fi = first; fi <= last; fi++)
                 {
                     int msgIdx = filtered[fi];
                     DrawMessageRow(fi, msgIdx, messages[msgIdx], messages, filtered, state, ctrl, shift);
+                    RowsDrawn++;
                 }
+                if (bottomH > 0f) Gui.Dummy(new Vector2(1f, Math.Max(0f, bottomH - spacing)));
             }
 
             // Sticky bottom: snap to tail when the view was already at the bottom
@@ -651,6 +671,15 @@ namespace Fdp.Presentation.Panels
             Gui.EndChild();
         }
 
+        /// <summary>⭐ W-P1 — the rows built in the last frame (the rail that bounds the draw cost as the log grows reads it).</summary>
+        public int RowsDrawn { get; private set; }
+
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<MessageLogEntry, object> s_lines = new();
+
+        /// <summary>The text lines a message occupies (1 + its newlines), cached per entry — a message is immutable.</summary>
+        private static int LinesOf(MessageLogEntry e)
+            => (int)s_lines.GetValue(e, m => { int n = 1; foreach (char c in ((MessageLogEntry)m).Message) if (c == '\n') n++; return n; });
+
         // ── Private: individual row ──────────────────────────────────────────
 
         private void DrawMessageRow(
@@ -663,7 +692,7 @@ namespace Fdp.Presentation.Panels
             bool ctrl,
             bool shift)
         {
-            bool isSelected = state.SelectedIndices.Contains(msgIdx);
+            bool isSelected = state.Selection.Contains(msg);
 
             // 1. Save cursor so we can overlay colored text after the selectable.
             var startPos = Gui.GetCursorPos();
@@ -676,7 +705,7 @@ namespace Fdp.Presentation.Panels
                     isSelected,
                     ImGuiSelectableFlags.AllowOverlap))
             {
-                HandleRowClick(filteredList, filteredIdx, ctrl, shift, state);
+                state.Selection.Click(allMessages, filteredList, filteredIdx, ctrl, shift);
             }
 
             // Right-click context menu on the row
@@ -684,7 +713,7 @@ namespace Fdp.Presentation.Panels
             {
                 if (Gui.MenuItem("Copy"))
                 {
-                    if (state.SelectedIndices.Contains(msgIdx) && state.SelectedIndices.Count > 1)
+                    if (state.Selection.Contains(msg) && state.Selection.Count > 1)
                         CopySelectedToClipboard(allMessages, state);
                     else
                         Gui.SetClipboardText(msg.Message);
@@ -752,46 +781,12 @@ namespace Fdp.Presentation.Panels
         private static void CopySelectedToClipboard(
             IReadOnlyList<MessageLogEntry> messages, TabState state)
         {
-            if (state.SelectedIndices.Count == 0) return;
+            if (state.Selection.Count == 0) return;
 
-            var sorted = state.SelectedIndices.OrderBy(i => i).ToList();
             var sb = new StringBuilder();
-            foreach (int idx in sorted)
-            {
-                if (idx < messages.Count)
-                    sb.AppendLine(messages[idx].Message);
-            }
+            foreach (var m in state.Selection.InOrder(messages))
+                sb.AppendLine(m.Message);
             Gui.SetClipboardText(sb.ToString().TrimEnd('\r', '\n'));
-        }
-
-        private static void HandleRowClick(List<int> viewList, int clickedFilteredIndex, bool ctrl, bool shift, TabState state)
-        {
-            if (clickedFilteredIndex < 0 || clickedFilteredIndex >= viewList.Count) return;
-
-            if (shift && state.LastClickedFilteredIndex >= 0 && state.LastClickedFilteredIndex < viewList.Count)
-            {
-                int lo = Math.Min(state.LastClickedFilteredIndex, clickedFilteredIndex);
-                int hi = Math.Max(state.LastClickedFilteredIndex, clickedFilteredIndex);
-                for (int i = lo; i <= hi; i++)
-                {
-                    int msgIdx = viewList[i];
-                    if (!state.SelectedIndices.Contains(msgIdx))
-                        state.SelectedIndices.Add(msgIdx);
-                }
-            }
-            else if (ctrl)
-            {
-                int msgIdx = viewList[clickedFilteredIndex];
-                if (!state.SelectedIndices.Remove(msgIdx))
-                    state.SelectedIndices.Add(msgIdx);
-                state.LastClickedFilteredIndex = clickedFilteredIndex;
-            }
-            else
-            {
-                state.SelectedIndices.Clear();
-                state.SelectedIndices.Add(viewList[clickedFilteredIndex]);
-                state.LastClickedFilteredIndex = clickedFilteredIndex;
-            }
         }
 
         private static void TryOpenInEditor(string filePath)

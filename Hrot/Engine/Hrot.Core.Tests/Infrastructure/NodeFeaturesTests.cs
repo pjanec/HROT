@@ -153,4 +153,34 @@ public sealed class NodeFeaturesTests
         f.SetNodeOverride("hud.kill-cam", "{\"ShowKiller\":true}");
         Assert.Equal("node", (string?)f.Describe()["hud.kill-cam"]!["source"]!["ShowKiller"]);
     }
+
+    /// <summary>⭐ P-7 F-29/F-30 — the SCENARIO layer sits over the role default and under the node override; "on"/"off" arrive as {"Enabled":…}; an id the registry lacks is skipped and reported (no throw); null clears;
+    /// <c>Describe</c> names the layer. ✅ Red-proof: the <c>"scenario"</c> Try line moved after the node override ⇒ the node override no longer wins ⇒ red.</summary>
+    [Fact]
+    public void ScenarioPreset_SitsOverTheRoleDefault_UnderTheNodeOverride_UnknownIdIsReported_NullClears()
+    {
+        var f = new NodeFeatures(Registry(), NodeRole.Map2D);
+        var kc = f.Resolve("hud.kill-cam");
+        Assert.True(f.On(kc));                                                                  // role default
+        f.SetScenarioPreset(new System.Collections.Generic.Dictionary<string, string>
+        {
+            ["hud.kill-cam"] = "{\"Enabled\":false,\"Seconds\":8}",
+            ["hud.nope"] = "{\"Enabled\":true}",
+        });
+        Assert.False(f.On(kc));                                                                 // the scenario beats the role default
+        Assert.Equal(8f, f.Config<KillCamConfig>(kc).Seconds);
+        Assert.Equal("scenario", (string?)f.Describe()["hud.kill-cam"]!["source"]!["Enabled"]);
+        Assert.Single(f.Problems);                                                              // the unknown id: reported, skipped, nothing thrown
+        Assert.Contains("hud.nope", f.Problems[0]);
+        f.SetNodeOverride("hud.kill-cam", "{\"Enabled\":true}");
+        Assert.True(f.On(kc));                                                                  // the node override wins over the scenario
+        Assert.Equal(8f, f.Config<KillCamConfig>(kc).Seconds);                                  // …and leaves the scenario's other keys
+        Assert.Equal("node", (string?)f.Describe()["hud.kill-cam"]!["source"]!["Enabled"]);
+        f.SetScenarioPreset(null);
+        Assert.Equal(5f, f.Config<KillCamConfig>(kc).Seconds);                                  // cleared: back to the role default
+        Assert.Empty(f.Problems);
+        f.SetScenarioPreset(new System.Collections.Generic.Dictionary<string, string> { ["gameplay.team-kill"] = "{bad" });
+        Assert.Single(f.Problems);                                                              // malformed JSON: a Problems entry, the rest stands
+        Assert.True(f.On("gameplay.team-kill"));
+    }
 }

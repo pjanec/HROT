@@ -80,6 +80,13 @@ namespace Fdp.Toolkit.ScenarioRules
         /// <summary>⭐ rules V-2 — sim s of the NEXT thing the owner already knows will happen (Waiting ⇒ the delay's end · Holding ⇒ edge + holdFor · Cooldown ⇒ its end · an Active one with a deadline ⇒ the deadline); 0 = unknown / final.</summary>
         public double ExpectedAt;
 
+        /// <summary>⭐ G-8 (DESIGN_Scenario_Rules §00.12, CE-4230) — a CAPTURE point's facts, so every node's HUD reads them from the status (display fields, on the wire): <see cref="Capture"/> 1 = a capture point;
+        /// <see cref="Challenger"/> = the side whose clock runs against the owner (Neutral = none); <see cref="AreaCenter"/> / <see cref="AreaRadius"/> = the area's bounding circle (a circle as authored, a rectangle's half diagonal, an area entity's outline from its centroid). Written by <c>HoldAreaBehavior</c>.</summary>
+        public byte Capture;
+        public ForceId Challenger;
+        public WorldPoint AreaCenter;
+        public float AreaRadius;
+
         /// <summary>Achieved, Failed or Skipped — it will not change by itself.</summary>
         public readonly bool IsFinal => State == ObjectiveState.Achieved || State == ObjectiveState.Failed || State == ObjectiveState.Skipped;
     }

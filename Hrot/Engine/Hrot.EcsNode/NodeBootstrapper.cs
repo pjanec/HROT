@@ -267,7 +267,9 @@ namespace Hrot.SimHost
             IReadOnlyList<LoadPart>? profileLoadParts = null,
             Func<Fdp.Toolkit.Orchestration.IMapBuildStatus?>? mapBuildStatus = null,
             // ⭐ CE-3354 ② — the node's name for the slave built here (only when no slave is passed; a caller with a context passes ITS slave, which carries it).
-            string? nodeName = null)
+            string? nodeName = null,
+            // ⭐ P-7 F-28 — the node's feature reader (HrotNodeContext.Features, built AFTER this runs, hence a delegate): the scenario step hands it the header's preset on every load. ⛔ A caller that HAS a context passes it.
+            Func<Hrot.Common.Infrastructure.NodeFeatures?>? features = null)
         {
             if (!offline && participant == null && role.HasFlag(NodeRole.Brain))
                 throw new ArgumentNullException(nameof(participant),
@@ -301,6 +303,12 @@ namespace Hrot.SimHost
             var (loadProviders, residency) = HrotUniversalLoadParts.Build(tkbDb, localTempRoot, RoadNetworkHolder, terrainContent);
             if (_navmeshFactory != null) residency.AttachNavmesh(_navmeshFactory, _navmeshTarget!);
             TerrainResidency = residency;   // ⭐ CE-1446 B1 — held so a host's terrain picker / save can read it (CGF did, from its own Build call)
+
+            // ⭐ P-7 F-28′ — the scenario's feature preset reaches EVERY ECS node (not only the one that loads the entities): composed here, outside the extractor branch below.
+            //   ⛔ A caller that HAS a context passes `features`; a root with none (a test) gets a step that applies to nobody.
+            loadProviders.Add(new ScenarioFeaturePresetStep(storageProvider, features ?? (() => null)));
+            profileLoadParts = (profileLoadParts ?? Array.Empty<LoadPart>()).Contains(LoadPart.ScenarioFeatures)
+                ? profileLoadParts : (profileLoadParts ?? Array.Empty<LoadPart>()).Append(LoadPart.ScenarioFeatures).ToList();
 
             IClusterStateHandler? scenarioSaveHandler = null;
             var handlersToRegister = new List<IClusterStateHandler>();

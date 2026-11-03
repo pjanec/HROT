@@ -127,9 +127,9 @@ public static class TrackLayout
 
     /// <summary>
     /// ⭐ RV-2 — with no recording the panel has no extent, so the TRACKS give one: <c>[min(0, every item's From), max(now, every item's To (else From))]</c> in sim seconds, at least
-    /// <see cref="MinTrackExtentSeconds"/> wide. Null when no track holds an item (nothing to draw). ⛔ Only used when the index has none — a recording keeps its own extent.
+    /// <see cref="MinTrackExtentSeconds"/> wide. Null when no track holds an item (nothing to draw) — unless <paramref name="extentWithoutItems"/> and there are tracks: then [0, now ∨ 10 s]. ⛔ Only used when the index has none — a recording keeps its own extent.
     /// </summary>
-    public static (double From, double To)? ExtentOfTracks(IReadOnlyList<ITimelineTrack>? tracks, double nowSim)
+    public static (double From, double To)? ExtentOfTracks(IReadOnlyList<ITimelineTrack>? tracks, double nowSim, bool extentWithoutItems = false)
     {
         if (tracks == null) return null;
         double from = 0d, to = Math.Max(0d, nowSim);
@@ -142,7 +142,7 @@ public static class TrackLayout
                 to = Math.Max(to, it.To ?? it.From);
                 to = Math.Max(to, it.From);
             }
-        if (!any) return null;
+        if (!any && !(extentWithoutItems && tracks.Count > 0)) return null;   // ⭐ CE-4216 RV-3a: a host opts in to a ruler over tracks that hold no items yet (authored rules, not running)
         if (to - from < MinTrackExtentSeconds) to = from + MinTrackExtentSeconds;
         return (from, to);
     }

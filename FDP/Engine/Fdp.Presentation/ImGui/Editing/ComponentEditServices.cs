@@ -30,6 +30,12 @@ namespace Fdp.Presentation.Editing
                 .RegisterFieldEditor<Fdp.Toolkit.Replication.AreaLink>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.AreaLink)))   // ⭐ CE-4206 R2 — an authored area (circle / rectangle / area entity) is one leaf by TYPE
                 // ⭐ CE-2068 — a utility decision reference is pickable by its TYPE (R-184): one leaf, drawn as a catalog combo.
                 .RegisterFieldEditor<Fdp.Toolkit.Utility.UtilityDecisionRef>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Utility.UtilityDecisionRef)))
+                // ⭐ CE-4218 (RE-3) — the value leaf of a property match is a standard leaf BY TYPE (gated by [PredicateValue]); the Replay Browser registers the same editor and draws the same drawer
+                .RegisterFieldEditor<Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto>(new PredicateValueFieldEditor())
+                // ⭐ CE-4220 (R5b) — a `Type` field (PropertyMatch.ComponentType, TransientEvent.EventType …) is a standard leaf, drawn by the filtered type combo; ⛔ it was registered only by the Replay Browser, so the rule editor drew it as "RuntimeType" with an empty combo
+                .RegisterFieldEditor<Type>(new TypeFieldEditor())
+                // ⭐ CE-4220 (R5b, RE-4) — a trigger's do list is one leaf by TYPE (the rules editor draws it as rows)
+                .RegisterFieldEditor<System.Collections.Generic.List<Fdp.Toolkit.ScenarioRules.Actions.ActionStep>>(new ActionListFieldEditor())
                 .RegisterFieldEditor<Guid>(new StructEdit.Reflection.Editors.GuidFieldEditor());
     }
 

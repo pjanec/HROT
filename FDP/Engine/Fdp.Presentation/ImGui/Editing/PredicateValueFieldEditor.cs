@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using StructEdit.Core;
 using StructEdit.Core.Plugins;
@@ -16,7 +17,8 @@ public sealed class PredicateValueFieldEditor : ICustomFieldEditor
         IValueBinding binding,
         EditNodeMetadata metadata)
     {
-        if (name != nameof(BehaviorParamPredicateDto.Predicate))
+        // ⭐ CE-4218 (RE-3 / A4): gated by what the member DECLARES ([PredicateValue]), not by its name — so it can be a standard leaf of every form
+        if (!metadata.CustomAttributes.OfType<PredicateValueAttribute>().Any())
             return null;
 
         return new EditNode(

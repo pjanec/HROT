@@ -749,6 +749,7 @@ class Program
                     orchestrator.DrawUIAll();
                     rlImGui_cs.rlImGui.End();
                     frameStats?.EndUi();
+                    frameStats?.NoteDrawLists();
 
                     Raylib_cs.Raylib.EndDrawing();
                     frameStats?.EndFrame();

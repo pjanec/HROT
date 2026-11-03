@@ -46,11 +46,26 @@ public interface ITimelineTrack
     /// <summary>⭐ <c>CE-4167</c> X3 — a tree row header, or null (the default): the label is drawn flat, as before.</summary>
     TrackHeader? Header => null;
 
+    /// <summary>⭐ <c>CE-4221</c> X1 — arrows from MY items to another track's items, drawn after all tracks (an elbow with an arrowhead); a link whose either end is not drawn (scrolled away, collapsed) is not drawn. Default: none.</summary>
+    IReadOnlyList<TrackLink> Links => Array.Empty<TrackLink>();
+
+    /// <summary>⭐ <c>CE-4221</c> X4 — does the item carry a CONNECT handle (a small grip at its right end)? Default: no — a track that does not opt in never shows one and is never the source of a drag.</summary>
+    bool ConnectsFrom(string itemId) => false;
+
+    /// <summary>⭐ <c>CE-4221</c> X4 — may a drag from <paramref name="fromItemId"/> end on <paramref name="toTrack"/>'s row? The panel highlights the rows that answer yes while dragging.</summary>
+    bool CanConnect(string fromItemId, ITimelineTrack toTrack) => false;
+
+    /// <summary>⭐ <c>CE-4221</c> X4 — the drag was dropped on <paramref name="toTrack"/> (only called when <see cref="CanConnect"/> said yes). The track does the writing; the panel only says WHAT was dropped WHERE.</summary>
+    void Connect(string fromItemId, ITimelineTrack toTrack) { }
+
     /// <summary>The items now (SIM seconds); read every frame.</summary>
     IReadOnlyList<TimelineTrackItem> Items { get; }
 
     /// <summary>A left click on an item. ⛔ Never moves anything and never seeks.</summary>
     void Select(string itemId);
+
+    /// <summary>⭐ <c>CE-4216</c> (rules view R2, RV-5) — a left click on the track's HEADER (the label column): the row is picked. Default: nothing (the director's tracks have no row selection).</summary>
+    void SelectRow() { }
 
     /// <summary>Moves <paramref name="itemId"/> to <paramref name="toSimSeconds"/> (a segment's start; it keeps its length). While dragging the panel calls
     /// this every frame with <paramref name="commit"/> false (a preview — not an undo step); on release ONCE with true.</summary>

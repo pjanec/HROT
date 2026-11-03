@@ -195,6 +195,7 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
             participant:          context.Participant,
             subsystemName:        "CGF",
             eventBus:             context.EventBus,
+            features:             () => context.Features,   // ⭐ P-7 F-28 — this caller HAS the node's features, so the scenario step can hand it the header's preset
             scenarioSerializer:   serializer,
             scenarioExtractor:    extractor,
             scenarioSource:       context.World.Bus,

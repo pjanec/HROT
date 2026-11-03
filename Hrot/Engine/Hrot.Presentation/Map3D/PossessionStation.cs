@@ -63,6 +63,9 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>⭐ CE-1461 W-M7 (docs/DESIGN_Node_Features.md §10 M-3) — the player's message log is open (N while <c>hud.messages</c> is on).</summary>
         public bool MessageLogOpen { get; private set; }
 
+        /// <summary>⭐ G1 (CE-4231) — the scoreboard key (K) is held: the scoreboard overlay is drawn while it is. Set by the driver each frame.</summary>
+        public bool ScoreboardHeld { get; internal set; }
+
         /// <summary>N: opens / closes the message log. Nothing when <c>hud.messages</c> is off.</summary>
         public void ToggleMessageLog() { if (HudOn(Hrot.Common.Infrastructure.HudFeatures.Messages)) MessageLogOpen = !MessageLogOpen; }
 
@@ -516,7 +519,11 @@ namespace Hrot.UI.Common.Map3D
             {
                 HudText.Draw(font, lines[i], x, y, Hud.ColourOf(w, _driver.Unit, lines[i], i == lines.Length - 1));
                 y += HudLineHeight;
-            }            DrawMessages(w, _driver.Unit, size, font);   // ⭐ CE-1461 W-M7 (SR-106) — last, so nothing draws over a subtitle or the log
+            }
+            long hudT = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ W-P1
+            PlayerHudLayer.Draw(w, _driver.Unit, camera, size, font, HudOn, ScoreboardHeld);
+            Fdp.Presentation.WindowManager.WindowTimings.Record("(HUD layer)", hudT);   // ⭐ H1 / H2 (CE-4226..4228) — the training and game HUD, the kill feed, the streak, the bounty
+            DrawMessages(w, _driver.Unit, size, font);   // ⭐ CE-1461 W-M7 (SR-106) — last, so nothing draws over a subtitle or the log
         }
 
         /// <summary>
@@ -1506,6 +1513,8 @@ namespace Hrot.UI.Common.Map3D
         public const KeyboardKey ShoulderKey = KeyboardKey.O;
         /// <summary>⭐ CE-1461 W-M7 (docs/DESIGN_Node_Features.md §10 M-3) — N opens / closes the player's message log (L is the fire mode).</summary>
         public const KeyboardKey MessageLogKey = KeyboardKey.N;
+        /// <summary>⭐ G1 (CE-4231) — hold K for the scoreboard (Tab is the next man).</summary>
+        public const KeyboardKey ScoreboardKey = KeyboardKey.K;
 
         /// <summary>⭐ <c>CE-1293</c> (UC-11) — the camera stands back this frame: the shoulder view is on and RMB is not aiming from the eyes.</summary>
         public bool ShoulderViewOn => _station.OverShoulder && !Zooming;
@@ -1872,6 +1881,7 @@ namespace Hrot.UI.Common.Map3D
                 if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.Z)) _stance = ToggleProne(_stance.Value);
                 _crouchHeld = input.IsKeyDown(MapKeyboardKey.LeftControl) || input.IsKeyDown(MapKeyboardKey.RightControl);
             }
+            _station.ScoreboardHeld = input.IsKeyDown((MapKeyboardKey)ScoreboardKey);   // ⭐ G1 (CE-4231)
             if (input.IsKeyPressed((MapKeyboardKey)MessageLogKey)) _station.ToggleMessageLog();   // ⭐ CE-1461 W-M7 (SR-106)
             if (input.IsKeyPressed((MapKeyboardKey)ShoulderKey)) _station.OverShoulder = !_station.OverShoulder;   // ⭐ CE-1201 (§8p OS-1)
             Place(camera);   // ⭐ CE-1073 — this frame's look shows this frame (Update ran before the input)

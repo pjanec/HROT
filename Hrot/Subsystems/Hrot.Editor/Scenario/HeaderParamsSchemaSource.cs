@@ -15,54 +15,30 @@ using Hrot.Editor.AiShared.Windows;
 
 namespace Hrot.Editor.Scenario;
 
-/// <summary>⭐ CE-4210 P2 (MA-5) — a small linear undo history for the parameters editor: each entry is one named step with its apply and its undo.</summary>
-public sealed class ParamsEditHistory
-{
-    private readonly List<(string Label, Action Redo, Action Undo)> _done = new();
-    private int _at;
-
-    public bool CanUndo => _at > 0;
-    public bool CanRedo => _at < _done.Count;
-    public string? UndoLabel => CanUndo ? _done[_at - 1].Label : null;
-    public string? RedoLabel => CanRedo ? _done[_at].Label : null;
-
-    /// <summary>Applies the step and records it (a later step discards the redo tail).</summary>
-    public void Do(string label, Action apply, Action undo)
-    {
-        apply();
-        _done.RemoveRange(_at, _done.Count - _at);
-        _done.Add((label, apply, undo));
-        _at = _done.Count;
-    }
-
-    public bool Undo() { if (!CanUndo) return false; _done[--_at].Undo(); return true; }
-    public bool Redo() { if (!CanRedo) return false; _done[_at++].Redo(); return true; }
-}
-
 /// <summary>
 /// ⭐⭐ CE-4210 P2 (MA-5; docs/DESIGN_Macro_Authoring_Editor.md §3) — the scenario / macro PARAMETERS as one more <see cref="IVariablesSchemaSource"/>, so the Variables table the blackboard
 /// already uses edits them: Add · Remove · Rename · Move · default JSON · comment. The rows are the resident header's <c>Params</c> (<see cref="ScenarioDescription.HeaderOf"/>); every edit
 /// REPLACES the resident via <see cref="ScenarioDescription.Stamp"/> (a new string, never a field mutated in place — the file's own rule).
 /// <para>The reference count of a row = its uses in the world across the three binding homes (<see cref="ParamUsage"/>). ⛔ Remove is REFUSED while bound, naming the bindings.
-/// <b>Rename</b> rewrites every use in ONE undoable step (<see cref="ParamsEditHistory"/>). ⛔ The <c>.params.json</c> source is NOT built here.</para>
+/// <b>Rename</b> rewrites every use in ONE undoable step (<see cref="Hrot.Presentation.Edits.EditHistory"/>). ⛔ The <c>.params.json</c> source is NOT built here.</para>
 /// </summary>
 public sealed class HeaderParamsSchemaSource : IVariablesSchemaSource
 {
     private readonly Func<EntityRepository?> _world;
-    private readonly ParamsEditHistory _history;
+    private readonly Hrot.Presentation.Edits.EditHistory _history;
     private readonly Action<string>? _refuse;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private IReadOnlyDictionary<string, int>? _counts;
     private long _countsAt = long.MinValue;
 
-    public HeaderParamsSchemaSource(Func<EntityRepository?> world, ParamsEditHistory history, Action<string>? refuse = null)
+    public HeaderParamsSchemaSource(Func<EntityRepository?> world, Hrot.Presentation.Edits.EditHistory history, Action<string>? refuse = null)
     {
         _world = world ?? throw new ArgumentNullException(nameof(world));
         _history = history ?? throw new ArgumentNullException(nameof(history));
         _refuse = refuse;
     }
 
-    public ParamsEditHistory History => _history;
+    public Hrot.Presentation.Edits.EditHistory History => _history;
     /// <summary>The last refusal's text (what the window shows).</summary>
     public string? LastRefusal { get; private set; }
 

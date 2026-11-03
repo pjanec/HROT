@@ -326,6 +326,63 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((ObjectiveState.Skipped, (byte)1), (w2.S(b2).State, w2.S(b2).Closed));    // never stood
         }
 
+        private static void ManDown(ObjWorld w, Entity victim, Entity source, ForceId side)
+            => w.Repo.Bus.Publish(new Fdp.Toolkit.Combat.Events.ManDownedEvent { Victim = victim, Source = source, VictimSide = side });
+
+        /// <summary>P-8b′ — his man leaves the fight ONE TICK BEFORE his <c>ManDownedEvent</c> arrives: the bounty stays Active "down — awaiting the downing" and the event still claims it (FireCount 1, "claimed by …"); with no
+        /// event within 3 s it goes Pending "down, no claim" (FireCount stays 0). ✅ Red-proof: the wait branch removed (it drops to Pending at once) ⇒ the late event cannot claim ⇒ red.</summary>
+        [Fact]
+        public void P8b2_ABountyWhoseManIsSeenDownFirst_WaitsForTheEvent_ThreeSeconds()
+        {
+            var w = new ObjWorld();
+            var hawk = Named(w, w.Man(Inside, ForceId.Friend, 10f), "Hawk"); var raven = Named(w, w.Man(Inside, ForceId.Hostile, 10f), "Raven");
+            var foes = Enumerable.Range(0, 3).Select(_ => w.Man(Inside, ForceId.Hostile, 10f)).ToArray();
+            var (bounty, _) = BountyOn(w, hawk, min: 3);
+            w.Run(1);
+            foreach (var f in foes) { w.Kill(f, hawk); w.Tick(); }
+            w.Run(1.5);
+            Assert.Equal(ObjectiveState.Active, w.S(bounty).State);
+            SetHealth(w, hawk, 0f); w.Tick();                                                  // seen down — no event yet
+            Assert.Equal((ObjectiveState.Active, "down — awaiting the downing", 0), (w.S(bounty).State, w.S(bounty).Reason.ToString(), w.S(bounty).FireCount));
+            ManDown(w, hawk, raven, ForceId.Friend); w.Tick();                                 // the event, a tick late
+            Assert.Equal((ObjectiveState.Pending, 1, "claimed by Raven"), (w.S(bounty).State, w.S(bounty).FireCount, w.S(bounty).Reason.ToString()));
+
+            var w2 = new ObjWorld();
+            var h2 = w2.Man(Inside, ForceId.Friend, 10f);
+            var f2 = Enumerable.Range(0, 3).Select(_ => w2.Man(Inside, ForceId.Hostile, 10f)).ToArray();
+            var (b2, _) = BountyOn(w2, h2, min: 3);
+            w2.Run(1);
+            foreach (var f in f2) { w2.Kill(f, h2); w2.Tick(); }
+            w2.Run(1.5);
+            SetHealth(w2, h2, 0f); w2.Run(2);
+            Assert.Equal(ObjectiveState.Active, w2.S(b2).State);                               // still waiting inside the 3 s
+            w2.Run(2);
+            Assert.Equal((ObjectiveState.Pending, "down, no claim", 0), (w2.S(b2).State, w2.S(b2).Reason.ToString(), w2.S(b2).FireCount));
+        }
+
+        /// <summary>P-8c′ — the killer's <c>bountyKills</c> counts a kill whose bounty man was seen down a tick before the event (the bounty still waits, Active); a kill whose event comes after the 3 s wait (Pending "no claim") does not.
+        /// ✅ Red-proof: the wait branch removed ⇒ the bounty is Pending when the event arrives ⇒ BountyKills 0 ⇒ red.</summary>
+        [Fact]
+        public void P8c2_BountyKills_CountsAKillWhoseEventArrivesWhileTheBountyWaits_NotAfterTheWait()
+        {
+            foreach (bool late in new[] { false, true })
+            {
+                var w = new ObjWorld();
+                var hawk = Named(w, w.Man(Inside, ForceId.Hostile, 10f), "Hawk"); var dummy = w.Man(Inside, ForceId.Friend, 10f); var killer = w.Man(Inside, ForceId.Friend, 10f);
+                var streak = w.Objective("Count", $"{{{Cm("Streak", w.Net(hawk))},\"what\":\"streak\"}}");
+                var bounty = w.Objective("Bounty", $"{{{Cm("Bounty", w.Net(hawk), ",\"scored\":false")},\"streak\":{w.Net(streak)},\"minStreak\":1}}");
+                var bk = w.Objective("Count", $"{{{Cm("BK", w.Net(killer))},\"what\":\"bountyKills\"}}");
+                w.Run(1);
+                w.Kill(dummy, hawk); w.Run(1.5);
+                Assert.Equal(ObjectiveState.Active, w.S(bounty).State);
+                SetHealth(w, hawk, 0f); w.Tick();                                              // seen down first
+                if (late) w.Run(4);                                                            // the wait runs out: Pending "down, no claim"
+                ManDown(w, hawk, killer, ForceId.Hostile); w.Run(1.5);
+                Assert.Equal(late ? 0f : 1f, w.S(bk).Value);
+                if (late) Assert.Equal("down, no claim", w.S(bounty).Reason.ToString());
+            }
+        }
+
         /// <summary>P-8c — <c>bountyKills</c>: a kill whose victim's <c>Bounty</c> is Active (or was claimed at this very time) counts, whichever of the bounty and the count ticks first in the frame; a kill of a man with no
         /// bounty does not. ✅ Red-proof: the <c>b.LastFired == now</c> clause removed from <c>BountyStands</c> ⇒ the bounty-ticks-first order misses it ⇒ red.</summary>
         [Fact]

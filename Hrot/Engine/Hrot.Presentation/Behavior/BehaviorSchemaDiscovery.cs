@@ -103,17 +103,26 @@ namespace Hrot.Presentation.Behavior
         public static void BindKeepers(BehaviorRegistry behaviorRegistry, Assembly assembly)
         {
             if (behaviorRegistry is null) throw new System.ArgumentNullException(nameof(behaviorRegistry));
+            foreach (var (attr, m) in KeeperMethods(assembly))
+                behaviorRegistry.RegisterKeeper(attr.BehaviorName, StateKeeperBinder.Bind(m, attr.BehaviorName));
+        }
+
+        /// <summary>
+        /// ⭐ CE-4220 (rules view R5b, RE-7) — the behaviours of <paramref name="assembly"/> that have a state keeper, i.e. that can be edited LIVE, WITHOUT binding anything: a host that never loads the AI assembly into its registry (the editor)
+        /// asks this to show a kind the owner would refuse read-only up front. The SAME discovery as <see cref="BindKeepers"/>.
+        /// </summary>
+        public static System.Collections.Generic.IReadOnlyCollection<string> KeeperNames(Assembly assembly)
+            => KeeperMethods(assembly).Select(k => k.Attr.BehaviorName).Distinct().ToList();
+
+        private static System.Collections.Generic.IEnumerable<(BehaviorStateKeeperAttribute Attr, MethodInfo Method)> KeeperMethods(Assembly assembly)
+        {
             if (assembly is null) throw new System.ArgumentNullException(nameof(assembly));
             System.Type[] types;
             try { types = assembly.GetTypes(); }
             catch (ReflectionTypeLoadException ex) { types = ex.Types.Where(t => t != null).ToArray()!; }
             foreach (var type in types)
                 foreach (var m in type.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
-                {
-                    var attr = m.GetCustomAttribute<BehaviorStateKeeperAttribute>();
-                    if (attr == null) continue;
-                    behaviorRegistry.RegisterKeeper(attr.BehaviorName, StateKeeperBinder.Bind(m, attr.BehaviorName));
-                }
+                    if (m.GetCustomAttribute<BehaviorStateKeeperAttribute>() is { } attr) yield return (attr, m);
         }
 
         /// <summary>

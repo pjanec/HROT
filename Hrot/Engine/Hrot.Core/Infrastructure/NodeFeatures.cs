@@ -114,7 +114,7 @@ public sealed class FeatureRegistry
 
 /// <summary>
 /// ⭐ Node Features — the ONE reader, per node. Layers per feature: type initialisers ▸ role default ▸ node override ▸ cluster override
-/// (F-22), each applied with <c>BehaviorParams.OverlayFlat</c>, recomputed only when a layer changes (F-25).
+/// (F-22; ⭐ P-7: type ▸ role default ▸ scenario ▸ node override ▸ cluster), each applied with <c>BehaviorParams.OverlayFlat</c>, recomputed only when a layer changes (F-25).
 /// </summary>
 public sealed class NodeFeatures : IFeatureGate, IFeatureRecording
 {
@@ -127,6 +127,7 @@ public sealed class NodeFeatures : IFeatureGate, IFeatureRecording
     private IReadOnlyList<FeatureOverrideSpec> _cluster = Array.Empty<FeatureOverrideSpec>();
     private readonly Dictionary<string, string> _frozenLayer = new(StringComparer.Ordinal);   // AtLoad: the cluster layer stamped at load
     private readonly Dictionary<string, string> _frozenFull = new(StringComparer.Ordinal);    // AtLoad: a recorded FULL config (branch to live)
+    private readonly Dictionary<string, string> _scenario = new(StringComparer.Ordinal);      // F-27…F-31: the scenario header's preset (id → partial JSON)
     private readonly List<string> _problems = new();
     private readonly Dictionary<string, string>[] _sources;   // per feature: field → the layer its value came from (GET /features)
 
@@ -175,6 +176,17 @@ public sealed class NodeFeatures : IFeatureGate, IFeatureRecording
         Resolve(id);   // F-18
         if (!_nodeOverrides.TryGetValue(id, out var l)) _nodeOverrides[id] = l = new List<string>();
         l.Add(json);
+        Recompute();
+    }
+
+    /// <summary>
+    /// ⭐ P-7 / F-28 — the SCENARIO layer: the loaded scenario's feature preset (id → partial JSON; <c>ScenarioHeaderJson</c> turns "on"/"off" into <c>{"Enabled":…}</c>), applied right AFTER the role default
+    /// and under the node override (F-29). Replaces the last scenario's; <c>null</c> clears. An id this node does not declare is skipped and reported in <see cref="Problems"/> (F-30).
+    /// </summary>
+    public void SetScenarioPreset(IReadOnlyDictionary<string, string>? preset)
+    {
+        _scenario.Clear();
+        if (preset != null) foreach (var kv in preset) _scenario[kv.Key] = kv.Value;
         Recompute();
     }
 
@@ -250,7 +262,7 @@ public sealed class NodeFeatures : IFeatureGate, IFeatureRecording
 
     /// <summary>
     /// §7.1 ⑥ (<c>GET /features</c>) — every declared feature's effective config as <c>{ field…, "source": { field: layer } }</c>; a layer is
-    /// <c>type default</c> · <c>role default</c> · <c>node</c> · <c>cluster</c> · <c>recording</c>.
+    /// <c>type default</c> · <c>role default</c> · <c>scenario</c> · <c>node</c> · <c>cluster</c> · <c>recording</c>.
     /// </summary>
     public JsonObject Describe()
     {
@@ -291,6 +303,7 @@ public sealed class NodeFeatures : IFeatureGate, IFeatureRecording
             else
             {
                 Try(d, slot, d.DefaultFor(_role), "role default", src);
+                if (_scenario.TryGetValue(d.Id, out var preset)) Try(d, slot, preset, "scenario", src);
                 if (_nodeOverrides.TryGetValue(d.Id, out var mine))
                     foreach (var j in mine) Try(d, slot, j, "node override", src);
                 if (d.Change == FeatureChange.AtLoad && _frozenLayer.TryGetValue(d.Id, out var layer))
@@ -303,6 +316,8 @@ public sealed class NodeFeatures : IFeatureGate, IFeatureRecording
             _slots[i] = slot;
             _on[i] = d.Ops.IsEnabled(slot);
         }
+        foreach (var id in _scenario.Keys)
+            if (!_registry.TryIndex(id, out _)) _problems.Add($"{id} (scenario): this node does not declare the feature — skipped");   // F-30
         Changed?.Invoke();
     }
 

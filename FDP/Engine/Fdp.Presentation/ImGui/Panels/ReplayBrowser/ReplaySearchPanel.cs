@@ -269,7 +269,7 @@ public sealed class ReplaySearchPanel
                                           new BehaviorHashFieldDrawer(_behaviorRegistry)),
             [typeof(Type)]          = new FilteredTypeComboFieldDrawer(typeMode),
             [typeof(string)]        = new PropertyPathFieldDrawer(session, _behaviorRegistry),
-            [typeof(SearchPredicateDto)] = new PredicateValueFieldDrawer(session, _behaviorRegistry),
+            [typeof(SearchPredicateDto)] = new Fdp.Presentation.Editing.PredicateValueFieldDrawer(session, _behaviorRegistry),
         };
         return new ComponentEditDrawer(session, PickContext, drawers);
     }

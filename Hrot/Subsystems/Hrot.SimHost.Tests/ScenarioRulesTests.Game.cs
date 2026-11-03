@@ -175,5 +175,36 @@ namespace Hrot.SimHost.Tests
             w3.Run(1.5); Flip(w3, src3, true); w3.Run(12);
             Assert.Equal((1, TriggerState.Cooldown), (TrgActions.Calls.Count, Phase(w3, t3)));
         }
+
+        /// <summary>G-8 (CE-4230) — a capture HoldArea writes its facts on its status: <c>Capture</c> 1, the <c>Challenger</c> (the leader whose clock runs against the owner; Neutral when none / when it owns it), and the
+        /// area's bounding circle (circle: centre + radius; rectangle: centre + half diagonal). A non-capture HoldArea writes none. ✅ Red-proof: the <c>CaptureFacts</c> call removed from <c>CaptureBySide</c> ⇒ red.</summary>
+        [Fact]
+        public void G8_ACapturePoint_WritesItsFacts_ChallengerWhileTheClockRuns_TheAreasBoundingCircle()
+        {
+            var w = new ObjWorld();
+            MenIn(w, Inside, ForceId.Friend, 3);
+            var pt = w.Objective("HoldArea", $"{{{NoSubject},\"area\":{{\"circle\":{{\"center\":[5,6,1],\"radius\":10}}}},\"minMen\":2,\"capture\":true,\"captureSeconds\":10}}");
+            var rect = w.Objective("HoldArea", $"{{{NoSubject},\"area\":{{\"rect\":{{\"center\":[100,200,0],\"size\":[60,80],\"heading\":0}}}},\"minMen\":2,\"capture\":true,\"captureSeconds\":10}}");
+            var plain = w.Objective("HoldArea", $"{{{NoSubject},\"area\":{Circle0},\"minMen\":2}}");
+            w.Run(2);
+            Assert.Equal((1, ForceId.Friend, new WorldPoint(5, 6, 1), 10f), (w.S(pt).Capture, w.S(pt).Challenger, w.S(pt).AreaCenter, w.S(pt).AreaRadius));   // Friend's clock runs against the (Neutral) owner
+            Assert.Equal((1, ForceId.Neutral, new WorldPoint(100, 200, 0), 50f), (w.S(rect).Capture, w.S(rect).Challenger, w.S(rect).AreaCenter, w.S(rect).AreaRadius));   // nobody there; half diagonal of 60 x 80 = 50
+            Assert.Equal(0, w.S(plain).Capture);
+            w.Run(10);
+            Assert.Equal((ForceId.Friend, ForceId.Neutral), (w.S(pt).Owner, w.S(pt).Challenger));   // owned: nobody challenges
+            MenIn(w, Inside, ForceId.Hostile, 5);                                                    // outnumbered ⇒ lost at once, Hostile's clock starts
+            w.Run(1);
+            Assert.Equal(ForceId.Hostile, w.S(pt).Challenger);
+
+            // the S1 instant path (captureSeconds 0): the enemy side holding ≥ minMen inside that does not own it challenges
+            var c = new ObjWorld();
+            var blue = new[] { c.Man(Inside, ForceId.Friend), c.Man(Inside, ForceId.Friend) };
+            var old = c.Objective("HoldArea", $"{{{Common(c, c.Squad(ForceId.Friend, blue))},\"area\":{Circle0},\"minMen\":2,\"capture\":true}}");
+            c.Run(2);
+            Assert.Equal((ForceId.Friend, ForceId.Neutral, 1), (c.S(old).Owner, c.S(old).Challenger, c.S(old).Capture));
+            MenIn(c, Inside, ForceId.Hostile, 2);
+            c.Run(1);
+            Assert.Equal((ForceId.Friend, ForceId.Hostile), (c.S(old).Owner, c.S(old).Challenger));
+        }
     }
 }

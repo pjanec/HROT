@@ -35,21 +35,34 @@ namespace Fdp.Toolkit.ScenarioRules
         /// <summary>Flattens <paramref name="when"/> (≤ 8 leaves) and compiles each leaf once. ⛔ Throws when a leaf does not compile (as the trigger's own condition does).</summary>
         public static RuleLeafPlan Of(SearchPredicateDto when, IPredicateCompiler compiler)
         {
-            var leaves = new List<Leaf>(MaxLeaves);
-            bool truncated = false;
-            Flatten(when, compiler, leaves, ref truncated);
-            return new RuleLeafPlan(leaves.ToArray(), truncated);
+            var nodes = LeavesOf(when, out bool truncated);
+            var leaves = new Leaf[nodes.Count];
+            for (int i = 0; i < leaves.Length; i++)
+                leaves[i] = new Leaf(LabelOf(nodes[i]), compiler.CompileLevelPredicate(nodes[i]), compiler.CompileLeafMeasure(nodes[i]));
+            return new RuleLeafPlan(leaves, truncated);
         }
 
-        private static void Flatten(SearchPredicateDto node, IPredicateCompiler compiler, List<Leaf> into, ref bool truncated)
+        /// <summary>
+        /// ⭐ CE-4220 (R5b) — the leaves <paramref name="when"/> flattens into: descended through <see cref="CompoundPredicateDto"/> only, every other predicate ONE leaf, at most <see cref="MaxLeaves"/>.
+        /// The ONE flattening — the plan below and the rule editor's live strip (which matches the form's leaves to the owner's <see cref="RuleLeaves"/> by <see cref="LabelOf(SearchPredicateDto)"/>) both use it.
+        /// </summary>
+        public static IReadOnlyList<SearchPredicateDto> LeavesOf(SearchPredicateDto? when, out bool truncated)
+        {
+            var leaves = new List<SearchPredicateDto>(MaxLeaves);
+            truncated = false;
+            if (when != null) Flatten(when, leaves, ref truncated);
+            return leaves;
+        }
+
+        private static void Flatten(SearchPredicateDto node, List<SearchPredicateDto> into, ref bool truncated)
         {
             if (node is CompoundPredicateDto compound)
             {
-                foreach (var child in compound.Conditions) Flatten(child, compiler, into, ref truncated);
+                foreach (var child in compound.Conditions) Flatten(child, into, ref truncated);
                 return;
             }
             if (into.Count >= MaxLeaves) { truncated = true; return; }
-            into.Add(new Leaf(LabelOf(node), compiler.CompileLevelPredicate(node), compiler.CompileLeafMeasure(node)));
+            into.Add(node);
         }
 
         /// <summary>The short label of one leaf: <c>Health.Current</c> · <c>@Bridge Health.Current</c> (an OnEntity: its target's authored ref + the inner leaf) · <c>ScenarioTime</c> · <c>Count Health</c> · …</summary>
