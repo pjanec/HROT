@@ -103,6 +103,31 @@ namespace Hrot.SimHost.Integration.Tests
 
         // ── MOD1-P8T5 success condition 3 ────────────────────────────────────────
 
+        /// <summary>⭐ CE-3366 — a node prepared TWICE with one ExerciseId (a slow node's C7 catch-up re-sends the live PrepareState) completes the second prepare and keeps recording into ITS file (the same module); a DIFFERENT
+        /// exercise's file colliding, or the same exercise after it was finalized, still fails loudly (CreateNew is not weakened). ✅ Red-proof: the idempotence guard removed from <c>PrepareRecordingAsync</c> ⇒ IOException "already exists" ⇒ red.</summary>
+        [Fact(Timeout = 15_000)]
+        public async Task CE3366_ARePrepareOfTheSameExercise_IsIdempotent_ADifferentOrFinalizedOneStaysLoud()
+        {
+            var exerciseId = Guid.NewGuid();
+            var controller = new EcsRecordReplayController(_kernel, nodeId: ControllerNodeId, _world);
+            using var cts = new CancellationTokenSource();
+            var loopTask = RunKernelLoop(_kernel, cts.Token);
+
+            await controller.PrepareRecordingAsync(exerciseId, _tempDir);
+            var first = controller.ActiveRecordingModule;
+            await controller.PrepareRecordingAsync(exerciseId, _tempDir);               // the catch-up's second prepare
+            Assert.Same(first, controller.ActiveRecordingModule);
+            Assert.True(_kernel.IsModuleInstalled(first!));
+            await Task.Delay(100);
+            await controller.FinalizeRecordingAsync();
+            Assert.True(File.Exists(ExerciseRecordingPath(exerciseId)));
+
+            await Assert.ThrowsAnyAsync<IOException>(() => controller.PrepareRecordingAsync(exerciseId, _tempDir));   // finalized, then prepared again: its file exists ⇒ loud
+
+            cts.Cancel();
+            try { await loopTask; } catch (OperationCanceledException) { }
+        }
+
         [Fact(Timeout = 15_000)]
         public async Task RecordingLifecycle_InstallUninstall_ModuleInstalledThenGone()
         {

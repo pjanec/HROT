@@ -220,6 +220,13 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("target")] public float? Target;
     }
 
+    /// <summary>⭐ S7 ⑤ — <c>Best.also</c>: a candidate qualifies only if ITS SIBLING measure (same <c>ObjectiveLinks.Parent</c>) titled <see cref="Measure"/> has Value ≥ <see cref="Min"/> (a kills floor for "fewest deaths").</summary>
+    public struct BestAlsoJsonDto
+    {
+        [JsonPropertyName("measure")] public string? Measure;
+        [JsonPropertyName("min")] public float Min;
+    }
+
     /// <summary>⭐ rules S7 P-7 — <c>Best</c> (an award): among the descendants of <see cref="Among"/> that are measures titled <see cref="Measure"/>, the best Value that passes <see cref="Min"/>
     /// (≥ min, or ≤ min when <see cref="LowerIsBetter"/>; null = no floor). While the exercise runs: Active. At the close: Achieved with <c>ObjectiveLinks.Subject</c> = the winner's subject, else Failed.</summary>
     [ParamsDto]
@@ -232,6 +239,8 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("measure")] public string? Measure;
         [JsonPropertyName("min")] public float? Min;
         [JsonPropertyName("lowerIsBetter")] public bool LowerIsBetter;
+        /// <summary>⭐ S7 ⑤ — an extra condition on the candidate's sibling measure; null = none.</summary>
+        [JsonPropertyName("also")] public BestAlsoJsonDto? Also;
     }
 
     /// <summary>⭐ rules S7 P-8b — <c>Bounty</c> on a man (<c>common.subject</c>): Active while his <see cref="Streak"/> measure's Value ≥ <see cref="MinStreak"/> (default 5) and he is in the fight; his downing while Active claims it (Pending,

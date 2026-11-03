@@ -161,7 +161,7 @@ AWARDS = [  # (title, the measure each man's score macro carries, min, lowerIsBe
     ("Most kills", "Kills", 1, False),
     ("Point keeper", "Captures", 1, False),
     ("Sharpshooter", "Hit ratio", 0.4, False),
-    ("Untouchable", "Deaths", 0, True),
+    ("Untouchable", "Deaths", 0, True),           # + also Kills >= 5 below (Rules_Runnable ⑤: a man who never fought does not win)
     ("Bounty hunter", "Bounty kills", 1, False),   # S7 P-8e
     ("Longest streak", "Best streak", 3, False),   # S7 P-8e
 ]
@@ -174,6 +174,8 @@ def macro_awards():
         p = {"common": {"title": title, "parent": "^among", "group": "awards", "scored": False}, "among": "^among", "measure": measure, "min": mn}
         if lower:
             p["lowerIsBetter"] = True
+        if title == "Untouchable":
+            p["also"] = {"measure": "Kills", "min": 5}
         ents[ids()] = objective_entity("Best", title, p)
     write("macros/game/awards/scenario.json", doc({
         "Kind": "macro",

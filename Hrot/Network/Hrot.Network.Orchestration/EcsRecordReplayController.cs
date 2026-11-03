@@ -264,6 +264,14 @@ namespace Hrot.SimHost.Modules.Orchestration
         /// </summary>
         public async Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory, RecordingBranch? branch, double checkpointingSeconds = 0)
         {
+            // ⭐ CE-3366 — a re-prepare of the SAME exercise on a node that already holds ITS recording is idempotent: a slow node's C7 catch-up re-sends the live PrepareState with the same ExerciseId,
+            //   and the recorder (CreateNew, deliberately loud) would refuse its own first prepare's file and fault the cluster. ⛔ Only the SAME exercise on the SAME live module: a different exercise,
+            //   or the same one after FinalizeRecordingAsync, still reaches CreateNew and stays loud.
+            if (branch == null && _activeRecordingModule is { } held && held.ExerciseId == exerciseId)
+            {
+                FdpLog<EcsRecordReplayController>.Info("[Node-{0}] PrepareRecordingAsync: exercise {1} is already recording on this node — a repeated prepare (C7 catch-up) reuses it (CE-3366).", _nodeId, exerciseId);
+                return;
+            }
             if (branch == null) SessionCheckpointingSeconds = Math.Max(0, checkpointingSeconds);   // D17 — a branch inherits its parent's mode
             ReleaseReplayExit();   // ⭐ CE-3329 W5 — a node that starts a live recording is live: a hold an aborted exit left is lifted here
             var filePath = GetRecordingFilePath(exerciseId, storageDirectory);
