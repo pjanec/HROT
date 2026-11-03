@@ -22,7 +22,7 @@ namespace Fdp.Toolkit.Scenario.Tests
         {
             Assert.True(ParamTypes.TryResolve(id, out var resolved));
             Assert.Equal(type, resolved);
-            Assert.Equal(id, ParamTypes.IdOf(type, ParamTypeSpelling.Short));          // a header's own list writes the short name
+            Assert.Equal(id, ParamTypes.IdOf(type, ParamTypeSpelling.ShortName));          // a header's own list writes the short name
             Assert.True(ParamTypes.TryResolve(ParamTypes.IdOf(type, ParamTypeSpelling.Clr), out var viaClr));
             Assert.Equal(type, viaClr);                                                // and a .params.json's CLR name resolves to the same type
         }
