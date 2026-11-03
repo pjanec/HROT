@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — DESIGN, leans RV-1 … RV-9 await the user
+state: LIVE — DESIGN ✅ RV-1 … RV-9 APPROVED + RE-1 … RE-10 APPROVED with four amendments (§7.4) (user, `2026-11-03`: *"approved"*)
 updated: 2026-11-03 (§7 the rule editor designed; RV-4 built by behaviors; R3 all on the wire; ManDownedEvent for casualties; RV-8 extended to the whole summary on behaviors' B3–B5 + backend's S7; RV-6 Waits on / Starts)
 build-state: DESIGN
 current-answer: §3 (decisions) · §4 (phases) · §7 (the rule editor, RE-1 … RE-10)
@@ -172,7 +172,7 @@ graph TD
 
 Rails: `TimelineTrackStylesAndTreeTests` (pure: each style's geometry, dashes and hatch bounds, header indent / arrow / icon / status, collapse hides deeper not siblings, label width, extent from tracks) · `DirectorTracksTests.CE4167_…` (director tracks at the defaults) · `TimelinePanelFrameRail.CE4167_R1_…` (a real frame, NO recording: every style, a two-level tree with statuses, collapse; screenshots viewed, not committed). Red-proofs (each compiles): X2 — `Expected` given a fill · X3 — `Visible` hiding every following track (siblings too) · RV-2 — the extent starting at the first item instead of `min(0, …)`.
 
-## 7. The rule editor — the trigger and objective tabs *(DESIGN, `2026-11-03`; handoff items ④ ⑤; leans RE-1 … RE-10 await the user)*
+## 7. The rule editor — the trigger and objective tabs *(DESIGN, `2026-11-03`; handoff items ④ ⑤; ✅ RE-1 … RE-10 APPROVED (user, `2026-11-03`: *"approved"*) with the four amendments of §7.4)*
 
 🔒 *User, `2026-11-03`: "What is the status of trigger editor, are you planning to implement it together with the objective view/editor? Are they
 related?"* → *"yes, send the asks to behaviors and design the editor"*. Mockups: [`TriggerDetails`](designs/rules-view/mockup/TriggerDetails.html) ·
@@ -274,6 +274,16 @@ by construction. The dashed edge is the one runtime piece that does not exist: u
 | **RE-8** | *+ Add* | ⭐ a menu of rule kinds: Trigger + every objective / measure kind from the behaviour registry (those whose params carry `common`). It creates a rule entity (TKB `Trigger` 8861 / `Objective` 8860) through the ONE entity-creation path the Add Entity picker uses, parented to the selected row, and opens its form. Edit mode only (a live insert is a macro insertion, SR-191) |
 | **RE-9** | drag to connect (X4) | ⭐ on a Trigger row: dropping a row on it ANDs `OnEntity { Ref: the dropped row, Predicate: ObjectiveStatus.State == Achieved }` into its `when` (wrapped in `And` when one exists) **in the same form document**, so it shows in the When tab and is applied by RE-7. Edit mode only |
 | **RE-10** | where | ⭐ `RuleDetails`, `RuleTabs`, `LiveLeafOverlay`, `RuleApply` in `Hrot.Presentation/Rules/`; the predicate leaf and `ActionListFieldEditor` in `Fdp.Presentation/ImGui/Editing/` (shared by every host). ⏳ *Graph* / *List* views later |
+
+### 7.4 ✅ Approved with four amendments *(coordinator review, user `2026-11-03`: *"approved"*)*
+
+| # | amends | the amendment |
+|---|---|---|
+| A1 | RE-1 | ⭐ a rule entity expanded from a macro instance (`MacroOrigin`) is READ-ONLY in `RuleDetails`, saying *"from macro X — edit the macro or its args"* with a jump to the instance (SR-43); only the macro file's own entities (when the macro is opened) are editable |
+| A2 | RE-9 | drag to connect writes the predicate BY KIND of the dropped row: an objective / measure ⇒ `ObjectiveStatus.State == Achieved`; a trigger ⇒ `TriggerState == Fired` |
+| A3 | RE-8 | the citation: a live insert is `InsertMacro` (SR-171 / macros S3b B1), not SR-191 |
+| A4 | RE-3 | before dropping the `Predicate` name gate, list every `SearchPredicateDto` field the type registration now reaches and confirm each wants the builder |
+| ⭐ | RE-4, RE-7 | the two waits are GONE: behaviors built ① `StepCur` / `StepCount` on the status and ② `RuleEdit` (433, the state-keeping live edit with a refusal reason) — `DESIGN_Scenario_Rules.md` §00.11a ⇒ the live step marker and live Apply are buildable now |
 
 **Rejected — one line each:**
 - *A trigger-specific form per tab* — `BehaviorParamsForm` is the ruled one form (CE-1023 deleted the last second one).
