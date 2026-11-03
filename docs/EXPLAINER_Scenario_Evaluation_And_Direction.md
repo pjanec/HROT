@@ -3,7 +3,7 @@ state: LIVE
 updated: 2026-11-03 (settled the same day: RV-1…RV-9, RE-1…RE-10 + §7.4, PH-1…PH-7 approved, PH-8 amended to R-4115; the pass mark, CE-2378, step progress and the state-keeping live edit built (behaviors); the per-player score S7 built on leans P-1…P-9 (backend). Earlier: parts 4–10 added — coordinator)
 current-answer: §1 the objective · §2 the trigger · §3 exercise control · §4 references and keys · §5 scenario macros · §6 scoring and evaluation · §7 the game profile · §8 messages and the end · §9 what people see · §10 switching it per node — each of §4–§10 has a status line and, where it applies, how it works / how it is authored / how it is presented. An EXPLAINER of the designs, not the designs themselves
 stale-below: nothing — superseded revisions removed 2026-11-01; full history at commit de422e11b (`git show de422e11b:docs/EXPLAINER_Scenario_Evaluation_And_Direction.md`)
-known-rot: §1–§3 use illustrative parameter names (the shipped ones are in DESIGN_Scenario_Rules.md §00.8–§00.9, e.g. `minMen`, `holdSeconds`, `deadlineSeconds`); the `Count` OBJECTIVE of §3.2 / §3.4 is, as built, the `Counter` measure (a pool moved by actions, §7) or S4's `Count` measure (events by the subject, §6); §3.3's rung 3 (`PressureController`) and rung 4 (`SideAmmoFraction`) are designed illustrations, not built; most SCREENS of §9 are designed and APPROVED but not yet built (each row says which); §7's per-player score is built on backend's leans P-1…P-9, which the user may still overturn; not verified end to end: a `do` step's own `bind`
+known-rot: §1–§3 use illustrative parameter names (the shipped ones are in DESIGN_Scenario_Rules.md §00.8–§00.9, e.g. `minMen`, `holdSeconds`, `deadlineSeconds`); the `Count` OBJECTIVE of §3.2 / §3.4 is, as built, the `Counter` measure (a pool moved by actions, §7) or S4's `Count` measure (events by the subject, §6); §3.3's rung 3 (`PressureController`) and rung 4 (`SideAmmoFraction`) are designed illustrations, not built; most SCREENS of §9 are designed and APPROVED but not yet built (each row says which);  not verified end to end: a `do` step's own `bind`
 known-conflict: none
 related-designs:
   - docs/DESIGN_Scenario_Rules.md — OWNS every decision explained here (SR-…, T1–T10, G-…, E-…, V-…); this file only explains them with examples
@@ -35,7 +35,7 @@ related-designs:
 | 4 | references and keys | how one thing points at another, with no network ids in a file | ✅ |
 | 5 | scenario macros | reusable parts, placed and expanded anywhere | ✅ · ⏳ preview of a runtime insert |
 | 6 | scoring and evaluation | scores per person, squad, platoon | ✅ tree, measures, pass mark, required measures (CE-2378), role / standard means, score-history lane (S4 ①–⑥, live gate passed) |
-| 7 | the game profile | capture points, tickets, respawn waves, per-player score | ✅ v1 · ✅ per-player score, awards, streaks, bounty (on leans P-1…P-9) |
+| 7 | the game profile | capture points, tickets, respawn waves, per-player score | ✅ v1 · ✅ per-player score, awards, streaks, bounty (P-1…P-9 approved) |
 | 8 | messages and the end | briefings to players, the closing of the exercise | ✅ |
 | 9 | what people see | instructor, player, game master | ✅ data and entity tree · ⏳ most screens — designs approved, being built (ui) |
 | 10 | switching it per node | features as the on/off for every presented element | ✅ · ⏳ the operator grid |
@@ -819,8 +819,7 @@ commander's evaluation, so squad and platoon scores are just the composites abov
 ## 7. The game profile — tickets, capture points, respawn waves
 
 > **Status:** ✅ built as v1 (S6, `DESIGN_Scenario_Rules.md` §00.12; `scenarios/showcase-crossfire`, measured live over two 900 s rounds) · ✅ the per-player
-> score, awards, streaks and the bounty (S7, §00.13, `backend`; Crossfire round 4 measured) — ⚠ built on backend's leans **P-1…P-9**, which the user has not yet
-> ruled on. Decisions: G-1…G-7 (✅ approved by the user `2026-11-03`), SR-84, SR-112, P-1…P-9 (leans).
+> score, awards, streaks and the bounty (S7, §00.13, `backend`; Crossfire round 4 measured) — ✅ P-1…P-9 approved by the user `2026-11-03`. Decisions: G-1…G-7 (✅ approved by the user `2026-11-03`), SR-84, SR-112, P-1…P-9, G-9 (✅ approved `2026-11-03`).
 
 A game is the SAME machinery (§1–§3) with a few small additions — no ticket system, no game-mode code (R-4112):
 
@@ -862,7 +861,7 @@ second game needs only a different file.
 `scripts/gen-showcase-crossfire.py`; no game-specific editor exists. **Presented:** the statuses are on every node (`GET /objectives`); the scores, awards and streaks too (§7.1); the game HUD, kill feed and
 round summary are designed and approved (§9), not yet built. **Measured live:** Red took point C at ~220 s; Blue's tickets 150 → 74; the comeback raised Blue once; four crates at 180 / 360 / 540 / 720 s.
 
-### 7.1 The per-player score *(✅ built, S7 — `DESIGN_Scenario_Rules.md` §00.13; ⚠ leans P-1…P-9)*
+### 7.1 The per-player score *(✅ built, S7 — `DESIGN_Scenario_Rules.md` §00.13; P-1…P-9 approved)*
 
 ⭐ **The score is not a system — it is a MACRO per man** of ordinary measures under one summing composite, so it lives where every other score lives:
 computed on the **Brain** node, on the status wire (`dtObjectiveStatus`), recorded, never saved into the scenario.
