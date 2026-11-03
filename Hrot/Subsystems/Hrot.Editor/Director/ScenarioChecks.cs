@@ -46,6 +46,10 @@ namespace Hrot.Editor.Director
         public bool AtEnd { get; init; }
         public AtExpr? After { get; init; }
         public AtExpr? Before { get; init; }
+        /// <summary>⭐ Judged only when this anchor / action / expectation happened in the run; else the verdict is <c>skipped</c> (ok, no time) —
+        /// for a line about an EVENT the run need not produce (📌 Bridgehead: "a civilian harmed fails the tree", once the fire-discipline fix
+        /// CE-2379 stopped the accidental harm the row relied on).</summary>
+        public string? If { get; init; }
     }
 
     /// <summary>⭐ A change the check makes to the world at <see cref="At"/> (the old live checks' hand edits — wound a man, set an attribute).</summary>
@@ -149,15 +153,16 @@ namespace Hrot.Editor.Director
                     bool atEnd = e["atEnd"] is JsonValue ev && ev.TryGetValue<bool>(out var ae) && ae;
                     CheckCue cue = never
                         ? ParseCue((JsonObject)e["never"]!, where + " never", problems, Array.Empty<string>())
-                        : ParseCue(e, where, problems, new[] { "name", "after", "before", "atEnd", "never" });
+                        : ParseCue(e, where, problems, new[] { "name", "after", "before", "atEnd", "never", "if" });
                     if (never)
                         foreach (var (k, _) in e)
-                            if (k is not ("name" or "never" or "after" or "before")) problems.Add($"{where}: unknown key '{k}' beside never");
+                            if (k is not ("name" or "never" or "after" or "before" or "if")) problems.Add($"{where}: unknown key '{k}' beside never");
                     if (never && atEnd) problems.Add($"{where}: never and atEnd together");
                     expect.Add(new Expectation
                     {
                         Name = name!, Cue = cue, Never = never, AtEnd = atEnd,
                         After = Time(e["after"], where + " after", problems), Before = Time(e["before"], where + " before", problems),
+                        If = e["if"]?.ToString(),
                     });
                 }
 
@@ -171,6 +176,8 @@ namespace Hrot.Editor.Director
             var known = new HashSet<string>(anchors.Keys.Concat(actions.Where(a => a.Name != null).Select(a => a.Name!)).Concat(seen), StringComparer.Ordinal);
             foreach (var t in actions.Select(a => (AtExpr?)a.At).Concat(expect.SelectMany(e => new[] { e.After, e.Before })))
                 if (t is { Anchor: { } n } && !known.Contains(n)) problems.Add($"a time names '{n}', which is no anchor, action or expectation");
+            foreach (var e in expect.Where(x => x.If != null && !known.Contains(x.If)))
+                problems.Add($"expect '{e.Name}': if names '{e.If}', which is no anchor, action or expectation");
 
             var later = new List<string>();
             if (json["later"] is { } ln)

@@ -224,6 +224,7 @@ the verdict leaves the process **by its exit code** — the command line and a C
 | `do` | `{"name"?, "at": t, "set": {"who", "component", "patch"}}` — what the old live checks did by hand (17 of 81 wound a man or set an attribute); a named action's time is a name too |
 | `expect` | `{"name", <cue>, "after"?, "before"?}` holds once in the window · `{"name", "never": <cue>, …}` never holds in it · `{"name", <cue>, "atEnd": true}` holds when the run ends |
 | `later` | ⭐ `[names]` (backend, `255920b93`) — units a trigger inserts DURING the run (a QRF macro, a respawned bot). The start-of-run cast check does not refuse them (nor a `*part` one of them carries); a cue that names one resolves it when it appears (`WorldUnits` re-indexes on a miss). Rail `Later_UnitsInsertedDuringTheRun_PassTheStartCastCheck` |
+| `if` (on an `expect` row) | ⭐ `"<anchor / action / expectation name>"` (backend, `2026-11-03`) — the row is judged ONLY when that name happened in the run; else its verdict is **`skipped`** (ok, no time, printed `SKIP`). For a line about an event the run need not produce: 📌 Bridgehead's *"a civilian harmed fails the whole tree"* relied on an ACCIDENTAL harm that behaviors' fire-discipline fix (CE-2379) removed. ⛔ Not a way to silence a row the run SHOULD produce — that row keeps no `if`. Rail `If_ARowAboutAnEventThatDidNotHappen_IsSkipped_AndJudgedWhenItDid` |
 
 | cue `on` | holds when | judged by |
 |---|---|---|

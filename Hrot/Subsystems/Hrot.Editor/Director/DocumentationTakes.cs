@@ -113,6 +113,7 @@ namespace Hrot.Editor.Director
             switch (v.Kind)
             {
                 case "never": return v.Ok ? null : v.Time;                                  // it happened: when
+                case "skipped": return null;                                                // its event did not happen in this run
                 case "atEnd": return runFor;                                                // judged on the last sample
                 default:
                     if (v.Ok) return v.Time;                                                // it held: when

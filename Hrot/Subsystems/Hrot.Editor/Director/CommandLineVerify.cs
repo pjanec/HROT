@@ -161,7 +161,7 @@ namespace Hrot.Editor.Director
             if (item is null) return;
             w.WriteLine($"{indent}{item["scenario"]}: {item["status"]} — {item["steps"]} steps, sim {item["simEnd"]} s, wall {item["wallSeconds"]} s");
             foreach (var v in (item["verdicts"] as JsonArray ?? new JsonArray()).OfType<JsonObject>())
-                w.WriteLine($"{indent}  {((bool?)v["ok"] == true ? "PASS" : "FAIL")}  {v["name"]}{(v["t"] is { } t ? $"  (t {t} s)" : "")}{(v["kind"]?.ToString() == "never" && (bool?)v["ok"] != true ? "  ← broken" : "")}{(v["heldOutsideItsWindowAt"] is { } o ? $"  ← held at {o} s, outside its window" : "")}");
+                w.WriteLine($"{indent}  {(v["kind"]?.ToString() == "skipped" ? "SKIP" : (bool?)v["ok"] == true ? "PASS" : "FAIL")}  {v["name"]}{(v["t"] is { } t ? $"  (t {t} s)" : "")}{(v["kind"]?.ToString() == "never" && (bool?)v["ok"] != true ? "  ← broken" : "")}{(v["heldOutsideItsWindowAt"] is { } o ? $"  ← held at {o} s, outside its window" : "")}");
             if (item["golden"] is { } g) w.WriteLine($"{indent}  GOLDEN {g}");
             foreach (var d in (item["goldenDiff"] as JsonArray ?? new JsonArray())) w.WriteLine($"{indent}    {d}");
             if (item["replay"] is { } rp) w.WriteLine($"{indent}  REPLAY {rp} ({item["replaySnapshots"]} snapshots matched to the recording)");

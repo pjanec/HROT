@@ -1,5 +1,5 @@
 {
-  "$doc": "docs/SHOWCASE_Scenarios.md \u00a71.6 \u2014 Bridgehead (a DEMO, ~50 entities, AI on both sides \u2014 the AI Blue platoon stands in for the trainees; conditions only, no golden). Line 1 (the chain, as status checks), line 2 (the QRF), line 4's half that exists (a civilian harmed fails the tree), line 5 (the ease-off, at most twice) as conditions; line 3 (variants) is the rail ShowcaseScenarioTests; line 4's debrief and line 6 (summary numbers) wait for rules S4 + ui. Variant 0 (as authored): the outpost behind the low wall, the QRF from the EAST edge. Measured 2026-11-02 (1500 s, 2098 s wall): phase line 111.5 s, crossroads clear 308 s, QRF 428 s, car 488 s, a villager harmed 270 s. \u26a0 Red AI fired into a Red man at 497.6 s \u2014 a behaviour finding handed to behaviors, not a Bridgehead acceptance line.",
+  "$doc": "docs/SHOWCASE_Scenarios.md \u00a71.6 \u2014 Bridgehead (a DEMO, ~50 entities, AI on both sides \u2014 the AI Blue platoon stands in for the trainees; conditions only, no golden). Line 1 (the chain, as status checks), line 2 (the QRF), line 4's half that exists (a civilian harmed fails the tree), line 5 (the ease-off, at most twice) as conditions; line 3 (variants) is the rail ShowcaseScenarioTests; line 4's debrief and line 6 (summary numbers) wait for rules S4 + ui. Variant 0 (as authored): the outpost behind the low wall, the QRF from the EAST edge. Measured 2026-11-02 (1500 s, 2098 s wall): phase line 111.5 s, crossroads clear 308 s, QRF 428 s, car 488 s, a villager harmed 270 s. Red AI fired into a Red man at 497.6 s \u2014 fixed by behaviors (CE-2379, the line-of-fire hold counts a man by his body parts), which also ended the ACCIDENTAL villager harm \u21d2 the eval row is judged only 'if' a civilian is harmed (else SKIP).",
   "runFor": 1500,
   "golden": false,
   "later": [
@@ -159,7 +159,8 @@
       "op": "==",
       "value": "Failed",
       "after": "harm",
-      "before": "harm+1"
+      "before": "harm+1",
+      "if": "harm"
     },
     {
       "name": "no Blue round hits a Blue man",

@@ -43,7 +43,7 @@ namespace Hrot.Editor.Director
 
         public IEnumerable<string>? ReportDetail(ItemReport report) =>
             report.Verify() is { } v
-                ? v.Verdicts.Select(x => $"{(x.Ok ? "PASS" : "FAIL")}  {x.Name}{(x.Time is { } t ? $"  ({t:0.##} s)" : "")}{(x.Outside is { } o ? $"  — held at {o:0.##} s, outside its window" : "")}")
+                ? v.Verdicts.Select(x => $"{(x.Kind == "skipped" ? "SKIP" : x.Ok ? "PASS" : "FAIL")}  {x.Name}{(x.Time is { } t ? $"  ({t:0.##} s)" : "")}{(x.Outside is { } o ? $"  — held at {o:0.##} s, outside its window" : "")}")
                    .Concat(v.GoldenDiff).Concat(v.Problems).Concat(report.Problems)
                 : null;
 

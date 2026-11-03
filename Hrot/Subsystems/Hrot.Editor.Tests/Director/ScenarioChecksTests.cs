@@ -73,6 +73,39 @@ public sealed class ScenarioChecksTests
         Assert.Contains(bad, p => p.Contains("later must be a list"));
     }
 
+    /// <summary>
+    /// ⭐ <c>if</c>: a row about an event the run need not produce is judged only when that event happened — else <c>skipped</c> (ok, no time);
+    /// when it happened the row is judged as usual. 🔴 Red-proof: drop the <c>If</c> term in <c>Verdicts</c> ⇒ the skipped row FAILS.
+    /// </summary>
+    [Fact]
+    public void If_ARowAboutAnEventThatDidNotHappen_IsSkipped_AndJudgedWhenItDid()
+    {
+        const string json = """
+            { "runFor": 10, "anchors": {"harm": {"on": "field", "who": "Villager", "path": "Health.Current", "op": "<", "value": 100}},
+              "expect": [{"name": "the tree fails", "on": "field", "who": "Tree", "path": "State", "op": "==", "value": "Failed", "after": "harm", "if": "harm"}] }
+            """;
+        var checks = Parse(json, out var problems);
+        Assert.Empty(problems);
+        Assert.Equal("harm", checks.Expect[0].If);
+
+        var calm = new FakeWorld().Unit("Villager", 1, 100, 0).Unit("Tree", 2, 100, 0);
+        var book = new ConditionBook(checks, calm, 0);
+        book.Observe(0); book.Finish(10);
+        var skipped = book.Verdicts().Single();
+        Assert.True(skipped.Ok); Assert.Equal("skipped", skipped.Kind); Assert.Null(skipped.Time);
+
+        var hurt = new FakeWorld().Unit("Villager", 1, 100, 0).Unit("Tree", 2, 100, 0);
+        var book2 = new ConditionBook(checks, hurt, 0);
+        book2.Observe(0);
+        hurt.Comps[1] = new JsonObject { ["Health"] = new JsonObject { ["Current"] = 40 } };
+        book2.Observe(3);
+        book2.Finish(10);
+        Assert.False(book2.Verdicts().Single().Ok);   // the harm happened and the tree never read Failed
+
+        Parse(json.Replace("\"if\": \"harm\"", "\"if\": \"nope\""), out var bad);
+        Assert.Contains(bad, p => p.Contains("if names 'nope'"));
+    }
+
     // ── a world the book reads ────────────────────────────────────────────────────────────────
 
     private sealed class Units : IShotWorld
