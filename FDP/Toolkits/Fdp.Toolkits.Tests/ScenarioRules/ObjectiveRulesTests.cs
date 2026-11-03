@@ -133,6 +133,7 @@ namespace Fdp.Toolkits.Tests.ScenarioRules
         [InlineData("Trigger", ObjectiveRole.Trigger, 0f, 1f)]
         [InlineData("WeightedMean", ObjectiveRole.Objective, 0f, 0.6f)]
         [InlineData("MemberEvaluation", ObjectiveRole.Objective, 0f, 0.6f)]
+        [InlineData("SelectionMean", ObjectiveRole.Objective, 0f, 0.6f)]
         [InlineData("Counter", ObjectiveRole.Measure, 0f, 0f)]
         [InlineData("HitRatio", ObjectiveRole.Measure, 0.7f, 0.7f)]
         [InlineData("Counter", ObjectiveRole.Measure, 0.4f, 0.4f)]

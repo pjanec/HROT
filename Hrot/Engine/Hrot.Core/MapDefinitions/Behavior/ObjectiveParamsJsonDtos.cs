@@ -218,6 +218,22 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("overrides")] public Dictionary<string, string>? Overrides;
     }
 
+    /// <summary>⭐ rules S4 ① (§00.11) — <c>SelectionMean</c>: the weighted mean (the ONE <c>WeightedMeanBehavior.Aggregate</c>) of a SELECTION of the statuses under the
+    /// <see cref="Scope"/> (a <c>MemberEvaluation</c>), not of its parent-linked children: <c>by: "role"</c> = the member roots whose subject's role key is <see cref="Key"/>;
+    /// <c>by: "standard"</c> = every standard titled <see cref="Key"/> in the members' subtrees (a nested evaluation's men excluded). Pass mark: <c>common.pass</c>, else 0.6.</summary>
+    [ParamsDto]
+    public struct SelectionMeanParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.SelectionMean;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        /// <summary><c>role</c> or <c>standard</c>.</summary>
+        [JsonPropertyName("by")] public string By;
+        /// <summary>The role key (a <c>TacticalDesignation</c> name, else the TKB class name) or the standard's title.</summary>
+        [JsonPropertyName("key")] public string Key;
+        /// <summary>The <c>MemberEvaluation</c> whose members are selected from.</summary>
+        [JsonPropertyName("scope")] public EntityLink Scope;
+    }
+
     /// <summary><c>AllMustPass</c>: a composite achieved when every child is.</summary>
     [ParamsDto]
     public struct AllMustPassParamsJsonDto

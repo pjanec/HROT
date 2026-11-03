@@ -239,7 +239,7 @@ namespace Hrot.SimHost.Tests
             var platoon = w.Squad(ForceId.Friend, leader, Soldier(w, new Vector3(7, 7, 0)));
             Evaluation(w, platoon);
             w.Run(3);
-            Assert.Equal(new[] { EvalFolder + "Default", EvalFolder + "SquadLeader" }, w.Created.Select(MacroOf).OrderBy(m => m, StringComparer.Ordinal).ToArray());
+            Assert.Equal(new[] { EvalFolder + "Default", EvalFolder + "SquadLeader" }, w.Created.Select(MacroOf).Where(m => m != MeanMacro).OrderBy(m => m, StringComparer.Ordinal).ToArray());   // ⭐ S4 ①: …and the means (the file library ships that macro)
 
             // the macro's nested evaluation as the expander would have bound it: subject = the leader
             string bound = nested["Params"]!.GetValue<string>().Replace("^subject", GuidOf(w, leader).ToString("D"));
@@ -249,10 +249,214 @@ namespace Hrot.SimHost.Tests
             w.Repo.AddComponent(inner, new EntityGuid(Guid.NewGuid()));
             int before = w.Created.Count;
             w.Run(3);
-            var served = w.Created.Skip(before).ToList();
+            var served = w.Created.Skip(before).Where(r => MacroOf(r) != MeanMacro).ToList();
             Assert.Equal(2, served.Count);
             Assert.All(served, r => Assert.Equal(EvalFolder + "Default", MacroOf(r)));
             Assert.Equal(men.Select(m => GuidOf(w, m).ToString("D")).OrderBy(g => g), served.Select(r => ArgsOf(r)["subject"]!.GetValue<string>()).OrderBy(g => g));
+        }
+
+        // ───────────── ⭐ rules S4 ① — SelectionMean: the role composites and the squad's mean of a standard, by SELECTION (§00.11) ─────────────
+
+        private const string MeanMacro = Hrot.AI.Behaviors.Brains.Objectives.MemberEvaluationBehavior.MeanMacro;
+
+        private static Entity MemberRoot(ObjWorld w, Entity subject, Entity parent)
+            => w.Objective("WeightedMean", $"{{\"common\":{{\"title\":\"Member standards\",\"subject\":{w.Net(subject)},\"parent\":{w.Net(parent)}}}}}");
+
+        /// <summary>A standard: a ReachArea with one man inside (score 1) or outside (score 0).</summary>
+        private static Entity Standard(ObjWorld w, Entity parent, bool met, string title = "Reach", string group = "fire")
+        {
+            var squad = w.Squad(ForceId.Friend, w.Man(met ? Inside : Outside, ForceId.Friend));
+            return w.Objective("ReachArea", $"{{\"common\":{{\"title\":\"{title}\",\"group\":\"{group}\",\"subject\":{w.Net(squad)},\"parent\":{w.Net(parent)}}},\"area\":{Circle0},\"minMen\":1}}");
+        }
+
+        /// <summary>The rail plays the creating node for the evaluation's MEAN requests: each new request for <see cref="MeanMacro"/> becomes the SelectionMean it would expand to
+        /// (the shipped macro's params, ids bound). Returns every mean spawned so far, by <c>role:&lt;key&gt;</c> / <c>standard:&lt;key&gt;</c>.</summary>
+        private static Dictionary<string, Entity> SpawnMeans(ObjWorld w, Entity eval, Dictionary<string, Entity> spawned)
+        {
+            foreach (var r in w.Created.Where(r => MacroOf(r) == MeanMacro))
+            {
+                var a = ArgsOf(r);
+                string id = a["by"]!.GetValue<string>() + ":" + a["key"]!.GetValue<string>();
+                if (a["scope"]!.GetValue<string>() != GuidOf(w, eval).ToString("D") || spawned.ContainsKey(id)) continue;
+                spawned[id] = w.Objective("SelectionMean",
+                    $"{{\"common\":{{\"title\":\"{a["title"]!.GetValue<string>()}\",\"parent\":{w.Net(eval)},\"group\":\"{a["group"]!.GetValue<string>()}\",\"scored\":false}},\"by\":\"{a["by"]!.GetValue<string>()}\",\"key\":\"{a["key"]!.GetValue<string>()}\",\"scope\":{w.Net(eval)}}}");
+            }
+            return spawned;
+        }
+
+        private sealed record Platoon(Entity Eval, Entity Sl1, Entity Sl2, Entity Mg, Entity Root1, Entity Root2, Entity RootMg, Entity Commander);
+
+        /// <summary>A platoon (roster: two squad leaders + a machine gunner), the evaluation over it, and the roots its macros would have made (the rail plays the creating node):
+        /// each root holds a "Reach" standard (SL1 met, SL2 not, MG met); SL1's root also holds a NESTED evaluation over his squad, whose two men's "Reach" are both unmet.</summary>
+        private static Platoon BuildPlatoon(ObjWorld w)
+        {
+            var sl1 = Soldier(w, new Vector3(1, 1, 0), TacticalDesignation.SquadLeader); var sl2 = Soldier(w, new Vector3(2, 2, 0), TacticalDesignation.SquadLeader);
+            var mg = Soldier(w, new Vector3(3, 3, 0), TacticalDesignation.MachineGunner);
+            var cmd = w.Squad(ForceId.Friend, sl1, sl2, mg);
+            var eval = Evaluation(w, cmd);
+            var r1 = MemberRoot(w, sl1, eval); var r2 = MemberRoot(w, sl2, eval); var rm = MemberRoot(w, mg, eval);
+            Standard(w, r1, true); Standard(w, r2, false); Standard(w, rm, true);
+            var nested = w.Objective("MemberEvaluation", $"{{\"common\":{{\"title\":\"Squad's men\",\"subject\":{w.Net(sl1)},\"parent\":{w.Net(r1)},\"scored\":false}},\"library\":\"{EvalLibrary}\"}}");
+            var squadMen = new[] { Soldier(w, new Vector3(5, 5, 0), TacticalDesignation.AutomaticRifleman), Soldier(w, new Vector3(6, 6, 0), TacticalDesignation.AutomaticRifleman) };
+            foreach (var m in squadMen) Standard(w, MemberRoot(w, m, nested), false);
+            return new Platoon(eval, sl1, sl2, mg, r1, r2, rm, cmd);
+        }
+
+        /// <summary>⭐ S4 ① — a platoon with two squads: ONE role mean per role of the evaluation's men (inserted through the ONE <c>MacroInsertion</c> request, args by / key / scope / parent / title /
+        /// group, asked ONCE), each with the right member count and the right mean — "All SquadLeader" = (1 + 0) / 2 over the two leaders' roots, "All MachineGunner" = the gunner's. Group of a role mean:
+        /// <c>roles</c>. 🔴 Red-proof: the role predicate counting a non-member (every root of the scope) ⇒ the SquadLeader count / mean reds.</summary>
+        [Fact]
+        public void SelectionMean_OneRoleMeanPerRole_WithTheRightMembersAndMean()
+        {
+            var w = EvalWorld(Lib("Default", "evaluation/selection-mean"));
+            var p = BuildPlatoon(w);
+            w.Run(3);
+            var means = SpawnMeans(w, p.Eval, new());
+            int asked = w.Created.Count(r => MacroOf(r) == MeanMacro);
+            w.Run(4);
+            Assert.Equal(asked, w.Created.Count(r => MacroOf(r) == MeanMacro));   // asked ONCE
+            Assert.Contains("role:SquadLeader", means.Keys); Assert.Contains("role:MachineGunner", means.Keys);
+            Assert.Equal(2, means.Keys.Count(k => k.StartsWith("role:")));        // two roles of the evaluation's own men — not the nested squad's
+            var sl = w.S(means["role:SquadLeader"]); var mg = w.S(means["role:MachineGunner"]);
+            Assert.Equal("All SquadLeader", sl.Title.ToString());
+            Assert.Equal("roles", sl.Group.ToString());
+            Assert.Equal(("SelectionMean", 2, 0.5f), (sl.Kind.ToString(), sl.ProgressNeed, sl.Score));
+            Assert.Equal((1, 1f), (mg.ProgressNeed, mg.Score));
+            Assert.Equal(0.6f, sl.Pass);   // the one pass mark: PassOf adds the kind
+            var r = w.Created.Single(r => MacroOf(r) == MeanMacro && ArgsOf(r)["key"]!.GetValue<string>() == "SquadLeader");
+            Assert.True(r.IsTransient);
+            Assert.Equal(GuidOf(w, p.Eval).ToString("D"), ArgsOf(r)["parent"]!.GetValue<string>());
+        }
+
+        /// <summary>⭐ S4 ① — it follows the chain LIVE: a reinforcement of an existing role joins that role's mean (count + 1, NO new composite, no new request); a man of a NEW role gets a
+        /// new composite. A casualty's root stays in his role's mean after he is gone. 🔴 Red-proof: the served-means set not kept (re-asking every tick) or the role key not looked up for a late man.</summary>
+        [Fact]
+        public void SelectionMean_AReinforcementJoinsItsRole_ANewRoleGetsAComposite_ACasualtyStays()
+        {
+            var w = EvalWorld(Lib("Default", "evaluation/selection-mean"));
+            var p = BuildPlatoon(w);
+            w.Run(3);
+            var means = SpawnMeans(w, p.Eval, new());
+            w.Run(2);
+            int asked = w.Created.Count(r => MacroOf(r) == MeanMacro);
+            Assert.Equal(2, w.S(means["role:SquadLeader"]).ProgressNeed);
+
+            var late = Soldier(w, new Vector3(9, 9, 0), TacticalDesignation.SquadLeader);
+            ref var roster = ref w.Repo.GetComponentRW<UnitRoster>(p.Commander);
+            UnitRoster.Add(ref roster, late);
+            Standard(w, MemberRoot(w, late, p.Eval), true);   // the instance his macro would make
+            w.Run(3);
+            Assert.Equal(asked, w.Created.Count(r => MacroOf(r) == MeanMacro));   // no new composite for an existing role
+            Assert.Equal(3, w.S(means["role:SquadLeader"]).ProgressNeed);
+            Assert.InRange(w.S(means["role:SquadLeader"]).Score, 0.66f, 0.67f);   // (1 + 0 + 1) / 3
+
+            var medic = Soldier(w, new Vector3(8, 8, 0), TacticalDesignation.Medic);
+            UnitRoster.Add(ref roster, medic);
+            Standard(w, MemberRoot(w, medic, p.Eval), true);
+            w.Run(3);
+            SpawnMeans(w, p.Eval, means);
+            Assert.Contains("role:Medic", means.Keys);
+            Assert.Equal(asked + 1, w.Created.Count(r => MacroOf(r) == MeanMacro));
+            w.Run(3);
+            Assert.Equal(1, w.S(means["role:Medic"]).ProgressNeed);
+
+            w.Repo.DestroyEntity(p.Sl2);                                          // a casualty: his subject is gone, his root stays
+            w.Run(4);
+            Assert.Equal(3, w.S(means["role:SquadLeader"]).ProgressNeed);
+        }
+
+        /// <summary>⭐ S4 ① — a STANDARD mean is the mean of that standard across the men under the evaluation (here "Reach": 1, 0, 1 ⇒ 2/3, three men) and EXCLUDES a nested squad's men (their two unmet
+        /// "Reach" would make it 2/5); its group is the standard's own. 🔴 Red-proof: <c>IsStandard</c> not stopping at a nested <c>MemberEvaluation</c> ⇒ 5 members, 0.4.</summary>
+        [Fact]
+        public void SelectionMean_TheStandardMean_IsTheMeanAcrossTheMen_AndExcludesANestedSquad()
+        {
+            var w = EvalWorld(Lib("Default", "evaluation/selection-mean"));
+            var p = BuildPlatoon(w);
+            w.Run(3);
+            var means = SpawnMeans(w, p.Eval, new());
+            w.Run(4);
+            var reach = w.S(means["standard:Reach"]);
+            Assert.Equal("Reach (mean)", reach.Title.ToString());
+            Assert.Equal("fire", reach.Group.ToString());
+            Assert.Equal(3, reach.ProgressNeed);
+            Assert.InRange(reach.Score, 0.66f, 0.67f);
+            Assert.Single(means.Keys.Where(k => k.StartsWith("standard:")));      // one per distinct title (the composites' own titles are not standards)
+        }
+
+        /// <summary>⭐ S4 ⑤ — a STANDARD mean carries the standards' own Value and Target as means (the debrief's "squad's mean of the same measure" beside the man's Value / Target): three men's "Pool"
+        /// counters 10 / 20 / 30 (target 40) ⇒ "Pool (mean)" Value 20, Target 40; a ROLE mean keeps its Value = its Score. 🔴 Red-proof: <c>RawMeans</c> not applied ⇒ Value = the score, not 20.</summary>
+        [Fact]
+        public void SelectionMean_AStandardMean_CarriesTheMeanValueAndTarget()
+        {
+            var w = EvalWorld(Lib("Default", "evaluation/selection-mean"));
+            var sls = new[] { 10, 20, 30 }.Select(_ => Soldier(w, new Vector3(1, 1, 0), TacticalDesignation.SquadLeader)).ToArray();
+            var eval = Evaluation(w, w.Squad(ForceId.Friend, sls));
+            int start = 10;
+            foreach (var m in sls)
+            {
+                var root = MemberRoot(w, m, eval);
+                w.Objective("Counter", $"{{\"common\":{{\"title\":\"Pool\",\"parent\":{w.Net(root)}}},\"start\":{start}}}");
+                start += 10;
+            }
+            w.Run(3);
+            var means = SpawnMeans(w, eval, new());
+            w.Run(4);
+            var pool = w.S(means["standard:Pool"]);
+            Assert.Equal(3, pool.ProgressNeed);
+            Assert.Equal(20f, pool.Value, 3);
+            Assert.NotEqual(pool.Score, pool.Value);
+            Assert.Equal(w.S(means["role:SquadLeader"]).Score, w.S(means["role:SquadLeader"]).Value);
+        }
+
+        /// <summary>⭐ S4 ① — the means are <c>scored:false</c>: the evaluation's own Score, State and weight are what its member roots alone make them (here (1 + 0 + 1) / 3), with the means present or
+        /// not. 🔴 Red-proof: the macro's <c>scored</c> dropped (a mean counts as a child with weight 1) ⇒ the score moves.</summary>
+        [Fact]
+        public void SelectionMean_DoesNotMoveTheEvaluationsOwnScore_ScoredFalse()
+        {
+            var w = EvalWorld(Lib("Default", "evaluation/selection-mean"));
+            var p = BuildPlatoon(w);
+            w.Run(4);
+            float before = w.S(p.Eval).Score;
+            Assert.InRange(before, 0.66f, 0.67f);
+            var means = SpawnMeans(w, p.Eval, new());
+            w.Run(4);
+            Assert.Equal(3, means.Count);
+            Assert.All(means.Values, m => Assert.Equal(0, w.S(m).Scored));
+            Assert.Equal(before, w.S(p.Eval).Score);
+        }
+
+        /// <summary>⭐ S4 ① — a library WITHOUT the mean macro gets no means (and no error): the evaluation behaves as before.</summary>
+        [Fact]
+        public void SelectionMean_ALibraryWithoutTheMacro_InsertsNone()
+        {
+            var w = EvalWorld(Lib("Default"));
+            BuildPlatoon(w);
+            w.Run(4);
+            Assert.DoesNotContain(w.Created, r => MacroOf(r) == MeanMacro);
+        }
+
+        /// <summary>⭐ S4 ① — the params are checked at assignment: <c>by</c> must be role|standard and <c>key</c> given.</summary>
+        [Fact]
+        public void SelectionMean_RefusesBadParams()
+        {
+            Assert.NotEmpty(Hrot.AI.Behaviors.Brains.Objectives.SelectionMeanBehavior.Validate("{\"by\":\"squad\",\"key\":\"x\"}"));
+            Assert.NotEmpty(Hrot.AI.Behaviors.Brains.Objectives.SelectionMeanBehavior.Validate("{\"by\":\"role\"}"));
+            Assert.Empty(Hrot.AI.Behaviors.Brains.Objectives.SelectionMeanBehavior.Validate("{\"by\":\"role\",\"key\":\"Medic\"}"));
+        }
+
+        /// <summary>⭐ S4 ① — the SHIPPED macro <c>evaluation/selection-mean</c> is real: it expands from the file library, takes by / key / scope / parent / title / group, and holds ONE
+        /// <c>SelectionMean</c> with <c>scored:false</c> bound to the evaluation.</summary>
+        [Fact]
+        public void TheShippedSelectionMeanMacro_HoldsOneSelectionMean_ScoredFalse()
+        {
+            var files = FileMacroLibrary.ForNode(null);
+            Assert.True(files.TryRead(MeanMacro, out var json, out var why), why);
+            var ents = JsonNode.Parse(json)!["entities"]!.AsObject();
+            var b = Assert.Single(ents).Value!["Behavior"]!;
+            Assert.Equal("SelectionMean", b["Name"]!.GetValue<string>());
+            var pj = JsonNode.Parse(b["Params"]!.GetValue<string>())!;
+            Assert.Equal(("^by", "^key", "^scope", "^parent"), (pj["by"]!.GetValue<string>(), pj["key"]!.GetValue<string>(), pj["scope"]!.GetValue<string>(), pj["common"]!["parent"]!.GetValue<string>()));
+            Assert.False(pj["common"]!["scored"]!.GetValue<bool>());
         }
     }
 }

@@ -108,7 +108,7 @@ namespace Fdp.Toolkit.ScenarioRules
             s.Pass = PassOf(kind, role, c.Pass);
         }
 
-        /// <summary>The pass mark a weighted composite (<c>WeightedMean</c>, <c>MemberEvaluation</c>) uses when none is authored.</summary>
+        /// <summary>The pass mark a weighted composite (<c>WeightedMean</c>, <c>MemberEvaluation</c>, <c>SelectionMean</c>) uses when none is authored.</summary>
         public const float DefaultCompositePass = 0.6f;
 
         /// <summary>
@@ -119,7 +119,7 @@ namespace Fdp.Toolkit.ScenarioRules
         public static float PassOf(string kind, ObjectiveRole role, float authored)
         {
             if (authored > 0f) return Math.Min(authored, 1f);
-            if (kind is "WeightedMean" or "MemberEvaluation") return DefaultCompositePass;
+            if (kind is "WeightedMean" or "MemberEvaluation" or "SelectionMean") return DefaultCompositePass;
             if (kind == "Counter") return 0f;
             return 1f;
         }

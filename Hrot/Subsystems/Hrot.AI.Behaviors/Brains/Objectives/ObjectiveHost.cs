@@ -118,10 +118,10 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         }
 
         /// <summary>⭐ SR-116 — a composite's close: once the exercise is closing and EVERY child is closed (its own verdict settled first), it is closed too.</summary>
-        public static void CloseComposite(EntityRepository world, Entity self, ref ObjectiveStatus s, double now)
+        public static void CloseComposite(EntityRepository world, Entity self, ref ObjectiveStatus s, double now, Func<Entity, bool>? member = null)
         {
             if (s.Closed != 0 || ExerciseResult.PhaseOf(world) == ExercisePhase.Running) return;
-            var t = ObjectiveChildren.Of(world, self);
+            var t = ObjectiveChildren.Of(world, self, member);
             if (t.Closed < t.Count) return;
             ObjectiveRules.OnClose(ref s, CloseRule.Ordinary, now);
         }

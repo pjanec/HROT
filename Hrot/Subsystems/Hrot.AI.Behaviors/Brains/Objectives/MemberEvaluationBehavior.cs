@@ -47,7 +47,14 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             public Ids16 Served; public int ServedCount;
             /// <summary>How many members no macro covered (each is asked about once): the status says so.</summary>
             public int Unmatched;
+            /// <summary>⭐ S4 ① — the means already inserted: role keys and standard titles (FNV-1a hashes, ≤ <see cref="MeansCap"/> of each; a full set inserts no more and says so).</summary>
+            public Ids16 RoleMeans, StandardMeans; public int RoleMeanCount, StandardMeanCount;
         }
+
+        /// <summary>The cap of role means, and of standard means, one evaluation keeps.</summary>
+        public const int MeansCap = 16;
+        /// <summary>The shipped macro (<c>macros/evaluation/selection-mean</c>) that is one <see cref="SelectionMeanBehavior"/>.</summary>
+        public const string MeanMacro = "evaluation/selection-mean";
 
         [StructLayout(LayoutKind.Sequential)]
         public struct MemberEvaluationBlackboard { public Block Block; }
@@ -94,11 +101,13 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         public static NodeStatus Tick(ref Block b, Entity self, EntityRepository world)
         {
             var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Objective, in b.Common, ref b.Run, ObjectiveHost.CloseMode.Composite);
-            if (f.Reset) { b.Served = default; b.ServedCount = 0; b.Unmatched = 0; }   // SR-114: a reset clears the working state
+            if (f.Reset) { b.Served = default; b.ServedCount = 0; b.Unmatched = 0; b.RoleMeans = default; b.StandardMeans = default; b.RoleMeanCount = 0; b.StandardMeanCount = 0; }   // SR-114: a reset clears the working state
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
             if (ObjectiveChildren.Evaluates(in s))
             {
                 string note = Serve(ref b, self, world);
+                string meansNote = ServeMeans(ref b, self, world);
+                if (note.Length == 0) note = meansNote;
                 if (note.Length == 0 && b.Unmatched > 0) note = $"{b.Unmatched} member(s) without a macro";
                 WeightedMeanBehavior.Aggregate(world, self, ref s, s.Pass, f.Now, Kind, note);
             }
@@ -141,6 +150,78 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 Mark(ref b, world, roster, nid);
             }
             return refused ?? "";
+        }
+
+        /// <summary>
+        /// ⭐ rules S4 ① — keeps the SELECTION means: ONE <c>SelectionMean{by: role}</c> titled <c>All &lt;role&gt;</c> per role key of its men, and ONE <c>SelectionMean{by: standard}</c> titled
+        /// <c>&lt;title&gt; (mean)</c> per distinct standard title under their roots, each inserted through <see cref="MacroInsertion"/> (the shipped <see cref="MeanMacro"/>) with Parent =
+        /// this evaluation and <c>scored: false</c> (the macro's) so the evaluation's own score is unchanged. A library without the macro gets none (nothing to say). Returns a note when capped.
+        /// </summary>
+        private static string ServeMeans(ref Block b, Entity self, EntityRepository world)
+        {
+            if (!world.HasSingletonManaged<IMacroLibrary>() || !world.IsComponentTypeRegistered<EntityGuid>() || !world.HasComponent<EntityGuid>(self)) return "";
+            var subject = b.Common.Subject.Resolve(world);
+            if (subject.IsNull || !world.IsAlive(subject) || !world.HasComponent<UnitRoster>(subject)) return "";
+            var macros = world.GetSingletonManaged<IMacroLibrary>();
+            if (macros is null || !macros.TryRead(MeanMacro, out _, out _)) return "";
+            string guid = world.GetComponentRO<EntityGuid>(self).Value.ToString("D");
+            bool capped = false;
+
+            var roster = world.GetComponentRO<UnitRoster>(subject);
+            for (int i = 0; i < roster.Count; i++)
+            {
+                var member = roster.SubordinateEntities[i];
+                if (member.IsNull || !world.IsAlive(member) || EntityRef.Of(world, member).NetworkId == 0) continue;
+                string role = RoleKey(world, member);
+                if (role.Length == 0) continue;
+                if (!InsertMean(world, self, guid, "role", role, "All " + role, "roles", ref b.RoleMeans, ref b.RoleMeanCount, ref capped)) return "";
+            }
+            foreach (var e in world.Query().With<ObjectiveLinks>().With<ObjectiveStatus>().Build())
+            {
+                if (!SelectionMeanBehavior.IsStandard(world, e, self)) continue;
+                ref readonly var st = ref world.GetComponentRO<ObjectiveStatus>(e);
+                string title = st.Title.ToString();
+                if (title.Length == 0 || title.Length > 55) continue;
+                if (!InsertMean(world, self, guid, "standard", title, title + " (mean)", st.Group.ToString(), ref b.StandardMeans, ref b.StandardMeanCount, ref capped)) return "";
+            }
+            return capped ? $"means capped at {MeansCap} roles / {MeansCap} standards" : "";
+        }
+
+        /// <summary>One mean, once: false = the request was refused (asked again next tick).</summary>
+        private static bool InsertMean(EntityRepository world, Entity self, string evaluationGuid, string by, string key, string title, string group,
+            ref Ids16 set, ref int count, ref bool capped)
+        {
+            long h = Hash(by + ":" + key);
+            for (int i = 0; i < count; i++) if (set[i] == h) return true;
+            if (count >= MeansCap) { capped = true; return true; }
+            var args = new JsonObject
+            {
+                ["by"] = by, ["key"] = key, ["scope"] = evaluationGuid, ["parent"] = evaluationGuid,
+                ["title"] = title.Length > 63 ? title.Substring(0, 63) : title, ["group"] = group,
+            };
+            string? why = MacroInsertion.Request(world, self, MeanMacro, default, default, args.ToJsonString(), out _, salt: "mean:" + by + ":" + key);
+            if (why != null) return false;
+            set[count++] = h;
+            return true;
+        }
+
+        /// <summary>FNV-1a 64 over the UTF-16 chars — stable across runs, so a recorded set means the same after a replay.</summary>
+        private static long Hash(string text)
+        {
+            ulong h = 14695981039346656037UL;
+            foreach (char c in text) { h ^= c; h *= 1099511628211UL; }
+            return (long)h;
+        }
+
+        /// <summary>
+        /// ⭐ rules S4 ① — a man's ROLE KEY, the ONE function: the <c>UnitSubordinate.Designation</c> when he has one, else the name of his TKB template (his class); "" = neither.
+        /// <c>SelectionMean{by: role}</c> selects by it and this evaluation names its role means by it.
+        /// </summary>
+        internal static string RoleKey(EntityRepository world, Entity member)
+        {
+            if (world.IsComponentTypeRegistered<UnitSubordinate>() && world.HasComponent<UnitSubordinate>(member)
+                && world.GetComponentRO<UnitSubordinate>(member).Designation is var d && d != TacticalDesignation.Undefined) return d.ToString();
+            return ClassOf(world, member) ?? "";
         }
 
         private static bool IsServed(in Block b, int nid)

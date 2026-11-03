@@ -69,6 +69,24 @@ public sealed class TheObjectivesRouteShowsTheTreeTests : IDisposable
         Assert.Equal("Hold", (string)nested["objectives"]![0]!["children"]![0]!["title"]!);
     }
 
+    /// <summary>⭐ rules S4 ① — the role / standard means an evaluation inserted are plain rows: children of the evaluation (Parent = it), kind <c>SelectionMean</c>, group <c>roles</c> for a role mean, the pass mark 0.6.
+    /// (A pin: the route is kind-agnostic, so the means need no code of its own — not red-proved.)</summary>
+    [Fact]
+    public void TheSelectionMeans_AreChildrenOfTheEvaluation_WithTheirKindGroupAndPass()
+    {
+        Add(50, "Evaluation", "MemberEvaluation", ObjectiveState.Active, pass: 0.6f);
+        Add(51, "Member standards", "WeightedMean", ObjectiveState.Active, parent: 50, score: 0.5f, pass: 0.6f);
+        Add(52, "All SquadLeader", "SelectionMean", ObjectiveState.Active, parent: 50, score: 0.5f, pass: 0.6f);
+        _world.GetComponentRW<ObjectiveStatus>(_map.TryGetEntity(52, out var m) ? m : default).Group = new FixedString32("roles");
+
+        var tree = _svc.GetObjectives(tree: true)["objectives"]!.AsArray();
+        var root = Assert.Single(tree)!;
+        var kids = root["children"]!.AsArray();
+        Assert.Equal(new[] { "All SquadLeader", "Member standards" }, kids.Select(k => (string)k!["title"]!));
+        var mean = kids[0]!;
+        Assert.Equal(("SelectionMean", "roles", 0.6f, 50), ((string)mean["kind"]!, (string)mean["group"]!, (float)mean["pass"]!, (int)mean["parent"]!));
+    }
+
     [Fact]
     public void AnObjectiveWhoseParentIsNotHere_IsARoot_AndANodeWithoutTheComponentAnswersEmpty()
     {

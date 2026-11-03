@@ -1,0 +1,62 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "Kind": "macro",
+  "description": "What: rules S4 S1 (SR-111) - one SelectionMean composite: the weighted mean of a SELECTION of the statuses under a MemberEvaluation (by role = every man's root of one role; by standard = one standard across the men), not of its children. Judge: MemberEvaluation inserts it (through MacroInsertion) once per role key and once per standard title, parented to itself, scored false so the evaluation's own score is unchanged.",
+  "Anchor": {
+   "Position": [
+    0,
+    0,
+    0
+   ],
+   "Heading": 0
+  },
+  "Params": [
+   {
+    "Name": "by",
+    "TypeId": "string"
+   },
+   {
+    "Name": "key",
+    "TypeId": "string"
+   },
+   {
+    "Name": "scope",
+    "TypeId": "EntityLink"
+   },
+   {
+    "Name": "parent",
+    "TypeId": "EntityLink"
+   },
+   {
+    "Name": "title",
+    "TypeId": "string"
+   },
+   {
+    "Name": "group",
+    "TypeId": "string"
+   }
+  ]
+ },
+ "entities": {
+  "e7a10000-0000-4000-8000-000000000301": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Selection mean",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "SelectionMean",
+    "Params": "{\"common\": {\"title\": \"^title\", \"parent\": \"^parent\", \"group\": \"^group\", \"scored\": false}, \"by\": \"^by\", \"key\": \"^key\", \"scope\": \"^scope\"}",
+    "Origin": "Superior"
+   }
+  }
+ }
+}
