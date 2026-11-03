@@ -59,6 +59,21 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             return t;
         }
 
+        /// <summary>⭐ rules S7 P-2 — the points of a composite's children: Σ over the SCORED children of <c>Value × points</c> (<c>points</c> 0 = 1, as <c>weight</c>). The ONE sum <c>Points</c> and <c>MemberEvaluation</c> (aggregate points) share.</summary>
+        public static float PointsOf(EntityRepository world, Entity self, out int count)
+        {
+            double sum = 0; count = 0;
+            foreach (var e in world.Query().With<ObjectiveLinks>().With<ObjectiveStatus>().Build())
+            {
+                if (e == self || world.GetComponentRO<ObjectiveLinks>(e).Parent.Resolve(world) != self) continue;
+                ref readonly var c = ref world.GetComponentRO<ObjectiveStatus>(e);
+                if (c.Scored == 0) continue;
+                sum += c.Value * (c.Points == 0f ? 1f : c.Points);
+                count++;
+            }
+            return (float)sum;
+        }
+
         /// <summary>SR-115: a composite stays Pending until a child is active (or done).</summary>
         public static bool Evaluates(in ObjectiveStatus s) => s.Closed == 0 && (s.State == ObjectiveState.Active || s.State == ObjectiveState.Pending);
     }

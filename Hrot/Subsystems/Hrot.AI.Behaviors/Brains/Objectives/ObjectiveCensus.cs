@@ -20,9 +20,10 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             => !e.IsNull && world.IsAlive(e) && world.IsComponentTypeRegistered<EntityInfo>() && world.HasComponent<EntityInfo>(e)
                 ? world.GetComponentRO<EntityInfo>(e).ForceId : ForceId.Neutral;
 
-        /// <summary>A body in the fight: alive, not down, positioned. A body-less unit is not one.</summary>
+        /// <summary>A body in the fight: alive, not down, positioned. A body-less unit is not one; neither is an objective (a status-keeping entity that happens to carry a side and a position — S7 P-5 serves every "man of a side").</summary>
         public static bool IsMan(EntityRepository world, Entity e)
-            => !e.IsNull && world.IsAlive(e) && !CombatEffective.IsUnit(world, e) && world.HasComponent<SimTransform>(e) && Injury.IsInTheFight(world, e);
+            => !e.IsNull && world.IsAlive(e) && !CombatEffective.IsUnit(world, e) && world.HasComponent<SimTransform>(e) && Injury.IsInTheFight(world, e)
+               && !(world.IsComponentTypeRegistered<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>() && world.HasComponent<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>(e));
 
         /// <summary>Adds the subject's men to <paramref name="into"/> (the subject itself when it is a body, else its roster, recursively).</summary>
         public static void MenOf(EntityRepository world, Entity subject, List<Entity> into) => MenOf(world, subject, into, 0);
@@ -82,8 +83,9 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             return n;
         }
 
-        /// <summary>⭐ S6 G-1 — how many bodies of <paramref name="side"/> (EVERY man of the side, whoever his unit — a respawned bot is in no roster) stand inside <paramref name="area"/>, in the fight.</summary>
-        public static int MenOfSideInside(EntityRepository world, ForceId side, in AreaLink area)
+        /// <summary>⭐ S6 G-1 — how many bodies of <paramref name="side"/> (EVERY man of the side, whoever his unit — a respawned bot is in no roster) stand inside <paramref name="area"/>, in the fight.
+        /// ⭐ S7 P-4: with <paramref name="into"/>, the men are also added to it (the ONE test — the capture event names the same men the census counted).</summary>
+        public static int MenOfSideInside(EntityRepository world, ForceId side, in AreaLink area, List<Entity>? into = null)
         {
             if (side == ForceId.Neutral) return 0;
             int n = 0;
@@ -91,9 +93,18 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             {
                 if (world.GetComponentRO<EntityInfo>(e).ForceId != side) continue;
                 if (!IsMan(world, e) || !area.Contains(world, world.GetComponentRO<SimTransform>(e).Position)) continue;
+                into?.Add(e);
                 n++;
             }
             return n;
+        }
+
+        /// <summary>⭐ S7 P-5 — every living man of <paramref name="side"/>, whoever his unit (a respawned bot is in no roster): added to <paramref name="into"/>.</summary>
+        public static void MenOfSide(EntityRepository world, ForceId side, List<Entity> into)
+        {
+            if (side == ForceId.Neutral) return;
+            foreach (var e in world.Query().With<EntityInfo>().With<SimTransform>().Build())
+                if (world.GetComponentRO<EntityInfo>(e).ForceId == side && IsMan(world, e)) into.Add(e);
         }
 
         /// <summary>⭐ S6 G-2 — how many bodies of <paramref name="side"/> exist but are OUT of the fight (down or dead, still an entity): not a unit, positioned, alive as an entity, not in the fight.</summary>

@@ -52,7 +52,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             {
                 if (b.Capture != 0 && b.CaptureSeconds > 0f)   // ⭐ S6 G-1: the point is taken BY SIDE, not by the subject's roster
                 {
-                    CaptureBySide(ref b, ref s, world, f.Dt, f.Now);
+                    CaptureBySide(ref b, ref s, world, self, f.Dt, f.Now);
                     ObjectiveRules.WriteScore(ref s);
                     return NodeStatus.Running;
                 }
@@ -99,7 +99,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         /// side) and at least <c>minMen</c>. The owner is lost AT ONCE (→ Neutral) when the other side outnumbers it; a leader that is not the owner accumulates
         /// <c>AdvantageFor</c> (reset when the leader changes or there is none) and becomes the Owner at <c>captureSeconds</c>. The state stays Active.
         /// </summary>
-        private static void CaptureBySide(ref Block b, ref ObjectiveStatus s, EntityRepository world, double dt, double now)
+        private static void CaptureBySide(ref Block b, ref ObjectiveStatus s, EntityRepository world, Entity self, double dt, double now)
         {
             int f = ObjectiveCensus.MenOfSideInside(world, ForceId.Friend, in b.Area), h = ObjectiveCensus.MenOfSideInside(world, ForceId.Hostile, in b.Area);
             var leader = f > h && f >= b.MinMen ? ForceId.Friend : h > f && h >= b.MinMen ? ForceId.Hostile : ForceId.Neutral;
@@ -116,9 +116,24 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             }
             int cur = (int)b.AdvantageFor, need = (int)b.CaptureSeconds;
             bool dirty = owner != s.Owner || f != b.LastMen || h != b.LastEnemy || cur != s.ProgressCur || need != s.ProgressNeed;
+            if (owner != s.Owner && owner != ForceId.Neutral) PublishCaptured(world, self, owner, in b.Area);   // ⭐ S7 P-4: the moment, once
             s.Owner = owner; b.LastMen = f; b.LastEnemy = h; s.ProgressCur = cur; s.ProgressNeed = need;
             if (dirty || s.Reason.Length == 0)
                 ObjectiveHost.Settle(ref s, Kind, ObjectiveState.Active, $"F {f} / H {h} men, owner {owner}, {leader} {b.AdvantageFor:0}/{b.CaptureSeconds:0} s", now);
+        }
+
+        private static readonly System.Collections.Generic.List<Entity> s_inside = new();
+
+        /// <summary>⭐ S7 P-4 (§00.13) — the point changed hands to <paramref name="side"/>: raise <see cref="ObjectiveCapturedEvent"/> naming that side's men inside now (≤ 16; the census test, once).</summary>
+        private static void PublishCaptured(EntityRepository world, Entity self, ForceId side, in AreaLink area)
+        {
+            if (!world.Bus.IsRegistered<ObjectiveCapturedEvent>()) return;   // a node that registered no reader of it raises nothing
+            s_inside.Clear();
+            ObjectiveCensus.MenOfSideInside(world, side, in area, s_inside);
+            var e = new ObjectiveCapturedEvent { Point = self, Side = side };
+            for (int i = 0; i < s_inside.Count && i < 16; i++) e.Men[e.MenCount++] = s_inside[i];
+            s_inside.Clear();
+            world.Bus.Publish(e);
         }
 
         [Behavior(BehaviorNames.HoldArea, Params = typeof(HoldAreaParamsJsonDto), Categories = BehaviorCategory.Objective)]

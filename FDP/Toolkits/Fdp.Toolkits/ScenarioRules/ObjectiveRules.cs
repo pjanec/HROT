@@ -80,6 +80,9 @@ namespace Fdp.Toolkit.ScenarioRules
     /// <summary>A fixed set of 16 ids (the NoHarm victims).</summary>
     [InlineArray(16)] public struct Ids16 { private long _e; }
 
+    /// <summary>Sixteen entities (the victims a measure has credited and is waiting to see go down; the men an <see cref="ObjectiveCapturedEvent"/> names).</summary>
+    [InlineArray(16)] public struct Ents16 { private Entity _e; }
+
     /// <summary>A fixed set of 8 network ids (a target list).</summary>
     [InlineArray(8)] public struct NetIds8 { private int _e; }
 
