@@ -77,15 +77,19 @@ public sealed class RuleDetails
     private bool _liveValuesOn;
 
     /// <summary>The write of a live edit — <see cref="RuleCommands.Edit"/>, the ONE path the DebugApi's <c>/objectives/{id}/edit</c> also ends in. A seam only so a rail can see what was written without a write router in its world.</summary>
-    internal delegate Fdp.Toolkit.Replication.Patching.EntityWriteRoute LiveEditWriter(EntityRepository world, Entity entity, string paramsJson, int editOrigin, ref int lastSeq, out int seq);
+    internal delegate Fdp.Toolkit.Replication.Patching.EntityWriteRoute LiveEditWriter(EntityRepository world, Entity entity, string paramsJson, int editOrigin, ref int lastSeq, out int seq, out Guid requestId);
     internal LiveEditWriter LiveWriter { get; set; } = RuleCommands.Edit;
+    /// <summary>Wall clock for the "owner did not answer" wait (a seam for rails).</summary>
+    internal Func<DateTime> Now { get; set; } = () => DateTime.UtcNow;
+    /// <summary>⭐ CE-2380 part 2 — how long a live edit may stay without ANY outcome before the form says the owner did not answer.</summary>
+    public static readonly TimeSpan OwnerAnswerWait = TimeSpan.FromSeconds(5);
     private IReadOnlyList<LiveLeafRow> _strip = Array.Empty<LiveLeafRow>();
     private RuleDetailsProbe _probe = new("", Array.Empty<string>(), Array.Empty<string>(), false, null, false, null, Array.Empty<string>(), Array.Empty<string>());
 
     /// <summary>A live edit this editor sent: the sequence it used, the journal's length then (the owner's answer is the next entry), the JSON, whether the trigger was acting (the owner HOLDS the edit until its list ends), and the verdict once it came.</summary>
     private sealed class LiveEdit
     {
-        public int Seq, Mark; public string Json = ""; public bool WasActing; public string? Verdict; public bool Done;
+        public int Seq; public Guid RequestId; public DateTime SentAt; public string Json = ""; public bool WasActing; public string? Verdict; public bool Done;
     }
 
     public RuleDetails(RuleEditorServices services, Func<EntityRepository?> world, Func<string?> blocked, Action<int> selectEntity, Action<RuleRow, double> drawOverview)
@@ -220,20 +224,25 @@ public sealed class RuleDetails
 
     // ── RE-7 live: Apply = RuleCommands.Edit ─────────────────────────────────────────────────────────────────────────────
 
-    private int JournalMark(RuleRow row) => _svc.Journal(row.Entity).Count(j => IsEditEntry(j.Text));
-    private static bool IsEditEntry(string text) => text.StartsWith("edited by", StringComparison.Ordinal) || text.StartsWith("edit refused", StringComparison.Ordinal);
-
-    /// <summary>The owner's answer to the last live edit: the next journal entry (<i>edited by …</i> / <i>edit refused by …</i>), or — where no journal reaches this node — the params that landed / the status <c>Reason</c>.</summary>
+    /// <summary>
+    /// ⭐ CE-2380 part 2 (RE-7, one mechanism) — the owner's verdict on the last live edit, read each frame from the edit-outcome log by the request id the write returned: <i>Pending</i> (acting ⇒ held until the do list ends) ·
+    /// <i>Applied</i> · <i>Refused</i> with the WHOLE reason · no outcome at all for <see cref="OwnerAnswerWait"/> ⇒ the owner did not answer. Replaces the journal-watching / params-compare bookkeeping.
+    /// </summary>
     private void SettleLiveEdit(RuleRow row)
     {
         if (!_liveEdits.TryGetValue(row.NetworkId, out var le) || le.Done) return;
-        var entries = _svc.Journal(row.Entity).Where(j => IsEditEntry(j.Text)).ToList();
-        string reason = row.Status.Reason.ToString();
-        bool refused = entries.Count > le.Mark ? entries[^1].Text.StartsWith("edit refused", StringComparison.Ordinal) : reason.StartsWith("edit refused", StringComparison.Ordinal);
-        bool applied = entries.Count > le.Mark ? !refused : ParamsOf(row) is { } cur && cur.Json == le.Json;
-        if (refused) { le.Done = true; le.Verdict = "refused - " + (reason.StartsWith("edit refused", StringComparison.Ordinal) ? reason : "the owner did not accept the edit"); }
-        else if (applied) { le.Done = true; le.Verdict = "applied - the rule's state is kept, this run only"; }
-        else le.Verdict = le.WasActing ? "pending (acting) - held until the do list ends" : "sent - waiting for the owner";
+        var w = _world();
+        if (w != null && Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(w).TryGet(le.RequestId, out var o))
+        {
+            switch (o.Status)
+            {
+                case Fdp.Toolkit.Replication.Edits.EditStatus.Refused: le.Done = true; le.Verdict = "refused - " + o.Reason; return;
+                case Fdp.Toolkit.Replication.Edits.EditStatus.Applied: le.Done = true; le.Verdict = "applied - the rule's state is kept, this run only"; return;
+                default: le.Verdict = le.WasActing ? "pending (acting) - held until the do list ends" : "sent - the owner is judging it"; return;
+            }
+        }
+        le.Verdict = Now() - le.SentAt > OwnerAnswerWait ? "the owner did not answer" : "sent - waiting for the owner";
+        if (Now() - le.SentAt > OwnerAnswerWait) le.Done = true;
     }
 
     private string? LiveEditLine(RuleRow row) => _liveEdits.TryGetValue(row.NetworkId, out var le) ? le.Verdict : null;
@@ -244,10 +253,9 @@ public sealed class RuleDetails
         var w = _world();
         if (w == null || !w.IsAlive(row.Entity)) { Message = "the rule is gone"; return false; }
         bool acting = row.Status.Role == ObjectiveRole.Trigger && row.Status.State == ObjectiveState.Active && row.Status.TriggerState == TriggerState.Acting;
-        int mark = JournalMark(row);
-        var route = LiveWriter(w, row.Entity, json, (int)LiveOrigin, ref _editSeq, out int seq);
+        var route = LiveWriter(w, row.Entity, json, (int)LiveOrigin, ref _editSeq, out int seq, out var requestId);
         if (route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused) { Message = "nothing was written: this node has no way to ask the owner"; return false; }
-        _liveEdits[row.NetworkId] = new LiveEdit { Seq = seq, Mark = mark, Json = json, WasActing = acting };
+        _liveEdits[row.NetworkId] = new LiveEdit { Seq = seq, RequestId = requestId, SentAt = Now(), Json = json, WasActing = acting };
         SettleLiveEdit(row);
         Message = route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct ? "live edit sent" : "live edit requested of the owner";
         return true;

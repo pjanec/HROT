@@ -47,7 +47,7 @@ public static class PlayerHudLayer
         {
             var entries = RulesReader.Read(w, includeAuthored: false);
             if (training) t = TrainingHud.Build(entries, view, now, e => MissionSummaryModel.SideOfRule(w, e));
-            if (game) g = GameHud.Build(entries, view, now, w.HasComponent<SimTransform>(unit) ? new Vector2(w.GetComponentRO<SimTransform>(unit).Position.X, w.GetComponentRO<SimTransform>(unit).Position.Y) : null, e => MissionSummaryModel.SideOfRule(w, e), e => RulesModel.EndsExercise(w, e.Entity));
+            if (game) g = GameHud.Build(entries, view, now, w.HasComponent<SimTransform>(unit) ? new Vector2(w.GetComponentRO<SimTransform>(unit).Position.X, w.GetComponentRO<SimTransform>(unit).Position.Y) : null, e => MissionSummaryModel.SideOfRule(w, e));
             if (wantCoach) coaching = CoachingHint.Build(entries, view, e => LiveLeafOverlay.Read(w, e.Entity));
             if (wantPopups) popups = ScorePopups.In(w).Update(entries, view.UnitNetId, now);
             if (wantBoard) board = Scoreboard.Build(entries, view.UnitNetId, e => MissionSummaryModel.SideOfRule(w, e), net => RulesModel.NameOf(w, NetworkIdResolver.FindEntityByNetworkId(w, net), net));

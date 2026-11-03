@@ -496,6 +496,10 @@ Rails: `RuleEditorR5cTests` (A2 by kind · none / one / wrapped / camelCase-appe
 
 Rails: `RuleEditorR5cTests.AConnectsLinkAndANewRulesParent_AreWrittenInTheStableForm_TheEntitysGuid` (the `ref` and the `parent` carry the GUID; a copy each; a stale id with the right GUID is the same rule; no GUID ⇒ bare id) · `AuthoredRules_ResolveAGuidOnly_AKey_AndAStaleIdWithTheRightGuid_BeforeARun` (GUID-only, `@Key`, stale id + right GUID → the rule the GUID names; a bare id stays an id; an unknown key is none). Red-proof: `LinkOf` passing no scope (the bare id) ⇒ the first rail red; reverted.
 
+### 7.11 AS BUILT — Rules Runnable ⑤ *(ui, `2026-11-04`; CE-2380 part 2 — the live-edit verdict, replacing R5b's journal watching in §7.7)*
+
+⛔ SUPERSEDED in §7.7: *"the owner's answer = the next journal entry / the params that landed / the status `Reason`"*. ONE mechanism now: `RuleCommands.Edit(…, out seq, out requestId)` → each frame `EditOutcomeLog.Of(world).TryGet(requestId)` — *Pending* (acting ⇒ *held until the do list ends*) · *Applied* ⇒ *applied — the rule's state is kept* · *Refused* ⇒ the WHOLE `o.Reason` (the status `Reason` stays cut to 55 characters) · no outcome for `RuleDetails.OwnerAnswerWait` (5 s) ⇒ *the owner did not answer*. The RV-5 buttons (*Fire / Disarm / Re-arm / Reset*) read the same log (`RulesWindow.PollControl`, message line). Live: a `do` step edited to a bad shape shows *refused - edit refused: 'do' is invalid — step 1 ('Order'): a step gives either "params" or an ArgsRef, not both* under the Apply bar. ⚠ Deviation: the text sits under the Apply bar, not under the step / field it names (no field-path match is built; the reason names the step in words). Rails `RuleEditorR5bTests` (`LiveApply_Refused_ShowsTheWholeReason_AndNoAnswerSaysSo`, `AControlRequest_ShowsTheOwnersWholeRefusal`; red-proved).
+
 ### 7.10 AS BUILT — Rules Runnable ② ③ *(ui, `2026-11-03`, CE-4240 the instructor's End · CE-4241 what went to whom)*
 
 ```mermaid

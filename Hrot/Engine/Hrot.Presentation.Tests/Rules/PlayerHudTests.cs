@@ -213,29 +213,16 @@ public sealed class PlayerHudTests : IDisposable
     {
         Crossfire();
         Add(80, "Crate drop 1", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => s.ExpectedAt = 180);
-        Add(81, "Blue wins", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => s.ExpectedAt = 900);
-        Add(82, "Sudden death end", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => s.ExpectedAt = 720);
-        Add(83, "Instructor end", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => s.ExpectedAt = 1e9);
-        Add(84, "Done end", role: ObjectiveRole.Trigger, state: ObjectiveState.Achieved, edit: (ref ObjectiveStatus s) => s.ExpectedAt = 100);
-        var ids = new HashSet<int> { 81, 82, 83, 84 };
-        var g = GameHud.Build(Entries(), Me(1, ForceId.Friend), now: 60, endsRound: e => ids.Contains(e.NetworkId));
+        Add(81, "Blue wins", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => { s.ExpectedAt = 900; s.EndsExercise = 1; });
+        Add(82, "Sudden death end", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => { s.ExpectedAt = 720; s.EndsExercise = 1; });
+        Add(83, "Instructor end", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => { s.ExpectedAt = 1e9; s.EndsExercise = 1; });
+        Add(84, "Done end", role: ObjectiveRole.Trigger, state: ObjectiveState.Achieved, edit: (ref ObjectiveStatus s) => { s.ExpectedAt = 100; s.EndsExercise = 1; });
+        var g = GameHud.Build(Entries(), Me(1, ForceId.Friend), now: 60);
         Assert.True(g.ClockIsCountdown);
         Assert.Equal(RulesModel.Clock(660), g.Clock);                                     // 720 - 60: the soonest ender, not the crate drop (180), the placeholder (1e9) or the finished one
-        Assert.Equal("1:00", GameHud.Build(Entries(), Me(1, ForceId.Friend), now: 60).Clock);   // no ender readable ⇒ elapsed
-        Assert.False(GameHud.Build(Entries(), Me(1, ForceId.Friend), now: 60).ClockIsCountdown);
-    }
-
-    /// <summary>⭐ CE-4238 — <c>RulesModel.EndsExercise</c> reads the trigger's authored <c>do</c>: a bare or qualified <c>EndExercise</c> act ⇒ true; other acts, a missing record, bad JSON ⇒ false. ✅ Red-proof: the act match always true ⇒ red.</summary>
-    [Fact]
-    public void EndsExercise_ReadsTheDoList()
-    {
-        if (!_world.TryGetTable(typeof(Fdp.Toolkit.Behavior.Components.BehaviorStartRecord), out _)) _world.RegisterManagedComponent<Fdp.Toolkit.Behavior.Components.BehaviorStartRecord>();
-        Entity With(string json) { var e = _world.CreateEntity(); _world.SetManagedComponent(e, new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = "Trigger", JsonParams = json, InstanceId = 1 }); return e; }
-        Assert.True(RulesModel.EndsExercise(_world, With("""{"do":[{"act":"Message","args":{}},{"act":"EndExercise"}]}""")));
-        Assert.True(RulesModel.EndsExercise(_world, With("""{"do":[{"act":"Hrot.X.ScenarioVerbs.EndExercise"}]}""")));
-        Assert.False(RulesModel.EndsExercise(_world, With("""{"do":[{"act":"Message"}]}""")));
-        Assert.False(RulesModel.EndsExercise(_world, With("not json")));
-        Assert.False(RulesModel.EndsExercise(_world, _world.CreateEntity()));
+        var noEnder = Entries().Where(e => e.Status.EndsExercise == 0).ToList();
+        Assert.Equal("1:00", GameHud.Build(noEnder, Me(1, ForceId.Friend), now: 60).Clock);   // no ender ⇒ elapsed
+        Assert.False(GameHud.Build(noEnder, Me(1, ForceId.Friend), now: 60).ClockIsCountdown);
     }
 
     /// <summary>

@@ -131,13 +131,27 @@ public sealed class RulesWindow : ManagedWindow
     /// <summary>⭐ RV-7 — the Details panel's Objectives tab opens a rule here: the row is selected (its subject already is the Details' unit).</summary>
     public void SelectNetworkId(int networkId) { _selected = networkId; IsOpen = true; }
 
+    private (Guid Id, string Request)? _control;
+
+    /// <summary>⭐ CE-2380 part 2 — each frame: a refused <i>Fire / Disarm / Re-arm / Reset</i> says why, in the owner's WHOLE words (read from the edit-outcome log by the request id the write returned); an applied one clears.</summary>
+    internal void ExpectControl(Guid id, string request) => _control = (id, request);
+
+    internal void PollControl()
+    {
+        if (_control is not { } c || _world() is not { } w) return;
+        if (!Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(w).TryGet(c.Id, out var o) || o.Status == Fdp.Toolkit.Replication.Edits.EditStatus.Pending) return;
+        Message = o.Status == Fdp.Toolkit.Replication.Edits.EditStatus.Refused ? $"{c.Request}: refused - {o.Reason}" : $"{c.Request}: done";
+        _control = null;
+    }
+
     /// <summary>⭐ RV-5 — asks a rule for something through the shared <see cref="RuleCommands"/> write; refused where this host cannot ask (a recording).</summary>
     public void Ask(RuleRow row, RuleRequest request)
     {
         if (_blocked() is { } why) { Message = why; return; }
         var world = _world();
         if (world == null || !world.IsAlive(row.Entity)) { Message = "the rule is gone"; return; }
-        var route = RuleCommands.Control(world, row.Entity, request, RuleOrigin.Instructor, ref _ruleSeq, out _);
+        var route = RuleCommands.Control(world, row.Entity, request, RuleOrigin.Instructor, ref _ruleSeq, out _, out var requestId);
+        _control = (requestId, request.ToString());
         Message = route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused
             ? $"{request}: nothing was written — this node has no way to ask the owner"
             : $"{request}: {(route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct ? "done here" : "requested of the owner")}";
@@ -237,7 +251,7 @@ public sealed class RulesWindow : ManagedWindow
             tracks.Add(new RuleTrack(g.Name, g.Rows.Count, hooks));
             foreach (var r in g.Rows) tracks.Add(new RuleTrack(r, 1, r.NetworkId == _selected, hooks, now));
         }
-        WatchAdded();
+        WatchAdded(); PollControl();
         LinkTracks(tracks);
         _tracks = tracks;
         var sel = _selected is { } s ? _view.Find(s) : null;

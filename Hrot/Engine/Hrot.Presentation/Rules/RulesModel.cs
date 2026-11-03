@@ -309,25 +309,6 @@ public static class RulesModel
         return pins;
     }
 
-    /// <summary>⭐ CE-4238 — does this trigger's <c>do</c> hold an <c>EndExercise</c> step (read from the authored params the node holds; false when it holds none)? The round clock counts down to the soonest armed one.</summary>
-    public static bool EndsExercise(EntityRepository world, Entity entity)
-    {
-        if (!world.IsAlive(entity) || !world.TryGetTable(typeof(BehaviorStartRecord), out _) || !world.HasManagedComponent<BehaviorStartRecord>(entity)) return false;
-        if (((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetManagedComponentRO<BehaviorStartRecord>(entity) is not { } rec || string.IsNullOrWhiteSpace(rec.JsonParams)) return false;
-        try
-        {
-            using var doc = System.Text.Json.JsonDocument.Parse(rec.JsonParams);
-            if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object) return false;
-            foreach (var prop in doc.RootElement.EnumerateObject())
-                if (prop.Name.Equals("do", StringComparison.OrdinalIgnoreCase) && prop.Value.ValueKind == System.Text.Json.JsonValueKind.Array)
-                    foreach (var step in prop.Value.EnumerateArray())
-                        if (step.ValueKind == System.Text.Json.JsonValueKind.Object && step.TryGetProperty("act", out var act) && act.ValueKind == System.Text.Json.JsonValueKind.String
-                            && (act.GetString() ?? "") is var a && (a == "EndExercise" || a.EndsWith(".EndExercise", StringComparison.Ordinal))) return true;
-        }
-        catch (System.Text.Json.JsonException) { }
-        return false;
-    }
-
     /// <summary>⭐ CE-4240 — a clock leaf this far out (≥ 1e8 s ≈ 3 sim-years) is a PLACEHOLDER that never holds (the showcases' <i>Instructor end</i> trigger, fired by hand): it is not a moment, so it is no pin and never in <i>Coming up</i>.</summary>
     public const double NeverSeconds = 1e8;
 

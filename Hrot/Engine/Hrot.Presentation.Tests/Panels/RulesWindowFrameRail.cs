@@ -303,7 +303,7 @@ public sealed class RulesWindowFrameRail : IDisposable
             OpenPicker: () => (req, answer) => { asked = req; answer(new NodeEditor.UI.Picker.PickerResult(new[] { req.ItemsProvider().First(x => x.Name == "Message") })); },
             Live: new RuleLiveServices(k => null, on => liveValues.Add(on)));
         var window = new RulesWindow(() => _world, () => null, null, "rail_rules_do", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 5d, editor: svc);
-        window.Details!.LiveWriter = (EntityRepository w, Entity e, string j, int o, ref int last, out int seq) => { seq = ++last; written.Add(j); return Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct; };
+        window.Details!.LiveWriter = (EntityRepository w, Entity e, string j, int o, ref int last, out int seq, out Guid rid) => { seq = ++last; rid = Guid.NewGuid(); written.Add(j); return Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct; };
         float winH = 1900f;
         using var frame = UiFrameHarness.Begin(1400, 1900);
         void Step(Action<ImGuiIOPtr>? input = null, int n = 1)

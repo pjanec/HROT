@@ -79,9 +79,13 @@ public sealed class RuleEditorR5bTests : IDisposable
         return d;
     }
 
-    private Fdp.Toolkit.Replication.Patching.EntityWriteRoute Write(EntityRepository w, Entity e, string json, int origin, ref int last, out int seq)
+    private Guid _request;
+    private void Outcome(Fdp.Toolkit.Replication.Edits.EditStatus status, string? reason = null)
+        => Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(_world).Add(Fdp.Toolkit.Replication.Edits.EditOutcome.Create(_request, 20, status, reason, 1, 12d, fromNetwork: false));
+
+    private Fdp.Toolkit.Replication.Patching.EntityWriteRoute Write(EntityRepository w, Entity e, string json, int origin, ref int last, out int seq, out Guid requestId)
     {
-        seq = ++last; _written.Add((json, origin));
+        seq = ++last; _written.Add((json, origin)); requestId = _request = Guid.NewGuid();
         return Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct;
     }
 
@@ -206,25 +210,63 @@ public sealed class RuleEditorR5bTests : IDisposable
         d.Prepare(row, 10); d.StagePending(TriggerJson.Replace("\"cooldown\":10", "\"cooldown\":25")); d.Prepare(row, 10);
         Assert.True(d.Apply(row));
         d.Prepare(row, 11);
-        Assert.StartsWith("pending (acting)", d.Probe.LiveEdit);
-        _journal.Add(new RuleJournalEntry(1, 12f, "Reparameterised", "edited by Operator"));
+        Assert.StartsWith("sent - waiting", d.Probe.LiveEdit);                                            // nothing heard yet
+        Outcome(Fdp.Toolkit.Replication.Edits.EditStatus.Pending);
         d.Prepare(row, 12);
+        Assert.StartsWith("pending (acting)", d.Probe.LiveEdit);                                          // the owner holds it until the do list ends
+        Outcome(Fdp.Toolkit.Replication.Edits.EditStatus.Applied);
+        d.Prepare(row, 13);
         Assert.StartsWith("applied", d.Probe.LiveEdit);
         Assert.Contains("this run only", d.Probe.LiveEdit);
     }
 
-    /// <summary>A refusal is shown: the journal's "edit refused by Operator" and the status Reason "edit refused: …" ⇒ "refused — edit refused: …" under the Apply button.</summary>
+    /// <summary>
+    /// ⭐ CE-2380 part 2 (RE-7, ⑤) — a refusal shows the owner's WHOLE reason (the status <c>Reason</c> is cut to 55 characters; the OUTCOME is not), read from the edit-outcome log by the request id; no outcome for 5 s ⇒ "the owner did not answer".
+    /// ✅ Red-proof: the reason cut to 55 characters ⇒ the full-text assertion fails; the 5 s branch removed ⇒ the last one fails.
+    /// </summary>
     [Fact]
-    public void LiveApply_Refused_ShowsTheOwnersReason()
+    public void LiveApply_Refused_ShowsTheWholeReason_AndNoAnswerSaysSo()
     {
         var e = Rule(20, "Trigger", TriggerJson);
         var d = Live(); var row = RowOf(20);
+        var clock = new DateTime(2026, 11, 4, 12, 0, 0, DateTimeKind.Utc); d.Now = () => clock;
         d.Prepare(row, 10); d.StagePending(TriggerJson.Replace("\"cooldown\":10", "\"cooldown\":-1")); d.Prepare(row, 10);
         Assert.True(d.Apply(row));
-        _journal.Add(new RuleJournalEntry(1, 12f, "Reparameterised", "edit refused by Operator"));
-        _world.GetComponentRW<ObjectiveStatus>(e).Reason = new FixedString64("edit refused: cooldown must be >= 0");
+        Outcome(Fdp.Toolkit.Replication.Edits.EditStatus.Pending);
+        d.Prepare(RowOf(20), 11);
+        Assert.StartsWith("sent - the owner is judging", d.Probe.LiveEdit);
+        string whole = "edit refused: do step 2 'Teleport': unknown action 'Teleport' (not in the catalogue) - cooldown must be >= 0 and a number, got -1";
+        Outcome(Fdp.Toolkit.Replication.Edits.EditStatus.Refused, whole);
         d.Prepare(RowOf(20), 12);
-        Assert.Equal("refused - edit refused: cooldown must be >= 0", d.Probe.LiveEdit);
+        Assert.Equal("refused - " + whole, d.Probe.LiveEdit);                                             // > 55 characters, whole
+
+        // no outcome at all: waits, then says the owner did not answer
+        var d2 = Live(); d2.Now = () => clock;
+        d2.Prepare(row, 10); d2.StagePending(TriggerJson.Replace("\"cooldown\":10", "\"cooldown\":25")); d2.Prepare(row, 10);
+        Assert.True(d2.Apply(row));
+        clock += RuleDetails.OwnerAnswerWait - TimeSpan.FromSeconds(1); d2.Prepare(RowOf(20), 11);
+        Assert.StartsWith("sent - waiting", d2.Probe.LiveEdit);
+        clock += TimeSpan.FromSeconds(2); d2.Prepare(RowOf(20), 12);
+        Assert.Equal("the owner did not answer", d2.Probe.LiveEdit);
+    }
+
+    /// <summary>
+    /// ⭐ CE-2380 part 2 (RV-5) — a refused Fire / Disarm / Re-arm / Reset says why in the owner's WHOLE words, read by the request id the control write returned; a Pending one says nothing yet; an Applied one reads done.
+    /// ✅ Red-proof: the Refused branch of <c>PollControl</c> not copying <c>o.Reason</c> ⇒ red.
+    /// </summary>
+    [Fact]
+    public void AControlRequest_ShowsTheOwnersWholeRefusal()
+    {
+        var window = new Hrot.Presentation.Windows.RulesWindow(() => _world, () => null, null, "t_ctl", "Scenario", System.Numerics.Vector4.One, _ => { }, _ => { }, now: () => 5d);
+        _request = Guid.NewGuid();
+        window.ExpectControl(_request, "Fire");
+        Outcome(Fdp.Toolkit.Replication.Edits.EditStatus.Pending);
+        window.PollControl();
+        Assert.Null(window.Message);                                                                      // still judging: nothing to say
+        string whole = "cannot fire: the trigger is Disarmed - re-arm it first, or it is waiting out its cooldown of 600 s";
+        Outcome(Fdp.Toolkit.Replication.Edits.EditStatus.Refused, whole);
+        window.PollControl();
+        Assert.Equal("Fire: refused - " + whole, window.Message);
     }
 
     /// <summary>A kind the owner cannot re-parameterise (no state keeper) is READ-ONLY up front, with the owner's own wording; Apply writes nothing. A host with no live services keeps every running rule read-only.</summary>

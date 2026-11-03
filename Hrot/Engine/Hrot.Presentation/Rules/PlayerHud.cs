@@ -212,7 +212,7 @@ public static class GameHud
     public static uint RgbOf(ForceId side) => side switch { ForceId.Friend => Blue, ForceId.Hostile => Red, _ => Grey };
 
     /// <param name="viewerAt">⭐ W-H3 — where the possessed man stands (ground x, y); the <i>Capturing</i> strip shows while he is inside a changing point's <c>AreaCenter</c> / <c>AreaRadius</c> (read from the status, so every node has it).</param>
-    public static GameHudModel Build(IReadOnlyList<RulesReader.Entry> entries, PlayerView view, double now, System.Numerics.Vector2? viewerAt = null, Func<RulesReader.Entry, ForceId>? sideOf = null, Func<RulesReader.Entry, bool>? endsRound = null)
+    public static GameHudModel Build(IReadOnlyList<RulesReader.Entry> entries, PlayerView view, double now, System.Numerics.Vector2? viewerAt = null, Func<RulesReader.Entry, ForceId>? sideOf = null)
     {
         sideOf ??= e => e.Status.Owner;   // ⚠ a running Counter's Owner is Neutral on the wire (measured, showcase-crossfire): the live caller passes the subject's side
         var live = entries.Where(e => !e.Authored).ToList();
@@ -228,8 +228,7 @@ public static class GameHud
 
         // the clock: a trigger's deadline still ahead ⇒ the time left; otherwise the elapsed time of the run
         // ⭐ CE-4238 — the round clock counts down to the trigger whose Do holds EndExercise (several ⇒ the soonest armed one; ExpectedAt ≥ NeverSeconds is a placeholder); no such trigger readable ⇒ a deadline, else elapsed
-        double? ahead = endsRound == null ? null
-            : live.Where(e => e.Status.Role == ObjectiveRole.Trigger && e.Status.Closed == 0 && !e.Status.IsFinal && e.Status.ExpectedAt > now && e.Status.ExpectedAt < RulesModel.NeverSeconds && endsRound(e))
+        double? ahead = live.Where(e => e.Status.Role == ObjectiveRole.Trigger && e.Status.EndsExercise == 1 && e.Status.Closed == 0 && !e.Status.IsFinal && e.Status.ExpectedAt > now && e.Status.ExpectedAt < RulesModel.NeverSeconds)
                   .Select(e => (double?)e.Status.ExpectedAt).DefaultIfEmpty(null).Min();
         ahead ??= live.Where(e => e.Status.Role == ObjectiveRole.Trigger && e.Status.Deadline > now).Select(e => (double?)e.Status.Deadline).DefaultIfEmpty(null).Min();
         bool any = tickets.Count > 0 || points.Count > 0 || ahead != null;
