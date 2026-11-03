@@ -49,5 +49,62 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(ObjectiveState.Achieved, w.S(o).State);
             Assert.Equal((60f, 0d), (w.S(o).Deadline, w.S(o).ExpectedAt));
         }
+        private static string TimeLeaf(double from) => "{\"$type\":\"ScenarioTime\",\"fromSeconds\":" + from.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}";
+        private static string Comp(string op, params string[] kids) => "{\"$type\":\"Compound\",\"operator\":\"" + op + "\",\"conditions\":[" + string.Join(",", kids) + "]}";
+
+        /// <summary>An Armed trigger with the given <c>when</c> and no deadline, after <paramref name="run"/> s: its ExpectedAt.</summary>
+        private static double ExpectedAfter(string when, double run)
+        {
+            var w = new ObjWorld();
+            var t = w.Trigger("{\"common\":{\"title\":\"T\"},\"when\":" + when + ",\"do\":" + RecordSeven + "}");
+            w.Run(run);
+            Assert.Equal(TriggerState.Armed, Phase(w, t));
+            return w.S(t).ExpectedAt;
+        }
+
+        /// <summary>CE-4238 (V-2) — a lone ScenarioTime leaf not reached yet ⇒ ExpectedAt = its fromSeconds. ✅ Red-proof: <c>TriggerWhenTime.ExpectedAt</c> returning 0 ⇒ red.</summary>
+        [Fact] public void CE4238_ArmedTrigger_WaitingOnAScenarioTime_ExpectsItsFromSeconds() => Assert.Equal(900d, ExpectedAfter(TimeLeaf(900), 1.5));
+
+        /// <summary>CE-4238 — through an Or the smallest time; a non-time sibling contributes nothing.</summary>
+        [Fact]
+        public void CE4238_Or_TakesTheSmallestTime_AndIgnoresNonTimeLeaves()
+        {
+            var w = new ObjWorld(); var src = Source(w);
+            Assert.Equal(900d, ExpectedAfter(Comp("Or", TimeLeaf(900), WhenAchieved(w.Net(src))), 1.5));
+            Assert.Equal(300d, ExpectedAfter(Comp("Or", TimeLeaf(300), TimeLeaf(900)), 1.5));
+        }
+
+        /// <summary>CE-4238 — through an And the largest time.</summary>
+        [Fact] public void CE4238_And_TakesTheLargestTime() => Assert.Equal(900d, ExpectedAfter(Comp("And", TimeLeaf(300), TimeLeaf(900)), 1.5));
+
+        /// <summary>CE-4238 — no time anywhere ⇒ 0 (as before).</summary>
+        [Fact]
+        public void CE4238_NoTimeLeaf_ExpectsNothing()
+        {
+            var w = new ObjWorld(); var src = Source(w);
+            Assert.Equal(0d, ExpectedAfter(WhenAchieved(w.Net(src)), 1.5));
+        }
+
+        /// <summary>CE-4238 — only a time STILL IN THE FUTURE counts: past the first of two, the second; past both, 0.</summary>
+        [Fact]
+        public void CE4238_PastTimes_ContributeNothing()
+        {
+            var w = new ObjWorld(); var never = WhenAchieved(w.Net(Source(w)));
+            // And(never, Or(3, 9)): stays Armed whatever the clock says
+            string when = Comp("And", never, Comp("Or", TimeLeaf(3), TimeLeaf(9)));
+            Assert.Equal(3d, ExpectedAfter(when, 1.5));
+            Assert.Equal(9d, ExpectedAfter(when, 4.5));
+            Assert.Equal(0d, ExpectedAfter(when, 10.5));
+        }
+
+        /// <summary>CE-4238 — a deadline still wins over the time the <c>when</c> waits on.</summary>
+        [Fact]
+        public void CE4238_ADeadline_StillWins()
+        {
+            var w = new ObjWorld();
+            var t = w.Trigger("{\"common\":{\"title\":\"T\",\"deadlineSeconds\":60},\"when\":" + TimeLeaf(900) + ",\"do\":" + RecordSeven + "}");
+            w.Run(1.5);
+            Assert.Equal(60d, w.S(t).ExpectedAt);
+        }
     }
 }

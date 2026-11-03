@@ -51,6 +51,67 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
     }
 
     /// <summary>
+    /// ⭐ CE-4238 (V-2) — the time an Armed trigger's <c>when</c> WAITS ON: the earliest <c>fromSeconds</c> still in the future of its <c>ScenarioTime</c> leaves — through an Or the
+    /// smallest of the children's times, through an And the largest; a leaf already past (<c>fromSeconds ≤ now</c>) and every other node contribute nothing; no time ⇒ 0.
+    /// The parsed plan is cached per JSON string like <see cref="TriggerWhen"/> (by reference, then by content); unparseable JSON ⇒ 0 (the view path never throws).
+    /// </summary>
+    public static class TriggerWhenTime
+    {
+        private sealed class Plan
+        {
+            public static readonly Plan None = new();
+            public double From = double.NaN;      // a ScenarioTime leaf (NaN = not a leaf)
+            public bool IsAnd; public Plan[]? Kids;
+        }
+
+        private static readonly ConcurrentDictionary<string, Plan> ByContent = new();
+        private static readonly ConditionalWeakTable<string, Plan> ByReference = new();
+
+        /// <summary>The next time (sim s, &gt; <paramref name="now"/>) the condition waits on, or 0.</summary>
+        public static double ExpectedAt(string json, double now)
+        {
+            if (string.IsNullOrEmpty(json)) return 0d;
+            if (!ByReference.TryGetValue(json, out var plan))
+            {
+                plan = ByContent.GetOrAdd(json, Parse);
+                ByReference.AddOrUpdate(json, plan);
+            }
+            return Eval(plan, now);
+        }
+
+        private static Plan Parse(string json)
+        {
+            try { return Build(JsonSerializer.Deserialize<SearchPredicateDto>(json, BehaviorParams.JsonOptions)); }
+            catch (Exception ex) when (ex is not OutOfMemoryException) { return Plan.None; }
+        }
+
+        private static Plan Build(SearchPredicateDto? dto)
+        {
+            switch (dto)
+            {
+                case ScenarioTimePredicateDto t: return new Plan { From = t.FromSeconds };
+                case CompoundPredicateDto c when c.Conditions is { Count: > 0 }:
+                    return new Plan { IsAnd = c.Operator == LogicalOperator.And, Kids = c.Conditions.Select(Build).ToArray() };
+                default: return Plan.None;
+            }
+        }
+
+        private static double Eval(Plan p, double now)
+        {
+            if (!double.IsNaN(p.From)) return p.From > now ? p.From : 0d;
+            if (p.Kids is null) return 0d;
+            double r = 0d;
+            foreach (var k in p.Kids)
+            {
+                double t = Eval(k, now);
+                if (t <= 0d) continue;
+                r = r <= 0d ? t : p.IsAnd ? Math.Max(r, t) : Math.Min(r, t);
+            }
+            return r;
+        }
+    }
+
+    /// <summary>
     /// ⭐ rules S2-c (📄 docs/DESIGN_Scenario_Rules.md §10.11 / §00.9) — the <c>Trigger</c> behaviour: the one brain of a Trigger entity (TKB 8861). A small
     /// state machine (<see cref="TriggerState"/>) over the blackboard — Disarmed · Armed · Holding · Waiting · Acting · Fired · Cooldown · Done — that
     /// watches the LEVEL of its <c>when</c> and fires on the rising EDGE (T1), after an optional debounce (<c>holdFor</c>) and delay (<c>delay</c>, T3), by running
@@ -193,7 +254,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 else if (s.State == ObjectiveState.Active) Step(ref b, ref s, self, world, now);
             }
             s.TriggerState = b.Phase;
-            WriteViewData(ref b, ref s);
+            WriteViewData(ref b, ref s, self, world, now);
             return NodeStatus.Running;
         }
 
@@ -222,8 +283,8 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         }
 
         /// <summary>⭐ V-1 / V-2 — the rule's links and timing onto the status (the owner writes them every tick; the wire sends a change once). ExpectedAt: Waiting ⇒ the delay's end ·
-        /// Holding ⇒ edge + holdFor · Cooldown ⇒ its end · Armed with a deadline ⇒ the deadline · else 0.</summary>
-        private static void WriteViewData(ref Block b, ref ObjectiveStatus s)
+        /// Holding ⇒ edge + holdFor · Cooldown ⇒ its end · Armed with a deadline ⇒ the deadline · Armed without ⇒ the next time its <c>when</c> waits on (CE-4238, <see cref="TriggerWhenTime"/>) · else 0.</summary>
+        private static void WriteViewData(ref Block b, ref ObjectiveStatus s, Entity self, EntityRepository world, double now)
         {
             RuleLinks.CopyTo(ref s, in b.DependsOn, b.DependsOnCount, in b.ActsOn, b.ActsOnCount);
             s.HoldFor = b.HoldFor; s.Delay = b.Delay; s.Cooldown = b.Cooldown;
@@ -235,6 +296,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 TriggerState.Holding => b.EdgeAt + b.HoldFor,
                 TriggerState.Cooldown => b.CooldownUntil,
                 TriggerState.Armed when b.Common.DeadlineSeconds > 0f => b.Common.DeadlineSeconds,
+                TriggerState.Armed => TriggerWhenTime.ExpectedAt(((ISimulationView)world).GetManagedComponentRO<ActionArgs>(self).Items[WhenItem], now),
                 _ => 0d,
             };
         }
