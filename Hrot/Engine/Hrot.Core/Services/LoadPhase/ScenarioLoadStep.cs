@@ -10,7 +10,6 @@ using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Scenario;
 using Hrot.Common.Serializers;
-using Hrot.Common.Infrastructure;
 using Hrot.Core.Network;
 using Hrot.Map.Common.Services;
 using Fdp.Toolkit.NetworkSpawning.Events;
@@ -85,8 +84,6 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     public const int EntityWaitLimitTicks = 300;
     private readonly Fdp.Toolkit.Scenario.IMacroLibrary? _macros;   // ⭐ macros S3a ⑥ — the PREPARE validates every instance (SR-149)
     private readonly Fdp.Toolkit.Behavior.BehaviorRegistry? _behaviors;   // ⭐ CE-2377 step 2 — the PREPARE validates every behaviour slot's params against it
-    private readonly Func<NodeFeatures?>? _features;   // ⭐ P-7 F-28 — the node's feature reader: Commit hands it the header's scenario preset
-    private IReadOnlyDictionary<string, string>? _pendingFeatures;
     private bool _prepared;   // ⭐ CE-3216 C-3 — a Prepare ran and was neither committed nor aborted (a new scenario sets no transaction id)
 
     /// <param name="idAllocator">
@@ -109,10 +106,8 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         ReadOnlyMigrationAdapter? readOnlyMigrationAdapter = null,
         TerrainLoadService? terrainLoadService = null,
         Fdp.Toolkit.Scenario.IMacroLibrary? macros = null,
-        Fdp.Toolkit.Behavior.BehaviorRegistry? behaviors = null,
-        Func<NodeFeatures?>? features = null)
+        Fdp.Toolkit.Behavior.BehaviorRegistry? behaviors = null)
     {
-        _features           = features;
         _macros             = macros;
         _behaviors          = behaviors;
         _serializer         = serializer     ?? throw new ArgumentNullException(nameof(serializer));
@@ -136,7 +131,6 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         _pendingTransactionId = null;
         _pendingDescription   = null;
         _pendingName = _pendingHash = _pendingArgs = _pendingHeaderJson = null;
-        _pendingFeatures      = null;
         _prepared             = true;
 
         // ⭐ A NEW scenario has no file to read — the world starts empty and the operator authors into it.
@@ -208,7 +202,6 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
             _pendingRequests = _extractor.Extract(_serializer, extractJson, _idAllocator, _remapper);
         _pendingDoorStates    = Fdp.Toolkit.Terrain.TerrainObjectsSection.ReadDoors(json);   // ⭐ 5e — applied when the doors are created
         _pendingDescription   = ScenarioDescription.Read(json);   // ⭐ CE-3288 — held by the world so a save writes it back
-        _pendingFeatures      = ScenarioHeaderJson.Read(System.Text.Json.Nodes.JsonNode.Parse(json) as System.Text.Json.Nodes.JsonObject)?.Features;   // ⭐ P-7 F-27 — the scenario's feature preset, handed to the node's features at Commit
         _pendingHeaderJson    = ScenarioDescription.HeaderJsonOf(json);   // ⭐ CE-4210 MA-4 — the macro header, held the same way
         _pendingName          = context.ScenarioId;              // ⭐ CE-4058 ② — a recording names its scenario
         _pendingHash          = ScenarioDescription.HashOf(json);
@@ -237,7 +230,6 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         {
             // ⭐ CE-3288 (§4d) — the loaded scenario's description is RESIDENT, so both save sites write it back; a new scenario (or
             //   one without a description) clears the previous one's.
-            if (_prepared) _features?.Invoke()?.SetScenarioPreset(_pendingFeatures);   // ⭐ P-7 F-28 — every load replaces the last scenario's preset; none clears it
             if (world != null && _prepared) ScenarioDescription.Stamp(world, _pendingDescription, _pendingName, _pendingHash, _pendingArgs, _pendingHeaderJson);
 
             bool hasEnvironment = world != null && Fdp.Toolkit.Weather.ScenarioTime.TryClock(world, out _);

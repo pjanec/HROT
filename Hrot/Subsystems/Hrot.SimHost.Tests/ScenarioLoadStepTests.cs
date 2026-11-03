@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -51,23 +52,25 @@ public sealed class ScenarioLoadStepTests : IDisposable
         _serializer = new ScenarioSerializerBuilder(SubsystemType).Build();
     }
 
-    public void Dispose() => _goldRepo.Dispose();
+    public void Dispose()
+    {
+        _goldRepo.Dispose();
+        foreach (var r in _tempRoots) try { Directory.Delete(r, true); } catch (IOException) { }
+    }
 
     // ── helpers ───────────────────────────────────────────────────────────────────────────────
 
     private static ScenarioLoadStep MakeStep(
         string? json,
         FdpEventBus source,
-        TerrainLoadService? terrain = null,
-        Func<Hrot.Common.Infrastructure.NodeFeatures?>? features = null)
+        TerrainLoadService? terrain = null)
         => new ScenarioLoadStep(
             new ScenarioSerializerBuilder(SubsystemType).Build(),
             new LambdaScenarioLoader(_ => json),
             new StagingEntityExtractor(),
             source,
             new StubIdAllocator(100),
-            terrainLoadService: terrain,
-            features: features);
+            terrainLoadService: terrain);
 
     private static LoadPhaseContext Ctx(
         Guid txId,
@@ -96,26 +99,97 @@ public sealed class ScenarioLoadStepTests : IDisposable
 
     // ── extraction and enqueue ────────────────────────────────────────────────────────────────
 
-    /// <summary>⭐ P-7 F-28 — a load hands the header's <c>features</c> to the node's <c>NodeFeatures</c> at Commit (and not at Prepare); the next load of a scenario without them clears the preset. ✅ Red-proof: the
-    /// <c>SetScenarioPreset</c> call removed from <c>ScenarioLoadStep.Commit</c> ⇒ the feature stays on ⇒ red.</summary>
-    [Fact]
-    public async Task Commit_HandsTheHeadersFeaturesToTheNodesFeatures_AndTheNextLoadReplacesThem()
-    {
-        var nf = new Hrot.Common.Infrastructure.NodeFeatures(new Hrot.Common.Infrastructure.FeatureRegistry(new[]
+    // ── ⭐ P-7 F-28′ — the scenario's feature preset, handed over by ScenarioFeaturePresetStep (EVERY node), not by this step ──
+
+    private static Hrot.Common.Infrastructure.NodeFeatures KillFeedNode()
+        => new(new Hrot.Common.Infrastructure.FeatureRegistry(new[]
             { Hrot.Common.Infrastructure.FeatureDeclaration.Switch("hud.kill-feed", "kill feed", Hrot.Common.Infrastructure.FeatureChange.Live, _ => true) }), NodeRole.Map2D);
-        var withPreset = new ScenarioHeader(SubsystemType) { Features = new Dictionary<string, string> { ["hud.kill-feed"] = "{\"Enabled\":false}" } };
-        var json = _serializer.Serialize(_goldRepo, withPreset).ToJsonString();
-        var ctx = Ctx(Guid.NewGuid());
-        var step = MakeStep(json, NewBus(), features: () => nf);
+
+    private string StageScenario(string id, string fileName, string json)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "hrot-fp-" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(root, OrchestrationConstants.ScenariosDirectoryName, id);
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, fileName), json);
+        _tempRoots.Add(root);
+        return root;
+    }
+    private readonly List<string> _tempRoots = new();
+
+    /// <summary>⭐ P-7 F-28′ — the step needs NO scenario-loading deps (just the node's staged files and its features): at Commit the header's <c>features</c> from the node's OWN copy reach the node's features (not at Prepare); a later
+    /// load of a scenario without them clears the preset. ✅ Red-proof: the <c>SetScenarioPreset</c> call removed from <c>ScenarioFeaturePresetStep.Commit</c> ⇒ the feature stays on ⇒ red.</summary>
+    [Fact]
+    public async Task FeaturePresetStep_SetsThePresetAtCommit_FromTheNodesOwnStagedCopy_AndTheNextLoadReplacesIt()
+    {
+        var nf = KillFeedNode();
+        var withPreset = _serializer.Serialize(_goldRepo, new ScenarioHeader(SubsystemType) { Features = new Dictionary<string, string> { ["hud.kill-feed"] = "{\"Enabled\":false}" } }).ToJsonString();
+        var root = StageScenario("scnF", "a.json", withPreset);
+        var step = new ScenarioFeaturePresetStep(new LocalDiskStorageProvider(root), () => nf);
+        var ctx = Ctx(Guid.NewGuid(), scenarioId: "scnF");
         await step.PrepareAsync(ctx, CancellationToken.None);
         Assert.True(nf.On("hud.kill-feed"));                       // nothing before the commit
         step.Commit(ctx, null);
         Assert.False(nf.On("hud.kill-feed"));                      // the scenario switched it off
-        var plain = MakeStep(SerializeGold(), NewBus(), features: () => nf);
-        var ctx2 = Ctx(Guid.NewGuid());
-        await plain.PrepareAsync(ctx2, CancellationToken.None);
-        plain.Commit(ctx2, null);
+        var root2 = StageScenario("scnG", "a.json", SerializeGold());
+        var step2 = new ScenarioFeaturePresetStep(new LocalDiskStorageProvider(root2), () => nf);
+        var ctx2 = Ctx(Guid.NewGuid(), scenarioId: "scnG");
+        await step2.PrepareAsync(ctx2, CancellationToken.None);
+        step2.Commit(ctx2, null);
         Assert.True(nf.On("hud.kill-feed"));                       // a scenario without the field clears the last one's
+    }
+
+    /// <summary>⭐ P-7 F-28′ — an abort leaves the preset alone; a missing file / a new scenario / a node without features is "no preset", never a throw. ✅ Red-proof: <c>Commit</c> not checking <c>_prepared</c> ⇒ the aborted
+    /// round applies ⇒ red.</summary>
+    [Fact]
+    public async Task FeaturePresetStep_AbortLeavesIt_NoFileOrNewScenarioIsNullNotAThrow()
+    {
+        var nf = KillFeedNode();
+        var withPreset = _serializer.Serialize(_goldRepo, new ScenarioHeader(SubsystemType) { Features = new Dictionary<string, string> { ["hud.kill-feed"] = "{\"Enabled\":false}" } }).ToJsonString();
+        var root = StageScenario("scnF", "a.json", withPreset);
+        var step = new ScenarioFeaturePresetStep(new LocalDiskStorageProvider(root), () => nf);
+        var ctx = Ctx(Guid.NewGuid(), scenarioId: "scnF");
+        await step.PrepareAsync(ctx, CancellationToken.None);
+        step.Commit(ctx, null);
+        Assert.False(nf.On("hud.kill-feed"));                      // a committed load: off
+        var plainRoot = StageScenario("scnP", "a.json", SerializeGold());
+        var next = new ScenarioFeaturePresetStep(new LocalDiskStorageProvider(plainRoot), () => nf);
+        var ctxN = Ctx(Guid.NewGuid(), scenarioId: "scnP");
+        await next.PrepareAsync(ctxN, CancellationToken.None);
+        next.Abort(ctxN);                                          // the next round is aborted…
+        next.Commit(ctxN, null);                                   // …and a stray Commit after the abort does nothing
+        Assert.False(nf.On("hud.kill-feed"));                      // the abort left the last preset standing
+
+        var none = new ScenarioFeaturePresetStep(new LocalDiskStorageProvider(root), () => nf);
+        foreach (var c in new[] { Ctx(Guid.NewGuid(), scenarioId: "missing"), Ctx(Guid.NewGuid(), scenarioId: null, isNew: true) })
+        {
+            await none.PrepareAsync(c, CancellationToken.None);
+            none.Commit(c, null);
+            Assert.True(nf.On("hud.kill-feed"));
+        }
+        var noNode = new ScenarioFeaturePresetStep(new LocalDiskStorageProvider(root), () => null);
+        var c3 = Ctx(Guid.NewGuid(), scenarioId: "scnF");
+        await noNode.PrepareAsync(c3, CancellationToken.None);
+        noNode.Commit(c3, null);                                   // a node with no features reader: no throw
+    }
+
+    /// <summary>⭐ P-7 F-28′ — the forwarding rail on the CONSTRUCTED chain (the silent-default rule): a non-Brain host with NO scenario-loading deps has the step in its load chain, and the step holds the features delegate the caller
+    /// passed. ✅ Red-proof: the step's composition line removed from <c>NodeBootstrapper.BuildOrchestration</c> (or <c>features: features ?? …</c> dropped) ⇒ red.</summary>
+    [Fact]
+    public void ANonBrainHost_HasTheFeaturePresetStepInItsChain_HoldingTheCallersFeatures()
+    {
+        var nf = KillFeedNode();
+        var bootstrapper = new Hrot.SimHost.NodeBootstrapper();
+        using var world = new EntityRepository();
+        using var kernel = new Fdp.ModuleHost.ModuleHostKernel(world, new EventAccumulator());
+        using var slave = bootstrapper.BuildOrchestration(
+            NodeRole.MuscleGround, kernel, world, nodeId: 1, participant: null, eventBus: new FdpEventBus(),
+            tkbDb: Hrot.Map.Common.HrotEnvironment.CreateTkb(), features: () => nf);
+        var chain = slave.RegisteredHandlers.OfType<LoadPhaseChain>().Single();
+        Assert.Contains(LoadPart.ScenarioFeatures, chain.Parts);
+        var steps = (System.Collections.IEnumerable)typeof(LoadPhaseChain).GetField("_steps", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(chain)!;
+        var step = steps.Cast<object>().Single(x => x is ScenarioFeaturePresetStep);
+        var held = (Func<Hrot.Common.Infrastructure.NodeFeatures?>)step.GetType().GetField("_features", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(step)!;
+        Assert.Same(nf, held());
     }
 
     /// <summary>⭐ Re-homed from the CGF suite: valid JSON with two roots enqueues exactly two requests.</summary>

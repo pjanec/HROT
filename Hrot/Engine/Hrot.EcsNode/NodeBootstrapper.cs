@@ -304,6 +304,12 @@ namespace Hrot.SimHost
             if (_navmeshFactory != null) residency.AttachNavmesh(_navmeshFactory, _navmeshTarget!);
             TerrainResidency = residency;   // ⭐ CE-1446 B1 — held so a host's terrain picker / save can read it (CGF did, from its own Build call)
 
+            // ⭐ P-7 F-28′ — the scenario's feature preset reaches EVERY ECS node (not only the one that loads the entities): composed here, outside the extractor branch below.
+            //   ⛔ A caller that HAS a context passes `features`; a root with none (a test) gets a step that applies to nobody.
+            loadProviders.Add(new ScenarioFeaturePresetStep(storageProvider, features ?? (() => null)));
+            profileLoadParts = (profileLoadParts ?? Array.Empty<LoadPart>()).Contains(LoadPart.ScenarioFeatures)
+                ? profileLoadParts : (profileLoadParts ?? Array.Empty<LoadPart>()).Append(LoadPart.ScenarioFeatures).ToList();
+
             IClusterStateHandler? scenarioSaveHandler = null;
             var handlersToRegister = new List<IClusterStateHandler>();
             if (scenarioSerializer != null)
@@ -333,8 +339,7 @@ namespace Hrot.SimHost
                         terrainLoadService: TerrainLoadService,
                         // ⭐ macros S3a ⑥ — the node that loads scenarios validates their macros in the prepare (SR-149), from its own staging
                         //   root first (the package arrives there, SR-80) — built HERE so no host can hold an extractor and skip the check.
-                        macros: Fdp.Toolkit.Scenario.FileMacroLibrary.ForNode(localTempRoot),
-                        features: features));   // ⭐ P-7 F-28
+                        macros: Fdp.Toolkit.Scenario.FileMacroLibrary.ForNode(localTempRoot)));
 
                     if (scenarioHandlers != null) handlersToRegister.AddRange(scenarioHandlers);
                     else handlersToRegister.Add(new ReferenceEpisodeLoadHandler(scenarioSerializer, scenarioLoader, world: null));
