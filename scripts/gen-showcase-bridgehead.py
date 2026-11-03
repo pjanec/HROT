@@ -289,6 +289,11 @@ def scenario():
     trigger("End", any_of(state_is(hold, 2), time_from(2700)), [
         msg("Exercise complete", to="All"),
         {"act": "EndExercise", "args": {"reason": "the crossroads is held, or 45 min"}}])
+    # ⭐ Rules_Runnable ③ (SR-116): the instructor's End — RefKey "instructor-end", fired by hand (RuleControl Fire; ui's End button); its `when` never
+    #   holds by itself. The same EndExercise as the scenario's own end; the training verdict (SR-122) decides who passed
+    ie = trigger("Instructor end", time_from(1e9), [msg("The instructor ended the exercise", to="All"),
+                                                     {"act": "EndExercise", "args": {"reason": "Instructor ended"}}])
+    ents[ie]["RefKey"] = {"Value": "instructor-end"}
 
     write("scenarios/showcase-bridgehead/scenario.json", doc({
         # ⭐ P-7 (DESIGN_Node_Features.md §11, F-27): this scenario's feature preset — the scenario layer under the node / cluster overrides (ui's lists, PH-8)

@@ -1375,6 +1375,23 @@
     "Params": "{\"common\": {\"title\": \"End\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"Compound\", \"operator\": \"Or\", \"conditions\": [{\"$type\": \"OnEntity\", \"ref\": \"b41d6e00-0000-4000-8000-000000000039\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"State\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, {\"$type\": \"ScenarioTime\", \"fromSeconds\": 2700}]}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Exercise complete\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"the crossroads is held, or 45 min\"}}]}",
     "Origin": "Superior"
    }
+  },
+  "b41d6e00-0000-4000-8000-000000000051": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Instructor end",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": "{\"common\": {\"title\": \"Instructor end\", \"subject\": \"b41d6e00-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 1000000000.0}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"The instructor ended the exercise\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"Instructor ended\"}}]}",
+    "Origin": "Superior"
+   },
+   "RefKey": {
+    "Value": "instructor-end"
+   }
   }
  }
 }
