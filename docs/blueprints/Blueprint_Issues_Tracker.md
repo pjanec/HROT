@@ -65,13 +65,13 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 |---|---:|---:|
 | `WIRING` | 12 | 97 |
 | `RW-XS` | 4 | 12 |
-| `RW-S` | 160 | 829 |
+| `RW-S` | 161 | 829 |
 | `RW-L` | 148 | 257 |
 | `RW-M` | 227 | 811 |
 | `RW-H` | 23 | 87 |
 | `RW-XL` | 0 | 1 |
 | `OTHER` | 2 | 9 |
-| **Total** | **576** | **2103** |
+| **Total** | **577** | **2103** |
 | *(refuted on verification)* | | *14* |
 
 | Id family | Open | Done |
@@ -4616,6 +4616,7 @@ collides with work in flight.
 - [x] **CE-4239** · `RW-S` ✅ **DONE `2026-11-03` (ui, Rules Runnable ⑧; = CE-3365 + CE-4152) — ONE "seeable on the map" rule: `Hrot.Common…Gizmos.Seeable.OnMap`.** Not seeable: `NotAUnit` · a rule (`ObjectiveStatus` / TKB 8860, 8861) · the World Environment (`ScenarioClock`) · a macro instance that expanded into nothing seeable (members through `MacroOrigin`, nested by fixpoint, cached per world version; an instance still expanding or failed stays seeable). Used by the map's `EntityPresentationGizmo` / `EntityNameGizmo` / `EntityCardFrameGizmo` / `EntityEditorLabelGizmo` / `EntityRotationGizmo` AND the Command + Structure ORBAT `Includes`; the Scenario view and the rules view list the virtual ones. Cross-lane edits: none beyond `Hrot.Common` (shared). Rails `RunnableRulesTests` (4, red-proved: macro rule always-true reddens 2). Design `DESIGN_Entity_Hierarchy_Views.md` §6. Live: Crossfire, no score labels on the map, ORBAT 12 rows.
 - [x] **CE-4240** · `RW-S` ✅ **DONE `2026-11-03` (ui, Rules Runnable ②; SR-116) — THE INSTRUCTOR'S END BUTTON.** Rules toolbar + Mission summary: the trigger carrying `RefKey` `instructor-end` (backend `163c88934`), found by KEY not title; click → modal *End the exercise now?* → `RuleCommands.Control(Fire, Instructor)`. No such trigger ⇒ disabled, *"this scenario has no instructor-end trigger"*; also disabled with the owner's reason / *already ended* / read-only on a recording. The editor opens Window ▸ Mission summary when `ExerciseResult.Phase` goes Running → Ended. Also: a clock leaf ≥ 1e8 s is no clock pin (the placeholder `when` of that trigger showed `16666666:40` in *Coming up*). Live (Crossfire): End → *Instructor end: Blue ahead* fired, result Ended · Blue Win, Game summary **BLUE WINS** · *Instructor ended*, button disabled after. Design `DESIGN_Rules_View_UI.md` §7.10. Cross-lane: none.
 - [x] **CE-4241** · `RW-S` ✅ **DONE `2026-11-03` (ui, Rules Runnable ③; SR-106) — WHAT WENT TO WHOM.** Measured: `PlayerMessageEvent.Source` (the sending trigger's network id) is on the wire and was dropped by `PlayerMessages.Entry`; now kept (+ `All`). `MessageDelivery` (pure) turns an address into words (everyone · the Blue side · unit "x" (#n, side) and its player · the player at station n · the instructor only) and lists a trigger's deliveries; the Overview shows *Sent: 0:05 to …*, the Do tab a line under each *Message* step (authored address, *not sent yet* / *sent 1x, at 1:01*). Limit: this node's memory, not a recording. No cross-lane edit. Live (Bridgehead): *Briefing* → *0:05 to everyone (every side, unit and player): "Seize the crossroads…"*. Design §7.10.
+- [ ] **CE-4242** · `RW-S` 🔧 **OPEN `2026-11-03` (ui; found in the Rules Runnable ①②③⑧ gate) — `TheOneTimeFacadeTests.CE4115_TheLoadingScreen_IsAFullWindowVeil_TextAtTheGoldenLine_AndSwallowsTheMouse` IS RED (deterministic, under `xvfb-run -a`): *"control: with no splash the button under the mouse IS hovered"*.** Base proof: the same test, a clean worktree of the commit BEFORE that batch's changes (`73facbbd5`'s parent chain at `e22eed7f0` + the backend / behaviors merges, none touching the loading screen), a full build, fails identically (also alone, twice) ⇒ pre-existing, not caused by the rules / ORBAT work. CE-4115 (the loading veil) is DONE; this is its rail's control step (a hover under the mouse with no splash). ⏳ not investigated — likely ImGui hover vs the Xvfb pointer position in the harness.
 
 ## Out of scope
 
