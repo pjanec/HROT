@@ -820,7 +820,7 @@ commander's evaluation, so squad and platoon scores are just the composites abov
 ## 7. The game profile — tickets, capture points, respawn waves
 
 > **Status:** ✅ built as v1 (S6, `DESIGN_Scenario_Rules.md` §00.12; `scenarios/showcase-crossfire`, measured live over two 900 s rounds) · ⏳ the per-player score is next
-> (`HANDOFF_Coordinator_To_Backend_Player_Score.md`, dispatched, not built). Decisions: G-1…G-7 (⚠ built on backend's leans — awaiting the user's confirmation), SR-84, SR-112.
+> (`HANDOFF_Coordinator_To_Backend_Player_Score.md`, dispatched, not built). Decisions: G-1…G-7 (✅ approved by the user `2026-11-03`), SR-84, SR-112.
 
 A game is the SAME machinery (§1–§3) with a few small additions — no ticket system, no game-mode code (R-4112):
 
