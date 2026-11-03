@@ -14,7 +14,7 @@ namespace Hrot.Presentation.Windows;
 
 /// <summary>What the <see cref="RulesWindow"/> drew this frame — the rails read it (and an agent reads it through the panel snapshot): the rows (title · state words), the Overview lines and the action buttons with the reason each disabled one carries.</summary>
 public sealed record RulesWindowProbe(
-    IReadOnlyList<string> Rows, int? Selected, IReadOnlyList<string> Details, IReadOnlyList<(string Label, string? Reason)> Buttons, string GroupBy, string Side, string Search);
+    IReadOnlyList<string> Rows, int? Selected, IReadOnlyList<string> Details, IReadOnlyList<(string Label, string? Reason)> Buttons, string GroupBy, string Side, string Search, RuleDetailsProbe? Editor = null);
 
 /// <summary>The panel snapshot of the rules view.</summary>
 public sealed record RulesWindowViewModel(string PanelId, string PanelKind, RulesWindowProbe Shown, string? Message) : IPanelViewModel
@@ -50,6 +50,7 @@ public sealed class RulesWindow : ManagedWindow
     private int _groupBy, _side, _ruleSeq;
     private string _search = "";
     private bool _follow;
+    private readonly RuleDetails? _details;
     private int _subtree;
     private int? _selected;
     private RulesWindowProbe _probe = new(Array.Empty<string>(), null, Array.Empty<string>(), Array.Empty<(string, string?)>(), "Macro", "All sides", "");
@@ -62,12 +63,13 @@ public sealed class RulesWindow : ManagedWindow
     /// <param name="blocked">Why asking a rule is not possible on this host now (a recording is read-only), or null.</param>
     /// <param name="now">Sim seconds now; null = the world's clock.</param>
     public RulesWindow(Func<EntityRepository?> world, Func<ITimelineSource?> source, ITimelineCursor? cursor, string id, string perspective, Vector4 titleBarColor,
-        Action<int> selectEntity, Action<int> showOnMap, Func<string?>? blocked = null, Func<double>? now = null)
+        Action<int> selectEntity, Action<int> showOnMap, Func<string?>? blocked = null, Func<double>? now = null, RuleEditorServices? editor = null)
         : base(id, "Rules", perspective, WindowScope.PerspectiveBound)
     {
         _world = world; _source = source; _cursor = cursor; _now = now;
         _selectEntity = selectEntity; _showOnMap = showOnMap; _blocked = blocked ?? (() => null);
         _hooks = new RuleTrackHooks(r => Select(r), Ask, r => { if (r.SubjectNetworkId != 0) _showOnMap(r.SubjectNetworkId); }, null);
+        _details = editor == null ? null : new RuleDetails(editor, world, _blocked, selectEntity, (row, n) => DrawOverviewBody(row));
         _panel.Tracks = () => _tracks;
         _panel.ExtentWithoutItems = true;   // ⭐ RV-3a: authored rows have no spans — the ruler and the headers still draw
         TitleBarColor = titleBarColor;
@@ -84,6 +86,9 @@ public sealed class RulesWindow : ManagedWindow
         get => _side == 0 ? null : _side == 1 ? Fdp.Core.ForceId.Friend : _side == 2 ? Fdp.Core.ForceId.Hostile : Fdp.Core.ForceId.Neutral;
         set => _side = value is not { } s ? 0 : s == Fdp.Core.ForceId.Friend ? 1 : s == Fdp.Core.ForceId.Hostile ? 2 : 3;
     }
+
+    /// <summary>⭐ R5a — the rule editor (null where the host gave no editor services: the pane then shows the Overview only).</summary>
+    public RuleDetails? Details => _details;
 
     public string Search { get => _search; set => _search = value ?? ""; }
     public int? SelectedNetworkId => _selected;
@@ -152,7 +157,8 @@ public sealed class RulesWindow : ManagedWindow
             foreach (var a in RulesModel.ActionsOf(sel)) buttons.Add((a.Label, block ?? a.DisabledReason));
             buttons.Add(("Show on map", sel.SubjectNetworkId != 0 ? null : "this rule has no subject"));
         }
-        _probe = new RulesWindowProbe(_view.Rows.Select(r => $"{new string(' ', r.Depth * 2)}{r.Title} | {r.StateWords}").ToList(), _selected, details, buttons, GroupNames[_groupBy], SideNames[_side], _search);
+        _probe = new RulesWindowProbe(_view.Rows.Select(r => $"{new string(' ', r.Depth * 2)}{r.Title} | {r.StateWords}").ToList(), _selected, details, buttons, GroupNames[_groupBy], SideNames[_side], _search, null);
+        if (_details != null && sel != null) { _details.Prepare(sel, now); _probe = _probe with { Editor = _details.Probe }; }
     }
 
     private RulesWindowViewModel BuildAndPublish()
@@ -182,7 +188,7 @@ public sealed class RulesWindow : ManagedWindow
         BuildAndPublish();
         DrawToolbar();
         var avail = ImGui.GetContentRegionAvail();
-        float details = Math.Min(340f, avail.X * 0.4f);
+        float details = Math.Min(_details != null ? 560f : 340f, avail.X * (_details != null ? 0.5f : 0.4f));
         ImGui.BeginChild("##rules-timeline", new Vector2(avail.X - details - 6f, avail.Y), ImGuiChildFlags.None, ImGuiWindowFlags.None);
         _panel.Draw(_source(), _cursor, Array.Empty<TimelineLaneDescriptor>());
         ImGui.EndChild();
@@ -214,6 +220,12 @@ public sealed class RulesWindow : ManagedWindow
     {
         var sel = _selected is { } s ? _view.Find(s) : null;
         if (sel == null) { ImGui.TextDisabled("Select a rule to see its overview."); return; }
+        if (_details != null) _details.Draw(sel, _view.Now); else DrawOverviewBody(sel);
+    }
+
+    /// <summary>The Overview / Status tab: the RV-6 lines, the links, the RV-5 buttons.</summary>
+    private void DrawOverviewBody(RuleRow sel)
+    {
         double now = _view.Now;
         foreach (var l in RulesModel.OverviewOf(sel, now))
         {

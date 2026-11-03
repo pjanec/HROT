@@ -100,6 +100,7 @@ public sealed class MissionSummaryWindow : ManagedWindow
     internal static IEnumerable<string> CardLines(SideCard c)
     {
         yield return $"{c.Name}: {(c.Headline is { } h ? $"{h.Title} {F(h.Score)}{(h.Trend is { } t ? " " + Signed(t) : "")}{(h.Pass > 0 ? $" · pass mark {F(h.Pass)} {(h.Decided ? (h.Go == true ? "GO" : "NO-GO") : "· not yet decided")}" : "")}" : "no headline")}";
+        if (c.Headline?.Others is { Count: > 0 } others) foreach (var o in others) yield return $"{c.Name}: also {o.Title} {F(o.Score)}";
         yield return $"{c.Name}: required {c.RequiredDone} / {c.Required.Count}";
         yield return $"{c.Name}: forces {c.Forces.InFight} / {c.Forces.Total} · {c.Forces.Wounded} wounded · {c.Forces.Down} down · {c.Forces.Dead} dead · {c.Forces.Inserted} inserted";
         foreach (var a in c.Attention) yield return $"{c.Name}: attention {a.Text}";
@@ -176,6 +177,7 @@ public sealed class MissionSummaryWindow : ManagedWindow
                 ImGui.Text($"{F(h.Score)}"); ImGui.SameLine();
                 if (h.Trend is { } t) ImGui.TextColored(Col(t >= 0 ? RulesModel.Achieved : RulesModel.Failed), $"{(t >= 0 ? "↗" : "↘")} {Math.Abs(t):0.00} / 10 min");
                 if (h.Pass > 0) ImGui.TextDisabled($"pass mark {F(h.Pass)} · {(h.Decided ? (h.Go == true ? "GO" : "NO-GO") : "not yet decided")}");
+                if (h.Others is { Count: > 0 }) foreach (var o in h.Others) ImGui.TextDisabled($"also: {o.Title} {F(o.Score)}");   // W-R3b: the side's other roots
             }
             else ImGui.TextDisabled("no evaluation yet");
             ImGui.Spacing(); ImGui.TextDisabled("REQUIRED OBJECTIVES"); ImGui.Text($"{c.RequiredDone} / {c.Required.Count}");

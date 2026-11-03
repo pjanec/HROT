@@ -280,6 +280,26 @@ namespace Hrot.Editor
         internal bool SelectTimelineEvent(Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent e) => SelectNetworkEntity(e.Subject);
 
         /// <summary>⭐ CE-4216 — the ONE selection by network id (a timeline event's subject, a rules-view row's subject).</summary>
+        /// <summary>⭐ CE-4218 (R5a) — what the rule editor needs: the params form's service, the behaviour registry, the AI section's own apply (edit mode = AssignNow), the shared undo, the brain journal's text.</summary>
+        private Hrot.UI.Common.Rules.RuleEditorServices BuildRuleEditorServices()
+        {
+            var editService = Hrot.Editor.AiShared.Inspector.ActionBinding.AiFacetEditService.Build();
+            var aiModel = new Hrot.Editor.Scenario.EntityAiEditModel(() => _world, () => _behaviorRegistry, () => _blueprintRegistry);   // the AI section's model: ApplyTask
+            var picks = new Hrot.Presentation.Facades.MapPickBroker(() => _mapPickAdapter);
+            return new Hrot.UI.Common.Rules.RuleEditorServices(
+                () => editService, () => _behaviorRegistry,
+                (entity, behaviour, json) => aiModel.ApplyTask(entity, behaviour, json, running: false),
+                EditHistory,
+                entity =>
+                {
+                    if (_world is not { } w || !w.IsAlive(entity)) return System.Array.Empty<Hrot.UI.Common.Rules.RuleJournalEntry>();
+                    string? Name(int hash) => _behaviorRegistry is { } r && r.TryGetName(hash, out var n) ? n : null;
+                    var snap = Hrot.Editor.AiShared.Shell.BrainSnapshot.Read(w, entity, Name, hash => _behaviorRegistry is { } r && r.TryGetDefinition(hash, out var d) ? d : null);
+                    return snap?.Changes.Select(c => new Hrot.UI.Common.Rules.RuleJournalEntry(c.Seq, c.At, c.Kind, c.Text)).ToList() ?? (System.Collections.Generic.IReadOnlyList<Hrot.UI.Common.Rules.RuleJournalEntry>)System.Array.Empty<Hrot.UI.Common.Rules.RuleJournalEntry>();
+                },
+                () => new Fdp.Presentation.Editing.ScopedMapPickContext(picks, "$.rule"));
+        }
+
         internal bool SelectNetworkEntity(int networkId)
         {
             if (networkId <= 0 || _world is not { } world || !world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()) return false;
@@ -290,6 +310,8 @@ namespace Hrot.Editor
         }
 
         /// <summary>⭐ CE-4216 (R2) — Window ▸ Rules; kept so the Details panel's Objectives tab can open a rule in it (RV-7).</summary>
+        /// <summary>⭐ CE-4218 (R5a) — THE editor undo history: the Parameters window and the rule editor push to it.</summary>
+        internal Hrot.Presentation.Edits.EditHistory EditHistory { get; } = new();
         private Hrot.Presentation.Windows.RulesWindow? _rulesWindow;
         private Fdp.Presentation.WindowManager.WindowManager? _rulesWindowManager;
         internal Hrot.Presentation.Windows.RulesWindow? RulesWindow => _rulesWindow;
@@ -1274,7 +1296,7 @@ namespace Hrot.Editor
         // ctor for unit tests
         public EditorSubsystem()
         {
-            _headerParams = new Hrot.Editor.Scenario.HeaderParamsSchemaSource(() => _world, new Hrot.Editor.Scenario.ParamsEditHistory());
+            _headerParams = new Hrot.Editor.Scenario.HeaderParamsSchemaSource(() => _world, EditHistory);   // ⭐ CE-4218 — the ONE undo history, the rule editor pushes to it too
             // ⭐⭐⭐ Batch 95 (95b) — EVERY selection store this editor holds reads ONE entity cell.
             // 🔴🔴 The bridge connects exactly one store (_aiEditorSelectionStore), and the three
             //    PERSPECTIVE stores were connected to nothing ⇒ their SelectedEntity was null for
@@ -4870,7 +4892,8 @@ namespace Hrot.Editor
             _rulesWindow = new Hrot.Presentation.Windows.RulesWindow(
                 () => _world, timelineSource, new Hrot.UI.Common.Adapters.ClusterTimelineCursor(() => timelineTransport, timelineSource),
                 "editor_rules", "Scenario", EditorWindowColor.TitleBar,
-                selectEntity: n => SelectNetworkEntity(n), showOnMap: n => _editorLogic?.CenterOnEntity(n)) { IsOpen = false };
+                selectEntity: n => SelectNetworkEntity(n), showOnMap: n => _editorLogic?.CenterOnEntity(n),
+                editor: BuildRuleEditorServices()) { IsOpen = false };
             windowManager.RegisterWindow(_rulesWindow);
 
             // ⭐⭐ CE-4217 (rules view R3; RV-8) — Window ▸ Mission summary: read-only, over the same world and the same shown timeline; its key events seek that timeline

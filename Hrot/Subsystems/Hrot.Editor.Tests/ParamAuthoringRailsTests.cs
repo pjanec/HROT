@@ -20,7 +20,7 @@ public sealed class ParamAuthoringRailsTests
         repo.RegisterManagedComponent<ParamBindings>();
         ScenarioDescription.Stamp(repo, "desc", "macro", "h", null, "");
         var e = repo.CreateEntity();
-        var src = new HeaderParamsSchemaSource(() => repo, new ParamsEditHistory());
+        var src = new HeaderParamsSchemaSource(() => repo, new Hrot.Presentation.Edits.EditHistory());
         return (repo, src, e, new RepositoryAdapter(repo));
     }
 

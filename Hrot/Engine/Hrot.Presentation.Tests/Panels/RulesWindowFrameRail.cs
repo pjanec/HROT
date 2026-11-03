@@ -199,4 +199,80 @@ public sealed class RulesWindowFrameRail : IDisposable
         Assert.Contains("Waits on: Mission", window.Probe.Details);
         Assert.All(window.Probe.Buttons.Where(b => b.Label != "Show on map"), b => Assert.Equal(RulesModel.NotRunning, b.Reason));
     }
+
+    /// <summary>
+    /// ⭐ CE-4218 (R5a) — the RULE EDITOR in a real frame, EDIT MODE: a trigger's tab set (Overview · When · Rules · Do · Bindings · History) and an objective's (Status · Settings · Results · History), each tab's fields drawn from the ONE params form (the When tab through the
+    /// standard predicate leaf), the header above them, Apply / Revert / Undo on the bar. ✅ Red-proof: <c>RuleTabs.FieldsOf</c> returning nothing for the Rules tab ⇒ its fields vanish ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void TheRuleEditor_DrawsBothTabSets_EachTabsFieldsFromTheOneForm()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        _world.RegisterManagedComponent<Fdp.Toolkit.Behavior.Components.BehaviorStartRecord>();
+        void Rule(int id, string kind, string json)
+        {
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new NetworkIdentity(id));
+            _world.SetManagedComponent(e, new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = kind, JsonParams = json, InstanceId = 1 });
+        }
+        Rule(10, "ReachArea", """{"common":{"title":"Reach the bridge","subject":901}}""");
+        Rule(20, "Trigger", """{"common":{"title":"Counter-attack","subject":900},"when":{"$type":"OnEntity","ref":{"NetworkId":10},"predicate":{"$type":"PropertyMatch","ComponentType":"ObjectiveStatus","PropertyPath":"State","Operator":"Equals","Predicate":{"$type":"Numeric","MinValue":2,"MaxValue":2}}},"cooldown":10}""");
+        var history = new Hrot.Presentation.Edits.EditHistory();
+        var svc = new RuleEditorServices(() => Fdp.Presentation.Editing.ComponentEditServices.CreateBuilder().Build(), () => null,
+            (e, n, j) => true, history, _ => Array.Empty<RuleJournalEntry>());
+        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_ed", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 5d, editor: svc);
+        using var frame = UiFrameHarness.Begin(1400, 700);
+        void Step(Action<ImGuiIOPtr>? input = null, int n = 1)
+        {
+            for (int i = 0; i < n; i++)
+                frame.Step(() =>
+                {
+                    input?.Invoke(ImGui.GetIO());
+                    ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(1400, 700));
+                    ImGui.Begin("Rules", ImGuiWindowFlags.NoCollapse);
+                    window.DrawContent();
+                    ImGui.End();
+                });
+        }
+
+        window.SelectNetworkId(20);
+        Step(null, 4);
+        var ed = window.Probe.Editor!;
+        Assert.Equal(new[] { "Overview", "When", "Rules", "Do", "Bindings", "History" }, ed.Tabs);
+        Assert.True(ed.Editable);
+        window.Details!.RequestTab(RuleTab.When); Step(null, 4);
+        Assert.Equal("When", window.Probe.Editor!.Tab);
+        Assert.Equal(new[] { "Common", "When" }, window.Probe.Editor.Fields.ToArray());
+        frame.Screenshot(ShotPath("rules-4-when.png"));
+        window.Details.RequestTab(RuleTab.Rules); Step(null, 4);
+        Assert.Equal(new[] { "Common", "HoldFor", "Delay", "Cooldown", "Repeat", "MaxFires", "FireIfTrueWhenArmed", "WhileTrue" }, window.Probe.Editor!.Fields.ToArray());
+        frame.Screenshot(ShotPath("rules-5-rules.png"));
+        window.Details.RequestTab(RuleTab.Do); Step(null, 3);
+        Assert.Equal(new[] { "Common", "Do" }, window.Probe.Editor!.Fields.ToArray());   // the tab OWNS `do`; its list editor is R5b, so the tab draws a placeholder
+
+        // ⭐ found LIVE: clicking Undo changed CanUndo between BeginDisabled and EndDisabled and ImGui asserted (the editor died). Apply, then CLICK Undo in the frame.
+        window.SelectNetworkId(20);
+        Step(null, 3);
+        window.Details!.StagePending("""{"common":{"title":"Counter-attack","subject":900},"cooldown":33}""");
+        Step(null, 2);
+        Assert.True(window.Details.Apply(Hrot.UI.Common.Rules.RulesModel.Build(_world, new Hrot.UI.Common.Rules.RulesOptions(), null, 5d).Find(20)!));
+        Step(null, 3);
+        Assert.True(history.CanUndo);
+        var r = window.Details.UndoRect; var at = (r.Min + r.Max) / 2f;
+        Step(io => Pos(io, at.X, at.Y), 2);
+        Step(io => { Pos(io, at.X, at.Y); io.AddMouseButtonEvent(0, true); });
+        Step(io => Pos(io, at.X, at.Y));
+        Step(io => { Pos(io, at.X, at.Y); io.AddMouseButtonEvent(0, false); });
+        Step(null, 3);
+        Assert.False(history.CanUndo);                                   // the click ran Undo and the frame survived
+
+        window.SelectNetworkId(10);
+        Step(null, 4);
+        Assert.Equal(new[] { "Status", "Settings", "Results", "History" }, window.Probe.Editor!.Tabs);
+        window.Details.RequestTab(RuleTab.Settings); Step(null, 4);
+        Assert.Equal("Settings", window.Probe.Editor!.Tab);
+        Assert.Contains("Common", window.Probe.Editor.Fields);
+        Assert.True(window.Probe.Editor.Fields.Count > 1, "a kind's own fields are drawn on Settings");
+        frame.Screenshot(ShotPath("rules-6-settings.png"));
+    }
 }

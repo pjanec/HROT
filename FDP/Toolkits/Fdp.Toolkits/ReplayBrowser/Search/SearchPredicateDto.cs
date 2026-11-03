@@ -126,6 +126,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         public string PropertyPath { get; set; } = string.Empty;
         public SearchOperator Operator { get; set; } = SearchOperator.Equals;
         /// <summary>Value sub-predicate (NumericPredicateDto, StringPredicateDto, etc.).</summary>
+        [PredicateValue]
         public SearchPredicateDto Predicate { get; set; } = null!;
     }
 
@@ -286,6 +287,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
         public SearchOperator Operator { get; set; } = SearchOperator.Equals;
 
+        [PredicateValue]
         public SearchPredicateDto Predicate { get; set; } = null!;
     }
 
@@ -380,6 +382,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         /// Value sub-predicate: <see cref="NumericPredicateDto"/> or
         /// <see cref="StringPredicateDto"/> (same as <see cref="PropertyMatchDto.Predicate"/>).
         /// </summary>
+        [PredicateValue]
         public SearchPredicateDto Predicate { get; set; } = null!;
     }
 

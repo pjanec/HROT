@@ -29,7 +29,7 @@ public sealed record RuleRow(
     string Title, string Icon, string StateWords, uint StateColour,
     int SubjectNetworkId, string? SubjectName,
     IReadOnlyList<RuleSpan> Spans, IReadOnlyList<double> Fires, double? ExpectedAt,
-    IReadOnlyList<RuleLink> WaitsOn, IReadOnlyList<RuleLink> Starts, bool Authored = false);
+    IReadOnlyList<RuleLink> WaitsOn, IReadOnlyList<RuleLink> Starts, bool Authored = false, string? Macro = null, int MacroInstance = 0);
 
 /// <summary>A section of rows: the name it is shown by and its rows in tree order.</summary>
 public sealed record RuleGroup(string Name, IReadOnlyList<RuleRow> Rows);
@@ -77,7 +77,7 @@ public sealed class IndexRulesHistory : IRulesHistory
 public static class RulesReader
 {
     /// <summary>One rule entity as stored: the status, its parent / subject network ids, and the macro path it was expanded from (null = authored in the scenario).</summary>
-    public sealed record Entry(Entity Entity, int NetworkId, ObjectiveStatus Status, int ParentNetworkId, int SubjectNetworkId, string? Macro, bool Authored = false);
+    public sealed record Entry(Entity Entity, int NetworkId, ObjectiveStatus Status, int ParentNetworkId, int SubjectNetworkId, string? Macro, bool Authored = false, int MacroInstance = 0);
 
     public static IReadOnlyList<Entry> Read(EntityRepository world)
     {
@@ -85,6 +85,7 @@ public static class RulesReader
         var seen = new HashSet<int>();
         bool origin = world.IsComponentTypeRegistered<MacroOrigin>();
         string? MacroFor(Entity e) => origin && world.HasComponent<MacroOrigin>(e) ? MacroOf(world, world.GetComponentRO<MacroOrigin>(e).Instance.NetworkId) : null;
+        int InstanceFor(Entity e) => origin && world.HasComponent<MacroOrigin>(e) ? world.GetComponentRO<MacroOrigin>(e).Instance.NetworkId : 0;
         if (world.IsComponentTypeRegistered<ObjectiveStatus>())
         {
             bool links = world.IsComponentTypeRegistered<ObjectiveLinks>();
@@ -94,7 +95,7 @@ public static class RulesReader
                 if (net == 0) continue;   // a row with no durable identity cannot be asked, linked or selected
                 var l = links && world.HasComponent<ObjectiveLinks>(e) ? world.GetComponentRO<ObjectiveLinks>(e) : default;
                 seen.Add(net);
-                list.Add(new Entry(e, net, world.GetComponentRO<ObjectiveStatus>(e), l.Parent.NetworkId, l.Subject.NetworkId, MacroFor(e)));
+                list.Add(new Entry(e, net, world.GetComponentRO<ObjectiveStatus>(e), l.Parent.NetworkId, l.Subject.NetworkId, MacroFor(e), MacroInstance: InstanceFor(e)));
             }
         }
         // ⭐ RV-3a — BEFORE a run no status exists: a rule entity carries only its AUTHORED params. ONE row type, two sources: the status (above) wins
@@ -105,7 +106,7 @@ public static class RulesReader
                 if (net == 0 || seen.Contains(net)) continue;
                 var rec = ((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetManagedComponentRO<BehaviorStartRecord>(e);
                 if (rec == null || AuthoredRules.Parse(world, e, net, rec.BehaviorName, rec.JsonParams) is not { } a) continue;
-                list.Add(new Entry(e, net, a.Status, a.ParentNetworkId, a.SubjectNetworkId, MacroFor(e), Authored: true));
+                list.Add(new Entry(e, net, a.Status, a.ParentNetworkId, a.SubjectNetworkId, MacroFor(e), Authored: true, MacroInstance: InstanceFor(e)));
             }
         return list;
     }
@@ -273,10 +274,10 @@ public static class RulesModel
         string? subject = e.SubjectNetworkId != 0 ? NameOf(world, NetworkIdResolver.FindEntityByNetworkId(world, e.SubjectNetworkId), e.SubjectNetworkId) : null;
         if (e.Authored)   // ⭐ RV-3a — authored, not running: no state, no past, nothing expected
             return new RuleRow(e.NetworkId, e.Entity, depth, hasChildren, s, TitleOf(s, e.NetworkId), IconOf(s.Role), AuthoredWords, Grey,
-                               e.SubjectNetworkId, subject, Array.Empty<RuleSpan>(), Array.Empty<double>(), null, waits, starts, Authored: true);
+                               e.SubjectNetworkId, subject, Array.Empty<RuleSpan>(), Array.Empty<double>(), null, waits, starts, Authored: true, Macro: e.Macro, MacroInstance: e.MacroInstance);
         return new RuleRow(e.NetworkId, e.Entity, depth, hasChildren, s, TitleOf(s, e.NetworkId), IconOf(s.Role), StateWords(s, now), ColourOf(s),
                            e.SubjectNetworkId, subject, SpansOf(s, history?.StateChanges(e.NetworkId), now), FiresOf(s, history?.Fires(e.NetworkId)),
-                           s.ExpectedAt > now ? s.ExpectedAt : null, waits, starts);
+                           s.ExpectedAt > now ? s.ExpectedAt : null, waits, starts, Macro: e.Macro, MacroInstance: e.MacroInstance);
     }
 
     /// <summary>

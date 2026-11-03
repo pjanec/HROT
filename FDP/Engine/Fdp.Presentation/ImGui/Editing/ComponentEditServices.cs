@@ -30,6 +30,8 @@ namespace Fdp.Presentation.Editing
                 .RegisterFieldEditor<Fdp.Toolkit.Replication.AreaLink>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.AreaLink)))   // ⭐ CE-4206 R2 — an authored area (circle / rectangle / area entity) is one leaf by TYPE
                 // ⭐ CE-2068 — a utility decision reference is pickable by its TYPE (R-184): one leaf, drawn as a catalog combo.
                 .RegisterFieldEditor<Fdp.Toolkit.Utility.UtilityDecisionRef>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Utility.UtilityDecisionRef)))
+                // ⭐ CE-4218 (RE-3) — the value leaf of a property match is a standard leaf BY TYPE (gated by [PredicateValue]); the Replay Browser registers the same editor and draws the same drawer
+                .RegisterFieldEditor<Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto>(new PredicateValueFieldEditor())
                 .RegisterFieldEditor<Guid>(new StructEdit.Reflection.Editors.GuidFieldEditor());
     }
 

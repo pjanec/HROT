@@ -68,12 +68,19 @@ public static class BehaviorParamsForm
     /// Give each form on one screen its own scope (<see cref="ScopedMapPickContext"/>) — one broker holds one pending pick.
     /// ⭐ CE-4210 P2 — <paramref name="binds"/>: a caller that HAS the entity passes its bind context (prefix <c>"Behavior.Params"</c> …) so a params field can be fed from a parameter; null ⇒ no bind button (a mission task / order has no entity).
     /// </summary>
-    public static void DrawFields(IEditSession session, IMapPickContext? picks, string tableId = "params", Fdp.Presentation.Editing.IParamBindContext? binds = null)
+    public static void DrawFields(IEditSession session, IMapPickContext? picks, string tableId = "params", Fdp.Presentation.Editing.IParamBindContext? binds = null, System.Collections.Generic.IReadOnlySet<string>? only = null)
     {
         if (session is null) throw new ArgumentNullException(nameof(session));
         if (!ImGuiNET.ImGui.BeginTable(tableId, 2, ImGuiNET.ImGuiTableFlags.Borders | ImGuiNET.ImGuiTableFlags.RowBg)) return;
         if (session.RebuildState == EditRebuildState.RebuildRequired) session.RebuildDocument();
-        new ComponentEditDrawer(session, picks, null, binds).DrawRoot(session.Document.Root);
+        // ⭐ CE-4218 — the value leaf of a property match (RE-3) draws through the ONE drawer the Replay Browser uses; ⭐ `only` = a tab's fields (RuleTabs): the root's fields by name, the rest of the document untouched
+        var drawers = new System.Collections.Generic.Dictionary<Type, IImGuiFieldDrawer> { [typeof(Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto)] = new PredicateValueFieldDrawer(session, null) };
+        var drawer = new ComponentEditDrawer(session, picks, drawers, binds);
+        if (only != null && ComponentEditDrawer.FieldsOwner(session.Document.Root) is { } owner)
+        {
+            foreach (var child in owner.Children) if (only.Contains(child.Name)) drawer.DrawEditNode(child);
+        }
+        else drawer.DrawRoot(session.Document.Root);
         ImGuiNET.ImGui.EndTable();
     }
 
