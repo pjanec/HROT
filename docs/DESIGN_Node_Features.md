@@ -517,3 +517,44 @@ graph TD
 Rails: `PlayerMessagesTests` (filter per kind, lifetime + stacking + priority, log order + cap, dedupe, wrap, fade) · `EffectTests.HudMessages` (recorded only while the feature is on) · `PossessionStationTests.HudMessages` (feature off ⇒ nothing; key toggles) · `HudFeaturesAreWiredOnEveryHostTests` (declared with the right default) · a frame rail of the overlay showing the subtitle and the open log. Station-kind addressing is the one filter that needs a node (`StationFor`); a station with no `NetworkEntityMap` matches nothing, and says so in the rail.
 
 📌 **Live check `2026-11-03`** (ui, the editor under Xvfb, `scenarios/test-macro-insert`, `--mode editor`): loaded live and played; at sim 3.6 s the trigger `Reinforce` inserted `test/fire-team` and sent `Message` *"Reinforcements inserted"* to All; `POST /entities/1019/possess` (the Leader) → `N` opened the log showing **`0:03 Reinforcements inserted`**. ⚠ The subtitle itself had already faded (possession took ~9 s; the default 6 s lifetime) — its drawing is proven by the frame rail; a scenario whose message comes AFTER a unit can be possessed would show it live.
+
+## 11. P-7 — the SCENARIO layer: a scenario's feature preset *(backend, `2026-11-03`; user: *"approved, build ①"* on ui's ask `NOTE_Ui_To_Backend_Hud_Presets_And_Capture_Fields.md` ①; `build-state: READY-TO-BUILD`)*
+
+**INVENTORY** *(`2026-11-03`; graph `.*Feature.*` Class returned 4 unrelated classes — the index was stale, re-indexed; grep is the evidence here)*: the ONE reader is `NodeFeatures` (`Hrot.Core/Infrastructure/NodeFeatures.cs:116`), layers today **type ▸ role default ▸ node override ▸ cluster / load** (`Recompute`, `:280`) — ⛔ F-22's **scenario preset** layer is missing · each node holds it as `HrotNodeContext.Features` (`:87`) · every node runs `ScenarioLoadStep` (`Hrot.Core/Services/LoadPhase/ScenarioLoadStep.cs`), which already reads the header (`ScenarioHeaderJson.Read(dom)`, `:188`) for params and the variant · `ScenarioHeader` (`Fdp.Toolkits/Scenario/ScenarioHeader.cs`) has no `features` · `GET /features` reports a field's source per layer (`Describe`).
+
+```mermaid
+classDiagram
+    direction LR
+    class ScenarioHeader { <<existing + Features>> Features: id to on / off / partial config }
+    class ScenarioLoadStep { <<existing, every node>> reads the header ⇒ SetScenarioPreset }
+    class NodeFeatures { <<existing + the scenario layer>> SetScenarioPreset(map?) · layer "scenario" }
+    class HrotNodeContext { <<existing>> Features }
+    ScenarioLoadStep ..> ScenarioHeader : ScenarioHeaderJson.Read
+    ScenarioLoadStep ..> HrotNodeContext
+    HrotNodeContext --> NodeFeatures
+```
+
+```mermaid
+sequenceDiagram
+    participant L as ScenarioLoadStep (each node)
+    participant F as NodeFeatures (that node)
+    participant H as HUD (a hud.* system)
+    L->>L: header.features = {"game.tickets": "off", "hud.kill-feed": "off"}
+    L->>F: SetScenarioPreset(map)  ("on"/"off" ⇒ {"Enabled": …})
+    F->>F: Recompute — type ▸ role default ▸ SCENARIO ▸ node override ▸ cluster
+    H->>F: On("game.tickets")? ⇒ false (unless the node or the cluster turns it back on)
+    L->>F: the next load replaces it, the world emptying (Idle) clears it
+```
+
+*What the pictures show that prose hid:* the preset is ONE more layer in the ONE reader, set by the step every node already runs — no new
+system, no second feature store; a node / cluster override still wins, so an operator can always turn an element back on.
+
+| # | decision | why |
+|---|---|---|
+| **F-27** | the scenario's header carries **`"features": { "<id>": "on" \| "off" \| {partial config} }`** — `"on"` / `"off"` are the short forms of `{"Enabled": true/false}` (F-22's node-override convention) | ui's lean; the header already carries params and the macro anchor |
+| **F-28** | `ScenarioLoadStep` hands it to its node's `NodeFeatures.SetScenarioPreset(map)` on EVERY load (edit and live), replacing the last scenario's; `null` / no field clears it | every node loads the scenario ⇒ every node gets the same preset BY CONSTRUCTION |
+| **F-29** | the layer sits **between role default and node override** (F-22) — `GET /features` names it `scenario` | the operator's node / cluster override still wins |
+| **F-30** | an id this node does not declare is SKIPPED and reported in `Problems` (as a cluster override's is); malformed JSON is a `Problems` entry, the load goes on | a preset names HUD features an IG node may not have |
+| **F-31** | recording: nothing new — AtLoad features already record their EFFECTIVE config (`AtLoadConfigs`), and a replay loads the same scenario, so a Live feature's preset re-applies | F-15 unchanged |
+
+**Rejected — one line each:** *a feature list per profile (training / game) compiled in* — a scenario is the unit that knows its screens (PH-8) · *the master stamping presets into the cluster layer* — that is the operator's layer; mixing them loses who set what · *a separate `features.json` beside the scenario* — the header is the one place a scenario's metadata lives.
