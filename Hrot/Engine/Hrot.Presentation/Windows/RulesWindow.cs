@@ -163,6 +163,14 @@ public sealed class RulesWindow : ManagedWindow
     /// <summary>⭐ Test hook — draws the client area inside the caller's ImGui window (no title bar, no atlas).</summary>
     internal void DrawContent() => DrawClientArea();
 
+    /// <summary>⭐ CE-4216 (live check, `2026-11-03`) — first open at a usable size (it opened as a toolbar-only 470×60 box) and opaque
+    /// (the map showed through the details pane). <see cref="ImGuiCond.FirstUseEver"/>: a size the user dragged is kept.</summary>
+    protected override void BeforeBegin()
+    {
+        ImGui.SetNextWindowSize(new Vector2(1300f, 720f), ImGuiCond.FirstUseEver);
+        ImGui.SetNextWindowBgAlpha(1f);
+    }
+
     protected override void DrawClientArea()
     {
         BuildAndPublish();
