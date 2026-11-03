@@ -425,5 +425,41 @@ namespace Hrot.SimHost.Tests
             Flip(w, src, true); w.Run(1.5);
             Assert.Equal(new[] { "Bounty on #" + w.Net(anon) + "!", "Bounty on Hawk!" }, w.Messages.Select(m => m.Text).OrderBy(x => x, StringComparer.Ordinal).ToArray());
         }
+
+        /// <summary>S7 ⑤ — <c>Best.also</c> (the Untouchable's kills floor): among "Deaths" (lowerIsBetter, ≤ 0) a candidate qualifies only if his SIBLING "Kills" (same parent) is ≥ 5: 0 kills / 0 deaths does NOT win, 5 kills / 0
+        /// deaths does, 5 kills / 1 death does not (deaths). ✅ Red-proof: the sibling check ignored in <c>Find</c> ⇒ the idle man wins ⇒ red.</summary>
+        [Fact]
+        public void S7_5_Best_Also_AKillsFloorOnTheSiblingMeasure()
+        {
+            var w = new ObjWorld();
+            var root = w.Objective("WeightedMean", $"{{{NoSubject}}}");
+            var idle = w.Man(Inside, ForceId.Friend, 10f); var ace = w.Man(Inside, ForceId.Friend, 10f); var fallen = w.Man(Inside, ForceId.Friend, 10f);
+            var foes = Enumerable.Range(0, 11).Select(_ => w.Man(Inside, ForceId.Hostile, 10f)).ToArray();
+            var killer = w.Man(Inside, ForceId.Hostile, 10f);
+            foreach (var m in new[] { idle, ace, fallen })
+            {
+                var group = w.Objective("WeightedMean", $"{{{Cm("Score " + w.Net(m), 0, $",\"parent\":{w.Net(root)}")}}}");
+                w.Objective("Count", $"{{{Cm("Kills", w.Net(m), $",\"parent\":{w.Net(group)}")},\"what\":\"kills\"}}");
+                w.Objective("Count", $"{{{Cm("Deaths", w.Net(m), $",\"parent\":{w.Net(group)}")},\"what\":\"deaths\"}}");
+            }
+            var award = w.Objective("Best", $"{{{Cm("Untouchable", 0, $",\"parent\":{w.Net(root)},\"scored\":false")},\"among\":{w.Net(root)},\"measure\":\"Deaths\",\"min\":0,\"lowerIsBetter\":true,\"also\":{{\"measure\":\"Kills\",\"min\":5}}}}");
+            w.Run(1);
+            for (int i = 0; i < 5; i++) { w.Kill(foes[i], ace); w.Tick(); w.Kill(foes[5 + i], fallen); w.Tick(); }
+            w.Kill(fallen, killer); w.Run(2);
+            EndTheExercise(w);
+            w.Run(6);
+            Assert.Equal((ObjectiveState.Achieved, (byte)1), (w.S(award).State, w.S(award).Closed));
+            Assert.Equal(ace, w.Repo.GetComponentRO<ObjectiveLinks>(award).Subject.Resolve(w.Repo));   // 5 kills / 0 deaths; the idle man (0 / 0) has no kills floor, the fallen one a death
+
+            var w2 = new ObjWorld();
+            var root2 = w2.Objective("WeightedMean", $"{{{NoSubject}}}");
+            var lazy = w2.Man(Inside, ForceId.Friend, 10f);
+            var g2 = w2.Objective("WeightedMean", $"{{{Cm("Score", 0, $",\"parent\":{w2.Net(root2)}")}}}");
+            w2.Objective("Count", $"{{{Cm("Kills", w2.Net(lazy), $",\"parent\":{w2.Net(g2)}")},\"what\":\"kills\"}}");
+            w2.Objective("Count", $"{{{Cm("Deaths", w2.Net(lazy), $",\"parent\":{w2.Net(g2)}")},\"what\":\"deaths\"}}");
+            var a2 = w2.Objective("Best", $"{{{Cm("Untouchable", 0, $",\"parent\":{w2.Net(root2)},\"scored\":false")},\"among\":{w2.Net(root2)},\"measure\":\"Deaths\",\"min\":0,\"lowerIsBetter\":true,\"also\":{{\"measure\":\"Kills\",\"min\":5}}}}");
+            w2.Run(2); EndTheExercise(w2); w2.Run(6);
+            Assert.Equal((ObjectiveState.Failed, "nobody qualified"), (w2.S(a2).State, w2.S(a2).Reason.ToString()));
+        }
     }
 }

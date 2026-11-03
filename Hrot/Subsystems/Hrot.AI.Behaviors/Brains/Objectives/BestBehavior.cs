@@ -27,6 +27,8 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         {
             public ObjectiveCommonBlock Common; public ObjectiveRun Run;
             public EntityRef Among; public FixedString64 Measure; public float Min; public byte HasMin, LowerIsBetter;
+            /// <summary>⭐ S7 ⑤ — <c>also</c>: the sibling measure's title and its floor (<c>HasAlso</c> 0 = none).</summary>
+            public FixedString64 AlsoMeasure; public float AlsoMin; public byte HasAlso;
             /// <summary>Working state (recorded with the blackboard): the winner once settled (the links are re-copied every tick, so it is re-written after).</summary>
             public byte Settled; public EntityRef Winner; public float ShownValue; public int ShownN;
         }
@@ -40,6 +42,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             {
                 Common = ObjectiveCommonBlock.From(in authored.Common), Among = authored.Among.Ref, Measure = new FixedString64(authored.Measure ?? string.Empty),
                 Min = authored.Min ?? 0f, HasMin = (byte)(authored.Min.HasValue ? 1 : 0), LowerIsBetter = (byte)(authored.LowerIsBetter ? 1 : 0), ShownValue = float.NaN,
+                HasAlso = (byte)(authored.Also is { Measure: { Length: > 0 } } ? 1 : 0), AlsoMeasure = new FixedString64(authored.Also?.Measure ?? string.Empty), AlsoMin = authored.Also?.Min ?? 0f,
             };
 
         [SharedAiAction]
@@ -98,11 +101,31 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 ref readonly var c = ref world.GetComponentRO<ObjectiveStatus>(e);
                 if (c.Role != ObjectiveRole.Measure || !c.Title.Equals(b.Measure) || !Under(world, e, among)) continue;
                 candidates++;
-                if (c.Closed != 0) closed++;
+                bool alsoOk = true, alsoClosed = true;
+                if (b.HasAlso != 0) alsoOk = Sibling(world, e, in b, out alsoClosed);   // ⭐ S7 ⑤ — his sibling measure's floor
+                if (c.Closed != 0 && alsoClosed) closed++;   // the sibling's value must be final too
+                if (!alsoOk) continue;
                 if (b.HasMin != 0 && (lower ? c.Value > b.Min : c.Value < b.Min)) continue;
                 if (!found || (lower ? c.Value < value : c.Value > value)) { found = true; value = c.Value; best = e; }
             }
             return best;
+        }
+
+        /// <summary>⭐ S7 ⑤ — whether <paramref name="candidate"/>'s SIBLING (a measure titled <c>also.measure</c> with the same <c>Parent</c>) has Value ≥ <c>also.min</c>; <paramref name="closed"/> says the sibling is closed (no sibling ⇒ false and closed).</summary>
+        private static bool Sibling(EntityRepository world, Entity candidate, in Block b, out bool closed)
+        {
+            closed = true;
+            var parent = world.GetComponentRO<ObjectiveLinks>(candidate).Parent;
+            if (parent.IsNone) return false;
+            foreach (var e in world.Query().With<ObjectiveLinks>().With<ObjectiveStatus>().Build())
+            {
+                if (e == candidate) continue;
+                ref readonly var c = ref world.GetComponentRO<ObjectiveStatus>(e);
+                if (c.Role != ObjectiveRole.Measure || !c.Title.Equals(b.AlsoMeasure) || world.GetComponentRO<ObjectiveLinks>(e).Parent != parent) continue;
+                closed = c.Closed != 0;
+                return c.Value >= b.AlsoMin;
+            }
+            return false;
         }
 
         /// <summary>Whether <paramref name="e"/> is a descendant of <paramref name="among"/> within <see cref="MaxDepth"/> parent hops.</summary>
