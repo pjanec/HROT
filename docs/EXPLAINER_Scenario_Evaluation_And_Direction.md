@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-03 (parts 4–10 added: references, macros, scoring, game profile, messages and end, views, node features; parts 1–3 marked with their build state — coordinator)
+updated: 2026-11-03 (settled the same day: RV-1…RV-9, RE-1…RE-10 + §7.4, PH-1…PH-7 approved, PH-8 amended to R-4115; the pass mark, CE-2378, step progress and the state-keeping live edit built (behaviors); the per-player score S7 built on leans P-1…P-9 (backend). Earlier: parts 4–10 added — coordinator)
 current-answer: §1 the objective · §2 the trigger · §3 exercise control · §4 references and keys · §5 scenario macros · §6 scoring and evaluation · §7 the game profile · §8 messages and the end · §9 what people see · §10 switching it per node — each of §4–§10 has a status line and, where it applies, how it works / how it is authored / how it is presented. An EXPLAINER of the designs, not the designs themselves
 stale-below: nothing — superseded revisions removed 2026-11-01; full history at commit de422e11b (`git show de422e11b:docs/EXPLAINER_Scenario_Evaluation_And_Direction.md`)
-known-rot: §1–§3 use illustrative parameter names (the shipped ones are in DESIGN_Scenario_Rules.md §00.8–§00.9, e.g. `minMen`, `holdSeconds`, `deadlineSeconds`); the `Count` OBJECTIVE of §3.2 / §3.4 is, as built, the `Counter` measure (a pool moved by actions, §7) or S4's `Count` measure (events by the subject, §6); §3.3's rung 3 (`PressureController`) and rung 4 (`SideAmmoFraction`) are designed illustrations, not built; most SCREENS of §9 are designed and two designs (DESIGN_Rules_View_UI.md RV-1…RV-9, DESIGN_Player_HUD_And_Debrief.md PH-1…PH-8) carry leans that await the user — each row says which; not verified end to end: a `do` step's own `bind`
+known-rot: §1–§3 use illustrative parameter names (the shipped ones are in DESIGN_Scenario_Rules.md §00.8–§00.9, e.g. `minMen`, `holdSeconds`, `deadlineSeconds`); the `Count` OBJECTIVE of §3.2 / §3.4 is, as built, the `Counter` measure (a pool moved by actions, §7) or S4's `Count` measure (events by the subject, §6); §3.3's rung 3 (`PressureController`) and rung 4 (`SideAmmoFraction`) are designed illustrations, not built; most SCREENS of §9 are designed and APPROVED but not yet built (each row says which); §7's per-player score is built on backend's leans P-1…P-9, which the user may still overturn; not verified end to end: a `do` step's own `bind`
 known-conflict: none
 related-designs:
   - docs/DESIGN_Scenario_Rules.md — OWNS every decision explained here (SR-…, T1–T10, G-…, E-…, V-…); this file only explains them with examples
@@ -12,8 +12,8 @@ related-designs:
   - docs/DESIGN_Scenario_Entity_Keys.md — the stable entity GUIDs references rest on (§4)
   - docs/DESIGN_Entity_Hierarchy_Views.md — the entity tree's Command / Structure / Scenario views, HV-1…HV-5 (§5.3, §9)
   - docs/DESIGN_Node_Features.md — the per-node feature switches, F-…, and the hud.* features (§10)
-  - docs/DESIGN_Rules_View_UI.md — the instructor's rules view and mission summary, RV-1…RV-9 (§9.1) — leans await the user
-  - docs/DESIGN_Player_HUD_And_Debrief.md — the player's HUD, kill feed, debrief, PH-1…PH-8 (§9.2) — leans await the user
+  - docs/DESIGN_Rules_View_UI.md — the instructor's rules view and mission summary, RV-1…RV-9 (§9.1) and the rule editor RE-1…RE-10 (§9.1a) — ✅ approved 2026-11-03
+  - docs/DESIGN_Player_HUD_And_Debrief.md — the player's HUD, kill feed, debrief, PH-1…PH-8 (§9.2) — ✅ approved 2026-11-03, PH-8 amended (R-4115)
   - docs/designs/rules-view/README.md — the nine UI mockups (§9)
   - docs/OVERVIEW_Behaviour_Building_Blocks.md — the behaviours, orders and command chain objectives and triggers use
   - docs/SHOWCASE_Scenarios.md — two full scenarios (training + game) that use everything explained here, with their as-built measurements
@@ -34,10 +34,10 @@ related-designs:
 | 3 | exercise control | pacing, difficulty, branches and the end, from the same pieces | ✅ data patterns · ⏳ a reusable control behaviour |
 | 4 | references and keys | how one thing points at another, with no network ids in a file | ✅ |
 | 5 | scenario macros | reusable parts, placed and expanded anywhere | ✅ · ⏳ preview of a runtime insert |
-| 6 | scoring and evaluation | scores per person, squad, platoon | ✅ tree and measures · ⏳ role composites, pass mark, history |
-| 7 | the game profile | capture points, tickets, respawn waves | ✅ v1 · ⏳ per-player score |
+| 6 | scoring and evaluation | scores per person, squad, platoon | ✅ tree, measures, pass mark, required measures (CE-2378) · ⏳ role composites, score history |
+| 7 | the game profile | capture points, tickets, respawn waves, per-player score | ✅ v1 · ✅ per-player score, awards, streaks, bounty (on leans P-1…P-9) |
 | 8 | messages and the end | briefings to players, the closing of the exercise | ✅ |
-| 9 | what people see | instructor, player, game master | ✅ data and entity tree · ⚠ most screens |
+| 9 | what people see | instructor, player, game master | ✅ data and entity tree · ⏳ most screens — designs approved, being built (ui) |
 | 10 | switching it per node | features as the on/off for every presented element | ✅ · ⏳ the operator grid |
 
 **The three roles, in one line each:**
@@ -568,7 +568,7 @@ For the overview — *how is the mission going, at every level* — a separate, 
 And for the PLAYER (→ §9.2): during play a HUD — in training his mission objectives, his standards and the messages; in a game the score bar, capture points, timer, kill feed and score pop-ups — and after it a debrief: in training GO / NO-GO per standard with *went well / work on* and a replay from his own eyes; in a game the scoreboard, awards and his best moment. One set of data, two profiles, each element a switchable feature.
 📐 Mockup: [`docs/designs/rules-view/`](designs/rules-view/README.md) (standalone HTML, open in a browser) · decisions: SR-105, SR-109, SR-110, SR-111, SR-112 in [`DESIGN_Scenario_Rules.md`](DESIGN_Scenario_Rules.md).
 
-⚠ The view is **designed, awaiting approval** (RV-1…RV-9) — only its data and the timeline panel's first extensions exist; what each screen shows and its build state is in §9.
+⏳ The view is **designed and approved** (RV-1…RV-9, and its rule editor RE-1…RE-10, user `2026-11-03`) and is being built on `ui` — its data, the timeline panel's first extensions, step progress and the state-keeping live edit exist; what each screen shows and its build state is in §9.
 
 ---
 
@@ -733,8 +733,8 @@ checks wait for it by construction (SR-146, SR-147). Any node that may extract e
 ## 6. Scoring and evaluation — who is doing how well
 
 > **Status:** ✅ built — objectives, measures, composites and per-member evaluation (S1, S4 E-1…E-3 on `behaviors`, `DESIGN_Scenario_Rules.md` §00.8, §00.11);
-> ⏳ designed and dispatched, not built — role composites, a pass mark, the score-history lane, the debrief's data checks
-> (`HANDOFF_Coordinator_To_Behaviors_Rules_S4_Scores.md`); ⚠ CE-2378 (*"a required measure below its pass fails its composite"*) awaits the user.
+> ✅ built — the pass mark (`Pass` on the status, `ObjectiveRules.PassOf`) and CE-2378 (*a required measure below its pass fails its composite*, lean accepted by the user `2026-11-03`);
+> ⏳ dispatched, not confirmed built — role composites, the score-history lane, the debrief's data checks (`HANDOFF_Coordinator_To_Behaviors_Rules_S4_Scores.md`).
 > Decisions: SR-19, SR-72, SR-72a, SR-75, SR-78, SR-81, SR-82, SR-83, SR-117, SR-118, SR-122, E-1…E-5.
 
 ### 6.1 How it works
@@ -742,13 +742,14 @@ checks wait for it by construction (SR-146, SR-147). Any node that may extract e
 | kind | does | ends? | examples |
 |---|---|---|---|
 | **objective** | a state machine over a goal | yes — Achieved / Failed | `ReachArea`, `HoldArea`, `ClearAreaObjective`, `DestroyTargets`, `Protect`, `NoHarm` |
-| **measure** | a number against a target; `Score = clamp(Value / Target)`, inverted for *lower is better* | never — it scores | `HitRatio` · `Count` (shots, hits, kills, fratricide, civilians harmed, reports) · `ReportLatency` · `TimeTo` · `Sample` (any registered utility input) |
-| **composite** | its `Score` is computed from its CHILDREN | when its children are final | `WeightedMean` (pass mark 0.6) · `AllMustPass` |
-| **`MemberEvaluation`** | an objective kind placed on a commander: for each member of his roster it inserts the evaluation macro that fits that man | — | §6.3 |
+| **measure** | a number against a target; `Score = clamp(Value / Target)`, inverted for *lower is better* | never — it scores | `HitRatio` · `Count` (shots, hits, kills, fratricide, civilians harmed, reports; for games also assists, team kills, deaths, captures, streak, best streak, bounty kills — §7) · `ReportLatency` · `TimeTo` · `Sample` (any registered utility input) |
+| **composite** | its `Score` is computed from its CHILDREN | when its children are final | `WeightedMean` (pass mark 0.6) · `AllMustPass` · `Points` (Σ child `Value × points`, a game score — §7) |
+| **award** | `Best`: among a group's measures of one title, the best `Value`; at the close Achieved with `Subject` = the winner | yes | *Top scorer*, *Most kills* (§7) |
+| **`MemberEvaluation`** | an objective kind placed on a commander: for each member of his roster (or, `members: side`, every man of his side as he appears — respawns included) it inserts the evaluation macro that fits that man; `aggregate: mean` (training) or `points` (a team total) | — | §6.3, §7 |
 
 Common to all: the `common` block (`title`, `subject`, `parent`, `required`, `scored`, `weight`, `points`, `deadlineSeconds`, `startActive`, `group`).
 `Subject` = *whose* it is, `Parent` = *what it rolls up into* — two links, one tree (SR-47, SR-53). No evidence is never a pass: a measure with no
-shots or no reports scores 0.
+shots or no reports scores 0. ✅ **Pass mark:** a status carries `Pass`, so *GO / NO-GO = `Score ≥ Pass`* is a read, never a frontend rule; and a REQUIRED measure the exercise closed below its `Pass` fails its composite (CE-2378) — the measure itself stays a measure.
 
 ```mermaid
 graph TD
@@ -791,9 +792,7 @@ commander's evaluation, so squad and platoon scores are just the composites abov
 | item | what | where |
 |---|---|---|
 | role composites | one composite per role under the side root (*All riflemen*, *All MG gunners*), following the chain live | handoff item ① |
-| pass mark | a `Pass` on a status so *GO / NO-GO = Score ≥ Pass* is a read | item ② |
 | score-history lane | an indexed timeline lane of `Score` changes joined to the rules lanes provider (RV-4) | item ④, SR-103 |
-| a required measure that fails the tree | CE-2378 | ⚠ awaits the user's answer |
 | the debrief's data | confirm every field is a read of the tree | item ⑤ |
 
 ### 6.3 How it is authored
@@ -811,16 +810,17 @@ commander's evaluation, so squad and platoon scores are just the composites abov
 | where | what | status |
 |---|---|---|
 | `GET /objectives` (`?tree=1`) | every status, the tree by `Parent`, trigger rows with their state, timing, links and live leaves | ✅ any node |
-| the instructor's **mission summary** — scores by command chain / objective / role, trend, *why this score* | ⚠ RV-8 builds the first half (counts, forces, result) with NO score; scores by level need §6.2's role composites | ⚠ / ⏳ (§9) |
-| the rules view's **Results** tab (the composite tree, per member and role) | SR-109 | ⚠ (§9) |
-| the trainee's own standards on the HUD and in the debrief | SR-83, PH-3, PH-6 | ⚠ (§9) |
+| the instructor's **mission summary** — scores by command chain / objective / role, trend, *why this score* | RV-8 (approved) builds the first half (counts, forces, result) with NO score; scores by level need §6.2's role composites | ⏳ (§9) |
+| the rules view's **Results** tab (the composite tree, per member and role) | SR-109, RE-6 (approved) | ⏳ (§9) |
+| the trainee's own standards on the HUD and in the debrief — GO / NO-GO is now a read (`Score ≥ Pass`) | SR-83, PH-3, PH-6 (approved) | ⏳ (§9) |
 
 ---
 
 ## 7. The game profile — tickets, capture points, respawn waves
 
-> **Status:** ✅ built as v1 (S6, `DESIGN_Scenario_Rules.md` §00.12; `scenarios/showcase-crossfire`, measured live over two 900 s rounds) · ⏳ the per-player score is next
-> (`HANDOFF_Coordinator_To_Backend_Player_Score.md`, dispatched, not built). Decisions: G-1…G-7 (✅ approved by the user `2026-11-03`), SR-84, SR-112.
+> **Status:** ✅ built as v1 (S6, `DESIGN_Scenario_Rules.md` §00.12; `scenarios/showcase-crossfire`, measured live over two 900 s rounds) · ✅ the per-player
+> score, awards, streaks and the bounty (S7, §00.13, `backend`; Crossfire round 4 measured) — ⚠ built on backend's leans **P-1…P-9**, which the user has not yet
+> ruled on. Decisions: G-1…G-7 (✅ approved by the user `2026-11-03`), SR-84, SR-112, P-1…P-9 (leans).
 
 A game is the SAME machinery (§1–§3) with a few small additions — no ticket system, no game-mode code (R-4112):
 
@@ -859,13 +859,25 @@ graph TD
 second game needs only a different file.
 
 **Authored:** as entities (objectives, counters, triggers) usually produced by a generator or macros — the Crossfire file comes from
-`scripts/gen-showcase-crossfire.py`; no game-specific editor exists. **Presented:** the statuses are on every node (`GET /objectives`); the game HUD, kill feed and
-round summary are designed (§9). **Measured live:** Red took point C at ~220 s; Blue's tickets 150 → 74; the comeback raised Blue once; four crates at 180 / 360 / 540 / 720 s.
+`scripts/gen-showcase-crossfire.py`; no game-specific editor exists. **Presented:** the statuses are on every node (`GET /objectives`); the scores, awards and streaks too (§7.1); the game HUD, kill feed and
+round summary are designed and approved (§9), not yet built. **Measured live:** Red took point C at ~220 s; Blue's tickets 150 → 74; the comeback raised Blue once; four crates at 180 / 360 / 540 / 720 s.
 
-**What is next — the per-player score** (⏳ dispatched, frozen at `eabedf562`): kills, assists, captures and deaths → points per the game profile's table, owned by
-the engine, replicated and recorded, per possessed person and per team; **team kill −200** (never counted as a kill; CE-4155's attribution decides, a rethrown
-grenade blames the rethrower); the **awards macro** and the **bounty**, computed in a macro from those and the measures; and the data for score pop-ups and the round summary.
-The kill and assist inputs are read from behaviors' measures — one counting mechanism.
+### 7.1 The per-player score *(✅ built, S7 — `DESIGN_Scenario_Rules.md` §00.13; ⚠ leans P-1…P-9)*
+
+⭐ **The score is not a system — it is a MACRO per man** of ordinary measures under one summing composite, so it lives where every other score lives:
+computed on the **Brain** node, on the status wire (`dtObjectiveStatus`), recorded, never saved into the scenario.
+
+| piece | how it works | P- |
+|---|---|---|
+| **the score macro** | `macros/game/score/Default`: a root **`Points`** titled *Score* over `Count` measures of the man — kills ×100 · assists ×50 · captures ×150 · team kills ×−200; deaths and a hit ratio shown but unscored. Another table is another macro (`game/score-hardcore`), no code | P-1, P-2 |
+| **who gets one** | a `MemberEvaluation` per team with `members: side` (every man of the side as he appears — a respawned bot is a new man) and `aggregate: points` (the team total = Σ its men's *Score*) | P-5, P-6 |
+| **the inputs** | four new `Count` readings — **assists** (he harmed a hostile who went down within `assistSeconds`, default 10 s, while another man got the kill) · **team kills** (never a kill) · **deaths** · **captures** (a capture point publishes `ObjectiveCapturedEvent` naming the men inside) — all through the ONE evidence reader, and a kill is credited once from `ManDownedEvent` (CE-3364) with CE-4155's attribution (a rethrown grenade blames the rethrower) | P-3, P-4 |
+| **awards** | kind **`Best`** in an instanced macro `macros/game/awards`: *Top scorer* · *Most kills* · *Point keeper* · *Sharpshooter* (≥ 0.4) · *Untouchable*; live it shows the leader, at the close Achieved with `Subject` = the winner | P-7 |
+| **streaks and the bounty** | `Count streak` / `bestStreak` / `bountyKills` per man; a `Bounty` on a man with a streak of 5 stands while it lasts, a *Bounty announced* message names him (`{subject}`), killing him is worth 300; awards *Bounty hunter*, *Longest streak* | P-8 |
+| **what the screens read** | already the wire: a *+100* pop-up = a child measure's `Value` rising × its `points`; the scoreboard = the men's *Score* roots; the best moment = the largest rise in the recording (the score-history lane, ⏳) | P-9 |
+
+**Measured live** (Crossfire round 4): 10 credited downings for 11 men downed — kills reconcile after CE-3364; streaks live (best 3); no bounty arose, so the
+bounty is proven by rails only (`ScenarioRulesTests.Score`). ⚠ v1 scores a PERSON ENTITY; a human player's score across lives waits for Player Join's respawn.
 
 ---
 
@@ -955,30 +967,49 @@ different numbers. The designed `RulesReader` is the single reading layer all of
 | screen | what it shows | status | mockup |
 |---|---|---|---|
 | **statuses over HTTP** | `GET /objectives` (tree, trigger state, timing, links, leaves) | ✅ | — |
-| **rules view** — objectives and triggers on a sim-time Gantt with a NOW line: past at actual times, future as dashed *expected* bars after what they wait for, connectors from each trigger's `when` / `do`, a *Coming up* strip; trigger tabs *When · Do · Rules · History*, objective tabs *Status · Settings · Results · History*; live edits last for THIS run only | the data: links, timing, expected time, live leaf values (feature `ui.rules-live-values`), runtime control ✅ (V-1…V-4). The shared timeline panel's extensions (item styles, tree rows, extent without a recording) ✅ built (R1). The window, the rules lanes provider, connectors, *Coming up* | ⚠ RV-1…RV-9 await the user | [`Main`](designs/rules-view/mockup/Main.html) · [`TriggerDetails`](designs/rules-view/mockup/TriggerDetails.html) · [`ObjectiveDetails`](designs/rules-view/mockup/ObjectiveDetails.html) · [`EditAtRuntime`](designs/rules-view/mockup/EditAtRuntime.html) |
-| **mission summary** — read-only: headline score with trend and pass mark per side, required objectives n / N, forces, items needing attention, one table of scores by command chain (platoon ▸ squad ▸ person), by objective or by role, each row explaining *why*; opens on a recording too | ⚠ RV-8: the first half (counts, forces, result) ; the scores need §6.2 ⏳ | ⚠ | [`MissionSummary`](designs/rules-view/mockup/MissionSummary.html) |
+| **rules view** — objectives and triggers on a sim-time Gantt with a NOW line: past at actual times, future as dashed *expected* bars after what they wait for, connectors from each trigger's `when` / `do`, a *Coming up* strip; trigger tabs *When · Do · Rules · History*, objective tabs *Status · Settings · Results · History*; live edits last for THIS run only | the data: links, timing, expected time, live leaf values (feature `ui.rules-live-values`), runtime control ✅ (V-1…V-4). The shared timeline panel's extensions (item styles, tree rows, extent without a recording) ✅ built (R1). The window, the rules lanes provider, connectors, *Coming up* | ⏳ RV-1…RV-9 ✅ approved, being built (ui) | [`Main`](designs/rules-view/mockup/Main.html) · [`TriggerDetails`](designs/rules-view/mockup/TriggerDetails.html) · [`ObjectiveDetails`](designs/rules-view/mockup/ObjectiveDetails.html) · [`EditAtRuntime`](designs/rules-view/mockup/EditAtRuntime.html) |
+| **mission summary** — read-only: headline score with trend and pass mark per side, required objectives n / N, forces, items needing attention, one table of scores by command chain (platoon ▸ squad ▸ person), by objective or by role, each row explaining *why*; opens on a recording too | RV-8 ✅ approved: the first half (counts, forces, result); the scores by level need §6.2's role composites ⏳ | ⏳ | [`MissionSummary`](designs/rules-view/mockup/MissionSummary.html) |
 | **entity tree** — one panel, three relations | **Command** (the ORBAT) · **Structure** (parts, riders) · **Scenario** (members under their macro, *Saved* / *Transient*) | ✅ HV-1…HV-5 | — |
 | **macro surfaces** — marker, dimmed members, member lines, Macro tab | §5.3 | ✅ | — |
-| **game-master runtime controls** — add an entity, order, the Brain tab, time control; *Add ▸ Macros* | exist ✅ (SR-104). Fire / disarm / re-arm / reset / activate any rule: the data path exists (`RuleControl` written to the owner, journaled with its origin; `POST /objectives/{id}/control`) ✅, the buttons ⚠ RV-5. An action palette (run any shared action by hand), a per-side skill slider, the MSEL panel | ✅ / ⚠ / ⏳ | [`EditAtRuntime`](designs/rules-view/mockup/EditAtRuntime.html) |
+| **game-master runtime controls** — add an entity, order, the Brain tab, time control; *Add ▸ Macros* | exist ✅ (SR-104). Fire / disarm / re-arm / reset / activate any rule: the data path exists (`RuleControl` written to the owner, journaled with its origin; `POST /objectives/{id}/control`) ✅, the buttons ⏳ RV-5 (approved). An action palette (run any shared action by hand), a per-side skill slider, the MSEL panel | ✅ / ⚠ / ⏳ | [`EditAtRuntime`](designs/rules-view/mockup/EditAtRuntime.html) |
+
+### 9.1a The rule editor — the trigger and objective tabs *(✅ RE-1…RE-10 approved with four amendments, `DESIGN_Rules_View_UI.md` §7; ⏳ being built on `ui`)*
+
+⭐ **No new form:** a rule is an ordinary entity whose behaviour params ARE the rule, so the editor is the ONE params form split into tabs.
+
+| tab (trigger · objective) | what you do there | built from |
+|---|---|---|
+| header on every tab | title, required, scored, points, group, visible to (`common`) | the params form |
+| **When** (trigger) | build the condition: the replay search's predicate builder, made a standard leaf every host shares; *on entity* / *at scenario time* pick refs on the map. Live: ✓ / ✗ and the measured value beside each leaf (`RuleLeaves`) | the Replay Browser's builder, moved |
+| **Do** (trigger) | the step list: *+ Add step* opens the one generic picker over the action catalogue (a refused action shown disabled), each step's args inline; drag to reorder. Live: the running step marked, *step 2 / 3* (✅ `StepCur` / `StepCount`) | a new standard list leaf |
+| **Rules · Settings** | hold / delay / cooldown / repeat / max fires / while true; the objective kind's fields (area, men, seconds) | the same document |
+| **History · Results · Status** | the rule's journal (instructor edits included, each a seek) · its children and *why this score* · the overview | Brain tab, RV-8 |
+
+| how edits apply | |
+|---|---|
+| **Apply / Revert**, never per keystroke | edit mode: written to the scenario entity and saved; **live**: lasts THIS run only, through ✅ `RuleEdit` (433) — the rule keeps its state (armed, fire count), or the edit is refused with a reason |
+| **+ Add** | a menu of rule kinds; creates the rule entity through the one entity-creation path; edit mode only — a live insert is a macro insertion (`InsertMacro`) |
+| **drag to connect** | drop a row on a trigger: ANDs *that row is Achieved* (objective / measure) or *has Fired* (trigger) into its When |
+| **a rule made by a macro** | read-only, *"from macro X — edit the macro or its args"*, with a jump to the instance (SR-43) |
 
 ### 9.2 The player
 
 | screen | what it shows | status | mockup |
 |---|---|---|---|
 | **possession HUD** | hit marker, damage arc, kill cam, squad takeover, spread ring, near-miss shock; the message subtitle and log | ✅ (§10) | — |
-| **training HUD** — *my mission objectives* with progress or time left; *my standards* (value vs target coloured by score); an optional live coaching hint (*"you are in the open"*, off by default) | ⚠ PH-3 (coaching also waits for the live-leaf signal) | ⚠ | [`HudTraining`](designs/rules-view/mockup/HudTraining.html) |
-| **game HUD** — a top bar of tickets, capture points A B C and the round timer; a *Capturing B · 60 %* strip; **kill feed** (*killer → victim · distance*, the rethrower named) | ⚠ PH-4, PH-5 — all readable from existing statuses and damage events | ⚠ | [`HudGame`](designs/rules-view/mockup/HudGame.html) |
-| **trainee debrief** — GO / NO-GO per standard (a card with value, standard line, the squad's average), own score vs squad and platoon, *went well / work on*; available the moment the run ends and on any recording | ⚠ PH-6; *replay from my eyes* and progress across runs ⏳ | ⚠ | [`TraineeDebrief`](designs/rules-view/mockup/TraineeDebrief.html) |
-| **round summary** (game) — winner, scoreboard, awards, *your best moment* | ⏳ PH-7 — waits for the per-player score (§7) | ⏳ | [`GameSummary`](designs/rules-view/mockup/GameSummary.html) |
+| **training HUD** — *my mission objectives* with progress or time left; *my standards* (value vs target coloured by score); an optional live coaching hint (*"you are in the open"*, off by default) | ⏳ PH-3 approved; GO / NO-GO is a read of `Pass` ✅ (coaching also waits for the live-leaf signal) | ⏳ | [`HudTraining`](designs/rules-view/mockup/HudTraining.html) |
+| **game HUD** — a top bar of tickets, capture points A B C and the round timer; a *Capturing B · 60 %* strip; **kill feed** (*killer → victim · distance*, the rethrower named) | ⏳ PH-4, PH-5 approved — all readable from existing statuses and `ManDownedEvent` | ⏳ | [`HudGame`](designs/rules-view/mockup/HudGame.html) |
+| **trainee debrief** — GO / NO-GO per standard (a card with value, standard line, the squad's average), own score vs squad and platoon, *went well / work on*; available the moment the run ends and on any recording | ⏳ PH-6 approved; *replay from my eyes* and progress across runs later | ⏳ | [`TraineeDebrief`](designs/rules-view/mockup/TraineeDebrief.html) |
+| **round summary** (game) — winner, scoreboard, awards, *your best moment* | ⏳ PH-7 approved — its data is built (§7.1: scores, awards, streaks, bounty); the screen is not | ⏳ | [`GameSummary`](designs/rules-view/mockup/GameSummary.html) |
 
-Designs: [`DESIGN_Rules_View_UI.md`](DESIGN_Rules_View_UI.md) (the instructor) · [`DESIGN_Player_HUD_And_Debrief.md`](DESIGN_Player_HUD_And_Debrief.md) (the player) — both carry
-**leans that await the user** (RV-1…RV-9, PH-1…PH-8); the decisions behind the screens SR-105, SR-107, SR-109…SR-112 are accepted *as a starting point*.
+Designs: [`DESIGN_Rules_View_UI.md`](DESIGN_Rules_View_UI.md) (the instructor) · [`DESIGN_Player_HUD_And_Debrief.md`](DESIGN_Player_HUD_And_Debrief.md) (the player) — ✅
+**approved by the user `2026-11-03`** (RV-1…RV-9, RE-1…RE-10 with four amendments, PH-1…PH-7, PH-8 amended — §10); the decisions behind the screens SR-105, SR-107, SR-109…SR-112 stand.
 
 ---
 
 ## 10. Switching it per node — Node Features
 
-> **Status:** ✅ built — the mechanism (S1), the first features and the HUD features (S2, S2b); ⏳ the operator's `FeatureGridPanel`; ⚠ the profile features of §9 are designed.
+> **Status:** ✅ built — the mechanism (S1), the first features and the HUD features (S2, S2b); ⏳ the operator's `FeatureGridPanel`; ⏳ the profile features of §9 are designed and approved (PH-8 amended).
 > Decisions: F-1…F-26, R-4108, SR-112, SR-145. [`DESIGN_Node_Features.md`](DESIGN_Node_Features.md).
 
 ### 10.1 How it works
@@ -1007,7 +1038,7 @@ A **feature** is a named behaviour an operator wants on or off INDEPENDENTLY (`h
 | `hud.messages` | the subtitle + log of §8 | Live | on everywhere (the editor never draws it) |
 | `exercise.pause-on-end` | pause the cluster when the exercise ends (§8) | Live | on for every role |
 | `ui.rules-live-values` | the owner publishes each trigger's live leaf values at ≤ 2 Hz for the rules view | Live | off — switched on on demand |
-| ⚠ designed, not declared in code | `hud.objectives` · `hud.own-evaluation` · `hud.coaching` (training) · `game.tickets` · `game.capture-points` · `game.round-timer` · `hud.kill-feed` · `hud.score-popups` (game) | Live | PH-8 lean: default OFF; the scenario or run setup turns a profile's set on |
+| ⏳ designed and approved, not declared in code | `hud.objectives` · `hud.own-evaluation` · `hud.coaching` (training) · `game.tickets` · `game.capture-points` · `game.round-timer` · `hud.kill-feed` · `hud.score-popups` (game) | Live | ✅ PH-8 amended (R-4115): ON by default where installed; a scenario's feature preset switches the OTHER profile's elements off — a training scenario turns `game.*` off, a game scenario the training elements; `hud.messages` stays on everywhere |
 
 ### 10.2 How it is authored and presented
 
