@@ -97,11 +97,12 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 var request = new UpdateEntityAttributeRequest
                 {
-                    RequestId          = Guid.NewGuid(),
+                    RequestId          = cmd.RequestId != Guid.Empty ? cmd.RequestId : Guid.NewGuid(),   // ⭐ CE-2380: the id EditRequests minted, else a fresh one as before
                     EntityId           = cmd.NetworkId,
                     AttributePatchJson = cmd.AttributePatchJson,
                     AttributeRecords   = records,
                     RequireAck         = false,
+                    WantOutcome        = cmd.WantOutcome,
                 };
 
                 _writer.Write(request);

@@ -58,5 +58,11 @@ namespace Fdp.Toolkit.Replication.Events
         /// translator behave exactly as before.</para>
         /// </summary>
         public IReadOnlyList<EntityAttributeChange>? AttributeChanges;
+
+        /// <summary>⭐ CE-2380 part 1 — the id <c>EditRequests</c> minted for this edit (<see cref="System.Guid.Empty"/> = none: the egress mints its own, as before).</summary>
+        public System.Guid RequestId;
+
+        /// <summary>⭐ CE-2380 part 1 — the requester wants the owner's <c>EditOutcome</c> (default false = today's behaviour, fire-and-forget).</summary>
+        public bool WantOutcome;
     }
 }

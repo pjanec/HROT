@@ -10,9 +10,11 @@ using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Replication.Patching;
 using Hrot.SimHost.Installers;
 using Fdp.Toolkit.Replication.Attributes;
+using Fdp.Toolkit.Replication.Edits;
 using CycloneDDS.Runtime;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Extensions;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.ModuleHost.Abstractions;
@@ -249,9 +251,19 @@ namespace Hrot.Map.Common.Systems
                 _binaryInterpreter.Apply(binaryCtx,
                     AttributeRecordConversion.ToInternal(req.AttributeRecords));
 
-                // SILENT BYSTANDER RULE — nothing applied, leave quietly.
+                // SILENT BYSTANDER RULE — nothing applied, leave quietly. ⭐ CE-2380: except the OWNER of an edit that asked for an outcome — it says what was not applied.
                 if (!ecsPatchCtx.HasAppliedAny)
+                {
+                    if (req.WantOutcome && view.OwnsDescriptorKey(entity, 0))
+                    {
+                        var ids = new List<string>();
+                        foreach (var rec in req.AttributeRecords!) ids.Add(rec.AttributeId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                        ReportOutcome(repo, entity, req, EditStatus.Refused,
+                            $"not applied: attribute(s) {string.Join(", ", ids)} — no handler accepted them on the owner");
+                    }
                     return;
+                }
+                if (req.WantOutcome) ReportOutcome(repo, entity, req, EditStatus.Applied, "applied");
 
                 // OPT-IN ACK.
                 if (req.RequireAck)
@@ -290,6 +302,7 @@ namespace Hrot.Map.Common.Systems
                     else
                         _ackSink.WriteErrorAck(req.RequestId, (int)NedStatusCode.Success);
                 }
+                if (req.WantOutcome && commanderIntercepted) ReportOutcome(repo, entity, req, EditStatus.Applied, "applied");   // ⭐ CE-2380
                 return;
             }
 
@@ -308,7 +321,13 @@ namespace Hrot.Map.Common.Systems
 
             // 7. SILENT BYSTANDER RULE — if this node applied nothing, leave quietly.
             if (!context.HasAppliedAny && !commanderIntercepted)
+            {
+                // ⭐ CE-2380 — only the entity's OWNER answers a refusal (every node receives the request; a bystander applies nothing as a matter of course).
+                if (req.WantOutcome && view.OwnsDescriptorKey(entity, 0))
+                    ReportOutcome(repo, entity, req, EditStatus.Refused, "not applied: nothing in the patch matched a field the owner accepts — " + Clip(req.AttributePatchJson, 200));
                 return;
+            }
+            if (req.WantOutcome) ReportOutcome(repo, entity, req, EditStatus.Applied, "applied");   // ⭐ CE-2380 (also the CommanderId-only patch)
 
             // 7a. CommanderId-only patch: applied via event bus but no ECS mutations.
             //     Send ACK with empty mask to confirm receipt.
@@ -329,6 +348,15 @@ namespace Hrot.Map.Common.Systems
                 _ackSink.WriteAck(req.RequestId, (int)NedStatusCode.Success, _localNodeId, opaqueMask);
             }
         }
+
+        /// <summary>⭐ CE-2380 part 1 — this node's answer to an edit that asked for one (<see cref="EditOutcomes.Report"/>: the local log and the bus; the egress sends it).</summary>
+        private void ReportOutcome(EntityRepository repo, Entity entity, UpdateEntityAttributeRequest req, EditStatus status, string reason)
+        {
+            int node = EditOutcomes.LocalNodeOf(repo, entity);
+            EditOutcomes.Report(repo, req.RequestId, req.EntityId, status, reason, node >= 0 ? node : _localNodeId.AppInstanceId);
+        }
+
+        private static string Clip(string? s, int max) => string.IsNullOrEmpty(s) ? "" : s.Length <= max ? s : s.Substring(0, max) + "…";
 
         /// <summary>
         /// Scans <paramref name="json"/> for a "CommanderId" property.

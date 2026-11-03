@@ -43,6 +43,11 @@ public static class EntityAttributeChangeRequests
     /// reading <c>repo.Bus</c> makes that mistake unrepresentable.</para>
     /// </param>
     public static Action<Entity, IReadOnlyList<EntityAttributeChange>> PublishOnto(EntityRepository repo)
+        => PublishOnto(repo, Guid.Empty, false);
+
+    /// <summary>⭐ CE-2380 part 1 — the same publisher, stamping the command with the edit's <paramref name="requestId"/> and <paramref name="wantOutcome"/>
+    /// (<c>EditRequests</c>). ⛔ Not a second publisher: the one-argument overload above is this with the defaults.</summary>
+    public static Action<Entity, IReadOnlyList<EntityAttributeChange>> PublishOnto(EntityRepository repo, Guid requestId, bool wantOutcome)
     {
         ArgumentNullException.ThrowIfNull(repo);
 
@@ -70,6 +75,8 @@ public static class EntityAttributeChangeRequests
                 // ⚠ Deliberately empty: this is the BINARY arm. ⛔ Sending a JSON patch too would apply the
                 //   same change twice on the owner, through two different compilers.
                 AttributePatchJson = string.Empty,
+                RequestId          = requestId,
+                WantOutcome        = wantOutcome,
             });
         };
     }
@@ -88,6 +95,10 @@ public static class EntityAttributeChangeRequests
     /// </summary>
     /// <returns><see langword="true"/> when the request was published onto <paramref name="repo"/>'s bus.</returns>
     public static bool TryPublishJsonPatch(EntityRepository repo, Entity entity, string patchJson)
+        => TryPublishJsonPatch(repo, entity, patchJson, Guid.Empty, false);
+
+    /// <summary>⭐ CE-2380 part 1 — the JSON arm with the edit's request id and outcome request (<c>EditRequests.WriteJson</c>); the three-argument overload is this with the defaults.</summary>
+    public static bool TryPublishJsonPatch(EntityRepository repo, Entity entity, string patchJson, Guid requestId, bool wantOutcome)
     {
         ArgumentNullException.ThrowIfNull(repo);
         if (string.IsNullOrWhiteSpace(patchJson)) return false;
@@ -100,6 +111,8 @@ public static class EntityAttributeChangeRequests
             NetworkId          = networkId,
             AttributePatchJson = patchJson,
             AttributeChanges   = null,
+            RequestId          = requestId,
+            WantOutcome        = wantOutcome,
         });
         return true;
     }

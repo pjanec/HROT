@@ -220,6 +220,9 @@ namespace Hrot.Map.Common.Translators
             yield return new MapRouteEgressTranslator(participant, entityMap);
             yield return new MapRouteIngressTranslator(participant, entityMap);
             yield return new UpdateEntityAttributeCommandEgressTranslator(participant);
+            // ⭐ CE-2380 part 1 (R-2082) — the outcome of a remote edit, owner → every node (the editor reads its own world's EditOutcomeLog). 📄 DESIGN_Remote_Edit_Outcome.md.
+            yield return new Hrot.Network.Translators.EditOutcomeEgressTranslator(participant);
+            yield return new Hrot.Network.Translators.EditOutcomeIngressTranslator(participant, (int)localNodeId);
             // ⭐ CE-2247 — a destroy on a node that does not own the entity's master goes to the owner (DeleteEntityRequest), whose
             //   teardown disposes it everywhere. Was the IG's alone (CreateIgEgressTranslators); a charge set off on SimHost stayed live
             //   on CGF and the IG. 📄 DESIGN_Entity_Creation_Unification.md §3.4c, DESIGN_Node_Roles_And_Policies.md §3.5 (R-3015).
