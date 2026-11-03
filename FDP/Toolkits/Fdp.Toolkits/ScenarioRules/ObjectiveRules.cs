@@ -116,14 +116,14 @@ namespace Fdp.Toolkit.ScenarioRules
 
         /// <summary>
         /// ⭐ rules S4 ② — THE pass mark of a status (0..1; GO / NO-GO is the read <c>Score ≥ Pass</c>), decided HERE for every kind: an authored <paramref name="authored"/>
-        /// (<c>common.pass</c>, 1 at most) wins; else a weighted composite 0.6, a <c>Counter</c> 0 (a pool the scenario moves — it gives no verdict), every other kind 1
+        /// (<c>common.pass</c>, 1 at most) wins; else a weighted composite 0.6, a <c>Counter</c> and a <c>Points</c> score 0 (a pool / a game score — no verdict), every other kind 1
         /// (a measure's Score is already normalised and lowerIsBetter-folded, so 1 = its target met; an objective's Score is 1 when Achieved).
         /// </summary>
         public static float PassOf(string kind, ObjectiveRole role, float authored)
         {
             if (authored > 0f) return Math.Min(authored, 1f);
             if (kind is "WeightedMean" or "MemberEvaluation" or "SelectionMean") return DefaultCompositePass;
-            if (kind == "Counter") return 0f;
+            if (kind is "Counter" or "Points") return 0f;   // ⭐ S7 P-2: a game score (Points) is a number, not a verdict — like the pool
             return 1f;
         }
 
