@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-03
-build-state: BUILT — CE-3364 (behaviors; user, 2026-11-03: "Approved add that event")
+build-state: BUILT (event, readers) · BUILDING (D5 revised: wire topic + lane) — CE-3364 (behaviors; user, 2026-11-03: "Approved add that event")
 current-answer: §1 the picture · §2 the rule · §3 decisions · §5 as built
 stale-below: nothing
 known-rot: none
@@ -70,13 +70,13 @@ graph TD
       BUS --> CNT
     end
     subgraph Other["Other nodes (SimHost, IG, a player)"]
-      FEED["kill feed PH-7 (later)"]
+      FEED["kill feed PH-5 · summary key events RV-8 · debrief moments PH-6 (ui)"]
     end
-    BUS -. "no wire topic yet (D5)" .-> FEED
-    style FEED stroke-dasharray: 5 5
+    BUS -->|"dtManDowned 175 (D5, ui asked 2026-11-03)"| FEED
+    BUS -->|"recorded (no NoReplay) → combat.downed lane"| LANE["timeline: live index + recordings"]
 ```
-*What the module diagram shows:* the event is raised where Health is owned, and that is the same node where the measures run. So it
-needs no wire today. The dashed edge is the one reader that WILL need a wire.
+*What the module diagram shows:* the event is raised where Health is owned, and that is the same node where the measures run, so the
+MEASURES need no wire. The screens do: the kill feed runs on the player's node, the summary and debrief on any node ⇒ D5's topic.
 
 ## 2. The rule
 
@@ -96,7 +96,7 @@ needs no wire today. The dashed edge is the one reader that WILL need a wire.
 | D2 | a **new event**, not a flag on `DamageAssessedEvent` | a `Downed` flag: the flag would be set after the event is published, which needs a second publication or a mutable event |
 | D3 | readers **drop their own downing guesses** (`Foes` / `Settle` / the revive bookkeeping in `MeasureEvidence`) | keep both: two kill authorities is the defect |
 | D4 | assists = a downing whose credited source is NOT one of his men, after one of his men hit the victim within `assistSeconds` | assists from a per-measure credit list: the same corpse ambiguity |
-| D5 | **no wire topic now**: Health is applied on the Brain, where the measures run | a topic now: no reader on another node yet; PH-7 adds it (one egress / ingress pair, `dtManDowned`) |
+| D5 | ⭐ **REVISED `2026-11-03` (ui's readers asked): a wire topic `dtManDowned` (175, the rules block) — one egress (the publishing node, its own events only) / ingress (raises it on every other node, `IsRemote`-style so no node counts its own twice) pair, the `EntityHitDamage` pattern; and a `combat.downed` lane in `CombatTimelineLanes` (the event is recorded — no `NoReplay`, `RecorderSystem.ShouldRecordEvent`)** | ~~no topic now~~ (the original lean, superseded: ui's PH-5 / RV-8 / PH-6 read it on other nodes) · a lane in the rules provider: it is a combat event, beside `combat.hit` |
 
 ## 4. INVENTORY *(graph + grep, 2026-11-03)*
 
