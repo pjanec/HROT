@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-03
-build-state: DESIGN — the sub-questions in §4 await the user (leans given)
+build-state: BUILDING — §4 A–F approved 2026-11-03 (R-2082)
 current-answer: §1 inventory · §2 the diagrams · §4 the sub-questions with leans
 stale-below: nothing
 known-rot: none
@@ -162,7 +162,7 @@ log is filled by the ingress, so the UI on any node reads its own world.*
 | `EntityWriteRouter.Write` and its callers | unchanged; `EditRequests.Write` is a thin entry that also returns the request id. Callers that do not care (macros, hostile acts) keep calling the router and get no outcome |
 | the rule status `Reason` and the journal's "edit refused" entry | stay (short text for the HUD and the rules view; the journal for the Brain tab) |
 
-## 4. The sub-questions *(leans; the user decides)*
+## 4. The sub-questions *(✅ all six leans approved — 🔒 user, `2026-11-03`: "Approved")*
 
 | # | question | ⭐ lean | why / blast radius | rejected |
 |---|---|---|---|---|
