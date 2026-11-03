@@ -88,6 +88,22 @@ public sealed class TheObjectivesRouteShowsTheTreeTests : IDisposable
         Assert.Equal(("SelectionMean", "roles", 0.6f, 50), ((string)mean["kind"]!, (string)mean["group"]!, (float)mean["pass"]!, (int)mean["parent"]!));
     }
 
+    /// <summary>⭐ G-8 (CE-4230) — a capture point's facts are on its row: <c>capture</c>, <c>challenger</c> (a ForceId name), <c>areaCenter</c> [x,y,z], <c>areaRadius</c>; a plain objective reads false / Neutral / 0.
+    /// ✅ Red-proof: <c>"areaCenter"</c> dropped from the row ⇒ red.</summary>
+    [Fact]
+    public void ACapturePointRow_CarriesItsFacts()
+    {
+        Add(60, "Hold B", "HoldArea", ObjectiveState.Active);
+        Add(61, "Reach", "ReachArea", ObjectiveState.Active);
+        ref var s = ref _world.GetComponentRW<ObjectiveStatus>(_map.TryGetEntity(60, out var p) ? p : default);
+        s.Capture = 1; s.Challenger = ForceId.Hostile; s.AreaCenter = new WorldPoint(10f, 20f, 3f); s.AreaRadius = 25f;
+        var rows = _svc.GetObjectives()["objectives"]!.AsArray().ToDictionary(r => (int)r!["networkId"]!);
+        var row = rows[60]!;
+        Assert.Equal((true, "Hostile", 25f), ((bool)row["capture"]!, (string)row["challenger"]!, (float)row["areaRadius"]!));
+        Assert.Equal(new[] { 10f, 20f, 3f }, row["areaCenter"]!.AsArray().Select(n => n!.GetValue<float>()));
+        Assert.Equal((false, "Neutral", 0f), ((bool)rows[61]!["capture"]!, (string)rows[61]!["challenger"]!, (float)rows[61]!["areaRadius"]!));
+    }
+
     [Fact]
     public void AnObjectiveWhoseParentIsNotHere_IsARoot_AndANodeWithoutTheComponentAnswersEmpty()
     {

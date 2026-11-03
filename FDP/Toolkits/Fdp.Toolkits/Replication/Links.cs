@@ -213,6 +213,29 @@ namespace Fdp.Toolkit.Replication
             }
         }
 
+        /// <summary>
+        /// ⭐ G-8 (DESIGN_Scenario_Rules §00.12, CE-4230) — the area's BOUNDING CIRCLE, what a remote HUD draws without the area's definition: a circle as authored; a rectangle's centre and half diagonal;
+        /// an area entity's outline from its centroid (+ the entity's position) to its farthest vertex. An unresolved / outline-less area entity gives (0,0,0) and radius 0.
+        /// </summary>
+        public void BoundingCircle(EntityRepository? world, out WorldPoint center, out float radius)
+        {
+            switch (Spec.Effective)
+            {
+                case RefForm.Circle: center = Center; radius = Size.X; return;
+                case RefForm.Rectangle: center = Center; radius = 0.5f * MathF.Sqrt(Size.X * Size.X + Size.Y * Size.Y); return;
+            }
+            center = default; radius = 0f;
+            if (world is null || Area.IsNone) return;
+            var e = Area.Resolve(world);
+            if (e.IsNull || !WeatherField.TryOutline(world, e, out var outline) || !world.HasComponent<SimTransform>(e)) return;
+            var origin = world.GetComponentRO<SimTransform>(e).Position;
+            var pts = outline.Points;   // the outline is relative to the entity's position; a centroid moves with its polygon
+            var c = WeatherField.Centroid(pts);
+            float max = 0f;
+            for (int i = 0; i < pts.Count; i++) max = MathF.Max(max, Vector2.Distance(c, pts[i]));
+            center = new WorldPoint(c.X + origin.X, c.Y + origin.Y, origin.Z); radius = max;
+        }
+
         /// <summary>The bound shape as a literal (a param binding's display / writer).</summary>
         internal AreaLink WithoutParam() => Spec.Effective is RefForm.Circle or RefForm.Rectangle
             ? new(default, RefSpec.Shape(Spec.Effective), Center, Size, Heading) : this;

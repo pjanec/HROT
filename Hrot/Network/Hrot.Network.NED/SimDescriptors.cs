@@ -235,6 +235,11 @@ namespace Hrot.NED.Descriptors
         public float Pass;
         /// <summary>⭐ rule editor ①: a trigger's running <c>do</c> step (1-based) and the list's length; 0 / 0 when not acting. A state field, goes at once.</summary>
         public byte StepCur, StepCount;
+        /// <summary>⭐ G-8 (CE-4230): a capture point's facts — 1 = a capture point; the side (<c>ForceId</c>) whose clock runs against the owner (0 = none); the area's bounding circle (centre = a <c>WorldPoint</c>, floats like every position here). Display fields, go at once.</summary>
+        public byte Capture;
+        public byte Challenger;
+        public float AreaX, AreaY, AreaZ;
+        public float AreaRadius;
     }
 
     // ⭐ rules S2-e (docs/DESIGN_Scenario_Rules.md §00.9, SR-122) — the exercise's RESULT: the phase (Running / Closing / Ended), when it ended, why, and the

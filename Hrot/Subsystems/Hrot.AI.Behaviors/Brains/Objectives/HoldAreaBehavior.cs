@@ -90,6 +90,10 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                     if (side != mine && ObjectiveCensus.EnemiesInside(world, mine, in b.Area, side) >= b.MinMen) { owner = side; break; }
             bool dirty = owner != s.Owner || men != b.LastMen || enemy != b.LastEnemy;
             s.Owner = owner; b.LastMen = men; b.LastEnemy = enemy; s.ProgressCur = men; s.ProgressNeed = b.MinMen;
+            ForceId challenger = ForceId.Neutral;   // ⭐ G-8: an enemy side with ≥ minMen inside that does not (yet) own it
+            foreach (var side in s_sides)
+                if (side != owner && side != mine && ObjectiveCensus.EnemiesInside(world, mine, in b.Area, side) >= b.MinMen) { challenger = side; break; }
+            CaptureFacts(ref s, in b, world, challenger);
             if (dirty || s.Reason.Length == 0)
                 ObjectiveHost.Settle(ref s, Kind, ObjectiveState.Active, $"{men}/{b.MinMen} men, {enemy} enemy, owner {owner}", now);
         }
@@ -118,8 +122,17 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             bool dirty = owner != s.Owner || f != b.LastMen || h != b.LastEnemy || cur != s.ProgressCur || need != s.ProgressNeed;
             if (owner != s.Owner && owner != ForceId.Neutral) PublishCaptured(world, self, owner, in b.Area);   // ⭐ S7 P-4: the moment, once
             s.Owner = owner; b.LastMen = f; b.LastEnemy = h; s.ProgressCur = cur; s.ProgressNeed = need;
+            CaptureFacts(ref s, in b, world, leader != ForceId.Neutral && leader != owner ? leader : ForceId.Neutral);   // ⭐ G-8: the clock runs against the owner
             if (dirty || s.Reason.Length == 0)
                 ObjectiveHost.Settle(ref s, Kind, ObjectiveState.Active, $"F {f} / H {h} men, owner {owner}, {leader} {b.AdvantageFor:0}/{b.CaptureSeconds:0} s", now);
+        }
+
+        /// <summary>⭐ G-8 (§00.12, CE-4230) — a capture point's facts on its status, for every node's HUD: it is one, who is taking it, and its area's bounding circle.</summary>
+        private static void CaptureFacts(ref ObjectiveStatus s, in Block b, EntityRepository world, ForceId challenger)
+        {
+            s.Capture = 1; s.Challenger = challenger;
+            b.Area.BoundingCircle(world, out var center, out float radius);
+            s.AreaCenter = center; s.AreaRadius = radius;
         }
 
         private static readonly System.Collections.Generic.List<Entity> s_inside = new();
