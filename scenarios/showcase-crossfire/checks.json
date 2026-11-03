@@ -1,11 +1,13 @@
 {
-  "$doc": "docs/SHOWCASE_Scenarios.md \u00a72.6 \u2014 Crossfire (a DEMO, bots both sides: conditions only, no golden). Lines 1 (capture after 10 s of a majority \u2014 the rail ScenarioRulesTests G1; here: a point is taken, and the drain moves the other side's tickets), 2 (four crate drops 3 min apart) and 4 (the comeback, at most once per 2 min) now; line 3 (team kill) after CE-4155 + S4; line 5 (awards) after S4. Variant 0: crate spots 1..4 in order.",
-  "runFor": 760,
+  "$doc": "docs/SHOWCASE_Scenarios.md \u00a72.6 \u2014 Crossfire (a DEMO, bots both sides: conditions only, no golden). Lines 1 (capture after 10 s of a majority \u2014 the rail ScenarioRulesTests G1; here: a point is taken, and the drain moves the other side's tickets), 2 (four crate drops 3 min apart) and 4 (the comeback, at most once per 2 min) now; line 3 (team kill) after CE-4155 + S4; line 5 (awards) after S4. Variant 0: crate spots 1..4 in order. S7 (DESIGN_Scenario_Rules.md \u00a700.13): every man's score, a kill worth 100, the awards at the close (runFor 920 reaches the 900 s end). Line (3) team kill -200 and never a kill: per-man arithmetic the checks grammar cannot relate across entities - proven by the S7 rails (ScenarioRulesTests.Score).",
+  "runFor": 920,
   "golden": false,
   "later": [
     "Supply crate",
     "Blue bot",
-    "Red bot"
+    "Red bot",
+    "Score",
+    "Kills"
   ],
   "anchors": {
     "pointTaken": {
@@ -14,6 +16,13 @@
       "path": "ObjectiveStatus.Owner",
       "op": "!=",
       "value": "Neutral"
+    },
+    "kill": {
+      "on": "field",
+      "who": "Kills",
+      "path": "ObjectiveStatus.Value",
+      "op": ">=",
+      "value": 1
     }
   },
   "expect": [
@@ -132,6 +141,43 @@
         "by": "*Red",
         "hit": "*Red"
       }
+    },
+    {
+      "name": "(S7) every man of both sides gets a score (the game/score macro, inserted per man)",
+      "on": "field",
+      "who": "Score",
+      "path": "ObjectiveStatus.Kind",
+      "op": "==",
+      "value": "Points",
+      "before": 30
+    },
+    {
+      "name": "(S7) a kill is worth 100 on the killer's score",
+      "on": "field",
+      "who": "Score",
+      "path": "ObjectiveStatus.Value",
+      "op": ">=",
+      "value": 100,
+      "after": "kill",
+      "before": "kill+2"
+    },
+    {
+      "name": "(5) the awards macro decides Top scorer at the close",
+      "on": "field",
+      "who": "Top scorer",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
+    },
+    {
+      "name": "(5) the awards macro decides Most kills at the close",
+      "on": "field",
+      "who": "Most kills",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
     }
   ]
 }

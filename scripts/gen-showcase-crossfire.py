@@ -103,6 +103,67 @@ def macro_crate():
     }, ents))
 
 
+def objective_entity(kind, title, params, force="Friend"):
+    return {"TkbIdentity": {"TkbType": 8860}, "EntityInfo": {"Name": title, "ForceId": force},
+            "Behavior": {"Name": kind, "Params": json.dumps(params), "Origin": "Superior"}}
+
+
+# S7 P-1 (DESIGN_Scenario_Rules.md §00.13) — the personal score table: what each thing a man does is worth (SHOWCASE §2.2 "personal score")
+SCORE_TABLE = [  # (title, Count what, points, scored)
+    ("Kills", "kills", 100, True),
+    ("Assists", "assists", 50, True),
+    ("Captures", "captures", 150, True),
+    ("Team kills", "teamKills", -200, True),
+    ("Deaths", "deaths", 0, False),          # shown (K/D), never scored
+]
+
+
+def macro_score():
+    """S7 P-1 — one man's game score: a Points root 'Score' (its Value = Σ child Value × points) + one Count per row of SCORE_TABLE + an
+    unscored HitRatio (the Sharpshooter award reads it). MemberEvaluation (members side, aggregate points) inserts it for every man of a side."""
+    ids, ents = Ids("cf0d0000"), {}
+    root = ids()
+    ents[root] = objective_entity("Points", "Score", {"common": {"title": "Score", "subject": "^subject", "parent": "^parent", "group": "score"}})
+    for title, what, points, scored in SCORE_TABLE:
+        c = {"title": title, "subject": "^subject", "parent": root, "group": "score", "points": points}
+        if not scored:
+            c["scored"] = False
+        ents[ids()] = objective_entity("Count", title, {"common": c, "what": what})
+    ents[ids()] = objective_entity("HitRatio", "Hit ratio", {"common": {"title": "Hit ratio", "subject": "^subject", "parent": root, "group": "fire",
+                                                                         "scored": False}})
+    write("macros/game/score/Default/scenario.json", doc({
+        "Kind": "macro",
+        "description": "What: rules S7 P-1 (docs/DESIGN_Scenario_Rules.md §00.13) - ONE man's game score: a Points root 'Score' = kills x100 + assists x50 + captures x150 + team kills x-200 (CE-4155 attribution; a team kill is never a kill), deaths shown unscored, an unscored Hit ratio. Judge: MemberEvaluation (members side, aggregate points) inserts it for every man of its side; the man's 'Score' rises by 100 when he kills a hostile.",
+        "Anchor": {"Position": [0, 0, 0], "Heading": 0},
+        "Params": [{"Name": "subject", "TypeId": "EntityLink"}, {"Name": "parent", "TypeId": "EntityLink"}],
+    }, ents))
+
+
+AWARDS = [  # (title, the measure each man's score macro carries, min, lowerIsBetter)
+    ("Top scorer", "Score", 1, False),
+    ("Most kills", "Kills", 1, False),
+    ("Point keeper", "Captures", 1, False),
+    ("Sharpshooter", "Hit ratio", 0.4, False),
+    ("Untouchable", "Deaths", 0, True),
+]
+
+
+def macro_awards():
+    """S7 P-7 — the awards, decided at the close by `Best` over the score tree under `among` (SHOWCASE §2.6 line 5: from a macro, never the scenario)."""
+    ids, ents = Ids("cf0e0000"), {}
+    for title, measure, mn, lower in AWARDS:
+        p = {"common": {"title": title, "parent": "^among", "group": "awards", "scored": False}, "among": "^among", "measure": measure, "min": mn}
+        if lower:
+            p["lowerIsBetter"] = True
+        ents[ids()] = objective_entity("Best", title, p)
+    write("macros/game/awards/Default/scenario.json", doc({
+        "Kind": "macro",
+        "description": "What: rules S7 P-7 (docs/DESIGN_Scenario_Rules.md §00.13) - the round's awards: Top scorer, Most kills, Point keeper (captures), Sharpshooter (hit ratio >= 0.4), Untouchable (fewest deaths), each a Best over the score tree under 'among'. Judge: at the round's close each is Achieved with its Subject = the winner, or Failed when nobody qualifies.",
+        "Anchor": {"Position": [0, 0, 0], "Heading": 0},
+        "Params": [{"Name": "among", "TypeId": "EntityLink"}],
+    }, ents))
+
+
 # ════════════════════════════════════════ conditions / actions ════════════════════════════════════════
 
 def on_status(ref, field, lo, hi):
@@ -188,6 +249,16 @@ def scenario():
     lead = objective("Counter", "Blue lead", {"common": {"title": "Blue lead", "subject": blue, "scored": False}, "start": 0, "floor": -1000,
                      "deaths": [{"side": "Hostile", "per": 1}, {"side": "Friend", "per": -1}]}, key="Lead")
 
+    # ── S7 (DESIGN_Scenario_Rules.md §00.13): every man's game score (P-1, macro game/score inserted per man by MemberEvaluation with members
+    #    'side' — respawned bots included, P-5), the team totals (aggregate 'points'), and the awards (P-7, the game/awards macro over "All players")
+    scores = objective("Points", "All players", {"common": {"title": "All players", "group": "score", "scored": False}}, key="Scores")
+    for team_entity, side_name, force in ((blue, "Blue", "Friend"), (red, "Red", "Hostile")):
+        objective("MemberEvaluation", f"{side_name} score",
+                  {"common": {"title": f"{side_name} score", "subject": team_entity, "parent": scores, "group": "score", "scored": False},
+                   "library": "macros/game/score", "members": "side", "aggregate": "points"}, force=force)
+    ents[ids()] = {"SimTransform": {"Position": [525, 400, 0], "Rotation": [0, 0, 0, 1]}, "TkbIdentity": {"TkbType": 8813},
+                   "EntityInfo": {"Name": "Awards"}, "MacroInstance": {"Macro": "game/awards", "Args": {"among": "@Scores"}}}
+
     def trigger(title, when, do, force="Friend", **kw):
         g = ids()
         p = {"common": {"title": title, "subject": blue}, "when": when, "do": do}
@@ -270,5 +341,7 @@ def scenario():
 if __name__ == "__main__":
     macro_bot()
     macro_crate()
+    macro_score()
+    macro_awards()
     scenario()
-    print("wrote scenarios/showcase-crossfire + macros/game/bot, game/supply-crate")
+    print("wrote scenarios/showcase-crossfire + macros/game/bot, game/supply-crate, game/score, game/awards")

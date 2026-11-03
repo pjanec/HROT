@@ -1,0 +1,98 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "Kind": "macro",
+  "description": "What: rules S7 P-7 (docs/DESIGN_Scenario_Rules.md \u00a700.13) - the round's awards: Top scorer, Most kills, Point keeper (captures), Sharpshooter (hit ratio >= 0.4), Untouchable (fewest deaths), each a Best over the score tree under 'among'. Judge: at the round's close each is Achieved with its Subject = the winner, or Failed when nobody qualifies.",
+  "Anchor": {
+   "Position": [
+    0,
+    0,
+    0
+   ],
+   "Heading": 0
+  },
+  "Params": [
+   {
+    "Name": "among",
+    "TypeId": "EntityLink"
+   }
+  ]
+ },
+ "entities": {
+  "cf0e0000-0000-4000-8000-000000000001": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Top scorer",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Best",
+    "Params": "{\"common\": {\"title\": \"Top scorer\", \"parent\": \"^among\", \"group\": \"awards\", \"scored\": false}, \"among\": \"^among\", \"measure\": \"Score\", \"min\": 1}",
+    "Origin": "Superior"
+   }
+  },
+  "cf0e0000-0000-4000-8000-000000000002": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Most kills",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Best",
+    "Params": "{\"common\": {\"title\": \"Most kills\", \"parent\": \"^among\", \"group\": \"awards\", \"scored\": false}, \"among\": \"^among\", \"measure\": \"Kills\", \"min\": 1}",
+    "Origin": "Superior"
+   }
+  },
+  "cf0e0000-0000-4000-8000-000000000003": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Point keeper",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Best",
+    "Params": "{\"common\": {\"title\": \"Point keeper\", \"parent\": \"^among\", \"group\": \"awards\", \"scored\": false}, \"among\": \"^among\", \"measure\": \"Captures\", \"min\": 1}",
+    "Origin": "Superior"
+   }
+  },
+  "cf0e0000-0000-4000-8000-000000000004": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Sharpshooter",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Best",
+    "Params": "{\"common\": {\"title\": \"Sharpshooter\", \"parent\": \"^among\", \"group\": \"awards\", \"scored\": false}, \"among\": \"^among\", \"measure\": \"Hit ratio\", \"min\": 0.4}",
+    "Origin": "Superior"
+   }
+  },
+  "cf0e0000-0000-4000-8000-000000000005": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Untouchable",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Best",
+    "Params": "{\"common\": {\"title\": \"Untouchable\", \"parent\": \"^among\", \"group\": \"awards\", \"scored\": false}, \"among\": \"^among\", \"measure\": \"Deaths\", \"min\": 0, \"lowerIsBetter\": true}",
+    "Origin": "Superior"
+   }
+  }
+ }
+}

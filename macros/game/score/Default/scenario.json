@@ -1,0 +1,130 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "Kind": "macro",
+  "description": "What: rules S7 P-1 (docs/DESIGN_Scenario_Rules.md \u00a700.13) - ONE man's game score: a Points root 'Score' = kills x100 + assists x50 + captures x150 + team kills x-200 (CE-4155 attribution; a team kill is never a kill), deaths shown unscored, an unscored Hit ratio. Judge: MemberEvaluation (members side, aggregate points) inserts it for every man of its side; the man's 'Score' rises by 100 when he kills a hostile.",
+  "Anchor": {
+   "Position": [
+    0,
+    0,
+    0
+   ],
+   "Heading": 0
+  },
+  "Params": [
+   {
+    "Name": "subject",
+    "TypeId": "EntityLink"
+   },
+   {
+    "Name": "parent",
+    "TypeId": "EntityLink"
+   }
+  ]
+ },
+ "entities": {
+  "cf0d0000-0000-4000-8000-000000000001": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Score",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Points",
+    "Params": "{\"common\": {\"title\": \"Score\", \"subject\": \"^subject\", \"parent\": \"^parent\", \"group\": \"score\"}}",
+    "Origin": "Superior"
+   }
+  },
+  "cf0d0000-0000-4000-8000-000000000002": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Kills",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Count",
+    "Params": "{\"common\": {\"title\": \"Kills\", \"subject\": \"^subject\", \"parent\": \"cf0d0000-0000-4000-8000-000000000001\", \"group\": \"score\", \"points\": 100}, \"what\": \"kills\"}",
+    "Origin": "Superior"
+   }
+  },
+  "cf0d0000-0000-4000-8000-000000000003": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Assists",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Count",
+    "Params": "{\"common\": {\"title\": \"Assists\", \"subject\": \"^subject\", \"parent\": \"cf0d0000-0000-4000-8000-000000000001\", \"group\": \"score\", \"points\": 50}, \"what\": \"assists\"}",
+    "Origin": "Superior"
+   }
+  },
+  "cf0d0000-0000-4000-8000-000000000004": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Captures",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Count",
+    "Params": "{\"common\": {\"title\": \"Captures\", \"subject\": \"^subject\", \"parent\": \"cf0d0000-0000-4000-8000-000000000001\", \"group\": \"score\", \"points\": 150}, \"what\": \"captures\"}",
+    "Origin": "Superior"
+   }
+  },
+  "cf0d0000-0000-4000-8000-000000000005": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Team kills",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Count",
+    "Params": "{\"common\": {\"title\": \"Team kills\", \"subject\": \"^subject\", \"parent\": \"cf0d0000-0000-4000-8000-000000000001\", \"group\": \"score\", \"points\": -200}, \"what\": \"teamKills\"}",
+    "Origin": "Superior"
+   }
+  },
+  "cf0d0000-0000-4000-8000-000000000006": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Deaths",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Count",
+    "Params": "{\"common\": {\"title\": \"Deaths\", \"subject\": \"^subject\", \"parent\": \"cf0d0000-0000-4000-8000-000000000001\", \"group\": \"score\", \"points\": 0, \"scored\": false}, \"what\": \"deaths\"}",
+    "Origin": "Superior"
+   }
+  },
+  "cf0d0000-0000-4000-8000-000000000007": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Hit ratio",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "HitRatio",
+    "Params": "{\"common\": {\"title\": \"Hit ratio\", \"subject\": \"^subject\", \"parent\": \"cf0d0000-0000-4000-8000-000000000001\", \"group\": \"fire\", \"scored\": false}}",
+    "Origin": "Superior"
+   }
+  }
+ }
+}
