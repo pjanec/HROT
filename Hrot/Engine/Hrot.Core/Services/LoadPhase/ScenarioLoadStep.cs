@@ -158,7 +158,8 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         //   node with nothing created. ⛔ Never discovered half-way through creation.
         if (_macros != null)
         {
-            var problems = Fdp.Toolkit.Scenario.MacroValidator.Validate(json, _macros, $"scenario '{context.ScenarioId}'");
+            var problems = Fdp.Toolkit.Scenario.MacroValidator.Validate(json, _macros, $"scenario '{context.ScenarioId}'",
+                _behaviors == null ? null : name => _behaviors.TryGetId(name, out var bid) && _behaviors.TryGetDefinition(bid, out var bdef) ? bdef.JsonParamsDtoType : null);
             if (problems.Count > 0)
                 throw new InvalidOperationException(
                     $"[LoadPhase/Scenario] '{context.ScenarioId}' has {problems.Count} macro problem(s) — the load is refused:\n - "

@@ -17,7 +17,10 @@ namespace Fdp.Toolkit.Scenario
     ///   <item>every ARG names a param the macro declares;</item>
     ///   <item>inside each macro file, every binding — a <c>"^name"</c> value, a node's <c>Bind</c> map, a <see cref="ParamBindings"/> path — names
     ///     a declared param (SR-162); a <c>bind</c> key inside a params blob is refused (SR-161: the typed form would drop it);</item>
-    ///   <item>a pinned macro (<c>Relocatable: false</c>) stands at its authored anchor (SR-156).</item>
+    ///   <item>a pinned macro (<c>Relocatable: false</c>) stands at its authored anchor (SR-156);</item>
+    ///   <item>⭐ a <c>"^name"</c> in a behaviour's params blob that sits in a STRING / number / enum slot of the behaviour's params DTO is refused —
+    ///     the binder fills only link slots (<see cref="EntityLink"/> / <see cref="PointLink"/> / <see cref="AreaLink"/>), so it would stay the literal
+    ///     text <c>"^title"</c>; bind it with <see cref="ParamBindings"/>. Needs the <c>paramsDtoOf</c> lookup (the behaviour registry); without it the rule is off.</item>
     /// </list>
     /// ⛔ Pure JSON: no world, no extractor. ⚠ It does not check a value's TYPE against its target field (SR-162's second half) — the binder
     /// reports that loudly at expansion.
@@ -27,7 +30,9 @@ namespace Fdp.Toolkit.Scenario
         public const int MaxDepth = 8;
 
         /// <summary>Every problem in <paramref name="json"/> (a scenario or a macro); empty = valid.</summary>
-        public static IReadOnlyList<string> Validate(string json, IMacroLibrary library, string scope = "the scenario")
+        /// <param name="paramsDtoOf">⭐ behaviour name → its params DTO type (<c>BehaviorDefinition.JsonParamsDtoType</c>), or null when unknown; enables the
+        /// "a <c>^param</c> in a non-link slot is never bound" rule. Null = that rule is off (the validator stays pure JSON).</param>
+        public static IReadOnlyList<string> Validate(string json, IMacroLibrary library, string scope = "the scenario", Func<string, Type?>? paramsDtoOf = null)
         {
             var errors = new List<string>();
             JsonObject? dom;
@@ -37,12 +42,12 @@ namespace Fdp.Toolkit.Scenario
 
             // a scenario's own bindings name the scenario's params (SR-41); a macro's, the macro's
             var header = ScenarioHeaderJson.Read(dom);
-            CheckFile(dom, header, scope, library, new List<string>(), errors, isMacro: header?.IsMacro == true);
+            CheckFile(dom, header, scope, library, new List<string>(), errors, isMacro: header?.IsMacro == true, paramsDtoOf);
             return errors;
         }
 
         private static void CheckFile(JsonObject dom, ScenarioHeader? header, string here, IMacroLibrary library, List<string> path,
-                                      List<string> errors, bool isMacro)
+                                      List<string> errors, bool isMacro, Func<string, Type?>? paramsDtoOf)
         {
             var declared = new HashSet<string>((header?.Params ?? Array.Empty<ScenarioParamDecl>()).Select(p => p.Name), StringComparer.OrdinalIgnoreCase);
             if ((dom["entities"] ?? dom["Entities"]) is not JsonObject entities) return;
@@ -58,22 +63,80 @@ namespace Fdp.Toolkit.Scenario
                 foreach (var (where, param) in ParamForms(entity))
                     if (!declared.Contains(param)) errors.Add($"{who}: '{where}' is bound to '^{param}', not a param of {Describe(isMacro)}");
 
+                // ── ⭐ a "^param" in a plain (non-link) slot of a behaviour's params is never bound — LOUD, not a literal "^title" at runtime
+                if (paramsDtoOf != null)
+                    foreach (var (where, param) in ParamForms(entity))
+                        if (UnboundSlot(entity, where, paramsDtoOf) is { } slot)
+                            errors.Add($"{who}: '{where}' holds '^{param}' in a {slot.Type.Name} slot — only link slots (EntityLink / PointLink / AreaLink) bind a '^' value, "
+                                     + $"this one would stay the literal text; bind it with ParamBindings (\"{slot.Path}\": \"{param}\")");
+
                 // ── a nested instance: its file, its args, its depth, its pin — then into it
                 if (FindKey(entity, MacroInstance.ComponentName) is { } mk && entity[mk] is JsonObject mi)
-                    CheckInstance(entity, mi, who, library, path, errors);
+                    CheckInstance(entity, mi, who, library, path, errors, paramsDtoOf);
             }
         }
 
-        private static void CheckInstance(JsonObject entity, JsonObject mi, string who, IMacroLibrary library, List<string> path, List<string> errors)
+        /// <summary>The slot a <c>^</c> leaf at <paramref name="where"/> (<c>"Behavior.Params.common.title"</c>) sits in, when it is a type the binder never
+        /// fills (string / primitive / enum); null when it is a link slot, is not in a behaviour's params, or cannot be resolved (never a false positive).</summary>
+        private static (Type Type, string Path)? UnboundSlot(JsonObject entity, string where, Func<string, Type?> paramsDtoOf)
+        {
+            if (where.Contains(".Bind.") || where.Contains("params is refused")) return null;
+            if (FindKey(entity, "Behavior") is not { } bk || entity[bk] is not JsonObject beh) return null;
+            string prefix = bk + ".Params";
+            if (!where.StartsWith(prefix + ".", StringComparison.Ordinal)) return null;
+            if (beh["Name"] is not JsonValue nv || !nv.TryGetValue<string>(out var name) || paramsDtoOf(name) is not { } dto) return null;
+
+            Type t = dto;
+            var segs = where.Substring(prefix.Length + 1).Split('.');
+            var pathNoIndex = new List<string>();
+            foreach (var raw in segs)
+            {
+                string seg = raw; int br = seg.IndexOf('[');
+                if (br >= 0) seg = seg.Substring(0, br);
+                var member = MemberNamed(t, seg);
+                if (member == null) return null;                       // unknown here: the strict DTO check reports an unknown key
+                t = ElementOf(member.Value.Type);
+                pathNoIndex.Add(seg);
+            }
+            t = Nullable.GetUnderlyingType(t) ?? t;
+            bool plain = t == typeof(string) || t.IsPrimitive || t.IsEnum;
+            return plain ? (t, prefix + "." + string.Join(".", pathNoIndex)) : null;
+        }
+
+        private static Type ElementOf(Type t)
+        {
+            t = Nullable.GetUnderlyingType(t) ?? t;
+            if (t.IsArray) return t.GetElementType()!;
+            if (t.IsGenericType && t.GetGenericArguments().Length == 1 && typeof(System.Collections.IEnumerable).IsAssignableFrom(t)) return t.GetGenericArguments()[0];
+            return t;
+        }
+
+        private static (Type Type, string Name)? MemberNamed(Type owner, string jsonName)
+        {
+            const System.Reflection.BindingFlags F = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance;
+            foreach (var m in owner.GetMembers(F))
+            {
+                Type? mt = m is System.Reflection.FieldInfo fi ? fi.FieldType : m is System.Reflection.PropertyInfo pi ? pi.PropertyType : null;
+                if (mt == null) continue;
+                string n = m.GetCustomAttributes(typeof(System.Text.Json.Serialization.JsonPropertyNameAttribute), true)
+                            .Cast<System.Text.Json.Serialization.JsonPropertyNameAttribute>().FirstOrDefault()?.Name ?? m.Name;
+                if (n.Equals(jsonName, StringComparison.OrdinalIgnoreCase)) return (mt, n);
+            }
+            return null;
+        }
+
+        private static void CheckInstance(JsonObject entity, JsonObject mi, string who, IMacroLibrary library, List<string> path, List<string> errors,
+                                          Func<string, Type?>? paramsDtoOf)
         {
             // ⭐ macros S3b B2 — a one-of-N instance: EVERY choice is checked (any variant may pick it)
             var choices = ScenarioVariants.ChoicesOf(mi["Macro"] ?? mi["macro"]);
             if (choices.Count == 0) { errors.Add($"{who}: the instance names no macro"); return; }
-            if (choices.Count > 1) { foreach (var c in choices) CheckOne(entity, mi, c.Macro, $"{who} (choice '{c.Macro}')", library, path, errors); return; }
-            CheckOne(entity, mi, choices[0].Macro, who, library, path, errors);
+            if (choices.Count > 1) { foreach (var c in choices) CheckOne(entity, mi, c.Macro, $"{who} (choice '{c.Macro}')", library, path, errors, paramsDtoOf); return; }
+            CheckOne(entity, mi, choices[0].Macro, who, library, path, errors, paramsDtoOf);
         }
 
-        private static void CheckOne(JsonObject entity, JsonObject mi, string macro, string who, IMacroLibrary library, List<string> path, List<string> errors)
+        private static void CheckOne(JsonObject entity, JsonObject mi, string macro, string who, IMacroLibrary library, List<string> path, List<string> errors,
+                                      Func<string, Type?>? paramsDtoOf)
         {
             if (path.Contains(macro, StringComparer.Ordinal)) { errors.Add($"{who}: macro cycle {string.Join(" → ", path)} → {macro}"); return; }
             if (path.Count >= MaxDepth) { errors.Add($"{who}: macros nested deeper than {MaxDepth}"); return; }
@@ -95,7 +158,7 @@ namespace Fdp.Toolkit.Scenario
                 errors.Add($"{who}: macro '{macro}' is pinned at its anchor ({anchor.Position}) and may not be placed elsewhere");
 
             path.Add(macro);
-            try { CheckFile(dom, header, $"{who} [{macro}]", library, path, errors, isMacro: true); }
+            try { CheckFile(dom, header, $"{who} [{macro}]", library, path, errors, isMacro: true, paramsDtoOf); }
             finally { path.RemoveAt(path.Count - 1); }
         }
 

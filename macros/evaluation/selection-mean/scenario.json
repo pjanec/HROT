@@ -54,7 +54,7 @@
    },
    "Behavior": {
     "Name": "SelectionMean",
-    "Params": "{\"common\": {\"title\": \"Selection mean\", \"parent\": \"^parent\", \"group\": \"\", \"scored\": false}, \"by\": \"role\", \"key\": \"\", \"scope\": \"^scope\"}",
+    "Params": "{\"common\": {\"title\": \"Selection mean\", \"parent\": \"^parent\", \"group\": \"\", \"scored\": false}, \"by\": \"role\", \"key\": \"member\", \"scope\": \"^scope\"}",
     "Origin": "Superior"
    },
    "ParamBindings": {

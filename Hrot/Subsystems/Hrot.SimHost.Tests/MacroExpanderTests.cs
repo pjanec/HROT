@@ -546,5 +546,49 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(9, FireTime("""{"delay": 9}"""));
             Assert.Equal(60, FireTime(""));
         }
+
+        private sealed class OutsideScope : IRefScope
+        {
+            public string Describe => "outside";
+            public bool TryResolve(in RefSpec spec, out EntityRef entity)
+            { entity = spec.KeyText == "Evaluation" ? new EntityRef(77) : spec.KeyText == "Exercise" ? new EntityRef(78) : EntityRef.None; return !entity.IsNone; }
+            public bool TryPositionOf(EntityRef entity, out WorldPoint position) { position = default; return false; }
+        }
+
+        /// <summary>⭐ S4 ① live gate — the SHIPPED <c>macros/evaluation/selection-mean</c> through the REAL expander + <see cref="FileMacroLibrary"/> with the args
+        /// <c>MemberEvaluation</c> passes: the behaviour's params read the given title / group / by / key (strings: bound through <c>ParamBindings</c> — a
+        /// <c>"^title"</c> string leaf is NOT bound by the walker, it stayed the literal text live) and the scope / parent links resolve.
+        /// 🔴 Red-proof: drop the file's ParamBindings (a temp copy) ⇒ the title stays the declared default.</summary>
+        [Fact]
+        public void TheShippedSelectionMean_ExpandsThroughTheRealExpander_WithItsStringsAndLinksBound()
+        {
+            const string Args = """{"by": "standard", "key": "No fratricide", "scope": "@Evaluation", "parent": "@Exercise", "title": "Mean of No fratricide", "group": "Standards"}""";
+            var registry = new Fdp.Toolkit.Behavior.BehaviorRegistry();
+            Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            var serializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(registry, null, UnknownComponentPolicy.WarnAndSkip);
+            var expander = new MacroExpander(new FileMacroLibrary(TestRepo.Root), new StagingEntityExtractor(), serializer,
+                                          Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(registry));
+
+            var r = expander.Expand(new MacroInstance { Macro = "evaluation/selection-mean", ArgsJson = Args }, 500, Guid.NewGuid(), Owner, At(0, 0, 0),
+                                    new OutsideScope(), new SequentialIdAllocator());
+            Assert.True(r.Ok, r.Failure);
+            var child = Assert.Single(r.Children);
+            var p = ParamsOf(child);
+
+            Assert.Equal("Mean of No fratricide", (string)p["common"]!["title"]!);
+            Assert.Equal("Standards", (string)p["common"]!["group"]!);
+            Assert.Equal("standard", (string)p["by"]!);
+            Assert.Equal("No fratricide", (string)p["key"]!);
+            var typed = System.Text.Json.JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.SelectionMeanParamsJsonDto>(p.ToJsonString(), Fdp.Toolkit.Behavior.BehaviorParams.JsonOptions);
+            Assert.Equal(77, typed.Scope.Ref.NetworkId);
+            Assert.Equal(78, typed.Common.Parent.Ref.NetworkId);
+        }
+
+        private static JsonNode ParamsOf(EntityCreationRequest child)
+        {
+            var slot = One<Fdp.Toolkit.Behavior.Components.InitialBrainIntent>(child).Behavior;
+            Assert.Equal("SelectionMean", slot?.Name);
+            return JsonNode.Parse(slot!.Params)!;
+        }
     }
 }

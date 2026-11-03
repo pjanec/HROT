@@ -444,7 +444,7 @@ namespace Hrot.SimHost.Tests
             Assert.Empty(Hrot.AI.Behaviors.Brains.Objectives.SelectionMeanBehavior.Validate("{\"by\":\"role\",\"key\":\"Medic\"}"));
         }
 
-        /// <summary>⭐ S4 ① — the SHIPPED macro <c>evaluation/selection-mean</c> is real: it expands from the file library, takes by / key / scope / parent / title / group, and holds ONE
+        /// <summary>⭐ S4 ① — the SHIPPED macro <c>evaluation/selection-mean</c> is real: it expands from the file library, takes by / key / scope / parent / title / group (the strings through ParamBindings, literal defaults in the params; the two links as "^" — see MacroExpanderTests), and holds ONE
         /// <c>SelectionMean</c> with <c>scored:false</c> bound to the evaluation.</summary>
         [Fact]
         public void TheShippedSelectionMeanMacro_HoldsOneSelectionMean_ScoredFalse()
@@ -455,7 +455,7 @@ namespace Hrot.SimHost.Tests
             var b = Assert.Single(ents).Value!["Behavior"]!;
             Assert.Equal("SelectionMean", b["Name"]!.GetValue<string>());
             var pj = JsonNode.Parse(b["Params"]!.GetValue<string>())!;
-            Assert.Equal(("^by", "^key", "^scope", "^parent"), (pj["by"]!.GetValue<string>(), pj["key"]!.GetValue<string>(), pj["scope"]!.GetValue<string>(), pj["common"]!["parent"]!.GetValue<string>()));
+            Assert.Equal(("role", "member", "^scope", "^parent"), (pj["by"]!.GetValue<string>(), pj["key"]!.GetValue<string>(), pj["scope"]!.GetValue<string>(), pj["common"]!["parent"]!.GetValue<string>()));
             Assert.False(pj["common"]!["scored"]!.GetValue<bool>());
         }
     }

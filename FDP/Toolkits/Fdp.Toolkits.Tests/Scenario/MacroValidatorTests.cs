@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Fdp.Core;
 using Fdp.Toolkit.Replication;
@@ -115,6 +116,57 @@ namespace Fdp.Toolkits.Tests.Scenario
             var problems = MacroValidator.Validate(Scenario(inst), lib);
             var p = Assert.Single(problems);
             Assert.Contains("choice 'ghost'", p);
+        }
+
+        // ── ⭐ a "^param" in a non-link slot of a behaviour's params is never bound ────────────────────────────────────────────
+
+        private struct CommonDto { [System.Text.Json.Serialization.JsonPropertyName("title")] public string Title; [System.Text.Json.Serialization.JsonPropertyName("parent")] public EntityLink Parent; }
+        private struct SelectDto
+        {
+            [System.Text.Json.Serialization.JsonPropertyName("common")] public CommonDto Common;
+            [System.Text.Json.Serialization.JsonPropertyName("by")] public string By;
+            [System.Text.Json.Serialization.JsonPropertyName("scope")] public EntityLink Scope;
+            [System.Text.Json.Serialization.JsonPropertyName("targets")] public EntityLink[]? Targets;
+            [System.Text.Json.Serialization.JsonPropertyName("tags")] public string[]? Tags;
+        }
+        private static Type? DtoOf(string behaviour) => behaviour == "Select" ? typeof(SelectDto) : null;
+
+        private static string SelectMacro(string paramsBlob, string bindings = "") => Macro($$"""
+            "aaaa0000-0000-4000-8000-0000000000a1": { "EntityInfo": {"Name": "Sel"}, {{bindings}}
+                "Behavior": {"Name": "Select", "Params": "{{paramsBlob}}"} }
+            """, """[{"Name": "title", "TypeId": "string"}, {"Name": "scope", "TypeId": "EntityLink"}, {"Name": "parent", "TypeId": "EntityLink"}]""");
+
+        private static IReadOnlyList<string> Check(string macroJson)
+            => MacroValidator.Validate(Scenario(Instance("bbbb0000-0000-4000-8000-000000000001", "sel", """{"title": "x"}""")), Lib(("sel", macroJson)), paramsDtoOf: DtoOf);
+
+        [Fact]
+        public void ACaretInAStringSlot_IsRefused_NamingThePath_AndTheParamBindingsFix()
+        {
+            // the old selection-mean shape: "^title" in a string slot, "^scope" / "^parent" in link slots
+            var errors = Check(SelectMacro("""{\"common\": {\"title\": \"^title\", \"parent\": \"^parent\"}, \"scope\": \"^scope\"}"""));
+            var e = Assert.Single(errors);
+            Assert.Contains("Behavior.Params.common.title", e);
+            Assert.Contains("String", e);
+            Assert.Contains("ParamBindings", e);
+        }
+
+        [Fact]
+        public void LinkSlots_ParamBindings_AndUnknownRules_StayClean()
+        {
+            // links bind with ^; a string is bound through ParamBindings (no ^ leaf); a ^ under a key the DTO does not know is not this rule's business
+            Assert.Empty(Check(SelectMacro("""{\"common\": {\"title\": \"fixed\", \"parent\": \"^parent\"}, \"scope\": \"^scope\", \"targets\": [\"^scope\"]}""",
+                bindings: "\"ParamBindings\": {\"Bindings\": {\"Behavior.Params.common.title\": \"title\"}},")));
+            Assert.Empty(Check(SelectMacro("""{\"nonsense\": \"^title\"}""")));
+            // without the registry lookup the rule is off (the validator stays pure JSON)
+            Assert.Empty(MacroValidator.Validate(Scenario(Instance("bbbb0000-0000-4000-8000-000000000001", "sel", """{"title": "x"}""")),
+                Lib(("sel", SelectMacro("""{\"by\": \"^title\"}"""))), "the scenario"));
+        }
+
+        [Fact]
+        public void ACaretInAStringArray_IsRefused()
+        {
+            var e = Assert.Single(Check(SelectMacro("""{\"tags\": [\"^title\"]}""")));
+            Assert.Contains("Behavior.Params.tags", e);
         }
     }
 }

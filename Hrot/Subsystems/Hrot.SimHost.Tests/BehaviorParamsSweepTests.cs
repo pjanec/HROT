@@ -106,4 +106,47 @@ public sealed class BehaviorParamsSweepTests
                            .Select(kv => $"  {kv.Key}: allowed {kv.Value}, now {(observed.TryGetValue(kv.Key, out var n) ? n : 0)}").ToArray();
         Assert.True(stale.Length == 0, "these allow-listed groups shrank or are gone — lower / remove them in BehaviorParamsSweepAllowList:\n" + string.Join("\n", stale));
     }
+
+    private static Type? DtoOf(BehaviorRegistry registry, string name)
+        => registry.TryGetId(name, out var id) && registry.TryGetDefinition(id, out var def) ? def.JsonParamsDtoType : null;
+
+    /// <summary>⭐ S4 ① — the macro validator's "a <c>^param</c> in a string slot is never bound" rule, against the PRODUCTION registry: every checked-in
+    /// scenario / recipe / macro stays clean (⛔ no false positive), and the pre-fix shape of <c>evaluation/selection-mean</c> (a <c>"^title"</c> string
+    /// in its params) is refused. 🔴 Red-proof: the rule off ⇒ the second half is red.</summary>
+    [Fact]
+    public void AParamInAStringSlot_IsRefused_AndEveryShippedFileIsClean()
+    {
+        var registry = LoadProduction();
+        string root = TestRepo.Root;
+        var library = new Fdp.Toolkit.Scenario.FileMacroLibrary(root);
+        var dirty = new List<string>();
+        int files = 0;
+        foreach (var top in new[] { "scenarios", "recipes", "macros" })
+        {
+            string dir = Path.Combine(root, top);
+            if (!Directory.Exists(dir)) continue;
+            foreach (var file in RepoSources.Files(dir, "scenario.json").OrderBy(f => f, StringComparer.Ordinal))
+            {
+                files++;
+                string rel = Path.GetRelativePath(root, Path.GetDirectoryName(file)!).Replace('\\', '/');
+                foreach (var e in Fdp.Toolkit.Scenario.MacroValidator.Validate(File.ReadAllText(file), library, rel, n => DtoOf(registry, n)))
+                    if (e.Contains("bind it with ParamBindings")) dirty.Add(e);
+            }
+        }
+        Assert.True(files > 50, $"saw only {files} files — the sweep is not reading the content");
+        Assert.True(dirty.Count == 0, "a ^param in a string slot is never bound:\n - " + string.Join("\n - ", dirty));
+
+        // the pre-fix selection-mean: the string params written as "^title" / "^by"
+        var dom = (JsonObject)JsonNode.Parse(File.ReadAllText(Path.Combine(root, "macros", "evaluation", "selection-mean", "scenario.json")))!;
+        var entity = (JsonObject)((JsonObject)dom["entities"]!).First().Value!;
+        var p = (JsonObject)JsonNode.Parse(entity["Behavior"]!["Params"]!.GetValue<string>())!;
+        p["common"]!["title"] = "^title";
+        p["by"] = "^by";
+        entity["Behavior"]!["Params"] = p.ToJsonString();
+        entity.Remove("ParamBindings");
+        var errors = Fdp.Toolkit.Scenario.MacroValidator.Validate(dom.ToJsonString(), library, "macro 'evaluation/selection-mean'", n => DtoOf(registry, n));
+        Assert.Equal(2, errors.Count(e => e.Contains("bind it with ParamBindings")));
+        Assert.Contains(errors, e => e.Contains("Behavior.Params.common.title"));
+        Assert.Contains(errors, e => e.Contains("Behavior.Params.by"));
+    }
 }
