@@ -223,14 +223,18 @@ def scenario():
                                                   msg("Supply crate down", 5)])
 
     # ── the comeback boost (G-7): the team 40 behind gets its bots one tier sharper, never twice within 2 min; back to 0 when it recovers
+    # ⚠ each "over" starts DISARMED and its comeback arms it: armed from the start, its condition (the lead recovered) is true at 0 : 0, so
+    #   it fired once before any comeback (measured live 2026-11-03, SHOWCASE §2.8)
+    def over(title, when, side, force):
+        return trigger(title, when, [{"act": "SetSkillAmplifier", "args": {"side": side, "tiers": 0}}], force=force, repeat=True, cooldown=120,
+                       **{"common": {"title": title, "subject": blue, "startActive": False}})
+    red_over = over("Comeback Red over", on_status(lead, "Value", -1e6, 19.999), "Hostile", "Hostile")
+    blue_over = over("Comeback Blue over", on_status(lead, "Value", -19.999, 1e6), "Friend", "Friend")
+    arm = lambda t: {"act": "SetObjectiveActive", "args": {"target": t, "active": True}}
     trigger("Comeback Red", on_status(lead, "Value", 40, 1e6), [{"act": "SetSkillAmplifier", "args": {"side": "Hostile", "tiers": 1}},
-            msg("Reinforcements: Red's squads are sharper", 6)], force="Hostile", repeat=True, cooldown=120, holdFor=30)
-    trigger("Comeback Red over", on_status(lead, "Value", -1e6, 19.999), [{"act": "SetSkillAmplifier", "args": {"side": "Hostile", "tiers": 0}}],
-            force="Hostile", repeat=True, cooldown=120)
+            msg("Reinforcements: Red's squads are sharper", 6), arm(red_over)], force="Hostile", repeat=True, cooldown=120, holdFor=30)
     trigger("Comeback Blue", on_status(lead, "Value", -1e6, -40), [{"act": "SetSkillAmplifier", "args": {"side": "Friend", "tiers": 1}},
-            msg("Reinforcements: Blue's squads are sharper", 6)], repeat=True, cooldown=120, holdFor=30)
-    trigger("Comeback Blue over", on_status(lead, "Value", -19.999, 1e6), [{"act": "SetSkillAmplifier", "args": {"side": "Friend", "tiers": 0}}],
-            repeat=True, cooldown=120)
+            msg("Reinforcements: Blue's squads are sharper", 6), arm(blue_over)], repeat=True, cooldown=120, holdFor=30)
 
     # ── respawn waves for bots (G-5): while a team has fewer than 8 men up, one bot every 15 s at its base, facing the centre
     trigger("Blue respawn", alive_of_side_at_most(FRIEND, 7),

@@ -32,6 +32,11 @@ pool the scenario moves. If you would rather it take its deaths from a `Count` m
 | ② | **Blue breaks contact after it is ordered to defend the crossroads** — live `--mode all`: the trigger `Order`s Blue Platoon `PlatoonDefend {Position (198,182), Left 45, Right 315, MaxRange 150}` at 308 s; by ~470 s every Blue man is `Break` / out of the fight, `Hold the crossroads` reads *"0/6 men, 0 enemy"* and never completes. Possibly the order (a 270° sector) or what the squads do under PlatoonDefend with civilians and a burning fight around them | `PlatoonDefend` | SHOWCASE §1.7; screenshots `shot-010` / `shot-014` of the live run |
 | ③ | ✅ **fixed tonight** — the Red QRF stayed Idle in the CLUSTER: (a) `RefKey` had no wire descriptor, so `@RedQRF` of a RUNTIME-inserted platoon existed only on the creating node ⇒ **`dtRefKey` 182** (`ccc90e747`); (b) even then the next step raced the replication (children requested at 14.40 s, `Order @RedQRF` failed 0.3 s later) ⇒ ⚠ **cross-lane in YOUR `StepRunner.cs`** (`bfdcc7e6f`): an unresolved `"@Key"` keeps the step Running up to **`ResolveGraceTicks` = 300 ticks** (deterministic, ticks not wall time), retrying the seed each tick, then fails with *"… (waited 300 ticks)"*; its own slot, freed on success / failure / `Detach`. Rails `StepRunnerTests` (`CE4162_…` adapted to the grace, `AnUnresolvedLink_ThatAppearsWithinTheGrace_Resolves` new, red-proved). Live after both: the inserted platoon runs PlatoonAttack, a squad SquadDefend (base of fire), the other bounds | backend (your file) | `scenarios/test-macro-insert-order` live |
 
+⭐ **`2026-11-03`:** ① answered and FIXED by you — CE-2379 (`NOTE_Behaviors_To_Backend_Bridgehead_Red_On_Red_Answer.md`), thank you. Your
+lean for the eval row is taken in its conditional form: `checks.json` gained `"if": "harm"` (the row is judged only when a civilian IS harmed,
+else `SKIP`; grammar `DESIGN_Scenario_Regression.md` §3) — a deliberate harm would make the demo's Conduct fail every run. ② is still open
+(CE-3361). New, backend's own: Crossfire's point A is never visited (CE-3362) — I will trace it before handing anything to you.
+
 ## 3. Your note `NOTE_Behaviors_To_Backend_Step_Bind_Answer.md` — read, thank you
 
 The typed `ActionStep` + the dotted `Bind` path in `ParamBinding.cs` and `LiveRefScope` replacing `WorldRefScope` are in `backend` (merged

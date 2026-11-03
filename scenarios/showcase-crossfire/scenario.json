@@ -1475,44 +1475,16 @@
     "TkbType": 8861
    },
    "EntityInfo": {
-    "Name": "Comeback Red",
-    "ForceId": "Hostile"
-   },
-   "Behavior": {
-    "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Comeback Red\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 40, \"maxValue\": 1000000.0}}}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Hostile\", \"tiers\": 1}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Reinforcements: Red's squads are sharper\", \"seconds\": 6}}], \"repeat\": true, \"cooldown\": 120, \"holdFor\": 30}",
-    "Origin": "Superior"
-   }
-  },
-  "cf6e0000-0000-4000-8000-000000000056": {
-   "TkbIdentity": {
-    "TkbType": 8861
-   },
-   "EntityInfo": {
     "Name": "Comeback Red over",
     "ForceId": "Hostile"
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Comeback Red over\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -1000000.0, \"maxValue\": 19.999}}}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Hostile\", \"tiers\": 0}}], \"repeat\": true, \"cooldown\": 120}",
+    "Params": "{\"common\": {\"title\": \"Comeback Red over\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"startActive\": false}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -1000000.0, \"maxValue\": 19.999}}}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Hostile\", \"tiers\": 0}}], \"repeat\": true, \"cooldown\": 120}",
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000057": {
-   "TkbIdentity": {
-    "TkbType": 8861
-   },
-   "EntityInfo": {
-    "Name": "Comeback Blue",
-    "ForceId": "Friend"
-   },
-   "Behavior": {
-    "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Comeback Blue\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -1000000.0, \"maxValue\": -40}}}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Friend\", \"tiers\": 1}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Reinforcements: Blue's squads are sharper\", \"seconds\": 6}}], \"repeat\": true, \"cooldown\": 120, \"holdFor\": 30}",
-    "Origin": "Superior"
-   }
-  },
-  "cf6e0000-0000-4000-8000-000000000058": {
+  "cf6e0000-0000-4000-8000-000000000056": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1522,7 +1494,35 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Comeback Blue over\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -19.999, \"maxValue\": 1000000.0}}}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Friend\", \"tiers\": 0}}], \"repeat\": true, \"cooldown\": 120}",
+    "Params": "{\"common\": {\"title\": \"Comeback Blue over\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"startActive\": false}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -19.999, \"maxValue\": 1000000.0}}}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Friend\", \"tiers\": 0}}], \"repeat\": true, \"cooldown\": 120}",
+    "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000057": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Comeback Red",
+    "ForceId": "Hostile"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": "{\"common\": {\"title\": \"Comeback Red\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 40, \"maxValue\": 1000000.0}}}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Hostile\", \"tiers\": 1}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Reinforcements: Red's squads are sharper\", \"seconds\": 6}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000055\", \"active\": true}}], \"repeat\": true, \"cooldown\": 120, \"holdFor\": 30}",
+    "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000058": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Comeback Blue",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": "{\"common\": {\"title\": \"Comeback Blue\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -1000000.0, \"maxValue\": -40}}}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Friend\", \"tiers\": 1}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Reinforcements: Blue's squads are sharper\", \"seconds\": 6}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000056\", \"active\": true}}], \"repeat\": true, \"cooldown\": 120, \"holdFor\": 30}",
     "Origin": "Superior"
    }
   },
