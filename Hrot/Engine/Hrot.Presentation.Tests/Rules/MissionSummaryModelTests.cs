@@ -76,11 +76,12 @@ public sealed class MissionSummaryModelTests : IDisposable
         Man(903, ForceId.Friend, "Rifleman Down", 20f);        // incapacitated
         Man(904, ForceId.Friend, "Rifleman Svoboda", 0f);      // dead
         Man(950, ForceId.Hostile, "Red 1");
-        Rule(10, "Mission", "WeightedMean", score: 0.5f, pass: 0.6f);
+        Rule(5, "Bridgehead", "WeightedMean", subject: 900, score: 0.58f, pass: 0.6f);   // the OVERALL root over Mission and Members
+        Rule(10, "Mission", "WeightedMean", parent: 5, score: 0.5f, pass: 0.6f);
         Rule(11, "Reach the village", "ReachArea", parent: 10, state: ObjectiveState.Achieved, score: 1f, edit: (ref ObjectiveStatus s) => s.Required = 1);
         Rule(12, "Hold the bridge", "HoldArea", parent: 10, state: ObjectiveState.Active, score: 0.62f, edit: (ref ObjectiveStatus s) => { s.Required = 1; s.ProgressCur = 3; s.ProgressNeed = 10; });
         Rule(13, "Clear the village", "ClearArea", parent: 10, state: ObjectiveState.Pending);
-        Rule(20, "Members", "MemberEvaluation", subject: 900, score: 0.42f, pass: 0.6f);
+        Rule(20, "Members", "MemberEvaluation", parent: 5, subject: 900, score: 0.42f, pass: 0.6f);
         Rule(21, "Member standards", "WeightedMean", parent: 20, subject: 901, score: 0.61f);
         Rule(22, "Hit ratio", "HitRatio", ObjectiveRole.Measure, parent: 21, subject: 901, score: 0.56f, pass: 0.6f, group: "fire", edit: (ref ObjectiveStatus s) => { s.Value = 0.14f; s.Target = 0.25f; s.Weight = 30f; });
         Rule(23, "Report latency", "ReportLatency", ObjectiveRole.Measure, parent: 21, subject: 901, score: 0.9f, pass: 0.6f, group: "reports", edit: (ref ObjectiveStatus s) => { s.Value = 58f; s.Target = 60f; });
@@ -93,12 +94,12 @@ public sealed class MissionSummaryModelTests : IDisposable
     // ── the card ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public void TheHeadline_IsTheTopMostEvaluationOfTheSidesSubject_ScorePassAndDecided()
+    public void TheHeadline_IsTheSidesOverallRoot_NotItsEvaluationPart_ScorePassAndDecided()
     {
         Scenario();
         var blue = MissionSummaryModel.Build(_world, new SummaryOptions(SummarySide.Blue), null, 100).Cards.Single();
         var h = blue.Headline!;
-        Assert.Equal((20, 0.42f, 0.6f, false, false), (h.NetworkId, h.Score, h.Pass, h.Decided, h.Go == true));   // 0.42 < 0.6 and not decided yet
+        Assert.Equal((5, 0.58f, 0.6f, false, false), (h.NetworkId, h.Score, h.Pass, h.Decided, h.Go == true));   // the ROOT, not its part "Members" (0.42); 0.58 < 0.6 and not decided yet
         Assert.Null(h.Trend);                                                                                    // no history ⇒ no trend, never a guess
         var red = MissionSummaryModel.Build(_world, new SummaryOptions(SummarySide.Red), null, 100).Cards.Single();
         Assert.Null(red.Headline);                                                                               // Red owns no evaluation
@@ -121,9 +122,9 @@ public sealed class MissionSummaryModelTests : IDisposable
     public void TheTrend_IsScoreNowMinusScoreTenMinutesAgo_OrSinceTheStart()
     {
         Scenario();
-        var h = new History { Score = { [20] = new() { (0, 0.30f), (100, 0.36f), (700, 0.40f) } } };
-        Assert.Equal(0.42f - 0.36f, MissionSummaryModel.Build(_world, new SummaryOptions(SummarySide.Blue), h, 1000).Cards.Single().Headline!.Trend!.Value, 3);   // the last entry at or before now − 600 s
-        Assert.Equal(0.42f - 0.30f, MissionSummaryModel.Build(_world, new SummaryOptions(SummarySide.Blue), h, 300).Cards.Single().Headline!.Trend!.Value, 3);     // shorter than 10 min ⇒ since the start
+        var h = new History { Score = { [5] = new() { (0, 0.30f), (100, 0.36f), (700, 0.40f) } } };
+        Assert.Equal(0.58f - 0.36f, MissionSummaryModel.Build(_world, new SummaryOptions(SummarySide.Blue), h, 1000).Cards.Single().Headline!.Trend!.Value, 3);   // the last entry at or before now − 600 s
+        Assert.Equal(0.58f - 0.30f, MissionSummaryModel.Build(_world, new SummaryOptions(SummarySide.Blue), h, 300).Cards.Single().Headline!.Trend!.Value, 3);     // shorter than 10 min ⇒ since the start
     }
 
     [Fact]
@@ -167,7 +168,7 @@ public sealed class MissionSummaryModelTests : IDisposable
         var chain = s.Levels[0].Rows;
         Assert.Equal(new[] { ("1st Platoon", 0), ("Rifleman Kral", 1) }, chain.Select(r => (r.Label, r.Depth)));   // the evaluation (named by its subject) and its member root
         var objectives = s.Levels[1].Rows;
-        Assert.Equal(new[] { ("Mission", 0), ("Reach the village", 1), ("Hold the bridge", 1), ("Clear the village", 1) }, objectives.Select(r => (r.Label, r.Depth)));
+        Assert.Equal(new[] { ("Bridgehead", 0), ("Mission", 1), ("Reach the village", 2), ("Hold the bridge", 2), ("Clear the village", 2) }, objectives.Select(r => (r.Label, r.Depth)));
         Assert.Equal(new[] { "All Rifleman", "Hit ratio (mean)" }, s.Levels[2].Rows.Select(r => r.Label));          // role means first
     }
 
@@ -274,5 +275,20 @@ public sealed class MissionSummaryModelTests : IDisposable
         var c = MissionSummaryModel.Build(_world, new SummaryOptions(SummarySide.Blue), null, 100).Cards.Single();
         Assert.Equal(new[] { "Hold" }, c.Required.Select(r => r.Title));
         Assert.Empty(MissionSummaryModel.Build(_world, new SummaryOptions(SummarySide.Red), null, 100).Cards.Single().Required);
+    }
+
+    /// <summary>An evaluation IS the headline only when it is the root; several roots list each. ✅ Red-proof: the old "MemberEvaluation first" rule (the evaluation beats the root) ⇒ <c>TheHeadline_IsTheSidesOverallRoot…</c> red.</summary>
+    [Fact]
+    public void TheHeadline_IsTheEvaluationWhenItIsTheOnlyRoot_AndSeveralRootsAreAllListed()
+    {
+        Man(900, ForceId.Friend, "1st Platoon");
+        Rule(20, "Members", "MemberEvaluation", subject: 900, score: 0.42f, pass: 0.6f);
+        var only = MissionSummaryModel.Build(_world, new SummaryOptions(SummarySide.Blue), null, 100).Cards.Single().Headline!;
+        Assert.Equal((20, 0.42f), (only.NetworkId, only.Score));
+        Rule(21, "Training", "WeightedMean", subject: 900, score: 0.7f, pass: 0.5f, edit: (ref ObjectiveStatus s) => { s.Required = 1; s.Weight = 2f; });
+        Rule(22, "Safety", "WeightedMean", subject: 900, score: 0.9f, pass: 0.5f, edit: (ref ObjectiveStatus s) => { s.Required = 1; s.Weight = 1f; });
+        var many = MissionSummaryModel.Build(_world, new SummaryOptions(SummarySide.Blue), null, 100).Cards.Single().Headline!;
+        Assert.Equal((21, 0.5f), (many.NetworkId, many.Pass));                                        // required with the largest weight; ITS pass mark
+        Assert.Equal(new[] { ("Safety", 0.9f), ("Members", 0.42f) }, many.Others);                   // the rest, each with its score
     }
 }

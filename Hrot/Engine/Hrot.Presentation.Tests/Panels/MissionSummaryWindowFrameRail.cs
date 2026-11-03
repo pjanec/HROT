@@ -71,8 +71,9 @@ public sealed class MissionSummaryWindowFrameRail : IDisposable
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         Man(900, ForceId.Friend, "1st Platoon"); Man(901, ForceId.Friend, "Rifleman Kral"); Man(902, ForceId.Friend, "Rifleman Down", 20f);
         Man(950, ForceId.Hostile, "Red 1");
-        Rule(10, "Reach the village", "ReachArea", ObjectiveRole.Objective, 0, 0, 1f, 0f, ObjectiveState.Achieved, edit: (ref ObjectiveStatus s) => s.Required = 1);
-        Rule(20, "Members", "MemberEvaluation", ObjectiveRole.Objective, 0, 900, 0.42f, 0.6f);
+        Rule(5, "Overall", "WeightedMean", ObjectiveRole.Objective, 0, 900, 0.42f, 0.6f);
+        Rule(10, "Reach the village", "ReachArea", ObjectiveRole.Objective, 5, 0, 1f, 0f, ObjectiveState.Achieved, edit: (ref ObjectiveStatus s) => s.Required = 1);
+        Rule(20, "Members", "MemberEvaluation", ObjectiveRole.Objective, 5, 900, 0.42f, 0.6f);
         Rule(21, "Member standards", "WeightedMean", ObjectiveRole.Objective, 20, 901, 0.61f, 0f);
         Rule(22, "Hit ratio", "HitRatio", ObjectiveRole.Measure, 21, 901, 0.56f, 0.6f, group: "fire", edit: (ref ObjectiveStatus s) => { s.Value = 0.14f; s.Target = 0.25f; s.Weight = 30f; });
 
@@ -93,7 +94,7 @@ public sealed class MissionSummaryWindowFrameRail : IDisposable
         }
         Step(null, 5);
         var p = window.Probe;
-        Assert.Contains(p.Cards, l => l.StartsWith("Blue: Members 0.42") && l.Contains("pass mark 0.60") && l.Contains("not yet decided"));
+        Assert.Contains(p.Cards, l => l.StartsWith("Blue: Overall 0.42") && l.Contains("pass mark 0.60") && l.Contains("not yet decided"));
         Assert.Contains("Blue: required 1 / 1", p.Cards);
         Assert.Contains(p.Cards, l => l.StartsWith("Blue: forces 2 / 3") && l.Contains("1 down"));
         Assert.Contains(p.Cards, l => l.StartsWith("Blue: attention Hit ratio 0.14 (target 0.25)"));

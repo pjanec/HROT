@@ -55,7 +55,7 @@ public sealed class IndexSummaryHistory : ISummaryHistory
 
 public readonly record struct SummaryOptions(SummarySide Side = SummarySide.Both);
 
-public sealed record SummaryHeadline(int NetworkId, string Title, float Score, float Pass, float? Trend, bool Decided, bool? Go);
+public sealed record SummaryHeadline(int NetworkId, string Title, float Score, float Pass, float? Trend, bool Decided, bool? Go, IReadOnlyList<(string Title, float Score)>? Others = null);
 public sealed record RequiredItem(int NetworkId, string Title, ObjectiveState State, string Words, uint Colour, int ProgressCur, int ProgressNeed, bool Required, int Side);
 public sealed record ForcesCard(int Total, int InFight, int Wounded, int Down, int Dead, int Inserted, IReadOnlyList<string> InsertedFrom);
 public sealed record AttentionItem(int NetworkId, string Text, float Margin);
@@ -158,15 +158,16 @@ public static class MissionSummaryModel
 
         SummaryHeadline? HeadlineOf(ForceId side)
         {
-            // ⭐ precisely: among the MemberEvaluation rows whose SUBJECT belongs to the side (EntityInfo.ForceId), the TOP-MOST — the one whose Parent is not itself such a row (lowest id on a tie).
-            // None (a scenario with no per-man evaluation): the top-most scored composite the side OWNS (Parent 0, Scored, an objective that has children).
-            var evals = entries.Where(e => IsEvaluation(e) && SubjectSide(e) == side).ToList();
-            RulesReader.Entry? top = evals.Where(e => !evals.Any(x => x.NetworkId == e.ParentNetworkId)).OrderBy(e => e.NetworkId).Cast<RulesReader.Entry?>().FirstOrDefault();
-            top ??= entries.Where(e => e.ParentNetworkId == 0 && e.Status.Owner == side && e.Status.Scored != 0 && e.Status.Role == ObjectiveRole.Objective && children.ContainsKey(e.NetworkId))
-                           .OrderBy(e => e.NetworkId).Cast<RulesReader.Entry?>().FirstOrDefault();
-            if (top is not { } h) return null;
+            // ⭐ precisely: the side's OVERALL score = the TOP-MOST scored ROOT of the side — a scored objective-role row of the side (subject's ForceId, else Owner) whose Parent is none, or is a row of ANOTHER side / a neutral
+            // aggregate (a game's "All players"). So "Bridgehead" (the root over Mission / Conduct / Members) wins over "Members"; an evaluation IS the headline only when it is the root (a game's members:side evaluation, or a
+            // scenario whose only root it is). Several roots for one side: the first is the REQUIRED one with the largest weight (then the lowest id), the others ride along as (title, score) in Others. Pass = that root's Pass.
+            var roots = entries.Where(e => e.Status.Role == ObjectiveRole.Objective && e.Status.Scored != 0 && SubjectSide(e) == side
+                                           && (e.ParentNetworkId == 0 || !byNet.TryGetValue(e.ParentNetworkId, out var par) || SubjectSide(par) != side))
+                               .OrderByDescending(e => e.Status.Required != 0).ThenByDescending(e => e.Status.Weight == 0f ? 1f : e.Status.Weight).ThenBy(e => e.NetworkId).ToList();
+            if (roots.Count == 0) return null;
+            var h = roots[0];
             bool decided = h.Status.IsFinal || phase == ExercisePhase.Ended;
-            return new SummaryHeadline(h.NetworkId, TitleOf(h), h.Status.Score, h.Status.Pass, TrendOf(h), decided, GoOf(h.Status));
+            return new SummaryHeadline(h.NetworkId, TitleOf(h), h.Status.Score, h.Status.Pass, TrendOf(h), decided, GoOf(h.Status), roots.Skip(1).Select(r => (TitleOf(r), r.Status.Score)).ToList());
         }
 
         IReadOnlyList<AttentionItem> AttentionOf(ForceId side)
