@@ -2832,7 +2832,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "control_objective",
             Group:   "L — Mutation / fault injection",
             Summary: "Ask a rule entity (a trigger or an objective) to do something NOW (rules V-4): fire · disarm · rearm · reset · activate · deactivate. Written through the attribute write path — applied here when this node owns the entity, a change-request to the owner otherwise; the owner honours each new request once and journals it (\"Disarm by DebugApi\").",
-            Returns: "{ networkId, request, seq, route:'direct'|'requested' } — 'requested' acts after the owner's next tick; read GET /objectives (triggerState, state) to see the effect",
+            Returns: "{ networkId, request, seq, requestId, route:'direct'|'requested' } — 'requested' acts after the owner's next tick; read GET /edits/{requestId} for the verdict (Pending → Applied | Refused + reason) and GET /objectives (triggerState, state) for the effect",
             Hint:    "Req: networkId (path), request (string: Fire, Disarm, Rearm, Reset, Activate, Deactivate). Example: control_objective({networkId:12, request:'Disarm'})",
             Params: new RouteParam[]
             {
@@ -2842,6 +2842,35 @@ namespace Hrot.Editor.DebugApi
             Notes: new[] { "Fire / Rearm are a trigger's; the others work on any objective (SR-114 rules: a final one needs Reset; a closed one takes nothing — the entity's reason says why)." },
             ExampleArgsJson: "{\"networkId\":12,\"request\":\"Disarm\"}",
             ExampleGist: "switch the trigger off"),
+
+        [("POST", "/objectives/{networkId}/edit")] = new RouteDoc(
+            Tool:    "edit_objective",
+            Group:   "L — Mutation / fault injection",
+            Summary: "A LIVE EDIT of a rule's params that keeps its state (rules §00.11a): the same write path as control_objective. The owner applies it on its next tick — a rule that is acting waits until its do list ends — and answers a verdict under the returned requestId.",
+            Returns: "{ networkId, seq, requestId, route:'direct'|'requested' } — read GET /edits/{requestId}: Pending, then Applied or Refused with the WHOLE refusal text (the rule's status reason keeps only the first 55 characters)",
+            Hint:    "Req: networkId (path), params (object: the rule's new params, the shape a scenario carries). Example: edit_objective({networkId:12, params:{...}})",
+            Params: new RouteParam[]
+            {
+                new("networkId", "number", true, "Network entity ID of the trigger / objective (see GET /objectives)"),
+                new("params", null, true, "The rule's new params as a JSON object"),
+            },
+            Notes: new[] { "An edit that fails to parse or validate is Refused (outcome + the status reason 'edit refused: …'); the rule keeps running as it was." },
+            ExampleArgsJson: "{\"networkId\":12,\"params\":{}}",
+            ExampleGist: "change a running rule's params"),
+
+        [("GET", "/edits/{requestId}")] = new RouteDoc(
+            Tool:    "get_edit_outcome",
+            Group:   "B — Queries",
+            Summary: "The outcome of a remote edit (CE-2380): the answer to a write that went to another node's entity — Applied, Pending (a rule's edit or control, judged on the owner's next tick) or Refused with the reason.",
+            Returns: "{ requestId, networkId, status:'Applied'|'Pending'|'Refused', reason, respondingNode, at (sim s on the answering node), fromNetwork } — 404 when this node holds no outcome for the id (not answered yet, or older than the last 64)",
+            Hint:    "Req: requestId (path) — the requestId a write route (control_objective, edit_objective, patch_attribute) answered with. Poll until status is not Pending. Example: get_edit_outcome({requestId:'…'})",
+            Params: new RouteParam[]
+            {
+                new("requestId", "string", true, "The GUID a write route answered with"),
+            },
+            Notes: new[] { "Read on the node that asked: the owner's answer arrives over the wire into that node's log. A local (owned) write is reported at once." },
+            ExampleArgsJson: "{\"requestId\":\"00000000-0000-0000-0000-000000000000\"}",
+            ExampleGist: "find out whether an edit sent to the owner was applied or refused, and why"),
 
         [("GET", "/entities/{networkId}/squad")] = new RouteDoc(
             Tool:    "get_entity_squad",
@@ -3114,7 +3143,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "patch_attribute",
             Group:   "L — Mutation / fault injection",
             Summary: "Apply a JSON attribute patch to an entity — locally where this node owns it, by request to the owner where it does not.",
-            Returns: "Updated entity dump on success, plus write:{route, appliedComponents, requestedComponents}; route is direct, requested or noMatch.",
+            Returns: "Updated entity dump on success, plus write:{route, requestId, appliedComponents, requestedComponents}; route is direct, requested or noMatch. write.requestId → GET /edits/{requestId} for the owner's Applied / Refused.",
             Hint:    "Req: networkId (number), patchJson (object {\"Name\":\"Alpha\"} or JSON string). Example: patch_attribute({networkId:1000,patchJson:{Name:\"Alpha\"}})",
             Params: new RouteParam[]
             {

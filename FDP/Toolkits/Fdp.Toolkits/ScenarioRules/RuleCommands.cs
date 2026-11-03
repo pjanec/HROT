@@ -1,6 +1,7 @@
 using System;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Attributes;
+using Fdp.Toolkit.Replication.Edits;
 using Fdp.Toolkit.Replication.Patching;
 
 namespace Fdp.Toolkit.ScenarioRules
@@ -21,31 +22,43 @@ namespace Fdp.Toolkit.ScenarioRules
         /// Returns how it was routed — <see cref="EntityWriteRoute.Refused"/> = nothing was written (this node has no way to ask the owner) — and the <paramref name="seq"/> used.
         /// </summary>
         public static EntityWriteRoute Control(EntityRepository world, Entity entity, RuleRequest request, RuleOrigin origin, ref int lastSeq, out int seq)
+            => Control(world, entity, request, origin, ref lastSeq, out seq, out _);
+
+        /// <summary>⭐ CE-2380 part 2 — as above, also returning the <paramref name="requestId"/> the outcome is read by (<c>EditOutcomeLog.Of(world).TryGet</c>, <c>GET /edits/{id}</c>): Pending at once on the owner, then the verdict of <c>ObjectiveHost</c> / <c>TriggerBehavior</c>.</summary>
+        public static EntityWriteRoute Control(EntityRepository world, Entity entity, RuleRequest request, RuleOrigin origin, ref int lastSeq, out int seq, out Guid requestId)
         {
             int current = world.IsComponentTypeRegistered<RuleControl>() && world.HasComponent<RuleControl>(entity) ? world.GetComponentRO<RuleControl>(entity).Seq : lastSeq;
             seq = Next(current);
             lastSeq = seq;
-            return EntityWriteRouter.For(world).Write(entity, new[]
+            var ticket = EditRequests.Write(world, entity, new[]
             {
                 EntityAttributeChange.Double(AttributeIds.RuleRequest, (int)request),
                 EntityAttributeChange.Double(AttributeIds.RuleOrigin, (int)origin),
                 EntityAttributeChange.Double(AttributeIds.RuleSeq, seq),
             });
+            requestId = ticket.RequestId;
+            return ticket.Route;
         }
 
         /// <summary>A LIVE EDIT of a rule's params (§00.11a), through the same path: <see cref="RuleEdit"/> (<c>Rule.Params</c> / <c>Rule.EditSeq</c> / <c>Rule.EditOrigin</c>). <paramref name="editOrigin"/> is a <c>BehaviorOrigin</c> value.</summary>
         public static EntityWriteRoute Edit(EntityRepository world, Entity entity, string paramsJson, int editOrigin, ref int lastSeq, out int seq)
+            => Edit(world, entity, paramsJson, editOrigin, ref lastSeq, out seq, out _);
+
+        /// <summary>⭐ CE-2380 part 2 — as above, also returning the <paramref name="requestId"/> (Pending at once, then <c>RuleEditSystem</c>'s Applied / Refused with the WHOLE text).</summary>
+        public static EntityWriteRoute Edit(EntityRepository world, Entity entity, string paramsJson, int editOrigin, ref int lastSeq, out int seq, out Guid requestId)
         {
             int current = world.TryGetTable(typeof(RuleEdit), out _) && world.HasManagedComponent<RuleEdit>(entity)
                 ? ((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetManagedComponentRO<RuleEdit>(entity).Seq : lastSeq;
             seq = Next(current);
             lastSeq = seq;
-            return EntityWriteRouter.For(world).Write(entity, new[]
+            var ticket = EditRequests.Write(world, entity, new[]
             {
                 new EntityAttributeChange { AttributeId = AttributeIds.RuleParams, Value = AttributeValue.FromString(paramsJson) },
                 EntityAttributeChange.Double(AttributeIds.RuleEditOrigin, editOrigin),
                 EntityAttributeChange.Double(AttributeIds.RuleEditSeq, seq),
             });
+            requestId = ticket.RequestId;
+            return ticket.Route;
         }
 
         /// <summary>

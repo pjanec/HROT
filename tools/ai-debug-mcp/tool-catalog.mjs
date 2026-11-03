@@ -335,6 +335,36 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "get_edit_outcome",
+    "group": "B — Queries",
+    "summary": "The outcome of a remote edit (CE-2380): the answer to a write that went to another node's entity — Applied, Pending (a rule's edit or control, judged on the owner's next tick) or Refused with the reason.",
+    "http": {
+      "method": "GET",
+      "path": "/edits/{requestId}"
+    },
+    "params": [
+      {
+        "name": "requestId",
+        "type": "string",
+        "required": true,
+        "description": "The GUID a write route answered with"
+      }
+    ],
+    "returns": "{ requestId, networkId, status:'Applied'|'Pending'|'Refused', reason, respondingNode, at (sim s on the answering node), fromNetwork } — 404 when this node holds no outcome for the id (not answered yet, or older than the last 64)",
+    "notes": [
+      "Read on the node that asked: the owner's answer arrives over the wire into that node's log. A local (owned) write is reported at once."
+    ],
+    "example": {
+      "args": {
+        "requestId": "00000000-0000-0000-0000-000000000000"
+      },
+      "gist": "find out whether an edit sent to the owner was applied or refused, and why"
+    },
+    "hint": "Req: requestId (path) — the requestId a write route (control_objective, edit_objective, patch_attribute) answered with. Poll until status is not Pending. Example: get_edit_outcome({requestId:'…'})",
+    "manualVerify": false
+  },
+
+  {
     "name": "list_entities",
     "group": "B — Queries",
     "summary": "List all entities with networkId, name, and component names.",
@@ -3308,7 +3338,7 @@ export const TOOLS_CATALOG = [
         "description": "1 = nest each objective's children as objects"
       }
     ],
-    "returns": "{ objectives:[{networkId, title, kind, role, state, closed, owner, progress:{cur, need}, value, target, score, points, weight, required, scored, changedAt, reason, subject, parent, children:[networkId], dependsOn:[networkId] (what a trigger's when names), actsOn:[networkId] (what its do targets), timing:{holdFor, delay, cooldown, deadline, expectedAt} (sim s; 0 = none / unknown); Role=Trigger rows add triggerState, fireCount, lastFired}], roots:[networkId] } — roots first, depth-first by title",
+    "returns": "{ objectives:[{networkId, title, kind, group (the evaluation group: mission · fire · reports · conduct …; empty = none), role, state, closed, owner, progress:{cur, need}, value, target, score, points, weight, required, scored, changedAt, reason, subject, parent, children:[networkId], dependsOn:[networkId] (what a trigger's when names), actsOn:[networkId] (what its do targets), timing:{holdFor, delay, cooldown, deadline, expectedAt} (sim s; 0 = none / unknown); Role=Trigger rows add triggerState, fireCount, lastFired, and leaves:[{label, value 0/1, measured}] (the when-leaves with their live values — present once the owner has sampled them; the owner samples ≤ 2 Hz and ONLY while node feature ui.rules-live-values is on (off at load, switched Live on demand; GET /features shows it); when it goes off the last sample STAYS — show it greyed)}], roots:[networkId] } — roots first, depth-first by title",
     "notes": [
       "A state is one of Pending, Active, Achieved, Failed, Inactive, Skipped; Score is 0..1 (a Skipped one is excluded from its parent's mean)."
     ],
@@ -3573,7 +3603,7 @@ export const TOOLS_CATALOG = [
         "description": "Patch as a JSON object {\"Name\":\"Alpha\"} or as a JSON string"
       }
     ],
-    "returns": "Updated entity dump on success, plus write:{route, appliedComponents, requestedComponents}; route is direct, requested or noMatch.",
+    "returns": "Updated entity dump on success, plus write:{route, requestId, appliedComponents, requestedComponents}; route is direct, requested or noMatch. write.requestId → GET /edits/{requestId} for the owner's Applied / Refused.",
     "notes": [
       "Unregistered keys are silently ignored (no error) — write.route is then noMatch.",
       "CE-3003: a key on a component this node does NOT own is sent to its owner as an UpdateEntityAttributeRequest (the JSON arm the owner already applies) — write.route is requested, and the change is in the OWNER's world, not yet in this dump: read it back from the owner's perspective after a tick. Components this node owns in the same patch are applied here.",
@@ -3668,7 +3698,7 @@ export const TOOLS_CATALOG = [
         "description": "Fire (a trigger runs its do list now) · Disarm / Deactivate (switch it off) · Rearm (armed again, no edge while the condition stays true) · Reset (restart, even a finished one) · Activate (switch it on)"
       }
     ],
-    "returns": "{ networkId, request, seq, route:'direct'|'requested' } — 'requested' acts after the owner's next tick; read GET /objectives (triggerState, state) to see the effect",
+    "returns": "{ networkId, request, seq, requestId, route:'direct'|'requested' } — 'requested' acts after the owner's next tick; read GET /edits/{requestId} for the verdict (Pending → Applied | Refused + reason) and GET /objectives (triggerState, state) for the effect",
     "notes": [
       "Fire / Rearm are a trigger's; the others work on any objective (SR-114 rules: a final one needs Reset; a closed one takes nothing — the entity's reason says why)."
     ],
@@ -3680,6 +3710,42 @@ export const TOOLS_CATALOG = [
       "gist": "switch the trigger off"
     },
     "hint": "Req: networkId (path), request (string: Fire, Disarm, Rearm, Reset, Activate, Deactivate). Example: control_objective({networkId:12, request:'Disarm'})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "edit_objective",
+    "group": "L — Mutation / fault injection",
+    "summary": "A LIVE EDIT of a rule's params that keeps its state (rules §00.11a): the same write path as control_objective. The owner applies it on its next tick — a rule that is acting waits until its do list ends — and answers a verdict under the returned requestId.",
+    "http": {
+      "method": "POST",
+      "path": "/objectives/{networkId}/edit"
+    },
+    "params": [
+      {
+        "name": "networkId",
+        "type": "number",
+        "required": true,
+        "description": "Network entity ID of the trigger / objective (see GET /objectives)"
+      },
+      {
+        "name": "params",
+        "required": true,
+        "description": "The rule's new params as a JSON object"
+      }
+    ],
+    "returns": "{ networkId, seq, requestId, route:'direct'|'requested' } — read GET /edits/{requestId}: Pending, then Applied or Refused with the WHOLE refusal text (the rule's status reason keeps only the first 55 characters)",
+    "notes": [
+      "An edit that fails to parse or validate is Refused (outcome + the status reason 'edit refused: …'); the rule keeps running as it was."
+    ],
+    "example": {
+      "args": {
+        "networkId": 12,
+        "params": {}
+      },
+      "gist": "change a running rule's params"
+    },
+    "hint": "Req: networkId (path), params (object: the rule's new params, the shape a scenario carries). Example: edit_objective({networkId:12, params:{...}})",
     "manualVerify": false
   },
 

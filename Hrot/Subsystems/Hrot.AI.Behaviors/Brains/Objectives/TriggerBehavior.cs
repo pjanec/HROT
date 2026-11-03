@@ -265,21 +265,30 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         /// </summary>
         private static void Control(ref Block b, ref ObjectiveStatus s, RuleRequest request, Entity self, EntityRepository world, double now)
         {
-            if (s.Closed != 0 || s.IsFinal) { s.Reason = new FixedString64($"{request} refused: it is {s.State}"); return; }
+            // ⭐ CE-2380 part 2 — every exit reports the request's verdict (Applied, or Refused with the same text the status carries) under the id it came with
+            if (s.Closed != 0 || s.IsFinal) { Refuse(ref s, world, self, $"{request} refused: it is {s.State}"); return; }
             if (request == RuleRequest.Fire)
             {
                 if (s.State != ObjectiveState.Active || b.Phase is TriggerState.Disarmed or TriggerState.Acting or TriggerState.Fired or TriggerState.Done)
-                { s.Reason = new FixedString64($"Fire refused: {(s.State != ObjectiveState.Active ? "it is switched off" : b.Phase.ToString())}"); return; }
+                { Refuse(ref s, world, self, $"Fire refused: {(s.State != ObjectiveState.Active ? "it is switched off" : b.Phase.ToString())}"); return; }
                 b.EdgeAt = now;
                 StartActing(ref b, ref s, self, world, now);
+                ObjectiveHost.ReportControl(world, self, null);
                 return;
             }
             // Rearm
-            if (b.Phase == TriggerState.Acting) { s.Reason = new FixedString64("Rearm refused: it is acting"); return; }
+            if (b.Phase == TriggerState.Acting) { Refuse(ref s, world, self, "Rearm refused: it is acting"); return; }
             if (s.State != ObjectiveState.Active) ObjectiveRules.SetActive(ref s, true, false, now);
             b.Prev = (byte)(TriggerWhen.Get(((ISimulationView)world).GetManagedComponentRO<ActionArgs>(self).Items[WhenItem])(world, self) ? 1 : 0);
             b.PrevKnown = 1;
             if (b.Phase != TriggerState.Armed) Go(ref b, ref s, TriggerState.Armed, "re-armed by request", now);
+            ObjectiveHost.ReportControl(world, self, null);
+        }
+
+        private static void Refuse(ref ObjectiveStatus s, EntityRepository world, Entity self, string text)
+        {
+            s.Reason = new FixedString64(text);
+            ObjectiveHost.ReportControl(world, self, text);
         }
 
         /// <summary>⭐ V-1 / V-2 — the rule's links and timing onto the status (the owner writes them every tick; the wire sends a change once). ExpectedAt: Waiting ⇒ the delay's end ·

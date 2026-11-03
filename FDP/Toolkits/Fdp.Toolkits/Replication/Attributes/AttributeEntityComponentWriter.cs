@@ -49,6 +49,12 @@ public sealed class AttributeEntityComponentWriter : IEntityComponentWriter
     private readonly BinaryInterpreter<EntityAttributeChange> _interpreter;
     private readonly Action<Entity, IReadOnlyList<EntityAttributeChange>>? _publishRequest;
 
+    /// <summary>⭐ CE-2380 part 2 — the remote-edit request id this writer's local apply carries to the handlers (<see cref="BinaryPatchContext.RequestId"/>); <see cref="Guid.Empty"/> = none.</summary>
+    public Guid RequestId { get; init; }
+
+    /// <summary>⭐ CE-2380 part 2 — true when the LAST <see cref="Write(Entity, IReadOnlyList{EntityAttributeChange})"/> landed locally on a handler whose effect is judged later (<see cref="BinaryPatchContext.Deferred"/>).</summary>
+    public bool LastWriteDeferred { get; private set; }
+
     /// <summary>
     /// Creates the writer.
     /// </summary>
@@ -96,6 +102,8 @@ public sealed class AttributeEntityComponentWriter : IEntityComponentWriter
         var binaryCtx = _interpreter.CreateContext(patchCtx);
         binaryCtx.Repo   = _repo;
         binaryCtx.Entity = entity;
+        binaryCtx.RequestId = RequestId;
+        LastWriteDeferred = false;
 
         // ⚠ An array, not `stackalloc`: `AttributeValue` carries a `string?`, so
         //   `EntityAttributeChange` is a MANAGED type and cannot live on the stack. ⭐ One allocation per
@@ -103,7 +111,10 @@ public sealed class AttributeEntityComponentWriter : IEntityComponentWriter
         _interpreter.Apply(binaryCtx, AsArray(changes));
 
         if (patchCtx.HasAppliedAny)
+        {
+            LastWriteDeferred = binaryCtx.Deferred;
             return EntityWriteRoute.Direct;
+        }
 
         // ── Not ours ⇒ ask the owner ───────────────────────────────────────────
         if (_publishRequest == null) return EntityWriteRoute.Refused;

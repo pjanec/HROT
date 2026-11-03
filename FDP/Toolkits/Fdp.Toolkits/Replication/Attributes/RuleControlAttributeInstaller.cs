@@ -14,7 +14,14 @@ public sealed class RuleControlAttributeInstaller : IBinaryAttributeInstaller<En
     public void Install(BinaryInterpreterBuilder<EntityAttributeChange> builder)
     {
         builder.RegisterHandler<RuleControl>(AttributeIds.RuleRequest, (ctx, r) => ctx.PatchContext.GetUnmanagedComponent<RuleControl>().Request = (byte)Int(r));
-        builder.RegisterHandler<RuleControl>(AttributeIds.RuleSeq, (ctx, r) => ctx.PatchContext.GetUnmanagedComponent<RuleControl>().Seq = Int(r));
+        builder.RegisterHandler<RuleControl>(AttributeIds.RuleSeq, (ctx, r) =>
+        {
+            ctx.PatchContext.GetUnmanagedComponent<RuleControl>().Seq = Int(r);
+            // ⭐ CE-2380 part 2 — the request is judged later (ObjectiveHost.Enter / TriggerBehavior.Control): remember its id for the judge, and tell the owner to report Pending.
+            //   RuleControl is a recorded unmanaged struct, so the id rides in a per-world side map (RuleRequestIds), not in a new field.
+            if (ctx.Repo is { } repo && ctx.RequestId != System.Guid.Empty) RuleRequestIds.Set(repo, ctx.Entity, ctx.RequestId);
+            ctx.Deferred = true;
+        });
         builder.RegisterHandler<RuleControl>(AttributeIds.RuleOrigin, (ctx, r) => ctx.PatchContext.GetUnmanagedComponent<RuleControl>().Origin = (byte)Int(r));
     }
 

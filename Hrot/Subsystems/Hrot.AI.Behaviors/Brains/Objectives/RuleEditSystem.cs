@@ -43,8 +43,12 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 if (why != null)
                 {
                     string text = "edit refused: " + why;
-                    s.Reason = new FixedString64(text.Length > 55 ? text.Substring(0, 55) : text);
+                    s.Reason = new FixedString64(text.Length > 55 ? text.Substring(0, 55) : text);   // the status stays cut; the outcome below carries the whole text
                 }
+                // ⭐ CE-2380 part 2 (lean C) — the final verdict, under the request id the edit came with (an edit that waited while Acting stayed Pending until now)
+                Fdp.Toolkit.Replication.Edits.EditOutcomes.Report(repo, edit.RequestId, Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(repo, e),
+                    why != null ? Fdp.Toolkit.Replication.Edits.EditStatus.Refused : Fdp.Toolkit.Replication.Edits.EditStatus.Applied,
+                    why != null ? "edit refused: " + why : "applied", Fdp.Toolkit.Replication.Edits.EditOutcomes.LocalNodeOf(repo, e) is var node && node >= 0 ? node : null);
                 Fdp.Core.Logging.FdpLog<Log>.Info($"rule '{s.Title}': edited by {(BehaviorOrigin)(byte)edit.Origin}" + (why != null ? $" — refused: {why}" : ""));
             }
         }

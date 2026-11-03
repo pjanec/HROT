@@ -31,10 +31,27 @@ namespace Hrot.Editor.DebugApi
             if (!System.Enum.TryParse<RuleRequest>(request, ignoreCase: true, out var what) || what == RuleRequest.NoRequest || !System.Enum.IsDefined(what))
                 return (null, $"'request' must be one of: {string.Join(", ", System.Enum.GetNames<RuleRequest>().Skip(1))}.");
             // ⭐ CE-4216 (RV-5) — the ONE shared write: RuleCommands (the instructor's rules view asks through it too)
-            var route = RuleCommands.Control(_world, entity, what, RuleOrigin.DebugApi, ref _ruleSeq, out int seq);
+            var route = RuleCommands.Control(_world, entity, what, RuleOrigin.DebugApi, ref _ruleSeq, out int seq, out var requestId);
             if (route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused)
                 return (null, $"Entity {networkId}: nothing was written (this node has no way to ask the owner). Nothing was requested.");
-            return (new JsonObject { ["networkId"] = networkId, ["request"] = what.ToString(), ["seq"] = seq, ["route"] = route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct ? "direct" : "requested" }, null);
+            return (new JsonObject { ["networkId"] = networkId, ["request"] = what.ToString(), ["seq"] = seq, ["requestId"] = requestId.ToString(), ["route"] = route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct ? "direct" : "requested" }, null);
+        }
+
+        /// <summary>
+        /// ⭐ CE-2380 part 2 — <c>GET /edits/{requestId}</c>: the LATEST outcome of a remote edit this node knows (its own report, or one that arrived from the owner): <c>Applied</c> /
+        /// <c>Pending</c> (a rule's edit or control, judged on the owner's next tick) / <c>Refused</c> with the reason. Reads the current perspective world's <c>EditOutcomeLog</c>.
+        /// </summary>
+        public (JsonNode? result, string? error) GetEditOutcome(string? requestId)
+        {
+            if (!System.Guid.TryParse(requestId, out var id) || id == System.Guid.Empty)
+                return (null, "requestId must be a GUID (the 'requestId' a write route answered with).");
+            if (!Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(_world).TryGet(id, out var o))
+                return (null, $"No outcome known for request {id} on this node (not answered yet, or older than the last {Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Capacity}). Poll again, or read it on the node that asked.");
+            return (new JsonObject
+            {
+                ["requestId"] = o.RequestId.ToString(), ["networkId"] = o.NetworkId, ["status"] = o.Status.ToString(), ["reason"] = o.Reason,
+                ["respondingNode"] = o.RespondingNode, ["at"] = o.At, ["fromNetwork"] = o.FromNetwork,
+            }, null);
         }
 
         /// <summary>
@@ -47,10 +64,10 @@ namespace Hrot.Editor.DebugApi
             if (!_entityMap.TryGetEntity(networkId, out var entity) || !_world.IsAlive(entity))
                 return (null, $"Entity {networkId} not found. List the rule entities with GET /objectives.");
             if (@params is not JsonObject) return (null, "'params' must be a JSON object (the rule's new params, the shape a scenario carries).");
-            var route = RuleCommands.Edit(_world, entity, @params.ToJsonString(), (int)Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Operator, ref _ruleSeq, out int seq);
+            var route = RuleCommands.Edit(_world, entity, @params.ToJsonString(), (int)Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Operator, ref _ruleSeq, out int seq, out var requestId);
             if (route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused)
                 return (null, $"Entity {networkId}: nothing was written (this node has no way to ask the owner). Nothing was edited.");
-            return (new JsonObject { ["networkId"] = networkId, ["seq"] = seq, ["route"] = route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct ? "direct" : "requested" }, null);
+            return (new JsonObject { ["networkId"] = networkId, ["seq"] = seq, ["requestId"] = requestId.ToString(), ["route"] = route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct ? "direct" : "requested" }, null);
         }
 
         /// <summary><c>GET /objectives[?tree=1]</c>.</summary>

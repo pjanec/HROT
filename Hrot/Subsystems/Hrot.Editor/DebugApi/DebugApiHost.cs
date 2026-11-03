@@ -1523,6 +1523,14 @@ namespace Hrot.Editor.DebugApi
                 return error != null ? Fail(400, error) : Ok(node);
             }));
 
+            // ⭐ CE-2380 part 2 — the outcome of a remote edit (applied / pending / refused + reason), by the requestId a write route answered with
+            _routes.Add(new("GET", "/edits/{requestId}", async ctx =>
+            {
+                var (node, error) = await _jobQueue.RunOnMainThread(() => Service().GetEditOutcome(ctx.RouteValue("requestId"))).ConfigureAwait(false);
+                if (error == null) return Ok(node);
+                return Fail(error.StartsWith("No outcome known", StringComparison.Ordinal) ? 404 : 400, error);
+            }));
+
             // ⭐ rules ② (§00.11a) — a live edit of a rule's params that keeps its state (the same write path as /control)
             _routes.Add(new("POST", "/objectives/{networkId}/edit", async ctx =>
             {

@@ -6,6 +6,7 @@ using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Diagnostics;
 using Fdp.Toolkit.Replication.Attributes;
+using Fdp.Toolkit.Replication.Edits;
 using Fdp.Toolkit.Replication.Patching;
 using Fdp.Toolkit.ScenarioRules;
 using Fdp.Toolkit.ScenarioRules.Actions;
@@ -247,6 +248,116 @@ namespace Hrot.SimHost.Tests
             owner.Run(0.5);
             Assert.Equal(8f, Bb<TriggerBehavior.TriggerBlackboard>(owner, t).Block.Cooldown);
             Assert.Equal(1, EditEntries(owner, t).Length);
+        }
+        // ── CE-2380 part 2 — the rule's verdict comes back as an OUTCOME under the request id ─────────────
+
+        private static EditOutcome Outcome(ObjWorld w, System.Guid id)
+        {
+            Assert.True(EditOutcomeLog.Of(w.Repo).TryGet(id, out var o), "no outcome for the request");
+            return o;
+        }
+
+        private static System.Guid LiveEdit(ObjWorld w, Entity e, string json, ref int seq)
+        {
+            RuleCommands.Edit(w.Repo, e, json, (int)BehaviorOrigin.Operator, ref seq, out _, out var id);
+            return id;
+        }
+
+        private static System.Guid Ask(ObjWorld w, Entity e, RuleRequest what, ref int seq)
+        {
+            RuleCommands.Control(w.Repo, e, what, RuleOrigin.DebugApi, ref seq, out _, out var id);
+            return id;
+        }
+
+        /// <summary>CE-2380 part 2 (lean C) — a valid live edit is Pending the moment it is written, and Applied once <c>RuleEditSystem</c> has applied it.
+        /// ✅ Red-proof: the verdict report removed from <c>RuleEditSystem</c> ⇒ it stays Pending ⇒ red.</summary>
+        [Fact]
+        public void CE2380_AValidEdit_IsPending_ThenApplied()
+        {
+            var w = new ObjWorld(); var src = Source(w);
+            var t = w.Trigger(TrigJson(w.Net(src), ",\"cooldown\":3"));
+            w.Run(1.5);
+            int seq = 0;
+            var id = LiveEdit(w, t, TrigJson(w.Net(src), ",\"cooldown\":5"), ref seq);
+            Assert.Equal(EditStatus.Pending, Outcome(w, id).Status);
+            w.Run(0.5);
+            Assert.Equal(EditStatus.Applied, Outcome(w, id).Status);
+            Assert.Equal(5f, Bb<TriggerBehavior.TriggerBlackboard>(w, t).Block.Cooldown);
+        }
+
+        /// <summary>CE-2380 part 2 — a refusal with TWO problems: the outcome carries the WHOLE text (both), the status Reason stays cut to 55 characters (unchanged).
+        /// ✅ Red-proof: the outcome built from the cut text ⇒ the second problem is missing ⇒ red.</summary>
+        [Fact]
+        public void CE2380_ARefusedEdit_CarriesTheWholeReason_WhileTheStatusReasonStaysCut()
+        {
+            var w = new ObjWorld(); var src = Source(w);
+            var t = w.Trigger(TrigJson(w.Net(src), ",\"cooldown\":3"));
+            w.Run(1.5);
+            int seq = 0;
+            var id = LiveEdit(w, t, "{\"common\":{\"title\":\"T\"},\"do\":[{\"act\":\"NoSuchAction\",\"args\":{}}]}", ref seq);   // no 'when' AND an unknown action
+            w.Run(0.5);
+            var o = Outcome(w, id);
+            Assert.Equal(EditStatus.Refused, o.Status);
+            Assert.StartsWith("edit refused: ", o.Reason);
+            Assert.Contains("'when' is required", o.Reason);
+            Assert.Contains("NoSuchAction", o.Reason);                                        // both problems
+            string status = w.S(t).Reason.ToString();
+            Assert.StartsWith("edit refused", status);
+            Assert.True(status.Length <= 55 && status.Length < o.Reason.Length, $"status '{status}' vs outcome '{o.Reason}'");
+        }
+
+        /// <summary>CE-2380 part 2 — an edit sent while the trigger is Acting stays Pending (the edit waits), and gets its final verdict once the list ends.
+        /// ✅ Red-proof: the Acting wait removed from <c>RuleEditSystem</c> ⇒ Applied at once ⇒ the Pending assert reddens.</summary>
+        [Fact]
+        public void CE2380_AnEditSentWhileActing_StaysPending_ThenGetsItsVerdict()
+        {
+            TrgActions.Reset();
+            var w = new ObjWorld(); var src = Source(w);
+            const string old = "[{\"act\":\"TrgRecord\",\"args\":{\"value\":1}},{\"act\":\"TrgWait\",\"args\":{\"ticks\":4}},{\"act\":\"TrgRecord\",\"args\":{\"value\":2}}]";
+            var t = w.Trigger(TrigJson(w.Net(src), ",\"repeat\":true", old));
+            w.Run(1);
+            Flip(w, src, true); w.Tick(0.5);
+            Assert.Equal(TriggerState.Acting, Phase(w, t));
+            int seq = 0;
+            var id = LiveEdit(w, t, TrigJson(w.Net(src), ",\"repeat\":true", "[{\"act\":\"TrgRecord\",\"args\":{\"value\":9}}]"), ref seq);
+            w.Tick(0.5);
+            Assert.Equal(EditStatus.Pending, Outcome(w, id).Status);                          // still waiting behind the running list
+            w.Run(3);
+            Assert.Equal(EditStatus.Applied, Outcome(w, id).Status);
+        }
+
+        /// <summary>CE-2380 part 2 — rule control: an objective asked to Fire is Refused with the reason (the status says the same, cut), a trigger asked to Fire is Pending then Applied, and a switched-off
+        /// trigger asked to Fire is Refused by the TRIGGER's own check. ✅ Red-proof: <c>ReportControl</c> removed from <c>ObjectiveHost.HonourControl</c> ⇒ the first stays Pending ⇒ red.</summary>
+        [Fact]
+        public void CE2380_RuleControl_ReportsItsVerdict()
+        {
+            TrgActions.Reset();
+            var w = new ObjWorld(); var src = Source(w);
+            var c = w.Objective("Counter", CounterJson(10, "[{\"side\":\"Friend\",\"per\":-1}]"));
+            var t = w.Trigger(TrigJson(w.Net(src)));
+            w.Run(1.5);
+            int seq = 0;
+
+            var refused = Ask(w, c, RuleRequest.Fire, ref seq);
+            Assert.Equal(EditStatus.Pending, Outcome(w, refused).Status);
+            w.Run(0.5);
+            var r = Outcome(w, refused);
+            Assert.Equal(EditStatus.Refused, r.Status);
+            Assert.Contains("trigger's request", r.Reason);
+
+            var fire = Ask(w, t, RuleRequest.Fire, ref seq);
+            Assert.Equal(EditStatus.Pending, Outcome(w, fire).Status);
+            w.Run(0.5);
+            Assert.Equal(EditStatus.Applied, Outcome(w, fire).Status);
+
+            var t2 = w.Trigger(TrigJson(w.Net(src)));                                          // a second trigger (the first has fired and is final)
+            w.Run(1.5);
+            var off = Ask(w, t2, RuleRequest.Deactivate, ref seq); w.Run(0.5);
+            Assert.Equal(EditStatus.Applied, Outcome(w, off).Status);
+            var late = Ask(w, t2, RuleRequest.Fire, ref seq); w.Run(0.5);
+            var l = Outcome(w, late);
+            Assert.Equal(EditStatus.Refused, l.Status);
+            Assert.Contains("Fire refused", l.Reason);
         }
     }
 }

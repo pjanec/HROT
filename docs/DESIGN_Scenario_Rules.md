@@ -654,6 +654,8 @@ sequenceDiagram
 ONLY per-kind code is the list of fields that are runtime state. A trigger `Acting` keeps running its OLD `do` list; the new list is taken
 when that run ends.
 
+⭐ **CE-2380 part 2 — the refusal now ALSO comes back as an outcome.** `RuleCommands.Edit` / `.Control` return a request id; `RuleEditSystem` (and `ObjectiveHost.HonourControl` / `TriggerBehavior.Control` for control) report Pending → Applied | Refused under it, and the Refused text is the WHOLE validator message (the status `Reason` still keeps only the first 55 characters). Read it by `EditOutcomeLog.Of(world).TryGet(id)` or `GET /edits/{id}` — 📄 [`DESIGN_Remote_Edit_Outcome.md`](DESIGN_Remote_Edit_Outcome.md) §5.
+
 ```mermaid
 classDiagram
     class RuleControl { <<existing 430>> Request · Seq · Origin (Fire, Disarm …) }

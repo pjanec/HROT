@@ -40,6 +40,17 @@ namespace Fdp.Toolkit.Replication.Edits
             if (_count < Capacity) _count++;
         }
 
+        /// <summary>True when the log already holds an outcome with this request id, status AND responder (the dedupe the wire ingress uses).</summary>
+        public bool Holds(Guid requestId, EditStatus status, int respondingNode)
+        {
+            for (int i = 1; i <= _count; i++)
+            {
+                var o = _ring[(_next - i + Capacity) % Capacity];
+                if (o.RequestId == requestId && o.Status == status && o.RespondingNode == respondingNode) return true;
+            }
+            return false;
+        }
+
         /// <summary>The LATEST outcome of <paramref name="requestId"/>.</summary>
         public bool TryGet(Guid requestId, out EditOutcome outcome)
         {

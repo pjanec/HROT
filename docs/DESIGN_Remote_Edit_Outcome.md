@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-03
-build-state: BUILDING — §4 A–F approved 2026-11-03 (R-2082)
-current-answer: §1 inventory · §2 the diagrams · §4 the sub-questions with leans
-stale-below: nothing
-known-rot: none
+updated: 2026-11-04
+build-state: BUILT — part 1 (d63b51668) + part 2 (CE-2380 part 2); §5 is the as-built
+current-answer: §5 AS BUILT (diagrams + what deviated) · §4 the approved leans
+stale-below: §2's diagrams are the DESIGN-time picture; §5 supersedes them where they differ (see its table)
+known-rot: §2 says EditOutcomeLog is a 'singleton' and RespondingNode a node id — as built it is a per-world ConditionalWeakTable service and RespondingNode is a plain int (§5)
 known-conflict: none
 related-designs:
   - docs/DESIGN_Cgf_AxisB_Rotation_Slice.md — OWNS the write router (§11.3: apply here or ask the owner) that every remote edit goes through; this design adds the ANSWER
@@ -70,6 +70,8 @@ classDiagram
         +Status EditStatus
         +Reason string
         +RespondingNode int
+        +At double
+        +FromNetwork bool
     }
     class EditStatus {
         <<enumeration>>
@@ -83,7 +85,7 @@ classDiagram
         +TryGet(repo, requestId) EditOutcome
     }
     class EditOutcomeLog {
-        <<new singleton, NoReplay>>
+        <<as built: per-world service, ConditionalWeakTable, never recorded>>
         ring of the last 64 outcomes
     }
     class EntityEditOutcomeMessage {
@@ -177,3 +179,52 @@ log is filled by the ingress, so the UI on any node reads its own world.*
 commit): the two fields on the request, the outcome topic, egress + ingress, the owner's report in `UpdateEntityAttributeRequestSystem` · ③ rules: `RuleEdit`
 / `RuleControl` carry the request id, `RuleEditSystem` and `TriggerBehavior.Control` report · ④ the HTTP `POST /objectives/{id}/edit|control` and `PATCH
 /entities/{id}` answer with the request id and `GET /edits/{requestId}` reads the log · ⑤ a note to ui (the editor's Apply reads the outcome).
+
+## 5. AS BUILT *(CE-2380 parts 1 + 2, `2026-11-04`)* — supersedes §2 where they differ
+
+| §2 / §4 said | as built | why |
+|---|---|---|
+| `EditOutcomeLog` a singleton (`SetSingletonManaged`) | ⭐ a **per-world service in a `ConditionalWeakTable`** (`EditOutcomeLog.Of(repo)`), `NoScenario \| NoReplay` | 📐 measured: a managed singleton type must carry a `[ComponentId]` (`ComponentTypeRegistry.GetOrRegisterManaged` throws) — the same finding `AttributeInterpreterProvider` made |
+| the wire carries the responder as `NodeId` | **a plain `int` `RespondingNode`** | every other wire message does (`DescriptorOwnerEntry.NodeId`) |
+| the ingress ignores its own node's samples | ⭐ **dedupe against the log**: skip a sample when the log already holds the same RequestId + Status + RespondingNode | some nodes fall back to node id 0, so a node-id compare drops a real answer from another node |
+| a judged-later edit: the owner reports Pending | ⭐ **`BinaryPatchContext.RequestId` + `.Deferred`**: the rule attribute handlers set `Deferred`, so the owner (request system, and `EditRequests`' local Direct path) reports **Pending**; `RuleEdit.RequestId` carries the id to the judge | lean C |
+| rule control carries the id | ⭐ **`RuleControl` is an unmanaged, RECORDED, brain-local struct** (no descriptor, but replay records it) — not wire-replicated, yet a Guid field would change its recorded layout, so the id sits in a **per-world side map `RuleRequestIds`** (entity → pending id), written by the `Rule.Seq` handler and taken by the judge | measured |
+| §4 build order ④ `PATCH /entities/{id}` | the real route is `POST /entities/{networkId}/attribute`; it answers `write.requestId` | route name |
+
+```mermaid
+sequenceDiagram
+    participant UI as requester (editor / HTTP)
+    participant RC as RuleCommands → EditRequests
+    participant O as owner: UpdateEntityAttributeRequestSystem
+    participant H as attribute handlers (RuleEdit / RuleControl)
+    participant J as judge: RuleEditSystem · ObjectiveHost · TriggerBehavior.Control
+    participant L as EditOutcomeLog (every node)
+    UI->>RC: Edit / Control → requestId
+    RC->>O: command(RequestId, WantOutcome) over the wire (or applied locally)
+    O->>H: Apply(ctx.RequestId) — a rule handler stores the id, sets ctx.Deferred
+    O->>L: Pending (Deferred) — or Applied / Refused for any other attribute
+    J->>L: the verdict under the SAME id: Applied, or Refused with the WHOLE reason
+    L-->>UI: EditOutcomeLog.Of(world).TryGet(id) · GET /edits/{id}
+```
+*What the picture shows that prose hid: the id travels in the handler context, not in the rule's recorded component; the judge may be many ticks later (an Acting trigger holds the edit).*
+
+```mermaid
+graph TD
+    UI[editor / HTTP / instructor] --> RCMD[RuleCommands.Control / Edit]
+    RCMD --> ER[EditRequests.Write]
+    ER --> W[AttributeEntityComponentWriter<br/>RequestId, LastWriteDeferred]
+    W --> H[RuleEdit / RuleControl handlers]
+    H -.stores id.-> RE[RuleEdit.RequestId]
+    H -.stores id.-> RRI[RuleRequestIds side map]
+    RES[RuleEditSystem] --> RE
+    RES --> EO[EditOutcomes.Report]
+    OH[ObjectiveHost.HonourControl<br/>TriggerBehavior.Control] --> RRI
+    OH --> EO
+    EO --> LOG[EditOutcomeLog]
+    LOG --> API[GET /edits/requestId]
+    EO --> BUS[EditOutcome event] --> EGR[EditOutcomeEgress → EntityEditOutcome → Ingress]
+    EGR --> LOG
+```
+*Who calls what each frame: the judges (`RuleEditSystem` every frame, `ObjectiveHost.Enter` on each rule's tick) are the only part-2 reporters; everything funnels through `EditOutcomes.Report`.*
+
+**HTTP:** `POST /objectives/{id}/control`, `/objectives/{id}/edit` and `POST /entities/{id}/attribute` answer `requestId`; `GET /edits/{requestId}` → `{requestId, networkId, status, reason, respondingNode, at, fromNetwork}` (404 when the node holds nothing). **Limits:** only the latest unjudged control request per rule is remembered (a newer Seq supersedes it, as the owner honours only the newest); a JSON-arm patch of a `Rule.*` attribute reports Applied (the JSON handlers carry no request context), and a rule edit superseded by a newer one before it is judged stays Pending.

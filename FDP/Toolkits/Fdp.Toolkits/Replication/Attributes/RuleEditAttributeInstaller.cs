@@ -13,13 +13,16 @@ public sealed class RuleEditAttributeInstaller : IBinaryAttributeInstaller<Entit
 {
     public void Install(BinaryInterpreterBuilder<EntityAttributeChange> builder)
     {
-        builder.RegisterManagedHandler<RuleEdit>(AttributeIds.RuleParams, (ctx, r) => Replace(ctx, e => e with { Json = r.Value.StringValue ?? "" }));
-        builder.RegisterManagedHandler<RuleEdit>(AttributeIds.RuleEditSeq, (ctx, r) => Replace(ctx, e => e with { Seq = Int(r) }));
-        builder.RegisterManagedHandler<RuleEdit>(AttributeIds.RuleEditOrigin, (ctx, r) => Replace(ctx, e => e with { Origin = Int(r) }));
+        builder.RegisterManagedHandler<RuleEdit>(AttributeIds.RuleParams, (ctx, r) => Replace(ctx, e => e with { Json = r.Value.StringValue ?? "", RequestId = ctx.RequestId }));
+        builder.RegisterManagedHandler<RuleEdit>(AttributeIds.RuleEditSeq, (ctx, r) => Replace(ctx, e => e with { Seq = Int(r), RequestId = ctx.RequestId }));
+        builder.RegisterManagedHandler<RuleEdit>(AttributeIds.RuleEditOrigin, (ctx, r) => Replace(ctx, e => e with { Origin = Int(r), RequestId = ctx.RequestId }));
     }
 
     private static void Replace(BinaryPatchContext ctx, System.Func<RuleEdit, RuleEdit> with)
-        => ctx.PatchContext.SetManagedComponent(with(ctx.PatchContext.GetManagedComponent<RuleEdit>()));
+    {
+        ctx.PatchContext.SetManagedComponent(with(ctx.PatchContext.GetManagedComponent<RuleEdit>()));
+        ctx.Deferred = true;   // ⭐ CE-2380 part 2 — RuleEditSystem judges the edit later: the owner reports Pending now, the final verdict then
+    }
 
     private static int Int(EntityAttributeChange r) => r.Value.Kind switch
     {
