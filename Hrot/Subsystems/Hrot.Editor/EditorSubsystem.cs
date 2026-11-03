@@ -4928,6 +4928,14 @@ namespace Hrot.Editor
                 "editor_mission_summary", "Scenario", EditorWindowColor.TitleBar,
                 showMoments: n => { _rulesWindow?.ShowSubtree(n); if (_rulesWindow != null) windowManager.FocusWindow(_rulesWindow.Id); }) { IsOpen = false });
 
+            // ⭐⭐ CE-4231 (D1 / G1; DESIGN_Player_HUD_And_Debrief PH-6 / PH-7) — Window ▸ Trainee debrief and Window ▸ Game summary: read-only, over the same world and the same shown timeline
+            windowManager.RegisterWindow(new Hrot.Presentation.Windows.TraineeDebriefWindow(
+                () => _world, timelineSource, new Hrot.UI.Common.Adapters.ClusterTimelineCursor(() => timelineTransport, timelineSource),
+                "editor_trainee_debrief", "Scenario", EditorWindowColor.TitleBar) { IsOpen = false });
+            windowManager.RegisterWindow(new Hrot.Presentation.Windows.GameSummaryWindow(
+                () => _world, timelineSource, new Hrot.UI.Common.Adapters.ClusterTimelineCursor(() => timelineTransport, timelineSource),
+                "editor_game_summary", "Scenario", EditorWindowColor.TitleBar) { IsOpen = false });
+
             // ⭐ CE-1191 (UI-6, DESIGN_Command_Display §6 D3) — the Reports window over this node's SquadReportLog (filled where the staff runs)
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.ReportsWindow(
                 () => _world, Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorReports, "Scenario", EditorWindowColor.TitleBar));

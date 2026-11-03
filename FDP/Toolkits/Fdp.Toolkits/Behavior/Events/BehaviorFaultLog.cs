@@ -63,7 +63,7 @@ namespace Fdp.Toolkit.Behavior.Events
                 _order.Enqueue(key);
                 if (_order.Count > RememberedKeys) _seen.Remove(_order.Dequeue());
                 entry = new MessageLogEntry(DateTime.Now, LogSeverity.Error, "Behaviour", text, LogSyntaxHighlighter.Parse(text));
-                _messages.Add(entry);
+                Fdp.Core.Logging.MessageLogLimits.Add(_messages, entry);   // ⭐ W-P1 — bounded
             }
             OnMessageAdded?.Invoke(entry);
             return true;

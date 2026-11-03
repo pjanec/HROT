@@ -78,7 +78,8 @@ namespace Fdp.Presentation.Windows
 
         protected override void DrawClientArea()
         {
-            BuildAndPublish();
+            // ⭐ W-P1 — the view model filters and copies EVERY message: built only when a snapshot is being captured (it was built every frame and thrown away)
+            if (PanelSnapshot.CaptureEnabled) BuildAndPublish();
             _panel.DrawContent();
         }
     }

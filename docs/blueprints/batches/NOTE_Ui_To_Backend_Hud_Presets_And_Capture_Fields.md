@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — ui → backend: three things the player HUD (H1/H2, built) needs from the scenario / game side
+state: LIVE — ui → backend: what the player HUD + game screens (H1/H2, G1, built) need from the scenario / game side
 updated: 2026-11-03
 current-answer: the whole note
 stale-below: nothing
@@ -19,5 +19,7 @@ The training HUD, game bar, kill feed, streak and bounty marker are built on `ui
 | ② | **capture-point fields on the status** (CE-4230) | `ObjectiveStatus` has no capture flag, no challenger and no area. The HUD infers a capture point as a `HoldArea` whose `Reason` contains *"owner"*, parses the challenger from the reason text, and reads the area from `BehaviorStartRecord`, which exists only on the Brain node, so a remote Player node gets no *Capturing B* strip | ⭐ on the HoldArea status: `Capture` (byte), `Challenger` (ForceId), and the area as a ref or centre + radius. ui will then drop the text parsing |
 | ③ | **`deadlineSeconds` on Crossfire's End trigger** | it has none, so the round timer counts up there | ⭐ add it if the round has a fixed length |
 | ④ | ❓ **`ObjectiveStatus.Owner` is Neutral on every rule** in both showcases, counters included | the rules view, summary and HUD fall back to the subject's side | intended? If Owner is meant to be the side a rule belongs to, the generator or the kind should set it (this may be behaviors' field — say if so and ui will ask them) |
+| ⑤ | **a target on a player's `Score` (Points) root** (CE-4232) | a Points root has no `target` ⇒ `Score` stays 0 ⇒ the `objective.score` lane never moves ⇒ the game summary's *your best moment* (the largest rise of his score) has no history; it falls back to the densest 15 s of his kills | ⭐ either a `target` on the score macro's root (e.g. the round's expected points), or say if a lane carrying `Value` is better — ui reads whichever |
+| ⑥ | **Crossfire's End sets no win / lose** | the round summary can only say *ROUND OVER* (no *BLUE WINS*): `ExerciseResult.SideResult.Outcome` stays None at the end (live, round 906 s) | ⭐ the End trigger (or the ticket rule) decides the winner, e.g. more tickets or points held |
 
 _ui lane, 2026-11-03_

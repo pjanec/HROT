@@ -4,6 +4,23 @@ using System.Runtime.CompilerServices;
 
 namespace Fdp.Core.Logging
 {
+    /// <summary>
+    /// ⭐ W-P1 (ui lane) — every message source is a BOUNDED buffer. Measured: the global NLog source grew without limit and the Message Log window drew and filtered ALL of it each frame, so a long
+    /// run at 8× took the editor to ~1 s per frame (docs/blueprints/Blueprint_Issues_Tracker.md CE-4234). <see cref="Add"/> appends and, past <see cref="MaxRetained"/>, drops the OLDEST
+    /// <see cref="TrimBlock"/> in one block (an amortised O(1) append — a per-entry <c>RemoveAt(0)</c> would shift the whole list each time).
+    /// </summary>
+    public static class MessageLogLimits
+    {
+        public const int MaxRetained = 10_000, TrimBlock = 1_000;
+
+        /// <summary>Appends <paramref name="entry"/> to <paramref name="buffer"/> (the caller holds its lock), dropping the oldest block once the buffer exceeds <see cref="MaxRetained"/>.</summary>
+        public static void Add(List<MessageLogEntry> buffer, MessageLogEntry entry)
+        {
+            buffer.Add(entry);
+            if (buffer.Count > MaxRetained) buffer.RemoveRange(0, TrimBlock);
+        }
+    }
+
     // ── Severity levels (ordered lowest to highest) ─────────────────────────
     public enum LogSeverity
     {

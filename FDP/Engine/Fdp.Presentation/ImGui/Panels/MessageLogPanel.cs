@@ -632,11 +632,32 @@ namespace Fdp.Presentation.Panels
                 bool ctrl  = Gui.GetIO().KeyCtrl;
                 bool shift = Gui.GetIO().KeyShift;
 
+                // ⭐ W-P1 — VIRTUALISED: only the rows in (or one viewport from) the visible band are built. Every row used to be (a Selectable, a popup, 3+ coloured texts and
+                //   three string allocations each, for ALL messages, every frame) — the cost the editor slowed to ~1 s per frame on. A row is `lines × text height + item spacing`
+                //   tall (a multi-line message is several lines); the rows outside the band are two Dummy items of their summed height, so the scroll bar, the sticky-bottom
+                //   snap and the selection indices are unchanged.
+                float lineH = Gui.GetTextLineHeight(), spacing = Gui.GetStyle().ItemSpacing.Y;
+                float scrollY = Gui.GetScrollY(), viewH = Gui.GetWindowHeight();
+                float from = scrollY - viewH, to = scrollY + 2f * viewH;   // a viewport of margin each side: a frame's lag in the scroll never shows a gap
+                float y = 0f, topH = 0f, bottomH = 0f; int first = -1, last = -1;
                 for (int fi = 0; fi < filtered.Count; fi++)
+                {
+                    float h = LinesOf(messages[filtered[fi]]) * lineH + spacing;
+                    if (y + h < from) topH += h;
+                    else if (y > to) bottomH += h;
+                    else { if (first < 0) first = fi; last = fi; }
+                    y += h;
+                }
+                if (first < 0) { first = 0; last = -1; }
+                if (topH > 0f) Gui.Dummy(new Vector2(1f, Math.Max(0f, topH - spacing)));
+                RowsDrawn = 0;
+                for (int fi = first; fi <= last; fi++)
                 {
                     int msgIdx = filtered[fi];
                     DrawMessageRow(fi, msgIdx, messages[msgIdx], messages, filtered, state, ctrl, shift);
+                    RowsDrawn++;
                 }
+                if (bottomH > 0f) Gui.Dummy(new Vector2(1f, Math.Max(0f, bottomH - spacing)));
             }
 
             // Sticky bottom: snap to tail when the view was already at the bottom
@@ -650,6 +671,15 @@ namespace Fdp.Presentation.Panels
 
             Gui.EndChild();
         }
+
+        /// <summary>⭐ W-P1 — the rows built in the last frame (the rail that bounds the draw cost as the log grows reads it).</summary>
+        public int RowsDrawn { get; private set; }
+
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<MessageLogEntry, object> s_lines = new();
+
+        /// <summary>The text lines a message occupies (1 + its newlines), cached per entry — a message is immutable.</summary>
+        private static int LinesOf(MessageLogEntry e)
+            => (int)s_lines.GetValue(e, m => { int n = 1; foreach (char c in ((MessageLogEntry)m).Message) if (c == '\n') n++; return n; });
 
         // ── Private: individual row ──────────────────────────────────────────
 

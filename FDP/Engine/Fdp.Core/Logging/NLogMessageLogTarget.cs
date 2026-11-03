@@ -53,7 +53,7 @@ namespace Fdp.Core.Logging
                 LogSyntaxHighlighter.Parse(msg));
 
             lock (_lock)
-                _messages.Add(entry);
+                MessageLogLimits.Add(_messages, entry);   // ⭐ W-P1 — bounded
 
             // Fire on the NLog thread; subscribers must tolerate cross-thread calls.
             OnMessageAdded?.Invoke(entry);

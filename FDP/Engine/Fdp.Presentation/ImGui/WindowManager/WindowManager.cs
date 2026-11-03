@@ -776,7 +776,9 @@ public class WindowManager
             //    ⭐ A VOLATILE window is a dialog spawned on demand (a file picker, a confirm) and still draws.
             if (IsStartShowing && !win.IsVolatile && win.OwningPerspective != StartPerspectiveName) continue;
 
+            long t0 = WindowTimings.Start();   // ⭐ W-P1 — HROT_FRAME_STATS: the time of THIS window's whole ImGui build
             win.Render(CurrentPerspective, _atlas);
+            WindowTimings.Record(win.Id, t0);
         }
 
         // BATCH-25: Toolbar is now rendered inline inside BeginMainMenuBar
@@ -793,8 +795,10 @@ public class WindowManager
         // NOTE: the file dialog above is deliberately NOT moved onto this list. It is a behaviour
         // change in another subsystem — its draw is conditional on a service cast — and nothing in
         // this batch needs it. Folding it in is a follow-up, not a side effect.
+        long t1 = WindowTimings.Start();
         foreach (var overlay in _frameOverlays.ToList())
             overlay();
+        WindowTimings.Record("(frame overlays)", t1);
     }
 
     /// <summary>
