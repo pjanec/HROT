@@ -266,7 +266,8 @@ public sealed class RuleDetails
         if (ParamsOf(trigger) is not { } p || BehaviorParamsForm.ParamsTypeOf(p.Name, _svc.Registry()) is not { } type) return Refuse("this rule has no params form");
         // the form of THIS trigger: bind to it (a drop on a row that was not selected), carrying its pending edit if it is the one open
         string baseJson = trigger.NetworkId == _boundRule && _pending != null ? _pending : p.Json;
-        if (RuleConnect.AddedTo(baseJson, from, out string? why) is not { } added) return Refuse(why ?? "nothing to add");
+        if (_world() is not { } w) return Refuse("no world");
+        if (RuleConnect.AddedTo(baseJson, from, RuleConnect.LinkOf(from, AuthoredRules.ScopeOf(w)), out string? why) is not { } added) return Refuse(why ?? "nothing to add");
         _boundRule = trigger.NetworkId; _entityJson = p.Json; _steps.Reset();
         _pending = BehaviorParamsForm.ToJson(BehaviorParamsForm.Hydrate(type, added), type);   // the form's own serialisation, as an edit made in it would give
         _editor.Sync(null, null); _editor.Sync(type, _pending);

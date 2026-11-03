@@ -173,7 +173,8 @@ public sealed class RulesWindow : ManagedWindow
         if (AddRefusal() is { } why) { Message = why; return false; }
 
         var known = _view.Rows.Select(r => r.NetworkId).ToHashSet();
-        string json = RuleAdd.NewParamsJson(kind, _selected ?? 0);
+        var parent = _selected is { } sel && _view.Find(sel) is { } parentRow && _world() is { } w ? RuleConnect.LinkOf(parentRow, AuthoredRules.ScopeOf(w)) : null;   // ⭐ CE-4225 — the STABLE link (the entity's GUID), not a bare network id
+        string json = RuleAdd.NewParamsJson(kind, parent);
         if (!_editorSvc!.CreateRule!(RuleAdd.TkbOf(kind), kind, json)) { Message = $"the host could not create a {kind}"; return false; }
         _addWatch = (RuleAdd.TitleOf(kind), known, kind, 0);
         Message = $"adding {RuleAdd.TitleOf(kind)}…";

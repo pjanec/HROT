@@ -259,7 +259,11 @@ namespace Fdp.Toolkit.Scenario
                 {
                     if (!remainingMask.IsSet(bit)) continue;
 
-                    var fieldObj = AutoSerializer.TryExtract(repo, entity, bit, saveResolver);
+                    // ⭐ CE-4224 — name the component and the entity: "entity Entity.Null is not in the save map" alone cost a session to place
+                    JsonNode? fieldObj;
+                    try { fieldObj = AutoSerializer.TryExtract(repo, entity, bit, saveResolver); }
+                    catch (InvalidOperationException ex)
+                    { throw new InvalidOperationException($"[ScenarioSerializer] while saving component '{AutoSerializer.GetComponentName(bit)}' of {entity}: {ex.Message}", ex); }
                     if (fieldObj == null) continue;
 
                     var compName = AutoSerializer.GetComponentName(bit);
@@ -709,6 +713,7 @@ namespace Fdp.Toolkit.Scenario
 
             public string Resolve(Entity entity)
             {
+                if (entity.IsNull) return Guid.Empty.ToString();   // ⭐ CE-4224 — "no entity" is a valid reference (an AmmoLoadout's unused rows): saved as the empty GUID, read back as Entity.Null — it used to throw and kill the editor on every save of showcase-bridgehead
                 if (_entityToGuid.TryGetValue(entity, out var guid))
                     return guid.ToString();
                 throw new InvalidOperationException(
@@ -739,6 +744,7 @@ namespace Fdp.Toolkit.Scenario
                     throw new InvalidOperationException(
                         $"[ScenarioSerializer] LoadResolver: reference GUID string '{guidStr}' is not a valid Guid. " +
                         "The scenario file is corrupt.");
+                if (guid == Guid.Empty) return Entity.Null;   // ⭐ CE-4224 — the other half of the null reference
                 if (!_guidToEntity.TryGetValue(guid, out var entity))
                     throw new InvalidOperationException(
                         $"[ScenarioSerializer] LoadResolver: GUID {guid} does not resolve to any loaded entity. " +

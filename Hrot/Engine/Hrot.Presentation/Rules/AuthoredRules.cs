@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using Fdp.Core;
+using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.ScenarioRules;
 
@@ -37,8 +38,9 @@ public static class AuthoredRules
             var root = doc.RootElement;
             if (root.ValueKind != JsonValueKind.Object || !Prop(root, "common", out var common) || common.ValueKind != JsonValueKind.Object) return null;
 
-            int parent = LinkId(Prop(common, "parent", out var p) ? p : default);
-            int subject = LinkId(Prop(common, "subject", out var s) ? s : default);
+            var scope = ScopeOf(world);
+            int parent = LinkId(Prop(common, "parent", out var p) ? p : default, scope);
+            int subject = LinkId(Prop(common, "subject", out var s) ? s : default, scope);
             string title = Prop(common, "title", out var ti) && ti.ValueKind == JsonValueKind.String ? ti.GetString() ?? "" : "";
             if (title.Length == 0 && world.IsComponentTypeRegistered<EntityInfo>() && world.HasComponent<EntityInfo>(entity)) title = world.GetComponentRO<EntityInfo>(entity).Name.ToString();
 
@@ -51,8 +53,8 @@ public static class AuthoredRules
                 VisibleSides = (byte)Num(common, "visibleSides"), Owner = SideOf(world, entity, subject),
             };
             var waits = new List<int>(); var starts = new List<int>();
-            if (Prop(root, "when", out var when)) Collect(when, waits, "ref");
-            if (Prop(root, "do", out var @do)) Collect(@do, starts, "target", "ref");
+            if (Prop(root, "when", out var when)) Collect(when, waits, scope, "ref");
+            if (Prop(root, "do", out var @do)) Collect(@do, starts, scope, "target", "ref");
             Fill(ref st.DependsOnCount, ref st.DependsOn, waits);
             Fill(ref st.ActsOnCount, ref st.ActsOn, starts);
             return new Authored(st, parent, subject);
@@ -79,31 +81,50 @@ public static class AuthoredRules
     }
 
     /// <summary>Every link inside <paramref name="el"/> under a property named one of <paramref name="names"/> (recursively, objects and arrays), distinct, in document order.</summary>
-    private static void Collect(JsonElement el, List<int> into, params string[] names)
+    private static void Collect(JsonElement el, List<int> into, IRefScope? scope, params string[] names)
     {
         switch (el.ValueKind)
         {
             case JsonValueKind.Object:
                 foreach (var prop in el.EnumerateObject())
                 {
-                    if (Array.Exists(names, n => n.Equals(prop.Name, StringComparison.OrdinalIgnoreCase)) && LinkId(prop.Value) is var id and > 0 && !into.Contains(id)) into.Add(id);
-                    else Collect(prop.Value, into, names);
+                    if (Array.Exists(names, n => n.Equals(prop.Name, StringComparison.OrdinalIgnoreCase)) && LinkId(prop.Value, scope) is var id and > 0 && !into.Contains(id)) into.Add(id);
+                    else Collect(prop.Value, into, scope, names);
                 }
                 break;
             case JsonValueKind.Array:
-                foreach (var item in el.EnumerateArray()) Collect(item, into, names);
+                foreach (var item in el.EnumerateArray()) Collect(item, into, scope, names);
                 break;
         }
     }
 
-    /// <summary>An authored <c>EntityLink</c>: a number · a numeric string · <c>{"NetworkId": n, "Ref": …}</c>. ⚠ A link authored only as <c>"@Key"</c> / a GUID is not resolved before a run and reads 0 (none).</summary>
-    public static int LinkId(JsonElement el) => el.ValueKind switch
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<EntityRepository, LiveRefScope> Scopes = new();
+
+    /// <summary>
+    /// ⭐ CE-4225 — the editor's ONE ref resolver (<see cref="LiveRefScope"/>, its 250 ms wall-clock policy as <c>new LiveRefScope(repo)</c> everywhere in the editor) for <paramref name="world"/>: what turns an authored <c>"@Key"</c> / GUID into the entity it names — before
+    /// a run too, which is why an edit-mode rule view showed few arrows. ⛔ Not a second resolver: the picker's, the macro expander's and the load's are this class.
+    /// </summary>
+    public static LiveRefScope ScopeOf(EntityRepository world) => Scopes.GetValue(world, w => new LiveRefScope(w));
+
+    /// <summary>
+    /// An authored <c>EntityLink</c> as a network id: a number · a numeric string · <c>{"NetworkId": n, "Ref": …}</c> · ⭐ CE-4225 an <c>"@Key"</c> / a GUID (alone, or as the object's <c>Ref</c>), resolved through <paramref name="scope"/> — the form wins over the
+    /// id, because the id is not stable across a save and reload while the GUID / key is. Unresolvable ⇒ the object's own <c>NetworkId</c>, else 0 (none).
+    /// </summary>
+    public static int LinkId(JsonElement el, IRefScope? scope = null)
     {
-        JsonValueKind.Number => el.TryGetInt32(out int n) ? n : 0,
-        JsonValueKind.String => int.TryParse(el.GetString(), out int n) ? n : 0,
-        JsonValueKind.Object => Prop(el, "NetworkId", out var v) ? LinkId(v) : 0,
-        _ => 0,
-    };
+        switch (el.ValueKind)
+        {
+            case JsonValueKind.Number: return el.TryGetInt32(out int n) ? n : 0;
+            case JsonValueKind.String:
+                string? text = el.GetString();
+                if (int.TryParse(text, out int id)) return id;
+                return scope != null && RefSpec.TryParse(text, out var spec) && scope.TryResolve(spec, out var found) ? found.NetworkId : 0;
+            case JsonValueKind.Object:
+                if (scope != null && Prop(el, "Ref", out var r) && r.ValueKind == JsonValueKind.String && LinkId(r, scope) is var viaSpec and > 0) return viaSpec;
+                return Prop(el, "NetworkId", out var v) ? LinkId(v, scope) : 0;
+            default: return 0;
+        }
+    }
 
     private static bool Prop(JsonElement obj, string name, out JsonElement value)
     {

@@ -25,11 +25,11 @@ public static class RuleAdd
 
     public static string TitleOf(string kind) => $"New {kind}";
 
-    /// <summary>The params a new rule starts with: <c>common.title</c> = <i>New &lt;kind&gt;</i> and <c>common.parent</c> = the selected row (0 = none).</summary>
-    public static string NewParamsJson(string kind, int parentNetworkId)
+    /// <summary>The params a new rule starts with: <c>common.title</c> = <i>New &lt;kind&gt;</i> and <c>common.parent</c> = the selected row, as the STABLE link <see cref="RuleConnect.LinkOf"/> writes (null = no parent).</summary>
+    public static string NewParamsJson(string kind, JsonNode? parentLink)
     {
         var common = new JsonObject { ["title"] = TitleOf(kind) };
-        if (parentNetworkId != 0) common["parent"] = new JsonObject { ["NetworkId"] = parentNetworkId };
+        if (parentLink != null) common["parent"] = parentLink.DeepClone();
         return new JsonObject { ["common"] = common }.ToJsonString();
     }
 }

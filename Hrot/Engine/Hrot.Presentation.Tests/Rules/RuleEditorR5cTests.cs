@@ -41,7 +41,12 @@ public sealed class RuleEditorR5cTests : IDisposable
         _world.RegisterManagedComponent<MacroInstance>();
         _world.RegisterManagedComponent<BehaviorStartRecord>();
         _world.RegisterManagedComponent<ParamBindings>();
+        _world.RegisterComponent<EntityGuid>();
+        _world.RegisterComponent<RefKey>();
     }
+
+    private static Guid GuidOf(int id) => new(id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1);
+    private JsonNode Link(int id) => RuleConnect.LinkOf(RowOf(id), AuthoredRules.ScopeOf(_world));
 
     public void Dispose() => _world.Dispose();
 
@@ -49,6 +54,7 @@ public sealed class RuleEditorR5cTests : IDisposable
     {
         var e = _world.CreateEntity();
         _world.AddComponent(e, new NetworkIdentity(id));
+        _world.AddComponent(e, new EntityGuid(GuidOf(id)));
         _world.SetManagedComponent(e, new BehaviorStartRecord { BehaviorName = kind, JsonParams = json, InstanceId = 1 });
         if (macroInstance != 0)
         {
@@ -79,7 +85,7 @@ public sealed class RuleEditorR5cTests : IDisposable
         Rule(10, "ReachArea", """{"common":{"title":"Reach"}}""");
         Rule(11, "Trigger", """{"common":{"title":"Briefing"}}""");
         Rule(12, "Count", """{"common":{"title":"Count"}}""");
-        var obj = RuleConnect.DonePredicateOf(RowOf(10)); var trg = RuleConnect.DonePredicateOf(RowOf(11)); var mes = RuleConnect.DonePredicateOf(RowOf(12));
+        var obj = RuleConnect.DonePredicateOf(RowOf(10), Link(10)); var trg = RuleConnect.DonePredicateOf(RowOf(11), Link(11)); var mes = RuleConnect.DonePredicateOf(RowOf(12), Link(12));
         Assert.Equal(("State", (double)(int)ObjectiveState.Achieved), (obj["predicate"]!["PropertyPath"]!.ToString(), (double)obj["predicate"]!["Predicate"]!["MinValue"]!));
         Assert.Equal(("TriggerState", (double)(int)TriggerState.Fired), (trg["predicate"]!["PropertyPath"]!.ToString(), (double)trg["predicate"]!["Predicate"]!["MinValue"]!));
         Assert.Equal("State", mes["predicate"]!["PropertyPath"]!.ToString());                              // a measure is an objective-like row
@@ -91,17 +97,17 @@ public sealed class RuleEditorR5cTests : IDisposable
     {
         Rule(10, "ReachArea", """{"common":{"title":"Reach"}}""");
         var x = RowOf(10);
-        var none = RuleConnect.AddedTo(Trig, x, out _)!;
+        var none = RuleConnect.AddedTo(Trig, x, Link(10), out _)!;
         Assert.Equal("OnEntity", When(none)["$type"]!.ToString());                                         // no when: just the condition
-        var wrapped = RuleConnect.AddedTo(TrigWhen, x, out _)!;
+        var wrapped = RuleConnect.AddedTo(TrigWhen, x, Link(10), out _)!;
         var w = When(wrapped);
         Assert.Equal(("Compound", "And"), (w["$type"]!.ToString(), w["Operator"]!.ToString()));
         Assert.Equal(new[] { 77, 10 }, w["Conditions"]!.AsArray().Select(c => (int)c!["ref"]!["NetworkId"]!));   // the old one first, the new one ANDed after it
         Assert.Equal("Push harder", JsonNode.Parse(wrapped)!["common"]!["title"]!.ToString());              // the rest of the params untouched
-        var again = RuleConnect.AddedTo(wrapped, RowOf(10), out string? why);
+        var again = RuleConnect.AddedTo(wrapped, RowOf(10), Link(10), out string? why);
         Assert.Null(again); Assert.Contains("already waits", why);                                         // dropping the same row twice is refused
         Rule(13, "ReachArea", """{"common":{"title":"Other"}}""");
-        var three = When(RuleConnect.AddedTo(wrapped, RowOf(13), out _)!);                                 // an AND compound grows, it is not nested
+        var three = When(RuleConnect.AddedTo(wrapped, RowOf(13), Link(13), out _)!);                                 // an AND compound grows, it is not nested
         Assert.Equal(3, three["Conditions"]!.AsArray().Count);
     }
 
@@ -111,10 +117,10 @@ public sealed class RuleEditorR5cTests : IDisposable
     {
         Rule(10, "ReachArea", """{"common":{"title":"Reach"}}""");
         const string stored = """{"common":{"title":"Push"},"when":{"$type":"Compound","operator":"And","conditions":[{"$type":"OnEntity","ref":{"NetworkId":1033,"Ref":"b41d6e00-0000-4000-8000-000000000034"},"predicate":{"$type":"ScenarioTime"}},{"$type":"ScenarioTime","fromSeconds":0,"toSeconds":1500}]}}""";
-        var w = When(RuleConnect.AddedTo(stored, RowOf(10), out _)!);
+        var w = When(RuleConnect.AddedTo(stored, RowOf(10), Link(10), out _)!);
         Assert.Equal(3, w["conditions"]!.AsArray().Count);                                                 // the two it had + the new one, in the ONE compound
         Assert.Equal(1033, (int)w["conditions"]![0]!["ref"]!["NetworkId"]!);
-        Assert.Null(RuleConnect.AddedTo(stored.Replace("1033", "10"), RowOf(10), out string? why)); Assert.Contains("already waits", why);   // an authored {NetworkId, Ref} link is read by its id
+        Assert.Null(RuleConnect.AddedTo(stored.Replace("b41d6e00-0000-4000-8000-000000000034", GuidOf(10).ToString()), RowOf(10), Link(10), out string? why)); Assert.Contains("already waits", why);   // an authored {NetworkId, Ref} link is the rule its GUID names
     }
 
     /// <summary>RE-9 through the form: the drop stages the new <c>when</c> in the SAME form document (a pending edit, the When tab), <b>Apply</b> writes it as ONE undo entry, Undo restores the old params.</summary>
@@ -133,8 +139,8 @@ public sealed class RuleEditorR5cTests : IDisposable
         Assert.Equal(1, _history.Count);
         var applied = When(Params(t));
         Assert.Equal("And", applied["Operator"]!.ToString());
-        Assert.True(applied["Conditions"]!.AsArray().Any(c => (int)c!["Ref"]! == 10), Params(t));
-        Assert.Contains("already waits", RuleConnect.AddedTo(Params(t), RowOf(10), out string? why) is null ? why : "");   // the form's own serialisation is still recognised
+        Assert.True(applied["Conditions"]!.AsArray().Any(c => c!["Ref"]!.ToJsonString().Contains(GuidOf(10).ToString())), Params(t));   // the stable form survived the form's own serialisation
+        Assert.Contains("already waits", RuleConnect.AddedTo(Params(t), RowOf(10), Link(10), out string? why) is null ? why : "");   // the form's own serialisation is still recognised
         Assert.True(d.Undo());
         Assert.Equal(TrigWhen, Params(t));
     }
@@ -204,9 +210,9 @@ public sealed class RuleEditorR5cTests : IDisposable
         Assert.All(new[] { "Trigger", "ReachArea", "HoldArea", "Counter", "WeightedMean", "NoHarm" }, k => Assert.Contains(k, kinds));
         Assert.Equal(kinds.Count, kinds.Distinct().Count());
         Assert.Equal((8861L, 8860L, 8860L), (RuleAdd.TkbOf("Trigger"), RuleAdd.TkbOf("ReachArea"), RuleAdd.TkbOf("Count")));
-        var json = JsonNode.Parse(RuleAdd.NewParamsJson("HoldArea", 1042))!;
+        var json = JsonNode.Parse(RuleAdd.NewParamsJson("HoldArea", new JsonObject { ["NetworkId"] = 1042 }))!;
         Assert.Equal(("New HoldArea", 1042), (json["common"]!["title"]!.ToString(), (int)json["common"]!["parent"]!["NetworkId"]!));
-        Assert.Null(JsonNode.Parse(RuleAdd.NewParamsJson("Trigger", 0))!["common"]!["parent"]);            // no selected row ⇒ no parent
+        Assert.Null(JsonNode.Parse(RuleAdd.NewParamsJson("Trigger", null))!["common"]!["parent"]);            // no selected row ⇒ no parent
     }
 
     /// <summary>+ Add asks the host's creation path for the right TKB type with the title and the SELECTED row as parent, only in edit mode; when the entity appears the window selects it and opens its tab. ✅ Red-proof: the TKB of a trigger given as 8860 ⇒ red.</summary>
@@ -267,5 +273,55 @@ public sealed class RuleEditorR5cTests : IDisposable
         var d = Details(); var row = RowOf(30);
         Assert.StartsWith("from macro test/fire-team", d.ReadOnlyReason(row));
         Assert.Equal(500, row.MacroInstance);
+    }
+
+    // ── CE-4225: the stable link form, and reading it back ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// A connect's <c>ref</c> and a new rule's <c>common.parent</c> are written as the link the entity PICKER writes — <c>{"NetworkId": n, "Ref": "&lt;guid&gt;"}</c> (<c>Exact</c> = the entity's GUID), the shape a scenario's authored triggers carry — never a bare network id,
+    /// which is not stable across a save and reload (measured: after one, <c>"Ref": 1038</c> named <i>Clear the crossroads</i>, not <i>Hold the crossroads</i>). An entity with no GUID falls back to the bare id, as the picker does.
+    /// ✅ Red-proof: <c>LinkOf</c> writing the bare id ⇒ the Ref assertions red.
+    /// </summary>
+    [Fact]
+    public void AConnectsLinkAndANewRulesParent_AreWrittenInTheStableForm_TheEntitysGuid()
+    {
+        Rule(10, "ReachArea", """{"common":{"title":"Reach"}}""");
+        var link = Link(10);
+        Assert.Equal((10, GuidOf(10).ToString()), ((int)link["NetworkId"]!, link["Ref"]!.ToString()));
+        var added = JsonNode.Parse(RuleConnect.AddedTo(Trig, RowOf(10), link, out _)!)!;
+        Assert.Equal(GuidOf(10).ToString(), added["when"]!["ref"]!["Ref"]!.ToString());                    // the saved file keeps THIS
+        var parent = JsonNode.Parse(RuleAdd.NewParamsJson("HoldArea", link))!["common"]!["parent"]!;
+        Assert.Equal(GuidOf(10).ToString(), parent["Ref"]!.ToString());
+        Assert.NotSame(link, parent);                                                                      // a copy: the one link is not shared between two parents
+        // the form still reads it, and a stale id with the right GUID is the same rule
+        Assert.Null(RuleConnect.AddedTo(added.ToJsonString(), RowOf(10), link, out string? why)); Assert.Contains("already waits", why);
+        var stale = """{"common":{"title":"T"},"when":{"$type":"OnEntity","ref":{"NetworkId":9999,"Ref":"%G%"}}}""".Replace("%G%", GuidOf(10).ToString());
+        Assert.Null(RuleConnect.AddedTo(stale, RowOf(10), link, out _));
+        // no GUID ⇒ the bare id (what the picker writes for an unsaved helper)
+        var bare = _world.CreateEntity(); _world.AddComponent(bare, new NetworkIdentity(50)); _world.SetManagedComponent(bare, new BehaviorStartRecord { BehaviorName = "ReachArea", JsonParams = """{"common":{"title":"NoGuid"}}""", InstanceId = 1 });
+        Assert.Equal(50, (int)RuleConnect.LinkOf(RowOf(50), AuthoredRules.ScopeOf(_world))!);
+    }
+
+    /// <summary>
+    /// ⭐ AuthoredRules read an authored link through the editor's ONE resolver (<c>LiveRefScope</c>): a GUID-only, an <c>"@Key"</c> and an object whose <c>NetworkId</c> is STALE but whose <c>Ref</c> is right all resolve to the rule they name, before any run — the rule view's arrows
+    /// (edit mode) and <i>Waits on</i> come from them. ✅ Red-proof: the GUID branch of <c>LinkId</c> removed ⇒ the waits are empty ⇒ red.
+    /// </summary>
+    [Fact]
+    public void AuthoredRules_ResolveAGuidOnly_AKey_AndAStaleIdWithTheRightGuid_BeforeARun()
+    {
+        var hold = Rule(10, "HoldArea", """{"common":{"title":"Hold"}}""");
+        _world.AddComponent(hold, new RefKey("Hold"));
+        Rule(11, "ReachArea", """{"common":{"title":"Reach"}}""");
+        string On(string refJson) => "{\"$type\":\"OnEntity\",\"ref\":" + refJson + "}";
+        Rule(20, "Trigger", "{\"common\":{\"title\":\"ByGuid\"},\"when\":" + On("\"" + GuidOf(10) + "\"") + "}");
+        Rule(21, "Trigger", "{\"common\":{\"title\":\"ByKey\"},\"when\":" + On("\"@Hold\"") + "}");
+        Rule(22, "Trigger", "{\"common\":{\"title\":\"Stale\"},\"when\":" + On("{\"NetworkId\":11,\"Ref\":\"" + GuidOf(10) + "\"}") + "}");   // the id says Reach, the guid says Hold: the guid wins
+        Rule(23, "Trigger", "{\"common\":{\"title\":\"Id\"},\"when\":" + On("11") + "}");
+        Rule(24, "Trigger", "{\"common\":{\"title\":\"Nowhere\"},\"when\":" + On("\"@Nothing\"") + "}");
+        Assert.Equal(new[] { 10 }, RowOf(20).WaitsOn.Select(l => l.NetworkId));
+        Assert.Equal(new[] { 10 }, RowOf(21).WaitsOn.Select(l => l.NetworkId));
+        Assert.Equal(new[] { 10 }, RowOf(22).WaitsOn.Select(l => l.NetworkId));
+        Assert.Equal(new[] { 11 }, RowOf(23).WaitsOn.Select(l => l.NetworkId));                            // a bare id is still an id
+        Assert.Empty(RowOf(24).WaitsOn);                                                                   // a key that names nothing is none, not a crash
     }
 }
