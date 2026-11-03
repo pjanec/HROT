@@ -297,6 +297,8 @@ namespace Hrot.Map.Definitions.Behavior
         public const string AllMustPass = "AllMustPass";
         /// <summary>⭐ rules S4 E-1 (SR-72 / SR-81): a composite over a commander's men — one library macro per member, by key / role / class / default.</summary>
         public const string MemberEvaluation = "MemberEvaluation";
+        /// <summary>⭐ rules S4 ①: a composite over a SELECTION of statuses (every man of a role under one evaluation; one standard across the men) — a mean by selection, not by parenting.</summary>
+        public const string SelectionMean = "SelectionMean";
         /// <summary>⭐ rules S6 (DESIGN_Scenario_Rules §00.12 G-2) — a MEASURE: a number that starts at <c>start</c>, that verbs (<c>AddToCounter</c>) and the deaths of a side move (a ticket pool, a lead).</summary>
         public const string Counter = "Counter";
         /// <summary>⭐ rules S4 E-2 — MEASURES of what the subject's men DID (a hit ratio, counts, report latency, time to an objective, a sampled utility input); <see cref="Counter"/> is the other thing (a pool the scenario moves).</summary>

@@ -84,7 +84,7 @@ namespace Hrot.Editor.DebugApi
                     ["networkId"] = id, ["title"] = s.Title.ToString(), ["kind"] = s.Kind.ToString(), ["group"] = s.Group.ToString(), ["role"] = s.Role.ToString(),
                     ["state"] = s.State.ToString(), ["closed"] = s.Closed != 0, ["owner"] = s.Owner.ToString(),
                     ["progress"] = new JsonObject { ["cur"] = s.ProgressCur, ["need"] = s.ProgressNeed },
-                    ["value"] = s.Value, ["target"] = s.Target, ["score"] = s.Score, ["points"] = s.Points, ["weight"] = s.Weight,
+                    ["value"] = s.Value, ["target"] = s.Target, ["score"] = s.Score, ["pass"] = s.Pass, ["points"] = s.Points, ["weight"] = s.Weight,
                     ["required"] = s.Required != 0, ["scored"] = s.Scored != 0, ["changedAt"] = s.ChangedAt, ["reason"] = s.Reason.ToString(),
                     ["subject"] = subject != 0 ? subject : null, ["parent"] = parent != 0 && rows.ContainsKey(parent) ? parent : null,
                     ["children"] = new JsonArray(children.TryGetValue(id, out var kids) ? kids.Select(k => (JsonNode)k).ToArray() : System.Array.Empty<JsonNode>()),

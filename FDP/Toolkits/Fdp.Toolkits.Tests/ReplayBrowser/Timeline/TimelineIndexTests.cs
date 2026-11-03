@@ -39,7 +39,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         private static readonly TimelineLaneContext Recording = new(Recording: true);
 
         private static TimelineLaneCatalog Shipped() => new TimelineLaneCatalog()
-            .Register(new ReplicationTimelineLanes()).Register(new CombatTimelineLanes()).Register(new BehaviourTimelineLanes());
+            .Register(new ReplicationTimelineLanes()).Register(new CombatTimelineLanes()).Register(new BehaviourTimelineLanes())
+            .Register(new Fdp.Toolkit.ScenarioRules.ScenarioRulesTimelineLanes());
 
         private static IReadOnlyList<IndexedLaneDefinition> Lanes => Shipped().Indexed(Recording);
 
@@ -372,7 +373,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             var shipped = ShippedTimelineLanes.Catalog();
 
             Assert.Equal(Shipped().Lanes(ctx).Select(l => l.Id), shipped.Lanes(ctx).Select(l => l.Id));
-            Assert.Equal(14, shipped.Lanes(ctx).Count);                    // the three toolkits' nine + the five hidden state lanes (CE-4117)
+            Assert.Equal(17, shipped.Lanes(ctx).Count);                    // the three toolkits' nine + the five hidden state lanes (CE-4117) + the rules' three (SR-103, S4 score)
             Assert.Contains(CombatTimelineLanes.Shot.Id, shipped.Lanes(ctx).Select(l => l.Id));
             Assert.NotSame(shipped, ShippedTimelineLanes.Catalog());
             shipped.Register(new IndexedLaneDefinition(new TimelineLaneDescriptor("mine", "Mine"),

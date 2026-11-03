@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.InteropServices;
 using Fbt;
 using Fbt.Compiler;
@@ -25,12 +26,17 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             public string FirstFailed;
         }
 
-        public static Tally Of(EntityRepository world, Entity self)
+        /// <summary>
+        /// The ONE tally. <paramref name="member"/> says which statuses are tallied: null = the composite's CHILDREN (<c>Parent == self</c>, by parenting); a predicate = a SELECTION
+        /// (⭐ rules S4 ① — <c>SelectionMean</c>: a status can be parented to its commander's evaluation AND counted by a role mean, never twice in one score).
+        /// </summary>
+        public static Tally Of(EntityRepository world, Entity self, Func<Entity, bool>? member = null)
         {
             var t = new Tally { FirstFailed = "" };
             foreach (var e in world.Query().With<ObjectiveLinks>().With<ObjectiveStatus>().Build())
             {
-                if (e == self || world.GetComponentRO<ObjectiveLinks>(e).Parent.Resolve(world) != self) continue;
+                if (e == self) continue;
+                if (member is null ? world.GetComponentRO<ObjectiveLinks>(e).Parent.Resolve(world) != self : !member(e)) continue;
                 ref readonly var c = ref world.GetComponentRO<ObjectiveStatus>(e);
                 t.Count++;
                 if (c.State != ObjectiveState.Pending && c.State != ObjectiveState.Inactive) t.Started++;
@@ -123,7 +129,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
     {
         public const string Kind = BehaviorNames.WeightedMean;
         /// <summary>The pass score when the params give none.</summary>
-        public const float DefaultPassScore = 0.6f;
+        public const float DefaultPassScore = ObjectiveRules.DefaultCompositePass;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct Block { public ObjectiveCommonBlock Common; public ObjectiveRun Run; public float PassScore; }
@@ -133,7 +139,12 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
 
         [BehaviorResolver(BehaviorNames.WeightedMean)]
         public static void Resolve(in WeightedMeanParamsJsonDto authored, ref WeightedMeanBlackboard bb, EntityRepository world, Entity self)
-            => bb.Block = new Block { Common = ObjectiveCommonBlock.From(in authored.Common), PassScore = authored.PassScore <= 0f ? DefaultPassScore : authored.PassScore };
+        {
+            // ⭐ rules S4 ② — the composite's own passScore wins, else common.pass, else the default; Common.Pass carries it so ObjectiveRules.PassOf writes the same into the status.
+            var common = ObjectiveCommonBlock.From(in authored.Common);
+            if (authored.PassScore > 0f) common.Pass = Math.Min(authored.PassScore, 1f);
+            bb.Block = new Block { Common = common, PassScore = ObjectiveRules.PassOf(Kind, ObjectiveRole.Objective, common.Pass) };
+        }
 
         [SharedAiAction]
         public static NodeStatus Tick(ref Block b, Entity self, EntityRepository world)
@@ -147,9 +158,9 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
 
         /// <summary>⭐ rules S4 E-1 — the ONE weighted-mean verdict over a composite's children (<c>MemberEvaluation</c> calls it too): the tally, the score, the
         /// state and the line. <paramref name="note"/> is appended to the reason (what the caller itself has to say).</summary>
-        public static void Aggregate(EntityRepository world, Entity self, ref ObjectiveStatus s, float passScore, double now, string kind = Kind, string note = "")
+        public static void Aggregate(EntityRepository world, Entity self, ref ObjectiveStatus s, float passScore, double now, string kind = Kind, string note = "", Func<Entity, bool>? member = null)
         {
-            var t = ObjectiveChildren.Of(world, self);
+            var t = ObjectiveChildren.Of(world, self, member);
             float score = t.Weight > 0 ? (float)(t.WeightedScore / t.Weight) : 0f;
             bool allFinal = t.Count > 0 && t.Final == t.Count;
             bool pass = t.Weight <= 0 || score >= passScore;

@@ -5,7 +5,7 @@ using Fdp.Toolkit.Replication;
 namespace Fdp.Toolkit.ReplayBrowser.Timeline
 {
     /// <summary>
-    /// ⭐ <c>CE-3330</c> — the ONE composition of the lanes the toolkits ship (Replication, Combat, Behaviour, in that order). The editor, the
+    /// ⭐ <c>CE-3330</c> — the ONE composition of the lanes the toolkits ship (Replication, Combat, Behaviour, Rules, in that order). The editor, the
     /// Replay Browser and every ECS node's live timeline (<c>HrotNodeContext</c>) take their catalogue from here, so the three cannot drift.
     /// A host adds a user's lane to the catalogue it gets; it never builds a second list of providers.
     /// </summary>
@@ -15,6 +15,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         public static TimelineLaneCatalog Catalog() => new TimelineLaneCatalog()
             .Register(new ReplicationTimelineLanes())
             .Register(new CombatTimelineLanes())
-            .Register(new BehaviourTimelineLanes());
+            .Register(new BehaviourTimelineLanes())
+            .Register(new Fdp.Toolkit.ScenarioRules.ScenarioRulesTimelineLanes());   // ⭐ SR-103 / RV-4 + rules S4 score history
     }
 }

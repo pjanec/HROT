@@ -121,5 +121,41 @@ namespace Fdp.Toolkits.Tests.ScenarioRules
             Assert.Equal(CloseRule.Ordinary, ObjectiveRules.CloseRuleOf("ReachArea"));
             Assert.Equal(CloseRule.Capture, ObjectiveRules.CloseRuleOf("HoldArea", capture: true));
         }
+
+        /// <summary>⭐ rules S4 ② — the pass mark per kind, from ONE function: a measure / objective / constraint / trigger 1, a weighted composite 0.6, a Counter 0 (no verdict); an authored
+        /// <c>common.pass</c> wins (capped at 1). ✅ Red-proof: the measure default changed to 0.5 ⇒ red.</summary>
+        [Theory]
+        [InlineData("HitRatio", ObjectiveRole.Measure, 0f, 1f)]
+        [InlineData("Count", ObjectiveRole.Measure, 0f, 1f)]
+        [InlineData("ReachArea", ObjectiveRole.Objective, 0f, 1f)]
+        [InlineData("NoHarm", ObjectiveRole.Objective, 0f, 1f)]
+        [InlineData("AllMustPass", ObjectiveRole.Objective, 0f, 1f)]
+        [InlineData("Trigger", ObjectiveRole.Trigger, 0f, 1f)]
+        [InlineData("WeightedMean", ObjectiveRole.Objective, 0f, 0.6f)]
+        [InlineData("MemberEvaluation", ObjectiveRole.Objective, 0f, 0.6f)]
+        [InlineData("SelectionMean", ObjectiveRole.Objective, 0f, 0.6f)]
+        [InlineData("Counter", ObjectiveRole.Measure, 0f, 0f)]
+        [InlineData("HitRatio", ObjectiveRole.Measure, 0.7f, 0.7f)]
+        [InlineData("Counter", ObjectiveRole.Measure, 0.4f, 0.4f)]
+        [InlineData("WeightedMean", ObjectiveRole.Objective, 0.8f, 0.8f)]
+        [InlineData("HitRatio", ObjectiveRole.Measure, 5f, 1f)]
+        public void PassOf_IsOneDefaultPerKind_AndTheAuthoredMarkWins(string kind, ObjectiveRole role, float authored, float want)
+            => Assert.Equal(want, ObjectiveRules.PassOf(kind, role, authored));
+
+        /// <summary>⭐ rules S4 ② — <c>common.pass</c> reaches the status through <c>Display</c>, and GO / NO-GO is the read <c>Score ≥ Pass</c>.</summary>
+        [Fact]
+        public void Display_WritesThePass_AndGoIsScoreAtLeastPass()
+        {
+            var c = ObjectiveCommonBlock.From(new ObjectiveCommon { Pass = 0.7f });
+            var s = new ObjectiveStatus { Role = ObjectiveRole.Measure, Value = 0.75f, Target = 1f };
+            ObjectiveRules.Display(ref s, in c, "HitRatio", ObjectiveRole.Measure);
+            ObjectiveRules.WriteScore(ref s);
+            Assert.Equal(0.7f, s.Pass);
+            Assert.True(s.Score >= s.Pass);
+            var def = ObjectiveCommonBlock.From(default);
+            ObjectiveRules.Display(ref s, in def, "HitRatio", ObjectiveRole.Measure);
+            Assert.Equal(1f, s.Pass);
+            Assert.False(s.Score >= s.Pass);   // 0.75 of target 1 is NO-GO at the default pass 1
+        }
     }
 }

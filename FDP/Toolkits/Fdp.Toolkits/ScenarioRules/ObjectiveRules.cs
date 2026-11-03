@@ -43,6 +43,8 @@ namespace Fdp.Toolkit.ScenarioRules
         [JsonPropertyName("visibleSides")] public byte VisibleSides;
         /// <summary>⭐ rules S4 E-3 — the evaluation group the objective / measure is shown under (mission · fire · reports · conduct …); authored by the macro, ≤ 32 chars. Display only.</summary>
         [JsonPropertyName("group")] public string? Group;
+        /// <summary>⭐ rules S4 ② — the pass mark (0..1) a verdict reads as <c>Score ≥ Pass</c>; 0 = the kind's default (<see cref="ObjectiveRules.PassOf"/>). A composite's own <c>passScore</c> wins over it.</summary>
+        [JsonPropertyName("pass")] public float Pass;
     }
 
     /// <summary>⭐ rules S1 — the unmanaged twin of <see cref="ObjectiveCommon"/> a blackboard can hold (defaults applied).</summary>
@@ -55,6 +57,8 @@ namespace Fdp.Toolkit.ScenarioRules
         public EntityRef Subject, Parent;
         public byte Required, Scored, StartActive, VisibleSides;
         public float Weight, Points, DeadlineSeconds;
+        /// <summary>⭐ rules S4 ② — see <see cref="ObjectiveCommon.Pass"/> (0 = the kind's default).</summary>
+        public float Pass;
 
         public static ObjectiveCommonBlock From(in ObjectiveCommon c) => new()
         {
@@ -66,6 +70,7 @@ namespace Fdp.Toolkit.ScenarioRules
             VisibleSides = c.VisibleSides == 0 ? (byte)0xFF : c.VisibleSides,
             Weight = c.Weight == 0f ? 1f : c.Weight,
             Points = c.Points, DeadlineSeconds = c.DeadlineSeconds,
+            Pass = Math.Clamp(c.Pass, 0f, 1f),
         };
     }
 
@@ -95,14 +100,31 @@ namespace Fdp.Toolkit.ScenarioRules
             s.State = c.StartActive != 0 ? ObjectiveState.Active : ObjectiveState.Inactive;
             s.ChangedAt = now;
             s.Kind = new FixedString32(kind);
-            Display(ref s, in c);
+            Display(ref s, in c, kind, role);
             CopyLinks(ref l, in c);
         }
 
         /// <summary>The display fields (a projection of the params — never written back).</summary>
-        public static void Display(ref ObjectiveStatus s, in ObjectiveCommonBlock c)
+        public static void Display(ref ObjectiveStatus s, in ObjectiveCommonBlock c, string kind, ObjectiveRole role)
         {
             s.Title = c.Title; s.Group = c.Group; s.Required = c.Required; s.Scored = c.Scored; s.Weight = c.Weight; s.Points = c.Points; s.VisibleSides = c.VisibleSides;
+            s.Pass = PassOf(kind, role, c.Pass);
+        }
+
+        /// <summary>The pass mark a weighted composite (<c>WeightedMean</c>, <c>MemberEvaluation</c>, <c>SelectionMean</c>) uses when none is authored.</summary>
+        public const float DefaultCompositePass = 0.6f;
+
+        /// <summary>
+        /// ⭐ rules S4 ② — THE pass mark of a status (0..1; GO / NO-GO is the read <c>Score ≥ Pass</c>), decided HERE for every kind: an authored <paramref name="authored"/>
+        /// (<c>common.pass</c>, 1 at most) wins; else a weighted composite 0.6, a <c>Counter</c> 0 (a pool the scenario moves — it gives no verdict), every other kind 1
+        /// (a measure's Score is already normalised and lowerIsBetter-folded, so 1 = its target met; an objective's Score is 1 when Achieved).
+        /// </summary>
+        public static float PassOf(string kind, ObjectiveRole role, float authored)
+        {
+            if (authored > 0f) return Math.Min(authored, 1f);
+            if (kind is "WeightedMean" or "MemberEvaluation" or "SelectionMean") return DefaultCompositePass;
+            if (kind == "Counter") return 0f;
+            return 1f;
         }
 
         /// <summary>⭐ V-2 — every kind's deadline and the next expected moment (the deadline while Active; 0 once final / closed / inactive). ONE place; a trigger overrides ExpectedAt.</summary>

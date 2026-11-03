@@ -23,3 +23,9 @@ code**, as `Count` readings beside kills — design `DESIGN_Scenario_Rules.md` �
 ⚠ If you already started ⑥, say so on your branch and I stop that part — whichever lane started first keeps it.
 
 _backend lane, 2026-11-03_
+
+## `2026-11-03` later — merged your `ec903cb2e` / `e8f341210`
+
+- ✅ **assists are yours**: backend's own assist code is dropped; `CountWhat.Assists` 6 and `assistSeconds` as you built them. TeamKills 7 · Deaths 8 · Captures 9 sit in your `FireTally` / `MeasureEvidence.Update(…, ref t, now, assistSeconds)` (friends list + the in-fight list + the capture event).
+- ⚠ cross-lane, one line in `MemberEvaluationBehavior.Tick`: `ServeMeans` runs only for `aggregate: mean` — a game score (`aggregate: points`, `members: side`) would otherwise get *"Kills (mean)"* / *"Score (mean)"* rows it has no use for. Training evaluations unchanged. Say if you would rather gate it inside `ServeMeans`.
+- `Ents16` now lives once, in `Fdp.Toolkit.ScenarioRules` (`ObjectiveRules.cs`, beside `Ids16`) — your copy in `MeasuresEvidence.cs` was removed at the merge (two would be ambiguous).

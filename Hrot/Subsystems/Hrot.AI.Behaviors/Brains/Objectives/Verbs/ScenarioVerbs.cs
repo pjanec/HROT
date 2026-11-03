@@ -207,7 +207,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
             if (!world.Bus.IsRegisteredManaged<PlayerMessageEvent>()) world.Bus.RegisterManaged<PlayerMessageEvent>();
             world.Bus.PublishManaged(new PlayerMessageEvent
             {
-                MessageId = System.Threading.Interlocked.Increment(ref s_messageSeq), OriginNodeId = 0,
+                MessageId = System.Threading.Interlocked.Increment(ref s_messageSeq), OriginNodeId = Fdp.Core.NodeId.None,
                 ToKind = p.ToKind.Length == 0 ? "All" : p.ToKind.ToString(), ToValue = p.ToValue, Text = p.Text.ToString(),
                 Seconds = p.Seconds, Priority = p.Priority, SentAt = ObjectiveHost.Now(world),
                 Source = world.HasComponent<NetworkIdentity>(self) ? world.GetComponentRO<NetworkIdentity>(self).Value : 0,

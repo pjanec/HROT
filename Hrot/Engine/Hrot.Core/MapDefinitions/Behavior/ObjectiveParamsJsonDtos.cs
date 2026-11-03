@@ -145,7 +145,7 @@ namespace Hrot.Map.Definitions.Behavior
     public enum CountWhat : byte
     {
         Shots = 0, Hits = 1, Kills = 2, Fratricide = 3, CiviliansHarmed = 4, Reports = 5,
-        /// <summary>⭐ S7 P-3 — a hostile he harmed went down within 10 s of his last harm, another having the kill.</summary>
+        /// <summary>rules S4 ⑥ (behaviors): a hostile the subject's men hit and somebody else finished, within <c>assistSeconds</c> of the subject's last hit — once per victim.</summary>
         Assists = 6,
         /// <summary>⭐ S7 P-3 — a friend he harmed went down (never a kill). A fault: lower is better, target 0.</summary>
         TeamKills = 7,
@@ -165,6 +165,8 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("what"), JsonConverter(typeof(JsonStringEnumConverter))] public CountWhat What;
         [JsonPropertyName("attribute"), JsonConverter(typeof(JsonStringEnumConverter))] public HarmAttribute Attribute;
         [JsonPropertyName("target")] public float? Target;
+        /// <summary>⭐ rules S4 ⑥ — <c>assists</c> only: the window (s) before the kill inside which the subject's last hit still earns the assist; 0 = 10.</summary>
+        [JsonPropertyName("assistSeconds")] public float AssistSeconds;
     }
 
     /// <summary><c>ReportLatency</c>: the mean of <c>SentAt − ObservedAt</c> of the subject's reports so far (lower is better; default target 60 s).</summary>
@@ -252,6 +254,22 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("members")] public string? Members;
         /// <summary>⭐ S7 P-5 — the verdict: <c>mean</c> (default: the weighted mean of the instances) or <c>points</c> (Value = the sum of the instances' <c>Value</c>, the team total; never Failed).</summary>
         [JsonPropertyName("aggregate")] public string? Aggregate;
+    }
+
+    /// <summary>⭐ rules S4 ① (§00.11) — <c>SelectionMean</c>: the weighted mean (the ONE <c>WeightedMeanBehavior.Aggregate</c>) of a SELECTION of the statuses under the
+    /// <see cref="Scope"/> (a <c>MemberEvaluation</c>), not of its parent-linked children: <c>by: "role"</c> = the member roots whose subject's role key is <see cref="Key"/>;
+    /// <c>by: "standard"</c> = every standard titled <see cref="Key"/> in the members' subtrees (a nested evaluation's men excluded). Pass mark: <c>common.pass</c>, else 0.6.</summary>
+    [ParamsDto]
+    public struct SelectionMeanParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.SelectionMean;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        /// <summary><c>role</c> or <c>standard</c>.</summary>
+        [JsonPropertyName("by")] public string By;
+        /// <summary>The role key (a <c>TacticalDesignation</c> name, else the TKB class name) or the standard's title.</summary>
+        [JsonPropertyName("key")] public string Key;
+        /// <summary>The <c>MemberEvaluation</c> whose members are selected from.</summary>
+        [JsonPropertyName("scope")] public EntityLink Scope;
     }
 
     /// <summary><c>AllMustPass</c>: a composite achieved when every child is.</summary>

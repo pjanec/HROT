@@ -49,7 +49,7 @@ namespace Hrot.SimHost.Tests
             Assert.True(ingress.ProcessSample(in m, receiver));
             receiver.Bus.SwapBuffers();
             var got = Assert.Single(((Fdp.ModuleHost.Abstractions.ISimulationView)receiver).ReadManagedEvents<PlayerMessageEvent>());
-            Assert.Equal((7, 1, "Unit", 412, "Blue-2, hold at the bridge"), (got.MessageId, got.OriginNodeId, got.ToKind, got.ToValue, got.Text));
+            Assert.Equal((7, 1, "Unit", 412, "Blue-2, hold at the bridge"), (got.MessageId, (int)got.OriginNodeId, got.ToKind, got.ToValue, got.Text));
             Assert.Equal((9.5f, (byte)3, 123.25, 80), (got.Seconds, got.Priority, got.SentAt, got.Source));
         }
 
