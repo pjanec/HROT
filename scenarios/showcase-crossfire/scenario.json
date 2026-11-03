@@ -1177,6 +1177,20 @@
   },
   "cf6e0000-0000-4000-8000-000000000049": {
    "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Crate 1",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "HoldArea",
+    "Params": "{\"common\": {\"title\": \"Crate 1\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"scored\": false, \"startActive\": false}, \"area\": \"@CrateSpot1\", \"minMen\": 1, \"capture\": true, \"captureSeconds\": 20}",
+    "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000050": {
+   "TkbIdentity": {
     "TkbType": 8861
    },
    "EntityInfo": {
@@ -1185,11 +1199,39 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Crate drop 1\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 180}, \"do\": [{\"act\": \"InsertMacro\", \"args\": {\"macro\": \"game/supply-crate\", \"at\": \"@CrateSpot1\", \"heading\": 0}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Supply crate down\", \"seconds\": 5}}]}",
+    "Params": "{\"common\": {\"title\": \"Crate drop 1\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 180}, \"do\": [{\"act\": \"InsertMacro\", \"args\": {\"macro\": \"game/supply-crate\", \"at\": \"@CrateSpot1\", \"heading\": 0}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000049\", \"active\": true}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Supply crate down\", \"seconds\": 5}}]}",
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000050": {
+  "cf6e0000-0000-4000-8000-000000000051": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Crate 1 to Blue",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": "{\"common\": {\"title\": \"Crate 1 to Blue\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000049\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000026\", \"amount\": 15}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": 15}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Blue secured a crate: +15 tickets\", \"seconds\": 5}}]}",
+    "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000052": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Crate 1 to Red",
+    "ForceId": "Hostile"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": "{\"common\": {\"title\": \"Crate 1 to Red\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000049\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000027\", \"amount\": 15}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": -15}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Red secured a crate: +15 tickets\", \"seconds\": 5}}]}",
+    "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000053": {
    "SimTransform": {
     "Position": [
      650,
@@ -1280,7 +1322,7 @@
     }
    ]
   },
-  "cf6e0000-0000-4000-8000-000000000051": {
+  "cf6e0000-0000-4000-8000-000000000054": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1294,7 +1336,21 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000052": {
+  "cf6e0000-0000-4000-8000-000000000055": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Crate 2",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "HoldArea",
+    "Params": "{\"common\": {\"title\": \"Crate 2\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"scored\": false, \"startActive\": false}, \"area\": \"@CrateSpot2\", \"minMen\": 1, \"capture\": true, \"captureSeconds\": 20}",
+    "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000056": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1304,11 +1360,39 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Crate drop 2\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 360}, \"do\": [{\"act\": \"InsertMacro\", \"args\": {\"macro\": \"game/supply-crate\", \"at\": \"@CrateSpot2\", \"heading\": 0}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Supply crate down\", \"seconds\": 5}}]}",
+    "Params": "{\"common\": {\"title\": \"Crate drop 2\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 360}, \"do\": [{\"act\": \"InsertMacro\", \"args\": {\"macro\": \"game/supply-crate\", \"at\": \"@CrateSpot2\", \"heading\": 0}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000055\", \"active\": true}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Supply crate down\", \"seconds\": 5}}]}",
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000053": {
+  "cf6e0000-0000-4000-8000-000000000057": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Crate 2 to Blue",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": "{\"common\": {\"title\": \"Crate 2 to Blue\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000055\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000026\", \"amount\": 15}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": 15}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Blue secured a crate: +15 tickets\", \"seconds\": 5}}]}",
+    "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000058": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Crate 2 to Red",
+    "ForceId": "Hostile"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": "{\"common\": {\"title\": \"Crate 2 to Red\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000055\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000027\", \"amount\": 15}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": -15}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Red secured a crate: +15 tickets\", \"seconds\": 5}}]}",
+    "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000059": {
    "SimTransform": {
     "Position": [
      400,
@@ -1399,7 +1483,7 @@
     }
    ]
   },
-  "cf6e0000-0000-4000-8000-000000000054": {
+  "cf6e0000-0000-4000-8000-000000000060": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1413,7 +1497,21 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000055": {
+  "cf6e0000-0000-4000-8000-000000000061": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Crate 3",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "HoldArea",
+    "Params": "{\"common\": {\"title\": \"Crate 3\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"scored\": false, \"startActive\": false}, \"area\": \"@CrateSpot3\", \"minMen\": 1, \"capture\": true, \"captureSeconds\": 20}",
+    "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000062": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1423,11 +1521,39 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Crate drop 3\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 540}, \"do\": [{\"act\": \"InsertMacro\", \"args\": {\"macro\": \"game/supply-crate\", \"at\": \"@CrateSpot3\", \"heading\": 0}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Supply crate down\", \"seconds\": 5}}]}",
+    "Params": "{\"common\": {\"title\": \"Crate drop 3\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 540}, \"do\": [{\"act\": \"InsertMacro\", \"args\": {\"macro\": \"game/supply-crate\", \"at\": \"@CrateSpot3\", \"heading\": 0}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000061\", \"active\": true}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Supply crate down\", \"seconds\": 5}}]}",
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000056": {
+  "cf6e0000-0000-4000-8000-000000000063": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Crate 3 to Blue",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": "{\"common\": {\"title\": \"Crate 3 to Blue\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000061\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000026\", \"amount\": 15}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": 15}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Blue secured a crate: +15 tickets\", \"seconds\": 5}}]}",
+    "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000064": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Crate 3 to Red",
+    "ForceId": "Hostile"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": "{\"common\": {\"title\": \"Crate 3 to Red\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000061\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000027\", \"amount\": 15}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": -15}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Red secured a crate: +15 tickets\", \"seconds\": 5}}]}",
+    "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000065": {
    "SimTransform": {
     "Position": [
      650,
@@ -1518,7 +1644,7 @@
     }
    ]
   },
-  "cf6e0000-0000-4000-8000-000000000057": {
+  "cf6e0000-0000-4000-8000-000000000066": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1532,7 +1658,21 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000058": {
+  "cf6e0000-0000-4000-8000-000000000067": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Crate 4",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "HoldArea",
+    "Params": "{\"common\": {\"title\": \"Crate 4\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"scored\": false, \"startActive\": false}, \"area\": \"@CrateSpot4\", \"minMen\": 1, \"capture\": true, \"captureSeconds\": 20}",
+    "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000068": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1542,11 +1682,39 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Crate drop 4\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 720}, \"do\": [{\"act\": \"InsertMacro\", \"args\": {\"macro\": \"game/supply-crate\", \"at\": \"@CrateSpot4\", \"heading\": 0}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Supply crate down\", \"seconds\": 5}}]}",
+    "Params": "{\"common\": {\"title\": \"Crate drop 4\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 720}, \"do\": [{\"act\": \"InsertMacro\", \"args\": {\"macro\": \"game/supply-crate\", \"at\": \"@CrateSpot4\", \"heading\": 0}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000067\", \"active\": true}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Supply crate down\", \"seconds\": 5}}]}",
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000059": {
+  "cf6e0000-0000-4000-8000-000000000069": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Crate 4 to Blue",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": "{\"common\": {\"title\": \"Crate 4 to Blue\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000067\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000026\", \"amount\": 15}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": 15}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Blue secured a crate: +15 tickets\", \"seconds\": 5}}]}",
+    "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000070": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Crate 4 to Red",
+    "ForceId": "Hostile"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": "{\"common\": {\"title\": \"Crate 4 to Red\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000067\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000027\", \"amount\": 15}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": -15}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Red secured a crate: +15 tickets\", \"seconds\": 5}}]}",
+    "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000071": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1560,7 +1728,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000060": {
+  "cf6e0000-0000-4000-8000-000000000072": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1574,7 +1742,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000061": {
+  "cf6e0000-0000-4000-8000-000000000073": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1584,11 +1752,11 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Comeback Red\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 40, \"maxValue\": 1000000.0}}}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Hostile\", \"tiers\": 1}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Reinforcements: Red's squads are sharper\", \"seconds\": 6}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000059\", \"active\": true}}], \"repeat\": true, \"cooldown\": 120, \"holdFor\": 30}",
+    "Params": "{\"common\": {\"title\": \"Comeback Red\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 40, \"maxValue\": 1000000.0}}}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Hostile\", \"tiers\": 1}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Reinforcements: Red's squads are sharper\", \"seconds\": 6}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000071\", \"active\": true}}], \"repeat\": true, \"cooldown\": 120, \"holdFor\": 30}",
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000062": {
+  "cf6e0000-0000-4000-8000-000000000074": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1598,11 +1766,11 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Comeback Blue\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -1000000.0, \"maxValue\": -40}}}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Friend\", \"tiers\": 1}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Reinforcements: Blue's squads are sharper\", \"seconds\": 6}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000060\", \"active\": true}}], \"repeat\": true, \"cooldown\": 120, \"holdFor\": 30}",
+    "Params": "{\"common\": {\"title\": \"Comeback Blue\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -1000000.0, \"maxValue\": -40}}}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Friend\", \"tiers\": 1}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Reinforcements: Blue's squads are sharper\", \"seconds\": 6}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000072\", \"active\": true}}], \"repeat\": true, \"cooldown\": 120, \"holdFor\": 30}",
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000063": {
+  "cf6e0000-0000-4000-8000-000000000075": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1616,7 +1784,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000064": {
+  "cf6e0000-0000-4000-8000-000000000076": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1630,7 +1798,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000065": {
+  "cf6e0000-0000-4000-8000-000000000077": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1644,7 +1812,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000066": {
+  "cf6e0000-0000-4000-8000-000000000078": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1658,7 +1826,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000067": {
+  "cf6e0000-0000-4000-8000-000000000079": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1672,7 +1840,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000068": {
+  "cf6e0000-0000-4000-8000-000000000080": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1686,7 +1854,7 @@
     "Origin": "Superior"
    }
   },
-  "cf6e0000-0000-4000-8000-000000000069": {
+  "cf6e0000-0000-4000-8000-000000000081": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -1698,6 +1866,65 @@
     "Name": "Trigger",
     "Params": "{\"common\": {\"title\": \"Draw\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"Compound\", \"operator\": \"And\", \"conditions\": [{\"$type\": \"ScenarioTime\", \"fromSeconds\": 900}, {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -0.5, \"maxValue\": 0.5}}}]}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Draw!\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"level at time\", \"winner\": \"Draw\"}}]}",
     "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000082": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Instructor end: Blue ahead",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": "{\"common\": {\"title\": \"Instructor end: Blue ahead\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"startActive\": false}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 0.5, \"maxValue\": 1000000.0}}}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Blue wins!\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"Instructor ended\", \"winner\": \"Friend\"}}], \"fireIfTrueWhenArmed\": true}",
+    "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000083": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Instructor end: Red ahead",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": "{\"common\": {\"title\": \"Instructor end: Red ahead\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"startActive\": false}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -1000000.0, \"maxValue\": -0.5}}}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Red wins!\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"Instructor ended\", \"winner\": \"Hostile\"}}], \"fireIfTrueWhenArmed\": true}",
+    "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000084": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Instructor end: level",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": "{\"common\": {\"title\": \"Instructor end: level\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"startActive\": false}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -0.5, \"maxValue\": 0.5}}}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Draw!\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"Instructor ended\", \"winner\": \"Draw\"}}], \"fireIfTrueWhenArmed\": true}",
+    "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000085": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Instructor end",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": "{\"common\": {\"title\": \"Instructor end\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 1000000000.0}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"The instructor ends the round\", \"seconds\": 6}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000082\", \"active\": true}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000083\", \"active\": true}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000084\", \"active\": true}}]}",
+    "Origin": "Superior"
+   },
+   "RefKey": {
+    "Value": "instructor-end"
    }
   }
  }

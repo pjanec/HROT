@@ -309,8 +309,17 @@ def scenario():
                    "MapOverlayStyle": {"FillColor": [255, 200, 0, 60], "BorderColor": [255, 200, 0, 255], "LineThickness": 2, "IsClosed": True},
                    "Positions": [{"at": s} for s in CRATE_SPOTS[(i - 1) % 4:] + CRATE_SPOTS[:(i - 1) % 4]]}
         trigger(f"Crate {i} announced", time_from(t - 30), [msg("Supply drop in 30 s", 6)])
+        # ⭐ Rules_Runnable ④ — the crate is HELD for tickets: a dormant HoldArea on the crate's spot (the marker's own area — it follows the variant),
+        #   switched on by the drop; a side that outnumbers the other there for 20 s takes it (G-1) ⇒ +15 tickets once, and the men inside are credited a
+        #   capture (S7 P-3, +150 each). ⚠ In the SCENARIO, not inside game/supply-crate: a macro is closed (SR-58) and cannot reach the ticket counters
+        hold = objective("HoldArea", f"Crate {i}", {"common": {"title": f"Crate {i}", "subject": blue, "scored": False, "startActive": False},
+                         "area": f"@CrateSpot{i}", "minMen": 1, "capture": True, "captureSeconds": 20})
         trigger(f"Crate drop {i}", time_from(t), [{"act": "InsertMacro", "args": {"macro": "game/supply-crate", "at": f"@CrateSpot{i}", "heading": 0}},
+                                                  {"act": "SetObjectiveActive", "args": {"target": hold, "active": True}},
                                                   msg("Supply crate down", 5)])
+        trigger(f"Crate {i} to Blue", on_status(hold, "Owner", FRIEND, FRIEND), [add(blue_t, 15), add(lead, 15), msg("Blue secured a crate: +15 tickets", 5)])
+        trigger(f"Crate {i} to Red", on_status(hold, "Owner", HOSTILE, HOSTILE), [add(red_t, 15), add(lead, -15), msg("Red secured a crate: +15 tickets", 5)],
+                force="Hostile")
 
     # ── the comeback boost (G-7): the team 40 behind gets its bots one tier sharper, never twice within 2 min; back to 0 when it recovers
     # ⚠ each "over" starts DISARMED and its comeback arms it: armed from the start, its condition (the lead recovered) is true at 0 : 0, so
@@ -346,6 +355,18 @@ def scenario():
             [msg("Red wins!", 8), {"act": "EndExercise", "args": {"reason": "Blue out of tickets, or Red ahead at time", "winner": "Hostile"}}], force="Hostile")
     trigger("Draw", all_of(time_from(ROUND), on_status(lead, "Value", -0.5, 0.5)),
             [msg("Draw!", 8), {"act": "EndExercise", "args": {"reason": "level at time", "winner": "Draw"}}])
+    # ⭐ Rules_Runnable ③ (SR-116): the instructor's End — RefKey "instructor-end", fired by hand (RuleControl Fire; ui's End button); its `when` never
+    #   holds by itself. Its Do arms three dormant deciders (fireIfTrueWhenArmed): exactly one holds — the side ahead on "Blue lead" wins, level = a draw
+    deciders = []
+    for title, lo, hi, winner, text in (("Instructor end: Blue ahead", 0.5, 1e6, "Friend", "Blue wins!"),
+                                        ("Instructor end: Red ahead", -1e6, -0.5, "Hostile", "Red wins!"),
+                                        ("Instructor end: level", -0.5, 0.5, "Draw", "Draw!")):
+        deciders.append(trigger(title, on_status(lead, "Value", lo, hi),
+                                [msg(text, 8), {"act": "EndExercise", "args": {"reason": "Instructor ended", "winner": winner}}],
+                                fireIfTrueWhenArmed=True, **{"common": {"title": title, "subject": blue, "startActive": False}}))
+    ie = trigger("Instructor end", time_from(1e9), [msg("The instructor ends the round", 6)] +
+                 [{"act": "SetObjectiveActive", "args": {"target": d, "active": True}} for d in deciders])
+    ents[ie]["RefKey"] = {"Value": "instructor-end"}
 
     write("scenarios/showcase-crossfire/scenario.json", doc({
         # ⭐ P-7 (DESIGN_Node_Features.md §11, F-27): this scenario's feature preset — the scenario layer under the node / cluster overrides (ui's lists, PH-8)
