@@ -50,6 +50,7 @@ public sealed class RulesWindow : ManagedWindow
     private int _groupBy, _side, _ruleSeq;
     private string _search = "";
     private bool _follow;
+    private int _subtree;
     private int? _selected;
     private RulesWindowProbe _probe = new(Array.Empty<string>(), null, Array.Empty<string>(), Array.Empty<(string, string?)>(), "Macro", "All sides", "");
 
@@ -103,6 +104,10 @@ public sealed class RulesWindow : ManagedWindow
         if (row.SubjectNetworkId != 0) _selectEntity(row.SubjectNetworkId);
     }
 
+    /// <summary>⭐ R3 — <i>Show the moments on the timeline →</i>: only this rule and everything under it (by <c>Parent</c>); <c>0</c> clears. The toolbar shows the filter and a way out.</summary>
+    public void ShowSubtree(int networkId) { _subtree = networkId; _selected = networkId == 0 ? _selected : networkId; IsOpen = true; }
+    public int SubtreeOf => _subtree;
+
     /// <summary>⭐ RV-7 — the Details panel's Objectives tab opens a rule here: the row is selected (its subject already is the Details' unit).</summary>
     public void SelectNetworkId(int networkId) { _selected = networkId; IsOpen = true; }
 
@@ -127,7 +132,7 @@ public sealed class RulesWindow : ManagedWindow
         if (index != null && (!ReferenceEquals(index, _historyOf) || index.FrameTicks.Count != _historyFrames))
         { _history = new IndexRulesHistory(index); _historyOf = index; _historyFrames = index.FrameTicks.Count; }
         else if (index == null) { _history = null; _historyOf = null; _historyFrames = -1; }
-        _view = world == null ? new RulesView(Array.Empty<RuleGroup>(), now) : RulesModel.Build(world, new RulesOptions(GroupBy, Side, _search), _history, now);
+        _view = world == null ? new RulesView(Array.Empty<RuleGroup>(), now) : RulesModel.Build(world, new RulesOptions(GroupBy, Side, _search, _subtree), _history, now);
         string? block = _blocked();
         var hooks = block == null ? _hooks : _hooks with { Blocked = block };
         var tracks = new List<ITimelineTrack>();
@@ -198,6 +203,11 @@ public sealed class RulesWindow : ManagedWindow
         if (ImGui.Checkbox("Follow now", ref _follow) && _follow) _panel.View.Fit();
         ImGui.SameLine(); ImGui.SetNextItemWidth(160f);
         ImGui.InputTextWithHint("##rules-search", "search title", ref _search, 64);
+        if (_subtree != 0)
+        {
+            ImGui.SameLine();
+            if (ImGui.SmallButton($"only #{_subtree} and below  ✕##rules-subtree")) _subtree = 0;   // ⭐ R3 — the filter the summary set, with its way out
+        }
     }
 
     private void DrawDetails()

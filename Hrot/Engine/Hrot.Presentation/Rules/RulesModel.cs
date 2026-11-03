@@ -15,7 +15,7 @@ namespace Hrot.UI.Common.Rules;
 public enum RulesGroupBy { Macro, Subject, Side }
 
 /// <summary>What the rules view shows: how it groups, which side, what text.</summary>
-public readonly record struct RulesOptions(RulesGroupBy GroupBy = RulesGroupBy.Macro, ForceId? Side = null, string Search = "");
+public readonly record struct RulesOptions(RulesGroupBy GroupBy = RulesGroupBy.Macro, ForceId? Side = null, string Search = "", int SubtreeOf = 0);
 
 /// <summary>A reference from a row to another entity (a <c>DependsOn</c> / <c>ActsOn</c> id): the id, the words it is shown by, and whether it is itself a rule row (a click selects it).</summary>
 public readonly record struct RuleLink(int NetworkId, string Text, bool IsRule);
@@ -178,7 +178,16 @@ public static class RulesModel
     private static string TitleOf(in ObjectiveStatus s, int net) => s.Title.ToString() is { Length: > 0 } t ? t : $"rule #{net}";
 
     /// <summary>The names an entity is known by in the rows' links and subject column.</summary>
-    private static string NameOf(EntityRepository world, Entity e, int net)
+    /// <summary>The ids of <paramref name="root"/> and everything below it by <c>Parent</c>.</summary>
+    public static HashSet<int> SubtreeIds(IReadOnlyList<RulesReader.Entry> entries, int root)
+    {
+        var set = new HashSet<int> { root };
+        bool grew = true;
+        while (grew) { grew = false; foreach (var e in entries) if (e.ParentNetworkId != 0 && set.Contains(e.ParentNetworkId) && set.Add(e.NetworkId)) grew = true; }
+        return set;
+    }
+
+    internal static string NameOf(EntityRepository world, Entity e, int net)
     {
         if (!e.IsNull && world.IsAlive(e))
         {
@@ -197,9 +206,11 @@ public static class RulesModel
         bool Matches(RulesReader.Entry e)
             => (options.Side is not { } side || ShownTo(e.Status, side))
             && (string.IsNullOrWhiteSpace(options.Search) || TitleOf(e.Status, e.NetworkId).Contains(options.Search.Trim(), StringComparison.OrdinalIgnoreCase));
-        var kept = new HashSet<int>(entries.Where(Matches).Select(e => e.NetworkId));
+        // ⭐ R3 — "Show the moments on the timeline": only the subtree of one rule (the rule and everything under it by Parent)
+        var subtree = options.SubtreeOf == 0 ? null : SubtreeIds(entries, options.SubtreeOf);
+        var kept = new HashSet<int>(entries.Where(e => (subtree == null || subtree.Contains(e.NetworkId)) && Matches(e)).Select(e => e.NetworkId));
         foreach (var id in kept.ToList())
-            for (int p = byNet[id].ParentNetworkId, guard = 0; p != 0 && byNet.TryGetValue(p, out var parent) && guard < 64; p = parent.ParentNetworkId, guard++) kept.Add(p);
+            for (int p = byNet[id].ParentNetworkId, guard = 0; p != 0 && (subtree == null || subtree.Contains(p)) && byNet.TryGetValue(p, out var parent) && guard < 64; p = parent.ParentNetworkId, guard++) kept.Add(p);
 
         // ── which section a row is in
         string GroupOf(RulesReader.Entry e) => options.GroupBy switch

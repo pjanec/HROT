@@ -951,6 +951,15 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
             blocked: () => "a recording is read-only") { IsOpen = false };
         windowManager.RegisterWindow(_rulesWindow);
 
+        // ⭐⭐ CE-4217 (rules view R3) — Window ▸ Mission summary on a RECORDING: the debrief; its key events seek the recording through the viewer's cursor
+        windowManager.RegisterWindow(new Hrot.Presentation.Windows.MissionSummaryWindow(
+            () => _activeRepo, () => _timelineSource,
+            new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager, () => _manager?.LocalEntitiesProviderNodeId ?? 0,
+                isPlaying: () => !Transport.IsPaused, togglePlay: () => Transport.TogglePlayPause(),
+                timeMap: () => CachedTimeMap, simAxis: () => Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim),
+            "rb_mission_summary", perspective, color,
+            showMoments: n => { _rulesWindow?.ShowSubtree(n); if (_rulesWindow != null) windowManager.FocusWindow(_rulesWindow.Id); }) { IsOpen = false });
+
         windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.ComponentDiffWindow(
             "rb_diff", "Frame Diff Viewer", perspective, diffPanel, color));
 

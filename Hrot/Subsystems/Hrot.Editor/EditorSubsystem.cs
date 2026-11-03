@@ -4873,6 +4873,12 @@ namespace Hrot.Editor
                 selectEntity: n => SelectNetworkEntity(n), showOnMap: n => _editorLogic?.CenterOnEntity(n)) { IsOpen = false };
             windowManager.RegisterWindow(_rulesWindow);
 
+            // ⭐⭐ CE-4217 (rules view R3; RV-8) — Window ▸ Mission summary: read-only, over the same world and the same shown timeline; its key events seek that timeline
+            windowManager.RegisterWindow(new Hrot.Presentation.Windows.MissionSummaryWindow(
+                () => _world, timelineSource, new Hrot.UI.Common.Adapters.ClusterTimelineCursor(() => timelineTransport, timelineSource),
+                "editor_mission_summary", "Scenario", EditorWindowColor.TitleBar,
+                showMoments: n => { _rulesWindow?.ShowSubtree(n); if (_rulesWindow != null) windowManager.FocusWindow(_rulesWindow.Id); }) { IsOpen = false });
+
             // ⭐ CE-1191 (UI-6, DESIGN_Command_Display §6 D3) — the Reports window over this node's SquadReportLog (filled where the staff runs)
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.ReportsWindow(
                 () => _world, Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorReports, "Scenario", EditorWindowColor.TitleBar));
