@@ -66,12 +66,12 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 | `WIRING` | 12 | 97 |
 | `RW-XS` | 4 | 12 |
 | `RW-S` | 162 | 824 |
-| `RW-L` | 150 | 255 |
+| `RW-L` | 149 | 256 |
 | `RW-M` | 229 | 809 |
 | `RW-H` | 23 | 87 |
 | `RW-XL` | 0 | 1 |
 | `OTHER` | 2 | 9 |
-| **Total** | **582** | **2094** |
+| **Total** | **581** | **2095** |
 | *(refuted on verification)* | | *14* |
 
 | Id family | Open | Done |
@@ -4612,7 +4612,7 @@ collides with work in flight.
 - [ ] **CE-4235** · `RW-L` 🔧 **OPEN (ui) — A ONE-OFF ~1 s/frame EDITOR (ui ≈ 870-995 ms, draw ≈ 100) WAS SEEN ONCE AND COULD NOT BE REPRODUCED.** Seen after a crossfire round ended (sim 906 s, paused) with a man possessed; four later runs (crossfire ×3, bridgehead 45 min sim, 8×, the same windows, K held, menus open, a man possessed alive to the end) stayed at 100-250 ms/frame (the floor here is software GL: the first-person world draw 30-220 ms and the 8× sim update 35-220 ms at 2200 × 1200 under Xvfb). The per-window line in the frame stats is how to catch it: if `fdp_message_log` is the big one, CE-4234's bound did not hold; if no window is, the time is outside the windows (GL / host CPU contention).
 - [x] **CE-4236** · `RW-L` ✅ **DONE `2026-11-03` (ui, W-H3) — THE MESSAGE LOG'S SELECTION NAMES A MESSAGE, NOT AN INDEX.** CE-4234's trim (and any filter change) shifted the indices a selection was stored as, so a selected line could become its neighbour; `MessageSelection` (`Fdp.Presentation/ImGui/Panels/`) keys by the entry object (shift-range anchors on the last clicked MESSAGE). Rail `MessageSelectionTests` (after a trim the same line is selected, Copy writes it, the shift anchor survives a filter). Cross-lane: `Fdp.Presentation` `MessageLogPanel`.
 - [x] **CE-4237** · `RW-L` ✅ **DONE `2026-11-03` (ui, W-H3) — THE HUD READS THE CAPTURE FIELDS AND A RULE'S OWN SIDE.** Capture flag / `Challenger` / `AreaCenter` + `AreaRadius` from the status (the reason parsing and the `BehaviorStartRecord` area read are gone — a remote Player node gets the strip); `SideOfRule` = authored entity's `ForceId` → subject's → `Owner` (backend: Owner is a capture field), now also behind the rules view's side filter and grouping; ⚠ a MACRO-instanced rule carries the template's side, so for it the subject wins (measured: with the entity side first, Red's score roots landed on the Blue scoreboard — Blue 2100 / Red none). Presets verified live (`GET /features` source `scenario` on IG and CGF, both showcases). Rails: `ARulesSide_…` (red-proved by disabling the entity arm), `TheSideFilterAndGrouping_…`, the capture / strip / area rails rewritten.
-- [ ] **CE-4238** · `RW-L` 🔧 **OPEN (ui ← behaviors) — THE ROUND CLOCK STILL COUNTS UP: `ExpectedAt` of Crossfire's *End* is 0.** Measured `GET /objectives` on `showcase-crossfire`: every armed trigger has `expectedAt` 0 (End, Crate drop 1, Sudden death). When behaviors fills it from the `ScenarioTime` clause, ALL timed triggers get one — the HUD needs a way to tell which trigger ENDS the round (the earliest is the next crate drop): ask behaviors for a marker on the status (e.g. the trigger whose actions end the exercise) with the `ExpectedAt` fill. `GameHud` has the countdown path for a `Deadline` already.
+- [x] **CE-4238** · `RW-L` ✅ **BUILT `2026-11-03` (behaviors, `af7405b64`) — an Armed trigger with no deadline now reports the next `ScenarioTime.fromSeconds` its `when` waits on (Or ⇒ the smallest, And ⇒ the largest, a past time or a non-time leaf counts for nothing; `TriggerWhenTime`, [Rules §00.V-2 as built](../DESIGN_Scenario_Rules.md)); 6 rails `ScenarioRulesTests.ViewData.CE4238_*`. 📐 Live `showcase-crossfire`: Blue wins / Red wins / Draw `expectedAt` 900, Kick-off 3 → 0 once fired, Crate drop 1 180, Sudden death 720. ⭐ Which trigger ENDS the round: no new field — ui reads the `EndExercise` step (handoff item ①). ⛔ SUPERSEDED: OPEN (ui ← behaviors) — THE ROUND CLOCK STILL COUNTS UP: `ExpectedAt` of Crossfire's *End* is 0.** Measured `GET /objectives` on `showcase-crossfire`: every armed trigger has `expectedAt` 0 (End, Crate drop 1, Sudden death). When behaviors fills it from the `ScenarioTime` clause, ALL timed triggers get one — the HUD needs a way to tell which trigger ENDS the round (the earliest is the next crate drop): ask behaviors for a marker on the status (e.g. the trigger whose actions end the exercise) with the `ExpectedAt` fill. `GameHud` has the countdown path for a `Deadline` already.
 
 ## Out of scope
 
