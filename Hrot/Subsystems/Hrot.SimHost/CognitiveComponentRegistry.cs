@@ -121,6 +121,7 @@ namespace Hrot.SimHost
             world.RegisterManagedEvent<BehaviorFaultNotification>();   // CE-482 — fail loud
             world.RegisterManagedEvent<Fdp.Toolkit.Squad.Command.SquadReportNotification>();   // CE-3250 — a report up the chain (BR-3), envelope over CommandReport
             world.RegisterEvent<Fdp.Toolkit.ScenarioRules.ExerciseEndedEvent>();            // ⭐ rules S2-e — the exercise ended (once per node)
+            world.RegisterEvent<Fdp.Toolkit.ScenarioRules.ObjectiveCapturedEvent>();        // ⭐ rules S7 P-4 — a capture point changed hands (one frame; Count captures reads it)
             world.RegisterManagedEvent<Fdp.Toolkit.ScenarioRules.PlayerMessageEvent>();     // ⭐ rules S2-f — a message to the players (SR-121)
             world.RegisterEvent<AssignBehaviorHashEvent>();
             world.RegisterEvent<SetRoeEvent>();        // CE-2074

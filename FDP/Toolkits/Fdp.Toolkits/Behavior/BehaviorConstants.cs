@@ -184,6 +184,9 @@ namespace Fdp.Toolkit.Behavior
         /// <summary>⭐ rules S2-e — <c>ExerciseEndedEvent</c>: the exercise's <c>ExerciseResult.Phase</c> became Ended (raised once per node).</summary>
         public const int EventId_ExerciseEnded = 3108;
 
+        /// <summary>⭐ rules S7 P-4 — <c>ObjectiveCapturedEvent</c>: a capture point changed hands to a side. 3109 free by grep of every literal on all four lanes, 2026-11-03.</summary>
+        public const int EventId_ObjectiveCaptured = 3109;
+
         // ── Embarkation command IDs (edit-1/EDIT1-E001) ──────────────────────
         /// <summary>EventId for <c>EmbarkEntityCommand</c>.</summary>
         public const int EventId_EmbarkEntity    = 3201;

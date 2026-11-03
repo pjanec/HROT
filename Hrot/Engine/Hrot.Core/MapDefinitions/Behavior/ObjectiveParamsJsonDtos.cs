@@ -142,9 +142,20 @@ namespace Hrot.Map.Definitions.Behavior
     }
 
     /// <summary>What a <c>Count</c> counts.</summary>
-    public enum CountWhat : byte { Shots = 0, Hits = 1, Kills = 2, Fratricide = 3, CiviliansHarmed = 4, Reports = 5 }
+    public enum CountWhat : byte
+    {
+        Shots = 0, Hits = 1, Kills = 2, Fratricide = 3, CiviliansHarmed = 4, Reports = 5,
+        /// <summary>⭐ S7 P-3 — a hostile he harmed went down within 10 s of his last harm, another having the kill.</summary>
+        Assists = 6,
+        /// <summary>⭐ S7 P-3 — a friend he harmed went down (never a kill). A fault: lower is better, target 0.</summary>
+        TeamKills = 7,
+        /// <summary>⭐ S7 P-3 — his men going out of the fight, once each. Lower is better, target 0.</summary>
+        Deaths = 8,
+        /// <summary>⭐ S7 P-3 — capture points that changed hands to his side with one of his men inside.</summary>
+        Captures = 9,
+    }
 
-    /// <summary><c>Count</c>: how many <see cref="What"/> by the subject's men. fratricide / civiliansHarmed are lower-is-better with target 0; the others higher-is-better with target
+    /// <summary><c>Count</c>: how many <see cref="What"/> by the subject's men. fratricide / civiliansHarmed / teamKills / deaths are lower-is-better with target 0; the others higher-is-better with target
     /// <see cref="Target"/> (default 1).</summary>
     [ParamsDto]
     public struct CountParamsJsonDto
@@ -192,6 +203,29 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("lowerIsBetter")] public bool LowerIsBetter;
     }
 
+    /// <summary>⭐ rules S7 P-2 — <c>Points</c>: a measure whose Value = Σ over its scored children (<c>ObjectiveLinks.Parent</c> = it) of <c>Value × points</c> (<c>points</c> 0 = 1). <see cref="Target"/> null = none (Score 0).</summary>
+    [ParamsDto]
+    public struct PointsParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.Points;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        [JsonPropertyName("target")] public float? Target;
+    }
+
+    /// <summary>⭐ rules S7 P-7 — <c>Best</c> (an award): among the descendants of <see cref="Among"/> that are measures titled <see cref="Measure"/>, the best Value that passes <see cref="Min"/>
+    /// (≥ min, or ≤ min when <see cref="LowerIsBetter"/>; null = no floor). While the exercise runs: Active. At the close: Achieved with <c>ObjectiveLinks.Subject</c> = the winner's subject, else Failed.</summary>
+    [ParamsDto]
+    public struct BestParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.Best;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        [JsonPropertyName("among")] public EntityLink Among;
+        /// <summary>The title of the measures compared.</summary>
+        [JsonPropertyName("measure")] public string? Measure;
+        [JsonPropertyName("min")] public float? Min;
+        [JsonPropertyName("lowerIsBetter")] public bool LowerIsBetter;
+    }
+
     /// <summary><c>WeightedMean</c>: a composite scoring its children (<c>ObjectiveLinks.Parent</c> = it) by weight.</summary>
     [ParamsDto]
     public struct WeightedMeanParamsJsonDto
@@ -214,6 +248,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>The macro folder, e.g. <c>macros/evaluation/infantry</c> (the leading <c>macros/</c> is optional).</summary>
         [JsonPropertyName("library")] public string Library;
         [JsonPropertyName("overrides")] public Dictionary<string, string>? Overrides;
+        /// <summary>⭐ S7 P-5 — whose men get an instance: <c>roster</c> (default: the subject's <c>UnitRoster</c>) or <c>side</c> (every man of the subject's side as he appears — a respawned bot is in no roster).</summary>
+        [JsonPropertyName("members")] public string? Members;
+        /// <summary>⭐ S7 P-5 — the verdict: <c>mean</c> (default: the weighted mean of the instances) or <c>points</c> (Value = the sum of the instances' <c>Value</c>, the team total; never Failed).</summary>
+        [JsonPropertyName("aggregate")] public string? Aggregate;
     }
 
     /// <summary><c>AllMustPass</c>: a composite achieved when every child is.</summary>

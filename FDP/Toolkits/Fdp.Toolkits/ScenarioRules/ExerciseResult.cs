@@ -65,6 +65,22 @@ namespace Fdp.Toolkit.ScenarioRules
     }
 
     /// <summary>
+    /// ⭐ rules S7 P-4 (📄 docs/DESIGN_Scenario_Rules.md §00.13) — a capture point CHANGED HANDS to <see cref="Side"/>: raised once, by the point (<c>HoldArea</c> capture by side), one frame.
+    /// <see cref="Men"/> are the first <see cref="MenCount"/> (≤ 16) men of that side standing inside at that moment — what a <c>Count captures</c> measure credits. Local to the Brain node.
+    /// </summary>
+    [EventId(BehaviorConstants.EventId_ObjectiveCaptured)]
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ObjectiveCapturedEvent
+    {
+        /// <summary>The capture-point objective.</summary>
+        public Entity Point;
+        /// <summary>The side that now owns it (never Neutral).</summary>
+        public ForceId Side;
+        public Ents16 Men;
+        public int MenCount;
+    }
+
+    /// <summary>
     /// ⭐ rules S2-f (SR-121) — a message to the players, as the local FDP event every node reads: published by the <c>Message</c> action, carried by the
     /// <c>PlayerMessage</c> topic, raised again on every other node with <see cref="OriginNodeId"/> set. The subtitle and the log are the Player's (ui).
     /// </summary>

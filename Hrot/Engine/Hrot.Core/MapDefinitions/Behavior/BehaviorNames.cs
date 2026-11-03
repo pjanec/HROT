@@ -305,6 +305,10 @@ namespace Hrot.Map.Definitions.Behavior
         public const string ReportLatency = "ReportLatency";
         public const string TimeTo = "TimeTo";
         public const string Sample = "Sample";
+        /// <summary>⭐ rules S7 P-2 (DESIGN_Scenario_Rules §00.13) — a MEASURE composite: the sum of its scored children's <c>Value × points</c> (a player's game score).</summary>
+        public const string Points = "Points";
+        /// <summary>⭐ rules S7 P-7 — an award: among the measures titled <c>measure</c> under <c>among</c>, the best value wins; at the close Achieved with <c>ObjectiveLinks.Subject</c> = the winner.</summary>
+        public const string Best = "Best";
         // ⭐ rules S2-c (DESIGN_Scenario_Rules §10.11) — the trigger: the one behaviour of a Trigger entity (TKB 8861)
         /// <summary>when a condition rises: hold, wait, run a list of actions, cool down (§10.11).</summary>
         public const string Trigger = "Trigger";

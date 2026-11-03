@@ -47,6 +47,8 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             public Ids16 Served; public int ServedCount;
             /// <summary>How many members no macro covered (each is asked about once): the status says so.</summary>
             public int Unmatched;
+            /// <summary>⭐ S7 P-5 — <c>members</c> (0 roster · 1 side) and <c>aggregate</c> (0 mean · 1 points).</summary>
+            public byte Members, Aggregate;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -57,7 +59,11 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         {
             var problems = ValidateParams(in authored);
             if (problems.Count > 0) throw new InvalidOperationException("MemberEvaluation: " + string.Join("; ", problems));
-            bb.Block = new Block { Common = ObjectiveCommonBlock.From(in authored.Common), Library = new FixedString64(Folder(authored.Library)) };
+            bb.Block = new Block
+            {
+                Common = ObjectiveCommonBlock.From(in authored.Common), Library = new FixedString64(Folder(authored.Library)),
+                Members = (byte)(Is(authored.Members, "side") ? 1 : 0), Aggregate = (byte)(Is(authored.Aggregate, "points") ? 1 : 0),
+            };
             string overrides = authored.Overrides is { Count: > 0 } ? JsonSerializer.Serialize(authored.Overrides) : "{}";
             if (world != null && world.IsAlive(self)) world.SetManagedComponent(self, new ActionArgs(new[] { overrides }));
         }
@@ -77,11 +83,15 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             string lib = Folder(a.Library);
             if (lib.Length == 0) problems.Add("'library' is required (a folder under macros/, e.g. macros/evaluation/infantry).");
             else if (lib.Length > 63) problems.Add($"'library' is {lib.Length} characters; at most 63.");
+            if (!string.IsNullOrWhiteSpace(a.Members) && !Is(a.Members, "roster") && !Is(a.Members, "side")) problems.Add($"members '{a.Members}': must be 'roster' or 'side'.");
+            if (!string.IsNullOrWhiteSpace(a.Aggregate) && !Is(a.Aggregate, "mean") && !Is(a.Aggregate, "points")) problems.Add($"aggregate '{a.Aggregate}': must be 'mean' or 'points'.");
             if (a.Overrides != null)
                 foreach (var (k, v) in a.Overrides)
                     if (string.IsNullOrWhiteSpace(k) || string.IsNullOrWhiteSpace(Folder(v))) problems.Add($"overrides '{k}': names no macro.");
             return problems;
         }
+
+        private static bool Is(string? value, string name) => string.Equals(value?.Trim(), name, StringComparison.OrdinalIgnoreCase);
 
         /// <summary>A macro path as the instance names it: no leading <c>macros/</c>, no edge slashes.</summary>
         internal static string Folder(string? path)
@@ -100,36 +110,77 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             {
                 string note = Serve(ref b, self, world);
                 if (note.Length == 0 && b.Unmatched > 0) note = $"{b.Unmatched} member(s) without a macro";
-                WeightedMeanBehavior.Aggregate(world, self, ref s, WeightedMeanBehavior.DefaultPassScore, f.Now, Kind, note);
+                if (b.Aggregate == 0) WeightedMeanBehavior.Aggregate(world, self, ref s, WeightedMeanBehavior.DefaultPassScore, f.Now, Kind, note);
+                else AggregatePoints(world, self, ref s, f.Now, note);
             }
             ObjectiveHost.CloseComposite(world, self, ref s, f.Now);
             return NodeStatus.Running;
         }
 
-        /// <summary>Inserts the macro of every roster member not served yet; returns why it could not (a refused request / no library), else empty.</summary>
+        /// <summary>
+        /// ⭐ S7 P-5 — <c>aggregate: points</c>: the team total. <c>Value</c> = Σ the instances' <c>Value</c> (the ONE sum, <see cref="ObjectiveChildren.PointsOf"/>); it stays Active — a score is no pass/fail —
+        /// and is Achieved only when the exercise is closing and every instance has closed (so the composite close does not Fail it "not achieved by the end").
+        /// </summary>
+        private static void AggregatePoints(EntityRepository world, Entity self, ref ObjectiveStatus s, double now, string note)
+        {
+            s.Value = ObjectiveChildren.PointsOf(world, self, out int n);
+            s.Target = 0f; s.Score = 0f;
+            var t = ObjectiveChildren.Of(world, self);
+            s.ProgressCur = t.Closed; s.ProgressNeed = t.Count;
+            bool done = ExerciseResult.PhaseOf(world) != ExercisePhase.Running && t.Closed >= t.Count;
+            string reason = $"{s.Value:0.##} points from {n} member(s)";
+            ObjectiveHost.Settle(ref s, Kind, done ? ObjectiveState.Achieved : ObjectiveState.Active, note.Length == 0 ? reason : reason + "; " + note, now);
+        }
+
+        private static readonly List<Entity> s_side = new();
+        private static readonly HashSet<long> s_current = new();
+
+        /// <summary>
+        /// Inserts the macro of every member not served yet; returns why it could not (a refused request / no library), else empty. <c>roster</c>: the subject's <see cref="UnitRoster"/>; ⭐ S7 P-5 <c>side</c>:
+        /// every man of the subject's side as he appears (<see cref="ObjectiveCensus.MenOfSide"/>) — a respawned bot is in no roster. ONE path: the member list differs, what is done for each does not.
+        /// </summary>
         private static string Serve(ref Block b, Entity self, EntityRepository world)
         {
             var subject = b.Common.Subject.Resolve(world);
-            if (subject.IsNull || !world.IsAlive(subject) || !world.HasComponent<UnitRoster>(subject)) return "";
-            var roster = world.GetComponentRO<UnitRoster>(subject);
+            if (subject.IsNull || !world.IsAlive(subject)) return "";
+            bool bySide = b.Members != 0;
+            if (!bySide && !world.HasComponent<UnitRoster>(subject)) return "";
+            UnitRoster roster = default;
+            s_side.Clear(); s_current.Clear();
+            int count;
+            if (bySide)
+            {
+                var side = ObjectiveCensus.SideOf(world, subject);
+                if (side == ForceId.Neutral) return "";
+                ObjectiveCensus.MenOfSide(world, side, s_side);
+                count = s_side.Count;
+                foreach (var m in s_side) s_current.Add(EntityRef.Of(world, m).NetworkId);
+            }
+            else
+            {
+                roster = world.GetComponentRO<UnitRoster>(subject);
+                count = roster.Count;
+                for (int i = 0; i < roster.Count; i++) s_current.Add(EntityRef.Of(world, roster.SubordinateEntities[i]).NetworkId);
+            }
             string library = b.Library.ToString();
             IMacroLibrary? macros = world.HasSingletonManaged<IMacroLibrary>() ? world.GetSingletonManaged<IMacroLibrary>() : null;
             Dictionary<string, string>? overrides = null;
             string? refused = null;
-            for (int i = 0; i < roster.Count; i++)
+            for (int i = 0; i < count; i++)
             {
-                var member = roster.SubordinateEntities[i];
+                var member = bySide ? s_side[i] : roster.SubordinateEntities[i];
                 if (member.IsNull || !world.IsAlive(member)) continue;
                 int nid = EntityRef.Of(world, member).NetworkId;
                 if (nid == 0 || IsServed(in b, nid)) continue;
+                if (!MakeRoom(ref b)) { refused = "more than 16 members to remember at once"; break; }   // never serve a man we could not remember (he would be served every tick)
                 if (macros is null) { refused = "this node has no macro library"; break; }
                 overrides ??= ReadOverrides(world, self);
                 var role = world.HasComponent<UnitSubordinate>(member) && world.GetComponentRO<UnitSubordinate>(member).Designation != TacticalDesignation.Undefined
-                    ? world.GetComponentRO<UnitSubordinate>(member).Designation : (TacticalDesignation)roster.TacticalDesignations[i];
+                    ? world.GetComponentRO<UnitSubordinate>(member).Designation : bySide ? TacticalDesignation.Undefined : (TacticalDesignation)roster.TacticalDesignations[i];
                 string? macro = Pick(world, macros, library, overrides, member, role);
-                if (macro is null) { Mark(ref b, world, roster, nid); b.Unmatched++; continue; }   // asked once: a missing macro is a Reason, not an error
+                if (macro is null) { Mark(ref b, nid); b.Unmatched++; continue; }   // asked once: a missing macro is a Reason, not an error
                 if (!world.IsComponentTypeRegistered<EntityGuid>() || !world.HasComponent<EntityGuid>(member) || !world.HasComponent<EntityGuid>(self))
-                { Mark(ref b, world, roster, nid); b.Unmatched++; continue; }   // SR-45: a macro takes its subject / parent by their stable ids
+                { Mark(ref b, nid); b.Unmatched++; continue; }   // SR-45: a macro takes its subject / parent by their stable ids
                 var args = new JsonObject
                 {
                     ["subject"] = world.GetComponentRO<EntityGuid>(member).Value.ToString("D"),
@@ -138,8 +189,9 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 var at = world.HasComponent<SimTransform>(member) ? world.GetComponentRO<SimTransform>(member).Position : default;
                 string? why = MacroInsertion.Request(world, self, macro, at, default, args.ToJsonString(), out _, salt: nid.ToString());
                 if (why != null) { refused = why; break; }   // asked again next tick
-                Mark(ref b, world, roster, nid);
+                Mark(ref b, nid);
             }
+            s_side.Clear(); s_current.Clear();
             return refused ?? "";
         }
 
@@ -149,23 +201,18 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             return false;
         }
 
-        /// <summary>Remembers a member (≤ 16). When full, the ids that left the roster make room first — a roster holds 16, so the current men always fit.</summary>
-        private static void Mark(ref Block b, EntityRepository world, in UnitRoster roster, int nid)
+        /// <summary>Room for one more served id (≤ 16): when full, the ids that are no longer current (<c>s_current</c>: left the roster / no longer a living man of the side) make room first.</summary>
+        private static bool MakeRoom(ref Block b)
         {
-            if (b.ServedCount >= Ids16Length)
-            {
-                int kept = 0;
-                for (int i = 0; i < b.ServedCount; i++)
-                {
-                    long id = b.Served[i]; bool inRoster = false;
-                    for (int r = 0; r < roster.Count && !inRoster; r++) inRoster = EntityRef.Of(world, roster.SubordinateEntities[r]).NetworkId == id;
-                    if (inRoster) b.Served[kept++] = id;
-                }
-                b.ServedCount = kept;
-                if (b.ServedCount >= Ids16Length) return;
-            }
-            b.Served[b.ServedCount++] = nid;
+            if (b.ServedCount < Ids16Length) return true;
+            int kept = 0;
+            for (int i = 0; i < b.ServedCount; i++)
+                if (s_current.Contains(b.Served[i])) b.Served[kept++] = b.Served[i];
+            b.ServedCount = kept;
+            return b.ServedCount < Ids16Length;
         }
+
+        private static void Mark(ref Block b, int nid) => b.Served[b.ServedCount++] = nid;   // MakeRoom ran before this member was handled
 
         private const int Ids16Length = 16;
 
