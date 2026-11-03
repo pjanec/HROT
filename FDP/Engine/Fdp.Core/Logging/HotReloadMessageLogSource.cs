@@ -84,7 +84,7 @@ namespace Fdp.Core.Logging
                     DateTime.Now, sev, "Compiler", line,
                     LogSyntaxHighlighter.Parse(line),
                     filePath, lineNum);
-                lock (_lock) _messages.Add(entry);
+                lock (_lock) MessageLogLimits.Add(_messages, entry);   // ⭐ W-P1 — bounded
                 OnMessageAdded?.Invoke(entry);
                 return;
             }
@@ -122,7 +122,7 @@ namespace Fdp.Core.Logging
             var entry = new MessageLogEntry(
                 DateTime.Now, severity, "HotReload", message,
                 LogSyntaxHighlighter.Parse(message));
-            lock (_lock) _messages.Add(entry);
+            lock (_lock) MessageLogLimits.Add(_messages, entry);   // ⭐ W-P1 — bounded
             OnMessageAdded?.Invoke(entry);
         }
     }

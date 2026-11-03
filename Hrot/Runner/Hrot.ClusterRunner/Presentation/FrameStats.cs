@@ -21,7 +21,11 @@ internal sealed class FrameStats
     private int _maxVtx; private string _maxVtxOwner = "";
 
     public static FrameStats? FromEnvironment()
-        => Environment.GetEnvironmentVariable("HROT_FRAME_STATS") == "1" ? new FrameStats() : null;
+    {
+        if (Environment.GetEnvironmentVariable("HROT_FRAME_STATS") != "1") return null;
+        Fdp.Presentation.WindowManager.WindowTimings.Enabled = true;   // ⭐ W-P1 — and the per-window CPU timing
+        return new FrameStats();
+    }
 
     /// <summary>Start timing one part of the frame.</summary>
     public void Begin() => _part.Restart();
@@ -59,6 +63,8 @@ internal sealed class FrameStats
         Console.WriteLine(
             $"[FrameStats] {n} frames  mean {sorted.Average():0.0} ms  p50 {sorted[n / 2]:0.0}  p95 {sorted[Math.Min(n - 1, (int)(n * 0.95))]:0.0}" +
             $"  max {sorted[n - 1]:0.0}  | update {_update / n:0.0}  draw {_draw / n:0.0}  ui {_ui / n:0.0} ms/frame  | largest draw list {_maxVtx} vertices ({_maxVtxOwner})");
+        var top = Fdp.Presentation.WindowManager.WindowTimings.Drain().Take(6).ToList();
+        if (top.Count > 0) Console.WriteLine("[FrameStats]   per window (ms/frame, calls/frame): " + string.Join(" · ", top.Select(w => $"{w.Name} {w.Ms / n:0.0} ({(double)w.Calls / n:0.#})")));
         _frames.Clear();
         _update = _draw = _ui = 0; _maxVtx = 0;
         _windowStart = now;
