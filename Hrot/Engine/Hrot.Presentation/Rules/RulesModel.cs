@@ -222,14 +222,14 @@ public static class RulesModel
         // ── which section a row is in
         string GroupOf(RulesReader.Entry e) => options.GroupBy switch
         {
-            RulesGroupBy.Macro => e.Macro ?? ScenarioGroup,
+            RulesGroupBy.Macro => e.Macro ?? (GmOneShot.IsGmTitle(e.Status.Title.ToString()) ? GmOneShot.GroupName : ScenarioGroup),   // ⭐ CE-4243 GM-4 — the game master's one-shots
             RulesGroupBy.Side => SideName(MissionSummaryModel.SideOfRule(world, e)),
             _ => e.SubjectNetworkId != 0 ? NameOf(world, NetworkIdResolver.FindEntityByNetworkId(world, e.SubjectNetworkId), e.SubjectNetworkId) : NoSubjectGroup,
         };
         var members = kept.Select(id => byNet[id]).GroupBy(GroupOf).ToList();
         int Order(string name) => options.GroupBy switch
         {
-            RulesGroupBy.Macro => name == ScenarioGroup ? 0 : 1,
+            RulesGroupBy.Macro => name == ScenarioGroup ? 0 : name == GmOneShot.GroupName ? 2 : 1,
             RulesGroupBy.Side => name switch { "Blue" => 0, "Red" => 1, _ => 2 },
             _ => name == NoSubjectGroup ? 1 : 0,
         };
@@ -284,7 +284,7 @@ public static class RulesModel
                                e.SubjectNetworkId, subject, Array.Empty<RuleSpan>(), Array.Empty<double>(), null, waits, starts, Authored: true, Macro: e.Macro, MacroInstance: e.MacroInstance, Pins: pins);
         return new RuleRow(e.NetworkId, e.Entity, depth, hasChildren, s, TitleOf(s, e.NetworkId), IconOf(s.Role), StateWords(s, now), ColourOf(s),
                            e.SubjectNetworkId, subject, SpansOf(s, history?.StateChanges(e.NetworkId), now), FiresOf(s, history?.Fires(e.NetworkId)),
-                           s.ExpectedAt > now ? s.ExpectedAt : null, waits, starts, Macro: e.Macro, MacroInstance: e.MacroInstance, Pins: pins);
+                           s.ExpectedAt > now && s.ExpectedAt < NeverSeconds ? s.ExpectedAt : null, waits, starts, Macro: e.Macro, MacroInstance: e.MacroInstance, Pins: pins);
     }
 
     /// <summary>

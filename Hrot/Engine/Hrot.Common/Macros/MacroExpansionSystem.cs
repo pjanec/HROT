@@ -60,6 +60,9 @@ namespace Hrot.Common.Macros
         /// <summary><c>true</c> when this node can expand (the forwarding rail reads it on every host's constructed pack).</summary>
         public bool CanExpand => _expander != null;
 
+        /// <summary>⭐ CE-4244 (MA-10) — THE expander this node expands with: a PREVIEW asks this same instance (⛔ no second expander), so its ghosts are exactly what an insert will create.</summary>
+        public MacroExpander? Expander => _expander;
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // a replay: the recording owns the world

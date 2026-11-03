@@ -35,7 +35,12 @@ public sealed record RuleEditorServices(
     Func<Entity, string, string, bool> ApplyEditMode, EditHistory History,
     Func<Entity, IReadOnlyList<RuleJournalEntry>> Journal, Func<IMapPickContext?>? Picks = null,
     Func<Action<PickerRequest, Action<PickerResult>>?>? OpenPicker = null, RuleLiveServices? Live = null,
-    Func<long, string, string, bool>? CreateRule = null);
+    Func<long, string, string, bool>? CreateRule = null, MacroPreviewServices? MacroPreview = null);
+
+/// <summary>⭐ CE-4244 (MA-10 MP-2 b) — what the host gives the Do tab's <i>Preview</i> of an <c>InsertMacro</c> step: show the ghosts of the step of rule <c>Entity</c> (returns the bar text, null = nothing to show), the bar text while open,
+/// <i>Insert now</i> (null = done, else why not), <i>Close</i>, and why <i>Insert now</i> is not offered (null = it is: a live exercise).</summary>
+public sealed record MacroPreviewServices(Func<Entity, Fdp.Toolkit.ScenarioRules.Actions.ActionStep, string?> Preview, Func<string?> Bar,
+    Func<Entity, Fdp.Toolkit.ScenarioRules.Actions.ActionStep, string?> InsertNow, Action Close, Func<string?> InsertNowRefusal);
 
 /// <summary>What the editor drew, as text — the rails read it (and an agent through the panel snapshot). R5b adds the Do tab's rows, the running step, the live edit's state and the Live strip.</summary>
 public sealed record RuleDetailsProbe(string Tab, IReadOnlyList<string> Tabs, IReadOnlyList<string> Fields, bool Editable, string? ReadOnlyReason, bool Dirty,
@@ -170,6 +175,15 @@ public sealed class RuleDetails
         _stepCtx.FailedReason = trigger && s.StepCur > 0 && !acting ? (s.Reason.ToString() is { Length: > 0 } r ? r : "a step failed") : null;   // a failed step keeps its index (the owner zeroes it on the next transition)
         int source = row.NetworkId;
         _stepCtx.NoteOf = step => MessageDelivery.StepNote(_world(), source, step);   // ⭐ CE-4241 — what went to whom, under each Message step
+        if (_svc.MacroPreview is { } mp)   // ⭐ CE-4244 — the Preview / Insert now / Close of an InsertMacro step
+        {
+            var entity = row.Entity;
+            _stepCtx.Preview = step => mp.Preview(entity, step);
+            _stepCtx.Bar = mp.Bar;
+            _stepCtx.InsertNow = step => mp.InsertNow(entity, step);
+            _stepCtx.ClosePreview = mp.Close;
+            _stepCtx.InsertNowRefusal = mp.InsertNowRefusal;
+        }
         _stepCtx.OpenPicker = _svc.OpenPicker?.Invoke();
         _stepCtx.Picks = _svc.Picks?.Invoke();
     }

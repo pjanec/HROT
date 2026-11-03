@@ -58,7 +58,7 @@ public sealed partial class EffectTests
     {
         var player = Gate(playerDefault: true);
         var other = Gate(playerDefault: false);
-        Assert.Equal(16, HudFeatures.All.Length);   // ⭐ CE-1461 — hud.messages joined (7); ⭐ CE-4226..4228 — the player HUD's eight (15); ⭐ CE-4231 — game.scoreboard (16)
+        Assert.Equal(17, HudFeatures.All.Length);   // ⭐ CE-1461 — hud.messages joined (7); ⭐ CE-4226..4228 — the player HUD's eight (15); ⭐ CE-4231 — game.scoreboard (16); ⭐ CE-4243 — gm.palette (17)
         foreach (var id in new[] { HudFeatures.HitMarker, HudFeatures.DamageArc, HudFeatures.KillCam, HudFeatures.SquadTakeoverAfterDeath })
         {
             Assert.True(HudFeatures.IsOn(player, id), id);

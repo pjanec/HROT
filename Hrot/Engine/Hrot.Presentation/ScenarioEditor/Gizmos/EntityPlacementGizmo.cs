@@ -53,6 +53,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         private readonly Func<string>?              _nameResolver;
         private readonly Action                     _onRemove;
         private readonly string?                    _displayName;
+        private readonly Func<Hrot.Common.Macros.MacroPreviewResult?>? _macroPreview;   // ⭐ CE-4244 (MA-10) — a MACRO placement draws its ghosts at the cursor
 
         /// <summary>
         /// ⭐ CE-1017 S2 (D6b) — the entity faces NORTH: yaw +90° about Z. 📐 The transform's yaw 0 is EAST
@@ -122,8 +123,10 @@ namespace Hrot.ScenarioEditor.Gizmos
             bool                       autoPopOnPlace        = true,
             Func<string>?              nameResolver          = null,
             Action?                    onRemove              = null,
-            string?                    displayName           = null)
+            string?                    displayName           = null,
+            Func<Hrot.Common.Macros.MacroPreviewResult?>? macroPreview = null)
         {
+            _macroPreview          = macroPreview;
             _displayName           = displayName;
             _onEntityCreated       = onEntityCreated ?? throw new ArgumentNullException(nameof(onEntityCreated));
             _tkbType               = tkbType == 0 ? DefaultTkbType : tkbType;
@@ -149,6 +152,7 @@ namespace Hrot.ScenarioEditor.Gizmos
 
             draw.DrawSphere(_cursorWorld, GhostRadiusPx, ghostColor);
             DrawGhostBox(view, draw, ghostColor);
+            if (_macroPreview?.Invoke() is { } preview) MacroGhostDraw.Draw(draw, preview, _cursorWorld);   // ⭐ CE-4244 MP-2 (a) — what the click would create
             // ⭐ CE-1017 S2: the type's NAME (it used to be the bare TKB number), and while the tool stays armed
             //   the hint that says how to finish.
             draw.DrawTextLong(

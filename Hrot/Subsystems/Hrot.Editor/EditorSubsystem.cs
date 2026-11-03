@@ -300,6 +300,7 @@ namespace Hrot.Editor
                 () => new Fdp.Presentation.Editing.ScopedMapPickContext(picks, "$.rule"),
                 OpenPicker: () => _shellPickers is { } pickers ? pickers.OpenPicker : null,   // ⭐ CE-4220 — "+ Add step" opens the ONE generic picker
                 Live: BuildRuleLiveServices(),
+                MacroPreview: BuildMacroPreviewServices(),
                 // ⭐ CE-4222 RE-8 — a new rule entity is requested through the ONE creation path every author uses (the pack's RequestEntityCreation): the TKB type, no transform (a rule has no body), its authored params as a BehaviorStartRecord
                 CreateRule: (tkb, kind, json) =>
                 {
@@ -307,6 +308,40 @@ namespace Hrot.Editor
                     creation.RequestEntityCreation(tkb, initialComponents: new object[] { new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = kind, JsonParams = json, InstanceId = 1 } });
                     return true;
                 });
+        }
+
+        private string? _macroPreviewBar;
+
+        /// <summary>
+        /// ⭐ CE-4244 (MA-10 MP-2 b; DESIGN_Macro_Authoring_Editor §10) — the Do tab's <i>Preview</i> of an <c>InsertMacro</c> step: the ghosts come from THIS node's one expander through the spawn adapter (nothing is created); <i>Insert now</i> (live only) asks the
+        /// creation path through <c>MacroInsertion.Request</c> — the very call the <c>InsertMacro</c> verb makes; <i>Close</i> removes the ghosts.
+        /// </summary>
+        private Hrot.UI.Common.Rules.MacroPreviewServices BuildMacroPreviewServices()
+        {
+            string? LiveRefusal() => _world is { } w && w.IsComponentTypeRegistered<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>() && w.Query().With<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>().Build().Any()
+                ? null : "inserting changes a running exercise: start it first";
+            return new Hrot.UI.Common.Rules.MacroPreviewServices(
+                Preview: (rule, step) =>
+                {
+                    if (_world is not { } w || _spawnAdapter is not { } spawn || spawn.ExpanderOrNull is not { } ex) { _macroPreviewBar = "this host cannot expand macros"; return _macroPreviewBar; }
+                    var pv = Hrot.Common.Macros.MacroPreview.OfStep(ex, w, step.Args);
+                    spawn.ShowPreview(pv.Result, pv.Anchor);
+                    _macroPreviewBar = pv.Result.Ok ? $"{pv.Result.Ghosts.Count} to create at {pv.Anchor.X:0},{pv.Anchor.Y:0}" : pv.Result.Failure;
+                    return _macroPreviewBar;
+                },
+                Bar: () => _macroPreviewBar,
+                InsertNow: (rule, step) =>
+                {
+                    if (LiveRefusal() is { } r) return r;
+                    if (_world is not { } w || _spawnAdapter is not { } spawn || spawn.ExpanderOrNull is not { } ex) return "this host cannot expand macros";
+                    var pv = Hrot.Common.Macros.MacroPreview.OfStep(ex, w, step.Args);
+                    if (!pv.Result.Ok) return pv.Result.Failure;
+                    string? refused = Hrot.AI.Behaviors.Brains.Objectives.Verbs.MacroInsertion.Request(w, rule, pv.Macro, new Fdp.Core.WorldPoint(pv.Anchor), new Fdp.Core.Bearing(pv.HeadingDeg), pv.ArgsJson, out _, salt: "preview");
+                    spawn.ClosePreview(); _macroPreviewBar = null;
+                    return refused;
+                },
+                Close: () => { _spawnAdapter?.ClosePreview(); _macroPreviewBar = null; },
+                InsertNowRefusal: LiveRefusal);
         }
 
         /// <summary>
@@ -4932,6 +4967,23 @@ namespace Hrot.Editor
                 selectEntity: n => SelectNetworkEntity(n), showOnMap: n => _editorLogic?.CenterOnEntity(n),
                 editor: BuildRuleEditorServices()) { IsOpen = false };
             windowManager.RegisterWindow(_rulesWindow);
+
+            // ⭐⭐ CE-4243 (SR-104 Z3; rules view §8) — Window ▸ Game master: a hand-run action / a side's skill = a TRANSIENT ONE-SHOT TRIGGER through the ONE creation path (nothing else is written)
+            windowManager.RegisterWindow(new Hrot.Presentation.Windows.GameMasterWindow(
+                () => _world, "editor_game_master", "Scenario", EditorWindowColor.TitleBar, BuildRuleEditorServices(),
+                createOneShot: json =>
+                {
+                    if (EntityCreation is not { } creation) return false;
+                    creation.RequestEntityCreation(Hrot.UI.Common.Rules.RuleAdd.TkbOf(Hrot.UI.Common.Rules.RuleAdd.TriggerKind), isTransient: true,
+                        initialComponents: new object[] { new Fdp.Toolkit.Behavior.Components.InitialBrainIntent { Behavior = new Fdp.Toolkit.Behavior.Components.SavedBrainSlot { Name = Hrot.UI.Common.Rules.RuleAdd.TriggerKind, Params = json } } });   // ⭐ the GENESIS intent (what a macro's children carry): the ingress STARTS the behaviour; a bare BehaviorStartRecord is only the record of a start (measured: 1301 sat with ActiveBehaviorHash 0)
+                    return true;
+                },
+                selection: () =>
+                {
+                    if (_world is not { } w || _selectionState?.PrimarySelected is not { } sel || !w.IsAlive(sel) || !w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(sel)) return null;
+                    return (w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(sel).Value, w.HasComponent<EntityInfo>(sel) ? w.GetComponentRO<EntityInfo>(sel).ForceId : ForceId.Neutral);
+                },
+                enabled: () => Hrot.Common.Infrastructure.HudFeatures.IsOn(_node?.Features, Hrot.Common.Infrastructure.HudFeatures.GamePalette)) { IsOpen = false });
 
             // ⭐⭐ CE-4217 (rules view R3; RV-8) — Window ▸ Mission summary: read-only, over the same world and the same shown timeline; its key events seek that timeline
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.MissionSummaryWindow(

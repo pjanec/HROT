@@ -200,6 +200,7 @@ namespace Hrot.UI.Common.Adapters
             _pendingPropertiesJson    = null;
 
             var id = GlobalGizmoManager.NewId();
+            Hrot.Common.Macros.MacroPreviewResult? previewCache = null;
             var gizmo = new EntityPlacementGizmo(
                 onEntityCreated: cmd =>
                 {
@@ -242,9 +243,38 @@ namespace Hrot.UI.Common.Adapters
                 nameResolver:          _nameResolver,
                 onRemove:              () => _globalGizmoManager!.Unregister(id),
                 displayName:           _tkbDb != null && _tkbDb.TryGetByType(tkbType, out var shown)
-                                            && !string.IsNullOrWhiteSpace(shown.Name) ? shown.Name : null);
+                                            && !string.IsNullOrWhiteSpace(shown.Name) ? shown.Name : null,
+                // ⭐ CE-4244 (MA-10 MP-2 a) — a macro placement shows its ghosts at the cursor: expanded ONCE (at the origin), moved with the cursor
+                macroPreview:          macroPath is null ? null : (() => previewCache ??= PreviewOf(macroPath, "{}")));
             _globalGizmoManager!.Register(id, gizmo);
             return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed;
+        }
+
+        /// <summary>⭐ CE-4244 — the preview of <paramref name="macroPath"/> (anchored at <paramref name="anchor"/>, default the origin), from THIS node's one expander (<c>EntityCreation.MacroExpansionSystem.Expander</c>). Pure: nothing is created.</summary>
+        public Hrot.Common.Macros.MacroPreviewResult PreviewOf(string macroPath, string? argsJson, Fdp.Core.SimTransform? anchor = null)
+            => Hrot.Common.Macros.MacroPreview.Of(_creation.MacroExpansionSystem.Expander, macroPath, argsJson, anchor ?? new Fdp.Core.SimTransform { Rotation = System.Numerics.Quaternion.Identity },
+                                                         Fdp.Toolkit.Scenario.LiveRefScope.Of(_creation.World));
+
+        private long _previewGizmo;
+
+        /// <summary>⭐ CE-4244 — this node's one macro expander (null on a host that cannot expand).</summary>
+        public Hrot.Common.Macros.MacroExpander? ExpanderOrNull => _creation.MacroExpansionSystem.Expander;
+
+        /// <summary>⭐ CE-4244 (MP-2 b) — shows <paramref name="preview"/> at <paramref name="anchor"/> as a gizmo (replacing one already shown); false when this host has no gizmo manager.</summary>
+        public bool ShowPreview(Hrot.Common.Macros.MacroPreviewResult preview, System.Numerics.Vector3 anchor)
+        {
+            if (_globalGizmoManager == null) return false;
+            ClosePreview();
+            _previewGizmo = GlobalGizmoManager.NewId();
+            _globalGizmoManager.Register(_previewGizmo, new Hrot.ScenarioEditor.Gizmos.MacroPreviewGizmo(preview, anchor));
+            return true;
+        }
+
+        /// <summary>⭐ CE-4244 — removes the preview gizmo; nothing else exists to clean up.</summary>
+        public void ClosePreview()
+        {
+            if (_previewGizmo != 0) _globalGizmoManager?.Unregister(_previewGizmo);
+            _previewGizmo = 0;
         }
 
         /// <summary>

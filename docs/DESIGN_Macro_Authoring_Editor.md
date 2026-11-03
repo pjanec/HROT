@@ -323,5 +323,21 @@ sequenceDiagram
 | claim | code | design basis |
 |---|---|---|
 | the expander is pure and returns the children's requests | ✅ `MacroExpander.cs:1-29` (header), `Result` | ✅ macros §15 (S3a ④) |
-| a live transient member acts at once | ⛔ **inferred** (members are ordinary entities with their brain intents; nothing pauses them) — measure at build | — |
+| a live transient member acts at once | ✅ **MEASURED `2026-11-03` (§10.3)**: *Insert now* of `forces/red-qrf` on a running `showcase-bridgehead` made 44 entities and the men had `ActiveBehaviorHash ≠ 0` (origin `Sop`, `RunSince` = the insertion tick) a few seconds later — they act from the first tick, so a transient-instance preview WOULD have fought before *Cancel* | measured |
 | MA-7's placement is the one insert path | ✅ §8 as built | ✅ MA-7 |
+
+### 10.3 AS BUILT *(ui, `2026-11-03`, CE-4244; handoff Rules Runnable ⑦)*
+
+⭐ Built as MP-1 … MP-4 say, ghosts from the pure expander. The §10.1 diagrams are as built, with two placements: `MacroPreview` lives in **`Hrot.Common/Macros/`** (it is pure and only needs the expander — so it is railed beside `MacroExpanderTests`), and the drawing is `MacroGhostDraw` (`ScenarioEditor/Gizmos/MacroPreviewGizmo.cs`).
+
+| | as built |
+|---|---|
+| **no second expander** | `MacroExpansionSystem.Expander` exposes THE instance each host's creation pack expands with; `ScenarioSpawnAdapter.PreviewOf` / `ExpanderOrNull` read it through `EntityCreation` — every host that can place macros can preview them, nothing wired per host |
+| **MacroPreview** | `Of(expander, path, argsJson, anchor, outside)` → `MacroPreviewResult(Ghosts, Failure, Hidden)`: a throw-away `MacroInstance` (network id `int.MaxValue`, GUID empty), a throw-away `SequentialIdAllocator`, the children's `SimTransform` / `EntityInfo`; offsets relative to the anchor (one expansion serves a moving cursor). Rules, score entities and instance markers (TKB 8860 / 8861 / 8813) are counted in `Hidden`, not drawn. `OfStep(expander, world, args)` reads an `InsertMacro` step's own `macro` · `at` (`[x,y,z]` / `"@Key"` / GUID / `{NetworkId, Ref}`) · `heading` · `params`; an anchor that names nothing is the failure text |
+| **(a) Add ▸ Macros** | the placement gizmo (`EntityPlacementGizmo`, the ONE path of MA-7) takes an optional `macroPreview`; while armed it draws the ghosts at the cursor (expanded once at the origin and moved by translation: the heading of the placement is not rotated into the ghosts). A click inserts as before, Esc / right-click cancels — nothing was created. ⚠ **not driven live** (the Add-entity gallery could not be scripted by hand in the harness); the draw routine is the same `MacroGhostDraw` as (b), which was |
+| **(b) the Do tab** | an `InsertMacro` step gets **Preview** · (open) **Insert now** (live only: *"inserting changes a running exercise: start it first"* otherwise; it calls `MacroInsertion.Request`, the very call the verb makes) · **Close** on one row, the bar text (*"11 to create at 8,120"* / the expander's failure) under it. The ghosts are a gizmo registered with the global gizmo manager (`ShowPreview` / `ClosePreview`) — 2-D and 3-D alike, since a gizmo is primitives |
+| **live (`showcase-bridgehead`, paused at 5.0 s, 214 entities)** | Preview of Counter-attack's `forces/red-qrf` at `@QrfFrom`: *11 to create*, **214 → 214** entities, the red ghosts with their names drawn at *QRF start*; Close removes them; running, *Insert now* → 44 new entities (the QRF) and the men act (the measured claim above) |
+| **MP-4** | a failure draws only the red text over the anchor and enables nothing; *Insert now* is disabled with the reason |
+
+Rails (`Hrot.SimHost.Tests.MacroPreviewTests`, next to `MacroExpanderTests`): `TheGhosts_AreTheExpandersChildren_RelativeToTheAnchor_AndNothingIsPublished` · `AFailure_IsTheExpandersOwnWords_NothingIsDrawn` · `AnInsertMacroStep_ResolvesItsAnchor_AFixedPoint_OrAKey_OrSaysItDoesNot`. Red-proof: offsets not made relative to the anchor reddens the first.
+

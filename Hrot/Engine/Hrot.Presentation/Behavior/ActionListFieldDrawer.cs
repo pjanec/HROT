@@ -105,6 +105,14 @@ public sealed class ActionListContext
     public string? FailedReason { get; set; }
     /// <summary>⭐ CE-4241 — a line under a step (what went to whom for a <c>Message</c>), or null; the host fills it from the world.</summary>
     public Func<ActionStep, string?>? NoteOf { get; set; }
+
+    /// <summary>⭐ CE-4244 (MA-10 MP-2 b) — an <c>InsertMacro</c> step's preview, from the host: <c>Preview</c> shows its ghosts and returns the bar's text (null = could not), <c>Bar</c> is the text while one is open (null = none),
+    /// <c>InsertNow</c> inserts it once (null = done, else why not), <c>Close</c> removes the ghosts; <c>InsertNowRefusal</c> says why <i>Insert now</i> is disabled (null = it is offered).</summary>
+    public Func<ActionStep, string?>? Preview { get; set; }
+    public Func<string?>? Bar { get; set; }
+    public Func<ActionStep, string?>? InsertNow { get; set; }
+    public Action? ClosePreview { get; set; }
+    public Func<string?>? InsertNowRefusal { get; set; }
 }
 
 /// <summary>What the step list drew — the rails and the panel snapshot read it.</summary>
@@ -203,6 +211,7 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
             RemoveRects.Add((ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Remove this step");
             if (marked && _ctx.FailedReason != null) ImGui.TextColored(new Vector4(0.9f, 0.4f, 0.35f, 1f), "failed: " + _ctx.FailedReason);
+            if (_ctx.Preview != null && IsInsertMacro(list[i])) DrawPreviewBar(list[i], noted);   // ⭐ CE-4244
             if (_ctx.NoteOf?.Invoke(list[i]) is { } note) { ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled]); ImGui.TextWrapped(note); ImGui.PopStyleColor(); noted.Add($"{i + 1}. {note}"); }   // ⭐ CE-4241
             shown.Add((marked ? "> " : "") + $"{i + 1}. {row.Act}" + (row.Problem != null ? $" ({row.Problem})" : ""));
 
@@ -240,6 +249,34 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
         if (changed) value = list;
         return changed;
     }
+
+    private static bool IsInsertMacro(ActionStep step) => step.Act == "InsertMacro" || step.Act.EndsWith(".InsertMacro", StringComparison.Ordinal);
+
+    /// <summary>The probe's note of the preview buttons of the last frame (a rail reads it).</summary>
+    internal string? PreviewButtons { get; private set; }
+
+    /// <summary>⭐ CE-4244 (MP-2 b) — <i>Preview</i> on an <c>InsertMacro</c> step; while one is open its text, <i>Insert now</i> (live only) and <i>Close</i>. Nothing exists until <i>Insert now</i>.</summary>
+    private void DrawPreviewBar(ActionStep step, List<string> noted)
+    {
+        string? bar = _ctx.Bar?.Invoke();
+        if (ImGui.SmallButton("Preview")) _ctx.Preview!(step);
+        PreviewRect = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        if (bar == null) { PreviewButtons = "Preview"; return; }
+        string? refusal = _ctx.InsertNowRefusal?.Invoke() ?? (_ctx.InsertNow == null ? "this host cannot insert" : null);
+        if (refusal != null) ImGui.BeginDisabled();
+        ImGui.SameLine(); if (ImGui.SmallButton("Insert now")) _ctx.InsertNow?.Invoke(step);
+        InsertRect = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        if (refusal != null) { ImGui.EndDisabled(); if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(refusal); }
+        ImGui.SameLine(); if (ImGui.SmallButton("Close")) _ctx.ClosePreview?.Invoke();
+        CloseRect = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        ImGui.TextDisabled(bar);   // its own line: the panel is narrow, the buttons must stay reachable
+        PreviewButtons = $"Preview | {bar} | Insert now{(refusal != null ? $" (disabled: {refusal})" : "")} | Close";
+        noted.Add(PreviewButtons);
+    }
+
+    internal (Vector2 Min, Vector2 Max) PreviewRect { get; private set; }
+    internal (Vector2 Min, Vector2 Max) InsertRect { get; private set; }
+    internal (Vector2 Min, Vector2 Max) CloseRect { get; private set; }
 
     /// <summary>Keeps one row per step: a row whose act or args no longer match the document (a reorder, an undo, an external change) reopens its form.</summary>
     private void Sync(List<ActionStep> list)

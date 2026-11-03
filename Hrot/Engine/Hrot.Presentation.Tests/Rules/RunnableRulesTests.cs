@@ -270,4 +270,94 @@ public sealed class RunnableRulesTests : IDisposable
         _world.SetManagedComponent(e, new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { InstanceId = 1, BehaviorName = "Trigger", JsonParams = "{\"when\":{\"$type\":\"ScenarioTime\",\"fromSeconds\":1200}}" });
         Assert.Single(RulesModel.ClockPins(_world, e, s));
     }
+
+    // ───────────────────────────────────────────────── ⑥ the game-master palette (CE-4243)
+
+    [Fact]
+    public void AHandRunAction_IsATransientOneShotTrigger_WithTheStepInItsDoList()
+    {
+        var step = GmOneShot.SkillStep(ForceId.Hostile, -1);
+        var json = JsonNode.Parse(GmOneShot.TriggerParamsJson(step))!.AsObject();
+        Assert.Equal("GM · SetSkillAmplifier", (string?)json["common"]!["title"]);
+        Assert.Equal("ScenarioTime", (string?)json["when"]!["$type"]);
+        Assert.Equal(0, (int)json["when"]!["fromSeconds"]!);
+        Assert.Equal(1, (int)json["maxFires"]!);
+        Assert.True((bool)json["fireIfTrueWhenArmed"]!);
+        var act = json["do"]!.AsArray().Single()!.AsObject();
+        Assert.Equal("SetSkillAmplifier", (string?)act["act"]);
+        Assert.Equal("Hostile", (string?)act["args"]!["side"]);
+        Assert.Equal(-1, (int)act["args"]!["tiers"]!);
+        Assert.Equal(2, (int)GmOneShot.SkillStep(ForceId.Friend, 9).Args!["tiers"]!);   // clamped to the verb's own range
+    }
+
+    [Fact]
+    public void ThePalette_RunsTheStepThroughTheOneCreationPath_AndIsRefusedInEditModeWithTheReason()
+    {
+        var made = new List<string>();
+        var w = new GameMasterWindow(() => _world, "t_gm", "Scenario", System.Numerics.Vector4.One,
+            new RuleEditorServices(() => null, () => null, (_, _, _) => true, new Hrot.Presentation.Edits.EditHistory(), _ => Array.Empty<RuleJournalEntry>()),
+            createOneShot: json => { made.Add(json); return true; });
+        Assert.Equal(GmOneShot.EditModeRefusal, w.Refusal());               // no rule runs: edit mode
+        Assert.False(w.SetSkill(ForceId.Hostile, -1));
+        Assert.Empty(made);
+
+        Rule("Mission");                                                    // a running exercise has statuses
+        Assert.Null(w.Refusal());
+        Assert.True(w.SetSkill(ForceId.Hostile, -1));
+        Assert.True(w.Run(new ActionStep { Act = "Message", Args = new JsonObject { ["toKind"] = "Side", ["toValue"] = 1, ["text"] = "Hold the line" } }));
+        Assert.Equal(2, made.Count);
+        Assert.Contains("\"toKind\":\"Side\"", made[1]);
+        Assert.Equal(new[] { "GM · SetSkillAmplifier", "GM · Message" }, w.Made);
+
+        var off = new GameMasterWindow(() => _world, "t_gm2", "Scenario", System.Numerics.Vector4.One,
+            new RuleEditorServices(() => null, () => null, (_, _, _) => true, new Hrot.Presentation.Edits.EditHistory(), _ => Array.Empty<RuleJournalEntry>()),
+            createOneShot: _ => true, blocked: () => "a recording is read-only", enabled: () => true);
+        Assert.Equal("a recording is read-only", off.Refusal());
+        var disabled = new GameMasterWindow(() => _world, "t_gm3", "Scenario", System.Numerics.Vector4.One,
+            new RuleEditorServices(() => null, () => null, (_, _, _) => true, new Hrot.Presentation.Edits.EditHistory(), _ => Array.Empty<RuleJournalEntry>()),
+            createOneShot: _ => true, enabled: () => false);
+        Assert.Contains("gm.palette", disabled.Refusal());
+    }
+
+    [Fact]
+    public void ThePalette_ShowsTheCurrentSkillOfEachSide_AndPrefillsTheSelection()
+    {
+        _world.RegisterComponent<Fdp.Toolkit.Weather.ScenarioClock>();
+        _world.RegisterComponent<Fdp.Toolkit.Behavior.Components.SkillAmplifier>();
+        var env = _world.CreateEntity(); _world.AddComponent(env, new Fdp.Toolkit.Weather.ScenarioClock()); _world.AddComponent(env, new Fdp.Toolkit.Behavior.Components.SkillAmplifier { Hostile = -1 });
+        var w = new GameMasterWindow(() => _world, "t_gm4", "Scenario", System.Numerics.Vector4.One,
+            new RuleEditorServices(() => null, () => null, (_, _, _) => true, new Hrot.Presentation.Edits.EditHistory(), _ => Array.Empty<RuleJournalEntry>()),
+            createOneShot: _ => true, selection: () => (4242, ForceId.Hostile));
+        Assert.Equal(-1, w.SkillOf(ForceId.Hostile));
+        Assert.Equal(0, w.SkillOf(ForceId.Friend));
+        w.Rebuild();
+        Assert.Equal(new[] { "Blue 0", "Red -1" }, w.Probe.Skill);
+
+        var set = w.Prefill(new ActionStep { Act = "SetSkillAmplifier", Args = new JsonObject() });
+        Assert.Equal("Hostile", (string?)set.Args!["side"]);                // GM-2: the selection's side
+        var kept = w.Prefill(new ActionStep { Act = "SetSkillAmplifier", Args = new JsonObject { ["side"] = "Friend" } });
+        Assert.Equal("Friend", (string?)kept.Args!["side"]);                // an authored arg is never overwritten
+    }
+
+    [Fact]
+    public void TheRulesView_GroupsTheGameMastersRulesUnderOneSection_LastOfTheMacros()
+    {
+        Rule("Mission");
+        Rule("GM · Message", ObjectiveRole.Trigger);
+        var view = RulesModel.Build(_world, new RulesOptions(RulesGroupBy.Macro), null, 10);
+        Assert.Equal(new[] { RulesModel.ScenarioGroup, GmOneShot.GroupName }, view.Groups.Select(g => g.Name).ToArray());
+        Assert.Equal("GM · Message", view.Groups[1].Rows.Single().Title);
+    }
+
+    [Fact]
+    public void TheGamePaletteFeature_IsDeclaredOnEveryHost_OnForTheServerUi_OffForThePlayer()
+    {
+        var server = Hrot.Common.Infrastructure.HudFeatures.Declarations(playerDefault: false).Single(d => d.Id == Hrot.Common.Infrastructure.HudFeatures.GamePalette);
+        var player = Hrot.Common.Infrastructure.HudFeatures.Declarations(playerDefault: true).Single(d => d.Id == Hrot.Common.Infrastructure.HudFeatures.GamePalette);
+        Assert.Equal("gm.palette", server.Id);
+        var gateS = new Hrot.Common.Infrastructure.NodeFeatures(new Hrot.Common.Infrastructure.FeatureRegistry(new[] { server }), Fdp.Core.NodeRole.Map2D);
+        var gateP = new Hrot.Common.Infrastructure.NodeFeatures(new Hrot.Common.Infrastructure.FeatureRegistry(new[] { player }), Fdp.Core.NodeRole.Map2D);
+        Assert.True(Hrot.Common.Infrastructure.HudFeatures.IsOn(gateS, "gm.palette"));
+        Assert.False(Hrot.Common.Infrastructure.HudFeatures.IsOn(gateP, "gm.palette"));
+    }
 }

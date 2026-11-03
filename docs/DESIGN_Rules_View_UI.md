@@ -597,4 +597,21 @@ graph TD
 | no run-action path exists | ✅ route docs grep: none | ✅ SR-104 Z3 ("one action palette, nothing separate") |
 | a trigger needs a `when`; an already-true one fires only with `fireIfTrueWhenArmed` | ✅ `TriggerBehavior.cs:140`; CE-4166 | ✅ §00.9 S2-c |
 | a transient entity is never saved | ✅ `EntityCreationRequest.cs:106-126` | ✅ SR-104 Z6 |
-| ⛔ a rule entity created LIVE through the creation path gets its brain on the Brain node | ⛔ **not measured live** — `+ Add` was proven in EDIT mode only | measure first at build |
+| ~~⛔ a rule entity created LIVE through the creation path gets its brain on the Brain node~~ | ✅ **MEASURED `2026-11-03` (§8.3): it does — IF the request carries the GENESIS intent** (`InitialBrainIntent`, what a macro's children carry); a bare `BehaviorStartRecord` (what `+ Add` writes for an EDIT-mode authored row) spawned the entity with `ActiveBehaviorHash 0` and nothing started | measured |
+
+### 8.3 AS BUILT — the game-master palette *(ui, `2026-11-03`, CE-4243; handoff Rules Runnable ⑥)*
+
+⭐ Built as §8.2 GM-1 … GM-5 say, with the corrections below. Classes: `GmOneShot` (pure, `Rules/`) · `GameMasterWindow` (`Windows/`, Window ▸ Game master, id `editor_game_master`) · `HudFeatures.GamePalette` = **`gm.palette`** (declared on every host, ON for the server UI, OFF for the Player — R-4108) · `RulesModel` groups a title starting *"GM · "* under **Game master (live)**. The diagrams of §8.1 are as built.
+
+| | as built / measured |
+|---|---|
+| **⛔ the unmeasured claim — MEASURED, with a correction** | a one-shot made through `RequestEntityCreation` (TKB 8861, `isTransient`) **spawned but did not run**: the entity carried `BehaviorStartRecord` and `ActiveBehaviorHash 0` (`+ Add` writes that record for an EDIT-mode row, which nothing starts). Giving the request the **genesis intent** — `InitialBrainIntent { Behavior = SavedBrainSlot { Name = "Trigger", Params = json } }`, the very component a macro's children carry — the ingress started it: *Achieved · done after 1 fire(s)*, History *"started Trigger (Superior)"*. Still the ONE creation path; the component list is what differs |
+| **the step** | `when = {"$type":"ScenarioTime","fromSeconds":0}` (the authored JSON form; the §8.2 wording `Clock: Elapsed, Min` is the DTO's meaning) + `maxFires 1` + `fireIfTrueWhenArmed` + `do = [step]` + `common.title "GM · <action>"`; `ScenarioIgnoreTag` (transient: the entity is never saved) |
+| **GM-3 skill rows** | −2 … +2 per side, the current `SkillAmplifier` highlighted (read from the World Environment). Live (`showcase-crossfire`): *Red −1* → rule *GM · SetSkillAmplifier* Achieved, `SkillAmplifier.Hostile = −1`. ⚠ the verb takes TIERS (the handoff's "0.5" has no meaning) |
+| **GM-2 selection** | a freshly added step's `target` (entity link) and `side` args take the selection; an authored arg is never overwritten (`GmOneShot.Prefilled`; rail) |
+| **disabled** | with the reason: edit mode (*"the game master acts on a running exercise"* — no rule has a status), a recording, the feature off |
+| **hosts** | the window is registered where the Rules window is (**the editor**; the Replay Browser has no game master). CGF / SimHost have no window manager entry for the Rules view today — nothing to add there until they get one |
+| **⚠ not verified live** | *Message to Blue* **by typing**: the one-step form's string fields lose their focus after each keystroke under xdotool (a letter moves focus to the next field instead of typing), so the text could not be entered by hand in the harness. The path is the same `Run(step)` as the skill row and is railed (`ThePalette_RunsTheStepThroughTheOneCreationPath…` with a Message step; the delivery is then read back by CE-4241's *Sent* lines). Filed as CE-4245 (not investigated: shared with the Do tab's form) |
+
+Rails: `RunnableRulesTests` — `AHandRunAction_IsATransientOneShotTrigger_WithTheStepInItsDoList` · `ThePalette_RunsTheStepThroughTheOneCreationPath_AndIsRefusedInEditModeWithTheReason` · `ThePalette_ShowsTheCurrentSkillOfEachSide_AndPrefillsTheSelection` · `TheRulesView_GroupsTheGameMastersRulesUnderOneSection_LastOfTheMacros` · `TheGamePaletteFeature_IsDeclaredOnEveryHost_OnForTheServerUi_OffForThePlayer`. Red-proof: dropping the edit-mode refusal reddens the palette rails.
+
