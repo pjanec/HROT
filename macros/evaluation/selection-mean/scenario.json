@@ -54,8 +54,16 @@
    },
    "Behavior": {
     "Name": "SelectionMean",
-    "Params": "{\"common\": {\"title\": \"^title\", \"parent\": \"^parent\", \"group\": \"^group\", \"scored\": false}, \"by\": \"^by\", \"key\": \"^key\", \"scope\": \"^scope\"}",
+    "Params": "{\"common\": {\"title\": \"Selection mean\", \"parent\": \"^parent\", \"group\": \"\", \"scored\": false}, \"by\": \"role\", \"key\": \"\", \"scope\": \"^scope\"}",
     "Origin": "Superior"
+   },
+   "ParamBindings": {
+    "Bindings": {
+     "Behavior.Params.common.title": "title",
+     "Behavior.Params.common.group": "group",
+     "Behavior.Params.by": "by",
+     "Behavior.Params.key": "key"
+    }
    }
   }
  }
