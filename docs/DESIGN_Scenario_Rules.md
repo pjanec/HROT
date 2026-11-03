@@ -679,8 +679,92 @@ COUNTER (one new measure kind) through ONE new verb — no ticket system, no gam
 - *Deaths decremented by a trigger per death* — a level condition has no per-death edge; the counter's own census counts each one once.
 - *A `Difference` predicate operator* — a language change for one use; G-7's counter is data.
 
-**Not here (named):** personal score, kill feed, team-kill −200 (S4 measures + CE-4155) · awards (S4) · bounty (S4 streak measure) · the
+**Not here (named):** personal score, kill feed, team-kill −200, awards, bounty — ⭐ now §00.13 (S7) · the
 human respawn (Player Join S2) · the game HUD (ui) · `Message` to one side (the `Side` filter is ui's HUD).
+
+### 00.13 S7 — the per-player game score *(backend, `2026-11-03`; `HANDOFF_Coordinator_To_Backend_Player_Score.md`; ⏳ built on these leans — the user may overturn any P-row)*
+
+🔒 *User, `2026-11-03`: "What node is going to calculate these score tables, where and how stored? How the scoring relates to objectives and
+measures?"* → *"Write handoffs to behavior and backend."* ⭐ Settled before this section: **the score IS a set of measures whose subject is the
+player's man — one counter, not two** (SR-84, `DESIGN_Player_Join.md` D-15 row) · kills credited once by CE-4155 attribution (SR-82, `Count`,
+§00.11 E-2) · an objective's **`points`** is its worth, summed into the exercise result when Achieved (`ExerciseVerbs` result, `ScenarioVerbs.cs:182`).
+
+**INVENTORY** *(`2026-11-03`)*: `search_graph` `.*(Score|Scoreboard|Award|Bounty|Assist|Streak|KillFeed|KillCredit).*` Class → only EQS / utility
+scorers (`DistanceScoreTest`, `UtilityScorer`, `ScoreDecisionNode`) — **no game score** · `.*(PlayerSlot|Possess).*` → `PossessedBy` (+ its wire
+translators), `PossessionSystem`, `PossessionStation` · `.*(KillCam|Killer|Kill(ed)?Event|Death(Event|Notification)).*` → two FDP example events
+only · grep `KillCam|team-kill|TeamKill|PlayerScore|Scoreboard|Bounty` (`*.cs`) → the kill cam takes its killer from `HitFeedback`
+(`PossessionStation.cs:597`, a presentation ring — ⛔ not a score source) and `gameplay.team-kill` is the friendly-fire SWITCH (`DESIGN_Node_Features.md`
+F-table), not a score · `CountWhat` = shots · hits · kills · fratricide · civiliansHarmed · reports (`ObjectiveParamsJsonDtos.cs:145`) — no assists,
+team kills, deaths or captures · `MemberEvaluation` serves a ROSTER only (`MemberEvaluationBehavior.cs:113`) — a respawned bot is in none (G-1) ·
+`ObjectiveCommon.Points` / `ObjectiveStatus.Points` exist and replicate (`ObjectiveRules.cs:37`). ⚠ coverage could not be checked through the CLI.
+
+```mermaid
+classDiagram
+    direction LR
+    class MemberEvaluation { <<existing E-1 + members, aggregate>> members: roster | side · aggregate: mean | points }
+    class PointsBehavior { <<NEW composite, role Measure>> Value = Σ scored child Value × points (0 = 1) }
+    class CountBehavior { <<existing E-2 + 4 whats>> assists · teamKills · deaths · captures }
+    class MeasureEvidence { <<existing, the ONE reader>> + assist window · friend kills · downs · capture events }
+    class HoldAreaBehavior { <<existing G-1>> CaptureBySide publishes ObjectiveCapturedEvent }
+    class ObjectiveCapturedEvent { <<NEW event>> Point · Side · Men[16] }
+    class BestBehavior { <<NEW kind, the award>> among · measure (title) · min → winner = Subject }
+    class ObjectiveStatus { <<existing 171>> Value · Points · Score · Reason }
+    MemberEvaluation ..> PointsBehavior : inserts per man (macro root)
+    PointsBehavior --> CountBehavior : children by Parent
+    CountBehavior ..> MeasureEvidence
+    HoldAreaBehavior --> ObjectiveCapturedEvent
+    MeasureEvidence ..> ObjectiveCapturedEvent : captures
+    BestBehavior ..> ObjectiveStatus : reads the members' measures
+```
+
+```mermaid
+sequenceDiagram
+    participant T as MemberEvaluation "Blue score" (members side, aggregate points)
+    participant M as "Blue bot #1640" (respawned)
+    participant R as his macro root Points "Score"
+    participant K as Count kills (points 100) · teamKills (−200) · captures (150) …
+    participant A as Best "Top scorer" (awards macro)
+    T->>T: tick — a man of the side not served yet
+    T->>R: MacroInsertion.Request(game/score/Default, {subject: M, parent: T})
+    K->>K: each tick: MeasureEvidence (CE-4155 attribution, capture events)
+    R->>R: Value = Σ child Value × points
+    T->>T: Value = Σ members' Value (the team's points)
+    A->>A: at the close: the member root with the highest Value ⇒ Achieved, Subject = him
+```
+
+```mermaid
+graph TD
+    CGF["Brain node — BehaviorSystem ticks every objective brain (the existing ObjectiveHost)"] --> ME["MemberEvaluation (side)"]
+    CGF --> PT["Points"]
+    CGF --> CT["Count + MeasureEvidence"]
+    CGF --> HA["HoldArea → ObjectiveCapturedEvent (bus, one frame)"]
+    CGF --> BE["Best (awards)"]
+    PT --> W["ObjectiveStatus on the wire (dt 171) + recorded"]
+    CT --> W
+    BE --> W
+    W --> UI["ui: scoreboard · +100 pop-ups · awards · round summary — READS only (R-4105)"]
+```
+
+*What the pictures show that prose hid:* the score is not a system — it is a MACRO per man (inserted by the one inserter) of existing measures
+under one new summing composite; the only new runtime inputs are four `Count` readings and one bus event; the screens read the status wire.
+
+| # | decision (⏳ lean) | why |
+|---|---|---|
+| **P-1** | ⭐ the per-player score = a **macro per man** — root **`Points`** (title *"Score"*) + `Count` measures by the man — inserted by **`MemberEvaluation`**; library **`macros/game/score`** (`Default` = kills 100 · assists 50 · captures 150 · team kills −200 · deaths 0, unscored) | SR-84 *"one counter"*; SR-81 lets a scenario swap the table (`game/score-hardcore`) without code |
+| **P-2** | **`Points`** (TKB 8860, role **Measure**: always Active, frozen at the close, never Failed): `Value` = Σ over its **scored** children of `Value × points` (`points` 0 = 1, as `weight`); `Score` = `Value / target` (`target` param; none ⇒ 0) | ⭐ `points` already means *"what it is worth"* (`ExerciseResult`); a measure's worth per unit is the same field. Role Measure: a score never fails a tree, and a closed measure is final (`ObjectiveChildren.Of`) |
+| **P-3** | `Count` `what` += **`assists`** (he harmed a hostile who went down within **10 s** of his last harm while another man got the kill) · **`teamKills`** (a friend he harmed went down — the kill rule on his own side; ⛔ never a kill, `fratricide` stays harm) · **`deaths`** (his men going out of the fight, once each; a revived man can die again) · **`captures`** (an `ObjectiveCapturedEvent` naming one of his men) | ⛔ one counting mechanism: all four in `MeasureEvidence`, beside kills (behaviors' item ⑥ coordinates — `NOTE_Backend_To_Behaviors_Player_Score.md`) |
+| **P-4** | `HoldArea` capture-by-side (G-1) **publishes `ObjectiveCapturedEvent { Point, Side, Men[16], MenCount }`** when `Owner` becomes a side — the men of that side inside at that moment | the point knows its area and the moment; a measure reading areas would duplicate G-1's census |
+| **P-5** | `MemberEvaluation` gains **`members: roster` (default) \| `side`** — `side` = every man of the subject's side as he appears (a respawned bot, a deployed player); when its 16 slots are full, ids that are no longer living men of the side make room — and **`aggregate: mean` (default) \| `points`** (the team total = Σ the members' roots' `Value`) | the roster walk misses respawns (G-1's measured gap); ⚠ cross-lane on behaviors' kind |
+| **P-6** | v1 scores **per PERSON ENTITY**; a player's score across lives (the player SLOT, D-15) waits for Player Join S2 (the Deploy respawn) | a human respawn does not exist yet; a respawned bot is a new man |
+| **P-7** | awards = kind **`Best { among: @Evaluation, measure: "<title>", min, lowerIsBetter }`** — among the measures titled `measure` under `among`'s members, the best `Value` (≥ `min`); at the close: **Achieved, `Subject` = the winner**, `Value` = his value; nobody qualifies ⇒ Failed. The **awards macro** `macros/game/awards` holds them (*Top scorer* · *Most kills* · *Point keeper* = most captures · *Untouchable* = fewest deaths with a kills floor ⏳); ⛔ none in the scenario file | SHOWCASE §2.6 line 5; the winner is a READ (`ObjectiveLinks.Subject`) |
+| **P-8** | ⏳ **bounty — not in v1**: needs a `streak` reading and a bounty mark on the man; lean: `Count what: streak` + a trigger in the score macro + `Count what: bountyKills` | the handoff's ③; built after P-1…P-7 |
+| **P-9** | ④ the HUD / summary data is **already the wire**: a *+100* pop-up = a child measure's `Value` rising × its `points` (both replicated); the scoreboard = the members' `Points` roots; the best moment = the largest rise of a root's `Value` in the recording (behaviors' score-history lane, their item ④) | R-4105: the engine gathers, ui draws; ⛔ no second store |
+
+**Rejected — one line each:**
+- *A score SYSTEM beside the objectives* — two counters (SR-84 says one); the measures already count kills with attribution.
+- *Points as a table on the `Points` root keyed by child* — a child's own `points` is the existing field and travels on the wire.
+- *Captures read by each measure from the areas* — re-implements G-1's census per man per tick; the point publishes the moment once.
+- *A `PlayerScore` component on the man* — a second store, not recorded as a tree, invisible to the rules view.
 
 
 ## 0. ✅ The user's first answers (`2026-10-31`)
