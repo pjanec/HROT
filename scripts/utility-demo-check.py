@@ -94,6 +94,10 @@ def _log_size():
 
 def load(name):
     log_at = _log_size()
+    # ⚠ a fresh node refuses a load (409 notOperable) until a cluster state reaches it — 📐 measured 2026-11-03 after the coordinator merge
+    end = time.time() + 60
+    while time.time() < end and not (data(call("GET", "/status")) or {}).get("canOperate"):
+        time.sleep(0.5)
     resp = call("POST", "/scenario/load/live", {"name": name, "waitForReady": True})
     if "http" in resp and resp.get("http") == 504 and "did not reach a settled" in str(resp.get("body")):
         # ⭐ Urban Battle §6 — a big terrain (demo-city: 541 entities, ~29 s to OperatingLive, measured 2026-10-20) can outlast the
