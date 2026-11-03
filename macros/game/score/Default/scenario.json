@@ -7,7 +7,7 @@
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
   "Kind": "macro",
-  "description": "What: rules S7 P-1 (docs/DESIGN_Scenario_Rules.md \u00a700.13) - ONE man's game score: a Points root 'Score' = kills x100 + assists x50 + captures x150 + team kills x-200 (CE-4155 attribution; a team kill is never a kill), deaths shown unscored, an unscored Hit ratio. Judge: MemberEvaluation (members side, aggregate points) inserts it for every man of its side; the man's 'Score' rises by 100 when he kills a hostile.",
+  "description": "What: rules S7 P-1 / P-8 (docs/DESIGN_Scenario_Rules.md \u00a700.13) - ONE man's game score: a Points root 'Score' = kills x100 + assists x50 + captures x150 + team kills x-200 + bounty kills x300 (the ONE kill authority ManDownedEvent; a team kill is never a kill); deaths, streak, best streak and a hit ratio shown unscored; his Bounty (Active while a streak of 5 stands) and a trigger 'Bounty announced' that tells everybody 'Bounty on <his name>!'. Judge: MemberEvaluation (members side, aggregate points) inserts it for every man of its side; the man's 'Score' rises by 100 when he kills a hostile.",
   "Anchor": {
    "Position": [
     0,
@@ -113,6 +113,76 @@
    }
   },
   "cf0d0000-0000-4000-8000-000000000007": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Bounty kills",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Count",
+    "Params": "{\"common\": {\"title\": \"Bounty kills\", \"subject\": \"^subject\", \"parent\": \"cf0d0000-0000-4000-8000-000000000001\", \"group\": \"score\", \"points\": 300}, \"what\": \"bountyKills\"}",
+    "Origin": "Superior"
+   }
+  },
+  "cf0d0000-0000-4000-8000-000000000008": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Streak",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Count",
+    "Params": "{\"common\": {\"title\": \"Streak\", \"subject\": \"^subject\", \"parent\": \"cf0d0000-0000-4000-8000-000000000001\", \"group\": \"score\", \"points\": 0, \"scored\": false}, \"what\": \"streak\"}",
+    "Origin": "Superior"
+   }
+  },
+  "cf0d0000-0000-4000-8000-000000000009": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Best streak",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Count",
+    "Params": "{\"common\": {\"title\": \"Best streak\", \"subject\": \"^subject\", \"parent\": \"cf0d0000-0000-4000-8000-000000000001\", \"group\": \"score\", \"points\": 0, \"scored\": false}, \"what\": \"bestStreak\"}",
+    "Origin": "Superior"
+   }
+  },
+  "cf0d0000-0000-4000-8000-000000000010": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Bounty",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Bounty",
+    "Params": "{\"common\": {\"title\": \"Bounty\", \"subject\": \"^subject\", \"parent\": \"cf0d0000-0000-4000-8000-000000000001\", \"group\": \"score\", \"scored\": false}, \"streak\": \"cf0d0000-0000-4000-8000-000000000008\", \"minStreak\": 5}",
+    "Origin": "Superior"
+   }
+  },
+  "cf0d0000-0000-4000-8000-000000000011": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Bounty announced",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": "{\"common\": {\"title\": \"Bounty announced\", \"subject\": \"^subject\", \"parent\": \"cf0d0000-0000-4000-8000-000000000001\", \"group\": \"score\", \"scored\": false}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf0d0000-0000-4000-8000-000000000010\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"State\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Bounty on {subject}!\", \"seconds\": 6}}], \"repeat\": true}",
+    "Origin": "Superior"
+   }
+  },
+  "cf0d0000-0000-4000-8000-000000000012": {
    "TkbIdentity": {
     "TkbType": 8860
    },

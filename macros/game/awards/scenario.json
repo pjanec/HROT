@@ -93,6 +93,34 @@
     "Params": "{\"common\": {\"title\": \"Untouchable\", \"parent\": \"^among\", \"group\": \"awards\", \"scored\": false}, \"among\": \"^among\", \"measure\": \"Deaths\", \"min\": 0, \"lowerIsBetter\": true}",
     "Origin": "Superior"
    }
+  },
+  "cf0e0000-0000-4000-8000-000000000006": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Bounty hunter",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Best",
+    "Params": "{\"common\": {\"title\": \"Bounty hunter\", \"parent\": \"^among\", \"group\": \"awards\", \"scored\": false}, \"among\": \"^among\", \"measure\": \"Bounty kills\", \"min\": 1}",
+    "Origin": "Superior"
+   }
+  },
+  "cf0e0000-0000-4000-8000-000000000007": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Longest streak",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Best",
+    "Params": "{\"common\": {\"title\": \"Longest streak\", \"parent\": \"^among\", \"group\": \"awards\", \"scored\": false}, \"among\": \"^among\", \"measure\": \"Best streak\", \"min\": 3}",
+    "Origin": "Superior"
+   }
   }
  }
 }

@@ -7,7 +7,9 @@
     "Blue bot",
     "Red bot",
     "Score",
-    "Kills"
+    "Kills",
+    "Bounty",
+    "Bounty announced"
   ],
   "anchors": {
     "pointTaken": {
@@ -23,6 +25,13 @@
       "path": "ObjectiveStatus.Value",
       "op": ">=",
       "value": 1
+    },
+    "bounty": {
+      "on": "field",
+      "who": "Bounty",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Active"
     }
   },
   "expect": [
@@ -178,6 +187,17 @@
       "op": "==",
       "value": "Achieved",
       "atEnd": true
+    },
+    {
+      "name": "(S7 P-8) a standing bounty is announced to everybody",
+      "on": "field",
+      "who": "Bounty announced",
+      "path": "ObjectiveStatus.FireCount",
+      "op": ">=",
+      "value": 1,
+      "after": "bounty",
+      "before": "bounty+3",
+      "if": "bounty"
     }
   ]
 }
