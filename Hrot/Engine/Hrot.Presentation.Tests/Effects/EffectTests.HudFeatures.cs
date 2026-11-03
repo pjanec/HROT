@@ -58,7 +58,7 @@ public sealed partial class EffectTests
     {
         var player = Gate(playerDefault: true);
         var other = Gate(playerDefault: false);
-        Assert.Equal(17, HudFeatures.All.Length);   // ⭐ CE-1461 — hud.messages joined (7); ⭐ CE-4226..4228 — the player HUD's eight (15); ⭐ CE-4231 — game.scoreboard (16); ⭐ CE-4243 — gm.palette (17)
+        Assert.Equal(18, HudFeatures.All.Length);   // ⭐ CE-1461 — hud.messages joined (7); ⭐ CE-4226..4228 — the player HUD's eight (15); ⭐ CE-4231 — game.scoreboard (16); ⭐ CE-4243 — gm.palette (17); ⭐ CE-4246 — hud.coaching (18, OFF everywhere)
         foreach (var id in new[] { HudFeatures.HitMarker, HudFeatures.DamageArc, HudFeatures.KillCam, HudFeatures.SquadTakeoverAfterDeath })
         {
             Assert.True(HudFeatures.IsOn(player, id), id);
@@ -69,6 +69,7 @@ public sealed partial class EffectTests
             Assert.True(HudFeatures.IsOn(player, id), id);
             Assert.True(HudFeatures.IsOn(other, id), id);
         }
+        Assert.False(HudFeatures.IsOn(player, HudFeatures.Coaching)); Assert.False(HudFeatures.IsOn(other, HudFeatures.Coaching));   // ⭐ CE-4246 — OFF by default even for the Player
         foreach (var d in HudFeatures.Declarations(false)) Assert.Equal(FeatureChange.Live, d.Change);
         // a gate whose host did not declare the feature: off; no gate at all: on
         var undeclared = new NodeFeatures(new FeatureRegistry(System.Array.Empty<FeatureDeclaration>()), NodeRole.Map2D);

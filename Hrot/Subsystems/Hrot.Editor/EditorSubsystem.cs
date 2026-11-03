@@ -4985,6 +4985,14 @@ namespace Hrot.Editor
                 },
                 enabled: () => Hrot.Common.Infrastructure.HudFeatures.IsOn(_node?.Features, Hrot.Common.Infrastructure.HudFeatures.GamePalette)) { IsOpen = false });
 
+            // ⭐⭐ CE-4247 (rules runnable ⑨c; Node Features F-11 / S2) — Window ▸ Features: nodes × features from the master's roster; a tick replaces the cluster's override list through the run settings
+            windowManager.RegisterWindow(new Hrot.Presentation.Windows.FeatureGridWindow("editor_feature_grid", "Scenario", EditorWindowColor.TitleBar,
+                nodes: () => _clusterMaster?.NodeRoster.ActiveNodes.Values.OrderBy(p => p.NodeName, StringComparer.Ordinal).Select(p => new Hrot.Presentation.Windows.FeatureGridNode(p.NodeName, p.Roles.ToString(),
+                    p.Capabilities.Where(c => c.StartsWith("hrot.feature.", StringComparison.Ordinal)).Select(c => c.Substring("hrot.feature.".Length)).ToHashSet(), p.FeaturesOn.ToHashSet())).ToList()
+                    ?? (IReadOnlyList<Hrot.Presentation.Windows.FeatureGridNode>)Array.Empty<Hrot.Presentation.Windows.FeatureGridNode>(),
+                overrides: () => _orchestratorCore?.UiCache.View.FeatureOverrides ?? (IReadOnlyList<Fdp.Toolkit.Orchestration.FeatureOverrideSpec>)Array.Empty<Fdp.Toolkit.Orchestration.FeatureOverrideSpec>(),
+                send: list => ClusterMasterControl?.SetRunSettings(new Fdp.Toolkit.Orchestration.SetRunSettingsIntent { RequestId = Guid.NewGuid(), FeatureOverrides = list })) { IsOpen = false });
+
             // ⭐⭐ CE-4217 (rules view R3; RV-8) — Window ▸ Mission summary: read-only, over the same world and the same shown timeline; its key events seek that timeline
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.MissionSummaryWindow(
                 () => _world, timelineSource, new Hrot.UI.Common.Adapters.ClusterTimelineCursor(() => timelineTransport, timelineSource),

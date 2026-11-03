@@ -1,3 +1,4 @@
+using System;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
@@ -50,6 +51,26 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (net == 0 || !Seeable.OnMap(view, entity)) return;   // ⭐ CE-4239
             string name = view.GetComponentRO<EntityInfo>(entity).Name.ToString();
             draw.Card(net, DebugTraceLayers.Labels).Row(Row).Text(string.IsNullOrWhiteSpace(name) ? $"#{net}" : $"{name} #{net}", NameColour);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4229 (rules runnable ⑨a; DESIGN_Player_HUD_And_Debrief PH-8 <c>game.bounty-marker</c>) — the BOUNTY marker on the 2-D (and 3-D) map: a gold <i>BOUNTY</i> line on the card of the man an Active <c>Bounty</c> status is ON (its <c>Subject</c>).
+    /// ⭐ Projected over the STATUS, drawn into the SUBJECT's card — the one per-entity overlay seam (the Labels layer), no new layer. The possession view's own marker (<c>PlayerHudLayer</c>) reads the same statuses (<c>GameHud.Build.BountyOn</c>).
+    /// </summary>
+    [GizmoProjector(typeof(NetworkIdentity), typeof(Fdp.Toolkit.ScenarioRules.ObjectiveStatus))]
+    public sealed class BountyMarkerGizmo : IStatelessGizmo
+    {
+        public const byte Row = 10;
+        private static readonly Rgba32 Gold = new(255, 210, 122, 255);
+
+        public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
+        {
+            ref readonly var s = ref view.GetComponentRO<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>(entity);
+            if (s.State != Fdp.Toolkit.ScenarioRules.ObjectiveState.Active || !s.Kind.ToString().Equals("Bounty", StringComparison.OrdinalIgnoreCase)) return;
+            if (!view.HasComponent<Fdp.Toolkit.ScenarioRules.ObjectiveLinks>(entity)) return;
+            int subject = view.GetComponentRO<Fdp.Toolkit.ScenarioRules.ObjectiveLinks>(entity).Subject.NetworkId;
+            if (subject != 0) draw.Card(subject, DebugTraceLayers.Labels).Row(Row).Text("BOUNTY", Gold);
         }
     }
 }

@@ -51,6 +51,22 @@ public sealed record ObjectiveLine(int NetworkId, string Title, HudMark Mark, Ob
 /// <summary>One of "my standards": a measure with its value against target, coloured (0xRRGGBB) by its score against the pass mark.</summary>
 public sealed record StandardLine(int NetworkId, string Title, string Text, float Score, float Pass, uint Rgb);
 
+/// <summary>
+/// ⭐ CE-4246 (⑨b, PH-3 <c>hud.coaching</c>) — the coaching hint, PURE: the first LEAF that does not hold yet of a live rule ABOUT ME (a trigger whose <c>Subject</c> is my unit, lowest network id first), as
+/// <i>label (measured)</i>. <paramref name="leavesOf"/> reads the owner's published <c>RuleLeaves</c> (<see cref="LiveLeafOverlay.Read"/>); the owner publishes them only while the node feature <c>ui.rules-live-values</c> is on, so with it off there is no hint.
+/// </summary>
+public static class CoachingHint
+{
+    public static string? Build(IReadOnlyList<RulesReader.Entry> entries, PlayerView view, Func<RulesReader.Entry, IReadOnlyList<LiveLeaf>> leavesOf)
+    {
+        if (view.IsNone) return null;
+        foreach (var e in entries.Where(e => !e.Authored && e.Status.Role == ObjectiveRole.Trigger && e.SubjectNetworkId == view.UnitNetId && e.Status.Closed == 0 && !e.Status.IsFinal).OrderBy(e => e.NetworkId))
+            foreach (var l in leavesOf(e))
+                if (!l.Holds && l.Label.Length > 0) return l.Measured != 0f && l.Measured != 1f ? $"{l.Label} ({l.Measured:0.##})" : l.Label;
+        return null;
+    }
+}
+
 /// <summary>The training HUD this frame: the objectives my side may see and the measures about me (or, when none is mine, my team).</summary>
 public sealed record TrainingHudModel(IReadOnlyList<ObjectiveLine> Objectives, IReadOnlyList<StandardLine> Standards, bool StandardsAreTeams);
 
@@ -191,7 +207,7 @@ public static class GameHud
     public static uint RgbOf(ForceId side) => side switch { ForceId.Friend => Blue, ForceId.Hostile => Red, _ => Grey };
 
     /// <param name="viewerAt">⭐ W-H3 — where the possessed man stands (ground x, y); the <i>Capturing</i> strip shows while he is inside a changing point's <c>AreaCenter</c> / <c>AreaRadius</c> (read from the status, so every node has it).</param>
-    public static GameHudModel Build(IReadOnlyList<RulesReader.Entry> entries, PlayerView view, double now, System.Numerics.Vector2? viewerAt = null, Func<RulesReader.Entry, ForceId>? sideOf = null)
+    public static GameHudModel Build(IReadOnlyList<RulesReader.Entry> entries, PlayerView view, double now, System.Numerics.Vector2? viewerAt = null, Func<RulesReader.Entry, ForceId>? sideOf = null, Func<RulesReader.Entry, bool>? endsRound = null)
     {
         sideOf ??= e => e.Status.Owner;   // ⚠ a running Counter's Owner is Neutral on the wire (measured, showcase-crossfire): the live caller passes the subject's side
         var live = entries.Where(e => !e.Authored).ToList();
@@ -206,7 +222,11 @@ public static class GameHud
         var points = pointRows.Select((e, i) => PointOf(e, i)).ToList();
 
         // the clock: a trigger's deadline still ahead ⇒ the time left; otherwise the elapsed time of the run
-        double? ahead = live.Where(e => e.Status.Role == ObjectiveRole.Trigger && e.Status.Deadline > now).Select(e => (double?)e.Status.Deadline).DefaultIfEmpty(null).Min();
+        // ⭐ CE-4238 — the round clock counts down to the trigger whose Do holds EndExercise (several ⇒ the soonest armed one; ExpectedAt ≥ NeverSeconds is a placeholder); no such trigger readable ⇒ a deadline, else elapsed
+        double? ahead = endsRound == null ? null
+            : live.Where(e => e.Status.Role == ObjectiveRole.Trigger && e.Status.Closed == 0 && !e.Status.IsFinal && e.Status.ExpectedAt > now && e.Status.ExpectedAt < RulesModel.NeverSeconds && endsRound(e))
+                  .Select(e => (double?)e.Status.ExpectedAt).DefaultIfEmpty(null).Min();
+        ahead ??= live.Where(e => e.Status.Role == ObjectiveRole.Trigger && e.Status.Deadline > now).Select(e => (double?)e.Status.Deadline).DefaultIfEmpty(null).Min();
         bool any = tickets.Count > 0 || points.Count > 0 || ahead != null;
         string clock = !any ? "" : RulesModel.Clock(ahead is { } d ? d - now : now);
 

@@ -27,6 +27,7 @@ public sealed class RunnableRulesTests : IDisposable
 
     public RunnableRulesTests()
     {
+        _ = typeof(Hrot.AI.Behaviors.Brains.Objectives.ObjectiveStateKeepers).Assembly;   // the shipped actions (SetSkillAmplifier …) are in the catalogue's scan only once their assembly is loaded: ⚠ the palette rail was order-dependent without this
         _world.RegisterComponent<NetworkIdentity>();
         _world.RegisterComponent<ObjectiveStatus>();
         _world.RegisterComponent<ObjectiveLinks>();
@@ -359,5 +360,31 @@ public sealed class RunnableRulesTests : IDisposable
         var gateP = new Hrot.Common.Infrastructure.NodeFeatures(new Hrot.Common.Infrastructure.FeatureRegistry(new[] { player }), Fdp.Core.NodeRole.Map2D);
         Assert.True(Hrot.Common.Infrastructure.HudFeatures.IsOn(gateS, "gm.palette"));
         Assert.False(Hrot.Common.Infrastructure.HudFeatures.IsOn(gateP, "gm.palette"));
+    }
+
+    /// <summary>
+    /// ⭐ CE-4229 (⑨a) — the bounty marker of the 2-D / 3-D map: an Active <c>Bounty</c> status draws a gold <i>BOUNTY</i> line into its SUBJECT's card (Labels layer); a Done one, another kind, or one with no subject draws nothing.
+    /// ✅ Red-proof: the Active test dropped ⇒ the finished bounty draws ⇒ red.
+    /// </summary>
+    [Fact]
+    public void TheBountyMarker_IsAGoldLineOnTheSubjectsCard_WhileTheBountyIsActive()
+    {
+        var man = Unit("Kral"); int manNet = _world.GetComponentRO<NetworkIdentity>(man).Value;
+        Entity Bounty(string kind, ObjectiveState state, int subject)
+        {
+            var e = Rule("Bounty", ObjectiveRole.Objective); _world.GetComponentRW<ObjectiveStatus>(e).Kind = new FixedString32(kind); _world.GetComponentRW<ObjectiveStatus>(e).State = state;
+            _world.AddComponent(e, new ObjectiveLinks { Subject = new EntityRef(subject) });
+            return e;
+        }
+        string[] Drawn(Entity rule)
+        {
+            var d = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+            new BountyMarkerGizmo().Draw(_world, rule, d);
+            return d.GetFrame().ToArray().Where(p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Text).Select(p => $"{p.AnchorIndex}:{p.TextContent}").ToArray();
+        }
+        Assert.Equal(new[] { $"{manNet}:BOUNTY" }, Drawn(Bounty("Bounty", ObjectiveState.Active, manNet)));
+        Assert.Empty(Drawn(Bounty("Bounty", ObjectiveState.Achieved, manNet)));
+        Assert.Empty(Drawn(Bounty("Count", ObjectiveState.Active, manNet)));
+        Assert.Empty(Drawn(Bounty("Bounty", ObjectiveState.Active, 0)));
     }
 }

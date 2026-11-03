@@ -204,6 +204,65 @@ public sealed class PlayerHudTests : IDisposable
         Add(75, "Point C", kind: "HoldArea", owner: ForceId.Hostile, edit: (ref ObjectiveStatus s) => { s.Capture = 1; s.AreaCenter = new System.Numerics.Vector3(650, 400, 0); s.AreaRadius = 15; s.ProgressNeed = 10; s.ProgressCur = 10; });
     }
 
+    /// <summary>
+    /// ⭐ CE-4238 — the round clock counts DOWN to the soonest armed trigger whose Do holds EndExercise (the predicate the live caller reads from the authored params): crate-drop timers do not end the round,
+    /// a ≥ 1e8 s placeholder and a closed one are no moment; no such trigger ⇒ elapsed. ✅ Red-proof: <c>ahead</c> taking any trigger's ExpectedAt (not the ender's) ⇒ the 180 s crate drop wins ⇒ red.
+    /// </summary>
+    [Fact]
+    public void TheRoundClock_CountsDownToTheTriggerThatEndsTheExercise()
+    {
+        Crossfire();
+        Add(80, "Crate drop 1", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => s.ExpectedAt = 180);
+        Add(81, "Blue wins", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => s.ExpectedAt = 900);
+        Add(82, "Sudden death end", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => s.ExpectedAt = 720);
+        Add(83, "Instructor end", role: ObjectiveRole.Trigger, edit: (ref ObjectiveStatus s) => s.ExpectedAt = 1e9);
+        Add(84, "Done end", role: ObjectiveRole.Trigger, state: ObjectiveState.Achieved, edit: (ref ObjectiveStatus s) => s.ExpectedAt = 100);
+        var ids = new HashSet<int> { 81, 82, 83, 84 };
+        var g = GameHud.Build(Entries(), Me(1, ForceId.Friend), now: 60, endsRound: e => ids.Contains(e.NetworkId));
+        Assert.True(g.ClockIsCountdown);
+        Assert.Equal(RulesModel.Clock(660), g.Clock);                                     // 720 - 60: the soonest ender, not the crate drop (180), the placeholder (1e9) or the finished one
+        Assert.Equal("1:00", GameHud.Build(Entries(), Me(1, ForceId.Friend), now: 60).Clock);   // no ender readable ⇒ elapsed
+        Assert.False(GameHud.Build(Entries(), Me(1, ForceId.Friend), now: 60).ClockIsCountdown);
+    }
+
+    /// <summary>⭐ CE-4238 — <c>RulesModel.EndsExercise</c> reads the trigger's authored <c>do</c>: a bare or qualified <c>EndExercise</c> act ⇒ true; other acts, a missing record, bad JSON ⇒ false. ✅ Red-proof: the act match always true ⇒ red.</summary>
+    [Fact]
+    public void EndsExercise_ReadsTheDoList()
+    {
+        if (!_world.TryGetTable(typeof(Fdp.Toolkit.Behavior.Components.BehaviorStartRecord), out _)) _world.RegisterManagedComponent<Fdp.Toolkit.Behavior.Components.BehaviorStartRecord>();
+        Entity With(string json) { var e = _world.CreateEntity(); _world.SetManagedComponent(e, new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = "Trigger", JsonParams = json, InstanceId = 1 }); return e; }
+        Assert.True(RulesModel.EndsExercise(_world, With("""{"do":[{"act":"Message","args":{}},{"act":"EndExercise"}]}""")));
+        Assert.True(RulesModel.EndsExercise(_world, With("""{"do":[{"act":"Hrot.X.ScenarioVerbs.EndExercise"}]}""")));
+        Assert.False(RulesModel.EndsExercise(_world, With("""{"do":[{"act":"Message"}]}""")));
+        Assert.False(RulesModel.EndsExercise(_world, With("not json")));
+        Assert.False(RulesModel.EndsExercise(_world, _world.CreateEntity()));
+    }
+
+    /// <summary>
+    /// ⭐ CE-4246 (⑨b) — the coaching hint is the FIRST leaf that does not hold yet of a live trigger ABOUT ME; a rule about someone else, a finished one, or all-true leaves give none; <c>hud.coaching</c> is declared OFF.
+    /// ✅ Red-proof: the subject test dropped ⇒ the other man's rule coaches me ⇒ red.
+    /// </summary>
+    [Fact]
+    public void TheCoachingHint_IsTheFirstLeafThatDoesNotHoldYet_OfARuleAboutMe()
+    {
+        if (!_world.IsComponentTypeRegistered<RuleLeaves>()) _world.RegisterComponent<RuleLeaves>();
+        Man(1, "Kral", ForceId.Friend); Man(2, "Other", ForceId.Friend);
+        void Leaves(Entity rule, params (string Label, bool Holds, float Measured)[] ls)
+        {
+            var rl = new RuleLeaves { Count = (byte)ls.Length };
+            for (int i = 0; i < ls.Length; i++) rl.Leaves[i] = new RuleLeaf { Label = new FixedString32(ls[i].Label), Value = (byte)(ls[i].Holds ? 1 : 0), Measured = ls[i].Measured };
+            _world.AddComponent(rule, rl);
+        }
+        Leaves(Add(90, "Other's rule", role: ObjectiveRole.Trigger, subject: 2), ("in the open", false, 0f));
+        Leaves(Add(91, "Done rule", role: ObjectiveRole.Trigger, subject: 1, state: ObjectiveState.Achieved), ("finished", false, 0f));
+        string? Hint() => CoachingHint.Build(Entries(), Me(1, ForceId.Friend), e => LiveLeafOverlay.Read(_world, e.Entity));
+        Assert.Null(Hint());                                                     // nothing about me yet
+        Leaves(Add(92, "My rule", role: ObjectiveRole.Trigger, subject: 1), ("in cover", true, 0f), ("speed", false, 7.5f), ("in the open", false, 0f));
+        Assert.Equal("speed (7.5)", Hint());                                     // the first leaf that does not hold, with its number
+        Assert.Contains(Hrot.Common.Infrastructure.HudFeatures.Coaching, Hrot.Common.Infrastructure.HudFeatures.All);
+        Assert.False(Hrot.Common.Infrastructure.HudFeatures.IsOn(Hrot.Common.Infrastructure.HudFeatures.BootGate(playerDefault: true), Hrot.Common.Infrastructure.HudFeatures.Coaching));   // OFF by default, even for the Player
+    }
+
     [Fact]
     public void TheBar_ReadsTicketsPointsAndTheClock_ByKind()
     {

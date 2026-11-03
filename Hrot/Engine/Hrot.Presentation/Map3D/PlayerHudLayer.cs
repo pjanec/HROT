@@ -20,6 +20,8 @@ public sealed record PlayerHudFrame(PlayerView View, TrainingHudModel? Training,
     public ScoreboardModel? Board { get; init; }
     /// <summary>⭐ G1 — the live "+100" pop-ups of the possessed man.</summary>
     public IReadOnlyList<ScorePopup> Popups { get; init; } = Array.Empty<ScorePopup>();
+    /// <summary>⭐ CE-4246 — the coaching hint (<c>hud.coaching</c>), or null.</summary>
+    public string? Coaching { get; init; }
 }
 
 /// <summary>
@@ -39,17 +41,19 @@ public static class PlayerHudLayer
         bool training = on(HudFeatures.Objectives) || on(HudFeatures.OwnEvaluation);
         bool game = on(HudFeatures.Tickets) || on(HudFeatures.CapturePoints) || on(HudFeatures.RoundTimer) || on(HudFeatures.ScorePopups) || on(HudFeatures.BountyMarker);
         TrainingHudModel? t = null; GameHudModel? g = null; ScoreboardModel? board = null; IReadOnlyList<ScorePopup> popups = Array.Empty<ScorePopup>();
-        bool wantBoard = scoreboardHeld && on(HudFeatures.Scoreboard), wantPopups = on(HudFeatures.ScorePopups);
-        if ((training || game || wantBoard || wantPopups) && w.IsComponentTypeRegistered<ObjectiveStatus>())
+        bool wantBoard = scoreboardHeld && on(HudFeatures.Scoreboard), wantPopups = on(HudFeatures.ScorePopups), wantCoach = on(HudFeatures.Coaching);
+        string? coaching = null;
+        if ((training || game || wantBoard || wantPopups || wantCoach) && w.IsComponentTypeRegistered<ObjectiveStatus>())
         {
             var entries = RulesReader.Read(w, includeAuthored: false);
             if (training) t = TrainingHud.Build(entries, view, now, e => MissionSummaryModel.SideOfRule(w, e));
-            if (game) g = GameHud.Build(entries, view, now, w.HasComponent<SimTransform>(unit) ? new Vector2(w.GetComponentRO<SimTransform>(unit).Position.X, w.GetComponentRO<SimTransform>(unit).Position.Y) : null, e => MissionSummaryModel.SideOfRule(w, e));
+            if (game) g = GameHud.Build(entries, view, now, w.HasComponent<SimTransform>(unit) ? new Vector2(w.GetComponentRO<SimTransform>(unit).Position.X, w.GetComponentRO<SimTransform>(unit).Position.Y) : null, e => MissionSummaryModel.SideOfRule(w, e), e => RulesModel.EndsExercise(w, e.Entity));
+            if (wantCoach) coaching = CoachingHint.Build(entries, view, e => LiveLeafOverlay.Read(w, e.Entity));
             if (wantPopups) popups = ScorePopups.In(w).Update(entries, view.UnitNetId, now);
             if (wantBoard) board = Scoreboard.Build(entries, view.UnitNetId, e => MissionSummaryModel.SideOfRule(w, e), net => RulesModel.NameOf(w, NetworkIdResolver.FindEntityByNetworkId(w, net), net));
         }
         var kills = on(HudFeatures.KillFeed) && KillFeed.Of(w) is { } feed ? feed.Recent(now) : Array.Empty<KillFeed.Entry>();
-        return new PlayerHudFrame(view, t, g, kills, now) { Board = board, Popups = popups };
+        return new PlayerHudFrame(view, t, g, kills, now) { Board = board, Popups = popups, Coaching = coaching };
     }
 
     private static Color Rgb(uint rgb, int a = 255) => new((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb, (byte)a);
@@ -143,6 +147,13 @@ public static class PlayerHudLayer
         {
             if (on(HudFeatures.Objectives) && t.Objectives.Count > 0) y = DrawObjectives(t.Objectives, right, y, font);
             if (on(HudFeatures.OwnEvaluation) && t.Standards.Count > 0) y = DrawStandards(t, right, y, font);
+        }
+        if (f.Coaching is { Length: > 0 } hint && on(HudFeatures.Coaching))
+        {
+            float w = HudText.Measure(font, hint, Small) + 14, x = right - w;
+            Raylib.DrawRectangle((int)x, (int)y, (int)w, Row, new Color(8, 10, 12, 170));
+            HudText.Draw(font, hint, x + 7, y + 2, Small, Rgb(0xFFD27A));
+            y += Row + 2;
         }
         return y;
     }

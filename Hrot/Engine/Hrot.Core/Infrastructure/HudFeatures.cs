@@ -43,12 +43,15 @@ public static class HudFeatures
     /// <summary>⭐ G1 (CE-4231) — Game HUD: the scoreboard while the scoreboard key (K) is held.</summary>
     public const string Scoreboard = "game.scoreboard";
 
+    /// <summary>⭐ CE-4246 (rules runnable ⑨b; PH-3) — the coaching hint: a one-line hint at the bottom of the possessed man's view, the first leaf not yet true of a rule about him (its <c>RuleLeaves</c>; needs the node feature <c>ui.rules-live-values</c>). <b>OFF by default</b> on every host.</summary>
+    public const string Coaching = "hud.coaching";
+
     /// <summary>⭐ CE-4243 (SR-104 Z3, R-4108; DESIGN_Rules_View_UI §8) — the game master's palette (Window ▸ Game master): run any shared action by hand, a skill row per side. ON on the server UI hosts, OFF for the Player.</summary>
     public const string GamePalette = "gm.palette";
 
     /// <summary>Every HUD feature id this class declares.</summary>
     public static readonly string[] All = { HitMarker, DamageArc, KillCam, SquadTakeoverAfterDeath, SpreadRing, NearMiss, Messages,
-        Objectives, OwnEvaluation, Tickets, CapturePoints, RoundTimer, KillFeed, ScorePopups, BountyMarker, Scoreboard, GamePalette };
+        Objectives, OwnEvaluation, Tickets, CapturePoints, RoundTimer, KillFeed, ScorePopups, BountyMarker, Scoreboard, GamePalette, Coaching };
 
     /// <summary>The declarations for a host (the seven aids, then the player HUD's eight). <paramref name="playerDefault"/>: the default of the hit marker, damage arc, kill cam and squad
     /// takeover (true for the Player, false elsewhere); the spread ring, the near miss and the messages are ON on every host.</summary>
@@ -70,6 +73,7 @@ public static class HudFeatures
         yield return FeatureDeclaration.Switch(ScorePopups, "Game HUD: score pop-ups and the kill streak under them", FeatureChange.Live, _ => true);
         yield return FeatureDeclaration.Switch(BountyMarker, "Game HUD: a gold marker over a man with a bounty on him", FeatureChange.Live, _ => true);
         yield return FeatureDeclaration.Switch(Scoreboard, "Game HUD: the scoreboard while K is held", FeatureChange.Live, _ => true);
+        yield return FeatureDeclaration.Switch(Coaching, "Training HUD: a one-line coaching hint - the first condition of a rule about you that does not hold yet (needs ui.rules-live-values)", FeatureChange.Live, _ => false);
         yield return FeatureDeclaration.Switch(GamePalette, "Game master's palette: run an action by hand, set a side's skill", FeatureChange.Live, _ => !playerDefault);
     }
 

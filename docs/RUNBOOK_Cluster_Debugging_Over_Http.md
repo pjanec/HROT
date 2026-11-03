@@ -581,3 +581,7 @@ defects.
 `DdsIntegrationTests.CanPublishAndSubscribeEntityMaster` read the cluster's own entity (`Expected 12345, Actual 1000`) AND made the
 editor system tests (`DeterminismRails`) time out on `POST /sim/step` — both green the moment it was killed, and the second had
 been written off as an environment hang. ⇒ ⭐ **before trusting a red DDS or system test, `pgrep -af ClusterRunner`.**
+
+## Typing into the editor under Xvfb *(ui, `2026-11-03`, CE-4245)*
+
+⛔ Under a bare Xvfb (no window manager) the editor window has **no X keyboard focus**: `xdotool type` / `key` reach nothing (a letter looked like it "moved the focus"). ⭐ Run `xdotool windowfocus <window id>` (`xdotool search --onlyvisible --name .`) once, THEN click the field and `xdotool type --delay 80 "text"`. Mouse input needs no focus.
