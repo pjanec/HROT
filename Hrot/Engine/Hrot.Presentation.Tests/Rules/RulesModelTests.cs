@@ -422,4 +422,16 @@ public sealed class RulesModelTests : IDisposable
         Authored(11, "Broken", "{not json");
         Assert.Empty(Build().Rows);
     }
+    /// <summary>⭐ W-H3 — the side filter and the Side grouping read the rule's OWN side (its entity's <c>EntityInfo.ForceId</c>, else its subject's, else Owner), not <c>Owner</c> — a capture field that is Neutral on every other rule.</summary>
+    [Fact]
+    public void TheSideFilterAndGrouping_ReadTheRulesOwnSide_NotOwner()
+    {
+        var red = Add(60, "Red tickets", owner: ForceId.Neutral); _world.AddComponent(red, new EntityInfo { Name = new FixedString64("Red tickets"), ForceId = ForceId.Hostile });
+        var blue = Add(61, "Blue tickets", owner: ForceId.Neutral); _world.AddComponent(blue, new EntityInfo { Name = new FixedString64("Blue tickets"), ForceId = ForceId.Friend });
+        Add(62, "Seen by both", owner: ForceId.Neutral, visible: (byte)((1 << (int)ForceId.Friend) | (1 << (int)ForceId.Hostile)));
+        Assert.Equal(new[] { "Red tickets", "Seen by both" }, Build(new RulesOptions(Side: ForceId.Hostile)).Rows.Select(r => r.Title).OrderBy(x => x));
+        Assert.Equal(new[] { "Blue tickets", "Seen by both" }, Build(new RulesOptions(Side: ForceId.Friend)).Rows.Select(r => r.Title).OrderBy(x => x));
+        var groups = Build(new RulesOptions(GroupBy: RulesGroupBy.Side)).Groups.ToDictionary(g => g.Name, g => g.Rows.Select(r => r.Title).ToList());
+        Assert.Contains("Red tickets", groups["Red"]); Assert.Contains("Blue tickets", groups["Blue"]);
+    }
 }

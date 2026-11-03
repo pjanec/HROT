@@ -178,9 +178,9 @@ public static class RulesModel
     /// <summary>The colour of a PAST span (the lane's state) — hatched spans (a wait) take the cooldown colour.</summary>
     public static uint ColourOfSpan(in RuleSpan span) => span.Hatched ? Cooldown : span.State switch { ObjectiveState.Achieved => Achieved, ObjectiveState.Active => Active, ObjectiveState.Failed => Failed, _ => Grey };
 
-    /// <summary>⭐ H1 — is this status for <paramref name="side"/>: its owner, or a side named by <c>VisibleSides</c>. ONE rule for the rules view and the player HUD.</summary>
-    public static bool ShownTo(in ObjectiveStatus s, ForceId side)
-        => s.Owner == side || (s.VisibleSides != 0 && (s.VisibleSides & (1 << (int)side)) != 0);
+    /// <summary>⭐ W-H3 — is this rule for <paramref name="side"/>: a side its <c>VisibleSides</c> names, or its OWN side (<see cref="MissionSummaryModel.SideOfRule"/> — never <c>Owner</c>, a capture field). ONE rule for the rules view's filter and the player HUD.</summary>
+    internal static bool ShownTo(EntityRepository world, RulesReader.Entry e, ForceId side)
+        => (e.Status.VisibleSides != 0 && (e.Status.VisibleSides & (1 << (int)side)) != 0) || MissionSummaryModel.SideOfRule(world, e) == side;
 
     private static string TitleOf(in ObjectiveStatus s, int net) => s.Title.ToString() is { Length: > 0 } t ? t : $"rule #{net}";
 
@@ -211,7 +211,7 @@ public static class RulesModel
 
         // ── the filter: a side (Owner, or VisibleSides), the search; the ancestors of a match stay so the tree is intact
         bool Matches(RulesReader.Entry e)
-            => (options.Side is not { } side || ShownTo(e.Status, side))
+            => (options.Side is not { } side || ShownTo(world, e, side))
             && (string.IsNullOrWhiteSpace(options.Search) || TitleOf(e.Status, e.NetworkId).Contains(options.Search.Trim(), StringComparison.OrdinalIgnoreCase));
         // ⭐ R3 — "Show the moments on the timeline": only the subtree of one rule (the rule and everything under it by Parent)
         var subtree = options.SubtreeOf == 0 ? null : SubtreeIds(entries, options.SubtreeOf);
@@ -223,7 +223,7 @@ public static class RulesModel
         string GroupOf(RulesReader.Entry e) => options.GroupBy switch
         {
             RulesGroupBy.Macro => e.Macro ?? ScenarioGroup,
-            RulesGroupBy.Side => SideName(e.Status.Owner),
+            RulesGroupBy.Side => SideName(MissionSummaryModel.SideOfRule(world, e)),
             _ => e.SubjectNetworkId != 0 ? NameOf(world, NetworkIdResolver.FindEntityByNetworkId(world, e.SubjectNetworkId), e.SubjectNetworkId) : NoSubjectGroup,
         };
         var members = kept.Select(id => byNet[id]).GroupBy(GroupOf).ToList();

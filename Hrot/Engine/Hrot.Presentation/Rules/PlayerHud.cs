@@ -56,7 +56,7 @@ public sealed record TrainingHudModel(IReadOnlyList<ObjectiveLine> Objectives, I
 
 /// <summary>
 /// ⭐ H1 / PH-3 (CE-4226) — the training HUD as DATA, from the ONE reader (<see cref="RulesReader"/>, PH-1): <c>hud.objectives</c> = the objectives visible to my side
-/// (<see cref="RulesModel.ShownTo"/>: <c>VisibleSides</c>, else <c>Owner</c>), required first, then tree order; <c>hud.own-evaluation</c> = the measures whose
+/// (<c>VisibleSides</c>, else the rule's own side), required first, then tree order; <c>hud.own-evaluation</c> = the measures whose
 /// <c>Subject</c> is me. Pure: the overlay draws it, the rails drive it.
 /// </summary>
 public static class TrainingHud
@@ -69,10 +69,8 @@ public static class TrainingHud
     /// <summary>Kinds that belong to the GAME hud (tickets, bounty) — never a mission objective.</summary>
     public static readonly IReadOnlySet<string> GameKinds = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Counter", "Bounty" };
 
-    /// <summary>⭐ A capture point is a <c>HoldArea</c> whose reason carries an <i>owner</i> (the capture arms write it; a plain hold does not). ⚠ The status has no capture flag — see the design's AS BUILT.</summary>
-    public static bool IsCapturePoint(in ObjectiveStatus s)
-        => s.Kind.ToString().Equals("HoldArea", StringComparison.OrdinalIgnoreCase) && s.Reason.ToString().Contains("owner", StringComparison.OrdinalIgnoreCase);
-
+    /// <summary>⭐ W-H3 — a capture point is the status that SAYS so: <c>Capture</c> = 1 (backend G-8, CE-4230). Was inferred from a HoldArea whose reason contained <i>owner</i>.</summary>
+    public static bool IsCapturePoint(in ObjectiveStatus s) => s.Capture != 0;
     /// <summary>Kinds that are a conduct standard of the exercise (a negative objective), not a mission objective.</summary>
     public static readonly IReadOnlySet<string> ConductKinds = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "NoHarm" };
 
@@ -164,7 +162,11 @@ public sealed record TicketLine(ForceId Side, float Value, float Start);
 /// <summary>
 /// A capture point on the top bar: its letter, who holds it, and — while it changes hands — who is taking it and how far (0..1).
 /// </summary>
-public sealed record PointLine(int NetworkId, string Letter, ForceId Owner, ForceId Challenger, float Fraction, bool Contested);
+public sealed record PointLine(int NetworkId, string Letter, ForceId Owner, ForceId Challenger, float Fraction, bool Contested, float AreaX, float AreaY, float AreaRadius)
+{
+    /// <summary>Is the ground point (<paramref name="x"/>, <paramref name="y"/>) inside the point's area (its bounding circle, from the status)?</summary>
+    public bool Contains(float x, float y) => AreaRadius > 0f && (x - AreaX) * (x - AreaX) + (y - AreaY) * (y - AreaY) <= AreaRadius * AreaRadius;
+}
 
 /// <summary>The "Capturing B · 60 %" strip: the text and the colour side (the side taking the point).</summary>
 public sealed record CaptureStrip(string Text, ForceId Side);
@@ -188,8 +190,8 @@ public static class GameHud
 
     public static uint RgbOf(ForceId side) => side switch { ForceId.Friend => Blue, ForceId.Hostile => Red, _ => Grey };
 
-    /// <param name="standsIn">Is the possessed man standing in the point with this network id now (its area, resolved by the caller)?</param>
-    public static GameHudModel Build(IReadOnlyList<RulesReader.Entry> entries, PlayerView view, double now, Func<int, bool>? standsIn = null, Func<RulesReader.Entry, ForceId>? sideOf = null)
+    /// <param name="viewerAt">⭐ W-H3 — where the possessed man stands (ground x, y); the <i>Capturing</i> strip shows while he is inside a changing point's <c>AreaCenter</c> / <c>AreaRadius</c> (read from the status, so every node has it).</param>
+    public static GameHudModel Build(IReadOnlyList<RulesReader.Entry> entries, PlayerView view, double now, System.Numerics.Vector2? viewerAt = null, Func<RulesReader.Entry, ForceId>? sideOf = null)
     {
         sideOf ??= e => e.Status.Owner;   // ⚠ a running Counter's Owner is Neutral on the wire (measured, showcase-crossfire): the live caller passes the subject's side
         var live = entries.Where(e => !e.Authored).ToList();
@@ -209,9 +211,9 @@ public static class GameHud
         string clock = !any ? "" : RulesModel.Clock(ahead is { } d ? d - now : now);
 
         CaptureStrip? strip = null;
-        if (!view.IsNone && standsIn != null)
+        if (!view.IsNone && viewerAt is { } at)
             foreach (var p in points)
-                if (p.Contested && standsIn(p.NetworkId))
+                if (p.Contested && p.Contains(at.X, at.Y))
                 {
                     string verb = p.Challenger == view.Side ? "Capturing" : "Contested";
                     strip = new CaptureStrip($"{verb} {p.Letter} · {(int)Math.Round(p.Fraction * 100)} %", p.Challenger);
@@ -232,57 +234,8 @@ public static class GameHud
         string last = title.Split(' ', StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? "";
         string letter = last.Length == 1 && char.IsLetterOrDigit(last[0]) ? last.ToUpperInvariant() : ((char)('A' + index % 26)).ToString();
         float frac = s.ProgressNeed > 0 ? Math.Clamp(s.ProgressCur / (float)s.ProgressNeed, 0f, 1f) : 0f;
-        var challenger = ChallengerOf(s);
+        var challenger = s.Challenger;   // ⭐ W-H3 — a status field now (was parsed out of the reason text)
         bool contested = s.ProgressNeed > 0 && s.ProgressCur > 0 && s.ProgressCur < s.ProgressNeed && challenger != ForceId.Neutral && challenger != s.Owner;
-        return new PointLine(e.NetworkId, letter, s.Owner, contested ? challenger : ForceId.Neutral, contested ? frac : 0f, contested);
-    }
-
-    /// <summary>
-    /// Who is taking the point: the other side when it has an owner; when it has none, the leader the capture arm names in its reason (<i>"…, owner Neutral, Friend 3/10 s"</i>).
-    /// ⚠ The status carries no challenger field, so the neutral case reads the reason text (the S6 G-1 wording).
-    /// </summary>
-    public static ForceId ChallengerOf(in ObjectiveStatus s)
-    {
-        if (s.Owner == ForceId.Friend) return ForceId.Hostile;
-        if (s.Owner == ForceId.Hostile) return ForceId.Friend;
-        string r = s.Reason.ToString();
-        int at = r.IndexOf("owner Neutral,", StringComparison.OrdinalIgnoreCase);
-        if (at < 0) return ForceId.Neutral;
-        var rest = r[(at + "owner Neutral,".Length)..].TrimStart();
-        return rest.StartsWith("Friend", StringComparison.OrdinalIgnoreCase) ? ForceId.Friend : rest.StartsWith("Hostile", StringComparison.OrdinalIgnoreCase) ? ForceId.Hostile : ForceId.Neutral;
-    }
-}
-
-/// <summary>
-/// ⭐ H2 — where a capture point IS, on a node that only has the replicated status: its authored <c>area</c> from the params the behaviour was started with
-/// (<see cref="BehaviorStartRecord"/>), parsed by the ONE <see cref="AreaLink"/> converter and tested by the ONE <see cref="AreaLink.Contains"/>. ⚠ The record is
-/// written by the node that runs the brain (the editor and the all-in-one host have it; a remote Player node does not) — no area ⇒ no capture strip there.
-/// </summary>
-public static class PointAreas
-{
-    private static readonly ConditionalWeakTable<BehaviorStartRecord, object> s_cache = new();
-    private sealed class Box { public AreaLink? Area; }
-
-    /// <summary>The authored area of the point <paramref name="point"/>, or null when this node does not know it.</summary>
-    public static AreaLink? AreaOf(EntityRepository w, Entity point)
-    {
-        if (point.IsNull || !w.IsAlive(point) || !w.TryGetTable(typeof(BehaviorStartRecord), out _) || !w.HasManagedComponent<BehaviorStartRecord>(point)) return null;
-        var rec = ((Fdp.ModuleHost.Abstractions.ISimulationView)w).GetManagedComponentRO<BehaviorStartRecord>(point);
-        if (rec == null || string.IsNullOrWhiteSpace(rec.JsonParams)) return null;
-        return ((Box)s_cache.GetValue(rec, r => new Box { Area = Parse(r.JsonParams) })).Area;
-    }
-
-    internal static AreaLink? Parse(string json)
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.ValueKind != JsonValueKind.Object) return null;
-            foreach (var p in doc.RootElement.EnumerateObject())
-                if (p.Name.Equals("area", StringComparison.OrdinalIgnoreCase))
-                    return JsonSerializer.Deserialize<AreaLink>(p.Value.GetRawText(), Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);   // the scenario options: Vector3 as [x, y, z]
-        }
-        catch (Exception ex) when (ex is JsonException or InvalidOperationException) { }
-        return null;
+        return new PointLine(e.NetworkId, letter, s.Owner, contested ? challenger : ForceId.Neutral, contested ? frac : 0f, contested, s.AreaCenter.X, s.AreaCenter.Y, s.AreaRadius);
     }
 }

@@ -86,7 +86,7 @@ public sealed class PlayerHudTests : IDisposable
         Add(13, "A measure", role: ObjectiveRole.Measure);
         Add(14, "A trigger", role: ObjectiveRole.Trigger);
         Add(15, "Blue tickets", kind: "Counter", edit: (ref ObjectiveStatus s) => { s.Target = 150; s.Value = 150; });
-        Add(16, "Point A", kind: "HoldArea", edit: (ref ObjectiveStatus s) => s.Reason = new FixedString64("F 1 / H 0 men, owner Friend"));
+        Add(16, "Point A", kind: "HoldArea", edit: (ref ObjectiveStatus s) => s.Capture = 1);
         var model = TrainingHud.Build(Entries(), Me(1, ForceId.Friend), 10);
         Assert.Equal(new[] { "Reach the village", "Shown to both" }, model.Objectives.Select(o => o.Title));
         Assert.Equal(new[] { "Red secret", "Shown to both" }, TrainingHud.Build(Entries(), Me(1, ForceId.Hostile), 10).Objectives.Select(o => o.Title));
@@ -199,9 +199,9 @@ public sealed class PlayerHudTests : IDisposable
         Add(70, "Blue tickets", kind: "Counter", owner: ForceId.Friend, edit: (ref ObjectiveStatus s) => { s.Value = 87; s.Target = 150; });
         Add(71, "Red tickets", kind: "Counter", owner: ForceId.Hostile, edit: (ref ObjectiveStatus s) => { s.Value = 12; s.Target = 150; });
         Add(72, "Blue lead", kind: "Counter", owner: ForceId.Friend, edit: (ref ObjectiveStatus s) => { s.Value = 5; s.Target = 0; });      // starts at 0 ⇒ not tickets
-        Add(73, "Point A", kind: "HoldArea", owner: ForceId.Friend, edit: (ref ObjectiveStatus s) => { s.Reason = new FixedString64("F 3 / H 0 men, owner Friend"); s.ProgressNeed = 10; s.ProgressCur = 10; });
-        Add(74, "Point B", kind: "HoldArea", owner: ForceId.Neutral, edit: (ref ObjectiveStatus s) => { s.Reason = new FixedString64("F 2 / H 0 men, owner Neutral, Friend 6/10 s"); s.ProgressNeed = 10; s.ProgressCur = 6; });
-        Add(75, "Point C", kind: "HoldArea", owner: ForceId.Hostile, edit: (ref ObjectiveStatus s) => { s.Reason = new FixedString64("F 0 / H 3 men, owner Hostile"); s.ProgressNeed = 10; s.ProgressCur = 10; });
+        Add(73, "Point A", kind: "HoldArea", owner: ForceId.Friend, edit: (ref ObjectiveStatus s) => { s.Capture = 1; s.AreaCenter = new System.Numerics.Vector3(400, 400, 0); s.AreaRadius = 15; s.ProgressNeed = 10; s.ProgressCur = 10; });
+        Add(74, "Point B", kind: "HoldArea", owner: ForceId.Neutral, edit: (ref ObjectiveStatus s) => { s.Capture = 1; s.Challenger = ForceId.Friend; s.AreaCenter = new System.Numerics.Vector3(525, 400, 0); s.AreaRadius = 15; s.ProgressNeed = 10; s.ProgressCur = 6; });
+        Add(75, "Point C", kind: "HoldArea", owner: ForceId.Hostile, edit: (ref ObjectiveStatus s) => { s.Capture = 1; s.AreaCenter = new System.Numerics.Vector3(650, 400, 0); s.AreaRadius = 15; s.ProgressNeed = 10; s.ProgressCur = 10; });
     }
 
     [Fact]
@@ -236,10 +236,8 @@ public sealed class PlayerHudTests : IDisposable
         var p = GameHud.Build(Entries(), Me(1, ForceId.Friend), 0).Points;
         Assert.False(p[0].Contested); Assert.False(p[2].Contested);                       // full clock = held
         Assert.True(p[1].Contested);
-        Assert.Equal(ForceId.Friend, p[1].Challenger);                                    // read from the S6 reason: neutral point, Friend leads
+        Assert.Equal(ForceId.Friend, p[1].Challenger);                                    // the status's Challenger field (backend G-8)
         Assert.Equal(0.6f, p[1].Fraction, 3);
-        // an owned point under attack: the other side takes it
-        Assert.Equal(ForceId.Hostile, GameHud.ChallengerOf(new ObjectiveStatus { Owner = ForceId.Friend }));
     }
 
     [Fact]
@@ -257,12 +255,12 @@ public sealed class PlayerHudTests : IDisposable
     public void TheCaptureStrip_AppearsOnlyWhileIStandInAPointChangingHands()
     {
         Crossfire();
-        var inB = GameHud.Build(Entries(), Me(1, ForceId.Friend), 0, standsIn: net => net == 74);
+        var inB = GameHud.Build(Entries(), Me(1, ForceId.Friend), 0, viewerAt: new System.Numerics.Vector2(525, 405));
         Assert.Equal("Capturing B · 60 %", inB.Strip!.Text);
         Assert.Equal(ForceId.Friend, inB.Strip.Side);
-        Assert.Null(GameHud.Build(Entries(), Me(1, ForceId.Friend), 0, standsIn: net => net == 73).Strip);   // A is held, not changing hands
-        Assert.Null(GameHud.Build(Entries(), Me(1, ForceId.Friend), 0, standsIn: _ => false).Strip);
-        Assert.Equal("Contested B · 60 %", GameHud.Build(Entries(), Me(1, ForceId.Hostile), 0, standsIn: net => net == 74).Strip!.Text);   // Friend takes it, I am Red
+        Assert.Null(GameHud.Build(Entries(), Me(1, ForceId.Friend), 0, viewerAt: new System.Numerics.Vector2(400, 400)).Strip);   // A is held, not changing hands
+        Assert.Null(GameHud.Build(Entries(), Me(1, ForceId.Friend), 0, viewerAt: new System.Numerics.Vector2(0, 0)).Strip);   // outside every point
+        Assert.Equal("Contested B · 60 %", GameHud.Build(Entries(), Me(1, ForceId.Hostile), 0, viewerAt: new System.Numerics.Vector2(525, 405)).Strip!.Text);   // Friend takes it, I am Red
     }
 
     [Fact]
@@ -290,13 +288,47 @@ public sealed class PlayerHudTests : IDisposable
     }
 
     [Fact]
-    public void ThePointArea_ComesFromTheAuthoredParams_AndContainsByTheOneAreaTest()
+    public void ThePointArea_IsTheStatusesBoundingCircle_AndAPointIsWhatSaysCapture()
     {
-        var area = PointAreas.Parse("{\"common\":{\"title\":\"Point A\"},\"area\":{\"circle\":{\"center\":[400,400,0],\"radius\":15}},\"capture\":true}");
-        Assert.NotNull(area);
-        Assert.True(area!.Value.Contains(_world, new System.Numerics.Vector3(405, 400, 0)));
-        Assert.False(area.Value.Contains(_world, new System.Numerics.Vector3(430, 400, 0)));
-        Assert.Null(PointAreas.Parse("{\"common\":{}}"));
-        Assert.Null(PointAreas.Parse("not json"));
+        Crossfire();
+        var b = GameHud.Build(Entries(), Me(1, ForceId.Friend), 0).Points[1];
+        Assert.True(b.Contains(525, 400)); Assert.True(b.Contains(537, 408)); Assert.False(b.Contains(545, 400));   // 15 m radius
+        Assert.False(new PointLine(1, "X", ForceId.Neutral, ForceId.Neutral, 0, false, 0, 0, 0).Contains(0, 0));    // no area known ⇒ contains nothing
+        // a HoldArea WITHOUT the Capture flag is a mission objective, not a point — whatever its reason says
+        Add(95, "Hold the bridge", kind: "HoldArea", edit: (ref ObjectiveStatus s) => s.Reason = new FixedString64("held 3 of 600 s, owner of the hill"));
+        Assert.Equal(3, GameHud.Build(Entries(), Me(1, ForceId.Friend), 0).Points.Count);
+        Assert.Contains("Hold the bridge", TrainingHud.Build(Entries(), Me(1, ForceId.Friend), 0).Objectives.Select(o => o.Title));
+    }
+
+    // ── W-H3: a rule's side
+
+    [Fact]
+    public void ARulesSide_IsItsOwnEntitysForceId_ThenItsSubjects_ThenOwner()
+    {
+        Man(5, "Blue Platoon", ForceId.Friend);
+        var own = Add(300, "Red tickets", subject: 5);                                                      // subject Blue, but the rule itself is Red's
+        _world.AddComponent(own, new EntityInfo { Name = new FixedString64("Red tickets"), ForceId = ForceId.Hostile });
+        var neutralOwn = Add(301, "Neutral-entity rule", subject: 5);                                       // an entity of no side: the subject decides
+        _world.AddComponent(neutralOwn, new EntityInfo { Name = new FixedString64("n"), ForceId = ForceId.Neutral });
+        Add(302, "Subject only", subject: 5);
+        Add(303, "Owner only", owner: ForceId.Hostile);
+        var by = Entries().ToDictionary(e => e.NetworkId);
+        Assert.Equal(ForceId.Hostile, MissionSummaryModel.SideOfRule(_world, by[300]));
+        Assert.Equal(ForceId.Friend, MissionSummaryModel.SideOfRule(_world, by[301]));
+        Assert.Equal(ForceId.Friend, MissionSummaryModel.SideOfRule(_world, by[302]));
+        Assert.Equal(ForceId.Hostile, MissionSummaryModel.SideOfRule(_world, by[303]));
+        // a rule expanded from a MACRO carries the template's side (Friend for every man): its subject's side wins — Red's score root is Red's
+        Man(6, "Red man", ForceId.Hostile);
+        var macroRule = Add(304, "Score", kind: "Points", subject: 6);
+        _world.AddComponent(macroRule, new EntityInfo { Name = new FixedString64("Score"), ForceId = ForceId.Friend });
+        var entry = Entries().First(e => e.NetworkId == 304);
+        Assert.Equal(ForceId.Friend, MissionSummaryModel.SideOfRule(_world, entry));                         // authored (no MacroInstance): its own entity
+        Assert.Equal(ForceId.Hostile, MissionSummaryModel.SideOfRule(_world, entry with { MacroInstance = 99 }));   // macro-instanced: the subject
+        // the HUD's tickets use it: Red's counter is Red's although its subject is Blue
+        Add(310, "Blue tickets", kind: "Counter", owner: ForceId.Neutral, subject: 5, edit: (ref ObjectiveStatus s) => { s.Value = 90; s.Target = 150; });
+        var red = Add(311, "Red tickets", kind: "Counter", owner: ForceId.Neutral, subject: 5, edit: (ref ObjectiveStatus s) => { s.Value = 40; s.Target = 150; });
+        _world.AddComponent(red, new EntityInfo { Name = new FixedString64("Red tickets"), ForceId = ForceId.Hostile });
+        var g = GameHud.Build(Entries(), Me(1, ForceId.Friend), 0, sideOf: e => MissionSummaryModel.SideOfRule(_world, e));
+        Assert.Equal(new[] { (ForceId.Friend, 90f), (ForceId.Hostile, 40f) }, g.Tickets.Select(t => (t.Side, t.Value)));
     }
 }

@@ -189,7 +189,7 @@ public sealed class DebriefModelTests : IDisposable
         Rule(400, "Blue tickets", "Counter", subject: 1, value: 87f, target: 150f);
         Rule(401, "Red tickets", "Counter", subject: 2, value: 0f, target: 150f);
         Rule(402, "Point A", "HoldArea", state: ObjectiveState.Active, owner: ForceId.Friend, scored: false);
-        _world.GetComponentRW<ObjectiveStatus>(_by[402]).Reason = new FixedString64("F 3 / H 0 men, owner Friend");
+        _world.GetComponentRW<ObjectiveStatus>(_by[402]).Capture = 1;
     }
 
     [Fact]
