@@ -1640,7 +1640,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Domination Blue\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"Compound\", \"operator\": \"And\", \"conditions\": [{\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000023\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000024\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000025\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}]}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Blue dominates!\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"Blue held all three points for 60 s\"}}], \"holdFor\": 60}",
+    "Params": "{\"common\": {\"title\": \"Domination Blue\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"Compound\", \"operator\": \"And\", \"conditions\": [{\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000023\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000024\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000025\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}]}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Blue dominates!\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"Blue held all three points for 60 s\", \"winner\": \"Friend\"}}], \"holdFor\": 60}",
     "Origin": "Superior"
    }
   },
@@ -1654,7 +1654,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Domination Red\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"Compound\", \"operator\": \"And\", \"conditions\": [{\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000023\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000024\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000025\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}]}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Red dominates!\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"Red held all three points for 60 s\"}}], \"holdFor\": 60}",
+    "Params": "{\"common\": {\"title\": \"Domination Red\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"Compound\", \"operator\": \"And\", \"conditions\": [{\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000023\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000024\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000025\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}]}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Red dominates!\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"Red held all three points for 60 s\", \"winner\": \"Hostile\"}}], \"holdFor\": 60}",
     "Origin": "Superior"
    }
   },
@@ -1663,12 +1663,40 @@
     "TkbType": 8861
    },
    "EntityInfo": {
-    "Name": "End",
+    "Name": "Blue wins",
     "ForceId": "Friend"
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"End\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"Compound\", \"operator\": \"Or\", \"conditions\": [{\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000026\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -1000000.0, \"maxValue\": 0}}}, {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000027\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -1000000.0, \"maxValue\": 0}}}, {\"$type\": \"ScenarioTime\", \"fromSeconds\": 900}]}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Round over\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"tickets or time\"}}]}",
+    "Params": "{\"common\": {\"title\": \"Blue wins\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"Compound\", \"operator\": \"Or\", \"conditions\": [{\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000027\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -1000000.0, \"maxValue\": 0}}}, {\"$type\": \"Compound\", \"operator\": \"And\", \"conditions\": [{\"$type\": \"ScenarioTime\", \"fromSeconds\": 900}, {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 0.5, \"maxValue\": 1000000.0}}}]}]}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Blue wins!\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"Red out of tickets, or Blue ahead at time\", \"winner\": \"Friend\"}}]}",
+    "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000068": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Red wins",
+    "ForceId": "Hostile"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": "{\"common\": {\"title\": \"Red wins\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"Compound\", \"operator\": \"Or\", \"conditions\": [{\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000026\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -1000000.0, \"maxValue\": 0}}}, {\"$type\": \"Compound\", \"operator\": \"And\", \"conditions\": [{\"$type\": \"ScenarioTime\", \"fromSeconds\": 900}, {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -1000000.0, \"maxValue\": -0.5}}}]}]}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Red wins!\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"Blue out of tickets, or Red ahead at time\", \"winner\": \"Hostile\"}}]}",
+    "Origin": "Superior"
+   }
+  },
+  "cf6e0000-0000-4000-8000-000000000069": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Draw",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": "{\"common\": {\"title\": \"Draw\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"Compound\", \"operator\": \"And\", \"conditions\": [{\"$type\": \"ScenarioTime\", \"fromSeconds\": 900}, {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -0.5, \"maxValue\": 0.5}}}]}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Draw!\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"level at time\", \"winner\": \"Draw\"}}]}",
     "Origin": "Superior"
    }
   }

@@ -28,7 +28,23 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
     public struct AddToCounterParams { public EntityLink Target; public float Amount; }
 
     /// <summary>⭐ <c>EndExercise</c>'s params and working state.</summary>
-    public struct EndExerciseParams { public FixedString64 Reason; }
+    public struct EndExerciseParams : IActionArgsCheck
+    {
+        public FixedString64 Reason;
+        /// <summary>⭐ ui ⑥ — optional: <c>Friend</c> · <c>Hostile</c> · <c>Draw</c> (case-insensitive) NAMES the winner (the scenario's own rule — tickets, the lead, domination); empty = the SR-122 rule over the root objectives.</summary>
+        public FixedString32 Winner;
+
+        public static readonly string[] Winners = { "Friend", "Hostile", "Draw" };
+
+        public readonly string? Check(JsonObject args)
+        {
+            foreach (var (k, v) in args)
+                if (string.Equals(k, "winner", StringComparison.OrdinalIgnoreCase) && v is JsonValue jv && jv.TryGetValue<string>(out var w) && w.Length > 0
+                    && Array.FindIndex(Winners, x => string.Equals(x, w, StringComparison.OrdinalIgnoreCase)) < 0)
+                    return $"winner '{w}' is not one of {string.Join(", ", Winners)}";
+            return null;
+        }
+    }
     public struct EndExerciseState { public byte Began; public double StartedAt; }
 
     /// <summary>⭐ <c>Message</c>'s params (SR-121). <c>ToKind</c>: All / Side / Station / Unit / Instructor.</summary>
@@ -135,6 +151,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
                 Fdp.Core.Logging.FdpLog<Log>.Warn($"exercise end: {open.Count} of {total} objectives did not close within {CloseTimeoutSeconds} s: {string.Join(", ", open)}");
             ref var r = ref world.GetComponentRW<ExerciseResult>(env);
             Outcomes(world, ref r);
+            NameTheWinner(ref r, p.Winner.ToString());
             r.Phase = ExercisePhase.Ended; r.EndedAt = now;
             if (!world.Bus.IsRegistered<ExerciseEndedEvent>()) world.Bus.Register<ExerciseEndedEvent>();
             world.Bus.Publish(new ExerciseEndedEvent { EndedAt = now });
@@ -155,6 +172,15 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
                 if (st.Closed == 0) open.Add(st.Title.Length > 0 ? st.Title.ToString() : st.Kind.ToString());
             }
             return open;
+        }
+
+        /// <summary>⭐ ui ⑥ — an authored winner overrides the SR-122 outcomes (Score / Points per side stay as computed): Friend ⇒ Friend Win, Hostile Lose · Hostile ⇒ the reverse · Draw ⇒ both Draw. Empty = untouched.</summary>
+        private static void NameTheWinner(ref ExerciseResult r, string winner)
+        {
+            if (winner.Length == 0) return;
+            if (string.Equals(winner, "Draw", StringComparison.OrdinalIgnoreCase)) { r.Friend.Outcome = SideOutcome.Draw; r.Hostile.Outcome = SideOutcome.Draw; }
+            else if (string.Equals(winner, "Friend", StringComparison.OrdinalIgnoreCase)) { r.Friend.Outcome = SideOutcome.Win; r.Hostile.Outcome = SideOutcome.Lose; }
+            else if (string.Equals(winner, "Hostile", StringComparison.OrdinalIgnoreCase)) { r.Friend.Outcome = SideOutcome.Lose; r.Hostile.Outcome = SideOutcome.Win; }
         }
 
         private struct Acc { public int Roots, Required, RequiredAchieved, Achieved; public double W, WScore; public float Points; }

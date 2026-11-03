@@ -119,7 +119,8 @@ SCORE_TABLE = [  # (title, Count what, points, scored)
     ("Streak", "streak", 0, False),          # S7 P-8a — kills since he was last downed (the HUD's STREAK xn)
     ("Best streak", "bestStreak", 0, False), # S7 P-8a — the round's best (scoreboard, summary, the award)
 ]
-BOUNTY_STREAK = 5   # SHOWCASE §2.2: "a player's streak >= 5"
+BOUNTY_STREAK = 5
+SCORE_TARGET = 1000   # ui ⑤ — the scale of a good round (the best live round so far: 450)   # SHOWCASE §2.2: "a player's streak >= 5"
 
 
 def macro_score():
@@ -127,7 +128,8 @@ def macro_score():
     unscored HitRatio (the Sharpshooter award reads it). MemberEvaluation (members side, aggregate points) inserts it for every man of a side."""
     ids, ents = Ids("cf0d0000"), {}
     root = ids()
-    ents[root] = objective_entity("Points", "Score", {"common": {"title": "Score", "subject": "^subject", "parent": "^parent", "group": "score"}})
+    ents[root] = objective_entity("Points", "Score", {"common": {"title": "Score", "subject": "^subject", "parent": "^parent", "group": "score"},
+                                                     "target": SCORE_TARGET})   # ⭐ ui ⑤ (CE-4232): Score = Value / target moves, so the score lane has a history
     measure = {}
     for title, what, points, scored in SCORE_TABLE:
         c = {"title": title, "subject": "^subject", "parent": root, "group": "score", "points": points}
@@ -334,11 +336,16 @@ def scenario():
 
     # ── the end: a team out of tickets, a domination (all three points for 60 s), or 15 min
     trigger("Domination Blue", all_of(*[on_status(pts[p], "Owner", FRIEND, FRIEND) for p in POINTS]),
-            [msg("Blue dominates!", 8), {"act": "EndExercise", "args": {"reason": "Blue held all three points for 60 s"}}], holdFor=60)
+            [msg("Blue dominates!", 8), {"act": "EndExercise", "args": {"reason": "Blue held all three points for 60 s", "winner": "Friend"}}], holdFor=60)
     trigger("Domination Red", all_of(*[on_status(pts[p], "Owner", HOSTILE, HOSTILE) for p in POINTS]),
-            [msg("Red dominates!", 8), {"act": "EndExercise", "args": {"reason": "Red held all three points for 60 s"}}], holdFor=60, force="Hostile")
-    trigger("End", any_of(on_status(blue_t, "Value", -1e6, 0), on_status(red_t, "Value", -1e6, 0), time_from(ROUND)),
-            [msg("Round over", 8), {"act": "EndExercise", "args": {"reason": "tickets or time"}}])
+            [msg("Red dominates!", 8), {"act": "EndExercise", "args": {"reason": "Red held all three points for 60 s", "winner": "Hostile"}}], holdFor=60, force="Hostile")
+    # ⭐ ui ⑥ — the end NAMES the winner (EndExercise winner): tickets out, else at time-out the side ahead on "Blue lead" (0 = a draw)
+    trigger("Blue wins", any_of(on_status(red_t, "Value", -1e6, 0), all_of(time_from(ROUND), on_status(lead, "Value", 0.5, 1e6))),
+            [msg("Blue wins!", 8), {"act": "EndExercise", "args": {"reason": "Red out of tickets, or Blue ahead at time", "winner": "Friend"}}])
+    trigger("Red wins", any_of(on_status(blue_t, "Value", -1e6, 0), all_of(time_from(ROUND), on_status(lead, "Value", -1e6, -0.5))),
+            [msg("Red wins!", 8), {"act": "EndExercise", "args": {"reason": "Blue out of tickets, or Red ahead at time", "winner": "Hostile"}}], force="Hostile")
+    trigger("Draw", all_of(time_from(ROUND), on_status(lead, "Value", -0.5, 0.5)),
+            [msg("Draw!", 8), {"act": "EndExercise", "args": {"reason": "level at time", "winner": "Draw"}}])
 
     write("scenarios/showcase-crossfire/scenario.json", doc({
         # ⭐ P-7 (DESIGN_Node_Features.md §11, F-27): this scenario's feature preset — the scenario layer under the node / cluster overrides (ui's lists, PH-8)
