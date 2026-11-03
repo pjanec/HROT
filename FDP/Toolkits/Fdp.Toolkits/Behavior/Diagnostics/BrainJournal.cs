@@ -42,6 +42,8 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         StateChanged,
         /// <summary>⭐ rules V-4 — a rule entity honoured a runtime request. A = the <c>RuleRequest</c>, B = its Seq, Origin = the <c>RuleOrigin</c>, Cause = 1 when it was refused.</summary>
         RuleControl,
+        /// <summary>⭐ rules ② — a running behaviour's params were EDITED live (<c>BehaviorIngressSystem.Reparameterise</c>): state kept, no restart. A = the behaviour hash, Origin = the <c>BehaviorOrigin</c>, Cause = 1 when refused.</summary>
+        Reparameterised,
     }
 
     /// <summary>⭐ <c>CE-1249</c> (BV-13) — why the gate refused an assignment.</summary>

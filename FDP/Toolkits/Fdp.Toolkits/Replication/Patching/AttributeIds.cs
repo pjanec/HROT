@@ -150,4 +150,15 @@ public static class AttributeIds
 
     /// <summary>⭐ <c>RuleControl.Origin</c> — who asked (<c>RuleOrigin</c>: 1 debug API, 2 instructor), for the journal. <c>Int32</c>.</summary>
     public const ushort RuleOrigin = 42;
+
+    // ── rules ② (docs/DESIGN_Scenario_Rules.md §00.11a) — a LIVE EDIT of a rule's params that keeps its state: RuleEdit (433), a managed record the handlers REPLACE whole ──
+
+    /// <summary>⭐ <c>RuleEdit.Json</c> — the rule's new params (a JSON object, the same shape a load takes). <c>String</c>.</summary>
+    public const ushort RuleParams = 43;
+
+    /// <summary>⭐ <c>RuleEdit.Seq</c> — the edit's sequence number; the owner applies ONCE per new value. <c>Int32</c>.</summary>
+    public const ushort RuleEditSeq = 44;
+
+    /// <summary>⭐ <c>RuleEdit.Origin</c> — who asked (<c>BehaviorOrigin</c> value), for the journal. <c>Int32</c>.</summary>
+    public const ushort RuleEditOrigin = 45;
 }

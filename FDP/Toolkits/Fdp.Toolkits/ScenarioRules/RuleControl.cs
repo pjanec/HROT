@@ -29,4 +29,24 @@ namespace Fdp.Toolkit.ScenarioRules
         /// <summary>The last <see cref="Seq"/> the owner acted on (written by the owner only — never through the attribute path).</summary>
         public int Done;
     }
+    /// <summary>
+    /// ⭐ rules ② (📄 docs/DESIGN_Scenario_Rules.md §00.11a) — a LIVE EDIT of a rule's params, written through the attribute path (<c>Rule.Params</c> / <c>Rule.EditSeq</c> /
+    /// <c>Rule.EditOrigin</c>): the owner's <c>RuleEditSystem</c> applies a <see cref="Seq"/> it has not seen (<see cref="Done"/>) ONCE, keeping the rule's state.
+    /// <para>⭐ MANAGED, so an IMMUTABLE record replaced whole (CLAUDE.md "NEW COMPONENTS"): each attribute handler sets <c>old with { … }</c> through
+    /// <c>IEntityPatchContext.SetManagedComponent</c>; the owner records <see cref="Done"/> the same way. Brain-local, <c>NoReplay</c> (a change request — the status and the
+    /// journal carry the effect), <c>NoScenario</c> (SR-109: "this run only").</para>
+    /// </summary>
+    [ComponentId(GlobalComponentIds.RuleEdit)]
+    [DataPolicy(DataPolicy.NoReplay | DataPolicy.NoScenario)]
+    public sealed record RuleEdit
+    {
+        /// <summary>The rule's new params (the JSON a load takes).</summary>
+        public string Json { get; init; } = "";
+        /// <summary>The requester's sequence number: a new value = a new edit.</summary>
+        public int Seq { get; init; }
+        /// <summary>A <c>BehaviorOrigin</c> value — who asked, for the journal.</summary>
+        public int Origin { get; init; }
+        /// <summary>The last <see cref="Seq"/> the owner applied or refused (written by the owner only — never through the attribute path).</summary>
+        public int Done { get; init; }
+    }
 }

@@ -920,6 +920,52 @@ namespace Fdp.Toolkit.Behavior.Systems
             }
         }
 
+        /// <summary>
+        /// ⭐ rules ② (R2, 📄 docs/DESIGN_Scenario_Rules.md §00.11a) — a LIVE EDIT of the running behaviour's params that KEEPS its state: the SAME parse as an assign
+        /// (<see cref="ParseIntoShadow"/>), then the behaviour's <see cref="StateKeeper"/> copies the runtime fields from the live params block into the shadow, then the
+        /// shadow is committed over the live block — WITHOUT a restart. Returns <c>null</c> when applied, else the reason it was refused (the live block is untouched).
+        /// <para>⭐ What it SKIPS of <see cref="Start"/>'s commit — exactly the restart: <c>BehaviorState</c> (<c>InstanceId</c> stays, so the run's token and the finish de-dup stay;
+        /// <c>RunSince</c>, <c>Origin</c>, <c>Urgency</c> stay) · the owned-parts release (<c>BehaviorOwnedParts.Release</c>) · the previous-behaviour slot detach and the stateful-slot
+        /// provisioning · <c>DetachHostedOccurrenceSlots</c> (hosted params stay) · the root TREE STATE reset (<c>RootStateAccess.ResetState</c>) and the hosted tree states · the HSM instance reset ·
+        /// the paused-task / admission gate (<c>Admit</c>: an edit is not an order). It does update the <see cref="BehaviorStartRecord"/>'s JSON (same <c>InstanceId</c>), so a hot-reload
+        /// restart re-assigns the EDITED params. It writes ONE journal entry (<see cref="BrainJournalKind.Reparameterised"/>), refused or not.</para>
+        /// </summary>
+        public unsafe string? Reparameterise(EntityRepository repo, Entity entity, string json, BehaviorOrigin origin)
+        {
+            string? why = ReparameteriseCore(repo, entity, json, out int behaviorId);
+            if (repo.IsAlive(entity) && repo.HasComponent<BehaviorState>(entity))
+                BrainJournalOf.Write(repo, entity, BrainJournalKind.Reparameterised, a: behaviorId, origin: (byte)origin, cause: (byte)(why != null ? 1 : 0));
+            return why;
+        }
+
+        private unsafe string? ReparameteriseCore(EntityRepository repo, Entity entity, string json, out int behaviorId)
+        {
+            behaviorId = BehaviorIds.None;
+            if (!repo.IsAlive(entity) || !repo.HasComponent<BehaviorState>(entity)) return "the entity runs no behaviour";
+            behaviorId = repo.GetComponentRO<BehaviorState>(entity).ActiveBehaviorHash;
+            if (behaviorId == BehaviorIds.None || !_registry.TryGetDefinition(behaviorId, out var def)) return "the entity runs no behaviour";
+            string name = def.Name;
+            if (!_registry.TryGetKeeper(name, out var keeper)) return "not editable live, restart the rule";
+            if (string.IsNullOrWhiteSpace(json)) json = "{}";
+            // ⭐ the same load-time check (CE-2377); a KIND change is impossible by construction — the edit carries no name, the live behaviour's own name is used.
+            var problems = BehaviorParamsValidation.Validate(_registry, name, json);
+            if (problems.Count > 0) return string.Join("; ", problems);
+            int rootBytes = RootParamsAccess.RootParamsBytes(def);
+            if (rootBytes <= 0 || def.ParseParams == null) return "this kind has no params to edit";
+            if (!RootParamsAccess.TryGetRootBytes(repo, entity, out byte* live, out int liveLen) || liveLen != rootBytes)
+                return "the running params block is not the kind's";
+            if (!ParseIntoShadow(repo, entity, def, json, out _, out Span<byte> shadow)) return "the params did not parse";
+            try { keeper(shadow.Slice(0, rootBytes), new ReadOnlySpan<byte>(live, rootBytes)); }
+            catch (Exception ex) { return "the state could not be kept: " + ex.Message; }
+            fixed (byte* src = shadow) Buffer.MemoryCopy(src, live, rootBytes, rootBytes);
+            if (repo.TryGetTable(typeof(BehaviorStartRecord), out _) && repo.HasManagedComponent<BehaviorStartRecord>(entity))
+            {
+                var rec = ((ISimulationView)repo).GetManagedComponentRO<BehaviorStartRecord>(entity);
+                repo.SetManagedComponent(entity, rec with { JsonParams = json });
+            }
+            return null;
+        }
+
         /// <summary>⭐ <c>CE-2084</c> (§4.5 ①) — an SOP must not drive a channel: a behaviour KNOWN to command one is refused
         /// at assign time (unknown is allowed; the runtime <c>ChannelGuard</c> is the backstop).</summary>
         public static bool DrivesAChannel(BehaviorDefinition def) => def.WritesChannels is { Count: > 0 };

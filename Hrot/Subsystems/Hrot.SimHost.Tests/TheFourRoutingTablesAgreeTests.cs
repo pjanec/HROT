@@ -70,6 +70,10 @@ public class TheFourRoutingTablesAgreeTests
         ("Rule.Request", AttributeIds.RuleRequest,         "{\"Rule\":{\"Request\":2}}"),
         ("Rule.Seq",     AttributeIds.RuleSeq,             "{\"Rule\":{\"Seq\":1}}"),
         ("Rule.Origin",  AttributeIds.RuleOrigin,          "{\"Rule\":{\"Origin\":1}}"),
+        // ⭐ rules ② (§00.11a) — a live edit of a rule's params: the managed RuleEdit, replaced whole by each path
+        ("Rule.Params",     AttributeIds.RuleParams,       "{\"Rule\":{\"Params\":\"{}\"}}"),
+        ("Rule.EditSeq",    AttributeIds.RuleEditSeq,      "{\"Rule\":{\"EditSeq\":1}}"),
+        ("Rule.EditOrigin", AttributeIds.RuleEditOrigin,   "{\"Rule\":{\"EditOrigin\":3}}"),
     };
 
     public static IEnumerable<object[]> VocabularyCases()
@@ -106,7 +110,7 @@ public class TheFourRoutingTablesAgreeTests
         const string all = "{\"Name\":\"Charlie\",\"Affiliation\":\"FORCE_OPPOSING\",\"Heading\":90.0," +
                            "\"Position\":{\"X\":32.0,\"Y\":34.0,\"Z\":100.0}," +
                            "\"ScenarioStartUtcTicks\":638450000000000000,\"ScenarioUtcOffsetMinutes\":120," +
-                           "\"Fear\":1.0,\"FrightFrom\":{\"X\":10.0,\"Y\":20.0,\"Z\":1.0},\"Rule\":{\"Request\":2,\"Seq\":1,\"Origin\":1}}";
+                           "\"Fear\":1.0,\"FrightFrom\":{\"X\":10.0,\"Y\":20.0,\"Z\":1.0},\"Rule\":{\"Request\":2,\"Seq\":1,\"Origin\":1,\"Params\":\"{}\",\"EditSeq\":1,\"EditOrigin\":3}}";
 
         var emitter = Emit(AttributeCompilerFactory.BuildEdgeCompiler(), all);
 
@@ -425,6 +429,8 @@ public class TheFourRoutingTablesAgreeTests
         repo.SetAuthority<Fdp.Toolkit.Civilians.CivilianState>(e, true);
         repo.AddComponent(e, default(Fdp.Toolkit.ScenarioRules.RuleControl));   // ⭐ rules V-4 — the control's three attributes
         repo.SetAuthority<Fdp.Toolkit.ScenarioRules.RuleControl>(e, true);
+        repo.SetManagedComponent(e, new Fdp.Toolkit.ScenarioRules.RuleEdit());   // ⭐ rules ② — a live edit's three attributes (managed, replaced whole)
+        repo.SetAuthority(e, ManagedComponentType<Fdp.Toolkit.ScenarioRules.RuleEdit>.ID, true);
         return (repo, e);
     }
 

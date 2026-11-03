@@ -44,6 +44,12 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 world.AddComponent(self, new RuleControl());
                 world.SetAuthority(self, ComponentTypeRegistry.GetOrRegisterManaged(typeof(RuleControl)), true);
             }
+            if (world.TryGetTable(typeof(RuleEdit), out _) && !world.HasManagedComponent<RuleEdit>(self))
+            {
+                // ⭐ rules ② — the same for a live edit's request record (managed, immutable): the owner holds it and its authority bit; the node's RuleEditSystem applies it
+                world.SetManagedComponent(self, new RuleEdit());
+                world.SetAuthority(self, ManagedComponentType<RuleEdit>.ID, true);
+            }
             double now = Now(world);
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
             var control = HonourControl(world, self, ref s, role, now);

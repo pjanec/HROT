@@ -605,6 +605,7 @@ internal sealed class SplitAuthorityContext : IEntityPatchContext
 
     public ref T GetUnmanagedComponent<T>() where T : struct => ref _inner.GetUnmanagedComponent<T>();
     public T GetManagedComponent<T>() where T : class => _inner.GetManagedComponent<T>();
+    public void SetManagedComponent<T>(T value) where T : class => _inner.SetManagedComponent(value);
     public void FlushDirtyMarks() => _inner.FlushDirtyMarks();
     public bool CanWrite<T>() where T : struct => _ownedTypes.Contains(typeof(T));
     public bool CanWriteManaged<T>() where T : class => _ownedTypes.Contains(typeof(T));

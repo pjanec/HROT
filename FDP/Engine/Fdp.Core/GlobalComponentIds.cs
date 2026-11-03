@@ -1107,6 +1107,11 @@ namespace Fdp.Core
         /// sampled at ≤ 2 Hz by the owner while the node feature <c>ui.rules-live-values</c> is on; Brain group, replicated as <c>dtRuleLeaves</c> (174), NoScenario. Behaviors' block 418–433 (R-2056).</summary>
         public const int RuleLeaves = 431;
 
+        /// <summary>⭐ rules ② (behaviors; 📄 docs/DESIGN_Scenario_Rules.md §00.11a) — <c>RuleEdit</c> (MANAGED, an immutable record): a live edit of a rule's params
+        /// (<c>Json</c> · <c>Seq</c> · <c>Origin</c>), written through the attribute path (<c>Rule.Params</c> / <c>Rule.EditSeq</c> / <c>Rule.EditOrigin</c>, each handler REPLACING the record) and applied ONCE per
+        /// new Seq by the owner's <c>RuleEditSystem</c>. Brain-local, NoReplay, NoScenario. The last free id of the behaviors block 418–433 (R-2056).</summary>
+        public const int RuleEdit = 433;
+
         /// <summary>⭐ rules S4 E-1 (behaviors; 📄 docs/DESIGN_Scenario_Rules.md §00.11) — <c>IMacroLibrary</c>: the node's macro library as a managed world SINGLETON (a service, never world state — the
         /// <c>ITkbDatabase</c> pattern), so a behaviour (<c>MemberEvaluation</c>) can ask "does macro X exist". Set by <c>MacroExpansionSystem</c> from the expander's own instance. Behaviors' block 418–433 (R-2056).</summary>
         public const int IMacroLibrary = 432;

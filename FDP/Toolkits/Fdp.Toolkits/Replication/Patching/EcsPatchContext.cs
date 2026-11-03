@@ -152,6 +152,16 @@ public sealed class EcsPatchContext : IEntityPatchContext
     }
 
     /// <inheritdoc/>
+    /// <remarks>⭐ R1 — <c>repo.SetManagedComponent</c> (the table's version moves, so the recorder / change detection see it); the ordinal and the
+    /// component id are recorded exactly as <see cref="GetManagedComponent{T}"/> does.</remarks>
+    public void SetManagedComponent<T>(T value) where T : class
+    {
+        RecordOrdinal(typeof(T));
+        _appliedComponentIds.Add(ManagedComponentType<T>.ID);
+        _repo.SetManagedComponent(_entity, value);
+    }
+
+    /// <inheritdoc/>
     /// <remarks>
     /// Iterates all distinct touched descriptor ordinals and calls
     /// <see cref="SmartEgressUtil.MarkDirty"/> once per ordinal, guaranteeing per-entity

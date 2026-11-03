@@ -65,6 +65,7 @@ namespace Hrot.CGF.Configuration
                 Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Pinning(aiAssembly));
             // ⭐ CE-2377 — and the optional [BehaviorValidator] statics, from the same pinned copy.
             Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindValidators(behaviorRegistry, aiAssembly);
+            Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindKeepers(behaviorRegistry, aiAssembly);   // ⭐ rules ② R4 — beside the validators
         }
 
         /// <summary>

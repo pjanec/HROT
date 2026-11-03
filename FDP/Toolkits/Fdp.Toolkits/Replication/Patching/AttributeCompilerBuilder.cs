@@ -86,6 +86,27 @@ public sealed class AttributeCompilerBuilder
     }
 
     /// <summary>
+    /// ⭐ rules ② (R1) — a JSON path for an IMMUTABLE managed component: the setter returns the NEW instance (<c>old with { … }</c>), which the
+    /// invoker sets whole through <see cref="IEntityPatchContext.SetManagedComponent{T}"/>.
+    /// </summary>
+    public AttributeCompilerBuilder RegisterReplacePath<T>(
+        string jsonPath,
+        ReplaceAttributeSetter<T> setter,
+        long descriptorOrdinal = 0,
+        AttributeValueKind kind = AttributeValueKind.CsString) where T : class
+    {
+        if (string.IsNullOrEmpty(jsonPath))
+            throw new ArgumentNullException(nameof(jsonPath), "JSON path must not be null or empty.");
+        ulong hash = JsonAttributeCompiler.HashPath(jsonPath);
+        if (_routes.ContainsKey(hash))
+            throw new InvalidOperationException(
+                $"A route for path '{jsonPath}' (hash {hash}) is already registered. Duplicate paths are not allowed.");
+        _routes[hash] = new RoutingEntry(new ReplaceInvoker<T>(setter), descriptorOrdinal, kind);
+        _paths.Add(jsonPath);
+        return this;
+    }
+
+    /// <summary>
     /// Builds the immutable <see cref="JsonAttributeCompiler"/> with all registered routes.
     /// </summary>
     public JsonAttributeCompiler Build()

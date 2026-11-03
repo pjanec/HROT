@@ -61,6 +61,7 @@ public sealed class TheGateCannotBeForgottenTests
             return (T)raw;
         }
 
+        public void SetManagedComponent<T>(T value) where T : class => _managed[typeof(T)] = value;
         public void FlushDirtyMarks() { }
         public bool CanWrite<T>() where T : struct => _canWrite;
         public bool CanWriteManaged<T>() where T : class => _canWrite;

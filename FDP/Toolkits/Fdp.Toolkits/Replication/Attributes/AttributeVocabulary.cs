@@ -73,6 +73,10 @@ public static class AttributeVocabulary
         new("Rule.Request",          AttributeIds.RuleRequest,         AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.ScenarioRules.RuleControl), BrainLocal: true),
         new("Rule.Seq",              AttributeIds.RuleSeq,             AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.ScenarioRules.RuleControl), BrainLocal: true),
         new("Rule.Origin",           AttributeIds.RuleOrigin,          AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.ScenarioRules.RuleControl), BrainLocal: true),
+        // ⭐ rules ② (§00.11a) — a LIVE EDIT of a rule's params: the MANAGED record RuleEdit, replaced whole by each handler (R1); applied by the owner's RuleEditSystem
+        new("Rule.Params",           AttributeIds.RuleParams,          AttributeValueKind.CsString,  typeof(Fdp.Toolkit.ScenarioRules.RuleEdit), BrainLocal: true),
+        new("Rule.EditSeq",          AttributeIds.RuleEditSeq,         AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.ScenarioRules.RuleEdit), BrainLocal: true),
+        new("Rule.EditOrigin",       AttributeIds.RuleEditOrigin,      AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.ScenarioRules.RuleEdit), BrainLocal: true),
     };
 
     /// <summary>

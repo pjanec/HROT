@@ -92,6 +92,10 @@ public sealed class ListPatchContext : IEntityPatchContext
     }
 
     /// <inheritdoc/>
+    public void SetManagedComponent<T>(T value) where T : class
+        => _managedComponents[typeof(T)] = value ?? throw new ArgumentNullException(nameof(value));
+
+    /// <inheritdoc/>
     public T GetManagedComponent<T>() where T : class
     {
         if (_managedComponents.TryGetValue(typeof(T), out var existing))

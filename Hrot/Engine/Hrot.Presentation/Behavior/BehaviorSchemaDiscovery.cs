@@ -97,6 +97,26 @@ namespace Hrot.Presentation.Behavior
         }
 
         /// <summary>
+        /// ⭐ rules ② (R4) — binds every <c>[BehaviorStateKeeper(name)]</c> static <c>Keep(ref T fresh, in T old)</c> of <paramref name="assembly"/> onto its behaviour: the SAME one
+        /// discovery as <see cref="BindValidators"/>, and called wherever that is (the loader, the hot reload). A mis-shaped method THROWS.
+        /// </summary>
+        public static void BindKeepers(BehaviorRegistry behaviorRegistry, Assembly assembly)
+        {
+            if (behaviorRegistry is null) throw new System.ArgumentNullException(nameof(behaviorRegistry));
+            if (assembly is null) throw new System.ArgumentNullException(nameof(assembly));
+            System.Type[] types;
+            try { types = assembly.GetTypes(); }
+            catch (ReflectionTypeLoadException ex) { types = ex.Types.Where(t => t != null).ToArray()!; }
+            foreach (var type in types)
+                foreach (var m in type.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
+                {
+                    var attr = m.GetCustomAttribute<BehaviorStateKeeperAttribute>();
+                    if (attr == null) continue;
+                    behaviorRegistry.RegisterKeeper(attr.BehaviorName, StateKeeperBinder.Bind(m, attr.BehaviorName));
+                }
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-2134</c> — the declared contracts, from the ONE scan (<see cref="ParamsDtoRegistry"/>): each behaviour's
         /// <c>[Behavior(Params = …)]</c>, wherever it sits (a curated topology or resolver, an intent mapper, an assembly).
         /// ⛔ HISTORY: it scanned <c>Hrot.Core</c> for <c>[BehaviorContract]</c> on the DTOs, so a DTO could serve one behaviour.

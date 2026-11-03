@@ -1523,6 +1523,16 @@ namespace Hrot.Editor.DebugApi
                 return error != null ? Fail(400, error) : Ok(node);
             }));
 
+            // ⭐ rules ② (§00.11a) — a live edit of a rule's params that keeps its state (the same write path as /control)
+            _routes.Add(new("POST", "/objectives/{networkId}/edit", async ctx =>
+            {
+                if (!int.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var prm = ctx.Body?["params"];
+                var (node, error) = await _jobQueue.RunOnMainThread(() => Service().EditObjective(id, prm)).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
+
             // Group L — Live Mutation / Fault Injection (ADA-BATCH-13)
             _routes.Add(new("GET", "/attributes/schema", _ =>
                 Task.FromResult(Ok(Service().GetAttributesSchema()))));

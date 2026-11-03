@@ -389,6 +389,7 @@ namespace Fdp.Toolkit.Behavior
 
         // ⭐ CE-2377: the optional side-effect-free params validators ([BehaviorValidator]), by behaviour name.
         private readonly Dictionary<string, Func<string, IEnumerable<string>>> _validatorsByName = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, StateKeeper> _keepersByName = new(StringComparer.Ordinal);   // ⭐ rules ② R4
 
         // ⭐⭐⭐ O7b-3: how much occurrence store each behaviour's HOSTED blueprints will need, so
         // BehaviorIngressSystem can size the tier before the first dispatch instead of defaulting to
@@ -587,6 +588,17 @@ namespace Fdp.Toolkit.Behavior
             if (name == null) throw new ArgumentNullException(nameof(name));
             _validatorsByName[name] = validator ?? throw new ArgumentNullException(nameof(validator));
         }
+
+        /// <summary>⭐ rules ② (R4) — binds a behaviour's state keeper (<see cref="BehaviorStateKeeperAttribute"/>); last wins.</summary>
+        public void RegisterKeeper(string name, StateKeeper keeper)
+        {
+            if (name == null) throw new ArgumentNullException(nameof(name));
+            _keepersByName[name] = keeper ?? throw new ArgumentNullException(nameof(keeper));
+        }
+
+        /// <summary>⭐ rules ② (R4) — the state keeper bound to <paramref name="name"/>, if any (none = the behaviour cannot be edited live).</summary>
+        public bool TryGetKeeper(string name, [MaybeNullWhen(false)] out StateKeeper keeper)
+            => _keepersByName.TryGetValue(name, out keeper);
 
         /// <summary>⭐ <c>CE-2377</c> — the validator bound to <paramref name="name"/>, if any.</summary>
         public bool TryGetValidator(string name, [MaybeNullWhen(false)] out Func<string, IEnumerable<string>> validator)
@@ -888,6 +900,7 @@ namespace Fdp.Toolkit.Behavior
             _sourceTypesByName.Clear();
             _jsonParamsDtoByName.Clear();
             _validatorsByName.Clear();
+            _keepersByName.Clear();
             // O7b-3: a stale demand outliving its behaviour would size the NEXT one's tier.
             _hostedDemandByName.Clear();
             _groupByName.Clear();
@@ -936,6 +949,8 @@ namespace Fdp.Toolkit.Behavior
 
             foreach (var (name, v) in source._validatorsByName)
                 _validatorsByName[name] = v;
+            foreach (var (name, k) in source._keepersByName)
+                _keepersByName[name] = k;
 
             // CE-235: same for authored JSON contracts — carried first so the copy below can bind them.
             foreach (var (name, jsonDto) in source._jsonParamsDtoByName)

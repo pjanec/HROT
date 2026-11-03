@@ -45,6 +45,31 @@ namespace Hrot.Editor.DebugApi
             return (new JsonObject { ["networkId"] = networkId, ["request"] = what.ToString(), ["seq"] = seq, ["route"] = route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct ? "direct" : "requested" }, null);
         }
 
+        /// <summary>
+        /// ⭐ rules ② (§00.11a) — <c>POST /objectives/{networkId}/edit {"params": {…}}</c>: a LIVE EDIT of a rule's params that keeps its state, through the SAME write path as <see cref="ControlObjective"/>:
+        /// <see cref="RuleEdit"/> (<c>Rule.Params</c> / <c>Rule.EditSeq</c> / <c>Rule.EditOrigin</c>, ONE change list) — applied here when this node owns the entity, a change-request to the owner otherwise.
+        /// The owner's <c>RuleEditSystem</c> applies it at its next tick (a refusal shows as the status <c>Reason</c> "edit refused: …" and in the journal); the answer says how it was routed.
+        /// </summary>
+        public (JsonNode? result, string? error) EditObjective(int networkId, JsonNode? @params)
+        {
+            if (!_entityMap.TryGetEntity(networkId, out var entity) || !_world.IsAlive(entity))
+                return (null, $"Entity {networkId} not found. List the rule entities with GET /objectives.");
+            if (@params is not JsonObject) return (null, "'params' must be a JSON object (the rule's new params, the shape a scenario carries).");
+            int seq = _world.TryGetTable(typeof(RuleEdit), out _) && _world.HasManagedComponent<RuleEdit>(entity)
+                ? ((Fdp.ModuleHost.Abstractions.ISimulationView)_world).GetManagedComponentRO<RuleEdit>(entity).Seq : _ruleSeq;
+            seq = seq == int.MaxValue ? 1 : seq + 1;
+            _ruleSeq = seq;
+            var route = Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(_world).Write(entity, new[]
+            {
+                new Fdp.Toolkit.Replication.Patching.EntityAttributeChange { AttributeId = Fdp.Toolkit.Replication.Patching.AttributeIds.RuleParams, Value = Fdp.Toolkit.Replication.Patching.AttributeValue.FromString(@params.ToJsonString()) },
+                Fdp.Toolkit.Replication.Patching.EntityAttributeChange.Double(Fdp.Toolkit.Replication.Patching.AttributeIds.RuleEditOrigin, (int)Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Operator),
+                Fdp.Toolkit.Replication.Patching.EntityAttributeChange.Double(Fdp.Toolkit.Replication.Patching.AttributeIds.RuleEditSeq, seq),
+            });
+            if (route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused)
+                return (null, $"Entity {networkId}: nothing was written (this node has no way to ask the owner). Nothing was edited.");
+            return (new JsonObject { ["networkId"] = networkId, ["seq"] = seq, ["route"] = route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct ? "direct" : "requested" }, null);
+        }
+
         /// <summary><c>GET /objectives[?tree=1]</c>.</summary>
         public JsonNode GetObjectives(bool tree = false)
         {

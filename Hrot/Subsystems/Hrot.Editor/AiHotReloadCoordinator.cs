@@ -301,6 +301,7 @@ namespace Hrot.Editor
                         Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Pinning(pending.Registrars[0].DeclaringType.Assembly));
                     // ⭐ CE-2377 — and the rebuilt copy's [BehaviorValidator] statics.
                     Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindValidators(behaviorStaging, pending.Registrars[0].DeclaringType.Assembly);
+                    Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindKeepers(behaviorStaging, pending.Registrars[0].DeclaringType.Assembly);   // ⭐ rules ② R4
                 }
 
                 // Step 4: apply staging behavior registry -> live registry via MergeFrom (overwrite).

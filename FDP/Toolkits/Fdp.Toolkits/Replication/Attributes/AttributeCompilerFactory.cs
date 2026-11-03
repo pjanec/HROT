@@ -131,6 +131,21 @@ public static class AttributeCompilerFactory
                 (ref Fdp.Toolkit.ScenarioRules.RuleControl c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => c.Origin = (byte)r.GetInt32(),
                 kind: KindOf("Rule.Origin"));
 
+        // ── RuleEdit — ⭐ rules ② (§00.11a, R1): a live edit of a rule's params; an immutable managed record, each path REPLACES it whole ───────
+        builder
+            .RegisterReplacePath<Fdp.Toolkit.ScenarioRules.RuleEdit>(
+                "Rule.Params",
+                (Fdp.Toolkit.ScenarioRules.RuleEdit old, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => old with { Json = r.TokenType == JsonTokenType.String ? r.GetString() ?? "" : JsonDocument.ParseValue(ref r).RootElement.GetRawText() },
+                kind: KindOf("Rule.Params"))
+            .RegisterReplacePath<Fdp.Toolkit.ScenarioRules.RuleEdit>(
+                "Rule.EditSeq",
+                (Fdp.Toolkit.ScenarioRules.RuleEdit old, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => old with { Seq = r.GetInt32() },
+                kind: KindOf("Rule.EditSeq"))
+            .RegisterReplacePath<Fdp.Toolkit.ScenarioRules.RuleEdit>(
+                "Rule.EditOrigin",
+                (Fdp.Toolkit.ScenarioRules.RuleEdit old, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => old with { Origin = r.GetInt32() },
+                kind: KindOf("Rule.EditOrigin"));
+
         return builder.Build();
     }
 
@@ -190,7 +205,8 @@ public static class AttributeCompilerFactory
             .AddInstaller(new SimTransformHeadingInstaller())
             .AddInstaller(new ScenarioClockAttributeInstaller())    // ⭐ CE-3216 S1-0 — the scenario start time (no geo transform needed)
             .AddInstaller(new CivilianFrightAttributeInstaller())   // ⭐ CE-4024 — a civilian's fright (AQ93 §15 K5)
-            .AddInstaller(new RuleControlAttributeInstaller());     // ⭐ rules V-4 — a rule entity's runtime control
+            .AddInstaller(new RuleControlAttributeInstaller())      // ⭐ rules V-4 — a rule entity's runtime control
+            .AddInstaller(new RuleEditAttributeInstaller());        // ⭐ rules ② — a live edit of a rule's params (managed, replaced whole)
 
         return builder.Build();
     }

@@ -114,6 +114,23 @@ public sealed class BinaryInterpreterBuilder<TRecord> where TRecord : struct
     }
 
     /// <summary>
+    /// ⭐ rules ② (R1) — the managed twin of the gated registration: the handler runs only when this node may write the MANAGED component
+    /// <typeparamref name="TComponent"/>, and replaces it through <see cref="IEntityPatchContext.SetManagedComponent{T}"/>.
+    /// </summary>
+    public BinaryInterpreterBuilder<TRecord> RegisterManagedHandler<TComponent>(
+        ushort id,
+        Action<BinaryPatchContext, TRecord> handler)
+        where TComponent : class
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        return RegisterHandler(id, (ctx, record) =>
+        {
+            if (!ctx.PatchContext.CanWriteManaged<TComponent>()) return;
+            handler(ctx, record);
+        });
+    }
+
+    /// <summary>
     /// Registers a delegate that is invoked once per <see cref="BinaryInterpreter{TRecord}.Apply"/>
     /// call, <em>after</em> the scratchpad has been zeroed but <em>before</em> the dispatch
     /// loop begins.  Use this to pre-populate installer scratchpad fields from the entity's

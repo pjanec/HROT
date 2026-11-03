@@ -61,6 +61,24 @@ internal sealed class ReferenceInvoker<T> : IRoutingEntryInvoker where T : class
     }
 }
 
+/// <summary>⭐ rules ② (R1) — builds the replacement of an immutable managed component from the old one and the JSON value.</summary>
+public delegate T ReplaceAttributeSetter<T>(T old, scoped ReadOnlySpan<int> indices, ref Utf8JsonReader reader) where T : class;
+
+/// <summary>⭐ rules ② (R1) — invoker for an immutable managed component: replaced whole, never mutated.</summary>
+internal sealed class ReplaceInvoker<T> : IRoutingEntryInvoker where T : class
+{
+    private readonly ReplaceAttributeSetter<T> _setter;
+    public Type ComponentType => typeof(T);
+
+    internal ReplaceInvoker(ReplaceAttributeSetter<T> setter) { _setter = setter; }
+
+    public void Invoke(IEntityPatchContext context, scoped ReadOnlySpan<int> indices, ref Utf8JsonReader reader)
+    {
+        if (!context.CanWriteManaged<T>()) { reader.Skip(); return; }
+        context.SetManagedComponent(_setter(context.GetManagedComponent<T>(), indices, ref reader));
+    }
+}
+
 // ─────────────────────────────────────────────────────────────
 // RoutingEntry
 // ─────────────────────────────────────────────────────────────

@@ -117,6 +117,7 @@ namespace Hrot.SimHost.Tests
             public readonly BehaviorRegistry Registry = new();
             private readonly BehaviorIngressSystem _ingress;
             private readonly BrainTickSystem _brain;
+            private readonly Hrot.AI.Behaviors.Brains.Objectives.RuleEditSystem _ruleEdit;   // ⭐ rules ② — the live edit, before the brain tick (as CgfLogicPack orders it)
             private readonly Hrot.CGF.Systems.TacticalIntentResolutionSystem _intents;
             private readonly Hrot.AI.Behaviors.Brains.Objectives.ExercisePauseOnEndSystem _pause = new();
             private readonly TkbDatabase _db = new();
@@ -136,6 +137,7 @@ namespace Hrot.SimHost.Tests
                 CgfBehaviorSetup.LoadFromAiAssembly(Registry);
                 _ingress = new BehaviorIngressSystem(Registry);
                 _brain = new BrainTickSystem(Registry);
+                _ruleEdit = new Hrot.AI.Behaviors.Brains.Objectives.RuleEditSystem(_ingress);
                 _intents = new Hrot.CGF.Systems.TacticalIntentResolutionSystem(new Fdp.Toolkit.Behavior.TacticalOrderMapper.TacticalIntentMapperRegistry(), Registry);
                 Hrot.Map.Definitions.Tkb.NedTkbCatalog.RegisterAll(_db);
             }
@@ -216,6 +218,7 @@ namespace Hrot.SimHost.Tests
                 if (Repo.Bus.IsRegisteredManaged<Fdp.Toolkit.Time.Domain.PauseTimeIntent>()) Pauses += ((Fdp.ModuleHost.Abstractions.ISimulationView)Repo).ReadManagedEvents<Fdp.Toolkit.Time.Domain.PauseTimeIntent>().Count;
                 if (ResolveIntents) _intents.Execute(Repo, (float)step);
                 _ingress.Execute(Repo, (float)step);
+                _ruleEdit.Execute(Repo, (float)step);
                 _brain.Execute(Repo, (float)step);
                 _pause.Execute(Repo, (float)step);
                 Repo.FlushCommandBuffers();

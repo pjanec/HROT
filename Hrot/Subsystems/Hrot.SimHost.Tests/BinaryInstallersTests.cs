@@ -291,6 +291,7 @@ namespace Hrot.SimHost.Tests
                 return (T)raw;
             }
 
+            public void SetManagedComponent<T>(T value) where T : class => _managed[typeof(T)] = value;
             public void FlushDirtyMarks() { }
             public bool CanWrite<T>()       where T : struct => false;
             public bool CanWriteManaged<T>() where T : class  => false;
