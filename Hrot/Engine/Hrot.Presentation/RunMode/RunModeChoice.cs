@@ -363,9 +363,11 @@ public sealed class RunModeChoice
         Notify("Checkpoint taken");
     }
 
-    /// <summary>The session's save intercept: in a Live / DAR / AAR run a Save is a checkpoint (the scenario is NEVER written); elsewhere the save goes through.</summary>
+    /// <summary>The session's save intercept: in a Live / DAR / AAR run a Save is a checkpoint (the scenario is NEVER written); in a Preview it is refused with a note; elsewhere the save goes through.</summary>
     private bool TryCheckpointInsteadOfSave()
     {
+        // ⭐ CE-4250 (ui half) — a Preview runs a COPY of the edit world (Stop restores the authored one): saving then would serialise the previewed world (spawned entities, a unit's target memory pointing at one — it killed the editor). Not saved, and it says why
+        if (_transport.Mode == TransportMode.Preview) { Notify("Not saved: stop the preview to save"); return true; }
         if (_transport.Mode is not (TransportMode.Live or TransportMode.Review or TransportMode.Replay)) return false;
         TakeCheckpoint();
         return true;

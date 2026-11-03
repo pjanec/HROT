@@ -964,6 +964,21 @@ public sealed class TheOneTimeFacadeTests
         Assert.Equal("Checkpoint taken", run.Choice.Toast!.Title);           // ... and it stays up for its lifetime
     }
 
+    /// <summary>
+    /// ⭐ CE-4250 (ui half) — a Save (File ▸ Save / Save As, Ctrl+S, the toolbar: all end at the session's intercept) while the scenario runs in PREVIEW is not written and says <i>stop the preview to save</i>; editing saves as before; no checkpoint is taken.
+    /// ✅ Red-proof: the Preview line removed from <c>TryCheckpointInsteadOfSave</c> ⇒ the route returns false (the save would run) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4250_ASaveInPreview_IsRefusedWithAReason_AndNothingIsWritten()
+    {
+        var preview = With(ClusterState.OperatingPreview, RunArmed.Preview);
+        Assert.True(SaveRoute(preview.Choice, preview.C));                  // handled = the scenario is NOT written
+        Assert.Equal("Not saved: stop the preview to save", Assert.Single(preview.Choice.Toasts.Pending).Title);
+        Assert.Empty(Sent<TakeCheckpointIntent>(preview));                  // a refusal, not a checkpoint
+        var edit = With(ClusterState.OperatingEdit, RunArmed.Preview);
+        Assert.False(SaveRoute(edit.Choice, edit.C));                       // editing: the ordinary save
+    }
+
     /// <summary>The route a session's <c>SaveCurrent</c> takes: the intercept the choice installed on <paramref name="control"/> (true = handled).</summary>
     private static bool SaveRoute(RunModeChoice choice, FakeControl control)
         => control.SaveIntercept?.Invoke() == true;
