@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: ⛔ 2026-10-20 (live, user) — a man down is still moved and turned by collision avoidance — CE-2321 (backend). ⛔ SUPERSEDED: "§6 I4 'units stop shooting him' does NOT hold" — fixed 2026-10-20 by CE-2318, §8a.
 known-conflict: none
 related-designs:
+  - DESIGN_Man_Downed_Event.md — OWNS the ONE event raised when a HIT moves a man out of the fight (CE-3364): the downing, with who fired, read by kills / assists / team kills
   - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — OWNS hit location: limb wounds derived from PartDamage like the states here from Health (HL-7), filling this file's open wounded AIM
   - docs/DESIGN_Map_3D_Mode.md §6m — DRAWS the wounded limp and the incapacitated figure, and builds slice I-b (WoundedSpeedFactor 0.6)
