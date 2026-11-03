@@ -470,9 +470,11 @@ public sealed class TimelinePanel
                 var a = new Vector2(p.X + s.X0, p.Y + 2);
                 var b = new Vector2(p.X + Math.Max(s.X1, s.X0 + 2f), p.Y + RowHeight - 2);
                 uint edge = it.Selected ? 0xFFFFFFFF : it.Colour ?? 0xFFC09050;
-                if (look.Fill) dl.AddRectFilled(a, b, TrackSegmentColour);
+                // ⭐ CE-4216 — an item with its OWN colour tints its fill and outline (the rules view's state colours); one without keeps the track's blue exactly as before
+                uint fill = it.Colour is { } own ? (own & 0x00FFFFFFu) | 0xB0000000u : TrackSegmentColour;
+                if (look.Fill) dl.AddRectFilled(a, b, fill);
                 if (look.Dashed) DashedRect(dl, a, b, edge);
-                else dl.AddRect(a, b, it.Selected ? 0xFFFFFFFF : 0xFFC09050);
+                else dl.AddRect(a, b, it.Selected ? 0xFFFFFFFF : it.Colour ?? 0xFFC09050);
                 if (look.Hatch)
                     foreach (var (hx0, hy0, hx1, hy1) in TrackLayout.HatchLines(b.X - a.X, b.Y - a.Y))
                         dl.AddLine(a + new Vector2(hx0, hy0), a + new Vector2(hx1, hy1), edge);
@@ -555,9 +557,13 @@ public sealed class TimelinePanel
         dl.AddText(new Vector2(o.X + plan.TextX, ty), 0xFFA0A0A0, h.Text);
         if (plan.StatusX is { } sx && h.Status != null) dl.AddText(new Vector2(o.X + sx, ty), h.StatusColour ?? 0xFFA0A0A0, h.Status);
         dl.PopClipRect();
-        if (h.Collapsible && ImGui.IsWindowHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left)
+        if (ImGui.IsWindowHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left)
             && ImGui.GetIO().MousePos is var m && m.X >= o.X && m.X < o.X + _labelWidth && m.Y >= o.Y && m.Y < o.Y + RowHeight)
-            SetCollapsed(track.Id, !collapsed);
+        {
+            bool onArrow = plan.ArrowX is { } arrowX && m.X < o.X + arrowX + 14f;
+            if (h.Collapsible && onArrow) SetCollapsed(track.Id, !collapsed);   // the arrow folds the node …
+            else track.SelectRow();   // … a click elsewhere on the header picks the row (⭐ CE-4216)
+        }
     }
 
     // ── what is drawn over the lanes ─────────────────────────────────────────────────────────────────────────

@@ -34,7 +34,8 @@ public sealed record EntityDetailsHostServices(
     Func<IInspectableSession?> Session,
     Func<VariableRunState> RunState,
     Func<HostActions?> Host,
-    EditorSelectionStore? SelectionStore = null);
+    EditorSelectionStore? SelectionStore = null,
+    Action<int>? OpenRule = null);   // ⭐ CE-4216 (RV-7) — opens a rule in the host's rules view; ⛔ a host that registers the Rules window must pass it (null = the Objectives tab lists without links)
 
 /// <summary>
 /// ⭐⭐⭐ <c>CE-1150</c> (canvas-context-menu-design §12) — <b>the Details panel of an ECS host, and the actions that open it.</b>
@@ -72,7 +73,8 @@ public sealed class EntityDetailsBundle : IUiBundle
             context:           Workspace.ContextSource());
         Workspace.Contribute(Window);
         Workspace.DetailsViews.Add(ScenarioComponentsViewDescriptor.For(panel: host.Inspector, session: host.Session));
-        Workspace.DetailsViews.Add(EntitySummaryViewDescriptor.For(host.World));   // ⭐ CE-1247 — the IG's former card, every host
+        Workspace.DetailsViews.Add(EntitySummaryViewDescriptor.For(host.World));
+        Workspace.DetailsViews.Add(EntityObjectivesViewDescriptor.For(host.World, host.OpenRule));   // ⭐ CE-4216 RV-7 — objectives about this unit, every host   // ⭐ CE-1247 — the IG's former card, every host
         // ⭐ CE-1248 (BV-1) — the Brain tab, every host; behaviour names through the registry the host already publishes for the renderers
         Workspace.DetailsViews.Add(EntityBrainViewDescriptor.For(host.World,
             hash => Hrot.Presentation.Renderers.BehaviorStateRenderer.BehaviorRegistryAccessor is { } reg && reg.TryGetName(hash, out var n) ? n : null,

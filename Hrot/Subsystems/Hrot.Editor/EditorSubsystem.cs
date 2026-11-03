@@ -277,13 +277,26 @@ namespace Hrot.Editor
         internal Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource? LiveTimeline => _node?.Timeline;
 
         /// <summary>⭐ CE-3330 (R-4087 addendum 5) — a timeline event clicked selects its unit through the ONE selection; ⛔ never a seek.</summary>
-        internal bool SelectTimelineEvent(Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent e)
+        internal bool SelectTimelineEvent(Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent e) => SelectNetworkEntity(e.Subject);
+
+        /// <summary>⭐ CE-4216 — the ONE selection by network id (a timeline event's subject, a rules-view row's subject).</summary>
+        internal bool SelectNetworkEntity(int networkId)
         {
-            if (e.Subject <= 0 || _world is not { } world || !world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()) return false;
+            if (networkId <= 0 || _world is not { } world || !world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()) return false;
             if (world.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>() is not { } map
-                || !map.TryGetEntity(e.Subject, out var entity) || !world.IsAlive(entity)) return false;
+                || !map.TryGetEntity(networkId, out var entity) || !world.IsAlive(entity)) return false;
             SetSelection2D(entity);
             return true;
+        }
+
+        /// <summary>⭐ CE-4216 (R2) — Window ▸ Rules; kept so the Details panel's Objectives tab can open a rule in it (RV-7).</summary>
+        private Hrot.Presentation.Windows.RulesWindow? _rulesWindow;
+        private Fdp.Presentation.WindowManager.WindowManager? _rulesWindowManager;
+        internal Hrot.Presentation.Windows.RulesWindow? RulesWindow => _rulesWindow;
+        private void OpenRuleInRulesView(int networkId)
+        {
+            _rulesWindow?.SelectNetworkId(networkId);
+            if (_rulesWindow != null) _rulesWindowManager?.FocusWindow(_rulesWindow.Id);
         }
         private ModuleHostKernel?       _kernel;
         private MasterSyncController?   _timeController;
@@ -3163,7 +3176,8 @@ namespace Hrot.Editor
                 Session:        () => _fdpRepoAdapter,
                 RunState:       Hrot.Editor.AiShared.Variables.RunStateSource.For(isSimUpSignal, isFrozenSignal),
                 Host:           () => HostActions,
-                SelectionStore: _aiEditorSelectionStore));
+                SelectionStore: _aiEditorSelectionStore,
+                OpenRule:       OpenRuleInRulesView));   // ⭐ CE-4216 RV-7
             _scenarioWorkspace = _scenarioDetailsBundle.Workspace;
             ScenarioDetails    = _scenarioDetailsBundle.Window;
 
@@ -4850,6 +4864,14 @@ namespace Hrot.Editor
                 () => _node?.TimelineLanes.Lanes(_node.ShownTimelineContext) ?? Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneDescriptor>(), EditorWindowColor.TitleBar,
                 onSelect: e => SelectTimelineEvent(e), rowMenu: menuContext => _node?.TimelineLanes.MenuItems(menuContext) ?? Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineMenuItem>())
             { IsOpen = false });
+
+            // ⭐⭐ CE-4216 (rules view R2; DESIGN_Rules_View_UI RV-3/5/6) — Window ▸ Rules: the scenario's rule tree on the ONE timeline panel, over this node's world and its shown timeline (live, or a recording)
+            _rulesWindowManager = windowManager;
+            _rulesWindow = new Hrot.Presentation.Windows.RulesWindow(
+                () => _world, timelineSource, new Hrot.UI.Common.Adapters.ClusterTimelineCursor(() => timelineTransport, timelineSource),
+                "editor_rules", "Scenario", EditorWindowColor.TitleBar,
+                selectEntity: n => SelectNetworkEntity(n), showOnMap: n => _editorLogic?.CenterOnEntity(n)) { IsOpen = false };
+            windowManager.RegisterWindow(_rulesWindow);
 
             // ⭐ CE-1191 (UI-6, DESIGN_Command_Display §6 D3) — the Reports window over this node's SquadReportLog (filled where the staff runs)
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.ReportsWindow(

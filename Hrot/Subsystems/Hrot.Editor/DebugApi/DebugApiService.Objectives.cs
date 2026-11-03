@@ -30,16 +30,8 @@ namespace Hrot.Editor.DebugApi
                 return (null, $"Entity {networkId} not found. List the rule entities with GET /objectives.");
             if (!System.Enum.TryParse<RuleRequest>(request, ignoreCase: true, out var what) || what == RuleRequest.NoRequest || !System.Enum.IsDefined(what))
                 return (null, $"'request' must be one of: {string.Join(", ", System.Enum.GetNames<RuleRequest>().Skip(1))}.");
-            int seq = _world.IsComponentTypeRegistered<RuleControl>() && _world.HasComponent<RuleControl>(entity)
-                ? _world.GetComponentRO<RuleControl>(entity).Seq : _ruleSeq;
-            seq = seq == int.MaxValue ? 1 : seq + 1;
-            _ruleSeq = seq;
-            var route = Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(_world).Write(entity, new[]
-            {
-                Fdp.Toolkit.Replication.Patching.EntityAttributeChange.Double(Fdp.Toolkit.Replication.Patching.AttributeIds.RuleRequest, (int)what),
-                Fdp.Toolkit.Replication.Patching.EntityAttributeChange.Double(Fdp.Toolkit.Replication.Patching.AttributeIds.RuleOrigin, (int)RuleOrigin.DebugApi),
-                Fdp.Toolkit.Replication.Patching.EntityAttributeChange.Double(Fdp.Toolkit.Replication.Patching.AttributeIds.RuleSeq, seq),
-            });
+            // ⭐ CE-4216 (RV-5) — the ONE shared write: RuleCommands (the instructor's rules view asks through it too)
+            var route = RuleCommands.Control(_world, entity, what, RuleOrigin.DebugApi, ref _ruleSeq, out int seq);
             if (route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused)
                 return (null, $"Entity {networkId}: nothing was written (this node has no way to ask the owner). Nothing was requested.");
             return (new JsonObject { ["networkId"] = networkId, ["request"] = what.ToString(), ["seq"] = seq, ["route"] = route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct ? "direct" : "requested" }, null);
@@ -55,16 +47,7 @@ namespace Hrot.Editor.DebugApi
             if (!_entityMap.TryGetEntity(networkId, out var entity) || !_world.IsAlive(entity))
                 return (null, $"Entity {networkId} not found. List the rule entities with GET /objectives.");
             if (@params is not JsonObject) return (null, "'params' must be a JSON object (the rule's new params, the shape a scenario carries).");
-            int seq = _world.TryGetTable(typeof(RuleEdit), out _) && _world.HasManagedComponent<RuleEdit>(entity)
-                ? ((Fdp.ModuleHost.Abstractions.ISimulationView)_world).GetManagedComponentRO<RuleEdit>(entity).Seq : _ruleSeq;
-            seq = seq == int.MaxValue ? 1 : seq + 1;
-            _ruleSeq = seq;
-            var route = Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(_world).Write(entity, new[]
-            {
-                new Fdp.Toolkit.Replication.Patching.EntityAttributeChange { AttributeId = Fdp.Toolkit.Replication.Patching.AttributeIds.RuleParams, Value = Fdp.Toolkit.Replication.Patching.AttributeValue.FromString(@params.ToJsonString()) },
-                Fdp.Toolkit.Replication.Patching.EntityAttributeChange.Double(Fdp.Toolkit.Replication.Patching.AttributeIds.RuleEditOrigin, (int)Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Operator),
-                Fdp.Toolkit.Replication.Patching.EntityAttributeChange.Double(Fdp.Toolkit.Replication.Patching.AttributeIds.RuleEditSeq, seq),
-            });
+            var route = RuleCommands.Edit(_world, entity, @params.ToJsonString(), (int)Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Operator, ref _ruleSeq, out int seq);
             if (route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused)
                 return (null, $"Entity {networkId}: nothing was written (this node has no way to ask the owner). Nothing was edited.");
             return (new JsonObject { ["networkId"] = networkId, ["seq"] = seq, ["route"] = route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct ? "direct" : "requested" }, null);

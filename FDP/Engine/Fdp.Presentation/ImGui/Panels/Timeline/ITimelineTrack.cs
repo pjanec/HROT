@@ -52,6 +52,9 @@ public interface ITimelineTrack
     /// <summary>A left click on an item. ⛔ Never moves anything and never seeks.</summary>
     void Select(string itemId);
 
+    /// <summary>⭐ <c>CE-4216</c> (rules view R2, RV-5) — a left click on the track's HEADER (the label column): the row is picked. Default: nothing (the director's tracks have no row selection).</summary>
+    void SelectRow() { }
+
     /// <summary>Moves <paramref name="itemId"/> to <paramref name="toSimSeconds"/> (a segment's start; it keeps its length). While dragging the panel calls
     /// this every frame with <paramref name="commit"/> false (a preview — not an undo step); on release ONCE with true.</summary>
     void Move(string itemId, double toSimSeconds, bool commit);
