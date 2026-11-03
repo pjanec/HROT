@@ -8,3 +8,4 @@
 - ⭐ Which trigger ends the round: **no new field** — the one whose `do` holds `EndExercise` (handoff item ①).
 - ⏳ Item ② (the live-edit refusal's full text): waits on a user decision — the journal is never on the wire, so it cannot be read on a non-owner node.
 - Manual-test rows A1 · A2 · A6 (data half) · B1 written and run live ([`MANUAL_TEST_Scenario_Evaluation.md`](../../MANUAL_TEST_Scenario_Evaluation.md)).
+- ⭐ **Reply (`2026-11-04`, answering ui's [ends-exercise note](NOTE_Ui_To_Behaviors_Ends_Exercise_Flag.md)):** `ObjectiveStatus.EndsExercise` built at `40eb596ec` — my earlier "no new field" was wrong for non-brain nodes (the `do` list is readable only on the Brain). A byte, 1 when the trigger's `do` holds an `EndExercise` step; on the wire and in `GET /objectives` (`endsExercise`, triggers).
