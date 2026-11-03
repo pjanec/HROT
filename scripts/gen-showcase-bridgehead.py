@@ -292,7 +292,7 @@ def scenario():
 
     write("scenarios/showcase-bridgehead/scenario.json", doc({
         # ⭐ P-7 (DESIGN_Node_Features.md §11, F-27): this scenario's feature preset — the scenario layer under the node / cluster overrides (ui's lists, PH-8)
-        "features": {"game.tickets": "off", "game.capture-points": "off", "game.round-timer": "off", "game.score-popups": "off", "game.bounty-marker": "off", "hud.kill-feed": "off"},
+        "features": {"game.tickets": "off", "game.capture-points": "off", "game.round-timer": "off", "game.score-popups": "off", "game.bounty-marker": "off", "game.scoreboard": "off", "hud.kill-feed": "off"},
         "terrainName": "cqb-village",
         "description": (
             "What: SHOWCASE 'Bridgehead' (docs/SHOWCASE_Scenarios.md §1) - military training, AI on both sides (the trainees possess Blue men when "

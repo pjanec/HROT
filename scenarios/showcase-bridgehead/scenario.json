@@ -12,6 +12,7 @@
    "game.round-timer": "off",
    "game.score-popups": "off",
    "game.bounty-marker": "off",
+   "game.scoreboard": "off",
    "hud.kill-feed": "off"
   },
   "terrainName": "cqb-village",
