@@ -47,7 +47,8 @@ public sealed class TimelinePanel
     private readonly TimelineView _view = new();
 
     /// <summary>One drawn track item's centre in screen pixels (<see cref="TimelinePanel.LastTrackHits"/>).</summary>
-    public readonly record struct TrackItemHit(string TrackId, string ItemId, float X, float Y);
+    /// <param name="XEnd">⭐ CE-4221 — the item's right end (a segment); NaN for a key (its end is <paramref name="X"/>).</param>
+    public readonly record struct TrackItemHit(string TrackId, string ItemId, float X, float Y, float XEnd = float.NaN);
 
     private enum Drag : byte { None, Pan, Range, Bracket, BracketFrom, BracketTo, Scrub }
     private Drag _drag;
@@ -104,6 +105,27 @@ public sealed class TimelinePanel
     /// <summary>Where each track item was drawn last frame (screen pixels) — for a frame rail that must press on one.</summary>
     public IReadOnlyList<TrackItemHit> LastTrackHits => _trackHits;
 
+    /// <summary>⭐ CE-4221 X5 — how many Coming up lines the strip below the lanes shows; 0 (the default) = no strip, so every host that does not ask is unchanged.</summary>
+    public int ComingUpCount { get; set; }
+
+    /// <summary>⭐ CE-4221 X5 — the sim seconds "coming up" is counted from; null = the playhead.</summary>
+    public Func<double>? ComingUpNow { get; set; }
+
+    /// <summary>What the last frame drew for X1 / X4 / X5 — for the rails.</summary>
+    public IReadOnlyList<Connector> LastConnectors => _connectors;
+    public IReadOnlyList<(string TrackId, string ItemId, Vector2 Min, Vector2 Max)> LastHandles => _handles;
+    public IReadOnlyList<ComingUpEntry> LastComingUp => _comingUp;
+    /// <summary>The row bands of the shown tracks (screen y), so a rail can drop on one.</summary>
+    public IReadOnlyList<(string TrackId, float Y0, float Y1)> LastRowBands => _bands;
+
+    private float _rowRight = float.PositiveInfinity;
+    private readonly List<Connector> _connectors = new();
+    private readonly List<(string TrackId, string ItemId, Vector2 Min, Vector2 Max)> _handles = new();
+    private readonly List<(ITimelineTrack Track, float Y0, float Y1)> _rowBands = new();
+    private readonly List<(string TrackId, float Y0, float Y1)> _bands = new();
+    private IReadOnlyList<ComingUpEntry> _comingUp = Array.Empty<ComingUpEntry>();
+    private (ITimelineTrack Track, string ItemId, Vector2 Start)? _connect;   // ⭐ CE-4221 X4 — a connect drag in progress
+
     private readonly TrackGesture _gesture = new();
     private readonly List<TrackItemHit> _trackHits = new();
     private readonly List<TimelineMenuItem> _trackMenu = new();
@@ -139,7 +161,7 @@ public sealed class TimelinePanel
         foreach (var lane in lanes) _byId[lane.Id] = lane;
         lanes = TimelineLayout.Drawn(lanes);   // ⭐ CE-4117: a hidden lane is not drawn
         if (_gesture.Active && ImGui.IsMouseReleased(ImGuiMouseButton.Left)) _gesture.Release();   // ⭐ CE-1364 T2 — commits once, wherever it is released (T10's lesson)
-        _trackHits.Clear();
+        _trackHits.Clear(); _handles.Clear(); _rowBands.Clear(); _connectors.Clear();
         _tracksNow = Tracks?.Invoke();
         _labelWidth = TrackLayout.LabelWidthFor(_tracksNow, FlatLabelWidth, TreeLabelWidth);   // ⭐ CE-4167 X3
         // ⭐ CE-3330 T13 — everything below is on the ACTIVE axis: the index's frame times, the extent, "now" and every seek go through it
@@ -194,12 +216,20 @@ public sealed class TimelinePanel
         DrawRuler(dl, index, width, now, cursor);
 
         // ⭐ T11 — the lanes scroll in a child of their own, so the overview and the ruler stay put
-        float lanesHeight = Math.Max(RowHeight * 2, ImGui.GetContentRegionAvail().Y);
+        // ⭐ CE-4221 X5 — Coming up (host opt-in): the next Expected / Pinned things, as a strip BELOW the lanes, so the lanes give it its room
+        _comingUp = ComingUpCount > 0 && _tracksNow != null ? ComingUp.Of(_tracksNow, ComingUpNow?.Invoke() ?? SimNow(cursor), ComingUpCount) : Array.Empty<ComingUpEntry>();
+        float comingUpHeight = ComingUpCount > 0 ? (1 + Math.Max(1, _comingUp.Count)) * ImGui.GetTextLineHeightWithSpacing() + 6f : 0f;
+        float lanesHeight = Math.Max(RowHeight * 2, ImGui.GetContentRegionAvail().Y - comingUpHeight);
         ImGui.BeginChild("##tl-lanes", new Vector2(0, lanesHeight), ImGuiChildFlags.None, ImGuiWindowFlags.None);
         var cdl = ImGui.GetWindowDrawList();
         float lanesTop = ImGui.GetCursorScreenPos().Y;
         if (_tracksNow != null)   // ⭐ CE-1364 T2 — the editable tracks, ABOVE the lanes
-            foreach (var track in TrackLayout.Visible(_tracksNow, _collapsed)) DrawTrack(cdl, track, index, width, cursor);   // ⭐ CE-4167 X3 — a collapsed node hides its deeper tracks
+        {
+            var shown = TrackLayout.Visible(_tracksNow, _collapsed);
+            foreach (var track in shown) DrawTrack(cdl, track, index, width, cursor);   // ⭐ CE-4167 X3 — a collapsed node hides its deeper tracks
+            DrawConnectors(cdl, shown);        // ⭐ CE-4221 X1 — after ALL tracks, from their hit positions
+            DrawConnectDrag(cdl, io);          // ⭐ CE-4221 X4
+        }
         foreach (var (group, members) in Groups(lanes))
         {
             bool open = !_groupOpen.TryGetValue(group, out var o) || o;
@@ -215,6 +245,7 @@ public sealed class TimelinePanel
         float lanesBottom = Math.Max(ImGui.GetCursorScreenPos().Y, lanesTop + lanesHeight);
         DrawOverlays(cdl, index, x0, width, lanesTop, lanesBottom, now);
         ImGui.EndChild();
+        if (ComingUpCount > 0) DrawComingUp();
 
         PanAnywhere(io, width);
         if (focused) Keys(io, index, all, width, now, cursor);
@@ -455,6 +486,7 @@ public sealed class TimelinePanel
         var p = ImGui.GetCursorScreenPos();
         ImGui.InvisibleButton("##tl-track" + track.Id, new Vector2(width, RowHeight), ImGuiButtonFlags.MouseButtonLeft | ImGuiButtonFlags.MouseButtonRight);
         bool hovered = ImGui.IsItemHovered();
+        _rowBands.Add((track, p.Y, p.Y + RowHeight)); _bands.Add((track.Id, p.Y, p.Y + RowHeight)); _rowRight = p.X + width;
         dl.AddRectFilled(p, p + new Vector2(width, RowHeight), 0x28FFB060);
         var w = _view.Window;
         var axis = _rvAxis ?? _axis ?? TimelineAxis.Wall;   // ⭐ CE-4167 RV-2: the tracks' own sim axis while the extent comes from them
@@ -476,11 +508,16 @@ public sealed class TimelinePanel
                 // ⭐ CE-4216 — an item with its OWN colour tints its fill and outline (the rules view's state colours); one without keeps the track's blue exactly as before
                 uint fill = it.Colour is { } own ? (own & 0x00FFFFFFu) | 0xB0000000u : TrackSegmentColour;
                 if (look.Fill) dl.AddRectFilled(a, b, fill);
-                if (look.Dashed) DashedRect(dl, a, b, edge);
+                if (look.Dashed) DashedRect(dl, a, b, edge, p.X - 1f, p.X + width + 1f);   // ⭐ CE-4223 — clipped to the row
                 else dl.AddRect(a, b, it.Selected ? 0xFFFFFFFF : it.Colour ?? 0xFFC09050);
                 if (look.Hatch)
-                    foreach (var (hx0, hy0, hx1, hy1) in TrackLayout.HatchLines(b.X - a.X, b.Y - a.Y))
-                        dl.AddLine(a + new Vector2(hx0, hy0), a + new Vector2(hx1, hy1), edge);
+                {
+                    // ⭐ CE-4223 — hatch only the part inside the row (the same unbounded-width blow-up as the dashes)
+                    var ha = new Vector2(Math.Max(a.X, p.X - 1f), a.Y); var hb = new Vector2(Math.Min(b.X, p.X + width + 1f), b.Y);
+                    if (hb.X > ha.X)
+                        foreach (var (hx0, hy0, hx1, hy1) in TrackLayout.HatchLines(hb.X - ha.X, hb.Y - ha.Y, Math.Max(5f, (hb.X - ha.X) / 30f)))
+                            dl.AddLine(ha + new Vector2(hx0, hy0), ha + new Vector2(hx1, hy1), edge);
+                }
                 if (look.Handles)   // CE-1364: the two edge handles
                 {
                     dl.AddRectFilled(a, new Vector2(a.X + 3f, b.Y), 0xFFE0B070);
@@ -495,7 +532,14 @@ public sealed class TimelinePanel
                 DrawKeyDiamond(dl, c, col, look.HollowDiamond);
                 if (look.Tick) dl.AddLine(new Vector2(c.X, p.Y), new Vector2(c.X, p.Y + RowHeight), col);
             }
-            _trackHits.Add(new TrackItemHit(track.Id, it.Id, p.X + s.X0 + (it.Kind == TimelineTrackItemKind.Segment ? 2f : 0f), cy));
+            float endX = p.X + (it.Kind == TimelineTrackItemKind.Segment ? Math.Max(s.X1, s.X0 + 2f) : s.X0);
+            _trackHits.Add(new TrackItemHit(track.Id, it.Id, p.X + s.X0 + (it.Kind == TimelineTrackItemKind.Segment ? 2f : 0f), cy, endX));
+            if (track.ConnectsFrom(it.Id))   // ⭐ CE-4221 X4 — the small connect handle at the item's right end
+            {
+                var hmin = new Vector2(endX + (it.Kind == TimelineTrackItemKind.Segment ? 2f : 7f), cy - 5f); var hmax = hmin + new Vector2(6f, 10f);
+                dl.AddRectFilled(hmin, hmax, ImGui.IsMouseHoveringRect(hmin, hmax) ? 0xFFFFFFFF : 0xFFE0B070, 2f);
+                _handles.Add((track.Id, it.Id, hmin, hmax));
+            }
         }
 
         var io = ImGui.GetIO();
@@ -519,7 +563,11 @@ public sealed class TimelinePanel
             ImGui.TextUnformatted(items[hit].Label);
             ImGui.EndTooltip();
         }
-        if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))   // §2c row 2: a click SELECTS, a drag moves, empty space does nothing — ⛔ never a seek
+        if (ImGui.IsMouseClicked(ImGuiMouseButton.Left) && HandleUnder(track, io.MousePos) is { } grabbed)   // ⭐ CE-4221 X4 — a press on a connect handle starts a CONNECT drag, not an item drag
+        {
+            _connect = (track, grabbed.ItemId, (grabbed.Min + grabbed.Max) / 2f);
+        }
+        else if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))   // §2c row 2: a click SELECTS, a drag moves, empty space does nothing — ⛔ never a seek
         {
             _gesture.Press(track, hit >= 0 ? items[hit] : null, mx,
                 hit >= 0 && TrackLayout.SpanOf(items[hit], w, width, axis, map) is { } sp ? (part == TrackItemPart.EndEdge ? sp.X1 : sp.X0) : mx, part);
@@ -533,6 +581,57 @@ public sealed class TimelinePanel
         }
     }
 
+    private (string TrackId, string ItemId, Vector2 Min, Vector2 Max)? HandleUnder(ITimelineTrack track, Vector2 mouse)
+    {
+        foreach (var h in _handles)
+            if (h.TrackId == track.Id && mouse.X >= h.Min.X - 2f && mouse.X <= h.Max.X + 2f && mouse.Y >= h.Min.Y && mouse.Y <= h.Max.Y) return h;
+        return null;
+    }
+
+    /// <summary>⭐ CE-4221 X1 — every link whose two ends were drawn this frame, as an elbow with an arrowhead.</summary>
+    private void DrawConnectors(ImDrawListPtr dl, IEnumerable<ITimelineTrack> shown)
+    {
+        _connectors.AddRange(TrackConnectors.Resolve(shown, _trackHits));
+        foreach (var c in _connectors)
+        {
+            uint col = c.Colour ?? 0xFFE0E0E0;
+            var path = TrackConnectors.Elbow(c.From, c.To, maxX: _rowRight);
+            for (int i = 0; i + 1 < path.Length; i++) dl.AddLine(path[i], path[i + 1], col, 1.5f);
+            var a = TrackConnectors.Arrow(path);
+            dl.AddTriangleFilled(a[0], a[1], a[2], col);
+        }
+    }
+
+    /// <summary>⭐ CE-4221 X4 — the connect drag: a line from the handle to the mouse; a row that answers <c>CanConnect</c> is outlined; the release over one calls <c>Connect</c> (once). Nothing happens on a track that does not opt in.</summary>
+    private void DrawConnectDrag(ImDrawListPtr dl, ImGuiIOPtr io)
+    {
+        if (_connect is not { } c) return;
+        ITimelineTrack? target = null;
+        foreach (var (t, y0, y1) in _rowBands)
+            if (!ReferenceEquals(t, c.Track) && io.MousePos.Y >= y0 && io.MousePos.Y < y1) { target = t; break; }
+        bool ok = target != null && c.Track.CanConnect(c.ItemId, target);
+        dl.AddLine(c.Start, io.MousePos, ok ? 0xFF60E060 : 0xFFE0B070, 2f);
+        if (ok)
+            foreach (var (t, y0, y1) in _rowBands)
+                if (ReferenceEquals(t, target)) dl.AddRect(new Vector2(ImGui.GetWindowPos().X, y0), new Vector2(ImGui.GetWindowPos().X + ImGui.GetWindowWidth(), y1), 0xFF60E060);
+        if (ImGui.IsMouseReleased(ImGuiMouseButton.Left))
+        {
+            _connect = null;
+            if (ok) c.Track.Connect(c.ItemId, target!);
+        }
+        else if (!ImGui.IsMouseDown(ImGuiMouseButton.Left)) _connect = null;
+    }
+
+    /// <summary>⭐ CE-4221 X5 — the strip below the lanes.</summary>
+    private void DrawComingUp()
+    {
+        ImGui.Separator();
+        Plain("Coming up", Dim);
+        if (_comingUp.Count == 0) { Plain("nothing expected", Dim); return; }
+        foreach (var e in _comingUp)
+            ImGui.TextUnformatted($"{(int)(e.At / 60)}:{(int)(e.At % 60):00}  {(e.TrackLabel.Length > 0 ? e.TrackLabel + "  " : "")}{e.ItemLabel}");
+    }
+
     private static void DrawKeyDiamond(ImDrawListPtr dl, Vector2 c, uint col, bool hollow)
     {
         var top = c + new Vector2(0, -5); var right = c + new Vector2(5, 0); var bottom = c + new Vector2(0, 5); var left = c + new Vector2(-5, 0);
@@ -540,10 +639,22 @@ public sealed class TimelinePanel
         dl.AddLine(top, right, col); dl.AddLine(right, bottom, col); dl.AddLine(bottom, left, col); dl.AddLine(left, top, col);   // ⭐ X2 Expected: an outline, nothing inside
     }
 
-    private static void DashedRect(ImDrawListPtr dl, Vector2 a, Vector2 b, uint col)
+    /// <summary>
+    /// A dashed outline. ⭐ CE-4223 — only the part inside [<paramref name="clipX0"/>, <paramref name="clipX1"/>] (the row) is dashed: an item whose end is far outside the window (an expected stretch to a deadline an hour away) used to be dashed over its WHOLE
+    /// length — hundreds of thousands of vertices in one draw list, and ImGui asserts at 65 536 (16-bit indices) and the editor dies. A side that is clipped away has no vertical edge.
+    /// </summary>
+    private static void DashedRect(ImDrawListPtr dl, Vector2 a, Vector2 b, uint col, float clipX0 = float.NegativeInfinity, float clipX1 = float.PositiveInfinity)
     {
-        foreach (var (x0, x1) in TrackLayout.Dashes(a.X, b.X)) { dl.AddLine(new Vector2(x0, a.Y), new Vector2(x1, a.Y), col); dl.AddLine(new Vector2(x0, b.Y), new Vector2(x1, b.Y), col); }
-        foreach (var (y0, y1) in TrackLayout.Dashes(a.Y, b.Y)) { dl.AddLine(new Vector2(a.X, y0), new Vector2(a.X, y1), col); dl.AddLine(new Vector2(b.X, y0), new Vector2(b.X, y1), col); }
+        float lo = Math.Max(a.X, clipX0), hi = Math.Min(b.X, clipX1);
+        if (hi <= lo) return;
+        // a budget, not a fixed pitch: at most ~40 dashes an edge however wide the item (a row of 1 000 px used to be 140 of them, and a few dozen such rows fill a 16-bit draw list)
+        float step = Math.Max(7f, (hi - lo) / 40f), dash = step * 0.57f;
+        foreach (var (x0, x1) in TrackLayout.Dashes(lo, hi, dash, step - dash)) { dl.AddLine(new Vector2(x0, a.Y), new Vector2(x1, a.Y), col); dl.AddLine(new Vector2(x0, b.Y), new Vector2(x1, b.Y), col); }
+        foreach (var (y0, y1) in TrackLayout.Dashes(a.Y, b.Y))
+        {
+            if (a.X >= clipX0) dl.AddLine(new Vector2(a.X, y0), new Vector2(a.X, y1), col);
+            if (b.X <= clipX1) dl.AddLine(new Vector2(b.X, y0), new Vector2(b.X, y1), col);
+        }
     }
 
     /// <summary>⭐ CE-4167 X3 — a tree row's label column: indent by depth, the expand arrow (a click toggles the node), the icon, the text and the status right-aligned in its colour.</summary>

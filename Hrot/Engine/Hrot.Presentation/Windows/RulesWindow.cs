@@ -14,7 +14,8 @@ namespace Hrot.Presentation.Windows;
 
 /// <summary>What the <see cref="RulesWindow"/> drew this frame — the rails read it (and an agent reads it through the panel snapshot): the rows (title · state words), the Overview lines and the action buttons with the reason each disabled one carries.</summary>
 public sealed record RulesWindowProbe(
-    IReadOnlyList<string> Rows, int? Selected, IReadOnlyList<string> Details, IReadOnlyList<(string Label, string? Reason)> Buttons, string GroupBy, string Side, string Search, RuleDetailsProbe? Editor = null);
+    IReadOnlyList<string> Rows, int? Selected, IReadOnlyList<string> Details, IReadOnlyList<(string Label, string? Reason)> Buttons, string GroupBy, string Side, string Search, RuleDetailsProbe? Editor = null,
+    IReadOnlyList<string>? Arrows = null, IReadOnlyList<string>? ComingUp = null);
 
 /// <summary>The panel snapshot of the rules view.</summary>
 public sealed record RulesWindowViewModel(string PanelId, string PanelKind, RulesWindowProbe Shown, string? Message) : IPanelViewModel
@@ -51,6 +52,8 @@ public sealed class RulesWindow : ManagedWindow
     private string _search = "";
     private bool _follow;
     private readonly RuleDetails? _details;
+    private readonly RuleEditorServices? _editorSvc;
+    private (string Title, HashSet<int> Known, string Kind, int Frames)? _addWatch;
     private int _subtree;
     private int? _selected;
     private RulesWindowProbe _probe = new(Array.Empty<string>(), null, Array.Empty<string>(), Array.Empty<(string, string?)>(), "Macro", "All sides", "");
@@ -68,10 +71,14 @@ public sealed class RulesWindow : ManagedWindow
     {
         _world = world; _source = source; _cursor = cursor; _now = now;
         _selectEntity = selectEntity; _showOnMap = showOnMap; _blocked = blocked ?? (() => null);
-        _hooks = new RuleTrackHooks(r => Select(r), Ask, r => { if (r.SubjectNetworkId != 0) _showOnMap(r.SubjectNetworkId); }, null);
+        _hooks = new RuleTrackHooks(r => Select(r), Ask, r => { if (r.SubjectNetworkId != 0) _showOnMap(r.SubjectNetworkId); }, null,
+            CanConnect: editor == null ? null : ConnectRefusal, Connect: editor == null ? null : ConnectRows);   // ⭐ CE-4222 RE-9 — only a host with the rule editor connects
+        _editorSvc = editor;
         _details = editor == null ? null : new RuleDetails(editor, world, _blocked, selectEntity, (row, n) => DrawOverviewBody(row));
         _panel.Tracks = () => _tracks;
-        _panel.ExtentWithoutItems = true;   // ⭐ RV-3a: authored rows have no spans — the ruler and the headers still draw
+        _panel.ExtentWithoutItems = true;
+        _panel.ComingUpCount = 5;                      // ⭐ CE-4221 X5 — the rules view turns Coming up on
+        _panel.ComingUpNow = () => _view.Now;   // ⭐ RV-3a: authored rows have no spans — the ruler and the headers still draw
         TitleBarColor = titleBarColor;
         IsOpen = true;
         PanelSnapshot.DeclareInstrumented(Id);
@@ -98,6 +105,9 @@ public sealed class RulesWindow : ManagedWindow
 
     /// <summary>What the last draw showed.</summary>
     public RulesWindowProbe Probe => _probe;
+
+    /// <summary>The tracks of the last build (the rails read their links, items and handles).</summary>
+    internal IReadOnlyList<ITimelineTrack> TracksForRail => _tracks;
 
     /// <summary>The timeline panel (the rails read its hit boxes).</summary>
     internal TimelinePanel Panel => _panel;
@@ -128,6 +138,81 @@ public sealed class RulesWindow : ManagedWindow
             : $"{request}: {(route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct ? "done here" : "requested of the owner")}";
     }
 
+    /// <summary>⭐ CE-4222 RE-9 — why dropping <paramref name="from"/> on <paramref name="to"/> is not offered, or null: edit mode (an authored target), a trigger target, not a macro's rule (A1), not a recording.</summary>
+    private string? ConnectRefusal(RuleRow from, RuleRow to)
+    {
+        if (_blocked() is { } b) return b;
+        if (to.Status.Role != ObjectiveRole.Trigger) return "only a trigger waits on another rule";
+        if (!to.Authored) return "connecting changes the scenario: edit mode only";
+        if (to.Macro != null) return $"from macro {to.Macro} - edit the macro or its args";
+        return from.NetworkId == to.NetworkId ? "a rule cannot wait on itself" : null;
+    }
+
+    private void ConnectRows(RuleRow from, RuleRow to)
+    {
+        if (_details == null || ConnectRefusal(from, to) != null) return;
+        Select(to);
+        _details.ConnectInto(to, from);
+        Message = _details.Message;
+    }
+
+    /// <summary>⭐ CE-4222 RE-8 — why <b>+ Add</b> is not offered now, or null: it needs the host's creation path, edit mode (every row authored — a live insert is a macro insertion, SR-171) and a writable world.</summary>
+    public string? AddRefusal()
+    {
+        if (_blocked() is { } b) return b;
+        if (_editorSvc?.CreateRule == null) return "this host cannot create entities";
+        return _view.Rows.Any(r => !r.Authored) ? "adding a rule changes the scenario: edit mode only" : null;
+    }
+
+    /// <summary>
+    /// ⭐ CE-4222 RE-8 — creates a rule of <paramref name="kind"/> through the host's ONE creation path (<c>EntityCreation.RequestEntityCreation</c>): <c>common.title</c> = <i>New &lt;kind&gt;</i>, <c>common.parent</c> = the selected row. The entity arrives a few frames later;
+    /// the window then selects it and opens its form (<see cref="WatchAdded"/>). False (and a message) when refused.
+    /// </summary>
+    public bool AddRule(string kind)
+    {
+        if (AddRefusal() is { } why) { Message = why; return false; }
+
+        var known = _view.Rows.Select(r => r.NetworkId).ToHashSet();
+        string json = RuleAdd.NewParamsJson(kind, _selected ?? 0);
+        if (!_editorSvc!.CreateRule!(RuleAdd.TkbOf(kind), kind, json)) { Message = $"the host could not create a {kind}"; return false; }
+        _addWatch = (RuleAdd.TitleOf(kind), known, kind, 0);
+        Message = $"adding {RuleAdd.TitleOf(kind)}…";
+        return true;
+    }
+
+    /// <summary>The entity a <see cref="AddRule"/> asked for has appeared (a new row with the new title): select it and open its form on the tab that matters (a trigger's When, an objective's Settings).</summary>
+    private void WatchAdded()
+    {
+        if (_addWatch is not { } w) return;
+        var row = _view.Rows.FirstOrDefault(r => r.Title == w.Title && !w.Known.Contains(r.NetworkId));
+        if (row != null)
+        {
+            Select(row);
+            _details?.RequestTab(w.Kind == RuleAdd.TriggerKind ? RuleTab.When : RuleTab.Settings);
+            _addWatch = null;
+            Message = $"added {row.Title}";
+        }
+        else _addWatch = w.Frames > 600 ? null : w with { Frames = w.Frames + 1 };
+    }
+
+    /// <summary>⭐ CE-4221 (R4) — the arrows: X → the trigger that waits on X (<c>DependsOn</c>) and a rule → what it starts (<c>ActsOn</c>), between the tracks that exist; one arrow per pair.</summary>
+    internal static void LinkTracks(IReadOnlyList<ITimelineTrack> tracks)
+    {
+        var byNet = new Dictionary<int, RuleTrack>();
+        foreach (var t in tracks) if (t is RuleTrack { Row: { } r } rt) byNet[r.NetworkId] = rt;
+        var done = new HashSet<(int, int)>();
+        void Link(RuleTrack from, RuleTrack to)
+        {
+            if (from.AnchorOut is not { } a || to.AnchorIn is not { } b || from.Row == null || to.Row == null || !done.Add((from.Row.NetworkId, to.Row.NetworkId))) return;
+            from.AddLink(new TrackLink(a, to.Id, b));
+        }
+        foreach (var rt in byNet.Values)
+        {
+            foreach (var w in rt.Row!.WaitsOn) if (w.IsRule && byNet.TryGetValue(w.NetworkId, out var x)) Link(x, rt);
+            foreach (var s in rt.Row!.Starts) if (s.IsRule && byNet.TryGetValue(s.NetworkId, out var y)) Link(rt, y);
+        }
+    }
+
     /// <summary>⭐ Test hook — the BUILD (view, tracks, probe) with no ImGui context.</summary>
     internal void Rebuild()
     {
@@ -146,6 +231,8 @@ public sealed class RulesWindow : ManagedWindow
             tracks.Add(new RuleTrack(g.Name, g.Rows.Count, hooks));
             foreach (var r in g.Rows) tracks.Add(new RuleTrack(r, 1, r.NetworkId == _selected, hooks, now));
         }
+        WatchAdded();
+        LinkTracks(tracks);
         _tracks = tracks;
         var sel = _selected is { } s ? _view.Find(s) : null;
         var details = new List<string>(); var buttons = new List<(string, string?)>();
@@ -157,7 +244,8 @@ public sealed class RulesWindow : ManagedWindow
             foreach (var a in RulesModel.ActionsOf(sel)) buttons.Add((a.Label, block ?? a.DisabledReason));
             buttons.Add(("Show on map", sel.SubjectNetworkId != 0 ? null : "this rule has no subject"));
         }
-        _probe = new RulesWindowProbe(_view.Rows.Select(r => $"{new string(' ', r.Depth * 2)}{r.Title} | {r.StateWords}").ToList(), _selected, details, buttons, GroupNames[_groupBy], SideNames[_side], _search, null);
+        _probe = new RulesWindowProbe(_view.Rows.Select(r => $"{new string(' ', r.Depth * 2)}{r.Title} | {r.StateWords}").ToList(), _selected, details, buttons, GroupNames[_groupBy], SideNames[_side], _search, null,
+            _panel.LastConnectors.Select(c => $"{c.FromTrack} -> {c.ToTrack}").ToList(), _panel.LastComingUp.Select(c => $"{c.At:0} {c.TrackLabel} {c.ItemLabel}").ToList());   // ⭐ CE-4221 — what the last frame drew (an agent reads it)
         if (_details != null && sel != null) { _details.Prepare(sel, now); _probe = _probe with { Editor = _details.Probe }; }
     }
 
@@ -212,6 +300,19 @@ public sealed class RulesWindow : ManagedWindow
         if (ImGui.Checkbox("Follow now", ref _follow) && _follow) _panel.View.Fit();
         ImGui.SameLine(); ImGui.SetNextItemWidth(160f);
         ImGui.InputTextWithHint("##rules-search", "search title", ref _search, 64);
+        if (_details != null)   // ⭐ CE-4222 RE-8 — + Add (edit mode)
+        {
+            ImGui.SameLine();
+            string? refusal = AddRefusal();
+            if (refusal != null) ImGui.BeginDisabled();
+            if (ImGui.Button("+ Add##rules-add")) ImGui.OpenPopup("##rules-add-menu");
+            if (refusal != null) { ImGui.EndDisabled(); if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(refusal); }
+            if (ImGui.BeginPopup("##rules-add-menu"))
+            {
+                foreach (var kind in RuleAdd.Kinds()) if (ImGui.MenuItem(kind)) AddRule(kind);
+                ImGui.EndPopup();
+            }
+        }
         if (_subtree != 0)
         {
             ImGui.SameLine();

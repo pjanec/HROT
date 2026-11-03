@@ -554,4 +554,104 @@ public sealed class TimelinePanelFrameRail
         int without = DrawAndShoot(frame, new TimelinePanel(), full, unlooped, "timeline-9-no-loop.png", LoopColour);
         Assert.True(with > without + 10, $"the loop's bracket did not draw ({with} px with it, {without} without)");
     }
+
+    /// <summary>A track that opts in to X1 / X4: it carries a link, shows a connect handle on its item, says which rows it may be dropped on, and records what was dropped where.</summary>
+    private sealed class ConnectTrack : ITimelineTrack
+    {
+        private readonly bool _optIn; private readonly IReadOnlyList<TrackLink> _links; private readonly Func<ITimelineTrack, bool> _accepts;
+        public ConnectTrack(string id, bool optIn, TimelineTrackItem item, IReadOnlyList<TrackLink>? links = null, Func<ITimelineTrack, bool>? accepts = null, TrackHeader? header = null)
+        { Id = id; _optIn = optIn; Items = new[] { item }; _links = links ?? Array.Empty<TrackLink>(); _accepts = accepts ?? (_ => true); Header = header; }
+        public string Id { get; }
+        public string Label => Id;
+        public TrackHeader? Header { get; }
+        public IReadOnlyList<TimelineTrackItem> Items { get; }
+        public IReadOnlyList<TrackLink> Links => _links;
+        public List<(string From, string To)> Dropped { get; } = new();
+        public bool ConnectsFrom(string itemId) => _optIn;
+        public bool CanConnect(string fromItemId, ITimelineTrack toTrack) => _optIn && _accepts(toTrack);
+        public void Connect(string fromItemId, ITimelineTrack toTrack) => Dropped.Add((fromItemId, toTrack.Id));
+        public void Select(string itemId) { }
+        public void Move(string itemId, double toSimSeconds, bool commit) { }
+        public bool Key(char key, double atSimSeconds) => false;
+        public IEnumerable<TimelineMenuItem> MenuItems(string? itemId) => Array.Empty<TimelineMenuItem>();
+    }
+
+    /// <summary>
+    /// ⭐ CE-4221 (R4; RV-1 X1 · X4 · X5) — the panel's connectors, connect drag and Coming up in a REAL frame. An arrow joins two rows (pixels of its colour are drawn; none when the target is collapsed away — the hidden-end rule); a drag from the handle of an
+    /// opt-in track onto a row that accepts calls <c>Connect</c> ONCE with the item and the row; a drop on a row that does not accept, or a press on a track that never opted in, calls nothing; a plain (director-like) track shows no handle and no arrow; and
+    /// Coming up lists the next Expected / Pinned things only when the host turned it on. ✅ Red-proof: <c>TrackConnectors.Resolve</c> returning nothing ⇒ no arrow ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void CE4221_R4_ConnectorsConnectDragAndComingUp_InARealFrame()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        const uint LinkColour = 0xFFFF00FF;
+        TimelineTrackItem Seg(string id, double a, double b, TimelineTrackItemStyle st = TimelineTrackItemStyle.Solid) => new(id, a, b, id, TimelineTrackItemKind.Segment, false, 0xFF30C0FF, st);
+        var a = new ConnectTrack("a", true, Seg("seg", 10, 30), new[] { new TrackLink("seg", "b", "seg", LinkColour) });
+        var b = new ConnectTrack("b", false, Seg("seg", 40, 60));
+        var c = new ConnectTrack("c", true, Seg("seg", 70, 90), accepts: t => t.Id != "d");
+        var d = new ConnectTrack("d", false, Seg("seg", 20, 50, TimelineTrackItemStyle.Expected));    // the plain row: an Expected stretch, no opt-in
+        var tracks = new ITimelineTrack[] { a, b, c, d };
+        var source = new Source { Index = TimelineIndex.Empty };
+        var cursor = new Cursor { ExtentFrom = 0, ExtentTo = 0, Now = 0 };
+        var panel = new TimelinePanel { Tracks = () => tracks, ComingUpCount = 3, ComingUpNow = () => 0d };
+        using var frame = UiFrameHarness.Begin(1280, 420);
+        void Step(Action<ImGuiIOPtr>? input = null, int n = 1)
+        {
+            for (int i = 0; i < n; i++)
+                frame.Step(() =>
+                {
+                    input?.Invoke(ImGui.GetIO());
+                    ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(1280, 420));
+                    ImGui.Begin("Event Timeline", ImGuiWindowFlags.NoCollapse);
+                    panel.Draw(source, cursor, Array.Empty<TimelineLaneDescriptor>());
+                    ImGui.End();
+                });
+        }
+        void Drag(Vector2 from, Vector2 to)
+        {
+            Step(io => Pos(io, from.X, from.Y), 2);
+            Step(io => { Pos(io, from.X, from.Y); io.AddMouseButtonEvent(0, true); });
+            Step(io => Pos(io, (from.X + to.X) / 2, (from.Y + to.Y) / 2));
+            Step(io => Pos(io, to.X, to.Y), 2);
+            Step(io => { Pos(io, to.X, to.Y); io.AddMouseButtonEvent(0, false); });
+            Step(null, 3);
+        }
+        Vector2 Centre(string track) { var h = panel.LastHandles.First(x => x.TrackId == track); return (h.Min + h.Max) / 2f; }
+        float RowY(string track) { var r = panel.LastRowBands.First(x => x.TrackId == track); return (r.Y0 + r.Y1) / 2f; }
+
+        Step(null, 5);
+        string shot = ShotPath("timeline-r4-1-connectors.png");
+        frame.Screenshot(shot);
+        Assert.Single(panel.LastConnectors);                                                              // a -> b, the only link
+        Assert.Equal(("a", "b"), (panel.LastConnectors[0].FromTrack, panel.LastConnectors[0].ToTrack));
+        Assert.True(CountColour(shot, LinkColour, x0: 240) > 10, "X1: the arrow is drawn in its colour");
+        Assert.Equal(new[] { "a", "c" }, panel.LastHandles.Select(x => x.TrackId));                       // X4: a handle only on the tracks that opted in — never on b or d
+        Assert.Equal(new[] { "d" }, panel.LastComingUp.Select(x => x.TrackId));                           // X5: the Expected stretch of d — the only plan; its END is when it happens
+        Assert.Equal(50d, panel.LastComingUp[0].At);
+
+        Drag(Centre("a"), new Vector2(Centre("a").X, RowY("b")));                                         // a -> b: b accepts (the default accepts every row)
+        Assert.Equal(new[] { ("seg", "b") }, a.Dropped);
+        Drag(Centre("c"), new Vector2(Centre("c").X, RowY("d")));                                         // c -> d: c's rule refuses d
+        Assert.Empty(c.Dropped);
+        Drag(Centre("a"), new Vector2(Centre("a").X, RowY("a")));                                         // dropped on its own row: nothing
+        Assert.Single(a.Dropped);
+        var onB = panel.LastTrackHits.First(h => h.TrackId == "b");
+        Drag(new Vector2(onB.X + 4, onB.Y), new Vector2(onB.X + 4, RowY("a")));                           // a drag that starts on b (no handle): not a connect
+        Assert.Empty(b.Dropped); Assert.Single(a.Dropped);
+
+        // ⭐ the hidden-end rule: collapse the node that holds the target ⇒ the arrow is not drawn
+        var node = new ConnectTrack("node", false, Seg("seg", 1, 2), header: new TrackHeader(0, "Node", Collapsible: true));
+        var inner = new ConnectTrack("inner", false, Seg("seg", 40, 60), header: new TrackHeader(1, "Inner"));
+        var src = new ConnectTrack("src", false, Seg("seg", 10, 30), new[] { new TrackLink("seg", "inner", "seg") }, header: new TrackHeader(0, "Src"));
+        var tree = new ITimelineTrack[] { node, inner, src };
+        panel.Tracks = () => tree; Step(null, 4);
+        Assert.Single(panel.LastConnectors);
+        panel.SetCollapsed("node", true); Step(null, 4);
+        Assert.Empty(panel.LastConnectors);
+
+        // a host that turned nothing on: no strip, no lines (the director's tracks)
+        panel.Tracks = () => new ITimelineTrack[] { d }; panel.ComingUpCount = 0; Step(null, 4);
+        Assert.Empty(panel.LastComingUp); Assert.Empty(panel.LastHandles); Assert.Empty(panel.LastConnectors);
+    }
 }

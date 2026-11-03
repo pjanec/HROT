@@ -185,7 +185,7 @@ public sealed class RulesWindowFrameRail : IDisposable
         Step(null, 5);
         Assert.Equal(new[] { "Mission | Authored", "  Counter-attack | Authored" }, window.Probe.Rows);
         Assert.True(window.Panel.View.HasExtent, "the ruler has an extent although no track holds an item");
-        Assert.Empty(window.Panel.LastTrackHits);                                    // no spans: nothing to hit, the headers are the rows
+        Assert.Equal(new[] { "a", "a" }, window.Panel.LastTrackHits.Select(h => h.ItemId));   // no spans — only each row's ANCHOR key (R4: where an arrow enters and the connect handle sits); the headers are the rows
         frame.Screenshot(ShotPath("rules-3-authored.png"));
 
         // a click on the header of the trigger picks it: its details say Authored, every button carries the reason
@@ -304,6 +304,7 @@ public sealed class RulesWindowFrameRail : IDisposable
             Live: new RuleLiveServices(k => null, on => liveValues.Add(on)));
         var window = new RulesWindow(() => _world, () => null, null, "rail_rules_do", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 5d, editor: svc);
         window.Details!.LiveWriter = (EntityRepository w, Entity e, string j, int o, ref int last, out int seq) => { seq = ++last; written.Add(j); return Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct; };
+        float winH = 1900f;
         using var frame = UiFrameHarness.Begin(1400, 1900);
         void Step(Action<ImGuiIOPtr>? input = null, int n = 1)
         {
@@ -311,7 +312,7 @@ public sealed class RulesWindowFrameRail : IDisposable
                 frame.Step(() =>
                 {
                     input?.Invoke(ImGui.GetIO());
-                    ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(1400, 1900));
+                    ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(1400, winH));
                     ImGui.Begin("Rules", ImGuiWindowFlags.NoCollapse);
                     window.DrawContent();
                     ImGui.End();
@@ -361,5 +362,90 @@ public sealed class RulesWindowFrameRail : IDisposable
         frame.Screenshot(ShotPath("rules-9-when-live.png"));
         window.Details.RequestTab(RuleTab.Rules); Step(null, 3);
         Assert.Equal(new[] { true, false }, liveValues);
+
+        // Part 0 a — a SHORT pane: the Apply bar (note + verdict + message lines) still ends inside it, never clipped by a fixed reserve
+        winH = 560f; window.Details.RequestTab(RuleTab.Do); Step(null, 6);
+        Assert.True(window.Details.BarBottom <= winH, $"the Apply bar ends at {window.Details.BarBottom}, the pane at {winH}");
+        Assert.NotNull(window.Probe.Editor!.LiveEdit);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4222 (R5c, RE-9 + A2; R4 X4) — drag to connect in EDIT mode, in a REAL frame: drag a row's handle onto a trigger's row ⇒ the trigger's form shows the new <c>when</c> as a pending edit on the When tab (nothing written yet); Apply writes it as ONE undo entry (And-wrapped,
+    /// by the dropped row's kind); Undo restores. A drop on a row that is not a trigger, or a rule from a macro (A1), does nothing. ✅ Red-proof: A2 inverted (<c>DonePredicateOf</c> testing the role the wrong way) ⇒ the unit and this rail go red; reverted.
+    /// </summary>
+    [SkippableFact]
+    public void TheConnectDrag_InEditMode_AddsTheWhenInTheForm_ApplyWritesIt_UndoRestoresIt()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        Entity Rule(int id, string kind, string json)
+        {
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new NetworkIdentity(id));
+            _world.SetManagedComponent(e, new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = kind, JsonParams = json, InstanceId = 1 });
+            return e;
+        }
+        const string pushJson = """{"common":{"title":"Push harder"},"cooldown":5}""";
+        Rule(10, "HoldArea", """{"common":{"title":"Hold the crossroads"}}""");
+        Rule(11, "Trigger", """{"common":{"title":"Briefing"}}""");
+        var push = Rule(20, "Trigger", pushJson);
+        Rule(30, "WeightedMean", """{"common":{"title":"Mission"}}""");
+        var history = new Hrot.Presentation.Edits.EditHistory();
+        var svc = new RuleEditorServices(() => Fdp.Presentation.Editing.ComponentEditServices.CreateBuilder().Build(), () => null,
+            (e, n, j) => { _world.SetManagedComponent(e, new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = n, JsonParams = j, InstanceId = 1 }); return true; },
+            history, _ => Array.Empty<RuleJournalEntry>());
+        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_conn", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 0d, editor: svc);
+        using var frame = UiFrameHarness.Begin(1400, 900);
+        void Step(Action<ImGuiIOPtr>? input = null, int n = 1)
+        {
+            for (int i = 0; i < n; i++)
+                frame.Step(() =>
+                {
+                    input?.Invoke(ImGui.GetIO());
+                    ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(1400, 900));
+                    ImGui.Begin("Rules", ImGuiWindowFlags.NoCollapse);
+                    window.DrawContent();
+                    ImGui.End();
+                });
+        }
+        void Drag(Vector2 from, Vector2 to)
+        {
+            Step(io => Pos(io, from.X, from.Y), 2);
+            Step(io => { Pos(io, from.X, from.Y); io.AddMouseButtonEvent(0, true); });
+            Step(io => Pos(io, (from.X + to.X) / 2, (from.Y + to.Y) / 2));
+            Step(io => Pos(io, to.X, to.Y), 2);
+            Step(io => { Pos(io, to.X, to.Y); io.AddMouseButtonEvent(0, false); });
+            Step(null, 4);
+        }
+        string Params() => ((Fdp.ModuleHost.Abstractions.ISimulationView)_world).GetManagedComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorStartRecord>(push)!.JsonParams;
+        Vector2 Handle(int net) { var h = window.Panel.LastHandles.First(x => x.TrackId == "r:" + net); return (h.Min + h.Max) / 2f; }
+        float RowY(int net) { var r = window.Panel.LastRowBands.First(x => x.TrackId == "r:" + net); return (r.Y0 + r.Y1) / 2f; }
+
+        Step(null, 6);
+        Assert.Equal(new[] { "r:10", "r:11", "r:20", "r:30" }, window.Panel.LastHandles.Select(h => h.TrackId).OrderBy(x => x));   // every authored row has a handle
+        frame.Screenshot(ShotPath("rules-10-edit-handles.png"));
+
+        Drag(Handle(10), new Vector2(Handle(10).X, RowY(30)));                                                // onto a WeightedMean: not a trigger ⇒ nothing
+        Assert.Null(window.SelectedNetworkId); Assert.Equal(pushJson, Params());
+        Drag(Handle(10), new Vector2(Handle(10).X, RowY(20)));                                                // the objective onto the trigger
+        Assert.Equal(20, window.SelectedNetworkId);
+        Assert.Equal("When", window.Probe.Editor!.Tab);
+        Assert.True(window.Probe.Editor.Dirty);                                                               // pending: nothing written yet
+        Assert.Equal(pushJson, Params());
+        frame.Screenshot(ShotPath("rules-11-connected-pending.png"));
+
+        var row = RulesModel.Build(_world, new RulesOptions(), null, 0d).Find(20)!;
+        Assert.True(window.Details!.Apply(row));                                                              // RE-7
+        var when = System.Text.Json.Nodes.JsonNode.Parse(Params())!["when"]!;
+        Assert.Equal("OnEntity", when["$type"]!.ToString());                                                  // no `when` before ⇒ the condition itself
+        Assert.Equal(10, (int)when["Ref"]!);
+        Assert.Equal("State", when["Predicate"]!["PropertyPath"]!.ToString());                                // an objective ⇒ State == Achieved
+        Assert.Equal(1, history.Count);
+        Drag(Handle(11), new Vector2(Handle(11).X, RowY(20)));                                                // a trigger onto it too ⇒ the condition is AND-wrapped
+        Assert.True(window.Details.Apply(RulesModel.Build(_world, new RulesOptions(), null, 0d).Find(20)!));
+        var both = System.Text.Json.Nodes.JsonNode.Parse(Params())!["when"]!;
+        Assert.Equal(("Compound", "And"), (both["$type"]!.ToString(), both["Operator"]!.ToString()));
+        Assert.Equal(new[] { "State", "TriggerState" }, both["Conditions"]!.AsArray().Select(c => c!["Predicate"]!["PropertyPath"]!.ToString()));   // A2: by kind
+        Assert.True(window.Details.Undo()); Assert.True(window.Details.Undo());
+        Assert.Equal(pushJson, Params());
     }
 }

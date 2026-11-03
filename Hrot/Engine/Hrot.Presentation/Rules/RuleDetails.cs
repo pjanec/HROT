@@ -27,18 +27,20 @@ public sealed record RuleJournalEntry(uint Seq, float At, string Kind, string Te
 /// </summary>
 public sealed record RuleLiveServices(Func<string, string?> EditRefusal, Action<bool> SetLiveValues);
 
-/// <summary>What the host gives the rule editor: the ONE params form's service, the behaviour registry (the ONE params-type lookup), the edit-mode apply (the AI section's <c>EntityAiEditModel.ApplyTask</c>), the shared undo history, the journal reader — and, for R5b, the generic picker
+/// <summary>⭐ R5c — <c>CreateRule</c> (tkb type, kind, params JSON) asks the host's ONE entity-creation path for a rule entity (+ Add); null ⇒ the menu is off.
+/// What the host gives the rule editor: the ONE params form's service, the behaviour registry (the ONE params-type lookup), the edit-mode apply (the AI section's <c>EntityAiEditModel.ApplyTask</c>), the shared undo history, the journal reader — and, for R5b, the generic picker
 /// (<i>+ Add step</i>) and the live-run services (null ⇒ a running rule stays read-only).</summary>
 public sealed record RuleEditorServices(
     Func<IComponentEditService?> EditService, Func<Fdp.Toolkit.Behavior.BehaviorRegistry?> Registry,
     Func<Entity, string, string, bool> ApplyEditMode, EditHistory History,
     Func<Entity, IReadOnlyList<RuleJournalEntry>> Journal, Func<IMapPickContext?>? Picks = null,
-    Func<Action<PickerRequest, Action<PickerResult>>?>? OpenPicker = null, RuleLiveServices? Live = null);
+    Func<Action<PickerRequest, Action<PickerResult>>?>? OpenPicker = null, RuleLiveServices? Live = null,
+    Func<long, string, string, bool>? CreateRule = null);
 
 /// <summary>What the editor drew, as text — the rails read it (and an agent through the panel snapshot). R5b adds the Do tab's rows, the running step, the live edit's state and the Live strip.</summary>
 public sealed record RuleDetailsProbe(string Tab, IReadOnlyList<string> Tabs, IReadOnlyList<string> Fields, bool Editable, string? ReadOnlyReason, bool Dirty,
                                       string? Message, IReadOnlyList<string> History, IReadOnlyList<string> Results,
-                                      IReadOnlyList<string>? Steps = null, string? StepMarker = null, string? LiveEdit = null, IReadOnlyList<string>? LiveStrip = null, bool LiveValuesWanted = false);
+                                      IReadOnlyList<string>? Steps = null, string? StepMarker = null, string? LiveEdit = null, IReadOnlyList<string>? LiveStrip = null, bool LiveValuesWanted = false, IReadOnlyList<string>? Bindings = null);
 
 /// <summary>
 /// ⭐⭐ CE-4218 (rules view R5a; docs/DESIGN_Rules_View_UI.md §7 RE-1 … RE-7, A1) — the RULE EDITOR: the right pane of the rules window as a TABBED panel over the selected rule entity's ONE params document (<c>BehaviorParamsEditor</c> → <c>BehaviorParamsForm</c>,
@@ -49,7 +51,6 @@ public sealed record RuleDetailsProbe(string Tab, IReadOnlyList<string> Tabs, IR
 public sealed class RuleDetails
 {
     public const string LiveReadOnly = "live edits are not available on this host";
-    public const string PlaceholderR5b = "R5c";
     /// <summary>The origin a live edit carries: a person at the instructor's console is a <see cref="BehaviorOrigin.Operator"/> (the journal shows <i>edited by Operator</i>).</summary>
     public const BehaviorOrigin LiveOrigin = BehaviorOrigin.Operator;
 
@@ -155,7 +156,8 @@ public sealed class RuleDetails
             tab == RuleTab.History ? _svc.Journal(row.Entity).Select(j => $"{j.At:0.0}s {j.Text}").ToList() : (IReadOnlyList<string>)Array.Empty<string>(),
             tab == RuleTab.Results && _world() is { } w ? MissionSummaryModel.Build(w, new SummaryOptions(SummarySide.Both), null, now).Why(row.NetworkId).Select(x => $"{x.Title} | {(x.Go is { } g ? (g ? "pass" : "fail") : "—")}").ToList() : (IReadOnlyList<string>)Array.Empty<string>(),
             Steps: tab == RuleTab.Do ? _steps.Probe.Rows : null, StepMarker: tab == RuleTab.Do ? _steps.Probe.MarkerText : null,
-            LiveEdit: LiveEditLine(row), LiveStrip: _strip.Select(StripText).ToList(), LiveValuesWanted: WantsLiveValues(row, tab));
+            LiveEdit: LiveEditLine(row), LiveStrip: _strip.Select(StripText).ToList(), LiveValuesWanted: WantsLiveValues(row, tab),
+            Bindings: tab == RuleTab.Bindings ? BindingsOf(row).Select(b => $"{b.Field} <- {b.Param}").ToList() : null);
     }
 
     private void FeedStepContext(RuleRow row)
@@ -250,6 +252,29 @@ public sealed class RuleDetails
         return true;
     }
 
+    /// <summary>
+    /// ⭐ CE-4222 (RE-9 + A2) — dropping <paramref name="from"/> on the trigger <paramref name="trigger"/>: "from is done" is ANDed into the trigger's <c>when</c> IN THE FORM DOCUMENT (the form reopens on the new JSON, the When tab is shown) and stays a pending edit —
+    /// <b>Apply</b> writes it through RE-7 (so it is ONE undo entry on the shared <see cref="EditHistory"/>). Edit mode only; refused (with the reason, written to <see cref="Message"/>) for a live run, a recording, a rule from a macro (A1), a non-trigger, or a rule it already waits on.
+    /// </summary>
+    public string? ConnectInto(RuleRow trigger, RuleRow from)
+    {
+        string? Refuse(string why) { Message = why; return why; }
+        if (trigger.NetworkId == from.NetworkId) return Refuse("a rule cannot wait on itself");
+        if (trigger.Status.Role != ObjectiveRole.Trigger) return Refuse("only a trigger waits on another rule");
+        if (IsLive(trigger)) return Refuse("connecting changes the scenario: edit mode only");
+        if (ReadOnlyReason(trigger) is { } ro) return Refuse(ro);
+        if (ParamsOf(trigger) is not { } p || BehaviorParamsForm.ParamsTypeOf(p.Name, _svc.Registry()) is not { } type) return Refuse("this rule has no params form");
+        // the form of THIS trigger: bind to it (a drop on a row that was not selected), carrying its pending edit if it is the one open
+        string baseJson = trigger.NetworkId == _boundRule && _pending != null ? _pending : p.Json;
+        if (RuleConnect.AddedTo(baseJson, from, out string? why) is not { } added) return Refuse(why ?? "nothing to add");
+        _boundRule = trigger.NetworkId; _entityJson = p.Json; _steps.Reset();
+        _pending = BehaviorParamsForm.ToJson(BehaviorParamsForm.Hydrate(type, added), type);   // the form's own serialisation, as an edit made in it would give
+        _editor.Sync(null, null); _editor.Sync(type, _pending);
+        _tabOf[trigger.NetworkId] = RuleTab.When;
+        Message = $"{from.Title} added to the When of {trigger.Title}: Apply to keep it";
+        return null;
+    }
+
     /// <summary>Test hook — stages <paramref name="json"/> as the form's pending edit (what a drawn field edit produces).</summary>
     internal void StagePending(string json) => _pending = json;
 
@@ -290,7 +315,7 @@ public sealed class RuleDetails
         }
         ImGui.NewLine();
         SetLiveValues(WantsLiveValues(row, cur));                 // ⭐ RE-3 live: on while a When tab of a live trigger is open
-        ImGui.BeginChild("##rule-tab-body", new Vector2(0, Math.Max(120f, ImGui.GetContentRegionAvail().Y - 96f)), ImGuiChildFlags.None, ImGuiWindowFlags.None);
+        ImGui.BeginChild("##rule-tab-body", new Vector2(0, Math.Max(120f, ImGui.GetContentRegionAvail().Y - ApplyBarHeight(row, ro))), ImGuiChildFlags.None, ImGuiWindowFlags.None);
         DrawTab(row, cur, type, ro, now);
         ImGui.EndChild();
         DrawApplyBar(row, ro);
@@ -301,7 +326,7 @@ public sealed class RuleDetails
         switch (tab)
         {
             case RuleTab.Overview: case RuleTab.Status: _drawOverview(row, now); return;
-            case RuleTab.Bindings: ImGui.TextDisabled(PlaceholderR5b); return;
+            case RuleTab.Bindings: DrawBindings(row, type, ro); return;
             case RuleTab.History:
                 var entries = _svc.Journal(row.Entity);
                 if (entries.Count == 0) ImGui.TextDisabled("No journal (the rule is not running on this node).");
@@ -326,6 +351,45 @@ public sealed class RuleDetails
         if (tab == RuleTab.When && WantsLiveValues(row, tab)) DrawLiveStrip();
     }
 
+    // ── R5c: the Bindings tab (MA-1 / MA-2, third home) ──────────────────────────────────────────────────────────────────
+
+    /// <summary>The prefix the params form's bindings carry in <c>ParamBindings</c> (the binder's own path form, <c>Behavior.Params.Speed</c>).</summary>
+    public const string BindPrefix = "Behavior.Params";
+
+    /// <summary>One binding of the rule entity: the field path (relative to the params) and the macro parameter that feeds it.</summary>
+    public readonly record struct BindingRow(string Field, string Param);
+
+    /// <summary>The rule entity's <c>ParamBindings</c> (component 469) that name its params: <c>"Behavior.Params.&lt;field&gt;" → param</c>, by field.</summary>
+    public IReadOnlyList<BindingRow> BindingsOf(RuleRow row)
+    {
+        var w = _world();
+        if (w == null || !w.IsAlive(row.Entity) || !w.TryGetTable(typeof(Fdp.Toolkit.Scenario.ParamBindings), out _) || !w.HasManagedComponent<Fdp.Toolkit.Scenario.ParamBindings>(row.Entity)) return Array.Empty<BindingRow>();
+        var pb = ((Fdp.ModuleHost.Abstractions.ISimulationView)w).GetManagedComponentRO<Fdp.Toolkit.Scenario.ParamBindings>(row.Entity);
+        return pb == null ? Array.Empty<BindingRow>()
+             : pb.Bindings.Where(kv => kv.Key.StartsWith(BindPrefix + ".", StringComparison.Ordinal)).OrderBy(kv => kv.Key, StringComparer.Ordinal)
+                 .Select(kv => new BindingRow(kv.Key[(BindPrefix.Length + 1)..], kv.Value)).ToList();
+    }
+
+    /// <summary>The bind context of the rule entity's params form — ⭐ the very one the AI section's task form uses (<c>EntityBindContext</c>: writes a NEW <c>ParamBindings</c> on the entity, params in scope = the resident header's). Null without a world.</summary>
+    public IParamBindContext? BindsOf(RuleRow row)
+        => _world() is { } w && !row.Entity.IsNull
+            ? new EntityBindContext(new Fdp.Presentation.Adapters.RepositoryAdapter(w), row.Entity, BindPrefix, () => HeaderParams.Of(w)) : null;
+
+    /// <summary>A1 — only a macro FILE's own entities are bindable: a rule expanded from a macro instance, a live run and a recording are read-only (the reason is <see cref="ReadOnlyReason"/>'s).</summary>
+    private void DrawBindings(RuleRow row, Type? type, string? ro)
+    {
+        var rows = BindingsOf(row);
+        ImGui.TextDisabled(rows.Count == 0 ? "No field is fed from a parameter." : "Fields fed from a parameter");
+        foreach (var b in rows) ImGui.TextUnformatted($"{b.Field}   <-   {b.Param}");
+        var w = _world();
+        if (w != null && HeaderParams.Of(w).Count == 0) ImGui.TextDisabled("No parameters are declared here: a macro file declares them (open the macro).");
+        if (type == null || _editor.Session is not { } session) { ImGui.TextDisabled(ro ?? "no params form"); return; }
+        ImGui.Spacing();
+        if (ro != null) ImGui.BeginDisabled();
+        BehaviorParamsForm.DrawFields(session, _svc.Picks?.Invoke(), "##rule-bind", BindsOf(row), RuleTabs.MembersOf(type).Where(m => m != "Do").ToHashSet());
+        if (ro != null) ImGui.EndDisabled();
+    }
+
     /// <summary>RE-3 live — the Live strip under the When form: each leaf, whether it holds and the number behind it, matched by label.</summary>
     private void DrawLiveStrip()
     {
@@ -340,6 +404,21 @@ public sealed class RuleDetails
             ImGui.TextUnformatted($"{r.Label}   {r.Measured:0.##}{(r.InForm ? "" : "   (applied; not in the form)")}");
         }
     }
+
+    /// <summary>⭐ Part 0 a — the height the Apply bar needs THIS frame: the separator, the button row, and each text line it will draw (wrapped to the pane's width) — never a fixed reserve that clips the verdict or the message.</summary>
+    private float ApplyBarHeight(RuleRow row, string? ro)
+    {
+        float w = ImGui.GetContentRegionAvail().X;
+        float Lines(string? t) => t == null ? 0f : ImGui.CalcTextSize(t, false, w).Y + ImGui.GetStyle().ItemSpacing.Y;
+        bool live = IsLive(row);
+        return ImGui.GetStyle().ItemSpacing.Y * 2 + 2f + ImGui.GetFrameHeight()
+             + (live && ro == null ? Lines(LiveNote) : 0f) + (live ? Lines(LiveEditLine(row)) : 0f) + Lines(Message) + 6f;
+    }
+
+    /// <summary>Where the Apply bar's last line ended (screen y): a rail asserts it is inside the pane.</summary>
+    internal float BarBottom { get; private set; }
+
+    private const string LiveNote = "a live edit lasts this run only: not saved with the scenario, not in Undo";
 
     private void DrawApplyBar(RuleRow row, string? ro)
     {
@@ -367,9 +446,14 @@ public sealed class RuleDetails
         if (!canRedo) ImGui.EndDisabled();
         if (undo) Undo();
         if (redo) Redo();
-        if (live && ro == null) ImGui.TextDisabled("a live edit lasts this run only: not saved with the scenario, not in Undo");
+        if (live && ro == null) { ImGui.PushTextWrapPos(0f); ImGui.TextDisabled(LiveNote); ImGui.PopTextWrapPos(); }
         if (live && LiveEditLine(row) is { } line)
+        {
+            ImGui.PushTextWrapPos(0f);
             ImGui.TextColored(line.StartsWith("refused", StringComparison.Ordinal) ? new Vector4(0.9f, 0.4f, 0.35f, 1f) : new Vector4(0.9f, 0.7f, 0.3f, 1f), line);
-        if (Message != null) ImGui.TextDisabled(Message);
+            ImGui.PopTextWrapPos();
+        }
+        if (Message != null) { ImGui.PushTextWrapPos(0f); ImGui.TextDisabled(Message); ImGui.PopTextWrapPos(); }
+        BarBottom = ImGui.GetCursorScreenPos().Y;
     }
 }

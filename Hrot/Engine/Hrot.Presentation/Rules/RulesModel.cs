@@ -29,7 +29,11 @@ public sealed record RuleRow(
     string Title, string Icon, string StateWords, uint StateColour,
     int SubjectNetworkId, string? SubjectName,
     IReadOnlyList<RuleSpan> Spans, IReadOnlyList<double> Fires, double? ExpectedAt,
-    IReadOnlyList<RuleLink> WaitsOn, IReadOnlyList<RuleLink> Starts, bool Authored = false, string? Macro = null, int MacroInstance = 0);
+    IReadOnlyList<RuleLink> WaitsOn, IReadOnlyList<RuleLink> Starts, bool Authored = false, string? Macro = null, int MacroInstance = 0,
+    IReadOnlyList<ClockPin>? Pins = null);
+
+/// <summary>⭐ CE-4221 (R4) — an instant a rule is bound to the CLOCK: its deadline, or a <c>ScenarioTime</c> condition of a trigger's <c>when</c>. Drawn as a Pinned diamond.</summary>
+public sealed record ClockPin(double At, string Label);
 
 /// <summary>A section of rows: the name it is shown by and its rows in tree order.</summary>
 public sealed record RuleGroup(string Name, IReadOnlyList<RuleRow> Rows);
@@ -272,12 +276,55 @@ public static class RulesModel
         for (int i = 0; i < Math.Min((int)s.DependsOnCount, 8); i++) if (s.DependsOn[i] != 0) waits.Add(link(s.DependsOn[i]));
         for (int i = 0; i < Math.Min((int)s.ActsOnCount, 8); i++) if (s.ActsOn[i] != 0) starts.Add(link(s.ActsOn[i]));
         string? subject = e.SubjectNetworkId != 0 ? NameOf(world, NetworkIdResolver.FindEntityByNetworkId(world, e.SubjectNetworkId), e.SubjectNetworkId) : null;
+        var pins = ClockPins(world, e.Entity, s);
         if (e.Authored)   // ⭐ RV-3a — authored, not running: no state, no past, nothing expected
             return new RuleRow(e.NetworkId, e.Entity, depth, hasChildren, s, TitleOf(s, e.NetworkId), IconOf(s.Role), AuthoredWords, Grey,
-                               e.SubjectNetworkId, subject, Array.Empty<RuleSpan>(), Array.Empty<double>(), null, waits, starts, Authored: true, Macro: e.Macro, MacroInstance: e.MacroInstance);
+                               e.SubjectNetworkId, subject, Array.Empty<RuleSpan>(), Array.Empty<double>(), null, waits, starts, Authored: true, Macro: e.Macro, MacroInstance: e.MacroInstance, Pins: pins);
         return new RuleRow(e.NetworkId, e.Entity, depth, hasChildren, s, TitleOf(s, e.NetworkId), IconOf(s.Role), StateWords(s, now), ColourOf(s),
                            e.SubjectNetworkId, subject, SpansOf(s, history?.StateChanges(e.NetworkId), now), FiresOf(s, history?.Fires(e.NetworkId)),
-                           s.ExpectedAt > now ? s.ExpectedAt : null, waits, starts, Macro: e.Macro, MacroInstance: e.MacroInstance);
+                           s.ExpectedAt > now ? s.ExpectedAt : null, waits, starts, Macro: e.Macro, MacroInstance: e.MacroInstance, Pins: pins);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4221 (R4) — the clock-pinned instants of a rule: its <c>Deadline</c> (any kind), and for a trigger every <c>ScenarioTime</c> leaf of its <c>when</c> that starts later than zero (read from the authored params the node holds; none when the node holds none).
+    /// </summary>
+    public static IReadOnlyList<ClockPin> ClockPins(EntityRepository world, Entity entity, in ObjectiveStatus s)
+    {
+        var pins = new List<ClockPin>();
+        if (s.Deadline > 0f) pins.Add(new ClockPin(s.Deadline, $"deadline {Clock(s.Deadline)}"));
+        if (s.Role == ObjectiveRole.Trigger && world.IsAlive(entity) && world.TryGetTable(typeof(BehaviorStartRecord), out _) && world.HasManagedComponent<BehaviorStartRecord>(entity)
+            && ((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetManagedComponentRO<BehaviorStartRecord>(entity) is { } rec && !string.IsNullOrWhiteSpace(rec.JsonParams))
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(rec.JsonParams);
+                if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    foreach (var prop in doc.RootElement.EnumerateObject())
+                        if (prop.NameEquals("when") || prop.Name.Equals("when", StringComparison.OrdinalIgnoreCase)) CollectClock(prop.Value, pins);
+            }
+            catch (System.Text.Json.JsonException) { /* tolerant: bad JSON pins nothing */ }
+        }
+        return pins;
+    }
+
+    private static void CollectClock(System.Text.Json.JsonElement el, List<ClockPin> into)
+    {
+        switch (el.ValueKind)
+        {
+            case System.Text.Json.JsonValueKind.Object:
+                bool clock = false; double from = 0;
+                foreach (var p in el.EnumerateObject())
+                {
+                    if (p.Name == "$type" && p.Value.ValueKind == System.Text.Json.JsonValueKind.String && p.Value.GetString() == "ScenarioTime") clock = true;
+                    else if (p.Name.Equals("fromSeconds", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == System.Text.Json.JsonValueKind.Number) from = p.Value.GetDouble();
+                    else CollectClock(p.Value, into);
+                }
+                if (clock && from > 0) into.Add(new ClockPin(from, $"clock {Clock(from)}"));
+                break;
+            case System.Text.Json.JsonValueKind.Array:
+                foreach (var item in el.EnumerateArray()) CollectClock(item, into);
+                break;
+        }
     }
 
     /// <summary>

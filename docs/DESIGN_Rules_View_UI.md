@@ -213,6 +213,39 @@ Rails (all ui-owned): `RulesModelTests` (30 + the authored ones: tree from paren
 
 Rails (ui-owned): `MissionSummaryModelTests` (14: headline, fallback, trend both ways, required, forces, attention order, the three groupings, group columns, why, key events from the three lanes, the index history, the game card, the subtree filter) · `MissionSummaryWindowFrameRail` under `xvfb-run -a` (cards, a row's why, the side switch, export disabled). Red-proofs: `Why` with the pass / fail inverted ⇒ `Why_IsTheChildrenWithPassFail…` red; restoring the first cut (a `MemberEvaluation` counted as a root AND preferred — an ordering change alone stayed green, so it proved nothing) ⇒ `TheHeadline_IsTheSidesOverallRoot…` red (both reverted).
 
+## 6d. AS BUILT — R4 *(ui, `2026-11-03`, CE-4221: RV-1 X1 · X4 · X5 used by the rules view; CE-4223 part 0)*
+
+⭐ Built as §3 RV-1 / §4 row R4 say. Every new `ITimelineTrack` member defaults OFF ⇒ the director's and the trace lanes' tracks are unchanged (`TrackConnectorsAndComingUpTests.ADirectorLikeTrack_HasEveryNewMemberOff` · `TimelinePanelFrameRail.CE4221_R4_…`'s last step). All in `FDP/Engine/Fdp.Presentation/ImGui/Panels/Timeline/` (a cross-lane edit: the shared panel).
+
+```mermaid
+classDiagram
+    direction LR
+    class ITimelineTrack { <<existing>> + Links · ConnectsFrom · CanConnect · Connect (all default off) }
+    class TrackLink { <<NEW>> FromItemId · ToTrackId · ToItemId · Colour }
+    class TrackConnectors { <<NEW, pure>> Resolve(visible, hits) · Elbow · Arrow }
+    class ComingUp { <<NEW, pure>> Of(tracks, now, n) }
+    class TimelinePanel { <<existing>> + ComingUpCount · handles · connect drag · LastConnectors / LastHandles / LastComingUp }
+    class RuleTrack { <<existing>> + Links · anchor key · deadline stretch · clock pins · connect hooks }
+    class RulesWindow { <<existing>> LinkTracks · ConnectRefusal · Coming up on }
+    ITimelineTrack --> TrackLink
+    TimelinePanel ..> TrackConnectors : after all tracks
+    TimelinePanel ..> ComingUp : the strip
+    RuleTrack ..|> ITimelineTrack
+    RulesWindow ..> RuleTrack : links from DependsOn / ActsOn
+```
+*What the picture shows:* the panel only DRAWS what a track hands it (links, handles) and says WHAT was dropped WHERE; the rules view decides which rows link and what a drop means.
+
+| | as built |
+|---|---|
+| **X1 connectors** | `TrackConnectors.Resolve` (the visible tracks and this frame's item hits): a link is drawn only when BOTH items were drawn (`TrackItemHit` gained `XEnd`, the item's right end) — a collapsed row or an item scrolled out leaves no hit, so no arrow and no second layout. Elbow with an arrowhead; its vertical run is kept inside the row (a source that runs to *now* sits at the edge) |
+| **X4 connect** | a `ConnectsFrom` item shows a small handle at its right end; pressing it starts a connect drag (not an item drag); the row under the mouse that answers `CanConnect` is outlined; the release calls `Connect(item, row)` ONCE. A track that did not opt in has no handle, and a drag that starts elsewhere is not a connect |
+| **X5 Coming up** | `ComingUp.Of`: Expected / Pinned items after now, soonest first, ties in track order; an Expected SEGMENT happens at its end; the same moment named by a stretch and a diamond on one row is one line. The strip is drawn below the lanes (the lanes give it the room) when `ComingUpCount > 0` |
+| **rules view** | arrows `X → the trigger that waits on X` (`DependsOn`) and `rule → what it starts` (`ActsOn`), one per pair; a deadline = an Expected stretch + a Pinned diamond, a `ScenarioTime` condition of a trigger's `when` = a Pinned diamond (`RulesModel.ClockPins`, read from the authored params the node holds); an authored row (edit mode) carries ONE grey anchor key at 0 — where an arrow enters and the handle sits (`InEditMode_TheAuthoredRulesAreDrawn…` now expects it); Coming up on (5). The window's probe lists `Arrows` and `ComingUp` |
+
+**Findings.** ① ⭐ **The editor's death on ImGui's 16-bit vertex limit (CE-4223) was this panel's:** an Expected / Hatched item whose end is far outside the window was dashed / hatched over its whole length. Now clipped to the row and budgeted; the live `FrameStats` line names the largest draw list (the Event Browser, ≈ 10 k — measured, not the cause). ② A live source runs to *now* and its target started at 0, so the arrows point back to the left over the row — true to "waits on", noisy to look at. ③ A scenario's authored `when` links by key (`@Key` / GUID), which reads 0 before a run, so edit mode shows the anchors, the pins and the dashed deadline but few arrows. ④ Pre-existing, not fixed: on a plain sim axis with no recording the hover readout is garbage (`1065488423:34`), and a view carried over from a live run opens on its last seconds.
+
+Rails: `TrackConnectorsAndComingUpTests` (5: a link → the connector from the source's end to the target's start · the hidden-end rule · elbow and arrow geometry · Coming up's filter / order / cap / ties · every default off) · `TimelinePanelFrameRail.CE4221_R4_…` (a real frame: the arrow's pixels, handles only on opt-in tracks, a drag calls `Connect` once and only where accepted, a collapsed target hides the arrow, no Coming up when off) · `RuleEditorR5cTests` (the links from `DependsOn` / `ActsOn`; deadline and clock pins) · `DrawListVertexRail` (500 Event Browser rows ≈ 10 k; 20 far items 4 928). Red-proof: A2 inverted (§7.8) reddens R5c's rails; the connector rail's own mutation was not run. **Live (`showcase-bridgehead`, live run):** nine arrows (`GET /panels/editor_rules` → `arrows`), Coming up listing *Reach phase line RED deadline 15:00 · Ease off clock 20:00 · End clock 45:00* (screenshots viewed, not committed).
+
 ## 7. The rule editor — the trigger and objective tabs *(DESIGN, `2026-11-03`; handoff items ④ ⑤; ✅ RE-1 … RE-10 APPROVED (user, `2026-11-03`: *"approved"*) with the four amendments of §7.4)*
 
 🔒 *User, `2026-11-03`: "What is the status of trigger editor, are you planning to implement it together with the objective view/editor? Are they
@@ -350,7 +383,7 @@ by construction. The dashed edge is the one runtime piece that does not exist: u
 | edit mode applies through the existing ingress | ✅ `EntityAiDetailsView.cs:171-173` | ✅ §7.6 of `DESIGN_Sensors_And_Doctrine.md` (the AI section) |
 | the live path today restarts the rule | ✅ `AssignBehaviorEvent` = a re-assign | ✅ SR-109 wants this run only, state kept ⇒ ask ② |
 | **undo** of an edit-mode Apply — ✅ **measured `2026-11-03`** | ⛔ **there is NO scenario-wide undo for entity edits**: the AI section's `AssignNow` has none; the only undo lists are local — `HeaderParamsSchemaSource`'s `(Label, Redo, Undo)` list behind the Parameters window (`HeaderParamsSchemaSource.cs:21-38`, CE-4210) and `GizmoUndoStack` for map gizmo edits (two copies: `Fdp.Toolkits/Diagnostics/Gizmos/UndoRedo/` and `GizmoMap.Presentation/`) | ⭐ **lean (inside the approved RE-7 rule "never a rules-only stack"):** extract that `(Label, Redo, Undo)` list into ONE shared `EditHistory` (`Hrot.Presentation`), adopted by the Parameters window and the rule editor in R5; Apply pushes *"edit <rule>"* with the previous params JSON as its undo. The AI section and the two gizmo stacks joining it is filed as a separate row (a duplicate found, not fixed in R5) |
-| **+ Add** creates a rule entity — ⏳ measured at R5 start by the builder | ⛔ not yet: `EntityCreationRequest` (`Fdp.Toolkits/NetworkSpawning/Events/`) is the creation path; whether it carries a behaviour + params for a non-spatial entity is the first R5 measurement | the catalogue lists `Objective` 8860 / `Trigger` 8861 (`EntityTypeCatalogTests` golden) |
+| **+ Add** creates a rule entity — ✅ **measured `2026-11-03` (R5c)** | ✅ **YES, through the existing path:** `EntityCreation.RequestEntityCreation(tkbType, initialComponents: [BehaviorStartRecord{ Name, Json }])` (`Hrot.Common/EntityCreation/EntityCreation.cs:208`, the pack the Add Entity picker and the debug API's spawn route end in) creates a non-spatial TKB 8860 / 8861 entity (no transform) carrying its authored params; live: *New HoldArea* appeared under *Mission* a few frames later with its form openable. The Add Entity picker itself arms a MAP placement tool, which a rule (no body) does not use — it is not the seam, `RequestEntityCreation` is. ⛔ no second creation path was written | the catalogue lists `Objective` 8860 / `Trigger` 8861 (`EntityTypeCatalogTests` golden) |
 | **A4 — what a by-type `SearchPredicateDto` leaf reaches** — ✅ **measured `2026-11-03`** | grep of every `SearchPredicateDto` field / property: ① `TriggerParamsJsonDto.When` (`ObjectiveParamsJsonDtos.cs:314`) — ✅ wants it; ② the `Predicate` children of the compound DTOs inside `SearchPredicateDto.cs` (`:67, :81, :129, :289, :383` — Not, OnEntity, BehaviorParam …) — ✅ the builder itself draws them (today's name gate was exactly these); ③ breakpoint / watch `Condition` (`BreakpointTypes.cs:48`, `WatchPersistence.cs:19`, `DebugSessionPersistence.cs:88`) — not drawn through `ComponentEditServices` forms (the breakpoint manager has its own `PredicateBuilderState`), so unaffected; ④ two locals in `DebugApiService` — not fields of a form | ⇒ ⭐ the by-type registration is safe: the only NEW reach is `when`, which is the point. ⚠ ③ is a second builder state (`PredicateBuilderState`) beside the drawer — a duplicate to fold, filed with the undo one |
 
 ### 7.6 AS BUILT — R5a *(ui, `2026-11-03`, CE-4218: RE-1 · RE-2 · RE-3 · RE-5 · RE-6 · RE-7 edit mode · A1 · A4 + the shared `EditHistory`)*
@@ -412,3 +445,34 @@ classDiagram
 **Findings / deviations.** ① The step drawer lives in `Hrot.Presentation`, not `Fdp.Presentation` (RE-10): the picker (`NodeEditor.UI`) is not reachable from there; only the leaf editor is shared. ② ⛔ **R5a bug fixed:** `Prepare` ran twice a frame and the second call re-synced the form to the entity's OLD params, so a typed value snapped back (Apply still worked from the staged copy). The form now reopens only when the entity's params change. ③ ⛓ chips on step fields wait for the Bindings tab (R5c). ④ The editor crashed three times in the live check — **not this work**: the container's memory cap killed it twice (a build server and the editor together) and ImGui asserted once on a 16-bit vertex overflow from the Event Browser's long list; closing the right-hand panels and stopping the build servers made the run stable. ⑤ The picker's double-click does not confirm a row (OK does) — the picker's own behaviour.
 
 Rails: `RuleEditorR5bTests` (11: add / reorder / remove → what `ActionList.Get` / `Validate` parse · args round-trip and an unknown key kept · picker rows and a refused one disabled · the standard leaves · live Apply writes the complete JSON as Operator and never touches `EditHistory` · pending while Acting then applied · refusal shown · a kind with no keeper read-only · the strip matched by label, and a cut label) · `RulesWindowFrameRail.TheDoTab_…` (real frame, `xvfb-run`: rows, marker *step 2 / 3*, CLICKS on + Add step, ^ and x, live Apply, the When tab switching the feature on and the strip drawn, off on leaving) · `FilteredTypeComboFieldDrawerTests.CE4220_Auto_…` · existing `RuleEditorTests` 9 · `RulesModelTests` · `MissionSummaryModelTests` · `RulesWindowFrameRail` · `Fdp.Presentation.Tests` Replay / Predicate / Editing / Search / Timeline (213) green. Red-proof: the live origin sent as `Superior` ⇒ `LiveApply_WritesTheCompleteParams…` red (`Expected … 3, Actual … 2`; reverted). **Live (`showcase-bridgehead`, live run):** *Counter-attack* ⇒ Do tab rows (InsertMacro · Order · Message); cooldown 0 → 33, **Apply live** ⇒ `GET /objectives` `timing.cooldown 33`, `fireCount 0` (state kept), the History tab *edited by Operator*, the bar *applied - the rule's state is kept, this run only*; the When tab turned the feature on (the owner's `leaves` filled). **Edit mode:** + Add step ⇒ Message ⇒ Apply ⇒ `GET /entities/1045` carries four steps.
+
+### 7.8 AS BUILT — R5c *(ui, `2026-11-03`, CE-4222: RE-8 · RE-9 + A2 · the Bindings tab)*
+
+⭐ Built as §7.3 / §7.4 say. Prior state: §7.6 / §7.7 listed RE-8, RE-9 and the Bindings tab as *placeholders* — SUPERSEDED here.
+
+```mermaid
+classDiagram
+    direction LR
+    class RulesWindow { + Add menu · AddRule · ConnectRefusal · ConnectRows · WatchAdded }
+    class RuleAdd { <<NEW, pure>> Kinds · TkbOf · NewParamsJson }
+    class RuleConnect { <<NEW, pure>> DonePredicateOf (A2) · AddedTo }
+    class RuleDetails { + ConnectInto · BindingsOf · BindsOf · the Bindings tab }
+    class RuleTrack { <<existing>> ConnectsFrom · CanConnect · Connect }
+    class EntityCreation { <<existing>> RequestEntityCreation }
+    class EntityBindContext { <<existing, CE-4210>> BoundTo · Bind · Unbind }
+    RulesWindow --> RuleAdd
+    RulesWindow ..> EntityCreation : CreateRule (the host)
+    RuleTrack ..> RulesWindow : drop X on Y
+    RulesWindow --> RuleDetails : ConnectInto
+    RuleDetails --> RuleConnect
+    RuleDetails ..> EntityBindContext : Bindings tab
+```
+*What the picture shows:* a drop never writes — it edits the SAME form document RE-7 applies, and + Add and the drop both end in paths that already existed.
+
+| | as built |
+|---|---|
+| **RE-9 + A2** | dropping row X on a trigger row Y (edit mode): `RuleConnect.AddedTo` ANDs `OnEntity { ref: X, predicate: PropertyMatch(ObjectiveStatus.State \| TriggerState, Equals, Numeric v..v) }` into Y's `when` — **by X's kind (A2)**: an objective / measure ⇒ `State == Achieved` (2), a trigger ⇒ `TriggerState == Fired` (5). No `when` ⇒ the condition itself; an existing AND compound gets one more condition; any other `when` is wrapped in a new AND compound; the same rule twice is refused. The shape is what the authored triggers carry (checked live against *Push harder* on `showcase-bridgehead`). `RuleDetails.ConnectInto` reopens the form on the new JSON (the form's own serialisation), shows the When tab and leaves it a PENDING edit; **Apply** writes it through RE-7 as ONE undo entry. Refused, with the reason: a live run, a recording, a rule from a macro (A1), a non-trigger target, itself. ⚠ Found live: a scenario stores its params camelCase (`operator`, `conditions`) — read key-insensitively, or the existing AND was wrapped instead of appended to |
+| **RE-8 + Add** | `+ Add` (toolbar, edit mode only) lists the Trigger first, then every behaviour whose params type carries `common` (`ParamsDtoRegistry`, 20 kinds); the host's `CreateRule` calls `EntityCreation.RequestEntityCreation(8861 \| 8860, initialComponents: [BehaviorStartRecord])` — measured in §7.5. `common.title` = *New <kind>*, `common.parent` = the selected row; when the entity appears the window selects it and opens its When / Settings tab. Refused with the reason in a live run, on a recording, and on a host with no creation path |
+| **Bindings** | the rule entity's `ParamBindings` (`Behavior.Params.<field>` → param) listed, and the params form drawn with the AI section's own `EntityBindContext` (the ⛓ chip / button, the same bind drawer; params in scope = the resident header's). With no parameter declared the tab says so (*a macro file declares them*); a rule from a macro instance is read-only (A1). Not run live with a declared parameter: the chip is the CE-4210 drawing, unchanged |
+
+Rails: `RuleEditorR5cTests` (A2 by kind · none / one / wrapped / camelCase-appended / twice-refused · the drop is a pending edit, Apply is one undo entry, Undo restores · refused for live / recording / macro / non-trigger / itself · the kinds and TKB types · `AddRule` asks with the title and the selected parent, selects the entity when it appears, refuses live / no-host · the Bindings list and edit through the one context, A1) · `RulesWindowFrameRail.TheConnectDrag_…` (a real frame: a drop on a non-trigger does nothing; objective then trigger onto *Push harder* ⇒ OnEntity then AND(State, TriggerState) via Apply; two Undos restore). Red-proof: `DonePredicateOf` testing the role the wrong way ⇒ `A2_…` and the drag rail red (`Expected "State", Actual "TriggerState"`); reverted. **Live (`showcase-bridgehead`, edit mode):** drag *Hold the crossroads* onto *Push harder* ⇒ the form shows the compound; **Apply** ⇒ `GET /entities/1048` `when` = AND(original, `OnEntity Ref 1038 State == 2`); **Undo** ⇒ the original `when` back; *+ Add ▸ HoldArea* with *Mission* selected ⇒ *New HoldArea* under *Mission*, selected, Settings open; the Bindings tab of *Counter-attack* ⇒ *No field is fed from a parameter*, the form below.

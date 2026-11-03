@@ -299,7 +299,14 @@ namespace Hrot.Editor
                 },
                 () => new Fdp.Presentation.Editing.ScopedMapPickContext(picks, "$.rule"),
                 OpenPicker: () => _shellPickers is { } pickers ? pickers.OpenPicker : null,   // ⭐ CE-4220 — "+ Add step" opens the ONE generic picker
-                Live: BuildRuleLiveServices());
+                Live: BuildRuleLiveServices(),
+                // ⭐ CE-4222 RE-8 — a new rule entity is requested through the ONE creation path every author uses (the pack's RequestEntityCreation): the TKB type, no transform (a rule has no body), its authored params as a BehaviorStartRecord
+                CreateRule: (tkb, kind, json) =>
+                {
+                    if (EntityCreation is not { } creation) return false;
+                    creation.RequestEntityCreation(tkb, initialComponents: new object[] { new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = kind, JsonParams = json, InstanceId = 1 } });
+                    return true;
+                });
         }
 
         /// <summary>

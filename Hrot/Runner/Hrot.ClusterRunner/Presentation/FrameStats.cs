@@ -18,6 +18,7 @@ internal sealed class FrameStats
     private readonly Stopwatch _part = new();
     private readonly List<double> _frames = new();
     private double _update, _draw, _ui, _windowStart, _lastFrame;
+    private int _maxVtx; private string _maxVtxOwner = "";
 
     public static FrameStats? FromEnvironment()
         => Environment.GetEnvironmentVariable("HROT_FRAME_STATS") == "1" ? new FrameStats() : null;
@@ -28,6 +29,23 @@ internal sealed class FrameStats
     public void EndUpdate() => _update += _part.Elapsed.TotalMilliseconds;
     public void EndDraw() => _draw += _part.Elapsed.TotalMilliseconds;
     public void EndUi() => _ui += _part.Elapsed.TotalMilliseconds;
+
+    /// <summary>
+    /// ⭐ CE-4223 — after <c>rlImGui.End</c> (the draw data exists): the most vertices ANY draw list holds this frame, and the window that owns it. ImGui asserts at 65 536 (16-bit indices) and the editor dies, so the
+    /// log names the window that is getting near it — the live measurement the rails cannot make.
+    /// </summary>
+    public unsafe void NoteDrawLists()
+    {
+        var dd = ImGuiNET.ImGui.GetDrawData();
+        if (dd.NativePtr == null) return;
+        for (int i = 0; i < dd.CmdListsCount; i++)
+        {
+            var list = dd.CmdLists[i];
+            if (list.VtxBuffer.Size <= _maxVtx) continue;
+            _maxVtx = list.VtxBuffer.Size;
+            _maxVtxOwner = list._OwnerName.ToString() ?? "?";
+        }
+    }
 
     /// <summary>Call once per frame, after EndDrawing; logs when the window is full.</summary>
     public void EndFrame()
@@ -40,9 +58,9 @@ internal sealed class FrameStats
         int n = sorted.Length;
         Console.WriteLine(
             $"[FrameStats] {n} frames  mean {sorted.Average():0.0} ms  p50 {sorted[n / 2]:0.0}  p95 {sorted[Math.Min(n - 1, (int)(n * 0.95))]:0.0}" +
-            $"  max {sorted[n - 1]:0.0}  | update {_update / n:0.0}  draw {_draw / n:0.0}  ui {_ui / n:0.0} ms/frame");
+            $"  max {sorted[n - 1]:0.0}  | update {_update / n:0.0}  draw {_draw / n:0.0}  ui {_ui / n:0.0} ms/frame  | largest draw list {_maxVtx} vertices ({_maxVtxOwner})");
         _frames.Clear();
-        _update = _draw = _ui = 0;
+        _update = _draw = _ui = 0; _maxVtx = 0;
         _windowStart = now;
     }
 }
