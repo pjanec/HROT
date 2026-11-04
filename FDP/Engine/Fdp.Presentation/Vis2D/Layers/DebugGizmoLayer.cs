@@ -51,6 +51,9 @@ namespace Fdp.Toolkit.Vis2D.Layers
             return new ReadOnlySpan<DebugPrimitive>(_filmFrame, 0, n);
         }
         public string Name => "Debug Gizmos";
+
+        /// <summary>⭐ CE-2387 — the entity menu built on right-click (passed to the terminal; see GizmoMap's <c>DebugGizmoLayer.MenuResolver</c>).</summary>
+        public Func<long, string?>? MenuResolver { get => _innerTerminal.MenuResolver; set => _innerTerminal.MenuResolver = value; }
         public int LayerBitIndex { get; private set; }
 
         private readonly DebugPrimitiveBuffer? _buffer;

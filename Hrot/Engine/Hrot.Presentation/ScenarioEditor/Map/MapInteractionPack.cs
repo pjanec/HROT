@@ -467,7 +467,13 @@ namespace Hrot.ScenarioEditor.Map
                 camera: camera,
                 shapeLibrary: new Hrot.Presentation.Map.EntityClassShapeLibrary(),   // ⭐ CE-2138 — the class table picks the avatar
                 schemaRegistry: schemas,
-                worldProvider: worldProvider);
+                worldProvider: worldProvider)
+            {
+                // ⭐ CE-2387 (T6) — the entity menu is built on right-click, from the world, by the ONE builder the inspector and the ORBAT already use
+                MenuResolver = net => worldProvider() is { } w && net > 0 && net <= int.MaxValue
+                    ? Hrot.UI.Common.Menus.MapEntityMenuHandler.MenuJsonOf(w, Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(w, (int)net))
+                    : null,
+            };
         }
 
         /// <summary>

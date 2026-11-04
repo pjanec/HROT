@@ -29,6 +29,13 @@ namespace GizmoMap.Presentation
 
         // Context menu presenter (ImGui popup).
         private readonly ContextMenuAdapter _contextMenuAdapter = new();
+
+        /// <summary>
+        /// ⭐ CE-2387 (T6; docs/DESIGN_Evaluation_Cost_And_Cadence.md §5 C3, R-2083) — the ENTITY menu, built when the user right-clicks: the host turns
+        /// the picked network id into the menu JSON (null = no menu). 🔒 User, <c>2026-08-10</c>: <i>"Serialise on right-click, not per <c>Draw</c>"</i>
+        /// (docs/UX/UX_Feature_Cross_Surface_Actions.md:158). A <c>ContextMenuBinding</c> primitive for the id still wins (a route / vertex gizmo's own menu).
+        /// </summary>
+        public Func<long, string?>? MenuResolver { get; set; }
         private Vector2 _rightPressScreenPos;
         private bool _rightWasDragged;
 
@@ -270,6 +277,11 @@ namespace GizmoMap.Presentation
                             _contextMenuAdapter.Schedule(hitNetworkId, json);
                             contextMenuOpened = true;
                         }
+                    }
+                    else if (hitNetworkId != 0 && hitNetworkId != -1L && MenuResolver?.Invoke(hitNetworkId) is { } built)   // ⭐ CE-2387 — built now, for the one entity clicked
+                    {
+                        _contextMenuAdapter.Schedule(hitNetworkId, built);
+                        contextMenuOpened = true;
                     }
                     else if (hitNetworkId == -1L && menuBindings.TryGetValue(-1L, out uint canvasHash))
                     {

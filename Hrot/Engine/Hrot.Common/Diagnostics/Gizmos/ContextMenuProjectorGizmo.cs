@@ -195,14 +195,13 @@ namespace Hrot.Common.Diagnostics.Gizmos
 
         // ---- IStatelessGizmo --------------------------------------------------
 
-        public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
-        {
-            ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
-            int networkId = netId.Value;
-            if (networkId == 0) return;
-
-            draw.DrawContextMenuBinding(networkId, MenuJsonFor(view, entity));
-        }
+        /// <summary>
+        /// ⭐ CE-2387 (T6; docs/DESIGN_Evaluation_Cost_And_Cadence.md §5 C3, R-2083) — draws NOTHING any more. 📐 It built and hashed every entity's menu
+        /// JSON every frame (≈ 6 % of a Crossfire frame) for a menu almost never opened. 🔒 User, <c>2026-08-10</c>: <i>"Serialise on right-click, not per
+        /// <c>Draw</c>"</i> (UX_Feature_Cross_Surface_Actions.md:158, :225). ⭐ The map now asks <see cref="MenuJsonFor"/> for the ONE entity right-clicked
+        /// (<c>MapInteractionPack.BuildRenderLayer</c> → the terminal's <c>MenuResolver</c>), the same builder the inspector and the ORBAT already call.
+        /// </summary>
+        public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw) { }
 
         /// <summary>
         /// The menu permutation for <paramref name="entity"/> — what <see cref="Draw"/> binds. ⭐ CE-3024: factored out so a

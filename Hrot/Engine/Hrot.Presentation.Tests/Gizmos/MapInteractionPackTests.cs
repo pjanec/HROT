@@ -35,6 +35,24 @@ namespace Hrot.Presentation.Tests.Gizmos
 
         private MapInteractionContext Ctx() => new() { World = _world };
 
+        /// <summary>⭐ CE-2387 (T6; DESIGN_Evaluation_Cost_And_Cadence §5 C3) — the ONE map layer factory hands every host a right-click menu resolver that
+        /// builds the clicked entity's menu with the same builder the inspector uses (and nothing for an id nobody holds), and the projector no longer binds a
+        /// menu per entity per frame. ✅ Red-proof: the factory not setting <c>MenuResolver</c> ⇒ null ⇒ red.</summary>
+        [Fact]
+        public void CE2387_TheMapBuildsTheEntityMenuOnRightClick_NotPerFrame()
+        {
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new NetworkIdentity(77));
+            var layer = MapInteractionPack.BuildRenderLayer(new DebugPrimitiveBuffer(64), new FdpEventBus(), null, () => _world);
+            Assert.NotNull(layer.MenuResolver);
+            Assert.Equal(Hrot.UI.Common.Menus.MapEntityMenuHandler.MenuJsonOf(_world, e), layer.MenuResolver!(77));
+            Assert.Null(layer.MenuResolver!(9999));
+
+            var bindings = new DebugPrimitiveBuffer(64);
+            new Hrot.Common.Diagnostics.Gizmos.ContextMenuProjectorGizmo().Draw(_world, e, bindings);
+            Assert.Equal(0, bindings.GetFrame().Length);   // nothing built or interned per entity per frame
+        }
+
         // ── ① the construct-vs-schedule fence ──────────────────────────────────────────────────
 
         /// <summary>
