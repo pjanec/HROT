@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-04 (§3.0: the cadence is a generic BRAIN mechanism — Cadence / BrainCadence / CadenceGate; rules are one policy)
-build-state: DESIGN (for the user's revision — nothing built)
+build-state: DESIGN — buildable once D1–D8 are decided (§6) and the user revises; §7a–§7c carry the build specification, rails and tasks
 current-answer: §2 (the picture), §3 (A — rules at a cadence), §4 (B — rules UI only when watched), §5 (C — per-entity costs), §6 (decisions)
 stale-below: none
 known-rot: none
@@ -169,27 +169,34 @@ rules; the only rules-aware box is `ObjectiveHost`, which WRITES a cadence. The 
 
 ```mermaid
 sequenceDiagram
+  participant WK as RuleWakeSystem (rules policy, before BrainTick)
   participant BT as BrainTickSystem
-  participant G as CadenceGate
+  participant G as CadenceGate (generic)
   participant W as EntityRepository (window)
-  participant R as rule behaviour (via ObjectiveHost)
-  BT->>G: Due(rule, now)?
+  participant H as ObjectiveHost (rules policy)
+  participant R as rule kind (unchanged)
+  WK->>WK: RuleControl Seq ≠ Done · RuleEdit pending · ExerciseEndedEvent ⇒ set Wake
+  BT->>G: Due(ref cadence, entity, now)?
   alt not due and not woken
-    G-->>BT: skip (cost: one component read)
+    G-->>BT: skip (one component read)
   else due or woken
-    G->>W: OpenStepWindow(readerOf(rule))
+    BT->>G: OpenWindow(entity, Task)
+    G->>W: OpenStepWindow(reader of (entity, Task))
     BT->>R: Run (unchanged code)
+    R->>H: Enter / Settle
     R->>W: ReadEvents<ManDownedEvent>() = every event since ITS last tick
-    R-->>BT: status written
-    BT->>G: After(rule, before, after)
+    H->>H: status changed (State, Value, Score, Closed) ⇒ parent's Wake = 1
+    H->>H: mode from the status: Acting ⇒ EveryFrame · Waiting / Cooldown ⇒ NextTick = ExpectedAt · IsFinal ⇒ Asleep · else Periodic
+    BT->>G: After(entity, Task, ref cadence, now)
     G->>W: CloseStepWindow · MarkRead(reader)
-    G->>G: NextTick = now + 0.2 + (index % 10) × 0.02
-    G->>G: status changed ⇒ Wake its PARENT (and its watchers, §3.4)
+    G->>G: Periodic ⇒ NextTick = now + Period + (index % 10) × Period/10 · Wake = 0
   end
 ```
 
 *What the sequence shows:* the rule's own code does not change — the window makes `ReadEvents` return everything since that rule's last
-tick, so every kill, capture and hit is counted **exactly once** whatever the cadence (the CE-3293 step window, per rule instead of per system).
+tick, so every kill, capture and hit is counted **exactly once** whatever the cadence (the CE-3293 step window, per slot instead of per system).
+⭐ The generic gate never looks at a rule: waking the parent and choosing the mode are `ObjectiveHost`'s (policy), done from the shared
+`ObjectiveStatus` — `TriggerState`, `IsFinal`, `ExpectedAt` (`ObjectiveStatus.cs:16, 62, 81, 94`) — so no rule kind needs code of its own.
 
 ### 3.3 The cadence per rule state — ⭐ the table the user asked for: *"does anything depend on every frame?"*
 
@@ -317,7 +324,7 @@ sequenceDiagram
 | **D4** | the rules UI refresh | **once per frame, at most every 0.2 s wall**; a click / selection refreshes at once | an instructor wanting live 60 Hz numbers |
 | **D5** | the remote (Godot) viewer's per-entity menu JSON | **only while a remote viewer is connected** (watched-only, like B1) | the remote viewer moving to request/reply on right-click |
 | **D6** | soldiers' task slots at a cadence too | **not now** — a separate "brain LOD" design (distance to the camera / to the enemy) | a thousands-soldier scenario measured slow in `BrainTickSystem` after A |
-| **D7** | fold the SOP's own cadence (`SopNextTick`, `SopWake`) onto the generic `Cadence` + `CadenceGate` (§3.0) | **yes, in the same batch** — one cadence implementation (ruling 9) | — |
+| **D7** | fold the SOP's own cadence (`SopNextTick`, `SopWake`) onto the generic `CadenceGate` (§3.0) | **yes, in the same batch** — one cadence implementation (ruling 9); `SopState` keeps its fields (S2) | — |
 | **D8** | a restore while a rule's window is open loses that window's events (§6a) | ⭐ **revised `2026-11-04`: DRAIN AT A CHECKPOINT** — a frame that writes a requested checkpoint keyframe wakes every rule first, so no window is open in it; periodic keyframes are not drained | a branch from a periodic keyframe measured to matter ⇒ drain those too (a 1 Hz all-rules frame) |
 
 ### 6a. D8 explained — what a restore loses, and why the lean changed
@@ -349,6 +356,47 @@ sequenceDiagram
 | per-frame net-id scans are a defect | ✅ 15 sites | ✅ `NetworkIdResolver.cs:24–30, 78–104` |
 | the menu should be built on right-click | ✅ `DebugGizmoLayer.cs:186–282` | ✅ 🔒 `UX_Feature_Cross_Surface_Actions.md:158, :225` |
 | the type-id lookup is a lock + dictionary per access | ✅ `ComponentType.cs:25, 53, 111` | ⛔ none |
+
+## 7a. Build specification — the seams the diagrams leave implicit *(added `2026-11-04`, "what is missing to make it buildable?")*
+
+| # | seam | ⭐ specified as | basis |
+|---|---|---|---|
+| S1 | **`BrainCadence` plumbing** | unmanaged, `[ComponentId]` = next free `GlobalComponentIds` entry, `[DataPolicy(DataPolicy.NoScenario)]` (recorded — a restore must keep `NextTick`; not saved in a scenario), registered beside `SopState` (`CognitiveComponentRegistry.cs:47`); no translator (brain-node local, like `SopState`) | `SopState.cs:15–18`; CLAUDE.md "recorded ⇒ unmanaged" |
+| S2 | **`SopState` keeps its layout** | the gate's API takes `ref double nextTick, ref byte wake` (and a period), so the SOP calls it with its existing `SopNextTick` / `SopWake` — ⛔ no field change | `SopState` is in the BrainIntent ownership group (`NedOwnershipGroupBinding.cs:74`) and recorded — a layout change buys nothing |
+| S3 | **reader lifetime** | registered on a slot's first cadenced tick (`RegisterReaderAtCurrentFrame`); released when the entity dies (`DestructionOrder`, as the dedup cache is pruned, `BrainTickSystem.cs:158`), when its mode goes `Asleep` (re-registered on wake — an asleep rule must not pin the history), and all at once on `WorldEpoch.Moved`; the accumulator's own `Restart` resets positions | `EventAccumulator.cs:320–376`; "a stopped reader no longer pins the history" (`:15–17`) |
+| S4 | **`RuleWakeSystem`** (rules policy, Hrot.AI.Behaviors, before `BrainTickSystem`) | sets `Wake` on a rule with `RuleControl.Seq ≠ Done` (an operator Fire / Rearm / Reset / Activate) or a pending `RuleEdit`; on `ExerciseEndedEvent` / a phase change wakes every rule; gated on the `RuleControl` table's version so a quiet frame costs O(1) | `RuleControl.cs:21–31`; `ScenarioVerbs.cs:157` |
+| S5 | **drain at a checkpoint** (D8) | the recorder raises "checkpoint pending" (the frame it already waits, §1l `SlotRunInFlight`); that frame `RuleWakeSystem` wakes every cadenced slot; the keyframe is written in its PostSimulation, after them | `DESIGN_Checkpoint_And_Dry_Run_Restore.md` §1l; `RecorderTickSystem.cs:128–134` |
+| S6 | **timed BTree nodes are safe** | `Wait` / `Cooldown` use absolute time (`ctx.Time - startTime`, `Interpreter.cs:556+`) ⇒ a cadenced tree keeps their timing; ⚠ the only risk is a hand-written C# node that integrates the frame `dt` — rule kinds do not (`ObjectiveHost.cs:84`) | measured `2026-11-04` |
+| S7 | **`RulesFrame` refresh** | key = (world, `GlobalVersion`) and ≥ 0.2 s wall since the last build; `Invalidate()` from a click / selection change; the HUD's `includeAuthored: false` read is a second key of the same memo | §4 B2–B3 |
+| S8 | **`DetailsWindow.Frame()` once per frame** | memoised on a frame counter the host passes (the window is ImGui-free by design, `DetailsWindow.cs:416`) | §4 B4 |
+| S9 | **C3 thread** | in the raylib loop the gizmo layer's `Update` and the kernel run on one thread (`Program.cs:648` loop) ⇒ the resolver may read the world; ⏳ the Stride host to be checked in its build step | explorer pass `2026-11-04` |
+
+### 7b. Rails — in each feature's OWN suite (T-1)
+
+| part | suite | new rails |
+|---|---|---|
+| A, mechanism | `SopSlotTests` (the SOP's cadence moves onto the gate — its 6 rails must stay green) + a `CadenceGateTests` beside `BrainTickSystem`'s tests | due / skip / wake / stagger; window exactly-once across a skipped frame; a brain without `BrainCadence` ticks every frame (soldiers unaffected) |
+| A, rules policy | `ScenarioRulesTests` / the objectives' own test classes | same totals and awards at the cadence as at 60 Hz (400 synthetic rules); trigger Waiting woken at `ExpectedAt`; Acting every frame; parent woken by a child; close settles all; red-proofs per §8 |
+| A3 | the aggregators' tests | linear cost 100 vs 1000 rules |
+| B | `RulesModelTests`, `TheObjectivesViewTests`, `RulesWindowFrameRail` (`xvfb-run -a`) | a counting rail: no Rules / Objectives / HUD drawn ⇒ `RulesReader.Read` never called; one read per frame with all of them drawn |
+| C3 | `MenuOrdersTests`, `HostOnlyWiringTests` | the right-click resolves the same JSON `MenuJsonFor` gave per frame |
+| D8 / S5 | the restore-equivalence oracle (R1, CE-3299 B5) | a scoring scenario restores to the same run with a kill in the last 0.2 s before the checkpoint |
+| all | the live Crossfire script (§0) | §8's numbers |
+
+### 7c. Tasks — by lane *(a proposal; the user splits)*
+
+| # | task | lane | depends on |
+|---|---|---|---|
+| T1 | `Cadence` / `BrainCadence` / `CadenceGate` + the tier-loop gate + per-slot windows (S1–S3, S6); SOP moved onto it (D7, S2) | behaviors | D1, D7 |
+| T2 | the rules policy: `ObjectiveHost` adds `BrainCadence`, modes from the status, parent wake; `RuleWakeSystem` (S4) | behaviors | T1, D2, D3 |
+| T3 | `RuleChildren` per-frame index (A3) | behaviors | — (independent, can go first) |
+| T4 | drain at a checkpoint (S5) | behaviors + backend (recorder) | T2, D8 |
+| T5 | `RulesFrame` + `DetailsWindow.Frame()` memo + the rules UI's scans → `ResolveNetworkId` (B, S7, S8) | ui | D4 |
+| T6 | the right-click menu on right-click (C3, S9) | ui | D5 |
+| T7 | per-frame `FindEntityByNetworkId` → `ResolveNetworkId`, AI side (C2) | behaviors | — |
+| T8 | per-T component type id cache (C1) | backend | — |
+| T9 | `OwnershipRecomputeSystem` structural-change gate (C5) | backend | — |
+| T10 | egress change detection — a DESIGN, not a build (C4) | backend | — |
 
 ## 8. Acceptance
 
