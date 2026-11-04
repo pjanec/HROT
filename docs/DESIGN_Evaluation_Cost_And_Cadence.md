@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-04
+updated: 2026-11-04 (§3.0: the cadence is a generic BRAIN mechanism — Cadence / BrainCadence / CadenceGate; rules are one policy)
 build-state: DESIGN (for the user's revision — nothing built)
 current-answer: §2 (the picture), §3 (A — rules at a cadence), §4 (B — rules UI only when watched), §5 (C — per-entity costs), §6 (decisions)
 stale-below: none
@@ -60,7 +60,7 @@ graph TD
   BT --> SOL["soldier task slots<br/>every frame (unchanged)"]
   BT --> SOP["SOP slots<br/>5 Hz staggered + woken (exists)"]
   BT --> RUL["RULE task slots<br/>⛔ today: every frame, ~400 rules"]
-  RUL -.A.-> RC["⭐ A: RuleCadence gate<br/>5 Hz staggered + woken<br/>events read through the rule's own window"]
+  RUL -.A.-> RC["⭐ A: CadenceGate (generic, any brain slot)<br/>rules: 5 Hz staggered + woken<br/>events read through the slot's own window"]
   RUL --> AGG["aggregators PointsOf / Best / Count<br/>⛔ today: scan ALL rules per call (O(R²))"]
   AGG -.A3.-> IDX["⭐ A3: RuleChildren index<br/>built once per frame, O(R)"]
   K --> EGR["CycloneEgressSystem<br/>~20 translators × all entities"]
@@ -85,6 +85,20 @@ are **quadratic** in a count that grows all round. The dashed arrows are this de
 
 ## 3. Part A — rules evaluate at a cadence, interleaved, woken by what matters
 
+### 3.0 Mechanism and policy — ⭐ the cadence is a BRAIN concept, not a rules one *(user, `2026-11-04`)*
+
+> 🔒 **User:** *"isn't that gate / non-every-time brain ticking a generic concept, not tied to rules, so it might deserve a more generic name and
+> more generic implementation?"*
+
+| layer | what | where | knows about rules? |
+|---|---|---|---|
+| ⭐ **mechanism** | `Cadence` (when a brain slot ticks: period, next tick, wake, mode) · `BrainCadence` (the TASK slot's cadence on an entity) · `CadenceGate` (due? · open the slot's event window · after: next tick, stagger) | `FDP/Toolkits/Fdp.Toolkits/Behavior` (beside `BrainTickSystem`) | ⛔ no |
+| ⭐ **users of the mechanism** | the TASK slot of any entity carrying `BrainCadence` · the **SOP slot** (its `SopNextTick` / `SopWake` become a `Cadence` inside `SopState`, ticked through the same gate — D7) · a later soldier / vehicle LOD (D6) | — | — |
+| **policy** | WHICH brains get a cadence, with what period, and what wakes them | rules: `ObjectiveHost` (Hrot.AI.Behaviors) adds `BrainCadence` and sets the wakes of §3.3 · SOP: `BrainTickSystem` as today (5 Hz, woken by `SensorChangedEvent` / `BehaviorFinishedEvent`) | rules: yes — and only here |
+
+⭐ **Anyone may wake a cadenced brain** by setting its `Wake` (a child rule waking its parent, an operator action, a future "enemy in sight" for a soldier) or by
+setting its `NextTick` earlier (a trigger's `ExpectedAt`). ⭐ **A brain WITHOUT `BrainCadence` ticks every frame — exactly as today** (soldiers, vehicles).
+
 ### 3.1 Classes
 
 ```mermaid
@@ -92,19 +106,30 @@ classDiagram
   class BrainTickSystem {
     <<EXISTING, FDP/Toolkits Behavior>>
     +Execute(view, dt)
-    -TickSopSlots() 5 Hz staggered (EXISTING)
+    task slot: asks CadenceGate when BrainCadence is present
+    SOP slot: asks CadenceGate (D7, replaces its own copy)
   }
-  class RuleCadence {
-    <<NEW unmanaged component, recorded>>
+  class Cadence {
+    <<NEW value type, FDP/Toolkits Behavior>>
+    +float Period
     +double NextTick
     +byte Wake
-    +byte Mode  Cadenced|EveryFrame|Asleep
+    +CadenceMode Mode  EveryFrame|Periodic|Asleep
   }
-  class RuleCadenceGate {
-    <<NEW, FDP/Toolkits Behavior>>
-    +bool Due(entity, now)
-    +After(entity, statusBefore, statusAfter)
-    -Dictionary~int,int~ readerOf  runtime only
+  class BrainCadence {
+    <<NEW unmanaged component, recorded>>
+    +Cadence Task
+  }
+  class SopState {
+    <<EXISTING component>>
+    +Cadence Sop  replaces SopNextTick + SopWake
+  }
+  class CadenceGate {
+    <<NEW, FDP/Toolkits Behavior — generic>>
+    +bool Due(ref Cadence, entity, now)
+    +int OpenWindow(repo, entity, slot)
+    +After(repo, entity, slot, ref Cadence, now)  next tick + stagger, MarkRead
+    -readers (entity, slot) to reader id  runtime only
   }
   class EventAccumulator {
     <<EXISTING Fdp.Core>>
@@ -119,27 +144,33 @@ classDiagram
     +ReadEvents~T~()  window when open
   }
   class ObjectiveHost {
-    <<EXISTING Hrot.AI.Behaviors>>
+    <<EXISTING Hrot.AI.Behaviors — the RULES POLICY>>
     +Enter() Frame  Dt = since last tick
+    adds BrainCadence · sets mode / wakes per 3.3
   }
   class RuleChildren {
     <<NEW, replaces the scans in ObjectiveChildren>>
     +Of(world, parent) ReadOnlySpan~Entity~
     -built once per frame (key: GlobalVersion)
   }
-  BrainTickSystem --> RuleCadenceGate : asks Due before Run of a rule
-  RuleCadenceGate --> RuleCadence : reads / writes
-  RuleCadenceGate --> EventAccumulator : one reader per cadenced rule
-  RuleCadenceGate --> EntityRepository : opens the rule's window around Run
+  BrainCadence *-- Cadence
+  SopState *-- Cadence
+  BrainTickSystem --> CadenceGate : Due / OpenWindow / After
+  CadenceGate --> EventAccumulator : one reader per cadenced slot
+  CadenceGate --> EntityRepository : opens the slot's window around Run
+  ObjectiveHost --> BrainCadence : the rules policy writes it
   ObjectiveHost ..> RuleChildren : aggregators use
 ```
+
+*What the picture shows:* the mechanism (`Cadence`, `BrainCadence`, `CadenceGate`) sits in the generic behaviour toolkit and has no arrow to anything about
+rules; the only rules-aware box is `ObjectiveHost`, which WRITES a cadence. The SOP slot points at the same `Cadence` — one implementation, two slots.
 
 ### 3.2 One frame
 
 ```mermaid
 sequenceDiagram
   participant BT as BrainTickSystem
-  participant G as RuleCadenceGate
+  participant G as CadenceGate
   participant W as EntityRepository (window)
   participant R as rule behaviour (via ObjectiveHost)
   BT->>G: Due(rule, now)?
@@ -190,10 +221,25 @@ over `ObjectiveLinks`), every aggregator reads its span. O(R²) → O(R). ⭐ In
 
 ### 3.6 Who gets a cadence
 
-⭐ **Rule entities only** (an entity carrying `ObjectiveStatus`): `RuleCadence` is added by `ObjectiveHost.Enter` on first tick.
-⛔ Soldiers' task slots are NOT cadenced here — movement, fire control and posture are tuned for every frame; a soldier LOD is its own
-design (**D6**). ⭐ But the gate is generic (a component + a gate), so a later "brain LOD" reuses it rather than adding a third copy (the SOP
-cadence is the first; folding the SOP onto `RuleCadenceGate` is **D7**).
+⭐ **The mechanism is for any brain; THIS design's policy cadences rule entities only** (an entity carrying `ObjectiveStatus`): `BrainCadence` is
+added by `ObjectiveHost.Enter` on first tick, exactly like `ObjectiveStatus` / `ObjectiveLinks` / `RuleControl` already are (`ObjectiveHost.cs:38–50`).
+⛔ Soldiers' and vehicles' task slots get no `BrainCadence` here ⇒ they tick every frame as today; the only cost to them is one component-bit test per
+brain per frame, beside the `IsFirstVisit` bit test the loop already makes (`BrainTickSystem.cs:172–177`; the visit order is unchanged, CE-3137).
+⭐ A soldier / vehicle LOD later is a POLICY that adds `BrainCadence` (**D6**); the SOP slot moves onto the same gate (**D7**).
+
+```csharp
+// BrainTickSystem tier loop — the whole change for the task slot
+if (!IsFirstVisit(repo, entity, t)) continue;                          // exists
+bool cadenced = repo.HasComponent<BrainCadence>(entity);               // NEW — one bit test; 0 for soldiers / vehicles
+if (cadenced && !CadenceGate.Due(ref repo.GetComponentRW<BrainCadence>(entity).Task, entity, now)) continue;
+int prev = cadenced ? _gate.OpenWindow(repo, entity, Slot.Task) : -1;
+try { Run(runner, repo, entity, behavior, def, dt); }                   // unchanged
+finally { if (cadenced) _gate.After(repo, entity, Slot.Task, ref repo.GetComponentRW<BrainCadence>(entity).Task, now, prev); }
+```
+
+⚠ **A cadenced brain must measure time as "since my last tick", not the frame `dt`.** Rules already do (`ObjectiveHost.cs:84`). ⏳ To verify before
+building: no rule asset contains a generic BTree node (a `Wait`) that integrates the frame `dt` — the trace showed one-node trees. ⚠ A soldier LOD
+(D6) would have to settle this for every soldier node — a reason it is its own design.
 
 ## 4. Part B — the rules UI builds its model only when something drawn asks, once per frame
 
@@ -271,7 +317,7 @@ sequenceDiagram
 | **D4** | the rules UI refresh | **once per frame, at most every 0.2 s wall**; a click / selection refreshes at once | an instructor wanting live 60 Hz numbers |
 | **D5** | the remote (Godot) viewer's per-entity menu JSON | **only while a remote viewer is connected** (watched-only, like B1) | the remote viewer moving to request/reply on right-click |
 | **D6** | soldiers' task slots at a cadence too | **not now** — a separate "brain LOD" design (distance to the camera / to the enemy) | a thousands-soldier scenario measured slow in `BrainTickSystem` after A |
-| **D7** | fold the SOP's own cadence (`SopNextTick`, `SopWake`) onto `RuleCadenceGate` | **yes, in the same batch** — one cadence implementation (ruling 9) | — |
+| **D7** | fold the SOP's own cadence (`SopNextTick`, `SopWake`) onto the generic `Cadence` + `CadenceGate` (§3.0) | **yes, in the same batch** — one cadence implementation (ruling 9) | — |
 | **D8** | a restore while a rule's window is open loses that window's events (§6a) | ⭐ **revised `2026-11-04`: DRAIN AT A CHECKPOINT** — a frame that writes a requested checkpoint keyframe wakes every rule first, so no window is open in it; periodic keyframes are not drained | a branch from a periodic keyframe measured to matter ⇒ drain those too (a 1 Hz all-rules frame) |
 
 ### 6a. D8 explained — what a restore loses, and why the lean changed
