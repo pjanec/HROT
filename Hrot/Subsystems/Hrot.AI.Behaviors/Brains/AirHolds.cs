@@ -75,7 +75,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static Entity PickupUnitAt(EntityRepository world, int routeNetworkId, Entity aircraft)
         {
             if (routeNetworkId <= 0 || !world.HasComponent<SimTransform>(aircraft)) return Entity.Null;
-            var route = Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(world, routeNetworkId);
+            var route = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(world, routeNetworkId);
             if (route.IsNull || !world.HasManagedComponent<RoutePlan>(route)) return Entity.Null;
             var plan = ((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetManagedComponentRO<RoutePlan>(route);
             if (plan == null) return Entity.Null;
@@ -88,7 +88,7 @@ namespace Hrot.AI.Behaviors.Brains
                 float d = Vector2.DistanceSquared(new Vector2(w.Position.X, w.Position.Y), new Vector2(at.X, at.Y));
                 if (d < best) { best = d; unit = w.HoldUnit.Ref.NetworkId; }
             }
-            return unit > 0 ? Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(world, unit) : Entity.Null;
+            return unit > 0 ? Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(world, unit) : Entity.Null;
         }
 
         /// <summary>

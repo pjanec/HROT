@@ -113,7 +113,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (!world.HasComponent<SimTransform>(carrier)) return false;
             var at = world.GetComponentRO<SimTransform>(carrier).Position;
             int routeId = world.HasComponent<NavigationIntent>(carrier) ? world.GetComponentRO<NavigationIntent>(carrier).RouteEntityId : 0;
-            var route = routeId > 0 ? Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(world, routeId) : Entity.Null;
+            var route = routeId > 0 ? Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(world, routeId) : Entity.Null;
             if (!route.IsNull && world.HasManagedComponent<RoutePlan>(route)
                 && ((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetManagedComponentRO<RoutePlan>(route) is { } plan)
             {

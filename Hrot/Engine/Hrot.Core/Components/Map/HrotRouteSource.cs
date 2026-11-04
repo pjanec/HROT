@@ -18,7 +18,7 @@ public sealed class HrotRouteSource : IRouteSource
     {
         trajectoryId = 0;
         if (routeNetworkId <= 0 || !repo.IsComponentTypeRegistered<RouteTrajectoryCache>()) return false;
-        var route = NetworkIdResolver.FindEntityByNetworkId(repo, routeNetworkId);
+        var route = NetworkIdResolver.ResolveNetworkId(repo, routeNetworkId);
         if (route == Entity.Null || !repo.HasComponent<RouteTrajectoryCache>(route)) return false;
         var cache = repo.GetComponentRO<RouteTrajectoryCache>(route);
         // a stale compile (the plan changed since) is not this route any more — wait for the sync system to recompile it
@@ -32,7 +32,7 @@ public sealed class HrotRouteSource : IRouteSource
     {
         into.Clear(); loop = false; version = 0;
         if (routeNetworkId <= 0) return false;
-        var route = NetworkIdResolver.FindEntityByNetworkId(repo, routeNetworkId);
+        var route = NetworkIdResolver.ResolveNetworkId(repo, routeNetworkId);
         if (route == Entity.Null || !repo.HasManagedComponent<RoutePlan>(route)) return false;
         var plan = ((ISimulationView)repo).GetManagedComponentRO<RoutePlan>(route);
         if (plan == null) return false;

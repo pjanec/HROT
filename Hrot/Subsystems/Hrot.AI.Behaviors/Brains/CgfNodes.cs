@@ -242,7 +242,7 @@ namespace Hrot.AI.Behaviors.Brains
             trajectoryId = 0;
             if (world is null || routeNetworkId <= 0 || !world.IsComponentTypeRegistered<Hrot.Map.Common.Components.RouteTrajectoryCache>())
                 return false;
-            var route = Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(world, routeNetworkId);
+            var route = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(world, routeNetworkId);
             if (route == Entity.Null || !world.HasComponent<Hrot.Map.Common.Components.RouteTrajectoryCache>(route)) return false;
             trajectoryId = world.GetComponentRO<Hrot.Map.Common.Components.RouteTrajectoryCache>(route).TrajectoryId;
             return trajectoryId != 0;
