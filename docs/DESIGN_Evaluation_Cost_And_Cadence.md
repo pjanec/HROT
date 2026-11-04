@@ -383,6 +383,18 @@ over ~20 translators; its common part is `HasAuthority` (3.2 %), most of which i
 | `CycloneEgressSystem` ×4, recent | 12.9 ms | 11.3 ms — within run noise |
 | frame `update` at 10–30 s · at 100 s | 53–55 · 82–104 ms | 54–56 · 81 ms — ⚠ **the frame did not move measurably early**: the recorder's recent average is dominated by keyframe spikes, not the steady frame. Still linear in entities |
 
+📐 **A/B, `2026-11-04` — the same binary with and without CE-2392/2393, interleaved A B A B on one machine** (`perf4`, Crossfire, frame
+`update` from `HROT_FRAME_STATS`; ⛔ the table above compared DIFFERENT runs and understated it):
+
+| run | update 10–20 s | update 30–100 s (mean · median) | whole frame 30–100 s |
+|---|---|---|---|
+| A without | 50.1 | 87.9 · 92.2 | 110.7 |
+| B with | 46.7 | 73.7 · 69.3 | 97.2 |
+| A2 without | 53.4 | 79.7 · 80.7 | 102.3 |
+| B2 with | 48.9 | 67.6 · 68.6 | 91.7 |
+
+⇒ ✅ **≈ 13 ms (≈ 16 %) less update once the round is running, ≈ 4 ms early; the same direction in both pairs.** Kept.
+
 ⛔ **E3 not built — measured against its premise.** Hoisting a translator's own dirty / cache check before `HasAuthority` only saves work on
 OWNED unchanged entities; on a replica (3 of the 4 worlds hold each entity as a replica in `--mode all`) the replica has no
 `EgressPublicationState` / cache entry, so the cheap check passes and `HasAuthority` still runs — the hoist ADDS work there. ⇒ C8 (cheaper
