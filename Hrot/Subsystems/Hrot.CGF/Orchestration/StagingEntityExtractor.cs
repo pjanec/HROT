@@ -39,6 +39,20 @@ namespace Hrot.CGF.Orchestration
     /// </summary>
     public sealed class StagingEntityExtractor : IScenarioEntityExtractor
     {
+        // ⭐ CE-2396 — a REUSED staging world (the macro expander's instance): a fresh EntityRepository allocates ≈ 93 MB of chunk
+        //   bookkeeping (every table sized for 1 000 000 entities, CE-2395 ②) and registers every known component type by reflection —
+        //   📐 measured per macro expansion on Crossfire: 20.7 ms median (13 ms of it the registration) and ≈ 93 MB of garbage, ≈ 1 per
+        //   3 s (every respawn). Reused, it is EMPTIED after each extraction (Clear: index, tables, bus) and re-registers only when the
+        //   global type set grew. A scenario load (rare) keeps a fresh world: holding one between loads would only park the memory.
+        private readonly bool _reuseStagingWorld;
+        private EntityRepository? _stagingWorld;
+        private int _stagingBusy;
+        private int _stagingTypesGeneration = -1, _stagingTypesCount = -1;
+
+        /// <param name="reuseStagingWorld">⭐ CE-2396 — keep one staging world and empty it between extractions (the macro expander: one
+        /// extraction per expansion); false = a fresh world per extraction, disposed after it (a scenario load).</param>
+        public StagingEntityExtractor(bool reuseStagingWorld = false) => _reuseStagingWorld = reuseStagingWorld;
+
         // ── Static exclusion mask ──────────────────────────────────────────────────
         // Built once at class init using GlobalComponentIds named constants.
         // At extraction time the instance mask is built by copying this mask and
@@ -237,13 +251,21 @@ namespace Hrot.CGF.Orchestration
             var childExclusionMask = exclusionMask;
             childExclusionMask.SetBit(GlobalComponentIds.PartMetadata);
 
-            var stagingRepo = new EntityRepository();
+            // ⭐ CE-2396 — the reused world when this instance keeps one and no other thread holds it; else a fresh one (as before)
+            bool reused = _reuseStagingWorld && System.Threading.Interlocked.CompareExchange(ref _stagingBusy, 1, 0) == 0;
+            var stagingRepo = reused ? (_stagingWorld ??= new EntityRepository()) : new EntityRepository();
             try
             {
                 // Pre-register all globally known component types so that
                 // FdpAutoSerializer.TryInject can call SetComponent<T> without
                 // encountering "component not registered" exceptions.
-                RegisterAllGlobalTypesInRepo(stagingRepo);
+                // ⭐ CE-2396 — a reused world registers again only when the global type set grew (or was reset)
+                int typesGeneration = ComponentTypeRegistry.Generation, typesCount = ComponentTypeRegistry.RegisteredCount;
+                if (!reused || typesGeneration != _stagingTypesGeneration || typesCount != _stagingTypesCount)
+                {
+                    RegisterAllGlobalTypesInRepo(stagingRepo);
+                    if (reused) { _stagingTypesGeneration = typesGeneration; _stagingTypesCount = typesCount; }
+                }
                 // ⭐ CE-4153 — the staging load stamps every entity's file key as its EntityGuid, which then rides InitialComponents into the
                 //   created entity. The staging repo must know the type even when no host has registered it globally yet.
                 if (!stagingRepo.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.EntityGuid>())
@@ -403,7 +425,9 @@ namespace Hrot.CGF.Orchestration
             }
             finally
             {
-                stagingRepo.Dispose();
+                // ⭐ CE-2396 — reused: EMPTIED (nothing of this extraction reaches the next, also after a throw); fresh: disposed
+                if (reused) { stagingRepo.SoftClear(); System.Threading.Volatile.Write(ref _stagingBusy, 0); }
+                else stagingRepo.Dispose();
                 StagingRepositoryDisposedCallback?.Invoke();
             }
         }

@@ -98,6 +98,15 @@ recorder (not yet analysed).
 ⇒ ✅ **≈ 6–7 ms less update (≈ 16 %), ≈ 7 ms shorter frame (≈ 11 %)** once the round runs — more than the trace's ≈ 7 % estimate (the
 removed per-frame garbage is a likely share). The 10–20 s figures are within noise (25.8 / 32.4 without, 29.4 / 22.1 with).
 
+### 0d. ✅ AS BUILT — the macro expander's staging world is reused *(CE-2396, `2026-11-04`)*
+
+📐 Measured (temporary timing in `StagingEntityExtractor.Extract`, editor, Crossfire, 100 s): **32 expansions, 20.7 ms median (259 ms the first),
+of which registering ~270 types 13.0 ms, reading the JSON 2.0 ms — and ≈ 93 MB allocated EACH** (every table's chunk bookkeeping sized for
+1 000 000 entities, `PaddedVersion` 64 B per possible chunk: a 16 KB component ≈ 21 MB) ⇒ ≈ 3 GB of large-object-heap garbage per 100 s.
+⭐ Now: the macro expander's extractor keeps one staging world and empties it after each use (`SoftClear`), registering again only when the
+type set grew; `NativeChunkTable.Clear` walks only up to `UsedChunkBound`. The bookkeeping itself (every new world) is CE-2395 ②.
+Rail `StagingEntityExtractorTests.CE2396_*` (red-proved: skip the empty ⇒ the next extraction returns the previous file's entity).
+
 ## 1. INVENTORY (the queries this design rests on)
 
 | question | query | result |

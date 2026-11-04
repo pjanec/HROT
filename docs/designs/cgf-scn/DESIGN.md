@@ -81,6 +81,13 @@ parallel, reflection-heavy pipeline and risks schema drift.  The existing
 require an `EntityRepository`.  A transient staging repository is hydrated, all
 component data is extracted from it, and it is then disposed.
 
+> ⭐ **As built, CE-2396 (`2026-11-04`, behaviors):** the MACRO expander's extractor (`StagingEntityExtractor(reuseStagingWorld: true)`,
+> CGF and editor) keeps ONE staging repository and EMPTIES it after each extraction (`SoftClear`: entity index, every table, the bus),
+> re-registering types only when the global type set grew; a scenario load still uses a fresh one and disposes it. 📐 Why: a fresh
+> repository allocates ≈ 93 MB of chunk bookkeeping and registers ~270 types by reflection — measured 20.7 ms median and ≈ 93 MB of
+> garbage per macro expansion on Crossfire (one per respawn). ⭐ The decision stands — one JSON→components reader; only the world's
+> lifetime changed. See [DESIGN_Evaluation_Cost_And_Cadence.md](../../DESIGN_Evaluation_Cost_And_Cadence.md) §0c.
+
 ### Decision 4 — BitMask256 exclusion mask, not attributes
 
 Components such as `NetworkIdentity`, `NetworkAuthority`, and

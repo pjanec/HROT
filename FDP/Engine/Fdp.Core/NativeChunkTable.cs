@@ -102,6 +102,7 @@ namespace Fdp.Core
         public void IncrementPopulation(int chunkIndex)
         {
             System.Threading.Interlocked.Increment(ref _populationCounts[chunkIndex]);
+            Touch(chunkIndex);   // ⭐ CE-2396 — a counted chunk stays inside the bound Clear() walks
         }
         
         /// <summary>
@@ -282,7 +283,10 @@ namespace Fdp.Core
         {
             lock (_allocationLock)
             {
-                for (int i = 0; i < _totalChunks; i++)
+                // ⭐ CE-2396 — only up to the used bound: above it every chunk is uncommitted, uncounted and version 0 (CE-2394). It walked
+                //   every POSSIBLE chunk (250 000 for a 16 KB component) — per table, on every keyframe apply and every staging reuse.
+                int end = UsedChunkBound;
+                for (int i = 0; i < end; i++)
                 {
                     if (IsChunkCommitted(i))
                     {
@@ -535,6 +539,7 @@ namespace Fdp.Core
         public void SetPopulation(int chunkIndex, int count)
         {
              System.Threading.Interlocked.Exchange(ref _populationCounts[chunkIndex], count);
+             if (count != 0) Touch(chunkIndex);   // ⭐ CE-2396
         }
 
         public void IncrementChunkVersion(int chunkIndex)

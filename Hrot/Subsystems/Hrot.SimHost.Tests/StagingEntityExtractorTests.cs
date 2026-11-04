@@ -614,6 +614,33 @@ namespace Hrot.SimHost.Tests
             Assert.True(disposeCalled);
         }
 
+        /// <summary>⭐ CE-2396 — a REUSED staging world (the macro expander's) is emptied after each extraction: the second extraction sees
+        /// none of the first's entities, gives the same answer as a fresh world, and allocates a small fraction of a fresh world's
+        /// ≈ 93 MB. ✅ Red-proof: skip the empty-after-use (SoftClear) ⇒ the second extraction returns the first file's entity too.</summary>
+        [Fact]
+        public void CE2396_AReusedStagingWorld_IsEmptiedBetweenExtractions_AndAllocatesLittle()
+        {
+            var serializer = BuildSerializer();
+            var a = _goldRepo.CreateEntity(); _goldRepo.SetComponent(a, new SimTransform());
+            var jsonOne = SerializeGoldRepo(_goldRepo, serializer);
+            var b = _goldRepo.CreateEntity(); _goldRepo.SetComponent(b, new SimTransform());
+            var jsonTwo = SerializeGoldRepo(_goldRepo, serializer);
+
+            var reused = new StagingEntityExtractor(reuseStagingWorld: true);
+            Assert.Single(reused.Extract(serializer, jsonOne, new StubIdAllocator(100)));
+            Assert.Equal(2, reused.Extract(serializer, jsonTwo, new StubIdAllocator(200)).Count);
+            Assert.Single(reused.Extract(serializer, jsonOne, new StubIdAllocator(300)));        // nothing of the 2-entity file left over
+
+            var fresh = new StagingEntityExtractor();
+            long f0 = GC.GetAllocatedBytesForCurrentThread();
+            fresh.Extract(serializer, jsonOne, new StubIdAllocator(400));
+            long freshBytes = GC.GetAllocatedBytesForCurrentThread() - f0;
+            long r0 = GC.GetAllocatedBytesForCurrentThread();
+            reused.Extract(serializer, jsonOne, new StubIdAllocator(500));
+            long reusedBytes = GC.GetAllocatedBytesForCurrentThread() - r0;
+            Assert.True(reusedBytes * 10 < freshBytes, $"reused {reusedBytes / 1024} KB vs fresh {freshBytes / 1024} KB");
+        }
+
         // ── Test 8: PreAllocatedNetworkId is set from Pass 1 allocation ───────────
 
         // STABILITY(Broken): EditablePolyline managed component not registered — missing component in test fixture; investigate StagingEntityExtractor setup

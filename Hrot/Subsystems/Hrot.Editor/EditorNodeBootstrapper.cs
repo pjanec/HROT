@@ -388,7 +388,7 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
             // ⭐ Macros S3a ④ — the editor loads scenarios, so it expands the macro instances it creates (§15 E-4).
             Macros = new Hrot.Common.Macros.MacroExpander(
                 Fdp.Toolkit.Scenario.FileMacroLibrary.ForNode(_isolatedTempRoot),
-                new StagingEntityExtractor(),
+                new StagingEntityExtractor(reuseStagingWorld: true),   // ⭐ CE-2396 one staging world, emptied per expansion
                 ScenarioSerializer,
                 Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(BehaviorRegistry)),
         });
