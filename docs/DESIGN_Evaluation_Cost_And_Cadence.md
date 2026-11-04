@@ -111,6 +111,25 @@ Rail `StagingEntityExtractorTests.CE2396_*` (red-proved: skip the empty ⇒ the 
 per frame costs"* — right): update 30.4 / 33.7 without vs 28.8 / 35.2 with; p95 76 / 80 vs 72 / 83; worst frame 137 / 114 vs 99 / 110 —
 within run-to-run noise. ⇒ kept for the ≈ 3 GB / 100 s of garbage it removes, ⛔ not claimed as a frame-time gain.
 
+### 0e. 📐 WHERE THE GARBAGE COMES FROM — the editor, per frame *(`2026-11-04`; temporary allocation probes, not committed: `GC.GetAllocatedBytesForCurrentThread` around each system, each frame phase, the recorder's sections and the kernel's steps; Crossfire at 30–100 s)*
+
+⭐ User: *"memory allocations causing the garbage collection pressure … is what kills the smoothness"* · *"focus on the systems"*.
+📐 **≈ 53 MB/s of garbage (≈ 3.3 MB per frame at ~17 fps), 3–5 garbage collections per 10 s.**
+
+| source | per frame | what allocates (read in the code) |
+|---|---|---|
+| **live timeline** (`HrotNodeContext.StepTimeline` → `TimelineFrameScanner`) | **≈ 730 KB** | not yet read — `ValueChangeLane` boxes each read value (`ComponentBox.Read`) |
+| **UI windows** (`WindowManager.Render`) | **≈ 650 KB** | not yet split by window |
+| **recorder — managed tables** (`RecordManagedTable`) | **≈ 480 KB** | per changed managed table: `new T?[16384]` (128 KB, large-object heap) + `new MemoryStream` + `ToArray()` |
+| editor subsystem's own update, outside the kernel | ≈ 400 KB | not yet split (`GizmoFramePanel.Publish`, `MapCanvas.Update`, …) |
+| **SoD world copy** (`OnDemandProvider.AcquireView`, NavigationSolver + Eqs) | ≈ 300 KB | not yet read |
+| **recorder — unmanaged tables** | ≈ 160 KB | ⚠ CE-2392's `LastChunk` buffers (64 KB) are DROPPED on every keyframe and re-allocated per chunk |
+| world draw | ≈ 150 KB | not yet split |
+| the other systems (~140) | ≈ 250 KB | 📌 ~25 systems allocate exactly 1.2 KB/frame: `repo.Query().With…().Build()` per frame (a `QueryBuilder` + an `EntityQuery`, 446 call sites); the scheduler's `ExecuteGroup` (`Stopwatch.StartNew`, `foreach` over an interface) |
+
+⇒ ⭐ the systems the scheduler times are ≈ 0.8 MB of the 3.3 MB (the recorder is ≈ 0.65 MB of that); ⭐⭐ most garbage is the timeline, the UI and
+the recorder's managed path.
+
 ## 1. INVENTORY (the queries this design rests on)
 
 | question | query | result |
