@@ -179,6 +179,23 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.InRange(_cadencedTicks, 6, 9);             // 2 every-frame ticks, then ~5 Hz for the rest of the second
         }
 
+        /// <summary>⭐ CE-2385 (T4, D8) — a checkpoint's drain request ticks every cadenced slot in the next frame, due or not, and reports the drain.
+        /// ✅ Red-proof: the gate ignoring the request ⇒ the slot does not tick ⇒ red.</summary>
+        [Fact]
+        public void CE2385_ADrainRequest_TicksEveryCadencedSlot_AndReportsTheDrain()
+        {
+            var f = new Fixture();
+            f.Unit("Cad_Cadenced");
+            for (int i = 0; i < 3; i++) f.Frame();           // cadenced, between two ticks now
+            Assert.True(CadenceDrain.WindowsOpen(f.World));
+            int t0 = _cadencedTicks;
+            CadenceDrain.Request(f.World);
+            f.Frame();
+            Assert.Equal(t0 + 1, _cadencedTicks);            // ticked although not due
+            Assert.True(CadenceDrain.TakeDrained(f.World));
+            Assert.False(CadenceDrain.TakeDrained(f.World));  // consumed
+        }
+
         [Fact]
         public void CE2382_TheStagger_SpreadsSlotsOverTheFrames()
         {

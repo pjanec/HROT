@@ -170,6 +170,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : (_sopClock += deltaTime);
             _history = repo.EventHistory;
             if (++_cadenceSweep >= 300) { _cadenceSweep = 0; SweepStaleCadenceReaders(repo); }
+            bool drain = CadenceDrain.TakeRequest(repo);   // ⭐ CE-2385 (D8) — a checkpoint is due: every cadenced slot ticks this frame
 
             // ⭐ S4 — the MobilityLost interrupt (CE-324) moved into HsmRunner with the rest of the HSM tier's quirks.
 
@@ -191,7 +192,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     //   ⚠ Only where the world keeps an event history: a cadenced slot reads its events through its own window, and without one
                     //   it would lose them — so a bare world (a unit rail) ticks every brain every frame.
                     bool cadenced = _history != null && behavior.Cadence != CadenceMode.EveryFrame;
-                    if (cadenced && !CadenceGate.Due(behavior.Cadence, behavior.CadenceNextTick, behavior.CadenceWake, now)) continue;
+                    if (cadenced && !drain && !CadenceGate.Due(behavior.Cadence, behavior.CadenceNextTick, behavior.CadenceWake, now)) continue;
 
                     // ⭐⭐ CE-3137 U-0c — the unit's blocks are resolved ONCE for its whole tick (runner, hosted subtrees,
                     //   generated thunks, unit memory); every slot lookup below is then a pure scan. Q87 §3b ①.
@@ -224,6 +225,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                 }
             }
 
+            if (drain) CadenceDrain.MarkDrained(repo);                              // ⭐ CE-2385 — no window is open now
+            CadenceDrain.SetWindowsOpen(repo, _cadenceReaders.Count > 0);
             TickSopSlots(repo, deltaTime, now);   // ⭐ CE-3035 — the SOP slot, after every task has ticked
         }
 

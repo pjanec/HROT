@@ -61,6 +61,10 @@ namespace Fdp.Toolkit.Replay
         /// restore points, no smooth replay. A paused cluster writes nothing (its sim time does not move).</param>
         /// <param name="slotRunInFlight">⭐ <c>CE-3316</c> — the kernel's "a slot-paced background run is in flight": a due checkpoint waits for a
         /// step where it is not (at most <see cref="MaxCheckpointDeferSteps"/> steps), so a restore continues exactly. Null = never.</param>
+        /// <summary>⭐ CE-2385 — how many frames a due checkpoint waits for the cadenced brain slots to drain (D8).</summary>
+        public const int MaxDrainDeferrals = 3;
+        private int _drainDeferrals;
+
         public RecorderTickSystem(AsyncRecorder recorder, bool blocking = false, double checkpointingSeconds = 0, Func<bool>? slotRunInFlight = null)
         {
             _slotRunInFlight = slotRunInFlight;
@@ -122,6 +126,16 @@ namespace Fdp.Toolkit.Replay
                 checkpoint = false;
             }
             else if (checkpoint) _deferredSteps = 0;
+            // ⭐ CE-2385 (T4; DESIGN_Evaluation_Cost_And_Cadence §6a, D8) — cadenced brain slots read the bus through their own windows, which no
+            //   keyframe holds: a due checkpoint first asks them all to tick (CadenceDrain) and is written in the frame they did. Bounded — a world
+            //   whose brains do not run (paused) writes it anyway after MaxDrainDeferrals frames. A world with no cadenced window never waits.
+            if (checkpoint && Fdp.Toolkit.Behavior.CadenceDrain.WindowsOpen(repo) && !Fdp.Toolkit.Behavior.CadenceDrain.TakeDrained(repo) && _drainDeferrals < MaxDrainDeferrals)
+            {
+                Fdp.Toolkit.Behavior.CadenceDrain.Request(repo);
+                _drainDeferrals++;
+                checkpoint = false;
+            }
+            else if (checkpoint) _drainDeferrals = 0;
             // ⭐ D17 — CHECKPOINTING: a keyframe on the first frame, every N s of sim time, or at a named checkpoint; nothing else
             bool keyframe = _checkpointingSeconds > 0
                 ? checkpoint || _lastKeyframeSimTime is not { } last || globalTime.TotalTime - last >= _checkpointingSeconds || globalTime.TotalTime < last

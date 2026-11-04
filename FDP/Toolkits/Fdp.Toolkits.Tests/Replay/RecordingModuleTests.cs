@@ -755,6 +755,34 @@ namespace Fdp.Toolkit.Replay.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ CE-2385 (T4; DESIGN_Evaluation_Cost_And_Cadence §6a, D8) — with cadenced brain windows open, a due checkpoint asks them to drain and is
+        /// written in the frame after they did (the restored run then equals the straight one); if nothing drains (no brains run) it is written anyway
+        /// after <see cref="RecorderTickSystem.MaxDrainDeferrals"/> frames. 🔴 Red-proof: drop the wait ⇒ the mark lands on frame 0, windows open.
+        /// </summary>
+        [Fact]
+        public void CE2385_ACheckpoint_WaitsForTheCadencedBrainsToDrain()
+        {
+            using var world = CreateWorld();
+            world.AddComponent(world.CreateEntity(), new SimTransform());
+            var (module, frame, path) = TimedRecording(world, "drain.fdp", checkpointingSeconds: 0);
+            void Brain() { if (Fdp.Toolkit.Behavior.CadenceDrain.TakeRequest(world)) Fdp.Toolkit.Behavior.CadenceDrain.MarkDrained(world); }   // the brain tick's half
+            try
+            {
+                Fdp.Toolkit.Behavior.CadenceDrain.SetWindowsOpen(world, true);
+                module.RequestCheckpoint("drained", 0);
+                frame(0.0, 100);                 // frame 0: due, windows open — asks for a drain, waits
+                Brain();
+                frame(0.25, 110);                // frame 1: drained — the checkpoint
+                module.RequestCheckpoint("nobody", 0);
+                for (int i = 0; i < RecorderTickSystem.MaxDrainDeferrals + 2; i++) frame(0.5 + i * 0.25, 120 + i);   // nobody drains
+            }
+            finally { module.Dispose(); Fdp.Toolkit.Behavior.CadenceDrain.SetWindowsOpen(world, false); }
+            var meta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(MetaOf(path));
+            Assert.Equal(1, meta.Checkpoints.Single(c => c.Label == "drained").Frame);
+            Assert.Equal(2 + RecorderTickSystem.MaxDrainDeferrals, meta.Checkpoints.Single(c => c.Label == "nobody").Frame);   // written anyway, after the cap
+        }
+
+        /// <summary>
         /// ⭐ CE-3313 — EVERY recording (not only a branch) has its manifest on disk once its first keyframe is written, before it ends:
         /// a node killed mid-session still leaves a recording that names its exercise, its mode and its schema.
         /// </summary>

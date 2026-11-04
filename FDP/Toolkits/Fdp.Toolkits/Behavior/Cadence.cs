@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Fdp.Core;
 
 namespace Fdp.Toolkit.Behavior
@@ -62,5 +63,48 @@ namespace Fdp.Toolkit.Behavior
         }
 
         public static void Apply(byte id, EntityRepository world, Entity self, double now) => s_policies[id]?.Invoke(world, self, now);
+    }
+
+    /// <summary>
+    /// ⭐ CE-2385 (T4; docs/DESIGN_Evaluation_Cost_And_Cadence.md §6a, D8, R-2083) — DRAIN AT A CHECKPOINT. A cadenced slot holds the events since its
+    /// last tick in its own window, outside any keyframe; a restore would lose them. So a due checkpoint asks (<see cref="Request"/>) every cadenced
+    /// slot to tick in the next frame (<c>BrainTickSystem</c> takes the request and reports <see cref="MarkDrained"/>), and the recorder writes the
+    /// keyframe once that has happened. ⭐ A world with no cadenced window open (<see cref="WindowsOpen"/>) never waits.
+    /// </summary>
+    public static class CadenceDrain
+    {
+        private sealed class State { public bool Requested, Drained, WindowsOpen; }
+        private static readonly ConditionalWeakTable<EntityRepository, State> s_states = new();
+        private static State Of(EntityRepository world) => s_states.GetValue(world, static _ => new State());
+
+        /// <summary>The recorder: drain before the checkpoint.</summary>
+        public static void Request(EntityRepository world) => Of(world).Requested = true;
+
+        /// <summary>The brain tick: was a drain asked for? (consumes the request).</summary>
+        public static bool TakeRequest(EntityRepository world)
+        {
+            if (!s_states.TryGetValue(world, out var st) || !st.Requested) return false;
+            st.Requested = false;
+            return true;
+        }
+
+        /// <summary>The brain tick: every cadenced slot ticked this frame — no window is open.</summary>
+        public static void MarkDrained(EntityRepository world) => Of(world).Drained = true;
+
+        /// <summary>The recorder: has a drain happened since it asked? (consumes it).</summary>
+        public static bool TakeDrained(EntityRepository world)
+        {
+            if (!s_states.TryGetValue(world, out var st) || !st.Drained) return false;
+            st.Drained = false;
+            return true;
+        }
+
+        /// <summary>The brain tick reports whether any cadenced slot holds a window; the recorder asks.</summary>
+        public static void SetWindowsOpen(EntityRepository world, bool open)
+        {
+            if (open || s_states.TryGetValue(world, out _)) Of(world).WindowsOpen = open;
+        }
+
+        public static bool WindowsOpen(EntityRepository world) => s_states.TryGetValue(world, out var st) && st.WindowsOpen;
     }
 }
