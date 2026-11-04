@@ -47,7 +47,7 @@ internal sealed class DebriefInputs
             foreach (var e in World.Query().With<PossessedBy>().Build()) { View = PlayerView.Of(World, e); if (!View.IsNone) break; }
     }
 
-    public string NameOf(int net) => World == null ? $"#{net}" : RulesModel.NameOf(World, NetworkIdResolver.FindEntityByNetworkId(World, net), net);
+    public string NameOf(int net) => World == null ? $"#{net}" : RulesModel.NameOf(World, NetworkIdResolver.ResolveNetworkId(World, net), net);
     public ForceId SideOf(RulesReader.Entry e) => World == null ? e.Status.Owner : MissionSummaryModel.SideOfRule(World, e);
 }
 

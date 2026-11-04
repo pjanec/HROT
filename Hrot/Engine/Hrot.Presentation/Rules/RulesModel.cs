@@ -119,7 +119,7 @@ public static class RulesReader
     /// <summary>The macro path of the instance with network id <paramref name="instanceNetworkId"/>, or null.</summary>
     public static string? MacroOf(EntityRepository world, int instanceNetworkId)
     {
-        var inst = NetworkIdResolver.FindEntityByNetworkId(world, instanceNetworkId);
+        var inst = NetworkIdResolver.ResolveNetworkId(world, instanceNetworkId);
         if (inst.IsNull || !world.IsAlive(inst) || !world.TryGetTable(typeof(MacroInstance), out _) || !world.HasManagedComponent<MacroInstance>(inst)) return null;
         var path = ((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetManagedComponentRO<MacroInstance>(inst)?.Macro;
         return string.IsNullOrEmpty(path) ? null : path;
@@ -224,7 +224,7 @@ public static class RulesModel
         {
             RulesGroupBy.Macro => e.Macro ?? (GmOneShot.IsGmTitle(e.Status.Title.ToString()) ? GmOneShot.GroupName : ScenarioGroup),   // ⭐ CE-4243 GM-4 — the game master's one-shots
             RulesGroupBy.Side => SideName(MissionSummaryModel.SideOfRule(world, e)),
-            _ => e.SubjectNetworkId != 0 ? NameOf(world, NetworkIdResolver.FindEntityByNetworkId(world, e.SubjectNetworkId), e.SubjectNetworkId) : NoSubjectGroup,
+            _ => e.SubjectNetworkId != 0 ? NameOf(world, NetworkIdResolver.ResolveNetworkId(world, e.SubjectNetworkId), e.SubjectNetworkId) : NoSubjectGroup,
         };
         var members = kept.Select(id => byNet[id]).GroupBy(GroupOf).ToList();
         int Order(string name) => options.GroupBy switch
@@ -242,7 +242,7 @@ public static class RulesModel
         RuleLink LinkOf(int net)
         {
             if (byNet.TryGetValue(net, out var rule)) return new RuleLink(net, TitleOf(rule.Status, net), true);
-            var e = NetworkIdResolver.FindEntityByNetworkId(world, net);
+            var e = NetworkIdResolver.ResolveNetworkId(world, net);
             string name = NameOf(world, e, net);
             if (!e.IsNull && world.TryGetTable(typeof(MacroInstance), out _) && world.HasManagedComponent<MacroInstance>(e))
                 name += $" (macro {RulesReader.MacroOf(world, net) ?? "?"}, {unitsOf.GetValueOrDefault(net)} units)";
@@ -277,7 +277,7 @@ public static class RulesModel
         var waits = new List<RuleLink>(); var starts = new List<RuleLink>();
         for (int i = 0; i < Math.Min((int)s.DependsOnCount, 8); i++) if (s.DependsOn[i] != 0) waits.Add(link(s.DependsOn[i]));
         for (int i = 0; i < Math.Min((int)s.ActsOnCount, 8); i++) if (s.ActsOn[i] != 0) starts.Add(link(s.ActsOn[i]));
-        string? subject = e.SubjectNetworkId != 0 ? NameOf(world, NetworkIdResolver.FindEntityByNetworkId(world, e.SubjectNetworkId), e.SubjectNetworkId) : null;
+        string? subject = e.SubjectNetworkId != 0 ? NameOf(world, NetworkIdResolver.ResolveNetworkId(world, e.SubjectNetworkId), e.SubjectNetworkId) : null;
         var pins = ClockPins(world, e.Entity, s);
         if (e.Authored)   // ⭐ RV-3a — authored, not running: no state, no past, nothing expected
             return new RuleRow(e.NetworkId, e.Entity, depth, hasChildren, s, TitleOf(s, e.NetworkId), IconOf(s.Role), AuthoredWords, Grey,

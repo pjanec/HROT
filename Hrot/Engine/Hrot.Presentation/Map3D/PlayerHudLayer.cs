@@ -50,7 +50,7 @@ public static class PlayerHudLayer
             if (game) g = GameHud.Build(entries, view, now, w.HasComponent<SimTransform>(unit) ? new Vector2(w.GetComponentRO<SimTransform>(unit).Position.X, w.GetComponentRO<SimTransform>(unit).Position.Y) : null, e => MissionSummaryModel.SideOfRule(w, e));
             if (wantCoach) coaching = CoachingHint.Build(entries, view, e => LiveLeafOverlay.Read(w, e.Entity));
             if (wantPopups) popups = ScorePopups.In(w).Update(entries, view.UnitNetId, now);
-            if (wantBoard) board = Scoreboard.Build(entries, view.UnitNetId, e => MissionSummaryModel.SideOfRule(w, e), net => RulesModel.NameOf(w, NetworkIdResolver.FindEntityByNetworkId(w, net), net));
+            if (wantBoard) board = Scoreboard.Build(entries, view.UnitNetId, e => MissionSummaryModel.SideOfRule(w, e), net => RulesModel.NameOf(w, NetworkIdResolver.ResolveNetworkId(w, net), net));
         }
         var kills = on(HudFeatures.KillFeed) && KillFeed.Of(w) is { } feed ? feed.Recent(now) : Array.Empty<KillFeed.Entry>();
         return new PlayerHudFrame(view, t, g, kills, now) { Board = board, Popups = popups, Coaching = coaching };
@@ -234,7 +234,7 @@ public static class PlayerHudLayer
     {
         foreach (int net in subjects)
         {
-            var e = NetworkIdResolver.FindEntityByNetworkId(w, net);
+            var e = NetworkIdResolver.ResolveNetworkId(w, net);
             if (e.IsNull || !w.IsAlive(e) || !w.HasComponent<SimTransform>(e)) continue;
             var at = w.GetComponentRO<SimTransform>(e).Position + new Vector3(0f, 0f, 2.5f);
             if (Vector3.Dot(at - camera.Eye, camera.Forward) <= 0.1f) continue;

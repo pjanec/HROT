@@ -73,7 +73,7 @@ public static class AuthoredRules
     {
         if (world.IsComponentTypeRegistered<EntityInfo>())
         {
-            var s = Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(world, subjectNet);
+            var s = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(world, subjectNet);
             if (!s.IsNull && world.IsAlive(s) && world.HasComponent<EntityInfo>(s)) return world.GetComponentRO<EntityInfo>(s).ForceId;
             if (world.HasComponent<EntityInfo>(rule)) return world.GetComponentRO<EntityInfo>(rule).ForceId;
         }

@@ -173,7 +173,7 @@ public static class MissionSummaryModel
         IReadOnlyList<AttentionItem> AttentionOf(ForceId side)
             => entries.Where(e => e.Status.Role == ObjectiveRole.Measure && !(byNet.TryGetValue(e.ParentNetworkId, out var attPar) && attPar.Status.Kind.ToString() == PointsKind) && e.Status.Pass > 0f && e.Status.Score < e.Status.Pass && SubjectSide(e) == side && e.Status.Kind.ToString() != PointsKind)
                       .OrderByDescending(e => e.Status.Pass - e.Status.Score).ThenBy(e => e.NetworkId)
-                      .Select(e => new AttentionItem(e.NetworkId, $"{TitleOf(e)} {e.Status.Value:0.##} (target {e.Status.Target:0.##})" + (e.SubjectNetworkId != 0 ? " · " + RulesModel.NameOf(world, NetworkIdResolver.FindEntityByNetworkId(world, e.SubjectNetworkId), e.SubjectNetworkId) : ""), e.Status.Pass - e.Status.Score)).ToList();
+                      .Select(e => new AttentionItem(e.NetworkId, $"{TitleOf(e)} {e.Status.Value:0.##} (target {e.Status.Target:0.##})" + (e.SubjectNetworkId != 0 ? " · " + RulesModel.NameOf(world, NetworkIdResolver.ResolveNetworkId(world, e.SubjectNetworkId), e.SubjectNetworkId) : ""), e.Status.Pass - e.Status.Score)).ToList();
 
         GameCard? GameOf(ForceId side)
         {
@@ -182,11 +182,11 @@ public static class MissionSummaryModel
             if (roots.Count == 0) return null;
             var team = byNet[roots[0].ParentNetworkId];
             var players = roots.Select(r => new PlayerRow(r.SubjectNetworkId == 0 ? r.NetworkId : r.SubjectNetworkId,
-                                                          r.SubjectNetworkId != 0 ? RulesModel.NameOf(world, NetworkIdResolver.FindEntityByNetworkId(world, r.SubjectNetworkId), r.SubjectNetworkId) : TitleOf(r),
+                                                          r.SubjectNetworkId != 0 ? RulesModel.NameOf(world, NetworkIdResolver.ResolveNetworkId(world, r.SubjectNetworkId), r.SubjectNetworkId) : TitleOf(r),
                                                           r.Status.Value,
                                                           (children.TryGetValue(r.NetworkId, out var kids) ? kids : new()).Where(k => k.Status.Role == ObjectiveRole.Measure).Select(k => (TitleOf(k), k.Status.Value)).ToList()))
                                .OrderByDescending(p => p.Points).ThenBy(p => p.Name).ToList();
-            var awards = entries.Where(e => e.Status.Kind.ToString() == BestKind && SubjectSide(e) == side && e.SubjectNetworkId != 0).Select(e => $"{TitleOf(e)}: {RulesModel.NameOf(world, NetworkIdResolver.FindEntityByNetworkId(world, e.SubjectNetworkId), e.SubjectNetworkId)}").ToList();
+            var awards = entries.Where(e => e.Status.Kind.ToString() == BestKind && SubjectSide(e) == side && e.SubjectNetworkId != 0).Select(e => $"{TitleOf(e)}: {RulesModel.NameOf(world, NetworkIdResolver.ResolveNetworkId(world, e.SubjectNetworkId), e.SubjectNetworkId)}").ToList();
             return new GameCard(team.Status.Value, players, awards);
         }
 
@@ -215,7 +215,7 @@ public static class MissionSummaryModel
             var rows = ordered.Select(o =>
             {
                 var e = o.E;
-                string label = subjectLabel && e.SubjectNetworkId != 0 ? RulesModel.NameOf(world, NetworkIdResolver.FindEntityByNetworkId(world, e.SubjectNetworkId), e.SubjectNetworkId) : TitleOf(e);
+                string label = subjectLabel && e.SubjectNetworkId != 0 ? RulesModel.NameOf(world, NetworkIdResolver.ResolveNetworkId(world, e.SubjectNetworkId), e.SubjectNetworkId) : TitleOf(e);
                 var kids = children.TryGetValue(e.NetworkId, out var k) ? k : new();
                 // a column cell = the Score of the row's child in that group (a READ of one status; first by id) — ⛔ never a sum
                 var cells = groups.Select(g => kids.FirstOrDefault(c => c.Status.Group.ToString() == g) is { } c && c.Status.Group.Length > 0 ? (float?)c.Status.Score : null).ToList();
@@ -250,7 +250,7 @@ public static class MissionSummaryModel
         if (world.IsComponentTypeRegistered<EntityInfo>())
         {
             if (e.MacroInstance == 0 && !e.Entity.IsNull && world.IsAlive(e.Entity) && world.HasComponent<EntityInfo>(e.Entity) && world.GetComponentRO<EntityInfo>(e.Entity).ForceId is var own && own != ForceId.Neutral) return own;
-            if (e.SubjectNetworkId != 0 && NetworkIdResolver.FindEntityByNetworkId(world, e.SubjectNetworkId) is { IsNull: false } s && world.IsAlive(s) && world.HasComponent<EntityInfo>(s)
+            if (e.SubjectNetworkId != 0 && NetworkIdResolver.ResolveNetworkId(world, e.SubjectNetworkId) is { IsNull: false } s && world.IsAlive(s) && world.HasComponent<EntityInfo>(s)
                 && world.GetComponentRO<EntityInfo>(s).ForceId is var subj && subj != ForceId.Neutral) return subj;
         }
         return e.Status.Owner;
@@ -275,7 +275,7 @@ public static class MissionSummaryModel
             default:
             {
                 var side = (ForceId)(int)h.X;
-                string who = RulesModel.NameOf(world, NetworkIdResolver.FindEntityByNetworkId(world, h.Subject), h.Subject);
+                string who = RulesModel.NameOf(world, NetworkIdResolver.ResolveNetworkId(world, h.Subject), h.Subject);
                 bool dead = (int)h.Value >= (int)InjuryState.Dead;
                 return new KeyEvent(h.Time, $"{SideName(side)} {(dead ? "KIA" : "down")}: {who}", h.Kind, h.Ticks, side);
             }

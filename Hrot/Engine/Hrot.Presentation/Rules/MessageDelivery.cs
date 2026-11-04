@@ -31,7 +31,7 @@ public static class MessageDelivery
             case "unit":
                 if (world != null && toValue != 0)
                 {
-                    var e = NetworkIdResolver.FindEntityByNetworkId(world, toValue);
+                    var e = NetworkIdResolver.ResolveNetworkId(world, toValue);
                     if (!e.IsNull && world.IsAlive(e) && world.HasComponent<EntityInfo>(e))
                     {
                         var info = world.GetComponentRO<EntityInfo>(e);
