@@ -69,11 +69,41 @@ namespace Hrot.Core.Tkb
 
         /// <summary>Every class whose mask matches <paramref name="dis"/>, from general to specific (ascending
         /// <see cref="DisTypeMask.Specificity"/>; table order breaks an equal rank).</summary>
+        /// <remarks>⭐ CE-2394 — built once per DIS type and kept (the table never changes after construction): it filtered and LINQ-sorted
+        /// into a new list on every call, and the map asks it per entity per frame (the IED marker, the 3-D kits and families, the 2-D
+        /// shapes). ⛔ No LINQ, no allocation after a type's first call. The returned array is shared — never cast it back and write.</remarks>
         public IReadOnlyList<EntityClass> Chain(DISEntityType dis)
         {
-            var list = new List<EntityClass>();
-            foreach (var c in _classes) if (c.Mask.Matches(dis)) list.Add(c);
-            return list.OrderBy(c => c.Mask.Specificity).ToList();   // OrderBy is stable
+            if (_chains.TryGetValue(dis.Value, out var cached)) return cached;
+            return _chains.GetOrAdd(dis.Value, BuildChain(dis));
+        }
+
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<ulong, EntityClass[]> _chains = new();
+
+        private EntityClass[] BuildChain(DISEntityType dis)
+        {
+            int n = 0;
+            foreach (var c in _classes) if (c.Mask.Matches(dis)) n++;
+            var chain = new EntityClass[n];
+            n = 0;
+            foreach (var c in _classes) if (c.Mask.Matches(dis)) chain[n++] = c;
+            // stable insertion sort by ascending specificity (table order breaks a tie) — the order OrderBy gave
+            for (int i = 1; i < chain.Length; i++)
+            {
+                var x = chain[i];
+                int j = i - 1;
+                while (j >= 0 && chain[j].Mask.Specificity > x.Mask.Specificity) { chain[j + 1] = chain[j]; j--; }
+                chain[j + 1] = x;
+            }
+            return chain;
+        }
+
+        /// <summary>⭐ CE-2394 — is a class named <paramref name="name"/> in <paramref name="dis"/>'s chain? (no allocation)</summary>
+        public bool ChainContains(DISEntityType dis, string name)
+        {
+            var chain = Chain(dis);
+            for (int i = 0; i < chain.Count; i++) if (chain[i].Name == name) return true;
+            return false;
         }
 
         /// <summary>The most specific matching class, or null when none matches.</summary>

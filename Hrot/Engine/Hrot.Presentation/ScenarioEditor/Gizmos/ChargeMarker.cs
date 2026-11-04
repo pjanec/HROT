@@ -31,9 +31,8 @@ namespace Hrot.ScenarioEditor.Gizmos
         public static bool IsChargeType(ulong disType)
         {
             if (disType == 0) return false;
-            foreach (var c in EntityClassTable.Default.Chain(new DISEntityType { Value = disType }))
-                if (c.Name == ChargeClass) return true;
-            return false;
+            // ⭐ CE-2394 — the cached chain, no enumerator: asked per entity per frame
+            return EntityClassTable.Default.ChainContains(new DISEntityType { Value = disType }, ChargeClass);
         }
 
         /// <summary>True when <paramref name="entity"/> (of DIS type <paramref name="disType"/>) is a charge lying where it was placed — not

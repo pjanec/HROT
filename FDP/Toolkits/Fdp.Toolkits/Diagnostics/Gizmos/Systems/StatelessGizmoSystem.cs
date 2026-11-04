@@ -33,6 +33,19 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         private bool[] _globalVisibilityCache;
         private bool[] _globalRulesVisibilityCache;
 
+        // ⭐ CE-2394 — per rule, the entity indices that match it this frame (reused; grown, never shrunk)
+        private int[][] _matches = System.Array.Empty<int[]>();
+        private int[] _matchCount = System.Array.Empty<int>();
+
+        private void EnsureMatchLists(int ruleCount)
+        {
+            if (_matches.Length >= ruleCount) return;
+            int old = _matches.Length;
+            System.Array.Resize(ref _matches, ruleCount);
+            System.Array.Resize(ref _matchCount, ruleCount);
+            for (int r = old; r < ruleCount; r++) _matches[r] = new int[64];
+        }
+
         /// <summary>Max wall-clock budget in ms for entity iteration. 0 = unlimited.</summary>
         public float MaxGizmoFrameMs { get; set; } = 0f;
 
@@ -117,7 +130,31 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             int maxIndex    = entityIndex.MaxIssuedIndex;
             float budget = MaxGizmoFrameMs;
 
-            var sw = (budget > 0f) ? System.Diagnostics.Stopwatch.StartNew() : null;
+            // ⭐ CE-2394 — ONE pass over the entities collects each visible rule's matches; then each rule draws its own, in the same
+            //   order as before (rule by rule, ascending entity index). It walked every entity slot once PER RULE (~20), re-reading each
+            //   one's metadata and component mask every time. ⛔ No allocation in the steady state: the match lists are reused and grow
+            //   only when a rule matches more entities than ever before. The budget clock is a timestamp, not a Stopwatch object.
+            EnsureMatchLists(ruleCount);
+            for (int r = 0; r < ruleCount; r++) _matchCount[r] = 0;
+            for (int i = 0; i <= maxIndex; i++)
+            {
+                ref readonly var metaSG = ref entityIndex.GetMetadata(i);
+                if (!metaSG.IsActive) continue;
+                ref var compSG = ref entityIndex.GetComponentMask(i);
+                for (int r = 0; r < ruleCount; r++)
+                {
+                    if (r < _globalVisibilityCache.Length && !_globalVisibilityCache[r]) continue;
+                    if (!BitMask512.HasAll(compSG, rules[r].RequiredMask)) continue;
+                    var list = _matches[r];
+                    int n = _matchCount[r];
+                    if (n == list.Length) { System.Array.Resize(ref list, list.Length * 2); _matches[r] = list; }
+                    list[n] = i;
+                    _matchCount[r] = n + 1;
+                }
+            }
+
+            long start = budget > 0f ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+            long budgetTicks = budget > 0f ? (long)(budget * System.Diagnostics.Stopwatch.Frequency / 1000.0) : 0;
             bool budgetExceeded = false;
 
             for (int r = 0; r < ruleCount; r++)
@@ -129,15 +166,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 if (budgetExceeded) break;
 
                 var rule = rules[r];
+                var matched = _matches[r];
+                int count = _matchCount[r];
 
-                for (int i = 0; i <= maxIndex; i++)
+                for (int m = 0; m < count; m++)
                 {
-                    ref readonly var metaSG = ref entityIndex.GetMetadata(i);
-                    if (!metaSG.IsActive) continue;
-                    ref var compSG = ref entityIndex.GetComponentMask(i);
-                    if (!BitMask512.HasAll(compSG, rule.RequiredMask)) continue;
-
-                    var entity = new Entity(i, metaSG.Generation);
+                    int i = matched[m];
+                    var entity = new Entity(i, entityIndex.GetMetadata(i).Generation);
 
                     if (!alwaysDraw && !_isSelectedPredicate!(view, entity))
                         continue;
@@ -161,7 +196,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                     rule.Projector.Draw(view, entity, _drawBuilder);
 
                     // Check budget after each entity (only if budget is active).
-                    if (sw != null && sw.Elapsed.TotalMilliseconds >= budget)
+                    if (budgetTicks > 0 && System.Diagnostics.Stopwatch.GetTimestamp() - start >= budgetTicks)
                     {
                         budgetExceeded = true;
                         break;

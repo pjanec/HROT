@@ -91,6 +91,43 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             return (repo, buf, registry);
         }
 
+        /// <summary>⭐ CE-2394 — one pass over the entities collects every rule's matches; the draw order is unchanged (rule by rule, each in
+        /// ascending entity order), a dead slot is skipped, and a steady frame allocates nothing. ✅ Red-proof: append matches without
+        /// resetting the per-rule counts ⇒ the second frame draws twice.</summary>
+        [Fact]
+        public void CE2394_OnePass_KeepsTheOrder_AndAllocatesNothingInASteadyFrame()
+        {
+            var (repo, buf, registry) = CreateContext();
+            var order = new List<string>(64);
+            var pa = new OrderGizmo("A", order); var pb = new OrderGizmo("B", order);
+            registry.Register(pa, new[] { typeof(GizmoTestCompA) });
+            registry.Register(pb, new[] { typeof(GizmoTestCompB) });
+            var sys = new StatelessGizmoSystem(registry, buf);
+            var e1 = repo.CreateEntity(); repo.AddComponent(e1, new GizmoTestCompA()); repo.AddComponent(e1, new GizmoTestCompB());
+            var dead = repo.CreateEntity(); repo.AddComponent(dead, new GizmoTestCompA());
+            var e3 = repo.CreateEntity(); repo.AddComponent(e3, new GizmoTestCompB());
+            var e4 = repo.CreateEntity(); repo.AddComponent(e4, new GizmoTestCompA());
+            repo.DestroyEntity(dead);
+
+            sys.Execute(repo, 0f);
+            Assert.Equal(new[] { $"A{e1.Index}", $"A{e4.Index}", $"B{e1.Index}", $"B{e3.Index}" }, order);
+
+            order.Clear(); sys.Execute(repo, 0f); order.Clear();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            sys.Execute(repo, 0f);
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.Equal(4, order.Count);
+            Assert.Equal(0, allocated);
+        }
+
+        private sealed class OrderGizmo : IStatelessGizmo
+        {
+            private readonly string _tag; private readonly List<string> _order;
+            private readonly string[] _names = new string[64];
+            public OrderGizmo(string tag, List<string> order) { _tag = tag; _order = order; for (int i = 0; i < 64; i++) _names[i] = tag + i; }
+            public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder drawBuilder) => _order.Add(_names[entity.Index]);
+        }
+
         // SC-GZ022-3: Execute → Draw called for every matching entity.
         [Fact]
         public void SC_GZ022_3_Execute_CallsDraw_ForEveryMatchingEntity()

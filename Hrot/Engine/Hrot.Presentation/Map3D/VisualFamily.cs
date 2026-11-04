@@ -82,7 +82,7 @@ public static class VisualFamilies
     {
         var family = Of(t.DisType);
         if (family == VisualFamily.Jet && t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.LocomotionDto>()?.Class == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft
-            && EntityClassTable.Default.Chain(t.DisType).Any(c => c.Name == "Uav"))
+            && EntityClassTable.Default.ChainContains(t.DisType, "Uav"))   // ⭐ CE-2394 — no LINQ
             return VisualFamily.Drone;
         return family;
     }

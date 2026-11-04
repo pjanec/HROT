@@ -310,6 +310,18 @@ query, drive the server over stdio with a longer timeout instead.
 restart it between questions; **batch every symbol question into one run.** ⛔ **A one-shot CLI invocation
 pays the ~59 s every time.**
 
+## ⛔⛔⛔ HOT PATH — **NO ALLOCATION, NO LINQ** *(user, `2026-11-04`, R-2084)*
+
+> 🔒 **User, verbatim:** *"pay special attention on memory allocations causing the garbage collection pressure. This is what kills the
+> smoothness. So no link expressions, nothing like that is ever allowed on the hot path."*
+
+| ⭐ the rule — for anything that runs EVERY FRAME (a system's `Execute`, a gizmo's `Draw`, a per-entity check, a per-frame UI build) | |
+|---|---|
+| ⛔⛔⛔ **no LINQ** (`Where` / `Select` / `Any` / `OrderBy` / `ToList` / `ToArray` …) | ⭐ a `for` loop over an array or an indexed list |
+| ⛔⛔ **no allocation in the steady state** — no `new` list / array / string / closure / boxed value per call; no `foreach` over an `IEnumerable<T>` / `IReadOnlyList<T>` *interface* (it boxes an enumerator) | ⭐ reuse a field buffer (grown, never shrunk); index loops; cache what does not change (📌 `EntityClassTable.Chain` built once per type, CE-2394) |
+| ⭐⭐ **prove it in the rail** | `GC.GetAllocatedBytesForCurrentThread()` before/after a steady frame `== 0` (📌 the CE-2394 rails) |
+| ⚠ allocation on a first call, on growth, or on a user action is fine | ⛔ every frame is not |
+
 ## ⭐⭐⭐ NEW COMPONENTS — **UNMANAGED when recorded; a managed one is IMMUTABLE and REPLACED whole** *(user, `2026-11-02`)*
 
 > 🔒 **User, verbatim:** *"when creating new components, we should prefer unmanaged ones, for those that are going to be saved into the

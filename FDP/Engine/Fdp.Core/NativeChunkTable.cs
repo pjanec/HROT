@@ -20,6 +20,22 @@ namespace Fdp.Core
         
         // Track which chunks are committed (1 bit per chunk)
         private readonly ulong[] _committedMask;
+
+        // ⭐ CE-2394 — the highest chunk that is committed or carries a version (only grows; Clear() resets it). The loops that walked
+        //   every chunk the table COULD have (MAX_ENTITIES / capacity: 250 000 for a 16 KB component) stop here. 📐 The SoD copy for the
+        //   background modules (navigation, EQS, traffic) spent most of its time walking empty chunks of the big blackboard tables.
+        private int _highWater = -1;
+
+        /// <summary>⭐ CE-2394 — one past the highest chunk that is committed or carries a version: every chunk at or above it is empty
+        /// and version 0.</summary>
+        public int UsedChunkBound => System.Threading.Volatile.Read(ref _highWater) + 1;
+
+        private void Touch(int chunkIndex)
+        {
+            int hw;
+            while (chunkIndex > (hw = System.Threading.Volatile.Read(ref _highWater))
+                   && System.Threading.Interlocked.CompareExchange(ref _highWater, chunkIndex, hw) != hw) { }
+        }
         
         // Track population count per chunk for iterator optimization
         private readonly int[] _populationCounts;
@@ -124,7 +140,8 @@ namespace Fdp.Core
             // - Sequential int reads:  ~10-50 nanoseconds total
             // - L1 cache friendly: one array, sequential access, CPU prefetching
             // - No writes: zero contention
-            for (int i = 0; i < _totalChunks; i++)
+            int end = UsedChunkBound;   // ⭐ CE-2394 — every chunk above it is version 0
+            for (int i = 0; i < end; i++)
             {
                 // Each chunk already tracks its version
                 if (_chunkVersions[i].Value > sinceVersion)
@@ -249,6 +266,7 @@ namespace Fdp.Core
                 
                 // Clear chunk to zeros
                 _chunks[chunkIndex].Clear();
+                Touch(chunkIndex);   // ⭐ CE-2394
                 
                 // Mark as committed
                 int maskIndex = chunkIndex / 64;
@@ -276,6 +294,7 @@ namespace Fdp.Core
                     _chunkVersions[i].Value = 0;
                 }
                 Array.Clear(_committedMask, 0, _committedMask.Length);
+                System.Threading.Volatile.Write(ref _highWater, -1);   // ⭐ CE-2394 — every version is 0 again
             }
         }
 
@@ -465,7 +484,10 @@ namespace Fdp.Core
             byte* thisBase = (byte*)_basePtr;
             byte* sourceBase = (byte*)source._basePtr;
 
-            for (int i = 0; i < _totalChunks; i++)
+            // ⭐ CE-2394 — only up to the higher of the two used bounds: above both, each side is uncommitted and version 0, so the
+            //   version check would skip the chunk anyway (and force would copy "nothing" onto "nothing"). It walked _totalChunks.
+            int end = Math.Max(source.UsedChunkBound, UsedChunkBound);
+            for (int i = 0; i < end; i++)
             {
                 // Optimization: Version Check
                 uint srcVer = source.GetChunkVersion(i);
@@ -486,6 +508,7 @@ namespace Fdp.Core
                     
                     // Sync version so we don't check again until it changes
                     _chunkVersions[i].Value = srcVer;
+                    if (srcVer != 0) Touch(i);   // ⭐ CE-2394 — a versioned, uncommitted chunk stays inside the bound
                     continue;
                 }
 
@@ -517,6 +540,7 @@ namespace Fdp.Core
         public void IncrementChunkVersion(int chunkIndex)
         {
             _chunkVersions[chunkIndex].Value++;
+            Touch(chunkIndex);   // ⭐ CE-2394
         }
     }
 }

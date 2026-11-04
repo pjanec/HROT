@@ -24,6 +24,31 @@ namespace Hrot.Map.Common.Tests
         }
 
         /// <summary>No two classes of equal specificity overlap, so "the most specific class" is never a tie.</summary>
+        /// <summary>⭐ CE-2394 — a type's chain is built once and kept: the same order as before (general → specific), the same instance on
+        /// the next call, and no allocation after the first (the map asks it per entity per frame). ✅ Red-proof: build it on every call ⇒
+        /// the allocation and the identity assertions go red.</summary>
+        [Fact]
+        public void CE2394_AChainIsBuiltOnce_InOrder_AndAsksAllocateNothing()
+        {
+            var t = new EntityClassTable(new[]
+            {
+                new EntityClass("Specific", "Specific", DisTypeMask.Parse("1.1.*.1.*.*.*")),
+                new EntityClass("General", "General", DisTypeMask.Parse("1.*.*.*.*.*.*")),
+                new EntityClass("Middle", "Middle", DisTypeMask.Parse("1.1.*.*.*.*.*")),
+            });
+            var dis = new DISEntityType { Kind = 1, Domain = 1, Country = 225, Category = 1, Subcategory = 2, Specific = 3 };
+            var first = t.Chain(dis);
+            Assert.Equal(new[] { "General", "Middle", "Specific" }, new[] { first[0].Name, first[1].Name, first[2].Name });
+            Assert.Same(first, t.Chain(dis));
+            Assert.True(t.ChainContains(dis, "Middle"));
+            Assert.False(t.ChainContains(dis, "Nope"));
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            bool any = false;
+            for (int i = 0; i < 1000; i++) { any |= t.ChainContains(dis, "Specific"); var c = t.Chain(dis); any |= c.Count == 3; }
+            Assert.True(any);
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
         [Fact]
         public void CE2138_TheBuiltInTable_HasNoTies()
         {

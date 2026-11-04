@@ -76,6 +76,16 @@ recorder (not yet analysed).
 
 ⇒ the four rows gizmos + view copy + macro flatten + timeline ≈ **18 %** — work that is not the simulation's own; the next levers.
 
+### 0c. ✅ AS BUILT — four naive implementations removed *(CE-2394, `2026-11-04`; user: *"first find the reserves in how the stuff works now"* · R-2084 no allocation / no LINQ on the hot path)*
+
+| where | was | now | design kept |
+|---|---|---|---|
+| `NativeChunkTable.SyncDirtyChunks` / `HasChanges` (the SoD copy for navigation, EQS, traffic; snapshots) | walked every chunk the table COULD have (1 000 000 / capacity: 250 000 for a 16 KB blackboard) | stops at `UsedChunkBound` = the highest chunk committed or carrying a version, on either side (grown by commit / version writes, reset by `Clear`) | `Fdp.Core.md` §"every payload mutation must bump": the version skip is unchanged; the entity index still syncs whole (`force`) |
+| `ManagedComponentTable.SyncDirtyChunks` | two registry-lock lookups per table per sync | the per-T cached id | — |
+| `Seeable.OnMap` (`DESIGN_Entity_Hierarchy_Views` §6) | recomputed by each of the ~5 per-entity projectors, every frame; its instance cache built a new pair list every frame | answered once per entity per frame (a byte + generation per slot, reset when the world version moves); the pair list reused | still the ONE function the map and ORBAT ask |
+| `EntityClassTable.Chain` | filtered + LINQ-sorted into a new list per call, per entity per frame | built once per DIS type and kept (stable insertion sort = the old order); `ChainContains` for a yes/no; `ChargeMarker` / `VisualFamily` no longer `foreach` / `.Any` | the class table never changes after construction |
+| `StatelessGizmoSystem` | walked every entity slot once PER RULE (~20) | one entity pass fills per-rule match lists (reused); each rule draws its list — the same order; the budget clock is a timestamp, not a `Stopwatch` object | gizmos-1 draw order |
+
 ## 1. INVENTORY (the queries this design rests on)
 
 | question | query | result |

@@ -23,6 +23,36 @@ namespace Hrot.Common.Diagnostics.Gizmos
         /// <summary>True when <paramref name="entity"/> has a physical presence on the map.</summary>
         public static bool OnMap(ISimulationView view, Entity entity)
         {
+            if (view is not EntityRepository world || entity.Index < 0) return Compute(view, entity);
+            // ⭐ CE-2394 — answered ONCE per entity per frame: the map's five per-entity projectors (and the ORBAT) each asked it, and each
+            //   answer is several component reads. Cached per world version like ④ below; a reused slot is told apart by its generation.
+            var memo = Memo.GetValue(world, static _ => new FrameMemo());
+            uint version = world.GlobalVersion;
+            int i = entity.Index;
+            if (memo.Version != version)
+            {
+                memo.Version = version;
+                System.Array.Clear(memo.Answer, 0, memo.Answer.Length);
+            }
+            if (i >= memo.Answer.Length)
+            {
+                int size = System.Math.Max(i + 1, memo.Answer.Length * 2);
+                System.Array.Resize(ref memo.Answer, size);
+                System.Array.Resize(ref memo.Generation, size);
+            }
+            byte a = memo.Answer[i];
+            if (a != 0 && memo.Generation[i] == entity.Generation) return a == 1;
+            bool on = Compute(view, entity);
+            memo.Answer[i] = on ? (byte)1 : (byte)2;
+            memo.Generation[i] = entity.Generation;
+            return on;
+        }
+
+        private sealed class FrameMemo { public uint Version = uint.MaxValue; public byte[] Answer = new byte[256]; public ushort[] Generation = new ushort[256]; }
+        private static readonly ConditionalWeakTable<EntityRepository, FrameMemo> Memo = new();
+
+        private static bool Compute(ISimulationView view, Entity entity)
+        {
             if (!HasPresenceItself(view, entity)) return false;
             if (!view.HasManagedComponent<MacroInstance>(entity)) return true;
             if (Has<MacroExpansionStatus>(view, entity) && view.GetComponentRO<MacroExpansionStatus>(entity).State != MacroExpansionState.Done) return true;   // still expanding, or failed: show it
@@ -43,7 +73,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         }
 
         // ── ④ the macro instances that have a seeable member: one pass over the members, cached per world version (the ORBAT asks per row, the projectors per entity per frame)
-        private sealed class Cache { public uint Version = uint.MaxValue; public readonly HashSet<int> Instances = new(); }
+        private sealed class Cache { public uint Version = uint.MaxValue; public readonly HashSet<int> Instances = new(); public readonly List<(Entity Member, Entity Instance)> Pairs = new(); }
         private static readonly ConditionalWeakTable<EntityRepository, Cache> ByWorld = new();
 
         private static HashSet<int> InstancesWithMembers(EntityRepository world)
@@ -55,7 +85,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (!world.IsComponentTypeRegistered<MacroOrigin>()) return cache.Instances;
 
             // (member, instance) pairs once; then mark instances to a fixpoint — a nested instance counts only when IT has a seeable member
-            var pairs = new List<(Entity Member, Entity Instance)>();
+            var pairs = cache.Pairs;   // ⭐ CE-2394 — reused: it was a new list every frame
+            pairs.Clear();
             foreach (var member in world.Query().With<MacroOrigin>().Build())
             {
                 var instance = world.GetComponentRO<MacroOrigin>(member).Instance.Resolve(world);

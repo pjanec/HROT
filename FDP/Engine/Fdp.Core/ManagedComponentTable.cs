@@ -306,8 +306,8 @@ namespace Fdp.Core
         public void SyncDirtyChunks(ManagedComponentTable<T> source)
         {
             // Check if this type requires cloning
-            int typeId = ComponentTypeRegistry.GetId(typeof(T));
-            bool needsClone = ComponentTypeRegistry.NeedsClone(typeId);
+            // ⭐ CE-2394 — the per-T cached id (CE-2389, lock-free, re-resolved after a registry Clear); it asked the registry under its lock
+            bool needsClone = ComponentTypeRegistry.NeedsClone(ManagedComponentType<T>.ID);
             
             // Assuming matching configurations by architecture design
             int loopMax = Math.Min(_chunks.Length, source._chunks.Length);

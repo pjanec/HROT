@@ -79,6 +79,30 @@ public sealed class RunnableRulesTests : IDisposable
 
     // ───────────────────────────────────────────────── ⑧ the ONE seeable rule
 
+    /// <summary>⭐ CE-2394 — <c>Seeable.OnMap</c> is answered once per entity per frame (the map's five projectors each asked it): the same answer
+    /// on a repeat ask, a changed entity answered anew the next frame, a reused slot not mistaken for the old entity, and no allocation in a
+    /// steady frame. ✅ Red-proof: a memo that ignores the world version ⇒ the rule-made unit stays seeable.</summary>
+    [Fact]
+    public void CE2394_SeeableIsAnsweredOncePerFrame_AndFollowsTheNextFrame()
+    {
+        var a = Unit("Alpha"); var b = Unit("Bravo"); var r = Rule("Hold");
+        Assert.True(Seeable.OnMap(_world, a)); Assert.True(Seeable.OnMap(_world, a));
+        Assert.False(Seeable.OnMap(_world, r));
+        Assert.True(Seeable.OnMap(_world, b));                        // cached as seeable this frame
+        _world.Tick();
+        _world.AddComponent(b, new ObjectiveStatus { Title = new FixedString64("now a rule"), Role = ObjectiveRole.Objective });
+        _world.Tick();
+        Assert.False(Seeable.OnMap(_world, b));                       // the next frame sees the change
+        _world.DestroyEntity(a); _world.Tick();
+        var reused = Unit("Charlie");                                  // may take a's slot: a new generation, a fresh answer
+        Assert.True(Seeable.OnMap(_world, reused));
+        _world.Tick();
+        for (int k = 0; k < 3; k++) { Seeable.OnMap(_world, reused); Seeable.OnMap(_world, r); }
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int k = 0; k < 100; k++) { Seeable.OnMap(_world, reused); Seeable.OnMap(_world, r); Seeable.OnMap(_world, b); }
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
     [Fact]
     public void ARuleIsNotSeeable_AUnitIs()
     {
