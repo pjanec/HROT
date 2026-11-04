@@ -3,6 +3,8 @@ state: LIVE
 build-state: NOT-BUILT
 verified: 2026-08-28 (coordinator source scan)
 current-answer: NOT-BUILT (design only; depends on UXI-03). ORBAT still single Disembark item; MapContextActionController has 0 consumers.
+related-designs:
+  - docs/DESIGN_Evaluation_Cost_And_Cadence.md — C3 builds this doc's ruling "serialise on right-click, not per Draw" (the menu JSON is no longer built per entity per frame)
 -->
 # Feature design — the same actions on every surface
 

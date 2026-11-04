@@ -7,6 +7,7 @@ stale-below: nothing yet.
 known-rot: ⛔ SUPERSEDED 2026-10-28 (R-4095): the BDC stack ("no grant support — exempt while unused") was removed; NED is the only host that executes grants besides the offline editor, which executes none.
 known-conflict: docs/DESIGN_Role_Affinity_Ownership.md §3.9/§3.9a role tables (brainOnly) — §1 measures that brainOnly misses most brain-written components (tiers, BrainInterrupts, WeaponState, TargetMemory, ActiveMissionPlan, EqsSensor, …). Push-only (Q79 §0.7) retires the role tables as the source of ownership; this doc's §2 replaces them.
 related-designs:
+  - docs/DESIGN_Evaluation_Cost_And_Cadence.md — C5 gates the per-frame SyncPartClaims / ClaimLateRootComponents scans (S6, S8) on structural change since the last run
   - docs/designs/motion-models/DESIGN_Motion_Domains.md — OWNS the motion domains (one module per domain); R-3005 (CE-3199, its §5a): every domain's body is owned by THIS design's one MuscleGround group — no MuscleAir / MuscleNaval role
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §7 BUILDS CE-514: the owner-side centroid of a composite unit (R-272 (behaviors)), and the body-less unit's exclusion from sensing
   - docs/DESIGN_Entity_Interactions.md — an actor's ACTION on an entity it does not own (open a door, board a vehicle) travels to the owner as a typed command; each handler gates on this design's descriptor ownership

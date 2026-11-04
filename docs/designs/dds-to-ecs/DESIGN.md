@@ -7,6 +7,8 @@ current-answer: §1-§9 (the translator/ECS layering rules) are the live archite
 stale-below: every "currently runs" / "currently ABSENT" enumeration and every DDS2ECS-S## task row is
   a snapshot of 2026-02-27. The cognitive half of those enumerations has since been rebuilt; the
   paragraph below states what it is now, and the enumerations have been corrected to match.
+related-designs:
+  - docs/DESIGN_Evaluation_Cost_And_Cadence.md — C4 records why egress chunk-version gating (this doc's :468) is not done there: the measured hazards; a backend design is owed
 -->
 
 **Source:** [`design-talk.md`](./design-talk.md)  

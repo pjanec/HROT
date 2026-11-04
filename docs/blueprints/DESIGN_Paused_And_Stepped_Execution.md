@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: §7g.1 — its list is "SO FAR" and incomplete; the full inventory is ../DESIGN_System_State_Inventory.md (it measured ThreatEvaluationSystem._lastThreats as A, _lastHealth as C).
 known-conflict: none.
 related-designs:
+  - docs/DESIGN_Evaluation_Cost_And_Cadence.md — opens the EventAccumulator step window PER RULE ENTITY (one reader each), not only per system
   - ../DESIGN_Scenario_Regression.md — the consumer that turns "stepped runs repeat" into a regression suite: every scenario judged and compared with its golden, a fresh process each (CE-3294)
   - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — owns the SAVE/RESTORE mechanism (CE-3299): the recorder keyframe, AfterRestore, the pause-first checkpoint; resolves §7g.0c F1–F12 as D1–D12.
   - ../DESIGN_System_State_Inventory.md — R-3039's R2 inventory and S4 rail: every field a system, module or translator carries between frames, classified K/A/B/C/X; it REPLACES §7g.1's partial list (the C/X work list is its §2)
