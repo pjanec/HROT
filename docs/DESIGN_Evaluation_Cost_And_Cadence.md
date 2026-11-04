@@ -395,6 +395,21 @@ over ~20 translators; its common part is `HasAuthority` (3.2 %), most of which i
 
 ⇒ ✅ **≈ 13 ms (≈ 16 %) less update once the round is running, ≈ 4 ms early; the same direction in both pairs.** Kept.
 
+📐 **The realistic case — the EDITOR** *(user, `2026-11-04`: "for checking recording performance, the editor is the best case … no network, but
+a full recording of the full world and just one single recording per process")* — ⚠ `--mode all` above runs 4 worlds and 4 recorders on one
+thread, which no deployment does. Same interleaved A/B, `ClusterRunner --mode editor`, Crossfire:
+
+| run | update 10–20 s | update 30–100 s (mean · median) | `RecorderTickSystem` avg at 100 s | its max |
+|---|---|---|---|---|
+| A without | 27.3 | 43.5 · 41.7 | 8.05 ms | 172 ms |
+| B with | 24.9 | 35.8 · 33.0 | 3.52 ms | 169 ms |
+| A2 without | 33.3 | 40.2 · 40.2 | 7.08 ms | 159 ms |
+| B2 with | 26.4 | 34.8 · 34.2 | 3.63 ms | 208 ms |
+
+⇒ ✅ **the recorder ≈ 55 % cheaper (≈ 7.5 → 3.6 ms/frame), the update ≈ 6–8 ms (≈ 15 %) shorter.** ⚠ **What is left:** the MAX — every run
+has a 160–210 ms recorder frame: the keyframe (full pages, every table, synchronous). One frame in ~10 fps is a visible hitch; it is the next
+recorder lever, not the per-frame cost.
+
 ⛔ **E3 not built — measured against its premise.** Hoisting a translator's own dirty / cache check before `HasAuthority` only saves work on
 OWNED unchanged entities; on a replica (3 of the 4 worlds hold each entity as a replica in `--mode all`) the replica has no
 `EgressPublicationState` / cache entry, so the cheap check passes and `HasAuthority` still runs — the hoist ADDS work there. ⇒ C8 (cheaper
