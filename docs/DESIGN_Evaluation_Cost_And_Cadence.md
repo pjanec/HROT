@@ -120,10 +120,10 @@ within run-to-run noise. ⇒ kept for the ≈ 3 GB / 100 s of garbage it removes
 |---|---|---|
 | **live timeline** (`HrotNodeContext.StepTimeline` → `TimelineFrameScanner`) | **≈ 730 KB** | not yet read — `ValueChangeLane` boxes each read value (`ComponentBox.Read`) |
 | **UI windows** (`WindowManager.Render`) | **≈ 650 KB** | not yet split by window |
-| **recorder — managed tables** (`RecordManagedTable`) | **≈ 480 KB** | per changed managed table: `new T?[16384]` (128 KB, large-object heap) + `new MemoryStream` + `ToArray()` |
+| **recorder — managed tables** (`RecordManagedTable`) | **≈ 480 KB** | per changed managed table: `new T?[16384]` (128 KB, large-object heap) + `new MemoryStream` + `ToArray()`  · ✅ FIXED CE-2397: one reused buffer per type, serialized into the frame's writer |
 | editor subsystem's own update, outside the kernel | ≈ 400 KB | not yet split (`GizmoFramePanel.Publish`, `MapCanvas.Update`, …) |
 | **SoD world copy** (`OnDemandProvider.AcquireView`, NavigationSolver + Eqs) | ≈ 300 KB | not yet read |
-| **recorder — unmanaged tables** | ≈ 160 KB | ⚠ CE-2392's `LastChunk` buffers (64 KB) are DROPPED on every keyframe and re-allocated per chunk |
+| **recorder — unmanaged tables** | ≈ 160 KB | ⚠ CE-2392's `LastChunk` buffers (64 KB) are DROPPED on every keyframe and re-allocated per chunk  · ✅ FIXED CE-2397: a keyframe resets their length |
 | world draw | ≈ 150 KB | not yet split |
 | the other systems (~140) | ≈ 250 KB | 📌 ~25 systems allocate exactly 1.2 KB/frame: `repo.Query().With…().Build()` per frame (a `QueryBuilder` + an `EntityQuery`, 446 call sites); the scheduler's `ExecuteGroup` (`Stopwatch.StartNew`, `foreach` over an interface) |
 

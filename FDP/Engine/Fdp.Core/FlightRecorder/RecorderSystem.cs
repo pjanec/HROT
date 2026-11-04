@@ -422,7 +422,9 @@ namespace Fdp.Core.FlightRecorder
             long wallClockTicks, FdpEventBus? eventBus = null, bool serializeReadBuffer = false)
         {
             // ⭐ CE-3332 — a keyframe holds every chunk: the next delta compares against nothing older than it
-            _lastChunkBytes.Clear();
+            // ⭐ CE-2397 — forget the bytes, KEEP the 64 KB buffers: dropping them re-allocated one per chunk after every keyframe
+            //   (📐 ≈ 160 KB of garbage per frame on Crossfire, a regression of CE-2392)
+            foreach (var last in _lastChunkBytes.Values) last.Length = -1;
             // ⭐ CE-3335 — a keyframe holds the whole world: the deaths before it are in it (as absences)
             _destructionRepo = repo;
             _destructionMark = repo.DestructionMark;
@@ -731,8 +733,11 @@ namespace Fdp.Core.FlightRecorder
 
                 int startId = c * chunkSize;
                 
-                // Serialize the chunk (T?[])
-                T?[] chunkData = new T?[chunkSize];
+                // ⭐ CE-2397 — zero garbage: a REUSED buffer per component type (was a new T?[16384] — 128 KB, large-object heap — per
+                //   changed managed table per frame) serialized STRAIGHT into the frame's writer (was a new MemoryStream + ToArray()).
+                //   📐 ≈ 480 KB of garbage per frame on Crossfire. The bytes written are the same (a full-length array, as playback reads).
+                T?[] chunkData = ManagedChunkBuffer<T>.Get(chunkSize);
+                int filled = 0;
                 for (int i = 0; i < chunkSize; i++)
                 {
                     int entityId = startId + i;
@@ -747,27 +752,30 @@ namespace Fdp.Core.FlightRecorder
                     {
                         chunkData[i] = null;
                     }
+                    filled = i + 1;
                 }
 
                 // Optimization: We write even safely "empty" chunks if they track a dirty version to clear data on restore.
                 // But typically if hasData=false and it was previously empty, version wouldn't change.
 
-                using (var ms = new MemoryStream())
-                using (var chunkWriter = new BinaryWriter(ms))
-                {
-                    FdpAutoSerializer.Serialize(chunkData, chunkWriter);
-                    byte[] serialized = ms.ToArray();
-
-                    if (serialized.Length > 0)
-                    {
-                        chunkCount++;
-                        writer.Write(c);
-                        writer.Write(1);
-                        writer.Write(table.ComponentTypeId);
-                        writer.Write(serialized.Length);
-                        writer.Write(serialized);
-                    }
-                }
+                var stream = writer.BaseStream;
+                long recordStart = stream.Position;
+                writer.Write(c);
+                writer.Write(1);
+                writer.Write(table.ComponentTypeId);
+                long lengthAt = stream.Position;
+                writer.Write(0);                                    // the length, patched below
+                long dataStart = stream.Position;
+                FdpAutoSerializer.Serialize(chunkData, writer);
+                writer.Flush();
+                long dataEnd = stream.Position;
+                System.Array.Clear(chunkData, 0, filled);           // the buffer holds no component past this call
+                if (dataEnd == dataStart) { stream.Position = recordStart; continue; }   // nothing serialized: no record (as before)
+                stream.Position = lengthAt;
+                writer.Write((int)(dataEnd - dataStart));
+                writer.Flush();
+                stream.Position = dataEnd;
+                chunkCount++;
             }
             return chunkCount;
         }
@@ -1026,6 +1034,19 @@ namespace Fdp.Core.FlightRecorder
         }
     }
     
+    /// <summary>⭐ CE-2397 — the recorder's reused managed-chunk buffer, one per component type and thread; all-null between uses.</summary>
+    internal static class ManagedChunkBuffer<T> where T : class
+    {
+        [ThreadStatic] private static T?[]? s_buffer;
+
+        public static T?[] Get(int size)
+        {
+            var b = s_buffer;
+            if (b == null || b.Length != size) s_buffer = b = new T?[size];
+            return b;
+        }
+    }
+
     /// <summary>
     /// Interface for unmanaged component tables that support raw chunk operations.
     /// </summary>
