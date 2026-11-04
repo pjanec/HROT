@@ -22,7 +22,22 @@ namespace Fdp.Core
         public static int ID
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => ComponentTypeRegistry.GetOrRegister<T>();
+            get => System.Threading.Volatile.Read(ref s_generation) == ComponentTypeRegistry.Generation ? s_id : Resolve();
+        }
+
+        // ⭐ CE-2389 (DESIGN_Evaluation_Cost_And_Cadence §5 C1) — the id is cached per T: before, EVERY component access took the
+        //   registry lock + a Dictionary<Type> lookup. A registry Clear() (tests) bumps Generation, so the next access re-registers.
+        private static int s_id = -1;
+        private static int s_generation = -1;
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int Resolve()
+        {
+            int gen = ComponentTypeRegistry.Generation;
+            int id = ComponentTypeRegistry.GetOrRegister<T>();
+            s_id = id;
+            System.Threading.Volatile.Write(ref s_generation, gen);
+            return id;
         }
         
         /// <summary>
@@ -50,7 +65,20 @@ namespace Fdp.Core
         public static int ID
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => ComponentTypeRegistry.GetOrRegisterManaged(typeof(T));
+            get => System.Threading.Volatile.Read(ref s_generation) == ComponentTypeRegistry.Generation ? s_id : Resolve();
+        }
+
+        private static int s_id = -1;
+        private static int s_generation = -1;
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int Resolve()
+        {
+            int gen = ComponentTypeRegistry.Generation;
+            int id = ComponentTypeRegistry.GetOrRegisterManaged(typeof(T));
+            s_id = id;
+            System.Threading.Volatile.Write(ref s_generation, gen);
+            return id;
         }
         
         /// <summary>
@@ -79,6 +107,9 @@ namespace Fdp.Core
         private static readonly Dictionary<int, bool> _needsClone = new Dictionary<int, bool>();
         /// <summary>Tracks which IDs were assigned via an explicit [ComponentId] attribute.</summary>
         private static readonly HashSet<int> _explicitIds = new HashSet<int>();
+        private static int _generation;
+        /// <summary>Bumped by <see cref="Clear"/>: a per-type cached id older than this re-registers.</summary>
+        public static int Generation => System.Threading.Volatile.Read(ref _generation);
         
         /// <summary>
         /// Checks if a type is a C# record (immutable by design).
@@ -408,6 +439,7 @@ namespace Fdp.Core
                 _isSaveable.Clear();
                 _needsClone.Clear();
                 _explicitIds.Clear();
+                System.Threading.Interlocked.Increment(ref _generation);
             }
         }
         

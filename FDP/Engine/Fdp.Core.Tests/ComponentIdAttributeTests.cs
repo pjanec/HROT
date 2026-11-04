@@ -44,6 +44,24 @@ namespace Fdp.Tests
         // ── Tests ───────────────────────────────────────────────────────────────
 
         /// <summary>
+        /// ⭐ CE-2389 (DESIGN_Evaluation_Cost_And_Cadence §5 C1) — <c>ComponentType&lt;T&gt;.ID</c> caches the id per T. A registry
+        /// <c>Clear()</c> must not leave the cache answering for a type the registry no longer holds: the next access re-registers it.
+        /// </summary>
+        [Fact]
+        public void CE2389_TheCachedId_ReRegistersAfterAClear()
+        {
+            ComponentTypeRegistry.Clear();
+            Assert.Equal(100, ComponentType<IdC_100>.ID);
+            Assert.Equal(100, ComponentTypeRegistry.GetId(typeof(IdC_100)));
+
+            ComponentTypeRegistry.Clear();
+            Assert.Equal(-1, ComponentTypeRegistry.GetId(typeof(IdC_100)));
+
+            Assert.Equal(100, ComponentType<IdC_100>.ID);                          // served from the cache, AND…
+            Assert.Equal(100, ComponentTypeRegistry.GetId(typeof(IdC_100)));      // …registered again
+        }
+
+        /// <summary>
         /// Two component structs that both declare [ComponentId(42)] must cause an
         /// InvalidOperationException describing the collision when the second is registered.
         /// SC: ID collision between two structs → throws (R0.1 SC-6).
