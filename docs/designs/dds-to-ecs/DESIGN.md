@@ -8,6 +8,7 @@ stale-below: every "currently runs" / "currently ABSENT" enumeration and every D
   a snapshot of 2026-02-27. The cognitive half of those enumerations has since been rebuilt; the
   paragraph below states what it is now, and the enumerations have been corrected to match.
 related-designs:
+  - docs/DESIGN_Egress_Change_Detection.md — OWNS the measured hazards of a chunk-version egress gate (H1–H8) and the options (E1 candidates set, E3 cheaper checks); this doc's :468 is the aspiration it measures
   - docs/DESIGN_Evaluation_Cost_And_Cadence.md — C4 records why egress chunk-version gating (this doc's :468) is not done there: the measured hazards; a backend design is owed
 -->
 
