@@ -43,6 +43,36 @@ public sealed class TheDetailsPanelDrawsTabsAndStackedHeadersTests
             context:           new LiveContextSource(() => DetailsContextBuilder.Build(store, "Scenario", VariableRunState.Planning)));
     }
 
+    /// <summary>⭐ CE-2386 (T5; DESIGN_Evaluation_Cost_And_Cadence §4 B4, CE-4259) — ONE draw asks every view's <c>AppliesTo</c> ONCE: the toolbar's
+    /// float / pin test reuses the frame the draw resolved (before it re-resolved twice more, and RV-7's <c>AppliesTo</c> built the whole rules model each
+    /// time). ✅ Red-proof: <c>CurrentDescriptor</c> ignoring the draw's frame ⇒ 3 asks a draw ⇒ red.</summary>
+    [SkippableFact]
+    public void CE2386_OneDraw_AsksEachViewOnce()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        int asks = 0;
+        var views = new DetailsViewRegistry();
+        views.Add(new DetailsViewDescriptor("components", "Components", 30, _ => { asks++; return true; }, () => new Counting()));
+        var store = new EditorSelectionStore();
+        var shell = new DetailsWindow(id: "details_ce2386_frame", owningPerspective: "Scenario",
+            formatter: new VariableValueFormatter(RawValueDecoder.Instance), views: views,
+            context: new LiveContextSource(() => DetailsContextBuilder.Build(store, "Scenario", VariableRunState.Planning)));
+        new Fdp.Presentation.WindowManager.WindowManager(new Fdp.Presentation.Icons.IconAtlas(nint.Zero, 1, 1, 16f)).RegisterWindow(shell);   // float + pin draw
+        using var frame = UiFrameHarness.Begin(900, 500);
+        void Draw()
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10));
+            ImGui.SetNextWindowSize(new System.Numerics.Vector2(600, 400));
+            ImGui.Begin("Details##ce2386");
+            shell.DrawClientAreaForRail();
+            ImGui.End();
+        }
+        frame.StepN(2, Draw);
+        asks = 0;
+        frame.StepN(5, Draw);
+        Assert.Equal(5, asks);
+    }
+
     [SkippableFact]
     public void BP515_Tabs_ThenStacked_ARequestRevealsItsView()
     {

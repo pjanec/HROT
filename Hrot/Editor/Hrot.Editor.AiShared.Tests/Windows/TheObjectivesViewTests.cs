@@ -61,6 +61,22 @@ public sealed class TheObjectivesViewTests
         Assert.Equal(EntitySummaryViewDescriptor.ViewId, bundle.Workspace.DetailsViews.Default(about)?.Id);                                            // it does not displace the default
     }
 
+    /// <summary>⭐ CE-2386 (T5) — the offer test is the rows' subject test without building the model, and it is FRESH: a rule added about the bystander
+    /// offers him the tab at once. ✅ Red-proof: <c>ObjectivesAboutModel.Any</c> always false ⇒ the unit is not offered ⇒ red.</summary>
+    [Fact]
+    public void CE2386_TheOfferTest_AgreesWithTheRows_AndIsFresh()
+    {
+        using var world = World(out var unit, out var bystander);
+        Assert.True(Hrot.UI.Common.Rules.ObjectivesAboutModel.Any(world, unit));
+        Assert.False(Hrot.UI.Common.Rules.ObjectivesAboutModel.Any(world, bystander));
+        var rule = world.CreateEntity();
+        world.AddComponent(rule, new NetworkIdentity(11));
+        world.AddComponent(rule, new ObjectiveStatus { Title = new FixedString64("Guard"), State = ObjectiveState.Active });
+        world.AddComponent(rule, new ObjectiveLinks { Subject = new EntityRef(950) });
+        Assert.True(Hrot.UI.Common.Rules.ObjectivesAboutModel.Any(world, bystander));
+        Assert.Equal(Hrot.UI.Common.Rules.ObjectivesAboutModel.Of(world, bystander, 0).Count > 0, Hrot.UI.Common.Rules.ObjectivesAboutModel.Any(world, bystander));
+    }
+
     [Fact]
     public void TheTab_ListsTheRulesViewsOwnRows_AndCarriesTheHostsOpenRule()
     {

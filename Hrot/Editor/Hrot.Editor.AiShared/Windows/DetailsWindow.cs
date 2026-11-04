@@ -477,6 +477,13 @@ public sealed class DetailsWindow
     protected override void DrawClientArea()
     {
         var frame = FrameForDraw();
+        _drawFrame = frame;
+        try { DrawResolved(frame); }
+        finally { _drawFrame = null; }
+    }
+
+    private void DrawResolved(in DetailsFrame frame)
+    {
         BuildAndPublish(frame);
 
         if (frame.EmptyState != null)
@@ -534,7 +541,12 @@ public sealed class DetailsWindow
     /// silently — 📌 the user's <c>2026-08-17</c> tooltip ruling. ⛔ It is the SAME question
     /// <see cref="OpenFloat"/> asks, so there is one answer, not two *(<c>R-13</c>)*.
     /// </summary>
-    public DetailsViewDescriptor? CurrentDescriptor() => Frame().Choice.View;
+    public DetailsViewDescriptor? CurrentDescriptor() => (_drawFrame ?? Frame()).Choice.View;
+
+    /// <summary>⭐ CE-2386 (T5; DESIGN_Evaluation_Cost_And_Cadence §4 B4) — the frame THIS draw resolved, while the draw runs: the toolbar's
+    /// <see cref="ShowsFloatAndPin"/> (asked twice per draw) reuses it instead of resolving again — every resolve runs every view's
+    /// <c>AppliesTo</c>, and RV-7's built the whole rules model (CE-4259). ⭐ Null outside a draw, so a rail or the API always resolves fresh.</summary>
+    private DetailsFrame? _drawFrame;
 
     /// <summary>
     /// ⭐⭐⭐ <b><c>VC-1</c> — DOES THE TOOLBAR DRAW THE VIEW SWITCH?</b> ⭐ More than one view applies.

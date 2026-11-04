@@ -28,10 +28,23 @@ public sealed class EntityObjectivesView : IDetailsViewInstance
     public IReadOnlyList<RuleRow> RowsFor(Entity unit)
         => _world() is { } w ? ObjectivesAboutModel.Of(w, unit, Fdp.Toolkit.Squad.Command.CommandPictureOps.Now(w)) : Array.Empty<RuleRow>();
 
+    /// <summary>⭐ CE-2386 — whether the tab is offered for <paramref name="unit"/>: a subject test, not the model (the descriptor's <c>AppliesTo</c>).</summary>
+    public bool Offers(Entity unit) => _world() is { } w && ObjectivesAboutModel.Any(w, unit);
+
+    // ⭐ CE-2386 (D4) — the DRAWN rows refresh at most every 0.2 s (and at once for another unit); RowsFor stays fresh for a rail / the API.
+    private Entity _drawnFor = Entity.Null;
+    private IReadOnlyList<RuleRow> _drawn = Array.Empty<RuleRow>();
+    private long _drawnAt;
+    private const double DrawRefreshSeconds = 0.2;
+
     public void Draw(DetailsContext context, string idScope)
     {
         if (context.Entities is not { Count: 1 }) return;
-        var rows = RowsFor(context.Entities[0]);
+        var unit = context.Entities[0];
+        long nowTs = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (unit != _drawnFor || System.Diagnostics.Stopwatch.GetElapsedTime(_drawnAt, nowTs).TotalSeconds >= DrawRefreshSeconds)
+        { _drawn = RowsFor(unit); _drawnFor = unit; _drawnAt = nowTs; }
+        var rows = _drawn;
         if (rows.Count == 0) { ImGui.TextDisabled("No objectives about this unit."); return; }
         foreach (var r in rows)
         {
@@ -63,7 +76,7 @@ public static class EntityObjectivesViewDescriptor
             Id:        ViewId,
             Title:     "Objectives",
             Rank:      Rank,
-            AppliesTo: ctx => DetailsViewPredicates.ExactlyOneEntity(ctx) && instance.RowsFor(ctx.Entities[0]).Count > 0,
+            AppliesTo: ctx => DetailsViewPredicates.ExactlyOneEntity(ctx) && instance.Offers(ctx.Entities[0]),   // ⭐ CE-2386 — a subject test, not the model
             Create:    () => instance);
     }
 }

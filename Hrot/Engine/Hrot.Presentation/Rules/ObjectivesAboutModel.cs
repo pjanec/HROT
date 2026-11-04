@@ -19,4 +19,15 @@ public static class ObjectivesAboutModel
         if (net == 0) return Array.Empty<RuleRow>();
         return RulesModel.Build(world, new RulesOptions(RulesGroupBy.Subject), null, now).Rows.Where(r => r.SubjectNetworkId == net).ToList();
     }
+
+    /// <summary>⭐ CE-2386 (T5; DESIGN_Evaluation_Cost_And_Cadence §4) — is ANY rule about <paramref name="unit"/>? The same rows' subject test over
+    /// <see cref="RulesReader"/>'s entries, without building the model: what the Objectives tab's <c>AppliesTo</c> asks every frame a unit is selected.</summary>
+    public static bool Any(EntityRepository world, Entity unit)
+    {
+        if (unit.IsNull || !world.IsAlive(unit)) return false;
+        int net = NetworkIdResolver.RuntimeNetworkIdOf(world, unit);
+        if (net == 0) return false;
+        foreach (var e in RulesReader.Read(world)) if (e.SubjectNetworkId == net) return true;
+        return false;
+    }
 }
