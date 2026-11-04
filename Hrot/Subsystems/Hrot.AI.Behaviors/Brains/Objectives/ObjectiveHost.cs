@@ -37,7 +37,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             CloseMode close = CloseMode.Own, bool capture = false)
         {
             if (!world.HasComponent<ObjectiveStatus>(self)) world.AddComponent(self, new ObjectiveStatus());
-            if (!world.HasComponent<ObjectiveLinks>(self)) world.AddComponent(self, new ObjectiveLinks());
+            if (!world.HasComponent<ObjectiveLinks>(self)) { world.AddComponent(self, new ObjectiveLinks()); RuleTree.Invalidate(world); }   // ⭐ CE-2384 — a new rule
             if (world.IsComponentTypeRegistered<RuleControl>() && !world.HasComponent<RuleControl>(self))
             {
                 // ⭐ V-4 — the OWNER holds the control component and its authority bit, so the attribute path's gate (CanWrite) lets a request in here and nowhere else
@@ -54,6 +54,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
             var control = HonourControl(world, self, ref s, role, now);
             ref var l = ref world.GetComponentRW<ObjectiveLinks>(self);
+            var linksBefore = l;   // ⭐ CE-2384 — a parent / subject change re-indexes the tree
             double dt = 0;
             byte then = 0;
             if (s.ResetRequested != 0)
@@ -83,6 +84,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 dt = now > run.LastNow ? now - run.LastNow : 0;
             }
             run.LastNow = now;
+            if (l.Parent != linksBefore.Parent || l.Subject != linksBefore.Subject) RuleTree.Invalidate(world);
             // ⭐ SR-116 — the exercise is closing (or ended): this status takes its kind's OnClose rule, once, and nothing changes it afterwards.
             if (close == CloseMode.Own && s.Closed == 0 && ExerciseResult.PhaseOf(world) != ExercisePhase.Running)
                 ObjectiveRules.OnClose(ref s, ObjectiveRules.CloseRuleOf(kind, capture), now);

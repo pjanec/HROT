@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Fbt;
 using Fbt.Compiler;
@@ -75,7 +76,11 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             else if (s.Closed == 0 && ExerciseResult.PhaseOf(world) != ExercisePhase.Running)
                 ObjectiveRules.OnClose(ref s, CloseRule.Ordinary, f.Now);   // never active (Pending / Inactive): Skipped, so a composite above can close
             // the winner is the status's Subject once settled; Enter re-copies the authored link every tick, so write it after
-            if (b.Settled != 0) world.GetComponentRW<ObjectiveLinks>(self).Subject = b.Winner;
+            if (b.Settled != 0)
+            {
+                ref var links = ref world.GetComponentRW<ObjectiveLinks>(self);
+                if (links.Subject != b.Winner) { links.Subject = b.Winner; RuleTree.Invalidate(world); }   // ⭐ CE-2384 — the winner is the subject now
+            }
             ObjectiveRules.WriteScore(ref s);
             return NodeStatus.Running;
         }
@@ -95,11 +100,13 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             var best = Entity.Null;
             if (among.IsNull || !world.IsAlive(among)) return best;
             bool lower = b.LowerIsBetter != 0;
-            foreach (var e in world.Query().With<ObjectiveLinks>().With<ObjectiveStatus>().Build())
+            var below = Descendants(world, among);   // ⭐ CE-2384 — the subtree from the index, ascending entity index (the walk's order: "the first of a tie" holds)
+            for (int i = 0; i < below.Count; i++)
             {
-                if (e == self) continue;
+                var e = below[i];
+                if (e == self || !world.IsAlive(e)) continue;
                 ref readonly var c = ref world.GetComponentRO<ObjectiveStatus>(e);
-                if (c.Role != ObjectiveRole.Measure || !c.Title.Equals(b.Measure) || !Under(world, e, among)) continue;
+                if (c.Role != ObjectiveRole.Measure || !c.Title.Equals(b.Measure)) continue;
                 candidates++;
                 bool alsoOk = true, alsoClosed = true;
                 if (b.HasAlso != 0) alsoOk = Sibling(world, e, in b, out alsoClosed);   // ⭐ S7 ⑤ — his sibling measure's floor
@@ -117,9 +124,13 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             closed = true;
             var parent = world.GetComponentRO<ObjectiveLinks>(candidate).Parent;
             if (parent.IsNone) return false;
-            foreach (var e in world.Query().With<ObjectiveLinks>().With<ObjectiveStatus>().Build())
+            var parentEntity = parent.Resolve(world);
+            // ⭐ CE-2384 — the siblings from the index; a parent that no longer resolves keeps the old walk (siblings by the link value)
+            IReadOnlyList<Entity> among = parentEntity.IsNull ? RuleTree.Of(world).All : RuleTree.Of(world).ChildrenOf(parentEntity);
+            for (int i = 0; i < among.Count; i++)
             {
-                if (e == candidate) continue;
+                var e = among[i];
+                if (e == candidate || !world.IsAlive(e)) continue;
                 ref readonly var c = ref world.GetComponentRO<ObjectiveStatus>(e);
                 if (c.Role != ObjectiveRole.Measure || !c.Title.Equals(b.AlsoMeasure) || world.GetComponentRO<ObjectiveLinks>(e).Parent != parent) continue;
                 closed = c.Closed != 0;
@@ -128,18 +139,26 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             return false;
         }
 
-        /// <summary>Whether <paramref name="e"/> is a descendant of <paramref name="among"/> within <see cref="MaxDepth"/> parent hops.</summary>
-        private static bool Under(EntityRepository world, Entity e, Entity among)
+        [ThreadStatic] private static List<Entity>? s_below;
+
+        /// <summary>⭐ CE-2384 — the rules under <paramref name="among"/> within <see cref="MaxDepth"/> levels (the old per-rule parent-hop test), from the
+        /// per-frame index, sorted by entity index so the candidates come in the order the old walk visited them.</summary>
+        private static List<Entity> Descendants(EntityRepository world, Entity among)
         {
-            for (int d = 0; d < MaxDepth; d++)
-            {
-                if (!world.HasComponent<ObjectiveLinks>(e)) return false;
-                var p = world.GetComponentRO<ObjectiveLinks>(e).Parent.Resolve(world);
-                if (p.IsNull) return false;
-                if (p == among) return true;
-                e = p;
-            }
-            return false;
+            var list = s_below ??= new List<Entity>();
+            list.Clear();
+            var tree = RuleTree.Of(world);
+            Collect(tree, among, 1, list);
+            list.Sort(static (a, b) => a.Index.CompareTo(b.Index));
+            for (int i = list.Count - 1; i > 0; i--) if (list[i] == list[i - 1]) list.RemoveAt(i);   // a cycle may reach a rule twice
+            return list;
+        }
+
+        private static void Collect(RuleTree tree, Entity parent, int depth, List<Entity> into)
+        {
+            if (depth > MaxDepth) return;
+            var kids = tree.ChildrenOf(parent);
+            for (int i = 0; i < kids.Count; i++) { into.Add(kids[i]); Collect(tree, kids[i], depth + 1, into); }
         }
 
         [Behavior(BehaviorNames.Best, Params = typeof(BestParamsJsonDto), Categories = BehaviorCategory.Objective)]

@@ -33,10 +33,13 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         public static Tally Of(EntityRepository world, Entity self, Func<Entity, bool>? member = null)
         {
             var t = new Tally { FirstFailed = "" };
-            foreach (var e in world.Query().With<ObjectiveLinks>().With<ObjectiveStatus>().Build())
+            var tree = RuleTree.Of(world);   // ⭐ CE-2384 — the children from the per-frame index, not a walk over every rule
+            var among = member is null ? tree.ChildrenOf(self) : tree.All;
+            for (int i = 0; i < among.Count; i++)
             {
-                if (e == self) continue;
-                if (member is null ? world.GetComponentRO<ObjectiveLinks>(e).Parent.Resolve(world) != self : !member(e)) continue;
+                var e = among[i];
+                if (e == self || !world.IsAlive(e)) continue;
+                if (member is not null && !member(e)) continue;
                 ref readonly var c = ref world.GetComponentRO<ObjectiveStatus>(e);
                 t.Count++;
                 if (c.State != ObjectiveState.Pending && c.State != ObjectiveState.Inactive) t.Started++;
@@ -64,9 +67,11 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         public static float PointsOf(EntityRepository world, Entity self, out int count)
         {
             double sum = 0; count = 0;
-            foreach (var e in world.Query().With<ObjectiveLinks>().With<ObjectiveStatus>().Build())
+            var children = RuleTree.Of(world).ChildrenOf(self);   // ⭐ CE-2384
+            for (int i = 0; i < children.Count; i++)
             {
-                if (e == self || world.GetComponentRO<ObjectiveLinks>(e).Parent.Resolve(world) != self) continue;
+                var e = children[i];
+                if (e == self || !world.IsAlive(e)) continue;
                 ref readonly var c = ref world.GetComponentRO<ObjectiveStatus>(e);
                 if (c.Scored == 0) continue;
                 sum += c.Value * (c.Points == 0f ? 1f : c.Points);

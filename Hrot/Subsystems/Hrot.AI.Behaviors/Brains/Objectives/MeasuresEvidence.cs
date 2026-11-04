@@ -137,10 +137,13 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         /// <summary>⭐ S7 P-8c — whether <paramref name="victim"/> carries a <c>Bounty</c> status that stands (Active) or was claimed at THIS time (<c>LastFired == now</c> — so the order of the bounty's and the count's ticks does not matter).</summary>
         private static bool BountyStands(EntityRepository world, Entity victim, double now)
         {
-            foreach (var e in world.Query().With<ObjectiveLinks>().With<ObjectiveStatus>().Build())
+            var about = RuleTree.Of(world).About(victim);   // ⭐ CE-2384 — the rules about him from the index
+            for (int i = 0; i < about.Count; i++)
             {
+                var e = about[i];
+                if (!world.IsAlive(e)) continue;
                 ref readonly var b = ref world.GetComponentRO<ObjectiveStatus>(e);
-                if (b.Role == ObjectiveRole.Measure || !b.Kind.Equals(BountyKind) || world.GetComponentRO<ObjectiveLinks>(e).Subject.Resolve(world) != victim) continue;
+                if (b.Role == ObjectiveRole.Measure || !b.Kind.Equals(BountyKind)) continue;
                 if (b.State == ObjectiveState.Active || b.LastFired == now) return true;
             }
             return false;

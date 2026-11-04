@@ -175,6 +175,28 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("104 points", w.S(root).Reason.ToString());
         }
 
+        /// <summary>⭐ CE-2384 (T3; DESIGN_Evaluation_Cost_And_Cadence §3.5) — 30 <c>Points</c> parents, 5 children each: the rules' tree is indexed ONCE per frame, however many
+        /// aggregators read it (before, every <c>PointsOf</c> walked every rule). And every parent still sums its OWN children. ✅ Red-proof: <c>RuleTree.Refresh</c> rebuilding on
+        /// every call ⇒ ~30 builds a frame ⇒ red.</summary>
+        [Fact]
+        public void CE2384_TheRuleTree_IsIndexedOncePerFrame_AndEachParentSumsItsOwnChildren()
+        {
+            var (w, squad, m, foe, pal, other) = ScoreWorld();
+            var roots = new Entity[30];
+            for (int r = 0; r < roots.Length; r++)
+            {
+                roots[r] = w.Objective("Points", $"{{{Cm("Score " + r)},\"target\":100}}");
+                for (int c = 0; c < 5; c++)
+                    w.Objective("Count", $"{{{Cm("Shots " + r + "." + c, w.Net(squad), $",\"parent\":{w.Net(roots[r])},\"points\":{r + 1}")},\"what\":\"shots\"}}");
+            }
+            w.Run(1);
+            Shoot(w, m, 1); w.Repo.Tick(); w.Tick();
+            int before = Hrot.AI.Behaviors.Brains.Objectives.RuleTree.BuildsOf(w.Repo);
+            for (int f = 0; f < 3; f++) { w.Repo.Tick(); w.Tick(); }                     // three frames, 30 aggregators each
+            Assert.Equal(3, Hrot.AI.Behaviors.Brains.Objectives.RuleTree.BuildsOf(w.Repo) - before);
+            for (int r = 0; r < roots.Length; r++) Assert.Equal(5f * (r + 1), w.S(roots[r]).Value);   // 5 children × 1 shot × (r+1) points — its own, nobody else's
+        }
+
         private static void EndTheExercise(ObjWorld w)
         {
             w.Environment();
