@@ -1596,7 +1596,33 @@ namespace Fdp.Core
         /// </summary>
         public QueryBuilder Query()
         {
+            // ⭐ CE-2400 (R-2084) — the one reusable builder when it is free (it is returned by Build()); a nested or concurrent Query() gets
+            //   its own. 📐 Each Query().Build() allocated two ~300 B objects, and ~25 systems build their query every frame.
+            if (Interlocked.CompareExchange(ref _queryBuilderBusy, 1, 0) == 0)
+            {
+                var b = _queryBuilder ??= new QueryBuilder(this, pooled: true);
+                b.Reset();
+                return b;
+            }
             return new QueryBuilder(this);
+        }
+
+        private QueryBuilder? _queryBuilder;
+        private int _queryBuilderBusy;
+        private System.Collections.Concurrent.ConcurrentDictionary<EntityQuery.Key, EntityQuery>? _queries;   // made on the first Build()
+
+        internal void ReturnQueryBuilder(QueryBuilder b)
+        {
+            if (ReferenceEquals(b, _queryBuilder)) Volatile.Write(ref _queryBuilderBusy, 0);
+        }
+
+        /// <summary>⭐ CE-2400 — the query this repository built for <paramref name="key"/> (queries are immutable), built on first ask.</summary>
+        internal EntityQuery GetOrCreateQuery(in EntityQuery.Key key)
+        {
+            var map = _queries ?? LazyInitializer.EnsureInitialized(ref _queries, () => new System.Collections.Concurrent.ConcurrentDictionary<EntityQuery.Key, EntityQuery>())!;
+            if (map.TryGetValue(key, out var q)) return q;
+            q = new EntityQuery(this, in key);
+            return map.GetOrAdd(key, q);
         }
         
         /// <summary>

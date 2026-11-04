@@ -279,17 +279,19 @@ namespace Fdp.ModuleHost.Scheduling
         private void ExecuteGroup(ISystemGroup group, ISimulationView view, float deltaTime, bool advancing, bool moduleGoverns)
         {
             var groupProfile = _profileData[group];
-            var groupSw = Stopwatch.StartNew();
+            // ⭐ CE-2400 (R-2084) — a timestamp, not a Stopwatch object; an index loop, not a boxed IEnumerator over IReadOnlyList — per group per frame
+            long started = Stopwatch.GetTimestamp();
 
             if (!group.Enabled)
             {
-                groupSw.Stop();
-                groupProfile.RecordExecution(groupSw.Elapsed.TotalMilliseconds);
+                groupProfile.RecordExecution(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                 return;
             }
 
-            foreach (var system in group.GetSystems())
+            var systems = group.GetSystems();
+            for (int i = 0; i < systems.Count; i++)
             {
+                var system = systems[i];
                 // Ensure nested systems are profiled
                 if (!_profileData.ContainsKey(system))
                     _profileData[system] = new SystemProfileData(GetSystemProfileName(system));
@@ -299,8 +301,7 @@ namespace Fdp.ModuleHost.Scheduling
                 ExecuteSystem(system, view, deltaTime, advancing, moduleGoverns);
             }
             
-            groupSw.Stop();
-            groupProfile.RecordExecution(groupSw.Elapsed.TotalMilliseconds);
+            groupProfile.RecordExecution(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         }
         
         private SystemPhase GetPhaseAttribute(IEcsModuleSystem system)

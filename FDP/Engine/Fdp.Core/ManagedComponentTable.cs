@@ -14,6 +14,26 @@ namespace Fdp.Core
         private readonly int _chunkSize;
         private readonly int _componentTypeId;
         private uint[] _chunkVersions;
+
+        // ⭐ CE-2399 — chunk arrays a Clear() emptied, kept for the next allocation: a pooled SoD snapshot is cleared on every release
+        //   and re-synced on the next acquire, and a replay keyframe clears the world, so each re-allocated a T[16384] (128 KB, large-object
+        //   heap) per managed chunk. 📐 ≈ 300 KB of garbage per frame on Crossfire (the navigation + EQS snapshots). Never escapes the table.
+        private T?[][] _spare = Array.Empty<T?[]>();
+        private int _spareCount;
+
+        private T?[] NewChunk()
+        {
+            if (_spareCount > 0) { var c = _spare[--_spareCount]; _spare[_spareCount] = null!; return c; }
+            return new T?[_chunkSize];
+        }
+
+        private void Retire(T?[]? chunk)
+        {
+            if (chunk == null || chunk.Length != _chunkSize) return;
+            Array.Clear(chunk);
+            if (_spareCount == _spare.Length) Array.Resize(ref _spare, Math.Max(4, _spare.Length * 2));
+            _spare[_spareCount++] = chunk;
+        }
         
         public ManagedComponentTable(int chunkSize = 16384)
         {
@@ -41,7 +61,7 @@ namespace Fdp.Core
             int localIndex = index % _chunkSize;
 
             if (_chunks[chunkIndex] == null)
-                _chunks[chunkIndex] = new T[_chunkSize];
+                _chunks[chunkIndex] = NewChunk();
 
             _chunks[chunkIndex][localIndex] = (T)value;
 
@@ -98,6 +118,7 @@ namespace Fdp.Core
         public void Clear()
         {
             // System.Console.WriteLine($"[DEBUG] Clearing Managed Table for {typeof(T).Name}");
+            for (int i = 0; i < _chunks.Length; i++) Retire(_chunks[i]);   // ⭐ CE-2399 — kept for reuse, emptied
             Array.Clear(_chunks, 0, _chunks.Length);
             Array.Clear(_chunkVersions, 0, _chunkVersions.Length);
         }
@@ -140,7 +161,7 @@ namespace Fdp.Core
                 // Lazy allocate chunk if needed
                 if (_chunks[chunkIndex] == null)
                 {
-                    _chunks[chunkIndex] = new T[_chunkSize];
+                    _chunks[chunkIndex] = NewChunk();
                 }
                 
                 _chunks[chunkIndex][localIndex] = value;
@@ -158,7 +179,7 @@ namespace Fdp.Core
             // Lazy allocate chunk if needed
             if (_chunks[chunkIndex] == null)
             {
-                _chunks[chunkIndex] = new T[_chunkSize];
+                _chunks[chunkIndex] = NewChunk();
             }
             
             // Update version
@@ -194,7 +215,7 @@ namespace Fdp.Core
             // Lazy allocate chunk if needed
             if (_chunks[chunkIndex] == null)
             {
-                _chunks[chunkIndex] = new T[_chunkSize];
+                _chunks[chunkIndex] = NewChunk();
             }
             
             _chunks[chunkIndex][localIndex] = value;
@@ -328,7 +349,8 @@ namespace Fdp.Core
                     // Source is empty. If we have data, clear it.
                     if (_chunks[i] != null)
                     {
-                        // Release the array for GC
+                        // ⭐ CE-2399 — kept for reuse (was released for GC)
+                        Retire(_chunks[i]);
                         _chunks[i] = null!; 
                     }
                     
@@ -339,7 +361,7 @@ namespace Fdp.Core
                 // Source has data. Ensure we have storage.
                 if (_chunks[i] == null)
                 {
-                    _chunks[i] = new T[_chunkSize];
+                    _chunks[i] = NewChunk();
                 }
                 
                 if (needsClone)

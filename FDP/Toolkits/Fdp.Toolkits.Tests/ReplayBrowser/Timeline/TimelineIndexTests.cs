@@ -206,6 +206,48 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
                          Of(index, CombatTimelineLanes.HealthState.Id).Select(e => (e.Frame, e.Subject, e.Value)).ToArray());
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2398</c> (R-2084, no steady-state allocation) — a component REWRITTEN every frame with the SAME bytes (its chunk version moves,
+        /// as a rule's status does each tick) adds no entry and is not boxed: the live step allocates (almost) nothing on such a frame, and a real
+        /// change still lands. 🔴 Red-proof: the byte-compare skip removed ⇒ every steady frame boxes each unit's Health and the bound fails.
+        /// </summary>
+        [Fact]
+        public void CE2398_ASameBytesRewrite_AddsNoEntry_AndTheLiveStepDoesNotBoxIt()
+        {
+            using var harness = new FdpRecordingHarness();
+            var repo = harness.Repository;
+            repo.RegisterComponent<NetworkIdentity>();
+            repo.RegisterComponent<Health>();
+            var catalog = new TimelineLaneCatalog().Register(new CombatTimelineLanes());
+            var live = new LiveTimelineSource(catalog, new TimelineLaneContext(Live: true), Compiler());
+            const int N = 200;
+            var units = new Entity[N];
+            for (int k = 0; k < N; k++)
+            {
+                units[k] = repo.CreateEntity();
+                repo.AddComponent(units[k], new NetworkIdentity(1000 + k));
+                repo.AddComponent(units[k], new Health { Current = 10, Max = 10 });
+            }
+            long t = 100_000L;
+            void Frame() { harness.Tick(); live.Step(repo, t, force: true); t += 100_000L; }
+            void Rewrite() { for (int k = 0; k < N; k++) repo.GetComponentRW<Health>(units[k]).Current = 10; }
+            Frame();
+            for (int w = 0; w < 5; w++) { Rewrite(); Frame(); }                    // warm: buffers grown, JIT done
+            int before = live.Index.Lane(CombatTimelineLanes.HealthState.Id).Count();
+
+            long a0 = GC.GetAllocatedBytesForCurrentThread();
+            for (int w = 0; w < 10; w++) { Rewrite(); Frame(); }
+            long perFrame = (GC.GetAllocatedBytesForCurrentThread() - a0) / 10;
+            _out.WriteLine($"steady frame allocates {perFrame} B with {N} same-bytes rewrites");
+
+            Assert.Equal(before, live.Index.Lane(CombatTimelineLanes.HealthState.Id).Count());
+            Assert.True(perFrame < N * 24, $"a same-bytes rewrite was boxed: {perFrame} B/frame");   // a box per unit is ≥ 24 B
+
+            repo.GetComponentRW<Health>(units[7]).Current = 3;
+            Frame();
+            Assert.Contains(live.Index.Lane(CombatTimelineLanes.HealthState.Id), e => e.Subject == 1007 && e.Value == 3f);
+        }
+
         /// <summary>⭐ <c>CE-4117</c> — the state lanes are LIVE = RECORDED too (CE-3330): the same run indexed frame by frame and rebuilt from its
         /// recording gives the same entries in every state lane (a lane the catalog holds that the scripted world never feeds would pass vacuously,
         /// so the lanes are asserted non-empty).</summary>

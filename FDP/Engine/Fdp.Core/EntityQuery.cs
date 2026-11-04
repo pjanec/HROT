@@ -23,6 +23,29 @@ namespace Fdp.Core
         private readonly ulong _disFilterMask;  // Which bytes to check
         private readonly EntityLifecycle _lifecycleFilter;
 
+        /// <summary>⭐ CE-2400 — everything a query filters on: the repository's cache key for the query it built.</summary>
+        internal readonly struct Key : IEquatable<Key>
+        {
+            public readonly BitMask512 Include, Exclude, AuthInclude, AuthExclude;
+            public readonly bool HasDis;
+            public readonly ulong DisValue, DisMask;
+            public readonly EntityLifecycle Lifecycle;
+
+            public Key(BitMask512 include, BitMask512 exclude, BitMask512 authInclude, BitMask512 authExclude, bool hasDis, ulong disValue, ulong disMask, EntityLifecycle lifecycle)
+            {
+                Include = include; Exclude = exclude; AuthInclude = authInclude; AuthExclude = authExclude;
+                HasDis = hasDis; DisValue = disValue; DisMask = disMask; Lifecycle = lifecycle;
+            }
+
+            public bool Equals(Key o) => Include.Equals(o.Include) && Exclude.Equals(o.Exclude) && AuthInclude.Equals(o.AuthInclude)
+                && AuthExclude.Equals(o.AuthExclude) && HasDis == o.HasDis && DisValue == o.DisValue && DisMask == o.DisMask && Lifecycle == o.Lifecycle;
+            public override bool Equals(object? obj) => obj is Key k && Equals(k);
+            public override int GetHashCode() => HashCode.Combine(Include.GetHashCode(), Exclude.GetHashCode(), AuthInclude.GetHashCode(), AuthExclude.GetHashCode(), DisValue, DisMask, (int)Lifecycle);
+        }
+
+        internal EntityQuery(EntityRepository repository, in Key k)
+            : this(repository, k.Include, k.Exclude, k.AuthInclude, k.AuthExclude, k.HasDis, k.DisValue, k.DisMask, k.Lifecycle) { }
+
         internal EntityQuery(EntityRepository repository, BitMask512 includeMask, BitMask512 excludeMask, BitMask512 authorityIncludeMask, BitMask512 authorityExcludeMask, bool hasDisFilter, ulong disFilterValue, ulong disFilterMask, EntityLifecycle lifecycleFilter)
         {
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));

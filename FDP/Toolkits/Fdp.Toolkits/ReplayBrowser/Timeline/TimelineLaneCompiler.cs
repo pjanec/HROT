@@ -82,6 +82,13 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             private SearchResultPayload[] _state = Array.Empty<SearchResultPayload>();
             private uint[] _version = Array.Empty<uint>();                // the chunk version the state was read at
             private readonly string _changed = "changed", _removed = "removed";
+            // ⭐ CE-2398 — an UNMANAGED component's bytes as last read, per index: a chunk version moves whenever ANY entity in the chunk is
+            //   written (and rules write their status every tick, mostly unchanged), and each move re-read the value through a boxing read
+            //   (ComponentBox.Read → Marshal.PtrToStructure) — 📐 ≈ 230 KB of garbage per frame per ObjectiveStatus lane on Crossfire.
+            //   Identical bytes ⇒ an identical projection, so an unchanged component is skipped before it is boxed. Same lane output.
+            private int _size;   // the table's in-memory size (not Marshal.SizeOf); 0 for a managed component
+            private byte[] _bytes = Array.Empty<byte>();
+            private int _typeId = -1;
 
             public ValueChangeLane(ValueChangePredicateDto predicate, ResultProjectionDto? payload)
             {
@@ -97,11 +104,15 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
                 }, _component);
             }
 
+            private unsafe ReadOnlySpan<byte> ReadBytes(EntityRepository repo, Entity entity, int typeId)
+                => new ReadOnlySpan<byte>(repo.GetComponentPointer(entity, typeId), _size);
+
             public void Scan(EntityRepository repo, int frame, long ticks, List<SearchResultDto> results)
             {
-                int typeId = ComponentTypeRegistry.GetId(_component);
+                // ⭐ CE-2398 — the id once per world (it asked the registry, under its lock, every frame)
+                if (!ReferenceEquals(repo, _repo)) { _repo = repo; _typeId = ComponentTypeRegistry.GetId(_component); _table = repo.TryGetTable(_component, out var t) ? t : null; Array.Fill(_gen, -1); }
+                int typeId = _typeId;
                 if (typeId < 0) return;
-                if (!ReferenceEquals(repo, _repo)) { _repo = repo; _table = repo.TryGetTable(_component, out var t) ? t : null; Array.Fill(_gen, -1); }
                 if (_table == null && repo.TryGetTable(_component, out var late)) _table = late;
                 int maxIdx = repo.MaxEntityIndex;
                 if (_gen.Length <= maxIdx)
@@ -129,6 +140,15 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
                     uint version = _table?.GetVersionForEntity(i) ?? 0;
                     if (had && _table != null && version == _version[i]) continue;   // not written since it was read: the state is unchanged
                     _version[i] = version;
+                    if (_table != null && _component.IsValueType)
+                    {
+                        if (_size == 0) _size = _table.ComponentSize;
+                        if (_bytes.Length < _gen.Length * _size) Array.Resize(ref _bytes, _gen.Length * _size);
+                        var now = ReadBytes(repo, entity, typeId);
+                        var last = new Span<byte>(_bytes, i * _size, _size);
+                        if (had && now.SequenceEqual(last)) continue;    // the same bytes as the state was built from: unchanged
+                        now.CopyTo(last);
+                    }
                     object? boxed = ComponentBox.Read(repo, entity, _component);
                     var p = _projection.Apply(repo, boxed, entity, out _);
                     if (_presentIsOne) p = p with { Value = 1f };
