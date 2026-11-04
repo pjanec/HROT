@@ -50,6 +50,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 world.SetManagedComponent(self, new RuleEdit());
                 world.SetAuthority(self, ManagedComponentType<RuleEdit>.ID, true);
             }
+            RuleCadence.Own(world, self);   // ⭐ CE-2383 — the rules' cadence policy owns this slot (DESIGN_Evaluation_Cost_And_Cadence §3.2)
             double now = Now(world);
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
             var control = HonourControl(world, self, ref s, role, now);

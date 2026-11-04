@@ -38,6 +38,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 ref readonly var status = ref repo.GetComponentRO<ObjectiveStatus>(e);
                 if (status.Role == ObjectiveRole.Trigger && status.TriggerState == TriggerState.Acting) continue;   // R3 — waits, the Seq stays unconsumed
                 string? why = _ingress.Reparameterise(repo, e, edit.Json, (BehaviorOrigin)(byte)edit.Origin);
+                RuleCadence.Wake(repo, e);   // ⭐ CE-2383 — an edited rule re-evaluates at the next frame, not at its next cadence tick
                 repo.SetManagedComponent(e, edit with { Done = edit.Seq });
                 ref var s = ref repo.GetComponentRW<ObjectiveStatus>(e);
                 if (why != null)

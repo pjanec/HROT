@@ -120,6 +120,11 @@ namespace Hrot.SimHost.Tests
             private readonly Hrot.AI.Behaviors.Brains.Objectives.RuleEditSystem _ruleEdit;   // ⭐ rules ② — the live edit, before the brain tick (as CgfLogicPack orders it)
             private readonly Hrot.CGF.Systems.TacticalIntentResolutionSystem _intents;
             private readonly Hrot.AI.Behaviors.Brains.Objectives.ExercisePauseOnEndSystem _pause = new();
+            private readonly Hrot.AI.Behaviors.Brains.Objectives.RuleWakeSystem _wake = new();   // ⭐ CE-2383 — before the edit and the brain, as CgfLogicPack orders it
+            /// <summary>⭐ CE-2383 — opt-in: the kernel's event history, so cadenced rules read their own windows (null ⇒ every rule ticks every frame, as before).</summary>
+            public Fdp.Core.EventAccumulator? History;
+            public void WithHistory() { History = new Fdp.Core.EventAccumulator(); Repo.AttachEventHistory(History); }
+            public Fdp.Toolkit.Behavior.Components.BehaviorState Brain(Entity e) => Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(e);
             private readonly TkbDatabase _db = new();
             private int _net = 100;
             public double Time;
@@ -198,7 +203,9 @@ namespace Hrot.SimHost.Tests
                 Time += step;
                 Repo.SetSingleton(new GlobalTime { TotalTime = Time, DeltaTime = (float)step, TimeScale = 1f, FrameNumber = (long)(Time / step) });
                 Repo.SetSimulationTime((float)Time);
+                if (History != null) Repo.Tick();                                        // ⭐ CE-2383 — the kernel's order: version, swap, capture (ModuleHostKernel.cs:554, 660, 665)
                 Repo.Bus.SwapBuffers();
+                History?.CaptureFrame(Repo.Bus, Repo.GlobalVersion);
                 if (Repo.Bus.IsRegistered<ExerciseEndedEvent>()) Ended += Repo.ReadEvents<ExerciseEndedEvent>().Length;
                 if (Repo.Bus.IsRegisteredManaged<PlayerMessageEvent>()) foreach (var m in ((Fdp.ModuleHost.Abstractions.ISimulationView)Repo).ReadManagedEvents<PlayerMessageEvent>()) Messages.Add(m);
                 // ⭐ macros S3b B1 — what InsertMacro asked the creation path for (the rail plays the creating node)
@@ -218,6 +225,7 @@ namespace Hrot.SimHost.Tests
                 if (Repo.Bus.IsRegisteredManaged<Fdp.Toolkit.Time.Domain.PauseTimeIntent>()) Pauses += ((Fdp.ModuleHost.Abstractions.ISimulationView)Repo).ReadManagedEvents<Fdp.Toolkit.Time.Domain.PauseTimeIntent>().Count;
                 if (ResolveIntents) _intents.Execute(Repo, (float)step);
                 _ingress.Execute(Repo, (float)step);
+                _wake.Execute(Repo, (float)step);
                 _ruleEdit.Execute(Repo, (float)step);
                 _brain.Execute(Repo, (float)step);
                 _pause.Execute(Repo, (float)step);

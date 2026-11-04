@@ -95,6 +95,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
             ref var st = ref world.GetComponentRW<ObjectiveStatus>(target);
             var refusal = ObjectiveRules.SetActive(ref st, p.Active, p.Reset, ObjectiveHost.Now(world));
             if (refusal != null) return Fail(world, self, refusal);
+            RuleCadence.Wake(world, target);   // ⭐ CE-2383 — the target may be asleep (final, waiting): it takes the switch at the next frame
             Fdp.Core.Logging.FdpLog<Log>.Info($"objective '{st.Title}': {(p.Reset ? "reset, " : "")}{(p.Active ? "on" : "off")} (asked by {self})");
             return NodeStatus.Success;
         }

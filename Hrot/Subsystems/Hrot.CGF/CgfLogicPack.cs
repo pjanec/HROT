@@ -258,6 +258,7 @@ namespace Hrot.CGF
             //   friend down) and the continuous terms — after perception and the squad merge, before the brain tick reads it.
             simList.Add(new Hrot.AI.Behaviors.Brains.StressSystem(gateOnAuthority));
             // ⭐ rules ② (§00.11a, R2) — a live edit of a rule's params, applied BEFORE the brain tick (the edited rule ticks with its new params this frame); the module's one ingress does the work.
+            simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.RuleWakeSystem());   // ⭐ CE-2383 — operator requests / the exercise closing wake cadenced rules, before the brain tick
             simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.RuleEditSystem(_missionControlModule.Ingress));
             foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simList.Add(s);
             // ⭐ rules S2 ⑨ (SR-116) — the exercise ended ⇒ ask the cluster to pause, once; after the brain tick that ran EndExercise. [NodeFeature("exercise.pause-on-end")], default ON.
