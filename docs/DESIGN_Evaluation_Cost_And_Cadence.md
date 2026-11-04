@@ -107,6 +107,10 @@ of which registering ~270 types 13.0 ms, reading the JSON 2.0 ms — and ≈ 93 
 type set grew; `NativeChunkTable.Clear` walks only up to `UsedChunkBound`. The bookkeeping itself (every new world) is CE-2395 ②.
 Rail `StagingEntityExtractorTests.CE2396_*` (red-proved: skip the empty ⇒ the next extraction returns the previous file's entity).
 
+📐 **Per frame: no measurable change** (interleaved editor A/B, 30–100 s; user: *"isn't that respawn a marginal issue … not contributing to
+per frame costs"* — right): update 30.4 / 33.7 without vs 28.8 / 35.2 with; p95 76 / 80 vs 72 / 83; worst frame 137 / 114 vs 99 / 110 —
+within run-to-run noise. ⇒ kept for the ≈ 3 GB / 100 s of garbage it removes, ⛔ not claimed as a frame-time gain.
+
 ## 1. INVENTORY (the queries this design rests on)
 
 | question | query | result |
