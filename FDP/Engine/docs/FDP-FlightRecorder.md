@@ -1,3 +1,15 @@
+<!--STATUS
+state: LIVE (as-built notes folded per section; FDP-DES-010 supersedes parts of DES-001/002)
+updated: 2026-11-04 (CE-2392: a DELTA writes a changed chunk's used prefix — DES-010 §5, DES-001 §3.1)
+current-answer: FDP-DES-010 (chunking, format v2) + the as-built notes marked ⭐ CE-xxxx; DES-001..009 for the mechanisms they define
+stale-below: DES-001 §3.1 / §5.2 "copy the entire 64KB page" for a DELTA (a keyframe still does); DES-010 §5 "a single byte change triggers a full chunk write"
+known-rot: DES-001 §6.1 "SanitizeChunk modifies the live component memory" — the recorder copies first and sanitizes the copy (RecorderSystem.SanitizeScratchBuffer)
+known-conflict: none
+related-designs:
+  - docs/DESIGN_Replay_Time_Axis_And_Review.md — OWNS §12q/§12s: a dirty chunk is written only when its sanitized bytes moved; the comparison resets at a keyframe
+  - docs/DESIGN_Evaluation_Cost_And_Cadence.md — OWNS §5b C7 (CE-2392): the recorder's per-frame cost, the used-prefix delta and the cached recordable mask, measured
+-->
+
 ﻿# **FDP \- Flight Recorder**
 
 # **FDP-DES-001: Low-Level Memory Pipeline & Sanitization**
@@ -50,6 +62,13 @@ FDP uses fixed-size 64KB chunks (NativeChunkTable). If a chunk has capacity for 
 ### **3.1 The "Database Page" Concept**
 
 We treat each NativeChunkTable chunk as a raw memory page. Instead of serializing entities, we copy the entire 64KB page.
+
+> ⭐ **As built, CE-2392 (`2026-11-04`):** a **keyframe** copies the entire page; a **delta** copies only the page's USED PREFIX — the slots
+> up to the highest issued entity (`EntityIndex.MaxIssuedIndex`). The slots past it were never issued: zero in the live table, and zero in
+> the playback world too (a keyframe `Clear()`s it — decommit zeroes the pages on Windows and on Linux via `MADV_DONTNEED`; `MaxIssuedIndex`
+> only grows). Playback already restores `min(DataLength, CHUNK_SIZE_BYTES)` bytes (DES-010 §3.2), so the format is unchanged.
+> 📐 Why: copy + sanitize + compare of full pages was ≈ 16 % of the main thread on Crossfire (4 worlds, ~520 entities) — the "< 0.1 ms"
+> estimate of §5.1 holds for 10 chunks, not for every changed chunk of every table each frame.
 
 * **Throughput:** Limited only by RAM bandwidth (\~25-50 GB/s).  
 * **Cost:** Copying 100 chunks (6.4MB) takes approximately 0.2ms \- 0.5ms on modern hardware.
@@ -3963,7 +3982,7 @@ The atomic unit of update.
 
 * **Managed Components:** This refactor applies primarily to **Unmanaged** (Tier 1\) data. Managed components require the FDP-DES-003 JIT Serializer, which will be integrated as a separate TypeID handler in the playback loop.  
 * **Compression:** LZ4 is disabled in the initial implementation of this refactor to isolate logical bugs.  
-* **Granularity:** Updates occur at the 64KB Chunk level. A single byte change triggers a full chunk write.
+* **Granularity:** Updates occur at the chunk level. ⛔ SUPERSEDED `2026-11-04` (CE-2392): *"A single byte change triggers a full chunk write."* ⭐ Now: a changed chunk is written up to its used prefix (DES-001 §3.1 as-built note), and only when its sanitized bytes moved (CE-3332 / CE-4058, `docs/DESIGN_Replay_Time_Axis_And_Review.md` §12q/§12s).
 
 # **FDP-DES-011: Event Recording Strategy**
 
