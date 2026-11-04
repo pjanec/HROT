@@ -72,10 +72,29 @@ namespace Fdp.Core.FlightRecorder
         /// <summary>⭐ B2 — false: no singleton is written (a dry run never rewinds a singleton — <c>SyncFrom</c> did not either).</summary>
         public bool RecordSingletonTables { get; set; } = true;
 
-        private bool Records(int typeId) => ComponentTypeFilter?.Invoke(typeId) ?? ComponentTypeRegistry.IsRecordable(typeId);
+        private bool Records(int typeId) => ComponentTypeFilter?.Invoke(typeId) ?? RecordableMask().IsSet(typeId);
+
+        // ⭐ CE-2392 — the recordable set as a mask, rebuilt only when the registry's recordable set moved: Records() asked the registry under
+        //   its lock (a Dictionary lookup) for every table every frame. 📐 8.7 % of the main thread on Crossfire (4 worlds), dotnet-trace.
+        private BitMask512 _recordableMask;
+        private int _recordableMaskVersion = int.MinValue;
+        private BitMask512 RecordableMask()
+        {
+            int v = ComponentTypeRegistry.RecordableVersion;
+            if (v != _recordableMaskVersion)
+            {
+                var mask = new BitMask512();
+                foreach (var id in ComponentTypeRegistry.GetRecordableTypeIds()) mask.SetBit(id);
+                _recordableMask = mask;
+                _recordableMaskVersion = v;
+            }
+            return _recordableMask;
+        }
 
         // ⭐ CE-3332 — the bytes each unmanaged chunk last went to the recording with (key: type id, chunk); cleared by a keyframe
-        private readonly Dictionary<long, byte[]> _lastChunkBytes = new();
+        // ⭐ CE-2392 — a full-chunk buffer plus the length last written: a delta writes only the used prefix, which grows as entities spawn
+        private sealed class LastChunk { public readonly byte[] Bytes = new byte[FdpConfig.CHUNK_SIZE_BYTES]; public int Length = -1; }
+        private readonly Dictionary<long, LastChunk> _lastChunkBytes = new();
 
         /// <summary>⭐ CE-3332 — did this chunk's sanitized bytes (in the scratch buffer) differ from what it was last recorded with? Keeps the
         /// new bytes. Allocates only the first time a chunk is seen.</summary>
@@ -83,9 +102,10 @@ namespace Fdp.Core.FlightRecorder
         {
             long key = ((long)typeId << 32) | (uint)chunk;
             var now = new ReadOnlySpan<byte>(_scratchBuffer, 0, bytes);
-            if (_lastChunkBytes.TryGetValue(key, out var last) && last.Length == bytes && now.SequenceEqual(last)) return false;
-            if (last == null || last.Length != bytes) _lastChunkBytes[key] = last = new byte[bytes];
-            now.CopyTo(last);
+            if (!_lastChunkBytes.TryGetValue(key, out var last)) _lastChunkBytes[key] = last = new LastChunk();
+            else if (last.Length == bytes && now.SequenceEqual(new ReadOnlySpan<byte>(last.Bytes, 0, bytes))) return false;
+            now.CopyTo(last.Bytes);
+            last.Length = bytes;
             return true;
         }
 
@@ -345,14 +365,17 @@ namespace Fdp.Core.FlightRecorder
                     // Reuse shared liveness buffer
                     FillLiveness(entityIndex, startId, count, _livenessBuffer);
                     
-                    // Sanitize
-                    // Copy first
-                    int bytes = unmanagedTable.CopyChunkToBuffer(c, _scratchBuffer);
+                    // ⭐ CE-2392 — only the USED prefix of the chunk: the slots up to the highest issued entity (count of them). The rest was
+                    //   never issued, so it is zero in the live table and in the playback world (a keyframe clears it, MaxIssuedIndex only
+                    //   grows); playback restores min(length, chunk) bytes. It copied, sanitized, compared and wrote all 64 KB of every changed
+                    //   chunk. 📐 Sanitize + memmove + compare were 15.8 % of the main thread on Crossfire (4 worlds, ~520 entities).
+                    int usedBytes = count * table.ComponentSize;
+                    int bytes = Math.Min(unmanagedTable.CopyChunkToBuffer(c, _scratchBuffer, usedBytes), usedBytes);
 
                     // Sanitize the COPY
                     if (bytes > 0)
                     {
-                        SanitizeScratchBuffer(_scratchBuffer, bytes, table.ComponentSize, new ReadOnlySpan<bool>(_livenessBuffer, 0, capacity));
+                        SanitizeScratchBuffer(_scratchBuffer, bytes, table.ComponentSize, new ReadOnlySpan<bool>(_livenessBuffer, 0, count));
                         // ⭐ CE-4058 ⑤ (DAR §12s) — a chunk WRITTEN with the bytes it last went to this recording with is not written again:
                         //   the playback already holds exactly them (the stream it follows is this one), so a paused frame shrinks to its
                         //   header. 📐 Measured before: 14 268 frames / 75 MB for 41 s of sim on a stepped run, the pauses' frames full size.
@@ -649,9 +672,7 @@ namespace Fdp.Core.FlightRecorder
                 foreach (var id in ComponentTypeRegistry.GetAllIds()) if (filter(id)) mask.SetBit(id);
                 return mask;
             }
-            var ids = ComponentTypeRegistry.GetRecordableTypeIds();
-            foreach (var id in ids) mask.SetBit(id);
-            return mask;
+            return RecordableMask();   // ⭐ CE-2392 — cached until the recordable set moves
         }
 
         private unsafe void SanitizeHotChunkMask(byte[] buffer, int bytesWritten, BitMask512 mask)
@@ -1012,6 +1033,8 @@ namespace Fdp.Core.FlightRecorder
     {
         void SanitizeChunk(int chunkIndex, ReadOnlySpan<bool> livenessMap);
         int CopyChunkToBuffer(int chunkIndex, Span<byte> destination);
+        /// <summary>⭐ CE-2392 — the first <paramref name="maxBytes"/> bytes of the chunk only (may return more; the caller trims).</summary>
+        int CopyChunkToBuffer(int chunkIndex, Span<byte> destination, int maxBytes) => CopyChunkToBuffer(chunkIndex, destination);
         void RestoreChunkFromBuffer(int chunkIndex, ReadOnlySpan<byte> source);
     }
 }

@@ -110,6 +110,11 @@ namespace Fdp.Core
         private static int _generation;
         /// <summary>Bumped by <see cref="Clear"/>: a per-type cached id older than this re-registers.</summary>
         public static int Generation => System.Threading.Volatile.Read(ref _generation);
+
+        private static int _recordableVersion;
+        /// <summary>⭐ CE-2392 — bumped whenever the recordable set can change (a registration, <see cref="SetRecordable"/>, <see cref="Clear"/>):
+        /// the recorder keeps its recordable mask until this moves, instead of asking <see cref="IsRecordable"/> (the lock) per table per frame.</summary>
+        public static int RecordableVersion => System.Threading.Volatile.Read(ref _recordableVersion);
         
         /// <summary>
         /// Checks if a type is a C# record (immutable by design).
@@ -195,6 +200,7 @@ namespace Fdp.Core
                 bool clone = policy.HasFlag(DataPolicy.SnapshotViaClone);
                 _isSnapshotable[id] = clone || !policy.HasFlag(DataPolicy.NoPreview);
                 _isRecordable[id]   = !policy.HasFlag(DataPolicy.NoReplay);
+                System.Threading.Interlocked.Increment(ref _recordableVersion);
                 _isSaveable[id]     = !policy.HasFlag(DataPolicy.NoScenario);
                 _needsClone[id]     = clone;
 
@@ -253,6 +259,7 @@ namespace Fdp.Core
                 if (!_idToType.ContainsKey(typeId))
                     throw new ArgumentOutOfRangeException(nameof(typeId), $"Component type ID {typeId} is not registered.");
                 _isRecordable[typeId] = value;
+                System.Threading.Interlocked.Increment(ref _recordableVersion);
             }
         }
 
@@ -440,6 +447,7 @@ namespace Fdp.Core
                 _needsClone.Clear();
                 _explicitIds.Clear();
                 System.Threading.Interlocked.Increment(ref _generation);
+                System.Threading.Interlocked.Increment(ref _recordableVersion);
             }
         }
         

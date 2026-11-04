@@ -399,12 +399,18 @@ namespace Fdp.Core
         /// Used for snapshots.
         /// Returns number of bytes written.
         /// </summary>
-        public int CopyChunkToBuffer(int chunkIndex, Span<byte> destination)
+        public int CopyChunkToBuffer(int chunkIndex, Span<byte> destination) => CopyChunkToBuffer(chunkIndex, destination, FdpConfig.CHUNK_SIZE_BYTES);
+
+        /// <summary>
+        /// ⭐ CE-2392 — the first <paramref name="maxBytes"/> bytes of a chunk only (the recorder's delta: the slots up to the highest issued
+        /// entity, not the whole 64 KB chunk). Returns the bytes written; 0 for an uncommitted chunk.
+        /// </summary>
+        public int CopyChunkToBuffer(int chunkIndex, Span<byte> destination, int maxBytes)
         {
             if (!IsChunkCommitted(chunkIndex)) return 0;
 
             byte* sourcePtr = (byte*)_basePtr + (chunkIndex * (long)FdpConfig.CHUNK_SIZE_BYTES);
-            int copySize = FdpConfig.CHUNK_SIZE_BYTES;
+            int copySize = Math.Clamp(maxBytes, 0, FdpConfig.CHUNK_SIZE_BYTES);
 
             #if FDP_PARANOID_MODE
             if (destination.Length < copySize)

@@ -1470,10 +1470,23 @@ namespace Fdp.Core
         // COMPONENT TABLE MANAGEMENT (Internal)
         // ================================================
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal ComponentTable<T> GetTable<T>(bool allowCreate) where T : unmanaged
         {
+            // ⭐ CE-2393 (DESIGN_Evaluation_Cost_And_Cadence §5a) — the id-indexed cache every table is already put in (below, and by the
+            //   managed paths): an array read + an exact-type check, where every GetComponentRO / RW / Has-then-Get took a Dictionary<Type>
+            //   lookup. The type check keeps it right if the registry re-numbered (a test's Clear()): a miss falls to the dictionary.
+            //   📐 Crossfire trace: GetComponentRO was the largest part of HasAuthority, the egress scan's common cost.
+            int id = ComponentType<T>.ID;
+            var cache = _tableCache;
+            if ((uint)id < (uint)cache.Length && cache[id] is ComponentTable<T> cached) return cached;
+            return GetTableSlow<T>(allowCreate);
+        }
+
+        private ComponentTable<T> GetTableSlow<T>(bool allowCreate) where T : unmanaged
+        {
             Type type = typeof(T);
-            
+
             // Fast path: table already exists
             if (_componentTables.TryGetValue(type, out var existingTable))
             {

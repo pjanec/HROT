@@ -335,6 +335,86 @@ namespace Fdp.Tests
                 $"4 000 idle delta frames took {sw.ElapsedMilliseconds} ms — the dirty check is walking chunk slots again");
         }
 
+        /// <summary>
+        /// ⭐ CE-2392 (DESIGN_Evaluation_Cost_And_Cadence §5a) — a delta writes a changed chunk's USED PREFIX only (the slots up to the highest
+        /// issued entity), not the whole 64 KB chunk; a keyframe plus deltas still plays back every value — as the prefix grows with spawns,
+        /// after a death (its slot zeroed), and for a chunk nothing changed in.
+        /// ✅ Red-proof: the delta writing the full chunk again ⇒ the length assertion goes red.
+        /// </summary>
+        [Fact]
+        public void CE2392_ADelta_WritesOnlyTheUsedPrefix_AndPlaysBackIdentically()
+        {
+            using var src = new EntityRepository();
+            src.RegisterComponent<Position>();
+            var recorder = new RecorderSystem();
+            var frames = new List<byte[]>();
+            var ents = new List<Entity>();
+            int typeId = ComponentType<Position>.ID;
+            int size = System.Runtime.CompilerServices.Unsafe.SizeOf<Position>();
+
+            for (int i = 0; i < 5; i++) { var e = src.CreateEntity(); src.AddComponent(e, new Position { X = i + 1, Y = 7 }); ents.Add(e); }
+            src.Tick();
+            frames.Add(Capture(w => recorder.RecordKeyframe(src, w, 0L)));
+            uint prev = src.GlobalVersion;
+
+            // delta 1: one moves, three spawn (the prefix grows)
+            src.Tick();
+            src.GetComponentRW<Position>(ents[2]).X = 30;
+            for (int i = 0; i < 3; i++) { var e = src.CreateEntity(); src.AddComponent(e, new Position { X = 100 + i }); ents.Add(e); }
+            frames.Add(Capture(w => recorder.RecordDeltaFrame(src, prev, w, 0L)));
+            int used = (src.GetEntityIndex().MaxIssuedIndex + 1) * size;
+            Assert.Equal(new[] { used }, ChunkLengths(frames[^1], typeId));              // the prefix, not FdpConfig.CHUNK_SIZE_BYTES
+            Assert.True(used < FdpConfig.CHUNK_SIZE_BYTES);
+            prev = src.GlobalVersion;
+
+            // delta 2: a death and a move
+            src.Tick();
+            src.DestroyEntity(ents[1]);
+            src.GetComponentRW<Position>(ents[6]).Y = -4;
+            frames.Add(Capture(w => recorder.RecordDeltaFrame(src, prev, w, 0L)));
+
+            using var dst = new EntityRepository();
+            dst.RegisterComponent<Position>();
+            var playback = new PlaybackSystem();
+            foreach (var f in frames)
+            {
+                using var r = new BinaryReader(new MemoryStream(f));
+                playback.ApplyFrame(dst, r);
+            }
+
+            Assert.False(dst.IsAlive(ents[1]));
+            foreach (var e in ents)
+            {
+                if (!src.IsAlive(e)) continue;
+                Assert.True(dst.IsAlive(e));
+                Assert.Equal(src.GetComponentRO<Position>(e), dst.GetComponentRO<Position>(e));
+            }
+        }
+
+        private static byte[] Capture(Action<BinaryWriter> record)
+        {
+            using var ms = new MemoryStream();
+            using (var w = new BinaryWriter(ms)) { record(w); w.Flush(); }
+            return ms.ToArray();
+        }
+
+        private List<int> ChunkLengths(byte[] frame, int typeId)
+        {
+            using var reader = new BinaryReader(new MemoryStream(frame));
+            ReadFrameMetadata(reader);
+            int chunkCount = reader.ReadInt32();
+            var lengths = new List<int>();
+            for (int i = 0; i < chunkCount; i++)
+            {
+                reader.ReadInt32(); reader.ReadInt32();
+                int tId = reader.ReadInt32();
+                int len = reader.ReadInt32();
+                reader.ReadBytes(len);
+                if (tId == typeId) lengths.Add(len);
+            }
+            return lengths;
+        }
+
         private void ReadFrameMetadata(BinaryReader reader)
         {
             reader.ReadUInt64(); // Version

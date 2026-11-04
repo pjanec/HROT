@@ -184,6 +184,12 @@ namespace Fdp.Core
         {
             return _data.CopyChunkToBuffer(chunkIndex, destination);
         }
+
+        /// <summary>⭐ CE-2392 — the first <paramref name="maxBytes"/> bytes of the chunk only (the recorder's delta prefix).</summary>
+        public int CopyChunkToBuffer(int chunkIndex, Span<byte> destination, int maxBytes)
+        {
+            return _data.CopyChunkToBuffer(chunkIndex, destination, maxBytes);
+        }
         
         /// <summary>
         /// Restores chunk data from a buffer.
