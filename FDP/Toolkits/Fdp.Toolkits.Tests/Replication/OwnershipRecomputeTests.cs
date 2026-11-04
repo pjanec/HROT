@@ -266,6 +266,31 @@ namespace Fdp.Toolkit.Replication.Tests
             Assert.Null(n.Recorded(Info));                                     // the record is not written
         }
 
+        /// <summary>⭐ <c>CE-2390</c> (T9; DESIGN_Evaluation_Cost_And_Cadence §5 C5) — with the world ticking, a QUIET frame examines no entity (before: every
+        /// root and part, every frame); a root that appears mid-run with an unclaimed descriptor component is still claimed the next frame (S8 holds).
+        /// ✅ Red-proof: the structural-change gate removed ⇒ the quiet frame examines both roots ⇒ red.</summary>
+        [Fact]
+        public void CE2390_AQuietFrame_ExaminesNothing_AndALateRootIsStillClaimed()
+        {
+            var n = Build(Local, primary: Local);
+            for (int i = 0; i < 3; i++) { n.Repo.Tick(); n.Frame(); }
+            Assert.Equal(0, n.Recompute.ScannedLastRun);                       // nothing changed: nothing examined
+
+            n.Repo.Tick();
+            var late = n.Repo.CreateEntity();                                   // appears mid-run, its descriptor component unclaimed
+            n.Repo.AddComponent(late, new NetworkIdentity(NetId + 1));
+            n.Repo.AddComponent(late, new NetworkAuthority(Local, Local));
+            n.Repo.AddComponent(late, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(1) });
+            n.Map.Register(NetId + 1, late);
+            n.Frame();
+            Assert.True(n.Repo.HasAuthority<TkbIdentity>(late));
+            Assert.True(n.Recompute.ScannedLastRun >= 1);
+
+            n.Repo.Tick(); n.Frame();
+            n.Repo.Tick(); n.Frame();
+            Assert.Equal(0, n.Recompute.ScannedLastRun);
+        }
+
         /// <summary>⭐ <c>CE-3001</c> — the per-frame pass claims only what the RECORD gives this node: a replica's late
         /// component stays unclaimed, and a descriptor still handing over (the creator's F7 window) is not re-claimed.</summary>
         [Fact]

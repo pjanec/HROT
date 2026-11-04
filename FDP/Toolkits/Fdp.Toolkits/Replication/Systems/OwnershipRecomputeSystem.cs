@@ -125,9 +125,23 @@ namespace Fdp.Toolkit.Replication.Systems
             foreach (var entity in _order)
                 Recompute(repo, entity);
 
+            ScannedLastRun = 0;
             SyncPartClaims(repo);
             ClaimLateRootComponents(repo);
+            _lastRunVersion = repo.GlobalVersion;   // ⭐ CE-2390 — the next run visits what changed from this frame on
         }
+
+        // ⭐⭐ CE-2390 (T9; docs/DESIGN_Evaluation_Cost_And_Cadence.md §5 C5, R-2083) — both scans visit only an entity whose STRUCTURE changed since
+        //   this system's last run (EntityMetadataCold.LastChangeTick, stamped on add / remove / hydrate — the recorder's own "changed since"
+        //   test, RecorderSystem.cs:583) or that an event touched this frame. 📐 Before, every root and every part was re-examined every frame,
+        //   paused too — a replica's descriptors stay unclaimed for ever, so each was re-asked forever. What can make a claim due WITHOUT a
+        //   structural change already arrives as an event the first pass handles (OwnershipUpdate, ConstructionOrder ⇒ Touch ⇒ Recompute) — a
+        //   part follows its ROOT's record, so a touched root re-visits its parts. ⚠ `>=`: a world that never ticks (a unit rail) visits all,
+        //   as before; the first run (version 0) visits all.
+        private uint _lastRunVersion;
+        /// <summary>⭐ CE-2390 — the roots and parts the two scans examined in the last run (a rail proves a quiet frame examines none).</summary>
+        public int ScannedLastRun { get; private set; }
+        private bool Changed(EntityRepository repo, Entity e) => repo.GetMetadata(e.Index).LastChangeTick >= _lastRunVersion;
 
         /// <summary>S6 — every part's claim follows its record (see the class remarks).</summary>
         private void SyncPartClaims(EntityRepository repo)
@@ -141,6 +155,8 @@ namespace Fdp.Toolkit.Replication.Systems
                 if (!BitMask512.HasAny(mask, _anyDescriptorComponent)) continue;   // CE-3244 — no descriptor component at all
                 ref readonly var meta = ref repo.GetComponentRO<PartMetadata>(part);
                 Entity root = meta.ParentEntity;
+                if (!Changed(repo, part) && !_touched.Contains(root)) continue;   // ⭐ CE-2390 — nothing new for this part
+                ScannedLastRun++;
                 if (!repo.IsAlive(root) || !repo.HasComponent<NetworkAuthority>(root)) continue;
                 int instance = meta.InstanceId;
 
@@ -183,6 +199,8 @@ namespace Fdp.Toolkit.Replication.Systems
 
             foreach (var entity in _roots)
             {
+                if (!Changed(repo, entity) && !_touched.Contains(entity)) continue;   // ⭐ CE-2390 — no new component since the last run
+                ScannedLastRun++;
                 // ⭐ CE-3244 — present AND unclaimed, as one mask: almost every root, every frame, has nothing to claim.
                 var unclaimedMask = repo.GetComponentMask(entity.Index);
                 unclaimedMask.BitwiseAnd(_anyDescriptorComponent);
