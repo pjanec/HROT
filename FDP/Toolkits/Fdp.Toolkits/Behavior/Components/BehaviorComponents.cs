@@ -56,6 +56,17 @@ namespace Fdp.Toolkit.Behavior.Components
         /// row asks "sensed SINCE then?" (<c>SopConditions.SensedFresh</c>) so an event that already caused a reaction does not
         /// fire it again when the task restarts.</summary>
         public double RunSince;
+        /// <summary>⭐ <c>CE-2382</c> (docs/DESIGN_Evaluation_Cost_And_Cadence.md §3.0) — WHEN this task slot ticks: 0 = every frame (every brain
+        /// nothing cadences). A POLICY writes it (the rules' <c>ObjectiveHost</c>); <c>BrainTickSystem</c> + <see cref="CadenceGate"/> obey it.</summary>
+        public CadenceMode Cadence;
+        /// <summary>⭐ <c>CE-2382</c> — 1 = tick at the next frame whatever the cadence (anyone may set it: a child rule, an operator action).</summary>
+        public byte CadenceWake;
+        /// <summary>⭐ <c>CE-2382</c> — the period (sim s) of a <see cref="CadenceMode.Periodic"/> slot; 0 = <see cref="CadenceGate.DefaultPeriod"/>.</summary>
+        public float CadencePeriod;
+        /// <summary>⭐ <c>CE-2382</c> — sim time of the slot's next tick (periodic: set by the gate; asleep: by the policy, <see cref="CadenceGate.Never"/> = until woken).</summary>
+        public double CadenceNextTick;
+        /// <summary>⭐ <c>CE-2382</c> — the cadence POLICY that owns this slot (<see cref="CadencePolicies"/>; 0 = none): called after each of its ticks.</summary>
+        public byte CadencePolicy;
     }
 
     [StructLayout(LayoutKind.Sequential)]

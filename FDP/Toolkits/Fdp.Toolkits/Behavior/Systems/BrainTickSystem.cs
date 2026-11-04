@@ -131,6 +131,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             {
                 _publishedTerminalForInstanceId.Clear();
                 _blueprintLayout.Clear();
+                ReleaseAllCadenceReaders();   // ⭐ CE-2382 — a new world: no slot of the old one is owed events
             }
 
             // ⭐ CE-3293 S5 (R-3036 rule 8) — no hand pause gate: [TickMode(WhenTimeAdvances)] keeps this system off a frame that does not advance
@@ -156,11 +157,19 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             // Prune the dedup cache using reliable lifecycle events.
             foreach (var evt in repo.ReadEvents<DestructionOrder>())
+            {
                 _publishedTerminalForInstanceId.Remove(evt.Entity.Index);
+                ReleaseCadenceReader(evt.Entity.Index);   // ⭐ CE-2382 — a dead slot must not pin the event history
+            }
             foreach (var evt in repo.ReadEvents<ClearBehaviorEvent>())
                 _publishedTerminalForInstanceId.Remove(evt.Entity.Index);
 
             SweepStaleDedupEntries(tiers.Count);
+
+            // ⭐ CE-2382 (DESIGN_Evaluation_Cost_And_Cadence §3.0–§3.2) — ONE clock for the frame (sim time), shared by the task slots' cadence and the SOP slot's.
+            double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : (_sopClock += deltaTime);
+            _history = repo.EventHistory;
+            if (++_cadenceSweep >= 300) { _cadenceSweep = 0; SweepStaleCadenceReaders(repo); }
 
             // ⭐ S4 — the MobilityLost interrupt (CE-324) moved into HsmRunner with the rest of the HSM tier's quirks.
 
@@ -176,11 +185,17 @@ namespace Fdp.Toolkit.Behavior.Systems
                     //   would change the visit order for every unit, and this keeps it for one-block units.
                     if (!Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.IsFirstVisit(repo, entity, t)) continue;
 
+                    var behavior = repo.GetComponent<BehaviorState>(entity);
+
+                    // ⭐⭐ CE-2382 — THE CADENCE GATE (generic: a POLICY sets BehaviorState.Cadence; nothing set ⇒ EveryFrame = every frame, as before).
+                    //   ⚠ Only where the world keeps an event history: a cadenced slot reads its events through its own window, and without one
+                    //   it would lose them — so a bare world (a unit rail) ticks every brain every frame.
+                    bool cadenced = _history != null && behavior.Cadence != CadenceMode.EveryFrame;
+                    if (cadenced && !CadenceGate.Due(behavior.Cadence, behavior.CadenceNextTick, behavior.CadenceWake, now)) continue;
+
                     // ⭐⭐ CE-3137 U-0c — the unit's blocks are resolved ONCE for its whole tick (runner, hosted subtrees,
                     //   generated thunks, unit memory); every slot lookup below is then a pure scan. Q87 §3b ①.
                     using var storeView = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.BeginTickView(repo, entity);
-
-                    var behavior = repo.GetComponent<BehaviorState>(entity);
 
                     // ⭐⭐ BrainTier is THE discriminator, and it always was — an entity carrying an
                     //   occurrence store may be a BTree brain, an HSM brain or a pure blueprint host.
@@ -189,8 +204,17 @@ namespace Fdp.Toolkit.Behavior.Systems
                     if (!_registry.TryGetDefinition(behavior.ActiveBehaviorHash, out var def))
                         continue;
 
-                    if (BehaviorRunners.For(behavior.BrainTier) is { } runner)
-                        Run(runner, repo, entity, behavior, def, deltaTime);
+                    int previousWindow = cadenced ? OpenCadenceWindow(repo, entity) : NoWindow;
+                    try
+                    {
+                        if (BehaviorRunners.For(behavior.BrainTier) is { } runner)
+                            Run(runner, repo, entity, behavior, def, deltaTime);
+                    }
+                    finally
+                    {
+                        if (cadenced) repo.CloseStepWindow(previousWindow);
+                        if (_history != null) AfterCadencedTick(repo, entity, now);
+                    }
 
                     // ⭐ CE-482 — FAIL LOUD: a run that raised a fault this tick (and did not already finish) ends now, through
                     //   the normal finish — so its commands, channels and owned parts are released like any other end.
@@ -200,7 +224,78 @@ namespace Fdp.Toolkit.Behavior.Systems
                 }
             }
 
-            TickSopSlots(repo, deltaTime);   // ⭐ CE-3035 — the SOP slot, after every task has ticked
+            TickSopSlots(repo, deltaTime, now);   // ⭐ CE-3035 — the SOP slot, after every task has ticked
+        }
+
+        // ════ ⭐⭐ CE-2382 — THE TASK SLOT'S CADENCE: each cadenced slot reads the bus through ITS OWN EventAccumulator window ═══════════
+        //   📄 docs/DESIGN_Evaluation_Cost_And_Cadence.md §3.0–§3.2 · the window: docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md §1a–§1b.
+        //   A slot ticking every 0.2 s sees, through ReadEvents, every event since its OWN last tick — each kill / capture / hit counted once.
+
+        private const int NoWindow = -1;
+        private EventAccumulator? _history;
+        private EventAccumulator? _readersHistory;
+        private readonly Dictionary<int, (Entity Entity, int Reader)> _cadenceReaders = new();
+        private int _cadenceSweep;
+
+        /// <summary>The cadence readers held now — a rail reads it to prove an indefinite sleep or a dead slot releases its reader.</summary>
+        public int CadenceReaderCount => _cadenceReaders.Count;
+
+        private int OpenCadenceWindow(EntityRepository repo, Entity entity)
+            => repo.OpenStepWindow(ReaderOf(entity));
+
+        private int ReaderOf(Entity entity)
+        {
+            if (!ReferenceEquals(_readersHistory, _history)) { _cadenceReaders.Clear(); _readersHistory = _history; }   // another history: its ids mean nothing here
+            if (_cadenceReaders.TryGetValue(entity.Index, out var held) && held.Entity == entity) return held.Reader;
+            if (held.Entity != default) _history!.UnregisterReader(held.Reader);   // the index was reused
+            int reader = _history!.RegisterReaderAtCurrentFrame();
+            _cadenceReaders[entity.Index] = (entity, reader);
+            return reader;
+        }
+
+        /// <summary>After ANY task tick: the slot's cadence as its policy left it — schedule, clear the wake, keep / mark / release its window.
+        /// ⚠ Runs for a slot that became cadenced DURING this tick too (a policy's first tick), so its window starts now and nothing is lost.</summary>
+        private void AfterCadencedTick(EntityRepository repo, Entity entity, double now)
+        {
+            if (!repo.IsAlive(entity) || !repo.HasComponent<BehaviorState>(entity)) { ReleaseCadenceReader(entity.Index); return; }
+            byte policy = repo.GetComponentRO<BehaviorState>(entity).CadencePolicy;
+            if (policy != 0)
+            {
+                CadencePolicies.Apply(policy, repo, entity, now);   // the policy reads what the tick left and sets the mode / wakes
+                if (!repo.IsAlive(entity) || !repo.HasComponent<BehaviorState>(entity)) { ReleaseCadenceReader(entity.Index); return; }
+            }
+            ref readonly var after = ref repo.GetComponentRO<BehaviorState>(entity);
+            if (after.Cadence == CadenceMode.EveryFrame)
+            {
+                if (_cadenceReaders.ContainsKey(entity.Index)) ReleaseCadenceReader(entity.Index);
+                return;
+            }
+            ref var b = ref repo.GetComponentRW<BehaviorState>(entity);
+            if (b.Cadence == CadenceMode.Periodic) b.CadenceNextTick = CadenceGate.Next(now, b.CadencePeriod, entity.Index);
+            b.CadenceWake = 0;
+            if (CadenceGate.KeepsWindow(b.Cadence, b.CadenceNextTick)) _history!.MarkRead(ReaderOf(entity));
+            else ReleaseCadenceReader(entity.Index);   // asleep until woken: it reads nothing, so it must not pin the history
+        }
+
+        private void ReleaseCadenceReader(int entityIndex)
+        {
+            if (!_cadenceReaders.Remove(entityIndex, out var held)) return;
+            _readersHistory?.UnregisterReader(held.Reader);
+        }
+
+        private void ReleaseAllCadenceReaders()
+        {
+            foreach (var held in _cadenceReaders.Values) _readersHistory?.UnregisterReader(held.Reader);
+            _cadenceReaders.Clear();
+        }
+
+        private readonly List<int> _deadCadence = new();
+
+        private void SweepStaleCadenceReaders(EntityRepository repo)
+        {
+            _deadCadence.Clear();
+            foreach (var kv in _cadenceReaders) if (!repo.IsAlive(kv.Value.Entity)) _deadCadence.Add(kv.Key);
+            foreach (var i in _deadCadence) ReleaseCadenceReader(i);
         }
 
         // ════ ⭐⭐ CE-3035 — THE SOP SLOT (R-189, R-195, R-198) ════════════════════════════════════════════════════════════
@@ -218,12 +313,10 @@ namespace Fdp.Toolkit.Behavior.Systems
         private readonly HashSet<int> _sopWokenThisFrame = new();
         private double _sopClock;
 
-        private void TickSopSlots(EntityRepository repo, float deltaTime)
+        private void TickSopSlots(EntityRepository repo, float deltaTime, double now)
         {
             if (!repo.IsComponentTypeRegistered<SopState>()) return;
             _sopQuery ??= repo.Query().With<SopState>().WithOwnedWhen<BehaviorState>(_gateOnAuthority).Build();
-
-            double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : (_sopClock += deltaTime);
 
             _sopWokenThisFrame.Clear();
             foreach (var evt in repo.ReadEvents<Fdp.Toolkit.Perception.Events.SensorChangedEvent>()) _sopWokenThisFrame.Add(evt.Unit.Index);
@@ -234,10 +327,11 @@ namespace Fdp.Toolkit.Behavior.Systems
                 ref var sop = ref repo.GetComponentRW<SopState>(entity);
                 if (sop.SopHash == BehaviorIds.None || sop.SopFaulted != 0) continue;
 
-                bool woken = sop.SopWake != 0 || _sopWokenThisFrame.Contains(entity.Index);
-                if (!woken && now < sop.SopNextTick) continue;
+                // ⭐ CE-2382 (D7) — the SOP slot's cadence is the SAME rule as the task slot's (CadenceGate), on its own fields
+                byte wake = sop.SopWake != 0 || _sopWokenThisFrame.Contains(entity.Index) ? (byte)1 : (byte)0;
+                if (!CadenceGate.Due(CadenceMode.Periodic, sop.SopNextTick, wake, now)) continue;
                 sop.SopWake = 0;
-                sop.SopNextTick = now + SopTickPeriod + (entity.Index % 10) * (SopTickPeriod / 10.0);   // staggered
+                sop.SopNextTick = CadenceGate.Next(now, SopTickPeriod, entity.Index);   // staggered
 
                 if (!_registry.TryGetDefinition(sop.SopHash, out var def)) continue;
                 if (BehaviorRunners.For(sop.SopBrainTier) is not { } runner) continue;
