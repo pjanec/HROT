@@ -86,6 +86,18 @@ recorder (not yet analysed).
 | `EntityClassTable.Chain` | filtered + LINQ-sorted into a new list per call, per entity per frame | built once per DIS type and kept (stable insertion sort = the old order); `ChainContains` for a yes/no; `ChargeMarker` / `VisualFamily` no longer `foreach` / `.Any` | the class table never changes after construction |
 | `StatelessGizmoSystem` | walked every entity slot once PER RULE (~20) | one entity pass fills per-rule match lists (reused); each rule draws its list — the same order; the budget clock is a timestamp, not a `Stopwatch` object | gizmos-1 draw order |
 
+📐 **Did they matter? — interleaved editor A/B, Crossfire** (user: *"maybe they are naive, but maybe they are harmless. Have you tried?"*):
+
+| run | update 30–100 s (mean · median) | whole frame 30–100 s | update at 100 s |
+|---|---|---|---|
+| A without (`d076d9edc`) | 40.9 · 39.0 | 70.0 | 56.5 |
+| B with (`2f9f6459f`) | 33.2 · 31.9 | 60.6 | 37.0 |
+| A2 without | 39.6 · 38.0 | 68.5 | 49.9 |
+| B2 with | 34.4 · 33.6 | 62.9 | 37.6 |
+
+⇒ ✅ **≈ 6–7 ms less update (≈ 16 %), ≈ 7 ms shorter frame (≈ 11 %)** once the round runs — more than the trace's ≈ 7 % estimate (the
+removed per-frame garbage is a likely share). The 10–20 s figures are within noise (25.8 / 32.4 without, 29.4 / 22.1 with).
+
 ## 1. INVENTORY (the queries this design rests on)
 
 | question | query | result |
