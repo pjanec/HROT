@@ -110,6 +110,16 @@ graph LR
 
 ⭐ **Where they live (CE-1410, R-1042, `2026-10-27`):** the shipped SOPs, the library tactics (`TakeCover`, `FallBack`, `Flank`, `FiringPosition`, `Sentry`, `DangerCrossing`) and the hill-attack trees are **C#-built** — `Hrot.AI.Behaviors/Brains/*Sop.cs`, `LibraryTactics.cs`, `DangerCrossing.cs`, `HillAttackTrees.cs`: a `Blackboard` struct whose constructor is the tuning, rows written `.Sequence(row => row.Condition(…).React(name, urgency))`. The editor shows them read-only, laid out automatically. `.btree.json` is what the EDITOR saves (a designer's own SOP); its `SopOrder` node binds the same key. 📄 [DESIGN_Behavior_Self_Registration §10d](blueprints/DESIGN_Behavior_Self_Registration.md).
 
+### 2b. How often a brain ticks — the cadence *(CE-2382, R-2083, built 2026-11-04)*
+
+⭐ A brain's task slot ticks **every frame** unless a policy sets `BehaviorState.Cadence` (`Fdp.Toolkit.Behavior/Cadence.cs`): **Periodic** (every
+`CadencePeriod` sim seconds, staggered by entity index), **Asleep** (only when woken, or at `CadenceNextTick`), or back to **EveryFrame**.
+Anyone may wake a slot (`CadenceWake = 1`). ⭐ A cadenced slot reads the bus through **its own event window** — `ReadEvents` returns every
+event since its last tick, so nothing is lost on a skipped frame. A policy (`CadencePolicy` id, `CadencePolicies.Register`) is called after each
+tick of its slot. ⭐ The SOP slot's 5 Hz uses the same `CadenceGate`. Used today by **scenario rules** (`RuleCadence`: 5 Hz or their own
+`ExpectedAt`, acting triggers every frame, finished rules asleep). ⛔ Soldiers and vehicles are not cadenced; a brain on a cadence must measure
+time as "since my last tick", never the frame `dt`. 📄 [DESIGN_Evaluation_Cost_And_Cadence.md](DESIGN_Evaluation_Cost_And_Cadence.md) §3.0.
+
 ## 3. Utility decisions
 
 ```mermaid
