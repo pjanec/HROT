@@ -12,7 +12,7 @@ related-designs:
 
 # HANDOFF — coordinator → ui: possessed mounted guns (CE-2317, CE-1299, CE-1300)
 
-**For:** the ui lane (`ui`). **From:** the coordinator lane. **Dispatched at** the commit that adds this file. ⭐ Scope FROZEN there;
+**For:** the ui lane (`ui`). **From:** the coordinator lane. **Dispatched at `22b255f3b`**. ⭐ Scope FROZEN there;
 later documents are FYI. A later document that invalidates an item ⇒ STOP that item, report it (R-106), keep the rest. Questions ⇒ a NOTE
 to coordinator. Merge `coordinator` first.
 

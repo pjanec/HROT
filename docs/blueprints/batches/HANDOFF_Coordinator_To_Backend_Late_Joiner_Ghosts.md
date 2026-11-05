@@ -12,7 +12,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: a late joiner must not receive the previous run's entities (CE-4000, CE-4007)
 
-**For:** the backend lane (`backend`). **From:** the coordinator lane. **Dispatched at** the commit that adds this file. ⭐ Scope FROZEN
+**For:** the backend lane (`backend`). **From:** the coordinator lane. **Dispatched at `22b255f3b`**. ⭐ Scope FROZEN
 there; later documents are FYI. A later document that invalidates an item ⇒ STOP that item, report it (R-106), keep the rest. Questions ⇒
 a NOTE to coordinator. Merge `coordinator` first (it carries ui's CE-3370 and the thumbnails).
 
