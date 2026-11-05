@@ -159,15 +159,36 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, _flow.UnitNetId);   // ⭐ measured live 2026-11-05: the refused unit stayed reported as the slot's. 🔴 BackToChoosing without the reset ⇒ red
         }
 
-        /// <summary>The Player's own Possess being refused (the unit is not known here yet) returns it to Choosing with that text. ✅ Red-proof: the result ignored ⇒ it sits in TakingControl ⇒ red.</summary>
+        /// <summary>
+        /// The Player's own Possess refused (the unit is not on this node YET — a man just spawned waits for his first pose, CE-4086) is RETRIED every 500 ms;
+        /// once it succeeds the flow goes on; if it never does, the flow returns to Choosing with that text at the 10 s deadline.
+        /// 🔴 Mutations: no retry ⇒ the late-arriving unit is never asked for ⇒ the first half red; the deadline dropped ⇒ the second half red.
+        /// </summary>
         [Fact]
-        public void APossessThatIsRefusedLocally_ReturnsToChoosingWithItsText()
+        public void APossessRefusedLocally_IsRetriedUntilTheUnitIsHere_ElseChoosingWithItsTextAtTheDeadline()
         {
             _possessOk = false;
             ToChoosing();
             _flow.Request(ForceId.Friend, Rifleman);
-            PumpUntil(() => _flow.State == DeployFlowState.Choosing && _flow.LastRefusal.Length > 0, "the local refusal");
+            PumpUntil(() => _flow.State == DeployFlowState.TakingControl && _possessCalls.Count >= 1, "TakingControl, first Possess refused");
+            _possessOk = true;                                                   // the unit has arrived on this node
+            PumpUntil(() => _possessCalls.Count >= 2, "the retry", timeoutMs: 15_000);
+            Assert.Equal(DeployFlowState.TakingControl, _flow.State);
+
+            BackToTheChoosingAndRequestAgain();
+            _possessOk = false;
+            _flow.Request(ForceId.Friend, Rifleman);
+            PumpUntil(() => _flow.State == DeployFlowState.TakingControl, "TakingControl again");
+            for (int i = 0; i < 40 && _flow.State == DeployFlowState.TakingControl; i++) Frame(clientStepMs: 400);   // past the 10 s deadline
+            Assert.Equal(DeployFlowState.Choosing, _flow.State);
             Assert.Equal("refused by the brain", _flow.LastRefusal);
+        }
+
+        private void BackToTheChoosingAndRequestAgain()
+        {
+            for (int i = 0; i < 40 && _flow.State != DeployFlowState.Choosing; i++) Frame(clientStepMs: 400);   // the first take times out (nobody possesses here)
+            _possessCalls.Clear();
+            PumpUntil(() => _flow.State == DeployFlowState.Choosing, "Choosing again");
         }
 
         /// <summary>No answer within 10 s ⇒ Choosing, "the server did not answer" — the server is simply not run, the Player's clock is stepped past 10 s. ✅ Red-proof: the deadline check dropped ⇒ it waits forever ⇒ red.</summary>
@@ -218,6 +239,29 @@ namespace Hrot.SimHost.Tests
             _client.AddComponent(_clientUnit, held); _server.AddComponent(_serverUnit, held);
             PumpUntil(() => _flow.State == DeployFlowState.Playing && _proc.TryGetSlot(Station, out var s, out _) && s == PlayerSlotState.Playing, "Playing on both sides");
             for (int i = 0; i < 20; i++) Frame();   // the Player reads the Playing slot
+        }
+
+        /// <summary>
+        /// ⭐ A ROLE request is answered with a DIFFERENT unit — the man the server spawned — and the flow takes THAT one (Possess and Playing on his id),
+        /// never the role entity it asked for. 📐 Found live `2026-11-05` (S2): the flow possessed the asked id and timed out every time. The server is not
+        /// ticked here: its answer is written by hand, as the processor writes it once the man exists. 🔴 Mutation: the answer's unit ignored ⇒ Possess(900) ⇒ red.
+        /// </summary>
+        [Fact]
+        public void ARoleRequest_TakesTheManTheServerNames_NotTheRoleItAskedFor()
+        {
+            ToChoosing();
+            const int RoleEntity = 900;
+            Assert.True(_flow.Request(ForceId.Friend, RoleEntity));
+            using var answer = new DdsWriter<DeployStatusTopic>(_serverP);
+            for (int i = 0; i < 300 && _flow.State == DeployFlowState.Requesting; i++)
+            {
+                answer.Write(new DeployStatusTopic { StationNodeId = Station, RequestId = _flow.RequestId, Accepted = true, UnitNetId = Rifleman });
+                _clientMs += 10; _client.Bus.SwapBuffers(); _clientSlots.Execute(_client, 0.016f); _flow.Execute(_client, 0.016f);
+                Thread.Sleep(5);
+            }
+            Assert.Equal(DeployFlowState.TakingControl, _flow.State);
+            Assert.Equal(new[] { Rifleman }, _possessCalls);
+            Assert.Equal(Rifleman, _flow.UnitNetId);
         }
 
         private void SetSimTime(double t) { _server.SetSingleton(new GlobalTime { TotalTime = t }); _client.SetSingleton(new GlobalTime { TotalTime = t }); }

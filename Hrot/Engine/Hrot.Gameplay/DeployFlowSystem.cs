@@ -117,6 +117,9 @@ public sealed class DeployFlowSystem : IEcsModuleSystem
     /// <summary>The last <see cref="DeployStatusTopic"/> answer's unit; 0 none.</summary>
     public int UnitNetId => _pendingUnit;
 
+    /// <summary>The id of the request in flight (empty when none) — what the server's <see cref="DeployStatusTopic"/> answers.</summary>
+    public string RequestId => _requestId;
+
     /// <summary>True while some node serves Deploy (R-4103); sampled about once a second.</summary>
     public bool ServerExists => _serverExists;
 
@@ -275,15 +278,35 @@ public sealed class DeployFlowSystem : IEcsModuleSystem
                     return;
                 }
                 if (_pendingObserve) { State = DeployFlowState.Observing; return; }
-                var (ok, detail) = _env.Possess(_pendingUnit);
-                if (!ok) { BackToChoosing(detail); return; }
+                // ⭐ the unit to take is the one the SERVER names: for a placed unit it is the one asked for; for a ROLE it is the man just spawned for it
+                //   (📐 measured live 2026-11-05: possessing the asked id — the role's own entity — timed out every time).
+                if (st.UnitNetId != 0) _pendingUnit = st.UnitNetId;
                 _deadline = now + TimeoutMs;
                 State = DeployFlowState.TakingControl;
+                TryPossess(now);
                 return;
             }
         }
         if (now >= _deadline) BackToChoosing(NoAnswer);
     }
+
+    private bool _possessSent;
+    private string _possessRefusal = "";
+    private long _nextPossessTry;
+
+    /// <summary>
+    /// Asks this node's station for the unit. ⭐ A LOCAL refusal is retried every 500 ms until the deadline: a man the server JUST spawned is often not on
+    /// this node yet (its replica waits for its first pose, CE-4086), so "unknown here" now is not "no". The refusal text is reported only at the deadline.
+    /// </summary>
+    private void TryPossess(long now)
+    {
+        var (ok, detail) = _env.Possess(_pendingUnit);
+        _possessSent = ok;
+        _possessRefusal = ok ? "" : detail;
+        _nextPossessTry = now + PossessRetryMs;
+    }
+
+    private const long PossessRetryMs = 500;
 
     private void AwaitPossession(long now)
     {
@@ -293,7 +316,8 @@ public sealed class DeployFlowSystem : IEcsModuleSystem
             _slotSeenPlaying = false;
             return;
         }
-        if (now >= _deadline) BackToChoosing("taking control timed out");
+        if (now >= _deadline) { BackToChoosing(_possessSent ? "taking control timed out" : _possessRefusal); return; }
+        if (!_possessSent && now >= _nextPossessTry) TryPossess(now);
     }
 
     /// <summary>A refusal or a timeout: back to Choosing with the reason — and no unit (the live run showed the refused unit still reported as the slot's).</summary>
