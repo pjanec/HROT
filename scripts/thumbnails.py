@@ -109,7 +109,9 @@ def frame(points, pitch_deg=-45.0, yaw_deg=225.0, margin=1.25, min_radius=12.0):
 def shoot(path, eye, target):
     """shot -> a throwaway settle capture (a new shot's first frame reads the weather before the camera moves) -> the capture; the shot released after."""
     try:
-        r = udc.call("POST", "/film/shot", {"eye": eye, "target": target})
+        # ⭐ the shot's own layers: `layers: {}` is a take's clean start — the scene rows only, so no unit cards over the picture (a transient override through the
+        #   director's layer override; never the user's settings; DELETE /film/shot drops it). Measured: {} alone is enough — a spec's override keeps only the scene rows.
+        r = udc.call("POST", "/film/shot", {"spec": {"eye": eye, "target": target, "layers": {}}, "t": 0})
         if not ok(r):
             return False, "shot: " + say(r)
         os.makedirs(os.path.dirname(path), exist_ok=True)

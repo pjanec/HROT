@@ -483,7 +483,7 @@ namespace Hrot.Editor.DebugApi
                 new("pitchDeg", "number", false, "View elevation, degrees, negative looks down (follow: -20, lookAt: -30)"),
                 new("lift", "number", false, "Follow: metres above the unit's position looked at (default 1)"),
                 new("fovDeg", "number", false, "Vertical field of view, degrees (default: the camera's 45; narrow = telephoto)"),
-                new("spec", "object", false, "⭐ CE-4038 — a take's shot in its own keys (docs/DESIGN_Film_Director.md §4), units by name"),
+                new("spec", "object", false, "⭐ CE-4038 — a take's shot in its own keys (docs/DESIGN_Film_Director.md §4), units by name. ⭐ CE-4268 — its `layers` ({on, off}; {} = the take's clean start: the scene rows only, no unit cards) IS honoured, as a transient override through the director's layer override — never the user's file; DELETE /film/shot clears it"),
                 new("t", "number", false, "With spec: sim seconds into the shot (its orbit and its 'to')"),
             },
             Notes: new[] { "docs/DESIGN_Map_3D_Mode.md §6ab. The camera is a driver, like first person: never saved to the scenario." },
@@ -492,7 +492,7 @@ namespace Hrot.Editor.DebugApi
         [("DELETE", "/film/shot")] = new RouteDoc(
             Tool:    "film_release",
             Group:   "Y — node diagnostics",
-            Summary: "⭐ CE-3289 — give the 3-D map's camera back to the operator (it keeps the last pose).",
+            Summary: "⭐ CE-3289 — give the 3-D map's camera back to the operator (it keeps the last pose); ⭐ CE-4268 — and drop the layers a shot's spec set.",
             Returns: "{ released: true }",
             Hint:    "Example: film_release({})",
             ExampleArgsJson: "{}",
@@ -500,7 +500,7 @@ namespace Hrot.Editor.DebugApi
         [("POST", "/film/capture")] = new RouteDoc(
             Tool:    "film_capture",
             Group:   "Y — node diagnostics",
-            Summary: "⭐ CE-3289 — write the next drawn frame's 3-D SCENE (sky, terrain, bodies, effects, rounds — no panels, gizmos, cards or HUD) as a PNG, at any size.",
+            Summary: "⭐ CE-3289 — write the next drawn frame's 3-D SCENE (sky, terrain, bodies, effects, rounds; no panels or HUD) as a PNG, at any size. ⚠ The map's TOGGLED gizmo rows — unit cards (Units.Labels), unit details, vision cones … — are filmed when they are on in the layer set in force; only a take's or a shot's layer override starts clean (the scene rows only: POST /film/shot {spec:{…, layers:{}}}).",
             Returns: "{ path, width, height, simTime }",
             Hint:    "Req: path (.png). Optional: width (1280), height (720), supersample (1, up to 4 — renders larger and scales down). Needs a window (Xvfb) and the map on screen; 504 after 30 s otherwise. Pause the sim and step it between captures for a smooth film. Example: film_capture({path:\"/tmp/f/0001.png\"})",
             Params: new RouteParam[]

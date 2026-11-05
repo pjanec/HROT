@@ -16,6 +16,10 @@ namespace Hrot.Editor.DebugApi
     public sealed partial class DebugApiHost
     {
         private DirectorRunner? _director;
+        /// <summary>⭐ CE-4268 — the pack's ONE layer override (<see cref="DirectorAdapters"/>' <c>MapLayerOverride</c>: what a take's layers go through): <c>POST /film/shot {spec:{layers}}</c> applies a shot's layers
+        /// through it and <c>DELETE /film/shot</c> clears them — a transient set, never the user's file (the route <c>/map/layers</c> is the user's click and is saved).</summary>
+        private MapLayerOverride? _layerOverride;
+        private bool _shotLayersHeld;
         private TakeStore? _takes;
         private Func<Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo?>? _layerControl;
         private DirectorDrafts? _drafts;
@@ -48,6 +52,7 @@ namespace Hrot.Editor.DebugApi
         public void AttachDirector(DirectorPack pack)
         {
             if (pack == null) throw new ArgumentNullException(nameof(pack));
+            _layerOverride = pack.Layers;
             AttachDirector(pack.Runner, pack.Takes, pack.LayerControl, pack.Drafts, pack.Stills, pack.Promotion, pack.Renders);   // ⭐ CE-4059 / CE-1304 / CE-1306 — drafter, stills, promote, renders: every host
         }
 

@@ -260,6 +260,15 @@ namespace Hrot.Editor.DebugApi
             double t = Hrot.UI.Common.Map3D.Director.TakeJson.Double(body["t"]) ?? 0d;
             var shot = await _jobQueue.RunOnMainThread(() => Service().EvaluateShot(spec, t)).ConfigureAwait(false);
             if (shot is null) return Fail(404, "a unit the shot names is not here (GET /entities lists them)", DebugApiHints.Entity);
+            // ⭐ CE-4268 — the shot's own layers (R-4060's per-shot set, the one a take's shot carries) through the pack's ONE override: `layers: {}` is the take's clean start (the scene rows only — no unit cards),
+            //   `{on, off}` adds and removes by name. Held until DELETE /film/shot; never written to the user's settings.
+            if (spec.Layers is { } layers)
+            {
+                if (_layerOverride is not { } layerOverride) return Fail(503, "This host has no film director, so a shot's layers cannot be applied (the editor and the Replay Browser have one).");
+                var unknown = await _jobQueue.RunOnMainThread(() => { layerOverride.Apply(layers.On, layers.Off); return layerOverride.Unknown; }).ConfigureAwait(false);
+                _shotLayersHeld = true;
+                if (unknown.Count > 0) return Fail(400, $"no such layer: {string.Join(", ", unknown)} — GET /map/layers lists them", DebugApiHints.Panel);
+            }
             Hrot.UI.Common.Map3D.FilmStudio.Direct(shot);
             return Ok(new JsonObject
             {
@@ -432,7 +441,13 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-3289 (docs/DESIGN_Map_3D_Mode.md §6ab) — filming: hold the map's camera on a shot, capture the scene alone as a PNG.
             //   The mailbox is process-wide (no main-thread hop); the map that the window draws serves the capture in its own update.
             _routes.Add(new("POST",   "/film/shot",    ctx => ctx.Body?["spec"] is JsonObject ? DirectFilmSpec(ctx.Body) : Task.FromResult(DirectFilm(ctx.Body))));
-            _routes.Add(new("DELETE", "/film/shot",    _   => { Hrot.UI.Common.Map3D.FilmStudio.Release(); return Task.FromResult(Ok(new JsonObject { ["released"] = true })); }));
+            _routes.Add(new("DELETE", "/film/shot",    async _ =>
+            {
+                Hrot.UI.Common.Map3D.FilmStudio.Release();
+                // ⭐ CE-4268 — and the layers THIS shot set (never a take's: only what /film/shot {spec:{layers}} applied)
+                if (_shotLayersHeld && _layerOverride is { } lo) { _shotLayersHeld = false; await _jobQueue.RunOnMainThread(() => { lo.Clear(); return 0; }).ConfigureAwait(false); }
+                return Ok(new JsonObject { ["released"] = true });
+            }));
             _routes.Add(new("POST",   "/film/capture", ctx => CaptureFilmFrame(ctx.Body)));
             // ⭐ CE-4038 (docs/DESIGN_Film_Director.md §4) — the film director, the map's layers and the sound (DebugApiHost.Director.cs)
             BuildDirectorRoutes();

@@ -406,6 +406,43 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.Contains(LayerControlSets.RowNames, r => r.Name == "Ai.VisionCones" && r.Display.Length > 0 && r.Doc.Length > 0);
         }
 
+        // ⭐ CE-4268 — POST /film/shot {spec:{…, layers}} honours the shot's layers through the pack's ONE override (the MapLayerOverride a take's layers use):
+        // `layers: {}` is the take's clean start (the cards off, the scene kept), a name is added or removed, an unknown name is reported — and ⛔ NOTHING reaches the
+        // user's settings or file; Clear gives the user's set back. A spec with no `layers` carries none (the route then leaves the layers alone).
+        // 🔴 Red-proof: MapLayerOverride.Apply writing through SetRows (the user's click) ⇒ the save count and the registry move.
+        [Fact]
+        public void CE4268_AShotsLayers_GoThroughTheOneOverride_AndAreNeverWritten()
+        {
+            var settings = new GizmoSettingsRegistry();
+            int saves = 0;
+            var gizmo = new LayerControlGizmo(7, new FdpEventBus(), MakeEditService(), settings: settings, saveSettings: () => saves++);
+            uint labels = GizmoSettingsRegistry.ComputeHash(LayerControlSets.Key(false, "Units", "Labels"));
+            bool labelsBefore = settings.Read(labels).BoolValue;
+            var layers = new Hrot.UI.Common.Map3D.Director.MapLayerOverride(() => gizmo);
+
+            var problems = new List<string>();
+            var withLayers = Hrot.UI.Common.Map3D.Director.TakeJson.ParseShot(System.Text.Json.Nodes.JsonNode.Parse("""{ "eye": [0,0,10], "target": [0,10,0], "layers": {} }""")!.AsObject(), 1, problems);
+            var without = Hrot.UI.Common.Map3D.Director.TakeJson.ParseShot(System.Text.Json.Nodes.JsonNode.Parse("""{ "eye": [0,0,10], "target": [0,10,0] }""")!.AsObject(), 1, problems);
+            Assert.Empty(problems);
+            Assert.NotNull(withLayers.Layers);
+            Assert.Null(without.Layers);
+
+            Assert.True(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Labels), "the user's set shows the cards");
+            layers.Apply(withLayers.Layers!.On, withLayers.Layers.Off);
+            Assert.Empty(layers.Unknown);
+            Assert.False(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Labels), "a shot with layers:{} starts clean: no unit cards");
+            Assert.True(gizmo.ActiveLayers.IsSet(0), "the scene is kept: the units");
+            Assert.Equal(0, saves);
+            Assert.Equal(labelsBefore, settings.Read(labels).BoolValue);
+
+            layers.Apply(System.Array.Empty<string>(), new[] { "No.Such" });
+            Assert.Equal(new[] { "No.Such" }, layers.Unknown);
+
+            layers.Clear();
+            Assert.True(gizmo.ActiveLayers.IsSet(DebugTraceLayers.Labels), "DELETE /film/shot: the user's set again");
+            Assert.Equal(0, saves);
+        }
+
         // ⭐ CE-3133 — the navmesh layer choice: Infantry by default, kept in the settings registry by the panel, and an enum that
         // survives the panel's JSON round trip (the StructEdit session the projector opens).
         [Fact]
