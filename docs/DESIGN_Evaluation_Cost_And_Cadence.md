@@ -933,3 +933,13 @@ that stops at its first match (the scenario clock, the global weather) walks far
 **The engine-wide option, kept for later:** component tables keep no per-chunk population (only the entity index does,
 `EntityIndex.cs:103-177, 483-634`), so skipping empty chunks needs a count kept on every add / remove / destroy / restore / snapshot copy —
 and ⚠ an under-count drops entities from queries silently. Worth it only if the tail is what remains after the hot sites.
+
+### 11e. 📐 Where the three big costs go *(`2026-11-05`, the CE-2408 stress world at `5e03eafff`; user: "spend the effort on egress, the recorder and the brain tick")*
+
+Each system's main-thread samples, split by what the innermost frame is doing (`dotnet-trace`; the system's ms/frame from `perf-stress.py`).
+
+| system (ms / frame) | where its time goes | ⭐ the fix it points at |
+|---|---|---|
+| **Recorder** (CGF 96, SimHost 74, traffic 62) | ~60 % `FillLiveness` + reading every entity's metadata through the write accessor (`GetRefRW` → `EnsureChunkAllocated`, `IsChunkCommitted`); on SimHost +17.5 % copying `SpawnLevelRequest` chunks | ⭐ `FillLiveness` runs once per CHANGED CHUNK OF EVERY TABLE, recomputing the same entities' liveness again and again (`RecorderSystem.cs:223, 258, 366, 489, 520, 568`) ⇒ compute it ONCE per frame for every entity, slice it per chunk — exact, local to the recorder |
+| **Brain tick** (CGF 91–135) | ~30 % the objective census (`HoldAreaBehavior.CaptureBySide` → `ObjectiveCensus.MenOfSideInside`: every positioned entity, per objective, per side); 38 % of the whole tick is query walking | ⭐ the census asks the grid for the men inside the area's bounds (§11d) |
+| **Egress** (CGF 80, SimHost 109, traffic 78) | 32–44 % the query walk (~90 translators, each walking every entity once per frame, most matching few or none); 32–34 % the native DDS send (real work); serialization ~0 | ⚠ the walk is the once-per-frame TAIL §11d deferred — concentrated here: ~90 walks / frame / node. ⭐ Either the engine-wide "skip chunks with none of the query's rarest component" (§11d) or egress walking the entities ONCE for all translators. A user decision |
