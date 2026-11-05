@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-05 (§3a the real-node measurement; §4 write batching)
-build-state: DESIGN — a question for the user / backend; NOT ready to build (no UML until a lean is approved)
+build-state: BUILDING — E1 approved by the user 2026-11-05 ("yes, build E1 with a rail per hazard"); §5 is the build design (CE-2407)
 current-answer: §2 the measured hazards, §3 the options with a lean, §3a measured on real nodes (answers §3's 'what would change the lean'), §4 DDS write batching
 stale-below: none
 known-rot: docs/designs/dds-to-ecs/DESIGN.md:468 says "the egress translator checks the chunk version and skips unchanged entities" — only NavigationIntentEgressTranslator does (measured 2026-11-04)
@@ -94,3 +94,93 @@ it needs the user's approval (it can lose publishes silently, §2) and a rail pe
 delays samples if one writer is missed. ⭐ **Revisit when the sample rate grows** (thousands of MOVING entities ⇒ hundreds of WorldPos per
 frame): then the per-datagram cost on the sender AND every receiver scales with it, and batching + one per-frame flush becomes worth its rule.
 ⚠ What would change the lean: a measured native send above ~3 % of a node's thread.
+
+## 5. ⭐ E1 — AS DESIGNED for the build *(user, `2026-11-05`: "yes, build E1 with a rail per hazard"; CE-2407)*
+
+**INVENTORY** (graph + grep, `2026-11-05`): the change signals that already exist — chunk versions stamped with `GlobalVersion` on
+`GetRW`/`Set`/`Add`/ECB (`NativeChunkTable`), table-level `IComponentTable.HasChanges(since)` (`>`), the per-entity STRUCTURAL clock
+`EntityMetadataCold.LastChangeTick` (create / destroy / a component added or removed / lifecycle — CE-3243, `EntityRepository.cs:1019–1023`),
+`WorldEpoch.Advance`/`Restored`, `SmartEgressUtil.MarkDirty`/`ForceMarkAllDirty` (in-place, no version — H8/H3). Authority:
+`HasAuthority` reads the ROOT's `NetworkAuthority` + `DescriptorOwnership` (`AuthorityExtensions.cs:16–66`); both are written through
+stamping setters and only on change (`OwnershipApplier.cs:83,117`, `OwnershipRecomputeSystem.cs:323`, `DeferredTakeoverSystem.cs:137`,
+`EntityMasterIngressTranslator.cs:251`). ⛔ No existing visit gate (`search_graph` `.*(Egress.*Gate|VisitGate|EgressSignal).*`: none).
+
+```mermaid
+classDiagram
+    class EgressVisitGate {
+        +EgressVisitGate(params Type[] inputs)
+        +bool Enabled$
+        +int SweepPeriod$
+        +Begin(ISimulationView view)
+        +bool Visit(Entity e)
+        +long FullScans
+        +long Visited
+        +long Skipped
+    }
+    class EgressSignals {
+        +Dirty(EntityRepository, int index)$
+        +AllDirty(EntityRepository)$
+        +uint DirtyAt(EntityRepository, int index)$
+        +uint AllDirtyAt(EntityRepository)$
+    }
+    class SmartEgressUtil {
+        +MarkDirty()
+        +ForceMarkAllDirty()
+    }
+    class WorldEpoch {
+        +Advance()$
+        +Restored()$
+    }
+    class ATranslator {
+        -EgressVisitGate _gate
+        +ScanAndPublish(view)
+    }
+    SmartEgressUtil ..> EgressSignals : stamps (H8, H3)
+    WorldEpoch ..> EgressSignals : AllDirty (H3)
+    ATranslator *-- EgressVisitGate : one per translator
+    EgressVisitGate ..> EgressSignals : reads
+```
+*What the picture shows: every way an entity can need republishing feeds ONE per-world signal or a version the gate already reads — the
+translator keeps its own loop and its own publish decision; the gate only removes entities that cannot have changed.*
+
+```mermaid
+sequenceDiagram
+    participant T as translator
+    participant G as EgressVisitGate
+    participant W as world
+    T->>G: Begin(view)
+    G->>W: GlobalVersion, AllDirtyAt, authority tables HasChanges(since)
+    Note over G: FULL SCAN when first run, another world, the clock went back, AllDirty since, or an authority table changed (H1, H3)
+    loop each entity of the translator's own query
+        T->>G: Visit(e)
+        Note over G: true if full scan, or LastChangeTick ≥ since (structure), or an input chunk ≥ since (H4, H6), or DirtyAt ≥ since (H8), or e in this frame's sweep slice (H5, any unmodelled input)
+        G-->>T: visit / skip
+    end
+```
+
+```mermaid
+graph TD
+    CES["CycloneEgressSystem.Execute<br/>(NedReplication module, every frame)"] --> TR["~90 translators' ScanAndPublish"]
+    TR -->|opted in| GATE["EgressVisitGate per translator"]
+    TR -->|NOT opted in: the heartbeat ones H2 H7 and event-driven ones| FULL["today's full scan"]
+    MD["SmartEgressUtil.MarkDirty / ForceMarkAllDirty<br/>OwnershipApplier, ingress, UI, replay"] --> SIG["EgressSignals (per world)"]
+    WE["WorldEpoch.Advance / Restored"] --> SIG
+    SIG --> GATE
+```
+*What it shows: the gate is per translator and opt-in; the heartbeat translators are deliberately left on the full scan.*
+
+| hazard | how E1 handles it | rail (`EgressVisitGateTests`) |
+|---|---|---|
+| H1 authority arrives | any write to `NetworkAuthority` / `DescriptorOwnership` / `PartMetadata` since the last scan ⇒ a FULL scan that frame (covers a part whose ROOT changed) | `H1_*` |
+| H2 heartbeats | GeoSpatial / NavigationStatus NOT gated; the sweep also bounds any entity's longest skip to `SweepPeriod` frames | `H2_*` (sweep bound) |
+| H3 seek / restore / wipe | `ForceMarkAllDirty` and `WorldEpoch` ⇒ `EgressSignals.AllDirty` ⇒ full scan; the clock going BACK (playback `SetGlobalVersion`) ⇒ full scan | `H3_*` |
+| H4 several inputs | the translator declares every component it reads; a write to ANY ⇒ visit (`NetworkIdentity` always included) | `H4_*` |
+| H5 managed in place | not seen by versions ⇒ the sweep republishes within `SweepPeriod` frames (and the immutable-managed rule forbids it) | `H5_*` |
+| H6 one-slot test | the entity's OWN chunk version (`GetVersionForEntity`), never `QueryDelta` | `H6_*` |
+| H7 GeoSpatial writes its shadow | not gated (H2) | — |
+| H8 `MarkDirty` moves no version | `MarkDirty` stamps `EgressSignals.Dirty` ⇒ visit | `H8_*` |
+| (structure) a component REMOVED makes the entity match (`Without<ReplicationRoute>`) | the structural clock `LastChangeTick` ⇒ visit | `Structural_*` |
+| (equivalence) | a scripted world: what the gated translator publishes = the ungated one, frame by frame, apart from sweep-bounded delays of unmodelled changes | `Equivalence_*` |
+
+⭐ `SweepPeriod` = 8 (≤ 133 ms at 60 Hz for a change no signal names). ⭐ `EgressVisitGate.Enabled = false` restores today's behaviour
+everywhere (A/B and a kill switch). ⭐ Visit is a few array reads — no allocation.
