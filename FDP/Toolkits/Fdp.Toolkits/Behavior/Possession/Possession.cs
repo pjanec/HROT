@@ -341,7 +341,7 @@ namespace Fdp.Toolkit.Behavior.Possession
             => repo.IsAlive(unit) && repo.HasComponent<BehaviorState>(unit) && repo.HasAuthority<BehaviorState>(unit);
 
         /// <summary>A unit is live while it has no health to lose or some left (⭐ R-4096 — also <see cref="StationClaims"/>' test of a holder).</summary>
-        internal static bool Alive(EntityRepository repo, Entity unit)
+        public static bool Alive(EntityRepository repo, Entity unit)
             => !repo.IsComponentTypeRegistered<Health>() || !repo.HasComponent<Health>(unit) || repo.GetComponentRO<Health>(unit).Current > 0f;
 
         private static void Ensure(EntityRepository repo)

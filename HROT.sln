@@ -346,6 +346,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.Tools.ContentMigrate",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.Tools.ContentMigrate.Tests", "Hrot\Tools\Hrot.Tools.ContentMigrate.Tests\Hrot.Tools.ContentMigrate.Tests.csproj", "{BCE22868-AA34-4469-AF4D-745E6E765917}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.Gameplay", "Hrot\Engine\Hrot.Gameplay\Hrot.Gameplay.csproj", "{FD5E1FDB-6071-4086-A27D-584657FA8BF3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -2048,6 +2050,18 @@ Global
 		{BCE22868-AA34-4469-AF4D-745E6E765917}.Release|x64.Build.0 = Release|Any CPU
 		{BCE22868-AA34-4469-AF4D-745E6E765917}.Release|x86.ActiveCfg = Release|Any CPU
 		{BCE22868-AA34-4469-AF4D-745E6E765917}.Release|x86.Build.0 = Release|Any CPU
+		{FD5E1FDB-6071-4086-A27D-584657FA8BF3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FD5E1FDB-6071-4086-A27D-584657FA8BF3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FD5E1FDB-6071-4086-A27D-584657FA8BF3}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{FD5E1FDB-6071-4086-A27D-584657FA8BF3}.Debug|x64.Build.0 = Debug|Any CPU
+		{FD5E1FDB-6071-4086-A27D-584657FA8BF3}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{FD5E1FDB-6071-4086-A27D-584657FA8BF3}.Debug|x86.Build.0 = Debug|Any CPU
+		{FD5E1FDB-6071-4086-A27D-584657FA8BF3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FD5E1FDB-6071-4086-A27D-584657FA8BF3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FD5E1FDB-6071-4086-A27D-584657FA8BF3}.Release|x64.ActiveCfg = Release|Any CPU
+		{FD5E1FDB-6071-4086-A27D-584657FA8BF3}.Release|x64.Build.0 = Release|Any CPU
+		{FD5E1FDB-6071-4086-A27D-584657FA8BF3}.Release|x86.ActiveCfg = Release|Any CPU
+		{FD5E1FDB-6071-4086-A27D-584657FA8BF3}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -2218,6 +2232,7 @@ Global
 		{067BD3CB-B4E9-4451-8A20-E8E6934158D2} = {83CC26EF-40E2-4BAF-830A-EE6931B55DA4}
 		{0905B587-7DF1-4C55-8218-6ED220DF228F} = {5E27055C-A858-485B-9DB6-8D8D1325269B}
 		{BCE22868-AA34-4469-AF4D-745E6E765917} = {5E27055C-A858-485B-9DB6-8D8D1325269B}
+		{FD5E1FDB-6071-4086-A27D-584657FA8BF3} = {83CC26EF-40E2-4BAF-830A-EE6931B55DA4}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {69773B79-3483-4B3A-B763-2975F154224F}

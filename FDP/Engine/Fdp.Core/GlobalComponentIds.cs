@@ -1258,5 +1258,9 @@ namespace Fdp.Core
         /// <summary><c>MacroExpandedWith</c> — ⭐ macros S3a ⑥: what a done instance last expanded with (the reconcile's baseline). Transient.
         /// ⚠ 474 measured free in backend, ui, behaviors and coordinator 2026-11-02.</summary>
         public const int MacroExpandedWith = 474;
+
+        /// <summary><c>Playable</c> — ⭐ Player Join D-9 (docs/DESIGN_Player_Join.md §9): a scenario unit a Player may deploy into (its side + slot name). Authored, recorded and saved.
+        /// ⚠ 481 measured free in backend, ui, behaviors and coordinator 2026-11-05 (the highest in use was 480).</summary>
+        public const int Playable = 481;
     }
 }

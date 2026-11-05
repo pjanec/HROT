@@ -137,6 +137,11 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
             .Capability(CgfSubsystem.DefaultRole, new CoreInfrastructureCapabilities.Interactions())
             // ⭐ AQ93 §12 N6 (R-4056) — SUMO cars from every traffic node, mirrored (vicinity replicas the brains see); idle without a net.
             .Capability(CgfSubsystem.DefaultRole, Hrot.Traffic.TrafficPack.Mirroring())
+            // ⭐ Player Join D-2 / §7c (R-4115) — the gameplay deploy SERVER, composed by default; its feature `gameplay.deploy-server` (ON by default) is what gates it, and with it off no
+            //   gameplay topic is created. One server per cluster: the lowest node id with the feature on (the cluster cache this node's replication module reads).
+            .Capability(CgfSubsystem.DefaultRole, new Hrot.Gameplay.GameplayServerPack(ctx =>
+                (ctx.NedReplication as Hrot.Network.Replication.NedReplicationModule)?.ClusterCache is { } cache
+                    ? new Hrot.Gameplay.DeployServerElection(cache.AllNodeIds, cache.Supports, cache.FeatureOn) : null))
             .Resolve(CgfSubsystem.DefaultRole);
         return ResolvedCapabilities;
     }
