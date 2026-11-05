@@ -416,28 +416,36 @@ has **no rules and no PNG** — §2f's director-stills run was never made, so ev
 
 ```mermaid
 classDiagram
-  class ThumbnailJob { <<NEW, Hrot.Editor>> +RunScenarios(names) +RunEntityTypes(types) }
-  class DirectorStills { <<existing, CE-4059 P3>> +Plan() +Capture() }
+  class thumbnails_py { <<NEW, scripts/>> scenarios · types · drives an editor over HTTP }
+  class ScenarioLoadEdit { <<existing route>> POST /scenario/load/edit }
+  class EntitiesRoutes { <<existing routes>> GET /entities · POST /entities/spawn }
+  class FilmShot { <<existing route, CE-3289>> POST /film/shot eye+target }
+  class FilmCapture { <<existing route, CE-3289>> POST /film/capture path }
   class ContentLayout { <<existing>> +ThumbnailAssets(NasRoot) +Scenarios(NasRoot) }
   class ContentSeed { <<existing>> copies repo to NAS, never deletes extra files }
-  class ThumbnailMap { <<existing>> +Resolve(visual, dis) path? }
-  class ScenarioPaneFacts { <<existing>> +PreviewOf(scenario) png? }
+  class ThumbnailMap { <<existing>> +Resolve(explicit, dis, typeName) — step 3 generated/ NEW }
+  class ScenarioPaneFacts { <<existing>> preview.png beside scenario.json }
   class PickerImageCache { <<existing, D26 P5>> }
-  ThumbnailJob --> DirectorStills : one still per scenario / per type
-  ThumbnailJob --> ContentLayout : writes into the NAS root only
+  thumbnails_py --> ScenarioLoadEdit
+  thumbnails_py --> EntitiesRoutes : bounds · one entity of a type
+  thumbnails_py --> FilmShot : frame the bounds
+  thumbnails_py --> FilmCapture : PNG into the NAS root only
   ThumbnailMap --> PickerImageCache
   ScenarioPaneFacts --> PickerImageCache
 ```
-*What the picture shows: nothing new reads an image — both pickers already read the paths; the one new piece WRITES them, through the stills job that exists.*
+*What the picture shows: nothing new renders and nothing new reads a scenario image — the one new piece is a client of four routes that
+exist; the only engine change is ThumbnailMap's third, lowest step (a generated file fills only a gap a hand-made one left).*
 
 | ⭐ decision | why |
 |---|---|
-| the PNGs are written into the **NAS root** (`ContentLayout.ThumbnailAssets(NasRoot)` for types, `<NasRoot>/scenarios/<name>/preview.png` for scenarios) — ⛔ never the repository | the user's "no screenshots in git"; the seed copies repo → NAS file by file and **never deletes** an extra file (`ContentSeed.cs`), so a generated image survives restarts; the pickers already read the NAS paths |
-| a **hand-authored** image wins: a `preview.png` / thumbnail committed in the repo is seeded over the NAS copy and is never overwritten by the job (the job skips a path the seed owns) | R-132 (one producer per slot) |
-| a scenario's still = its start, framed on its entities (the drafter's overview camera) through `POST /director/stills` with an inline take; an entity type's = one entity of the type placed on flat ground in a studio scenario, framed by its bounds (§2f's plan) | the stills job, seek and capture exist (CE-4059); ⛔ no second renderer |
-| run on demand (`POST /thumbnails/generate {scenarios?, types?}`) and from a script for the whole catalogue; a missing image keeps today's fallback | generation needs a window (Xvfb on a server) — not part of a picker's open |
+| the PNGs go into the **NAS root** only — scenarios `<NasRoot>/scenarios/<name>/preview.png`, types `ContentLayout.ThumbnailAssets(NasRoot)/generated/<type>.png` — ⛔ never the repository | the user's "no screenshots in git"; `ContentSeed` copies repo → NAS file by file and **never deletes** an extra file, so a generated image survives restarts |
+| a **hand-made** image wins: the script skips a scenario whose repo folder has a `preview.png`; `ThumbnailMap.Resolve` = ① the TKB's explicit `ThumbnailName` → ② the most specific `map.json` mask → ③ ⭐ NEW `generated/<type>.png` → glyph | R-132 (one producer per slot); ⛔ the script never edits `map.json` (seeded from the repo — an edit on the NAS would be overwritten) |
+| a scenario's still = its START on the editor: `/scenario/load/edit` → the entities' bounds (`GET /entities`) → `/film/shot {eye, target}` looking down at ~45° over them → `/film/capture` | ⛔ **§2f's `/director/stills` is refused on the editor** (📐 its route doc: *"refused on a host that cannot seek (the editor)"* — it needs a recording); the editor's own camera and capture routes are what CE-3289's `film.py` already drives |
+| an entity type's still = one entity spawned (`/entities/spawn`) on flat ground in a studio scenario, framed by its size, captured, removed | the same four routes; ⛔ no offscreen renderer |
+| run by hand / CI under Xvfb (`scripts/thumbnails.py --scenarios --types`); a missing image keeps today's fallback | capture needs a window — never at picker-open time |
 
-⛔ **Rejected:** committing generated PNGs (the user's rule) · a render at picker-open time (needs the 3-D view, seconds per tile) · a second offscreen renderer beside the stills job.
+⛔ **Rejected:** committing generated PNGs (the user's rule) · a render at picker-open time (needs the 3-D view, seconds per tile) · a
+second offscreen renderer · `/director/stills` (Replay Browser only) · writing generated rules into `map.json` (the seed owns it).
 
 ## 3. Diagrams
 
