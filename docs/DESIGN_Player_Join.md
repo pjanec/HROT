@@ -388,3 +388,24 @@ sequenceDiagram
 
 Rejected — one line each: *Playable as a NED descriptor* — puts gameplay on the military-sim wire (R-4102). *The slots as a replicated
 component on the unit* — the server would write a unit it may not own (D-8). *Possession by the server* — rejected in §5 already.
+
+### 9.4 AS BUILT — S1 part A, the server side *(backend, `2026-11-05`; `build-state` for part A: BUILT)*
+
+| part | where | as built |
+|---|---|---|
+| topics | `Hrot/Engine/Hrot.Gameplay/GameplayTopics.cs` | the four of §9.2, QoS as D-5 |
+| wire | `GameplayWire.cs` | lazy reader/writer per topic over the node's participant; `CreatedCount` — nothing exists until a gated system first touches it |
+| feature | `GameplayFeatures.cs` | `gameplay.deploy-server`, Live, ON by default, declared by `GameplayServerPack.Features` |
+| server | `DeployProcessorSystem.cs` (Input, `[NodeFeature]`) | validates (exists · `Playable` · side · alive · `StationClaims.ForPossess`) → slot `TakingControl` until sim `now + 30 s` + status; → `Playing` when `PossessedBy` that station; lapse / `NodeDeparted` ⇒ slot disposed; offers ~1 Hz and on change |
+| election | `DeployServerElection.cs` | delegates over the cluster cache (`AllNodeIds`, `Supports`, `FeatureOn`), built by `CgfNodeBootstrapper` from `NedReplicationModule.ClusterCache` — `Hrot.Gameplay` references no NED layer; the lowest id with the feature ON serves, re-read ~1 s; a server that loses stands down and retracts its slots and offers |
+| reader | `PlayerSlotReaderSystem.cs` | `PlayerSlotTopic` → `StationReservations.Of(world)`; the server composes a `[NodeFeature]` subclass, the Player the plain class (a `[NodeFeature]` naming an id the Player does not declare throws at registration) |
+| `Playable` | `Hrot.Core/Components/Common/Playable.cs`, `GlobalComponentIds.Playable = 481` | unmanaged `{ Side, SlotName }`, recorded + saved, in `HrotSharedComponentRegistry` |
+| composition | `CgfNodeBootstrapper.cs` | `.Capability(Brain, GameplayServerPack)` after `TrafficPack.Mirroring()` |
+
+**Deviations from §9.2 / §9.3, each argued:**
+1. ⭐ The processor ALSO writes `StationReservations` when it accepts or disposes a slot — two requests for one unit in the SAME frame would otherwise both pass (the reader learns of the slot a DDS round trip later).
+2. An Observe request is acknowledged on `DeployStatusTopic` (Accepted, unit 0), so the Player's flow has one answer path.
+3. `PlayerSlotTopic.Name` is the unit's `Playable.SlotName` (the request carries no player name); an observer's is empty.
+
+**Rails** — `Hrot.SimHost.Tests/GameplayDeployServerTests` (10, real DDS, each red-proved by a compiling mutation): accept · refusals by name (wrong side, not playable, missing, dead, held, reserved) · Playing · the 30 s lapse · departure · observe · reader fills / clears · the election · ⭐ the WIRE rail: feature OFF ⇒ `CreatedCount == 0` and a peer holding the opposite ends matches nothing; ON ⇒ they match.
+⚠ **Open:** a `Playing` slot whose unit is released (Esc) keeps the reservation until the station leaves — S2 (death → deploy screen) decides the transitions after Playing.
