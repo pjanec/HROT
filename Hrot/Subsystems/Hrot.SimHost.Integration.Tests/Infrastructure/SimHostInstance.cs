@@ -253,6 +253,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         private readonly Fdp.Toolkit.Replication.Systems.GhostPromotionSystem _promotionSystem;
         // ⭐ CE-3136 P-7a — the pack's obstacle bake (a static obstacle waits Constructing until this node's terrain holds it).
         private readonly Hrot.Map.Common.Services.StaticObstacleBakeSystem _obstacleBakeSystem;
+        private readonly Hrot.Common.Macros.MacroExpansionSystem _macroExpansionSystem;   // ⭐ CE-2420 — scheduled as EntityCreation.RegisterOn does (:321)
         private readonly Hrot.Common.EntityCreation.SeatPresetSystem _seatPresetSystem;   // ⭐ WS-4 (W-I)
         private readonly Fdp.Toolkit.NetworkSpawning.Systems.SpawnLevelSystem _spawnLevelSystem;   // ⭐ CE-3271 (Q94 D)
         private readonly SystemList                     _elmSystems  = new();
@@ -369,13 +370,14 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             _obstacleBakeSystem = creation.ObstacleBakeSystem;
             _seatPresetSystem = creation.SeatPresetSystem;
             _spawnLevelSystem = creation.SpawnLevelSystem;
+            _macroExpansionSystem = creation.MacroExpansionSystem;
             Translators         = creation.Translators;
 
             // The pack builds every piece; this harness schedules all three below in Tick(), so
             // nothing may be unserviceable. Asserting here rather than logging keeps the harness
             // honest about the thing it now exists to prove.
             var unserviceable = creation.Unserviceable(new object[]
-                { _requestSystem, _spawnSystem, _finalizationSystem, _promotionSystem, _obstacleBakeSystem, _seatPresetSystem, _spawnLevelSystem });
+                { _requestSystem, _spawnSystem, _finalizationSystem, _promotionSystem, _obstacleBakeSystem, _seatPresetSystem, _spawnLevelSystem, _macroExpansionSystem });
             if (unserviceable.Length > 0)
                 throw new InvalidOperationException(
                     "SimHostInstance did not schedule every EntityCreationPack piece: " + unserviceable);
@@ -808,6 +810,9 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             _obstacleBakeSystem.Execute(view, dt);
             _seatPresetSystem.Execute(view, dt);
             _spawnLevelSystem.Execute(view, dt);   // ⭐ CE-3271 — Simulation: after the spawn and the yield
+            // ⭐ CE-2420 — macros S3a ④, as production registers it (EntityCreation.RegisterOn :321); the guard above refused the harness without it,
+            //   which left this whole suite unconstructible again (27 of 49 red at 5858663d4 — found running CE-2417's gates, 2026-11-05).
+            _macroExpansionSystem.Execute(view, dt);
             ActivateConstructingEntities();
 
             // Phase-2 ACK dispatch: now that entities have been force-activated, the
