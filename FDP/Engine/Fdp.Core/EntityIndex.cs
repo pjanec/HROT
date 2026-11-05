@@ -46,6 +46,11 @@ namespace Fdp.Core
         /// </summary>
         public int MaxIssuedIndex => _maxIssuedIndex;
 
+        /// <summary>⭐ <c>CE-2418</c> — moves whenever the masks are rewritten WHOLESALE (a sync, a restore, a sanitize, a clear, a forced
+        /// restore of one entity): what a derived index of the masks (<see cref="QueryCandidateIndex"/>) watches besides the repository's
+        /// structural counter.</summary>
+        internal int MaskEpoch;
+
         /// <summary>
         /// Total number of active entities.
         /// </summary>
@@ -365,6 +370,7 @@ namespace Fdp.Core
         /// </summary>
         public void SyncFrom(EntityIndex source)
         {
+            MaskEpoch++;   // ⭐ CE-2418 — the masks were rewritten wholesale
             // Sync both underlying tables using fast chunk-based memcpy.
             // ⭐⭐ CE-3067 — FORCED, never version-gated. Adding or removing a component writes the mask through
             //    GetComponentMask() without stamping the chunk version, and ApplyComponentFilter bumps the
@@ -452,6 +458,7 @@ namespace Fdp.Core
         /// </summary>
         internal void ForceRestoreEntity(int index, bool isActive, int generation, BitMask512 componentMask, DISEntityType disType = default)
         {
+            MaskEpoch++;   // ⭐ CE-2418 — the masks were rewritten wholesale
             if (index > _maxIssuedIndex)
             {
                 _maxIssuedIndex = index;
@@ -496,6 +503,7 @@ namespace Fdp.Core
         /// </summary>
         internal void Clear()
         {
+            MaskEpoch++;   // ⭐ CE-2418 — the masks were rewritten wholesale
             lock (_createLock)
             {
                 _maxIssuedIndex = -1;
@@ -553,6 +561,7 @@ namespace Fdp.Core
         /// </summary>
         public void RestoreHotChunkFromBuffer(int chunkIndex, byte[] data)
         {
+            MaskEpoch++;   // ⭐ CE-2418 — the masks were rewritten wholesale
             _hotMasks.RestoreChunkFromBuffer(chunkIndex, data);
         }
 
@@ -569,6 +578,7 @@ namespace Fdp.Core
         /// </summary>
         public void SanitizeHotChunk(int chunkIndex, ReadOnlySpan<bool> liveness)
         {
+            MaskEpoch++;   // ⭐ CE-2418 — the masks were rewritten wholesale
             _hotMasks.SanitizeChunk(chunkIndex, liveness);
         }
 
@@ -586,6 +596,7 @@ namespace Fdp.Core
         /// </summary>
         public void RebuildMetadata()
         {
+            MaskEpoch++;   // ⭐ CE-2418 — the masks were rewritten wholesale
             lock (_createLock)
             {
                 _activeCount    = 0;

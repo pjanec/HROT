@@ -212,3 +212,102 @@ copy is memory (index × size per input). Rail `ANeighboursWrite_AndASameBytesRe
 translators got ≈ 13–15 % cheaper, egress overall moved within noise. ⭐ The saving scales with ENTITIES (the skipped work is per entity);
 the CE-2408 stress run is where it should show. ⚠ Next levers inside egress: the per-translator FIXED cost (each costs ≈ 0.1–0.3 ms a frame
 even when it skips nearly everything — to be profiled) and the ungated translators (WorldPos is the largest).
+
+## 6. ⭐ ONE WALK FOR EVERY TRANSLATOR — a query-candidate index scoped to the egress pass *(CE-2418, `2026-11-05`; user: "go to egress option b")*
+
+📐 Why: egress was 78–109 ms / frame per node on the CE-2408 stress world, and **32–44 % of it was the query walk** — ~90 translators,
+each walking every entity's mask once per frame, most matching few or none (`DESIGN_Evaluation_Cost_And_Cadence.md` §11e).
+
+```mermaid
+classDiagram
+    class CycloneEgressSystem {
+        +Execute(view)
+    }
+    class EntityRepository {
+        +QueryIndexScope() Scope
+        +StructuralChanges long
+        -candidateIndex QueryCandidateIndex
+    }
+    class QueryCandidateIndex {
+        +Build(entityIndex)
+        +Candidates(typeId) ReadOnlySpan~int~
+        -offsets int[]
+        -entities int[]
+        -builtAtStructure long
+    }
+    class EntityQuery {
+        <<existing>>
+        +GetEnumerator() EntityEnumerator
+    }
+    class EntityEnumerator {
+        <<existing>>
+        +MoveNext() bool
+        -candidates int[]
+    }
+    class IDescriptorTranslator {
+        <<existing, unchanged>>
+        +ScanAndPublish(view)
+    }
+    CycloneEgressSystem ..> EntityRepository : opens the scope around the translator loop
+    CycloneEgressSystem ..> IDescriptorTranslator : 90 x ScanAndPublish
+    IDescriptorTranslator ..> EntityQuery : foreach, as today
+    EntityQuery ..> EntityEnumerator
+    EntityEnumerator ..> QueryCandidateIndex : inside a scope - walk the rarest included type only
+    EntityRepository o-- QueryCandidateIndex
+```
+*What the picture shows that the prose hid: no translator changes — the single walk lives where every translator's walk already goes
+(the enumerator), switched on only for the egress pass.*
+
+```mermaid
+sequenceDiagram
+    participant E as CycloneEgressSystem
+    participant R as EntityRepository
+    participant T as a translator
+    participant Q as EntityEnumerator
+    participant I as QueryCandidateIndex
+    E->>R: QueryIndexScope()
+    loop 90 translators
+        E->>T: ScanAndPublish(view)
+        T->>Q: foreach over its query
+        Q->>R: index fresh for this structure?
+        alt stale or missing
+            R->>I: Build - one pass over every mask
+        end
+        Q->>I: Candidates of the query's rarest included type
+        Q-->>T: each candidate passing the SAME filters as the full walk
+    end
+    E->>R: scope disposed - queries walk everything again
+```
+
+| ⭐ the contract | |
+|---|---|
+| the candidates of type *t* | every entity whose component mask has bit *t* — built from the MASKS the full walk reads, never counted incrementally ⇒ ⛔ no under-count is possible |
+| fresh | built at the first enumeration in the scope; a structural change (`EntityRepository.StructuralChanges`, CE-2411) voids it and the next enumeration rebuilds |
+| the answer | the full walk's filters, unchanged, on the candidates (include, exclude, alive, lifecycle, authority, DIS) — the set is the walk's, in the same (index) order |
+| scope | ONLY the egress pass on the live repository (main thread); every other query in the engine walks as today. A query with no included type walks as today |
+| ⚠ cost model | one pass over ~6 000 masks + appends per set bit, instead of ~90 passes of 512-bit tests |
+
+**Measured before kept** (the user's rule): an A/B on one binary on the 700-soldier world, egress ms per node, off / on / off / on.
+Rejected: **rewriting 135 `ScanAndPublish` loops to a dispatched walk** — the same saving with a far larger, riskier edit.
+**The engine-wide chunk skip (§11d of the cost design)** — needs counts kept on every path; this index is DERIVED, and scoped.
+
+### 6a. ⚠ AS BUILT and MEASURED — the build is SHARED by the frame, not per scope *(CE-2418, `2026-11-05`)*
+
+📐 **First A/B (one build per scope): NOT kept as built.** Each node runs SEVERAL egress systems (the NED module's, the SimHost's
+pathfinding / perception / auxiliary sets, the time translators, the gizmos — all `SystemPhase.Export`); each opened its own scope and
+rebuilt the index, so the small passes went from ~0.4 ms to 3–10 ms and ate the saving (CGF ~flat, SimHost slightly worse, traffic ~2×).
+
+⭐ **As built:** the index is FRESH while the frame (`GlobalVersion`), the structural counter (`StructuralChanges`), the highest issued
+index and a new `EntityIndex.MaskEpoch` (moved by every WHOLESALE mask rewrite — sync, restore, sanitize, clear, a forced restore,
+`RebuildMetadata`) are unchanged — ⇒ ONE build per frame serves every egress system. Still at most one build per scope (a live
+enumerator's array is never rewritten under it).
+
+| ⚠ the one accepted limit | why it is safe today |
+|---|---|
+| a bit set by hand through a mask REF (ghost promotion, network spawning, the occurrence store) is seen at the NEXT frame's build | ⭐ those writers run outside the Export phase, i.e. before the frame's first egress scope builds; ⛔ none writes during the egress passes |
+
+📐 **Second A/B, kept** (700 soldiers, one binary, off / on / off / on), egress per entity per frame: CGF 14.3 / 15.4 → 7.4 / 9.2 µs,
+SimHost 25.1 / 26.4 → 5.4 / 14.1 µs, traffic 20.4 / 20.6 → 18.9 / 9.1 µs (the on1 traffic run had only filled 1 295 entities).
+Rails `QueryCandidateIndexTests` (every query form inside vs outside a scope; a structural change inside it; a nested enumerator; an
+out-of-band bit at the next frame; a wholesale rewrite in the same frame; no allocation on a steady scope) — red-proved four ways
+(the frame key, the mask epoch, half the candidates, and — in the first form — the scope-end void).

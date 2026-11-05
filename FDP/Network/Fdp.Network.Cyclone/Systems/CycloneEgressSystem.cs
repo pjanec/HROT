@@ -90,6 +90,12 @@ namespace Fdp.Network.Cyclone.Systems
             //   ⚠ Nothing is lost: a seek / restore marks every descriptor dirty (W4), so the release republishes everything.
             if (Fdp.Toolkit.Replication.Services.EgressHold.IsHeld(view)) return;
 
+            // ⭐ CE-2418 — ONE walk for every translator: inside this scope each translator's query walks only the entities of its rarest
+            //   included type (a candidate index built from the masks once per frame, shared by every egress system of the Export phase).
+            //   📐 A/B on one binary (700 soldiers): per entity per frame CGF 14.3 / 15.4 → 7.4 / 9.2 µs, SimHost 25.1 / 26.4 → 5.4 / 14.1,
+            //   traffic 20.4 / 20.6 → 18.9 / 9.1. 📄 docs/DESIGN_Egress_Change_Detection.md §6.
+            using var oneWalk = view is EntityRepository repo ? repo.QueryIndexScope() : default;
+
             // Process force-publish requests first
             ProcessForcePublish(view);
             
