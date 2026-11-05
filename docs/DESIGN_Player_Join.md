@@ -638,3 +638,10 @@ Rejected — one line each: *a kit as AmmoLoadout overrides* — a loadout syste
 5. The area offers' names are cached at first sight (an area renamed later keeps its first label until the server restarts) — areas are authored and rarely renamed; a role's labels DO refresh (they are compared each pass).
 
 **Rails** — `Hrot.SimHost.Tests`: `GameplayDeployServerTests` (kit spawns its type / `NoSuchKit` / the shared Max · a named area is the only one used, with `WrongSide` / `NoSuchArea` · every area offered, kit labels · the `DeployRole` scenario round-trip), `GameplayDeployFlowTests` (the request carries kit and area · the flow reads area offers and kit labels, `GET` reports them), `GameplaySpawnPointsTests` (a named area); `Hrot.Presentation.Tests` `DeployScreenRulesTests` (kit rows, areas apart); `Hrot.Editor.Tests` `TheDeployRoutesTests` (`POST` kit/area and the 400s). The S2 0-allocation steady-frame rail stays green. Each red-proofed by a compiling mutation.
+
+### 11.2 S3 LIVE *(backend, `2026-11-05`)*
+
+📐 UC-32 ✅ (`DESIGN_Cluster_Membership_Use_Cases.md` §2.1): offers carry the kit labels and one Area offer per spawn area; kit 1 in a named area spawns the kit's
+type inside that area; an unset kit is refused `NoSuchKit`. ⚠ **Open, not root-caused:** the man spawned in an area facing 180° read yaw −11.8° once Playing
+(S2's 90° area matched to the degree) — either the facing at 180° is converted wrong or he turned between the spawn and the possession; the S2 facing rail covers
+90° only. ⚠ Known (§11.1 deviation 4): an area renamed while the server runs keeps its first label until the server restarts.

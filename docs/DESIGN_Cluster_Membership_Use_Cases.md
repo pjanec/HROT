@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-05 (§2.1 UC-25…31 the deploy and respawn, run live) · 2026-10-28 (§2.1 first live run: UC-20…UC-23 ✅, UC-17 🔴 Player crash on possession) · 2026-10-28 (§2.1 NEW — the multiplayer use cases UC-17…UC-24, CE-4080) · 2026-10-15 (§3.1: CE-4002 routes BUILT and run live) · 2026-10-15 (created — the membership use cases, each with its live HTTP test recipe and its status MEASURED on a
+updated: 2026-11-05 (§2.1 UC-25…32 the deploy, respawn, kits and areas, run live) · 2026-10-28 (§2.1 first live run: UC-20…UC-23 ✅, UC-17 🔴 Player crash on possession) · 2026-10-28 (§2.1 NEW — the multiplayer use cases UC-17…UC-24, CE-4080) · 2026-10-15 (§3.1: CE-4002 routes BUILT and run live) · 2026-10-15 (created — the membership use cases, each with its live HTTP test recipe and its status MEASURED on a
   multi-process cluster the same day)
 build-state: DESIGN — the use cases are the ACCEPTANCE for Q91; the decisions live there, not here.
 current-answer: §2 is the use-case table (what must hold, today's measured status, which decision covers it); §3 is how to
@@ -109,6 +109,7 @@ and updates it.
 | **UC-29** | a Player deploys into a ROLE (Player Join S2) | the server spawns a man of the role's type at a free point of its side's spawn area, facing the area's angle, and the Player possesses him | 📐 `2026-11-05` ✅ (`s2-respawn`: `bc-house-defended` + a blue Spawn Area at (10, 70) ±8 m facing 90°, a "Rifleman" role max 1, respawn 5 s) — man 1031 at (3.3, 65.3), yaw 90°, the Player Playing. ⭐ found on the way and fixed (`615bd99ea`): the Player possessed the ROLE's id, not the man the server named | D-10, D-11, §10 |
 | **UC-30** | a second Player asks for a full role | refused | 📐 `2026-11-05` ✅ `RoleFull` | D-10 |
 | **UC-31** | the Player's man dies | the kill cam, then the deploy screen after the scenario's respawn delay | 📐 `2026-11-05` ✅ `Dead` — *"killed — respawn in 5 s"* — then `Choosing` 5.2 s later; the role's count back to 0 / 1 | D-14 |
+| **UC-32** | a Player picks a role's KIT and a spawn AREA (Player Join S3) | the kit's person type, inside the named area | 📐 `2026-11-05` ✅ (`s3-kits`: two blue areas, "Rifleman" role with kit 1 "Automatic rifleman" = type 207) — kit 1 in "East spawn" ⇒ man 1032, TKB 207, at (59.7, 41.1) inside East, Playing; kit 3 (unset) ⇒ `NoSuchKit`. ⚠ open: he read yaw −11.8° where East faces 180° (S2's 90° matched) — not root-caused | §11 |
 
 ⭐ **The recipe** (§3), with the server's traffic node and two Players. Each Player drives through its OWN port:
 
