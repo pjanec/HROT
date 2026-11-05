@@ -150,6 +150,7 @@ def main():
     ap.add_argument("--fill-seconds", type=float, default=40.0, help="sim seconds to wait for the cars to fill before measuring")
     ap.add_argument("--seconds", type=float, default=60.0, help="sim seconds measured after the fill")
     ap.add_argument("--write-only", action="store_true")
+    ap.add_argument("--trace", metavar="DIR", help="also CPU-trace the cgf / simhost / traffic processes for 15 s at the start of the measured window (dotnet-trace, speedscope)")
     a = ap.parse_args()
     folder, n = write(a.men, a.cars, a.spawn_per_step)
     print(f"wrote {folder}/scenario.json — {n} authored entities")
@@ -196,6 +197,24 @@ def main():
             return 2
         s1, w1 = sim(), time.time()
         f1 = {p: node_work(p)[1] for _, p in NODES}
+        if a.trace:
+            os.makedirs(a.trace, exist_ok=True)
+            tool = os.path.expanduser("~/.dotnet/tools/dotnet-trace")
+            env = dict(os.environ, DOTNET_ROOT=os.environ.get("DOTNET_ROOT", "/usr/local/dotnet"))
+            for mode, port in NODES[1:]:
+                pid = None
+                for p in subprocess.run(["pgrep", "-f", "ClusterRunner[.]dll --mode"], capture_output=True, text=True).stdout.split():
+                    try:
+                        cmd = open(f"/proc/{p}/cmdline").read().replace("\0", " ")
+                        envs = open(f"/proc/{p}/environ").read().split("\0")
+                    except OSError:
+                        continue
+                    if cmd.startswith("dotnet ") and f"HROT_DEBUG_API_PORT={port}" in envs: pid = p
+                if pid:
+                    subprocess.Popen([tool, "collect", "-p", pid, "--profile", "dotnet-sampled-thread-time", "--duration", "00:00:00:15",
+                                      "--format", "speedscope", "-o", os.path.join(a.trace, f"{mode}.nettrace")], env=env,
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print(f"  tracing cgf / simhost / traffic for 15 s into {a.trace}")
         ok = wait(a.seconds)
         s2, w2 = sim(), time.time()
         down = [m for m, up in alive().items() if not up]

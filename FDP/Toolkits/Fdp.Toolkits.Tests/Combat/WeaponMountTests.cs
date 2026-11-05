@@ -39,6 +39,56 @@ namespace Fdp.Toolkit.Combat.Tests
             return template;
         }
 
+        /// <summary>
+        /// ⭐ CE-2410 — <c>EnumerateMounts</c> reads a per-frame owner → mounts index (it scanned every mount part of the world per call: 44 % of
+        /// the CGF node's thread on the CE-2408 stress world). The answer equals the scan's in every case that can happen inside ONE frame: a
+        /// mount ADDED, REMOVED, RE-PARENTED or RE-INDEXED after the index was built, an owner destroyed — and a steady frame allocates nothing.
+        /// 🔴 Red-proof: the "written this frame" rebuild off ⇒ the mount added in the same frame is missing.
+        /// </summary>
+        [Fact]
+        public void CE2410_TheMountIndex_AnswersAsTheScanDid_WhateverHappensInTheFrame()
+        {
+            Entity Mount(Entity owner, int index)
+            {
+                var m = _repo.CreateEntity();
+                _repo.AddComponent(m, new WeaponState { Ammo = 1 });
+                _repo.AddComponent(m, new WeaponMountInfo { MountIndex = index });
+                _repo.AddComponent(m, new PartMetadata { ParentEntity = owner, InstanceId = 100 + index });
+                return m;
+            }
+            var a = _repo.CreateEntity(); var b = _repo.CreateEntity();
+            var a2 = Mount(a, 2); var a1 = Mount(a, 1); var b1 = Mount(b, 1);
+            Span<Entity> dest = stackalloc Entity[8];
+            _repo.Tick();
+            Assert.Equal(new[] { a1, a2 }, dest.Slice(0, WeaponMountQuery.EnumerateMounts(_repo, a, dest)).ToArray());   // sorted by mount index
+
+            var a3 = Mount(a, 3);                                                     // ADDED in the same frame, after the build
+            Assert.Equal(new[] { a1, a2, a3 }, dest.Slice(0, WeaponMountQuery.EnumerateMounts(_repo, a, dest)).ToArray());
+
+            _repo.Tick();
+            _repo.RemoveComponent<WeaponMountInfo>(a2);                               // REMOVED (no version moves)
+            Assert.Equal(new[] { a1, a3 }, dest.Slice(0, WeaponMountQuery.EnumerateMounts(_repo, a, dest)).ToArray());
+
+            _repo.Tick();
+            _repo.SetComponent(b1, new PartMetadata { ParentEntity = a, InstanceId = 7 });   // RE-PARENTED to a
+            Assert.Equal(new[] { a1, b1, a3 }, dest.Slice(0, WeaponMountQuery.EnumerateMounts(_repo, a, dest)).ToArray());
+            Assert.Equal(0, WeaponMountQuery.EnumerateMounts(_repo, b, dest));
+
+            _repo.Tick();
+            _repo.SetComponent(a1, new WeaponMountInfo { MountIndex = 9 });          // RE-INDEXED
+            Assert.Equal(new[] { b1, a3, a1 }, dest.Slice(0, WeaponMountQuery.EnumerateMounts(_repo, a, dest)).ToArray());
+
+            _repo.Tick();
+            _repo.DestroyEntity(a3);
+            Assert.Equal(new[] { b1, a1 }, dest.Slice(0, WeaponMountQuery.EnumerateMounts(_repo, a, dest)).ToArray());
+
+            _repo.Tick();
+            WeaponMountQuery.EnumerateMounts(_repo, a, dest);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++) { WeaponMountQuery.EnumerateMounts(_repo, a, dest); WeaponMountQuery.EnumerateMounts(_repo, b, dest); }
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
         // SC-P0-02-1: 3-mount definition → 3 WeaponState components (1 on owner, 2 children)
         [Fact]
         public void ThreeMountDefinition_SpawnsThreeWeaponStateComponents()

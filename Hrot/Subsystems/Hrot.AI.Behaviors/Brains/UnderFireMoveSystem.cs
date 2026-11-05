@@ -286,18 +286,86 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>⭐ <c>CE-2363</c> — a living man of his force within <paramref name="radius"/> (not himself).</summary>
+        /// <remarks>⭐ CE-2410 — answered from a per-frame grid of the living men (<see cref="FriendGrid"/>): it scanned every entity per call,
+        /// and StressModel / the callouts ask for every man every frame — 📐 9 % of the CGF node's thread on the CE-2408 stress world.
+        /// ⚠ The grid is the frame's: a man who drops later in the same frame still counts until the next one (callout earshot and stress only).</remarks>
         public static bool FriendNear(EntityRepository world, Entity self, Vector3 at, float radius)
         {
             if (!world.IsComponentTypeRegistered<EntityInfo>() || !world.HasComponent<EntityInfo>(self)) return false;
             var force = world.GetComponentRO<EntityInfo>(self).ForceId;
-            float r2 = radius * radius;
-            foreach (var e in world.Query().With<EntityInfo>().With<SimTransform>().With<Fdp.Toolkit.Combat.Components.Health>().Build())
+            var grid = FriendGrid.Of(world);
+            lock (grid) { grid.EnsureFresh(world); return grid.Any(self, (int)force, at, radius); }
+        }
+
+        /// <summary>⭐ CE-2410 — the living men (EntityInfo + SimTransform + Health, below Incapacitated) bucketed in <see cref="Cell"/>-metre
+        /// cells, sorted by cell key; rebuilt once per frame (<see cref="EntityRepository.GlobalVersion"/>) and when an entity is created or destroyed. No allocation once grown.</summary>
+        private sealed class FriendGrid
+        {
+            private const float Cell = 16f;
+            private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<EntityRepository, FriendGrid> s_of = new();
+            public static FriendGrid Of(EntityRepository world) => s_of.GetValue(world, static _ => new FriendGrid());
+
+            private long[] _keys = Array.Empty<long>();
+            private int[] _order = Array.Empty<int>();
+            private float[] _x = Array.Empty<float>(), _y = Array.Empty<float>();
+            private int[] _force = Array.Empty<int>();
+            private Entity[] _entity = Array.Empty<Entity>();
+            private int _n;
+            private uint _builtAt;
+            private int _builtCount, _builtMax;
+            private bool _built;
+            private EntityQuery? _query;
+
+            private static long Key(int cx, int cy) => ((long)cx << 32) ^ (uint)cy;
+
+            public void EnsureFresh(EntityRepository world)
             {
-                if (e.Equals(self) || world.GetComponentRO<EntityInfo>(e).ForceId != force) continue;
-                if (Fdp.Toolkit.Combat.Injury.StateOf(world, e) >= Fdp.Toolkit.Combat.InjuryState.Incapacitated) continue;
-                if (Flat(world.GetComponentRO<SimTransform>(e).Position - at).LengthSquared() < r2) return true;
+                uint now = world.GlobalVersion;
+                int count = world.EntityCount, max = world.MaxEntityIndex;
+                // ⭐ a man created or destroyed inside the frame (a tool, a test, a spawn wave) rebuilds it too; a move or a wound does not
+                if (_built && now == _builtAt && count == _builtCount && max == _builtMax) return;
+                _built = true; _builtAt = now; _builtCount = count; _builtMax = max; _n = 0;
+                _query ??= world.Query().With<EntityInfo>().With<SimTransform>().With<Fdp.Toolkit.Combat.Components.Health>().Build();
+                foreach (var e in _query)
+                {
+                    if (Fdp.Toolkit.Combat.Injury.StateOf(world, e) >= Fdp.Toolkit.Combat.InjuryState.Incapacitated) continue;
+                    if (_n == _keys.Length)
+                    {
+                        int size = Math.Max(256, _n * 2);
+                        Array.Resize(ref _keys, size); Array.Resize(ref _order, size); Array.Resize(ref _x, size); Array.Resize(ref _y, size);
+                        Array.Resize(ref _force, size); Array.Resize(ref _entity, size);
+                    }
+                    var p = world.GetComponentRO<SimTransform>(e).Position;
+                    _x[_n] = p.X; _y[_n] = p.Y; _entity[_n] = e; _force[_n] = (int)world.GetComponentRO<EntityInfo>(e).ForceId;
+                    _keys[_n] = Key((int)MathF.Floor(p.X / Cell), (int)MathF.Floor(p.Y / Cell));
+                    _order[_n] = _n;
+                    _n++;
+                }
+                Array.Sort(_keys, _order, 0, _n);   // keys sorted, _order[i] = the entry at key position i
             }
-            return false;
+
+            public bool Any(Entity self, int force, Vector3 at, float radius)
+            {
+                float r2 = radius * radius;
+                int x0 = (int)MathF.Floor((at.X - radius) / Cell), x1 = (int)MathF.Floor((at.X + radius) / Cell);
+                int y0 = (int)MathF.Floor((at.Y - radius) / Cell), y1 = (int)MathF.Floor((at.Y + radius) / Cell);
+                for (int cx = x0; cx <= x1; cx++)
+                for (int cy = y0; cy <= y1; cy++)
+                {
+                    long key = Key(cx, cy);
+                    int i = Array.BinarySearch(_keys, 0, _n, key);
+                    if (i < 0) continue;
+                    while (i > 0 && _keys[i - 1] == key) i--;
+                    for (; i < _n && _keys[i] == key; i++)
+                    {
+                        int k = _order[i];
+                        if (_force[k] != force || _entity[k].Equals(self)) continue;
+                        float dx = _x[k] - at.X, dy = _y[k] - at.Y;
+                        if (dx * dx + dy * dy < r2) return true;
+                    }
+                }
+                return false;
+            }
         }
 
         private static void Rise(EntityRepository world, Entity self, ref UnderFireMove u, ref MoveToParams move, double now, bool threatened)
