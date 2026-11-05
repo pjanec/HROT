@@ -99,14 +99,15 @@ namespace Fdp.Network.Cyclone.Systems
             for (int i = 0; i < _translators.Length; i++)
             {
                 var translator = _translators[i];
-                var sw = Stopwatch.StartNew();
+                // ⭐ CE-2404 (R-2084) — a timestamp, not a Stopwatch object per translator per frame (≈ 90 translators × every world;
+                //   📐 Stopwatch.Stop alone was 1.3–2.3 % of the main thread in the --mode all traces of 2026-11-04)
+                long started = Stopwatch.GetTimestamp();
                // FDP.Kernel.Logging.FdpLog<CycloneEgressSystem>.Info("Scanning {0}: {1}", i, _translators[i].DescriptorOrdinal);
                 translator.ScanAndPublish(view);
-                sw.Stop();
 
                 if (_translatorProfileData.TryGetValue(translator, out var profile))
                 {
-                    profile.RecordExecution(sw.Elapsed.TotalMilliseconds);
+                    profile.RecordExecution(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                 }
             }
         }

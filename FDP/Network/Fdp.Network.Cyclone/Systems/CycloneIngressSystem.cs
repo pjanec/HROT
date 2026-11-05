@@ -51,15 +51,14 @@ namespace Fdp.Network.Cyclone.Systems
             // Iterate all translators (Polymorphism handles Unsafe vs Managed vs Replay)
             foreach (var translator in _translators)
             {
-                var sw = Stopwatch.StartNew();
+                long started = Stopwatch.GetTimestamp();   // ⭐ CE-2404 (R-2084) — no Stopwatch object per translator per frame
                 // In Owner Model, we just call PollIngress.
                 // The translator holds the Reader (or Replay source).
                 translator.PollIngress(cmd, view);
-                sw.Stop();
 
                 if (_translatorProfileData.TryGetValue(translator, out var profile))
                 {
-                    profile.RecordExecution(sw.Elapsed.TotalMilliseconds);
+                    profile.RecordExecution(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                 }
             }
         }

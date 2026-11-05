@@ -39,16 +39,21 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 int size = System.Math.Max(i + 1, memo.Answer.Length * 2);
                 System.Array.Resize(ref memo.Answer, size);
                 System.Array.Resize(ref memo.Generation, size);
+                System.Array.Resize(ref memo.Mask, size);
             }
+            // ⭐ CE-2405 — the entity's component set is part of the key: GlobalVersion does not move on an add / remove inside a frame, so a
+            //   component removed after the first ask (a cloud tag dropped, the same entity now a unit) kept the stale answer (CE1165 rail).
+            int mask = world.GetComponentMask(i).GetHashCode();
             byte a = memo.Answer[i];
-            if (a != 0 && memo.Generation[i] == entity.Generation) return a == 1;
+            if (a != 0 && memo.Generation[i] == entity.Generation && memo.Mask[i] == mask) return a == 1;
             bool on = Compute(view, entity);
             memo.Answer[i] = on ? (byte)1 : (byte)2;
             memo.Generation[i] = entity.Generation;
+            memo.Mask[i] = mask;
             return on;
         }
 
-        private sealed class FrameMemo { public uint Version = uint.MaxValue; public byte[] Answer = new byte[256]; public ushort[] Generation = new ushort[256]; }
+        private sealed class FrameMemo { public uint Version = uint.MaxValue; public byte[] Answer = new byte[256]; public ushort[] Generation = new ushort[256]; public int[] Mask = new int[256]; }
         private static readonly ConditionalWeakTable<EntityRepository, FrameMemo> Memo = new();
 
         private static bool Compute(ISimulationView view, Entity entity)
