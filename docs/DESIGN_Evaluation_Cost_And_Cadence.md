@@ -721,7 +721,7 @@ Rejected: **the existing budget slicing** (`MaxGizmoFrameMs`) — sheds by not d
 **render the map to a texture at a reduced rate** — the map's camera would lag; a ui-lane change of the renderer · **skip the whole group on
 some frames** — the buffer is cleared every frame, so the map would blink, and the tools' hit-test would miss.
 
-## 11. The STRESS target — 1000 thinking soldiers + objectives + 5000 SUMO cars at 30 Hz *(CE-2408, `2026-11-05` — ⏳ IN PROGRESS: built, not yet run)*
+## 11. The STRESS target — 1000 thinking soldiers + objectives + 5000 SUMO cars at 30 Hz *(CE-2408, `2026-11-05`)*
 
 ⭐ User: *"we need artificial stress test with 1000 thinking entities and with some objectives and around 5000 sumo cars to set a real
 target - 30 hz frames to keep looking for improvements."*
@@ -737,3 +737,17 @@ so far were 500 civilians and 200 cars.
 | `TrafficDemand.CarSpawnPerStep` | APPENDED (R-169) to the component, the `EntityTrafficDemand` wire and both translators; `TrafficSession` passes it to SumoSharp (0 = its default 5) |
 | the run | one node per process (orchestrator, cgf, simhost, traffic — `scripts/cluster-node.sh`), load, play, wait for the fill, measure |
 | ⭐ the TARGET | each node's **work per frame** — the sum of its leaf systems' recent averages (the scheduler's own profiler) — **≤ 33.3 ms**: that node alone holds 30 Hz on its own machine. ⚠ On the 4-core cloud VM the nodes share cores, so the achieved frames per wall second is printed but is NOT the target |
+
+### 11a. 📐 BASELINE — the first valid run *(`2026-11-05`, cloud VM 4 cores; `python3 scripts/perf-stress.py`)*
+
+⚠ The first run found a CRASH, not a number: the recorder's fixed 32 MB frame buffer overflowed on the keyframe and the CGF node died
+(fixed: CE-2409). The second run held real time (68.3 s of sim in 68.7 s of wall; CGF 7 499 entities, SimHost 4 187, traffic 4 786):
+
+| node | work / frame (target ≤ 33.3) | largest systems (ms / frame) |
+|---|---|---|
+| **CGF** | **2 008** (0.9 frames/s achieved) | `CalloutSystem` **870** · `StressSystem` **425** · `WeaponDispatcherSystem` 208 · `BrainTickSystem` 187 · `RecorderTickSystem` 66 · `TrafficMirrorSystem` 59 |
+| SimHost | 334 (4.1 frames/s) | `TrafficMirrorSystem` 70 · `CycloneEgressSystem` 57 · `RecorderTickSystem` 43 · `FireProcessingSystem` 35 · `CarKinematicsSystem` 13 |
+| traffic | 188 (6.5 frames/s) | `TrafficMirrorSystem` 109 · `CycloneEgressSystem` 27 · `RecorderTickSystem` 24 |
+
+⇒ ⭐ **the target is ~60× away on the brain node.** ⭐ Two systems are 65 % of it and look quadratic in the soldiers (`CalloutSystem`,
+`StressSystem`) — the first levers; then the weapon dispatcher and the brains; `TrafficMirrorSystem` is the largest on the other two nodes.
