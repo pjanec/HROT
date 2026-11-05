@@ -158,7 +158,29 @@ namespace Fdp.Core.FlightRecorder
             
             // Find ordered properties/fields
             var members = GetSortedMembers(type);
-            
+
+            // ⭐ CE-4267 (found by the director's reel) — a public READONLY field (a `readonly struct` such as EntityLink, held by
+            //   RouteWaypoint since S9') cannot be the left side of an Assign: the read threw "Expression must be writeable" and a
+            //   preview's exit (WorldKeyframes restore) killed the editor. Such a type is filled through ONE box and reflection
+            //   (FieldInfo/PropertyInfo.SetValue mutate the boxed copy, a struct included), then unboxed. Only these types pay it.
+            if (members.Any(m => m is FieldInfo { IsInitOnly: true }))
+            {
+                var box = Expression.Variable(typeof(object), "box");
+                var boxed = new List<Expression> { block[0], Expression.Assign(box, Expression.Convert(result, typeof(object))) };
+                var fieldSet = typeof(FieldInfo).GetMethod(nameof(FieldInfo.SetValue), new[] { typeof(object), typeof(object) })!;
+                var propSet = typeof(PropertyInfo).GetMethod(nameof(PropertyInfo.SetValue), new[] { typeof(object), typeof(object) })!;
+                foreach (var member in members)
+                {
+                    var memberType = (member is PropertyInfo pi) ? pi.PropertyType : ((FieldInfo)member).FieldType;
+                    var set = Expression.Call(Expression.Constant(member, member is PropertyInfo ? typeof(PropertyInfo) : typeof(FieldInfo)),
+                                              member is PropertyInfo ? propSet : fieldSet,
+                                              box, Expression.Convert(GenerateReadExpression(memberType, reader), typeof(object)));
+                    boxed.Add(memberType.IsValueType ? set : Expression.IfThen(CallRead(reader, typeof(bool)), set));
+                }
+                boxed.Add(Expression.Convert(box, type));
+                return Expression.Lambda<Func<BinaryReader, T>>(Expression.Block(new[] { result, box }, boxed), reader).Compile();
+            }
+
             foreach (var member in members)
             {
                 var memberAccess = Expression.MakeMemberAccess(result, member);

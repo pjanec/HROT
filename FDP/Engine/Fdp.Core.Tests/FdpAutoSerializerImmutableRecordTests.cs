@@ -111,6 +111,31 @@ namespace Fdp.Tests
             Assert.Equal(v.One, back.One);
         }
 
+        public readonly struct ReadonlyLink
+        {
+            public readonly long Ref;
+            public readonly string? Spec;
+            public ReadonlyLink(long r, string? s) { Ref = r; Spec = s; }
+        }
+
+        public struct Waypoint { public float X; public ReadonlyLink Hold; }
+
+        public sealed record RouteLike { public IReadOnlyList<Waypoint> Waypoints { get; init; } = System.Array.Empty<Waypoint>(); }
+
+        /// <summary>
+        /// ⭐ CE-4267 — the shape of <c>RoutePlan → RouteWaypoint → EntityLink</c> (a <c>readonly struct</c> with public readonly fields) round-trips.
+        /// ⛔ Was: "Expression must be writeable" on the read — leaving a preview of a scenario with a held route killed the editor.
+        /// </summary>
+        [Fact]
+        public void CE4267_AReadonlyStructInARecordsList_RoundTrips()
+        {
+            var v = new RouteLike { Waypoints = new[] { new Waypoint { X = 1, Hold = new ReadonlyLink(7, "Exact") }, new Waypoint { X = 2 } } };
+            var back = RoundTrip(v);
+            Assert.Equal(2, back.Waypoints.Count);
+            Assert.Equal((1f, 7L, "Exact"), (back.Waypoints[0].X, back.Waypoints[0].Hold.Ref, back.Waypoints[0].Hold.Spec));
+            Assert.Equal((2f, 0L, (string?)null), (back.Waypoints[1].X, back.Waypoints[1].Hold.Ref, back.Waypoints[1].Hold.Spec));
+        }
+
         [Fact]
         public void ARecord_IsClonedByReference()
         {
