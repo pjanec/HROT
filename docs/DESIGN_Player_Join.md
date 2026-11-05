@@ -642,6 +642,5 @@ Rejected — one line each: *a kit as AmmoLoadout overrides* — a loadout syste
 ### 11.2 S3 LIVE *(backend, `2026-11-05`)*
 
 📐 UC-32 ✅ (`DESIGN_Cluster_Membership_Use_Cases.md` §2.1): offers carry the kit labels and one Area offer per spawn area; kit 1 in a named area spawns the kit's
-type inside that area; an unset kit is refused `NoSuchKit`. ⚠ **Open, not root-caused:** the man spawned in an area facing 180° read yaw −11.8° once Playing
-(S2's 90° area matched to the degree) — either the facing at 180° is converted wrong or he turned between the spawn and the possession; the S2 facing rail covers
-90° only. ⚠ Known (§11.1 deviation 4): an area renamed while the server runs keeps its first label until the server restarts.
+type inside that area; an unset kit is refused `NoSuchKit`. ✅ **Facing settled `2026-11-05`** (yaw sampled every 0.5 s on owner and Player): born at 180°, held 180°; the −11.8° was a one-sample heading transient at the
+possession HANDOVER (re-run: −32.2° for one sample, both nodes, then 180°) — not the spawn. Filed **CE-3368**. ⚠ Known (§11.1 deviation 4): an area renamed while the server runs keeps its first label until the server restarts.
