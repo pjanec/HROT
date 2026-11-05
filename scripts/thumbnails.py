@@ -92,7 +92,11 @@ def positions(limit=160):
         p = (comps.get("SimTransform") or {}).get("Position")
         if p and len(p) == 3 and all(math.isfinite(v) for v in p):
             pts.append(tuple(p))
+            SIZES[tuple(p)] = entity_size(comps)
     return pts
+
+
+SIZES = {}   # a cast member's (height, length, width), by its position — filled by positions(), read by frame_scene()
 
 
 def frame(points, pitch_deg=-50.0, yaw_deg=225.0, margin=1.15, min_radius=10.0):
@@ -209,10 +213,10 @@ def box_corners(center, height, length, width, heading_deg=0.0):
     return out
 
 
-def frame_entity(center, height, length, width, facing_deg=0.0, off_front_deg=30.0, pitch_deg=-15.0):
+def frame_entity(center, height, length, width, facing_deg=0.0, off_front_deg=30.0, pitch_deg=-15.0, fill=None):
     """A low three-quarter view IN FRONT of the entity (~30 degrees off its heading), its oriented box fitted to FILL of the tile (fit_view)."""
     corners = box_corners(center, height, length, width, facing_deg)
-    return fit_view(corners, (center[0], center[1], center[2] + height / 2), facing_deg + off_front_deg, pitch_deg)
+    return fit_view(corners, (center[0], center[1], center[2] + height / 2), facing_deg + off_front_deg, pitch_deg, fill)
 
 
 SCENE_UNIT_M = (4.0, 10.0, 10.0)  # a cast member's box for the scenario fit (height, length, width): a tank with its barrel in any heading fits inside
@@ -220,15 +224,19 @@ SCENE_UNIT_M = (4.0, 10.0, 10.0)  # a cast member's box for the scenario fit (he
 
 def frame_scene(points, pitch_deg=-50.0, yaw_deg=225.0):
     """A scenario's cast fitted like an entity: every member's box, the view centred on their projected extent and filling FILL of the tile."""
-    hgt, ln, wd = SCENE_UNIT_M
-    corners = [c for p in points for c in box_corners(p, hgt, ln, wd)]
+    corners = []
+    for p in points:
+        hgt, ln, wd = SIZES.get(tuple(p), SCENE_UNIT_M)
+        ln = max(ln * 1.3, 1.5); wd = max(wd * 1.3, 1.5)          # a barrel, a little air around a man
+        corners += box_corners(p, hgt, max(ln, wd), max(ln, wd))   # heading-free: a square of the longer side
+    hgt = max(SIZES.get(tuple(p), SCENE_UNIT_M)[0] for p in points)
     cx = sum(p[0] for p in points) / len(points)
     cy = sum(p[1] for p in points) / len(points)
     cz = sum(p[2] for p in points) / len(points)
     return fit_view(corners, (cx, cy, cz + hgt / 2), yaw_deg, pitch_deg)
 
 
-def shoot(path, eye, target):
+def shoot(path, eye, target, width=None, height=None):
     """shot -> a throwaway settle capture (a new shot's first frame reads the weather before the camera moves) -> the capture; the shot released after."""
     try:
         # ⭐ the shot's own layers: `layers: {}` is a take's clean start — the scene rows only, so no unit cards over the picture (a transient override through the
@@ -244,12 +252,46 @@ def shoot(path, eye, target):
             os.remove(path + ".settle.png")
         except OSError:
             pass
-        r = udc.call("POST", "/film/capture", {"path": path, "width": W, "height": H})
+        r = udc.call("POST", "/film/capture", {"path": path, "width": width or W, "height": height or H})
         if not ok(r):
             return False, "capture: " + say(r)
         return (True, "") if os.path.isfile(path) and os.path.getsize(path) > 0 else (False, "no file written")
     finally:
         udc.call("DELETE", "/film/shot")
+
+
+BIG_W, BIG_H = 2048, 1152     # a type is captured large, then cropped to what it drew (sharp after the downscale)
+PLACEHOLDER_RGB = (166, 111, 185)   # the 3-D view's box for a type with no drawing (a voice cue, a deploy role): no thumbnail for it
+
+
+def crop_to_drawn(big, bg, out):
+    """The pixels that differ between the capture with the entity and the same view without it are what it DREW: crop a 16:9 window
+    around them so they fill FILL of it, downscale to W x H. Nothing drawn, or only the placeholder box ⇒ no picture (the picker's
+    default stays). Needs Pillow; without it the large capture is only downscaled."""
+    try:
+        from PIL import Image, ImageChops
+    except ImportError:
+        os.replace(big, out); return ("ok", out + " (no Pillow: not cropped)")
+    a, b = Image.open(big).convert("RGB"), Image.open(bg).convert("RGB")
+    diff = ImageChops.difference(a, b).convert("L").point(lambda v: 255 if v > 24 else 0)
+    box = diff.getbbox()
+    if not box or (box[2] - box[0]) * (box[3] - box[1]) < 400:
+        return ("skipped", "nothing drawn")
+    mask = diff.crop(box)
+    px = [p for p, m in zip(a.crop(box).getdata(), mask.getdata()) if m]
+    purple = sum(1 for r, g, bl in px if abs(r - PLACEHOLDER_RGB[0]) < 30 and abs(g - PLACEHOLDER_RGB[1]) < 30 and abs(bl - PLACEHOLDER_RGB[2]) < 30)
+    if px and purple > 0.5 * len(px):
+        return ("skipped", "only the placeholder box is drawn")
+    x0, y0, x1, y1 = box
+    cw = max((x1 - x0) / FILL, (y1 - y0) / FILL * W / H, 64)
+    ch = cw * H / W
+    if cw > a.width or ch > a.height:
+        cw, ch = a.width, a.height
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    left = min(max(cx - cw / 2, 0), a.width - cw)
+    top = min(max(cy - ch / 2, 0), a.height - ch)
+    a.crop((int(left), int(top), int(left + cw), int(top + ch))).resize((W, H), Image.LANCZOS).save(out)
+    return ("ok", out)
 
 
 def scenario_names(requested):
@@ -331,10 +373,23 @@ def do_types(ids, nas, studio, rows):
                 comps = (body_of(udc.call("GET", f"/entities/{nids[0]}")) or {}).get("Components") or {}
                 pos = (comps.get("SimTransform") or {}).get("Position") or origin
                 height, length, width = entity_size(comps)
-                eye, target = frame_entity(pos, height, length, width, facing_deg=heading_deg(comps))
+                eye, target = frame_entity(pos, height, length, width, facing_deg=heading_deg(comps), fill=0.45)   # generous: the whole of it in view
                 path = os.path.join(out_dir, stem + ".png")
-                good, why = shoot(path, eye, target)
-                rows.append((f"type {tkb} {name}", "ok" if good else "failed", path if good else why))
+                big = path + ".big.png"
+                good, why = shoot(big, eye, target, BIG_W, BIG_H)
+                if not good:
+                    rows.append((f"type {tkb} {name}", "failed", why)); continue
+                for nid in nids:                                   # the same view with nothing in it: the difference is what the entity DREW
+                    udc.call("DELETE", f"/entities/{nid}")
+                udc.call("POST", "/sim/step", {"count": 3})
+                nids = []
+                bg = path + ".bg.png"
+                good, why = shoot(bg, eye, target, BIG_W, BIG_H)
+                verdict = crop_to_drawn(big, bg, path) if good else ("failed", why)
+                for f in (big, bg):
+                    try: os.remove(f)
+                    except OSError: pass
+                rows.append((f"type {tkb} {name}",) + verdict)
             finally:
                 for nid in nids:
                     udc.call("DELETE", f"/entities/{nid}")
