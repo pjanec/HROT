@@ -65,6 +65,7 @@ public sealed class BlueprintVariableSchemaSource : IVariablesSchemaSource
     }
 
     public bool IsReadOnly => false;
+    public DeclarationFeatures Features => DeclarationFeatures.Blackboard;
 
     /// <summary>
     /// ⚠ <b>Parameters get a real C# symbol path</b> — they become fields of the generated

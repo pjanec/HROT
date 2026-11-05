@@ -171,6 +171,7 @@ public sealed class TheRowCarriesItsDeclarationTests
         public Schema(params VariableViewModel[] vars) => Variables = vars;
         public IReadOnlyList<VariableViewModel> Variables { get; }
         public bool IsReadOnly => false;
+        public DeclarationFeatures Features => DeclarationFeatures.Blackboard;
         public string? GetRefactorKey(string variableName) => null;
         public void AddVariable(BlackboardVariableEntry entry) { }
         public void RemoveVariable(string name) { }

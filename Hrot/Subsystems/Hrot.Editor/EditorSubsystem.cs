@@ -3308,7 +3308,7 @@ namespace Hrot.Editor
                     world:          () => _world,
                     session:        () => _fdpRepoAdapter,
                     drawComponents: (s, e) => _fdpEntityInspector?.DrawComponentsFor(s, e),
-                    parameters:     _parametersDrawer ??= new Hrot.Editor.Scenario.ParametersDrawer(_headerParams)));   // ⭐ CE-4253 — the parameter editor, a collapsible header of THIS view
+                    parameters:     _parametersDrawer ??= new Hrot.Editor.Scenario.ParametersDrawer(_headerParams, () => macroArgsEditService)));   // ⭐ CE-4253 — the parameter editor, a collapsible header of THIS view
             _scenarioWorkspace.DetailsViews.Add(
                 Hrot.Editor.AiShared.Shell.ZonesDetailsViewDescriptor.For(
                     rows:     () => Hrot.Presentation.Zones.ZoneStatusReader.Read(_world!),

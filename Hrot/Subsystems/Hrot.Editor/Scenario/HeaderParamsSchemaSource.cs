@@ -45,6 +45,7 @@ public sealed class HeaderParamsSchemaSource : IVariablesSchemaSource
     private void Refuse(string why) { LastRefusal = why; _refuse?.Invoke(why); }
 
     public bool IsReadOnly => _world() is null;
+    public DeclarationFeatures Features => DeclarationFeatures.Parameters;
 
     // ── the resident header ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 

@@ -9,9 +9,30 @@ using Hrot.Editor.AiShared.Windows;
 
 namespace Hrot.Editor.AiShared.Blackboard;
 
+/// <summary>
+/// ⭐ CE-4254 (<c>docs/DESIGN_Field_Declaration_Editor.md</c> §2) — which affordances a declaration host's Variables table draws. ⭐ DATA on the source, not a type hierarchy and not a
+/// host-name test: the control draws a column or button only when its feature is on, so a source cannot inherit a blackboard column it never asked for.
+/// </summary>
+/// <param name="MemoryBudget">The <i>Memory: x / y B</i> line (and the exceeded warning) — a blackboard layout fact.</param>
+/// <param name="ByteSize">The Bytes column.</param>
+/// <param name="LiveValue">The Value column as the blackboard's LIVE runtime value.</param>
+/// <param name="DefaultValueCell">The Value column as an editable DEFAULT value (the field type's StructEdit leaf), committed through <c>UpdateVariableDefaultValueJson</c>.</param>
+/// <param name="UsedByColumn">A read-only <i>used by N</i> column (<c>CountNodesReferencingVariable</c>).</param>
+/// <param name="RemoveUnused">The <i>[ Remove unused ]</i> bulk delete.</param>
+public sealed record DeclarationFeatures(bool MemoryBudget, bool ByteSize, bool LiveValue, bool DefaultValueCell, bool UsedByColumn, bool RemoveUnused)
+{
+    /// <summary>Today's blackboard / blueprint-variable table, unchanged.</summary>
+    public static readonly DeclarationFeatures Blackboard = new(MemoryBudget: true, ByteSize: true, LiveValue: true, DefaultValueCell: false, UsedByColumn: false, RemoveUnused: true);
+    /// <summary>A scenario / macro's declared PARAMETERS: an editable default and a used-by count; no layout facts, no live value, no bulk delete.</summary>
+    public static readonly DeclarationFeatures Parameters = new(MemoryBudget: false, ByteSize: false, LiveValue: false, DefaultValueCell: true, UsedByColumn: true, RemoveUnused: false);
+}
+
 public interface IVariablesSchemaSource
 {
     bool IsReadOnly { get; }
+
+    /// <summary>⭐ CE-4254 — what this source's table draws. ⛔ NO DEFAULT BODY (the seam's rule): every implementer answers, so a new source cannot compile without deciding.</summary>
+    DeclarationFeatures Features { get; }
     IReadOnlyList<VariableViewModel> Variables { get; }
     string? GetRefactorKey(string variableName);
     void AddVariable(BlackboardVariableEntry entry);
@@ -112,6 +133,7 @@ public sealed class BTreeHsmSchemaSource : IVariablesSchemaSource
     }
 
     public bool IsReadOnly => _isReadOnly;
+    public DeclarationFeatures Features => DeclarationFeatures.Blackboard;
     public IReadOnlyList<VariableViewModel> Variables => _vm.Variables;
     public string? GetRefactorKey(string variableName) => null;
     // ⭐ CE-1277 — a read-only table (a code-built graph, a blackboard that failed to load) REFUSES the edit itself, not only its button.
@@ -186,6 +208,22 @@ public sealed class VariablesPanelControl
     private readonly IReadOnlyList<VariableTypeChoice> _typeChoices;
 
     private string? _renameActiveVarName;
+
+    /// <summary>Why the last rename was refused (drawn red under the table until the next rename starts); null when none.</summary>
+    public string? RenameRefusal { get; private set; }
+
+    /// <summary>Frame-rail probe: the <i>used by</i> count drawn per row name by the last frame (empty without the column).</summary>
+    public System.Collections.Generic.Dictionary<string, int> UsedByDrawn { get; } = new();
+
+    /// <summary>Frame-rail probes (CE-4254): the column headers, the memory line and the Remove-unused button the last frame drew; the default cell's open edit session of a row.</summary>
+    internal System.Collections.Generic.List<string> ColumnHeaders { get; } = new();
+    internal bool MemoryLineDrawn { get; private set; }
+    internal bool RemoveUnusedDrawn { get; private set; }
+    internal StructEdit.Core.IEditSession? DefaultCellSession(string name) => _defaultCells?.SessionOf(name);
+
+    /// <summary>Frame-rail probe (CE-4254): the screen rect of each variable-name cell drawn by the last <see cref="DrawSingle"/>; a rail clicks the REAL cell.</summary>
+    public System.Collections.Generic.IReadOnlyList<(string Name, System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> DrawnNameCells => _nameCells;
+    private readonly System.Collections.Generic.List<(string Name, System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> _nameCells = new();
     private readonly byte[] _renameBuf = new byte[256];
 
     private bool _openAddPopup;
@@ -256,8 +294,13 @@ public sealed class VariablesPanelControl
         return _choices;
     }
 
-    public VariablesPanelControl(IRefactorService refactorService, IEditableAsset assetBase, IReadOnlyList<VariableTypeChoice> typeChoices)
+    private readonly Hrot.Editor.AiShared.Scenarios.ParamArgsTable? _defaultCells;
+
+    /// <param name="editService">⭐ CE-4254 — the StructEdit service the DEFAULT cell's leaf editor opens over (only a source with <see cref="DeclarationFeatures.DefaultValueCell"/> needs one).</param>
+    public VariablesPanelControl(IRefactorService refactorService, IEditableAsset assetBase, IReadOnlyList<VariableTypeChoice> typeChoices,
+        Func<StructEdit.Core.IComponentEditService?>? editService = null)
     {
+        if (editService != null) _defaultCells = new Hrot.Editor.AiShared.Scenarios.ParamArgsTable(editService, null, "$.paramdefault.");
         _refactorService = refactorService;
         _assetBase = assetBase;
         _typeChoices = typeChoices;
@@ -267,7 +310,10 @@ public sealed class VariablesPanelControl
         Func<string, FieldDecoration?>? rowDecoration = null,
         IReadOnlyDictionary<string, string>? liveValues = null)
     {
+        _nameCells.Clear();
+        UsedByDrawn.Clear(); ColumnHeaders.Clear(); MemoryLineDrawn = RemoveUnusedDrawn = false;
         DrawSection(section, rowDecoration, liveValues);
+        if (RenameRefusal != null) ImGui.TextColored(new System.Numerics.Vector4(1f, 0.4f, 0.4f, 1f), RenameRefusal);
         DrawPopups();
     }
 
@@ -295,9 +341,12 @@ public sealed class VariablesPanelControl
         // Memory budget header.
         // ⭐ CE-314: ONE line, always. The two-line Inline/Heavy form reported a Blackboard1024 budget
         //   that P4-① deleted — an authoring surface for storage that cannot exist.
-        ImGui.TextColored(BudgetColor(section.TotalInlineBytes, section.InlineBudget), $"Memory: {section.TotalInlineBytes} / {section.InlineBudget} B");
+        var feat = schema.Features;
+        MemoryLineDrawn |= feat.MemoryBudget;
+        if (feat.MemoryBudget)
+            ImGui.TextColored(BudgetColor(section.TotalInlineBytes, section.InlineBudget), $"Memory: {section.TotalInlineBytes} / {section.InlineBudget} B");
 
-        if (section.Warning == PackWarning.InlineMemoryExceeded)
+        if (feat.MemoryBudget && section.Warning == PackWarning.InlineMemoryExceeded)
             ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), "Memory budget exceeded!");
 
         // ⭐ CE-1061 (U5a, R-3001, DESIGN_Orders_Params_Entity_Classes §13.10b) — name the asset's params DTO: hand-written C# or a
@@ -331,9 +380,10 @@ public sealed class VariablesPanelControl
         }
 
         // Only count hand-authored unused vars for the "Remove unused" button.
-        if (schema.Variables.Any(v => v.IsUnused && !v.IsAutoManaged) && !schema.IsReadOnly)
+        if (feat.RemoveUnused && schema.Variables.Any(v => v.IsUnused && !v.IsAutoManaged) && !schema.IsReadOnly)
         {
             ImGui.SameLine();
+            RemoveUnusedDrawn = true;
             if (ImGui.Button($"[ Remove unused ]##rmvu_{section.TableId}"))
             {
                 _openRemoveUnusedPopup = true;
@@ -427,12 +477,17 @@ public sealed class VariablesPanelControl
         var schema = section.Schema;
         // ⭐ CE-2135 (B3a, R-3000) — no Role column: a variable is a variable; the behaviour's JSON params are the reserved
         //   read-only "Params" row (its named DTO). ⛔ HISTORY: an Input/State combo per row (U-5/BP-230).
-        if (ImGui.BeginTable(section.TableId, 5, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
+        var feat = schema.Features;
+        bool valueCol = feat.LiveValue || feat.DefaultValueCell;
+        int cols = 3 + (feat.ByteSize ? 1 : 0) + (valueCol ? 1 : 0) + (feat.UsedByColumn ? 1 : 0);   // Name, Type, [Bytes], [Value], [Used by], ##rmv
+        if (ImGui.BeginTable(section.TableId, cols, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
         {
+            ColumnHeaders.Add("Name"); ColumnHeaders.Add("Type"); if (feat.ByteSize) ColumnHeaders.Add("Bytes"); if (valueCol) ColumnHeaders.Add(feat.DefaultValueCell ? "Default" : "Value"); if (feat.UsedByColumn) ColumnHeaders.Add("Used by");
             ImGui.TableSetupColumn("Name",  ImGuiTableColumnFlags.WidthStretch);
             ImGui.TableSetupColumn("Type",  ImGuiTableColumnFlags.WidthFixed, 90f);
-            ImGui.TableSetupColumn("Bytes", ImGuiTableColumnFlags.WidthFixed, 50f);
-            ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch);
+            if (feat.ByteSize) ImGui.TableSetupColumn("Bytes", ImGuiTableColumnFlags.WidthFixed, 50f);
+            if (valueCol) ImGui.TableSetupColumn(feat.DefaultValueCell ? "Default" : "Value", ImGuiTableColumnFlags.WidthStretch);
+            if (feat.UsedByColumn) ImGui.TableSetupColumn("Used by", ImGuiTableColumnFlags.WidthFixed, 56f);
             ImGui.TableSetupColumn("##rmv", ImGuiTableColumnFlags.WidthFixed, 24f);
             ImGui.TableHeadersRow();
 
@@ -477,6 +532,7 @@ public sealed class VariablesPanelControl
                 {
                     string label = row.IsUnused ? $"o {row.Name}" : row.Name;
                     ImGui.Selectable(label, false, ImGuiSelectableFlags.None, new System.Numerics.Vector2(0f, 0f));
+                    _nameCells.Add((row.Name, ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
 
                     if (ImGui.IsItemHovered())
                     {
@@ -485,6 +541,7 @@ public sealed class VariablesPanelControl
                         if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left) && !schema.IsReadOnly && !row.IsReadOnly)
                         {
                             _renameActiveVarName = row.Name;
+                            RenameRefusal = null;
                             Array.Clear(_renameBuf, 0, _renameBuf.Length);
                             System.Text.Encoding.UTF8.GetBytes(row.Name, 0, row.Name.Length, _renameBuf, 0);
                         }
@@ -554,14 +611,35 @@ public sealed class VariablesPanelControl
                 }
 
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.TypeName);
-                ImGui.TableNextColumn(); ImGui.TextUnformatted(row.ByteSize.ToString());
-                ImGui.TableNextColumn();
+                if (feat.ByteSize) { ImGui.TableNextColumn(); ImGui.TextUnformatted(row.ByteSize.ToString()); }
+                if (feat.DefaultValueCell)
                 {
+                    // ⭐ CE-4254 — the DEFAULT value: the field type's StructEdit leaf (the ParamArgsTable path, CE-4141), committed through the source.
+                    ImGui.TableNextColumn();
+                    if (_defaultCells is null) ImGui.TextDisabled("—");
+                    else
+                    {
+                        ImGui.BeginDisabled(schema.IsReadOnly || row.IsReadOnly);
+                        var arow = new Hrot.Editor.AiShared.Scenarios.ParamArgRow(row.Name, row.TypeName, row.FieldType, row.Comment, row.DefaultValueJson, null);
+                        _defaultCells.DrawCell(arow, (r, json) => schema.UpdateVariableDefaultValueJson(r.Name, json));
+                        ImGui.EndDisabled();
+                    }
+                }
+                else if (feat.LiveValue)
+                {
+                    ImGui.TableNextColumn();
                     // BATCH-11: live value column ("—" when no provider or no matching entity).
                     if (liveValues != null && liveValues.TryGetValue(row.Name, out var lv))
                         ImGui.TextUnformatted(lv);
                     else
                         ImGui.TextDisabled("—");
+                }
+                if (feat.UsedByColumn)
+                {
+                    ImGui.TableNextColumn();
+                    int n = schema.CountNodesReferencingVariable(row.Name);
+                    UsedByDrawn[row.Name] = n;
+                    if (n > 0) ImGui.TextUnformatted(n.ToString()); else ImGui.TextDisabled("0");
                 }
                 // ⛔ CE-3193 — the Scope column (and Role before it, CE-2135) is gone: a variable has no kind to show.
                 ImGui.TableNextColumn();
@@ -767,7 +845,10 @@ public sealed class VariablesPanelControl
         if (string.IsNullOrEmpty(newName) || newName == oldName) return;
         // ⭐ CE-3182 — a rename obeys the Add rule (an identifier, not a keyword, unique): a '.' would make every binding path
         //   (Var.Field) ambiguous, and a non-identifier cannot be the block struct's field name anyway.
-        if (BlackboardNameValidator.Validate(newName) != null || schema.Variables.Any(v => v.Name == newName)) return;
+        // ⭐ CE-4254 (measured): this used to return SILENTLY, so a refused name "reverted on Enter" with no word why — now the reason is drawn under the table.
+        var why = BlackboardNameValidator.Validate(newName) ?? (schema.Variables.Any(v => v.Name == newName) ? $"A variable named '{newName}' already exists." : null);
+        if (why != null) { RenameRefusal = $"Rename refused: {why}"; return; }
+        RenameRefusal = null;
 
         var fromKey = schema.GetRefactorKey(oldName) ?? $"{_assetBase.AssetId:D}::{oldName}";
         var toKey   = schema.GetRefactorKey(newName) ?? $"{_assetBase.AssetId:D}::{newName}";

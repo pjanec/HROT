@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD (approved by the user 2026-11-05: "CE-4254 approved.")
+build-state: BUILT 2026-11-05 (approved by the user 2026-11-05: "CE-4254 approved."; as-built in §5)
 updated: 2026-11-05
 current-answer: §2 (decision) and §3 (the two defects first)
 stale-below: nothing
@@ -103,3 +103,12 @@ live column by design) — the default cell of §2 replaces it for this host.
 
 A parameter can be renamed (Enter keeps it), its default edited in place by its type's leaf, Ctrl+Z / Ctrl+Y undo / redo both, no byte
 size, no *Remove unused*, a *used by N* column; the three blackboard hosts draw exactly as before (their existing frame rails unchanged).
+
+## 5. As-built *(ui, `2026-11-05`)*
+
+| design said | built |
+|---|---|
+| §3 three suspects for the lost rename | ⭐ **suspect (a).** A frame rail driving the real gesture (double-click, type, Enter) KEEPS a valid name — the control, the source and the header re-read are fine (b, c refuted; `SetKeyboardFocusHere` every frame does not eat Enter). `CommitRename` returned silently for a name `BlackboardNameValidator` refuses (space, hyphen, leading digit) or a duplicate ⇒ "reverts on Enter". Now `VariablesPanelControl.RenameRefusal` is drawn red under the table. |
+| `DeclarationFeatures` has `Exposure` | the control branches on no exposure affordance, so the record carries what it DOES branch on: `MemoryBudget · ByteSize · LiveValue · DefaultValueCell · UsedByColumn · RemoveUnused` (`Blackboard` / `Parameters` presets); `MemoryBudget` was added — the parameters table also drew *Memory: 0 / 0 B*. |
+| the default cell is the StructEdit leaf, via the ParamArgsTable path | `ParamArgsTable.DrawCell(row, onSet)` — the one-cell form sharing `PrepareRow` / `CommitIfDirty` with the table row; the control owns one table built from an `IComponentEditService` provider (`ParametersDrawer` is handed the editor's, else builds the shared facet service). |
+| Ctrl+Z / Ctrl+Y | `ParametersDrawer.HandleUndoChords` — while the drawer's window is focused and no text field is active; Ctrl+Shift+Z = redo. Buttons removed; the refusal line stays. |

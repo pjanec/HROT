@@ -75,6 +75,7 @@ public sealed class BlueprintLocalVariableSchemaSource : IVariablesSchemaSource
     /// a surface that vanishes teaches nothing (the standing <c>Q26-B2</c> ruling).
     /// </summary>
     public bool IsReadOnly => _currentGraph() is not { } g || g.Kind == GraphKind.Macro;
+    public DeclarationFeatures Features => DeclarationFeatures.Blackboard;
 
     /// <summary>Null when no graph is open, or when the open graph cannot own locals.</summary>
     private Graph? EditableGraph

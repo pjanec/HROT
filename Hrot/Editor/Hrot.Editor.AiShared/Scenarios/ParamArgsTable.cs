@@ -145,6 +145,13 @@ public sealed class ParamArgsTable : IDisposable
         }
         else ImGui.TextDisabled("default");
 
+        CommitIfDirty(row, st, onSet);
+        return false;
+    }
+
+    /// <summary>The commit of an edit: when the form is dirty and valid, serialises it and tells the caller (<paramref name="onSet"/>) — shared by the table row and the one-cell form.</summary>
+    private static void CommitIfDirty(ParamArgRow row, RowState st, Action<ParamArgRow, string> onSet)
+    {
         if (st.Session.IsDirty)
         {
             try
@@ -158,7 +165,36 @@ public sealed class ParamArgsTable : IDisposable
             }
             catch (EditValidationException) { /* an invalid edit stays in the form; nothing is written */ }
         }
-        return false;
+    }
+
+    /// <summary>
+    /// ⭐ CE-4254 — the ONE-CELL form of a row: the field type's StructEdit leaf, with no table and no reset column, for a host that already owns the table
+    /// (the Variables table's <i>default</i> cell). Same session / drawer / commit as <see cref="Draw"/>; the caller owns what an edit means (<paramref name="onSet"/>).
+    /// Returns false (a muted line) when there is no editor service or the type is unknown.
+    /// </summary>
+    public bool DrawCell(ParamArgRow row, Action<ParamArgRow, string> onSet)
+    {
+        if (_editService() is not { } svc) { ImGui.TextDisabled("No editor service."); return false; }
+        if (row.Type is null) { ImGui.TextDisabled($"unknown type '{row.TypeId}'"); return false; }
+        ImGui.PushID(row.Name);
+        try
+        {
+            var st = PrepareRow(svc, row)!;
+            // the drawer's leaf starts with TableNextRow — it needs its OWN two-column table, nested in the host's cell (else it would add a row to the host's table)
+            if (ImGui.BeginTable("##defcell", 2, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX))
+            {
+                try
+                {
+                    ImGui.TableSetupColumn("##n", ImGuiTableColumnFlags.WidthFixed, 1f);
+                    ImGui.TableSetupColumn("##v", ImGuiTableColumnFlags.WidthStretch);
+                    st.Drawer.DrawRoot(VariableEditModal.ScalarRowOrRoot(st.Session.Document.Root, row.Name));
+                }
+                finally { ImGui.EndTable(); }
+            }
+            CommitIfDirty(row, st, onSet);
+        }
+        finally { ImGui.PopID(); }
+        return true;
     }
 
     /// <summary>The open edit session of row <paramref name="name"/> (null before it was drawn) — the frame rails edit through it as the row's widget does.</summary>
