@@ -949,3 +949,24 @@ liveness once per frame — 3–8× cheaper per entity on every node (A/B on one
 on the SAME calls (grid 246 ms vs scan 3 104 ms over 1 633 calls, 0 mismatches; the run-level brain tick follows the fight too much to decide
 by). ⚠ 1 000 soldiers now gets the brain EJECTED at load (one frame over the 5 s heartbeat, CE-2417), so the A/B ran at 700. Egress (option
 b, one walk for every translator) is next — designed first, measured the same way.
+
+### 11f. 📐 Before / after, the whole programme *(`2026-11-05`; base `5858663d4` = before CE-2410…2418, head `114dea0fd`)*
+
+⭐ **1 000 soldiers now LOAD and run** (CE-2417 — the base cannot: its brain is ejected at load). ⇒ the like-for-like comparison is at **700**,
+alternating base / head, three valid pairs plus one head run that gave no verdict.
+
+| ms per frame, per system (700 soldiers) | base (2 runs) | head (1 run with the breakdown) |
+|---|---|---|
+| CGF egress | 35.8 / 47.1 | **19.5** |
+| CGF weapon dispatcher · callouts | 32–60 · 23–47 | **< 7.7** (out of the top six) |
+| CGF recorder | 26.5 | **10.7** |
+| SimHost egress | 60.7 / 66.7 | **26.6** |
+| SimHost fire processing | 34–35 | **< 4.4** (out of the top six) |
+| Traffic egress | 29.8 / 38.0 | **22.7** |
+
+| ⚠ what this does NOT show | |
+|---|---|
+| a whole-node gain at 700 | ⛔ node work per entity is within the run-to-run spread (±30 %): the fight differs per run (entities 1 572 – 5 825 per node) and the costs that remain dominate — `BrainTickSystem`, `StressSystem`, `TrafficMirrorSystem`, `CarKinematicsSystem` |
+| a clean head breakdown | ⚠ the one head run with the breakdown filled fewer cars (Traffic 1 572 entities vs 2 965 – 3 321) — its absolute numbers flatter it; the per-system A/Bs on ONE binary (§11e, CE-2416, CE-2418) remain the evidence each lever is real |
+
+⇒ ⭐ **next levers, by this table: the brain tick, `StressSystem`, the traffic mirror (Traffic and SimHost), car kinematics.**
