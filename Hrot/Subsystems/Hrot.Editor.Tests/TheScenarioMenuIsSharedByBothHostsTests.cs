@@ -298,7 +298,9 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         Assert.Equal(mine.OrderBy(p => p, StringComparer.Ordinal).ToArray(), MenuPaths(menu));
 
         // the DRAW order is the table's, whatever the registration order was
-        var drawn = menu.Root.Children["File"].OrderedChildren().Select(c => "File/" + c.Name).ToArray();
+        // ⭐ CE-4255 — depth-first: the New submenu's children are drawn where New is
+        static IEnumerable<string> Leaves(MenuItemNode n, string path) => n.Children.Count == 0 ? new[] { path } : n.OrderedChildren().SelectMany(c => Leaves(c, path + "/" + c.Name));
+        var drawn = menu.Root.Children["File"].OrderedChildren().SelectMany(c => Leaves(c, "File/" + c.Name)).ToArray();
         Assert.Equal(FileMenuLayout.InOrder.Where(drawn.Contains).ToArray(), drawn);
         Assert.Equal(mine, drawn);
     }

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Refactor;
@@ -12,12 +11,13 @@ using ImGuiNET;
 namespace Hrot.Editor.Scenario;
 
 /// <summary>
-/// ⭐ CE-4210 P2 (MA-5) — <i>Scenario ▸ Parameters…</i>: the ONE Variables table (<see cref="VariablesPanelControl"/>) over the loaded scenario / macro's declared params
-/// (<see cref="HeaderParamsSchemaSource"/>), plus Undo / Redo of its steps (a rename moves the declaration and every binding in ONE step).
+/// ⭐ CE-4210 P2 (MA-5) → ⭐ CE-4253 — the scenario / macro's PARAMETERS editor: the ONE Variables table (<see cref="VariablesPanelControl"/>) over the declared params
+/// (<see cref="HeaderParamsSchemaSource"/>), plus Undo / Redo of its steps (a rename moves the declaration and every binding in ONE step). ⭐ CE-4253 — it was the
+/// <c>ParametersWindow</c> behind <i>Scenario ▸ Parameters…</i>; the Scenario menu is gone and this body is now a DRAWER the Details ▸ Scenario view calls inside its
+/// collapsible <i>Parameters</i> header (<see cref="ScenarioEnvironmentView"/>).
 /// </summary>
-public sealed class ParametersWindow : ManagedWindow
+public sealed class ParametersDrawer
 {
-    public const string WindowId = "editor_parameters";
 
     private sealed class ParamsAsset : IEditableAsset
     {
@@ -47,23 +47,30 @@ public sealed class ParametersWindow : ManagedWindow
     private readonly VariablesPanelControl _control;
     private readonly VariablesPanelSection _section;
 
-    public ParametersWindow(HeaderParamsSchemaSource source)
-        : base(WindowId, "Parameters", "Scenario", WindowScope.PerspectiveBound)
+    public ParametersDrawer(HeaderParamsSchemaSource source)
     {
         _source = source ?? throw new ArgumentNullException(nameof(source));
         var choices = new List<VariableTypeChoice>();
         foreach (var (id, type) in Fdp.Toolkit.Scenario.ParamTypes.All()) choices.Add(new VariableTypeChoice(id, type));
         _control = new VariablesPanelControl(new NoRefactor(), new ParamsAsset(), choices);
         _section = new VariablesPanelSection("Parameters", "ce4210_params", _source, 0, 0, PackWarning.None, AliasingEnabled: false);
-        IsOpen = false;
-        ShowInMenu = false;
     }
 
-    /// <summary>Opens (and raises) the window — the menu item and the bind popup's <i>New parameter…</i> call this.</summary>
-    public void Show() => IsOpen = true;
+    /// <summary>For rails: how many times the body was drawn (the header closed ⇒ not at all).</summary>
+    internal int DrawCount { get; private set; }
 
-    protected override void DrawClientArea()
+    private bool _openRequested;
+
+    /// <summary>⭐ CE-4253 — asks the Scenario view to show its Parameters header EXPANDED the next time it draws (the bind popup's <i>New parameter…</i> calls this).</summary>
+    public void RequestOpen() => _openRequested = true;
+
+    /// <summary>⭐ True once per <see cref="RequestOpen"/> — the view expands the header for that frame.</summary>
+    public bool ConsumeOpenRequest() { bool r = _openRequested; _openRequested = false; return r; }
+
+    /// <summary>The drawer's content: Undo / Redo, the refusal line, the table.</summary>
+    public void Draw()
     {
+        DrawCount++;
         var h = _source.History;
         ImGui.BeginDisabled(!h.CanUndo);
         if (ImGui.Button("Undo")) h.Undo();

@@ -360,7 +360,7 @@ public sealed class TheRunChoiceIsOnEveryHostTests
     /// <summary>The scenario menu items the ONE registrar owns (AQ108 §3a / CE-4097 part two) — pinned by path so the three hosts are compared on the same leaves.</summary>
     private static readonly string[] ScenarioMenuPaths =
     {
-        "File/Load Scenario…", "File/New Scenario…", "File/Load Checkpoint…", "File/Open Exercise Recording…", "File/Save Checkpoint",
+        "File/Load Scenario…", "File/New/Scenario…", "File/Load Checkpoint…", "File/Open Exercise Recording…", "File/Save Checkpoint",
         "File/Save Scenario", "File/Save Scenario As", "File/Migration History", "File/Save Curated Scenarios to Git", "File/Close",   // ⭐ CE-1443 (AQ108 §2.15): one flat menu, no submenus
     };
 
@@ -421,7 +421,7 @@ public sealed class TheRunChoiceIsOnEveryHostTests
             Assert.Equal(editorShape, ScenarioMenuShape(orchestratorWindows));
             Assert.Contains("File/Load Scenario…: bound=True idle=True", editorShape);
             Assert.Contains("File/Open Exercise Recording…: bound=True idle=True", editorShape);
-            Assert.Contains("File/New Scenario…: bound=True idle=True", editorShape);
+            Assert.Contains("File/New/Scenario…: bound=True idle=True", editorShape);
             Assert.Contains("File/Load Checkpoint…: bound=True idle=True", editorShape);
             Assert.Contains("File/Close: bound=True idle=True", editorShape);
             Assert.Contains("File/Save Checkpoint: bound=True idle=False", editorShape);                 // live runs only, never on Start

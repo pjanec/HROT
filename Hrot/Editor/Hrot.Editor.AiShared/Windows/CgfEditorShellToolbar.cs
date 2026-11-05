@@ -93,15 +93,15 @@ public static class CgfEditorShellToolbar
         // ⭐⭐⭐ UXI-05 — `MenuPath` makes this ONE table serve BOTH surfaces. 📄
         //    DESIGN_Cgf_Menu_Follows_Focus_Slice.md §3 ③: *"the menu pass reads the SAME Layout/shell the
         //    toolbar pass does; no CGF-private menu list."* ⛔ A slot with no MenuPath is toolbar-only.
-        new(NewAssetId,      -11, Group: 1, MenuPath: "File/New Asset…",  MenuOrder: 1),
+        new(NewAssetId,      -11, Group: 1, MenuPath: Hrot.Editor.AiShared.Scenarios.FileMenuLayout.NewAsset,  MenuOrder: 1),
         new(OpenAssetId,     -10, Group: 1, MenuPath: "File/Open Asset…", MenuOrder: 0),
         new(SaveId,           -9, Group: 1, MenuPath: "File/Save",        MenuOrder: 5),
         // ⭐⭐ CE-460 (E4) — product first, technology second: each opens the New-Asset tree ROOTED at its
         //    product. 🔒 User, 2026-09-30: "'New Behaviour / New Action / New Condition' is additive" — so they
         //    sit right after New Asset…, which is unchanged. MenuOnly: no toolbar buttons.
-        new(NewBehaviorId,     0, MenuPath: "File/New Behavior…",  MenuOrder: 2, MenuOnly: true),
-        new(NewActionId,       0, MenuPath: "File/New Action…",    MenuOrder: 3, MenuOnly: true),
-        new(NewConditionId,    0, MenuPath: "File/New Condition…", MenuOrder: 4, MenuOnly: true),
+        new(NewBehaviorId,     0, MenuPath: Hrot.Editor.AiShared.Scenarios.FileMenuLayout.NewBehavior,  MenuOrder: 2, MenuOnly: true),
+        new(NewActionId,       0, MenuPath: Hrot.Editor.AiShared.Scenarios.FileMenuLayout.NewAction,    MenuOrder: 3, MenuOnly: true),
+        new(NewConditionId,    0, MenuPath: Hrot.Editor.AiShared.Scenarios.FileMenuLayout.NewCondition, MenuOrder: 4, MenuOnly: true),
         // ⭐ CE-1443 B2 — Save … as Recipe (a document), on both hosts through this one table; menu-only (no toolbar button).
         new(Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveAsRecipeId, 0, MenuPath: Hrot.Editor.AiShared.Scenarios.FileMenuLayout.SaveAsRecipe, MenuOrder: 6, MenuOnly: true),
         // ⛔⛔ NO SaveAll SLOT, and that is a DELIBERATE DEVIATION from the design's §3 subset sentence

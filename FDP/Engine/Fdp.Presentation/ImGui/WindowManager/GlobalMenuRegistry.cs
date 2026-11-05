@@ -165,7 +165,7 @@ public class GlobalMenuRegistry
     /// AFTER the rightmost listed non-Help menu (<see cref="UnlistedRank"/>), registration order among themselves — never in the right-aligned group.
     /// ⛔ SUPERSEDED: the CE-1243 order … Debug · Perspective · Settings · Windows · Help, and the "unlisted menus rank just before Windows" anchor (<c>FirstTrailingMenu</c>).</para>
     /// </summary>
-    public static readonly IReadOnlyList<string> TopLevelOrder = new[] { "File", "Edit", "View", "Scenario", "Tools", "Debug", "Help" };
+    public static readonly IReadOnlyList<string> TopLevelOrder = new[] { "File", "Edit", "View", "Tools", "Debug", "Help" };
 
     /// <summary>⭐ CE-4114 — the window manager's window list; a submenu of <c>View</c>: <c>View/Windows/…</c>.</summary>
     public const string WindowsMenu = "Windows";

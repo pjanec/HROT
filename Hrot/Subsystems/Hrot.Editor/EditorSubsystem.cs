@@ -264,7 +264,7 @@ namespace Hrot.Editor
         private EntityRepository?       _world;
         private StructEdit.Core.IComponentEditService? _runSetupEditService;   // ⭐ AQ108 D24 — built on first use by the scenario picker's Run setup
         private readonly Hrot.Editor.Scenario.HeaderParamsSchemaSource _headerParams;   // ⭐ CE-4210 P2 (MA-5)
-        private Hrot.Editor.Scenario.ParametersWindow? _parametersWindow;
+        private Hrot.Editor.Scenario.ParametersDrawer? _parametersDrawer;
         private Hrot.Editor.Scenario.SaveSelectionAsMacroWindow? _saveSelectionWindow;   // ⭐ CE-4210 MA-9
         private Action<Action<string>>? _openMacroPicker;   // ⭐ CE-4210 MA-8 — the scenario picker's Macros group, for the instance's "Change…" (set once the picker exists)
 
@@ -3294,7 +3294,8 @@ namespace Hrot.Editor
                 Hrot.Editor.Scenario.ScenarioEnvironmentViewDescriptor.For(
                     world:          () => _world,
                     session:        () => _fdpRepoAdapter,
-                    drawComponents: (s, e) => _fdpEntityInspector?.DrawComponentsFor(s, e)));
+                    drawComponents: (s, e) => _fdpEntityInspector?.DrawComponentsFor(s, e),
+                    parameters:     _parametersDrawer ??= new Hrot.Editor.Scenario.ParametersDrawer(_headerParams)));   // ⭐ CE-4253 — the parameter editor, a collapsible header of THIS view
             _scenarioWorkspace.DetailsViews.Add(
                 Hrot.Editor.AiShared.Shell.ZonesDetailsViewDescriptor.For(
                     rows:     () => Hrot.Presentation.Zones.ZoneStatusReader.Read(_world!),
@@ -4181,9 +4182,9 @@ namespace Hrot.Editor
                     showNewMacroDialog: ShowNewMacroDialog)   // ⭐ CE-4210 MA-6
                 : null;
 
-            // ⭐ CE-4210 MA-6 — Scenario ▸ New Macro…  (a macro starts from a scenario recipe's terrain, like New Scenario…)
+            // ⭐ CE-4210 MA-6 — File ▸ New ▸ Macro…  (a macro starts from a scenario recipe's terrain, like New Scenario…) — ⭐ CE-4253/4255: it was Scenario/New Macro…
             if (newAssetLauncher is { CanOpenMacro: true })
-                windowManager.GlobalMenu.RegisterItem("Scenario/New Macro…", () => newAssetLauncher.OpenMacro(), "Scenario", allowedInIdle: false);
+                windowManager.GlobalMenu.RegisterItem(Hrot.Editor.AiShared.Scenarios.FileMenuLayout.NewMacro, () => newAssetLauncher.OpenMacro(), "Scenario", allowedInIdle: false);
 
             // ⭐⭐ CE-4098 (AQ108 D16/D19) — File › Open Recording: the master's exercise inventory (the core's cluster read model, the SAME
             //   list GET /exercises serves) in the shared picker; a pick opens into AAR through the session's ONE replay intent.
@@ -5042,10 +5043,8 @@ namespace Hrot.Editor
             Func<System.Collections.Generic.List<Fdp.ModuleHost.ModuleStats>?>? editorExecutionStats =
                 _kernel != null ? () => _kernel?.GetExecutionStats() : null;
 
-            // ⭐ CE-4210 P2 (MA-5) — Scenario ▸ Parameters…: the loaded scenario / macro's params in the shared Variables table.
-            _parametersWindow = new Hrot.Editor.Scenario.ParametersWindow(_headerParams);
-            windowManager.RegisterWindow(_parametersWindow);
-            windowManager.GlobalMenu.RegisterItem("Scenario/Parameters…", () => _parametersWindow?.Show(), "Scenario");
+            // ⭐ CE-4253 — the Scenario menu is gone: the parameters live in Details ▸ Scenario (a collapsible header; the drawer is created with that view)
+            _parametersDrawer ??= new Hrot.Editor.Scenario.ParametersDrawer(_headerParams);
 
             // ⭐ CE-4210 MA-9 — Save selection as macro…: the Scenario menu AND the map's unit menu (the same gesture, one window). The save is the cluster's ONE save path with a filter and a header.
             if (_editorApp is not null)
@@ -5058,7 +5057,7 @@ namespace Hrot.Editor
                     behaviorRemapper: _behaviorRegistry is null ? null : Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(_behaviorRegistry));
                 _saveSelectionWindow = new Hrot.Editor.Scenario.SaveSelectionAsMacroWindow(selectionFlow);
                 windowManager.RegisterWindow(_saveSelectionWindow);
-                windowManager.GlobalMenu.RegisterItem("Scenario/Save Selection as Macro…", () => _saveSelectionWindow?.Start(), "Scenario");
+                windowManager.GlobalMenu.RegisterItem(Hrot.Editor.AiShared.Scenarios.FileMenuLayout.SaveSelectionAsMacro, () => _saveSelectionWindow?.Start(), "Scenario");   // ⭐ CE-4253 — it was Scenario/…
                 HostActions.Actions.RegisterLocal(Hrot.Common.Constants.GlobalActionIds.SaveSelectionAsMacro, (view, target) =>
                 {
                     if (!target.IsNull && _selectionState is { SelectedEntities.Count: 0 } sel) sel.PrimarySelected = target;   // a right-click on an unselected unit saves that unit
@@ -5092,7 +5091,7 @@ namespace Hrot.Editor
                             : null,
                         WireParticipant: () => _networkFactory.Participant,   // ⭐ AQ109 X5 — null offline
                         // ⭐ CE-4210 P2 — the inspector's bind popup declares a parameter through the SAME source the Parameters window edits.
-                        DeclareParam: (t, n, v) => { var p = _headerParams.Declare(t, n, v); if (p is not null) _parametersWindow?.Show(); return p; })),
+                        DeclareParam: (t, n, v) => { var p = _headerParams.Declare(t, n, v); if (p is not null) _parametersDrawer?.RequestOpen(); return p; })),   // ⭐ CE-4253 — the Scenario view's Parameters header opens (the next time that view draws)
                 },
                 new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 

@@ -400,7 +400,7 @@ public sealed class EditorSubsystemBlueprintWindowsTests
         // File→New Asset… menu item must exist.
         Assert.True(wm.GlobalMenu.Root.Children.TryGetValue("File", out var fileNode),
             "Expected 'File' top-level menu to exist.");
-        Assert.True(fileNode.Children.ContainsKey("New Asset…"),
-            "Expected 'New Asset…' under File menu.");
+        Assert.True(fileNode.Children.TryGetValue("New", out var newNode) && newNode.Children.ContainsKey("Asset…"),
+            "Expected 'Asset…' under File ▸ New (CE-4255).");
     }
 }
