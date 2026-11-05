@@ -84,7 +84,7 @@ public static class EntityTypeCatalog
 
             DISEntityType? type = t.DisType.Value != 0 ? t.DisType : null;
             var (group, chip) = gallery?.Groups.Classify(type, PlacementToolKind.Point, hasSide: true, names) ?? ("", null);
-            string? thumb = gallery?.Thumbnails.Resolve(t.GetDescriptor<VisualDefinitionDto>()?.ThumbnailName, type);
+            string? thumb = gallery?.Thumbnails.Resolve(t.GetDescriptor<VisualDefinitionDto>()?.ThumbnailName, type, t.Name);   // ⭐ CE-4268 — step ③: generated/<the TKB Name>.png (the Name GET /tkb/types lists — stable; CustomName is a label)
 
             list.Add(new EntityTypeEntry(t.TkbType, name, CategoryOf(t, names), dis, icon,
                                          PlacementToolKind.Point, HasSide: true,

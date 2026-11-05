@@ -77,8 +77,10 @@ public sealed class ThumbnailMap
     /// <summary>
     /// The picture of a type: the full path of its thumbnail, or null (⇒ the glyph). <paramref name="explicitName"/> is the TKB visual's
     /// <c>ThumbnailName</c> (with or without <c>.png</c>); <paramref name="dis"/> is the type's DIS type, null for none.
+    /// ⭐ CE-4268 (§2i) — <paramref name="typeName"/> is the TKB type's <c>Name</c> (the one <c>GET /tkb/types</c> lists): step ③, the lowest, is <c>generated/&lt;typeName&gt;.png</c> in the same folder —
+    /// the file <c>scripts/thumbnails.py</c> writes. A generated picture only fills a gap: ① and ② win. The name is sanitized (<see cref="GeneratedFileName"/>); one holding <c>..</c> is refused.
     /// </summary>
-    public string? Resolve(string? explicitName, DISEntityType? dis)
+    public string? Resolve(string? explicitName, DISEntityType? dis, string? typeName = null)
     {
         if (!string.IsNullOrWhiteSpace(explicitName) && FileIn(explicitName.Trim()) is { } named) return named;
 
@@ -90,14 +92,26 @@ public sealed class ThumbnailMap
                     best = r;
             if (best is not null) return FileIn(best.File);
         }
-        return null;
+        return GeneratedFileName(typeName) is { } g ? FileIn(g, GeneratedFolder) : null;   // ③
     }
 
-    private string? FileIn(string name)
+    /// <summary>The sub-folder of the generated pictures (beside <c>map.json</c>).</summary>
+    public const string GeneratedFolder = "generated";
+
+    /// <summary>⭐ CE-4268 — the file stem a type's generated picture has: letters, digits, <c>.</c> <c>_</c> <c>-</c> kept, anything else <c>_</c> (<c>scripts/thumbnails.py</c> uses the SAME rule). Null for an empty name or one holding <c>..</c>.</summary>
+    public static string? GeneratedFileName(string? typeName)
+    {
+        if (string.IsNullOrWhiteSpace(typeName) || typeName.Contains("..")) return null;
+        var sb = new System.Text.StringBuilder(typeName.Trim().Length);
+        foreach (char c in typeName.Trim()) sb.Append(char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-' ? c : '_');
+        return sb.ToString();
+    }
+
+    private string? FileIn(string name, string? subFolder = null)
     {
         if (name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || name.Contains("..")) return null;
         if (!name.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) name += ".png";
-        string path = Path.Combine(_folder, name);
+        string path = subFolder is null ? Path.Combine(_folder, name) : Path.Combine(_folder, subFolder, name);
         return _exists(path) ? path : null;
     }
 }

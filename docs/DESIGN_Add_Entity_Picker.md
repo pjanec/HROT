@@ -408,7 +408,7 @@ graph TD
 
 ⏳ Not built: the PNG snapshots (a director-stills run writes them and fills `map.json`) · G8 smart tactical symbols (CE-4169) · persisted favourites.
 
-## 2i. ONE thumbnail pipeline for BOTH pickers — CE-4268 *(ui, `2026-11-05`; build-state: DESIGN — confirms §2f's "director stills" and changes only WHERE they live)*
+## 2i. ONE thumbnail pipeline for BOTH pickers — CE-4268 *(ui, `2026-11-05`; build-state: BUILT — as-built below; confirms §2f's "director stills" and changes only WHERE they live)*
 
 🔒 User, `2026-11-05`: *"the scenarios and entities need their thumbnails to be shown in their pickers (some defaults only shown there)"*.
 📐 Measured `2026-11-05`: **0 of 127** scenarios have a `preview.png` (`ScenarioPaneFacts.cs:75` looks beside `scenario.json`); entity types: `assets/thumbnails/map.json`
@@ -446,6 +446,8 @@ exist; the only engine change is ThumbnailMap's third, lowest step (a generated 
 
 ⛔ **Rejected:** committing generated PNGs (the user's rule) · a render at picker-open time (needs the 3-D view, seconds per tile) · a
 second offscreen renderer · `/director/stills` (Replay Browser only) · writing generated rules into `map.json` (the seed owns it).
+
+**As built `2026-11-05` (ui):** `ThumbnailMap.Resolve(explicit, dis, typeName)` step ③ = `generated/<GeneratedFileName(typeName)>.png` (letters, digits `. _ -` kept, anything else `_`; a name holding `..` refused; same `FileIn` guard). The name passed is the TKB template's **`Name`** (what `GET /tkb/types` lists; stable — `CustomName` is a label that may repeat). `scripts/thumbnails.py` writes the same stem. Measured on the editor: `POST /entities/spawn` is a REQUEST the sim serves — the script enters preview paused (`/preview/enter`), steps until the new entity appears (diff of `GET /entities`), frames it, captures, `DELETE /entities/{id}`. A scenario's bounds use the CAST (entities with `EntityInfo`, else `EntityGuid`) — scenery and the scenario camera entity (Z 120+) would otherwise throw the frame off. The studio for types is `test-move` (no terrain). The film capture still draws the unit cards (name/health) over the scene.
 
 ## 3. Diagrams
 

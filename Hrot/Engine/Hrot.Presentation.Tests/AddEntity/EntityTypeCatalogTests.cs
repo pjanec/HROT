@@ -244,6 +244,35 @@ public sealed class EntityTypeCatalogTests
         Assert.StartsWith("entity/", EntityTypeCatalog.IconKeyOf(none));
     }
 
+    /// <summary>
+    /// ⭐ CE-4268 (§2i) — step ③: <c>generated/&lt;TKB Name&gt;.png</c> fills a gap and only a gap. The template's Name is "Tank X" ⇒ the file <c>Tank_X.png</c> (spaces sanitized, the rule <c>scripts/thumbnails.py</c> shares).
+    /// 🔴 Red-proof (compiles): step ③ returning the generated file BEFORE the masks ⇒ the "mask wins" row goes red.
+    /// </summary>
+    [Fact]
+    public void CE4268_AGeneratedPicture_FillsTheGap_AndNeverBeatsAnExplicitNameOrAMask()
+    {
+        string G(string f) => Path.Combine("/th", "generated", f);
+        // ① and ② miss ⇒ the generated picture
+        Assert.Equal(G("Tank_X.png"), Of(EntityTypeCatalog.Build(OneTank(null), gallery: Gallery("Tank_X.png")), 90100).Thumbnail);
+        // a hand-made ② mask picture wins over it, and so does an explicit ① name
+        Assert.Equal(Path.Combine("/th", "tank.png"), Of(EntityTypeCatalog.Build(OneTank(null), gallery: Gallery("Tank_X.png", "tank.png")), 90100).Thumbnail);
+        Assert.Equal(Path.Combine("/th", "mine.png"), Of(EntityTypeCatalog.Build(OneTank("mine"), gallery: Gallery("Tank_X.png", "mine.png")), 90100).Thumbnail);
+        // no generated file either ⇒ null (the glyph)
+        Assert.Null(Of(EntityTypeCatalog.Build(OneTank(null), gallery: Gallery()), 90100).Thumbnail);
+    }
+
+    /// <summary>⭐ CE-4268 — the type name is untrusted: one holding <c>..</c> is refused, a separator is sanitized away (the picture stays inside <c>generated/</c>).</summary>
+    [Fact]
+    public void CE4268_ATypeNameWithDotDot_IsRefused_AndASeparatorIsSanitized()
+    {
+        var map = new ThumbnailMap("/th", Array.Empty<ThumbnailRule>(), _ => true);   // every file "exists": only the name guard can refuse
+        Assert.Null(map.Resolve(null, null, "../secret"));
+        Assert.Null(map.Resolve(null, null, "a..b"));
+        Assert.Null(map.Resolve(null, null, "  "));
+        Assert.Equal(Path.Combine("/th", "generated", "a_b_c.png"), map.Resolve(null, null, "a/b c"));
+        Assert.Null(ThumbnailMap.GeneratedFileName(null));
+    }
+
     [Fact]
     public void CE4142_GL2_TheThumbnailPath_IsThePickerEntrysImageKey_OnlyInTheGallery()
     {
