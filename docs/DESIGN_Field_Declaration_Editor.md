@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN (leans below; the user approves before a build)
+build-state: READY-TO-BUILD (approved by the user 2026-11-05: "CE-4254 approved.")
 updated: 2026-11-05
 current-answer: §2 (decision) and §3 (the two defects first)
 stale-below: nothing
