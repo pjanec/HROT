@@ -150,6 +150,19 @@ def census():
             groups[key] += 1
             sample.setdefault(key, e.get("name") or "")
         print(f"  census {mode}: {len(ents)} entities in {len(groups)} component sets")
+        out = os.environ.get("PERF_CENSUS_DIR")
+        if out:   # the full sets (untruncated) + one sample dump per set, for a diff between runs
+            os.makedirs(out, exist_ok=True)
+            full = []
+            for key, n in groups.most_common():
+                nid = next((e.get("networkId") for e in ents if tuple(sorted(e.get("components") or [])) == key and e.get("networkId")), None)
+                dump = None
+                if nid and n >= 20:
+                    r = subprocess.run(["curl", "-s", "--noproxy", "*", "--max-time", "60", f"http://localhost:{port}/entities/{nid}"], capture_output=True, text=True).stdout
+                    try: dump = json.loads(r or "{}").get("data")
+                    except json.JSONDecodeError: pass
+                full.append({"count": n, "components": list(key), "sampleName": sample[key], "sampleNetworkId": nid, "sample": dump})
+            json.dump(full, open(os.path.join(out, f"{mode}.json"), "w"), indent=1)
         for key, n in groups.most_common(12):
             print(f"      {n:6d}  '{sample[key][:24]}'  [{len(key)}] {', '.join(key)[:170]}")
 
