@@ -107,23 +107,28 @@ def frame(points, pitch_deg=-50.0, yaw_deg=225.0, margin=1.15, min_radius=10.0):
 
 
 PERSON_M = 1.8          # a person's height (his PhysicsCollider.Height is 0 and his VehicleParams Length is the 0.6 m footprint)
-FILL = 0.6              # the entity fills about this share of the tile's height
+PERSON_FOOT_M = 0.6     # a person's footprint
+FILL = 0.92             # the projected box fills this share of the tile's limiting dimension — a small margin, never a speck (user, 2026-11-05)
 
 
 def entity_size(comps):
-    """(height, extent) of a spawned entity in metres, from what it carries: PhysicsCollider.Height and VehicleParams.Length/Width (a tank: 2.23 / 6.95 x 3.59);
-    a Pedestrian (Class) is a person: 1.8 m. Falls back to the collider radius, else a 2 m box."""
+    """(height, length, width) of a spawned entity in metres, from what it carries: PhysicsCollider.Height and VehicleParams.Length/Width (a tank: 2.23 / 6.95 x 3.59);
+    a Pedestrian (Class) is a person: 1.8 m tall on a 0.6 m footprint. Falls back to the collider radius, else a 2 m box."""
     veh = comps.get("VehicleParams") or {}
     col = comps.get("PhysicsCollider") or {}
     if veh.get("Class") == "Pedestrian":
-        return PERSON_M, PERSON_M
+        return PERSON_M, PERSON_FOOT_M, PERSON_FOOT_M
     height = float(col.get("Height") or 0.0)
     length, width = float(veh.get("Length") or 0.0), float(veh.get("Width") or 0.0)
     if length <= 0 and col.get("Radius"):
         length = width = 2.0 * float(col["Radius"])
+    if length <= 0:
+        length = width = 2.0
+    if width <= 0:
+        width = length
     if height <= 0:
-        height = max(1.0, 0.45 * length) if length > 0 else 2.0
-    return height, max(length, width, height) if (length or width) else 2.0
+        height = max(1.0, 0.45 * length)
+    return height, length, width
 
 
 CLUSTER_M = 30.0        # a scenario is framed around its FIRST cast entity and the cast within this distance of it ...
@@ -153,15 +158,74 @@ def heading_deg(comps):
         return 0.0
 
 
-def frame_entity(center, height, extent, facing_deg=0.0, off_front_deg=30.0, pitch_deg=-15.0):
-    """A low three-quarter view that makes the entity fill ~FILL of the tile height (the 45 degree vertical field): the apparent height is the
-    taller of its height and ~0.55 of its length; aimed at its middle (half its height above the ground)."""
-    apparent = max(height, 0.55 * extent)
-    dist = max(apparent / (FILL * 2.0 * math.tan(math.radians(FOV_DEG / 2))), 2.5)
-    pitch, yaw = math.radians(pitch_deg), math.radians(facing_deg + off_front_deg)   # IN FRONT of him, ~30 degrees off his heading
-    cx, cy, cz = center[0], center[1], center[2] + height / 2
-    eye = (cx + dist * math.cos(pitch) * math.cos(yaw), cy + dist * math.cos(pitch) * math.sin(yaw), cz - dist * math.sin(pitch))
-    return list(eye), [cx, cy, cz]
+def _basis(yaw, pitch):
+    """The camera's forward / right / up for a camera looking from yaw (the eye's direction from the target) down at pitch."""
+    fwd = (-math.cos(pitch) * math.cos(yaw), -math.cos(pitch) * math.sin(yaw), math.sin(pitch))      # eye -> target
+    right = (fwd[1], -fwd[0], 0.0)
+    n = math.hypot(right[0], right[1]) or 1.0
+    right = (right[0] / n, right[1] / n, 0.0)
+    up = (right[1] * fwd[2] - right[2] * fwd[1], right[2] * fwd[0] - right[0] * fwd[2], right[0] * fwd[1] - right[1] * fwd[0])
+    return fwd, right, up
+
+
+def fit_view(corners, target, yaw_deg, pitch_deg, fill=None):
+    """THE fit, for an entity and a scenario alike: the camera looks from yaw / pitch at `target`; its distance is scaled and its target slid
+    sideways / up until the projected corners' box is CENTRED and its farthest edge sits at `fill` of the half-width or half-height (whichever
+    limits) — the 45 degree vertical field, the tile's 16:9. Returns (eye, target)."""
+    fill = fill or FILL
+    pitch, yaw = math.radians(pitch_deg), math.radians(yaw_deg)
+    fwd, right, up = _basis(yaw, pitch)
+    tv = math.tan(math.radians(FOV_DEG / 2))
+    th = tv * W / H
+    span = max(math.dist(c, target) for c in corners) or 1.0
+    dist, tgt = span * 2.5, list(target)
+    for _ in range(16):
+        eye = (tgt[0] - fwd[0] * dist, tgt[1] - fwd[1] * dist, tgt[2] - fwd[2] * dist)
+        xs, ys = [], []
+        for c in corners:
+            v = (c[0] - eye[0], c[1] - eye[1], c[2] - eye[2])
+            depth = max(v[0] * fwd[0] + v[1] * fwd[1] + v[2] * fwd[2], 0.05)
+            xs.append((v[0] * right[0] + v[1] * right[1] + v[2] * right[2]) / (depth * th))
+            ys.append((v[0] * up[0] + v[1] * up[1] + v[2] * up[2]) / (depth * tv))
+        mx, my = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+        half = max((max(xs) - min(xs)) / 2, (max(ys) - min(ys)) / 2)
+        # slide the target so the projected box is centred (at the target's own depth), then scale the distance to the fill
+        for k in range(3):
+            tgt[k] += right[k] * mx * dist * th + up[k] * my * dist * tv
+        dist = max(dist * half / fill, 0.8)
+    eye = (tgt[0] - fwd[0] * dist, tgt[1] - fwd[1] * dist, tgt[2] - fwd[2] * dist)
+    return list(eye), tgt
+
+
+def box_corners(center, height, length, width, heading_deg=0.0):
+    """The 8 corners of an oriented box: length along the heading, width across, from the ground (center z) up to height."""
+    h = math.radians(heading_deg)
+    ax, ay = (math.cos(h), math.sin(h)), (-math.sin(h), math.cos(h))
+    out = []
+    for sl in (-0.5, 0.5):
+        for sw in (-0.5, 0.5):
+            for z in (0.0, height):
+                out.append((center[0] + sl * length * ax[0] + sw * width * ay[0], center[1] + sl * length * ax[1] + sw * width * ay[1], center[2] + z))
+    return out
+
+
+def frame_entity(center, height, length, width, facing_deg=0.0, off_front_deg=30.0, pitch_deg=-15.0):
+    """A low three-quarter view IN FRONT of the entity (~30 degrees off its heading), its oriented box fitted to FILL of the tile (fit_view)."""
+    corners = box_corners(center, height, length, width, facing_deg)
+    return fit_view(corners, (center[0], center[1], center[2] + height / 2), facing_deg + off_front_deg, pitch_deg)
+
+
+SCENE_UNIT_M = (3.0, 6.0, 3.0)   # a cast member's box for the scenario fit (height, length, width): a vehicle-sized margin around each position
+
+
+def frame_scene(points, pitch_deg=-50.0, yaw_deg=225.0):
+    """A scenario's cast fitted like an entity: every member's box, the view centred on their projected extent and filling FILL of the tile."""
+    hgt, ln, wd = SCENE_UNIT_M
+    corners = [c for p in points for c in box_corners(p, hgt, ln, wd)]
+    cx = sum(p[0] for p in points) / len(points)
+    cy = sum(p[1] for p in points) / len(points)
+    cz = sum(p[2] for p in points) / len(points)
+    return fit_view(corners, (cx, cy, cz + hgt / 2), yaw_deg, pitch_deg)
 
 
 def shoot(path, eye, target):
@@ -217,7 +281,7 @@ def do_scenarios(names, nas, rows):
             c = (sum(p[0] for p in cast) / len(cast), sum(p[1] for p in cast) / len(cast))
             near = min(rest, key=lambda p: math.hypot(p[0] - c[0], p[1] - c[1]))
             yaw = math.degrees(math.atan2(near[1] - c[1], near[0] - c[0]))
-        eye, target = frame(cast, pitch_deg=-28.0, yaw_deg=yaw, min_radius=6.0) if len(cast) <= 2 else frame(cast)
+        eye, target = frame_scene(cast, pitch_deg=-28.0, yaw_deg=yaw) if len(cast) <= 2 else frame_scene(cast)
         out = os.path.join(nas, "scenarios", name, "preview.png")
         good, why = shoot(out, eye, target)
         rows.append((name, "ok" if good else "failed", out if good else why))
@@ -266,8 +330,8 @@ def do_types(ids, nas, studio, rows):
                 udc.call("POST", "/sim/step", {"count": 6})       # let it realise (its body, its size)
                 comps = (body_of(udc.call("GET", f"/entities/{nids[0]}")) or {}).get("Components") or {}
                 pos = (comps.get("SimTransform") or {}).get("Position") or origin
-                height, extent = entity_size(comps)
-                eye, target = frame_entity(pos, height, extent, facing_deg=heading_deg(comps))
+                height, length, width = entity_size(comps)
+                eye, target = frame_entity(pos, height, length, width, facing_deg=heading_deg(comps))
                 path = os.path.join(out_dir, stem + ".png")
                 good, why = shoot(path, eye, target)
                 rows.append((f"type {tkb} {name}", "ok" if good else "failed", path if good else why))
