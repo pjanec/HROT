@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-03 (§2h the gallery as built, CE-4142; §2f accepted 2026-11-01)
+updated: 2026-11-05 (§2i one thumbnail pipeline for both pickers, CE-4268 — DESIGN) · 2026-11-03 (§2h the gallery as built, CE-4142; §2f accepted 2026-11-01)
 build-state: BUILT — all slices on Editor, CGF, SimHost and IG; Stride mode 2 deferred (CE-1030). Approved by the user 2026-10-07 (all leans, §2–§2e); CE-1031 is the terrain owner's follow-up; §2f–§2h the thumbnail gallery (CE-4142) BUILT `2026-11-03` GL1–GL4 — ⏳ the PNG snapshots (director stills) and G8 smart tactical symbols (CE-4169) are later
 current-answer: §2 every decision D1–D10 in its final wording (+ retired ids) · §2a–§2e the measured basis and the shapes (SpawnHeight, wire fields) · ⭐ §2f THE THUMBNAIL GALLERY G1–G10 (mockup docs/designs/add-entity-picker/) · §2h the gallery AS BUILT (read it before §2g: it lists where the build deviates) · §3 diagrams · §5 slices and as-built
 stale-below: nothing — superseded revisions removed 2026-11-01; full history at commit de422e11b (`git show de422e11b:docs/DESIGN_Add_Entity_Picker.md`)
@@ -407,6 +407,37 @@ graph TD
 | **§2g classes** | `CategorySidebar` (NodeEditor.UI) moved out of `WideLayout` — Wide unchanged (rail); `PickerRequest.GroupSidebar` (`PickerGroupSidebar(Order, RecentGroup)`); the Grid draws the gallery only when it is set | the gallery request is `AddEntityAction.BuildRequest(…, gallery)`; the tree request stays for `SpawnerPanel` and the rooted *New Unit* request. The pack forwards the data (`EntityAuthoringInputs.Gallery`, default `GalleryData.Shipped` = the NAS `assets/thumbnails`, seeded from the repository's) — railed on the constructed pack |
 
 ⏳ Not built: the PNG snapshots (a director-stills run writes them and fills `map.json`) · G8 smart tactical symbols (CE-4169) · persisted favourites.
+
+## 2i. ONE thumbnail pipeline for BOTH pickers — CE-4268 *(ui, `2026-11-05`; build-state: DESIGN — confirms §2f's "director stills" and changes only WHERE they live)*
+
+🔒 User, `2026-11-05`: *"the scenarios and entities need their thumbnails to be shown in their pickers (some defaults only shown there)"*.
+📐 Measured `2026-11-05`: **0 of 127** scenarios have a `preview.png` (`ScenarioPaneFacts.cs:75` looks beside `scenario.json`); entity types: `assets/thumbnails/map.json`
+has **no rules and no PNG** — §2f's director-stills run was never made, so every tile is G4's fallback glyph.
+
+```mermaid
+classDiagram
+  class ThumbnailJob { <<NEW, Hrot.Editor>> +RunScenarios(names) +RunEntityTypes(types) }
+  class DirectorStills { <<existing, CE-4059 P3>> +Plan() +Capture() }
+  class ContentLayout { <<existing>> +ThumbnailAssets(NasRoot) +Scenarios(NasRoot) }
+  class ContentSeed { <<existing>> copies repo to NAS, never deletes extra files }
+  class ThumbnailMap { <<existing>> +Resolve(visual, dis) path? }
+  class ScenarioPaneFacts { <<existing>> +PreviewOf(scenario) png? }
+  class PickerImageCache { <<existing, D26 P5>> }
+  ThumbnailJob --> DirectorStills : one still per scenario / per type
+  ThumbnailJob --> ContentLayout : writes into the NAS root only
+  ThumbnailMap --> PickerImageCache
+  ScenarioPaneFacts --> PickerImageCache
+```
+*What the picture shows: nothing new reads an image — both pickers already read the paths; the one new piece WRITES them, through the stills job that exists.*
+
+| ⭐ decision | why |
+|---|---|
+| the PNGs are written into the **NAS root** (`ContentLayout.ThumbnailAssets(NasRoot)` for types, `<NasRoot>/scenarios/<name>/preview.png` for scenarios) — ⛔ never the repository | the user's "no screenshots in git"; the seed copies repo → NAS file by file and **never deletes** an extra file (`ContentSeed.cs`), so a generated image survives restarts; the pickers already read the NAS paths |
+| a **hand-authored** image wins: a `preview.png` / thumbnail committed in the repo is seeded over the NAS copy and is never overwritten by the job (the job skips a path the seed owns) | R-132 (one producer per slot) |
+| a scenario's still = its start, framed on its entities (the drafter's overview camera) through `POST /director/stills` with an inline take; an entity type's = one entity of the type placed on flat ground in a studio scenario, framed by its bounds (§2f's plan) | the stills job, seek and capture exist (CE-4059); ⛔ no second renderer |
+| run on demand (`POST /thumbnails/generate {scenarios?, types?}`) and from a script for the whole catalogue; a missing image keeps today's fallback | generation needs a window (Xvfb on a server) — not part of a picker's open |
+
+⛔ **Rejected:** committing generated PNGs (the user's rule) · a render at picker-open time (needs the 3-D view, seconds per tile) · a second offscreen renderer beside the stills job.
 
 ## 3. Diagrams
 
