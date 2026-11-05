@@ -20,11 +20,11 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityDescentEgressTranslator : IDescriptorTranslator
     {
-        private readonly DdsWriter<EntityDescent>? _writer;
-        private readonly Dictionary<int, EntityDescent> _last = new();
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
+        //   destruction, a wipe or (as an unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityDescent> _instances;
         private readonly HashSet<int> _seen = new();
         private readonly List<int> _gone = new();
-        private int _worldEpoch;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityDescent>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtDescent;
@@ -33,38 +33,38 @@ namespace Hrot.Map.Common.Replication.Egress
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityDescentEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityDescent>(participant) : null;
+            => _instances = new(participant is not null ? new DdsWriter<EntityDescent>(participant) : null, static key => new EntityDescent { EntityId = (int)key });
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
         public void ScanAndPublish(ISimulationView view)
         {
-            if (WorldEpoch.Moved(view, ref _worldEpoch)) _last.Clear();
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<Descent>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             _seen.Clear();
             // ⭐ CE-2210 — EVERY lifecycle, as GeoSpatialEgressTranslator: a body created already coming down (the ejected pilot)
             //   is the creator's to publish only while it is CONSTRUCTING — the creator yields its Muscle group before it turns
             //   Active (Ownership Groups D-7). The default (Active-only) query never saw it then, so nobody ever sent his descent.
-            foreach (var e in view.Query().With<Descent>().DefaultRoutePublishable().WithLifecycle(EntityLifecycle.All).Build())
+            foreach (var e in view.Query().With<Descent>().DefaultRoutePublishable().WithLifecycle(EntityLifecycle.AllButTearDown).Build())
             {
                 if (!view.HasAuthority(e, packedKey)) continue;
                 int netId = view.GetComponentRO<NetworkIdentity>(e).Value;
                 _seen.Add(netId);
                 var sample = ToSample(netId, view.GetComponentRO<Descent>(e), view);
-                if (_last.TryGetValue(netId, out var prev) && Fdp.Network.Cyclone.Translators.SampleEquality.Same(prev, sample)) continue;
+                if (_instances.Unchanged(netId, sample)) continue;
                 Send(netId, sample);
             }
             // a descent that ended here: one "over" sample, then forgotten
             _gone.Clear();
-            foreach (var (netId, prev) in _last) if (!_seen.Contains(netId) && prev.Kind != 0) _gone.Add(netId);
+            foreach (long key in _instances.Keys)
+                if (_instances.TryGetLast(key, out var prev) && !_seen.Contains((int)key) && prev.Kind != 0) _gone.Add((int)key);
             foreach (var netId in _gone) Send(netId, new EntityDescent { EntityId = netId });
         }
 
         private void Send(int netId, in EntityDescent sample)
         {
-            _last[netId] = sample;
-            _writer?.Write(sample);
+            _instances.Write(netId, sample);
             SentSampleCount++;
         }
 
@@ -78,13 +78,10 @@ namespace Hrot.Map.Common.Replication.Egress
                 PhaseSince = d.PhaseSince, TargetX = d.Target.X, TargetY = d.Target.Y, TargetZ = d.Target.Z,
             };
 
-        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(int networkEntityId, long instanceId)
-        {
-            if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityDescent { EntityId = networkEntityId });
-        }
+        public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
     }
 }

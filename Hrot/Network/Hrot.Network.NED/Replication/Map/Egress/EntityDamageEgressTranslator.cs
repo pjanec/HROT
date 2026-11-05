@@ -36,24 +36,10 @@ namespace Hrot.Map.Common.Replication.Egress
     {
         private const long OrdinalValue   = (long)EDescriptorType.dtEntityDamage;
 
-        private readonly DdsWriter<EntityDamage> _writer;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
+        //   destruction, a wipe or (as an unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityDamage> _instances;
         private readonly NetworkEntityMap        _entityMap;
-
-        /// <summary>
-        /// Cache of the last-published (<see cref="Health.Current"/>, <see cref="Health.Max"/>) pair
-        /// per network entity ID.
-        ///
-        /// <para>
-        /// <b>TD-9 â€” Memory leak risk:</b> entries are only removed in <see cref="Dispose(long)"/>,
-        /// which is called by <c>CycloneNetworkCleanupSystem</c> during network entity teardown.
-        /// In topologies where <c>CycloneNetworkCleanupSystem</c> is disabled or fails to run
-        /// (e.g., abnormal process exit or certain test configurations), stale health entries for
-        /// destroyed entities will accumulate in this dictionary for the lifetime of the process.
-        /// A dedicated lifecycle cleanup pass should be added in a future debt-burndown batch.
-        /// </para>
-        /// </summary>
-        private readonly Dictionary<int, (float Current, float Max)> _lastPublished = new();
-        private int _worldEpoch;   // ⭐ CE-3076 — per-id bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityDamage>();
         public long   DescriptorOrdinal => OrdinalValue;
@@ -63,7 +49,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public EntityDamageEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
         {
-            _writer    = new DdsWriter<EntityDamage>(participant);
+            _instances = new(new DdsWriter<EntityDamage>(participant), static key => new EntityDamage { EntityId = (int)key });
             _entityMap = entityMap;
         }
 
@@ -80,17 +66,12 @@ namespace Hrot.Map.Common.Replication.Egress
         {
             // ⭐ CE-3076 (CE-2101's rule) — send-on-change keyed by net id: a reused id whose health equals the last world's
             //   final value (e.g. 100/100) would never be published, and receivers would keep their TKB-seeded Max.
-            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch))
-            {
-                // ⭐⭐ CE-4007 (Q91 §4-M) — a wiped world: DELETE every instance this node wrote, so a late joiner never receives a dead run (the topic is TransientLocal). Keyed by what THIS writer published — not by entity ownership: a descriptor owner may not be the entity's primary owner.
-                foreach (var id in _lastPublished.Keys) _writer.DisposeInstance(new EntityDamage { EntityId = id });
-                _lastPublished.Clear();
-            }
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
 
             var query = view.Query()
                 .With<Health>()
                 .DefaultRoutePublishable()
-                .WithLifecycle(EntityLifecycle.All)
+                .WithLifecycle(EntityLifecycle.AllButTearDown)
                 .Build();
 
             long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
@@ -111,21 +92,18 @@ namespace Hrot.Map.Common.Replication.Egress
                 // ⚠ The comparison covers BOTH fields: Max is authored data (a scenario may set it, and
                 //   an editor write may change it), so a Max-only change must still reach the receivers.
                 //   Comparing Current alone would silently pin them to a stale maximum.
-                if (_lastPublished.TryGetValue(netId.Value, out (float Current, float Max) prev)
-                    && prev.Current == current && prev.Max == max)
-                    continue;
-
-                _lastPublished[netId.Value] = (current, max);
-
-                // ⛔ NO PERCENTAGE IS COMPUTED HERE. The pair travels and every consumer derives what it
-                //    needs — one representation of health on the wire, as on the components.
-                //    📄 See the descriptor's own remarks in SimDescriptors.cs.
-                _writer.Write(new EntityDamage
+                var sample = new EntityDamage
                 {
                     EntityId = netId.Value,
                     Current  = current,
                     Max      = max,
-                });
+                };
+                if (_instances.Unchanged(netId.Value, sample)) continue;
+
+                // ⛔ NO PERCENTAGE IS COMPUTED HERE. The pair travels and every consumer derives what it
+                //    needs — one representation of health on the wire, as on the components.
+                //    📄 See the descriptor's own remarks in SimDescriptors.cs.
+                _instances.Write(netId.Value, sample);
 
                 SentSampleCount++;
             }
@@ -139,14 +117,11 @@ namespace Hrot.Map.Common.Replication.Egress
             FdpLog<EntityDamageEgressTranslator>.Warn(
                 "[TD-9] EntityDamageEgressTranslator.Dispose called for networkEntityId={0}",
                 networkEntityId);
-            _lastPublished.Remove(networkEntityId);
+            _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
         }
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget what was published so a reclaim republishes.</summary>
-        public void ReleaseInstance(int networkEntityId, long instanceId)
-        {
-            if (_lastPublished.Remove(networkEntityId)) _writer.UnregisterInstance(new EntityDamage { EntityId = networkEntityId });
-        }
+        public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
 
         /// <inheritdoc/>
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }

@@ -70,7 +70,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 .DefaultRoutePublishable()
                 .With<MissionPlanQueue>()
                 // Include Constructing entities so remote nodes receive mission data immediately.
-                .WithLifecycle(EntityLifecycle.All)
+                .WithLifecycle(EntityLifecycle.AllButTearDown)
                 .Build();
 
             long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);

@@ -36,7 +36,9 @@ namespace Hrot.Map.Common.Replication.Egress
 
         private const long OrdinalValue = (long)EDescriptorType.dtEntityInfo;
 
-        private readonly IDdsWriter<Hrot.NED.Descriptors.EntityInfo> _writer;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the instances it deletes on a destruction, a wipe or (as an
+        //   unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<Hrot.NED.Descriptors.EntityInfo> _instances;
         private readonly NetworkEntityMap _entityMap;
         private readonly NodeId _localNodeId;
 
@@ -86,7 +88,9 @@ namespace Hrot.Map.Common.Replication.Egress
             NetworkEntityMap entityMap,
             int localNodeId)
         {
-            _writer = writer ?? throw new System.ArgumentNullException(nameof(writer));
+            if (writer is null) throw new System.ArgumentNullException(nameof(writer));
+            _instances = new(s => writer.Write(s), s => writer.DisposeInstance(s), s => writer.UnregisterInstance(s),
+                static key => new Hrot.NED.Descriptors.EntityInfo { EntityId = (int)key });
             _entityMap = entityMap ?? throw new System.ArgumentNullException(nameof(entityMap));
             _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
@@ -103,6 +107,7 @@ namespace Hrot.Map.Common.Replication.Egress
 		/// </summary>
 		public void ScanAndPublish(ISimulationView view)
         {
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
             var query = view.Query()
                 .DefaultRoutePublishable()
                 .With<Fdp.Core.EntityInfo>()
@@ -145,7 +150,7 @@ namespace Hrot.Map.Common.Replication.Egress
                     team        = (byte)sub.FireTeam;
                 }
 
-				_writer.Write(new Hrot.NED.Descriptors.EntityInfo
+				_instances.Write(netId.Value, new Hrot.NED.Descriptors.EntityInfo
                 {
                     EntityId            = netId.Value,
                     Name                = data.Name.ToString(),
@@ -173,7 +178,7 @@ namespace Hrot.Map.Common.Replication.Egress
 		/// </summary>
 		public void Dispose(int networkEntityId)
         {
-			_writer.DisposeInstance(new Hrot.NED.Descriptors.EntityInfo { EntityId = networkEntityId } );
+			_instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the one delete path
         }
     }
 }

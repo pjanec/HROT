@@ -29,9 +29,9 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <summary>Heartbeat period in ticks (~2 s at 60 Hz), staggered per part.</summary>
         public const uint HeartbeatInterval = 120;
 
-        private readonly DdsWriter<EntityTurretPose>? _writer;
-        private readonly Dictionary<(int NetId, int PartId), TurretPose> _lastPublished = new();
-        private int _worldEpoch;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
+        //   destruction, a wipe or (as an unregister) a hand-over. Keyed by the packed (hull network id, part id) — TurretPartKey.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityTurretPose> _instances;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityTurretPose>();
         public long DescriptorOrdinal => OrdinalValue;
@@ -41,14 +41,15 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public EntityTurretPoseEgressTranslator(DdsParticipant? participant)
         {
-            _writer = participant is not null ? new DdsWriter<EntityTurretPose>(participant) : null;
+            _instances = new(participant is not null ? new DdsWriter<EntityTurretPose>(participant) : null,
+                static key => new EntityTurretPose { ParentNetworkId = TurretPartKey.Hull(key), PartId = TurretPartKey.Part(key) }, TurretPartKey.Hull);
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
         public void ScanAndPublish(ISimulationView view)
         {
-            if (WorldEpoch.Moved(view, ref _worldEpoch)) _lastPublished.Clear();
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
 
             DateTime stamp = default;
             bool stamped = false;
@@ -57,21 +58,20 @@ namespace Hrot.Map.Common.Replication.Egress
                 if (!TurretPartKey.TryResolve(view, part, DescriptorOrdinal, out int hullNet, out int partId)) continue;
 
                 var pose = view.GetComponentRO<TurretPose>(part);
-                var key = (hullNet, partId);
+                long key = TurretPartKey.Pack(hullNet, partId);
                 bool heartbeat = ((view.Tick + (uint)(part.Index % HeartbeatInterval)) % HeartbeatInterval) == 0;
-                if (!heartbeat && _lastPublished.TryGetValue(key, out var prev)
+                if (!heartbeat && _instances.TryGetLast(key, out var prev)
                     && MathF.Abs(pose.Azimuth - prev.Azimuth) <= AngleThreshold
                     && MathF.Abs(pose.Elevation - prev.Elevation) <= AngleThreshold) continue;
-                _lastPublished[key] = pose;
 
                 if (!stamped)
                 {
                     stamp = SimStampCodec.Encode(Fdp.Toolkit.Time.SimClock.Of(view).TotalTime);   // once per scan (DESIGN_Dead_Reckoning R4)
                     stamped = true;
                 }
-                _writer?.Write(new EntityTurretPose
+                _instances.Write(key, new EntityTurretPose
                 {
-                    ParentNetworkId = key.Item1,
+                    ParentNetworkId = hullNet,
                     PartId          = partId,
                     Azimuth         = pose.Azimuth,
                     Elevation       = pose.Elevation,
@@ -81,13 +81,11 @@ namespace Hrot.Map.Common.Replication.Egress
             }
         }
 
-        public void Dispose(int networkEntityId) => TurretPartKey.Forget(_lastPublished, networkEntityId);
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of every part instance of the hull this node published (WITHOUT disposing
         /// them) and forget what was published, so a reclaim republishes. <paramref name="instanceId"/> 0 = all parts.</summary>
-        public void ReleaseInstance(int networkEntityId, long instanceId)
-            => TurretPartKey.Release(_lastPublished, networkEntityId,
-                partId => _writer?.UnregisterInstance(new EntityTurretPose { ParentNetworkId = networkEntityId, PartId = partId }));
+        public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
     }

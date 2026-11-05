@@ -65,9 +65,10 @@ namespace Hrot.Map.Common.Replication.Egress
             var query = view.Query()
                 .DefaultRoutePublishable()
                 .With<TkbIdentity>()
-                // Lifecycle.All is crucial: Constructing entities must publish EntityMaster
-                // so remote peers can create ghosts and ACK the construction.
-                .WithLifecycle(EntityLifecycle.All)
+                // Constructing entities must publish EntityMaster so remote peers can create ghosts and ACK the construction.
+                // ⭐⭐ CE-4000 residual (Cluster Load Phase §8.3) — but never one in TEARDOWN: 📐 measured live, the dispose went out and this
+                //   scan (then Lifecycle.All) wrote the master again while the entity lingered in TearDown — every late joiner built a ghost.
+                .WithLifecycle(EntityLifecycle.AllButTearDown)
                 .Build();
 
             long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);

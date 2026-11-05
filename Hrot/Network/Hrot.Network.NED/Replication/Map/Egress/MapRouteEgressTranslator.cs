@@ -32,7 +32,9 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
 {
     private const long OrdinalValue = (long)EDescriptorType.dtMapRoute;
 
-    private readonly IDdsWriter<MapRoute> _writer;
+    // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the instances it deletes on a destruction, a wipe or (as an
+    //   unregister) a hand-over.
+    private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<MapRoute> _instances;
     private readonly NetworkEntityMap _entityMap;
 
     /// <summary>
@@ -40,7 +42,6 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
     /// we can skip entities whose route has not changed since the previous tick.
     /// </summary>
     private readonly Dictionary<Entity, int> _publishedVersions = new();
-    private int _worldEpoch;
 
     public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MapRoute>();
     public long DescriptorOrdinal => OrdinalValue;
@@ -65,7 +66,9 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
         IDdsWriter<MapRoute> writer,
         NetworkEntityMap entityMap)
     {
-        _writer       = writer       ?? throw new ArgumentNullException(nameof(writer));
+        if (writer is null) throw new ArgumentNullException(nameof(writer));
+        _instances = new(s => writer.Write(s), s => writer.DisposeInstance(s), s => writer.UnregisterInstance(s),
+            static key => new MapRoute { EntityId = (int)key });
         _entityMap    = entityMap    ?? throw new ArgumentNullException(nameof(entityMap));
     }
 
@@ -73,13 +76,13 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
 
     public void ScanAndPublish(ISimulationView view)
     {
-        if (WorldEpoch.Moved(view, ref _worldEpoch)) _publishedVersions.Clear();   // ⭐ R-3039 S3 — a world replacement (a load, a restore): republish every route (R-3041)
+        if (_instances.OnFrame(view)) _publishedVersions.Clear();   // (CE-4007, §8.3: a wiped world deletes what this writer published) ⭐ R-3039 S3 — a world replacement (a load, a restore): republish every route (R-3041)
         var query = view.Query()
             .DefaultRoutePublishable()
             // ⭐ CE-2209 — NO SimTransform filter: nothing here reads it. A route authored without one (hand-written scenarios) was
             //   never published — the Muscle's aircraft sat AwaitingPath with no warning (measured on two nodes: promoted, no plan).
             .WithManaged<RoutePlan>()
-            .WithLifecycle(EntityLifecycle.All)
+            .WithLifecycle(EntityLifecycle.AllButTearDown)
             .Build();
 
         long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
@@ -116,7 +119,7 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
                 });
             }
 
-            _writer.Write(new MapRoute
+            _instances.Write(netId.Value, new MapRoute
             {
                 EntityId      = netId.Value,
                 Points        = waypoints,
@@ -140,6 +143,6 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
         if (_entityMap.TryGetEntity(networkEntityId, out var entity))
             _publishedVersions.Remove(entity);
 
-        _writer.DisposeInstance(new MapRoute { EntityId = networkEntityId });
+        _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the one delete path
     }
 }

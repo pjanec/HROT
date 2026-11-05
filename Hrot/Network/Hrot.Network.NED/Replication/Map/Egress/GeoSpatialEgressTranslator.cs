@@ -117,7 +117,7 @@ namespace Hrot.Map.Common.Replication.Egress
             var query = view.Query()
                 .With<SimTransform>()
                 .DefaultRoutePublishable()
-                .WithLifecycle(EntityLifecycle.All)
+                .WithLifecycle(EntityLifecycle.AllButTearDown)
                 .Build();
 
             const float PositionThresholdSq = 0.0001f; // 1 cmÂ˛  â€” avoids spurious sends from float noise

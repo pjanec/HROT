@@ -25,7 +25,9 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class NavigationIntentEgressTranslator : IDescriptorTranslator
     {
-        private readonly IDdsWriter<Hrot.NED.Descriptors.NavigationIntent> _writer;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the instances it deletes on a destruction, a wipe or (as an
+        //   unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<Hrot.NED.Descriptors.NavigationIntent> _instances;
         private readonly NetworkEntityMap _entityMap;
         private readonly NodeId _localNodeId;
         // Tracks the tick of the last scan so QueryDelta can skip unchanged chunks.
@@ -35,8 +37,6 @@ namespace Hrot.Map.Common.Replication.Egress
         // without any executor coupling or shadow ECS component.
         // Key = full Entity handle (Index + Generation), Value = last IntentId that was
         // published to DDS for that exact entity instance.
-        private readonly System.Collections.Generic.HashSet<int> _publishedIds = new();   // ⭐ CE-4007
-        private int _worldEpoch;
         // ⭐ CE-2208 — the fingerprint is (IntentId, Flags): a FLAG change on the same command must cross too. The Brain's hold release
         //   (FlagBitReleaseHold, FollowRouteExecutor — a level, written without a new IntentId) never left the Brain node before, so on a
         //   split cluster a helicopter held its Rope / Unload / Drop stop for ever (live ua-fast-rope-roof, 2026-10-16).
@@ -71,7 +71,9 @@ namespace Hrot.Map.Common.Replication.Egress
             NetworkEntityMap    entityMap,
             int localNodeId)
         {
-            _writer       = writer       ?? throw new System.ArgumentNullException(nameof(writer));
+            if (writer is null) throw new System.ArgumentNullException(nameof(writer));
+            _instances = new(s => writer.Write(s), s => writer.DisposeInstance(s), s => writer.UnregisterInstance(s),
+                static key => new Hrot.NED.Descriptors.NavigationIntent { EntityId = (int)key });
             _entityMap    = entityMap    ?? throw new System.ArgumentNullException(nameof(entityMap));
             _localNodeId  = (Fdp.Core.NodeId)(localNodeId);
         }
@@ -96,13 +98,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
-            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch))
-            {
-                // ⭐⭐ CE-4007 (Q91 §4-M) — a wiped world: DELETE every instance this node wrote, so a late joiner never receives a dead run (the topic is TransientLocal). Keyed by what THIS writer published — not by entity ownership: a descriptor owner may not be the entity's primary owner.
-                foreach (var id in _publishedIds) _writer.DisposeInstance(new Hrot.NED.Descriptors.NavigationIntent { EntityId = id });
-                _publishedIds.Clear();
-                _lastPublishedIntentId.Clear();
-            }
+            if (_instances.OnFrame(view)) _lastPublishedIntentId.Clear();   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
             // QueryDelta is a concrete-repository API; bail out gracefully when view
             // is a snapshot or test double that does not implement it.
             var repo = view as EntityRepository;
@@ -119,7 +115,7 @@ namespace Hrot.Map.Common.Replication.Egress
             var query = view.Query()
                 .With<EcsNavigationIntent>()
                 .DefaultRoutePublishable()
-                .WithLifecycle(EntityLifecycle.All)
+                .WithLifecycle(EntityLifecycle.AllButTearDown)
                 .Build();
 
             long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
@@ -151,8 +147,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
 
                 // ⭐ AQ107 B — the 3D destination (local ENU, Z up — P3D-304) goes onto the wire as it is: a copy.
-                _publishedIds.Add(netId.Value);   // ⭐ CE-4007 — what this writer must delete on a wipe
-                _writer.Write(new Hrot.NED.Descriptors.NavigationIntent
+                _instances.Write(netId.Value, new Hrot.NED.Descriptors.NavigationIntent
                 {
                     EntityId         = netId.Value,
                     IntentId         = intent.IntentId,
@@ -187,15 +182,18 @@ namespace Hrot.Map.Common.Replication.Egress
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <summary>No DDS dispose needed for navigation intent.</summary>
-        public void Dispose(int networkEntityId) { }
+        public void Dispose(int networkEntityId)
+        {
+            if (_entityMap.TryGetEntity(networkEntityId, out var entity)) _lastPublishedIntentId.Remove(entity);
+            _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — a destroyed entity's intent is deleted on the wire
+        }
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget what was published so a reclaim republishes.</summary>
         public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_entityMap.TryGetEntity(networkEntityId, out var entity)) _lastPublishedIntentId.Remove(entity);
             _lastScanTick = 0;   // the next scan looks at every chunk again, so a reclaimed intent is republished
-            if (_publishedIds.Remove(networkEntityId))
-                _writer.UnregisterInstance(new Hrot.NED.Descriptors.NavigationIntent { EntityId = networkEntityId });
+            _instances.Release(networkEntityId);
         }
 
         // â”€â”€ Enum mapping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

@@ -18,10 +18,10 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityWeaponTaskEgressTranslator : IDescriptorTranslator
     {
-        private readonly DdsWriter<EntityWeaponTask>? _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly Dictionary<(int, int), EntityWeaponTask> _last = new();
-        private int _worldEpoch;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
+        //   destruction, a wipe or (as an unregister) a hand-over. Keyed by the packed (hull network id, part id) — TurretPartKey.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityWeaponTask> _instances;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeaponTask>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtWeaponTask;
@@ -31,7 +31,8 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public EntityWeaponTaskEgressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _writer = participant is not null ? new DdsWriter<EntityWeaponTask>(participant) : null;
+            _instances = new(participant is not null ? new DdsWriter<EntityWeaponTask>(participant) : null,
+                static key => new EntityWeaponTask { ParentNetworkId = TurretPartKey.Hull(key), PartId = TurretPartKey.Part(key) }, TurretPartKey.Hull);
             _entityMap = entityMap;
         }
 
@@ -39,7 +40,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ScanAndPublish(ISimulationView view)
         {
-            if (WorldEpoch.Moved(view, ref _worldEpoch)) _last.Clear();
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
             foreach (var part in view.Query().With<PartMetadata>().With<WeaponTask>().Build())
             {
                 if (!TurretPartKey.TryResolve(view, part, DescriptorOrdinal, out var hullNet, out int partId)) continue;
@@ -55,20 +56,18 @@ namespace Hrot.Map.Common.Replication.Egress
                     Arc = (byte)task.Arc,   // ⭐ ui handoff P2
                     AlongBarrel = task.AlongBarrel,   // ⭐ CE-4143
                 };
-                if (_last.TryGetValue((hullNet, partId), out var prev) && Fdp.Network.Cyclone.Translators.SampleEquality.Same(prev, sample)) continue;
-                _last[(hullNet, partId)] = sample;
-                _writer?.Write(sample);
+                long key = TurretPartKey.Pack(hullNet, partId);
+                if (_instances.Unchanged(key, sample)) continue;
+                _instances.Write(key, sample);
                 SentSampleCount++;
             }
         }
 
-        public void Dispose(int networkEntityId) => TurretPartKey.Forget(_last, networkEntityId);
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of every part instance of the hull this node published (WITHOUT disposing
         /// them) and forget what was published, so a reclaim republishes. <paramref name="instanceId"/> 0 = all parts.</summary>
-        public void ReleaseInstance(int networkEntityId, long instanceId)
-            => TurretPartKey.Release(_last, networkEntityId,
-                partId => _writer?.UnregisterInstance(new EntityWeaponTask { ParentNetworkId = networkEntityId, PartId = partId }));
+        public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
     }
 
@@ -78,9 +77,9 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityWeaponTaskStatusEgressTranslator : IDescriptorTranslator
     {
-        private readonly DdsWriter<EntityWeaponTaskStatus>? _writer;
-        private readonly Dictionary<(int, int), WeaponTaskStatus> _last = new();
-        private int _worldEpoch;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
+        //   destruction, a wipe or (as an unregister) a hand-over. Keyed by the packed (hull network id, part id) — TurretPartKey.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityWeaponTaskStatus> _instances;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeaponTaskStatus>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtWeaponTaskStatus;
@@ -90,36 +89,36 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public EntityWeaponTaskStatusEgressTranslator(DdsParticipant? participant)
         {
-            _writer = participant is not null ? new DdsWriter<EntityWeaponTaskStatus>(participant) : null;
+            _instances = new(participant is not null ? new DdsWriter<EntityWeaponTaskStatus>(participant) : null,
+                static key => new EntityWeaponTaskStatus { ParentNetworkId = TurretPartKey.Hull(key), PartId = TurretPartKey.Part(key) }, TurretPartKey.Hull);
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
         public void ScanAndPublish(ISimulationView view)
         {
-            if (WorldEpoch.Moved(view, ref _worldEpoch)) _last.Clear();
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
             foreach (var part in view.Query().With<PartMetadata>().With<WeaponTaskStatus>().Build())
             {
                 if (!TurretPartKey.TryResolve(view, part, DescriptorOrdinal, out var hullNet, out int partId)) continue;
                 var status = view.GetComponentRO<WeaponTaskStatus>(part);
-                if (_last.TryGetValue((hullNet, partId), out var prev) && Fdp.Network.Cyclone.Translators.SampleEquality.Same(prev, status)) continue;
-                _last[(hullNet, partId)] = status;
-                _writer?.Write(new EntityWeaponTaskStatus
+                var sample = new EntityWeaponTaskStatus
                 {
                     ParentNetworkId = hullNet, PartId = partId, Epoch = status.Epoch,
                     State = (byte)status.State, Reason = (byte)status.Reason, RoundsFired = status.RoundsFired,
-                });
+                };
+                long key = TurretPartKey.Pack(hullNet, partId);
+                if (_instances.Unchanged(key, sample)) continue;
+                _instances.Write(key, sample);
                 SentSampleCount++;
             }
         }
 
-        public void Dispose(int networkEntityId) => TurretPartKey.Forget(_last, networkEntityId);
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of every part instance of the hull this node published (WITHOUT disposing
         /// them) and forget what was published, so a reclaim republishes. <paramref name="instanceId"/> 0 = all parts.</summary>
-        public void ReleaseInstance(int networkEntityId, long instanceId)
-            => TurretPartKey.Release(_last, networkEntityId,
-                partId => _writer?.UnregisterInstance(new EntityWeaponTaskStatus { ParentNetworkId = networkEntityId, PartId = partId }));
+        public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
     }
 
@@ -139,20 +138,9 @@ namespace Hrot.Map.Common.Replication.Egress
             return true;
         }
 
-        /// <summary>⭐ CE-4079 ② — forgets every cached part of the hull and calls <paramref name="unregister"/> for each part id this node had published.</summary>
-        public static void Release<T>(Dictionary<(int, int), T> cache, int hullNetworkId, System.Action<int> unregister)
-        {
-            List<(int, int)>? mine = null;
-            foreach (var key in cache.Keys) if (key.Item1 == hullNetworkId) (mine ??= new()).Add(key);
-            if (mine == null) return;
-            foreach (var key in mine) { cache.Remove(key); unregister(key.Item2); }
-        }
-
-        public static void Forget<T>(Dictionary<(int, int), T> cache, int hullNetworkId)
-        {
-            List<(int, int)>? gone = null;
-            foreach (var key in cache.Keys) if (key.Item1 == hullNetworkId) (gone ??= new()).Add(key);
-            if (gone != null) foreach (var key in gone) cache.Remove(key);
-        }
+        /// <summary>⭐ CE-4007 — the packed key a part's instance is remembered under in a <c>PublishedInstances</c> (hull network id high, part id low).</summary>
+        public static long Pack(int hullNetworkId, int partId) => ((long)hullNetworkId << 32) | (uint)partId;
+        public static int Hull(long key) => (int)(key >> 32);
+        public static int Part(long key) => (int)(uint)key;
     }
 }

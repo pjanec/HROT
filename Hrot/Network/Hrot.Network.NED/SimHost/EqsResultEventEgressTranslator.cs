@@ -19,7 +19,9 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class EqsResultEventEgressTranslator : IDescriptorTranslator
     {
-        private readonly DdsWriter<EqsResultTopic>? _writer;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: one instance per (parent network id, child index), packed
+        //   into the key; the instances it deletes when the parent is destroyed or the world is wiped.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EqsResultTopic> _instances;
         private readonly NetworkEntityMap _entityMap;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EqsResultTopic>();
@@ -32,14 +34,16 @@ namespace Hrot.Network.NED.SimHost
         {
             if (participant == null) throw new ArgumentNullException(nameof(participant));
             if (entityMap == null) throw new ArgumentNullException(nameof(entityMap));
-            _writer    = new DdsWriter<EqsResultTopic>(participant);
+            _instances = new(new DdsWriter<EqsResultTopic>(participant),
+                static key => new EqsResultTopic { ParentNetworkId = (int)(key >> 32), LocalChildIndex = (int)(uint)key },
+                static key => (int)(key >> 32));
             _entityMap = entityMap;
         }
 
         /// <inheritdoc/>
         public void ScanAndPublish(ISimulationView view)
         {
-            if (_writer is null) return;
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
             if (view is not EntityRepository repo) return;
 
             var events = view.ReadEvents<EqsResultEvent>();
@@ -56,6 +60,8 @@ namespace Hrot.Network.NED.SimHost
                 //   record, (dtEqsResult, part), falling back to the group's (dtEqsResult, 0) and then the primary owner.
                 //   Every Muscle node builds carriers and solves; without this gate two of them would both publish.
                 //   📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S6.
+                // ⭐ CE-4007 (Cluster Load Phase §8.3) — a parent gone or in TearDown: its results' deletes may be out already; never write them again (📐 live: a result one frame late re-published a destroyed unit's EQS result).
+                if (!_entityMap.TryGetEntity(evt.ParentNetworkId, out var dying) || !view.IsAlive(dying) || Fdp.Network.Cyclone.Translators.PublishedInstances.IsTearingDown(view, dying)) continue;
                 if (_entityMap.TryGetEntity(evt.ParentNetworkId, out var parent) && view.IsAlive(parent) &&
                     !Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(
                         view, parent, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, evt.LocalChildIndex)))
@@ -100,7 +106,7 @@ namespace Hrot.Network.NED.SimHost
                     }
                 }
 
-                _writer.Write(new EqsResultTopic
+                _instances.Write(((long)evt.ParentNetworkId << 32) | (uint)evt.LocalChildIndex, new EqsResultTopic
                 {
                     ParentNetworkId = evt.ParentNetworkId,
                     LocalChildIndex = evt.LocalChildIndex,
@@ -120,7 +126,7 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(int networkEntityId) { }
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the parent is gone: delete its result instances on the wire
     }
 }
 

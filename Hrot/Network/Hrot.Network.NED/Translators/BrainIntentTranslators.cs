@@ -30,11 +30,11 @@ namespace Hrot.Network.Translators
         private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(BehaviorState), typeof(SopState), typeof(Roe));
 
 
-        private readonly IDdsWriter<EntityBrainIntent> _writer;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the instances it deletes on a destruction, a wipe or (as an
+        //   unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityBrainIntent> _instances;
         private readonly BehaviorRegistry _registry;
         private readonly Dictionary<int, Signature> _lastSignature = new();
-        private readonly Dictionary<int, string> _lastSent = new();
-        private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityBrainIntent>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtBrainIntent;
@@ -51,7 +51,9 @@ namespace Hrot.Network.Translators
         /// <summary>Testable constructor — accepts an injected writer.</summary>
         internal BrainIntentEgressTranslator(IDdsWriter<EntityBrainIntent> writer, BehaviorRegistry registry)
         {
-            _writer   = writer   ?? throw new ArgumentNullException(nameof(writer));
+            if (writer is null) throw new ArgumentNullException(nameof(writer));
+            _instances = new(s => writer.Write(s), s => writer.DisposeInstance(s), s => writer.UnregisterInstance(s),
+                static key => new EntityBrainIntent { EntityId = (int)key, IntentJson = string.Empty });
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         }
 
@@ -61,15 +63,10 @@ namespace Hrot.Network.Translators
         /// <inheritdoc/>
         public void ScanAndPublish(ISimulationView view)
         {
-            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch))   // CE-2101 — the next world resends
-            {
-                // ⭐⭐ CE-4007 (Q91 §4-M) — a wiped world: DELETE every instance this node wrote, so a late joiner never receives a dead run (the topic is TransientLocal). Keyed by what THIS writer published — not by entity ownership: a descriptor owner may not be the entity's primary owner.
-                foreach (var id in _lastSent.Keys) _writer.DisposeInstance(new EntityBrainIntent { EntityId = id, IntentJson = string.Empty });
-                _lastSignature.Clear(); _lastSent.Clear();
-            }
+            if (_instances.OnFrame(view)) _lastSignature.Clear();   // CE-2101 — the next world resends; CE-4007 (§8.3): what this writer published is deleted
             if (view is not EntityRepository repo) return;
             long key = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
-            var query = view.Query().DefaultRoutePublishable().With<BehaviorState>().WithLifecycle(EntityLifecycle.All).Build();
+            var query = view.Query().DefaultRoutePublishable().With<BehaviorState>().WithLifecycle(EntityLifecycle.AllButTearDown).Build();
             _gate.Begin(view);
             foreach (var entity in query)
             {
@@ -83,10 +80,9 @@ namespace Hrot.Network.Translators
 
                 var intent = BrainIntentReader.Read(repo, entity, _registry, BrainIntentScope.Running);
                 string json = JsonSerializer.Serialize(intent, FdpJsonOptionsRegistry.DefaultRelaxed);
-                if (_lastSent.TryGetValue(netId, out var sent) && sent == json) continue;
+                if (_instances.TryGetLast(netId, out var sent) && sent.IntentJson == json) continue;
 
-                _writer.Write(new EntityBrainIntent { EntityId = netId, IntentJson = json });
-                _lastSent[netId] = json;
+                _instances.Write(netId, new EntityBrainIntent { EntityId = netId, IntentJson = json });
                 SentSampleCount++;
             }
         }
@@ -98,16 +94,14 @@ namespace Hrot.Network.Translators
         public void Dispose(int networkEntityId)
         {
             _lastSignature.Remove(networkEntityId);
-            if (_lastSent.Remove(networkEntityId))
-                _writer.DisposeInstance(new EntityBrainIntent { EntityId = networkEntityId, IntentJson = string.Empty });
+            _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the one delete path
         }
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget what was published so a reclaim republishes.</summary>
         public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             _lastSignature.Remove(networkEntityId);
-            if (_lastSent.Remove(networkEntityId))
-                _writer.UnregisterInstance(new EntityBrainIntent { EntityId = networkEntityId, IntentJson = string.Empty });
+            _instances.Release(networkEntityId);
         }
 
         /// <summary>What the published intent depends on, as plain values — cheap to compare every frame.</summary>

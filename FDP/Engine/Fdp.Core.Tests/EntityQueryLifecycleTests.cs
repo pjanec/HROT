@@ -52,6 +52,31 @@ namespace Fdp.Tests
             Assert.True(found);
         }
         
+        /// <summary>
+        /// ⭐ CE-4007 / CE-4000 residual (docs/DESIGN_Cluster_Load_Phase.md §8.3) — <c>AllButTearDown</c>: what an egress publishes from — a
+        /// constructing entity yes (it must announce itself), a dying one never (its delete may already be on the wire). Both the enumerator and
+        /// <c>Matches</c> apply it. 🔴 Red-proof: make <c>LifecyclePasses</c> treat AllButTearDown like All ⇒ the TearDown entity is found.
+        /// </summary>
+        [Fact]
+        public void EntityQuery_AllButTearDown_HasConstructingAndActive_NeverTearDown()
+        {
+            using var repo = CreateRepository();
+            var active = repo.CreateEntity();
+            var constructing = repo.CreateEntity();
+            repo.SetLifecycleState(constructing, EntityLifecycle.Constructing);
+            var dying = repo.CreateEntity();
+            repo.SetLifecycleState(dying, EntityLifecycle.TearDown);
+
+            var query = repo.Query().WithLifecycle(EntityLifecycle.AllButTearDown).Build();
+            var found = new System.Collections.Generic.List<Entity>();
+            foreach (var e in query) found.Add(e);
+
+            Assert.Contains(active, found);
+            Assert.Contains(constructing, found);
+            Assert.DoesNotContain(dying, found);
+            Assert.False(query.Matches(default, new EntityMetadataCold { LifecycleState = EntityLifecycle.TearDown }));
+        }
+
         [Fact]
         public void EntityQuery_IncludeAll_ReturnsEverything()
         {

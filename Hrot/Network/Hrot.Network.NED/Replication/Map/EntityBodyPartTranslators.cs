@@ -18,9 +18,9 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityPartDamageEgressTranslator : IDescriptorTranslator
     {
-        private readonly DdsWriter<EntityPartDamage>? _writer;
-        private readonly Dictionary<int, EntityPartDamage> _last = new();
-        private int _worldEpoch;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
+        //   destruction, a wipe or (as an unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityPartDamage> _instances;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityPartDamage>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtPartDamage;
@@ -29,13 +29,13 @@ namespace Hrot.Map.Common.Replication.Egress
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityPartDamageEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityPartDamage>(participant) : null;
+            => _instances = new(participant is not null ? new DdsWriter<EntityPartDamage>(participant) : null, static key => new EntityPartDamage { EntityId = (int)key });
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
         public void ScanAndPublish(ISimulationView view)
         {
-            if (WorldEpoch.Moved(view, ref _worldEpoch)) _last.Clear();
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<PartDamage>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             foreach (var e in view.Query().With<PartDamage>().DefaultRoutePublishable().Build())
@@ -43,9 +43,8 @@ namespace Hrot.Map.Common.Replication.Egress
                 if (!view.HasAuthority(e, packedKey)) continue;
                 int netId = view.GetComponentRO<NetworkIdentity>(e).Value;
                 var sample = ToSample(netId, view.GetComponentRO<PartDamage>(e));
-                if (_last.TryGetValue(netId, out var prev) && Fdp.Network.Cyclone.Translators.SampleEquality.Same(prev, sample)) continue;
-                _last[netId] = sample;
-                _writer?.Write(sample);
+                if (_instances.Unchanged(netId, sample)) continue;
+                _instances.Write(netId, sample);
                 SentSampleCount++;
             }
         }
@@ -61,13 +60,10 @@ namespace Hrot.Map.Common.Replication.Egress
             return s;
         }
 
-        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(int networkEntityId, long instanceId)
-        {
-            if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityPartDamage { EntityId = networkEntityId });
-        }
+        public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
     }
 
@@ -77,9 +73,9 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityHitMarksEgressTranslator : IDescriptorTranslator
     {
-        private readonly DdsWriter<EntityHitMarks>? _writer;
-        private readonly Dictionary<long, ushort> _lastSeq = new();
-        private int _worldEpoch;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
+        //   destruction, a wipe or (as an unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityHitMarks> _instances;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityHitMarks>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtHitMarks;
@@ -88,13 +84,13 @@ namespace Hrot.Map.Common.Replication.Egress
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityHitMarksEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityHitMarks>(participant) : null;
+            => _instances = new(participant is not null ? new DdsWriter<EntityHitMarks>(participant) : null, static key => new EntityHitMarks { EntityId = (int)key });
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
         public void ScanAndPublish(ISimulationView view)
         {
-            if (WorldEpoch.Moved(view, ref _worldEpoch)) _lastSeq.Clear();
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<HitMarks>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             foreach (var e in view.Query().With<HitMarks>().DefaultRoutePublishable().Build())
@@ -102,9 +98,8 @@ namespace Hrot.Map.Common.Replication.Egress
                 if (!view.HasAuthority(e, packedKey)) continue;
                 int netId = view.GetComponentRO<NetworkIdentity>(e).Value;
                 var marks = view.GetComponentRO<HitMarks>(e);
-                if (_lastSeq.TryGetValue(netId, out var prev) && prev == marks.NextSeq) continue;
-                _lastSeq[netId] = marks.NextSeq;
-                _writer?.Write(ToSample(netId, marks));
+                if (_instances.TryGetLast(netId, out var prev) && prev.NextSeq == marks.NextSeq) continue;
+                _instances.Write(netId, ToSample(netId, marks));
                 SentSampleCount++;
             }
         }
@@ -125,13 +120,10 @@ namespace Hrot.Map.Common.Replication.Egress
             return new EntityHitMarks { EntityId = netId, NextSeq = m.NextSeq, Marks = list };
         }
 
-        public void Dispose(int networkEntityId) => _lastSeq.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(int networkEntityId, long instanceId)
-        {
-            if (_lastSeq.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityHitMarks { EntityId = networkEntityId });
-        }
+        public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
     }
 }

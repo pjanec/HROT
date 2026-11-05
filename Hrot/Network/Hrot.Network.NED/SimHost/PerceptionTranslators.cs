@@ -32,7 +32,9 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class SensorConfigEgressTranslator : IDescriptorTranslator
     {
-        private readonly DdsWriter<SensorConfig>? _writer;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the instances it deletes on a destruction, a wipe or (as an
+        //   unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<SensorConfig> _instances;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtSensorConfig;
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<SensorConfig>();
@@ -45,12 +47,12 @@ namespace Hrot.Network.NED.SimHost
             NetworkEntityMap     entityMap,
             IGeographicTransform geoTransform)   // geoTransform reserved for future geodetic encoding
         {
-            _writer = participant != null ? new DdsWriter<SensorConfig>(participant) : null;
+            _instances = new(participant != null ? new DdsWriter<SensorConfig>(participant) : null, static key => new SensorConfig { EntityId = (int)key });
         }
 
         public void ScanAndPublish(ISimulationView view)
         {
-            if (_writer is null) return;
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
 
             var query = view.Query()
                 .With<PerceptionReceptor>()
@@ -74,7 +76,7 @@ namespace Hrot.Network.NED.SimHost
                 // Convert precomputed cosine of half-angle back to the full FOV (radians — SI on the wire, ⭐ AQ107 I).
                 float fovRad = FovRadOf(perc.FieldOfViewCos);
 
-                _writer.Write(new SensorConfig
+                _instances.Write(netId.Value, new SensorConfig
                 {
                     EntityId     = netId.Value,
                     VisionRange  = perc.VisionRange,
@@ -93,16 +95,10 @@ namespace Hrot.Network.NED.SimHost
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        public void Dispose(int networkEntityId)
-        {
-            _writer?.DisposeInstance(new SensorConfig { EntityId = networkEntityId });
-        }
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — only what this writer published
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it. ⚠ A reclaim republishes through the dirty mark the ownership applier sets when this node gains the descriptor.</summary>
-        public void ReleaseInstance(int networkEntityId, long instanceId)
-        {
-            _writer?.UnregisterInstance(new SensorConfig { EntityId = networkEntityId });
-        }
+        public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
     }
 
     /// <summary>

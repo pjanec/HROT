@@ -19,9 +19,9 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityPassengersEgressTranslator : IDescriptorTranslator
     {
-        private readonly DdsWriter<EntityPassengers>? _writer;
-        private readonly Dictionary<int, EntityPassengers> _last = new();
-        private int _worldEpoch;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
+        //   destruction, a wipe or (as an unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityPassengers> _instances;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityPassengers>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtPassengerBuffer;
@@ -30,13 +30,13 @@ namespace Hrot.Map.Common.Replication.Egress
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityPassengersEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityPassengers>(participant) : null;
+            => _instances = new(participant is not null ? new DdsWriter<EntityPassengers>(participant) : null, static key => new EntityPassengers { EntityId = (int)key });
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
         public void ScanAndPublish(ISimulationView view)
         {
-            if (WorldEpoch.Moved(view, ref _worldEpoch)) _last.Clear();
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<PassengerBuffer>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             foreach (var vehicle in view.Query().With<PassengerBuffer>().DefaultRoutePublishable().Build())
@@ -44,9 +44,8 @@ namespace Hrot.Map.Common.Replication.Egress
                 if (!view.HasAuthority(vehicle, packedKey)) continue;
                 int netId = view.GetComponentRO<NetworkIdentity>(vehicle).Value;
                 var sample = ToSample(view, netId, view.GetComponentRO<PassengerBuffer>(vehicle));
-                if (_last.TryGetValue(netId, out var prev) ? Fdp.Network.Cyclone.Translators.SampleEquality.Same(prev, sample) : sample.Count == 0) continue;   // unchanged, or never filled
-                _last[netId] = sample;
-                _writer?.Write(sample);
+                if (_instances.TryGetLast(netId, out var prev) ? Fdp.Network.Cyclone.Translators.SampleEquality.Same(prev, sample) : sample.Count == 0) continue;   // unchanged, or never filled
+                _instances.Write(netId, sample);
                 SentSampleCount++;
             }
         }
@@ -76,13 +75,10 @@ namespace Hrot.Map.Common.Replication.Egress
             };
         }
 
-        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(int networkEntityId, long instanceId)
-        {
-            if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityPassengers { EntityId = networkEntityId });
-        }
+        public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
     }
 }

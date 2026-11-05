@@ -21,9 +21,9 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityExerciseResultEgressTranslator : IDescriptorTranslator
     {
-        private readonly IDdsWriter<EntityExerciseResult>? _writer;
-        private readonly Dictionary<int, EntityExerciseResult> _last = new();
-        private int _worldEpoch;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
+        //   destruction, a wipe or (as an unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityExerciseResult> _instances;
         private static readonly int[] s_targetIds = { GlobalComponentIds.ExerciseResult };
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityExerciseResult>();
@@ -37,17 +37,15 @@ namespace Hrot.Map.Common.Replication.Egress
             : this(participant is not null ? new DdsWriterAdapter<EntityExerciseResult>(participant) : null) { }
 
         /// <summary>The test seam: a capturing writer instead of a live participant.</summary>
-        internal EntityExerciseResultEgressTranslator(IDdsWriter<EntityExerciseResult>? writer) => _writer = writer;
+        internal EntityExerciseResultEgressTranslator(IDdsWriter<EntityExerciseResult>? writer)
+            => _instances = new(writer is null ? null : s => writer.Write(s), writer is null ? null : s => writer.DisposeInstance(s),
+                writer is null ? null : s => writer.UnregisterInstance(s), static key => new EntityExerciseResult { EntityId = (int)key });
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
         public void ScanAndPublish(ISimulationView view)
         {
-            if (WorldEpoch.Moved(view, ref _worldEpoch))
-            {
-                foreach (var id in _last.Keys) _writer?.DisposeInstance(new EntityExerciseResult { EntityId = id });   // CE-4007: a wiped world leaves no dead run
-                _last.Clear();
-            }
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<ExerciseResult>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             foreach (var env in view.Query().With<ExerciseResult>().DefaultRoutePublishable().Build())
@@ -55,9 +53,8 @@ namespace Hrot.Map.Common.Replication.Egress
                 if (!view.HasAuthority(env, packedKey)) continue;
                 int netId = view.GetComponentRO<NetworkIdentity>(env).Value;
                 var sample = ToSample(netId, view.GetComponentRO<ExerciseResult>(env));
-                if (_last.TryGetValue(netId, out var prev) && Same(in prev, in sample)) continue;
-                _last[netId] = sample;
-                _writer?.Write(sample);
+                if (_instances.TryGetLast(netId, out var prev) && Same(in prev, in sample)) continue;
+                _instances.Write(netId, sample);
                 SentSampleCount++;
             }
         }
@@ -77,13 +74,10 @@ namespace Hrot.Map.Common.Replication.Egress
                && a.HostileOutcome == b.HostileOutcome && a.HostilePoints == b.HostilePoints && a.HostileScore == b.HostileScore
                && a.NeutralOutcome == b.NeutralOutcome && a.NeutralPoints == b.NeutralPoints && a.NeutralScore == b.NeutralScore;
 
-        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(int networkEntityId, long instanceId)
-        {
-            if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityExerciseResult { EntityId = networkEntityId });
-        }
+        public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
     }
 }
