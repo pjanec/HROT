@@ -490,7 +490,8 @@ public sealed class DirectorPackTests : IDisposable
         Assert.Equal(("s-a", "draft"), (editor.Take.Scenario, editor.Take.Name));
         Assert.True(editor.Dirty);
         Assert.False(File.Exists(store.TakePath("s-a", "draft")));                                     // unsaved: nothing written
-        Assert.Equal(5, pack.Session.Tracks.Count);                                                      // the panel shows its tracks (CE-1304 / CE-1305 P6: + View, Graphics)
+        Assert.Equal(6, pack.Session.Tracks.Count);                                                      // CE-4262: the Director row + its five tracks
+        Assert.Equal(DirectorTracks.GroupId, pack.Session.Tracks[0].Id);                                                      // the panel shows its tracks (CE-1304 / CE-1305 P6: + View, Graphics)
         Assert.False(pack.Session.CanUndo);                                                              // a fresh history
         Assert.Same(editor.Take, pack.Runner.OpenTake!("s-a", "draft"));                                 // and Play plays it
 

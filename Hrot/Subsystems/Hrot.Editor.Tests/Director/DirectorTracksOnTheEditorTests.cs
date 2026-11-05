@@ -42,9 +42,11 @@ public sealed class DirectorTracksOnTheEditorTests
 
             Assert.Empty(session!.Open(scenario, "main"));
             var tracks = panel.Tracks!();
-            Assert.Equal(new[] { DirectorTracksIds.Camera, DirectorTracksIds.Time, DirectorTracksIds.Subtitles,
+            Assert.Equal(new[] { Hrot.UI.Common.Map3D.Director.DirectorTracks.GroupId, DirectorTracksIds.Camera, DirectorTracksIds.Time, DirectorTracksIds.Subtitles,
                                  Hrot.UI.Common.Map3D.Director.DirectorTracks.ViewId, Hrot.UI.Common.Map3D.Director.DirectorTracks.GraphicsId },
-                         tracks.Select(t => t.Id));   // CE-1303 P2b: + Subtitles · CE-1304 / CE-1305 P6: + View, Graphics
+                         tracks.Select(t => t.Id));   // CE-1303 P2b: + Subtitles · CE-1304 / CE-1305 P6: + View, Graphics · CE-4262: under one Director row
+            Assert.True(panel.IsCollapsed(Hrot.UI.Common.Map3D.Director.DirectorTracks.GroupId));   // ⭐ CE-4262 — collapsed when the take opens
+            Assert.Equal(1, Fdp.Presentation.Panels.Timeline.TrackLayout.Visible(tracks, new System.Collections.Generic.HashSet<string> { Hrot.UI.Common.Map3D.Director.DirectorTracks.GroupId }).Count());   // ... so only the Director row shows
             var camera = tracks.Single(t => t.Id == DirectorTracksIds.Camera);
             Assert.Equal(new[] { 2d, 5d }, camera.Items.Select(i => i.From));
             Assert.Single(tracks.Single(t => t.Id == DirectorTracksIds.Time).Items);
