@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-04
+updated: 2026-11-05 (§3a the real-node measurement; §4 write batching)
 build-state: DESIGN — a question for the user / backend; NOT ready to build (no UML until a lean is approved)
-current-answer: §2 the measured hazards, §3 the options with a lean
+current-answer: §2 the measured hazards, §3 the options with a lean, §3a measured on real nodes (answers §3's 'what would change the lean'), §4 DDS write batching
 stale-below: none
 known-rot: docs/designs/dds-to-ecs/DESIGN.md:468 says "the egress translator checks the chunk version and skips unchanged entities" — only NavigationIntentEgressTranslator does (measured 2026-11-04)
 known-conflict: none
@@ -60,3 +60,37 @@ must reach thousands.
 ⭐ **Lean: E3 now (no semantics change), E1 as its own built design with a rail per hazard H1–H8.** ⛔ Not E2.
 ⚠ **What would change the lean:** a measurement on a real cluster node (one world, not four) showing egress below ~2 ms at a few thousand
 entities — then E3 alone is enough.
+
+## 3a. 📐 Measured on REAL nodes — one node per process *(`2026-11-05`; answers §3's "what would change the lean")*
+
+`scripts/cluster-node.sh` × orchestrator / simhost / cgf / ig, Crossfire playing ≈ 40 s (CGF ≈ 394 entities), `/diagnostics/architecture`
++ `dotnet-trace` (sampled thread time, 15 s) of the CGF and SimHost processes.
+
+| | CGF | SimHost |
+|---|---|---|
+| `CycloneEgressSystem` per frame | **6.3–7.0 ms** | **4.9–5.6 ms** |
+| … share of the main thread | 8.8 % | 6.7 % |
+| samples SENT per frame (all translators) | **≈ 13** | **≈ 21** (WorldPos most of them) |
+| the DDS write incl. the native send | 1.3 % (native 0.9) | 0.9 % (native 0.6) |
+| `HasAuthority` | 1.4 % | 1.0 % |
+| `ValueType.Equals` (the change caches) | 0.4 % → ✅ CE-2406 | 0.0 % |
+| a translator that scans and sends ~nothing | ObjectiveStatus 1.0 ms · WeaponPosture 1.06 ms | EntityMaster 0.75 ms for 8 samples in 40 s · EntityInfo 0.43 ms for 0 |
+
+⇒ ⭐ **egress is 5–7 ms per real node at only ~400 entities — far above the ~2 ms that would have made E3 enough.** ⭐⭐ The cost is the
+SCAN (translators × entities to find the ~20 samples that changed), not the network. ⇒ **the lean stands, and E1 is the next lever**;
+it needs the user's approval (it can lose publishes silently, §2) and a rail per hazard.
+
+## 4. DDS write BATCHING *(user, `2026-11-05`: "I think the Cyclone DDS might support also some bundling … that reduces the time for sending")*
+
+| fact | where |
+|---|---|
+| Cyclone has it: `dds_write_set_batch(bool)` (process-wide; the `Internal/WriteBatch` config) packs consecutive writes into one RTPS message; `dds_write_flush(writer)` sends what a writer holds | exported by the bundled `libddsc.so` (CycloneDDS.NET 1.2.20, `nm -D`) |
+| ⛔ the .NET binding binds NEITHER, and `DdsWriter`'s native handle is private | `CycloneDDS.Runtime.dll` imports; `pjanec/CycloneDds.NET` `src/CycloneDDS.Runtime/DdsWriter.cs:25` |
+| ⇒ it needs a binding change: `DdsApi.dds_write_flush` / `dds_write_set_batch`, `DdsWriter<T>.Flush()`, a `DdsWriteBatching.Enable` switch | a ~60-line patch is drafted (not built), to be applied in that repository |
+| ⚠ the hazard: batching is PROCESS-WIDE, so EVERY writer — the event-driven ones (fire, detonation, commands, acks) too — must be flushed after its burst, or its last samples wait for the next write | ⇒ one flush point per frame for every writer of the participant, after egress and the event writers |
+| 📐 what it can save today | ≤ the native send: **0.6–0.9 % of the main thread** at ≈ 13–21 samples per frame, plus fewer datagrams for the receivers |
+
+⇒ ⭐ **lean: not now.** At today's sample rate batching saves well under 1 % per node, against a process-wide flush obligation that silently
+delays samples if one writer is missed. ⭐ **Revisit when the sample rate grows** (thousands of MOVING entities ⇒ hundreds of WorldPos per
+frame): then the per-datagram cost on the sender AND every receiver scales with it, and batching + one per-frame flush becomes worth its rule.
+⚠ What would change the lean: a measured native send above ~3 % of a node's thread.
