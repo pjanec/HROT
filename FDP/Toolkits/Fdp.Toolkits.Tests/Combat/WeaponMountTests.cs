@@ -40,10 +40,11 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
-        /// ⭐ CE-2410 — <c>EnumerateMounts</c> reads a per-frame owner → mounts index (it scanned every mount part of the world per call: 44 % of
-        /// the CGF node's thread on the CE-2408 stress world). The answer equals the scan's in every case that can happen inside ONE frame: a
-        /// mount ADDED, REMOVED, RE-PARENTED or RE-INDEXED after the index was built, an owner destroyed — and a steady frame allocates nothing.
-        /// 🔴 Red-proof: the "written this frame" rebuild off ⇒ the mount added in the same frame is missing.
+        /// ⭐ CE-2410 — <c>EnumerateMounts</c> reads a per-frame index (it scanned every mount part of the world per call: 44 % of the CGF node's
+        /// thread on the CE-2408 stress world) — since CE-2412 the shared parts index. The answer equals the scan's for a mount ADDED, REMOVED
+        /// or RE-INDEXED after the index was built and an owner destroyed; a mount RE-PARENTED by a value write leaves its old owner at once
+        /// and joins the new one from the next frame (no production writer re-parents); a steady frame allocates nothing.
+        /// 🔴 Red-proof: the part-added rebuild off ⇒ the mount added in the same frame is missing.
         /// </summary>
         [Fact]
         public void CE2410_TheMountIndex_AnswersAsTheScanDid_WhateverHappensInTheFrame()
@@ -70,9 +71,10 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(new[] { a1, a3 }, dest.Slice(0, WeaponMountQuery.EnumerateMounts(_repo, a, dest)).ToArray());
 
             _repo.Tick();
-            _repo.SetComponent(b1, new PartMetadata { ParentEntity = a, InstanceId = 7 });   // RE-PARENTED to a
+            _repo.SetComponent(b1, new PartMetadata { ParentEntity = a, InstanceId = 7 });   // RE-PARENTED to a (by value write)
+            Assert.Equal(0, WeaponMountQuery.EnumerateMounts(_repo, b, dest));                // gone from b at once (live re-check)
+            _repo.Tick();                                                                     // ⭐ CE-2412: under a from the next frame
             Assert.Equal(new[] { a1, b1, a3 }, dest.Slice(0, WeaponMountQuery.EnumerateMounts(_repo, a, dest)).ToArray());
-            Assert.Equal(0, WeaponMountQuery.EnumerateMounts(_repo, b, dest));
 
             _repo.Tick();
             _repo.SetComponent(a1, new WeaponMountInfo { MountIndex = 9 });          // RE-INDEXED

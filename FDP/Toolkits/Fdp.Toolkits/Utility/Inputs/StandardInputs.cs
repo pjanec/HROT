@@ -656,11 +656,14 @@ namespace Fdp.Toolkit.Utility
                 return true;
             }
             // Otherwise search child entities.
-            var query = repo.Query().With<WeaponMountInfo>().With<PartMetadata>().Build();
-            foreach (var e in query)
+            // ⭐ CE-2412 — the owner's parts from the shared parts index, not a scan of every mount of the world.
+            Span<Entity> parts = stackalloc Entity[64];
+            int n = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(repo, owner, parts);
+            if (n > parts.Length) { parts = new Entity[n]; n = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(repo, owner, parts); }
+            for (int k = 0; k < n; k++)
             {
-                ref readonly var pm = ref repo.GetComponentRO<PartMetadata>(e);
-                if (!pm.ParentEntity.Equals(owner)) continue;
+                var e = parts[k];
+                if (!repo.HasComponent<WeaponMountInfo>(e)) continue;
                 ref readonly var mi = ref repo.GetComponentRO<WeaponMountInfo>(e);
                 if (mi.MountIndex != mountIndex) continue;
                 child = e;

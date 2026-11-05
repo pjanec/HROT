@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Fdp.Core;
@@ -30,11 +31,14 @@ namespace Fdp.Toolkit.Spatial.Eqs
         public static Entity Find(ISimulationView view, Entity parent, int siteId, long key = 0)
         {
             uint owner = BehaviorOwnedParts.OwnerOf(view, parent);
-            // A fresh query each call: an EntityQuery caches component-array pointers that a structural change can move.
-            foreach (var candidate in view.Query().With<PartMetadata>().With<EqsSensor>().With<BehaviorOwnedPart>().Build())
+            // ⭐ CE-2412 — the parent's parts from the shared parts index, not a scan of every sensor of the world.
+            Span<Entity> parts = stackalloc Entity[64];
+            int n = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(view, parent, parts);
+            if (n > parts.Length) { parts = new Entity[n]; n = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(view, parent, parts); }
+            for (int k = 0; k < n; k++)
             {
-                ref readonly var meta = ref view.GetComponentRO<PartMetadata>(candidate);
-                if (!meta.ParentEntity.Equals(parent)) continue;
+                var candidate = parts[k];
+                if (!view.HasComponent<EqsSensor>(candidate) || !view.HasComponent<BehaviorOwnedPart>(candidate)) continue;
                 ref readonly var stamp = ref view.GetComponentRO<BehaviorOwnedPart>(candidate);
                 if (stamp.SiteId == siteId && stamp.Key == key && stamp.OwnerInstanceId == owner)
                     return candidate;
@@ -109,11 +113,15 @@ namespace Fdp.Toolkit.Spatial.Eqs
         {
             ulong low = 0;                       // ids 1..64 as a bitset — the common case
             System.Collections.Generic.HashSet<int>? high = null;
-            foreach (var candidate in view.Query().With<PartMetadata>().With<EqsSensor>().Build())
+            // ⭐ CE-2412 — the parent's parts from the shared parts index.
+            Span<Entity> parts = stackalloc Entity[64];
+            int n = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(view, parent, parts);
+            if (n > parts.Length) { parts = new Entity[n]; n = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(view, parent, parts); }
+            for (int k = 0; k < n; k++)
             {
-                ref readonly var meta = ref view.GetComponentRO<PartMetadata>(candidate);
-                if (!meta.ParentEntity.Equals(parent)) continue;
-                int id = meta.InstanceId;
+                var candidate = parts[k];
+                if (!view.HasComponent<EqsSensor>(candidate)) continue;
+                int id = view.GetComponentRO<PartMetadata>(candidate).InstanceId;
                 if (id >= 1 && id <= 64) low |= 1ul << (id - 1);
                 else if (id > 64) (high ??= new System.Collections.Generic.HashSet<int>()).Add(id);
             }

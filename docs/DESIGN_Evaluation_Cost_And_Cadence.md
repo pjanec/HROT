@@ -763,12 +763,17 @@ soldiers. ⭐ The answer each time: one per-frame index, every candidate re-chec
 | CE-2410 | `WeaponMountQuery.EnumerateMounts` (callouts' grenade count, the weapon dispatcher, the throw choice) | 44 % | a per-world mount index (owners counting-sorted) |
 | CE-2410 | `UnderFire.FriendNear` (callouts' earshot, stress "alone") | 9 % | the shared frame grid (below) |
 | CE-2411 | `LineOfFire.BlockedByFriendly` / `BlockedByNeutral` (every shot) | 18 % | the shared frame grid, walked along the line |
-| *next* | `UnitSensors.Of` (the SOPs' danger-area check) — and ~14 other "parts of this parent" scans | 11.5 % | ⭐ one shared parts-by-parent index (§11c) |
+| CE-2412 | `UnitSensors.Of` (the SOPs' danger-area check) — and the other "parts of this parent" scans | 11.5 % | ⭐ one shared parts-by-parent index (§11c) |
 
 | run | CGF work / frame | top systems |
 |---|---|---|
 | baseline (§11a) | **2 008 ms** | Callout 870 · Stress 425 · WeaponDispatcher 208 · BrainTick 187 |
 | after CE-2410 | **1 067 ms** | WeaponDispatcher 308 · BrainTick 218 · Callout 169 · TrafficMirror 77 · Recorder 73 |
+| after CE-2411 ⚠ | **1 067 ms** | Callout **376** · BrainTick 226 · Recorder 101 · TrafficMirror 59 · egress 51 · WeaponDispatcher **47** |
+
+⚠ The CE-2411 run: the line of fire went 308 → 47 ms, but `CalloutSystem` rose 169 → 376 — the trace puts it in CE-2410's private mount index
+REBUILDING PER CALL (its "a mount or part table written this frame" check was true all frame on this world). ⇒ CE-2412 retires it onto the
+parts index, which rebuilds per part ADDED, not per write. (That run also shared the VM's cores with a test build.)
 
 ```mermaid
 classDiagram
@@ -813,3 +818,63 @@ deliberately — a different contract (fixed extent with a capacity, hidden pass
 Rejected: **`SpatialHashSystem` on the CGF** — its set differs (hidden passengers out, out-of-extent dropped), so the hold-fire answers would
 change; and it is a host-plan change. **A rebuild on every structural change** — the measured CGF frame adds components while it fires.
 **A third private grid** — two copies of one mechanism.
+
+### 11c. The parts index — ONE answer to "the parts of this parent" *(CE-2412, `2026-11-05`)*
+
+📐 INVENTORY (grep `ParentEntity.Equals(` / `==` outside tests; `search_graph .*(PartsOf|ChildrenOf|PartIndex|ChildIndex|Parts)$`): **15 scan
+sites** over every part of the world per call, and **two private indexes** (CE-2410's `MountIndex`, CE-3242's `SensorChildFactory.ChildIndex`).
+⭐ `PartMetadata` is the one part link the designs use for mounts (Weapon Layers, 2000 + index), turrets and sensors (Sensors & Doctrine, 1000 + i).
+
+```mermaid
+classDiagram
+    class PartMetadata {
+        <<existing>>
+        ParentEntity
+        InstanceId
+    }
+    class EntityRepository {
+        +ComponentsAddedOf(typeId) long
+    }
+    class PartIndex {
+        +PartsOf(view, parent, dest)$ int
+        +Of(repo)$ PartIndex
+    }
+    class WeaponMountQuery {
+        +EnumerateMounts(repo, owner, dest)
+    }
+    class UnitSensors {
+        +Of(view, unit, kind)
+        +OfTemplate(view, unit, blueprintId)
+    }
+    class SensorChildFactory {
+        +Find(view, parent, partId)
+    }
+    class EqsChildSensor {
+        +Find()
+        +AllocatePartId()
+    }
+    class EqsKnownThreats {
+        +Collect()
+    }
+    PartIndex ..> PartMetadata : indexes
+    PartIndex ..> EntityRepository : frame and part-added clocks
+    WeaponMountQuery ..> PartIndex
+    UnitSensors ..> PartIndex
+    SensorChildFactory ..> PartIndex
+    EqsChildSensor ..> PartIndex
+    EqsKnownThreats ..> PartIndex
+```
+*What the picture shows that prose hid: five askers, one index, and both private indexes gone — each asker keeps only its own filter
+(a mount, a sensor kind, a template, a run's stamp).*
+
+| ⭐ the contract | |
+|---|---|
+| order | lowest `InstanceId` first, ties in entity order — what each scan's "lowest id wins" / "first match" kept |
+| rebuilt | once per frame, and when a `PartMetadata` is ADDED (the NEW `EntityRepository.ComponentsAddedOf(typeId)`) — a part created this frame is found at once; a load that creates parts rebuilds per part, not per question |
+| every hit | re-checked live: alive, still `PartMetadata`, still this parent |
+| ⚠ a re-parent by VALUE write | leaves the old parent at once, joins the new one next frame — 📐 no production writer re-parents (every writer adds) |
+| a snapshot view | the fallback scan, in the same order — the one copy of it |
+| not yet moved | `UtilityScorer` (its candidate order feeds tie-breaks — moving it needs its own rail), `TurretParts`, `BehaviorOwnedParts`, `HearingExplain`, the debug API, `SimHostApp`, the EQS config ingress — not per-frame on the stress world |
+
+Rejected: **a change check on the tables** (CE-2410's) — a table written every frame rebuilt it per call (the CE-2411 run).
+**Keeping `ChildIndex` beside it** — two indexes of one relation. **A rebuild on every structural change** — the frame adds components while it runs.
