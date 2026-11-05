@@ -174,6 +174,8 @@ public sealed class TimelinePanel
         _axis = axis;
         _rvAxis = null;
         _timeMap = cursor?.TimeMap;
+        _rawIndex = source?.Index;   // ⭐ CE-4263 — the WALL index and extent start, kept so a click can name its time on both axes
+        _wallFrom = cursor?.ExtentFrom ?? (_rawIndex is { FrameTicks.Count: > 0 } ri ? ri.FrameTicks[0] : 0);
         if (cursor != null && axis.IsSim) cursor = new AxisCursor(cursor, axis);
         _livePoint = cursor?.LivePoint;
         _loop = cursor?.Loop;
@@ -484,8 +486,25 @@ public sealed class TimelinePanel
         }
     }
 
+    private TimelineIndex? _rawIndex;
+    private long _wallFrom;
+
+    /// <summary>⭐ CE-4263 — the lane's display name (the catalogue's) as of the last draw; its id when unknown.</summary>
+    public string LaneNameOf(string laneId) => _nameOf(laneId);
+
+    /// <summary>⭐ CE-4263 — the last SELECTED event's time as the timeline shows it (<c>h:mm:ss.f</c> from the extent's start): wall, and sim when the session has a time map. Set just before <see cref="OnSelect"/> runs.</summary>
+    public string? LastSelectedWallText { get; private set; }
+    public string? LastSelectedSimText { get; private set; }
+
     private void Select(TimelineEvent e)
     {
+        LastSelectedWallText = LastSelectedSimText = null;
+        if (_rawIndex is { } idx && e.Frame >= 0 && e.Frame < idx.FrameTicks.Count)
+        {
+            long wall = idx.FrameTicks[e.Frame];
+            LastSelectedWallText = TimeSpan.FromTicks(wall - _wallFrom).ToString(@"h\:mm\:ss\.f");
+            if (_timeMap is { HasSimTime: true } map) LastSelectedSimText = TimeSpan.FromSeconds(map.SimAt(wall)).ToString(@"h\:mm\:ss\.f");
+        }
         _selected = e;
         OnSelect?.Invoke(e);
     }

@@ -728,8 +728,27 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
     /// </summary>
     internal bool SelectTimelineEvent(Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent e)
     {
-        if (e.Subject <= 0 || _activeRepo is not { } world || !world.HasSingletonManaged<NetworkEntityMap>()) return false;
-        if (world.GetSingletonManaged<NetworkEntityMap>() is not { } map || !map.TryGetEntity(e.Subject, out var entity) || !world.IsAlive(entity))
+        // ⭐ CE-4263 (DESIGN_Director_Timeline_Editor §2c-1) — the click selects the subject as before; Details ▸ Event shows THIS event while that unit is the one selected
+        if (!SelectSubject(e.Subject)) return false;
+        _eventFocus.Set(e, _eventTimeline.LaneNameOf(e.Lane), _eventTimeline.LastSelectedWallText, _eventTimeline.LastSelectedSimText);
+        return true;
+    }
+
+    /// <summary>⭐ CE-4263 — the timeline event last clicked (Details ▸ Event reads it).</summary>
+    internal Hrot.Editor.AiShared.Shell.TimelineEventFocus EventFocus => _eventFocus;
+    private readonly Hrot.Editor.AiShared.Shell.TimelineEventFocus _eventFocus = new();
+
+    /// <summary>⭐ CE-4263 — a PLAIN pick by network id (a rules-view row, the event view's Subject / Other link): selects the unit and shows NO event. ⛔ It used to ride <see cref="SelectTimelineEvent"/> with a made-up event.</summary>
+    internal bool SelectNetworkEntity(int networkId)
+    {
+        _eventFocus.Clear();
+        return SelectSubject(networkId);
+    }
+
+    private bool SelectSubject(int subject)
+    {
+        if (subject <= 0 || _activeRepo is not { } world || !world.HasSingletonManaged<NetworkEntityMap>()) return false;
+        if (world.GetSingletonManaged<NetworkEntityMap>() is not { } map || !map.TryGetEntity(subject, out var entity) || !world.IsAlive(entity))
             return false;
         return RequestSelectionFromHistory(entity);
     }

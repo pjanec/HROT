@@ -277,7 +277,17 @@ namespace Hrot.Editor
         internal Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource? LiveTimeline => _node?.Timeline;
 
         /// <summary>⭐ CE-3330 (R-4087 addendum 5) — a timeline event clicked selects its unit through the ONE selection; ⛔ never a seek.</summary>
-        internal bool SelectTimelineEvent(Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent e) => SelectNetworkEntity(e.Subject);
+        internal bool SelectTimelineEvent(Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent e)
+        {
+            // ⭐ CE-4263 — the click selects the subject as before, and the Details ▸ Event view shows THIS event (it applies only while the subject is the one selected unit)
+            if (!SelectNetworkEntity(e.Subject)) return false;
+            _eventFocus.Set(e, _eventTimeline.LaneNameOf(e.Lane), _eventTimeline.LastSelectedWallText, _eventTimeline.LastSelectedSimText);
+            return true;
+        }
+
+        /// <summary>⭐ CE-4263 — the timeline event last clicked (Details ▸ Event reads it).</summary>
+        internal Hrot.Editor.AiShared.Shell.TimelineEventFocus EventFocus => _eventFocus;
+        private readonly Hrot.Editor.AiShared.Shell.TimelineEventFocus _eventFocus = new();
 
         /// <summary>⭐ CE-4216 — the ONE selection by network id (a timeline event's subject, a rules-view row's subject).</summary>
         /// <summary>⭐ CE-4218 (R5a) — what the rule editor needs: the params form's service, the behaviour registry, the AI section's own apply (edit mode = AssignNow), the shared undo, the brain journal's text.</summary>
@@ -363,6 +373,7 @@ namespace Hrot.Editor
 
         internal bool SelectNetworkEntity(int networkId)
         {
+            _eventFocus.Clear();   // ⭐ CE-4263 — a plain pick (a rules-view row, an event view's Other link) shows no event; SelectTimelineEvent sets it AFTER this
             if (networkId <= 0 || _world is not { } world || !world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()) return false;
             if (world.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>() is not { } map
                 || !map.TryGetEntity(networkId, out var entity) || !world.IsAlive(entity)) return false;
@@ -3271,7 +3282,9 @@ namespace Hrot.Editor
                 RunState:       Hrot.Editor.AiShared.Variables.RunStateSource.For(isSimUpSignal, isFrozenSignal),
                 Host:           () => HostActions,
                 SelectionStore: _aiEditorSelectionStore,
-                OpenRule:       OpenRuleInRulesView));   // ⭐ CE-4216 RV-7
+                OpenRule:       OpenRuleInRulesView,   // ⭐ CE-4216 RV-7
+                EventFocus:     _eventFocus,           // ⭐ CE-4263 — Details ▸ Event for a clicked timeline event
+                SelectNetworkEntity: n => SelectNetworkEntity(n)));
             _scenarioWorkspace = _scenarioDetailsBundle.Workspace;
             ScenarioDetails    = _scenarioDetailsBundle.Window;
 
@@ -3346,7 +3359,8 @@ namespace Hrot.Editor
                     blueprints:  () => _blueprintRegistry,     // ⭐ CE-2086: the instance params rows
                     // ⭐ CE-1023 — the editor HOLDS the pick adapter, so the params form's EntityRef / point fields get it
                     //   (⛔ it was not passed: no Pick button). Read at request time — the adapter is built later.
-                    picks:       () => aiParamPicks));
+                    picks:       () => aiParamPicks,
+                    history:     EditHistory));   // ⭐ CE-4219 ① — an edit-mode Apply is ONE entry on the editor's shared undo history
 
             // ⭐⭐ L6.4's Entity → NETWORK id translation, in ONE place (R-13).
             // 📐 MissionPanel.SelectedEntityId is an int NETWORK id, not an Entity (MissionPanel.cs:103),

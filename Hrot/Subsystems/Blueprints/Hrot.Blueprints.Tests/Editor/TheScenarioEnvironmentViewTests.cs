@@ -49,6 +49,18 @@ public sealed class TheScenarioEnvironmentViewTests
         Assert.Contains(ZonesDetailsViewDescriptor.ViewId, ids);
     }
 
+    /// <summary>⭐ CE-4263 — the production editor registers the Event view (first rank) and shares ITS focus with the host's <c>SelectTimelineEvent</c>; with no world nothing is selected, so nothing is focused.</summary>
+    [Fact]
+    public void CE4263_TheProductionEditor_RegistersTheEventView_AndAClickWithNoWorldFocusesNothing()
+    {
+        var editor = RealEditor();
+        var views = editor.ScenarioWorkspace!.DetailsViews.All;
+        Assert.Contains(views, d => d.Id == EventDetailsViewDescriptor.ViewId);
+        Assert.Equal(EventDetailsViewDescriptor.Rank, views.Max(d => d.Rank));   // the highest: the default / first
+        Assert.False(editor.SelectTimelineEvent(new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent(0, "life.spawned", 100, 0, 0, 0, 0)));
+        Assert.Null(editor.EventFocus.Event);
+    }
+
     [Fact]
     public void CE1161_TheScenarioView_AppliesOnTheEmptyMap_Only()
     {

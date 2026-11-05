@@ -959,7 +959,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
                 isPlaying: () => !Transport.IsPaused, togglePlay: () => Transport.TogglePlayPause(),
                 timeMap: () => CachedTimeMap, simAxis: () => Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim),
             "rb_rules", perspective, color,
-            selectEntity: n => SelectTimelineEvent(new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent(0, "", n, 0, 0, 0, 0)),
+            selectEntity: n => SelectNetworkEntity(n),   // ⭐ CE-4263 — a plain pick: no event is focused
             showOnMap: n => _activeRepo?.Bus.Publish(new Hrot.Common.Events.CenterOnEntityCommand { NetworkId = n }),
             blocked: () => "a recording is read-only") { IsOpen = false };
         windowManager.RegisterWindow(_rulesWindow);
@@ -1031,7 +1031,9 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
                     Session:     () => _session,
                     RunState:    static () => Hrot.Editor.AiShared.Variables.VariableRunState.Replay,
                     Host:        () => HostActions,
-                    OpenRule:    OpenRuleInRulesView)),   // ⭐ CE-4216 RV-7
+                    OpenRule:    OpenRuleInRulesView,   // ⭐ CE-4216 RV-7
+                    EventFocus:  _eventFocus,           // ⭐ CE-4263 — Details ▸ Event for a clicked timeline event
+                    SelectNetworkEntity: n => SelectNetworkEntity(n))),
             },
             new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
     }

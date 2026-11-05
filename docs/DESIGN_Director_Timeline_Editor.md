@@ -324,6 +324,8 @@ sequenceDiagram
 | ⛔ rejected: a new `SelectionOrigin.Timeline` focus latch | the latch is a LEVEL an entity click does not move (`DetailsViewPredicates.MapBackgroundWithNothingSelected` doc) ⇒ the event would outlive the next unit pick |
 | ⛔ rejected: selecting ONLY the event (no subject) | breaks R-4087 a5's one selection and every subject-following surface |
 
+⭐ **AS-BUILT `2026-11-05` (ui)**: built as designed; one registration in `EntityDetailsBundle` (`EventFocus` + `SelectNetworkEntity` host services) serves the editor and the Replay Browser. ⚠ "FIRST" is `Rank = 100`: the offer set is rank-DESCENDING and the default is the HIGHEST rank (R-98) — found by the bundle rail. `TimelinePanel` records the clicked event's sim / wall time (`LastSelectedWallText` / `LastSelectedSimText`) and `LaneNameOf`; a plain pick by network id clears the focus (the Replay Browser's rules window used to ride `SelectTimelineEvent` with a made-up event).
+
 ⭐ Both hosts get it the same way: the focus holder and the view live in `Hrot.Editor.AiShared` (where `DetailsViewPredicates` is), each host's
 `SelectTimelineEvent` sets it before selecting the subject. ⛔ No seek (R-3059 stands); a double-click still zooms to the cluster.
 

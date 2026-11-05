@@ -654,6 +654,27 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.Equal(frame, _subsystem.PrimaryNodeCurrentFrame());   // a selection moved no time
     }
 
+    /// <summary>
+    /// ⭐ CE-4263 — the click also FOCUSES the event (Details ▸ Event shows it): a selected event sets the focus, a refused one leaves it, and a PLAIN pick by network id (the rules view, the event view's own links) clears it —
+    /// ⛔ it used to ride <c>SelectTimelineEvent</c> with a made-up event. 🔴 Red-proof: <c>SelectNetworkEntity</c> not clearing ⇒ the last assertion.
+    /// </summary>
+    [Fact]
+    public void CE4263_ATimelineEventClick_FocusesTheEvent_AndAPlainPickClearsIt()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var path = MakeOneFrameRecording(nodeId: 1, Guid.NewGuid());   // one unit, network id 100
+        _subsystem.LoadFdpViaManager(path);
+
+        Assert.Null(_subsystem.EventFocus.Event);
+        var spawned = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent(0, "life.spawned", 100, 0, 0, 0, 0);
+        Assert.True(_subsystem.SelectTimelineEvent(spawned));
+        Assert.Equal(spawned, _subsystem.EventFocus.Event);                                    // the event is focused …
+        Assert.False(_subsystem.SelectTimelineEvent(new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent(0, "life.spawned", 999, 0, 0, 0, 0)));
+        Assert.Equal(spawned, _subsystem.EventFocus.Event);                                    // … a refused click leaves it as it was
+        Assert.True(_subsystem.SelectNetworkEntity(100));
+        Assert.Null(_subsystem.EventFocus.Event);                                              // a plain pick shows no event
+    }
+
     // ── RBF-P2T3: minimal recording helper ───────────────────────────────────
 
     /// <summary>

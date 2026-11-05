@@ -35,7 +35,9 @@ public sealed record EntityDetailsHostServices(
     Func<VariableRunState> RunState,
     Func<HostActions?> Host,
     EditorSelectionStore? SelectionStore = null,
-    Action<int>? OpenRule = null);   // ⭐ CE-4216 (RV-7) — opens a rule in the host's rules view; ⛔ a host that registers the Rules window must pass it (null = the Objectives tab lists without links)
+    Action<int>? OpenRule = null,
+    TimelineEventFocus? EventFocus = null,          // ⭐ CE-4263 — the host's clicked timeline event (null = no event view)
+    Action<int>? SelectNetworkEntity = null);       // ⭐ CE-4263 — the host's ONE entity selection by network id (the event view's Subject / Other links); ⛔ a host that passes the focus must pass this   // ⭐ CE-4216 (RV-7) — opens a rule in the host's rules view; ⛔ a host that registers the Rules window must pass it (null = the Objectives tab lists without links)
 
 /// <summary>
 /// ⭐⭐⭐ <c>CE-1150</c> (canvas-context-menu-design §12) — <b>the Details panel of an ECS host, and the actions that open it.</b>
@@ -74,6 +76,8 @@ public sealed class EntityDetailsBundle : IUiBundle
         Workspace.Contribute(Window);
         Workspace.DetailsViews.Add(ScenarioComponentsViewDescriptor.For(panel: host.Inspector, session: host.Session));
         Workspace.DetailsViews.Add(EntitySummaryViewDescriptor.For(host.World));
+        if (host.EventFocus is { } focus)   // ⭐ CE-4263 — a clicked timeline event shows the EVENT (rank 1: first among the entity views)
+            Workspace.DetailsViews.Add(EventDetailsViewDescriptor.For(host.World, focus, host.SelectNetworkEntity ?? (_ => { })));
         Workspace.DetailsViews.Add(EntityObjectivesViewDescriptor.For(host.World, host.OpenRule));   // ⭐ CE-4216 RV-7 — objectives about this unit, every host   // ⭐ CE-1247 — the IG's former card, every host
         // ⭐ CE-1248 (BV-1) — the Brain tab, every host; behaviour names through the registry the host already publishes for the renderers
         Workspace.DetailsViews.Add(EntityBrainViewDescriptor.For(host.World,
