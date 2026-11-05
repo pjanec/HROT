@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT (S1, §9.4/§9.5 — backend 2026-11-05, run live); S2 next — the architecture APPROVED by the user 2026-10-31 (§2 R-4101…R-4103; §5 D-1…D-16 "Accepted")
+build-state: BUILT (S1, §9.4/§9.5 — run live) · READY-TO-BUILD (S2, §10 — backend 2026-11-05) — the architecture APPROVED by the user 2026-10-31 (§2 R-4101…R-4103; §5 D-1…D-16 "Accepted")
 updated: 2026-11-05 (§9 S1 technical design, §7 answered there) · 2026-10-31 (rev 2 — gameplay as PACKS composed by choice, never in the orchestrator; the name DEPLOY; a Player with no gameplay server observes) · 2026-10-31 (rev 1 — superseded, see HISTORY)
-current-answer: §9 S1 technical design (classes, sequence, who ticks what; §7's three answers) · §2 the rulings · §4 the diagrams · §5 decisions D-1…D-16 · §6 slices · §7a the AUDIT of hard-wired gameplay (G1…G7, B1/B2; candidates await the user)
+current-answer: §10 S2 design (roles, spawn areas, death, respawn) · §9 S1 technical design (classes, sequence, who ticks what; §7's three answers) · §2 the rulings · §4 the diagrams · §5 decisions D-1…D-16 · §6 slices · §7a the AUDIT of hard-wired gameplay (G1…G7, B1/B2; candidates await the user)
 stale-below: §8 HISTORY (rev 1: the join on the master's ClusterOpRequest, a ReservedFor component — superseded)
 known-rot: docs/blueprints/Architect_Question_91_Player_Nodes.md §0 "a Player is an ordinary IG node (NodeRole.Map2D), no Player role" — the NAME is superseded by R-4101 (IG is the obsolete name of the Player); being a player stays a composition choice
 known-conflict: none
@@ -430,3 +430,108 @@ the editor toggle writes the editor world directly, as the Brain tab does — no
 **📐 LIVE `2026-11-05`** — UC-25…28 all ✅ (`DESIGN_Cluster_Membership_Use_Cases.md` §2.1): two Players on `-m server` deploy, the second is refused with the holder named, a wrong side is refused,
 an A-10 deployed into in flight keeps 150 m/s and its altitude, and with the feature off the Player observes. One defect found and fixed on the way: a refused request kept reporting the refused unit (`f6261a148`).
 ⚠ **Not yet:** the ImGui drawing of `DeployScreen` (no display here) and the Observer camera call — the Player's free camera is the observer view today.
+
+## 10. S2 — roles, spawn areas, death and respawn *(backend, `2026-11-05`; `build-state: READY-TO-BUILD`)*
+
+### 10.1 INVENTORY *(measured `2026-11-05`)*
+
+Queries: `scripts/cbm.sh search_graph` Class `.*(SpawnArea|SpawnPoint|Respawn|Region|PlacementTool).*` (no spawn class; `PlacementToolRegistry`) ·
+`.*(ScenarioParam|ScenarioParameter|ParamBinding).*` · `.*(Navmesh|NavMesh).*(Sample|Query|Point|Nearest).*` (`NavmeshSamplesGenerator`) ·
+`.*(KillCam|FallScreen|Death|Killed).*` (`FallScreen`) · Interface `.*(Ground|Height|Elevation|Terrain).*(Query|…)` (`ITerrainProvider`) · grep below.
+
+| what exists | where | used here as |
+|---|---|---|
+| a drawn AREA with its own TKB type | `StoneSource` / `WeatherRegion` (`NedTkbCatalog.cs:1126-1136`, `MapGraphicDef`; `PlacementToolKind.Area`, `PlacementToolRegistry.cs:52`); its outline `WeatherField.TryOutline`, the point test `ItemSources.Inside` (`Combat/ItemSources.cs:28-60`) | the spawn area = one more area type |
+| a bare scenario-settings entity | the "Traffic" template (`NedTkbCatalog.cs:1139`) — no position | the shape of a role entity |
+| scenario parameters bound into entity fields at load | `ScenarioParams.Prepare` (`ScenarioLoadStep.cs:183-195`, SR-41) | the respawn delay (D-14, §7b) |
+| ground height on any host with terrain | `WorldQuery.Of(world).GroundHeightAt` (`World/WorldQuery.cs`; used by `DroneImpactSystem.cs:82`) | the spawn point's Z on CGF |
+| ⚠ the navmesh is NOT on CGF | `INavmeshProvider` is set by `EngineBackedNavigationModule` (SimHost, editor) and the fakes only | ⛔ the server cannot project to the navmesh; ⭐ SimHost's crowd snaps a new unit's start (`DotRecastDtCrowdProvider.cs:266`) |
+| the one creation path | `EntityCreation.Publish(EntityCreationRequest)` (`EntityCreation.cs:125`), on the bootstrapper (`SharedApplicationBootstrapper.cs:557`); the new unit carries `CreationRequestId` everywhere (`NetworkSpawningSystem.cs:203`) | the server spawns a role's man and finds him again |
+| the kill cam | the `hud.kill-cam` feature (`HudFeatures`, `PossessionStation`, `FallScreen`) | the death screen — nothing new |
+
+### 10.2 Diagrams
+
+```mermaid
+classDiagram
+    direction LR
+    class DeployRole { <<new, unmanaged, recorded + saved>> Side · PersonTkbType · Name · MaxCount }
+    class SpawnArea { <<new, unmanaged, recorded + saved>> Side · FacingDeg }
+    class GameplaySettings { <<new, unmanaged, on the World Environment>> RespawnDelaySeconds = 10 }
+    class StoneSource { <<existing>> an Area TKB type + MapGraphicDef }
+    class ScenarioParams { <<existing>> binds a header param into a field at load }
+    class SpawnPoints { <<new, static>> Pick(world, side, out pos, out yaw) }
+    class WorldQuery { <<existing>> GroundHeightAt }
+    class EntityCreation { <<existing>> Publish(request) }
+    class DeployProcessorSystem { <<existing, grows>> role request ⇒ spawn · pending spawns · death ⇒ Dead · release ⇒ Choosing · respawn timer }
+    class DeployOfferTopic { <<existing, grows>> + Kind (Placed, Role) · Count · Max }
+    class PlayerSlotTopic { <<existing, grows>> + State Dead · RespawnAtSim }
+    class DeployFlowSystem { <<existing, grows>> Playing → Dead → Choosing }
+    SpawnArea ..> StoneSource : same shape
+    GameplaySettings ..> ScenarioParams : respawnDelay bound
+    DeployProcessorSystem ..> DeployRole : reads
+    DeployProcessorSystem ..> SpawnPoints
+    SpawnPoints ..> SpawnArea
+    SpawnPoints ..> WorldQuery
+    DeployProcessorSystem ..> EntityCreation
+    DeployProcessorSystem ..> GameplaySettings
+    DeployProcessorSystem ..> DeployOfferTopic
+    DeployProcessorSystem ..> PlayerSlotTopic
+    DeployFlowSystem ..> PlayerSlotTopic : its own slot
+```
+
+*What the picture shows that prose hid:* every new piece of data is an authored, unmanaged component on an ENTITY the editor already knows how to
+place and save (an area, a bare settings entity, the World Environment) — no new storage, no new wire for the military simulation; the only wire that
+grows is the gameplay pack's own two topics.
+
+```mermaid
+sequenceDiagram
+    participant F as DeployFlowSystem (Player)
+    participant D as DeployProcessorSystem (CGF)
+    participant E as EntityCreation (CGF)
+    participant B as PossessionSystem (CGF)
+    D-->>F: DeployOfferTopic{ role "Rifleman", Kind Role, Count 1 / Max 4 }
+    F->>D: DeployRequestTopic{ unit = the role entity's id }
+    D->>D: side matches? Count < Max? SpawnPoints.Pick (a random area of the side, a random inside point, ground Z, ≥ 3 m from anyone)
+    D->>E: Publish(EntityCreationRequest{ RequestId, PersonTkbType, SimTransform(point, facing), EntityInfo(side) })
+    Note over D: pending spawn — not answered yet
+    E-->>D: the man exists, carries CreationRequestId and a NetworkIdentity
+    D-->>F: PlayerSlot{ TakingControl, unit } + DeployStatus{ Accepted, unit }
+    F->>B: EntityOrders.Possess (as S1)
+    Note over F,D: … Playing …
+    D->>D: the unit is dead ⇒ slot Dead, RespawnAtSim = now + GameplaySettings.RespawnDelaySeconds
+    D-->>F: PlayerSlot{ Dead, RespawnAtSim }
+    F->>F: Dead — the kill cam (hud.kill-cam) and a countdown
+    D-->>F: at RespawnAtSim: PlayerSlot{ Choosing } (delay 0 ⇒ stays Dead ⇒ the flow Observes)
+    F->>F: Choosing — the deploy screen again
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Choosing
+    Choosing --> TakingControl : accepted (placed unit, or a role's man spawned)
+    TakingControl --> Playing : PossessedBy this station
+    TakingControl --> [*] : 30 s lapse / station left
+    Playing --> Dead : the unit died
+    Playing --> Choosing : the station released it
+    Dead --> Choosing : RespawnAtSim reached (delay > 0)
+    Dead --> Dead : delay 0 — observer for good
+```
+
+*What the picture shows that prose hid:* the slot life on the SERVER is the whole rule — the Player only mirrors it; and S1's open gap (a released
+unit kept its reservation) is the `Playing → Choosing` edge.
+
+### 10.3 Decisions *(within D-10, D-11, D-14; no new user decision)*
+
+| # | decision | why |
+|---|---|---|
+| S2-a | a ROLE is a bare authored entity (TKB "Deploy Role", no position) carrying `DeployRole` — one entity per role | D-10's "per-side list" with no variable-length component (an unmanaged component cannot hold a list; a managed list would be recorded every change); the editor already places, edits and saves entities. ⭐ None declared ⇒ the server offers one role per person TKB type present on that side, unlimited |
+| S2-b | a SPAWN AREA is one more Area TKB type (`StoneSource` shape) carrying `SpawnArea { Side, FacingDeg }` | D-11; the outline and the inside test exist (`WeatherField.TryOutline`, the `ItemSources` even-odd test — moved to one shared helper, not copied) |
+| S2-c | the free point: up to 20 random inside points; Z = `GroundHeightAt`; refused when any entity with a position is within 3 m (a direct scan — a spawn is a user action, not per frame); no area of the side ⇒ refused "no spawn area" | ⛔ no navmesh on CGF (measured); SimHost's crowd snaps the start onto the navmesh, as for any created man |
+| S2-d | the respawn delay is `GameplaySettings.RespawnDelaySeconds` on the World Environment, default 10, bindable by a scenario parameter (`respawnDelay`) | §7b: a scenario parameter with a default; 0 ⇒ observer (D-14) |
+| S2-e | a role's request is answered only once the man EXISTS (pending spawn, found by `CreationRequestId`); 10 s ⇒ refused "spawn timed out" | the Player possesses a unit by its network id |
+
+Rejected — one line each: *project to the navmesh on the server* — CGF has no `INavmeshProvider`. *Roles as a list on the World Environment* — a
+variable-length component is managed and recorded per change. *Roles defined per spawn area* — D-10 is per side; an area only says where.
+*The Player spawns its own man* — rejected in §5 (two Players race for one spot).
+
+*Module diagram:* unchanged from §9.2 — S2 adds no system; it grows `DeployProcessorSystem` (CGF, Input, `[NodeFeature]`) and `DeployFlowSystem` (Player, Input), each ticked by its node's kernel as there.
