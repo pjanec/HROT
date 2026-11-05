@@ -130,6 +130,31 @@ within run-to-run noise. ⇒ kept for the ≈ 3 GB / 100 s of garbage it removes
 ⇒ ⭐ the systems the scheduler times are ≈ 0.8 MB of the 3.3 MB (the recorder is ≈ 0.65 MB of that); ⭐⭐ most garbage is the timeline, the UI and
 the recorder's managed path.
 
+### 0f. 📐 STARTUP, measured *(CE-2395, `2026-11-05`; cloud VM, Debug build, Xvfb — ⚠ not the user's Windows host)*
+
+| | editor | `--mode all` |
+|---|---|---|
+| process start → the debug API answers | 4.5–5.0 s | 9.0–9.5 s |
+| → `canOperate` | 7.6–8.7 s | 9.9–10.4 s |
+| load Crossfire | 2.0–2.1 s | — |
+
+📐 Where the editor's main thread goes (`dotnet-trace`, sampled, the first 12 s, inclusive):
+
+| ms | what |
+|---|---|
+| **3 094** | the FIRST frames: `AiHotReloadCoordinator.DrainPendingCallbacks` → `AiAssetCatalogBuilder.RefreshFromAssembly` (the behaviours DLL loaded) |
+| ↳ **1 725** | `BehaviorTreeAssetProjector.Project` → `DefaultValueAuthoring.TrySerialize` per variable of every C#-built tree (CE-1433) — ⭐ 1 235 of it is System.Text.Json building its type metadata on first use (the options ARE shared; it is the first sight of each type) |
+| 2 818 | `SubsystemOrchestrator.Initialize` → `NodeBootPlan.Run` (incl. `FdpAutoSerializer.Build` 677) |
+| 1 333 | `OpenLocalWindow` (GL context) |
+| 1 075 | `EditorSubsystem.RegisterWindows` |
+| ≈ 900 | `Attribute.GetCustomAttributes` + `Expression.Compile` + `DynamicMethod` spread over the above (the reflection the user suspected) |
+
+⇒ ⚠ **on this host startup is ~8–10 s, not "enormous"** — the user's slowness is likely host-specific (cold disk / JIT, an antivirus scanning
+each DLL, the Stride app, a Release/Debug difference) and needs ONE timing on that host before a fix is chosen.
+⭐ Leans, largest first: **① the BTree catalogue serializes each variable's default on FIRST READ, not at projection** (≈ 1.7 s off the editor's
+first frame; `BlackboardVariableEntry.DefaultValueJson` has 124 readers ⇒ a model change, not an overnight one) · **② one shared assembly /
+type index** for the registries that each scan (the user's suspicion; ≈ 0.9 s of reflection here) · ③ the serializer builder's 0.7 s.
+
 ## 1. INVENTORY (the queries this design rests on)
 
 | question | query | result |
