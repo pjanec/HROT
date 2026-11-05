@@ -612,10 +612,29 @@ sequenceDiagram
 | S3-a | up to THREE extra kits per role (four with the role's own type) as fixed fields — unmanaged, no list | the accepted lean; an unmanaged component cannot hold a list (§10.3 S2-a's reason) |
 | S3-b | a kit shares the role's count and max | a kit is a variant of ONE role, not a second role |
 | S3-c | `AreaNetId` 0 ⇒ a random area of the side (S2's rule); a named area of another side ⇒ refused `WrongSide` | the Player may choose, never must |
-| S3-d | the area on the MAP (click to choose) is ui's — the screen lists the areas; the 2-D map highlights and accepts a click through the same `Request` — ⏳ filed `2026-11-05` as **CE-3370** (owner ui; `batches/NOTE_Backend_To_Ui_Deploy_Map_Area.md`) | the deploy flow's API is the one seam |
+| S3-d | the area on the MAP (click to choose) is ui's — ⭐ **BUILT `2026-11-05` (ui, CE-3370; as-built §11.2)**: `DeployAreaMapLayer` outlines the chosen side's areas while Choosing and a click inside one selects it, through the SAME `DeployAreaChoice` the screen's list holds | the deploy flow's API is the one seam |
 
 Rejected — one line each: *a kit as AmmoLoadout overrides* — a loadout system, rejected in §5. *One role entity per kit* — splits the role's count and max.
 *Area as a separate request* — two round trips for one decision.
+
+### 11.2 AS BUILT — S3-d, the area on the Player's map *(ui, `2026-11-05`, CE-3370)*
+
+```mermaid
+classDiagram
+    direction LR
+    class DeployAreaChoice { <<new, one per DeployFlowSystem>> Side · AreaNetId · Select · EffectiveSide · Normalise }
+    class DeployScreen { <<existing>> Choice · Deploy(flow, side, offer, kit) }
+    class DeployAreaMapLayer { <<new IMapLayer, 2-D>> Draw outlines while Choosing · HandleInput click inside an area selects it }
+    class DeployFlowSystem { <<existing, untouched>> Offers · State · Request(side, unit, kit, area) }
+    class MapInteractionPack { <<existing>> AttachMapLayers adds the layer on every host }
+    DeployScreen --> DeployAreaChoice : the list reads and writes
+    DeployAreaMapLayer --> DeployAreaChoice : the click writes, the outline reads
+    DeployAreaChoice ..> DeployFlowSystem : Of(flow)
+    DeployAreaMapLayer ..> DeployFlowSystem : Offers · State (only the Player's node has one)
+    MapInteractionPack --> DeployAreaMapLayer
+```
+*What the picture shows:* the choice has ONE owner (`DeployAreaChoice`), so list and map cannot disagree; `DeployScreen.Deploy` is the only place it becomes a `Request`. No backend change. The layer is attached by the shared pack (no host can lack it), is 2-D only, is not an `ISceneLayer` (never filmed), and acts only where a `DeployFlowSystem` exists — the Player.
+Rails: `DeployAreaMapLayerTests` (`Hrot.Presentation.Tests/Map2D`) — the click rules, list = click, the request's `RequestedAreaNetId`, and a frame rail for the outline.
 
 ### 11.1 AS BUILT — S3, kits and the spawn-area choice *(backend, `2026-11-05`; `build-state`: BUILT)*
 

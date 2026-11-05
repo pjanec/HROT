@@ -22,16 +22,21 @@ public sealed class DeployScreen
     private readonly Func<DeployFlowSystem?> _flow;
     private readonly Func<bool> _loadingVisible;
     private bool _keepObserving;
-    private ForceId? _side;
-    private int _areaNetId;
+    private readonly Func<DeployAreaChoice?>? _choiceOf;
+    private readonly DeployAreaChoice _orphan = new();   // the choice of a screen with no flow (nothing is deployed from it; rails read it)
 
     /// <param name="flow">The node's flow (<c>DeployFlowSystem.Of(world)</c>); null ⇒ nothing to show.</param>
     /// <param name="loadingVisible">Whether the loading screen is up — this screen yields to it.</param>
-    public DeployScreen(Func<DeployFlowSystem?> flow, Func<bool> loadingVisible)
+    /// <param name="choice">⭐ CE-3370 — where the chosen side and spawn area live; default: the flow's own <see cref="DeployAreaChoice"/> (the one the Player's map reads too).</param>
+    public DeployScreen(Func<DeployFlowSystem?> flow, Func<bool> loadingVisible, Func<DeployAreaChoice?>? choice = null)
     {
         _flow = flow ?? throw new ArgumentNullException(nameof(flow));
         _loadingVisible = loadingVisible ?? throw new ArgumentNullException(nameof(loadingVisible));
+        _choiceOf = choice;
     }
+
+    /// <summary>⭐ CE-3370 — the ONE owner of the chosen side and area (shared with the Player's map).</summary>
+    public DeployAreaChoice Choice => _choiceOf?.Invoke() ?? (_flow() is { } f ? DeployAreaChoice.Of(f) : _orphan);
 
     /// <summary>Registers it on <paramref name="bar"/>.</summary>
     public static DeployScreen Register(StatusBarManager bar, Func<DeployFlowSystem?> flow, Func<bool> loadingVisible)
@@ -42,10 +47,10 @@ public sealed class DeployScreen
     }
 
     /// <summary>The side whose offers are listed (null until the Player picks; the only side with offers is picked for it).</summary>
-    public ForceId? SelectedSide => _side;
+    public ForceId? SelectedSide => Choice.Side;
 
     /// <summary>Picks the side whose offers are shown.</summary>
-    public void SelectSide(ForceId side) => _side = side;
+    public void SelectSide(ForceId side) => Choice.Side = side;
 
     /// <summary>Whether the screen draws this frame — the rule the rails read.</summary>
     public bool Visible
@@ -113,17 +118,18 @@ public sealed class DeployScreen
         return rows;
     }
 
-    private static bool HasArea(IReadOnlyList<DeployOffer> areas, int netId)
-    {
-        foreach (var a in areas) if (a.UnitNetId == netId) return true;
-        return false;
-    }
-
     /// <summary>The spawn area the Player chose (an area offer's id); 0 = "Any area" — the default.</summary>
-    public int AreaNetId => _areaNetId;
+    public int AreaNetId => Choice.AreaNetId;
 
     /// <summary>Chooses a spawn area (0 = any).</summary>
-    public void SelectArea(int areaNetId) => _areaNetId = areaNetId;
+    public void SelectArea(int areaNetId) => Choice.Select(areaNetId);
+
+    /// <summary>
+    /// ⭐ CE-3370 — what a row click sends: <paramref name="offer"/> on <paramref name="side"/> (kit <paramref name="kit"/>), with the CHOSEN spawn area for a role or a kit row (a placed unit has no spawn area).
+    /// The one place the choice becomes a request, so a click on the map and one in the list reach the server alike.
+    /// </summary>
+    public bool Deploy(DeployFlowSystem flow, ForceId side, DeployOffer offer, byte kit = 0)
+        => flow.Request(side, offer.UnitNetId, kit, offer.IsRole || kit != 0 ? Choice.AreaNetId : 0);
 
     /// <summary>One offer's row text: a placed unit by its name; a role with its live count — <i>Rifleman  2 / 4</i> (<i>2</i> when unlimited).</summary>
     public static string RowText(DeployOffer o)
@@ -170,29 +176,30 @@ public sealed class DeployScreen
     {
         var offers = f.Offers;
         var sides = SidesOf(offers);
-        if (_side is not { } side || !sides.Contains(side)) side = sides.Count > 0 ? sides[0] : ForceId.Friend;
-        _side = side;
+        var choice = Choice;
+        if (choice.Side is not { } side || !sides.Contains(side)) side = sides.Count > 0 ? sides[0] : ForceId.Friend;
+        choice.Side = side;
         foreach (var s in sides)
         {
-            if (ImGui.RadioButton(s.ToString(), _side == s)) _side = s;
+            if (ImGui.RadioButton(s.ToString(), choice.Side == s)) choice.Side = s;
             ImGui.SameLine();
         }
         ImGui.NewLine();
         ImGui.Separator();
-        var areas = AreasOf(offers, _side!.Value);
-        if (_areaNetId != 0 && !HasArea(areas, _areaNetId)) _areaNetId = 0;   // an area that is gone (or of the other side) is no choice
+        var areas = AreasOf(offers, choice.Side!.Value);
+        choice.Normalise(offers, choice.Side!.Value);   // an area that is gone (or of the other side) is no choice
         if (areas.Count > 0)
         {
-            ImGui.TextDisabled("Spawn area");
-            if (ImGui.RadioButton("Any area##area0", _areaNetId == 0)) _areaNetId = 0;
+            ImGui.TextDisabled("Spawn area (or click it on the map)");
+            if (ImGui.RadioButton("Any area##area0", choice.AreaNetId == 0)) choice.Select(0);
             foreach (var a in areas)
             {
                 ImGui.SameLine();
-                if (ImGui.RadioButton($"{a.SlotName}##area{a.UnitNetId}", _areaNetId == a.UnitNetId)) _areaNetId = a.UnitNetId;
+                if (ImGui.RadioButton($"{a.SlotName}##area{a.UnitNetId}", choice.AreaNetId == a.UnitNetId)) choice.Select(a.UnitNetId);
             }
             ImGui.Separator();
         }
-        var mine = OffersOf(offers, _side!.Value);
+        var mine = OffersOf(offers, choice.Side!.Value);
         if (mine.Count == 0) ImGui.TextDisabled("No unit to take on this side.");
         foreach (var o in mine)
         {
@@ -206,17 +213,17 @@ public sealed class DeployScreen
             }
             else
             {
-                if (ImGui.Selectable($"{name}##u{o.UnitNetId}")) f.Request(_side!.Value, o.UnitNetId, 0, o.IsRole ? _areaNetId : 0);
+                if (ImGui.Selectable($"{name}##u{o.UnitNetId}")) Deploy(f, choice.Side!.Value, o);
                 foreach (var (kit, text) in KitRows(o))
                 {
                     ImGui.Indent();
-                    if (ImGui.Selectable($"{text}##k{o.UnitNetId}_{kit}")) f.Request(_side!.Value, o.UnitNetId, kit, _areaNetId);
+                    if (ImGui.Selectable($"{text}##k{o.UnitNetId}_{kit}")) Deploy(f, choice.Side!.Value, o, kit);
                     ImGui.Unindent();
                 }
             }
         }
         ImGui.Separator();
-        if (ImGui.Button("Observer")) f.Observe(_side!.Value);
+        if (ImGui.Button("Observer")) f.Observe(choice.Side!.Value);
         if (f.LastRefusal.Length > 0) ImGui.TextColored(new System.Numerics.Vector4(1f, 0.45f, 0.35f, 1f), f.LastRefusal);
     }
 }

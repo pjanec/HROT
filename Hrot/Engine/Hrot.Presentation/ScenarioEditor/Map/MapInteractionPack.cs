@@ -579,6 +579,8 @@ namespace Hrot.ScenarioEditor.Map
             //   (unowned, so the default processor creates and owns it — R-140) on the first camera move, moved by its owner.
             canvas.AddLayer(new Hrot.UI.Common.Map3D.MapCameraLayer(viewSwitch, worldProvider));
             canvas.AddLayer(new MapCanvasLink(canvas, worldProvider));   // ⭐ CE-1134 — Center View finds this canvas by the world
+            // ⭐ CE-3370 (Player Join S3-d) — the Player's spawn area is chosen by a click on the 2-D map: its outlines while the deploy flow is Choosing. Here, so no map host can lack it; only a node with a DeployFlowSystem (the Player) ever acts. Added after the gizmo layer, so its click is offered first.
+            canvas.AddLayer(Hrot.UI.Common.Map2D.DeployAreaMapLayer.ForWorld(worldProvider, () => !viewSwitch.Is3D));
             canvas.AddLayer(new Hrot.UI.Common.Map3D.WeatherSkyLayer(viewSwitch, worldProvider));   // ⭐ CE-1146 — the weather's sky: the free camera at what it looks at, first person at the eye
             canvas.AddLayer(new Hrot.UI.Common.Map3D.RubberBandOverlay3D(viewSwitch, worldProvider));   // ⭐ CE-1136 — the 3-D marquee
             var stats = new Hrot.UI.Common.Map3D.MapStatsOverlay(viewSwitch, worldProvider, canvas.Camera);   // ⭐ CE-1262 — + the 2-D camera
