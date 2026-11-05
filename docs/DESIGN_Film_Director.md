@@ -836,7 +836,9 @@ grace, so a take either ran on the wrong world or failed in the same frame the n
 | fresh editor: 6 of 6 tried *"did not load within 30 s (… count 0)"*, 0 steps | the door's question was invisible (UI asker); later loads dropped while it was open | `IDirectorLoadOutcome` (`DirectorHost.cs`) + the director's OWN `DirectorAsker` (`EditorDirector.cs`): it answers or says why |
 | operable editor: 7 *"no unit named X"* — the take ran on the previous scenario's world | the probe's grace accepted the old world when the load never went | the probe starts only after `LoadWent` |
 | the failure card replaced in the same frame by the next title | `Fail()` → `FinishItem()` → next `BeginItem` at once | phase `Failing` holds *"title — cannot play: why"* for `FailCardSeconds` (live only); `Busy` includes it |
+| after-reel 1: the editor died leaving `ua-airborne-drop`'s preview | `FdpAutoSerializer` assigned `EntityLink`'s public readonly fields (held by `RouteWaypoint` since S9') — "Expression must be writeable" on restore | a type with a readonly field is filled through one box + reflection (`c67042c88`, FDP recorder — cross-lane) |
+| after-reel 2: 5 of 11 *"a run is in progress (a dry run)"*, each right after a played take | the previous take's preview was still leaving when the next load asked the door | `DirectorAsker`: StopAndLoad is a WAIT (asked again, the 30 s cap keeps the reason for a run the user started) |
 
 Rails (`DirectorRunnerTests`, 🔴 red-proven by compiling mutants): `CE4267_ATakeTheDoorRefuses_SaysWhyOnScreen_ThenTheNextTakePlays` ·
 `CE4267_ANotReadyLoad_IsAskedAgain_AndTheTakePlaysOnItsOwnWorld` · `CE4267_ALoadThatNeverGoes_FailsWithTheReason_NeverPlaysTheOldWorld`.
-⚠ The takes that still fail on their CONTENT (a missing beat, a renamed unit) are CE-1241's list, now reported with the reason instead of a black skip.
+📐 **After:** 11 of 11 load and run on their own world (5 ok, 6 beat-missing), 0 load failures. ⚠ The takes that still fail on their CONTENT (a missing beat, a renamed unit) are CE-1241's list, now reported with the reason instead of a black skip.
