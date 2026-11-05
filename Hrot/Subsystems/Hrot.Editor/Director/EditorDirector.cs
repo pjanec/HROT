@@ -93,7 +93,7 @@ namespace Hrot.Editor.Director
         /// itself loaded (its previous take) ⇒ Discard (they are the take's preview, not the user's work); the user's OWN unsaved edits, or a run in progress ⇒ the load
         /// is refused WITH the reason (shown on the take's card) — ⛔ never a question nobody sees, never a silent discard of the user's work.
         /// </summary>
-        private sealed class DirectorAsker : Hrot.UI.Common.RunMode.IDoorAsker
+        internal sealed class DirectorAsker : Hrot.UI.Common.RunMode.IDoorAsker
         {
             private readonly EditorDirectorHost _host;
             public DirectorAsker(EditorDirectorHost host) => _host = host;
@@ -112,7 +112,10 @@ namespace Hrot.Editor.Director
                         _host.LoadMayRetry = true;
                         return;
                     case Hrot.UI.Common.RunMode.DoorQuestionKind.StopAndLoad:
+                        // ⭐ measured on the reel: every take after a played one met its OWN preview still leaving (the exit takes frames) ⇒ a WAIT,
+                        //   asked again; a run the user started stays and the take fails after the load cap WITH this reason
                         _host.LoadRefusal = "a run is in progress" + (question.Run is { } run ? " (" + run + ")" : "") + " — stop it, then play again";
+                        _host.LoadMayRetry = true;
                         return;
                     default:
                         _host.LoadRefusal = question.Text + " — save or discard it in the editor, then play again";
