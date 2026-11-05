@@ -26,12 +26,12 @@ public sealed class PredicateBuilderStateTests
         var state = new PredicateBuilderState();
 
         // Starts in Component mode with a PropertyMatchDto
-        Assert.Equal(PredicateMode.Component, state.CurrentMode);
+        Assert.Equal(SearchPredicateMode.Component, state.CurrentMode);
         Assert.IsType<PropertyMatchDto>(state.CurrentDto);
 
         // Switch to BehaviorParam
-        state.SwitchMode(PredicateMode.BehaviorParam);
-        Assert.Equal(PredicateMode.BehaviorParam, state.CurrentMode);
+        state.SwitchMode(SearchPredicateMode.BehaviorParam);
+        Assert.Equal(SearchPredicateMode.BehaviorParam, state.CurrentMode);
         Assert.IsType<BehaviorParamPredicateDto>(state.CurrentDto);
     }
 
@@ -41,7 +41,7 @@ public sealed class PredicateBuilderStateTests
         var state = new PredicateBuilderState();
         var originalDto = state.CurrentDto;
 
-        state.SwitchMode(PredicateMode.Component); // same mode
+        state.SwitchMode(SearchPredicateMode.Component); // same mode
         Assert.Same(originalDto, state.CurrentDto); // same DTO instance
     }
 
@@ -60,7 +60,7 @@ public sealed class PredicateBuilderStateTests
         // Load the breakpoint and switch to BehaviorParam (completely different condition)
         var state = new PredicateBuilderState();
         state.LoadBreakpoint(_manager.AllBreakpoints.First(b => b.Id == id));
-        state.SwitchMode(PredicateMode.BehaviorParam);
+        state.SwitchMode(SearchPredicateMode.BehaviorParam);
         state.Apply(id, _manager);
 
         // Condition is now BehaviorParamPredicateDto -- the delegate was remounted for the new condition.
@@ -77,7 +77,7 @@ public sealed class PredicateBuilderStateTests
         var state = new PredicateBuilderState();
         state.LoadBreakpoint(bp);
 
-        Assert.Equal(PredicateMode.Compound, state.CurrentMode);
+        Assert.Equal(SearchPredicateMode.Compound, state.CurrentMode);
         Assert.IsType<CompoundPredicateDto>(state.CurrentDto);
     }
 
@@ -85,7 +85,7 @@ public sealed class PredicateBuilderStateTests
     public void PredicateBuilder_AllModes_ProduceExpectedDtoType()
     {
         var state = new PredicateBuilderState();
-        foreach (PredicateMode mode in Enum.GetValues<PredicateMode>())
+        foreach (SearchPredicateMode mode in Enum.GetValues<SearchPredicateMode>())
         {
             state.SwitchMode(mode);
             Assert.NotNull(state.CurrentDto); // every mode must produce a non-null DTO

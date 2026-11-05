@@ -59,7 +59,13 @@ public sealed record ReplaySearchPanelViewModel(
 /// </summary>
 public sealed class ReplaySearchPanel
 {
-    private enum SearchMode { Component, Event, Lifecycle, Spatial, Structural, Compound, BehaviorParam }
+    // ⭐ CE-4219 ③ — the mode table is the ONE shared PredicateModes (beside the DTOs); this panel offers the 7 that make sense on a recording (SearchModes) — not BlueprintVariable / TraceBufferScan,
+    //   which are conditions of a RUNNING node (a blueprint slot read, a live trace ring) the breakpoint builder offers.
+    private static readonly SearchPredicateMode[] SearchModes =
+    {
+        SearchPredicateMode.Component, SearchPredicateMode.Event, SearchPredicateMode.Lifecycle,
+        SearchPredicateMode.Spatial, SearchPredicateMode.Structural, SearchPredicateMode.Compound, SearchPredicateMode.BehaviorParam,
+    };
 
     private readonly IComponentEditService _editService;
     private readonly IRecordingSearchService _searchService;
@@ -70,7 +76,7 @@ public sealed class ReplaySearchPanel
     private readonly Func<Entity?>? _getSelectedEntity;
     private readonly Func<int?>? _getSelectedNetworkId;
 
-    private SearchMode _mode = SearchMode.Component;
+    private SearchPredicateMode _mode = SearchPredicateMode.Component;
     private IEditSession? _predicateSession;
     private ComponentEditDrawer? _componentEditDrawer;
 
@@ -94,7 +100,7 @@ public sealed class ReplaySearchPanel
     {
         get
         {
-            if (_mode == SearchMode.Spatial && _predicateSession != null)
+            if (_mode == SearchPredicateMode.Spatial && _predicateSession != null)
             {
                 foreach (var child in _predicateSession.Document.Root.Children)
                 {
@@ -108,14 +114,8 @@ public sealed class ReplaySearchPanel
         }
     }
 
-    // Per-mode DTO instances (survive mode switches so user-entered values are preserved).
-    private readonly PropertyMatchDto _componentDto = new();
-    private readonly TransientEventPredicateDto _eventDto = new();
-    private readonly LifecyclePredicateDto _lifecycleDto = new();
-    private readonly SpatialBoundingPredicateDto _spatialDto = new();
-    private readonly StructuralPredicateDto _structuralDto = new();
-    private readonly CompoundPredicateDto _compoundDto = new();
-    private readonly BehaviorParamPredicateDto _behaviorParamDto = new();
+    // Per-mode DTO instances (survive mode switches so user-entered values are preserved) — created blank by the shared table on first use.
+    private readonly Dictionary<SearchPredicateMode, SearchPredicateDto> _modeDtos = new();
     private bool _filterTargetEntity;
     private bool _targetUseNetworkId;
     private int _targetIndex;
@@ -244,21 +244,16 @@ public sealed class ReplaySearchPanel
         _componentEditDrawer = BuildDrawer(_predicateSession);
     }
 
-    private object DtoForMode(SearchMode mode) => mode switch
+    private object DtoForMode(SearchPredicateMode mode)
     {
-        SearchMode.Component   => _componentDto,
-        SearchMode.Event       => _eventDto,
-        SearchMode.Lifecycle   => _lifecycleDto,
-        SearchMode.Spatial     => _spatialDto,
-        SearchMode.Structural  => _structuralDto,
-        SearchMode.Compound    => _compoundDto,
-        SearchMode.BehaviorParam => _behaviorParamDto,
-        _                      => _componentDto
-    };
+        if (Array.IndexOf(SearchModes, mode) < 0) mode = SearchPredicateMode.Component;
+        if (!_modeDtos.TryGetValue(mode, out var dto)) _modeDtos[mode] = dto = PredicateModes.CreateDefault(mode);
+        return dto;
+    }
 
     private ComponentEditDrawer BuildDrawer(IEditSession session)
     {
-        var typeMode = _mode == SearchMode.Event ? TypeComboMode.Event : TypeComboMode.Component;
+        var typeMode = _mode == SearchPredicateMode.Event ? TypeComboMode.Event : TypeComboMode.Component;
         var drawers = new Dictionary<Type, IImGuiFieldDrawer>
         {
             // ⭐ CE-308: int now has TWO pickers — the behaviour-hash combo and the occurrence
@@ -276,12 +271,8 @@ public sealed class ReplaySearchPanel
 
     private void DrawModeRadio()
     {
-        SearchMode[] modes =
-        {
-            SearchMode.Component, SearchMode.Event, SearchMode.Lifecycle,
-            SearchMode.Spatial, SearchMode.Structural, SearchMode.Compound, SearchMode.BehaviorParam
-        };
-        string[] labels = { "Component", "Event", "Lifecycle", "Spatial", "Structural", "Compound", "Behavior Param" };
+        var modes = SearchModes;
+        string[] labels = Array.ConvertAll(modes, PredicateModes.Label);
         string[] tooltips =
         {
             "Search for exact field value matches on a specific component (or any change).",
@@ -504,7 +495,7 @@ public sealed class ReplaySearchPanel
                     };
                 }
 
-                if (_mode == SearchMode.Lifecycle)
+                if (_mode == SearchPredicateMode.Lifecycle)
                 {
                     var pred = (LifecyclePredicateDto)dto;
                     _searchTask = Task.Run(() =>
@@ -590,7 +581,7 @@ public sealed class ReplaySearchPanel
             | ImGuiTableFlags.RowBg
             | ImGuiTableFlags.ScrollY;
 
-        if (_mode == SearchMode.Lifecycle)
+        if (_mode == SearchPredicateMode.Lifecycle)
         {
             if (!ImGuiApi.BeginTable("SearchResults", 4, tableFlags))
                 return;
