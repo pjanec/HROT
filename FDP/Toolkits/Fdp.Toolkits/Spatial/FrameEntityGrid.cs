@@ -83,6 +83,46 @@ namespace Fdp.Toolkit.Spatial
             return true;
         }
 
+        /// <summary>⭐ CE-2413 — rebuild NOW, whatever the clocks say: for a caller whose old answer was a fresh collection per call
+        /// (<c>TrafficReplicas</c>' anchors) and must stay exactly that.</summary>
+        public void Rebuild(EntityRepository world, EntityQuery set, Func<EntityRepository, Entity, bool> member)
+        {
+            _built = false;
+            EnsureFresh(world, set, member);
+        }
+
+        /// <summary>⭐ CE-2413 — is any member's frame position within <paramref name="radius"/> of <paramref name="at"/> (flat, inclusive)?
+        /// Stops at the first. For a rule that only needs the yes/no (a vicinity band), not the candidates.</summary>
+        public bool AnyWithin(Vector2 at, float radius)
+        {
+            float r2 = radius * radius;
+            int x0 = CellOf(at.X - radius), x1 = CellOf(at.X + radius), y0 = CellOf(at.Y - radius), y1 = CellOf(at.Y + radius);
+            for (int cx = x0; cx <= x1; cx++)
+                for (int cy = y0; cy <= y1; cy++)
+                {
+                    long key = Key(cx, cy);
+                    int i = Array.BinarySearch(_keys, 0, _n, key);
+                    if (i < 0) continue;
+                    while (i > 0 && _keys[i - 1] == key) i--;
+                    for (; i < _n && _keys[i] == key; i++)
+                    {
+                        int k = _order[i];
+                        float dx = _x[k] - at.X, dy = _y[k] - at.Y;
+                        if (dx * dx + dy * dy <= r2) return true;
+                    }
+                }
+            if (_lateCount > 0 && _world is not null)
+                for (int j = 0; j < _lateCount; j++)
+                {
+                    var e = _late[j];
+                    if (!_world.IsAlive(e) || !_world.HasComponent<SimTransform>(e)) continue;
+                    var p = _world.GetComponentRO<SimTransform>(e).Position;
+                    float dx = p.X - at.X, dy = p.Y - at.Y;
+                    if (dx * dx + dy * dy <= r2) return true;
+                }
+            return false;
+        }
+
         /// <summary>The structure moved within the frame: whoever was structurally changed this frame and is a member the build did not
         /// place joins the late list (destroyed ones simply stop being alive — callers re-check every candidate live).</summary>
         private void CatchUp(EntityRepository world, Func<EntityRepository, Entity, bool> member)

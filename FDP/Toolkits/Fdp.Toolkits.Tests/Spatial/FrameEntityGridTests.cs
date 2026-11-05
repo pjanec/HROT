@@ -60,6 +60,13 @@ namespace Fdp.Toolkits.Tests.Spatial
                     bool within = SegDist2(new Vector2(p.X, p.Y), a, b) <= pad * pad;
                     Assert.Equal(within, hit[e.Index]);
                 }
+                bool any = false;   // ⭐ CE-2413 — AnyWithin agrees with the scan
+                foreach (var e in all)
+                {
+                    var p = _w.GetComponentRO<SimTransform>(e).Position;
+                    if (Vector2.DistanceSquared(new Vector2(p.X, p.Y), a) <= pad * pad) { any = true; break; }
+                }
+                Assert.Equal(any, grid.AnyWithin(a, pad));
                 Array.Clear(hit);
                 grid.Circle(a, pad);
                 foreach (int k in grid.Found) hit[grid.EntityAt(k).Index] = true;
