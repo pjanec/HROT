@@ -830,6 +830,8 @@ deliberately — a different contract (fixed extent with a capacity, hidden pass
 | ⚠ the frame's | the CELL a member sits in: a member moved within the frame is found within the caller's slack (`MovedSlackMetres` = 4 m) |
 | no allocation | once grown (rails assert it) |
 
+⚠ **Superseded in part `2026-11-05`:** the user ruled ONE grid type — CE-2415 (unify with the CarKinem broadphase; the differing sets become filters).
+
 Rejected: **`SpatialHashSystem` on the CGF** — its set differs (hidden passengers out, out-of-extent dropped), so the hold-fire answers would
 change; and it is a host-plan change. **A rebuild on every structural change** — the measured CGF frame adds components while it fires.
 **A third private grid** — two copies of one mechanism.
