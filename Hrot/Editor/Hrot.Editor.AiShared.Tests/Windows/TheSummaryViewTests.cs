@@ -1,7 +1,9 @@
 using System;
+using System.Globalization;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Diagnostics.Contracts.Panels;
+using Fdp.Interfaces;
 using Fdp.Presentation.Icons;
 using Fdp.Presentation.WindowManager;
 using Fdp.Toolkit.Combat.Components;
@@ -142,5 +144,76 @@ public sealed class TheSummaryViewTests : IDisposable
         Assert.Equal("T-72", dump["name"]!.GetValue<string>());
         Assert.Equal("Hostile", dump["side"]!.GetValue<string>());
         Assert.Equal(1043L, dump["networkId"]!.GetValue<int>());
+    }
+
+    // ── ⭐ CE-4257 — the Summary names WHAT KIND of entity it is, and prints numbers culture-invariantly ──────────────────────
+
+    private static EntityRepository WorldWithTkb()
+    {
+        var world = World(withStyle: false);
+        world.RegisterManagedComponent<ITkbDatabase>();
+        world.SetSingletonManaged<ITkbDatabase>(Hrot.Map.Common.HrotEnvironment.CreateTkb());
+        return world;
+    }
+
+    private static T WithCulture<T>(string decimalSeparator, Func<T> run)
+    {
+        var saved = CultureInfo.CurrentCulture;
+        var c = (CultureInfo)CultureInfo.InvariantCulture.Clone();
+        c.NumberFormat.NumberDecimalSeparator = decimalSeparator;
+        try { CultureInfo.CurrentCulture = c; return run(); }
+        finally { CultureInfo.CurrentCulture = saved; }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4257 — a rifleman: its KIND is its template's name, the TKB row is the number, the DIS row is the template's seven numbers colon-separated
+    /// (names on hover) and the position is culture-invariant even in a decimal-comma culture. 🔴 Red-proof: <c>PositionText</c> formats with the current culture.
+    /// </summary>
+    [Fact]
+    public void CE4257_ARifleman_NamesItsKind_ItsTkbNumber_ItsSevenDisNumbers_AndAnInvariantPosition()
+    {
+        using var world = WorldWithTkb();
+        var db = world.GetSingletonManaged<ITkbDatabase>()!;
+        Assert.True(db.TryGetByType(Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, out var template));
+        var e = world.CreateEntity();
+        world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman });
+        world.AddComponent(e, new SimTransform { Position = new Vector3(12.5f, 3f, 0f), Rotation = Quaternion.Identity });
+        world.AddComponent(e, new Health { Current = 30.5f, Max = 120f });
+
+        var s = WithCulture(",", () => EntitySummary.Read(world, e))!;
+        Assert.False(string.IsNullOrWhiteSpace(s.Kind), "a kind");
+        Assert.Equal(Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, s.TkbType?.Value);
+        Assert.NotEqual(0UL, template!.DisType.Value);
+        Assert.Equal(template.DisType.Value, s.Dis!.Value.Value);
+        string dis = EntitySummary.DisText(s.Dis.Value);
+        Assert.Equal(7, dis.Split(':').Length);
+        Assert.Equal($"{template.DisType.Kind}:{template.DisType.Domain}:{template.DisType.Country}:{template.DisType.Category}:{template.DisType.Subcategory}:{template.DisType.Specific}:{template.DisType.Extra}", dis);
+        Assert.False(string.IsNullOrWhiteSpace(EntitySummary.DisNames(s.Dis.Value)), "the DIS names for the tooltip");
+
+        // the rows as drawn (the dump), with the culture's decimal separator a comma
+        PanelSnapshot.CaptureEnabled = true;
+        var view = new EntitySummaryView(() => world);
+        var ctx = DetailsContext.Empty("IG") with { Entities = new[] { e } };
+        var vm = WithCulture(",", () => view.SimulateDraw(ctx, "details_ce4257"));
+        Assert.Equal(s.Kind, vm.Kind);
+        Assert.Equal(dis, vm.Dis);
+        Assert.Equal("12.5, 3.0, 0.0 m", vm.PositionText);
+        Assert.DoesNotContain(",", WithCulture(",", () => EntitySummary.HealthText(30.5f, 120f)));   // F0: no decimal separator at all
+    }
+
+    [Fact]
+    public void CE4257_AnEntityWithNoTkbType_HasNoKindNoTkbNoDisRow_AndOneWithOnlyADisTypeIsNamedByItsCategory()
+    {
+        using var world = WorldWithTkb();
+        var bare = world.CreateEntity();
+        world.AddComponent(bare, new SimTransform { Position = new Vector3(1.25f, 2f, 3f), Rotation = Quaternion.Identity });
+        var s = EntitySummary.Read(world, bare)!;
+        Assert.Null(s.Kind); Assert.Null(s.TkbType); Assert.Null(s.Dis);
+
+        var typed = world.CreateEntity();
+        world.SetDisType(typed, new DISEntityType { Kind = 1, Domain = 1, Country = 225, Category = 1 });
+        var t = EntitySummary.Read(world, typed)!;
+        Assert.False(string.IsNullOrWhiteSpace(t.Kind), "named by its DIS category");
+        Assert.Equal("1:1:225:1:0:0:0", EntitySummary.DisText(t.Dis!.Value));
     }
 }

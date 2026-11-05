@@ -1,4 +1,5 @@
 using System;
+using static System.FormattableString;   // ⭐ CE-4257 — Invariant(...): a number shown in the Details is never formatted in the user's culture
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -497,7 +498,7 @@ public sealed class EntityBrainView : IDetailsViewInstance
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(r.Channel);
                 ImGui.TableNextColumn(); if (r.IsHold) ImGui.TextColored(Amber, r.Reason); else ImGui.TextWrapped(r.Reason);
                 ImGui.TableNextColumn();
-                ImGui.TextUnformatted(r.Needed > 0 ? $"{r.Progress:0.0} / {r.Needed:0.0}" : r.Progress > 0 ? $"{r.Progress:0.0}" : "");
+                ImGui.TextUnformatted(r.Needed > 0 ? Invariant($"{r.Progress:0.0} / {r.Needed:0.0}") : r.Progress > 0 ? Invariant($"{r.Progress:0.0}") : "");
             }
             ImGui.EndTable();
         }
@@ -518,9 +519,9 @@ public sealed class EntityBrainView : IDetailsViewInstance
                 var sheet = Hrot.Editor.AiShared.Utility.UtilityDecisionSheet.Build(c.DecisionId);
                 var live = sheet != null && world is not null ? sheet.WithLive(world, unit) : null;
                 string winner = live == null ? $"{c.Winner}" : live.IsRanking
-                    ? (live.Ranked.Count > 0 ? $"{PinLabelOf(world!, live.Ranked[0].Entity)}  {live.Ranked[0].Score:0.00}" : "-")
+                    ? (live.Ranked.Count > 0 ? Invariant($"{PinLabelOf(world!, live.Ranked[0].Entity)}  {live.Ranked[0].Score:0.00}") : "-")
                     : live.WinnerName ?? "-";
-                string label = $"{sheet?.Name ?? $"Decision {c.DecisionId}"}  ->  {winner}   margin {c.Margin:0.00}   {c.Switches} switches";
+                string label = Invariant($"{sheet?.Name ?? $"Decision {c.DecisionId}"}  ->  {winner}   margin {c.Margin:0.00}   {c.Switches} switches");
                 if (live == null) { ImGui.TextWrapped(label); continue; }
                 if (ImGui.TreeNodeEx($"{label}###why{c.DecisionId}", ImGuiTreeNodeFlags.SpanAvailWidth))
                 {
@@ -548,7 +549,7 @@ public sealed class EntityBrainView : IDetailsViewInstance
                 foreach (var c in b.Changes)
                 {
                     ImGui.TableNextRow();
-                    ImGui.TableNextColumn(); ImGui.TextDisabled($"{c.At:0.0} s");
+                    ImGui.TableNextColumn(); ImGui.TextDisabled(Invariant($"{c.At:0.0} s"));
                     ImGui.TableNextColumn(); ImGui.TextUnformatted(c.Kind);
                     ImGui.TableNextColumn(); ImGui.TextWrapped(c.Text);
                 }
@@ -608,7 +609,7 @@ public sealed class EntityBrainView : IDetailsViewInstance
         if (ImGui.BeginChild("##hist." + id, new Vector2(0, h), ImGuiChildFlags.Borders))
             foreach (var r in rows)
             {
-                ImGui.TextDisabled($"{r.At,7:0.0}s");
+                ImGui.TextDisabled(Invariant($"{r.At,7:0.0}s"));
                 ImGui.SameLine();
                 ImGui.TextUnformatted(r.Text);
             }
@@ -661,7 +662,7 @@ public sealed class EntityBrainView : IDetailsViewInstance
                 if (!editable) ImGui.EndDisabled();
                 if (s.Tooltip is { } tip && ImGui.IsItemHovered()) ImGui.SetTooltip(tip);
                 ImGui.TableNextColumn();
-                ImGui.TextDisabled($"type {s.TypeValue:0.00}");
+                ImGui.TextDisabled(Invariant($"type {s.TypeValue:0.00}"));
                 ImGui.TableNextColumn();
                 if (s.IsAuthored && editable)
                 {
@@ -889,8 +890,8 @@ public sealed class EntityBrainView : IDetailsViewInstance
             if (c.Heard) ImGui.TextColored(Amber, who); else ImGui.TextUnformatted(who);
             ImGui.TableNextColumn(); ImGui.TextUnformatted(c.How);
             ImGui.TableNextColumn(); ImGui.TextUnformatted($"{c.Distance:0} m");
-            ImGui.TableNextColumn(); ImGui.TextUnformatted(c.AgeSeconds is { } a ? $"{a:0.0} s" : "-");
-            ImGui.TableNextColumn(); ImGui.TextUnformatted($"{c.Freshness:0.00}");
+            ImGui.TableNextColumn(); ImGui.TextUnformatted(c.AgeSeconds is { } a ? Invariant($"{a:0.0} s") : "-");
+            ImGui.TableNextColumn(); ImGui.TextUnformatted(Invariant($"{c.Freshness:0.00}"));
             ImGui.TableNextColumn();
             if (JumpCamera is { } jump && world is not null)
             {

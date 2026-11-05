@@ -94,6 +94,9 @@ public sealed class SharedOrbatPanel
     /// <summary>The relation switch the last frame drew.</summary>
     public IReadOnlyList<DrawnSwitch> RelationSwitch => _switch;
 
+    /// <summary>⭐ CE-4256 — the filter field's rectangle as drawn this frame (it shares the icons' line and fills the rest of it).</summary>
+    public (System.Numerics.Vector2 Min, System.Numerics.Vector2 Max) DrawnFilter { get; private set; }
+
     /// <summary>The refusal line the last frame drew, or null.</summary>
     public string? DrawnRefusal { get; private set; }
 
@@ -109,21 +112,35 @@ public sealed class SharedOrbatPanel
 
     // ── Render ────────────────────────────────────────────────────────────────
 
+    /// <summary>⭐ CE-4256 — one relation icon: lit while active, a tooltip, its rectangle recorded for the probe. Clicking it does what the radio did.</summary>
+    private void RelationIcon(string label, string glyph, EntityTreeRelation relation, string tooltip)
+    {
+        bool active = Relation == relation;
+        if (active) ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetStyle().Colors[(int)ImGuiCol.ButtonActive]);
+        bool clicked = ImGui.Button(glyph + "##orbat_rel_" + label);
+        if (active) ImGui.PopStyleColor();
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip(tooltip);
+        if (clicked) Relation = relation;
+        _switch.Add(new(label, ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
+    }
+
     /// <summary>
     /// Renders the ORBAT panel.  Must be called inside an active ImGui window.
     /// </summary>
     public void DrawContent(IOrbatDataProvider data, IOrbatController ctrl)
     {
         _drawn.Clear(); _switch.Clear(); DrawnRefusal = null;
-        // ⭐ CE-4213 — the relation switch: ONE tree, the parent rule chosen here.
-        if (ImGui.RadioButton("Command", Relation == EntityTreeRelation.Command)) Relation = EntityTreeRelation.Command;
-        _switch.Add(new("Command", ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
+        // ⭐ CE-4213 — the relation switch: ONE tree, the parent rule chosen here. ⭐ CE-4256 — three ICON buttons on the filter's line (the active one
+        //   lit, a tooltip naming the view), then the filter field fills the rest with "Filter" as its hint.
+        RelationIcon("Command", Fdp.Presentation.Fonts.IconsFontAwesome6.Sitemap, EntityTreeRelation.Command, "Command (ORBAT)");
         ImGui.SameLine();
-        if (ImGui.RadioButton("Structure", Relation == EntityTreeRelation.Structure)) Relation = EntityTreeRelation.Structure;
-        _switch.Add(new("Structure", ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
+        RelationIcon("Structure", Fdp.Presentation.Fonts.IconsFontAwesome6.Cubes, EntityTreeRelation.Structure, "Structure (parts, riders)");
         ImGui.SameLine();
-        if (ImGui.RadioButton("Scenario", Relation == EntityTreeRelation.Scenario)) Relation = EntityTreeRelation.Scenario;
-        _switch.Add(new("Scenario", ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
+        RelationIcon("Scenario", Fdp.Presentation.Fonts.IconsFontAwesome6.PuzzlePiece, EntityTreeRelation.Scenario, "Scenario (macro members)");
+        ImGui.SameLine();
+        ImGui.SetNextItemWidth(-1f);
+        ImGui.InputTextWithHint("##orbat_filter", "Filter", ref _filterText, 128);
+        DrawnFilter = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
         data.Relation = Relation;
         bool editable = Relation == EntityTreeRelation.Command;   // Structure and Scenario: no drag, no drop targets
 
@@ -137,11 +154,6 @@ public sealed class SharedOrbatPanel
             ImGui.PopTextWrapPos();
             ImGui.PopStyleColor();
         }
-
-        // Filter text box
-        ImGui.InputText("##orbat_filter", ref _filterText, 128);
-        ImGui.SameLine();
-        ImGui.TextUnformatted("Filter");
 
         ImGui.Separator();
 

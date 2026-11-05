@@ -174,6 +174,14 @@ public sealed class TheSharedOrbatPanelDrawsTests : IDisposable
         Assert.DoesNotContain(command, r => r.Text.Contains("sensor"));
         Assert.All(command, r => Assert.False(r.IsGroup));
         Assert.Equal(new[] { "Command", "Structure", "Scenario" }, panel.RelationSwitch.Select(s => s.Label));
+        // ⭐ CE-4256 — ONE line: three icon buttons (not radios, no "Filter" label), then the filter field filling the rest
+        var icons = panel.RelationSwitch;
+        Assert.All(icons, i => Assert.True(Math.Abs(i.Min.Y - icons[0].Min.Y) < 1f, "the icons share one line"));
+        Assert.True(icons[0].Max.X < icons[1].Min.X && icons[1].Max.X < icons[2].Min.X, "side by side");
+        var filter = panel.DrawnFilter;
+        Assert.True(Math.Abs(filter.Min.Y - icons[0].Min.Y) < 4f, "the filter field is on the icons' line");
+        Assert.True(filter.Min.X >= icons[2].Max.X, "after the third icon");
+        Assert.True(filter.Max.X - filter.Min.X > 200f, $"and fills the rest of the line ({filter.Max.X - filter.Min.X:0} px)");
         ClickRow("Rifleman A");
         Assert.Equal("Rifleman A", _world.GetComponentRO<EntityInfo>(Assert.Single(picked)).Name.ToString());   // a click selects that unit
         frame.Screenshot(Shot("orbat-command.png"));
@@ -227,5 +235,16 @@ public sealed class TheSharedOrbatPanelDrawsTests : IDisposable
         Assert.Empty(picked);                                                                          // a group label selects nothing: it is no entity
         frame.Screenshot(Shot("orbat-scenario.png"));
         Assert.True(Differing(Shot("orbat-structure.png"), Shot("orbat-scenario.png")) > 200);
+
+        // ── CE-4256 — and back: the Command icon switches the view as the radio did
+        var cmd = panel.RelationSwitch.Single(s => s.Label == "Command");
+        at = (cmd.Min + cmd.Max) / 2f;
+        Step(io => Pos(io, at.X, at.Y), 2);
+        Step(io => { Pos(io, at.X, at.Y); io.AddMouseButtonEvent(0, true); });
+        Step(io => Pos(io, at.X, at.Y));
+        Step(io => { Pos(io, at.X, at.Y); io.AddMouseButtonEvent(0, false); });
+        Step(null, 3);
+        Assert.Equal(EntityTreeRelation.Command, panel.Relation);
+        Assert.Contains(panel.DrawnRows, r => r.Text == "Rifleman A" && r.Depth == 1);
     }
 }
