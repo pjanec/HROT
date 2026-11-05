@@ -612,7 +612,7 @@ sequenceDiagram
 | S3-a | up to THREE extra kits per role (four with the role's own type) as fixed fields — unmanaged, no list | the accepted lean; an unmanaged component cannot hold a list (§10.3 S2-a's reason) |
 | S3-b | a kit shares the role's count and max | a kit is a variant of ONE role, not a second role |
 | S3-c | `AreaNetId` 0 ⇒ a random area of the side (S2's rule); a named area of another side ⇒ refused `WrongSide` | the Player may choose, never must |
-| S3-d | the area on the MAP (click to choose) is ui's — the screen lists the areas; the 2-D map highlights and accepts a click through the same `Request` | the deploy flow's API is the one seam |
+| S3-d | the area on the MAP (click to choose) is ui's — the screen lists the areas; the 2-D map highlights and accepts a click through the same `Request` — ⏳ filed `2026-11-05` as **CE-3370** (owner ui; `batches/NOTE_Backend_To_Ui_Deploy_Map_Area.md`) | the deploy flow's API is the one seam |
 
 Rejected — one line each: *a kit as AmmoLoadout overrides* — a loadout system, rejected in §5. *One role entity per kit* — splits the role's count and max.
 *Area as a separate request* — two round trips for one decision.
