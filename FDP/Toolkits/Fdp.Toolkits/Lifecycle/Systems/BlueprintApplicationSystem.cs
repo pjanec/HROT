@@ -35,6 +35,9 @@ namespace Fdp.Toolkit.Lifecycle.Systems
             var orders = view.ReadEvents<ConstructionOrder>();
             foreach (ref readonly var order in orders)
             {
+                // ⭐ CE-2419 — an order can outlive its entity (torn down in the frame it was queued — 📐 seen when the master ejected the brain
+                //   mid-load): nothing is left to construct. ⛔ Before, the injection threw "is not alive" and the unhandled exception killed the node.
+                if (!repo.IsAlive(order.Entity)) continue;
                 if (_tkb.TryGetByType(order.BlueprintId, out var template))
                 {
                     foreach (var t in _translators)

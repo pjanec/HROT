@@ -96,6 +96,7 @@ namespace Fdp.Toolkit.Terrain
             int index = 0;
             foreach (var featureNode in features)
             {
+                Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the load advances (docs/DESIGN_Cluster_Load_Phase.md §12)
                 string where = $"feature #{index++}";
                 if (featureNode is not JsonObject feature)
                     throw new ArgumentException($"Terrain world {where} is not an object.");

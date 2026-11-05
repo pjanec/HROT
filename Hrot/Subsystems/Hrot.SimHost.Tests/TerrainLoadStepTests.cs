@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.IO;
 using System.Text;
@@ -228,6 +229,46 @@ public sealed class TerrainLoadStepTests : IDisposable
         }
     }
 
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-2417</c> — the terrain load REPORTS while it works (🔒 user: "for sure all loaders need to report progress, how else we would find out it
+    /// is hung?"): the definition and world files read through the reporting stream, every world feature, the cover build, the road network's nodes
+    /// and segments — in the prepare (the worker) — and the commit too. 🔴 Red-proof: the world parser's per-feature report removed ⇒ the prepare
+    /// advances by fewer than the features it parsed.
+    /// </summary>
+    [Fact]
+    public void CE2417_TheTerrainLoad_AdvancesTheNodesLoadProgress_InPrepareAndCommit()
+    {
+        WriteScenarioHeader("kandahar");
+        string folder = Path.Combine(_terrainDir, "kandahar");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, TerrainCatalog.DefinitionFileName),
+            """{"schemaVersion":2,"name":"kandahar","world":"w.geojson"}""", new UTF8Encoding(false));
+        var features = string.Join(",", Enumerable.Range(0, 40).Select(i =>
+            "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"height\":10},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[["
+          + $"{i * 20},0],[{i * 20 + 10},0],[{i * 20 + 10},10],[{i * 20},10],[{i * 20},0]]]}}}}"));
+        File.WriteAllText(Path.Combine(folder, "w.geojson"), "{\"type\":\"FeatureCollection\",\"features\":[" + features + "]}", new UTF8Encoding(false));
+
+        var (handler, holder) = NewHandler();
+        using var world = NewWorld();
+        using (holder)
+        {
+            var progress = new Fdp.Core.LoadProgress();
+            var previous = Fdp.Core.LoadProgress.Current;
+            Fdp.Core.LoadProgress.Current = progress;
+            try
+            {
+                var intent = Intent();
+                Prepare(handler, intent);
+                long afterPrepare = progress.Value;
+                Assert.True(afterPrepare >= 40 + 40, $"40 features parsed + 40 prisms covered ⇒ at least 80 reports; got {afterPrepare}");
+
+                handler.Commit(intent, world);
+                Assert.True(progress.Value > afterPrepare, "the commit reports too");
+            }
+            finally { Fdp.Core.LoadProgress.Current = previous; }
+        }
+    }
 
     /// <summary>
     /// ⭐⭐ <c>CE-2244</c> — a terrain that is not resident yet marks the world PENDING from the step's frame-thread <c>BeforePrepare</c> until

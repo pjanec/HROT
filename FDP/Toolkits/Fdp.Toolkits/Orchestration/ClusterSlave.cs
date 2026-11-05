@@ -245,9 +245,23 @@ namespace Fdp.Toolkit.Orchestration
         /// </summary>
         public void Tick()
         {
-            TickCore();
-            PublishHeartbeat();
+            // ⭐⭐ CE-2417 — the handlers this tick runs (a load's prepare and commit, and the workers they start) report into THIS node's progress.
+            var previous = LoadProgress.Current;
+            LoadProgress.Current = Progress;
+            try
+            {
+                TickCore();
+                PublishHeartbeat();
+            }
+            finally { LoadProgress.Current = previous; }
         }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-2417</c> — this node's load progress: one per node, keyed on its event bus, so the translator's heartbeat pump reads the SAME
+        /// instance (<see cref="LoadProgress.For"/>). 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §12.
+        /// </summary>
+        public LoadProgress Progress => _progress ??= _eventBus != null ? LoadProgress.For(_eventBus) : new LoadProgress();
+        private LoadProgress? _progress;
 
         private void TickCore()
         {
@@ -544,6 +558,9 @@ namespace Fdp.Toolkit.Orchestration
         /// ⭐ The heartbeat: every second as before, and ⭐ <b>at once</b> when the node's phase, step or failure reason changed (so progress is never a second late). Called once at the end of each
         /// <see cref="Tick"/> — ⇒ at most one change-triggered beat per frame, and the 1 Hz timer restarts with it.
         /// </summary>
+        /// <summary>⭐ <c>CE-2417</c> — while a load step works, a beat needs progress within this window (1 s: the beat's own cadence).</summary>
+        public const double LoadBeatWindowSeconds = 1.0;
+
         private void PublishHeartbeat()
         {
             var phase  = Phase;
@@ -556,6 +573,11 @@ namespace Fdp.Toolkit.Orchestration
             string featuresKey = (featuresOn == null ? "" : string.Join(",", featuresOn)) + "|" + (featureErrors == null ? "" : string.Join(";", featureErrors));
             bool changed = phase != _lastBeatPhase || step != _lastBeatStep || reason != _lastBeatReason || featuresKey != _lastBeatFeatures;
             if (!changed && _heartbeatTimer.Elapsed.TotalSeconds < 1.0) return;
+
+            // ⭐⭐⭐ CE-2417 — while a load step WORKS (a prepare or commit runs; ⛔ not a node held or waiting on the cluster — that one is not hung),
+            //   a beat means "the load is advancing": none is sent unless the progress moved in the last second. ⇒ a loader that hangs on the worker
+            //   stops the beats and the master's existing 5 s rule ejects the node. 🔒 User: "if it gets stuck, no more hearbeat shall be sent".
+            if (Progress.IsActive && !Progress.MovedWithin(LoadBeatWindowSeconds)) return;
 
             _heartbeatTimer.Restart();
             _lastBeatPhase = phase; _lastBeatStep = step; _lastBeatReason = reason; _lastBeatFeatures = featuresKey;

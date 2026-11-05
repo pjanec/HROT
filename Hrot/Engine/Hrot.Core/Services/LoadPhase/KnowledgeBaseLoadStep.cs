@@ -108,7 +108,10 @@ public sealed class KnowledgeBaseLoadStep : ILoadPartProvider
         using var loader = new TkbUnifiedLoader(localPath);
         var deserializer = new TkbDeserializer();
         foreach (var entityFile in loader.EnumerateEntityFiles())
+        {
+            Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the load advances (docs/DESIGN_Cluster_Load_Phase.md §12)
             deserializer.ParseAndRegister(entityFile, _tkbDb);
+        }
         // ⭐ CE-3230 (B-8, H-1; DESIGN_Civilians_And_Crowd_Control §7.9) — every person a file names has hands, as the built-in ones do
         Fdp.Toolkit.Combat.PersonHands.EnsureOnPersons(_tkbDb);
 

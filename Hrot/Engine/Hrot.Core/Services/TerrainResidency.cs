@@ -207,7 +207,7 @@ public sealed class TerrainResidency
             return new Staged();
         }
 
-        var definition = TerrainDefinitionParser.Parse(File.ReadAllText(definitionPath));
+        var definition = TerrainDefinitionParser.Parse(Fdp.Core.ProgressStream.ReadAllText(definitionPath));   // ⭐ CE-2417 — every read and stage below reports (§12)
 
         var staged = new Staged
         {
@@ -225,8 +225,10 @@ public sealed class TerrainResidency
                     $"[Terrain] Terrain '{terrainName}' declares world '{definition.World}', which does not exist "
                   + $"at '{worldPath}'.", worldPath);
             // ⭐ Stage 1 — with the terrain folder's side files (building templates, material overrides).
-            staged.World = Indexed(TerrainWorldParser.Parse(File.ReadAllText(worldPath), terrainName,
+            staged.World = Indexed(TerrainWorldParser.Parse(Fdp.Core.ProgressStream.ReadAllText(worldPath), terrainName,
                 TerrainAssets.ForFolder(Path.GetDirectoryName(definitionPath)!)));
+
+            Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the world is parsed (its features reported as they went)
 
             // ⭐ W6 — the bake rides Prepare, whose contract is already "off-thread, no ECS mutation".
             if (_navmeshFactory != null)
@@ -239,6 +241,7 @@ public sealed class TerrainResidency
             }
 
             // ⭐ EQS §19 — the cover database is derived from the same world, off-thread like the bake.
+            Fdp.Core.LoadProgress.Report();
             staged.Cover = Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(staged.World);
         }
 
@@ -267,7 +270,10 @@ public sealed class TerrainResidency
         string folder = Path.GetDirectoryName(definitionPath)!;
         AttachRegisteredContent();
         foreach (var loader in _contentLoaders)
+        {
+            Fdp.Core.LoadProgress.Report();
             staged.Contents.Add((loader, loader.Prepare(definition, folder, terrainName, staged.World ?? (staged.PreparedEmptyWorld ??= new TerrainWorld { Name = terrainName }))));
+        }
 
         return staged;
     }
@@ -301,6 +307,7 @@ public sealed class TerrainResidency
         // ⭐ CE-3015 — remember the name the scenario resolved it by, so a save writes it back.
         staged.Definition!.ResolvedName = staged.TerrainName ?? string.Empty;
         world.SetSingletonManaged(staged.Definition!);
+        Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the commit's stages report (docs/DESIGN_Cluster_Load_Phase.md §12)
 
         // ⭐ The world model — every ECS node holds it (map, LOS, movement Z, navmesh source). A terrain
         //   with no world file still publishes an EMPTY world, so a re-load never leaves the previous
@@ -324,6 +331,7 @@ public sealed class TerrainResidency
         // ⭐ W6 — publish the bake (null ⇒ the straight-line fallback, so a terrain without a world never
         //   keeps the previous terrain's navmesh).
         _navmesh?.Publish(staged.Navmesh);
+        Fdp.Core.LoadProgress.Report();
 
         // ⭐ EQS §19 — the terrain's cover points (an EMPTY database when it has no world, so a re-load never keeps the
         //   previous terrain's cover). Read by CoverPointsGenerator through the solver snapshot.
@@ -341,7 +349,10 @@ public sealed class TerrainResidency
 
         // ⭐ AQ93 R-4021 — the attached content, published in the same commit as the world it belongs to.
         foreach (var (loader, prepared) in staged.Contents)
+        {
+            Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417
             loader.Commit(world, prepared);
+        }
 
         _lastLoadedTerrainName = staged.TerrainName;
         _lastLoadedTimestamp   = staged.FileTimestamp;

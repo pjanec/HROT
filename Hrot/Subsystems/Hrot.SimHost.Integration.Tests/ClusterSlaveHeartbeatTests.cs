@@ -75,6 +75,37 @@ namespace Hrot.SimHost.Integration.Tests
             Assert.Equal(NodeRole.Brain, NodeRoleTokens.MaskFromTokens(cgfCaps[0].Capabilities));
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ CE-2417 — while a load step WORKS (here: a worker's step, as the chain opens it), the frame's beat means "the load advances": with no
+        /// progress in the last second no beat is sent (a hung loader ⇒ the master's 5 s rule ejects the node); progress ⇒ the beat goes; the step
+        /// done ⇒ beats as before. 🔒 User: "if it gets stuck, no more hearbeat shall be sent". 🔴 Red-proof: the gate in PublishHeartbeat removed ⇒
+        /// the stalled tick beats.
+        /// </summary>
+        [Fact]
+        public async Task CE2417_WhileALoadStepWorks_TheFrameBeatsOnlyIfTheLoadAdvances()
+        {
+            var bus = new FdpEventBus();
+            using var slave = new ClusterSlave(CgfNodeId, "CGF", bus, NodeRole.Brain);
+            int Beats() { bus.SwapBuffers(); return bus.ReadManaged<NodeHeartbeatEvent>().Count(); }
+
+            slave.Tick();
+            Assert.Equal(1, Beats());                         // the first beat
+
+            var working = slave.Progress.Active("Terrain");   // a worker's load step starts …
+            await Task.Delay(1200);
+            slave.Tick();
+            Assert.Equal(0, Beats());                         // … and has not advanced for a second: ⛔ no beat
+
+            slave.Progress.Advance();                         // it advances
+            slave.Tick();
+            Assert.Equal(1, Beats());                         // ⇒ the beat goes
+
+            working.Dispose();                                // the step is done (the node now waits — not hung)
+            await Task.Delay(1200);
+            slave.Tick();
+            Assert.Equal(1, Beats());                         // ⇒ beats as before
+        }
+
         [Fact]
         public void ClusterSlave_PublishesCapabilitiesOnlyOnce()
         {

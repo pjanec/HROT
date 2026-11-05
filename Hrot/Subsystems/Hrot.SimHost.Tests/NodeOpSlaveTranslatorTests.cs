@@ -25,6 +25,61 @@ public sealed class NodeOpSlaveTranslatorTests
 {
     private const int TestDomain = 18;
 
+    // ── CE-2417: while a node loads, a heartbeat means "the load is advancing" ───────────────
+    /// <summary>
+    /// ⭐⭐⭐ CE-2417 — 🔒 user: "it must be watching the entity load progress - if it gets stuck, no more hearbeat shall be sent". While the frame is
+    /// SILENT (one long load pass: no Tick) the translator's pump beats once a second ONLY while the node's <see cref="LoadProgress"/> moves — the
+    /// frame's phase and step, a fresh time. The progress stalls ⇒ the beats stop (the master's 5 s rule ejects a hung load). A node that is NOT
+    /// loading gets no pumped beat however its world changes. 🔴 Red-proof: the progress check removed from the pump ⇒ beats continue after the stall.
+    /// </summary>
+    [Fact(Timeout = 30_000)]
+    public void CE2417_ASilentFrame_BeatsWhileTheLoadAdvances_AndStopsWhenItStalls()
+    {
+        using var participant     = new DdsParticipant(TestDomain);
+        using var cmdReader       = new DdsReader<NodeOpCommand>(participant);
+        using var statusWriter    = new DdsWriter<NodeOpStatus>(participant);
+        using var heartbeatWriter = new DdsWriter<NodeHeartbeat>(participant);
+        using var heartbeatReader = new DdsReader<NodeHeartbeat>(participant);
+        var bus = new FdpEventBus();
+        var translator = new NodeOpSlaveTranslator(cmdReader, statusWriter, heartbeatWriter, bus, nodeId: 7);
+        var progress = LoadProgress.For(bus);   // the SAME instance the node's ClusterSlave reports into
+        Thread.Sleep(600); // DDS discovery
+
+        var beats = new List<NodeHeartbeat>();
+        void Drain() { using var scope = heartbeatReader.Take(); foreach (var x in scope) if (x.IsValid && x.Data.NodeId == 7) beats.Add(x.Data); }
+        void Frame(NodePhase phase)
+        {
+            bus.PublishManaged(new NodeHeartbeatEvent { NodeId = (NodeId)7, Phase = phase, Step = "ScenarioEntities", SubsystemName = "CGF", NodeName = "CGF-7" });
+            bus.SwapBuffers();
+            translator.Tick();
+        }
+
+        Frame(NodePhase.Loading);                // the frame's beat …
+        Drain();
+        for (int i = 0; i < 3; i++)              // … then a 3.3 s frame (no Tick) in which the load ADVANCES (read each second: the topic keeps the last beat per node)
+        {
+            for (int k = 0; k < 11; k++) { Thread.Sleep(100); progress.Advance(); }
+            Drain();
+        }
+        Assert.True(beats.Count >= 3, $"the frame's beat plus at least two pumped beats ({beats.Count})");
+        Assert.True(translator.PumpedBeats >= 2, $"pumped {translator.PumpedBeats}");
+        Assert.All(beats, b => { Assert.Equal((int)NodePhase.Loading, b.Phase); Assert.Equal("ScenarioEntities", b.Step); });
+        for (int i = 1; i < beats.Count; i++) Assert.True(beats[i].WallTicksUtc > beats[i - 1].WallTicksUtc, "each beat is fresh");
+
+        Thread.Sleep(1200);                      // the load STALLS (still no frame)
+        int pumped = translator.PumpedBeats;
+        Thread.Sleep(2500);
+        Assert.Equal(pumped, translator.PumpedBeats);   // ⛔ no progress, no beat: the master will eject a hung load
+
+        Frame(NodePhase.PlayReady);              // a node that is NOT loading …
+        pumped = translator.PumpedBeats;
+        for (int k = 0; k < 25; k++) { Thread.Sleep(100); progress.Advance(); }   // … gets no pumped beat however its world changes
+        Assert.Equal(pumped, translator.PumpedBeats);
+
+        translator.Dispose();                    // and a dispose with the pump armed is clean
+        Thread.Sleep(1200);
+    }
+
     // ── Test 1: DDS NodeOpCommand (matching nodeId) → ExecuteNodeOpIntent ────
 
     [Fact(Timeout = 10_000)]

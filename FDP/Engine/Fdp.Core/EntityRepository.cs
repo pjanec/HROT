@@ -192,6 +192,47 @@ namespace Fdp.Core
 
         private long _structuralChanges;
 
+        // ⭐ CE-2418 — the query-candidate index and its scope (docs/DESIGN_Egress_Change_Detection.md §6)
+        private QueryCandidateIndex? _candidateIndex;
+        private int _queryIndexDepth;
+        private bool _candidatesBuiltInScope;   // at most ONE build per scope: a live enumerator's array is never rewritten under it
+
+        /// <summary>⭐ <c>CE-2418</c> — while the returned scope lives, a query on THIS repository walks only the entities of its rarest included
+        /// type (a candidate index built from the masks in one pass, voided by any structural change) instead of every entity. For a burst of
+        /// queries on one thread (the egress pass). Nests; dispose it.</summary>
+        public QueryIndexScopeHandle QueryIndexScope() { _queryIndexDepth++; return new QueryIndexScopeHandle(this); }
+
+        /// <summary>Ends a <see cref="QueryIndexScope"/>.</summary>
+        public readonly struct QueryIndexScopeHandle : IDisposable
+        {
+            private readonly EntityRepository? _repo;
+            internal QueryIndexScopeHandle(EntityRepository repo) => _repo = repo;
+            public void Dispose()
+            {
+                if (_repo == null || _repo._queryIndexDepth == 0) return;
+                if (--_repo._queryIndexDepth == 0) _repo._candidatesBuiltInScope = false;
+                // ⭐ the build is KEPT across scopes of the same frame: every egress system of the Export phase shares it (📐 a build per
+                //   scope cancelled the saving — CE-2418's first A/B); a new frame, a structural change or a wholesale mask rewrite voids it
+            }
+        }
+
+        /// <summary>Inside a scope: the candidates of <paramref name="include"/>'s rarest type (the index rebuilt when stale). False outside one,
+        /// or when the mask includes nothing — the caller walks every entity.</summary>
+        internal bool TryQueryCandidates(in BitMask512 include, out int[] entities, out int from, out int count)
+        {
+            entities = Array.Empty<int>(); from = 0; count = 0;
+            if (_queryIndexDepth == 0) return false;
+            var index = _candidateIndex ??= new QueryCandidateIndex();
+            if (!index.IsFresh(this))
+            {
+                // a structural change inside the scope: walk everything for the rest of it (an enumerator may still hold the array)
+                if (_candidatesBuiltInScope) return false;
+                index.Build(this);
+                _candidatesBuiltInScope = true;
+            }
+            return index.Rarest(include, out entities, out from, out count);
+        }
+
         /// <summary>
         /// ⭐ <c>CE-2411</c> — a counter that moves on every STRUCTURAL change: an entity created, hydrated or destroyed, a component coming
         /// or going, a lifecycle / DIS-type change (every <c>LastChangeTick</c> stamp, plus destroy). Never on a value write.

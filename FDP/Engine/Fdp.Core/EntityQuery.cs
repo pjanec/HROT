@@ -128,6 +128,10 @@ namespace Fdp.Core
             
             private int _currentIndex;
             private readonly int _maxIndex;
+            // ⭐ CE-2418 — inside an EntityRepository.QueryIndexScope: walk these candidates (the rarest included type's entities) instead of 0..max
+            private readonly int[]? _candidates;
+            private readonly int _candidateEnd;
+            private int _candidateAt;
 
             internal EntityEnumerator(EntityQuery query)
             {
@@ -144,6 +148,11 @@ namespace Fdp.Core
                 _entityIndex = query._repository.GetEntityIndex();
                 _maxIndex = _entityIndex.MaxIssuedIndex;
                 _currentIndex = -1; 
+                _candidates = null; _candidateEnd = 0; _candidateAt = 0;
+                if (query._repository.TryQueryCandidates(in query._includeMask, out var cands, out int from, out int count))
+                {
+                    _candidates = cands; _candidateAt = from; _candidateEnd = from + count;
+                }
             }
 
             public Entity Current
@@ -152,11 +161,21 @@ namespace Fdp.Core
                 get => new Entity(_currentIndex, _entityIndex.GetMetadataUnsafe(_currentIndex).Generation);
             }
 
+            /// <summary>The next entity index to test: the next candidate inside a scope, else the next index.</summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private bool Advance()
+            {
+                if (_candidates is null) return ++_currentIndex <= _maxIndex;
+                if (_candidateAt >= _candidateEnd) return false;
+                _currentIndex = _candidates[_candidateAt++];
+                return _currentIndex <= _maxIndex;
+            }
+
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public bool MoveNext()
             {
                 // Tight hot-first loop: hot-mask checks before any cold-data access.
-                while (++_currentIndex <= _maxIndex)
+                while (Advance())
                 {
                     // 1. HOT: component-mask check (one cache line, no cold access)
                     ref var compMask = ref _entityIndex.GetComponentMaskUnsafe(_currentIndex);

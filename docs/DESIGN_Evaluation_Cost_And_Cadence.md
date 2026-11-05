@@ -949,3 +949,30 @@ liveness once per frame — 3–8× cheaper per entity on every node (A/B on one
 on the SAME calls (grid 246 ms vs scan 3 104 ms over 1 633 calls, 0 mismatches; the run-level brain tick follows the fight too much to decide
 by). ⚠ 1 000 soldiers now gets the brain EJECTED at load (one frame over the 5 s heartbeat, CE-2417), so the A/B ran at 700. Egress (option
 b, one walk for every translator) is next — designed first, measured the same way.
+
+### 11f. 📐 Before / after, the whole programme *(`2026-11-05`; base `5858663d4` = before CE-2410…2418, head `a1e149cb6`; 700 soldiers, 5 base + 5 head runs alternating, all valid; medians)*
+
+⛔ **RETRACTED: the first version of this section** compared head against HEAD — `scripts/cluster-node.sh` runs
+`/home/user/HROT/…/Hrot.ClusterRunner.dll` unless `HROT_RUNNER_DLL` says otherwise, so running `perf-stress.py` from a base WORKTREE only
+regenerated the scenario: every "base" run was the head binary, hence "no whole-node gain". ⭐ **A cross-commit comparison sets
+`HROT_RUNNER_DLL=<worktree>/Hrot/Runner/Hrot.ClusterRunner/bin/Debug/net8.0/Hrot.ClusterRunner.dll` for the base side** (and checks a running
+node's command line). The one-binary on/off A/Bs (§11e, CE-2416, CE-2418) were never affected.
+
+| node, work per frame | base | head | |
+|---|---|---|---|
+| ⭐ **CGF (the brain)** | **1 463 ms** · 339 µs / entity | **487 ms** · 77 µs / entity | ⭐ **3.0× per frame, 4.4× per entity** (head carries MORE entities: 5 000–6 400 vs 4 100–5 300) |
+| SimHost | 223 ms · 70 µs / entity | 317 ms · 56 µs / entity | 1.26× per entity — ⚠ per frame it is HIGHER because the head's world is busier: a 3× faster brain fights more (fire processing / raycasts enter the top six only on the head) |
+| Traffic | 224 ms · 79 µs / entity | 195 ms · 50 µs / entity | 1.6× per entity |
+
+| system (median ms per frame) | base | head | lever |
+|---|---|---|---|
+| CGF `CalloutSystem` | **705** | **37** | 19× — CE-2410 friend grid |
+| CGF `StressSystem` | **345** | **37** | 9× — CE-2410 / CE-2411 frame grid |
+| CGF `BrainTickSystem` | 158 | 93 | 1.7× — CE-2412 parts index, CE-2416 census |
+| CGF / Traffic `RecorderTickSystem` | 52 / 35 | 23 / 8 | 2–4× — CE-2416 |
+| Traffic `TrafficMirrorSystem` | 108 | 78 | 1.4× — CE-2413 vicinity on the grid |
+| CGF / Traffic egress | 46 / 41 | 38 / 33 | 1.2× per frame on a busier world (per entity: CE-2418's A/B) |
+| CGF `WeaponDispatcherSystem` | *(below the top six — the base brain fought little at 0.7 frames/s)* | 48 | |
+
+⇒ ⭐ **the brain went from 0.7 to ~2 frames/s at 700 soldiers.** Still far from 30 Hz: what dominates now is the brain tick (93), egress
+(38 CGF, 73 SimHost), the traffic mirror (78 Traffic, 38 SimHost, 33 CGF), the weapon dispatcher (48) and the callouts / stress (~37 each).

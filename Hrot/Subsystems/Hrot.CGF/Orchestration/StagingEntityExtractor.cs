@@ -325,6 +325,7 @@ namespace Hrot.CGF.Orchestration
 
                 for (int i = 0; i <= maxIdx; i++)
                 {
+                    Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the extraction advances (docs/DESIGN_Cluster_Load_Phase.md §12)
                     var mask = stagingRepo.GetEntityIndex().GetComponentMask(i);
                     ref readonly var meta = ref stagingRepo.GetEntityIndex().GetMetadata(i);
                     if (!meta.IsActive) continue;
@@ -371,6 +372,7 @@ namespace Hrot.CGF.Orchestration
                 var results = new List<EntityCreationRequest>(rootDataList.Count);
                 foreach (var rd in rootDataList)
                 {
+                    Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the extraction advances (docs/DESIGN_Cluster_Load_Phase.md §12)
                     var comps = rd.components;
 
                     // Remap BehaviorParams and cross-entity network IDs in-place.
