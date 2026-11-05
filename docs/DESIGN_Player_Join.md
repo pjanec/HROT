@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT (S1, §9.4/§9.5 — run live) · READY-TO-BUILD (S2, §10 — backend 2026-11-05) — the architecture APPROVED by the user 2026-10-31 (§2 R-4101…R-4103; §5 D-1…D-16 "Accepted")
+build-state: BUILT (S1, §9.4/§9.5 — run live) · BUILT (S2, §10.4/§10.5 — run live) — the architecture APPROVED by the user 2026-10-31 (§2 R-4101…R-4103; §5 D-1…D-16 "Accepted")
 updated: 2026-11-05 (§9 S1 technical design, §7 answered there) · 2026-10-31 (rev 2 — gameplay as PACKS composed by choice, never in the orchestrator; the name DEPLOY; a Player with no gameplay server observes) · 2026-10-31 (rev 1 — superseded, see HISTORY)
 current-answer: §10 S2 design (roles, spawn areas, death, respawn) · §9 S1 technical design (classes, sequence, who ticks what; §7's three answers) · §2 the rulings · §4 the diagrams · §5 decisions D-1…D-16 · §6 slices · §7a the AUDIT of hard-wired gameplay (G1…G7, B1/B2; candidates await the user)
 stale-below: §8 HISTORY (rev 1: the join on the master's ClusterOpRequest, a ReservedFor component — superseded)
@@ -562,3 +562,13 @@ variable-length component is managed and recorded per change. *Roles defined per
 
 **Rails** — `Hrot.SimHost.Tests`: `GameplayDeployServerTests` (S2: role spawn + point + answer-after-man · full / wrong side / no area · timeout · implicit + declared offers · death ⇒ Dead ⇒ Choosing · settings delay and 0 · release · **0 B per steady frame**), `GameplayDeployFlowTests` (S2: Playing → Dead → Choosing with the countdown · delay 0 observing · release), `GameplaySpawnPointsTests` (inside a concave outline · terrain Z · clearance and the area's own anchor · refusals · the shared containment), `GameplaySettingsScenarioTests` (the `respawnDelay` binding; save/load in the World section); `Hrot.Presentation.Tests`: catalogue golden (8814, 8815), arming, born-with, the row text. Each red-proved by a compiling mutation (report).
 ⚠ **Not verified live:** a Deploy Role / Spawn Area / `GameplaySettings` is edited in Details only through the generic Components view (not exercised); a Deploy Role or Spawn Area entity must exist on the CGF node's world to be read — placed units are Brain-owned, and these bare / area entities follow the same creating-Brain rule as the World Environment and the Weather Region, but **no NED descriptor carries `DeployRole`/`SpawnArea` to a node that does not own them** (S1's `Playable` has the same property).
+
+### 10.5 S2 LIVE *(backend, `2026-11-05`)*
+
+📐 `-m server` + two `-m player`, scenario `s2-respawn` (a blue Spawn Area, a "Rifleman" role max 1, `GameplaySettings.RespawnDelaySeconds` 5): UC-29…31 ✅
+(`DESIGN_Cluster_Membership_Use_Cases.md` §2.1) — the role's man spawned inside the area facing 90°, the Player Playing; the second Player refused `RoleFull`;
+killed ⇒ `Dead` *"killed — respawn in 5 s"* ⇒ `Choosing` 5.2 s later, the role free again.
+⭐ **Two flow defects found live and fixed (`615bd99ea`)**, both on the role path the S2 rails did not drive end to end: ① the flow possessed the id it ASKED for
+(the role entity) instead of the unit the server NAMED (the man); ② a local Possess refusal returned to Choosing at once — but a man just spawned is not on the
+Player yet (his replica waits for its first pose, CE-4086), so it is now retried every 500 ms until the 10 s deadline. Rails in `GameplayDeployFlowTests`.
+⚠ The `-m server` HTTP API edits one subsystem's world at a time: kill a unit through the perspective whose node owns `Health` (here `Scenario`).
