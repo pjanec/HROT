@@ -771,6 +771,13 @@ soldiers. ⭐ The answer each time: one per-frame index, every candidate re-chec
 | after CE-2410 | **1 067 ms** | WeaponDispatcher 308 · BrainTick 218 · Callout 169 · TrafficMirror 77 · Recorder 73 |
 | after CE-2411 ⚠ | **1 067 ms** | Callout **376** · BrainTick 226 · Recorder 101 · TrafficMirror 59 · egress 51 · WeaponDispatcher **47** |
 
+| ⭐ after CE-2412 | **599 ms** (3.4× the baseline) | BrainTick 113 · TrafficMirror 79 · Recorder 73 · WeaponDispatcher 57 · egress 54 · Callout 41 — SimHost 506 (FireProcessing 100, TrafficMirror 97, egress 90), traffic 362 (TrafficMirror 180) |
+
+⭐ The brain node no longer has one dominant scan: its top six are 41–113 ms each. ⭐ `TrafficMirrorSystem` is now in the top two on EVERY node
+(79 / 97 / 180 ms) — the next lever. ⚠ One run before this one was INVALID: the cluster clock stopped at ~4.5 s for two minutes (the traffic
+node's `TrafficStepping` circuit opened on Timeout / StillRunning; the CGF's time-sync RTTs reached 250–350 ms); the re-run on the same
+commit held real time. Not reproduced — recorded on CE-2408 as an intermittent to watch.
+
 ⚠ The CE-2411 run: the line of fire went 308 → 47 ms, but `CalloutSystem` rose 169 → 376 — the trace puts it in CE-2410's private mount index
 REBUILDING PER CALL (its "a mount or part table written this frame" check was true all frame on this world). ⇒ CE-2412 retires it onto the
 parts index, which rebuilds per part ADDED, not per write. (That run also shared the VM's cores with a test build.)
