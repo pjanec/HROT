@@ -124,6 +124,7 @@ namespace Fdp.Core.FlightRecorder
         public void RecordDeltaFrame(EntityRepository repo, uint prevTick, BinaryWriter writer,
             long wallClockTicks, FdpEventBus? eventBus = null, bool serializeReadBuffer = false)
         {
+            PrepareLiveness(repo);   // ⭐ CE-2416
             // ---------------------------------------------------------
             // 1. WRITE FRAME METADATA
             // ---------------------------------------------------------
@@ -421,6 +422,7 @@ namespace Fdp.Core.FlightRecorder
         public void RecordKeyframe(EntityRepository repo, BinaryWriter writer,
             long wallClockTicks, FdpEventBus? eventBus = null, bool serializeReadBuffer = false)
         {
+            PrepareLiveness(repo);   // ⭐ CE-2416
             // ⭐ CE-3332 — a keyframe holds every chunk: the next delta compares against nothing older than it
             // ⭐ CE-2397 — forget the bytes, KEEP the 64 KB buffers: dropping them re-allocated one per chunk after every keyframe
             //   (📐 ≈ 160 KB of garbage per frame on Crossfire, a regression of CE-2392)
@@ -647,8 +649,52 @@ namespace Fdp.Core.FlightRecorder
             throw new InvalidOperationException($"Cannot determine chunk capacity for managed type {type.Name} in unmanaged path.");
         }
         
+        /// <summary>The rail's seam: false takes the per-chunk recompute, so <c>RecorderLivenessOnceTests</c> can compare the bytes of both.</summary>
+        internal static bool LivenessOnce = true;
+
+        // ⭐ CE-2416 — every entity's liveness ONCE per recorded frame; FillLiveness slices it. It recomputed the same entities' liveness for
+        //   every changed chunk of every table (each read through the metadata write accessor): 📐 ~60 % of the recorder on the CE-2408
+        //   stress world. A/B on one binary (700 soldiers, 2 runs each): 3–8× cheaper per entity on every node (CGF 13.6–15.8 → 2.6–4.8 µs,
+        //   SimHost 9.6–11.9 → 1.8–2.5, traffic 8.7–14.7 → 1.3–1.8). The world does not change while one frame is recorded (main thread).
+        private bool[] _frameLiveness = Array.Empty<bool>();
+        private int _frameLivenessMax = -1;
+        private EntityRepository? _livenessRepo;
+        private long _livenessStructure;
+
+        private void PrepareLiveness(EntityRepository repo)
+        {
+            _frameLivenessMax = -1;
+            if (!LivenessOnce) return;
+            var index = repo.GetEntityIndex();
+            _livenessRepo = repo;
+            _livenessStructure = repo.StructuralChanges;   // a create or destroy after this voids it
+            int max = index.MaxIssuedIndex;
+            if (_frameLiveness.Length < max + 1) _frameLiveness = new bool[Math.Max(max + 1, _frameLiveness.Length * 2)];
+            for (int i = 0; i <= max; i++)
+            {
+                bool alive = false;
+                if (i >= MinRecordableId)
+                {
+                    ref readonly var meta = ref index.GetMetadataUnsafe(i);
+                    alive = meta.IsActive;
+                    if (alive && EntityFilter != null) alive = EntityFilter(new Entity(i, meta.Generation));
+                }
+                _frameLiveness[i] = alive;
+            }
+            _frameLivenessMax = max;
+        }
+
         private void FillLiveness(EntityIndex index, int startId, int count, Span<bool> liveness)
         {
+            if (_frameLivenessMax >= 0 && index.MaxIssuedIndex == _frameLivenessMax && _livenessRepo is { } lr
+                && ReferenceEquals(lr.GetEntityIndex(), index) && lr.StructuralChanges == _livenessStructure)
+            {
+                int end0 = startId + count, known = Math.Min(end0, _frameLivenessMax + 1);
+                int k = startId;
+                if (k < known) { new ReadOnlySpan<bool>(_frameLiveness, k, known - k).CopyTo(liveness); k = known; }
+                if (k < end0) liveness.Slice(k - startId, end0 - k).Clear();
+                return;
+            }
             int max = index.MaxIssuedIndex;
             int end = startId + count;
             for (int i = startId; i < end; i++)

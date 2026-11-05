@@ -830,6 +830,8 @@ deliberately — a different contract (fixed extent with a capacity, hidden pass
 | ⚠ the frame's | the CELL a member sits in: a member moved within the frame is found within the caller's slack (`MovedSlackMetres` = 4 m) |
 | no allocation | once grown (rails assert it) |
 
+⚠ **Superseded in part `2026-11-05`:** the user ruled ONE grid type — CE-2415 (unify with the CarKinem broadphase; the differing sets become filters).
+
 Rejected: **`SpatialHashSystem` on the CGF** — its set differs (hidden passengers out, out-of-extent dropped), so the hold-fire answers would
 change; and it is a host-plan change. **A rebuild on every structural change** — the measured CGF frame adds components while it fires.
 **A third private grid** — two copies of one mechanism.
@@ -894,19 +896,56 @@ classDiagram
 Rejected: **a change check on the tables** (CE-2410's) — a table written every frame rebuilt it per call (the CE-2411 run).
 **Keeping `ChildIndex` beside it** — two indexes of one relation. **A rebuild on every structural change** — the frame adds components while it runs.
 
-### 11d. ⏳ PROPOSAL — rare-component queries skip empty chunks *(not built; a user decision — FDP core, every query)*
+### 11d. Queries — measured by FREQUENCY × COST at high entity counts, not by kind *(`2026-11-05`)*
 
-📐 `EntityQuery` walks EVERY entity's mask (`EntityQuery.cs:156-183`, an index walk): a query for a component three entities carry costs
-the same ~8 000 mask checks as one every entity carries. `EntityEnumerator.MoveNext` was 8–11 % of the CGF and SimHost threads in every
-stress trace — the cost under each "scan" CE-2410…CE-2414 removed, and under every scan not yet found.
+🔒 User: *"The right measure is how often each query is called and how much it hurts with high entity counts. We do not need to optimize
+for marginal cases."* ⇒ ⭐ **Decision: fix the queries that are HOT (many calls per frame, or a big share of the main thread); the general
+"skip empty chunks" engine change is DEFERRED** — re-measure after the hot sites are fixed; it pays only if the once-per-frame tail is then
+what remains.
 
-| the lean rests on | code — how it IS | design — how it was MEANT to be |
+📐 **How measured** — the CE-2408 stress world at `5e03eafff` (~5 600–8 000 entities per node): ① `dotnet-trace`, every sample inside
+`EntityEnumerator.MoveNext` / `Current` / `QueryBuilder.Build` charged to the method running the query (main thread = the frame);
+② a throwaway counter (not committed) per caller: calls per frame, entities walked, entities matched. ⚠ Walked counts a FULL walk; a lookup
+that stops at its first match (the scenario clock, the global weather) walks far less — the trace showed those cost ~nothing.
+
+| | main thread in the query walk | the shape |
 |---|---|---|
-| component tables keep no per-chunk population | ✅ `NativeChunkTable._populationCounts` is maintained only for the ENTITY INDEX (`EntityIndex.cs:103-177, 483-634`) | ⛔ searched `docs/`, none |
-| a count kept on every add / remove / destroy / restore / snapshot copy would let `MoveNext` skip a whole chunk with none of the query's rarest included component | ✅ the add points are the `ComponentsAddedOf` stamps (CE-2412); destroy clears the mask in one place (`EntityIndex.DestroyEntity`); restore re-derives the masks (`EntityIndex.cs:602-634`) | ⛔ none |
-| ⚠ an UNDER-count drops entities from queries, silently | ⛔ the failure mode is a missing entity anywhere in the engine | — |
+| CGF | **20.5 %** | a long tail — the largest single caller 1.8 % |
+| SimHost | 12.2 % | a long tail — the largest 0.5 % |
+| traffic | 15.6 % | ~40 egress translators, one walk each per frame, most matching 0 |
 
-⭐ **Lean: build it — behind a randomized equivalence rail (every query form, add / remove / destroy / restore / snapshot copy against
-the plain walk) and a debug cross-check mode — as its own item, with the user's nod first.** What would change the lean: a measured
-query mix where the rarest included component is usually dense (then it saves little). Rejected: per-call caches at each asker
-(CE-2410…CE-2414 did that where a scan was hot; it does not reach the long tail).
+| ⭐ hot — fix per site | calls / frame | matched / call | main thread | the fix |
+|---|---|---|---|---|
+| `ObjectiveCensus.MenOfSideInside` (HoldArea) | 1.3 | 1 600 | **1.8 %** | one census per frame, not per objective |
+| `BehaviorOwnedParts.Release` | **16** | 0.6 | 0.6 % | the parts index (CE-2412's "not yet moved") |
+| `PartIndex` rebuilds | **9** | 2 000 | 0.75 % | parts are ADDED ~9× per frame (behaviour-owned sensors) — find the churn |
+| `Callouts.SaidNearby` | 8 | 250 | 0.3 % | the frame grid |
+| `CycloneEgressSystem.ProcessForcePublish` | 6 | **0** | 0.6 % | nothing to force most frames — skip the walk |
+| `ExerciseResult.PhaseOf` | 1.9 | **0** | 0.5 % | cache per frame |
+| `EqsResultIngressTranslator.PollIngress` | 7.5 | 1 260 | — | measure next |
+
+| ⛔ marginal — leave | why |
+|---|---|
+| the scenario clock / global weather lookups (30 and 18 calls / frame on SimHost) | early exit at the first match: ~0 in the trace |
+| the once-per-frame system queries (each 0.1–0.5 %) | one walk per frame each; only the engine-wide change would remove them together — deferred |
+| the editor-only UI adapters in the stress run (`RepositoryAdapter`, `ScenarioOrbatAdapter`, gizmos) | not on a headless node |
+
+**The engine-wide option, kept for later:** component tables keep no per-chunk population (only the entity index does,
+`EntityIndex.cs:103-177, 483-634`), so skipping empty chunks needs a count kept on every add / remove / destroy / restore / snapshot copy —
+and ⚠ an under-count drops entities from queries silently. Worth it only if the tail is what remains after the hot sites.
+
+### 11e. 📐 Where the three big costs go *(`2026-11-05`, the CE-2408 stress world at `5e03eafff`; user: "spend the effort on egress, the recorder and the brain tick")*
+
+Each system's main-thread samples, split by what the innermost frame is doing (`dotnet-trace`; the system's ms/frame from `perf-stress.py`).
+
+| system (ms / frame) | where its time goes | ⭐ the fix it points at |
+|---|---|---|
+| **Recorder** (CGF 96, SimHost 74, traffic 62) | ~60 % `FillLiveness` + reading every entity's metadata through the write accessor (`GetRefRW` → `EnsureChunkAllocated`, `IsChunkCommitted`); on SimHost +17.5 % copying `SpawnLevelRequest` chunks | ⭐ `FillLiveness` runs once per CHANGED CHUNK OF EVERY TABLE, recomputing the same entities' liveness again and again (`RecorderSystem.cs:223, 258, 366, 489, 520, 568`) ⇒ compute it ONCE per frame for every entity, slice it per chunk — exact, local to the recorder |
+| **Brain tick** (CGF 91–135) | ~30 % the objective census (`HoldAreaBehavior.CaptureBySide` → `ObjectiveCensus.MenOfSideInside`: every positioned entity, per objective, per side); 38 % of the whole tick is query walking | ⭐ the census asks the grid for the men inside the area's bounds (§11d) |
+| **Egress** (CGF 80, SimHost 109, traffic 78) | 32–44 % the query walk (~90 translators, each walking every entity once per frame, most matching few or none); 32–34 % the native DDS send (real work); serialization ~0 | ⚠ the walk is the once-per-frame TAIL §11d deferred — concentrated here: ~90 walks / frame / node. ⭐ Either the engine-wide "skip chunks with none of the query's rarest component" (§11d) or egress walking the entities ONCE for all translators. A user decision |
+
+⭐ **Measured and kept `2026-11-05` (CE-2416), the user's rule — "measure before and after, keep only what really helps":** the recorder's
+liveness once per frame — 3–8× cheaper per entity on every node (A/B on one binary, off / on / off / on); the census on the grid — 12.6×
+on the SAME calls (grid 246 ms vs scan 3 104 ms over 1 633 calls, 0 mismatches; the run-level brain tick follows the fight too much to decide
+by). ⚠ 1 000 soldiers now gets the brain EJECTED at load (one frame over the 5 s heartbeat, CE-2417), so the A/B ran at 700. Egress (option
+b, one walk for every translator) is next — designed first, measured the same way.

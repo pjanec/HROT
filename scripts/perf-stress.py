@@ -139,7 +139,7 @@ def node_work(port):
     # a group's time already contains its members' — count only leaf systems (a group row has members listed under it by name)
     groups = ("Group", "TogglableSimulationGroup", "TogglableInputGroup", "TogglablePostSimulationGroup")
     leaf = [r for r in rows if not any(r[2].endswith(g) for g in groups)]
-    return sum(r[0] for r in leaf), max((r[1] for r in rows), default=0), sorted(leaf, reverse=True)[:8]
+    return sum(r[0] for r in leaf), max((r[1] for r in rows), default=0), sorted(leaf, reverse=True)
 
 
 def main():
@@ -150,6 +150,7 @@ def main():
     ap.add_argument("--fill-seconds", type=float, default=40.0, help="sim seconds to wait for the cars to fill before measuring")
     ap.add_argument("--seconds", type=float, default=60.0, help="sim seconds measured after the fill")
     ap.add_argument("--write-only", action="store_true")
+    ap.add_argument("--show", default="", help="comma-separated system names (substring) always printed per node, whatever their rank — for an A/B of one system")
     ap.add_argument("--trace", metavar="DIR", help="also CPU-trace the cgf / simhost / traffic processes for 15 s at the start of the measured window (dotnet-trace, speedscope)")
     a = ap.parse_args()
     folder, n = write(a.men, a.cars, a.spawn_per_step)
@@ -231,7 +232,8 @@ def main():
             if mode != "orchestrator": worst = max(worst, work)
             flag = "✅" if work <= TARGET_MS else "⛔"
             print(f"  {flag} {mode:<12} work/frame {work:7.1f} ms (target ≤ {TARGET_MS:.1f})   achieved {fps:5.1f} frames/s   entities {st.get('entityCount')}")
-            for ms, _, name in top[:6]:
+            shown = top[:6] + [t for t in top[6:] if any(w and w in t[2] for w in a.show.split(","))]
+            for ms, _, name in shown:
                 print(f"        {ms:7.2f}  {name}")
         print(f"\n  worst node work/frame {worst:.1f} ms ⇒ {'MEETS' if worst <= TARGET_MS else 'MISSES'} the 30 Hz target")
     finally:
