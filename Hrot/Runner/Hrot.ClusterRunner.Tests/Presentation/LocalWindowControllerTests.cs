@@ -33,7 +33,7 @@ public class GZH012_Tests
         /// <summary>⭐ CE-1290 — the title the window was opened with, and every title set after.</summary>
         public string? InitTitle { get; private set; }
         public List<string> Titles { get; } = new();
-        public void SetupImGui()      => SetupImGuiCallCount++;
+        public void SetupImGui(string iniPath) => SetupImGuiCallCount++;
         public void ShutdownImGui()   => ShutdownImGuiCallCount++;
         public void CloseWindow()     => CloseWindowCallCount++;
         public void UnloadAtlasTexture() { }

@@ -131,7 +131,7 @@ internal sealed class RaylibPresentationShell : IPresentationShell
         }
     }
 
-    public void SetupImGui()
+    public void SetupImGui(string iniPath)
     {
         rlImGui_cs.rlImGui.Setup(true);
         var io = ImGuiNET.ImGui.GetIO();
@@ -139,7 +139,7 @@ internal sealed class RaylibPresentationShell : IPresentationShell
 
         // ⭐⭐ Batch 103 (103a) — the same helper FdpApplication uses. 📌 See its remark: the two
         //    computations were byte-identical and independent.
-        string iniPath = Fdp.Presentation.WindowManager.LayoutPaths.UserIniPath(AppFolderName);
+        //    ⭐ CE-4260 — the path is the app's own layout's, passed in (the editor and the Replay Browser each have one).
         _iniFilenamePtr = Marshal.StringToHGlobalAnsi(iniPath);
         unsafe
         {

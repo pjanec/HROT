@@ -61,14 +61,12 @@
     in BOTH places, so "the layout" is a DIRECTORY and a reset is a directory copy — ⛔ not two
     special-cased files. Adding a third layout file later needs no build change, only a new file.
 
-    ⚠ Flattened to `layout/` in the output (Link), because LayoutPaths.ShippedDefaultDirectory looks
-    there. ⛔ The SOURCE keeps `layout/default/` so the tree says which layout it is.
+    ⭐ CE-4260 — a layout is PER APPLICATION: `layout/<app>/` in the source and in the output alike
+    (`layout/Editor/` ships the editor's). ⛔ SUPERSEDED: one flat `layout/` pair every app shared.
   -->
   <ItemGroup>
-    <Content Include="..\..\..\layout\default\imgui.ini" Link="layout\imgui.ini">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="..\..\..\layout\default\fdp_windows.json" Link="layout\fdp_windows.json">
+    <!-- ⭐ CE-4260 — one folder per APPLICATION (layout/Editor/, layout/ReplayBrowser/, …), kept as folders in the output: LayoutPaths.ShippedDefaultDirectory(layout) -->
+    <Content Include="..\..\..\layout\**\imgui.ini;..\..\..\layout\**\fdp_windows.json" LinkBase="layout">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
