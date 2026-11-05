@@ -264,7 +264,7 @@ BIG_W, BIG_H = 2048, 1152     # a type is captured large, then cropped to what i
 PLACEHOLDER_RGB = (166, 111, 185)   # the 3-D view's box for a type with no drawing (a voice cue, a deploy role): no thumbnail for it
 
 
-def crop_to_drawn(big, bg, out):
+def crop_to_drawn(big, bg, out, accept_small=False):
     """The pixels that differ between the capture with the entity and the same view without it are what it DREW: crop a 16:9 window
     around them so they fill FILL of it, downscale to W x H. Nothing drawn, or only the placeholder box ⇒ no picture (the picker's
     default stays). Needs Pillow; without it the large capture is only downscaled."""
@@ -275,14 +275,16 @@ def crop_to_drawn(big, bg, out):
     a, b = Image.open(big).convert("RGB"), Image.open(bg).convert("RGB")
     diff = ImageChops.difference(a, b).convert("L").point(lambda v: 255 if v > 24 else 0)
     box = diff.getbbox()
-    if not box or (box[2] - box[0]) * (box[3] - box[1]) < 400:
+    if not box or (box[2] - box[0]) * (box[3] - box[1]) < 12:
         return ("skipped", "nothing drawn")
     mask = diff.crop(box)
-    px = [p for p, m in zip(a.crop(box).getdata(), mask.getdata()) if m]
+    px = [p for p, m in zip(list(a.crop(box).getdata()), list(mask.getdata())) if m]
     purple = sum(1 for r, g, bl in px if abs(r - PLACEHOLDER_RGB[0]) < 30 and abs(g - PLACEHOLDER_RGB[1]) < 30 and abs(bl - PLACEHOLDER_RGB[2]) < 30)
     if px and purple > 0.5 * len(px):
         return ("skipped", "only the placeholder box is drawn")
     x0, y0, x1, y1 = box
+    if not accept_small and max(x1 - x0, (y1 - y0) * W / H) < 0.25 * W * BIG_W / W * 1.0 and max(x1 - x0, y1 - y0) < 300:
+        return ("small", "a tiny drawing: zoom in", box)
     cw = max((x1 - x0) / FILL, (y1 - y0) / FILL * W / H, 64)
     ch = cw * H / W
     if cw > a.width or ch > a.height:
@@ -334,6 +336,63 @@ def type_table():
     return {int(r["tkbType"]): r["name"] for r in rows}
 
 
+def spawn_one(tkb, origin):
+    """Spawn one entity of this type at origin and step until it exists; returns its net ids ([] when the request was never served)."""
+    before = {r["networkId"] for r in (body_of(udc.call("GET", "/entities")) or [])}
+    r = udc.call("POST", "/entities/spawn", {"tkbType": tkb, "transform": {"position": {"x": origin[0], "y": origin[1], "z": origin[2]},
+                                                                          "rotation": {"x": 0, "y": 0, "z": 0, "w": 1}}})
+    if not ok(r):
+        return None, "spawn: " + say(r)
+    for _ in range(10):                                   # step until the request is served and the entity exists
+        udc.call("POST", "/sim/step", {"count": 6})
+        nids = [x["networkId"] for x in (body_of(udc.call("GET", "/entities")) or []) if x["networkId"] not in before]
+        if nids:
+            udc.call("POST", "/sim/step", {"count": 6})   # let it realise (its body, its size)
+            return nids, ""
+    return None, "the spawn request was never served"
+
+
+def shoot_type(tkb, origin, path, view):
+    """One pass: spawn, capture large from `view` (or a view framed from the entity's own data), remove it, capture the same view empty,
+    crop to the difference. A drawing too small to crop sharply returns ("small", ...) with the view zoomed onto it, for a second pass."""
+    nids, why = spawn_one(tkb, origin)
+    if not nids:
+        return ("failed", why), view, None
+    try:
+        if view is None:
+            comps = (body_of(udc.call("GET", f"/entities/{nids[0]}")) or {}).get("Components") or {}
+            pos = (comps.get("SimTransform") or {}).get("Position") or origin
+            height, length, width = entity_size(comps)
+            face = heading_deg(comps)
+            eye, target = frame_entity(pos, height, length, width, facing_deg=face, fill=0.45)   # generous: the whole of it in view
+            view = (eye, target, face + 30.0, -15.0)
+        eye, target, yaw, pitch = view
+        good, why = shoot(path + ".big.png", eye, target, BIG_W, BIG_H)
+        if not good:
+            return ("failed", why), view, None
+    finally:
+        for nid in nids:                                   # the same view with nothing in it: the difference is what the entity DREW
+            udc.call("DELETE", f"/entities/{nid}")
+        udc.call("POST", "/sim/step", {"count": 3})
+    good, why = shoot(path + ".bg.png", eye, target, BIG_W, BIG_H)
+    if not good:
+        return ("failed", why), view, None
+    verdict = crop_to_drawn(path + ".big.png", path + ".bg.png", path)
+    if verdict[0] == "small":
+        x0, y0, x1, y1 = verdict[2]
+        fwd, right, up = _basis(math.radians(yaw), math.radians(pitch))
+        tv = math.tan(math.radians(FOV_DEG / 2)); th = tv * W / H
+        dist = math.dist(eye, target)
+        mx = ((x0 + x1) / 2 - BIG_W / 2) / (BIG_W / 2)
+        my = -((y0 + y1) / 2 - BIG_H / 2) / (BIG_H / 2)
+        half = max((x1 - x0) / BIG_W, (y1 - y0) / BIG_H, 0.002)
+        tgt = [target[k] + right[k] * mx * dist * th + up[k] * my * dist * tv for k in range(3)]
+        nd = max(dist * half / 0.45, 0.3)
+        view = ([tgt[k] - fwd[k] * nd for k in range(3)], tgt, yaw, pitch)
+        return verdict[:2], view, verdict[2]
+    return verdict, view, None
+
+
 def do_types(ids, nas, studio, rows):
     table = type_table()
     if not ids:
@@ -355,45 +414,18 @@ def do_types(ids, nas, studio, rows):
             stem = generated_name(name)
             if stem is None:
                 rows.append((f"type {tkb} {name}", "failed", "unusable name")); continue
-            before = {r["networkId"] for r in (body_of(udc.call("GET", "/entities")) or [])}
-            r = udc.call("POST", "/entities/spawn", {"tkbType": tkb, "transform": {"position": {"x": origin[0], "y": origin[1], "z": origin[2]},
-                                                                                  "rotation": {"x": 0, "y": 0, "z": 0, "w": 1}}})
-            if not ok(r):
-                rows.append((f"type {tkb} {name}", "failed", "spawn: " + say(r))); continue
-            nids = []
-            for _ in range(10):                                   # step until the request is served and the entity exists
-                udc.call("POST", "/sim/step", {"count": 6})
-                nids = [x["networkId"] for x in (body_of(udc.call("GET", "/entities")) or []) if x["networkId"] not in before]
-                if nids:
+            path = os.path.join(out_dir, stem + ".png")
+            view = None                                            # pass 1: framed from the entity's data; pass 2 (a tiny drawing): zoomed onto it
+            for attempt in range(2):
+                verdict, view, drawn = shoot_type(tkb, origin, path, view)
+                if verdict[0] != "small":
                     break
-            if not nids:
-                rows.append((f"type {tkb} {name}", "failed", "the spawn request was never served")); continue
-            try:
-                udc.call("POST", "/sim/step", {"count": 6})       # let it realise (its body, its size)
-                comps = (body_of(udc.call("GET", f"/entities/{nids[0]}")) or {}).get("Components") or {}
-                pos = (comps.get("SimTransform") or {}).get("Position") or origin
-                height, length, width = entity_size(comps)
-                eye, target = frame_entity(pos, height, length, width, facing_deg=heading_deg(comps), fill=0.45)   # generous: the whole of it in view
-                path = os.path.join(out_dir, stem + ".png")
-                big = path + ".big.png"
-                good, why = shoot(big, eye, target, BIG_W, BIG_H)
-                if not good:
-                    rows.append((f"type {tkb} {name}", "failed", why)); continue
-                for nid in nids:                                   # the same view with nothing in it: the difference is what the entity DREW
-                    udc.call("DELETE", f"/entities/{nid}")
-                udc.call("POST", "/sim/step", {"count": 3})
-                nids = []
-                bg = path + ".bg.png"
-                good, why = shoot(bg, eye, target, BIG_W, BIG_H)
-                verdict = crop_to_drawn(big, bg, path) if good else ("failed", why)
-                for f in (big, bg):
-                    try: os.remove(f)
-                    except OSError: pass
-                rows.append((f"type {tkb} {name}",) + verdict)
-            finally:
-                for nid in nids:
-                    udc.call("DELETE", f"/entities/{nid}")
-                udc.call("POST", "/sim/step", {"count": 3})
+            if verdict[0] == "small":
+                verdict = crop_to_drawn(path + ".big.png", path + ".bg.png", path, accept_small=True)
+            for f in (path + ".big.png", path + ".bg.png"):
+                try: os.remove(f)
+                except OSError: pass
+            rows.append((f"type {tkb} {name}",) + verdict)
     finally:
         udc.call("POST", "/preview/exit", {})
 
