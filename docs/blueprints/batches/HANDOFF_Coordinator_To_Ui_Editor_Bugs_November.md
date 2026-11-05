@@ -13,7 +13,7 @@ related-designs:
 
 # HANDOFF — coordinator → ui: the editor bug and UX batch (user reports, 2026-11-01…11-04)
 
-**For:** the ui lane (`ui`). **From:** the coordinator lane. **Dispatched at** the commit that adds this file. ⭐ Scope FROZEN there;
+**For:** the ui lane (`ui`). **From:** the coordinator lane. **Dispatched at `574bad50d`**. ⭐ Scope FROZEN there;
 later documents are FYI. A later document that invalidates an item ⇒ STOP that item, report it (R-106), keep the rest. Questions ⇒ a NOTE
 to coordinator.
 
