@@ -725,6 +725,15 @@ namespace Fdp.Toolkit.Scenario
             public Entity Resolve(string guidStr)
                 => throw new InvalidOperationException(
                     "SaveResolver.Resolve(string) must not be called during save.");
+
+            /// <summary>⭐ CE-4250 — declines an entity the save map does not hold (the null entity still resolves to the empty GUID, CE-4224).</summary>
+            public bool TryResolve(Entity entity, out string guid)
+            {
+                if (entity.IsNull) { guid = Guid.Empty.ToString(); return true; }
+                if (_entityToGuid.TryGetValue(entity, out var g)) { guid = g.ToString(); return true; }
+                guid = "";
+                return false;
+            }
         }
 
         private sealed class LoadResolver : IGuidResolver

@@ -54,10 +54,18 @@ namespace Hrot.SimHost.Serializers
                 var handle = new Entity((ulong)ptr->EntityIds[i]);
                 if (handle.IsNull || !repo.IsAlive(handle))
                     continue;  // skip stale/null entities — not in the save map
+                // ⭐ CE-4250 — target memory is a SENSING CACHE, not authored intent: a target the save leaves out (one a Preview spawned) is
+                //   dropped from the save with a warning, never a throw (it killed the editor on Save during Preview).
+                if (!resolver.TryResolve(handle, out string targetGuid))
+                {
+                    Fdp.Core.Logging.FdpLog<TargetMemoryTranslator>.Warn(
+                        "[Scenario] {0}: target memory names {1}, which this save does not hold — that entry is not saved.", entity, handle);
+                    continue;
+                }
 
                 entries.Add(new JsonObject
                 {
-                    ["Entity"]   = resolver.Resolve(handle),
+                    ["Entity"]   = targetGuid,
                     ["PosX"]     = ptr->PositionsX[i],
                     ["PosY"]     = ptr->PositionsY[i],
                     ["PosZ"]     = ptr->PositionsZ[i],

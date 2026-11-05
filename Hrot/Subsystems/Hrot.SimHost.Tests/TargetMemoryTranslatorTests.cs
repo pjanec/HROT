@@ -162,5 +162,42 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fdp.Core.RefForm.Exact, intent.Entries[0].NetworkId.Spec.Form);   // S8: the saved GUID of the later-saved target
             Assert.Equal(3, intent.Entries[0].SeenStance);   // ⭐ CE-2326 (R-3030) — the stance he was last seen in survives the save
         }
-    }
+    
+        /// <summary>
+        /// ⭐⭐ <c>CE-4250</c> — a save while a Preview runs: a unit's target memory names one SAVED enemy and one the preview spawned (outside the save
+        /// map — modelled by <c>ScenarioIgnoreTag</c>, which keeps an entity out of the map exactly as a preview spawn is). The whole save goes through the
+        /// real Hrot serializer: ⛔ no throw (it killed the editor), the saved enemy's entry survives, the other is dropped. 🔴 Mutation:
+        /// <c>TryResolve</c> back to <c>Resolve</c> in the translator ⇒ <c>InvalidOperationException … not in the save map</c> ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4250_ASaveWhoseTargetMemoryNamesAnUnsavedEntity_DropsThatEntry_AndDoesNotThrow()
+        {
+            using var w = new EntityRepository();
+            Hrot.Map.Common.HrotSharedComponentRegistry.RegisterAll(w);
+            if (!w.IsComponentTypeRegistered<TargetMemory>()) w.RegisterComponent<TargetMemory>();
+            if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>()) w.RegisterComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>();
+            Entity Unit(string name)
+            {
+                var e = w.CreateEntity();
+                w.AddComponent(e, new Fdp.Core.EntityInfo { Name = new FixedString64(name), ForceId = ForceId.Friend });
+                w.AddComponent(e, new Fdp.Toolkit.Scenario.EntityGuid(Guid.NewGuid()));
+                return e;
+            }
+            var me = Unit("me"); var saved = Unit("saved enemy"); var spawned = Unit("preview spawn");
+            w.AddComponent(spawned, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
+            var mem = new TargetMemory();
+            TargetMemory.AddOrUpdateTarget(ref mem, (long)saved.PackedValue, 1f, 2f, 1f, 1);
+            TargetMemory.AddOrUpdateTarget(ref mem, (long)spawned.PackedValue, 3f, 4f, 1f, 1);
+            w.AddComponent(me, mem);
+
+            var serializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(new Fdp.Toolkit.Behavior.BehaviorRegistry(), null, UnknownComponentPolicy.WarnAndSkip);
+            var json = serializer.Serialize(w, new ScenarioHeader("Hrot.Scenario"));   // ⛔ threw "not in the save map" before CE-4250
+
+            var savedGuid = w.GetComponent<Fdp.Toolkit.Scenario.EntityGuid>(saved).Value.ToString();
+            var spawnedGuid = w.GetComponent<Fdp.Toolkit.Scenario.EntityGuid>(spawned).Value.ToString();
+            var text = json.ToJsonString();
+            Assert.Contains(savedGuid, text);
+            Assert.DoesNotContain(spawnedGuid, text);
+        }
+}
 }
