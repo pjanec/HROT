@@ -751,3 +751,65 @@ so far were 500 civilians and 200 cars.
 
 ⇒ ⭐ **the target is ~60× away on the brain node.** ⭐ Two systems are 65 % of it and look quadratic in the soldiers (`CalloutSystem`,
 `StressSystem`) — the first levers; then the weapon dispatcher and the brains; `TrafficMirrorSystem` is the largest on the other two nodes.
+
+### 11b. 📐 The levers so far — each found by a trace, each a per-frame index in place of a whole-world scan per question *(`2026-11-05`)*
+
+⭐ Method: `python3 scripts/perf-stress.py --trace <dir>` records 15 s of `dotnet-trace` per node; the CGF's thread is split by caller.
+⭐ The pattern every lever so far had: **a question asked per soldier per frame, answered by scanning the whole world** — quadratic in the
+soldiers. ⭐ The answer each time: one per-frame index, every candidate re-checked LIVE, so no rule's filter goes stale.
+
+| | the scan | share of the CGF thread | became |
+|---|---|---|---|
+| CE-2410 | `WeaponMountQuery.EnumerateMounts` (callouts' grenade count, the weapon dispatcher, the throw choice) | 44 % | a per-world mount index (owners counting-sorted) |
+| CE-2410 | `UnderFire.FriendNear` (callouts' earshot, stress "alone") | 9 % | the shared frame grid (below) |
+| CE-2411 | `LineOfFire.BlockedByFriendly` / `BlockedByNeutral` (every shot) | 18 % | the shared frame grid, walked along the line |
+| *next* | `UnitSensors.Of` (the SOPs' danger-area check) — and ~14 other "parts of this parent" scans | 11.5 % | ⭐ one shared parts-by-parent index (§11c) |
+
+| run | CGF work / frame | top systems |
+|---|---|---|
+| baseline (§11a) | **2 008 ms** | Callout 870 · Stress 425 · WeaponDispatcher 208 · BrainTick 187 |
+| after CE-2410 | **1 067 ms** | WeaponDispatcher 308 · BrainTick 218 · Callout 169 · TrafficMirror 77 · Recorder 73 |
+
+```mermaid
+classDiagram
+    class EntityRepository {
+        +GlobalVersion uint
+        +StructuralChanges long
+    }
+    class FrameEntityGrid {
+        +EnsureFresh(world, set, member) bool
+        +Circle(at, radius) int
+        +Segment(a, b, pad) int
+        +Found ReadOnlySpan~int~
+        +EntityAt(entry) Entity
+        -late list
+    }
+    class UnderFire {
+        +FriendNear(world, self, at, radius) bool
+    }
+    class LineOfFire {
+        +BlockedByFriendly(...)
+        +BlockedByNeutral(...)
+    }
+    class SpatialHashGrid {
+        collider broadphase for rounds
+        SimHost only
+    }
+    UnderFire ..> FrameEntityGrid : men grid
+    LineOfFire ..> FrameEntityGrid : bodies grid
+    FrameEntityGrid ..> EntityRepository : frame and structure clocks
+```
+*What the picture shows that prose hid: the two rules share ONE grid type (ruling 9), and the CarKinem `SpatialHashGrid` stays beside it
+deliberately — a different contract (fixed extent with a capacity, hidden passengers left out, SimHost only), named in its doc.*
+
+| ⭐ `FrameEntityGrid` (CE-2411) — the contract | |
+|---|---|
+| rebuilt | when `GlobalVersion` moves (once per frame) |
+| within the frame | when `EntityRepository.StructuralChanges` (NEW, CE-2411: moves on every `LastChangeTick` stamp and on destroy) moved, the entities structurally changed this frame are looked at; a member the build did not place joins a LATE list every walk checks — ⛔ not a rebuild per creation (a shot or a call adding a component would rebuild 7 500 bodies) |
+| a candidate | every member within the walk's reach; the caller re-reads it live (alive, components, position, force, state) |
+| ⚠ the frame's | the CELL a member sits in: a member moved within the frame is found within the caller's slack (`MovedSlackMetres` = 4 m) |
+| no allocation | once grown (rails assert it) |
+
+Rejected: **`SpatialHashSystem` on the CGF** — its set differs (hidden passengers out, out-of-extent dropped), so the hold-fire answers would
+change; and it is a host-plan change. **A rebuild on every structural change** — the measured CGF frame adds components while it fires.
+**A third private grid** — two copies of one mechanism.

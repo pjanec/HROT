@@ -482,6 +482,75 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, point, 0f));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2411</c> — the line-of-fire holds walk the shared per-frame grid of bodies, not every collider in the world; they must say
+        /// what the full scan said: friends and neutrals, persons and hulls, the dead, long lines and short ones, entity and point forms,
+        /// a body moved a little within the frame; and a steady frame allocates nothing. 🔴 Red-proofs: the walk's pad without the largest
+        /// strike radius ⇒ a hull whose edge crosses the line is missed; the moved-slack dropped ⇒ a moved body is missed.
+        /// </summary>
+        [Fact]
+        public void CE2411_TheLineOfFireHolds_AnswerAsTheFullScan_AndAllocateNothingOnASteadyFrame()
+        {
+            _world.RegisterComponent<EntityInfo>();
+            _world.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            _world.RegisterComponent<Health>();
+            if (!_world.IsComponentTypeRegistered<global::CarKinem.Core.VehicleParams>()) _world.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+            var rng = new Random(2411);
+            var bodies = new System.Collections.Generic.List<Entity>();
+            for (int i = 0; i < 400; i++)
+            {
+                bool person = i % 4 != 0;
+                var e = Neutral(new Vector3(rng.NextSingle() * 600f - 300f, rng.NextSingle() * 600f - 300f, 0f), person,
+                                person ? 0.3f : 1f + rng.NextSingle() * 6f);
+                _world.GetComponentRW<EntityInfo>(e).ForceId = (ForceId)(i % 3);
+                _world.AddComponent(e, new Health { Current = i % 9 == 0 ? 0f : 100f, Max = 100f });
+                bodies.Add(e);
+            }
+            void Compare(string when)
+            {
+                for (int q = 0; q < 300; q++)
+                {
+                    var shooter = bodies[rng.Next(bodies.Count)];
+                    var target = bodies[rng.Next(bodies.Count)];
+                    var point = new Vector3(rng.NextSingle() * 600f - 300f, rng.NextSingle() * 600f - 300f, 0f);
+                    float sigma = rng.NextSingle() * 0.05f;
+                    bool f1 = Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target);
+                    bool f2 = Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point);
+                    bool n1 = Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, sigma);
+                    bool n2 = Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, point, sigma);
+                    Fdp.Toolkit.Combat.LineOfFire.Bodies.EveryBodyForRails = true;
+                    try
+                    {
+                        Assert.Equal(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target), f1);
+                        Assert.Equal(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point), f2);
+                        Assert.Equal(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, sigma), n1);
+                        Assert.Equal(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, point, sigma), n2);
+                    }
+                    finally { Fdp.Toolkit.Combat.LineOfFire.Bodies.EveryBodyForRails = false; }
+                }
+            }
+            int held = 0;
+            foreach (var b in bodies) if (Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, b, new Vector3(0f, 0f, 0f))) held++;
+            Assert.True(held > 20, $"the premise: plenty of lines are held ({held})");
+
+            _world.Tick();
+            Compare("a fresh frame");
+            foreach (var b in bodies)   // bodies move a little within the same frame
+                _world.GetComponentRW<SimTransform>(b).Position += new Vector3(rng.NextSingle() * 6f - 3f, rng.NextSingle() * 6f - 3f, 0f);
+            Compare("moved within the frame");
+
+            _world.Tick();
+            var shooterA = bodies[1];
+            Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooterA, Vector3.Zero);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 200; i++)
+            {
+                Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, bodies[i], new Vector3(i, -i, 0f));
+                Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, bodies[i], new Vector3(-i, i, 0f), 0.02f);
+            }
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
         // ── AW-20 — a neutral in the line or the spread holds the shot ─────────────────────────────────────────────────────
 
         /// <summary>A NEUTRAL entity at <paramref name="at"/> with a collider; a PERSON (pedestrian kinematics) when <paramref name="person"/>.</summary>
