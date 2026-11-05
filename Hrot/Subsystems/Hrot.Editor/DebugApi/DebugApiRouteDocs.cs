@@ -887,6 +887,40 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{}",
             ExampleGist: "see which features this node has on and where each value came from"),
 
+        [("GET", "/deploy")] = new RouteDoc(
+            Tool:    "get_deploy",
+            Group:   "Y — node diagnostics",
+            Summary: "The Player's DEPLOY flow on this node (Player Join): its state, why it waits, whether a deploy server exists, the playable units on offer (with who holds them) and the player's slot. 404 on a node with no gameplay client.",
+            Returns: "{ state (Waiting|Observing|Choosing|Requesting|TakingControl|Playing), reason, lastRefusal, serverExists, station, offers[{unitNetId, side, slotName, holderStation (0 = free)}], slot{state, unit} }",
+            Hint:    "No arguments. Example: get_deploy({})",
+            Params: new RouteParam[] { },
+            Notes: new[]
+            {
+                "Only a Player (the IG host) composes the client; every other node answers 404 'no deploy flow on this node'.",
+                "Waiting with reason 'Waiting for the server to load a scenario' = the gate is open but the cluster is not in a Live run.",
+            },
+            ExampleArgsJson: "{}",
+            ExampleGist: "see whether this Player may deploy, and into what"),
+
+        [("POST", "/deploy")] = new RouteDoc(
+            Tool:    "deploy",
+            Group:   "Y — node diagnostics",
+            Summary: "Ask the deploy server for a unit on a side ({side, unitNetId}), or to observe ({side, observe:true}), as this Player. Taken only while the flow is Choosing (an observe also while Observing with a server): 409 otherwise.",
+            Returns: "the same document as get_deploy, with state Requesting; poll get_deploy for TakingControl → Playing, or lastRefusal",
+            Hint:    "Example: deploy({ side: \"Friend\", unitNetId: 1043 })",
+            Params: new RouteParam[]
+            {
+                new("side", "string", Required: true, Description: "Friend | Hostile | Neutral"),
+                new("unitNetId", "integer", Required: false, Description: "The playable unit's network id (from get_deploy offers); omit with observe"),
+                new("observe", "boolean", Required: false, Description: "true ⇒ observe on that side, no unit"),
+            },
+            Notes: new[]
+            {
+                "A refused request comes back as lastRefusal on get_deploy (WrongSide, HeldByAnotherStation (held by station N), ReservedForAnother …).",
+            },
+            ExampleArgsJson: "{\"side\":\"Friend\",\"unitNetId\":1043}",
+            ExampleGist: "deploy this Player into a placed unit"),
+
         [("GET", "/assets/recipes")] = new RouteDoc(
             Tool:    "list_asset_recipes",
             Group:   "W — AI-asset authoring",

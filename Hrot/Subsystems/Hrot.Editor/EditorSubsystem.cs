@@ -3275,6 +3275,9 @@ namespace Hrot.Editor
             _scenarioWorkspace = _scenarioDetailsBundle.Workspace;
             ScenarioDetails    = _scenarioDetailsBundle.Window;
 
+            // ⭐ Player Join D-9 — the PLAYABLE section: a toggle + side + slot name that adds / removes `Playable` on the selected unit (authored, recorded, saved).
+            _scenarioWorkspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.EntityPlayableViewDescriptor.For(() => _world));
+
             // ⭐⭐ CE-4210 MA-8 (SR-39a) — the MACRO section of Details for a macro instance: status, the macro (the same picker's Macros group), the args form.
             //   ⚠ Its own StructEdit service (the facet service is built later); picks resolved at call time like the AI section's.
             var macroArgsEditService = Hrot.Editor.AiShared.Inspector.ActionBinding.AiFacetEditService.Build();

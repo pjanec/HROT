@@ -225,6 +225,22 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary>
+        /// ⭐ Player Join S1 — <c>GET /deploy</c> / <c>POST /deploy</c>: this node's gameplay client (<see cref="Hrot.Gameplay.DeployFlowSystem"/>), found through the world of whichever
+        /// hosted subsystem composed one (the Player's IG). 404 on a node with none.
+        /// </summary>
+        public (JsonNode? Result, string? Error, string? HintCategory, int Status) Deploy(JsonNode? body, bool post)
+        {
+            Hrot.Gameplay.DeployFlowSystem? flow = null;
+            if (_dispatcher != null)
+                foreach (var p in _dispatcher.AllProviders)
+                    if (Hrot.Gameplay.DeployFlowSystem.Of(p.World) is { } f) { flow = f; break; }
+            if (flow is null) return (null, Hrot.Gameplay.DeployFlowApi.NoFlow, DebugApiHints.Panel, 404);
+            if (!post) return (Hrot.Gameplay.DeployFlowApi.Get(flow), null, null, 200);
+            var (result, error, status) = Hrot.Gameplay.DeployFlowApi.Post(flow, body);
+            return (result, error, error is null ? null : DebugApiHints.Panel, status);
+        }
+
+        /// <summary>
         /// <c>GET /diagnostics/architecture[?subsystem=SimHost]</c> — this node's modules, systems and
         /// translators, per subsystem.
         /// </summary>

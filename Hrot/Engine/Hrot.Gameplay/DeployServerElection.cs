@@ -22,6 +22,18 @@ public sealed class DeployServerElection
         _featureOn = featureOn ?? throw new ArgumentNullException(nameof(featureOn));
     }
 
+    /// <summary>
+    /// ⭐ Player Join D-3 / R-4103 — does ANY node serve Deploy: advertises <c>hrot.feature.gameplay.deploy-server</c> AND reports it ON? The Player's "is there a server"
+    /// (none ⇒ it observes). Same delegates as <see cref="IsServer"/> — one definition of "serving". (Allocates — about once a second.)
+    /// </summary>
+    public bool AnyServer()
+    {
+        string token = GameplayFeatures.DeployServerToken;
+        foreach (int id in _allNodeIds())
+            if (_supports(id, token) && _featureOn(id, GameplayFeatures.DeployServerId)) return true;
+        return false;
+    }
+
     /// <summary>Is <paramref name="localNode"/> the server? (Allocates — call it about once a second, not per frame.)</summary>
     public bool IsServer(int localNode)
     {

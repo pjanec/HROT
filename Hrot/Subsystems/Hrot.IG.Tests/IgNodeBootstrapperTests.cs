@@ -58,6 +58,17 @@ public class IgNodeBootstrapperTests
 
     // ── Tests ─────────────────────────────────────────────────────────────────
 
+    /// <summary>⭐ Player Join D-4 / §7c (R-4115) — the Player host composes the gameplay CLIENT pack by default and never the server pack. ✅ Red-proof: the <c>.Capability(…, GameplayClientPack)</c> line removed ⇒ red.</summary>
+    [Fact]
+    public void TheIgPlan_ComposesTheGameplayClientPack_AndNotTheServerPack()
+    {
+        var sut = CreateBootstrapper(headless: true);
+        var resolve = typeof(IgNodeBootstrapper).GetMethod("ResolveCapabilities", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var capabilities = (IReadOnlyList<INodeCapability>)resolve.Invoke(sut, new object?[] { null, Fdp.Core.NodeRole.Map2D })!;
+        Assert.Single(capabilities.OfType<Hrot.Gameplay.GameplayClientPack>());
+        Assert.Empty(capabilities.OfType<Hrot.Gameplay.GameplayServerPack>());
+    }
+
     [Fact]
     public void GetAdditionalModules_Headless_ContainsStyleResolutionModule()
     {

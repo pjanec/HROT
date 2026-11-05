@@ -16,6 +16,10 @@ public sealed class GameplayWire : IDisposable
     private DdsReader<PlayerSlotTopic>? _slotReader;
     private DdsWriter<PlayerSlotTopic>? _slotWriter;
     private DdsWriter<DeployOfferTopic>? _offers;
+    // ⭐ the PLAYER's ends of the same topics (S1 part B)
+    private DdsWriter<DeployRequestTopic>? _requestWriter;
+    private DdsReader<DeployStatusTopic>? _statusReader;
+    private DdsReader<DeployOfferTopic>? _offerReader;
 
     public GameplayWire(DdsParticipant? participant) => _participant = participant;
 
@@ -28,7 +32,15 @@ public sealed class GameplayWire : IDisposable
     public DdsWriter<PlayerSlotTopic>? SlotWriter => _participant is null ? null : _slotWriter ??= new DdsWriter<PlayerSlotTopic>(_participant);
     public DdsWriter<DeployOfferTopic>? Offers => _participant is null ? null : _offers ??= new DdsWriter<DeployOfferTopic>(_participant);
 
+    /// <summary>The Player's request writer — created by the first request, so a Player that never deploys (no server) never has one.</summary>
+    public DdsWriter<DeployRequestTopic>? RequestWriter => _participant is null ? null : _requestWriter ??= new DdsWriter<DeployRequestTopic>(_participant);
+    public DdsReader<DeployStatusTopic>? StatusReader => _participant is null ? null : _statusReader ??= new DdsReader<DeployStatusTopic>(_participant);
+    public DdsReader<DeployOfferTopic>? OfferReader => _participant is null ? null : _offerReader ??= new DdsReader<DeployOfferTopic>(_participant);
+
     // ⭐ The rail's evidence: what was actually created.
+    public bool RequestWriterCreated => _requestWriter is not null;
+    public bool StatusReaderCreated => _statusReader is not null;
+    public bool OfferReaderCreated => _offerReader is not null;
     public bool RequestsCreated => _requests is not null;
     public bool StatusCreated => _status is not null;
     public bool SlotReaderCreated => _slotReader is not null;
@@ -36,11 +48,14 @@ public sealed class GameplayWire : IDisposable
     public bool OffersCreated => _offers is not null;
 
     /// <summary>How many gameplay readers/writers exist (0 until first use).</summary>
-    public int CreatedCount => (RequestsCreated ? 1 : 0) + (StatusCreated ? 1 : 0) + (SlotReaderCreated ? 1 : 0) + (SlotWriterCreated ? 1 : 0) + (OffersCreated ? 1 : 0);
+    public int CreatedCount => (RequestsCreated ? 1 : 0) + (StatusCreated ? 1 : 0) + (SlotReaderCreated ? 1 : 0) + (SlotWriterCreated ? 1 : 0) + (OffersCreated ? 1 : 0)
+        + (RequestWriterCreated ? 1 : 0) + (StatusReaderCreated ? 1 : 0) + (OfferReaderCreated ? 1 : 0);
 
     public void Dispose()
     {
         _requests?.Dispose(); _status?.Dispose(); _slotReader?.Dispose(); _slotWriter?.Dispose(); _offers?.Dispose();
+        _requestWriter?.Dispose(); _statusReader?.Dispose(); _offerReader?.Dispose();
+        _requestWriter = null; _statusReader = null; _offerReader = null;
         _requests = null; _status = null; _slotReader = null; _slotWriter = null; _offers = null;
     }
 }

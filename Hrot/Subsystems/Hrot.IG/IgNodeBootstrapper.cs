@@ -246,7 +246,12 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             // ⭐ CE-2301 ① (R-2058) — no brain here, so the report inbox comes as a capability: the Reports window has a log to read.
             .Capability(NodeRole.Map2D, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.ReportInbox())
             // ⭐ AQ93 §12 N6 (R-4056) — SUMO cars mirrored for the map (the road layer and the car layer read its frame); idle without a net.
-            .Capability(NodeRole.Map2D, Hrot.Traffic.TrafficPack.Mirroring());
+            .Capability(NodeRole.Map2D, Hrot.Traffic.TrafficPack.Mirroring())
+            // ⭐ Player Join D-4 / §7c (R-4115) — the gameplay CLIENT (DeployFlow + the slot reader), composed by default; its wire is lazy and stays untouched while no server exists (R-4103).
+            //   The cluster cache is this node's replication module's, as CGF's server pack reads it.
+            .Capability(NodeRole.Map2D, new Hrot.Gameplay.GameplayClientPack(ctx =>
+                (ctx.NedReplication as Hrot.Network.Replication.NedReplicationModule)?.ClusterCache is { } cache
+                    ? new Hrot.Gameplay.DeployServerElection(cache.AllNodeIds, cache.Supports, cache.FeatureOn) : null));
 
         // ⭐⭐⭐ CE-197 — resolved from the DECLARED role, not a constant (B4b step 3).
         //    📐 Provably a no-op here: IgApplication.cs:923 passes the literal NodeRole.Map2D,

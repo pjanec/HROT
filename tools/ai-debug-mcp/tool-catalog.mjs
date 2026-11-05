@@ -6153,6 +6153,71 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "get_deploy",
+    "group": "Y — node diagnostics",
+    "summary": "The Player's DEPLOY flow on this node (Player Join): its state, why it waits, whether a deploy server exists, the playable units on offer (with who holds them) and the player's slot. 404 on a node with no gameplay client.",
+    "http": {
+      "method": "GET",
+      "path": "/deploy"
+    },
+    "params": [],
+    "returns": "{ state (Waiting|Observing|Choosing|Requesting|TakingControl|Playing), reason, lastRefusal, serverExists, station, offers[{unitNetId, side, slotName, holderStation (0 = free)}], slot{state, unit} }",
+    "notes": [
+      "Only a Player (the IG host) composes the client; every other node answers 404 'no deploy flow on this node'.",
+      "Waiting with reason 'Waiting for the server to load a scenario' = the gate is open but the cluster is not in a Live run."
+    ],
+    "example": {
+      "args": {},
+      "gist": "see whether this Player may deploy, and into what"
+    },
+    "hint": "No arguments. Example: get_deploy({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "deploy",
+    "group": "Y — node diagnostics",
+    "summary": "Ask the deploy server for a unit on a side ({side, unitNetId}), or to observe ({side, observe:true}), as this Player. Taken only while the flow is Choosing (an observe also while Observing with a server): 409 otherwise.",
+    "http": {
+      "method": "POST",
+      "path": "/deploy"
+    },
+    "params": [
+      {
+        "name": "side",
+        "type": "string",
+        "required": true,
+        "description": "Friend | Hostile | Neutral"
+      },
+      {
+        "name": "unitNetId",
+        "type": "integer",
+        "required": false,
+        "description": "The playable unit's network id (from get_deploy offers); omit with observe"
+      },
+      {
+        "name": "observe",
+        "type": "boolean",
+        "required": false,
+        "description": "true ⇒ observe on that side, no unit"
+      }
+    ],
+    "returns": "the same document as get_deploy, with state Requesting; poll get_deploy for TakingControl → Playing, or lastRefusal",
+    "notes": [
+      "A refused request comes back as lastRefusal on get_deploy (WrongSide, HeldByAnotherStation (held by station N), ReservedForAnother …)."
+    ],
+    "example": {
+      "args": {
+        "side": "Friend",
+        "unitNetId": 1043
+      },
+      "gist": "deploy this Player into a placed unit"
+    },
+    "hint": "Example: deploy({ side: \"Friend\", unitNetId: 1043 })",
+    "manualVerify": false
+  },
+
+  {
     "name": "get_architecture_diagnostics",
     "group": "Y — node diagnostics",
     "summary": "This NODE's modules, ECS systems and DDS translators, one entry per subsystem, read from each subsystem's own ModuleHostKernel.",

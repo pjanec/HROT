@@ -1833,6 +1833,10 @@ namespace Hrot.Editor.DebugApi
                 return error != null ? Fail(503, error, hintCategory) : Ok(result);
             })));
 
+            // ⭐ Player Join S1 — the Player's deploy flow: state, offers, and the request (404 on a node with no gameplay client).
+            _routes.Add(new("GET", "/deploy", _ => RunMainResult(s => { var (r, e, h, st) = s.Deploy(null, post: false); return e is null ? Ok(r) : Fail(st, e, h); })));
+            _routes.Add(new("POST", "/deploy", ctx => RunMainResult(s => { var (r, e, h, st) = s.Deploy(ctx.Body, post: true); return e is null ? Ok(r) : Fail(st, e, h); })));
+
             // ⭐⭐ MD-002 — diagnostics live on the SHARED service so a cluster-limited node (a SimHost
             //    node) answers for its OWN kernel. 📄 DESIGN_Mcp_Diagnostics_Federation §1/§2.2.
             _routes.Add(new("GET", "/diagnostics/architecture", ctx => RunMainResult(s =>

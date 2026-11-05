@@ -106,6 +106,9 @@ internal sealed class LocalWindowController
     /// <summary>⭐ CE-1442 — the process's ONE loading screen (null before <see cref="ComposeRunControls"/> or with no owner choice).</summary>
     internal Hrot.UI.Common.Panels.LoadingScreen? LoadingScreen { get; private set; }
 
+    /// <summary>⭐ Player Join D-4 — the process's ONE deploy screen (the Player host only; null otherwise).</summary>
+    internal Hrot.UI.Common.Panels.DeployScreen? DeployScreen { get; private set; }
+
     /// <summary>⭐ CE-1442 — the process's ONE cluster-error status-bar section.</summary>
     internal Hrot.UI.Common.Panels.ClusterErrorStatusBarSection? ErrorSection { get; private set; }
 
@@ -128,6 +131,12 @@ internal sealed class LocalWindowController
         {
             LoadingScreen = Hrot.UI.Common.Panels.LoadingScreen.Register(wm.StatusBar, ownerChoice, owner!.GatePolicy);   // ⭐ CE-1445 — the Player's policy makes it the waiting screen
             ErrorSection  = Hrot.UI.Common.Panels.ClusterErrorStatusBarSection.Register(wm.StatusBar, ownerChoice);
+            // ⭐ Player Join D-4 — the Player's deploy screen, composed ONCE here beside the loading screen it yields to; it reads the node's DeployFlowSystem through the owner's world.
+            if (owner.GatePolicy == Fdp.Toolkit.Orchestration.HostGatePolicy.Player)
+            {
+                var ownerWorld = owner;
+                DeployScreen = Hrot.UI.Common.Panels.DeployScreen.Register(wm.StatusBar, () => Hrot.Gameplay.DeployFlowSystem.Of(ownerWorld.World), () => LoadingScreen?.Visible ?? false);
+            }
         }
         ComposeExitGuard(owner);             // ⭐ CE-4101 follow-up — the ONE scenario exit guard, over the same owner's door
         owner?.ComposeScenarioActions(wm);   // ⭐ CE-1439 — the scenario menu (and so the Start surface's Open / New / Recording) of the host that owns ▶, by the same rule

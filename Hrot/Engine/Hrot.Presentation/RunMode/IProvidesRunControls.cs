@@ -45,4 +45,10 @@ public interface IProvidesRunControls
     /// host's world holds resident. Drawn by the mode indicator's menu. Default: none (a host with no scenario world); ⭐ a host that HAS one (the Editor, CGF) overrides it — the forwarding rail checks them.
     /// </summary>
     IReadOnlyList<string> RunSetupLines => System.Array.Empty<string>();
+
+    /// <summary>
+    /// ⭐ Player Join D-4 — the world this host's gameplay client (<c>DeployFlowSystem.Of(world)</c>) lives in, for the process's ONE deploy screen. Default: none; the Player host (IG) overrides it.
+    /// </summary>
+    Fdp.Core.EntityRepository? World => null;
 }
+

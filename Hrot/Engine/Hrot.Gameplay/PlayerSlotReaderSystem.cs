@@ -16,12 +16,20 @@ namespace Hrot.Gameplay;
 public class PlayerSlotReaderSystem : IEcsModuleSystem
 {
     private readonly GameplayWire _wire;
+    private readonly Func<bool>? _when;
 
-    public PlayerSlotReaderSystem(GameplayWire wire) => _wire = wire ?? throw new ArgumentNullException(nameof(wire));
+    /// <param name="when">⭐ Optional gate: the reader is created (and read) only while it says true. The Player's client pack passes "a deploy server exists", so a Player in a
+    /// military-sim cluster with no server creates no gameplay reader; the server's subclass leaves it null (the feature attribute gates it).</param>
+    public PlayerSlotReaderSystem(GameplayWire wire, Func<bool>? when = null)
+    {
+        _wire = wire ?? throw new ArgumentNullException(nameof(wire));
+        _when = when;
+    }
 
     public void Execute(ISimulationView view, float deltaTime)
     {
         if (view is not EntityRepository repo) return;
+        if (_when is not null && !_when()) return;
         var reader = _wire.SlotReader;
         if (reader is null) return;
         using var loan = reader.Take();

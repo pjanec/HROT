@@ -121,6 +121,7 @@ namespace Hrot.IG
         Hrot.UI.Common.Facades.ITimeTransportFacade? Hrot.UI.Common.RunMode.IProvidesRunControls.Transport => _app?.RunControls;
         Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _app?.RunControls?.RunChoice;
         bool Hrot.UI.Common.RunMode.IProvidesRunControls.SuppressTimeControl => true;
+        Fdp.Core.EntityRepository? Hrot.UI.Common.RunMode.IProvidesRunControls.World => _app?.World;   // ⭐ Player Join D-4 — the deploy screen finds the node's DeployFlowSystem through it
         /// <summary>⭐ CE-4149 (DESIGN_Player_Join §7a B1) — the Player composes its gate policy: the one its run profile built the controls with.</summary>
         Fdp.Toolkit.Orchestration.HostGatePolicy Hrot.UI.Common.RunMode.IProvidesRunControls.GatePolicy => IgApplication.RunProfile.GatePolicy;
 
