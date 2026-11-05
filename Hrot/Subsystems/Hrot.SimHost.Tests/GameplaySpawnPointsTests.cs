@@ -118,6 +118,28 @@ namespace Hrot.SimHost.Tests
             Assert.False(WeatherField.AreaEntityContains(_w, a, new Vector2(120f, 120f)));   // the notch
             Assert.False(WeatherField.AreaEntityContains(_w, a, new Vector2(50f, 50f)));
         }
+
+        /// <summary>S3-c — given a NAMED area, the pick comes from THAT area alone (two areas of the side far apart: 40 seeds each land in the named one); another side's area ⇒ <c>WrongSide</c>; a non-area entity, a dead one or
+        /// none ⇒ <c>NoSuchArea</c>. ✅ Red-proof: the named area ignored ⇒ the "which" assertions red; the side check dropped ⇒ WrongSide red.</summary>
+        [Fact]
+        public void ANamedArea_IsTheOnlyOneUsed_ElseItsRefusal()
+        {
+            var sq = new[] { new Vector2(-10, -10), new Vector2(10, -10), new Vector2(10, 10), new Vector2(-10, 10) };
+            var north = Area(ForceId.Friend, new Vector3(0f, 1000f, 0f), sq);
+            var east = Area(ForceId.Friend, new Vector3(1000f, 0f, 0f), sq);
+            var enemy = Area(ForceId.Hostile, new Vector3(0f, 0f, 0f), sq);
+            var body = Body(new Vector3(7f, 7f, 7f));
+            for (int seed = 0; seed < 40; seed++)
+            {
+                Assert.True(SpawnPoints.Pick(_w, ForceId.Friend, new Random(seed), out var pn, out _, out string w1, north), w1);
+                Assert.InRange(pn.Y, 990f, 1010f); Assert.InRange(pn.X, -10f, 10f);
+                Assert.True(SpawnPoints.Pick(_w, ForceId.Friend, new Random(seed), out var pe, out _, out string w2, east), w2);
+                Assert.InRange(pe.X, 990f, 1010f); Assert.InRange(pe.Y, -10f, 10f);
+            }
+            Assert.False(SpawnPoints.Pick(_w, ForceId.Friend, new Random(1), out _, out _, out string wrong, enemy)); Assert.Equal("WrongSide", wrong);
+            Assert.False(SpawnPoints.Pick(_w, ForceId.Friend, new Random(1), out _, out _, out string notArea, body)); Assert.Equal("NoSuchArea", notArea);
+            Assert.False(SpawnPoints.Pick(_w, ForceId.Friend, new Random(1), out _, out _, out string none, Entity.Null)); Assert.Equal("NoSuchArea", none);
+        }
     }
 
     /// <summary>

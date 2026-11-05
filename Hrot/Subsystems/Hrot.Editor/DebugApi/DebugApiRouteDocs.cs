@@ -891,7 +891,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_deploy",
             Group:   "Y — node diagnostics",
             Summary: "The Player's DEPLOY flow on this node (Player Join): its state, why it waits, whether a deploy server exists, the playable units on offer (with who holds them) and the player's slot. 404 on a node with no gameplay client.",
-            Returns: "{ state (Waiting|Observing|Choosing|Requesting|TakingControl|Playing), reason, lastRefusal, serverExists, station, offers[{unitNetId, side, slotName, holderStation (0 = free)}], slot{state, unit} }",
+            Returns: "{ state (Waiting|Observing|Choosing|Requesting|TakingControl|Playing), reason, lastRefusal, serverExists, station, offers[{unitNetId, side, slotName, holderStation (0 = free), kind (Placed|Role|Area), count, max, kits[] (a role's kit labels by number, \"\" = unset)}], respawnAt, slot{state, unit} }",
             Hint:    "No arguments. Example: get_deploy({})",
             Params: new RouteParam[] { },
             Notes: new[]
@@ -913,6 +913,8 @@ namespace Hrot.Editor.DebugApi
                 new("side", "string", Required: true, Description: "Friend | Hostile | Neutral"),
                 new("unitNetId", "integer", Required: false, Description: "The playable unit's network id (from get_deploy offers); omit with observe"),
                 new("observe", "boolean", Required: false, Description: "true ⇒ observe on that side, no unit"),
+                new("kit", "integer", Required: false, Description: "A role's kit 0…3 (0 = the role's own type; see the offer's kits); 400 on anything else"),
+                new("areaNetId", "integer", Required: false, Description: "The spawn area chosen (an offer of kind Area); 0 or omitted = any area of the side"),
             },
             Notes: new[]
             {

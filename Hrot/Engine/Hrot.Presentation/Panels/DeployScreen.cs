@@ -23,6 +23,7 @@ public sealed class DeployScreen
     private readonly Func<bool> _loadingVisible;
     private bool _keepObserving;
     private ForceId? _side;
+    private int _areaNetId;
 
     /// <param name="flow">The node's flow (<c>DeployFlowSystem.Of(world)</c>); null ⇒ nothing to show.</param>
     /// <param name="loadingVisible">Whether the loading screen is up — this screen yields to it.</param>
@@ -79,7 +80,7 @@ public sealed class DeployScreen
     public static IReadOnlyList<ForceId> SidesOf(IReadOnlyList<DeployOffer> offers)
     {
         var sides = new List<ForceId>();
-        foreach (var o in offers) if (!sides.Contains(o.Side)) sides.Add(o.Side);
+        foreach (var o in offers) if (!o.IsArea && !sides.Contains(o.Side)) sides.Add(o.Side);   // a side is listed for its units and roles; its areas ride along
         sides.Sort();
         return sides;
     }
@@ -88,9 +89,41 @@ public sealed class DeployScreen
     public static IReadOnlyList<DeployOffer> OffersOf(IReadOnlyList<DeployOffer> offers, ForceId side)
     {
         var list = new List<DeployOffer>();
-        foreach (var o in offers) if (o.Side == side) list.Add(o);
+        foreach (var o in offers) if (o.Side == side && !o.IsArea) list.Add(o);
         return list;
     }
+
+    /// <summary>⭐ S3 — the spawn AREAS of <paramref name="side"/> (Kind Area offers), in the order offered.</summary>
+    public static IReadOnlyList<DeployOffer> AreasOf(IReadOnlyList<DeployOffer> offers, ForceId side)
+    {
+        var list = new List<DeployOffer>();
+        foreach (var o in offers) if (o.Side == side && o.IsArea) list.Add(o);
+        return list;
+    }
+
+    /// <summary>
+    /// ⭐ S3 — the kit buttons a role row expands to: one per SET extra kit, "<i>Rifleman — Grenadier</i>" (kit number, text). Kit 0 is the role's row itself; a role with no extra kit yields none.
+    /// </summary>
+    public static IReadOnlyList<(byte Kit, string Text)> KitRows(DeployOffer role)
+    {
+        var rows = new List<(byte, string)>();
+        if (!role.IsRole || role.Kits is not { Count: > 1 } kits) return rows;
+        for (int i = 1; i < kits.Count && i <= 3; i++)
+            if (kits[i].Length > 0) rows.Add(((byte)i, $"{role.SlotName} — {kits[i]}"));
+        return rows;
+    }
+
+    private static bool HasArea(IReadOnlyList<DeployOffer> areas, int netId)
+    {
+        foreach (var a in areas) if (a.UnitNetId == netId) return true;
+        return false;
+    }
+
+    /// <summary>The spawn area the Player chose (an area offer's id); 0 = "Any area" — the default.</summary>
+    public int AreaNetId => _areaNetId;
+
+    /// <summary>Chooses a spawn area (0 = any).</summary>
+    public void SelectArea(int areaNetId) => _areaNetId = areaNetId;
 
     /// <summary>One offer's row text: a placed unit by its name; a role with its live count — <i>Rifleman  2 / 4</i> (<i>2</i> when unlimited).</summary>
     public static string RowText(DeployOffer o)
@@ -146,6 +179,19 @@ public sealed class DeployScreen
         }
         ImGui.NewLine();
         ImGui.Separator();
+        var areas = AreasOf(offers, _side!.Value);
+        if (_areaNetId != 0 && !HasArea(areas, _areaNetId)) _areaNetId = 0;   // an area that is gone (or of the other side) is no choice
+        if (areas.Count > 0)
+        {
+            ImGui.TextDisabled("Spawn area");
+            if (ImGui.RadioButton("Any area##area0", _areaNetId == 0)) _areaNetId = 0;
+            foreach (var a in areas)
+            {
+                ImGui.SameLine();
+                if (ImGui.RadioButton($"{a.SlotName}##area{a.UnitNetId}", _areaNetId == a.UnitNetId)) _areaNetId = a.UnitNetId;
+            }
+            ImGui.Separator();
+        }
         var mine = OffersOf(offers, _side!.Value);
         if (mine.Count == 0) ImGui.TextDisabled("No unit to take on this side.");
         foreach (var o in mine)
@@ -158,7 +204,16 @@ public sealed class DeployScreen
                 ImGui.Selectable(full ? $"{name}  —  full##u{o.UnitNetId}" : $"{name}  —  held by station {o.HolderStation}##u{o.UnitNetId}");
                 ImGui.EndDisabled();
             }
-            else if (ImGui.Selectable($"{name}##u{o.UnitNetId}")) f.Request(_side!.Value, o.UnitNetId);
+            else
+            {
+                if (ImGui.Selectable($"{name}##u{o.UnitNetId}")) f.Request(_side!.Value, o.UnitNetId, 0, o.IsRole ? _areaNetId : 0);
+                foreach (var (kit, text) in KitRows(o))
+                {
+                    ImGui.Indent();
+                    if (ImGui.Selectable($"{text}##k{o.UnitNetId}_{kit}")) f.Request(_side!.Value, o.UnitNetId, kit, _areaNetId);
+                    ImGui.Unindent();
+                }
+            }
         }
         ImGui.Separator();
         if (ImGui.Button("Observer")) f.Observe(_side!.Value);

@@ -82,5 +82,30 @@ public sealed class TheDeployRoutesTests
             Assert.Equal(404, status); Assert.Equal("no deploy flow on this node", error);
         }
         Assert.Equal(404, Host(null).Deploy(null, post: false).Status);
+
+    }
+
+    /// <summary>S3 — <c>POST /deploy</c> accepts an optional <c>kit</c> (0…3) and <c>areaNetId</c> and hands them to the flow; a wrong type or range is a 400 and sends nothing. ✅ Red-proof: the fields not read ⇒ the flow sees 0 ⇒ red;
+    /// the range / type checks dropped ⇒ the 400 cases red.</summary>
+    [Fact]
+    public void Post_CarriesTheKitAndTheArea_AndRefusesBadTypes()
+    {
+        var world = new EntityRepository();
+        var flow = Flow(world);
+        var svc = Host(world);
+        var ok = svc.Deploy(new JsonObject { ["side"] = "Friend", ["unitNetId"] = 300, ["kit"] = 2, ["areaNetId"] = 401 }, post: true);
+        Assert.Equal(200, ok.Status);
+        Assert.Equal((byte)2, flow.RequestedKit); Assert.Equal(401, flow.RequestedAreaNetId);
+
+        var world2 = new EntityRepository(); var flow2 = Flow(world2); var svc2 = Host(world2);
+        foreach (var bad in new JsonObject[]
+        {
+            new() { ["side"] = "Friend", ["unitNetId"] = 300, ["kit"] = "x" },
+            new() { ["side"] = "Friend", ["unitNetId"] = 300, ["kit"] = 4 },
+            new() { ["side"] = "Friend", ["unitNetId"] = 300, ["kit"] = -1 },
+            new() { ["side"] = "Friend", ["unitNetId"] = 300, ["areaNetId"] = "church" },
+        })
+            Assert.Equal(400, svc2.Deploy(bad, post: true).Status);
+        Assert.Equal(DeployFlowState.Choosing, flow2.State);   // nothing was sent
     }
 }

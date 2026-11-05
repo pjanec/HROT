@@ -45,7 +45,12 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
         public int Station; public string Name = ""; public ForceId Side; public PlayerSlotState State; public int UnitNetId; public double Until; public double RespawnAt;
     }
 
-    private sealed class Offered { public FixedString32 NameKey; public string Name = ""; public bool Seen; public bool KeyedName; }
+    private sealed class Offered
+    {
+        public FixedString32 NameKey; public string Name = ""; public bool Seen; public bool KeyedName;
+        public FixedString64 NameKey64;                                  // an area's name (EntityInfo)
+        public FixedString32 K0, K1, K2, K3; public List<string> Kits = new();   // a role's kit labels, rebuilt only when a name changed
+    }
 
     /// <summary>A role request waiting for its man to exist (S2-e).</summary>
     private sealed class PendingSpawn
@@ -184,6 +189,7 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
         long personType; string roleName; int max; ForceId roleSide;
         if (r.UnitNetId < 0)
         {
+            if (r.Kit != 0) { Answer(r, false, "NoSuchKit", 0, r.UnitNetId); return; }   // an implicit role carries ONE kit: its type
             personType = -(long)r.UnitNetId; max = 0; roleSide = side;
             if (SideDeclaresRoles(repo, side) || !PersonTypesOn(repo, side).Contains(personType)) { Answer(r, false, "NoSuchUnit", 0, r.UnitNetId); return; }
             roleName = TypeName(repo, personType);
@@ -192,13 +198,20 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
         {
             _map.TryGetEntity(r.UnitNetId, out var roleEntity);
             var role = repo.GetComponentRO<DeployRole>(roleEntity);
-            personType = role.PersonTkbType; max = role.MaxCount; roleSide = role.Side; roleName = role.Name.ToString();
-            if (role.PersonTkbType == 0) { Answer(r, false, "the role has no person type", 0, r.UnitNetId); return; }
+            personType = role.KitTkb(r.Kit); max = role.MaxCount; roleSide = role.Side; roleName = role.Name.ToString();   // ⭐ S3-a — kit 0 = the role's own type, 1…3 its extra kits
+            if (r.Kit > 3 || (r.Kit > 0 && personType == 0)) { Answer(r, false, "NoSuchKit", 0, r.UnitNetId); return; }
+            if (personType == 0) { Answer(r, false, "the role has no person type", 0, r.UnitNetId); return; }
         }
         if (roleSide != side) { Answer(r, false, "WrongSide", 0, r.UnitNetId); return; }
         if (max > 0 && AliveOf(repo, r.UnitNetId) >= max) { Answer(r, false, "RoleFull", 0, r.UnitNetId); return; }
         if (_spawner is null) { Answer(r, false, "spawning unavailable", 0, r.UnitNetId); return; }
-        if (!SpawnPoints.Pick(repo, side, _rng, out var pos, out float yaw, out string why)) { Answer(r, false, why, 0, r.UnitNetId); return; }
+        Entity? chosen = null;   // ⭐ S3-c — the Player's area, if it named one
+        if (r.AreaNetId != 0)
+        {
+            if (!_map.TryGetEntity(r.AreaNetId, out var areaEntity)) { Answer(r, false, SpawnPoints.NoSuchArea, 0, r.UnitNetId); return; }
+            chosen = areaEntity;
+        }
+        if (!SpawnPoints.Pick(repo, side, _rng, out var pos, out float yaw, out string why, chosen)) { Answer(r, false, why, 0, r.UnitNetId); return; }
 
         _spawnCounter.TryGetValue(r.UnitNetId, out int n);
         _spawnCounter[r.UnitNetId] = ++n;
@@ -388,6 +401,7 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
             }
         }
         PublishRoleOffers(repo, writer);
+        PublishAreaOffers(repo, writer);
         _scratch.Clear();
         foreach (var kv in _offered) if (!kv.Value.Seen) _scratch.Add(kv.Key);
         foreach (int gone in _scratch)
@@ -411,7 +425,8 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
                 if (!_offered.TryGetValue(netId, out var o)) _offered[netId] = o = new Offered();
                 if (!o.Seen && (o.Name.Length == 0 || !o.NameKey.Equals(role.Name))) { o.NameKey = role.Name; o.Name = role.Name.ToString(); }
                 o.Seen = true;
-                writer?.Write(new DeployOfferTopic { UnitNetId = netId, Side = (byte)role.Side, SlotName = o.Name, HolderStation = 0, Kind = (byte)DeployOfferKind.Role, Count = AliveOf(repo, netId), Max = role.MaxCount });
+                RefreshKits(o, role);
+                writer?.Write(new DeployOfferTopic { UnitNetId = netId, Side = (byte)role.Side, SlotName = o.Name, HolderStation = 0, Kind = (byte)DeployOfferKind.Role, Count = AliveOf(repo, netId), Max = role.MaxCount, Kits = o.Kits });
             }
         foreach (var side in new[] { ForceId.Friend, ForceId.Hostile })
         {
@@ -420,10 +435,46 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
             for (int i = 0; i < types.Count; i++)
             {
                 int id = -(int)types[i];
-                if (!_offered.TryGetValue(id, out var o)) _offered[id] = o = new Offered { Name = TypeName(repo, types[i]), KeyedName = false };
+                if (!_offered.TryGetValue(id, out var o)) { _offered[id] = o = new Offered { Name = TypeName(repo, types[i]), KeyedName = false }; o.Kits.Add(o.Name); }   // ⭐ S3 — an implicit role carries ONE kit: its type
                 o.Seen = true;
-                writer?.Write(new DeployOfferTopic { UnitNetId = id, Side = (byte)side, SlotName = o.Name, HolderStation = 0, Kind = (byte)DeployOfferKind.Role, Count = AliveOf(repo, id), Max = 0 });
+                writer?.Write(new DeployOfferTopic { UnitNetId = id, Side = (byte)side, SlotName = o.Name, HolderStation = 0, Kind = (byte)DeployOfferKind.Role, Count = AliveOf(repo, id), Max = 0, Kits = o.Kits });
             }
+        }
+    }
+
+    /// <summary>
+    /// ⭐ S3-a — the role's kit labels by kit number, rebuilt only when a name changed: index 0 = the role's own name, 1…3 = <c>KitNName</c> (or "Kit n"), "" = an unset kit. Empty when no extra kit is set — a role
+    /// with no kits offers none (the screen shows a plain row).
+    /// </summary>
+    private static void RefreshKits(Offered o, in DeployRole role)
+    {
+        bool any = role.Kit1Tkb != 0 || role.Kit2Tkb != 0 || role.Kit3Tkb != 0;
+        if (o.Kits.Count > 0 == any && o.K1.Equals(role.Kit1Name) && o.K2.Equals(role.Kit2Name) && o.K3.Equals(role.Kit3Name) && o.K0.Equals(role.Name)) return;
+        o.K0 = role.Name; o.K1 = role.Kit1Name; o.K2 = role.Kit2Name; o.K3 = role.Kit3Name;
+        o.Kits = new List<string>(4);
+        if (!any) return;
+        o.Kits.Add(role.Name.ToString());
+        o.Kits.Add(role.Kit1Tkb == 0 ? "" : KitLabel(role.Kit1Name, 1));
+        o.Kits.Add(role.Kit2Tkb == 0 ? "" : KitLabel(role.Kit2Name, 2));
+        o.Kits.Add(role.Kit3Tkb == 0 ? "" : KitLabel(role.Kit3Name, 3));
+    }
+
+    private static string KitLabel(FixedString32 name, int n) => name.IsEmpty ? $"Kit {n}" : name.ToString();
+
+    /// <summary>⭐ S3 — every <see cref="SpawnArea"/> entity (of EVERY side) is offered as Kind Area: its network id, side and name, so the Player's screen can list the areas of the side it chose and its request can name one.</summary>
+    private void PublishAreaOffers(EntityRepository repo, CycloneDDS.Runtime.DdsWriter<DeployOfferTopic>? writer)
+    {
+        if (!repo.IsComponentTypeRegistered<SpawnArea>() || !repo.IsComponentTypeRegistered<NetworkIdentity>()) return;
+        foreach (var e in repo.Query().With<SpawnArea>().Build())
+        {
+            if (!repo.IsAlive(e) || !repo.HasComponent<NetworkIdentity>(e)) continue;
+            int netId = repo.GetComponentRO<NetworkIdentity>(e).Value;
+            var area = repo.GetComponentRO<SpawnArea>(e);
+            var name = repo.IsComponentTypeRegistered<EntityInfo>() && repo.HasComponent<EntityInfo>(e) ? repo.GetComponentRO<EntityInfo>(e).Name : default;
+            if (!_offered.TryGetValue(netId, out var o)) _offered[netId] = o = new Offered();
+            if (!o.Seen && (o.Name.Length == 0 || !o.NameKey64.Equals(name))) { o.NameKey64 = name; o.Name = name.IsEmpty ? "Spawn area" : name.ToString(); }
+            o.Seen = true;
+            writer?.Write(new DeployOfferTopic { UnitNetId = netId, Side = (byte)area.Side, SlotName = o.Name, HolderStation = 0, Kind = (byte)DeployOfferKind.Area, Count = 0, Max = 0, Kits = o.Kits });
         }
     }
 

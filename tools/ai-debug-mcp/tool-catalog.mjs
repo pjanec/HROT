@@ -6161,7 +6161,7 @@ export const TOOLS_CATALOG = [
       "path": "/deploy"
     },
     "params": [],
-    "returns": "{ state (Waiting|Observing|Choosing|Requesting|TakingControl|Playing), reason, lastRefusal, serverExists, station, offers[{unitNetId, side, slotName, holderStation (0 = free)}], slot{state, unit} }",
+    "returns": "{ state (Waiting|Observing|Choosing|Requesting|TakingControl|Playing), reason, lastRefusal, serverExists, station, offers[{unitNetId, side, slotName, holderStation (0 = free), kind (Placed|Role|Area), count, max, kits[] (a role's kit labels by number, \"\" = unset)}], respawnAt, slot{state, unit} }",
     "notes": [
       "Only a Player (the IG host) composes the client; every other node answers 404 'no deploy flow on this node'.",
       "Waiting with reason 'Waiting for the server to load a scenario' = the gate is open but the cluster is not in a Live run."
@@ -6200,6 +6200,18 @@ export const TOOLS_CATALOG = [
         "type": "boolean",
         "required": false,
         "description": "true ⇒ observe on that side, no unit"
+      },
+      {
+        "name": "kit",
+        "type": "integer",
+        "required": false,
+        "description": "A role's kit 0…3 (0 = the role's own type; see the offer's kits); 400 on anything else"
+      },
+      {
+        "name": "areaNetId",
+        "type": "integer",
+        "required": false,
+        "description": "The spawn area chosen (an offer of kind Area); 0 or omitted = any area of the side"
       }
     ],
     "returns": "the same document as get_deploy, with state Requesting; poll get_deploy for TakingControl → Playing, or lastRefusal",

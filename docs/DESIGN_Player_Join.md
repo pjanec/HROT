@@ -573,7 +573,7 @@ killed ⇒ `Dead` *"killed — respawn in 5 s"* ⇒ `Choosing` 5.2 s later, the 
 Player yet (his replica waits for its first pose, CE-4086), so it is now retried every 500 ms until the 10 s deadline. Rails in `GameplayDeployFlowTests`.
 ⚠ The `-m server` HTTP API edits one subsystem's world at a time: kill a unit through the perspective whose node owns `Health` (here `Scenario`).
 
-## 11. S3 — kits, the spawn area, the scoreboard key *(backend, `2026-11-05`; `build-state: READY-TO-BUILD`)*
+## 11. S3 — kits, the spawn area, the scoreboard key *(backend, `2026-11-05`; `build-state: BUILT` — the as-built is §11.1; the map click S3-d is ui's)*
 
 ✅ User `2026-11-05`: *"Kit variants lean accepted"* · R-3076 (Tab = the scoreboard only, next man = J — BUILT, see D-16).
 ⭐ The scoreboard itself is ui's CE-4231 (`Scoreboard.Build` over S7's per-man `Points` roots, `PlayerHudLayer.DrawBoard`) — nothing to build for D-15/D-16 beyond R-3076.
@@ -616,3 +616,25 @@ sequenceDiagram
 
 Rejected — one line each: *a kit as AmmoLoadout overrides* — a loadout system, rejected in §5. *One role entity per kit* — splits the role's count and max.
 *Area as a separate request* — two round trips for one decision.
+
+### 11.1 AS BUILT — S3, kits and the spawn-area choice *(backend, `2026-11-05`; `build-state`: BUILT)*
+
+| part | where | as built |
+|---|---|---|
+| kits | `DeployRole` (`GameplayComponents.cs`) | `Kit1Tkb…Kit3Tkb` (long, 0 = none) + `Kit1Name…Kit3Name` (`FixedString32`); kit 0 = the role's own `PersonTkbType`/`Name`; `KitTkb(n)`; still `[DataPolicy(Default)]` — saves and loads (rail) |
+| wire | `GameplayTopics.cs` | `DeployRequestTopic` + `Kit` (byte) · `AreaNetId` (int); `DeployOfferTopic` + `Kits` (`[DdsManaged] List<string>`), all APPENDED LAST (R-42); `DeployOfferKind.Area = 2` |
+| offers | `DeployProcessorSystem.PublishAreaOffers` / `RefreshKits` | every `SpawnArea` entity of EVERY side with a network id ⇒ Kind Area (id, side, `EntityInfo.Name` or "Spawn area"); a role with ≥ 1 extra kit carries `Kits` = labels BY KIT NUMBER (0 = the role's name, "" = unset, unset name ⇒ "Kit n"); an implicit role carries ONE (its type); the label list is rebuilt only when a name changed |
+| server | `HandleRole` | `Kit` ⇒ `role.KitTkb(kit)`; kit > 3 or a set-less kit ⇒ refused `NoSuchKit` (an implicit role has only kit 0); kits share the role's `AliveOf`/`Max` (S3-b); the man is still "<role name> <n>"; `AreaNetId ≠ 0` ⇒ `Pick(…, only: area)` |
+| the free point | `SpawnPoints.Pick(…, out reason, Entity? only = null)` | with `only`: not an alive spawn area with an outline ⇒ `NoSuchArea`; another side's ⇒ `WrongSide`; else the same ≤ 20 tries in THAT area; an id the map does not know ⇒ `NoSuchArea` |
+| flow | `DeployFlowSystem.Request(side, unit, kit = 0, areaNetId = 0)` | both ride the request; `RequestedKit`/`RequestedAreaNetId` read back; `DeployOffer` gains `Kits` and `IsArea` |
+| HTTP | `DeployFlowApi` | `GET /deploy` offers carry `kind` (Placed/Role/Area), `count`, `max`, `kits[]`; `POST /deploy` takes optional `kit` (0…3) and `areaNetId` — a wrong type or range is a 400 and sends nothing; route doc + `tool-catalog.mjs` regenerated |
+| screen | `DeployScreen` | a role row expands to its kits ("Rifleman — Grenadier", one `KitRows` button each, unset ones hidden); the chosen side's areas ("Any area" first, selected by default) whose choice rides a ROLE request; units and areas are listed apart (`OffersOf` / `AreasOf`); a side is listed for its units, never for an area alone |
+
+**Deviations / notes, argued:**
+1. `SpawnPoints.Pick`'s named-area parameter is called `only` (the local is `area`) and, as in S2, the signature has `out string reason`.
+2. A role WITHOUT extra kits sends `Kits` as an empty list, so the Player's offer carries `null` (not an empty list): `DeployOffer` equality stays value-like for the existing rails.
+3. The area choice rides role requests only; a placed unit ignores it (it never spawns).
+4. The Deploy Role's kit fields edit in Details through whatever edits `DeployRole` today — the generic Components view; ⚠ not exercised live (same caveat as §10.4). No Details section was added.
+5. The area offers' names are cached at first sight (an area renamed later keeps its first label until the server restarts) — areas are authored and rarely renamed; a role's labels DO refresh (they are compared each pass).
+
+**Rails** — `Hrot.SimHost.Tests`: `GameplayDeployServerTests` (kit spawns its type / `NoSuchKit` / the shared Max · a named area is the only one used, with `WrongSide` / `NoSuchArea` · every area offered, kit labels · the `DeployRole` scenario round-trip), `GameplayDeployFlowTests` (the request carries kit and area · the flow reads area offers and kit labels, `GET` reports them), `GameplaySpawnPointsTests` (a named area); `Hrot.Presentation.Tests` `DeployScreenRulesTests` (kit rows, areas apart); `Hrot.Editor.Tests` `TheDeployRoutesTests` (`POST` kit/area and the 400s). The S2 0-allocation steady-frame rail stays green. Each red-proofed by a compiling mutation.

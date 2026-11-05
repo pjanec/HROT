@@ -157,20 +157,23 @@ namespace Hrot.SimHost.Tests
 
         // ── S2 helpers ──────────────────────────────────────────────────────────────────────────
 
-        private Entity Area(ForceId side, float facing, Vector3 origin, float half = 20f, Vector2[]? shape = null)
+        private Entity Area(ForceId side, float facing, Vector3 origin, float half = 20f, Vector2[]? shape = null, int netId = 0, string? name = null)
         {
             var e = _w.CreateEntity();
+            if (netId != 0) { _w.AddComponent(e, new NetworkIdentity { Value = netId }); _map.Register(netId, e); }
+            if (name is not null) _w.AddComponent(e, new EntityInfo { Name = new FixedString64(name), ForceId = side });
             _w.AddComponent(e, new SimTransform { Position = origin, Rotation = Quaternion.Identity });
             _w.AddComponent(e, new SpawnArea { Side = side, FacingDeg = facing });
             _w.SetManagedComponent(e, new EditablePolyline { Points = shape ?? new[] { new Vector2(-half, -half), new Vector2(half, -half), new Vector2(half, half), new Vector2(-half, half) } });
             return e;
         }
 
-        private Entity RoleEntity(int netId, ForceId side, long tkb, string name, byte max)
+        private Entity RoleEntity(int netId, ForceId side, long tkb, string name, byte max, long kit1 = 0, string kit1Name = "", long kit2 = 0, long kit3 = 0)
         {
             var e = _w.CreateEntity();
             _w.AddComponent(e, new NetworkIdentity { Value = netId });
-            _w.AddComponent(e, new DeployRole { Side = side, PersonTkbType = tkb, Name = new FixedString32(name), MaxCount = max });
+            _w.AddComponent(e, new DeployRole { Side = side, PersonTkbType = tkb, Name = new FixedString32(name), MaxCount = max,
+                Kit1Tkb = kit1, Kit1Name = new FixedString32(kit1Name), Kit2Tkb = kit2, Kit3Tkb = kit3 });
             _map.Register(netId, e);
             return e;
         }
@@ -189,10 +192,10 @@ namespace Hrot.SimHost.Tests
             return e;
         }
 
-        private string Ask(int station, ForceId side, int unitNetId)
+        private string Ask(int station, ForceId side, int unitNetId, byte kit = 0, int areaNetId = 0)
         {
             string id = Guid.NewGuid().ToString("N");
-            _request.Write(new DeployRequestTopic { RequestId = id, StationNodeId = station, Side = (byte)side, UnitNetId = unitNetId });
+            _request.Write(new DeployRequestTopic { RequestId = id, StationNodeId = station, Side = (byte)side, UnitNetId = unitNetId, Kit = kit, AreaNetId = areaNetId });
             return id;
         }
 
@@ -574,6 +577,101 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 200; i++) _proc.Execute(_w, 0.016f);
             long used = GC.GetAllocatedBytesForCurrentThread() - before;
             Assert.True(used == 0, $"a steady frame allocated {used} bytes over 200 frames");
+        }
+
+        // ── ⭐ S3 — kits and the chosen spawn area ────────────────────────────────────────────────
+
+        /// <summary>A KIT spawns ITS person type (kit 1 ⇒ Kit1Tkb) yet the man is named after the ROLE ("Rifleman 1", the kit label is not in it); an unset kit (2) and an out-of-range one (5) are refused <c>NoSuchKit</c>;
+        /// kits SHARE the role's Max — kit 1 then kit 0 on a max-1 role ⇒ the second is <c>RoleFull</c>. ✅ Red-proof: the kit ignored (always the role's own type) ⇒ the Tkb assertion red; the unset-kit check dropped ⇒ red;
+        /// the Max counted per kit ⇒ the RoleFull assertion red.</summary>
+        [Fact]
+        public void AKitSpawnsItsOwnPersonType_AnUnsetKitIsRefused_AndKitsShareTheRolesMax()
+        {
+            Area(ForceId.Friend, 0f, new Vector3(100f, 200f, 5f));
+            RoleEntity(300, ForceId.Friend, 2002, "Rifleman", 1, kit1: 2004, kit1Name: "Grenadier");
+
+            Assert.Equal("NoSuchKit", Answer(Ask(StationB, ForceId.Friend, 300, kit: 2)).Reason);
+            Assert.Equal("NoSuchKit", Answer(Ask(StationB, ForceId.Friend, 300, kit: 5)).Reason);
+            Assert.Empty(_spawnCalls);
+
+            string id = Ask(StationA, ForceId.Friend, 300, kit: 1);
+            PumpUntil(() => _spawnCalls.Count == 1, "the kit's spawn");
+            Assert.Equal(2004L, _spawnCalls[0].Tkb);
+            Assert.Equal("Rifleman 1", ((EntityInfo)_spawnCalls[0].Components.First(x => x is EntityInfo)).Name.ToString());
+            Materialise(0, 200); Assert.True(Answer(id).Accepted);
+
+            var full = Answer(Ask(StationB, ForceId.Friend, 300, kit: 0));   // the role's own kit: the SAME role, already at its max of 1
+            Assert.False(full.Accepted); Assert.Equal("RoleFull", full.Reason);
+        }
+
+        /// <summary>A request that NAMES an area spawns the man inside THAT area only (two areas of the side, far apart — asserted for each in turn); another side's area ⇒ <c>WrongSide</c>; an entity that is not a spawn area, or an
+        /// unknown id ⇒ <c>NoSuchArea</c>; 0 ⇒ some area of the side. ✅ Red-proof: the named area ignored ⇒ the "which" assertions red; the side check dropped ⇒ the WrongSide case red.</summary>
+        [Fact]
+        public void ANamedArea_IsTheOnlyOneUsed_WithItsRefusals()
+        {
+            Area(ForceId.Friend, 0f, new Vector3(100f, 200f, 0f), netId: 400, name: "North gate");
+            Area(ForceId.Friend, 0f, new Vector3(1000f, 2000f, 0f), netId: 401, name: "Church");
+            Area(ForceId.Hostile, 0f, new Vector3(5000f, 5000f, 0f), netId: 402, name: "Enemy camp");
+            RoleEntity(300, ForceId.Friend, 2002, "Rifleman", 0);
+
+            int call = 0;
+            foreach (var (areaId, cx, cy) in new[] { (400, 100f, 200f), (401, 1000f, 2000f), (400, 100f, 200f) })
+            {
+                Ask(StationA, ForceId.Friend, 300, areaNetId: areaId);
+                PumpUntil(() => _spawnCalls.Count == call + 1, "a spawn in the named area");
+                var p = _spawnCalls[call].At.Position;
+                Assert.InRange(p.X, cx - 20f, cx + 20f); Assert.InRange(p.Y, cy - 20f, cy + 20f);
+                call++;
+            }
+            Assert.Equal("WrongSide", Answer(Ask(StationB, ForceId.Friend, 300, areaNetId: 402)).Reason);
+            Assert.Equal("NoSuchArea", Answer(Ask(StationB, ForceId.Friend, 300, areaNetId: 300)).Reason);   // the ROLE entity is no area
+            Assert.Equal("NoSuchArea", Answer(Ask(StationB, ForceId.Friend, 300, areaNetId: 9999)).Reason);
+            Assert.Equal(3, _spawnCalls.Count);
+
+            Ask(StationB, ForceId.Friend, 300, areaNetId: 0);                                                 // any area of the side
+            PumpUntil(() => _spawnCalls.Count == 4, "a spawn in any area");
+            var any = _spawnCalls[3].At.Position;
+            Assert.True((Math.Abs(any.X - 100f) <= 20f && Math.Abs(any.Y - 200f) <= 20f) || (Math.Abs(any.X - 1000f) <= 20f && Math.Abs(any.Y - 2000f) <= 20f));
+        }
+
+        /// <summary>Every <c>SpawnArea</c> is offered as Kind Area (all sides; its id, side, name) and a role WITH kits carries its labels by kit number — the role's name for kit 0, the kit's name or "Kit n", "" for an unset
+        /// kit. ✅ Red-proof: the area offers dropped ⇒ red; the labels dropped ⇒ red.</summary>
+        [Fact]
+        public void EverySpawnAreaIsOffered_AndARoleCarriesItsKitLabels()
+        {
+            Area(ForceId.Friend, 0f, new Vector3(100f, 200f, 0f), netId: 400, name: "North gate");
+            Area(ForceId.Hostile, 0f, new Vector3(5000f, 5000f, 0f), netId: 402, name: "Enemy camp");
+            RoleEntity(300, ForceId.Friend, 2002, "Rifleman", 4, kit1: 2004, kit1Name: "Grenadier", kit3: 2005);
+
+            PumpUntil(() => _offersSeen.ContainsKey(400) && _offersSeen.ContainsKey(402) && _offersSeen.ContainsKey(300), "the area and role offers");
+            Assert.Equal((byte)DeployOfferKind.Area, _offersSeen[400].Kind); Assert.Equal("North gate", _offersSeen[400].SlotName); Assert.Equal((byte)ForceId.Friend, _offersSeen[400].Side);
+            Assert.Equal((byte)DeployOfferKind.Area, _offersSeen[402].Kind); Assert.Equal((byte)ForceId.Hostile, _offersSeen[402].Side);
+            Assert.Equal(new[] { "Rifleman", "Grenadier", "", "Kit 3" }, _offersSeen[300].Kits);
+        }
+
+        /// <summary>The kit fields are AUTHORED world state: a <c>DeployRole</c> with kits saves into the scenario and loads back with all three pairs. ✅ Red-proof: a kit field not serialised ⇒ red.</summary>
+        [Fact]
+        public void ADeployRoleWithKits_RoundTripsThroughTheScenario()
+        {
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<DeployRole>();
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new DeployRole { Side = ForceId.Hostile, PersonTkbType = 2003, Name = new FixedString32("Insurgent"), MaxCount = 3,
+                Kit1Tkb = 2004, Kit1Name = new FixedString32("Grenadier"), Kit2Tkb = 2005, Kit2Name = new FixedString32("Mortar"), Kit3Tkb = 2006, Kit3Name = new FixedString32("Javelin") });
+            var serializer = new Fdp.Toolkit.Scenario.ScenarioSerializerBuilder("Hrot.SimHost").Build();
+            var dom = serializer.Serialize(repo, new Fdp.Toolkit.Scenario.ScenarioHeader("Hrot.SimHost"));
+            using var fresh = new EntityRepository();
+            fresh.RegisterComponent<DeployRole>();
+            serializer.Deserialize(fresh, dom);
+            DeployRole back = default; bool found = false;
+            for (int i = 0; i <= fresh.MaxEntityIndex && !found; i++)
+            {
+                var c = new Entity(i, fresh.GetEntityIndex().GetMetadata(i).Generation);
+                if (fresh.IsAlive(c) && fresh.HasComponent<DeployRole>(c)) { back = fresh.GetComponentRO<DeployRole>(c); found = true; }
+            }
+            Assert.True(found);
+            Assert.Equal((ForceId.Hostile, 2003L, "Insurgent", (byte)3), (back.Side, back.PersonTkbType, back.Name.ToString(), back.MaxCount));
+            Assert.Equal((2004L, "Grenadier", 2005L, "Mortar", 2006L, "Javelin"), (back.Kit1Tkb, back.Kit1Name.ToString(), back.Kit2Tkb, back.Kit2Name.ToString(), back.Kit3Tkb, back.Kit3Name.ToString()));
         }
     }
 }

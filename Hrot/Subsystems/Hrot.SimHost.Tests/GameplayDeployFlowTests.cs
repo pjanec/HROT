@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using CycloneDDS.Runtime;
 using Fdp.Core;
@@ -303,6 +304,50 @@ namespace Hrot.SimHost.Tests
             ToPlaying();
             _server.RemoveComponent<PossessedBy>(_serverUnit);
             PumpUntil(() => _flow.State == DeployFlowState.Choosing, "Choosing after the release");
+        }
+
+        // ── ⭐ S3 — kits and areas through the Player's flow ─────────────────────────────────────
+
+        /// <summary>The flow's <c>Request(side, role, kit, area)</c> puts BOTH on the wire: a raw reader of the request topic sees <c>Kit</c> and <c>AreaNetId</c>. ✅ Red-proof: the fields not copied into the request ⇒ red.</summary>
+        [Fact]
+        public void TheFlow_SendsTheKitAndTheArea()
+        {
+            using var raw = new DdsReader<DeployRequestTopic>(_serverP);
+            ToChoosing();
+            Assert.True(_flow.Request(ForceId.Friend, Rifleman, kit: 2, areaNetId: 55));
+            Assert.Equal((byte)2, _flow.RequestedKit); Assert.Equal(55, _flow.RequestedAreaNetId);
+            DeployRequestTopic seen = default;
+            PumpUntil(() => { using var l = raw.Take(); foreach (var s in l) if (s.IsValid) { seen = s.Data; return true; } return false; }, "the raw request");
+            Assert.Equal((byte)2, seen.Kit); Assert.Equal(55, seen.AreaNetId); Assert.Equal(Rifleman, seen.UnitNetId);
+        }
+
+        /// <summary>The Player reads the area offers and a role's kit labels, and <c>GET /deploy</c>'s document carries them (kind, count, max, kits). ✅ Red-proof: the kits dropped when the offer is read ⇒ red; the area kind not reported ⇒ red.</summary>
+        [Fact]
+        public void TheFlow_ReadsAreaOffersAndKitLabels_AndGetReportsThem()
+        {
+            _server.RegisterComponent<DeployRole>(); _server.RegisterComponent<SpawnArea>(); _server.RegisterComponent<EntityInfo>();
+            var role = _server.CreateEntity();
+            _server.AddComponent(role, new NetworkIdentity { Value = 300 });
+            _server.AddComponent(role, new DeployRole { Side = ForceId.Friend, PersonTkbType = 2002, Name = new FixedString32("Rifleman"), MaxCount = 4, Kit1Tkb = 2004, Kit1Name = new FixedString32("Grenadier") });
+            _serverMap.Register(300, role);
+            var area = _server.CreateEntity();
+            _server.AddComponent(area, new NetworkIdentity { Value = 400 });
+            _server.AddComponent(area, new SpawnArea { Side = ForceId.Friend });
+            _server.AddComponent(area, new EntityInfo { Name = new FixedString64("Church"), ForceId = ForceId.Friend });
+            _serverMap.Register(400, area);
+
+            PumpUntil(() => _flow.Offers.Any(o => o.UnitNetId == 400) && _flow.Offers.Any(o => o.UnitNetId == 300), "the area and role offers");
+            var a = _flow.Offers.Single(o => o.UnitNetId == 400);
+            Assert.True(a.IsArea); Assert.Equal("Church", a.SlotName);
+            var r = _flow.Offers.Single(o => o.UnitNetId == 300);
+            Assert.True(r.IsRole); Assert.Equal(4, r.Max); Assert.Equal(new[] { "Rifleman", "Grenadier", "", "" }, r.Kits);
+
+            var doc = (System.Text.Json.Nodes.JsonObject)DeployFlowApi.Get(_flow);
+            var offers = (System.Text.Json.Nodes.JsonArray)doc["offers"]!;
+            var jr = offers.Cast<System.Text.Json.Nodes.JsonObject>().Single(o => (int)o["unitNetId"]! == 300);
+            Assert.Equal("Role", (string?)jr["kind"]); Assert.Equal(4, (int)jr["max"]!);
+            Assert.Equal(new[] { "Rifleman", "Grenadier", "", "" }, ((System.Text.Json.Nodes.JsonArray)jr["kits"]!).Select(k => (string)k!).ToArray());
+            Assert.Equal("Area", (string?)offers.Cast<System.Text.Json.Nodes.JsonObject>().Single(o => (int)o["unitNetId"]! == 400)["kind"]);
         }
     }
 }

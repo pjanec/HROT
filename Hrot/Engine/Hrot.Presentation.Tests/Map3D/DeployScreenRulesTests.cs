@@ -1,3 +1,4 @@
+using System.Linq;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Gameplay;
@@ -60,5 +61,23 @@ public sealed class DeployScreenRulesTests
         Assert.Equal("Rifleman  3", DeployScreen.RowText(new DeployOffer(-2002, ForceId.Friend, "Rifleman", 0, Kind: 1, Count: 3, Max: 0)));
         Assert.Equal("Alpha 1", DeployScreen.RowText(new DeployOffer(5, ForceId.Friend, "Alpha 1", 0)));
         Assert.Equal("#5", DeployScreen.RowText(new DeployOffer(5, ForceId.Friend, "", 0)));
+
+    }
+
+    /// <summary>S3 — a role row expands to one button per SET extra kit ("Rifleman — Grenadier"; an unset kit gives none, kit 0 is the row itself); the offers split into units/roles and the side's AREAS (sides are listed for their
+    /// units, never for an area alone). The screen's area choice defaults to "Any" (0). ✅ Red-proof: an unset kit listed ⇒ red; areas mixed into the unit rows ⇒ red.</summary>
+    [Fact]
+    public void ARoleExpandsToItsKits_AndTheAreasAreListedApart()
+    {
+        var role = new DeployOffer(300, ForceId.Friend, "Rifleman", 0, Kind: 1, Count: 1, Max: 4, Kits: new[] { "Rifleman", "Grenadier", "", "MG" });
+        Assert.Equal(new[] { ((byte)1, "Rifleman — Grenadier"), ((byte)3, "Rifleman — MG") }, DeployScreen.KitRows(role));
+        Assert.Empty(DeployScreen.KitRows(new DeployOffer(301, ForceId.Friend, "Plain", 0, Kind: 1)));
+        Assert.Empty(DeployScreen.KitRows(new DeployOffer(5, ForceId.Friend, "Placed", 0)));
+
+        var offers = new[] { role, new DeployOffer(400, ForceId.Friend, "Church", 0, Kind: 2), new DeployOffer(402, ForceId.Hostile, "Enemy camp", 0, Kind: 2) };
+        Assert.Equal(new[] { 300 }, DeployScreen.OffersOf(offers, ForceId.Friend).Select(o => o.UnitNetId));
+        Assert.Equal(new[] { 400 }, DeployScreen.AreasOf(offers, ForceId.Friend).Select(o => o.UnitNetId));
+        Assert.Equal(new[] { ForceId.Friend }, DeployScreen.SidesOf(offers));
+        Assert.Equal(0, new DeployScreen(() => null, () => false).AreaNetId);
     }
 }

@@ -11,8 +11,11 @@ namespace Hrot.Gameplay;
 public enum DeployFlowState { Waiting, Observing, Choosing, Requesting, TakingControl, Playing, Dead }
 
 /// <summary>One playable unit as the server offers it (<see cref="DeployOfferTopic"/>). <see cref="HolderStation"/> 0 = free.</summary>
-public readonly record struct DeployOffer(int UnitNetId, ForceId Side, string SlotName, int HolderStation, byte Kind = 0, int Count = 0, int Max = 0)
+public readonly record struct DeployOffer(int UnitNetId, ForceId Side, string SlotName, int HolderStation, byte Kind = 0, int Count = 0, int Max = 0, IReadOnlyList<string>? Kits = null)
 {
+    /// <summary>⭐ S3 — a spawn AREA the Player may choose, not a unit or a role.</summary>
+    public bool IsArea => Kind == (byte)DeployOfferKind.Area;
+
     /// <summary>⭐ S2 — a role (a man is spawned) rather than a placed unit.</summary>
     public bool IsRole => Kind == (byte)DeployOfferKind.Role;
 }
@@ -137,10 +140,12 @@ public sealed class DeployFlowSystem : IEcsModuleSystem
     }
 
     /// <summary>Ask the server for <paramref name="unitNetId"/> on <paramref name="side"/>. Only from Choosing; false otherwise.</summary>
-    public bool Request(ForceId side, int unitNetId)
+    /// <param name="kit">⭐ S3 — which kit of the role (0 = its own type); ignored by a placed unit.</param>
+    /// <param name="areaNetId">⭐ S3 — the spawn area chosen (an area offer's id); 0 = any area of the side.</param>
+    public bool Request(ForceId side, int unitNetId, byte kit = 0, int areaNetId = 0)
     {
         if (State != DeployFlowState.Choosing) return false;
-        return Send(side, unitNetId, observe: false);
+        return Send(side, unitNetId, observe: false, kit, areaNetId);
     }
 
     /// <summary>Ask to observe on <paramref name="side"/> (D-13): the server makes a Choosing slot of it. From Choosing, or Observing with a server.</summary>
@@ -160,14 +165,20 @@ public sealed class DeployFlowSystem : IEcsModuleSystem
         return true;
     }
 
-    private bool Send(ForceId side, int unit, bool observe)
+    /// <summary>The kit and spawn area of the LAST request sent (S3) — what the Player's screen / HTTP asked for; the rails read them.</summary>
+    public byte RequestedKit { get; private set; }
+
+    public int RequestedAreaNetId { get; private set; }
+
+    private bool Send(ForceId side, int unit, bool observe, byte kit = 0, int areaNetId = 0)
     {
+        RequestedKit = kit; RequestedAreaNetId = areaNetId;
         var writer = _wire.RequestWriter;
         _requestId = Guid.NewGuid().ToString("N");
         _pendingUnit = unit; _pendingObserve = observe; LastRefusal = "";
         _deadline = _now() + TimeoutMs;
         State = DeployFlowState.Requesting;
-        writer?.Write(new DeployRequestTopic { RequestId = _requestId, StationNodeId = _station, Side = (byte)side, UnitNetId = unit, Observe = observe });
+        writer?.Write(new DeployRequestTopic { RequestId = _requestId, StationNodeId = _station, Side = (byte)side, UnitNetId = unit, Observe = observe, Kit = kit, AreaNetId = areaNetId });
         return true;
     }
 
@@ -229,7 +240,7 @@ public sealed class DeployFlowSystem : IEcsModuleSystem
             if (s.IsValid)
             {
                 var o = s.Data;
-                _offers[o.UnitNetId] = new DeployOffer(o.UnitNetId, (ForceId)o.Side, o.SlotName ?? "", o.HolderStation, o.Kind, o.Count, o.Max);
+                _offers[o.UnitNetId] = new DeployOffer(o.UnitNetId, (ForceId)o.Side, o.SlotName ?? "", o.HolderStation, o.Kind, o.Count, o.Max, o.Kits is { Count: > 0 } k ? k.ToArray() : null);   // ⭐ S3 — no kits ⇒ null, so equality stays value-like
                 _offersDirty = true;
             }
             else if (s.Info.InstanceState != DdsInstanceState.Alive)

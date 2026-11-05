@@ -34,6 +34,10 @@ public partial struct DeployRequestTopic
     public int UnitNetId;
     /// <summary>True ⇒ the station only observes (its slot is <see cref="PlayerSlotState.Choosing"/>).</summary>
     public bool Observe;
+    /// <summary>⭐ S3 — which kit of the role (0 = the role's own type, 1…3 = its extra kits). APPENDED (R-42).</summary>
+    public byte Kit;
+    /// <summary>⭐ S3 — the spawn area the Player chose (an offer's <c>UnitNetId</c> of Kind Area); 0 = any area of the side. APPENDED.</summary>
+    public int AreaNetId;
 }
 
 /// <summary>The server's answer to the station's last request. Readers filter by <see cref="RequestId"/>.</summary>
@@ -86,7 +90,9 @@ public partial struct DeployOfferTopic
     public int Count;
     /// <summary>A role: the most that may be alive (0 = unlimited).</summary>
     public int Max;
+    /// <summary>⭐ S3 — a role's kit labels by kit number (index 0 = the role's own, "" = an unset kit); null/empty when the role has no extra kit. ⭐ APPENDED LAST, like <c>NodeHeartbeat.FeaturesOn</c>.</summary>
+    [DdsManaged] public List<string> Kits;
 }
 
 /// <summary>⭐ S2 — what a <see cref="DeployOfferTopic"/> offers. A Role's <c>UnitNetId</c> is its Deploy Role entity's network id; an IMPLICIT role (none declared on the side) is <c>-(person TKB type)</c>.</summary>
-public enum DeployOfferKind : byte { Placed = 0, Role = 1 }
+public enum DeployOfferKind : byte { Placed = 0, Role = 1, /* ⭐ S3 — a SPAWN AREA the Player may choose: UnitNetId = the area entity's network id, Side, SlotName = its name */ Area = 2 }
