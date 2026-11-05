@@ -185,6 +185,37 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Null(AreaEffectClouds.Of(_w));
         }
 
+        /// <summary>⭐ CE-2414 — the cloud table is built once per frame and handed back while nothing of the clouds changed (it walked every
+        /// entity per sight / fire query, clouds or none); within ONE frame a cloud added, drifted, thinned or destroyed is seen at once, and
+        /// the clock moving rebuilds it. 🔴 Red-proof: the held clouds' values not compared ⇒ the drifted cloud is served where it was.</summary>
+        [Fact]
+        public void CE2414_TheCloudTable_IsHeldForTheFrame_AndEveryChangeWithinItIsSeen()
+        {
+            var eye = new Vector3(-30, 0, 1.7f);
+            var target = new Vector3(30, 0, 1.7f);
+            _w.Tick();
+            Assert.Null(AreaEffectClouds.Of(_w));
+            var smoke = Cloud(CloudKind.Smoke, new Vector3(0, 0, 0));                     // added within the frame
+            Assert.True(WorldQuery.Of(_w)!.SightBlocked(eye, target));
+            var held = AreaEffectClouds.Of(_w);
+            Assert.Same(held, AreaEffectClouds.Of(_w));
+
+            _w.GetComponentRW<SimTransform>(smoke).Position = new Vector3(0, 50, 0);      // drifted off the line within the frame
+            Assert.False(WorldQuery.Of(_w)!.SightBlocked(eye, target));
+            _w.GetComponentRW<SimTransform>(smoke).Position = new Vector3(0, 0, 0);
+            Assert.True(WorldQuery.Of(_w)!.SightBlocked(eye, target));
+            _w.GetComponentRW<AreaEffectCloud>(smoke).SightTransmittance = 0.9f;          // thinned within the frame
+            Assert.False(WorldQuery.Of(_w)!.SightBlocked(eye, target));
+            _w.GetComponentRW<AreaEffectCloud>(smoke).SightTransmittance = 0.1f;
+            Assert.True(WorldQuery.Of(_w)!.SightBlocked(eye, target));
+
+            _w.Tick();
+            Assert.True(WorldQuery.Of(_w)!.SightBlocked(eye, target));
+            _w.DestroyEntity(smoke);                                                      // destroyed within the frame
+            Assert.False(WorldQuery.Of(_w)!.SightBlocked(eye, target));
+            Assert.Null(AreaEffectClouds.Of(_w));
+        }
+
         [Fact]
         public void ATearGasCloud_ThinsSight_ButASingleOneDoesNotBlockIt_TwoDo()
         {

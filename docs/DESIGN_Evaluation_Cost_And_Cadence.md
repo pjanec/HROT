@@ -763,6 +763,7 @@ soldiers. ⭐ The answer each time: one per-frame index, every candidate re-chec
 | CE-2410 | `WeaponMountQuery.EnumerateMounts` (callouts' grenade count, the weapon dispatcher, the throw choice) | 44 % | a per-world mount index (owners counting-sorted) |
 | CE-2410 | `UnderFire.FriendNear` (callouts' earshot, stress "alone") | 9 % | the shared frame grid (below) |
 | CE-2411 | `LineOfFire.BlockedByFriendly` / `BlockedByNeutral` (every shot) | 18 % | the shared frame grid, walked along the line |
+| CE-2414 | `DoorStates.Of` + `CloudTable.Build` per sight / fire query (each walked every entity) | ~15 % of SimHost | per-thread tables held for the frame by one `FrameStamp` check (a write within the frame rebuilds) |
 | CE-2413 | `TrafficReplicas.NearestAnchor2` (AQ93's vicinity band: every SUMO car × every HROT body, every node) | ~20 % of the traffic node | the shared frame grid, 350 m cells, `AnyWithin` (yes/no, first hit) |
 | CE-2412 | `UnitSensors.Of` (the SOPs' danger-area check) — and the other "parts of this parent" scans | 11.5 % | ⭐ one shared parts-by-parent index (§11c) |
 
@@ -886,3 +887,20 @@ classDiagram
 
 Rejected: **a change check on the tables** (CE-2410's) — a table written every frame rebuilt it per call (the CE-2411 run).
 **Keeping `ChildIndex` beside it** — two indexes of one relation. **A rebuild on every structural change** — the frame adds components while it runs.
+
+### 11d. ⏳ PROPOSAL — rare-component queries skip empty chunks *(not built; a user decision — FDP core, every query)*
+
+📐 `EntityQuery` walks EVERY entity's mask (`EntityQuery.cs:156-183`, an index walk): a query for a component three entities carry costs
+the same ~8 000 mask checks as one every entity carries. `EntityEnumerator.MoveNext` was 8–11 % of the CGF and SimHost threads in every
+stress trace — the cost under each "scan" CE-2410…CE-2414 removed, and under every scan not yet found.
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| component tables keep no per-chunk population | ✅ `NativeChunkTable._populationCounts` is maintained only for the ENTITY INDEX (`EntityIndex.cs:103-177, 483-634`) | ⛔ searched `docs/`, none |
+| a count kept on every add / remove / destroy / restore / snapshot copy would let `MoveNext` skip a whole chunk with none of the query's rarest included component | ✅ the add points are the `ComponentsAddedOf` stamps (CE-2412); destroy clears the mask in one place (`EntityIndex.DestroyEntity`); restore re-derives the masks (`EntityIndex.cs:602-634`) | ⛔ none |
+| ⚠ an UNDER-count drops entities from queries, silently | ⛔ the failure mode is a missing entity anywhere in the engine | — |
+
+⭐ **Lean: build it — behind a randomized equivalence rail (every query form, add / remove / destroy / restore / snapshot copy against
+the plain walk) and a debug cross-check mode — as its own item, with the user's nod first.** What would change the lean: a measured
+query mix where the rarest included component is usually dense (then it saves little). Rejected: per-call caches at each asker
+(CE-2410…CE-2414 did that where a scan was hot; it does not reach the long tail).

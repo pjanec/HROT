@@ -142,21 +142,61 @@ namespace Fdp.Toolkit.Combat
         [ThreadStatic] private static List<CloudCylinder>? t_scratch;
         [ThreadStatic] private static CloudTable? t_last;
 
+        // ⭐ CE-2414 — the answer this thread built THIS frame (null included) is handed back while: the same world, frame and epoch
+        //   (FrameStamp), the same clock, no cloud ADDED since (EntityRepository.ComponentsAddedOf), and every cloud it read still alive with
+        //   the SAME cloud values and position (compared here — clouds drift every frame, so a table-write check would never hold).
+        //   📐 It walked every entity per sight / fire query, clouds or none: ~6.5 % of the SimHost thread on the CE-2408 stress world.
+        [ThreadStatic] private static Fdp.Toolkit.Replication.Utilities.FrameStamp t_stamp;
+        [ThreadStatic] private static bool t_held;
+        [ThreadStatic] private static CloudTable? t_answer;
+        [ThreadStatic] private static double t_now;
+        [ThreadStatic] private static long t_added;
+        [ThreadStatic] private static List<(Entity E, AreaEffectCloud Cloud, Vector3 At)>? t_read;
+
         internal static CloudTable? Build(ISimulationView view)
         {
-            var list = t_scratch ??= new List<CloudCylinder>();
-            list.Clear();
             double now = SimClock.Of(view).TotalTime;
+            if (view is EntityRepository live && t_held && now == t_now && t_stamp.HoldsFrame(live)
+                && live.ComponentsAddedOf(ComponentType<AreaEffectCloud>.ID) == t_added && Unchanged(live))
+                return t_answer;
+            var list = t_scratch ??= new List<CloudCylinder>();
+            var read = t_read ??= new List<(Entity, AreaEffectCloud, Vector3)>();
+            list.Clear();
+            read.Clear();
             foreach (var e in view.Query().With<AreaEffectCloud>().With<SimTransform>().Build())
             {
                 var c = view.GetComponentRO<AreaEffectCloud>(e);
-                if (c.Radius <= 0f || c.IsOver(now)) continue;
                 var p = view.GetComponentRO<SimTransform>(e).Position;
+                read.Add((e, c, p));
+                if (c.Radius <= 0f || c.IsOver(now)) continue;
                 list.Add(new CloudCylinder(new Vector2(p.X, p.Y), p.Z, p.Z + MathF.Max(c.Height, 0.1f), c.Radius, c.TransmittanceAt(now)));
             }
-            if (list.Count == 0) return null;
-            if (t_last is { } last && last._clouds.AsSpan().SequenceEqual(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(list))) return last;
-            return t_last = new CloudTable(list.ToArray());
+            CloudTable? answer;
+            if (list.Count == 0) answer = null;
+            else if (t_last is { } last && last._clouds.AsSpan().SequenceEqual(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(list))) answer = last;
+            else answer = t_last = new CloudTable(list.ToArray());
+            if (view is EntityRepository built)
+            {
+                t_stamp.Take(built); t_held = true; t_now = now; t_answer = answer;
+                t_added = built.ComponentsAddedOf(ComponentType<AreaEffectCloud>.ID);
+            }
+            else t_held = false;
+            return answer;
+        }
+
+        private static bool Unchanged(EntityRepository repo)
+        {
+            var read = t_read!;
+            for (int k = 0; k < read.Count; k++)
+            {
+                var (e, cloud, at) = read[k];
+                if (!repo.IsAlive(e) || !repo.HasComponent<AreaEffectCloud>(e) || !repo.HasComponent<SimTransform>(e)) return false;
+                if (repo.GetComponentRO<SimTransform>(e).Position != at) return false;
+                var now = repo.GetComponentRO<AreaEffectCloud>(e);
+                if (!System.Runtime.InteropServices.MemoryMarshal.AsBytes(new ReadOnlySpan<AreaEffectCloud>(in now))
+                        .SequenceEqual(System.Runtime.InteropServices.MemoryMarshal.AsBytes(new ReadOnlySpan<AreaEffectCloud>(in cloud)))) return false;
+            }
+            return true;
         }
     }
 
