@@ -155,6 +155,22 @@ each DLL, the Stride app, a Release/Debug difference) and needs ONE timing on th
 first frame; `BlackboardVariableEntry.DefaultValueJson` has 124 readers ⇒ a model change, not an overnight one) · **② one shared assembly /
 type index** for the registries that each scan (the user's suspicion; ≈ 0.9 s of reflection here) · ③ the serializer builder's 0.7 s.
 
+### 0g. ⭐ WHERE WE STAND — Crossfire, the programme's start vs now *(`2026-11-05`)*
+
+📐 The editor (`--mode editor`, Xvfb, cloud VM), `showcase-crossfire` played 100 s, `HROT_FRAME_STATS` means over the last ~70 s; the
+runner built from `1dc624053` (the approval of this design, before any of its code) and from `2379b92e7` (CE-2382…2406 — E1 not yet
+built), run ALTERNATELY on the same machine (`scratchpad perf-ab.py`):
+
+| run | frame mean | p50 | p95 | update | draw | ui | entities at 100 s |
+|---|---|---|---|---|---|---|---|
+| base 1 | 83.9 | 82.3 | 112.5 | 57.1 | 1.5 | 7.5 | 485 |
+| now 1 | **49.8** | 48.7 | 64.4 | **24.7** | 1.4 | 6.8 | 487 |
+| base 2 | 85.3 | 82.1 | 114.4 | 59.0 | 1.5 | 7.7 | 515 |
+| now 2 | **53.5** | 51.8 | 72.5 | **27.6** | 1.5 | 6.9 | 540 |
+
+⇒ ⭐ **frame 84.6 → 51.7 ms (≈ 12 → 19 fps, 1.64×); update 58 → 26 ms (2.2×); p95 113 → 68 ms.** ⚠ Still above 33 ms (30 Hz) — the
+next levers: E1 (egress, §DESIGN_Egress_Change_Detection §5), and a stress target (§11, CE-2408).
+
 ## 1. INVENTORY (the queries this design rests on)
 
 | question | query | result |
@@ -704,3 +720,20 @@ how many projectors run inside it changes.*
 Rejected: **the existing budget slicing** (`MaxGizmoFrameMs`) — sheds by not drawing ⇒ flicker, and the shed set depends on wall-clock ·
 **render the map to a texture at a reduced rate** — the map's camera would lag; a ui-lane change of the renderer · **skip the whole group on
 some frames** — the buffer is cleared every frame, so the map would blink, and the tools' hit-test would miss.
+
+## 11. The STRESS target — 1000 thinking soldiers + objectives + 5000 SUMO cars at 30 Hz *(CE-2408, `2026-11-05` — ⏳ IN PROGRESS: built, not yet run)*
+
+⭐ User: *"we need artificial stress test with 1000 thinking entities and with some objectives and around 5000 sumo cars to set a real
+target - 30 hz frames to keep looking for improvements."*
+
+**Prior art (explorer sweep, `2026-11-05`):** `scripts/perf-civilians.py` (CE-3222, N civilians, `/diagnostics/architecture`, R-3029's
+regression ceiling) is the template; demo-city is the only terrain with a SUMO net; a scenario turns traffic on with one TKB 8850 entity
+carrying `TrafficDemand`; SumoSharp adds at most `CarSpawnPerStep` (5) cars a step, so 5000 cars took ~500 s to fill; the largest runs
+so far were 500 civilians and 200 cars.
+
+| piece | built as |
+|---|---|
+| the scenario | `scripts/perf-stress.py` writes `scenarios/perf-stress` (deterministic): 2 sides × 62 squads × 8 men (TKB 302 + 2002, the Crossfire soldier) on demo-city's streets, `SquadDefend` on six points, health 100 000 (the fight stays a constant load) · six `HoldArea` + two `Counter` + a kick-off `Trigger` (a FIXED rule set) · `TrafficDemand { TargetCars 5000, CarSpawnPerStep 200 }` |
+| `TrafficDemand.CarSpawnPerStep` | APPENDED (R-169) to the component, the `EntityTrafficDemand` wire and both translators; `TrafficSession` passes it to SumoSharp (0 = its default 5) |
+| the run | one node per process (orchestrator, cgf, simhost, traffic — `scripts/cluster-node.sh`), load, play, wait for the fill, measure |
+| ⭐ the TARGET | each node's **work per frame** — the sum of its leaf systems' recent averages (the scheduler's own profiler) — **≤ 33.3 ms**: that node alone holds 30 Hz on its own machine. ⚠ On the 4-core cloud VM the nodes share cores, so the achieved frames per wall second is printed but is NOT the target |
