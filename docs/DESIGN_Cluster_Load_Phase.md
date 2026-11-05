@@ -2019,3 +2019,129 @@ and therefore its in-sync mark, until its map is built. Rail: `LoadPhaseChainTes
 ⚠ A map build FAILURE fails the catch-up, and K7 then leaves the Player out of sync until the next cluster commit or a restart.
 
 ⭐ **A re-prepare of the SAME exercise is idempotent** *(CE-3366, `2026-11-03`)*: on a loaded cluster the live load can outlast the master's C7 timeout, and the catch-up re-sends `PrepareState` with the SAME `ExerciseId` to a node that already prepared it — its recorder (`CreateNew`, deliberately loud) then refused its own first prepare's `node_<id>.fdp` and the cluster went to error. `EcsRecordReplayController.PrepareRecordingAsync` now returns at once when the node's ACTIVE recording is that exercise (one recording per exercise per node); ⛔ a different exercise, or the same one after `FinalizeRecordingAsync`, still reaches `CreateNew` and stays loud. Rail: `RecordReplayIntegrationTests.CE3366_ARePrepareOfTheSameExercise_IsIdempotent_ADifferentOrFinalizedOneStaysLoud` (red-proved: the guard removed). Tracker: [CE-3366](blueprints/Blueprint_Issues_Tracker.md).
+
+## 12. ⭐⭐⭐ `CE-2417` — **WHILE A NODE LOADS, A HEARTBEAT MEANS "THE LOAD IS ADVANCING"** *(design `2026-11-05`, behaviors; build-state: BUILT — §12.1)*
+
+🔒 **User, `2026-11-05`:** *"creation of entities/loading of the scenario should not block the status replies to orchestrator, scenario loading
+including entity creation is a normal stage that can take long - this is a serious issue."* · *"the thread cant be automaticly repeating last
+status - useless. it must be watching the entity load progress - if it gets stuck, no more hearbeat shall be sent"* · *"the same is true for
+terrain loading and other big data loading"* · *"waiting node is of course not hung"* · *"for sure all loaders need to report progress, how else
+we would find out it is hung?"* · *"Nothing should be interruptible for 5 seconds"*.
+
+📐 **What is wrong today** — a heartbeat means only *"the frame loop is alive"* (`ClusterSlave.PublishHeartbeat`, end of `Tick`; written by
+`NodeOpSlaveTranslator.Tick`); the master ejects a node silent for `HeartbeatTimeoutSeconds` = 5 s (`ClusterMaster.cs:739`). Two faults:
+① a LONG FRAME silences it though the load advances — the CE-2408 stress brain created 1 128 scenario entities in one frame and was EJECTED;
+② a HUNG LOADER on the worker (§6, `PreparesOffFrameThread` steps — terrain, feature presets) is never caught: the frame keeps beating.
+
+```mermaid
+classDiagram
+    class LoadProgress {
+        +Advance(long n)
+        +Value long
+        +MovedWithin(seconds) bool
+    }
+    class ProgressStream {
+        +Read() advances LoadProgress by bytes
+    }
+    class ClusterSlave {
+        <<existing>>
+        +PublishHeartbeat()
+        -ActivelyLoading bool
+    }
+    class NodeOpSlaveTranslator {
+        <<existing>>
+        +Tick()
+        -pump thread
+    }
+    class LoadPhaseContext {
+        <<existing>>
+        +Progress LoadProgress
+    }
+    class ILoadPartProvider {
+        <<existing>>
+        +PrepareAsync(context)
+        +Commit(context, world)
+    }
+    class EntityRepository {
+        <<existing>>
+        +StructuralChanges long
+    }
+    ClusterSlave o-- LoadProgress : one per node
+    LoadPhaseContext ..> LoadProgress
+    ILoadPartProvider ..> LoadProgress : every loader advances it inside its work
+    ProgressStream ..> LoadProgress : file reads advance it
+    LoadProgress ..> EntityRepository : entity creation counts as progress
+    NodeOpSlaveTranslator ..> LoadProgress : the pump beats only while it moves
+    ClusterSlave ..> LoadProgress : the frame beats only while it moves - when actively loading
+```
+*What the picture shows that prose hid: ONE progress per node, fed by every loader (directly, through the stream wrapper, and by entity
+creation) and read by BOTH beat sources — the frame's and the pump's — so neither can claim liveness without progress.*
+
+```mermaid
+sequenceDiagram
+    participant L as a loader (worker or frame)
+    participant P as LoadProgress
+    participant S as ClusterSlave (frame)
+    participant T as NodeOpSlaveTranslator pump
+    participant M as ClusterMaster
+    L->>P: Advance (records, bytes, entities)
+    alt the frame runs
+        S->>P: actively loading? moved in the last second?
+        S->>M: beat (phase, step, progress) only if it moved, or if not actively loading
+    else the frame is inside one long pass
+        T->>P: moved in the last second?
+        T->>M: beat (the frame's phase and step, the progress now) only if it moved
+    end
+    Note over M: 5 s with no beat = ejected - i.e. 5 s with no load progress
+```
+
+| ⭐ the contract | |
+|---|---|
+| progress | one monotonic counter per node; every loader advances it from inside its work (records parsed, bytes read through `ProgressStream`, triangles built, entities created — the world's `StructuralChanges` is read into it) |
+| ⛔ nothing silent for 5 s | no load step may run 5 s without advancing it — a long single call is broken up or wrapped (a stream, a per-record callback) |
+| actively loading | a prepare is running and NOT held / waiting on the cluster, or the frame is inside a commit / entity materialization |
+| ⭐ a waiting node | (held, parked for staging, waiting for the master's go or other nodes) beats as today — it is not hung |
+| the frame's beat | while actively loading: sent only if progress moved in the last second; otherwise as today |
+| the pump's beat | only while the frame is silent ≥ 1 s AND progress moved in the last second — the frame's last phase / step, the progress NOW, a fresh time |
+| a hung loader | no progress ⇒ no beats ⇒ ejected by the master's existing 5 s rule. ⛔ No new timeout |
+| ~~the beat shows the progress~~ | ⛔ **SUPERSEDED at build** — the `Step` stays the part name (the master's view and the load-phase rails match on it; a count would make every beat a "step change"). ⭐ Instead the chain LOGS the longest stretch a load went without progress, and which step — the measure that a loader reports often enough |
+
+**INVENTORY of the loaders that must report** (graph `search_graph .*(LoadStep|LoadPhase|Loader|LoadProvider|Residency|Prefetch|Ingest|Materializ|Restore|CatchUp).*`
++ grep): `KnowledgeBaseLoadStep` / `TkbUnifiedLoader` · `TerrainLoadStep` → `TerrainResidency` ingestion, `SumoNetTerrainLoader` (net parse
+2.4 s, road scene 1.0 s measured), `RoadNetworkLoader`, `AnnouncingZoneTileLoader` · `ScenarioLoadStep` (extraction) and its commit's entity
+creation (`GenesisMaterializationSystem`, the network spawn) · `ScenarioFeaturePresetStep` · `ReferencePrefetchHandler` /
+`AssetPrefetchProcessManager` / the DDS file receiver (staging) · ~~`CheckpointRestoreAggregator` (a restore)~~ *(⛔ corrected at build: it is the
+MASTER's aggregator, not a node loader)* · the catch-up load. ⚠ Each gets its progress call; the build adds a rail per loader that it advances.
+
+#### 12.1 As built *(`2026-11-05`, behaviors)*
+
+| piece | where | what it does |
+|---|---|---|
+| `LoadProgress` | `FDP/Engine/Fdp.Core/LoadProgress.cs` | the counter; `For(bus)` = one per node by construction (the slave and its translator share the bus); `Current` is an `AsyncLocal` the slave sets for its `Tick` — it flows into the chain's awaits and `Task.Run` worker, so loaders call the static `Report()` with no signature change; `Watch(world)` adds the world's `StructuralChanges`; `Active(step)` scopes; `MovedWithin(s)`; `LongestSilence` |
+| `ProgressStream` | `FDP/Engine/Fdp.Core/ProgressStream.cs` | a read reports; `ReadAllText` / `ReadAllBytes` replace `File.*` in the terrain definition + world, the road network JSON, the SUMO net |
+| the frame's beat | `ClusterSlave.PublishHeartbeat` | `if (Progress.IsActive && !Progress.MovedWithin(1)) return;` — after the 1 Hz / change test |
+| the pump | `NodeOpSlaveTranslator.PumpBeat` (a 250 ms `Timer`, armed on the first `Tick` — 📐 a 1 s timer against a 1 s silence threshold skipped every other second on timer phase; the rail caught it) | beats only if the frame wrote nothing for ≥ 1 s, the last beat is `Loading`/`CatchingUp` or a step is active, AND `MovedWithin(1)` |
+| active scopes | `LoadPhaseChain` — every step's `PrepareAsync` (inline and worker) and `Commit`; ⛔ NOT the Operating hold (a waiting node) | + `Watch(null)` at prepare and `Watch(world)` at commit — ⛔ entity creation counts only from the commit on: during a prepare, a faster node's entities replicate in (CE-2242) and must not pass for a hung loader's progress — and the longest-silence log at commit |
+| loader reports | TKB per entity file · terrain: definition/world reads, per world feature (`TerrainWorldParser`), per navmesh tile (`RecastNavmeshBaker`, inside its `Parallel.For`), per cover prism, per road node/segment, between every stage of prepare and commit, per content loader · SUMO: the read, then each stage (⚠ the vendored `NetworkParser` itself cannot report — measured 2.4 s, under the rule) · scenario: per staging entity in `StagingEntityExtractor`, per request at the commit · feature presets per file · entity creation via `StructuralChanges` | |
+
+⚠ **Not instrumented (a waiting node, not a working one):** the asset prefetch / DDS file receiver run in their own ops, not inside a chain step
+⇒ the node beats as today while they run.
+
+📐 **Measured on the CE-2408 stress world, 1 000 soldiers** *(three nodes loading `demo-city` at once on one VM)*: ⭐ **the gate did its job before
+the fix was complete** — with the first round of reports every node was EJECTED, because the terrain step still had long silent stretches that the
+old frame-alive heartbeat had hidden (it beat while the worker spent 30+ s on the terrain). ⭐ The chain's longest-silence log, carrying the two
+report sites around the gap (`Report` records its caller), named them one by one:
+
+| run | longest silence | between | fixed by |
+|---|---|---|---|
+| 1 | — *(bogus 2 553 s: a wait counted as a silence — `Active` polled after entering)* | | poll BEFORE entering a step |
+| 2–3 | 7–17 s in Terrain | the navmesh bake's pre-tile work (37 s bake, 3.5 s of tiles) | reports per ground row (`TerrainWorldMesh`), per 256 prisms, per walkable, per 16 k binned triangles, between the bake's stages |
+| 4 | 6–16 s in Terrain | `TerrainCoverProvider.cs:53` → `SumoNetTerrainLoader.cs:29` — the cover's building-PANEL pass | a report per panel and around the bucketing |
+| **5** | ✅ **1.2 / 2.0 / 1.3 s** (CGF / SimHost / Traffic) | | **1 000 soldiers load, zero ejections** |
+
+⇒ ⭐ the rule *"nothing silent for 5 s"* is now CHECKED on every load: the log line says the longest stretch and where; ⛔ ≥ 4 s says so loudly.
+
+
+Rejected: **re-sending the last beat** (the first build of CE-2417) — *"useless"*: it says nothing about whether the load moves.
+**A longer master timeout** — hides a hung node longer and changes nothing for a 5 s silent step. **A hang cap of N seconds** — a number with
+no basis; the progress counter IS the measure.

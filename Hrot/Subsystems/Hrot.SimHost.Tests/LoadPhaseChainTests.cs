@@ -398,6 +398,40 @@ public sealed class LoadPhaseChainTests
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <c>CE-2417</c> — a step works inside the node's progress: ACTIVE while its worker prepares (so the frame's beat needs progress), not
+    /// after. ⛔ Entities that replicate in DURING the prepare are not its progress (a hung loader must not pass for a working one); ⭐ from the
+    /// commit on, entity creation is. 🔴 Red-proof: <c>Watch(_world)</c> at prepare instead of <c>Watch(null)</c> ⇒ the replica counts.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public async Task CE2417_AStepPreparesActive_ReplicasAreNotItsProgress_TheCommitsCreationIs()
+    {
+        var world = new EntityRepository();
+        var blocking = new BlockingStep(LoadPart.Terrain);
+        var chain = LoadPhaseChain.FromRoles(
+            NodeRole.MuscleGround, new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase), blocking }, world, hostLabel: "TestHost");
+        var progress = new LoadProgress();
+        progress.Watch(world);                  // what the previous load left watched
+        LoadProgress.Current = progress;        // as the node's ClusterSlave sets it (an async test: restored on return)
+
+        var load = BoundaryLoad(false);
+        var prepare = chain.PrepareAsync(load, CancellationToken.None);
+        Assert.True(blocking.Started.Wait(5_000));
+        Assert.True(progress.IsActive, "the worker's step is working");
+        long before = progress.Value;
+        for (int i = 0; i < 5; i++) world.CreateEntity();   // a faster node's entities replicate in
+        Assert.Equal(before, progress.Value);
+
+        blocking.Release.SetResult();
+        await prepare;
+        Assert.False(progress.IsActive, "prepared: the node now waits for the cluster — not working");
+
+        chain.Commit(load, null);
+        long committed = progress.Value;
+        for (int i = 0; i < 5; i++) world.CreateEntity();   // genesis materialises the scenario
+        Assert.True(progress.Value >= committed + 5, $"{committed} -> {progress.Value}");
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>CE-4000</c> F2 / <c>R-4019</c> — the chain is the world owner the slave tells when the node enters Idle: it empties
     /// the world (every entity destroyed, the map cleared, the <c>WorldEpoch</c> moved — which is what makes the network
     /// cleanup delete the node's own entities on the wire).

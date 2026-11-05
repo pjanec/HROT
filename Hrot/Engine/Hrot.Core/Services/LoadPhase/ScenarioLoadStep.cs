@@ -247,6 +247,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
                         }
                         hasEnvironment = true;
                     }
+                    LoadProgress.Report();   // ⭐ CE-2417 — the commit advances per entity (docs/DESIGN_Cluster_Load_Phase.md §12)
                     Publish(world, request);
                 }
 

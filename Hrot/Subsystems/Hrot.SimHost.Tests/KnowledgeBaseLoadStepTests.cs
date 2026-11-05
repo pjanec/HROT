@@ -68,6 +68,23 @@ public class KnowledgeBaseLoadStepTests : IDisposable
             ExerciseId:    Guid.Empty,
             IsNewScenario: false);
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-2417</c> — the knowledge-base load reports once per entity file it parses, into the running node's progress (🔒 user: "for sure all
+    /// loaders need to report progress"). 🔴 Red-proof: the per-file report removed ⇒ the value stays 0.
+    /// </summary>
+    [Fact]
+    public async Task CE2417_TheKnowledgeBaseLoad_AdvancesTheNodesLoadProgress()
+    {
+        var h = new KnowledgeBaseLoadStep(new TkbDatabase(), _stagingRoot);
+        WriteScenarioHeader("Alpha");
+        CreateMinimalTkbZip(Path.Combine(_tkbDir, "Alpha.zip"), "Alpha");
+
+        var progress = new Fdp.Core.LoadProgress();
+        Fdp.Core.LoadProgress.Current = progress;   // an async test method: restored when it returns
+        await h.PrepareAsync(MakeContext(), CancellationToken.None);
+        Assert.True(progress.Value >= 1, $"one entity file ⇒ at least one report; got {progress.Value}");
+    }
+
     [Fact]
     public async Task CacheHit_SameTkbAndTimestamp_DoesNotClearDb()
     {

@@ -50,6 +50,7 @@ public sealed class ScenarioFeaturePresetStep : ILoadPartProvider
         {
             foreach (var file in _storage.EnumerateScenarioFiles(context.ScenarioId))
             {
+                Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the load advances (docs/DESIGN_Cluster_Load_Phase.md §12)
                 using var stream = _storage.OpenScenarioFile(context.ScenarioId, Path.GetFileName(file));
                 if (stream == null) continue;
                 using var reader = new StreamReader(stream);

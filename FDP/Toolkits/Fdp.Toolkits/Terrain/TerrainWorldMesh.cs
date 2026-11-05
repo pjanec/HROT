@@ -70,9 +70,15 @@ namespace Fdp.Toolkit.Terrain
             var g = new List<TerrainTriangleTag>();
 
             AddGround(world, cellSize, v, t, g);
-            foreach (var prism in world.Prisms) if (!IsVolumeEffect(prism)) AddPrism(prism, v, t, g);
+            int built = 0;
+            foreach (var prism in world.Prisms)
+            {
+                if ((++built & 255) == 0) Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the load advances (docs/DESIGN_Cluster_Load_Phase.md §12)
+                if (!IsVolumeEffect(prism)) AddPrism(prism, v, t, g);
+            }
             foreach (var w in world.Walkables)
             {
+                Fdp.Core.LoadProgress.Report();
                 int b = v.Count;
                 v.AddRange(w.Vertices);
                 for (int i = 0; i + 2 < w.Triangles.Length; i += 3)
@@ -213,6 +219,8 @@ namespace Fdp.Toolkit.Terrain
             cell = cellSize;
 
             for (int iy = 0; iy < ny; iy++)
+            {
+                Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — one per ground row (docs/DESIGN_Cluster_Load_Phase.md §12)
             for (int ix = 0; ix < nx; ix++)
             {
                 float x0 = min.X + (ix * cell), y0 = min.Y + (iy * cell);
@@ -229,6 +237,7 @@ namespace Fdp.Toolkit.Terrain
                 var tag = new TerrainTriangleTag(TerrainTriangleKind.Ground,
                     InForest(world, new Vector2((x0 + x1) * 0.5f, (y0 + y1) * 0.5f)) ? ForestMaterial : null);
                 g.Add(tag); g.Add(tag);
+            }
             }
         }
 

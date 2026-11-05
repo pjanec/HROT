@@ -66,6 +66,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         _heartbeatWriter = heartbeatWriter ?? throw new ArgumentNullException(nameof(heartbeatWriter));
         _capabilitiesWriter = capabilitiesWriter;
         _bus             = bus             ?? throw new ArgumentNullException(nameof(bus));
+        _progress        = LoadProgress.For(_bus);   // ⭐ CE-2417 — the SAME instance the node's ClusterSlave reports into (keyed on the shared bus)
         _nodeId          = (Fdp.Core.NodeId)(nodeId);
         _jsonOptions     = jsonOptions ?? DefaultOptions;
         _facts           = new ClusterFactsIngress(bus, clusterStateReader, inventoryReader, sessionReader, opStatusReader, contextReader);
@@ -105,8 +106,15 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         // ── Heartbeat egress: Bus NodeHeartbeatEvent → DDS NodeHeartbeat ─────
         foreach (var hb in _bus.ReadManaged<NodeHeartbeatEvent>())
         {
-            _heartbeatWriter.Write(NodeHeartbeatWire.ToTopic(hb));   // ⭐ CE-3345 — the ONE mapping
+            var sample = NodeHeartbeatWire.ToTopic(hb);   // ⭐ CE-3345 — the ONE mapping
+            lock (_beatLock)
+            {
+                _heartbeatWriter.Write(sample);
+                _lastBeat = sample;
+                _lastBeatWrittenAt = System.Diagnostics.Stopwatch.GetTimestamp();
+            }
         }
+        _pump ??= new System.Threading.Timer(static s => ((NodeOpSlaveTranslator)s!).PumpBeat(), this, 250, 250);   // ⭐ checked 4×/s: a beat ~1 s after the last write, never skipping a second on timer phase
 
         // ── Capabilities egress: Bus NodeCapabilitiesEvent → durable DDS NodeCapabilities (CE-285) ──
         // Published once at join by ClusterSlave; the durable descriptor retains the last sample per node.
@@ -143,9 +151,43 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
     /// <remarks>Calls <see cref="Tick"/> to pump the DDS read/publish cycle.</remarks>
     public void Update() => Tick();
 
+    // ⭐⭐⭐ CE-2417 — while the frame is inside one long load pass (no Tick), the heartbeat follows the LOAD, not the frame. 🔒 User: "the thread cant
+    //   be automaticly repeating last status - useless. it must be watching the entity load progress - if it gets stuck, no more hearbeat shall be
+    //   sent" · "Nothing should be interruptible for 5 seconds". 📐 The CE-2408 stress brain created 1 128 scenario entities in ONE frame, beat
+    //   nothing for > 5 s and was EJECTED. ⇒ four times a second a pump checks: the frame silent ≥ 1 s, the node loading (its last beat says Loading /
+    //   CatchingUp, or a load step works), AND the node's LoadProgress moved in the last second — only then it beats (the frame's phase and step,
+    //   a fresh time). No progress ⇒ no beat ⇒ the master's existing 5 s rule ejects a hung load. ⛔ No timeout of its own.
+    // 📄 docs/DESIGN_Cluster_Load_Phase.md §12 · docs/blueprints/Blueprint_Issues_Tracker.md CE-2417.
+    private readonly object _beatLock = new();
+    private NodeHeartbeat? _lastBeat;
+    private long _lastBeatWrittenAt;
+    private System.Threading.Timer? _pump;
+    private bool _disposed;
+    private readonly LoadProgress _progress;
+
+    /// <summary>⭐ CE-2417 — beats the pump sent while the frame was silent and the load advanced (a rail reads it).</summary>
+    public int PumpedBeats { get; private set; }
+
+    private void PumpBeat()
+    {
+        lock (_beatLock)
+        {
+            if (_disposed || _lastBeat is not { } beat) return;
+            var now = System.Diagnostics.Stopwatch.GetTimestamp();
+            if (System.Diagnostics.Stopwatch.GetElapsedTime(_lastBeatWrittenAt, now).TotalSeconds < 1.0) return;   // the frame beat recently
+            bool loading = beat.Phase is (int)NodePhase.Loading or (int)NodePhase.CatchingUp || _progress.IsActive;
+            if (!loading || !_progress.MovedWithin(1.0)) return;                                                     // ⛔ no progress, no beat
+            beat.WallTicksUtc = DateTimeOffset.UtcNow.Ticks;
+            try { _heartbeatWriter.Write(beat); } catch (ObjectDisposedException) { return; }
+            _lastBeatWrittenAt = now;
+            PumpedBeats++;
+        }
+    }
+
     /// <inheritdoc/>
     public void Dispose()
     {
+        lock (_beatLock) { _disposed = true; _pump?.Dispose(); _pump = null; }
         _commandReader.Dispose();
         _statusWriter.Dispose();
         _heartbeatWriter.Dispose();

@@ -96,7 +96,9 @@ public sealed class RecastNavmeshFactory : INavmeshFactory
         doorways = Array.Empty<NavDoorways.Volume>();
         if (!new TerrainWorldGeometrySource(world).TryGetTriangles(out var verts, out var indices)) return null;
         // ⭐ Stage 5c — the doorways become their own polygons, judged at query time by the door's live state (§3j "5c").
+        Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — between the bake's stages (docs/DESIGN_Cluster_Load_Phase.md §12)
         doorways = NavDoorways.For(world);
+        Fdp.Core.LoadProgress.Report();
         var baker = new RecastNavmeshBaker { TileMetres = TileMetres, Cache = TileCache };
         var meshes = baker.Bake(verts, indices, Layers, doorways, FineAreas(world));
         LastStats = baker.LastStats;

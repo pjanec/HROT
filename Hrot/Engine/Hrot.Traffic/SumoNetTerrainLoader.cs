@@ -23,11 +23,14 @@ public sealed class SumoNetTerrainLoader : ITerrainContentLoader
             throw new FileNotFoundException(
                 $"[Traffic] Terrain '{terrainName}' declares the SUMO net '{declared.File}', which does not exist at '{path}'.", path);
 
-        byte[] bytes = System.IO.File.ReadAllBytes(path);
+        // ⭐ CE-2417 — the net reports while it is read and between its stages (the vendored parser itself cannot: measured 2.4 s, under the 5 s rule).
+        byte[] bytes = Fdp.Core.ProgressStream.ReadAllBytes(path);
         string hash = Convert.ToHexString(SHA256.HashData(bytes))[..16];
+        Fdp.Core.LoadProgress.Report();
         var sw = System.Diagnostics.Stopwatch.StartNew();
         NetworkModel model;
         model = NetworkParser.ParseXml(System.Text.Encoding.UTF8.GetString(bytes));
+        Fdp.Core.LoadProgress.Report();
         var placement = SumoNetPlacement.For(model, declared, definition.Origin);
         FdpLog<SumoNetTerrainLoader>.Info(
             $"[Traffic] '{terrainName}': SUMO net '{declared.File}' parsed in {sw.ElapsedMilliseconds} ms — {model.Edges.Count} edges, "
@@ -37,7 +40,9 @@ public sealed class SumoNetTerrainLoader : ITerrainContentLoader
         var roads = TrafficRoadScene.Build(model, placement, world.BoundsMin, world.BoundsMax);
         FdpLog<SumoNetTerrainLoader>.Info($"[Traffic] '{terrainName}': road scene built in {sw.ElapsedMilliseconds} ms — {roads.TriangleCount} triangles, "
           + $"{roads.Signals.Count} signal heads.");
+        Fdp.Core.LoadProgress.Report();
         AttachBeyond(world, model, placement);
+        Fdp.Core.LoadProgress.Report();
         return new TrafficNetCache(declared.File, System.IO.Path.GetFullPath(path), model, hash, placement, roads);
     }
 

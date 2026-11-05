@@ -50,6 +50,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
             var points = new List<CoverPoint>();
             foreach (var prism in world.Prisms)
             {
+                Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the load advances (docs/DESIGN_Cluster_Load_Phase.md §12)
                 // ⭐ Stage 7a (§3l C1) — a BUILDING wall is read by its panel's faces below; its expanded pieces (jambs, sill strips,
                 //   lintels) are not: they do not know their storey floor, and a lintel is not cover. Free walls/fences and solid
                 //   prisms keep this rule unchanged.
@@ -57,8 +58,14 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 PointsAround(world, prism, points);
             }
             foreach (var panel in world.Panels)
+            {
+                Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — 📐 the building panels were the 6–16 s silent stretch of the stress terrain's load
                 if (panel.Building >= 0) AddPanelFaces(world, panel, points);
-            return new TerrainCoverProvider(points.ToArray());
+            }
+            Fdp.Core.LoadProgress.Report();
+            var built = new TerrainCoverProvider(points.ToArray());
+            Fdp.Core.LoadProgress.Report();
+            return built;
         }
 
         /// <summary>

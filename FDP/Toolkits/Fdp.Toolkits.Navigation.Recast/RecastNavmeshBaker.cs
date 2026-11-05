@@ -241,6 +241,7 @@ public sealed class RecastNavmeshBaker
         Parallel.For(0, work.Count, i =>
         {
             var (layer, tx, tz, fine) = work[i];
+            Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the load advances (docs/DESIGN_Cluster_Load_Phase.md §12)
             var p = GetParams(layer);
             float cs = fine ? FineCellSize : CoarseCellSize;
             var tris = tileTris[tz * tilesX + tx]!;
@@ -296,6 +297,7 @@ public sealed class RecastNavmeshBaker
         var bins = new List<int>?[tilesX * tilesZ];
         for (int t = 0; t + 2 < idx.Length; t += 3)
         {
+            if ((t & 0x3FFF) == 0) Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the load advances (docs/DESIGN_Cluster_Load_Phase.md §12)
             float minX = float.MaxValue, minZ = float.MaxValue, maxX = float.MinValue, maxZ = float.MinValue;
             for (int k = 0; k < 3; k++)
             {

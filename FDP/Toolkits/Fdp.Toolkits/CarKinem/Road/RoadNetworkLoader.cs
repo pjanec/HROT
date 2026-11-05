@@ -29,7 +29,7 @@ namespace CarKinem.Road
             }
             else
             {
-                string jsonContent = File.ReadAllText(jsonPath);
+                string jsonContent = Fdp.Core.ProgressStream.ReadAllText(jsonPath);   // ⭐ CE-2417 — reports while it reads
                 roadData = JsonSerializer.Deserialize<RoadNetworkJson>(jsonContent, FdpJsonOptionsRegistry.DefaultRelaxed);
             }
             
@@ -41,12 +41,14 @@ namespace CarKinem.Road
             // Add nodes
             foreach (var node in roadData.Nodes)
             {
+                Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the load advances (docs/DESIGN_Cluster_Load_Phase.md §12)
                 builder.AddNode(node.Position.ToVector2(), node.AboveGround);
             }
             
             // Add segments
             foreach (var seg in roadData.Segments)
             {
+                Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the load advances (docs/DESIGN_Cluster_Load_Phase.md §12)
                 builder.AddSegment(
                     seg.ControlPoints.P0.ToVector2(),
                     seg.ControlPoints.T0.ToVector2(),

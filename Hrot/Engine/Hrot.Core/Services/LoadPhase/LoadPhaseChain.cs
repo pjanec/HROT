@@ -240,6 +240,14 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
 
         var steps = StepsFor(context).ToArray();
 
+        // ⭐⭐⭐ CE-2417 — every step works inside an ACTIVE scope of the node's progress (set by its ClusterSlave), and entity creation in this
+        //   world counts as progress from the COMMIT on — so a heartbeat during the load means "the load advances". ⛔ Not during the prepare:
+        //   a faster node's entities replicate in meanwhile (CE-2242), and that must not pass for a hung loader's progress.
+        //   📄 docs/DESIGN_Cluster_Load_Phase.md §12.
+        var progress = LoadProgress.Current;
+        progress?.Watch(null);
+        progress?.ResetLongestSilence();
+
         // ⭐⭐ CE-2242 — what must be in place before entities replicate in (the geo origin), still on the frame thread.
         foreach (var step in steps)
             step.BeforePrepare(context, _world);
@@ -255,7 +263,8 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
             if (!step.PreparesOffFrameThread)
             {
                 _currentStep = step.ProgressStep ?? step.Part.ToString();
-                await step.PrepareAsync(context, ct).ConfigureAwait(false);
+                using (Working(progress, _currentStep))
+                    await step.PrepareAsync(context, ct).ConfigureAwait(false);
             }
 
         var offFrame = steps.Where(s => s.PreparesOffFrameThread).ToArray();
@@ -265,7 +274,8 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
                 foreach (var step in offFrame)
                 {
                     _currentStep = step.ProgressStep ?? step.Part.ToString();
-                    await step.PrepareAsync(context, ct).ConfigureAwait(false);
+                    using (Working(progress, _currentStep))
+                        await step.PrepareAsync(context, ct).ConfigureAwait(false);
                 }
             }, ct).ConfigureAwait(false);
 
@@ -282,9 +292,26 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         var world = repo ?? _world;
 
         // ⛔ The CE-2101 world-boundary clear is NOT here any more — it runs at the start of PrepareAsync (see there).
+        var progress = LoadProgress.Current;   // ⭐ CE-2417 — the commit (on the frame) works inside the node's progress too; from here entity
+        progress?.Watch(world);                //   creation counts (the commit's, and genesis materialization's while the node holds in Loading)
         foreach (var step in StepsFor(context))
-            step.Commit(context, world);
+            using (Working(progress, step.ProgressStep ?? step.Part.ToString()))
+                step.Commit(context, world);
+
+        // ⭐ CE-2417 — the measure that every loader reports often enough: the longest stretch this load went without advancing.
+        if (progress != null && progress.LongestSilence is { Longest.TotalSeconds: > 0.5 } silence)
+        {
+            var (from, to) = progress.LongestSilenceSites;
+            FdpLog<LoadPhaseChain>.Info(
+                $"[LoadPhase] {_hostLabel}: the longest stretch without load progress was {silence.Longest.TotalSeconds:F1} s (in {silence.Step ?? "?"}, "
+              + $"between {from} and {to})"
+              + (silence.Longest.TotalSeconds >= 4.0 ? " — ⛔ near the master's 5 s heartbeat timeout: that loader must report more often." : "."));
+        }
     }
+
+    /// <summary>⭐ CE-2417 — a step's work, inside the node's progress (none outside a slave: a rail calling the chain directly).</summary>
+    private static LoadProgress.ActiveScope Working(LoadProgress? progress, string step)
+        => progress?.Active(step) ?? default;
 
     /// <summary>
     /// ⭐⭐ C7 (Q91 §4-M, <c>R-4015</c>) — the steps a load runs: all of them, or — on a late joiner's CATCH-UP — only the
