@@ -179,6 +179,7 @@ namespace Fdp.Toolkit.Replication.Utilities
             }
 
             state.DirtyDescriptors.Add(descriptorOrdinal);
+            EgressSignals.Dirty(repo, entity.Index);   // ⭐ CE-2407 H8 — the set edit moves no version; the visit gates read this
         }
 
         /// <summary>
@@ -187,6 +188,7 @@ namespace Fdp.Toolkit.Replication.Utilities
         /// </summary>
         public static void ForceMarkAllDirty(EntityRepository repo)
         {
+            EgressSignals.AllDirty(repo);   // ⭐ CE-2407 H3 — every gated translator scans everything next
             var view = (ISimulationView)repo;
             var query = view.Query().Build();
             foreach (var entity in query)

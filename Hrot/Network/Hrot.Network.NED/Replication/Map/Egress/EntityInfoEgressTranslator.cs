@@ -31,6 +31,9 @@ namespace Hrot.Map.Common.Replication.Egress
 	/// </summary>
 	public class EntityInfoEgressTranslator : IDescriptorTranslator
     {
+        // ⭐ CE-2407 (DESIGN_Egress_Change_Detection §5, E1) — skips the entities none of these inputs changed for; NetworkIdentity is implied
+        private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(Fdp.Core.EntityInfo), typeof(UnitSubordinate));
+
         private const long OrdinalValue = (long)EDescriptorType.dtEntityInfo;
 
         private readonly IDdsWriter<Hrot.NED.Descriptors.EntityInfo> _writer;
@@ -109,8 +112,10 @@ namespace Hrot.Map.Common.Replication.Egress
 
             long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
+            _gate.Begin(view);
             foreach (var entity in query)
             {
+                if (!_gate.Visit(entity)) continue;   // ⭐ CE-2407 E1 — nothing this translator reads has changed since its last scan
                 // Only publish for entities this node owns.
                 if (!view.HasAuthority(entity, packedKey))
                     continue;

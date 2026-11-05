@@ -18,6 +18,9 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityWeaponPostureEgressTranslator : IDescriptorTranslator
     {
+        // ⭐ CE-2407 (DESIGN_Egress_Change_Detection §5, E1) — skips the entities none of these inputs changed for; NetworkIdentity is implied
+        private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(WeaponPosture));
+
         private readonly DdsWriter<EntityWeaponPosture>? _writer;
         private readonly NetworkEntityMap _entityMap;
         private readonly Dictionary<int, EntityWeaponPosture> _last = new();
@@ -46,8 +49,10 @@ namespace Hrot.Map.Common.Replication.Egress
                 _last.Clear();
             }
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            _gate.Begin(view);
             foreach (var unit in view.Query().With<WeaponPosture>().DefaultRoutePublishable().Build())
             {
+                if (!_gate.Visit(unit)) continue;   // ⭐ CE-2407 E1 — nothing this translator reads has changed since its last scan
                 if (!view.HasAuthority(unit, packedKey)) continue;
                 int netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
                 var posture = view.GetComponentRO<WeaponPosture>(unit);

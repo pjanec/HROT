@@ -65,7 +65,7 @@ namespace Hrot.Map.Common.Replication.Egress
         internal static EntityTrafficDemand ToSample(int netId, in TrafficDemand c)
             => new() { EntityId = netId, TargetCars = c.TargetCars, Seed = c.Seed, StepSeconds = c.StepSeconds,
                        TargetPedestrians = c.TargetPedestrians, ShotPanicRadius = c.ShotPanicRadius, BlastPanicRadius = c.BlastPanicRadius,
-                       MaxConverted = c.MaxConverted };
+                       MaxConverted = c.MaxConverted, CarSpawnPerStep = c.CarSpawnPerStep };
 
         public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
 
@@ -145,7 +145,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 && AuthorityExtensions.IsRecordedOwner(repo, env, OwnershipExtensions.PackKey(OrdinalValue, 0))) return true;   // ours: drop
             cmd.AddComponent(env, new TrafficDemand { TargetCars = d.TargetCars, Seed = d.Seed, StepSeconds = d.StepSeconds,
                 TargetPedestrians = d.TargetPedestrians, ShotPanicRadius = d.ShotPanicRadius, BlastPanicRadius = d.BlastPanicRadius,
-                MaxConverted = d.MaxConverted });
+                MaxConverted = d.MaxConverted, CarSpawnPerStep = d.CarSpawnPerStep });
             return true;
         }
 

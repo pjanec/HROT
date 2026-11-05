@@ -20,6 +20,9 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityWeatherEgressTranslator : IDescriptorTranslator
     {
+        // ⭐ CE-2407 (DESIGN_Egress_Change_Detection §5, E1) — skips the entities none of these inputs changed for; NetworkIdentity is implied
+        private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(WeatherConditions));
+
         private static readonly int[] s_targetIds = { GlobalComponentIds.WeatherConditions };
         private readonly DdsWriter<EntityWeather>? _writer;
         private readonly Dictionary<int, EntityWeather> _last = new();
@@ -47,8 +50,10 @@ namespace Hrot.Map.Common.Replication.Egress
             }
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<WeatherConditions>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            _gate.Begin(view);
             foreach (var e in view.Query().With<WeatherConditions>().DefaultRoutePublishable().Build())
             {
+                if (!_gate.Visit(e)) continue;   // ⭐ CE-2407 E1 — nothing this translator reads has changed since its last scan
                 if (!view.HasAuthority(e, packedKey)) continue;
                 int netId = view.GetComponentRO<NetworkIdentity>(e).Value;
                 var sample = ToSample(netId, view.GetComponentRO<WeatherConditions>(e));

@@ -153,6 +153,9 @@ namespace Hrot.NED.Descriptors
 
         /// <summary><c>TrafficDemand.MaxConverted</c>.</summary>
         public int MaxConverted;
+
+        /// <summary>⭐ CE-2408 (APPENDED, R-169) — <c>TrafficDemand.CarSpawnPerStep</c>.</summary>
+        public int CarSpawnPerStep;
     }
 
     [DdsTopic]

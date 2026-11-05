@@ -36,6 +36,7 @@ namespace Fdp.Toolkit.Replication.Services
             var epoch = Get(world);
             epoch.Value++;
             epoch.Generation++;
+            Fdp.Toolkit.Replication.Utilities.EgressSignals.AllDirty(world);   // ⭐ CE-2407 H3 — a wiped world: every gated translator scans everything
         }
 
         /// <summary>
@@ -49,6 +50,7 @@ namespace Fdp.Toolkit.Replication.Services
             var epoch = Get(world);
             epoch.RestoreCount++;
             epoch.Generation++;
+            Fdp.Toolkit.Replication.Utilities.EgressSignals.AllDirty(world);   // ⭐ CE-2407 H3 — a restored world
         }
 
         private static WorldEpoch Get(EntityRepository world)
