@@ -775,6 +775,12 @@ soldiers. ⭐ The answer each time: one per-frame index, every candidate re-chec
 
 | ⭐ after CE-2412 | **599 ms** (3.4× the baseline) | BrainTick 113 · TrafficMirror 79 · Recorder 73 · WeaponDispatcher 57 · egress 54 · Callout 41 — SimHost 506 (FireProcessing 100, TrafficMirror 97, egress 90), traffic 362 (TrafficMirror 180) |
 
+| ⭐ after CE-2413 + CE-2414 | **468 ms** (4.3× the baseline) | BrainTick 91 · Recorder 75 · egress 55 · WeaponDispatcher 43 · Stress 27 · Callout 23 — SimHost **309** (egress 84, Recorder 58, FireProcessing **20**), traffic 239 (TrafficMirror 76 — SUMO's own pose resolve now, egress 57, Recorder 43) |
+
+⭐ After CE-2414 the top of every node is the PER-ENTITY INFRASTRUCTURE — egress (55–84 ms) and the recorder (43–75 ms) — plus the brains'
+real work; no remaining whole-world scan was found by the traces. ⚠ The entity counts differ run to run (CGF 6 900–8 100) as the fight and
+the traffic fill vary — compare runs by the shape, not the last digit.
+
 ⭐ The brain node no longer has one dominant scan: its top six are 41–113 ms each. ⭐ `TrafficMirrorSystem` is now in the top two on EVERY node
 (79 / 97 / 180 ms) — the next lever. ⚠ One run before this one was INVALID: the cluster clock stopped at ~4.5 s for two minutes (the traffic
 node's `TrafficStepping` circuit opened on Timeout / StillRunning; the CGF's time-sync RTTs reached 250–350 ms); the re-run on the same
