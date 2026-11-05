@@ -52,7 +52,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 if (!view.HasAuthority(e, packedKey)) continue;
                 int netId = view.GetComponentRO<NetworkIdentity>(e).Value;
                 var sample = ToSample(netId, view.GetComponentRO<WeatherConditions>(e));
-                if (_last.TryGetValue(netId, out var prev) && prev.Equals(sample)) continue;
+                if (_last.TryGetValue(netId, out var prev) && Fdp.Network.Cyclone.Translators.SampleEquality.Same(prev, sample)) continue;
                 _last[netId] = sample;
                 _writer?.Write(sample);
                 SentSampleCount++;

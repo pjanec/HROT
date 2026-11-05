@@ -52,7 +52,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 int netId = view.GetComponentRO<NetworkIdentity>(e).Value;
                 _seen.Add(netId);
                 var sample = ToSample(netId, view.GetComponentRO<Descent>(e), view);
-                if (_last.TryGetValue(netId, out var prev) && prev.Equals(sample)) continue;
+                if (_last.TryGetValue(netId, out var prev) && Fdp.Network.Cyclone.Translators.SampleEquality.Same(prev, sample)) continue;
                 Send(netId, sample);
             }
             // a descent that ended here: one "over" sample, then forgotten

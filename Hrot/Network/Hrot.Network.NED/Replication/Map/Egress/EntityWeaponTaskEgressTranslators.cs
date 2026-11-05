@@ -55,7 +55,7 @@ namespace Hrot.Map.Common.Replication.Egress
                     Arc = (byte)task.Arc,   // ⭐ ui handoff P2
                     AlongBarrel = task.AlongBarrel,   // ⭐ CE-4143
                 };
-                if (_last.TryGetValue((hullNet, partId), out var prev) && prev.Equals(sample)) continue;
+                if (_last.TryGetValue((hullNet, partId), out var prev) && Fdp.Network.Cyclone.Translators.SampleEquality.Same(prev, sample)) continue;
                 _last[(hullNet, partId)] = sample;
                 _writer?.Write(sample);
                 SentSampleCount++;
@@ -102,7 +102,7 @@ namespace Hrot.Map.Common.Replication.Egress
             {
                 if (!TurretPartKey.TryResolve(view, part, DescriptorOrdinal, out var hullNet, out int partId)) continue;
                 var status = view.GetComponentRO<WeaponTaskStatus>(part);
-                if (_last.TryGetValue((hullNet, partId), out var prev) && prev.Equals(status)) continue;
+                if (_last.TryGetValue((hullNet, partId), out var prev) && Fdp.Network.Cyclone.Translators.SampleEquality.Same(prev, status)) continue;
                 _last[(hullNet, partId)] = status;
                 _writer?.Write(new EntityWeaponTaskStatus
                 {

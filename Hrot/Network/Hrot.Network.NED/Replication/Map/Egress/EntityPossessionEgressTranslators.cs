@@ -43,7 +43,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 if (!view.HasAuthority(unit, packedKey)) continue;
                 int netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
                 var sample = ToSample(netId, view.GetComponentRO<ManualDrive>(unit));
-                if (_last.TryGetValue(netId, out var prev) && prev.Equals(sample)) continue;
+                if (_last.TryGetValue(netId, out var prev) && Fdp.Network.Cyclone.Translators.SampleEquality.Same(prev, sample)) continue;
                 _last[netId] = sample;
                 _writer?.Write(sample);
                 SentSampleCount++;
@@ -114,7 +114,7 @@ namespace Hrot.Map.Common.Replication.Egress
                         EntityId = netId, Held = 1, StationNodeId = held.StationNodeId, Mode = (byte)held.Mode, Epoch = held.Epoch,
                     };
                     _seen.Add(netId);
-                    if (_last.TryGetValue(netId, out var prev) && prev.Equals(sample)) continue;
+                    if (_last.TryGetValue(netId, out var prev) && Fdp.Network.Cyclone.Translators.SampleEquality.Same(prev, sample)) continue;
                     _last[netId] = sample;
                     outgoing.Add(sample);
                 }

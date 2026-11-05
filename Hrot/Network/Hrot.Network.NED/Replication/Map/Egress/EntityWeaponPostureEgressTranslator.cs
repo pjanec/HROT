@@ -60,7 +60,7 @@ namespace Hrot.Map.Common.Replication.Egress
                     ActiveMount = posture.ActiveMount,   // ⭐ ui P4
                     HeldItem = (byte)posture.HeldItem,   // ⭐ CE-3234 (B-12, HI-1)
                 };
-                if (_last.TryGetValue(netId, out var prev) && prev.Equals(sample)) continue;
+                if (_last.TryGetValue(netId, out var prev) && Fdp.Network.Cyclone.Translators.SampleEquality.Same(prev, sample)) continue;
                 _last[netId] = sample;
                 _writer?.Write(sample);
                 SentSampleCount++;

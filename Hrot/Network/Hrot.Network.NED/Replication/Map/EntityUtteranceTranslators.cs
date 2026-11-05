@@ -59,7 +59,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 ref readonly var said = ref view.GetComponentRO<Utterance>(unit);
                 int targetId = !said.Target.IsNull && _entityMap.TryGetNetworkId(said.Target, out int tid) ? tid : 0;
                 var sample = ToSample(netId, said, targetId);
-                if (_last.TryGetValue(netId, out var prev) && prev.Equals(sample)) continue;
+                if (_last.TryGetValue(netId, out var prev) && Fdp.Network.Cyclone.Translators.SampleEquality.Same(prev, sample)) continue;
                 _last[netId] = sample;
                 _writer?.Write(sample);
                 SentSampleCount++;
