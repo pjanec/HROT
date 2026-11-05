@@ -48,6 +48,11 @@ namespace Fdp.Toolkit.Replication.Utilities
         private bool _scanned, _all;
         private int _frame;
 
+        // ⭐ diagnostics: process-wide totals, printed every ~10 s when HROT_EGRESS_GATE_STATS=1 (why a full scan happened, how much was skipped)
+        private static readonly bool s_stats = Environment.GetEnvironmentVariable("HROT_EGRESS_GATE_STATS") == "1";
+        private static long s_begins, s_full, s_visited, s_skipped, s_fullAuth, s_fullDirty, s_fullClock;
+        private static long s_nextPrint = System.Diagnostics.Stopwatch.GetTimestamp();
+
         public long FullScans { get; private set; }
         public long Visited { get; private set; }
         public long Skipped { get; private set; }
@@ -104,9 +109,21 @@ namespace Fdp.Toolkit.Replication.Utilities
                         || Changed(_authority, since) || Changed(_ownership, since) || Changed(_parts, since);
             _all = full;
             if (full) FullScans++;
+            if (s_stats) Stats(full, !_scanned || now < since, _signals!.AllDirtyAt >= since,
+                                Changed(_authority, since) || Changed(_ownership, since) || Changed(_parts, since));
             _since = since;
             _lastScan = now;
             _scanned = true;
+        }
+
+        private void Stats(bool full, bool clockOrFirst, bool dirty, bool auth)
+        {
+            s_begins++;
+            if (full) { s_full++; if (auth) s_fullAuth++; if (dirty) s_fullDirty++; if (clockOrFirst) s_fullClock++; }
+            long now = System.Diagnostics.Stopwatch.GetTimestamp();
+            if (now < s_nextPrint) return;
+            s_nextPrint = now + System.Diagnostics.Stopwatch.Frequency * 10;
+            Console.WriteLine($"[EgressGate] begins {s_begins} full {s_full} (authority {s_fullAuth}, all-dirty {s_fullDirty}, first/clock {s_fullClock}) visited {s_visited} skipped {s_skipped}");
         }
 
         // HasChanges is "> since"; the gate asks "≥ since" — a write stamped later in the frame of the previous scan is revisited.
@@ -116,7 +133,7 @@ namespace Fdp.Toolkit.Replication.Utilities
         public bool Visit(Entity e)
         {
             int i = e.Index;
-            if (_all) { Remember(i); Visited++; return true; }
+            if (_all) { Remember(i); Visited++; if (s_stats) s_visited++; return true; }
             uint since = _since;
             bool visit = _index!.GetMetadata(i).LastChangeTick >= since
                          || EgressSignals.DirtyAt(_signals!, i) >= since
@@ -131,9 +148,10 @@ namespace Fdp.Toolkit.Replication.Utilities
                     if (_size[k] == 0 || !Same(k, i)) { visit = true; break; }   // managed: the chunk is all there is · unmanaged: the bytes moved
                 }
             }
-            if (!visit) { Skipped++; return false; }
+            if (!visit) { Skipped++; if (s_stats) s_skipped++; return false; }
             Remember(i);
             Visited++;
+            if (s_stats) s_visited++;
             return true;
         }
 

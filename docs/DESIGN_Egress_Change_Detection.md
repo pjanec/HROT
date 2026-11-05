@@ -195,3 +195,20 @@ own bytes for each UNMANAGED input with the copy taken at its last visit (`Same`
 difference. A managed input stays chunk-level (coarse, safe). An absent component compares as "the same" — its coming or going is
 structural (`LastChangeTick`). ⭐ Bytes equal ⇒ every field equal ⇒ the translator would build the same sample; the only cost of the
 copy is memory (index × size per input). Rail `ANeighboursWrite_AndASameBytesRewrite_DoNotVisit_ARealChangeDoes`.
+
+### 5b. 📐 MEASURED — E1 on the real 4-process Crossfire cluster *(`2026-11-05`)*
+
+`HROT_EGRESS_GATE_STATS=1` (the gate's process-wide counters, printed every ~10 s) and an on / off A/B (`HROT_EGRESS_GATE=0`), 60 s each, alternating:
+
+| | CGF | SimHost |
+|---|---|---|
+| gate calls · full scans | 10 165 · 952 (≈ 9 %; 924 of them an AUTHORITY write) | 11 441 · 825 (≈ 7 %) |
+| entity visits skipped | **66 %** | **78 %** |
+| the 14 gated translators, ms/frame on / off | **2.92 / 3.34** | **1.16 / 1.36** |
+| the ungated ones (WorldPos, EqsSensorConfig, lifecycle …) | 2.39 / 2.26 | 2.74 / 2.37 |
+| samples sent in 60 s on / off | ≈ 7 600–8 100 / 7 700 | ≈ 18 500 / 18 000 (the same publishing) |
+
+⇒ ⭐ **the gate skips most visits, but at ~400 entities a gated translator's per-entity work is the minor part of its cost** — the
+translators got ≈ 13–15 % cheaper, egress overall moved within noise. ⭐ The saving scales with ENTITIES (the skipped work is per entity);
+the CE-2408 stress run is where it should show. ⚠ Next levers inside egress: the per-translator FIXED cost (each costs ≈ 0.1–0.3 ms a frame
+even when it skips nearly everything — to be profiled) and the ungated translators (WorldPos is the largest).
