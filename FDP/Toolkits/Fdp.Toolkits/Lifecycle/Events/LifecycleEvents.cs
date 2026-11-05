@@ -119,8 +119,6 @@ namespace Fdp.Toolkit.Lifecycle.Events
         public int NetworkId;
         /// <summary>Its TKB type (the construction's blueprint id).</summary>
         public TkbTypeId TkbType;
-        /// <summary>The creation request that made it (<c>CreationRequestId</c>); <see cref="Guid.Empty"/> when none did.</summary>
-        public Guid RequestId;
         /// <summary>This node owns it (<c>NetworkAuthority.HasAuthority</c>); true when it carries no authority at all.</summary>
         public bool IsLocallyOwned;
         /// <summary>It went Active. False: a module refused it or the handshake timed out (<see cref="Failure"/>).</summary>
@@ -146,7 +144,6 @@ namespace Fdp.Toolkit.Lifecycle.Events
         public Entity Entity;
         public int NetworkId;
         public TkbTypeId TkbType;
-        public Guid RequestId;
         public bool IsLocallyOwned;
         /// <summary>A module never acked: the teardown timed out and the entity was deleted anyway.</summary>
         public bool Forced;

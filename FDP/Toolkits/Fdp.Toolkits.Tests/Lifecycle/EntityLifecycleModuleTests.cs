@@ -185,16 +185,13 @@ namespace Fdp.Toolkit.Lifecycle.Tests
 
         // ── ⭐ AQ107 (CE-3323) — the generic lifecycle notifications (docs/DESIGN_Entity_Creation_Unification.md §3.4e) ──────────
 
-        private static readonly System.Guid Request = new System.Guid("6d3f1a2b-0c4d-4e5f-8a9b-1c2d3e4f5a6b");
-
         // A real world holding one entity with the identity a spawned network entity carries.
-        private static (EntityRepository world, Entity entity) NotifiedWorld(bool owned = true, bool withRequest = true)
+        private static (EntityRepository world, Entity entity) NotifiedWorld(bool owned = true)
         {
             var world = new EntityRepository();
             world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
             world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
-            world.RegisterComponent<Fdp.Toolkit.Lifecycle.Components.CreationRequestId>();
             world.RegisterEvent<ConstructionOrder>();
             world.RegisterEvent<DestructionOrder>();
             world.RegisterEvent<EntityConstructionCompleted>();
@@ -204,7 +201,6 @@ namespace Fdp.Toolkit.Lifecycle.Tests
             world.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(4242));
             world.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(77) });
             world.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkAuthority(owned ? 3 : 9, 3));
-            if (withRequest) world.AddComponent(e, new Fdp.Toolkit.Lifecycle.Components.CreationRequestId { Value = Request });
             return (world, e);
         }
 
@@ -220,7 +216,7 @@ namespace Fdp.Toolkit.Lifecycle.Tests
         private static EntityDestructionCompleted[] Destructions(EntityRepository w) => ((ISimulationView)w).ReadEvents<EntityDestructionCompleted>().ToArray();
 
         [Fact]
-        public void AQ107_ConstructionCompleted_WhenTheLastModuleAcks_NamesTheEntityAndItsRequest()
+        public void AQ107_ConstructionCompleted_WhenTheLastModuleAcks_NamesTheEntity()
         {
             var (world, e) = NotifiedWorld();
             var elm = new EntityLifecycleModule(null, new[] { 1, 2 });
@@ -236,7 +232,6 @@ namespace Fdp.Toolkit.Lifecycle.Tests
             Assert.Equal(e, done.Entity);
             Assert.Equal(4242L, done.NetworkId);
             Assert.Equal(77L, done.TkbType);
-            Assert.Equal(Request, done.RequestId);
             Assert.True(done.IsLocallyOwned);
             Assert.True(done.Succeeded);
             Assert.False(done.Resumed);
@@ -245,9 +240,9 @@ namespace Fdp.Toolkit.Lifecycle.Tests
         }
 
         [Fact]
-        public void AQ107_ConstructionCompleted_OnAReplica_SaysItIsNotOurs_AndWithoutARequest_CarriesNone()
+        public void AQ107_ConstructionCompleted_OnAReplica_SaysItIsNotOurs()
         {
-            var (world, e) = NotifiedWorld(owned: false, withRequest: false);
+            var (world, e) = NotifiedWorld(owned: false);
             var elm = new EntityLifecycleModule(null, new[] { 1 });
             var cmd = new EntityCommandBuffer();
             elm.BeginConstruction(e, 77, 10, cmd);
@@ -255,7 +250,6 @@ namespace Fdp.Toolkit.Lifecycle.Tests
             Publish(elm, world, cmd);
             var done = Assert.Single(Constructions(world));
             Assert.False(done.IsLocallyOwned);
-            Assert.Equal(System.Guid.Empty, done.RequestId);
         }
 
         [Fact]
@@ -270,7 +264,6 @@ namespace Fdp.Toolkit.Lifecycle.Tests
             var done = Assert.Single(Constructions(world));
             Assert.False(done.Succeeded);
             Assert.Equal("no terrain", done.Failure.ToString());
-            Assert.Equal(Request, done.RequestId);   // read before the buffer destroyed it
             Assert.False(world.IsAlive(e));
             Assert.Empty(Destructions(world));       // it was never constructed, so it is not "destroyed"
         }
@@ -322,7 +315,6 @@ namespace Fdp.Toolkit.Lifecycle.Tests
             Assert.Equal(e, gone.Entity);
             Assert.Equal(4242L, gone.NetworkId);
             Assert.Equal(77L, gone.TkbType);
-            Assert.Equal(Request, gone.RequestId);
             Assert.Equal("killed", gone.Reason.ToString());
             Assert.False(gone.Forced);
         }

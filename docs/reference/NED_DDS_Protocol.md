@@ -444,6 +444,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Fdp.Network.Cyclone.Topics.OwnershipUpdate` | message | no | Q | Fdp.Network.Cyclone | Per-descriptor ownership handoff (the spec's OwnershipUpdate) |
 | `Hrot.NED.Messages.CreateEntityRequest` | message | no | Q | Hrot.Network.NED | Ask the creator node to create an entity |
 | `Hrot.NED.Messages.CreateUpdateDeleteEntityAck` | message | no | Q | Hrot.Network.NED | Unified ack for create, update and delete requests |
+| `Hrot.NED.Messages.EntityEditOutcome` | message | no | Q | Hrot.Network.NED | The owner's outcome of a remote edit that asked for one: applied / pending / refused, with the reason (CE-2380, `DESIGN_Remote_Edit_Outcome.md`) |
 | `Hrot.NED.Messages.DeferredTakeOwnership` | message | yes: entity id | Q | Hrot.Network.NED | Pre-genesis grant table: who will own which descriptor |
 | `Hrot.NED.Messages.DeleteEntityRequest` | message | no | Q | Hrot.Network.NED | Ask the owner to delete an entity |
 | `Hrot.NED.Messages.EntityAttributeSchema` | descriptor | yes: node id | S | Hrot.Network.NED | JSON schema of attributes a node accepts |
@@ -521,6 +522,17 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 |---|---|---|---|---|---|
 | `Fdp.Network.Cyclone.Topics.EntityMasterTopic` | descriptor | yes: entity id | SN | Fdp.Network.Cyclone | FDP library demo master; no HROT production use |
 | `Fdp.Network.Cyclone.Topics.EntityStateTopic` | descriptor | yes: entity id | L | Fdp.Network.Cyclone | FDP library demo state; no HROT production use |
+
+### K. Gameplay — Player Join — 4
+
+> Owned by `Hrot.Gameplay` (`GameplayWire`, lazy readers/writers); switchable with the `gameplay.deploy-server` feature. 📄 [`DESIGN_Player_Join.md`](../DESIGN_Player_Join.md) §9–§11.
+
+| Full name | Kind | Keyed | QoS | Assembly | Role |
+|---|---|---|---|---|---|
+| `Hrot.Gameplay.DeployOfferTopic` | descriptor | yes: unit net id | S | Hrot.Gameplay | Player Join: what a Player may take — placed units, roles (count / max, kits) and spawn areas; written by the elected deploy server (`DESIGN_Player_Join.md` §9–§11) |
+| `Hrot.Gameplay.DeployRequestTopic` | message | no | Q | Hrot.Gameplay | Player Join: a Player asks to take a unit or role (side, unit, kit, area) or to observe |
+| `Hrot.Gameplay.DeployStatusTopic` | descriptor | yes: station node id | S | Hrot.Gameplay | Player Join: the server's answer to a station's request — accepted with the unit, or refused with the reason |
+| `Hrot.Gameplay.PlayerSlotTopic` | descriptor | yes: station node id | S | Hrot.Gameplay | Player Join: each station's slot — Choosing / TakingControl / Playing / Dead, its unit and respawn time |
 
 
 ## Excluded roots

@@ -974,8 +974,6 @@ public sealed class DirectorRunnerTests : IDisposable
         /// <summary>⭐ H1a — a component that changes every read and that no recorder keeps (a debug counter): never the verdict's.</summary>
         public bool WithScratch;
         private int _scratch;
-        /// <summary>⭐ CE-3334 — each unit's creation request id, as <c>CreationRequestId</c> dumps it (a fresh Guid per run).</summary>
-        public Dictionary<long, Guid>? RequestIds;
 
         /// <summary>A load rebuilds the world: the edited health goes with the old one (⛔ a fake that kept it would leak like CE-3294).</summary>
         public void Fresh()
@@ -998,8 +996,6 @@ public sealed class DirectorRunnerTests : IDisposable
                     ["Health"] = new System.Text.Json.Nodes.JsonObject { ["Current"] = Health.TryGetValue(id, out var hp) ? hp : 100d },
                 };
                 if (WithScratch) comps["Scratch"] = new System.Text.Json.Nodes.JsonObject { ["Seen"] = ++_scratch };
-                if (RequestIds != null && RequestIds.TryGetValue(id, out var request))
-                    comps["CreationRequestId"] = new System.Text.Json.Nodes.JsonObject { ["Value"] = request.ToString() };
                 return comps;
             }
             return null;
@@ -1276,57 +1272,6 @@ public sealed class DirectorRunnerTests : IDisposable
         // ⭐ CE-4061 — a runner with no extension refuses a plan (the film runner knows no verify)
         var noExtension = new DirectorRunner(badHost, cinema, new Layers()).Play(new PlayRequest(Reel.Of("s-a", "_verify"), Plan: new VerifyOptions()));
         Assert.Contains(noExtension, p => p.Contains("no extension"));
-    }
-
-    /// <summary>
-    /// ⭐⭐ <c>CE-3334</c> (docs/DESIGN_Scenario_Regression.md §4) — a creation request id is minted fresh every run, so its raw value can never
-    /// repeat: the golden writes it BY MEANING (<c>"@request:&lt;the first unit it made&gt;"</c>). ① a capture, then ② a fresh run with NEW ids
-    /// compares SAME; ③ two units made by ONE request differ from two requests (what the id means is still compared); ④ a golden captured
-    /// before the rule (no <c>"meaning"</c>, raw hashes) compares without the ids. 🔴 Red-proof: drop the <c>@request:</c> case in
-    /// <c>ScenarioGolden.Meant</c> ⇒ ② is DIFFERENT at t=0, in <c>CreationRequestId</c>.
-    /// </summary>
-    [Fact]
-    public void CE3334_APerRunRequestId_IsComparedByMeaning_SoAGoldenRepeats()
-    {
-        var store = Store();
-        File.WriteAllText(Path.Combine(_root, "s-a", ChecksJson.FileName), RunnerChecks);
-        (DirectorRunner Runner, FakeEditor Host) Fresh()   // ⭐ a fresh process: fresh request ids
-        {
-            var h = new FakeEditor(store);
-            return (new DirectorRunner(h, new Cinema(), new Layers(), extension: new ScenarioVerifyRun(h, u => h.Verifier = new FakeVerifyWorld(h, u)
-            {
-                RequestIds = new Dictionary<long, Guid> { [1] = Guid.NewGuid(), [2] = Guid.NewGuid() },
-            })), h);
-        }
-        VerifyResult Verify(bool capture, Action<FakeEditor>? before = null)
-        {
-            var (runner, host) = Fresh();
-            Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Plan: new VerifyOptions(Capture: capture))));
-            runner.Tick(); host.EndFrame();
-            before?.Invoke(host);
-            Run(runner, host);
-            return runner.Reports.Single().Verify()!;
-        }
-        var goldenPath = Path.Combine(_root, "s-a", ScenarioGolden.FileName);
-
-        Assert.Equal("captured", Verify(capture: true).Golden);                                                   // ①
-        Assert.Equal(ScenarioGolden.MeaningVersion, System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(goldenPath))!["meaning"]!.GetValue<int>());
-
-        var again = Verify(capture: false);                                                                        // ②
-        Assert.True(again.Golden == "same", string.Join("\n", again.GoldenDiff));
-
-        var shared = Verify(capture: false, h => h.Verifier!.RequestIds![2] = h.Verifier.RequestIds[1]);          // ③
-        Assert.Equal("different", shared.Golden);
-        Assert.Contains(shared.GoldenDiff, d => d.Contains("CreationRequestId"));
-
-        var legacy = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(goldenPath))!.AsObject();              // ④
-        legacy.Remove("meaning");
-        foreach (var snap in legacy["snapshots"]!.AsArray())
-            foreach (var (_, unit) in snap!["units"]!.AsObject())
-                unit!["components"]!["CreationRequestId"] = "0123456789abcdef";   // a raw per-run hash, as captured before CE-3334
-        File.WriteAllText(goldenPath, legacy.ToJsonString());
-        var old = Verify(capture: false);
-        Assert.True(old.Golden == "same", string.Join("\n", old.GoldenDiff));
     }
 
     /// <summary>

@@ -1343,7 +1343,7 @@ graph TD
 
 
 
-#### 3.4e-1 ⚖️ `CE-4266` — **is `CreationRequestId` redundant? ⛔ the KEEP analysis below is SUPERSEDED — LEAN: REMOVE it** *(backend, `2026-11-05`; revised the same day)*
+#### 3.4e-1 ⚖️ `CE-4266` — **is `CreationRequestId` redundant? ✅ REMOVED `2026-11-05` (as-built below; the KEEP analysis further down is SUPERSEDED)** *(backend, `2026-11-05`; revised the same day)*
 
 🔒 User, `2026-11-05`: *"i consider creation request as something temporary that has right to exist only during entity creation, and not in variable
 entity data area (components)"* · *"why would we keep it for nodes that joined late? no one on the creation side is waiting for any confirmation
@@ -1355,35 +1355,27 @@ anymore after initial creation"*
 - ⛔ Rejection ② (the late joiner) is moot. A requester exists before its own request, so the egress re-send serves no one.
 - Rejection ③ (replay) is moot too. No requester's pending state is replayed.
 
-| the removal — what it takes | |
+#### ✅ AS-BUILT `2026-11-05` — REMOVED *(user: "pls get rid of that asap as well as the useless component")*
+
+| removed / changed | where |
 |---|---|
-| ELM | `PendingConstruction` carries the request id, passed by `NetworkSpawningSystem` from `SpawnEntityCommand.RequestId`; `EntityConstructionCompleted.RequestId` reads it from there (servicing node only; empty elsewhere) |
-| deploy server | resolves its spawn from `EntityConstructionCompleted.RequestId` (the event's first reader) instead of querying the component each tick |
-| wire | `EntityMaster.RequestId` dropped (egress + ingress) |
-| component | `CreationRequestId` deleted; id 449 RESERVED, never reused; registry entry and the verifier's `PerRunIds` entry go |
-| tests | the rails that assert the stamp move to assert the event / the ack |
+| `EntityMaster.RequestId` — the message is back to its pre-`2026-10-25` shape | `GenericDescriptors.cs`, `EntityMasterEgressTranslator`, `EntityMasterIngressTranslator` |
+| `CreationRequestId` (component 449) deleted; **449 is back in the free pool** (user: no retirement mark) | `GlobalComponentIds.cs`, `HrotSharedComponentRegistry`, `NetworkSpawningSystem` (its stamp) |
+| `RequestId` dropped from BOTH lifecycle events — the destruction event's was the CREATION request copied off the component, not the deletion request | `LifecycleEvents.cs`, `EntityLifecycleModule.PublishOutcomes` |
+| ⭐ an author that must know its entity **pre-allocates its network id** — `EntityCreation.AllocateNetworkId()` (the node's allocator, the one the request system would otherwise use) → `EntityCreationRequest.PreAllocatedNetworkId`, then finds the entity by that id; the load phase, terrain objects and traffic already worked this way | `EntityCreation.cs`; the deploy server's spawner (`GameplayServerPack.SpawnerOf`) and `DeployProcessorSystem.ResolveSpawns` |
+| the scenario verifier's per-run-id workaround (CE-3334, R-4090) — it existed only because this component got a fresh Guid every run; with it gone nothing per-run is left. `ua-civ-melee`'s golden lost its ten `CreationRequestId` hashes | `ScenarioVerification.cs`, `scenarios/ua-civ-melee/golden.json` |
+| rails: IT-SA-7 now proves a request from the Brain, serviced on SimHost, is known to the Brain by its pre-allocated id (both nodes announce it); the stamp rails (`SpawnSystemTests`, `EntityMasterTranslatorTests`) and the CE-3334 rail are deleted with what they tested | `SplitAuthoritySpawnTests`, `GameplayDeployServerTests`, `EntityLifecycleModuleTests` |
 
-🔒 User, `2026-11-04`: *"It seems redundant as the system anyway keeps the creation list and when entity is finally created, the completion event could (i hope)
-take the creation request from the creation list the system maintains anyway."*
+📐 **LIVE `2026-11-05`** (`-m server` + two `-m player`, the S2 scenario): the role's man spawned inside the area under his pre-allocated id
+(1030), Player 1 Playing on him, Player 2 refused `RoleFull`, killed ⇒ Dead ⇒ Choosing after 4.8 s, no exception on either node.
+Gates: `EntityLifecycleModuleTests`/`SpawnSystemTests`/Lifecycle 57/57 · `GameplayDeploy*` + component-policy rails 145/145 · `EntityMaster*` 23/23 ·
+`DirectorRunnerTests`/verifier 31/31 · `SplitAuthoritySpawnTests` + `PlayerJoinsARunningScenario` 8/9 — the one red, `CE3221_ASideFlip…`, is red at the base
+`f3fb51b79` too (filed in CE-3369) · `ned-wire-inventory.py --check` OK.
 
-**INVENTORY** — `scripts/cbm.sh search_graph .*(CreationRequest|EntityCreat|CreationLedger|PendingCreation).*` (19 classes) · `scripts/find.sh
-EntityConstructionCompleted` · grep `CreationRequestId` (non-test): ⚠ coverage could not be checked through the CLI.
-
-| who touches it | what for | file |
-|---|---|---|
-| writes — the servicing node | stamps it at spawn | `NetworkSpawningSystem.cs:203-204` |
-| writes — every other node | stamps it from the wire (`EntityMaster.RequestId`) | `EntityMasterIngressTranslator.cs:221-222` |
-| ⭐ reads — the EntityMaster EGRESS | re-sends it on EVERY `EntityMaster` sample, so a late joiner / a caught-up node (C7) learns it too | `EntityMasterEgressTranslator.cs:123-124` |
-| reads — the lifecycle module | copies it into both completion events | `EntityLifecycleModule.cs:607-608` |
-| reads — the deploy server (Player Join S2) | finds the man it spawned for a role | `DeployProcessorSystem.cs:236-238` |
-| ignores — the scenario verifier | a per-run id | `ScenarioVerification.cs:344` |
-| reads the EVENTS' `RequestId` | ⛔ **nothing in production** (graph + grep: only the publisher) | — |
-
-| Decision | **keep the component**; nothing to build |
-|---|---|
-| why | ① the "creation list" (`CreateEntityRequestSystem._pendingQueue`) is DEQUEUED when the spawn command is issued (`:168`), BEFORE construction completes — it cannot serve the event · ② on every other node there is no list at all: the id arrives on the wire, and the egress RE-SENDS it from the component, which is what lets a node that joins later know it — a module-owned map would have to be re-sent from somewhere, i.e. a second copy of the same fact · ③ the component is recorded and restored with the entity, so a replay seek or a checkpoint keeps it by construction; a side map would need its own restore · ④ cost: 16 bytes, unmanaged, written once (never per frame) |
-| rejected | *a lifecycle-module map entity → id* — loses the id on a late join and on a replay seek unless it is replicated and restored, i.e. rebuilt as the component · *take it from the creation queue* — the queue no longer holds it when construction completes |
-| ⭐ one small cleanup it suggests (not built) | the deploy server polls a query each tick while a spawn is pending; it could read `EntityConstructionCompleted.RequestId` instead — the event's first production reader |
+⇒ ⛔ **§3.4e above is SUPERSEDED where it says the request id rides `SpawnEntityCommand` → `CreationRequestId` → `EntityMaster`,
+and that the events carry it** — both diagrams there show the removed path. Why it was built that way: CE-2375 needed an in-process
+requester on node A to learn the entity a request serviced on node B made; the wire ack had no reader there, and the id was put on the
+one message every replica receives, then on the entity. A temporary fact got permanent carriers.
 
 ### 3.4c ⭐⭐⭐ `CE-144` — **ONE CONSUMER OF `DestroyEntityCommand`.** `build-state: READY-TO-BUILD`
 

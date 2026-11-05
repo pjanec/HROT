@@ -258,7 +258,8 @@ namespace Hrot.Common.EntityCreation
                 promotionSystem, ctx.NodeId, networkSystems, ctx.World, obstacleBake,
                 new SeatPresetSystem(ctx.EntityMap),   // ⭐ WS-4 (W-I) — boards the presets CreateEntityRequestSystem spawns
                 new Fdp.Toolkit.NetworkSpawning.Systems.SpawnLevelSystem(),
-                new Hrot.Common.Macros.MacroExpansionSystem(ctx.Macros, ctx.EntityMap, ctx.IdAllocator, ctx.NodeId, ctx.TkbDb));   // ⭐ macros S3a ④   // ⭐ CE-3271 (Q94 D) — the birth level, on the position's owner
+                new Hrot.Common.Macros.MacroExpansionSystem(ctx.Macros, ctx.EntityMap, ctx.IdAllocator, ctx.NodeId, ctx.TkbDb),
+                ctx.IdAllocator);   // ⭐ macros S3a ④   // ⭐ CE-3271 (Q94 D) — the birth level, on the position's owner
         }
     }
 }

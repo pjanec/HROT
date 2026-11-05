@@ -8,7 +8,6 @@ using Fdp.ModuleHost.Scheduling;
 using Fdp.Toolkit.Behavior.Possession;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Replication.Components;
-using Fdp.Toolkit.Lifecycle.Components;
 using Fdp.Toolkit.Motion;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.IG.Components;
@@ -48,7 +47,7 @@ namespace Hrot.SimHost.Tests
         private readonly List<(bool valid, PlayerSlotTopic slot)> _slotLog = new();
         private readonly DdsReader<DeployOfferTopic> _offerSamples;
         private readonly Dictionary<int, DeployOfferTopic> _offersSeen = new();
-        private readonly List<(long Tkb, SimTransform At, object[] Components, Guid Guid)> _spawnCalls = new();
+        private readonly List<(long Tkb, SimTransform At, object[] Components, int NetId)> _spawnCalls = new();
         private double _now = 100;
         private long _wallMs = 1_000;
 
@@ -63,12 +62,12 @@ namespace Hrot.SimHost.Tests
             _w.RegisterComponent<Health>();
             _w.RegisterEvent<NodeDeparted>();
             _w.RegisterComponent<DeployRole>(); _w.RegisterComponent<SpawnArea>(); _w.RegisterComponent<GameplaySettings>();
-            _w.RegisterComponent<CreationRequestId>(); _w.RegisterComponent<EntityInfo>(); _w.RegisterComponent<TkbIdentity>(); _w.RegisterComponent<Locomotion>();
+            _w.RegisterComponent<EntityInfo>(); _w.RegisterComponent<TkbIdentity>(); _w.RegisterComponent<Locomotion>();
             _w.RegisterComponent<SimTransform>(); _w.RegisterManagedComponent<EditablePolyline>();
             SetTime(_now);
             _wire = new GameplayWire(_serverP);
             _proc = new DeployProcessorSystem(_wire, _map, Server, election: null, nowMs: () => _wallMs,
-                spawner: (tkb, at, comps) => { var g = Guid.NewGuid(); _spawnCalls.Add((tkb, at, comps.ToArray(), g)); return g; }, rng: new Random(7));
+                spawner: (tkb, at, comps) => { int id = 200 + _spawnCalls.Count; _spawnCalls.Add((tkb, at, comps.ToArray(), id)); return id; }, rng: new Random(7));
             _slots = new ServerPlayerSlotReaderSystem(_wire);
             _request = new DdsWriter<DeployRequestTopic>(_stationP);
             _status = new DdsReader<DeployStatusTopic>(_stationP);
@@ -178,14 +177,14 @@ namespace Hrot.SimHost.Tests
             return e;
         }
 
-        /// <summary>What the creation path would do: the man exists, carries the request's id and a network identity.</summary>
-        private Entity Materialise(int call, int netId)
+        /// <summary>What the creation path would do: the man exists under the network id the spawner pre-allocated (CE-4266).</summary>
+        private Entity Materialise(int call)
         {
             var c = _spawnCalls[call];
+            int netId = c.NetId;
             var e = _w.CreateEntity();
             _w.AddComponent(e, c.At);
             _w.AddComponent(e, (EntityInfo)c.Components.First(x => x is EntityInfo));
-            _w.AddComponent(e, new CreationRequestId { Value = c.Guid });
             _w.AddComponent(e, new NetworkIdentity { Value = netId });
             _w.AddComponent(e, new Health { Current = 100f, Max = 100f });
             _map.Register(netId, e);
@@ -438,7 +437,7 @@ namespace Hrot.SimHost.Tests
             Assert.DoesNotContain(_statuses, st => st.RequestId == id);   // not answered before the man exists
             Assert.True(_proc.TryGetSlot(StationA, out _, out _) == false);
 
-            Materialise(0, 200);
+            Materialise(0);
             var status = Answer(id);
             Assert.True(status.Accepted, status.Reason); Assert.Equal(200, status.UnitNetId);
             Assert.True(_proc.TryGetSlot(StationA, out var state, out int unit)); Assert.Equal(PlayerSlotState.TakingControl, state); Assert.Equal(200, unit);
@@ -456,7 +455,7 @@ namespace Hrot.SimHost.Tests
 
             string first = Ask(StationA, ForceId.Friend, 300);
             PumpUntil(() => _spawnCalls.Count == 1, "the first spawn");
-            Materialise(0, 200);
+            Materialise(0);
             Assert.True(Answer(first).Accepted);
 
             var full = Answer(Ask(StationB, ForceId.Friend, 300));
@@ -499,7 +498,7 @@ namespace Hrot.SimHost.Tests
             string id = Ask(StationA, ForceId.Friend, -2002);
             PumpUntil(() => _spawnCalls.Count == 1, "the implicit role's spawn");
             Assert.Equal(2002L, _spawnCalls[0].Tkb);
-            Materialise(0, 200); Assert.True(Answer(id).Accepted);
+            Materialise(0); Assert.True(Answer(id).Accepted);
 
             RoleEntity(300, ForceId.Friend, 2004, "Grenadier", 3);   // now the side DECLARES a role: the implicit offer goes
             PumpUntil(() => !_offersSeen.ContainsKey(-2002) && _offersSeen.ContainsKey(300), "the declared offer replaces the implicit one");
@@ -598,7 +597,7 @@ namespace Hrot.SimHost.Tests
             PumpUntil(() => _spawnCalls.Count == 1, "the kit's spawn");
             Assert.Equal(2004L, _spawnCalls[0].Tkb);
             Assert.Equal("Rifleman 1", ((EntityInfo)_spawnCalls[0].Components.First(x => x is EntityInfo)).Name.ToString());
-            Materialise(0, 200); Assert.True(Answer(id).Accepted);
+            Materialise(0); Assert.True(Answer(id).Accepted);
 
             var full = Answer(Ask(StationB, ForceId.Friend, 300, kit: 0));   // the role's own kit: the SAME role, already at its max of 1
             Assert.False(full.Accepted); Assert.Equal("RoleFull", full.Reason);

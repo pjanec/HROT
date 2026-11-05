@@ -294,7 +294,7 @@ The two **notifications**: 9001–9004 are the handshake between the lifecycle m
 
 | | published | carries |
 |---|---|---|
-| `EntityConstructionCompleted` | the frame the last ack arrives (Active), or the construction is refused / times out (`Succeeded = false`) | entity, network id, TKB type, **request id** (`CreationRequestId`, `Guid.Empty` if none), `IsLocallyOwned`, `Succeeded`, `Resumed` (re-opened after a restore), `Failure`, frame |
+| `EntityConstructionCompleted` | the frame the last ack arrives (Active), or the construction is refused / times out (`Succeeded = false`) | entity, network id, TKB type, `IsLocallyOwned`, `Succeeded`, `Resumed` (re-opened after a restore), `Failure`, frame |
 | `EntityDestructionCompleted` | the frame the last teardown ack arrives (or the teardown is forced by its timeout) | entity (dead by the time it is read), network id, TKB type, request id, `IsLocallyOwned`, `Forced`, `Reason`, frame |
 
 **Published by:** `LifecycleSystem` → `EntityLifecycleModule.PublishOutcomes`, after the acks, drains and timeouts of its tick

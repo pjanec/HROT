@@ -335,16 +335,11 @@ namespace Hrot.Editor.Director
     {
         public const string FileName = "golden.json";
 
-        /// <summary>⭐ <c>CE-3334</c> — the version of the by-meaning rules a golden was captured with (<c>"meaning"</c> in the file): 2 = handles
-        /// AND per-run request ids by meaning. A golden without it (captured before) compares with <see cref="PerRunIds"/> left out.</summary>
+        /// <summary>⭐ <c>CE-3334</c> — the version of the by-meaning rules a golden was captured with (<c>"meaning"</c> in the file): handles by
+        /// meaning. (2 also wrote per-run creation request ids by meaning; that component is gone — CE-4266 — so nothing per-run is left.)</summary>
         public const int MeaningVersion = 2;
 
-        /// <summary>⭐ <c>CE-3334</c> — components whose value is an id MINTED PER RUN (a fresh <c>Guid</c> each time): its value means "the
-        /// request that made this unit", so it is written as <c>"@request:&lt;the first unit it made&gt;"</c> wherever it appears.</summary>
-        public static readonly IReadOnlyList<string> PerRunIds = new[] { "CreationRequestId" };
-
         private readonly IVerifyWorld _w;
-        private readonly Dictionary<Guid, string> _requests = new();
         private readonly bool _full;
         private readonly JsonArray _snapshots = new();
 
@@ -371,12 +366,6 @@ namespace Hrot.Editor.Director
                 int k = seen[unitName] = seen.TryGetValue(unitName, out var c) ? c + 1 : 1;
                 if (_w.Components(id) is { } found) all.Add((k == 1 ? unitName : $"{unitName} #{k}", found));
             }
-            // ⭐ CE-3334 — a per-run id means the unit it made: the first unit (in name order) that carries it
-            _requests.Clear();
-            foreach (var (name, comps) in all)
-                foreach (var idType in PerRunIds)
-                    if (comps[idType]?["Value"] is JsonValue v && v.TryGetValue<string>(out var text) && Guid.TryParse(text, out var g) && g != Guid.Empty)
-                        _requests.TryAdd(g, name);
             foreach (var (name, comps) in all)
             {
                 var hashes = new JsonObject();
@@ -426,8 +415,6 @@ namespace Hrot.Editor.Director
                     return null;
                 case JsonValue v when v.TryGetValue<string>(out var text) && HandleShape.Match(text) is { Success: true } m:
                     return JsonValue.Create("@" + (_w.NameOfEntityIndex(int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)) ?? "?"));
-                case JsonValue v when v.TryGetValue<string>(out var text) && Guid.TryParse(text, out var g) && _requests.TryGetValue(g, out var maker):
-                    return JsonValue.Create("@request:" + maker);   // ⭐ CE-3334 — a per-run request id, by meaning
                 case JsonValue v when ConditionBook.Num(v) is { } d && !double.IsFinite(d):
                     return Unwritable(d);
                 default:
@@ -495,13 +482,6 @@ namespace Hrot.Editor.Director
         /// </summary>
         public static IReadOnlyList<string> Compare(JsonObject golden, JsonObject run)
         {
-            // ⭐ CE-3334 — a golden captured before per-run ids were written by meaning holds their raw hash, which no later run can repeat:
-            //   compare it without them (a re-capture brings them back, by meaning)
-            if (golden.ContainsKey("scenario") && golden["meaning"] is null)
-            {
-                golden = WithoutPerRunIds(golden);
-                run = WithoutPerRunIds(run);
-            }
             var diff = new ComponentDiffService();
             var lines = new List<string>();
             foreach (var key in new[] { "steps", "times", "shots", "blasts" })
@@ -540,16 +520,6 @@ namespace Hrot.Editor.Director
         /// <summary>⭐ B5 — the differences from <paramref name="t1"/> on in the components the checkpoint does NOT carry (for information).</summary>
         public static IReadOnlyList<string> CompareNotCarried(JsonObject straight, JsonObject restored, double t1, Func<string, bool> carried)
             => Compare(From(straight, t1, carried, false), From(restored, t1, carried, false));
-
-        private static JsonObject WithoutPerRunIds(JsonObject run)
-        {
-            var copy = run.DeepClone().AsObject();
-            foreach (var snap in (copy["snapshots"] as JsonArray) ?? new JsonArray())
-                foreach (var (_, unit) in (snap?["units"] as JsonObject) ?? new JsonObject())
-                    if (unit?["components"] is JsonObject comps)
-                        foreach (var idType in PerRunIds) comps.Remove(idType);
-            return copy;
-        }
 
         private static JsonObject From(JsonObject run, double t1, Func<string, bool>? carried, bool keepCarried)
         {

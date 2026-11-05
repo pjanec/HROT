@@ -1159,7 +1159,7 @@ process; the before run on the binaries without the change, golden of `ua-civ-me
 
 | scenario | before | after (one facade, the editor's Play/Stop through the cluster) |
 |---|---|---|
-| `ua-civ-melee` | 4/4 conditions; golden differs ONLY in `CreationRequestId` (CE-3334: a fresh Guid per run — no golden repeats) | identical |
+| `ua-civ-melee` | 4/4 conditions; golden differs ONLY in `CreationRequestId` (CE-3334: a fresh Guid per run — no golden repeats; ⛔ the component is gone since CE-4266) | identical |
 | `ua-tank-ammo` | "soft-target round at the technical" held at 51.0667 s; kinetic round at 8.9333 s; the same 54 values against the stored golden | identical |
 | `bt-grenade-posture` | "the standing man is hurt" FAILS; the same 6 values | identical |
 

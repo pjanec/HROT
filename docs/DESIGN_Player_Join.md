@@ -17,7 +17,7 @@ related-designs:
   - docs/DESIGN_Entity_Control.md — §8q OWNS R-4096 (StationClaims); D-8 gives it a player's side and reservation from the player slot when a gameplay server exists
   - docs/DESIGN_Unit_Camera.md — OWNS the Observer camera every observer uses
   - docs/designs/air-attack/DESIGN_Air_Operations.md — §6 OWNS the pilot models and "a hand-over keeps the pose" (a plane deployed into in flight)
-  - docs/DESIGN_Entity_Creation_Unification.md — OWNS EntityCreationRequest (the one creation path) and CreationRequestId (how a Player finds its new unit)
+  - docs/DESIGN_Entity_Creation_Unification.md — OWNS EntityCreationRequest (the one creation path) and AllocateNetworkId (how the deploy server knows the man it asked for — CE-4266)
   - docs/DESIGN_Decision_Layer.md — §4 OWNS the paused task a possession leaves and resumes
   - Hrot/Engine/Hrot.Traffic/TrafficPack.cs — the PRECEDENT for an optional feature as packs (Serving on one node, Mirroring on the others)
 -->
@@ -59,7 +59,7 @@ observer, spawn, loadout, score).
 | the master's request pair is read only by the master | `ClusterOpMasterTranslator` reads; `ClusterOpEgressTranslator` only writes | why the deploy does NOT ride it |
 | a Player's waiting screen, composed once per process | `LoadingScreen` (Player policy), `LocalWindowController.ComposeRunControls`; gate `ClusterView.GateOpen(Player)` = `IsLocalPlayReady ∧ CanOperate` | the deploy screen's pattern and its "may I start?" |
 | possession by request, decided on the brain; R-4096 claims; a station's side from the held unit | `PossessionSystem`, `EntityOrders.Possess`, `StationClaims` (Entity Control §8c, §8q) | unchanged; D-8 adds the slot as a first source |
-| a new unit carries its request's GUID on every node | `CreationRequestId` (`NetworkSpawningSystem.cs:204`, on `EntityMaster` — `EntityMasterIngressTranslator.cs:222`) | the Player's "my unit arrived" |
+| ⛔ SUPERSEDED `2026-11-05` (CE-4266): ~~a new unit carries its request's GUID on every node — `CreationRequestId`~~ — removed; the deploy server pre-allocates the man's network id (`EntityCreation.AllocateNetworkId`) and finds him by it | `GameplayServerPack.SpawnerOf`, `DeployProcessorSystem.ResolveSpawns` | the server's "the man exists" |
 | who possesses what, on every node | `PossessedBy { StationNodeId, Mode, Epoch }` + translators | the Player's "I have it" |
 | drawn areas with their own TKB type | `WeatherRegion`, `StoneSource` (`PlacementToolRegistry.Graphics`) | the spawn area (S2) |
 | a plane possessed in flight keeps flying | `FixedWingModel.cs:56-72` (*"possessed already flying"*); the look starts on the hull's heading (`PossessionStation.cs:1286`) | D-12 — no new code |

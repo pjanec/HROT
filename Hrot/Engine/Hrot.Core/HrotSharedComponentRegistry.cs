@@ -59,7 +59,6 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<NetworkIdentity>();
         world.RegisterComponent<NetworkAuthority>();   // CE-281: NetworkOwnership retired (merged into NetworkAuthority)
         world.RegisterComponent<TkbIdentity>();
-        world.RegisterComponent<Fdp.Toolkit.Lifecycle.Components.CreationRequestId>();   // ⭐ AQ107 — the request that made it (§3.4e)
         world.RegisterComponent<GhostStateTracker>();
         world.RegisterComponent<PendingNetworkAck>();
         world.RegisterComponent<ReportLifecycleOnActive>();   // CE-283: reliable-init barrier peer tag

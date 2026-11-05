@@ -1,6 +1,7 @@
 <!--STATUS
-state: LIVE
-updated: 2026-10-25
+state: SUPERSEDED
+updated: 2026-11-05
+superseded-by: docs/blueprints/batches/NOTE_Backend_To_Behaviors_Creation_Result_CE4266.md
 current-answer: the whole file.
 stale-below: nothing.
 known-rot: none.

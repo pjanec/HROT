@@ -517,17 +517,17 @@ namespace Hrot.ClusterRunner.Integration.Tests;
     // ── IT-SA-7 ───────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// ⭐ AQ107 (CE-3323; behaviors' CE-2375 — the requester must learn which entity its request made) — a creation request
-    /// published on the Brain (CGF) and SERVICED ON ANOTHER NODE (SimHost, the owner it names) comes back to the Brain as
-    /// <c>EntityConstructionCompleted</c> naming the request: the request id rides <c>SpawnEntityCommand</c> → <c>CreationRequestId</c>
-    /// → <c>EntityMaster</c> → the replica, and the lifecycle module on EACH node announces the same entity with it.
-    /// 📄 docs/DESIGN_Entity_Creation_Unification.md §3.4e. Under the production guard (strict event registration).
-    /// 🔴 Red-proofs: drop the <c>RequestId</c> line in <c>EntityMasterEgressTranslator</c> ⇒ the Brain's event carries Guid.Empty;
+    /// ⭐ AQ107 (CE-3323; behaviors' CE-2375 — the requester must learn which entity its request made), as rebuilt by CE-4266 — a creation
+    /// request published on the Brain (CGF) and SERVICED ON ANOTHER NODE (SimHost, the owner it names) is known to the Brain by the network id
+    /// it PRE-ALLOCATED (<c>EntityCreation.AllocateNetworkId</c>): the lifecycle module on EACH node announces <c>EntityConstructionCompleted</c>
+    /// for that id. ⛔ Nothing about the request rides the entity or <c>EntityMaster</c>. 📄 docs/DESIGN_Entity_Creation_Unification.md §3.4e-1.
+    /// Under the production guard (strict event registration).
+    /// 🔴 Red-proofs: drop the <c>PreAllocatedNetworkId</c> line ⇒ the entity gets another id and neither node announces this one;
     /// drop the <c>RegisterEvent&lt;EntityConstructionCompleted&gt;</c> in <c>HrotSharedComponentRegistry</c> ⇒ no event on either node.
     /// <para>Domain 38 — explicit, like IT-SA-4's 33.</para>
     /// </summary>
     [Fact]
-    public void AQ107_ARequestFromTheBrain_ServicedOnSimHost_ComesBackToTheBrain_NamingItsRequest()
+    public void AQ107_ARequestFromTheBrain_ServicedOnSimHost_IsKnownToTheBrain_ByItsPreAllocatedId()
     {
         bool previousStrictMode = FdpConfig.EnforceExplicitEventRegistration;
         FdpConfig.EnforceExplicitEventRegistration = true;
@@ -538,14 +538,15 @@ namespace Hrot.ClusterRunner.Integration.Tests;
             cgf.PumpFrames(20);
             PumpBothFrames(simHost, cgf, 40);
 
-            var request = Guid.NewGuid();
+            int netId   = cgf.CgfSvc.EntityCreation!.AllocateNetworkId();
             int owner   = simHost.SimHost.EntityCreation!.NodeId;
             Assert.NotEqual(cgf.CgfSvc.EntityCreation!.NodeId, owner);
             cgf.CgfSvc.EntityCreation!.Publish(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
             {
-                RequestId          = request,
+                RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = owner,
                 TkbType            = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams),
+                PreAllocatedNetworkId = netId,
                 InitialComponents  = new System.Collections.Generic.List<object>
                 {
                     new SimTransform { Position = new System.Numerics.Vector3(40, 60, 0), Rotation = System.Numerics.Quaternion.Identity },
@@ -553,17 +554,17 @@ namespace Hrot.ClusterRunner.Integration.Tests;
             });
 
             Fdp.Toolkit.Lifecycle.Events.EntityConstructionCompleted? onBrain = null, onOwner = null;
-            static Fdp.Toolkit.Lifecycle.Events.EntityConstructionCompleted? Seen(EntityRepository? w, Guid id)
+            static Fdp.Toolkit.Lifecycle.Events.EntityConstructionCompleted? Seen(EntityRepository? w, int id)
             {
                 if (w == null || !w.Bus.IsRegistered<Fdp.Toolkit.Lifecycle.Events.EntityConstructionCompleted>()) return null;
                 foreach (var e in ((Fdp.ModuleHost.Abstractions.ISimulationView)w).ReadEvents<Fdp.Toolkit.Lifecycle.Events.EntityConstructionCompleted>())
-                    if (e.RequestId == id) return e;
+                    if (e.NetworkId == id) return e;
                 return null;
             }
             bool both = PumpBothUntil(simHost, cgf, () =>
             {
-                onBrain ??= Seen(cgf.World, request);
-                onOwner ??= Seen(simHost.SimHost.World, request);
+                onBrain ??= Seen(cgf.World, netId);
+                onOwner ??= Seen(simHost.SimHost.World, netId);
                 return onBrain != null && onOwner != null;
             }, AuthorityTimeoutMs);
 
@@ -572,8 +573,9 @@ namespace Hrot.ClusterRunner.Integration.Tests;
             Assert.True(onOwner!.Value.Succeeded && onBrain!.Value.Succeeded);
             Assert.True(onOwner.Value.IsLocallyOwned, "SimHost owns it");
             Assert.False(onBrain.Value.IsLocallyOwned, "the Brain holds a replica");
-            Assert.NotEqual(0L, onBrain.Value.NetworkId);
-            Assert.Equal(onOwner.Value.NetworkId, onBrain.Value.NetworkId);
+            Assert.NotEqual(0, netId);
+            Assert.Equal(netId, onOwner.Value.NetworkId);
+            Assert.Equal(netId, onBrain.Value.NetworkId);
             Assert.Equal(TkbEntityTypes.Tank_M1Abrams, onBrain.Value.TkbType);
             Assert.True(cgf.World!.IsAlive(onBrain.Value.Entity), "the Brain's event names its own live entity");
         }

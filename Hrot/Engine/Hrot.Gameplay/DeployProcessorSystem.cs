@@ -32,8 +32,8 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
     public const double ReservationSeconds = 30.0;
     private const long PeriodMs = 1000;
 
-    /// <summary>⭐ S2 — a role's man made by the one creation path: (tkb type, where, the components) ⇒ the request id (<see cref="Guid.Empty"/> = nothing can spawn on this node).</summary>
-    public delegate Guid RoleSpawner(long personTkbType, SimTransform at, IReadOnlyList<object> components);
+    /// <summary>⭐ S2 — a role's man made by the one creation path: (tkb type, where, the components) ⇒ his network id, pre-allocated (CE-4266; 0 = nothing can spawn on this node).</summary>
+    public delegate int RoleSpawner(long personTkbType, SimTransform at, IReadOnlyList<object> components);
 
     /// <summary>S2-e — a role's request is answered only once the man EXISTS; this many milliseconds without him ⇒ refused "spawn timed out".</summary>
     public const long SpawnTimeoutMs = 10_000;
@@ -55,7 +55,7 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
     /// <summary>A role request waiting for its man to exist (S2-e).</summary>
     private sealed class PendingSpawn
     {
-        public int Station; public string RequestId = ""; public Guid Guid; public int RoleNetId; public ForceId Side; public string RoleName = ""; public long DeadlineMs;
+        public int Station; public string RequestId = ""; public int UnitNetId; public int RoleNetId; public ForceId Side; public string RoleName = ""; public long DeadlineMs;
     }
 
     private readonly GameplayWire _wire;
@@ -218,13 +218,13 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
         float rad = yaw * (MathF.PI / 180f);
         var at = new SimTransform { Position = pos, Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, rad) };
         var comps = new object[] { new EntityInfo { Name = new FixedString64($"{roleName} {n}"), ForceId = side } };
-        var guid = _spawner(personType, at, comps);
-        if (guid == Guid.Empty) { Answer(r, false, "spawning unavailable", 0, r.UnitNetId); return; }
+        int unitNetId = _spawner(personType, at, comps);   // ⭐ CE-4266 — the man's network id, fixed by the request (pre-allocated)
+        if (unitNetId == 0) { Answer(r, false, "spawning unavailable", 0, r.UnitNetId); return; }
         for (int i = _pending.Count - 1; i >= 0; i--) if (_pending[i].Station == r.StationNodeId) _pending.RemoveAt(i);   // a new request replaces the station's old one
-        _pending.Add(new PendingSpawn { Station = r.StationNodeId, RequestId = r.RequestId ?? "", Guid = guid, RoleNetId = r.UnitNetId, Side = side, RoleName = roleName, DeadlineMs = _nowMs() + SpawnTimeoutMs });
+        _pending.Add(new PendingSpawn { Station = r.StationNodeId, RequestId = r.RequestId ?? "", UnitNetId = unitNetId, RoleNetId = r.UnitNetId, Side = side, RoleName = roleName, DeadlineMs = _nowMs() + SpawnTimeoutMs });
     }
 
-    /// <summary>Each tick while a spawn is pending: the man exists (<c>CreationRequestId</c> = the request, a <c>NetworkIdentity</c>) ⇒ the slot is TakingControl on him and the Player is told; 10 s ⇒ refused.</summary>
+    /// <summary>Each tick while a spawn is pending: the man exists (his pre-allocated network id is in the map, alive) ⇒ the slot is TakingControl on him and the Player is told; 10 s ⇒ refused.</summary>
     private void ResolveSpawns(EntityRepository repo, long nowMs)
     {
         if (_pending.Count == 0) return;
@@ -232,10 +232,7 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
         for (int i = _pending.Count - 1; i >= 0; i--)
         {
             var p = _pending[i];
-            int unitNet = 0;
-            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Lifecycle.Components.CreationRequestId>() && repo.IsComponentTypeRegistered<NetworkIdentity>())
-                foreach (var e in repo.Query().With<Fdp.Toolkit.Lifecycle.Components.CreationRequestId>().With<NetworkIdentity>().Build())
-                    if (repo.GetComponentRO<Fdp.Toolkit.Lifecycle.Components.CreationRequestId>(e).Value == p.Guid) { unitNet = repo.GetComponentRO<NetworkIdentity>(e).Value; break; }
+            int unitNet = _map.TryGetEntity(p.UnitNetId, out var man) && repo.IsAlive(man) ? p.UnitNetId : 0;
             var request = new DeployRequestTopic { RequestId = p.RequestId, StationNodeId = p.Station, UnitNetId = p.RoleNetId };
             if (unitNet != 0)
             {

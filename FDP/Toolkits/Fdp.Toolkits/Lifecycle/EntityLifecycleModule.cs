@@ -604,21 +604,19 @@ namespace Fdp.Toolkit.Lifecycle
                     ? view.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(o.Entity).Value : 0;
                 long tkbType = o.TkbType != 0 || !alive || !view.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(o.Entity)
                     ? o.TkbType : view.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(o.Entity).TkbType;
-                Guid requestId = alive && view.HasComponent<Components.CreationRequestId>(o.Entity)
-                    ? view.GetComponentRO<Components.CreationRequestId>(o.Entity).Value : Guid.Empty;
                 bool owned = !alive || !view.HasComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>(o.Entity)
                     || view.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkAuthority>(o.Entity).HasAuthority;
                 if (o.Construction ? !construction : !destruction) continue;
                 if (o.Construction)
                     cmd.PublishEvent(new EntityConstructionCompleted
                     {
-                        Entity = o.Entity, NetworkId = networkId, TkbType = (Fdp.Core.TkbTypeId)(tkbType), RequestId = requestId, IsLocallyOwned = owned,
+                        Entity = o.Entity, NetworkId = networkId, TkbType = (Fdp.Core.TkbTypeId)(tkbType), IsLocallyOwned = owned,
                         Succeeded = o.Ok, Resumed = o.Resumed, Failure = o.Ok ? default : o.Text, FrameNumber = o.Frame,
                     });
                 else
                     cmd.PublishEvent(new EntityDestructionCompleted
                     {
-                        Entity = o.Entity, NetworkId = networkId, TkbType = (Fdp.Core.TkbTypeId)(tkbType), RequestId = requestId, IsLocallyOwned = owned,
+                        Entity = o.Entity, NetworkId = networkId, TkbType = (Fdp.Core.TkbTypeId)(tkbType), IsLocallyOwned = owned,
                         Forced = o.Forced, Reason = o.Text, FrameNumber = o.Frame,
                     });
             }

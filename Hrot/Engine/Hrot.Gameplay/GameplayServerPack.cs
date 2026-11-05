@@ -59,11 +59,27 @@ public sealed class GameplayServerPack : INodeCapability
         Compose(context.Participant, context.EntityMap, context.NodeId.Value, _election?.Invoke(context), input, SpawnerOf(_creation));
     }
 
-    /// <summary>The spawner over the node's creation pack: one man, owned by THIS node (the Brain that runs the server), through the one AUTHOR path (<c>RequestEntityCreation</c>); empty when the pack is not there (yet).</summary>
+    /// <summary>The spawner over the node's creation pack: one man, owned by THIS node (the Brain that runs the server), his network id
+    /// PRE-ALLOCATED so the server knows him from the start (⭐ CE-4266 — the load phase's and traffic's way; nothing about the request stays on
+    /// him); 0 when the pack is not there (yet).</summary>
     public static DeployProcessorSystem.RoleSpawner? SpawnerOf(Func<Hrot.Common.EntityCreation.EntityCreation?>? creation)
         => creation is null ? null : (tkb, at, comps) =>
         {
             var c = creation();
-            return c is null ? Guid.Empty : c.RequestEntityCreation(tkb, at, comps, owner: c.NodeId);
+            if (c is null) return 0;
+            int netId = c.AllocateNetworkId();
+            var components = new List<object>(comps.Count + 1);
+            for (int i = 0; i < comps.Count; i++) components.Add(comps[i]);
+            components.Add(at);
+            c.Publish(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
+            {
+                RequestId             = Guid.NewGuid(),
+                OwnerAppInstanceId    = c.NodeId,
+                TkbType               = (Fdp.Core.TkbTypeId)(tkb),
+                InitialComponents     = components,
+                InitType              = Fdp.Toolkit.Replication.ReliableInitType.AllPeers,   // RequestEntityCreation's default
+                PreAllocatedNetworkId = netId,
+            });
+            return netId;
         };
 }

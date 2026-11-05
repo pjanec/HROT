@@ -43,8 +43,10 @@ namespace Hrot.Common.EntityCreation
             Hrot.Map.Common.Services.StaticObstacleBakeSystem obstacleBakeSystem,
             SeatPresetSystem seatPresetSystem,
             Fdp.Toolkit.NetworkSpawning.Systems.SpawnLevelSystem spawnLevelSystem,
-            Hrot.Common.Macros.MacroExpansionSystem macroExpansionSystem)
+            Hrot.Common.Macros.MacroExpansionSystem macroExpansionSystem,
+            Fdp.Toolkit.NetworkSpawning.INetworkIdAllocator idAllocator)
         {
+            _idAllocator         = idAllocator ?? throw new ArgumentNullException(nameof(idAllocator));
             MacroExpansionSystem = macroExpansionSystem;
             SpawnLevelSystem   = spawnLevelSystem;
             ObstacleBakeSystem = obstacleBakeSystem;
@@ -59,6 +61,15 @@ namespace Hrot.Common.EntityCreation
             NetworkSystems     = networkSystems;
             World              = world;
         }
+
+        private readonly Fdp.Toolkit.NetworkSpawning.INetworkIdAllocator _idAllocator;
+
+        /// <summary>
+        /// ⭐ CE-4266 — a network id from this node's allocator (the one the request system would otherwise use), for an author that must know
+        /// its entity from the start: it names it as the request's <c>PreAllocatedNetworkId</c> and finds the entity by that id once it exists
+        /// (the load phase, terrain objects and traffic do the same). ⛔ Nothing about the request is kept on the entity.
+        /// </summary>
+        public int AllocateNetworkId() => _idAllocator.AllocateId();
 
         /// <summary>
         /// ⭐ The world this node creates entities in. 📌 <c>CE-515</c>: lets a multi-node process (<c>--mode all</c>)
