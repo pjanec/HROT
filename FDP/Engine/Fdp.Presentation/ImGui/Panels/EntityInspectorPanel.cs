@@ -430,15 +430,25 @@ public class EntityInspectorPanel
     /// Gets filtered entities list. Internal for testing.
     /// </summary>
     internal static List<Entity> GetFilteredEntities(IInspectableSession session, string searchFilter, int limit = 1000)
+        => FillFilteredEntities(session, searchFilter, limit, new List<Entity>(System.Math.Min(limit, 1000)));
+
+    private readonly List<Entity> _rows = new();   // ⭐ CE-2403 — the list's rows, refilled each frame
+
+    /// <summary>⭐ CE-2403 — <see cref="GetFilteredEntities"/> into a caller's list (cleared first).</summary>
+    internal static List<Entity> FillFilteredEntities(IInspectableSession session, string searchFilter, int limit, List<Entity> results)
     {
-        var results = new List<Entity>(System.Math.Min(limit, 1000));
+        results.Clear();
         var entities = session.GetEntities();
         int count = 0;
 
         bool hasFilter = !string.IsNullOrWhiteSpace(searchFilter);
 
-        foreach (var entity in entities)
+        var asList = entities as List<Entity>;   // ⭐ CE-2403 — index it when it is a list (no boxed enumerator)
+        int n = asList?.Count ?? 0;
+        using var en = asList == null ? entities.GetEnumerator() : null;
+        for (int k = 0; asList != null ? k < n : en!.MoveNext(); k++)
         {
+            var entity = asList != null ? asList[k] : en!.Current;
             bool isSingleton = entity == RepositoryAdapter.SingletonEntity;
 
             if (!isSingleton)
@@ -470,16 +480,19 @@ public class EntityInspectorPanel
 
         ImGuiApi.BeginChild("EntityList_Scroll");
 
-        var entities = GetFilteredEntities(session, _searchFilter);
-        int count = 0;
+        // ⭐ CE-2403 (R-2084) — the filtered list is a reused field, and only the rows ON SCREEN are built (ImGuiRowClip): every row's
+        //   label strings for up to 1000 entities, every frame, were ≈ 320 KB of garbage per frame on Crossfire.
+        var entities = FillFilteredEntities(session, _searchFilter, 1000, _rows);
+        int count = entities.Count;
 
         bool ctrl  = ImGuiApi.GetIO().KeyCtrl;
         bool shift = ImGuiApi.GetIO().KeyShift;
 
-        for (int vi = 0; vi < entities.Count; vi++)
+        using var clip = new Fdp.Presentation.Utils.ImGuiRowClip(entities.Count);
+        while (clip.Step())
+        for (int vi = clip.Start; vi < clip.End; vi++)
         {
             var entity = entities[vi];
-            count++;
             bool isSingleton = entity == RepositoryAdapter.SingletonEntity;
             GetEntityDisplayString(session, entity, out int? netId, out string? name);
             string baseLabel = isSingleton ? "[Singletons]" : $"[{entity.Index}, v{entity.Generation}]";

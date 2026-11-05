@@ -573,12 +573,19 @@ namespace Fdp.Presentation.Panels
 
         // ── Private: message list ────────────────────────────────────────────
 
+        private readonly List<MessageLogEntry> _messages = new();
+        private readonly List<int> _filtered = new();
+
         private void DrawMessageList(IMessageLogSource source, TabState state)
         {
-            var messages = source.GetMessages();
+            // ⭐ CE-2403 (R-2084) — the messages and the filtered indices go into lists this panel reuses: a snapshot array of up to
+            //   10 000 entries plus a fresh index list every frame were ≈ 120 KB of garbage per frame on Crossfire.
+            var messages = _messages;
+            source.CopyMessagesTo(messages);
 
             // Build filtered index list for this frame
-            var filtered = new List<int>(messages.Count);
+            var filtered = _filtered;
+            filtered.Clear();
             for (int i = 0; i < messages.Count; i++)
             {
                 var msg = messages[i];

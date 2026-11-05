@@ -120,6 +120,70 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             Assert.Equal(0, allocated);
         }
 
+        /// <summary>
+        /// ⭐ CE-2402 (DESIGN_Evaluation_Cost_And_Cadence §10) — with more matched entities than <c>FreshEntitiesPerFrame</c>, a rule draws a SLICE
+        /// fresh per frame and re-emits the rest from their held pictures: every frame still holds EXACTLY one picture per entity in ascending
+        /// entity order, no picture is older than the period, a new entity is drawn at once and a destroyed one is gone at once, a steady frame
+        /// allocates nothing, and with the default (0) every entity is drawn every frame.
+        /// 🔴 Red-proof: the held branch skipping the re-emit ⇒ the frame holds only the slice and the per-frame count fails.
+        /// </summary>
+        [Fact]
+        public void CE2402_ASliceIsDrawnFresh_TheRestIsHeld_EveryFrameShowsEveryEntityOnce()
+        {
+            var (repo, _, registry) = CreateContext();
+            var buf = new DebugPrimitiveBuffer(4096);
+            var projector = new LineGizmo();
+            registry.Register(projector, new[] { typeof(GizmoTestCompA) });
+            var sys = new StatelessGizmoSystem(registry, buf) { FreshEntitiesPerFrame = 10, MaxHeldFrames = 3 };   // 40 entities ⇒ period 4
+            var ents = new List<Entity>();
+            for (int i = 0; i < 40; i++) { var e = repo.CreateEntity(); repo.AddComponent(e, new GizmoTestCompA()); ents.Add(e); }
+
+            var lastDrawn = new Dictionary<int, int>();
+            int[] Frame(int f)
+            {
+                buf.EndFrame(0f); projector.Drawn.Clear();
+                sys.Execute(repo, 0f);
+                foreach (var i in projector.Drawn) lastDrawn[i] = f;
+                var frame = buf.GetFrame(); var xs = new int[frame.Length];
+                for (int k = 0; k < frame.Length; k++) xs[k] = (int)frame[k].LineStart.X;
+                return xs;
+            }
+            int[] Expected() { var l = new List<int>(); foreach (var e in ents) if (repo.IsAlive(e)) l.Add(e.Index); return l.ToArray(); }
+
+            Assert.Equal(Expected(), Frame(0));
+            Assert.Equal(40, projector.Drawn.Count);                                     // no picture yet: all fresh
+            for (int f = 1; f <= 12; f++)
+            {
+                Assert.Equal(Expected(), Frame(f));                                      // one picture per entity, in order
+                Assert.InRange(projector.Drawn.Count, 9, 11);                            // a quarter drawn fresh
+                foreach (var e in ents) Assert.True(f - lastDrawn[e.Index] < 4, $"entity {e.Index} held {f - lastDrawn[e.Index]} frames");
+            }
+
+            var born = repo.CreateEntity(); repo.AddComponent(born, new GizmoTestCompA()); ents.Add(born);
+            repo.DestroyEntity(ents[3]);
+            Assert.Equal(Expected(), Frame(13));
+            Assert.Contains(born.Index, projector.Drawn);                                // new ⇒ drawn at once
+
+            Frame(14); Frame(15);
+            long a0 = GC.GetAllocatedBytesForCurrentThread();
+            for (int f = 16; f < 20; f++) { buf.EndFrame(0f); projector.Drawn.Clear(); sys.Execute(repo, 0f); }
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - a0);
+
+            sys.FreshEntitiesPerFrame = 0;                                               // off ⇒ every entity every frame
+            Frame(20);
+            Assert.Equal(Expected().Length, projector.Drawn.Count);
+        }
+
+        private sealed class LineGizmo : IStatelessGizmo
+        {
+            public readonly List<int> Drawn = new(128);
+            public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder b)
+            {
+                Drawn.Add(entity.Index);
+                b.DrawLine(new System.Numerics.Vector3(entity.Index, 0, 0), new System.Numerics.Vector3(entity.Index, 1, 0), default);
+            }
+        }
+
         private sealed class OrderGizmo : IStatelessGizmo
         {
             private readonly string _tag; private readonly List<string> _order;

@@ -37,10 +37,15 @@ namespace Fdp.Presentation.Adapters
             return _repo.IsAlive(e);
         }
 
+        // ⭐ CE-2403 (R-2084) — refilled per call, not re-allocated (the inspector asks every frame). ⚠ The returned list is valid until the
+        //   next call — every caller enumerates it at once or copies it (ParamUsage: ToList).
+        private readonly List<Entity> _entities = new();
+
         public IEnumerable<Entity> GetEntities()
         {
             // Singleton pseudo-entity is always the first entry.
-            var list = new List<Entity>();
+            var list = _entities;
+            list.Clear();
             list.Add(SingletonEntity);
             foreach(var e in _repo.Query().Build())
             {

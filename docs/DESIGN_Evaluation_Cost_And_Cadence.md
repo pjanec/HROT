@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-04 (§3.0: the cadence is a generic BRAIN mechanism — Cadence / BrainCadence / CadenceGate; rules are one policy)
+updated: 2026-11-04 (§10 Part D — held gizmo slices, CE-2402; §0e garbage rows CE-2398…2403)
 build-state: BUILDING — D1–D8 APPROVED 2026-11-04 (R-2083); tasks T1–T10 = CE-2382…CE-2391 (§7c); T1–T10 BUILT (§3.0a, §0a)
-current-answer: §2 (the picture), §3 (A — rules at a cadence), §4 (B — rules UI only when watched), §5 (C — per-entity costs), §6 (decisions)
+current-answer: §2 (the picture), §3 (A — rules at a cadence), §4 (B — rules UI only when watched), §5 (C — per-entity costs), §6 (decisions), §0e (garbage, per frame), §10 (D — map gizmos held in slices)
 stale-below: none
 known-rot: none
 known-conflict: none
@@ -118,14 +118,14 @@ within run-to-run noise. ⇒ kept for the ≈ 3 GB / 100 s of garbage it removes
 
 | source | per frame | what allocates (read in the code) |
 |---|---|---|
-| **live timeline** (`HrotNodeContext.StepTimeline` → `TimelineFrameScanner`) | **≈ 730 KB** | not yet read — `ValueChangeLane` boxes each read value (`ComponentBox.Read`) |
-| **UI windows** (`WindowManager.Render`) | **≈ 650 KB** | not yet split by window |
+| **live timeline** (`HrotNodeContext.StepTimeline` → `TimelineFrameScanner`) | **≈ 730 KB** | 📐 the `objective.score` / `objective.state` / `rules.fired` lanes ≈ 230 KB each + `state.task` ≈ 53 KB: a rule writes its `ObjectiveStatus` every tick (mostly unchanged), the chunk version moves, and `ValueChangeLane` re-read every unit through a boxing read (`ComponentBox.Read`) · ✅ FIXED CE-2398: identical bytes are skipped before the box; same lane output |
+| **UI windows** (`WindowManager.Render`) | **≈ 650 KB** | 📐 split by CE-2401 (`HROT_FRAME_STATS=1` now prints garbage per window): `editor_fdp_inspector` ≈ 320 (a label for every one of ≤ 1000 entities), `fdp_message_log` ≈ 185 (a 10 000-entry snapshot array + an index list per frame), `editor_fdp_events` ≈ 112 (a label for every one of 500 events) · ✅ FIXED CE-2403: `ImGuiRowClip` builds only on-screen rows; the lists are reused |
 | **recorder — managed tables** (`RecordManagedTable`) | **≈ 480 KB** | per changed managed table: `new T?[16384]` (128 KB, large-object heap) + `new MemoryStream` + `ToArray()`  · ✅ FIXED CE-2397: one reused buffer per type, serialized into the frame's writer |
 | editor subsystem's own update, outside the kernel | ≈ 400 KB | not yet split (`GizmoFramePanel.Publish`, `MapCanvas.Update`, …) |
-| **SoD world copy** (`OnDemandProvider.AcquireView`, NavigationSolver + Eqs) | ≈ 300 KB | not yet read |
+| **SoD world copy** (`OnDemandProvider.AcquireView`, NavigationSolver + Eqs) | ≈ 300 KB | 📐 a pooled snapshot is `Clear`ed on release and re-synced on acquire, and each managed table re-allocated `new T[16384]` (128 KB, large-object heap) per chunk · ✅ FIXED CE-2399: the table keeps its emptied chunk arrays for the next sync |
 | **recorder — unmanaged tables** | ≈ 160 KB | ⚠ CE-2392's `LastChunk` buffers (64 KB) are DROPPED on every keyframe and re-allocated per chunk  · ✅ FIXED CE-2397: a keyframe resets their length |
 | world draw | ≈ 150 KB | not yet split |
-| the other systems (~140) | ≈ 250 KB | 📌 ~25 systems allocate exactly 1.2 KB/frame: `repo.Query().With…().Build()` per frame (a `QueryBuilder` + an `EntityQuery`, 446 call sites); the scheduler's `ExecuteGroup` (`Stopwatch.StartNew`, `foreach` over an interface) |
+| the other systems (~140) | ≈ 250 KB | 📌 ~25 systems allocate exactly 1.2 KB/frame: `repo.Query().With…().Build()` per frame (a `QueryBuilder` + an `EntityQuery`, 446 call sites); the scheduler's `ExecuteGroup` (`Stopwatch.StartNew`, `foreach` over an interface) · ✅ FIXED CE-2400: the repository rents one builder and keeps the query it built per filter (queries are immutable); `ExecuteGroup` uses a timestamp and an index loop |
 
 ⇒ ⭐ the systems the scheduler times are ≈ 0.8 MB of the 3.3 MB (the recorder is ≈ 0.65 MB of that); ⭐⭐ most garbage is the timeline, the UI and
 the recorder's managed path.
@@ -598,3 +598,84 @@ reads under `HasAuthority`) instead; E1 stays the real fix ([DESIGN_Egress_Chang
 - **Waking a measure only when an event names its men** — saves more, but needs a men-of-subject lookup per event; the window at 5 Hz already makes the measures ≈ 12× cheaper.
 - **A second reader / index beside `RulesReader`** — two owners of one concept (ruling 9); `RulesFrame` memoises the one reader.
 - **Egress chunk gating here (C4)** — real but hazardous; its own backend design.
+
+## 10. Part D — the map's per-entity gizmos refresh a SLICE per frame and HOLD the rest *(CE-2402, `2026-11-04`)*
+
+⭐ User: *"the map gizmos … are mostly for debugging … if there is something we can save by reducing the update rate of the gizmos … it could be
+adaptive, that for big amount of entities we can update at less frequency"* · *"first find the reserves in how the stuff works now"* (done: §0c).
+
+**INVENTORY** — `search_graph` `.*(TimeSlice|Throttl|Interleav|Cadence|Budget).*` over `Fdp.Toolkits/Diagnostics` + grep `MaxGizmoFrameMs`:
+⭐ `DataDrivenGizmoSystem._timeSliceOffset` (`:426–467`) and `StatelessGizmoSystem.MaxGizmoFrameMs` — a wall-clock budget that STOPS
+drawing when spent (the rest of the entities simply do not draw that frame ⇒ flicker); 📐 no production site sets either (grep: only the
+`GlobalDebugSettings.MaxGizmoFrameMs` field, read by nothing). `DebugPrimitiveBuffer` (`EndFrame` clears; lifetime > 0 re-injects) —
+the store a held primitive goes back into. Corpus: no design rules a gizmo refresh rate (searched `docs/` + `.dev/`, *gizmo* × *cadence /
+interleave / throttle / reduced rate*).
+
+```mermaid
+classDiagram
+    class StatelessGizmoSystem {
+        +int FreshEntitiesPerFrame  // 0 = every entity every frame (default)
+        +int MaxHeldFrames          // the longest an entity's picture is held
+        -RuleHold[] _holds          // one per rule, reused
+        +Execute(view, dt)
+    }
+    class RuleHold {
+        -DebugPrimitive[] prev, next  // last frame's / this frame's pictures, back to back
+        -int[] start, len, gen, age   // per entity index, in prev
+        +Swap()
+    }
+    class DebugPrimitiveBuffer {
+        +int Count
+        +GetFrame() ReadOnlySpan
+        +AppendRaw(in DebugPrimitive)
+    }
+    class IStatelessGizmo { +Draw(view, entity, builder) }
+    StatelessGizmoSystem "1" *-- "rules" RuleHold
+    StatelessGizmoSystem ..> DebugPrimitiveBuffer : copies the fresh range, re-appends the held one
+    StatelessGizmoSystem ..> IStatelessGizmo : draws only the entities due
+```
+*What the picture shows that prose hid: the held picture is RE-EMITTED into the same buffer, in the same rule order and entity order —
+so the hit-test (CE-259r: stateless first), the draw order and the layer filter see a frame indistinguishable from a full one.*
+
+```mermaid
+sequenceDiagram
+    participant S as StatelessGizmoSystem
+    participant H as RuleHold (rule r)
+    participant B as DebugPrimitiveBuffer
+    participant P as projector
+    Note over S: N = clamp(1 + matched / FreshEntitiesPerFrame, 1, MaxHeldFrames + 1)
+    loop each matched entity i, ascending
+        alt held picture valid (same generation, age < N) and i mod N ≠ frame mod N
+            S->>B: AppendRaw(prev[start[i] .. +len[i]])
+        else due
+            S->>P: Draw(view, i, B)
+        end
+        S->>H: copy B[mark .. Count) into next (lifetime > 0 excluded — the buffer re-injects those itself)
+    end
+    S->>H: Swap()
+```
+
+```mermaid
+graph TD
+    MIP["MapInteractionPack.BuildRenderLayer<br/>(every map host: editor, CGF map, Stride)"] -->|constructs, sets FreshEntitiesPerFrame| SG["StatelessGizmoSystem"]
+    MIP --> GRP["TogglablePostSimulationGroup GizmoExecution<br/>stateless → globalManager → dataDriven → selfCheck"]
+    HOST["the host's frame: buffer.EndFrame, then the group"] -->|every frame| GRP
+    GRP --> SG
+    SG --> BUF["DebugPrimitiveBuffer"]
+    BUF --> LAYER["DebugGizmoLayer: draw + hit-test"]
+```
+*What it shows: one constructor reaches every map host, so the refresh policy is set in ONE place; the group still runs every frame — only
+how many projectors run inside it changes.*
+
+| ⭐ rule | why |
+|---|---|
+| ⭐⭐ **off by default (`FreshEntitiesPerFrame = 0`)**; the map pack turns it on | ⭐ tests and every other host keep exact per-frame behaviour |
+| ⭐⭐ **adaptive by count**: ≤ `FreshEntitiesPerFrame` matched ⇒ every frame; more ⇒ period N grows, capped by `MaxHeldFrames + 1` | the user's "for big amount of entities … less frequency" |
+| ⭐⭐ **a new / re-generated / newly matched entity is always fresh; a gone one vanishes at once** | ⛔ a held picture never outlives its entity |
+| ⭐ **interleaved by entity index** (`i mod N = frame mod N`), never "all every Nth frame" | ⭐ the cost is spread, so no spike frame |
+| ⭐ **visibility is asked every frame** (global per rule, per entity) — a hidden one is neither drawn nor held | ⛔ toggling a layer off never shows a stale picture |
+| ⛔ **the sim, the stateful gizmos (`DataDrivenGizmoSystem`, tools, selection) and input are untouched** | the held part is the per-entity overlay only (avatars, labels, routes) |
+
+Rejected: **the existing budget slicing** (`MaxGizmoFrameMs`) — sheds by not drawing ⇒ flicker, and the shed set depends on wall-clock ·
+**render the map to a texture at a reduced rate** — the map's camera would lag; a ui-lane change of the renderer · **skip the whole group on
+some frames** — the buffer is cleared every frame, so the map would blink, and the tools' hit-test would miss.

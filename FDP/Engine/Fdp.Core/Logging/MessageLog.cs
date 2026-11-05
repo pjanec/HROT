@@ -113,6 +113,18 @@ namespace Fdp.Core.Logging
         /// </summary>
         IReadOnlyList<MessageLogEntry> GetMessages();
 
+        /// <summary>
+        /// ⭐ CE-2403 (R-2084) — the messages copied into the caller's reused list (cleared first): the Message Log asks every frame, and a
+        /// snapshot array of up to <see cref="MessageLogLimits.MaxRetained"/> entries per frame was ≈ 80 KB of garbage. The default copies
+        /// <see cref="GetMessages"/>; the engine's sources copy under their lock without a snapshot.
+        /// </summary>
+        void CopyMessagesTo(List<MessageLogEntry> into)
+        {
+            into.Clear();
+            var all = GetMessages();
+            for (int i = 0; i < all.Count; i++) into.Add(all[i]);
+        }
+
         /// <summary>Removes all accumulated messages.</summary>
         void Clear();
 

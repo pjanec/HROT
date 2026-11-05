@@ -74,6 +74,12 @@ namespace Fdp.Toolkit.Behavior.Events
             lock (_lock) return _messages.ToArray();
         }
 
+        /// <summary>⭐ CE-2403 — copied under the lock into the caller's list, no snapshot array (the Message Log asks every frame).</summary>
+        public void CopyMessagesTo(List<MessageLogEntry> into)
+        {
+            lock (_lock) { into.Clear(); into.AddRange(_messages); }
+        }
+
         /// <summary>Clears the rows. ⚠ The de-duplication memory is kept, so a fault already shown is not re-added by a late
         /// duplicate.</summary>
         public void Clear()

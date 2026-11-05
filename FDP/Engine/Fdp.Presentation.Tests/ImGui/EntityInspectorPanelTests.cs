@@ -21,6 +21,29 @@ namespace Fdp.Presentation.Tests
     [Collection("ImGui Sequential")]
     public class EntityInspectorPanelTests
     {
+        /// <summary>
+        /// ⭐ CE-2403 (R-2084) — 1000 entities: the list builds only the rows on screen and reuses its lists, so a steady frame allocates a few KB,
+        /// not a label per entity (≈ 320 KB/frame on Crossfire); the rows still list every entity (the filter result is complete).
+        /// 🔴 Red-proof: the row loop over every entity (no ImGuiRowClip) ⇒ the bound fails.
+        /// </summary>
+        [Fact]
+        public void CE2403_AThousandEntities_BuildOnlyTheVisibleRows_AndAllocateLittle()
+        {
+            using var fixture = new ImGuiTestFixture();
+            using var repo = new EntityRepository();
+            for (int i = 0; i < 1000; i++) repo.CreateEntity();
+            var panel = new EntityInspectorPanel();
+            var context = new FakeInspectorContext();
+            var session = new RepositoryAdapter(repo);
+            void Frame() { fixture.NewFrame(); panel.Draw(session, context); fixture.Render(); }
+            for (int i = 0; i < 5; i++) Frame();
+            long a0 = System.GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 10; i++) Frame();
+            long perFrame = (System.GC.GetAllocatedBytesForCurrentThread() - a0) / 10;
+            Assert.True(perFrame < 24 * 1024, $"{perFrame} B/frame for 1000 entities");
+            Assert.Equal(1001, EntityInspectorPanel.GetFilteredEntities(session, "", 1000).Count);   // the singleton row + every entity
+        }
+
         [Fact]
         public void Draw_SmokeTest_RunsWithoutException()
         {

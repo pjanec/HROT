@@ -66,6 +66,12 @@ namespace Fdp.Core.Logging
                 return _messages.ToArray();
         }
 
+        /// <summary>⭐ CE-2403 — copied under the lock into the caller's list, no snapshot array (the Message Log asks every frame).</summary>
+        public void CopyMessagesTo(List<MessageLogEntry> into)
+        {
+            lock (_lock) { into.Clear(); into.AddRange(_messages); }
+        }
+
         public void Clear()
         {
             lock (_lock)

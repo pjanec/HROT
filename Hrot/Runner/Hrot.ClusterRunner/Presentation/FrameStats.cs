@@ -18,6 +18,8 @@ internal sealed class FrameStats
     private readonly Stopwatch _part = new();
     private readonly List<double> _frames = new();
     private double _update, _draw, _ui, _windowStart, _lastFrame;
+    // ⭐ CE-2401 (R-2084) — the garbage of each part, beside its time (the main thread's allocation counter)
+    private long _partBytes, _updateBytes, _drawBytes, _uiBytes;
     private int _maxVtx; private string _maxVtxOwner = "";
 
     public static FrameStats? FromEnvironment()
@@ -28,11 +30,12 @@ internal sealed class FrameStats
     }
 
     /// <summary>Start timing one part of the frame.</summary>
-    public void Begin() => _part.Restart();
+    public void Begin() { _partBytes = GC.GetAllocatedBytesForCurrentThread(); _part.Restart(); }
 
-    public void EndUpdate() => _update += _part.Elapsed.TotalMilliseconds;
-    public void EndDraw() => _draw += _part.Elapsed.TotalMilliseconds;
-    public void EndUi() => _ui += _part.Elapsed.TotalMilliseconds;
+    private long PartBytes => GC.GetAllocatedBytesForCurrentThread() - _partBytes;
+    public void EndUpdate() { _update += _part.Elapsed.TotalMilliseconds; _updateBytes += PartBytes; }
+    public void EndDraw() { _draw += _part.Elapsed.TotalMilliseconds; _drawBytes += PartBytes; }
+    public void EndUi() { _ui += _part.Elapsed.TotalMilliseconds; _uiBytes += PartBytes; }
 
     /// <summary>
     /// ⭐ CE-4223 — after <c>rlImGui.End</c> (the draw data exists): the most vertices ANY draw list holds this frame, and the window that owns it. ImGui asserts at 65 536 (16-bit indices) and the editor dies, so the
@@ -63,10 +66,16 @@ internal sealed class FrameStats
         Console.WriteLine(
             $"[FrameStats] {n} frames  mean {sorted.Average():0.0} ms  p50 {sorted[n / 2]:0.0}  p95 {sorted[Math.Min(n - 1, (int)(n * 0.95))]:0.0}" +
             $"  max {sorted[n - 1]:0.0}  | update {_update / n:0.0}  draw {_draw / n:0.0}  ui {_ui / n:0.0} ms/frame  | largest draw list {_maxVtx} vertices ({_maxVtxOwner})");
-        var top = Fdp.Presentation.WindowManager.WindowTimings.Drain().Take(6).ToList();
+        var all = Fdp.Presentation.WindowManager.WindowTimings.DrainWithBytes();
+        var top = all.Take(6).ToList();
         if (top.Count > 0) Console.WriteLine("[FrameStats]   per window (ms/frame, calls/frame): " + string.Join(" · ", top.Select(w => $"{w.Name} {w.Ms / n:0.0} ({(double)w.Calls / n:0.#})")));
+        // ⭐ CE-2401 (R-2084) — the garbage per window: what kills smoothness is the GC, not only the time
+        var heavy = all.Where(w => w.Bytes / n >= 1024).OrderByDescending(w => w.Bytes).Take(8).ToList();
+        if (heavy.Count > 0) Console.WriteLine("[FrameStats]   per window garbage (KB/frame): " + string.Join(" · ", heavy.Select(w => $"{w.Name} {w.Bytes / n / 1024}")));
         _frames.Clear();
-        _update = _draw = _ui = 0; _maxVtx = 0;
+        Console.WriteLine($"[FrameStats]   garbage (KB/frame): update {_updateBytes / n / 1024}  draw {_drawBytes / n / 1024}  ui {_uiBytes / n / 1024}" +
+                          $"  | gc0 {GC.CollectionCount(0)} gc1 {GC.CollectionCount(1)} gc2 {GC.CollectionCount(2)} (since start)");
+        _update = _draw = _ui = 0; _maxVtx = 0; _updateBytes = _drawBytes = _uiBytes = 0;
         _windowStart = now;
     }
 }

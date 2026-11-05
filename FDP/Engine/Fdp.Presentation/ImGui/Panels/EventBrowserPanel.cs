@@ -286,13 +286,18 @@ public class EventBrowserPanel
         ImGuiApi.SameLine();
         uint? targetFrame = CurrentFrameProvider?.Invoke();
         if (_currentFrameOnly && !targetFrame.HasValue && snapshot.Length > 0)
-            targetFrame = snapshot.Max(e => e.Frame);
+            targetFrame = MaxFrame(snapshot);
 
-        int visible = snapshot.Count(e =>
-            (!_currentFrameOnly || (targetFrame.HasValue && e.Frame == targetFrame.Value))
-            &&
-            (_selectedProvider == "All" || e.ProviderName == _selectedProvider)
-            && !_disabledTypes.Contains(e.TypeName));
+        // ⭐ CE-2403 (R-2084) — a loop, not a LINQ Count with a capturing lambda, every frame
+        int visible = 0;
+        for (int i = 0; i < snapshot.Length; i++)
+        {
+            var e = snapshot[i];
+            if ((!_currentFrameOnly || (targetFrame.HasValue && e.Frame == targetFrame.Value))
+                && (_selectedProvider == "All" || e.ProviderName == _selectedProvider)
+                && !_disabledTypes.Contains(e.TypeName))
+                visible++;
+        }
 
         // Select All button — populates selection with all currently visible events.
         ImGuiApi.SameLine();
@@ -358,6 +363,15 @@ public class EventBrowserPanel
         ImGuiApi.EndPopup();
     }
 
+    private readonly List<CapturedEventDto> _viewList = new();   // ⭐ CE-2403 — the list's rows, refilled each frame
+
+    private static uint MaxFrame(CapturedEventDto[] snapshot)
+    {
+        uint max = 0;
+        for (int i = 0; i < snapshot.Length; i++) if (snapshot[i].Frame > max) max = snapshot[i].Frame;
+        return max;
+    }
+
     private void DrawEventList(CapturedEventDto[] snapshot)
     {
         if (ImGuiApi.BeginChild("EventListScroll", new Vector2(0, 0)))
@@ -370,10 +384,13 @@ public class EventBrowserPanel
             {
                 // Build the filtered view list (newest first), preserving index semantics
                 // for Shift+Click range selection.
-                var viewList = new List<CapturedEventDto>();
+                // ⭐ CE-2403 (R-2084) — a reused list, and only the rows on screen are built (ImGuiRowClip): every row's label strings for
+                //   all 500 captured events, every frame, were ≈ 112 KB of garbage per frame on Crossfire.
+                var viewList = _viewList;
+                viewList.Clear();
                 uint? targetFrame = CurrentFrameProvider?.Invoke();
                 if (_currentFrameOnly && !targetFrame.HasValue && snapshot.Length > 0)
-                    targetFrame = snapshot.Max(e => e.Frame);
+                    targetFrame = MaxFrame(snapshot);
 
                 for (int i = snapshot.Length - 1; i >= 0; i--)
                 {
@@ -400,7 +417,9 @@ public class EventBrowserPanel
                         bool ctrl  = ImGuiApi.GetIO().KeyCtrl;
                         bool shift = ImGuiApi.GetIO().KeyShift;
 
-                        for (int vi = 0; vi < viewList.Count; vi++)
+                        using var clip = new Fdp.Presentation.Utils.ImGuiRowClip(viewList.Count);
+                        while (clip.Step())
+                        for (int vi = clip.Start; vi < clip.End; vi++)
                         {
                             var evt = viewList[vi];
                             bool isSelected = _selectedEvents.Contains(evt);

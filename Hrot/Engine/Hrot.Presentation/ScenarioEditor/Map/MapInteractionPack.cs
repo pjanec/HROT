@@ -170,7 +170,10 @@ namespace Hrot.ScenarioEditor.Map
             // 🔒 NO isSelectedPredicate here, ever. On StatelessGizmoSystem the predicate is ONE BLANKET
             // GATE over every projector the host owns — the entity avatars, the routes, the tactical areas,
             // the map overlay. That is CE-123, and the rail TheMapIsNotSelectionGatedRails pins it.
-            var stateless = new StatelessGizmoSystem(statelessRegistry, buffer);
+            // ⭐ CE-2402 (DESIGN_Evaluation_Cost_And_Cadence §10; user: "for big amount of entities we can update at less frequency") — up to
+            //   256 entities per rule every frame; beyond that a rule refreshes a slice per frame and HOLDS the rest (re-emitted, so the frame,
+            //   the hit-test and the draw order are complete), never more than 3 frames old. Set here so every map host gets the same policy.
+            var stateless = new StatelessGizmoSystem(statelessRegistry, buffer) { FreshEntitiesPerFrame = 256, MaxHeldFrames = 3 };
 
             // Group member order follows the four hosts that agree (global manager, drag handles, map);
             // the editor listed the first two the other way round, which nothing depended on.

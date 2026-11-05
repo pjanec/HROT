@@ -41,6 +41,8 @@ public sealed class MessageLogCostRail
 #pragma warning restore CS0067
     }
 
+    private static long LastBytesPerFrame;
+
     private static (int Rows, double MsPerFrame, int Calls, double ViewModelMs) Draw(int n)
     {
         var src = new Source(n);
@@ -58,7 +60,9 @@ public sealed class MessageLogCostRail
         src.Calls = 0;
         var sw = Stopwatch.StartNew();
         const int frames = 20;
+        long a0 = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < frames; i++) Step();
+        LastBytesPerFrame = (GC.GetAllocatedBytesForCurrentThread() - a0) / frames;
         double ms = sw.Elapsed.TotalMilliseconds / frames;
         int calls = src.Calls / frames;
         var vm0 = Stopwatch.StartNew();
@@ -76,6 +80,20 @@ public sealed class MessageLogCostRail
         Assert.True(big.Rows >= 10, "...and it is not empty");
         Assert.Equal(1, big.Calls);   // the source is read ONCE a frame (the throw-away view model no longer reads it too)
         Assert.True(small.Rows <= 200);
+    }
+
+    /// <summary>
+    /// ⭐ CE-2403 (R-2084) — 20 000 messages: the panel copies them into a list it reuses and filters into a reused index list, so a steady
+    /// frame's garbage is the visible rows' text only — not a snapshot array plus an index list sized to the whole log (≈ 120 KB/frame live).
+    /// 🔴 Red-proof: <c>new List&lt;int&gt;(messages.Count)</c> per frame ⇒ ≥ 80 KB and the bound fails.
+    /// </summary>
+    [SkippableFact]
+    public void ASteadyFrame_AllocatesOnlyTheVisibleRowsText_WhateverTheLogHolds()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        Draw(20_000);
+        Console.WriteLine($"[MessageLogCostRail] 20 000 messages: {LastBytesPerFrame} B/frame");
+        Assert.True(LastBytesPerFrame < 48 * 1024, $"{LastBytesPerFrame} B/frame");
     }
 
     [Fact]

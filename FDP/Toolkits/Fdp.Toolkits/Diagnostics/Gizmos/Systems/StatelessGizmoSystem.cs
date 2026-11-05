@@ -50,6 +50,68 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         public float MaxGizmoFrameMs { get; set; } = 0f;
 
         /// <summary>
+        /// ⭐ CE-2402 (docs/DESIGN_Evaluation_Cost_And_Cadence.md §10) — how many of a rule's matched entities are drawn FRESH per frame before
+        /// the rest are HELD: re-emitted from the picture their projector drew on an earlier frame. 0 (default) = every entity every frame.
+        /// With more matched entities than this, a rule refreshes a slice of them per frame (interleaved by entity index) — period
+        /// <c>1 + (matched − 1) / FreshEntitiesPerFrame</c>, capped at <see cref="MaxHeldFrames"/> + 1. Needs a <see cref="DebugPrimitiveBuffer"/>.
+        /// </summary>
+        public int FreshEntitiesPerFrame { get; set; }
+
+        /// <summary>⭐ CE-2402 — the most frames an entity's picture may be held before it is drawn fresh again.</summary>
+        public int MaxHeldFrames { get; set; } = 3;
+
+        private readonly DebugPrimitiveBuffer? _buffer;
+        private RuleHold?[] _holds = System.Array.Empty<RuleHold?>();
+        private int _frame;
+
+        /// <summary>
+        /// ⭐ CE-2402 — one rule's pictures, double-buffered: <c>Prev</c> holds what each entity emitted last frame (fresh or held), back to
+        /// back; <c>Next</c> is filled this frame and swapped in. Per entity index: where its picture starts, how long it is, the generation it
+        /// was drawn for and how many frames ago it was drawn. Valid only when written on the frame just before (a rule hidden or cut by the
+        /// budget for a frame starts over fresh). Reused — grown, never shrunk.
+        /// </summary>
+        private sealed class RuleHold
+        {
+            public DebugPrimitive[] Prev = new DebugPrimitive[256], Next = new DebugPrimitive[256];
+            public int NextCount;
+            public int[] PrevStart = System.Array.Empty<int>(), PrevLen = System.Array.Empty<int>(), PrevGen = System.Array.Empty<int>(), PrevAge = System.Array.Empty<int>(), PrevStamp = System.Array.Empty<int>();
+            public int[] NextStart = System.Array.Empty<int>(), NextLen = System.Array.Empty<int>(), NextGen = System.Array.Empty<int>(), NextAge = System.Array.Empty<int>(), NextStamp = System.Array.Empty<int>();
+            public int WrittenFrame = int.MinValue;   // the frame Prev was written on
+
+            public void EnsureEntities(int n)
+            {
+                if (PrevStart.Length >= n) return;
+                int size = System.Math.Max(n, PrevStart.Length * 2);
+                System.Array.Resize(ref PrevStart, size); System.Array.Resize(ref PrevLen, size); System.Array.Resize(ref PrevGen, size);
+                System.Array.Resize(ref PrevAge, size); System.Array.Resize(ref PrevStamp, size);
+                System.Array.Resize(ref NextStart, size); System.Array.Resize(ref NextLen, size); System.Array.Resize(ref NextGen, size);
+                System.Array.Resize(ref NextAge, size); System.Array.Resize(ref NextStamp, size);
+            }
+
+            public void Put(int index, int gen, int age, int frame, System.ReadOnlySpan<DebugPrimitive> picture)
+            {
+                int need = NextCount + picture.Length;
+                if (need > Next.Length) System.Array.Resize(ref Next, System.Math.Max(need, Next.Length * 2));
+                int start = NextCount;
+                for (int k = 0; k < picture.Length; k++)
+                {
+                    if (picture[k].LifetimeSeconds > 0f) continue;   // the buffer re-injects a lasting primitive itself
+                    Next[NextCount++] = picture[k];
+                }
+                NextStart[index] = start; NextLen[index] = NextCount - start; NextGen[index] = gen; NextAge[index] = age; NextStamp[index] = frame;
+            }
+
+            public void Swap(int frame)
+            {
+                (Prev, Next) = (Next, Prev);
+                (PrevStart, NextStart) = (NextStart, PrevStart); (PrevLen, NextLen) = (NextLen, PrevLen); (PrevGen, NextGen) = (NextGen, PrevGen);
+                (PrevAge, NextAge) = (NextAge, PrevAge); (PrevStamp, NextStamp) = (NextStamp, PrevStamp);
+                NextCount = 0;
+                WrittenFrame = frame;
+            }
+        }
+
+        /// <summary>
         /// Creates the system.
         /// </summary>
         /// <remarks>
@@ -66,6 +128,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         {
             _registry                   = registry    ?? throw new ArgumentNullException(nameof(registry));
             _drawBuilder                = drawBuilder ?? throw new ArgumentNullException(nameof(drawBuilder));
+            _buffer                     = drawBuilder as DebugPrimitiveBuffer;
             _isSelectedPredicate        = isSelectedPredicate;
             _globalVisibilityCache      = new bool[registry.Rules.Count];
             _globalRulesVisibilityCache = new bool[registry.GlobalRules.Count];
@@ -157,6 +220,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             long budgetTicks = budget > 0f ? (long)(budget * System.Diagnostics.Stopwatch.Frequency / 1000.0) : 0;
             bool budgetExceeded = false;
 
+            int frame = ++_frame;
+            bool holding = FreshEntitiesPerFrame > 0 && _buffer != null;
+            if (holding && _holds.Length < ruleCount) System.Array.Resize(ref _holds, ruleCount);
+
             for (int r = 0; r < ruleCount; r++)
             {
                 // Skip rules whose global visibility policy rejects them.
@@ -169,10 +236,26 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 var matched = _matches[r];
                 int count = _matchCount[r];
 
+                // ⭐ CE-2402 — the period this rule refreshes its entities at (1 = every entity every frame)
+                RuleHold? hold = null;
+                int period = 1;
+                if (holding && count > FreshEntitiesPerFrame)
+                {
+                    period = System.Math.Min(1 + (count - 1) / FreshEntitiesPerFrame, System.Math.Max(1, MaxHeldFrames + 1));
+                    if (period > 1)
+                    {
+                        hold = _holds[r] ??= new RuleHold();
+                        hold.EnsureEntities(maxIndex + 1);
+                    }
+                }
+                bool prevValid = hold != null && hold.WrittenFrame == frame - 1;
+                int slot = frame % period;
+
                 for (int m = 0; m < count; m++)
                 {
                     int i = matched[m];
-                    var entity = new Entity(i, entityIndex.GetMetadata(i).Generation);
+                    var gen = entityIndex.GetMetadata(i).Generation;
+                    var entity = new Entity(i, gen);
 
                     if (!alwaysDraw && !_isSelectedPredicate!(view, entity))
                         continue;
@@ -193,7 +276,28 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         && !rule.VisibilityPolicy.IsEntityVisible(view, entity))
                         continue;
 
-                    rule.Projector.Draw(view, entity, _drawBuilder);
+                    if (hold == null)
+                    {
+                        rule.Projector.Draw(view, entity, _drawBuilder);
+                    }
+                    else
+                    {
+                        // ⭐ CE-2402 — HOLD the picture drawn on an earlier frame, unless this entity is due (its slice, its age, or no valid picture)
+                        int age = prevValid && hold.PrevStamp[i] == frame - 1 && hold.PrevGen[i] == gen ? hold.PrevAge[i] + 1 : int.MaxValue;
+                        if (age < period && i % period != slot)
+                        {
+                            var held = new System.ReadOnlySpan<DebugPrimitive>(hold.Prev, hold.PrevStart[i], hold.PrevLen[i]);
+                            for (int k = 0; k < held.Length; k++) _buffer!.AppendRaw(in held[k]);
+                            hold.Put(i, gen, age, frame, held);
+                        }
+                        else
+                        {
+                            int mark = _buffer!.Count;
+                            rule.Projector.Draw(view, entity, _drawBuilder);
+                            int end = _buffer.Count;
+                            hold.Put(i, gen, 0, frame, _buffer.GetFrame().Slice(mark, end - mark));
+                        }
+                    }
 
                     // Check budget after each entity (only if budget is active).
                     if (budgetTicks > 0 && System.Diagnostics.Stopwatch.GetTimestamp() - start >= budgetTicks)
@@ -202,6 +306,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         break;
                     }
                 }
+
+                hold?.Swap(frame);
             }
         }
     }
