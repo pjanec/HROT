@@ -623,7 +623,7 @@ namespace Hrot.UI.Common.Map3D
             RestoreView();
         }
 
-        /// <summary>⭐ <c>CE-1220</c> — Tab on the fall screen: the first living man of the fallen man's squad (his leader, the men naming that
+        /// <summary>⭐ <c>CE-1220</c> — J on the fall screen (R-3076; was Tab): the first living man of the fallen man's squad (his leader, the men naming that
         /// leader, his own men — <see cref="SquadRoster"/>); nothing when none is left.</summary>
         internal void FallToSquadMate()
         {
@@ -644,7 +644,7 @@ namespace Hrot.UI.Common.Map3D
             if (fade < 1f && !cam) return;
             string head = cam ? $"KILL CAM - {fall.KillerName(w)}" : $"KILLED - by {fall.KillerName(w)}";
             var options = new List<string>();
-            if (HudOn(Hrot.Common.Infrastructure.HudFeatures.SquadTakeoverAfterDeath) && SquadRoster.Of(w, fall.Dead).Count > 0) options.Add("Tab  a squad mate");
+            if (HudOn(Hrot.Common.Infrastructure.HudFeatures.SquadTakeoverAfterDeath) && SquadRoster.Of(w, fall.Dead).Count > 0) options.Add("J  a squad mate");   // R-3076 (was Tab)
             if (fall.CanKillCam(w)) options.Add("K  who hit you");
             options.Add("Esc  the map");
             string opts = string.Join("     ", options);
@@ -977,7 +977,7 @@ namespace Hrot.UI.Common.Map3D
                             ? "W/S move  A/D turn  Shift run  Ctrl crouch (hold)  C crouch  Z prone  V lock look  Esc release"   // ⭐ CE-1204
                             : "W/A/S/D move  Shift run  Ctrl crouch (hold)  C crouch  Z prone  V free look  Esc release",
                 });
-                lines.Add("LMB fire  RMB zoom  X cancel  1-4 weapon  R ammo  F use (hold: more)  Q/E lean  T orders  Tab next man  M map  B binoculars");   // ⭐ CE-1078 / CE-1079 / CE-1158
+                lines.Add("LMB fire  RMB zoom  X cancel  1-4 weapon  R ammo  F use (hold: more)  Q/E lean  T orders  J next man  Tab scores  M map  B binoculars");   // ⭐ CE-1078 / CE-1079 / CE-1158
                 return lines.ToArray();
             }
 
@@ -1513,8 +1513,9 @@ namespace Hrot.UI.Common.Map3D
         public const KeyboardKey ShoulderKey = KeyboardKey.O;
         /// <summary>⭐ CE-1461 W-M7 (docs/DESIGN_Node_Features.md §10 M-3) — N opens / closes the player's message log (L is the fire mode).</summary>
         public const KeyboardKey MessageLogKey = KeyboardKey.N;
-        /// <summary>⭐ G1 (CE-4231) — hold K for the scoreboard (Tab is the next man).</summary>
-        public const KeyboardKey ScoreboardKey = KeyboardKey.K;
+        /// <summary>⭐ G1 (CE-4231) / Player Join D-16 — hold Tab for the scoreboard. 🔒 R-3076 (user, 2026-11-05): ONE key, ONE purpose — Tab is the
+        /// scoreboard only; the next man moved to <see cref="TeamSwitchKey"/> (J). ⛔ Was: hold K (Tab was the next man).</summary>
+        public const KeyboardKey ScoreboardKey = KeyboardKey.Tab;
 
         /// <summary>⭐ <c>CE-1293</c> (UC-11) — the camera stands back this frame: the shoulder view is on and RMB is not aiming from the eyes.</summary>
         public bool ShoulderViewOn => _station.OverShoulder && !Zooming;
@@ -1611,8 +1612,9 @@ namespace Hrot.UI.Common.Map3D
 
         /// <summary>⭐ <c>CE-1213</c> (§8j W-1; key approved, R-1009) — hold to open the command wheel.</summary>
         public const KeyboardKey CommandWheelKey = KeyboardKey.T;
-        /// <summary>⭐ <c>CE-1214</c> (§8j T-1; key approved, R-1009) — the next man of his squad (Shift: the previous).</summary>
-        public const KeyboardKey TeamSwitchKey = KeyboardKey.Tab;
+        /// <summary>⭐ <c>CE-1214</c> (§8j T-1) — the next man of his squad (Shift: the previous); also the fall screen's "a squad mate".
+        /// 🔒 R-3076 (user, 2026-11-05): J — Tab is the scoreboard only. ⛔ Was Tab (R-1009).</summary>
+        public const KeyboardKey TeamSwitchKey = KeyboardKey.J;
         /// <summary>⭐ <c>CE-1218</c> (§8k M-1; key approved, R-1010) — the 2-D map and back.</summary>
         public const KeyboardKey MapKey = KeyboardKey.M;
         /// <summary>⭐ <c>CE-1210</c> (§8n MS-3, R-1018) — the next seat of the vehicle: driver / pilot, then each manned gun.</summary>
@@ -1748,7 +1750,7 @@ namespace Hrot.UI.Common.Map3D
                 _station.BeginMapPeek(this);
                 return true;
             }
-            // ⭐ CE-1214 (§8j T-1) — Tab / Shift+Tab: the next / previous man of his squad (SquadRoster); the one he leaves goes back
+            // ⭐ CE-1214 (§8j T-1) — J / Shift+J (R-3076; was Tab): the next / previous man of his squad (SquadRoster); the one he leaves goes back
             //   to his brain (the possess releases him)
             if (input.IsKeyPressed((MapKeyboardKey)TeamSwitchKey) && _world() is { } tw
                 && SquadRoster.Next(tw, Unit, input.IsKeyDown(MapKeyboardKey.LeftShift) || input.IsKeyDown(MapKeyboardKey.RightShift) ? -1 : 1) is { IsNull: false } next)
@@ -1756,7 +1758,7 @@ namespace Hrot.UI.Common.Map3D
                 _station.SwitchTo(next);
                 return true;
             }
-            // ⭐ CE-1210 (§8n MS-3) — G: the next seat (the vehicle's own seat, then each manned gun); one possession, as Tab
+            // ⭐ CE-1210 (§8n MS-3) — G: the next seat (the vehicle's own seat, then each manned gun); one possession, as J
             if (input.IsKeyPressed((MapKeyboardKey)SeatKey) && _world() is { } gw && SeatSwitch.Next(gw, Unit) is { IsNull: false } seat)
             {
                 _station.SwitchTo(seat);

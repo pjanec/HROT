@@ -345,7 +345,7 @@ public sealed partial class PossessionStationTests
 
     /// <summary>
     /// ⭐ CE-1220 (docs/DESIGN_Entity_Control.md §8k K-1) — killed while held: the 3-D view stays (no cut to the map), the fall screen names
-    /// who hit him last; a release just after a hit waits a moment for the death to arrive; K runs a kill cam from the shooter's eye, Tab
+    /// who hit him last; a release just after a hit waits a moment for the death to arrive; K runs a kill cam from the shooter's eye, J (R-3076; was Tab)
     /// takes a squad mate (one possession), Esc goes back to the map as it was.
     /// </summary>
     [Fact]
@@ -396,7 +396,7 @@ public sealed partial class PossessionStationTests
             Assert.True(sw.Camera3D.Forward.X < -0.9f, "the kill cam looks back at the body");
 
             var tab = new Input();
-            tab.Pressed.Add((int)Raylib_cs.KeyboardKey.Tab);
+            tab.Pressed.Add((int)Raylib_cs.KeyboardKey.J);   // R-3076 (was Tab)
             sw.Camera3D.HandleInput(tab);
             w.Bus.SwapBuffers();
             Assert.Equal(leader, Assert.Single(w.Bus.Read<PossessRequestEvent>().ToArray()).Unit);   // his squad: the leader
@@ -723,7 +723,7 @@ public sealed partial class PossessionStationTests
     /// station holds are not in it; the jump is ONE possession, which also lets the man he leaves go back to his brain.
     /// </summary>
     [Fact]
-    public void CE1214_Tab_JumpsToTheNextManOfHisSquad_ShiftTabBack_AndTheManHeLeavesIsReleased()
+    public void CE1214_J_JumpsToTheNextManOfHisSquad_ShiftJBack_AndTheManHeLeavesIsReleased_TabOnlyHoldsTheScoreboard()
     {
         var (w, me, map) = World();                                                    // network id 4242
         using (w)
@@ -760,15 +760,23 @@ public sealed partial class PossessionStationTests
             var station = new PossessionStation(sw, () => w);
             station.Update(0.016f);
             sw.Camera3D.Update(0.016f);
+            // 🔒 R-3076 — ONE key, ONE purpose: Tab only holds the scoreboard (no man taken); J is the next man.
+            //   🔴 Mutations: TeamSwitchKey back to Tab ⇒ the Tab press takes a man ⇒ red; ScoreboardKey not Tab ⇒ ScoreboardHeld false ⇒ red.
+            var tabOnly = new Input();
+            tabOnly.Pressed.Add((int)Raylib_cs.KeyboardKey.Tab); tabOnly.Keys.Add((int)Raylib_cs.KeyboardKey.Tab);
+            sw.Camera3D.HandleInput(tabOnly);
+            w.Bus.SwapBuffers();
+            Assert.Empty(w.Bus.Read<PossessRequestEvent>().ToArray());
+            Assert.True(station.ScoreboardHeld);
             var tab = new Input();
-            tab.Pressed.Add((int)Raylib_cs.KeyboardKey.Tab);
+            tab.Pressed.Add((int)Raylib_cs.KeyboardKey.J);
             sw.Camera3D.HandleInput(tab);
             w.Bus.SwapBuffers();
             Assert.Equal(buddy, Assert.Single(w.Bus.Read<PossessRequestEvent>().ToArray()).Unit);
             Assert.Equal(me, Assert.Single(w.Bus.Read<ReleasePossessionEvent>().ToArray()).Unit);   // the one he leaves goes back to his brain
 
             var back = new Input();
-            back.Pressed.Add((int)Raylib_cs.KeyboardKey.Tab);
+            back.Pressed.Add((int)Raylib_cs.KeyboardKey.J);
             back.Keys.Add((int)Raylib_cs.KeyboardKey.LeftShift);
             sw.Camera3D.HandleInput(back);
             w.Bus.SwapBuffers();

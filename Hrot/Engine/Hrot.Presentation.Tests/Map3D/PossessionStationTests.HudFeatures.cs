@@ -70,7 +70,7 @@ public sealed partial class PossessionStationTests
             Kill(station, w, me);
             Assert.NotNull(station.Fall);
             var tab = new Input();
-            tab.Pressed.Add((int)Raylib_cs.KeyboardKey.Tab);
+            tab.Pressed.Add((int)Raylib_cs.KeyboardKey.J);   // R-3076 (was Tab)
             sw.Camera3D.HandleInput(tab);                       // squad takeover OFF: Tab takes nobody
             w.Bus.SwapBuffers();
             Assert.Empty(w.Bus.Read<PossessRequestEvent>().ToArray());
@@ -82,7 +82,7 @@ public sealed partial class PossessionStationTests
         {
             Kill(station2, w2, me2);
             var tab = new Input();
-            tab.Pressed.Add((int)Raylib_cs.KeyboardKey.Tab);
+            tab.Pressed.Add((int)Raylib_cs.KeyboardKey.J);   // R-3076 (was Tab)
             sw2.Camera3D.HandleInput(tab);
             w2.Bus.SwapBuffers();
             Assert.Equal(leader2, Assert.Single(w2.Bus.Read<PossessRequestEvent>().ToArray()).Unit);

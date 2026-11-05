@@ -166,7 +166,7 @@ sequenceDiagram
 | **D-13** | observer | ⭐ the Observer camera; sees everything in v1; may deploy later |
 | **D-14** | death (S2) | ⭐ the kill cam, then the deploy screen after the scenario's respawn delay (default 10 s; 0 ⇒ observer) |
 | **D-15** | score (S3) | ⭐ kills / deaths / team kills in the player slot, counted by the server from the kill cam's killer and the shooter's `PossessedBy` |
-| **D-16** | scoreboard (S3) | ⭐ hold `Tab`; a tap keeps the squad switch |
+| **D-16** | scoreboard (S3) | ⭐ hold `Tab` — and Tab does nothing else. 🔒 R-3076 (user, `2026-11-05`): *"i do not like a single key used for 2 completely different purposes; rather put the 'next man' to something else."* ⇒ the next man is **J** (Shift+J the previous; also the fall screen's squad mate). ⛔ Was: *a tap keeps the squad switch*; and ui's CE-4231 had built hold **K** |
 
 **Rejected — one line each:**
 - *The server logic in the orchestrator* — it has no ECS world; it would query units, sides and free spots across nodes, and gameplay would sit in the military-sim core (R-4102).
@@ -182,7 +182,7 @@ sequenceDiagram
 |---|---|---|
 | **S1** | D-1…D-9, D-12, D-13: the three packs (`Hrot.Gameplay`), the server token, `DeployProcessor` for placed units, `PlayerSlotTopic`, `StationClaims` reading the slot, `Playable` + its editor checkbox, `DeployFlow` + `DeployScreen` (waiting, observer, side, unit) | a military-sim cluster boots and runs with **no** gameplay topic on the wire (a rail); with a server, a Player deploys into a placed rifleman and an A-10 in flight; a second Player is refused the same unit with its holder named; a Player with no server observes. New use cases **UC-25** deploy into a placed unit · **UC-26** refused (taken) · **UC-27** no server ⇒ observer · **UC-28** a plane in flight |
 | **S2** | D-10, D-11, D-14: roles, spawn areas, respawn | a role spawns at a free point of its side's area and is possessed; a full role is refused; death returns to the deploy screen after the delay |
-| **S3** | D-15, D-16: score + scoreboard; kit variants; choosing the area on the map | — |
+| **S3** | D-15, D-16: score + scoreboard; kit variants; choosing the area on the map | ✅ D-15/D-16: the scoreboard is ui's CE-4231 over S7's per-man `Points` roots, on hold Tab (R-3076). ✅ kit variants (user `2026-11-05`, *"Kit variants lean accepted"*): a role offers up to four alternative person TKB types as its kits, each with its own label — the kit is that type's weapon suite, no loadout system (§5 rejected one). Area choice: the Player may name one of its side's spawn areas, else a random one |
 
 ⚠ **Before S1 runs live:** CE-4080's possession crash is FIXED (`f752491af`; ⚠ the use cases' UC-17 row still reads 🔴, stale); still open
 from that run: **CE-4086** (a Player promotes a replica before its first pose), which every deploy ends in.
@@ -572,3 +572,47 @@ killed ⇒ `Dead` *"killed — respawn in 5 s"* ⇒ `Choosing` 5.2 s later, the 
 (the role entity) instead of the unit the server NAMED (the man); ② a local Possess refusal returned to Choosing at once — but a man just spawned is not on the
 Player yet (his replica waits for its first pose, CE-4086), so it is now retried every 500 ms until the 10 s deadline. Rails in `GameplayDeployFlowTests`.
 ⚠ The `-m server` HTTP API edits one subsystem's world at a time: kill a unit through the perspective whose node owns `Health` (here `Scenario`).
+
+## 11. S3 — kits, the spawn area, the scoreboard key *(backend, `2026-11-05`; `build-state: READY-TO-BUILD`)*
+
+✅ User `2026-11-05`: *"Kit variants lean accepted"* · R-3076 (Tab = the scoreboard only, next man = J — BUILT, see D-16).
+⭐ The scoreboard itself is ui's CE-4231 (`Scoreboard.Build` over S7's per-man `Points` roots, `PlayerHudLayer.DrawBoard`) — nothing to build for D-15/D-16 beyond R-3076.
+
+```mermaid
+classDiagram
+    direction LR
+    class DeployRole { <<existing, grows>> Side · PersonTkbType · Name · MaxCount + Kit1Tkb · Kit1Name · Kit2Tkb · Kit2Name · Kit3Tkb · Kit3Name }
+    class DeployOfferTopic { <<existing, grows>> Kind (Placed · Role · Area) · Count · Max + Kits (labels, kit 0 = the role's own type) }
+    class DeployRequestTopic { <<existing, grows>> + Kit (0…3) · AreaNetId (0 = any) }
+    class DeployProcessorSystem { <<existing, grows>> spawns the KIT's person type · Pick in the named area }
+    class SpawnPoints { <<existing, grows>> Pick(…, area: Entity? = null) }
+    class DeployFlowSystem { <<existing, grows>> Request(side, role, kit, area) }
+    class DeployScreen { <<existing, grows>> role → kit row · the side's areas (Any first) }
+    DeployProcessorSystem ..> DeployRole
+    DeployProcessorSystem ..> SpawnPoints
+    DeployFlowSystem ..> DeployRequestTopic
+    DeployProcessorSystem ..> DeployOfferTopic : roles WITH kits · one offer per spawn area (Kind Area)
+```
+
+*What the picture shows that prose hid:* a kit is only another person TKB type on the SAME role (count and max are the role's, shared by its kits); an
+area is offered exactly like a unit, so the Player's screen lists both from one topic and the request names them by the same kind of id.
+
+```mermaid
+sequenceDiagram
+    participant F as DeployFlowSystem (Player)
+    participant D as DeployProcessorSystem (CGF)
+    D-->>F: Offer{ Role "Rifleman" 1/4, Kits [Rifleman, Grenadier, MG] } · Offer{ Area "North gate" } · Offer{ Area "Church" }
+    F->>D: Request{ unit = role, Kit 1, AreaNetId = "Church" }
+    D->>D: kit 1 ⇒ Kit1Tkb (unset ⇒ refused "no such kit") · Pick inside "Church" only (not of my side ⇒ refused)
+    D-->>F: … as §10 (spawn, Accepted with the man)
+```
+
+| # | decision | why |
+|---|---|---|
+| S3-a | up to THREE extra kits per role (four with the role's own type) as fixed fields — unmanaged, no list | the accepted lean; an unmanaged component cannot hold a list (§10.3 S2-a's reason) |
+| S3-b | a kit shares the role's count and max | a kit is a variant of ONE role, not a second role |
+| S3-c | `AreaNetId` 0 ⇒ a random area of the side (S2's rule); a named area of another side ⇒ refused `WrongSide` | the Player may choose, never must |
+| S3-d | the area on the MAP (click to choose) is ui's — the screen lists the areas; the 2-D map highlights and accepts a click through the same `Request` | the deploy flow's API is the one seam |
+
+Rejected — one line each: *a kit as AmmoLoadout overrides* — a loadout system, rejected in §5. *One role entity per kit* — splits the role's count and max.
+*Area as a separate request* — two round trips for one decision.

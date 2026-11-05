@@ -246,7 +246,7 @@ public static class PlayerHudLayer
         }
     }
 
-    // ── G1: the "+100" pop-ups and the scoreboard (hold K)
+    // ── G1: the "+100" pop-ups and the scoreboard (hold Tab — R-3076; was K)
 
     private static void DrawPopups(PlayerHudFrame f, MapCamera3D camera, Font? font)
     {

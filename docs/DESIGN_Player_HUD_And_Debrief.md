@@ -188,7 +188,7 @@ classDiagram
     class GameSummary { <<NEW, pure>> Build → banner · subline · your round · awards · best moment }
     class Scoreboard { <<NEW, pure>> per team: Points roots by Count title }
     class ScorePopups { <<NEW, presentation memory>> a child Count that ROSE }
-    class PlayerHudLayer { <<existing, H1/H2>> + DrawBoard (hold K) + DrawPopups }
+    class PlayerHudLayer { <<existing, H1/H2>> + DrawBoard (hold Tab, R-3076) + DrawPopups }
     class MissionSummaryModel { <<existing>> PointsRoots (extracted) · SideOfRule · TitleOf · ExercisePhaseOf }
     class RulesReader { <<existing, the ONE reader>> }
     class IndexSummaryHistory { <<existing>> objective.state · objective.score · combat.downed }
@@ -217,7 +217,7 @@ classDiagram
 | *"you were downed by X (head)"* from the recorded `ManDownedEvent` if readable | **from the `combat.downed` lane, WITHOUT the body part** — said on the card. A `TimelineIndex` holds lane entries, not the events | the head mark needs the recorded event at that frame: not readable from the index (CE-4233) |
 | ⏳ replay from my eyes · progress across runs | two disabled buttons naming why (film director · gap G7) | — |
 | `+100` pop-up | `ScorePopups`: a scored child of the possessed man's `Points` root whose `Value` rose × its `Points`, named by its `Title`; 2.5 s, floats up (`game.score-popups`) | a presentation memory (last values); first sight / a fall re-baselines |
-| scoreboard | **hold K** (Tab is *next man*; K was free) → `PossessionStation.ScoreboardHeld` → `PlayerHudLayer.DrawBoard`; feature **`game.scoreboard`** (new, ON) | per team ≤ 8 rows + the viewer's own row, columns K D A CAPT TK STREAK SCORE (streak = live / best) |
+| scoreboard | **hold Tab** — 🔒 R-3076 (user, `2026-11-05`): one key, one purpose; the next man moved to **J** (`DESIGN_Player_Join.md` D-16). ⛔ Was: hold K (Tab was *next man*) → `PossessionStation.ScoreboardHeld` → `PlayerHudLayer.DrawBoard`; feature **`game.scoreboard`** (new, ON) | per team ≤ 8 rows + the viewer's own row, columns K D A CAPT TK STREAK SCORE (streak = live / best) |
 | team total = the side `MemberEvaluation` (aggregate points) | its `Value` | — |
 | GameSummary window | `GameSummary.Build`: banner from `SideResult.Outcome`, subline = points held + tickets (the HUD's own reading) + `Reason`, the board, *your round* (K/D, best streak, team kills + his scored children), awards (`Best` + Achieved: title, `Subject`, `Value`) | no level / XP (not designed); the mockup's accuracy / longest hit / time on point are not statuses and are left out; always opens (a running round says *ROUND IN PROGRESS*), `Available` only gates the label |
 | *your best moment* = the largest rise of his root's `Value` in `objective.score` | the largest rise of that LANE if any, **else the densest 15 s of the kills he caused** (`combat.downed`, Other = him), the text says which | ⚠ the `objective.score` lane carries `Score`, and a `Points` root has NO target ⇒ its `Score` stays 0 ⇒ the lane never rises (CE-4232) |

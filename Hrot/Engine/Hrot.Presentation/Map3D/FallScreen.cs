@@ -9,7 +9,7 @@ namespace Hrot.UI.Common.Map3D;
 /// <summary>
 /// ⭐ <c>CE-1220</c> (docs/DESIGN_Entity_Control.md §8k K-1) — WHEN HE FALLS: the possessed man was killed, so the possession ended; instead of
 /// cutting back to the map, the station keeps the 3-D view where his eyes were, fades it (the station draws the shade and the lines) and
-/// offers: <b>Tab</b> a squad mate, <b>K</b> a <see cref="PossessionStation.KillCamSeconds"/> kill cam from the shooter's eye toward the body
+/// offers: <b>J</b> (R-3076; was Tab) a squad mate, <b>K</b> a <see cref="PossessionStation.KillCamSeconds"/> kill cam from the shooter's eye toward the body
 /// (when the shooter is known and still there), <b>Esc</b> the map. A camera driver, so the map's own camera keys stay off while it is up.
 /// </summary>
 public sealed class FallScreen : ICameraDriver
@@ -70,7 +70,7 @@ public sealed class FallScreen : ICameraDriver
     public bool HandleInput(MapCamera3D camera, IInputProvider input)
     {
         if (input.IsKeyPressed(MapKeyboardKey.Escape)) { _station.EndFall(); return true; }
-        if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.Tab)) { _station.FallToSquadMate(); return true; }
+        if (input.IsKeyPressed((MapKeyboardKey)FpsCameraDriver.TeamSwitchKey)) { _station.FallToSquadMate(); return true; }   // R-3076: J, the one next-man key
         if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.K) && _station.World is { } w && CanKillCam(w))
             _killCamUntil = _station.Clock + PossessionStation.KillCamSeconds;
         return true;
