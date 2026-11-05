@@ -95,7 +95,7 @@ def positions(limit=160):
     return pts
 
 
-def frame(points, pitch_deg=-45.0, yaw_deg=225.0, margin=1.15, min_radius=7.0):
+def frame(points, pitch_deg=-50.0, yaw_deg=225.0, margin=1.15, min_radius=10.0):
     """eye/target looking down at pitch over the points' bounds (a bounding sphere, fitted to the vertical field of view)."""
     xs, ys, zs = zip(*points)
     cx, cy, cz = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2, (min(zs) + max(zs)) / 2
@@ -126,12 +126,39 @@ def entity_size(comps):
     return height, max(length, width, height) if (length or width) else 2.0
 
 
-def frame_entity(center, height, extent, pitch_deg=-15.0, yaw_deg=215.0):
+CLUSTER_M = 30.0        # a scenario is framed around its FIRST cast entity and the cast within this distance of it ...
+CLUSTER_FALLBACK_M = 60.0   # ... unless that is a lone entity and the rest of the cast is within this: then all of it
+
+
+def cluster_of(points):
+    """The cast to frame: the first entity's neighbours within CLUSTER_M; if that is the first entity alone while everyone is within CLUSTER_FALLBACK_M of it, all of them."""
+    first = points[0]
+    near = [p for p in points if math.hypot(p[0] - first[0], p[1] - first[1]) <= CLUSTER_M]
+    if len(near) == 1 and all(math.hypot(p[0] - first[0], p[1] - first[1]) <= CLUSTER_FALLBACK_M for p in points):
+        return points
+    return near
+
+
+def heading_deg(comps):
+    """A spawned entity's heading about Z, degrees from +X (counter-clockwise) — the engine's convention (SpawnPoints: yaw 0 = +X); from SimTransform.Rotation (x,y,z,w or {X,Y,Z,W}). Measured on the
+    Rifleman: identity rotation faces +X (a camera behind him, at -X, sees his back)."""
+    rot = (comps.get("SimTransform") or {}).get("Rotation")
+    try:
+        if isinstance(rot, dict):
+            x, y, z, w = (float(rot.get(k, rot.get(k.upper(), 0.0))) for k in ("x", "y", "z", "w"))
+        else:
+            x, y, z, w = (float(v) for v in rot)
+        return math.degrees(math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def frame_entity(center, height, extent, facing_deg=0.0, off_front_deg=30.0, pitch_deg=-15.0):
     """A low three-quarter view that makes the entity fill ~FILL of the tile height (the 45 degree vertical field): the apparent height is the
     taller of its height and ~0.55 of its length; aimed at its middle (half its height above the ground)."""
     apparent = max(height, 0.55 * extent)
     dist = max(apparent / (FILL * 2.0 * math.tan(math.radians(FOV_DEG / 2))), 2.5)
-    pitch, yaw = math.radians(pitch_deg), math.radians(yaw_deg)
+    pitch, yaw = math.radians(pitch_deg), math.radians(facing_deg + off_front_deg)   # IN FRONT of him, ~30 degrees off his heading
     cx, cy, cz = center[0], center[1], center[2] + height / 2
     eye = (cx + dist * math.cos(pitch) * math.cos(yaw), cy + dist * math.cos(pitch) * math.sin(yaw), cz - dist * math.sin(pitch))
     return list(eye), [cx, cy, cz]
@@ -182,7 +209,15 @@ def do_scenarios(names, nas, rows):
         pts = positions()
         if not pts:
             rows.append((name, "failed", "no entity with a position")); continue
-        eye, target = frame(pts)
+        cast = cluster_of(pts)
+        # a lone figure (or a pair) is shot lower than a spread cast: from -50 degrees a man beside / inside a house is framed through its roof
+        yaw = 225.0
+        rest = [p for p in pts if p not in cast]
+        if rest and len(cast) <= 2:   # the camera on the side of the rest of the cast: the line between them is open (a camera behind a house frames its wall)
+            c = (sum(p[0] for p in cast) / len(cast), sum(p[1] for p in cast) / len(cast))
+            near = min(rest, key=lambda p: math.hypot(p[0] - c[0], p[1] - c[1]))
+            yaw = math.degrees(math.atan2(near[1] - c[1], near[0] - c[0]))
+        eye, target = frame(cast, pitch_deg=-28.0, yaw_deg=yaw, min_radius=6.0) if len(cast) <= 2 else frame(cast)
         out = os.path.join(nas, "scenarios", name, "preview.png")
         good, why = shoot(out, eye, target)
         rows.append((name, "ok" if good else "failed", out if good else why))
@@ -232,7 +267,7 @@ def do_types(ids, nas, studio, rows):
                 comps = (body_of(udc.call("GET", f"/entities/{nids[0]}")) or {}).get("Components") or {}
                 pos = (comps.get("SimTransform") or {}).get("Position") or origin
                 height, extent = entity_size(comps)
-                eye, target = frame_entity(pos, height, extent)
+                eye, target = frame_entity(pos, height, extent, facing_deg=heading_deg(comps))
                 path = os.path.join(out_dir, stem + ".png")
                 good, why = shoot(path, eye, target)
                 rows.append((f"type {tkb} {name}", "ok" if good else "failed", path if good else why))
