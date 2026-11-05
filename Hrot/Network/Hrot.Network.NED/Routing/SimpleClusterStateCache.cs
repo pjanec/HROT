@@ -93,6 +93,13 @@ namespace Hrot.Network.Routing
             }
         }
 
+        /// <summary>⭐ Player Join §9.1 (D-3) — <paramref name="nodeId"/> reported <paramref name="featureId"/> ON on its last heartbeat.</summary>
+        public bool FeatureOn(int nodeId, string featureId)
+        {
+            lock (_lock)
+                return _nodes.TryGetValue(nodeId, out var cap) && cap.FeaturesOn.Contains(featureId);
+        }
+
         /// <inheritdoc/>
         public bool Supports(int nodeId, string token)
         {

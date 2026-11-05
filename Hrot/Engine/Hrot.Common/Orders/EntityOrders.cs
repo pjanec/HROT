@@ -202,6 +202,9 @@ namespace Hrot.Common.Orders
                 case ClaimRefusal.HeldByAnotherStation:
                     return OrderResult.Refused(OrderRefusal.Possessed,
                         $"Entity {unit} is held by station {holder}; a unit another player holds is never taken over (release is theirs).");
+                case ClaimRefusal.ReservedForAnother:   // ⭐ Player Join D-8
+                    return OrderResult.Refused(OrderRefusal.Possessed,
+                        $"Entity {unit} is reserved for station {holder} (a gameplay server gave it to that player).");
                 case ClaimRefusal.OtherSide:
                     return OrderResult.Refused(OrderRefusal.WrongSide,
                         $"Entity {unit} carries a player of another side (station {holder}); it is not for this station.");

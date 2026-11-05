@@ -11,6 +11,8 @@ namespace Fdp.Toolkit.Behavior.Possession
         HeldByAnotherStation,
         /// <summary>The unit carries a player of another side (a vehicle another side's player sits in).</summary>
         OtherSide,
+        /// <summary>⭐ Player Join D-8 — the unit is RESERVED for another station (<see cref="StationReservations"/>: a gameplay server gave it to that player).</summary>
+        ReservedForAnother,
     }
 
     /// <summary>
@@ -47,6 +49,8 @@ namespace Fdp.Toolkit.Behavior.Possession
         /// <summary>The side of <paramref name="station"/>: the side of the unit it holds (its Riding soldier first); false when it holds nothing.</summary>
         public static bool TrySideOf(EntityRepository repo, int station, out ForceId side)
         {
+            // ⭐ Player Join D-8 — the station's reservation (its player slot) names its side FIRST, before it holds anything.
+            if (StationReservations.TryGet(repo, out var reservations) && reservations.TryOf(station, out var mine)) { side = mine.Side; return true; }
             side = ForceId.Neutral;
             if (!repo.IsComponentTypeRegistered<PossessedBy>()) return false;
             bool found = false;
@@ -87,15 +91,29 @@ namespace Fdp.Toolkit.Behavior.Possession
 
         /// <summary>
         /// May <paramref name="station"/> possess <paramref name="unit"/>? <see cref="ClaimRefusal.HeldByAnotherStation"/> when another live
-        /// station holds it (<paramref name="holder"/>); <see cref="ClaimRefusal.OtherSide"/> when it carries a player of another side than the
+        /// station holds it (<paramref name="holder"/>); <see cref="ClaimRefusal.ReservedForAnother"/> when it is reserved for another station; <see cref="ClaimRefusal.OtherSide"/> when it carries a player of another side than the
         /// station's (<paramref name="holder"/> is that player's station). A station that holds nothing has no side and is not refused for it.
         /// </summary>
         public static ClaimRefusal ForPossess(EntityRepository repo, Entity unit, int station, out int holder)
         {
             if (TryHeldByOther(repo, unit, station, out holder)) return ClaimRefusal.HeldByAnotherStation;
+            if (TryReservedForOther(repo, unit, station, out holder)) return ClaimRefusal.ReservedForAnother;   // ⭐ Player Join D-8
             if (TrySideOf(repo, station, out var mine) && OtherSideAboard(repo, unit, mine, station, out holder)) return ClaimRefusal.OtherSide;
             holder = 0;
             return ClaimRefusal.None;
+        }
+
+        /// <summary>⭐ Player Join D-8 — <paramref name="unit"/> is reserved (<see cref="StationReservations"/>) for a station other than <paramref name="station"/>.</summary>
+        public static bool TryReservedForOther(EntityRepository repo, Entity unit, int? station, out int holder)
+        {
+            holder = 0;
+            if (!StationReservations.TryGet(repo, out var reservations) || !repo.IsAlive(unit)
+                || !repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
+                || !repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(unit)) return false;
+            int netId = repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(unit).Value;
+            if (!reservations.TryReservedFor(netId, out int s) || (station is int me && s == me)) return false;
+            holder = s;
+            return true;
         }
 
         /// <summary>The brain's own test for releasing a killed holder — ONE definition (<see cref="PossessionSystem.Alive"/>).</summary>

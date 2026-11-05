@@ -386,4 +386,52 @@ public class TheDescriptorMapIsWiredTests
                         shared.Add($"component {c}: descriptor {d} ({boxOf[d]}) and {other} ({boxOf[other]})");
         Assert.Empty(shared);
     }
+
+    // ══ ③ a declared pairing actually reaches the registrars (CE-4086) ══════════════════════════════════
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4086</c> — <b>every translator's own <c>TargetComponentIds</c> is what the INTERFACE answers.</b> Every registrar reads
+    /// <see cref="Fdp.Interfaces.IDescriptorTranslator.TargetComponentIds"/>; a subclass of a base that implements the interface, declaring a plain
+    /// property of that name, only HIDES the interface's empty default. 📐 That is how <c>GeoSpatialEgressTranslator</c>'s
+    /// <c>dtWorldPos → SimTransform</c> never reached any map, so no node's ghost gate held a replica for its first pose (a Player drew units at
+    /// (0,0,0) for ~40 ticks). 🔴 Mutation: <c>override</c> → a plain property on it (and the base's member removed) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void EveryTranslatorsDeclaredTargetComponentIds_IsWhatTheInterfaceAnswers()
+    {
+        var iface = typeof(Fdp.Interfaces.IDescriptorTranslator);
+        var hidden = new[] { typeof(Hrot.Map.Common.Replication.Egress.GeoSpatialEgressTranslator).Assembly,
+                             typeof(Fdp.Network.Cyclone.Translators.CycloneTranslator<,>).Assembly,
+                             typeof(Hrot.Network.Replication.NedReplicationModule).Assembly }
+            .Distinct()
+            .SelectMany(a => { try { return a.GetTypes(); } catch (System.Reflection.ReflectionTypeLoadException e) { return e.Types.Where(x => x != null).Select(x => x!).ToArray(); } })
+            .Where(t => !t.IsAbstract && !t.IsInterface && !t.ContainsGenericParameters && iface.IsAssignableFrom(t))
+            .Where(t =>
+            {
+                var own = t.GetProperty(nameof(Fdp.Interfaces.IDescriptorTranslator.TargetComponentIds),
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.DeclaredOnly);
+                if (own == null) return false;
+                var map = t.GetInterfaceMap(iface);
+                int k = System.Array.FindIndex(map.InterfaceMethods, m => m.Name == "get_TargetComponentIds");
+                var target = map.TargetMethods[k];
+                return target != own.GetMethod && target.GetBaseDefinition() != own.GetMethod.GetBaseDefinition();
+            })
+            .Select(t => t.FullName)
+            .ToList();
+
+        Assert.Empty(hidden);
+    }
+
+    /// <summary>⭐ <c>CE-4086</c> — the concrete pairing that was lost: the pose egress, read THROUGH THE INTERFACE, covers <c>SimTransform</c>.</summary>
+    [Fact]
+    public void ThePoseEgress_ThroughTheInterface_CoversSimTransform()
+    {
+        Fdp.Interfaces.IDescriptorTranslator t = new Hrot.Map.Common.Replication.Egress.GeoSpatialEgressTranslator(
+            null!, new Fdp.Toolkit.Replication.Services.NetworkEntityMap(), 1);
+        Assert.Contains(GlobalComponentIds.SimTransform, t.TargetComponentIds);
+
+        var map = new Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap();
+        map.RegisterFromTranslator(t.DescriptorOrdinal, t.TargetComponentIds);
+        Assert.Contains(GlobalComponentIds.SimTransform, map.CoveredComponentIds);
+    }
 }

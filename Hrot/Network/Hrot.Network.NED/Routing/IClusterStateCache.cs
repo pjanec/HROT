@@ -92,6 +92,11 @@ namespace Hrot.Network.Routing
         public System.Collections.Generic.IReadOnlySet<string> Capabilities { get; set; }
             = new System.Collections.Generic.HashSet<string>();
 
+        /// <summary>⭐ Player Join §9.1 — the Node Features the node reports ON on its heartbeat (<c>NodeHeartbeat.FeaturesOn</c>), so ANY node
+        /// (a Player asking "is there a deploy server?", D-3) reads what only the master's roster read before. Empty until a heartbeat carries it.</summary>
+        public System.Collections.Generic.IReadOnlySet<string> FeaturesOn { get; set; }
+            = new System.Collections.Generic.HashSet<string>();
+
         public long   RamUsedBytes    { get; set; }
         public double LastSeenUtcSeconds { get; set; }
     }

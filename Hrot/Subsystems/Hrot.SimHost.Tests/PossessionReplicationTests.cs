@@ -431,6 +431,47 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ Player Join D-8 (<c>DESIGN_Player_Join.md</c> §9) — a unit RESERVED for a station (its player slot, <see cref="StationReservations"/>) is
+        /// refused to every other station and granted to that one; and a station's side comes from its reservation before it holds anything,
+        /// so a blue player with only a slot is already refused an enemy-crewed vehicle. With no reservation the rule is R-4096's (the other rails).
+        /// 🔴 Mutation: <c>ForPossess</c> without the reservation test ⇒ station 9 takes the unit; <c>TrySideOf</c> without the slot ⇒ station 4 boards.
+        /// </summary>
+        [Fact]
+        public void D8_AReservedUnit_IsOnlyItsStations_AndTheSlotNamesTheStationsSide()
+        {
+            using var n = new BrainNode();
+            if (!n.W.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()) n.W.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            var unit = n.Unit();
+            n.W.AddComponent(unit, new Fdp.Toolkit.Replication.Components.NetworkIdentity(501));
+            StationReservations.Of(n.W).Set(7, ForceId.Friend, 501);
+
+            n.Request(unit, station: 9);
+            n.Frame();
+            Assert.Null(n.Holder(unit));                                                         // reserved for 7: refused to 9
+            Assert.Equal(ClaimRefusal.ReservedForAnother, StationClaims.ForPossess(n.W, unit, 9, out int holder));
+            Assert.Equal(7, holder);
+
+            n.Request(unit, station: 7);
+            n.Frame();
+            Assert.Equal(7, n.Holder(unit));                                                     // its own station takes it
+
+            // the side from the slot: station 4 holds nothing, but its slot says Friend — an enemy player's vehicle is refused
+            var truck = n.Unit(ForceId.Neutral);
+            n.W.AddComponent(truck, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            n.W.AddComponent(truck, new PassengerBuffer());
+            var enemy = n.Unit(ForceId.Hostile);
+            n.W.AddComponent(enemy, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            n.Request(enemy, station: 6);
+            n.Frame();
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(n.W, enemy, truck));
+            StationReservations.Of(n.W).Set(4, ForceId.Friend, 0);
+            Assert.Equal(ClaimRefusal.OtherSide, StationClaims.ForPossess(n.W, truck, 4, out _));
+
+            StationReservations.Of(n.W).Remove(4);
+            Assert.Equal(ClaimRefusal.None, StationClaims.ForPossess(n.W, truck, 4, out _));      // no slot, no unit: no side (R-4096)
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>R-4096</c> S5 — a KILLED player aboard a vehicle frees his seat: the brain releases him and asks the vehicle's owner to put
         /// him out (<c>DisembarkEntityCommand</c>), so the next player can take it. A dead man NO player held (an AI crewman) keeps his seat as
         /// ever — the body stays aboard. ✅ Red-proof: <c>FreeSeatOf</c> not called ⇒ the dead player stays in the buffer.

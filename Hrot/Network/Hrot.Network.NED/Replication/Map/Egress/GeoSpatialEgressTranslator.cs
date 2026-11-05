@@ -40,7 +40,7 @@ namespace Hrot.Map.Common.Replication.Egress
             GlobalComponentIds.NetworkVelocity,
         };
 
-        public IReadOnlyList<int> TargetComponentIds => _targetIds;
+        public override IReadOnlyList<int> TargetComponentIds => _targetIds;   // ⭐ CE-4086 — an override: a plain property HID the interface's empty default
 
         public override TranslatorDirection Direction => TranslatorDirection.Egress;
 

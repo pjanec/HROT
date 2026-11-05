@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — the architecture APPROVED by the user 2026-10-31 (§2 R-4101…R-4103; §5 D-1…D-16 "Accepted"); S1 next
-updated: 2026-10-31 (rev 2 — gameplay as PACKS composed by choice, never in the orchestrator; the name DEPLOY; a Player with no gameplay server observes) · 2026-10-31 (rev 1 — superseded, see HISTORY)
-current-answer: §2 the rulings · §4 the diagrams · §5 decisions D-1…D-16 · §6 slices · §7a the AUDIT of hard-wired gameplay (G1…G7, B1/B2; candidates await the user)
+build-state: READY-TO-BUILD (S1, §9 — backend 2026-11-05) — the architecture APPROVED by the user 2026-10-31 (§2 R-4101…R-4103; §5 D-1…D-16 "Accepted")
+updated: 2026-11-05 (§9 S1 technical design, §7 answered there) · 2026-10-31 (rev 2 — gameplay as PACKS composed by choice, never in the orchestrator; the name DEPLOY; a Player with no gameplay server observes) · 2026-10-31 (rev 1 — superseded, see HISTORY)
+current-answer: §9 S1 technical design (classes, sequence, who ticks what; §7's three answers) · §2 the rulings · §4 the diagrams · §5 decisions D-1…D-16 · §6 slices · §7a the AUDIT of hard-wired gameplay (G1…G7, B1/B2; candidates await the user)
 stale-below: §8 HISTORY (rev 1: the join on the master's ClusterOpRequest, a ReservedFor component — superseded)
 known-rot: docs/blueprints/Architect_Question_91_Player_Nodes.md §0 "a Player is an ordinary IG node (NodeRole.Map2D), no Player role" — the NAME is superseded by R-4101 (IG is the obsolete name of the Player); being a player stays a composition choice
 known-conflict: none
@@ -260,3 +260,131 @@ of gameplay (R-4102); the master does not own units, so it may not write their c
 | D-4 | the gameplay client pack is composed on every Player host by the shared bootstrap; its `hud.*` features (G1, G1b, G3, G4, G5, G6) default ON |
 | R-4103 (no server ⇒ observer) | still true — but now only when the deploy server feature is switched OFF |
 | the packs | exist for CLEANLINESS (gameplay code in one place, not scattered). ⭐ PRECISELY (`2026-10-31`, checked against `DESIGN_Node_Features.md` tiers ①–③): a pack is ALWAYS composed by the shared bootstrap — composition is fixed at boot (tier ①) and its availability tokens are static (tier ②) — and "runs when a feature is on" means its SYSTEMS are idle while all its features are off and work as soon as one is on (tier ③, `NodeFeatures.On`, per system). ⇒ a cluster operation flips it at runtime: a Live feature at once, an AtLoad feature at the next load (F-9). ⛔ a pack is never loaded or unloaded at runtime; the one thing a cluster op cannot do is turn on a feature on a node that never composed its pack (the override is validated against the advertised tokens) |
+
+## 9. S1 — the technical design *(backend, `2026-11-05`, from the Deploy handoff; `build-state: READY-TO-BUILD`)*
+
+### 9.1 INVENTORY *(measured `2026-11-05`)* and §7's three answers
+
+Queries: `scripts/cbm.sh search_graph` Class `.*(Deploy|PlayerSlot|Gameplay|Playable).*` → 7, none of D-1…D-16 · Class `.*Pack$` → 15
+(`TrafficPack` the precedent) · `scripts/find.sh NodeCapabilitiesTopic` → 40 files · reads below.
+
+| §7 question | ✅ measured answer |
+|---|---|
+| does the Player read `NodeCapabilitiesTopic`? | ✅ **yes** — every ECS node's `NedReplicationModule` builds `ClusterCapabilityIngestSystem` (`Routing/ClusterCapabilityIngestSystem.cs`) over the factory's `SimpleClusterStateCache` (`NedNetworkFactory.cs:57-59`), so `cache.Supports(node, "hrot.feature.gameplay.deploy-server")` works on the Player. ⛔ **But `NodeHeartbeat.FeaturesOn` reaches only the master's roster** — S1 adds it to the same ingest (`cache.FeatureOn(node, id)`) |
+| `-m server` | ✅ `orchestrator, simhost, cgf, traffic` in one process (`HrotRunnerConfiguration.cs:290`); SimHost = `MuscleGround│Perception│NavigationSolver` (`SimHostApp.cs:186`), CGF = `Brain` — exactly §7b's set. Live: `-m server` ran `bc-house-defended` with a Player joining late (`DESIGN_Cluster_Load_Phase.md` §11.10c) |
+| how `StationClaims` reaches the slots | ✅ `StationClaims` (`Fdp.Toolkits/Behavior/Possession/StationClaims.cs`) is a static rule over REPLICATED world state, read by the station, the brain's arbiter, the use key and seat switching ⇒ the slots must be in EVERY such node's world. ⭐ A tiny per-world seam in the toolkit (`StationReservations.Of(world)`, the `AttributeInterpreterProvider.GetDescriptorMap(world)` shape), FILLED by the wire pack's slot reader on the Brain and on the Player |
+
+### 9.2 Diagrams
+
+```mermaid
+graph TD
+    subgraph cgf["CGF node (Brain) — CgfNodeBootstrapper"]
+        GSP["GameplayServerPack<br/>.Capability(Brain)<br/>declares gameplay.deploy-server (ON)"]
+        DPS["DeployProcessorSystem (Input)"]
+        SLR1["PlayerSlotReaderSystem (Input)"]
+        GSP --> DPS
+        GSP --> SLR1
+    end
+    subgraph ig["Player node (Map2D) — IgNodeBootstrapper"]
+        GCP["GameplayClientPack<br/>.Capability(Map2D)"]
+        DF["DeployFlowSystem (Input)"]
+        SLR2["PlayerSlotReaderSystem (Input)"]
+        DS["DeployScreen (status-bar section, LoadingScreen pattern)"]
+        GCP --> DF
+        GCP --> SLR2
+        DF -. "read" .-> DS
+    end
+    SLR1 -- "fills" --> SR1["StationReservations.Of(world)"]
+    SLR2 -- "fills" --> SR2["StationReservations.Of(world)"]
+    SR1 -. "read by" .-> SC["StationClaims (PossessionSystem, EntityOrders.Possess)"]
+    DF -- "DeployRequestTopic" --> DPS
+    DPS -- "DeployStatusTopic + PlayerSlotTopic + DeployOfferTopic" --> DF
+    DF -- "EntityOrders.Possess (existing)" --> PS["PossessionSystem on the Brain"]
+    style GSP fill:#efe
+    style GCP fill:#efe
+```
+
+*What the picture shows that prose hid:* who CALLS each system per frame — every gameplay system is in its pack's Input list, ticked by the
+node's kernel like `TrafficMirrorSystem`; no system is reached through the orchestrator; with the feature OFF the server systems return at
+their first line and create no DDS reader or writer (the "no gameplay topic on the wire" rail).
+
+```mermaid
+classDiagram
+    direction LR
+    class TrafficPack { <<existing — the precedent>> PopulateSystems(context, input, sim, post) · owns its DDS readers/writers }
+    class INodeCapability { <<existing>> Key · Needs · Features }
+    class GameplayServerPack { <<new, Hrot.Gameplay>> Features: gameplay.deploy-server }
+    class GameplayClientPack { <<new, Hrot.Gameplay>> }
+    class GameplayWire { <<new, Hrot.Gameplay>> lazy Reader/Writer per topic · created on first use only }
+    class DeployRequestTopic { <<new DDS>> RequestId · StationNodeId · Side · UnitNetId · Observe }
+    class DeployStatusTopic { <<new DDS, key StationNodeId>> RequestId · Accepted · Reason · UnitNetId · HolderStation }
+    class PlayerSlotTopic { <<new DDS, key StationNodeId>> Name · Side · State · UnitNetId · ReservedUntilSim }
+    class DeployOfferTopic { <<new DDS, key UnitNetId>> Side · SlotName · Kind · HolderStation }
+    class Playable { <<new unmanaged component, recorded + saved>> Side · SlotName }
+    class DeployProcessorSystem { <<new>> validates · reserves · writes slot + status · publishes offers · stands down to a lower-id server }
+    class PlayerSlotReaderSystem { <<new>> PlayerSlotTopic → StationReservations }
+    class StationReservations { <<new, Fdp.Toolkits, per world>> TryOf(station, out side, out unitNetId) · ReservedFor(unitNetId, out station) }
+    class StationClaims { <<existing, grows>> slot first, then the held unit }
+    class DeployFlowSystem { <<new>> Waiting · Observing · Choosing · Requesting · TakingControl · Playing }
+    class DeployScreen { <<new>> ImGui overlay }
+    class SimpleClusterStateCache { <<existing, grows>> Supports(node, token) · FeatureOn(node, id) NEW }
+    INodeCapability <|.. TrafficPack
+    INodeCapability <|.. GameplayServerPack
+    INodeCapability <|.. GameplayClientPack
+    GameplayServerPack *-- DeployProcessorSystem
+    GameplayServerPack *-- PlayerSlotReaderSystem
+    GameplayClientPack *-- DeployFlowSystem
+    GameplayClientPack *-- PlayerSlotReaderSystem
+    DeployProcessorSystem ..> GameplayWire
+    DeployFlowSystem ..> GameplayWire
+    GameplayWire ..> DeployRequestTopic
+    GameplayWire ..> DeployStatusTopic
+    GameplayWire ..> PlayerSlotTopic
+    GameplayWire ..> DeployOfferTopic
+    DeployProcessorSystem ..> Playable : reads
+    PlayerSlotReaderSystem ..> StationReservations : fills
+    StationClaims ..> StationReservations : when filled
+    DeployFlowSystem ..> SimpleClusterStateCache : is there a server?
+    DeployFlowSystem ..> DeployScreen : drives
+```
+
+*What the picture shows that prose hid:* the only shared-code arrow INTO gameplay data is `StationClaims ..> StationReservations` — a
+toolkit type with no gameplay vocabulary, empty unless a slot reader fills it; and the Player learns which units it may take from
+`DeployOfferTopic`, so `Playable` never needs a NED descriptor (the military-sim wire stays untouched).
+
+```mermaid
+sequenceDiagram
+    participant F as DeployFlowSystem (Player)
+    participant D as DeployProcessorSystem (CGF)
+    participant R as PlayerSlotReaderSystem (CGF + Player)
+    participant B as PossessionSystem (CGF)
+    Note over F: Waiting until ClusterView gate open ∧ OperatingLive (else "Waiting for the server to load a scenario", CE-4156)
+    alt no node advertises the feature with it ON
+        F->>F: Observing (R-4103)
+    else a server
+        D-->>F: DeployOfferTopic (per Playable unit: side, slot name, holder)
+        F->>D: DeployRequestTopic{ RequestId, station, Blue, unit }
+        D->>D: Playable for Blue? alive? not held (StationClaims)? not reserved?
+        D-->>R: PlayerSlotTopic{ station, Blue, TakingControl, unit, until +30 s }
+        D-->>F: DeployStatusTopic{ RequestId, Accepted, unit }
+        R->>R: StationReservations: station → (Blue, unit)
+        F->>B: EntityOrders.Possess(unit) (existing)
+        B->>B: StationClaims: reserved for this station ⇒ granted
+        B-->>F: PossessedBy{ StationNodeId = F }
+        D-->>R: PlayerSlotTopic{ State Playing }
+        F->>F: Playing
+    end
+```
+
+### 9.3 Decisions this adds *(within D-1…D-13; none is a new user decision)*
+
+| # | decision | why |
+|---|---|---|
+| S1-a | the gameplay wire is OWNED BY THE PACK (lazy `DdsReader`/`DdsWriter`, the `TrafficMirrorSystem` shape) — not NED translators | a translator pack is composed into every node's replication module; the pack's own readers exist only where the pack is composed and only once the feature is ON — which is what makes the "no gameplay topic on the wire" rail true by construction |
+| S1-b | `DeployOfferTopic` carries the playable units to the Player | the Player must list "a placed unit" (D-7) without `Playable` becoming a NED descriptor; the server owns the units and knows who holds them |
+| S1-c | `StationReservations` in `Fdp.Toolkits` beside `StationClaims` | `StationClaims` is in the toolkit; the reservation is generic (a station may hold a claim on a unit) and carries no gameplay word |
+| S1-d | a reservation that is not taken in 30 s lapses; a slot whose station leaves the roster is disposed | D-8's `ReservedUntil`; the departure is the ingest's `NodeDeparted` |
+| S1-e | one server: the lowest node id that advertises the feature ON serves; the others stand down | D-3's "a second one stands down" — deterministic with no extra wire |
+
+Rejected — one line each: *Playable as a NED descriptor* — puts gameplay on the military-sim wire (R-4102). *The slots as a replicated
+component on the unit* — the server would write a unit it may not own (D-8). *Possession by the server* — rejected in §5 already.

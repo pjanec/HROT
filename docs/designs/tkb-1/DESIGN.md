@@ -1241,6 +1241,19 @@ the zero quaternion that crashed the FPS crosshair) until the sample lands (a st
 ⛔ Not fixed under `CE-4080`: restoring the requirement makes every `TkbMaster` entity wait for a pose, and this section's own warning applies (a ghost
 whose owner never publishes one never promotes). 📄 The consequence for the part test: `docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md` §14.
 
+✅ **ROOT-CAUSED AND FIXED `2026-11-05` (`CE-4086`, backend).** ⛔ Not the `RegisterMapping` overwrite suspected above: `RegisterMapping` writes the FORWARD
+table only and never touched the reverse index. 📐 `GeoSpatialEgressTranslator` declared `public IReadOnlyList<int> TargetComponentIds` as a PLAIN property on a
+subclass of `CycloneTranslator<,>`, which implements `IDescriptorTranslator` but declared no member of that name — so the property only HID the interface's
+empty default, and every registrar (they all read the interface) got `[]`: on EVERY node `dtWorldPos → SimTransform` never reached any map and no node waited
+for a pose. Fix: `CycloneTranslator.TargetComponentIds` is `virtual`, the egress `override`s it, and a reflection rail
+(`TheDescriptorMapIsWiredTests.EveryTranslatorsDeclaredTargetComponentIds_IsWhatTheInterfaceAnswers`) catches any future hiding.
+⭐ **And the warning above does not bite:** a grantee waits for the creator's one in-window sample BY DESIGN (F7 — `CE-4016`,
+`TheTrafficSettingsGhostWaitsForItsValuesTests`: a traffic node that promoted before it had its settings dropped them). With the pairing restored every node
+now waits for `SimTransform`, the Muscle included. 📐 Measured `2026-11-05` with the cluster suites (`SplitAuthoritySpawnTests`, `GhostPromotionTests`,
+`SpawnMovingVehicleIntegrationTests`, `DistributedScenarioLoadTests`, `PlayerJoinsARunningScenarioTests`): 13/14, the one red
+(`CE3221_ASideFlipMadeOnCgf_ReachesSimHost`, a `NodeTransitionPayloadDto` JSON error) red at the base too. ⛔ A grantable exclusion was tried and REJECTED:
+it would have lifted exactly CE-4016's wait. The stall report (600 frames) stays the net for an owner that never publishes.
+
 ⭐⭐⭐ **What the picture shows that the prose cannot: WHERE each of the four inputs comes from, and that
 three of them are HOST-LOCAL while only one is shared.** That asymmetry is the entire reason this list could
 never live on `TkbTemplate` or in a TKB file.

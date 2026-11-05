@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;
@@ -23,6 +24,14 @@ namespace Fdp.Network.Cyclone.Translators
         protected readonly NetworkEntityMap EntityMap;
 
         public long DescriptorOrdinal { get; }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4086</c> — the components this descriptor authority-gates (<see cref="IDescriptorTranslator.TargetComponentIds"/>), VIRTUAL so a
+        /// subclass OVERRIDES it. ⛔ Was: the interface's default only, and a subclass's own public property merely HID it — the interface (what
+        /// every registrar reads) still answered empty, so <c>GeoSpatialEgressTranslator</c>'s <c>dtWorldPos → SimTransform</c> pairing never reached
+        /// any map and the ghost gate never held a replica for its pose.
+        /// </summary>
+        public virtual IReadOnlyList<int> TargetComponentIds => Array.Empty<int>();
 
         protected CycloneTranslator(
             DdsParticipant? participant, 

@@ -10,6 +10,8 @@ namespace Hrot.Network.Routing;
 /// </summary>
 public static class NodeCapabilityFromHeartbeat
 {
+    private static readonly HashSet<string> EmptyFeatures = new();
+
     public static NodeCapability Map(in NodeHeartbeat hb, string[] tokens) => new()
     {
         NodeId             = (Fdp.Core.NodeId)(hb.NodeId),
@@ -17,6 +19,7 @@ public static class NodeCapabilityFromHeartbeat
         // the heartbeat no longer carries RolesMask. An un-advertising / foreign node reads None; multi-role [Flags] masks survive.
         Role               = NodeRoleTokens.MaskFromTokens(tokens),
         Capabilities       = new HashSet<string>(tokens),
+        FeaturesOn         = hb.FeaturesOn is { Count: > 0 } on ? new HashSet<string>(on) : EmptyFeatures,   // ⭐ Player Join §9.1
         RamUsedBytes       = hb.RamUsedBytes,
         LastSeenUtcSeconds = (double)hb.WallTicksUtc / System.TimeSpan.TicksPerSecond,
     };

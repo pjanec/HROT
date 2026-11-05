@@ -81,8 +81,20 @@ public sealed class PlayerJoinsARunningScenarioTests : IDisposable
         Assert.DoesNotContain(igNodeId, inSyncBefore);   // the joiner is a NEW node — otherwise nothing below proves a catch-up
 
         bool sawCatchingUp = false, clusterPlayReadyDropped = false, gateOpened = false;
+        var igMap = harness.Ig.App.TestHook_EntityMap;
+        var igWorld = harness.Ig.App.World;
+        var atOrigin = new HashSet<int>();
+        // ⭐ CE-4086 — sampled EVERY frame: a unit the joiner has PROMOTED (no longer a ghost) must already hold its first pose, never the origin
+        void SampleNoReplicaAtTheOrigin()
+        {
+            foreach (var id in brainIds)
+                if (igMap.TryGetEntity(id, out var e) && igWorld.IsAlive(e) && igWorld.GetLifecycleState(e) != EntityLifecycle.Ghost
+                    && igWorld.HasComponent<SimTransform>(e) && igWorld.GetComponentRO<SimTransform>(e).Position == System.Numerics.Vector3.Zero)
+                    atOrigin.Add(id);
+        }
         bool joined = harness.PumpUntil(() =>
         {
+            SampleNoReplicaAtTheOrigin();
             if (igView.LocalPhase == NodePhase.CatchingUp) sawCatchingUp = true;
             if (!cgfView.ClusterPlayReady) clusterPlayReadyDropped = true;   // ⭐ (d) sampled EVERY frame, not only at the end
             gateOpened = igView.GateOpen(Fdp.Toolkit.Orchestration.HostGatePolicy.Player);
@@ -107,11 +119,14 @@ public sealed class PlayerJoinsARunningScenarioTests : IDisposable
         Assert.Contains(igNodeId, master.InSyncNodeIds);
 
         // (c) the IG's world holds the scenario's replicated entities — the same ones the brain holds
-        var igMap = harness.Ig.App.TestHook_EntityMap;
-        var igWorld = harness.Ig.App.World;
-        Assert.True(harness.PumpUntil(() => CountKnownOnIg(igMap, igWorld, brainIds) == brainIds.Count, 1000),
+        Assert.True(harness.PumpUntil(() => { SampleNoReplicaAtTheOrigin(); return CountKnownOnIg(igMap, igWorld, brainIds) == brainIds.Count; }, 1000),
             $"the IG must hold all {brainIds.Count} units the brain holds. It holds {CountKnownOnIg(igMap, igWorld, brainIds)}.");
         Assert.True(brainIds.Count > 0);
+
+        // (f) ⭐ CE-4086 — no unit was ever promoted on the joiner before its first pose (it would have been drawn at (0,0,0)).
+        //   🔴 Mutation: GeoSpatialEgressTranslator.TargetComponentIds a plain property again (the hidden pairing) ⇒ the ghost promotes on
+        //   EntityInfo alone and holds the origin until the pose lands.
+        Assert.True(atOrigin.Count == 0, $"units promoted at the origin before their first pose: {string.Join(",", atOrigin)}");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -124,7 +139,12 @@ public sealed class PlayerJoinsARunningScenarioTests : IDisposable
             editor.Bus.PublishManaged(new SpawnEntityCommand
             {
                 TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams), NetworkId = id, OwnerNodeId = (Fdp.Core.NodeId)(0), InitType = ReliableInitType.None,
-                InitialComponents = new System.Collections.Generic.List<object> { new Fdp.Toolkit.Scenario.EntityGuid(Guid.NewGuid()) },   // CE-3357
+                InitialComponents = new System.Collections.Generic.List<object>
+                {
+                    new Fdp.Toolkit.Scenario.EntityGuid(Guid.NewGuid()),   // CE-3357
+                    // ⭐ CE-4086 — off the origin, so a replica the joiner promotes before its first pose (held at (0,0,0)) is visible
+                    new SimTransform { Position = new System.Numerics.Vector3(id == UnitAId ? 120f : -80f, 45f, 0f), Rotation = System.Numerics.Quaternion.Identity },
+                },
             });
         Assert.True(editor.PumpUntil(() => editor.Repo.EntityCount == 2, timeoutMs: 5_000), "EditorHarness must spawn 2 entities within 5 s.");
         editor.PumpFrames(2);

@@ -569,7 +569,7 @@ public sealed class NodeOpSlaveTranslatorTests
     /// through <c>NodeCapabilityFromHeartbeat</c>: RAM and the last-seen stamp carried over. (The CPU field was dropped — nothing measured it.)
     /// </summary>
     [Fact(Timeout = 15_000)]
-    public void CE4075_TheHeartbeatIngest_MapsRamAndLastSeenIntoTheClusterCache()
+    public void CE4075_TheHeartbeatIngest_MapsRamLastSeenAndFeaturesOnIntoTheClusterCache()
     {
         using var participant      = new DdsParticipant(TestDomain);
         using var heartbeatWriter  = new DdsWriter<NodeHeartbeat>(participant);
@@ -582,7 +582,8 @@ public sealed class NodeOpSlaveTranslatorTests
         Thread.Sleep(400);
 
         const int nodeId = 77;
-        heartbeatWriter.Write(new NodeHeartbeat { NodeId = nodeId, SubsystemName = "SimHost", WallTicksUtc = 12345L, RamUsedBytes = 1L << 20 });
+        heartbeatWriter.Write(new NodeHeartbeat { NodeId = nodeId, SubsystemName = "SimHost", WallTicksUtc = 12345L, RamUsedBytes = 1L << 20,
+                                                   FeaturesOn = new System.Collections.Generic.List<string> { "gameplay.deploy-server" } });
 
         Hrot.Network.Routing.NodeCapability? got = null;
         var deadline = DateTime.UtcNow.AddSeconds(8);
@@ -596,6 +597,9 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.NotNull(got);
         Assert.Equal(1L << 20, got!.RamUsedBytes);
         Assert.Equal(12345.0 / TimeSpan.TicksPerSecond, got.LastSeenUtcSeconds, 1e-9);
+        // ⭐ Player Join §9.1 (D-3) — the features it reports ON reach every node's cache, not only the master's roster
+        Assert.True(cache.FeatureOn(nodeId, "gameplay.deploy-server"));
+        Assert.False(cache.FeatureOn(nodeId, "map3d.in-load"));
     }
 
     // ── ⭐⭐⭐ CE-1436 (R-3066, design V1/V2) — ONE ingress of the cluster's facts; monitoring stays with the observer ───────────────────
