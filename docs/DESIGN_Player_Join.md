@@ -431,7 +431,7 @@ the editor toggle writes the editor world directly, as the Brain tab does — no
 an A-10 deployed into in flight keeps 150 m/s and its altitude, and with the feature off the Player observes. One defect found and fixed on the way: a refused request kept reporting the refused unit (`f6261a148`).
 ⚠ **Not yet:** the ImGui drawing of `DeployScreen` (no display here) and the Observer camera call — the Player's free camera is the observer view today.
 
-## 10. S2 — roles, spawn areas, death and respawn *(backend, `2026-11-05`; `build-state: READY-TO-BUILD`)*
+## 10. S2 — roles, spawn areas, death and respawn *(backend, `2026-11-05`; `build-state: BUILT` — the as-built is §10.4)*
 
 ### 10.1 INVENTORY *(measured `2026-11-05`)*
 
@@ -535,3 +535,30 @@ variable-length component is managed and recorded per change. *Roles defined per
 *The Player spawns its own man* — rejected in §5 (two Players race for one spot).
 
 *Module diagram:* unchanged from §9.2 — S2 adds no system; it grows `DeployProcessorSystem` (CGF, Input, `[NodeFeature]`) and `DeployFlowSystem` (Player, Input), each ticked by its node's kernel as there.
+
+### 10.4 AS BUILT — S2, roles · spawn areas · death and respawn *(backend, `2026-11-05`; `build-state`: BUILT)*
+
+| part | where | as built |
+|---|---|---|
+| components | `Hrot.Core/Components/Common/GameplayComponents.cs`; ids `GlobalComponentIds` **482** `DeployRole` · **483** `SpawnArea` · **484** `GameplaySettings` (free on all four lanes `2026-11-05`) | unmanaged, `[DataPolicy(Default)]` (recorded + saved), registered in `HrotSharedComponentRegistry` |
+| TKB | `TkbEntityTypes` **8814** `SpawnArea`, **8815** `DeployRole`; `NedTkbCatalog` ("Spawn Area" = a `MapGraphicDef` area like "Stone Source"; "Deploy Role" = a bare template like "Traffic") | `PlacementToolRegistry.Graphics`: Spawn Area = `Area` tool; Deploy Role = `Point` tool (see deviation 4) |
+| born with | `AreaAuthoringArm.BornWith` adds `SpawnArea{Friend, 0°}`; `GameplayBirth.BornWith` (beside `MacroBirth`, called from `ScenarioSpawnAdapter.ArmPlacement`) adds `DeployRole` | fields edit in Details through the generic Components view (see "not verified") |
+| containment | `WeatherField.AreaEntityContains` — the one area-entity containment | `ItemSources`' private `Inside` is **deleted**, it calls the shared one (deviation 1) |
+| the free point | `Hrot.Gameplay/SpawnPoints.cs` — `Pick(world, side, rng, out pos, out yawDeg, out reason)` | a random area of the side → ≤ 20 random points of its bounding box that pass the containment → Z = `WorldQuery.GroundHeightAt` (the area's own Z with no terrain) → refused within 3 m XY of any alive positioned entity that is not itself an area; refusals "no spawn area for <side>" / "no free point" |
+| wire | `DeployOfferTopic` + `Kind` (`DeployOfferKind`: Placed 0 / Role 1) · `Count` · `Max`; `PlayerSlotTopic` + `RespawnAtSim`; `PlayerSlotState.Dead = 3` | a Role offer's `UnitNetId` is its Deploy Role entity's network id; an IMPLICIT role (no role declared on the side) is `-(person TKB type)` |
+| server | `DeployProcessorSystem` (+ `RoleSpawner` delegate; the pack builds it from `EntityCreation.RequestEntityCreation`) | role request ⇒ side · `RoleFull` · `SpawnPoints.Pick` ⇒ ONE man through the creation path, owner = this node ⇒ a **pending spawn** answered only once the man exists (`CreationRequestId` + `NetworkIdentity`) ⇒ slot TakingControl + status Accepted(his id); 10 s ⇒ "spawn timed out"; men named "<role> <n>" |
+| slot life | `DeployProcessorSystem.Progress` | Playing + unit dead/gone ⇒ **Dead**, `RespawnAtSim = now + delay` (`GameplaySettings` on the World Environment, 10 when absent); Playing + `HolderOf != station` ⇒ **Choosing** (closes §9.4's gap); Dead + `now ≥ RespawnAtSim` ⇒ Choosing; delay 0 ⇒ `RespawnAtSim = 0` = Dead for good. Dead/Choosing slots hold a side only in `StationReservations` |
+| client | `PlayerSlotReaderSystem` keeps the latest slot per station (`TryGetSlot`); `DeployFlowSystem.Slots` reads it; `DeployFlowState.Dead` | Playing → Dead (`Reason` "killed — respawn in N s" from `RespawnAtSim` and the Player's sim clock, "killed — observing" when 0) → Choosing; Playing → Choosing when released. `GET /deploy` reports `respawnAt` and each offer's `kind/count/max` |
+| screen | `DeployScreen` | the Dead line; role rows "name  n / max" (greyed "full"); "Keep observing" for a delay of 0 |
+| delay | scenario parameter `respawnDelay` | `header.params` + `header.world.{GameplaySettings, ParamBindings}` — the World section becomes the World Environment entity BEFORE `ScenarioParams.Prepare` (`ScenarioLoadStep`), so the existing `ParamBindings` path reaches it; nothing new built |
+
+**Deviations from §10.2 / the brief, each argued:**
+1. ⭐ **The shared inside helper already existed.** `WeatherField.AreaEntityContains` (+ `Contains`) is the one even-odd containment; `ItemSources.Inside` was the DUPLICATE. It was deleted and `ItemSources.At` calls the shared one — rather than "moving" it to a second shared place (which would have made two).
+2. `SpawnPoints.Pick` has an extra `out string reason` (the refusal text has to travel).
+3. The server spawns through **`EntityCreation.RequestEntityCreation`** (the AUTHOR affordance — a new intent), not `Publish(new EntityCreationRequest)`, which `EntityCreation.cs` reserves for TRANSLATORS. Owner = the creation pack's own node, as `SimHostScenarioManager` does.
+4. **Deploy Role is placed with the Point tool** (so it has a position that means nothing). "Like Traffic" could not be followed literally: Traffic has no editor creation path to copy (measured: no editor/presentation code creates a `TrafficDemand` entity — scenario files author it). The Point tool + `GameplayBirth` is the existing born-with pattern (`MacroBirth`).
+5. The respawn state is carried as `RespawnAtSim = 0` for "never" (delay 0), not infinity.
+6. `SimClock.Of(view)` returns the INTERFACE, boxing a struct per call (24 B/frame): both systems keep one boxed clock (`_clock ??=`) — found by the hot-path rail.
+
+**Rails** — `Hrot.SimHost.Tests`: `GameplayDeployServerTests` (S2: role spawn + point + answer-after-man · full / wrong side / no area · timeout · implicit + declared offers · death ⇒ Dead ⇒ Choosing · settings delay and 0 · release · **0 B per steady frame**), `GameplayDeployFlowTests` (S2: Playing → Dead → Choosing with the countdown · delay 0 observing · release), `GameplaySpawnPointsTests` (inside a concave outline · terrain Z · clearance and the area's own anchor · refusals · the shared containment), `GameplaySettingsScenarioTests` (the `respawnDelay` binding; save/load in the World section); `Hrot.Presentation.Tests`: catalogue golden (8814, 8815), arming, born-with, the row text. Each red-proved by a compiling mutation (report).
+⚠ **Not verified live:** a Deploy Role / Spawn Area / `GameplaySettings` is edited in Details only through the generic Components view (not exercised); a Deploy Role or Spawn Area entity must exist on the CGF node's world to be read — placed units are Brain-owned, and these bare / area entities follow the same creating-Brain rule as the World Environment and the Weather Region, but **no NED descriptor carries `DeployRole`/`SpawnArea` to a node that does not own them** (S1's `Playable` has the same property).

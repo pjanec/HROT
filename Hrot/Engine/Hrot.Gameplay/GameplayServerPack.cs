@@ -14,9 +14,15 @@ public sealed class GameplayServerPack : INodeCapability
     public const string CapabilityKey = "gameplay.server";
 
     private readonly Func<HrotNodeContext, DeployServerElection?>? _election;
+    private readonly Func<Hrot.Common.EntityCreation.EntityCreation?>? _creation;
 
+    /// <param name="creation">⭐ S2 — the node's entity-creation pack (the bootstrapper's <c>EntityCreation</c>, resolved LAZILY: it is built after the capabilities resolve), through which a role's man is spawned; null ⇒ role requests are refused.</param>
     /// <param name="election">Reads the cluster cache of the node being composed (null ⇒ no election: this node always serves). The host passes it because this assembly does not reference the NED network layer.</param>
-    public GameplayServerPack(Func<HrotNodeContext, DeployServerElection?>? election = null) => _election = election;
+    public GameplayServerPack(Func<HrotNodeContext, DeployServerElection?>? election = null, Func<Hrot.Common.EntityCreation.EntityCreation?>? creation = null)
+    {
+        _election = election;
+        _creation = creation;
+    }
 
     public string Key => CapabilityKey;
 
@@ -33,11 +39,12 @@ public sealed class GameplayServerPack : INodeCapability
     /// The composition proper, from the pieces a node context holds — ⭐ the one place the pack's systems are built, which a host rail can also drive without a whole node.
     /// </summary>
     public void Compose(CycloneDDS.Runtime.DdsParticipant? participant, Fdp.Toolkit.Replication.Services.NetworkEntityMap entityMap, int nodeId,
-                        DeployServerElection? election, List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> input)
+                        DeployServerElection? election, List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> input,
+                        DeployProcessorSystem.RoleSpawner? spawner = null, Random? rng = null)
     {
         if (Wire is not null) throw new InvalidOperationException("GameplayServerPack is composed once per node.");
         Wire = new GameplayWire(participant);
-        Processor = new DeployProcessorSystem(Wire, entityMap, nodeId, election);
+        Processor = new DeployProcessorSystem(Wire, entityMap, nodeId, election, spawner: spawner, rng: rng);
         input.Add(Processor);
         input.Add(new ServerPlayerSlotReaderSystem(Wire));
     }
@@ -49,6 +56,14 @@ public sealed class GameplayServerPack : INodeCapability
     {
         // ⚠ A null context is the SHAPE probe several host rails make; every production host passes its context (TrafficPack's rule).
         if (context is null) return;
-        Compose(context.Participant, context.EntityMap, context.NodeId.Value, _election?.Invoke(context), input);
+        Compose(context.Participant, context.EntityMap, context.NodeId.Value, _election?.Invoke(context), input, SpawnerOf(_creation));
     }
+
+    /// <summary>The spawner over the node's creation pack: one man, owned by THIS node (the Brain that runs the server), through the one AUTHOR path (<c>RequestEntityCreation</c>); empty when the pack is not there (yet).</summary>
+    public static DeployProcessorSystem.RoleSpawner? SpawnerOf(Func<Hrot.Common.EntityCreation.EntityCreation?>? creation)
+        => creation is null ? null : (tkb, at, comps) =>
+        {
+            var c = creation();
+            return c is null ? Guid.Empty : c.RequestEntityCreation(tkb, at, comps, owner: c.NodeId);
+        };
 }

@@ -1134,6 +1134,12 @@ namespace Hrot.Map.Definitions.Tkb
             stones.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.ItemSourceDto { Ammo = Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone, UpTo = 5 });
             stones.AddDescriptor(new MapGraphicDef());   // ⭐ CE-2324 — an area, not a body (ItemSources.At reads the world, not the grid)
             tkbDb.Register(stones);
+            // ⭐ Player Join S2-b (D-11) — a Spawn Area: an area like the Stone Source; SpawnArea { Side, FacingDeg } is added when it is drawn.
+            var spawnArea = new TkbTemplate("Spawn Area", TkbEntityTypes.SpawnArea);
+            spawnArea.AddDescriptor(new MapGraphicDef());   // an area, not a body
+            tkbDb.Register(spawnArea);
+            // ⭐ Player Join S2-a (D-10) — a Deploy Role: a bare template like Traffic's; its DeployRole is added when it is placed.
+            tkbDb.Register(new TkbTemplate("Deploy Role", TkbEntityTypes.DeployRole));
             // ⭐ AQ93 R-4021 — the scenario's traffic settings: a bare template like the World Environment's; its TrafficDemand arrives with
             //   the creation request. No SimTransform: it is nowhere.
             var traffic = new TkbTemplate("Traffic", TkbEntityTypes.TrafficDemand);

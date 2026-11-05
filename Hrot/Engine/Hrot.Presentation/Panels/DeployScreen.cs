@@ -57,6 +57,7 @@ public sealed class DeployScreen
                 DeployFlowState.Playing => false,
                 DeployFlowState.Waiting => f.Reason.Length > 0,
                 DeployFlowState.Observing => !_keepObserving || f.ServerExists,
+                DeployFlowState.Dead => f.RespawnAtSim > 0.0 || !_keepObserving,   // a countdown always shows; "killed — observing" until the Player keeps observing
                 _ => true,
             };
         }
@@ -70,6 +71,7 @@ public sealed class DeployScreen
         DeployFlowState.Choosing => "Deploy",
         DeployFlowState.Requesting => "Asking the server…",
         DeployFlowState.TakingControl => "Taking control…",
+        DeployFlowState.Dead => f.Reason,   // "killed — respawn in N s" / "killed — observing"
         _ => "",
     };
 
@@ -88,6 +90,13 @@ public sealed class DeployScreen
         var list = new List<DeployOffer>();
         foreach (var o in offers) if (o.Side == side) list.Add(o);
         return list;
+    }
+
+    /// <summary>One offer's row text: a placed unit by its name; a role with its live count — <i>Rifleman  2 / 4</i> (<i>2</i> when unlimited).</summary>
+    public static string RowText(DeployOffer o)
+    {
+        string name = o.SlotName.Length > 0 ? o.SlotName : $"#{o.UnitNetId}";
+        return !o.IsRole ? name : o.Max > 0 ? $"{name}  {o.Count} / {o.Max}" : $"{name}  {o.Count}";
     }
 
     /// <summary>Called each frame inside an active ImGui frame.</summary>
@@ -112,6 +121,9 @@ public sealed class DeployScreen
                 break;
             case DeployFlowState.Choosing:
                 DrawChoosing(f);
+                break;
+            case DeployFlowState.Dead when f.RespawnAtSim <= 0.0:
+                if (ImGui.Button("Keep observing")) _keepObserving = true;
                 break;
             case DeployFlowState.Requesting:
             case DeployFlowState.TakingControl:
@@ -138,11 +150,12 @@ public sealed class DeployScreen
         if (mine.Count == 0) ImGui.TextDisabled("No unit to take on this side.");
         foreach (var o in mine)
         {
-            string name = o.SlotName.Length > 0 ? o.SlotName : $"#{o.UnitNetId}";
-            if (o.HolderStation != 0)
+            string name = RowText(o);
+            bool full = o.IsRole && o.Max > 0 && o.Count >= o.Max;
+            if (o.HolderStation != 0 || full)
             {
                 ImGui.BeginDisabled();
-                ImGui.Selectable($"{name}  —  held by station {o.HolderStation}##u{o.UnitNetId}");
+                ImGui.Selectable(full ? $"{name}  —  full##u{o.UnitNetId}" : $"{name}  —  held by station {o.HolderStation}##u{o.UnitNetId}");
                 ImGui.EndDisabled();
             }
             else if (ImGui.Selectable($"{name}##u{o.UnitNetId}")) f.Request(_side!.Value, o.UnitNetId);

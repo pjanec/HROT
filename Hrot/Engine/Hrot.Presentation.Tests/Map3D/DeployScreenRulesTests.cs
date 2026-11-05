@@ -51,4 +51,14 @@ public sealed class DeployScreenRulesTests
         Assert.Equal(new[] { ForceId.Friend, ForceId.Hostile }, DeployScreen.SidesOf(offers));
         Assert.Equal(new[] { 1, 2 }, DeployScreen.OffersOf(offers, ForceId.Friend).Select(o => o.UnitNetId));
     }
+
+    /// <summary>S2 — a role row shows its live count against its max ("Rifleman  2 / 4", just the count when unlimited), a placed unit its name. ✅ Red-proof: the max dropped ⇒ red.</summary>
+    [Fact]
+    public void ARoleRow_ShowsItsCountAgainstItsMax()
+    {
+        Assert.Equal("Rifleman  2 / 4", DeployScreen.RowText(new DeployOffer(300, ForceId.Friend, "Rifleman", 0, Kind: 1, Count: 2, Max: 4)));
+        Assert.Equal("Rifleman  3", DeployScreen.RowText(new DeployOffer(-2002, ForceId.Friend, "Rifleman", 0, Kind: 1, Count: 3, Max: 0)));
+        Assert.Equal("Alpha 1", DeployScreen.RowText(new DeployOffer(5, ForceId.Friend, "Alpha 1", 0)));
+        Assert.Equal("#5", DeployScreen.RowText(new DeployOffer(5, ForceId.Friend, "", 0)));
+    }
 }

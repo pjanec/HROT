@@ -50,6 +50,10 @@ public static class PlacementToolRegistry
         new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.WeatherRegion),       "Weather Region", PlacementToolKind.Area, "_area"),
         // ⭐ CE-3235 (B-13, AW-8) — an area born as a Stone Source (8812): a man inside it picks stones up (ItemSources.Refill).
         new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.StoneSource),         "Stone Source", PlacementToolKind.Area, "_area"),
+        // ⭐ Player Join S2-b (D-11) — an area born as a Spawn Area (8814); the arm gives it SpawnArea { Friend, 0° }.
+        new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.SpawnArea),           "Spawn Area",   PlacementToolKind.Area, "_area"),
+        // ⭐ Player Join S2-a (D-10) — a Deploy Role (8815): placed with the point tool, born with DeployRole (GameplayBirth); its position means nothing.
+        new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.DeployRole),          "Deploy Role",  PlacementToolKind.Point, "_area"),
         new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_FireLine), "Fire Line",    PlacementToolKind.None,  "_fireline",
                            DisabledReason: "No placement tool yet."),
     };

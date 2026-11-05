@@ -187,6 +187,7 @@ namespace Hrot.ScenarioEditor.Tools
         {
             var components = new List<object> { polyline, style };
             if (tkbType == TkbEntityTypes.WeatherRegion) components.Add(Fdp.Toolkit.Weather.WeatherConditions.Standard);
+            if (tkbType == TkbEntityTypes.SpawnArea) components.Add(new Hrot.Common.SpawnArea { Side = Fdp.Core.ForceId.Friend, FacingDeg = 0f });   // ⭐ Player Join S2-b — edited in Details
             return components;
         }
 

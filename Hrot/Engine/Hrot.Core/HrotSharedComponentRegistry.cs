@@ -44,6 +44,9 @@ public static class HrotSharedComponentRegistry
         //   ⛔ Not the whole union of registries — DESIGN_Role_Affinity_Ownership.md §3.9b keeps registration narrowing.
         //   Rail: SharedRegistryCoversTheSharedPackTests.
         world.RegisterComponent<EntityInfo>();                                         // EntityInfoIngressTranslator
+        world.RegisterComponent<Hrot.Common.DeployRole>();                             // ⭐ Player Join S2 — a role, a spawn area, the gameplay settings (authored; read by the gameplay server pack)
+        world.RegisterComponent<Hrot.Common.SpawnArea>();
+        world.RegisterComponent<Hrot.Common.GameplaySettings>();
         world.RegisterComponent<Hrot.Common.Playable>();                              // ⭐ Player Join D-9 — a unit a Player may deploy into (authored; read by the gameplay server pack)
         world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();          // read by EntityInfoIngressTranslator
         world.RegisterEvent<Fdp.Core.CommandHierarchy.CmdAssignSubordinate>();        // published by EntityInfoIngressTranslator

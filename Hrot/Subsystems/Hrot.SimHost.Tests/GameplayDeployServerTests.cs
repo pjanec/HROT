@@ -8,6 +8,12 @@ using Fdp.ModuleHost.Scheduling;
 using Fdp.Toolkit.Behavior.Possession;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Lifecycle.Components;
+using Fdp.Toolkit.Motion;
+using Fdp.Toolkit.Tkb.Domain;
+using Hrot.IG.Components;
+using System.Linq;
+using System.Numerics;
 using Fdp.Toolkit.Replication.Messages;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Common;
@@ -40,6 +46,9 @@ namespace Hrot.SimHost.Tests
         private readonly DdsReader<PlayerSlotTopic> _slotSamples;
         private readonly List<DeployStatusTopic> _statuses = new();
         private readonly List<(bool valid, PlayerSlotTopic slot)> _slotLog = new();
+        private readonly DdsReader<DeployOfferTopic> _offerSamples;
+        private readonly Dictionary<int, DeployOfferTopic> _offersSeen = new();
+        private readonly List<(long Tkb, SimTransform At, object[] Components, Guid Guid)> _spawnCalls = new();
         private double _now = 100;
         private long _wallMs = 1_000;
 
@@ -53,20 +62,25 @@ namespace Hrot.SimHost.Tests
             _w.RegisterComponent<PossessedBy>();
             _w.RegisterComponent<Health>();
             _w.RegisterEvent<NodeDeparted>();
+            _w.RegisterComponent<DeployRole>(); _w.RegisterComponent<SpawnArea>(); _w.RegisterComponent<GameplaySettings>();
+            _w.RegisterComponent<CreationRequestId>(); _w.RegisterComponent<EntityInfo>(); _w.RegisterComponent<TkbIdentity>(); _w.RegisterComponent<Locomotion>();
+            _w.RegisterComponent<SimTransform>(); _w.RegisterManagedComponent<EditablePolyline>();
             SetTime(_now);
             _wire = new GameplayWire(_serverP);
-            _proc = new DeployProcessorSystem(_wire, _map, Server, election: null, nowMs: () => _wallMs);
+            _proc = new DeployProcessorSystem(_wire, _map, Server, election: null, nowMs: () => _wallMs,
+                spawner: (tkb, at, comps) => { var g = Guid.NewGuid(); _spawnCalls.Add((tkb, at, comps.ToArray(), g)); return g; }, rng: new Random(7));
             _slots = new ServerPlayerSlotReaderSystem(_wire);
             _request = new DdsWriter<DeployRequestTopic>(_stationP);
             _status = new DdsReader<DeployStatusTopic>(_stationP);
             _slotSamples = new DdsReader<PlayerSlotTopic>(_stationP);
+            _offerSamples = new DdsReader<DeployOfferTopic>(_stationP);
             Tick();   // creates the server's request reader (the wire is lazy) so the station's volatile writer can match it
             Until(() => _request.CurrentStatus.CurrentCount > 0, "the station's request writer must match the server's reader");
         }
 
         public void Dispose()
         {
-            _request.Dispose(); _status.Dispose(); _slotSamples.Dispose(); _wire.Dispose(); _stationP.Dispose(); _serverP.Dispose(); _w.Dispose();
+            _request.Dispose(); _status.Dispose(); _slotSamples.Dispose(); _offerSamples.Dispose(); _wire.Dispose(); _stationP.Dispose(); _serverP.Dispose(); _w.Dispose();
         }
 
         // ── helpers ─────────────────────────────────────────────────────────────────────────
@@ -97,6 +111,12 @@ namespace Hrot.SimHost.Tests
 
         private void Drain()
         {
+            using (var l = _offerSamples.Take())
+                foreach (var s in l)
+                {
+                    if (s.IsValid) _offersSeen[s.Data.UnitNetId] = s.Data;
+                    else _offersSeen.Remove(DdsTypeSupport.FromNative<DeployOfferTopic>(s.NativePtr).UnitNetId);
+                }
             using (var l = _status.Take()) foreach (var s in l) if (s.IsValid) _statuses.Add(s.Data);
             using (var l = _slotSamples.Take())
                 foreach (var s in l)
@@ -133,6 +153,66 @@ namespace Hrot.SimHost.Tests
             DeployStatusTopic answer = default;
             PumpUntil(() => { foreach (var s in _statuses) if (s.RequestId == id) { answer = s; return true; } return false; }, "a status for the request");
             return answer;
+        }
+
+        // ── S2 helpers ──────────────────────────────────────────────────────────────────────────
+
+        private Entity Area(ForceId side, float facing, Vector3 origin, float half = 20f, Vector2[]? shape = null)
+        {
+            var e = _w.CreateEntity();
+            _w.AddComponent(e, new SimTransform { Position = origin, Rotation = Quaternion.Identity });
+            _w.AddComponent(e, new SpawnArea { Side = side, FacingDeg = facing });
+            _w.SetManagedComponent(e, new EditablePolyline { Points = shape ?? new[] { new Vector2(-half, -half), new Vector2(half, -half), new Vector2(half, half), new Vector2(-half, half) } });
+            return e;
+        }
+
+        private Entity RoleEntity(int netId, ForceId side, long tkb, string name, byte max)
+        {
+            var e = _w.CreateEntity();
+            _w.AddComponent(e, new NetworkIdentity { Value = netId });
+            _w.AddComponent(e, new DeployRole { Side = side, PersonTkbType = tkb, Name = new FixedString32(name), MaxCount = max });
+            _map.Register(netId, e);
+            return e;
+        }
+
+        /// <summary>What the creation path would do: the man exists, carries the request's id and a network identity.</summary>
+        private Entity Materialise(int call, int netId)
+        {
+            var c = _spawnCalls[call];
+            var e = _w.CreateEntity();
+            _w.AddComponent(e, c.At);
+            _w.AddComponent(e, (EntityInfo)c.Components.First(x => x is EntityInfo));
+            _w.AddComponent(e, new CreationRequestId { Value = c.Guid });
+            _w.AddComponent(e, new NetworkIdentity { Value = netId });
+            _w.AddComponent(e, new Health { Current = 100f, Max = 100f });
+            _map.Register(netId, e);
+            return e;
+        }
+
+        private string Ask(int station, ForceId side, int unitNetId)
+        {
+            string id = Guid.NewGuid().ToString("N");
+            _request.Write(new DeployRequestTopic { RequestId = id, StationNodeId = station, Side = (byte)side, UnitNetId = unitNetId });
+            return id;
+        }
+
+        private DeployStatusTopic Answer(string id)
+        {
+            DeployStatusTopic answer = default;
+            PumpUntil(() => { foreach (var s in _statuses) if (s.RequestId == id) { answer = s; return true; } return false; }, "a status for the request");
+            return answer;
+        }
+
+        private PlayerSlotTopic LastSlot(int station, Func<PlayerSlotTopic, bool>? where = null)
+        {
+            PlayerSlotTopic found = default;
+            PumpUntil(() =>
+            {
+                for (int i = _slotLog.Count - 1; i >= 0; i--)
+                    if (_slotLog[i].valid && _slotLog[i].slot.StationNodeId == station && (where is null || where(_slotLog[i].slot))) { found = _slotLog[i].slot; return true; }
+                return false;
+            }, "the slot sample");
+            return found;
         }
 
         // ── the processor ───────────────────────────────────────────────────────────────────
@@ -328,6 +408,172 @@ namespace Hrot.SimHost.Tests
             Assert.True(e.IsServer(2));
             on.Clear();                     // 3 now reports it OFF (advertises, does not serve)
             Assert.True(e.IsServer(9));
+        }
+
+        // ── ⭐ S2 — roles, spawn areas, death and respawn ─────────────────────────────────────────
+
+        /// <summary>A request that names a ROLE makes ONE man through the creation path: at a point INSIDE a spawn area of the side, ≥ 3 m from anyone, on the ground (the area's own Z here — no terrain), facing the area's
+        /// angle, as the person type of the role, named "&lt;role&gt; &lt;n&gt;" on the side — and the answer waits until he EXISTS (Accepted with HIS network id, the slot TakingControl on him). ✅ Red-proof: the answer sent
+        /// at once (not waiting for the man) ⇒ no unit id ⇒ red; the clearance dropped ⇒ the blocker case red.</summary>
+        [Fact]
+        public void ARoleRequest_SpawnsAManInTheArea_ThenAnswersWithHisNetId()
+        {
+            Area(ForceId.Friend, 90f, new Vector3(100f, 200f, 5f));
+            var blocker = _w.CreateEntity(); _w.AddComponent(blocker, new SimTransform { Position = new Vector3(100f, 200f, 0f), Rotation = Quaternion.Identity });
+            RoleEntity(300, ForceId.Friend, 2002, "Rifleman", 4);
+
+            string id = Ask(StationA, ForceId.Friend, 300);
+            PumpUntil(() => _spawnCalls.Count == 1, "the spawn request");
+            var call = _spawnCalls[0];
+            Assert.Equal(2002L, call.Tkb);
+            Assert.InRange(call.At.Position.X, 80f, 120f); Assert.InRange(call.At.Position.Y, 180f, 220f);
+            Assert.True(Vector2.Distance(new Vector2(call.At.Position.X, call.At.Position.Y), new Vector2(100f, 200f)) >= 3f, "3 m clear of the blocker");
+            Assert.Equal(5f, call.At.Position.Z);
+            Assert.Equal(90f, 2f * MathF.Atan2(call.At.Rotation.Z, call.At.Rotation.W) * 180f / MathF.PI, 1);   // facing the area's angle, about Z
+            var info = (EntityInfo)call.Components.First(x => x is EntityInfo);
+            Assert.Equal("Rifleman 1", info.Name.ToString()); Assert.Equal(ForceId.Friend, info.ForceId);
+            Assert.DoesNotContain(_statuses, st => st.RequestId == id);   // not answered before the man exists
+            Assert.True(_proc.TryGetSlot(StationA, out _, out _) == false);
+
+            Materialise(0, 200);
+            var status = Answer(id);
+            Assert.True(status.Accepted, status.Reason); Assert.Equal(200, status.UnitNetId);
+            Assert.True(_proc.TryGetSlot(StationA, out var state, out int unit)); Assert.Equal(PlayerSlotState.TakingControl, state); Assert.Equal(200, unit);
+        }
+
+        /// <summary>A role whose Max is reached is refused <c>RoleFull</c> (alive men this server made for it); a role of the OTHER side is refused <c>WrongSide</c>; a side with no spawn area is refused
+        /// "no spawn area for &lt;side&gt;" — nothing is spawned in any of them. ✅ Red-proof: the Max comparison dropped ⇒ the second man is made ⇒ red.</summary>
+        [Fact]
+        public void ARoleThatIsFull_AWrongSide_OrASideWithNoArea_IsRefused_AndNothingIsSpawned()
+        {
+            Area(ForceId.Friend, 0f, new Vector3(100f, 200f, 5f));
+            RoleEntity(300, ForceId.Friend, 2002, "Rifleman", 1);
+            RoleEntity(301, ForceId.Hostile, 2003, "Insurgent", 0);
+            RoleEntity(302, ForceId.Friend, 2004, "Grenadier", 0);
+
+            string first = Ask(StationA, ForceId.Friend, 300);
+            PumpUntil(() => _spawnCalls.Count == 1, "the first spawn");
+            Materialise(0, 200);
+            Assert.True(Answer(first).Accepted);
+
+            var full = Answer(Ask(StationB, ForceId.Friend, 300));
+            Assert.False(full.Accepted); Assert.Equal("RoleFull", full.Reason);
+            var wrong = Answer(Ask(StationB, ForceId.Friend, 301));
+            Assert.False(wrong.Accepted); Assert.Equal("WrongSide", wrong.Reason);
+            Assert.Equal(1, _spawnCalls.Count);
+
+            var noArea = Answer(Ask(StationB, ForceId.Hostile, 301 ));   // a Hostile role, Friend-only areas
+            Assert.False(noArea.Accepted); Assert.Equal("no spawn area for Hostile", noArea.Reason);
+            Assert.Equal(1, _spawnCalls.Count);
+        }
+
+        /// <summary>A spawn whose man never appears is refused "spawn timed out" after 10 s. ✅ Red-proof: the deadline check dropped ⇒ it waits forever ⇒ red.</summary>
+        [Fact]
+        public void ASpawnThatNeverArrives_IsRefusedAfter10Seconds()
+        {
+            Area(ForceId.Friend, 0f, new Vector3(0f, 0f, 0f));
+            RoleEntity(300, ForceId.Friend, 2002, "Rifleman", 0);
+            var status = Answer(Ask(StationA, ForceId.Friend, 300));
+            Assert.False(status.Accepted); Assert.Equal(DeployProcessorSystem.SpawnTimedOut, status.Reason);
+            Assert.Equal(1, _spawnCalls.Count);
+        }
+
+        /// <summary>With NO Deploy Role declared on a side, the server offers ONE implicit role per person TKB type present on it (id <c>-(type)</c>, unlimited, Kind Role) — and a request for it spawns that type; a side that
+        /// DECLARES roles offers those only (Kind Role, its entity id, Count alive / Max). ✅ Red-proof: the declared-side test dropped ⇒ the implicit offer shows beside a declared role ⇒ red.</summary>
+        [Fact]
+        public void ImplicitRoles_AreOfferedWhenNoneDeclared_AndDeclaredRolesCarryTheirCountAndMax()
+        {
+            Area(ForceId.Friend, 0f, new Vector3(100f, 200f, 0f));
+            var man = _w.CreateEntity();
+            _w.AddComponent(man, new TkbIdentity { TkbType = (TkbTypeId)2002L });
+            _w.AddComponent(man, new EntityInfo { Name = new FixedString64("Joe"), ForceId = ForceId.Friend });
+            _w.AddComponent(man, new Locomotion { Class = LocomotionClass.Pedestrian });
+            _w.AddComponent(man, new SimTransform { Position = new Vector3(500f, 500f, 0f), Rotation = Quaternion.Identity });
+
+            PumpUntil(() => _offersSeen.ContainsKey(-2002), "the implicit offer");
+            var o = _offersSeen[-2002];
+            Assert.Equal((byte)DeployOfferKind.Role, o.Kind); Assert.Equal((byte)ForceId.Friend, o.Side); Assert.Equal(0, o.Max);
+            string id = Ask(StationA, ForceId.Friend, -2002);
+            PumpUntil(() => _spawnCalls.Count == 1, "the implicit role's spawn");
+            Assert.Equal(2002L, _spawnCalls[0].Tkb);
+            Materialise(0, 200); Assert.True(Answer(id).Accepted);
+
+            RoleEntity(300, ForceId.Friend, 2004, "Grenadier", 3);   // now the side DECLARES a role: the implicit offer goes
+            PumpUntil(() => !_offersSeen.ContainsKey(-2002) && _offersSeen.ContainsKey(300), "the declared offer replaces the implicit one");
+            Assert.Equal(3, _offersSeen[300].Max); Assert.Equal(0, _offersSeen[300].Count);
+        }
+
+        private Entity Playing(int station, ForceId side, int netId)
+        {
+            var unit = Unit(netId, side);
+            Assert.True(Request(station, side, netId).Accepted);
+            Hold(unit, station);
+            PumpUntil(() => _proc.TryGetSlot(station, out var st, out _) && st == PlayerSlotState.Playing, "Playing");
+            return unit;
+        }
+
+        /// <summary>Death (§10.2): a Playing slot whose unit dies becomes Dead with <c>RespawnAtSim = now + 10 s</c> (no GameplaySettings ⇒ 10), the reservation drops to the side only; at that sim time it is Choosing again and the
+        /// unit's seat is free for another station. ✅ Red-proof: the death check dropped ⇒ it stays Playing ⇒ red; the respawn comparison dropped ⇒ it stays Dead ⇒ red.</summary>
+        [Fact]
+        public void ADeadUnit_MakesTheSlotDead_ThenChoosingAtTheRespawnTime()
+        {
+            var unit = Playing(StationA, ForceId.Friend, Rifleman);
+            _w.GetComponentRW<Health>(unit).Current = 0f;
+            Tick();
+            Assert.True(_proc.TryGetSlot(StationA, out var st, out _)); Assert.Equal(PlayerSlotState.Dead, st);
+            var dead = LastSlot(StationA, x => x.State == (byte)PlayerSlotState.Dead);
+            Assert.Equal(110.0, dead.RespawnAtSim, 3);
+            Assert.False(StationReservations.Of(_w).TryReservedFor(Rifleman, out _));   // the dead man is no claim
+
+            SetTime(109.5); Tick();
+            Assert.True(_proc.TryGetSlot(StationA, out st, out _)); Assert.Equal(PlayerSlotState.Dead, st);
+            SetTime(110.0); Tick();
+            Assert.True(_proc.TryGetSlot(StationA, out st, out int u)); Assert.Equal(PlayerSlotState.Choosing, st); Assert.Equal(0, u);
+            Assert.True(StationReservations.Of(_w).TryOf(StationA, out var r)); Assert.Equal(ForceId.Friend, r.Side);   // its side stays
+        }
+
+        /// <summary>The delay is <c>GameplaySettings.RespawnDelaySeconds</c> of the World Environment: 4 ⇒ <c>RespawnAtSim = now + 4</c>; 0 ⇒ the slot stays Dead for good (RespawnAtSim 0 = never). ✅ Red-proof: the settings
+        /// ignored ⇒ 10 s ⇒ the first assertion red.</summary>
+        [Fact]
+        public void TheRespawnDelayComesFromTheWorldEnvironment_AndZeroMeansDeadForGood()
+        {
+            var env = _w.CreateEntity(); _w.AddComponent(env, new GameplaySettings { RespawnDelaySeconds = 4f });
+            var unit = Playing(StationA, ForceId.Friend, Rifleman);
+            _w.GetComponentRW<Health>(unit).Current = 0f; Tick();
+            Assert.Equal(104.0, LastSlot(StationA, x => x.State == (byte)PlayerSlotState.Dead).RespawnAtSim, 3);
+            SetTime(104.0); Tick();
+            Assert.True(_proc.TryGetSlot(StationA, out var st, out _)); Assert.Equal(PlayerSlotState.Choosing, st);
+
+            _w.GetComponentRW<GameplaySettings>(env).RespawnDelaySeconds = 0f;
+            var second = Playing(StationA, ForceId.Friend, 102);
+            _w.GetComponentRW<Health>(second).Current = 0f; Tick();
+            Assert.Equal(0.0, LastSlot(StationA, x => x.State == (byte)PlayerSlotState.Dead && x.UnitNetId == 102).RespawnAtSim);
+            SetTime(1000.0); Tick(); Tick();
+            Assert.True(_proc.TryGetSlot(StationA, out st, out _)); Assert.Equal(PlayerSlotState.Dead, st);   // for good
+        }
+
+        /// <summary>The station RELEASING its unit (no longer <c>PossessedBy</c> it) sends the Playing slot back to Choosing and frees the reservation — §9.4's open gap. ✅ Red-proof: the release check dropped ⇒ it stays Playing ⇒ red.</summary>
+        [Fact]
+        public void AReleasedUnit_SendsThePlayingSlotBackToChoosing_AndFreesTheUnit()
+        {
+            var unit = Playing(StationA, ForceId.Friend, Rifleman);
+            _w.RemoveComponent<PossessedBy>(unit); Tick();
+            Assert.True(_proc.TryGetSlot(StationA, out var st, out int u)); Assert.Equal(PlayerSlotState.Choosing, st); Assert.Equal(0, u);
+            Assert.False(StationReservations.Of(_w).TryReservedFor(Rifleman, out _));
+            Assert.True(Request(StationB, ForceId.Friend, Rifleman).Accepted);   // free for another station
+        }
+
+        /// <summary>HOT PATH (R-2084): a steady server frame with slots in Playing allocates nothing — measured on this thread across 200 frames (the 1 s cadences do not fire: the wall clock stands still). ✅ Red-proof: a
+        /// per-frame <c>new</c>/LINQ in <c>Progress</c> ⇒ red.</summary>
+        [Fact]
+        public void ASteadyFrame_WithPlayingSlots_AllocatesNothing()
+        {
+            Playing(StationA, ForceId.Friend, Rifleman);
+            for (int i = 0; i < 50; i++) { _proc.Execute(_w, 0.016f); }   // warm-up (JIT, DDS take buffers)
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 200; i++) _proc.Execute(_w, 0.016f);
+            long used = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.True(used == 0, $"a steady frame allocated {used} bytes over 200 frames");
         }
     }
 }

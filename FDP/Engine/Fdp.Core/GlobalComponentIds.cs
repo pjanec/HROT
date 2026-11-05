@@ -1262,5 +1262,15 @@ namespace Fdp.Core
         /// <summary><c>Playable</c> — ⭐ Player Join D-9 (docs/DESIGN_Player_Join.md §9): a scenario unit a Player may deploy into (its side + slot name). Authored, recorded and saved.
         /// ⚠ 481 measured free in backend, ui, behaviors and coordinator 2026-11-05 (the highest in use was 480).</summary>
         public const int Playable = 481;
+
+        /// <summary><c>DeployRole</c> — ⭐ Player Join S2 (D-10, docs/DESIGN_Player_Join.md §10): a role a Player may deploy into (a person type, a name, a max count), one entity per role. Authored.
+        /// ⚠ 482–484 measured free in backend, ui, behaviors and coordinator 2026-11-05 (the highest in use was 481).</summary>
+        public const int DeployRole = 482;
+
+        /// <summary><c>SpawnArea</c> — ⭐ Player Join S2 (D-11): an area entity a role's man spawns inside (its side and facing). Authored.</summary>
+        public const int SpawnArea = 483;
+
+        /// <summary><c>GameplaySettings</c> — ⭐ Player Join S2 (D-14): the gameplay settings of the scenario, on the World Environment (the respawn delay). Authored, bindable by a scenario parameter.</summary>
+        public const int GameplaySettings = 484;
     }
 }

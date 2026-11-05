@@ -147,8 +147,9 @@ public sealed class EntityTypeCatalogTests
 
         Assert.Equal("Tactical symbols", Of(c, TkbEntityTypes.TacGraphic_FireLine).Group);   // the tool-less graphic
         foreach (long t in new[] { TkbEntityTypes.TacGraphic_Area, TkbEntityTypes.TacGraphic_Route, TkbEntityTypes.TerrainZone,
-                                   TkbEntityTypes.WeatherRegion, TkbEntityTypes.StoneSource })
+                                   TkbEntityTypes.WeatherRegion, TkbEntityTypes.StoneSource, TkbEntityTypes.SpawnArea })
             Assert.Equal("Areas & routes", Of(c, t).Group);
+        Assert.Equal(GalleryGroups.OtherName, Of(c, TkbEntityTypes.DeployRole).Group);   // ⭐ Player Join S2-a — a Deploy Role is a point-tool graphic: the gallery has no group for it
         Assert.All(c.Where(e => !e.HasSide), e => Assert.Null(e.Chip));
     }
 
@@ -293,12 +294,23 @@ public sealed class EntityTypeCatalogTests
         Assert.Equal($"point {TkbEntityTypes.Tank_T72} {{\"Affiliation\":\"FORCE_OPPOSING\"}}", Assert.Single(spawn.Calls));
     }
 
+    /// <summary>⭐ Player Join S2-a — a Deploy Role is a graphic placed with the POINT tool (a role has no outline): arming it starts placement mode for 8815. ✅ Red-proof: its tool registered as an area ⇒ red.</summary>
+    [Fact]
+    public void PlayerJoinS2_ADeployRole_ArmsThePointTool()
+    {
+        var spawn = new RecordingSpawn();
+        Assert.True(PlacementToolRegistry.Arm(spawn, TkbEntityTypes.DeployRole, eForceIdentifier.FORCE_FRIENDLY));
+        Assert.StartsWith($"point {TkbEntityTypes.DeployRole} ", Assert.Single(spawn.Calls));
+        Assert.Equal(PlacementToolKind.Point, PlacementToolRegistry.ToolFor(TkbEntityTypes.DeployRole));
+    }
+
     [Theory]
     [InlineData(TkbEntityTypes.TacGraphic_Area, "area")]
     [InlineData(TkbEntityTypes.TacGraphic_Route, "route")]
     [InlineData(TkbEntityTypes.TerrainZone, "zone")]
     [InlineData(TkbEntityTypes.WeatherRegion, "area:8811")]   // ⭐ CE-1161 — an area born as a Weather Region
     [InlineData(TkbEntityTypes.StoneSource, "area:8812")]     // ⭐ CE-3235 — an area born as a Stone Source
+    [InlineData(TkbEntityTypes.SpawnArea, "area:8814")]       // ⭐ Player Join S2-b — an area born as a Spawn Area
     public void CE1017_Arm_AGraphic_ArmsItsOwnTool_NoSideAsked(long tkbType, string expected)
     {
         var spawn = new RecordingSpawn();
@@ -524,6 +536,8 @@ public sealed class EntityTypeCatalogTests
         8811 Weather Region | dis - | family Unknown | folder Other | icon -
         8812 Stone Source | dis - | family Unknown | folder Other | icon -
         8813 Scenario Macro | dis 5.0.0.90.0.0.0 | family Unknown | folder Cultural Feature/Scenario Macro (HROT) | icon -
+        8814 Spawn Area | dis - | family Unknown | folder Other | icon -
+        8815 Deploy Role | dis - | family Unknown | folder Other | icon -
         8850 Traffic | dis - | family Unknown | folder Other | icon -
         8851 SUMO car | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         8860 Objective | dis - | family Unknown | folder Other | icon -

@@ -11,6 +11,8 @@ public enum PlayerSlotState : byte
     TakingControl = 1,
     /// <summary>The station possesses the unit.</summary>
     Playing = 2,
+    /// <summary>⭐ S2 (D-14) — the Player's man died; <see cref="PlayerSlotTopic.RespawnAtSim"/> says when the slot goes back to Choosing (0 = never: the Player observes for good).</summary>
+    Dead = 3,
 }
 
 // ⭐ DESIGN_Player_Join.md §9 (S1-a) — the gameplay wire is owned by the PACKS (GameplayWire: lazy readers/writers), not by NED translators:
@@ -64,6 +66,8 @@ public partial struct PlayerSlotTopic
     public int UnitNetId;
     /// <summary>Sim time (s) at which an untaken reservation lapses.</summary>
     public double ReservedUntilSim;
+    /// <summary>⭐ S2 — sim time (s) a <see cref="PlayerSlotState.Dead"/> slot returns to Choosing; 0 = never (the respawn delay is 0).</summary>
+    public double RespawnAtSim;
 }
 
 /// <summary>One playable unit as the server offers it to the Players (S1-b). HolderStation 0 = free.</summary>
@@ -76,4 +80,13 @@ public partial struct DeployOfferTopic
     public byte Side;
     [DdsManaged] public string SlotName;
     public int HolderStation;
+    /// <summary>⭐ S2 — <see cref="DeployOfferKind"/> as a byte: 0 a placed unit, 1 a role (a man is spawned for the Player).</summary>
+    public byte Kind;
+    /// <summary>A role: how many of its men are alive now.</summary>
+    public int Count;
+    /// <summary>A role: the most that may be alive (0 = unlimited).</summary>
+    public int Max;
 }
+
+/// <summary>⭐ S2 — what a <see cref="DeployOfferTopic"/> offers. A Role's <c>UnitNetId</c> is its Deploy Role entity's network id; an IMPLICIT role (none declared on the side) is <c>-(person TKB type)</c>.</summary>
+public enum DeployOfferKind : byte { Placed = 0, Role = 1 }

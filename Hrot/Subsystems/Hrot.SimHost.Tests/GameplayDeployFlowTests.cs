@@ -41,7 +41,7 @@ namespace Hrot.SimHost.Tests
             _serverP = new DdsParticipant(domain); _clientP = new DdsParticipant(domain);
             foreach (var w in new[] { _server, _client })
             {
-                w.RegisterComponent<NetworkIdentity>(); w.RegisterComponent<PossessedBy>(); w.RegisterComponent<Health>(); w.RegisterEvent<NodeDeparted>();
+                w.RegisterComponent<NetworkIdentity>(); w.RegisterComponent<PossessedBy>(); w.RegisterComponent<Health>(); w.RegisterEvent<NodeDeparted>(); w.RegisterComponent<GameplaySettings>();
                 w.SetSingleton(new GlobalTime { TotalTime = 100 });
             }
             _server.RegisterComponent<Playable>();
@@ -50,6 +50,7 @@ namespace Hrot.SimHost.Tests
             var env = new DeployFlowEnvironment(() => _gateOpen, () => _live, () => _serverExists, unit => { _possessCalls.Add(unit); return (_possessOk, _possessOk ? "" : "refused by the brain"); }, () => _clientMs);
             _flow = new DeployFlowSystem(_clientWire, _client, _clientMap, Station, env);
             _clientSlots = new PlayerSlotReaderSystem(_clientWire, () => _flow.ServerExists);
+            _flow.Slots = _clientSlots.TryGetSlot;   // the pack's wiring: the flow reads its own slot through the one reader
             _serverUnit = Unit(_server, _serverMap, Rifleman, ForceId.Friend, "Rifleman 1", playable: true);
             _clientUnit = Unit(_client, _clientMap, Rifleman, ForceId.Friend, "", playable: false);
         }
@@ -204,6 +205,60 @@ namespace Hrot.SimHost.Tests
             PumpUntil(() => _flow.State == DeployFlowState.Observing, "Observing");
             Assert.True(_proc.TryGetSlot(Station, out var slot, out int unit)); Assert.Equal(PlayerSlotState.Choosing, slot); Assert.Equal(0, unit);
             Assert.Empty(_possessCalls);
+        }
+
+        // ── ⭐ S2 — the Player mirrors the server's slot: death, respawn, release ────────────────
+
+        private void ToPlaying()
+        {
+            ToChoosing();
+            Assert.True(_flow.Request(ForceId.Friend, Rifleman));
+            PumpUntil(() => _flow.State == DeployFlowState.TakingControl, "TakingControl");
+            var held = new PossessedBy { StationNodeId = (NodeId)Station, Mode = PossessionMode.Fps, Epoch = 1 };
+            _client.AddComponent(_clientUnit, held); _server.AddComponent(_serverUnit, held);
+            PumpUntil(() => _flow.State == DeployFlowState.Playing && _proc.TryGetSlot(Station, out var s, out _) && s == PlayerSlotState.Playing, "Playing on both sides");
+            for (int i = 0; i < 20; i++) Frame();   // the Player reads the Playing slot
+        }
+
+        private void SetSimTime(double t) { _server.SetSingleton(new GlobalTime { TotalTime = t }); _client.SetSingleton(new GlobalTime { TotalTime = t }); }
+
+        /// <summary>Playing → Dead when the server's slot says the man died: the reason counts down ("killed — respawn in N s", N from RespawnAtSim and the Player's sim clock), and at the respawn the flow is Choosing again.
+        /// ✅ Red-proof: the Dead transition dropped ⇒ it stays Playing ⇒ red; the countdown computed from the wrong clock ⇒ the text assertions red.</summary>
+        [Fact]
+        public void WhenTheManDies_PlayingBecomesDead_WithACountdown_ThenChoosing()
+        {
+            ToPlaying();
+            _server.GetComponentRW<Health>(_serverUnit).Current = 0f;
+            PumpUntil(() => _flow.State == DeployFlowState.Dead, "Dead");
+            Assert.Equal(110.0, _flow.RespawnAtSim, 3);
+            Assert.Equal("killed — respawn in 10 s", _flow.Reason);
+            SetSimTime(104.0); Frame();
+            Assert.Equal("killed — respawn in 6 s", _flow.Reason);
+            SetSimTime(110.0);
+            PumpUntil(() => _flow.State == DeployFlowState.Choosing, "Choosing at the respawn");
+        }
+
+        /// <summary>A respawn delay of 0 keeps the man dead for good: the flow stays Dead and says "killed — observing". ✅ Red-proof: the zero case counting down ⇒ the text assertion red.</summary>
+        [Fact]
+        public void WithARespawnDelayOfZero_TheFlowStaysDead_AndSaysObserving()
+        {
+            var env = _server.CreateEntity(); _server.AddComponent(env, new GameplaySettings { RespawnDelaySeconds = 0f });
+            ToPlaying();
+            _server.GetComponentRW<Health>(_serverUnit).Current = 0f;
+            PumpUntil(() => _flow.State == DeployFlowState.Dead, "Dead");
+            Assert.Equal(DeployFlowSystem.KilledObserving, _flow.Reason);
+            SetSimTime(5000.0);
+            for (int i = 0; i < 30; i++) Frame();
+            Assert.Equal(DeployFlowState.Dead, _flow.State);
+        }
+
+        /// <summary>The station RELEASING its unit: the server's slot goes Choosing and the Player's flow follows (Playing → Choosing). ✅ Red-proof: the released-slot branch dropped ⇒ it stays Playing ⇒ red.</summary>
+        [Fact]
+        public void AReleasedUnit_SendsThePlayerBackToChoosing()
+        {
+            ToPlaying();
+            _server.RemoveComponent<PossessedBy>(_serverUnit);
+            PumpUntil(() => _flow.State == DeployFlowState.Choosing, "Choosing after the release");
         }
     }
 }

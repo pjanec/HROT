@@ -141,7 +141,7 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
             //   gameplay topic is created. One server per cluster: the lowest node id with the feature on (the cluster cache this node's replication module reads).
             .Capability(CgfSubsystem.DefaultRole, new Hrot.Gameplay.GameplayServerPack(ctx =>
                 (ctx.NedReplication as Hrot.Network.Replication.NedReplicationModule)?.ClusterCache is { } cache
-                    ? new Hrot.Gameplay.DeployServerElection(cache.AllNodeIds, cache.Supports, cache.FeatureOn) : null))
+                    ? new Hrot.Gameplay.DeployServerElection(cache.AllNodeIds, cache.Supports, cache.FeatureOn) : null, creation: () => EntityCreation))   // ⭐ S2 — the node's creation pack, resolved lazily (built after the plan resolves)
             .Resolve(CgfSubsystem.DefaultRole);
         return ResolvedCapabilities;
     }

@@ -26,11 +26,10 @@ namespace Fdp.Toolkit.Combat
             var p = new Vector2(point.X, point.Y);
             foreach (var e in world.Query().With<TkbIdentity>().With<SimTransform>().Build())
             {
-                if (!Weather.WeatherField.TryOutline(world, e, out var outline)) continue;
+                if (!Weather.WeatherField.TryOutline(world, e, out _)) continue;
                 if (!db.TryGetByType(world.GetComponentRO<TkbIdentity>(e).TkbType, out var t) || t?.GetDescriptor<ItemSourceDto>() is not { Ammo: not 0 } s)
                     continue;
-                var origin = world.GetComponentRO<SimTransform>(e).Position;
-                if (!Inside(outline.Points, new Vector2(origin.X, origin.Y), p)) continue;
+                if (!Weather.WeatherField.AreaEntityContains(world, e, p)) continue;   // ⭐ the ONE area-entity containment (Player Join S2 uses it too; this file's private copy is gone)
                 source = s; area = e;
                 return true;
             }
@@ -47,18 +46,6 @@ namespace Fdp.Toolkit.Combat
             if (!At(world, world.GetComponentRO<SimTransform>(man).Position, out var source, out _)) return 0;
             int need = source.UpTo - PersonHands.Rounds(world, man, source.Ammo);
             return need > 0 && PersonHands.Give(world, man, source.Ammo, need) ? need : 0;
-        }
-
-        /// <summary>Even-odd point-in-polygon over the outline's points relative to <paramref name="origin"/>.</summary>
-        private static bool Inside(IReadOnlyList<Vector2> points, Vector2 origin, Vector2 p)
-        {
-            bool inside = false;
-            for (int i = 0, j = points.Count - 1; i < points.Count; j = i++)
-            {
-                var a = points[i] + origin; var b = points[j] + origin;
-                if ((a.Y > p.Y) != (b.Y > p.Y) && p.X < (b.X - a.X) * (p.Y - a.Y) / (b.Y - a.Y) + a.X) inside = !inside;
-            }
-            return inside;
         }
     }
 }

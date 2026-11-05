@@ -35,7 +35,9 @@ public sealed class GameplayClientPack : INodeCapability
         Wire = new GameplayWire(participant);
         Flow = new DeployFlowSystem(Wire, world, entityMap, nodeId, env);
         var flow = Flow;
-        input.Add(new PlayerSlotReaderSystem(Wire, () => flow.ServerExists));
+        var reader = new PlayerSlotReaderSystem(Wire, () => flow.ServerExists);
+        flow.Slots = reader.TryGetSlot;   // ⭐ S2 — the flow reads its OWN slot through the one reader of the topic
+        input.Add(reader);
         input.Add(flow);
     }
 

@@ -133,6 +133,13 @@ namespace Hrot.Map.Common
         //   entity (it HAS a position, SR-70 — a SimTransform arrives with its request) carrying MacroInstance; the expander makes the macro's entities
         //   beside it. 8813 measured free on all four lanes 2026-11-02. Its OWN type, like the Weather Region.
         public const long ScenarioMacro = 8813;
+
+        // ⛔ PERMANENT WIRE VALUE (as above). ⭐ Player Join S2-b (D-11) — a SPAWN AREA: an area (EditablePolyline + a SimTransform) a role's man spawns inside, carrying SpawnArea { Side, FacingDeg }.
+        //   Its OWN type, like the Stone Source. 8814 / 8815 measured free on all four lanes 2026-11-05.
+        public const long SpawnArea = 8814;
+
+        // ⛔ PERMANENT WIRE VALUE (as above). ⭐ Player Join S2-a (D-10) — a DEPLOY ROLE: a bare authored entity carrying DeployRole, like the Traffic settings entity (no body, never a unit).
+        public const long DeployRole = 8815;
         // ⭐ AQ93 — the TRAFFIC block 8850–8859 (SUMO), kept clear of the sequential 88xx run so two lanes cannot collide again:
         //   8812 was allocated twice on 2026-10-17 (the backend's Stone Source kept it, the traffic types moved here).
         // ⛔ PERMANENT WIRE VALUE (as above). ⭐ AQ93 R-4021 — the scenario's TRAFFIC settings: positionless like the World Environment,

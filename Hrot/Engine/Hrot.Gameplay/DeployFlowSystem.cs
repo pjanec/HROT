@@ -7,11 +7,18 @@ using Fdp.Toolkit.Replication.Services;
 
 namespace Hrot.Gameplay;
 
-/// <summary>The Player's deploy states (D-7). S2 adds <c>Dead</c>.</summary>
-public enum DeployFlowState { Waiting, Observing, Choosing, Requesting, TakingControl, Playing }
+/// <summary>The Player's deploy states (D-7, S2): <c>Dead</c> is the server's slot saying the Player's man died (a countdown to the deploy screen, or for good).</summary>
+public enum DeployFlowState { Waiting, Observing, Choosing, Requesting, TakingControl, Playing, Dead }
 
 /// <summary>One playable unit as the server offers it (<see cref="DeployOfferTopic"/>). <see cref="HolderStation"/> 0 = free.</summary>
-public readonly record struct DeployOffer(int UnitNetId, ForceId Side, string SlotName, int HolderStation);
+public readonly record struct DeployOffer(int UnitNetId, ForceId Side, string SlotName, int HolderStation, byte Kind = 0, int Count = 0, int Max = 0)
+{
+    /// <summary>⭐ S2 — a role (a man is spawned) rather than a placed unit.</summary>
+    public bool IsRole => Kind == (byte)DeployOfferKind.Role;
+}
+
+/// <summary>⭐ S2 — the Player's own slot as the slot reader last read it (false when it has none); the flow reads it through this instead of a second reader of the topic.</summary>
+public delegate bool SlotLookup(int station, out PlayerSlotTopic slot);
 
 /// <summary>What the flow asks of its node — each a delegate so the pack builds them from the node context and a rail supplies its own (no 10 s sleeps).</summary>
 /// <param name="GateOpen"><c>ClusterView.GateOpen(HostGatePolicy.Player)</c>.</param>
@@ -38,6 +45,7 @@ public sealed class DeployFlowSystem : IEcsModuleSystem
     public const long TimeoutMs = 10_000;
     public const string WaitingForScenario = "Waiting for the server to load a scenario";
     public const string NoAnswer = "the server did not answer";
+    public const string KilledObserving = "killed — observing";
     private const long ServerCheckMs = 1_000;
 
     private static readonly ConditionalWeakTable<EntityRepository, DeployFlowSystem> PerWorld = new();
@@ -73,10 +81,35 @@ public sealed class DeployFlowSystem : IEcsModuleSystem
         PerWorld.AddOrUpdate(world, this);
     }
 
+    /// <summary>⭐ S2 — where the flow reads its own slot (set by the pack to the slot reader); null ⇒ no slot-driven transitions (a test of the S1 flow).</summary>
+    public SlotLookup? Slots { get; set; }
+
+    private Fdp.Toolkit.Time.ISimClock? _clock;
+    private double _simNow, _respawnAt;
+    private bool _slotSeenPlaying;
+
     public DeployFlowState State { get; private set; } = DeployFlowState.Waiting;
 
+    /// <summary>⭐ S2 — when a Dead slot returns to Choosing (sim s); 0 = never (the Player observes for good); meaningless outside Dead.</summary>
+    public double RespawnAtSim => State == DeployFlowState.Dead ? _respawnAt : 0.0;
+
     /// <summary>Why the flow is Waiting (empty when the gate is closed — the loading screen speaks then), or the last refusal / timeout while Choosing.</summary>
-    public string Reason { get; private set; } = "";
+    private string _reason = "";
+
+    public string Reason
+    {
+        get
+        {
+            if (State != DeployFlowState.Dead) return _reason;
+            if (_respawnAt <= 0.0) return KilledObserving;
+            int secs = (int)Math.Ceiling(Math.Max(0.0, _respawnAt - _simNow));
+            return secs == _lastSecs ? _deadText : (_deadText = $"killed — respawn in {_lastSecs = secs} s");
+        }
+        private set => _reason = value;
+    }
+
+    private int _lastSecs = -1;
+    private string _deadText = "";
 
     /// <summary>The last refusal ("WrongSide", "HeldByAnotherStation (held by station 7)", …) or timeout text; cleared by the next request.</summary>
     public string LastRefusal { get; private set; } = "";
@@ -138,6 +171,8 @@ public sealed class DeployFlowSystem : IEcsModuleSystem
     public void Execute(ISimulationView view, float deltaTime)
     {
         long now = _now();
+        _clock ??= Fdp.Toolkit.Time.SimClock.Of(view);   // one boxed clock (R-2084)
+        _simNow = _clock.TotalTime;
         bool open = _env.GateOpen();
         bool live = open && _env.OperatingLive();
         if (!live)
@@ -167,6 +202,7 @@ public sealed class DeployFlowSystem : IEcsModuleSystem
         // ⭐ With a server and a live run the Player's ends are made as it enters Choosing — so the volatile request writer has matched the server's reader by the time the Player clicks.
         _ = _wire.RequestWriter; _ = _wire.StatusReader;
         ReadOffers();
+        ReadOwnSlot();
         switch (State)
         {
             case DeployFlowState.Requesting: AwaitStatus(now); break;
@@ -176,6 +212,7 @@ public sealed class DeployFlowSystem : IEcsModuleSystem
 
     private void Reset()
     {
+        _slotSeenPlaying = false;
         _pendingUnit = 0; _pendingObserve = false; _requestId = ""; _explicitObserver = false;
     }
 
@@ -189,13 +226,35 @@ public sealed class DeployFlowSystem : IEcsModuleSystem
             if (s.IsValid)
             {
                 var o = s.Data;
-                _offers[o.UnitNetId] = new DeployOffer(o.UnitNetId, (ForceId)o.Side, o.SlotName ?? "", o.HolderStation);
+                _offers[o.UnitNetId] = new DeployOffer(o.UnitNetId, (ForceId)o.Side, o.SlotName ?? "", o.HolderStation, o.Kind, o.Count, o.Max);
                 _offersDirty = true;
             }
             else if (s.Info.InstanceState != DdsInstanceState.Alive)
             {
                 if (_offers.Remove(DdsTypeSupport.FromNative<DeployOfferTopic>(s.NativePtr).UnitNetId)) _offersDirty = true;
             }
+        }
+    }
+
+    /// <summary>
+    /// ⭐ S2 — the SERVER's slot drives the Player's life: Playing → Dead (the man died; RespawnAtSim says when) and Playing → Choosing (he was released), Dead → Choosing at the respawn.
+    /// A stale Choosing (unit 0) is ignored until the slot has shown Playing once; a Dead slot counts when it names this life's unit.
+    /// </summary>
+    private void ReadOwnSlot()
+    {
+        if (Slots is null || !Slots(_station, out var slot)) return;
+        switch (State)
+        {
+            case DeployFlowState.Playing:
+                if (slot.State == (byte)PlayerSlotState.Playing) _slotSeenPlaying = true;
+                else if (slot.State == (byte)PlayerSlotState.Dead && slot.UnitNetId == _pendingUnit) {   // the Dead slot names THIS life's man, so a fast death (Playing never read) still counts
+                     _respawnAt = slot.RespawnAtSim; _lastSecs = -1; State = DeployFlowState.Dead; }
+                else if (_slotSeenPlaying && slot.State == (byte)PlayerSlotState.Choosing) { _pendingUnit = 0; State = DeployFlowState.Choosing; }
+                break;
+            case DeployFlowState.Dead:
+                _respawnAt = slot.State == (byte)PlayerSlotState.Dead ? slot.RespawnAtSim : _respawnAt;
+                if (slot.State == (byte)PlayerSlotState.Choosing) { _pendingUnit = 0; _respawnAt = 0; State = DeployFlowState.Choosing; }
+                break;
         }
     }
 
@@ -231,6 +290,7 @@ public sealed class DeployFlowSystem : IEcsModuleSystem
         if (_map.TryGetEntity(_pendingUnit, out var unit) && _world.IsAlive(unit) && PossessionSystem.HolderOf(_world, unit) == _station)
         {
             State = DeployFlowState.Playing;
+            _slotSeenPlaying = false;
             return;
         }
         if (now >= _deadline) BackToChoosing("taking control timed out");

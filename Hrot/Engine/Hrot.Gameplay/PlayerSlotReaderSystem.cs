@@ -17,6 +17,7 @@ public class PlayerSlotReaderSystem : IEcsModuleSystem
 {
     private readonly GameplayWire _wire;
     private readonly Func<bool>? _when;
+    private readonly Dictionary<int, PlayerSlotTopic> _latest = new();
 
     /// <param name="when">⭐ Optional gate: the reader is created (and read) only while it says true. The Player's client pack passes "a deploy server exists", so a Player in a
     /// military-sim cluster with no server creates no gameplay reader; the server's subclass leaves it null (the feature attribute gates it).</param>
@@ -25,6 +26,9 @@ public class PlayerSlotReaderSystem : IEcsModuleSystem
         _wire = wire ?? throw new ArgumentNullException(nameof(wire));
         _when = when;
     }
+
+    /// <summary>⭐ S2 — the latest slot sample of <paramref name="station"/> (the Player's flow reads its OWN slot through this — one reader of the topic, not two); false when it has none (never written, or disposed).</summary>
+    public bool TryGetSlot(int station, out PlayerSlotTopic slot) => _latest.TryGetValue(station, out slot);
 
     public void Execute(ISimulationView view, float deltaTime)
     {
@@ -38,11 +42,14 @@ public class PlayerSlotReaderSystem : IEcsModuleSystem
             if (s.IsValid)
             {
                 var slot = s.Data;
-                StationReservations.Of(repo).Set(slot.StationNodeId, (ForceId)slot.Side, slot.State == (byte)PlayerSlotState.Choosing ? 0 : slot.UnitNetId);
+                _latest[slot.StationNodeId] = slot;
+                // a Choosing or Dead slot holds a SIDE only (a dead man is no claim on anything)
+                StationReservations.Of(repo).Set(slot.StationNodeId, (ForceId)slot.Side, slot.State is (byte)PlayerSlotState.Choosing or (byte)PlayerSlotState.Dead ? 0 : slot.UnitNetId);
             }
             else if (s.Info.InstanceState != DdsInstanceState.Alive)
             {
                 var key = DdsTypeSupport.FromNative<PlayerSlotTopic>(s.NativePtr);
+                _latest.Remove(key.StationNodeId);
                 StationReservations.Of(repo).Remove(key.StationNodeId);
             }
         }

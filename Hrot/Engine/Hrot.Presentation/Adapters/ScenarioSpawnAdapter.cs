@@ -206,6 +206,7 @@ namespace Hrot.UI.Common.Adapters
                 {
                     cmd.InitialComponents ??= new System.Collections.Generic.List<object>();
                     Hrot.UI.Common.AddEntity.MacroBirth.BornWith(cmd.TkbType, macroPath, cmd.InitialComponents);   // ⭐ CE-4210 MA-7 — the instance is born with its MacroInstance
+                    Hrot.UI.Common.AddEntity.GameplayBirth.BornWith(cmd.TkbType, cmd.InitialComponents);          // ⭐ Player Join S2-a — a Deploy Role is born with its DeployRole
 
                     // Seed a baseline EntityInfo so the entity is guaranteed to appear
                     // in the ORBAT tree even when no Name property is supplied in JSON.

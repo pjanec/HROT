@@ -11,16 +11,17 @@ public static class DeployFlowApi
 {
     public const string NoFlow = "no deploy flow on this node";
 
-    /// <summary><c>{ state, reason, lastRefusal, serverExists, station, offers[{unitNetId, side, slotName, holderStation}], slot{state, unit} }</c>.</summary>
+    /// <summary><c>{ state, reason, lastRefusal, serverExists, station, respawnAt, offers[{unitNetId, side, slotName, holderStation, kind, count, max}], slot{state, unit} }</c> (S2: Dead, respawnAt, the role offers).</summary>
     public static JsonNode Get(DeployFlowSystem f)
     {
         var offers = new JsonArray();
         foreach (var o in f.Offers)
-            offers.Add(new JsonObject { ["unitNetId"] = o.UnitNetId, ["side"] = o.Side.ToString(), ["slotName"] = o.SlotName, ["holderStation"] = o.HolderStation });
+            offers.Add(new JsonObject { ["unitNetId"] = o.UnitNetId, ["side"] = o.Side.ToString(), ["slotName"] = o.SlotName, ["holderStation"] = o.HolderStation, ["kind"] = o.IsRole ? "Role" : "Placed", ["count"] = o.Count, ["max"] = o.Max });
         return new JsonObject
         {
             ["state"] = f.State.ToString(), ["reason"] = f.Reason, ["lastRefusal"] = f.LastRefusal, ["serverExists"] = f.ServerExists, ["station"] = f.Station,
             ["offers"] = offers,
+            ["respawnAt"] = f.RespawnAtSim,
             ["slot"] = new JsonObject { ["state"] = f.State.ToString(), ["unit"] = f.UnitNetId },
         };
     }
