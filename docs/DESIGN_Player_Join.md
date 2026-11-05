@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD (S1, §9 — backend 2026-11-05) — the architecture APPROVED by the user 2026-10-31 (§2 R-4101…R-4103; §5 D-1…D-16 "Accepted")
+build-state: BUILT (S1, §9.4/§9.5 — backend 2026-11-05, run live); S2 next — the architecture APPROVED by the user 2026-10-31 (§2 R-4101…R-4103; §5 D-1…D-16 "Accepted")
 updated: 2026-11-05 (§9 S1 technical design, §7 answered there) · 2026-10-31 (rev 2 — gameplay as PACKS composed by choice, never in the orchestrator; the name DEPLOY; a Player with no gameplay server observes) · 2026-10-31 (rev 1 — superseded, see HISTORY)
 current-answer: §9 S1 technical design (classes, sequence, who ticks what; §7's three answers) · §2 the rulings · §4 the diagrams · §5 decisions D-1…D-16 · §6 slices · §7a the AUDIT of hard-wired gameplay (G1…G7, B1/B2; candidates await the user)
 stale-below: §8 HISTORY (rev 1: the join on the master's ClusterOpRequest, a ReservedFor component — superseded)
@@ -409,3 +409,24 @@ component on the unit* — the server would write a unit it may not own (D-8). *
 
 **Rails** — `Hrot.SimHost.Tests/GameplayDeployServerTests` (10, real DDS, each red-proved by a compiling mutation): accept · refusals by name (wrong side, not playable, missing, dead, held, reserved) · Playing · the 30 s lapse · departure · observe · reader fills / clears · the election · ⭐ the WIRE rail: feature OFF ⇒ `CreatedCount == 0` and a peer holding the opposite ends matches nothing; ON ⇒ they match.
 ⚠ **Open:** a `Playing` slot whose unit is released (Esc) keeps the reservation until the station leaves — S2 (death → deploy screen) decides the transitions after Playing.
+
+### 9.5 AS BUILT — S1 part B, the Player side, and S1 LIVE *(backend, `2026-11-05`; S1 `build-state`: BUILT)*
+
+| part | where | as built |
+|---|---|---|
+| client pack | `Hrot.Gameplay/GameplayClientPack.cs` | `.Capability(Map2D, …)` in `IgNodeBootstrapper`; composes the slot reader (gated on "a server exists") and `DeployFlowSystem` |
+| flow | `DeployFlowSystem.cs` | D-7's states; Waiting text *"Waiting for the server to load a scenario"* (CE-4156); "a server exists" = `DeployServerElection.AnyServer()` (the ONE election, asked a second question); Possess through the node's own `EntityOrders`; Playing read from the Player's own `PossessedBy`; 10 s timeouts; server gone ⇒ Observing |
+| screen | `Hrot.Presentation/Panels/DeployScreen.cs` | a status-bar section beside `LoadingScreen`, composed only for the Player gate policy; the logic is in the flow |
+| HTTP | `GET` / `POST /deploy` (`DebugApiHost`, `DeployFlowApi`) | the flow's state, offers and slot; a request or an observe |
+| editor (D-9) | `Hrot.Editor.AiShared/Shell/EntityPlayableView.cs` | a Details section (Playable · side · slot name) on the scenario workspace |
+
+**Deviations, each argued:** the request writer and status reader are made on ENTERING Choosing, not on the click (`DeployRequestTopic` is Volatile — a writer made at the click loses the first request to discovery); a Player with no server still makes nothing ·
+the slot reader on the Player is gated on "a server exists" (else it would make a `PlayerSlotTopic` reader with no server) · the flow is found per world (`DeployFlowSystem.Of(world)`, the `StationReservations.Of` shape) ·
+the editor toggle writes the editor world directly, as the Brain tab does — no edit-command path for authored components exists.
+
+**Rails:** `GameplayDeployFlowTests` (9, real DDS, injected clocks — every D-7 transition, the CE-4156 text, a refusal clears the unit) · `TheDeployRoutesTests` (4) · `ThePlayableViewTests` (3) · `DeployScreenRulesTests` (2) ·
+`GameplayPacksAreComposedOnTheRightHostsTests` + `IgNodeBootstrapperTests` (CGF serves, the Player is a client, SimHost and the editor neither); 20 mutations each reddened its rail.
+
+**📐 LIVE `2026-11-05`** — UC-25…28 all ✅ (`DESIGN_Cluster_Membership_Use_Cases.md` §2.1): two Players on `-m server` deploy, the second is refused with the holder named, a wrong side is refused,
+an A-10 deployed into in flight keeps 150 m/s and its altitude, and with the feature off the Player observes. One defect found and fixed on the way: a refused request kept reporting the refused unit (`f6261a148`).
+⚠ **Not yet:** the ImGui drawing of `DeployScreen` (no display here) and the Observer camera call — the Player's free camera is the observer view today.

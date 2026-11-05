@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-28 (§2.1 first live run: UC-20…UC-23 ✅, UC-17 🔴 Player crash on possession) · 2026-10-28 (§2.1 NEW — the multiplayer use cases UC-17…UC-24, CE-4080) · 2026-10-15 (§3.1: CE-4002 routes BUILT and run live) · 2026-10-15 (created — the membership use cases, each with its live HTTP test recipe and its status MEASURED on a
+updated: 2026-11-05 (§2.1 UC-25…28 the deploy, run live) · 2026-10-28 (§2.1 first live run: UC-20…UC-23 ✅, UC-17 🔴 Player crash on possession) · 2026-10-28 (§2.1 NEW — the multiplayer use cases UC-17…UC-24, CE-4080) · 2026-10-15 (§3.1: CE-4002 routes BUILT and run live) · 2026-10-15 (created — the membership use cases, each with its live HTTP test recipe and its status MEASURED on a
   multi-process cluster the same day)
 build-state: DESIGN — the use cases are the ACCEPTANCE for Q91; the decisions live there, not here.
 current-answer: §2 is the use-case table (what must hold, today's measured status, which decision covers it); §3 is how to
@@ -102,6 +102,10 @@ and updates it.
 | **UC-22** | a Player joins while another is driving | it sees the driven unit where it is now, and moving | 📐 `2026-10-28` ✅ — a unit ordered from one Player moved; its position read on CGF, SimHost and both Players (one of them a late joiner) agreed within one sample | Q91 §3 |
 | **UC-23** | the server pauses (or a Player pauses it) | every Player shows the same sim time; a control frame sent while paused moves nothing | 📐 `2026-10-28` ✅ a pause from the server reached SimHost at the identical sim time (424.92 s), and an order sent from a Player while paused did not move the unit. ⚠ A Player cannot pause (`501 NOT_SUPPORTED_HERE time.drive`) — consistent with an observer. ⚠ F2: a Player reports NO sim time over HTTP (`/status`, `/sim/state` → `null`), so "shows the same sim time" cannot be checked there | UC-16 |
 | **UC-24** | a Player opens the 3-D map | it is not ejected | 🔴 `CE-4078`: the 3-D map's first build stalls the frame for ~40 s, so the node is ejected | Q91 §4-B3 |
+| **UC-25** | a Player deploys into a PLACED unit (Player Join S1) | its deploy screen offers the playable units of each side; it asks for one and possesses it | 📐 `2026-11-05` ✅ `-m server` + two `-m player` (`s1-deploy`: `bc-house-defended` with three `Playable` units) — P1 `POST /deploy {Friend, 1002}` ⇒ Playing; the offer then shows `holderStation 10000` | Player Join D-7, §9 |
+| **UC-26** | a second Player asks for the same unit | refused, the holder named; it stays Choosing | 📐 `2026-11-05` ✅ P2 ⇒ `HeldByAnotherStation (held by station 10000)`; a red unit asked as Friend ⇒ `WrongSide` | D-8, R-4096 |
+| **UC-27** | no deploy server in the cluster | the Player observes | 📐 `2026-11-05` ✅ `-m server --feature gameplay.deploy-server=off` ⇒ the Player's `GET /deploy` = `Observing`, `serverExists:false`, no offers | R-4103 |
+| **UC-28** | a Player deploys into a plane in flight | it keeps flying | 📐 `2026-11-05` ✅ `ua-air-attack` with `Playable` on "Gunship A-10": 150 m/s at 49.7 m before, `OperatorControl` and the same 150 m/s, altitude and heading after | D-12 |
 
 ⭐ **The recipe** (§3), with the server's traffic node and two Players. Each Player drives through its OWN port:
 
