@@ -1342,6 +1342,31 @@ graph TD
 | rails | `EntityLifecycleModuleTests.AQ107_*` (9) · `SpawnSystemTests.AQ107_*` · `EntityMasterTranslatorTests.AQ107_*` · cross-node **IT-SA-7** `SplitAuthoritySpawnTests.AQ107_ARequestFromTheBrain_ServicedOnSimHost_ComesBackToTheBrain_NamingItsRequest` |
 
 
+
+#### 3.4e-1 ⚖️ `CE-4266` — **is `CreationRequestId` redundant? ANALYSIS: KEEP the component** *(backend, `2026-11-05`; ⏳ awaiting the user's approval)*
+
+🔒 User, `2026-11-04`: *"It seems redundant as the system anyway keeps the creation list and when entity is finally created, the completion event could (i hope)
+take the creation request from the creation list the system maintains anyway."*
+
+**INVENTORY** — `scripts/cbm.sh search_graph .*(CreationRequest|EntityCreat|CreationLedger|PendingCreation).*` (19 classes) · `scripts/find.sh
+EntityConstructionCompleted` · grep `CreationRequestId` (non-test): ⚠ coverage could not be checked through the CLI.
+
+| who touches it | what for | file |
+|---|---|---|
+| writes — the servicing node | stamps it at spawn | `NetworkSpawningSystem.cs:203-204` |
+| writes — every other node | stamps it from the wire (`EntityMaster.RequestId`) | `EntityMasterIngressTranslator.cs:221-222` |
+| ⭐ reads — the EntityMaster EGRESS | re-sends it on EVERY `EntityMaster` sample, so a late joiner / a caught-up node (C7) learns it too | `EntityMasterEgressTranslator.cs:123-124` |
+| reads — the lifecycle module | copies it into both completion events | `EntityLifecycleModule.cs:607-608` |
+| reads — the deploy server (Player Join S2) | finds the man it spawned for a role | `DeployProcessorSystem.cs:236-238` |
+| ignores — the scenario verifier | a per-run id | `ScenarioVerification.cs:344` |
+| reads the EVENTS' `RequestId` | ⛔ **nothing in production** (graph + grep: only the publisher) | — |
+
+| Decision | **keep the component**; nothing to build |
+|---|---|
+| why | ① the "creation list" (`CreateEntityRequestSystem._pendingQueue`) is DEQUEUED when the spawn command is issued (`:168`), BEFORE construction completes — it cannot serve the event · ② on every other node there is no list at all: the id arrives on the wire, and the egress RE-SENDS it from the component, which is what lets a node that joins later know it — a module-owned map would have to be re-sent from somewhere, i.e. a second copy of the same fact · ③ the component is recorded and restored with the entity, so a replay seek or a checkpoint keeps it by construction; a side map would need its own restore · ④ cost: 16 bytes, unmanaged, written once (never per frame) |
+| rejected | *a lifecycle-module map entity → id* — loses the id on a late join and on a replay seek unless it is replicated and restored, i.e. rebuilt as the component · *take it from the creation queue* — the queue no longer holds it when construction completes |
+| ⭐ one small cleanup it suggests (not built) | the deploy server polls a query each tick while a spawn is pending; it could read `EntityConstructionCompleted.RequestId` instead — the event's first production reader |
+
 ### 3.4c ⭐⭐⭐ `CE-144` — **ONE CONSUMER OF `DestroyEntityCommand`.** `build-state: READY-TO-BUILD`
 
 > 🔒 **User, `2026-09-03`:** *"F4: do option A — fix the two destroy consumers properly."*
