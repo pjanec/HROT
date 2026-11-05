@@ -283,6 +283,8 @@ def crop_to_drawn(big, bg, out, accept_small=False):
     if px and purple > 0.5 * len(px):
         return ("skipped", "only the placeholder box is drawn")
     x0, y0, x1, y1 = box
+    if not accept_small and (x0 <= 2 or y0 <= 2 or x1 >= a.width - 2 or y1 >= a.height - 2):
+        return ("clipped", "the drawing runs off the view: zoom out", box)
     if not accept_small and max(x1 - x0, (y1 - y0) * W / H) < 0.25 * W * BIG_W / W * 1.0 and max(x1 - x0, y1 - y0) < 300:
         return ("small", "a tiny drawing: zoom in", box)
     cw = max((x1 - x0) / FILL, (y1 - y0) / FILL * W / H, 64)
@@ -378,6 +380,12 @@ def shoot_type(tkb, origin, path, view):
     if not good:
         return ("failed", why), view, None
     verdict = crop_to_drawn(path + ".big.png", path + ".bg.png", path)
+    if verdict[0] == "clipped":                            # bigger than its data said (a wingspan, a rotor): step back and look again
+        dist = math.dist(eye, target)
+        fwd, right, up = _basis(math.radians(yaw), math.radians(pitch))
+        nd = dist * 2.2
+        view = ([target[k] - fwd[k] * nd for k in range(3)], list(target), yaw, pitch)
+        return verdict[:2], view, verdict[2]
     if verdict[0] == "small":
         x0, y0, x1, y1 = verdict[2]
         fwd, right, up = _basis(math.radians(yaw), math.radians(pitch))
@@ -416,11 +424,11 @@ def do_types(ids, nas, studio, rows):
                 rows.append((f"type {tkb} {name}", "failed", "unusable name")); continue
             path = os.path.join(out_dir, stem + ".png")
             view = None                                            # pass 1: framed from the entity's data; pass 2 (a tiny drawing): zoomed onto it
-            for attempt in range(2):
+            for attempt in range(4):
                 verdict, view, drawn = shoot_type(tkb, origin, path, view)
-                if verdict[0] != "small":
+                if verdict[0] not in ("small", "clipped"):
                     break
-            if verdict[0] == "small":
+            if verdict[0] in ("small", "clipped"):
                 verdict = crop_to_drawn(path + ".big.png", path + ".bg.png", path, accept_small=True)
             for f in (path + ".big.png", path + ".bg.png"):
                 try: os.remove(f)
