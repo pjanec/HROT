@@ -212,19 +212,18 @@ public sealed class DeployFlowSystem : IEcsModuleSystem
                 if (st.StationNodeId != _station || st.RequestId != _requestId) continue;
                 if (!st.Accepted)
                 {
-                    LastRefusal = st.HolderStation != 0 ? $"{st.Reason} (held by station {st.HolderStation})" : st.Reason ?? "";
-                    State = DeployFlowState.Choosing;
+                    BackToChoosing(st.HolderStation != 0 ? $"{st.Reason} (held by station {st.HolderStation})" : st.Reason ?? "");
                     return;
                 }
                 if (_pendingObserve) { State = DeployFlowState.Observing; return; }
                 var (ok, detail) = _env.Possess(_pendingUnit);
-                if (!ok) { LastRefusal = detail; State = DeployFlowState.Choosing; return; }
+                if (!ok) { BackToChoosing(detail); return; }
                 _deadline = now + TimeoutMs;
                 State = DeployFlowState.TakingControl;
                 return;
             }
         }
-        if (now >= _deadline) { LastRefusal = NoAnswer; State = DeployFlowState.Choosing; }
+        if (now >= _deadline) BackToChoosing(NoAnswer);
     }
 
     private void AwaitPossession(long now)
@@ -234,6 +233,14 @@ public sealed class DeployFlowSystem : IEcsModuleSystem
             State = DeployFlowState.Playing;
             return;
         }
-        if (now >= _deadline) { LastRefusal = "taking control timed out"; State = DeployFlowState.Choosing; }
+        if (now >= _deadline) BackToChoosing("taking control timed out");
+    }
+
+    /// <summary>A refusal or a timeout: back to Choosing with the reason — and no unit (the live run showed the refused unit still reported as the slot's).</summary>
+    private void BackToChoosing(string reason)
+    {
+        LastRefusal = reason;
+        _pendingUnit = 0;
+        State = DeployFlowState.Choosing;
     }
 }

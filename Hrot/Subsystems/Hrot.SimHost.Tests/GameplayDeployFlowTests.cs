@@ -155,6 +155,7 @@ namespace Hrot.SimHost.Tests
             PumpUntil(() => _flow.State == DeployFlowState.Choosing && _flow.LastRefusal.Length > 0, "the refusal");
             Assert.Equal("HeldByAnotherStation (held by station 77)", _flow.LastRefusal);
             Assert.Empty(_possessCalls);
+            Assert.Equal(0, _flow.UnitNetId);   // ⭐ measured live 2026-11-05: the refused unit stayed reported as the slot's. 🔴 BackToChoosing without the reset ⇒ red
         }
 
         /// <summary>The Player's own Possess being refused (the unit is not known here yet) returns it to Choosing with that text. ✅ Red-proof: the result ignored ⇒ it sits in TakingControl ⇒ red.</summary>
