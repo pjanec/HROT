@@ -95,13 +95,44 @@ def positions(limit=160):
     return pts
 
 
-def frame(points, pitch_deg=-45.0, yaw_deg=225.0, margin=1.25, min_radius=12.0):
+def frame(points, pitch_deg=-45.0, yaw_deg=225.0, margin=1.15, min_radius=7.0):
     """eye/target looking down at pitch over the points' bounds (a bounding sphere, fitted to the vertical field of view)."""
     xs, ys, zs = zip(*points)
     cx, cy, cz = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2, (min(zs) + max(zs)) / 2
     radius = max(min_radius, math.hypot(max(xs) - min(xs), max(ys) - min(ys)) / 2)
-    dist = radius * margin / math.sin(math.radians(FOV_DEG / 2)) / 1.6   # 16:9 — a wide frame is fitted by its height, the bounds' diagonal gets slack
+    dist = radius * margin / (math.tan(math.radians(FOV_DEG / 2)) * W / H)   # fitted to the tile's WIDTH (16:9): the bounding circle's radius fills the half-width / margin
     pitch, yaw = math.radians(pitch_deg), math.radians(yaw_deg)
+    eye = (cx + dist * math.cos(pitch) * math.cos(yaw), cy + dist * math.cos(pitch) * math.sin(yaw), cz - dist * math.sin(pitch))
+    return list(eye), [cx, cy, cz]
+
+
+PERSON_M = 1.8          # a person's height (his PhysicsCollider.Height is 0 and his VehicleParams Length is the 0.6 m footprint)
+FILL = 0.6              # the entity fills about this share of the tile's height
+
+
+def entity_size(comps):
+    """(height, extent) of a spawned entity in metres, from what it carries: PhysicsCollider.Height and VehicleParams.Length/Width (a tank: 2.23 / 6.95 x 3.59);
+    a Pedestrian (Class) is a person: 1.8 m. Falls back to the collider radius, else a 2 m box."""
+    veh = comps.get("VehicleParams") or {}
+    col = comps.get("PhysicsCollider") or {}
+    if veh.get("Class") == "Pedestrian":
+        return PERSON_M, PERSON_M
+    height = float(col.get("Height") or 0.0)
+    length, width = float(veh.get("Length") or 0.0), float(veh.get("Width") or 0.0)
+    if length <= 0 and col.get("Radius"):
+        length = width = 2.0 * float(col["Radius"])
+    if height <= 0:
+        height = max(1.0, 0.45 * length) if length > 0 else 2.0
+    return height, max(length, width, height) if (length or width) else 2.0
+
+
+def frame_entity(center, height, extent, pitch_deg=-15.0, yaw_deg=215.0):
+    """A low three-quarter view that makes the entity fill ~FILL of the tile height (the 45 degree vertical field): the apparent height is the
+    taller of its height and ~0.55 of its length; aimed at its middle (half its height above the ground)."""
+    apparent = max(height, 0.55 * extent)
+    dist = max(apparent / (FILL * 2.0 * math.tan(math.radians(FOV_DEG / 2))), 2.5)
+    pitch, yaw = math.radians(pitch_deg), math.radians(yaw_deg)
+    cx, cy, cz = center[0], center[1], center[2] + height / 2
     eye = (cx + dist * math.cos(pitch) * math.cos(yaw), cy + dist * math.cos(pitch) * math.sin(yaw), cz - dist * math.sin(pitch))
     return list(eye), [cx, cy, cz]
 
@@ -198,8 +229,10 @@ def do_types(ids, nas, studio, rows):
                 rows.append((f"type {tkb} {name}", "failed", "the spawn request was never served")); continue
             try:
                 udc.call("POST", "/sim/step", {"count": 6})       # let it realise (its body, its size)
-                pts = positions_near(origin) or [tuple(origin)]
-                eye, target = frame(pts, pitch_deg=-25.0, yaw_deg=215.0, min_radius=6.5)
+                comps = (body_of(udc.call("GET", f"/entities/{nids[0]}")) or {}).get("Components") or {}
+                pos = (comps.get("SimTransform") or {}).get("Position") or origin
+                height, extent = entity_size(comps)
+                eye, target = frame_entity(pos, height, extent)
                 path = os.path.join(out_dir, stem + ".png")
                 good, why = shoot(path, eye, target)
                 rows.append((f"type {tkb} {name}", "ok" if good else "failed", path if good else why))
