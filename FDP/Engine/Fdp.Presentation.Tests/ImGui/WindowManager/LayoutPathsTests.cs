@@ -244,7 +244,7 @@ public sealed class LayoutPathsTests : IDisposable
         if (text is null) return;   // ⭐ not in a checkout — nothing to read, and that is not a failure
 
         int reset = text.IndexOf("TryResetUserLayout", StringComparison.Ordinal);
-        int setup = text.IndexOf("SetupImGui()", StringComparison.Ordinal);
+        int setup = text.IndexOf("_shell.SetupImGui(", StringComparison.Ordinal);
 
         Assert.True(reset > 0, "OpenLocalWindow no longer resets the layout at all.");
         Assert.True(setup > 0, "OpenLocalWindow no longer calls SetupImGui.");
@@ -289,5 +289,32 @@ public sealed class LayoutPathsTests : IDisposable
             try { Directory.Delete(LayoutPaths.ShippedDefaultDirectory(), recursive: true); }
             catch { /* best effort */ }
         }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4260</c> — two applications' layouts are two folders (user and shipped), and the flat pair every app used to share moves into ONE app's folder once,
+    /// never again. 🔴 Red-proof (compiles): <c>LayoutDirectory</c> ignoring <c>layout</c> ⇒ the two ini paths are equal.
+    /// </summary>
+    [Fact]
+    public void CE4260_EachAppHasItsOwnLayoutFolder_AndTheFlatPairMovesOnce()
+    {
+        string app = "fdp-ce4260-" + Guid.NewGuid().ToString("N");
+        string root = LayoutPaths.UserDirectory(app);
+        try
+        {
+            Assert.NotEqual(LayoutPaths.UserIniPath(app, "Editor"), LayoutPaths.UserIniPath(app, "ReplayBrowser"));
+            Assert.NotEqual(LayoutPaths.ShippedDefaultDirectory("Editor"), LayoutPaths.ShippedDefaultDirectory("ReplayBrowser"));
+            Assert.Equal(LayoutPaths.UserIniPath(app), Path.Combine(root, LayoutPaths.IniFileName));   // null keeps the flat pair (FdpApplication)
+            Assert.Throws<ArgumentException>(() => LayoutPaths.UserIniPath(app, ".."));
+
+            File.WriteAllText(Path.Combine(root, LayoutPaths.IniFileName), "[Window][FLAT]\n");
+            Assert.Equal(new[] { LayoutPaths.IniFileName }, LayoutPaths.TryMigrateFlatUserLayout(app, "Editor"));
+            Assert.Contains("FLAT", File.ReadAllText(LayoutPaths.UserIniPath(app, "Editor")));
+            File.WriteAllText(LayoutPaths.UserIniPath(app, "Editor"), "[Window][MINE]\n");
+            Assert.Empty(LayoutPaths.TryMigrateFlatUserLayout(app, "Editor"));                   // once: the app's own file is never overwritten
+            Assert.Contains("MINE", File.ReadAllText(LayoutPaths.UserIniPath(app, "Editor")));
+            Assert.False(File.Exists(LayoutPaths.UserIniPath(app, "ReplayBrowser")));            // the other app is untouched
+        }
+        finally { try { Directory.Delete(root, recursive: true); } catch { } }
     }
 }

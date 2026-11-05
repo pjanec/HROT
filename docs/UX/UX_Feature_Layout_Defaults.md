@@ -2,7 +2,10 @@
 state: LIVE
 build-state: DONE
 verified: 2026-08-28 (coordinator source scan)
-current-answer: DONE. Delivered: layout/default/* + LayoutPaths (reset/save-as-default) + LocalWindowController.RegisterLayoutMenu; rails TheLayoutIsOneUnitTests/LayoutPathsTests.
+current-answer: DONE, extended 2026-11-05 by §7 (CE-4260: one layout PER APPLICATION). Delivered: layout/<app>/* + LayoutPaths (reset/save-as-default, per app) + LocalWindowController.RegisterLayoutMenu; rails TheLayoutIsOneUnitTests/LayoutPathsTests.
+known-rot: "layout/default/" below is SUPERSEDED by §7 — the editor's pair is layout/Editor/ now, and every app has its own folder.
+related-designs:
+  - docs/designs/replay-browser-2/DESIGN.md — the Replay Browser, the second application with a layout of its own (§7)
 -->
 # Feature design — the shipped default layout
 
@@ -132,6 +135,23 @@ is **disabled with a reason** — not hidden, so the absence is explainable.
 Extract the ini-path computation used by `RaylibPresentationShell.cs:131` and `FdpApplication.cs:93` into
 one helper. ⚠ **Small, but it is the seam this issue says is missing** — `SetupImGui()` gaining a path
 parameter is what makes the whole feature testable.
+
+### 7. ⭐ One layout PER APPLICATION — `CE-4260` *(2026-11-05, supersedes the single shared pair)*
+
+```mermaid
+graph TD
+  LWC["LocalWindowController.LayoutName<br/>Editor ▸ ReplayBrowser ▸ first window subsystem"] --> LP["LayoutPaths(appName, layout)"]
+  LP --> U["user: LocalAppData/HROT/layouts/&lt;layout&gt;/<br/>imgui.ini + fdp_windows.json"]
+  LP --> S["shipped: &lt;exe&gt;/layout/&lt;layout&gt;/"]
+  LP --> R["source (Save as default): &lt;repo&gt;/layout/&lt;layout&gt;/"]
+  F["flat user pair (before CE-4260)"] -. "moved once, editor only" .-> U
+```
+*What the picture shows: every path is keyed by the app's layout name, so no app's save, reset or exit touches another app's files.*
+
+📐 **Why** — every app read and wrote ONE user pair and ONE shipped default, so the Replay Browser's *Save current as default* overwrote the editor's,
+and each app's exit rewrote the other's ini (the browser then reopened with the editor's arrangement). ⭐ The editor's layout name wins in `--mode all`;
+`LayoutPaths(…, layout: null)` keeps the flat pair for a host with one window set (`FdpApplication`). ⚠ An app with no shipped default (the Replay
+Browser today) starts from ImGui's own placement until someone saves one — ⛔ no longer from the editor's.
 
 ## Acceptance
 

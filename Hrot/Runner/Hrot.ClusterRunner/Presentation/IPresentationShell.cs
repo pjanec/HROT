@@ -9,7 +9,8 @@ internal interface IPresentationShell
 
     /// <summary>⭐ CE-1290 — renames the open window (the loaded scenario's name follows the load).</summary>
     void SetWindowTitle(string title);
-    void SetupImGui();
+    /// <param name="iniPath">⭐ CE-4260 — the ini ImGui reads now and rewrites on exit: the APP's own layout (<c>LayoutPaths.UserIniPath(app, layout)</c>).</param>
+    void SetupImGui(string iniPath);
 
     /// <summary>
     /// The editor font pipeline (Roboto UI face + FontAwesome merge + canvas ladder +

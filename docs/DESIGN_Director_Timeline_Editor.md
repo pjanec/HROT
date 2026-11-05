@@ -279,6 +279,56 @@ toolbar is its own, R-3060). This section owns only what this design adds to it.
 | 10 | **a take's keys stay in SIM seconds**; on the Wall axis drawn through the session's `ReplayTimeMap`; never inside a paused stretch | — |
 | 11 | **events inside one collapsed pause** (Sim axis) draw as one cluster with a count at the pause's tick | — |
 
+## 2c-1. CE-4263 — a clicked event shows the EVENT in Details *(ui, `2026-11-05`; build-state: READY-TO-BUILD; extends R-4087 addendum 5, does not reverse it)*
+
+🔒 User, `2026-11-04`: *"I would expect the detail panel will show the detail about the clicked event."* 📐 Today a click selects the event's
+SUBJECT (`EditorSubsystem.SelectTimelineEvent` → `SelectNetworkEntity(e.Subject)`, the Replay Browser the same via RB-7), so Details shows the
+unit and never the event.
+
+```mermaid
+classDiagram
+  class TimelinePanel { +OnSelect: Action~TimelineEvent~ }
+  class TimelineEventFocus { +Event: TimelineEvent? +Set(e) +Clear() +AppliesTo(ctx) bool }
+  class EventDetailsView { +Draw(ctx) }
+  class DetailsViewPredicates { +ExactlyOneEntity(ctx) +EventOfTheSelectedUnit(ctx, focus) }
+  class SelectNetworkEntity { <<the ONE selection, R-4087 a5>> }
+  TimelinePanel --> TimelineEventFocus : click sets
+  TimelinePanel --> SelectNetworkEntity : click selects the subject (unchanged)
+  EventDetailsView --> TimelineEventFocus : reads
+  EventDetailsView ..> DetailsViewPredicates : AppliesTo
+  EventDetailsView --> SelectNetworkEntity : Subject / Other links
+```
+*What the picture shows: the event is a SECOND, host-held fact next to the one selection — nothing about the unit's selection changes.*
+
+```mermaid
+sequenceDiagram
+  participant U as user
+  participant P as TimelinePanel
+  participant H as host (editor / Replay Browser)
+  participant D as Details
+  U->>P: click an event
+  P->>H: OnSelect(e)
+  H->>H: TimelineEventFocus.Set(e)
+  H->>H: SelectNetworkEntity(e.Subject)
+  D->>D: Event view first (focus.Event.Subject == the one selected unit)
+  U->>D: click "Other" link
+  D->>H: SelectNetworkEntity(e.Other) — the event view no longer applies (subject ≠ selection)
+```
+*What the sequence shows: the Event view goes away BY CONSTRUCTION when anything else is selected — no clearing call to forget.*
+
+| decision | why |
+|---|---|
+| ⭐ keep R-4087 a5 — the click still selects the subject | the map highlight, the brain view and every `ExactlyOneEntity` view keep working; the user's report is about what Details SHOWS |
+| ⭐ the Event view is ordered FIRST among the entity's views, its `AppliesTo` = *one entity selected ∧ it is the focused event's subject* | a stale event cannot show: a map click on another unit fails the predicate |
+| ⭐ rows: time (sim + wall), lane (its display name), kind, the event's text, **Subject** and **Other** as entity links, the value / payload fields | the user's request + the row's lean |
+| ⛔ rejected: a new `SelectionOrigin.Timeline` focus latch | the latch is a LEVEL an entity click does not move (`DetailsViewPredicates.MapBackgroundWithNothingSelected` doc) ⇒ the event would outlive the next unit pick |
+| ⛔ rejected: selecting ONLY the event (no subject) | breaks R-4087 a5's one selection and every subject-following surface |
+
+⭐ **AS-BUILT `2026-11-05` (ui)**: built as designed; one registration in `EntityDetailsBundle` (`EventFocus` + `SelectNetworkEntity` host services) serves the editor and the Replay Browser. ⚠ "FIRST" is `Rank = 100`: the offer set is rank-DESCENDING and the default is the HIGHEST rank (R-98) — found by the bundle rail. `TimelinePanel` records the clicked event's sim / wall time (`LastSelectedWallText` / `LastSelectedSimText`) and `LaneNameOf`; a plain pick by network id clears the focus (the Replay Browser's rules window used to ride `SelectTimelineEvent` with a made-up event).
+
+⭐ Both hosts get it the same way: the focus holder and the view live in `Hrot.Editor.AiShared` (where `DetailsViewPredicates` is), each host's
+`SelectTimelineEvent` sets it before selecting the subject. ⛔ No seek (R-3059 stands); a double-click still zooms to the cluster.
+
 ## 2d. CE-3330 — the panel's zoom, pan and menu, as built *(ui, `2026-10-26`; build-state: BUILT — the parts that need backend's data D wait, below)*
 
 ```mermaid

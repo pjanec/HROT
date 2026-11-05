@@ -106,6 +106,7 @@ public sealed class TheWatchPanelDumpsItsPinnedRowsTests : IDisposable
 
         public IReadOnlyList<VariableViewModel> Variables { get; }
         public bool IsReadOnly => false;
+        public DeclarationFeatures Features => DeclarationFeatures.Blackboard;
         public string? GetRefactorKey(string variableName) => null;
         public void AddVariable(Hrot.Editor.AiShared.Blackboard.BlackboardVariableEntry entry) { }
         public void RemoveVariable(string name) { }

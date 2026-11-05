@@ -654,6 +654,27 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.Equal(frame, _subsystem.PrimaryNodeCurrentFrame());   // a selection moved no time
     }
 
+    /// <summary>
+    /// ⭐ CE-4263 — the click also FOCUSES the event (Details ▸ Event shows it): a selected event sets the focus, a refused one leaves it, and a PLAIN pick by network id (the rules view, the event view's own links) clears it —
+    /// ⛔ it used to ride <c>SelectTimelineEvent</c> with a made-up event. 🔴 Red-proof: <c>SelectNetworkEntity</c> not clearing ⇒ the last assertion.
+    /// </summary>
+    [Fact]
+    public void CE4263_ATimelineEventClick_FocusesTheEvent_AndAPlainPickClearsIt()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var path = MakeOneFrameRecording(nodeId: 1, Guid.NewGuid());   // one unit, network id 100
+        _subsystem.LoadFdpViaManager(path);
+
+        Assert.Null(_subsystem.EventFocus.Event);
+        var spawned = new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent(0, "life.spawned", 100, 0, 0, 0, 0);
+        Assert.True(_subsystem.SelectTimelineEvent(spawned));
+        Assert.Equal(spawned, _subsystem.EventFocus.Event);                                    // the event is focused …
+        Assert.False(_subsystem.SelectTimelineEvent(new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent(0, "life.spawned", 999, 0, 0, 0, 0)));
+        Assert.Equal(spawned, _subsystem.EventFocus.Event);                                    // … a refused click leaves it as it was
+        Assert.True(_subsystem.SelectNetworkEntity(100));
+        Assert.Null(_subsystem.EventFocus.Event);                                              // a plain pick shows no event
+    }
+
     // ── RBF-P2T3: minimal recording helper ───────────────────────────────────
 
     /// <summary>
@@ -814,8 +835,9 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         public System.Threading.Tasks.Task<string?> ShowOpenFileDialogAsync(string callSiteId, string extensionFilter)
             => System.Threading.Tasks.Task.FromResult<string?>(null);
 
+        public int OpenMultipleCalls;   // ⭐ CE-4261 — File ▸ Load .fdp… reaches the dialog
         public System.Threading.Tasks.Task<string[]?> ShowOpenMultipleFilesDialogAsync(string callSiteId, string extensionFilter)
-            => System.Threading.Tasks.Task.FromResult<string[]?>(null);
+        { System.Threading.Interlocked.Increment(ref OpenMultipleCalls); return System.Threading.Tasks.Task.FromResult<string[]?>(null); }
     }
 
     private sealed class StubHistoryService : Fdp.Core.Diagnostics.IDiagnosticEventHistoryService
@@ -1422,6 +1444,96 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.Null(rb.History(back: false));
         Assert.Equal(3, _subsystem.PrimaryNodeCurrentFrame());
         Assert.NotNull(rb.History(back: false));                                     // nothing further
+    }
+
+    // ── ⭐ CE-4261 — the browser's main toolbar and File items ─────────────────────────────────────────────────────────
+
+    private (WindowManager Wm, Fdp.Presentation.Panels.ReplayBrowser.ReplayTimelinePanel Panel, StubFileDialogService Dialog) ComposeBrowserWindows()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var wm = new WindowManager(new IconAtlas(IntPtr.Zero, 1, 1));
+        var dialog = new StubFileDialogService();
+        var timelinePanel = new Fdp.Presentation.Panels.ReplayBrowser.ReplayTimelinePanel(
+            null, () => 0, new StubExportService(), dialog,
+            new Fdp.Toolkit.ReplayBrowser.PlaybackHistoryTracker(), new InspectorState());
+        _subsystem.RegisterWindowsCore(wm, timelinePanel, new Fdp.Presentation.Panels.EntityInspectorPanel(), new Fdp.Presentation.Panels.ReplayBrowser.ComponentDiffPanel(),
+            new Fdp.Presentation.Panels.EventBrowserPanel(new StubHistoryService()),
+            new Fdp.Presentation.Panels.ReplayBrowser.ReplaySearchPanel(new NopPanelEditService(), new NopPanelSearchService(), _ => { }, _ => { }, (_, _) => { }));
+        return (wm, timelinePanel, dialog);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4261 (🔒 user, 2026-11-03) — the Replay Browser has the main toolbar with the REPLAY TRANSPORT, <i>File ▸ Load .fdp…</i> (the load the timeline's button ran) and <i>File ▸ JSON Export…</i> (opens the
+    /// export window). 🔴 Red-proof: the toolbar entry not registered ⇒ the first assertion; the JSON item not opening the window ⇒ the second.
+    /// </summary>
+    [Fact]
+    public async System.Threading.Tasks.Task CE4261_TheBrowser_HasTheTransportOnTheMainToolbar_AndTheLoadAndJsonExportFileItems()
+    {
+        var (wm, _, dialog) = ComposeBrowserWindows();
+        Assert.True(wm.MainToolbar.ContainsEntry(ReplayBrowserSubsystem.TransportEntryId), "the replay transport is a main-toolbar entry");
+        // the host DRAWS the toolbar for it: WindowManager.Render draws it inline in the menu bar when its Height > 0 and the Start perspective is not showing — neither is gated on run controls
+        Assert.True(wm.MainToolbar.Height > 0f, "an entry gives the toolbar a height ⇒ it is drawn");
+        Assert.False(wm.IsStartShowing, "no Start surface is composed in a browser-only process");
+
+        var file = wm.GlobalMenu.Root.Children["File"];
+        var load = file.Children["Load .fdp…"];
+        var export = file.Children["JSON Export…"];
+
+        var windowsField = typeof(WindowManager).GetField("_windows", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var window = ((Dictionary<string, ManagedWindow>)windowsField.GetValue(wm)!)["rb_json_export"];
+        Assert.False(window.IsOpen, "closed until asked");
+        export.ResolveBinding("ReplayBrowser")!.OnClick!();
+        Assert.True(window.IsOpen, "File ▸ JSON Export… opens the export window");
+
+        load.ResolveBinding("ReplayBrowser")!.OnClick!();
+        for (int i = 0; i < 100 && dialog.OpenMultipleCalls == 0; i++) await System.Threading.Tasks.Task.Delay(10);
+        Assert.Equal(1, dialog.OpenMultipleCalls);   // the same dialog the Load button opened
+    }
+
+    /// <summary>
+    /// ⭐ CE-4261 — the toolbar's transport and the export window, drawn in a REAL ImGui frame (under <c>xvfb-run -a</c>; a skip is not a pass): both put pixels on the frame, and the timeline panel itself no longer
+    /// draws the transport row (<see cref="Fdp.Presentation.Panels.ReplayBrowser.ReplayTimelinePanel.DrawTransport"/> is the one drawer). Screenshots: <c>HROT_FRAME_SCREENSHOTS</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE4261_TheTransport_AndTheJsonExportWindow_AreDrawnInARealFrame()
+    {
+        Skip.IfNot(Hrot.Editor.UiFrameRail.UiFrameHarness.IsAvailable(), Hrot.Editor.UiFrameRail.UiFrameHarness.UnavailableReason);
+        var (wm, panel, _) = ComposeBrowserWindows();
+        using var frame = Hrot.Editor.UiFrameRail.UiFrameHarness.Begin(900, 300);
+        string dir = Environment.GetEnvironmentVariable("HROT_FRAME_SCREENSHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-frames");
+        Directory.CreateDirectory(dir);
+
+        frame.StepN(3, () =>
+        {
+            // the toolbar as the host draws it: the registered entry, inline in the main menu bar (WindowManager.Render's call)
+            if (ImGuiNET.ImGui.BeginMainMenuBar())
+            {
+                wm.MainToolbar.RenderInline("ReplayBrowser");
+                ImGuiNET.ImGui.EndMainMenuBar();
+            }
+            ImGuiNET.ImGui.SetNextWindowPos(new System.Numerics.Vector2(0, 70), ImGuiNET.ImGuiCond.Always);
+            ImGuiNET.ImGui.SetNextWindowSize(new System.Numerics.Vector2(600, 220), ImGuiNET.ImGuiCond.Always);
+            ImGuiNET.ImGui.Begin("JSON Export (CE-4261)");
+            panel.DrawExportBody();
+            ImGuiNET.ImGui.End();
+        });
+        string png = Path.Combine(dir, "ce4261-replay-toolbar-and-export.png");
+        frame.Screenshot(png);
+
+        var image = Raylib_cs.Raylib.LoadImage(png);
+        try
+        {
+            int top = 0, bottom = 0;
+            for (int y = 0; y < image.Height; y += 2)
+                for (int x = 0; x < 600; x += 2)
+                {
+                    var c = Raylib_cs.Raylib.GetImageColor(image, x, y);
+                    if (Math.Abs(c.R - 80) > 12 || Math.Abs(c.G - 80) > 12 || Math.Abs(c.B - 80) > 12) { if (y < 60) top++; else if (y >= 70) bottom++; }
+                }
+            Assert.True(top > 40, $"the toolbar's transport buttons drew in the menu bar ({top} px)");
+            Assert.True(bottom > 200, $"the export options drew ({bottom} px)");
+        }
+        finally { Raylib_cs.Raylib.UnloadImage(image); }
     }
 
     /// <summary>

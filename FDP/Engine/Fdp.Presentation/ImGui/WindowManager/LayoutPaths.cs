@@ -69,9 +69,33 @@ public static class LayoutPaths
         return dir;
     }
 
+    /// <summary>⭐ <c>CE-4260</c> — the folder under the user directory that holds every application's own layout (<c>layouts/&lt;layout&gt;/</c>).</summary>
+    public const string PerAppDirectoryName = "layouts";
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4260</c> — <b>a layout belongs to ONE APPLICATION</b> (the editor, the Replay Browser, …): its pair lives in <c>&lt;user&gt;/layouts/&lt;layout&gt;/</c>,
+    /// its shipped default in <c>layout/&lt;layout&gt;/</c>. 📐 Measured: every app wrote the SAME two user files and the same shipped default, so the Replay
+    /// Browser's <i>Save current as default</i> overwrote the editor's layout and each app's exit rewrote the other's ini.
+    /// <paramref name="layout"/> <c>null</c> keeps the single flat pair (a host with one window set — <c>FdpApplication</c>).
+    /// </summary>
+    public static string LayoutDirectory(string appName, string? layout)
+    {
+        if (layout is null) return UserDirectory(appName);
+        var dir = Path.Combine(UserDirectory(appName), PerAppDirectoryName, CheckLayoutName(layout));
+        Directory.CreateDirectory(dir);
+        return dir;
+    }
+
+    private static string CheckLayoutName(string layout)
+    {
+        if (string.IsNullOrWhiteSpace(layout) || layout.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || layout is "." or "..")
+            throw new ArgumentException($"'{layout}' cannot name a layout folder.", nameof(layout));
+        return layout;
+    }
+
     /// <summary>⭐ The user's <c>imgui.ini</c> — what ImGui is pointed at, and what it rewrites on exit.</summary>
-    public static string UserIniPath(string appName)
-        => Path.Combine(UserDirectory(appName), IniFileName);
+    public static string UserIniPath(string appName, string? layout = null)
+        => Path.Combine(LayoutDirectory(appName, layout), IniFileName);
 
     /// <summary>
     /// ⭐⭐ The user's <c>fdp_windows.json</c>.
@@ -81,8 +105,8 @@ public static class LayoutPaths
     /// arrangement. ⭐ <see cref="LegacyWindowSettingsPath"/> is where it was, for the one-time
     /// migration.</para>
     /// </summary>
-    public static string UserWindowSettingsPath(string appName)
-        => Path.Combine(UserDirectory(appName), WindowSettingsFileName);
+    public static string UserWindowSettingsPath(string appName, string? layout = null)
+        => Path.Combine(LayoutDirectory(appName, layout), WindowSettingsFileName);
 
     /// <summary>
     /// ⚠ <b>Where <c>fdp_windows.json</c> USED to live</b> — beside the executable. ⭐ Read once, by the
@@ -96,8 +120,10 @@ public static class LayoutPaths
     /// ⚠ It may not exist — a host that ships no default is a legitimate configuration, and
     /// <see cref="TryResetUserLayout"/> answers <c>false</c> rather than throwing.
     /// </summary>
-    public static string ShippedDefaultDirectory()
-        => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, DefaultDirectoryName);
+    public static string ShippedDefaultDirectory(string? layout = null)
+        => layout is null
+            ? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, DefaultDirectoryName)
+            : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, DefaultDirectoryName, CheckLayoutName(layout));   // ⭐ CE-4260
 
     /// <summary>
     /// ⭐⭐⭐ <b>THE RESET — a file copy BEFORE the load, and nothing else.</b>
@@ -116,12 +142,12 @@ public static class LayoutPaths
     /// installed; a copy afterwards would land on disk and be ignored until the next run.</para>
     /// </summary>
     /// <returns>⭐ The files actually copied. ⚠ Empty when no shipped default exists — ⛔ not an error.</returns>
-    public static IReadOnlyList<string> TryResetUserLayout(string appName)
+    public static IReadOnlyList<string> TryResetUserLayout(string appName, string? layout = null)
     {
-        var from = ShippedDefaultDirectory();
+        var from = ShippedDefaultDirectory(layout);
         if (!Directory.Exists(from)) return Array.Empty<string>();
 
-        var to = UserDirectory(appName);
+        var to = LayoutDirectory(appName, layout);
         var copied = new List<string>();
 
         foreach (var name in new[] { IniFileName, WindowSettingsFileName })
@@ -177,16 +203,30 @@ public static class LayoutPaths
     /// <c>.git</c>: a checkout whose <c>layout/default</c> was deleted cannot be a save target, and a
     /// tarball that happens to carry one can.</para>
     /// </summary>
-    public static string? TryFindSourceLayoutDirectory()
+    public static string? TryFindSourceLayoutDirectory(string? layout = null)
     {
         var dir = AppContext.BaseDirectory;
         for (int i = 0; i < 12 && !string.IsNullOrEmpty(dir); i++)
         {
-            var candidate = Path.Combine(dir, DefaultDirectoryName, "default");
-            if (Directory.Exists(candidate)) return candidate;
+            if (layout is null)
+            {
+                var candidate = Path.Combine(dir, DefaultDirectoryName, "default");
+                if (Directory.Exists(candidate)) return candidate;
+            }
+            else if (IsSourceLayoutRoot(Path.Combine(dir, DefaultDirectoryName)))
+                return Path.Combine(dir, DefaultDirectoryName, CheckLayoutName(layout));   // ⭐ CE-4260 — may not exist yet: the first save of an app's default creates it
             dir = Directory.GetParent(dir)?.FullName;
         }
         return null;
+    }
+
+    /// <summary>⭐ CE-4260 — a checkout's <c>layout/</c> folder: it holds at least one application's default pair (⛔ never the output's flat copy, which holds the files themselves).</summary>
+    private static bool IsSourceLayoutRoot(string root)
+    {
+        if (!Directory.Exists(root) || File.Exists(Path.Combine(root, IniFileName))) return false;
+        foreach (var sub in Directory.EnumerateDirectories(root))
+            if (File.Exists(Path.Combine(sub, IniFileName)) || File.Exists(Path.Combine(sub, WindowSettingsFileName))) return true;
+        return false;
     }
 
     /// <summary>
@@ -204,12 +244,13 @@ public static class LayoutPaths
     /// <c>SaveIniSettingsToDisk</c> exists for.</para>
     /// </summary>
     /// <returns><c>true</c> when at least one file was written into the source tree.</returns>
-    public static bool TrySaveUserLayoutAsDefault(string appName)
+    public static bool TrySaveUserLayoutAsDefault(string appName, string? layout = null)
     {
-        var target = TryFindSourceLayoutDirectory();
+        var target = TryFindSourceLayoutDirectory(layout);
         if (target is null) return false;
+        Directory.CreateDirectory(target);
 
-        var from = UserDirectory(appName);
+        var from = LayoutDirectory(appName, layout);
         bool wrote = false;
 
         foreach (var name in new[] { IniFileName, WindowSettingsFileName })
@@ -235,9 +276,9 @@ public static class LayoutPaths
     /// — 📌 the design calls that acceptable and worth one changelog line.</para>
     /// </summary>
     /// <returns><c>true</c> when a file was migrated.</returns>
-    public static bool TryMigrateLegacyWindowSettings(string appName)
+    public static bool TryMigrateLegacyWindowSettings(string appName, string? layout = null)
     {
-        var target = UserWindowSettingsPath(appName);
+        var target = UserWindowSettingsPath(appName, layout);
         if (File.Exists(target)) return false;
 
         var legacy = LegacyWindowSettingsPath();
@@ -245,5 +286,25 @@ public static class LayoutPaths
 
         File.Copy(legacy, target, overwrite: false);
         return true;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4260</c> — the ONE-TIME move of the flat user pair (<c>&lt;user&gt;/imgui.ini</c> + <c>fdp_windows.json</c>, where every app wrote before) into
+    /// <paramref name="layout"/>'s own folder, when that folder has neither file yet. ⭐ Called for the editor only: the flat pair was, in practice, its layout.
+    /// ⛔ The flat files are left in place (an older build still reads them).
+    /// </summary>
+    /// <returns>The files copied.</returns>
+    public static IReadOnlyList<string> TryMigrateFlatUserLayout(string appName, string layout)
+    {
+        var to = LayoutDirectory(appName, layout);
+        if (File.Exists(Path.Combine(to, IniFileName)) || File.Exists(Path.Combine(to, WindowSettingsFileName))) return Array.Empty<string>();
+        var from = UserDirectory(appName);
+        var copied = new List<string>();
+        foreach (var name in new[] { IniFileName, WindowSettingsFileName })
+        {
+            var src = Path.Combine(from, name);
+            if (File.Exists(src) && TryReplace(src, Path.Combine(to, name))) copied.Add(name);
+        }
+        return copied;
     }
 }

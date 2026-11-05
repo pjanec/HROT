@@ -58,6 +58,9 @@ public sealed class ParamArgsTable : IDisposable
     public int RowsDrawn { get; private set; }
     public int ResetButtons { get; private set; }
 
+    /// <summary>The screen centre of the last <i>reset</i> button drawn (the frame rails click it); null when none was drawn.</summary>
+    public System.Numerics.Vector2? LastResetButtonCenter { get; private set; }
+
     /// <param name="pickScope">The map-pick scope prefix of a row's field (<c>"$.macroarg."</c>, <c>"$.runsetup."</c>).</param>
     public ParamArgsTable(Func<IComponentEditService?> editService, Func<IMapPickContext?>? picks = null, string pickScope = "$.arg.")
     {
@@ -67,29 +70,42 @@ public sealed class ParamArgsTable : IDisposable
     }
 
     /// <summary>Zeroes the counters (a view that returns before drawing the table starts each frame from nothing).</summary>
-    public void ResetCounts() => RowsDrawn = ResetButtons = 0;
+    public void ResetCounts() { RowsDrawn = ResetButtons = 0; LastResetButtonCenter = null; }
 
     /// <summary>Draws the table. Returns false (and draws a muted line) when there is no editor service. <paramref name="id"/> keeps two tables on one window apart.</summary>
     public bool Draw(string id, IReadOnlyList<ParamArgRow> rows, Action<ParamArgRow, string> onSet, Action<ParamArgRow> onReset)
     {
-        RowsDrawn = ResetButtons = 0;
+        ResetCounts();
         if (_editService() is not { } svc) { ImGui.TextDisabled("No editor service."); return false; }
+        ParamArgRow? resetClicked = null;
         if (ImGui.BeginTable(id, 3, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
         {
-            ImGui.TableSetupColumn("Param", ImGuiTableColumnFlags.WidthFixed, 160f);
-            ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch);
-            ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed, 70f);
-            foreach (var row in rows)
+            try
             {
-                var st = PrepareRow(svc, row);
-                if (st is null) continue;
-                ImGui.PushStyleVar(ImGuiStyleVar.Alpha, row.IsOverridden ? 1f : 0.55f);   // the default is greyed until it is overridden
-                st.Drawer.DrawRoot(VariableEditModal.ScalarRowOrRoot(st.Session.Document.Root, row.Name));
-                ImGui.PopStyleVar();
-                FinishRow(row, st, onSet, onReset);
+                ImGui.TableSetupColumn("Param", ImGuiTableColumnFlags.WidthFixed, 160f);
+                ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableSetupColumn("", ImGuiTableColumnFlags.WidthFixed, 70f);
+                foreach (var row in rows)
+                {
+                    // ⭐ CE-4258 ① — one id scope per row: two rows of one type (two entity links) drew widgets with the same id
+                    ImGui.PushID(row.Name);
+                    try
+                    {
+                        var st = PrepareRow(svc, row);
+                        if (st is null) continue;
+                        ImGui.PushStyleVar(ImGuiStyleVar.Alpha, row.IsOverridden ? 1f : 0.55f);   // the default is greyed until it is overridden
+                        st.Drawer.DrawRoot(VariableEditModal.ScalarRowOrRoot(st.Session.Document.Root, row.Name));
+                        ImGui.PopStyleVar();
+                        if (FinishRow(row, st, onSet)) resetClicked = row;
+                    }
+                    finally { ImGui.PopID(); }
+                }
             }
-            ImGui.EndTable();
+            finally { ImGui.EndTable(); }
         }
+        // ⭐ CE-4258 ② — the reset runs AFTER the table: a caller's reset may Clear() (dispose) every row's session, which inside the row loop
+        // left the next FinishRow reading a disposed session — the exception skipped EndTable ("missing EndTable") and crashed the editor
+        if (resetClicked is not null) onReset(resetClicked);
         return true;
     }
 
@@ -114,19 +130,28 @@ public sealed class ParamArgsTable : IDisposable
         return st;
     }
 
-    /// <summary>After the drawer drew the row: the reset column and the commit of an edit.</summary>
-    private void FinishRow(ParamArgRow row, RowState st, Action<ParamArgRow, string> onSet, Action<ParamArgRow> onReset)
+    /// <summary>After the drawer drew the row: the reset column and the commit of an edit. Returns true when <i>reset</i> was clicked (the caller resets after the table).</summary>
+    private bool FinishRow(ParamArgRow row, RowState st, Action<ParamArgRow, string> onSet)
     {
         RowsDrawn++;
         ImGui.TableSetColumnIndex(2);
         if (row.IsOverridden)
         {
             ResetButtons++;
-            if (ImGui.SmallButton("reset##" + row.Name)) onReset(row);
+            bool clicked = ImGui.SmallButton("reset");
+            LastResetButtonCenter = (ImGui.GetItemRectMin() + ImGui.GetItemRectMax()) / 2f;
+            if (clicked) return true;
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Reset to the default" + (row.DefaultJson is null ? "" : " (" + row.DefaultJson + ")"));
         }
         else ImGui.TextDisabled("default");
 
+        CommitIfDirty(row, st, onSet);
+        return false;
+    }
+
+    /// <summary>The commit of an edit: when the form is dirty and valid, serialises it and tells the caller (<paramref name="onSet"/>) — shared by the table row and the one-cell form.</summary>
+    private static void CommitIfDirty(ParamArgRow row, RowState st, Action<ParamArgRow, string> onSet)
+    {
         if (st.Session.IsDirty)
         {
             try
@@ -141,6 +166,39 @@ public sealed class ParamArgsTable : IDisposable
             catch (EditValidationException) { /* an invalid edit stays in the form; nothing is written */ }
         }
     }
+
+    /// <summary>
+    /// ⭐ CE-4254 — the ONE-CELL form of a row: the field type's StructEdit leaf, with no table and no reset column, for a host that already owns the table
+    /// (the Variables table's <i>default</i> cell). Same session / drawer / commit as <see cref="Draw"/>; the caller owns what an edit means (<paramref name="onSet"/>).
+    /// Returns false (a muted line) when there is no editor service or the type is unknown.
+    /// </summary>
+    public bool DrawCell(ParamArgRow row, Action<ParamArgRow, string> onSet)
+    {
+        if (_editService() is not { } svc) { ImGui.TextDisabled("No editor service."); return false; }
+        if (row.Type is null) { ImGui.TextDisabled($"unknown type '{row.TypeId}'"); return false; }
+        ImGui.PushID(row.Name);
+        try
+        {
+            var st = PrepareRow(svc, row)!;
+            // the drawer's leaf starts with TableNextRow — it needs its OWN two-column table, nested in the host's cell (else it would add a row to the host's table)
+            if (ImGui.BeginTable("##defcell", 2, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadOuterX))
+            {
+                try
+                {
+                    ImGui.TableSetupColumn("##n", ImGuiTableColumnFlags.WidthFixed, 1f);
+                    ImGui.TableSetupColumn("##v", ImGuiTableColumnFlags.WidthStretch);
+                    st.Drawer.DrawRoot(VariableEditModal.ScalarRowOrRoot(st.Session.Document.Root, row.Name));
+                }
+                finally { ImGui.EndTable(); }
+            }
+            CommitIfDirty(row, st, onSet);
+        }
+        finally { ImGui.PopID(); }
+        return true;
+    }
+
+    /// <summary>The open edit session of row <paramref name="name"/> (null before it was drawn) — the frame rails edit through it as the row's widget does.</summary>
+    internal IEditSession? SessionOf(string name) => _rows.TryGetValue(name, out var st) ? st.Session : null;
 
     /// <summary>Drops every row's session (the record changed, or the write was refused: reopen from the owner's own value next frame).</summary>
     public void Clear()

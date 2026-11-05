@@ -1595,6 +1595,10 @@ public sealed class TheOneTimeFacadeTests
         bool underHovered = false;
         void Scene()
         {
+            // ⭐ CE-4242 — the pointer is PUT at the display centre each frame (ImGui's event AND the window's real pointer, the frame rails' Pos precedent):
+            //   the rail used to assume the X pointer already sat there under Xvfb, and the control step went red wherever it did not
+            ImGui.GetIO().AddMousePosEvent(W / 2f, H / 2f);
+            Raylib.SetMousePosition(W / 2, H / 2);
             // something bright under the splash: a full-display window with a button at the display centre (where the pointer is)
             ImGui.SetNextWindowPos(System.Numerics.Vector2.Zero);
             ImGui.SetNextWindowSize(new System.Numerics.Vector2(W, H));
@@ -1608,7 +1612,7 @@ public sealed class TheOneTimeFacadeTests
             screen.Render();
         }
 
-        // ⚠ the X pointer sits at the window centre under Xvfb (Raylib.SetMousePosition does not move it): the button under the splash is AT the centre, and the control cell proves the pointer is there
+        // the button under the splash is AT the centre, where Scene puts the pointer; the control cell proves the pointer is there
         frame.StepN(4, Scene);
         var without = Sample(frame, W, H);
         Assert.True(underHovered, "control: with no splash the button under the mouse IS hovered");

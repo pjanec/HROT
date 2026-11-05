@@ -100,6 +100,60 @@ public sealed class DirectorTracks
         View = new ViewTrack(this);
         Graphics = MakeGraphicsTrack();
         Tracks = new ITimelineTrack[] { Camera, Time, Subtitles, View, Graphics };
+        Grouped = Group(Tracks, () => "Director — " + _editor.Take.Name);
+    }
+
+    /// <summary>⭐ <c>CE-4262</c> — the id of the one tree row the take's tracks hang under on the Event Timeline (the panel keeps it collapsed until opened).</summary>
+    public const string GroupId = "director";
+
+    /// <summary>
+    /// ⭐ <c>CE-4262</c> — what the Event Timeline shows: ONE collapsible <i>Director — &lt;take&gt;</i> row (CE-4167 X3's tree header) with the five tracks under it.
+    /// 📐 The five used to be flat rows with no header, so the panel's collapse could not reach them and they sat at the top of the editor's timeline.
+    /// </summary>
+    public IReadOnlyList<ITimelineTrack> Grouped { get; }
+
+    /// <summary>The group row + each track wrapped one level deeper (the wrapper forwards everything; only the header is added).</summary>
+    public static IReadOnlyList<ITimelineTrack> Group(IReadOnlyList<ITimelineTrack> tracks, Func<string> title)
+    {
+        var list = new List<ITimelineTrack>(tracks.Count + 1) { new GroupRow(title) };
+        foreach (var t in tracks) list.Add(new Nested(t));
+        return list;
+    }
+
+    private sealed class GroupRow : ITimelineTrack
+    {
+        private readonly Func<string> _title;
+        public GroupRow(Func<string> title) => _title = title;
+        public string Id => GroupId;
+        public string Label => _title();
+        public TrackHeader? Header => new(0, _title(), Collapsible: true);
+        public IReadOnlyList<TimelineTrackItem> Items => Array.Empty<TimelineTrackItem>();
+        public void Select(string itemId) { }
+        public void Move(string itemId, double toSimSeconds, bool commit) { }
+        public bool Key(char key, double atSimSeconds) => false;
+        public IEnumerable<TimelineMenuItem> MenuItems(string? itemId) => Array.Empty<TimelineMenuItem>();
+    }
+
+    /// <summary>One track one level under the group: its own header text is its label; everything else is the track's.</summary>
+    private sealed class Nested : ITimelineTrack
+    {
+        private readonly ITimelineTrack _t;
+        public Nested(ITimelineTrack t) => _t = t;
+        public string Id => _t.Id;
+        public string Label => _t.Label;
+        public TrackHeader? Header => _t.Header is { } h ? h with { Depth = h.Depth + 1 } : new TrackHeader(1, _t.Label);
+        public IReadOnlyList<TrackLink> Links => _t.Links;
+        public bool ConnectsFrom(string itemId) => _t.ConnectsFrom(itemId);
+        public bool CanConnect(string fromItemId, ITimelineTrack toTrack) => _t.CanConnect(fromItemId, toTrack);
+        public void Connect(string fromItemId, ITimelineTrack toTrack) => _t.Connect(fromItemId, toTrack);
+        public IReadOnlyList<TimelineTrackItem> Items => _t.Items;
+        public void Select(string itemId) => _t.Select(itemId);
+        public void SelectRow() => _t.SelectRow();
+        public void Move(string itemId, double toSimSeconds, bool commit) => _t.Move(itemId, toSimSeconds, commit);
+        public void Move(string itemId, double toSimSeconds, bool commit, TrackItemPart part) => _t.Move(itemId, toSimSeconds, commit, part);
+        public bool Key(char key, double atSimSeconds) => _t.Key(key, atSimSeconds);
+        public IEnumerable<TimelineMenuItem> MenuItems(string? itemId) => _t.MenuItems(itemId);
+        public IEnumerable<TimelineMenuItem> MenuItems(string? itemId, double atSimSeconds) => _t.MenuItems(itemId, atSimSeconds);
     }
 
     public ITimelineTrack Camera { get; }

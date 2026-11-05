@@ -157,19 +157,43 @@ public sealed class ReplayTimelinePanel
             }
             Gui.EndPopup();
         }
-        DrawRow1_Transport();
+        // ⭐ CE-4261 — the transport bar is NOT drawn here any more: the browser registers it as an entry of the MAIN TOOLBAR (DrawTransport, below), the one drawer
         DrawRow2_TimeInfo();
         DrawRow3_Slider();
         DrawRow4_Meta();
         DrawRow5_FileLoader();
-        DrawRow6_ExportExpander();
+        // ⭐ CE-4261 — the JSON Export options moved to File ▸ JSON Export… (JsonExportWindow draws DrawExportBody); the Load .fdp… button to File ▸ Load .fdp…
+    }
+
+    /// <summary>
+    /// ⭐ CE-4261 — the replay TRANSPORT bar (history back / forward · rewind · play-pause · rate · axis · step back / forward, with the hold-to-scrub), drawn by the main toolbar's replay entry
+    /// (<c>ReplayBrowserSubsystem</c> registers it) — the ONE drawer: the timeline panel no longer draws a copy. <paramref name="iconSize"/> ≤ 0 ⇒ the frame height (the editor's time control's size).
+    /// </summary>
+    public void DrawTransport(float iconSize = 0f) => DrawRow1_Transport(iconSize);
+
+    /// <summary>⭐ CE-4261 — File ▸ Load .fdp…: the same load the button ran (the file dialog, then <see cref="OnLoadGroup"/>).</summary>
+    public void RequestLoadFdp() => _ = LoadFdpAsync();
+
+    /// <summary>⭐ CE-4261 — the JSON export options and the Save button (what the tree node held), drawn by <c>JsonExportWindow</c>; the export runs through <see cref="SaveAsync"/> — the one path.</summary>
+    public void DrawExportBody()
+    {
+        DrawExportModeRadios();
+        DrawFrameInputs();
+        DrawTimeInputs();
+        Gui.Separator();
+        DrawFormatOptions();
+        DrawFilterOptions();
+        Gui.Separator();
+        DrawPayloadOptions();
+        Gui.Spacing();
+        DrawSaveButton();
     }
 
     // ── Row implementations ───────────────────────────────────────────────
 
-    private void DrawRow1_Transport()
+    private void DrawRow1_Transport(float iconSize = 0f)
     {
-        float iconSize = Gui.GetFrameHeight() * 1.8f;
+        if (iconSize <= 0f) iconSize = Gui.GetFrameHeight();
         float dt = Gui.GetIO().DeltaTime;
         bool hasRecording = ActiveContext?.Playback != null;
 
@@ -381,33 +405,9 @@ public sealed class ReplayTimelinePanel
 
     private void DrawRow5_FileLoader()
     {
-        if (Gui.Button("Load .fdp..."))
-        {
-            // File dialog is async; fire-and-forget
-            _ = LoadFdpAsync();
-        }
-        Gui.SameLine();
+        // ⭐ CE-4261 — the Load button is File ▸ Load .fdp… now; the row keeps the loaded path
         string displayPath = ActiveContext?.CurrentFdpPath ?? "(none)";
         Gui.TextUnformatted(displayPath);
-    }
-
-    private void DrawRow6_ExportExpander()
-    {
-        if (!Gui.TreeNode("JSON Export Options"))
-            return;
-
-        DrawExportModeRadios();
-        DrawFrameInputs();
-        DrawTimeInputs();
-        Gui.Separator();
-        DrawFormatOptions();
-        DrawFilterOptions();
-        Gui.Separator();
-        DrawPayloadOptions();
-        Gui.Spacing();
-        DrawSaveButton();
-
-        Gui.TreePop();
     }
 
     // ── Export expander sub-sections ─────────────────────────────────────

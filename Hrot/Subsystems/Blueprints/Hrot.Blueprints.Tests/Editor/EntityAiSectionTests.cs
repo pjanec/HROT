@@ -33,7 +33,7 @@ public sealed class EntityAiSectionTests
         public readonly EntityAiEditModel Model;
         public readonly Entity Unit;
 
-        public Fixture()
+        public Fixture(Hrot.Presentation.Edits.EditHistory? history = null)
         {
             SimHostComponentRegistry.RegisterAll(World);
             CognitiveComponentRegistry.RegisterAll(World);
@@ -42,7 +42,7 @@ public sealed class EntityAiSectionTests
             geo.SetOrigin(0.0, 0.0, 0.0);
             World.SetSingletonManaged<IGeographicTransform>(geo);
             CgfBehaviorSetup.LoadFromAiAssembly(Registry);
-            Model = new EntityAiEditModel(() => World, () => Registry);
+            Model = new EntityAiEditModel(() => World, () => Registry, null, history);
             Unit = World.CreateEntity();
             World.AddComponent(Unit, new BehaviorState());
         }
@@ -70,6 +70,51 @@ public sealed class EntityAiSectionTests
         var cleared = f.Model.Read(f.Unit)!;
         Assert.Null(cleared.Task);
         Assert.Null(cleared.Sop);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4219</c> ① — an EDIT-mode Apply is ONE entry on the editor's shared undo history (the precedent of <c>RuleDetails</c>): Undo restores the PREVIOUS task / SOP / ROE (or clears it when there was none), Redo re-applies;
+    /// a LIVE edit (running) pushes nothing — it lasts the run only. 🔴 Red-proof: <c>ApplyTask</c> not pushing ⇒ the first assertion.
+    /// </summary>
+    [Fact]
+    public void CE4219_AnEditModeApply_IsOneUndoEntry_AndALiveApplyIsNone()
+    {
+        var history = new Hrot.Presentation.Edits.EditHistory();
+        var f = new Fixture(history);
+
+        // task: none → Idle → Demo_TakeCover; undo walks back
+        Assert.True(f.Model.ApplyTask(f.Unit, "Idle", "{}", running: false));
+        Assert.Equal(1, history.Count);
+        Assert.Equal("Set task", history.UndoLabel);
+        Assert.True(f.Model.ApplyTask(f.Unit, "Demo_TakeCover", "{}", running: false));
+        Assert.Equal(2, history.Count);
+        Assert.Equal("Demo_TakeCover", f.Model.Read(f.Unit)!.Task);
+        Assert.True(history.Undo());
+        Assert.Equal("Idle", f.Model.Read(f.Unit)!.Task);                    // the PREVIOUS task, re-applied
+        Assert.True(history.Undo());
+        Assert.Null(f.Model.Read(f.Unit)!.Task);                             // there was none: cleared
+        Assert.True(history.Redo());
+        Assert.Equal("Idle", f.Model.Read(f.Unit)!.Task);                    // redo re-applies
+
+        // SOP and ROE: one entry each, undo restores
+        var roeBefore = f.Model.Read(f.Unit)!;
+        Assert.True(f.Model.ApplySop(f.Unit, "BasicInfantrySop", "{}", running: false));
+        Assert.Equal("Set SOP", history.UndoLabel);
+        Assert.True(history.Undo());
+        Assert.Null(f.Model.Read(f.Unit)!.Sop);
+        Assert.True(f.Model.ApplyRoe(f.Unit, RoeFire.HoldFire, RoeReactions.StayOnTask, running: false));
+        Assert.Equal("Set ROE", history.UndoLabel);
+        Assert.True(history.Undo());
+        Assert.Equal((roeBefore.Fire, roeBefore.Reactions), (f.Model.Read(f.Unit)!.Fire, f.Model.Read(f.Unit)!.Reactions));
+        Assert.True(history.Redo());
+        Assert.Equal(RoeFire.HoldFire, f.Model.Read(f.Unit)!.Fire);
+
+        // a LIVE edit is not an undo step
+        int count = history.Count;
+        Assert.True(f.Model.ApplyTask(f.Unit, "Idle", "{}", running: true));
+        Assert.True(f.Model.ApplySop(f.Unit, "BasicInfantrySop", "{}", running: true));
+        Assert.True(f.Model.ApplyRoe(f.Unit, RoeFire.HoldFire, RoeReactions.StayOnTask, running: true));
+        Assert.Equal(count, history.Count);
     }
 
     [Fact]

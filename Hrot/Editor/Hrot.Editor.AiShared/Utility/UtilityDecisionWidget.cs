@@ -1,4 +1,5 @@
 using System;
+using static System.FormattableString;   // ⭐ CE-4257 — Invariant(...): a number shown in the Details is never formatted in the user's culture
 using System.Linq;
 using System.Numerics;
 using Fdp.Core;
@@ -40,7 +41,7 @@ public static class UtilityDecisionWidget
             }
             else if (sheet.Evaluations == 0) ImGui.TextColored(Dim, $"{who} has not run this decision yet.");
             else if (!sheet.IsRanking)
-                ImGui.TextWrapped($"{who}: winner * {sheet.WinnerName ?? "-"}   margin {sheet.Margin:0.00}"
+                ImGui.TextWrapped(Invariant($"{who}: winner * {sheet.WinnerName ?? "-"}   margin {sheet.Margin:0.00}")
                                       + (sheet.RunnerUpName != null ? $" over {sheet.RunnerUpName}" : "")
                                       + $"   switched {sheet.Switches}x   evaluated {sheet.Evaluations}x");
         }
@@ -75,7 +76,7 @@ public static class UtilityDecisionWidget
         ImGui.PopID();
     }
 
-    private static string OptionLabel(SheetOption o) => $"{(o.Winner ? "* " : "")}{o.Name}{(o.Score is { } s ? $"  {s:0.00}" : "")}";
+    private static string OptionLabel(SheetOption o) => $"{(o.Winner ? "* " : "")}{o.Name}{(o.Score is { } s ? Invariant($"  {s:0.00}") : "")}";
 
     private static string Mode(ScoringMode m) => m == ScoringMode.WeightedProduct ? "product (compensated)" : "sum";
 
@@ -104,7 +105,7 @@ public static class UtilityDecisionWidget
             else
             {
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(c.Context.ToString().ToLowerInvariant());
-                ImGui.TableNextColumn(); ImGui.TextUnformatted($"{c.Weight:0.00}");
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(Invariant($"{c.Weight:0.00}"));
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(c.Curve.Kind + (c.Modifier ? " modifier" : ""));
             }
             ImGui.TableNextColumn();
@@ -126,7 +127,7 @@ public static class UtilityDecisionWidget
         if (sheet.Ranked.Count == 0) return;
         ImGui.Separator();
         float top = sheet.Ranked.Max(r => r.Score);
-        string Row(int i) => $"{i + 1,2}  {label?.Invoke(sheet.Ranked[i].Entity) ?? $"#{sheet.Ranked[i].Entity.Index}"}  {sheet.Ranked[i].Score:0.00}";
+        string Row(int i) => Invariant($"{i + 1,2}  {label?.Invoke(sheet.Ranked[i].Entity) ?? $"#{sheet.Ranked[i].Entity.Index}"}  {sheet.Ranked[i].Score:0.00}");
         float column = ImGui.GetCursorPosX() + 12f + Enumerable.Range(0, sheet.Ranked.Count).Max(i => ImGui.CalcTextSize(Row(i)).X);   // ⭐ CE-1327
         for (int i = 0; i < sheet.Ranked.Count; i++)
         {
@@ -142,9 +143,9 @@ public static class UtilityDecisionWidget
         => $"{c.Input} ({c.Context.ToString().ToLowerInvariant()})  ->  {c.Curve.Kind}  slope {c.Curve.Slope:0.##}  exponent {c.Curve.Exponent:0.##}"
            + $"  shift {c.Curve.XShift:0.##}  weight {c.Weight:0.##}"
            + (c.Modifier ? "\nmodifier: multiplies the option's score after the aggregate (1.0 changes nothing)" : "")
-           + (c.Raw is { } raw ? $"\nthis unit: raw {raw:0.00} -> {c.Curved:0.00}" : "");
+           + (c.Raw is { } raw ? Invariant($"\nthis unit: raw {raw:0.00} -> {c.Curved:0.00}") : "");
 
-    private static string Num(float? v) => v is { } f ? $"{f:0.00}" : "-";
+    private static string Num(float? v) => v is { } f ? Invariant($"{f:0.00}") : "-";
 
     private static void DrawBar(float fraction, float width)
     {

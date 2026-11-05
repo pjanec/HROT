@@ -23,19 +23,43 @@ public sealed class ScenarioEnvironmentView : IDetailsViewInstance
     private readonly Func<EntityRepository?> _world;
     private readonly Func<IInspectableSession?> _session;
     private readonly Action<IInspectableSession, Entity> _drawComponents;
+    private readonly ParametersDrawer? _parameters;
     private string _startText = string.Empty;
     private long _shownTicks = long.MinValue;
     private string? _error;
 
     public ScenarioEnvironmentView(Func<EntityRepository?> world, Func<IInspectableSession?> session,
-        Action<IInspectableSession, Entity> drawComponents)
+        Action<IInspectableSession, Entity> drawComponents, ParametersDrawer? parameters = null)
     {
+        _parameters = parameters;
         _world = world ?? throw new ArgumentNullException(nameof(world));
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _drawComponents = drawComponents ?? throw new ArgumentNullException(nameof(drawComponents));
     }
 
     public void Draw(DetailsContext context, string idScope)
+    {
+        DrawEnvironment(context, idScope);
+        DrawParameters();
+    }
+
+    /// <summary>
+    /// ⭐ CE-4253 — the scenario's PARAMETERS: a collapsible header, CLOSED by default (🔒 user: <i>"a collapsible header, by default collapsed, called parameters … the same editor that now opens in a
+    /// separate panel"</i>), holding the one parameter editor. Opened for a frame when something asked (<see cref="ParametersDrawer.RequestOpen"/>).
+    /// </summary>
+    internal void DrawParameters()
+    {
+        if (_parameters is null) return;
+        ImGui.Separator();
+        if (_parameters.ConsumeOpenRequest()) ImGui.SetNextItemOpen(true, ImGuiCond.Always);
+        ParametersHeaderOpen = ImGui.CollapsingHeader("Parameters");
+        if (ParametersHeaderOpen) _parameters.Draw();
+    }
+
+    /// <summary>For rails: whether the Parameters header was open on the last draw.</summary>
+    internal bool ParametersHeaderOpen { get; private set; }
+
+    private void DrawEnvironment(DetailsContext context, string idScope)
     {
         var world = _world();
         if (!ScenarioClockEdit.TryRead(world, out var state))
@@ -94,9 +118,9 @@ public static class ScenarioEnvironmentViewDescriptor
     public const int Rank = 10;
 
     public static DetailsViewDescriptor For(Func<EntityRepository?> world, Func<IInspectableSession?> session,
-        Action<IInspectableSession, Entity> drawComponents)
+        Action<IInspectableSession, Entity> drawComponents, ParametersDrawer? parameters = null)
     {
-        var instance = new ScenarioEnvironmentView(world, session, drawComponents);
+        var instance = new ScenarioEnvironmentView(world, session, drawComponents, parameters);
         return new DetailsViewDescriptor(
             Id:        ViewId,
             Title:     "Scenario",

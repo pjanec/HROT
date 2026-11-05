@@ -32,14 +32,20 @@ public sealed class EntityAiEditModel
     private readonly Func<EntityRepository?> _world;
     private readonly Func<BehaviorRegistry?> _registry;
     private readonly Func<Fdp.Toolkit.Blueprints.BlueprintRegistry?> _blueprints;
+    private readonly Hrot.Presentation.Edits.EditHistory? _history;
     private BehaviorRegistry? _ingressFor;
     private BehaviorIngressSystem? _ingress;
 
     /// <param name="blueprints">⭐ <c>CE-2086</c> — the instance blueprints' registry, for the params rows. ⚠ Optional for
     /// headless fixtures (no rows); ⛔ a host that has one must pass it (the silent-default rule).</param>
+    /// <param name="history">⭐ <c>CE-4219</c> ① — the editor's ONE shared undo history: an EDIT-mode apply (not <c>running</c>) pushes ONE entry whose undo re-applies the PREVIOUS value (the precedent of <c>RuleDetails</c>); a live
+    /// edit lasts the run only and is not pushed. ⚠ Null ⇒ no undo — only where the host has no history, or pushes its own entry (the rule editor's <c>ApplyTask</c> call: <c>RuleDetails</c> pushes the rule's entry itself — two entries for one gesture
+    /// would be wrong). ⛔ A host that HAS the history must pass it (the silent-default rule): the editor does.</param>
     public EntityAiEditModel(Func<EntityRepository?> world, Func<BehaviorRegistry?> registry,
-                             Func<Fdp.Toolkit.Blueprints.BlueprintRegistry?>? blueprints = null)
+                             Func<Fdp.Toolkit.Blueprints.BlueprintRegistry?>? blueprints = null,
+                             Hrot.Presentation.Edits.EditHistory? history = null)
     {
+        _history    = history;
         _world      = world    ?? throw new ArgumentNullException(nameof(world));
         _registry   = registry ?? throw new ArgumentNullException(nameof(registry));
         _blueprints = blueprints ?? (() => null);
@@ -79,7 +85,17 @@ public sealed class EntityAiEditModel
     /// <c>BlueprintInstanceService.ApplyParams</c> (the instance keeps its state); running ⇒ a replace of the instance by
     /// itself with the new params (a restart — its state was built from the old ones). <c>false</c> = not attached, or bad JSON.
     /// </summary>
-    public unsafe bool ApplyInstanceParams(Entity entity, int blueprintId, string json, bool running)
+    public bool ApplyInstanceParams(Entity entity, int blueprintId, string json, bool running)
+    {
+        // ⭐ CE-4219 ① — an edit-mode apply is ONE undo entry (undo re-applies the previous params, in place); captured BEFORE the write
+        string? before = running || _history is null ? null : InstanceRows(entity).FirstOrDefault(r => r.BlueprintId == blueprintId)?.ParamsJson;
+        bool ok = ApplyInstanceParamsRaw(entity, blueprintId, json, running);
+        if (ok && !running && _history is not null && before is not null)
+            _history.Push("Set blueprint params", () => ApplyInstanceParamsRaw(entity, blueprintId, json, false), () => ApplyInstanceParamsRaw(entity, blueprintId, before, false));
+        return ok;
+    }
+
+    private unsafe bool ApplyInstanceParamsRaw(Entity entity, int blueprintId, string json, bool running)
     {
         if (_world() is not { } world || _blueprints() is not { } reg || !reg.TryGetById(blueprintId, out var def) || def == null)
             return false;
@@ -169,6 +185,17 @@ public sealed class EntityAiEditModel
     public Type? ParamsTypeOf(string behaviour) => BehaviorParamsForm.ParamsTypeOf(behaviour, _registry());
 
     public bool ApplyTask(Entity entity, string behaviour, string json, bool running)
+    {
+        // ⭐ CE-4219 ① — edit mode: ONE undo entry, undo re-applies the previous task (or clears it when there was none); captured BEFORE the write
+        var before = running || _history is null ? null : Read(entity);
+        bool ok = ApplyTaskRaw(entity, behaviour, json, running);
+        if (ok && !running && _history is not null)
+            _history.Push("Set task", () => ApplyTaskRaw(entity, behaviour, json, false),
+                () => { if (before?.Task is { } t) ApplyTaskRaw(entity, t, before.TaskParams, false); else ClearTask(entity, false); });
+        return ok;
+    }
+
+    private bool ApplyTaskRaw(Entity entity, string behaviour, string json, bool running)
         => running
             ? PublishManaged(new AssignBehaviorEvent { Entity = entity, BehaviorName = behaviour, JsonParams = Json(json), Origin = EditorOrigin })
             : Ingress() is { } i && _world() is { } w && i.AssignNow(w, entity, behaviour, Json(json), EditorOrigin);
@@ -179,6 +206,17 @@ public sealed class EntityAiEditModel
             : Ingress() is { } i && _world() is { } w && i.ClearNow(w, entity, EditorOrigin);
 
     public bool ApplySop(Entity entity, string behaviour, string json, bool running)
+    {
+        // ⭐ CE-4219 ① — edit mode: ONE undo entry, undo re-applies the previous SOP (or clears it)
+        var before = running || _history is null ? null : Read(entity);
+        bool ok = ApplySopRaw(entity, behaviour, json, running);
+        if (ok && !running && _history is not null)
+            _history.Push("Set SOP", () => ApplySopRaw(entity, behaviour, json, false),
+                () => { if (before?.Sop is { } s) ApplySopRaw(entity, s, before.SopParams, false); else ClearSop(entity, false); });
+        return ok;
+    }
+
+    private bool ApplySopRaw(Entity entity, string behaviour, string json, bool running)
         => running
             ? PublishManaged(new AssignSopEvent { Entity = entity, BehaviorName = behaviour, JsonParams = Json(json), Origin = EditorOrigin })
             : Ingress() is { } i && _world() is { } w && i.AssignSopNow(w, entity, behaviour, Json(json), EditorOrigin);
@@ -189,6 +227,16 @@ public sealed class EntityAiEditModel
             : Ingress() is { } i && _world() is { } w && i.ClearSopNow(w, entity, EditorOrigin);
 
     public bool ApplyRoe(Entity entity, RoeFire fire, RoeReactions reactions, bool running)
+    {
+        // ⭐ CE-4219 ① — edit mode: ONE undo entry, undo re-applies the previous ROE; captured BEFORE the write
+        var before = running || _history is null ? null : Read(entity);
+        bool ok = ApplyRoeRaw(entity, fire, reactions, running);
+        if (ok && !running && _history is not null && before is not null)
+            _history.Push("Set ROE", () => ApplyRoeRaw(entity, fire, reactions, false), () => ApplyRoeRaw(entity, before.Fire, before.Reactions, false));
+        return ok;
+    }
+
+    private bool ApplyRoeRaw(Entity entity, RoeFire fire, RoeReactions reactions, bool running)
     {
         var evt = new SetRoeEvent { Entity = entity, Fire = fire, Reactions = reactions, Origin = EditorOrigin };
         return running ? Publish(evt) : _world() is { } w && RoeSystem.Apply(w, evt);
@@ -379,9 +427,10 @@ public static class EntityAiDetailsViewDescriptor
     public static DetailsViewDescriptor For(Func<EntityRepository?> world, Func<BehaviorRegistry?> registry,
                                             Func<IComponentEditService?> editService,
                                             Func<Fdp.Toolkit.Blueprints.BlueprintRegistry?>? blueprints = null,
-                                            Func<Fdp.Presentation.Editing.IMapPickContext?>? picks = null)
+                                            Func<Fdp.Presentation.Editing.IMapPickContext?>? picks = null,
+                                            Hrot.Presentation.Edits.EditHistory? history = null)   // ⭐ CE-4219 ① — the editor's shared history
     {
-        var instance = new EntityAiDetailsView(new EntityAiEditModel(world, registry, blueprints), editService, picks, world);
+        var instance = new EntityAiDetailsView(new EntityAiEditModel(world, registry, blueprints, history), editService, picks, world);
         return new DetailsViewDescriptor(
             Id:        ViewId,
             Title:     "Assign: task, SOP, ROE",   // ⭐ CE-1314 — a section of the Brain tab now

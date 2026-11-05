@@ -282,6 +282,12 @@ public sealed class AssetPickerLauncher
     /// <summary>How many typed param rows the Run setup drew last frame (the frame rail reads it).</summary>
     public int RunSetupRowsDrawn => _paramTable?.RowsDrawn ?? 0;
 
+    /// <summary>The Run setup's typed args table (the frame rails edit a row through it).</summary>
+    internal Hrot.Editor.AiShared.Scenarios.ParamArgsTable? RunSetupTable => _paramTable;
+
+    /// <summary>Where the Run setup drew its last <i>reset</i> button last frame (the frame rail clicks it).</summary>
+    public System.Numerics.Vector2? RunSetupResetButtonAt => _paramTable?.LastResetButtonCenter;
+
     /// <summary>The args <i>Open and go live</i> passes for <paramref name="scenarioName"/>: what the open Run setup expander chose, else <see langword="null"/> (a start with nothing chosen passes nothing).</summary>
     public string? RunArgsFor(string scenarioName) => _runSetups.TryGetValue(scenarioName, out var s) ? s.ArgsJson() : null;
 }

@@ -105,7 +105,13 @@ namespace Hrot.UI.Common.Map3D.Director
             cinema.EscapePressed = () => runner.Stop();
             // ⭐ CE-1364 T3 — the open take: the Event Timeline shows ITS Camera / Time tracks, Ctrl+Z on the panel undoes an edit of them
             var session = new DirectorTakeSession(() => h.Host.Takes, () => runner, h.Pilot, h.EventAt);
-            h.Timeline.Tracks = () => session.Tracks;
+            // ⭐ CE-4262 — under one collapsible Director row, COLLAPSED each time a take opens (a take opened from a timeline event stays out of the way until asked for)
+            int opened = -1;
+            h.Timeline.Tracks = () =>
+            {
+                if (session.Opened != opened) { opened = session.Opened; h.Timeline.SetCollapsed(DirectorTracks.GroupId, true); }
+                return session.Tracks;
+            };
             h.Timeline.Undo = () => session.UndoLast();
             h.Timeline.Redo = () => session.RedoLast();
             // ⭐ CE-1303 P2a — CR-4 (§11m D4): the runner plays the OPEN take, unsaved edits included (the same take the tracks edit)

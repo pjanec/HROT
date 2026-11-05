@@ -176,10 +176,11 @@ public sealed class TheLayoutIsOneUnitTests
     [Fact]
     public void TheResetIsVisibleToImGuiOnTheSameRun()
     {
-        var userIni = LayoutPaths.UserIniPath(ProductionAppFolder);
+        // ⭐ CE-4260 — a controller with no subsystems uses the "Default" layout (its own folder and its own shipped default)
+        var userIni = LayoutPaths.UserIniPath(ProductionAppFolder, "Default");
         if (File.Exists(userIni)) return;                     // ⛔ never clobber a real layout
 
-        var shipped = LayoutPaths.ShippedDefaultDirectory();
+        var shipped = LayoutPaths.ShippedDefaultDirectory("Default");
         bool madeShipped = !Directory.Exists(shipped);
         Directory.CreateDirectory(shipped);
 
@@ -200,6 +201,7 @@ public sealed class TheLayoutIsOneUnitTests
             ctrl.OpenLocalWindow();
 
             Assert.NotNull(shell.IniContentAtSetup);
+            Assert.Equal(userIni, shell.IniPathAtSetup);          // ⭐ CE-4260 — ImGui is pointed at THIS app's ini
             Assert.False(
                 shell.IniContentAtSetup!.Contains("THE-USERS-OWN-ARRANGEMENT", StringComparison.Ordinal),
                 "ImGui was set up while the user's OLD ini was still on disk — the reset ran too late "
@@ -208,10 +210,28 @@ public sealed class TheLayoutIsOneUnitTests
         finally
         {
             try { File.Delete(userIni); } catch { }
-            try { File.Delete(LayoutPaths.UserWindowSettingsPath(ProductionAppFolder)); } catch { }
+            try { File.Delete(LayoutPaths.UserWindowSettingsPath(ProductionAppFolder, "Default")); } catch { }
             if (madeIni)     try { File.Delete(shippedIni); }                     catch { }
             if (madeShipped) try { Directory.Delete(shipped, recursive: true); }  catch { }
         }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4260</c> — the editor and the Replay Browser use DIFFERENT layouts: the layout is named after the app (the editor wins in <c>--mode all</c>), and the
+    /// user files and the shipped default of one are not the other's. 🔴 Red-proof (compiles): <c>LayoutNameOf</c> returning one constant ⇒ the paths are equal.
+    /// </summary>
+    [Fact]
+    public void CE4260_TheEditorAndTheReplayBrowser_HaveTheirOwnLayouts()
+    {
+        Assert.Equal("Editor", LocalWindowController.LayoutNameOf(new ISubsystem[] { new Hrot.ClusterRunner.Tests.Mocks.MockSubsystem("CGF"), new Hrot.ClusterRunner.Tests.Mocks.MockSubsystem("Editor") }));
+        Assert.Equal("ReplayBrowser", LocalWindowController.LayoutNameOf(new ISubsystem[] { new Hrot.ClusterRunner.Tests.Mocks.MockSubsystem("ReplayBrowser") }));
+        string editor = LocalWindowController.LayoutNameOf(new ISubsystem[] { new Hrot.ClusterRunner.Tests.Mocks.MockSubsystem("Editor") });
+        string browser = LocalWindowController.LayoutNameOf(new ISubsystem[] { new Hrot.ClusterRunner.Tests.Mocks.MockSubsystem("ReplayBrowser") });
+        Assert.NotEqual(LayoutPaths.UserIniPath(ProductionAppFolder, editor), LayoutPaths.UserIniPath(ProductionAppFolder, browser));
+        Assert.NotEqual(LayoutPaths.UserWindowSettingsPath(ProductionAppFolder, editor), LayoutPaths.UserWindowSettingsPath(ProductionAppFolder, browser));
+        Assert.NotEqual(LayoutPaths.ShippedDefaultDirectory(editor), LayoutPaths.ShippedDefaultDirectory(browser));
+        Assert.True(File.Exists(Path.Combine(LayoutPaths.ShippedDefaultDirectory(editor), LayoutPaths.IniFileName)),
+            "the editor's shipped default reaches the output as layout/Editor/ (the build's Content items)");
     }
 
     /// <summary>⚠ Mirrors <c>RaylibPresentationShell.AppFolderName</c>, which is <c>internal const</c>
@@ -236,8 +256,12 @@ public sealed class TheLayoutIsOneUnitTests
         /// one let a second <c>SetupImGui</c> overwrite the observation, ⛔ so the rail passed while the
         /// reset ran late. ⭐ ImGui reads the ini at the FIRST setup — that is the moment that matters,
         /// and a rail that can be fooled by an extra call would have missed the real defect.</summary>
-        public void SetupImGui()
-            => IniContentAtSetup ??= File.Exists(_iniPath) ? File.ReadAllText(_iniPath) : "";
+        public string? IniPathAtSetup { get; private set; }
+        public void SetupImGui(string iniPath)
+        {
+            IniPathAtSetup ??= iniPath;
+            IniContentAtSetup ??= File.Exists(_iniPath) ? File.ReadAllText(_iniPath) : "";
+        }
         public void ShutdownImGui() { }
         public void CloseWindow() { }
         public void UnloadAtlasTexture() { }

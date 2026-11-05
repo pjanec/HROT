@@ -67,6 +67,23 @@ internal sealed class LocalWindowController
         return ExitGuard.ExitApproved;
     }
 
+    /// <summary>⭐ CE-4260 — the editor's layout name (its shipped default is <c>layout/Editor/</c>).</summary>
+    internal const string EditorLayout = "Editor";
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4260</c> — <b>which application's layout this process uses</b>: the editor's when the editor runs (also in <c>--mode all</c>), else the Replay Browser's,
+    /// else the first window-registering subsystem's name. 📐 Every app used to read and write ONE layout, so the Replay Browser's <i>Save current as default</i>
+    /// overwrote the editor's, and each app's exit rewrote the other's ini.
+    /// </summary>
+    internal string LayoutName { get; }
+
+    internal static string LayoutNameOf(IReadOnlyList<ISubsystem> subsystems)
+    {
+        if (subsystems.Any(s => s.Name == EditorLayout)) return EditorLayout;
+        if (subsystems.Any(s => s.Name == "ReplayBrowser")) return "ReplayBrowser";
+        return subsystems.FirstOrDefault(s => s is IWindowRegistrar)?.Name ?? "Default";
+    }
+
     internal LocalWindowController(
         IPresentationShell shell,
         IReadOnlyList<ISubsystem> subsystems,
@@ -75,6 +92,7 @@ internal sealed class LocalWindowController
     {
         _shell       = shell;
         _subsystems  = subsystems;
+        LayoutName   = LayoutNameOf(subsystems);
         _options     = options;
         _coordinator = coordinator;
         _titleSources = subsystems.OfType<IWindowTitleSource>().ToArray();
@@ -232,7 +250,10 @@ internal sealed class LocalWindowController
         //
         // ⭐ 1 — migrate first, so a user whose json still sits beside the exe keeps their arrangement
         //   even on a run where the reset is off. ⚠ Once: the new file's presence is the marker.
-        if (LayoutPaths.TryMigrateLegacyWindowSettings(RaylibPresentationShell.AppFolderName))
+        // ⭐ CE-4260 — the editor's layout used to be the flat pair every app shared: it moves into the editor's own folder, once
+        if (LayoutName == EditorLayout && LayoutPaths.TryMigrateFlatUserLayout(RaylibPresentationShell.AppFolderName, LayoutName) is { Count: > 0 } moved)
+            FdpLog<LocalWindowController>.Info($"[Layout] Moved the shared layout into the editor's own folder ({string.Join(", ", moved)}).");
+        if (LayoutPaths.TryMigrateLegacyWindowSettings(RaylibPresentationShell.AppFolderName, LayoutName))
             FdpLog<LocalWindowController>.Info(
                 "[Layout] Migrated fdp_windows.json from beside the executable into the user layout folder.");
 
@@ -241,7 +262,7 @@ internal sealed class LocalWindowController
         //   loads the user copy as usual but reset to default."
         if (_options.ResetLayoutOnRun)
         {
-            var copied = LayoutPaths.TryResetUserLayout(RaylibPresentationShell.AppFolderName);
+            var copied = LayoutPaths.TryResetUserLayout(RaylibPresentationShell.AppFolderName, LayoutName);
             // ⭐⭐ It SAYS SO, every run. 📌 The design: "Reset ON is destructive by design — the user
             //    loses their arrangement every run, hence the discoverable indicator." ⛔ A silent
             //    destructive default is how a user spends an afternoon wondering why their layout keeps
@@ -253,7 +274,7 @@ internal sealed class LocalWindowController
                 + "keeping the existing user layout.");
         }
 
-        _shell.SetupImGui();
+        _shell.SetupImGui(LayoutPaths.UserIniPath(RaylibPresentationShell.AppFolderName, LayoutName));
 
         var atlas = _shell.LoadIconAtlas();
         _shell.LoadGizmoFont();
@@ -297,7 +318,7 @@ internal sealed class LocalWindowController
         //    fallback won and fdp_windows.json landed beside the exe — where a clean rebuild wipes it,
         //    and half a layout reset lives.
         // ⛔ No WindowManager change: this is the two call sites, as the design says.
-        string settingsPath = LayoutPaths.UserWindowSettingsPath(RaylibPresentationShell.AppFolderName);
+        string settingsPath = LayoutPaths.UserWindowSettingsPath(RaylibPresentationShell.AppFolderName, LayoutName);
         string? persisted = wm.LoadSettings(settingsPath);
 
         // Wire the font pipeline: let the Settings UI drive live rescaling, and apply the
@@ -451,22 +472,22 @@ internal sealed class LocalWindowController
             // ⚠ WindowManager's json is written on demand; ImGui only rewrites its ini at shutdown,
             //   so it is told to write NOW or the geometry copied would be the last run's.
             WindowManager?.SaveSettings(
-                LayoutPaths.UserWindowSettingsPath(RaylibPresentationShell.AppFolderName));
+                LayoutPaths.UserWindowSettingsPath(RaylibPresentationShell.AppFolderName, LayoutName));
             ImGuiNET.ImGui.SaveIniSettingsToDisk(
-                LayoutPaths.UserIniPath(RaylibPresentationShell.AppFolderName));
+                LayoutPaths.UserIniPath(RaylibPresentationShell.AppFolderName, LayoutName));
 
-            bool ok = LayoutPaths.TrySaveUserLayoutAsDefault(RaylibPresentationShell.AppFolderName);
+            bool ok = LayoutPaths.TrySaveUserLayoutAsDefault(RaylibPresentationShell.AppFolderName, LayoutName);
             FdpLog<LocalWindowController>.Info(ok
                 ? $"[Layout] Saved the current layout as the shipped default "
-                + $"({LayoutPaths.TryFindSourceLayoutDirectory()}). Commit it to share it."
+                + $"({LayoutPaths.TryFindSourceLayoutDirectory(LayoutName)}). Commit it to share it."
                 : "[Layout] Could not save as default — no source tree was found above the executable.");
         });
 
         // ⛔ The command STAYS VISIBLE outside a checkout and says why it cannot run.
         var saveNode = wm.GlobalMenu.Root
             .Children["View"].Children["Settings"].Children["Layout"].Children["Save current as default"];
-        saveNode.GetEnabled    = () => LayoutPaths.TryFindSourceLayoutDirectory() != null;
-        saveNode.DynamicLabel  = () => LayoutPaths.TryFindSourceLayoutDirectory() != null
+        saveNode.GetEnabled    = () => LayoutPaths.TryFindSourceLayoutDirectory(LayoutName) != null;
+        saveNode.DynamicLabel  = () => LayoutPaths.TryFindSourceLayoutDirectory(LayoutName) != null
             ? "Save current as default"
             : "Save current as default (unavailable — not running from the source tree)";
     }
@@ -477,7 +498,7 @@ internal sealed class LocalWindowController
 
         // ⭐ Exit saves to the USER location, as before — ⛔ only the location changed, not the moment.
         WindowManager?.SaveSettings(
-            LayoutPaths.UserWindowSettingsPath(RaylibPresentationShell.AppFolderName));
+            LayoutPaths.UserWindowSettingsPath(RaylibPresentationShell.AppFolderName, LayoutName));
         WindowManager = null;
 
         _shell.ShutdownImGui();

@@ -75,6 +75,8 @@ public static class IconsFontAwesome6
     public const string CodeBranch          = "\uf126";
     public const string DiagramProject      = "\uf542"; // blueprint graph
     public const string Sitemap             = "\uf0e8"; // behavior tree / hierarchy
+    public const string Cubes               = "\uf1b3"; // parts / structure (CE-4256)
+    public const string PuzzlePiece         = "\uf12e"; // macro members (CE-4256)
     public const string CircleNodes         = "\ue4e2"; // state machine / graph nodes
     public const string LayerGroup          = "\uf5fd";
     // ⭐ BP-515 (Details panel) — the float / pin buttons and the tabbed layout

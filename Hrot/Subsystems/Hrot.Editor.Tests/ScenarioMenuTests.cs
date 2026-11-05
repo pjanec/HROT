@@ -172,7 +172,10 @@ public sealed class ScenarioMenuTests
         var (_, _, menu) = CreateRegistrar();
         var file = menu.Root.Children["File"];
 
-        Assert.All(file.Children.Values, c => Assert.Empty(c.Children));   // no submenu anywhere under File
+        // ⭐ CE-4255 — no submenu under File EXCEPT the one New (user, 2026-11-03: it supersedes the 2026-10-29 "no submenus")
+        Assert.All(file.Children.Where(kv => kv.Key != "New").Select(kv => kv.Value), c => Assert.Empty(c.Children));
+        Assert.True(file.Children.TryGetValue("New", out var newMenu), "File/New");
+        Assert.Contains("Scenario…", newMenu!.Children.Keys);
         foreach (var gone in new[] { "Live", "Edit", "Checkpoint", "Scenario", "Terrain…", "New Exercise", "Open Scenario", "New Scenario", "Open Recording", "Take Checkpoint" })
             Assert.False(file.Children.ContainsKey(gone), $"File/{gone} must be gone");
 
@@ -188,7 +191,10 @@ public sealed class ScenarioMenuTests
 
     /// <summary>The leaf paths of the <c>File</c> menu in DRAW order (<see cref="MenuItemNode.OrderedChildren"/>), whatever their visibility.</summary>
     private static string[] LeafPaths(GlobalMenuRegistry menu)
-        => menu.Root.Children["File"].OrderedChildren().Where(c => c.Children.Count == 0).Select(c => "File/" + c.Name).ToArray();
+    {
+        static IEnumerable<string> Leaves(MenuItemNode n, string path) => n.Children.Count == 0 ? new[] { path } : n.OrderedChildren().SelectMany(c => Leaves(c, path + "/" + c.Name));   // ⭐ CE-4255: depth-first, the New submenu's children where New is
+        return menu.Root.Children["File"].OrderedChildren().SelectMany(c => Leaves(c, "File/" + c.Name)).ToArray();
+    }
 
     /// <summary>⭐ <c>CE-1443</c> — the draw order is the layout table's (rank), not the registration order: registered here in a different order, drawn as <see cref="FileMenuLayout.InOrder"/> says.</summary>
     [Fact]
@@ -503,7 +509,7 @@ public sealed class ScenarioMenuTests
         bool document = false;
         ScenarioMenuCommands.Register((d, h) => commands.Register(d, h), menu, commands, session, (k, cb) => { }, cb => { }, openRecordingPicker: () => { }, documentToSave: () => document);
 
-        MenuItemNode Node(string path) => menu.Root.Children["File"].Children[path["File/".Length..]];
+        MenuItemNode Node(string path) => path["File/".Length..].Split('/').Aggregate(menu.Root.Children["File"], (n, seg) => n.Children[seg]);
         bool Drawn(string path) => menu.Offers(Node(path), null);
 
         Assert.False(Drawn(FileMenuLayout.Save));
@@ -550,8 +556,9 @@ public sealed class ScenarioMenuTests
         var menu = new GlobalMenuRegistry();
 
         // other registrars' items, BEFORE the scenario registrar (the shell toolbar) …
-        foreach (var path in new[] { FileMenuLayout.NewAsset, FileMenuLayout.OpenAsset, FileMenuLayout.NewBehavior, FileMenuLayout.NewAction, FileMenuLayout.NewCondition, FileMenuLayout.Save })
+        foreach (var path in new[] { FileMenuLayout.NewAsset, FileMenuLayout.OpenAsset, FileMenuLayout.NewBehavior, FileMenuLayout.NewAction, FileMenuLayout.NewCondition, FileMenuLayout.Save, FileMenuLayout.SaveSelectionAsMacro })
             menu.RegisterItem(path, () => { });
+        menu.RegisterItem(FileMenuLayout.NewMacro, () => { }, allowedInIdle: false);   // ⭐ CE-4255 / CE-4253 — the editor's own registration
         ScenarioMenuCommands.Register((d, h) => commands.Register(d, h), menu, commands, session, (k, cb) => { }, cb => { }, openRecordingPicker: () => { }, documentToSave: () => true);
         // … and AFTER it (the editor's Save As / Save All, the window controller's Exit)
         menu.RegisterItem(FileMenuLayout.SaveAs, () => { });
@@ -559,7 +566,7 @@ public sealed class ScenarioMenuTests
         menu.RegisterItem(FileMenuLayout.SaveAll, () => { });
         menu.RegisterItem(FileMenuLayout.Exit, () => { }, allowedInIdle: true);
 
-        MenuItemNode Node(string path) => menu.Root.Children["File"].Children[path["File/".Length..]];
+        MenuItemNode Node(string path) => path["File/".Length..].Split('/').Aggregate(menu.Root.Children["File"], (n, seg) => n.Children[seg]);
         bool Drawn(string path) => menu.Offers(Node(path), null);
 
         var alwaysDrawn = new[] { FileMenuLayout.LoadScenario, FileMenuLayout.NewScenario, FileMenuLayout.LoadCheckpoint, FileMenuLayout.OpenExerciseRecording, FileMenuLayout.Close, FileMenuLayout.Exit, FileMenuLayout.SeparatorAfterLoads };
@@ -571,6 +578,7 @@ public sealed class ScenarioMenuTests
 
             foreach (var path in alwaysDrawn) Assert.True(Drawn(path), $"{state}: {path} is always drawn");
             foreach (var path in FileMenuLayout.EditingGroup) Assert.Equal(editing, Drawn(path));
+            Assert.True(Drawn(FileMenuLayout.NewMacro), $"{state}: Macro… is drawn as it was (Idle-disallowed only)");   // ⭐ CE-4255 — its visibility is today's
             Assert.Equal(live, Drawn(FileMenuLayout.SaveCheckpoint));
             Assert.Equal(editing || live, Drawn(FileMenuLayout.SeparatorBeforeClose));
 
@@ -585,7 +593,14 @@ public sealed class ScenarioMenuTests
         menu.IdleOnlyWhen = () => true;
         var offered = menu.AllowedInIdleItems().Select(a => a.Path).ToArray();
         Assert.Equal(new[] { FileMenuLayout.LoadScenario, FileMenuLayout.NewScenario, FileMenuLayout.LoadCheckpoint, FileMenuLayout.OpenExerciseRecording, FileMenuLayout.Close, FileMenuLayout.Exit }, offered);
+        Assert.DoesNotContain(FileMenuLayout.NewMacro, offered);   // ⭐ CE-4255 — Macro… is not allowed in Idle
         foreach (var path in FileMenuLayout.EditingGroup.Append(FileMenuLayout.SaveCheckpoint)) Assert.False(Drawn(path));
+        // ⭐ CE-4255 — ONE New node: its six children in the designed order, whatever the registration order was
+        session.State = ClusterState.OperatingEdit;
+        menu.IdleOnlyWhen = null;
+        Assert.Equal(new[] { "Scenario…", "Asset…", "Behavior…", "Action…", "Condition…", "Macro…" }, menu.Root.Children["File"].Children["New"].OrderedChildren().Select(c => c.Name).ToArray());
+        Assert.Equal(1, menu.Root.Children["File"].Children.Keys.Count(k => k.StartsWith("New", StringComparison.Ordinal)));   // no loose "New …" item under File
+        Assert.DoesNotContain("Scenario", menu.Root.Children.Keys);                                                        // ⭐ CE-4253 — no Scenario top-level menu from this registrar
     }
 
     // ══ ⑤ Save / Save-As ════════════════════════════════════════════════════
@@ -747,7 +762,8 @@ public sealed class ScenarioMenuTests
         var (session, _, menu) = CreateRegistrar(openNewScenario: () => opened++);
 
         Assert.True(menu.Root.Children.TryGetValue("File", out var fileNode));
-        Assert.True(fileNode.Children.TryGetValue("New Scenario…", out var leaf));   // ⭐ CE-1443: File/New Scenario…
+        Assert.True(fileNode.Children.TryGetValue("New", out var newNode));   // ⭐ CE-4255: File/New/Scenario…
+        Assert.True(newNode!.Children.TryGetValue("Scenario…", out var leaf));
         Assert.NotNull(leaf.OnClick);
 
         leaf.OnClick();

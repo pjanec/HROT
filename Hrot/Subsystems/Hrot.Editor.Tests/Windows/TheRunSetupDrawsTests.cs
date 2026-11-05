@@ -139,6 +139,72 @@ public sealed class TheRunSetupDrawsTests : IDisposable
         Assert.Null(launcher.RunSetupOf("plain"));
     }
 
+    private static void Pos(ImGuiNET.ImGuiIOPtr io, float x, float y) { io.AddMousePosEvent(x, y); Raylib_cs.Raylib.SetMousePosition((int)Math.Round(x), (int)Math.Round(y)); }
+
+    /// <summary>
+    /// ⭐ CE-4258 ② (crash rail) — a click on <i>reset</i> of an overridden row ends the table cleanly: the reset takes the override off and the next frames draw the
+    /// rows at their defaults. The edit is made through the row's session, as the combo does (the session stays dirty after its commit). Two rows of ONE type (①: they drew widgets with the same ImGui id until each row got its own id scope). Red-proof (compiles):
+    /// <c>ParamArgsTable.Draw</c> calling <c>onReset</c> from inside the row loop ⇒ this rail throws (the run setup's reset disposes every row mid-table).
+    /// </summary>
+    [SkippableFact]
+    public void CE4258_ResetOnAnOverriddenRow_EndsTheTableCleanly_AndTakesTheOverrideOff()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var file = Scenario("outpost",
+            "\"description\":\"d\",\"Params\":[{\"Name\":\"side\",\"TypeId\":\"ForceId\",\"Default\":\"Hostile\"},{\"Name\":\"other\",\"TypeId\":\"ForceId\",\"Default\":\"Friend\"}]",
+            "\"a\":{}");
+        var asset = new Asset { Name = "outpost", SourceFilePath = file };
+        var choice = Hrot.UI.Common.RunMode.NodeRunControls.For(new Fdp.Core.FdpEventBus(), () => null, () => 0.0, null,
+            new Hrot.UI.Common.RunMode.NodeRunProfile(Hrot.UI.Common.RunMode.RunHostKind.Editor, new Control())).RunChoice;
+        PickerRequest? request = null;
+        var launcher = new AssetPickerLauncher((r, h) => request = r, new Cat(asset), new AssetPickActionRouter(_ => { }, _ => { }), baseFolderResolver: _ => "",
+            runChoice: () => choice, paramEditService: () => Hrot.Editor.AiShared.Inspector.ActionBinding.AiFacetEditService.Build());
+        launcher.Open(AssetKindFilter.Scenario);
+        var entry = EntryFor(asset);
+        var ctx = new PickerPaneContext
+        {
+            Width = 520f, Theme = new NodeEditor.Core.DefaultTheme(), Icons = new NoIcons(), Images = new PickerImageCache(_ => null), DrawDefault = () => { },
+        };
+
+        using var frame = UiFrameHarness.Begin(700, 420);
+        void Step(Action<ImGuiNET.ImGuiIOPtr>? inject, int times = 1)
+        {
+            for (int i = 0; i < times; i++)
+                frame.Step(() =>
+                {
+                    inject?.Invoke(ImGuiNET.ImGui.GetIO());
+                    ImGuiNET.ImGui.SetNextWindowPos(new Vector2(10, 10), ImGuiNET.ImGuiCond.Always);
+                    ImGuiNET.ImGui.SetNextWindowSize(new Vector2(560, 380), ImGuiNET.ImGuiCond.Always);
+                    ImGuiNET.ImGui.Begin("Pane");
+                    ImGuiNET.ImGui.GetStateStorage().SetInt(ImGuiNET.ImGui.GetID("Run setup##runsetup"), 1);
+                    request!.DrawPane!(entry, ctx);
+                    ImGuiNET.ImGui.End();
+                });
+        }
+
+        Step(null, 4);
+        var setup = launcher.RunSetupOf("outpost")!;
+        Assert.Equal(2, launcher.RunSetupRowsDrawn);
+        // what the user did: pick a value in the row's combo — an edit through the row's own session (the combo writes the field's binding)
+        var session = launcher.RunSetupTable!.SessionOf("side")!;
+        Fdp.Toolkit.Scenario.ParamTypes.TryResolve("ForceId", out var forceType);
+        var node = Hrot.Editor.AiShared.Variables.VariableEditModal.ScalarRowOrRoot(session.Document.Root, "side");
+        node.Binding!.SetBoxed(Enum.Parse(forceType!, "Neutral"));
+        Step(null, 3);
+        Assert.NotNull(launcher.RunArgsFor("outpost"));                          // the edit was committed: the row is overridden
+        var at = Assert.IsType<Vector2>(launcher.RunSetupResetButtonAt);         // the overridden row shows its reset button
+
+        Step(io => Pos(io, at.X, at.Y), 2);
+        Step(io => { Pos(io, at.X, at.Y); io.AddMouseButtonEvent(0, true); });
+        Step(io => Pos(io, at.X, at.Y));
+        Step(io => { Pos(io, at.X, at.Y); io.AddMouseButtonEvent(0, false); });   // the click: reset (the crash was here)
+        Step(null, 3);                                                           // and the table keeps drawing
+
+        Assert.Null(launcher.RunArgsFor("outpost"));                             // the override is gone: the start passes nothing
+        Assert.Null(launcher.RunSetupResetButtonAt);                             // no overridden row left
+        Assert.Equal(2, launcher.RunSetupRowsDrawn);                             // both rows still draw
+    }
+
     private sealed class Cat : IAssetCatalog
     {
         private readonly IReadOnlyList<IEditableAsset> _assets;

@@ -911,6 +911,9 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     /// </summary>
     /// <param name="federationPanel">⭐⭐⭐ U-obs-5 follow-up — <c>null</c> until a replay group has
     /// been loaded (the panel is created lazily); when non-null its window is registered too.</param>
+    /// <summary>⭐ CE-4261 — the browser's File items and its main-toolbar entry (one source for the rails).</summary>
+    public const string LoadFdpMenuPath = "File/Load .fdp…", JsonExportMenuPath = "File/JSON Export…", TransportEntryId = "ReplayTransport";
+
     internal void RegisterWindowsCore(
         WindowManager windowManager,
         ReplayTimelinePanel timelinePanel,
@@ -929,6 +932,16 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.ReplayTimelineWindow(
             "rb_timeline", "Replay Timeline", perspective, timelinePanel, color));
 
+        // ⭐ CE-4261 — the browser's own toolbar contents and File items (🔒 user, 2026-11-03): the replay transport bar is an entry of the MAIN toolbar (the timeline panel's ONE drawer),
+        //   File ▸ Load .fdp… runs the load the timeline's button ran, File ▸ JSON Export… opens the window holding the export options.
+        //   ⛔ The browser is NOT an IProvidesRunControls: that offer is the CLUSTER's transport (ITimeTransportFacade + RunModeChoice, gate policy, loading screen, scenario door) — a recording has none of them.
+        var jsonExport = new Fdp.Presentation.Windows.ReplayBrowser.JsonExportWindow(perspective, timelinePanel, color);
+        windowManager.RegisterWindow(jsonExport);
+        windowManager.GlobalMenu.RegisterItem(LoadFdpMenuPath, () => timelinePanel.RequestLoadFdp(), perspective);
+        windowManager.GlobalMenu.RegisterItem(JsonExportMenuPath, () => jsonExport.Show(), perspective);
+        windowManager.MainToolbar.RegisterEntry(TransportEntryId, sortOrder: 0, declaredHeight: MainToolbarManager.DefaultEntryHeight,
+            () => timelinePanel.DrawTransport(), perspective);
+
         windowManager.RegisterWindow(new Fdp.Presentation.Windows.Timeline.EventTimelineWindow(
             "rb_event_timeline", "Event Timeline", perspective, _eventTimeline, () => _timelineSource,
             new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager, () => _manager?.LocalEntitiesProviderNodeId ?? 0,
@@ -946,7 +959,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
                 isPlaying: () => !Transport.IsPaused, togglePlay: () => Transport.TogglePlayPause(),
                 timeMap: () => CachedTimeMap, simAxis: () => Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim),
             "rb_rules", perspective, color,
-            selectEntity: n => SelectTimelineEvent(new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent(0, "", n, 0, 0, 0, 0)),
+            selectEntity: n => SelectNetworkEntity(n),   // ⭐ CE-4263 — a plain pick: no event is focused
             showOnMap: n => _activeRepo?.Bus.Publish(new Hrot.Common.Events.CenterOnEntityCommand { NetworkId = n }),
             blocked: () => "a recording is read-only") { IsOpen = false };
         windowManager.RegisterWindow(_rulesWindow);
@@ -1018,7 +1031,9 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
                     Session:     () => _session,
                     RunState:    static () => Hrot.Editor.AiShared.Variables.VariableRunState.Replay,
                     Host:        () => HostActions,
-                    OpenRule:    OpenRuleInRulesView)),   // ⭐ CE-4216 RV-7
+                    OpenRule:    OpenRuleInRulesView,   // ⭐ CE-4216 RV-7
+                    EventFocus:  _eventFocus,           // ⭐ CE-4263 — Details ▸ Event for a clicked timeline event
+                    SelectNetworkEntity: n => SelectNetworkEntity(n))),
             },
             new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
     }

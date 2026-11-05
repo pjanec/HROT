@@ -14,15 +14,17 @@ namespace Hrot.Editor.AiShared.Scenarios;
 /// <see cref="ScenarioMenuCommands"/> draws the same menu by construction, and no host can forget to hide an item.</para>
 ///
 /// <para>⭐ The three groups: <b>the first four</b> (Load Scenario · New Scenario · Load Checkpoint · Open Exercise Recording — always drawn; on Start they are what the surface offers), <b>Save Checkpoint</b> (only during a live run),
-/// <b>the editing group</b> (asset and save items — only while editing). ⛔ No submenus (user, <c>2026-10-29</c>).</para>
+/// <b>the editing group</b> (asset and save items — only while editing). ⛔ No submenus (user, <c>2026-10-29</c>) — ⭐ <b>except ONE</b>: <c>File ▸ New</c> (CE-4255, user <c>2026-11-03</c>: <i>"all [the New items] should be hidden as a submenu of one single New menu item, including the new macro"</i>) SUPERSEDES the 2026-10-29 ruling for the New items only.</para>
 /// </summary>
 public static class FileMenuLayout
 {
     // ── the first four ────────────────────────────────────────────────────────
     /// <summary>Load Scenario… — goes into the cluster's armed mode (R-1043).</summary>
     public const string LoadScenario = "File/Load Scenario…";
-    /// <summary>New Scenario… — authoring.</summary>
-    public const string NewScenario = "File/New Scenario…";
+    /// <summary>⭐ CE-4255 — the ONE submenu holding every New item (a submenu arrow, so no ellipsis); drawn where New Scenario… was.</summary>
+    public const string NewMenu = "File/New";
+    /// <summary>Scenario… — authoring (the command's own name stays "New Scenario…").</summary>
+    public const string NewScenario = "File/New/Scenario…";
     /// <summary>Load Checkpoint… — a live run, paused at the checkpoint.</summary>
     public const string LoadCheckpoint = "File/Load Checkpoint…";
     /// <summary>Open Exercise Recording… — review (AAR).</summary>
@@ -34,7 +36,9 @@ public static class FileMenuLayout
 
     // ── the editing group ──
     /// <summary>The asset items, registered by the shell toolbar.</summary>
-    public const string OpenAsset = "File/Open Asset…", NewAsset = "File/New Asset…", NewBehavior = "File/New Behavior…", NewAction = "File/New Action…", NewCondition = "File/New Condition…";
+    public const string OpenAsset = "File/Open Asset…", NewAsset = "File/New/Asset…", NewBehavior = "File/New/Behavior…", NewAction = "File/New/Action…", NewCondition = "File/New/Condition…";
+    /// <summary>⭐ CE-4255 / CE-4253 — Macro… (the former <c>Scenario/New Macro…</c>; not allowed in Idle) and Save Selection as Macro… (the former <c>Scenario/…</c>; editing only).</summary>
+    public const string NewMacro = "File/New/Macro…", SaveSelectionAsMacro = "File/Save Selection as Macro…";
     /// <summary>The shell's saves (<c>shell.save</c> / <c>shell.saveAs</c> / <c>shell.saveAll</c>). ⭐ CE-1443 part B — <c>Save</c> / <c>Save As…</c> are drawn only while a DOCUMENT is the save target (the scenario has its own two items), and their labels name it.</summary>
     public const string Save = "File/Save", SaveAs = "File/Save As…", SaveAll = "File/Save All";
     /// <summary>⭐ CE-1443 B2 — the recipe saves: the shell's (<c>shell.saveAsRecipe</c>, a document) and the scenario's (<c>scenario.saveAsRecipe</c>).</summary>
@@ -56,7 +60,7 @@ public static class FileMenuLayout
     /// <summary>The editing group's items, in order.</summary>
     public static readonly IReadOnlyList<string> EditingGroup = new[]
     {
-        OpenAsset, NewAsset, NewBehavior, NewAction, NewCondition, Save, SaveScenario, SaveAs, SaveScenarioAs, SaveAsRecipe, SaveScenarioAsRecipe, SaveAll, MigrationHistory, SaveCuratedToGit,
+        OpenAsset, NewAsset, NewBehavior, NewAction, NewCondition, Save, SaveScenario, SaveAs, SaveScenarioAs, SaveSelectionAsMacro, SaveAsRecipe, SaveScenarioAsRecipe, SaveAll, MigrationHistory, SaveCuratedToGit,
     };
 
     /// <summary>⭐ EVERY File path of this menu in DRAW order, separators included — the table a rail reads (what the menu is MEANT to be, not what a host happened to register).</summary>
@@ -64,8 +68,10 @@ public static class FileMenuLayout
 
     private static string[] Build()
     {
-        var l = new List<string> { LoadScenario, NewScenario, LoadCheckpoint, OpenExerciseRecording, SeparatorAfterLoads, SaveCheckpoint };
-        l.AddRange(EditingGroup);
+        // ⭐ CE-4255 — the New submenu takes New Scenario…'s place, its children right after it in the order they are drawn (Scenario… · Asset… · Behavior… · Action… · Condition… · Macro…) — so this
+        //   list IS the depth-first draw order. ⚠ NewMacro is not in EditingGroup: its visibility is today's (Idle-disallowed, drawn otherwise).
+        var l = new List<string> { LoadScenario, NewMenu, NewScenario, NewAsset, NewBehavior, NewAction, NewCondition, NewMacro, LoadCheckpoint, OpenExerciseRecording, SeparatorAfterLoads, SaveCheckpoint };
+        foreach (var item in EditingGroup) if (!l.Contains(item)) l.Add(item);
         l.Add(SeparatorBeforeClose); l.Add(Close); l.Add(Exit);
         return l.ToArray();
     }

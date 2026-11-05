@@ -46,8 +46,8 @@ namespace Hrot.UI.Common.Map3D.Director
         public Take? OpenTakeOf(string scenario, string take)
             => Editor is { } e && e.Take.Scenario == scenario && e.Take.Name == take ? e.Take : null;
 
-        /// <summary>The Camera, Time and Subtitles tracks of the open take; empty when none is open. (The panel's <c>Tracks</c> func.)</summary>
-        public IReadOnlyList<ITimelineTrack> Tracks => _tracks?.Tracks ?? Array.Empty<ITimelineTrack>();
+        /// <summary>The open take's tracks as the Event Timeline shows them — ⭐ CE-4262: under ONE collapsible <i>Director</i> row (<see cref="DirectorTracks.Grouped"/>); empty when none is open. (The panel's <c>Tracks</c> func.)</summary>
+        public IReadOnlyList<ITimelineTrack> Tracks => _tracks?.Grouped ?? Array.Empty<ITimelineTrack>();
 
         /// <summary>⭐ <c>CE-1303</c> P2b — the open take's tracks (the window's <i>Update key from view</i> and the selected segment / subtitle's fields); null when none is open.</summary>
         public DirectorTracks? Director => _tracks;

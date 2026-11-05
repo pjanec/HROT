@@ -206,7 +206,8 @@ public sealed class TheToolbarLayoutIsOneListTests
 
         var fileItems = menu.Root.Children["File"].Children.Keys.ToArray();
 
-        Assert.Equal(new[] { "Open Asset…", "New Asset…", "Save" }, fileItems);
+        Assert.Equal(new[] { "Open Asset…", "New", "Save" }, fileItems);   // ⭐ CE-4255: New Asset… is File/New/Asset… now
+        Assert.Equal(new[] { "Asset…" }, menu.Root.Children["File"].Children["New"].Children.Keys.ToArray());
 
         // ⛔⛔ AND NO `File/Reload`. 📐 The editor's File menu has never had one, and the shared table
         //    cannot give CGF an item the editor does not get without an `if (host==…)` (ruling 58).
@@ -237,8 +238,9 @@ public sealed class TheToolbarLayoutIsOneListTests
             menu);
 
         Assert.Equal(
-            new[] { "Open Asset…", "New Asset…", "New Behavior…", "New Action…", "New Condition…", "Save" },
+            new[] { "Open Asset…", "New", "Save" },   // ⭐ CE-4255: the New items are ONE submenu
             menu.Root.Children["File"].Children.Keys.ToArray());
+        Assert.Equal(new[] { "Asset…", "Behavior…", "Action…", "Condition…" }, menu.Root.Children["File"].Children["New"].Children.Keys.ToArray());
 
         Assert.DoesNotContain(CgfEditorShellToolbar.NewBehaviorId,  emitted);
         Assert.DoesNotContain(CgfEditorShellToolbar.NewActionId,    emitted);
