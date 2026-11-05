@@ -92,23 +92,46 @@ namespace Fdp.Toolkit.Terrain
         /// </summary>
         public static DoorStates Of(ISimulationView view, TerrainWorld world)
         {
+            // ⭐ CE-2414 — the table this thread built THIS frame is handed back while nothing of the doors was written since the frame
+            //   began and every door entity it read is still a door (FrameStamp: R-220's "a door written within the tick" forces a rebuild).
+            //   📐 It walked every entity per sight / fire query: ~8 % of the SimHost thread on the CE-2408 stress world.
+            if (view is EntityRepository live && t_last is { } held && ReferenceEquals(world, t_world)
+                && t_stamp.Holds(live, typeof(DoorState)) && StillDoors(live))
+                return held;
             int n = world.Doors.Count;
             var a = t_scratch is { } sc && sc.Length == n ? sc : (t_scratch = new byte[n]);
             for (int i = 0; i < n; i++) a[i] = (byte)world.Doors[i].Initial;
             if (n > 0)
             {
                 var query = DoorQuery(view);
+                t_doorCount = 0;
                 if (query != null)
                     foreach (var e in query)
                     {
                         int i = world.DoorIndexOf(view.GetManagedComponentRO<TerrainObjectKey>(e).Key);
                         if (i >= 0) a[i] = (byte)view.GetComponentRO<DoorState>(e).State;
+                        var doors = t_doors ??= new Entity[16];
+                        if (t_doorCount == doors.Length) Array.Resize(ref t_doors, doors.Length * 2);
+                        t_doors![t_doorCount++] = e;
                     }
             }
+            if (view is EntityRepository built) { t_stamp.Take(built); t_world = world; } else t_stamp.Clear();
 
             if (t_last is { } last && last._states.AsSpan().SequenceEqual(a)) return last;
             return t_last = new DoorStates(a.ToArray());   // the doors changed (or a new world/thread) — the one allocation
         }
+
+        private static bool StillDoors(EntityRepository repo)
+        {
+            for (int k = 0; k < t_doorCount; k++)
+                if (!repo.IsAlive(t_doors![k]) || !repo.HasComponent<DoorState>(t_doors[k])) return false;
+            return true;
+        }
+
+        [ThreadStatic] private static Fdp.Toolkit.Replication.Utilities.FrameStamp t_stamp;
+        [ThreadStatic] private static TerrainWorld? t_world;
+        [ThreadStatic] private static Entity[]? t_doors;
+        [ThreadStatic] private static int t_doorCount;
 
         // ⭐ R-220 — per THREAD (a background module reads its own snapshot on its own thread): the scratch the doors are read into,
         //   the last table handed out, and the door query of the last repository (an EntityQuery is immutable and reusable).

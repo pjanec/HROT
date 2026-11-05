@@ -161,6 +161,54 @@ public sealed class TrafficRuntimeTests
 
     /// <summary>R-4055 — two senders' cars with the SAME handle are two replicas; the sender's own copy is owned; an unmapped type
     /// falls back to the inert SUMO car.</summary>
+    /// <summary>⭐ CE-2413 — the vicinity band walks a grid of the bodies (it was every car × every body: ~20 % of the traffic node's thread
+    /// on the CE-2408 stress world); the replica set must be what the full comparison made: 300 cars wandering over 1.6 km for 12 frames
+    /// among 150 bodies and 40 SUMO-route entities (never anchors), the 300 m enter / 350 m keep band applied to each, cells crossed.
+    /// 🔴 Red-proof: the keep radius taken as R ⇒ a car in the band is dropped.</summary>
+    [Fact]
+    public void CE2413_TheVicinityBand_OverAGridOfBodies_MakesTheReplicasTheFullComparisonMade()
+    {
+        using var world = World();
+        var rng = new Random(2413);
+        var bodies = new List<Vector2>();
+        for (int i = 0; i < 150; i++)
+        {
+            var b = new Vector2(rng.NextSingle() * 1600f - 800f, rng.NextSingle() * 1600f - 800f);
+            Body(world, b.X, b.Y);
+            bodies.Add(b);
+        }
+        for (int i = 0; i < 40; i++)   // a replica (the SUMO route) is never an anchor
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = new Vector3(rng.NextSingle() * 4000f - 2000f, rng.NextSingle() * 4000f - 2000f, 0f), Rotation = Quaternion.Identity });
+            world.AddComponent(e, new PhysicsCollider { Radius = 2f, Height = 1.5f, CollisionLayer = 1 });
+            world.AddComponent(e, new ReplicationRoute(ReplicationRoute.SumoSharp));
+        }
+        var replicas = new TrafficReplicas(world, null, localNodeId: 3);
+        var at = new Vector2[300];
+        for (int c = 0; c < at.Length; c++) at[c] = new Vector2(rng.NextSingle() * 3000f - 1500f, rng.NextSingle() * 3000f - 1500f);
+        var expected = new HashSet<int>();
+        float Nearest(Vector2 p) { float best = float.PositiveInfinity; foreach (var b in bodies) best = MathF.Min(best, Vector2.DistanceSquared(b, p)); return best; }
+        for (int frame = 0; frame < 12; frame++)
+        {
+            var poses = new TrafficCarPose[at.Length];
+            for (int c = 0; c < at.Length; c++)
+            {
+                at[c] += new Vector2(rng.NextSingle() * 120f - 60f, rng.NextSingle() * 120f - 60f);
+                poses[c] = new(3, new VehicleHandle((uint)(c + 1), 1), "car" + c, 1000 + c, default, 0u, at[c].X, at[c].Y, 0f, 0f, 4.5f, 1.8f);
+                float d2 = Nearest(at[c]);
+                if (expected.Contains(c)) { if (d2 > 350f * 350f) expected.Remove(c); }
+                else if (d2 <= 300f * 300f) expected.Add(c);
+            }
+            world.Tick();
+            replicas.Update(poses);
+            var actual = new HashSet<int>();
+            foreach (var key in replicas.Replicas.Keys) actual.Add((int)key.Handle.Index - 1);
+            Assert.True(expected.SetEquals(actual), $"frame {frame}: expected {expected.Count}, actual {actual.Count}");
+        }
+        Assert.True(expected.Count > 20, $"the premise: plenty of replicas ({expected.Count})");
+    }
+
     [Fact]
     public void R4055_TwoSendersSameHandle_AreTwoReplicas_AndTheSendersOwnIsOwned()
     {

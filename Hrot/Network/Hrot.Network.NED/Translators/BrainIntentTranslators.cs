@@ -26,6 +26,9 @@ namespace Hrot.Network.Translators
     /// </summary>
     public sealed class BrainIntentEgressTranslator : IDescriptorTranslator
     {
+        // ⭐ CE-2407 (DESIGN_Egress_Change_Detection §5, E1) — skips the entities none of these inputs changed for; NetworkIdentity is implied
+        private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(BehaviorState), typeof(SopState), typeof(Roe));
+
 
         private readonly IDdsWriter<EntityBrainIntent> _writer;
         private readonly BehaviorRegistry _registry;
@@ -67,8 +70,10 @@ namespace Hrot.Network.Translators
             if (view is not EntityRepository repo) return;
             long key = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             var query = view.Query().DefaultRoutePublishable().With<BehaviorState>().WithLifecycle(EntityLifecycle.All).Build();
+            _gate.Begin(view);
             foreach (var entity in query)
             {
+                if (!_gate.Visit(entity)) continue;   // ⭐ CE-2407 E1 — nothing this translator reads has changed since its last scan
                 if (!view.HasAuthority(entity, key)) continue;
                 int netId = view.GetComponentRO<NetworkIdentity>(entity).Value;
 

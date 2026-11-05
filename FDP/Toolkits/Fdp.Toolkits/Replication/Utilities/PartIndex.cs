@@ -1,0 +1,124 @@
+using System;
+using System.Runtime.CompilerServices;
+using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Replication.Components;
+
+namespace Fdp.Toolkit.Replication.Utilities
+{
+    /// <summary>
+    /// ⭐ <c>CE-2412</c> — ONE answer to "the parts of this parent" (<see cref="PartMetadata"/>: a weapon mount, a turret, a sensor, a
+    /// behaviour-owned sensor): parent → its parts, sorted by <see cref="PartMetadata.InstanceId"/> (ties in entity order, as a scan met them).
+    /// 📐 Each asker used to scan EVERY part of the world per call — <c>UnitSensors.Of</c> alone was 11.5 % of the CGF node's thread on the
+    /// CE-2408 stress world, the mounts 44 % before CE-2410's private index (now retired onto this one, with <c>SensorChildFactory</c>'s).
+    /// <para>⭐ Built once per frame (<see cref="EntityRepository.GlobalVersion"/>) and again when a <see cref="PartMetadata"/> is ADDED within
+    /// the frame (<see cref="EntityRepository.ComponentsAddedOf"/>) — so a part created this frame is found at once. Every part returned is
+    /// re-checked LIVE (alive, still a part of this parent), so a removed or destroyed part never shows.
+    /// ⚠ A part RE-PARENTED by a value write within the frame (none in production: every writer adds) is found under its new parent from
+    /// the next frame.</para>
+    /// <para>On a view that is not an <see cref="EntityRepository"/> (a snapshot) it scans, in the same order — the one fallback, here.</para>
+    /// </summary>
+    public sealed class PartIndex
+    {
+        private static readonly ConditionalWeakTable<EntityRepository, PartIndex> s_of = new();
+
+        private int[] _start = Array.Empty<int>(), _count = Array.Empty<int>();
+        private Entity[] _items = Array.Empty<Entity>();
+        private int[] _idOf = Array.Empty<int>();
+        private (int Parent, int Id, Entity E)[] _scratch = Array.Empty<(int, int, Entity)>();
+        private uint _builtAt;
+        private long _builtAdds = -1;
+        private bool _built;
+        private EntityQuery? _query;
+
+        /// <summary>How many builds so far (a rail reads it).</summary>
+        public int Builds { get; private set; }
+
+        /// <summary>The index of <paramref name="repo"/> (a rail reads <see cref="Builds"/>).</summary>
+        public static PartIndex Of(EntityRepository repo) => s_of.GetValue(repo, static _ => new PartIndex());
+
+        /// <summary>
+        /// Writes <paramref name="parent"/>'s live parts, lowest <see cref="PartMetadata.InstanceId"/> first, into <paramref name="dest"/>
+        /// (as many as fit) and returns how many there ARE — more than <paramref name="dest"/> holds means call again with a bigger one.
+        /// </summary>
+        public static int PartsOf(ISimulationView view, Entity parent, Span<Entity> dest)
+        {
+            if (parent.IsNull) return 0;
+            if (view is EntityRepository repo)
+            {
+                if (!repo.IsComponentTypeRegistered<PartMetadata>()) return 0;
+                var index = Of(repo);
+                lock (index) { index.EnsureFresh(repo); return index.Copy(repo, parent, dest); }
+            }
+            return Scan(view, parent, dest);
+        }
+
+        private void EnsureFresh(EntityRepository repo)
+        {
+            uint now = repo.GlobalVersion;
+            long adds = repo.ComponentsAddedOf(ComponentType<PartMetadata>.ID);
+            if (_built && now == _builtAt && adds == _builtAdds) return;
+            _built = true; _builtAt = now; _builtAdds = adds;
+            Builds++;
+            int parents = repo.MaxEntityIndex + 1;
+            if (_start.Length < parents) { Array.Resize(ref _start, parents * 2); Array.Resize(ref _count, parents * 2); }
+            Array.Clear(_count);
+            int n = 0;
+            _query ??= repo.Query().With<PartMetadata>().Build();
+            foreach (var e in _query)
+            {
+                ref readonly var meta = ref repo.GetComponentRO<PartMetadata>(e);
+                var parent = meta.ParentEntity;
+                if (parent.IsNull || (uint)parent.Index >= (uint)parents) continue;
+                if (n == _scratch.Length) Array.Resize(ref _scratch, Math.Max(256, n * 2));
+                _scratch[n++] = (parent.Index, meta.InstanceId, e);
+                _count[parent.Index]++;
+            }
+            int at = 0;   // a slice per parent (counting sort), then each slice by instance id (stable: a handful each)
+            for (int p = 0; p < parents; p++) { _start[p] = at; at += _count[p]; _count[p] = 0; }
+            if (_items.Length < n) { Array.Resize(ref _items, Math.Max(n, _items.Length * 2)); Array.Resize(ref _idOf, _items.Length); }
+            for (int k = 0; k < n; k++)
+            {
+                var (p, id, e) = _scratch[k];
+                int j = _start[p] + _count[p]++;
+                while (j > _start[p] && _idOf[j - 1] > id) { _items[j] = _items[j - 1]; _idOf[j] = _idOf[j - 1]; j--; }
+                _items[j] = e; _idOf[j] = id;
+            }
+        }
+
+        private int Copy(EntityRepository repo, Entity parent, Span<Entity> dest)
+        {
+            if ((uint)parent.Index >= (uint)_start.Length || (uint)parent.Index > (uint)repo.MaxEntityIndex) return 0;
+            int from = _start[parent.Index], to = from + _count[parent.Index], total = 0;
+            for (int k = from; k < to; k++)
+            {
+                var e = _items[k];
+                // ⭐ re-checked on every read: a part removed or destroyed after the build, or a slot reused by another parent, never shows
+                if (!repo.IsAlive(e) || !repo.HasComponent<PartMetadata>(e) || !repo.GetComponentRO<PartMetadata>(e).ParentEntity.Equals(parent)) continue;
+                if (total < dest.Length) dest[total] = e;
+                total++;
+            }
+            return total;
+        }
+
+        private static int Scan(ISimulationView view, Entity parent, Span<Entity> dest)
+        {
+            int total = 0, kept = 0;
+            Span<int> ids = dest.Length <= 256 ? stackalloc int[dest.Length] : new int[dest.Length];
+            foreach (var e in view.Query().With<PartMetadata>().Build())
+            {
+                ref readonly var meta = ref view.GetComponentRO<PartMetadata>(e);
+                if (!meta.ParentEntity.Equals(parent)) continue;
+                total++;
+                if (dest.IsEmpty) continue;
+                int id = meta.InstanceId, j = kept;
+                if (kept < dest.Length) kept++;
+                else if (ids[kept - 1] <= id) continue;   // full, and it sorts after the last kept
+                else j = kept - 1;
+                while (j > 0 && ids[j - 1] > id) { if (j < dest.Length) { dest[j] = dest[j - 1]; ids[j] = ids[j - 1]; } j--; }
+                dest[j] = e; ids[j] = id;
+            }
+            return total;
+        }
+    }
+}

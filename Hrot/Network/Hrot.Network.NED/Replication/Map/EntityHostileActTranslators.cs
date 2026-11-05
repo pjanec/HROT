@@ -18,6 +18,9 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityHostileActEgressTranslator : IDescriptorTranslator
     {
+        // ⭐ CE-2407 (DESIGN_Egress_Change_Detection §5, E1) — skips the entities none of these inputs changed for; NetworkIdentity is implied
+        private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(HostileAct));
+
         private readonly DdsWriter<EntityHostileAct>? _writer;
         private readonly Dictionary<int, EntityHostileAct> _last = new();
         private int _worldEpoch;
@@ -46,8 +49,10 @@ namespace Hrot.Map.Common.Replication.Egress
             }
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<HostileAct>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            _gate.Begin(view);
             foreach (var unit in view.Query().With<HostileAct>().DefaultRoutePublishable().Build())
             {
+                if (!_gate.Visit(unit)) continue;   // ⭐ CE-2407 E1 — nothing this translator reads has changed since its last scan
                 if (!view.HasAuthority(unit, packedKey)) continue;
                 int netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
                 var sample = ToSample(netId, view.GetComponentRO<HostileAct>(unit));

@@ -56,7 +56,12 @@ public sealed class TrafficReplicas
     private readonly NetworkEntityMap? _entityMap;
     private readonly NodeId _localNodeId;
     private readonly Dictionary<(int Owner, VehicleHandle Handle), Entity> _replicas = new();
-    private readonly List<Vector2> _anchors = new();
+    // ⭐ CE-2413 — the anchors in the shared frame grid (one cell per vicinity band): "is any HROT body within R?" walks 3 × 3 cells and
+    //   stops at the first. 📐 It was every car × every body (NearestAnchor2): ~20 % of the traffic node's thread on the CE-2408 stress world.
+    private readonly Fdp.Toolkit.Spatial.FrameEntityGrid _anchors = new(Radius + Hysteresis);
+    private EntityQuery? _anchorQuery;
+    private static readonly Func<EntityRepository, Entity, bool> IsAnchor =
+        static (w, e) => w.HasComponent<PhysicsCollider>(e) && !w.HasComponent<ReplicationRoute>(e);
     private readonly HashSet<(int, VehicleHandle)> _seen = new();
     private readonly List<(int, VehicleHandle)> _drop = new();
     private readonly Dictionary<(int Owner, int NetworkId), Entity> _peds = new();
@@ -112,7 +117,6 @@ public sealed class TrafficReplicas
         CollectAnchors();
         _seen.Clear();
         _seenIds.Clear();
-        float enter2 = Radius * Radius, leave2 = (Radius + Hysteresis) * (Radius + Hysteresis);
 
         foreach (var car in cars)
         {
@@ -120,14 +124,14 @@ public sealed class TrafficReplicas
             _seen.Add(key);
             _seenIds.Add(car.NetworkId);
             if (_released.Contains(car.NetworkId)) continue;   // ⭐ K7 — becoming our car: not re-made
-            float d2 = NearestAnchor2(new Vector2(car.X, car.Y));
+            var at = new Vector2(car.X, car.Y);
             bool have = _replicas.TryGetValue(key, out var e) && _world.IsAlive(e);
             if (have)
             {
-                if (d2 > leave2) { Destroy(key, e); continue; }
+                if (!_anchors.AnyWithin(at, Radius + Hysteresis)) { Destroy(key, e); continue; }
                 Pose(e, car);
             }
-            else if (d2 <= enter2 && car.NetworkId != 0 && !IsShadow(car))   // ⭐ §14 G6 — a shadow car's body IS the entity
+            else if (car.NetworkId != 0 && _anchors.AnyWithin(at, Radius) && !IsShadow(car))   // ⭐ §14 G6 — a shadow car's body IS the entity
             {
                 _replicas[key] = Create(car);
             }
@@ -137,11 +141,11 @@ public sealed class TrafficReplicas
         foreach (var kv in _replicas)
             if (!_seen.Contains(kv.Key) || !_world.IsAlive(kv.Value)) _drop.Add(kv.Key);
         foreach (var k in _drop) Destroy(k, _replicas[k]);
-        UpdatePedestrians(pedestrians ?? Array.Empty<TrafficPedPose>(), enter2, leave2);
+        UpdatePedestrians(pedestrians ?? Array.Empty<TrafficPedPose>());
     }
 
     // ⭐ §15 K3 — the SAME vicinity rule for pedestrians (R-4041): an entity within Radius of one of our bodies, kept to Radius + Hysteresis.
-    private void UpdatePedestrians(IReadOnlyList<TrafficPedPose> peds, float enter2, float leave2)
+    private void UpdatePedestrians(IReadOnlyList<TrafficPedPose> peds)
     {
         _pedSeen.Clear();
         foreach (var ped in peds)
@@ -150,14 +154,14 @@ public sealed class TrafficReplicas
             _pedSeen.Add(key);
             _seenIds.Add(ped.NetworkId);
             if (ped.NetworkId == 0 || _released.Contains(ped.NetworkId)) continue;
-            float d2 = NearestAnchor2(new Vector2(ped.X, ped.Y));
+            var at = new Vector2(ped.X, ped.Y);
             bool have = _peds.TryGetValue(key, out var e) && _world.IsAlive(e);
             if (have)
             {
-                if (d2 > leave2) { DestroyPed(key, e); continue; }
+                if (!_anchors.AnyWithin(at, Radius + Hysteresis)) { DestroyPed(key, e); continue; }
                 _world.SetComponent(e, Transform(ped));
             }
-            else if (d2 <= enter2 && (_entityMap is null || !_entityMap.TryGetEntity(ped.NetworkId, out _)))   // ⛔ never over a live id
+            else if (_anchors.AnyWithin(at, Radius) && (_entityMap is null || !_entityMap.TryGetEntity(ped.NetworkId, out _)))   // ⛔ never over a live id
             {
                 _peds[key] = CreatePed(ped);
             }
@@ -255,21 +259,8 @@ public sealed class TrafficReplicas
 
     private void CollectAnchors()
     {
-        _anchors.Clear();
-        var q = _world.Query().With<SimTransform>().With<PhysicsCollider>().Without<ReplicationRoute>().Build();
-        foreach (var a in q)
-        {
-            var p = _world.GetComponentRO<SimTransform>(a).Position;
-            _anchors.Add(new Vector2(p.X, p.Y));
-        }
-    }
-
-    private float NearestAnchor2(Vector2 p)
-    {
-        float best = float.PositiveInfinity;
-        foreach (var a in _anchors)
-            best = MathF.Min(best, Vector2.DistanceSquared(a, p));
-        return best;
+        _anchorQuery ??= _world.Query().With<SimTransform>().With<PhysicsCollider>().Without<ReplicationRoute>().Build();
+        _anchors.Rebuild(_world, _anchorQuery, IsAnchor);   // fresh per Update, as the collection was
     }
 
     private Entity Create(in TrafficCarPose car)

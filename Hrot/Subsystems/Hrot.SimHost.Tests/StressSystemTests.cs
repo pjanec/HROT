@@ -164,6 +164,63 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(before, Level(e));                              // no time passed
         }
 
+        /// <summary>⭐ CE-2410 — <see cref="UnderFire.FriendNear"/> answers from a per-frame grid of the living men; it must say what the full
+        /// scan said: across cell edges, for each force, never himself, never the dead, for a man created in the same frame (the callouts
+        /// rail does that), and with no allocation on a steady frame. ✅ Red-proofs: the structural rebuild dropped ⇒ the same-frame man is
+        /// missed; the cell walk narrowed to the centre cell ⇒ the brute-force comparison fails.</summary>
+        [Fact]
+        public void CE2410_FriendNear_AnswersAsTheFullScan_AndAllocatesNothingOnASteadyFrame()
+        {
+            var rng = new Random(2410);
+            var men = new System.Collections.Generic.List<Entity>();
+            for (int i = 0; i < 300; i++)
+            {
+                var m = Man(0f);
+                _w.GetComponentRW<SimTransform>(m).Position = new Vector3(rng.NextSingle() * 400f - 200f, rng.NextSingle() * 400f - 200f, 0f);
+                if (i % 3 == 0) _w.GetComponentRW<EntityInfo>(m).ForceId = ForceId.Hostile;
+                if (i % 11 == 0) _w.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(m).Current = 0f;   // dead
+                men.Add(m);
+            }
+            bool Brute(Entity self, Vector3 at, float r)
+            {
+                var force = _w.GetComponentRO<EntityInfo>(self).ForceId;
+                foreach (var e in men)
+                {
+                    if (e.Equals(self) || !_w.IsAlive(e) || _w.GetComponentRO<EntityInfo>(e).ForceId != force) continue;
+                    if (Fdp.Toolkit.Combat.Injury.StateOf(_w, e) >= Fdp.Toolkit.Combat.InjuryState.Incapacitated) continue;
+                    var d = _w.GetComponentRO<SimTransform>(e).Position - at;
+                    if (d.X * d.X + d.Y * d.Y < r * r) return true;
+                }
+                return false;
+            }
+            for (int frame = 0; frame < 5; frame++)
+            {
+                _w.Tick();
+                foreach (var m in men)
+                {
+                    var at = _w.GetComponentRO<SimTransform>(m).Position + new Vector3(rng.NextSingle() * 20f - 10f, rng.NextSingle() * 20f - 10f, 0f);
+                    float r = 5f + rng.NextSingle() * 40f;
+                    Assert.Equal(Brute(m, at, r), UnderFire.FriendNear(_w, m, at, r));
+                }
+                foreach (var m in men)   // the men move between frames
+                    _w.GetComponentRW<SimTransform>(m).Position += new Vector3(rng.NextSingle() * 30f - 15f, rng.NextSingle() * 30f - 15f, 0f);
+            }
+
+            // a friend created in the same frame is seen at once
+            _w.Tick();
+            var lone = Man(5000f);
+            Assert.False(UnderFire.FriendNear(_w, lone, new Vector3(5000f, 0f, 0f), 20f));
+            Man(5005f);
+            Assert.True(UnderFire.FriendNear(_w, lone, new Vector3(5000f, 0f, 0f), 20f));
+
+            // a steady frame allocates nothing
+            _w.Tick();
+            UnderFire.FriendNear(_w, men[1], Vector3.Zero, 20f);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 200; i++) UnderFire.FriendNear(_w, men[i], new Vector3(i, i, 0f), 25f);
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
         /// <summary>TS-7 — a civilian, a body with no stance (a vehicle), and a man who is down have no stress.</summary>
         [Fact]
         public void CE2270_ACivilian_AVehicle_AndAManDown_HaveNone()

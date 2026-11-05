@@ -17,6 +17,9 @@ namespace Hrot.Animation.Replication.Translators.Descriptors;
 /// </summary>
 internal sealed class StanceIntentEgressTranslator : INetworkTranslator
 {
+        // ⭐ CE-2407 (DESIGN_Egress_Change_Detection §5, E1) — skips the entities none of these inputs changed for; NetworkIdentity is implied
+        private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(StanceIntent));
+
 
     /// <summary>⭐ <c>CE-2121</c> — NED's <c>dtStanceIntent</c> (104): the Brain group's descriptor for <see cref="StanceIntent"/>
     /// (<c>NedOwnershipGroupBinding</c>); a rail pins the two equal.</summary>
@@ -58,8 +61,10 @@ internal sealed class StanceIntentEgressTranslator : INetworkTranslator
             .Build();
 
         long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+        _gate.Begin(view);
         foreach (var entity in query)
         {
+            if (!_gate.Visit(entity)) continue;   // ⭐ CE-2407 E1 — nothing this translator reads has changed since its last scan
             // ⭐ CE-2121 — the GROUP that owns the request (Brain), not the entity's primary owner. ⛔ SUPERSEDED: HasAuthority(entity).
             if (!view.HasAuthority(entity, packedKey)) continue;
 

@@ -286,18 +286,44 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>⭐ <c>CE-2363</c> — a living man of his force within <paramref name="radius"/> (not himself).</summary>
+        /// <remarks>⭐ CE-2410 — answered from the per-frame <see cref="Fdp.Toolkit.Spatial.FrameEntityGrid"/> of the men (CE-2411 shared it):
+        /// it scanned every entity per call, and StressModel / the callouts ask for every man every frame — 📐 9 % of the CGF node's thread
+        /// on the CE-2408 stress world. Each candidate is re-read live (force, state, position); ⚠ a man who MOVED later in the same frame is
+        /// found within <see cref="MovedSlackMetres"/> of where the frame placed him.</remarks>
         public static bool FriendNear(EntityRepository world, Entity self, Vector3 at, float radius)
         {
             if (!world.IsComponentTypeRegistered<EntityInfo>() || !world.HasComponent<EntityInfo>(self)) return false;
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>()) return false;
             var force = world.GetComponentRO<EntityInfo>(self).ForceId;
             float r2 = radius * radius;
-            foreach (var e in world.Query().With<EntityInfo>().With<SimTransform>().With<Fdp.Toolkit.Combat.Components.Health>().Build())
+            var men = Men.Of(world);
+            lock (men)
             {
-                if (e.Equals(self) || world.GetComponentRO<EntityInfo>(e).ForceId != force) continue;
-                if (Fdp.Toolkit.Combat.Injury.StateOf(world, e) >= Fdp.Toolkit.Combat.InjuryState.Incapacitated) continue;
-                if (Flat(world.GetComponentRO<SimTransform>(e).Position - at).LengthSquared() < r2) return true;
+                men.Query ??= world.Query().With<EntityInfo>().With<SimTransform>().With<Fdp.Toolkit.Combat.Components.Health>().Build();
+                men.Grid.EnsureFresh(world, men.Query, Men.Member);
+                men.Grid.Circle(new Vector2(at.X, at.Y), radius + MovedSlackMetres);
+                foreach (int k in men.Grid.Found)
+                {
+                    var e = men.Grid.EntityAt(k);
+                    if (e.Equals(self) || !world.IsAlive(e) || world.GetComponentRO<EntityInfo>(e).ForceId != force) continue;
+                    if (Fdp.Toolkit.Combat.Injury.StateOf(world, e) >= Fdp.Toolkit.Combat.InjuryState.Incapacitated) continue;
+                    if (Flat(world.GetComponentRO<SimTransform>(e).Position - at).LengthSquared() < r2) return true;
+                }
             }
             return false;
+        }
+
+        /// <summary>⭐ CE-2411 — how far a man may have moved within the frame and still be found where the frame's grid placed him.</summary>
+        public const float MovedSlackMetres = 4f;
+
+        private sealed class Men
+        {
+            private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<EntityRepository, Men> s_of = new();
+            public static Men Of(EntityRepository world) => s_of.GetValue(world, static _ => new Men());
+            public readonly Fdp.Toolkit.Spatial.FrameEntityGrid Grid = new();
+            public EntityQuery? Query;
+            public static readonly Func<EntityRepository, Entity, bool> Member =
+                static (w, e) => w.HasComponent<EntityInfo>(e) && w.HasComponent<Fdp.Toolkit.Combat.Components.Health>(e);
         }
 
         private static void Rise(EntityRepository world, Entity self, ref UnderFireMove u, ref MoveToParams move, double now, bool threatened)

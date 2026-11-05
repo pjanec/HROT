@@ -24,6 +24,9 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityObjectiveStatusEgressTranslator : IDescriptorTranslator
     {
+        // ⭐ CE-2407 (DESIGN_Egress_Change_Detection §5, E1) — skips the entities none of these inputs changed for; NetworkIdentity is implied
+        private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(ObjectiveStatus), typeof(ObjectiveLinks));
+
         /// <summary>A progress-only change is sent at most this often (sim s): two a second (SR-120).</summary>
         public const double ProgressRefreshSeconds = 0.5;
 
@@ -60,8 +63,10 @@ namespace Hrot.Map.Common.Replication.Egress
             bool links = view is not EntityRepository lr || lr.IsComponentTypeRegistered<ObjectiveLinks>();
             double now = view.Time;   // sim seconds
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+            _gate.Begin(view);
             foreach (var env in view.Query().With<ObjectiveStatus>().DefaultRoutePublishable().Build())
             {
+                if (!_gate.Visit(env)) continue;   // ⭐ CE-2407 E1 — nothing this translator reads has changed since its last scan
                 if (!view.HasAuthority(env, packedKey)) continue;
                 int netId = view.GetComponentRO<NetworkIdentity>(env).Value;
                 var l = links && view.HasComponent<ObjectiveLinks>(env) ? view.GetComponentRO<ObjectiveLinks>(env) : default;

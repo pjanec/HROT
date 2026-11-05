@@ -137,23 +137,30 @@ namespace Fdp.Toolkit.Combat
             float len2 = ab.LengthSquared();
             if (len2 < 1e-6f) return false;
 
-            foreach (var e in world.Query().With<PhysicsCollider>().With<SimTransform>().With<EntityInfo>().Build())
+            var bodies = Bodies.Of(world);
+            lock (bodies)
             {
-                if (e == shooter || e == target || RidesWith(world, shooter, e)) continue;
-                if (world.GetComponentRO<EntityInfo>(e).ForceId != force) continue;
-                // ⭐ CE-2338 — a friendly PERSON down (dead or incapacitated) lies on the floor: the round flies over him (CE-2318 — he is
-                //   Prone for the round). A hull, alive or wrecked, still holds it. 📌 bc-room-clear: two men down in room A's doorway
-                //   held every man behind them while the defenders shot them (entry men 5 rounds, defenders 20).
-                if (PhysicsColliderReaders.IsPerson(world, e) && !Injury.IsInTheFight(world, e)) continue;
-                float r = world.GetComponentRO<PhysicsCollider>(e).Radius;
-                if (r <= 0f) continue;
-                r = StrikeRadius(world, e);
-                var p3 = world.GetComponentRO<SimTransform>(e).Position;
-                var ap = new Vector2(p3.X, p3.Y) - a;
-                float t = Vector2.Dot(ap, ab) / len2;
-                if (t <= 0f || t >= 1f) continue;                 // behind the shooter or beyond the target
-                var closest = ab * t;
-                if (Vector2.DistanceSquared(closest, ap) < r * r) return true;
+                bodies.Refresh(world);
+                foreach (int k in bodies.Near(a, a + ab, 0f))
+                {
+                    var e = bodies.Grid.EntityAt(k);
+                    if (!world.IsAlive(e) || !world.HasComponent<PhysicsCollider>(e)) continue;
+                    if (e == shooter || e == target || RidesWith(world, shooter, e)) continue;
+                    if (world.GetComponentRO<EntityInfo>(e).ForceId != force) continue;
+                    // ⭐ CE-2338 — a friendly PERSON down (dead or incapacitated) lies on the floor: the round flies over him (CE-2318 — he is
+                    //   Prone for the round). A hull, alive or wrecked, still holds it. 📌 bc-room-clear: two men down in room A's doorway
+                    //   held every man behind them while the defenders shot them (entry men 5 rounds, defenders 20).
+                    if (PhysicsColliderReaders.IsPerson(world, e) && !Injury.IsInTheFight(world, e)) continue;
+                    float r = world.GetComponentRO<PhysicsCollider>(e).Radius;
+                    if (r <= 0f) continue;
+                    r = StrikeRadius(world, e);
+                    var p3 = world.GetComponentRO<SimTransform>(e).Position;
+                    var ap = new Vector2(p3.X, p3.Y) - a;
+                    float t = Vector2.Dot(ap, ab) / len2;
+                    if (t <= 0f || t >= 1f) continue;                 // behind the shooter or beyond the target
+                    var closest = ab * t;
+                    if (Vector2.DistanceSquared(closest, ap) < r * r) return true;
+                }
             }
             return false;
         }
@@ -171,19 +178,74 @@ namespace Fdp.Toolkit.Combat
             float len = MathF.Sqrt(len2);
             bool health = world.IsComponentTypeRegistered<Health>();
 
-            foreach (var e in world.Query().With<PhysicsCollider>().With<SimTransform>().With<EntityInfo>().Build())
+            var bodies = Bodies.Of(world);
+            lock (bodies)
             {
-                if (e == shooter || e == target) continue;
-                if (!Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, e) || !PhysicsColliderReaders.IsPerson(world, e)) continue;
-                if (health && world.HasComponent<Health>(e) && world.GetComponentRO<Health>(e).Current <= 0f) continue;
-                var p3 = world.GetComponentRO<SimTransform>(e).Position;
-                var ap = new Vector2(p3.X, p3.Y) - a;
-                float t = Vector2.Dot(ap, ab) / len2;
-                if (t <= 0f || t >= 1f) continue;                 // behind the shooter or beyond the target
-                float r = StrikeRadius(world, e) + MathF.Max(0f, sigma) * t * len;
-                if (Vector2.DistanceSquared(ab * t, ap) < r * r) return true;
+                bodies.Refresh(world);
+                foreach (int k in bodies.Near(a, a + ab, MathF.Max(0f, sigma) * len))
+                {
+                    var e = bodies.Grid.EntityAt(k);
+                    if (!world.IsAlive(e) || !world.HasComponent<PhysicsCollider>(e)) continue;
+                    if (e == shooter || e == target) continue;
+                    if (!Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, e) || !PhysicsColliderReaders.IsPerson(world, e)) continue;
+                    if (health && world.HasComponent<Health>(e) && world.GetComponentRO<Health>(e).Current <= 0f) continue;
+                    var p3 = world.GetComponentRO<SimTransform>(e).Position;
+                    var ap = new Vector2(p3.X, p3.Y) - a;
+                    float t = Vector2.Dot(ap, ab) / len2;
+                    if (t <= 0f || t >= 1f) continue;                 // behind the shooter or beyond the target
+                    float r = StrikeRadius(world, e) + MathF.Max(0f, sigma) * t * len;
+                    if (Vector2.DistanceSquared(ab * t, ap) < r * r) return true;
+                }
             }
             return false;
+        }
+
+        /// <summary>⭐ CE-2411 — how far a body may have moved within the frame and still be found where the frame's grid placed it.</summary>
+        public const float MovedSlackMetres = 4f;
+
+        /// <summary>
+        /// ⭐ CE-2411 — the bodies a round can meet (PhysicsCollider + SimTransform + EntityInfo — the set the full scan walked), in the
+        /// shared per-frame <see cref="Fdp.Toolkit.Spatial.FrameEntityGrid"/>; the walk's pad is the largest strike radius the build saw plus
+        /// <see cref="MovedSlackMetres"/>. 📐 The scan per shot was 18 % of the CGF node's thread on the CE-2408 stress world.
+        /// ⚠ One shared buffer per world: callers hold the lock across <see cref="Refresh"/>, <see cref="Near"/> and the walk of its result.
+        /// </summary>
+        internal sealed class Bodies
+        {
+            private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<EntityRepository, Bodies> s_of = new();
+            public readonly Fdp.Toolkit.Spatial.FrameEntityGrid Grid = new();
+            private EntityQuery? _query;
+            private float _maxStrike;
+
+            /// <summary>A rail sets it to walk every body (the old full scan) through the same rule, to compare the answers.</summary>
+            internal static bool EveryBodyForRails;
+
+            private static readonly Func<EntityRepository, Entity, bool> Member =
+                static (w, e) => w.HasComponent<PhysicsCollider>(e) && w.HasComponent<EntityInfo>(e);
+            public static Bodies Of(EntityRepository world) => s_of.GetValue(world, static _ => new Bodies());
+
+            public void Refresh(EntityRepository world)
+            {
+                var b = this;
+                b._query ??= world.Query().With<PhysicsCollider>().With<SimTransform>().With<EntityInfo>().Build();
+                if (b.Grid.EnsureFresh(world, b._query, Member))
+                {
+                    float max = 0f;
+                    for (int i = 0; i < b.Grid.Count; i++)
+                    {
+                        var e = b.Grid.EntityAt(i);
+                        if (world.GetComponentRO<PhysicsCollider>(e).Radius > 0f) max = MathF.Max(max, StrikeRadius(world, e));
+                    }
+                    b._maxStrike = max;
+                }
+            }
+
+            /// <summary>The bodies whose frame place lies within the largest strike radius (+ <paramref name="extra"/> + the slack) of a→b.</summary>
+            public ReadOnlySpan<int> Near(Vector2 a, Vector2 b, float extra)
+            {
+                if (EveryBodyForRails) { Grid.All(); return Grid.Found; }
+                Grid.Segment(a, b, _maxStrike + extra + MovedSlackMetres);
+                return Grid.Found;
+            }
         }
 
         /// <summary>

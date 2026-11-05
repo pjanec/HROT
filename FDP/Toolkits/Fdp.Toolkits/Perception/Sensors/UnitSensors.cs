@@ -1,3 +1,4 @@
+using System;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
@@ -17,15 +18,15 @@ namespace Fdp.Toolkit.Perception.Sensors
         /// <summary>The unit's sensor of <paramref name="kind"/> (the lowest part id when it has several), or <see cref="Entity.Null"/>.</summary>
         public static Entity Of(ISimulationView view, Entity unit, SensorModality kind)
         {
-            Entity best = Entity.Null;
-            int bestPart = int.MaxValue;
-            foreach (var e in view.Query().With<SensorTag>().With<PartMetadata>().Build())
-            {
-                ref readonly var meta = ref view.GetComponentRO<PartMetadata>(e);
-                if (!meta.ParentEntity.Equals(unit) || view.GetComponentRO<SensorTag>(e).Kind != kind) continue;
-                if (meta.InstanceId < bestPart) { best = e; bestPart = meta.InstanceId; }
-            }
-            return best;
+            // ⭐ CE-2412 — the unit's parts, lowest part id first, from the shared parts index (it scanned every sensor of the world per
+            //   call: 📐 11.5 % of the CGF node's thread on the CE-2408 stress world, the SOPs' danger-area check). The first match wins.
+            if (view is EntityRepository r && !r.IsComponentTypeRegistered<SensorTag>()) return Entity.Null;
+            Span<Entity> parts = stackalloc Entity[64];
+            int n = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(view, unit, parts);
+            if (n > parts.Length) { parts = new Entity[n]; n = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(view, unit, parts); }
+            for (int k = 0; k < n; k++)
+                if (view.HasComponent<SensorTag>(parts[k]) && view.GetComponentRO<SensorTag>(parts[k]).Kind == kind) return parts[k];
+            return Entity.Null;
         }
 
         /// <summary>
@@ -49,11 +50,17 @@ namespace Fdp.Toolkit.Perception.Sensors
 
             Entity best = Entity.Null;
             int bestRank = int.MaxValue, bestPart = int.MaxValue;
-            // A fresh query each call: an EntityQuery caches component-array pointers that a structural change can move.
-            foreach (var e in view.Query().With<EqsSensor>().With<PartMetadata>().Build())
+            // ⭐ CE-2412 — the unit's parts from the shared parts index (lowest part id first), not a scan of every sensor of the world.
+            if (view is EntityRepository r3 && !r3.IsComponentTypeRegistered<EqsSensor>()) return Entity.Null;
+            Span<Entity> parts = stackalloc Entity[64];
+            int n = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(view, unit, parts);
+            if (n > parts.Length) { parts = new Entity[n]; n = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(view, unit, parts); }
+            for (int k = 0; k < n; k++)
             {
+                var e = parts[k];
+                if (!view.HasComponent<EqsSensor>(e)) continue;
                 ref readonly var meta = ref view.GetComponentRO<PartMetadata>(e);
-                if (!meta.ParentEntity.Equals(unit) || view.GetComponentRO<EqsSensor>(e).BlueprintId != blueprintId) continue;
+                if (view.GetComponentRO<EqsSensor>(e).BlueprintId != blueprintId) continue;
                 int rank =
                     currentRun != 0 && ownership && view.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(e)
                         && view.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(e).OwnerInstanceId == currentRun ? 0

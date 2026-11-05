@@ -43,6 +43,10 @@ namespace Fdp.Toolkit.Traffic
         /// <summary>⭐ §15 K6 (P7) — at most this many pedestrians become our civilians per session; 0 = <see cref="DefaultMaxConverted"/>.</summary>
         public int MaxConverted;
 
+        /// <summary>⭐ CE-2408 (APPENDED, R-169) — how many cars SUMO may add per step while below <see cref="TargetCars"/>; 0 = SumoSharp's
+        /// default (5 ⇒ ~10 cars per sim second at a 0.5 s step: 5000 cars take ~500 s to fill). A stress scenario raises it.</summary>
+        public int CarSpawnPerStep;
+
         public const float DefaultShotPanicRadius = 50f;
         public const float DefaultBlastPanicRadius = 150f;
         public const int DefaultMaxConverted = 30;

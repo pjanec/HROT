@@ -672,6 +672,45 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
 
         /// <summary>
+        /// ⭐ CE-2414 — the door table is built once per frame and handed back while nothing of the doors changed (it walked every entity per
+        /// sight / fire query): a door written in the SAME frame is seen at once (R-220's hazard), as is a door entity destroyed or its
+        /// <see cref="DoorState"/> removed; an unchanged frame hands back the same table. 🔴 Red-proofs: the "written this frame" check
+        /// dropped ⇒ the same-frame lock is served stale; the alive check dropped ⇒ the destroyed door stays open.
+        /// </summary>
+        [Fact]
+        public void CE2414_TheDoorTable_IsHeldForTheFrame_AndEveryChangeWithinItIsSeen()
+        {
+            var w = TerrainWorldParser.Parse(OneDoorHouse, "range");
+            int door = w.DoorIndexOf("range/H/front");
+            using var repo = Fdp.Toolkit.Terrain.Tests.DoorFixtures.WorldWithDoors(w);
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new DoorState { State = TerrainDoorState.Open });
+            repo.SetManagedComponent(e, new TerrainObjectKey { Key = "range/H/front" });
+            repo.Tick();
+            var first = DoorStates.Of(repo, w);
+            Assert.Equal(TerrainDoorState.Open, first[door]);
+            Assert.Same(first, DoorStates.Of(repo, w));                                   // held
+
+            repo.Tick();
+            Assert.Same(first, DoorStates.Of(repo, w));                                   // a new frame, nothing changed: the same table
+            repo.SetComponent(e, new DoorState { State = TerrainDoorState.Locked });      // written within the frame, after the build
+            Assert.Equal(TerrainDoorState.Locked, DoorStates.Of(repo, w)[door]);
+
+            repo.Tick();
+            Assert.Equal(TerrainDoorState.Locked, DoorStates.Of(repo, w)[door]);
+            repo.RemoveComponent<DoorState>(e);                                           // no longer a door entity: authored again
+            Assert.Equal(TerrainDoorState.Closed, DoorStates.Of(repo, w)[door]);
+
+            repo.Tick();
+            repo.AddComponent(e, new DoorState { State = TerrainDoorState.Open });
+            Assert.Equal(TerrainDoorState.Open, DoorStates.Of(repo, w)[door]);
+            repo.Tick();
+            Assert.Equal(TerrainDoorState.Open, DoorStates.Of(repo, w)[door]);
+            repo.DestroyEntity(e);                                                        // destroyed within the frame: authored again
+            Assert.Equal(TerrainDoorState.Closed, DoorStates.Of(repo, w)[door]);
+        }
+
+        /// <summary>
         /// ⭐ R-219 — a view's door table comes from the door ENTITIES in that view: authored where there is none, the entity's state
         /// where there is one, keyed by <see cref="TerrainObjectKey"/>; a key the terrain does not define is ignored.
         /// </summary>

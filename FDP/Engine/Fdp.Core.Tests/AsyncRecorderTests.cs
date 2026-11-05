@@ -25,6 +25,48 @@ namespace Fdp.Tests
             }
         }
         
+        /// <summary>
+        /// ⭐ CE-2409 (DESIGN_Paused_And_Stepped_Execution F9) — a frame BIGGER than the recorder's buffer is recorded and plays back: the
+        /// buffers grow. 📐 It was a fixed 32 MB array; the CE-2408 stress world (~1100 soldiers) wrote a bigger keyframe and the CGF node died
+        /// ("Memory stream is not expandable"). Here the starting size is 4 KB and the keyframe ~60 KB, then deltas that change every entity.
+        /// 🔴 Red-proof: the streams back to fixed arrays (<c>new MemoryStream(new byte[initial])</c>) ⇒ the first keyframe throws.
+        /// </summary>
+        [Fact]
+        public void AFrameBiggerThanTheBuffer_IsRecordedAndPlaysBack()
+        {
+            int saved = AsyncRecorder.InitialBufferSize;
+            AsyncRecorder.InitialBufferSize = 4 * 1024;
+            try
+            {
+                using var repo = new EntityRepository();
+                repo.RegisterComponent<Position>();
+                var units = new Entity[5000];
+                for (int i = 0; i < units.Length; i++) { units[i] = repo.CreateEntity(); repo.AddComponent(units[i], new Position { X = i }); }
+                using (var recorder = new AsyncRecorder(_testFilePath))
+                {
+                    repo.Tick();
+                    recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
+                    for (int f = 1; f <= 3; f++)
+                    {
+                        uint prev = repo.GlobalVersion;
+                        repo.Tick();
+                        for (int i = 0; i < units.Length; i++) repo.GetComponentRW<Position>(units[i]).Y = f;
+                        recorder.CaptureFrame(repo, prev, DateTime.UtcNow.Ticks, blocking: true);
+                    }
+                    Assert.Null(recorder.LastError);
+                }
+                using var target = new EntityRepository();
+                target.RegisterComponent<Position>();
+                using var reader = new RecordingReader(_testFilePath);
+                int frames = 0;
+                while (reader.ReadNextFrame(target)) frames++;
+                Assert.Equal(4, frames);
+                Assert.Equal(4999f, target.GetComponentRO<Position>(units[4999]).X);
+                Assert.Equal(3f, target.GetComponentRO<Position>(units[4999]).Y);
+            }
+            finally { AsyncRecorder.InitialBufferSize = saved; }
+        }
+
         [Fact]
         public void Constructor_WritesGlobalHeader()
         {

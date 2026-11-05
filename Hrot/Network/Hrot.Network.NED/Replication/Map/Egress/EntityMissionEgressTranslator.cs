@@ -25,6 +25,9 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public class EntityMissionEgressTranslator : IDescriptorTranslator
     {
+        // ⭐ CE-2407 (DESIGN_Egress_Change_Detection §5, E1) — skips the entities none of these inputs changed for; NetworkIdentity is implied
+        private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(MissionPlanQueue), typeof(ActiveMissionPlan));
+
         private readonly DdsWriter<EntityMission> _writer;
         private readonly NetworkEntityMap _entityMap;
         private readonly BehaviorRegistry? _behaviorRegistry;
@@ -72,8 +75,10 @@ namespace Hrot.Map.Common.Replication.Egress
 
             long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
+            _gate.Begin(view);
             foreach (var entity in query)
             {
+                if (!_gate.Visit(entity)) continue;   // ⭐ CE-2407 E1 — nothing this translator reads has changed since its last scan
                 // Authority check: only publish if we own the mission descriptor for this entity.
                 if (!view.HasAuthority(entity, packedKey))
                     continue;

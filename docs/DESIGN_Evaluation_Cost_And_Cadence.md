@@ -155,6 +155,22 @@ each DLL, the Stride app, a Release/Debug difference) and needs ONE timing on th
 first frame; `BlackboardVariableEntry.DefaultValueJson` has 124 readers ⇒ a model change, not an overnight one) · **② one shared assembly /
 type index** for the registries that each scan (the user's suspicion; ≈ 0.9 s of reflection here) · ③ the serializer builder's 0.7 s.
 
+### 0g. ⭐ WHERE WE STAND — Crossfire, the programme's start vs now *(`2026-11-05`)*
+
+📐 The editor (`--mode editor`, Xvfb, cloud VM), `showcase-crossfire` played 100 s, `HROT_FRAME_STATS` means over the last ~70 s; the
+runner built from `1dc624053` (the approval of this design, before any of its code) and from `2379b92e7` (CE-2382…2406 — E1 not yet
+built), run ALTERNATELY on the same machine (`scratchpad perf-ab.py`):
+
+| run | frame mean | p50 | p95 | update | draw | ui | entities at 100 s |
+|---|---|---|---|---|---|---|---|
+| base 1 | 83.9 | 82.3 | 112.5 | 57.1 | 1.5 | 7.5 | 485 |
+| now 1 | **49.8** | 48.7 | 64.4 | **24.7** | 1.4 | 6.8 | 487 |
+| base 2 | 85.3 | 82.1 | 114.4 | 59.0 | 1.5 | 7.7 | 515 |
+| now 2 | **53.5** | 51.8 | 72.5 | **27.6** | 1.5 | 6.9 | 540 |
+
+⇒ ⭐ **frame 84.6 → 51.7 ms (≈ 12 → 19 fps, 1.64×); update 58 → 26 ms (2.2×); p95 113 → 68 ms.** ⚠ Still above 33 ms (30 Hz) — the
+next levers: E1 (egress, §DESIGN_Egress_Change_Detection §5), and a stress target (§11, CE-2408).
+
 ## 1. INVENTORY (the queries this design rests on)
 
 | question | query | result |
@@ -704,3 +720,193 @@ how many projectors run inside it changes.*
 Rejected: **the existing budget slicing** (`MaxGizmoFrameMs`) — sheds by not drawing ⇒ flicker, and the shed set depends on wall-clock ·
 **render the map to a texture at a reduced rate** — the map's camera would lag; a ui-lane change of the renderer · **skip the whole group on
 some frames** — the buffer is cleared every frame, so the map would blink, and the tools' hit-test would miss.
+
+## 11. The STRESS target — 1000 thinking soldiers + objectives + 5000 SUMO cars at 30 Hz *(CE-2408, `2026-11-05`)*
+
+⭐ User: *"we need artificial stress test with 1000 thinking entities and with some objectives and around 5000 sumo cars to set a real
+target - 30 hz frames to keep looking for improvements."*
+
+**Prior art (explorer sweep, `2026-11-05`):** `scripts/perf-civilians.py` (CE-3222, N civilians, `/diagnostics/architecture`, R-3029's
+regression ceiling) is the template; demo-city is the only terrain with a SUMO net; a scenario turns traffic on with one TKB 8850 entity
+carrying `TrafficDemand`; SumoSharp adds at most `CarSpawnPerStep` (5) cars a step, so 5000 cars took ~500 s to fill; the largest runs
+so far were 500 civilians and 200 cars.
+
+| piece | built as |
+|---|---|
+| the scenario | `scripts/perf-stress.py` writes `scenarios/perf-stress` (deterministic): 2 sides × 62 squads × 8 men (TKB 302 + 2002, the Crossfire soldier) on demo-city's streets, `SquadDefend` on six points, health 100 000 (the fight stays a constant load) · six `HoldArea` + two `Counter` + a kick-off `Trigger` (a FIXED rule set) · `TrafficDemand { TargetCars 5000, CarSpawnPerStep 200 }` |
+| `TrafficDemand.CarSpawnPerStep` | APPENDED (R-169) to the component, the `EntityTrafficDemand` wire and both translators; `TrafficSession` passes it to SumoSharp (0 = its default 5) |
+| the run | one node per process (orchestrator, cgf, simhost, traffic — `scripts/cluster-node.sh`), load, play, wait for the fill, measure |
+| ⭐ the TARGET | each node's **work per frame** — the sum of its leaf systems' recent averages (the scheduler's own profiler) — **≤ 33.3 ms**: that node alone holds 30 Hz on its own machine. ⚠ On the 4-core cloud VM the nodes share cores, so the achieved frames per wall second is printed but is NOT the target |
+
+### 11a. 📐 BASELINE — the first valid run *(`2026-11-05`, cloud VM 4 cores; `python3 scripts/perf-stress.py`)*
+
+⚠ The first run found a CRASH, not a number: the recorder's fixed 32 MB frame buffer overflowed on the keyframe and the CGF node died
+(fixed: CE-2409). The second run held real time (68.3 s of sim in 68.7 s of wall; CGF 7 499 entities, SimHost 4 187, traffic 4 786):
+
+| node | work / frame (target ≤ 33.3) | largest systems (ms / frame) |
+|---|---|---|
+| **CGF** | **2 008** (0.9 frames/s achieved) | `CalloutSystem` **870** · `StressSystem` **425** · `WeaponDispatcherSystem` 208 · `BrainTickSystem` 187 · `RecorderTickSystem` 66 · `TrafficMirrorSystem` 59 |
+| SimHost | 334 (4.1 frames/s) | `TrafficMirrorSystem` 70 · `CycloneEgressSystem` 57 · `RecorderTickSystem` 43 · `FireProcessingSystem` 35 · `CarKinematicsSystem` 13 |
+| traffic | 188 (6.5 frames/s) | `TrafficMirrorSystem` 109 · `CycloneEgressSystem` 27 · `RecorderTickSystem` 24 |
+
+⇒ ⭐ **the target is ~60× away on the brain node.** ⭐ Two systems are 65 % of it and look quadratic in the soldiers (`CalloutSystem`,
+`StressSystem`) — the first levers; then the weapon dispatcher and the brains; `TrafficMirrorSystem` is the largest on the other two nodes.
+
+### 11b. 📐 The levers so far — each found by a trace, each a per-frame index in place of a whole-world scan per question *(`2026-11-05`)*
+
+⭐ Method: `python3 scripts/perf-stress.py --trace <dir>` records 15 s of `dotnet-trace` per node; the CGF's thread is split by caller.
+⭐ The pattern every lever so far had: **a question asked per soldier per frame, answered by scanning the whole world** — quadratic in the
+soldiers. ⭐ The answer each time: one per-frame index, every candidate re-checked LIVE, so no rule's filter goes stale.
+
+| | the scan | share of the CGF thread | became |
+|---|---|---|---|
+| CE-2410 | `WeaponMountQuery.EnumerateMounts` (callouts' grenade count, the weapon dispatcher, the throw choice) | 44 % | a per-world mount index (owners counting-sorted) |
+| CE-2410 | `UnderFire.FriendNear` (callouts' earshot, stress "alone") | 9 % | the shared frame grid (below) |
+| CE-2411 | `LineOfFire.BlockedByFriendly` / `BlockedByNeutral` (every shot) | 18 % | the shared frame grid, walked along the line |
+| CE-2414 | `DoorStates.Of` + `CloudTable.Build` per sight / fire query (each walked every entity) | ~15 % of SimHost | per-thread tables held for the frame by one `FrameStamp` check (a write within the frame rebuilds) |
+| CE-2413 | `TrafficReplicas.NearestAnchor2` (AQ93's vicinity band: every SUMO car × every HROT body, every node) | ~20 % of the traffic node | the shared frame grid, 350 m cells, `AnyWithin` (yes/no, first hit) |
+| CE-2412 | `UnitSensors.Of` (the SOPs' danger-area check) — and the other "parts of this parent" scans | 11.5 % | ⭐ one shared parts-by-parent index (§11c) |
+
+| run | CGF work / frame | top systems |
+|---|---|---|
+| baseline (§11a) | **2 008 ms** | Callout 870 · Stress 425 · WeaponDispatcher 208 · BrainTick 187 |
+| after CE-2410 | **1 067 ms** | WeaponDispatcher 308 · BrainTick 218 · Callout 169 · TrafficMirror 77 · Recorder 73 |
+| after CE-2411 ⚠ | **1 067 ms** | Callout **376** · BrainTick 226 · Recorder 101 · TrafficMirror 59 · egress 51 · WeaponDispatcher **47** |
+
+| ⭐ after CE-2412 | **599 ms** (3.4× the baseline) | BrainTick 113 · TrafficMirror 79 · Recorder 73 · WeaponDispatcher 57 · egress 54 · Callout 41 — SimHost 506 (FireProcessing 100, TrafficMirror 97, egress 90), traffic 362 (TrafficMirror 180) |
+
+| ⭐ after CE-2413 + CE-2414 | **468 ms** (4.3× the baseline) | BrainTick 91 · Recorder 75 · egress 55 · WeaponDispatcher 43 · Stress 27 · Callout 23 — SimHost **309** (egress 84, Recorder 58, FireProcessing **20**), traffic 239 (TrafficMirror 76 — SUMO's own pose resolve now, egress 57, Recorder 43) |
+
+⭐ After CE-2414 the top of every node is the PER-ENTITY INFRASTRUCTURE — egress (55–84 ms) and the recorder (43–75 ms) — plus the brains'
+real work; no remaining whole-world scan was found by the traces. ⚠ The entity counts differ run to run (CGF 6 900–8 100) as the fight and
+the traffic fill vary — compare runs by the shape, not the last digit.
+
+⭐ The brain node no longer has one dominant scan: its top six are 41–113 ms each. ⭐ `TrafficMirrorSystem` is now in the top two on EVERY node
+(79 / 97 / 180 ms) — the next lever. ⚠ One run before this one was INVALID: the cluster clock stopped at ~4.5 s for two minutes (the traffic
+node's `TrafficStepping` circuit opened on Timeout / StillRunning; the CGF's time-sync RTTs reached 250–350 ms); the re-run on the same
+commit held real time. Not reproduced — recorded on CE-2408 as an intermittent to watch.
+
+⚠ The CE-2411 run: the line of fire went 308 → 47 ms, but `CalloutSystem` rose 169 → 376 — the trace puts it in CE-2410's private mount index
+REBUILDING PER CALL (its "a mount or part table written this frame" check was true all frame on this world). ⇒ CE-2412 retires it onto the
+parts index, which rebuilds per part ADDED, not per write. (That run also shared the VM's cores with a test build.)
+
+```mermaid
+classDiagram
+    class EntityRepository {
+        +GlobalVersion uint
+        +StructuralChanges long
+    }
+    class FrameEntityGrid {
+        +EnsureFresh(world, set, member) bool
+        +Circle(at, radius) int
+        +Segment(a, b, pad) int
+        +Found ReadOnlySpan~int~
+        +EntityAt(entry) Entity
+        -late list
+    }
+    class UnderFire {
+        +FriendNear(world, self, at, radius) bool
+    }
+    class LineOfFire {
+        +BlockedByFriendly(...)
+        +BlockedByNeutral(...)
+    }
+    class SpatialHashGrid {
+        collider broadphase for rounds
+        SimHost only
+    }
+    UnderFire ..> FrameEntityGrid : men grid
+    LineOfFire ..> FrameEntityGrid : bodies grid
+    FrameEntityGrid ..> EntityRepository : frame and structure clocks
+```
+*What the picture shows that prose hid: the two rules share ONE grid type (ruling 9), and the CarKinem `SpatialHashGrid` stays beside it
+deliberately — a different contract (fixed extent with a capacity, hidden passengers left out, SimHost only), named in its doc.*
+
+| ⭐ `FrameEntityGrid` (CE-2411) — the contract | |
+|---|---|
+| rebuilt | when `GlobalVersion` moves (once per frame) |
+| within the frame | when `EntityRepository.StructuralChanges` (NEW, CE-2411: moves on every `LastChangeTick` stamp and on destroy) moved, the entities structurally changed this frame are looked at; a member the build did not place joins a LATE list every walk checks — ⛔ not a rebuild per creation (a shot or a call adding a component would rebuild 7 500 bodies) |
+| a candidate | every member within the walk's reach; the caller re-reads it live (alive, components, position, force, state) |
+| ⚠ the frame's | the CELL a member sits in: a member moved within the frame is found within the caller's slack (`MovedSlackMetres` = 4 m) |
+| no allocation | once grown (rails assert it) |
+
+Rejected: **`SpatialHashSystem` on the CGF** — its set differs (hidden passengers out, out-of-extent dropped), so the hold-fire answers would
+change; and it is a host-plan change. **A rebuild on every structural change** — the measured CGF frame adds components while it fires.
+**A third private grid** — two copies of one mechanism.
+
+### 11c. The parts index — ONE answer to "the parts of this parent" *(CE-2412, `2026-11-05`)*
+
+📐 INVENTORY (grep `ParentEntity.Equals(` / `==` outside tests; `search_graph .*(PartsOf|ChildrenOf|PartIndex|ChildIndex|Parts)$`): **15 scan
+sites** over every part of the world per call, and **two private indexes** (CE-2410's `MountIndex`, CE-3242's `SensorChildFactory.ChildIndex`).
+⭐ `PartMetadata` is the one part link the designs use for mounts (Weapon Layers, 2000 + index), turrets and sensors (Sensors & Doctrine, 1000 + i).
+
+```mermaid
+classDiagram
+    class PartMetadata {
+        <<existing>>
+        ParentEntity
+        InstanceId
+    }
+    class EntityRepository {
+        +ComponentsAddedOf(typeId) long
+    }
+    class PartIndex {
+        +PartsOf(view, parent, dest)$ int
+        +Of(repo)$ PartIndex
+    }
+    class WeaponMountQuery {
+        +EnumerateMounts(repo, owner, dest)
+    }
+    class UnitSensors {
+        +Of(view, unit, kind)
+        +OfTemplate(view, unit, blueprintId)
+    }
+    class SensorChildFactory {
+        +Find(view, parent, partId)
+    }
+    class EqsChildSensor {
+        +Find()
+        +AllocatePartId()
+    }
+    class EqsKnownThreats {
+        +Collect()
+    }
+    PartIndex ..> PartMetadata : indexes
+    PartIndex ..> EntityRepository : frame and part-added clocks
+    WeaponMountQuery ..> PartIndex
+    UnitSensors ..> PartIndex
+    SensorChildFactory ..> PartIndex
+    EqsChildSensor ..> PartIndex
+    EqsKnownThreats ..> PartIndex
+```
+*What the picture shows that prose hid: five askers, one index, and both private indexes gone — each asker keeps only its own filter
+(a mount, a sensor kind, a template, a run's stamp).*
+
+| ⭐ the contract | |
+|---|---|
+| order | lowest `InstanceId` first, ties in entity order — what each scan's "lowest id wins" / "first match" kept |
+| rebuilt | once per frame, and when a `PartMetadata` is ADDED (the NEW `EntityRepository.ComponentsAddedOf(typeId)`) — a part created this frame is found at once; a load that creates parts rebuilds per part, not per question |
+| every hit | re-checked live: alive, still `PartMetadata`, still this parent |
+| ⚠ a re-parent by VALUE write | leaves the old parent at once, joins the new one next frame — 📐 no production writer re-parents (every writer adds) |
+| a snapshot view | the fallback scan, in the same order — the one copy of it |
+| not yet moved | `UtilityScorer` (its candidate order feeds tie-breaks — moving it needs its own rail), `TurretParts`, `BehaviorOwnedParts`, `HearingExplain`, the debug API, `SimHostApp`, the EQS config ingress — not per-frame on the stress world |
+
+Rejected: **a change check on the tables** (CE-2410's) — a table written every frame rebuilt it per call (the CE-2411 run).
+**Keeping `ChildIndex` beside it** — two indexes of one relation. **A rebuild on every structural change** — the frame adds components while it runs.
+
+### 11d. ⏳ PROPOSAL — rare-component queries skip empty chunks *(not built; a user decision — FDP core, every query)*
+
+📐 `EntityQuery` walks EVERY entity's mask (`EntityQuery.cs:156-183`, an index walk): a query for a component three entities carry costs
+the same ~8 000 mask checks as one every entity carries. `EntityEnumerator.MoveNext` was 8–11 % of the CGF and SimHost threads in every
+stress trace — the cost under each "scan" CE-2410…CE-2414 removed, and under every scan not yet found.
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| component tables keep no per-chunk population | ✅ `NativeChunkTable._populationCounts` is maintained only for the ENTITY INDEX (`EntityIndex.cs:103-177, 483-634`) | ⛔ searched `docs/`, none |
+| a count kept on every add / remove / destroy / restore / snapshot copy would let `MoveNext` skip a whole chunk with none of the query's rarest included component | ✅ the add points are the `ComponentsAddedOf` stamps (CE-2412); destroy clears the mask in one place (`EntityIndex.DestroyEntity`); restore re-derives the masks (`EntityIndex.cs:602-634`) | ⛔ none |
+| ⚠ an UNDER-count drops entities from queries, silently | ⛔ the failure mode is a missing entity anywhere in the engine | — |
+
+⭐ **Lean: build it — behind a randomized equivalence rail (every query form, add / remove / destroy / restore / snapshot copy against
+the plain walk) and a debug cross-check mode — as its own item, with the user's nod first.** What would change the lean: a measured
+query mix where the rarest included component is usually dense (then it saves little). Rejected: per-call caches at each asker
+(CE-2410…CE-2414 did that where a scan was hot; it does not reach the long tail).

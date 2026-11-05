@@ -54,6 +54,7 @@ public sealed class TrafficSession : IDisposable
             NetPath = key.NetFile,
             NavMode = PedNavMode.RouteGraph,
             CarTargetConcurrent = Math.Max(0, demand.TargetCars),
+            CarSpawnPerStep = demand.CarSpawnPerStep > 0 ? demand.CarSpawnPerStep : new LiveCityConfig().CarSpawnPerStep,   // ⭐ CE-2408
             CarRngSeed = 0x243F6A8885A308D3UL ^ demand.Seed,
             Dt = demand.StepSeconds > 0f ? demand.StepSeconds : TrafficDemand.Default.StepSeconds,
             PedPopulationCap = peds ? demand.TargetPedestrians : 0,

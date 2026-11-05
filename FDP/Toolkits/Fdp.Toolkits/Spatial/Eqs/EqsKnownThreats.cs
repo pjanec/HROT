@@ -26,9 +26,15 @@ namespace Fdp.Toolkit.Spatial.Eqs
             bool parts = view is not EntityRepository repo
                          || (repo.IsComponentTypeRegistered<PartMetadata>() && repo.IsComponentTypeRegistered<SensorContactList>());
             if (parts)
-                foreach (var child in view.Query().With<PartMetadata>().With<SensorContactList>().Build())
-                    if (view.GetComponentRO<PartMetadata>(child).ParentEntity.Equals(self))
-                        Add(view, in view.GetComponentRO<SensorContactList>(child), factionFilter, ids, ref threats);
+            {
+                // ⭐ CE-2412 — the unit's parts from the shared parts index (lowest part id first), not a scan of every sensor of the world.
+                Span<Entity> children = stackalloc Entity[64];
+                int n = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(view, self, children);
+                if (n > children.Length) { children = new Entity[n]; n = Fdp.Toolkit.Replication.Utilities.PartIndex.PartsOf(view, self, children); }
+                for (int k = 0; k < n; k++)
+                    if (view.HasComponent<SensorContactList>(children[k]))
+                        Add(view, in view.GetComponentRO<SensorContactList>(children[k]), factionFilter, ids, ref threats);
+            }
             return threats;
         }
 

@@ -189,6 +189,32 @@ namespace Fdp.Core
         /// Total number of active entities.
         /// </summary>
         public int EntityCount => _entityIndex.ActiveCount;
+
+        private long _structuralChanges;
+
+        /// <summary>
+        /// ⭐ <c>CE-2411</c> — a counter that moves on every STRUCTURAL change: an entity created, hydrated or destroyed, a component coming
+        /// or going, a lifecycle / DIS-type change (every <c>LastChangeTick</c> stamp, plus destroy). Never on a value write.
+        /// <para>For a per-frame index (<c>FrameEntityGrid</c>, the parts index) to know the world's SHAPE moved within the frame — where the
+        /// entity count cannot tell (a destroy and a create recycle the same index). Monotonic; not recorded, not restored.</para>
+        /// </summary>
+        public long StructuralChanges => _structuralChanges;
+
+        private long[] _addedByType = new long[64];
+
+        private void BumpType(int typeId)
+        {
+            if ((uint)typeId >= (uint)_addedByType.Length) Array.Resize(ref _addedByType, Math.Max(typeId + 1, _addedByType.Length * 2));
+            _addedByType[typeId]++;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2412</c> — a counter that moves whenever a component of type id <paramref name="typeId"/> is ADDED to an entity (it was not
+        /// there). For a per-frame index over one component's entities (the parts index over <c>PartMetadata</c>) to learn, cheaply and
+        /// exactly, that a new member may have joined within the frame — removals and destroys need no signal (a reader re-checks every
+        /// hit live). Monotonic; not recorded, not restored.
+        /// </summary>
+        public long ComponentsAddedOf(int typeId) => (uint)typeId < (uint)_addedByType.Length ? _addedByType[typeId] : 0L;
         
         /// <summary>
         /// Highest entity index ever issued (for iteration bounds).
@@ -307,7 +333,7 @@ namespace Fdp.Core
              // 2. Set default metadata
              ref var meta = ref _entityIndex.GetMetadata(id);
              meta.LifecycleState = EntityLifecycle.Active;
-             meta.LastChangeTick = _globalVersion;
+             meta.LastChangeTick = _globalVersion; _structuralChanges++;
              
              var entity = new Entity(id, (ushort)generation);
 
@@ -332,7 +358,7 @@ namespace Fdp.Core
         {
             var entity = _entityIndex.CreateEntity();
             ref var meta = ref _entityIndex.GetMetadata(entity.Index);
-            meta.LastChangeTick = _globalVersion;
+            meta.LastChangeTick = _globalVersion; _structuralChanges++;
             meta.LifecycleState = EntityLifecycle.Active; // Default to Active
             
             // Emit Lifecycle Event
@@ -358,7 +384,7 @@ namespace Fdp.Core
             
             ref var meta = ref _entityIndex.GetMetadata(entity.Index);
             meta.LifecycleState = state;
-            meta.LastChangeTick = _globalVersion;
+            meta.LastChangeTick = _globalVersion; _structuralChanges++;
         }
 
         /// <summary>
@@ -451,7 +477,7 @@ namespace Fdp.Core
             
             ref var meta = ref _entityIndex.GetMetadata(entity.Index);
             meta.DisType = type;
-            meta.LastChangeTick = _globalVersion;
+            meta.LastChangeTick = _globalVersion; _structuralChanges++;
         }
 
         /// <summary>
@@ -566,6 +592,7 @@ namespace Fdp.Core
             }
             
             _entityIndex.DestroyEntity(entity);
+            _structuralChanges++;
         }
         
         /// <summary>
@@ -1020,7 +1047,8 @@ namespace Fdp.Core
         {
             if (mask.IsSet(typeId)) return;
             mask.SetBit(typeId);
-            _entityIndex.GetMetadata(entityIndex).LastChangeTick = _globalVersion;
+            _entityIndex.GetMetadata(entityIndex).LastChangeTick = _globalVersion; _structuralChanges++;
+            BumpType(typeId);
         }
 
         /// <summary>
@@ -1065,7 +1093,7 @@ namespace Fdp.Core
             // Clear component mask bit
             ref var compMask = ref _entityIndex.GetComponentMask(entity.Index);
             compMask.ClearBit(ComponentType<T>.ID);
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion; _structuralChanges++;
             
             // Note: Component data is not cleared for performance
             // It will be overwritten if component is re-added
@@ -1389,7 +1417,10 @@ namespace Fdp.Core
 
             // ⭐ CE-3243 — structural stamp only when the component comes or goes (see StampIfAdded)
             if (had != (value != null))
-                _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            {
+                _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion; _structuralChanges++;
+                BumpType(ManagedComponentType<T>.ID);
+            }
         }
 
         // ================================================
@@ -1430,7 +1461,7 @@ namespace Fdp.Core
             // Update component mask
             ref var compMaskR = ref _entityIndex.GetComponentMask(entity.Index);
             compMaskR.ClearBit(ManagedComponentType<T>.ID);
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion; _structuralChanges++;
         }
         
         /// <summary>
@@ -1815,7 +1846,8 @@ namespace Fdp.Core
             
             // Update component mask
             _entityIndex.GetComponentMask(entity.Index).SetBit(typeId);
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion; _structuralChanges++;
+            BumpType(typeId);
         }
         
         /// <summary>
@@ -1923,7 +1955,7 @@ namespace Fdp.Core
             
             // Clear component mask bit
             _entityIndex.GetComponentMask(entity.Index).ClearBit(typeId);
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion; _structuralChanges++;
         }
         
         /// <summary>
@@ -1947,7 +1979,8 @@ namespace Fdp.Core
             // Update component mask
             ref var header2 = ref _entityIndex.GetComponentMask(entity.Index);
             header2.SetBit(typeId);
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion; _structuralChanges++;
+            BumpType(typeId);
         }
         
         /// <summary>
@@ -1971,7 +2004,8 @@ namespace Fdp.Core
             // Update component mask
             ref var header2b = ref _entityIndex.GetComponentMask(entity.Index);
             header2b.SetBit(typeId);
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion; _structuralChanges++;
+            BumpType(typeId);
         }
         
         /// <summary>
@@ -1995,7 +2029,7 @@ namespace Fdp.Core
             // Clear component mask bit
             ref var header2c = ref _entityIndex.GetComponentMask(entity.Index);
             header2c.ClearBit(typeId);
-            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion; _structuralChanges++;
         }
         
         // =========================================================

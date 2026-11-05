@@ -16,11 +16,16 @@ namespace Fdp.Core.FlightRecorder
     /// </summary>
     public class AsyncRecorder : IDisposable
     {
-        private const int BUFFER_SIZE = 32 * 1024 * 1024; // 32MB Buffer
-        
-        // Double Buffers (pre-allocated)
-        private byte[] _frontBuffer;
-        private byte[] _backBuffer;
+        private const int BUFFER_SIZE = 32 * 1024 * 1024; // 32MB Buffer — the STARTING size of each frame buffer
+
+        /// <summary>⭐ CE-2409 — the frame buffers' starting size (tests use a small one to prove a frame may outgrow it).</summary>
+        internal static int InitialBufferSize { get; set; } = BUFFER_SIZE;
+
+        // ⭐ CE-2409 (DESIGN_Paused_And_Stepped_Execution F9, R0) — the two frame buffers GROW: a frame is written into an expandable
+        //   MemoryStream and the worker gets that stream's array. 📐 It was a fixed 32 MB array; the CE-2408 stress world (~1100 soldiers)
+        //   wrote a bigger keyframe and the CGF node died ("Memory stream is not expandable"). ⛔ Not a retry: recording a delta updates
+        //   the recorder's comparison state, so a retried frame would silently drop chunks. Growth allocates only when a frame is bigger
+        //   than any before it.
         // ⭐ CE-2045 — one long-lived stream + writer per buffer, swapped WITH it: a frame rewinds instead of allocating a
         //   MemoryStream and a BinaryWriter (104 B/frame on the hot path, measured). Fdp.Core.md: "no heap allocation on the hot path".
         // ⭐ CE-2045 — the worker's arguments live in fields and its delegate is cached, so a dispatch allocates only the Task
@@ -33,9 +38,6 @@ namespace Fdp.Core.FlightRecorder
         private BinaryWriter _frontWriter;
         private MemoryStream _backStream;
         private BinaryWriter _backWriter;
-        
-        // Pre-allocated write buffer with 4-byte header space (zero-allocation)
-        private readonly byte[] _writeBuffer;
         
         private Task? _workerTask;
         private readonly FileStream _outputStream;
@@ -109,16 +111,14 @@ namespace Fdp.Core.FlightRecorder
             _metadata = metadata ?? new RecordingMetadata();
             if (_metadata.Timestamp == default) _metadata.Timestamp = DateTime.UtcNow;
 
-            _frontBuffer = new byte[BUFFER_SIZE];
-            _backBuffer = new byte[BUFFER_SIZE];
-            _frontStream = new MemoryStream(_frontBuffer);
+            int initial = Math.Max(1024, InitialBufferSize);
+            _frontStream = new MemoryStream(initial);   // expandable (CE-2409); GetBuffer() is the array the worker reads
             _frontWriter = new BinaryWriter(_frontStream);
-            _backStream  = new MemoryStream(_backBuffer);
+            _backStream  = new MemoryStream(initial);
             _backWriter  = new BinaryWriter(_backStream);
-            _writeBuffer = new byte[BUFFER_SIZE + 4]; // Pre-allocate for length prefix
-            
-            // Allocate compression buffer (Worst case size)
-            int maxOutput = K4os.Compression.LZ4.LZ4Codec.MaximumOutputSize(BUFFER_SIZE);
+
+            // Allocate compression buffer (worst case for the starting size; the worker grows it for a bigger frame)
+            int maxOutput = K4os.Compression.LZ4.LZ4Codec.MaximumOutputSize(initial);
             _compressedBuffer = new byte[maxOutput];
             
             _recorderSystem = new RecorderSystem();
@@ -202,10 +202,7 @@ namespace Fdp.Core.FlightRecorder
             // ⭐ CE-3335 — the recorder keeps its own mark in the world's destruction log (RecorderSystem); ⛔ it no longer empties it
             
             // 3. SWAP POINTERS
-            var dataToWrite = _frontBuffer;
-            var freeBuffer = _backBuffer;
-            _frontBuffer = freeBuffer;
-            _backBuffer = dataToWrite;
+            var dataToWrite = _frontStream.GetBuffer();   // ⭐ CE-2409 — the stream's (possibly grown) array
             (_frontStream, _backStream) = (_backStream, _frontStream);
             (_frontWriter, _backWriter) = (_backWriter, _frontWriter);
             
@@ -242,10 +239,7 @@ namespace Fdp.Core.FlightRecorder
             // ⭐ CE-3335 — the keyframe moved the recorder's destruction mark; ⛔ the world's log is no longer emptied here
             
             // Swap and dispatch
-            var dataToWrite = _frontBuffer;
-            var freeBuffer = _backBuffer;
-            _frontBuffer = freeBuffer;
-            _backBuffer = dataToWrite;
+            var dataToWrite = _frontStream.GetBuffer();   // ⭐ CE-2409 — the stream's (possibly grown) array
             (_frontStream, _backStream) = (_backStream, _frontStream);
             (_frontWriter, _backWriter) = (_backWriter, _frontWriter);
             
@@ -311,6 +305,8 @@ namespace Fdp.Core.FlightRecorder
 
                 // 2. COMPRESS
                 // Compress the ENTIRE frame (including Tick/Type because PlaybackSystem expects them)
+                int need = K4os.Compression.LZ4.LZ4Codec.MaximumOutputSize(length);
+                if (_compressedBuffer.Length < need) _compressedBuffer = new byte[need];   // ⭐ CE-2409 — a frame bigger than any before
                 int encodedLength = K4os.Compression.LZ4.LZ4Codec.Encode(
                     rawData, 0, length, 
                     _compressedBuffer, 0, _compressedBuffer.Length);
