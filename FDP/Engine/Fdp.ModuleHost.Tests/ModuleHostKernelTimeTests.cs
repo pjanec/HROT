@@ -268,6 +268,40 @@ namespace Fdp.ModuleHost.Tests
         }
 
         /// <summary>
+        /// ⭐ CE-4158 — a stepped step that WAITS for a background job must not need the caller's synchronisation context. xUnit runs
+        /// tests under a context with a few threads; the kernel's job awaited without <c>ConfigureAwait(false)</c> posted its
+        /// continuation back to that context while <c>WaitForRun</c> blocked the very thread it needed ⇒ the full cluster batch hung.
+        /// Here the context never runs what is posted to it: the step must still return.
+        /// </summary>
+        [Fact]
+        public void CE4158_ASteppedWait_DoesNotNeedTheCallersSynchronisationContext()
+        {
+            var (kernel, world, clock, module) = SteppedKernel(sleepMs: 50);
+            Exception? failure = null;
+            var thread = new System.Threading.Thread(() =>
+            {
+                System.Threading.SynchronizationContext.SetSynchronizationContext(new NeverPumpedContext());
+                try
+                {
+                    Step(kernel, clock, 1f / 60f);          // step 1: the job is dispatched from under the dead context
+                    Step(kernel, clock, 1f / 60f);          // step 2: WaitForRun blocks on it
+                }
+                catch (Exception ex) { failure = ex; }
+            }) { IsBackground = true };
+            thread.Start();
+            Assert.True(thread.Join(TimeSpan.FromSeconds(10)), "the step deadlocked on the caller's synchronisation context");
+            Assert.Null(failure);
+            Assert.Equal(1, world.GetComponentRO<StepProbe>(module.Probe).Value);
+            kernel.Dispose(); world.Dispose();
+        }
+
+        private sealed class NeverPumpedContext : System.Threading.SynchronizationContext
+        {
+            public override void Post(System.Threading.SendOrPostCallback d, object? state) { /* dropped: nobody pumps this context */ }
+            public override void Send(System.Threading.SendOrPostCallback d, object? state) => d(state);
+        }
+
+        /// <summary>
         /// ⭐ CE-3292 — a load or a preview Stop snaps the clock BACK: a job dispatched before that belongs to a world that no longer
         /// exists, so its result is discarded, never applied to the new timeline.
         /// </summary>

@@ -1588,6 +1588,13 @@ dispatched and not yet harvested) — the recorder writes a checkpoint only on a
 clock snap, when it is a checkpoint restore, sets each slow module's `LastRunSlot` to the restored time's slot instead of `MinValue` (a load and
 a dry-run exit unchanged). 📄 [restore design §1l](../DESIGN_Checkpoint_And_Dry_Run_Restore.md).
 
+⭐ **`2026-11-05` (CE-4158, backend) — the step's wait never needs the caller's synchronisation context.** `WaitForRun` blocks the stepping
+thread on the module's `ExecuteModuleSafe` task; that task's two awaits (`Task.WhenAny(tick, delay)`, `await tick`) had no `ConfigureAwait(false)`,
+so a step taken under a `SynchronizationContext` (xUnit's, `MaxParallelThreads = 4`) posted the continuation back to a context whose threads were
+all blocked in `WaitForRun` ⇒ the full `Hrot.ClusterRunner.Integration.Tests` batch hung after ~35 tests (hang dump: three test threads in
+`WaitForRun`, idle pool). Both awaits now carry `ConfigureAwait(false)`, like every other await in the kernel. Rail:
+`ModuleHostKernelTimeTests.CE4158_ASteppedWait_DoesNotNeedTheCallersSynchronisationContext` (a context that never runs what is posted to it).
+
 📐 **Measured** (`ua-tank-ammo`, `--mode editor`, 15 Hz HTTP steps, three loads in one process, cuts every 5 s to 30 s): before — the first
 load played a different story and reloads drifted; after — **behaviour identical at 6/6 cuts in all three pairs** (every position, every
 health, every shot). Byte-identical components still differ only in labels (`SopInstanceId`, route/trajectory handles) and — fixed last —

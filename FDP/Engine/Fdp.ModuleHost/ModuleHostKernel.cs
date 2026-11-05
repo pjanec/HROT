@@ -973,7 +973,7 @@ namespace Fdp.ModuleHost
             }, cts.Token);
             
             var delayTask = Task.Delay(timeout);
-            var completedTask = await Task.WhenAny(tickTask, delayTask);
+            var completedTask = await Task.WhenAny(tickTask, delayTask).ConfigureAwait(false); // ⭐ CE-4158 — never post back to the caller's context: WaitForRun blocks on this task
             
             // 5. Check Result
             if (completedTask == tickTask)
@@ -982,7 +982,7 @@ namespace Fdp.ModuleHost
                 Exception? result = null;
                 try
                 {
-                    result = await tickTask;
+                    result = await tickTask.ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {
