@@ -1576,7 +1576,10 @@ namespace Hrot.Editor
                     recordingPath: () => _clusterHandlers!.RecordReplayController?.ActiveRecordingModule?.FilePath,
                     openRecording: path => new Hrot.Editor.Director.RecordedRun(path, scenarioSerializer,
                         hash => _behaviorRegistry != null && _behaviorRegistry.TryGetName(hash, out var n) ? n : null),
-                    mapBuild: () => _map3DBuild);   // ⭐ R-1046 — a take waits for the shown map's 3-D build
+                    mapBuild: () => _map3DBuild,   // ⭐ R-1046 — a take waits for the shown map's 3-D build
+                    // ⭐ CE-4267 — the director's load goes through the ONE scenario door with its own asker, and knows when it went (the silent-default rule: the editor HAS the door)
+                    door: () => _editorApp?.Door,
+                    loadedScenario: () => _editorApp?.LoadedScenarioName);
                 // ⭐ CE-1303 P1 (§11j) — the film director is ONE pack (Hrot.Presentation); the editor contributes its host, the verifier
                 //   (CE-4061: the runner's one extension seam — CE-4042: late-bound to the debug service 8b builds below) and the Verify tab
                 _directorPack = Hrot.UI.Common.Map3D.Director.DirectorPack.Attach(new Hrot.UI.Common.Map3D.Director.DirectorPackHost(

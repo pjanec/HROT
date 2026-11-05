@@ -31,7 +31,7 @@ namespace Hrot.UI.Common.Map3D.Director
 
     /// <remarks><see cref="Extension"/>: ⭐ CE-4061 — the runner's extension has the frames (its own phases, named by
     /// <see cref="IRunExtension.PhaseName"/>). ⭐ <c>CE-4117</c> — <see cref="Resolving"/>: on a recording, the <c>near</c> cues are refined by seeking before the plan.</remarks>
-    public enum DirectorPhase { Idle, Loading, Entering, Playing, Encoding, Done, Stopped, Extension, Resolving }
+    public enum DirectorPhase { Idle, Loading, Entering, Playing, Encoding, Done, Stopped, Extension, Resolving, Failing }
 
     /// <summary>⭐ What one reel item did — the per-take report of §3a (missing beats, anchor mismatches, the realtime factor) and the
     /// stepping rule's own evidence (the most steps taken in one frame, steps the master had not retired by the next frame).</summary>
@@ -141,6 +141,14 @@ namespace Hrot.UI.Common.Map3D.Director
     public sealed class DirectorRunner : IRunContext
     {
         public const double LoadTimeoutSeconds = 30d;
+
+        /// <summary>⭐ CE-4267 — how long a take that cannot play keeps its card with the reason on screen (Live) before the next take — ⛔ never a silent skip.</summary>
+        public const double FailCardSeconds = 4d;
+
+        /// <summary>⭐ CE-4267 — how often a load the door refused as "not ready yet" is asked again.</summary>
+        public const double LoadRetrySeconds = 0.5d;
+        private double _failUntil, _loadAskedAt;
+        private bool _loadAsked;
         /// <summary>How long a scout or a take with an unseen anchor runs before it gives up (sim seconds).</summary>
         public const double CapSeconds = 180d;
 
@@ -283,7 +291,7 @@ namespace Hrot.UI.Common.Map3D.Director
         /// <see cref="Play"/> replaces it).</summary>
         public PlayRequest? Request => _request;
         public bool Busy => Phase is DirectorPhase.Loading or DirectorPhase.Entering or DirectorPhase.Playing or DirectorPhase.Encoding
-                                  or DirectorPhase.Extension or DirectorPhase.Resolving;
+                                  or DirectorPhase.Extension or DirectorPhase.Resolving or DirectorPhase.Failing;   // ⭐ CE-4267 — the reason card is part of the run
 
         // ── ⭐ CE-4061 — IRunContext: what the extension reads and asks ─────────────────────────────
         IDirectorHost IRunContext.Host => _host;
@@ -493,6 +501,7 @@ namespace Hrot.UI.Common.Map3D.Director
                     case DirectorPhase.Playing: TickPlaying(); break;
                     case DirectorPhase.Encoding: TickEncoding(); break;
                     case DirectorPhase.Extension: _ext!.Tick(); break;
+                    case DirectorPhase.Failing: if (_host.WallNow >= _failUntil) FinishItem(); break;   // ⭐ CE-4267
                 }
             }
             catch (Exception ex) when (ex is not DirectorSteppingException)
@@ -522,7 +531,7 @@ namespace Hrot.UI.Common.Map3D.Director
         private void BeginItem(int index)
         {
             _item = index;
-            _take = null; _book = null; _timeline = null; _clock = null; _probe = null; _shot = null; _inGap = true;
+            _take = null; _book = null; _timeline = null; _clock = null; _probe = null; _shot = null; _inGap = true; _loadAsked = false;
             _exitedForLoad = false; _enterFrames = 0; _issued = 0; _retiredSeen = 0; _pendingCapture = null; _liveCount = 0;
             _startAt = index == 0 && _request!.Mode is DirectorMode.Live or DirectorMode.Capture ? Math.Max(0d, _request.StartAt) : 0d;
             _loopRefused = false;
@@ -577,6 +586,27 @@ namespace Hrot.UI.Common.Map3D.Director
                 // ⚠ a live run can read as "in preview" (CE-4054) — never left as a preview (that is a rewind); the live load stops it
                 if (_host.InPreview && !_exitedForLoad && !LiveRun) { _host.ExitPreview(); _exitedForLoad = true; return; }
                 int? before = _host.EntityCount;
+                if (!LiveRun && _host is IDirectorLoadOutcome door)
+                {
+                    // ⭐ CE-4267 — the editor's load goes through the scenario door: ask, then wait until it WENT (or say why it cannot)
+                    if (!_loadAsked || (door.LoadMayRetry && _host.WallNow - _loadAskedAt >= LoadRetrySeconds))
+                    {
+                        if (!_loadAsked) { _phaseStartWall = _host.WallNow; if (_request!.Mode == DirectorMode.Plan) _ext!.BeforeLoad(); }
+                        _loadAsked = true; _loadAskedAt = _host.WallNow;
+                        _host.LoadScenario(Item.Scenario);
+                    }
+                    if (!door.LoadWent)
+                    {
+                        if (door.LoadRefusal is { } why && !door.LoadMayRetry) { Fail($"the scenario '{Item.Scenario}' was not loaded: {why}"); return; }
+                        if (_host.WallNow - _phaseStartWall > LoadTimeoutSeconds)
+                            Fail($"the scenario '{Item.Scenario}' was not loaded within {LoadTimeoutSeconds:0} s: {door.LoadRefusal ?? "the editor did not take the load"}");
+                        return;
+                    }
+                    _probe = new ScenarioReadyProbe(before);
+                    _host.MapBuild?.Request3D();
+                    _phaseStartWall = _host.WallNow;
+                    return;
+                }
                 if (_request!.Mode == DirectorMode.Plan) _ext!.BeforeLoad();
                 if (LiveRun) _ext!.Load(Item.Scenario);   // ⭐ a live run records (R-3053); the preview never does
                 else _host.LoadScenario(Item.Scenario);
@@ -1081,6 +1111,16 @@ namespace Hrot.UI.Common.Map3D.Director
         {
             Report.Status = "failed";
             Report.Problems.Add(why);
+            // ⭐ CE-4267 — a take that cannot play SAYS WHY on screen before the next one (Live): the reason used to live only in the report while the
+            //   next title replaced the card in the same frame — the user saw "a title on black, then the next title"
+            if (_request!.Mode == DirectorMode.Live)
+            {
+                var title = Item.Title ?? TakeTitleOf(_request, Item) ?? Item.Scenario;
+                _cinema.Card(title + "\n\ncannot play: " + why);
+                _failUntil = _host.WallNow + FailCardSeconds;
+                Phase = DirectorPhase.Failing;
+                return;
+            }
             FinishItem();
         }
 

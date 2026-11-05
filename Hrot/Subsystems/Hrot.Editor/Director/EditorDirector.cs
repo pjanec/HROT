@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using System.Threading.Tasks;
 using Fdp.Core;
@@ -15,7 +16,7 @@ namespace Hrot.Editor.Director
     /// <c>EditorSubsystem</c> already holds (its load, its cluster state, the preview controller, <c>ITimeCommands</c>, the world's clock).
     /// ⛔ It holds nothing of its own, so it cannot drift from the editor's own controls.
     /// </summary>
-    internal sealed class EditorDirectorHost : IDirectorHost, IVerifyHost   // ⭐ CE-4061 — the editor hosts the film AND the verifier
+    internal sealed class EditorDirectorHost : IDirectorHost, IVerifyHost, IDirectorLoadOutcome   // ⭐ CE-4061 — the editor hosts the film AND the verifier
     {
         private readonly Func<EntityRepository?> _world;
         private readonly Action<string> _load;
@@ -44,8 +45,12 @@ namespace Hrot.Editor.Director
                                   Action<string, string> writeCheckpoint, Func<string, double> restoreCheckpoint,
                                   Action<string> loadLive, Hrot.Presentation.DebugApi.IClusterMasterControl master, Func<Fdp.Toolkit.Orchestration.ClusterState> state,
                                   Func<string?> recordingPath, Func<string, IRecordedRun> openRecording,
-                                  Func<Fdp.Toolkit.Vis3D.Map3DBuild?>? mapBuild = null)
+                                  Func<Fdp.Toolkit.Vis3D.Map3DBuild?>? mapBuild = null,
+                                  Func<Hrot.UI.Common.RunMode.ScenarioDoor?>? door = null, Func<string?>? loadedScenario = null)
         {
+            _door = door;
+            _loadedScenario = loadedScenario;
+            _asker = new DirectorAsker(this);
             _mapBuild = mapBuild;
             _loadLive = loadLive ?? throw new ArgumentNullException(nameof(loadLive));
             _master = master ?? throw new ArgumentNullException(nameof(master));
@@ -63,7 +68,58 @@ namespace Hrot.Editor.Director
         public EntityRepository? World => _world();
         private bool _loaded;
 
-        public void LoadScenario(string scenario) { _loaded = true; _load(scenario); }
+        public void LoadScenario(string scenario)
+        {
+            _loaded = true;
+            LoadWent = false; LoadRefusal = null; LoadMayRetry = false;
+            // ⭐ CE-4267 — through the scenario DOOR with the director's OWN asker: the UI's asker made every question an invisible modal behind the
+            //   cinema (the load never went, later loads were dropped while it stayed open) — this one answers or says why, and `then` says it went
+            if (_door?.Invoke() is { } door) { door.Open(scenario, _asker, then: () => { LoadWent = true; _lastOwnLoad = scenario; }); return; }
+            _load(scenario);
+            LoadWent = true; _lastOwnLoad = scenario;
+        }
+
+        // ── ⭐ CE-4267 — the load's outcome (IDirectorLoadOutcome) ──
+        private readonly Func<Hrot.UI.Common.RunMode.ScenarioDoor?>? _door;
+        private readonly DirectorAsker _asker;
+        private readonly Func<string?>? _loadedScenario;
+        private string? _lastOwnLoad;
+        public bool LoadWent { get; private set; }
+        public string? LoadRefusal { get; private set; }
+        public bool LoadMayRetry { get; private set; }
+
+        /// <summary>
+        /// ⭐ <c>CE-4267</c> — the director's answers to the door: <b>not ready</b> (the run gate) ⇒ wait and ask again; <b>unsaved changes</b> of a scenario the director
+        /// itself loaded (its previous take) ⇒ Discard (they are the take's preview, not the user's work); the user's OWN unsaved edits, or a run in progress ⇒ the load
+        /// is refused WITH the reason (shown on the take's card) — ⛔ never a question nobody sees, never a silent discard of the user's work.
+        /// </summary>
+        private sealed class DirectorAsker : Hrot.UI.Common.RunMode.IDoorAsker
+        {
+            private readonly EditorDirectorHost _host;
+            public DirectorAsker(EditorDirectorHost host) => _host = host;
+            public bool DiscardsUnsaved => false;
+            public void Ask(Hrot.UI.Common.RunMode.DoorQuestion question)
+            {
+                switch (question.Kind)
+                {
+                    case Hrot.UI.Common.RunMode.DoorQuestionKind.Unsaved or Hrot.UI.Common.RunMode.DoorQuestionKind.NeverSaved
+                        when _host._lastOwnLoad is { } own && string.Equals(own, _host._loadedScenario?.Invoke(), StringComparison.Ordinal)
+                             && question.Buttons.FirstOrDefault(b => b.Label == "Discard") is { Action: { } discardAction }:
+                        discardAction();   // the director's own previous take
+                        return;
+                    case Hrot.UI.Common.RunMode.DoorQuestionKind.Refused:
+                        _host.LoadRefusal = "the editor is not ready (" + question.Text + ")";
+                        _host.LoadMayRetry = true;
+                        return;
+                    case Hrot.UI.Common.RunMode.DoorQuestionKind.StopAndLoad:
+                        _host.LoadRefusal = "a run is in progress" + (question.Run is { } run ? " (" + run + ")" : "") + " — stop it, then play again";
+                        return;
+                    default:
+                        _host.LoadRefusal = question.Text + " — save or discard it in the editor, then play again";
+                        return;
+                }
+            }
+        }
         public bool IsOperatingEdit => _operatingEdit();
         /// <summary>The director loaded one, or the user did (the editor is then OperatingEdit).</summary>
         public bool HasLoadedAScenario => _loaded || _operatingEdit();

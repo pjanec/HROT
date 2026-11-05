@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (slice 1 = phases 1–3, CE-4038, ui lane, 2026-10-21 — §8) · was READY-TO-BUILD (approved 2026-10-21, R-4062) · ⭐ RE-DISPATCHED 2026-10-21 to the UI lane (R-3038): docs/blueprints/batches/HANDOFF_Backend_To_Ui_Film_Director.md — the backend dispatch (HANDOFF_Coordinator_To_Backend_Film_Director.md) is superseded
-updated: 2026-10-28 (§8.4 — CE-4081: Esc stops a take or a reel in the editor; the cinema now owns the keyboard) · 2026-10-26 (§3c — an instant replay IS a During Action Review; the bookmark fallback dropped — R-4088) · 2026-10-21 (filmed = scouted ACCEPTED after CE-3293 S5 — the identity gate, §8.4; the takes re-scouted) · 2026-10-21 (AS BUILT §8 — CE-4038 slice 1 by the ui lane: the runner, its five seams, the routes, the panel, the take store, the seeded takes, the 2-D ear and the sound track; eight deviations from §2) · 2026-10-21 (sixth pass — R-3038: a take is scripted in TIME on a stepped run that repeats; one stepping cadence — exactly one step per rendered frame — for the scout, the live show and the capture; built by the ui lane; 'filmed = scouted' waits for CE-3293 S5) · 2026-10-21 (fifth pass — backend R-3034: scenarios are not deterministic; every run loads again, never a rewind; D-3 cuts on live cues + precursors; B0 withdrawn · coordinator R-4064: shots held `until` the next event, the scout measures reliability, capture retakes, final films later from a RECORDING (§3d, §3e). Fourth pass — R-4061 amended: slice 1 plays in the editor's PREVIEW (a live run from the saved file is less tested); NO instant replays in slice 1, later from a live run's recording (§3c). Second pass — the user's rulings on sound and overlays (R-4059, R-4060), instant replays live (§3c), a reel is one movie (§4a); first version same day)
+updated: 2026-11-05 (§8.5 — CE-4267: a take that cannot play says why; the director loads through the scenario door with its own asker) · 2026-10-28 (§8.4 — CE-4081: Esc stops a take or a reel in the editor; the cinema now owns the keyboard) · 2026-10-26 (§3c — an instant replay IS a During Action Review; the bookmark fallback dropped — R-4088) · 2026-10-21 (filmed = scouted ACCEPTED after CE-3293 S5 — the identity gate, §8.4; the takes re-scouted) · 2026-10-21 (AS BUILT §8 — CE-4038 slice 1 by the ui lane: the runner, its five seams, the routes, the panel, the take store, the seeded takes, the 2-D ear and the sound track; eight deviations from §2) · 2026-10-21 (sixth pass — R-3038: a take is scripted in TIME on a stepped run that repeats; one stepping cadence — exactly one step per rendered frame — for the scout, the live show and the capture; built by the ui lane; 'filmed = scouted' waits for CE-3293 S5) · 2026-10-21 (fifth pass — backend R-3034: scenarios are not deterministic; every run loads again, never a rewind; D-3 cuts on live cues + precursors; B0 withdrawn · coordinator R-4064: shots held `until` the next event, the scout measures reliability, capture retakes, final films later from a RECORDING (§3d, §3e). Fourth pass — R-4061 amended: slice 1 plays in the editor's PREVIEW (a live run from the saved file is less tested); NO instant replays in slice 1, later from a live run's recording (§3c). Second pass — the user's rulings on sound and overlays (R-4059, R-4060), instant replays live (§3c), a reel is one movie (§4a); first version same day)
 current-answer: §8 AS BUILT (CE-4038 slice 1 — what was built and where it deviates) · §0 FIRST (R-3038 overrides §3d and D-3 for stepped runs) · §1 the picture · §2 classes · §3 sequences · §4 the formats and routes · §5 the decisions (leans for approval) · §6 phases and acceptance
 stale-below: none
 known-rot: §3c "Kept as the fallback: an in-memory bookmark" and its "basis … a full LIVE run" questions — SUPERSEDED by §3c's R-4088 block (an instant replay is a review) · §2's Scout, CaptureSink, CinemaMode, LayerOverride and SoundTrack.Log boxes are SUPERSEDED by §8.3 (as built). §3d and D-3 (fifth pass, LIVE cues on runs that differ — R-4064) are SUPERSEDED for stepped runs by §0 (R-3038); §2/§6's scout-baked anchors are correct again. D-1's "at most 2 per frame" is superseded by §0's one-step-per-frame rule.
@@ -799,3 +799,44 @@ Director: reel or take, Play / Prepare / Stop / Next / Pause, speed, a row per t
 | the sound track of an OGG clip | ⛔ `WavReader` reads PCM WAV only — a clip from an `.ogg` file is left out of the film's track (the generated placeholders are all in) | ⛔ a known gap |
 | a 20 / 15 Hz take behaves as at 60 Hz | ⛔ not measured — the scout at that rate is the check (§5a row) | ⛔ open |
 | ⭐ Esc stops a take or a reel played in the editor (CE-4081, ui, `2026-10-28`) | the ONE stop: the cinema overlay's `ImGui.IsKeyPressed(Escape)` → `WindowCinema.EscapePressed` → `runner.Stop()` (wired once in `DirectorPack.Attach`; the Stop button calls the same `Stop`, which leaves the preview and the cinema). 📐 **Root cause, measured:** the cinema hides every panel ⇒ ImGui wants no keyboard ⇒ the map's `MapCanvas` drains Raylib's one key queue for its layers (CE-3175, one reader a frame) BEFORE `rlImGui.Begin` ⇒ ImGui never saw the Esc (real rlImGui 3.2.0 on Xvfb: queue drained ⇒ 0 of 10 taps; not drained ⇒ 10 of 10; `Raylib.IsKeyPressed` still 10 of 10). The overlay was drawn and subscribed; the key never reached it. **Fix:** `WindowCinema.Draw` asks `ImGui.SetNextFrameWantCaptureKeyboard(true)` every frame while the cinema is up (the cinema owns the keyboard: its one control is Esc), so the canvas's `IsKeyboardCaptured` is true and the queue is left for ImGui (the first ~2 frames of a film can still lose a key). ⛔ no second key handler. `Cinema: false` passes (Play from playhead, stills) draw no Esc by design (§11o S9: the panels, the Stop button, stay). Rails `DirectorPackTests.CE4081_Esc_StopsATake_…` / `CE4081_Esc_StopsAReel_…` (real `WindowManager` + real `MapCanvas` + real ImGui frames; rlImGui's queue-to-ImGui feed emulated) | ✅ |
+
+### 8.5 ⭐ A take that cannot play SAYS WHY — CE-4267 *(ui, `2026-11-05`)*
+
+🔒 User: *"it shows just the take title on black screen, then next takes title, with no scenario run in between."*
+
+```mermaid
+sequenceDiagram
+  participant R as DirectorRunner
+  participant H as EditorDirectorHost
+  participant D as ScenarioDoor
+  participant A as DirectorAsker
+  R->>H: LoadScenario(s)
+  H->>D: Open(s, DirectorAsker, then)
+  alt admitted
+    D-->>H: then() — LoadWent = true
+    R->>R: ScenarioReadyProbe starts only now
+  else gate not ready
+    D->>A: Refused
+    A-->>H: LoadRefusal + LoadMayRetry — asked again every 0.5 s (30 s cap)
+  else unsaved edits of the director's own previous take
+    D->>A: Unsaved
+    A->>D: Discard
+  else the user's own unsaved edits, or a run in progress
+    D->>A: Unsaved / StopAndLoad
+    A-->>H: LoadRefusal (no retry)
+    R->>R: Fail(why) — card "title / cannot play: why" for 4 s (phase Failing), then the next take
+  end
+```
+*What the sequence shows that the code hid: the load's question used to go to the UI's asker — a modal behind the cinema that nobody saw
+— and while it stayed open the door dropped every later load (`IsBusy`); the readiness probe meanwhile accepted the OLD world after its 2 s
+grace, so a take either ran on the wrong world or failed in the same frame the next title was drawn.*
+
+| measured before *(`director-check.py live highlights`)* | cause | fix |
+|---|---|---|
+| fresh editor: 6 of 6 tried *"did not load within 30 s (… count 0)"*, 0 steps | the door's question was invisible (UI asker); later loads dropped while it was open | `IDirectorLoadOutcome` (`DirectorHost.cs`) + the director's OWN `DirectorAsker` (`EditorDirector.cs`): it answers or says why |
+| operable editor: 7 *"no unit named X"* — the take ran on the previous scenario's world | the probe's grace accepted the old world when the load never went | the probe starts only after `LoadWent` |
+| the failure card replaced in the same frame by the next title | `Fail()` → `FinishItem()` → next `BeginItem` at once | phase `Failing` holds *"title — cannot play: why"* for `FailCardSeconds` (live only); `Busy` includes it |
+
+Rails (`DirectorRunnerTests`, 🔴 red-proven by compiling mutants): `CE4267_ATakeTheDoorRefuses_SaysWhyOnScreen_ThenTheNextTakePlays` ·
+`CE4267_ANotReadyLoad_IsAskedAgain_AndTheTakePlaysOnItsOwnWorld` · `CE4267_ALoadThatNeverGoes_FailsWithTheReason_NeverPlaysTheOldWorld`.
+⚠ The takes that still fail on their CONTENT (a missing beat, a renamed unit) are CE-1241's list, now reported with the reason instead of a black skip.

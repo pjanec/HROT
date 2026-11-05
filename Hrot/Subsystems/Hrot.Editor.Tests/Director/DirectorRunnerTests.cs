@@ -35,7 +35,7 @@ public sealed class DirectorRunnerTests : IDisposable
 
     /// <summary>The editor, faked: a load takes three frames (the world clears, then the scenario's units appear and the state is
     /// OperatingEdit); a step asked for in a frame is taken at the frame's end (the kernel); the renderer draws a frame in 1/120 s.</summary>
-    private sealed class FakeEditor : IDirectorHost, IVerifyHost
+    private class FakeEditor : IDirectorHost, IVerifyHost
     {
         public readonly EntityRepository Repo = new();
         public readonly List<string> Loads = new();
@@ -383,6 +383,91 @@ public sealed class DirectorRunnerTests : IDisposable
             });
         }
         return store;
+    }
+
+    /// <summary>
+    /// ⭐ CE-4267 — an editor whose load goes through the scenario DOOR: <see cref="Answer"/> decides each load — it goes (the fake's 3-frame load), it is refused for
+    /// good (the user's unsaved edits / a run), it is "not ready" for <see cref="NotReadyAsks"/> asks first, or it never goes (a question nobody answers — today's defect).
+    /// </summary>
+    private sealed class DoorEditor : FakeEditor, IDirectorHost, IDirectorLoadOutcome
+    {
+        public enum DoorAnswer { Goes, Refuses, NeverGoes }
+        public DoorAnswer Answer = DoorAnswer.Goes;
+        public int NotReadyAsks;
+        public int Asks;
+        public DoorEditor(TakeStore takes) : base(takes) { }
+        public bool LoadWent { get; private set; }
+        public string? LoadRefusal { get; private set; }
+        public bool LoadMayRetry { get; private set; }
+        public new void LoadScenario(string scenario)
+        {
+            Asks++;
+            LoadWent = false; LoadRefusal = null; LoadMayRetry = false;
+            if (NotReadyAsks > 0) { NotReadyAsks--; LoadRefusal = "the editor is not ready (loading)"; LoadMayRetry = true; return; }
+            switch (Answer)
+            {
+                case DoorAnswer.Refuses: LoadRefusal = "This scenario has unsaved changes. — save or discard it in the editor, then play again"; return;
+                case DoorAnswer.NeverGoes: return;
+                default: base.LoadScenario(scenario); LoadWent = true; return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4267 — a take whose load the door REFUSES (the user's own unsaved edits) fails WITH the reason: the card keeps the take's title and "cannot play: …"
+    /// for <see cref="DirectorRunner.FailCardSeconds"/> before the next title (⛔ was: the next title in the same frame — "a title on black, then the next title"),
+    /// and the next take still plays. 🔴 Red-proof (compiles): <c>Fail</c> calling <c>FinishItem()</c> at once ⇒ no "cannot play" card.
+    /// </summary>
+    [Fact]
+    public void CE4267_ATakeTheDoorRefuses_SaysWhyOnScreen_ThenTheNextTakePlays()
+    {
+        var host = new DoorEditor(Store()) { Answer = DoorEditor.DoorAnswer.Refuses };
+        var cinema = new Cinema();
+        var runner = new DirectorRunner(host, cinema, new Layers());
+        var reel = new Reel { Name = "r", Items = new[] { "s-a", "s-b" }.Select(s => new ReelItem { Scenario = s, Take = "main", Title = s }).ToList() };
+        Assert.Empty(runner.Play(new PlayRequest(reel)));
+        for (int f = 0; f < 50 && runner.Phase != DirectorPhase.Failing; f++) { runner.Tick(); host.EndFrame(); }
+        Assert.Equal(DirectorPhase.Failing, runner.Phase);                                  // held on the reason, not on to the next title
+        Assert.Contains(cinema.Cards, c => c!.StartsWith("s-a") && c.Contains("cannot play:") && c.Contains("unsaved changes"));
+        host.Answer = DoorEditor.DoorAnswer.Goes;                                          // the second take's load goes
+        Run(runner, host);
+        Assert.Equal("failed", runner.Reports[0].Status);
+        Assert.Contains(runner.Reports[0].Problems, p => p.Contains("was not loaded") && p.Contains("unsaved changes"));
+        Assert.Equal("ok", runner.Reports[1].Status);
+        Assert.Equal(new[] { "s-b" }, host.Loads);                                          // the refused load never reached the fake's world
+    }
+
+    /// <summary>
+    /// ⭐ CE-4267 — a load the door answers "not ready" (the run gate) is asked AGAIN until it goes, and the take then plays; ⛔ the readiness probe never
+    /// starts before the load went, so an old world is never taken for the new one. 🔴 Red-proof (compiles): the probe created on the first ask
+    /// (before <c>LoadWent</c>) ⇒ the take plays on the world that was already there (no second ask, the fake never loaded).
+    /// </summary>
+    [Fact]
+    public void CE4267_ANotReadyLoad_IsAskedAgain_AndTheTakePlaysOnItsOwnWorld()
+    {
+        var host = new DoorEditor(Store()) { NotReadyAsks = 3 };
+        var runner = new DirectorRunner(host, new Cinema(), new Layers());
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "main"))));
+        Run(runner, host);
+        Assert.Equal("ok", runner.Reports[0].Status);
+        Assert.Equal(4, host.Asks);                                                         // three "not ready", then it went
+        Assert.Equal(new[] { "s-a" }, host.Loads);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4267 — a load that NEVER goes (today's defect: the door's question shown to nobody) fails after the load timeout with that reason — ⛔ never
+    /// accepted as "loaded" because the old world sat still for the probe's grace. 🔴 Red-proof: as above (the probe started before the load went ⇒ "ok").
+    /// </summary>
+    [Fact]
+    public void CE4267_ALoadThatNeverGoes_FailsWithTheReason_NeverPlaysTheOldWorld()
+    {
+        var host = new DoorEditor(Store()) { Answer = DoorEditor.DoorAnswer.NeverGoes };
+        var runner = new DirectorRunner(host, new Cinema(), new Layers());
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "main"))));
+        Run(runner, host, maxFrames: 200000);
+        Assert.Equal("failed", runner.Reports[0].Status);
+        Assert.Contains(runner.Reports[0].Problems, p => p.Contains("was not loaded within") && p.Contains("did not take the load"));
+        Assert.Empty(host.Loads);
     }
 
     private static void Run(DirectorRunner runner, FakeEditor host, int maxFrames = 20000)

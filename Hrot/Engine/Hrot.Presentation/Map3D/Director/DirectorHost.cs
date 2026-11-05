@@ -9,6 +9,22 @@ namespace Hrot.UI.Common.Map3D.Director
     /// PREVIEW (R-4061: the run the director plays), the sized step (<c>ITimeCommands.StepBy</c>) and the clock. ⭐ An interface so the rails
     /// drive the runner frame by frame with no editor. Main thread only.
     /// </summary>
+    /// <summary>
+    /// ⭐ <c>CE-4267</c> — what became of the last <see cref="IDirectorHost.LoadScenario"/> on a host whose load goes through the scenario DOOR (the editor): the door
+    /// may decide not to load (the gate is not ready, the user's own unsaved edits, a run the user started) — 📐 measured: through the UI's asker its question was an
+    /// invisible modal behind the cinema, the load never went, every later load was dropped while the question stayed open, and the readiness probe accepted the OLD
+    /// world after its grace (every take after the first: "no unit named X"). A host that loads directly (the Replay Browser's recordings) does not implement it.
+    /// </summary>
+    public interface IDirectorLoadOutcome
+    {
+        /// <summary>The load went out (the door admitted it): the readiness probe may start.</summary>
+        bool LoadWent { get; }
+        /// <summary>Why the load did not go (null: it went, or no answer yet).</summary>
+        string? LoadRefusal { get; }
+        /// <summary>The refusal is a wait (the run gate is not ready yet): ask again a little later.</summary>
+        bool LoadMayRetry { get; }
+    }
+
     public interface IDirectorHost
     {
         EntityRepository? World { get; }
