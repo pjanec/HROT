@@ -105,6 +105,10 @@ public sealed class TimelinePanel
     /// <summary>Where each track item was drawn last frame (screen pixels) — for a frame rail that must press on one.</summary>
     public IReadOnlyList<TrackItemHit> LastTrackHits => _trackHits;
 
+    /// <summary>⭐ CE-4264 — where the ruler drew the playhead's ▼ last frame (its tip, screen pixels), and the ruler's own rectangle (the frame rails drag it).</summary>
+    public Vector2? LastPlayheadAt { get; private set; }
+    public (Vector2 Min, Vector2 Max) LastRulerRect { get; private set; }
+
     /// <summary>⭐ CE-4221 X5 — how many Coming up lines the strip below the lanes shows; 0 (the default) = no strip, so every host that does not ask is unchanged.</summary>
     public int ComingUpCount { get; set; }
 
@@ -360,6 +364,8 @@ public sealed class TimelinePanel
         // the playhead ▼ (a handle where the cursor seeks), or an arrow at the edge it left by (§10b)
         float xn = w.XOf(_drag == Drag.Scrub ? _scrubTo : now, width);
         bool canSeek = cursor is { CanSeek: true };
+        LastRulerRect = (p, p + new Vector2(width, RulerHeight));
+        LastPlayheadAt = xn >= 0 && xn <= width ? p + new Vector2(xn, RulerHeight - 4) : null;
         if (xn >= 0 && xn <= width)
             dl.AddTriangleFilled(p + new Vector2(xn - 5, RulerHeight - 8), p + new Vector2(xn + 5, RulerHeight - 8), p + new Vector2(xn, RulerHeight),
                 canSeek ? 0xFF4040FF : 0xFF4040A0);
@@ -371,7 +377,9 @@ public sealed class TimelinePanel
 
         var io = ImGui.GetIO();
         float mx = io.MousePos.X - p.X;
-        if (!hovered) return;
+        // ⭐ CE-4264 — a drag started here (scrub ▼, pan, Shift-range) follows the mouse once it leaves the one-row ruler: at a low frame rate one fast move is enough
+        // to leave it, and the drag used to freeze until the mouse came back. The release ends it wherever it happens (T10).
+        if (!hovered) { if (_drag is Drag.Scrub or Drag.Pan or Drag.Range) DragUpdate(io, w, width, mx, index); return; }
         _hoverX = mx;
         if (io.MouseWheel != 0 && !io.KeyShift)   // ⭐ T4 / T5 — the plain wheel zooms over the ruler, proportional to the delta
             _view.Zoom(mx, width, TimelineView.WheelFactor(io.MouseWheel));
@@ -389,9 +397,15 @@ public sealed class TimelinePanel
         DragUpdate(io, w, width, mx, index);
     }
 
+    private int _dragUpdatedFrame = -1;
+
     private void DragUpdate(ImGuiIOPtr io, TimelineWindow w, float width, float mx, TimelineIndex index)
     {
         if (!ImGui.IsMouseDown(ImGuiMouseButton.Left)) return;
+        // ⭐ CE-4264 — once a frame: the ruler now updates an active drag off the ruler too, and a hovered row would apply the same pan delta a second time
+        int frame = ImGui.GetFrameCount();
+        if (_dragUpdatedFrame == frame) return;
+        _dragUpdatedFrame = frame;
         switch (_drag)
         {
             case Drag.Pan: if (io.MouseDelta.X != 0) _view.Pan(io.MouseDelta.X, width); break;
@@ -427,6 +441,7 @@ public sealed class TimelinePanel
         dl.AddRectFilled(p, p + new Vector2(width, RowHeight), 0x18FFFFFF);
         var w = _view.Window;
         TimelineLayout.Marks(index, lanes, w, width, _priorityOf, into: _marks);
+        dl.PushClipRect(p, p + new Vector2(width, RowHeight), true);   // ⭐ CE-4265 — nothing of the row's content reaches the label column
         for (int i = 0; i < _marks.Count; i++)   // a count label only where it fits before the next mark
             DrawMark(dl, _marks[i], p, RowHeight, (i + 1 < _marks.Count ? _marks[i + 1].X0 : width) - _marks[i].X0 - 6f);
         if (_selected is { } sel && Array.IndexOf(lanes, sel.Lane) >= 0 && sel.Frame < index.FrameTicks.Count)
@@ -434,6 +449,7 @@ public sealed class TimelinePanel
             float xs = w.XOf(index.FrameTicks[sel.Frame], width);
             if (xs >= 0 && xs <= width) dl.AddCircle(p + new Vector2(xs, RowHeight / 2), 6f, 0xFFFFFFFF, 12, 1.5f);
         }
+        dl.PopClipRect();
         if (!hovered) return;
 
         var io = ImGui.GetIO();
@@ -493,6 +509,9 @@ public sealed class TimelinePanel
         var map = axis.Map ?? _timeMap;
         bool drawable = TrackLayout.Drawable(axis, map);
         var items = track.Items;
+        // ⭐ CE-4265 — a span that starts left of the view (the timeline panned left) is clipped at the lane's left edge: it used to draw over the label column.
+        // The connect handle may stick out past the right end by its own width, so the clip leaves it that room.
+        dl.PushClipRect(p, p + new Vector2(width + 16f, RowHeight), true);
         for (int i = 0; i < items.Count; i++)
         {
             var it = items[i];
@@ -541,6 +560,7 @@ public sealed class TimelinePanel
                 _handles.Add((track.Id, it.Id, hmin, hmax));
             }
         }
+        dl.PopClipRect();
 
         var io = ImGui.GetIO();
         float mx = io.MousePos.X - p.X;

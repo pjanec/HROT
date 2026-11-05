@@ -654,4 +654,92 @@ public sealed class TimelinePanelFrameRail
         panel.Tracks = () => new ITimelineTrack[] { d }; panel.ComingUpCount = 0; Step(null, 4);
         Assert.Empty(panel.LastComingUp); Assert.Empty(panel.LastHandles); Assert.Empty(panel.LastConnectors);
     }
+
+    // ── ⭐ CE-4264 / CE-4265 (the November ui batch) ─────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>The CE-1364 rail's set-up: ten minutes on the SIM axis (sim = frame / 60), the firefight index, a seekable cursor at <paramref name="nowSeconds"/>.</summary>
+    private static (SimCursor Cursor, Source Source) SimRun(double nowSeconds)
+    {
+        const int frames = 10 * 60 * Hz;
+        var wall = Enumerable.Range(0, frames).Select(f => T0 + f * Tick).ToArray();
+        var simT = Enumerable.Range(0, frames).Select(f => f / (double)Hz).ToArray();
+        var map = Fdp.Core.FlightRecorder.ReplayTimeMap.FromFrames(wall, simT, new Fdp.Core.FlightRecorder.FrameFlags[frames]);
+        return (new SimCursor { ExtentFrom = T0, ExtentTo = wall[^1], Now = T0 + (long)(nowSeconds * Hz) * Tick, Axis = TimelineAxis.Sim(map), TimeMap = map },
+                new Source { Index = Firefight() });
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4264</c> — a scrub of the playhead ▼ follows the mouse once it LEAVES the one-row ruler (here: up, over the overview strip, then on to the right), and the release
+    /// seeks where the mouse was let go. At a low frame rate one fast move is enough to leave the ruler, and the drag used to freeze there.
+    /// 🔴 Red-proof (compiles): <c>DrawRuler</c> returning before <c>DragUpdate</c> when not hovered (the old order) ⇒ the seek lands where the mouse left the ruler.
+    /// </summary>
+    [SkippableFact]
+    public void CE4264_AScrubThatLeavesTheRuler_FollowsTheMouse_AndSeeksAtTheRelease()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var (cursor, source) = SimRun(nowSeconds: 120);
+        var panel = new TimelinePanel();
+        using var frame = UiFrameHarness.Begin(1280, 300);
+        void Step(Action<ImGuiIOPtr>? inject)
+            => frame.Step(() =>
+            {
+                inject?.Invoke(ImGui.GetIO());
+                ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(1280, 300));
+                ImGui.Begin("Event Timeline", ImGuiWindowFlags.NoCollapse);
+                panel.Draw(source, cursor, Lanes);
+                ImGui.End();
+            });
+        for (int i = 0; i < 5; i++) Step(null);
+
+        var head = Assert.IsType<Vector2>(panel.LastPlayheadAt);
+        var ruler = panel.LastRulerRect;
+        float above = ruler.Min.Y - 20f;                                         // over the overview strip: off the ruler, and no row there to carry the drag
+        Assert.True(above > 0f, $"the ruler sits too high for the rail ({ruler.Min.Y})");
+        Step(io => Pos(io, head.X, head.Y));
+        Step(io => { Pos(io, head.X, head.Y); io.AddMouseButtonEvent(0, true); });
+        Step(io => Pos(io, head.X + 10f, head.Y));                               // the scrub starts on the ruler ...
+        Step(io => Pos(io, head.X + 40f, above));                                // ... a fast move leaves it ...
+        for (int k = 1; k <= 3; k++) { float dx = 40f + 80f * k; Step(io => Pos(io, head.X + dx, above)); }   // ... and keeps going off it
+        float releaseX = head.X + 280f;
+        Step(io => { Pos(io, releaseX, above); io.AddMouseButtonEvent(0, false); });
+        Step(null); Step(null);
+
+        Assert.Single(cursor.Seeks);                                             // one seek, at the release (§10c)
+        var after = Assert.IsType<Vector2>(panel.LastPlayheadAt);
+        Assert.True(Math.Abs(after.X - releaseX) <= 3f, $"the playhead should follow the mouse off the ruler to the release x {releaseX}, it is at {after.X} (the drag stopped where it left the ruler)");
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4265</c> — a span that starts LEFT of the view (the timeline panned left, as in the rules view) is clipped at the lane's left edge: nothing of it lands in the
+    /// label column, and the part inside the view still draws. 🔴 Red-proof (compiles): <c>DrawTrack</c> without its <c>PushClipRect</c> ⇒ the span's colour fills the label column.
+    /// </summary>
+    [SkippableFact]
+    public void CE4265_ASpanStartingLeftOfTheView_DoesNotDrawOverTheLabels()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        const uint Magenta = 0xFFFF00FF;
+        var (cursor, source) = SimRun(nowSeconds: 500);
+        var track = new SynthTrack("rule", null,
+            new TimelineTrackItem("band", 0.0, 300.0, "a long state", TimelineTrackItemKind.Segment, false, Magenta, TimelineTrackItemStyle.Solid));
+        var panel = new TimelinePanel { Tracks = () => new ITimelineTrack[] { track } };
+        using var frame = UiFrameHarness.Begin(1280, 300);
+        void Draw(int n)
+            => frame.StepN(n, () =>
+            {
+                ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(1280, 300));
+                ImGui.Begin("Event Timeline", ImGuiWindowFlags.NoCollapse);
+                panel.Draw(source, cursor, Lanes);
+                ImGui.End();
+            });
+        Draw(3);
+        long from = panel.View.ExtentFrom, span = panel.View.ExtentTo - from;   // the view's own axis (sim ticks here), ten minutes
+        panel.Show(new TimelineWindow(from + span / 4, from + span * 3 / 4));   // 2:30 … 7:30: the span (0 … 5:00) begins 150 s left of the view
+        Draw(4);
+        string path = ShotPath("timeline-ce4265-span-clipped.png");
+        frame.Screenshot(path);
+
+        float laneLeft = panel.LastRulerRect.Min.X;
+        Assert.True(CountColour(path, Magenta, (int)laneLeft + 2, (int)laneLeft + 400) > 200, "control: the part of the span inside the view draws");
+        Assert.Equal(0, CountColour(path, Magenta, 0, (int)laneLeft - 1));       // nothing of it in the label column
+    }
 }
