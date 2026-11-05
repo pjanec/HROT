@@ -75,6 +75,15 @@ public class DeadReckoningSyncSystem : IEcsModuleSystem
         SmoothingRate    = smoothingRate;
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-3367</c> — the fraction of the remaining gap closed this frame: <c>1 − e^(−rate·dt)</c>, always in [0, 1).
+    /// ⛔ Was <c>dt × rate</c>, unclamped: a frame longer than 1/rate (0.1 s at the default 10) OVERSHOT the target, and one longer than 2/rate
+    /// made each frame's error grow by |1 − dt·rate| > 1 — 📐 measured live: a Player driving a tank in its first-person view ran at
+    /// dt 0.12–0.35 s and read the tank at 766, 779, 640 … 14 534 m while the owner held it at 703 m; the Player beside it at dt 0.06 was exact.
+    /// The exponential is frame-rate independent: two frames of dt close the same gap as one of 2·dt.
+    /// </summary>
+    public float BlendFactor(float deltaTime) => deltaTime <= 0f ? 0f : 1f - System.MathF.Exp(-SmoothingRate * deltaTime);
+
     public void Execute(ISimulationView view, float deltaTime)
     {
         if (Fdp.Toolkit.Replay.ReplayState.IsRestoring(view)) return;   // ⭐ CE-3329 P2 — restoring this node's recording: it owns every pose; a LISTENING replay's ghosts are still smoothed (§12l)
@@ -112,7 +121,7 @@ public class DeadReckoningSyncSystem : IEcsModuleSystem
             // (ReplicatedMotion.Project), shared with a brain that reads a unit whose motion another node owns.
             var projectedNetPos = Fdp.Toolkit.Replication.ReplicatedMotion.Project(in netTf, in netVel, simNow);
 
-            var blendedPos = Vector3.Lerp(simTf.Position, projectedNetPos, deltaTime * SmoothingRate);
+            var blendedPos = Vector3.Lerp(simTf.Position, projectedNetPos, BlendFactor(deltaTime));
             cmd.SetComponent(entity, new SimTransform
             {
                 Position = blendedPos,

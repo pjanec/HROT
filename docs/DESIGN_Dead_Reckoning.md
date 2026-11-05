@@ -348,3 +348,12 @@ to the sender, and it covers a stop for any reason (a mobility kill, a halt orde
 (`SimStampCodec`; 0 ticks = "unspecified"), to avoid an IDL change; velocity travelled as azimuth/elevation/length. AQ107 changed the IDL anyway
 (the whole NED wire cut over once), so the bias, the sentinel and `SimStampCodec`'s use on these two types are gone (`SimStampCodec` still serves
 `EntityTurretPose`).
+
+
+## ✅ AS BUILT — the blend is frame-rate independent *(backend, `2026-11-05`, CE-3367)*
+
+⛔ The blend toward the projected target was `Lerp(sim, target, frameDt × rate)`, unclamped. 📐 **Measured live:** a Player driving a tank in its first-person
+view ran at frame dt 0.12–0.35 s (factor 1.2–3.5 at the default rate 10) and read the tank at 766, 779, 640 … 14 534 m while its owner held it at 703 m — a factor
+above 1 overshoots, above 2 each frame's error GROWS by |1 − factor|; the other Player, at dt ≈ 0.06, was exact (a `[DR-TRACE]` showed the projection itself right
+on both). ⭐ Now `1 − e^(−rate·dt)` (`DeadReckoningSyncSystem.BlendFactor`): always in [0, 1), and two frames of dt close the same gap as one of 2·dt.
+Rail: `DeadReckoningSyncSystemTests.Execute_ASlowFrame_NeverOvershoots_AndTheBlendIsFrameRateIndependent` (red-proved with the old factor).

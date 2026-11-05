@@ -102,9 +102,9 @@ namespace Hrot.IG.Tests
             // 0.5 s of age => the target is 5 m north of the sample, whatever the frame rate.
             AdvanceSimClockTo(repo, 1.5);
 
-            // A full blend (deltaTime * SmoothingRate == 1) lands SimTransform exactly on the target,
-            // which lets the rail assert the projection itself rather than a point along the way.
-            var system = new DeadReckoningSyncSystem(driveFromNetwork: true, smoothingRate: 10f);
+            // A full blend lands SimTransform exactly on the target, which lets the rail assert the projection itself rather than a point
+            // along the way. ⭐ CE-3367: the blend is 1 − e^(−rate·dt), so a full one is a rate with rate·dt ≫ 1 (was rate·dt == 1).
+            var system = new DeadReckoningSyncSystem(driveFromNetwork: true, smoothingRate: 1000f);
             system.Execute(repo, 0.1f);
             PlaybackCommands(repo);
 
@@ -129,6 +129,39 @@ namespace Hrot.IG.Tests
             var tf = repo.GetComponent<SimTransform>(entity);
             Assert.InRange(tf.Position.Y, 0.25f, 10f);
             Assert.NotEqual(10f, tf.Position.Y);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3367</c> — a SLOW frame never overshoots: with a stationary sample and the replica 10 m off, frames of 0.35 s (a Player
+        /// rendering its first-person view, measured live) bring it monotonically to the sample, never past it; and two frames of dt close the
+        /// same gap as one of 2·dt (frame-rate independent). 🔴 Mutation: the factor back to <c>dt × rate</c> ⇒ 3.5 ⇒ it lands 25 m on the far
+        /// side, then 62 m back ⇒ red.
+        /// </summary>
+        [Fact]
+        public void Execute_ASlowFrame_NeverOvershoots_AndTheBlendIsFrameRateIndependent()
+        {
+            using var repo = CreateRepo();
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new SimTransform { Position = new Vector3(10f, 0f, 0f), Rotation = Quaternion.Identity });
+            repo.AddComponent(entity, new NetworkTransform { LastPosition = Vector3.Zero });
+            repo.AddComponent(entity, new NetworkVelocity { Value = Vector3.Zero });
+            repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+            var system = new DeadReckoningSyncSystem();
+
+            float prev = 10f;
+            for (int i = 0; i < 8; i++)
+            {
+                system.Execute(repo, 0.35f);
+                PlaybackCommands(repo);
+                float x = repo.GetComponent<SimTransform>(entity).Position.X;
+                Assert.InRange(x, 0f, prev);   // never past the target, never away from it
+                prev = x;
+            }
+            Assert.True(prev < 0.01f, $"converged to the sample (x = {prev})");
+
+            float twoSmall = 1f - (1f - system.BlendFactor(0.1f)) * (1f - system.BlendFactor(0.1f));
+            Assert.Equal(system.BlendFactor(0.2f), twoSmall, 5);
+            Assert.InRange(system.BlendFactor(10f), 0f, 1f);
         }
 
         [Fact]
