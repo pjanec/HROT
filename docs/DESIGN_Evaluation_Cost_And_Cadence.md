@@ -976,3 +976,26 @@ node's command line). The one-binary on/off A/Bs (§11e, CE-2416, CE-2418) were 
 
 ⇒ ⭐ **the brain went from 0.7 to ~2 frames/s at 700 soldiers.** Still far from 30 Hz: what dominates now is the brain tick (93), egress
 (38 CGF, 73 SimHost), the traffic mirror (78 Traffic, 38 SimHost, 33 CGF), the weapon dispatcher (48) and the callouts / stress (~37 each).
+
+#### 11f-2. 📐 Why SimHost looked SLOWER at 700 — the old world never fought *(census, `perf-stress.py --census`)*
+
+⚠ At 700 soldiers SimHost's frame was 223 → 317 ms (old → new) while its entity count roughly doubled. ⭐ The census (entities grouped by
+component set, each node) says why — the two worlds were not doing the same thing:
+
+| SimHost at 700 soldiers | old (3 runs) | new (3 runs) |
+|---|---|---|
+| sensors evaluated (`SensorEvalState`) | **0 of 1 376** | all |
+| projectiles · short-lived effects · munition ghosts | **0 · 0 · 0** | ~300 · ~340 · 490–726 |
+| soldiers moving / under fire (`PathTrace`, `UnderFire`) | none | yes |
+| sensor parts · doors · soldiers | 1 376 · 507 · ~690 | the same |
+| mirrored SUMO cars | 19 / 19 / 176 | 120 / 434 / 2 217 — ⚠ swings by run in both versions (cars within 350 m of any collider, rounds included) |
+
+⇒ ⭐ **the old brain (0.7–0.9 frames/s) never got the fight going within the run, so the old SimHost idled.** Proved at 150 soldiers, where the
+old brain is fast enough: the old SimHost then fights normally (300 / 302 sensors evaluated, 331 projectiles, soldiers moving) — no
+functional difference — and **like for like, SimHost is 358 → 177 ms per frame (2.0×) on a similar world (3 838 vs 3 640 entities); CGF
+345 → 194 ms, Traffic 179 → 109 ms** (one run each).
+
+| ⚠ found on the way — pre-existing, not changed by this work | |
+|---|---|
+| munition ghosts pile up | `GhostTimeoutSystem.MAX_GHOST_AGE` = 3 600 FRAMES ("60 seconds at 60 Hz") — at ~3 frames/s that is ~20 min; and `GeoSpatialIngressTranslator` / `MapEntitySymbolIngressTranslator` / `EntityInfoIngressTranslator` create ghosts with tick 0. A round's late position sample makes a ghost that lingers |
+| car mirroring around rounds | rounds are colliders without `ReplicationRoute` ⇒ the vicinity rule (`TrafficReplicas`) mirrors every car within 350 m of a flying round — as designed (a round must be able to hit the car), but a cost lever |

@@ -131,6 +131,42 @@ def get(port, route):
         return {}
 
 
+def census():
+    """Each node's entities grouped by component set — what an entity count is MADE of (a world twice as big must say of what)."""
+    import collections
+    for mode, port in NODES:
+        if mode == "orchestrator": continue
+        # ⚠ its own curl with a long timeout: cluster-node.sh's 20 s is too short for a full dump from a node doing < 1 frame/s
+        raw = subprocess.run(["curl", "-s", "--noproxy", "*", "--max-time", "240", f"http://localhost:{port}/entities"],
+                             capture_output=True, text=True).stdout
+        try: ents = json.loads(raw or "{}").get("data")
+        except json.JSONDecodeError: ents = None
+        if not isinstance(ents, list):
+            print(f"  census {mode}: no entity list"); continue
+        groups = collections.Counter()
+        sample = {}
+        for e in ents:
+            key = tuple(sorted(e.get("components") or []))
+            groups[key] += 1
+            sample.setdefault(key, e.get("name") or "")
+        print(f"  census {mode}: {len(ents)} entities in {len(groups)} component sets")
+        out = os.environ.get("PERF_CENSUS_DIR")
+        if out:   # the full sets (untruncated) + one sample dump per set, for a diff between runs
+            os.makedirs(out, exist_ok=True)
+            full = []
+            for key, n in groups.most_common():
+                nid = next((e.get("networkId") for e in ents if tuple(sorted(e.get("components") or [])) == key and e.get("networkId")), None)
+                dump = None
+                if nid and n >= 20:
+                    r = subprocess.run(["curl", "-s", "--noproxy", "*", "--max-time", "60", f"http://localhost:{port}/entities/{nid}"], capture_output=True, text=True).stdout
+                    try: dump = json.loads(r or "{}").get("data")
+                    except json.JSONDecodeError: pass
+                full.append({"count": n, "components": list(key), "sampleName": sample[key], "sampleNetworkId": nid, "sample": dump})
+            json.dump(full, open(os.path.join(out, f"{mode}.json"), "w"), indent=1)
+        for key, n in groups.most_common(12):
+            print(f"      {n:6d}  '{sample[key][:24]}'  [{len(key)}] {', '.join(key)[:170]}")
+
+
 def node_work(port):
     """(sum of the systems' recent averages in ms, frames executed, top systems) — the node's own profiler."""
     d = get(port, "/diagnostics/architecture")
@@ -151,6 +187,7 @@ def main():
     ap.add_argument("--seconds", type=float, default=60.0, help="sim seconds measured after the fill")
     ap.add_argument("--write-only", action="store_true")
     ap.add_argument("--show", default="", help="comma-separated system names (substring) always printed per node, whatever their rank — for an A/B of one system")
+    ap.add_argument("--census", action="store_true", help="after measuring, count each node's entities by component set (GET /entities) — what the entity count is made of")
     ap.add_argument("--trace", metavar="DIR", help="also CPU-trace the cgf / simhost / traffic processes for 15 s at the start of the measured window (dotnet-trace, speedscope)")
     a = ap.parse_args()
     folder, n = write(a.men, a.cars, a.spawn_per_step)
@@ -236,6 +273,8 @@ def main():
             for ms, _, name in shown:
                 print(f"        {ms:7.2f}  {name}")
         print(f"\n  worst node work/frame {worst:.1f} ms ⇒ {'MEETS' if worst <= TARGET_MS else 'MISSES'} the 30 Hz target")
+        if a.census:
+            census()
     finally:
         node("stop-all")
     return 0
