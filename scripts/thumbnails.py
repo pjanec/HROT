@@ -215,7 +215,7 @@ def frame_entity(center, height, length, width, facing_deg=0.0, off_front_deg=30
     return fit_view(corners, (center[0], center[1], center[2] + height / 2), facing_deg + off_front_deg, pitch_deg)
 
 
-SCENE_UNIT_M = (3.0, 6.0, 3.0)   # a cast member's box for the scenario fit (height, length, width): a vehicle-sized margin around each position
+SCENE_UNIT_M = (4.0, 10.0, 10.0)  # a cast member's box for the scenario fit (height, length, width): a tank with its barrel in any heading fits inside
 
 
 def frame_scene(points, pitch_deg=-50.0, yaw_deg=225.0):
