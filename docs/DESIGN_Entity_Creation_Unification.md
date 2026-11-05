@@ -1343,7 +1343,25 @@ graph TD
 
 
 
-#### 3.4e-1 ⚖️ `CE-4266` — **is `CreationRequestId` redundant? ANALYSIS: KEEP the component** *(backend, `2026-11-05`; ⏳ awaiting the user's approval)*
+#### 3.4e-1 ⚖️ `CE-4266` — **is `CreationRequestId` redundant? ⛔ the KEEP analysis below is SUPERSEDED — LEAN: REMOVE it** *(backend, `2026-11-05`; revised the same day)*
+
+🔒 User, `2026-11-05`: *"i consider creation request as something temporary that has right to exist only during entity creation, and not in variable
+entity data area (components)"* · *"why would we keep it for nodes that joined late? no one on the creation side is waiting for any confirmation
+anymore after initial creation"*
+
+⭐ **Corrected findings (measured `2026-11-05`):**
+- ⛔ The rejection ① below is wrong. A transient ledger DOES outlive the spawn: `EntityRequestFinalizationSystem._tracked` (network id → `RequestId`) on the servicing node, kept until the entity is Active (`EntityRequestFinalizationSystem.cs:98-145`), then the Phase-2 ack and gone.
+- A requester on ANOTHER node already learns the network id from `CreateUpdateDeleteEntityAck`. The `InProgress` ack carries it at allocation (`CreateEntityRequestSystem.cs:220`); the `Success` ack at Active (`EntityRequestFinalizationSystem.cs:140`).
+- ⛔ Rejection ② (the late joiner) is moot. A requester exists before its own request, so the egress re-send serves no one.
+- Rejection ③ (replay) is moot too. No requester's pending state is replayed.
+
+| the removal — what it takes | |
+|---|---|
+| ELM | `PendingConstruction` carries the request id, passed by `NetworkSpawningSystem` from `SpawnEntityCommand.RequestId`; `EntityConstructionCompleted.RequestId` reads it from there (servicing node only; empty elsewhere) |
+| deploy server | resolves its spawn from `EntityConstructionCompleted.RequestId` (the event's first reader) instead of querying the component each tick |
+| wire | `EntityMaster.RequestId` dropped (egress + ingress) |
+| component | `CreationRequestId` deleted; id 449 RESERVED, never reused; registry entry and the verifier's `PerRunIds` entry go |
+| tests | the rails that assert the stamp move to assert the event / the ack |
 
 🔒 User, `2026-11-04`: *"It seems redundant as the system anyway keeps the creation list and when entity is finally created, the completion event could (i hope)
 take the creation request from the creation list the system maintains anyway."*
