@@ -596,7 +596,7 @@ chat, committed as SVG beside its design. It is the acceptance spec (R-4138 / De
 | Initial state (E15): the Unit form's Aboard / Carried by / Carries / Weapon / Knows about rows; the Brain tab's Character | `initial-state-visual.svg` | ✍ drawn, for review |
 | Rule editor UX (E13): the rule list as sentences, the gallery | `rule-list-visual.svg` | ✍ drawn, for review |
 | Seats and hats (E10): the seat and hat indicator and switch | `seats-hats-visual.svg` | ✍ drawn, for review |
-| Action catalogue (E9) + input (E14) + undo (D1): a context menu (groups, greyed with the reason, shortcuts), the Edit menu's undo / redo | — | ⏳ |
+| Action catalogue (E9) + input (E14) + undo (D1): a context menu (groups, greyed with the reason, shortcuts), the Edit menu's undo / redo | `menus-visual.svg` | ✍ drawn, for review |
 
 ### 4.4 Slices — proposed handoffs, once D1–D9 are approved
 
