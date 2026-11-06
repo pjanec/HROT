@@ -180,7 +180,7 @@ one x.
 | **C2** | `FactCatalogue` (data) + `RowProjection` (`ToDto` / `FromDto`) + `ConditionSentence` (and `BreakpointConditionSummarizer` folded into it) | ui | **round trip**: every catalogue row `FromDto(ToDto(x)) = x`; an unknown DTO ⇒ one Custom row, the DTO unchanged byte for byte |
 | **C3** | `ConditionEditor` friendly view + the add menu + presets; the rule's When tab uses it | ui | the mockup's states as frame rails; a side-by-side to the user (§4) |
 | **C4** | the timing line on the rule; the Live column from `LiveLeafOverlay` by sentence | ui | the live ✓ / ✗ and measured value per row |
-| **C5** | the same editor in the mission task's Advanced condition, the replay search and breakpoints (Contexts) | ui | each host shows only its kinds |
+| **C5** | the same editor in the mission task's Advanced condition, the replay search and breakpoints — ⭐ the Replay Browser's data breakpoints included (R-4155) (Contexts) | ui | each host shows only its kinds |
 
 ## 7. Questions — ✅ APPROVED (R-4142, user `2026-11-06`: *"Otherwise, very good."* — with the icons moved into the chips)
 

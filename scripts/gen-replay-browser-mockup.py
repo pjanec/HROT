@@ -24,8 +24,6 @@ sx = bx + 14; s.text(sx, Y0 + 20, "0:39.9", C.TXT, 12.5); sx += 50
 send = X0 + SW - 150
 s.rect(sx, Y0 + 12, send - sx, 6, "#2A2A33", rx=3); px = sx + (send - sx) * 0.6
 s.rect(sx, Y0 + 12, px - sx, 6, C.ACC, rx=3)
-for f, col in [(0.02, C.GREEN), (0.18, C.AMBER), (0.31, C.RED), (0.44, C.RED), (0.52, C.AMBER), (0.83, C.GREEN)]:
-    s.rect(sx + (send - sx) * f - 1, Y0 + 20, 2, 5, col)
 s.o.append(f"<circle cx='{px}' cy='{Y0 + 15}' r='6.5' fill='{C.TXT}'/>")
 s.text(send + 8, Y0 + 20, "1:06.8", C.DIS, 12.5)
 cw = text_width("Recording", 11) + 34
@@ -69,8 +67,8 @@ s.line(rx0 + (rx1 - rx0) * 0.6, TY + 30, rx0 + (rx1 - rx0) * 0.6, TY + TH - 6, C
 s.tooltip(hx - 70, Y0 + 32, 150, ["0:50.1 · frame 2 640"])
 # ── notes ──
 NY = Y0 + SH + 18
-s.note(20, NY, ["★ The seek bar fills the free width of the main bar: drag = scrub, click = jump, hover = the time and frame. Its ticks are the Event Timeline's",
-                "   events (one row of colour per group), so a jump to 'the shooting' is one click. The Replay Timeline window's slider, frame / tick / path rows move here",
+s.note(20, NY, ["★ The seek bar fills the free width of the main bar: drag = scrub, click = jump, hover = the time and frame. No ticks: the events are in the",
+                "   Event Timeline below (R-4155). The Replay Timeline window's slider, frame / tick / path rows move here",
                 "   (the frame into the tooltip, the file into File ▸ Recording info) and the window is retired (Q-B2).",
                 "★ A default Replay layout: map centre, Details docked right, the Event Timeline docked below full width — today all seven default windows",
                 "   open stacked at one corner, four of them about 90 × 50 px (measured). The debug windows (inspectors, event browser, frame diff, federation, search)",

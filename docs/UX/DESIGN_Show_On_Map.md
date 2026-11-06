@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — top-level, for the user (Q-M1…Q-M4)
+build-state: READY-TO-BUILD — ✅ Q-M1…Q-M4 approved (R-4155)
 updated: 2026-11-06 (first version — the user: "wherever there is something that can be shown on the map, like … the position of something, there should be a way to do it for debug purposes")
 current-answer: §1 what exists · §2 the design · §3 questions
 stale-below: nothing
@@ -107,7 +107,7 @@ graph TD
 | **M2** | the ⌖ in the struct editor (every inspector) and in `FormGrid` rows | ui | the mockup's three panels, compared by the builder (R-4146) |
 | **M3** | the same in the Replay Browser | ui | a recording's Details row shows its point at the playhead |
 
-## 3. Questions — leans
+## 3. Questions — ✅ all approved (R-4155, user `2026-11-06`: *"M1 to M4 approved"*)
 
 | # | question | lean | rejected |
 |---|---|---|---|

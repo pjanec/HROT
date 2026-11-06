@@ -21,12 +21,6 @@
 <text x='368' y='76' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>0:39.9</text>
 <rect x='418' y='68' width='652' height='6' fill='#2A2A33' rx='3' opacity='1'/>
 <rect x='418' y='68' width='391.20000000000005' height='6' fill='#4296FA' rx='3' opacity='1'/>
-<rect x='430.04' y='76' width='2' height='5' fill='#5BD06A' rx='0' opacity='1'/>
-<rect x='534.36' y='76' width='2' height='5' fill='#F2C033' rx='0' opacity='1'/>
-<rect x='619.12' y='76' width='2' height='5' fill='#E65555' rx='0' opacity='1'/>
-<rect x='703.88' y='76' width='2' height='5' fill='#E65555' rx='0' opacity='1'/>
-<rect x='756.04' y='76' width='2' height='5' fill='#F2C033' rx='0' opacity='1'/>
-<rect x='958.16' y='76' width='2' height='5' fill='#5BD06A' rx='0' opacity='1'/>
 <circle cx='809.2' cy='71' r='6.5' fill='#FFFFFF'/>
 <text x='1078' y='76' fill='#808080' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>1:06.8</text>
 <rect x='1124.4692307692308' y='63' width='85.53076923076924' height='16' fill='#3A2E4A' rx='8' opacity='1'/>
@@ -147,8 +141,8 @@
 <line x1='775.6' y1='496' x2='775.6' y2='650' stroke='#E65555' stroke-width='1.5'/>
 <rect x='837.0' y='88' width='150' height='26' fill='#141418' rx='3' stroke='#4A4A55' stroke-width='1' opacity='1'/>
 <text x='845.0' y='104' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>0:50.1 · frame 2 640</text>
-<text x='20' y='674' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>★ The seek bar fills the free width of the main bar: drag = scrub, click = jump, hover = the time and frame. Its ticks are the Event Timeline's</text>
-<text x='20' y='688' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>   events (one row of colour per group), so a jump to 'the shooting' is one click. The Replay Timeline window's slider, frame / tick / path rows move here</text>
+<text x='20' y='674' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>★ The seek bar fills the free width of the main bar: drag = scrub, click = jump, hover = the time and frame. No ticks: the events are in the</text>
+<text x='20' y='688' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>   Event Timeline below (R-4155). The Replay Timeline window's slider, frame / tick / path rows move here</text>
 <text x='20' y='702' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>   (the frame into the tooltip, the file into File ▸ Recording info) and the window is retired (Q-B2).</text>
 <text x='20' y='716' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>★ A default Replay layout: map centre, Details docked right, the Event Timeline docked below full width — today all seven default windows</text>
 <text x='20' y='730' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>   open stacked at one corner, four of them about 90 × 50 px (measured). The debug windows (inspectors, event browser, frame diff, federation, search)</text>
