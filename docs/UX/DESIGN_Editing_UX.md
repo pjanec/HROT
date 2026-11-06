@@ -594,7 +594,7 @@ chat, committed as SVG beside its design. It is the acceptance spec (R-4138 / De
 | Map interaction (E8): hint line, pick banner, drawing menu, placement ghost + level / airborne | `map-interaction-visual.svg` | ✍ drawn, for review |
 | New scenario on a terrain (E12): the New Scenario picker | `new-scenario-visual.svg` | ✍ drawn, for review |
 | Initial state (E15): the Unit form's Aboard / Carried by / Carries / Weapon / Knows about rows; the Brain tab's Character | `initial-state-visual.svg` | ✍ drawn, for review |
-| Rule editor UX (E13): the rule list as sentences, the gallery | — | ⏳ |
+| Rule editor UX (E13): the rule list as sentences, the gallery | `rule-list-visual.svg` | ✍ drawn, for review |
 | Seats and hats (E10): the seat and hat indicator and switch | — | ⏳ |
 | Action catalogue (E9) + input (E14) + undo (D1): a context menu (groups, greyed with the reason, shortcuts), the Edit menu's undo / redo | — | ⏳ |
 
