@@ -38,8 +38,8 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
    `designs/gizmos-1/canvas-context-menu-design.md`, `DESIGN_Details_Panel_View_Switching.md` — extend them, ⛔ never a sixth menu mechanism.
 3. ✍ **Design 2 WRITTEN `2026-11-06`: [DESIGN_Edit_Framework.md](../UX/DESIGN_Edit_Framework.md)** (E0) — ✅ Q1–Q6 APPROVED as revised (R-4128); stages F1–F7; five defects filed on the way (CE-4274…4278); ✅ the old ack merged into EntityEditOutcome (R-4126, §2.4).
 4. ✍ **Design 3 WRITTEN `2026-11-06`: [DESIGN_Mission_Plan_Editor.md](../UX/DESIGN_Mission_Plan_Editor.md)** (E11) — ✅ approved, Q3 (expert conditions, rule editor one click away) and Q4 (phases on events) revised (R-4129).
-5. ✍ **Design 3b WRITTEN `2026-11-06`: [DESIGN_Rule_Editor_UX.md](../UX/DESIGN_Rule_Editor_UX.md)** (E13) — awaiting the user's review of §4 Q1–Q7 and stages RX1–RX6.
-6. ▶ NEXT: E10 (hats), D1 (undo — reads the edit framework's journal), E8 (map), then the smaller ones (queue §4.5).
+5. ✍ **Design 3b WRITTEN `2026-11-06`: [DESIGN_Rule_Editor_UX.md](../UX/DESIGN_Rule_Editor_UX.md)** (E13) — ✅ approved, Q3 revised: the condition editor refactored (R-4130).
+6. ▶ NOW: E10 (hats), D1 (undo — reads the edit framework's journal), E8 (map), then the smaller ones (queue §4.5).
 4. Before each design: INVENTORY with graph queries, UML (class + sequence + module), and a claim table in the chat.
 
 ## 3. The other lanes at writing *(fetched `2026-11-06`)*
@@ -52,6 +52,6 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 | **behaviors** | performance programme (§11f, 1000 soldiers load) | nothing dispatched |
 | **backend** | late-joiner ghosts (CE-4000 / 4007) — dispatch in backend | check its report |
 
-Ids: coordinator next free **CE-4279**, **R-4130**.
+Ids: coordinator next free **CE-4279**, **R-4131**.
 
 ⚠ All lanes are PAUSED by the user while the editing-UX designs are discussed (`2026-11-06`).

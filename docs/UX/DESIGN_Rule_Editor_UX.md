@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — top-level UX review, for the user's review (R-4122); the building lanes detail it (R-4123)
-updated: 2026-11-06 (first version — coordinator; editing-UX design queue item 3b: E13)
+build-state: DESIGN — top-level; ✅ approved by the user 2026-11-06 with Q3 revised (the condition editor refactor — R-4130); the building lanes detail it (R-4123)
+updated: 2026-11-06 (§2.3 revised: the condition editor refactored — phrase metadata, a friendly view, expert toggle, presets as shortcuts — R-4130) · 2026-11-06 (first version — coordinator; editing-UX design queue item 3b: E13)
 current-answer: §1 what is built and what is wrong with it · §2 the target · §3 stages · §4 questions with leans
 stale-below: nothing
 known-rot: none
@@ -59,37 +59,50 @@ Selecting a rule — in the List, on the Timeline, from a unit's Objectives tab,
 (the same `RuleDetails` content, re-hosted as Details tabs offered for a rule entity). The Rules window keeps the list / timeline, the
 toolbar (*+ New rule*, group by, side, search) and the instructor's *End*. ⛔ No second copy of the form.
 
-### 2.3 Conditions people can write — templates over the one condition language
+### 2.3 The condition editor, refactored — one friendly editor, templates as shortcuts *(revised `2026-11-06`)*
+
+🔒 User: *"i think the condition editor needs refactor, it is very technical now, ok for a debug tool. if made more friendly, we will not need
+to be so afraid to offer at other places. that might be what you call Condition Templates? or maybe the condition editor simply needs
+different simpler UI to express the same things? Or a combination of more friendly UI and friendly templates as a shortcut?"* — R-4130:
+**the combination.**
 
 ```mermaid
 classDiagram
   direction LR
-  class ConditionTemplate {
-    <<NEW, data>>
-    Sentence with blanks
-    Blanks : unit | group | side | area | objective | rule | phase | number | duration
-    Compile(blanks) SearchPredicateDto
-    Recognise(SearchPredicateDto) blanks?
+  class SearchPredicateDto { <<existing, SR-95 — the ONE language>> 19 kinds }
+  class ConditionPhrase {
+    <<NEW, metadata on each predicate kind>>
+    Sentence : "[unit] is inside [area]"
+    Pickers : which fields pick (map, list, semantic type)
+    Expert : fields and whole kinds shown only in the Expert view
+    Contexts : rule · task · replay search · breakpoint
   }
-  class ConditionList { <<NEW drawer>> All of / Any of · rows of templates · Edit as expression }
-  class SearchPredicateDto { <<existing, SR-95 — the ONE language>> }
-  class PredicateBuilder { <<existing — the expert view, kinds filtered by context>> }
-  ConditionList "1" o-- "*" ConditionTemplate
-  ConditionTemplate ..> SearchPredicateDto : compiles to / recognises
-  ConditionList ..> PredicateBuilder : Edit as expression
-  PredicateBuilder ..> SearchPredicateDto
+  class ConditionEditor {
+    <<REFACTORED, the ONE editor, every host>>
+    Friendly view : sentence rows, All of / Any of
+    Expert view : today's tree
+  }
+  class ConditionPreset { <<NEW, data — the shortcuts>> name · rows pre-filled }
+  class PropertyNames { <<NEW>> friendly names for component properties (strength, speed, ammunition …) }
+  SearchPredicateDto ..> ConditionPhrase : each kind described by
+  ConditionEditor ..> ConditionPhrase : draws rows from
+  ConditionEditor ..> SearchPredicateDto : edits
+  ConditionPreset ..> ConditionEditor : inserts rows
+  ConditionPhrase ..> PropertyNames : a property match
 ```
-*What the picture shows that prose hid: nothing new is evaluated — a template is a sentence that COMPILES to the existing predicate and
-RECOGNISES it back, so a rule written as a sentence and one written as an expression are the same rule; the expression editor stays for
-experts and for anything no template recognises.*
+*What the picture shows that prose hid: friendliness is METADATA on the language, not a second language and not a fixed set of templates —
+so EVERY kind is drawn as a sentence, the same editor serves rules, mission tasks, the replay search and breakpoints, and the presets are
+only shortcuts that fill its rows.*
 
 | | rule |
 |---|---|
-| **the first templates** | *[unit / group] is inside [area] (for [duration])* · *[unit / group] reaches [area]* · *[objective] is achieved / failed* · *[rule] has fired* · *[unit / group] strength below [n] %* · *[unit] is destroyed* · *[side] has lost [n] men* · *[unit / side] detects [enemy unit / any enemy]* · *Phase [P] has begun* · *[duration] after [phase / rule / start]* · *the instructor says so* (a manual trigger) |
-| **combining** | **All of / Any of** a list of template rows (Gmail-filter style); nesting one level (*All of: …, Any of: …*); deeper ⇒ *Edit as expression* |
-| **experts** | *Edit as expression* opens today's builder; ⭐ its kind list is FILTERED to what a rule can use — the search / debugging internals (`TraceBufferScan`, `RingEntry`, `ExternalHitTag`, `BlueprintVariable`, `BehaviourStep`, `InputAbove`) only behind the panel's Expert switch (R-4121) |
-| **a condition no template recognises** | shown as *Custom condition* (one line, the expression in the tooltip) with *Edit as expression* — never lost, never rewritten |
-| **the live check** | the existing *Live strip* (leaf values) reads ✓ / ✗ per template row |
+| **the friendly view** | every condition is a sentence row drawn from its kind's `ConditionPhrase`: *[Alpha 1-1] is inside [OBJ BLUE] for [30 s]* · *[Alpha 1-1]'s [strength] [is below] [50 %]* · *[OBJ BLUE] is [achieved]* · *[Phase 2] has begun*; blanks are pickers (the map, a list, a semantic-type field — R-4120); rows combine as **All of / Any of**, one nesting level |
+| **a property match, made human** | *[unit]'s [property] [operator] [value]* — the property chosen from **friendly names** (strength, speed, ammunition, posture …) instead of a component type + path; the raw path only in the Expert view |
+| **the expert view** | a toggle on the editor (per panel, R-4121): today's tree, every kind and field; a condition the friendly view cannot draw opens there, shown in the friendly view as one *Custom condition* row — never lost, never rewritten |
+| **context filters the kinds** | a kind's `Contexts` says where it makes sense: a rule or a task never offers `TraceBufferScan` / `RingEntry` / `ExternalHitTag` (debugging); the replay search and breakpoints do |
+| **presets — the shortcuts** | *Take and hold an area · Reach an area · Strength below · Side has lost n men · Objective achieved · Phase has begun · n minutes after …* — each inserts pre-filled rows; ⛔ not a second model, not required |
+| **one editor everywhere** | the rule's *When*, a mission task's *Advanced condition*, the replay search, breakpoints — ⭐ the friendly view makes it safe to offer in more places (the user's point) |
+| **live** | the Live strip's ✓ / ✗ per row |
 
 ### 2.4 Actions people can read — the same idea for *do*
 
@@ -133,17 +146,17 @@ timing* (Begin phase when … · End the exercise when …), *Reinforcements* (B
 | **RX1** | the basics: CE-4245; the Rules window on CGF |
 | **RX2** | the rule detail as Details tabs (R-4118); the Rules window = list / timeline + toolbar |
 | **RX3** | the List view (sentences for conditions, actions and objectives) |
-| **RX4** | condition templates (data: compile + recognise) + All of / Any of + *Edit as expression*; the kind filter behind Expert |
+| **RX4** | the condition editor refactor: `ConditionPhrase` metadata on every kind, friendly property names, the sentence-row view with All of / Any of, the Expert view toggle, context filtering, presets; adopted by the replay search and breakpoints too |
 | **RX5** | actions as sentences; *Order* by order kind; *Begin phase* (with Mission Plan M6) |
 | **RX6** | entry points from tasks, units, areas, the timeline; the gallery |
 
-## 4. Questions — leans for the user
+## 4. Questions — ✅ approved; Q3 as revised *(🔒 user, `2026-11-06`: "otherwise agreed")*
 
 | # | question | ⭐ lean | rejected |
 |---|---|---|---|
 | **Q1** | the authoring view | a **List of sentences** as the Edit-mode default, the built Timeline the default in Live / Review | the timeline only — authoring before anything happens on a time axis |
 | **Q2** | where a rule's detail lives | **the Details panel** (R-4118), the Rules window keeps list / timeline / toolbar | the window's right pane — a second detail surface |
-| **Q3** | conditions | **templates as data** that compile to and recognise the ONE language (SR-95), **All of / Any of**, *Edit as expression* for experts, internal kinds behind Expert | a second, simplified condition model — two languages; raw expression only — the user's complaint |
+| **Q3** | conditions | ✏ **revised by the user (R-4130):** REFACTOR the one condition editor — a friendly sentence-row view drawn from phrase metadata on every kind (+ friendly property names), the Expert view as a toggle, kinds filtered by context, presets as shortcuts; the same editor in rules, tasks, replay search and breakpoints | a fixed set of templates as the only friendly path — anything else stays technical; a second, simplified condition model — two languages |
 | **Q4** | actions | **sentences**; *Order* by **order kind**; a new **Begin phase** | keep identifiers |
 | **Q5** | entry points | from a mission task, a unit, an area, the timeline, and a **gallery** of common rules | only Window ▸ Rules — "easily accessible from the missions" |
 | **Q6** | scoring measures | a **separate gallery group** for exercise designers; kept out of the authoring list by default (a filter) | mixed with objectives — today's *+ Add* menu |
