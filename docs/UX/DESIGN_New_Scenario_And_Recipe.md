@@ -1,0 +1,164 @@
+<!--STATUS
+state: LIVE
+build-state: DESIGN — top-level, for the user's review (R-4122); the building lanes (ui for the picker, backend for the blank create) detail it (R-4123)
+updated: 2026-11-06 (first version — coordinator; editing-UX design queue item 7: E12 / D19)
+current-answer: §2 the model · §3 stages · §4 questions with leans
+stale-below: nothing
+known-rot: none
+known-conflict: ScenarioNewAssetService's remark "this kind offers NO BLANK TEMPLATE, deliberately" (H3) — its reason (a blank has no way to get a terrain) is answered here by naming the terrain in the created file; the class comment changes with stage N2
+related-designs:
+  - DESIGN_Editing_UX.md — the programme: D19 (the terrain is chosen at creation, never changed — R-4124), §1.4 row 13
+  - ../blueprints/Architect_Question_108_Run_Mode_Picker.md — OWNS the File menu (§2.15), New from a recipe (§2.17, CE-4140), Save Scenario as Recipe (§2.15b B2c), the wide picker and its side pane (D25, §2.18) and the scenario door every load goes through
+  - ../DESIGN_Terrain_World.md — OWNS TerrainCatalog (W12) and "save stamps the resident terrain" (W14); its §7.3 picker (W13) is SUPERSEDED and stays so — this design picks a terrain only for a NEW scenario
+  - ../designs/main-toolbar-1/DESIGN.md — §10 the one asset browser the New picker is a source of
+  - ../DESIGN_Add_Entity_Picker.md — §2j the scenario preview.jpg (R-4117), shown in the picker pane
+  - DESIGN_Seats_And_Hats.md — New Scenario is the Author seat's
+-->
+
+# DESIGN — a new scenario on a terrain, and authoring recipes
+
+## 0. Why, and what the user asked
+
+🔒 *"we need a way how to author new scenario recipes, but we never want to allow changing a terrain (this was the reason for removing the
+picker) - but we still need it for creating new scenario (or its recipe) - so maybe new scenario creation needs a bit different workflow"*
+(user, `2026-11-06`, R-4124).
+
+Today a new scenario can only start from a recipe, so it can only be on a terrain some recipe already uses. Four of the eight terrains
+(`bt-range`, `cqb-village`, `highway-rest`, `indirect-fire-range`) have no recipe, so no scenario can be started on them.
+
+## 1. INVENTORY *(2026-11-06)*
+
+Queries run:
+
+- `search_graph ".*Terrain(Catalog|Registry|List|Picker|Source|Library|Index|Discovery|Root|Names|Store).*" Class`: **6**. Only `TerrainCatalog` is live; `TerrainPickerLauncher` (+ tests) is a stale graph entry, since the file is deleted (`ls`: absent).
+- `search_graph ".*(Recipe|NewAsset|NewScenario|ScenarioNew).*" Class`: **33**.
+- grep for `TerrainCatalog`, `saveAsRecipe`, `/scenario/new`, `IScenarioCreationSession`.
+- `ls assets/terrain` (8) and `recipes/scenarios` (10).
+
+Coverage could not be checked (the CLI has no `check_index_coverage`).
+
+| what exists | where | for this design |
+|---|---|---|
+| **New Scenario = New from a recipe** — `NewAssetLauncher` + `RecipePickerSource` (one picker), then the host's Save-As naming, then `ScenarioNewAssetService.CreateNew`: load the recipe by name, `SaveScenarioAs(<name>)` | AQ108 §2.17; `Hrot.Editor/ScenarioNewAssetService.cs` | ⭐ the flow to extend. Its class comment (H3) says no blank exists **because a blank cannot acquire a terrain** |
+| **the terrain list** — `TerrainCatalog.List()`: every folder holding a `terrain.json`, over node staging → NAS → shipped | `Fdp.Toolkits/Terrain/TerrainCatalog.cs:94` | ⭐ its doc still says *"what the editor's terrain picker lists"*; since the picker was deleted it has **no caller** |
+| **a header-only scenario loads** — `recipes/scenarios/basic-desert` is exactly that (header, terrain, zero entities) and is today's "empty" start | `recipes/scenarios/basic-desert/scenario.json` | ⭐ proof that a blank needs nothing new on the load side |
+| **Save Scenario as Recipe…** — `scenario.saveAsRecipe` = a full save under `recipes/scenarios/<name>`, which New lists live; never overwrites (*name (2)*) | AQ108 §2.15b B2c; `ScenarioMenuCommands.cs:63,258` | ⭐ recipe authoring is ALREADY built — what is missing is starting on a terrain no recipe has, and updating a recipe |
+| **the picker pane** — D25's wide picker shows `preview`, `header.description`, `terrainName`, entity count | AQ108 §2.18 (`ScenarioPaneFacts`) | ⭐ the same pane describes a terrain row |
+| **the terrain is stamped at save from the RESIDENT terrain** | Terrain World W14 | ⭐ so a scenario's terrain can only come from what was loaded — which is why the picker's removal fixed "changing a terrain" |
+| **hosts** — CGF and the Orchestrator host pass `openNewScenario: null` ⇒ *New Scenario* greyed with a reason | AQ108 §2.17 | unchanged |
+| **HTTP** — no `/scenario/new` route | grep, 0 hits | the AI debug API cannot create a scenario |
+
+### 1.1 Claim table
+
+| claim | code | design basis |
+|---|---|---|
+| nothing changes a terrain after creation, and this design keeps it so | ✅ W14 (stamp from resident), the picker deleted (AQ108 §2.15 row 7) | ✅ R-3073, R-4124 |
+| a blank needs only a header-only file with the terrain named | ✅ `basic-desert` loads with zero entities (its own judge text) | ✅ AQ108 §2.17 (a recipe is loaded by name, the new scenario saved under the typed name) |
+| the terrain list exists | ✅ `TerrainCatalog.List()` | ✅ W12 |
+| where the master writes a new scenario folder | ⛔ **not measured** — the blank's file must be written where the load resolves names (in the editor's all-in-one, one process). Stage N2's first step | AQ108 §2.17: *"resolved by the master"* |
+
+## 2. The model
+
+### 2.1 The picture
+
+```mermaid
+classDiagram
+  class NewAssetLauncher { <<existing · AiShared/Browser>> Open(AssetKind.Scenario) }
+  class RecipePickerSource {
+    <<existing · AiShared/Browser/RecipePickerSource.cs:39>>
+    entries: recipes
+    +group "Blank, on a terrain" ★
+    +group "From a recipe"
+  }
+  class TerrainCatalog { <<existing · Terrain/TerrainCatalog.cs>> List() · ReadDefinition(name) }
+  class ScenarioNewAssetService {
+    <<existing · Hrot.Editor>>
+    CreateNew(recipe, name)
+    +CreateBlank(terrain, name) ★
+  }
+  class IScenarioCreationSession {
+    <<existing>>
+    LoadScenarioByName · SaveScenarioAs
+    +CreateBlankScenario(name, terrain) ★
+  }
+  class ScenarioDoor { <<existing · AQ108>> the one guarded load }
+  class ScenarioMenuCommands { <<existing>> scenario.saveAsRecipe → +Replace recipe ★ }
+  class ScenarioHeaderFacts { <<★ Details · Scenario>> Terrain: name (fixed at creation) }
+  class DebugApi { <<existing>> +POST /scenario/new ★ }
+
+  NewAssetLauncher --> RecipePickerSource
+  RecipePickerSource ..> TerrainCatalog : the terrain rows
+  RecipePickerSource --> ScenarioNewAssetService : the pick
+  ScenarioNewAssetService --> IScenarioCreationSession
+  IScenarioCreationSession --> ScenarioDoor : load by name (both paths)
+  DebugApi --> ScenarioNewAssetService
+```
+
+*What the picture shows that the prose hid:* a blank and a recipe end in the **same door**. The blank only differs in what file exists
+before the load: a header naming the terrain instead of a copied recipe. There is no terrain picker on a loaded scenario, no second
+load path, and no second picker window.
+
+### 2.2 New Scenario, blank on a terrain
+
+```mermaid
+sequenceDiagram
+  actor U as author
+  participant P as New Scenario picker
+  participant N as Save-As naming (existing)
+  participant S as ScenarioNewAssetService
+  participant B as backend (master)
+  participant D as ScenarioDoor
+  U->>P: File ▸ New Scenario…
+  P-->>U: Blank, on a terrain: basic-desert · berlin · … (8) — From a recipe: … (10)
+  U->>P: berlin (pane: terrain facts, preview if any)
+  P->>N: name it
+  U->>N: "Berlin/Checkpoint"
+  N->>S: CreateBlank("berlin", "Berlin/Checkpoint")
+  S->>B: CreateBlankScenario — writes scenarios/Berlin/Checkpoint/scenario.json (header: terrainName berlin, zero entities)
+  S->>D: LoadScenarioByName("Berlin/Checkpoint") — the ordinary load, every node gets berlin by the existing consensus
+  D-->>U: an empty scenario on berlin, already saved, in Edit
+```
+
+*What the picture shows that the prose hid:* the scenario exists on disk before it loads. The existing save stamp (W14) and the terrain
+consensus never meet a terrain that did not come from a load.
+
+### 2.3 Recipes — authored as scenarios
+
+| need | how | built? |
+|---|---|---|
+| a new recipe on any terrain | New ▸ Blank, on a terrain → author it → **File ▸ Save Scenario as Recipe…** | the second half is built (B2c) |
+| a new recipe from another recipe | New ▸ From a recipe → change it → Save Scenario as Recipe… | built |
+| **update an existing recipe** | the scenario remembers the recipe it came from; *Save Scenario as Recipe…* offers **Replace recipe 'x'** (one confirmation, R-4121: it overwrites a shared template) beside a new name | ★ new: today it never overwrites (*name (2)*) |
+| the recipe's terrain | always the scenario's, which was fixed at creation | built (W14) |
+
+⛔ No separate *New Recipe…* item. A recipe is a scenario saved into the recipes folder. A second creation flow for the same content
+would be a duplicate (R-174).
+
+### 2.4 The terrain is shown, never editable
+
+| where | what |
+|---|---|
+| the scenario's Details (header facts) | *Terrain: berlin* — read-only, tooltip *"chosen when the scenario was created; a different terrain means a new scenario"* |
+| the Open / New picker pane | the terrain name (built, `ScenarioPaneFacts`) |
+| the window title | *Checkpoint — berlin* |
+
+## 3. Stages
+
+| stage | what | owner | rails |
+|---|---|---|---|
+| **N1** | the New picker gains the group *Blank, on a terrain* from `TerrainCatalog.List()`; the pane shows the terrain's facts (name, origin, road networks from `terrain.json`) | ui | the picker lists all 8 terrains and the 10 recipes, live (a terrain folder added appears on the next open) |
+| **N2** | `CreateBlankScenario(name, terrain)`: ① **measure where the master writes a new scenario folder**; ② write the header-only file; ③ the ordinary load by name. `ScenarioNewAssetService`'s H3 comment updated | backend | a blank on `highway-rest` loads with zero entities, saves, and reopens on `highway-rest`; an unknown terrain name is refused with the reason |
+| **N3** | *Replace recipe 'x'* in Save Scenario as Recipe (the scenario carries the recipe it came from) | ui | replacing asks once; a new name never asks |
+| **N4** | the terrain read-only in Details and the title | ui | — |
+| **N5** | `POST /scenario/new {name, recipe | terrain}` on the same service | backend | the AI debug API creates both kinds |
+
+## 4. Questions — leans for the user
+
+| # | question | lean | rejected |
+|---|---|---|---|
+| **Q1** | how a blank gets its terrain | **the backend writes a header-only `scenario.json` naming the terrain, then the ordinary load** — one load path, every node gets the terrain by the existing consensus | load the terrain into the open world and save (the old W13 picker): a terrain change outside a load, which is what R-3073 removed |
+| **Q2** | one picker or two | **one New Scenario picker with two groups**: *Blank, on a terrain* and *From a recipe* | a separate New on Terrain item: a second entry point for one action |
+| **Q3** | a New Recipe item | **none**: a recipe is a scenario saved with *Save Scenario as Recipe…* | its own creation flow: duplicates New Scenario |
+| **Q4** | updating a recipe | ***Replace recipe 'x'*** offered when the scenario came from recipe x, with one confirmation | never overwrite (today): every edit of a recipe forks it as *name (2)* |
+| **Q5** | terrain previews in the picker | **text facts only for now**; a terrain still (`assets/terrain/<name>/preview.jpg`, like the scenario stills of R-4117) only if you want it in git — your call, lean **yes, small JPEG**, captured by the same thumbnail script | — |
+| **Q6** | the HTTP route | **yes, `POST /scenario/new`**, through the same service, so the AI debug API can create both kinds | none: tests and agents could not create a scenario |
