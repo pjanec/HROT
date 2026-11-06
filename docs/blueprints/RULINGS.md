@@ -1255,5 +1255,5 @@ R-4117 | docs/DESIGN_Add_Entity_Picker.md | The thumbnails for the scenarios can
 R-4118 | docs/UX/README.md | I do not want many special standalone panels for editing details
 R-4119 | docs/UX/README.md | editing capabilities per entity should be gated
 R-4120 | docs/UX/DESIGN_Editing_UX.md | The most common entity parameters should be likely editable in a dedicated forms on the details tab.
-R-4121 | docs/UX/DESIGN_Editing_UX.md | for live mode edits the confirmation should be scarce to avoid annoying the user.
+R-4121 | docs/UX/DESIGN_Editing_UX.md | to avoid annoying the user. maybe the editing capabilities should be gated similarly like the other features are
 ```
