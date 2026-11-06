@@ -9,7 +9,7 @@ using Fdp.Toolkit.Terrain;
 using Fdp.Toolkit.Weather;
 using Hrot.Common;
 using Hrot.Gameplay;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Xunit;
 
 namespace Hrot.SimHost.Tests

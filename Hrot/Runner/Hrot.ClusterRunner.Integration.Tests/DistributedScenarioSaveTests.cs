@@ -43,7 +43,7 @@ public sealed class DistributedScenarioSaveTests : IDisposable
     public async Task DistributedSave_MergesCompatibleSlices()
     {
         int domainId = NextDomainId();
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", domainId);
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", domainId);
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
 
         // Wait for the node roster (CGF, SimHost, IG) to come up.
@@ -91,7 +91,7 @@ public sealed class DistributedScenarioSaveTests : IDisposable
         var loadedHash = Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(File.ReadAllText(Path.Combine(ScenarioDir, "scenario.json")));
         var exercise = Guid.NewGuid();
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         Assert.True(harness.PumpUntil(() => master.NodeRoster.ActiveNodes.Count >= 2, timeoutFrames: 400), "cluster roster must populate");
 
@@ -159,7 +159,7 @@ public sealed class DistributedScenarioSaveTests : IDisposable
         Directory.CreateDirectory(ScenarioDir);
         File.Copy(recipe, Path.Combine(ScenarioDir, "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         Assert.True(harness.PumpUntil(() => master.NodeRoster.ActiveNodes.Count >= 2, timeoutFrames: 400), "cluster roster must populate");
 
@@ -173,7 +173,7 @@ public sealed class DistributedScenarioSaveTests : IDisposable
         var nodes = new (string Name, Hrot.Presentation.DebugApi.ISubsystemDebugProvider? Provider)[]
         {
             ("SimHost", harness.SimHost.CreateDebugProvider()),
-            ("IG",      harness.Ig.CreateDebugProvider()),
+            ("Player",      harness.Player.CreateDebugProvider()),
             ("CGF",     harness.Cgf!.CreateDebugProvider()),
         };
         foreach (var n in nodes) Assert.True(n.Provider!.ObservesUnsavedChecks, $"{n.Name} must observe the check round by construction");

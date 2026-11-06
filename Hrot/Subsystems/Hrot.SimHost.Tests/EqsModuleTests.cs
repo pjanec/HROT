@@ -17,7 +17,7 @@ using Fdp.Toolkit.Perception.Translators;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Tkb.Domain;
 using Fdp.Interfaces;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Systems;
 using Xunit;

@@ -18,8 +18,8 @@ public sealed class TheDeployRoutesTests
 {
     private static DebugApiService Host(EntityRepository? world)
         => new(new PerspectiveScopedDispatcher(
-                   new ISubsystemDebugProvider[] { new SubsystemDebugProvider("IG", "IG", world: world is null ? null : () => world) },
-                   currentPerspective: () => "IG", acksPending: null));
+                   new ISubsystemDebugProvider[] { new SubsystemDebugProvider("Player", "Player", world: world is null ? null : () => world) },
+                   currentPerspective: () => "Player", acksPending: null));
 
     private static DeployFlowSystem Flow(EntityRepository world, bool live = true)
     {

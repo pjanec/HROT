@@ -75,12 +75,12 @@ public class AttributeChangeRequestRoundTripTests
     {
         using var harness = new HrotRunnerHarness();
 
-        var igWorld = harness.Ig.App.World;
+        var playerWorld = harness.Player.App.World;
 
         // ⭐ The unowned-replica shape: a network identity, and nothing local to write.
         const int ReplicaNetworkId = 987_654;
-        var ghost = igWorld.CreateEntity();
-        igWorld.AddComponent(ghost, new NetworkIdentity { Value = ReplicaNetworkId });
+        var ghost = playerWorld.CreateEntity();
+        playerWorld.AddComponent(ghost, new NetworkIdentity { Value = ReplicaNetworkId });
 
         const double TargetHeadingDeg = 137.0;
 
@@ -91,9 +91,9 @@ public class AttributeChangeRequestRoundTripTests
         // ⚠ Discovery first — a reader created after the write misses the sample.
         harness.PumpFrames(20);
 
-        var writer = EntityWriteRouter.For(igWorld);
+        var writer = EntityWriteRouter.For(playerWorld);
         var route  = writer.Write(ghost, AttributeIds.Heading, TargetHeadingDeg);
-        _out.WriteLine($"[C1] IG write route = {route}");
+        _out.WriteLine($"[C1] Player write route = {route}");
         Assert.Equal(EntityWriteRoute.Requested, route);
 
         // ⚠ The DDS message is a STRUCT, so this is a value + a found flag rather than a nullable.
@@ -171,14 +171,14 @@ public class AttributeChangeRequestRoundTripTests
 
         // ── 2. Wait for the replica to reach the IG ───────────────────────────
         Assert.True(
-            harness.PumpUntil(() => IgHasEntity(harness, networkId), SpawnTimeoutFrames),
-            $"IG never received entity netId={networkId} within {SpawnTimeoutFrames} frames. " +
-            "⚠ This is the AX-009 shape: the owner is not publishing WorldPos, so the IG's ghost never " +
+            harness.PumpUntil(() => PlayerHasEntity(harness, networkId), SpawnTimeoutFrames),
+            $"Player never received entity netId={networkId} within {SpawnTimeoutFrames} frames. " +
+            "⚠ This is the AX-009 shape: the owner is not publishing WorldPos, so the Player's ghost never " +
             "gets the SimTransform its HARD promotion requirement waits for. Check the NetworkTransform " +
             "egress shadow first — see TheEgressShadowExistsAtBirthTests.");
 
-        var igWorld = harness.Ig.App.World;
-        harness.Ig.App.TestHook_EntityMap.TryGetEntity(networkId, out var igEntity);
+        var playerWorld = harness.Player.App.World;
+        harness.Player.App.TestHook_EntityMap.TryGetEntity(networkId, out var playerEntity);
 
         var shWorld = harness.SimHost.World!;
         Assert.True(harness.SimHost.TestHook_EntityMap.TryGetEntity(networkId, out var shEntity),
@@ -189,11 +189,11 @@ public class AttributeChangeRequestRoundTripTests
 
         // ── 3. The IG asks for a heading it has no authority to write ─────────
         //    ⭐ This is the PRODUCTION composition — the same call the rotate gizmo makes.
-        var writer = EntityWriteRouter.For(igWorld);
+        var writer = EntityWriteRouter.For(playerWorld);
 
         const double TargetHeadingDeg = 137.0;
-        var route = writer.Write(igEntity, AttributeIds.Heading, TargetHeadingDeg);
-        _out.WriteLine($"[A3] IG write route = {route}");
+        var route = writer.Write(playerEntity, AttributeIds.Heading, TargetHeadingDeg);
+        _out.WriteLine($"[A3] Player write route = {route}");
 
         // ⭐⭐ The router must NOT have written locally. ⛔ `Direct` here would mean the IG believes it owns
         //    SimTransform, which would make the whole request path dead code on this node.
@@ -212,7 +212,7 @@ public class AttributeChangeRequestRoundTripTests
 
         Assert.True(applied,
             $"SimHost never applied the requested heading within {RoundTripTimeoutFrames} frames. " +
-            "The change-request did not complete the round trip: IG bus → egress translator → DDS → " +
+            "The change-request did not complete the round trip: Player bus → egress translator → DDS → " +
             "SimHost request system → SimTransformHeadingInstaller.");
     }
 
@@ -271,36 +271,36 @@ public class AttributeChangeRequestRoundTripTests
 
         int networkId = harness.SimHost.TestHook_SpawnEntity(
             TkbEntityTypes.Tank_M1Abrams, new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 });
-        Assert.True(harness.PumpUntil(() => IgHasEntity(harness, networkId), SpawnTimeoutFrames),
-            $"IG never received entity netId={networkId} within {SpawnTimeoutFrames} frames.");
+        Assert.True(harness.PumpUntil(() => PlayerHasEntity(harness, networkId), SpawnTimeoutFrames),
+            $"Player never received entity netId={networkId} within {SpawnTimeoutFrames} frames.");
 
         var shWorld = harness.SimHost.World!;
         Assert.True(harness.SimHost.TestHook_EntityMap.TryGetEntity(networkId, out var shEntity));
 
         // ── the IG — a non-owner of SimTransform — patches the heading through the debug service ──
         var geo = shWorld.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>();
-        var igService = DebugServiceOver("IG", harness.Ig.App.World, harness.Ig.App.TestHook_EntityMap, geo,
-            harness.Ig.App.NedReplication?.DescriptorOwnershipMap);
+        var playerService = DebugServiceOver("Player", harness.Player.App.World, harness.Player.App.TestHook_EntityMap, geo,
+            harness.Player.App.NedReplication?.DescriptorOwnershipMap);
         const double TargetHeadingDeg = 137.0;
-        var (igResult, igError) = igService.PatchEntityAttribute(networkId, $"{{\"Heading\":{TargetHeadingDeg}}}");
-        _out.WriteLine($"[D1] IG patch: error={igError ?? "<none>"} write={igResult?["write"]?.ToJsonString()}");
-        Assert.Null(igError);
-        Assert.Equal("requested", igResult?["write"]?["route"]?.GetValue<string>());
+        var (playerResult, playerError) = playerService.PatchEntityAttribute(networkId, $"{{\"Heading\":{TargetHeadingDeg}}}");
+        _out.WriteLine($"[D1] Player patch: error={playerError ?? "<none>"} write={playerResult?["write"]?.ToJsonString()}");
+        Assert.Null(playerError);
+        Assert.Equal("requested", playerResult?["write"]?["route"]?.GetValue<string>());
 
         var expected = SimTransformBridgeSystem.HeadingDegToRotation((float)TargetHeadingDeg);
         Assert.True(
             harness.PumpUntil(() => RotationsMatch(shWorld.GetComponent<SimTransform>(shEntity).Rotation, expected),
                               RoundTripTimeoutFrames),
-            $"SimHost never applied the IG's debug patch within {RoundTripTimeoutFrames} frames. The JSON-arm " +
-            "request did not complete IG bus → UpdateEntityAttributeCommandEgressTranslator → DDS → SimHost's " +
+            $"SimHost never applied the Player's debug patch within {RoundTripTimeoutFrames} frames. The JSON-arm " +
+            "request did not complete Player bus → UpdateEntityAttributeCommandEgressTranslator → DDS → SimHost's " +
             "UpdateEntityAttributeRequestSystem (JSON compiler).");
 
         // ── the StructEdit route must REFUSE the same component on the non-owner (CE-3003 / CE-191) ──
         //    ⛔ It used to write the IG's replica and answer with the edited dump; the owner's next sample
         //    overwrote it and nothing reached SimHost.
-        var (compResult, compError) = igService.EditEntityComponent(
+        var (compResult, compError) = playerService.EditEntityComponent(
             networkId, nameof(SimTransform), System.Text.Json.Nodes.JsonNode.Parse("{}"));
-        _out.WriteLine($"[D2] IG component edit: error={compError ?? "<none>"}");
+        _out.WriteLine($"[D2] Player component edit: error={compError ?? "<none>"}");
         Assert.Null(compResult);
         Assert.NotNull(compError);
         Assert.Contains("owned by another node", compError);
@@ -340,10 +340,10 @@ public class AttributeChangeRequestRoundTripTests
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    private static bool IgHasEntity(HrotRunnerHarness harness, int networkId)
+    private static bool PlayerHasEntity(HrotRunnerHarness harness, int networkId)
     {
-        if (!harness.Ig.App.TestHook_EntityMap.TryGetEntity(networkId, out var e)) return false;
-        var world = harness.Ig.App.World;
+        if (!harness.Player.App.TestHook_EntityMap.TryGetEntity(networkId, out var e)) return false;
+        var world = harness.Player.App.World;
         return world.IsAlive(e)
             && world.HasComponent<NetworkIdentity>(e)
             && world.HasComponent<SimTransform>(e);

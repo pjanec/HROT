@@ -2,7 +2,7 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Replication.Components;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 
 namespace Hrot.Common.Diagnostics.Gizmos
 {

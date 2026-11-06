@@ -11,7 +11,7 @@ namespace Hrot.UI.Common.Adapters
     /// <para>
     /// Reads and writes the injected <see cref="MapViewConfig"/> POCO and the
     /// <see cref="MapCanvas.ActiveLayerMask"/> directly for entity-layer visibility,
-    /// avoiding any dependency on <c>Hrot.IG</c> or DDS layer-config topics.
+    /// avoiding any dependency on <c>Hrot.Player</c> or DDS layer-config topics.
     /// </para>
     ///
     /// No DDS or CycloneDDS references.

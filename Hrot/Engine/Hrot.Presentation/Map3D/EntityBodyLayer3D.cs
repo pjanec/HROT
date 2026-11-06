@@ -128,7 +128,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         _frameClock += ctx.DeltaTime > 0f && float.IsFinite(ctx.DeltaTime) ? ctx.DeltaTime : 0.0;   // ⭐ CE-1353 — the rotors' smooth clock
         double simTime = world.HasSingletonUnmanaged<GlobalTime>() ? world.GetSingletonUnmanaged<GlobalTime>().TotalTime : _wallFallback;
         _drawn.Clear();
-        bool hasSelection = world.IsComponentTypeRegistered<Hrot.IG.Components.SelectionState>();
+        bool hasSelection = world.IsComponentTypeRegistered<Hrot.Map.Common.Components.SelectionState>();
         bool hasNet = world.IsComponentTypeRegistered<NetworkIdentity>();
         SelectionBoxesDrawn = 0;
         _tops.Clear();
@@ -318,9 +318,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             if (hasNet && world.HasComponent<NetworkIdentity>(e) && world.GetComponentRO<NetworkIdentity>(e).Value is int net && net != 0)
                 _tops[net] = look.Family == VisualFamily.Person ? LabelTop(parts, size)   // ⭐ CE-1178 — above a raised sign or hands
                            : geometry != null ? geometry.BodyCentreZ + size.Z / 2f : size.Z;
-            if (hasSelection && world.HasComponent<Hrot.IG.Components.SelectionState>(e))
+            if (hasSelection && world.HasComponent<Hrot.Map.Common.Components.SelectionState>(e))
             {
-                ref readonly var sel = ref world.GetComponentRO<Hrot.IG.Components.SelectionState>(e);
+                ref readonly var sel = ref world.GetComponentRO<Hrot.Map.Common.Components.SelectionState>(e);
                 if (sel.IsSelected && TryGetBox(world, e, tkb, out var c, out var r, out var h))
                 {
                     DrawWireBox(c, r, h * 1.06f, sel.IsPrimarySelection ? PrimarySelection : OtherSelection);
@@ -1421,9 +1421,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         Raylib.DrawMesh(_cube, shader.Tinted(DoorLeaf3D.ColourOf(state)), HrotToRaylib.ModelFromHrot(model));   // ⭐ CE-1069 — locked tinted
         PartsDrawn++;
         DoorsDrawn++;
-        if (hasSelection && world.HasComponent<Hrot.IG.Components.SelectionState>(e))
+        if (hasSelection && world.HasComponent<Hrot.Map.Common.Components.SelectionState>(e))
         {
-            ref readonly var sel = ref world.GetComponentRO<Hrot.IG.Components.SelectionState>(e);
+            ref readonly var sel = ref world.GetComponentRO<Hrot.Map.Common.Components.SelectionState>(e);
             if (sel.IsSelected)
             {
                 DrawWireBox(centre, rotation, half * 1.06f, sel.IsPrimarySelection ? PrimarySelection : OtherSelection);

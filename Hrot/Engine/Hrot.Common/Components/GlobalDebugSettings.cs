@@ -6,7 +6,7 @@ namespace Hrot.Common.Components
 {
     /// <summary>
     /// Singleton ECS component that controls global debug behavior across subsystems.
-    /// Originally lived in <c>Hrot.IG.Gizmos</c> but moved to <c>Hrot.Common</c> so the
+    /// Originally lived in <c>Hrot.Player.Gizmos</c> but moved to <c>Hrot.Common</c> so the
     /// SimHost/Brain genesis pipeline (which must not reference IG) can read it for
     /// auto-enabling per-entity diagnostics.
     /// </summary>

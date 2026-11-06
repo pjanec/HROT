@@ -2,7 +2,7 @@ namespace Hrot.Map.Common.Config;
 
 /// <summary>
 /// Bit-mask constants for the five standard entity-render layers.
-/// These values must match <c>Hrot.IG.Systems.MapLayerRegistry</c> exactly so that
+/// These values must match <c>Hrot.Player.Systems.MapLayerRegistry</c> exactly so that
 /// the offline Editor and the live IG use the same bitmask encoding in
 /// <c>MapCanvas.ActiveLayerMask</c> and <c>MapDisplayComponent.LayerMask</c>.
 /// </summary>

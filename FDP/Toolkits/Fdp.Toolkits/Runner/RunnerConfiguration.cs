@@ -25,7 +25,7 @@ namespace Fdp.Toolkit.Runner
         public bool NoWait { get; set; }
 
         /// <summary>Comma-separated list of subsystem names to wait for: simhost,ig,ios</summary>
-        [Option("wait-for", HelpText = "simhost,ig,ios (comma-separated)")]
+        [Option("wait-for", HelpText = "simhost,player,ios (comma-separated)")]
         public string WaitForString { get; set; } = string.Empty;
 
         /// <summary>Optional path to a JSON test script (used in headless mode).</summary>

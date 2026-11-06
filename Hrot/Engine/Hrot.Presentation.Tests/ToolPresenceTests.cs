@@ -1,4 +1,4 @@
-using Hrot.IG;
+using Hrot.Player;
 using Hrot.ScenarioEditor;
 
 namespace Hrot.ScenarioEditor.Tests;
@@ -6,7 +6,7 @@ namespace Hrot.ScenarioEditor.Tests;
 /// <summary>
 /// Reflection-based tests verifying that the tool-migration (PACK2-E002) was complete:
 /// all 10 interaction tools now live in <c>Hrot.ScenarioEditor</c> and are absent from
-/// <c>Hrot.IG</c>.
+/// <c>Hrot.Player</c>.
 /// </summary>
 public class ToolPresenceTests
 {
@@ -44,13 +44,13 @@ public class ToolPresenceTests
     }
 
     [Fact]
-    public void IG_Assembly_DoesNotContainToolTypes()
+    public void Player_Assembly_DoesNotContainToolTypes()
     {
-        var asm = typeof(IgApplication).Assembly;
-        Assert.Null(asm.GetType("Hrot.IG.Tools.CreationTool"));
-        Assert.Null(asm.GetType("Hrot.IG.Tools.EditTool"));
-        Assert.Null(asm.GetType("Hrot.IG.Tools.RouteEditTool"));
-        Assert.Null(asm.GetType("Hrot.IG.Tools.MeasureTool"));
-        Assert.Null(asm.GetType("Hrot.IG.Tools.StandardInteractionTool"));
+        var asm = typeof(PlayerApplication).Assembly;
+        Assert.Null(asm.GetType("Hrot.Player.Tools.CreationTool"));
+        Assert.Null(asm.GetType("Hrot.Player.Tools.EditTool"));
+        Assert.Null(asm.GetType("Hrot.Player.Tools.RouteEditTool"));
+        Assert.Null(asm.GetType("Hrot.Player.Tools.MeasureTool"));
+        Assert.Null(asm.GetType("Hrot.Player.Tools.StandardInteractionTool"));
     }
 }

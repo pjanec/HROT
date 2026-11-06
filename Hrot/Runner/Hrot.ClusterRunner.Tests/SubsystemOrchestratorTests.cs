@@ -56,26 +56,26 @@ namespace Hrot.ClusterRunner.Tests
         }
 
         [Fact]
-        public void Initialize_DoesNotForceSimHostHeadless_WhenIgIsPresent()
+        public void Initialize_DoesNotForceSimHostHeadless_WhenPlayerIsPresent()
         {
             // SimHost and IG both receive the same headless flag from RunnerOptions; neither is forced headless.
-            var ig      = new MockSubsystem("IG");
+            var player      = new MockSubsystem("Player");
             var simHost = new MockSubsystem("SimHost");
             var ios     = new MockSubsystem("ExCon");
 
             var orchestrator = new SubsystemOrchestrator(
-                new ISubsystem[] { ig, simHost, ios }, NonHeadlessOptions());
+                new ISubsystem[] { player, simHost, ios }, NonHeadlessOptions());
 
             orchestrator.Initialize();
 
-            Assert.NotNull(ig.ReceivedConfig);
+            Assert.NotNull(player.ReceivedConfig);
             Assert.NotNull(simHost.ReceivedConfig);
-            Assert.False(ig.ReceivedConfig!.Headless);
+            Assert.False(player.ReceivedConfig!.Headless);
             Assert.False(simHost.ReceivedConfig!.Headless);
         }
 
         [Fact]
-        public void Initialize_DoesNotForceSimHostHeadless_WhenIgIsAbsent()
+        public void Initialize_DoesNotForceSimHostHeadless_WhenPlayerIsAbsent()
         {
             var simHost = new MockSubsystem("SimHost");
             var ios     = new MockSubsystem("ExCon");
@@ -190,16 +190,16 @@ namespace Hrot.ClusterRunner.Tests
         {
             // Each concrete subsystem colour must be non-zero and distinct.
             var sim = new Hrot.SimHost.SimHostSubsystem();
-            var ig  = new Hrot.IG.IgSubsystem();
+            var player  = new Hrot.Player.PlayerSubsystem();
             var cgf = new Hrot.CGF.CgfSubsystem();
 
             Assert.NotEqual(default(Vector4), sim.TitleBarColor);
-            Assert.NotEqual(default(Vector4), ig.TitleBarColor);
+            Assert.NotEqual(default(Vector4), player.TitleBarColor);
             Assert.NotEqual(default(Vector4), cgf.TitleBarColor);
 
             // All three colours must be distinct. (R-3067 / AQ109 X2: ExCon, the third concrete here, is retired; CGF replaces it.)
-            Assert.NotEqual(sim.TitleBarColor, ig.TitleBarColor);
-            Assert.NotEqual(ig.TitleBarColor, cgf.TitleBarColor);
+            Assert.NotEqual(sim.TitleBarColor, player.TitleBarColor);
+            Assert.NotEqual(player.TitleBarColor, cgf.TitleBarColor);
             Assert.NotEqual(sim.TitleBarColor, cgf.TitleBarColor);
         }
 
@@ -210,7 +210,7 @@ namespace Hrot.ClusterRunner.Tests
         {
             // The orchestrator sets the first IMapCameraProvider as the active map owner.
             // A subsystem that implements IMapCameraProvider should be the initial owner.
-            var mapSub  = new MapCameraSubsystemMock("IG",      new MapCamera());
+            var mapSub  = new MapCameraSubsystemMock("Player",      new MapCamera());
             var plainSub = new MockSubsystem("ExCon");
 
             var orchestrator = new SubsystemOrchestrator(
@@ -222,7 +222,7 @@ namespace Hrot.ClusterRunner.Tests
             var camera = mapSub.GetMapCamera()!;
             float originalZoom = camera.Zoom;
 
-            orchestrator.SwitchMapOwner("IG"); // Switch to same owner — no-op.
+            orchestrator.SwitchMapOwner("Player"); // Switch to same owner — no-op.
             Assert.Equal(originalZoom, camera.Zoom, precision: 4);
 
             orchestrator.Shutdown();
@@ -248,59 +248,59 @@ namespace Hrot.ClusterRunner.Tests
         }
 
         [Fact]
-        public void SwitchMapOwner_FromIgToSimHost_SnapsSimHostCameraToIgState()
+        public void SwitchMapOwner_FromPlayerToSimHost_SnapsSimHostCameraToPlayerState()
         {
-            var igCamera  = MakeCamera(zoom: 2.5f, targetX: 100f, targetY: 200f);
+            var playerCamera  = MakeCamera(zoom: 2.5f, targetX: 100f, targetY: 200f);
             var shCamera  = MakeCamera(zoom: 1.0f, targetX: 0f,   targetY: 0f);
 
-            var ig      = new MapCameraSubsystemMock("IG",      igCamera);
+            var player      = new MapCameraSubsystemMock("Player",      playerCamera);
             var simHost = new MapCameraSubsystemMock("SimHost", shCamera);
 
             var orchestrator = new SubsystemOrchestrator(
-                new ISubsystem[] { ig, simHost }, HeadlessOptions());
+                new ISubsystem[] { player, simHost }, HeadlessOptions());
             orchestrator.Initialize();
 
             // IG is the default active owner; switch to SimHost.
             orchestrator.SwitchMapOwner("SimHost");
 
-            Assert.Equal(igCamera.Zoom,   shCamera.Zoom,   precision: 4);
-            Assert.Equal(igCamera.Target, shCamera.Target);
+            Assert.Equal(playerCamera.Zoom,   shCamera.Zoom,   precision: 4);
+            Assert.Equal(playerCamera.Target, shCamera.Target);
         }
 
         [Fact]
-        public void SwitchMapOwner_FromSimHostToIg_SnapsIgCameraToSimHostState()
+        public void SwitchMapOwner_FromSimHostToPlayer_SnapsPlayerCameraToSimHostState()
         {
-            var igCamera  = MakeCamera(zoom: 1.0f, targetX: 0f,   targetY: 0f);
+            var playerCamera  = MakeCamera(zoom: 1.0f, targetX: 0f,   targetY: 0f);
             var shCamera  = MakeCamera(zoom: 3.0f, targetX: 500f, targetY: -200f);
 
-            var ig      = new MapCameraSubsystemMock("IG",      igCamera);
+            var player      = new MapCameraSubsystemMock("Player",      playerCamera);
             var simHost = new MapCameraSubsystemMock("SimHost", shCamera);
 
             var orchestrator = new SubsystemOrchestrator(
-                new ISubsystem[] { ig, simHost }, HeadlessOptions());
+                new ISubsystem[] { player, simHost }, HeadlessOptions());
             orchestrator.Initialize();
 
             orchestrator.SwitchMapOwner("SimHost");
-            orchestrator.SwitchMapOwner("IG");
+            orchestrator.SwitchMapOwner("Player");
 
-            Assert.Equal(shCamera.Zoom,   igCamera.Zoom,   precision: 4);
-            Assert.Equal(shCamera.Target, igCamera.Target);
+            Assert.Equal(shCamera.Zoom,   playerCamera.Zoom,   precision: 4);
+            Assert.Equal(shCamera.Target, playerCamera.Target);
         }
 
         [Fact]
         public void SwitchMapOwner_SameOwner_DoesNotChangeCameraState()
         {
-            var igCamera = MakeCamera(zoom: 2.0f, targetX: 50f, targetY: 75f);
-            var ig       = new MapCameraSubsystemMock("IG", igCamera);
+            var playerCamera = MakeCamera(zoom: 2.0f, targetX: 50f, targetY: 75f);
+            var player       = new MapCameraSubsystemMock("Player", playerCamera);
 
             var orchestrator = new SubsystemOrchestrator(
-                new ISubsystem[] { ig }, HeadlessOptions());
+                new ISubsystem[] { player }, HeadlessOptions());
             orchestrator.Initialize();
 
-            orchestrator.SwitchMapOwner("IG");
+            orchestrator.SwitchMapOwner("Player");
 
-            Assert.Equal(2.0f, igCamera.Zoom,   precision: 4);
-            Assert.Equal(new Vector2(50f, 75f), igCamera.Target);
+            Assert.Equal(2.0f, playerCamera.Zoom,   precision: 4);
+            Assert.Equal(new Vector2(50f, 75f), playerCamera.Target);
         }
 
         [Fact]
@@ -310,7 +310,7 @@ namespace Hrot.ClusterRunner.Tests
             var simHost  = new MapCameraSubsystemMock("SimHost", shCamera);
 
             var orchestrator = new SubsystemOrchestrator(
-                new ISubsystem[] { new NullCameraSubsystemMock("IG"), simHost }, HeadlessOptions());
+                new ISubsystem[] { new NullCameraSubsystemMock("Player"), simHost }, HeadlessOptions());
             orchestrator.Initialize();
 
             var ex = Record.Exception(() => orchestrator.SwitchMapOwner("SimHost"));
@@ -320,7 +320,7 @@ namespace Hrot.ClusterRunner.Tests
         private static int ResolveHrotNodeId(string name, int baseId) => name switch
         {
             "SimHost"      => baseId,
-            "IG"           => baseId + 100,
+            "Player"           => baseId + 100,
             "ExCon"        => baseId + 200,
             "Orchestrator" => baseId + 300,
             "CGF"          => baseId + 400,
@@ -356,10 +356,10 @@ namespace Hrot.ClusterRunner.Tests
         }
 
         [Fact]
-        public void Initialize_NodeId5_IgReceivesOneHundredFive()
+        public void Initialize_NodeId5_PlayerReceivesOneHundredFive()
         {
             // IG offset = +100, so resolved = 5 + 100 = 105
-            var mock = new MockSubsystem("IG");
+            var mock = new MockSubsystem("Player");
             var options = new RunnerOptions { Headless = true, NodeId = (Fdp.Core.NodeId)(5), NodeIdResolver = ResolveHrotNodeId };
             var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, options);
 
@@ -440,19 +440,19 @@ namespace Hrot.ClusterRunner.Tests
         {
             // All subsystems in the "All" mode must receive distinct node IDs.
             var simHost = new MockSubsystem("SimHost");
-            var ig      = new MockSubsystem("IG");
+            var player      = new MockSubsystem("Player");
             var ios     = new MockSubsystem("ExCon");
             var orch    = new MockSubsystem("Orchestrator");
             var options = new RunnerOptions { Headless = true, NodeId = (Fdp.Core.NodeId)(1), NodeIdResolver = ResolveHrotNodeId };
             var orchestrator = new SubsystemOrchestrator(
-                new ISubsystem[] { simHost, ig, ios, orch }, options);
+                new ISubsystem[] { simHost, player, ios, orch }, options);
 
             orchestrator.Initialize();
 
             var nodeIds = new[]
             {
                 simHost.ReceivedConfig!.NodeId,
-                ig     .ReceivedConfig!.NodeId,
+                player     .ReceivedConfig!.NodeId,
                 ios    .ReceivedConfig!.NodeId,
                 orch   .ReceivedConfig!.NodeId,
             };

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Hrot.NED.Descriptors;
 using Hrot.Map.Common.Replication.Utils;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;

@@ -65,9 +65,8 @@ using Hrot.Editor.AiShared.Adapters;
 using Hrot.Editor.Modules;
 using Hrot.Editor.Rendering;
 using Hrot.Editor.UI;
-using Hrot.IG.Components;
-using Hrot.IG.Systems;
-using Hrot.IG.Modules;
+using Hrot.Player.Systems;
+using Hrot.Player.Modules;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Config;
@@ -233,9 +232,9 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
         // MapDisplayComponent is used by MapLayerAssignmentSystem (UXI-23 S1: routed through the shared map list).
         Hrot.Presentation.Map.MapPresentationRegistry.RegisterAll(world);
         // IG presentation components required by MapCullingModule / StyleResolutionModule.
-        world.RegisterComponent<Hrot.IG.Components.CullingState>();
-        world.RegisterComponent<Hrot.IG.Components.ResolvedStyle>();
-        world.RegisterManagedComponent<Hrot.IG.Components.IgSymbolOverride>();
+        world.RegisterComponent<Hrot.Map.Common.Components.CullingState>();
+        world.RegisterComponent<Hrot.Map.Common.Components.ResolvedStyle>();
+        world.RegisterManagedComponent<Hrot.Map.Common.Components.MapSymbolOverride>();
         // Visual effect components required by EventEffectModule (EventToEffectSystem).
         world.RegisterComponent<VisualEffectState>();
         world.RegisterComponent<TracerTarget>();

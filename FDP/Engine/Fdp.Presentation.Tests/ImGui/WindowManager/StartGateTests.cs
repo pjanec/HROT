@@ -36,7 +36,7 @@ public class StartGateTests : IDisposable
     private (WM wm, StartGate gate, StartSurfaceWindow surface) Compose()
     {
         var wm = new WM(_atlas);
-        wm.RegisterWindow(new CountingWindow("w-ig", "IG", WindowScope.PerspectiveBound));
+        wm.RegisterWindow(new CountingWindow("w-player", "Player", WindowScope.PerspectiveBound));
         wm.RegisterWindow(new CountingWindow("w-sim", "SimHost", WindowScope.PerspectiveBound));
         var gate = new StartGate(wm);
         var surface = new StartSurfaceWindow(wm.GlobalMenu, () => gate.Variant);
@@ -103,7 +103,7 @@ public class StartGateTests : IDisposable
         Assert.False(wm.IsStartShowing);
         Assert.Equal("SimHost", wm.CurrentPerspective);
         Assert.Null(wm.RememberedPerspective);
-        Assert.True(wm.TrySwitchPerspective("IG", out _));   // the full switcher is back
+        Assert.True(wm.TrySwitchPerspective("Player", out _));   // the full switcher is back
     }
 
     [Fact]
@@ -154,7 +154,7 @@ public class StartGateTests : IDisposable
         gate.Tick(1.5, Rest(ClusterState.Idle));
         Assert.True(wm.IsStartShowing);
 
-        Assert.False(wm.TrySwitchPerspective("IG", out var reason));       // backend's refusal, through the gate's Start
+        Assert.False(wm.TrySwitchPerspective("Player", out var reason));       // backend's refusal, through the gate's Start
         Assert.NotNull(reason);
         var idle = VisibleItems(wm);
         Assert.Contains("File/Open Scenario", idle);
@@ -286,7 +286,7 @@ public class StartGateTests : IDisposable
         using var fixture = new ImGuiTestFixture();
         var (wm, gate, surface) = Compose();
         var global = new CountingWindow("g", "any", WindowScope.Global);
-        var pinned = new CountingWindow("p", "IG", WindowScope.PerspectiveBound) { IsPinned = true };
+        var pinned = new CountingWindow("p", "Player", WindowScope.PerspectiveBound) { IsPinned = true };
         wm.RegisterWindow(global);
         wm.RegisterWindow(pinned);
 

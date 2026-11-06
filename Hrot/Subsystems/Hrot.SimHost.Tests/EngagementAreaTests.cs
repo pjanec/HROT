@@ -10,7 +10,7 @@ using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.AI.Behaviors.Brains;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Xunit;
 
 namespace Hrot.SimHost.Tests

@@ -7,7 +7,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Fdp.Toolkit.Replication.Components;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.ScenarioEditor.Gizmos;
 using Xunit;
 
@@ -21,7 +21,7 @@ namespace Hrot.Presentation.Tests.Gizmos
     ///
     /// <para><b>These rails are RE-HOMED, not new.</b> The claims below were asserted by
     /// <c>Hrot.SimHost.Tests/Gizmos/SimHostEntityPresentationGizmoTests</c> (5) and
-    /// <c>Hrot.IG.Tests/Gizmos/PresentationGizmoTests</c> (3) against the three host-private copies that
+    /// <c>Hrot.Player.Tests/Gizmos/PresentationGizmoTests</c> (3) against the three host-private copies that
     /// <c>S2</c> merged. Every claim still holds — it now holds ONCE, over the shared projector — plus the
     /// four new ones that pin what the merge is FOR.</para>
     ///

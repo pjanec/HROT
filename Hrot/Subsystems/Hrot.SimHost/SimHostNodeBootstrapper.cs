@@ -355,7 +355,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         if (NavmeshFactory != null) _nodeBootstrapper.AttachNavmesh(NavmeshFactory, Navmesh);
         MigrationServices = _nodeBootstrapper.RegisterMigrationServices(
             _role,
-            writerIdentifier: _role.HasFlag(NodeRole.Brain) ? "Hrot.CGF" : "Hrot.SimHost");
+            writerIdentifier: _role.HasFlag(NodeRole.Brain) ? Hrot.Common.Scenario.HrotSubsystemTypes.Cgf : Hrot.Common.Scenario.HrotSubsystemTypes.SimHost);
         // ⭐ CE-4270 B11 — the ONE orchestration step (HostOrchestration). ⚠ No input or post-simulation group (as before, §4.1ag B11 drift table).
         var slave = Hrot.EcsNode.Hosting.HostOrchestration.Build(_nodeBootstrapper, _role, context,
             new Hrot.EcsNode.Hosting.OrchestrationSpec

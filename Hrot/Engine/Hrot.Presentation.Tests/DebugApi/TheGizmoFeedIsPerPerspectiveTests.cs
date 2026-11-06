@@ -162,7 +162,7 @@ public sealed class TheGizmoFeedIsPerPerspectiveTests
         var editor = new FakeMissionEditor();
 
         var hosts   = new SubsystemDebugProvider("CGF", "Scenario", missionEditor: () => editor);
-        var doesNot = new SubsystemDebugProvider("IG", "IG", missionEditor: null);
+        var doesNot = new SubsystemDebugProvider("Player", "Player", missionEditor: null);
 
         Assert.Same(editor, hosts.MissionEditor);
         Assert.Null(doesNot.MissionEditor);
@@ -182,7 +182,7 @@ public sealed class TheGizmoFeedIsPerPerspectiveTests
     public void Drawing_a_map_does_not_imply_hosting_mission_editing()
     {
         var mapOnly = new SubsystemDebugProvider(
-            "IG", "IG", gizmoBuffer: () => new DebugPrimitiveBuffer(), missionEditor: null);
+            "Player", "Player", gizmoBuffer: () => new DebugPrimitiveBuffer(), missionEditor: null);
 
         var caps = mapOnly.DescribeCapabilities();
         Assert.True(caps[DebugCapabilities.GizmoFrame]);
@@ -203,13 +203,13 @@ public sealed class TheGizmoFeedIsPerPerspectiveTests
             new ISubsystemDebugProvider[]
             {
                 new SubsystemDebugProvider("CGF", "Scenario", missionEditor: () => cgf),
-                new SubsystemDebugProvider("IG",  "IG",       missionEditor: null),
+                new SubsystemDebugProvider("Player",  "Player",       missionEditor: null),
             },
             currentPerspective: () => active,
             acksPending: null);
 
         Assert.Same(cgf, Dispatcher("Scenario").MissionEditor);
-        Assert.Null(Dispatcher("IG").MissionEditor);
+        Assert.Null(Dispatcher("Player").MissionEditor);
         Assert.Null(Dispatcher("NoSuchPerspective").MissionEditor);
     }
 

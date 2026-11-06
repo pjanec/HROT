@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Replication.Utils;
 using Fdp.Interfaces;
 using Fdp.Core;

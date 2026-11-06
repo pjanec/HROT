@@ -109,7 +109,7 @@ public sealed class NedReplicationModuleTests
 
         // Confirm DriveFromNetwork = false (local entities must not be overridden by DR)
         Assert.False(module.DriveFromNetwork,
-            "Combined Muscle+IG role must use driveFromNetwork=false.");
+            "Combined Muscle+Player role must use driveFromNetwork=false.");
     }
 
     // ── SC4 — R-4057: EVERY role replicates (was: "Invalid role throws") ────────

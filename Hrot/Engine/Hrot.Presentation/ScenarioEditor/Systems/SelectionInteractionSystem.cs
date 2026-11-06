@@ -6,7 +6,7 @@ using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.ScenarioEditor.Gizmos;
 // ⚠ Aliased, not imported: Fdp.Toolkit.Vis2D.Abstractions also declares MapKeyboardKey, which
 //   would make the Delete-key check ambiguous with the gizmo interaction one already in use.

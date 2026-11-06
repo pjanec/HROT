@@ -22,15 +22,15 @@ namespace Fdp.Modules.Geographic.Components
         /// hits that differ from this value by more than the configured
         /// threshold are discarded (geometry seams / tunnels).
         /// </summary>
-        public float LastValidIgAltitude;
+        public float LastValidPlayerAltitude;
 
         /// <summary>
         /// Set to 1 after the first terrain hit is accepted for this entity.
         /// Jump-rejection is suppressed while this is 0 so the pipeline can seed state;
-        /// sea-level worlds use <see cref="LastValidIgAltitude"/> = 0 as a <em>valid</em>
+        /// sea-level worlds use <see cref="LastValidPlayerAltitude"/> = 0 as a <em>valid</em>
         /// altitude, so "baseline unset" must not be inferred from that field alone.
         /// </summary>
-        public byte IgAltitudeBaselineEstablished;
+        public byte PlayerAltitudeBaselineEstablished;
 
         // Explicit padding to keep the struct a blittable 8-byte unmanaged value type
         // (4-byte float + 1-byte flag + 3 bytes padding) with 4-byte alignment.

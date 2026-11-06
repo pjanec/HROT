@@ -100,7 +100,7 @@ namespace Hrot.Map.Common.Tests
         {
             using var world = new EntityRepository();
             world.RegisterComponent<SimTransform>();
-            world.RegisterComponent<Hrot.IG.Components.EditablePolyline>();
+            world.RegisterComponent<Hrot.Map.Common.Components.EditablePolyline>();
             world.RegisterComponent<TkbIdentity>();
             world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponState>();
             world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponMountInfo>();
@@ -111,7 +111,7 @@ namespace Hrot.Map.Common.Tests
             var source = world.CreateEntity();
             world.AddComponent(source, new SimTransform { Position = new System.Numerics.Vector3(100, 100, 0), Rotation = System.Numerics.Quaternion.Identity });
             world.AddComponent(source, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Hrot.Map.Common.TkbEntityTypes.StoneSource) });
-            world.SetManagedComponent(source, new Hrot.IG.Components.EditablePolyline
+            world.SetManagedComponent(source, new Hrot.Map.Common.Components.EditablePolyline
                 { Points = new System.Collections.Generic.List<System.Numerics.Vector2> { new(-5, -5), new(5, -5), new(5, 5), new(-5, 5) } });
 
             Entity Man(float x, float y)

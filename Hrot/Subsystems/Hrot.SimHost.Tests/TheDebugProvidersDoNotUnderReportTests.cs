@@ -39,7 +39,7 @@ namespace Hrot.SimHost.Tests
         /// </summary>
         public static TheoryData<string, string> SubsystemsWithAnEntityMap() => new()
         {
-            { "Hrot/Subsystems/Hrot.IG/IgSubsystem.cs",           "Hrot/Subsystems/Hrot.IG/IgApplication.cs" },
+            { "Hrot/Subsystems/Hrot.Player/PlayerSubsystem.cs",           "Hrot/Subsystems/Hrot.Player/PlayerApplication.cs" },
             { "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs", "Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs" },
             // ⭐ CE-259am — ReplayBrowser gained a map in DESIGN_Gizmo_Anchor_Identity.md §6.7 and must
             //   forward it like everyone else. ⚠ Its composition and its "app" are ONE file: the subsystem
@@ -101,7 +101,7 @@ namespace Hrot.SimHost.Tests
         {
             { "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",                         "Scenario" },
             { "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs",                 "SimHost" },
-            { "Hrot/Subsystems/Hrot.IG/IgSubsystem.cs",                           "IG" },
+            { "Hrot/Subsystems/Hrot.Player/PlayerSubsystem.cs",                           "Player" },
             { "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.DebugSurface.cs",     "ReplayBrowser" },
         };
 
@@ -196,7 +196,7 @@ namespace Hrot.SimHost.Tests
         public static TheoryData<string> SubsystemsWithAGizmoBuffer() => new()
         {
             "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
-            "Hrot/Subsystems/Hrot.IG/IgSubsystem.cs",
+            "Hrot/Subsystems/Hrot.Player/PlayerSubsystem.cs",
             "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs",
             "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.DebugSurface.cs",
         };
@@ -303,7 +303,7 @@ namespace Hrot.SimHost.Tests
         public static TheoryData<string> EcsNodeSubsystems() => new()
         {
             "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
-            "Hrot/Subsystems/Hrot.IG/IgSubsystem.cs",
+            "Hrot/Subsystems/Hrot.Player/PlayerSubsystem.cs",
             "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs",
             "Hrot/Subsystems/Hrot.TrafficNode/TrafficSubsystem.cs",
         };
@@ -408,7 +408,7 @@ namespace Hrot.SimHost.Tests
             // ⭐ The bootstrapper, not the subsystem, is where a node wires orchestration — map across.
             var bootstrapperPath = subsystemPath switch
             {
-                "Hrot/Subsystems/Hrot.IG/IgSubsystem.cs"           => "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs",
+                "Hrot/Subsystems/Hrot.Player/PlayerSubsystem.cs"           => "Hrot/Subsystems/Hrot.Player/PlayerNodeBootstrapper.cs",
                 "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs" => "Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs",
                 "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs"         => "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
                 "Hrot/Subsystems/Hrot.TrafficNode/TrafficSubsystem.cs" => "Hrot/Subsystems/Hrot.TrafficNode/TrafficNodeBootstrapper.cs",

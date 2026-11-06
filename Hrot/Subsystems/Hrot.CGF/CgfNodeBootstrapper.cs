@@ -217,7 +217,7 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
         if (ComposesMuscle && NavmeshFactory != null) _nodeBootstrapper.AttachNavmesh(NavmeshFactory, Navmesh);
 
         // ⭐ Decision A (R-3074): the migration services every Brain host builds (SimHost does, writer identifier "Hrot.CGF" for a Brain).
-        MigrationServices = _nodeBootstrapper.RegisterMigrationServices(BootRole, writerIdentifier: "Hrot.CGF");
+        MigrationServices = _nodeBootstrapper.RegisterMigrationServices(BootRole, writerIdentifier: Hrot.Common.Scenario.HrotSubsystemTypes.Cgf);
 
         var scenarioLoader = new Hrot.Common.Scenario.HrotScenarioLoader(
             new LocalDiskStorageProvider(_isolatedTempRoot), serializer.SubsystemType);

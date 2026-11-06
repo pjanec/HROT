@@ -17,7 +17,7 @@ namespace Hrot.Network.NED.Tests
     /// docs/blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md item A.
     ///
     /// <para>Why it is a rail: a name written next to a type is a second copy of it, and two types that wrote the same string
-    /// (<c>IGCapabilitiesAnnounce</c>, once in <c>Hrot.NED.Descriptors</c> and once in <c>Hrot.IG.Gizmos</c>) silently shared one topic.
+    /// (<c>IGCapabilitiesAnnounce</c>, once in <c>Hrot.NED.Descriptors</c> and once in <c>Hrot.Player.Gizmos</c>) silently shared one topic.
     /// ⚠ The same rule makes a namespace or type RENAME a wire break — the doc's Inventory column and
     /// <c>scripts/ned-wire-inventory.py --check</c> pin the names; this class pins the invariants.</para>
     ///

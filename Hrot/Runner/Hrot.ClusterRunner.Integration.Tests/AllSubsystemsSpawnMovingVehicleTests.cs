@@ -58,14 +58,14 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
     /// </list>
     /// </summary>
     [Fact]
-    public void AllSubsystems_SpawnMovingVehicleViaGateway_EntityMovesOnIg()
+    public void AllSubsystems_SpawnMovingVehicleViaGateway_EntityMovesOnPlayer()
     {
         int domainId = Interlocked.Increment(ref _domainCounter);
         _out.WriteLine($"[A0] Domain: {domainId}");
 
         // ── Boot all five subsystems in one fully-headless orchestrator ───────
         // all == orchestrator,simhost,ig,cgf
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", domainId);
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", domainId);
 
         // Extra settle: wait for the first 1 Hz NodeHeartbeat from SimHost to reach CGF.
         // RoleGroupOwnershipStrategy delegates WorldPos to SimHost only after SimHost is
@@ -76,7 +76,7 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         // Total pre-spawn wall time: harness warmup 300 ms + pump below ~1100 ms = ~1400 ms.
         harness.PumpUntil(() => false, 220); // 220 * 5 ms = ~1100 ms
 
-        var igApp = harness.Ig.App;
+        var playerApp = harness.Player.App;
 
         using var observerParticipant = new DdsParticipant((uint)domainId);
         using var ackReader = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant);
@@ -87,7 +87,7 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         // ── 1. Fire the gateway spawn+wander flow ─────────────────────────────
         //    ⭐ R-3067 / AQ109 X3 — through the IG's own command gateway; the Mini ExCon panel that used to press this button is retired.
         var spawnTask = RunnerTestHelpers.SpawnWithWanderMissionAsync(
-            igApp.TestHook_CommandGateway!, tkbType, (int)(byte)ForceId.Friend, 100f, 200f);
+            playerApp.TestHook_CommandGateway!, tkbType, (int)(byte)ForceId.Friend, 100f, 200f);
         _out.WriteLine("[A1] gateway spawn+wander fired.");
 
         // ── 2. Capture the CreateEntityAck ───────────────────────────────────
@@ -113,12 +113,12 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         _out.WriteLine($"[A3] Gateway task done: {spawnTask.Result}.");
 
         // ── 4. Wait for IG entity to appear with Active lifecycle ─────────────
-        bool igActive = harness.PumpUntil(
-            () => IgEntityIsActive(harness, networkId),
+        bool playerActive = harness.PumpUntil(
+            () => PlayerEntityIsActive(harness, networkId),
             SpawnTimeoutFrames);
-        Assert.True(igActive,
-            $"IG entity (networkId={networkId}) did not reach Active lifecycle within {SpawnTimeoutFrames} frames.");
-        _out.WriteLine("[A4] IG entity is Active.");
+        Assert.True(playerActive,
+            $"Player entity (networkId={networkId}) did not reach Active lifecycle within {SpawnTimeoutFrames} frames.");
+        _out.WriteLine("[A4] Player entity is Active.");
 
         // ── Diagnostic: pump until CGF entity has NavigationIntent set, then snapshot ─
         // If timeout occurs, the BTree/dispatch pipeline is broken.
@@ -168,24 +168,24 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         DiagnoseSimHostEntity(harness, networkId, _out);
 
         // ── 5. Record baseline IG position ───────────────────────────────────
-        var posA = GetIgSimTransform(harness, networkId).Position;
-        _out.WriteLine($"[A5] Baseline IG position: ({posA.X:F3}, {posA.Y:F3}).");
+        var posA = GetPlayerSimTransform(harness, networkId).Position;
+        _out.WriteLine($"[A5] Baseline Player position: ({posA.X:F3}, {posA.Y:F3}).");
 
         // ── 6. Verify position changes ────────────────────────────────────────
         bool moved = harness.PumpUntil(() =>
         {
-            var posNow = GetIgSimTransform(harness, networkId).Position;
+            var posNow = GetPlayerSimTransform(harness, networkId).Position;
             return Vector3.Distance(posNow, posA) >= MovementThresholdMetres;
         }, MovementTimeoutFrames);
 
-        var posB = GetIgSimTransform(harness, networkId).Position;
+        var posB = GetPlayerSimTransform(harness, networkId).Position;
         float travelledMetres = Vector3.Distance(posA, posB);
         _out.WriteLine(
-            $"[A6] Final IG position: ({posB.X:F3}, {posB.Y:F3}), " +
+            $"[A6] Final Player position: ({posB.X:F3}, {posB.Y:F3}), " +
             $"travelled={travelledMetres:F4} m, moved={moved}.");
 
         Assert.True(moved,
-            $"Entity (networkId={networkId}) spawned via NedCommandGateway never moved on IG " +
+            $"Entity (networkId={networkId}) spawned via NedCommandGateway never moved on Player " +
             $"when all five subsystems (including CGF) are running. " +
             $"Baseline=({posA.X:F3},{posA.Y:F3}), final=({posB.X:F3},{posB.Y:F3}), " +
             $"travelled={travelledMetres:F4} m (threshold={MovementThresholdMetres} m). " +
@@ -209,20 +209,20 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         return false;
     }
 
-    private static bool IgEntityIsActive(HrotRunnerHarness harness, int networkId)
+    private static bool PlayerEntityIsActive(HrotRunnerHarness harness, int networkId)
     {
-        var entityMap = harness.Ig.App.TestHook_EntityMap;
+        var entityMap = harness.Player.App.TestHook_EntityMap;
         if (!entityMap.TryGetEntity(networkId, out var entity)) return false;
-        var world = harness.Ig.App.World;
+        var world = harness.Player.App.World;
         if (!world.IsAlive(entity)) return false;
         return world.GetLifecycleState(entity) == EntityLifecycle.Active;
     }
 
-    private static SimTransform GetIgSimTransform(HrotRunnerHarness harness, int networkId)
+    private static SimTransform GetPlayerSimTransform(HrotRunnerHarness harness, int networkId)
     {
-        var entityMap = harness.Ig.App.TestHook_EntityMap;
+        var entityMap = harness.Player.App.TestHook_EntityMap;
         if (!entityMap.TryGetEntity(networkId, out var entity)) return default;
-        var world = harness.Ig.App.World;
+        var world = harness.Player.App.World;
         if (!world.IsAlive(entity) || !world.HasComponent<SimTransform>(entity)) return default;
         return world.GetComponent<SimTransform>(entity);
     }

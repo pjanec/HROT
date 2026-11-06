@@ -61,7 +61,7 @@ public sealed class NedReplicationModule : INedReplicationModule
     // ── Role state ────────────────────────────────────────────────────────────
     private readonly NodeRole _role;
     private readonly bool _roleHasMuscle;
-    private readonly bool _roleHasIG;
+    private readonly bool _roleHasPlayer;
     private readonly bool _roleHasBrain;
     private readonly bool _driveFromNetwork;
 
@@ -245,7 +245,7 @@ public sealed class NedReplicationModule : INedReplicationModule
 
         // Validate role
         _roleHasMuscle = role.HasFlag(NodeRole.MuscleGround);
-        _roleHasIG     = role.HasFlag(NodeRole.Map2D);
+        _roleHasPlayer     = role.HasFlag(NodeRole.Map2D);
         _roleHasBrain  = role.HasFlag(NodeRole.Brain);
 
         // ⭐⭐ R-4057 (CE-4013 D14) — EVERY networked ECS node replicates, whatever its role. 🔒 User, 2026-10-17: "i think it shoukd

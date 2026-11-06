@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Every fine-grained node in ONE process: orchestrator, simhost, ig (player), cgf, traffic.
+# Every fine-grained node in ONE process: orchestrator, simhost, player, cgf, traffic.
 # Usage: run_All.sh [DOMAIN] [runner options...]     (DDS domain, default 0)
 #   e.g. ./run_All.sh --scenario showcase-crossfire --play     (load Crossfire LIVE and run it; docs/MANUAL_TEST_Scenario_Evaluation.md §1)
 #   Any argument after the domain (or the first that starts with "-") is passed to the runner as is.

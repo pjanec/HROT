@@ -1,5 +1,5 @@
 @echo off
-:: Every fine-grained node in ONE process: orchestrator, simhost, ig (player), excon, cgf, traffic.
+:: Every fine-grained node in ONE process: orchestrator, simhost, player, excon, cgf, traffic.
 :: Usage: run_All.bat [DOMAIN] [runner options...]     (DDS domain, default 0)
 ::   e.g. run_All.bat --scenario showcase-crossfire --play     (load Crossfire LIVE and run it; docs\MANUAL_TEST_Scenario_Evaluation.md section 1)
 setlocal EnableDelayedExpansion

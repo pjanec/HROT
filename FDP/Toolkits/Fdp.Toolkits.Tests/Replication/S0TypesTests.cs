@@ -8,7 +8,7 @@ using Fdp.Core.Serialization;
 using Fdp.Modules.Geographic.Systems;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Components;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Xunit;
 
 namespace Fdp.Toolkits.Tests.Replication

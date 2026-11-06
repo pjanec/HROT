@@ -266,7 +266,7 @@ namespace Hrot.Editor.DebugApi
                 return new JsonObject { ["type"] = "integer", ["format"] = "tkbTypeId", ["description"] = "the id of a TKB template (a vehicle, a weapon, a munition); a tool shows its name through the TKB" };
             // ⭐ CE-4200 SV-3 — a cluster node id: the SHAPE is an int's; the type NAME survives so a tool shows the node's role and name through the cluster view.
             if (type == typeof(Fdp.Core.NodeId))
-                return new JsonObject { ["type"] = "integer", ["format"] = "nodeId", ["description"] = "the id of a cluster node (a SimHost, a Brain, an IG, the editor); a tool shows its role and name through the cluster view" };
+                return new JsonObject { ["type"] = "integer", ["format"] = "nodeId", ["description"] = "the id of a cluster node (a SimHost, a Brain, an Player, the editor); a tool shows its role and name through the cluster view" };
             if (type == typeof(Fdp.Core.Bearing))
                 return new JsonObject { ["type"] = "number", ["format"] = "bearing", ["picker"] = "bearing", ["description"] = "a compass bearing in degrees: 0 = north (+Y), 90 = east (+X), clockwise" };
             if (type == typeof(Fdp.Core.WorldRotation))

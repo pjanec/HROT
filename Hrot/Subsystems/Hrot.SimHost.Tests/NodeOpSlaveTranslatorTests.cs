@@ -334,10 +334,10 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Null(payload.ScenarioArgsJson);
 
         var beat = Hrot.Common.Orchestration.NodeHeartbeatWire.ToEvent(Hrot.Common.Orchestration.NodeHeartbeatWire.ToTopic(
-            new NodeHeartbeatEvent { SubsystemName = "IG", FeaturesOn = new System.Collections.Generic.List<string> { "map3d.in-load" } }));
+            new NodeHeartbeatEvent { SubsystemName = "Player", FeaturesOn = new System.Collections.Generic.List<string> { "map3d.in-load" } }));
         Assert.Equal(new[] { "map3d.in-load" }, beat.FeaturesOn);
         var errBeat = Hrot.Common.Orchestration.NodeHeartbeatWire.ToEvent(Hrot.Common.Orchestration.NodeHeartbeatWire.ToTopic(   // CE-4215 ③ — F-26
-            new NodeHeartbeatEvent { SubsystemName = "IG", FeatureErrors = new System.Collections.Generic.List<string> { "hud.kill-cam (cluster override): no field 'Lost'" } }));
+            new NodeHeartbeatEvent { SubsystemName = "Player", FeatureErrors = new System.Collections.Generic.List<string> { "hud.kill-cam (cluster override): no field 'Lost'" } }));
         Assert.Equal(new[] { "hud.kill-cam (cluster override): no field 'Lost'" }, errBeat.FeatureErrors);
         Assert.Null(beat.FeatureErrors);   // none = null (an older sender reads the same)
     }
@@ -540,10 +540,10 @@ public sealed class NodeOpSlaveTranslatorTests
     [Fact]
     public void CE3354_TheHeartbeat_CarriesTheNodeName_BothWays_NullIsEmpty()
     {
-        var named = new NodeHeartbeatEvent { NodeId = (Fdp.Core.NodeId)(9), SubsystemName = "IG", NodeName = "film-cam" };
+        var named = new NodeHeartbeatEvent { NodeId = (Fdp.Core.NodeId)(9), SubsystemName = "Player", NodeName = "film-cam" };
         Assert.Equal("film-cam", NodeHeartbeatWire.ToTopic(named).NodeName);
         Assert.Equal("film-cam", NodeHeartbeatWire.ToEvent(NodeHeartbeatWire.ToTopic(named)).NodeName);
-        Assert.Equal(string.Empty, NodeHeartbeatWire.ToTopic(new NodeHeartbeatEvent { NodeId = (Fdp.Core.NodeId)(9), SubsystemName = "IG" }).NodeName);   // null ⇒ empty
+        Assert.Equal(string.Empty, NodeHeartbeatWire.ToTopic(new NodeHeartbeatEvent { NodeId = (Fdp.Core.NodeId)(9), SubsystemName = "Player" }).NodeName);   // null ⇒ empty
         Assert.Null(NodeHeartbeatWire.ToEvent(new NodeHeartbeat { NodeId = 9, NodeName = string.Empty }).NodeName);                      // empty / an older sender ⇒ null
     }
 

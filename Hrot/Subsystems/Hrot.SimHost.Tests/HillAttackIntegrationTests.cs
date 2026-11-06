@@ -27,7 +27,7 @@ using Hrot.AI.Behaviors.Brains;
 using Hrot.AI.Behaviors.Mappers;
 using Hrot.CGF.Configuration;
 using Hrot.CGF.Systems;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Definitions.Behavior;
 using Hrot.SimHost;

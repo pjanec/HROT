@@ -62,7 +62,7 @@ public static class ScenarioPanelWindowIds
     /// <inheritdoc cref="EditorWaypoint"/>
     public const string CgfWaypoint    = "cgf_waypoint_editor";
     /// <inheritdoc cref="EditorWaypoint"/>
-    public const string IgWaypoint     = "ig_waypoint_editor";
+    public const string PlayerWaypoint     = "player_waypoint_editor";
 
     /// <summary>⭐ CE-1191 (UI-6, DESIGN_Command_Display §6 D3) — the Reports window, per host that registers it.</summary>
     public const string EditorReports  = "editor_reports";
@@ -233,7 +233,7 @@ public sealed class SharedOrbatPanelWindow : ManagedWindow
 public sealed class WaypointEditorWindow : ManagedWindow
 {
     /// <summary>The panel kind in the snapshot (the IG's historical one).</summary>
-    public const string Kind = "ig-waypoint-editor";
+    public const string Kind = "player-waypoint-editor";
 
     private readonly WaypointEditorPanel _panel;
 

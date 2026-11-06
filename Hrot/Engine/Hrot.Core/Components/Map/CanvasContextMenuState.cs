@@ -1,7 +1,7 @@
 using Fdp.Core;
 using Hrot.Map.Definitions;
 
-namespace Hrot.IG.Components
+namespace Hrot.Map.Common.Components
 {
     /// <summary>
     /// Managed singleton acting as the Single Source of Truth for the

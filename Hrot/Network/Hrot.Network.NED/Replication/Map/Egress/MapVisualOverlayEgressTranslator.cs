@@ -5,7 +5,7 @@ using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.Map.Common.Replication.Utils;
 using Hrot.NED.Common;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Core;

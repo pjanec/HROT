@@ -143,9 +143,9 @@ namespace Hrot.SimHost.Integration.Tests
             _host.RunForTicks(5);
 
             // Assert
-            var igData = _client.ReadIgEntityData(ack.Value.EntityId);
-            Assert.NotNull(igData);
-            Assert.Equal(ForceId.Hostile, igData!.Value.ForceId);
+            var playerData = _client.ReadPlayerEntityData(ack.Value.EntityId);
+            Assert.NotNull(playerData);
+            Assert.Equal(ForceId.Hostile, playerData!.Value.ForceId);
         }
 
         /// <summary>
@@ -165,9 +165,9 @@ namespace Hrot.SimHost.Integration.Tests
             Assert.Equal(0, ack!.Value.StatusCode);
             _host.RunForTicks(5);
 
-            var igData2 = _client.ReadIgEntityData(ack.Value.EntityId);
-            Assert.NotNull(igData2);
-            Assert.Equal(ForceId.Friend, igData2!.Value.ForceId);
+            var playerData2 = _client.ReadPlayerEntityData(ack.Value.EntityId);
+            Assert.NotNull(playerData2);
+            Assert.Equal(ForceId.Friend, playerData2!.Value.ForceId);
         }
 
         /// <summary>
@@ -189,10 +189,10 @@ namespace Hrot.SimHost.Integration.Tests
             Assert.Equal(0, ack!.Value.StatusCode);
             _host.RunForTicks(5);
 
-            var igData3 = _client.ReadIgEntityData(ack.Value.EntityId);
-            Assert.NotNull(igData3);
-            Assert.Equal("Bravo-3",       igData3!.Value.Name.ToString());
-            Assert.Equal(ForceId.Hostile, igData3!.Value.ForceId);
+            var playerData3 = _client.ReadPlayerEntityData(ack.Value.EntityId);
+            Assert.NotNull(playerData3);
+            Assert.Equal("Bravo-3",       playerData3!.Value.Name.ToString());
+            Assert.Equal(ForceId.Hostile, playerData3!.Value.ForceId);
         }
 
         /// <summary>
@@ -200,7 +200,7 @@ namespace Hrot.SimHost.Integration.Tests
         /// leaves IgEntityData in its default-constructed state.
         /// </summary>
         [Fact]
-        public async Task CreateEntity_WithNullJson_DoesNotThrowAndIgDataIsDefault()
+        public async Task CreateEntity_WithNullJson_DoesNotThrowAndPlayerDataIsDefault()
         {
             var reqId   = Guid.NewGuid();
             var request = BuildTankRequestWithJson(reqId, initialAttributesJson: null);
@@ -213,9 +213,9 @@ namespace Hrot.SimHost.Integration.Tests
             _host.RunForTicks(5);
 
             // No IgEntityData patch was applied; the component is either absent or defaulted.
-            var igDataD = _client.ReadIgEntityData(ack.Value.EntityId);
-            if (igDataD.HasValue)
-                Assert.Equal(ForceId.Neutral, igDataD.Value.ForceId);
+            var playerDataD = _client.ReadPlayerEntityData(ack.Value.EntityId);
+            if (playerDataD.HasValue)
+                Assert.Equal(ForceId.Neutral, playerDataD.Value.ForceId);
         }
 
         /// <summary>

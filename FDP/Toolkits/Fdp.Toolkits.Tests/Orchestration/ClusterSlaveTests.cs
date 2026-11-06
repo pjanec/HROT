@@ -569,7 +569,7 @@ public sealed class ClusterSlaveTests
     public void CE3354_TheSlave_HeartbeatsItsConfiguredNodeName_OrTheDefault()
     {
         var bus = new FdpEventBus();
-        using var named = new ClusterSlave(7, "IG", bus, nodeName: "film-cam");
+        using var named = new ClusterSlave(7, "Player", bus, nodeName: "film-cam");
         using var plain = new ClusterSlave(8, "SimHost", bus);
         using var blank = new ClusterSlave(9, "CGF", bus, nodeName: "  ");
         Thread.Sleep(1100);
@@ -609,7 +609,7 @@ public sealed class ClusterSlaveTests
             // A bare bus — deliberately NOT passed through OrchestrationEventRegistry.RegisterAll,
             // exactly as IgSubsystem's bus arrived.
             var eventBus = new FdpEventBus();
-            using var slave = new ClusterSlave(7, "IG", eventBus);
+            using var slave = new ClusterSlave(7, "Player", eventBus);
 
             Thread.Sleep(1100);
 

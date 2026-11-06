@@ -54,7 +54,7 @@ public sealed class SharedRegistryCoversTheSharedPackTests
         HrotSharedComponentRegistry.RegisterAll(world);
         Assert.True(world.IsComponentTypeRegistered<EntityInfo>());
         Assert.True(world.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitSubordinate>());
-        Assert.True(world.IsComponentTypeRegistered<Hrot.IG.Components.MapOverlayStyle>());
+        Assert.True(world.IsComponentTypeRegistered<Hrot.Map.Common.Components.MapOverlayStyle>());
         Assert.True(world.Bus.IsRegistered<Fdp.Core.CommandHierarchy.CmdAssignSubordinate>());
         Assert.True(world.Bus.IsRegistered<Fdp.Core.CommandHierarchy.CmdRemoveSubordinate>());
     }

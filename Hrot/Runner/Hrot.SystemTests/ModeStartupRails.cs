@@ -62,13 +62,13 @@ public sealed class ModeStartupRails
     public static TheoryData<string, string> HealthyModes => new()
     {
         { "editor",        "mode=editor,"        },
-        { "all",           "mode=orchestrator,simhost,ig,cgf,traffic," },
+        { "all",           "mode=orchestrator,simhost,player,cgf,traffic," },
         { "server",        "mode=orchestrator,cgf," },   // ⭐ CE-4270 B7c — the fused server (one cgf node with the fused role)
-        { "player",        "mode=ig,"            },   // the user-facing name of the IG node
+        { "player",        "mode=player,"            },   // the user-facing name of the IG node
         { "simhost",       "mode=simhost,"       },
         { "cgf",           "mode=cgf,"           },
         { "orchestrator",  "mode=orchestrator,"  },
-        { "ig",            "mode=ig,"            },
+        { "player",            "mode=player,"            },
         { "replaybrowser", "mode=replaybrowser," },
     };
 

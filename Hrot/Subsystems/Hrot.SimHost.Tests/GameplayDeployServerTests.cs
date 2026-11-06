@@ -10,7 +10,7 @@ using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Motion;
 using Fdp.Toolkit.Tkb.Domain;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using System.Linq;
 using System.Numerics;
 using Fdp.Toolkit.Replication.Messages;

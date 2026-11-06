@@ -721,14 +721,14 @@ namespace Hrot.Presentation.Tests.Tools
             var fx      = new Fixture();
             var reports = new List<string>();
 
-            _world.RegisterManagedComponent<Hrot.IG.Components.EditablePolyline>();
+            _world.RegisterManagedComponent<Hrot.Map.Common.Components.EditablePolyline>();
 
             // An EditablePolyline entity that is NOT replicated: the component the tool requires is
             // present, so only the anchor-id guard can refuse it.
             // ⛔ DELIBERATELY a bare CreateEntity, NOT NetworkedEntity() — this is the ONE rail in this
             //   class whose subject IS the missing identity.
             var entity = _world.CreateEntity();
-            _world.SetManagedComponent(entity, new Hrot.IG.Components.EditablePolyline());
+            _world.SetManagedComponent(entity, new Hrot.Map.Common.Components.EditablePolyline());
 
             ScenarioToolRegistrations.RegisterAll(
                 fx.Controller,
@@ -755,10 +755,10 @@ namespace Hrot.Presentation.Tests.Tools
             var fx      = new Fixture();
             var reports = new List<string>();
 
-            _world.RegisterManagedComponent<Hrot.IG.Components.EditablePolyline>();
+            _world.RegisterManagedComponent<Hrot.Map.Common.Components.EditablePolyline>();
 
             var entity = NetworkedEntity();
-            _world.SetManagedComponent(entity, new Hrot.IG.Components.EditablePolyline());
+            _world.SetManagedComponent(entity, new Hrot.Map.Common.Components.EditablePolyline());
             _world.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 7041 });
 
             ScenarioToolRegistrations.RegisterAll(

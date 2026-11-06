@@ -7,7 +7,6 @@ using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Common.Constants;
 using Fdp.Toolkit.Combat.Components;
-using Hrot.IG.Components;
 using Hrot.Map.Common.Components;
 using Fdp.Core.Serialization;
 

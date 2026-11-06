@@ -47,11 +47,11 @@ internal class MockNetworkFactory : INetworkFactory
         => System.Array.Empty<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>();
 
     /// <inheritdoc/>
-    public IIgTranslators CreateIgTranslators() => new NullIgTranslators();
+    public IIgTranslators CreatePlayerTranslators() => new NullPlayerTranslators();
 
     /// <inheritdoc/>
-    public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, int nodeId = 0)
-        => NullIgNetworkAdapter.Instance;
+    public IIgNetworkAdapter CreatePlayerNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, int nodeId = 0)
+        => NullPlayerNetworkAdapter.Instance;
 
 
     /// <inheritdoc/>
@@ -73,7 +73,7 @@ internal class MockNetworkFactory : INetworkFactory
     public long WorldPosDescriptorId => 0;
     public long NavigationStatusDescriptorId => 0;
     public ICgfEntityLifecycleAdapters? CreateCgfEntityLifecycleAdapters() => null;
-    public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.IDescriptorTranslator> CreateIgEgressTranslators(
+    public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.IDescriptorTranslator> CreatePlayerEgressTranslators(
         CycloneDDS.Runtime.DdsParticipant participant,
         Fdp.Core.FdpEventBus bus,
         int nodeId)

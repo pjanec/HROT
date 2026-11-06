@@ -17,9 +17,9 @@ using Fdp.Toolkit.Vis2D.Components;
 using Hrot.Common;
 using Hrot.Common.Infrastructure;
 using Hrot.Core.Network;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Network.Infrastructure;
-using Hrot.IG.Systems;
+using Hrot.Player.Systems;
 using Hrot.Map.Common;
 using Hrot.SimHost;
 using Hrot.SimHost.Modules;
@@ -36,7 +36,7 @@ namespace Hrot.NodeComposition;
 /// scaffolding standing in for the real Stride app; this is the node composition root that app
 /// actually consumes (<c>StrideHrotGame</c> holds it and takes it via <c>AttachBootstrapper</c>).
 /// It could not move down into <c>Hrot.Common</c> with <see cref="SharedApplicationBootstrapper"/>,
-/// because it composes <c>Hrot.SimHost</c> and <c>Hrot.IG</c> systems and both of those reference
+/// because it composes <c>Hrot.SimHost</c> and <c>Hrot.Player</c> systems and both of those reference
 /// <c>Hrot.Common</c> - that edge would be a cycle. See <c>DESIGN_Stride_Port.md</c>.
 /// </para>
 ///

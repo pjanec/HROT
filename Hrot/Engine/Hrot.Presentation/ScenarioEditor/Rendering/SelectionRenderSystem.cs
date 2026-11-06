@@ -1,5 +1,5 @@
 ﻿using System.Numerics;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Fdp.Core;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Vis2D.Abstractions;

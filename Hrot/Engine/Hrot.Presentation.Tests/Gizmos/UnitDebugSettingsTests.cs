@@ -125,10 +125,10 @@ public sealed class UnitDebugSettingsTests : IDisposable
     [Fact]
     public void CE1329_ABrainFamilyDrawsForPinnedUnitsOnly_SelectionDrawsNone()
     {
-        _repo.RegisterComponent<Hrot.IG.Components.SelectionState>();
+        _repo.RegisterComponent<Hrot.Map.Common.Components.SelectionState>();
         var selected = Unit(1004);
         var pinned = Unit(1005);
-        _repo.AddComponent(selected, new Hrot.IG.Components.SelectionState { IsSelected = true });
+        _repo.AddComponent(selected, new Hrot.Map.Common.Components.SelectionState { IsSelected = true });
         GizmoPins.Set(_repo, pinned, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Perception, true);
         Frame();
         var settings = new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry();

@@ -17,7 +17,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 public class EntityDestroyIntegrationTests
 {
     private const int SimHostSpawnTimeoutFrames = 100;
-    private const int IgSpawnTimeoutFrames = 100;
+    private const int PlayerSpawnTimeoutFrames = 100;
     private const int DestroyTimeoutFrames = 100;
 
     // Spawn position used for direct SimHost entity creation.
@@ -25,7 +25,7 @@ public class EntityDestroyIntegrationTests
         { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
 
     [Fact]
-    public void SimHost_DestroyEntity_IgGhostIsRemoved()
+    public void SimHost_DestroyEntity_PlayerGhostIsRemoved()
     {
         using var harness = new HrotRunnerHarness();
 
@@ -41,10 +41,10 @@ public class EntityDestroyIntegrationTests
             SimHostSpawnTimeoutFrames);
         Assert.True(simHostEntityReady, "SimHost entity was not found in time.");
 
-        bool igGhostPresent = harness.PumpUntil(
-            () => IgHasEntityWithNetworkId(harness.Ig.App.World, networkId),
-            IgSpawnTimeoutFrames);
-        Assert.True(igGhostPresent, "IG ghost entity did not appear in time.");
+        bool playerGhostPresent = harness.PumpUntil(
+            () => PlayerHasEntityWithNetworkId(harness.Player.App.World, networkId),
+            PlayerSpawnTimeoutFrames);
+        Assert.True(playerGhostPresent, "Player ghost entity did not appear in time.");
 
         harness.SimHost.World.Bus.PublishManaged(new DestroyEntityCommand
         {
@@ -63,10 +63,10 @@ public class EntityDestroyIntegrationTests
             DestroyTimeoutFrames);
         Assert.True(simHostDestroyed, "SimHost entity was not destroyed after ack.");
 
-        bool igGhostRemoved = harness.PumpUntil(
-            () => !IgHasEntityWithNetworkId(harness.Ig.App.World, networkId),
+        bool playerGhostRemoved = harness.PumpUntil(
+            () => !PlayerHasEntityWithNetworkId(harness.Player.App.World, networkId),
             DestroyTimeoutFrames);
-        Assert.True(igGhostRemoved, "IG ghost entity was not removed after destroy.");
+        Assert.True(playerGhostRemoved, "Player ghost entity was not removed after destroy.");
     }
 
     private static bool TryGetSimHostNetworkId(EntityRepository world, long tkbType, out int networkId)
@@ -119,7 +119,7 @@ public class EntityDestroyIntegrationTests
     /// </para>
     /// </summary>
     [Fact]
-    public void SimHost_ClearAllPattern_AllIgGhostsRemoved()
+    public void SimHost_ClearAllPattern_AllPlayerGhostsRemoved()
     {
         using var harness = new HrotRunnerHarness();
 
@@ -132,13 +132,13 @@ public class EntityDestroyIntegrationTests
         int networkId2 = harness.SimHost.TestHook_SpawnEntity(tkbType,
             new CoreGeoPoint { Latitude = 52.522, Longitude = 13.407, Altitude = 0 });
 
-        bool bothOnIg = harness.PumpUntil(
-            () => IgHasEntityWithNetworkId(harness.Ig.App.World, networkId1)
-               && IgHasEntityWithNetworkId(harness.Ig.App.World, networkId2),
-            IgSpawnTimeoutFrames);
-        Assert.True(bothOnIg,
+        bool bothOnPlayer = harness.PumpUntil(
+            () => PlayerHasEntityWithNetworkId(harness.Player.App.World, networkId1)
+               && PlayerHasEntityWithNetworkId(harness.Player.App.World, networkId2),
+            PlayerSpawnTimeoutFrames);
+        Assert.True(bothOnPlayer,
             $"Both entities (networkId1={networkId1}, networkId2={networkId2}) " +
-            $"did not appear on IG within {IgSpawnTimeoutFrames} frames.");
+            $"did not appear on Player within {PlayerSpawnTimeoutFrames} frames.");
 
         // ── Destroy both in quick succession (ClearAll pattern) ───────────────
         // This mirrors what SimHostScenarioManager.ClearAll() does after the Task 33 fix.
@@ -155,21 +155,21 @@ public class EntityDestroyIntegrationTests
 
         // ── Verify both IG ghosts are removed ─────────────────────────────────
         bool ghost1Removed = harness.PumpUntil(
-            () => !IgHasEntityWithNetworkId(harness.Ig.App.World, networkId1),
+            () => !PlayerHasEntityWithNetworkId(harness.Player.App.World, networkId1),
             DestroyTimeoutFrames);
         Assert.True(ghost1Removed,
-            $"IG ghost for networkId1={networkId1} was not removed after DestroyEntityCommand. " +
+            $"Player ghost for networkId1={networkId1} was not removed after DestroyEntityCommand. " +
             $"ClearAll fix may not be routing through NetworkSpawningSystem.");
 
         bool ghost2Removed = harness.PumpUntil(
-            () => !IgHasEntityWithNetworkId(harness.Ig.App.World, networkId2),
+            () => !PlayerHasEntityWithNetworkId(harness.Player.App.World, networkId2),
             DestroyTimeoutFrames);
         Assert.True(ghost2Removed,
-            $"IG ghost for networkId2={networkId2} was not removed after DestroyEntityCommand. " +
+            $"Player ghost for networkId2={networkId2} was not removed after DestroyEntityCommand. " +
             $"ClearAll fix may not be routing through NetworkSpawningSystem.");
     }
 
-    private static bool IgHasEntityWithNetworkId(EntityRepository world, int networkId)
+    private static bool PlayerHasEntityWithNetworkId(EntityRepository world, int networkId)
     {
         var view = (ISimulationView)world;
         var query = world.Query().With<NetworkIdentity>().Build();

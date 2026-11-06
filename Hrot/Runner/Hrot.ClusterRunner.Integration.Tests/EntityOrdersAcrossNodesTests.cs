@@ -52,7 +52,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -100,16 +100,16 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
 
         // ⭐ CE-1148 S3 (docs/DESIGN_Node_Roles_And_Policies.md §3.5) — the IG station takes the order egress from the same auxiliary
         //   pack as every node: a release given on the IG reaches the brain and ends the operator's order there.
-        var ig = harness.Ig.App.World;
-        var igMap = harness.Ig.App.TestHook_EntityMap;
-        Assert.True(harness.PumpUntil(() => igMap.TryGetEntity(id, out _), timeoutFrames: 600), "the Rifleman must exist on the IG");
+        var player = harness.Player.App.World;
+        var playerMap = harness.Player.App.TestHook_EntityMap;
+        Assert.True(harness.PumpUntil(() => playerMap.TryGetEntity(id, out _), timeoutFrames: 600), "the Rifleman must exist on the Player");
         previousStrict = FdpConfig.EnforceExplicitEventRegistration;
         FdpConfig.EnforceExplicitEventRegistration = true;
-        try { result = new EntityOrders(ig, igMap, geo: null).Release(id); }
+        try { result = new EntityOrders(player, playerMap, geo: null).Release(id); }
         finally { FdpConfig.EnforceExplicitEventRegistration = previousStrict; }
         Assert.True(result.Accepted, result.Detail);
         Assert.True(harness.PumpUntil(() => cgf.GetComponentRO<BehaviorState>(onBrain).Origin != BehaviorOrigin.Operator, timeoutFrames: 600),
-            "a release issued on the IG must reach the CGF brain and end the operator's order");
+            "a release issued on the Player must reach the CGF brain and end the operator's order");
     }
 
     /// <summary>
@@ -124,7 +124,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -176,7 +176,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -232,7 +232,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -246,7 +246,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
 
         var cgf = harness.Cgf!.World!;
         var sim = harness.SimHost.World!;
-        var ig = harness.Ig.App.World;
+        var player = harness.Player.App.World;
         Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && !ByName(sim, "Rifleman").IsNull, timeoutFrames: 2000),
             "the Rifleman must exist on both nodes");
         var onBrain = ByName(cgf, "Rifleman");
@@ -279,17 +279,17 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         _out.WriteLine($"body {start} -> {end} after {seq} frames; ManualDrive on SimHost: {(sim.HasComponent<Fdp.Toolkit.Navigation.ManualDrive>(onMuscle) ? sim.GetComponentRO<Fdp.Toolkit.Navigation.ManualDrive>(onMuscle).Forward : -9f)}");
         Assert.True(moved, $"the possessed body must walk on SimHost: {start} -> {end}");
 
-        var onIg = ByName(ig, "Rifleman");
-        bool igSeesIt = !onIg.IsNull && harness.PumpUntil(() => ig.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.PossessedBy>()
-            && ig.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(onIg), timeoutFrames: 300);
-        Assert.True(igSeesIt, "the IG must see who holds the Rifleman (dtPossessedBy on a pure IG)");
+        var onPlayer = ByName(player, "Rifleman");
+        bool playerSeesIt = !onPlayer.IsNull && harness.PumpUntil(() => player.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.PossessedBy>()
+            && player.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(onPlayer), timeoutFrames: 300);
+        Assert.True(playerSeesIt, "the Player must see who holds the Rifleman (dtPossessedBy on a pure Player)");
 
         // release: the brain's task resumes, every node forgets the hold, the body stops being driven
         Assert.True(station.Unpossess(id).Accepted);
         bool released = harness.PumpUntil(() =>
             cgf.GetComponentRO<BehaviorState>(onBrain).Origin != BehaviorOrigin.Possession
             && station.HolderOf(id) is null
-            && !ig.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(onIg), timeoutFrames: 600);
+            && !player.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(onPlayer), timeoutFrames: 600);
         Assert.True(released, $"released: brain origin {cgf.GetComponentRO<BehaviorState>(onBrain).Origin}, holder on SimHost {station.HolderOf(id)}");
         Assert.True(harness.PumpUntil(() => !sim.HasComponent<Fdp.Toolkit.Navigation.ManualDrive>(onMuscle)
             || sim.GetComponentRO<Fdp.Toolkit.Navigation.ManualDrive>(onMuscle).Forward == 0f, timeoutFrames: 300),
@@ -311,7 +311,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -325,23 +325,23 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
 
         var cgf = harness.Cgf!.World!;
         var sim = harness.SimHost.World!;
-        var ig = harness.Ig.App.World;
-        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && !ByName(sim, "Rifleman").IsNull && !ByName(ig, "Rifleman").IsNull,
+        var player = harness.Player.App.World;
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && !ByName(sim, "Rifleman").IsNull && !ByName(player, "Rifleman").IsNull,
             timeoutFrames: 2000), "the Rifleman must exist on every node");
         var onBrain = ByName(cgf, "Rifleman");
         var onMuscle = ByName(sim, "Rifleman");
-        var onIg = ByName(ig, "Rifleman");
+        var onPlayer = ByName(player, "Rifleman");
         var simMap = harness.SimHost.App.TestHook_EntityMap;
-        var igMap = harness.Ig.App.TestHook_EntityMap;
+        var playerMap = harness.Player.App.TestHook_EntityMap;
         Assert.True(simMap.TryGetNetworkId(onMuscle, out int id), "the Rifleman has a network id on SimHost");
         var first = new EntityOrders(sim, simMap, geo: null);
-        var second = new EntityOrders(ig, igMap, geo: null);
-        int firstStation = first.StationFor(onMuscle), secondStation = second.StationFor(onIg);
+        var second = new EntityOrders(player, playerMap, geo: null);
+        int firstStation = first.StationFor(onMuscle), secondStation = second.StationFor(onPlayer);
         Assert.NotEqual(firstStation, secondStation);
 
         Assert.True(first.Possess(id).Accepted);
         Assert.True(harness.PumpUntil(() => cgf.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(onBrain)
-            && second.HolderOf(id) == firstStation, timeoutFrames: 900), "SimHost's hold must reach the CGF brain and then the IG");
+            && second.HolderOf(id) == firstStation, timeoutFrames: 900), "SimHost's hold must reach the CGF brain and then the Player");
         uint epoch = cgf.GetComponentRO<Fdp.Toolkit.Behavior.Possession.PossessedBy>(onBrain).Epoch;
 
         // ① the second station is told at once, from replicated state
@@ -350,10 +350,10 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         Assert.Contains($"station {firstStation}", refused.Detail);
 
         // ② a request that arrives at the brain anyway (published on the IG's bus, carried to CGF) is ignored
-        if (!ig.Bus.IsRegistered<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>()) ig.Bus.Register<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>();
-        ig.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.PossessRequestEvent
+        if (!player.Bus.IsRegistered<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>()) player.Bus.Register<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>();
+        player.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.PossessRequestEvent
         {
-            Unit = onIg, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, StationNodeId = (Fdp.Core.NodeId)(secondStation),
+            Unit = onPlayer, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, StationNodeId = (Fdp.Core.NodeId)(secondStation),
         });
         var start = sim.GetComponentRO<SimTransform>(onMuscle).Position;
         uint seq = 1;
@@ -384,13 +384,13 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     /// (<c>dtOperatorUseStatus</c>) reaches the station AND the IG (the live IG check the backend's <c>CE-1153</c> owed).
     /// </summary>
     [Fact(Timeout = 600_000)]
-    public async Task CE1154_AUsePressOnTheStation_TogglesADoorThroughTheBrain_AndTheVerdictReachesTheStationAndTheIg()
+    public async Task CE1154_AUsePressOnTheStation_TogglesADoorThroughTheBrain_AndTheVerdictReachesTheStationAndThePlayer()
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -404,7 +404,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
 
         var cgf = harness.Cgf!.World!;
         var sim = harness.SimHost.World!;
-        var ig = harness.Ig.App.World;
+        var player = harness.Player.App.World;
         Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && !ByName(sim, "Rifleman").IsNull, timeoutFrames: 2000),
             "the Rifleman must exist on both nodes");
         var onBrain = ByName(cgf, "Rifleman");
@@ -462,11 +462,11 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         _out.WriteLine($"door now {sim.GetComponentRO<Fdp.Toolkit.Terrain.DoorState>(door).State}; verdict on CGF {onBrainStatus.UseSeq}/{onBrainStatus.ActionId}/{onBrainStatus.Outcome}/{onBrainStatus.Reason}");
         Assert.True(toggled, "one use press on the station must toggle the door through the brain, and its verdict (Done) must come back to SimHost");
 
-        var onIg = ByName(ig, "Rifleman");
-        Assert.True(!onIg.IsNull && harness.PumpUntil(() => ig.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>()
-            && ig.HasComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>(onIg)
-            && ig.GetComponentRO<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>(onIg).Outcome == Fdp.Toolkit.Behavior.Possession.UseOutcome.Done, timeoutFrames: 300),
-            "the IG must receive the verdict too (dtOperatorUseStatus on a pure IG)");
+        var onPlayer = ByName(player, "Rifleman");
+        Assert.True(!onPlayer.IsNull && harness.PumpUntil(() => player.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>()
+            && player.HasComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>(onPlayer)
+            && player.GetComponentRO<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>(onPlayer).Outcome == Fdp.Toolkit.Behavior.Possession.UseOutcome.Done, timeoutFrames: 300),
+            "the Player must receive the verdict too (dtOperatorUseStatus on a pure Player)");
     }
 
     /// <summary>
@@ -479,13 +479,13 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     /// is abstract, R-2009 B5, so E there offers Board).
     /// </summary>
     [Fact(Timeout = 600_000)]
-    public async Task CE1158_DriveAndGetOut_FromAnIgStation_AcrossTheCluster()
+    public async Task CE1158_DriveAndGetOut_FromAPlayerStation_AcrossTheCluster()
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-tank-ammo", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -499,19 +499,19 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
 
         var cgf = harness.Cgf!.World!;
         var sim = harness.SimHost.World!;
-        var ig = harness.Ig.App.World;
+        var player = harness.Player.App.World;
         const string Man = "Rifleman 1", Ifv = "Technical";
-        Assert.True(harness.PumpUntil(() => !ByName(cgf, Man).IsNull && !ByName(sim, Man).IsNull && !ByName(ig, Man).IsNull
-            && !ByName(sim, Ifv).IsNull && !ByName(ig, Ifv).IsNull, timeoutFrames: 2000), "Rifleman 1 and the Technical must exist on every node");
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, Man).IsNull && !ByName(sim, Man).IsNull && !ByName(player, Man).IsNull
+            && !ByName(sim, Ifv).IsNull && !ByName(player, Ifv).IsNull, timeoutFrames: 2000), "Rifleman 1 and the Technical must exist on every node");
         var manOnBrain = ByName(cgf, Man);
         var manOnSim = ByName(sim, Man);
-        var manOnIg = ByName(ig, Man);
+        var manOnPlayer = ByName(player, Man);
         var ifvOnSim = ByName(sim, Ifv);
-        var ifvOnIg = ByName(ig, Ifv);
-        var igMap = harness.Ig.App.TestHook_EntityMap;
-        Assert.True(igMap.TryGetNetworkId(manOnIg, out int manId), "the Rifleman's network id on the IG");
-        Assert.True(igMap.TryGetNetworkId(ifvOnIg, out int ifvId), "the IFV's network id on the IG");
-        var station = new EntityOrders(ig, igMap, geo: null);
+        var ifvOnPlayer = ByName(player, Ifv);
+        var playerMap = harness.Player.App.TestHook_EntityMap;
+        Assert.True(playerMap.TryGetNetworkId(manOnPlayer, out int manId), "the Rifleman's network id on the Player");
+        Assert.True(playerMap.TryGetNetworkId(ifvOnPlayer, out int ifvId), "the IFV's network id on the Player");
+        var station = new EntityOrders(player, playerMap, geo: null);
         int operatorControl = BehaviorHash.FromName("OperatorControl");
 
         Assert.True(station.Possess(manId).Accepted);
@@ -519,7 +519,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         {
             var bs = cgf.GetComponentRO<BehaviorState>(manOnBrain);
             return bs.ActiveBehaviorHash == operatorControl && bs.Origin == BehaviorOrigin.Possession && station.HolderOf(manId) is not null;
-        }, timeoutFrames: 600), "the IG's possession must reach the CGF brain and come back to the IG");
+        }, timeoutFrames: 600), "the Player's possession must reach the CGF brain and come back to the Player");
 
         // beside the IFV (SimHost owns his pose), until the brain's copy is within the rule's reach
         var ifvAt = sim.GetComponentRO<SimTransform>(ifvOnSim).Position;
@@ -536,18 +536,18 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         // ONE Drive press — the station's frame carries counter + verb + target — and the IG sees him in the driver seat
         bool boarded = harness.PumpUntil(() =>
         {
-            if (!ig.IsComponentTypeRegistered<IsEmbarkedTag>() || !ig.HasComponent<IsEmbarkedTag>(manOnIg))
+            if (!player.IsComponentTypeRegistered<IsEmbarkedTag>() || !player.HasComponent<IsEmbarkedTag>(manOnPlayer))
                 sim.GetComponentRW<SimTransform>(manOnSim).Position = beside;
             station.Control(manId, new Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent
             {
                 Seq = seq++, UseSeq = 1, UseVerb = 0, UseTarget = ifvId,   // the PRIMARY verb (an index into OperatorUseActions.For): Drive, the driver seat being free
             });
-            return Hrot.UI.Common.Map3D.PossessionStation.InDriverSeat(ig, manOnIg, ifvOnIg);
+            return Hrot.UI.Common.Map3D.PossessionStation.InDriverSeat(player, manOnPlayer, ifvOnPlayer);
         }, timeoutFrames: 900);
         var status = cgf.HasComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>(manOnBrain)
             ? cgf.GetComponentRO<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>(manOnBrain) : default;
-        _out.WriteLine($"verdict on CGF {status.UseSeq}/{status.ActionId}/{status.Outcome}/{status.Reason}; embarked on IG {ig.HasComponent<IsEmbarkedTag>(manOnIg)}");
-        foreach (var (node, w, man, ifv) in new[] { ("IG", ig, manOnIg, ifvOnIg), ("SimHost", sim, manOnSim, ifvOnSim), ("CGF", cgf, manOnBrain, ByName(cgf, Ifv)) })
+        _out.WriteLine($"verdict on CGF {status.UseSeq}/{status.ActionId}/{status.Outcome}/{status.Reason}; embarked on Player {player.HasComponent<IsEmbarkedTag>(manOnPlayer)}");
+        foreach (var (node, w, man, ifv) in new[] { ("Player", player, manOnPlayer, ifvOnPlayer), ("SimHost", sim, manOnSim, ifvOnSim), ("CGF", cgf, manOnBrain, ByName(cgf, Ifv)) })
         {
             string tag = w.IsComponentTypeRegistered<IsEmbarkedTag>() && w.HasComponent<IsEmbarkedTag>(man)
                 ? $"vehicle {w.GetComponentRO<IsEmbarkedTag>(man).VehicleEntity} (ifv {ifv}) seat {w.GetComponentRO<IsEmbarkedTag>(man).Seat}" : "none";
@@ -555,20 +555,20 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
                 ? string.Join(",", Enumerable.Range(0, w.GetComponentRO<Fdp.Toolkit.Behavior.Components.CarrierSeats>(ifv).SeatCount).Select(i => w.GetComponentRO<Fdp.Toolkit.Behavior.Components.CarrierSeats>(ifv).Roles[i].ToString())) : "no CarrierSeats";
             _out.WriteLine($"  {node}: tag {tag}; seats {seats}");
         }
-        Assert.True(boarded, "one Drive press must board the Rifleman in the Technical's driver seat, seen on the IG");
+        Assert.True(boarded, "one Drive press must board the Rifleman in the Technical's driver seat, seen on the Player");
 
         // the station's hand-over: ride him, then — only once he rides — drive the IFV (one Fps unit per station)
         Assert.True(station.Possess(manId, Fdp.Toolkit.Behavior.Possession.PossessionMode.Riding).Accepted);
-        Assert.True(harness.PumpUntil(() => ig.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(manOnIg)
-            && ig.GetComponentRO<Fdp.Toolkit.Behavior.Possession.PossessedBy>(manOnIg).Mode == Fdp.Toolkit.Behavior.Possession.PossessionMode.Riding, timeoutFrames: 600),
-            "the Riding hold must come back to the IG");
+        Assert.True(harness.PumpUntil(() => player.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(manOnPlayer)
+            && player.GetComponentRO<Fdp.Toolkit.Behavior.Possession.PossessedBy>(manOnPlayer).Mode == Fdp.Toolkit.Behavior.Possession.PossessionMode.Riding, timeoutFrames: 600),
+            "the Riding hold must come back to the Player");
         var ifvPossessed = station.Possess(ifvId, Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps);
         _out.WriteLine($"possess the vehicle: {ifvPossessed.Accepted} {ifvPossessed.Detail}");
         Assert.True(ifvPossessed.Accepted, $"the Technical must be possessable: {ifvPossessed.Detail}");
         Assert.True(harness.PumpUntil(() => station.HolderOf(ifvId) is not null
-            && ig.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(manOnIg)
-            && ig.GetComponentRO<Fdp.Toolkit.Behavior.Possession.PossessedBy>(manOnIg).Mode == Fdp.Toolkit.Behavior.Possession.PossessionMode.Riding, timeoutFrames: 600),
-            "the IG holds the Technical and still holds its rider");
+            && player.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(manOnPlayer)
+            && player.GetComponentRO<Fdp.Toolkit.Behavior.Possession.PossessedBy>(manOnPlayer).Mode == Fdp.Toolkit.Behavior.Possession.PossessionMode.Riding, timeoutFrames: 600),
+            "the Player holds the Technical and still holds its rider");
 
         var start = sim.GetComponentRO<SimTransform>(ifvOnSim).Position;
         bool drove = harness.PumpUntil(() =>
@@ -579,13 +579,13 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         }, timeoutFrames: 1500);
         var end = sim.GetComponentRO<SimTransform>(ifvOnSim).Position;
         _out.WriteLine($"vehicle {start} -> {end} after {seq} frames");
-        Assert.True(drove, $"the Technical must drive on SimHost from the IG's frames: {start} -> {end}");
+        Assert.True(drove, $"the Technical must drive on SimHost from the Player's frames: {start} -> {end}");
 
         // Get out: the rider back as Fps (it releases the IFV), then ONE press
         Assert.True(station.Possess(manId, Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps).Accepted);
         Assert.True(harness.PumpUntil(() => station.HolderOf(ifvId) is null
-            && ig.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(manOnIg)
-            && ig.GetComponentRO<Fdp.Toolkit.Behavior.Possession.PossessedBy>(manOnIg).Mode == Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, timeoutFrames: 600),
+            && player.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(manOnPlayer)
+            && player.GetComponentRO<Fdp.Toolkit.Behavior.Possession.PossessedBy>(manOnPlayer).Mode == Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, timeoutFrames: 600),
             "the Technical is let go and the rider is driven again");
         bool out_ = harness.PumpUntil(() =>
         {
@@ -593,9 +593,9 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
             {
                 Seq = seq++, UseSeq = 2, UseVerb = 0, UseTarget = ifvId,   // aboard, the one action is Get out
             });
-            return !sim.HasComponent<IsEmbarkedTag>(manOnSim) && !ig.HasComponent<IsEmbarkedTag>(manOnIg);
+            return !sim.HasComponent<IsEmbarkedTag>(manOnSim) && !player.HasComponent<IsEmbarkedTag>(manOnPlayer);
         }, timeoutFrames: 900);
-        Assert.True(out_, "one Get-out press must take him out of the Technical, on SimHost and the IG");
+        Assert.True(out_, "one Get-out press must take him out of the Technical, on SimHost and the Player");
     }
 
     /// <summary>
@@ -609,13 +609,13 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     /// <summary>⭐ <c>CE-3224</c> (civilians B-6, CV-13; docs/DESIGN_Civilians_And_Crowd_Control.md §7.7) — a gesture the brain sets on
     /// CGF is seen on SimHost and on the IG, and lowering it is seen too.</summary>
     [Fact(Timeout = 600_000)]
-    public async Task CE3224_AGestureSetOnTheBrain_ReachesSimHostAndTheIg()
+    public async Task CE3224_AGestureSetOnTheBrain_ReachesSimHostAndThePlayer()
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -629,21 +629,21 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
 
         var cgf = harness.Cgf!.World!;
         var sim = harness.SimHost.World!;
-        var ig = harness.Ig.App.World;
-        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && !ByName(sim, "Rifleman").IsNull && !ByName(ig, "Rifleman").IsNull,
-            timeoutFrames: 2000), "the Rifleman must exist on CGF, SimHost and the IG");
+        var player = harness.Player.App.World;
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && !ByName(sim, "Rifleman").IsNull && !ByName(player, "Rifleman").IsNull,
+            timeoutFrames: 2000), "the Rifleman must exist on CGF, SimHost and the Player");
         var onBrain = ByName(cgf, "Rifleman");
 
         Assert.True(Fdp.Toolkit.Combat.Gestures.Set(cgf, onBrain, Fdp.Toolkit.Combat.GestureKind.HandsUp));
         Assert.True(harness.PumpUntil(() =>
             Fdp.Toolkit.Combat.Gestures.Of(sim, ByName(sim, "Rifleman")) == Fdp.Toolkit.Combat.GestureKind.HandsUp
-            && Fdp.Toolkit.Combat.Gestures.Of(ig, ByName(ig, "Rifleman")) == Fdp.Toolkit.Combat.GestureKind.HandsUp, timeoutFrames: 600),
-            "hands up on CGF must reach SimHost and the IG");
+            && Fdp.Toolkit.Combat.Gestures.Of(player, ByName(player, "Rifleman")) == Fdp.Toolkit.Combat.GestureKind.HandsUp, timeoutFrames: 600),
+            "hands up on CGF must reach SimHost and the Player");
 
         Assert.True(Fdp.Toolkit.Combat.Gestures.Set(cgf, onBrain, Fdp.Toolkit.Combat.GestureKind.None));
         Assert.True(harness.PumpUntil(() =>
             Fdp.Toolkit.Combat.Gestures.Of(sim, ByName(sim, "Rifleman")) == Fdp.Toolkit.Combat.GestureKind.None
-            && Fdp.Toolkit.Combat.Gestures.Of(ig, ByName(ig, "Rifleman")) == Fdp.Toolkit.Combat.GestureKind.None, timeoutFrames: 600),
+            && Fdp.Toolkit.Combat.Gestures.Of(player, ByName(player, "Rifleman")) == Fdp.Toolkit.Combat.GestureKind.None, timeoutFrames: 600),
             "lowering the hands must reach both too");
     }
 
@@ -672,7 +672,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -686,17 +686,17 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
 
         var cgf = harness.Cgf!.World!;
         var sim = harness.SimHost.World!;
-        var ig = harness.Ig.App.World;
-        Assert.Equal(0, Clouds(sim) + Clouds(cgf) + Clouds(ig));
+        var player = harness.Player.App.World;
+        Assert.Equal(0, Clouds(sim) + Clouds(cgf) + Clouds(player));
 
         Fdp.Toolkit.Combat.AreaEffectClouds.Request(sim, new System.Numerics.Vector3(5, 5, 0), new Fdp.Toolkit.Combat.AreaEffectCloud
         {
             Kind = Fdp.Toolkit.Combat.CloudKind.TearGas, Radius = 6f, Height = 3f, SightTransmittance = 0.4f, IrritantSeconds = 2f,
             BornAtSimSeconds = Fdp.Toolkit.Time.SimClock.Of(sim).TotalTime, Seconds = 3f,
         });
-        Assert.True(harness.PumpUntil(() => Clouds(sim) == 1 && Clouds(cgf) == 1 && Clouds(ig) == 1, timeoutFrames: 600),
-            $"the cloud must exist on SimHost, CGF and the IG (sim {Clouds(sim)}, cgf {Clouds(cgf)}, ig {Clouds(ig)})");
-        foreach (var w in new[] { cgf, ig })
+        Assert.True(harness.PumpUntil(() => Clouds(sim) == 1 && Clouds(cgf) == 1 && Clouds(player) == 1, timeoutFrames: 600),
+            $"the cloud must exist on SimHost, CGF and the Player (sim {Clouds(sim)}, cgf {Clouds(cgf)}, player {Clouds(player)})");
+        foreach (var w in new[] { cgf, player })
         {
             var c = w.GetComponentRO<Fdp.Toolkit.Combat.AreaEffectCloud>(FirstCloud(w));
             Assert.Equal(Fdp.Toolkit.Combat.CloudKind.TearGas, c.Kind);
@@ -706,10 +706,10 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         // ⭐ CE-3228 — asked for with owner 0 on SimHost (not the default processor) ⇒ forwarded; the default processor (CGF) creates and owns it
         Assert.True(Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(cgf, FirstCloud(cgf)), "the default processor (CGF) owns it");
         Assert.False(Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(sim, FirstCloud(sim)), "a replica is not its owner");
-        Assert.False(Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(ig, FirstCloud(ig)), "a replica is not its owner");
+        Assert.False(Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(player, FirstCloud(player)), "a replica is not its owner");
 
-        Assert.True(harness.PumpUntil(() => Clouds(sim) == 0 && Clouds(cgf) == 0 && Clouds(ig) == 0, timeoutFrames: 2000),
-            $"its owner ends it at its time and it is gone everywhere (sim {Clouds(sim)}, cgf {Clouds(cgf)}, ig {Clouds(ig)})");
+        Assert.True(harness.PumpUntil(() => Clouds(sim) == 0 && Clouds(cgf) == 0 && Clouds(player) == 0, timeoutFrames: 2000),
+            $"its owner ends it at its time and it is gone everywhere (sim {Clouds(sim)}, cgf {Clouds(cgf)}, player {Clouds(player)})");
     }
 
     private static Entity Stone(EntityRepository world)
@@ -731,7 +731,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -745,7 +745,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
 
         var cgf = harness.Cgf!.World!;
         var sim = harness.SimHost.World!;
-        var ig = harness.Ig.App.World;
+        var player = harness.Player.App.World;
         Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && !ByName(sim, "Rifleman").IsNull, timeoutFrames: 2000),
             "the Rifleman must exist on CGF and SimHost");
         var onBrain = ByName(cgf, "Rifleman");
@@ -775,7 +775,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         Assert.True(Fdp.Toolkit.Combat.RoundPickUp.Ask(cgf, onBrain, replica));
         Assert.True(harness.PumpUntil(() => Fdp.Toolkit.Combat.PersonHands.Rounds(cgf, onBrain, Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone) > 0,
             timeoutFrames: 600), "the grant must reach his hands on CGF");
-        Assert.True(harness.PumpUntil(() => Stone(sim).IsNull && Stone(cgf).IsNull && Stone(ig).IsNull, timeoutFrames: 600),
+        Assert.True(harness.PumpUntil(() => Stone(sim).IsNull && Stone(cgf).IsNull && Stone(player).IsNull, timeoutFrames: 600),
             "the stone is gone on every node");
         harness.PumpFrames(30);
         Assert.Equal(1, Fdp.Toolkit.Combat.PersonHands.Rounds(cgf, onBrain, Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone));   // ⭐ ONE winner
@@ -790,7 +790,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -840,7 +840,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
             """);
         File.WriteAllText(Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), scenario.ToJsonString());
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -936,7 +936,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
             """);
         File.WriteAllText(Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), scenario.ToJsonString());
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -977,7 +977,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         _out.WriteLine($"route on CGF: SimTransform {(!routeOnCgf.IsNull && cgf.HasComponent<SimTransform>(routeOnCgf))} "
             + $"authority dtMapRoute {(!routeOnCgf.IsNull && Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(cgf, routeOnCgf, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)Hrot.NED.Descriptors.EDescriptorType.dtMapRoute, 0)))}");
         _out.WriteLine($"route on CGF: plan {(!routeOnCgf.IsNull && cgf.HasManagedComponent<Hrot.Map.Common.Components.RoutePlan>(routeOnCgf))} {Owner(cgf, routeOnCgf)}; on SimHost {Owner(sim, routeOnSim)}");
-        foreach (var (name, w) in new[] { ("ig", harness.Ig.App.World) })
+        foreach (var (name, w) in new[] { ("player", harness.Player.App.World) })
         {
             var r = ByName(w, "Route east");
             _out.WriteLine($"route on {name}: {r} plan {(!r.IsNull && w.HasManagedComponent<Hrot.Map.Common.Components.RoutePlan>(r))} {Owner(w, r)}");

@@ -5,7 +5,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Terrain;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Common;
 using Hrot.SimHost.Serializers;
 using Xunit;

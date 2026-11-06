@@ -7,7 +7,7 @@ namespace Fdp.Toolkit.Tkb.Domain
     /// Drives projection of <c>VisualData</c> and <c>EntityInfo</c> by
     /// <c>PresentationTkbTranslator</c> on IG nodes.
     /// </summary>
-    [TkbDescriptor("IG.VisualDef")]
+    [TkbDescriptor("Map.VisualDef")]
     public record VisualDefinitionDto
     {
         /// <summary>MIL-STD-2525 symbol code (e.g., "SFGPUCIZ-------").</summary>

@@ -2074,9 +2074,9 @@ public sealed class Map3DTests
             world.AddComponent(civilian, new Fdp.Toolkit.Civilians.CivilianState { Fear = 0.7f });
             var fear = Hrot.Common.Diagnostics.Gizmos.MindStateBar.Of(world, civilian);
             Assert.Equal((0.7f, -1f, Hrot.Common.Diagnostics.Gizmos.MindBand.Fear), (MathF.Round(fear.Fill, 3), fear.Tick, fear.Band));
-            var onAnIg = Person(2003, new Vector3(10f, 0f, 0f));
-            Fdp.Toolkit.Civilians.Demeanours.Set(world, onAnIg, Fdp.Toolkit.Civilians.CivilianMode.Routine, fear: 0.5f, anger: 0f);
-            Assert.Equal(0.5f, Hrot.Common.Diagnostics.Gizmos.MindStateBar.Of(world, onAnIg).Fill, 3);
+            var onAPlayer = Person(2003, new Vector3(10f, 0f, 0f));
+            Fdp.Toolkit.Civilians.Demeanours.Set(world, onAPlayer, Fdp.Toolkit.Civilians.CivilianMode.Routine, fear: 0.5f, anger: 0f);
+            Assert.Equal(0.5f, Hrot.Common.Diagnostics.Gizmos.MindStateBar.Of(world, onAPlayer).Fill, 3);
 
             // the gizmo: a card row right under the health bar, on its own layer; BROKEN under it
             Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive[] Emit(Entity who, bool layerOn)

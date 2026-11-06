@@ -2116,7 +2116,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, Declarations("Hrot/Subsystems/Hrot.SimHost/RoleCapabilityTable.cs"));
             Assert.Contains("if (inputs.Brain is null) plan = plan.Capability(live, new CoreInfrastructureCapabilities.ReportInbox())",
                             File.ReadAllText(Path.Combine(root!, "Hrot/Subsystems/Hrot.SimHost/RoleCapabilityTable.cs")));
-            Assert.Equal(1, Declarations("Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs"));
+            Assert.Equal(1, Declarations("Hrot/Subsystems/Hrot.Player/PlayerNodeBootstrapper.cs"));
             foreach (string brainPlan in new[] { "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs", "Hrot/Subsystems/Hrot.CGF/CgfNodeBootstrapper.cs",
                                                  "Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs", "Hrot/Subsystems/Hrot.Editor/EditorNodeBootstrapper.cs",
                                                  "Stride/HrotStrideApp.Game/StrideCapabilities.cs" })

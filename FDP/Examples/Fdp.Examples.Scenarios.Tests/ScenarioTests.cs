@@ -787,8 +787,8 @@ namespace Fdp.Examples.Scenarios.Tests
 
             Assert.NotEqual(1, code);
 
-            Assert.True(scenario.Phase3LastValidIgAltitude < 10.0f,
-                $"Phase 3: LastValidIgAltitude={scenario.Phase3LastValidIgAltitude:F4} expected < 10 (spike must have been rejected)");
+            Assert.True(scenario.Phase3LastValidPlayerAltitude < 10.0f,
+                $"Phase 3: LastValidPlayerAltitude={scenario.Phase3LastValidPlayerAltitude:F4} expected < 10 (spike must have been rejected)");
         }
 
         /// <summary>

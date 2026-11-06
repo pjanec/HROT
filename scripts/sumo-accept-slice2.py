@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-# Live acceptance, AQ93 §12.5 (slice 2): five processes via scripts/cluster-node.sh (orchestrator 8300, cgf 8301, simhost 8302, ig 8303, traffic 8304), demo-city loaded from the IG port.
-"""AQ93 slice 2 live acceptance — five processes (orchestrator 8300, CGF 8301, SimHost 8302, IG 8303, traffic 8304), demo-city
-loaded from the IG port. Usage: accept_slice2.py <out-dir>   (the cluster must already be up, scripts/cluster-node.sh)"""
+# Live acceptance, AQ93 §12.5 (slice 2): five processes via scripts/cluster-node.sh (orchestrator 8300, cgf 8301, simhost 8302, player 8303, traffic 8304), demo-city loaded from the Player port.
+"""AQ93 slice 2 live acceptance — five processes (orchestrator 8300, CGF 8301, SimHost 8302, Player 8303, traffic 8304), demo-city
+loaded from the Player port. Usage: accept_slice2.py <out-dir>   (the cluster must already be up, scripts/cluster-node.sh)"""
 import json, math, os, statistics, subprocess, sys, time, urllib.request, concurrent.futures
 OUT = sys.argv[1]; os.makedirs(OUT, exist_ok=True)
-MIRRORS = {8301: "CGF", 8302: "SimHost", 8303: "IG"}
+MIRRORS = {8301: "CGF", 8302: "SimHost", 8303: "Player"}
 TRAFFIC = 8304
 op = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 def call(port, method, path, body=None, timeout=60):
@@ -45,7 +45,7 @@ while time.time() - t_wait < 120:
     time.sleep(2)
 check("①0 every mirror has cars within 120 s", all(sets.values()), f"after {time.time() - t_wait:.0f} s: " + str({k: len(v) for k, v in sets.items()}))
 common = set.intersection(*(set(v) for v in sets.values())) if all(sets.values()) else set()
-check("① car replicas on CGF, SimHost and IG", all(len(v) > 0 for v in sets.values()), {k: len(v) for k, v in sets.items()} | {"common": len(common)})
+check("① car replicas on CGF, SimHost and Player", all(len(v) > 0 for v in sets.values()), {k: len(v) for k, v in sets.items()} | {"common": len(common)})
 owners = {}
 for nid in list(common)[:5]:
     for p in MIRRORS:
@@ -55,11 +55,11 @@ for n in gone: owners.pop(n)
 one_owner = all(len(set(v.values())) == 1 and None not in v.values() for v in owners.values()) and owners
 check("① each car has ONE primary owner on every node (the traffic node)", one_owner, {"owners": owners, "gone meanwhile": gone})
 
-# ② cars move (IG)
+# ② cars move (Player)
 sample = list(common)[:10]
 p0 = {n: pos(8303, n) for n in sample}; time.sleep(3); p1 = {n: pos(8303, n) for n in sample}
 moved = [n for n in sample if p0[n] and p1[n] and math.dist(p0[n], p1[n]) > 0.5]
-check("② cars move on IG", moved, f"{len(moved)}/{len(sample)} moved > 0.5 m in 3 s")
+check("② cars move on Player", moved, f"{len(moved)}/{len(sample)} moved > 0.5 m in 3 s")
 
 # ③ the nodes agree on a car's pose (CE-4017) — simultaneous reads, median spread
 spreads = []
@@ -69,11 +69,11 @@ for _ in range(8):
         if len(r) == len(MIRRORS): spreads.append(max(math.dist(a, b) for a in r for b in r))
     time.sleep(0.3)
 med = statistics.median(spreads) if spreads else None
-check("③ pose spread across CGF/SimHost/IG: median < 2 m", med is not None and med < 2.0,
+check("③ pose spread across CGF/SimHost/Player: median < 2 m", med is not None and med < 2.0,
       f"{len(spreads)} samples, median {med if med is None else round(med, 2)} m, p90 {round(sorted(spreads)[int(0.9*(len(spreads)-1))], 2) if spreads else None} m")
 
 # ④ pause holds every mirror still
-# ⚠ only a node offering 'time.drive' pauses the cluster (CGF here); IG and the orchestrator answer NOT_SUPPORTED_HERE
+# ⚠ only a node offering 'time.drive' pauses the cluster (CGF here); Player and the orchestrator answer NOT_SUPPORTED_HERE
 pr = call(8301, "POST", "/sim/pause", {})
 check("④0 the pause is accepted (CGF drives time)", (pr or {}).get("ok"), (pr or {}).get("error") or "ok")
 time.sleep(1.5)
@@ -108,7 +108,7 @@ check("⑥ SimHost LOS from a soldier at a nearby car resolves the car", hit and
 subprocess.run(["scripts/cluster-node.sh", "kill", str(TRAFFIC)], cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))), capture_output=True)
 t0 = time.time(); time.sleep(9)
 after = {MIRRORS[p]: cars(p) for p in MIRRORS}
-q0 = {n: pos(8303, n) for n in after["IG"][:6]}; time.sleep(3); q1 = {n: pos(8303, n) for n in after["IG"][:6]}
+q0 = {n: pos(8303, n) for n in after["Player"][:6]}; time.sleep(3); q1 = {n: pos(8303, n) for n in after["Player"][:6]}
 still_moving = [n for n in q0 if q0[n] and q1.get(n) and math.dist(q0[n], q1[n]) > 0.5]
 alive = {p: bool(data(call(p, "GET", "/status"))) for p in MIRRORS}
 check("⑦a after the traffic node dies every other node stays up", all(alive.values()), alive)

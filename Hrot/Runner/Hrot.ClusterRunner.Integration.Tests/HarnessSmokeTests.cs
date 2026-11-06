@@ -13,7 +13,7 @@ public class HarnessSmokeTests
     /// keeps a stale <c>excon</c> token. 🔴 Mutation: delete the harness's <c>requested.Contains("excon")</c> guard ⇒ no exception ⇒ red.
     /// </summary>
     [Theory]
-    [InlineData("simhost,ig,excon,cgf")]
+    [InlineData("simhost,player,excon,cgf")]
     [InlineData("EXCON")]
     public void ANodeListNamingExCon_IsRejected_NamingR3067(string modes)
     {

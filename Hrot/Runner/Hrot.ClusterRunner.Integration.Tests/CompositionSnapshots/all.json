@@ -3,7 +3,7 @@
   "roster": [
     "Orchestrator",
     "SimHost",
-    "IG",
+    "Player",
     "CGF",
     "Traffic"
   ],
@@ -17,7 +17,7 @@
       "singletons": 13,
       "componentTypes": 191
     },
-    "ig": {
+    "player": {
       "modules": 10,
       "systems": 92,
       "translators": 137,

@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Config;
 using Fdp.Core;
@@ -48,7 +48,7 @@ public static class MapLayerRegistry
     //
     // ⭐ UXI-23 S1: these five constants used to be DECLARED here and copied into
     //    Hrot.Map.Common.Config.MapLayerBits, whose doc read "These values must match
-    //    Hrot.IG.Systems.MapLayerRegistry exactly so that the offline Editor and the live
+    //    Hrot.Player.Systems.MapLayerRegistry exactly so that the offline Editor and the live
     //    IG use the same bitmask encoding".
     // ⛔ A comment is not a mechanism: two copies that must agree, kept in step by hand,
     //    across two assemblies. The lift into Hrot.Presentation put both in scope of each

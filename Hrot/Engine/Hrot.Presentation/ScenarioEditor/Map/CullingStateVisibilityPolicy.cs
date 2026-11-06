@@ -2,7 +2,7 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.ScenarioEditor.Gizmos;
 
 namespace Hrot.ScenarioEditor.Map

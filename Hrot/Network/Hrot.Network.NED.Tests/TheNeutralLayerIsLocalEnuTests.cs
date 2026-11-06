@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using CycloneDDS.Runtime;
 using Hrot.Core.Network;
 using Hrot.Network.NED.ExCon;
-using Hrot.Network.NED.IG;
+using Hrot.Network.NED.Player;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Xunit;

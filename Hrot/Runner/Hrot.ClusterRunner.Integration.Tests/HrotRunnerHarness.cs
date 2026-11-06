@@ -7,7 +7,7 @@ using Fdp.Core;
 using Hrot.CGF;
 using Hrot.ClusterRunner.Services;
 using Hrot.Common;
-using Hrot.IG;
+using Hrot.Player;
 using Hrot.Map.Common;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Network.NED.Factory;
@@ -59,7 +59,7 @@ public sealed class HrotRunnerHarness : IDisposable
     public SubsystemOrchestrator Orchestrator { get; }
     public OrchestratorSubsystem OrchestratorSvc { get; }
     public SimHostSubsystem SimHost { get; }
-    public IgSubsystem Ig { get; }
+    public PlayerSubsystem Player { get; }
     public CgfSubsystem? Cgf { get; private set; }
 
     // Shared DDS participant owned by the harness; disposed after Orchestrator.Shutdown().
@@ -88,7 +88,7 @@ public sealed class HrotRunnerHarness : IDisposable
 
         OrchestratorSvc = new OrchestratorSubsystem(factory);  // HEXAG2-S009: factory required
         SimHost = new SimHostSubsystem(factory);
-        Ig = new IgSubsystem(factory);
+        Player = new PlayerSubsystem(factory);
         Cgf = new CgfSubsystem(factory);  // CGF processes CreateEntityRequest and sends ACKs
 
         var options = new RunnerOptions { Headless = true, DomainId = DomainId };
@@ -97,7 +97,7 @@ public sealed class HrotRunnerHarness : IDisposable
         {
             OrchestratorSvc,   // must be first: starts DdsIdAllocatorServer before SimHost
             SimHost,
-            Ig,
+            Player,
             Cgf,
         }, options);
 
@@ -135,12 +135,12 @@ public sealed class HrotRunnerHarness : IDisposable
 
         OrchestratorSvc = new OrchestratorSubsystem(factory, TestDeployment.For(requested.Contains("simhost"), requested.Contains("cgf")));  // ⭐ CE-3347 — the roles this cluster boots
         SimHost         = new SimHostSubsystem(factory);
-        Ig              = new IgSubsystem(factory);
+        Player              = new PlayerSubsystem(factory);
 
         // Always include Orchestrator; conditionally include other subsystems.
         var subsystems = new System.Collections.Generic.List<ISubsystem> { OrchestratorSvc };
         if (requested.Contains("simhost")) subsystems.Add(SimHost);
-        if (requested.Contains("ig"))      subsystems.Add(Ig);
+        if (requested.Contains("player"))      subsystems.Add(Player);
         if (requested.Contains("cgf"))
         {
             Cgf = new CgfSubsystem(factory);
@@ -198,7 +198,7 @@ public sealed class HrotRunnerHarness : IDisposable
     /// ⭐ <c>CE-3346</c> rail support — start a subsystem on THIS harness's domain and participant AFTER the cluster is running, the way a
     /// Player's IG process joins a live exercise: it goes through the same <see cref="SubsystemOrchestrator.Initialize"/> every host uses
     /// (so no second bootstrap), then is pumped with the others. Build the harness with a mode list that leaves it out
-    /// (<c>HrotRunnerHarness("simhost,cgf", domain)</c> — its <see cref="Ig"/> is constructed but never initialised).
+    /// (<c>HrotRunnerHarness("simhost,cgf", domain)</c> — its <see cref="Player"/> is constructed but never initialised).
     /// ⚠ The content seed already ran with the first orchestrator, so it is not repeated.
     /// ⚠ <paramref name="nodeId"/> is REQUIRED to be distinct: every default node id here is a per-subsystem constant and the IG's (300) is the Orchestrator's
     /// own — a late IG on the default would merge into the master's own roster entry and prove nothing. A real Player process gets its own id the same way.

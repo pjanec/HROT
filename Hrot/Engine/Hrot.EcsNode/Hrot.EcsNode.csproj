@@ -8,7 +8,7 @@
     NodeBootstrapper (shared orchestration), the scenario serializer and the genesis tail lived in Hrot.SimHost, so reaching
     them meant a host-to-host reference. ⛔ Not Hrot.Common: the scenario save handler is in Hrot.Presentation, and
     Hrot.Presentation -> Hrot.Traffic -> Hrot.Common would make that a cycle. ⇒ this library sits above both, below every host.
-    ⚠ The moved files keep their Hrot.SimHost.* namespaces for now (as Hrot.IG.Components in Hrot.Core does).
+    ⚠ The moved files keep their Hrot.SimHost.* namespaces for now (as Hrot.Player.Components in Hrot.Core does).
   -->
   <PropertyGroup>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>

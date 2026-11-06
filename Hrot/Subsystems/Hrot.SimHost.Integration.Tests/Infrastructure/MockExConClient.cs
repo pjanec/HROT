@@ -110,7 +110,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 		/// with network-id <paramref name="networkId"/>.
 		/// Returns <c>null</c> if no such entity exists or the component has not been assigned.
 		/// </summary>
-		public EntityInfo? ReadIgEntityData(int networkId)
+		public EntityInfo? ReadPlayerEntityData(int networkId)
         {
             if (!_host.EntityMap.TryGetEntity(networkId, out var entity))
                 return null;

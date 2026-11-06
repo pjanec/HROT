@@ -486,7 +486,7 @@ namespace Hrot.SimHost.Tests
         /// </summary>
         public static TheoryData<string> RootsThatBuildThePack() => new()
         {
-            "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs",
+            "Hrot/Subsystems/Hrot.Player/PlayerNodeBootstrapper.cs",
             "Hrot/Subsystems/Hrot.NodeComposition/StrideNodeBootstrapper.cs",
             "Hrot/Subsystems/Hrot.CGF/CgfNodeBootstrapper.cs",
             "Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs",
@@ -624,7 +624,7 @@ namespace Hrot.SimHost.Tests
         /// like the promotion rail below: what matters is what each composition root WIRES.
         /// </summary>
         [Theory]
-        [InlineData("Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs")]
+        [InlineData("Hrot/Subsystems/Hrot.Player/PlayerNodeBootstrapper.cs")]
         [InlineData("Hrot/Subsystems/Hrot.NodeComposition/StrideNodeBootstrapper.cs")]
         [InlineData("Hrot/Subsystems/Hrot.CGF/CgfNodeBootstrapper.cs")]
         [InlineData("Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs")]

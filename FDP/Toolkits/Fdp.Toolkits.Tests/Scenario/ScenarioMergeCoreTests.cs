@@ -47,10 +47,10 @@ namespace Fdp.Toolkit.Scenario.Tests
         public void DisjointEntities_Union_IntoOneCanonicalFile()   // I1 + I2
         {
             var brain  = Compatible(400, Dom(new[] { "g-a", "g-b" }, tkbName: "tkb-1"));
-            var ig     = Compatible(100, Dom(new[] { "g-c" }));         // IG live-authored one
+            var player     = Compatible(100, Dom(new[] { "g-c" }));         // IG live-authored one
             var muscle = Compatible(1,   Dom(new string[0]));           // owns nothing → empty
 
-            var result = ScenarioMergeCore.Merge(new[] { brain, ig, muscle }, OurType);
+            var result = ScenarioMergeCore.Merge(new[] { brain, player, muscle }, OurType);
 
             Assert.NotNull(result.CanonicalDom);
             Assert.Empty(result.Foreign);

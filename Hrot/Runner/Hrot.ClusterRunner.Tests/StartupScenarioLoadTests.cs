@@ -110,7 +110,7 @@ public sealed class StartupScenarioLoadTests
     {
         HrotRunnerConfiguration Cfg(string[]? map, string scenario = "scn", bool play = false)
         { var c = new HrotRunnerConfiguration { ModeString = "all", NoWait = true, ScenarioName = scenario, Play = play, MapInLoad = map }; c.Validate(); return c; }
-        var own = new[] { "IG-100", "SimHost-1" };
+        var own = new[] { "Player-100", "SimHost-1" };
 
         Assert.Null(StartupScenarioLoad.Plan.From(Cfg(null, scenario: ""), own));
         var p = StartupScenarioLoad.Plan.From(Cfg(Array.Empty<string>(), play: true), own)!;

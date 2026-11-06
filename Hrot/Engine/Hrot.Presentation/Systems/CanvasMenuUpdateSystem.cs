@@ -1,6 +1,6 @@
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.UI.Common.AddEntity;
 
 namespace Hrot.Presentation.Systems

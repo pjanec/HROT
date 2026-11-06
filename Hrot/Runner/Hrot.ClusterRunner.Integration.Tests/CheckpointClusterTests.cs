@@ -55,7 +55,7 @@ public sealed class CheckpointClusterTests : IDisposable
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", DomainId);
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", DomainId);
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var deadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -92,7 +92,7 @@ public sealed class CheckpointClusterTests : IDisposable
             PayloadJson = JsonSerializer.Serialize(new { label = _label }),
         });
         Assert.True(harness.PumpUntil(() => Exports().Count() >= 3, timeoutFrames: 600),
-            $"simhost, ig and cgf must each export '{_label}'; found: {string.Join(", ", Exports().Select(Path.GetFileName))}");
+            $"simhost, player and cgf must each export '{_label}'; found: {string.Join(", ", Exports().Select(Path.GetFileName))}");
 
         var ticks = new List<long>();
         foreach (var export in Exports())
@@ -146,7 +146,7 @@ public sealed class CheckpointClusterTests : IDisposable
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", DomainId);
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", DomainId);
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var deadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -166,7 +166,7 @@ public sealed class CheckpointClusterTests : IDisposable
             RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TakeCheckpoint, PayloadJson = JsonSerializer.Serialize(new { label = _label }),
         });
         Assert.True(harness.PumpUntil(() => Recordings(first).Count(r => r.Meta.Checkpoints.Any(c => c.Label == _label)) >= 3, timeoutFrames: 600),
-            $"simhost, ig and cgf must each mark '{_label}'");
+            $"simhost, player and cgf must each mark '{_label}'");
         var world = harness.SimHost.World!;
         var atMark = Positions(world);
         var marks = Recordings(first).Select(r => r.Meta.Checkpoints.Single(c => c.Label == _label)).ToList();
@@ -252,7 +252,7 @@ public sealed class CheckpointClusterTests : IDisposable
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", DomainId);
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", DomainId);
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var bus    = harness.OrchestratorSvc.TimeBusForTest!;
         var deadline = DateTime.UtcNow.AddSeconds(10.0);
@@ -278,7 +278,7 @@ public sealed class CheckpointClusterTests : IDisposable
         harness.PumpFrames(30);
         foreach (var (name, provider) in new[]
         {
-            ("simhost", harness.SimHost.CreateDebugProvider()), ("ig", harness.Ig.CreateDebugProvider()),
+            ("simhost", harness.SimHost.CreateDebugProvider()), ("player", harness.Player.CreateDebugProvider()),
             ("cgf", harness.Cgf!.CreateDebugProvider()),
         })
             Assert.True(provider?.RunNotRecorded, $"{name} must know the run is not recorded");
@@ -339,7 +339,7 @@ public sealed class CheckpointClusterTests : IDisposable
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", DomainId);
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", DomainId);
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var deadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -356,7 +356,7 @@ public sealed class CheckpointClusterTests : IDisposable
         });
         Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == (int)ClusterState.OperatingLive, timeoutFrames: 4000), "the cluster must go live");
         Assert.True(harness.PumpUntil(() => Recordings(exercise).Count() >= 3, timeoutFrames: 600),
-            "simhost, ig and cgf must each record the forced run");
+            "simhost, player and cgf must each record the forced run");
         Assert.False(master.RunNotRecorded);
     }
 
@@ -371,7 +371,7 @@ public sealed class CheckpointClusterTests : IDisposable
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", DomainId);
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", DomainId);
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var deadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -394,7 +394,7 @@ public sealed class CheckpointClusterTests : IDisposable
             RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TakeCheckpoint, PayloadJson = JsonSerializer.Serialize(new { label = _label }),
         });
         Assert.True(harness.PumpUntil(() => Recordings(exercise).Count(r => r.Meta.Checkpoints.Any(c => c.Label == _label)) >= 3, timeoutFrames: 600),
-            "simhost, ig and cgf must each record, and mark the checkpoint");
+            "simhost, player and cgf must each record, and mark the checkpoint");
         var simSeconds = harness.SimHost.World!.GetSingletonUnmanaged<Fdp.Core.GlobalTime>().TotalTime;
         harness.Dispose();   // ends the recordings: every frame is on disk
 

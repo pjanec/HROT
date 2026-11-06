@@ -40,7 +40,7 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
     public const string ScenarioFileName = ContentLayout.ScenarioFileName;
 
     /// <summary>The <c>$meta.docType</c> stamped on a saved scenario, regardless of which host wrote it.</summary>
-    private const string ScenarioDocType = "Hrot.Scenario";
+    private const string ScenarioDocType = Hrot.Common.Scenario.HrotSubsystemTypes.Scenario;
 
     private readonly ScenarioSerializer   _serializer;
     private readonly EntityRepository     _world;

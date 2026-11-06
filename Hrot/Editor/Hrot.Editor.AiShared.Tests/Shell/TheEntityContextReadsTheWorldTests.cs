@@ -9,7 +9,7 @@ using Hrot.Editor.AiShared.Shell;
 using Hrot.Editor.AiShared.Validation;
 using Hrot.Editor.AiShared.Variables;
 using Hrot.Editor.AiShared.Windows;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Xunit;
 
 namespace Hrot.Editor.AiShared.Tests.Shell;

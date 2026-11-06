@@ -174,7 +174,7 @@ public class RouteWaypointGizmoTests : IDisposable
         Assert.Equal(1, gizmo.SelectedVertexIndex);
 
         var panel = new Hrot.UI.Common.Panels.WaypointEditorPanel(() => RouteWaypointGizmo.Current);
-        var vm = panel.BuildViewModel("editor_waypoint_editor", "ig-waypoint-editor");
+        var vm = panel.BuildViewModel("editor_waypoint_editor", "player-waypoint-editor");
         Assert.True(vm.HasSelection);
         Assert.Equal(("Pass", 0f, "None"), (vm.Kind, vm.HeightAgl, vm.Hold));
 
@@ -192,7 +192,7 @@ public class RouteWaypointGizmoTests : IDisposable
                      (stored.Kind, stored.HeightAgl, stored.Hold, stored.HoldUnit.Ref.NetworkId));
         _repo.Bus.SwapBuffers();
         Assert.NotEmpty(_repo.Bus.ReadManaged<Fdp.Toolkit.NetworkSpawning.Events.UpdateEntityCommand>());   // published
-        vm = panel.BuildViewModel("editor_waypoint_editor", "ig-waypoint-editor");
+        vm = panel.BuildViewModel("editor_waypoint_editor", "player-waypoint-editor");
         Assert.Equal(("Ground", 120f, "Pickup", 4242L), (vm.Kind, vm.HeightAgl, vm.Hold, vm.HoldUnit));
     }
 

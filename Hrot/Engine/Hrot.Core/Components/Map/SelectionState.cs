@@ -1,14 +1,14 @@
 using System.Runtime.InteropServices;
 using Fdp.Core;
 
-namespace Hrot.IG.Components;
+namespace Hrot.Map.Common.Components;
 
 /// <summary>
 /// ECS component tracking interactive selection state for a renderable entity.
 ///
-/// Written by <see cref="Hrot.IG.Tools.StandardInteractionTool"/> in response to
+/// Written by <see cref="Hrot.Player.Tools.StandardInteractionTool"/> in response to
 /// operator clicks and box-select gestures, and read by
-/// <see cref="Hrot.IG.Systems.SelectionRenderSystem"/> to draw per-entity
+/// <see cref="Hrot.Player.Systems.SelectionRenderSystem"/> to draw per-entity
 /// selection overlays.
 ///
 /// Rendering convention:
@@ -48,7 +48,7 @@ public struct SelectionState
     /// <c>true</c> when this entity is the primary (first) entity in the selection.
     /// Only one entity holds <c>IsPrimarySelection = true</c> at a time.
     /// Drives the green fill / green outline ring colour in
-    /// <see cref="Hrot.IG.Systems.SelectionRenderSystem"/>.
+    /// <see cref="Hrot.Player.Systems.SelectionRenderSystem"/>.
     /// </summary>
     [MarshalAs(UnmanagedType.I1)]
     public bool IsPrimarySelection;

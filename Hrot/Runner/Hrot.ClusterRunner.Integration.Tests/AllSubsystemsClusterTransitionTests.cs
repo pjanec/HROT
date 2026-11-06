@@ -11,7 +11,7 @@ using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Network.NED.Factory;
 using Hrot.Orchestrator;
 using Hrot.SimHost;
-using Hrot.IG;
+using Hrot.Player;
 using Hrot.Common;
 using Hrot.Map.Common;
 using Fdp.Toolkit.Orchestration;
@@ -55,7 +55,7 @@ public sealed class AllSubsystemsClusterTransitionTests
 
     // â”€â”€ Shared harness builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    private static (SubsystemOrchestrator orchestrator, OrchestratorSubsystem orchestratorSvc, IgSubsystem igSvc, DdsParticipant participant)
+    private static (SubsystemOrchestrator orchestrator, OrchestratorSubsystem orchestratorSvc, PlayerSubsystem playerSvc, DdsParticipant participant)
         BuildOrchestrator(int domainId)
     {
         // Create a single shared DDS participant so all subsystems (including Orchestrator
@@ -71,14 +71,14 @@ public sealed class AllSubsystemsClusterTransitionTests
 
         var orchestratorSvc = new OrchestratorSubsystem(factory, TestDeployment.For(simHost: true, cgf: false));   // ⭐ CE-3347 — no CGF here, so no Brain is required
         var simHostSvc      = new SimHostSubsystem(factory);
-        var igSvc           = new IgSubsystem(factory);
+        var playerSvc           = new PlayerSubsystem(factory);
 
         var options = new RunnerOptions { Headless = true, DomainId = domainId };
         var orchestrator = new SubsystemOrchestrator(
-            new ISubsystem[] { orchestratorSvc, simHostSvc, igSvc },
+            new ISubsystem[] { orchestratorSvc, simHostSvc, playerSvc },
             options);
 
-        return (orchestrator, orchestratorSvc, igSvc, participant);
+        return (orchestrator, orchestratorSvc, playerSvc, participant);
     }
 
     // â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -95,7 +95,7 @@ public sealed class AllSubsystemsClusterTransitionTests
     public async Task AllSubsystems_TransitionToOperatingLive_CommitStateIsNotDroppedAsDuplicate()
     {
         int domainId = NextDomainId();
-        var (orchestrator, orchestratorSvc, igSvc, participant) = BuildOrchestrator(domainId);
+        var (orchestrator, orchestratorSvc, playerSvc, participant) = BuildOrchestrator(domainId);
         using var _ = participant;
 
         var executor = new HeadlessTestExecutor(
@@ -107,7 +107,7 @@ public sealed class AllSubsystemsClusterTransitionTests
         {
             executor.RegisterHandler(new ClusterTransitionAssertionHandler(
                 orchestratorSvc.TestHook_ClusterMaster!,
-                igSvc.App.ClusterSlave!));
+                playerSvc.App.ClusterSlave!));
         };
 
         int result = await executor.RunAsync().ConfigureAwait(false);
@@ -125,7 +125,7 @@ public sealed class AllSubsystemsClusterTransitionTests
     public async Task AllSubsystems_FullCycleTwice_LoadOperateUnloadIdle()
     {
         int domainId = NextDomainId();
-        var (orchestrator, orchestratorSvc, igSvc, participant) = BuildOrchestrator(domainId);
+        var (orchestrator, orchestratorSvc, playerSvc, participant) = BuildOrchestrator(domainId);
         using var _ = participant;
 
         var executor = new HeadlessTestExecutor(
@@ -137,7 +137,7 @@ public sealed class AllSubsystemsClusterTransitionTests
         {
             executor.RegisterHandler(new ClusterTransitionAssertionHandler(
                 orchestratorSvc.TestHook_ClusterMaster!,
-                igSvc.App.ClusterSlave!));
+                playerSvc.App.ClusterSlave!));
         };
 
         int result = await executor.RunAsync().ConfigureAwait(false);
@@ -169,14 +169,14 @@ public sealed class AllSubsystemsClusterTransitionTests
     private sealed class ClusterTransitionAssertionHandler : ITestActionHandler
     {
         private readonly ClusterMaster _master;
-        private readonly ClusterSlave  _igSlave;
+        private readonly ClusterSlave  _playerSlave;
 
         public string ActionName => "assert_slave_transition";
 
-        public ClusterTransitionAssertionHandler(ClusterMaster master, ClusterSlave igSlave)
+        public ClusterTransitionAssertionHandler(ClusterMaster master, ClusterSlave playerSlave)
         {
             _master     = master     ?? throw new ArgumentNullException(nameof(master));
-            _igSlave = igSlave ?? throw new ArgumentNullException(nameof(igSlave));
+            _playerSlave = playerSlave ?? throw new ArgumentNullException(nameof(playerSlave));
         }
 
         public async Task<object?> ExecuteAsync(Dictionary<string, object> args)
@@ -243,7 +243,7 @@ public sealed class AllSubsystemsClusterTransitionTests
             var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
             while (DateTime.UtcNow < deadline)
             {
-                if (_igSlave.LocalStateIdForTest == (int)targetState)
+                if (_playerSlave.LocalStateIdForTest == (int)targetState)
                     return null;
 
                 await Task.Delay(50).ConfigureAwait(false);
@@ -253,8 +253,8 @@ public sealed class AllSubsystemsClusterTransitionTests
             //    distinguish "the master never transitioned" from "the master transitioned and the
             //    slave did not follow", which are different defects in different components.
             throw new InvalidOperationException(
-                $"assert_slave_transition: IG ClusterSlave.LocalStateIdForTest is " +
-                $"{_igSlave.LocalStateIdForTest} (expected {(int)targetState} = {targetState}) " +
+                $"assert_slave_transition: Player ClusterSlave.LocalStateIdForTest is " +
+                $"{_playerSlave.LocalStateIdForTest} (expected {(int)targetState} = {targetState}) " +
                 $"after {timeoutSeconds}s. " +
                 $"ClusterMaster.CurrentClusterState is {(int)_master.CurrentClusterState} " +
                 $"({_master.CurrentClusterState}). " +

@@ -67,9 +67,8 @@ using Hrot.Editor.AiShared.Adapters;
 using Hrot.Editor.Modules;
 using Hrot.Editor.Rendering;
 using Hrot.Editor.UI;
-using Hrot.IG.Components;
-using Hrot.IG.Systems;
-using Hrot.IG.Modules;
+using Hrot.Player.Systems;
+using Hrot.Player.Modules;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Config;
@@ -2198,9 +2197,9 @@ namespace Hrot.Editor
                 SimHostComponentRegistry.RegisterAll(mirror);
                 CgfComponentRegistry.RegisterAll(mirror);
                 mirror.RegisterComponent<MapDisplayComponent>();
-                mirror.RegisterComponent<Hrot.IG.Components.CullingState>();
-                mirror.RegisterComponent<Hrot.IG.Components.ResolvedStyle>();
-                mirror.RegisterManagedComponent<Hrot.IG.Components.IgSymbolOverride>();
+                mirror.RegisterComponent<Hrot.Map.Common.Components.CullingState>();
+                mirror.RegisterComponent<Hrot.Map.Common.Components.ResolvedStyle>();
+                mirror.RegisterManagedComponent<Hrot.Map.Common.Components.MapSymbolOverride>();
                 mirror.RegisterComponent<VisualEffectState>();
                 mirror.RegisterComponent<TracerTarget>();
                 Hrot.Map.Common.PresentationComponentRegistry.RegisterEffects(mirror);   // ⭐ CE-1042 E2 — mirror the effects
@@ -2840,9 +2839,9 @@ namespace Hrot.Editor
                 {
                     var sb = new System.Text.StringBuilder();
 
-                    if (_world.HasComponent<Hrot.IG.Components.ResolvedStyle>(hovered.Value))
+                    if (_world.HasComponent<Hrot.Map.Common.Components.ResolvedStyle>(hovered.Value))
                     {
-                        ref readonly var style = ref _world.GetComponentRO<Hrot.IG.Components.ResolvedStyle>(hovered.Value);
+                        ref readonly var style = ref _world.GetComponentRO<Hrot.Map.Common.Components.ResolvedStyle>(hovered.Value);
                         string label = style.GetLabelText();
                         if (!string.IsNullOrEmpty(label)) sb.AppendLine(label);
                     }

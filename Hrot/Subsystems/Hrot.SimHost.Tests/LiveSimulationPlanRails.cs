@@ -29,7 +29,7 @@ public sealed class LiveSimulationPlanRails
     {
         "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
         "Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs",
-        "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs",
+        "Hrot/Subsystems/Hrot.Player/PlayerNodeBootstrapper.cs",
         "Hrot/Subsystems/Hrot.Editor/EditorNodeBootstrapper.cs",   // ⭐ CE-4270 B9 — both arms resolve the ONE role table (followed)
         "Stride/HrotStrideApp.Game/StrideCapabilities.cs",
     };

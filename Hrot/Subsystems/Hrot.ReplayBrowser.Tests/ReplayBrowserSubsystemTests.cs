@@ -1606,9 +1606,9 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         long? Primary()
         {
             var w = p.World!;
-            foreach (var e in w.Query().With<Hrot.IG.Components.SelectionState>().Build())
+            foreach (var e in w.Query().With<Hrot.Map.Common.Components.SelectionState>().Build())
             {
-                ref readonly var st = ref w.GetComponentRO<Hrot.IG.Components.SelectionState>(e);
+                ref readonly var st = ref w.GetComponentRO<Hrot.Map.Common.Components.SelectionState>(e);
                 if (st.IsPrimarySelection) return w.GetComponentRO<NetworkIdentity>(e).Value;
             }
             return null;

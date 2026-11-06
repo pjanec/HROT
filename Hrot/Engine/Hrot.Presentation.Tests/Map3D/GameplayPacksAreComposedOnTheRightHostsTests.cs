@@ -22,15 +22,15 @@ public sealed class GameplayPacksAreComposedOnTheRightHostsTests
     }
 
     [Fact]
-    public void CgfComposesTheServerPack_IgTheClientPack_SimHostAndEditorNeither()
+    public void CgfComposesTheServerPack_PlayerTheClientPack_SimHostAndEditorNeither()
     {
-        var cgf = Host("CgfNodeBootstrapper.cs"); var ig = Host("IgNodeBootstrapper.cs");
+        var cgf = Host("CgfNodeBootstrapper.cs"); var player = Host("PlayerNodeBootstrapper.cs");
         var simhost = Host("SimHostNodeBootstrapper.cs"); var editor = Host("EditorNodeBootstrapper.cs");
 
         Assert.Contains("new Hrot.Gameplay.GameplayServerPack(", cgf);
         Assert.DoesNotContain("GameplayClientPack", cgf);
-        Assert.Contains("new Hrot.Gameplay.GameplayClientPack(", ig);
-        Assert.DoesNotContain("GameplayServerPack", ig);
+        Assert.Contains("new Hrot.Gameplay.GameplayClientPack(", player);
+        Assert.DoesNotContain("GameplayServerPack", player);
         foreach (var other in new[] { simhost, editor })
         {
             Assert.DoesNotContain("GameplayServerPack", other);

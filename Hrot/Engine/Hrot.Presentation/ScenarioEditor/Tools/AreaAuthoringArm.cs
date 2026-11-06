@@ -7,7 +7,6 @@ using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Vis2D.Gizmos;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
-using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 

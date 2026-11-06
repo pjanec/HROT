@@ -9,7 +9,7 @@
     network spawning, orchestration, scenario, IG and SimHost systems into a full simulation node.
 
     Why not Hrot.Common/Infrastructure (the dispatch's lean)? StrideNodeBootstrapper depends on
-    Hrot.SimHost and Hrot.IG, and BOTH of those already reference Hrot.Common. Moving the type there
+    Hrot.SimHost and Hrot.Player, and BOTH of those already reference Hrot.Common. Moving the type there
     would require Hrot.Common -> Hrot.SimHost and invert that edge into a project reference CYCLE.
     A composition root has to sit ABOVE the subsystems it composes, so it cannot live in the engine
     layer they depend on. See DESIGN_Stride_Port.md.
@@ -43,7 +43,7 @@
     <!-- Toolkits: ClusterSlave, ScenarioSerializer, ISubsystem -->
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
     <!-- VisualEffectState, TracerTarget, EventToEffectSystem, VisualEffectCleanupSystem -->
-    <ProjectReference Include="..\Hrot.IG\Hrot.IG.csproj" />
+    <ProjectReference Include="..\Hrot.Player\Hrot.Player.csproj" />
   </ItemGroup>
 
 </Project>

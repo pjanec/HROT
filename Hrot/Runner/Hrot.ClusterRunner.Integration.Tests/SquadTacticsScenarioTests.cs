@@ -58,7 +58,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
         File.Copy(Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-suppress-flank", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
@@ -155,7 +155,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
             File.Copy(Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-react-contact", "scenario.json"),
                 Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), overwrite: true);
 
-            using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+            using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
             var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
             var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
             while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
@@ -262,7 +262,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
             File.Copy(Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-squad-march", "scenario.json"),
                 Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), overwrite: true);
 
-            using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+            using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
             var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
             var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
             while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
@@ -364,7 +364,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
                 if ((string?)e!["EntityInfo"]?["Name"] == "Squad") e.AsObject().Remove("Behavior");   // the order comes at run time
             File.WriteAllText(Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), doc.ToJsonString());
 
-            using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+            using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
             var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
             var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
             while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
@@ -447,7 +447,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
             File.Copy(Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-convoy-ambush", "scenario.json"),
                 Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), overwrite: true);
 
-            using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+            using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
             var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
             var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
             while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
@@ -542,7 +542,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
         {
             File.Copy(Path.Combine(TestRepo.Root, "scenarios", "cc-platoon-bound", "scenario.json"),
                 Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), overwrite: true);
-            using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+            using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
             var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
             var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
             while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
@@ -561,7 +561,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
 
             var cgf = harness.Cgf!.World!;
             var sim = harness.SimHost.World!;
-            var ig = harness.Ig.App.World;
+            var player = harness.Player.App.World;
             string[] enemyNames = { "Enemy 1", "Enemy 2", "Enemy 3" };
             Assert.True(harness.PumpUntil(() => new[] { "Platoon", "Alpha", "Bravo" }.Concat(enemyNames).All(n => !ByName(cgf, n).IsNull && !ByName(sim, n).IsNull),
                 timeoutFrames: 3000), "the platoon, its squads and the enemies must spawn on CGF and SimHost");
@@ -593,7 +593,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
             Assert.True(harness.PumpUntil(() => Task(alpha) == squadMove, timeoutFrames: 2000), $"② then Alpha is ordered; {State()}");
 
             // ③ the enemies turn hostile: ONE element from Alpha
-            foreach (var w in new[] { cgf, sim, ig })
+            foreach (var w in new[] { cgf, sim, player })
                 foreach (var n in enemyNames)
                 {
                     var e = ByName(w, n);
@@ -611,7 +611,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
             Assert.True(harness.PumpUntil(() => Task(alpha) == squadHold && Task(bravo) == squadHold, timeoutFrames: 2000), $"④ both squads hold; {State()}");
 
             // ④ the enemies die: the lost SPOT ends the hold, the task resumes in its leg
-            foreach (var w in new[] { cgf, sim, ig })
+            foreach (var w in new[] { cgf, sim, player })
                 foreach (var n in enemyNames)
                 {
                     var e = ByName(w, n);

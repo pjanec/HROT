@@ -3,7 +3,7 @@ namespace Fdp.Presentation.Icons;
 /// <summary>
 /// Provides access to icon-atlas PNG files embedded as managed resources in this assembly.
 ///
-/// <para>The integration layer (e.g. <c>Hrot.ClusterRunner</c>, <c>Hrot.IG</c>) is responsible
+/// <para>The integration layer (e.g. <c>Hrot.ClusterRunner</c>, <c>Hrot.Player</c>) is responsible
 /// for uploading the returned bytes to the GPU and constructing an <see cref="IconAtlas"/>
 /// from the resulting texture handle.  This class is GPU-framework-agnostic.</para>
 /// </summary>

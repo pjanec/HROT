@@ -6,7 +6,7 @@ using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.Map.Common;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using CycloneDDS.Runtime;
@@ -195,10 +195,10 @@ public sealed class CgfSubsystemHeadlessTests
     /// a tactical area that the IG map must display.
     /// </summary>
     [Fact]
-    public void IGOverlay_MapVisualOverlay_AppearsOnIgEntity()
+    public void PlayerOverlay_MapVisualOverlay_AppearsOnPlayerEntity()
     {
         int domainId = Interlocked.Increment(ref _domainCounter);
-        using var harness = new HrotRunnerHarness("simhost,ig", domainId);
+        using var harness = new HrotRunnerHarness("simhost,player", domainId);
 
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
@@ -207,11 +207,11 @@ public sealed class CgfSubsystemHeadlessTests
         int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
 
         // Wait for entity on IG.
-        bool igHasEntity = harness.PumpUntil(
-            () => IgHasNetworkEntity(harness, networkId),
+        bool playerHasEntity = harness.PumpUntil(
+            () => PlayerHasNetworkEntity(harness, networkId),
             300);
-        Assert.True(igHasEntity, $"IG did not receive entity {networkId} in time.");
-        _out.WriteLine($"[HT4] IG entity {networkId} appeared.");
+        Assert.True(playerHasEntity, $"Player did not receive entity {networkId} in time.");
+        _out.WriteLine($"[HT4] Player entity {networkId} appeared.");
 
         // Write a MapVisualOverlay DDS sample for this entity.
         using var participant   = new DdsParticipant((uint)harness.DomainId);
@@ -236,12 +236,12 @@ public sealed class CgfSubsystemHeadlessTests
 
         // The MapVisualOverlayIngressTranslator should attach an EditablePolyline to the IG entity.
         bool overlayApplied = harness.PumpUntil(
-            () => IgEntityHasEditablePolyline(harness, networkId),
+            () => PlayerEntityHasEditablePolyline(harness, networkId),
             OverlayTimeoutMs);
 
-        _out.WriteLine($"[HT4] Overlay applied to IG entity: {overlayApplied}");
+        _out.WriteLine($"[HT4] Overlay applied to Player entity: {overlayApplied}");
         Assert.True(overlayApplied,
-            $"IG entity {networkId} did not receive EditablePolyline within {OverlayTimeoutMs} ms. " +
+            $"Player entity {networkId} did not receive EditablePolyline within {OverlayTimeoutMs} ms. " +
             $"MapVisualOverlayIngressTranslator or EditablePolyline registration is broken.");
     }
 
@@ -665,28 +665,28 @@ public sealed class CgfSubsystemHeadlessTests
         return world.GetComponent<SimTransform>(entity).Position;
     }
 
-    private static bool IgHasNetworkEntity(HrotRunnerHarness harness, int networkId)
+    private static bool PlayerHasNetworkEntity(HrotRunnerHarness harness, int networkId)
     {
-        var map = harness.Ig.App.TestHook_EntityMap;
+        var map = harness.Player.App.TestHook_EntityMap;
         if (!map.TryGetEntity(networkId, out var entity)) return false;
-        var world = harness.Ig.App.World;
+        var world = harness.Player.App.World;
         return world.IsAlive(entity) && world.HasComponent<SimTransform>(entity);
     }
 
-    private static SimTransform GetIgSimTransform(HrotRunnerHarness harness, int networkId)
+    private static SimTransform GetPlayerSimTransform(HrotRunnerHarness harness, int networkId)
     {
-        var map = harness.Ig.App.TestHook_EntityMap;
+        var map = harness.Player.App.TestHook_EntityMap;
         if (!map.TryGetEntity(networkId, out var entity)) return default;
-        var world = harness.Ig.App.World;
+        var world = harness.Player.App.World;
         if (!world.IsAlive(entity) || !world.HasComponent<SimTransform>(entity)) return default;
         return world.GetComponent<SimTransform>(entity);
     }
 
-    private static bool IgEntityHasEditablePolyline(HrotRunnerHarness harness, int networkId)
+    private static bool PlayerEntityHasEditablePolyline(HrotRunnerHarness harness, int networkId)
     {
-        var map = harness.Ig.App.TestHook_EntityMap;
+        var map = harness.Player.App.TestHook_EntityMap;
         if (!map.TryGetEntity(networkId, out var entity)) return false;
-        var world = harness.Ig.App.World;
+        var world = harness.Player.App.World;
         if (!world.IsAlive(entity)) return false;
         return ((ISimulationView)world).HasManagedComponent<EditablePolyline>(entity);
     }

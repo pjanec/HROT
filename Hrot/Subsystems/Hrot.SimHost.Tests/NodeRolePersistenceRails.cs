@@ -33,7 +33,7 @@ namespace Hrot.SimHost.Tests
     /// </summary>
     public class NodeRolePersistenceRails
     {
-        private const string IgRoot = "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs";
+        private const string PlayerRoot = "Hrot/Subsystems/Hrot.Player/PlayerNodeBootstrapper.cs";
 
         /// <summary>
         /// ⭐ Every node-side handler type whose <c>CanHandle</c> claims <c>NodeOpType.SerializeLocal</c>.
@@ -87,16 +87,16 @@ namespace Hrot.SimHost.Tests
         /// <remarks>⛔ P5c (R-4003) — what survives is the orchestrator's OWN context writer, which no node holds. The archive
         /// half moved to <see cref="EveryEcsHostRecordsAndArchives_ThroughTheOneComposition"/>.</remarks>
         [Fact]
-        public void IgCompositionRoot_RegistersNoCheckpointSaveHandler()
+        public void PlayerCompositionRoot_RegistersNoCheckpointSaveHandler()
         {
             var code = CompositionRootSource.StripComments(
-                CompositionRootSource.ReadRepoSource(IgRoot));
+                CompositionRootSource.ReadRepoSource(PlayerRoot));
 
             foreach (var handler in CheckpointSaveHandlersAPassiveNodeMustNotHold)
             {
                 Assert.False(code.Contains(handler),
-                    $"{IgRoot} registers {handler}, the orchestrator's own global-context writer. No node holds " +
-                    "it. ⚠ Recording and archiving are NOT this rail's business any more: IG records like every " +
+                    $"{PlayerRoot} registers {handler}, the orchestrator's own global-context writer. No node holds " +
+                    "it. ⚠ Recording and archiving are NOT this rail's business any more: Player records like every " +
                     "ECS host (R-4003, P5). See docs/DESIGN_Node_Roles_And_Policies.md §7.1.");
             }
         }
@@ -109,15 +109,15 @@ namespace Hrot.SimHost.Tests
         /// editor-style local save — and §5's rule would be broken just as thoroughly.</para>
         /// </summary>
         [Fact]
-        public void IgCompositionRoot_WiresNoScenarioEntityExtractor()
+        public void PlayerCompositionRoot_WiresNoScenarioEntityExtractor()
         {
             var code = CompositionRootSource.StripComments(
-                CompositionRootSource.ReadRepoSource(IgRoot));
+                CompositionRootSource.ReadRepoSource(PlayerRoot));
 
             foreach (var extractor in new[] { "StagingEntityExtractor", "IScenarioEntityExtractor" })
             {
                 Assert.False(code.Contains(extractor),
-                    $"{IgRoot} wires {extractor}. IG carries no persistent state (R-140) and must not be " +
+                    $"{PlayerRoot} wires {extractor}. Player carries no persistent state (R-140) and must not be " +
                     "able to turn its world into scenario entities. See " +
                     "docs/DESIGN_Node_Roles_And_Policies.md §7.1.");
             }
@@ -145,7 +145,7 @@ namespace Hrot.SimHost.Tests
         }
 
         // ⭐ P5c′ — the positive invariant ("IG records and archives like every ECS host") is asserted on the CONSTRUCTED
-        //   node, not on source text (§4-G′): Hrot.IG.Tests/IgRecordsAndArchivesTests. The archive half is also a
+        //   node, not on source text (§4-G′): Hrot.Player.Tests/IgRecordsAndArchivesTests. The archive half is also a
         //   compile-time fact — SerializeLocalRegistrar has no archive parameter to pass null to.
 
         /// <summary>
@@ -278,7 +278,7 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("public void DisposeResources()", baseSrc);
             Assert.Contains("_resourceProviders[i].Dispose()", baseSrc);
 
-            foreach (string host in new[] { SimHostRoot, IgRoot })
+            foreach (string host in new[] { SimHostRoot, PlayerRoot })
             {
                 var hostSrc = CompositionRootSource.StripComments(
                     CompositionRootSource.ReadRepoSource(host));

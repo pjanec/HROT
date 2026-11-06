@@ -58,13 +58,13 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
     /// </list>
     /// </summary>
     [Fact]
-    public void IG_SpawnMovingVehicleViaGateway_EntityMovesOnIg()
+    public void Player_SpawnMovingVehicleViaGateway_EntityMovesOnPlayer()
     {
         using var harness = new HrotRunnerHarness();
         // CGF is included in the default HrotRunnerHarness and processes broadcast
         // CreateEntityRequests (Owner==0). No separate CgfHarness needed.
 
-        var igApp = harness.Ig.App;
+        var playerApp = harness.Player.App;
 
         // Observe CreateUpdateDeleteEntityAck to learn the allocated network ID.
         using var observerParticipant = new DdsParticipant((uint)harness.DomainId);
@@ -75,7 +75,7 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
         // ── 1. Fire the gateway spawn+wander flow (mirrors the UI button press) ──
         //    ⭐ R-3067 / AQ109 X3 — through the IG's own command gateway; the Mini ExCon panel that used to press this button is retired.
         var spawnTask = RunnerTestHelpers.SpawnWithWanderMissionAsync(
-            igApp.TestHook_CommandGateway!, tkbType, (int)(byte)ForceId.Friend, 100f, 200f);
+            playerApp.TestHook_CommandGateway!, tkbType, (int)(byte)ForceId.Friend, 100f, 200f);
         _out.WriteLine("[G1] gateway spawn+wander fired.");
 
         // ── 2. Capture the CreateEntityAck to get the allocated network ID ───
@@ -102,32 +102,32 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
         _out.WriteLine($"[G3b] Gateway task done: {spawnTask.Result}.");
 
         // ── 4. Wait for IG entity to appear with Active lifecycle ────────────
-        bool igActive = harness.PumpUntil(
-            () => IgEntityIsActive(harness, networkId),
+        bool playerActive = harness.PumpUntil(
+            () => PlayerEntityIsActive(harness, networkId),
             SpawnTimeoutFrames);
-        Assert.True(igActive,
-            $"IG entity (networkId={networkId}) did not reach Active lifecycle within {SpawnTimeoutFrames} frames.");
-        _out.WriteLine("[G4] IG entity is Active.");
+        Assert.True(playerActive,
+            $"Player entity (networkId={networkId}) did not reach Active lifecycle within {SpawnTimeoutFrames} frames.");
+        _out.WriteLine("[G4] Player entity is Active.");
 
         // ── 5. Record baseline IG position ───────────────────────────────────
-        var posA = GetIgSimTransform(harness, networkId).Position;
-        _out.WriteLine($"[G5] Baseline IG position: ({posA.X:F3}, {posA.Y:F3}).");
+        var posA = GetPlayerSimTransform(harness, networkId).Position;
+        _out.WriteLine($"[G5] Baseline Player position: ({posA.X:F3}, {posA.Y:F3}).");
 
         // ── 6. Verify position changes — proves WanderMilitary mission is active ─
         bool moved = harness.PumpUntil(() =>
         {
-            var posNow = GetIgSimTransform(harness, networkId).Position;
+            var posNow = GetPlayerSimTransform(harness, networkId).Position;
             return Vector3.Distance(posNow, posA) >= MovementThresholdMetres;
         }, MovementTimeoutFrames);
 
-        var posB = GetIgSimTransform(harness, networkId).Position;
+        var posB = GetPlayerSimTransform(harness, networkId).Position;
         float travelledMetres = Vector3.Distance(posA, posB);
         _out.WriteLine(
-            $"[G6] Final IG position: ({posB.X:F3}, {posB.Y:F3}), " +
+            $"[G6] Final Player position: ({posB.X:F3}, {posB.Y:F3}), " +
             $"travelled={travelledMetres:F4} m, moved={moved}.");
 
         Assert.True(moved,
-            $"Entity (networkId={networkId}) spawned via NedCommandGateway never moved on IG. " +
+            $"Entity (networkId={networkId}) spawned via NedCommandGateway never moved on Player. " +
             $"Baseline=({posA.X:F3},{posA.Y:F3}), final=({posB.X:F3},{posB.Y:F3}), " +
             $"travelled={travelledMetres:F4} m (threshold={MovementThresholdMetres} m). " +
             $"Verify WanderMilitary mission was committed and behavior activated.");
@@ -167,21 +167,21 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
         return false;
     }
 
-    private static bool IgEntityIsActive(HrotRunnerHarness harness, int networkId)
+    private static bool PlayerEntityIsActive(HrotRunnerHarness harness, int networkId)
     {
-        var entityMap = harness.Ig.App.TestHook_EntityMap;
+        var entityMap = harness.Player.App.TestHook_EntityMap;
         if (!entityMap.TryGetEntity(networkId, out var entity)) return false;
-        var world = harness.Ig.App.World;
+        var world = harness.Player.App.World;
         if (!world.IsAlive(entity)) return false;
         return world.GetLifecycleState(entity) == EntityLifecycle.Active;
     }
 
-    private static SimTransform GetIgSimTransform(HrotRunnerHarness harness, int networkId)
+    private static SimTransform GetPlayerSimTransform(HrotRunnerHarness harness, int networkId)
     {
-        var entityMap = harness.Ig.App.TestHook_EntityMap;
+        var entityMap = harness.Player.App.TestHook_EntityMap;
         if (!entityMap.TryGetEntity(networkId, out var entity))
             return default;
-        var world = harness.Ig.App.World;
+        var world = harness.Player.App.World;
         if (!world.IsAlive(entity) || !world.HasComponent<SimTransform>(entity))
             return default;
         return world.GetComponent<SimTransform>(entity);

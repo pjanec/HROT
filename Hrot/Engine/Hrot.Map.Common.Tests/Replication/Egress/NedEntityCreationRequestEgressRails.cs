@@ -4,7 +4,7 @@ using System.Linq;
 using System.Numerics;
 using Fdp.Core;
 using Hrot.Core.Network;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Dds;
 using Hrot.Network.NED.CGF;
 using Hrot.NED.Descriptors;

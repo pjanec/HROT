@@ -1,7 +1,7 @@
 using System;
 using System.Text.Json.Nodes;
 using Fdp.Core;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.UI.Common.Map3D;
 
 namespace Hrot.Editor.DebugApi

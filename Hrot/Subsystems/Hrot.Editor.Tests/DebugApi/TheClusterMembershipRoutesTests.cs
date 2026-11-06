@@ -27,12 +27,12 @@ public sealed class TheClusterMembershipRoutesTests
         => new(new PerspectiveScopedDispatcher(
                    new ISubsystemDebugProvider[]
                    {
-                       new SubsystemDebugProvider("IG", "IG"),
+                       new SubsystemDebugProvider("Player", "Player"),
                        new SubsystemDebugProvider("Orchestrator", "Orchestrator",
                            master:            withBus ? () => _master : null,
                            clusterRoster:     roster is null ? null : () => roster),
                    },
-                   currentPerspective: () => "IG",
+                   currentPerspective: () => "Player",
                    acksPending: null));
 
     [Fact]
@@ -40,7 +40,7 @@ public sealed class TheClusterMembershipRoutesTests
     {
         var svc = Cluster(new[]
         {
-            new ClusterRosterEntry((Fdp.Core.NodeId)(100), "IG", "Idle", "Map2D", 0.4),
+            new ClusterRosterEntry((Fdp.Core.NodeId)(100), "Player", "Idle", "Map2D", 0.4),
             new ClusterRosterEntry((Fdp.Core.NodeId)(400), "CGF", "OperatingLive", "Brain", 0.2),
         });
 
@@ -63,8 +63,8 @@ public sealed class TheClusterMembershipRoutesTests
     {
         var svc = Cluster(new[]
         {
-            new ClusterRosterEntry((Fdp.Core.NodeId)(100), "IG", "Idle", "Map2D", 0.4, "film-cam"),
-            new ClusterRosterEntry((Fdp.Core.NodeId)(101), "IG", "Refused", "None", 0.1, "film-cam", "name 'film-cam' is held by live node 100"),
+            new ClusterRosterEntry((Fdp.Core.NodeId)(100), "Player", "Idle", "Map2D", 0.4, "film-cam"),
+            new ClusterRosterEntry((Fdp.Core.NodeId)(101), "Player", "Refused", "None", 0.1, "film-cam", "name 'film-cam' is held by live node 100"),
         });
 
         var (result, error, _) = svc.GetClusterRoster();
@@ -84,10 +84,10 @@ public sealed class TheClusterMembershipRoutesTests
     [Fact]
     public void CE3354_Status_names_the_node_that_answers()
     {
-        using var slave = new Fdp.Toolkit.Orchestration.ClusterSlave(7, "IG", new Fdp.Core.FdpEventBus(), nodeName: "film-cam");
+        using var slave = new Fdp.Toolkit.Orchestration.ClusterSlave(7, "Player", new Fdp.Core.FdpEventBus(), nodeName: "film-cam");
         var svc = new DebugApiService(new PerspectiveScopedDispatcher(
-            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("IG", "IG", clusterView: () => slave.View) },
-            currentPerspective: () => "IG",
+            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("Player", "Player", clusterView: () => slave.View) },
+            currentPerspective: () => "Player",
             acksPending: null));
 
         var node = svc.GetStatus()["node"]!;
@@ -104,15 +104,15 @@ public sealed class TheClusterMembershipRoutesTests
     public void CE3354_RunSettings_MapInLoad_AddsThisNode_ReplacesTheSet_AndTheSetIsReadBack()
     {
         var bus = new Fdp.Core.FdpEventBus();
-        using var slave = new Fdp.Toolkit.Orchestration.ClusterSlave(7, "IG", bus, nodeName: "film-cam");
+        using var slave = new Fdp.Toolkit.Orchestration.ClusterSlave(7, "Player", bus, nodeName: "film-cam");
         var view = slave.View;
         var svc = new DebugApiService(new PerspectiveScopedDispatcher(
             new ISubsystemDebugProvider[]
             {
-                new SubsystemDebugProvider("IG", "IG", master: () => _master, clusterView: () => view, recordLiveRunsOff: () => false,
-                    clusterRoster: () => new[] { new ClusterRosterEntry((Fdp.Core.NodeId)(7), "IG", "Idle", "Map2D", 0.1, "film-cam"), new ClusterRosterEntry((Fdp.Core.NodeId)(1), "SimHost", "Idle", "None", 0.1, "sim-1") }),
+                new SubsystemDebugProvider("Player", "Player", master: () => _master, clusterView: () => view, recordLiveRunsOff: () => false,
+                    clusterRoster: () => new[] { new ClusterRosterEntry((Fdp.Core.NodeId)(7), "Player", "Idle", "Map2D", 0.1, "film-cam"), new ClusterRosterEntry((Fdp.Core.NodeId)(1), "SimHost", "Idle", "None", 0.1, "sim-1") }),
             },
-            currentPerspective: () => "IG",
+            currentPerspective: () => "Player",
             acksPending: null));
         string[]? Last() => MapInLoadOverrides.NodesOn(_master.Sent.OfType<SetRunSettingsIntent>().Last().FeatureOverrides).ToArray();   // ⭐ F-17 — the `map3d.in-load` override, read as a name list
 
@@ -146,11 +146,11 @@ public sealed class TheClusterMembershipRoutesTests
     public void CE3354_ALoadsPhase_IsTheMastersAnswerForThatRequest_NotTheAnnouncedState()
     {
         var bus = new Fdp.Core.FdpEventBus();
-        using var slave = new Fdp.Toolkit.Orchestration.ClusterSlave(7, "IG", bus, nodeName: "film-cam");
+        using var slave = new Fdp.Toolkit.Orchestration.ClusterSlave(7, "Player", bus, nodeName: "film-cam");
         var view = slave.View;
         var svc = new DebugApiService(new PerspectiveScopedDispatcher(
-            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("IG", "IG", clusterView: () => view) },
-            currentPerspective: () => "IG", acksPending: null));
+            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("Player", "Player", clusterView: () => view) },
+            currentPerspective: () => "Player", acksPending: null));
         Guid load = Guid.NewGuid(), other = Guid.NewGuid();
 
         bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive });   // the master's optimistic state
@@ -177,11 +177,11 @@ public sealed class TheClusterMembershipRoutesTests
     public void CE3354_Status_load_follows_a_load_this_API_did_not_send()
     {
         var bus = new Fdp.Core.FdpEventBus();
-        using var slave = new Fdp.Toolkit.Orchestration.ClusterSlave(7, "IG", bus, nodeName: "film-cam");
+        using var slave = new Fdp.Toolkit.Orchestration.ClusterSlave(7, "Player", bus, nodeName: "film-cam");
         var view = slave.View;
         var svc = new DebugApiService(new PerspectiveScopedDispatcher(
-            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("IG", "IG", clusterView: () => view) },
-            currentPerspective: () => "IG",
+            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("Player", "Player", clusterView: () => view) },
+            currentPerspective: () => "Player",
             acksPending: null));
         Assert.Null(svc.GetStatus()["load"]!["requestId"]);                                // no load anywhere yet
 
@@ -204,11 +204,11 @@ public sealed class TheClusterMembershipRoutesTests
     public void CE3354_Status_load_justAfterASend_showsTheNewRequest_NotThePreviousLoadsOutcome()
     {
         var bus = new Fdp.Core.FdpEventBus();
-        using var slave = new Fdp.Toolkit.Orchestration.ClusterSlave(7, "IG", bus, nodeName: "film-cam");
+        using var slave = new Fdp.Toolkit.Orchestration.ClusterSlave(7, "Player", bus, nodeName: "film-cam");
         var view = slave.View;
         var svc = new DebugApiService(new PerspectiveScopedDispatcher(
-            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("IG", "IG", master: () => _master, clusterView: () => view) },
-            currentPerspective: () => "IG", acksPending: null),
+            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("Player", "Player", master: () => _master, clusterView: () => view) },
+            currentPerspective: () => "Player", acksPending: null),
             clusterState: () => ClusterState.Idle);
         void Hear<T>(T ev) where T : struct { bus.PublishManaged(ev); bus.SwapBuffers(); view.Update(); }
 
@@ -249,13 +249,13 @@ public sealed class TheClusterMembershipRoutesTests
         var svc = new DebugApiService(new PerspectiveScopedDispatcher(
             new ISubsystemDebugProvider[]
             {
-                new SubsystemDebugProvider("IG", "IG"),
+                new SubsystemDebugProvider("Player", "Player"),
                 new SubsystemDebugProvider("Orchestrator", "Orchestrator",
                     master:            () => _master,
                     clusterRoster:     () => Array.Empty<ClusterRosterEntry>(),
                     clusterLoadNotice: () => notice),
             },
-            currentPerspective: () => "IG",
+            currentPerspective: () => "Player",
             acksPending: null));
 
         var (waiting, _, _) = svc.GetClusterRoster();
@@ -334,7 +334,7 @@ public sealed class TheClusterMembershipRoutesTests
     [Fact]
     public void The_roster_and_cancel_cells_are_measured_from_what_the_provider_was_given()
     {
-        var bare = new SubsystemDebugProvider("IG", "IG").DescribeCapabilities();
+        var bare = new SubsystemDebugProvider("Player", "Player").DescribeCapabilities();
         var master = new SubsystemDebugProvider("Orchestrator", "Orchestrator",
             clusterRoster: () => Array.Empty<ClusterRosterEntry>(),
             master:        () => _master).DescribeCapabilities();

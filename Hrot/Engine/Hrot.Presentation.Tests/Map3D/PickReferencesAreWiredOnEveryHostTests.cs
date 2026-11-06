@@ -30,7 +30,7 @@ public sealed class PickReferencesAreWiredOnEveryHostTests
                 if (code.Contains("new CanvasMapPickAdapter(") || code.Contains(".CanvasMapPickAdapter(")) found.Add(rel + " (counted)");
             }
         }
-        Assert.True(found.Count(x => x.EndsWith("(counted)")) >= 4, "IG, CGF, SimHost and the editor each build one: " + string.Join("; ", found));
+        Assert.True(found.Count(x => x.EndsWith("(counted)")) >= 4, "Player, CGF, SimHost and the editor each build one: " + string.Join("; ", found));
         Assert.Empty(found.Where(x => !x.EndsWith("(counted)")));
     }
 }

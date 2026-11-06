@@ -26,7 +26,7 @@ public interface IIgTranslators
 }
 
 /// <summary>No-op stub for <see cref="IIgTranslators"/> (headless/offline mode).</summary>
-public sealed class NullIgTranslators : IIgTranslators
+public sealed class NullPlayerTranslators : IIgTranslators
 {
     public IReadOnlyList<INetworkTranslator> GetTranslators(
         DdsParticipant participant,

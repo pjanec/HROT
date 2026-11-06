@@ -85,7 +85,7 @@ public sealed class TheHostCompositionIsFrozenTests
         int domain = Interlocked.Increment(ref _domain);
         var types = new[]
         {
-            typeof(Hrot.Orchestrator.OrchestratorSubsystem), typeof(Hrot.SimHost.SimHostSubsystem), typeof(Hrot.IG.IgSubsystem),
+            typeof(Hrot.Orchestrator.OrchestratorSubsystem), typeof(Hrot.SimHost.SimHostSubsystem), typeof(Hrot.Player.PlayerSubsystem),
             typeof(Hrot.CGF.CgfSubsystem), typeof(Hrot.TrafficNode.TrafficSubsystem),
         };
         var participants = new List<DdsParticipant>();

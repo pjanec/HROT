@@ -21,7 +21,7 @@
 import re, os, json, collections
 ROOTS = {
  "SimHost(boot)"   : "Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs",
- "IG(boot)"        : "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs",
+ "Player(boot)"    : "Hrot/Subsystems/Hrot.Player/PlayerNodeBootstrapper.cs",
  "StrideNode(dorm)": "Hrot/Subsystems/Hrot.NodeComposition/StrideNodeBootstrapper.cs",
  "CGF(inline)"     : "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
  "Editor(inline)"  : "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs",

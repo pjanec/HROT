@@ -10,7 +10,7 @@ namespace Hrot.Map.Definitions.Tkb
     /// Projects <see cref="VisualDefinitionDto"/> into presentation ECS components
     /// (<see cref="VisualData"/> and <see cref="EntityInfo"/>).
     ///
-    /// <para>⭐ <b>UXI-23 <c>S1</c>:</b> this used to live in <c>Hrot.IG.Translators</c> and was
+    /// <para>⭐ <b>UXI-23 <c>S1</c>:</b> this used to live in <c>Hrot.Player.Translators</c> and was
     /// listed by <c>IgNodeBootstrapper</c> alone. 📐 Measured 2026-08-28: that made <c>VisualData</c>
     /// an <b>IG-private</b> product, so entities built from the TKB on SimHost carried none — and the
     /// shared entity gizmos, which project from it, found nothing to draw. It now sits beside the

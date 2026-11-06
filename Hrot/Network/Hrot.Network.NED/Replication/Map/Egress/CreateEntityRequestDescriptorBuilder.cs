@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
-using Hrot.IG.Components;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Dds;
 using Hrot.Map.Common.Replication.Utils;

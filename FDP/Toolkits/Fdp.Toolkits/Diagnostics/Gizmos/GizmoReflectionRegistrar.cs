@@ -14,7 +14,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
     /// <para>Discovers every <c>[GizmoProjector]</c> in the loaded assemblies and registers it, replacing
     /// the five hand-rolled per-host family lists. ⭐ <b>The point is that it has NO compile-time reference
     /// to any host assembly</b>, so the cycle that killed the compile-time pack never arises: a pack in
-    /// <c>Hrot.Common</c> would have to reference <c>Hrot.IG</c>/<c>Hrot.SimHost</c>/<c>Hrot.CGF</c>, and all
+    /// <c>Hrot.Common</c> would have to reference <c>Hrot.Player</c>/<c>Hrot.SimHost</c>/<c>Hrot.CGF</c>, and all
     /// three already reference <c>Hrot.Common</c> (<c>ST-028</c>).</para>
     ///
     /// <para><b>Why reflect-ALL is safe here and NOT for components.</b> A gizmo is data-free: the registry

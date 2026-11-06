@@ -11,7 +11,7 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.Core.Tkb;
 using Hrot.Common.Diagnostics.Gizmos;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using ImGuiNET;
 
 namespace Hrot.Editor.AiShared.Shell;

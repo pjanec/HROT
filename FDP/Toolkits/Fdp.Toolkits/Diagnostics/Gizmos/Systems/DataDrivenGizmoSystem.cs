@@ -28,7 +28,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
     /// </para>
     ///
     /// <para>
-    /// <b>SelectionState design deviation:</b> <c>Hrot.IG.Components.SelectionState</c> is not
+    /// <b>SelectionState design deviation:</b> <c>Hrot.Map.Common.Components.SelectionState</c> is not
     /// reachable from <c>Fdp.Toolkits</c> (no project reference). This system therefore accepts
     /// an optional <c>isSelectedPredicate</c> delegate instead of performing an ECS query with
     /// SelectionState. When the predicate is <c>null</c>, all active gizmos are always drawn

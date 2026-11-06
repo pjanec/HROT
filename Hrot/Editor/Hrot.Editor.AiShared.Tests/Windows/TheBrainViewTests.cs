@@ -108,17 +108,17 @@ public sealed unsafe class TheBrainViewTests : IDisposable
         var e = Soldier(w);
         var windows = new WindowManager(new IconAtlas(nint.Zero, 1, 1, 16f));
         var bundle = new EntityDetailsBundle(new EntityDetailsHostServices(
-            WindowId: "details_ce1248", Perspective: "IG", World: () => w,
+            WindowId: "details_ce1248", Perspective: "Player", World: () => w,
             Inspector: () => null, Session: () => null, RunState: () => VariableRunState.Running, Host: () => null));
         Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { bundle }, new Fdp.Toolkit.Runner.UiBundleContext(windows));
 
-        var ctx = DetailsContext.Empty("IG") with { Entities = new[] { e } };
+        var ctx = DetailsContext.Empty("Player") with { Entities = new[] { e } };
         var offered = bundle.Workspace.DetailsViews.OfferSet(ctx);
         Assert.Contains(offered, d => d.Id == EntityBrainViewDescriptor.ViewId);
         Assert.Equal(EntitySummaryViewDescriptor.ViewId, bundle.Workspace.DetailsViews.Default(ctx)?.Id);   // Summary stays the card
 
         var plain = w.CreateEntity();
-        Assert.DoesNotContain(bundle.Workspace.DetailsViews.OfferSet(DetailsContext.Empty("IG") with { Entities = new[] { plain } }),
+        Assert.DoesNotContain(bundle.Workspace.DetailsViews.OfferSet(DetailsContext.Empty("Player") with { Entities = new[] { plain } }),
             d => d.Id == EntityBrainViewDescriptor.ViewId);
 
         PanelSnapshot.CaptureEnabled = true;

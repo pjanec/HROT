@@ -1,7 +1,7 @@
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 
 namespace Hrot.Presentation.Gizmos
 {

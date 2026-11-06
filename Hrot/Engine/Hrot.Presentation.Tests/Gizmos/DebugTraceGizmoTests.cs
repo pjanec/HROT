@@ -272,17 +272,17 @@ public sealed class DebugTraceGizmoTests : IDisposable
     {
         var eqs = Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Eqs;
         Assert.Equal(GizmoScope.PinnedOnly, GizmoFamilies.DefaultScope(eqs));   // ⭐ CE-1329 — a brain family: pinned units only
-        _w.RegisterComponent<Hrot.IG.Components.SelectionState>();
+        _w.RegisterComponent<Hrot.Map.Common.Components.SelectionState>();
         _w.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
         _w.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.DebugState>();
         var unit = _w.CreateEntity();
-        _w.AddComponent(unit, new Hrot.IG.Components.SelectionState { IsSelected = false });
+        _w.AddComponent(unit, new Hrot.Map.Common.Components.SelectionState { IsSelected = false });
         var sensor = _w.CreateEntity();
         _w.AddComponent(sensor, new Fdp.Toolkit.Replication.Components.PartMetadata { ParentEntity = unit, InstanceId = 1 });
         var policy = new Hrot.ScenarioEditor.Map.GizmoFamilyVisibilityPolicy(new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry(), eqs);
 
         Assert.False(policy.IsEntityVisible(_w, sensor));
-        _w.SetComponent(unit, new Hrot.IG.Components.SelectionState { IsSelected = true });
+        _w.SetComponent(unit, new Hrot.Map.Common.Components.SelectionState { IsSelected = true });
         Assert.False(policy.IsEntityVisible(_w, sensor), "⭐ CE-1329 — selection draws no brain family");
         _w.AddComponent(unit, new Fdp.Toolkit.Behavior.Diagnostics.DebugState { Ai = eqs });   // the unit's pin (the store's copy)
         Assert.True(policy.IsEntityVisible(_w, sensor), "the pinned unit's sensor child must draw");
@@ -424,15 +424,15 @@ public sealed class DebugTraceGizmoTests : IDisposable
     [Fact]
     public void SR192_TheFamilyDrawsForTheSelectedInstanceOnly()
     {
-        _w.RegisterComponent<Hrot.IG.Components.SelectionState>();
+        _w.RegisterComponent<Hrot.Map.Common.Components.SelectionState>();
         var inst = MacroInstanceAt(77, Vector3.Zero);
-        _w.AddComponent(inst, new Hrot.IG.Components.SelectionState { IsSelected = false });
+        _w.AddComponent(inst, new Hrot.Map.Common.Components.SelectionState { IsSelected = false });
         var policy = new Hrot.ScenarioEditor.Map.GizmoFamilyVisibilityPolicy(new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry(),
             Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.MacroMembers);
 
         Assert.Equal(GizmoScope.SelectedOrPinned, GizmoFamilies.DefaultScope(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.MacroMembers));   // not a brain family
         Assert.False(policy.IsEntityVisible(_w, inst), "an unselected instance draws no lines");
-        _w.SetComponent(inst, new Hrot.IG.Components.SelectionState { IsSelected = true });
+        _w.SetComponent(inst, new Hrot.Map.Common.Components.SelectionState { IsSelected = true });
         Assert.True(policy.IsEntityVisible(_w, inst), "selecting the instance is the switch");
         Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.MacroMembers,
             ((Fdp.Toolkit.Diagnostics.Gizmos.GizmoProjectorAttribute)System.Attribute.GetCustomAttribute(typeof(MacroMembersGizmo),

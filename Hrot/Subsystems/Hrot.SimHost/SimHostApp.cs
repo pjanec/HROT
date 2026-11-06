@@ -44,7 +44,7 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis2D.Defaults;

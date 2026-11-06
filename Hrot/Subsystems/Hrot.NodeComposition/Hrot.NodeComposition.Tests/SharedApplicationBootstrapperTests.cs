@@ -263,7 +263,7 @@ public sealed class SharedApplicationBootstrapperTests
     {
         ("CGF",     "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",                  "Hrot/Subsystems/Hrot.CGF/CgfNodeBootstrapper.cs"),
         ("SimHost", "Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs",                "Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs"),
-        ("IG",      "Hrot/Subsystems/Hrot.IG/IgApplication.cs",                  "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs"),
+        ("Player",      "Hrot/Subsystems/Hrot.Player/PlayerApplication.cs",                  "Hrot/Subsystems/Hrot.Player/PlayerNodeBootstrapper.cs"),
         ("Editor",  "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs",            "Hrot/Subsystems/Hrot.Editor/EditorNodeBootstrapper.cs"),
         ("Traffic", "Hrot/Subsystems/Hrot.TrafficNode/TrafficSubsystem.cs",      "Hrot/Subsystems/Hrot.TrafficNode/TrafficNodeBootstrapper.cs"),
         ("Stride",  "Stride/HrotStrideApp.Game/StrideNodeShell.cs",              "Hrot/Subsystems/Hrot.NodeComposition/StrideNodeBootstrapper.cs"),
@@ -287,7 +287,7 @@ public sealed class SharedApplicationBootstrapperTests
         string root = Fdp.Testing.TestRepo.Root;
 
         // ① the hosts are FOUND (a scan that finds nothing must fail) and each uses a bootstrapper subclass
-        Assert.Equal(new[] { "CGF", "Editor", "IG", "SimHost", "Stride", "Traffic" }, EcsHosts.Select(h => h.Host).OrderBy(x => x, StringComparer.Ordinal).ToArray());
+        Assert.Equal(new[] { "CGF", "Editor", "Player", "SimHost", "Stride", "Traffic" }, EcsHosts.Select(h => h.Host).OrderBy(x => x, StringComparer.Ordinal).ToArray());
         foreach (var (host, entry, bootstrapper) in EcsHosts)
         {
             string entryPath = System.IO.Path.Combine(root, entry), bootPath = System.IO.Path.Combine(root, bootstrapper);
@@ -411,12 +411,12 @@ public sealed class SharedApplicationBootstrapperTests
         public ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators(CarKinem.Trajectory.TrajectoryPoolManager? pool = null) => _base.CreateSimHostPathfindingTranslators(pool);
         public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators(GhostCreationSystem? ghost = null) => _base.CreateSimHostPerceptionTranslators(ghost);
         public IReadOnlyList<IEcsModuleSystem> CreateSimHostAttributeUpdateSystems() => EditHandlers ?? _base.CreateSimHostAttributeUpdateSystems();
-        public IIgTranslators CreateIgTranslators() => _base.CreateIgTranslators();
-        public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? p, int n = 0) => _base.CreateIgNetworkAdapter(p, n);
+        public IIgTranslators CreatePlayerTranslators() => _base.CreatePlayerTranslators();
+        public IIgNetworkAdapter CreatePlayerNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? p, int n = 0) => _base.CreatePlayerNetworkAdapter(p, n);
         public ICgfEntityLifecycleAdapters? CreateCgfEntityLifecycleAdapters() => _base.CreateCgfEntityLifecycleAdapters();
-        public IReadOnlyList<IDescriptorTranslator> CreateIgEgressTranslators(
+        public IReadOnlyList<IDescriptorTranslator> CreatePlayerEgressTranslators(
             CycloneDDS.Runtime.DdsParticipant participant, FdpEventBus bus, int nodeId)
-            => _base.CreateIgEgressTranslators(participant, bus, nodeId);
+            => _base.CreatePlayerEgressTranslators(participant, bus, nodeId);
         public IReadOnlyList<INetworkTranslator> CreateGizmoTranslators(FdpEventBus b, int id, bool headless) => _base.CreateGizmoTranslators(b, id, headless);
         public IEcsModuleSystem? CreateGizmoPublisherSystem(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer buf, int id) => _base.CreateGizmoPublisherSystem(buf, id);
     }

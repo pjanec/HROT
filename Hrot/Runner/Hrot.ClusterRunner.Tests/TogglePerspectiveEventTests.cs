@@ -15,8 +15,8 @@ public class TogglePerspectiveEventTests
     [Fact]
     public void TwoEvents_WithSameValues_AreEqual()
     {
-        var e1 = new TogglePerspectiveEvent("IG", "SimHost");
-        var e2 = new TogglePerspectiveEvent("IG", "SimHost");
+        var e1 = new TogglePerspectiveEvent("Player", "SimHost");
+        var e2 = new TogglePerspectiveEvent("Player", "SimHost");
 
         Assert.Equal(e1, e2);
     }
@@ -24,8 +24,8 @@ public class TogglePerspectiveEventTests
     [Fact]
     public void TwoEvents_WithDifferentValues_AreNotEqual()
     {
-        var e1 = new TogglePerspectiveEvent("IG",      "SimHost");
-        var e2 = new TogglePerspectiveEvent("SimHost", "IG");
+        var e1 = new TogglePerspectiveEvent("Player",      "SimHost");
+        var e2 = new TogglePerspectiveEvent("SimHost", "Player");
 
         Assert.NotEqual(e1, e2);
     }

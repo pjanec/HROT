@@ -27,7 +27,7 @@ namespace Hrot.Map.Definitions
         /// ⚠ The id is kept RESERVED rather than freed — reusing 165 for a different component would
         /// silently mis-decode any persisted or recorded data that still carries the old one.
         /// </summary>
-        public const byte RetiredIgHealthState = 165;
+        public const byte RetiredPlayerHealthState = 165;
 
         /// <summary>
         /// <c>ActivePerspective</c> — managed singleton component selecting the active presentation
@@ -37,7 +37,7 @@ namespace Hrot.Map.Definitions
         public const byte ActivePerspective   = 166;
 
         /// <summary><c>IgSymbolOverride</c> — ExCon-sourced per-entity visual override (style-set, affiliation, texture; DB-MOD1-22).</summary>
-        public const byte IgSymbolOverride    = 167;
+        public const byte MapSymbolOverride    = 167;
 
 
         // ── Route planning components (ROUTES1) ──────────────────────────────────

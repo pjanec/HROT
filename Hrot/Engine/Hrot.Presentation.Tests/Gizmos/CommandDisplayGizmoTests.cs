@@ -7,7 +7,7 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Squad.Command;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.ScenarioEditor.Gizmos;
 using Xunit;
 

@@ -213,7 +213,7 @@ public sealed class TheScenarioWindowsAreSharedTests
     [InlineData("Hrot.Editor",  "EditorSubsystem.cs")]
     [InlineData("Hrot.CGF",     "CgfSubsystem.cs")]
     [InlineData("Hrot.SimHost", "SimHostApp.cs")]
-    [InlineData("Hrot.IG",      "IgApplication.cs")]
+    [InlineData("Hrot.Player",      "PlayerApplication.cs")]
     public void EveryWindowedMapHostUsesTheOneEntityAuthoringWiring(string project, string file)
     {
         var text = HostSource.Read(project, file);
@@ -269,7 +269,7 @@ public sealed class TheScenarioWindowsAreSharedTests
     [InlineData("Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs",               true)]
     [InlineData("Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",                     true)]
     [InlineData("Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs",             false)]
-    [InlineData("Hrot/Subsystems/Hrot.IG/IgSubsystem.cs",                       false)]
+    [InlineData("Hrot/Subsystems/Hrot.Player/PlayerSubsystem.cs",                       false)]
     [InlineData("Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs", true)]
     [InlineData("Stride/HrotStrideApp.Game/StrideNodeShell.cs",                 false)]
     public void EveryEcsHostComposesTheSharedDetailsPanel(string file, bool buildsItsMapHere)
@@ -282,7 +282,7 @@ public sealed class TheScenarioWindowsAreSharedTests
     /// <summary>⭐ CE-1150 (HA-1) — the two hosts that build their map in their application class hand it the host's actions there.</summary>
     [Theory]
     [InlineData("Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs")]
-    [InlineData("Hrot/Subsystems/Hrot.IG/IgApplication.cs")]
+    [InlineData("Hrot/Subsystems/Hrot.Player/PlayerApplication.cs")]
     public void TheMapIsHandedTheHostsActions(string file)
         => Assert.Contains("Host  = HostActions,", HostSource.ReadRelative(file.Split('/')));
 }

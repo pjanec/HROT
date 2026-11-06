@@ -41,7 +41,7 @@ public sealed class PlayerJoinsARunningScenarioTests : IDisposable
     public void Dispose() => NasScenarioStaging.Remove(_scenarioId);
 
     [Fact(Timeout = 120_000)]
-    public async Task A_Player_IG_joining_a_running_scenario_is_caught_up_gets_its_gate_open_and_holds_the_entities()
+    public async Task A_Player_joining_a_running_scenario_is_caught_up_gets_its_gate_open_and_holds_the_entities()
     {
         AuthorScenario();
 
@@ -67,60 +67,60 @@ public sealed class PlayerJoinsARunningScenarioTests : IDisposable
         Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, 4000),
             $"the cluster must reach OperatingLive (31). Current: {(int)master.CurrentClusterState}.");
         Assert.True(harness.PumpUntil(() => CountUnits(cgfWorld) == 2 && cgfView.ClusterPlayReady, 2000),
-            $"the running cluster must hold the 2 scenario units and be PlayReady before the IG joins (units {CountUnits(cgfWorld)}, ClusterPlayReady {cgfView.ClusterPlayReady}).");
+            $"the running cluster must hold the 2 scenario units and be PlayReady before the Player joins (units {CountUnits(cgfWorld)}, ClusterPlayReady {cgfView.ClusterPlayReady}).");
 
         var brainIds = UnitNetworkIds(cgfWorld);
         Assert.Equal(2, brainIds.Count);
         var inSyncBefore = new HashSet<int>(master.InSyncNodeIds);
 
         // ── the IG starts NOW, into the running scenario ─────────────────────────────────────
-        harness.StartLate(harness.Ig, PlayerNodeId);
-        var igSlave = harness.Ig.App.ClusterSlave!;
-        var igView  = igSlave.View;
-        int igNodeId = igView.NodeId ?? throw new InvalidOperationException("the IG's ClusterView carries no node id");
-        Assert.DoesNotContain(igNodeId, inSyncBefore);   // the joiner is a NEW node — otherwise nothing below proves a catch-up
+        harness.StartLate(harness.Player, PlayerNodeId);
+        var playerSlave = harness.Player.App.ClusterSlave!;
+        var playerView  = playerSlave.View;
+        int playerNodeId = playerView.NodeId ?? throw new InvalidOperationException("the Player's ClusterView carries no node id");
+        Assert.DoesNotContain(playerNodeId, inSyncBefore);   // the joiner is a NEW node — otherwise nothing below proves a catch-up
 
         bool sawCatchingUp = false, clusterPlayReadyDropped = false, gateOpened = false;
-        var igMap = harness.Ig.App.TestHook_EntityMap;
-        var igWorld = harness.Ig.App.World;
+        var playerMap = harness.Player.App.TestHook_EntityMap;
+        var playerWorld = harness.Player.App.World;
         var atOrigin = new HashSet<int>();
         // ⭐ CE-4086 — sampled EVERY frame: a unit the joiner has PROMOTED (no longer a ghost) must already hold its first pose, never the origin
         void SampleNoReplicaAtTheOrigin()
         {
             foreach (var id in brainIds)
-                if (igMap.TryGetEntity(id, out var e) && igWorld.IsAlive(e) && igWorld.GetLifecycleState(e) != EntityLifecycle.Ghost
-                    && igWorld.HasComponent<SimTransform>(e) && igWorld.GetComponentRO<SimTransform>(e).Position == System.Numerics.Vector3.Zero)
+                if (playerMap.TryGetEntity(id, out var e) && playerWorld.IsAlive(e) && playerWorld.GetLifecycleState(e) != EntityLifecycle.Ghost
+                    && playerWorld.HasComponent<SimTransform>(e) && playerWorld.GetComponentRO<SimTransform>(e).Position == System.Numerics.Vector3.Zero)
                     atOrigin.Add(id);
         }
         bool joined = harness.PumpUntil(() =>
         {
             SampleNoReplicaAtTheOrigin();
-            if (igView.LocalPhase == NodePhase.CatchingUp) sawCatchingUp = true;
+            if (playerView.LocalPhase == NodePhase.CatchingUp) sawCatchingUp = true;
             if (!cgfView.ClusterPlayReady) clusterPlayReadyDropped = true;   // ⭐ (d) sampled EVERY frame, not only at the end
-            gateOpened = igView.GateOpen(Fdp.Toolkit.Orchestration.HostGatePolicy.Player);
-            return gateOpened && igView.IsLocalPlayReady && master.InSyncNodeIds.Contains(igNodeId);
+            gateOpened = playerView.GateOpen(Fdp.Toolkit.Orchestration.HostGatePolicy.Player);
+            return gateOpened && playerView.IsLocalPlayReady && master.InSyncNodeIds.Contains(playerNodeId);
         }, 4000);
 
-        string why = $"IG phase {igView.LocalPhase} (step '{igView.LocalStep}'), CanOperate {igView.CanOperate} ({igView.NotOperableReason}), " +
-                     $"gate {gateOpened}, in sync {master.InSyncNodeIds.Contains(igNodeId)}, catching up {string.Join(",", master.CatchingUpNodeIds)}";
-        Assert.True(joined, "the IG must reach PlayReady with its Player gate open and be in the master's in-sync set — " + why);
+        string why = $"Player phase {playerView.LocalPhase} (step '{playerView.LocalStep}'), CanOperate {playerView.CanOperate} ({playerView.NotOperableReason}), " +
+                     $"gate {gateOpened}, in sync {master.InSyncNodeIds.Contains(playerNodeId)}, catching up {string.Join(",", master.CatchingUpNodeIds)}";
+        Assert.True(joined, "the Player must reach PlayReady with its Player gate open and be in the master's in-sync set — " + why);
 
         // (a) it went through CatchingUp on its way
-        Assert.True(sawCatchingUp, "the IG's phase must pass through CatchingUp (a late joiner is caught up, not loaded) — " + why);
-        Assert.Equal(NodePhase.PlayReady, igView.LocalPhase);
+        Assert.True(sawCatchingUp, "the Player's phase must pass through CatchingUp (a late joiner is caught up, not loaded) — " + why);
+        Assert.Equal(NodePhase.PlayReady, playerView.LocalPhase);
 
         // (b) the Player gate is open (asserted in the wait too; stated alone so a regression names it)
-        Assert.True(igView.GateOpen(Fdp.Toolkit.Orchestration.HostGatePolicy.Player), why);
+        Assert.True(playerView.GateOpen(Fdp.Toolkit.Orchestration.HostGatePolicy.Player), why);
 
         // (d) the cluster's play-ready never went false while the IG joined — a joiner is not a participant until in sync (R-4014 K6)
         Assert.False(clusterPlayReadyDropped, "ClusterPlayReady (seen by CGF) must never drop while a Player joins");
 
         // (e) the master counts it in sync
-        Assert.Contains(igNodeId, master.InSyncNodeIds);
+        Assert.Contains(playerNodeId, master.InSyncNodeIds);
 
         // (c) the IG's world holds the scenario's replicated entities — the same ones the brain holds
-        Assert.True(harness.PumpUntil(() => { SampleNoReplicaAtTheOrigin(); return CountKnownOnIg(igMap, igWorld, brainIds) == brainIds.Count; }, 1000),
-            $"the IG must hold all {brainIds.Count} units the brain holds. It holds {CountKnownOnIg(igMap, igWorld, brainIds)}.");
+        Assert.True(harness.PumpUntil(() => { SampleNoReplicaAtTheOrigin(); return CountKnownOnPlayer(playerMap, playerWorld, brainIds) == brainIds.Count; }, 1000),
+            $"the Player must hold all {brainIds.Count} units the brain holds. It holds {CountKnownOnPlayer(playerMap, playerWorld, brainIds)}.");
         Assert.True(brainIds.Count > 0);
 
         // (f) ⭐ CE-4086 — no unit was ever promoted on the joiner before its first pose (it would have been drawn at (0,0,0)).
@@ -179,7 +179,7 @@ public sealed class PlayerJoinsARunningScenarioTests : IDisposable
         return ids;
     }
 
-    private static int CountKnownOnIg(Fdp.Toolkit.Replication.Services.NetworkEntityMap map, EntityRepository world, List<int> ids)
+    private static int CountKnownOnPlayer(Fdp.Toolkit.Replication.Services.NetworkEntityMap map, EntityRepository world, List<int> ids)
     {
         int n = 0;
         foreach (var id in ids)

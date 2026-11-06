@@ -37,7 +37,7 @@ namespace HrotStrideApp;
 /// thin Stride adapter library that today references only Fdp.Core, Fdp.Toolkits and Hrot.Core.
 /// The decisive point is precedent: <b>all three hosts already on the seam keep their capabilities
 /// in their own project</b> — <c>Hrot.SimHost/SimHostCapabilities.cs</c>,
-/// <c>Hrot.IG/IgCapabilities.cs</c>, <c>Hrot.CGF/CgfCapabilities.cs</c>. Stride's host project is
+/// <c>Hrot.Player/IgCapabilities.cs</c>, <c>Hrot.CGF/CgfCapabilities.cs</c>. Stride's host project is
 /// where both its shells live, so this is the same shape, and it costs no new project reference.
 /// Folded back into the design; see <c>DESIGN_Stride_Node_Modes.md</c> §4.1.</para>
 /// </remarks>

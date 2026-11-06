@@ -59,7 +59,7 @@ public class OneBootstrapImplementationRails
         var hosts = new Dictionary<string, string>
         {
             ["Hrot.SimHost"]          = "Hrot/Subsystems/Hrot.SimHost/Hrot.SimHost.csproj",
-            ["Hrot.IG"]               = "Hrot/Subsystems/Hrot.IG/Hrot.IG.csproj",
+            ["Hrot.Player"]               = "Hrot/Subsystems/Hrot.Player/Hrot.Player.csproj",
             ["Hrot.CGF"]              = "Hrot/Subsystems/Hrot.CGF/Hrot.CGF.csproj",
             ["Hrot.Editor"]           = "Hrot/Subsystems/Hrot.Editor/Hrot.Editor.csproj",
             ["Hrot.TrafficNode"]      = "Hrot/Subsystems/Hrot.TrafficNode/Hrot.TrafficNode.csproj",
@@ -74,8 +74,8 @@ public class OneBootstrapImplementationRails
         var debt = new HashSet<string>
         {
             "Hrot.CGF -> Hrot.SimHost",
-            "Hrot.Editor -> Hrot.SimHost", "Hrot.Editor -> Hrot.CGF", "Hrot.Editor -> Hrot.Orchestrator", "Hrot.Editor -> Hrot.IG",
-            "Hrot.NodeComposition -> Hrot.SimHost", "Hrot.NodeComposition -> Hrot.IG",
+            "Hrot.Editor -> Hrot.SimHost", "Hrot.Editor -> Hrot.CGF", "Hrot.Editor -> Hrot.Orchestrator", "Hrot.Editor -> Hrot.Player",
+            "Hrot.NodeComposition -> Hrot.SimHost", "Hrot.NodeComposition -> Hrot.Player",
             "Hrot.ReplayBrowser -> Hrot.CGF", "Hrot.ReplayBrowser -> Hrot.SimHost",
             "HrotStrideApp.Game -> Hrot.NodeComposition", "HrotStrideApp.Game -> Hrot.Editor", "HrotStrideApp.Game -> Hrot.Orchestrator",
             "HrotStrideApp.Game -> Hrot.CGF", "HrotStrideApp.Game -> Hrot.SimHost",

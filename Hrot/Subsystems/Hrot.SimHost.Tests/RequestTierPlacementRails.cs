@@ -38,7 +38,7 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// ⛔⛔ <b>None of the request-tier types may live in a HOST assembly.</b> A host assembly is one only
-        /// some nodes reference — <c>Hrot.CGF</c>, <c>Hrot.SimHost</c>, <c>Hrot.IG</c>, <c>Hrot.Editor</c> —
+        /// some nodes reference — <c>Hrot.CGF</c>, <c>Hrot.SimHost</c>, <c>Hrot.Player</c>, <c>Hrot.Editor</c> —
         /// and putting a universally-needed system in one is exactly the defect Q65 obstacle ① removed.
         /// </summary>
         [Theory]
@@ -49,7 +49,7 @@ namespace Hrot.SimHost.Tests
 
             Assert.DoesNotContain("Hrot.CGF", asm);
             Assert.DoesNotContain("Hrot.SimHost", asm);
-            Assert.DoesNotContain("Hrot.IG", asm);
+            Assert.DoesNotContain("Hrot.Player", asm);
             Assert.DoesNotContain("Hrot.Editor", asm);
             Assert.Equal("Hrot.Common", asm);
         }

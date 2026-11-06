@@ -73,7 +73,7 @@ namespace Hrot.Editor.DebugApi
             Notes: new[]
             {
                 "ASK THIS FIRST when a call answers 501 NOT_SUPPORTED_HERE — the matrix says which capabilities the active perspective offers, so you can switch perspective or pick another endpoint instead of guessing.",
-                "mode tells you how the process was started: \"editor\" (one context, everything local) or a cluster mode such as \"all\" (orchestrator + simhost + ig + excon + cgf).",
+                "mode tells you how the process was started: \"editor\" (one context, everything local) or a cluster mode such as \"all\" (orchestrator + simhost + player + excon + cgf).",
                 "The matrix is MEASURED from wired dependencies, not declared — a false cell is a bug, not a stale table.",
                 "host.hasMaster:false means a step cannot be confirmed cluster-wide on this host.",
             },
@@ -859,11 +859,11 @@ namespace Hrot.Editor.DebugApi
             Hint:    "Optional: subsystem (filter). Example: get_architecture_diagnostics({subsystem:\"SimHost\"})",
             Params: new RouteParam[]
             {
-                new("subsystem", "string", false, "Restrict to one subsystem or perspective name (e.g. SimHost, IG, Scenario)"),
+                new("subsystem", "string", false, "Restrict to one subsystem or perspective name (e.g. SimHost, Player, Scenario)"),
             },
             Notes: new[]
             {
-                "Per SUBSYSTEM, not per node: a --mode all node runs SimHost, IG, CGF and the orchestrator side by side and each holds its own kernel, so one snapshot per node would have to drop the rest.",
+                "Per SUBSYSTEM, not per node: a --mode all node runs SimHost, Player, CGF and the orchestrator side by side and each holds its own kernel, so one snapshot per node would have to drop the rest.",
                 "Every node hosts its own MCP endpoint. This answers for THIS node only — ask each node's own endpoint for its own architecture.",
                 "A subsystem with no ECS kernel (ExCon, an orchestrator-only node) correctly reports nothing; check the 'diagnostics.architecture' cell in get_capabilities rather than reading the absence as a wiring bug.",
                 "modules carry lifecycleState and circuitState, so a module stuck open or failing shows up here without reading logs.",
@@ -896,7 +896,7 @@ namespace Hrot.Editor.DebugApi
             Params: new RouteParam[] { },
             Notes: new[]
             {
-                "Only a Player (the IG host) composes the client; every other node answers 404 'no deploy flow on this node'.",
+                "Only a Player (the Player host) composes the client; every other node answers 404 'no deploy flow on this node'.",
                 "Waiting with reason 'Waiting for the server to load a scenario' = the gate is open but the cluster is not in a Live run.",
             },
             ExampleArgsJson: "{}",

@@ -8,7 +8,6 @@ using Fdp.Modules.Geographic;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.NetworkSpawning.Events;
-using Hrot.IG.Components;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Dds;
 using Hrot.NED.Descriptors;

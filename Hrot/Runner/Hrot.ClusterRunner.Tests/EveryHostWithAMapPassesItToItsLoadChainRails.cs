@@ -21,7 +21,7 @@ public sealed class EveryHostWithAMapPassesItToItsLoadChainRails
         new object[] { "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",       @"MapBuildStatus\s*=\s*\(\)\s*=>\s*_cgfMap3D", "Hrot/Subsystems/Hrot.CGF/CgfNodeBootstrapper.cs" },
         new object[] { "Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs",     @"MapBuildStatus\s*=\s*\(\)\s*=>\s*_vis\?\.Map3D", "Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs" },
         new object[] { "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs", @"MapBuildStatus\s*=\s*\(\)\s*=>\s*_map3DBuild", "Hrot/Subsystems/Hrot.Editor/EditorNodeBootstrapper.cs" },
-        new object[] { "Hrot/Subsystems/Hrot.IG/IgApplication.cs",       @"MapBuildStatus\s*=\s*\(\)\s*=>\s*MapBuildStatus", "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs" },
+        new object[] { "Hrot/Subsystems/Hrot.Player/PlayerApplication.cs",       @"MapBuildStatus\s*=\s*\(\)\s*=>\s*MapBuildStatus", "Hrot/Subsystems/Hrot.Player/PlayerNodeBootstrapper.cs" },
     };
 
     [Theory]
@@ -29,6 +29,8 @@ public sealed class EveryHostWithAMapPassesItToItsLoadChainRails
     public void AHostThatAttachesAMap_WiresItsStatus_AndItsBootstrapperPassesItOn(string hostFile, string wiring, string bootstrapperFile)
     {
         Assert.True(Regex.IsMatch(Source(hostFile), wiring), $"{hostFile} does not hand its 3-D map build to its node bootstrapper (expected /{wiring}/)");
-        Assert.True(Regex.IsMatch(Source(bootstrapperFile), @"mapBuildStatus:\s*MapBuildStatus"), $"{bootstrapperFile}'s BuildOrchestration does not pass mapBuildStatus: MapBuildStatus");
+        // ⭐ CE-4270 B11 — the bootstrapper hands it to the ONE orchestration step as a spec value (OrchestrationSpec.MapBuildStatus), and that step passes it on.
+        Assert.True(Regex.IsMatch(Source(bootstrapperFile), @"MapBuildStatus\s*=\s*MapBuildStatus"), $"{bootstrapperFile}'s BuildOrchestration does not hand MapBuildStatus to HostOrchestration");
+        Assert.True(Regex.IsMatch(Source("Hrot/Engine/Hrot.EcsNode/Hosting/HostOrchestration.cs"), @"mapBuildStatus:\s*spec\.MapBuildStatus"), "HostOrchestration does not pass the spec's MapBuildStatus on");
     }
 }

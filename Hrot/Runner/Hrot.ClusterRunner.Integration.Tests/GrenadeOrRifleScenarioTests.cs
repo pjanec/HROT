@@ -98,7 +98,7 @@ public sealed class GrenadeOrRifleScenarioTests : IDisposable
         File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -124,19 +124,19 @@ public sealed class GrenadeOrRifleScenarioTests : IDisposable
         // ── ⭐ WL-6 (docs/DESIGN_Weapon_Layers.md W-13, R-272) — the weapon brain's posture reaches every node: the Rifleman's, written
         //   on CGF, is seen on the SimHost and the IG (the 3-D figure's reader), aimed at the hostile there. ──
         var simWorld = harness.SimHost.World!;
-        var igWorld = harness.Ig.App.World;
+        var playerWorld = harness.Player.App.World;
         var seen = new System.Collections.Generic.Dictionary<string, WeaponPostureKind>();
-        bool igAimsAtTheHostile = false;
+        bool playerAimsAtTheHostile = false;
         void SamplePostures()
         {
-            foreach (var (node, world) in new[] { ("cgf", cgf), ("sim", simWorld), ("ig", igWorld) })
+            foreach (var (node, world) in new[] { ("cgf", cgf), ("sim", simWorld), ("player", playerWorld) })
             {
                 if (world == null || !world.IsComponentTypeRegistered<WeaponPosture>()) continue;
                 var r = ByName(world, "Rifleman");
                 if (r.IsNull || !world.HasComponent<WeaponPosture>(r)) continue;
                 var p = world.GetComponentRO<WeaponPosture>(r);
                 if (!seen.TryGetValue(node, out var best) || p.Kind > best) seen[node] = p.Kind;
-                if (node == "ig" && p.Kind == WeaponPostureKind.Aimed && p.Target == ByName(world, Hostile)) igAimsAtTheHostile = true;
+                if (node == "player" && p.Kind == WeaponPostureKind.Aimed && p.Target == ByName(world, Hostile)) playerAimsAtTheHostile = true;
             }
         }
 
@@ -152,11 +152,11 @@ public sealed class GrenadeOrRifleScenarioTests : IDisposable
         var h = cgf.GetComponent<SimTransform>(hostile).Position;
         _out.WriteLine($"grenadier at {g}, hostile at {h}, grenades {GrenadesLeft(cgf, grenadier)}/{grenades0}, hostile hp {cgf.GetComponent<Health>(hostile).Current}");
         Assert.True(thrown, "the Grenadier must throw at the hidden hostile");
-        _out.WriteLine($"WL-6 rifleman posture (highest seen): {string.Join(", ", seen)}; IG aimed at the hostile: {igAimsAtTheHostile}");
+        _out.WriteLine($"WL-6 rifleman posture (highest seen): {string.Join(", ", seen)}; Player aimed at the hostile: {playerAimsAtTheHostile}");
         Assert.Equal(WeaponPostureKind.Aimed, seen.GetValueOrDefault("cgf"));   // the weapon brain aimed him
         Assert.Equal(WeaponPostureKind.Aimed, seen.GetValueOrDefault("sim"));   // replicated (dtWeaponPosture)
-        Assert.Equal(WeaponPostureKind.Aimed, seen.GetValueOrDefault("ig"));
-        Assert.True(igAimsAtTheHostile, "on the IG the Rifleman's posture must name the hostile as its target");
+        Assert.Equal(WeaponPostureKind.Aimed, seen.GetValueOrDefault("player"));
+        Assert.True(playerAimsAtTheHostile, "on the Player the Rifleman's posture must name the hostile as its target");
 
         // ── ⭐ AQ89 A — the Rifleman (ordinary temperament) holds and SUPPRESSES BLIND: his rounds go at the hidden hostile's last-known
         //   spot, strike the sandbags (no hurt before the grenade) and spoil his aim — UnderFire, stamped by the near miss on the muscle.

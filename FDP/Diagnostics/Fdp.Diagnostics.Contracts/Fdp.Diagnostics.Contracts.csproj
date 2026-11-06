@@ -11,7 +11,7 @@
     <InternalsVisibleTo Include="Fdp.Toolkits.Tests" />
     <InternalsVisibleTo Include="Fdp.Diagnostics.Contracts.Tests" />
     <InternalsVisibleTo Include="Fdp.Presentation.Tests" />
-    <InternalsVisibleTo Include="Hrot.IG.Tests" />
+    <InternalsVisibleTo Include="Hrot.Player.Tests" />
   </ItemGroup>
   <ItemGroup>
     <!-- Only Fdp.Core and GizmoMap.Contracts are allowed — no Fdp.Toolkits, no CycloneDDS -->

@@ -209,7 +209,7 @@ namespace Hrot.Presentation.Tests.Gizmos
             Assert.True(
                 MapInteractionPack.Build(new MapInteractionContext { World = _world, StartEnabled = true })
                     .GizmoGroup.Enabled,
-                "A host with a window at startup must be able to say so — IG and the editor have no other "
+                "A host with a window at startup must be able to say so — Player and the editor have no other "
               + "way to open their gate (§3.2d ①).");
         }
 
@@ -250,7 +250,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         /// <summary>
         /// ⭐⭐ <b>No host may call a source-generated per-namespace registrar any more.</b>
         ///
-        /// <para>🔴 IG used to call BOTH <c>Hrot.IG.Gizmos.GizmoRegistrar.Register</c> (which forwards to
+        /// <para>🔴 IG used to call BOTH <c>Hrot.Player.Gizmos.GizmoRegistrar.Register</c> (which forwards to
         /// reflection) AND the generated <c>Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll</c>.
         /// <c>CanvasContextMenuGizmo</c> carries <c>[GizmoProjector]</c>, so reflection already found it
         /// and the generated call registered it a SECOND time — measured live as
@@ -267,7 +267,7 @@ namespace Hrot.Presentation.Tests.Gizmos
             string[] hosts =
             {
                 "Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs",
-                "Hrot/Subsystems/Hrot.IG/IgApplication.cs",
+                "Hrot/Subsystems/Hrot.Player/PlayerApplication.cs",
                 "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
                 "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs",
                 "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs",

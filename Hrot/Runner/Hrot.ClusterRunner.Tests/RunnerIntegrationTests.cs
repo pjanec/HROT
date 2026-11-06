@@ -46,11 +46,11 @@ namespace Hrot.ClusterRunner.Tests
         {
             // Arrange — one mock per logical subsystem
             var simHost = new MockSubsystem("SimHost");
-            var ig      = new MockSubsystem("IG");
+            var player      = new MockSubsystem("Player");
             var ios     = new MockSubsystem("ExCon");
 
             var orchestrator = new SubsystemOrchestrator(
-                new ISubsystem[] { simHost, ig, ios },
+                new ISubsystem[] { simHost, player, ios },
                 new RunnerOptions { Headless = true });
 
             // Act
@@ -58,7 +58,7 @@ namespace Hrot.ClusterRunner.Tests
 
             // Assert — all three subsystems were initialised
             Assert.True(simHost.InitializeCalled, "SimHost subsystem should be initialized");
-            Assert.True(ig.InitializeCalled,      "IG subsystem should be initialized");
+            Assert.True(player.InitializeCalled,      "Player subsystem should be initialized");
             Assert.True(ios.InitializeCalled,     "ExCon subsystem should be initialized");
 
             orchestrator.Shutdown();
@@ -75,7 +75,7 @@ namespace Hrot.ClusterRunner.Tests
             var cfg = HeadlessAllNoWait();
 
             Assert.True(cfg.RequestedSubsystems.Contains("simhost"),      "mode all must include simhost");
-            Assert.True(cfg.RequestedSubsystems.Contains("ig"),           "mode all must include ig");
+            Assert.True(cfg.RequestedSubsystems.Contains("player"),           "mode all must include player");
             Assert.True(cfg.RequestedSubsystems.Contains("orchestrator"), "mode all must include orchestrator");
             Assert.True(cfg.RequestedSubsystems.Contains("cgf"),          "mode all must include cgf");
             Assert.True(cfg.RequestedSubsystems.Contains("traffic"),      "mode all must include traffic");
@@ -103,17 +103,17 @@ namespace Hrot.ClusterRunner.Tests
         public void AggregatedMode_HeadlessFlag_PropagatedToAllSubsystems()
         {
             var simHost = new MockSubsystem("SimHost");
-            var ig      = new MockSubsystem("IG");
+            var player      = new MockSubsystem("Player");
             var ios     = new MockSubsystem("ExCon");
 
             var orchestrator = new SubsystemOrchestrator(
-                new ISubsystem[] { simHost, ig, ios },
+                new ISubsystem[] { simHost, player, ios },
                 new RunnerOptions { Headless = true });
 
             orchestrator.Initialize();
 
             Assert.True(simHost.ReceivedConfig!.Headless, "SimHost must be headless");
-            Assert.True(ig.ReceivedConfig!.Headless,      "IG must be headless");
+            Assert.True(player.ReceivedConfig!.Headless,      "Player must be headless");
             Assert.True(ios.ReceivedConfig!.Headless,     "ExCon must be headless");
 
             orchestrator.Shutdown();
@@ -126,18 +126,18 @@ namespace Hrot.ClusterRunner.Tests
         public void AggregatedMode_RunFrames_UpdatesAllSubsystems()
         {
             var simHost = new MockSubsystem("SimHost");
-            var ig      = new MockSubsystem("IG");
+            var player      = new MockSubsystem("Player");
             var ios     = new MockSubsystem("ExCon");
 
             var orchestrator = new SubsystemOrchestrator(
-                new ISubsystem[] { simHost, ig, ios },
+                new ISubsystem[] { simHost, player, ios },
                 new RunnerOptions { Headless = true });
 
             orchestrator.Initialize();
             orchestrator.RunFrames(10);
 
             Assert.Equal(10, simHost.UpdateCallCount);
-            Assert.Equal(10, ig.UpdateCallCount);
+            Assert.Equal(10, player.UpdateCallCount);
             Assert.Equal(10, ios.UpdateCallCount);
 
             orchestrator.Shutdown();

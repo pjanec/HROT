@@ -13,7 +13,7 @@ using Fdp.Toolkit.Perception.Sensors;
 using Fdp.Toolkit.Spatial.Eqs;
 using Fdp.Toolkit.Tkb.Domain;
 using Fdp.Toolkit.Spatial.Eqs.Topics;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Common;
 using Hrot.SimHost.Systems;
 using Xunit;

@@ -426,7 +426,7 @@ public sealed class ClusterMasterSeekTests
         using var master = MasterWith(bus, localNodeId: 0,
             (0,   "Editor",  Fdp.Core.NodeRoleTokens.Brain),          // the master's own node — runs the MASTER clock
             (1,   "SimHost", Fdp.Core.NodeRoleTokens.MuscleGround),
-            (100, "IG",      Fdp.Core.NodeRoleTokens.Map2D),          // a Player — an observer never gates a step
+            (100, "Player",      Fdp.Core.NodeRoleTokens.Map2D),          // a Player — an observer never gates a step
             (400, "CGF",     null));                                  // advert not landed yet
 
         Assert.Equal(new HashSet<int> { 1 }, master.StepRoster().ToHashSet());
@@ -440,7 +440,7 @@ public sealed class ClusterMasterSeekTests
         var bus = new FdpEventBus();
         using var master = MasterWith(bus, localNodeId: -1,
             (1,   "SimHost", Fdp.Core.NodeRoleTokens.MuscleGround),
-            (100, "IG",      Fdp.Core.NodeRoleTokens.Map2D));
+            (100, "Player",      Fdp.Core.NodeRoleTokens.Map2D));
         var seek = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(new FdpEventBus()), master.StepRoster);
 
         bus.PublishManaged(new SeekReplayIntent { TargetWallTicks = 1 });

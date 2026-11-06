@@ -19,7 +19,7 @@ namespace Hrot.SimHost;
 ///
 /// <para>⚠ <b>Why it lives in <c>Hrot.SimHost</c> and not beside its sibling in <c>Hrot.Common</c>.</b>
 /// 📐 Measured: <c>EqsResultUpdateSystem</c> is declared in <c>Hrot.SimHost.Systems</c>, and
-/// <c>Hrot.IG</c> references only <c>Hrot.Common</c>. Homing this capability in <c>Hrot.Common</c>
+/// <c>Hrot.Player</c> references only <c>Hrot.Common</c>. Homing this capability in <c>Hrot.Common</c>
 /// would need either a new IG → SimHost project reference or a symbol move. IG never carried this
 /// system, so the split costs nothing today and keeps every host's system set byte-for-byte what it
 /// was — which is what makes <c>CE-221</c>'s fix purely structural and cheap to gate.</para>

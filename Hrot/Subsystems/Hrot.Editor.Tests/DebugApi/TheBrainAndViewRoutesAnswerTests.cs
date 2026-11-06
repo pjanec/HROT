@@ -8,7 +8,7 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Common.Diagnostics.Gizmos;
 using Hrot.Editor.DebugApi;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Presentation.DebugApi;
 using Hrot.UI.Common.Map3D;
 using Xunit;

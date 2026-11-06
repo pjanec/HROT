@@ -3,13 +3,13 @@ using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Vis2D.Abstractions;
-using Hrot.IG.Components;
-using SelectionStateComponent = Hrot.IG.Components.SelectionState;
+using Hrot.Map.Common.Components;
+using SelectionStateComponent = Hrot.Map.Common.Components.SelectionState;
 
 namespace Hrot.ScenarioEditor.Selection;
 
 /// <summary>
-/// The <see cref="ISelectionState"/> view over the ECS truth — <c>Hrot.IG.Components.SelectionState</c>.
+/// The <see cref="ISelectionState"/> view over the ECS truth — <c>Hrot.Map.Common.Components.SelectionState</c>.
 ///
 /// <para>⭐⭐⭐ <b><c>UXI-11</c> slice <c>S-1</c></b>. 📄 <c>docs/UX/UX_Feature_Selection.md</c> §2.7.1
 /// names this class; §2.7.4 lists what it replaces. 🔴 <b>The defect it closes, measured

@@ -117,13 +117,13 @@ namespace Hrot.Map.Definitions.Tkb
         /// data, resolves the template, and forgets to attach a descriptor. ⭐ Neither failed loudly,
         /// because an absent descriptor is indistinguishable from an unauthored one.</para>
         /// </remarks>
-        public NedTkbBuilder WithVisual(long tkbId, Action<IgVisualDef> configure)
+        public NedTkbBuilder WithVisual(long tkbId, Action<MapVisualDef> configure)
         {
             var template = _db.GetByType(tkbId);
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
 
-            var visualDef = new IgVisualDef();
+            var visualDef = new MapVisualDef();
             configure(visualDef);
 
             template.AddDescriptor(new VisualDefinitionDto

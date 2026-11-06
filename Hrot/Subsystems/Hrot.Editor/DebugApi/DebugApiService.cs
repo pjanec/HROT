@@ -1933,7 +1933,7 @@ namespace Hrot.Editor.DebugApi
                 : (null,
                    "The active perspective's node has no entity-creation pack wired into the debug API (a node "
                  + "with no ECS world, or one not yet initialised). Select an ECS node's perspective: every node "
-                 + "that builds EntityCreationPack (SimHost, CGF, IG, Stride, the editor) exposes one. Nothing was created.");
+                 + "that builds EntityCreationPack (SimHost, CGF, Player, Stride, the editor) exposes one. Nothing was created.");
         }
 
         /// <summary>

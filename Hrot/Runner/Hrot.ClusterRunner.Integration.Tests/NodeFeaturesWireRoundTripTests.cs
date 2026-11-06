@@ -27,18 +27,18 @@ public sealed class NodeFeaturesWireRoundTripTests
     [Fact(Timeout = 90_000)]
     public async Task AClusterOverrideForOneNode_ReachesThatNode_AndItsHeartbeatFeaturesOnChanges()
     {
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", DomainId);
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", DomainId);
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
 
         // the IG joined the roster and its heartbeat already lists the feature it has ON by default (the DDS leg node → master)
-        Hrot.Orchestrator.NodeHealthProfile? IgProfile() =>
+        Hrot.Orchestrator.NodeHealthProfile? PlayerProfile() =>
             master.NodeRoster.ActiveNodes.Values.FirstOrDefault(p => p.SubsystemName.StartsWith("Ig", StringComparison.OrdinalIgnoreCase)   /* the IG heartbeat names its application: "IgApplication" */);
-        Assert.True(harness.PumpUntil(() => IgProfile()?.FeaturesOn.Contains(Feature) == true, timeoutFrames: 2000),
-            "the IG's heartbeat must carry FeaturesOn including " + Feature + " over DDS. Roster: " +
+        Assert.True(harness.PumpUntil(() => PlayerProfile()?.FeaturesOn.Contains(Feature) == true, timeoutFrames: 2000),
+            "the Player's heartbeat must carry FeaturesOn including " + Feature + " over DDS. Roster: " +
             string.Join(", ", master.NodeRoster.ActiveNodes.Values.Select(p => $"{p.SubsystemName}[{string.Join("|", p.FeaturesOn)}]")));
-        string igName = IgProfile()!.NodeName;
-        var igFeatures = harness.Ig.App.NodeContext!.Features!;
-        Assert.True(igFeatures.On(Feature));
+        string playerName = PlayerProfile()!.NodeName;
+        var playerFeatures = harness.Player.App.NodeContext!.Features!;
+        Assert.True(playerFeatures.On(Feature));
 
         // the operator turns it off for the IG node only (the JSON cluster-op channel, as the editor / HTTP send it)
         await master.HandleClusterOpRequestAsync(new ClusterOpRequest
@@ -47,16 +47,16 @@ public sealed class NodeFeaturesWireRoundTripTests
             OperationType = ClusterOpType.SetRunSettings,
             PayloadJson   = JsonSerializer.Serialize(new
             {
-                FeatureOverrides = new[] { new { Feature, Nodes = new[] { igName }, Json = "{\"Enabled\":false}" } },
+                FeatureOverrides = new[] { new { Feature, Nodes = new[] { playerName }, Json = "{\"Enabled\":false}" } },
             }),
         }).ConfigureAwait(false);
 
         // the cluster fact reaches the node (master → ClusterStateTopic.FeatureOverrides → the node's ClusterView → NodeFeatures) …
-        Assert.True(harness.PumpUntil(() => !igFeatures.On(Feature), timeoutFrames: 2000),
-            "the IG node must apply the cluster override that names it (FeatureOverrideWire over DDS).");
+        Assert.True(harness.PumpUntil(() => !playerFeatures.On(Feature), timeoutFrames: 2000),
+            "the Player node must apply the cluster override that names it (FeatureOverrideWire over DDS).");
         // … and its next heartbeat reports the change back
-        Assert.True(harness.PumpUntil(() => IgProfile()?.FeaturesOn.Contains(Feature) == false, timeoutFrames: 2000),
-            "the IG's heartbeat FeaturesOn must stop listing " + Feature + " after the override. Now: [" + string.Join("|", IgProfile()?.FeaturesOn ?? Array.Empty<string>()) + "]");
-        Assert.Empty(IgProfile()!.FeatureErrors);   // a valid override is no error
+        Assert.True(harness.PumpUntil(() => PlayerProfile()?.FeaturesOn.Contains(Feature) == false, timeoutFrames: 2000),
+            "the Player's heartbeat FeaturesOn must stop listing " + Feature + " after the override. Now: [" + string.Join("|", PlayerProfile()?.FeaturesOn ?? Array.Empty<string>()) + "]");
+        Assert.Empty(PlayerProfile()!.FeatureErrors);   // a valid override is no error
     }
 }

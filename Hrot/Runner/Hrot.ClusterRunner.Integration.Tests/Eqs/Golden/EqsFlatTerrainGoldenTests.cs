@@ -346,7 +346,7 @@ public sealed class EqsFlatTerrainGoldenTests
         var area = repo.CreateEntity();
         repo.AddComponent(area, new SimTransform { Position = new Vector3(50f, 50f, 0f), Rotation = Quaternion.Identity });
         var ecb = (EntityCommandBuffer)((ISimulationView)repo).GetCommandBuffer();
-        ecb.AddManagedComponent(area, new Hrot.IG.Components.EditablePolyline
+        ecb.AddManagedComponent(area, new Hrot.Map.Common.Components.EditablePolyline
         {
             Points = new List<Vector2> { new(-15f, -15f), new(15f, -15f), new(15f, 15f), new(-15f, 15f) },
         });

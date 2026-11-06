@@ -3,7 +3,7 @@ using System.Linq;
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
-using Hrot.Network.NED.IG;
+using Hrot.Network.NED.Player;
 using Hrot.Network.NED.SimHost;
 using Xunit;
 
@@ -92,7 +92,7 @@ namespace Hrot.SimHost.Tests
         public void CE1148_TheIgsOwnList_CarriesNoOrderEgress(bool headless)
         {
             using var participant = new DdsParticipant(231u);
-            var set = new Hrot.Network.NED.IG.NedIgTranslators()
+            var set = new Hrot.Network.NED.Player.NedPlayerTranslators()
                 .GetTranslators(participant, new NetworkEntityMap(), new FdpEventBus(), ghostCreationSystem: null, localNodeId: 1, headless)
                 .Select(t => t.GetType()).ToArray();
             Assert.Equal(0, Count<Hrot.Network.NED.SimHost.TacticalIntentEgressTranslator>(set));

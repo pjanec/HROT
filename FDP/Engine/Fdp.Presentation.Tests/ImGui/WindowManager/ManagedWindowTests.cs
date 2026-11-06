@@ -68,7 +68,7 @@ public class ManagedWindowTests
     private sealed class ClosedHookWindow : ManagedWindow
     {
         public int ClosedFrames { get; private set; }
-        public ClosedHookWindow(string id) : base(id, "Hook Window", "IG", WindowScope.Global) { }
+        public ClosedHookWindow(string id) : base(id, "Hook Window", "Player", WindowScope.Global) { }
         protected override void OnRenderWhileClosed() => ClosedFrames++;
         protected override void DrawClientArea() { ImGuiApi.Text("x"); }
     }
@@ -81,13 +81,13 @@ public class ManagedWindowTests
         using var atlas = CreateAtlas();
         var window = new ClosedHookWindow("x5hook") { IsOpen = false };
 
-        window.Render("IG", atlas);
-        window.Render("IG", atlas);
+        window.Render("Player", atlas);
+        window.Render("Player", atlas);
         Assert.Equal(2, window.ClosedFrames);
 
         window.IsOpen = true;
         fixture.NewFrame();
-        window.Render("IG", atlas);
+        window.Render("Player", atlas);
         fixture.Render();
         Assert.Equal(2, window.ClosedFrames);   // the open frame did not call it
     }
@@ -100,7 +100,7 @@ public class ManagedWindowTests
     {
         protected override bool HasMenuBar => true;
 
-        public TestWindowDefaultMenuBar(string id) : base(id, "Menu Window", "IG", WindowScope.Global) { }
+        public TestWindowDefaultMenuBar(string id) : base(id, "Menu Window", "Player", WindowScope.Global) { }
 
         protected override void DrawClientArea() => ImGuiApi.Text("content");
     }
@@ -113,7 +113,7 @@ public class ManagedWindowTests
     {
         using var fixture = new ImGuiTestFixture();
         using var atlas = CreateAtlas();
-        var window = new TestWindow("s201c1", "IG", WindowScope.Global) { IsOpen = true };
+        var window = new TestWindow("s201c1", "Player", WindowScope.Global) { IsOpen = true };
 
         fixture.NewFrame();
         window.Render("ExCon", atlas);
@@ -128,9 +128,9 @@ public class ManagedWindowTests
     {
         // No ImGui context needed — method returns before any Gui call.
         using var atlas = CreateAtlas();
-        var window = new TestWindow("s201c2", "IG", WindowScope.Global) { IsOpen = false };
+        var window = new TestWindow("s201c2", "Player", WindowScope.Global) { IsOpen = false };
 
-        window.Render("IG", atlas);
+        window.Render("Player", atlas);
 
         Assert.False(window.DrawClientAreaCalled);
     }
@@ -141,14 +141,14 @@ public class ManagedWindowTests
     {
         using var fixture = new ImGuiTestFixture();
         using var atlas = CreateAtlas();
-        var window = new TestWindow("s201c3", "IG", WindowScope.PerspectiveBound)
+        var window = new TestWindow("s201c3", "Player", WindowScope.PerspectiveBound)
         {
             IsOpen = true,
             IsPinned = false
         };
 
         fixture.NewFrame();
-        window.Render("IG", atlas);
+        window.Render("Player", atlas);
         fixture.Render();
 
         Assert.True(window.DrawClientAreaCalled);
@@ -160,7 +160,7 @@ public class ManagedWindowTests
     {
         // No ImGui context needed — method returns before any Gui call.
         using var atlas = CreateAtlas();
-        var window = new TestWindow("s201c4", "IG", WindowScope.PerspectiveBound)
+        var window = new TestWindow("s201c4", "Player", WindowScope.PerspectiveBound)
         {
             IsOpen = true,
             IsPinned = false
@@ -177,7 +177,7 @@ public class ManagedWindowTests
     {
         using var fixture = new ImGuiTestFixture();
         using var atlas = CreateAtlas();
-        var window = new TestWindow("s201c5", "IG", WindowScope.PerspectiveBound)
+        var window = new TestWindow("s201c5", "Player", WindowScope.PerspectiveBound)
         {
             IsOpen = true,
             IsPinned = true
@@ -196,13 +196,13 @@ public class ManagedWindowTests
     {
         // No ImGui context needed — method returns at the IsOpen gate.
         using var atlas = CreateAtlas();
-        var window = new TestWindow("s201c6", "IG", WindowScope.PerspectiveBound)
+        var window = new TestWindow("s201c6", "Player", WindowScope.PerspectiveBound)
         {
             IsOpen = false,
             IsPinned = true
         };
 
-        window.Render("IG", atlas);
+        window.Render("Player", atlas);
 
         Assert.False(window.DrawClientAreaCalled);
     }
@@ -213,12 +213,12 @@ public class ManagedWindowTests
     {
         using var fixture = new ImGuiTestFixture();
         using var atlas = CreateAtlas();
-        var window = new TestWindow("s201c7", "IG", WindowScope.Global) { IsOpen = true };
+        var window = new TestWindow("s201c7", "Player", WindowScope.Global) { IsOpen = true };
         window.RequestFocus();
         Assert.True(window.FocusRequested); // flag set before render
 
         fixture.NewFrame();
-        window.Render("IG", atlas);
+        window.Render("Player", atlas);
         fixture.Render();
 
         Assert.False(window.FocusRequested); // flag cleared after render
@@ -228,7 +228,7 @@ public class ManagedWindowTests
     [Fact]
     public void Construction_FocusFlagIsFalseByDefault()
     {
-        var window = new TestWindow("s201c8", "IG", WindowScope.Global);
+        var window = new TestWindow("s201c8", "Player", WindowScope.Global);
         Assert.False(window.FocusRequested);
     }
 
@@ -236,7 +236,7 @@ public class ManagedWindowTests
     [Fact]
     public void RequestFocus_SetsFocusFlag()
     {
-        var window = new TestWindow("s201c9", "IG", WindowScope.Global);
+        var window = new TestWindow("s201c9", "Player", WindowScope.Global);
         window.RequestFocus();
         Assert.True(window.FocusRequested);
     }
@@ -245,7 +245,7 @@ public class ManagedWindowTests
     [Fact]
     public void WindowInternalName_FollowsExpectedFormat()
     {
-        var window = new TestWindow("myUniqueId", "IG", WindowScope.Global, title: "My Panel");
+        var window = new TestWindow("myUniqueId", "Player", WindowScope.Global, title: "My Panel");
         Assert.Equal("My Panel###myUniqueId", window.WindowInternalName);
     }
 
@@ -257,7 +257,7 @@ public class ManagedWindowTests
     {
         using var fixture = new ImGuiTestFixture();
         using var atlas = CreateAtlas();
-        var window = new TestWindow("s202c1", "IG", WindowScope.Global) { IsOpen = true };
+        var window = new TestWindow("s202c1", "Player", WindowScope.Global) { IsOpen = true };
 
         fixture.NewFrame();
         var ex = Record.Exception(() => window.Render("ExCon", atlas));
@@ -275,12 +275,12 @@ public class ManagedWindowTests
     {
         using var fixture = new ImGuiTestFixture();
         using var atlas = CreateAtlas();
-        var pbWindow = new TestWindow("s202c7pb", "IG", WindowScope.PerspectiveBound) { IsOpen = true };
-        var glWindow = new TestWindow("s202c7gl", "IG", WindowScope.Global) { IsOpen = true };
+        var pbWindow = new TestWindow("s202c7pb", "Player", WindowScope.PerspectiveBound) { IsOpen = true };
+        var glWindow = new TestWindow("s202c7gl", "Player", WindowScope.Global) { IsOpen = true };
 
         fixture.NewFrame();
-        var ex1 = Record.Exception(() => pbWindow.Render("IG", atlas));
-        var ex2 = Record.Exception(() => glWindow.Render("IG", atlas));
+        var ex1 = Record.Exception(() => pbWindow.Render("Player", atlas));
+        var ex2 = Record.Exception(() => glWindow.Render("Player", atlas));
         fixture.Render();
 
         Assert.Null(ex1);
@@ -296,14 +296,14 @@ public class ManagedWindowTests
     {
         using var fixture = new ImGuiTestFixture();
         using var atlas = CreateAtlas();
-        var window = new TestWindow("s202c2", "IG", WindowScope.PerspectiveBound)
+        var window = new TestWindow("s202c2", "Player", WindowScope.PerspectiveBound)
         {
             IsOpen = true,
             IsPinned = true
         };
 
         fixture.NewFrame();
-        window.Render("IG", atlas);
+        window.Render("Player", atlas);
         fixture.Render();
 
         // No click simulated in headless mode → pin state must remain unchanged.
@@ -319,10 +319,10 @@ public class ManagedWindowTests
     {
         using var fixture = new ImGuiTestFixture();
         using var atlas = CreateAtlas();
-        var window = new TestWindow("s202c5", "IG", WindowScope.Global) { IsOpen = true };
+        var window = new TestWindow("s202c5", "Player", WindowScope.Global) { IsOpen = true };
 
         fixture.NewFrame();
-        window.Render("IG", atlas);
+        window.Render("Player", atlas);
         fixture.Render();
 
         Assert.True(window.IsOpen);
@@ -338,13 +338,13 @@ public class ManagedWindowTests
     {
         using var fixture = new ImGuiTestFixture();
         using var atlas = CreateAtlas();
-        var window = new TestWindow("s203c1", "IG", WindowScope.Global, hasMenuBar: false)
+        var window = new TestWindow("s203c1", "Player", WindowScope.Global, hasMenuBar: false)
         {
             IsOpen = true
         };
 
         fixture.NewFrame();
-        window.Render("IG", atlas);
+        window.Render("Player", atlas);
         fixture.Render();
 
         Assert.False(window.DrawLocalMenuBarCalled);
@@ -359,13 +359,13 @@ public class ManagedWindowTests
     {
         using var fixture = new ImGuiTestFixture();
         using var atlas = CreateAtlas();
-        var window = new TestWindow("s203c2", "IG", WindowScope.Global, hasMenuBar: true)
+        var window = new TestWindow("s203c2", "Player", WindowScope.Global, hasMenuBar: true)
         {
             IsOpen = true
         };
 
         fixture.NewFrame();
-        window.Render("IG", atlas);
+        window.Render("Player", atlas);
         fixture.Render();
 
         Assert.True(window.DrawLocalMenuBarCalled);
@@ -383,7 +383,7 @@ public class ManagedWindowTests
         var window = new TestWindowDefaultMenuBar("s203c4") { IsOpen = true };
 
         fixture.NewFrame();
-        var ex = Record.Exception(() => window.Render("IG", atlas));
+        var ex = Record.Exception(() => window.Render("Player", atlas));
         fixture.Render();
 
         Assert.Null(ex);
@@ -400,14 +400,14 @@ public class ManagedWindowTests
         using var fixture = new ImGuiTestFixture();
         using var atlas = CreateAtlas();
         // TestWindow with hasMenuBar=true overrides HasMenuBar=>true AND DrawLocalMenuBar().
-        var window = new TestWindow("s203c5", "IG", WindowScope.PerspectiveBound, hasMenuBar: true)
+        var window = new TestWindow("s203c5", "Player", WindowScope.PerspectiveBound, hasMenuBar: true)
         {
             IsOpen = true,
             IsPinned = false
         };
 
         fixture.NewFrame();
-        window.Render("IG", atlas);
+        window.Render("Player", atlas);
         fixture.Render();
 
         Assert.True(window.DrawClientAreaCalled);

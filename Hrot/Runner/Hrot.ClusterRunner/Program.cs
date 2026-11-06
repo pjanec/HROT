@@ -403,7 +403,7 @@ class Program
             //    forbidden to touch this literal, so deleting it here is what keeps the two conflict-free.
             var perspectiveMap = new Dictionary<string, string>
             {
-                ["IG"]        = "IG",
+                ["Player"]        = "Player",
                 ["SimHost"]   = "SimHost",
                 ["Scenario"]  = "CGF",
             };
@@ -801,7 +801,7 @@ class Program
         int offset = subsystemName.ToUpper() switch
         {
             "SIMHOST"      => 1,
-            "IG"           => 100,
+            "Player"           => 100,
             "ORCHESTRATOR" => 300,
             "CGF"          => 400,
             "CI"           => 500,

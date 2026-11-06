@@ -178,14 +178,14 @@ public sealed class NedNetworkFactory : INetworkFactory
     }
 
     /// <inheritdoc/>
-    public IIgTranslators CreateIgTranslators()
-        => new Hrot.Network.NED.IG.NedIgTranslators();
+    public IIgTranslators CreatePlayerTranslators()
+        => new Hrot.Network.NED.Player.NedPlayerTranslators();
 
     /// <inheritdoc/>
-    public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, int nodeId = 0)
+    public IIgNetworkAdapter CreatePlayerNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, int nodeId = 0)
         => participant == null
-           ? (IIgNetworkAdapter)Hrot.Core.Network.NullIgNetworkAdapter.Instance
-           : new Hrot.Network.NED.IG.NedIgNetworkAdapter(participant, nodeId);
+           ? (IIgNetworkAdapter)Hrot.Core.Network.NullPlayerNetworkAdapter.Instance
+           : new Hrot.Network.NED.Player.NedPlayerNetworkAdapter(participant, nodeId);
 
 
     /// <inheritdoc/>
@@ -229,7 +229,7 @@ public sealed class NedNetworkFactory : INetworkFactory
     }
 
     /// <inheritdoc/>
-    public IReadOnlyList<IDescriptorTranslator> CreateIgEgressTranslators(
+    public IReadOnlyList<IDescriptorTranslator> CreatePlayerEgressTranslators(
         DdsParticipant participant,
         FdpEventBus bus,
         int nodeId)

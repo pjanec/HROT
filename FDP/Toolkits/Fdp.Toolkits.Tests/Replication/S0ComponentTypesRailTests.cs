@@ -124,7 +124,7 @@ namespace Fdp.Toolkits.Tests.Replication
         public void S0_EverySavedComponentMember_SaysWhatItMeansByItsType()
         {
             var comps = SavedComponents().ToList();
-            // measured 2026-11-01: 94 saved components in these four assemblies (Hrot.Traffic / Hrot.IG / Hrot.CGF components are out of this project's reach)
+            // measured 2026-11-01: 94 saved components in these four assemblies (Hrot.Traffic / Hrot.Player / Hrot.CGF components are out of this project's reach)
             Assert.True(comps.Count >= 90, $"only {comps.Count} saved components found — the scan lost its assemblies");
             var offences = new List<string>();
             foreach (var c in comps)

@@ -44,7 +44,7 @@ public sealed class TheStartPerspectiveKeepsHttpWorkingTests : IDisposable
         var map = new NetworkEntityMap();
 
         var wm = new WM(new IconAtlas(IntPtr.Zero, 16f, 16f));
-        wm.RegisterWindow(new Win("w-ig", "IG"));
+        wm.RegisterWindow(new Win("w-player", "Player"));
         wm.RegisterWindow(new Win("w-scenario", "Scenario"));
         wm.RegisterWindow(new Win("w-start", WM.StartPerspectiveName));
         wm.SwitchPerspective("Scenario");
@@ -52,7 +52,7 @@ public sealed class TheStartPerspectiveKeepsHttpWorkingTests : IDisposable
         var dispatcher = new PerspectiveScopedDispatcher(
             new[]
             {
-                new SubsystemDebugProvider("IG", "IG"),
+                new SubsystemDebugProvider("Player", "Player"),
                 new SubsystemDebugProvider("CGF", "Scenario", world: () => world, entityMap: () => map),
             },
             currentPerspective: () => wm.CurrentPerspective, acksPending: null,
@@ -88,7 +88,7 @@ public sealed class TheStartPerspectiveKeepsHttpWorkingTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, status);
 
         // a perspective switch is refused with 409 and the reason; nothing moved
-        (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/perspective", Json("""{"name":"IG"}""")));
+        (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/perspective", Json("""{"name":"Player"}""")));
         Assert.Equal(HttpStatusCode.Conflict, status);
         Assert.Contains("Start", body["error"]!.GetValue<string>());
         Assert.Equal("Start", wm.CurrentPerspective);
@@ -99,9 +99,9 @@ public sealed class TheStartPerspectiveKeepsHttpWorkingTests : IDisposable
 
         // the gate leaves Start: the switch works again, and a bad name is the old 400
         Assert.True(wm.LeaveStartPerspective(out _));
-        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/perspective", Json("""{"name":"IG"}""")));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/perspective", Json("""{"name":"Player"}""")));
         Assert.Equal(HttpStatusCode.OK, status);
-        Assert.Equal("IG", wm.CurrentPerspective);
+        Assert.Equal("Player", wm.CurrentPerspective);
         (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/perspective", Json("""{"name":"Nobody"}""")));
         Assert.Equal(HttpStatusCode.BadRequest, status);
     }

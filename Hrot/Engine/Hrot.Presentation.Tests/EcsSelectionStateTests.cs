@@ -3,7 +3,7 @@ using System.Linq;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Vis2D.Abstractions;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Common;
 using Hrot.ScenarioEditor.Selection;
 using Hrot.ScenarioEditor.Systems;

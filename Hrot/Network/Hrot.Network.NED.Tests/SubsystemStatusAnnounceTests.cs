@@ -84,7 +84,7 @@ namespace Hrot.DDS.DataModel.Tests
             earlyWriter.Write(new SubsystemStatusAnnounce
             {
                 NodeId        = earlyNodeId,
-                SubsystemName = "IG",
+                SubsystemName = "Player",
                 DomainId      = (int)DomainLateJoiner,
                 Ready         = false,
                 Timestamp     = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
@@ -114,7 +114,7 @@ namespace Hrot.DDS.DataModel.Tests
                     {
                         if (loan[i].NodeId == earlyNodeId)
                         {
-                            Assert.Equal("IG", loan[i].SubsystemName);
+                            Assert.Equal("Player", loan[i].SubsystemName);
                             found = true;
                             break;
                         }

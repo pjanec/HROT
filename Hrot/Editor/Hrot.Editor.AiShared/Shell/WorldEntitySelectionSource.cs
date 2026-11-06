@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Core;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 
 namespace Hrot.Editor.AiShared.Shell;
 

@@ -6,7 +6,6 @@ using Fdp.Toolkit.Replication.Attributes;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Hrot.Common;
-using Hrot.IG.Components;
 using Hrot.Map.Common.Components;
 using Hrot.ScenarioEditor.Gizmos;
 
