@@ -923,6 +923,8 @@ namespace Hrot.UI.Common.Map3D
                 if (line.StartsWith("> ", StringComparison.Ordinal)) return new Color(255, 220, 90, 255);
                 if (line.StartsWith("  ", StringComparison.Ordinal)) return new Color(215, 215, 215, 255);
                 if (line.StartsWith("LOCKED", StringComparison.Ordinal)) return new Color(255, 150, 50, 255);
+                if (line.StartsWith(HoldPrefix + "HOLD", StringComparison.Ordinal) || line.StartsWith(HoldPrefix + "OUT", StringComparison.Ordinal))
+                    return new Color(255, 170, 40, 255);   // ⭐ CE-2317 — amber, as the gizmo draws a hold
                 if (line.StartsWith("STANCE", StringComparison.Ordinal)) return new Color(120, 220, 255, 255);
                 if (line == LookFreeLine) return new Color(255, 220, 120, 255);   // ⭐ CE-1204
                 if (line.StartsWith("SPD", StringComparison.Ordinal)) return new Color(150, 200, 255, 255);
@@ -959,6 +961,9 @@ namespace Hrot.UI.Common.Map3D
                     else lines.Add($"{(slots[i] == mount ? "> " : "  ")}{i + 1} {TypeName(w, weapon)?.ToUpperInvariant() ?? "WEAPON"}");
                 }
                 if (fireMode != null) lines.Add(fireMode);   // ⭐ CE-4143 (§8r R-2) — AIM SIGHT / AIM LOCK beside the weapons
+                // ⭐ CE-2317 — the weapon that WANTS to fire and may not says why (the executor's own word on the unit's ActionStatus:
+                //   not controlled, no gunner, out of arc, too hot …) — 🔒 user: "i can aim but no way to shoot, something is blocking it"
+                if (HoldLine(w, unit) is { } hold) lines.Add(hold);
                 if (shotPending) lines.Add("LOCKED - fires when the weapon bears (X cancels)");   // ⭐ CE-1078
                 if (!vehicle && !flyer && stance is { } st)
                     lines.Add($"STANCE {st.ToString().ToUpperInvariant()}{(running ? "  RUN" : "")}"   // ⭐ CE-1074 / CE-1143
@@ -992,6 +997,20 @@ namespace Hrot.UI.Common.Map3D
                 string name = SeatSwitch.StationOf(w, unit, out _, out _, out var weapon) ? TypeName(w, weapon)?.ToUpperInvariant() ?? "GUN" : "DRIVER";
                 return $"SEAT {name}  (G: next seat)";
             }
+
+            /// <summary>⭐ <c>CE-2317</c> — <c>WEAPON HOLD: …</c> when the unit's weapon row is a hold (<see cref="Fdp.Toolkit.Behavior.Diagnostics.ActionStatusOf.IsHold"/>,
+            /// the gizmo's amber set, in its words); null otherwise.</summary>
+            public static string? HoldLine(EntityRepository w, Entity unit)
+            {
+                if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>()
+                    || !w.HasComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(unit)) return null;
+                var r = w.GetComponentRO<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(unit).Weapon.Reason;
+                return Fdp.Toolkit.Behavior.Diagnostics.ActionStatusOf.IsHold(r)
+                    ? HoldPrefix + Fdp.Toolkit.Behavior.Diagnostics.ActionStatusOf.Label(r).ToUpperInvariant() : null;
+            }
+
+            /// <summary>The start of <see cref="HoldLine"/> (amber on the HUD).</summary>
+            public const string HoldPrefix = "WEAPON ";
 
             /// <summary>⭐ <c>CE-1204</c> (§8l LK-4) — the HUD's line while a person's look is free of his body.</summary>
             public const string LookFreeLine = "LOOK FREE (V)";

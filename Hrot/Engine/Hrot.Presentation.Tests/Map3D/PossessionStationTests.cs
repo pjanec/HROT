@@ -312,6 +312,31 @@ public sealed partial class PossessionStationTests
         }
     }
 
+    /// <summary>⭐ CE-2317 — the HUD says WHY a weapon that wants to fire may not: the unit's weapon row is a hold ⇒ <c>WEAPON HOLD: NOT
+    /// CONTROLLED</c> (amber); aiming or firing says nothing extra. 🔴 Red-proof: <c>HoldLine</c> returning null ⇒ red.</summary>
+    [Fact]
+    public void CE2317_TheHud_SaysWhyTheWeaponHolds()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>();
+            w.AddComponent(unit, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
+            ref var st = ref w.GetComponentRW<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(unit);
+            st.Weapon.Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Aiming;
+            Assert.DoesNotContain(PossessionStation.Hud.Lines(w, unit, 0, true, false), l => l.StartsWith(PossessionStation.Hud.HoldPrefix));
+
+            w.GetComponentRW<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(unit).Weapon.Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.NotControlled;
+            var lines = PossessionStation.Hud.Lines(w, unit, 0, true, false);
+            var hold = Assert.Single(lines, l => l.StartsWith(PossessionStation.Hud.HoldPrefix));
+            Assert.Equal("WEAPON HOLD: NOT CONTROLLED", hold);
+            Assert.Equal(new Raylib_cs.Color(255, 170, 40, 255), PossessionStation.Hud.ColourOf(w, unit, hold, keys: false));
+
+            w.GetComponentRW<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(unit).Weapon.Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfArc;
+            Assert.Contains("WEAPON OUT OF ARC", PossessionStation.Hud.Lines(w, unit, 0, true, false));
+        }
+    }
+
     /// <summary>⭐ CE-1358 (DESIGN_Weapon_Layers §5k) — the weapon line shows the barrel: its heat once it is worth a word, and OVERHEATED
     /// while the gun is held cooling. 🔴 Red-proof: drop the HUD's heat clause ⇒ red.</summary>
     [Fact]

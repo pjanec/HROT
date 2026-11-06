@@ -117,6 +117,28 @@ namespace Fdp.Toolkit.Combat
         /// <c>LookFrom + LookDir × SightZeroMetres</c>. Named for <c>CE-1130</c> (the per-mount sight zero), which has no DTO field yet.</summary>
         public const float SightZeroMetres = 300f;
 
+        /// <summary>Below this the crosshair's hit is the gun's own hull / the camera's near plane — not a target to zero on.</summary>
+        public const float SightZeroMinMetres = 3f;
+
+        /// <summary>
+        /// ⭐ <c>CE-1299</c> (§8r.2) — where a SIGHT shot on a turret aims: on the LOOK RAY, at the distance of what the crosshair is on when
+        /// that is nearer than <see cref="SightZeroMetres"/>, else at the zero range. 📐 The camera sits above / behind the gun, so a fixed
+        /// 300 m point is reached on a line BELOW the crosshair at short range — (eye − muzzle) × (1 − r / 300): ~1.8 m low at 30 m with the
+        /// eye 2 m up, "always to the feet". Converging at the crosshair's own distance puts the round where the crosshair is, like a rifle's
+        /// sight; it is still a point ON the ray (no lock, re-read every tick), and far background terrain keeps the 300 m zero (CE-4143:
+        /// leading a moving car). <paramref name="crosshairHit"/> = the frame's <c>AimPoint</c> (zero = none).
+        /// </summary>
+        public static System.Numerics.Vector3 SightPoint(System.Numerics.Vector3 lookFrom, System.Numerics.Vector3 lookDir, System.Numerics.Vector3 crosshairHit)
+        {
+            float zero = SightZeroMetres;
+            if (crosshairHit != default)
+            {
+                float d = System.Numerics.Vector3.Distance(lookFrom, crosshairHit);
+                if (d >= SightZeroMinMetres && d < zero) zero = d;
+            }
+            return lookFrom + lookDir * zero;
+        }
+
         /// <summary>⭐ <c>CE-4143</c> (§8r R-2) — true when the operator may switch this weapon between SIGHT and LOCK: a direct-fire weapon on a
         /// TURRET (<see cref="WeaponCategory.MachineGun"/>, <see cref="WeaponCategory.SmallArms"/>, <see cref="WeaponCategory.Autocannon"/>,
         /// <see cref="WeaponCategory.TankGun"/>). A hand weapon is SIGHT only; an arc or guided one LOCK only. The station's <c>L</c> key
