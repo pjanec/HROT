@@ -215,7 +215,7 @@ SIM host or usual ECS enabled hosts."*
 |---|---|---|---|
 | **Q-R1** | show what a seek changed | **tint the changed rows ~1 s + a clock glyph**, after a seek only | nothing — after a jump the eye cannot tell what moved; tint during play — the whole form flickers |
 | ~~**Q-R2**~~ | ⛔ WITHDRAWN — a wrong premise: there are no separate *initial-state* rows. Every row shows the entity's CURRENT state; in Edit mode (paused before the run) the current state IS the start state and is what gets saved; in a recording it is the state at the playhead (user, `2026-11-06`: *"I thought that the rows are showing the current state and it just happens to be the initial one if the time is at its zero"*) | — | — |
-| **Q-R3** | actions in read-only | **Copy value / Copy the whole form**, Edit listed greyed with the reason | no menu — copying a value into a report is the common need |
+| **Q-R3** ✅ R-4152 | actions in read-only | **Copy value / Copy the whole form**, Edit listed greyed with the reason | no menu — copying a value into a report is the common need |
 
 ⭐ **Acceptance:** a frame rail composes the bundle over a recorded world with `RunState.Replay`: every form row drawn, every control disabled,
 no banner drawn, zero writes reach any write seam, and a seek changes the shown values.
