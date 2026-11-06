@@ -63,29 +63,32 @@ public class EditorCapabilitiesTests : IDisposable
         _disposables.Clear();
     }
 
-    private (CgfLogicPack cgf, SimHostCoreLogicPack muscle)
+    private (CgfLogicPack cgf, MuscleRoleInputs.Parts muscle)
         BuildPacks(EntityRepository world)
     {
         var entityMap  = new NetworkEntityMap();
         var mapper     = new TacticalIntentMapperRegistry();
         var cgf        = new CgfLogicPack(new Fdp.Toolkit.Behavior.BehaviorRegistry(), entityMap, mapper, new Fdp.Toolkit.Blueprints.BlueprintRegistry());
-        var muscle     = new SimHostCoreLogicPack(entityMap);
-        Track(cgf); Track(muscle);
+        // ⭐ CE-4270 B9 — the Muscle's parts from the ONE step every Muscle host uses (the editor's included), over one pool and one navmesh.
+        _pool = new TrajectoryPoolProvider();
+        var muscle     = MuscleRoleInputs.Build(entityMap, default, _pool, new Fdp.Toolkit.Navigation.SwitchableNavmeshProvider(), () => null);
+        Track(cgf); Track(muscle.CoreLogicPack); Track(_pool);
         return (cgf, muscle);
     }
+
+    private TrajectoryPoolProvider? _pool;
+
+    /// <summary>⭐ CE-4270 B9 — the editor's default row of the ONE role table: the fused set, traffic served, no gameplay server.</summary>
+    private NodeCompositionPlan Default(CgfLogicPack cgf, MuscleRoleInputs.Parts muscle)
+        => RoleCapabilityTable.Plan(new RoleTableInputs { Brain = cgf, Muscle = muscle, TrajectoryPool = _pool, Traffic = Traffic() });
+
+    /// <summary>⭐ CE-4270 B9 — the editor's injected row (Stride's mode 1): the supplied tier in the Muscle's slot, no traffic.</summary>
+    private static NodeCompositionPlan Injected(CgfLogicPack cgf, IReadOnlyList<INodeCapability> injected)
+        => RoleCapabilityTable.Plan(new RoleTableInputs { Brain = cgf, InjectedMuscle = injected });
 
     private void Track(object o)
     {
         if (o is IDisposable d) _disposables.Add(d);
-    }
-
-    /// <summary>The navigation-solver capability as the editor builds it: over the muscle pack's own pool (CE-3017).</summary>
-    private static SimHostCapabilities.NavigationSolver Nav(SimHostCoreLogicPack muscle)
-    {
-        var navmesh = new Fdp.Toolkit.Navigation.SwitchableNavmeshProvider();
-        var module = new Fdp.Toolkit.Navigation.EngineBacked.EngineBackedNavigationModule(default, muscle.TrajectoryPool, navmesh);
-        return new SimHostCapabilities.NavigationSolver(module,
-            () => new Fdp.Toolkit.Navigation.Modules.NavigationSolverModule(default, muscle.TrajectoryPool, navmesh));
     }
 
     /// <summary>
@@ -125,12 +128,11 @@ public class EditorCapabilitiesTests : IDisposable
         using var world = new EntityRepository();
         var (cgf, muscle) = BuildPacks(world);
 
-        var keys = EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle), Traffic())
+        var keys = Default(cgf, muscle)
                                      .Resolve(EditorCapabilities.DefaultRole)
                                      .Select(c => c.Key).ToList();
 
         Assert.Equal(CapabilityKeys.Traffic, keys[^1]);
-        Assert.Throws<ArgumentNullException>(() => EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle), null!));
     }
 
     [Fact]
@@ -139,15 +141,14 @@ public class EditorCapabilitiesTests : IDisposable
         using var world = new EntityRepository();
         var (cgf, muscle) = BuildPacks(world);
 
-        var keys = EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle), Traffic())
+        var keys = Default(cgf, muscle)
                                      .Resolve(EditorCapabilities.DefaultRole)
                                      .Select(c => c.Key).ToList();
 
         int nav = keys.IndexOf(CapabilityKeys.NavigationSolver);
         Assert.True(nav >= 0, "the editor must compose the NavigationSolver capability its role declares");
-        Assert.True(nav > keys.IndexOf(CapabilityKeys.Perception + ":eqs"),
+        Assert.True(nav > keys.IndexOf(CapabilityKeys.Perception),
             "appended after the EQS solver, so every module registered before it keeps its slot");
-        Assert.Throws<ArgumentNullException>(() => EditorCapabilities.BuildDefault(cgf, muscle, null!, Traffic()));
     }
 
     /// <summary>
@@ -166,14 +167,14 @@ public class EditorCapabilitiesTests : IDisposable
         //    Note the argument order: CGF first, muscle second. DistinctByType keeps the FIRST
         //    occurrence, so a type carried by both packs resolves to CGF's instance.
         Type[] handInput = Fdp.ModuleHost.Scheduling.SystemComposition
-            .DistinctByType(cgf.InputSystems, muscle.InputSystems).Select(s => s.GetType()).ToArray();
+            .DistinctByType(cgf.InputSystems, muscle.CoreLogicPack.InputSystems).Select(s => s.GetType()).ToArray();
         Type[] handSim = Fdp.ModuleHost.Scheduling.SystemComposition
-            .DistinctByType(cgf.SimulationSystems, muscle.SimulationSystems).Select(s => s.GetType()).ToArray();
-        Type[] handPostSim = muscle.PostSimulationSystems.Select(s => s.GetType()).ToArray();
+            .DistinctByType(cgf.SimulationSystems, muscle.CoreLogicPack.SimulationSystems).Select(s => s.GetType()).ToArray();
+        Type[] handPostSim = muscle.CoreLogicPack.PostSimulationSystems.Select(s => s.GetType()).ToArray();
 
         // ── The same thing, resolved from the plan ─────────────────────────────────
         IReadOnlyList<INodeCapability> resolved =
-            EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle), Traffic())
+            Default(cgf, muscle)
                               .Resolve(EditorCapabilities.DefaultRole);
 
         var input = new List<IEcsModuleSystem>();
@@ -242,7 +243,7 @@ public class EditorCapabilitiesTests : IDisposable
         var (cgf, muscle) = BuildPacks(world);
 
         IReadOnlyList<INodeCapability> resolved =
-            EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle), Traffic())
+            Default(cgf, muscle)
                               .Resolve(EditorCapabilities.DefaultRole);
 
         int brain  = resolved.ToList().FindIndex(c => c.Key == CapabilityKeys.Brain);
@@ -260,7 +261,7 @@ public class EditorCapabilitiesTests : IDisposable
         using var world = new EntityRepository();
         var (cgf, muscle) = BuildPacks(world);
 
-        Assert.NotEmpty(EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle), Traffic())
+        Assert.NotEmpty(Default(cgf, muscle)
                                           .Resolve(EditorCapabilities.DefaultRole));
     }
 
@@ -276,7 +277,7 @@ public class EditorCapabilitiesTests : IDisposable
         var (cgf, _) = BuildPacks(world);
 
         IReadOnlyList<INodeCapability> resolved =
-            EditorCapabilities.BuildWithInjectedMuscle(cgf, Array.Empty<INodeCapability>())
+            Injected(cgf, Array.Empty<INodeCapability>())
                               .Resolve(EditorCapabilities.DefaultRole);
 
         var input = new List<IEcsModuleSystem>();
@@ -320,8 +321,8 @@ public class EditorCapabilitiesTests : IDisposable
         Assert.DoesNotContain(cgf.SimulationSystems, s => s is Fdp.Toolkit.Terrain.DoorCommandSystem);
 
         var injected = new INodeCapability[] { new CoreInfrastructureCapabilities.Interactions() };
-        foreach (var plan in new[] { EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle), Traffic()),
-                                     EditorCapabilities.BuildWithInjectedMuscle(cgf, injected) })
+        foreach (var plan in new[] { Default(cgf, muscle),
+                                     Injected(cgf, injected) })
         {
             var resolved = plan.Resolve(EditorCapabilities.DefaultRole);
             Assert.Single(resolved, c => c.Key == CapabilityKeys.Interactions);
@@ -348,8 +349,8 @@ public class EditorCapabilitiesTests : IDisposable
         Assert.DoesNotContain(cgf.SimulationSystems, s => s is Fdp.Toolkit.Combat.Systems.HealthApplicationSystem);
 
         var injected = new INodeCapability[] { new CoreInfrastructureCapabilities.HealthApplication() };
-        foreach (var plan in new[] { EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle), Traffic()),
-                                     EditorCapabilities.BuildWithInjectedMuscle(cgf, injected) })
+        foreach (var plan in new[] { Default(cgf, muscle),
+                                     Injected(cgf, injected) })
         {
             var resolved = plan.Resolve(EditorCapabilities.DefaultRole);
             Assert.Equal(CapabilityKeys.HealthApplication, resolved[0].Key);
@@ -373,5 +374,37 @@ public class EditorCapabilitiesTests : IDisposable
         Assert.True(EditorCapabilities.DefaultRole.HasFlag(NodeRole.Perception));
         Assert.True(EditorCapabilities.DefaultRole.HasFlag(NodeRole.NavigationSolver));
         Assert.False(EditorCapabilities.DefaultRole.HasFlag(NodeRole.Map2D));
+    }
+
+    /// <summary>
+    /// ⭐ CE-4270 B9 — a node has ONE muscle tier: the table refuses the table's own Muscle and a supplied one together, and the Muscle without the node's
+    /// one trajectory pool (CE-180). ⛔ The silent-default shape: two tiers, or a second pool, would compose without a sound.
+    /// </summary>
+    [Fact]
+    public void CE4270_TheRoleTable_RefusesTwoMuscleTiers_AndAMuscleWithoutItsPool()
+    {
+        using var world = new EntityRepository();
+        var (cgf, muscle) = BuildPacks(world);
+
+        Assert.Throws<ArgumentException>(() => RoleCapabilityTable.Plan(new RoleTableInputs
+            { Brain = cgf, Muscle = muscle, TrajectoryPool = _pool, InjectedMuscle = Array.Empty<INodeCapability>() }));
+        Assert.Throws<ArgumentException>(() => RoleCapabilityTable.Plan(new RoleTableInputs { Brain = cgf, Muscle = muscle }));
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4270 B9 — the editor's row and the fused server's row are the SAME table: resolved for the fused server's role, the editor's inputs give the
+    /// fused server's keys minus only the gameplay server (a value the editor does not pass). ⛔ A key on one and not the other means a second table grew back.
+    /// </summary>
+    [Fact]
+    public void CE4270_TheEditorRow_IsTheFusedRow_WithoutTheGameplayServer()
+    {
+        using var world = new EntityRepository();
+        var (cgf, muscle) = BuildPacks(world);
+        const NodeRole fused = NodeRole.Brain | NodeRole.MuscleGround | NodeRole.Perception | NodeRole.NavigationSolver;
+
+        var editorKeys = Default(cgf, muscle).Resolve(EditorCapabilities.DefaultRole).Select(c => c.Key).ToList();
+        var fusedKeys  = Default(cgf, muscle).Resolve(fused).Select(c => c.Key).ToList();
+        Assert.Equal(fusedKeys, editorKeys);
+        Assert.DoesNotContain(CapabilityKeys.Perception + ":eqs", editorKeys);   // the editor's own EQS wrapper is gone; SimHost's solver serves it
     }
 }

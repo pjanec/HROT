@@ -172,31 +172,21 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
             ? Hrot.SimHost.MuscleRoleInputs.Build(context.EntityMap, default(CarKinem.Road.RoadNetworkBlob), TrajectoryPool, Navmesh, () => _nodeBootstrapper)
             : null;
 
-        // ⭐⭐ CE-2144 (R-2008) — the plan starts from the ONE shared head: HealthApplication first, so damage is applied before the cognitive runtime.
-        // ⭐⭐⭐ CE-4270 B7a (§4.1ag, R-3077) — every entry is keyed by the ROLE that composes it, and the plan resolves the DECLARED role (`role`, what the
-        //   subsystem handed BootstrapNode), never a constant: booted as the Brain this is exactly CGF's set as before (S0 cgf.json identical).
-        var plan = CoreInfrastructureCapabilities.LiveSimulationPlan(NodeRole.Brain)
-            .Capability(NodeRole.Brain, new CgfCapabilities.Brain(cgfLogicPack));
-        // ⭐ CE-4270 B7b — the Muscle role's entries (the trajectory-pool provider, MuscleGround · Perception · NavigationSolver), after the Brain as in the
-        //   editor's union, from the ONE shared step SimHost uses.
-        if (Muscle != null) plan = Hrot.SimHost.MuscleRoleInputs.WithSolverEntries(plan, Muscle, TrajectoryPool);
-        plan = plan
-            // ⭐ CE-221 — cross-role infrastructure, declared LAST so it keeps its tail-of-Simulation position (Resolve de-duplicates by Key).
-            .Capability(NodeRole.Brain, new CoreInfrastructureCapabilities.UnitHierarchy())
-            .Capability(NodeRole.Brain, new Hrot.SimHost.EqsResultUpdateCapability())
-            // ⭐ CE-3110 (R-221/R-224) — interactions (doors, embarkation) are cross-role too.
-            .Capability(NodeRole.Brain, new CoreInfrastructureCapabilities.Interactions())
-            // ⭐ CE-2121 — the character body (stance) over the fake animation backend, for a role with the Muscle (module-only, after the infrastructure,
-            //   as on SimHost and the editor). ⛔ No ReportInbox: that is the inbox of a node WITHOUT a brain (CE-2301) — the Brain's own StaffInboxSystem serves here.
-            .Capability(NodeRole.MuscleGround, new Hrot.SimHost.AnimationMuscleCapability())
-            // ⭐ AQ93 §12 N6 (R-4056) — SUMO cars: a Brain mirrors every traffic node's (vicinity replicas the brains see; idle without a net). ⭐ CE-4270 D3 — the
-            //   fused server (Brain + Muscle in one world) SERVES the traffic itself, as the editor does: no traffic node.
-            .Capability(NodeRole.Brain, Muscle != null ? Hrot.Traffic.TrafficPack.Serving() : Hrot.Traffic.TrafficPack.Mirroring())
-            // ⭐ Player Join D-2 / §7c (R-4115) — the gameplay deploy SERVER, composed by default; its feature `gameplay.deploy-server` (ON by default) is what gates it, and with it off no
-            //   gameplay topic is created. One server per cluster: the lowest node id with the feature on (the cluster cache this node's replication module reads).
-            .Capability(NodeRole.Brain, new Hrot.Gameplay.GameplayServerPack(ctx =>
+        // ⭐⭐⭐ CE-4270 B7a / B9 (§4.1ag, R-3077): the ONE role table (RoleCapabilityTable) resolved for the DECLARED role (`role`, what the subsystem handed
+        //   BootstrapNode), never a constant. Booted as the Brain, this is exactly CGF's set as before (S0 cgf.json identical).
+        var plan = RoleCapabilityTable.Plan(new RoleTableInputs
+        {
+            Brain          = cgfLogicPack,
+            Muscle         = Muscle,
+            TrajectoryPool = Muscle != null ? TrajectoryPool : null,
+            // ⭐ AQ93 §12 N6 (R-4056): a Brain mirrors every traffic node's cars. ⭐ CE-4270 D3: the fused server (Brain + Muscle in one world) SERVES them itself, as the editor does.
+            Traffic        = Muscle != null ? Hrot.Traffic.TrafficPack.Serving() : Hrot.Traffic.TrafficPack.Mirroring(),
+            // ⭐ Player Join D-2 / §7c (R-4115): the gameplay deploy SERVER, composed by default. Its feature `gameplay.deploy-server` (ON by default) gates it. One server
+            //   per cluster: the lowest node id with the feature on (the cluster cache this node's replication module reads).
+            GameplayServer = new Hrot.Gameplay.GameplayServerPack(ctx =>
                 (ctx.NedReplication as Hrot.Network.Replication.NedReplicationModule)?.ClusterCache is { } cache
-                    ? new Hrot.Gameplay.DeployServerElection(cache.AllNodeIds, cache.Supports, cache.FeatureOn) : null, creation: () => EntityCreation));   // ⭐ S2 — the node's creation pack, resolved lazily (built after the plan resolves)
+                    ? new Hrot.Gameplay.DeployServerElection(cache.AllNodeIds, cache.Supports, cache.FeatureOn) : null, creation: () => EntityCreation),   // ⭐ S2: the node's creation pack, resolved lazily (built after the plan resolves)
+        });
         ResolvedCapabilities = plan
             .Resolve(role);
         return ResolvedCapabilities;

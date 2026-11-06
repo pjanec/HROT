@@ -626,7 +626,7 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
             //   already supplies the Brain and the perception tier". 📐 MEASURED FALSE, and it is what
             //   stopped `hill-attack-close` ever completing on Stride:
             //
-            //     • EditorCapabilities.BuildWithInjectedMuscle deliberately omits CognitiveSpatialModule
+            //     • RoleCapabilityTable.Plan (its InjectedMuscle row) deliberately omits CognitiveSpatialModule
             //       — its own remark says "the supplying host owns both". So the editor does NOT supply
             //       the perception tier on this arm; it expects US to.
             //     • Resolving MuscleGround alone dropped Stride's PerceptionSpatial, so the host booted

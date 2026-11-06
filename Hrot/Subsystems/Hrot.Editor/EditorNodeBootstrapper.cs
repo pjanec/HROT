@@ -253,20 +253,19 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
     protected override IReadOnlyList<INodeCapability> ResolveCapabilities(HrotNodeContext context, NodeRole role)
     {
         var entityMap = context.EntityMap;
-        IReadOnlyList<INodeCapability> injectedMuscleCapabilities = Array.Empty<INodeCapability>();
-        SimHostCoreLogicPack? simHostCorePack = null;
+        Hrot.SimHost.MuscleRoleInputs.Parts? muscle = null;
+        IReadOnlyList<INodeCapability>? injectedMuscleCapabilities = null;
 
         if (_muscleCapabilitiesFactory == null)
         {
-            simHostCorePack = new SimHostCoreLogicPack(entityMap, default, _trajectoryPool.Pool);
-            // ⭐⭐ CE-3017 — the path SOLVER, as SimHost composes it: one navmesh shared by the singleton and the background solver, the muscle pack's OWN trajectory pool (two pools ⇒ routes resolve
-            //   into memory the kinematics never read — CE-180), and the live road holder. Each terrain load re-bakes the navmesh.
-            var navPool = _trajectoryPool.Pool;
-            NavModule = new Fdp.Toolkit.Navigation.EngineBacked.EngineBackedNavigationModule(default(CarKinem.Road.RoadNetworkBlob), navPool, _navmesh);
-            NavSolverCapability = new SimHostCapabilities.NavigationSolver(NavModule,
-                () => new Fdp.Toolkit.Navigation.Modules.NavigationSolverModule(
-                    default(CarKinem.Road.RoadNetworkBlob), navPool, _navmesh, roadNetworkHolder: _nodeBootstrapper.RoadNetworkHolder));
+            // ⭐⭐ CE-3017 / CE-4270 B9: the Muscle's parts from the ONE step SimHost and the fused server use. One navmesh is shared by the singleton and the
+            //   background solver. The muscle pack and the solver share the node's ONE trajectory pool (two pools ⇒ routes resolve into memory the kinematics
+            //   never read, CE-180). The solver gets the live road holder. Each terrain load re-bakes the navmesh.
+            muscle = Hrot.SimHost.MuscleRoleInputs.Build(entityMap, default(CarKinem.Road.RoadNetworkBlob), _trajectoryPool, _navmesh, () => _nodeBootstrapper);
+            NavModule = muscle.NavigationModule;
+            NavSolverCapability = muscle.NavigationSolver;
             _nodeBootstrapper.AttachNavmesh(new Fdp.Toolkit.Navigation.Recast.RecastNavmeshFactory(), _navmesh);   // each terrain load re-bakes it
+            TrafficPack = Hrot.Traffic.TrafficPack.Serving();   // ⭐ AQ93 R-4047: the editor is its own traffic node
         }
         else
         {
@@ -277,11 +276,16 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
         var mapperRegistry = Hrot.AI.Behaviors.Mappers.DefaultTacticalMappers.Create();
         var cgfLogicPack = new CgfLogicPack(BehaviorRegistry, entityMap, mapperRegistry, _blueprintRegistry, nodeBus: context.EventBus);
 
-        // ⭐⭐⭐ S2a — host (d) on the capability axis. The two arms stay two PLAN SHAPES (a null capability registered as if real is the silent-default shape).
-        var plan = _muscleCapabilitiesFactory == null
-            ? EditorCapabilities.BuildDefault(cgfLogicPack, simHostCorePack!, NavSolverCapability!,
-                TrafficPack = Hrot.Traffic.TrafficPack.Serving())   // ⭐ AQ93 R-4047 — the editor is its own traffic node
-            : EditorCapabilities.BuildWithInjectedMuscle(cgfLogicPack, injectedMuscleCapabilities);
+        // ⭐⭐⭐ CE-4270 B9 (§4.1ag, R-3077): the ONE role table, the same one CGF and the fused server resolve. The editor's row is the fused set with the network
+        //   off and no gameplay server (it serves no players). The injected arm (Stride's mode 1) puts the supplied tier in the Muscle's slot.
+        var plan = Hrot.CGF.RoleCapabilityTable.Plan(new Hrot.CGF.RoleTableInputs
+        {
+            Brain          = cgfLogicPack,
+            Muscle         = muscle,
+            TrajectoryPool = muscle != null ? _trajectoryPool : null,
+            InjectedMuscle = injectedMuscleCapabilities,
+            Traffic        = TrafficPack,
+        });
 
         ResolvedCapabilities = plan.Resolve(EditorCapabilities.DefaultRole);
         return ResolvedCapabilities;
@@ -292,10 +296,7 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
         // Everything the editor runs comes from its capabilities (walked right after this hook, deduplicated by type).
     }
 
-    protected override IEnumerable<IEcsModule> GetAdditionalModules()
-    {
-        yield return new BehaviorDiagnosticsModule();   // registered ahead of the capabilities' modules, as before
-    }
+    // ⭐ CE-4270 B9: no GetAdditionalModules. BehaviorDiagnosticsModule comes from the Brain capability, as on CGF and the fused server.
 
     // ── phase 5: the ONE slave, OFFLINE ──────────────────────────────────────────────────────
 

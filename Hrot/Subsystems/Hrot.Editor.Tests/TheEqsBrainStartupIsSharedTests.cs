@@ -44,7 +44,6 @@ public sealed class TheEqsBrainStartupIsSharedTests
 
     [Theory]
     [InlineData("Hrot", "Subsystems", "Hrot.SimHost", "SimHostCapabilities.cs")]
-    [InlineData("Hrot", "Subsystems", "Hrot.Editor", "EditorCapabilities.cs")]
     [InlineData("Stride", "HrotStrideApp.Game", "StrideCapabilities.cs")]
     public void EveryEqsSolverHostStartsItThroughTheSharedStartup(params string[] path)
     {

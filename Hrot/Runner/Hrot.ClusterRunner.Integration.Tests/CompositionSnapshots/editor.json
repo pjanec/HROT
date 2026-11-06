@@ -7,7 +7,7 @@
     "clusterSlaveInstances": 1
   },
   "counts": {
-    "modules": 15,
+    "modules": 17,
     "systems": 165,
     "translators": 6,
     "capabilities": 10,
@@ -18,6 +18,7 @@
   "modules": [
     "AnimationMuscleModule | name=AnimationMuscle | run=Synchronous | data=Direct | hz=60",
     "BehaviorDiagnosticsModule | name=BehaviorDiagnostics | run=Synchronous | data=Direct | hz=60",
+    "CgfLogicPack | name=CgfLogicPack | run=Synchronous | data=Direct | hz=60",
     "EditorSystemsModule | name=EditorSystems | run=Synchronous | data=Direct | hz=60",
     "EngineBackedNavigationModule | name=EngineBackedNavigationModule | run=Synchronous | data=Direct | hz=60",
     "EntityLifecycleModule | name=EntityLifecycleManager | run=Synchronous | data=Direct | hz=60",
@@ -27,6 +28,7 @@
     "MapCullingModule | name=MapCulling | run=Synchronous | data=Direct | hz=60",
     "NavigationSolverModule | name=NavigationSolver | run=Asynchronous | data=SoD | hz=10",
     "ScenarioEditorModule | name=ScenarioEditor | run=Synchronous | data=Direct | hz=60",
+    "SimHostCoreLogicPack | name=SimHostCoreLogicPack | run=Synchronous | data=Direct | hz=60",
     "SimulationGroupModule | name=EditorSim | run=Synchronous | data=Direct | hz=60",
     "SingleSystemModule | name=NetworkSpawning | run=Synchronous | data=Direct | hz=60",
     "StyleResolutionModule | name=StyleResolution | run=Synchronous | data=Direct | hz=60",
@@ -210,8 +212,8 @@
   "capabilities": [
     "cap:infra:health-application | needs=[]",
     "cap:brain | needs=[]",
-    "cap:muscle-ground | needs=[]",
-    "cap:perception:eqs | needs=[]",
+    "cap:muscle-ground | needs=[res:trajectory-pool]",
+    "cap:perception | needs=[]",
     "cap:navigation-solver | needs=[res:trajectory-pool]",
     "cap:infra:unit-hierarchy | needs=[]",
     "cap:infra:eqs-result-update | needs=[]",

@@ -2114,7 +2114,7 @@ namespace Hrot.SimHost.Tests
 
             Assert.Equal(1, Declarations("Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs"));
             Assert.Equal(1, Declarations("Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs"));
-            foreach (string brainPlan in new[] { "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs", "Hrot/Subsystems/Hrot.Editor/EditorCapabilities.cs",
+            foreach (string brainPlan in new[] { "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs", "Hrot/Subsystems/Hrot.CGF/RoleCapabilityTable.cs",   /* CE-4270 B9: the editor resolves it */
                                                  "Stride/HrotStrideApp.Game/StrideCapabilities.cs" })
                 Assert.Equal(0, Declarations(brainPlan));
             Assert.Contains("StaffInboxSystem(", File.ReadAllText(Path.Combine(root!, "Hrot/Subsystems/Hrot.CGF/CgfLogicPack.cs")));

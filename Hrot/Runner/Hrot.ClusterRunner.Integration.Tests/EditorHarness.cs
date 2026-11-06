@@ -247,7 +247,7 @@ public sealed class EditorHarness : IDisposable
         Kernel = new ModuleHostKernel(Repo, accumulator);
         // ⭐ Node Features F-13 — the scheduler refuses a [NodeFeature] system with no gate. Production sets it in SharedApplicationBootstrapper from the
         //   composed capabilities; this harness composes CgfLogicPack by hand, so it declares what that pack's Brain capability declares
-        //   (EditorCapabilities.Brain.Features — rules S2 ⑨ ExercisePauseOnEndSystem), before any module registers.
+        //   (the role table's Brain, CgfCapabilities.Brain.Features — rules S2 ⑨ ExercisePauseOnEndSystem), before any module registers.
         Kernel.FeatureGate = new Hrot.Common.Infrastructure.NodeFeatures(
             new Hrot.Common.Infrastructure.FeatureRegistry(new[] { Hrot.AI.Behaviors.Brains.Objectives.ExercisePauseOnEndSystem.Feature, Hrot.AI.Behaviors.Brains.Objectives.RuleLeafSampler.Feature }),
             Hrot.Editor.EditorCapabilities.DefaultRole);

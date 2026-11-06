@@ -41,11 +41,14 @@ public static class MuscleRoleInputs
             CoreLogicPack    = coreLogicPack;
             NavigationModule = navigationModule;
             SolverFactory    = solverFactory;
+            NavigationSolver = new SimHostCapabilities.NavigationSolver(navigationModule, solverFactory);
         }
 
         public SimHostCoreLogicPack CoreLogicPack { get; }
         public EngineBackedNavigationModule NavigationModule { get; }
         public Func<NavigationSolverModule> SolverFactory { get; }
+        /// <summary>⭐ CE-4270 B9 — the ONE navigation-solver capability of these parts (the editor reads back the modules it registered).</summary>
+        public SimHostCapabilities.NavigationSolver NavigationSolver { get; }
     }
 
     /// <summary>
@@ -80,7 +83,7 @@ public static class MuscleRoleInputs
             .Provider(trajectoryPool)
             .Capability(NodeRole.MuscleGround,     new SimHostCapabilities.MuscleGround(parts.CoreLogicPack))
             .Capability(NodeRole.Perception,       new SimHostCapabilities.PerceptionSolver())
-            .Capability(NodeRole.NavigationSolver, new SimHostCapabilities.NavigationSolver(parts.NavigationModule, parts.SolverFactory));
+            .Capability(NodeRole.NavigationSolver, parts.NavigationSolver);
     }
 
     /// <summary>

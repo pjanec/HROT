@@ -331,7 +331,10 @@ namespace Hrot.SimHost.Tests
 
             // ⭐ CE-2144 (R-2008) — the plan starts from the ONE shared head (LiveSimulationPlanRails pins that no host bypasses it), and resolves.
             // ⭐ CE-4270 B7b — the plan is built in steps (the Muscle role's entries join only when the role composes it), then resolved into ResolvedCapabilities.
-            Assert.Contains("var plan = CoreInfrastructureCapabilities.LiveSimulationPlan(", bootstrapper);
+            // ⭐⭐ CE-4270 B9 — the plan comes from the ONE role table (CGF, the fused server and the editor resolve it), which starts from the shared head.
+            Assert.Contains("var plan = RoleCapabilityTable.Plan(", bootstrapper);
+            Assert.Contains("CoreInfrastructureCapabilities.LiveSimulationPlan(",
+                            CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(CompositionRootSource.RoleTableFile)));
             Assert.Contains("ResolvedCapabilities = plan", bootstrapper);
             Assert.Contains(".Resolve(role)", bootstrapper);   // ⭐ CE-4270 B7a — the declared role
             // ⭐ CE-4013 — through the ONE shared walk, every phase of it, owned by the base; CGF runs no walk of its own.

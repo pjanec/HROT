@@ -1,40 +1,17 @@
 #nullable enable
-using System;
-using System.Collections.Generic;
-using Fdp.ModuleHost.Abstractions;
-using Hrot.CGF;
-using Hrot.Common;
-using Hrot.Common.Infrastructure;
-using Hrot.SimHost;
-using Hrot.SimHost.Modules;
-using Hrot.SimHost.Systems;
 using Fdp.Core;
 
 namespace Hrot.Editor;
 
 /// <summary>
-/// The editor's role-selected capabilities — host (d) on the capability axis.
+/// The role the editor declares. Its capabilities come from the ONE role table, <see cref="Hrot.CGF.RoleCapabilityTable"/>.
 /// </summary>
 /// <remarks>
-/// <para><b>Why the editor is on this seam at all.</b> It is the last ECS composition root that
-/// hand-assembles its unit list. SimHost, IG and CGF all resolve a <see cref="NodeCompositionPlan"/>;
-/// the editor did not, and what stood in for it was <c>EditorSubsystem.MuscleModuleFactory</c> — a
-/// private, single-slot substitute that can swap the muscle tier and nothing else, cannot express a
-/// shared resource, and has exactly one production caller (Stride's mode 1). One declaration replaces
-/// it. See <c>DESIGN_Subsystem_Composition_Unification.md</c> §4.1ac.</para>
-///
-/// <para><b>⛔ REGISTRATION ORDER IS EXECUTION ORDER</b> — <c>ModuleHostKernel.RegisterModule</c>
-/// appends to a plain list the frame loop walks in sequence. Every ordering choice below reproduces
-/// the hand-written block exactly; none of them is a preference.</para>
-///
-/// <para><b>⚠ The editor is NOT SimHost with extra windows, and two differences matter here.</b>
-/// First, it fuses <b>both</b> the Brain and the MuscleGround packs into one world, so their system
-/// lists must be de-duplicated by type when concatenated — two of the same system is not a waste but
-/// a corruption (<c>CE-165</c>: a second <c>UnitHierarchySystem</c> re-reads the same non-destructive
-/// events and appends a duplicate roster entry). Second, the default arm <b>does not register its
-/// muscle pack as a module at all</b> — only its system lists are spliced into the togglable groups.
-/// That asymmetry is why <see cref="MuscleGround"/> implements <c>PopulateSystems</c> and not
-/// <c>Register</c>.</para>
+/// ⭐⭐⭐ <c>CE-4270</c> B9 (<c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §4.1ag, R-3077). Until B9 this class held the editor's own copy of the role
+/// table (<c>BuildDefault</c> / <c>BuildWithInjectedMuscle</c>) and its own Brain, MuscleGround and EQS-solver wrapper classes. The wrappers differed from CGF's
+/// and SimHost's only in leaving the two logic packs unregistered as modules. Both packs are empty shells as modules (<c>RegisterSystems</c> and <c>Tick</c>
+/// do nothing; their systems run from the togglable groups), and the kernel disposes no module. So the fold changed the editor's module list (two rows) and
+/// nothing that runs. ⛔ The copy is where the editor's drift lived: it once lacked the navigation solver (CE-3017) and the EQS solver (EQS design §17.3).
 /// </remarks>
 public static class EditorCapabilities
 {
@@ -61,176 +38,4 @@ public static class EditorCapabilities
     /// has a SUMO net and the scenario a traffic entity, so declaring it costs nothing when there is no traffic.</para>
     public const NodeRole DefaultRole =
         NodeRole.Brain | NodeRole.MuscleGround | NodeRole.Perception | NodeRole.NavigationSolver | NodeRole.Traffic;
-
-    /// <summary>
-    /// Builds the plan for the editor's <b>default</b> composition — the arm that runs when no host
-    /// has supplied a replacement muscle tier.
-    /// </summary>
-    /// <remarks>
-    /// <b>Plan order is deliberate and mirrors the hand-written block:</b> Brain first, then
-    /// MuscleGround — because the fused system lists are built as
-    /// <c>DistinctByType(cgfLogicPack…, muscle…)</c>, so a CGF system wins the slot when both packs
-    /// carry the same type. Reversing these two would silently change which instance runs.
-    /// </remarks>
-        // ⭐⭐ CE-221 — cross-role infrastructure, declared LAST on BOTH arms.
-        //    Declared last => tail of the Simulation phase, which is where every carrier already put
-        //    these two. ⚠ On the editor that IS a behaviour change: DistinctByType(cgf…, muscle…) kept
-        //    CGF's copy, which sat ahead of the whole muscle tier, so UnitHierarchySystem consumed
-        //    CmdAssignSubordinate (published by VehicleCommandSystem in GroundKinematicsModule) one
-        //    frame late. SimHost always consumed it the same frame. This makes the editor agree.
-        //    ⭐ On the INJECTED arm the muscle tier also declares these (Stride resolves them into
-        //    this plan); Resolve de-duplicates by Key in declaration order, so the Brain-side
-        //    instance below wins — the same first-wins rule DistinctByType already encoded.
-    /// <param name="navigationSolver">⭐ <c>CE-3017</c> — SimHost's own <see cref="SimHostCapabilities.NavigationSolver"/>
-    /// (never a copy, <c>R-174</c>), built over the muscle pack's trajectory pool and the editor's navmesh. ⛔ Required:
-    /// the role DECLARES <c>NavigationSolver</c>, and a plan without it left every editor path request unanswered.</param>
-    /// <param name="traffic">⭐ AQ93 R-4047 — SUMO traffic, built over the editor's terrain residency. ⛔ Required: the role declares
-    /// <c>Traffic</c>.</param>
-    public static NodeCompositionPlan BuildDefault(
-        CgfLogicPack cgfPack,
-        SimHostCoreLogicPack musclePack,
-        SimHostCapabilities.NavigationSolver navigationSolver,
-        Hrot.Traffic.TrafficPack traffic)
-    {
-        if (cgfPack is null)          throw new ArgumentNullException(nameof(cgfPack));
-        if (musclePack is null)       throw new ArgumentNullException(nameof(musclePack));
-        if (navigationSolver is null) throw new ArgumentNullException(nameof(navigationSolver));
-        if (traffic is null)          throw new ArgumentNullException(nameof(traffic));
-
-        // ⭐ CE-3017 — the solver is APPENDED after the EQS solver: it contributes modules only (no PopulateSystems), so
-        //    every system sequence the order rails pin is unchanged, and every module registered before it keeps its slot.
-        // ⭐⭐ CE-2144 (R-2008) — the ONE shared plan head (HealthApplication first, ahead of the Brain's cognitive runtime).
-        return CoreInfrastructureCapabilities.LiveSimulationPlan(NodeRole.Brain)
-            .Capability(NodeRole.Brain,        new Brain(cgfPack))
-            .Capability(NodeRole.MuscleGround, new MuscleGround(musclePack))
-            .Capability(NodeRole.Perception,   new PerceptionEqsSolver())
-            .Capability(NodeRole.NavigationSolver, navigationSolver)
-            .Capability(NodeRole.Brain,        new CoreInfrastructureCapabilities.UnitHierarchy())
-            .Capability(NodeRole.Brain,        new EqsResultUpdateCapability())
-            // ⭐ CE-3110 (R-221/R-224) — interactions (doors, embarkation) are cross-role too: any node that can own a live entity can own a door, a vehicle or a passenger.
-            .Capability(NodeRole.Brain,        new CoreInfrastructureCapabilities.Interactions())
-            // ⭐ CE-2121 — the character body (stance) over the fake animation backend; module-only, appended last so every
-            //   pinned system sequence and module slot is unchanged. 📄 docs/DESIGN_Decision_Layer.md §3.3g.
-            .Capability(NodeRole.MuscleGround, new AnimationMuscleCapability())
-            // ⭐ AQ93 R-4047 — SUMO traffic; module-only, appended last so every pinned system sequence and module slot is unchanged.
-            .Capability(NodeRole.Traffic,      traffic);
-    }
-
-    /// <summary>
-    /// Builds the plan for the <b>injected</b> arm — a host (today only Stride's mode 1) supplies its
-    /// own muscle modules through <c>MuscleModuleFactory</c>.
-    /// </summary>
-    /// <remarks>
-    /// The injected arm has no <c>SimHostCoreLogicPack</c> and no EQS module of its own: the
-    /// supplying host owns both. It still gets the Brain *(and, until the AreaQuery pipeline was retired
-    /// on 2026-10-01, the area-query materialisation — EQS design §18)*. ⚠ Keeping the two arms as two plan shapes — rather than one plan
-    /// with nullable capabilities — is what stops a null capability being registered as if it were
-    /// real, which is the silent-default shape this programme keeps finding.
-    /// </remarks>
-    public static NodeCompositionPlan BuildWithInjectedMuscle(
-        CgfLogicPack cgfPack,
-        IReadOnlyList<INodeCapability> injectedMuscleCapabilities)
-    {
-        if (cgfPack is null) throw new ArgumentNullException(nameof(cgfPack));
-        if (injectedMuscleCapabilities is null) throw new ArgumentNullException(nameof(injectedMuscleCapabilities));
-
-        // ⭐⭐ CE-2144 (R-2008) — the ONE shared plan head; an injected plan's own head loses the Key to this one (first wins).
-        var plan = CoreInfrastructureCapabilities.LiveSimulationPlan(NodeRole.Brain)
-            .Capability(NodeRole.Brain, new Brain(cgfPack));
-
-        // ⭐ S2b — the host hands over CAPABILITIES, not bare modules. They are added in the host's
-        //    own order, after Brain and before the Brain's EQS result update, which is where it sat when
-        //    this was a Func returning IEcsModule (registration order is execution order).
-        foreach (INodeCapability capability in injectedMuscleCapabilities)
-            plan = plan.Capability(NodeRole.MuscleGround, capability);
-
-        return plan
-            .Capability(NodeRole.Brain,      new CoreInfrastructureCapabilities.UnitHierarchy())
-            .Capability(NodeRole.Brain,      new EqsResultUpdateCapability())
-            // ⭐ CE-3110 (R-221/R-224) — interactions (doors, embarkation) are cross-role too: any node that can own a live entity can own a door, a vehicle or a passenger.
-            .Capability(NodeRole.Brain,      new CoreInfrastructureCapabilities.Interactions());
-    }
-
-    /// <summary>The Brain tier — CGF's logic pack, contributed as systems, never as a module.</summary>
-    public sealed class Brain : INodeCapability
-    {
-        private readonly CgfLogicPack _pack;
-        internal Brain(CgfLogicPack pack) => _pack = pack;
-
-        public string Key => CapabilityKeys.Brain;
-        public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
-        /// <summary>⭐ rules S2 ⑨ — <c>exercise.pause-on-end</c>: the pack carries <c>ExercisePauseOnEndSystem</c>.</summary>
-        public IReadOnlyList<Hrot.Common.Infrastructure.FeatureDeclaration> Features { get; } = new[] { Hrot.AI.Behaviors.Brains.Objectives.ExercisePauseOnEndSystem.Feature, Hrot.AI.Behaviors.Brains.Objectives.RuleLeafSampler.Feature };   // ⭐ rules V-3: + ui.rules-live-values
-
-        public void PopulateSystems(
-            HrotNodeContext context,
-            List<IEcsModuleSystem> input,
-            List<IEcsModuleSystem> simulation,
-            List<IEcsModuleSystem> postSimulation)
-        {
-            // ⚠ CgfLogicPack has NO post-simulation list — measured, not assumed. The hand-written
-            //   block builds togglePostSim from the MUSCLE list alone, and this mirrors that exactly.
-            foreach (IEcsModuleSystem s in _pack.InputSystems)      input.Add(s);
-            foreach (IEcsModuleSystem s in _pack.SimulationSystems) simulation.Add(s);
-        }
-    }
-
-    /// <summary>
-    /// The default MuscleGround tier — SimHost's core pack, contributed as systems only.
-    /// </summary>
-    /// <remarks>
-    /// ⚠ <b>Deliberately no <c>Register</c>.</b> SimHost registers this pack as a module; the editor
-    /// never has, and splicing only its system lists is the behaviour being preserved. Adding a module
-    /// registration here would double-run the pack.
-    /// </remarks>
-    public sealed class MuscleGround : INodeCapability
-    {
-        private readonly SimHostCoreLogicPack _pack;
-        internal MuscleGround(SimHostCoreLogicPack pack) => _pack = pack;
-
-        public string Key => CapabilityKeys.MuscleGround;
-        public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
-
-        public void PopulateSystems(
-            HrotNodeContext context,
-            List<IEcsModuleSystem> input,
-            List<IEcsModuleSystem> simulation,
-            List<IEcsModuleSystem> postSimulation)
-        {
-            foreach (IEcsModuleSystem s in _pack.InputSystems)          input.Add(s);
-            foreach (IEcsModuleSystem s in _pack.SimulationSystems)     simulation.Add(s);
-            foreach (IEcsModuleSystem s in _pack.PostSimulationSystems) postSimulation.Add(s);
-        }
-    }
-
-    // ⛔ `InjectedMuscle` (a capability that wrapped a host's bare IEcsModule list) was DELETED by
-    //    S2b. It only existed to adapt MuscleModuleFactory's return type; now that hosts hand over
-    //    INodeCapability directly there is nothing to adapt, and keeping the wrapper would be a
-    //    second way to express the same thing.
-
-    // ⛔ PerceptionSpatial (CognitiveSpatialModule) DELETED by CE-3038 — vision is a sensor solved by the EQS module
-    //    PerceptionEqsSolver registers. docs/DESIGN_Sensors_And_Doctrine.md §5.5.
-
-    /// <summary>
-    /// The EQS 1.3 solver and its template registry — default arm only (an injected muscle brings its
-    /// own, as Stride's does).
-    /// </summary>
-    /// <remarks>
-    /// ⭐ This arm already ran the area query's solver (inside <see cref="CognitiveSpatialModule"/>) but no
-    /// EQS solver, so an EQS sensor authored here — including the area query's EQS form — never got an
-    /// answer. 📄 <c>docs/designs/eqs-2/EQS_Design_v1.3_final.md</c> §17.3.
-    /// </remarks>
-    public sealed class PerceptionEqsSolver : INodeCapability
-    {
-        public string Key => CapabilityKeys.Perception + ":eqs";
-        public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
-
-        public void Register(HrotNodeContext context, NodeBootValues values)
-            => EqsSolverStartup.Register(context);
-
-        public void PopulateSystems(HrotNodeContext context, List<IEcsModuleSystem> input,
-                                    List<IEcsModuleSystem> simulation, List<IEcsModuleSystem> postSimulation)
-            => EqsSolverStartup.PopulateSystems(simulation);   // CE-3061
-    }
-
 }
