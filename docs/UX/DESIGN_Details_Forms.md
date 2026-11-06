@@ -133,7 +133,7 @@ classDiagram
 ```
 
 *What the picture shows that the prose hid:* a form owns no write and no editor, and only ONE row at a time pays for an editing session — the
-rest show cached text (CE-4285 measured the session at ~24 B per field per frame). A form owns no write and no editor. Each row names an attribute, and the attribute already
+rest show cached text (CE-4285 measured the session at ~24 B per field per frame). Each row names an attribute, and the attribute already
 knows how to reach the owner. The row's type picks the editor StructEdit would pick. The only new things are the declarations and the
 view that lays them out. The forms are therefore one mechanism across every host, never four hand-drawn panels.
 
