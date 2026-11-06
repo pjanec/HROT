@@ -30,5 +30,9 @@ namespace Fdp.Toolkit.Behavior.Events
         /// <summary>⭐ Team carry T-a (R-2017 T1, T4) — onto a PERSON carrier: the second man of a team load (a <c>Stretcher</c> carry, a
         /// <c>TwoMan</c> weapon). Required for those, refused for any other load. APPENDED.</summary>
         public Entity Assistant;
+
+        /// <summary>⭐ Edit framework F4 (📄 docs/UX/DESIGN_Edit_Framework.md §3, Q2) — the user's request id (<c>Edits.Submit</c>); the applying node answers with
+        /// <c>EntityEditOutcome</c> under it (accepted or refused + why). <see cref="System.Guid.Empty"/> = nobody asked. APPENDED.</summary>
+        public System.Guid RequestId;
     }
 }

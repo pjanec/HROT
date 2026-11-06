@@ -33,7 +33,13 @@ namespace Fdp.Toolkit.Behavior.Systems
                 {
                     ref readonly var c = ref boards[i];
                     if (!Embarkation.OwnsVehicle(repo, c.Vehicle)) continue;
-                    Count(Embarkation.TryEmbark(repo, c.Passenger, c.Vehicle, c.Role, c.Mode, c.Assistant) is EmbarkResult.Applied or EmbarkResult.AlreadyAboard);   // ⭐ T-a
+                    var result = Embarkation.TryEmbark(repo, c.Passenger, c.Vehicle, c.Role, c.Mode, c.Assistant);   // ⭐ T-a
+                    bool ok = result is EmbarkResult.Applied or EmbarkResult.AlreadyAboard;
+                    Count(ok);
+                    // ⭐ edit framework F4 — the owner says why (was: a counter only)
+                    if (ok) Fdp.Toolkit.Replication.Edits.InteractionOutcomes.Applied(repo, c.RequestId, c.Vehicle);
+                    else Fdp.Toolkit.Replication.Edits.InteractionOutcomes.Refused(repo, c.RequestId, c.Vehicle,
+                        result == EmbarkResult.Full ? "the vehicle has no free seat for it" : "it cannot board this (gone, a unit, or nothing to board)");
                 }
             }
             if (repo.Bus.IsRegistered<DisembarkEntityCommand>())
@@ -44,7 +50,10 @@ namespace Fdp.Toolkit.Behavior.Systems
                     ref readonly var c = ref leaves[i];
                     var vehicle = VehicleOf(repo, c.Passenger, c.Vehicle);
                     if (!Embarkation.OwnsVehicle(repo, vehicle)) continue;
-                    Count(Embarkation.Disembark(repo, c.Passenger, vehicle, c.Exit, c.AnchorIndex, c.Target));
+                    bool left = Embarkation.Disembark(repo, c.Passenger, vehicle, c.Exit, c.AnchorIndex, c.Target);
+                    Count(left);
+                    if (left) Fdp.Toolkit.Replication.Edits.InteractionOutcomes.Applied(repo, c.RequestId, vehicle);   // ⭐ edit framework F4
+                    else Fdp.Toolkit.Replication.Edits.InteractionOutcomes.Refused(repo, c.RequestId, vehicle, "it is not aboard, or there is no way out");
                 }
             }
             // ⭐ airborne insertion B-4 — a descent decided on the carrier's owner, applied where the man's position is owned

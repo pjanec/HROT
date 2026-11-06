@@ -30,5 +30,9 @@ namespace Fdp.Toolkit.Behavior.Events
         /// <summary>⭐ Airborne insertion H-1 (design §6.5 D-18) — a jumper's landing point (zero = wherever he comes down): written into his
         /// <c>Descent.Target</c> by the node owning his position. The jumpmaster's decision; ignored for a step-out or a rope. APPENDED.</summary>
         public System.Numerics.Vector3 Target;
+
+        /// <summary>⭐ Edit framework F4 (📄 docs/UX/DESIGN_Edit_Framework.md §3, Q2) — the user's request id (<c>Edits.Submit</c>); the applying node answers with
+        /// <c>EntityEditOutcome</c> under it (accepted or refused + why). <see cref="System.Guid.Empty"/> = nobody asked. APPENDED.</summary>
+        public System.Guid RequestId;
     }
 }

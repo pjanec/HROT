@@ -52,6 +52,8 @@ namespace Hrot.NED.Messages
     {
         public int StationNodeId;
         public byte Mode;
+        /// <summary>⭐ Edit framework F4 — the user's request id (empty = nobody asked); the applying node answers with <c>EntityEditOutcome</c>. APPENDED (R-169).</summary>
+        public System.Guid RequestId;
     }
 
     /// <summary>⭐ CE-3172 — the <see cref="EInteractionKind.ReleasePossession"/> case: which station lets go.</summary>
@@ -60,6 +62,8 @@ namespace Hrot.NED.Messages
     public partial struct ReleasePossessionInteractionPayload
     {
         public int StationNodeId;
+        /// <summary>⭐ Edit framework F4 — the user's request id (empty = nobody asked); the applying node answers with <c>EntityEditOutcome</c>. APPENDED (R-169).</summary>
+        public System.Guid RequestId;
     }
 
     /// <summary>⭐ CE-3172 / CE-3173 — the <see cref="EInteractionKind.ControlFrame"/> case: one frame of the station's controls (M-6:
@@ -121,6 +125,8 @@ namespace Hrot.NED.Messages
 
         /// <summary>⭐ Team carry T-a (R-2017 T1) — the team load's second man, network id (0 = none); mapped by the codec. APPENDED (R-169).</summary>
         public int Assistant;
+        /// <summary>⭐ Edit framework F4 — the user's request id (empty = nobody asked); the applying node answers with <c>EntityEditOutcome</c>. APPENDED (R-169).</summary>
+        public System.Guid RequestId;
     }
 
     /// <summary>⭐ CE-3110 I-2a — the <see cref="EInteractionKind.Disembark"/> case (target = the vehicle, actor = the passenger).</summary>
@@ -138,6 +144,8 @@ namespace Hrot.NED.Messages
         public float TargetX;
         public float TargetY;
         public float TargetZ;
+        /// <summary>⭐ Edit framework F4 — the user's request id (empty = nobody asked); the applying node answers with <c>EntityEditOutcome</c>. APPENDED (R-169).</summary>
+        public System.Guid RequestId;
     }
 
     /// <summary>⭐ Airborne insertion B-4 — the <see cref="EInteractionKind.StartDescent"/> case (target = the man, actor = the carrier).</summary>
