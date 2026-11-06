@@ -365,39 +365,32 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
         // ⭐ CE-3141 — the obstacle tool creates through the pack.
         context.Kernel.RegisterModule(new EditorSystemsModule(() => EntityCreation));
 
-        // ⭐⭐⭐ CE-140 step 3, host (c) — THE ENTITY CREATION PACK. IsBroadcastArbiter TRUE (unlike SimHost): the editor is a standalone single-node world with no peer to arbitrate against.
-        var creation = EntityCreationPack.Build(new EntityCreationContext
-        {
-            World       = context.World,
-            EntityMap   = context.EntityMap,
-            TkbDb       = context.TkbDb!,
-            IdAllocator = context.IdAllocator!,
-            Elm         = Elm ?? throw new InvalidOperationException("[EditorNodeBootstrapper] the lifecycle module is missing."),
-            NodeId      = context.NodeId,
-            NetworkAdapters = ConfiguredNetworkFactory?.CreateCgfEntityLifecycleAdapters(),   // offline: none
-            // ⭐ CE-237 — a host's order-sensitive translator additions; null/empty keeps Base().
-            TranslatorPlacements = _translatorPlacements is { Count: > 0 } ? _translatorPlacements : null,
-            // ⭐ CE-2121 — the body stance, as on SimHost and CGF. ⚠ The pack takes extras OR placements, never both.
-            ExtraTranslators = _translatorPlacements is { Count: > 0 } ? null : new Fdp.Interfaces.ITkbEntityTranslator[]
+        // ⭐ CE-4270 B6 (§4.1ag) — the ONE shared spawning step: the pack, then the capabilities, then the genesis tail. IsBroadcastArbiter
+        //   TRUE: the editor is a standalone single-node world (the Brain arbitrates). CE-237 — order-sensitive translator placements when the
+        //   host has them, else the stance/animation extra (CE-2121; the pack takes extras OR placements, never both). CE-4024 — offline, so the
+        //   attribute compiler is passed here (a networked host takes it from its adapters). Macros S3a ④ — the editor loads scenarios, so it
+        //   expands the macro instances it creates (§15 E-4).
+        if (Elm == null) throw new InvalidOperationException("[EditorNodeBootstrapper] the lifecycle module is missing.");
+        bool placed = _translatorPlacements is { Count: > 0 };
+        EntityCreation = Hrot.EcsNode.Hosting.HostSpawning.Register(context, ConfiguredNetworkFactory,
+            new Hrot.EcsNode.Hosting.SpawningSpec
             {
-                new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
+                IsBroadcastArbiter    = true,
+                TranslatorPlacements  = placed ? _translatorPlacements : null,
+                ExtraTranslators      = placed ? null : new Fdp.Interfaces.ITkbEntityTranslator[]
+                {
+                    new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
+                },
+                JsonAttributeCompiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(),
+                Macros = new Hrot.Common.Macros.MacroExpander(
+                    Fdp.Toolkit.Scenario.FileMacroLibrary.ForNode(_isolatedTempRoot),
+                    new StagingEntityExtractor(reuseStagingWorld: true),   // ⭐ CE-2396 one staging world, emptied per expansion
+                    ScenarioSerializer,
+                    Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(BehaviorRegistry)),
+                Order = Hrot.EcsNode.Hosting.SpawningOrder.PackThenCapabilities,
             },
-            IsBroadcastArbiter = true,
-            // ⭐ CE-4024 — a request's InitialAttributesJson is applied here as on every networked host (the editor held the compiler and passed none).
-            JsonAttributeCompiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(),
-            // ⭐ Macros S3a ④ — the editor loads scenarios, so it expands the macro instances it creates (§15 E-4).
-            Macros = new Hrot.Common.Macros.MacroExpander(
-                Fdp.Toolkit.Scenario.FileMacroLibrary.ForNode(_isolatedTempRoot),
-                new StagingEntityExtractor(reuseStagingWorld: true),   // ⭐ CE-2396 one staging world, emptied per expansion
-                ScenarioSerializer,
-                Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(BehaviorRegistry)),
-        });
-        EntityCreation = creation;   // CE-515
+            () => RegisterCapabilities(context));
 
-        // ⭐ CE-4013 D6 — every piece of the pack, scheduled by the ONE shared registration.
-        creation.RegisterOn(context.Kernel);
-        RegisterCapabilities(context);
-        Hrot.SimHost.Systems.GenesisTail.RegisterOn(context.Kernel, context.EntityMap);   // ⭐ CE-4013 D11
         // BSA-WIRE: the blueprint genesis + event-ingress systems, so InitialBlueprintsIntent (written on scenario load) is consumed in the offline editor as on a CGF node.
         Hrot.SimHost.Systems.BlueprintGenesisRuntimeRegistration.RegisterBlueprintGenesisSystems(context.Kernel, _blueprintRegistry);
         // ⛔ MX2 — the ingress system CONSUMES these two events, but nothing declared them on this world's strict bus: declared HERE, beside the systems that drain them (MX-008).
