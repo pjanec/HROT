@@ -27,6 +27,7 @@ class C:
     ERR = "#E65555"; ERRROW = "#3A1A1A"; PEND = "#F2C033"; PENDROW = "#3A3112"; INFO = "#6AB0FF"; OK = "#5BD06A"
     TEAL = "#3EC6B0"; ORANGE = "#F29B38"; VIOLET = "#B07CF0"; BLUE = "#5AA9FF"; AMBER = "#F2C033"; GREEN = "#5BD06A"
     RED = "#E65555"; GREY = "#A0A0AA"; PINK = "#E8A0C8"
+    SECTION = "#2B2F38"; SECTIONHOV = "#353A45"; AUTH = "#1E4A22"   # collapsing header slate (UI conventions §4) · the raw editor's authority green
 
 
 class FA:
@@ -162,6 +163,36 @@ class Svg:
             if dis and why: self.text(x + 30 + text_width(label) + 10, cy + 15, "— " + why, "#6E6E78", 11)
             cy += 22
         return h
+
+    def chevron(self, x, y, open_, c=C.TXT):
+        """The ONE tree chevron (UI conventions §2): ImGui's own filled tree arrow, 10 px, at (x, y) = its box's top-left."""
+        d = f"M{x} {y + 2} l10 0 -5 6 z" if open_ else f"M{x + 2} {y} l6 5 -6 5 z"
+        self.o.append(f"<path d='{d}' fill='{c}'/>")
+
+    def tree_row(self, x, y, depth, label, glyph=None, gc=None, open_=None, sel=False, sub=None, w=330, indent=18):
+        """One tree row (UI conventions §2): CHEVRON · ICON · LABEL. open_=None is a leaf (no chevron, its slot kept,
+        so every label at one depth starts at one x). Returns the row height."""
+        cx = x + depth * indent
+        if sel: self.rect(x, y - 2, w, 22, "#2C3A52", rx=2)
+        if open_ is not None: self.chevron(cx, y + 3, open_)
+        gx = cx + 15
+        if glyph: self.glyph(glyph, gx, y + 2, gc, 12.5)
+        self.text(gx + (19 if glyph else 0), y + 14, label)
+        if sub: self.text(x + w - 6, y + 14, sub, C.DIS, 11.5, "end")
+        return 22
+
+    def header(self, x, y, w, label, glyph=None, gc=None, open_=True, fill=None):
+        """A collapsing header (UI conventions §4): slate, not the selection blue; CHEVRON · coloured ICON · LABEL."""
+        self.rect(x, y, w, 21, fill or C.SECTION, rx=2)
+        self.chevron(x + 6, y + 5, open_)
+        if glyph: self.glyph(glyph, x + 22, y + 4, gc, 12.5)
+        self.text(x + 22 + (19 if glyph else 0), y + 15, label)
+        return 21
+
+    def form_row(self, x, y, label, label_w, ctrl, *a, **k):
+        """A label-first row (UI conventions §3): label in column 1, the control at x + label_w in column 2."""
+        self.text(x, y + 14, label, C.TXT)
+        getattr(self, ctrl)(x + label_w, y, *a, **k)
 
     def tooltip(self, x, y, w, lines, edge=C.SEP):
         h = 10 + 16 * len(lines); self.rect(x, y, w, h, C.POPUP, stroke=edge, rx=3)

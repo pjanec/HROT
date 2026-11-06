@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: ScenarioNewAssetService's remark "this kind offers NO BLANK TEMPLATE, deliberately" (H3) — its reason (a blank has no way to get a terrain) is answered here by naming the terrain in the created file; the class comment changes with stage N2
 related-designs:
+  - DESIGN_UI_Conventions.md — the tree in §2.5's mockup is the model the user chose for every tree (chevron · icon · label)
   - DESIGN_Details_Forms.md — E2: the Scenario form shows the terrain read-only
   - DESIGN_Editing_UX.md — the programme: D19 (the terrain is chosen at creation, never changed — R-4124), §1.4 row 13
   - ../blueprints/Architect_Question_108_Run_Mode_Picker.md — OWNS the File menu (§2.15), New from a recipe (§2.17, CE-4140), Save Scenario as Recipe (§2.15b B2c), the wide picker and its side pane (D25, §2.18) and the scenario door every load goes through

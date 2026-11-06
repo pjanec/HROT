@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
 known-conflict: AQ26's two-axis resolution lets a HOST supply the isApplicable rule; R-4119 narrows it — for an entity, the rule reads the entity's components (§0)
 related-designs:
+  - DESIGN_UI_Conventions.md — slice E17: trees, label-first forms, collapsing headers, house-wide
   - DESIGN_Condition_Editor.md — E5 condition templates, detailed: the friendly condition editor (presets are its shortcuts)
   - DESIGN_Initial_State.md — design queue 7b (E15): seats and carrying, carried weapons, weapon posture, knows about, the Point type
   - DESIGN_Details_Forms.md — design queue item 8 (E2 / D3, D7): the Unit, Crew & cargo, Shape and Scenario forms; the raw tab fixes
@@ -597,6 +598,7 @@ chat, committed as SVG beside its design. It is the acceptance spec (R-4138 / De
 | Rule editor UX (E13): the rule list as sentences, the gallery | `rule-list-visual.svg` | ✍ drawn, for review |
 | Seats and hats (E10): the seat and hat indicator and switch | `seats-hats-visual.svg` | ✍ drawn, for review |
 | Action catalogue (E9) + input (E14) + undo (D1): a context menu (groups, greyed with the reason, shortcuts), the Edit menu's undo / redo | `menus-visual.svg` | ✍ drawn, for review |
+| UI conventions (E17): trees (chevron · icon · label), label-first forms, slate collapsing headers — today vs after | `ui-conventions-visual.svg` | ✍ drawn, for review |
 
 ### 4.4 Slices — proposed handoffs, once D1–D9 are approved
 
@@ -612,6 +614,7 @@ chat, committed as SVG beside its design. It is the acceptance spec (R-4138 / De
 | **E13 rule editor UX** | ui | inventory + top-level design first (queue 3b) | — |
 | **E15 initial state** | backend (saving) + ui (rows) | §1.8: seats and carry modes saved; weapon posture / held item saved and seeded; a Point map graphic (named, oriented); portable weapons placeable; which other start states get a row — design first | E2 |
 | **E16 colourful icons** | ui | [DESIGN_Colour_Icons.md](DESIGN_Colour_Icons.md): FontAwesome glyphs in the colour of their meaning everywhere an icon is a button, switch or mark; one key → (glyph, colour) map; colours approved per surface from a rendered strip (R-4139) | — |
+| **E17 UI conventions** | ui | [DESIGN_UI_Conventions.md](DESIGN_UI_Conventions.md): trees draw chevron · icon · label with ImGui's one arrow; forms are label-first in a grid; collapsing headers are slate with a coloured icon — three helpers in NodeEditor.Core (Q-C1) | E16 |
 | **E6 levels** | backend + ui | D4 | E1 |
 | **E8 map interaction** | ui | D11, D12, §3.12 — design first | E1 |
 | **E9 context menus** | ui | D13–D15, §3.13 — design first (the action catalogue is the core; it is also E1's tab / action `Requires` model) | E1 |

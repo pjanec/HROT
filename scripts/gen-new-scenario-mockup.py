@@ -11,13 +11,10 @@ s.field(X + 12, Y + 32, 340, "      search terrains and recipes", hint=True); s.
 LX = X + 12; ly = Y + 64
 def group(label, g, gc, open_=True):
     global ly
-    s.raw(f"<path d='M{LX} {ly + 6} l{'5 6 5 -6' if open_ else '6 5 -6 5'} z' fill='{C.TXT}'/>")
-    s.glyph(g, LX + 16, ly + 2, gc, 13); s.text(LX + 36, ly + 14, label, C.TXT, 13); ly += 24
+    ly += s.tree_row(LX, ly, 0, label, g, gc, open_, w=340) + 2          # the one tree row (UI conventions §2)
 def item(label, sub, g, gc, sel=False):
     global ly
-    if sel: s.rect(LX + 14, ly - 2, 330, 22, "#2C3A52", rx=2)
-    s.glyph(g, LX + 30, ly + 2, gc, 12); s.text(LX + 50, ly + 14, label, C.TXT, 13)
-    s.text(LX + 330, ly + 14, sub, C.DIS, 11.5, "end"); ly += 22
+    ly += s.tree_row(LX, ly, 1, label, g, gc, None, sel=sel, sub=sub, w=340)
 group("Blank, on a terrain", FA.MOUNTAIN, C.TEAL)
 for name, sub, sel in [("basic-desert", "2 recipes", False), ("berlin", "1 recipe", True), ("bt-range", "—", False), ("cqb-village", "—", False),
                        ("demo-city", "1 recipe", False), ("highway-rest", "—", False), ("indirect-fire-range", "—", False), ("test-town", "7 recipes", False)]:

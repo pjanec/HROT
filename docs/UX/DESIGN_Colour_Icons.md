@@ -7,6 +7,7 @@ stale-below: §⛔ HISTORY (the Silk version)
 known-rot: none
 known-conflict: none
 related-designs:
+  - DESIGN_UI_Conventions.md — the tree row and the collapsing header paint their coloured icon like §3.1's tabs; Q-C1 moves IconGlyph / IconPalette to NodeEditor.Core so the pickers can use them
   - DESIGN_Details_Forms.md — §6 the forms' marks are the first coloured glyphs; §6.6 the fidelity rule this slice follows too
   - DESIGN_Editing_UX.md — the programme; slice E16
   - ../DESIGN_Replay_Time_Axis_And_Review.md — §9a OWNS the mode indicator (R-3060 / R-3061: each mode its own glyph and colour) — the precedent this slice generalises
