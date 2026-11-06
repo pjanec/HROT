@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — step 1 (the INVENTORY, §1) written 2026-11-06; step 2 (prior art + the target UX, §2–§3) and step 3 (the gap map, §4) not written yet
-updated: 2026-11-06 (first version: the direction, and the inventory of what a user can edit today — coordinator)
-current-answer: §0 the direction (user rulings) · §1 the inventory (what exists, where it is edited, what is wrong with it)
+updated: 2026-11-06 (§0a the user's review of §1: raw editor = debugging tool, semantic types, undo in Edit mode only, dedicated forms, the expected basics — R-4120) · 2026-11-06 (first version: the direction, and the inventory of what a user can edit today — coordinator)
+current-answer: §0 the direction (user rulings) · §0a the user's review of §1 · §1 the inventory (what exists, where it is edited, what is wrong with it)
 stale-below: nothing
 known-rot: none
 known-conflict: AQ26's two-axis resolution lets a HOST supply the isApplicable rule; R-4119 narrows it — for an entity, the rule reads the entity's components (§0)
@@ -18,6 +18,7 @@ related-designs:
   - ../DESIGN_Rules_View_UI.md — OWNS the rules window and the rule editor
   - ../DESIGN_Director_Timeline_Editor.md — OWNS the shared timeline
   - ../DESIGN_Add_Entity_Picker.md — OWNS placing entities (the gallery)
+  - ../DESIGN_Semantic_Value_Types.md — OWNS the typed values (SV-1…SV-6) that give a field its editor and display by type
 -->
 
 # DESIGN — the editing UX: what a user edits, where, and in which mode
@@ -34,6 +35,25 @@ practical."*
 | **R-4118** | the **Details panel** is the one home for the detail of anything selected — its tabs, not standalone panels; the existing tabs are themselves in scope for practicality |
 | **R-4119** | editing is gated by the **entity's components**, never by the node: the editor and CGF (and any node with the UI) offer the same editing. Authority to APPLY is separate — the remote-edit path |
 | R-4117 | (context) scenario and entity pictures ship in git |
+
+### 0a. The user's review of §1 *(`2026-11-06`)*
+
+🔒 *"The raw component editors are more a debugging tool but still might need improvements (many times nested structures are not expanded,
+some stuff line inline arrays nor always shown correctly, entity and other types with custom formateer not always shown rendered with such).
+Also semantic types planned item not implemented, while it could greatly improve the editing experience. Regarding undo, this is not
+applicable in live mode (or preview), yet worth investigating how to implement it for edit mode (when ediring initial state before we run
+preview or live). The most common entity parameters should be likely editable in a dedicated forms on the details tab. It shouldn't be
+necessary to go into the raw components editors for those. Little stuff like message boxes, responding to escape, or having a cancel button,
+or edit boxes, supported copy and paste, and all these little stuff that are expected by default but not always honored should be taken
+into account as they have a great effect on the user experience."* — R-4120.
+
+| point | what it means for this design |
+|---|---|
+| **the raw component editor is a DEBUGGING tool** — but fix it | it stays (Components tab), it is not the user's editor; its own defects are in scope: nested structs not expanded, inline (fixed) arrays drawn wrong, types with a custom formatter (an entity reference, …) not drawn through it |
+| **semantic value types** ([DESIGN_Semantic_Value_Types.md](../DESIGN_Semantic_Value_Types.md), accepted 2026-11-01; SV-2/SV-3 built; **SV-1 `SimInstant`/`SimDuration` CE-4201, SV-4 `Angle` CE-4202, SV-5 `StationId` CE-4203, SV-6 `ExerciseId`/`EpisodeId` CE-4204 not built**) | a typed field gets its editor and display BY ITS TYPE in every editor at once (a time as a time, an angle in degrees, an id as a name with a picker) — the cheapest way to make both the forms and the raw editor readable |
+| **undo: Edit mode only** | ⛔ not in Live or Preview (a running world cannot be taken back — R-1047's reason); ⭐ investigate undo of the INITIAL STATE edits (place, move, rotate, delete, ORBAT, forms) before a run — R-1047 / CE-1462 deferred it, this is the question to answer in §4 |
+| **dedicated forms on Details tabs** for the most common entity parameters | side, name/callsign, type, health, ammunition, posture, deploy kits, spawn-area side/facing, weather … — never a trip to the raw fields for these |
+| **the expected basics** | a checklist every surface meets (§3): Esc closes / cancels, Enter confirms, a Cancel button on every dialog, confirmation for destructive actions, message boxes that say what happened, copy / paste in every edit box, consistent edit boxes (units, ranges, validation) — ⚠ small, but they decide the experience |
 
 The plan: **① inventory** (§1, this version) → **② prior art and the target UX** (§2–§3) → **③ gap map, decisions with leans, handoffs** (§4).
 Three modes throughout: **Edit** (offline), **Live** (an exercise running), **Review** (DAR during a run, AAR on a recording, the Replay Browser).
