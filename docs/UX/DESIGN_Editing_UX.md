@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: AQ26's two-axis resolution lets a HOST supply the isApplicable rule; R-4119 narrows it — for an entity, the rule reads the entity's components (§0)
 related-designs:
+  - DESIGN_Seats_And_Hats.md — design queue item 4 (E10 / D17 with D4): seats × hats
   - DESIGN_Rule_Editor_UX.md — design queue item 3b (E13): the rule editor UX review
   - DESIGN_Mission_Plan_Editor.md — design queue item 3 (E11 / D18): the mission plan editor
   - DESIGN_Edit_Framework.md — design queue item 2 (E0 / D10): one edit framework across stations
@@ -535,7 +536,7 @@ this chat"* — R-4123.
 | 2 | **E0 — one edit framework across nodes** (extending DESIGN_Remote_Edit_Outcome) — ✅ [DESIGN_Edit_Framework.md](DESIGN_Edit_Framework.md), Q1–Q6 approved as revised (R-4128) | every edit, Messages, and undo read it |
 | 3 | **E11 — the mission plan editor** — ✅ [DESIGN_Mission_Plan_Editor.md](DESIGN_Mission_Plan_Editor.md), approved with Q3 / Q4 revised (R-4129) | the user's "most used tool" |
 | 3b | ✅ [DESIGN_Rule_Editor_UX.md](DESIGN_Rule_Editor_UX.md), approved with Q3 revised (R-4130) — **E13 — the rule editor UX review** *(user, `2026-11-06`: "rule editor deserves UX review as well - especially if mission editing will be simple so any more advanced stuff ends up in rule editor.")* — inventory of the built rule editor (Rules View §7, RE-1…RE-10, CE-4218 / 4220 / 4222 / 4225) and the rules window, the target: condition templates over the predicate editor (D5 / §3.9), *New rule…* from a task (Mission Plan Editor Q3), rule detail in Details (R-4118), injects in Live | the mission plan editor sends every advanced case here |
-| 4 | **E10 — the hats** (RTS, FPS / possession, instructor, game master, editor, observer) with D4's editing levels | decides what one person at one station sees |
+| 4 | ✍ written 2026-11-06: [DESIGN_Seats_And_Hats.md](DESIGN_Seats_And_Hats.md), for review — **E10 — the hats** (RTS, FPS / possession, instructor, game master, editor, observer) with D4's editing levels | decides what one person at one station sees |
 | 5 | **D1 — undo in Edit mode** (unifying `EditHistory`, `GizmoUndoStack`, the director's stack) | needs E0 |
 | 6 | **E8 — map interaction** (conventions, picks, placement with level / airborne, gizmo looks) | needs E9 for the right-click menu |
 | 7 | **E2 forms · E5 condition templates · E7 review · E2b sim / types · E12 new scenario / new recipe workflow (D19)** | smaller, mostly independent |
