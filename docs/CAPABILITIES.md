@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
+updated: 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
 current-answer: the whole file — WHAT THE ENGINE CAN DO, by chapter, each with the ONE scenario that shows it best
 stale-below: none
 known-rot: the ✅/⚠ marks are a 2026-10-21 snapshot of the live checks; the owning design's demo table wins
@@ -11,6 +11,7 @@ related-designs:
   - DESIGN_Film_Production.md — OWNS the film process behind §1a's director bullets
   - DESIGN_Replay_Time_Axis_And_Review.md — OWNS the reviews (DAR, AAR) and the sim time axis behind §1a
   - blueprints/Architect_Question_108_Run_Mode_Picker.md — OWNS the run modes and the armed mode (§1a)
+  - UX/DESIGN_Editing_UX.md — OWNS the editing UX (inventory behind §14, the target design, the Details-tab review)
   - USAGES.md — OWNS what PEOPLE use the engine for and what it saves them (demo films, QA bug illustration, reviews, scenarios as tests …)
   - ../README.md — OWNS the engine architecture (ECS, cluster, replication, replay, tools)
 -->
@@ -268,3 +269,99 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
 | **built, no demo** | weather and night in perception · a thermal sensor (no unit type carries one) · our vehicles driven by SUMO · ownership transfer · a pilot ejecting from a plane that was shot down · decoy flares you can see · navmesh rebake after a change · the Stride host (Windows only) |
 | **not built** | structure damage (walls, collapse, bridges; only door breach exists) · temperament and stress breaks · knife attacks and closing fast · player fratricide · a toy-gun item (blocks `ua-armed-identify`) · team stretcher carry · a medic who stabilises · helicopter battle positions and pop-up attacks · radar SAMs · smoke · counter-battery fire · rappel · wind drift on rounds |
 | **known wrong** | see [OVERVIEW_Rules_And_Demos.md §11](OVERVIEW_Rules_And_Demos.md#11-not-built-open-or-known-wrong) and [PLAN_Feature_Films.md §4](PLAN_Feature_Films.md) |
+
+## 14. Authoring, live control and review — what a user can change, and when *(added `2026-11-06`)*
+
+One editing surface serves three modes: **Edit** (building a scenario offline), **Live** (an instructor steering a running exercise)
+and **Review** (a recording: replay, after-action review, a review during the run). It is not tied to one program: the editor and the
+AI station (CGF) show the same editing, and what is offered for a unit depends on what that unit has, not on which station shows it
+(rulings R-4118, R-4119). Selecting anything shows its detail in one **Details** panel, in tabs.
+
+- **Marks:** ✅ built and usable · 🟡 partial (raw fields, type-level only, or some modes) · ⚙ built, reachable only over HTTP / MCP or a
+  file · ⏳ not built. **Modes:** ● offered · ○ view only · – not offered.
+- **Where it goes next:** the target design for editing — [UX/DESIGN_Editing_UX.md](UX/DESIGN_Editing_UX.md) (step 1, the inventory
+  behind this chapter, is written; the target layout follows).
+
+### 14.1 Scenarios
+
+| what you can do | Edit | Live | Review | status |
+|---|:-:|:-:|:-:|---|
+| Start a new scenario from a recipe (the recipe fixes the terrain and the starting units), open, save, save as, save as recipe | ● | ● | – | ✅ File menu; in Live, Save takes a checkpoint |
+| Open with a preview: picture, description, terrain, unit count; *Open and go live* | ● | ● | ● | ✅ open picker |
+| Scenario parameters (name, type, default) and a **Run Setup** per run (variant, overrides) | ● | ● | – | ✅ |
+| Picture and description of a scenario | – | – | – | 🟡 shown, but written outside the editor (the thumbnail script, the file) |
+| Change the terrain of an existing scenario | – | – | – | ⏳ |
+| Scenario checks (*scenarios as tests*: what must happen, verified against a recorded golden) | ○ | – | – | ⚙ a file per scenario, run from the director's Verify tab or the command line |
+
+### 14.2 Units and force structure
+
+| what you can do | Edit | Live | Review | status |
+|---|:-:|:-:|:-:|---|
+| Place units from a thumbnail gallery by side (friendly, hostile, neutral) — click after click | ● | ● | – | ✅ |
+| Move by dragging, turn with the rotate tool, delete | ● | ● | – | ✅ — a change to a unit another station runs is sent to it |
+| Change a placed unit's type | – | – | – | ⏳ delete and place again |
+| Side, name, health, ammunition | ● | ● | ○ | 🟡 only through the raw component fields |
+| Copy, paste, duplicate; edit many selected units at once | – | – | – | ⏳ |
+| Order of battle: who commands whom (drag in the ORBAT tree); the structure and scenario views | ● | ● | ○ | ✅ |
+| New empty group or headquarters, rename an echelon | – | – | – | ⏳ groups come only from placing a composite type |
+| Passengers: embark and disembark | ● | ● | – | ✅ unit menu, ORBAT drop |
+| Crew and seat presets, weapon loadout | ○ | – | – | 🟡 set by the unit's type, not per scenario |
+| Starting posture (e.g. prone) | – | – | – | ⏳ not saved |
+| Heal, damage, resupply, repair a unit | – | – | – | ⏳ the menu items are reserved, no handler |
+| Symbol style per unit | – | – | – | ⏳ designed |
+| **Compositions (macros):** save a selection, insert by reference with arguments and a preview, bind fields to parameters | ● | ● | – | ✅ |
+
+### 14.3 AI behaviour, missions and orders
+
+| what you can do | Edit | Live | Review | status |
+|---|:-:|:-:|:-:|---|
+| Give a unit its task, standing procedure (SOP) and rules of engagement, with the behaviour's parameters | ● | ● | ○ | ✅ Details ▸ Brain |
+| Character: risk, obedience, nerve, resolve, combat skill | ● | ● | ○ | ✅ Details ▸ Brain ▸ Settings |
+| AI skill per side (−2 … +2) | – | ● | – | 🟡 Live only (Game master) or by a rule |
+| See why a unit does what it does: doing, why, knows, squad, orders and reports | ○ | ○ | ○ | ✅ Details ▸ Brain |
+| Mission plan: a list of tasks, each with its behaviour, parameters and a trigger | ● | ● | ○ | 🟡 trigger typed as text; no phases or phase lines |
+| Orders from the map: move, engage, stop, a form with options; designate targets and areas; RTS command mode | – | ● | – | ✅ |
+| Squad drills and formations | – | ● | – | 🟡 squad march only; joining a formation is broken |
+| Take direct control of a unit (first person, over the shoulder) | – | ● | – | ✅ |
+| Draw routes (per-waypoint kind, height, hold), areas, zones | ● | ● | – | ✅ |
+| Behaviour graphs (behaviour trees, state machines, blueprint scripts) with hot reload into running units | ● | ● | ○ | ✅ |
+| Utility weights and curves, environment queries (EQS) | ○ | ○ | ○ | ⏳ viewable, written in code |
+| Debug: breakpoints, pause and step, watch and edit variables | ● | ● | ○ | ✅ |
+
+### 14.4 World and environment
+
+| what you can do | Edit | Live | Review | status |
+|---|:-:|:-:|:-:|---|
+| Scenario start time and time zone offset | ● | ● | ○ | ✅ Details ▸ Scenario (click empty map) |
+| Global weather; regional weather drawn as an area | ● | ● | ○ | 🟡 raw fields |
+| Terrain zones, obstacles (car, sandbag wall, concrete block, crate), door states | ● | – | – | ✅ / 🟡 doors raw |
+| Buildings and interiors | – | – | – | ⚙ terrain files |
+| Traffic and pedestrians (density, seed, panic) | – | – | – | ⚙ scenario file only |
+| Civilians, protesters and police (placed, given orders and attitude) | ● | ● | – | 🟡 no crowd-level settings |
+| Gameplay for players: playable units, deploy roles and kits, spawn areas, respawn delay | ● | – | – | 🟡 kits and spawn facing in raw fields |
+| Sides and their relations | – | – | – | ⏳ three fixed sides |
+| Minefields, air defence sites, fire lines, freehand drawings, sound cues | – | – | – | ⏳ |
+
+### 14.5 Rules, injects and running the exercise
+
+| what you can do | Edit | Live | Review | status |
+|---|:-:|:-:|:-:|---|
+| Triggers: *when* (with hold, delay, cooldown, repeat) → *do* (orders, missions, messages, objectives, end exercise, insert a composition, AI skill, reporting) | ● | 🟡 | ○ | ✅ Rules window |
+| Objectives and measures (take, hold, minimum men, deadline) and the exercise result | ● | ● | ○ | ✅ |
+| Injects: fire a trigger now, disarm, re-arm, run any action by hand (Game master) | – | ● | – | ✅ |
+| Rule actions on the world (weather, time of day, traffic, sound) | – | – | – | ⏳ |
+| Run modes: Preview, Live, review during the run, after-action review — chosen in one indicator | ● | ● | ● | ✅ |
+| Play, pause, step, time scale, stop | ● | ● | ● | ✅ |
+| Checkpoint; go live from any moment of a recording (a branch) | – | ● | ● | ✅ |
+| Players join, pick a side and a unit, deploy | – | ● | – | ✅ (full join → leave → rejoin cycle under test) |
+| See whether a change sent to another station was applied or refused | – | 🟡 | – | 🟡 rules only |
+| Undo | 🟡 | 🟡 | – | 🟡 parameters, rules, the AI section, graphs — not unit edits |
+
+### 14.6 Review and filming
+
+| what you can do | Edit | Live | Review | status |
+|---|:-:|:-:|:-:|---|
+| Timeline: seek, play from here, previous / next event, loop a range; click an event to see it in Details | – | ● | ● | ✅ |
+| Replay Browser: step, scrub, search by condition, compare components, combine several stations' recordings, export | – | – | ● | ✅ separate windows |
+| Bookmarks, notes and annotations on a recording | – | – | – | ⏳ designed (bookmarks) |
+| Film director: takes, shots, anchors on events, reels across recordings, render queue, stills | ● | ● | ● | ✅ |
