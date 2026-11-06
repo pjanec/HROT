@@ -239,7 +239,7 @@ lands in ONE Details panel; the mode is a single control at the top; results of 
 | **map** | select, drag, right-click = the actions of what is under the cursor | ✅ |
 | **Details** | the tabs of the selection (§3.3) | 🟡 exists, tabs to be reworked |
 | **timeline** | events, bookmarks, notes, the director's tracks when in use | ✅ timeline; ⏳ bookmarks, notes |
-| **messages** | one list of what happened to my edits (✓ applied · ✗ refused, why · ⏳ pending) and other notices | ⏳ (only the rules window shows outcomes) |
+| **messages** | ⚠ revised (R-4127): failures come as sticky non-modal NOTIFICATIONS at the window's edge; the Messages list is only the browsable history | ⏳ (only the rules window shows outcomes) |
 
 ⭐ The same layout on **every station with the UI** — the editor, CGF, the Replay Browser (R-4119); a station that cannot do something
 greys it with the reason, it does not lack the panel.
@@ -481,7 +481,7 @@ catalogue answers what to offer. ⛔ An item with no handler on this station is 
 | **D5** | condition templates | **data** — a small catalogue (~10 to start: inside area, strength below %, time passed, objective state, unit dead, detected by, …), each compiling to `SearchPredicateDto` (R-4077) | templates in C# per rule kind — a second condition model |
 | **D6** | picker applicability | `PickerEntry` gains an optional applicability test against the request's selection; hidden by default with "show all (n)" | filter in each caller — N copies |
 | **D7** | expert detail | a shared "Details for experts" expander + a per-panel Expert switch saved in the user settings | a global expert mode — the user asked per panel |
-| **D8** | Messages | one notice list fed by `EditOutcomeLog` and local results, and a field-level ✓ / ✗ / ⏳ | toasts only — they vanish before they are read |
+| **D8** | Messages | ⚠ **revised `2026-11-06` (R-4127)**: the user does not watch a Messages panel — a refusal / loss / conflict is a **sticky non-modal notification** (stays until dismissed, with *Show*), a ⏳ / ✗ mark on the field through a generic hook; success is silent; the Messages panel stays as the browsable history (a debugging aid). Detail: [DESIGN_Edit_Framework.md](DESIGN_Edit_Framework.md) §2.5 | toasts that fade — unread · a modal per refusal — blocks work · a Messages panel as the signal — nobody looks |
 | **D9** | the order | foundation first (D2, D8, the basics sweep), then forms (D3) with semantic types in parallel, then Orders + pickers (D6), then undo (D1), templates (D5), levels (D4) | forms first — they would be built per host and redone |
 
 ### 4.3b Decisions for §1.5 / §1.6 *(map interaction, context menus — leans for approval)*

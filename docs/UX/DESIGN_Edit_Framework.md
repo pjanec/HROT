@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level, for the user's review (R-4122); the building lanes detail it (R-4123)
-updated: 2026-11-06 (§2.5 outcome on forms through the shared field row; Q3 narrowed) · 2026-11-06 (Q1 and Q2 revised: orders answer acceptance only; interactions send the generic outcome with a request id) · 2026-11-06 (§2.4 the old acknowledgement merged into EntityEditOutcome — R-4126) · 2026-11-06 (first version — coordinator; editing-UX design queue item 2: E0 / D10)
+updated: 2026-11-06 (§2.5 revised: refusals as sticky non-modal notifications, not the Messages panel; a generic field-mark hook, StructEdit stays network-free — R-4127) · 2026-11-06 (§2.5 outcome on forms through the shared field row; Q3 narrowed) · 2026-11-06 (Q1 and Q2 revised: orders answer acceptance only; interactions send the generic outcome with a request id) · 2026-11-06 (§2.4 the old acknowledgement merged into EntityEditOutcome — R-4126) · 2026-11-06 (first version — coordinator; editing-UX design queue item 2: E0 / D10)
 current-answer: §2 the model (diagrams) · §3 each kind of edit, today → in the framework · §4 stages · §5 questions with leans
 stale-below: nothing
 known-rot: none
@@ -164,15 +164,31 @@ graph TD
 ⇒ ⭐ this is part of stage **F2** (backend): create and delete answer with `EntityEditOutcome`; the old topic is removed in the same stage, after its two
 writers and one reader moved (a rail: no `CreateUpdateDeleteEntityAck` symbol left).
 
-### 2.5 How an outcome shows on a form — without touching each field *(user, `2026-11-06`: "the message on form may affect practically ANY edit control. how will we make it possible without changing many fields on many forms?")*
+### 2.5 How an outcome reaches the user — where their attention is *(revised `2026-11-06`)*
+
+🔒 User: *"no one actually looks at messages (i mean the existing message panel) in normal work flow, without popup they are mostly a
+debugging feature."* · *"structedit might be used for many stuff but definitely not everywhere (and it should stay generic so no network
+hack there, generic API for adding a flag par filed is ok)"* — R-4127.
+
+| outcome | what the user sees |
+|---|---|
+| **Applied** | nothing extra — the value is simply there (silence is success) |
+| **Pending** longer than ~1 s | a small ⏳ beside the field that was edited (or on the map item); it clears when the answer comes |
+| **Refused / Lost** | ⭐ a **non-modal notification** at the edge of the window that STAYS until dismissed (stacking, newest on top): *"Delete refused — Alpha 1-1 is a player's unit"* with **Show** (selects the unit / opens the field) · plus ✗ on the field with the reason as a tooltip |
+| **Conflict** (precondition edits only — today the mission plan commit) | the same notification with **Reload** · **Overwrite**, and the committing form's header bar |
+| the history | the journal stays browsable (the Messages panel) — ⚠ a debugging / review aid, NOT the signal |
+
+⭐ Why not a modal pop-up: it blocks work and fires for every refusal in a live exercise; ⭐ why not a toast that fades: it vanishes before it
+is read. A sticky, non-modal notification is the established middle (VS Code, Unreal Editor notifications).
+
+**The field mark — a generic hook, no network concept in the generic editors:**
 
 | | rule |
 |---|---|
-| **Conflict is rare by construction** | an ordinary field edit is an attribute write — **last write wins**, there is nothing to reload or overwrite. Only an edit that carries a PRECONDITION ("I change version N") can conflict: today only the mission plan commit (`MissionPlanQueue.Version`). ⇒ Reload / Overwrite is **one bar per committing form** (the Orders tab's header), never a per-field control |
-| **the field mark lives in the ONE shared field-drawing path** | forms draw their fields through shared per-type editors — StructEdit's field editors (params DTOs, `BehaviorParamsForm`), `ComponentEditDrawer` (components), the fixed-string / reference leaf drawers. ⭐ The shared row looks up the journal by **(entity, attribute or field path)** and draws a small mark after the control: ⏳ pending · ✗ refused (tooltip = the reason) · nothing once applied. One change in the shared row ⇒ every form that uses it. ⚠ To confirm in E2's design: StructEdit's per-field loop is the single chokepoint (`search_graph`: 33 field editor / drawer classes, `ComponentEditDrawer`, `StructEdit.Reflection.Editors.*`) |
-| **a form that draws by hand** (raw ImGui) | gets no mark until it moves onto the shared rows — which the forms direction requires anyway (R-4120: dedicated forms built from the shared editors) |
-| **Messages is the always-present place** | every outcome is listed there (D8); the field mark is a convenience, never the only signal |
-| **the journal entry carries the field path** | `EditOp.Payload` already names the attribute (`EntityAttributeChange.AttributeId`) or the JSON path — the journal keeps it, so the lookup needs nothing from the form |
+| ⭐ **a generic per-field decoration API** in the shared editors | StructEdit, `ComponentEditDrawer` and the shared leaf drawers each accept an optional **`Func<FieldPath, FieldMark?>`** (`FieldMark` = none · busy · error + a tooltip) and draw the mark after the control. ⛔ They know nothing of edits, nodes or the network — a host supplies the function |
+| the host's function | Hrot implements it from the journal: (the form's entity, the field path) → the latest entry's status |
+| a form not drawn by these editors | calls **one shared helper after the control** (`FieldMarks.Draw(entity, path)`) — one line per field. ⭐ The new dedicated forms (Editing UX E2) are built from a shared form-row helper that does it once for all of them |
+| StructEdit stays generic | ⭐ R-4127 — it is used for much more than entity forms; only the generic decoration hook is added |
 
 ## 3. Each kind of edit — today → in the framework
 
@@ -208,7 +224,7 @@ writers and one reader moved (a rail: no `CreateUpdateDeleteEntityAck` symbol le
 |---|---|---|---|
 | **Q1** | are orders "edits" in this framework? | **yes, as kind `Command`, answering ACCEPTANCE only** (revised `2026-11-06`): the brain's owner says accepted / refused + why; execution and completion are NOT tracked here (they are the Brain tab's *Doing* / *Orders*) | tracking "is executing / finished" — orders come from many sides, the last accepted one replaces the running behaviour, and a unit may change its mind: not a state the framework can own |
 | **Q2** | interactions (embark, possess): how they answer | **revised `2026-11-06`: the generic `EntityEditOutcome`** — a `RequestId` appended to the payloads, the owner reports where it accepts / refuses today; small effort (one field per payload, one report call per site), no new topic | watching the target's state with a time-out — slower, no reason; a per-interaction reply topic — ruled out (`DESIGN_Entity_Interactions.md:136`) |
-| **Q3** | conflict UX | **Conflict** only for edits with a precondition (today: the mission plan commit) — *Reload* / *Overwrite* in Messages and in that form's header bar, no modal; every other field gets only the shared ⏳ / ✗ mark (§2.5) | keep "Force Commit (Overwrite)" — engine vocabulary, a modal · a conflict control on every field — no other edit can conflict |
+| **Q3** | conflict UX | **Conflict** only for edits with a precondition (today: the mission plan commit) — *Reload* / *Overwrite* in a sticky non-modal notification and in that form's header bar; every other field gets only the ⏳ / ✗ mark through the generic hook (§2.5) | keep "Force Commit (Overwrite)" — engine vocabulary, a modal · a conflict control on every field — no other edit can conflict |
 | **Q4** | scenario parameters | **outside** — a document edit with its own undo (already on `EditHistory`) | wrapping a document edit as an entity edit |
 | **Q5** | the journal | **per station, UI state, not recorded, not on the wire**; it holds the before-state only in Edit mode (for undo) | recording the journal — the recording already holds the world |
 | **Q6** | where `Edits` lives | **Fdp.Toolkits, beside `EditRequests`** (one home for the framework) — backend owns it | Hrot.Presentation — the HTTP API and rules need it too |
