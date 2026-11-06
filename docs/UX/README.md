@@ -26,6 +26,10 @@
 | 10 | [MCP_PORT_PLAN.md](MCP_PORT_PLAN.md) | Description of the stranded **AI Debug API + MCP server** on `feat/ai-debug-api` and how to port it. Infrastructure, not UX — but it is a headless harness for the golden path and evidence for the shell's seams. |
 | 11 | [handoffs/](handoffs/) | One doc per implementation session. Template: [HANDOFF_TEMPLATE.md](handoffs/HANDOFF_TEMPLATE.md). |
 
+## ⭐ Standing direction — the editing UX review *(user, `2026-11-06`)*
+
+🔒 *"the UI is now using the details panel and its tabs to provide a detail of anything what can be selected in the editor, and I would like to keep that. I do not want many special standalone panels for editing details if  something If it can go to the detail panel."* · *"There is also many existing stuff in this detail panel tabs, which were created during the feature development without much emphasis to the UX and to make it actually practical. So this is another place for improvement."* — R-4118. ⭐ Planned: an editable-capabilities inventory (CAPABILITIES.md), a target editing-UX design (prior art first), then a gap map — offline edit, live exercise and replay review sharing one surface; ⏸ not started (user: *"do not start yet"*).
+
 ## Two audiences
 
 | | Path A — Authoring | Path B — Runtime intervention |
