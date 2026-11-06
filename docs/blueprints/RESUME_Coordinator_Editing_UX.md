@@ -38,7 +38,7 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
    `designs/gizmos-1/canvas-context-menu-design.md`, `DESIGN_Details_Panel_View_Switching.md` — extend them, ⛔ never a sixth menu mechanism.
 3. ✍ **Design 2 WRITTEN `2026-11-06`: [DESIGN_Edit_Framework.md](../UX/DESIGN_Edit_Framework.md)** (E0) — ✅ Q1–Q6 APPROVED as revised (R-4128); stages F1–F7; five defects filed on the way (CE-4274…4278); ✅ the old ack merged into EntityEditOutcome (R-4126, §2.4).
 4. ✍ **Design 3 WRITTEN `2026-11-06`: [DESIGN_Mission_Plan_Editor.md](../UX/DESIGN_Mission_Plan_Editor.md)** (E11) — ✅ approved, Q3 (expert conditions, rule editor one click away) and Q4 (phases on events) revised (R-4129).
-5. ▶ NOW: E10 (hats), D1 (undo — reads the edit framework's journal), E8 (map), then the smaller ones (queue §4.5).
+5. ▶ NOW: **E13 — the rule editor UX review** (queue 3b; user: the advanced cases of the simple mission editor end up there). Then E10 (hats), D1 (undo — reads the edit framework's journal), E8 (map), then the smaller ones (queue §4.5).
 4. Before each design: INVENTORY with graph queries, UML (class + sequence + module), and a claim table in the chat.
 
 ## 3. The other lanes at writing *(fetched `2026-11-06`)*
