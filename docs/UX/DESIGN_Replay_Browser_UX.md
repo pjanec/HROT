@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — Q-B1 (no ticks), Q-B2, Q-B5 decided (R-4155); Q-B3, Q-B4, Q-B6 open; the user: "we might need to return to the design later"
+build-state: DESIGN — Q-B1 (no ticks), Q-B2, Q-B5 decided (R-4155), Q-B4 (R-4156); Q-B3, Q-B6 open; the user: "we might need to return to the design later"
 updated: 2026-11-06 (the user's answers: no ticks on the seek bar, the Replay Timeline window retired, the main bars stay per host; the browser's data breakpoints use the shared condition editor; the seek-diff window is label-first — R-4155) · 2026-11-06 (first version — the user: "take a look at all replay browsers forms and panels … I didn't understand the replay timeline panel at all … the big long slider … in the main menu bar … should be there, serving for seeking")
 current-answer: §1 what is there (measured on a real recording) · §2 the redesign · §3 questions
 stale-below: nothing
@@ -57,7 +57,7 @@ time and screen-captured (frames sent in chat, not git). Window set: `ReplayBrow
 | **② the Replay Timeline window retired — its parts routed, nothing lost** | the slider → ①; frame / wall / sim time → ①'s tooltip; the empty meta row → the Frame Diff (it is per-frame debug); the file path → *File ▸ Recording info* (a dialog: files per node, length, exercise id). ⭐ *"no rush removals"*: every piece has a new home |
 | **③ a default Replay layout** | map centre, **Details docked right**, **Event Timeline docked below at full width**; everything else closed. A first open never shows a 90 × 50 px window |
 | **④ debug windows grouped** | Entity Inspector, Wire Entity Inspector, Event Browser, Frame Diff, Federation, Replay Search under *View ▸ Windows ▸ Debug* |
-| **⑤ no live-only actions on a recording** | *End exercise* is not drawn when the host is a recording (Q-B4); Mission summary shows *"at 0:39 of 1:06"* |
+| **⑤ no live-only actions on a recording** | *End exercise* is not drawn when the host is a recording (Q-B4 ✅ R-4156); Mission summary shows *"at 0:39 of 1:06"* |
 | **⑦ the browser's data breakpoints** | their condition is edited with the ONE condition editor (Condition editor §8 / C5) — the same one as rules, missions and the replay search (user, R-4155) |
 | **⑧ the seek-diff window** (*Frame Diff Viewer*: what changed between two frames) | label-first like every form (E17 §3, user, R-4155) |
 | **⑥ the shared conventions** | E17 (trees, label-first, slate headers), the read-only forms (R-4148, R-4150), ⌖ show on map (`DESIGN_Show_On_Map.md`) |
@@ -101,6 +101,6 @@ sequenceDiagram
 | **Q-B1** ✏ R-4155 | the seek bar's ticks | ✏ **none** — *"No ticks on a seekbar, they are in timeline, This is enough."* (user) | ~~the events as ticks~~ (my lean) |
 | **Q-B2** ✅ R-4155 | the Replay Timeline window | **retire it, route its parts** (§2 ②) | keep it beside the seek bar: two seek controls for one playhead |
 | **Q-B3** | the default windows | **map + Details + Event Timeline**; the rest closed, debug ones grouped | today's seven stacked |
-| **Q-B4** | *End exercise* on a recording | **not drawn** — it is not unavailable now, it does not exist here (unlike a seat's missing right, R-4132) | greyed (today): a control nothing can ever enable |
+| **Q-B4** ✅ R-4156 | *End exercise* on a recording | **not drawn** — it is not unavailable now, it does not exist here (unlike a seat's missing right, R-4132) | greyed (today): a control nothing can ever enable |
 | **Q-B5** ✅ R-4155 | the editor's / CGF's main bar | **unchanged** in this design; a seek bar there belongs to the review (time axis §9a/§9b, a live run seeks only by entering a review) | the same bar everywhere now: a live run has no "end" to scrub to |
 | **Q-B6** | the Federation window's per-node offsets | **keep, as a debug window**; rows named by node role (*CGF · SimHost*) not number | remove: it repairs clock skew between node files |

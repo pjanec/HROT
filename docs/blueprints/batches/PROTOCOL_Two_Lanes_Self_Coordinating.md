@@ -17,6 +17,13 @@ lanes as they go, without any external coordination"* · *"it can continue throu
 **The lanes:** `ui` (branch `ui`) and `backend` (branch `backend`). Each has its own handoff with an ordered item list. Nobody is watching:
 ⛔ **never stop to ask the user; never wait idle.**
 
+> ⛔⛔ **ANYTHING THAT TURNS OUT TO NEED THE USER'S DECISION IS SKIPPED — it never blocks the run** *(user, `2026-11-06`, R-4156)*.
+> 🔒 *"if something turns out to require users decision it should be skipped to avoid blocking the autonomous overnight run"*.
+> ⭐ The moment an item (or one part of it) needs a choice no design or ruling makes — a look not in a mockup, a behaviour two designs
+> disagree on, a premise that measured false — **write a QUESTION note to Coordinator with your lean, mark the item SKIPPED — needs user in
+> your status file, and go on with the next item.** ⭐ If only a PART needs the decision, build the rest and skip that part. ⛔ Never guess the
+> answer into code; ⛔ never wait for a reply.
+
 ## 1. The loop — after EVERY item
 
 ```
@@ -52,6 +59,7 @@ take the other lane's REQUESTs, or the "always available" tail of your handoff (
 | U-2 | IN PROGRESS | — | |
 | U-5 | SKIPPED — blocked | — | needs backend B-1 |
 | U-9 | STOPPED (R-106) | — | premise failed: <one line>, NOTE to coordinator |
+| U-12 | SKIPPED — needs user | — | QUESTION note `NOTE_Ui_To_Coordinator_<topic>.md`: <one line> |
 ```
 
 ## 4. Notes between lanes
@@ -64,7 +72,7 @@ it is pushed (a reply is a new note):
 | **REQUEST** | `REQUEST — <what you need>, for <your item>; I continue with <next item> meanwhile` | you need something in the other lane's files |
 | **DONE** | `DONE — <what is now available>, at <sha>` | only when the status row is not enough (an API to call, a changed contract) |
 | **ANSWER** | `ANSWER to <note> — <what you did>, at <sha>` | after acting on a REQUEST |
-| **QUESTION** (to Coordinator only) | `QUESTION — <the decision>, lean <X>; item <N> skipped` | a real design decision appeared — ⛔ never decided by you; skip the item |
+| **QUESTION** (to Coordinator only) | `QUESTION — <the decision>, lean <X>; item <N> skipped (or: part <P> skipped, rest built)` | a decision only the user can make appeared (R-4156) — ⛔ never decided by you; skip it and continue |
 
 ⛔ **A lane never edits the other lane's files to unblock itself**; it writes a REQUEST. ⭐ Exception: a merge conflict (resolve keeping both).
 
