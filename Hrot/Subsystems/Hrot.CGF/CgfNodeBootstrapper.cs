@@ -235,44 +235,29 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
         PhysicsModule = new PhysicsToolkitModule();
         PhysicsModule.Initialize(context.World);
 
-        // ⭐⭐⭐ CE-140 step 3, host (d) — CGF's entity-creation tier, BUILT AS A UNIT by the shared pack. CGF is the cluster's broadcast arbiter
-        //   (`IsBroadcastArbiter: true` — exactly one node may set it); it is NOT an authority gate, it only decides who intercepts Owner == 0 broadcasts.
-        var creation = EntityCreationPack.Build(new EntityCreationContext
-        {
-            World       = context.World,
-            EntityMap   = context.EntityMap,
-            TkbDb       = context.TkbDb!,
-            IdAllocator = context.IdAllocator!,
-            Elm         = (EntityLifecycleModule)context.BaseModules.First(m => m is EntityLifecycleModule),
-            NodeId      = context.NodeId,
-            // ⭐⭐ S2b — the SAME network adapters every ECS host passes (request source, ack sink, JSON compiler, ownership strategy, forwarding egress).
-            NetworkAdapters = ConfiguredNetworkFactory?.CreateCgfEntityLifecycleAdapters(),
-            // ⭐⭐⭐ CE-291 (piece C) — the reliable-init wait-set provider, sourced from the shared NED replication module.
-            ExpectedPeers = context.NedReplication?.ExpectedPeers,
-            // ⭐ CE-138's list: the ONE base set plus AiDiagnostics (it lives above Hrot.Core). ⛔ Never subtract to narrow — gate ② narrows per component.
-            ExtraTranslators = new ITkbEntityTranslator[]
+        // ⭐ CE-4270 B5 (§4.1ag) — the ONE shared spawning step: the pack, then the capabilities, then the genesis tail. CGF is the cluster's
+        //   broadcast arbiter (exactly one node; it only decides who intercepts Owner == 0 broadcasts — not an authority gate); the ONE base
+        //   translator set plus AI diagnostics and the stance/animation pair (CE-138, CE-2121; never subtract to narrow); the Brain loads
+        //   scenarios, so it expands the macro instances it creates (Macros S3a ④, §15 E-4).
+        EntityCreation = Hrot.EcsNode.Hosting.HostSpawning.Register(context, ConfiguredNetworkFactory,
+            new Hrot.EcsNode.Hosting.SpawningSpec
             {
-                new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),
-                // ⭐ CE-2121 — stance (and the animation runtime pair) from the TKB's CharacterAnimationDefDto.
-                new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
+                IsBroadcastArbiter = true,
+                ExtraTranslators   = new ITkbEntityTranslator[]
+                {
+                    new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),
+                    new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
+                },
+                Macros = new Hrot.Common.Macros.MacroExpander(
+                    Fdp.Toolkit.Scenario.FileMacroLibrary.ForNode(_isolatedTempRoot),
+                    new Hrot.CGF.Orchestration.StagingEntityExtractor(reuseStagingWorld: true),
+                    ScenarioSerializer,
+                    Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(BehaviorRegistry)),
+                Order = Hrot.EcsNode.Hosting.SpawningOrder.PackThenCapabilities,
             },
-            IsBroadcastArbiter = true,
-            // ⭐ Macros S3a ④ — the Brain loads scenarios, so it expands the macro instances it creates (§15 E-4: a host holding the extractor passes it).
-            Macros = new Hrot.Common.Macros.MacroExpander(
-                Fdp.Toolkit.Scenario.FileMacroLibrary.ForNode(_isolatedTempRoot),
-                new Hrot.CGF.Orchestration.StagingEntityExtractor(reuseStagingWorld: true),   // its own instance: no BP-509 remap broadcast for a macro's file keys · ⭐ CE-2396 one staging world, emptied per expansion
-                ScenarioSerializer,
-                Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(BehaviorRegistry)),
-        });
-        EntityCreation = creation;   // CE-515
+            () => RegisterCapabilities(context));
 
-        // ⭐ CE-4013 D6 — every piece of the pack scheduled by the ONE shared registration, unconditionally, online and offline (Q65 §0).
-        creation.RegisterOn(context.Kernel);
-
-        // ⭐ CE-4013 — the capabilities' Register hook, which CGF never asked before (none in its plan implements it today).
-        RegisterCapabilities(context);
-
-        Hrot.SimHost.Systems.GenesisTail.RegisterOn(context.Kernel, context.EntityMap);   // ⭐ CE-4013 D11 — the shared genesis tail
+        // The Brain's blueprint genesis, after the shared tail (as before).
         Hrot.SimHost.Systems.BlueprintGenesisRuntimeRegistration.RegisterBlueprintGenesisSystems(context.Kernel, BlueprintRegistry);
     }
 
