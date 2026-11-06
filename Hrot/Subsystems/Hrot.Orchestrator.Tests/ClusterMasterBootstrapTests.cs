@@ -426,7 +426,7 @@ public sealed class ClusterMasterBootstrapTests
             NodeId        = (Fdp.Core.NodeId)(1),
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
-            SubsystemName = "IG",
+            SubsystemName = "Player",
         });
         bus.SwapBuffers();
         master.Tick();
@@ -460,7 +460,7 @@ public sealed class ClusterMasterBootstrapTests
     {
         var master = new ClusterMaster(bus, new ClusterConfiguration { HeartbeatTimeoutSeconds = 600f, MandatoryRoles = NodeRole.None });
         Beat(bus, 1, "SimHost");
-        Beat(bus, 100, "IG");
+        Beat(bus, 100, "Player");
         Step(bus, master);
         var request = Guid.NewGuid();
         bus.PublishManaged(new TakeCheckpointIntent { RequestId = request });
@@ -521,7 +521,7 @@ public sealed class ClusterMasterBootstrapTests
         var bus = new FdpEventBus();
         using var master = new ClusterMaster(bus, new ClusterConfiguration { HeartbeatTimeoutSeconds = 600f, MandatoryRoles = NodeRole.None });
         Beat(bus, 1, "SimHost");
-        Beat(bus, 100, "IG");
+        Beat(bus, 100, "Player");
         Step(bus, master);
 
         var request = Guid.NewGuid();
@@ -1547,10 +1547,10 @@ public sealed class ClusterMasterBootstrapTests
             bus.PublishManaged(new NodeHeartbeatEvent { NodeId = (Fdp.Core.NodeId)(id), SubsystemName = sub, NodeName = name, WallTicksUtc = DateTimeOffset.UtcNow.Ticks });
             Step(bus, master);
         }
-        Beat(100, "IG", "film-cam");
+        Beat(100, "Player", "film-cam");
         Beat(1, "SimHost", null);                  // an older sender: the default
-        Beat(100, "IG", "film-cam");               // the holder again: fine
-        Beat(101, "IG", "film-cam");               // a different node, the same name
+        Beat(100, "Player", "film-cam");               // the holder again: fine
+        Beat(101, "Player", "film-cam");               // a different node, the same name
 
         var rows = master.DescribeRoster();
         var members = rows.Where(r => r.NameConflict == null).ToDictionary(r => r.NodeId, r => r.Name);

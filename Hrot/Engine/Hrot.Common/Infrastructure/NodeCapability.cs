@@ -66,7 +66,7 @@ public static class CapabilityKeys
     /// EQS result ingestion — <c>CE-221</c>, the sibling of <see cref="UnitHierarchy"/>.
     ///
     /// <para>⚠ Kept a SEPARATE capability rather than folded into <see cref="UnitHierarchy"/> for one
-    /// measured reason: <c>Hrot.IG</c> references only <c>Hrot.Common</c>, not <c>Hrot.SimHost</c> where
+    /// measured reason: <c>Hrot.Player</c> references only <c>Hrot.Common</c>, not <c>Hrot.SimHost</c> where
     /// <c>EqsResultUpdateSystem</c> lives, and IG never carried that system. Two capabilities keep every
     /// host's system set EXACTLY as it was, which is what makes this change purely structural.</para>
     ///

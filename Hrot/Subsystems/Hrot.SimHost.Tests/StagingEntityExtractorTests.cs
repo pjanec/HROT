@@ -15,7 +15,7 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Scenario;
 using Hrot.CGF.Orchestration;
 using Hrot.Common.Serializers;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 
 namespace Hrot.SimHost.Tests
 {

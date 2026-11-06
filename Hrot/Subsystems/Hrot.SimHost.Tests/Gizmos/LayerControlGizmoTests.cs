@@ -40,10 +40,10 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.True(mask.IsSet(DebugTraceLayers.Selection));
 
             using var w = new EntityRepository();
-            w.RegisterComponent<Hrot.IG.Components.SelectionState>();
+            w.RegisterComponent<Hrot.Map.Common.Components.SelectionState>();
             w.RegisterComponent<SimTransform>();
             var e = w.CreateEntity();
-            w.AddComponent(e, new Hrot.IG.Components.SelectionState { IsSelected = true, IsPrimarySelection = true });
+            w.AddComponent(e, new Hrot.Map.Common.Components.SelectionState { IsSelected = true, IsPrimarySelection = true });
             w.AddComponent(e, new SimTransform { Position = new System.Numerics.Vector3(10f, 20f, 0f) });
             var buffer = new DebugPrimitiveBuffer();
             buffer.SetActiveLayers(mask);

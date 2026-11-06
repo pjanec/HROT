@@ -55,25 +55,25 @@ namespace Hrot.Core.Network
     }
 
     /// <summary>No-op implementation used in offline / headless / editor mode.</summary>
-    public sealed class NullIgNetworkAdapter : IIgNetworkAdapter
+    public sealed class NullPlayerNetworkAdapter : IIgNetworkAdapter
     {
         /// <summary>Shared singleton instance.</summary>
-        public static readonly NullIgNetworkAdapter Instance = new();
+        public static readonly NullPlayerNetworkAdapter Instance = new();
 
-        private NullIgNetworkAdapter() { }
+        private NullPlayerNetworkAdapter() { }
 
-        public ICommandGateway CommandGateway => NullIgCommandGateway.Instance;
+        public ICommandGateway CommandGateway => NullPlayerCommandGateway.Instance;
         public IDdsWriter<GizmoMap.Network.GizmoInteractionBatch>? GizmoInteractionWriter => null;
         public IDdsReader<GizmoMap.Network.DebugPrimitivesBatch>? DebugPrimitivesReader => null;
         public void Dispose() { }
     }
 
-    /// <summary>No-op command gateway used by <see cref="NullIgNetworkAdapter"/>.</summary>
-    internal sealed class NullIgCommandGateway : ICommandGateway
+    /// <summary>No-op command gateway used by <see cref="NullPlayerNetworkAdapter"/>.</summary>
+    internal sealed class NullPlayerCommandGateway : ICommandGateway
     {
-        public static readonly NullIgCommandGateway Instance = new();
+        public static readonly NullPlayerCommandGateway Instance = new();
 
-        private NullIgCommandGateway() { }
+        private NullPlayerCommandGateway() { }
 
         public Task<int> CreateEntityAsync(CreateEntityCommand cmd, CancellationToken ct = default)
             => Task.FromResult(0);

@@ -17,7 +17,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
     /// <para>
     /// <b>SelectionState design deviation:</b> Same as <see cref="DataDrivenGizmoSystem"/>.
     /// An optional <c>isSelectedPredicate</c> delegate is accepted instead of a hard
-    /// dependency on <c>Hrot.IG.Components.SelectionState</c>.
+    /// dependency on <c>Hrot.Map.Common.Components.SelectionState</c>.
     /// </para>
     ///
     /// <para>

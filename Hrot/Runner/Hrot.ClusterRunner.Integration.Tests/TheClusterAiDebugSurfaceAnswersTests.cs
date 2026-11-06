@@ -55,7 +55,7 @@ public sealed class TheClusterAiDebugSurfaceAnswersTests
             TkbEntityTypes.TacGraphic_Area, new Hrot.Core.Mission.GeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 });
         Assert.True(rig.H.PumpUntil(() => rig.H.SimHost.TestHook_EntityMap.TryGetEntity(areaNet, out _), timeoutFrames: 3000));
         rig.H.SimHost.TestHook_EntityMap.TryGetEntity(areaNet, out Entity simArea);
-        rig.H.SimHost.World!.SetManagedComponent(simArea, new Hrot.IG.Components.EditablePolyline
+        rig.H.SimHost.World!.SetManagedComponent(simArea, new Hrot.Map.Common.Components.EditablePolyline
         {
             Points = new System.Collections.Generic.List<System.Numerics.Vector2> { new(-50, -50), new(50, -50), new(50, 50), new(-50, 50) },
         });

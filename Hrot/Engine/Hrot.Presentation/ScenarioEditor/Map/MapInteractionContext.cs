@@ -121,8 +121,8 @@ namespace Hrot.ScenarioEditor.Map
         /// </summary>
         public static readonly Func<ISimulationView, Entity, bool> SelectedEntitiesOnly =
             static (view, entity) =>
-                view.HasComponent<Hrot.IG.Components.SelectionState>(entity) &&
-                view.GetComponentRO<Hrot.IG.Components.SelectionState>(entity).IsSelected;
+                view.HasComponent<Hrot.Map.Common.Components.SelectionState>(entity) &&
+                view.GetComponentRO<Hrot.Map.Common.Components.SelectionState>(entity).IsSelected;
 
         // ══ UXI-11 — the SELECTION half of the pack ═════════════════════════════
         // 📄 docs/UX/UX_Feature_Selection.md §2.7.10.

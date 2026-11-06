@@ -23,7 +23,7 @@ namespace Hrot.ClusterRunner.Tests
             var config = new RunnerConfiguration { ModeString = "all", NoWait = true };
             config.Validate();
             Assert.True(config.RequestedSubsystems.Contains("simhost"));
-            Assert.True(config.RequestedSubsystems.Contains("ig"));
+            Assert.True(config.RequestedSubsystems.Contains("player"));
             Assert.True(config.RequestedSubsystems.Contains("orchestrator"));
             Assert.True(config.RequestedSubsystems.Contains("cgf"));
             Assert.True(config.RequestedSubsystems.Contains("traffic"));
@@ -39,11 +39,11 @@ namespace Hrot.ClusterRunner.Tests
         }
 
         [Fact]
-        public void ParseMode_Ig_ReturnsSingleFlag()
+        public void ParseMode_Player_ReturnsSingleFlag()
         {
-            var config = new RunnerConfiguration { ModeString = "ig", NoWait = true };
+            var config = new RunnerConfiguration { ModeString = "player", NoWait = true };
             config.Validate();
-            Assert.True(config.RequestedSubsystems.Contains("ig"));
+            Assert.True(config.RequestedSubsystems.Contains("player"));
             Assert.Equal(1, config.RequestedSubsystems.Count);
         }
 
@@ -64,12 +64,12 @@ namespace Hrot.ClusterRunner.Tests
         }
 
         [Fact]
-        public void ParseMode_ComboSimHostIg_ReturnsCorrectFlags()
+        public void ParseMode_ComboSimHostPlayer_ReturnsCorrectFlags()
         {
-            var config = new RunnerConfiguration { ModeString = "simhost,ig", NoWait = true };
+            var config = new RunnerConfiguration { ModeString = "simhost,player", NoWait = true };
             config.Validate();
             Assert.True(config.RequestedSubsystems.Contains("simhost"));
-            Assert.True(config.RequestedSubsystems.Contains("ig"));
+            Assert.True(config.RequestedSubsystems.Contains("player"));
             Assert.Equal(2, config.RequestedSubsystems.Count);
         }
 
@@ -78,10 +78,10 @@ namespace Hrot.ClusterRunner.Tests
         {
             // The explicit tokens each parse. Since 2026-10-28 this is "all" MINUS traffic:
             // "all" also hosts the traffic node.
-            var config = new RunnerConfiguration { ModeString = "simhost,ig,orchestrator,cgf", NoWait = true };
+            var config = new RunnerConfiguration { ModeString = "simhost,player,orchestrator,cgf", NoWait = true };
             config.Validate();
             Assert.True(config.RequestedSubsystems.Contains("simhost"));
-            Assert.True(config.RequestedSubsystems.Contains("ig"));
+            Assert.True(config.RequestedSubsystems.Contains("player"));
             Assert.True(config.RequestedSubsystems.Contains("orchestrator"));
             Assert.True(config.RequestedSubsystems.Contains("cgf"));
         }
@@ -177,26 +177,26 @@ namespace Hrot.ClusterRunner.Tests
             var config = new RunnerConfiguration
             {
                 ModeString    = "simhost",
-                WaitForString = "ig,simhost"
+                WaitForString = "player,simhost"
             };
             config.Validate();
-            Assert.Contains("ig",  config.WaitForPeers);
+            Assert.Contains("player",  config.WaitForPeers);
             Assert.Contains("simhost", config.WaitForPeers);
             Assert.Equal(2, config.WaitForPeers.Count);
         }
 
         [Fact]
-        public void WaitFor_Player_IsAcceptedAndNormalisedToIg()
+        public void WaitFor_Player_IsAccepted()
         {
-            // "player" is the user-facing name of the IG node, normalised exactly as the --mode token is.
+            // ⭐ CE-3371 — "player" is the node's name in the wait-for list as in --mode.
             var config = new RunnerConfiguration
             {
                 ModeString    = "simhost",
                 WaitForString = "player,simhost"
             };
             config.Validate();
-            Assert.Contains("ig",  config.WaitForPeers);
-            Assert.DoesNotContain("player", config.WaitForPeers);
+            Assert.Contains("player",  config.WaitForPeers);
+            Assert.Contains("simhost", config.WaitForPeers);
             Assert.Equal(2, config.WaitForPeers.Count);
         }
 
@@ -204,14 +204,14 @@ namespace Hrot.ClusterRunner.Tests
         public void WaitFor_Ios_IsNoLongerAPeer()
         {
             // R-3067 / AQ109 X2 — "ios" named the ExCon node; it is not a peer any more.
-            var config = new RunnerConfiguration { ModeString = "simhost", WaitForString = "simhost,ig,ios" };
+            var config = new RunnerConfiguration { ModeString = "simhost", WaitForString = "simhost,player,ios" };
             Assert.Throws<InvalidOperationException>(() => config.Validate());
         }
 
         [Fact]
         public void SeparateMode_WithoutWaitFor_AndWithoutNoWait_ThrowsError()
         {
-            var config = new RunnerConfiguration { ModeString = "ig" };
+            var config = new RunnerConfiguration { ModeString = "player" };
             var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
             Assert.Contains("wait-for", ex.Message, StringComparison.OrdinalIgnoreCase);
         }
@@ -221,7 +221,7 @@ namespace Hrot.ClusterRunner.Tests
         [Fact]
         public void MergeFromJsonFile_OverridesModeString()
         {
-            var json = JsonConvert.SerializeObject(new { ModeString = "ig" });
+            var json = JsonConvert.SerializeObject(new { ModeString = "player" });
             var path = Path.GetTempFileName();
             try
             {
@@ -230,7 +230,7 @@ namespace Hrot.ClusterRunner.Tests
                 var config = new RunnerConfiguration { ModeString = "all", NoWait = true };
                 config.MergeFromJsonFile(path);
 
-                Assert.Equal("ig", config.ModeString);
+                Assert.Equal("player", config.ModeString);
             }
             finally
             {
@@ -292,7 +292,7 @@ namespace Hrot.ClusterRunner.Tests
             var config = new RunnerConfiguration { ModeString = "all", NoWait = true };
             config.Validate();
             Assert.True(config.RequestedSubsystems.Contains("simhost"));
-            Assert.True(config.RequestedSubsystems.Contains("ig"));
+            Assert.True(config.RequestedSubsystems.Contains("player"));
             Assert.True(config.RequestedSubsystems.Contains("orchestrator"));
             Assert.True(config.RequestedSubsystems.Contains("cgf"));
             Assert.True(config.RequestedSubsystems.Contains("traffic"));
@@ -326,9 +326,9 @@ namespace Hrot.ClusterRunner.Tests
 
         /// <summary>⭐⭐ C1 (Q91 §4-O, R-4009) — on the command line an absent <c>-n</c> means "not forced"; a given one is forced.</summary>
         [Theory]
-        [InlineData(new[] { "-m", "ig" }, true)]
-        [InlineData(new[] { "-m", "ig", "-n", "3" }, false)]
-        [InlineData(new[] { "-m", "ig", "-n", "0" }, false)]
+        [InlineData(new[] { "-m", "player" }, true)]
+        [InlineData(new[] { "-m", "player", "-n", "3" }, false)]
+        [InlineData(new[] { "-m", "player", "-n", "0" }, false)]
         public void NodeId_AbsentOnTheCommandLine_AsksTheMaster(string[] args, bool absent)
         {
             RunnerConfiguration? parsed = null;
@@ -366,9 +366,9 @@ namespace Hrot.ClusterRunner.Tests
         }
 
         [Fact]
-        public void ParseMode_EditorWithIg_ThrowsInvalidOperation()
+        public void ParseMode_EditorWithPlayer_ThrowsInvalidOperation()
         {
-            var config = new RunnerConfiguration { ModeString = "editor,ig", NoWait = true };
+            var config = new RunnerConfiguration { ModeString = "editor,player", NoWait = true };
             var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
             Assert.Contains("Editor", ex.Message, StringComparison.OrdinalIgnoreCase);
         }

@@ -32,9 +32,9 @@ public sealed class ScenarioFileService
 {
     private static readonly string[] AcceptedSubsystemTypes =
     {
-        "Hrot.Scenario",
-        "Hrot.SimHost",
-        "Hrot.CGF",
+        Hrot.Common.Scenario.HrotSubsystemTypes.Scenario,
+        Hrot.Common.Scenario.HrotSubsystemTypes.SimHost,
+        Hrot.Common.Scenario.HrotSubsystemTypes.Cgf,
     };
 
     private readonly ScenarioSerializer _serializer;
@@ -101,7 +101,7 @@ public sealed class ScenarioFileService
         //   runs on every host through HrotScenarioSaveHandler. ⚠ The former migration-journal branch was
         //   unreachable in production (LastLoadResult has been permanently null since HN-037 removed the only
         //   writer), so collapsing it here is behaviour-preserving.
-        var header = ScenarioSaveCore.HeaderOf(repo, "Hrot.Scenario");   // ⭐ CE-4210 MA-4 — the ONE helper: terrain (CE-3015) + description (CE-3288) + the macro header fields; ⛔ R-4018: never a TKB name
+        var header = ScenarioSaveCore.HeaderOf(repo, Hrot.Common.Scenario.HrotSubsystemTypes.Scenario);   // ⭐ CE-4210 MA-4 — the ONE helper: terrain (CE-3015) + description (CE-3288) + the macro header fields; ⛔ R-4018: never a TKB name
         ScenarioSaveCore.Write(_serializer, repo, filePath, header);
     }
 

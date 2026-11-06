@@ -63,7 +63,7 @@ public sealed partial class ClusterMaster
         NodeRole.MuscleGround     => "SimHost",
         NodeRole.Perception       => "SimHost",
         NodeRole.NavigationSolver => "SimHost",
-        NodeRole.Map2D            => "IG",
+        NodeRole.Map2D            => "Player",
         _                         => "?",
     };
 

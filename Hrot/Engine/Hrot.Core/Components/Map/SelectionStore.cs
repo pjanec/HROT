@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Fdp.Core;
 
-namespace Hrot.IG.Components;
+namespace Hrot.Map.Common.Components;
 
 /// <summary>
 /// ⭐⭐ <c>CE-4049</c> (coordinator handoff <c>Replay_Ui_State</c> ①; docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md) — THE

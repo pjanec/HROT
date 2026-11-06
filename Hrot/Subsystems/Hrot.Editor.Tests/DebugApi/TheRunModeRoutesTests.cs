@@ -87,8 +87,8 @@ public sealed class TheRunModeRoutesTests : IDisposable
         bus.SwapBuffers(); view.Update(); facade.Update(); bus.SwapBuffers();
 
         var dispatcher = new PerspectiveScopedDispatcher(
-            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("IG", "IG", drive: () => facade, clusterView: () => view) },
-            currentPerspective: () => "IG", acksPending: null);
+            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("Player", "Player", drive: () => facade, clusterView: () => view) },
+            currentPerspective: () => "Player", acksPending: null);
         var data = new DebugApiService(dispatcher, clusterState: () => ClusterState.LoadingLive).GetStatus();
 
         Assert.Equal("Loading", data["load"]!["localPhase"]!.GetValue<string>());
@@ -122,8 +122,8 @@ public sealed class TheRunModeRoutesTests : IDisposable
         bus.SwapBuffers(); view.Update(); facade.Update(); bus.SwapBuffers();
 
         var dispatcher = new PerspectiveScopedDispatcher(
-            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("IG", "IG", clusterView: () => view, runChoice: () => facade.RunChoice) },   // ⛔ no drive: the IG issues no ticks
-            currentPerspective: () => "IG", acksPending: null);
+            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("Player", "Player", clusterView: () => view, runChoice: () => facade.RunChoice) },   // ⛔ no drive: the IG issues no ticks
+            currentPerspective: () => "Player", acksPending: null);
         var data = new DebugApiService(dispatcher, clusterState: () => ClusterState.LoadingLive).GetStatus();
 
         Assert.False(data["runGate"]!["open"]!.GetValue<bool>());
@@ -140,7 +140,7 @@ public sealed class TheRunModeRoutesTests : IDisposable
         var dispatcher = new PerspectiveScopedDispatcher(
             new ISubsystemDebugProvider[]
             {
-                new SubsystemDebugProvider("IG", "IG"),
+                new SubsystemDebugProvider("Player", "Player"),
                 new SubsystemDebugProvider("CGF", "CGF", drive: () => facade, master: master is null ? null : () => master, unsavedCheck: unsavedCheck),
             },
             currentPerspective: () => "CGF", acksPending: null);

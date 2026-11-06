@@ -3,7 +3,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Fdp.Toolkit.Replication.Components;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Fdp.Toolkit.Combat.Components;
 
 namespace Hrot.ScenarioEditor.Gizmos

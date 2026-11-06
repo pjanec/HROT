@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
 using Hrot.NED.Descriptors;
-using Hrot.IG;
-using Hrot.IG.Components;
+using Hrot.Player;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Common;
 using Hrot.SimHost;
 using Hrot.SimHost.Configuration;
@@ -27,10 +27,10 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
     private const int TickSleepMs = 12;
 
     private readonly SimHostApp _simHost;
-    private readonly IgApplication _ig;
+    private readonly PlayerApplication _player;
     private readonly DdsParticipant _idAllocatorParticipant;
     private readonly DdsIdAllocatorServer _idAllocatorServer;
-    private readonly DdsParticipant _igParticipant;
+    private readonly DdsParticipant _playerParticipant;
 
     public EntityLifecycleIntegrationTests()
     {
@@ -47,22 +47,22 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
             role:         NodeRole.MuscleGround | NodeRole.Perception);
         _simHost.InitializeHeadless(domainIdOverride: DomainId, networkFactory: factory);
 
-        _igParticipant = new DdsParticipant(DomainId);
-        var igFactory = new NedNetworkFactory(
-            participant:  _igParticipant,
+        _playerParticipant = new DdsParticipant(DomainId);
+        var playerFactory = new NedNetworkFactory(
+            participant:  _playerParticipant,
             entityMap:    new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
             geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
             eventBus:     new FdpEventBus(),
             localNodeId:  0,
             role:         NodeRole.Map2D);
-        _ig = new IgApplication();
-        _ig.InitializeEmbedded(headless: true, domainIdOverride: DomainId, networkFactory: igFactory);
+        _player = new PlayerApplication();
+        _player.InitializeEmbedded(headless: true, domainIdOverride: DomainId, networkFactory: playerFactory);
     }
 
     public void Dispose()
     {
-        _ig.Shutdown(ownsWindow: false);
-        _igParticipant.Dispose();
+        _player.Shutdown(ownsWindow: false);
+        _playerParticipant.Dispose();
         _simHost.Dispose();
         _idAllocatorServer.Dispose();
         _idAllocatorParticipant.Dispose();
@@ -77,36 +77,36 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
         _simHost.World.Bus.PublishManaged(spawnCmd);
 
         int? networkId = null;
-        bool igHasEntity = false;
-        bool igHasTransform = false;
-        bool igHasStyle = false;
-        bool igHasNetworkPosition = false;
+        bool playerHasEntity = false;
+        bool playerHasTransform = false;
+        bool playerHasStyle = false;
+        bool playerHasNetworkPosition = false;
         bool simHostHasSimTransform = false;
         for (int i = 0; i < MaxTicks; i++)
         {
             _idAllocatorServer.ProcessRequests();
             _simHost.Tick(Dt);
-            _ig.Update(Dt);
+            _player.Update(Dt);
 
             if (networkId == null && TryGetFirstNetworkId(_simHost.World, out var id))
                 networkId = id;
 
-            if (networkId.HasValue && IgHasEntity(_ig.World, networkId.Value))
-                igHasEntity = true;
+            if (networkId.HasValue && PlayerHasEntity(_player.World, networkId.Value))
+                playerHasEntity = true;
 
-            if (networkId.HasValue && IgHasSimTransform(_ig.World, networkId.Value))
-                igHasTransform = true;
+            if (networkId.HasValue && PlayerHasSimTransform(_player.World, networkId.Value))
+                playerHasTransform = true;
 
-            if (networkId.HasValue && IgHasResolvedStyle(_ig.World, networkId.Value))
-                igHasStyle = true;
+            if (networkId.HasValue && PlayerHasResolvedStyle(_player.World, networkId.Value))
+                playerHasStyle = true;
 
-            if (networkId.HasValue && IgHasNetworkPosition(_ig.World, networkId.Value))
-                igHasNetworkPosition = true;
+            if (networkId.HasValue && PlayerHasNetworkPosition(_player.World, networkId.Value))
+                playerHasNetworkPosition = true;
 
-            if (networkId.HasValue && IgHasSimTransform(_simHost.World, networkId.Value))
+            if (networkId.HasValue && PlayerHasSimTransform(_simHost.World, networkId.Value))
                 simHostHasSimTransform = true;
 
-            if (networkId.HasValue && igHasStyle && igHasNetworkPosition && simHostHasSimTransform)
+            if (networkId.HasValue && playerHasStyle && playerHasNetworkPosition && simHostHasSimTransform)
                 break;
 
             Thread.Sleep(TickSleepMs);
@@ -114,15 +114,15 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
 
         Assert.True(networkId.HasValue, "Expected SimHost to allocate a network ID.");
         Assert.True(
-            igHasStyle,
-            $"Expected IG to resolve style for NetID {networkId.Value} within {MaxTicks} ticks. " +
-            $"IG entity observed: {igHasEntity}. SimTransform observed: {igHasTransform}. " +
-            $"ResolvedStyle observed: {igHasStyle}. NetworkPosition observed: {igHasNetworkPosition}. " +
+            playerHasStyle,
+            $"Expected Player to resolve style for NetID {networkId.Value} within {MaxTicks} ticks. " +
+            $"Player entity observed: {playerHasEntity}. SimTransform observed: {playerHasTransform}. " +
+            $"ResolvedStyle observed: {playerHasStyle}. NetworkPosition observed: {playerHasNetworkPosition}. " +
             $"SimHost SimTransform observed: {simHostHasSimTransform}.");
 
         Assert.True(
-            igHasNetworkPosition,
-            $"Expected IG to receive NetworkPosition for NetID {networkId.Value}.");
+            playerHasNetworkPosition,
+            $"Expected Player to receive NetworkPosition for NetID {networkId.Value}.");
 
         Assert.True(
             simHostHasSimTransform,
@@ -140,11 +140,11 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
         {
             _idAllocatorServer.ProcessRequests();
             _simHost.Tick(Dt);
-            _ig.Update(Dt);
+            _player.Update(Dt);
             Thread.Sleep(TickSleepMs);
         }
 
-        int baselineCount = CountIgEntities(_ig.World);
+        int baselineCount = CountPlayerEntities(_player.World);
 
         var domain0Cfg = new NodeConfiguration
         {
@@ -162,11 +162,11 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
             _idAllocatorServer.ProcessRequests();
             idServer0.ProcessRequests();
             simHostDomain0.Tick(Dt);
-            _ig.Update(Dt);
+            _player.Update(Dt);
             Thread.Sleep(TickSleepMs);
         }
 
-        int finalCount = CountIgEntities(_ig.World);
+        int finalCount = CountPlayerEntities(_player.World);
 
         Assert.Equal(baselineCount, finalCount);
     }
@@ -205,7 +205,7 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
         return false;
     }
 
-    private static bool IgHasResolvedStyle(EntityRepository world, int networkId)
+    private static bool PlayerHasResolvedStyle(EntityRepository world, int networkId)
     {
         var query = world.Query().With<NetworkIdentity>().With<ResolvedStyle>().Build();
         foreach (var entity in query)
@@ -217,7 +217,7 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
         return false;
     }
 
-    private static bool IgHasEntity(EntityRepository world, int networkId)
+    private static bool PlayerHasEntity(EntityRepository world, int networkId)
     {
         var query = world.Query().With<NetworkIdentity>().Build();
         foreach (var entity in query)
@@ -229,7 +229,7 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
         return false;
     }
 
-    private static bool IgHasSimTransform(EntityRepository world, int networkId)
+    private static bool PlayerHasSimTransform(EntityRepository world, int networkId)
     {
         var query = world.Query().With<NetworkIdentity>().With<SimTransform>().Build();
         foreach (var entity in query)
@@ -242,7 +242,7 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
     }
 
 
-    private static bool IgHasNetworkPosition(EntityRepository world, int networkId)
+    private static bool PlayerHasNetworkPosition(EntityRepository world, int networkId)
     {
         var query = world.Query().With<NetworkIdentity>().With<NetworkTransform>().Build();
         foreach (var entity in query)
@@ -257,7 +257,7 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
         return false;
     }
 
-    private static int CountIgEntities(EntityRepository world)
+    private static int CountPlayerEntities(EntityRepository world)
     {
         int count = 0;
         var query = world.Query().With<NetworkIdentity>().Build();

@@ -195,7 +195,7 @@ public sealed class RtsCommandToolTests : IDisposable
     [Fact]
     public void CE1133_AfterReselecting_ARightClick_OrdersOnlyTheUnitsSelectedNow()
     {
-        _w.RegisterComponent<Hrot.IG.Components.SelectionState>();
+        _w.RegisterComponent<Hrot.Map.Common.Components.SelectionState>();
         var a = Unit(10, ForceId.Friend, new Vector2(1, 1));
         var b = Unit(11, ForceId.Friend, new Vector2(2, 1));
         var c = Unit(12, ForceId.Friend, new Vector2(3, 1));

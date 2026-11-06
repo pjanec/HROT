@@ -161,6 +161,6 @@ s.write("il-idle-life", "basic-desert",
         "idle choice), a 'Watchman' (ordered to stay and watch east), 'Held' (ordered to hold: Idle from a superior), 'Down' (incapacitated, 20 %), a 'Waiting "
         "civilian' (ordered to stand) and a 'Townsman' (his own routine). Judge (90 s): (1) each Idler shifts at least twice and never strays "
         "past 3 m from where he settled; (2) the Watchman, Held and Down never shift (< 0.3 m); (3) idle gestures (smoking, shifting weight, a "
-        "stretch, looking about - the flag the IG animates) show on at least half of the Idlers, the Watchman, Held and the waiting civilian; "
+        "stretch, looking about - the flag the Player animates) show on at least half of the Idlers, the Watchman, Held and the waiting civilian; "
         "(4) Down shows none. Check: python3 scripts/utility-demo-check.py --launch il-idle-life. "
         "📄 docs/blueprints/Architect_Question_103_Idle_Life.md")

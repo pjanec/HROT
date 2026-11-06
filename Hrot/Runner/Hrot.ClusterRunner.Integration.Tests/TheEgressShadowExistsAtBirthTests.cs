@@ -203,21 +203,21 @@ public class TheEgressShadowExistsAtBirthTests
         using var harness = new HrotRunnerHarness();
 
         int networkId = Spawn(harness);
-        var igWorld = harness.Ig.App.World;
+        var playerWorld = harness.Player.App.World;
 
         bool arrived = harness.PumpUntil(() =>
-            harness.Ig.App.TestHook_EntityMap.TryGetEntity(networkId, out var ig)
-            && igWorld.IsAlive(ig)
-            && igWorld.HasComponent<SimTransform>(ig),
+            harness.Player.App.TestHook_EntityMap.TryGetEntity(networkId, out var player)
+            && playerWorld.IsAlive(player)
+            && playerWorld.HasComponent<SimTransform>(player),
             SettleFrames);
 
         Assert.True(arrived,
             "AX-011: the replica must receive a SimTransform — that is what the owner's WorldPos carries, " +
             "and what GhostPromotionSystem's HARD requirement waits for.");
 
-        harness.Ig.App.TestHook_EntityMap.TryGetEntity(networkId, out var igE);
-        var pos = igWorld.GetComponent<SimTransform>(igE).Position;
-        _out.WriteLine($"IG replica position: ({pos.X:F2}, {pos.Y:F2}, {pos.Z:F2})");
+        harness.Player.App.TestHook_EntityMap.TryGetEntity(networkId, out var playerE);
+        var pos = playerWorld.GetComponent<SimTransform>(playerE).Position;
+        _out.WriteLine($"Player replica position: ({pos.X:F2}, {pos.Y:F2}, {pos.Z:F2})");
         Assert.NotEqual<System.Numerics.Vector3>(Vector3.Zero, pos);
     }
 

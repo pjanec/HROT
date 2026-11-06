@@ -116,15 +116,15 @@ public sealed class TheDiagnosticsBundleEmitsWhatEachHostEmittedTests
     /// ⭐⭐⭐ IG — the four ids/titles verbatim from <c>IgSubsystem</c> before this slice.
     /// </summary>
     [Fact]
-    public void IG_gets_exactly_the_ids_titles_and_perspective_it_had_before()
+    public void Player_gets_exactly_the_ids_titles_and_perspective_it_had_before()
     {
-        var igWindows = new Vector4(0.07f, 0.30f, 0.07f, 1f);   // IgWindowColor.TitleBar
-        var wm = Compose(Services("ig_", "IG", "IG", igWindows));
+        var playerWindows = new Vector4(0.07f, 0.30f, 0.07f, 1f);   // IgWindowColor.TitleBar
+        var wm = Compose(Services("player_", "Player", "Player", playerWindows));
 
-        Assert.Equal(("IG Entity Inspector",          "IG", igWindows), Get(wm, "ig_fdp_inspector"));
-        Assert.Equal(("IG Event Browser",             "IG", igWindows), Get(wm, "ig_fdp_events"));
-        Assert.Equal(("IG Architecture Diagnostics",  "IG", igWindows), Get(wm, "ig_architecture_diagnostics"));
-        Assert.Equal(("IG System Profiler",           "IG", igWindows), Get(wm, "ig_system_profiler"));
+        Assert.Equal(("Player Entity Inspector",          "Player", playerWindows), Get(wm, "player_fdp_inspector"));
+        Assert.Equal(("Player Event Browser",             "Player", playerWindows), Get(wm, "player_fdp_events"));
+        Assert.Equal(("Player Architecture Diagnostics",  "Player", playerWindows), Get(wm, "player_architecture_diagnostics"));
+        Assert.Equal(("Player System Profiler",           "Player", playerWindows), Get(wm, "player_system_profiler"));
     }
 
     /// <summary>⭐⭐ SimHost — same, from <c>SimHostSubsystem</c>.</summary>
@@ -218,10 +218,10 @@ public sealed class TheDiagnosticsBundleEmitsWhatEachHostEmittedTests
     public void Every_window_carries_the_one_subsystem_colour()
     {
         var subsystemColour = new Vector4(0.07f, 0.30f, 0.07f, 1f);   // IgWindowColor.TitleBar
-        var wm = Compose(Services("ig_", "IG", "IG", subsystemColour));
+        var wm = Compose(Services("player_", "Player", "Player", subsystemColour));
 
-        foreach (var id in new[] { "ig_fdp_inspector", "ig_fdp_events",
-                                   "ig_architecture_diagnostics", "ig_system_profiler" })
+        foreach (var id in new[] { "player_fdp_inspector", "player_fdp_events",
+                                   "player_architecture_diagnostics", "player_system_profiler" })
             Assert.Equal(subsystemColour, Get(wm, id).Color);
     }
 
@@ -234,7 +234,7 @@ public sealed class TheDiagnosticsBundleEmitsWhatEachHostEmittedTests
     [Fact]
     public void The_id_scheme_is_the_one_every_host_already_shipped()
     {
-        Assert.Equal("ig_fdp_inspector",                  DiagnosticsWindowsBundle.InspectorId("ig_"));
+        Assert.Equal("player_fdp_inspector",                  DiagnosticsWindowsBundle.InspectorId("player_"));
         Assert.Equal("simhost_fdp_events",                DiagnosticsWindowsBundle.EventsId("simhost_"));
         Assert.Equal("cgf_architecture_diagnostics",      DiagnosticsWindowsBundle.ArchitectureId("cgf_"));
         Assert.Equal("editor_system_profiler",            DiagnosticsWindowsBundle.ProfilerId("editor_"));
@@ -248,10 +248,10 @@ public sealed class TheDiagnosticsBundleEmitsWhatEachHostEmittedTests
     [Fact]
     public void Every_window_the_bundle_registers_is_perspective_bound()
     {
-        var wm = Compose(Services("ig_", "IG", "IG", new Vector4(1, 1, 1, 1)));
+        var wm = Compose(Services("player_", "Player", "Player", new Vector4(1, 1, 1, 1)));
 
-        foreach (var id in new[] { "ig_fdp_inspector", "ig_fdp_events",
-                                   "ig_architecture_diagnostics", "ig_system_profiler" })
+        foreach (var id in new[] { "player_fdp_inspector", "player_fdp_events",
+                                   "player_architecture_diagnostics", "player_system_profiler" })
         {
             Assert.True(wm.TryGetWindow(id, out var w));
             Assert.Equal(WindowScope.PerspectiveBound, w!.Scope);
@@ -262,5 +262,5 @@ public sealed class TheDiagnosticsBundleEmitsWhatEachHostEmittedTests
     [Fact]
     public void The_bundle_is_named_so_a_failure_names_the_feature()
         => Assert.Equal("diagnostics-windows",
-            new DiagnosticsWindowsBundle(Services("ig_", "IG", "IG", new Vector4(1, 1, 1, 1))).Name);
+            new DiagnosticsWindowsBundle(Services("player_", "Player", "Player", new Vector4(1, 1, 1, 1))).Name);
 }

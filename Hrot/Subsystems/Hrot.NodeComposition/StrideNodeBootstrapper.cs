@@ -17,9 +17,9 @@ using Fdp.Toolkit.Vis2D.Components;
 using Hrot.Common;
 using Hrot.Common.Infrastructure;
 using Hrot.Core.Network;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Network.Infrastructure;
-using Hrot.IG.Systems;
+using Hrot.Player.Systems;
 using Hrot.Map.Common;
 using Hrot.SimHost;
 using Hrot.SimHost.Modules;
@@ -36,7 +36,7 @@ namespace Hrot.NodeComposition;
 /// scaffolding standing in for the real Stride app; this is the node composition root that app
 /// actually consumes (<c>StrideHrotGame</c> holds it and takes it via <c>AttachBootstrapper</c>).
 /// It could not move down into <c>Hrot.Common</c> with <see cref="SharedApplicationBootstrapper"/>,
-/// because it composes <c>Hrot.SimHost</c> and <c>Hrot.IG</c> systems and both of those reference
+/// because it composes <c>Hrot.SimHost</c> and <c>Hrot.Player</c> systems and both of those reference
 /// <c>Hrot.Common</c> - that edge would be a cycle. See <c>DESIGN_Stride_Port.md</c>.
 /// </para>
 ///
@@ -318,128 +318,29 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         PostSimGroup = postSimGroup;
 
         _nodeBootstrapper = new NodeBootstrapper(NetworkFactory);
-        return _nodeBootstrapper.BuildOrchestration(
-            BootRole,
-            context.Kernel,
-            context.World,
-            context.NodeId,
-            participant:         context.Participant,
-            subsystemName:       BootConfig!.SubsystemName,
-            eventBus:            context.EventBus,
-            features:             () => context.Features,   // ⭐ P-7 F-28 — this caller HAS the node's features, so the scenario step can hand it the header's preset
-            // CE-279 — pass the serializer this override already receives (was null): the Stride SimHost saves
-            //   its owned slice via the shared serializer like every ECS host. Load handlers stay off here.
-            scenarioSerializer:  serializer,
-            localTempRoot:       BootConfig.LocalTempRoot,
-            // ⭐ CE-4013 D4 — this caller HAS the node's catalogue: without it the knowledge-base step loaded the scenario's TKB into a
-            //   throwaway (NodeBootstrapper's `tkbDb ?? CreateTkb()`), so the node's spawning never saw it.
-            tkbDb:               context.TkbDb,
-            simGroup:            simGroup,
-            postSimGroup:        postSimGroup,
-            lifecycleGroup:      context.NedReplication?.NetworkLifecycleGroup,
-            ghostCreationSystem: context.GhostCreationSystem,
-            eventAccumulator:    context.EventAccumulator,
-            afterSeek:           context.NedReplication?.AfterSeekCallback,
-            // ⭐ HN-018 — this caller HAS the ELM, so it passes it (the silent-default rule).
-            elm:                 context.BaseModules?
-                                     .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>()
-                                     .FirstOrDefault(),
-            terrainContent:       context.TerrainContent,   // ⭐ CE-4013 — this caller HAS the node's registry, so it passes it
-            // ⭐ CE-4013 D15 — the node's ONE slave and ONE slave translator, from HrotNodeBuilder: no second pair.
-            clusterSlave:         context.ClusterSlave,
-            slaveTranslator:      context.SlaveTranslator);
+        // ⭐ CE-4270 B11 — the ONE orchestration step (HostOrchestration).
+        return Hrot.EcsNode.Hosting.HostOrchestration.Build(_nodeBootstrapper, BootRole, context,
+            new Hrot.EcsNode.Hosting.OrchestrationSpec
+            {
+                SubsystemName = BootConfig!.SubsystemName,
+                LocalTempRoot = BootConfig.LocalTempRoot,
+                Serializer    = serializer,
+                SimGroup      = simGroup,
+                PostSimGroup  = postSimGroup,
+            });
     }
 
     /// <inheritdoc/>
     protected override void RegisterSpawningPipeline(HrotNodeContext context)
-    {
-        // ⛔⛔⛔ CE-244 (2 of 2) — THIS BOOTSTRAPPER HONOURED ONLY ONE THIRD OF THE CAPABILITY
-        //    CONTRACT, and the missing two thirds failed SILENTLY.
-        //
-        // 📌 Measured 2026-09-09 on a CGF + Stride mode-2 run of hill-attack-close. The boot log
-        //    reported five capabilities by name --
-        //      [cap:muscle-ground, cap:perception, cap:perception:spatial,
-        //       cap:infra:unit-hierarchy, cap:infra:eqs-result-update]
-        //    -- and PERCEPTION WAS NEVER COMPOSED AT ALL. Only GetAdditionalModules() ran, which asks
-        //    each capability for ProvideModules() alone. cap:muscle-ground contributes that way, so
-        //    physics worked and the node looked healthy; every capability that contributes through
-        //    the other two hooks contributed nothing:
-        //      PerceptionSolver.Register    -> EqsModule                          NEVER REGISTERED
-        //      PerceptionSpatial.Register   -> AreaQueryResultMaterializationSystem (retired 2026-10-01)
-        //                                      + CognitiveSpatialModule           NEVER REGISTERED
-        //      UnitHierarchy.PopulateSystems / EqsResultUpdate.PopulateSystems    NEVER CALLED
-        //
-        // 📐 INodeCapability's own remarks name the schedule: "PopulateSystems fires at system-groups
-        //    and Register at spawning-pipeline -- and additional-modules runs BETWEEN them." The three
-        //    hooks exist because the base composes in distinct steps and a capability contributing to
-        //    more than one must be asked more than once. This type asked once.
-        //
-        // ⭐ The proven template is the mode-1 editor, EditorSubsystem.cs:1506 (PopulateSystems),
-        //    :1583 (ProvideModules) and :1588 (Register) -- "ONE ordered pass per capability: the
-        //    modules it PROVIDES, then its Register hook". Mode 2 now runs the same three, each at the
-        //    step the interface documents for it rather than all at one convenient point.
-        //
-        // ⚠ Why the capability pass goes FIRST here, before this node's own spawn systems: the editor
-        //    registers capabilities ahead of its orchestration and scenario packs, and registration
-        //    order is execution order within a phase. Nothing below reads anything a capability
-        //    registers, and no capability reads the pack, so the two are independent today -- the
-        //    order is chosen to match the editor rather than to satisfy a dependency.
-        RegisterCapabilities(context);   // ⭐ CE-4013 — the shared walk, at this host's point (before its own spawn systems)
-
-        // ⭐ CE-4013 D11 — the shared genesis tail (scenario intents + the saved AI's ingress), at this host's point.
-        GenesisTail.RegisterOn(context.Kernel, context.EntityMap);
-
-        // NetworkSpawningSystem handles incoming entity creation requests from the
-        // network (CGF/Brain node). Only wired when an ID allocator is available;
-        // headless tests with SkipAllocatorRouting=true skip this path.
-        if (context.IdAllocator != null)
-        {
-            // ⭐⭐⭐ CE-140 step 3 — the ENTITY CREATION PACK. This host used to hand-assemble the spawn
-            //    path here, and it is where CE-139 was found: the FIFTH host with `translators:` unpassed
-            //    and SetTranslators never called, so ProcessSpawn step 4's projection loop ran zero times
-            //    and entities were born with identity and a DIS header but none of their components.
-            //    ⇒ the pack makes that omission unrepresentable rather than merely documented.
-            //
-            // ⭐⭐ AND IT CLOSES A SECOND, QUIETER GAP: this node had NO `CreateEntityRequestSystem`, so
-            //    nothing could ask it to create an entity — not even itself. 🔒 User ruling 2026-08-31:
-            //    the shared code "should not restrict any ECS enabled node from creating own networked
-            //    entities … not removing capabilities by design". The pack has no opt-out.
-            //
-            // 📄 DESIGN_Entity_Creation_Unification.md §3, §3.4 · Architect_Question_65 §0, §4.
-            var creation = EntityCreationPack.Build(new EntityCreationContext
+        // ⭐ CE-4270 B3 (§4.1ag) — the ONE shared spawning step; the one order for every host (D5, R-3077); the pack is skipped without an allocator
+        //   (the headless rails with SkipAllocatorRouting).
+        => EntityCreation = Hrot.EcsNode.Hosting.HostSpawning.Register(context, ConfiguredNetworkFactory,
+            new Hrot.EcsNode.Hosting.SpawningSpec
             {
-                World       = context.World,
-                EntityMap   = context.EntityMap,
-                TkbDb       = context.TkbDb!,
-                IdAllocator = context.IdAllocator,
-                Elm         = (EntityLifecycleModule)context.BaseModules[0],
-                NodeId      = context.NodeId,
-
-                // ⭐⭐ CE-509 / S2b — the SAME network adapters every ECS host passes: asked over the network to
-                //    create or delete, forwards, and grants what it creates. Null offline ⇒ no-op.
-                NetworkAdapters = ConfiguredNetworkFactory?.CreateCgfEntityLifecycleAdapters(),
-
-                // ⭐⭐⭐ CE-291 (piece C) — the reliable-init wait-set provider, sourced UNIFORMLY from the
-                //    shared NED replication module (which hosts the cluster-membership ingest for every ECS
-                //    node). 🔒 User ruling 2026-09-16: the Stride SimHost node is no exception — symmetric
-                //    reliable creator, no node-centric gating. 📄 DESIGN_Cross_Node_Construction_Barrier.md §3a.4.
-                ExpectedPeers = context.NedReplication?.ExpectedPeers,
-
-                // ⛔ NOT the cluster's broadcast arbiter — that is CGF, and exactly one node may be it.
-                //    ⚠ This does NOT stop this node creating entities: a request targeted at this node is
-                //    processed regardless of the flag (Q65 §1).
-                IsBroadcastArbiter = false,
-            });
-
-            EntityCreation = creation;   // CE-515
-
-            // ⭐ The HOST schedules. NetworkSpawningSystem is BeforeSync and goes through a module here,
-            //   exactly as before — composition changed, scheduling did not.
-            // ⭐ CE-4013 D6 — every piece of the pack, scheduled by the ONE shared registration.
-            creation.RegisterOn(context.Kernel);
-
-        }
-    }
+                IsBroadcastArbiter   = false,
+                SkipWithoutAllocator = true,
+            },
+            () => RegisterCapabilities(context));
 
     /// <inheritdoc/>
     protected override void RegisterNetworkTranslators(

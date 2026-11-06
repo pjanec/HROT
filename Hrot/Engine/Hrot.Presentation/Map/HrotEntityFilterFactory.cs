@@ -7,7 +7,7 @@ using Fdp.Toolkit.Vis2D.Components;
 namespace Hrot.Presentation.Map;
 
 /// <summary>
-/// THE <see cref="IEntityFilterFactory"/> of every map host (⭐ <c>CE-1060</c>: moved from <c>Hrot.IG</c> so the
+/// THE <see cref="IEntityFilterFactory"/> of every map host (⭐ <c>CE-1060</c>: moved from <c>Hrot.Player</c> so the
 /// <c>CanvasMapPickAdapter</c> defaults to it — CGF and SimHost had passed none, so their entity picks ignored presets; and the
 /// order form's entity LIST narrows by the same rule, 📄 <c>docs/DESIGN_Orders_Params_Entity_Classes.md</c> §13.12 O4).
 ///

@@ -168,7 +168,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         internal void ProcessSample(Hrot.NED.Descriptors.EntityInfo info, int netId, EntityRepository? repo = null)
         {
-            var igData = new Fdp.Core.EntityInfo
+            var playerData = new Fdp.Core.EntityInfo
             {
                 Name    = info.Name,
                 ForceId = Utils.ForceIdMapping.FromWire(info.ForceIdentifier),
@@ -192,14 +192,14 @@ namespace Hrot.Map.Common.Replication.Ingress
                 // its EntityInfo from this sample or it never promotes (MiniExConIntegrationTests).
                 hasAuthority = Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(repo, entity, packedKey);
                 if (!hasAuthority)
-                    repo.SetComponent(entity, igData);
+                    repo.SetComponent(entity, playerData);
             }
             else
             {
                 _eventBus.PublishManaged(new UpdateEntityCommand
                 {
                     NetworkId          = netId,
-                    ComponentsToUpdate = new List<object> { igData },
+                    ComponentsToUpdate = new List<object> { playerData },
                     RequestId          = Guid.Empty,
                 });
             }

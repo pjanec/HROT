@@ -223,14 +223,14 @@ public sealed class HexagonalBoundaryTests
         public ISimHostPathfindingTranslators   CreateSimHostPathfindingTranslators(CarKinem.Trajectory.TrajectoryPoolManager? trajectoryPool = null) => _base.CreateSimHostPathfindingTranslators(trajectoryPool);
         public ISimHostPerceptionTranslators    CreateSimHostPerceptionTranslators(Fdp.Toolkit.Replication.Systems.GhostCreationSystem? ghostCreationSystem = null) => _base.CreateSimHostPerceptionTranslators(ghostCreationSystem);
         public IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> CreateSimHostAttributeUpdateSystems()          => _base.CreateSimHostAttributeUpdateSystems();
-        public IIgTranslators                   CreateIgTranslators()                                  => _base.CreateIgTranslators();
-        public IIgNetworkAdapter                CreateIgNetworkAdapter(DdsParticipant? p, int n = 0) => _base.CreateIgNetworkAdapter(p, n);
+        public IIgTranslators                   CreatePlayerTranslators()                                  => _base.CreatePlayerTranslators();
+        public IIgNetworkAdapter                CreatePlayerNetworkAdapter(DdsParticipant? p, int n = 0) => _base.CreatePlayerNetworkAdapter(p, n);
         public ICgfEntityLifecycleAdapters?     CreateCgfEntityLifecycleAdapters()                    => _base.CreateCgfEntityLifecycleAdapters();
         public Hrot.Common.Abstractions.IReplicationModule CreateReplicationModule()               => _base.CreateReplicationModule();
 
-        public IReadOnlyList<IDescriptorTranslator> CreateIgEgressTranslators(
+        public IReadOnlyList<IDescriptorTranslator> CreatePlayerEgressTranslators(
             DdsParticipant participant, FdpEventBus bus, int nodeId)
-            => _base.CreateIgEgressTranslators(participant, bus, nodeId);
+            => _base.CreatePlayerEgressTranslators(participant, bus, nodeId);
 
         public IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(
             FdpEventBus interactionBus, int localNodeId, bool headless)

@@ -1,4 +1,4 @@
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Common;
 using CarKinem.Commands;
 using CarKinem.Core;

@@ -18,7 +18,7 @@ namespace Hrot.Network.NED.Tests;
 /// </summary>
 public sealed class RoleGroupOwnershipStrategyTests
 {
-    private const int SimHost = 1, Cgf = 400, Ig = 300;
+    private const int SimHost = 1, Cgf = 400, Player = 300;
 
     private static long D(EDescriptorType d) => (long)d;
     private static readonly long[] Brain = { D(EDescriptorType.dtEntityDamage), D(EDescriptorType.dtEntityMission),
@@ -66,7 +66,7 @@ public sealed class RoleGroupOwnershipStrategyTests
             cache.UpdateNode(new NodeCapability { NodeId = (Fdp.Core.NodeId)(SimHost), Role = NodeRole.MuscleGround | NodeRole.Perception | NodeRole.NavigationSolver });
         if (withBrain)
             cache.UpdateNode(new NodeCapability { NodeId = (Fdp.Core.NodeId)(Cgf), Role = NodeRole.Brain });
-        cache.UpdateNode(new NodeCapability { NodeId = (Fdp.Core.NodeId)(Ig), Role = NodeRole.Map2D });
+        cache.UpdateNode(new NodeCapability { NodeId = (Fdp.Core.NodeId)(Player), Role = NodeRole.Map2D });
         return new RoleGroupOwnershipStrategy(cache, HrotOwnershipGroups.Table, NedOwnershipGroupBinding.GroupDescriptors);
     }
 
@@ -94,9 +94,9 @@ public sealed class RoleGroupOwnershipStrategyTests
     }
 
     [Fact]
-    public void IgCreatesATank_EachGroupGoesToItsRole()
+    public void PlayerCreatesATank_EachGroupGoesToItsRole()
     {
-        var grants = Strategy().GetInitialGrants(new GrantRequest(default, Tank(), Ig));
+        var grants = Strategy().GetInitialGrants(new GrantRequest(default, Tank(), Player));
 
         Assert.Equal(Brain.OrderBy(x => x), To(grants, Cgf));
         Assert.Equal(Muscle.Concat(Perception).OrderBy(x => x), To(grants, SimHost));
@@ -123,7 +123,7 @@ public sealed class RoleGroupOwnershipStrategyTests
         var platoon = new TkbTemplate("platoon", 10);
         platoon.AddDescriptor(new BehaviorProfileDto { BrainTier = 1 });
 
-        var grants = Strategy().GetInitialGrants(new GrantRequest(default, platoon, Ig));
+        var grants = Strategy().GetInitialGrants(new GrantRequest(default, platoon, Player));
 
         Assert.Equal(Brain.OrderBy(x => x), To(grants, Cgf));
         Assert.DoesNotContain(grants, g => g.DescriptorTypeId == D(EDescriptorType.dtWorldPos));
@@ -136,7 +136,7 @@ public sealed class RoleGroupOwnershipStrategyTests
         truck.AddDescriptor(new BehaviorProfileDto { BrainTier = 0 });
         truck.AddDescriptor(new VehicleParametersDto());
 
-        var grants = Strategy().GetInitialGrants(new GrantRequest(default, truck, Ig));
+        var grants = Strategy().GetInitialGrants(new GrantRequest(default, truck, Player));
 
         Assert.Empty(To(grants, Cgf));
         Assert.Equal(Muscle.OrderBy(x => x), To(grants, SimHost));
@@ -152,5 +152,5 @@ public sealed class RoleGroupOwnershipStrategyTests
 
     [Fact]
     public void NoTemplate_GrantsNothing()
-        => Assert.Empty(Strategy().GetInitialGrants(new GrantRequest(default, null, Ig)));
+        => Assert.Empty(Strategy().GetInitialGrants(new GrantRequest(default, null, Player)));
 }

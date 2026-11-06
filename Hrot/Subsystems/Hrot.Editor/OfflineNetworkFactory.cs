@@ -46,11 +46,11 @@ public sealed class OfflineNetworkFactory : INetworkFactory
         => System.Array.Empty<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>();
 
     /// <inheritdoc/>
-    public IIgTranslators CreateIgTranslators() => new NullIgTranslators();
+    public IIgTranslators CreatePlayerTranslators() => new NullPlayerTranslators();
 
     /// <inheritdoc/>
-    public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, int nodeId = 0)
-        => NullIgNetworkAdapter.Instance;
+    public IIgNetworkAdapter CreatePlayerNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, int nodeId = 0)
+        => NullPlayerNetworkAdapter.Instance;
 
 
     /// <inheritdoc/>
@@ -71,7 +71,7 @@ public sealed class OfflineNetworkFactory : INetworkFactory
     public CycloneDDS.Runtime.DdsParticipant? Participant => null;
 
     /// <inheritdoc/>
-    public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.IDescriptorTranslator> CreateIgEgressTranslators(
+    public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.IDescriptorTranslator> CreatePlayerEgressTranslators(
         CycloneDDS.Runtime.DdsParticipant participant,
         Fdp.Core.FdpEventBus bus,
         int nodeId)

@@ -1,6 +1,6 @@
 using System;
 using Hrot.NED.Descriptors;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -14,7 +14,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// <summary>
     /// Ingress translator for the Hrot <c>MapEntitySymbol</c> DDS topic.
     ///
-    /// Applies per-entity visual overrides via <see cref="IgSymbolOverride"/>.
+    /// Applies per-entity visual overrides via <see cref="MapSymbolOverride"/>.
     /// This translator is ingress-only; <see cref="ScanAndPublish"/> is a no-op.
     /// </summary>
     public class MapEntitySymbolIngressTranslator : IDescriptorTranslator, IDiscardableIngress
@@ -77,7 +77,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (!ShouldApply(symbol.MapGroupId))
                 return;
 
-            repo.SetManagedComponent(entity, new IgSymbolOverride
+            repo.SetManagedComponent(entity, new MapSymbolOverride
             {
                 StyleSetId = string.IsNullOrEmpty(symbol.StyleSetId) ? null : symbol.StyleSetId,
                 TextureOverride = null
@@ -104,7 +104,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 entity = _ghostCreationSystem.CreateGhost(repo, netId);
             }
 
-            cmd.SetManagedComponent(entity, new IgSymbolOverride
+            cmd.SetManagedComponent(entity, new MapSymbolOverride
             {
                 StyleSetId = string.IsNullOrEmpty(data.StyleSetId) ? null : data.StyleSetId,
                 TextureOverride = null

@@ -1,12 +1,12 @@
 using System.Runtime.InteropServices;
 using Fdp.Core;
 
-namespace Hrot.IG.Components;
+namespace Hrot.Map.Common.Components;
 
 /// <summary>
 /// ECS component caching the culling and level-of-detail state for a renderable entity.
 ///
-/// Written each frame by <see cref="Hrot.IG.Systems.MapCullingSystem"/> by comparing
+/// Written each frame by <see cref="Hrot.Player.Systems.MapCullingSystem"/> by comparing
 /// the entity's world-space XY position against the active camera viewport rectangle.
 ///
 /// Read by the <c>DebugGizmoLayer</c> and the <c>StandardInteractionTool</c> position

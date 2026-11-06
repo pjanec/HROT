@@ -72,10 +72,10 @@ public sealed class DesignationOverlayGizmo : IEntityStatefulGizmo
             var wp = ((ISimulationView)world).GetManagedComponentRO<Hrot.Map.Common.Components.RoutePlan>(e).Waypoints;
             for (int i = 1; i < wp.Count; i++) draw.DrawLine(wp[i - 1].Position, wp[i].Position, color, 4f);
         }
-        else if (kind == DesignationKind.Area && world.HasManagedComponent<Hrot.IG.Components.EditablePolyline>(e))
+        else if (kind == DesignationKind.Area && world.HasManagedComponent<Hrot.Map.Common.Components.EditablePolyline>(e))
         {
             // ⚠ the points are OFFSETS from the area's own position (EditablePolyline's one convention)
-            var pts = ((ISimulationView)world).GetManagedComponentRO<Hrot.IG.Components.EditablePolyline>(e).Points;
+            var pts = ((ISimulationView)world).GetManagedComponentRO<Hrot.Map.Common.Components.EditablePolyline>(e).Points;
             for (int i = 0; i < pts.Count; i++)
             {
                 var a = pts[i];

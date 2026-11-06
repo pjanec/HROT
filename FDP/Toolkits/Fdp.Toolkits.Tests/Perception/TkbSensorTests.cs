@@ -105,11 +105,11 @@ namespace Fdp.Toolkit.Perception.Tests
                 new SensorEntryDto { Kind = SensorModality.Thermal, Template = ThermalTemplate }));   // no Thermal sub-record
             Assert.Empty(ChildrenOf(unit));
 
-            using var ig = new EntityRepository();
-            ig.RegisterComponent<PerceptionReceptor>();
-            var igUnit = ig.CreateEntity();
-            new PerceptionTkbTranslator().Inject(ig, igUnit, Unit(Thermal(800f)));
-            Assert.Equal(1, ig.EntityCount);
+            using var player = new EntityRepository();
+            player.RegisterComponent<PerceptionReceptor>();
+            var playerUnit = player.CreateEntity();
+            new PerceptionTkbTranslator().Inject(player, playerUnit, Unit(Thermal(800f)));
+            Assert.Equal(1, player.EntityCount);
         }
 
         /// <summary>⭐ A behaviour-made sensor never takes a TKB part id: allocation stays below 1000 while TKB children hold 1000+.</summary>

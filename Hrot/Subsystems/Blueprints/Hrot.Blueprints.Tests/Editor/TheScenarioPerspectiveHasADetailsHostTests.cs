@@ -5,7 +5,7 @@ using Fdp.Presentation.Icons;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor;
 using Fdp.Toolkit.Runner;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Xunit;
 
 namespace Hrot.Blueprints.Tests.Editor;

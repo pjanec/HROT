@@ -46,10 +46,10 @@ public sealed class TheMenuBarIsOneTreeTests
     public void CE1243_APerspectiveBoundContributor_OffersNothingElsewhere()
     {
         var reg = new GlobalMenuRegistry();
-        reg.RegisterContributor("ig-gizmo", () => Menu("View", "2-D / 3-D Map"), _ => { }, perspective: "IG");
+        reg.RegisterContributor("player-gizmo", () => Menu("View", "2-D / 3-D Map"), _ => { }, perspective: "Player");
 
         Assert.Empty(reg.CollectContributions("Scenario"));
-        Assert.Single(reg.CollectContributions("IG"));
+        Assert.Single(reg.CollectContributions("Player"));
     }
 
     /// <summary>⭐ MB-2 — a contributor is asked ONCE a frame (a gizmo layer's feed is consumed by the asking): the bar and the snapshot
@@ -59,14 +59,14 @@ public sealed class TheMenuBarIsOneTreeTests
     {
         var reg = new GlobalMenuRegistry();
         int asked = 0;
-        reg.RegisterContributor("gizmo", () => { asked++; return Menu("View", "Tactical Map Layers..."); }, _ => { }, perspective: "IG");
+        reg.RegisterContributor("gizmo", () => { asked++; return Menu("View", "Tactical Map Layers..."); }, _ => { }, perspective: "Player");
 
-        var once = reg.CollectContributions("IG");
-        var vm = reg.BuildViewModel("IG", once);
+        var once = reg.CollectContributions("Player");
+        var vm = reg.BuildViewModel("Player", once);
 
         Assert.Equal(1, asked);
         var leaf = Assert.Single(vm.Items, i => i.Path == "View/Tactical Map Layers...");
-        Assert.Equal(new[] { "IG" }, leaf.Scopes);
+        Assert.Equal(new[] { "Player" }, leaf.Scopes);
     }
 
     /// <summary>⭐ MB-3 — the window manager's own menus are contributors of its tree (⛔ no second model beside it), and the bar draws

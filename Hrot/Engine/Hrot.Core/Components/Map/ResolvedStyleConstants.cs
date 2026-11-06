@@ -1,8 +1,8 @@
-namespace Hrot.IG.Components;
+namespace Hrot.Map.Common.Components;
 
 /// <summary>
 /// Named constants for the <see cref="ResolvedStyle"/> component and
-/// <see cref="Hrot.IG.Systems.StyleResolutionSystem"/>.
+/// <see cref="Hrot.Player.Systems.StyleResolutionSystem"/>.
 ///
 /// Centralised here so that a single edit propagates to all struct definitions,
 /// system logic, and test assertions

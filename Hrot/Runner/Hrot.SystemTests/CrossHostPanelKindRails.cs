@@ -28,7 +28,7 @@ namespace Hrot.SystemTests;
 /// divergence)*, a rail says so;</item>
 /// <item>⭐ <b>that host's window publishes a snapshot</b> — 📐 covered for the shared window by
 /// <c>Hrot.Presentation.Tests/Windows/SystemProfilerWindowDumpsItsSnapshotTests.cs</c> and per-host by
-/// <c>Hrot.Editor.Tests</c> and <c>Hrot.IG.Tests</c>. ⚠ <b>Genuinely NOT covered per-host for SimHost and
+/// <c>Hrot.Editor.Tests</c> and <c>Hrot.Player.Tests</c>. ⚠ <b>Genuinely NOT covered per-host for SimHost and
 /// CGF — and it never was</b>, before or after the mock. ⛔ Stated rather than quietly implied; it is a
 /// finding *(<c>HN-014</c>'s neighbour, filed as part of this batch's report)*, not something this file
 /// pretends to have fixed.</item>
@@ -84,7 +84,7 @@ public sealed class CrossHostPanelKindRails
     public void Every_production_host_that_registers_the_profiler_is_accounted_for()
     {
         // 📄 PanelIds.SystemProfiler's remarks: SimHost · CGF · IG · Editor (StrideMock retired — ST-017).
-        var expected = new[] { "CgfSubsystem.cs", "EditorSubsystem.cs", "IgSubsystem.cs", "SimHostSubsystem.cs" };
+        var expected = new[] { "CgfSubsystem.cs", "EditorSubsystem.cs", "PlayerSubsystem.cs", "SimHostSubsystem.cs" };
 
         var root = TestRepo.Root;
 

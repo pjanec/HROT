@@ -341,6 +341,13 @@ class Program
         foreach (var sub in subsystems.OfType<Hrot.CGF.CgfSubsystem>())
             sub.AiBehaviorsProjectPath = config.AiBehaviorsProjectPath;
 
+        // ⭐⭐⭐ CE-4270 B7c (D4, R-3077) — `-m server` is the FUSED server: the orchestrator node (unchanged, D2) and ONE node that CGF's bootstrapper composes from the
+        //    fused role (Brain + MuscleGround + Perception + NavigationSolver in one world, traffic served in it — D3). ⛔ No server host class: the role is the only
+        //    difference, set before Initialize. `--server-nodes` keeps the old four-node process. 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1ag.
+        if (config.FusedServer)
+            foreach (var sub in subsystems.OfType<Hrot.CGF.CgfSubsystem>())
+                sub.Role = Hrot.CGF.CgfSubsystem.FusedServerRole;
+
         var options = new RunnerOptions
         {
             Headless       = config.Headless,
@@ -396,7 +403,7 @@ class Program
             //    forbidden to touch this literal, so deleting it here is what keeps the two conflict-free.
             var perspectiveMap = new Dictionary<string, string>
             {
-                ["IG"]        = "IG",
+                ["Player"]        = "Player",
                 ["SimHost"]   = "SimHost",
                 ["Scenario"]  = "CGF",
             };
@@ -794,7 +801,7 @@ class Program
         int offset = subsystemName.ToUpper() switch
         {
             "SIMHOST"      => 1,
-            "IG"           => 100,
+            "Player"           => 100,
             "ORCHESTRATOR" => 300,
             "CGF"          => 400,
             "CI"           => 500,

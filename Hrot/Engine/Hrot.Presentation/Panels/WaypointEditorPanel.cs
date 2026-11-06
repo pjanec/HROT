@@ -43,7 +43,7 @@ public sealed record WaypointEditorPanelViewModel(
 /// edit the gizmo's working copy only, so an edit was lost on Escape.
 /// </para>
 ///
-/// <para>⭐ CE-1096 (W-1) — MOVED from <c>Hrot.IG.UI</c> to <c>Hrot.Presentation</c>: one panel, registered by every authoring host (the editor,
+/// <para>⭐ CE-1096 (W-1) — MOVED from <c>Hrot.Player.UI</c> to <c>Hrot.Presentation</c>: one panel, registered by every authoring host (the editor,
 /// CGF, the IG — <see cref="Hrot.Presentation.Windows.WaypointEditorWindow"/>); the editor had no way to set anything on a waypoint.</para>
 /// </summary>
 public class WaypointEditorPanel

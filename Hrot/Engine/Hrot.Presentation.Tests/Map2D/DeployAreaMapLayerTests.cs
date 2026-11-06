@@ -7,7 +7,7 @@ using Fdp.Toolkit.Vis2D.Abstractions;
 using Hrot.Editor.UiFrameRail;
 using Hrot.Common;
 using Hrot.Gameplay;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Presentation.Tests.Map3D;
 using Hrot.UI.Common.Map2D;
 using Hrot.UI.Common.Panels;

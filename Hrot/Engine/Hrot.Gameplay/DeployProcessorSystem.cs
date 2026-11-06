@@ -67,6 +67,7 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
     private readonly Dictionary<int, Offered> _offered = new();
     private readonly List<int> _scratch = new();
     private readonly List<PendingSpawn> _pending = new();
+    private readonly HashSet<int> _answered = new();   // the stations whose DeployStatusTopic this server wrote (deleted when they leave)
     private readonly List<(int Role, int Unit)> _spawned = new();   // the men THIS server made, per role (the count a role's Max is checked against)
     private readonly RoleSpawner? _spawner;
     private readonly Random _rng;
@@ -173,6 +174,12 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
     }
 
     private void Answer(in DeployRequestTopic r, bool accepted, string reason, int holder, int unitNetId)
+    {
+        _answered.Add(r.StationNodeId);   // ⭐ the station's answer is durable (TransientLocal): deleted when the station leaves
+        WriteAnswer(r, accepted, reason, holder, unitNetId);
+    }
+
+    private void WriteAnswer(in DeployRequestTopic r, bool accepted, string reason, int holder, int unitNetId)
         => _wire.Status?.Write(new DeployStatusTopic
         {
             StationNodeId = r.StationNodeId, RequestId = r.RequestId ?? "", Accepted = accepted, Reason = reason, UnitNetId = unitNetId, HolderStation = holder,
@@ -370,10 +377,23 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
 
     private void ReadDepartures(EntityRepository repo)
     {
-        if (_slots.Count == 0 || !repo.Bus.IsRegistered<NodeDeparted>()) return;
+        if ((_slots.Count == 0 && _answered.Count == 0) || !repo.Bus.IsRegistered<NodeDeparted>()) return;
         foreach (ref readonly var gone in repo.ReadEvents<NodeDeparted>())
+        {
             for (int i = _slots.Count - 1; i >= 0; i--)
                 if (_slots[i].Station == gone.NodeId) DisposeSlotAt(repo, i);
+            DisposeAnswer((int)gone.NodeId);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4270 ③ (found by the scripted full cycle, step 10) — the station left: its <c>DeployStatusTopic</c> (TransientLocal, keyed by
+    /// station) is deleted too, slot or not (a refused station has an answer and no slot). 📐 Before, every departed station left its last
+    /// answer ALIVE for every late joiner, one more per join.
+    /// </summary>
+    private void DisposeAnswer(int station)
+    {
+        if (_answered.Remove(station)) _wire.Status?.DisposeInstance(new DeployStatusTopic { StationNodeId = station });
     }
 
     // ── offers ──────────────────────────────────────────────────────────────────────────────
@@ -481,6 +501,8 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
     private void StandDown(EntityRepository repo)
     {
         for (int i = _slots.Count - 1; i >= 0; i--) DisposeSlotAt(repo, i);
+        foreach (int station in _answered) _wire.Status?.DisposeInstance(new DeployStatusTopic { StationNodeId = station });
+        _answered.Clear();
         foreach (int netId in _offered.Keys) _scratch.Add(netId);
         foreach (int netId in _scratch) _wire.Offers?.DisposeInstance(new DeployOfferTopic { UnitNetId = netId });
         _scratch.Clear();

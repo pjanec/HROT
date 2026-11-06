@@ -279,9 +279,9 @@ namespace Hrot.SimHost.Tests
 
             Assert.Single(commands);
             var cmd      = commands[0];
-            var igData   = Assert.Single(cmd.InitialComponents!.OfType<Fdp.Core.EntityInfo>());
+            var playerData   = Assert.Single(cmd.InitialComponents!.OfType<Fdp.Core.EntityInfo>());
 
-            Assert.Equal("Delta-7", igData.Name.ToString());
+            Assert.Equal("Delta-7", playerData.Name.ToString());
         }
 
         [Fact]
@@ -319,7 +319,7 @@ namespace Hrot.SimHost.Tests
             => AttributeCompilerFactory.Build();
 
         [Fact]
-        public void DescriptorMapper_WithCompiler_DtEntityInfoProducesIgEntityData()
+        public void DescriptorMapper_WithCompiler_DtEntityInfoProducesPlayerEntityData()
         {
             var compiler = BuildCompiler();
             var descriptors = new List<EntityDescriptorUnion>
@@ -339,13 +339,13 @@ namespace Hrot.SimHost.Tests
 
             var components = DescriptorMapper.MapToComponents(descriptors, compiler);
 
-            var igData = Assert.Single( components.OfType<Fdp.Core.EntityInfo>());
-            Assert.Equal("TestUnit",     igData.Name);
-            Assert.Equal(ForceId.Friend, igData.ForceId);
+            var playerData = Assert.Single( components.OfType<Fdp.Core.EntityInfo>());
+            Assert.Equal("TestUnit",     playerData.Name);
+            Assert.Equal(ForceId.Friend, playerData.ForceId);
         }
 
         [Fact]
-        public void DescriptorMapper_WithCompiler_NoDuplicateIgEntityData()
+        public void DescriptorMapper_WithCompiler_NoDuplicatePlayerEntityData()
         {
             var compiler = BuildCompiler();
             var descriptors = new List<EntityDescriptorUnion>

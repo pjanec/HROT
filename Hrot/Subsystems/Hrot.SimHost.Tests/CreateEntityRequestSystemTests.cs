@@ -884,7 +884,7 @@ namespace Hrot.SimHost.Tests
 
         // â”€â”€ ATTR-JSON: JSON attribute path â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-        private static EntityRepository CreateWorldWithIgEntityData()
+        private static EntityRepository CreateWorldWithPlayerEntityData()
         {
             var repo = CreateWorld();
             repo.RegisterComponent<EntityInfo>();
@@ -899,7 +899,7 @@ namespace Hrot.SimHost.Tests
         public void ProcessRequest_Json_PatchesName()
         {
             // Arrange
-            var repo   = CreateWorldWithIgEntityData();
+            var repo   = CreateWorldWithPlayerEntityData();
             var tkb    = CreateTkb();
             var source = new StubRequestSource();
             var request = new EntityCreationRequest

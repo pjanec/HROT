@@ -36,7 +36,7 @@ namespace Hrot.SimHost.Tests
         /// </summary>
         public static TheoryData<string> CompositionRoots() => new()
         {
-            "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs",
+            "Hrot/Subsystems/Hrot.Player/PlayerNodeBootstrapper.cs",
             "Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs",
             "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
             "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs",
@@ -99,18 +99,18 @@ namespace Hrot.SimHost.Tests
         /// has; a second implementation would need naming here, and <see cref="TheEgressSeamIsResolvable"/>
         /// makes that a loud red rather than a silent pass.</para>
         /// </summary>
-        private const string IgEgressFactoryPath =
+        private const string PlayerEgressFactoryPath =
             "Hrot/Network/Hrot.Network.NED/Factory/NedNetworkFactory.cs";
 
         private static bool SeamYieldsTheSpawnEgressTranslator(string rootCode)
         {
-            if (!rootCode.Contains("CreateIgEgressTranslators")) return false;
+            if (!rootCode.Contains("CreatePlayerEgressTranslators")) return false;
 
             var factory = CompositionRootSource.StripComments(
-                CompositionRootSource.ReadRepoSource(IgEgressFactoryPath));
+                CompositionRootSource.ReadRepoSource(PlayerEgressFactoryPath));
 
             // The body of CreateIgEgressTranslators, up to the next method or the end of the file.
-            int start = factory.IndexOf("CreateIgEgressTranslators", System.StringComparison.Ordinal);
+            int start = factory.IndexOf("CreatePlayerEgressTranslators", System.StringComparison.Ordinal);
             if (start < 0) return false;                       // TheEgressSeamIsResolvable catches this
             int next = factory.IndexOf("public ", start + 1, System.StringComparison.Ordinal);
             var body = next > start ? factory[start..next] : factory[start..];
@@ -128,9 +128,9 @@ namespace Hrot.SimHost.Tests
         public void TheEgressSeamIsResolvable()
         {
             var factory = CompositionRootSource.StripComments(
-                CompositionRootSource.ReadRepoSource(IgEgressFactoryPath));   // throws if it moved
+                CompositionRootSource.ReadRepoSource(PlayerEgressFactoryPath));   // throws if it moved
 
-            Assert.Contains("CreateIgEgressTranslators", factory);
+            Assert.Contains("CreatePlayerEgressTranslators", factory);
         }
 
         /// <summary>

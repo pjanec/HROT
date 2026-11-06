@@ -8,11 +8,10 @@ using Fdp.Toolkit.Replication.Patching;
 using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis2D.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
-// ⭐ `Hrot.IG.Components` is a NAMESPACE IN Hrot.Core, ⛔ not in the Hrot.IG assembly — measured
+// ⭐ `Hrot.Player.Components` is a NAMESPACE IN Hrot.Core, ⛔ not in the Hrot.Player assembly — measured
 //   2026-08-27 after I wrongly called this using stale and the compiler corrected me
 //   (EditablePolyline + MapOverlayStyle are declared under it in Hrot.Core/Components/Map).
-//   ⇒ it carries NO Hrot.IG reference, which is why this adapter can live here at all.
-using Hrot.IG.Components;
+//   ⇒ it carries NO Hrot.Player reference, which is why this adapter can live here at all.
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Hrot.UI.Common.Facades;

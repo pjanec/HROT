@@ -67,8 +67,43 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
     public Hrot.Map.Common.Services.TerrainResidency? TerrainResidency => _nodeBootstrapper.TerrainResidency;
     public Fdp.Core.Serialization.Migrations.MigrationServices? MigrationServices { get; private set; }
 
-    /// <summary>⭐ Decision D (R-3074): CGF builds NO post-simulation group; a capability that contributes post-sim systems throws at boot instead of being dropped.</summary>
-    protected override bool BuildsPostSimGroup => false;
+    /// <summary>⭐ Decision D (R-3074): CGF builds NO post-simulation group; a capability that contributes post-sim systems throws at boot instead of being dropped.
+    /// ⭐ CE-4270 B7b — a role that composes the Muscle (the fused server) builds it: the muscle pack has post-simulation systems (as on SimHost).</summary>
+    protected override bool BuildsPostSimGroup => Hrot.SimHost.MuscleRoleInputs.ComposesMuscle(BootRole);
+
+    // ── ⭐⭐⭐ CE-4270 B7b (§4.1ag, R-3077) — the Muscle role's inputs, by the DECLARED role. Booted as the Brain alone none of this runs (S0 cgf.json identical);
+    //   booted as the fused server (Brain | MuscleGround | Perception | NavigationSolver) this node is the brain AND the muscle in one world — the editor's union,
+    //   network ON, slave time. Every Muscle input comes from the ONE shared step SimHost uses (Hrot.SimHost.MuscleRoleInputs), never a copy. ──
+
+    private bool ComposesMuscle => Hrot.SimHost.MuscleRoleInputs.ComposesMuscle(BootRole);
+
+    /// <summary>The node's one trajectory pool when the role composes the Muscle (routes written by the solver, read by kinematics — CE-180). Made on first use:
+    /// a Brain-only boot never allocates one.</summary>
+    public Hrot.Common.Infrastructure.TrajectoryPoolProvider TrajectoryPool => _trajectoryPool ??= new();
+    private Hrot.Common.Infrastructure.TrajectoryPoolProvider? _trajectoryPool;
+
+    /// <summary>⭐ W6 — THE node's navmesh when it composes the Muscle (the solver's, and what a terrain commit bakes into). Made on first use.</summary>
+    public Fdp.Toolkit.Navigation.SwitchableNavmeshProvider Navmesh => _navmesh ??= new();
+    private Fdp.Toolkit.Navigation.SwitchableNavmeshProvider? _navmesh;
+
+    /// <summary>⭐ W6 — bakes the navmesh from each loaded terrain, as on SimHost (silent-default rule: a node that composes the solver must bake). Null ⇒ no bake.</summary>
+    public Fdp.Toolkit.Navigation.INavmeshFactory? NavmeshFactory { get; set; } = new Fdp.Toolkit.Navigation.Recast.RecastNavmeshFactory();
+
+    /// <summary>The Muscle role's parts (the core logic pack, the navigation module, the solver factory); null for a Brain-only boot.</summary>
+    public Hrot.SimHost.MuscleRoleInputs.Parts? Muscle { get; private set; }
+
+    /// <summary>The Muscle's GlobalTime step (SimHost's NodeConfiguration default).</summary>
+    private static readonly float MuscleSimulationRateHz = new Hrot.SimHost.NodeConfiguration().SimulationRateHz;
+
+    protected override IReadOnlyList<string> DeclaredResourceKeys(NodeRole role) => Hrot.SimHost.MuscleRoleInputs.DeclaredResourceKeys(role);
+
+    protected override IReadOnlyList<INodeResourceProvider> ResolveResources(HrotNodeContext context, NodeRole role)
+        => Hrot.SimHost.MuscleRoleInputs.ComposesMuscle(role)
+            ? Hrot.SimHost.MuscleRoleInputs.ResolveResources(role, TrajectoryPool)
+            : Array.Empty<INodeResourceProvider>();
+
+    /// <summary>⭐ CE-165 (the editor's rule) — the Brain and the Muscle packs in one world share systems; each runs once (the first in plan order wins).</summary>
+    protected override bool DeduplicateSystemsByType => ComposesMuscle;
 
     // ── the registries come first: BuildContext hands the behaviour registry to the replication module ──
 
@@ -106,7 +141,12 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
     protected override HrotNodeContext BuildContext(HrotNodeConfig config, NodeRole role, INetworkFactory? networkFactory)
         => HrotNodeBuilderReplicationExtensions.BuildReplicatedNode(config, role, networkFactory, GetBehaviorRegistry());   // time Slave (the default)
 
-    protected override void RegisterDomainComponents(EntityRepository world) => CgfComponentRegistry.RegisterAll(world);
+    protected override void RegisterDomainComponents(EntityRepository world)
+    {
+        // ⭐ CE-4270 B7b — a role with the Muscle registers the Muscle's set too, in the editor's order (SimHost's, then CGF's).
+        if (ComposesMuscle) Hrot.SimHost.SimHostComponentRegistry.RegisterAll(world);
+        CgfComponentRegistry.RegisterAll(world);
+    }
 
     protected override ScenarioSerializer BuildSerializer(BehaviorRegistry? registry)
     {
@@ -127,28 +167,36 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
         // which this host has; the editor is offline, receives no ghosts, and for it the gate would only subtract.
         var cgfLogicPack = new CgfLogicPack(BehaviorRegistry, context.EntityMap, mapperRegistry, BlueprintRegistry, vehicleApi: null, gateOnAuthority: true, nodeBus: context.EventBus);
 
-        // ⭐⭐ CE-2144 (R-2008) — the plan starts from the ONE shared head: HealthApplication first, so damage is applied before the cognitive runtime.
-        ResolvedCapabilities = CoreInfrastructureCapabilities.LiveSimulationPlan(CgfSubsystem.DefaultRole)
-            .Capability(CgfSubsystem.DefaultRole, new CgfCapabilities.Brain(cgfLogicPack))
-            // ⭐ CE-221 — cross-role infrastructure, declared LAST so it keeps its tail-of-Simulation position (Resolve de-duplicates by Key).
-            .Capability(CgfSubsystem.DefaultRole, new CoreInfrastructureCapabilities.UnitHierarchy())
-            .Capability(CgfSubsystem.DefaultRole, new Hrot.SimHost.EqsResultUpdateCapability())
-            // ⭐ CE-3110 (R-221/R-224) — interactions (doors, embarkation) are cross-role too.
-            .Capability(CgfSubsystem.DefaultRole, new CoreInfrastructureCapabilities.Interactions())
-            // ⭐ AQ93 §12 N6 (R-4056) — SUMO cars from every traffic node, mirrored (vicinity replicas the brains see); idle without a net.
-            .Capability(CgfSubsystem.DefaultRole, Hrot.Traffic.TrafficPack.Mirroring())
-            // ⭐ Player Join D-2 / §7c (R-4115) — the gameplay deploy SERVER, composed by default; its feature `gameplay.deploy-server` (ON by default) is what gates it, and with it off no
-            //   gameplay topic is created. One server per cluster: the lowest node id with the feature on (the cluster cache this node's replication module reads).
-            .Capability(CgfSubsystem.DefaultRole, new Hrot.Gameplay.GameplayServerPack(ctx =>
+        // ⭐ CE-4270 B7b — the Muscle role's parts, built only when the declared role composes it (dormant for the Brain alone).
+        Muscle = ComposesMuscle
+            ? Hrot.SimHost.MuscleRoleInputs.Build(context.EntityMap, default(CarKinem.Road.RoadNetworkBlob), TrajectoryPool, Navmesh, () => _nodeBootstrapper)
+            : null;
+
+        // ⭐⭐⭐ CE-4270 B7a / B9 (§4.1ag, R-3077): the ONE role table (RoleCapabilityTable) resolved for the DECLARED role (`role`, what the subsystem handed
+        //   BootstrapNode), never a constant. Booted as the Brain, this is exactly CGF's set as before (S0 cgf.json identical).
+        var plan = Hrot.SimHost.RoleCapabilityTable.Plan(new Hrot.SimHost.RoleTableInputs
+        {
+            Brain          = new CgfCapabilities.Brain(cgfLogicPack),
+            Muscle         = Muscle,
+            TrajectoryPool = Muscle != null ? TrajectoryPool : null,
+            // ⭐ AQ93 §12 N6 (R-4056): a Brain mirrors every traffic node's cars. ⭐ CE-4270 D3: the fused server (Brain + Muscle in one world) SERVES them itself, as the editor does.
+            Traffic        = Muscle != null ? Hrot.Traffic.TrafficPack.Serving() : Hrot.Traffic.TrafficPack.Mirroring(),
+            // ⭐ Player Join D-2 / §7c (R-4115): the gameplay deploy SERVER, composed by default. Its feature `gameplay.deploy-server` (ON by default) gates it. One server
+            //   per cluster: the lowest node id with the feature on (the cluster cache this node's replication module reads).
+            GameplayServer = new Hrot.Gameplay.GameplayServerPack(ctx =>
                 (ctx.NedReplication as Hrot.Network.Replication.NedReplicationModule)?.ClusterCache is { } cache
-                    ? new Hrot.Gameplay.DeployServerElection(cache.AllNodeIds, cache.Supports, cache.FeatureOn) : null, creation: () => EntityCreation))   // ⭐ S2 — the node's creation pack, resolved lazily (built after the plan resolves)
-            .Resolve(CgfSubsystem.DefaultRole);
+                    ? new Hrot.Gameplay.DeployServerElection(cache.AllNodeIds, cache.Supports, cache.FeatureOn) : null, creation: () => EntityCreation),   // ⭐ S2: the node's creation pack, resolved lazily (built after the plan resolves)
+        });
+        ResolvedCapabilities = plan
+            .Resolve(role);
         return ResolvedCapabilities;
     }
 
     protected override void PopulateSystems(HrotNodeContext context, List<IEcsModuleSystem> inputSystems, List<IEcsModuleSystem> simSystems, List<IEcsModuleSystem> postSimSystems)
     {
         // Everything CGF runs comes from its capabilities (the base walks them right after this hook) and the base's own owner-side edit-request handlers.
+        // ⭐ CE-4270 B7b — a role with the Muscle starts with SimHost's GlobalTime seed (the ONE shared step).
+        if (ComposesMuscle) Hrot.SimHost.MuscleRoleInputs.SeedGlobalTime(context.World, MuscleSimulationRateHz);
     }
 
     // ── phase 5: the ONE slave, the shared handler composition ───────────────────────────────
@@ -165,8 +213,11 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
     {
         ToggleSim = simGroup;
 
+        // ⭐ CE-4270 B7b (W6) — a role with the solver bakes each loaded terrain into the node's navmesh, as SimHost does (silent-default rule: we hold it, so pass it).
+        if (ComposesMuscle && NavmeshFactory != null) _nodeBootstrapper.AttachNavmesh(NavmeshFactory, Navmesh);
+
         // ⭐ Decision A (R-3074): the migration services every Brain host builds (SimHost does, writer identifier "Hrot.CGF" for a Brain).
-        MigrationServices = _nodeBootstrapper.RegisterMigrationServices(BootRole, writerIdentifier: "Hrot.CGF");
+        MigrationServices = _nodeBootstrapper.RegisterMigrationServices(BootRole, writerIdentifier: Hrot.Common.Scenario.HrotSubsystemTypes.Cgf);
 
         var scenarioLoader = new Hrot.Common.Scenario.HrotScenarioLoader(
             new LocalDiskStorageProvider(_isolatedTempRoot), serializer.SubsystemType);
@@ -195,36 +246,28 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
             BootConfig.SubsystemName, BootConfig.NodeId);
         var diagnosticsDump = new DiagnosticsDumpClusterOpHandler(_eventHistory, archService, entityService, logService, BootConfig);
 
-        return _nodeBootstrapper.BuildOrchestration(
-            BootRole, context.Kernel, context.World, context.NodeId,
-            participant:          context.Participant,
-            subsystemName:        "CGF",
-            eventBus:             context.EventBus,
-            features:             () => context.Features,   // ⭐ P-7 F-28 — this caller HAS the node's features, so the scenario step can hand it the header's preset
-            scenarioSerializer:   serializer,
-            scenarioExtractor:    extractor,
-            scenarioSource:       context.World.Bus,
-            scenarioIdAllocator:  context.IdAllocator,
-            localTempRoot:        _isolatedTempRoot,
-            tkbDb:                context.TkbDb,
-            simGroup:             simGroup,
-            inputGroup:           InputGroup,
-            postSimGroup:         null,   // decision D: none
-            // ⭐ Decision A: the replay load gates the network lifecycle systems and bypasses ghost lifecycle, as on SimHost.
-            lifecycleGroup:       context.NedReplication?.NetworkLifecycleGroup,
-            ghostCreationSystem:  context.GhostCreationSystem,
-            eventAccumulator:     context.EventAccumulator,
-            afterSeek:            context.NedReplication?.AfterSeekCallback,
-            diagnosticsDumpHandler: diagnosticsDump,
-            elm:                  context.BaseModules?.OfType<EntityLifecycleModule>().FirstOrDefault(),
-            terrainContent:       context.TerrainContent,
-            // ⭐ ONE slave, ONE slave translator — the builder's (the second `new ClusterSlave` and the context swap are gone).
-            clusterSlave:         context.ClusterSlave,
-            slaveTranslator:      context.SlaveTranslator,
-            scenarioHandlers:     new IClusterStateHandler[] { episodeHandler },
-            behaviorRemapper:     behaviorRemapper,
-            entityMap:            context.EntityMap,   // CE-2101 — the world boundary clears it
-            mapBuildStatus:       MapBuildStatus);     // ⭐ CE-3354 ③ — this host HAS a map (CgfSubsystem attaches it), so it passes it
+        // ⭐ CE-4270 B11 — the ONE orchestration step (HostOrchestration).
+        return Hrot.EcsNode.Hosting.HostOrchestration.Build(_nodeBootstrapper, BootRole, context,
+            new Hrot.EcsNode.Hosting.OrchestrationSpec
+            {
+                SubsystemName     = "CGF",
+                LocalTempRoot     = _isolatedTempRoot,
+                Serializer        = serializer,
+                ScenarioExtractor = extractor,
+                SimGroup          = simGroup,
+                InputGroup        = InputGroup,
+                PostSimGroup      = null,   // decision D: none
+                DiagnosticsDump   = diagnosticsDump,
+                ScenarioHandlers  = new IClusterStateHandler[] { episodeHandler },
+                BehaviorRemapper  = behaviorRemapper,
+                MapBuildStatus    = MapBuildStatus,   // ⭐ CE-3354 ③ — this host HAS a map (CgfSubsystem attaches it)
+            });
+    }
+
+    /// <summary>⭐ CE-4270 B7b — after Kernel.Initialize: the navigation module's providers, when the role composed the solver (the ONE shared step, CE-197 guard).</summary>
+    protected override void PostInitialize(HrotNodeContext context)
+    {
+        if (Muscle != null) Hrot.SimHost.MuscleRoleInputs.RegisterNavigationProviders(Capabilities, Muscle.NavigationModule, context.World);
     }
 
     // ── phase 6a: the spawning pipeline ──────────────────────────────────────────────────────
@@ -235,44 +278,28 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
         PhysicsModule = new PhysicsToolkitModule();
         PhysicsModule.Initialize(context.World);
 
-        // ⭐⭐⭐ CE-140 step 3, host (d) — CGF's entity-creation tier, BUILT AS A UNIT by the shared pack. CGF is the cluster's broadcast arbiter
-        //   (`IsBroadcastArbiter: true` — exactly one node may set it); it is NOT an authority gate, it only decides who intercepts Owner == 0 broadcasts.
-        var creation = EntityCreationPack.Build(new EntityCreationContext
-        {
-            World       = context.World,
-            EntityMap   = context.EntityMap,
-            TkbDb       = context.TkbDb!,
-            IdAllocator = context.IdAllocator!,
-            Elm         = (EntityLifecycleModule)context.BaseModules.First(m => m is EntityLifecycleModule),
-            NodeId      = context.NodeId,
-            // ⭐⭐ S2b — the SAME network adapters every ECS host passes (request source, ack sink, JSON compiler, ownership strategy, forwarding egress).
-            NetworkAdapters = ConfiguredNetworkFactory?.CreateCgfEntityLifecycleAdapters(),
-            // ⭐⭐⭐ CE-291 (piece C) — the reliable-init wait-set provider, sourced from the shared NED replication module.
-            ExpectedPeers = context.NedReplication?.ExpectedPeers,
-            // ⭐ CE-138's list: the ONE base set plus AiDiagnostics (it lives above Hrot.Core). ⛔ Never subtract to narrow — gate ② narrows per component.
-            ExtraTranslators = new ITkbEntityTranslator[]
+        // ⭐ CE-4270 B5 (§4.1ag) — the ONE shared spawning step: the pack, then the capabilities, then the genesis tail. CGF is the cluster's
+        //   broadcast arbiter (exactly one node; it only decides who intercepts Owner == 0 broadcasts — not an authority gate); the ONE base
+        //   translator set plus AI diagnostics and the stance/animation pair (CE-138, CE-2121; never subtract to narrow); the Brain loads
+        //   scenarios, so it expands the macro instances it creates (Macros S3a ④, §15 E-4).
+        EntityCreation = Hrot.EcsNode.Hosting.HostSpawning.Register(context, ConfiguredNetworkFactory,
+            new Hrot.EcsNode.Hosting.SpawningSpec
             {
-                new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),
-                // ⭐ CE-2121 — stance (and the animation runtime pair) from the TKB's CharacterAnimationDefDto.
-                new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
+                IsBroadcastArbiter = true,
+                ExtraTranslators   = new ITkbEntityTranslator[]
+                {
+                    new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),
+                    new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
+                },
+                Macros = new Hrot.Common.Macros.MacroExpander(
+                    Fdp.Toolkit.Scenario.FileMacroLibrary.ForNode(_isolatedTempRoot),
+                    new Hrot.CGF.Orchestration.StagingEntityExtractor(reuseStagingWorld: true),
+                    ScenarioSerializer,
+                    Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(BehaviorRegistry)),
             },
-            IsBroadcastArbiter = true,
-            // ⭐ Macros S3a ④ — the Brain loads scenarios, so it expands the macro instances it creates (§15 E-4: a host holding the extractor passes it).
-            Macros = new Hrot.Common.Macros.MacroExpander(
-                Fdp.Toolkit.Scenario.FileMacroLibrary.ForNode(_isolatedTempRoot),
-                new Hrot.CGF.Orchestration.StagingEntityExtractor(reuseStagingWorld: true),   // its own instance: no BP-509 remap broadcast for a macro's file keys · ⭐ CE-2396 one staging world, emptied per expansion
-                ScenarioSerializer,
-                Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(BehaviorRegistry)),
-        });
-        EntityCreation = creation;   // CE-515
+            () => RegisterCapabilities(context));
 
-        // ⭐ CE-4013 D6 — every piece of the pack scheduled by the ONE shared registration, unconditionally, online and offline (Q65 §0).
-        creation.RegisterOn(context.Kernel);
-
-        // ⭐ CE-4013 — the capabilities' Register hook, which CGF never asked before (none in its plan implements it today).
-        RegisterCapabilities(context);
-
-        Hrot.SimHost.Systems.GenesisTail.RegisterOn(context.Kernel, context.EntityMap);   // ⭐ CE-4013 D11 — the shared genesis tail
+        // The Brain's blueprint genesis, after the shared tail (as before).
         Hrot.SimHost.Systems.BlueprintGenesisRuntimeRegistration.RegisterBlueprintGenesisSystems(context.Kernel, BlueprintRegistry);
     }
 
@@ -280,6 +307,13 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
 
     protected override void RegisterNetworkTranslators(HrotNodeContext context, INetworkFactory? configuredFactory)
     {
+        // ⭐ CE-4270 B7b — a role with the Muscle registers the ONE SimHost translator set (perception over the ghost system, pathfinding over the node's
+        //   trajectory pool — each pack picks its Brain and its solver halves from the node's role); the stance wire keeps the Brain's half (BootRole).
+        if (Muscle != null)
+        {
+            Hrot.SimHost.MuscleRoleInputs.RegisterTranslators(context, configuredFactory, Muscle.CoreLogicPack.TrajectoryPool, BootRole);
+            return;
+        }
         // Auxiliary translators (time-sync, combat, mission-control) via the injected factory — the SimHost pattern.
         configuredFactory?.CreateSimHostAuxiliaryTranslators()?.RegisterOn(context.Kernel);
         configuredFactory?.CreateSimHostPerceptionTranslators()?.RegisterOn(context.Kernel);

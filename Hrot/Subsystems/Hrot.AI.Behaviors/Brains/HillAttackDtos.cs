@@ -114,7 +114,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// The area query in flight: the packed EQS child sensor (<c>Fdp.Toolkit.Spatial.Eqs.EqsChildSensor</c>) whose answer
         /// is awaited, or <c>-1</c> when no query is in flight. Set by <c>Action_RequestAreaQuery</c>, read by
         /// <c>Condition_IsAreaQueryResolved</c> and <c>Action_DispatchWaveWithTargets</c>.
-        /// ⭐ Was the <c>AreaQueryBatchHelper</c> request id; the name is kept because <c>Hrot.IG.Tests</c> pins it
+        /// ⭐ Was the <c>AreaQueryBatchHelper</c> request id; the name is kept because <c>Hrot.Player.Tests</c> pins it
         /// (<c>DESIGN_Hill_Attack_Eqs_Migration.md</c> §4 D5).
         /// </summary>
         public long CachedEqsRequestId;              // 8, offset 0

@@ -8,7 +8,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Terrain;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Services;
 using Xunit;

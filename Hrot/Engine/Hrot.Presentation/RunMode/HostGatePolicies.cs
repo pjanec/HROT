@@ -17,7 +17,7 @@ public enum RunHostKind
     /// <summary>⭐ <c>CE-1439</c> — the Orchestrator (the cluster master's own window): an OPERATOR host with no world of its own.</summary>
     Orchestrator,
     /// <summary>⭐ <c>CE-3345</c> — the IG (image generator): a PLAYER host, not an operator — see <see cref="HostGatePolicies"/>.</summary>
-    Ig,
+    Player,
     /// <summary>Any other host (the all-in-one's other subsystems, the server, a test host).</summary>
     Other,
 }

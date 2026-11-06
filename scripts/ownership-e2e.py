@@ -10,9 +10,9 @@ then
     python3 scripts/ownership-e2e.py edit <networkId> <perspective> '<patchJson>'   # E4/E6: patch from a NON-owner,
                                                           # then show the patched state on every node (CE-3003)
 Multi-process launch (one node per process, RUNBOOK §1.2): set HROT_E2E_PORTS, e.g.
-    HROT_E2E_PORTS="SimHost=8102,Scenario=8101,IG=8103" python3 scripts/ownership-e2e.py own <networkId>
+    HROT_E2E_PORTS="SimHost=8102,Scenario=8101,Player=8103" python3 scripts/ownership-e2e.py own <networkId>
 and every call for a perspective goes to that node's own port (E8, the crash run).
-Node ids (measured on --mode all): SimHost 1 · IG 100 · CGF 400 (perspective "Scenario").
+Node ids (measured on --mode all): SimHost 1 · Player 100 · CGF 400 (perspective "Scenario").
 ⚠ Use the hostname localhost: 127.0.0.1 404s every route. The cluster boots PAUSED (POST /sim/play).
 """
 import json, os, sys, time, urllib.request
@@ -20,8 +20,8 @@ import json, os, sys, time, urllib.request
 B = "http://localhost:8111"
 PORTS = dict(kv.split("=") for kv in os.environ.get("HROT_E2E_PORTS", "").split(",") if kv)   # perspective -> port
 _base = [B]
-NODES = {"SimHost": 1, "Scenario": 400, "IG": 100}          # perspective -> node id (measured)
-NAME = {1: "SimHost", 400: "CGF", 100: "IG", -1: "?"}
+NODES = {"SimHost": 1, "Scenario": 400, "Player": 100}          # perspective -> node id (measured)
+NAME = {1: "SimHost", 400: "CGF", 100: "Player", -1: "?"}
 opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
@@ -147,7 +147,7 @@ if __name__ == "__main__":
     if cmd == "own":
         nid = int(sys.argv[2]); evaluate(nid, ownership(nid))
     elif cmd == "eval":
-        exp = {"E1": {"Brain": "CGF", "MuscleGround": "SimHost", "Perception": "SimHost", "creator": "IG"},
+        exp = {"E1": {"Brain": "CGF", "MuscleGround": "SimHost", "Perception": "SimHost", "creator": "Player"},
                "E2": {"Brain": "CGF", "MuscleGround": "SimHost", "Perception": "SimHost", "creator": "SimHost"},
                "E3": {"Brain": "CGF", "MuscleGround": "SimHost", "Perception": "SimHost", "creator": "CGF"}}
         for kv in sys.argv[2:]:
@@ -155,12 +155,12 @@ if __name__ == "__main__":
             print(f"== {k} entity {nid}"); evaluate(nid, ownership(nid), exp.get(k))
     elif cmd == "matrix":
         rows = {
-          "E1": ("IG", 100, {"Brain": "CGF", "MuscleGround": "SimHost", "Perception": "SimHost", "creator": "IG"}),
+          "E1": ("Player", 100, {"Brain": "CGF", "MuscleGround": "SimHost", "Perception": "SimHost", "creator": "Player"}),
           "E2": ("SimHost", 100, {"Brain": "CGF", "MuscleGround": "SimHost", "Perception": "SimHost", "creator": "SimHost"}),
           "E3": ("Scenario", 100, {"Brain": "CGF", "MuscleGround": "SimHost", "Perception": "SimHost", "creator": "CGF"}),
           "E4": ("Scenario", 8803, None),
           "E5": ("Scenario", 301, None),
-          "E6": ("IG", 8803, None),
+          "E6": ("Player", 8803, None),
         }
         made = {}
         for k in (sys.argv[2:] or rows):

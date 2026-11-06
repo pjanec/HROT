@@ -2112,9 +2112,13 @@ namespace Hrot.SimHost.Tests
             string root = TestRepo.Root;
             int Declarations(string rel) => Regex.Matches(File.ReadAllText(Path.Combine(root!, rel)), @"CoreInfrastructureCapabilities\.ReportInbox\s*\(").Count;
 
-            Assert.Equal(1, Declarations("Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs"));
-            Assert.Equal(1, Declarations("Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs"));
-            foreach (string brainPlan in new[] { "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs", "Hrot/Subsystems/Hrot.Editor/EditorCapabilities.cs",
+            // ⭐ CE-4270 B10 — SimHost's row lives in the ONE role table, which declares the inbox once, only for a node with no brain.
+            Assert.Equal(1, Declarations("Hrot/Subsystems/Hrot.SimHost/RoleCapabilityTable.cs"));
+            Assert.Contains("if (inputs.Brain is null) plan = plan.Capability(live, new CoreInfrastructureCapabilities.ReportInbox())",
+                            File.ReadAllText(Path.Combine(root!, "Hrot/Subsystems/Hrot.SimHost/RoleCapabilityTable.cs")));
+            Assert.Equal(1, Declarations("Hrot/Subsystems/Hrot.Player/PlayerNodeBootstrapper.cs"));
+            foreach (string brainPlan in new[] { "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs", "Hrot/Subsystems/Hrot.CGF/CgfNodeBootstrapper.cs",
+                                                 "Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs", "Hrot/Subsystems/Hrot.Editor/EditorNodeBootstrapper.cs",
                                                  "Stride/HrotStrideApp.Game/StrideCapabilities.cs" })
                 Assert.Equal(0, Declarations(brainPlan));
             Assert.Contains("StaffInboxSystem(", File.ReadAllText(Path.Combine(root!, "Hrot/Subsystems/Hrot.CGF/CgfLogicPack.cs")));

@@ -131,10 +131,10 @@ namespace Hrot.SimHost
             MigrationServices ms;
 
             if (role.HasFlag(NodeRole.Map2D))
-                ms = HrotMigrationBootstrap.BuildIg();
+                ms = HrotMigrationBootstrap.BuildPlayer();
             else
                 ms = HrotMigrationBootstrap.BuildSimHostCgf(
-                    writerIdentifier ?? "Hrot.SimHost");
+                    writerIdentifier ?? Hrot.Common.Scenario.HrotSubsystemTypes.SimHost);
 
             MigrationServices = ms;
             return ms;

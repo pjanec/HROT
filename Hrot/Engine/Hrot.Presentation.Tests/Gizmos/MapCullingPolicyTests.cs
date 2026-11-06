@@ -6,7 +6,7 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.Replication.Components;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.ScenarioEditor.Gizmos;
 using Hrot.ScenarioEditor.Map;
 using Xunit;
@@ -130,7 +130,7 @@ namespace Hrot.Presentation.Tests.Gizmos
             var policy = new CullingStateVisibilityPolicy(new GizmoSettingsRegistry());
 
             Assert.True(policy.IsEntityVisible(_repo, entity),
-                "Culling must be OPT-IN. CE-131: IG's MapCullingSystem marks every entity invisible, so a "
+                "Culling must be OPT-IN. CE-131: Player's MapCullingSystem marks every entity invisible, so a "
               + "default-on policy blanks its map.");
         }
 

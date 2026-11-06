@@ -5,7 +5,7 @@ using Fdp.Core.CommandHierarchy;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Spatial.Eqs;
 using Hrot.Map.Common;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Definitions.Tkb;
 using Hrot.SimHost.Systems;
 using Xunit;

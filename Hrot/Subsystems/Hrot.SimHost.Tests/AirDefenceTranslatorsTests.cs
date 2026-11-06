@@ -144,7 +144,7 @@ namespace Hrot.SimHost.Tests
             fireEgress.ScanAndPublish(_simHost);
             var sent = Assert.Single(fire.Written);
             Assert.Equal(0L, sent.RoundEntityId);
-            var fireIngress = new Hrot.Network.NED.IG.WeaponFireIngressTranslator(participant: null, _brainMap, localNodeId: 2);   // the brain: another node's shot is kept
+            var fireIngress = new Hrot.Network.NED.Player.WeaponFireIngressTranslator(participant: null, _brainMap, localNodeId: 2);   // the brain: another node's shot is kept
             Apply(_brain, (cmd, view) => fireIngress.ProcessSample(in sent, cmd));
             var seen = Assert.Single(_brain.Bus.Read<WeaponFireNotification>().ToArray());
             Assert.Equal((_onBrain, 2, flare, Entity.Null, 1, true), (seen.Shooter, seen.WeaponIndex, seen.AmmoGuid, seen.Round, seen.Quantity, seen.IsRemote));

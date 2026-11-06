@@ -28,7 +28,7 @@ public sealed class AHeadlessSingleProviderNodeIsReadableTests
     public void SeveralProviders_UnclaimedPerspective_ResolvesToNone()
     {
         var dispatcher = new PerspectiveScopedDispatcher(
-            new[] { new SubsystemDebugProvider("IG", "IG"), new SubsystemDebugProvider("CGF", "Scenario") },
+            new[] { new SubsystemDebugProvider("Player", "Player"), new SubsystemDebugProvider("CGF", "Scenario") },
             currentPerspective: () => "Default", acksPending: null);
 
         Assert.Equal("Default", dispatcher.CurrentPerspective);
@@ -58,7 +58,7 @@ public sealed class AHeadlessSingleProviderNodeIsReadableTests
         var world = new EntityRepository();
         string? remembered = "Scenario";
         var dispatcher = new PerspectiveScopedDispatcher(
-            new[] { new SubsystemDebugProvider("IG", "IG"), new SubsystemDebugProvider("CGF", "Scenario", world: () => world) },
+            new[] { new SubsystemDebugProvider("Player", "Player"), new SubsystemDebugProvider("CGF", "Scenario", world: () => world) },
             currentPerspective: () => "Start", acksPending: null, rememberedPerspective: () => remembered);
 
         Assert.Equal("Start", dispatcher.CurrentPerspective);
@@ -66,8 +66,8 @@ public sealed class AHeadlessSingleProviderNodeIsReadableTests
         Assert.Equal("Scenario", dispatcher.Active()!.Perspective);
         Assert.Same(world, dispatcher.World);
 
-        remembered = "IG";                                    // read LIVE, never latched
-        Assert.Equal("IG", dispatcher.Active()!.Perspective);
+        remembered = "Player";                                    // read LIVE, never latched
+        Assert.Equal("Player", dispatcher.Active()!.Perspective);
     }
 
     /// <summary>⭐ On a one-provider host `Start` is reported as `Start` (not renamed to the provider's perspective), and the reads still answer.</summary>
@@ -88,7 +88,7 @@ public sealed class AHeadlessSingleProviderNodeIsReadableTests
     public void SeveralProviders_StartWithNothingRemembered_ResolvesToNone()
     {
         var dispatcher = new PerspectiveScopedDispatcher(
-            new[] { new SubsystemDebugProvider("IG", "IG"), new SubsystemDebugProvider("CGF", "Scenario") },
+            new[] { new SubsystemDebugProvider("Player", "Player"), new SubsystemDebugProvider("CGF", "Scenario") },
             currentPerspective: () => "Start", acksPending: null, rememberedPerspective: () => null);
 
         Assert.Equal("Start", dispatcher.CurrentPerspective);

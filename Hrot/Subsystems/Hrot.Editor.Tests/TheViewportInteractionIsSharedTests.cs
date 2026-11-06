@@ -8,7 +8,7 @@ using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.Toolkit.Vis2D.Components;
 using Hrot.Common;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Common.Events;
 using Hrot.ScenarioEditor;
 using Hrot.ScenarioEditor.Systems;

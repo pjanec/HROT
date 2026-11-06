@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
 using Hrot.Common;
-using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Hrot.ScenarioEditor.Tools;

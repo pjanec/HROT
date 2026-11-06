@@ -250,8 +250,8 @@ namespace Fdp.Core
         /// <summary><c>InFormationTag</c> â€” tag added to an entity that has successfully joined a formation slot (FDP.Toolkit.Navigation).</summary>
         public const int InFormationTag          = 70;
 
-        /// <summary><c>Faction</c> â€” REMOVED. Entity side identifier (replaced by <see cref="EntityInfo"/> from <c>Hrot.IG.Components</c>). ID reserved for serialization compatibility.</summary>
-        [System.Obsolete("Faction has been removed. Use Hrot.IG.Components.EntityInfo.ForceId instead.")]
+        /// <summary><c>Faction</c> â€” REMOVED. Entity side identifier (replaced by <see cref="EntityInfo"/> from <c>Hrot.Player.Components</c>). ID reserved for serialization compatibility.</summary>
+        [System.Obsolete("Faction has been removed. Use Fdp.Core.EntityInfo.ForceId instead.")]
         public const int Faction                 = 71;
 
         /// <summary><c>PerceptionReceptor</c> â€” combined sensor range/FOV parameters (FDP.Toolkit.Perception).</summary>
@@ -341,7 +341,7 @@ namespace Fdp.Core
         public const int TkbCompositionDef       = 122;
 
         /// <summary><c>IgMissionHolder</c> â€” managed component caching decoded EntityMission for rendering.</summary>
-        public const int IgMissionHolder             = 123;
+        public const int PlayerMissionHolder             = 123;
 
         /// <summary><c>EffectLifetime</c> — ⛔ RETIRED (W1, docs/DESIGN_Visual_Effects.md §7 VE-Q): the effects' timer moved onto the
         /// generic <c>Lifespan</c> (<see cref="Lifespan"/>). The struct is gone; ⛔ the id stays RESERVED — never reuse 124.</summary>

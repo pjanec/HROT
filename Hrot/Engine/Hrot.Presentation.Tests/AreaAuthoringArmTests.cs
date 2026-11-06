@@ -7,7 +7,6 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.NetworkSpawning.Events;
-using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Hrot.ScenarioEditor.Tools;
@@ -26,7 +25,7 @@ namespace Hrot.Presentation.Tests;
 /// through a geographic transform while only the editor copy was reachable from the shared panel.</para>
 ///
 /// <para>⭐⭐ <b>Why these rails and not just the two host suites.</b> <c>T-1</c> says run the feature's
-/// OWN suite first, and both exist and were run (<c>Hrot.IG.Tests</c>'s <c>AreaAuthoringTests</c>,
+/// OWN suite first, and both exist and were run (<c>Hrot.Player.Tests</c>'s <c>AreaAuthoringTests</c>,
 /// 11/11 green before and after; <c>Hrot.Editor.Tests</c>'s adapter rails). ⛔ But neither can assert
 /// the property the MOVE is about: that ONE object produces BOTH hosts' geometry. ⭐ These rails pin
 /// the arm's contract directly, including the two behaviours that used to exist on only one side —

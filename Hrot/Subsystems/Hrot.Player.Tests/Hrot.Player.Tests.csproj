@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <NoWarn>xUnit1031;CS8602;CS8604;xUnit2013</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Hrot.Player\Hrot.Player.csproj" />
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.UI\NodeEditor.UI.csproj" />
+    <!-- Required for TransformSyncSystem tests (TASK-IF005) -->
+    <ProjectReference Include="..\..\..\FDP\Examples\Fdp.Examples.Common\Fdp.Examples.Common.csproj" />
+    <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />
+    <ProjectReference Include="..\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\..\FDP\TestShared\GizmoLayerProbe.cs" Link="Shared\GizmoLayerProbe.cs" />   <!-- CE-1203: the per-row map layer rail -->
+  </ItemGroup>
+</Project>

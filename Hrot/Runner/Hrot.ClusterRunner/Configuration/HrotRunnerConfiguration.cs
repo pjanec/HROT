@@ -15,7 +15,7 @@ namespace Hrot.ClusterRunner.Configuration
         // -- Hrot-specific CLI options ----------------------------------------
 
         /// <summary>Mode string supplied via --mode.  Examples: all, server, player, simhost, ig, orchestrator, cgf, traffic, ci, simhost,ig, orchestrator,cgf</summary>
-        [Option('m', "mode", Required = true, HelpText = "all (every node in one process)|server (orchestrator,simhost,cgf,traffic)|player (a client joining a server; the IG node)|orchestrator|simhost|cgf|traffic|ig|ci|editor|migrate|replaybrowser or comma-separated combination")]
+        [Option('m', "mode", Required = true, HelpText = "all (every node in one process)|server (the fused server: the orchestrator + one Brain+Muscle node; --server-nodes for the old four)|player (a client joining a server)|orchestrator|simhost|cgf|traffic|ci|editor|migrate|replaybrowser or comma-separated combination")]
         public string ModeString { get; set; } = string.Empty;
 
         /// <summary>Scenario name forwarded to <see cref="ScenarioSubsystem"/> when <c>--mode ci</c>.</summary>
@@ -29,6 +29,16 @@ namespace Hrot.ClusterRunner.Configuration
         /// <summary>⭐ <c>CE-3354</c> ⑥ — load-and-run: the live load runs once every node's load succeeded (implies <c>--load live</c>).</summary>
         [Option("play", Required = false, Default = false, HelpText = "With --scenario: load live and RUN when every node has loaded (implies --load live).")]
         public bool Play { get; set; }
+
+        /// <summary>⭐ <c>CE-4270</c> B7c (D4, R-3077) — <c>-m server</c> as the OLD four-node process (orchestrator, SimHost, CGF, traffic: four worlds, brain ↔ muscle over DDS
+        /// inside the process) instead of the fused server. Low priority; kept as the fallback.</summary>
+        [Option("server-nodes", Required = false, Default = false,
+                HelpText = "With --mode server: run the old four-node server (orchestrator, simhost, cgf, traffic) instead of the fused server (orchestrator + one Brain+Muscle node)")]
+        public bool ServerNodesMode { get; set; }
+
+        /// <summary>⭐ <c>CE-4270</c> B7c — set by <see cref="Validate"/>: <c>-m server</c> runs the FUSED server — the orchestrator plus ONE node built by CGF's bootstrapper with the
+        /// role <c>Brain | MuscleGround | Perception | NavigationSolver</c> (traffic served in its world, D3). 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1ag.</summary>
+        public bool FusedServer { get; private set; }
 
         /// <summary>⭐ <c>CE-3354</c> ⑥ — node NAMES whose scenario load also waits for their built 3-D map (the cluster's map-in-load setting). Absent = not given; given with no name = this process' own nodes.</summary>
         public IEnumerable<string>? MapInLoad { get; set; }
@@ -101,20 +111,19 @@ namespace Hrot.ClusterRunner.Configuration
         public string NodeName { get; set; } = string.Empty;
 
         /// <summary>⭐ <c>CE-3354</c> ② — <c>Sub=name,Sub=name</c>: node names keyed by subsystem (several nodes in one process).</summary>
-        [Option("node-names", Required = false, HelpText = "Node names per subsystem for several nodes in one process: IG=film-cam,SimHost=sim-1 (default <subsystem>-<nodeId>).")]
+        [Option("node-names", Required = false, HelpText = "Node names per subsystem for several nodes in one process: Player=film-cam,SimHost=sim-1 (default <subsystem>-<nodeId>).")]
         public string NodeNames { get; set; } = string.Empty;
 
         private Dictionary<string, string> _nodeNameMap = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>⭐ <c>CE-3354</c> ② — the node name configured for <paramref name="subsystemName"/> (<c>--node-name</c> for the process' one node, else the
-        /// <c>--node-names</c> entry, case-insensitive; <c>player</c> = <c>IG</c>), or <see langword="null"/> ⇒ the default <c>&lt;subsystem&gt;-&lt;nodeId&gt;</c>.
+        /// <c>--node-names</c> entry, case-insensitive), or <see langword="null"/> ⇒ the default <c>&lt;subsystem&gt;-&lt;nodeId&gt;</c>.
         /// Valid after <see cref="Validate"/>.</summary>
         public string? NodeNameFor(string subsystemName)
         {
             if (!string.IsNullOrWhiteSpace(NodeName)) return NodeName.Trim();
             if (string.IsNullOrEmpty(subsystemName)) return null;
-            string key = subsystemName.Equals("player", StringComparison.OrdinalIgnoreCase) ? "ig" : subsystemName;
-            return _nodeNameMap.TryGetValue(key, out var n) ? n : null;
+            return _nodeNameMap.TryGetValue(subsystemName.ToLowerInvariant(), out var n) ? n : null;
         }
 
         /// <summary>Directory for NLog file target output. Defaults to <c>AppContext.BaseDirectory\logs</c>.</summary>
@@ -284,10 +293,13 @@ namespace Hrot.ClusterRunner.Configuration
         /// The fine-grained nodes, in start order (the orchestrator first: the id allocator needs it serving before SimHost
         /// bootstraps). Each is a mode of its own; the shorthands below only combine them.
         /// </summary>
-        private static readonly string[] AllNodes = { "orchestrator", "simhost", "ig", "cgf", "traffic" };
+        private static readonly string[] AllNodes = { "orchestrator", "simhost", "player", "cgf", "traffic" };
 
-        /// <summary>The server side of a networked game — everything except the node a player brings along (ig).</summary>
+        /// <summary>The OLD server (<c>--server-nodes</c>): everything except the node a player brings along (ig), four worlds in one process.</summary>
         private static readonly string[] ServerNodes = { "orchestrator", "simhost", "cgf", "traffic" };
+
+        /// <summary>⭐ <c>CE-4270</c> B7c (D4) — the FUSED server, <c>-m server</c>'s default: the orchestrator and ONE cgf node booted with the fused role.</summary>
+        private static readonly string[] FusedServerNodes = { "orchestrator", "cgf" };
 
         /// <summary>
         /// Whole-string shorthands: <c>all</c> / <c>demo</c> = every fine-grained node in one process; <c>server</c> = the
@@ -301,7 +313,7 @@ namespace Hrot.ClusterRunner.Configuration
         };
 
         private const string ModeList =
-            "Use: all, server, player, orchestrator, simhost, cgf, traffic, ig, editor, ci, migrate, dump-api, replaybrowser, or comma-separated combination.";
+            "Use: all, server, player, orchestrator, simhost, cgf, traffic, editor, ci, migrate, dump-api, replaybrowser, or comma-separated combination.";
 
         /// <summary>
         /// ⭐ <c>CE-3354</c> ⑥ — the startup load's flags, refused clearly where they cannot hold: no master in the process (a lone <c>simhost</c> / <c>cgf</c> / <c>ig</c> / <c>traffic</c>, <c>player</c>) · <c>--load</c> / <c>--play</c>
@@ -362,9 +374,8 @@ namespace Hrot.ClusterRunner.Configuration
             {
                 int eq = pair.IndexOf('=');
                 if (eq <= 0 || eq == pair.Length - 1)
-                    throw new InvalidOperationException($"--node-names: '{pair}' is not Subsystem=name (e.g. IG=film-cam,SimHost=sim-1).");
+                    throw new InvalidOperationException($"--node-names: '{pair}' is not Subsystem=name (e.g. Player=film-cam,SimHost=sim-1).");
                 string sub = pair[..eq].Trim().ToLowerInvariant(), name = pair[(eq + 1)..].Trim();
-                if (sub == "player") sub = "ig";
                 CheckNodeName(name);
                 if (!nodeSubsystems.Contains(sub, StringComparer.OrdinalIgnoreCase))
                     throw new InvalidOperationException($"--node-names: '{pair[..eq].Trim()}' is not a node of this process (it hosts: {string.Join(", ", nodeSubsystems)}).");
@@ -396,16 +407,19 @@ namespace Hrot.ClusterRunner.Configuration
         {
             // Expand the roster shorthands ("all", "demo", "server") before splitting.
             string expandedMode = ModeString.Trim().ToLowerInvariant();
-            if (RosterShorthands.TryGetValue(expandedMode, out var roster))
+            // ⭐ CE-4270 B7c (D4, R-3077) — "server" is the FUSED server unless --server-nodes asks for the old four-node process.
+            FusedServer = expandedMode == "server" && !ServerNodesMode;
+            if (FusedServer)
+                expandedMode = string.Join(",", FusedServerNodes);
+            else if (RosterShorthands.TryGetValue(expandedMode, out var roster))
                 expandedMode = string.Join(",", roster);
 
             // Parse mode string -> RequestedSubsystems
             RequestedSubsystems.Clear();
             foreach (var name in expandedMode.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
-                // "player" is the user-facing name of the IG node (the internal key stays "ig").
                 // ⛔ R-3067 / AQ109 X2 — the ExCon node and its legacy "ios" alias are gone: both are now an Invalid mode (thrown below), never silently dropped.
-                var normalized = name switch { "player" => "ig", _ => name };
+                var normalized = name;
                 // ST-015: "stridemock" is gone with the mock subsystem. Dropping it from this set is
                 // what makes `--mode stridemock` throw again instead of composing a subsystem that no
                 // longer exists.
@@ -413,7 +427,7 @@ namespace Hrot.ClusterRunner.Configuration
                 //   tools/ai-debug-mcp generates its tool catalog from. It composes NO subsystem (see
                 //   Program.cs), which is why it sits beside "ci" and "migrate" rather than in the roster.
                 var validNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                    { "simhost", "ig", "orchestrator", "cgf", "ci", "editor",
+                    { "simhost", "player", "orchestrator", "cgf", "ci", "editor",
                       "replaybrowser", "migrate", "dump-api",
                       "traffic" };   // ⭐ AQ93 N1 — the SUMO traffic node; part of "all" and "server" since 2026-10-28 (AQ93 §12.2)
                 if (!validNames.Contains(normalized))
@@ -428,21 +442,20 @@ namespace Hrot.ClusterRunner.Configuration
             ValidateNodeNames();
             ValidateStartupLoad();
 
-            // Parse wait-for list -> WaitForPeers   ("player" is the user-facing name of "ig", normalised as the mode token is)
+            // Parse wait-for list -> WaitForPeers
             if (!string.IsNullOrWhiteSpace(WaitForString))
             {
                 WaitForPeers = new HashSet<string>(
                     WaitForString.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                                 .Select(s => s.Trim().ToLowerInvariant())
-                                 .Select(s => s == "player" ? "ig" : s));
+                                 .Select(s => s.Trim().ToLowerInvariant()));
 
                 // Validate each peer name
-                var validPeers = new HashSet<string> { "simhost", "ig" };
+                var validPeers = new HashSet<string> { "simhost", "player" };
                 foreach (var peer in WaitForPeers)
                 {
                     if (!validPeers.Contains(peer))
                         throw new InvalidOperationException(
-                            $"Invalid wait-for peer: '{peer}'. Valid values: simhost, ig, player.");
+                            $"Invalid wait-for peer: '{peer}'. Valid values: simhost, player, player.");
                 }
             }
 
@@ -454,11 +467,11 @@ namespace Hrot.ClusterRunner.Configuration
 
             // Editor mode is always standalone - must not be combined with distributed flags.
             if (RequestedSubsystems.Contains("editor") &&
-                (RequestedSubsystems.Contains("ig") ||
+                (RequestedSubsystems.Contains("player") ||
                  RequestedSubsystems.Contains("orchestrator") || RequestedSubsystems.Contains("cgf")))
             {
                 throw new InvalidOperationException(
-                    "Editor must not be combined with distributed flags (IG, Orchestrator, CGF).");
+                    "Editor must not be combined with distributed flags (Player, Orchestrator, CGF).");
             }
 
             // ReplayBrowser mode is always standalone - must not be combined with distributed flags.
@@ -480,9 +493,10 @@ namespace Hrot.ClusterRunner.Configuration
             // --wait-for must be supplied (unless --no-wait suppresses synchronisation).
             // A launch that hosts the master AND the simulation core (orchestrator + simhost + cgf — "all", "server" and every
             // superset of them) waits for nobody: players join it later, and it must never block on them.
-            bool hostsTheServerCore = RequestedSubsystems.Contains("orchestrator") &&
-                                      RequestedSubsystems.Contains("simhost") &&
-                                      RequestedSubsystems.Contains("cgf");
+            bool hostsTheServerCore = FusedServer ||   // ⭐ CE-4270 B7c — the fused server holds the master and the whole simulation core
+                                      (RequestedSubsystems.Contains("orchestrator") &&
+                                       RequestedSubsystems.Contains("simhost") &&
+                                       RequestedSubsystems.Contains("cgf"));
             bool isOrchestratorOnly = RequestedSubsystems.Count == 1 && RequestedSubsystems.Contains("orchestrator");
             if (!NoWait && WaitForPeers.Count == 0 && !hostsTheServerCore && !isOrchestratorOnly)
                 throw new InvalidOperationException(

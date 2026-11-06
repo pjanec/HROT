@@ -29,14 +29,14 @@ public sealed class LiveSimulationPlanRails
     {
         "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
         "Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs",
-        "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs",
-        "Hrot/Subsystems/Hrot.Editor/EditorCapabilities.cs",
+        "Hrot/Subsystems/Hrot.Player/PlayerNodeBootstrapper.cs",
+        "Hrot/Subsystems/Hrot.Editor/EditorNodeBootstrapper.cs",   // ⭐ CE-4270 B9 — both arms resolve the ONE role table (followed)
         "Stride/HrotStrideApp.Game/StrideCapabilities.cs",
     };
 
     /// <summary>
     /// ⛔ The shared bootstrap cannot be bypassed: no production source starts a plan with <c>new NodeCompositionPlan()</c> except the
-    /// factory itself, and every host root calls the factory (the editor twice — one per arm).
+    /// factory itself, and every host root calls the factory (the editor's two arms through the ONE role table, CE-4270 B9).
     /// </summary>
     [Fact]
     public void EveryProductionPlanStartsFromTheSharedHead_CE2144()
@@ -65,7 +65,7 @@ public sealed class LiveSimulationPlanRails
         foreach (string host in HostRoots)
         {
             int calls = Regex.Matches(CompositionRootSource.ReadEffectiveRoot(host), @"LiveSimulationPlan\s*\(").Count;   // ⭐ macros debt A7 — follows CE-1446's delegation
-            Assert.True(calls >= (host.EndsWith("EditorCapabilities.cs") ? 2 : 1), $"{host} does not start its plan(s) from LiveSimulationPlan ({calls} calls)");
+            Assert.True(calls >= 1, $"{host} does not start its plan(s) from LiveSimulationPlan ({calls} calls)");
         }
     }
 

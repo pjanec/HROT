@@ -41,7 +41,7 @@
     <ProjectReference Include="..\..\Subsystems\Hrot.CGF\Hrot.CGF.csproj" />
     <ProjectReference Include="..\..\Subsystems\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />
     <ProjectReference Include="..\..\Subsystems\Hrot.SimHost\Hrot.SimHost.csproj" />
-    <ProjectReference Include="..\..\Subsystems\Hrot.IG\Hrot.IG.csproj" />
+    <ProjectReference Include="..\..\Subsystems\Hrot.Player\Hrot.Player.csproj" />
     <ProjectReference Include="..\..\Subsystems\Hrot.Editor\Hrot.Editor.csproj" />
     <!-- AQ93 N1: mode "traffic", the dedicated SUMO traffic node -->
     <ProjectReference Include="..\..\Subsystems\Hrot.TrafficNode\Hrot.TrafficNode.csproj" />

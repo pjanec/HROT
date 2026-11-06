@@ -38,8 +38,8 @@ public sealed class TheHelpMenuIsAnIconTests
         Raylib.UnloadImage(img);
         var wm = new WindowManager(new IconAtlas((nint)tex.Id, tex.Width, tex.Height, 16f));
         wm.MenuIcons = SilkMenuIconResolver.Create(wm.Atlas);
-        wm.RegisterWindow(new Blank("w-IG", "IG"));
-        wm.SwitchPerspective("IG");
+        wm.RegisterWindow(new Blank("w-Player", "Player"));
+        wm.SwitchPerspective("Player");
         wm.GlobalMenu.RegisterItem("File/Open", () => { });
         wm.GlobalMenu.RegisterItem("Debug/Trace", () => { });
         wm.GlobalMenu.RegisterItem("Mission/Brief", () => { });   // an unlisted root segment

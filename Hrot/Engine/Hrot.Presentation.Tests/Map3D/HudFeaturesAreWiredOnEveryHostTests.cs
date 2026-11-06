@@ -29,7 +29,7 @@ public sealed class HudFeaturesAreWiredOnEveryHostTests
     {
         var files = HostFiles().ToList();
         var attach = files.Where(f => f.Text.Contains("MapInteractionPack.AttachMapLayers(")).ToList();
-        Assert.True(attach.Count >= 5, "IG, CGF, Editor, SimHost and the Replay Browser attach the layers");
+        Assert.True(attach.Count >= 5, "Player, CGF, Editor, SimHost and the Replay Browser attach the layers");
         foreach (var f in attach) Assert.True(f.Text.Contains("featureGate:"), $"{f.Rel} attaches the map layers without the node's feature gate");
 
         var build = files.Where(f => f.Text.Contains("MapInteractionPack.Build(")).ToList();
@@ -38,7 +38,7 @@ public sealed class HudFeaturesAreWiredOnEveryHostTests
     }
 
     [Theory]
-    [InlineData("Hrot.IG/IgNodeBootstrapper.cs", "true")]
+    [InlineData("Hrot.Player/PlayerNodeBootstrapper.cs", "true")]
     [InlineData("Hrot.CGF/CgfNodeBootstrapper.cs", "false")]
     [InlineData("Hrot.Editor/EditorNodeBootstrapper.cs", "false")]
     [InlineData("Hrot.SimHost/SimHostNodeBootstrapper.cs", "false")]

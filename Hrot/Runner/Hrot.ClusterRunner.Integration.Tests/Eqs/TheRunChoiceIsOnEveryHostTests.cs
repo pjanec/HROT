@@ -296,37 +296,37 @@ public sealed class TheRunChoiceIsOnEveryHostTests
     /// 🔴 Mutation: the IG not offering run controls (<c>Transport</c> null) ⇒ the offer cells red; <c>SuppressTimeControl</c> false ⇒ the toolbar cell reds.
     /// </summary>
     [Fact(Timeout = 60_000)]
-    public void CE1445_TheConstructedIg_OffersPlayerRunControls_AndTheWaitingScreenIsComposedOverThem()
+    public void CE1445_TheConstructedPlayer_OffersPlayerRunControls_AndTheWaitingScreenIsComposedOverThem()
     {
-        var ig = new Hrot.IG.IgSubsystem();
+        var player = new Hrot.Player.PlayerSubsystem();
         try
         {
-            ig.Initialize(new SubsystemConfig { Headless = true, DomainId = DomainBase + Interlocked.Increment(ref _domain) });
-            var offer = Assert.IsAssignableFrom<IProvidesRunControls>(ig);
-            Assert.Equal(RunHostKind.Ig, offer.HostKind);
+            player.Initialize(new SubsystemConfig { Headless = true, DomainId = DomainBase + Interlocked.Increment(ref _domain) });
+            var offer = Assert.IsAssignableFrom<IProvidesRunControls>(player);
+            Assert.Equal(RunHostKind.Player, offer.HostKind);
             Assert.NotNull(offer.Transport);
             var choice = Assert.IsType<RunModeChoice>(offer.RunChoice);
             Assert.Equal(Fdp.Toolkit.Orchestration.HostGatePolicy.Player, offer.GatePolicy);
             Assert.False(choice.HasScenarioControl);                 // a player is not an operator
             Assert.True(offer.SuppressTimeControl);                  // the role's explicit suppression
             // ⭐ CE-1451 — the IG's DEBUG provider carries the same choice although it has NO drive (so GET /status.runGate shows the Player's gate)
-            var debug = ig.CreateDebugProvider()!;
+            var debug = player.CreateDebugProvider()!;
             Assert.Null(debug.Drive);
             Assert.Same(choice, debug.RunChoice);
             choice.CancelLoad("x");                                  // a player owns no load: nothing to cancel, nothing throws
 
             var windows = MakeWindowManager();
-            var controller = ComposeLikeTheRunner(windows, ig);
-            Assert.Same(ig, controller.RunControlsOwner);
+            var controller = ComposeLikeTheRunner(windows, player);
+            Assert.Same(player, controller.RunControlsOwner);
             Assert.Same(choice, controller.LoadingScreen!.Choice);
             Assert.True(controller.LoadingScreen.IsPlayer);
             Assert.False(controller.LoadingScreen.CanCancel);
             Assert.Same(choice, controller.ErrorSection!.Choice);
-            Assert.Empty(windows.MainToolbar.BuildViewModel(currentPerspective: "IG").Entries.Where(e => e.Id == ShellTimeControlToolbar.EntryId));
+            Assert.Empty(windows.MainToolbar.BuildViewModel(currentPerspective: "Player").Entries.Where(e => e.Id == ShellTimeControlToolbar.EntryId));
         }
         finally
         {
-            ig.Shutdown();
+            player.Shutdown();
         }
     }
 
@@ -336,14 +336,14 @@ public sealed class TheRunChoiceIsOnEveryHostTests
     /// 🔴 Mutation: the IG's attach passing no policy (⇒ <c>OnFirst3DRequest</c>) ⇒ the policy cell reds.
     /// </summary>
     [Fact(Timeout = 60_000)]
-    public void R1046_TheConstructedIgs_MapIsEager_BecauseItsProfilePutsTheMapInTheLoad()
+    public void R1046_TheConstructedPlayers_MapIsEager_BecauseItsProfilePutsTheMapInTheLoad()
     {
-        var ig = new Hrot.IG.IgSubsystem();
+        var player = new Hrot.Player.PlayerSubsystem();
         try
         {
-            ig.Initialize(new SubsystemConfig { Headless = true, DomainId = DomainBase + Interlocked.Increment(ref _domain) });
+            player.Initialize(new SubsystemConfig { Headless = true, DomainId = DomainBase + Interlocked.Increment(ref _domain) });
             Assert.True(Hrot.Common.Infrastructure.Map3dInLoadFeature.OnAtBoot(Fdp.Core.NodeRole.Map2D, onByDefault: true));   // ⭐ F-17 — the Player's feature default
-            var status = ig.MapBuildStatus;
+            var status = player.MapBuildStatus;
             var build = Assert.IsType<Fdp.Toolkit.Vis3D.Map3DBuild>(status);
             Assert.Equal(Fdp.Toolkit.Vis3D.Map3DBuildPolicy.Eager, build.Policy);
             Assert.True(status!.IsBuilt);                              // headless: no window, nothing to build
@@ -352,9 +352,9 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         }
         finally
         {
-            ig.Shutdown();
+            player.Shutdown();
         }
-        Assert.Null(ig.MapBuildStatus);                                // after Shutdown the node holds none
+        Assert.Null(player.MapBuildStatus);                                // after Shutdown the node holds none
     }
 
     /// <summary>The scenario menu items the ONE registrar owns (AQ108 §3a / CE-4097 part two) — pinned by path so the three hosts are compared on the same leaves.</summary>

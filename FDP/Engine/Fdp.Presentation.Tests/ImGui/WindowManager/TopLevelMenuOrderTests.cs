@@ -26,7 +26,7 @@ public class TopLevelMenuOrderTests
     private static WM WmWithPerspectives()
     {
         var wm = Wm();
-        wm.RegisterWindow(new Blank("w-IG", "IG"));
+        wm.RegisterWindow(new Blank("w-Player", "Player"));
         wm.RegisterWindow(new Blank("w-Scn", "Scenario"));
         wm.SwitchPerspective("Scenario");
         return wm;
@@ -117,7 +117,7 @@ public class TopLevelMenuOrderTests
         var windows = view.Parts.SelectMany(p => p.Item.Children ?? System.Array.Empty<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>())
             .Single(c => c.Label == "Windows");
         var leaves = windows.Children!.SelectMany(g => g.Children ?? System.Array.Empty<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>()).Select(c => c.Label);
-        Assert.Contains("w-IG", leaves);
+        Assert.Contains("w-Player", leaves);
         Assert.Contains("w-Scn", leaves);
         Assert.Equal("View/Windows", GlobalMenuRegistry.WindowsSubmenu);
     }
@@ -174,7 +174,7 @@ public class TopLevelMenuOrderTests
 
         var perspective = view.Parts.SelectMany(p => p.Item.Children ?? System.Array.Empty<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>())
             .Single(c => c.Label == "Perspective");
-        Assert.Equal(new[] { "IG", "Scenario" }, perspective.Children!.Select(c => c.Label).OrderBy(x => x));
+        Assert.Equal(new[] { "Player", "Scenario" }, perspective.Children!.Select(c => c.Label).OrderBy(x => x));
         Assert.Equal(new[] { "Scenario" }, perspective.Children!.Where(c => c.IsChecked == true).Select(c => c.Label));
     }
 
@@ -194,8 +194,8 @@ public class TopLevelMenuOrderTests
         {
             "File/Open", "View/Grid",
             "Settings/UI Scale & Fonts…", "Settings/Layout/Reset",
-            "Perspective/IG", "Perspective/Scenario",
-            "Windows/IG/w-IG", "Windows/Scenario/w-Scn",
+            "Perspective/Player", "Perspective/Scenario",
+            "Windows/Player/w-Player", "Windows/Scenario/w-Scn",
             "Help/About",
         };
         string Rehome(string p) => p.StartsWith("Settings/") || p.StartsWith("Perspective/") || p.StartsWith("Windows/") ? "View/" + p : p;   // ⭐ CE-4114: + Windows

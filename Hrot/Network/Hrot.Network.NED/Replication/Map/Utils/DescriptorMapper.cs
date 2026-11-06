@@ -4,7 +4,6 @@ using System.Numerics;
 using System.Text.Json;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
-using Hrot.IG.Components;
 using Hrot.Map.Common.Components;
 using Fdp.Core;
 using Fdp.Core.Logging;

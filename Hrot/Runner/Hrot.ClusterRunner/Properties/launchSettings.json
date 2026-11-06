@@ -1,12 +1,12 @@
 {
   "profiles": {
-    "All (IG+SIM+CGF)": {
+    "All (Player+SIM+CGF)": {
       "commandName": "Project",
       "commandLineArgs": "-m all"
     },
-    "IG": {
+    "Player": {
       "commandName": "Project",
-      "commandLineArgs": "-m ig --no-wait"
+      "commandLineArgs": "-m player --no-wait"
     },
     "SimHost": {
       "commandName": "Project",

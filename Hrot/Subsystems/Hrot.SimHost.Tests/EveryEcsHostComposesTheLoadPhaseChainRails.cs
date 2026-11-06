@@ -47,7 +47,7 @@ namespace Hrot.SimHost.Tests
         public static TheoryData<string> EcsCompositionRoots => new()
         {
             "Hrot/Engine/Hrot.EcsNode/NodeBootstrapper.cs",
-            "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs",
+            "Hrot/Subsystems/Hrot.Player/PlayerNodeBootstrapper.cs",
             "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
         };
 
@@ -98,7 +98,7 @@ namespace Hrot.SimHost.Tests
             foreach (var path in new[]
             {
                 "Hrot/Engine/Hrot.EcsNode/NodeBootstrapper.cs",
-                "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs",
+                "Hrot/Subsystems/Hrot.Player/PlayerNodeBootstrapper.cs",
                 "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
                 "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs",
             })

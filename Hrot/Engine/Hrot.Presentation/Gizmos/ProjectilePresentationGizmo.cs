@@ -11,8 +11,8 @@ namespace Hrot.ScenarioEditor.Gizmos
     // GZ-PROJ: Draws a yellow streak from the previous-frame position to the current
     // position of each live BallisticProjectile entity.
     // Both positions are in world-space XY (Z=0 for the 2D map canvas).
-    // ⭐ CE-3123 (R-228) — lives in Hrot.Presentation (was the Hrot.IG assembly, which only IG and the Editor reference): every
-    //   host discovers it without relying on the runner pre-loading Hrot.IG. Its namespace moved with it (the generator emits one registrar per namespace per assembly).
+    // ⭐ CE-3123 (R-228) — lives in Hrot.Presentation (was the Hrot.Player assembly, which only IG and the Editor reference): every
+    //   host discovers it without relying on the runner pre-loading Hrot.Player. Its namespace moved with it (the generator emits one registrar per namespace per assembly).
     // ⭐ P1 (docs/DESIGN_Visual_Effects.md §8 PR-C) — the ONE 2-D projector of rounds, extended rather than duplicated: a round whose
     //   munition has a look (Munition.Visual — a grenade, a mortar bomb, a rocket) also gets a small filled marker (its STATE: flying or armed), and a
     //   round LYING on the ground with its time fuze burning (a thrown grenade) gets the seconds left beside it — before this, a lying

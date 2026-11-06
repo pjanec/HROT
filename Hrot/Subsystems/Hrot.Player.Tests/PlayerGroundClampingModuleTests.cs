@@ -1,0 +1,71 @@
+using System;
+using System.Collections.Generic;
+using System.Numerics;
+using Hrot.Player.Modules;
+using Fdp.Core;
+using Fdp.Core.Collections;
+using Fdp.Modules.Geographic;
+using Fdp.Modules.Geographic.Components;
+using Fdp.Modules.Geographic.Systems;
+using Fdp.ModuleHost.Abstractions;
+using Xunit;
+
+namespace Hrot.Player.Tests;
+
+/// <summary>
+/// Tests for <see cref="PlayerGroundClampingModule"/> (MOD1-P7T5).
+/// </summary>
+public sealed class PlayerGroundClampingModuleTests
+{
+    // ── Stub ISystemRegistry ──────────────────────────────────────────────────
+
+    private sealed class CapturingRegistry : ISystemRegistry
+    {
+        private readonly List<IEcsModuleSystem> _systems = new();
+        public IReadOnlyList<IEcsModuleSystem> RegisteredSystems => _systems;
+
+        public void RegisterSystem<T>(T system) where T : IEcsModuleSystem => _systems.Add(system);
+        public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem { _systems.Add(system); return system; }
+    }
+
+    // ── Stub ITerrainProvider ─────────────────────────────────────────────────
+
+    private sealed class NullTerrainProvider : ITerrainProvider
+    {
+        public void QueryBatch(
+            NativeArray<TerrainQueryRequest> requests, int count,
+            NativeArray<TerrainQueryResult>  results) { }
+    }
+
+    // ── Tests ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// <c>RegisterSystems</c> must register all 4 terrain-query phase systems.
+    /// </summary>
+    [Fact]
+    public void RegisterSystems_RegistersAllFourSystems()
+    {
+        var registry = new CapturingRegistry();
+        var module   = new PlayerGroundClampingModule(new NullTerrainProvider());
+
+        module.RegisterSystems(registry);
+
+        Assert.Equal(4, registry.RegisteredSystems.Count);
+        Assert.Contains(registry.RegisteredSystems, s => s is TerrainQueryInitializationSystem);
+        Assert.Contains(registry.RegisteredSystems, s => s is TerrainQuerySubmitSystem);
+        Assert.Contains(registry.RegisteredSystems, s => s is TerrainQuerySolverSystem);
+        Assert.Contains(registry.RegisteredSystems, s => s is TerrainQueryResolutionSystem);
+    }
+
+    /// <summary>
+    /// Module name must be non-empty and policy must be synchronous.
+    /// </summary>
+    [Fact]
+    public void Module_Metadata_IsValid()
+    {
+        var module = new PlayerGroundClampingModule(new NullTerrainProvider());
+
+        Assert.NotEmpty(module.Name);
+        Assert.Equal(ExecutionPolicy.Synchronous(), module.Policy);
+    }
+}

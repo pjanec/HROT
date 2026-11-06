@@ -111,7 +111,7 @@ namespace Hrot.SimHost.Tests
         }
 
         [Fact]
-        public void DescriptorMapper_EntityInfoDescriptor_ReturnsIgEntityData()
+        public void DescriptorMapper_EntityInfoDescriptor_ReturnsPlayerEntityData()
         {
             var descriptors = new List<EntityDescriptorUnion>
             {
@@ -120,8 +120,8 @@ namespace Hrot.SimHost.Tests
 
             var components = DescriptorMapper.MapToComponents(descriptors);
 
-            var igData = Assert.Single( components, c => c is Fdp.Core.EntityInfo );
-            var entityInfo = (Fdp.Core.EntityInfo)igData;
+            var playerData = Assert.Single( components, c => c is Fdp.Core.EntityInfo );
+            var entityInfo = (Fdp.Core.EntityInfo)playerData;
             Assert.Equal("TestUnit", entityInfo.Name);
         }
 

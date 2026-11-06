@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
 
-namespace Hrot.IG.Components;
+namespace Hrot.Map.Common.Components;
 
 /// <summary>
 /// Managed ECS component storing the current vertex list of a user-editable

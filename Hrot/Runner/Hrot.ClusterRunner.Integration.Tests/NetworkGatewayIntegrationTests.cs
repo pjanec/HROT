@@ -51,7 +51,7 @@ public sealed class NetworkGatewayIntegrationTests
         int domainId = NextDomainId();
 
         using var harness = new HrotRunnerHarness(
-            "simhost,ig",
+            "simhost,player",
             domainId);
 
         // Spawn via TestHook so we get back the allocated networkId immediately.
@@ -80,12 +80,12 @@ public sealed class NetworkGatewayIntegrationTests
             $"{LifecycleActiveTimeoutFrames} frames.");
 
         // â”€â”€ Step 3: IG entity must reach Active â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        bool igActive = harness.PumpUntil(
-            () => IgEntityIsActive(harness, networkId),
+        bool playerActive = harness.PumpUntil(
+            () => PlayerEntityIsActive(harness, networkId),
             LifecycleActiveTimeoutFrames);
 
-        Assert.True(igActive,
-            $"IG entity {networkId} did not reach EntityLifecycle.Active within " +
+        Assert.True(playerActive,
+            $"Player entity {networkId} did not reach EntityLifecycle.Active within " +
             $"{LifecycleActiveTimeoutFrames} frames.");
     }
 
@@ -101,11 +101,11 @@ public sealed class NetworkGatewayIntegrationTests
         return world.GetLifecycleState(entity) == EntityLifecycle.Active;
     }
 
-    private static bool IgEntityIsActive(HrotRunnerHarness harness, int networkId)
+    private static bool PlayerEntityIsActive(HrotRunnerHarness harness, int networkId)
     {
-        var entityMap = harness.Ig.App.TestHook_EntityMap;
+        var entityMap = harness.Player.App.TestHook_EntityMap;
         if (!entityMap.TryGetEntity(networkId, out var entity)) return false;
-        var world = harness.Ig.App.World;
+        var world = harness.Player.App.World;
         if (!world.IsAlive(entity)) return false;
         return world.GetLifecycleState(entity) == EntityLifecycle.Active;
     }

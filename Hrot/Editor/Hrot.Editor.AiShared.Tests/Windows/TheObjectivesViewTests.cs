@@ -41,7 +41,7 @@ public sealed class TheObjectivesViewTests
         var session = new Fdp.Presentation.Adapters.RepositoryAdapter(world);
         var windows = new WindowManager(new IconAtlas(nint.Zero, 1, 1, 16f));
         var bundle = new EntityDetailsBundle(new EntityDetailsHostServices(
-            WindowId: "details_ce4216", Perspective: "IG", World: () => world, Inspector: () => inspector, Session: () => session,
+            WindowId: "details_ce4216", Perspective: "Player", World: () => world, Inspector: () => inspector, Session: () => session,
             RunState: () => VariableRunState.Running, Host: () => null, OpenRule: open));
         Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { bundle }, new Fdp.Toolkit.Runner.UiBundleContext(windows));
         return bundle;
@@ -53,11 +53,11 @@ public sealed class TheObjectivesViewTests
     {
         using var world = World(out var unit, out var bystander);
         var bundle = Bundle(world, _ => { });
-        var about = DetailsContext.Empty("IG") with { Entities = new[] { unit } };
-        var none = DetailsContext.Empty("IG") with { Entities = new[] { bystander } };
+        var about = DetailsContext.Empty("Player") with { Entities = new[] { unit } };
+        var none = DetailsContext.Empty("Player") with { Entities = new[] { bystander } };
         Assert.Contains(bundle.Workspace.DetailsViews.OfferSet(about), d => d.Id == EntityObjectivesViewDescriptor.ViewId);
         Assert.DoesNotContain(bundle.Workspace.DetailsViews.OfferSet(none), d => d.Id == EntityObjectivesViewDescriptor.ViewId);
-        Assert.DoesNotContain(bundle.Workspace.DetailsViews.OfferSet(DetailsContext.Empty("IG")), d => d.Id == EntityObjectivesViewDescriptor.ViewId);   // nothing selected
+        Assert.DoesNotContain(bundle.Workspace.DetailsViews.OfferSet(DetailsContext.Empty("Player")), d => d.Id == EntityObjectivesViewDescriptor.ViewId);   // nothing selected
         Assert.Equal(EntitySummaryViewDescriptor.ViewId, bundle.Workspace.DetailsViews.Default(about)?.Id);                                            // it does not displace the default
     }
 
@@ -82,7 +82,7 @@ public sealed class TheObjectivesViewTests
     {
         using var world = World(out var unit, out _);
         Action<int> open = _ => { };
-        var ctx = DetailsContext.Empty("IG") with { Entities = new[] { unit } };
+        var ctx = DetailsContext.Empty("Player") with { Entities = new[] { unit } };
         var view = (EntityObjectivesView)Bundle(world, open).Workspace.DetailsViews.OfferSet(ctx).Single(d => d.Id == EntityObjectivesViewDescriptor.ViewId).Create();
         var row = Assert.Single(view.RowsFor(unit));
         Assert.Equal(("Reach the bridge", 10), (row.Title, row.NetworkId));

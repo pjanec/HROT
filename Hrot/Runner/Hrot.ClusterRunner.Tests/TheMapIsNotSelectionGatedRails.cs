@@ -51,7 +51,7 @@ public sealed class TheMapIsNotSelectionGatedRails
     private static readonly string[] HostFiles =
     {
         "Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs",
-        "Hrot/Subsystems/Hrot.IG/IgApplication.cs",
+        "Hrot/Subsystems/Hrot.Player/PlayerApplication.cs",
         "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
         "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs",
         "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs",

@@ -93,7 +93,7 @@ public sealed class TheEventDetailsViewTests : IDisposable
         var focus = new TimelineEventFocus();
         var windows = new Fdp.Presentation.WindowManager.WindowManager(new Fdp.Presentation.Icons.IconAtlas(nint.Zero, 1, 1, 16f));
         var bundle = new Hrot.Editor.AiShared.Windows.EntityDetailsBundle(new Hrot.Editor.AiShared.Windows.EntityDetailsHostServices(
-            WindowId: "details_ce4263", Perspective: "IG", World: () => world,
+            WindowId: "details_ce4263", Perspective: "Player", World: () => world,
             Inspector: () => new Fdp.Presentation.Panels.EntityInspectorPanel(), Session: () => new Fdp.Presentation.Adapters.RepositoryAdapter(world),
             RunState: () => Hrot.Editor.AiShared.Variables.VariableRunState.Running, Host: () => null,
             EventFocus: focus, SelectNetworkEntity: _ => { }));

@@ -11,7 +11,7 @@ using Fdp.Toolkit.Replication.Components;
 using Hrot.Editor.AiShared.Shell;
 using Hrot.Editor.AiShared.Variables;
 using Hrot.Editor.AiShared.Windows;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Xunit;
 
 namespace Hrot.Editor.AiShared.Tests.Windows;
@@ -127,15 +127,15 @@ public sealed class TheSummaryViewTests : IDisposable
         var session = new Fdp.Presentation.Adapters.RepositoryAdapter(world);
         var windows = new WindowManager(new IconAtlas(nint.Zero, 1, 1, 16f));
         var bundle = new EntityDetailsBundle(new EntityDetailsHostServices(
-            WindowId: "details_ce1247", Perspective: "IG", World: () => world,
+            WindowId: "details_ce1247", Perspective: "Player", World: () => world,
             // ⭐ a real inspector and session, so the Components view ALSO applies — the rank is what picks Summary
             Inspector: () => inspector, Session: () => session, RunState: () => VariableRunState.Running, Host: () => null));
         Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { bundle }, new Fdp.Toolkit.Runner.UiBundleContext(windows));
 
-        var ctx = DetailsContext.Empty("IG") with { Entities = new[] { e } };
+        var ctx = DetailsContext.Empty("Player") with { Entities = new[] { e } };
         Assert.Contains(bundle.Workspace.DetailsViews.OfferSet(ctx), d => d.Id == Hrot.Editor.Scenario.ScenarioComponentsViewDescriptor.ViewId);
         Assert.Equal(EntitySummaryViewDescriptor.ViewId, bundle.Workspace.DetailsViews.Default(ctx)?.Id);
-        Assert.Null(bundle.Workspace.DetailsViews.Default(DetailsContext.Empty("IG")));   // nothing selected ⇒ no card
+        Assert.Null(bundle.Workspace.DetailsViews.Default(DetailsContext.Empty("Player")));   // nothing selected ⇒ no card
 
         PanelSnapshot.CaptureEnabled = true;
         var view = (EntitySummaryView)bundle.Workspace.DetailsViews.Default(ctx)!.Create();
@@ -193,7 +193,7 @@ public sealed class TheSummaryViewTests : IDisposable
         // the rows as drawn (the dump), with the culture's decimal separator a comma
         PanelSnapshot.CaptureEnabled = true;
         var view = new EntitySummaryView(() => world);
-        var ctx = DetailsContext.Empty("IG") with { Entities = new[] { e } };
+        var ctx = DetailsContext.Empty("Player") with { Entities = new[] { e } };
         var vm = WithCulture(",", () => view.SimulateDraw(ctx, "details_ce4257"));
         Assert.Equal(s.Kind, vm.Kind);
         Assert.Equal(dis, vm.Dis);

@@ -15,8 +15,8 @@ using Fdp.Toolkit.DER;
 using Hrot.Network.Infrastructure;
 using IOrchestrationTranslator = Hrot.Core.Network.IOrchestrationTranslator;
 using Hrot.Core.Network;
-using Hrot.IG.Components;
-using Hrot.IG.Systems;
+using Hrot.Map.Common.Components;
+using Hrot.Player.Systems;
 using Xunit;
 using Fdp.Toolkit.NetworkSpawning.Events;
 
@@ -336,11 +336,11 @@ public sealed class StrideNodeBootstrapperTests
         public ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators(CarKinem.Trajectory.TrajectoryPoolManager? pool = null) => _base.CreateSimHostPathfindingTranslators(pool);
         public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators(Fdp.Toolkit.Replication.Systems.GhostCreationSystem? ghost = null) => _base.CreateSimHostPerceptionTranslators(ghost);
         public System.Collections.Generic.IReadOnlyList<IEcsModuleSystem> CreateSimHostAttributeUpdateSystems() => _base.CreateSimHostAttributeUpdateSystems();
-        public IIgTranslators CreateIgTranslators() => _base.CreateIgTranslators();
-        public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? p, int n = 0) => _base.CreateIgNetworkAdapter(p, n);
-        public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.IDescriptorTranslator> CreateIgEgressTranslators(
+        public IIgTranslators CreatePlayerTranslators() => _base.CreatePlayerTranslators();
+        public IIgNetworkAdapter CreatePlayerNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? p, int n = 0) => _base.CreatePlayerNetworkAdapter(p, n);
+        public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.IDescriptorTranslator> CreatePlayerEgressTranslators(
             CycloneDDS.Runtime.DdsParticipant participant, FdpEventBus bus, int nodeId)
-            => _base.CreateIgEgressTranslators(participant, bus, nodeId);
+            => _base.CreatePlayerEgressTranslators(participant, bus, nodeId);
         public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(FdpEventBus b, int id, bool headless) => _base.CreateGizmoTranslators(b, id, headless);
         public IEcsModuleSystem? CreateGizmoPublisherSystem(DebugPrimitiveBuffer buf, int id) => _base.CreateGizmoPublisherSystem(buf, id);
     }

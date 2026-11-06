@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Replication.Ingress;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;

@@ -113,7 +113,7 @@ public sealed class MenuOrdersTests : IDisposable
         }
 
         Assert.Null(Typed('M'));                                       // nothing selected: nothing to order
-        if (!_w.IsComponentTypeRegistered<Hrot.IG.Components.SelectionState>()) _w.RegisterComponent<Hrot.IG.Components.SelectionState>();
+        if (!_w.IsComponentTypeRegistered<Hrot.Map.Common.Components.SelectionState>()) _w.RegisterComponent<Hrot.Map.Common.Components.SelectionState>();
         mi.Selection.PrimarySelected = _unit;
         Assert.Equal(Id("Move"), Typed('M'));
         Assert.Equal(Id("Attack"), Typed('A'));

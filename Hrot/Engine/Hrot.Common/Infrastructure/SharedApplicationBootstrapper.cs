@@ -466,7 +466,7 @@ public abstract class SharedApplicationBootstrapper
 
         // ⚠⚠ The `networkFactory != null` term is LOAD-BEARING, not defensive — it mirrors
         //    HrotNodeBuilder Step 8's OWN condition (`participant != null && _networkFactory != null`).
-        //    📐 Measured: without it this threw on 55 Hrot.IG.Tests + 5 Hrot.SimHost.Tests cases, all of
+        //    📐 Measured: without it this threw on 55 Hrot.Player.Tests + 5 Hrot.SimHost.Tests cases, all of
         //    which call InitializeEmbedded(headless: true) with NO factory — a legitimate configuration
         //    that has a participant and correctly has no translator. ⛔ An assertion that fires on a valid
         //    shape gets deleted within a batch; this one has to be exactly as strong as the builder.

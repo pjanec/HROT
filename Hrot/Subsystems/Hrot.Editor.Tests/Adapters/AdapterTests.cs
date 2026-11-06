@@ -323,7 +323,7 @@ namespace Hrot.Editor.Tests.Adapters
             var req = Assert.Single(Requests());
             Assert.Equal(TkbEntityTypes.TacGraphic_Area, req.TkbType);
             Assert.Equal(0, req.OwnerAppInstanceId);   // the default processor
-            Assert.Contains(req.InitialComponents!, c => c is Hrot.IG.Components.EditablePolyline);
+            Assert.Contains(req.InitialComponents!, c => c is Hrot.Map.Common.Components.EditablePolyline);
             Assert.Contains(req.InitialComponents!, c => c is SimTransform);
         }
 

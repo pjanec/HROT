@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Scenario;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Common;
 
 namespace Hrot.SimHost.Serializers

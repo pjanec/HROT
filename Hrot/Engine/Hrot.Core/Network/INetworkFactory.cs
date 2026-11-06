@@ -59,13 +59,13 @@ public interface INetworkFactory : IGizmoNetworkFactory
     IReadOnlyList<IEcsModuleSystem> CreateSimHostAttributeUpdateSystems();
 
     /// <summary>Creates the IG-specific DDS ingress translator provider.</summary>
-    IIgTranslators CreateIgTranslators();
+    IIgTranslators CreatePlayerTranslators();
 
     /// <summary>
     /// Creates the IG network adapter wrapping all DDS writers and readers for the IG.
     /// Pass <c>null</c> for <paramref name="participant"/> in headless/offline mode.
     /// </summary>
-    IIgNetworkAdapter CreateIgNetworkAdapter(DdsParticipant? participant, int nodeId = 0);
+    IIgNetworkAdapter CreatePlayerNetworkAdapter(DdsParticipant? participant, int nodeId = 0);
 
     /// <summary>
     /// ⭐ <c>CE-3126</c> — the node's geo transform as this factory holds it, or <c>null</c> when it holds none. The node
@@ -80,7 +80,7 @@ public interface INetworkFactory : IGizmoNetworkFactory
     /// UpdateEntityCommand, DestroyEntityCommand) into DDS write calls.
     /// Returns an empty collection when the protocol does not support IG egress.
     /// </summary>
-    IReadOnlyList<IDescriptorTranslator> CreateIgEgressTranslators(
+    IReadOnlyList<IDescriptorTranslator> CreatePlayerEgressTranslators(
         DdsParticipant participant,
         FdpEventBus bus,
         int nodeId);

@@ -4,7 +4,7 @@ using Fdp.Toolkit.Behavior.Diagnostics;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Fdp.Toolkit.Replication.Components;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 
 namespace Hrot.ScenarioEditor.Map
 {

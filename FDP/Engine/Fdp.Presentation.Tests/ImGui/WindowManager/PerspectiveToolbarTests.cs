@@ -83,9 +83,9 @@ public class PerspectiveToolbarTests : IDisposable
     {
         var wm = CreateManager();
         wm.RegisterWindow(new TestPerspWindow("w1", "Default"));
-        wm.RegisterWindow(new TestPerspWindow("w2", "IG"));
+        wm.RegisterWindow(new TestPerspWindow("w2", "Player"));
         wm.RegisterWindow(new TestPerspWindow("w3", "ExCon"));
-        wm.SwitchPerspective("IG");
+        wm.SwitchPerspective("Player");
 
         var fakeIcons = new FakeIconProvider();
         var section = CreateSection(wm, fakeIcons);
@@ -97,7 +97,7 @@ public class PerspectiveToolbarTests : IDisposable
 
         // It equals CurrentPerspective.
         var toggled = model.Single(e => e.IsToggled);
-        Assert.Equal("IG", toggled.Perspective);
+        Assert.Equal("Player", toggled.Perspective);
         Assert.Equal(wm.CurrentPerspective, toggled.Perspective);
 
         // The others are not toggled.
@@ -112,20 +112,20 @@ public class PerspectiveToolbarTests : IDisposable
     {
         var wm = CreateManager();
         wm.RegisterWindow(new TestPerspWindow("w1", "Default"));
-        wm.RegisterWindow(new TestPerspWindow("w2", "IG"));
+        wm.RegisterWindow(new TestPerspWindow("w2", "Player"));
         var fakeIcons = new FakeIconProvider();
         var section = CreateSection(wm, fakeIcons);
 
         // Initially: Default is toggled.
         var model1 = section.BuildRadioModel();
         Assert.True(model1.Single(e => e.Perspective == "Default").IsToggled);
-        Assert.False(model1.Single(e => e.Perspective == "IG").IsToggled);
+        Assert.False(model1.Single(e => e.Perspective == "Player").IsToggled);
 
         // Switch to IG.
-        wm.SwitchPerspective("IG");
+        wm.SwitchPerspective("Player");
         var model2 = section.BuildRadioModel();
         Assert.False(model2.Single(e => e.Perspective == "Default").IsToggled);
-        Assert.True(model2.Single(e => e.Perspective == "IG").IsToggled);
+        Assert.True(model2.Single(e => e.Perspective == "Player").IsToggled);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -137,7 +137,7 @@ public class PerspectiveToolbarTests : IDisposable
     {
         var wm = CreateManager();
         wm.RegisterWindow(new TestPerspWindow("w1", "Default"));
-        wm.RegisterWindow(new TestPerspWindow("w2", "IG"));
+        wm.RegisterWindow(new TestPerspWindow("w2", "Player"));
         wm.SwitchPerspective("Default");
         Assert.Equal("Default", wm.CurrentPerspective);
 
@@ -145,9 +145,9 @@ public class PerspectiveToolbarTests : IDisposable
         var section = CreateSection(wm, fakeIcons);
 
         // Select a non-active perspective.
-        section.OnSelect("IG");
+        section.OnSelect("Player");
 
-        Assert.Equal("IG", wm.CurrentPerspective);
+        Assert.Equal("Player", wm.CurrentPerspective);
     }
 
     [Fact]
@@ -155,17 +155,17 @@ public class PerspectiveToolbarTests : IDisposable
     {
         var wm = CreateManager();
         wm.RegisterWindow(new TestPerspWindow("w1", "Default"));
-        wm.RegisterWindow(new TestPerspWindow("w2", "IG"));
-        wm.SwitchPerspective("IG");
+        wm.RegisterWindow(new TestPerspWindow("w2", "Player"));
+        wm.SwitchPerspective("Player");
 
         var fakeIcons = new FakeIconProvider();
         var section = CreateSection(wm, fakeIcons);
 
         // Select the already-active perspective.
-        section.OnSelect("IG");
+        section.OnSelect("Player");
 
         // Should still be "IG" (no-op).
-        Assert.Equal("IG", wm.CurrentPerspective);
+        Assert.Equal("Player", wm.CurrentPerspective);
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public class PerspectiveToolbarTests : IDisposable
     {
         var wm = CreateManager();
         wm.RegisterWindow(new TestPerspWindow("w1", "Default"));
-        wm.RegisterWindow(new TestPerspWindow("w2", "IG"));
+        wm.RegisterWindow(new TestPerspWindow("w2", "Player"));
         wm.SwitchPerspective("Default");
 
         string? old = null, @new = null;
@@ -181,10 +181,10 @@ public class PerspectiveToolbarTests : IDisposable
 
         var fakeIcons = new FakeIconProvider();
         var section = CreateSection(wm, fakeIcons);
-        section.OnSelect("IG");
+        section.OnSelect("Player");
 
         Assert.Equal("Default", old);
-        Assert.Equal("IG", @new);
+        Assert.Equal("Player", @new);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -196,7 +196,7 @@ public class PerspectiveToolbarTests : IDisposable
     {
         var wm = CreateManager();
         // IG has no IconKey set.
-        wm.RegisterWindow(new TestPerspWindow("w1", "IG", iconKey: null));
+        wm.RegisterWindow(new TestPerspWindow("w1", "Player", iconKey: null));
         // Default has a resolvable IconKey.
         wm.RegisterWindow(new TestPerspWindow("w2", "Default", iconKey: "perspective/default"));
 
@@ -212,8 +212,8 @@ public class PerspectiveToolbarTests : IDisposable
         Assert.True(defaultEntry.HasIcon);
 
         // IG: hasIcon == false (no IconKey set → text fallback).
-        var igEntry = model.Single(e => e.Perspective == "IG");
-        Assert.False(igEntry.HasIcon);
+        var playerEntry = model.Single(e => e.Perspective == "Player");
+        Assert.False(playerEntry.HasIcon);
     }
 
     [Fact]
@@ -221,7 +221,7 @@ public class PerspectiveToolbarTests : IDisposable
     {
         var wm = CreateManager();
         // IG has an IconKey, but the provider doesn't know about it.
-        wm.RegisterWindow(new TestPerspWindow("w1", "IG", iconKey: "ig/unknown"));
+        wm.RegisterWindow(new TestPerspWindow("w1", "Player", iconKey: "player/unknown"));
         // Default has a resolvable IconKey.
         wm.RegisterWindow(new TestPerspWindow("w2", "Default", iconKey: "perspective/default"));
 
@@ -237,7 +237,7 @@ public class PerspectiveToolbarTests : IDisposable
         Assert.True(model.Single(e => e.Perspective == "Default").HasIcon);
 
         // IG: key exists but doesn't resolve → hasIcon == false.
-        Assert.False(model.Single(e => e.Perspective == "IG").HasIcon);
+        Assert.False(model.Single(e => e.Perspective == "Player").HasIcon);
     }
 
     [Fact]
@@ -245,35 +245,35 @@ public class PerspectiveToolbarTests : IDisposable
     {
         var wm = CreateManager();
         // Register two windows in the same perspective; only the first one has IconKey.
-        wm.RegisterWindow(new TestPerspWindow("w1", "IG", iconKey: null));
-        wm.RegisterWindow(new TestPerspWindow("w2", "IG", iconKey: "ig/icon"));
+        wm.RegisterWindow(new TestPerspWindow("w1", "Player", iconKey: null));
+        wm.RegisterWindow(new TestPerspWindow("w2", "Player", iconKey: "player/icon"));
 
         var fakeIcons = new FakeIconProvider();
-        fakeIcons.Add("ig/icon", new IconHandle(new IntPtr(99), 64, 64));
+        fakeIcons.Add("player/icon", new IconHandle(new IntPtr(99), 64, 64));
 
         var section = CreateSection(wm, fakeIcons);
 
         var model = section.BuildRadioModel();
-        var igEntry = model.Single(e => e.Perspective == "IG");
+        var playerEntry = model.Single(e => e.Perspective == "Player");
 
         // It should pick up the first non-null IconKey (from w2) and resolve it.
-        Assert.True(igEntry.HasIcon);
+        Assert.True(playerEntry.HasIcon);
     }
 
     [Fact]
     public void GetPerspectiveIconKey_ReturnsFirstNonNull()
     {
         var wm = CreateManager();
-        wm.RegisterWindow(new TestPerspWindow("w1", "IG", iconKey: null));
-        wm.RegisterWindow(new TestPerspWindow("w2", "IG", iconKey: "ig/second"));
+        wm.RegisterWindow(new TestPerspWindow("w1", "Player", iconKey: null));
+        wm.RegisterWindow(new TestPerspWindow("w2", "Player", iconKey: "player/second"));
 
         // The first non-null in order of insertion.
         // Note: _windows is a Dictionary, so iteration order is insertion order.
-        var key = wm.GetPerspectiveIconKey("IG");
+        var key = wm.GetPerspectiveIconKey("Player");
 
         // Should be the first non-null, which is w2's key.
         // But since both w1 (null) and w2 ("ig/second") are in the dictionary,
         // FirstOrDefault should skip w1's null and return w2's.
-        Assert.Equal("ig/second", key);
+        Assert.Equal("player/second", key);
     }
 }

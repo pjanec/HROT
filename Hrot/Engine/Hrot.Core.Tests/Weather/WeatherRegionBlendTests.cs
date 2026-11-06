@@ -4,7 +4,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Weather;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Xunit;
 
 namespace Hrot.Core.Tests.Weather

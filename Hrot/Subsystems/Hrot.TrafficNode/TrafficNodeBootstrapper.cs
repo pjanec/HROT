@@ -95,34 +95,27 @@ public sealed class TrafficNodeBootstrapper : SharedApplicationBootstrapper, IDi
         TogglableSimulationGroup simGroup,
         TogglablePostSimulationGroup postSimGroup,
         ScenarioSerializer serializer)
-        => (_nodeBootstrapper = new NodeBootstrapper(NetworkFactory)).BuildOrchestration(
-            BootRole,
-            context.Kernel,
-            context.World,
-            context.NodeId,
-            participant:         context.Participant,
-            subsystemName:       BootConfig!.SubsystemName,
-            eventBus:            context.EventBus,
-            features:             () => context.Features,   // ⭐ P-7 F-28 — this caller HAS the node's features, so the scenario step can hand it the header's preset
-            scenarioSerializer:  serializer,
-            localTempRoot:       BootConfig.LocalTempRoot,
-            tkbDb:               context.TkbDb,
-            simGroup:            simGroup,
-            postSimGroup:        postSimGroup,
-            lifecycleGroup:      context.NedReplication?.NetworkLifecycleGroup,
-            ghostCreationSystem: context.GhostCreationSystem,
-            eventAccumulator:    context.EventAccumulator,
-            afterSeek:           context.NedReplication?.AfterSeekCallback,
-            elm:                 context.BaseModules?.OfType<EntityLifecycleModule>().FirstOrDefault(),
-            terrainContent:      context.TerrainContent,   // ⭐ CE-4013 — the node's terrain content (the SUMO net)
-            clusterSlave:        context.ClusterSlave,     // ⭐ CE-4013 D15 — the node's ONE slave and translator
-            slaveTranslator:     context.SlaveTranslator);
+        // ⭐ CE-4270 B11 — the ONE orchestration step (HostOrchestration): what the context holds is passed for every host; these are this host's values.
+        => Hrot.EcsNode.Hosting.HostOrchestration.Build(_nodeBootstrapper = new NodeBootstrapper(NetworkFactory), BootRole, context,
+            new Hrot.EcsNode.Hosting.OrchestrationSpec
+            {
+                SubsystemName = BootConfig!.SubsystemName,
+                LocalTempRoot = BootConfig.LocalTempRoot,
+                Serializer    = serializer,
+                SimGroup      = simGroup,
+                PostSimGroup  = postSimGroup,
+            });
 
     protected override void RegisterSpawningPipeline(HrotNodeContext context)
-    {
-        RegisterCapabilities(context);         // ⭐ CE-4013 — the shared walk's Register phase, first (Stride's point)
-        RegisterEntityCreationPack(context);   // ghost promotion lives here: the TrafficDemand entity arrives as a ghost (S3)
-    }
+        // ⭐ CE-4270 B1 (§4.1ag) — the ONE shared spawning step (ghost promotion lives in the pack: the TrafficDemand entity arrives as a
+        //   ghost, S3); the one order for every host (D5, R-3077).
+        => EntityCreation = Hrot.EcsNode.Hosting.HostSpawning.Register(context, ConfiguredNetworkFactory,
+            new Hrot.EcsNode.Hosting.SpawningSpec
+            {
+                IsBroadcastArbiter   = false,   // CGF is the one arbiter (Q65 §1)
+                SkipWithoutAllocator = true,    // headless rails with SkipAllocatorRouting, as on Stride
+            },
+            () => RegisterCapabilities(context));
 
     protected override void RegisterNetworkTranslators(HrotNodeContext context, INetworkFactory? configuredFactory)
     {
@@ -145,28 +138,4 @@ public sealed class TrafficNodeBootstrapper : SharedApplicationBootstrapper, IDi
         return plan.Resolve(role);
     }
 
-    // UNIFY: identical to StrideNodeBootstrapper.cs:459-525 (same pack fields and schedule as IgNodeBootstrapper.cs:516-593 and
-    //   SimHostNodeBootstrapper.cs:495-575, which differ in order and in how the spawn system is wrapped).
-    private void RegisterEntityCreationPack(HrotNodeContext context)
-    {
-        if (context.IdAllocator == null) return;   // headless rails with SkipAllocatorRouting, as on Stride
-
-        var creation = EntityCreationPack.Build(new EntityCreationContext
-        {
-            World              = context.World,
-            EntityMap          = context.EntityMap,
-            TkbDb              = context.TkbDb!,
-            IdAllocator        = context.IdAllocator,
-            Elm                = context.BaseModules.OfType<EntityLifecycleModule>().First(),
-            NodeId             = context.NodeId,
-            NetworkAdapters    = ConfiguredNetworkFactory?.CreateCgfEntityLifecycleAdapters(),
-            ExpectedPeers      = context.NedReplication?.ExpectedPeers,
-            IsBroadcastArbiter = false,   // CGF is the one arbiter (Q65 §1)
-        });
-        EntityCreation = creation;   // CE-515
-
-        // ⭐ CE-4013 D6 — every piece of the pack, scheduled by the ONE shared registration.
-        creation.RegisterOn(context.Kernel);
-        Hrot.SimHost.Systems.GenesisTail.RegisterOn(context.Kernel, context.EntityMap);   // ⭐ CE-4013 D11 — the shared genesis tail
-    }
 }

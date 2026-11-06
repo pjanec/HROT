@@ -27,8 +27,8 @@
     <ProjectReference Include="..\Hrot.CGF\Hrot.CGF.csproj" />
     <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />
 
-    <!-- EditorSubsystem uses MapLayerAssignmentSystem from Hrot.IG.Systems -->
-    <ProjectReference Include="..\Hrot.IG\Hrot.IG.csproj" />
+    <!-- EditorSubsystem uses MapLayerAssignmentSystem from Hrot.Player.Systems -->
+    <ProjectReference Include="..\Hrot.Player\Hrot.Player.csproj" />
     <!-- AttributeCompilerFactory is used by EditorSubsystem to build the JSON→ECS attribute compiler -->
     <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />
     <!-- UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates / RegisterUrbanCombatBehaviors -->

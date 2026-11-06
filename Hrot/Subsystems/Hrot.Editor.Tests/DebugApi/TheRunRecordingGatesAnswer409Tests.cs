@@ -44,7 +44,7 @@ public sealed class TheRunRecordingGatesAnswer409Tests : IDisposable
         var dispatcher = new PerspectiveScopedDispatcher(
             new ISubsystemDebugProvider[]
             {
-                new SubsystemDebugProvider("IG", "IG"),
+                new SubsystemDebugProvider("Player", "Player"),
                 new SubsystemDebugProvider("CGF", "CGF", master: () => _master, exercises: () => new[] { Known }, runNotRecorded: () => _notRecorded, recordLiveRunsOff: () => _settingOff, askToKeepRecordings: () => _askToKeep, armedMode: () => _armed),
             },
             currentPerspective: () => "CGF", acksPending: null);

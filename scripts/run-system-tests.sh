@@ -56,7 +56,7 @@ fi
 # HN-009: the filter covers BOTH categories, and it did not.
 #
 # Measured 2026-08-23: the project holds 52 cases; this script ran 44. ModeStartupRails.cs carries only
-# [Trait("Category","SystemModes")], so its 8 rails -- including the --mode ig TRIPWIRE that is meant to
+# [Trait("Category","SystemModes")], so its 8 rails -- including the --mode player TRIPWIRE that is meant to
 # fail the day ST-020 is fixed -- were never run by the project's own runner. A rail the standard gate
 # does not execute is a rail nobody will see fire, which is the same disease as HN-007: green because
 # nothing looked.

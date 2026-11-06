@@ -10,7 +10,7 @@ using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Motion;
 using Fdp.Toolkit.Tkb.Domain;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using System.Linq;
 using System.Numerics;
 using Fdp.Toolkit.Replication.Messages;
@@ -44,6 +44,7 @@ namespace Hrot.SimHost.Tests
         private readonly DdsReader<DeployStatusTopic> _status;
         private readonly DdsReader<PlayerSlotTopic> _slotSamples;
         private readonly List<DeployStatusTopic> _statuses = new();
+        private readonly List<int> _statusDisposed = new();
         private readonly List<(bool valid, PlayerSlotTopic slot)> _slotLog = new();
         private readonly DdsReader<DeployOfferTopic> _offerSamples;
         private readonly Dictionary<int, DeployOfferTopic> _offersSeen = new();
@@ -116,7 +117,10 @@ namespace Hrot.SimHost.Tests
                     if (s.IsValid) _offersSeen[s.Data.UnitNetId] = s.Data;
                     else _offersSeen.Remove(DdsTypeSupport.FromNative<DeployOfferTopic>(s.NativePtr).UnitNetId);
                 }
-            using (var l = _status.Take()) foreach (var s in l) if (s.IsValid) _statuses.Add(s.Data);
+            using (var l = _status.Take())
+                foreach (var s in l)
+                    if (s.IsValid) _statuses.Add(s.Data);
+                    else _statusDisposed.Add(DdsTypeSupport.FromNative<DeployStatusTopic>(s.NativePtr).StationNodeId);
             using (var l = _slotSamples.Take())
                 foreach (var s in l)
                     _slotLog.Add(s.IsValid ? (true, s.Data) : (false, DdsTypeSupport.FromNative<PlayerSlotTopic>(s.NativePtr)));
@@ -312,6 +316,23 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, _proc.SlotCount);
             Assert.False(StationReservations.Of(_w).TryReservedFor(Rifleman, out _));
             PumpUntil(() => _slotLog.Exists(s => !s.valid && s.slot.StationNodeId == StationA), "a dispose sample");
+        }
+
+        /// <summary>
+        /// ⭐ CE-4270 ③ (the scripted full cycle's step 10) — a station that LEAVES has its answer (<c>DeployStatusTopic</c>, durable) deleted
+        /// too, with a slot or without one (a refused station). 🔴 Red-proof: drop <c>DisposeAnswer</c> from the departure read ⇒ no dispose.
+        /// </summary>
+        [Fact]
+        public void ADepartedStation_HasItsAnswerDeleted_WithOrWithoutASlot()
+        {
+            Unit(Rifleman, ForceId.Friend);
+            Assert.True(Request(StationA, ForceId.Friend, Rifleman).Accepted);
+            Assert.False(Request(StationB, ForceId.Friend, Rifleman).Accepted);   // refused: an answer, no slot
+            _w.Bus.Publish(new NodeDeparted { NodeId = (NodeId)StationA });
+            _w.Bus.Publish(new NodeDeparted { NodeId = (NodeId)StationB });
+            _w.Bus.SwapBuffers();
+            _proc.Execute(_w, 0.016f);
+            PumpUntil(() => _statusDisposed.Contains(StationA) && _statusDisposed.Contains(StationB), "both stations' answers deleted");
         }
 
         /// <summary>An observer request (<c>Observe</c>) makes a Choosing slot of the side with no unit. ✅ Red-proof: the observe branch removed ⇒ the request is refused as no such unit ⇒ red.</summary>

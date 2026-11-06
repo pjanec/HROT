@@ -282,7 +282,7 @@ public sealed class TheClusterControlRoutesTests
         var dispatcher = new PerspectiveScopedDispatcher(
             new ISubsystemDebugProvider[]
             {
-                new SubsystemDebugProvider("IG", "IG"),
+                new SubsystemDebugProvider("Player", "Player"),
                 new SubsystemDebugProvider("CGF", "CGF", master: () => _master, clusterView: () => view),
             },
             currentPerspective: () => "CGF", acksPending: null);
@@ -370,7 +370,7 @@ public sealed class TheClusterControlRoutesTests
         var dispatcher = new PerspectiveScopedDispatcher(
             new ISubsystemDebugProvider[]
             {
-                new SubsystemDebugProvider("IG", "IG"),
+                new SubsystemDebugProvider("Player", "Player"),
                 new SubsystemDebugProvider("CGF", "CGF", master: () => _master, clusterView: () => view),
             },
             currentPerspective: () => "CGF", acksPending: null);

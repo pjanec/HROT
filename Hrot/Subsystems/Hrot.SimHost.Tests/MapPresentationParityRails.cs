@@ -17,7 +17,7 @@ namespace Hrot.SimHost.Tests
     /// <c>Scenario</c> perspective's <b>69</b>, over the <i>same 8 entities</i>. The gizmos, their
     /// registration and the execution gate were all healthy — what was missing were the two components
     /// every entity gizmo projects from: <see cref="MapDisplayComponent"/> and <c>VisualData</c>. Both
-    /// were produced by <b>IG-private</b> code, so a host that cannot reference <c>Hrot.IG</c> could
+    /// were produced by <b>IG-private</b> code, so a host that cannot reference <c>Hrot.Player</c> could
     /// never obtain them.</para>
     ///
     /// <para>🔒 <b>These rails assert the COMPONENT IS PRESENT, never that a translator is "in the
@@ -136,7 +136,7 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// ⭐ The shared <see cref="MapLayerAssignmentSystem"/> is reachable from SimHost's assembly at
-        /// all — it used to live in <c>Hrot.IG</c>, which SimHost cannot reference — and it stamps a
+        /// all — it used to live in <c>Hrot.Player</c>, which SimHost cannot reference — and it stamps a
         /// mask on an entity that matches no layer rather than leaving it invisible.
         /// </summary>
         [Fact]

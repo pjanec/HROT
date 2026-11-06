@@ -2,27 +2,27 @@
 # CE-4078 repro (AQ91 §4-B3 S0): orchestrator + cgf + simhost + traffic as separate processes under Xvfb, recipes/scenarios/demo-city live,
 # then the 3-D map opened on CGF (POST /film/shot); prints /status round-trips, the master's ejections/catch-ups and each node's longest log silences.
 # Uses ports 8600-8604 and DDS domain 61; kills only its own nodes. Set HROT_RUNNER_DLL to test another build.
-# WITH_IG=1 adds the PLAYER variant (R-1046 / CE-4078): an `ig` node on port 8603 (same domain) loads with the rest; the master's /cluster/roster is sampled every second during the load, and the
-# report adds the IG's load-step texts (the 3-D map's "3-D map: terrain" while its map builds), when it reached PlayReady, its /status round-trips and the ejections.
+# WITH_PLAYER=1 adds the PLAYER variant (R-1046 / CE-4078): an `player` node on port 8603 (same domain) loads with the rest; the master's /cluster/roster is sampled every second during the load, and the
+# report adds the Player's load-step texts (the 3-D map's "3-D map: terrain" while its map builds), when it reached PlayReady, its /status round-trips and the ejections.
 set -u
 export DOTNET_ROOT=${DOTNET_ROOT:-/root/.dotnet}; export HROT_RUNNER_DLL=${HROT_RUNNER_DLL:-$(cd "$(dirname "$0")/.." && pwd)/Hrot/Runner/Hrot.ClusterRunner/bin/Debug/net8.0/Hrot.ClusterRunner.dll}
 N=$(cd "$(dirname "$0")" && pwd)/cluster-node.sh; D=61
-WITH_IG=${WITH_IG:-0}; PORTS="8600 8601 8602 8604"; [ "$WITH_IG" = 1 ] && PORTS="$PORTS 8603"
+WITH_PLAYER=${WITH_PLAYER:-0}; PORTS="8600 8601 8602 8604"; [ "$WITH_PLAYER" = 1 ] && PORTS="$PORTS 8603"
 for p in $PORTS; do $N kill $p >/dev/null 2>&1; done
 # fail fast: a node that does not come up makes the whole run meaningless (and each wait is 120 s)
 $N start orchestrator 8600 0 $D || exit 1; $N start cgf 8601 0 $D || exit 1; $N start simhost 8602 0 $D || exit 1; $N start traffic 8604 0 $D || exit 1
-[ "$WITH_IG" = 1 ] && { $N start ig 8603 0 $D || exit 1; }
+[ "$WITH_PLAYER" = 1 ] && { $N start player 8603 0 $D || exit 1; }
 ROSTER=/tmp/ce4078-roster.log; rm -f $ROSTER
-if [ "$WITH_IG" = 1 ]; then
-  # every ~200 ms: the master's view of the IG (roster state), the IG's /status gate text and every step/loading/3-D-map string in the IG's /diagnostics/architecture (its heartbeat's load step)
+if [ "$WITH_PLAYER" = 1 ]; then
+  # every ~200 ms: the master's view of the Player (roster state), the Player's /status gate text and every step/loading/3-D-map string in the Player's /diagnostics/architecture (its heartbeat's load step)
   ( while :; do
       r=$(curl -s --noproxy '*' --max-time 5 localhost:8600/cluster/roster | python3 -c 'import sys,json;d=json.load(sys.stdin)["data"]["nodes"];print([n["reportedState"] for n in d if n["nodeId"]==100][0])' 2>/dev/null)
       g=$(curl -s --noproxy '*' --max-time 5 localhost:8603/status | grep -oE '"(canOperate|localPhase|localStep|open|reason|visible|text)":("[^"]*"|null|[a-z]+)' | tr '\n' ' ')   # CE-1451: load.localStep, runGate.reason, loadingScreen.text
-      d=$(curl -s --noproxy '*' --max-time 5 localhost:8603/view | grep -oE '"(pending3D|built|step)":("[^"]*"|null|[a-z]+)' | tr '\n' ' ')   # CE-1451: the IG's map build
+      d=$(curl -s --noproxy '*' --max-time 5 localhost:8603/view | grep -oE '"(pending3D|built|step)":("[^"]*"|null|[a-z]+)' | tr '\n' ' ')   # CE-1451: the Player's map build
       echo "$(date +%T.%N | cut -c1-12) igState=${r:-?} $g view: $d" >> $ROSTER; sleep 0.2; done ) &
   SAMPLER=$!
-  # the VRAM upload lines carry no timestamp of their own: stamp them as they appear (= when the IG's map meshes were built)
-  rm -f /tmp/ce4078-vao.log; ( tail -n0 -F /tmp/n-ig-8603.log 2>/dev/null | grep --line-buffered "Mesh uploaded" | while read -r l; do echo "$(date +%T.%N | cut -c1-12) $l" >> /tmp/ce4078-vao.log; done ) &
+  # the VRAM upload lines carry no timestamp of their own: stamp them as they appear (= when the Player's map meshes were built)
+  rm -f /tmp/ce4078-vao.log; ( tail -n0 -F /tmp/n-player-8603.log 2>/dev/null | grep --line-buffered "Mesh uploaded" | while read -r l; do echo "$(date +%T.%N | cut -c1-12) $l" >> /tmp/ce4078-vao.log; done ) &
   TAILER=$!
 fi
 echo "== up $(date +%T)"
@@ -51,26 +51,26 @@ for g in gaps: print(f"  {g[0]:.1f}s after: {g[1]}\n        next: {g[2]}")
 PY
 done
 echo "== entity counts"; for p in 8601 8602; do curl -s --noproxy '*' localhost:$p/entities | python3 -c 'import sys,json;d=json.load(sys.stdin).get("data") or [];d=d if isinstance(d,list) else d.get("entities",[]);print(len(d))'; done
-if [ "$WITH_IG" = 1 ]; then
-  echo "== PLAYER variant: the IG (node 100) in the master's roster during the load; /status rtts of the IG"
-  for i in 1 2 3 4 5; do t0=$(date +%s.%N); curl -s --noproxy '*' --max-time 60 localhost:8603/status >/dev/null; echo "  ig status rtt $(echo "$(date +%s.%N) - $t0" | bc | cut -c1-5) s at $(date +%T)"; sleep 2; done
-  kill $SAMPLER $TAILER 2>/dev/null; pkill -f 'tail -n0 -F /tmp/n-ig' 2>/dev/null
-  python3 - $ROSTER /tmp/n-orchestrator-8600.log /tmp/n-ig-8603.log <<'PY'
+if [ "$WITH_PLAYER" = 1 ]; then
+  echo "== PLAYER variant: the Player (node 100) in the master's roster during the load; /status rtts of the Player"
+  for i in 1 2 3 4 5; do t0=$(date +%s.%N); curl -s --noproxy '*' --max-time 60 localhost:8603/status >/dev/null; echo "  player status rtt $(echo "$(date +%s.%N) - $t0" | bc | cut -c1-5) s at $(date +%T)"; sleep 2; done
+  kill $SAMPLER $TAILER 2>/dev/null; pkill -f 'tail -n0 -F /tmp/n-player' 2>/dev/null
+  python3 - $ROSTER /tmp/n-orchestrator-8600.log /tmp/n-player-8603.log <<'PY'
 import re,sys,json
 roster,mlog,iglog=sys.argv[1:4]
 last=None
-print("  IG state / gate, changes (time, then the fields):")
+print("  Player state / gate, changes (time, then the fields):")
 for l in open(roster,errors='ignore'):
     t,_,rest=l.strip().partition(' ')
     if rest!=last: print("   ",t,rest[:220]); last=rest
-print("== IG map meshes uploaded (stamped when seen; first = map built):")
+print("== Player map meshes uploaded (stamped when seen; first = map built):")
 for l in open('/tmp/ce4078-vao.log',errors='ignore'): print("  ",l.strip()[:120])
-print("== ig log: terrain / map / ready lines")
+print("== player log: terrain / map / ready lines")
 for l in open(iglog,errors='ignore'):
     if re.search(r"Terrain .*committed|3-D map|PlayReady|map build|Map3D|MapBuild",l): print("  ",l.strip()[:200])
-print("== master log: IG phase lines")
+print("== master log: Player phase lines")
 for l in open(mlog,errors='ignore'):
-    if re.search(r"Slave#100|node 100|IG .*(Loading|PlayReady)|3-D map",l): print("  ",l.strip()[:200])
+    if re.search(r"Slave#100|node 100|Player .*(Loading|PlayReady)|3-D map",l): print("  ",l.strip()[:200])
 PY
 fi
 for p in $PORTS; do $N kill $p >/dev/null 2>&1; done

@@ -200,7 +200,7 @@ public sealed class ClusterConformanceRails
     /// </summary>
     private static readonly HashSet<string> ClusterOnlyKinds = new(StringComparer.Ordinal)
     {
-        "ig-debug", "ig-waypoint-editor",   // ⛔ R-3067 / AQ109 X2/X3: the four `excon-*` kinds, `ExConObserver` (X2) and `ig-mini-excon` (X3) went with ExCon
+        "player-debug", "player-waypoint-editor",   // ⛔ R-3067 / AQ109 X2/X3: the four `excon-*` kinds, `ExConObserver` (X2) and `ig-mini-excon` (X3) went with ExCon
 
     };
 
@@ -241,7 +241,7 @@ public sealed class ClusterConformanceRails
         // ⭐⭐ HN-037, `2026-08-24`: the id divergence is GONE — both hosts number the same scenario
         //    1000-1007, asserted by The_two_hosts_number_the_same_entities_identically. ⇒ ONE reason remains,
         //    and it is named here so nobody re-reads this entry as still covering ids.
-        ["entity-inspector"] = "the IG node's inspector also lists node-local entities (networkId 0, unnamed) "
+        ["entity-inspector"] = "the Player node's inspector also lists node-local entities (networkId 0, unnamed) "
                              + "that the editor has no counterpart for. NOT ids: those match since HN-037. "
                              + "The SCENARIO content is compared for real by The_two_hosts_hold_the_same_loaded_world "
                              + "and its ids by The_two_hosts_number_the_same_entities_identically",
@@ -572,7 +572,7 @@ public sealed class ClusterConformanceRails
         // 2026-10-28 (measured on a live `--mode all`): the Orchestrator has been a debug provider since CE-4002 (2026-10-15) and the
         // traffic node joined `all` the same day this line was re-measured — each contributes a ROUTABLE perspective (a provider's name,
         // which is not the same set as the window-claimed GET /perspectives).
-        Assert.Equal(new[] { "IG", "Orchestrator", "Scenario", "SimHost", "Traffic" }, perspectives);
+        Assert.Equal(new[] { "Player", "Orchestrator", "Scenario", "SimHost", "Traffic" }, perspectives);
 
         // ⭐⭐ HN-028: the ack-gate is confirmable cluster-wide here. ⛔ If this reddens, the dispatcher lost its
         //    live read of OrchestratorSubsystem.IsAwaitingStepAcks and every /sim/step went back to being
@@ -641,7 +641,7 @@ public sealed class ClusterConformanceRails
 
         Assert.True(withFeed >= 2,
             $"only {withFeed} of {matrix.Count} perspectives report a gizmo feed [{string.Join(" | ", verdicts)}]. "
-          + "⭐ CGF/Scenario and IG both build a DebugPrimitiveBuffer unconditionally, so fewer than 2 means "
+          + "⭐ CGF/Scenario and Player both build a DebugPrimitiveBuffer unconditionally, so fewer than 2 means "
           + "the provider wiring regressed.");
 
         Assert.True(withMission >= 1,
@@ -691,9 +691,9 @@ public sealed class ClusterConformanceRails
 
         var scenario = await SimTimeOfAsync("Scenario");
         var simhost  = await SimTimeOfAsync("SimHost");
-        var ig       = await SimTimeOfAsync("IG");
+        var player       = await SimTimeOfAsync("Player");
 
-        _out.WriteLine($"simTime — Scenario(CGF)={scenario}, SimHost={simhost}, IG={ig}");
+        _out.WriteLine($"simTime — Scenario(CGF)={scenario}, SimHost={simhost}, Player={player}");
 
         Assert.NotNull(scenario);
         Assert.NotNull(simhost);
@@ -704,7 +704,7 @@ public sealed class ClusterConformanceRails
             $"the clocked nodes disagree on sim time after a cluster step: CGF={scenario}, SimHost={simhost}");
 
         // ⚠ Documented, not asserted as a defect: IG exposes no clock because it builds no facade.
-        Assert.Null(ig);
+        Assert.Null(player);
     }
 
     /// <summary>

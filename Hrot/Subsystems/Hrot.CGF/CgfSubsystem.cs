@@ -100,6 +100,28 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     public const NodeRole DefaultRole = NodeRole.Brain;
 
     /// <summary>
+    /// ⭐⭐⭐ <c>CE-4270</c> B7c (<c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §4.1ag, R-3077 D1–D4) — <b>the FUSED server's role</b>: the Brain plus the
+    /// ground Muscle, its perception and its navigation solver in ONE world (the editor's union, network ON, slave time — the orchestrator stays its own node).
+    /// <c>-m server</c> boots this node with it; CGF's bootstrapper composes by the declared role, so no host class is added for it.
+    /// </summary>
+    public const NodeRole FusedServerRole = DefaultRole | NodeRole.MuscleGround | NodeRole.Perception | NodeRole.NavigationSolver;
+
+    /// <summary>
+    /// ⭐ <c>CE-4270</c> B7c — the role THIS node is booted with: <see cref="DefaultRole"/> (the Brain) unless the composition root sets another before
+    /// <see cref="Initialize"/> (the runner's fused server: <see cref="FusedServerRole"/>).
+    /// </summary>
+    public NodeRole Role
+    {
+        get => _role;
+        set
+        {
+            if (_context != null) throw new InvalidOperationException("[CgfSubsystem] the role is fixed once the node is bootstrapped.");
+            _role = value;
+        }
+    }
+    private NodeRole _role = DefaultRole;
+
+    /// <summary>
     /// The capabilities <see cref="DefaultRole"/> resolves to (<c>B4b</c> step 2, host (c)).
     /// </summary>
     /// <remarks>
@@ -964,7 +986,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    every kind a contributor roots on disk, with its root, as NEEDS (mirror) or AUTHORS (add-only) by the
         //    configured authorship. Appended now because the slave publishes its capabilities on its first tick.
         _context.ClusterSlave.AppendCapabilities(Hrot.Map.Common.ClusterLoad.AssetNeeds.Tokens(
-            DefaultRole,
+            Role,
             _aiCatalogBuilder.Catalog.Contributors.Select(c =>
                 (Fdp.Toolkit.Orchestration.Assets.AssetTokens.Kinds.FromAssetKindName(c.Kind.ToString()), c.BaseFolder)),
             AssetAuthoring));
@@ -1011,7 +1033,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _bootstrapper = new CgfNodeBootstrapper(_networkFactory, isolatedTempRoot, _fdpEventHistory, map => _stagingRemap.Publish(map));
         _bootstrapper.ApplicationSystemsRegistrar = RegisterHostSystems;
         _bootstrapper.MapBuildStatus = () => _cgfMap3D;   // ⭐ CE-3354 ③ — lazy: the map layers are attached after the bootstrap
-        _context = _bootstrapper.BootstrapNode(nodeConfig, DefaultRole, _networkFactory);
+        _context = _bootstrapper.BootstrapNode(nodeConfig, Role, _networkFactory);   // ⭐ CE-4270 B7c — the declared role (the Brain, or the fused server's)
 
         if (_context is null || _entityMap is null)
             throw new InvalidOperationException(
@@ -2706,6 +2728,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _bpPreTickSnapshot = null;
         _physicsModule?.Dispose();
         _physicsModule = null;
+        _bootstrapper?.DisposeResources();   // ⭐ CE-4270 B7b — the node's one-per-world resources (the fused server's trajectory pool); none on a Brain-only node
 
         // Guard the participant disposal.
         if (_networkFactory?.Participant == null)

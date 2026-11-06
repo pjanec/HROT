@@ -135,9 +135,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// navigation solver writes; a node without it allocates no pool.</para>
     /// </remarks>
     protected override System.Collections.Generic.IReadOnlyList<string> DeclaredResourceKeys(NodeRole role)
-        => (role & NodeRole.MuscleGround) == NodeRole.MuscleGround
-            ? new[] { Hrot.Common.Infrastructure.ResourceKeys.TrajectoryPool }
-            : System.Array.Empty<string>();
+        => MuscleRoleInputs.DeclaredResourceKeys(role);   // ⭐ CE-4270 B7b — the ONE Muscle-role implementation (CGF's fused boot calls it too)
 
     /// <summary>
     /// CE-199 — the INSTANCE half: the providers that satisfy <see cref="DeclaredResourceKeys"/>.
@@ -149,9 +147,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// </remarks>
     protected override System.Collections.Generic.IReadOnlyList<Hrot.Common.Infrastructure.INodeResourceProvider>
         ResolveResources(HrotNodeContext context, NodeRole role)
-        => (role & NodeRole.MuscleGround) == NodeRole.MuscleGround
-            ? new Hrot.Common.Infrastructure.INodeResourceProvider[] { TrajectoryPool }
-            : System.Array.Empty<Hrot.Common.Infrastructure.INodeResourceProvider>();
+        => MuscleRoleInputs.ResolveResources(role, TrajectoryPool);
 
 
 
@@ -174,15 +170,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// than a crash.</para>
     /// </remarks>
     protected override void PostInitialize(HrotNodeContext context)
-    {
-        bool composedTheSolver = false;
-        foreach (Hrot.Common.Infrastructure.INodeCapability capability in Capabilities)
-            if (capability.Key == Hrot.Common.Infrastructure.CapabilityKeys.NavigationSolver)
-                composedTheSolver = true;
-
-        if (composedTheSolver)
-            _navModule!.RegisterProviders(context.World);
-    }
+        => MuscleRoleInputs.RegisterNavigationProviders(Capabilities, _navModule, context.World);   // ⭐ CE-4270 B7b — shared with CGF's fused boot
 
     /// <param name="networkFactory">Optional network factory for DDS setup.</param>
     /// <param name="role">Node role controlling which simulation modules are activated.</param>
@@ -272,7 +260,10 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         // B4b: the pool comes from the node's provider, not from whichever module defaults one.
         // Every consumer below receives THIS instance, so the solver's routes and the kinematics
         // systems' lookups address the same memory by construction (CE-180).
-        CoreLogicPack = new SimHostCoreLogicPack(context.EntityMap, roadNetwork, TrajectoryPool.Pool);
+        // ⭐ CE-4270 B7b — the pack, the navigation module and the solver factory are built by the ONE Muscle-role step (MuscleRoleInputs), which
+        //   CGF's bootstrapper also calls when it is booted as the fused server.
+        var muscle = MuscleRoleInputs.Build(context.EntityMap, roadNetwork, TrajectoryPool, Navmesh, () => _nodeBootstrapper);
+        CoreLogicPack = muscle.CoreLogicPack;
 
         // ⭐ S2b — the owner-side edit-request handlers moved to the base bootstrapper's input group, so
         //   every host applies another node's edit (F-10). ⛔ This host used to call ConfigureForNode a
@@ -280,36 +271,17 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
 
         // B4b step 2: the node's units come from a declared plan rather than a hand-written list.
         // ⚠ Resolved once; the base walks the SAME instances at every composition step (CE-4013).
-        _navModule = new EngineBackedNavigationModule(
-            RoadNetwork ?? default(CarKinem.Road.RoadNetworkBlob),
-            TrajectoryPool.Pool,
-            Navmesh);
+        // ⭐ W6 — the SOLVER shares the navmesh, the pool and (once orchestration built it) the road holder (inside MuscleRoleInputs.Build).
+        _navModule = muscle.NavigationModule;
 
-        // ⭐ W6 — the SOLVER, sharing the navmesh, the pool and (once orchestration built it) the road holder.
-        var solverRoad = RoadNetwork ?? default(CarKinem.Road.RoadNetworkBlob);
-        var solverPool = TrajectoryPool.Pool;
-        Fdp.Toolkit.Navigation.Modules.NavigationSolverModule BuildSolver()
-            => new(solverRoad, solverPool, Navmesh, roadNetworkHolder: _nodeBootstrapper?.RoadNetworkHolder);
-
-        // ⭐⭐ CE-2144 (R-2008) — the ONE shared plan head (HealthApplication first): damage owned here is applied here.
-        var plan = Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.LiveSimulationPlan(NodeRole.MuscleGround)
-            .Provider(TrajectoryPool)
-            .Capability(NodeRole.MuscleGround,     new SimHostCapabilities.MuscleGround(CoreLogicPack))
-            .Capability(NodeRole.Perception,       new SimHostCapabilities.PerceptionSolver())
-            .Capability(NodeRole.NavigationSolver, new SimHostCapabilities.NavigationSolver(_navModule, BuildSolver))
-            // ⭐ CE-221 — cross-role infrastructure, declared LAST so it keeps its tail-of-Simulation
-            //    position. Declared once per plan; Resolve de-duplicates by Key, which is what makes
-            //    a Brain+Muscle node register it ONCE instead of twice.
-            .Capability(NodeRole.MuscleGround,     new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy())
-            .Capability(NodeRole.MuscleGround,     new Hrot.SimHost.EqsResultUpdateCapability())
-            // ⭐ CE-3110 (R-221/R-224) — interactions (doors, embarkation) are cross-role too: any node that can own a live entity can own a door, a vehicle or a passenger.
-            .Capability(NodeRole.MuscleGround,     new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Interactions())
-            // ⭐ CE-2301 ① (R-2058) — no brain here, so the report inbox comes as a capability: this node logs every report it sees.
-            .Capability(NodeRole.MuscleGround,     new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.ReportInbox())
-            // ⭐ CE-2121 — the character body (stance) over the fake animation backend; module-only, appended last.
-            .Capability(NodeRole.MuscleGround,     new Hrot.SimHost.AnimationMuscleCapability())
-            // ⭐ AQ93 §12 N6 (R-4056) — SUMO cars mirrored, so rounds, sensors and avoidance see them; idle without a net.
-            .Capability(NodeRole.MuscleGround,     Hrot.Traffic.TrafficPack.Mirroring());
+        // ⭐⭐⭐ CE-4270 B10 (§4.1ag, R-3077): the ONE role table, the same one CGF, the fused server and the editor resolve. SimHost's row: the Muscle, no brain
+        //   (so the report inbox comes as a capability, CE-2301), SUMO cars mirrored (AQ93 §12 N6, R-4056: rounds, sensors and avoidance see them; idle without a net).
+        var plan = RoleCapabilityTable.Plan(new RoleTableInputs
+        {
+            Muscle         = muscle,
+            TrajectoryPool = TrajectoryPool,
+            Traffic        = Hrot.Traffic.TrafficPack.Mirroring(),
+        });
 
         // ⭐⭐⭐ B4b step 3 — THE NODE COMPOSES BY ITS DECLARED ROLE, not by a hard-coded constant.
         //
@@ -347,12 +319,8 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         List<IEcsModuleSystem> sim,
         List<IEcsModuleSystem> postSim)
     {
-        // Seed GlobalTime singleton
-        context.World.SetSingletonUnmanaged(new GlobalTime
-        {
-            DeltaTime = 1.0f / _simulationRateHz,
-            TimeScale = 1.0f
-        });
+        // Seed GlobalTime singleton (⭐ CE-4270 B7b — the ONE Muscle-role seed, shared with CGF's fused boot)
+        MuscleRoleInputs.SeedGlobalTime(context.World, _simulationRateHz);
     }
 
     /// <inheritdoc/>
@@ -387,33 +355,18 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         if (NavmeshFactory != null) _nodeBootstrapper.AttachNavmesh(NavmeshFactory, Navmesh);
         MigrationServices = _nodeBootstrapper.RegisterMigrationServices(
             _role,
-            writerIdentifier: _role.HasFlag(NodeRole.Brain) ? "Hrot.CGF" : "Hrot.SimHost");
-        var slave = _nodeBootstrapper.BuildOrchestration(
-            _role, context.Kernel, context.World, context.NodeId,
-            participant:          context.Participant,
-            subsystemName:        "SimHost",
-            eventBus:             context.EventBus,
-            features:             () => context.Features,   // ⭐ P-7 F-28 — this caller HAS the node's features, so the scenario step can hand it the header's preset
-            // CE-279 — pass the serializer this override already receives (was null); every ECS host saves
-            //   its owned slice via the shared serializer. Load handlers stay off (no authoring deps here).
-            scenarioSerializer:   serializer,
-            localTempRoot:        _localTempRoot,
-            tkbDb:                _tkbDb,         // TKB-020
-            simGroup:             simGroup,
-            lifecycleGroup:       context.NedReplication?.NetworkLifecycleGroup,
-            ghostCreationSystem:  context.GhostCreationSystem,
-            eventAccumulator:     context.EventAccumulator,
-            afterSeek:            (context.NedReplication as Hrot.Common.Abstractions.INedReplicationModule)?.AfterSeekCallback,
-            diagnosticsDumpHandler: diagHandler,
-            // ⭐ HN-018 — this caller HAS the ELM, so it passes it (the silent-default rule).
-            elm:                  context.BaseModules?
-                                      .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>()
-                                      .FirstOrDefault(),
-            terrainContent:       context.TerrainContent,   // ⭐ CE-4013 — this caller HAS the node's registry, so it passes it
-            // ⭐ CE-4013 D15 — the node's ONE slave and ONE slave translator, from HrotNodeBuilder: no second pair.
-            clusterSlave:         context.ClusterSlave,
-            slaveTranslator:      context.SlaveTranslator,
-            mapBuildStatus:       MapBuildStatus);   // ⭐ CE-3354 ③ — this host HAS a map when it shows one (SimHostApp wires it), so it passes it
+            writerIdentifier: _role.HasFlag(NodeRole.Brain) ? Hrot.Common.Scenario.HrotSubsystemTypes.Cgf : Hrot.Common.Scenario.HrotSubsystemTypes.SimHost);
+        // ⭐ CE-4270 B11 — the ONE orchestration step (HostOrchestration). ⚠ No input or post-simulation group (as before, §4.1ag B11 drift table).
+        var slave = Hrot.EcsNode.Hosting.HostOrchestration.Build(_nodeBootstrapper, _role, context,
+            new Hrot.EcsNode.Hosting.OrchestrationSpec
+            {
+                SubsystemName   = "SimHost",
+                LocalTempRoot   = _localTempRoot,
+                Serializer      = serializer,
+                SimGroup        = simGroup,
+                DiagnosticsDump = diagHandler,
+                MapBuildStatus  = MapBuildStatus,   // ⭐ CE-3354 ③ — this host HAS a map when it shows one (SimHostApp wires it)
+            });   // ⭐ CE-3354 ③ — this host HAS a map when it shows one (SimHostApp wires it), so it passes it
 
         SlaveTranslator = _nodeBootstrapper.SlaveTranslator;
         return slave;
@@ -422,88 +375,23 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// <inheritdoc/>
     protected override void RegisterSpawningPipeline(HrotNodeContext context)
     {
-        // Toolkit modules - Physics
+        // The physics toolkit's raycast batch first: the spawn pipeline and the muscle capabilities raycast through it.
         PhysicsModule = new PhysicsToolkitModule();
         PhysicsModule.Initialize(context.World);
 
-        // ⭐⭐⭐ CE-140 step 3, host (b) — THE ENTITY CREATION PACK.
-        //    This host used to hand-assemble the spawn path: build the list, call SetTranslators, and
-        //    construct NetworkSpawningSystem with `translators:` passed by hand. Every one of those was
-        //    an independent chance to get it wrong, and five hosts got it wrong the same way
-        //    (S1, CE-137 twice, CE-138, CE-139). ⇒ the pack makes the omission unrepresentable.
-        //
-        // ⭐⭐ AND IT CLOSES THE SAME QUIETER GAP host (a) had: SimHost had NO CreateEntityRequestSystem,
-        //    so nothing could ask it to create an entity — not even itself. Its only creation path was
-        //    a raw bus SpawnEntityCommand. 🔒 User ruling 2026-08-31: the shared code "should not
-        //    restrict any ecs enabled node from creating own networked entities … not removing
-        //    capabilities by design". The pack has no opt-out.
-        //
-        // ⭐ AiDiagnostics goes through ExtraTranslators rather than being baked into Base(), because it
-        //    lives above Hrot.Core — exactly the per-node ADDITION tkb-1/DESIGN.md §6.5 sanctions.
-        //    ⛔ ExtraTranslators is ADD-ONLY: there is no way to hand the pack a narrower list. Per
-        //    component narrowing is gate 2 (IsComponentTypeRegistered), never the list (§6.5b).
-        //
-        // 📄 DESIGN_Entity_Creation_Unification.md §3, §3.4 · Architect_Question_65 §0, §4.
-        var creation = EntityCreationPack.Build(new EntityCreationContext
-        {
-            World       = context.World,
-            EntityMap   = context.EntityMap,
-            TkbDb       = context.TkbDb!,
-            IdAllocator = context.IdAllocator!,
-
-            // ⭐⭐ CE-509 / S2b — the SAME network adapters every ECS host passes: this node can be ASKED over the
-            //    network to create or delete, forward a request addressed elsewhere, and GRANT what it creates
-            //    (push-only ownership). The pack builds the delete and poll systems from it. Null offline.
-            //    📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S2, S2b.
-            NetworkAdapters = ConfiguredNetworkFactory?.CreateCgfEntityLifecycleAdapters(),
-
-            // BaseModules[0] == EntityLifecycleModule. The pack calls SetTranslators on it, which must
-            // precede the kernel's Initialize — it does: this runs during RegisterSpawningPipeline.
-            Elm         = (EntityLifecycleModule)context.BaseModules[0],
-            NodeId      = context.NodeId,
-
-            ExtraTranslators = new ITkbEntityTranslator[]
+        // ⭐ CE-4270 B4 (§4.1ag) — the ONE shared spawning step: the pack (AI diagnostics + animation TKB translators; not the broadcast
+        //   arbiter — the Brain is), then the capabilities, then the genesis tail — the order every host takes after D5 (R-3077).
+        EntityCreation = Hrot.EcsNode.Hosting.HostSpawning.Register(context, ConfiguredNetworkFactory,
+            new Hrot.EcsNode.Hosting.SpawningSpec
             {
-                new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),
-                // ⭐ CE-2121 — stance (and the animation runtime pair) from the TKB's CharacterAnimationDefDto; it adds only the
-                //   types this node registered (StanceComponentRegistry). No production ITkbHotReloadEvents exists yet ⇒ null.
-                new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
+                IsBroadcastArbiter = false,
+                ExtraTranslators   = new ITkbEntityTranslator[]
+                {
+                    new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),
+                    new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
+                },
             },
-
-            // ⛔ NOT the cluster's broadcast arbiter — that is CGF, and exactly one node may be it.
-            //    ⚠ This does NOT stop SimHost creating entities: a request targeted at this node is
-            //    processed regardless of the flag (CreateEntityRequestSystem.cs:151-156, Q65 §1).
-            IsBroadcastArbiter = false,
-
-            // ⭐⭐⭐ CE-291 (piece C) — the reliable-init wait-set provider, sourced UNIFORMLY from the shared
-            //    NED replication module (which hosts the cluster-membership ingest for every ECS node). 🔒 User
-            //    ruling 2026-09-16: the node-centric "only CGF stamps peers" gating is obsolete — SimHost is a
-            //    symmetric reliable creator. null ⇒ fast-mode (headless/editor with no cluster cache).
-            //    📄 docs/DESIGN_Cross_Node_Construction_Barrier.md §3a.4.
-            ExpectedPeers = context.NedReplication?.ExpectedPeers,
-        });
-
-        EntityCreation = creation;   // CE-515
-        // ⭐ CE-4013 D6 — every piece of the pack, scheduled by the ONE shared registration (EntityCreation.RegisterOn).
-        creation.RegisterOn(context.Kernel);
-
-        // ⭐⭐⭐ B4b step 2 — the node's role-selected units register themselves, in the order the plan
-        //    resolved them. That order was the hand-written sequence CoreLogicPack → EqsModule →
-        //    EngineBackedNavigationModule → CognitiveSpatialModule (an AreaQueryResultMaterializationSystem
-        //    sat before the last until the AreaQuery pipeline was retired, 2026-10-01), and it is preserved EXACTLY: ModuleHostKernel appends to a plain list the frame loop walks in
-        //    order, so registration order IS execution order and a reordering here would be a behaviour
-        //    change dressed as tidying. (That measurement is also why perception is two capabilities —
-        //    see SimHostCapabilities.)
-        //
-        //    RegisterProviders on the navigation module is still deferred to PostInitialize: it needs
-        //    _navmesh/_registry, which its own RegisterSystems creates during Kernel.Initialize.
-        //
-        // ⭐ CE-4013 — the shared walk, HERE (after this host's spawn pack, as before), with the plan's own values bag: the
-        //   free-standing empty bag this used to pass predated CE-199's node-resources step, which made the real one legal.
-        RegisterCapabilities(context);
-
-        // ⭐ CE-4013 D11 — the shared genesis tail (scenario intents + the saved AI's ingress), at this host's point.
-        GenesisTail.RegisterOn(context.Kernel, context.EntityMap);
+            () => RegisterCapabilities(context));
     }
 
     /// <inheritdoc/>
@@ -511,14 +399,9 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         HrotNodeContext context,
         INetworkFactory? configuredFactory)
     {
-        if (context.Participant == null || configuredFactory == null) return;
-
-        configuredFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(context.Kernel);
-        configuredFactory.CreateSimHostPerceptionTranslators(context.GhostCreationSystem).RegisterOn(context.Kernel);
-        configuredFactory.CreateSimHostPathfindingTranslators(CoreLogicPack!.TrajectoryPool).RegisterOn(context.Kernel);
+        // ⭐ CE-4270 B7b — the ONE SimHost translator set (MuscleRoleInputs), shared with CGF's fused boot.
         // ⭐ CE-2121 slice ② — the body's half of the stance wire: the Brain's request in, the body's report out (gated on the
         //   MuscleGround group's descriptor, not on the entity's owner). 📄 docs/DESIGN_Decision_Layer.md §3.3g.
-        Hrot.Animation.Replication.AnimationReplicationModule.RegisterStanceOn(
-            context.Kernel, context.Participant, context.EntityMap, NodeRole.MuscleGround);
+        MuscleRoleInputs.RegisterTranslators(context, configuredFactory, CoreLogicPack!.TrajectoryPool, NodeRole.MuscleGround);
     }
 }

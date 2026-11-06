@@ -125,7 +125,7 @@ namespace Hrot.Map.Common.Translators
             //   round's mark. The egress sends only this node's local events (IsRemote false) stamped with SourceNodeId; the ingress drops
             //   this node's own samples, so no role needs an exclusion and a node with two shooters' worth of events gets each once.
             yield return new Hrot.Network.NED.SimHost.WeaponFireNotificationEgressTranslator(participant, entityMap, localNodeId);
-            yield return new Hrot.Network.NED.IG.WeaponFireIngressTranslator(participant, entityMap, localNodeId);
+            yield return new Hrot.Network.NED.Player.WeaponFireIngressTranslator(participant, entityMap, localNodeId);
             yield return new Hrot.Network.NED.SimHost.MunitionDetonationEgressTranslator(participant, entityMap, localNodeId);
             yield return new Hrot.Network.NED.SimHost.MunitionDetonationIngressTranslator(participant, entityMap, localNodeId);
             yield return new Hrot.Network.NED.SimHost.RoundImpactEgressTranslator(participant, entityMap, localNodeId);

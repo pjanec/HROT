@@ -51,8 +51,8 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();          // read by EntityInfoIngressTranslator
         world.RegisterEvent<Fdp.Core.CommandHierarchy.CmdAssignSubordinate>();        // published by EntityInfoIngressTranslator
         world.RegisterEvent<Fdp.Core.CommandHierarchy.CmdRemoveSubordinate>();        // published by EntityInfoIngressTranslator
-        world.RegisterManagedComponent<Hrot.IG.Components.EditablePolyline>();       // MapVisualOverlayIngressTranslator
-        world.RegisterComponent<Hrot.IG.Components.MapOverlayStyle>();               // MapVisualOverlayIngressTranslator
+        world.RegisterManagedComponent<Hrot.Map.Common.Components.EditablePolyline>();       // MapVisualOverlayIngressTranslator
+        world.RegisterComponent<Hrot.Map.Common.Components.MapOverlayStyle>();               // MapVisualOverlayIngressTranslator
         world.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();      // MapRouteIngressTranslator
 
         // ── Network replication components ────────────────────────────────────

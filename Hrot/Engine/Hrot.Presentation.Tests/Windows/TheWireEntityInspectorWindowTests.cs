@@ -26,7 +26,7 @@ public sealed class TheWireEntityInspectorWindowTests
         => new("w", "Wire", "P", participant, titleBarColor: null, types: OneType);
 
     [Theory]
-    [InlineData("ig_", "IG", "IG")]
+    [InlineData("player_", "Player", "Player")]
     [InlineData("simhost_", "SimHost", "SimHost")]
     [InlineData("cgf_", "CGF", "Scenario")]
     [InlineData("editor_", "Editor", "Scenario")]

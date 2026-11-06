@@ -4,7 +4,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Spatial.Eqs;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 
 namespace Hrot.SimHost.Systems
 {

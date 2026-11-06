@@ -11,9 +11,9 @@
     	</App>
 
     	<App
-    	    AppIdTuple = "m1.IG"
+    	    AppIdTuple = "m1.Player"
     		Template = "apps.FDP.Runner"
-    		CmdLineArgs = "-m ig --no-wait"
+    		CmdLineArgs = "-m player --no-wait"
     	    >
     		<WindowPos titleregexp="FDP\sRunner" rect="400,0,800,500" screen="0" keep="0" />
     	</App>

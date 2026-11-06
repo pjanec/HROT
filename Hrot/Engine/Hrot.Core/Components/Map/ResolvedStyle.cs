@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using Fdp.Core;
 
-namespace Hrot.IG.Components;
+namespace Hrot.Map.Common.Components;
 
 /// <summary>
 /// ECS component caching the computed visual rendering state for an entity.

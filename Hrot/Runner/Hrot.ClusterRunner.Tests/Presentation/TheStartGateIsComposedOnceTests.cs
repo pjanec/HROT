@@ -46,7 +46,7 @@ public class TheStartGateIsComposedOnceTests
 
     public static IEnumerable<object[]> HostFamilies() => new[]
     {
-        new object[] { "cgf" }, new object[] { "all" }, new object[] { "editor" }, new object[] { "simhost+ig" },
+        new object[] { "cgf" }, new object[] { "all" }, new object[] { "editor" }, new object[] { "simhost+player" },
     };
 
     [Theory]
@@ -185,7 +185,7 @@ public class TheStartGateIsComposedOnceTests
     [InlineData(RunHostKind.Orchestrator, Fdp.Toolkit.Orchestration.HostGatePolicy.Operator)]
     [InlineData(RunHostKind.SimHost, Fdp.Toolkit.Orchestration.HostGatePolicy.Operator)]
     [InlineData(RunHostKind.Other, Fdp.Toolkit.Orchestration.HostGatePolicy.Operator)]
-    [InlineData(RunHostKind.Ig, Fdp.Toolkit.Orchestration.HostGatePolicy.Operator)]   // ⭐ CE-4149: the table has NO Player row — the Player host composes its own
+    [InlineData(RunHostKind.Player, Fdp.Toolkit.Orchestration.HostGatePolicy.Operator)]   // ⭐ CE-4149: the table has NO Player row — the Player host composes its own
     public void CE3345_TheGateTable_IsOperatorForEveryKind_AndAHostThatComposesNothingReadsTheTable(RunHostKind kind, Fdp.Toolkit.Orchestration.HostGatePolicy expected)
     {
         Assert.Equal(expected, HostGatePolicies.For(kind));
@@ -201,15 +201,15 @@ public class TheStartGateIsComposedOnceTests
     [Fact]
     public void CE4149_ThePlayerHostComposesItsPolicy_SharedCodeReadsIt_NotTheKind()
     {
-        var composed = new RunHost("IG", RunHostKind.Ig, operatorHost: false, suppressTimeControl: true, policy: Fdp.Toolkit.Orchestration.HostGatePolicy.Player);
+        var composed = new RunHost("Player", RunHostKind.Player, operatorHost: false, suppressTimeControl: true, policy: Fdp.Toolkit.Orchestration.HostGatePolicy.Player);
         Assert.Equal(Fdp.Toolkit.Orchestration.HostGatePolicy.Player, ((IProvidesRunControls)composed).GatePolicy);
-        Assert.True(new NodeRunProfile(RunHostKind.Ig, Policy: Fdp.Toolkit.Orchestration.HostGatePolicy.Player).IsPlayer);
-        Assert.False(new NodeRunProfile(RunHostKind.Ig).IsPlayer);                      // the kind alone makes no Player
+        Assert.True(new NodeRunProfile(RunHostKind.Player, Policy: Fdp.Toolkit.Orchestration.HostGatePolicy.Player).IsPlayer);
+        Assert.False(new NodeRunProfile(RunHostKind.Player).IsPlayer);                      // the kind alone makes no Player
         var (ctrl, _) = Composed(composed);
         Assert.True(ctrl.LoadingScreen!.IsPlayer);
         Assert.False(ctrl.LoadingScreen.CanCancel);
 
-        var bare = new RunHost("IG", RunHostKind.Ig, operatorHost: false, suppressTimeControl: true);   // same kind, composes nothing
+        var bare = new RunHost("Player", RunHostKind.Player, operatorHost: false, suppressTimeControl: true);   // same kind, composes nothing
         Assert.Equal(Fdp.Toolkit.Orchestration.HostGatePolicy.Operator, ((IProvidesRunControls)bare).GatePolicy);
         var (ctrl2, _) = Composed(bare);
         Assert.False(ctrl2.LoadingScreen!.IsPlayer);
@@ -322,7 +322,7 @@ public class TheStartGateIsComposedOnceTests
             Assert.Equal(1, wm.StatusBar.SectionIds.Count(id => id == Hrot.UI.Common.Panels.ClusterErrorStatusBarSection.SectionId));
         }
 
-        var (none, bare) = Composed(new MockSubsystem("IG"));
+        var (none, bare) = Composed(new MockSubsystem("Player"));
         Assert.Null(none.LoadingScreen);
         Assert.Null(none.ErrorSection);
         Assert.DoesNotContain(Hrot.UI.Common.Panels.LoadingScreen.SectionId, bare.StatusBar.SectionIds);
@@ -336,15 +336,15 @@ public class TheStartGateIsComposedOnceTests
     [Fact]
     public void CE1445_APlayerOnlyProcess_ComposesTheWaitingScreenAndTheErrorSectionOnce_AndNoToolbarTimeControl()
     {
-        var ig = new RunHost("IG", RunHostKind.Ig, operatorHost: false, suppressTimeControl: true, policy: Fdp.Toolkit.Orchestration.HostGatePolicy.Player);
-        var (ctrl, wm) = Composed(ig);
+        var player = new RunHost("Player", RunHostKind.Player, operatorHost: false, suppressTimeControl: true, policy: Fdp.Toolkit.Orchestration.HostGatePolicy.Player);
+        var (ctrl, wm) = Composed(player);
 
-        Assert.Same(ig, ctrl.RunControlsOwner);
+        Assert.Same(player, ctrl.RunControlsOwner);
         Assert.Equal(0, TimeControlEntries(wm));                                       // suppressed by the role, explicitly
-        Assert.Same(ig.RunChoice, ctrl.LoadingScreen!.Choice);
+        Assert.Same(player.RunChoice, ctrl.LoadingScreen!.Choice);
         Assert.True(ctrl.LoadingScreen.IsPlayer);                                      // the owner's Player policy reached the screen
         Assert.False(ctrl.LoadingScreen.CanCancel);
-        Assert.Same(ig.RunChoice, ctrl.ErrorSection!.Choice);
+        Assert.Same(player.RunChoice, ctrl.ErrorSection!.Choice);
         Assert.Equal(1, wm.StatusBar.SectionIds.Count(id => id == Hrot.UI.Common.Panels.LoadingScreen.SectionId));
         Assert.Equal(1, wm.StatusBar.SectionIds.Count(id => id == Hrot.UI.Common.Panels.ClusterErrorStatusBarSection.SectionId));
     }
@@ -356,18 +356,18 @@ public class TheStartGateIsComposedOnceTests
     [Fact]
     public void CE1445_APlayerNeverTakesTheOwnership_FromAnOperatorOrASimHost()
     {
-        foreach (var igFirst in new[] { true, false })
+        foreach (var playerFirst in new[] { true, false })
         {
             var editor = new RunHost("Editor", RunHostKind.Editor, operatorHost: true);
-            var ig = new RunHost("IG", RunHostKind.Ig, operatorHost: false, suppressTimeControl: true, policy: Fdp.Toolkit.Orchestration.HostGatePolicy.Player);
-            var (ctrl, wm) = Composed(igFirst ? new ISubsystem[] { ig, editor } : new ISubsystem[] { editor, ig });
+            var player = new RunHost("Player", RunHostKind.Player, operatorHost: false, suppressTimeControl: true, policy: Fdp.Toolkit.Orchestration.HostGatePolicy.Player);
+            var (ctrl, wm) = Composed(playerFirst ? new ISubsystem[] { player, editor } : new ISubsystem[] { editor, player });
             Assert.Same(editor, ctrl.RunControlsOwner);
             Assert.Equal(1, TimeControlEntries(wm));
             Assert.False(ctrl.LoadingScreen!.IsPlayer);
 
             var sim = new RunHost("SimHost", RunHostKind.SimHost, operatorHost: false);
-            var ig2 = new RunHost("IG", RunHostKind.Ig, operatorHost: false, suppressTimeControl: true, policy: Fdp.Toolkit.Orchestration.HostGatePolicy.Player);
-            var (ctrl2, wm2) = Composed(igFirst ? new ISubsystem[] { ig2, sim } : new ISubsystem[] { sim, ig2 });
+            var player2 = new RunHost("Player", RunHostKind.Player, operatorHost: false, suppressTimeControl: true, policy: Fdp.Toolkit.Orchestration.HostGatePolicy.Player);
+            var (ctrl2, wm2) = Composed(playerFirst ? new ISubsystem[] { player2, sim } : new ISubsystem[] { sim, player2 });
             Assert.Same(sim, ctrl2.RunControlsOwner);
             Assert.Equal(1, TimeControlEntries(wm2));
         }
@@ -385,7 +385,7 @@ public class TheStartGateIsComposedOnceTests
     [Fact]
     public void NoRunControls_NoTimeControl_AndAHostThatOffersNothingIsSkipped()
     {
-        var (ctrl, wm) = Composed(new MockSubsystem("IG"), new RunHost("CGF", RunHostKind.Cgf, operatorHost: true, offers: false));
+        var (ctrl, wm) = Composed(new MockSubsystem("Player"), new RunHost("CGF", RunHostKind.Cgf, operatorHost: true, offers: false));
         Assert.Equal(0, TimeControlEntries(wm));
         Assert.Null(ctrl.RunControlsOwner);
     }

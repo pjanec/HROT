@@ -26,19 +26,19 @@ namespace Hrot.ClusterRunner.Tests.Configuration
             var cfg = new HrotRunnerConfiguration { ModeString = "demo", NoWait = true };
             cfg.Validate();
             Assert.True(cfg.RequestedSubsystems.Contains("simhost"));
-            Assert.True(cfg.RequestedSubsystems.Contains("ig"));
+            Assert.True(cfg.RequestedSubsystems.Contains("player"));
             Assert.True(cfg.RequestedSubsystems.Contains("orchestrator"));
             Assert.True(cfg.RequestedSubsystems.Contains("cgf"));
             Assert.True(cfg.RequestedSubsystems.Contains("traffic"));
         }
 
         [Fact]
-        public void Validate_EditorCombinedWithIg_ThrowsInvalidOperation()
+        public void Validate_EditorCombinedWithPlayer_ThrowsInvalidOperation()
         {
             // editor,ig -- an invalid combination
             var ex = Assert.Throws<InvalidOperationException>(() =>
             {
-                var cfg = new HrotRunnerConfiguration { ModeString = "editor,ig", NoWait = true };
+                var cfg = new HrotRunnerConfiguration { ModeString = "editor,player", NoWait = true };
                 cfg.Validate();
             });
             Assert.Contains("Editor", ex.Message);
@@ -151,7 +151,7 @@ namespace Hrot.ClusterRunner.Tests.Configuration
         public void Validate_ExistingModes_StillParseWithoutError()
         {
             // SC_SM007_3 — no regression for established subsystem names
-            foreach (var mode in new[] { "simhost", "ig", "orchestrator", "cgf" })
+            foreach (var mode in new[] { "simhost", "player", "orchestrator", "cgf" })
             {
                 var cfg = new HrotRunnerConfiguration { ModeString = mode, NoWait = true };
                 cfg.Validate(); // must not throw
@@ -171,21 +171,45 @@ namespace Hrot.ClusterRunner.Tests.Configuration
             cfg.Validate();
 
             Assert.Equal(
-                new[] { "cgf", "ig", "orchestrator", "simhost", "traffic" },
+                new[] { "cgf", "orchestrator", "player", "simhost", "traffic" },
                 cfg.RequestedSubsystems.OrderBy(s => s, StringComparer.Ordinal).ToArray());
         }
 
         [Fact]
-        public void Validate_ServerMode_ExpandsToOrchestratorSimHostCgfTraffic_AndNeverWaits()
+        public void Validate_ServerMode_IsTheFusedServer_OrchestratorAndOneCgfNode_AndNeverWaits()
         {
             // "server" = the server side of a networked game; players (--mode player) join it later, so it
             // must start with NEITHER --wait-for NOR --no-wait.
+            // ⭐ CE-4270 B7c (D4, R-3077) — it is the FUSED server: the orchestrator and ONE cgf node booted with the fused role (Program.cs sets it).
             var cfg = new HrotRunnerConfiguration { ModeString = "server" };
             cfg.Validate();   // must not throw
 
+            Assert.True(cfg.FusedServer);
+            Assert.Equal(
+                new[] { "cgf", "orchestrator" },
+                cfg.RequestedSubsystems.OrderBy(s => s, StringComparer.Ordinal).ToArray());
+        }
+
+        [Fact]
+        public void Validate_ServerMode_WithServerNodes_IsTheOldFourNodeProcess_AndNeverWaits()
+        {
+            // ⭐ CE-4270 B7c (D4) — the old four-node process stays bootable behind --server-nodes.
+            var cfg = new HrotRunnerConfiguration { ModeString = "server", ServerNodesMode = true };
+            cfg.Validate();   // must not throw
+
+            Assert.False(cfg.FusedServer);
             Assert.Equal(
                 new[] { "cgf", "orchestrator", "simhost", "traffic" },
                 cfg.RequestedSubsystems.OrderBy(s => s, StringComparer.Ordinal).ToArray());
+        }
+
+        [Fact]
+        public void Validate_AnExplicitOrchestratorCgfRoster_IsNotTheFusedServer()
+        {
+            // ⭐ CE-4270 B7c — only the "server" shorthand fuses; naming the nodes keeps a Brain-only CGF (which must say how it waits).
+            var cfg = new HrotRunnerConfiguration { ModeString = "orchestrator,cgf", NoWait = true };
+            cfg.Validate();
+            Assert.False(cfg.FusedServer);
         }
 
         [Fact]
@@ -197,24 +221,24 @@ namespace Hrot.ClusterRunner.Tests.Configuration
         }
 
         [Fact]
-        public void Validate_PlayerMode_IsTheIgNode()
+        public void Validate_PlayerMode_IsThePlayerNode_AndIgIsNoMode()
         {
-            // "player" is the user-facing name of the IG node; the internal key stays "ig".
+            // ⭐ CE-3371 (user, 2026-11-06: "the IG disappeared and Player appeared") — the node is "player"; ⛔ "ig" is no alias, it is an invalid mode.
             var cfg = new HrotRunnerConfiguration { ModeString = "player", NoWait = true };
             cfg.Validate();
+            Assert.Equal(new[] { "player" }, cfg.RequestedSubsystems.ToArray());
 
-            Assert.Equal(new[] { "ig" }, cfg.RequestedSubsystems.ToArray());
-            Assert.False(cfg.RequestedSubsystems.Contains("player"));
+            Assert.Throws<InvalidOperationException>(() => new HrotRunnerConfiguration { ModeString = "ig", NoWait = true }.Validate());
         }
 
         [Fact]
-        public void Validate_PlayerWithSimHost_NormalisesPlayerToIg()
+        public void Validate_PlayerWithSimHost_IsBothNodes()
         {
             var cfg = new HrotRunnerConfiguration { ModeString = "player,simhost", NoWait = true };
             cfg.Validate();
 
             Assert.Equal(
-                new[] { "ig", "simhost" },
+                new[] { "player", "simhost" },
                 cfg.RequestedSubsystems.OrderBy(s => s, StringComparer.Ordinal).ToArray());
         }
 
@@ -245,9 +269,9 @@ namespace Hrot.ClusterRunner.Tests.Configuration
         [Fact]
         public void CE3354_NodeNames_ResolvePerSubsystem_AndNodeNameNamesTheOneNode()
         {
-            var cfg = new HrotRunnerConfiguration { ModeString = "all", NoWait = true, NodeNames = "IG=film-cam,simhost=sim-1" };
+            var cfg = new HrotRunnerConfiguration { ModeString = "all", NoWait = true, NodeNames = "Player=film-cam,simhost=sim-1" };
             cfg.Validate();
-            Assert.Equal("film-cam", cfg.NodeNameFor("IG"));
+            Assert.Equal("film-cam", cfg.NodeNameFor("Player"));
             Assert.Equal("sim-1", cfg.NodeNameFor("SimHost"));
             Assert.Null(cfg.NodeNameFor("CGF"));                      // unnamed ⇒ <subsystem>-<nodeId>
 
@@ -291,7 +315,7 @@ namespace Hrot.ClusterRunner.Tests.Configuration
         [InlineData("player", "X", "", false, null, "master")]
         [InlineData("simhost", "X", "", false, null, "master")]
         [InlineData("cgf", "X", "", false, null, "master")]
-        [InlineData("ig,traffic", "X", "", false, null, "master")]
+        [InlineData("player,traffic", "X", "", false, null, "master")]
         [InlineData("simhost", null, "", false, new string[0], "master")]
         [InlineData("editor", "X", "edit", true, null, "--play")]
         [InlineData("editor", null, "live", false, null, "--scenario")]
@@ -356,7 +380,7 @@ namespace Hrot.ClusterRunner.Tests.Configuration
             var ambiguous = Assert.Throws<InvalidOperationException>(() =>
                 new HrotRunnerConfiguration { ModeString = "all", NoWait = true, NodeName = "x" }.Validate());
             Assert.Contains("--node-names", ambiguous.Message);
-            Assert.Throws<InvalidOperationException>(() => new HrotRunnerConfiguration { ModeString = "simhost,cgf", NoWait = true, NodeNames = "IG=a" }.Validate());
+            Assert.Throws<InvalidOperationException>(() => new HrotRunnerConfiguration { ModeString = "simhost,cgf", NoWait = true, NodeNames = "Player=a" }.Validate());
             Assert.Throws<InvalidOperationException>(() => new HrotRunnerConfiguration { ModeString = "simhost,cgf", NoWait = true, NodeNames = "SimHost" }.Validate());
             Assert.Throws<InvalidOperationException>(() => new HrotRunnerConfiguration { ModeString = "simhost,cgf", NoWait = true, NodeNames = "SimHost=a,CGF=A" }.Validate());
         }

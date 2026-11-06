@@ -217,7 +217,7 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
     ///
     /// <para><b>The defect this exists for.</b> <c>EditorStrideSubsystem</c> resolved
     /// <c>NodeRole.MuscleGround</c> alone, on the premise that "the editor already supplies the
-    /// perception tier". <c>EditorCapabilities.BuildWithInjectedMuscle</c> says the opposite in its own
+    /// perception tier". <c>RoleCapabilityTable.Plan (its InjectedMuscle row)</c> says the opposite in its own
     /// remark — <i>"the supplying host owns both"</i> — so it omits <c>CognitiveSpatialModule</c> and
     /// expects the injected arm to bring it. Both sides delegated perception to the other and the host
     /// booted with neither, hence no <c>AreaQuerySolverSystem</c>.</para>

@@ -338,6 +338,8 @@ curl -s --noproxy '*' $B/entities/1000       # { EntityId, NetworkId, Components
 | ⭐⭐ **intent vs status distinguishes three bugs** | intent empty ⇒ nothing issued it · intent set + status absent ⇒ the consumer never ran · both set + zero velocity ⇒ the consumer ran and produced nothing |
 | ⭐ **check authority before filing "the write did nothing"** | a write to an entity this node does not own is legitimately dropped |
 
+⭐ **The full player cycle in one command** *(server + two players: join, deploy, drive, late join, refusal, die/respawn, Esc, quit/rejoin, wire check — PASS/FAIL per step; Windows and Linux)*: `python scripts\multiplayer-cycle.py` *(starts everything itself, DDS domain 73)* · or against processes already running from the `.bat` files: `python scripts\multiplayer-cycle.py --attach --server-port 8140 --p1-port 8141 --p2-port 8142 --staging <their FDP_STAGING_ROOT>`.
+
 ### 6.1 ⛔⛔ Driving a POSSESSED unit over HTTP — **the runner's own 3-D station overwrites your frames** *(measured `2026-10-20`, CE-1206)*
 
 `POST /entities/{id}/possess` makes THIS node the station, and the runner's editor UI (under `xvfb-run`) holds a 3-D possession station

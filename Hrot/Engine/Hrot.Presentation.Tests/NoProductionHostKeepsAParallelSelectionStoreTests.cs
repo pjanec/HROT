@@ -289,7 +289,7 @@ public sealed class NoProductionHostKeepsAParallelSelectionStoreTests
             {
                 if (!IsProductionFile(file)) continue;
                 if (allowed.Contains(Path.GetFileName(file))) continue;
-                // ⚠ Scoped to Hrot.IG.Components.SelectionState. The Blueprint/BTree/HSM editors have
+                // ⚠ Scoped to Hrot.Map.Common.Components.SelectionState. The Blueprint/BTree/HSM editors have
                 //   their own unrelated SelectionState -- a NODE selection, a different concept
                 //   (the ".*Selection.*" trap: ~60 of 67 classes are not this one).
                 var p = file.Replace('\\', '/');

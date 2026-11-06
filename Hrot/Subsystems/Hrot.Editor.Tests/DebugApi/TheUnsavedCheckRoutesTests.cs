@@ -78,7 +78,7 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
         var dispatcher = new PerspectiveScopedDispatcher(
             new ISubsystemDebugProvider[]
             {
-                new SubsystemDebugProvider("IG", "IG"),
+                new SubsystemDebugProvider("Player", "Player"),
                 new SubsystemDebugProvider("CGF", "CGF", master: () => _master, exercises: exercises is null ? null : () => exercises,
                     unsavedCheck: observesChecks ? Outcome : null, scenarioDirty: observesChecks ? () => _lastVerdictInReadModel : null),
             },

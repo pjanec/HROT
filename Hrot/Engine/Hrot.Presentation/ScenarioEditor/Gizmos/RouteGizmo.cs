@@ -5,7 +5,6 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
-using Hrot.IG.Components;
 
 namespace Hrot.ScenarioEditor.Gizmos
 {

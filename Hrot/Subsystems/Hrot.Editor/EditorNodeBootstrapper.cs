@@ -65,9 +65,8 @@ using Hrot.Editor.AiShared.Adapters;
 using Hrot.Editor.Modules;
 using Hrot.Editor.Rendering;
 using Hrot.Editor.UI;
-using Hrot.IG.Components;
-using Hrot.IG.Systems;
-using Hrot.IG.Modules;
+using Hrot.Player.Systems;
+using Hrot.Player.Modules;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Config;
@@ -233,9 +232,9 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
         // MapDisplayComponent is used by MapLayerAssignmentSystem (UXI-23 S1: routed through the shared map list).
         Hrot.Presentation.Map.MapPresentationRegistry.RegisterAll(world);
         // IG presentation components required by MapCullingModule / StyleResolutionModule.
-        world.RegisterComponent<Hrot.IG.Components.CullingState>();
-        world.RegisterComponent<Hrot.IG.Components.ResolvedStyle>();
-        world.RegisterManagedComponent<Hrot.IG.Components.IgSymbolOverride>();
+        world.RegisterComponent<Hrot.Map.Common.Components.CullingState>();
+        world.RegisterComponent<Hrot.Map.Common.Components.ResolvedStyle>();
+        world.RegisterManagedComponent<Hrot.Map.Common.Components.MapSymbolOverride>();
         // Visual effect components required by EventEffectModule (EventToEffectSystem).
         world.RegisterComponent<VisualEffectState>();
         world.RegisterComponent<TracerTarget>();
@@ -253,20 +252,19 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
     protected override IReadOnlyList<INodeCapability> ResolveCapabilities(HrotNodeContext context, NodeRole role)
     {
         var entityMap = context.EntityMap;
-        IReadOnlyList<INodeCapability> injectedMuscleCapabilities = Array.Empty<INodeCapability>();
-        SimHostCoreLogicPack? simHostCorePack = null;
+        Hrot.SimHost.MuscleRoleInputs.Parts? muscle = null;
+        IReadOnlyList<INodeCapability>? injectedMuscleCapabilities = null;
 
         if (_muscleCapabilitiesFactory == null)
         {
-            simHostCorePack = new SimHostCoreLogicPack(entityMap, default, _trajectoryPool.Pool);
-            // ⭐⭐ CE-3017 — the path SOLVER, as SimHost composes it: one navmesh shared by the singleton and the background solver, the muscle pack's OWN trajectory pool (two pools ⇒ routes resolve
-            //   into memory the kinematics never read — CE-180), and the live road holder. Each terrain load re-bakes the navmesh.
-            var navPool = _trajectoryPool.Pool;
-            NavModule = new Fdp.Toolkit.Navigation.EngineBacked.EngineBackedNavigationModule(default(CarKinem.Road.RoadNetworkBlob), navPool, _navmesh);
-            NavSolverCapability = new SimHostCapabilities.NavigationSolver(NavModule,
-                () => new Fdp.Toolkit.Navigation.Modules.NavigationSolverModule(
-                    default(CarKinem.Road.RoadNetworkBlob), navPool, _navmesh, roadNetworkHolder: _nodeBootstrapper.RoadNetworkHolder));
+            // ⭐⭐ CE-3017 / CE-4270 B9: the Muscle's parts from the ONE step SimHost and the fused server use. One navmesh is shared by the singleton and the
+            //   background solver. The muscle pack and the solver share the node's ONE trajectory pool (two pools ⇒ routes resolve into memory the kinematics
+            //   never read, CE-180). The solver gets the live road holder. Each terrain load re-bakes the navmesh.
+            muscle = Hrot.SimHost.MuscleRoleInputs.Build(entityMap, default(CarKinem.Road.RoadNetworkBlob), _trajectoryPool, _navmesh, () => _nodeBootstrapper);
+            NavModule = muscle.NavigationModule;
+            NavSolverCapability = muscle.NavigationSolver;
             _nodeBootstrapper.AttachNavmesh(new Fdp.Toolkit.Navigation.Recast.RecastNavmeshFactory(), _navmesh);   // each terrain load re-bakes it
+            TrafficPack = Hrot.Traffic.TrafficPack.Serving();   // ⭐ AQ93 R-4047: the editor is its own traffic node
         }
         else
         {
@@ -277,11 +275,16 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
         var mapperRegistry = Hrot.AI.Behaviors.Mappers.DefaultTacticalMappers.Create();
         var cgfLogicPack = new CgfLogicPack(BehaviorRegistry, entityMap, mapperRegistry, _blueprintRegistry, nodeBus: context.EventBus);
 
-        // ⭐⭐⭐ S2a — host (d) on the capability axis. The two arms stay two PLAN SHAPES (a null capability registered as if real is the silent-default shape).
-        var plan = _muscleCapabilitiesFactory == null
-            ? EditorCapabilities.BuildDefault(cgfLogicPack, simHostCorePack!, NavSolverCapability!,
-                TrafficPack = Hrot.Traffic.TrafficPack.Serving())   // ⭐ AQ93 R-4047 — the editor is its own traffic node
-            : EditorCapabilities.BuildWithInjectedMuscle(cgfLogicPack, injectedMuscleCapabilities);
+        // ⭐⭐⭐ CE-4270 B9 (§4.1ag, R-3077): the ONE role table, the same one CGF and the fused server resolve. The editor's row is the fused set with the network
+        //   off and no gameplay server (it serves no players). The injected arm (Stride's mode 1) puts the supplied tier in the Muscle's slot.
+        var plan = Hrot.SimHost.RoleCapabilityTable.Plan(new Hrot.SimHost.RoleTableInputs
+        {
+            Brain          = new Hrot.CGF.CgfCapabilities.Brain(cgfLogicPack),
+            Muscle         = muscle,
+            TrajectoryPool = muscle != null ? _trajectoryPool : null,
+            InjectedMuscle = injectedMuscleCapabilities,
+            Traffic        = TrafficPack,
+        });
 
         ResolvedCapabilities = plan.Resolve(EditorCapabilities.DefaultRole);
         return ResolvedCapabilities;
@@ -292,10 +295,7 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
         // Everything the editor runs comes from its capabilities (walked right after this hook, deduplicated by type).
     }
 
-    protected override IEnumerable<IEcsModule> GetAdditionalModules()
-    {
-        yield return new BehaviorDiagnosticsModule();   // registered ahead of the capabilities' modules, as before
-    }
+    // ⭐ CE-4270 B9: no GetAdditionalModules. BehaviorDiagnosticsModule comes from the Brain capability, as on CGF and the fused server.
 
     // ── phase 5: the ONE slave, OFFLINE ──────────────────────────────────────────────────────
 
@@ -329,33 +329,24 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
                 LogDirectory = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs"),
             });
 
-        return _nodeBootstrapper.BuildOrchestration(
-            BootRole, context.Kernel, context.World, context.NodeId,
-            participant:          null,   // ⛔ decision B: the editor has a Brain and NO DDS participant — and none is faked
-            subsystemName:        "Editor",
-            eventBus:             context.EventBus,
-            features:             () => context.Features,   // ⭐ P-7 F-28 — this caller HAS the node's features, so the scenario step can hand it the header's preset
-            scenarioSerializer:   serializer,
-            scenarioExtractor:    extractor,
-            scenarioSource:       context.World.Bus,
-            scenarioIdAllocator:  context.IdAllocator,
-            localTempRoot:        _isolatedTempRoot,
-            tkbDb:                context.TkbDb,
-            simGroup:             simGroup,
-            inputGroup:           InputGroup,
-            postSimGroup:         postSimGroup,
-            eventAccumulator:     context.EventAccumulator,   // CE-3314 — a restore restarts the step window (D4)
-            diagnosticsDumpHandler: diagnosticsDump,
-            elm:                  Elm,
-            terrainContent:       context.TerrainContent,
-            clusterSlave:         context.ClusterSlave,       // ONE slave — the builder's
-            slaveTranslator:      null,                       // offline: none
-            scenarioHandlers:     Array.Empty<IClusterStateHandler>(),   // the editor registers no episode handler
-            behaviorRemapper:     behaviorRemapper,
-            offline:              true,
-            entityMap:            context.EntityMap,          // CE-2101 — the world boundary clears it
-            dryRunIncludesTransient: true,                    // the editor's dry run copied Transient components (HN-016)
-            mapBuildStatus:       MapBuildStatus);            // ⭐ CE-3354 ③ — the editor HAS a map (EditorSubsystem wires it), so it passes it
+        // ⭐ CE-4270 B11 — the ONE orchestration step (HostOrchestration). Offline (decision B): no participant, no network half — none is faked.
+        return Hrot.EcsNode.Hosting.HostOrchestration.Build(_nodeBootstrapper, BootRole, context,
+            new Hrot.EcsNode.Hosting.OrchestrationSpec
+            {
+                SubsystemName           = "Editor",
+                LocalTempRoot           = _isolatedTempRoot,
+                Serializer              = serializer,
+                ScenarioExtractor       = extractor,
+                SimGroup                = simGroup,
+                InputGroup              = InputGroup,
+                PostSimGroup            = postSimGroup,
+                DiagnosticsDump         = diagnosticsDump,
+                ScenarioHandlers        = Array.Empty<IClusterStateHandler>(),   // the editor registers no episode handler
+                BehaviorRemapper        = behaviorRemapper,
+                Offline                 = true,
+                DryRunIncludesTransient = true,   // the editor's dry run copied Transient components (HN-016)
+                MapBuildStatus          = MapBuildStatus,   // ⭐ CE-3354 ③ — the editor HAS a map (EditorSubsystem wires it)
+            });
     }
 
     // ── phase 6a: the spawning pipeline ──────────────────────────────────────────────────────
@@ -365,39 +356,31 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
         // ⭐ CE-3141 — the obstacle tool creates through the pack.
         context.Kernel.RegisterModule(new EditorSystemsModule(() => EntityCreation));
 
-        // ⭐⭐⭐ CE-140 step 3, host (c) — THE ENTITY CREATION PACK. IsBroadcastArbiter TRUE (unlike SimHost): the editor is a standalone single-node world with no peer to arbitrate against.
-        var creation = EntityCreationPack.Build(new EntityCreationContext
-        {
-            World       = context.World,
-            EntityMap   = context.EntityMap,
-            TkbDb       = context.TkbDb!,
-            IdAllocator = context.IdAllocator!,
-            Elm         = Elm ?? throw new InvalidOperationException("[EditorNodeBootstrapper] the lifecycle module is missing."),
-            NodeId      = context.NodeId,
-            NetworkAdapters = ConfiguredNetworkFactory?.CreateCgfEntityLifecycleAdapters(),   // offline: none
-            // ⭐ CE-237 — a host's order-sensitive translator additions; null/empty keeps Base().
-            TranslatorPlacements = _translatorPlacements is { Count: > 0 } ? _translatorPlacements : null,
-            // ⭐ CE-2121 — the body stance, as on SimHost and CGF. ⚠ The pack takes extras OR placements, never both.
-            ExtraTranslators = _translatorPlacements is { Count: > 0 } ? null : new Fdp.Interfaces.ITkbEntityTranslator[]
+        // ⭐ CE-4270 B6 (§4.1ag) — the ONE shared spawning step: the pack, then the capabilities, then the genesis tail. IsBroadcastArbiter
+        //   TRUE: the editor is a standalone single-node world (the Brain arbitrates). CE-237 — order-sensitive translator placements when the
+        //   host has them, else the stance/animation extra (CE-2121; the pack takes extras OR placements, never both). CE-4024 — offline, so the
+        //   attribute compiler is passed here (a networked host takes it from its adapters). Macros S3a ④ — the editor loads scenarios, so it
+        //   expands the macro instances it creates (§15 E-4).
+        if (Elm == null) throw new InvalidOperationException("[EditorNodeBootstrapper] the lifecycle module is missing.");
+        bool placed = _translatorPlacements is { Count: > 0 };
+        EntityCreation = Hrot.EcsNode.Hosting.HostSpawning.Register(context, ConfiguredNetworkFactory,
+            new Hrot.EcsNode.Hosting.SpawningSpec
             {
-                new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
+                IsBroadcastArbiter    = true,
+                TranslatorPlacements  = placed ? _translatorPlacements : null,
+                ExtraTranslators      = placed ? null : new Fdp.Interfaces.ITkbEntityTranslator[]
+                {
+                    new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
+                },
+                JsonAttributeCompiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(),
+                Macros = new Hrot.Common.Macros.MacroExpander(
+                    Fdp.Toolkit.Scenario.FileMacroLibrary.ForNode(_isolatedTempRoot),
+                    new StagingEntityExtractor(reuseStagingWorld: true),   // ⭐ CE-2396 one staging world, emptied per expansion
+                    ScenarioSerializer,
+                    Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(BehaviorRegistry)),
             },
-            IsBroadcastArbiter = true,
-            // ⭐ CE-4024 — a request's InitialAttributesJson is applied here as on every networked host (the editor held the compiler and passed none).
-            JsonAttributeCompiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(),
-            // ⭐ Macros S3a ④ — the editor loads scenarios, so it expands the macro instances it creates (§15 E-4).
-            Macros = new Hrot.Common.Macros.MacroExpander(
-                Fdp.Toolkit.Scenario.FileMacroLibrary.ForNode(_isolatedTempRoot),
-                new StagingEntityExtractor(reuseStagingWorld: true),   // ⭐ CE-2396 one staging world, emptied per expansion
-                ScenarioSerializer,
-                Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(BehaviorRegistry)),
-        });
-        EntityCreation = creation;   // CE-515
+            () => RegisterCapabilities(context));
 
-        // ⭐ CE-4013 D6 — every piece of the pack, scheduled by the ONE shared registration.
-        creation.RegisterOn(context.Kernel);
-        RegisterCapabilities(context);
-        Hrot.SimHost.Systems.GenesisTail.RegisterOn(context.Kernel, context.EntityMap);   // ⭐ CE-4013 D11
         // BSA-WIRE: the blueprint genesis + event-ingress systems, so InitialBlueprintsIntent (written on scenario load) is consumed in the offline editor as on a CGF node.
         Hrot.SimHost.Systems.BlueprintGenesisRuntimeRegistration.RegisterBlueprintGenesisSystems(context.Kernel, _blueprintRegistry);
         // ⛔ MX2 — the ingress system CONSUMES these two events, but nothing declared them on this world's strict bus: declared HERE, beside the systems that drain them (MX-008).

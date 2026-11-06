@@ -5,7 +5,7 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Terrain;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Common;
 
 namespace Hrot.Presentation.Zones;

@@ -130,7 +130,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
                 "the NORMAL entity was tagged — ProcessSpawn is not reading cmd.IsTransient. " +
                 Diagnosis(repo, tagId, keeper, sketch));
             Assert.True(repo.GetComponentMask(sketch.Index).IsSet(tagId),
-                "the TRANSIENT entity was NOT tagged — ProcessSpawn dropped the stamp, so an IG sketch " +
+                "the TRANSIENT entity was NOT tagged — ProcessSpawn dropped the stamp, so an Player sketch " +
                 "would be written into the scenario by whichever node saves (R-140, §7.3). " +
                 Diagnosis(repo, tagId, keeper, sketch));
         }

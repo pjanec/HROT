@@ -9,7 +9,7 @@ using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Services;
-using Hrot.IG.Components;
+using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Dds;
 using Hrot.Map.Common.Replication.Egress;
 using Hrot.NED.Descriptors;

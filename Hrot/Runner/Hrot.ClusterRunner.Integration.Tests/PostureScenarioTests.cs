@@ -72,7 +72,7 @@ public sealed class PostureScenarioTests : IDisposable
         File.Copy(Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-posture", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
@@ -151,7 +151,7 @@ public sealed class PostureScenarioTests : IDisposable
         File.Copy(Path.Combine(root, "scenarios", scenario, "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
@@ -228,7 +228,7 @@ public sealed class PostureScenarioTests : IDisposable
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(Path.Combine(TestRepo.Root, "scenarios", folder, "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
-        var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        var harness = new HrotRunnerHarness("simhost,player,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
@@ -466,11 +466,11 @@ public sealed class PostureScenarioTests : IDisposable
         using var harness = await StartShippedScenario("ua-civ-shelter");
         var cgf = harness.Cgf!.World!;
         var sim = harness.SimHost.World!;
-        var ig = harness.Ig.App.World;
+        var player = harness.Player.App.World;
         string[] names = { "Civilian 1", "Civilian 2", "Civilian 3", "Civilian 4" };
         const string aFront = "bt-range/House A/front", aBack = "bt-range/House A/back", bFront = "bt-range/House B/front", bBack = "bt-range/House B/back";
-        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && names.All(n => !ByName(cgf, n).IsNull && !ByName(sim, n).IsNull && !ByName(ig, n).IsNull),
-            timeoutFrames: 2000), "the cast must spawn on CGF, SimHost and IG");
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && names.All(n => !ByName(cgf, n).IsNull && !ByName(sim, n).IsNull && !ByName(player, n).IsNull),
+            timeoutFrames: 2000), "the cast must spawn on CGF, SimHost and Player");
         Assert.True(harness.PumpUntil(() => DoorOf(cgf, aFront) != null && DoorOf(cgf, bFront) != null, timeoutFrames: 2000), "the doors must exist as entities");
         Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Closed, DoorOf(cgf, aFront));   // ⓪ the scenario's TerrainObjects
         Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Closed, DoorOf(cgf, aBack));
@@ -498,7 +498,7 @@ public sealed class PostureScenarioTests : IDisposable
                 if (m == Fdp.Toolkit.Civilians.CivilianMode.Inside && !insideAt.ContainsKey(e)) insideAt[e] = (now, p);
                 if (p.X >= 160f && p.X <= 168f && p.Y >= 100f && p.Y <= 110f) inB.Add(e);
             }
-            foreach (var (host, w) in new[] { ("CGF", cgf), ("SimHost", sim), ("IG", ig) })
+            foreach (var (host, w) in new[] { ("CGF", cgf), ("SimHost", sim), ("Player", player) })
                 if (DoorOf(w, aFront) == Fdp.Toolkit.Terrain.TerrainDoorState.Open || DoorOf(w, aBack) == Fdp.Toolkit.Terrain.TerrainDoorState.Open) opened.Add(host);
             return goneAt.Count == civs.Length;
         }
@@ -517,12 +517,12 @@ public sealed class PostureScenarioTests : IDisposable
         Assert.True(insideAt.Count == civs.Length, $"② each reaches Inside; {State()}");
         Assert.True(insideAt.Values.All(i => i.Where.X > 100f && i.Where.X < 110f && i.Where.Y > 100f && i.Where.Y < 108f),
             $"② …standing inside House A's footprint (100–110 × 100–108); {State()}");
-        Assert.True(opened.SetEquals(new[] { "CGF", "SimHost", "IG" }), $"② a door of House A opens to let them in, on every node; {State()}");
+        Assert.True(opened.SetEquals(new[] { "CGF", "SimHost", "Player" }), $"② a door of House A opens to let them in, on every node; {State()}");
         Assert.True(inB.Count == 0, $"③ none enters the locked House B; {State()}");
         Assert.True(done, $"④ each deletes himself after hiding; {State()}");
         Assert.True(goneAt.All(g => g.Value - insideAt[g.Key].At is >= 18.0 and <= 23.0), $"④ …about 20 s (the scenario's hide time) after going in; {State()}");
-        Assert.True(harness.PumpUntil(() => names.All(n => ByName(sim, n).IsNull && ByName(ig, n).IsNull), timeoutFrames: 600),
-            $"④ …and is gone on SimHost and IG too: [{string.Join(", ", names.Where(n => !ByName(sim, n).IsNull || !ByName(ig, n).IsNull))}]");
+        Assert.True(harness.PumpUntil(() => names.All(n => ByName(sim, n).IsNull && ByName(player, n).IsNull), timeoutFrames: 600),
+            $"④ …and is gone on SimHost and Player too: [{string.Join(", ", names.Where(n => !ByName(sim, n).IsNull || !ByName(player, n).IsNull))}]");
     }
 
     /// <summary>
@@ -537,16 +537,16 @@ public sealed class PostureScenarioTests : IDisposable
         using var harness = await StartShippedScenario("ua-civ-cower");
         var cgf = harness.Cgf!.World!;
         var sim = harness.SimHost.World!;
-        var ig = harness.Ig.App.World;
+        var player = harness.Player.App.World;
         string[] names = { "Civilian 1", "Civilian 2", "Civilian 3" };
         Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && !ByName(cgf, "Hostile").IsNull
-                                         && names.All(n => !ByName(cgf, n).IsNull && !ByName(sim, n).IsNull && !ByName(ig, n).IsNull), timeoutFrames: 2000),
-            "the cast must spawn on CGF, SimHost and IG");
+                                         && names.All(n => !ByName(cgf, n).IsNull && !ByName(sim, n).IsNull && !ByName(player, n).IsNull), timeoutFrames: 2000),
+            "the cast must spawn on CGF, SimHost and Player");
         var hostile = ByName(cgf, "Hostile");
         var civs = names.Select(n => ByName(cgf, n)).ToArray();
         Fdp.Toolkit.Civilians.CivilianMode Mode(Entity e) => Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, e);
         bool CowersOn(EntityRepository w, string n) { var e = ByName(w, n); return !e.IsNull && Effects.IsCowering(w, e); }
-        var hosts = new[] { ("CGF", cgf), ("SimHost", sim), ("IG", ig) };
+        var hosts = new[] { ("CGF", cgf), ("SimHost", sim), ("Player", player) };
         var panicked = new System.Collections.Generic.HashSet<Entity>();
         bool rePanicked = false;
         void Sample() { foreach (var e in civs) if (Mode(e) == Fdp.Toolkit.Civilians.CivilianMode.Panic) panicked.Add(e); }
@@ -687,10 +687,10 @@ public sealed class PostureScenarioTests : IDisposable
         using var harness = await StartShippedScenario("ua-civ-melee");
         var cgf = harness.Cgf!.World!;
         var sim = harness.SimHost.World!;
-        var ig = harness.Ig.App.World;
-        var hosts = new[] { ("CGF", cgf), ("SimHost", sim), ("IG", ig) };
+        var player = harness.Player.App.World;
+        var hosts = new[] { ("CGF", cgf), ("SimHost", sim), ("Player", player) };
         Assert.True(harness.PumpUntil(() => hosts.All(h => !ByName(h.Item2, "Policeman").IsNull && !ByName(h.Item2, "Rioter").IsNull),
-            timeoutFrames: 2000), "the cast must spawn on CGF, SimHost and IG");
+            timeoutFrames: 2000), "the cast must spawn on CGF, SimHost and Player");
         var rioter = ByName(cgf, "Rioter");
         Fdp.Toolkit.Civilians.CivilianMode Mode() => Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, rioter);
         var down = new System.Collections.Generic.HashSet<string>();
@@ -735,10 +735,10 @@ public sealed class PostureScenarioTests : IDisposable
         using var harness = await StartShippedScenario("ua-civ-riot-stone");
         var cgf = harness.Cgf!.World!;
         var sim = harness.SimHost.World!;
-        var ig = harness.Ig.App.World;
+        var player = harness.Player.App.World;
         var names = new[] { "Instigator", "Protester 1", "Protester 2" };
-        Assert.True(harness.PumpUntil(() => names.All(n => !ByName(cgf, n).IsNull && !ByName(sim, n).IsNull && !ByName(ig, n).IsNull),
-            timeoutFrames: 2000), "the cast must spawn on CGF, SimHost and IG");
+        Assert.True(harness.PumpUntil(() => names.All(n => !ByName(cgf, n).IsNull && !ByName(sim, n).IsNull && !ByName(player, n).IsNull),
+            timeoutFrames: 2000), "the cast must spawn on CGF, SimHost and Player");
         var inst = ByName(cgf, "Instigator");
         const long Stone = Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone;
         bool riot = false, filled = false;
@@ -765,7 +765,7 @@ public sealed class PostureScenarioTests : IDisposable
                 bool acted = Fdp.Toolkit.Civilians.HostileActs.Committed(cgf, c);
                 if (acted && !firstThrowAt.ContainsKey(n)) firstThrowAt[n] = now;
                 if (cgf.GetComponentRO<EntityInfo>(c).ForceId == ForceId.Hostile && !acted) hostileWithoutAct ??= $"{n} at {now:F1}";
-                bool everywhere = new[] { cgf, sim, ig }.All(w => !ByName(w, n).IsNull && w.GetComponentRO<EntityInfo>(ByName(w, n)).ForceId == ForceId.Hostile);
+                bool everywhere = new[] { cgf, sim, player }.All(w => !ByName(w, n).IsNull && w.GetComponentRO<EntityInfo>(ByName(w, n)).ForceId == ForceId.Hostile);
                 if (everywhere && !hostileEverywhereAt.ContainsKey(n)) hostileEverywhereAt[n] = now;
             }
         }
@@ -1143,7 +1143,7 @@ public sealed class PostureScenarioTests : IDisposable
             else burstAt ??= cgf.SimulationTime;
         }
         harness.PumpUntil(() => { Sample(); return burstAt != null && cgf.SimulationTime - burstAt >= 2.0 || cgf.SimulationTime > 80.0; }, timeoutFrames: 8000);
-        var hostsAfter = new[] { ("CGF", cgf), ("SimHost", harness.SimHost.World!), ("IG", harness.Ig.App.World) };
+        var hostsAfter = new[] { ("CGF", cgf), ("SimHost", harness.SimHost.World!), ("Player", harness.Player.App.World) };
         string vestAfter = string.Join(", ", hostsAfter.Select(h => { var v = ByName(h.Item2, "Vest"); return $"{h.Item1} {(v.IsNull ? "gone" : Charges.IsCharge(h.Item2, v) ? "LIVE CHARGE" : "spent")}"; }));
         _out.WriteLine($"the vest 2 s after the blast: {vestAfter}");
         var warhead = CombatTkb.WarheadOf(cgf, 6043L);
@@ -1181,7 +1181,7 @@ public sealed class PostureScenarioTests : IDisposable
             if (burstAt == null && cgf.GetComponentRO<Health>(man).Current < 100f) burstAt = cgf.SimulationTime;
             return burstAt != null && cgf.SimulationTime - burstAt >= 2.0 || cgf.SimulationTime > 80.0;
         }, timeoutFrames: 8000);
-        var hosts = new[] { ("CGF", cgf), ("SimHost", harness.SimHost.World!), ("IG", harness.Ig.App.World) };
+        var hosts = new[] { ("CGF", cgf), ("SimHost", harness.SimHost.World!), ("Player", harness.Player.App.World) };
         string after = string.Join(", ", hosts.Select(h => { var v = ByName(h.Item2, "Vest"); return $"{h.Item1} {(v.IsNull ? "gone" : Charges.IsCharge(h.Item2, v) ? "LIVE CHARGE" : "spent")}"; }));
         Assert.True(burstAt != null, "the vest must burst");
         Assert.DoesNotContain("LIVE CHARGE", after);
@@ -1307,10 +1307,10 @@ public sealed class PostureScenarioTests : IDisposable
         using var harness = await StartShippedScenario("ua-armed-draw-aim");
         var cgf = harness.Cgf!.World!;
         var sim = harness.SimHost.World!;
-        var ig = harness.Ig.App.World;
-        var hosts = new[] { ("CGF", cgf), ("SimHost", sim), ("IG", ig) };
+        var player = harness.Player.App.World;
+        var hosts = new[] { ("CGF", cgf), ("SimHost", sim), ("Player", player) };
         Assert.True(harness.PumpUntil(() => hosts.All(h => !ByName(h.Item2, "Covert insurgent").IsNull) && !ByName(cgf, "Rifleman").IsNull
-                                            && !ByName(cgf, "Pistol").IsNull, timeoutFrames: 2000), "the cast must spawn on CGF, SimHost and IG");
+                                            && !ByName(cgf, "Pistol").IsNull, timeoutFrames: 2000), "the cast must spawn on CGF, SimHost and Player");
         var man = ByName(cgf, "Covert insurgent");
         var rifle = ByName(cgf, "Rifleman");
         var pistol = ByName(cgf, "Pistol");
@@ -1441,10 +1441,10 @@ public sealed class PostureScenarioTests : IDisposable
         using var harness = await StartShippedScenario("ua-civ-surrender");
         var cgf = harness.Cgf!.World!;
         var sim = harness.SimHost.World!;
-        var ig = harness.Ig.App.World;
-        var hosts = new[] { ("CGF", cgf), ("SimHost", sim), ("IG", ig) };
+        var player = harness.Player.App.World;
+        var hosts = new[] { ("CGF", cgf), ("SimHost", sim), ("Player", player) };
         Assert.True(harness.PumpUntil(() => hosts.All(h => !ByName(h.Item2, "Rioter").IsNull) && !ByName(cgf, "Rifleman").IsNull,
-            timeoutFrames: 2000), "the cast must spawn on CGF, SimHost and IG");
+            timeoutFrames: 2000), "the cast must spawn on CGF, SimHost and Player");
         var rioter = ByName(cgf, "Rioter");
         var rifle = ByName(cgf, "Rifleman");
         int Ammo() => cgf.HasComponent<WeaponState>(rifle) ? cgf.GetComponent<WeaponState>(rifle).Ammo : -1;
@@ -1494,10 +1494,10 @@ public sealed class PostureScenarioTests : IDisposable
         using var harness = await StartShippedScenario("ua-armed-surrender");
         var cgf = harness.Cgf!.World!;
         var sim = harness.SimHost.World!;
-        var ig = harness.Ig.App.World;
-        var hosts = new[] { ("CGF", cgf), ("SimHost", sim), ("IG", ig) };
+        var player = harness.Player.App.World;
+        var hosts = new[] { ("CGF", cgf), ("SimHost", sim), ("Player", player) };
         Assert.True(harness.PumpUntil(() => hosts.All(h => !ByName(h.Item2, "Enemy Soldier").IsNull) && !ByName(cgf, "Rifleman").IsNull,
-            timeoutFrames: 2000), "the cast must spawn on CGF, SimHost and IG");
+            timeoutFrames: 2000), "the cast must spawn on CGF, SimHost and Player");
         var enemy = ByName(cgf, "Enemy Soldier");
         var rifle = ByName(cgf, "Rifleman");
         int Ammo() => cgf.HasComponent<WeaponState>(rifle) ? cgf.GetComponent<WeaponState>(rifle).Ammo : -1;
@@ -1630,13 +1630,13 @@ public sealed class PostureScenarioTests : IDisposable
         using var harness = await StartShippedScenario("ua-civ-protest");
         var cgf = harness.Cgf!.World!;
         var sim = harness.SimHost.World!;
-        var ig = harness.Ig.App.World;
+        var player = harness.Player.App.World;
         var names = Enumerable.Range(1, 12).Select(i => $"Protester {i}").ToArray();
-        Assert.True(harness.PumpUntil(() => names.All(n => !ByName(cgf, n).IsNull && !ByName(sim, n).IsNull && !ByName(ig, n).IsNull), timeoutFrames: 2000),
-            "the cast must spawn on CGF, SimHost and IG");
+        Assert.True(harness.PumpUntil(() => names.All(n => !ByName(cgf, n).IsNull && !ByName(sim, n).IsNull && !ByName(player, n).IsNull), timeoutFrames: 2000),
+            "the cast must spawn on CGF, SimHost and Player");
         var civs = names.Select(n => ByName(cgf, n)).ToArray();
         Fdp.Toolkit.Civilians.CivilianMode Mode(Entity e) => Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, e);
-        var hosts = new[] { ("CGF", cgf), ("SimHost", sim), ("IG", ig) };
+        var hosts = new[] { ("CGF", cgf), ("SimHost", sim), ("Player", player) };
         var fists = hosts.ToDictionary(h => h.Item1, _ => new System.Collections.Generic.HashSet<string>());
         var signs = hosts.ToDictionary(h => h.Item1, _ => new System.Collections.Generic.HashSet<string>());
         var bad = new System.Collections.Generic.HashSet<string>();
