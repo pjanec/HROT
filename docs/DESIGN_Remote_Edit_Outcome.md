@@ -7,6 +7,7 @@ stale-below: §2's diagrams are the DESIGN-time picture; §5 supersedes them whe
 known-rot: §2 says EditOutcomeLog is a 'singleton' and RespondingNode a node id — as built it is a per-world ConditionalWeakTable service and RespondingNode is a plain int (§5)
 known-conflict: none
 related-designs:
+  - docs/UX/DESIGN_Editing_UX.md — §4.3a D10: this framework is to become the ONE path for every user edit (structural edits too), feeding the Messages list and Edit-mode undo — its own design first (R-4122)
   - docs/DESIGN_Cgf_AxisB_Rotation_Slice.md — OWNS the write router (§11.3: apply here or ask the owner) that every remote edit goes through; this design adds the ANSWER
   - docs/DESIGN_Entity_Creation_Unification.md — OWNS the creation request and its ack (§3.4d); ⛔ that ack and CreateUpdateDeleteEntityAck stay as they are (R-2082)
   - docs/DESIGN_Scenario_Rules.md — §00.11a the rule live edit (RuleEdit 433) and RV-5 rule control: the first two users of the outcome

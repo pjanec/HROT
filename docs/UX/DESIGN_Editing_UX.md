@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — steps 1–3 written 2026-11-06 (§1 inventory, §2 prior art, §3 target UX, §4 gap map + decisions D1–D9 + slices E1–E7); awaiting the user's approval of D1–D9
-updated: 2026-11-06 (§4 gap map, decisions D1–D9 with leans, slices E1–E7) · 2026-11-06 (§0b the user's review of §2–§3: pickers filtered by applicability, condition templates, expert detail kept, scarce confirmations, editing levels per node — R-4121) · 2026-11-06 (§2 prior art, §3 the target UX: layout wireframe, the tab set, modes, actions, the expected basics) · 2026-11-06 (§0a the user's review of §1: raw editor = debugging tool, semantic types, undo in Edit mode only, dedicated forms, the expected basics — R-4120) · 2026-11-06 (first version: the direction, and the inventory of what a user can edit today — coordinator)
+build-state: DESIGN — the programme frame; D2–D9 approved 2026-11-06; D1 (undo) and D10 (one edit framework) each get their own design; every slice E0–E7 starts with its own design reviewed by the user (R-4122)
+updated: 2026-11-06 (§4.3a the user's verdict: D2–D9 approved, D1 and D10 own designs, design-first per slice — R-4122) · 2026-11-06 (§4 gap map, decisions D1–D9 with leans, slices E1–E7) · 2026-11-06 (§0b the user's review of §2–§3: pickers filtered by applicability, condition templates, expert detail kept, scarce confirmations, editing levels per node — R-4121) · 2026-11-06 (§2 prior art, §3 the target UX: layout wireframe, the tab set, modes, actions, the expected basics) · 2026-11-06 (§0a the user's review of §1: raw editor = debugging tool, semantic types, undo in Edit mode only, dedicated forms, the expected basics — R-4120) · 2026-11-06 (first version: the direction, and the inventory of what a user can edit today — coordinator)
 current-answer: §0 the direction (user rulings) · §0a the user's review of §1 · §3 the target UX · §4 the decisions D1–D9 (for approval) and the slices · §1 the inventory (what exists, where it is edited, what is wrong with it)
 stale-below: nothing
 known-rot: none
@@ -383,6 +383,19 @@ the mechanism (a node feature with a config) is the decision.
 | **D8** | Messages | one notice list fed by `EditOutcomeLog` and local results, and a field-level ✓ / ✗ / ⏳ | toasts only — they vanish before they are read |
 | **D9** | the order | foundation first (D2, D8, the basics sweep), then forms (D3) with semantic types in parallel, then Orders + pickers (D6), then undo (D1), templates (D5), levels (D4) | forms first — they would be built per host and redone |
 
+### 4.3a The user's verdict on §4 *(`2026-11-06`)*
+
+🔒 *"looks good. Regarding the multi-node editing request/response, this likely needs some unified framework, not ad hoc per edited feature.
+Undo in edit mode is also its own design prior we start implementing anything. this is generic rule, every such change needs its design
+with my review."* — R-4122.
+
+| | outcome |
+|---|---|
+| **D2–D9** | ✅ approved as leaned |
+| **D1 (undo)** | ⏸ **its own design**, reviewed by the user before any code — it builds on D10 |
+| **D10 (NEW) — one edit framework across nodes** | ⭐ lean: **extend the one that exists, not a new one** — [DESIGN_Remote_Edit_Outcome.md](../DESIGN_Remote_Edit_Outcome.md) (BUILT `2026-11-04`): `EntityWriteRouter` (apply here or ask the owner) + `EditRequests` (a ticket) + `EditOutcomeLog` (applied / refused with the reason / pending). 📐 Measured: only the rules (`RuleCommands.cs:33,54`) and the HTTP API (`DebugApiService.cs:3036`) use the ticket; it covers COMPONENT writes only. ⛔ Not covered: structural edits — spawn, delete, ORBAT re-parent, embark, macro insert, change type — each with its own request and ack today. ⇒ its own design: every user edit, of any kind, is one request through one API with one outcome; the Messages list (D8), the field marks and undo (D1) all read that one stream |
+| **every slice** | ⛔ **design first, the user reviews it, then build** — E1…E7 each start with a design document (UML, inventory), not with code; a handoff dispatches the DESIGN step and stops for review |
+
 ### 4.4 Slices — proposed handoffs, once D1–D9 are approved
 
 | slice | lane | what | needs |
@@ -391,7 +404,8 @@ the mechanism (a node feature with a config) is the decision.
 | **E2 forms** | ui | Unit, Crew & cargo, Shape, Scenario (weather and clock as forms) · D7 expert expanders · the raw inspector fixes | SV-1 / SV-4 (backend, parallel) |
 | **E2b types and sim** | backend | semantic types SV-1, SV-4, SV-5, SV-6 · `StanceIntent` saved (posture at start) · heal / damage / resupply / repair handlers · traffic as an editable entity | — |
 | **E3 orders and pickers** | ui | the Orders tab (mission + waypoint merged, phases, trigger pickers, plain behaviour names) · D6 applicability · the long combos onto the picker | E1 |
-| **E4 undo** | ui (+ backend for the seam in Fdp.Toolkits) | D1 | E1 |
+| **E0 one edit framework** | backend (Fdp.Toolkits owner) | D10 — design first | — |
+| **E4 undo** | ui (+ backend for the seam in Fdp.Toolkits) | D1 — its own design | E0, E1 |
 | **E5 conditions** | ui | D5 templates in the rule editor | — |
 | **E6 levels** | backend + ui | D4 | E1 |
 | **E7 review** | ui | bookmarks and notes (TE-4) · the Replay Browser windows folded into the layout | — |
