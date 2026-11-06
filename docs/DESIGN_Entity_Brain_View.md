@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: §12b's diagrams name a NEW `OccurrenceSlotCatalog` — it is the EXISTING `OccurrenceSlotCatalog` (BV-44 corrected 2026-10-25)
 known-conflict: none
 related-designs:
+  - UX/DESIGN_Initial_State.md — §3a / Q8: the Settings (Character) become attribute writes applied on the brain's node, so any station allowed to edit the unit can tune it — narrows R-1036's "LOCAL there"; the debugging half stays as R-1036 says
   - docs/blueprints/DESIGN_Unified_Behaviour_Run.md — S5a/S5b OWN the hosted child's site slot [brain][start][block] that §12b BV-44's reader walks
   - docs/blueprints/Blueprint_Fixed_Collections_Design.md — OWNS the fixed-list shape and the F2 clamp §12b BV-45 applies to the dump
   - docs/designs/utility-ai/Runtime_Tuning_Console_and_AI_Overlays_Design_v1_0.md — the global / per-decision tuning console; §12b BV-41 owns PER-ENTITY component settings instead (its §4.3 PerEntity scope was never built)

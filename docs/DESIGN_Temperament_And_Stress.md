@@ -7,6 +7,7 @@ stale-below: ⛔ HISTORY — the first draft's NEW `Temperament` component with 
 known-rot: ⛔ §4 TS-2's formula pulls toward the population DEFAULT — superseded by a TRAINED standard (§7.4, R-2076). ⛔ §4 TS-6's sensor-change numbers 21 / 22 are TAKEN (CE-2283's ContactInEngagementArea / ContactOutsideSector, 21–24) ⇒ StressBreak / StressRecovered take 25 / 26 (§7.2). ⛔ §4 TS-5's "damping with a neutral of 1.0 leaves today's scores bit-identical" is FALSE for an ordinary consideration — the compensation counts them; ⭐ resolved by MODIFIER considerations (§7.3, R-2075). ⚠ §4 TS-4's "EnemyStrengthRatio > 1.5": the input is a SHARE 0–1, so it reads > 0.6 (§7.1).
 known-conflict: none.
 related-designs:
+  - UX/DESIGN_Initial_State.md — §3a: bravery / obedience / nerve / resolve as Character rows written by attribute
   - docs/blueprints/Architect_Question_96_Movement_Under_Fire.md — ASKED 2026-10-20: the short per-move drop under fire that TS-4 would lengthen and TS-6's break replace
   - docs/blueprints/Architect_Question_89_Suppress_And_Close.md — OWNS the existing `CombatTemperament { RiskAcceptance, Obedience }` (R-269 (backend)), `TemperamentOf`, Willingness and the 0.6 closing threshold; this design ADDS Nerve and Resolve to that component and leaves AQ89's readers unchanged
   - docs/designs/utility-ai/Utility_AI_Design_v1_1.md — OWNS the scorer, inputs and curves; this design adds three inputs and damping considerations to the posture decision, nothing to the scorer

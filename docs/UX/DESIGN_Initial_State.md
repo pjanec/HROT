@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level, for the user's review (R-4122); backend saves the state, ui builds the rows (R-4123)
-updated: 2026-11-06 (first version — coordinator; editing-UX design queue 7b: E15)
+updated: 2026-11-06 (§3a the AI character overrides — user: "overriding the AI brain setting like the skill level or aggressivity"; measured; Q8–Q9) · 2026-11-06 (first version — coordinator; editing-UX design queue 7b: E15)
 current-answer: §2 the model · §3 the rows · §4 stages · §5 questions with leans
 stale-below: nothing
 known-rot: none
@@ -16,6 +16,10 @@ related-designs:
   - ../DESIGN_Entity_Control.md — §8m OWNS taking and dropping lying weapons and stones at run time
   - ../DESIGN_Scenario_Rules.md — SR-130 / SR-131 OWN PointLink's "an entity's position, resolved once", which the Point type plugs into
   - ../designs/edit-1/DESIGN.md — SeedTargetCommand (EDIT1-E002) and the retired "Mark Target…" menu
+  - ../DESIGN_Entity_Brain_View.md — §12a/§12b OWN the Brain tab's Settings (BV-38…BV-41, CE-1311, R-1036 / R-1037): the temperament and proficiency sliders; Q8 here asks to make them attribute writes
+  - ../DESIGN_Temperament_And_Stress.md — OWNS CombatTemperament (TS-1…TS-3: bravery, obedience, nerve, resolve; the type layer and its spread)
+  - ../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — §6 DA-1/DA-2 OWN CombatProficiency (authored on the man, on a unit for every man under it, the type default)
+  - ../DESIGN_Sensors_And_Doctrine.md — §7.5 OWNS the AI snapshot (task, SOP, ROE saved when an order set them, CE-3042 / R-192)
   - ../DESIGN_Weapon_Layers.md — W-13 OWNS WeaponPosture (the weapon brain writes it)
 -->
 
@@ -139,6 +143,27 @@ assistant are dropped, so the reload boards the casualty seated. The fix sits in
 | every point picker (orders, rules, Go here) | also offers **named points**; picking one stores `PointLink` with the point's reference (resolved once — SR-130) | — | the picker lists Point entities |
 | — | **alerted**: not a row — a task's lease (by design); **airborne**: not a row — from placement height (E8); **a single lying stone**: not offered — the Stone Source area is the authored form | — | — |
 
+### 3a. The AI character — skill, bravery and the like *(user, `2026-11-06`: "overriding the AI brain setting like the skill level or aggressivity or something like that")*
+
+Queries: `search_graph ".*(Skill|Aggress|Personality|Temperament|Character|Doctrine|Courage|Morale|Discipline|Experience|Training|Accuracy|Marksman|Traits|Profile|Bravery|Caution|Tuning|Override).*" Class` (65, filtered); grep for the components in the Presentation / Editor / DebugApi trees; reads as cited.
+
+| setting | what exists (measured) | saved? | where a user sets it today |
+|---|---|---|---|
+| **skill** | `CombatProficiency` 0..1 in THREE layers — `Authored` (on the man), `Unit` (a unit entity's authored value, filled into every man under it by `ProficiencyFillSystem`), `TypeDefault` — each with its own set bit; plus the SIDE's tier amplifier −2…+2 as an overlay (SR-100 / R-4106) (`Behavior/Components/CombatProficiency.cs:9-33`) | ✅ authored layer only (`CombatProficiencyTranslator`) | the Brain tab's **Settings**: a slider with tier ticks and *Reset to type* (`BrainSettings.cs`, CE-1311) |
+| **bravery (= aggressiveness), obedience, nerve, resolve** | `CombatTemperament`, the same layering: authored fields + the TYPE's fields with a per-man seeded spread (`Behavior/Components/CombatTemperament.cs:18-37`; TS-1…TS-3) | ✅ authored only (`CombatTemperamentTranslator`: *"a save never freezes today's default into the file"*) | the same Settings section, group *Temperament* |
+| **rules of engagement** (weapons control, may reactions pause the task) | `Roe { Fire, Reactions, SetBy }`, changed only by `SetRoeEvent` and gated by origin | ✅ through the AI snapshot when an order set it (CE-3042) | the Brain tab's *Assign: … ROE* embed — editor only (programme §1.1) |
+| **standing behaviour (SOP)** | the SOP slot | ✅ the AI snapshot | the same embed — editor only |
+
+**The gap is not the model; it is where the write goes.** ⛔ R-1036: *"the tab is FULL only on the node that runs the brain; its settings
+are LOCAL there (never replicated, never sent)"*. So an instructor on a CGF or Player station that does not run that unit's brain cannot
+tune it. That conflicts with R-4119 (gated by the entity, not the node) and with R-4136 (every user-facing field is an attribute).
+
+| row | where | writes |
+|---|---|---|
+| **Skill** (tier slider, *Reset to type*), **Bravery**, **Obedience**, **Nerve**, **Resolve** | Brain tab ▸ **Character** (the target's name for the Settings section, programme §3.3) — and on a **unit** entity (a platoon), the Skill row sets every man under it (the existing `Unit` layer) | ★ attributes `Proficiency`, `Temperament.RiskAcceptance / Obedience / Nerve / Resolve`, and their *reset* (clear the authored bit), applied on the brain's node |
+| **Weapons control** (Hold fire · Return fire · Fire at will), **Reactions** | Brain tab ▸ **Behaviour** (programme §3.3: *"Assign: task, SOP, ROE becomes Behaviour with plain names"*) | the existing `SetRoeEvent` (the edit framework's `Command`), at the author's origin |
+| **side-wide skill** | the Scenario form ▸ *Sides* (SR-100's tier amplifier) | existing |
+
 ## 4. Stages
 
 | stage | what | owner | rails |
@@ -147,6 +172,7 @@ assistant are dropped, so the reload boards the casualty seated. The fix sits in
 | **S2** | `WeaponPosture` saved and seeded (the E2 Q7 rule); the four `Weapon.*` attributes | backend | *Aimed at a point* and *Phone in hand* survive a reload; set in a paused world, shown at once |
 | **S3** | `SeedTargetCommand` applied on every brain node (moved out of `EditorPerceptionSetupSystem`) | backend | seeded from a CGF station, the knowledge lands on the brain's node |
 | **S4** | the Point map graphic (next free 88xx) + the point tool + pickers listing it | ui (+ backend for the type id) | a rule's point picked from *LZ Alpha* resolves to its position |
+| **S6** | the Character settings become attribute writes (Proficiency, the four temperament fields, and their reset) applied on the brain's node; the Brain tab's Character section offered on every station that may edit the unit (R-4119); Weapons control / Reactions as plain choices through `SetRoeEvent` | backend (attributes) + ui | bravery set from a CGF station that does not run the brain reaches it; *Reset to type* restores the type's value with its spread |
 | **S5** | the Unit form rows (Aboard, Carried by, Carries, Weapon, In hand, Knows about, Damage) and the Crew & cargo seat roles | ui | each from the form, Edit and Live, survives save and reload |
 
 ## 5. Questions — leans for the user
@@ -159,4 +185,6 @@ assistant are dropped, so the reload boards the casualty seated. The fix sits in
 | **Q4** | "knows about" | **a Unit form row through the existing `SeedTargetCommand`, applied on every brain node** | a TargetMemory editor: its scores and freshness are engine detail |
 | **Q5** | the named point | **a new map-graphic type *Point* (name, position, optional heading), referenced through the existing `PointLink` entity form** | a point list in the scenario header: not on the map, not pickable |
 | **Q6** | alerted, airborne, single stones | **no rows**: alerted is a task's lease, airborne comes from placement height, stones come from a Stone Source | rows for each: state the engine owns elsewhere |
+| **Q8** | who may tune a unit's character | **any station whose seat and level allow it** — the Character settings become attribute writes applied on the brain's node. ⚠ This **narrows R-1036's "settings are LOCAL there"**: the debugging half of the Brain tab (running behaviours, variables) stays full only on the brain's node, as R-1036 says; the Character settings travel | keep R-1036 as is: an instructor cannot make a unit braver or worse unless his station happens to run that brain |
+| **Q9** | skill for a whole unit | **yes, through the existing `Unit` layer**: Skill set on a platoon reaches every man under it unless a man has his own; temperament stays per man (its type spread already varies the men) | a unit layer for temperament too: not asked, and the spread already does it |
 | **Q7** | where these rows live | **the Unit form** (the person's view: where he is, what he carries, how he holds it) **and Crew & cargo** (the vehicle's view of the same seats) | a separate "Start state" tab: the same fields in two places |
