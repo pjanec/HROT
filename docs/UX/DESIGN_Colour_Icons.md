@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — top-level; coloured FontAwesome as THE icon style (R-4139, revising R-4138's Silk); the colour per icon approved per surface from a rendered strip
-updated: 2026-11-06 (REVISED by the user: FontAwesome glyphs stay, in colour — not the Silk atlas; R-4139) · 2026-11-06 (first version — Silk atlas; superseded the same day)
+build-state: DESIGN — top-level; FontAwesome glyphs used as icons get colour by meaning (R-4139); Silk bitmaps and the time controls stay (R-4140); colours approved per surface from a rendered strip
+updated: 2026-11-06 (§3 the five monochrome surfaces measured; Silk and the time controls stay — user, R-4140) · 2026-11-06 (REVISED by the user: FontAwesome glyphs stay, in colour — not the Silk atlas; R-4139) · 2026-11-06 (first version — Silk atlas; superseded the same day)
 current-answer: §2 the model · §3 the surfaces · §4 stages · §5 questions
 stale-below: §⛔ HISTORY (the Silk version)
 known-rot: none
@@ -77,17 +77,24 @@ to every icon.
 | **shape AND colour** | the glyph already differs per meaning; the colour makes it fast to find — a colour-blind user still reads the shape |
 | **text stays text** | a glyph inside a menu label keeps the label's colour unless the item is a status |
 
-## 3. The surfaces
+## 3. The surfaces — the five that are monochrome today *(measured `2026-11-06`, each use read)*
 
-| surface | glyphs | colours (lean, shown in the rendered strip for approval) |
-|---|---|---|
-| ORBAT group-mode switch | `Sitemap` · `Cubes` · `PuzzlePiece` | hierarchy teal · type orange · macro violet |
-| Details panel switch | `TableColumns` · `LayerGroup` · `Thumbtack` · `UpRightFromSquare` | layout blue · layers violet · pin amber · pop out blue |
-| time controls, mission panel | `Play` · `Stop` · `ForwardStep` | play green · stop red · step blue |
-| mode indicator | as today (R-3061) | as today — the precedent |
-| AI graph canvas | `Bolt` · `Gear` · `CircleQuestion` · `File` · `DiagramProject` · `CircleNodes` · `LayerGroup` · `Sitemap` | events amber · settings grey · help blue · file blue · graph teal · nodes teal |
-| timeline | `ClockRotateLeft` · `Flag` | review blue · bookmark amber |
-| the forms' marks | `CircleXmark` · `HourglassHalf` · `Lock` · `RotateLeft` · `TriangleExclamation` · `CircleInfo` · `Crosshairs` | Error · Pending · Muted · Info · Pending · Info · Ok |
+✏ **User, `2026-11-06`:** *"famfamfam icons are not looking bad when properly drawn, as the icons in blueprint node pickers … so for sure no
+need to replace the already used bitmap icons. The time control play/pause/stop/step icons as rendered now for the main menu bar (also in
+replay browser) are ok … no need to replace. Ok to the colored glyphs in the form designs."*
+
+| surface (where to see it in the app) | code | glyphs today (monochrome) | colours (lean) |
+|---|---|---|---|
+| **ORBAT panel** — the relation switch at the top of the panel | `SharedOrbatPanel.cs:135-139` (`RelationIcon`, a `Button` with the glyph as its label; active = `ButtonActive`) | `Sitemap` Command · `Cubes` Structure · `PuzzlePiece` Scenario | teal · orange · violet |
+| **Details panel** — the header buttons (layout switch, float, pin) | `DetailsWindow.cs:695-759` (`SmallButton`s) | `LayerGroup` stacked · `TableColumns` tabs · `UpRightFromSquare` float · `Thumbtack` pin | violet · blue · blue · amber |
+| **AI editors** — the icon in each document tab (BTree, HSM, Blueprint, …) | `AiGraphCanvasWindow.GetTabGlyph` (`:560-586`) | `Bolt` Blueprint / action · `Sitemap` BTree · `CircleNodes` HSM · `LayerGroup` Blackboard · `Gear` Utility / function · `DiagramProject` Scenario · `CircleQuestion` condition · `File` other | amber · teal · violet · blue · grey · green · blue · grey |
+| **Blueprint canvas** — the pills attached to nodes | `Hrot.Blueprints.Editor/Visuals/*Attachment.cs` → `AttachmentRenderer.cs:139-142` (`AddText` in the pill's text colour) | `SatelliteDish` EQS template · `Link` cross-asset · `Bolt` condition summary · `ChartBar` EQS result | teal · blue · amber · orange |
+| **Mission panel** — the task-state glyph | `MissionPanel.GetTaskIcon` (`:169-179`) | `▶` `✓` `✗` `ForwardStep` `Stop` | blue · green · red · grey · grey — ⚠ the panel is the development UI the mission plan editor (E11) replaces; colour it only if it lives on |
+| **the forms' marks** (new) | Details forms §6.2 | `CircleXmark` · `HourglassHalf` · `Lock` · `RotateLeft` · `TriangleExclamation` · `CircleInfo` · `Crosshairs` | ✅ approved |
+
+**Not touched:** the mode indicator and time controls (already coloured, `ModeGlyph`; the play / pause / stop / step buttons are drawn by
+`TransportIconRenderer`) · the timeline flag (already `0xFF60C0F0`) · glyphs inside menu text (*DAR from …*) · the search hint · ⭐ **every
+Silk bitmap icon** — window icons, the perspective toolbar, the AI node pickers and node kinds stay as they are (user).
 
 ## 4. Stages
 
@@ -101,9 +108,9 @@ to every icon.
 
 | # | question | lean | rejected |
 |---|---|---|---|
-| **Q-I1** | the icon style | **FontAwesome glyphs in a colour by meaning**, one key → (glyph, colour) map | the Silk atlas: a fixed 16 px bitmap — small or blurry at the 0.5–3× UI scale |
+| **Q-I1** | where a FontAwesome glyph is used as an icon | **drawn in a colour by meaning**, one key → (glyph, colour) map — ⭐ Silk bitmaps stay where they are (Q-I3) | replace the glyphs with Silk — the user keeps the glyphs, in colour |
 | **Q-I2** | a switch's options | **each always in its own colour**; the selected one framed and full-strength | selected coloured, others grey: what the user called hard to read |
-| **Q-I3** | the Silk icons that exist (window icons, perspective toolbar, AI node kinds) | **move them to coloured glyphs too, after I3, as one more surface each** — one style across the app | keep two styles side by side |
+| **Q-I3** | the Silk icons that exist (window icons, perspective toolbar, AI node kinds) | ✏ **DECIDED by the user: they stay** — a properly drawn Silk icon reads well, its slight upscaling blur looks natural | — |
 
 ## ⛔ HISTORY — the Silk version *(superseded the same day, R-4139; do not quote)*
 

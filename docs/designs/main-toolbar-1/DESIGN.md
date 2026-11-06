@@ -6,7 +6,7 @@ stale-below: as the document states
 known-rot: none recorded
 known-conflict: none recorded
 related-designs:
-  - ../../UX/DESIGN_Colour_Icons.md — E16: the perspective toolbar's Silk icons move to coloured FontAwesome glyphs through the ONE Icons map (Q-I3)
+  - ../../UX/DESIGN_Colour_Icons.md — E16: the perspective toolbar's Silk icons STAY (R-4140); E16 colours only monochrome FontAwesome glyphs
 -->
 
 # Main Toolbar, Generic Asset Browser & Unified Asset Creation — Detailed Design
