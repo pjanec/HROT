@@ -13,7 +13,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: the data, writes and saves under today's editing-UX designs (long list, runs until done)
 
-**For:** the backend lane (`backend`). **From:** the coordinator lane. **Dispatched at `16886365f`** *(re-dispatched before any start, rule 1a: + R-4156 skip-on-user-decision, + eight UI items moved here, renumbered; first stamp `d98efb832`)*. ⭐ Scope FROZEN there; later documents are
+**For:** the backend lane (`backend`). **From:** the coordinator lane. **Dispatched at `9c50cec00`** *(re-dispatched before any start, rule 1a: + R-4156 skip-on-user-decision, + eight UI items moved here, renumbered; first stamp `d98efb832`)*. ⭐ Scope FROZEN there; later documents are
 FYI. Merge `coordinator` first, push `chore: started HANDOFF_Coordinator_To_Backend_Editing_UX_Build at <sha>`, then follow
 [the protocol](PROTOCOL_Two_Lanes_Self_Coordinating.md) — ⭐ **after every item: push, status file, fetch, merge `ui`, answer its notes.**
 ⭐ **The ui lane waits on several of these** (its ⏳ marks) — say DONE in your status file the moment one lands. ⛔⛔ **Nobody to ask — anything that
