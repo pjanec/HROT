@@ -13,7 +13,9 @@ public sealed class EditUnitAttribute(string unit) : Attribute
     public string Unit { get; } = unit;
 }
 
-[AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
+/// <summary>The name shown for a member — ⭐ U-6 (Condition editor §8.4): widened to classes, structs and enums; read through
+/// <see cref="DisplayNames"/>, never directly.</summary>
+[AttributeUsage(AttributeTargets.Field | AttributeTargets.Property | AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Enum)]
 public sealed class EditDisplayNameAttribute(string name) : Attribute
 {
     public string Name { get; } = name;
