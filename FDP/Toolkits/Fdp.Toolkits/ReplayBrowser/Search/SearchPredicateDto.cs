@@ -64,6 +64,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     // ──────────────────────────────────────────────────────────────────────────
 
     /// <summary>Evaluates <see cref="Predicate"/> on the entity <see cref="Ref"/> resolves to (not on the entity being asked about); unresolved or dead ⇒ false.</summary>
+    [StructEdit.Core.Attributes.EditDisplayName("On one thing"), StructEdit.Core.Attributes.EditIcon("kind/on-entity")]   // ⭐ U-7 — condition-expert-visual.svg
     public sealed class OnEntityPredicateDto : SearchPredicateDto
     {
         public Fdp.Toolkit.Replication.EntityLink Ref { get; set; }
@@ -71,6 +72,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     }
 
     /// <summary>True while the sim time (seconds since the start) is in <c>[FromSeconds, ToSeconds)</c>.</summary>
+    [StructEdit.Core.Attributes.EditDisplayName("Time"), StructEdit.Core.Attributes.EditIcon("kind/time")]   // ⭐ U-7 — condition-expert-visual.svg
     public sealed class ScenarioTimePredicateDto : SearchPredicateDto
     {
         public double FromSeconds { get; set; } = 0;
@@ -79,6 +81,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
     /// <summary>True when <c>Min ≤ n ≤ Max</c>, n = the entities matching <see cref="Predicate"/> — among those with <see cref="WithComponent"/>,
     /// else every entity with a <c>SimTransform</c>.</summary>
+    [StructEdit.Core.Attributes.EditDisplayName("At least N of"), StructEdit.Core.Attributes.EditIcon("kind/count")]   // ⭐ U-7 — condition-expert-visual.svg
     public sealed class CountMatchingPredicateDto : SearchPredicateDto
     {
         public SearchPredicateDto Predicate { get; set; } = null!;
@@ -117,6 +120,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     /// so a one-child <c>None</c> is NOT (⛔ never a separate Not kind). ⚠ Appended: the stored numbers of And / Or do not move.</summary>
     public enum LogicalOperator { And, Or, None }
 
+    [StructEdit.Core.Attributes.EditDisplayName("All of these"), StructEdit.Core.Attributes.EditIcon("kind/all")]   // ⭐ U-7 — condition-expert-visual.svg
     public sealed class CompoundPredicateDto : SearchPredicateDto
     {
         public LogicalOperator Operator { get; set; } = LogicalOperator.And;
@@ -135,6 +139,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
     public enum SearchOperator { Equals, Contains, GreaterThan, LessThan, Changed, StartsWith }
 
+    [StructEdit.Core.Attributes.EditDisplayName("A property"), StructEdit.Core.Attributes.EditIcon("kind/property")]   // ⭐ U-7 — condition-expert-visual.svg
     public sealed class PropertyMatchDto : SearchPredicateDto
     {
         [JsonConverter(typeof(TypeNameJsonConverter))]

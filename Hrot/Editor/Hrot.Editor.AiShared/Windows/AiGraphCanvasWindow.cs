@@ -547,45 +547,48 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
             .ToList();
 
     /// <summary>
-    /// Builds the ImGui tab label for <paramref name="doc"/>: a per-kind FontAwesome glyph,
-    /// the asset name, and a stable <c>###AssetId</c> suffix so ImGui keeps the tab's identity
-    /// across reorders/renames. Exposed internally for headless label-format tests.
+    /// The ImGui tab label of <paramref name="doc"/>: its text (the asset name, ⭐ <c>CE-1318</c> BV-55: a PINNED document says for whom — <c>PlatoonDefend · #1:2975</c>) and the stable
+    /// <c>###id</c> suffix, so ImGui keeps the tab's identity across reorders and renames. ⭐ <c>U-3</c>: no glyph prefix any more — the coloured icon is painted by <see cref="IconTab"/>
+    /// (<see cref="GetTabIconKey"/>). Exposed internally for headless label-format tests.
     /// </summary>
-    /// <remarks>⭐ <c>CE-1318</c> (BV-55) — a PINNED document says for whom (<c>PlatoonDefend · #1:2975</c>) and keeps its own identity
-    /// (two pins of one asset are two tabs).</remarks>
-    internal static string GetTabLabel(AiDocument doc) => doc.PinnedEntity is { } pin
-        ? $"{GetTabGlyph(doc)} {doc.Asset.Name} · {doc.PinLabel ?? $"#{pin.Index}"}###{doc.Asset.AssetId}@{pin.Index}:{pin.Generation}"
-        : $"{GetTabGlyph(doc)} {doc.Asset.Name}###{doc.Asset.AssetId}";
+    internal static string GetTabLabel(AiDocument doc) => $"{GetTabText(doc)}###{GetTabId(doc)}";
+
+    /// <summary>The visible text of a document tab.</summary>
+    internal static string GetTabText(AiDocument doc) => doc.PinnedEntity is { } pin ? $"{doc.Asset.Name} · {doc.PinLabel ?? $"#{pin.Index}"}" : doc.Asset.Name;
+
+    /// <summary>The stable id of a document tab (two pins of one asset are two tabs).</summary>
+    internal static string GetTabId(AiDocument doc) => doc.PinnedEntity is { } pin ? $"{doc.Asset.AssetId}@{pin.Index}:{pin.Generation}" : doc.Asset.AssetId.ToString();
 
     /// <summary>
-    /// Resolves the FontAwesome glyph for a document's tab: prefers a finer-grained
-    /// <see cref="IAssetIconKeyProvider.IconKey"/> when the backing asset supplies one
-    /// (e.g. a Blueprint's Action/Condition/Function intent), otherwise falls back to a
-    /// per-<see cref="AssetKind"/> default. Kept kind-agnostic — no blueprint-specific types.
+    /// ⭐ U-3 (Colour Icons §3) — the key in <c>NodeEditor.Core.Widgets.Icons</c> of a document's icon: a finer-grained <see cref="IAssetIconKeyProvider.IconKey"/> when the backing asset supplies one
+    /// (a Blueprint's Action / Condition / Function intent), otherwise a per-<see cref="AssetKind"/> default. Kind-agnostic — no blueprint-specific types.
     /// </summary>
-    internal static string GetTabGlyph(AiDocument doc)
+    internal static string GetTabIconKey(AiDocument doc)
     {
         if (doc.Asset is IAssetIconKeyProvider iconProvider && !string.IsNullOrEmpty(iconProvider.IconKey))
         {
             switch (iconProvider.IconKey)
             {
-                case AssetKindIcons.BlueprintActionIconKey:    return IconsFontAwesome6.Bolt;
-                case AssetKindIcons.BlueprintConditionIconKey: return IconsFontAwesome6.CircleQuestion;
-                case AssetKindIcons.BlueprintFunctionIconKey:  return IconsFontAwesome6.Gear;
+                case AssetKindIcons.BlueprintActionIconKey:    return "doc/blueprint";
+                case AssetKindIcons.BlueprintConditionIconKey: return "doc/condition";
+                case AssetKindIcons.BlueprintFunctionIconKey:  return "doc/utility";
             }
         }
 
         return doc.Kind switch
         {
-            AssetKind.Blueprint  => IconsFontAwesome6.Bolt,
-            AssetKind.BTree      => IconsFontAwesome6.Sitemap,
-            AssetKind.Hsm        => IconsFontAwesome6.CircleNodes,
-            AssetKind.Blackboard => IconsFontAwesome6.LayerGroup,
-            AssetKind.Utility    => IconsFontAwesome6.Gear,
-            AssetKind.Scenario   => IconsFontAwesome6.DiagramProject,
-            _                    => IconsFontAwesome6.File,
+            AssetKind.Blueprint  => "doc/blueprint",
+            AssetKind.BTree      => "doc/btree",
+            AssetKind.Hsm        => "doc/hsm",
+            AssetKind.Blackboard => "doc/blackboard",
+            AssetKind.Utility    => "doc/utility",
+            AssetKind.Scenario   => "doc/scenario",
+            _                    => "doc/other",
         };
     }
+
+    /// <summary>The FontAwesome glyph of a document's icon (the map's glyph for <see cref="GetTabIconKey"/>).</summary>
+    internal static string GetTabGlyph(AiDocument doc) => NodeEditor.Core.Widgets.Icons.Get(GetTabIconKey(doc)).Glyph;
 
     /// <summary>
     /// Draws the multi-tab bar for this perspective's open documents (skipped entirely when
@@ -607,7 +610,7 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         // otherwise we'd fight the user's own tab clicks every frame.
         bool syncSelection = !ReferenceEquals(active, _lastSyncedActive);
 
-        if (!ImGuiNET.ImGui.BeginTabBar("##ai_graph_tabs",
+        if (!NodeEditor.Core.Widgets.IconTab.BeginBar("##ai_graph_tabs",       // ⭐ U-3: the shared neutral tab bar
                 ImGuiNET.ImGuiTabBarFlags.TabListPopupButton
               | ImGuiNET.ImGuiTabBarFlags.AutoSelectNewTabs
               | ImGuiNET.ImGuiTabBarFlags.NoCloseWithMiddleMouseButton))
@@ -624,7 +627,7 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
             if (syncSelection && ReferenceEquals(d, active))
                 flags |= ImGuiNET.ImGuiTabItemFlags.SetSelected;
 
-            if (ImGuiNET.ImGui.BeginTabItem(GetTabLabel(d), ref tabOpen, flags))
+            if (NodeEditor.Core.Widgets.IconTab.Begin(GetTabId(d), GetTabText(d), NodeEditor.Core.Widgets.Icons.Get(GetTabIconKey(d)), flags, ref tabOpen))
             {
                 if (!ReferenceEquals(d, _docManager.Active))
                     _docManager.Activate(d);
@@ -635,7 +638,7 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
                 (toClose ??= new List<AiDocument>()).Add(d);
         }
 
-        ImGuiNET.ImGui.EndTabBar();
+        NodeEditor.Core.Widgets.IconTab.EndBar();
 
         _lastSyncedActive = _docManager.Active;
 
@@ -646,6 +649,9 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
             foreach (var d in toClose)
                 RequestTabClose(d);
     }
+
+    /// <summary>⭐ U-3 — the real tab-bar draw, for a frame rail inside a live ImGui frame.</summary>
+    internal void DrawTabBarForRail() => DrawTabBar();
 
     // ── MULTI-TAB: unsaved-changes prompt on tab close ────────────────────────
     //

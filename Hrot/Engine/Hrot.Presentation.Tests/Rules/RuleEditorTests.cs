@@ -87,7 +87,7 @@ public sealed class RuleEditorTests : IDisposable
             var tabsOf = Enum.GetValues<RuleTab>().ToDictionary(tab => tab, tab => RuleTabs.FieldsOf(t, tab));
             foreach (var m in members.Where(m => m != RuleTabs.HeaderField))
                 Assert.True(tabsOf.Count(kv => kv.Value.Contains(m)) == 1, $"{t.Name}.{m} must be in exactly one tab, is in {tabsOf.Count(kv => kv.Value.Contains(m))}");
-            Assert.All(tabsOf.Values, f => Assert.DoesNotContain(RuleTabs.HeaderField, f));   // the header is on every tab, never a tab's own field
+            Assert.All(tabsOf.Values, f => Assert.DoesNotContain(RuleTabs.HeaderField, f));   // the header is drawn on Settings (U-9), never a tab's own field
         }
     }
 
@@ -95,11 +95,12 @@ public sealed class RuleEditorTests : IDisposable
     public void ATriggersFields_AreSplitWhenRulesDo_AnObjectivesAreAllSettings()
     {
         var trig = typeof(TriggerParamsJsonDto);
-        Assert.Equal(new[] { "When" }, RuleTabs.FieldsOf(trig, RuleTab.When));
+        // ⭐ U-9 (§8.2 ⑧) — When = the condition + its timing; Settings = the header only (drawn there, not a tab's own field)
+        Assert.Equal(new[] { "When", "HoldFor", "Delay", "Cooldown", "Repeat", "MaxFires", "FireIfTrueWhenArmed", "WhileTrue" }.OrderBy(x => x), RuleTabs.FieldsOf(trig, RuleTab.When).OrderBy(x => x));
         Assert.Equal(new[] { "Do" }, RuleTabs.FieldsOf(trig, RuleTab.Do));
-        Assert.Equal(new[] { "HoldFor", "Delay", "Cooldown", "Repeat", "MaxFires", "FireIfTrueWhenArmed", "WhileTrue" }.OrderBy(x => x), RuleTabs.FieldsOf(trig, RuleTab.Rules).OrderBy(x => x));
+        Assert.Empty(RuleTabs.FieldsOf(trig, RuleTab.Rules));
         Assert.Empty(RuleTabs.FieldsOf(trig, RuleTab.Settings));
-        Assert.Equal(new[] { RuleTab.Overview, RuleTab.When, RuleTab.Rules, RuleTab.Do, RuleTab.Bindings, RuleTab.History }, RuleTabs.TabsFor(ObjectiveRole.Trigger));
+        Assert.Equal(new[] { RuleTab.Overview, RuleTab.When, RuleTab.Do, RuleTab.Settings, RuleTab.Bindings, RuleTab.History }, RuleTabs.TabsFor(ObjectiveRole.Trigger));
         Assert.Equal(new[] { RuleTab.Status, RuleTab.Settings, RuleTab.Results, RuleTab.History }, RuleTabs.TabsFor(ObjectiveRole.Objective));
         Assert.Equal(RuleTabs.TabsFor(ObjectiveRole.Objective), RuleTabs.TabsFor(ObjectiveRole.Measure));
     }
@@ -162,7 +163,7 @@ public sealed class RuleEditorTests : IDisposable
         var d = Details(); var row = RowOf(20);
         d.Prepare(row, 10);
         Assert.True(d.Probe.Editable);
-        Assert.Equal(new[] { "Common" }, d.Probe.Fields.Take(1));
+        Assert.DoesNotContain(RuleTabs.HeaderField, d.Probe.Fields);   // ⭐ U-9 — the header is drawn on Settings only (the frame rail asserts it there)
         string edited = TriggerJson.Replace("\"cooldown\":10", "\"cooldown\":25");
         d.StagePending(edited);
         d.Prepare(row, 10);

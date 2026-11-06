@@ -69,17 +69,6 @@ public static class EntityRoleLine
         return facts;
     }
 
-    /// <summary><c>TankGun</c> → <c>Tank gun</c>.</summary>
-    internal static string Words(string pascal)
-    {
-        var sb = new StringBuilder(pascal.Length + 2);
-        for (int i = 0; i < pascal.Length; i++)
-        {
-            char c = pascal[i];
-            if (i == 0) sb.Append(char.ToUpperInvariant(c));
-            else if (char.IsUpper(c)) sb.Append(' ').Append(char.ToLowerInvariant(c));
-            else sb.Append(c);
-        }
-        return sb.ToString();
-    }
+    /// <summary><c>TankGun</c> → <c>Tank gun</c> — ⭐ U-6: THE humanizer (<see cref="StructEdit.Core.Attributes.DisplayNames.Humanize(string)"/>), not a local copy.</summary>
+    internal static string Words(string pascal) => StructEdit.Core.Attributes.DisplayNames.Humanize(pascal);
 }

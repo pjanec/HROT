@@ -72,6 +72,7 @@ public sealed class RuleDetails
     private string? _pending;
     private RuleTab? _requestTab;
     private readonly Dictionary<int, RuleTab> _tabOf = new();
+    private readonly Dictionary<int, RuleTab> _shownTab = new();   // ⭐ CE-4286 — the tab ImGui's bar was last told to show, per rule (a different one in a frame is a click)
     private readonly Dictionary<int, LiveEdit> _liveEdits = new();
     private int _editSeq;
     private bool _liveValuesOn;
@@ -161,7 +162,7 @@ public sealed class RuleDetails
         _strip = LiveStripOf(row, type, tab);
         FeedStepContext(row);
         _probe = new RuleDetailsProbe(tab.ToString(), RuleTabs.TabsFor(row.Status.Role).Select(RuleTabs.TitleOf).ToList(),
-            (type != null ? new[] { RuleTabs.HeaderField } : Array.Empty<string>()).Concat(fields).ToList(), ro == null, ro, dirty, Message,
+            (type != null && tab == RuleTab.Settings ? new[] { RuleTabs.HeaderField } : Array.Empty<string>()).Concat(fields).ToList(), ro == null, ro, dirty, Message,
             tab == RuleTab.History ? _svc.Journal(row.Entity).Select(j => $"{j.At:0.0}s {j.Text}").ToList() : (IReadOnlyList<string>)Array.Empty<string>(),
             tab == RuleTab.Results && _world() is { } w ? MissionSummaryModel.Build(w, new SummaryOptions(SummarySide.Both), null, now).Why(row.NetworkId).Select(x => $"{x.Title} | {(x.Go is { } g ? (g ? "pass" : "fail") : "—")}").ToList() : (IReadOnlyList<string>)Array.Empty<string>(),
             Steps: tab == RuleTab.Do ? _steps.Probe.Rows : null, StepMarker: tab == RuleTab.Do ? _steps.Probe.MarkerText : null,
@@ -329,24 +330,35 @@ public sealed class RuleDetails
         if (ro != null) ImGui.TextColored(new Vector4(0.9f, 0.7f, 0.3f, 1f), ro);
         if (row.Macro != null && row.MacroInstance != 0 && ImGui.SmallButton("Go to the macro instance")) _selectEntity(row.MacroInstance);
 
-        // the tab strip: one button per tab, the current one lit (a plain strip — ImGui's tab bar cannot be set from a rail)
+        // ⭐ CE-4286 / U-2 — a real tab bar on the shared icon tab (no close box, neutral palette, a coloured icon each). ImGui keeps its own selected tab: when the MODEL's tab changed from outside (a request, another row)
+        //   it is pushed with SetSelected; a frame where ImGui shows a different tab WITHOUT a push is the user's click.
         var cur = CurrentTab(row);
         if (_requestTab is { } req && RuleTabs.TabsFor(row.Status.Role).Contains(req)) { _tabOf[row.NetworkId] = req; cur = req; _requestTab = null; }
-        foreach (var tab in RuleTabs.TabsFor(row.Status.Role))
+        bool push = !_shownTab.TryGetValue(row.NetworkId, out var shown) || shown != cur;
+        RuleTab? clicked = null;
+        if (NodeEditor.Core.Widgets.IconTab.BeginBar("##rule-tabs"))
         {
-            bool on = tab == cur;
-            if (on) ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(ImGuiCol.ButtonActive));
-            if (ImGui.Button(RuleTabs.TitleOf(tab) + "##rt" + tab)) { _tabOf[row.NetworkId] = tab; cur = tab; }
-            if (on) ImGui.PopStyleColor();
-            ImGui.SameLine();
+            foreach (var tab in RuleTabs.TabsFor(row.Status.Role))
+            {
+                var flags = push && tab == cur ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None;
+                if (NodeEditor.Core.Widgets.IconTab.Begin(RuleTabs.IdOf(tab), RuleTabs.TitleOf(tab), NodeEditor.Core.Widgets.Icons.Get(RuleTabs.IconKeyOf(tab)), flags))
+                {
+                    if (!push && tab != cur) clicked = tab;
+                    ImGui.EndTabItem();
+                }
+            }
+            NodeEditor.Core.Widgets.IconTab.EndBar();
         }
-        ImGui.NewLine();
+        if (clicked is { } c) { _tabOf[row.NetworkId] = c; cur = c; }
+        _shownTab[row.NetworkId] = cur;
         SetLiveValues(WantsLiveValues(row, cur));                 // ⭐ RE-3 live: on while a When tab of a live trigger is open
         ImGui.BeginChild("##rule-tab-body", new Vector2(0, Math.Max(120f, ImGui.GetContentRegionAvail().Y - ApplyBarHeight(row, ro))), ImGuiChildFlags.None, ImGuiWindowFlags.None);
         DrawTab(row, cur, type, ro, now);
         ImGui.EndChild();
         DrawApplyBar(row, ro);
     }
+
+    private static readonly HashSet<string> HeaderFields = new() { RuleTabs.HeaderField };
 
     private void DrawTab(RuleRow row, RuleTab tab, Type? type, string? ro, double now)
     {
@@ -370,9 +382,12 @@ public sealed class RuleDetails
         if (type == null || _editor.Session is not { } session) { ImGui.TextDisabled(ro ?? "no params form"); return; }
         var picks = _svc.Picks?.Invoke();
         if (ro != null) ImGui.BeginDisabled();
-        ImGui.TextDisabled("Header");
-        BehaviorParamsForm.DrawFields(session, picks, "##rule-common", null, new HashSet<string> { RuleTabs.HeaderField });
-        ImGui.Spacing();
+        if (tab == RuleTab.Settings)
+        {
+            // ⭐ U-9 (§8.2 ⑧) — title, scoring and visibility live on Settings only; the When tab is the condition and its timing
+            BehaviorParamsForm.DrawFields(session, picks, "##rule-common", null, HeaderFields);
+            ImGui.Spacing();
+        }
         BehaviorParamsForm.DrawFields(session, picks, "##rule-" + tab, null, RuleTabs.FieldsOf(type, tab).ToHashSet(), new IImGuiFieldDrawer[] { _steps });
         if (ro != null) ImGui.EndDisabled();
         if (tab == RuleTab.When && WantsLiveValues(row, tab)) DrawLiveStrip();

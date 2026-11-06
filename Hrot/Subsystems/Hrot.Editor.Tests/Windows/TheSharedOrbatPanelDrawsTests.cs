@@ -247,4 +247,50 @@ public sealed class TheSharedOrbatPanelDrawsTests : IDisposable
         Assert.Equal(EntityTreeRelation.Command, panel.Relation);
         Assert.Contains(panel.DrawnRows, r => r.Text == "Rifleman A" && r.Depth == 1);
     }
+
+    /// <summary>⭐ U-3 (docs/UX/DESIGN_Colour_Icons.md §3, I3) — the relation switch is three coloured glyph toggles through the ONE icon map: Command teal, Structure orange, Scenario violet; the ACTIVE one framed and at full
+    /// strength on the neutral #34343E, the others on #1C1C22 at ~60 % in THEIR OWN colours (never the active one coloured and the rest grey). 🔴 Red-proof (compiles): the panel drawing its options through <c>ImGui.Button</c> again ⇒ no neutral background ⇒ red.
+    /// Render (never in git): <c>HROT_FRAME_SCREENSHOTS</c> ⇒ <c>colour-icons-orbat.png</c>.</summary>
+    [SkippableFact]
+    public void U3_TheRelationSwitch_IsThreeColouredGlyphToggles_TheActiveOneFramedAtFullStrength()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var adapter = new ScenarioOrbatAdapter(_world, _world.Bus, _spawn.Object);
+        var panel = new SharedOrbatPanel();
+        using var frame = UiFrameHarness.Begin(640, 200);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        for (int i = 0; i < 5; i++)
+            frame.Step(() =>
+            {
+                ImGui.SetNextWindowPos(new Vector2(10, 10), ImGuiNET.ImGuiCond.Always);
+                ImGui.SetNextWindowSize(new Vector2(420, 180), ImGuiNET.ImGuiCond.Always);
+                ImGui.Begin("ORBAT##u3");
+                panel.DrawContent(adapter, adapter);
+                ImGui.End();
+            });
+        string path = Shot("colour-icons-orbat.png");
+        frame.Screenshot(path);
+        var icons = panel.RelationSwitch;
+        Assert.Equal(3, icons.Count);
+        var image = Raylib.LoadImage(path);
+        try
+        {
+            static bool Near(Color c, Vector4 v, int tol) => Math.Abs(c.R - v.X * 255f) <= tol && Math.Abs(c.G - v.Y * 255f) <= tol && Math.Abs(c.B - v.Z * 255f) <= tol;
+            int Count(int i, Func<Color, bool> what)
+            {
+                int n = 0;
+                for (int x = (int)icons[i].Min.X; x < (int)icons[i].Max.X; x++) for (int y = (int)icons[i].Min.Y; y < (int)icons[i].Max.Y; y++) if (what(Raylib.GetImageColor(image, x, y))) n++;
+                return n;
+            }
+            var neutralSel = new Vector4(0x34 / 255f, 0x34 / 255f, 0x3E / 255f, 1f); var neutral = new Vector4(0x1C / 255f, 0x1C / 255f, 0x22 / 255f, 1f);
+            var teal = NodeEditor.Core.Widgets.Icons.Get("orbat/command").Color; var orange = NodeEditor.Core.Widgets.Icons.Get("orbat/structure").Color; var violet = NodeEditor.Core.Widgets.Icons.Get("orbat/scenario").Color;
+            Assert.True(Count(0, c => Near(c, neutralSel, 5)) > 80, "the active option (Command) sits on the selected neutral #34343E");
+            Assert.True(Count(1, c => Near(c, neutral, 5)) > 80 && Count(2, c => Near(c, neutral, 5)) > 80, "the others on #1C1C22");
+            Assert.True(Count(0, c => Near(c, teal, 24)) >= 8, "Command's glyph is teal at full strength");
+            Assert.True(Count(1, c => Near(c, orange, 24)) == 0 && Count(2, c => Near(c, violet, 24)) == 0, "the unselected options are not at full strength...");
+            Assert.True(Count(1, c => Near(c, Vector4.Lerp(neutral, orange, 0.6f), 24)) >= 8, "...Structure keeps its own orange at ~60 %");
+            Assert.True(Count(2, c => Near(c, Vector4.Lerp(neutral, violet, 0.6f), 24)) >= 8, "...and Scenario its own violet");
+        }
+        finally { Raylib.UnloadImage(image); }
+    }
 }

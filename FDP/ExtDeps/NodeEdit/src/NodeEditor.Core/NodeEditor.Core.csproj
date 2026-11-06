@@ -3,6 +3,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- U-2: ONE file (Widgets/IconTab.cs) calls ImGuiNative.igBeginTabItem — the managed overload with flags adds a close box -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RootNamespace>NodeEditor.Core</RootNamespace>
     <AssemblyName>NodeEditor.Core</AssemblyName>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>

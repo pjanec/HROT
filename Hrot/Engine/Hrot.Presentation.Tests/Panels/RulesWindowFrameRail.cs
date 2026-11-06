@@ -239,17 +239,37 @@ public sealed class RulesWindowFrameRail : IDisposable
         window.SelectNetworkId(20);
         Step(null, 4);
         var ed = window.Probe.Editor!;
-        Assert.Equal(new[] { "Overview", "When", "Rules", "Do", "Bindings", "History" }, ed.Tabs);
+        Assert.Equal(new[] { "Overview", "When", "Do", "Settings", "Bindings", "History" }, ed.Tabs);   // ⭐ U-9 (§8.2 ⑧)
         Assert.True(ed.Editable);
         window.Details!.RequestTab(RuleTab.When); Step(null, 4);
         Assert.Equal("When", window.Probe.Editor!.Tab);
-        Assert.Equal(new[] { "Common", "When" }, window.Probe.Editor.Fields.ToArray());
+        Assert.Equal(new[] { "When", "HoldFor", "Delay", "Cooldown", "Repeat", "MaxFires", "FireIfTrueWhenArmed", "WhileTrue" }, window.Probe.Editor.Fields.ToArray());   // ⭐ U-9 — the condition and its timing, no header
         frame.Screenshot(ShotPath("rules-4-when.png"));
-        window.Details.RequestTab(RuleTab.Rules); Step(null, 4);
-        Assert.Equal(new[] { "Common", "HoldFor", "Delay", "Cooldown", "Repeat", "MaxFires", "FireIfTrueWhenArmed", "WhileTrue" }, window.Probe.Editor!.Fields.ToArray());
-        frame.Screenshot(ShotPath("rules-5-rules.png"));
+        {   // ⭐ CE-4286 / U-2 — the rule editor's tabs are a real tab bar (the neutral palette: the selected tab #3A3A48 with the blue overline), not a strip of buttons
+            var shot = Raylib.LoadImageFromScreen();
+            try
+            {
+                int selected = 0, overline = 0;
+                for (int x = 0; x < shot.Width; x += 2)
+                    for (int y = 0; y < shot.Height; y += 2)
+                    {
+                        var p = Raylib.GetImageColor(shot, x, y);
+                        if (Math.Abs(p.R - 0x3A) <= 3 && Math.Abs(p.G - 0x3A) <= 3 && Math.Abs(p.B - 0x48) <= 3) selected++;
+                        else if (Math.Abs(p.R - 0x4D) <= 6 && Math.Abs(p.G - 0x99) <= 6 && p.B > 0xF0) overline++;
+                    }
+                Assert.True(selected > 40, $"the rule editor draws a tab bar: the selected tab's neutral fill is on screen ({selected} samples)");
+                Assert.True(overline > 5, $"...with the blue top line ({overline} samples)");
+            }
+            finally { Raylib.UnloadImage(shot); }
+        }
+        // ⭐ U-9 (§8.2 ⑧) — the When tab holds the condition and its timing, no header; the header is on Settings alone
+        window.Details.RequestTab(RuleTab.When); Step(null, 4);
+        Assert.Equal(new[] { "When", "HoldFor", "Delay", "Cooldown", "Repeat", "MaxFires", "FireIfTrueWhenArmed", "WhileTrue" }.OrderBy(x => x), window.Probe.Editor!.Fields.OrderBy(x => x).ToArray());
+        frame.Screenshot(ShotPath("rules-5-when.png"));
+        window.Details.RequestTab(RuleTab.Settings); Step(null, 3);
+        Assert.Equal(new[] { "Common" }, window.Probe.Editor!.Fields.ToArray());
         window.Details.RequestTab(RuleTab.Do); Step(null, 3);
-        Assert.Equal(new[] { "Common", "Do" }, window.Probe.Editor!.Fields.ToArray());   // the tab OWNS `do`; its list editor is R5b, so the tab draws a placeholder
+        Assert.Equal(new[] { "Do" }, window.Probe.Editor!.Fields.ToArray());   // the tab OWNS `do`; its list editor is R5b, so the tab draws a placeholder
 
         // ⭐ found LIVE: clicking Undo changed CanUndo between BeginDisabled and EndDisabled and ImGui asserted (the editor died). Apply, then CLICK Undo in the frame.
         window.SelectNetworkId(20);
@@ -360,7 +380,7 @@ public sealed class RulesWindowFrameRail : IDisposable
         Assert.True(window.Probe.Editor!.LiveValuesWanted);
         Assert.Contains(window.Probe.Editor.LiveStrip!, t => t.StartsWith("yes | ") && t.EndsWith("| 2"));
         frame.Screenshot(ShotPath("rules-9-when-live.png"));
-        window.Details.RequestTab(RuleTab.Rules); Step(null, 3);
+        window.Details.RequestTab(RuleTab.Settings); Step(null, 3);
         Assert.Equal(new[] { true, false }, liveValues);
 
         // Part 0 a — a SHORT pane: the Apply bar (note + verdict + message lines) still ends inside it, never clipped by a fixed reserve

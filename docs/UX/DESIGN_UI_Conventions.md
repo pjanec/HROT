@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — Q-C1, Q-C2, Q-C5 approved (R-4145); Q-C6 revised by the user (a capped width, R-4145); Q-C3 approved (R-4147, §3.1); Q-C4 withdrawn (a wrong premise, §3.2); fidelity checked by the builder, never a stop (R-4146)
+build-state: BUILDING — C1 BUILT (U-1, §6 as-built); C2–C4 open. Q-C1, Q-C2, Q-C5 approved (R-4145); Q-C6 revised by the user (a capped width, R-4145); Q-C3 approved (R-4147, §3.1); Q-C4 withdrawn (a wrong premise, §3.2); fidelity checked by the builder, never a stop (R-4146)
 updated: 2026-11-06 (Q-C3 approved, R-4147 — every question settled) · 2026-11-06 (the user's review: Q-C1/2/5 approved; Q-C6 → capped width §3.3; Q-C3 drawn §3.1; Q-C4 withdrawn §3.2; §6.1 autonomous fidelity) · 2026-11-06 (first version — the user's review of the New Scenario mockup: chevron before the icon, one chevron, label-first forms, slate collapsing headers with an icon)
 current-answer: §2 trees · §3 label-first forms (§3.1 not form rows · §3.2 node editors · §3.3 the label width) · §4 collapsing headers · §5 the classes · §6 stages · §7 questions
 stale-below: none
@@ -195,6 +195,21 @@ graph TD
 | **C2** | the trees moved onto `TreeRow`: `TreeLayout`, `SaveAsBrowserDialog`, `SharedOrbatPanel` (the user's three), then `AssetBrowserPanel`, `MyBlueprintPanel`, `FolderTreePicker`, `BehaviorPickerTree` | the feature suites of each (T-1) + the C1 rail on the real drawer; a side-by-side with §2 of the mockup |
 | **C3** | the 45 `CollapsingHeader` calls onto `SectionHeader`, each with its icon (Colour Icons map) | authority green unchanged in the raw editor |
 | **C4** | the label-right forms onto `FormGrid`, by file — panels first (`DirectorWindow`, `ClusterScenarioPanel`, `ConfigPanel`, `WaypointEditorPanel`, `SpawnerPanel`, `ZoneEditorPanel` …), then the existing 2-column tables (`ComponentReflector`, `ImGuiPropertyTree`) re-pointed at `FormGrid` — ⭐ the Replay Browser's seek-diff window (`ComponentDiffPanel`) included (user, R-4155) | a rail per migrated panel: every control's left edge equal. ⭐ A sweep can be checked: grep for visible-label input widgets outside the Q-C3 exceptions → 0 |
+
+### §6 C1 AS BUILT (ui, `2026-11-06`, U-1)
+
+All in `FDP/ExtDeps/NodeEdit/src/NodeEditor.Core/Widgets/` (namespace `NodeEditor.Core.Widgets`). INVENTORY: `search_graph name_pattern=".*(TreeRow|SectionHeader|FormGrid|RowIcon|IconGlyph|IconPalette).*"` → 3 hits, none a shared helper (`WindowManager.RenderTreeRow` is the window list's own row; `PickerState.TreeRow` is a data row, ⚠ a name clash for C2's `TreeLayout` — qualify or alias); grep: `IconGlyph`/`IconPalette` exist nowhere in code (only planned) ⇒ created here per Q-C1.
+
+| type | as built signature |
+|---|---|
+| `RowIcon` (readonly struct) | `None` · `Image(nint tex, Vector2 uv0, Vector2 uv1)` · `Image(in IconHandle)` · `OfGlyph(string, Vector4)` · `OfGlyph(in IconGlyph)` · implicit from `IconGlyph` |
+| `IconGlyph` / `IconPalette` (Q-C1) | `readonly record struct IconGlyph(string Glyph, Vector4 Color)` · static colours: status `Error Pending Ok Info Muted`, family `Hierarchy Type Macro Layout Window`. The `Icons` key map stays U-2's |
+| `TreeRow.Draw` | `bool Draw(string id, string label, in RowIcon icon, int depth, bool hasChildren, ref bool open, bool selected)` — `PushID(id)` + constant `"##row"`; flags `OpenOnArrow \| SpanAvailWidth \| NoTreePushOnOpen` (+`Leaf`, +`Selected`); depth = `Indent(depth × IndentSpacing)`; returns clicked (not the arrow) |
+| `SectionHeader.Draw` | `bool Draw(string id, string label, in RowIcon icon, ImGuiTreeNodeFlags flags = None, HeaderColors? colors = null)`; `HeaderColors(Normal, Hovered, Active)`; defaults `SectionHeader.Slate/SlateHovered/SlateActive` = `#2B2F38/#353A45/#3F4552`, pushed around its own `CollapsingHeader("##hdr")` only |
+| `FormGrid` | `bool Begin(string id, string[]? labels = null, bool statusSlot = false)` · `Row(string label)` · `Status()` · `End()` · pure `LabelColumn(widest, formWidth, uiScale)` · `ColumnWidthOf(id)`. Widest label cached per id (from `labels`, else learned from the rows one frame behind); column recomputed only when the form's width changes; a cut label is drawn by the draw list (`…`, or `...` when the font lacks the glyph) with the full text as tooltip. UI scale = `FontSize / 13` |
+
+⭐ Deviations: (1) the mockup's row indent is 18 px, the helper uses the style's `IndentSpacing` (ImGui default 21) — the app's one style decides, no second constant; (2) the glyph test of the ellipsis compares the `…` width with the fallback `?` width (no `unsafe`); (3) a row with no icon (`RowIcon.None`) puts its label directly after the arrow — callers mixing icon and icon-less rows at one depth pass a transparent glyph.
+⭐ Rails: `Hrot.Presentation.Tests/Panels/UiConventionsFrameRail.cs` (xvfb): the rects are read off the rendered pixels — chevron < icon < label, a leaf keeps the slot (icon and label x equal to its sibling with children), depth = `IndentSpacing`, header background slate and an override keeps its colour, no global `ImGuiCol.Header` change, the form column = widest + 14 and the 25 % cap, every control at one x, the cut label ends before column 2, and 0 bytes allocated on a steady frame for all three.
 
 ### 6.1 Fidelity is the builder's job — never a stop *(user, `2026-11-06`, R-4146)*
 

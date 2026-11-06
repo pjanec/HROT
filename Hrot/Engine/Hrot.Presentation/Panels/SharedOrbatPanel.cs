@@ -113,13 +113,10 @@ public sealed class SharedOrbatPanel
     // ── Render ────────────────────────────────────────────────────────────────
 
     /// <summary>⭐ CE-4256 — one relation icon: lit while active, a tooltip, its rectangle recorded for the probe. Clicking it does what the radio did.</summary>
-    private void RelationIcon(string label, string glyph, EntityTreeRelation relation, string tooltip)
+    private void RelationIcon(string label, string iconKey, string id, EntityTreeRelation relation, string tooltip)
     {
-        bool active = Relation == relation;
-        if (active) ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetStyle().Colors[(int)ImGuiCol.ButtonActive]);
-        bool clicked = ImGui.Button(glyph + "##orbat_rel_" + label);
-        if (active) ImGui.PopStyleColor();
-        if (ImGui.IsItemHovered()) ImGui.SetTooltip(tooltip);
+        // ⭐ U-3 (Colour Icons §3) — one coloured glyph per option on the neutral background: every option keeps ITS colour, the active one framed at full strength, the others ~60 %
+        bool clicked = NodeEditor.Core.Widgets.GlyphWidgets.GlyphToggle(id, NodeEditor.Core.Widgets.Icons.Get(iconKey), Relation == relation, tooltip);
         if (clicked) Relation = relation;
         _switch.Add(new(label, ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
     }
@@ -132,11 +129,11 @@ public sealed class SharedOrbatPanel
         _drawn.Clear(); _switch.Clear(); DrawnRefusal = null;
         // ⭐ CE-4213 — the relation switch: ONE tree, the parent rule chosen here. ⭐ CE-4256 — three ICON buttons on the filter's line (the active one
         //   lit, a tooltip naming the view), then the filter field fills the rest with "Filter" as its hint.
-        RelationIcon("Command", Fdp.Presentation.Fonts.IconsFontAwesome6.Sitemap, EntityTreeRelation.Command, "Command (ORBAT)");
+        RelationIcon("Command", "orbat/command", "##orbat_rel_Command", EntityTreeRelation.Command, "Command (ORBAT)");
         ImGui.SameLine();
-        RelationIcon("Structure", Fdp.Presentation.Fonts.IconsFontAwesome6.Cubes, EntityTreeRelation.Structure, "Structure (parts, riders)");
+        RelationIcon("Structure", "orbat/structure", "##orbat_rel_Structure", EntityTreeRelation.Structure, "Structure (parts, riders)");
         ImGui.SameLine();
-        RelationIcon("Scenario", Fdp.Presentation.Fonts.IconsFontAwesome6.PuzzlePiece, EntityTreeRelation.Scenario, "Scenario (macro members)");
+        RelationIcon("Scenario", "orbat/scenario", "##orbat_rel_Scenario", EntityTreeRelation.Scenario, "Scenario (macro members)");
         ImGui.SameLine();
         ImGui.SetNextItemWidth(-1f);
         ImGui.InputTextWithHint("##orbat_filter", "Filter", ref _filterText, 128);

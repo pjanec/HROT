@@ -36,6 +36,7 @@ public static class IconsFontAwesome6
     // Edit / undo
     public const string Pen                 = "\uf304"; // edit
     public const string Plus                = "\uf067";
+    public const string TrashCan            = "\uf2ed";   // ⭐ U-7 (Condition editor §8.2 ⑦) — the struct editor's delete
     public const string Xmark               = "\uf00d";
     public const string ArrowRotateLeft     = "\uf0e2"; // undo
     public const string ArrowRotateRight    = "\uf01e"; // redo
@@ -84,4 +85,21 @@ public static class IconsFontAwesome6
     public const string UpRightFromSquare   = "\uf35d"; // float / pop out
     public const string TableColumns        = "\uf0db"; // tabs
     public const string Bars                = "\uf0c9"; // menu
+    public const string Check               = "\uf00c"; // U-2 colour-icon key glyph
+    public const string HourglassHalf       = "\uf252"; // U-2 colour-icon key glyph
+    public const string Lock                = "\uf023"; // U-2 colour-icon key glyph
+    public const string RotateLeft          = "\uf2ea"; // U-2 colour-icon key glyph
+    public const string Crosshairs          = "\uf05b"; // U-2 colour-icon key glyph
+    public const string User                = "\uf007"; // U-2 colour-icon key glyph
+    public const string VanShuttle          = "\uf5b6"; // U-2 colour-icon key glyph
+    public const string Route               = "\uf4d7"; // U-2 colour-icon key glyph
+    public const string Brain               = "\uf5dc"; // U-2 colour-icon key glyph
+    public const string ScaleBalanced       = "\uf24e"; // U-2 colour-icon key glyph
+    public const string DrawPolygon         = "\uf5ee"; // U-2 colour-icon key glyph
+    public const string EarthEurope         = "\uf7a2"; // U-2 colour-icon key glyph
+    public const string Filter              = "\uf0b0"; // U-2 colour-icon key glyph
+    public const string ListCheck           = "\uf0ae"; // U-7 condition kind: A property
+    public const string Clock               = "\uf017"; // U-7 condition kind: Time
+    public const string Users               = "\uf0c0"; // U-7 condition kind: At least N of
+    public const string FlagCheckered       = "\uf11e"; // U-2 colour-icon key glyph
 }

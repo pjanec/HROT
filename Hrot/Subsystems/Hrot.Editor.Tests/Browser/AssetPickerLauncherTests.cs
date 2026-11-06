@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using Hrot.Editor;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Browser;
@@ -596,8 +597,7 @@ public sealed class AssetPickerLauncherTests
     [Fact]
     public void CE4141_EveryHostThatBuildsTheLauncher_PassesItsRunChoice()
     {
-        string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../.."));
-        while (!File.Exists(Path.Combine(root, "HROT.sln")) && Directory.GetParent(root) != null) root = Directory.GetParent(root)!.FullName;
+        string root = TestRepo.Root;   // CE-3343: the ONE test-side repository-root walk-up
         foreach (var rel in new[] { "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs", "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs", "Hrot/Subsystems/Hrot.Orchestrator/OrchestratorSubsystem.cs" })
         {
             var text = File.ReadAllText(Path.Combine(root, rel));
@@ -613,8 +613,7 @@ public sealed class AssetPickerLauncherTests
     [Fact]
     public void D24_TheEditorAndCgf_PassTheEditServiceToTheLauncher_AndOfferTheRunSetupLines()
     {
-        string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../.."));
-        while (!File.Exists(Path.Combine(root, "HROT.sln")) && Directory.GetParent(root) != null) root = Directory.GetParent(root)!.FullName;
+        string root = TestRepo.Root;   // CE-3343: the ONE test-side repository-root walk-up
         foreach (var rel in new[] { "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs", "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs" })
         {
             var text = File.ReadAllText(Path.Combine(root, rel));
