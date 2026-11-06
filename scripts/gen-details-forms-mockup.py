@@ -1,5 +1,5 @@
 # Generates docs/UX/details-forms-visual.svg - an ImGui-default-dark mockup of the Details forms and their states.
-# Regenerate: python3 scripts/gen-details-forms-mockup.py docs/UX/details-forms-visual.svg  (needs Pillow; reads FDP/Data/Icons/famfamfam-silk.png)
+# Regenerate: python3 scripts/gen-details-forms-mockup.py docs/UX/details-forms-visual.svg  (needs Pillow + fonttools; reads FDP/Data/Fonts/fa-solid-900.ttf)
 import sys
 import base64, io
 from PIL import Image
