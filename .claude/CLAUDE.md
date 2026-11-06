@@ -754,7 +754,7 @@ ever considered, which is what obligation ① exists to prevent.
   | ⭐ the rule — for any UI slice that has a mockup in its design | |
   |---|---|
   | ⭐⭐ **layout is MEASURED, not eyeballed** — a frame rail reads the item rectangles (`GetItemRectMin/Max`) and asserts the mockup's alignment (controls at one x, one frame height, fixed slots) | ⛔ "looks about right" |
-  | ⭐⭐ **the named icons and colours are asserted** — the cell / token the design names, never a stand-in | 📌 icons are the colourful Silk atlas (`docs/UX/DESIGN_Colour_Icons.md`) |
+  | ⭐⭐ **the named icons and colours are asserted** — the cell / token the design names, never a stand-in | 📌 icons are FontAwesome glyphs drawn in the colour of their meaning — never monochrome (R-4139, `docs/UX/DESIGN_Colour_Icons.md`) |
   | ⭐⭐⭐ **a side-by-side to the user before "done"** — the real frame of each mockup state next to the mockup, rendered to the scratchpad and sent in chat (never into git) | ⭐ a deviation is fixed, or argued and the mockup updated to the as-built |
 - **Keep documentation prose short.** Lead with visuals and terse tables; no long prose walls — they go unread. ⭐⭐⭐ **For DESIGN documents this is not a preference but an obligation — see *"DIAGRAM FIRST — the diagrams ARE the design; the prose SUPPORTS them"*** in the `NO IMPLEMENTATION WITHOUT UML` section: draw after the inventory and before you write, let the prose carry only *why*, and apply the deletion test to your own draft.
 

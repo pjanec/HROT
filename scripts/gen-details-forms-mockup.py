@@ -9,6 +9,15 @@ def _cell(c):
     r=c.rstrip("0123456789"); col=int(c[len(r):])-1
     ri=ord(r)-97 if len(r)==1 else 26+ord(r[1])-97
     b=io.BytesIO(); _A.crop((col*16,ri*16,col*16+16,ri*16+16)).save(b,"PNG"); return base64.b64encode(b.getvalue()).decode()
+from fontTools.ttLib import TTFont
+from fontTools.pens.svgPathPen import SVGPathPen
+_FA=TTFont(os.path.join(os.path.dirname(os.path.abspath(__file__)),"..","FDP","Data","Fonts","fa-solid-900.ttf"))
+_FAGS=_FA.getGlyphSet(); _FACMAP=_FA.getBestCmap(); _FAUPM=_FA["head"].unitsPerEm
+def fa(cp,x,y,color,sz=14):
+    """Draw the real FontAwesome 6 glyph `cp` (code point) at (x,y) top-left, sz px tall, in `color`."""
+    name=_FACMAP[cp]; pen=SVGPathPen(_FAGS); _FAGS[name].draw(pen)
+    k=sz/_FAUPM; asc=_FA["hhea"].ascent
+    o.append(f"<path d='{pen.getCommands()}' fill='{color}' transform='translate({x},{y+asc*k}) scale({k},{-k})'/>")
 _SILK={k:_cell(k) for k in ["i14","v6","a24","h1","t9","c23"]}
 def silk(cell,x,y,sz=16):
     o.append(f"<image x='{x}' y='{y}' width='{sz}' height='{sz}' href='data:image/png;base64,{_SILK[cell]}' style='image-rendering:pixelated'/>")
@@ -28,23 +37,23 @@ def r(x,y,w,h,f,stroke=None,rx=0,sw=1,op=1):
     a(f"<rect x='{x}' y='{y}' width='{w}' height='{h}' fill='{f}' rx='{rx}'{st} opacity='{op}'/>")
 # icons (stand-ins for the FontAwesome 6 glyphs the app has merged)
 def hourglass(x,y,c=PEND):
-    return silk("v6",x-2,y-2)
+    return fa(0xf252,x,y-1,c)
 def _old_hourglass(x,y,c=PEND):
     a(f"<path d='M{x} {y} h10 M{x} {y+13} h10 M{x+1} {y} L{x+9} {y+13} M{x+9} {y} L{x+1} {y+13}' stroke='{c}' stroke-width='1.6' fill='none'/>")
 def xcircle(x,y,c=ERR):
-    return silk("i14",x-2,y-2)
+    return fa(0xf057,x-1,y-1,c)
 def _old_xcircle(x,y,c=ERR):
     a(f"<circle cx='{x+6}' cy='{y+6}' r='6.5' fill='{c}'/><path d='M{x+3} {y+3} L{x+9} {y+9} M{x+9} {y+3} L{x+3} {y+9}' stroke='#1A0A0A' stroke-width='1.8'/>")
 def lock(x,y,c=LOCK):
-    return silk("a24",x-2,y-2)
+    return fa(0xf023,x,y-1,c)
 def _old_lock(x,y,c=LOCK):
     a(f"<rect x='{x}' y='{y+5}' width='11' height='8' rx='1.5' fill='{c}'/><path d='M{x+2.5} {y+5} v-2 a3 3 0 0 1 6 0 v2' stroke='{c}' stroke-width='1.6' fill='none'/>")
 def reset(x,y,c=INFO):
-    return silk("h1",x-2,y-2)
+    return fa(0xf2ea,x-1,y-1,c)
 def _old_reset(x,y,c=INFO):
     a(f"<path d='M{x+10} {y+6} a5 5 0 1 1 -2 -4' stroke='{c}' stroke-width='1.6' fill='none'/><path d='M{x+6} {y-1} l3 2 l-3 2' stroke='{c}' stroke-width='1.6' fill='none'/>")
 def warn(x,y,c=PEND):
-    return silk("t9",x-2,y-2)
+    return fa(0xf071,x-1,y-1,c)
 def _old_warn(x,y,c=PEND):
     a(f"<path d='M{x+6} {y} L{x+12.5} {y+12} L{x-0.5} {y+12} Z' fill='{c}'/><rect x='{x+5.2}' y='{y+4}' width='1.6' height='4.5' fill='#1A1400'/><rect x='{x+5.2}' y='{y+9.3}' width='1.6' height='1.6' fill='#1A1400'/>")
 def combo(x,y,w,txt,c=TXT,hint=False):
@@ -73,7 +82,7 @@ def tooltip(x,y,w,lines,edge=SEP):
 # canvas
 a(f"<svg xmlns='http://www.w3.org/2000/svg' width='{W}' height='{H}' viewBox='0 0 {W} {H}'>")
 r(0,0,W,H,"#1B1B1F")
-t(20,26,"Details forms — visual design (ImGui default dark; marks are the real Silk atlas cells; every element is one ImGui call — design §6.2)","#E8E8EE",sz=14,w="bold")
+t(20,26,"Details forms — visual design (ImGui default dark; icons are the real FontAwesome 6 glyphs, coloured by meaning; every element is one ImGui call — design §6.2)","#E8E8EE",sz=14,w="bold")
 t(20,44,"Annotations in grey are not drawn by the app.","#8A8A96",sz=11.5)
 # ---------- panel A: the Unit form, every row state ----------
 PX,PY,PW,PH=20,60,520,560
@@ -109,7 +118,7 @@ yInv=y
 def inv(yy):
     field(CX,yy,CW,"abc",border=ERR); t(CX,yy+33,"Enter a whole number 0 – 210","#F08080",sz=11.5)
 row("Rounds, M4", inv, h=42)
-row("Weapon", lambda yy: (combo(CX,yy,110,"Aimed"), t(CX+118,yy+14,"at",DIS), button(CX+136,yy,CW-136,"⌖ Pick on map…")))
+row("Weapon", lambda yy: (combo(CX,yy,110,"Aimed"), t(CX+118,yy+14,"at",DIS), (button(CX+136,yy,CW-136,"     Pick on map…"), fa(0xf05b,CX+162,yy+3,"#7FD69A",sz=13))))
 row("In hand", lambda yy: combo(CX,yy,CW,"Weapon"))
 row("Playable", lambda yy: (checkbox(CX,yy,True), t(CX+26,yy+14,"slot",DIS), field(CX+52,yy,CW-52,"Alpha lead")))
 sep("Character")
@@ -125,11 +134,11 @@ CXT=PX+PW+14
 callout(SX+12,yPend+10,CXT,yPend+6,["PENDING (> 1 s): hourglass, amber; the new value shows","at once; tooltip: \"Waiting for node 3 (Brain)…\""])
 callout(SX+12,yErr+10,CXT,yErr+8,["REFUSED / LOST: red ✗ in the status slot + faint red row;","value back to the real one; tooltip = the reason;","click ✗ to clear; + a sticky notification (panel D)"])
 callout(CX+CW,yInv+10,CXT,yInv+30,["INVALID INPUT (local, before any send): red frame +","the reason under the field, visible while typing;","nothing is committed until it is valid"])
-callout(SX+12,yReset+10,CXT,yReset+10,["AUTHORED ≠ TYPE: reset arrow (Silk h1) — click resets","to the type's value; tooltip: \"Type 0.50 — reset\""])
+callout(SX+12,yReset+10,CXT,yReset+10,["AUTHORED ≠ TYPE: blue reset arrow — click resets","to the type's value; tooltip: \"Type 0.50 — reset\""])
 callout(SX+12,yLock+10,CXT,yLock+28,["NOT ALLOWED FOR THIS SEAT: row disabled + lock;","tooltip on the disabled row (AllowWhenDisabled):","\"Your seat (Observer) cannot change Skill\""])
 t(CXT,PY+30,"ROW ANATOMY: label | control (fills) | status slot (18 px, fixed)","#C8C8D0",sz=11.5,w="bold")
 t(CXT,PY+45,"the slot is always reserved, so a mark never moves the layout;","#C8C8D0",sz=11.5)
-t(CXT,PY+59,"one mark at a time: error > pending > lock > reset (Silk i14 · v6 · a24 · h1)","#C8C8D0",sz=11.5)
+t(CXT,PY+59,"one mark at a time: error > pending > lock > reset (coloured FA glyphs)","#C8C8D0",sz=11.5)
 # tooltip example near strength row
 t(LX,y+40,"hovering the ✗ on Strength shows:",DIS,sz=11.5)
 tooltip(LX,y+48,262,["Refused by node 3 (Brain):","Alpha 1-1 is a player's unit"],edge=ERR)
@@ -149,7 +158,7 @@ t(BX+12,yy+27,"A differing checkbox shows ▬ (drawn by hand).",DIS,sz=11.5)
 # ---------- panel C: read-only + conflict ----------
 CX0,CY0,CW0,CH0=426,640,400,240
 r(CX0,CY0,CW0,CH0,BG,stroke=BORDER); r(CX0,CY0,CW0,20,TITLE); t(CX0+8,CY0+14,"Details — Alpha 1-1")
-r(CX0+8,CY0+28,CW0-16,22,"#22283A",rx=2); silk("c23",CX0+14,CY0+31); t(CX0+36,CY0+43,"Review — read-only · values at 00:12:34",INFO,sz=12)
+r(CX0+8,CY0+28,CW0-16,22,"#22283A",rx=2); fa(0xf05a,CX0+16,CY0+32,INFO); t(CX0+36,CY0+43,"Review — read-only · values at 00:12:34",INFO,sz=12)
 yy=CY0+60
 for lab,txt in [("Name","Alpha 1-1"),("Side","Friend")]:
     t(CX0+14,yy+14,lab,DIS); r(CX0+110,yy,CW0-130,19,FRAME,op=0.5); t(CX0+115,yy+14,txt,DIS); yy+=25

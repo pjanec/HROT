@@ -7,7 +7,7 @@ stale-below: nothing
 known-rot: §11d's D-A lean (wire-silent) is OVERTURNED — §12. §1's claim rows and §2's INVENTORY predate §11 / §12 (the wire and checkpoint rows are in §12c with their file:line). replay-and-modules §2.2 / §2.3 ("IG nodes … do not record and do not replay") are SUPERSEDED — every recording node replays (R-4010) · ⛔ SUPERSEDED 2026-10-28 (R-4095): `BdcReplicationModule` (named beside `NedReplicationModule` as a mixed module) was removed with the BDC stack.
 known-conflict: DESIGN_Director_Timeline_Editor.md TL-4 (time = frame index + wall ticks) and TE-19 (a live host never seeks) — this design ADDS a sim axis and makes a seek on a live host ENTER a review (R10); both stand until the user approves §5
 related-designs:
-  - UX/DESIGN_Colour_Icons.md — E16: the mode indicator's glyphs (R-3061) become Silk cells; each mode keeps its own icon and colour
+  - UX/DESIGN_Colour_Icons.md — E16: the mode indicator's coloured glyphs (R-3061, ModeGlyph) are the precedent E16 generalises to every icon
   - DESIGN_Evaluation_Cost_And_Cadence.md — OWNS §5b C7 (CE-2392): a delta writes a changed chunk's used prefix; §12q/§12s's comparison now keeps a full buffer + the length last written
   - DESIGN_Http_Control_Through_The_Cluster_Master.md — OWNS the replay routes and R-3056 (wall axis; the sim form deferred) that §5 R1–R4 extend
   - DESIGN_Checkpoint_And_Dry_Run_Restore.md — OWNS the dry run's RAM keyframe, AfterRestore, SnapTo (D5) and the branch copy (D18) that DAR's return reuses (R6)

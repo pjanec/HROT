@@ -13,7 +13,7 @@ related-designs:
   - DESIGN_Map_Interaction.md — design queue item 6 (E8 / D11, D12, D16): drawing, picking, placing, gizmo looks
   - DESIGN_Edit_Mode_Undo.md — design queue item 5 (D1): undo in Edit mode, by world snapshots, in the network-less editor
   - DESIGN_Input_And_Commands.md — design queue item 4b (E14): one keymap, scoped, every key an action
-  - DESIGN_Colour_Icons.md — slice E16: one colourful icon set (Silk)
+  - DESIGN_Colour_Icons.md — slice E16: coloured FontAwesome glyphs as the one icon style
   - DESIGN_Seats_And_Hats.md — design queue item 4 (E10 / D17 with D4): seats × hats
   - DESIGN_Rule_Editor_UX.md — design queue item 3b (E13): the rule editor UX review
   - DESIGN_Mission_Plan_Editor.md — design queue item 3 (E11 / D18): the mission plan editor
@@ -573,7 +573,7 @@ this chat"* — R-4123.
 | 6 | ✅ [DESIGN_Map_Interaction.md](DESIGN_Map_Interaction.md), approved (R-4134) — **E8 — map interaction** (conventions, picks, placement with level / airborne, gizmo looks) | needs E9 for the right-click menu |
 | 7 | ✅ E2 [DESIGN_Details_Forms.md](DESIGN_Details_Forms.md), approved (R-4136) · **E5 condition templates · E7 review · E2b sim / types**; ✅ E12 [DESIGN_New_Scenario_And_Recipe.md](DESIGN_New_Scenario_And_Recipe.md), approved (R-4135) | smaller, mostly independent |
 | 7b | ✅ [DESIGN_Initial_State.md](DESIGN_Initial_State.md), approved (R-4137) — **E15 — initial state** (§1.8: seats and carrying, carried weapons, weapon posture, a named / oriented point, lying weapons, other start states) | after E2; reuses its forms |
-| 7c | ✍ [DESIGN_Details_Forms.md](DESIGN_Details_Forms.md) §6 the forms' visual design ✅ (R-4138) · [DESIGN_Colour_Icons.md](DESIGN_Colour_Icons.md) **E16 — colourful icons** (approved in principle; picks per surface) | the forms' marks are E16's first users |
+| 7c | ✍ [DESIGN_Details_Forms.md](DESIGN_Details_Forms.md) §6 the forms' visual design ✅ (R-4138) · [DESIGN_Colour_Icons.md](DESIGN_Colour_Icons.md) **E16 — colourful icons** (coloured FontAwesome, R-4139; colours approved per surface) | the forms' marks are E16's first users |
 
 ### 4.4 Slices — proposed handoffs, once D1–D9 are approved
 
@@ -588,7 +588,7 @@ this chat"* — R-4123.
 | **E5 conditions** | ui | D5 templates in the rule editor — folded into E13's design | — |
 | **E13 rule editor UX** | ui | inventory + top-level design first (queue 3b) | — |
 | **E15 initial state** | backend (saving) + ui (rows) | §1.8: seats and carry modes saved; weapon posture / held item saved and seeded; a Point map graphic (named, oriented); portable weapons placeable; which other start states get a row — design first | E2 |
-| **E16 colourful icons** | ui | [DESIGN_Colour_Icons.md](DESIGN_Colour_Icons.md): the Silk atlas everywhere an icon is a button, switch or mark; one key → cell map; picks approved from a rendered sheet (R-4138) | — |
+| **E16 colourful icons** | ui | [DESIGN_Colour_Icons.md](DESIGN_Colour_Icons.md): FontAwesome glyphs in the colour of their meaning everywhere an icon is a button, switch or mark; one key → (glyph, colour) map; colours approved per surface from a rendered strip (R-4139) | — |
 | **E6 levels** | backend + ui | D4 | E1 |
 | **E8 map interaction** | ui | D11, D12, §3.12 — design first | E1 |
 | **E9 context menus** | ui | D13–D15, §3.13 — design first (the action catalogue is the core; it is also E1's tab / action `Requires` model) | E1 |
