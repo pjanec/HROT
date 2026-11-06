@@ -67,5 +67,15 @@ internal sealed class FakeDescriptorTranslator : IDescriptorTranslator
             new FakeDescriptorTranslator(
                 (long)Hrot.NED.Descriptors.EDescriptorType.dtScenarioClock,
                 GlobalComponentIds.ScenarioClock),
+            // ⭐ B-4 / Details forms D2 — the replicated components the form attributes write (NedOwnershipGroupBinding: dtEntityDamage → Health, dtStanceIntent, dtWeather)
+            new FakeDescriptorTranslator(
+                (long)Hrot.NED.Descriptors.EDescriptorType.dtEntityDamage,
+                GlobalComponentIds.CombatHealth),
+            new FakeDescriptorTranslator(
+                (long)Hrot.NED.Descriptors.EDescriptorType.dtStanceIntent,
+                GlobalComponentIds.StanceIntent),
+            new FakeDescriptorTranslator(
+                (long)Hrot.NED.Descriptors.EDescriptorType.dtWeather,
+                GlobalComponentIds.WeatherConditions),
         });
 }

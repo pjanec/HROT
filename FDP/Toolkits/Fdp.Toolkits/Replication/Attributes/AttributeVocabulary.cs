@@ -77,6 +77,27 @@ public static class AttributeVocabulary
         new("Rule.Params",           AttributeIds.RuleParams,          AttributeValueKind.CsString,  typeof(Fdp.Toolkit.ScenarioRules.RuleEdit), BrainLocal: true),
         new("Rule.EditSeq",          AttributeIds.RuleEditSeq,         AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.ScenarioRules.RuleEdit), BrainLocal: true),
         new("Rule.EditOrigin",       AttributeIds.RuleEditOrigin,      AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.ScenarioRules.RuleEdit), BrainLocal: true),
+        // ⭐ B-4 / Details forms D2 (docs/UX/DESIGN_Details_Forms.md §4.1) — the fields a form writes. Applied by the node that owns the component; a write elsewhere becomes the router's change-request.
+        new("Health.Current",        AttributeIds.HealthCurrent,       AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Combat.Components.Health)),
+        // ⚠ Playable / SpawnArea / WeaponState have NO descriptor (no translator republishes them): applied on the owner, not replicated — hence BrainLocal.
+        new("Playable.Side",         AttributeIds.PlayableSide,        AttributeValueKind.CsString,  typeof(Hrot.Common.Playable), BrainLocal: true),
+        new("Playable.SlotName",     AttributeIds.PlayableSlotName,    AttributeValueKind.CsString,  typeof(Hrot.Common.Playable), BrainLocal: true),
+        new("SpawnArea.Side",        AttributeIds.SpawnAreaSide,       AttributeValueKind.CsString,  typeof(Hrot.Common.SpawnArea), BrainLocal: true),
+        new("SpawnArea.FacingDeg",   AttributeIds.SpawnAreaFacingDeg,  AttributeValueKind.CsFloat64, typeof(Hrot.Common.SpawnArea), BrainLocal: true),
+        // ⭐ ONE attribute for the four mounts: the mount index is the sub-index (JSON {"Ammo":{"2":5}}); the numeric segment normalises to '*'.
+        new("Ammo.*",                AttributeIds.Ammo,                AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.Combat.Components.WeaponState), BrainLocal: true),
+        new("Stance",                AttributeIds.Stance,              AttributeValueKind.CsInt32,   typeof(Hrot.MuscleCharacter.Animation.Components.StanceIntent)),
+        // the authored scalars of the GLOBAL weather and of a weather region (one component, DESIGN_Weather_And_Time §2); the wind levels and cloud layers are lists, not scalars — not attributes (yet)
+        new("Weather.GroundTemperatureC",     AttributeIds.WeatherGroundTemperatureC,     AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),
+        new("Weather.LapseRateKPerKm",        AttributeIds.WeatherLapseRateKPerKm,        AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),
+        new("Weather.SeaLevelPressureHpa",    AttributeIds.WeatherSeaLevelPressureHpa,    AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),
+        new("Weather.RelativeHumidity",       AttributeIds.WeatherRelativeHumidity,       AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),
+        new("Weather.VisibilityM",            AttributeIds.WeatherVisibilityM,            AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),
+        new("Weather.FogTopM",                AttributeIds.WeatherFogTopM,                AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),
+        new("Weather.FogVisibilityM",         AttributeIds.WeatherFogVisibilityM,         AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),
+        new("Weather.Precipitation",          AttributeIds.WeatherPrecipitation,          AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.Weather.WeatherConditions)),
+        new("Weather.PrecipitationMmPerHour", AttributeIds.WeatherPrecipitationMmPerHour, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),
+        new("Weather.FeatherM",               AttributeIds.WeatherFeatherM,               AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),
     };
 
     /// <summary>

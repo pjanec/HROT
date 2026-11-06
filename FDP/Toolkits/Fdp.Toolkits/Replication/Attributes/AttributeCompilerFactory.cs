@@ -146,6 +146,57 @@ public static class AttributeCompilerFactory
                 (Fdp.Toolkit.ScenarioRules.RuleEdit old, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => old with { Origin = r.GetInt32() },
                 kind: KindOf("Rule.EditOrigin"));
 
+        // ── B-4 / Details forms D2 (docs/UX/DESIGN_Details_Forms.md §4.1) — the fields a form writes; the value logic is FormAttributes' (shared with the binary handlers) ──
+        builder
+            .RegisterValuePath<Fdp.Toolkit.Combat.Components.Health>(
+                "Health.Current",
+                (ref Fdp.Toolkit.Combat.Components.Health c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => FormAttributes.SetHealth(ref c, r.GetDouble()),
+                kind: KindOf("Health.Current"))
+            .RegisterValuePath<Hrot.Common.Playable>(
+                "Playable.Side",
+                (ref Hrot.Common.Playable c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => c.Side = FormAttributes.Force(ref r),
+                kind: KindOf("Playable.Side"))
+            .RegisterValuePath<Hrot.Common.Playable>(
+                "Playable.SlotName",
+                (ref Hrot.Common.Playable c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => c.SlotName = new FixedString32(r.GetString() ?? string.Empty),
+                kind: KindOf("Playable.SlotName"))
+            .RegisterValuePath<Hrot.Common.SpawnArea>(
+                "SpawnArea.Side",
+                (ref Hrot.Common.SpawnArea c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => c.Side = FormAttributes.Force(ref r),
+                kind: KindOf("SpawnArea.Side"))
+            .RegisterValuePath<Hrot.Common.SpawnArea>(
+                "SpawnArea.FacingDeg",
+                (ref Hrot.Common.SpawnArea c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => c.FacingDeg = (float)r.GetDouble(),
+                kind: KindOf("SpawnArea.FacingDeg"))
+            // ⭐ the mount index is indices[0]; mount 0 is this component. A mount CHILD (1–3) is another entity — a component setter cannot reach it, and a creation request has none yet;
+            //   mounts 1–3 are written by the BINARY handler only (it has the world).
+            .RegisterValuePath<Fdp.Toolkit.Combat.Components.WeaponState>(
+                "Ammo.*",
+                (ref Fdp.Toolkit.Combat.Components.WeaponState c, scoped ReadOnlySpan<int> idx, ref Utf8JsonReader r) =>
+                {
+                    double v = r.GetDouble();
+                    if (idx.Length == 0 || idx[0] <= 0) FormAttributes.SetAmmo(ref c, v);
+                },
+                kind: KindOf("Ammo.*"))
+            // ⭐ a creation request sets the INTENT (the spawn seeds the status from it); a stance the type does not declare cannot be judged here (no world) — the binary path judges
+            .RegisterValuePath<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(
+                "Stance",
+                (ref Hrot.MuscleCharacter.Animation.Components.StanceIntent c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+                {
+                    if (FormAttributes.TryStance(ref r, out var stance)) c.TargetStance = stance;
+                },
+                kind: KindOf("Stance"));
+
+        foreach (var id in FormAttributeInstaller.WeatherIds)
+        {
+            ushort attribute = id;
+            var def = AttributeVocabulary.All.Single(d => d.AttributeId == attribute);
+            builder.RegisterValuePath<Fdp.Toolkit.Weather.WeatherConditions>(
+                def.JsonPath,
+                (ref Fdp.Toolkit.Weather.WeatherConditions c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => FormAttributes.SetWeather(ref c, attribute, r.GetDouble()),
+                kind: def.Kind);
+        }
+
         return builder.Build();
     }
 
@@ -206,7 +257,8 @@ public static class AttributeCompilerFactory
             .AddInstaller(new ScenarioClockAttributeInstaller())    // ⭐ CE-3216 S1-0 — the scenario start time (no geo transform needed)
             .AddInstaller(new CivilianFrightAttributeInstaller())   // ⭐ CE-4024 — a civilian's fright (AQ93 §15 K5)
             .AddInstaller(new RuleControlAttributeInstaller())      // ⭐ rules V-4 — a rule entity's runtime control
-            .AddInstaller(new RuleEditAttributeInstaller());        // ⭐ rules ② — a live edit of a rule's params (managed, replaced whole)
+            .AddInstaller(new RuleEditAttributeInstaller())         // ⭐ rules ② — a live edit of a rule's params (managed, replaced whole)
+            .AddInstaller(new FormAttributeInstaller());            // ⭐ B-4 / Details forms D2 — strength, playable, spawn area, ammunition, stance, weather
 
         return builder.Build();
     }

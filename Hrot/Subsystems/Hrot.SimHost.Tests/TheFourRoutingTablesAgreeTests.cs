@@ -74,6 +74,24 @@ public class TheFourRoutingTablesAgreeTests
         ("Rule.Params",     AttributeIds.RuleParams,       "{\"Rule\":{\"Params\":\"{}\"}}"),
         ("Rule.EditSeq",    AttributeIds.RuleEditSeq,      "{\"Rule\":{\"EditSeq\":1}}"),
         ("Rule.EditOrigin", AttributeIds.RuleEditOrigin,   "{\"Rule\":{\"EditOrigin\":3}}"),
+        // ⭐ B-4 / Details forms D2 — the fields a form writes
+        ("Health.Current",      AttributeIds.HealthCurrent,      "{\"Health\":{\"Current\":50.0}}"),
+        ("Playable.Side",      AttributeIds.PlayableSide,       "{\"Playable\":{\"Side\":\"FORCE_OPPOSING\"}}"),
+        ("Playable.SlotName",  AttributeIds.PlayableSlotName,   "{\"Playable\":{\"SlotName\":\"Alpha\"}}"),
+        ("SpawnArea.Side",     AttributeIds.SpawnAreaSide,      "{\"SpawnArea\":{\"Side\":\"FORCE_FRIENDLY\"}}"),
+        ("SpawnArea.FacingDeg",AttributeIds.SpawnAreaFacingDeg, "{\"SpawnArea\":{\"FacingDeg\":90.0}}"),
+        ("Ammo.*",             AttributeIds.Ammo,               "{\"Ammo\":{\"2\":5}}"),
+        ("Stance",             AttributeIds.Stance,             "{\"Stance\":1}"),
+        ("Weather.GroundTemperatureC",     AttributeIds.WeatherGroundTemperatureC,     "{\"Weather\":{\"GroundTemperatureC\":21.5}}"),
+        ("Weather.LapseRateKPerKm",        AttributeIds.WeatherLapseRateKPerKm,        "{\"Weather\":{\"LapseRateKPerKm\":6.0}}"),
+        ("Weather.SeaLevelPressureHpa",    AttributeIds.WeatherSeaLevelPressureHpa,    "{\"Weather\":{\"SeaLevelPressureHpa\":1008.0}}"),
+        ("Weather.RelativeHumidity",       AttributeIds.WeatherRelativeHumidity,       "{\"Weather\":{\"RelativeHumidity\":0.4}}"),
+        ("Weather.VisibilityM",            AttributeIds.WeatherVisibilityM,            "{\"Weather\":{\"VisibilityM\":9000.0}}"),
+        ("Weather.FogTopM",                AttributeIds.WeatherFogTopM,                "{\"Weather\":{\"FogTopM\":300.0}}"),
+        ("Weather.FogVisibilityM",         AttributeIds.WeatherFogVisibilityM,         "{\"Weather\":{\"FogVisibilityM\":150.0}}"),
+        ("Weather.Precipitation",          AttributeIds.WeatherPrecipitation,          "{\"Weather\":{\"Precipitation\":2}}"),
+        ("Weather.PrecipitationMmPerHour", AttributeIds.WeatherPrecipitationMmPerHour, "{\"Weather\":{\"PrecipitationMmPerHour\":4.0}}"),
+        ("Weather.FeatherM",               AttributeIds.WeatherFeatherM,               "{\"Weather\":{\"FeatherM\":500.0}}"),
     };
 
     public static IEnumerable<object[]> VocabularyCases()
@@ -110,7 +128,9 @@ public class TheFourRoutingTablesAgreeTests
         const string all = "{\"Name\":\"Charlie\",\"Affiliation\":\"FORCE_OPPOSING\",\"Heading\":90.0," +
                            "\"Position\":{\"X\":32.0,\"Y\":34.0,\"Z\":100.0}," +
                            "\"ScenarioStartUtcTicks\":638450000000000000,\"ScenarioUtcOffsetMinutes\":120," +
-                           "\"Fear\":1.0,\"FrightFrom\":{\"X\":10.0,\"Y\":20.0,\"Z\":1.0},\"Rule\":{\"Request\":2,\"Seq\":1,\"Origin\":1,\"Params\":\"{}\",\"EditSeq\":1,\"EditOrigin\":3}}";
+                           "\"Fear\":1.0,\"FrightFrom\":{\"X\":10.0,\"Y\":20.0,\"Z\":1.0},\"Rule\":{\"Request\":2,\"Seq\":1,\"Origin\":1,\"Params\":\"{}\",\"EditSeq\":1,\"EditOrigin\":3}," +
+                           "\"Health\":{\"Current\":50.0},\"Playable\":{\"Side\":\"FORCE_OPPOSING\",\"SlotName\":\"Alpha\"},\"SpawnArea\":{\"Side\":\"FORCE_FRIENDLY\",\"FacingDeg\":90.0},\"Ammo\":{\"2\":5},\"Stance\":1," +
+                           "\"Weather\":{\"GroundTemperatureC\":21.5,\"LapseRateKPerKm\":6.0,\"SeaLevelPressureHpa\":1008.0,\"RelativeHumidity\":0.4,\"VisibilityM\":9000.0,\"FogTopM\":300.0,\"FogVisibilityM\":150.0,\"Precipitation\":2,\"PrecipitationMmPerHour\":4.0,\"FeatherM\":500.0}}";
 
         var emitter = Emit(AttributeCompilerFactory.BuildEdgeCompiler(), all);
 
@@ -429,9 +449,23 @@ public class TheFourRoutingTablesAgreeTests
         repo.SetAuthority<Fdp.Toolkit.Civilians.CivilianState>(e, true);
         repo.AddComponent(e, default(Fdp.Toolkit.ScenarioRules.RuleControl));   // ⭐ rules V-4 — the control's three attributes
         repo.SetAuthority<Fdp.Toolkit.ScenarioRules.RuleControl>(e, true);
+        // ⭐ B-4 / Details forms D2 — the components the form attributes write (owned here, so each handler applies)
+        AddOwned(repo, e, default(Fdp.Toolkit.Combat.Components.Health));
+        AddOwned(repo, e, default(Hrot.Common.Playable));
+        AddOwned(repo, e, default(Hrot.Common.SpawnArea));
+        AddOwned(repo, e, default(Fdp.Toolkit.Combat.Components.WeaponState));
+        AddOwned(repo, e, default(Hrot.MuscleCharacter.Animation.Components.StanceIntent));
+        AddOwned(repo, e, default(Fdp.Toolkit.Weather.WeatherConditions));
         repo.SetManagedComponent(e, new Fdp.Toolkit.ScenarioRules.RuleEdit());   // ⭐ rules ② — a live edit's three attributes (managed, replaced whole)
         repo.SetAuthority(e, ManagedComponentType<Fdp.Toolkit.ScenarioRules.RuleEdit>.ID, true);
         return (repo, e);
+    }
+
+    private static void AddOwned<T>(EntityRepository repo, Entity e, T value) where T : unmanaged
+    {
+        if (!repo.IsComponentTypeRegistered<T>()) repo.RegisterComponent<T>();
+        repo.AddComponent(e, value);
+        repo.SetAuthority<T>(e, true);
     }
 
     private static long[] Dirty(EntityRepository repo, Entity e)

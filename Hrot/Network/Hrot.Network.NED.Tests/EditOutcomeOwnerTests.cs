@@ -7,6 +7,7 @@ using Fdp.Modules.Geographic.Transforms;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Edits;
 using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Tkb.Domain;
 using Hrot.Map.Common.Systems;
 using Hrot.Network.Translators;
 using Hrot.NED.Messages;
@@ -305,5 +306,173 @@ public sealed class EditOutcomeOwnerTests
         Assert.Equal(EditStatus.Pending, journal.Find(t.RequestId)!.Status);
         journal.Refresh(EditOutcomeLog.Of(requester.World), DateTime.UtcNow + EditJournal.LostAfter + TimeSpan.FromSeconds(1));
         Assert.Equal(EditStatus.Lost, journal.Find(t.RequestId)!.Status);
+    }
+
+    // ── ⭐ B-4 / Details forms D2 (docs/UX/DESIGN_Details_Forms.md §4.1): each form attribute, written from a NON-OWNER, reaches the owner and is applied THERE ──────────
+
+    private static void Give<T>(Node n, T value, bool owned) where T : unmanaged
+    {
+        if (!n.World.IsComponentTypeRegistered<T>()) n.World.RegisterComponent<T>();
+        n.World.AddComponent(n.Entity, value);
+        if (owned) n.World.SetAuthority<T>(n.Entity, true);   // the form-attribute handlers gate on CanWrite<T>: only the owner applies
+    }
+
+    /// <summary>Submits <paramref name="change"/> on the requester, carries it to the owner, returns the requester's journal entry. Asserts it was REQUESTED, not written.</summary>
+    private static EditJournalEntry FromANonOwner(Node owner, Node requester, Fdp.Toolkit.Replication.Patching.EntityAttributeChange change, string label)
+    {
+        var ticket = Edits.Submit(requester.World, EditOp.Write(requester.Entity, change, label));
+        Assert.Equal(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Requested, ticket.Route);
+        var req = SentBy(requester);
+        Assert.Equal((ticket.RequestId, true), (req.RequestId, req.WantOutcome));
+        owner.Run(req);
+        return AnswerBack(owner, requester, ticket.RequestId);
+    }
+
+    private static Fdp.Toolkit.Replication.Patching.EntityAttributeChange Change(ushort id, Fdp.Toolkit.Replication.Patching.AttributeValue v, short sub = 0)
+        => new() { AttributeId = id, SubIndex1 = sub, Value = v };
+
+    private static (Node Owner, Node Requester) Pair<T>(T value) where T : unmanaged
+    {
+        var owner = new Node(owns: true, OwnerNode);
+        var requester = new Node(owns: false, OtherNode);
+        Give(owner, value, owned: true);
+        Give(requester, value, owned: false);
+        return (owner, requester);
+    }
+
+    [Fact]
+    public void D2_HealthCurrent_OnANonOwner_IsAppliedByTheOwner_AndClamped()
+    {
+        var (owner, requester) = Pair(new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+        var entry = FromANonOwner(owner, requester, Change(Fdp.Toolkit.Replication.Patching.AttributeIds.HealthCurrent, Fdp.Toolkit.Replication.Patching.AttributeValue.FromDouble(40)), "Set the strength");
+        Assert.Equal(EditStatus.Applied, entry.Status);
+        Assert.Equal(40f, owner.World.GetComponent<Fdp.Toolkit.Combat.Components.Health>(owner.Entity).Current);
+        Assert.Equal(100f, requester.World.GetComponent<Fdp.Toolkit.Combat.Components.Health>(requester.Entity).Current);   // the replica is not written
+        FromANonOwner(owner, requester, Change(Fdp.Toolkit.Replication.Patching.AttributeIds.HealthCurrent, Fdp.Toolkit.Replication.Patching.AttributeValue.FromDouble(500)), "Over the top");
+        Assert.Equal(100f, owner.World.GetComponent<Fdp.Toolkit.Combat.Components.Health>(owner.Entity).Current);   // clamped to Max
+    }
+
+    [Fact]
+    public void D2_PlayableSideAndSlotName_OnANonOwner_AreAppliedByTheOwner()
+    {
+        var (owner, requester) = Pair(new Hrot.Common.Playable { Side = ForceId.Friend, SlotName = new FixedString32("Old") });
+        Assert.Equal(EditStatus.Applied, FromANonOwner(owner, requester, Change(Fdp.Toolkit.Replication.Patching.AttributeIds.PlayableSide, Fdp.Toolkit.Replication.Patching.AttributeValue.FromString("FORCE_OPPOSING")), "Side").Status);
+        Assert.Equal(EditStatus.Applied, FromANonOwner(owner, requester, Change(Fdp.Toolkit.Replication.Patching.AttributeIds.PlayableSlotName, Fdp.Toolkit.Replication.Patching.AttributeValue.FromString("Alpha 1")), "Slot").Status);
+        var p = owner.World.GetComponent<Hrot.Common.Playable>(owner.Entity);
+        Assert.Equal((ForceId.Hostile, "Alpha 1"), (p.Side, p.SlotName.ToString()));
+    }
+
+    [Fact]
+    public void D2_SpawnAreaSideAndFacing_OnANonOwner_AreAppliedByTheOwner()
+    {
+        var (owner, requester) = Pair(new Hrot.Common.SpawnArea { Side = ForceId.Friend, FacingDeg = 0f });
+        Assert.Equal(EditStatus.Applied, FromANonOwner(owner, requester, Change(Fdp.Toolkit.Replication.Patching.AttributeIds.SpawnAreaSide, Fdp.Toolkit.Replication.Patching.AttributeValue.FromInt(2)), "Side").Status);   // the ordinal shape
+        Assert.Equal(EditStatus.Applied, FromANonOwner(owner, requester, Change(Fdp.Toolkit.Replication.Patching.AttributeIds.SpawnAreaFacingDeg, Fdp.Toolkit.Replication.Patching.AttributeValue.FromDouble(135)), "Facing").Status);
+        var a = owner.World.GetComponent<Hrot.Common.SpawnArea>(owner.Entity);
+        Assert.Equal((ForceId.Hostile, 135f), (a.Side, a.FacingDeg));
+    }
+
+    /// <summary>Mount 0 is the unit's own WeaponState; mount 2 is a CHILD entity found by WeaponMountInfo.MountIndex — both reach the owner as ONE attribute with the mount as the sub-index; clamped to MaxAmmo.</summary>
+    [Fact]
+    public void D2_Ammo_OnANonOwner_IsAppliedByTheOwner_OnTheUnitAndOnAMountChild()
+    {
+        var (owner, requester) = Pair(new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 3, MaxAmmo = 30 });
+        if (!owner.World.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponMountInfo>()) owner.World.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponMountInfo>();
+        if (!owner.World.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>()) owner.World.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+        var child = owner.World.CreateEntity();
+        owner.World.AddComponent(child, new Fdp.Toolkit.Combat.Components.WeaponMountInfo { MountIndex = 2 });
+        owner.World.AddComponent(child, new Fdp.Toolkit.Replication.Components.PartMetadata { ParentEntity = owner.Entity });
+        owner.World.AddComponent(child, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 1, MaxAmmo = 10 });
+        owner.World.SetAuthority<Fdp.Toolkit.Combat.Components.WeaponState>(child, true);
+
+        Assert.Equal(EditStatus.Applied, FromANonOwner(owner, requester, Change(Fdp.Toolkit.Replication.Patching.AttributeIds.Ammo, Fdp.Toolkit.Replication.Patching.AttributeValue.FromInt(12), 0), "Mount 0").Status);
+        Assert.Equal(12, owner.World.GetComponent<Fdp.Toolkit.Combat.Components.WeaponState>(owner.Entity).Ammo);
+        Assert.Equal(3, requester.World.GetComponent<Fdp.Toolkit.Combat.Components.WeaponState>(requester.Entity).Ammo);   // the replica is not written
+
+        Assert.Equal(EditStatus.Applied, FromANonOwner(owner, requester, Change(Fdp.Toolkit.Replication.Patching.AttributeIds.Ammo, Fdp.Toolkit.Replication.Patching.AttributeValue.FromInt(7), 2), "Mount 2").Status);
+        Assert.Equal(7, owner.World.GetComponent<Fdp.Toolkit.Combat.Components.WeaponState>(child).Ammo);
+        Assert.Equal(12, owner.World.GetComponent<Fdp.Toolkit.Combat.Components.WeaponState>(owner.Entity).Ammo);          // the unit's own mount is untouched
+
+        FromANonOwner(owner, requester, Change(Fdp.Toolkit.Replication.Patching.AttributeIds.Ammo, Fdp.Toolkit.Replication.Patching.AttributeValue.FromInt(99), 2), "Too many");
+        Assert.Equal(10, owner.World.GetComponent<Fdp.Toolkit.Combat.Components.WeaponState>(child).Ammo);                  // clamped to that mount's MaxAmmo
+
+        Assert.Equal(EditStatus.Refused, FromANonOwner(owner, requester, Change(Fdp.Toolkit.Replication.Patching.AttributeIds.Ammo, Fdp.Toolkit.Replication.Patching.AttributeValue.FromInt(1), 3), "No such mount").Status);
+    }
+
+    [Fact]
+    public void D2_Weather_OnANonOwner_IsAppliedByTheOwner()
+    {
+        var (owner, requester) = Pair(Fdp.Toolkit.Weather.WeatherConditions.Standard);
+        Assert.Equal(EditStatus.Applied, FromANonOwner(owner, requester, Change(Fdp.Toolkit.Replication.Patching.AttributeIds.WeatherVisibilityM, Fdp.Toolkit.Replication.Patching.AttributeValue.FromDouble(4000)), "Visibility").Status);
+        Assert.Equal(EditStatus.Applied, FromANonOwner(owner, requester, Change(Fdp.Toolkit.Replication.Patching.AttributeIds.WeatherPrecipitation, Fdp.Toolkit.Replication.Patching.AttributeValue.FromInt((int)Fdp.Toolkit.Weather.PrecipitationKind.Rain)), "Rain").Status);
+        Assert.Equal(EditStatus.Applied, FromANonOwner(owner, requester, Change(Fdp.Toolkit.Replication.Patching.AttributeIds.WeatherRelativeHumidity, Fdp.Toolkit.Replication.Patching.AttributeValue.FromDouble(7)), "Humidity").Status);
+        var w = owner.World.GetComponent<Fdp.Toolkit.Weather.WeatherConditions>(owner.Entity);
+        Assert.Equal((4000f, (byte)2, 1f), (w.VisibilityM, w.Precipitation, w.RelativeHumidity));   // humidity clamped to 0..1
+        Assert.Equal(20_000f, requester.World.GetComponent<Fdp.Toolkit.Weather.WeatherConditions>(requester.Entity).VisibilityM);   // the replica is not written
+        var wind = Fdp.Toolkit.Weather.WeatherConditions.Standard;   // the all-ten set: each id reaches the right field
+        foreach (var (id, value) in new (ushort, double)[] {
+            (Fdp.Toolkit.Replication.Patching.AttributeIds.WeatherGroundTemperatureC, 3), (Fdp.Toolkit.Replication.Patching.AttributeIds.WeatherLapseRateKPerKm, 5), (Fdp.Toolkit.Replication.Patching.AttributeIds.WeatherSeaLevelPressureHpa, 990),
+            (Fdp.Toolkit.Replication.Patching.AttributeIds.WeatherFogTopM, 250), (Fdp.Toolkit.Replication.Patching.AttributeIds.WeatherFogVisibilityM, 80), (Fdp.Toolkit.Replication.Patching.AttributeIds.WeatherPrecipitationMmPerHour, 6), (Fdp.Toolkit.Replication.Patching.AttributeIds.WeatherFeatherM, 700) })
+            Assert.Equal(EditStatus.Applied, FromANonOwner(owner, requester, Change(id, Fdp.Toolkit.Replication.Patching.AttributeValue.FromDouble(value)), "w" + id).Status);
+        w = owner.World.GetComponent<Fdp.Toolkit.Weather.WeatherConditions>(owner.Entity);
+        Assert.Equal((3f, 5f, 990f, 250f, 80f, 6f, 700f), (w.GroundTemperatureC, w.LapseRateKPerKm, w.SeaLevelPressureHpa, w.FogTopM, w.FogVisibilityM, w.PrecipitationMmPerHour, w.FeatherM));
+    }
+
+    private static (Node Owner, Node Requester) StancePair(StanceId start = StanceId.Standing)
+    {
+        var (owner, requester) = Pair(new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = start, BlendTime = 0.3f });
+        Give(owner, new Hrot.MuscleCharacter.Animation.Components.StanceStatus { CurrentStance = start }, owned: true);
+        return (owner, requester);
+    }
+
+    /// <summary>⭐ Q7 — in a world whose time is NOT advancing (paused / Edit mode) the stance is set at once: intent AND status, acknowledged, so the body shows it and nothing plays.</summary>
+    [Fact]
+    public void D2_Stance_InAPausedWorld_SetsIntentAndStatusAtOnce()
+    {
+        var (owner, requester) = StancePair();
+        Assert.Equal(EditStatus.Applied, FromANonOwner(owner, requester, Change(Fdp.Toolkit.Replication.Patching.AttributeIds.Stance, Fdp.Toolkit.Replication.Patching.AttributeValue.FromInt((int)StanceId.Prone)), "Prone").Status);
+        var intent = owner.World.GetComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(owner.Entity);
+        var status = owner.World.GetComponent<Hrot.MuscleCharacter.Animation.Components.StanceStatus>(owner.Entity);
+        Assert.Equal((StanceId.Prone, StanceId.Prone, intent.Version), (intent.TargetStance, status.CurrentStance, status.AckVersion));
+        Assert.Equal(Hrot.MuscleCharacter.Animation.Components.StanceTransitionPhase.Idle, status.Phase);
+        Assert.Equal(StanceId.Standing, requester.World.GetComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(requester.Entity).TargetStance);   // the replica is not written
+    }
+
+    /// <summary>⭐ Q7 — while time advances it is an ordinary request (intent + new Version, with its blend): the status is left to StanceTransitionSystem.</summary>
+    [Fact]
+    public void D2_Stance_WhileTimeAdvances_IsAnOrdinaryRequest()
+    {
+        var (owner, requester) = StancePair();
+        owner.World.SetSingleton(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1f });
+        Assert.Equal(EditStatus.Applied, FromANonOwner(owner, requester, Change(Fdp.Toolkit.Replication.Patching.AttributeIds.Stance, Fdp.Toolkit.Replication.Patching.AttributeValue.FromString("Crouched")), "Crouch").Status);   // the name shape
+        var intent = owner.World.GetComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(owner.Entity);
+        var status = owner.World.GetComponent<Hrot.MuscleCharacter.Animation.Components.StanceStatus>(owner.Entity);
+        Assert.Equal((StanceId.Crouched, 0.3f, 1u), (intent.TargetStance, intent.BlendTime, intent.Version));
+        Assert.Equal((StanceId.Standing, 0u), (status.CurrentStance, status.AckVersion));   // the transition system will animate it
+    }
+
+    /// <summary>A stance the unit's TYPE does not declare is REFUSED (the owner reports it), and so is a token that is no stance at all.</summary>
+    [Fact]
+    public void D2_Stance_TheTypeDoesNotDeclare_IsRefused()
+    {
+        var (owner, requester) = StancePair();
+        const long Tkb = 777;
+        var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+        var t = new Fdp.Interfaces.TkbTemplate("Mannequin", Tkb);
+        t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CharacterAnimationDefDto
+        {
+            Slots = Array.Empty<Fdp.Toolkit.Tkb.Domain.SlotDefDto>(), Montages = Array.Empty<Fdp.Toolkit.Tkb.Domain.MontageDefDto>(),
+            StanceTransitions = Array.Empty<Fdp.Toolkit.Tkb.Domain.StanceTransitionDto>(), NotifyMarkers = Array.Empty<Fdp.Toolkit.Tkb.Domain.NotifyMarkerDefDto>(),
+            SupportedStances = new[] { StanceId.Standing, StanceId.Crouched },   // no Prone
+        });
+        db.Register(t);
+        owner.World.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+        if (!owner.World.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) owner.World.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        owner.World.AddComponent(owner.Entity, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (TkbTypeId)Tkb });
+
+        Assert.Equal(EditStatus.Refused, FromANonOwner(owner, requester, Change(Fdp.Toolkit.Replication.Patching.AttributeIds.Stance, Fdp.Toolkit.Replication.Patching.AttributeValue.FromInt((int)StanceId.Prone)), "Prone").Status);
+        Assert.Equal(StanceId.Standing, owner.World.GetComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(owner.Entity).TargetStance);
+        Assert.Equal(EditStatus.Refused, FromANonOwner(owner, requester, Change(Fdp.Toolkit.Replication.Patching.AttributeIds.Stance, Fdp.Toolkit.Replication.Patching.AttributeValue.FromInt(9)), "No such stance").Status);
+        Assert.Equal(EditStatus.Applied, FromANonOwner(owner, requester, Change(Fdp.Toolkit.Replication.Patching.AttributeIds.Stance, Fdp.Toolkit.Replication.Patching.AttributeValue.FromInt((int)StanceId.Crouched)), "Crouch").Status);   // a declared one is fine
     }
 }

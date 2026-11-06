@@ -253,6 +253,21 @@ gets a row in this Scenario form when its own design lands.
 | **D5** | the Shape and Crew & cargo forms | ui | a route's leg speed set on a non-owner reaches the owner; a unit put aboard in Edit mode is aboard after save and reload |
 | **D6** | the raw tab fixes | ui | — |
 
+### 4.1 AS-BUILT — D2 *(B-4, `2026-11-06`)*
+
+| attribute (JSON path) | id | component · handler | applies where | notes / deviations |
+|---|---:|---|---|---|
+| `Health.Current` | 50 | `Health` · clamp to [0, `Max`] | the node owning `Health` (`dtEntityDamage`) | replicated |
+| `Playable.Side` · `Playable.SlotName` | 51 · 52 | `Playable` · force token as `Affiliation` (text or ordinal) · `FixedString32` | the owner | ⚠ `Playable` has **no descriptor** (not replicated): vocabulary `BrainLocal`. A form on a non-owner can write it but not READ it back (D3 reads through the owner or the editor's world) |
+| `SpawnArea.Side` · `SpawnArea.FacingDeg` | 53 · 54 | `SpawnArea` | the owner | same: no descriptor, `BrainLocal` |
+| `Ammo.<mount>` (`Ammo.*`) | 55 | `WeaponState.Ammo`, clamped to `MaxAmmo` | the owner of the unit's `WeaponState` | **ONE id, the mount is `SubIndex1`** (JSON `{"Ammo":{"2":5}}`; a numeric path segment is the compiler's wildcard, so four ids were never needed). Mount 0 = the unit; mounts 1–3 = the child found by `WeaponMountInfo.MountIndex` + `PartMetadata.ParentEntity` — the **binary** handler reaches it through `BinaryPatchContext.Repo`; the JSON setter (component-only, and a creation request has no children) writes mount 0 only. No such mount ⇒ Refused. `WeaponState` has no descriptor ⇒ `BrainLocal` (the form reads the replicated `WeaponAmmo` mirror) |
+| `Stance` | 56 | `StanceIntent`: a `StanceId` as number or name | the owner of `StanceIntent` (`dtStanceIntent`) | **paused world** (`GlobalTime.DeltaTime ≤ 0` — the scheduler's own test for `[TickMode(WhenTimeAdvances)]`): intent AND status at once, acknowledged, `Idle` (status only where this node owns it); **time advancing**: `StanceRequest.Set` with the intent's blend. Refused when the type's TKB `CharacterAnimationDefDto.SupportedStances` omits it (a world with no TKB cannot judge ⇒ any defined stance). `StanceIntent` is now **SAVED** (`DataPolicy.Default`); at spawn `NetworkSpawningSystem` seeds `StanceStatus` from a supplied `StanceIntent` (`FormAttributes.SeedStatus`) — no transition. `StanceStatus` stays `NoScenario` |
+| `Weather.GroundTemperatureC` · `LapseRateKPerKm` · `SeaLevelPressureHpa` · `RelativeHumidity` · `VisibilityM` · `FogTopM` · `FogVisibilityM` · `Precipitation` · `PrecipitationMmPerHour` · `FeatherM` | 57–66 | `WeatherConditions` (global weather and a region: one component) | the owner (`dtWeather`) | clamps: humidity 0..1, precipitation kind 0..5, pressure / distances / rates ≥ 0. ⏸ **Not attributes:** the wind levels and cloud layers (lists with counts) — the design decides no list-attribute shape; they stay the raw tab's. `Hrot.Presentation/Weather` has only `ScenarioClockEdit` (already through `Edits.Submit`): **no weather write existed to route**; D4 builds the form on these ids |
+
+⭐ **Shape:** the value logic is `FormAttributes` (clamps, tokens, stance rule), shared by the JSON setters (`AttributeCompilerFactory.Build`) and the binary handlers (`FormAttributeInstaller`). **Moved** into `Fdp.Toolkits` (same namespaces): `Playable`, `SpawnArea` (the vocabulary lives there and `Hrot.Core` sits above it) and `StanceRequest` (the handler calls it).
+⭐ **Rails:** `TheFourRoutingTablesAgreeTests` (data rows + owned components) and `TheDescriptorMapIsWiredTests` (pairings for `Health`, `StanceIntent`, `WeatherConditions`); one non-owner → owner rail per attribute in `EditOutcomeOwnerTests` (`D2_*`); `SpawnSystemTests.Spawn_WithASavedStance_StartsTheBodyInIt` and `…RoundTripsThroughTheScenario…`.
+⛔ **Not here:** CE-4284 (a route's legs to the owner) — D5.
+
 Order: D1 and D2 in parallel → D3 → D4 → D5 → D6. D1 needs edit framework F1 (`Edits.Submit` + `Write`).
 
 ## 5. Questions — ✅ all eight APPROVED (R-4136, user `2026-11-06`: *"Q1-Q8 approved, go on with E15"*)

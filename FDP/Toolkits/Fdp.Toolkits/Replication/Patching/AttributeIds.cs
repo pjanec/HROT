@@ -161,4 +161,58 @@ public static class AttributeIds
 
     /// <summary>⭐ <c>RuleEdit.Origin</c> — who asked (<c>BehaviorOrigin</c> value), for the journal. <c>Int32</c>.</summary>
     public const ushort RuleEditOrigin = 45;
+
+    // ── B-4 / Details forms D2 (docs/UX/DESIGN_Details_Forms.md §4.1) — the fields a form writes. Next free ids after the rules block; 46–49 stay unallocated. ──
+
+    /// <summary>⭐ <c>Health.Current</c> (clamped to [0, <c>Max</c>]). <c>Float64</c>.</summary>
+    public const ushort HealthCurrent = 50;
+
+    /// <summary>⭐ <c>Playable.Side</c> — a force token, the shapes <see cref="Affiliation"/> takes. <c>String</c> (a number is accepted).</summary>
+    public const ushort PlayableSide = 51;
+
+    /// <summary>⭐ <c>Playable.SlotName</c>. <c>String</c>.</summary>
+    public const ushort PlayableSlotName = 52;
+
+    /// <summary>⭐ <c>SpawnArea.Side</c> — a force token, as <see cref="Affiliation"/>. <c>String</c> (a number is accepted).</summary>
+    public const ushort SpawnAreaSide = 53;
+
+    /// <summary>⭐ <c>SpawnArea.FacingDeg</c>. <c>Float64</c>.</summary>
+    public const ushort SpawnAreaFacingDeg = 54;
+
+    /// <summary>⭐ <c>Ammo.&lt;mount&gt;</c> — that mount's <c>WeaponState.Ammo</c> (clamped to its <c>MaxAmmo</c>); the MOUNT index travels as <c>SubIndex1</c>
+    /// (<c>{"Ammo":{"2":5}}</c>): mount 0 is the unit itself, mounts 1–3 its mount children. <c>Int32</c>.</summary>
+    public const ushort Ammo = 55;
+
+    /// <summary>⭐ <c>StanceIntent.TargetStance</c> — a <c>StanceId</c> (0 Standing · 1 Crouched · 2 Prone) as a number or its name. <c>Int32</c>.</summary>
+    public const ushort Stance = 56;
+
+    /// <summary>⭐ <c>WeatherConditions.GroundTemperatureC</c>. <c>Float64</c>.</summary>
+    public const ushort WeatherGroundTemperatureC = 57;
+
+    /// <summary>⭐ <c>WeatherConditions.LapseRateKPerKm</c>. <c>Float64</c>.</summary>
+    public const ushort WeatherLapseRateKPerKm = 58;
+
+    /// <summary>⭐ <c>WeatherConditions.SeaLevelPressureHpa</c>. <c>Float64</c>.</summary>
+    public const ushort WeatherSeaLevelPressureHpa = 59;
+
+    /// <summary>⭐ <c>WeatherConditions.RelativeHumidity</c> (0..1). <c>Float64</c>.</summary>
+    public const ushort WeatherRelativeHumidity = 60;
+
+    /// <summary>⭐ <c>WeatherConditions.VisibilityM</c>. <c>Float64</c>.</summary>
+    public const ushort WeatherVisibilityM = 61;
+
+    /// <summary>⭐ <c>WeatherConditions.FogTopM</c>. <c>Float64</c>.</summary>
+    public const ushort WeatherFogTopM = 62;
+
+    /// <summary>⭐ <c>WeatherConditions.FogVisibilityM</c>. <c>Float64</c>.</summary>
+    public const ushort WeatherFogVisibilityM = 63;
+
+    /// <summary>⭐ <c>WeatherConditions.Precipitation</c> (a <c>PrecipitationKind</c>, 0..5). <c>Int32</c>.</summary>
+    public const ushort WeatherPrecipitation = 64;
+
+    /// <summary>⭐ <c>WeatherConditions.PrecipitationMmPerHour</c>. <c>Float64</c>.</summary>
+    public const ushort WeatherPrecipitationMmPerHour = 65;
+
+    /// <summary>⭐ <c>WeatherConditions.FeatherM</c> (the blend distance at a region's edge). <c>Float64</c>.</summary>
+    public const ushort WeatherFeatherM = 66;
 }
