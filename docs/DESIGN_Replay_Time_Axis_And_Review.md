@@ -5,8 +5,9 @@ updated: 2026-10-30 (§12z — CE-4118: a live recording records the frame's REA
 current-answer: ⭐ §12f–§12j what is built (PW, P0, P1, P3) and P2's stop · §12f PW as built · §11f the answers + §12 the wire · §0 the decision · §3 UML (§3a states, §3b classes, §3c the review's sequence) · §5 decisions · §7 build order · §8 the system changes · §9 the UI · §11 the review's findings (each now folded into a row of §8)
 stale-below: nothing
 known-rot: §11d's D-A lean (wire-silent) is OVERTURNED — §12. §1's claim rows and §2's INVENTORY predate §11 / §12 (the wire and checkpoint rows are in §12c with their file:line). replay-and-modules §2.2 / §2.3 ("IG nodes … do not record and do not replay") are SUPERSEDED — every recording node replays (R-4010) · ⛔ SUPERSEDED 2026-10-28 (R-4095): `BdcReplicationModule` (named beside `NedReplicationModule` as a mixed module) was removed with the BDC stack.
-known-conflict: DESIGN_Director_Timeline_Editor.md TL-4 (time = frame index + wall ticks) and TE-19 (a live host never seeks) — this design ADDS a sim axis and makes a seek on a live host ENTER a review (R10); both stand until the user approves §5
+known-conflict: UX/DESIGN_Replay_Browser_UX.md moves §9c's Replay Browser slider to the main bar (R-4153, `2026-11-06`) · DESIGN_Director_Timeline_Editor.md TL-4 (time = frame index + wall ticks) and TE-19 (a live host never seeks) — this design ADDS a sim axis and makes a seek on a live host ENTER a review (R10); both stand until the user approves §5
 related-designs:
+  - UX/DESIGN_Replay_Browser_UX.md — moves the Replay Browser's seek slider to the MAIN BAR and retires its Replay Timeline window (R-4153); supersedes §9c's "keeps its own … slider"
   - UX/DESIGN_Colour_Icons.md — E16: the mode indicator's coloured glyphs (R-3061, ModeGlyph) are the precedent E16 generalises to every icon
   - DESIGN_Evaluation_Cost_And_Cadence.md — OWNS §5b C7 (CE-2392): a delta writes a changed chunk's used prefix; §12q/§12s's comparison now keeps a full buffer + the length last written
   - DESIGN_Http_Control_Through_The_Cluster_Master.md — OWNS the replay routes and R-3056 (wall axis; the sim form deferred) that §5 R1–R4 extend

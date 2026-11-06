@@ -7,6 +7,7 @@ stale-below: nothing yet
 known-rot: none
 known-conflict: none
 related-designs:
+  - docs/UX/DESIGN_Show_On_Map.md — a map preview (the ⌖) is one more tool the type drives: MapPreviews.For(type)
   - docs/UX/DESIGN_Details_Forms.md — E2: a form row's type picks its editor and unit
   - docs/UX/DESIGN_Editing_UX.md — §0a: the editing-UX review counts on these types to give every field its editor and display by type (user, 2026-11-06)
   - docs/DESIGN_Scenario_Rules.md — §9.8.0 / §9.8.9 / §9.8.10 OWN the first semantic types (WorldPoint, WorldRotation, Bearing, EntityLink / PointLink / AreaLink); this document applies the same pattern elsewhere

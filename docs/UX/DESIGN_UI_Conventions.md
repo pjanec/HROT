@@ -7,6 +7,7 @@ stale-below: none
 known-rot: none
 known-conflict: DESIGN_Colour_Icons.md §4 I1 puts IconGlyph / IconPalette in Fdp.Presentation, which the node-editor pickers cannot reference — Q-C1 moves them to the shared home
 related-designs:
+  - DESIGN_Replay_Browser_UX.md — every Replay Browser window follows these conventions
   - DESIGN_Details_Forms.md — OWNS FormView and the status slot (§6.2); this design takes the LAYOUT half of its row helper (FormGrid) house-wide
   - DESIGN_Colour_Icons.md — OWNS the glyph → colour map and the icon tabs (§3.1); the tree row and the header paint their icon the same way
   - DESIGN_New_Scenario_And_Recipe.md — §2.5 the mockup whose tree the user chose as the model

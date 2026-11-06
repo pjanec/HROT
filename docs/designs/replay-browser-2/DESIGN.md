@@ -8,6 +8,7 @@ known-rot: ⚠ predates UXI-11 (selection unification, ☑ 2026-09-20). ReplayBr
   UNAFFECTED and stays this design's own: it is a HISTORY of selections over a recording, not a store
   of the current one. ⛔ Do not read this file for how the replay browser selects today.
 related-designs:
+  - docs/UX/DESIGN_Replay_Browser_UX.md — the browser's UX review (`2026-11-06`): the main-bar seek bar, the default layout, the Replay Timeline window retired
   - docs/UX/DESIGN_Details_Forms.md — §2.4 OWNS the entity forms shown READ-ONLY in this browser's Details panel (R-4148; the same EntityDetailsBundle, RunState.Replay)
   - docs/DESIGN_Replay_Browser_Debug_Http.md — OWNS this browser's AI debug HTTP surface: every feature mapped to a route (R-4081)
   - docs/DESIGN_Director_Timeline_Editor.md — OWNS the director timeline panel docked in the Replay Browser, ReplayDirectorHost over this design's sandbox, the recording scout on RecordingSearchService's frame loop, and the TKB load (R-4069)

@@ -600,7 +600,9 @@ chat, committed as SVG beside its design. It is the acceptance spec (R-4138 / De
 | Action catalogue (E9) + input (E14) + undo (D1): a context menu (groups, greyed with the reason, shortcuts), the Edit menu's undo / redo | `menus-visual.svg` | ✍ drawn, for review |
 | UI conventions (E17): trees (chevron · icon · label), label-first forms, slate collapsing headers — today vs after; what is not a form row, node editors, the label width | `ui-conventions-visual.svg` · `ui-conventions-details-visual.svg` | ✅ approved (R-4144…R-4147) |
 | Condition editor's Expert view (E5 §8): the struct editor readable — names, kinds as rows, no Bind rows, things by name | `condition-expert-visual.svg` | ✅ approved (R-4149) |
-| Forms in the Replay Browser, read-only (forms §2.4, R-4148): the Recording chip and banner, disabled rows, not recorded, seek tint, copy | `replay-forms-visual.svg` | ✍ drawn, for review (Q-R1…Q-R3) |
+| Forms in the Replay Browser, read-only (forms §2.4, R-4148): grey rows, not recorded, seek tint, copy | `replay-forms-visual.svg` | ✍ Q-R3 ✅ (R-4152), Q-R1 for review |
+| Replay Browser review (DESIGN_Replay_Browser_UX): main-bar seek bar, default layout | `replay-browser-visual.svg` | ✍ drawn, for review (Q-B1…Q-B6) |
+| Show on map (DESIGN_Show_On_Map): the ⌖, preview, pin, row menu, the raw inspector | `show-on-map-visual.svg` | ✍ drawn, for review (Q-M1…Q-M4) |
 
 ### 4.4 Slices — proposed handoffs, once D1–D9 are approved
 

@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - DESIGN_Show_On_Map.md — the struct editor (§8) carries the ⌖ for map-meaning fields
   - DESIGN_UI_Conventions.md — §8's tree rows, label-first fields and slate headers are E17's helpers
   - DESIGN_Details_Forms.md — CE-4285: the struct editor §8 improves is also the forms' expert detail
   - DESIGN_Rule_Editor_UX.md — §2.3 OWNS the top-level shape this details (R-4130: one friendly editor + presets, Expert view, Contexts, PropertyNames)

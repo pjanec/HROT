@@ -7,6 +7,8 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - DESIGN_Replay_Browser_UX.md — the Replay Browser's layout docks Details right
+  - DESIGN_Show_On_Map.md — the ⌖ at the end of every row whose type has a place on the map (read-only rows too)
   - ../designs/replay-browser-2/DESIGN.md — the replay browser; §2.4: it composes this design's EntityDetailsBundle, so the forms show there read-only (R-4148)
   - DESIGN_UI_Conventions.md — takes the LAYOUT half of this design's row helper house-wide (FormGrid, §3); FormView draws its rows through it
   - DESIGN_Initial_State.md — E15 adds the Aboard / Carried by / Carries / Weapon / In hand / Knows about / Damage rows to the Unit form, by the posture rule (Q7)

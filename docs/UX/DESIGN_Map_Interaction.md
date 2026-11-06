@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
 known-conflict: ROUTES1-DESIGN.md §11.1 says right-click COMMITS a route edit — D11 (approved, first iteration) makes right-click the menu and Enter / ✓ the commit; this design follows D11 and ROUTES1 §11.1 stays the spec for everything else (click a segment inserts, Delete removes)
 related-designs:
+  - DESIGN_Show_On_Map.md — the map previews drawn from forms (a local debug-primitive buffer), not edited
   - DESIGN_Editing_UX.md — the programme: §1.5 the inventory, §3.12 the target, D11 / D12 / D16 (approved as a first iteration)
   - UX_Feature_Tool_Model.md — OWNS the tool (ToolDescriptor, ToolController, the modal stack, PushModal, PickerToolHost); this design adds a hint and a toolbar reader to it (its Migration step 5) and leaves Esc to the input design (its step 6)
   - DESIGN_Input_And_Commands.md — OWNS the keys: the map is a dumb terminal, the backend resolves map keys (capturing gizmo → hat → map scope), central Esc
