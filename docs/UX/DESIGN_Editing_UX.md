@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — the programme frame; D2–D9 approved 2026-11-06; D1 (undo) and D10 (one edit framework) each get their own design; every slice E0–E7 starts with its own design reviewed by the user (R-4122)
-updated: 2026-11-06 (§1.5 map interaction and §1.6 context menus inventoried; §3.12–§3.13 targets; D11–D15; slices E8–E9) · 2026-11-06 (§4.3a the user's verdict: D2–D9 approved, D1 and D10 own designs, design-first per slice — R-4122) · 2026-11-06 (§4 gap map, decisions D1–D9 with leans, slices E1–E7) · 2026-11-06 (§0b the user's review of §2–§3: pickers filtered by applicability, condition templates, expert detail kept, scarce confirmations, editing levels per node — R-4121) · 2026-11-06 (§2 prior art, §3 the target UX: layout wireframe, the tab set, modes, actions, the expected basics) · 2026-11-06 (§0a the user's review of §1: raw editor = debugging tool, semantic types, undo in Edit mode only, dedicated forms, the expected basics — R-4120) · 2026-11-06 (first version: the direction, and the inventory of what a user can edit today — coordinator)
+updated: 2026-11-06 (the user's corrections to §1.5: multi-select exists, centre-handle move exists; §1.7 new topics — hats, mission plan editor, unified menus; §3.12 finish / level / airborne aircraft / gizmo look; D11 revised, D16–D18, E10–E11) · 2026-11-06 (§1.5 map interaction and §1.6 context menus inventoried; §3.12–§3.13 targets; D11–D15; slices E8–E9) · 2026-11-06 (§4.3a the user's verdict: D2–D9 approved, D1 and D10 own designs, design-first per slice — R-4122) · 2026-11-06 (§4 gap map, decisions D1–D9 with leans, slices E1–E7) · 2026-11-06 (§0b the user's review of §2–§3: pickers filtered by applicability, condition templates, expert detail kept, scarce confirmations, editing levels per node — R-4121) · 2026-11-06 (§2 prior art, §3 the target UX: layout wireframe, the tab set, modes, actions, the expected basics) · 2026-11-06 (§0a the user's review of §1: raw editor = debugging tool, semantic types, undo in Edit mode only, dedicated forms, the expected basics — R-4120) · 2026-11-06 (first version: the direction, and the inventory of what a user can edit today — coordinator)
 current-answer: §0 the direction (user rulings) · §0a the user's review of §1 · §3 the target UX · §4 the decisions D1–D9 (for approval) and the slices · §1 the inventory (what exists, where it is edited, what is wrong with it; §1.5 map interaction, §1.6 context menus)
 stale-below: nothing
 known-rot: none
@@ -150,17 +150,17 @@ Queries: `search_graph ".*(Tool|Gizmo)$"` (92), `".*(Tool|Pick|Picker|Placement|
 |---|---|---|
 | place an entity | `EntityPlacementGizmo`: click per entity, tool stays armed; right-click / Esc ends; ghost + hint | heading always north; level not choosable in 2-D; no snap. ⭐ The only tool with an on-map hint |
 | draw area, route, zone, spawn area, weather region | `PointSequenceGizmo`: click adds a point, **right-click finishes**, Esc discards | no remove-last-point (Backspace); under the minimum points finish silently cancels; no hint; Fire Line listed but disabled |
-| edit a shape / a route | `VertexEditGizmo`, `RouteWaypointGizmo` + `WaypointEditorPanel` | no move-whole-shape; insert / delete only in a handle's right-click menu; each drag commits at once; ROUTES1 §11.1 (click-on-segment insert, Delete key, right-click commits, Esc cancels) ≠ the code; handles are 2-D only |
+| edit a shape / a route | `VertexEditGizmo`, `RouteWaypointGizmo` + `WaypointEditorPanel` | ✏ **corrected by the user:** the whole shape moves by its centre handle on the map (some shape kinds); insert / delete only in a handle's right-click menu; each drag commits at once; ROUTES1 §11.1 (click-on-segment insert, Delete key, right-click commits, Esc cancels) ≠ the code; handles are 2-D only |
 | an area field "Edit on map" | `AreaShapeGizmo`: Enter / on-map Done commits, right-click / Esc cancels | a third finish convention |
 | pick a point / an entity for a form or order | `FdpLocationPickerGizmo`, `EntityPickerGizmo` through `CanvasMapPickAdapter`; the form shows "[Picking...]" | ⛔ **no cue on the map** (no cursor change, no text); no Cancel in the form; a second pick silently replaces the first; a rejected entity click gives no feedback |
 | pick entities in an area | `ModalBoxSelectionGizmo` — editor only | returns empty, silently, on CGF / IG / SimHost |
-| select | click replaces; rubber band replaces; right-click inside keeps | Shift / Ctrl do nothing (`SelectionInteractionSystem.cs:170` TODO); no cycling through overlapped units |
+| select | click replaces; rubber band replaces; right-click inside keeps | ✏ **corrected by the user:** multi-select EXISTS and is rendered (rubber band) — but **few tools use it**; map Shift / Ctrl clicks are still a TODO (`SelectionInteractionSystem.cs:170`); no cycling through overlapped units |
 | drag, rotate | `EntityDragGizmo` (no CGF registration found), `EntityRotatorGizmo` (single commit, live degrees label) | no snap; rotate ends after one commit, Edit Shape stays armed |
 | delete | Delete key on the whole selection | no confirmation, no undo |
 | active tool | — | no current-tool indicator anywhere; no status-line hints (Tool_Model migration step 5 / UXR-84 open); Esc implemented per gizmo (step 6 open) |
 | undo | `GizmoUndoStack` exists — ⚠ **not wired by `MapInteractionPack`** (only IG creates one, `IgApplication.cs:812`; the director keeps its own, `DirectorTakeSession.cs:38`) | three undo mechanisms (`EditHistory`, `GizmoUndoStack`, the director's) — D1's design must make them one |
 
-**Ranked:** ① no undo for any map edit · ② right-click / Esc / Enter mean different things per tool · ③ a pending pick is invisible on the map · ④ no current-tool display or hints · ⑤ no map multi-select · ⑥ weak shape and route editing · ⑦ no heading / level / snap while placing · ⑧ host differences · ⑨ 3-D gaps (handles, entity picking to re-verify) · ⑩ the shortcut E means two things.
+**Ranked:** ① no undo for any map edit · ② right-click / Esc / Enter mean different things per tool · ③ a pending pick is invisible on the map · ④ no current-tool display or hints · ⑤ multi-select exists but tools rarely use it · ⑥ weak shape and route editing (centre-handle move only on some shapes) · ⑦ no level choice while placing — ⚠ **critical for aircraft: they are created on the ground and crash** (user; likely the CE-4272 A-10C finding) — no heading, no snap · ⑦b the gizmo shapes themselves (the placement ghost is a big sphere) need a 2-D and a 3-D look · ⑧ host differences · ⑨ 3-D gaps (handles, entity picking to re-verify) · ⑩ the shortcut E means two things.
 
 ### 1.6 Context menus — what is offered where, in which mode *(added `2026-11-06`, user: "what to show in context menus for various stuff. Including the context menu on the timeline … what makes sense in what mode")*
 
@@ -184,6 +184,14 @@ Queries: `search_graph ".*ContextMenu.*"` (44, some stale ExCon); `search_code "
 | Add Entity picker row | Copy ID | developer vocabulary |
 
 **Ranked:** ① ⛔ **the map popup shows items that do nothing on this host** — it does not filter by registered handler (`ContextMenuAdapter.cs`), the inspector does (`MapEntityMenuHandler.cs:96`): Rotate, Save as macro, Edit Shape, Delete, Load zone, Measure off the editor · ② edits not gated by mode (Delete, Edit Shape, Rotate, Rename, director keys live in Review; orders live in offline Edit) · ③ no multi-selection menu · ④ Delete / Rename host-gated and worded per host · ⑤ non-unit entities get the unit menu · ⑥ the unit menu is too long · ⑦ "unavailable" shown three ways · ⑧ one action, different words on different surfaces · ⑨ placeholders · ⑩ engine words (Copy ID, Copy to JSON, Inspect…, Pin gizmos); a debug `Console.WriteLine` every frame while the map popup is open (`ContextMenuAdapter.cs:65`); `SharedContextMenuPopulator` has no production caller (ExCon is gone).
+
+### 1.7 Topics the user added after §1.5–§1.6 *(`2026-11-06`)*
+
+| # | topic | the user's words | what it needs |
+|---|---|---|---|
+| ⑧ | **the "hats" a user wears** — RTS command, FPS / possession, instructor, game master, editor, observer — all combined at once | *"the RTS live mode vs FPS stuff etc it is now all combined together (too many "hats" the single user can wear at once) - also desires a review. Was added wildly during development, now desires re-thinking to match some well thought concept."* | its own inventory and design (D17) — ties to the editing levels (D4) |
+| ⑨ | **the mission plan editor** | *"for some users this is the most used tool to define the content of scenario on top of plain placement of entities. Should be practical and nice looking and intuitive. And should work in both edit/live … i think it is very relevant to specify unit-agnostic orders there primarily before specialized behaviors."* | its own design (D18) — today a development / debug UI (`MissionPanel`, §1.1) |
+| ⑦ | **menu building unified and shared** | *"menu building should be unified and shared (it was already one of UX designs) - needs design"* | E9's design EXTENDS the existing ones: AQ26 (action model), `UX_Feature_Entity_Action_Vocabulary.md`, `UX_Feature_Cross_Surface_Actions.md`, `UX_Feature_Menu_Follows_Focus.md`, `designs/gizmos-1/canvas-context-menu-design.md` — ⛔ not a sixth mechanism |
 
 ## 2. Prior art *(2026-11-06)*
 
@@ -385,13 +393,14 @@ the mechanism (a node feature with a config) is the decision.
 
 | convention | rule (every tool, every station, 2-D and 3-D) |
 |---|---|
-| **finish / cancel** | **Enter or double-click = finish**, **Esc = cancel**, **right-click = the context menu** (never finish, never cancel) — one meaning per key everywhere; the drawing tools' "right-click finishes" and the picks' "right-click cancels" go |
+| **finish / cancel** | **Enter = finish** (plus an on-map **✓ Finish** button, as ArcGIS Pro has), **Esc = cancel**, **right-click = the context menu**, which while drawing holds *Finish · Remove last point · Cancel* (ArcGIS Pro's pattern); clicking the first point closes an area. ⛔ **Double-click finish NOT by default** — 📐 ArcGIS Pro offers it but its users report accidental finishes and it has a switch to turn it off ([Esri Community](https://community.esri.com/t5/arcgis-pro-ideas/option-to-turn-off-double-click-to-finish-sketch/idi-p/968865)); QGIS finishes on right-click ([qgis-user](https://lists.osgeo.org/pipermail/qgis-user/2024-December/054999.html)) — conventions differ, so the visible ✓ and Enter are the safe common ground |
 | **while drawing** | Backspace removes the last point; a minimum-points hint; too few points ⇒ the tool says so instead of silently cancelling |
 | **the active tool is visible** | the toolbar shows which tool is armed; a one-line hint follows the cursor or sits in the status line ("click to place · Shift: rotate · Enter: done · Esc: cancel") |
 | **a pending pick is visible on the map** | crosshair cursor, a banner "Pick a point for *Move to*" with a Cancel button, the requesting field highlighted; a second request queues or replaces with a notice; a rejected click flashes the reason |
-| **placing** | heading set by drag-after-click (or Shift + mouse); level picked in 2-D from the levels under the cursor; snap toggles (ground, grid, 15° angles) in the toolbar |
-| **shapes and routes** | move the whole shape by dragging inside it; click a segment to insert a point; Delete removes the selected point; ROUTES1 §11.1's specification is the target (code to follow) |
-| **selection** | Shift adds, Ctrl toggles, Shift-drag adds a band; Alt-click cycles through overlapped units |
+| **placing** | ⭐ **level choice during placement, best in 3-D**, offered only when there are choices under the cursor (ground, roof, a storey) — ⭐⭐ **an aircraft is placed AIRBORNE by default** (a default altitude and speed, editable), never on the ground where it crashes; heading **optional** at placement (Shift + drag) — after a multi-placement the heading is better set as ONE rotate of the multi-selection (rotate each about its own centre, or the group about its centre); snap toggles (ground, grid, 15°) |
+| **gizmo look** | every gizmo (placement ghost, handles, pick cursor, route, area) reviewed for a 2-D look and a 3-D look — ⛔ the placement ghost's big sphere goes; a silhouette or the unit's symbol at its real footprint |
+| **shapes and routes** | the centre handle moves the whole shape on EVERY shape kind (today only some); click a segment to insert a point; Delete removes the selected point; ROUTES1 §11.1's specification is the target (code to follow) |
+| **selection** | multi-select exists — ⭐ every tool that can act on several (rotate, move, delete, change side, give an order) does so; Shift adds, Ctrl toggles, Shift-drag adds a band; Alt-click cycles through overlapped units |
 | **undo** | every map edit is one undo step in Edit mode (D1) |
 | **the same on every station** | a tool that cannot run here is greyed with the reason (R-4119) — not missing, not silently empty |
 
@@ -473,10 +482,13 @@ catalogue answers what to offer. ⛔ An item with no handler on this station is 
 
 | # | decision | ⭐ lean | rejected |
 |---|---|---|---|
-| **D11** | one convention for finish / cancel / menus on the map | Enter / double-click finish, Esc cancel, right-click = menu, everywhere (§3.12); a central Esc → cancel (Tool_Model migration step 6) | keep per-tool conventions — users cannot learn them |
+| **D11** | one convention for finish / cancel / menus on the map | **Enter or the on-map ✓ finish, Esc cancels, right-click = menu (with Finish / Remove last point / Cancel while drawing)**, everywhere (§3.12); a central Esc → cancel (Tool_Model migration step 6) | double-click finish by default — accidental finishes (ArcGIS users) · per-tool conventions — unlearnable |
 | **D12** | how a pending pick shows | crosshair + banner with Cancel + highlighted field; a second request queues | the form-only "[Picking…]" — invisible when scrolled away |
 | **D13** | one action catalogue builds every menu | build AQ26's catalogue (designed, never built) with `Requires` and per-mode availability; map, Outliner, Details and timeline menus all read it; items without a handler here are greyed with the reason | patch the six mechanisms one by one — they would keep drifting |
 | **D14** | what each surface offers per mode | §3.13's table as the starting set, adjusted in E9's design | — |
+| **D16** | level and altitude at placement | choose the level in 3-D when there is a choice; **aircraft placed airborne by default** (altitude + speed in the Unit form); heading optional at placement, group rotate after | ground placement for aircraft — they crash |
+| **D17** | the hats (RTS, FPS / possession, instructor, game master, editor, observer) | ⏸ **own inventory + design first** (E10) — a lean comes with it; ties to D4's editing levels | — |
+| **D18** | the mission plan editor | ⏸ **own design** (E11). Lean to carry into it: a plan is a sequence (with phases) of **unit-agnostic ORDERS** — move, attack, hold, defend, recon, … resolved per unit class (the existing `OrderKind` + `OrderMenu.OfferedFor`, Orders_Params_Entity_Classes) — and a specialised behaviour is the advanced option; drawn on the map (routes, objectives) and listed in the Orders tab; the same in Edit and Live | behaviours first — only a technical author knows them |
 | **D15** | orders in offline Edit | **not offered in Edit** — in Edit a unit's plan is its Orders tab (the mission); map orders are a Live (and Preview) action | offer them in Edit — they act on a world that is not running |
 
 ### 4.3a The user's verdict on §4 *(`2026-11-06`)*
@@ -506,6 +518,8 @@ with my review."* — R-4122.
 | **E6 levels** | backend + ui | D4 | E1 |
 | **E8 map interaction** | ui | D11, D12, §3.12 — design first | E1 |
 | **E9 context menus** | ui | D13–D15, §3.13 — design first (the action catalogue is the core; it is also E1's tab / action `Requires` model) | E1 |
+| **E10 hats** | ui (+ backend) | D17 — inventory + design first | — |
+| **E11 mission plan editor** | ui (+ behaviors for order resolution) | D18 — design first; absorbs E3's Orders tab | E9 |
 | **E7 review** | ui | bookmarks and notes (TE-4) · the Replay Browser windows folded into the layout | — |
 | later, own designs | — | sides and relations · terrain change · crowd-level settings · scenario description / picture capture in the editor · scenario checks editor | — |
 
