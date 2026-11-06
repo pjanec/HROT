@@ -17,7 +17,7 @@ namespace Hrot.Network.NED.Tests;
 
 /// <summary>
 /// ⭐ CE-2380 part 1 (R-2082, 📄 docs/DESIGN_Remote_Edit_Outcome.md §2/§4 A-B) — the OWNER's answer in <see cref="UpdateEntityAttributeRequestSystem"/> and the wire pair
-/// that carries it. ⛔ The existing ack (<c>RequireAck</c>) is untouched: <c>UpdateEntityAttributeCommanderIdTests</c> and the ack tests stay as they were.
+/// that carries it. ⭐ Edit framework F2 (R-4126): the old ack (<c>RequireAck</c> → <c>CreateUpdateDeleteEntityAck</c>) is retired — this is the one answer.
 /// </summary>
 public sealed class EditOutcomeOwnerTests
 {
@@ -31,19 +31,11 @@ public sealed class EditOutcomeOwnerTests
         public void ProcessRequests(Action<UpdateEntityAttributeRequest> processor) { while (_queue.TryDequeue(out var r)) processor(r); }
     }
 
-    private sealed class CountingAckSink : IUpdateEntityAttributeAckSink
-    {
-        public int Acks;
-        public void WriteAck(Guid requestId, int errorCode, NodeId respondingNode, ReadOnlySpan<byte> opaqueData) => Acks++;
-        public void WriteErrorAck(Guid requestId, int errorCode) => Acks++;
-    }
-
     private sealed class Node
     {
         public readonly EntityRepository World = new();
         public readonly Entity Entity;
         public readonly QueuedRequestSource Source = new();
-        public readonly CountingAckSink Acks = new();
         private readonly UpdateEntityAttributeRequestSystem _system;
 
         /// <param name="owns">true = this node owns the entity (primary owner, SimTransform authoritative); false = a bystander.</param>
@@ -64,7 +56,7 @@ public sealed class EditOutcomeOwnerTests
             var map = new NetworkEntityMap();
             map.Register(NetId, Entity);
             Map = map;
-            _system = new UpdateEntityAttributeRequestSystem(Source, Acks, map);
+            _system = new UpdateEntityAttributeRequestSystem(Source, map);
         }
 
         public EditOutcome[] Run(UpdateEntityAttributeRequest req)
@@ -76,8 +68,8 @@ public sealed class EditOutcomeOwnerTests
         }
     }
 
-    private static UpdateEntityAttributeRequest Req(string json, bool wantOutcome, bool requireAck = false)
-        => new() { RequestId = Guid.NewGuid(), EntityId = NetId, AttributePatchJson = json, WantOutcome = wantOutcome, RequireAck = requireAck };
+    private static UpdateEntityAttributeRequest Req(string json, bool wantOutcome)
+        => new() { RequestId = Guid.NewGuid(), EntityId = NetId, AttributePatchJson = json, WantOutcome = wantOutcome };
 
     /// <summary>The owner applies the patch ⇒ it answers Applied under the request's id, in its own log too. ✅ Red-proof: the Applied report removed ⇒ red.</summary>
     [Fact]
@@ -89,7 +81,7 @@ public sealed class EditOutcomeOwnerTests
         var outcomes = owner.Run(req);
 
         var o = Assert.Single(outcomes);
-        Assert.Equal((req.RequestId, NetId, EditStatus.Applied, OwnerNode, false), (o.RequestId, o.NetworkId, o.Status, o.RespondingNode, o.FromNetwork));
+        Assert.Equal((req.RequestId, NetId, EditStatus.Applied, OwnerNode, false), (o.RequestId, o.NetworkId, o.Status, (int)o.RespondingNode, o.FromNetwork));
         Assert.True(EditOutcomeLog.Of(owner.World).TryGet(req.RequestId, out var logged));
         Assert.Equal(EditStatus.Applied, logged.Status);
     }
@@ -117,28 +109,16 @@ public sealed class EditOutcomeOwnerTests
         Assert.Equal(0, EditOutcomeLog.Of(bystander.World).Count);
     }
 
-    /// <summary>No WantOutcome ⇒ no outcome (lean A), whoever owns; and the ack path is unchanged: RequireAck still acks the owner's apply.</summary>
+    /// <summary>No WantOutcome ⇒ no outcome (lean A), whoever owns.</summary>
     [Fact]
-    public void WithoutWantOutcomeNothingIsReported_AndTheAckIsAsBefore()
+    public void WithoutWantOutcomeNothingIsReported()
     {
         var owner = new Node(owns: true, OwnerNode);
 
-        Assert.Empty(owner.Run(Req("{\"Heading\":90}", wantOutcome: false, requireAck: true)));
-        Assert.Equal(1, owner.Acks.Acks);
+        Assert.Empty(owner.Run(Req("{\"Heading\":90}", wantOutcome: false)));
         Assert.Equal(0, EditOutcomeLog.Of(owner.World).Count);
         Assert.Empty(owner.Run(Req("{\"NoSuchAttribute\":1}", wantOutcome: false)));
     }
-
-    /// <summary>An outcome asked for does not change the ack: with both flags the owner sends its ack AND reports the outcome.</summary>
-    [Fact]
-    public void BothFlags_AckAndOutcome()
-    {
-        var owner = new Node(owns: true, OwnerNode);
-        Assert.Single(owner.Run(Req("{\"Heading\":90}", wantOutcome: true, requireAck: true)));
-        Assert.Equal(1, owner.Acks.Acks);
-    }
-
-    // ── the wire pair ──────────────────────────────────────────────────────────
 
     private sealed class CapturingWriter : Hrot.Map.Common.Dds.IDdsWriter<EntityEditOutcome>
     {

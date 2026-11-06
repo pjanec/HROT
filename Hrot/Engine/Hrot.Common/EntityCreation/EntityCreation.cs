@@ -138,7 +138,7 @@ namespace Hrot.Common.EntityCreation
 
         /// <summary>
         /// ⭐⭐⭐ <b>THE AUTHORING AFFORDANCE — ask for an entity to exist.</b> Returns the request id,
-        /// which is what a <c>CreateUpdateDeleteEntityAck</c> is keyed by.
+        /// which is what the answer (<c>EntityEditOutcome</c>, edit framework F2) is keyed by.
         ///
         /// <para>📄 <c>docs/DESIGN_Entity_Authoring_Surface.md</c> §4 (the API), §4b (why ONE method and
         /// not two), §4c (the sequence this sets in motion, including the double ACK).</para>

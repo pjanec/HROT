@@ -101,7 +101,6 @@ namespace Hrot.Map.Common.Replication.Egress
                     EntityId           = cmd.NetworkId,
                     AttributePatchJson = cmd.AttributePatchJson,
                     AttributeRecords   = records,
-                    RequireAck         = false,
                     WantOutcome        = cmd.WantOutcome,
                 };
 

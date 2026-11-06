@@ -501,7 +501,6 @@ namespace Hrot.SimHost.Tests
             public RecordingEgress Egress { get; } = new();
             public IEntityCreationRequestSource RequestSource { get; } = new NoRequests();
             public IEntityDeletionRequestSource DeleteSource  { get; } = new NoRequests();
-            public IEntityAckSink AckSink                     { get; } = new NoAcks();
             public IEntityCreationRequestEgress? RequestEgress => Egress;
             public Fdp.Toolkit.Replication.Abstractions.IOwnershipDistributionStrategy? OwnershipStrategy => null;
             public Fdp.Toolkit.Replication.Patching.JsonAttributeCompiler? JsonCompiler => null;
@@ -512,10 +511,6 @@ namespace Hrot.SimHost.Tests
             {
                 public void ProcessRequests(Action<EntityCreationRequest> handler) { }
                 public void ProcessRequests(Action<EntityDeletionRequest> handler) { }
-            }
-            private sealed class NoAcks : IEntityAckSink
-            {
-                public void WriteAck(Guid requestId, int entityId, EntityOperationStatus status) { }
             }
         }
 

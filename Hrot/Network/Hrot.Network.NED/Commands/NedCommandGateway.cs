@@ -28,7 +28,7 @@ namespace Hrot.Map.Common.Commands
         /// <summary>
         /// Sends a <see cref="CreateEntityRequest"/> and awaits the acknowledgment.
         /// </summary>
-        Task<CreateUpdateDeleteEntityAck> CreateEntityAsync(CreateEntityRequest request, int timeoutMs = 5000);
+        Task<EntityEditOutcome> CreateEntityAsync(CreateEntityRequest request, int timeoutMs = 5000);
 
         /// <summary>
         /// Sends a <see cref="MissionControlRequest"/> and awaits the acknowledgment.
@@ -42,7 +42,7 @@ namespace Hrot.Map.Common.Commands
     /// </summary>
     public class NedCommandGateway : INedCommandGateway, ICommandGateway
     {
-        private readonly DdsCommandClient<CreateEntityRequest, CreateUpdateDeleteEntityAck>    _createEntityClient;
+        private readonly DdsCommandClient<CreateEntityRequest, EntityEditOutcome>    _createEntityClient;
         private readonly DdsCommandClient<MissionControlRequest, MissionControlAck>            _missionControlClient;
         private readonly DdsWriter<UpdateEntityDescriptorRequest>                              _updateWriter;
         private readonly DdsWriter<UpdateEntityAttributeRequest>                               _attributeWriter;
@@ -59,7 +59,7 @@ namespace Hrot.Map.Common.Commands
             _localNodeId = (Fdp.Core.NodeId)(localNodeId);
 
             // Initialize the client for CreateEntityRequest
-            _createEntityClient = new DdsCommandClient<CreateEntityRequest, CreateUpdateDeleteEntityAck>(
+            _createEntityClient = new DdsCommandClient<CreateEntityRequest, EntityEditOutcome>(
                 participant,
                 req => req.RequestId,
                 ack => ack.RequestId
@@ -84,8 +84,9 @@ namespace Hrot.Map.Common.Commands
         /// </summary>
         /// <param name="request">The request data.</param>
         /// <param name="timeoutMs">Timeout in milliseconds.</param>
-        /// <returns>The acknowledgment containing the entity ID or status code.</returns>
-        public async Task<CreateUpdateDeleteEntityAck> CreateEntityAsync(CreateEntityRequest request, int timeoutMs = 5000)
+        /// <returns>⭐ Edit framework F2 — the processing node's FIRST <c>EntityEditOutcome</c> for the request: Pending with the new entity id (accepted), or
+        /// Refused with the reason (an unknown type). ⛔ Was the retired <c>CreateUpdateDeleteEntityAck</c>.</returns>
+        public async Task<EntityEditOutcome> CreateEntityAsync(CreateEntityRequest request, int timeoutMs = 5000)
         {
             // If the caller didn't provide an ID, generate one.
             // Since CreateEntityRequest is a struct, we must ensure we pass the modified version.
@@ -97,9 +98,9 @@ namespace Hrot.Map.Common.Commands
             FdpLog<NedCommandGateway>.Debug("[Node-{0}] Sending CreateEntityRequest ID={1}", _localNodeId, request.RequestId);
 
             var ack = await _createEntityClient.SendAsync(request, timeoutMs);
-            var ackDetails = string.Concat("Entity=", ack.EntityId, " Status=", ack.StatusCode);
+            var ackDetails = string.Concat("Entity=", ack.EntityId, " Status=", ack.Status);
             FdpLog<NedCommandGateway>.Debug(
-                "[Node-{0}] CreateUpdateDeleteEntityAck ID={1} {2}", _localNodeId, ack.RequestId, ackDetails);
+                "[Node-{0}] EntityEditOutcome ID={1} {2}", _localNodeId, ack.RequestId, ackDetails);
             return ack;
         }
 
@@ -186,7 +187,6 @@ namespace Hrot.Map.Common.Commands
                 RequestId          = Guid.NewGuid(),
                 EntityId           = cmd.NetworkId,
                 AttributePatchJson = cmd.AttributePatchJson,
-                RequireAck         = false,
             });
             return Task.CompletedTask;
         }

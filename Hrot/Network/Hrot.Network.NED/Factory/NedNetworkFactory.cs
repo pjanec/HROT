@@ -271,7 +271,6 @@ public sealed class NedNetworkFactory : INetworkFactory
         return new NedCgfEntityLifecycleAdapters(
             requestSource:      new NedEntityCreationRequestSource(_participant),
             deleteSource:       new NedEntityDeletionRequestSource(_participant),
-            ackSink:            new NedEntityAckSink(_participant),
             // D1: the forwarding half. Present on every NED host, so a request addressed elsewhere
             // leaves the node instead of being silently dropped by the Level-1 guard.
             requestEgress:      new NedEntityCreationRequestEgress(_participant),
@@ -376,7 +375,6 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
 
     public IEntityCreationRequestSource       RequestSource     { get; }
     public IEntityDeletionRequestSource       DeleteSource      { get; }
-    public IEntityAckSink                     AckSink           { get; }
     public IEntityCreationRequestEgress?      RequestEgress     { get; }
     public IOwnershipDistributionStrategy?    OwnershipStrategy { get; }
     public JsonAttributeCompiler?             JsonCompiler      { get; }
@@ -387,7 +385,6 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
     public NedCgfEntityLifecycleAdapters(
         IEntityCreationRequestSource    requestSource,
         IEntityDeletionRequestSource    deleteSource,
-        IEntityAckSink                  ackSink,
         IEntityCreationRequestEgress?   requestEgress,
         IOwnershipDistributionStrategy? ownershipStrategy,
         JsonAttributeCompiler?          jsonCompiler,
@@ -397,7 +394,6 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
     {
         RequestSource     = requestSource;
         DeleteSource      = deleteSource;
-        AckSink           = ackSink;
         RequestEgress     = requestEgress;
         OwnershipStrategy = ownershipStrategy;
         JsonCompiler      = jsonCompiler;

@@ -88,24 +88,21 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
     /// <summary>
     /// In-memory ACK sink: records acknowledgements written by
     /// <see cref="CreateEntityRequestSystem"/>.
-    /// Stores records internally as <see cref="CreateUpdateDeleteEntityAck"/> for
-    /// compatibility with existing test assertions.
+    /// Stores records as <see cref="LifecycleAck"/> (⭐ edit framework F2: the DDS <c>CreateUpdateDeleteEntityAck</c> is retired; this is the
+    /// in-memory shape the assertions read, same field names).
     /// </summary>
+    public readonly record struct LifecycleAck(Guid RequestId, int EntityId, int StatusCode);
+
     public sealed class StubAckSink : IEntityAckSink
     {
-        private readonly List<CreateUpdateDeleteEntityAck> _written = new();
+        private readonly List<LifecycleAck> _written = new();
 
-        public IReadOnlyList<CreateUpdateDeleteEntityAck> WrittenAcks => _written;
+        public IReadOnlyList<LifecycleAck> WrittenAcks => _written;
 
         public void WriteAck(Guid requestId, int entityId, EntityOperationStatus status)
-            => _written.Add(new CreateUpdateDeleteEntityAck
-            {
-                RequestId  = requestId,
-                EntityId   = entityId,
-                StatusCode = (int)status,
-            });
+            => _written.Add(new LifecycleAck(requestId, entityId, (int)status));
 
-        public CreateUpdateDeleteEntityAck? TryGetAck(Guid requestId)
+        public LifecycleAck? TryGetAck(Guid requestId)
         {
             foreach (var a in _written)
                 if (a.RequestId == requestId)
@@ -117,7 +114,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         /// Returns the first terminal (non-InProgress) ACK matching <paramref name="requestId"/>,
         /// or <c>null</c> if no such ACK has been written yet.
         /// </summary>
-        public CreateUpdateDeleteEntityAck? TryGetTerminalAck(Guid requestId)
+        public LifecycleAck? TryGetTerminalAck(Guid requestId)
         {
             foreach (var a in _written)
                 if (a.RequestId == requestId && a.StatusCode != (int)EntityOperationStatus.InProgress)
@@ -447,8 +444,8 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         /// </summary>
         /// <param name="tkbType">Entity template type (e.g. <see cref="TkbEntityTypes.Tank_M1Abrams"/>).</param>
         /// <param name="position">Cartesian spawn position (ENU metres from origin).</param>
-        /// <returns>The <see cref="CreateUpdateDeleteEntityAck"/> produced by <see cref="CreateEntityRequestSystem"/>.</returns>
-        public CreateUpdateDeleteEntityAck CreateEntity(long tkbType, Vector2 position = default)
+        /// <returns>The <see cref="LifecycleAck"/> produced by <see cref="CreateEntityRequestSystem"/>.</returns>
+        public LifecycleAck CreateEntity(long tkbType, Vector2 position = default)
         {
             var requestId = Guid.NewGuid();
 

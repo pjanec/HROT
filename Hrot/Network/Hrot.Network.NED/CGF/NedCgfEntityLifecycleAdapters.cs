@@ -129,24 +129,3 @@ public sealed class NedEntityDeletionRequestSource : IEntityDeletionRequestSourc
     public void Dispose() => _reader.Dispose();
 }
 
-/// <summary>
-/// DDS-backed ACK sink for entity lifecycle operations.
-/// Writes <c>CreateUpdateDeleteEntityAck</c> for both creation and deletion ACKs.
-/// </summary>
-public sealed class NedEntityAckSink : IEntityAckSink
-{
-    private readonly DdsWriter<CreateUpdateDeleteEntityAck> _writer;
-
-    public NedEntityAckSink(DdsParticipant participant)
-        => _writer = new DdsWriter<CreateUpdateDeleteEntityAck>(participant);
-
-    public void WriteAck(Guid requestId, int entityId, EntityOperationStatus status)
-        => _writer.Write(new CreateUpdateDeleteEntityAck
-        {
-            RequestId  = requestId,
-            EntityId   = entityId,
-            StatusCode = (int)status,
-        });
-
-    public void Dispose() => _writer.Dispose();
-}

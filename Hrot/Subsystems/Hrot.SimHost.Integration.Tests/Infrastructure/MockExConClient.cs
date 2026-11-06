@@ -18,7 +18,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
     /// Mirrors the ExCon node's interaction pattern:
     /// 1. <see cref="SendCreateRequest"/> → publishes a <see cref="EntityCreationRequest"/>.
     /// 2. <see cref="WaitForAckAsync"/>   → polls the stub ACK sink until the matching
-    ///    <see cref="CreateUpdateDeleteEntityAck"/> with a final status code arrives
+    ///    <see cref="LifecycleAck"/> with a final status code arrives
     ///    (or the timeout elapses).
     /// 3. <see cref="ReadTkbIdentity"/> → inspects the ECS world via the
     ///    <see cref="SimHostInstance"/> to verify spawn metadata is present.
@@ -45,7 +45,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         // ── SimHost → ExCon ─────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Polls the <see cref="StubAckSink"/> until a <see cref="CreateUpdateDeleteEntityAck"/>
+        /// Polls the <see cref="StubAckSink"/> until a <see cref="LifecycleAck"/>
         /// matching <paramref name="requestId"/> with a final status code (Success or error)
         /// arrives or <paramref name="timeoutMs"/> milliseconds have elapsed.
         ///
@@ -54,10 +54,10 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         /// <param name="requestId">The request GUID to match.</param>
         /// <param name="timeoutMs">Maximum wait time in milliseconds (default 3 000 ms).</param>
         /// <returns>
-        /// The final <see cref="CreateUpdateDeleteEntityAck"/> (StatusCode != InProgress),
+        /// The final <see cref="LifecycleAck"/> (StatusCode != InProgress),
         /// or <c>null</c> if the timeout elapses without a matching final ACK.
         /// </returns>
-        public async Task<CreateUpdateDeleteEntityAck?> WaitForAckAsync(Guid requestId, int timeoutMs = 3000)
+        public async Task<LifecycleAck?> WaitForAckAsync(Guid requestId, int timeoutMs = 3000)
         {
             // Each simulated "millisecond" is one tick (1/60 s in sim-time).
             // For deterministic polling we just run ticks and check synchronously.
