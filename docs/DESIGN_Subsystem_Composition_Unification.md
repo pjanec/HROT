@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-⏳ NEW 2026-11-06: §4.1ag (CE-4270) — A HOST IS DATA (HostDescription rows; the fused server its first new row): DESIGN, awaiting the user's approval (decisions D1–D5); no code moves before it.
+⭐ NEW 2026-11-06: §4.1ag (CE-4270) — A HOST IS DATA (HostDescription rows; the fused server its first new row): READY-TO-BUILD, approved (R-3077, D4/D5 amended).
 build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
   ✅✅ NEW 2026-09-04: §4.1m — ROLE-COMPOSITION **B1 IS BUILT** ([SingleInstance] + the scheduler guard +
   SystemComposition.DistinctByType + root ④ fixed). ⛔⛔ READ §4.1m BEFORE QUOTING §4.1j's B1 ROW: the
@@ -6733,7 +6733,7 @@ graph TD
 | **B2** | `EditorNodeBootstrapper`; `EditorSubsystem` calls it; decisions B, C | `EditorSubsystemBootTests`, `TheEditorRunsTheOrchestratorCoreTests`, `EditorCapabilitiesTests` (`ResolvedSet_ProducesTheSameSystemSequences…`), the MVP rail, `TheRunChoiceIsOnEveryHostTests` ✅ **BUILT `2026-10-29`** (as-built: `Hrot.Editor/EditorNodeBootstrapper.cs` — `BuildContext` is the PLAIN builder (offline: no replication, Standalone time, `OrchestratorEventRegistry`, Deterministic start, allocator reset), `TimeRole=Standalone`, `DeduplicateSystemsByType` (new opt-in base input, CE-165), a `TrajectoryPoolProvider` resource (the capability walk's `Needs` check demanded it), the capability plan (both arms), `GetAdditionalModules`=BehaviorDiagnostics, `BuildOrchestration`→`NodeBootstrapper.BuildOrchestration(offline:true, participant:null)` on the builder's ONE slave with `scenarioHandlers` empty + `dryRunIncludesTransient` (new input) + the dump handler, the creation pack/genesis/blueprint events in the pipeline, `PostInitialize` nav providers; host glue = `EditorSubsystem.RegisterHostSystems`. Frame (decision C): `HrotNodeContext.Tick` with the editor's per-frame work in `afterKernel`, then `OrchestratorCore.Tick`; `OrchestrationLogicPack` is no longer registered by the editor. Decision A: the Geographic module and the lifecycle module now come from `BaseModules` (the editor registered neither the builder's ELM nor Geographic before); 5 systems added — Geographic ×2 and the time-sync translators' Cyclone ingress/egress/cleanup (no-ops, no participant); the ScenarioLoadStep now gets the terrain service. `NodeBootstrapper` gained `dryRunIncludesTransient` and `Handlers`. Order pinned by `TheEditorRunsTheOrchestratorCoreTests.CE1446B2_*`) |
 | **B3** | the rail: every ECS host's node is built by a `SharedApplicationBootstrapper` subclass (no inline `HrotNodeBuilder` in a host) | new, in `SharedApplicationBootstrapperTests` ✅ **BUILT `2026-10-30`** (as-built: `SharedApplicationBootstrapperTests.CE1446_EveryEcsHostBuildsItsNodeThroughASharedBootstrapperSubclass_AndNoneInline` — a SOURCE scan (Stride is net8.0-windows): the six hosts (CGF, SimHost, IG, Editor, Traffic, Stride) are named and each entry file calls `.BootstrapNode(` on a `: SharedApplicationBootstrapper` class; no production `.cs` outside `*NodeBootstrapper.cs` / `HrotNodeBuilder.cs` / `HrotNodeBuilderReplicationExtensions.cs` / `SharedApplicationBootstrapper.cs` (comments ignored) contains `new HrotNodeBuilder(` or `BuildReplicatedNode(`; it fails if fewer than 500 production files are scanned or HROT.sln is not found. ⚠ Stride needs NO allow-list entry: its node IS built by `StrideNodeBootstrapper` (`StrideNodeShell.cs:238`); CE-1449 is its hand-built RUN CONTROLS, not a node build) |
 
-## ⭐⭐⭐ §4.1ag — **`CE-4270`: A HOST IS DATA, NOT A CLASS — one bootstrapper fed a `HostDescription`; the FUSED SERVER is its first new description** `build-state: DESIGN` *(stage A, `2026-11-06`, backend — ⏳ awaiting the user's approval; NO code moves before it)*
+## ⭐⭐⭐ §4.1ag — **`CE-4270`: A HOST IS DATA, NOT A CLASS — one bootstrapper fed a `HostDescription`; the FUSED SERVER is its first new description** `build-state: READY-TO-BUILD` *(stage A, `2026-11-06`, backend — ✅ APPROVED by the user `2026-11-06`, R-3077, with D4 and D5 amended)*
 
 🔒 User, `2026-11-06`: *"we should unify and share across all host types to minimize duplication … I do not want to create one extra loader which
 is for the server only"* · *"be careful. This has the potential to break a lot of stuff."* · *"a special host type … combining brain and muscle and
@@ -6827,7 +6827,19 @@ graph TD
 | the Player's view (IG presentation packs) | the IG row's `Presentation` capability set | per-role data already (§4.1t); stays a capability, not a class |
 | the editor's in-process `OrchestratorCore` and frame tail | the editor row (`Network: Offline`) + the §4.1af C tick tail | a one-node cluster by design (R-1043) — measured in §4.1af |
 
-### Decisions — ⏳ for the user (lean per row)
+### Decisions — ✅ RULED `2026-11-06` (R-3077)
+
+🔒 User: *"D1, 2, 3 approved. I hope the traffic will still be possible as a separate host. D4 should be switched to fused server by default and maybe with
+extra parameter, it could run as a multi-node single process host as now … the fused server is what we actually want and need. And the D5, the more we
+unify, including the order, the better."*
+
+| # | ruling |
+|---|---|
+| D1–D3 | ✅ as leaned. ⭐ A separate Traffic host stays possible: the `Traffic` row stays in `HostCatalog`; only the FUSED row runs traffic in its own world |
+| D4 | ✅ **amended: `-m server` IS the fused server by default**; the four-node single process only behind an extra parameter (low priority — *"I don't really see any need"*) |
+| D5 | ✅ **amended: ONE initialisation order for every host.** The order kept is SimHost / CGF / editor's (the creation pack, then the capabilities) — the heavy hosts do not move; IG, Stride and Traffic do. ⚠ This MOVES their S0 goldens: it lands as its own commit, the golden diff reviewed (only ORDER rows may change), after which the goldens are re-captured |
+
+#### ⛔ HISTORY — the questions as put (lean per row)
 
 | # | question | ⭐ lean | rejected |
 |---|---|---|---|
@@ -6844,5 +6856,6 @@ graph TD
 | S0 | ✅ **BUILT `2026-11-06`** — `Hrot.ClusterRunner.Integration.Tests/CompositionSnapshots/TheHostCompositionIsFrozenTests` (editor · Stride node · the cluster nodes SimHost, IG, CGF, Traffic + the `--mode all` roster); goldens `CompositionSnapshots/<host>.json` — modules, systems in phase order (group members nested), translators, capabilities, resource providers, singletons, component types, time role, slave count; nothing run-varying. `HROT_COMPOSITION_CAPTURE=1` re-captures — ⛔ only for a REVIEWED intended change. Red-proved: one extra system in Traffic ⇒ *"[traffic] section 'systems': expected 50 rows, got 51 + …S0MutationSystem"*. Deterministic (two compare runs green). ⚠ Not booted: the orchestrator (not an ECS node — roster only) and the `net8.0-windows` Stride app layer (the net8.0 `StrideNodeBootstrapper` is) |
 | B0 | `HostDescription`, `HostCatalog`, `RoleCapabilityTable`, `SpawningPipeline`, `OrchestrationRecipe` — added, NOT used |
 | B1 → B6 | Traffic → IG → Stride → SimHost → CGF → editor: each row replaces its subclass's hooks (S2: one host per commit) |
-| B7 | `HostCatalog.FusedServer` + `-m server-fused` (D4); ③'s cycle on it |
+| B6½ | ⭐ D5 — the ONE order (its own commit; the IG / Stride / Traffic golden diff reviewed: order rows only; then re-captured) |
+| B7 | `HostCatalog.FusedServer` as **`-m server`** (D4, R-3077); the multi-node process behind an extra parameter; ③'s cycle on it |
 | B8 | delete the subclasses (S5: each merged once on its row first) |
