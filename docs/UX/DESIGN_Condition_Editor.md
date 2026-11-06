@@ -262,3 +262,10 @@ parsers or humanizers. Only if the display name is not explicitly defined by C# 
 | **the glyph** is an attribute too — `[EditIcon("<key>")]`, a key into Colour Icons' ONE key → (glyph, colour) table | ⛔ never a colour in the attribute — the palette stays one table |
 | **cached per member**, built once | 0 B per frame (R-2084) |
 | **who reads it**: the struct editor (field labels, enum combos, the kind picker), the friendly view's `FactCatalogue`, the sentence renderer, every form row's label | ⭐ one name per thing, everywhere |
+
+⭐ **AS BUILT — U-6** *(ui, `2026-11-06`)*: `StructEdit.Core/Attributes/DisplayNames.cs` — `Of(MemberInfo)` · `Of(Enum)` · `UnitOf` · `IconOf` ·
+`Humanize`; `[EditDisplayName]` widened to class / struct / enum; `[EditIcon(key)]` new; cached per member (rail
+`StructEdit.Tests/Foundation/DisplayNamesTests`, 0 B after the first ask). Folded: `EntityRoleLine.Words` now calls `DisplayNames.Humanize`.
+⚠ **Deviation:** `AiPrimitiveNaming.DisplayNameFromTickCoreFqn` is NOT folded — it is not a humanizer but the recovery of a blueprint's
+AUTHORED name from its generated type (`MoveTo_Bp_1a2b3c4d` → `MoveTo`); humanizing it would rename authored assets. The readers (the struct
+editor's labels, combos, kind picker) switch to `DisplayNames` in U-7.
