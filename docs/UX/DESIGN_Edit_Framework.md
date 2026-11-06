@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — top-level, for the user's review (R-4122); the building lanes detail it (R-4123)
+build-state: DESIGN — top-level; ✅ §5 Q1–Q6 APPROVED by the user 2026-11-06 (in their revised form; R-4128); the building lanes detail it (R-4123)
 updated: 2026-11-06 (§2.5 revised: refusals as sticky non-modal notifications, not the Messages panel; a generic field-mark hook, StructEdit stays network-free — R-4127) · 2026-11-06 (§2.5 outcome on forms through the shared field row; Q3 narrowed) · 2026-11-06 (Q1 and Q2 revised: orders answer acceptance only; interactions send the generic outcome with a request id) · 2026-11-06 (§2.4 the old acknowledgement merged into EntityEditOutcome — R-4126) · 2026-11-06 (first version — coordinator; editing-UX design queue item 2: E0 / D10)
 current-answer: §2 the model (diagrams) · §3 each kind of edit, today → in the framework · §4 stages · §5 questions with leans
 stale-below: nothing
@@ -218,7 +218,7 @@ is read. A sticky, non-modal notification is the established middle (VS Code, Un
 | **F6** | `Commit` with `Conflict` (fixes CE-4277); the Force Commit modal goes | two stations editing one plan |
 | **F7** | Messages + field marks read the journal | — |
 
-## 5. Questions — leans for the user
+## 5. Questions — ✅ APPROVED as revised *(🔒 user, `2026-11-06`: "approved")*
 
 | # | question | ⭐ lean | rejected |
 |---|---|---|---|

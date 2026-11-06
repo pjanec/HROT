@@ -530,7 +530,7 @@ this chat"* — R-4123.
 | order | design | why this order |
 |---|---|---|
 | 1 | **E9 + E1 core — the action catalogue and the tab / action `Requires` + mode model** — ✅ [DESIGN_Action_Catalogue.md](DESIGN_Action_Catalogue.md), Q1–Q5 approved (R-4125) | every menu, tab, tool and the editing levels read it |
-| 2 | **E0 — one edit framework across nodes** (extending DESIGN_Remote_Edit_Outcome) — ✍ written 2026-11-06: [DESIGN_Edit_Framework.md](DESIGN_Edit_Framework.md), for review | every edit, Messages, and undo read it |
+| 2 | **E0 — one edit framework across nodes** (extending DESIGN_Remote_Edit_Outcome) — ✅ [DESIGN_Edit_Framework.md](DESIGN_Edit_Framework.md), Q1–Q6 approved as revised (R-4128) | every edit, Messages, and undo read it |
 | 3 | **E11 — the mission plan editor** | the user's "most used tool" |
 | 4 | **E10 — the hats** (RTS, FPS / possession, instructor, game master, editor, observer) with D4's editing levels | decides what one person at one station sees |
 | 5 | **D1 — undo in Edit mode** (unifying `EditHistory`, `GizmoUndoStack`, the director's stack) | needs E0 |
