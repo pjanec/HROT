@@ -27,7 +27,7 @@ namespace Hrot.CGF;
 /// the host's previous hand-written block exactly. A source rail pins that the root no longer builds
 /// the groups from the pack directly.</para>
 /// </remarks>
-internal static class CgfCapabilities
+public static class CgfCapabilities
 {
     /// <summary>
     /// The Brain tier: mission control, cognitive runtime, action dispatch and the Brain-side
@@ -48,11 +48,11 @@ internal static class CgfCapabilities
     /// capability a declaration of WHAT the Brain contributes rather than a second place that decides
     /// HOW the pack is built.</para>
     /// </remarks>
-    internal sealed class Brain : INodeCapability
+    public sealed class Brain : INodeCapability
     {
         private readonly CgfLogicPack _logicPack;
 
-        internal Brain(CgfLogicPack logicPack)
+        public Brain(CgfLogicPack logicPack)
         {
             _logicPack = logicPack ?? throw new ArgumentNullException(nameof(logicPack));
         }

@@ -4,7 +4,7 @@ using Fdp.Core;
 namespace Hrot.Editor;
 
 /// <summary>
-/// The role the editor declares. Its capabilities come from the ONE role table, <see cref="Hrot.CGF.RoleCapabilityTable"/>.
+/// The role the editor declares. Its capabilities come from the ONE role table, <see cref="Hrot.SimHost.RoleCapabilityTable"/>.
 /// </summary>
 /// <remarks>
 /// ⭐⭐⭐ <c>CE-4270</c> B9 (<c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §4.1ag, R-3077). Until B9 this class held the editor's own copy of the role

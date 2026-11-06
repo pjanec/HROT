@@ -109,8 +109,8 @@ namespace Hrot.SimHost.Tests
         /// <summary>⭐ CE-4270 — the ONE shared spawning step (where the pack is built and scheduled for every host that calls it).</summary>
         internal const string HostSpawningFile = "Hrot/Engine/Hrot.EcsNode/Hosting/HostSpawning.cs";
 
-        /// <summary>⭐ CE-4270 B9 — the ONE role table (CGF, the fused server and the editor resolve their declared role against it).</summary>
-        internal const string RoleTableFile = "Hrot/Subsystems/Hrot.CGF/RoleCapabilityTable.cs";
+        /// <summary>⭐ CE-4270 B9 — the ONE role table (SimHost, CGF, the fused server and the editor resolve their declared role against it).</summary>
+        internal const string RoleTableFile = "Hrot/Subsystems/Hrot.SimHost/RoleCapabilityTable.cs";
 
         /// <summary>The node bootstrappers a composition root may hand its node build to (type → file).</summary>
         private static readonly (string Type, string File)[] Delegates =

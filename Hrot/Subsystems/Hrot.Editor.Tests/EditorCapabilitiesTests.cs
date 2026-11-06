@@ -80,11 +80,11 @@ public class EditorCapabilitiesTests : IDisposable
 
     /// <summary>⭐ CE-4270 B9 — the editor's default row of the ONE role table: the fused set, traffic served, no gameplay server.</summary>
     private NodeCompositionPlan Default(CgfLogicPack cgf, MuscleRoleInputs.Parts muscle)
-        => RoleCapabilityTable.Plan(new RoleTableInputs { Brain = cgf, Muscle = muscle, TrajectoryPool = _pool, Traffic = Traffic() });
+        => RoleCapabilityTable.Plan(new RoleTableInputs { Brain = new CgfCapabilities.Brain(cgf), Muscle = muscle, TrajectoryPool = _pool, Traffic = Traffic() });
 
     /// <summary>⭐ CE-4270 B9 — the editor's injected row (Stride's mode 1): the supplied tier in the Muscle's slot, no traffic.</summary>
     private static NodeCompositionPlan Injected(CgfLogicPack cgf, IReadOnlyList<INodeCapability> injected)
-        => RoleCapabilityTable.Plan(new RoleTableInputs { Brain = cgf, InjectedMuscle = injected });
+        => RoleCapabilityTable.Plan(new RoleTableInputs { Brain = new CgfCapabilities.Brain(cgf), InjectedMuscle = injected });
 
     private void Track(object o)
     {
@@ -387,8 +387,8 @@ public class EditorCapabilitiesTests : IDisposable
         var (cgf, muscle) = BuildPacks(world);
 
         Assert.Throws<ArgumentException>(() => RoleCapabilityTable.Plan(new RoleTableInputs
-            { Brain = cgf, Muscle = muscle, TrajectoryPool = _pool, InjectedMuscle = Array.Empty<INodeCapability>() }));
-        Assert.Throws<ArgumentException>(() => RoleCapabilityTable.Plan(new RoleTableInputs { Brain = cgf, Muscle = muscle }));
+            { Brain = new CgfCapabilities.Brain(cgf), Muscle = muscle, TrajectoryPool = _pool, InjectedMuscle = Array.Empty<INodeCapability>() }));
+        Assert.Throws<ArgumentException>(() => RoleCapabilityTable.Plan(new RoleTableInputs { Brain = new CgfCapabilities.Brain(cgf), Muscle = muscle }));
     }
 
     /// <summary>
@@ -406,5 +406,27 @@ public class EditorCapabilitiesTests : IDisposable
         var fusedKeys  = Default(cgf, muscle).Resolve(fused).Select(c => c.Key).ToList();
         Assert.Equal(fusedKeys, editorKeys);
         Assert.DoesNotContain(CapabilityKeys.Perception + ":eqs", editorKeys);   // the editor's own EQS wrapper is gone; SimHost's solver serves it
+    }
+
+    /// <summary>
+    /// ⭐ CE-4270 B10 — SimHost's row of the ONE table (no brain): the head, the Muscle entries, the cross-role infrastructure keyed by the MuscleGround,
+    /// the report inbox (CE-2301: a node with no brain logs every report), the body and traffic — and no Brain. ⛔ The cross-role entries keyed by the
+    /// Brain on a brainless row would resolve to nothing (Resolve keeps an entry only when the declared role contains its key).
+    /// </summary>
+    [Fact]
+    public void CE4270_TheSimHostRow_IsTheMuscleWithTheInbox_AndNoBrain()
+    {
+        using var world = new EntityRepository();
+        var (_, muscle) = BuildPacks(world);
+        const NodeRole simHost = NodeRole.MuscleGround | NodeRole.Perception | NodeRole.NavigationSolver;
+
+        var mirror = Hrot.Traffic.TrafficPack.Mirroring(); Track(mirror);
+        var keys = RoleCapabilityTable.Plan(new RoleTableInputs { Muscle = muscle, TrajectoryPool = _pool, Traffic = mirror })
+                                      .Resolve(simHost).Select(c => c.Key).ToList();
+
+        Assert.Equal(new[] { CapabilityKeys.HealthApplication, CapabilityKeys.MuscleGround, CapabilityKeys.Perception, CapabilityKeys.NavigationSolver,
+                             CapabilityKeys.UnitHierarchy, CapabilityKeys.EqsResultUpdate, CapabilityKeys.Interactions, CapabilityKeys.ReportInbox,
+                             CapabilityKeys.AnimationMuscle, CapabilityKeys.TrafficMirror }, keys);
+        Assert.Throws<ArgumentException>(() => RoleCapabilityTable.Plan(new RoleTableInputs()));   // neither a brain nor a muscle
     }
 }

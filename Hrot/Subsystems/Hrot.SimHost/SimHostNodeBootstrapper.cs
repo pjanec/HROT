@@ -274,22 +274,14 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         // ⭐ W6 — the SOLVER shares the navmesh, the pool and (once orchestration built it) the road holder (inside MuscleRoleInputs.Build).
         _navModule = muscle.NavigationModule;
 
-        // ⭐⭐ CE-2144 (R-2008) — the ONE shared plan head (HealthApplication first): damage owned here is applied here.
-        var plan = Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.LiveSimulationPlan(NodeRole.MuscleGround)
-            .WithSolverEntries(muscle, TrajectoryPool)   // ⭐ CE-4270 B7b — the provider + MuscleGround · Perception · NavigationSolver, from the ONE Muscle-role step
-            // ⭐ CE-221 — cross-role infrastructure, declared LAST so it keeps its tail-of-Simulation
-            //    position. Declared once per plan; Resolve de-duplicates by Key, which is what makes
-            //    a Brain+Muscle node register it ONCE instead of twice.
-            .Capability(NodeRole.MuscleGround,     new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy())
-            .Capability(NodeRole.MuscleGround,     new Hrot.SimHost.EqsResultUpdateCapability())
-            // ⭐ CE-3110 (R-221/R-224) — interactions (doors, embarkation) are cross-role too: any node that can own a live entity can own a door, a vehicle or a passenger.
-            .Capability(NodeRole.MuscleGround,     new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Interactions())
-            // ⭐ CE-2301 ① (R-2058) — no brain here, so the report inbox comes as a capability: this node logs every report it sees.
-            .Capability(NodeRole.MuscleGround,     new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.ReportInbox())
-            // ⭐ CE-2121 — the character body (stance) over the fake animation backend; module-only, appended last.
-            .Capability(NodeRole.MuscleGround,     new Hrot.SimHost.AnimationMuscleCapability())
-            // ⭐ AQ93 §12 N6 (R-4056) — SUMO cars mirrored, so rounds, sensors and avoidance see them; idle without a net.
-            .Capability(NodeRole.MuscleGround,     Hrot.Traffic.TrafficPack.Mirroring());
+        // ⭐⭐⭐ CE-4270 B10 (§4.1ag, R-3077): the ONE role table, the same one CGF, the fused server and the editor resolve. SimHost's row: the Muscle, no brain
+        //   (so the report inbox comes as a capability, CE-2301), SUMO cars mirrored (AQ93 §12 N6, R-4056: rounds, sensors and avoidance see them; idle without a net).
+        var plan = RoleCapabilityTable.Plan(new RoleTableInputs
+        {
+            Muscle         = muscle,
+            TrajectoryPool = TrajectoryPool,
+            Traffic        = Hrot.Traffic.TrafficPack.Mirroring(),
+        });
 
         // ⭐⭐⭐ B4b step 3 — THE NODE COMPOSES BY ITS DECLARED ROLE, not by a hard-coded constant.
         //

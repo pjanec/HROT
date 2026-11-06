@@ -278,9 +278,9 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
 
         // ⭐⭐⭐ CE-4270 B9 (§4.1ag, R-3077): the ONE role table, the same one CGF and the fused server resolve. The editor's row is the fused set with the network
         //   off and no gameplay server (it serves no players). The injected arm (Stride's mode 1) puts the supplied tier in the Muscle's slot.
-        var plan = Hrot.CGF.RoleCapabilityTable.Plan(new Hrot.CGF.RoleTableInputs
+        var plan = Hrot.SimHost.RoleCapabilityTable.Plan(new Hrot.SimHost.RoleTableInputs
         {
-            Brain          = cgfLogicPack,
+            Brain          = new Hrot.CGF.CgfCapabilities.Brain(cgfLogicPack),
             Muscle         = muscle,
             TrajectoryPool = muscle != null ? _trajectoryPool : null,
             InjectedMuscle = injectedMuscleCapabilities,

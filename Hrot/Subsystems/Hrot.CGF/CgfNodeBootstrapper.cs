@@ -174,9 +174,9 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
 
         // ⭐⭐⭐ CE-4270 B7a / B9 (§4.1ag, R-3077): the ONE role table (RoleCapabilityTable) resolved for the DECLARED role (`role`, what the subsystem handed
         //   BootstrapNode), never a constant. Booted as the Brain, this is exactly CGF's set as before (S0 cgf.json identical).
-        var plan = RoleCapabilityTable.Plan(new RoleTableInputs
+        var plan = Hrot.SimHost.RoleCapabilityTable.Plan(new Hrot.SimHost.RoleTableInputs
         {
-            Brain          = cgfLogicPack,
+            Brain          = new CgfCapabilities.Brain(cgfLogicPack),
             Muscle         = Muscle,
             TrajectoryPool = Muscle != null ? TrajectoryPool : null,
             // ⭐ AQ93 §12 N6 (R-4056): a Brain mirrors every traffic node's cars. ⭐ CE-4270 D3: the fused server (Brain + Muscle in one world) SERVES them itself, as the editor does.
