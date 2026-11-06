@@ -45,6 +45,15 @@ public static class IconTab
     /// <summary>Begins a tab. Returns true when it is the selected one — draw its body, then <c>ImGui.EndTabItem()</c>.
     /// <paramref name="icon"/> may be null (a plain tab). <paramref name="id"/> is the caller's constant id; <paramref name="flags"/> e.g. <c>SetSelected</c>.</summary>
     public static unsafe bool Begin(string id, string label, IconGlyph? icon, ImGuiTabItemFlags flags = ImGuiTabItemFlags.None)
+        => BeginCore(id, label, icon, flags, null);
+
+    /// <summary>The same tab WITH a close box (a document tab): <paramref name="open"/> turns false when the box is clicked.</summary>
+    public static unsafe bool Begin(string id, string label, IconGlyph? icon, ImGuiTabItemFlags flags, ref bool open)
+    {
+        fixed (bool* p = &open) return BeginCore(id, label, icon, flags, p);
+    }
+
+    private static unsafe bool BeginCore(string id, string label, IconGlyph? icon, ImGuiTabItemFlags flags, bool* pOpen)
     {
         float reserve = 0f; int spaces = 0;
         if (icon is { } ic)
@@ -63,7 +72,7 @@ public static class IconTab
         buf[n] = 0;
 
         bool selected;
-        fixed (byte* p = buf) selected = ImGuiNative.igBeginTabItem(p, null, flags) != 0;
+        fixed (byte* p = buf) selected = ImGuiNative.igBeginTabItem(p, (byte*)pOpen, flags) != 0;
 
         if (icon is { } g)
         {

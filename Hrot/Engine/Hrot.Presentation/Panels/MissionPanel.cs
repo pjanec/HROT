@@ -163,19 +163,21 @@ public sealed class MissionPanel
     // ── Task icon helper (public for testability) ─────────────────────────────
 
     /// <summary>
-    /// Returns a single Unicode glyph that visually represents the task state.
+    /// ⭐ U-3 (Colour Icons §3) — the task-state icon, glyph AND colour, from the ONE icon map (<c>task/*</c>): running blue play · done green check · failed red cross · skipped grey step · otherwise grey stop.
     /// </summary>
-    public static string GetTaskIcon(MissionTask task, bool isActive)
-    {
-        if (isActive) return "▶";
+    public static NodeEditor.Core.Widgets.IconGlyph GetTaskIcon(MissionTask task, bool isActive)
+        => NodeEditor.Core.Widgets.Icons.Get(GetTaskIconKey(task, isActive));
 
+    /// <summary>The <c>Icons</c> key of the task's state icon.</summary>
+    public static string GetTaskIconKey(MissionTask task, bool isActive)
+    {
+        if (isActive) return "task/running";
         return task.State switch
         {
-            eTaskState.TASK_DONE    => "✓",
-            eTaskState.TASK_FAILED  => "✗",
-            // CE-1063: no font carries ⏭ / ⏹ (not Roboto, not the DejaVu symbol fallback) — Font Awesome's, merged into the UI face.
-            eTaskState.TASK_SKIPPED => Fdp.Presentation.Fonts.IconsFontAwesome6.ForwardStep,
-            _                       => Fdp.Presentation.Fonts.IconsFontAwesome6.Stop
+            eTaskState.TASK_DONE    => "task/done",
+            eTaskState.TASK_FAILED  => "task/failed",
+            eTaskState.TASK_SKIPPED => "task/skipped",
+            _                       => "task/stopped",
         };
     }
 
@@ -493,7 +495,10 @@ public sealed class MissionPanel
                 var task   = planToShow.Tasks[i];
                 bool active = task.TaskId == planToShow.ActiveTaskId;
 
-                ImGui.Text($"{GetTaskIcon(task, active)} {i + 1}.");
+                var taskIcon = GetTaskIcon(task, active);
+                ImGui.TextColored(taskIcon.Color, taskIcon.Glyph);   // ⭐ U-3: the glyph in its own colour, the number stays text
+                ImGui.SameLine();
+                ImGui.Text($"{i + 1}.");
                 ImGui.SameLine();
 
                 var behaviorLabel = string.IsNullOrEmpty(task.BehaviorId)

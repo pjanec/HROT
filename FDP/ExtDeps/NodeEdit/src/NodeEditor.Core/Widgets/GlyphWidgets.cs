@@ -28,12 +28,15 @@ public static class GlyphWidgets
     public static bool GlyphToggle(string id, in IconGlyph icon, bool selected, string? tooltip = null)
         => Draw(id, icon, selected, isToggle: true, tooltip);
 
+    /// <summary>The width a glyph button / toggle of this icon takes (for a caller that right-aligns a row of them).</summary>
+    public static float WidthOf(in IconGlyph icon) => MathF.Max(ImGui.GetFrameHeight(), ImGui.CalcTextSize(icon.Glyph).X + ImGui.GetStyle().FramePadding.X * 2f);
+
     private static bool Draw(string id, in IconGlyph icon, bool selected, bool isToggle, string? tooltip)
     {
         var style = ImGui.GetStyle();
         float glyphW = ImGui.CalcTextSize(icon.Glyph).X;
         float h = ImGui.GetFrameHeight();
-        var size = new Vector2(MathF.Max(h, glyphW + style.FramePadding.X * 2f), h);
+        var size = new Vector2(WidthOf(icon), h);
         var pos = ImGui.GetCursorScreenPos();
 
         bool clicked = ImGui.InvisibleButton(id, size);

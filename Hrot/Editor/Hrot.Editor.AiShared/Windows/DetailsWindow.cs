@@ -679,7 +679,7 @@ public sealed class DetailsWindow
             foreach (var d in frame.Choice.Offered)
             {
                 var flags = push && ReferenceEquals(d, chosen) ? ImGuiNET.ImGuiTabItemFlags.SetSelected : ImGuiNET.ImGuiTabItemFlags.None;
-                if (NodeEditor.Core.Widgets.IconTab.Begin(d.Id, d.Title, null, flags))   // ⭐ U-2/CE-4286: the ONE no-close-box tab (icons per the Details forms design, later)
+                if (NodeEditor.Core.Widgets.IconTab.Begin(d.Id, d.Title, TabIconOf(d.Title), flags))   // ⭐ U-2/CE-4286: the ONE no-close-box tab (icons per the Details forms design, later)
                 {
                     shown = d;
                     ImGuiNET.ImGui.EndTabItem();
@@ -692,22 +692,22 @@ public sealed class DetailsWindow
         //   the layout switch, then float and pin of the shown tab's view. ⚠ Many wide tabs can run under them — four views fit.
         var target = shown ?? chosen;
         var after = ImGuiNET.ImGui.GetCursorScreenPos();
-        var labels = new System.Collections.Generic.List<string> { Fdp.Presentation.Fonts.IconsFontAwesome6.LayerGroup };
+        // ⭐ U-3 (Colour Icons §3) — coloured glyph buttons on the neutral background, through the ONE icon map
+        var layoutIcon = NodeEditor.Core.Widgets.Icons.Get("details/layout-stacked");
+        var floatIcon = NodeEditor.Core.Widgets.Icons.Get("details/float");
+        var pinIcon = NodeEditor.Core.Widgets.Icons.Get("details/pin");
         bool floatPin = ShowsFloatAndPin && _windowManager is not null;
-        if (floatPin) { labels.Add(Fdp.Presentation.Fonts.IconsFontAwesome6.UpRightFromSquare); labels.Add(Fdp.Presentation.Fonts.IconsFontAwesome6.Thumbtack); }
-        float pad = ImGuiNET.ImGui.GetStyle().FramePadding.X * 2f, spacing = ImGuiNET.ImGui.GetStyle().ItemSpacing.X;
-        float width = labels.Sum(l => ImGuiNET.ImGui.CalcTextSize(l).X + pad) + spacing * (labels.Count - 1);
+        float spacing = ImGuiNET.ImGui.GetStyle().ItemSpacing.X;
+        float width = NodeEditor.Core.Widgets.GlyphWidgets.WidthOf(layoutIcon)
+                      + (floatPin ? NodeEditor.Core.Widgets.GlyphWidgets.WidthOf(floatIcon) + NodeEditor.Core.Widgets.GlyphWidgets.WidthOf(pinIcon) + spacing * 2f : 0f);
         ImGuiNET.ImGui.SetCursorScreenPos(new System.Numerics.Vector2(barLeft + barWidth - width, barTop));
-        if (ImGuiNET.ImGui.SmallButton($"{Fdp.Presentation.Fonts.IconsFontAwesome6.LayerGroup}##{Id}_layout")) Layout = DetailsLayout.Stacked;
-        Tooltip("Show the views stacked, each in its own header");
+        if (NodeEditor.Core.Widgets.GlyphWidgets.GlyphButton($"##{Id}_layout", layoutIcon, "Show the views stacked, each in its own header")) Layout = DetailsLayout.Stacked;
         if (floatPin && _windowManager is { } wm)
         {
             ImGuiNET.ImGui.SameLine();
-            if (ImGuiNET.ImGui.SmallButton($"{Fdp.Presentation.Fonts.IconsFontAwesome6.UpRightFromSquare}##{Id}_float")) OpenFloat(wm, target);
-            Tooltip($"Float {target.Title} in its own window (follows the selection)");
+            if (NodeEditor.Core.Widgets.GlyphWidgets.GlyphButton($"##{Id}_float", floatIcon, $"Float {target.Title} in its own window (follows the selection)")) OpenFloat(wm, target);
             ImGuiNET.ImGui.SameLine();
-            if (ImGuiNET.ImGui.SmallButton($"{Fdp.Presentation.Fonts.IconsFontAwesome6.Thumbtack}##{Id}_pin")) Pin(wm, target);
-            Tooltip($"Pin {target.Title} at this selection");
+            if (NodeEditor.Core.Widgets.GlyphWidgets.GlyphButton($"##{Id}_pin", pinIcon, $"Pin {target.Title} at this selection")) Pin(wm, target);
         }
         ImGuiNET.ImGui.SetCursorScreenPos(after);
 
@@ -731,11 +731,9 @@ public sealed class DetailsWindow
         float right = ImGuiNET.ImGui.GetCursorPosX() + ImGuiNET.ImGui.GetContentRegionAvail().X;   // the content's right edge (window-local)
 
         // the layout switch, right-aligned above the headers
-        float glyph = ImGuiNET.ImGui.CalcTextSize(Fdp.Presentation.Fonts.IconsFontAwesome6.TableColumns).X
-                      + ImGuiNET.ImGui.GetStyle().FramePadding.X * 2f;
-        ImGuiNET.ImGui.SetCursorPosX(MathF.Max(ImGuiNET.ImGui.GetCursorPosX(), right - glyph));
-        if (ImGuiNET.ImGui.SmallButton($"{Fdp.Presentation.Fonts.IconsFontAwesome6.TableColumns}##{Id}_layout")) Layout = DetailsLayout.Tabs;
-        Tooltip("Show the views as tabs");
+        var tabsIcon = NodeEditor.Core.Widgets.Icons.Get("details/layout-tabs");
+        ImGuiNET.ImGui.SetCursorPosX(MathF.Max(ImGuiNET.ImGui.GetCursorPosX(), right - NodeEditor.Core.Widgets.GlyphWidgets.WidthOf(tabsIcon)));
+        if (NodeEditor.Core.Widgets.GlyphWidgets.GlyphButton($"##{Id}_layout", tabsIcon, "Show the views as tabs")) Layout = DetailsLayout.Tabs;
 
         bool buttons = ShowsFloatAndPin && _windowManager is not null;
         float spacing = ImGuiNET.ImGui.GetStyle().ItemSpacing.X;
@@ -749,15 +747,13 @@ public sealed class DetailsWindow
             if (string.Equals(reveal, d.Id, StringComparison.Ordinal)) ImGuiNET.ImGui.SetScrollHereY(0f);
             if (buttons && _windowManager is { } wm)
             {
-                float w = ImGuiNET.ImGui.CalcTextSize(Fdp.Presentation.Fonts.IconsFontAwesome6.Thumbtack).X
-                          + ImGuiNET.ImGui.CalcTextSize(Fdp.Presentation.Fonts.IconsFontAwesome6.UpRightFromSquare).X
-                          + ImGuiNET.ImGui.GetStyle().FramePadding.X * 4f + spacing;
+                var floatIcon = NodeEditor.Core.Widgets.Icons.Get("details/float");
+                var pinIcon = NodeEditor.Core.Widgets.Icons.Get("details/pin");
+                float w = NodeEditor.Core.Widgets.GlyphWidgets.WidthOf(floatIcon) + NodeEditor.Core.Widgets.GlyphWidgets.WidthOf(pinIcon) + spacing;
                 ImGuiNET.ImGui.SameLine(right - w);
-                if (ImGuiNET.ImGui.SmallButton($"{Fdp.Presentation.Fonts.IconsFontAwesome6.UpRightFromSquare}##{Id}_float_{d.Id}")) OpenFloat(wm, d);
-                Tooltip($"Float {d.Title} in its own window (follows the selection)");
+                if (NodeEditor.Core.Widgets.GlyphWidgets.GlyphButton($"##{Id}_float_{d.Id}", floatIcon, $"Float {d.Title} in its own window (follows the selection)")) OpenFloat(wm, d);
                 ImGuiNET.ImGui.SameLine();
-                if (ImGuiNET.ImGui.SmallButton($"{Fdp.Presentation.Fonts.IconsFontAwesome6.Thumbtack}##{Id}_pin_{d.Id}")) Pin(wm, d);
-                Tooltip($"Pin {d.Title} at this selection");
+                if (NodeEditor.Core.Widgets.GlyphWidgets.GlyphButton($"##{Id}_pin_{d.Id}", pinIcon, $"Pin {d.Title} at this selection")) Pin(wm, d);
             }
             if (opened) Pick(frame.Context, d.Id);
             if (!open) continue;
@@ -766,6 +762,15 @@ public sealed class DetailsWindow
             ImGuiNET.ImGui.PopID();
         }
     }
+
+    /// <summary>⭐ U-3 (Colour Icons §3.1) — the coloured icon of a Details tab whose TITLE is one the design's table names (Scenario · Event · Components); the others (Variables, Summary, Mission, Zones …) have no row there and draw no icon.</summary>
+    internal static NodeEditor.Core.Widgets.IconGlyph? TabIconOf(string title) => title switch
+    {
+        "Scenario"   => NodeEditor.Core.Widgets.Icons.Get("tab/scenario"),
+        "Event"      => NodeEditor.Core.Widgets.Icons.Get("tab/event"),
+        "Components" => NodeEditor.Core.Widgets.Icons.Get("tab/components"),
+        _ => null,
+    };
 
     /// <summary>⭐ <c>BP-515</c> — the real draw, for a frame rail inside a live ImGui frame (the window manager is not needed).</summary>
     internal void DrawClientAreaForRail() => DrawClientArea();

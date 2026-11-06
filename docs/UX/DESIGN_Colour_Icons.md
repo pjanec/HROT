@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — I1 BUILT (U-2, §4 as-built); I3 open. Design ✅ APPROVED (R-4141); FontAwesome glyphs used as icons get colour by meaning (R-4139); Silk bitmaps and the time controls stay (R-4140); colours approved per surface from a rendered strip
+build-state: BUILT — I1 (U-2) and I3 (U-3), §4 as-built. Design ✅ APPROVED (R-4141); FontAwesome glyphs used as icons get colour by meaning (R-4139); Silk bitmaps and the time controls stay (R-4140); colours approved per surface from a rendered strip
 updated: 2026-11-06 (§3.1 tabs with a coloured icon, neutral tab palette — user; Q-I4 for review) · 2026-11-06 (§3 the five monochrome surfaces measured; Silk and the time controls stay — user, R-4140) · 2026-11-06 (REVISED by the user: FontAwesome glyphs stay, in colour — not the Silk atlas; R-4139) · 2026-11-06 (first version — Silk atlas; superseded the same day)
 current-answer: §2 the model · §3 the surfaces · §3.1 tabs with an icon · §4 stages · §5 questions
 stale-below: §⛔ HISTORY (the Silk version)
@@ -139,6 +139,20 @@ All in `FDP/ExtDeps/NodeEdit/src/NodeEditor.Core/Widgets/` (namespace `NodeEdito
 ⭐ Deviations: (1) the id is `"###"+id`, not `##id` — `##` still hashes the label text, so the id would change with it; `###` does not (rail); (2) the label, spaces and id are encoded into a stack buffer: 0 B per tab (the design's "spaces before the text" without a per-frame string); (3) `DetailsWindow` and the rule editor now draw through `IconTab`; Details' tabs carry no icon yet (their titles do not match §3.1's table — the Details forms slice maps them), the rule editor's tabs carry theirs (`RuleTabs.IconKeyOf`); (4) §3's surfaces (ORBAT switch, Details header buttons, AI tabs, pills, mission glyphs) are NOT yet drawn through `Icons` — that is I3.
 ⭐ CE-4286: `RuleDetails.Draw` is a real tab bar now. The model's tab stays the source: when it changes from outside (a request, another row) the tab is pushed with `SetSelected`; a frame where ImGui shows another tab without a push is the user's click. `RuleTabs.TabsFor`/`TitleOf` no longer allocate.
 ⭐ Rails: `Hrot.Presentation.Tests/Panels/ColourIconsFrameRail.cs` (real fonts via `EditorFontService`, xvfb) — the map and the mode colours; a tab's icon inside its item rect in its colour, left of the label, the id and the selection surviving a label change, the neutral palette, 0 B; the switch (backgrounds, frame, selected full / others 60 %, 0 B); a sheet of all 54 keys; and `RulesWindowFrameRail` asserts the rule editor draws the tab bar.
+
+### §4 I3 AS BUILT (ui, `2026-11-06`, U-3) — the five surfaces drawn through `Icons`
+
+| surface | as built | rail (real fonts, Xvfb; the pixels are read) |
+|---|---|---|
+| **ORBAT relation switch** `SharedOrbatPanel.RelationIcon` | one `GlyphToggle` per option (`orbat/command` teal · `orbat/structure` orange · `orbat/scenario` violet); the active one framed on `#34343E` at full strength, the others on `#1C1C22` at 60 % in their own colour | `TheSharedOrbatPanelDrawsTests.U3_…` (+ the feature's own click rail, unchanged) |
+| **Details header buttons** `DetailsWindow` | tabs layout: `GlyphButton` layout (`details/layout-stacked` violet), float (blue), pin (amber), right-aligned on the tab bar's row; stacked layout: the switch to tabs (`details/layout-tabs` blue) and float + pin on every header | `TheColourIconSurfacesDrawTheirIconsTests` |
+| **Details tabs** | `IconTab.Begin(d.Id, d.Title, TabIconOf(d.Title), …)`. ✅ mapped (title is in §3.1's table): **Scenario** → `tab/scenario`, **Event** → `tab/event`, **Components** → `tab/components`. ⛔ no icon (no row in the table): Variables, Summary, Mission, Zones, Blackboard, Objectives, Playable, Runtime, Macro, Blueprints, Node Properties, Parameter Sync, Graph Signature, Events, Assign — the entity tabs of the table (Unit, Crew & cargo, Orders, Brain, Rules, Composition, Shape) have no view with that title yet | same |
+| **AI document tabs** `AiGraphCanvasWindow` | on `IconTab` (with its close box: `IconTab.Begin(…, ref open)`): `GetTabIconKey(doc)` → `doc/blueprint` (Action, Bolt amber) · `doc/condition` (blue) · `doc/utility` (Function / Utility, grey) · `doc/btree` teal · `doc/hsm` violet · `doc/blackboard` blue · `doc/scenario` green · `doc/other` grey. The glyph prefix is gone from `GetTabLabel` (now `name###id`; `GetTabText` / `GetTabId` split out) | same |
+| **Blueprint pills** `AttachmentRenderer` | new `IAttachmentModel.GlyphColor` (default null = the label colour); the four attachments return their `bp/*` glyph AND colour from `Icons`; `AttachmentRenderer.DrawPillText` paints the glyph in it, the label stays the pill's text colour | `TheAttachmentPillsDrawTheirGlyphInColourTests` (the real painter, by reflection) |
+| **Mission task glyph** `MissionPanel.GetTaskIcon` | now returns an `IconGlyph` (`task/*`: running blue play · done green check · failed red cross · skipped and stopped grey); drawn with `TextColored`, the number stays text. The old `▶ ✓ ✗` text glyphs are gone | `TheMissionTaskGlyphsAreColouredTests` (the real `DrawContent`) |
+
+⚠ **Finding:** the Blueprint pill FILL is the theme's grey (`#7F8C8D`); the blue link glyph (`bp/cross-asset`) is the weakest on it. The colours are as approved; a darker pill fill (a theme change, not an icon one) would help — left for the user.
+⭐ `AiGraphCanvasWindow.DrawTabBarForRail` (internal) is the real tab-bar draw for a rail.
 
 ## 5. Questions — ✅ Q-I1 and Q-I2 APPROVED with the rendered colours (R-4141, user `2026-11-06`: *"i definitely want the colored ones they are so much easier to recognize"*); Q-I3 decided by the user (Silk stays)
 

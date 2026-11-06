@@ -14,7 +14,8 @@ public sealed class EqsTemplateAttachment : IAttachmentModel
     public AttachmentId Id { get; } = new(Guid.NewGuid());
     public NodeId HostNodeId { get; }
     public AttachmentCategory Category => AttachmentCategory.Custom;
-    public string? Glyph => Fdp.Presentation.Fonts.IconsFontAwesome6.SatelliteDish; // CE-1063: 📡 has no glyph in any baked font — Font Awesome's, merged into the canvas faces
+    public string? Glyph => NodeEditor.Core.Widgets.Icons.Get("bp/eqs-template").Glyph;   // ⭐ U-3: the ONE icon map (CE-1063: a Font Awesome glyph, merged into the canvas faces)
+    public System.Numerics.Vector4? GlyphColor => NodeEditor.Core.Widgets.Icons.Get("bp/eqs-template").Color;
     public string? Label { get; private set; }
     public string? Tooltip => Label;
     public AttachmentState State { get; private set; }
