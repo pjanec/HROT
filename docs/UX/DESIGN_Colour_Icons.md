@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — top-level; FontAwesome glyphs used as icons get colour by meaning (R-4139); Silk bitmaps and the time controls stay (R-4140); colours approved per surface from a rendered strip
+build-state: DESIGN — top-level, ✅ APPROVED (R-4141); FontAwesome glyphs used as icons get colour by meaning (R-4139); Silk bitmaps and the time controls stay (R-4140); colours approved per surface from a rendered strip
 updated: 2026-11-06 (§3 the five monochrome surfaces measured; Silk and the time controls stay — user, R-4140) · 2026-11-06 (REVISED by the user: FontAwesome glyphs stay, in colour — not the Silk atlas; R-4139) · 2026-11-06 (first version — Silk atlas; superseded the same day)
 current-answer: §2 the model · §3 the surfaces · §4 stages · §5 questions
 stale-below: §⛔ HISTORY (the Silk version)
@@ -101,10 +101,10 @@ Silk bitmap icon** — window icons, the perspective toolbar, the AI node picker
 | stage | what | owner | acceptance |
 |---|---|---|---|
 | **I1** | `IconGlyph`, `IconPalette`, `Icons` in `Fdp.Presentation`; `ModeGlyph` folded in; `GlyphButton` / `GlyphToggle` in `IconWidgets` | ui | the mode indicator unchanged on screen |
-| **I2** | per surface, a rendered **before / after strip** (monochrome row, coloured row) sent in chat; ⭐ **the user approves the colours** | ui | the user's yes per surface |
+| **I2** | ✅ the colours of §3 approved from the rendered sheet (R-4141); a strip again only for a colour the build changes | ui | — |
 | **I3** | the approved surfaces drawn through `Icons` | ui | a frame rail per surface under `xvfb-run` asserts glyph and colour; a side-by-side with the approved strip (forms §6.6) |
 
-## 5. Questions — leans for the user
+## 5. Questions — ✅ Q-I1 and Q-I2 APPROVED with the rendered colours (R-4141, user `2026-11-06`: *"i definitely want the colored ones they are so much easier to recognize"*); Q-I3 decided by the user (Silk stays)
 
 | # | question | lean | rejected |
 |---|---|---|---|
