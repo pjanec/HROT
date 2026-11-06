@@ -67,6 +67,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     [StructEdit.Core.Attributes.EditDisplayName("On one thing"), StructEdit.Core.Attributes.EditIcon("kind/on-entity")]   // ⭐ U-7 — condition-expert-visual.svg
     public sealed class OnEntityPredicateDto : SearchPredicateDto
     {
+        [StructEdit.Core.Attributes.EditDisplayName("Thing")]   // ⭐ U-8 — condition-expert-visual.svg: "Thing", the chip beside it
         public Fdp.Toolkit.Replication.EntityLink Ref { get; set; }
         public SearchPredicateDto Predicate { get; set; } = null!;
     }

@@ -496,35 +496,34 @@ public static class ReferenceLeafDrawers
         bool changed = false;
         bool keyForm = st.KeyForm.TryGetValue(path, out var o) ? o : link.Spec.Form == RefForm.Key;
 
-        // ── the two-way switch ────────────────────────────────────────────────────────────────────────────────────────────
-        if (ImGuiApi.RadioButton($"Exact##ex{id}", !keyForm) && keyForm)
-        {
-            st.KeyForm[path] = false;
-            link = SwitchToExact(link, refs);
-            changed = true; keyForm = false;
-        }
-        ImGuiApi.SameLine(0f, 4f);
-        if (ImGuiApi.RadioButton($"Key##ky{id}", keyForm) && !keyForm)
-        {
-            st.KeyForm[path] = true;
-            var next = SwitchToKey(link, refs, out var text);
-            st.KeyText[path] = text;
-            if (next != link) { link = next; changed = true; }
-            keyForm = true;
-        }
-        ImGuiApi.SameLine();
-
+        ImGuiApi.PushID(path);
         if (!keyForm)
         {
-            // ── Exact: "Name (#id)" + Pick / List ─────────────────────────────────────────────────────────────────────────
-            string shown = link.Ref.IsNone ? "(none)"
-                : refs == null ? "#" + link.Ref.NetworkId
-                : refs.NameOf(link.Ref) is var n && n.StartsWith('#') ? n : $"{n} (#{link.Ref.NetworkId})";
-            ImGuiApi.TextUnformatted(shown);
-            if (ctx != null && DrawEntityPickButtons(node, ctx, out var picked))
+            // ⭐ U-8 (DESIGN_Condition_Editor §8.2 ④, condition-expert-visual.svg) — THE THING BY NAME: one chip — its kind's glyph in colour · "Objective: Hold the
+            // bridge" · ▾ — whose menu picks on the map, from a list, by key, or clears; then the map-pick glyph. ⛔ No Exact/Key radio, never "#10" when a name exists.
+            if (DrawChip("##chip", ChipLabel(link, refs), ChipIcon(link, refs), Math.Max(width - 2f * ImGuiApi.GetFrameHeight() - 8f, 80f)))
+                ImGuiApi.OpenPopup("thing");
+            if (ImGuiApi.BeginPopup("thing"))
             {
-                link = PickToLink(picked, refs);
-                changed = true;
+                if (ctx != null && ImGuiApi.Selectable("Pick on the map")) ctx.RequestEntityPick(path, Presets(node));
+                if (ctx is { CanListEntities: true } && ImGuiApi.Selectable("Choose from a list…")) ctx.RequestEntityListPick(path, Presets(node));
+                if (ImGuiApi.Selectable("By key (@name)…"))
+                {
+                    st.KeyForm[path] = true;
+                    var next = SwitchToKey(link, refs, out var text);
+                    st.KeyText[path] = text;
+                    if (next != link) { link = next; changed = true; }
+                }
+                if (!link.Ref.IsNone && ImGuiApi.Selectable("Clear")) { link = EntityLink.None; changed = true; }
+                ImGuiApi.EndPopup();
+            }
+            if (ctx != null)
+            {
+                ImGuiApi.SameLine(0f, 4f);
+                if (ctx.IsPickPendingFor(path)) ImGuiApi.TextColored(new Vector4(1f, 1f, 0f, 1f), "[Picking...]");
+                else if (NodeEditor.Core.Widgets.GlyphWidgets.GlyphButton("##mappick", NodeEditor.Core.Widgets.Icons.Get("form/map-pick"), "Pick it on the map"))
+                    ctx.RequestEntityPick(path, Presets(node));
+                if (ctx.TryConsumeEntityPick(path, out var picked)) { link = PickToLink(picked, refs); changed = true; }
             }
             if (NeedsStableIdWarning(link, refs))
             {
@@ -535,6 +534,14 @@ public static class ReferenceLeafDrawers
         else
         {
             // ── Key: a text box completing from Keys(), unresolved shown red. (SR-133: while a MACRO is edited a pick writes Key — after S3a.) ──
+            // ⭐ U-8 — the way back to ONE THING (the old Exact radio): the pick glyph ahead of the key box.
+            if (NodeEditor.Core.Widgets.GlyphWidgets.GlyphButton("##bything", NodeEditor.Core.Widgets.Icons.Get("form/pick"), "Link one thing instead of a key"))
+            {
+                st.KeyForm[path] = false;
+                link = SwitchToExact(link, refs);
+                changed = true;
+            }
+            ImGuiApi.SameLine(0f, 4f);
             string text = st.KeyText.TryGetValue(path, out var t) ? t : link.Spec.KeyText;
             ImGuiApi.SetNextItemWidth(Math.Max(width - 190f, 80f));
             if (ImGuiApi.InputText($"##key{id}", ref text, 64))
@@ -560,7 +567,41 @@ public static class ReferenceLeafDrawers
                 ImGuiApi.TextColored(new Vector4(1f, 0.3f, 0.3f, 1f), problem);   // TextColored takes the string as a plain argument (never a format)
             }
         }
+        ImGuiApi.PopID();
         return changed;
+    }
+
+    // ── ⭐ U-8 the thing chip ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>⭐ U-8 — the chip's text: <c>Objective: Hold the bridge</c> (the scope's kind + name), the name alone without a kind, <c>#id</c> only when the
+    /// thing has no name, <c>(none)</c> for none. ⛔ Never <c>Name (#id)</c>, never <c>Key #10</c>. Cached by the scope ⇒ no allocation per frame.</summary>
+    public static string ChipLabel(EntityLink link, LiveRefScope? refs)
+        => link.Ref.IsNone ? "(none)" : refs == null ? "#" + link.Ref.NetworkId : refs.ChipLabelOf(link.Ref);
+
+    /// <summary>⭐ U-8 — the chip's glyph: the thing's kind (<c>thing/objective</c> · <c>thing/trigger</c> · <c>thing/entity</c>), null when none is known.</summary>
+    public static NodeEditor.Core.Widgets.IconGlyph? ChipIcon(EntityLink link, LiveRefScope? refs)
+        => !link.Ref.IsNone && refs != null && refs.TryKindOf(link.Ref, out var k) && k.IconKey.Length > 0 && NodeEditor.Core.Widgets.Icons.TryGet(k.IconKey, out var g) ? g : null;
+
+    /// <summary>A frame-coloured chip — glyph · text · ▾ — sized by its text (capped at <paramref name="maxWidth"/>); true when clicked.</summary>
+    private static bool DrawChip(string id, string label, NodeEditor.Core.Widgets.IconGlyph? icon, float maxWidth)
+    {
+        var style = ImGuiApi.GetStyle();
+        float h = ImGuiApi.GetFrameHeight(), pad = style.FramePadding.X, arrow = h * 0.55f;
+        float glyphW = icon is { } ig ? ImGuiApi.CalcTextSize(ig.Glyph).X + 5f : 0f;
+        float w = MathF.Min(maxWidth, pad + glyphW + ImGuiApi.CalcTextSize(label).X + 6f + arrow + pad);
+        var pos = ImGuiApi.GetCursorScreenPos();
+        bool clicked = ImGuiApi.InvisibleButton(id, new Vector2(w, h));
+        bool hovered = ImGuiApi.IsItemHovered();
+        var dl = ImGuiApi.GetWindowDrawList();
+        dl.AddRectFilled(pos, pos + new Vector2(w, h), ImGuiApi.GetColorU32(hovered ? ImGuiNET.ImGuiCol.FrameBgHovered : ImGuiNET.ImGuiCol.FrameBg), style.FrameRounding);
+        float ty = pos.Y + (h - ImGuiApi.GetTextLineHeight()) * 0.5f, x = pos.X + pad;
+        if (icon is { } g) { dl.AddText(new Vector2(x, ty), ImGuiApi.GetColorU32(g.Color), g.Glyph); x += glyphW; }
+        dl.PushClipRect(new Vector2(x, pos.Y), new Vector2(pos.X + w - arrow - pad, pos.Y + h), true);
+        dl.AddText(new Vector2(x, ty), ImGuiApi.GetColorU32(ImGuiNET.ImGuiCol.Text), label);
+        dl.PopClipRect();
+        float ax = pos.X + w - pad - arrow * 0.5f, ay = pos.Y + h * 0.5f, r = arrow * 0.32f;
+        dl.AddTriangleFilled(new Vector2(ax - r, ay - r * 0.6f), new Vector2(ax + r, ay - r * 0.6f), new Vector2(ax, ay + r * 0.6f), ImGuiApi.GetColorU32(ImGuiNET.ImGuiCol.TextDisabled));
+        return clicked;
     }
 
     // ── PointLink (F5) ───────────────────────────────────────────────────────────────────────────────────────────────────────

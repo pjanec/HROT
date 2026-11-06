@@ -60,6 +60,11 @@ public static class Icons
             case "kind/property": icon = new("\uf0ae", IconPalette.Green); return true;   // ListCheck — A property
             case "kind/time": icon = new("\uf017", IconPalette.Amber); return true;   // Clock — Time
             case "kind/count": icon = new("\uf0c0", IconPalette.Orange); return true;   // Users — At least N of
+            // ⭐ U-8 (Condition editor §8.2 ④) — a THING in an entity-link chip, by its kind; and the chip's map pick
+            case "thing/objective": icon = new("\uf024", IconPalette.Amber); return true;   // Flag
+            case "thing/trigger": icon = new("\uf0e7", IconPalette.Violet); return true;   // Bolt
+            case "thing/entity": icon = new("\uf1b2", IconPalette.Blue); return true;   // Cube
+            case "form/map-pick": icon = new("\uf3c5", IconPalette.Teal); return true;   // LocationDot
             case "tab/unit": icon = new("\uf007", IconPalette.Blue); return true;   // User
             case "tab/crew": icon = new("\uf5b6", IconPalette.Orange); return true;   // VanShuttle
             case "tab/orders": icon = new("\uf4d7", IconPalette.Green); return true;   // Route
@@ -129,6 +134,10 @@ public static class Icons
         "kind/property",
         "kind/time",
         "kind/count",
+        "thing/objective",
+        "thing/trigger",
+        "thing/entity",
+        "form/map-pick",
         "tab/unit",
         "tab/crew",
         "tab/orders",

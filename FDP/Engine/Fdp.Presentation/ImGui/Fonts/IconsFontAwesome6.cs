@@ -36,6 +36,8 @@ public static class IconsFontAwesome6
     // Edit / undo
     public const string Pen                 = "\uf304"; // edit
     public const string Plus                = "\uf067";
+    public const string LocationDot         = "\uf3c5";   // ⭐ U-8 (Condition editor §8.2 ④) — pick a thing on the map
+    public const string Cube                = "\uf1b2";   // ⭐ U-8 — a thing of no named kind
     public const string TrashCan            = "\uf2ed";   // ⭐ U-7 (Condition editor §8.2 ⑦) — the struct editor's delete
     public const string Xmark               = "\uf00d";
     public const string ArrowRotateLeft     = "\uf0e2"; // undo

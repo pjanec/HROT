@@ -218,9 +218,20 @@ public sealed class RulesWindowFrameRail : IDisposable
         }
         Rule(10, "ReachArea", """{"common":{"title":"Reach the bridge","subject":901}}""");
         Rule(20, "Trigger", """{"common":{"title":"Counter-attack","subject":900},"when":{"$type":"OnEntity","ref":{"NetworkId":10},"predicate":{"$type":"PropertyMatch","ComponentType":"ObjectiveStatus","PropertyPath":"State","Operator":"Equals","Predicate":{"$type":"Numeric","MinValue":2,"MaxValue":2}}},"cooldown":10}""");
+        // ⭐ U-8 (§8.2 ④) — the objective is a named rule entity: the When tab's link to it is a chip "Objective: Hold the bridge", through the editor's ONE scope
+        _world.RegisterComponent<EntityInfo>(); _world.RegisterComponent<TkbIdentity>();
+        foreach (var e in _world.Query().With<NetworkIdentity>().Build())
+            if (_world.GetComponent<NetworkIdentity>(e).Value == 10)
+            {
+                _world.AddComponent(e, new EntityInfo { Name = new FixedString64("Hold the bridge") });
+                _world.AddComponent(e, new TkbIdentity { TkbType = (TkbTypeId)AuthoredRules.TkbObjective });
+            }
+        var picks = new Hrot.Presentation.Facades.MapPickBroker(() => null) { References = AuthoredRules.ScopeOf(_world) };
+        Assert.Equal("Objective: Hold the bridge", AuthoredRules.ScopeOf(_world).ChipLabelOf(new EntityRef(10)));
+        Assert.Equal("Objective: Hold the bridge", Fdp.Presentation.Editing.ReferenceLeafDrawers.ChipLabel(new EntityLink(new EntityRef(10), default), picks.References));
         var history = new Hrot.Presentation.Edits.EditHistory();
         var svc = new RuleEditorServices(() => Fdp.Presentation.Editing.ComponentEditServices.CreateBuilder().Build(), () => null,
-            (e, n, j) => true, history, _ => Array.Empty<RuleJournalEntry>());
+            (e, n, j) => true, history, _ => Array.Empty<RuleJournalEntry>(), Picks: () => picks);
         var window = new RulesWindow(() => _world, () => null, null, "rail_rules_ed", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 5d, editor: svc);
         using var frame = UiFrameHarness.Begin(1400, 700);
         void Step(Action<ImGuiIOPtr>? input = null, int n = 1)

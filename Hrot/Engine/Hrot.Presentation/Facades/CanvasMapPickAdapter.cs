@@ -79,11 +79,10 @@ public sealed class CanvasMapPickAdapter : IMapPickService
             tools ?? (() => null), () => _globalGizmoManager);
     }
 
-    private Fdp.Toolkit.Scenario.LiveRefScope? _references;
-
-    /// <summary>⭐ <c>CE-4206</c> R1 (F2) — the live reference scope over the repository this adapter holds (built once, indexes lazily); null without one.</summary>
+    /// <summary>⭐ <c>CE-4206</c> R1 (F2) — the live reference scope over the repository this adapter holds; null without one. ⭐ U-8 — THE editor's one scope
+    /// (<see cref="Hrot.UI.Common.Rules.AuthoredRules.ScopeOf"/>, with the entity kinds), not a second instance of its own.</summary>
     public Fdp.Toolkit.Scenario.LiveRefScope? References
-        => _repo == null ? null : _references ??= new Fdp.Toolkit.Scenario.LiveRefScope(_repo);
+        => _repo == null ? null : Hrot.UI.Common.Rules.AuthoredRules.ScopeOf(_repo);
 
     /// <summary>⭐ The ONE picker-modal protocol — see <c>PickerToolHost</c>.</summary>
     private readonly Hrot.ScenarioEditor.Tools.PickerToolHost _pickers;

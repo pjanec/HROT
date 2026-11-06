@@ -104,7 +104,7 @@ public static class AuthoredRules
     /// ⭐ CE-4225 — the editor's ONE ref resolver (<see cref="LiveRefScope"/>, its 250 ms wall-clock policy as <c>new LiveRefScope(repo)</c> everywhere in the editor) for <paramref name="world"/>: what turns an authored <c>"@Key"</c> / GUID into the entity it names — before
     /// a run too, which is why an edit-mode rule view showed few arrows. ⛔ Not a second resolver: the picker's, the macro expander's and the load's are this class.
     /// </summary>
-    public static LiveRefScope ScopeOf(EntityRepository world) => Scopes.GetValue(world, w => new LiveRefScope(w));
+    public static LiveRefScope ScopeOf(EntityRepository world) => Scopes.GetValue(world, w => new LiveRefScope(w, kinds: EntityKinds.Describe));   // ⭐ U-8 — with the kinds the entity-link chip names
 
     /// <summary>
     /// An authored <c>EntityLink</c> as a network id: a number · a numeric string · <c>{"NetworkId": n, "Ref": …}</c> · ⭐ CE-4225 an <c>"@Key"</c> / a GUID (alone, or as the object's <c>Ref</c>), resolved through <paramref name="scope"/> — the form wins over the

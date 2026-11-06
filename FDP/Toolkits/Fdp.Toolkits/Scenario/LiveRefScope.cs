@@ -36,6 +36,9 @@ namespace Fdp.Toolkit.Scenario
         private readonly Dictionary<int, string> _keyOf = new();
         private readonly Dictionary<int, string> _nameOf = new();
         private readonly Dictionary<int, WorldPoint> _positions = new();
+        private readonly Func<EntityRepository, Entity, EntityKind?>? _kinds;
+        private readonly Dictionary<int, EntityKind> _kindOf = new();
+        private readonly Dictionary<int, string> _chipOf = new();
 
         private bool _built;
         private int _count, _maxIndex;
@@ -46,8 +49,11 @@ namespace Fdp.Toolkit.Scenario
         /// <param name="world">The running world.</param>
         /// <param name="nowTicks">A monotonic clock in <see cref="Stopwatch"/> ticks (tests inject one); default: wall clock.</param>
         /// <param name="rebuildInterval">The least time between version-caused rebuilds (default <see cref="RebuildInterval"/>).</param>
-        public LiveRefScope(EntityRepository world, Func<long>? nowTicks = null, TimeSpan? rebuildInterval = null)
+        /// <param name="kinds">⭐ U-8 (DESIGN_Condition_Editor §8.2 ④) — what KIND of thing an entity is (<i>Objective</i>, <i>Tank</i>) and its glyph key; asked once
+        /// per entity per rebuild, never per frame. The host that knows the classes supplies it (the editor's one scope, <c>AuthoredRules.ScopeOf</c>); null = no kinds.</param>
+        public LiveRefScope(EntityRepository world, Func<long>? nowTicks = null, TimeSpan? rebuildInterval = null, Func<EntityRepository, Entity, EntityKind?>? kinds = null)
         {
+            _kinds = kinds;
             _world = world ?? throw new ArgumentNullException(nameof(world));
             _nowTicks = nowTicks ?? (() => Stopwatch.GetTimestamp());
             _interval = rebuildInterval ?? RebuildInterval;
@@ -91,7 +97,7 @@ namespace Fdp.Toolkit.Scenario
         private void Rebuild()
         {
             _byGuid.Clear(); _byKey.Clear(); _duplicateKeys.Clear(); _keyCounts.Clear();
-            _guidOf.Clear(); _keyOf.Clear(); _nameOf.Clear(); _positions.Clear();
+            _guidOf.Clear(); _keyOf.Clear(); _nameOf.Clear(); _positions.Clear(); _kindOf.Clear(); _chipOf.Clear();
             Rebuilds++;
 
             if (_world.IsComponentTypeRegistered<NetworkIdentity>())
@@ -117,6 +123,11 @@ namespace Fdp.Toolkit.Scenario
                         _nameOf[id] = n;
                     if (hasPos && _world.HasComponent<SimTransform>(e))
                         _positions[id] = new WorldPoint(_world.GetComponent<SimTransform>(e).Position);
+                    if (_kinds?.Invoke(_world, e) is { } kind)
+                    {
+                        _kindOf[id] = kind;
+                        if (kind.Name.Length > 0) _chipOf[id] = _nameOf.TryGetValue(id, out var nm) ? $"{kind.Name}: {nm}" : $"{kind.Name} #{id}";
+                    }
                 }
             }
 
@@ -185,6 +196,22 @@ namespace Fdp.Toolkit.Scenario
             }
         }
 
+        /// <summary>⭐ U-8 — what kind of thing <paramref name="entity"/> is (name + glyph key); <c>false</c> when the scope has no kinds or this one has none.</summary>
+        public bool TryKindOf(EntityRef entity, out EntityKind kind)
+        {
+            Refresh();
+            return _kindOf.TryGetValue(entity.NetworkId, out kind);
+        }
+
+        /// <summary>⭐ U-8 (DESIGN_Condition_Editor §8.2 ④) — the entity-link chip's text: <c>Objective: Hold the bridge</c> — the kind, then the name; the name alone
+        /// when no kind is known (<see cref="NameOf"/>). Built at the rebuild, so a frame reads it without allocating.</summary>
+        public string ChipLabelOf(EntityRef entity)
+        {
+            if (entity.IsNone) return "(none)";
+            Refresh();
+            return _chipOf.TryGetValue(entity.NetworkId, out var c) ? c : NameOf(entity);
+        }
+
         /// <summary>The entity's <see cref="EntityInfo.Name"/>, else <c>#id</c> (<c>(none)</c> for none).</summary>
         public string NameOf(EntityRef entity)
         {
@@ -193,4 +220,8 @@ namespace Fdp.Toolkit.Scenario
             return _nameOf.TryGetValue(entity.NetworkId, out var n) ? n : "#" + entity.NetworkId;
         }
     }
+
+    /// <summary>⭐ U-8 — what kind of thing an entity is, for a person: <see cref="Name"/> (<i>Objective</i>, <i>Tank</i>) and <see cref="IconKey"/>, a key of the
+    /// one glyph table (<c>NodeEditor.Core.Widgets.Icons</c>, <c>thing/*</c>); empty key = no glyph.</summary>
+    public readonly record struct EntityKind(string Name, string IconKey);
 }

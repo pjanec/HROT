@@ -255,6 +255,15 @@ five kinds the mockup names carry `[EditDisplayName]` + `[EditIcon("kind/…")]`
 (`Common`) is drawn on Settings only (`RuleTabs`, `RuleDetails`). ⛔ SUPERSEDED: *Overview · When · Rules · Do · …* with the header on every tab.
 ⏳ Still open in U-7: the §8.1 frame re-measured side-by-side with `condition-expert-visual.svg`; ④ is U-8.
 
+⭐ **AS BUILT — U-8 (④)** *(ui, `2026-11-06`)*: `ReferenceLeafDrawers` draws an `EntityLink` as ONE chip — the kind's glyph in colour · *Objective:
+Hold the bridge* · ▾ — then the map-pick glyph (`form/map-pick`). The chip's menu: *Pick on the map* · *Choose from a list…* · *By key (@name)…* ·
+*Clear*; the key form keeps its box, with a pick glyph ahead of it to go back to one thing. ⛔ SUPERSEDED: the `Exact | Key` radio and *Name (#id)*.
+The kind comes from the ONE reference scope: `LiveRefScope` takes a `kinds` resolver (asked once per entity per rebuild) and caches the chip text
+(`ChipLabelOf`, 0 B per ask); the editor's scope (`AuthoredRules.ScopeOf`) passes `EntityKinds.Describe` — TKB 8860 / 8861 ⇒ *Objective* /
+*Trigger*, else the most specific `EntityClassTable` class; no class ⇒ the name alone. ⭐ The map-pick adapter now uses that same scope instead of a
+second instance of its own. Glyph keys `thing/objective · thing/trigger · thing/entity`. Rails: `ComponentEditDrawerTests.U8_…`,
+`LiveRefScopeTests.U8_…`, and the rule editor's When tab in `RulesWindowFrameRail` (render `rules-4-when.png`).
+
 ### 8.3 Questions — ✅ approved (R-4149); Q-X3 revised by the user (§8.4)
 
 | # | question | lean | rejected |
