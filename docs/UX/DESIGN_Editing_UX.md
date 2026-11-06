@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — the programme frame; D2–D9 and D11–D16 (first iteration) approved 2026-11-06; the design queue is §4.5; D1 (undo) and D10 (one edit framework) each get their own design; every slice E0–E7 starts with its own design reviewed by the user (R-4122)
-updated: 2026-11-06 (§4.3c D11–D16 approved as a first iteration; top-level designs written here, lanes detail them — R-4123; §4.5 the design queue; §1.4 rows 11–13 from the sweeps) · 2026-11-06 (the user's corrections to §1.5: multi-select exists, centre-handle move exists; §1.7 new topics — hats, mission plan editor, unified menus; §3.12 finish / level / airborne aircraft / gizmo look; D11 revised, D16–D18, E10–E11) · 2026-11-06 (§1.5 map interaction and §1.6 context menus inventoried; §3.12–§3.13 targets; D11–D15; slices E8–E9) · 2026-11-06 (§4.3a the user's verdict: D2–D9 approved, D1 and D10 own designs, design-first per slice — R-4122) · 2026-11-06 (§4 gap map, decisions D1–D9 with leans, slices E1–E7) · 2026-11-06 (§0b the user's review of §2–§3: pickers filtered by applicability, condition templates, expert detail kept, scarce confirmations, editing levels per node — R-4121) · 2026-11-06 (§2 prior art, §3 the target UX: layout wireframe, the tab set, modes, actions, the expected basics) · 2026-11-06 (§0a the user's review of §1: raw editor = debugging tool, semantic types, undo in Edit mode only, dedicated forms, the expected basics — R-4120) · 2026-11-06 (first version: the direction, and the inventory of what a user can edit today — coordinator)
+updated: 2026-11-06 (D19 the terrain is chosen at creation, never changed — R-4124; E12 in the queue; point ⑩ dropped) · 2026-11-06 (§4.3c D11–D16 approved as a first iteration; top-level designs written here, lanes detail them — R-4123; §4.5 the design queue; §1.4 rows 11–13 from the sweeps) · 2026-11-06 (the user's corrections to §1.5: multi-select exists, centre-handle move exists; §1.7 new topics — hats, mission plan editor, unified menus; §3.12 finish / level / airborne aircraft / gizmo look; D11 revised, D16–D18, E10–E11) · 2026-11-06 (§1.5 map interaction and §1.6 context menus inventoried; §3.12–§3.13 targets; D11–D15; slices E8–E9) · 2026-11-06 (§4.3a the user's verdict: D2–D9 approved, D1 and D10 own designs, design-first per slice — R-4122) · 2026-11-06 (§4 gap map, decisions D1–D9 with leans, slices E1–E7) · 2026-11-06 (§0b the user's review of §2–§3: pickers filtered by applicability, condition templates, expert detail kept, scarce confirmations, editing levels per node — R-4121) · 2026-11-06 (§2 prior art, §3 the target UX: layout wireframe, the tab set, modes, actions, the expected basics) · 2026-11-06 (§0a the user's review of §1: raw editor = debugging tool, semantic types, undo in Edit mode only, dedicated forms, the expected basics — R-4120) · 2026-11-06 (first version: the direction, and the inventory of what a user can edit today — coordinator)
 current-answer: §0 the direction (user rulings) · §0a the user's review of §1 · §3 the target UX · §4 the decisions D1–D9 (for approval) and the slices · §1 the inventory (what exists, where it is edited, what is wrong with it; §1.5 map interaction, §1.6 context menus)
 stale-below: nothing
 known-rot: none
@@ -143,7 +143,7 @@ The editor then adds its own tabs (`EditorSubsystem.cs:3295-3370`); AI perspecti
 | 9 | **Path B (the live instructor's path) was never walked** | `UX_Golden_Path.md:317-340` |
 | 11 | **AI authoring gaps**: `Hrot.Utility.Editor` exists but is not wired (the Decision tab is read-only); EQS templates are C# only; `JoinFormation` is broken (only squad march works); C#-only HSMs (12) do not open in the HSM editor; BTree / HSM node step stays greyed | AI sweep; OVERVIEW §3, §5, §10, §11 |
 | 12 | **run and review gaps**: DAR P2 (the review gate stopping modules outside the toggle groups) is STOPPED; "new scenario from a checkpoint" is in AQ108 §3 but no UI was found; the Run Setup choice is not saved between sessions; rule live edit is partial (Scenario Rules §00.11a ② awaits the user) | run sweep; AQ108 §3, §2.18; DAR §12i |
-| 13 | **terrain change**: the picker R-183 asked for was deleted when recipes took ownership of the terrain (AQ108 §2.15) | scenario sweep |
+| 13 | **terrain at creation**: the picker R-183 asked for was deleted when recipes took ownership of the terrain (AQ108 §2.15). ✏ **The user, `2026-11-06`:** *"we need a way how to author new scenario recipes, but we never want to allow changing a terrain (this was the reason for removing the picker) - but we still need it for creating new scenario (or its recipe) - so maybe new scenario creation needs a bit different workflow"* ⇒ ⛔ never change the terrain of an existing scenario; ⭐ the terrain is chosen when a NEW scenario or a NEW recipe is created (D19) | scenario sweep |
 | 10 | **docs out of step**: Entity Commanding still NOT-BUILT though built; Zones READY-TO-BUILD though the tools exist | AI sweep |
 
 ### 1.5 Working on the map — placing, drawing, picking, shapes *(added `2026-11-06`, user: "how entities get placed on the map, how various areas are edited, how points are picked … it deserves a review")*
@@ -493,6 +493,7 @@ catalogue answers what to offer. ⛔ An item with no handler on this station is 
 | **D16** | level and altitude at placement | choose the level in 3-D when there is a choice; **aircraft placed airborne by default** (altitude + speed in the Unit form); heading optional at placement, group rotate after | ground placement for aircraft — they crash |
 | **D17** | the hats (RTS, FPS / possession, instructor, game master, editor, observer) | ⏸ **own inventory + design first** (E10) — a lean comes with it; ties to D4's editing levels | — |
 | **D18** | the mission plan editor | ⏸ **own design** (E11). Lean to carry into it: a plan is a sequence (with phases) of **unit-agnostic ORDERS** — move, attack, hold, defend, recon, … resolved per unit class (the existing `OrderKind` + `OrderMenu.OfferedFor`, Orders_Params_Entity_Classes) — and a specialised behaviour is the advanced option; drawn on the map (routes, objectives) and listed in the Orders tab; the same in Edit and Live | behaviours first — only a technical author knows them |
+| **D19** | the terrain is chosen at creation, never changed (R-4124) | ⭐ **File ▸ New** offers *From a recipe* (today) **or** *Blank, on a terrain* (pick the terrain, start empty), and **New recipe…** likewise picks a terrain; the terrain of an existing scenario or recipe is shown, never editable — a different terrain means a new scenario (Save as… keeps the units only if a later design adds a move-to-terrain tool, not planned) | a terrain picker on an existing scenario — what the picker's removal was for |
 | **D15** | orders in offline Edit | **not offered in Edit** — in Edit a unit's plan is its Orders tab (the mission); map orders are a Live (and Preview) action | offer them in Edit — they act on a world that is not running |
 
 ### 4.3a The user's verdict on §4 *(`2026-11-06`)*
@@ -520,7 +521,7 @@ this chat"* — R-4123.
 | **D11–D16** | ✅ approved as a FIRST ITERATION — expected to change in the detailed designs |
 | **who designs** | ⭐ the **top-level designs** (one per slice E0–E11) are written and discussed HERE, by the coordinator lane with the user; ui and backend **detail and adjust** them during implementation (as-built fold-back, R-129) |
 | **when to build** | ⏸ not yet — implementation is far; designing comes first |
-| **the user's point ⑩** | arrived empty — to ask |
+| **the user's point ⑩** | dropped — *"forget my empty point 10, was just placeholder for what never came"* |
 
 ### 4.5 The design queue *(top-level designs to write, in a proposed order — each reviewed by the user)*
 
@@ -532,7 +533,7 @@ this chat"* — R-4123.
 | 4 | **E10 — the hats** (RTS, FPS / possession, instructor, game master, editor, observer) with D4's editing levels | decides what one person at one station sees |
 | 5 | **D1 — undo in Edit mode** (unifying `EditHistory`, `GizmoUndoStack`, the director's stack) | needs E0 |
 | 6 | **E8 — map interaction** (conventions, picks, placement with level / airborne, gizmo looks) | needs E9 for the right-click menu |
-| 7 | **E2 forms · E5 condition templates · E7 review · E2b sim / types** | smaller, mostly independent |
+| 7 | **E2 forms · E5 condition templates · E7 review · E2b sim / types · E12 new scenario / new recipe workflow (D19)** | smaller, mostly independent |
 
 ### 4.4 Slices — proposed handoffs, once D1–D9 are approved
 

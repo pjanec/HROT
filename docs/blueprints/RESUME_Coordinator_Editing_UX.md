@@ -32,7 +32,7 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 
 ## 2. Next — in order
 
-1. ⚠ **Ask the user what their point ⑩ was** (it arrived empty, `2026-11-06`).
+1. ~~Point ⑩~~ — dropped by the user.
 2. **Write design 1 of the queue (§4.5): the action catalogue + the tab / action `Requires` + mode model** (E9 + E1 core). Start from
    AQ26, `UX_Feature_Entity_Action_Vocabulary.md`, `UX_Feature_Cross_Surface_Actions.md`, `UX_Feature_Menu_Follows_Focus.md`,
    `designs/gizmos-1/canvas-context-menu-design.md`, `DESIGN_Details_Panel_View_Switching.md` — extend them, ⛔ never a sixth menu mechanism.
@@ -43,10 +43,12 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 
 | lane | state | for the coordinator |
 |---|---|---|
-| **backend** | CE-4270 (a host is data; the fused server) **in progress** — head `cc37bffc` (B6: the editor on HostSpawning; B7 plan: the role table exists three times) | ⚠ the handoff's safety rule S1 says the design (stage A) is approved by the user BEFORE stage B moves code — **ask the user whether they approved it in the backend lane**; review on merge |
-| **ui** | CE-4271 thumbnail atlas **done** — report `24a43409` (runtime, packer, scenario stills in git, no reload route) | review the report and merge when the user asks |
-| **ui** | mounted guns (CE-2317 / 1299 / 1300), the November bug batch, the director / thumbnails / deploy map handoff — dispatch shas are all in ui | check their reports on the next lane check |
+| **backend** | CE-4270 (a host is data; the fused server) **in progress** — head `cc37bffc` (B0–B6 hosts on the one HostSpawning step, S0 snapshot rail first; B7 plan). ✅ Stage A approved by the user in the backend lane (**R-3077**, D1–D5); CE-4269 audio and ③ the player cycle script done | no steer needed; ⏸ not merged (no report yet). ⭐ Overlap to watch: the role table (B7) and our editing levels / hats (D4, D17) — both decide what a node offers by role |
+| **ui** | CE-4271 thumbnail atlas **done and MERGED** into coordinator (`b0d5509f`); mounted guns (CE-2317 / 1299 / 1300) reported done (`82aed6ec`), merged with it | reviewed: per-frame lookup allocates nothing after the first upload; open: CE-4273 (Car), CE-1464 |
+| **ui** | the November bug batch, the director / thumbnails / deploy map handoff — dispatch shas are in ui | check their reports on the next lane check |
 | **behaviors** | performance programme (§11f, 1000 soldiers load) | nothing dispatched |
 | **backend** | late-joiner ghosts (CE-4000 / 4007) — dispatch in backend | check its report |
 
-Ids: coordinator next free **CE-4274**, **R-4124**.
+Ids: coordinator next free **CE-4274**, **R-4125**.
+
+⚠ All lanes are PAUSED by the user while the editing-UX designs are discussed (`2026-11-06`).
