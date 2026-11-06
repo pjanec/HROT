@@ -13,7 +13,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: the multiplayer server comes up on Windows, and the FULL player cycle is tested (CE-4269 + a new acceptance)
 
-**For:** the backend lane (`backend`). **From:** the coordinator lane. **Dispatched at** the commit that adds this file. ⭐ Scope FROZEN
+**For:** the backend lane (`backend`). **From:** the coordinator lane. **Dispatched at `ef9fc92dd`**. ⭐ Scope FROZEN
 there; later documents are FYI. A later document that invalidates an item ⇒ STOP that item, report it (R-106), keep the rest. Questions ⇒
 a NOTE to coordinator. Merge `coordinator` first.
 
