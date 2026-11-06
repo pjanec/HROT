@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — the programme frame; D2–D9 approved 2026-11-06; D1 (undo) and D10 (one edit framework) each get their own design; every slice E0–E7 starts with its own design reviewed by the user (R-4122)
-updated: 2026-11-06 (the user's corrections to §1.5: multi-select exists, centre-handle move exists; §1.7 new topics — hats, mission plan editor, unified menus; §3.12 finish / level / airborne aircraft / gizmo look; D11 revised, D16–D18, E10–E11) · 2026-11-06 (§1.5 map interaction and §1.6 context menus inventoried; §3.12–§3.13 targets; D11–D15; slices E8–E9) · 2026-11-06 (§4.3a the user's verdict: D2–D9 approved, D1 and D10 own designs, design-first per slice — R-4122) · 2026-11-06 (§4 gap map, decisions D1–D9 with leans, slices E1–E7) · 2026-11-06 (§0b the user's review of §2–§3: pickers filtered by applicability, condition templates, expert detail kept, scarce confirmations, editing levels per node — R-4121) · 2026-11-06 (§2 prior art, §3 the target UX: layout wireframe, the tab set, modes, actions, the expected basics) · 2026-11-06 (§0a the user's review of §1: raw editor = debugging tool, semantic types, undo in Edit mode only, dedicated forms, the expected basics — R-4120) · 2026-11-06 (first version: the direction, and the inventory of what a user can edit today — coordinator)
+build-state: DESIGN — the programme frame; D2–D9 and D11–D16 (first iteration) approved 2026-11-06; the design queue is §4.5; D1 (undo) and D10 (one edit framework) each get their own design; every slice E0–E7 starts with its own design reviewed by the user (R-4122)
+updated: 2026-11-06 (§4.3c D11–D16 approved as a first iteration; top-level designs written here, lanes detail them — R-4123; §4.5 the design queue; §1.4 rows 11–13 from the sweeps) · 2026-11-06 (the user's corrections to §1.5: multi-select exists, centre-handle move exists; §1.7 new topics — hats, mission plan editor, unified menus; §3.12 finish / level / airborne aircraft / gizmo look; D11 revised, D16–D18, E10–E11) · 2026-11-06 (§1.5 map interaction and §1.6 context menus inventoried; §3.12–§3.13 targets; D11–D15; slices E8–E9) · 2026-11-06 (§4.3a the user's verdict: D2–D9 approved, D1 and D10 own designs, design-first per slice — R-4122) · 2026-11-06 (§4 gap map, decisions D1–D9 with leans, slices E1–E7) · 2026-11-06 (§0b the user's review of §2–§3: pickers filtered by applicability, condition templates, expert detail kept, scarce confirmations, editing levels per node — R-4121) · 2026-11-06 (§2 prior art, §3 the target UX: layout wireframe, the tab set, modes, actions, the expected basics) · 2026-11-06 (§0a the user's review of §1: raw editor = debugging tool, semantic types, undo in Edit mode only, dedicated forms, the expected basics — R-4120) · 2026-11-06 (first version: the direction, and the inventory of what a user can edit today — coordinator)
 current-answer: §0 the direction (user rulings) · §0a the user's review of §1 · §3 the target UX · §4 the decisions D1–D9 (for approval) and the slices · §1 the inventory (what exists, where it is edited, what is wrong with it; §1.5 map interaction, §1.6 context menus)
 stale-below: nothing
 known-rot: none
 known-conflict: AQ26's two-axis resolution lets a HOST supply the isApplicable rule; R-4119 narrows it — for an entity, the rule reads the entity's components (§0)
 related-designs:
+  - ../blueprints/RESUME_Coordinator_Editing_UX.md — the programme's resume doc (where we are, what next)
   - ../CAPABILITIES.md — §14 is the product-facing summary of §1 (what a user can change, per mode)
   - ../blueprints/DESIGN_Details_Panel_View_Switching.md — OWNS the Details panel machinery (DetailsViewRegistry, descriptors, AppliesTo, the offer set); this design owns WHICH tabs, what goes in them, and their UX
   - README.md — the August scenario-authoring UX programme (Path A authoring, Path B runtime intervention, "same panels serve both"); this design widens it to the whole feature set
@@ -140,6 +141,9 @@ The editor then adds its own tabs (`EditorSubsystem.cs:3295-3370`); AI perspecti
 | 7 | **no matrix of which action is allowed in which mode** (weather in Live? spawn during DAR? edits in AAR?) | AQ108 §3 allows editing while running, nothing per action |
 | 8 | **missing editors**: traffic (file only), scenario description and picture, terrain change, sides and relations, crowd-level settings, scenario checks, utility weights, EQS, phases/phase lines, bookmarks and notes on recordings, copy/paste, multi-edit, empty groups | CAPABILITIES §14 ⏳ rows |
 | 9 | **Path B (the live instructor's path) was never walked** | `UX_Golden_Path.md:317-340` |
+| 11 | **AI authoring gaps**: `Hrot.Utility.Editor` exists but is not wired (the Decision tab is read-only); EQS templates are C# only; `JoinFormation` is broken (only squad march works); C#-only HSMs (12) do not open in the HSM editor; BTree / HSM node step stays greyed | AI sweep; OVERVIEW §3, §5, §10, §11 |
+| 12 | **run and review gaps**: DAR P2 (the review gate stopping modules outside the toggle groups) is STOPPED; "new scenario from a checkpoint" is in AQ108 §3 but no UI was found; the Run Setup choice is not saved between sessions; rule live edit is partial (Scenario Rules §00.11a ② awaits the user) | run sweep; AQ108 §3, §2.18; DAR §12i |
+| 13 | **terrain change**: the picker R-183 asked for was deleted when recipes took ownership of the terrain (AQ108 §2.15) | scenario sweep |
 | 10 | **docs out of step**: Entity Commanding still NOT-BUILT though built; Zones READY-TO-BUILD though the tools exist | AI sweep |
 
 ### 1.5 Working on the map — placing, drawing, picking, shapes *(added `2026-11-06`, user: "how entities get placed on the map, how various areas are edited, how points are picked … it deserves a review")*
@@ -503,6 +507,32 @@ with my review."* — R-4122.
 | **D1 (undo)** | ⏸ **its own design**, reviewed by the user before any code — it builds on D10 |
 | **D10 (NEW) — one edit framework across nodes** | ⭐ lean: **extend the one that exists, not a new one** — [DESIGN_Remote_Edit_Outcome.md](../DESIGN_Remote_Edit_Outcome.md) (BUILT `2026-11-04`): `EntityWriteRouter` (apply here or ask the owner) + `EditRequests` (a ticket) + `EditOutcomeLog` (applied / refused with the reason / pending). 📐 Measured: only the rules (`RuleCommands.cs:33,54`) and the HTTP API (`DebugApiService.cs:3036`) use the ticket; it covers COMPONENT writes only. ⛔ Not covered: structural edits — spawn, delete, ORBAT re-parent, embark, macro insert, change type — each with its own request and ack today. ⇒ its own design: every user edit, of any kind, is one request through one API with one outcome; the Messages list (D8), the field marks and undo (D1) all read that one stream |
 | **every slice** | ⛔ **design first, the user reviews it, then build** — E1…E7 each start with a design document (UML, inventory), not with code; a handoff dispatches the DESIGN step and stops for review |
+
+### 4.3c The user's verdict on D11–D16, and the way of working *(`2026-11-06`)*
+
+🔒 *"D11-D16 ok now, at least as the first iteration (lot's might change as we go through more detailed designs) · i guess we should be
+writing and discussing designs, at leas the top level ones. UI and backend could be be adjusting and detailing them as they go during
+implementation (which is still far - we need to do lots of designing). pls make sure all is recorded and nothing from that lives just in
+this chat"* — R-4123.
+
+| | outcome |
+|---|---|
+| **D11–D16** | ✅ approved as a FIRST ITERATION — expected to change in the detailed designs |
+| **who designs** | ⭐ the **top-level designs** (one per slice E0–E11) are written and discussed HERE, by the coordinator lane with the user; ui and backend **detail and adjust** them during implementation (as-built fold-back, R-129) |
+| **when to build** | ⏸ not yet — implementation is far; designing comes first |
+| **the user's point ⑩** | arrived empty — to ask |
+
+### 4.5 The design queue *(top-level designs to write, in a proposed order — each reviewed by the user)*
+
+| order | design | why this order |
+|---|---|---|
+| 1 | **E9 + E1 core — the action catalogue and the tab / action `Requires` + mode model** | every menu, tab, tool and the editing levels read it |
+| 2 | **E0 — one edit framework across nodes** (extending DESIGN_Remote_Edit_Outcome) | every edit, Messages, and undo read it |
+| 3 | **E11 — the mission plan editor** | the user's "most used tool" |
+| 4 | **E10 — the hats** (RTS, FPS / possession, instructor, game master, editor, observer) with D4's editing levels | decides what one person at one station sees |
+| 5 | **D1 — undo in Edit mode** (unifying `EditHistory`, `GizmoUndoStack`, the director's stack) | needs E0 |
+| 6 | **E8 — map interaction** (conventions, picks, placement with level / airborne, gizmo looks) | needs E9 for the right-click menu |
+| 7 | **E2 forms · E5 condition templates · E7 review · E2b sim / types** | smaller, mostly independent |
 
 ### 4.4 Slices — proposed handoffs, once D1–D9 are approved
 
