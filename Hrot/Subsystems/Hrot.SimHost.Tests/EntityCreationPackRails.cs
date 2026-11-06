@@ -630,7 +630,7 @@ namespace Hrot.SimHost.Tests
         [InlineData("Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs")]
         public void EveryNetworkedRoot_PassesTheAdaptersAndSchedulesTheNetworkSystems(string rootPath)
         {
-            var src = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(rootPath));
+            var src = CompositionRootSource.ReadEffectiveRoot(rootPath);
 
             Assert.True(src.Contains("NetworkAdapters"), $"{rootPath} does not pass NetworkAdapters to the pack.");
             Assert.True(src.Contains("creation.RegisterOn("), $"{rootPath} does not schedule the pack (and its NetworkSystems) through creation.RegisterOn (CE-4013 D6).");
@@ -643,8 +643,7 @@ namespace Hrot.SimHost.Tests
         [MemberData(nameof(RootsThatBuildThePack))]
         public void EveryRootThatBuildsThePack_SchedulesGhostPromotion(string rootPath)
         {
-            var src = CompositionRootSource.StripComments(
-                CompositionRootSource.ReadRepoSource(rootPath));
+            var src = CompositionRootSource.ReadEffectiveRoot(rootPath);
 
             // ⛔ Anti-vacuity: if this root stops building the pack, the row asserts nothing.
             Assert.True(src.Contains("EntityCreationPack.Build"),
@@ -669,7 +668,7 @@ namespace Hrot.SimHost.Tests
         [MemberData(nameof(RootsThatBuildThePack))]
         public void EveryRootThatBuildsThePack_SchedulesTheObstacleBake(string rootPath)
         {
-            var src = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(rootPath));
+            var src = CompositionRootSource.ReadEffectiveRoot(rootPath);
             Assert.True(src.Contains("EntityCreationPack.Build"), $"{rootPath} no longer builds the pack, so this row cannot assert anything.");
             Assert.True(src.Contains("creation.RegisterOn("),
                 $"{rootPath} builds EntityCreationPack but never schedules creation.ObstacleBakeSystem: every static obstacle on " +
@@ -685,7 +684,7 @@ namespace Hrot.SimHost.Tests
         [MemberData(nameof(RootsThatBuildThePack))]
         public void EveryRootThatBuildsThePack_SchedulesTheSeatPresets(string rootPath)
         {
-            var src = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(rootPath));
+            var src = CompositionRootSource.ReadEffectiveRoot(rootPath);
             Assert.True(src.Contains("EntityCreationPack.Build"), $"{rootPath} no longer builds the pack, so this row cannot assert anything.");
             Assert.True(src.Contains("creation.RegisterOn("),
                 $"{rootPath} builds EntityCreationPack but never schedules creation.SeatPresetSystem: a technical's gun and gunner would stand " +

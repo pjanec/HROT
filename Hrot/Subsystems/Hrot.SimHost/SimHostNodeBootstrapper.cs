@@ -422,88 +422,24 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// <inheritdoc/>
     protected override void RegisterSpawningPipeline(HrotNodeContext context)
     {
-        // Toolkit modules - Physics
+        // The physics toolkit's raycast batch first: the spawn pipeline and the muscle capabilities raycast through it.
         PhysicsModule = new PhysicsToolkitModule();
         PhysicsModule.Initialize(context.World);
 
-        // ⭐⭐⭐ CE-140 step 3, host (b) — THE ENTITY CREATION PACK.
-        //    This host used to hand-assemble the spawn path: build the list, call SetTranslators, and
-        //    construct NetworkSpawningSystem with `translators:` passed by hand. Every one of those was
-        //    an independent chance to get it wrong, and five hosts got it wrong the same way
-        //    (S1, CE-137 twice, CE-138, CE-139). ⇒ the pack makes the omission unrepresentable.
-        //
-        // ⭐⭐ AND IT CLOSES THE SAME QUIETER GAP host (a) had: SimHost had NO CreateEntityRequestSystem,
-        //    so nothing could ask it to create an entity — not even itself. Its only creation path was
-        //    a raw bus SpawnEntityCommand. 🔒 User ruling 2026-08-31: the shared code "should not
-        //    restrict any ecs enabled node from creating own networked entities … not removing
-        //    capabilities by design". The pack has no opt-out.
-        //
-        // ⭐ AiDiagnostics goes through ExtraTranslators rather than being baked into Base(), because it
-        //    lives above Hrot.Core — exactly the per-node ADDITION tkb-1/DESIGN.md §6.5 sanctions.
-        //    ⛔ ExtraTranslators is ADD-ONLY: there is no way to hand the pack a narrower list. Per
-        //    component narrowing is gate 2 (IsComponentTypeRegistered), never the list (§6.5b).
-        //
-        // 📄 DESIGN_Entity_Creation_Unification.md §3, §3.4 · Architect_Question_65 §0, §4.
-        var creation = EntityCreationPack.Build(new EntityCreationContext
-        {
-            World       = context.World,
-            EntityMap   = context.EntityMap,
-            TkbDb       = context.TkbDb!,
-            IdAllocator = context.IdAllocator!,
-
-            // ⭐⭐ CE-509 / S2b — the SAME network adapters every ECS host passes: this node can be ASKED over the
-            //    network to create or delete, forward a request addressed elsewhere, and GRANT what it creates
-            //    (push-only ownership). The pack builds the delete and poll systems from it. Null offline.
-            //    📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S2, S2b.
-            NetworkAdapters = ConfiguredNetworkFactory?.CreateCgfEntityLifecycleAdapters(),
-
-            // BaseModules[0] == EntityLifecycleModule. The pack calls SetTranslators on it, which must
-            // precede the kernel's Initialize — it does: this runs during RegisterSpawningPipeline.
-            Elm         = (EntityLifecycleModule)context.BaseModules[0],
-            NodeId      = context.NodeId,
-
-            ExtraTranslators = new ITkbEntityTranslator[]
+        // ⭐ CE-4270 B4 (§4.1ag) — the ONE shared spawning step: the pack (AI diagnostics + animation TKB translators; not the broadcast
+        //   arbiter — the Brain is), then the capabilities, then the genesis tail — the order every host takes after D5 (R-3077).
+        EntityCreation = Hrot.EcsNode.Hosting.HostSpawning.Register(context, ConfiguredNetworkFactory,
+            new Hrot.EcsNode.Hosting.SpawningSpec
             {
-                new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),
-                // ⭐ CE-2121 — stance (and the animation runtime pair) from the TKB's CharacterAnimationDefDto; it adds only the
-                //   types this node registered (StanceComponentRegistry). No production ITkbHotReloadEvents exists yet ⇒ null.
-                new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
+                IsBroadcastArbiter = false,
+                ExtraTranslators   = new ITkbEntityTranslator[]
+                {
+                    new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),
+                    new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
+                },
+                Order = Hrot.EcsNode.Hosting.SpawningOrder.PackThenCapabilities,
             },
-
-            // ⛔ NOT the cluster's broadcast arbiter — that is CGF, and exactly one node may be it.
-            //    ⚠ This does NOT stop SimHost creating entities: a request targeted at this node is
-            //    processed regardless of the flag (CreateEntityRequestSystem.cs:151-156, Q65 §1).
-            IsBroadcastArbiter = false,
-
-            // ⭐⭐⭐ CE-291 (piece C) — the reliable-init wait-set provider, sourced UNIFORMLY from the shared
-            //    NED replication module (which hosts the cluster-membership ingest for every ECS node). 🔒 User
-            //    ruling 2026-09-16: the node-centric "only CGF stamps peers" gating is obsolete — SimHost is a
-            //    symmetric reliable creator. null ⇒ fast-mode (headless/editor with no cluster cache).
-            //    📄 docs/DESIGN_Cross_Node_Construction_Barrier.md §3a.4.
-            ExpectedPeers = context.NedReplication?.ExpectedPeers,
-        });
-
-        EntityCreation = creation;   // CE-515
-        // ⭐ CE-4013 D6 — every piece of the pack, scheduled by the ONE shared registration (EntityCreation.RegisterOn).
-        creation.RegisterOn(context.Kernel);
-
-        // ⭐⭐⭐ B4b step 2 — the node's role-selected units register themselves, in the order the plan
-        //    resolved them. That order was the hand-written sequence CoreLogicPack → EqsModule →
-        //    EngineBackedNavigationModule → CognitiveSpatialModule (an AreaQueryResultMaterializationSystem
-        //    sat before the last until the AreaQuery pipeline was retired, 2026-10-01), and it is preserved EXACTLY: ModuleHostKernel appends to a plain list the frame loop walks in
-        //    order, so registration order IS execution order and a reordering here would be a behaviour
-        //    change dressed as tidying. (That measurement is also why perception is two capabilities —
-        //    see SimHostCapabilities.)
-        //
-        //    RegisterProviders on the navigation module is still deferred to PostInitialize: it needs
-        //    _navmesh/_registry, which its own RegisterSystems creates during Kernel.Initialize.
-        //
-        // ⭐ CE-4013 — the shared walk, HERE (after this host's spawn pack, as before), with the plan's own values bag: the
-        //   free-standing empty bag this used to pass predated CE-199's node-resources step, which made the real one legal.
-        RegisterCapabilities(context);
-
-        // ⭐ CE-4013 D11 — the shared genesis tail (scenario intents + the saved AI's ingress), at this host's point.
-        GenesisTail.RegisterOn(context.Kernel, context.EntityMap);
+            () => RegisterCapabilities(context));
     }
 
     /// <inheritdoc/>
