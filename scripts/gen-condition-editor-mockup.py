@@ -16,14 +16,17 @@ def fa(cp,x,y,col,sz=13,op=1):
 def t(x,y,s,c=TXT,sz=13,anchor="start"):
     s=s.replace("&","&amp;").replace("<","&lt;")
     o.append(f"<text x='{x}' y='{y}' fill='{c}' font-size='{sz}' {FONT} text-anchor='{anchor}'>{s}</text>")
-def tabbar(x,y,w_total,names,selected,TABC="#2B4F80",SELC="#3369AD"):
+def tabbar(x,y,w_total,names,selected,TABC="#24242C",SELC="#3A3A48",icons=None,LINE="#3369AD"):
     """ImGui's tab bar: rounded top corners, flat bottom, a line under the bar in the selected colour."""
     cx=x
     for i,name in enumerate(names):
-        w=22+sum(8.6 if ch.isupper() else (3.6 if ch==' ' else (4.0 if ch in 'il&' else 6.9)) for ch in name); c=SELC if i==selected else TABC; rr=4; h=21
+        ic=icons[i] if icons else None
+        w=22+(19 if ic else 0)+sum(8.6 if ch.isupper() else (3.6 if ch==' ' else (4.0 if ch in 'il&' else 6.9)) for ch in name); c=SELC if i==selected else TABC; rr=4; h=21
         o.append(f"<path d='M{cx} {y+h} L{cx} {y+rr} Q{cx} {y} {cx+rr} {y} L{cx+w-rr} {y} Q{cx+w} {y} {cx+w} {y+rr} L{cx+w} {y+h} Z' fill='{c}'/>")
-        t(cx+8,y+15,name); cx+=w+2
-    o.append(f"<rect x='{x}' y='{y+21}' width='{w_total}' height='1.5' fill='{SELC}'/>")
+        if i==selected: o.append(f"<rect x='{cx+2}' y='{y}' width='{w-4}' height='2' fill='{LINE}'/>")
+        if ic: fa(ic[0],cx+8,y+4,ic[1],12.5)
+        t(cx+8+(19 if ic else 0),y+15,name); cx+=w+2
+    o.append(f"<rect x='{x}' y='{y+21}' width='{w_total}' height='1.5' fill='{LINE}'/>")
 def r(x,y,w,h,f,stroke=None,rx=0,sw=1,dash=None):
     st=f" stroke='{stroke}' stroke-width='{sw}'" if stroke else ""
     d=f" stroke-dasharray='{dash}'" if dash else ""
@@ -61,7 +64,7 @@ t(20,44,"Annotations in grey are not drawn by the app.","#8A8A96",sz=11.5)
 PX,PY,PW,PH=20,60,760,540
 r(PX,PY,PW,PH,BG,stroke=BORDER)
 r(PX,PY,PW,20,TITLE); t(PX+8,PY+14,"Details — Rule \"Phase 2: assault\"")
-tabbar(PX+8,PY+25,PW-16,["When","Do","Settings","Results"],0)
+tabbar(PX+8,PY+25,PW-16,["When","Do","Settings","Results"],0,icons=[(0xf0b0,"#5AA9FF"),(0xf04b,"#5BD06A"),(0xf013,"#A0A0AA"),(0xf11e,"#F2C033")])
 # expert switch + live chip
 r(PX+PW-200,PY+27,84,18,"#163A24",rx=9); fa(0xf111,PX+PW-192,PY+30,GREEN,11); t(PX+PW-176,PY+40,"Live",  "#7FD69A",sz=11.5)
 r(PX+PW-108,PY+27,100,18,FRAME,rx=3); t(PX+PW-100,PY+40,"Expert view",DIS,sz=11.5); r(PX+PW-24,PY+31,10,10,"#2A2A33",stroke=SEP)

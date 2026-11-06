@@ -32,14 +32,17 @@ FONT="font-family='Roboto, Segoe UI, Arial, sans-serif'"
 def t(x,y,s,c=TXT,sz=13,anchor="start",w="normal",st=""):
     s=s.replace("&","&amp;").replace("<","&lt;")
     a(f"<text x='{x}' y='{y}' fill='{c}' font-size='{sz}' {FONT} text-anchor='{anchor}' font-weight='{w}' {st}>{s}</text>")
-def tabbar(x,y,w_total,names,selected,TABC="#2B4F80",SELC="#3369AD"):
+def tabbar(x,y,w_total,names,selected,TABC="#24242C",SELC="#3A3A48",icons=None,LINE="#3369AD"):
     """ImGui's tab bar: rounded top corners, flat bottom, a line under the bar in the selected colour."""
     cx=x
     for i,name in enumerate(names):
-        w=22+sum(8.6 if ch.isupper() else (3.6 if ch==' ' else (4.0 if ch in 'il&' else 6.9)) for ch in name); c=SELC if i==selected else TABC; rr=4; h=21
+        ic=icons[i] if icons else None
+        w=22+(19 if ic else 0)+sum(8.6 if ch.isupper() else (3.6 if ch==' ' else (4.0 if ch in 'il&' else 6.9)) for ch in name); c=SELC if i==selected else TABC; rr=4; h=21
         o.append(f"<path d='M{cx} {y+h} L{cx} {y+rr} Q{cx} {y} {cx+rr} {y} L{cx+w-rr} {y} Q{cx+w} {y} {cx+w} {y+rr} L{cx+w} {y+h} Z' fill='{c}'/>")
-        t(cx+8,y+15,name); cx+=w+2
-    o.append(f"<rect x='{x}' y='{y+21}' width='{w_total}' height='1.5' fill='{SELC}'/>")
+        if i==selected: o.append(f"<rect x='{cx+2}' y='{y}' width='{w-4}' height='2' fill='{LINE}'/>")
+        if ic: fa(ic[0],cx+8,y+4,ic[1],12.5)
+        t(cx+8+(19 if ic else 0),y+15,name); cx+=w+2
+    o.append(f"<rect x='{x}' y='{y+21}' width='{w_total}' height='1.5' fill='{LINE}'/>")
 def r(x,y,w,h,f,stroke=None,rx=0,sw=1,op=1):
     st=f" stroke='{stroke}' stroke-width='{sw}'" if stroke else ""
     a(f"<rect x='{x}' y='{y}' width='{w}' height='{h}' fill='{f}' rx='{rx}'{st} opacity='{op}'/>")
@@ -97,9 +100,9 @@ PX,PY,PW,PH=20,60,520,560
 r(PX,PY,PW,PH,BG,stroke=BORDER)
 r(PX,PY,PW,20,TITLE); t(PX+8,PY+14,"Details — Alpha 1-1 (Rifleman, Friend)")
 # tabs
-tabbar(PX+8,PY+25,PW-16,["Unit","Crew & cargo","Orders","Brain","Components"],0)
+tabbar(PX+8,PY+25,PW-16,["Unit","Crew & cargo","Orders","Brain","Components"],0,icons=[(0xf007,"#5AA9FF"),(0xf5b6,"#F29B38"),(0xf4d7,"#5BD06A"),(0xf5dc,"#E8A0C8"),(0xf121,"#A0A0AA")])
 # mode chip
-r(PX+PW-108,PY+27,100,18,"#163A24",rx=9); t(PX+PW-58,PY+40,"Edit mode","#7FD69A",sz=11.5,anchor="middle")
+r(PX+PW-92,PY+2,84,16,"#163A24",rx=8); t(PX+PW-50,PY+14,"Edit mode","#7FD69A",sz=11,anchor="middle")
 LX,CX,CW,SX=PX+14,PX+150,PW-196,PX+PW-38
 y=PY+62
 def sep(label):

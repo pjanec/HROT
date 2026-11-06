@@ -5,14 +5,19 @@
 <rect x='20' y='60' width='760' height='540' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1'/>
 <rect x='20' y='60' width='760' height='20' fill='#294A7A' rx='0'/>
 <text x='28' y='74' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Details — Rule "Phase 2: assault"</text>
-<path d='M28 106 L28 89 Q28 85 32 85 L75.3 85 Q79.3 85 79.3 89 L79.3 106 Z' fill='#3369AD'/>
-<text x='36' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>When</text>
-<path d='M81.3 106 L81.3 89 Q81.3 85 85.3 85 L114.8 85 Q118.8 85 118.8 89 L118.8 106 Z' fill='#2B4F80'/>
-<text x='89.3' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Do</text>
-<path d='M120.8 106 L120.8 89 Q120.8 85 124.8 85 L192.8 85 Q196.8 85 196.8 89 L196.8 106 Z' fill='#2B4F80'/>
-<text x='128.8' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Settings</text>
-<path d='M198.8 106 L198.8 89 Q198.8 85 202.8 85 L263.9 85 Q267.9 85 267.9 89 L267.9 106 Z' fill='#2B4F80'/>
-<text x='206.8' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Results</text>
+<path d='M28 106 L28 89 Q28 85 32 85 L94.3 85 Q98.3 85 98.3 89 L98.3 106 Z' fill='#3A3A48'/>
+<rect x='30' y='85' width='66.3' height='2' fill='#3369AD'/>
+<path d='M4 393Q15 415 40 416H472Q497 415 508 393Q518 370 503 351L320 127V0Q319 -19 302 -29Q285 -37 269 -26L205 22Q192 32 192 48V127L9 351Q-6 370 4 393Z' fill='#5AA9FF' fill-opacity='1' transform='translate(36,100.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='55' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>When</text>
+<path d='M100.3 106 L100.3 89 Q100.3 85 104.3 85 L152.8 85 Q156.8 85 156.8 89 L156.8 106 Z' fill='#24242C'/>
+<path d='M73 409Q49 423 25 410Q1 396 0 368V16Q1 -12 25 -26Q49 -39 73 -25L361 151Q383 165 384 192Q383 218 361 233L73 409Z' fill='#5BD06A' fill-opacity='1' transform='translate(108.3,100.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='127.3' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Do</text>
+<path d='M158.8 106 L158.8 89 Q158.8 85 162.8 85 L249.8 85 Q253.8 85 253.8 89 L253.8 106 Z' fill='#24242C'/>
+<path d='M496 281Q500 267 490 257L446 217Q448 205 448 192Q448 179 446 167L490 127Q500 117 496 103Q489 85 480 68L475 60Q465 44 453 29Q443 18 429 22L373 40Q353 24 329 15L317 -43Q313 -57 298 -60Q278 -64 256 -64Q234 -64 213 -60Q199 -57 195 -43L183 15Q159 24 139 40L83 22Q69 18 59 29Q46 44 37 60L32 68Q23 85 16 102Q12 117 22 127L66 166Q64 179 64 192Q64 205 66 217L22 257Q12 267 16 281Q23 299 32 316L37 324Q46 340 59 355Q69 366 83 362L139 344Q159 360 183 370L195 427Q199 441 214 444Q234 448 256 448Q278 448 299 444Q313 441 317 427L329 370Q353 360 373 344L429 362Q443 366 453 355Q466 340 476 324L480 316Q489 299 496 281ZM256 112Q301 113 325 152Q347 192 325 232Q301 271 256 272Q211 271 187 232Q165 192 187 152Q211 113 256 112Z' fill='#A0A0AA' fill-opacity='1' transform='translate(166.8,100.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='185.8' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Settings</text>
+<path d='M255.8 106 L255.8 89 Q255.8 85 259.8 85 L339.9 85 Q343.9 85 343.9 89 L343.9 106 Z' fill='#24242C'/>
+<path d='M32 448Q46 448 55 439Q64 430 64 416V400L133 417Q192 431 247 405Q282 387 320 387Q358 387 394 405L403 409Q420 417 433 408Q447 400 448 382V102Q447 81 427 72L393 59Q320 33 251 67Q192 95 128 80L64 64V-32Q64 -46 55 -55Q46 -64 32 -64Q18 -64 9 -55Q0 -46 0 -32V48V114V384V416Q0 430 9 439Q18 448 32 448ZM64 261 128 275 64 261 128 275V209L64 195V130L113 142Q120 144 128 145V209L167 218Q179 220 192 220V284Q213 283 232 277L256 271V204L214 216Q203 219 192 220V149Q225 146 256 134V204L279 197Q299 191 320 190V254Q308 255 297 258L256 270V332Q236 338 218 347Q205 354 192 356V284Q172 284 153 280L128 275V350L64 334V261ZM320 112Q346 110 370 119L384 124V196L376 194Q348 188 320 190V112ZM384 262V333V262V333Q353 323 320 323V254Q341 252 362 257L384 262Z' fill='#F2C033' fill-opacity='1' transform='translate(263.8,100.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='282.8' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Results</text>
 <rect x='28' y='106' width='744' height='1.5' fill='#3369AD'/>
 <rect x='580' y='87' width='84' height='18' fill='#163A24' rx='9'/>
 <path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64Z' fill='#5BD06A' fill-opacity='1' transform='translate(588,99.861328125) scale(0.021484375,-0.021484375)'/>

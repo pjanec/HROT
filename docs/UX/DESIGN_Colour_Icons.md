@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level, ✅ APPROVED (R-4141); FontAwesome glyphs used as icons get colour by meaning (R-4139); Silk bitmaps and the time controls stay (R-4140); colours approved per surface from a rendered strip
-updated: 2026-11-06 (§3 the five monochrome surfaces measured; Silk and the time controls stay — user, R-4140) · 2026-11-06 (REVISED by the user: FontAwesome glyphs stay, in colour — not the Silk atlas; R-4139) · 2026-11-06 (first version — Silk atlas; superseded the same day)
-current-answer: §2 the model · §3 the surfaces · §4 stages · §5 questions
+updated: 2026-11-06 (§3.1 tabs with a coloured icon, neutral tab palette — user; Q-I4 for review) · 2026-11-06 (§3 the five monochrome surfaces measured; Silk and the time controls stay — user, R-4140) · 2026-11-06 (REVISED by the user: FontAwesome glyphs stay, in colour — not the Silk atlas; R-4139) · 2026-11-06 (first version — Silk atlas; superseded the same day)
+current-answer: §2 the model · §3 the surfaces · §3.1 tabs with an icon · §4 stages · §5 questions
 stale-below: §⛔ HISTORY (the Silk version)
 known-rot: none
 known-conflict: none
@@ -96,11 +96,30 @@ replay browser) are ok … no need to replace. Ok to the colored glyphs in the f
 `TransportIconRenderer`) · the timeline flag (already `0xFF60C0F0`) · glyphs inside menu text (*DAR from …*) · the search hint · ⭐ **every
 Silk bitmap icon** — window icons, the perspective toolbar, the AI node pickers and node kinds stay as they are (user).
 
+### 3.1 Tabs with an icon *(user, `2026-11-06`: "If the tabs themselves can get an icon on the left of the text, that would help almost everywhere the tab is used")*
+
+📐 A tab's label is ONE colour of text, so the coloured icon is painted, not typed. The shared tab helper (CE-4286 lifts the no-close-box tab
+out of `DetailsWindow`) takes an `IconGlyph`: the label reserves the icon's width (spaces before the text, `##id` keeps the id stable), and
+after `BeginTabItem` the glyph is drawn in its colour at `GetItemRectMin` + the frame padding through the window draw list. Everything
+else stays a normal ImGui tab (scrolling, `SetSelected`, keyboard). The AI document tabs already prefix a monochrome glyph
+(`AiGraphCanvasWindow.GetTabGlyph`); they move onto the same helper.
+
+📐 **Rendered `2026-11-06`: on ImGui's default blue tabs the blue icons nearly vanish** (the glyph-button finding again) ⇒ content tab bars
+use the neutral palette: tab ≈ #24242C, selected ≈ #3A3A48 with a blue top line (ImGui 1.91's `TabSelectedOverline`) and the blue line
+under the bar. Docked-window tabs, which ImGui draws itself, are untouched (Q-I4).
+
+| tab bar | tabs → icon, colour |
+|---|---|
+| Details (entity) | Unit → `User` blue · Crew & cargo → `VanShuttle` orange · Orders → `Route` green · Brain → `Brain` pink · Rules → `ScaleBalanced` amber · Composition → `PuzzlePiece` violet · Shape → `DrawPolygon` teal · Event → `Bolt` amber · Components → `Code` grey |
+| Details (nothing selected) | Scenario → `EarthEurope` blue |
+| a rule | When → `Filter` blue · Do → `Play` green · Settings → `Gear` grey · Results → `FlagCheckered` amber · Overview / Status → `CircleInfo` blue · Bindings → `Link` blue · History → `ClockRotateLeft` grey |
+| the AI documents | as §3 (the asset kind's glyph and colour) |
+
 ## 4. Stages
 
 | stage | what | owner | acceptance |
 |---|---|---|---|
-| **I1** | `IconGlyph`, `IconPalette`, `Icons` in `Fdp.Presentation`; `ModeGlyph` folded in; `GlyphButton` / `GlyphToggle` in `IconWidgets` | ui | the mode indicator unchanged on screen |
+| **I1** | `IconGlyph`, `IconPalette`, `Icons` in `Fdp.Presentation`; `ModeGlyph` folded in; `GlyphButton` / `GlyphToggle` and the **icon tab** (§3.1, with CE-4286's shared no-close-box tab) in `IconWidgets` | ui | the mode indicator unchanged on screen; a tab's icon drawn at its item rect, in its colour, the id stable when the label changes |
 | **I2** | ✅ the colours of §3 approved from the rendered sheet (R-4141); a strip again only for a colour the build changes | ui | — |
 | **I3** | the approved surfaces drawn through `Icons` | ui | a frame rail per surface under `xvfb-run` asserts glyph and colour; a side-by-side with the approved strip (forms §6.6) |
 
@@ -110,6 +129,7 @@ Silk bitmap icon** — window icons, the perspective toolbar, the AI node picker
 |---|---|---|---|
 | **Q-I1** | where a FontAwesome glyph is used as an icon | **drawn in a colour by meaning**, one key → (glyph, colour) map — ⭐ Silk bitmaps stay where they are (Q-I3) | replace the glyphs with Silk — the user keeps the glyphs, in colour |
 | **Q-I2** | a switch's options | **each always in its own colour**; the selected one framed and full-strength | selected coloured, others grey: what the user called hard to read |
+| **Q-I4** | the palette of a content tab bar | **neutral** (dark grey tabs, the selected one lighter with a blue top line) so the coloured icons read; docked-window tabs untouched | ImGui's default blue tabs: blue and violet icons vanish on them |
 | **Q-I3** | the Silk icons that exist (window icons, perspective toolbar, AI node kinds) | ✏ **DECIDED by the user: they stay** — a properly drawn Silk icon reads well, its slight upscaling blur looks natural | — |
 
 ## ⛔ HISTORY — the Silk version *(superseded the same day, R-4139; do not quote)*
