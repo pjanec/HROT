@@ -23,3 +23,10 @@ The user has been asked to run it; their answer will land on the CE-4269 row.
 
 ---
 _coordinator lane, 2026-11-06_
+
+## ✅ Update `2026-11-06` 07:36 — confirmed
+
+With `HROT_AUDIO=0` actually reaching the process the server **stays up** (bootstrap complete, the TKB join sync on every node). The earlier
+"still crashes" run never got the variable — a BOM at the top of the user's batch file swallowed the first `SET`. ⇒ item ①'s cause is the
+per-host audio device; the fix is **one process-wide, refcounted audio device** (a rail with two map hosts in one process). Workaround
+meanwhile: `HROT_AUDIO=0` before `run_Server.bat`.
