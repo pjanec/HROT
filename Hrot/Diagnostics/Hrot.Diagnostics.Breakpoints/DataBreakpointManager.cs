@@ -1041,7 +1041,8 @@ public sealed class DataBreakpointManager
                 Func<EntityRepository, Entity, bool>? remainingDelegate = null;
                 if (remainingConditions.Count > 0 && _predicateCompiler != null)
                 {
-                    SearchPredicateDto remainingPredicate = remainingConditions.Count == 1
+                    // ⚠ C1 — a None of one child is NOT that child: only And / Or collapse a single remainder.
+                    SearchPredicateDto remainingPredicate = remainingConditions.Count == 1 && compound.Operator != LogicalOperator.None
                         ? remainingConditions[0]
                         : new CompoundPredicateDto { Operator = compound.Operator, Conditions = remainingConditions };
                     remainingDelegate = _predicateCompiler.CompileComponentPredicate(remainingPredicate);

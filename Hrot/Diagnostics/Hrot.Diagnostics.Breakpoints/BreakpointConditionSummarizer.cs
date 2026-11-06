@@ -24,7 +24,7 @@ public static class BreakpointConditionSummarizer
         LifecyclePredicateDto lc       => $"Lifecycle: {lc.IdentifierType}",
         TraceBufferScanPredicateDto tr => $"Trace[0x{tr.OpCode:X2}]",
         CompoundPredicateDto cp        => $"Compound[{cp.Operator}]({cp.Conditions.Count}): "
-                                          + string.Join(cp.Operator == LogicalOperator.And ? " AND " : " OR ", cp.Conditions.Select(Summarize)),
+                                          + string.Join(cp.Operator switch { LogicalOperator.And => " AND ", LogicalOperator.None => " NOR ", _ => " OR " }, cp.Conditions.Select(Summarize)),
         BlueprintVariablePredicateDto bv => $"Blueprint: {bv.TargetBlueprintAssetId.ToString()[..8]}...",
         BehaviourStepPredicateDto st   => Step(st),
         ExternalHitTagPredicateDto et  => et.Tag.StartsWith("btree:", StringComparison.Ordinal) ? "the node runs" : $"Tag: {et.Tag}",

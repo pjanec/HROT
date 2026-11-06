@@ -53,6 +53,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     [JsonDerivedType(typeof(CountMatchingPredicateDto),      "CountMatching")]
     // ⭐ rules S4 E-2 (SR-20) — a registered [UtilityInput] over a threshold; compiled in BOTH modes (it is a component-ish read).
     [JsonDerivedType(typeof(InputAbovePredicateDto),         "InputAbove")]
+    // ⭐ condition editor C1 (docs/UX/DESIGN_Condition_Editor.md §5, R-4142) — "this unit or anyone under it", "in the fight"; compiled in BOTH modes.
+    [JsonDerivedType(typeof(InUnitPredicateDto),             "InUnit")]
+    [JsonDerivedType(typeof(InTheFightPredicateDto),         "InTheFight")]
     // ⭐ SR-160 — every predicate node may bind its own properties to macro / scenario params (Bind); the trigger's do entries share the base.
     public abstract class SearchPredicateDto : Fdp.Toolkit.Scenario.BindableNode { }
 
@@ -93,11 +96,26 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         public float Threshold { get; set; }
     }
 
+    /// <summary>⭐ condition editor C1 (📄 docs/UX/DESIGN_Condition_Editor.md §5, R-4142) — true when the entity being asked about IS <see cref="Unit"/>
+    /// (when <see cref="IncludeSelf"/>) or is anywhere under it down its <c>UnitRoster</c> (<c>UnitTree.Contains</c>, the objectives' S1-d walk lifted).
+    /// An unresolved or dead unit ⇒ false.</summary>
+    public sealed class InUnitPredicateDto : SearchPredicateDto
+    {
+        public Fdp.Toolkit.Replication.EntityLink Unit { get; set; }
+        public bool IncludeSelf { get; set; } = true;
+    }
+
+    /// <summary>⭐ condition editor C1 (R-4142) — true when the entity being asked about is IN THE FIGHT (<c>CombatEffective.IsInTheFight</c>: a man by his
+    /// injury state, a unit by its roster). ⛔ Not <see cref="LifecyclePredicateDto"/>: a dead man still exists.</summary>
+    public sealed class InTheFightPredicateDto : SearchPredicateDto { }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Compound
     // ──────────────────────────────────────────────────────────────────────────
 
-    public enum LogicalOperator { And, Or }
+    /// <summary>How a <see cref="CompoundPredicateDto"/> joins its children. ⭐ <see cref="None"/> (condition editor C1, R-4142): true when NO child holds —
+    /// so a one-child <c>None</c> is NOT (⛔ never a separate Not kind). ⚠ Appended: the stored numbers of And / Or do not move.</summary>
+    public enum LogicalOperator { And, Or, None }
 
     public sealed class CompoundPredicateDto : SearchPredicateDto
     {
