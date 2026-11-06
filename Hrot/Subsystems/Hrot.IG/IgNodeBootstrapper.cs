@@ -375,64 +375,18 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     /// <c>Q65-A′</c> asks for: capability by composition, not by node role.</para>
     /// </summary>
     protected override void RegisterSpawningPipeline(HrotNodeContext context)
-    {
-        // ⭐ CE-4013 — the capabilities' Register hook, FIRST (Stride's and the editor's point). ⛔ IG never called it: a capability
-        //   composing through Register did nothing here. None in IG's plan implements it today, so this changes no order.
-        RegisterCapabilities(context);
-
-        var creation = EntityCreationPack.Build(new EntityCreationContext
-        {
-            World       = context.World,
-            EntityMap   = context.EntityMap,
-            TkbDb       = context.TkbDb!,
-            IdAllocator = context.IdAllocator!,
-            Elm         = (EntityLifecycleModule)context.BaseModules
-                              .First(m => m is EntityLifecycleModule),
-            NodeId      = context.NodeId,
-
-            // ⭐⭐ S2b — the SAME network adapters every ECS host passes. The pack takes the request source,
-            //    ack sink, JSON compiler, ownership strategy AND the forwarding egress (D1: without it a
-            //    request addressed elsewhere is silently dropped by the Level-1 guard) from this one object,
-            //    and builds the delete and poll systems. Null offline. 📄 DESIGN_Ownership_Groups_And_Grants.md §5.6.
-            //    ⚠ From the NODE-CONFIGURED factory, as on SimHost and Stride — IG used to take them from the raw
-            //    factory, which carries no node id or role.
-            NetworkAdapters       = ConfiguredNetworkFactory?.CreateCgfEntityLifecycleAdapters(),
-
-            // ⭐⭐⭐ CE-291 (piece C) — the reliable-init wait-set provider, sourced UNIFORMLY from the shared
-            //    NED replication module. 🔒 User ruling 2026-09-16: no node-centric gating — IG is a symmetric
-            //    reliable creator. (IG already had the cache via adapters but never passed ExpectedPeers.)
-            //    📄 docs/DESIGN_Cross_Node_Construction_Barrier.md §3a.4.
-            ExpectedPeers         = context.NedReplication?.ExpectedPeers,
-
-            // ⛔ NOT the cluster's broadcast arbiter — that is CGF, and exactly one node may be it.
-            IsBroadcastArbiter = false,
-        });
-
-        // ⭐ RegisterSpawningPipeline runs BEFORE RegisterApplicationSystems (SharedApplicationBootstrapper.cs:111 vs :139), so the
-        //    registrar callback that constructs MapCommandController always sees the pack. ⭐ CE-3228 — the tools publish their
-        //    requests on this world's bus, which the pack reads.
-        EntityCreation              = creation;   // CE-515
-
-        // ⭐ CE-4013 D6 — every piece of the pack, scheduled by the ONE shared registration (EntityCreation.RegisterOn). What it carries
-        //   that matters most here:
-        //   · CE-271 seam ④ — the cluster-cache pump (NodeHeartbeat) is one of the NetworkSystems; without it a Map2D-created tank's
-        //     grant set is EMPTY.
-        //   · CE-144 — NetworkSpawningSystem is the ONE consumer of DestroyEntityCommand (it begins the ELM teardown, so the wire
-        //     dispose is written); IG's private GhostDestructionSystem is gone. 📄 DESIGN_Entity_Creation_Unification.md §3.4c.
-        //   · P2 — ghost promotion comes from the pack; IG, which receives ghosts of everything, would otherwise keep every received
-        //     entity in EntityLifecycle.Ghost. 📄 DESIGN_Role_Affinity_Ownership.md §3.7.
-        //   ⚠ The spawner was a GLOBAL system on this host (a module on SimHost, Stride, the editor); it is the module now, like
-        //     everywhere — the one ordering it must keep (LocalAuthorityYieldSystem after it) is declared by [UpdateAfter].
-        creation.RegisterOn(context.Kernel);
-        // ⭐ CE-4013 D11 — and the shared genesis tail, which IG alone lacked (§4.1f: it belongs with the pack, not a role).
-        Hrot.SimHost.Systems.GenesisTail.RegisterOn(context.Kernel, context.EntityMap);
-
-        // ⭐ CE-221 — the standalone SingleSystemModule registration that used to sit here was the
-        //    PRECEDENT for treating UnitHierarchySystem as cross-role infrastructure rather than pack
-        //    content: IG got it right while three role packs carried their own copy. It is now declared
-        //    as CoreInfrastructureCapabilities.UnitHierarchy in this node's plan, so the system set is
-        //    unchanged and every host reaches it the same way.
-    }
+        // ⭐ CE-4270 B2 (§4.1ag) — the ONE shared spawning step; IG's own order until D5 (R-3077): the capabilities first. What the pack
+        //   carries that matters here (unchanged): the cluster-cache pump (CE-271 ④ — a Map2D tank's grant set), the ONE consumer of
+        //   DestroyEntityCommand (CE-144), ghost promotion (P2 — IG receives ghosts of everything), the forwarding egress (S2b D1), the
+        //   reliable-init wait-set (CE-291 C), and the shared genesis tail (CE-4013 D11). ⛔ Not the broadcast arbiter — that is the Brain.
+        //   It runs BEFORE RegisterApplicationSystems, so the MapCommandController registrar always sees the pack (CE-3228).
+        => EntityCreation = Hrot.EcsNode.Hosting.HostSpawning.Register(context, ConfiguredNetworkFactory,
+            new Hrot.EcsNode.Hosting.SpawningSpec
+            {
+                IsBroadcastArbiter = false,
+                Order              = Hrot.EcsNode.Hosting.SpawningOrder.CapabilitiesThenPack,
+            },
+            () => RegisterCapabilities(context));
 
     // ── Phase 6b: Register network translators ────────────────────────────────
 
