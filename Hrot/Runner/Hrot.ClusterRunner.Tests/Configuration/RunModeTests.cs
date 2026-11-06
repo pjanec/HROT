@@ -176,16 +176,40 @@ namespace Hrot.ClusterRunner.Tests.Configuration
         }
 
         [Fact]
-        public void Validate_ServerMode_ExpandsToOrchestratorSimHostCgfTraffic_AndNeverWaits()
+        public void Validate_ServerMode_IsTheFusedServer_OrchestratorAndOneCgfNode_AndNeverWaits()
         {
             // "server" = the server side of a networked game; players (--mode player) join it later, so it
             // must start with NEITHER --wait-for NOR --no-wait.
+            // ⭐ CE-4270 B7c (D4, R-3077) — it is the FUSED server: the orchestrator and ONE cgf node booted with the fused role (Program.cs sets it).
             var cfg = new HrotRunnerConfiguration { ModeString = "server" };
             cfg.Validate();   // must not throw
 
+            Assert.True(cfg.FusedServer);
+            Assert.Equal(
+                new[] { "cgf", "orchestrator" },
+                cfg.RequestedSubsystems.OrderBy(s => s, StringComparer.Ordinal).ToArray());
+        }
+
+        [Fact]
+        public void Validate_ServerMode_WithServerNodes_IsTheOldFourNodeProcess_AndNeverWaits()
+        {
+            // ⭐ CE-4270 B7c (D4) — the old four-node process stays bootable behind --server-nodes.
+            var cfg = new HrotRunnerConfiguration { ModeString = "server", ServerNodesMode = true };
+            cfg.Validate();   // must not throw
+
+            Assert.False(cfg.FusedServer);
             Assert.Equal(
                 new[] { "cgf", "orchestrator", "simhost", "traffic" },
                 cfg.RequestedSubsystems.OrderBy(s => s, StringComparer.Ordinal).ToArray());
+        }
+
+        [Fact]
+        public void Validate_AnExplicitOrchestratorCgfRoster_IsNotTheFusedServer()
+        {
+            // ⭐ CE-4270 B7c — only the "server" shorthand fuses; naming the nodes keeps a Brain-only CGF (which must say how it waits).
+            var cfg = new HrotRunnerConfiguration { ModeString = "orchestrator,cgf", NoWait = true };
+            cfg.Validate();
+            Assert.False(cfg.FusedServer);
         }
 
         [Fact]

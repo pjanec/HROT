@@ -135,9 +135,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// navigation solver writes; a node without it allocates no pool.</para>
     /// </remarks>
     protected override System.Collections.Generic.IReadOnlyList<string> DeclaredResourceKeys(NodeRole role)
-        => (role & NodeRole.MuscleGround) == NodeRole.MuscleGround
-            ? new[] { Hrot.Common.Infrastructure.ResourceKeys.TrajectoryPool }
-            : System.Array.Empty<string>();
+        => MuscleRoleInputs.DeclaredResourceKeys(role);   // ⭐ CE-4270 B7b — the ONE Muscle-role implementation (CGF's fused boot calls it too)
 
     /// <summary>
     /// CE-199 — the INSTANCE half: the providers that satisfy <see cref="DeclaredResourceKeys"/>.
@@ -149,9 +147,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// </remarks>
     protected override System.Collections.Generic.IReadOnlyList<Hrot.Common.Infrastructure.INodeResourceProvider>
         ResolveResources(HrotNodeContext context, NodeRole role)
-        => (role & NodeRole.MuscleGround) == NodeRole.MuscleGround
-            ? new Hrot.Common.Infrastructure.INodeResourceProvider[] { TrajectoryPool }
-            : System.Array.Empty<Hrot.Common.Infrastructure.INodeResourceProvider>();
+        => MuscleRoleInputs.ResolveResources(role, TrajectoryPool);
 
 
 
@@ -174,15 +170,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// than a crash.</para>
     /// </remarks>
     protected override void PostInitialize(HrotNodeContext context)
-    {
-        bool composedTheSolver = false;
-        foreach (Hrot.Common.Infrastructure.INodeCapability capability in Capabilities)
-            if (capability.Key == Hrot.Common.Infrastructure.CapabilityKeys.NavigationSolver)
-                composedTheSolver = true;
-
-        if (composedTheSolver)
-            _navModule!.RegisterProviders(context.World);
-    }
+        => MuscleRoleInputs.RegisterNavigationProviders(Capabilities, _navModule, context.World);   // ⭐ CE-4270 B7b — shared with CGF's fused boot
 
     /// <param name="networkFactory">Optional network factory for DDS setup.</param>
     /// <param name="role">Node role controlling which simulation modules are activated.</param>
@@ -272,7 +260,10 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         // B4b: the pool comes from the node's provider, not from whichever module defaults one.
         // Every consumer below receives THIS instance, so the solver's routes and the kinematics
         // systems' lookups address the same memory by construction (CE-180).
-        CoreLogicPack = new SimHostCoreLogicPack(context.EntityMap, roadNetwork, TrajectoryPool.Pool);
+        // ⭐ CE-4270 B7b — the pack, the navigation module and the solver factory are built by the ONE Muscle-role step (MuscleRoleInputs), which
+        //   CGF's bootstrapper also calls when it is booted as the fused server.
+        var muscle = MuscleRoleInputs.Build(context.EntityMap, roadNetwork, TrajectoryPool, Navmesh, () => _nodeBootstrapper);
+        CoreLogicPack = muscle.CoreLogicPack;
 
         // ⭐ S2b — the owner-side edit-request handlers moved to the base bootstrapper's input group, so
         //   every host applies another node's edit (F-10). ⛔ This host used to call ConfigureForNode a
@@ -280,23 +271,12 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
 
         // B4b step 2: the node's units come from a declared plan rather than a hand-written list.
         // ⚠ Resolved once; the base walks the SAME instances at every composition step (CE-4013).
-        _navModule = new EngineBackedNavigationModule(
-            RoadNetwork ?? default(CarKinem.Road.RoadNetworkBlob),
-            TrajectoryPool.Pool,
-            Navmesh);
-
-        // ⭐ W6 — the SOLVER, sharing the navmesh, the pool and (once orchestration built it) the road holder.
-        var solverRoad = RoadNetwork ?? default(CarKinem.Road.RoadNetworkBlob);
-        var solverPool = TrajectoryPool.Pool;
-        Fdp.Toolkit.Navigation.Modules.NavigationSolverModule BuildSolver()
-            => new(solverRoad, solverPool, Navmesh, roadNetworkHolder: _nodeBootstrapper?.RoadNetworkHolder);
+        // ⭐ W6 — the SOLVER shares the navmesh, the pool and (once orchestration built it) the road holder (inside MuscleRoleInputs.Build).
+        _navModule = muscle.NavigationModule;
 
         // ⭐⭐ CE-2144 (R-2008) — the ONE shared plan head (HealthApplication first): damage owned here is applied here.
         var plan = Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.LiveSimulationPlan(NodeRole.MuscleGround)
-            .Provider(TrajectoryPool)
-            .Capability(NodeRole.MuscleGround,     new SimHostCapabilities.MuscleGround(CoreLogicPack))
-            .Capability(NodeRole.Perception,       new SimHostCapabilities.PerceptionSolver())
-            .Capability(NodeRole.NavigationSolver, new SimHostCapabilities.NavigationSolver(_navModule, BuildSolver))
+            .WithSolverEntries(muscle, TrajectoryPool)   // ⭐ CE-4270 B7b — the provider + MuscleGround · Perception · NavigationSolver, from the ONE Muscle-role step
             // ⭐ CE-221 — cross-role infrastructure, declared LAST so it keeps its tail-of-Simulation
             //    position. Declared once per plan; Resolve de-duplicates by Key, which is what makes
             //    a Brain+Muscle node register it ONCE instead of twice.
@@ -347,12 +327,8 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         List<IEcsModuleSystem> sim,
         List<IEcsModuleSystem> postSim)
     {
-        // Seed GlobalTime singleton
-        context.World.SetSingletonUnmanaged(new GlobalTime
-        {
-            DeltaTime = 1.0f / _simulationRateHz,
-            TimeScale = 1.0f
-        });
+        // Seed GlobalTime singleton (⭐ CE-4270 B7b — the ONE Muscle-role seed, shared with CGF's fused boot)
+        MuscleRoleInputs.SeedGlobalTime(context.World, _simulationRateHz);
     }
 
     /// <inheritdoc/>
@@ -446,14 +422,9 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         HrotNodeContext context,
         INetworkFactory? configuredFactory)
     {
-        if (context.Participant == null || configuredFactory == null) return;
-
-        configuredFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(context.Kernel);
-        configuredFactory.CreateSimHostPerceptionTranslators(context.GhostCreationSystem).RegisterOn(context.Kernel);
-        configuredFactory.CreateSimHostPathfindingTranslators(CoreLogicPack!.TrajectoryPool).RegisterOn(context.Kernel);
+        // ⭐ CE-4270 B7b — the ONE SimHost translator set (MuscleRoleInputs), shared with CGF's fused boot.
         // ⭐ CE-2121 slice ② — the body's half of the stance wire: the Brain's request in, the body's report out (gated on the
         //   MuscleGround group's descriptor, not on the entity's owner). 📄 docs/DESIGN_Decision_Layer.md §3.3g.
-        Hrot.Animation.Replication.AnimationReplicationModule.RegisterStanceOn(
-            context.Kernel, context.Participant, context.EntityMap, NodeRole.MuscleGround);
+        MuscleRoleInputs.RegisterTranslators(context, configuredFactory, CoreLogicPack!.TrajectoryPool, NodeRole.MuscleGround);
     }
 }

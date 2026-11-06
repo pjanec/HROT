@@ -131,6 +131,43 @@ public sealed class TheHostCompositionIsFrozenTests
         }
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4270</c> B7c (D4, R-3077) — <c>-m server</c>, the FUSED server: the orchestrator and ONE cgf node booted with
+    /// <see cref="Hrot.CGF.CgfSubsystem.FusedServerRole"/> (as Program.cs sets it), each on its own factory and participant. Golden <c>server-fused.json</c>.
+    /// </summary>
+    [Fact(Timeout = 180_000)]
+    public void TheFusedServerComposesWhatItComposedBefore()
+    {
+        int domain = Interlocked.Increment(ref _domain);
+        var types = new[] { typeof(Hrot.Orchestrator.OrchestratorSubsystem), typeof(Hrot.CGF.CgfSubsystem) };
+        var participants = new List<DdsParticipant>();
+        var subsystems = new List<ISubsystem>();
+        foreach (var type in types)
+        {
+            var participant = HrotEnvironment.CreateParticipant(domain);
+            participants.Add(participant);
+            INetworkFactory factory = new NedNetworkFactory(participant, new NetworkEntityMap(), HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
+                new FdpEventBus(), 0, NodeRole.None);
+            var sub = SubsystemFactory.TryCreate(type, factory)!;
+            if (sub is Hrot.CGF.CgfSubsystem cgf) cgf.Role = Hrot.CGF.CgfSubsystem.FusedServerRole;
+            subsystems.Add(sub);
+        }
+        var orchestrator = new SubsystemOrchestrator(subsystems, new RunnerOptions { Headless = true, DomainId = domain });
+        try
+        {
+            orchestrator.Initialize();
+            var cgfNode = subsystems.OfType<Hrot.CGF.CgfSubsystem>().Single();
+            var (node, bootstrapper) = NodeOf(cgfNode);
+            Assert.NotNull(node);
+            AssertNoDifferences(Check("server-fused", CompositionSnapshot.Describe("server-fused", node!, bootstrapper)));
+        }
+        finally
+        {
+            try { orchestrator.Shutdown(); } catch { /* best effort, as the harness */ }
+            foreach (var p in participants) try { p.Dispose(); } catch { /* as the harness */ }
+        }
+    }
+
     private static (HrotNodeContext? Node, SharedApplicationBootstrapper? Bootstrapper) NodeOf(ISubsystem sub)
     {
         switch (sub)

@@ -63,7 +63,7 @@ public sealed class ModeStartupRails
     {
         { "editor",        "mode=editor,"        },
         { "all",           "mode=orchestrator,simhost,ig,cgf,traffic," },
-        { "server",        "mode=orchestrator,simhost,cgf,traffic," },
+        { "server",        "mode=orchestrator,cgf," },   // ⭐ CE-4270 B7c — the fused server (one cgf node with the fused role)
         { "player",        "mode=ig,"            },   // the user-facing name of the IG node
         { "simhost",       "mode=simhost,"       },
         { "cgf",           "mode=cgf,"           },

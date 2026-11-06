@@ -67,8 +67,43 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
     public Hrot.Map.Common.Services.TerrainResidency? TerrainResidency => _nodeBootstrapper.TerrainResidency;
     public Fdp.Core.Serialization.Migrations.MigrationServices? MigrationServices { get; private set; }
 
-    /// <summary>⭐ Decision D (R-3074): CGF builds NO post-simulation group; a capability that contributes post-sim systems throws at boot instead of being dropped.</summary>
-    protected override bool BuildsPostSimGroup => false;
+    /// <summary>⭐ Decision D (R-3074): CGF builds NO post-simulation group; a capability that contributes post-sim systems throws at boot instead of being dropped.
+    /// ⭐ CE-4270 B7b — a role that composes the Muscle (the fused server) builds it: the muscle pack has post-simulation systems (as on SimHost).</summary>
+    protected override bool BuildsPostSimGroup => Hrot.SimHost.MuscleRoleInputs.ComposesMuscle(BootRole);
+
+    // ── ⭐⭐⭐ CE-4270 B7b (§4.1ag, R-3077) — the Muscle role's inputs, by the DECLARED role. Booted as the Brain alone none of this runs (S0 cgf.json identical);
+    //   booted as the fused server (Brain | MuscleGround | Perception | NavigationSolver) this node is the brain AND the muscle in one world — the editor's union,
+    //   network ON, slave time. Every Muscle input comes from the ONE shared step SimHost uses (Hrot.SimHost.MuscleRoleInputs), never a copy. ──
+
+    private bool ComposesMuscle => Hrot.SimHost.MuscleRoleInputs.ComposesMuscle(BootRole);
+
+    /// <summary>The node's one trajectory pool when the role composes the Muscle (routes written by the solver, read by kinematics — CE-180). Made on first use:
+    /// a Brain-only boot never allocates one.</summary>
+    public Hrot.Common.Infrastructure.TrajectoryPoolProvider TrajectoryPool => _trajectoryPool ??= new();
+    private Hrot.Common.Infrastructure.TrajectoryPoolProvider? _trajectoryPool;
+
+    /// <summary>⭐ W6 — THE node's navmesh when it composes the Muscle (the solver's, and what a terrain commit bakes into). Made on first use.</summary>
+    public Fdp.Toolkit.Navigation.SwitchableNavmeshProvider Navmesh => _navmesh ??= new();
+    private Fdp.Toolkit.Navigation.SwitchableNavmeshProvider? _navmesh;
+
+    /// <summary>⭐ W6 — bakes the navmesh from each loaded terrain, as on SimHost (silent-default rule: a node that composes the solver must bake). Null ⇒ no bake.</summary>
+    public Fdp.Toolkit.Navigation.INavmeshFactory? NavmeshFactory { get; set; } = new Fdp.Toolkit.Navigation.Recast.RecastNavmeshFactory();
+
+    /// <summary>The Muscle role's parts (the core logic pack, the navigation module, the solver factory); null for a Brain-only boot.</summary>
+    public Hrot.SimHost.MuscleRoleInputs.Parts? Muscle { get; private set; }
+
+    /// <summary>The Muscle's GlobalTime step (SimHost's NodeConfiguration default).</summary>
+    private static readonly float MuscleSimulationRateHz = new Hrot.SimHost.NodeConfiguration().SimulationRateHz;
+
+    protected override IReadOnlyList<string> DeclaredResourceKeys(NodeRole role) => Hrot.SimHost.MuscleRoleInputs.DeclaredResourceKeys(role);
+
+    protected override IReadOnlyList<INodeResourceProvider> ResolveResources(HrotNodeContext context, NodeRole role)
+        => Hrot.SimHost.MuscleRoleInputs.ComposesMuscle(role)
+            ? Hrot.SimHost.MuscleRoleInputs.ResolveResources(role, TrajectoryPool)
+            : Array.Empty<INodeResourceProvider>();
+
+    /// <summary>⭐ CE-165 (the editor's rule) — the Brain and the Muscle packs in one world share systems; each runs once (the first in plan order wins).</summary>
+    protected override bool DeduplicateSystemsByType => ComposesMuscle;
 
     // ── the registries come first: BuildContext hands the behaviour registry to the replication module ──
 
@@ -106,7 +141,12 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
     protected override HrotNodeContext BuildContext(HrotNodeConfig config, NodeRole role, INetworkFactory? networkFactory)
         => HrotNodeBuilderReplicationExtensions.BuildReplicatedNode(config, role, networkFactory, GetBehaviorRegistry());   // time Slave (the default)
 
-    protected override void RegisterDomainComponents(EntityRepository world) => CgfComponentRegistry.RegisterAll(world);
+    protected override void RegisterDomainComponents(EntityRepository world)
+    {
+        // ⭐ CE-4270 B7b — a role with the Muscle registers the Muscle's set too, in the editor's order (SimHost's, then CGF's).
+        if (ComposesMuscle) Hrot.SimHost.SimHostComponentRegistry.RegisterAll(world);
+        CgfComponentRegistry.RegisterAll(world);
+    }
 
     protected override ScenarioSerializer BuildSerializer(BehaviorRegistry? registry)
     {
@@ -127,28 +167,46 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
         // which this host has; the editor is offline, receives no ghosts, and for it the gate would only subtract.
         var cgfLogicPack = new CgfLogicPack(BehaviorRegistry, context.EntityMap, mapperRegistry, BlueprintRegistry, vehicleApi: null, gateOnAuthority: true, nodeBus: context.EventBus);
 
+        // ⭐ CE-4270 B7b — the Muscle role's parts, built only when the declared role composes it (dormant for the Brain alone).
+        Muscle = ComposesMuscle
+            ? Hrot.SimHost.MuscleRoleInputs.Build(context.EntityMap, default(CarKinem.Road.RoadNetworkBlob), TrajectoryPool, Navmesh, () => _nodeBootstrapper)
+            : null;
+
         // ⭐⭐ CE-2144 (R-2008) — the plan starts from the ONE shared head: HealthApplication first, so damage is applied before the cognitive runtime.
-        ResolvedCapabilities = CoreInfrastructureCapabilities.LiveSimulationPlan(CgfSubsystem.DefaultRole)
-            .Capability(CgfSubsystem.DefaultRole, new CgfCapabilities.Brain(cgfLogicPack))
+        // ⭐⭐⭐ CE-4270 B7a (§4.1ag, R-3077) — every entry is keyed by the ROLE that composes it, and the plan resolves the DECLARED role (`role`, what the
+        //   subsystem handed BootstrapNode), never a constant: booted as the Brain this is exactly CGF's set as before (S0 cgf.json identical).
+        var plan = CoreInfrastructureCapabilities.LiveSimulationPlan(NodeRole.Brain)
+            .Capability(NodeRole.Brain, new CgfCapabilities.Brain(cgfLogicPack));
+        // ⭐ CE-4270 B7b — the Muscle role's entries (the trajectory-pool provider, MuscleGround · Perception · NavigationSolver), after the Brain as in the
+        //   editor's union, from the ONE shared step SimHost uses.
+        if (Muscle != null) plan = Hrot.SimHost.MuscleRoleInputs.WithSolverEntries(plan, Muscle, TrajectoryPool);
+        plan = plan
             // ⭐ CE-221 — cross-role infrastructure, declared LAST so it keeps its tail-of-Simulation position (Resolve de-duplicates by Key).
-            .Capability(CgfSubsystem.DefaultRole, new CoreInfrastructureCapabilities.UnitHierarchy())
-            .Capability(CgfSubsystem.DefaultRole, new Hrot.SimHost.EqsResultUpdateCapability())
+            .Capability(NodeRole.Brain, new CoreInfrastructureCapabilities.UnitHierarchy())
+            .Capability(NodeRole.Brain, new Hrot.SimHost.EqsResultUpdateCapability())
             // ⭐ CE-3110 (R-221/R-224) — interactions (doors, embarkation) are cross-role too.
-            .Capability(CgfSubsystem.DefaultRole, new CoreInfrastructureCapabilities.Interactions())
-            // ⭐ AQ93 §12 N6 (R-4056) — SUMO cars from every traffic node, mirrored (vicinity replicas the brains see); idle without a net.
-            .Capability(CgfSubsystem.DefaultRole, Hrot.Traffic.TrafficPack.Mirroring())
+            .Capability(NodeRole.Brain, new CoreInfrastructureCapabilities.Interactions())
+            // ⭐ CE-2121 — the character body (stance) over the fake animation backend, for a role with the Muscle (module-only, after the infrastructure,
+            //   as on SimHost and the editor). ⛔ No ReportInbox: that is the inbox of a node WITHOUT a brain (CE-2301) — the Brain's own StaffInboxSystem serves here.
+            .Capability(NodeRole.MuscleGround, new Hrot.SimHost.AnimationMuscleCapability())
+            // ⭐ AQ93 §12 N6 (R-4056) — SUMO cars: a Brain mirrors every traffic node's (vicinity replicas the brains see; idle without a net). ⭐ CE-4270 D3 — the
+            //   fused server (Brain + Muscle in one world) SERVES the traffic itself, as the editor does: no traffic node.
+            .Capability(NodeRole.Brain, Muscle != null ? Hrot.Traffic.TrafficPack.Serving() : Hrot.Traffic.TrafficPack.Mirroring())
             // ⭐ Player Join D-2 / §7c (R-4115) — the gameplay deploy SERVER, composed by default; its feature `gameplay.deploy-server` (ON by default) is what gates it, and with it off no
             //   gameplay topic is created. One server per cluster: the lowest node id with the feature on (the cluster cache this node's replication module reads).
-            .Capability(CgfSubsystem.DefaultRole, new Hrot.Gameplay.GameplayServerPack(ctx =>
+            .Capability(NodeRole.Brain, new Hrot.Gameplay.GameplayServerPack(ctx =>
                 (ctx.NedReplication as Hrot.Network.Replication.NedReplicationModule)?.ClusterCache is { } cache
-                    ? new Hrot.Gameplay.DeployServerElection(cache.AllNodeIds, cache.Supports, cache.FeatureOn) : null, creation: () => EntityCreation))   // ⭐ S2 — the node's creation pack, resolved lazily (built after the plan resolves)
-            .Resolve(CgfSubsystem.DefaultRole);
+                    ? new Hrot.Gameplay.DeployServerElection(cache.AllNodeIds, cache.Supports, cache.FeatureOn) : null, creation: () => EntityCreation));   // ⭐ S2 — the node's creation pack, resolved lazily (built after the plan resolves)
+        ResolvedCapabilities = plan
+            .Resolve(role);
         return ResolvedCapabilities;
     }
 
     protected override void PopulateSystems(HrotNodeContext context, List<IEcsModuleSystem> inputSystems, List<IEcsModuleSystem> simSystems, List<IEcsModuleSystem> postSimSystems)
     {
         // Everything CGF runs comes from its capabilities (the base walks them right after this hook) and the base's own owner-side edit-request handlers.
+        // ⭐ CE-4270 B7b — a role with the Muscle starts with SimHost's GlobalTime seed (the ONE shared step).
+        if (ComposesMuscle) Hrot.SimHost.MuscleRoleInputs.SeedGlobalTime(context.World, MuscleSimulationRateHz);
     }
 
     // ── phase 5: the ONE slave, the shared handler composition ───────────────────────────────
@@ -164,6 +222,9 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
     protected override ClusterSlave BuildOrchestration(HrotNodeContext context, TogglableSimulationGroup simGroup, TogglablePostSimulationGroup postSimGroup, ScenarioSerializer serializer)
     {
         ToggleSim = simGroup;
+
+        // ⭐ CE-4270 B7b (W6) — a role with the solver bakes each loaded terrain into the node's navmesh, as SimHost does (silent-default rule: we hold it, so pass it).
+        if (ComposesMuscle && NavmeshFactory != null) _nodeBootstrapper.AttachNavmesh(NavmeshFactory, Navmesh);
 
         // ⭐ Decision A (R-3074): the migration services every Brain host builds (SimHost does, writer identifier "Hrot.CGF" for a Brain).
         MigrationServices = _nodeBootstrapper.RegisterMigrationServices(BootRole, writerIdentifier: "Hrot.CGF");
@@ -227,6 +288,12 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
             mapBuildStatus:       MapBuildStatus);     // ⭐ CE-3354 ③ — this host HAS a map (CgfSubsystem attaches it), so it passes it
     }
 
+    /// <summary>⭐ CE-4270 B7b — after Kernel.Initialize: the navigation module's providers, when the role composed the solver (the ONE shared step, CE-197 guard).</summary>
+    protected override void PostInitialize(HrotNodeContext context)
+    {
+        if (Muscle != null) Hrot.SimHost.MuscleRoleInputs.RegisterNavigationProviders(Capabilities, Muscle.NavigationModule, context.World);
+    }
+
     // ── phase 6a: the spawning pipeline ──────────────────────────────────────────────────────
 
     protected override void RegisterSpawningPipeline(HrotNodeContext context)
@@ -264,6 +331,13 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
 
     protected override void RegisterNetworkTranslators(HrotNodeContext context, INetworkFactory? configuredFactory)
     {
+        // ⭐ CE-4270 B7b — a role with the Muscle registers the ONE SimHost translator set (perception over the ghost system, pathfinding over the node's
+        //   trajectory pool — each pack picks its Brain and its solver halves from the node's role); the stance wire keeps the Brain's half (BootRole).
+        if (Muscle != null)
+        {
+            Hrot.SimHost.MuscleRoleInputs.RegisterTranslators(context, configuredFactory, Muscle.CoreLogicPack.TrajectoryPool, BootRole);
+            return;
+        }
         // Auxiliary translators (time-sync, combat, mission-control) via the injected factory — the SimHost pattern.
         configuredFactory?.CreateSimHostAuxiliaryTranslators()?.RegisterOn(context.Kernel);
         configuredFactory?.CreateSimHostPerceptionTranslators()?.RegisterOn(context.Kernel);

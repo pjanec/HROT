@@ -30,6 +30,16 @@ namespace Hrot.ClusterRunner.Configuration
         [Option("play", Required = false, Default = false, HelpText = "With --scenario: load live and RUN when every node has loaded (implies --load live).")]
         public bool Play { get; set; }
 
+        /// <summary>⭐ <c>CE-4270</c> B7c (D4, R-3077) — <c>-m server</c> as the OLD four-node process (orchestrator, SimHost, CGF, traffic: four worlds, brain ↔ muscle over DDS
+        /// inside the process) instead of the fused server. Low priority; kept as the fallback.</summary>
+        [Option("server-nodes", Required = false, Default = false,
+                HelpText = "With --mode server: run the old four-node server (orchestrator, simhost, cgf, traffic) instead of the fused server (orchestrator + one Brain+Muscle node)")]
+        public bool ServerNodesMode { get; set; }
+
+        /// <summary>⭐ <c>CE-4270</c> B7c — set by <see cref="Validate"/>: <c>-m server</c> runs the FUSED server — the orchestrator plus ONE node built by CGF's bootstrapper with the
+        /// role <c>Brain | MuscleGround | Perception | NavigationSolver</c> (traffic served in its world, D3). 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1ag.</summary>
+        public bool FusedServer { get; private set; }
+
         /// <summary>⭐ <c>CE-3354</c> ⑥ — node NAMES whose scenario load also waits for their built 3-D map (the cluster's map-in-load setting). Absent = not given; given with no name = this process' own nodes.</summary>
         public IEnumerable<string>? MapInLoad { get; set; }
 
@@ -286,8 +296,11 @@ namespace Hrot.ClusterRunner.Configuration
         /// </summary>
         private static readonly string[] AllNodes = { "orchestrator", "simhost", "ig", "cgf", "traffic" };
 
-        /// <summary>The server side of a networked game — everything except the node a player brings along (ig).</summary>
+        /// <summary>The OLD server (<c>--server-nodes</c>): everything except the node a player brings along (ig), four worlds in one process.</summary>
         private static readonly string[] ServerNodes = { "orchestrator", "simhost", "cgf", "traffic" };
+
+        /// <summary>⭐ <c>CE-4270</c> B7c (D4) — the FUSED server, <c>-m server</c>'s default: the orchestrator and ONE cgf node booted with the fused role.</summary>
+        private static readonly string[] FusedServerNodes = { "orchestrator", "cgf" };
 
         /// <summary>
         /// Whole-string shorthands: <c>all</c> / <c>demo</c> = every fine-grained node in one process; <c>server</c> = the
@@ -396,7 +409,11 @@ namespace Hrot.ClusterRunner.Configuration
         {
             // Expand the roster shorthands ("all", "demo", "server") before splitting.
             string expandedMode = ModeString.Trim().ToLowerInvariant();
-            if (RosterShorthands.TryGetValue(expandedMode, out var roster))
+            // ⭐ CE-4270 B7c (D4, R-3077) — "server" is the FUSED server unless --server-nodes asks for the old four-node process.
+            FusedServer = expandedMode == "server" && !ServerNodesMode;
+            if (FusedServer)
+                expandedMode = string.Join(",", FusedServerNodes);
+            else if (RosterShorthands.TryGetValue(expandedMode, out var roster))
                 expandedMode = string.Join(",", roster);
 
             // Parse mode string -> RequestedSubsystems
@@ -480,9 +497,10 @@ namespace Hrot.ClusterRunner.Configuration
             // --wait-for must be supplied (unless --no-wait suppresses synchronisation).
             // A launch that hosts the master AND the simulation core (orchestrator + simhost + cgf — "all", "server" and every
             // superset of them) waits for nobody: players join it later, and it must never block on them.
-            bool hostsTheServerCore = RequestedSubsystems.Contains("orchestrator") &&
-                                      RequestedSubsystems.Contains("simhost") &&
-                                      RequestedSubsystems.Contains("cgf");
+            bool hostsTheServerCore = FusedServer ||   // ⭐ CE-4270 B7c — the fused server holds the master and the whole simulation core
+                                      (RequestedSubsystems.Contains("orchestrator") &&
+                                       RequestedSubsystems.Contains("simhost") &&
+                                       RequestedSubsystems.Contains("cgf"));
             bool isOrchestratorOnly = RequestedSubsystems.Count == 1 && RequestedSubsystems.Contains("orchestrator");
             if (!NoWait && WaitForPeers.Count == 0 && !hostsTheServerCore && !isOrchestratorOnly)
                 throw new InvalidOperationException(

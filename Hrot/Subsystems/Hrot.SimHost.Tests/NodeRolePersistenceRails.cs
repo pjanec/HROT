@@ -302,14 +302,15 @@ namespace Hrot.SimHost.Tests
             var subsystem   = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(CgfRoot));
             var bootstrapper = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(CgfBootstrapperRoot));
 
-            // Exactly one spelling survives, across BOTH files: the constant's own initializer.
+            // Exactly one spelling of the node's role survives in the SUBSYSTEM: the constant's own initializer.
             Assert.Contains("public const NodeRole DefaultRole = NodeRole.Brain", subsystem);
-            Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(subsystem, "NodeRole[.]Brain").Count
-                          + System.Text.RegularExpressions.Regex.Matches(bootstrapper, "NodeRole[.]Brain").Count);
-            // the subsystem hands that constant to the bootstrapper, and the bootstrapper resolves from it — neither names a second role
-            Assert.Contains("BootstrapNode(nodeConfig, DefaultRole,", subsystem);
-            Assert.Contains("CoreInfrastructureCapabilities.LiveSimulationPlan(CgfSubsystem.DefaultRole)", bootstrapper);
-            Assert.Contains(".Resolve(CgfSubsystem.DefaultRole)", bootstrapper);
+            Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(subsystem, "NodeRole[.]Brain").Count);
+            // the subsystem hands its role to the bootstrapper, and the bootstrapper resolves the DECLARED role it was booted with.
+            // ⭐ CE-4270 B7a (§4.1ag) — the bootstrapper's plan keys each entry by the role that composes it (a role table, not a second
+            //   declaration of THIS node's role) and resolves `role`; ⛔ it never reads the subsystem's constant.
+            Assert.Contains("BootstrapNode(nodeConfig, Role,", subsystem);   // ⭐ CE-4270 B7c — DefaultRole unless the root sets the fused server's
+            Assert.Contains(".Resolve(role)", bootstrapper);
+            Assert.DoesNotContain("CgfSubsystem.DefaultRole", bootstrapper);
         }
 
         /// <summary>
@@ -329,8 +330,10 @@ namespace Hrot.SimHost.Tests
             var baseSource   = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(SharedBaseRoot));
 
             // ⭐ CE-2144 (R-2008) — the plan starts from the ONE shared head (LiveSimulationPlanRails pins that no host bypasses it), and resolves.
-            Assert.Contains("ResolvedCapabilities = CoreInfrastructureCapabilities.LiveSimulationPlan(", bootstrapper);
-            Assert.Contains(".Resolve(CgfSubsystem.DefaultRole)", bootstrapper);
+            // ⭐ CE-4270 B7b — the plan is built in steps (the Muscle role's entries join only when the role composes it), then resolved into ResolvedCapabilities.
+            Assert.Contains("var plan = CoreInfrastructureCapabilities.LiveSimulationPlan(", bootstrapper);
+            Assert.Contains("ResolvedCapabilities = plan", bootstrapper);
+            Assert.Contains(".Resolve(role)", bootstrapper);   // ⭐ CE-4270 B7a — the declared role
             // ⭐ CE-4013 — through the ONE shared walk, every phase of it, owned by the base; CGF runs no walk of its own.
             Assert.Contains("new NodeCapabilityWalk(ResolveCapabilities(", baseSource);
             Assert.Contains("_walk!.PopulateSystems(", baseSource);
