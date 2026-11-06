@@ -15,7 +15,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: a FUSED multiplayer server host, one audio device per process, and the full player cycle (CE-4270, CE-4269)
 
-**For:** the backend lane (`backend`). **From:** the coordinator lane. **Dispatched at** the commit that adds this file. ⭐ Scope FROZEN
+**For:** the backend lane (`backend`). **From:** the coordinator lane. **Dispatched at `194705487`** (re-dispatch; the first stamp `ef9fc92dd` was never merged). ⭐ Scope FROZEN
 there; later documents are FYI. A later document that invalidates an item ⇒ STOP that item, report it (R-106), keep the rest. Questions ⇒
 a NOTE to coordinator. Merge `coordinator` first.
 
