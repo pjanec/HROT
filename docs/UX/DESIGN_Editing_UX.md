@@ -590,7 +590,7 @@ chat, committed as SVG beside its design. It is the acceptance spec (R-4138 / De
 | Details forms (E2) + notifications (edit framework §2.5) | `details-forms-visual.svg` | ✅ approved |
 | Condition editor (E5) | `condition-editor-visual.svg` | ✅ approved |
 | Colour icons (E16) | the before / after strips (chat) | ✅ approved |
-| Mission plan editor (E11) | `mission-plan-editor.svg` — an early sketch, not the house style | ⏳ redraw |
+| Mission plan editor (E11) | `mission-plan-editor.svg` — redrawn in the house style (`scripts/gen-mission-plan-mockup.py`) | ✍ drawn, for review |
 | Map interaction (E8): hint line, pick banner, drawing menu, placement ghost + level / airborne | `map-interaction-visual.svg` | ✍ drawn, for review |
 | New scenario on a terrain (E12): the New Scenario picker | `new-scenario-visual.svg` | ✍ drawn, for review |
 | Initial state (E15): the Unit form's Aboard / Carried by / Carries / Weapon / Knows about rows; the Brain tab's Character | `initial-state-visual.svg` | ✍ drawn, for review |
