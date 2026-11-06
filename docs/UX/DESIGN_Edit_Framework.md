@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - DESIGN_Edit_Mode_Undo.md — reads this framework's step boundary (one user action = one step); world steps are snapshots, not inverse ops
   - DESIGN_Mission_Plan_Editor.md — the plan Commit (F6) is that editor's Live path
   - ../DESIGN_Remote_Edit_Outcome.md — the framework this EXTENDS (built 2026-11-04: EntityWriteRouter + EditRequests ticket + EditOutcomeLog for component writes); this design adds the other kinds of edit, the bridges and the journal
   - DESIGN_Editing_UX.md — the programme: D10 (one edit framework), D8 (Messages), D1 (undo, which reads this design's journal), D4 (station levels)

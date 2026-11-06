@@ -41,7 +41,8 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 5. ✍ **Design 3b WRITTEN `2026-11-06`: [DESIGN_Rule_Editor_UX.md](../UX/DESIGN_Rule_Editor_UX.md)** (E13) — ✅ approved, Q3 revised: the condition editor refactored (R-4130).
 6. ✍ **Design 4 WRITTEN `2026-11-06`: [DESIGN_Seats_And_Hats.md](../UX/DESIGN_Seats_And_Hats.md)** (E10 + D4) — ✅ APPROVED (R-4131), with §2.5 (HTTP seats, the camera, the director sharing it); stages H1–H7; CE-4279 (a Player can place units and command any side) and CE-4280 filed.
 7. ✍ **Design 4b WRITTEN `2026-11-06`: [DESIGN_Input_And_Commands.md](../UX/DESIGN_Input_And_Commands.md)** (E14) — ✅ APPROVED as revised (R-4132: the map is a dumb terminal, map keys resolved on the backend; hard-coded defaults complete); CE-4281, CE-4282 filed.
-8. ▶ NOW (queue §4.5): D1 (undo — reads the edit framework's journal), then E8 (map interaction), then the smaller ones. Previously listed after hats:, D1 (undo — reads the edit framework's journal), E8 (map), then the smaller ones (queue §4.5).
+8. ✍ **Design 5 WRITTEN `2026-11-06`: [DESIGN_Edit_Mode_Undo.md](../UX/DESIGN_Edit_Mode_Undo.md)** (D1) — world snapshots in the network-less editor; awaiting the user's review of §4 Q1–Q7.
+9. ▶ NEXT (queue §4.5): E8 (map interaction), then the smaller ones. (Was 8: D1 (undo — reads the edit framework's journal), then E8 (map interaction), then the smaller ones. Previously listed after hats:, D1 (undo — reads the edit framework's journal), E8 (map), then the smaller ones (queue §4.5).
 4. Before each design: INVENTORY with graph queries, UML (class + sequence + module), and a claim table in the chat.
 
 ## 3. The other lanes at writing *(fetched `2026-11-06`)*

@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: AQ26's two-axis resolution lets a HOST supply the isApplicable rule; R-4119 narrows it — for an entity, the rule reads the entity's components (§0)
 related-designs:
+  - DESIGN_Edit_Mode_Undo.md — design queue item 5 (D1): undo in Edit mode, by world snapshots, in the network-less editor
   - DESIGN_Input_And_Commands.md — design queue item 4b (E14): one keymap, scoped, every key an action
   - DESIGN_Seats_And_Hats.md — design queue item 4 (E10 / D17 with D4): seats × hats
   - DESIGN_Rule_Editor_UX.md — design queue item 3b (E13): the rule editor UX review
@@ -539,7 +540,7 @@ this chat"* — R-4123.
 | 3b | ✅ [DESIGN_Rule_Editor_UX.md](DESIGN_Rule_Editor_UX.md), approved with Q3 revised (R-4130) — **E13 — the rule editor UX review** *(user, `2026-11-06`: "rule editor deserves UX review as well - especially if mission editing will be simple so any more advanced stuff ends up in rule editor.")* — inventory of the built rule editor (Rules View §7, RE-1…RE-10, CE-4218 / 4220 / 4222 / 4225) and the rules window, the target: condition templates over the predicate editor (D5 / §3.9), *New rule…* from a task (Mission Plan Editor Q3), rule detail in Details (R-4118), injects in Live | the mission plan editor sends every advanced case here |
 | 4 | ✅ [DESIGN_Seats_And_Hats.md](DESIGN_Seats_And_Hats.md), approved (R-4131) — **E10 — the hats** (RTS, FPS / possession, instructor, game master, editor, observer) with D4's editing levels | decides what one person at one station sees |
 | 4b | ✅ [DESIGN_Input_And_Commands.md](DESIGN_Input_And_Commands.md), approved as revised (R-4132) — **E14 — input and commands, app-wide** *(user, `2026-11-06`: "the key map to app functions scoped to concrete context should be solved on whole app level … same the unification of how command/actions are registered … no ad hoc direct calls to features")* — ONE keymap with scopes (global · map · active hat · focused window · text field), keys bound to ACTION IDS from the catalogue (design 1), the main menu bar's items too; 📐 today ~62 files read keys directly, `EditorHotkeyDispatcher`, `MenuShortcuts`, the FPS station's keys | every hat, menu and tool reads keys |
-| 5 | **D1 — undo in Edit mode** (unifying `EditHistory`, `GizmoUndoStack`, the director's stack) | needs E0 |
+| 5 | ✍ written 2026-11-06: [DESIGN_Edit_Mode_Undo.md](DESIGN_Edit_Mode_Undo.md), for review — **D1 — undo in Edit mode** (unifying `EditHistory`, `GizmoUndoStack`, the director's stack) | needs E0 |
 | 6 | **E8 — map interaction** (conventions, picks, placement with level / airborne, gizmo looks) | needs E9 for the right-click menu |
 | 7 | **E2 forms · E5 condition templates · E7 review · E2b sim / types · E12 new scenario / new recipe workflow (D19)** | smaller, mostly independent |
 
