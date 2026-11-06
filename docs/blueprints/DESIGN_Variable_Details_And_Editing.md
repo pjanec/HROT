@@ -17,6 +17,8 @@ known-conflict: SECTION 5 vs SECTION 6, INTERNAL, found 2026-08-18. Section 5 ru
   edit the values section 6 is about, so sequencing rows 58/59 would ship a dialog that
   refuses exactly the parameter variables, and the Inspector panel becomes PERMANENT rather
   than transitional - against ruling 9. NOT YET RULED. See the note under section 5.
+related-designs:
+  - ../UX/DESIGN_Details_Forms.md — §6 the ONE status palette: red means error everywhere, so §1b's "red = changed this tick" is proposed to become an Info flash (Q-V4)
 -->
 # DESIGN — variable details & editing, consistent across every asset type
 

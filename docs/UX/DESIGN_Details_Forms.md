@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level, ✅ APPROVED Q1–Q8 by the user 2026-11-06 (R-4136); ui builds the forms, backend the attributes (R-4123)
-updated: 2026-11-06 (Q7 revised by the user: posture is a Unit form row — StanceIntent saved, seeded at load, set at once while paused) · 2026-11-06 (revised after the user's review: the raw editor is local BY DESIGN — CE-4283 refuted; every open point measured: the leaf editors through ScalarEditBox, ammunition, posture, weather, routes (CE-4284), embarkation; Q5 replaced, Q7–Q8 added) · 2026-11-06 (first version — coordinator; editing-UX design queue item 8: E2, D3 / D7 and the raw inspector fixes)
-current-answer: §2 the model · §3 the four forms · §4 stages · §5 questions with leans
+updated: 2026-11-06 (§6 the visual design — every row state, multi-select, read-only, conflict, notifications; ImGui-feasible; for review) · 2026-11-06 (Q7 revised by the user: posture is a Unit form row — StanceIntent saved, seeded at load, set at once while paused) · 2026-11-06 (revised after the user's review: the raw editor is local BY DESIGN — CE-4283 refuted; every open point measured: the leaf editors through ScalarEditBox, ammunition, posture, weather, routes (CE-4284), embarkation; Q5 replaced, Q7–Q8 added) · 2026-11-06 (first version — coordinator; editing-UX design queue item 8: E2, D3 / D7 and the raw inspector fixes)
+current-answer: §2 the model · §3 the four forms · §4 stages · §5 questions (approved) · §6 the visual design (for review)
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -18,6 +18,7 @@ related-designs:
   - DESIGN_Seats_And_Hats.md — a row's Level greys it for a seat that may not change it
   - ../DESIGN_Semantic_Value_Types.md — OWNS the typed values (SV-1 time, SV-4 angle) that choose a row's editor and its unit
   - ../blueprints/Architect_Question_59_Attribute_Vocabulary_Single_Source.md — OWNS AttributeVocabulary, "a row HERE FIRST"; every form field is an attribute
+  - ../blueprints/DESIGN_Variable_Details_And_Editing.md — §1b uses yellow = pending, red = changed this tick; §6 here makes red mean error everywhere (Q-V4)
   - ../DESIGN_Remote_Edit_Outcome.md — the ticket and outcome a form commit carries
   - ../designs/weather/DESIGN_Weather_And_Time.md — §2: weather edits were meant to be attribute requests; the Scenario form's weather rows are those attributes
   - ../DESIGN_Entity_Interactions.md — §7 OWNS EmbarkEntityCommand / EmbarkationSystem, which the Crew & cargo form raises
@@ -221,3 +222,69 @@ Order: D1 and D2 in parallel → D3 → D4 → D5 → D6. D1 needs edit framewor
 | **Q6** | what the Unit form replaces | **Summary and Playable** (their content moves into it); Components stays, last | keep Summary beside it: two tabs saying the same |
 | **Q7** | posture | ✏ **REVISED after the user's correction: a Posture row on the Unit form.** `StanceIntent` becomes saved; a loaded unit starts in that stance with no transition; in Edit mode the change shows at once (the transition system does not run while paused); in Live it is a `StanceRequest` with the normal blend; the first real behaviour decision overrides it — like any start state | ⛔ first lean *"posture belongs to orders"* — wrong: an idle unit has no behaviour that sets posture (user) · a separate start-posture component: a second record of the same stance |
 | **Q8** | a route edited on a non-owner (CE-4284) | **the route travels to the owner as `UpdateEntityDescriptorRequest`, the way an area's points already do** — the edit framework's `Write` of a structured value | a scalar attribute per waypoint: a list is not a scalar, and 64 attributes per route would be the raw editor again |
+
+## 6. The visual design *(user, `2026-11-06`: "as the forms are quite often used and important UI, we should first create the visual design for them. Including the error/conflict indication (respecting the imgui capabilities)") — for review*
+
+![The Details forms, every row state, multi-select, read-only, conflict and the notification stack](details-forms-visual.svg)
+
+*What the picture shows that the prose hid:* every state lives in ONE fixed slot at the end of the row. A mark therefore never shifts the
+layout, and only one mark shows at a time. The expensive states (refused, conflict) also reach the user outside the form, as a sticky
+notification, because the form may not be in view.
+
+### 6.1 Measured for this section
+
+| question | measured | consequence |
+|---|---|---|
+| the app's theme | no global style: no `StyleColors*` call and no style setup outside a few local `PushStyleColor` (`StartSurfaceWindow.cs:152`, `IconButtonChrome.cs:23`) ⇒ **ImGui's default dark** | the mockup uses the default dark colours; the forms add only the four status colours below |
+| the fonts | **Roboto Regular** + **FontAwesome 6 solid** merged + DejaVu symbols (`EmbeddedFontResources.cs:13-15`, `IconsFontAwesome6.cs`) | ⛔ **no bold, no italic** — headers are `SeparatorText` at normal weight, set apart by colour; every mark is a FontAwesome glyph (hourglass-half, circle-xmark, lock, rotate-left, triangle-exclamation, crosshairs) |
+| the API this ImGui.NET has (1.91.6.1, the DLL's exported names) | ✅ `InputTextWithHint`, `SetItemTooltip`, `BeginItemTooltip`, `BeginDisabled` + `ImGuiHoveredFlags.AllowWhenDisabled`, `SeparatorText`, `TableSetBgColor`, `FrameBorderSize` (style var), `PushItemFlag`; ⛔ **no `MixedValue` item flag** | the mixed checkbox is drawn by hand (a bar in the box); every other state is a stock call |
+| status colours that exist | `EditorColors { Error, Warning, Info }` — **Blueprints editor only** (`Hrot.Blueprints.Editor/NodeDrawers/EditorColors.cs`); the variable views use **yellow = pending** and **red = changed this tick** (`DESIGN_Variable_Details_And_Editing.md` §1b) | ⭐ lift the palette into `Fdp.Presentation` as the ONE status palette (R-174); ⚠ red must mean ERROR everywhere (Q-V4) |
+
+### 6.2 Each element is one ImGui call
+
+| element | ImGui | rule |
+|---|---|---|
+| the form | `BeginTable("form", 3)`: label column (fixed, the widest label), control (stretch), **status slot (fixed 18 px)** | the slot is always there |
+| a group header | `SeparatorText("State")`, coloured text | no bold available |
+| the value at rest | the control drawn from a **cached formatted string** (D1, CE-4285) — `Selectable` look-alike in a frame, or the control itself when it allocates nothing | 0 B per frame |
+| a value being edited | the row's one `ScalarEditBox<T>` session (D1) | one row at a time |
+| units | inside the control's format (`"%.0f %%"`, `"%.0f m"`) | from the semantic type |
+| **invalid input** | `PushStyleVar(FrameBorderSize, 1)` + `PushStyleColor(Border, Error)` around the control; the reason as `TextColored(Error)` UNDER it | visible while typing; nothing commits while invalid |
+| **pending** (> 1 s) | FontAwesome hourglass in the slot, `Pending` colour; `SetItemTooltip("Waiting for node 3 (Brain)…")` | the new value shows at once (optimistic) |
+| **refused / lost** | circle-xmark in the slot, `Error`; `TableSetBgColor(RowBg0, ErrorRowTint)`; tooltip = the reason; clicking it clears the mark | the value returns to the real one; + a notification |
+| **not allowed for this seat / level** | `BeginDisabled()` on the row; lock in the slot; tooltip with `AllowWhenDisabled`: *"Your seat (Observer) cannot change Skill"* | never hidden (R-4119: greyed with the reason) |
+| **authored ≠ type** (skill, temperament) | rotate-left in the slot, `Info`; `SmallButton` look; tooltip *"Type 0.50 — reset"*; click = the reset attribute | the label shows the type value too |
+| **mixed** (multi-select) | an un-ticked `Checkbox` before the label; the control disabled with `InputTextWithHint("", "— mixed (3 values) —")`; a combo's preview the same hint; a checkbox value ⇒ a hand-drawn bar | Eden's rule (programme §3.3): tick ⇒ one value for all, ONE undo step |
+| **read-only** (Review, AAR) | a banner (`Info` text on a dim band) + the whole form in `BeginDisabled()` | no marks, no pickers |
+| **conflict** (precondition edits only) | a band at the top of the committing form: triangle-exclamation, `Pending` colour, `Reload` · `Overwrite` buttons | + a notification |
+| **expert detail** | `CollapsingHeader("Details for experts")` at the bottom; the panel's Expert switch opens it (D7) | — |
+| **a sticky notification** | a stack of small windows pinned top-right of the main viewport (`SetNextWindowPos` + `NoDecoration`, `NoFocusOnAppearing`), each a coloured left bar, the glyph, a title line, a body line, buttons (*Show*, *Reload*, *Overwrite*), × to dismiss; at most 3 shown, *+N more* | stays until dismissed (R-4127); the Messages panel keeps the history |
+
+### 6.3 Colours — the ONE status palette
+
+| token | value (RGB) | used for | never used for |
+|---|---|---|---|
+| `Error` | 0.90 · 0.33 · 0.33 | refused, lost, invalid input | "changed" (Q-V4) |
+| `ErrorRowTint` | Error at 18 % | the refused row's background | — |
+| `Pending` | 0.95 · 0.75 · 0.20 | pending, conflict band | warnings that are not about an edit |
+| `Info` | 0.42 · 0.69 · 1.00 (ImGui's accent family) | reset-to-type, read-only banner | errors |
+| `Muted` | ImGui `TextDisabled` | locked rows, hints, units | — |
+
+⭐ **No state is shown by colour alone** — each has its own glyph shape (✗ · hourglass · lock · arrow · triangle), so a colour-blind user
+reads them too.
+
+### 6.4 Stage
+
+| stage | what | owner | rails |
+|---|---|---|---|
+| **D0** *(before D1)* | the status palette in `Fdp.Presentation` (Blueprints' `EditorColors` folded into it); a `FormRow` drawing helper with the slot, the marks, the tooltips, the invalid frame, the mixed and disabled states; the notification stack | ui | a frame rail per state (`xvfb-run`): each mark in the slot, the layout identical with and without a mark; 0 B per steady frame |
+
+### 6.5 Questions — leans for the user
+
+| # | question | lean | rejected |
+|---|---|---|---|
+| **Q-V1** | where a row's state shows | **one fixed status slot at the end of the row, one mark at a time** (✗ > hourglass > lock > reset) | marks before the label: shifts every label · several marks: unreadable at 18 px |
+| **Q-V2** | invalid input | **red frame + the reason under the field, while typing** | a tooltip only: hidden until hovered · a pop-up: blocks |
+| **Q-V3** | refused | **✗ in the slot + a faint red row + the reason as a tooltip + a sticky notification**; the value returns to the real one | keep the refused value shown: the form would lie about the world |
+| **Q-V4** | red elsewhere | **red means error everywhere**: the variable views' "changed this tick" moves to a short `Info` flash | two meanings for red on one screen |
+| **Q-V5** | multi-select | **Eden's tick per row** (programme §3.3, approved), mixed shown as a hint | edit any field directly: one stray keystroke writes every selected unit |
