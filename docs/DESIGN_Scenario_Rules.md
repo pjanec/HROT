@@ -19,6 +19,7 @@ known-conflict: none
 ui-mockup: ⭐ docs/designs/rules-view/ (4 standalone HTML boards + README) — the rules view, trigger / objective detail tabs, editing while live (SR-109); also on the claude.ai canvas https://claude.ai/artifact/VLfa5GxVGh3Z7nYsGbf65k (the committed copy wins)
 proof-of-concept: ⭐⭐ FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/TriggerPoc/ — 38 rails PROVING the trigger machinery (runtime binding of shared actions, per-step occurrence slots, RunActions, BTree host, the when, restore); findings SR-108; the build rows CE-4160…CE-4166. ⛔ A builder STARTS FROM IT — lift its code into production, keep its rails; do not re-derive
 related-designs:
+  - docs/UX/DESIGN_Rule_Editor_UX.md — condition templates that compile to / recognise the one condition language (SR-95); actions as sentences; a new Begin phase action
   - docs/UX/DESIGN_Mission_Plan_Editor.md — operation phases (named moments tasks wait for; begun by time, a rule, or the instructor) — not a step engine (U5 stays rejected)
   - docs/DESIGN_Evaluation_Cost_And_Cadence.md — OWNS WHEN a rule ticks (5 Hz staggered + woken, events through the rule's own window) and the per-frame child index; this design keeps WHAT a rule does
   - docs/DESIGN_Remote_Edit_Outcome.md — OWNS the answer to a remote edit (applied / pending / refused + reason, R-2082); the live edit (§00.11a) and rule control report through it
