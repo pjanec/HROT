@@ -10,22 +10,6 @@ using Hrot.Core.Network;
 namespace Hrot.EcsNode.Hosting
 {
     /// <summary>
-    /// ⭐ CE-4270 B0 (R-3077, D5) — where a host registers its capabilities and the genesis tail RELATIVE to the creation pack. ⚠ Temporary: the
-    /// hosts registered them in two different orders; each host moves onto <see cref="HostSpawning"/> with its OWN order first (its S0 snapshot
-    /// identical), then ONE commit makes every host <see cref="PackThenCapabilities"/> (D5: "I see no reason why would a different host
-    /// initialize in different order").
-    /// </summary>
-    public enum SpawningOrder
-    {
-        /// <summary>The pack, then the capabilities, then the genesis tail — SimHost, CGF, the editor; the ONE order after D5.</summary>
-        PackThenCapabilities,
-        /// <summary>The capabilities, then the pack, then the genesis tail — IG, Traffic (until D5).</summary>
-        CapabilitiesThenPack,
-        /// <summary>The capabilities, then the genesis tail, then the pack — Stride (until D5).</summary>
-        CapabilitiesThenGenesisThenPack,
-    }
-
-    /// <summary>
     /// ⭐ CE-4270 (docs/DESIGN_Subsystem_Composition_Unification.md §4.1ag) — what differs between hosts in the spawning step, as VALUES. Everything
     /// else (the lifecycle module, the network adapters, the expected peers, the genesis tail) is the same for every host and is not here.
     /// </summary>
@@ -43,8 +27,6 @@ namespace Hrot.EcsNode.Hosting
         public Fdp.Toolkit.Replication.Patching.JsonAttributeCompiler? JsonAttributeCompiler { get; init; }
         /// <summary>No allocator (a headless rail) ⇒ no pack, as Traffic and Stride always did.</summary>
         public bool SkipWithoutAllocator { get; init; }
-        /// <summary>See <see cref="SpawningOrder"/> — temporary until D5.</summary>
-        public SpawningOrder Order { get; init; } = SpawningOrder.PackThenCapabilities;
     }
 
     /// <summary>
@@ -54,33 +36,20 @@ namespace Hrot.EcsNode.Hosting
     public static class HostSpawning
     {
         /// <summary>
-        /// Builds the pack from <paramref name="spec"/>, schedules it on the kernel, and runs <paramref name="registerCapabilities"/> and the
-        /// genesis tail in the spec's order. Returns the pack (null when skipped for a missing allocator).
+        /// Builds the pack from <paramref name="spec"/> and schedules it on the kernel, then runs <paramref name="registerCapabilities"/>, then
+        /// the genesis tail. Returns the pack (null when skipped for a missing allocator).
         /// </summary>
         public static EntityCreation? Register(HrotNodeContext context, INetworkFactory? networkFactory, SpawningSpec spec, Action registerCapabilities)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(spec);
             ArgumentNullException.ThrowIfNull(registerCapabilities);
-            EntityCreation? creation = null;
-            switch (spec.Order)
-            {
-                case SpawningOrder.PackThenCapabilities:
-                    creation = Pack(context, networkFactory, spec);
-                    registerCapabilities();
-                    Genesis(context, spec, creation);
-                    break;
-                case SpawningOrder.CapabilitiesThenPack:
-                    registerCapabilities();
-                    creation = Pack(context, networkFactory, spec);
-                    Genesis(context, spec, creation);
-                    break;
-                case SpawningOrder.CapabilitiesThenGenesisThenPack:
-                    registerCapabilities();
-                    Hrot.SimHost.Systems.GenesisTail.RegisterOn(context.Kernel, context.EntityMap);
-                    creation = Pack(context, networkFactory, spec);
-                    break;
-            }
+            // ⭐⭐ D5 (R-3077) — ONE order for every host: the pack, then the capabilities, then the genesis tail. 🔒 User: "I see no reason
+            //   why would a different host initialize in different order." (IG, Stride and Traffic registered the capabilities first until
+            //   2026-11-06; the S0 golden diff of that move was reviewed: order rows only.)
+            var creation = Pack(context, networkFactory, spec);
+            registerCapabilities();
+            Genesis(context, spec, creation);
             return creation;
         }
 

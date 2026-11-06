@@ -352,14 +352,13 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
 
     /// <inheritdoc/>
     protected override void RegisterSpawningPipeline(HrotNodeContext context)
-        // ⭐ CE-4270 B3 (§4.1ag) — the ONE shared spawning step; Stride's own order until D5 (R-3077): the capabilities, the genesis tail,
-        //   then the pack (skipped without an allocator — the headless rails with SkipAllocatorRouting).
+        // ⭐ CE-4270 B3 (§4.1ag) — the ONE shared spawning step; the one order for every host (D5, R-3077); the pack is skipped without an allocator
+        //   (the headless rails with SkipAllocatorRouting).
         => EntityCreation = Hrot.EcsNode.Hosting.HostSpawning.Register(context, ConfiguredNetworkFactory,
             new Hrot.EcsNode.Hosting.SpawningSpec
             {
                 IsBroadcastArbiter   = false,
                 SkipWithoutAllocator = true,
-                Order                = Hrot.EcsNode.Hosting.SpawningOrder.CapabilitiesThenGenesisThenPack,
             },
             () => RegisterCapabilities(context));
 

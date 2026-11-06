@@ -437,7 +437,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
                     new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),
                     new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
                 },
-                Order = Hrot.EcsNode.Hosting.SpawningOrder.PackThenCapabilities,
             },
             () => RegisterCapabilities(context));
     }

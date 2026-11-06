@@ -375,7 +375,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     /// <c>Q65-A′</c> asks for: capability by composition, not by node role.</para>
     /// </summary>
     protected override void RegisterSpawningPipeline(HrotNodeContext context)
-        // ⭐ CE-4270 B2 (§4.1ag) — the ONE shared spawning step; IG's own order until D5 (R-3077): the capabilities first. What the pack
+        // ⭐ CE-4270 B2 (§4.1ag) — the ONE shared spawning step; the one order for every host (D5, R-3077). What the pack
         //   carries that matters here (unchanged): the cluster-cache pump (CE-271 ④ — a Map2D tank's grant set), the ONE consumer of
         //   DestroyEntityCommand (CE-144), ghost promotion (P2 — IG receives ghosts of everything), the forwarding egress (S2b D1), the
         //   reliable-init wait-set (CE-291 C), and the shared genesis tail (CE-4013 D11). ⛔ Not the broadcast arbiter — that is the Brain.
@@ -384,7 +384,6 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             new Hrot.EcsNode.Hosting.SpawningSpec
             {
                 IsBroadcastArbiter = false,
-                Order              = Hrot.EcsNode.Hosting.SpawningOrder.CapabilitiesThenPack,
             },
             () => RegisterCapabilities(context));
 

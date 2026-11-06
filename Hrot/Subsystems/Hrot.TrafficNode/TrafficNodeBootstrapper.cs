@@ -120,13 +120,12 @@ public sealed class TrafficNodeBootstrapper : SharedApplicationBootstrapper, IDi
 
     protected override void RegisterSpawningPipeline(HrotNodeContext context)
         // ⭐ CE-4270 B1 (§4.1ag) — the ONE shared spawning step (ghost promotion lives in the pack: the TrafficDemand entity arrives as a
-        //   ghost, S3); Traffic's own order until D5 (R-3077): the capabilities first.
+        //   ghost, S3); the one order for every host (D5, R-3077).
         => EntityCreation = Hrot.EcsNode.Hosting.HostSpawning.Register(context, ConfiguredNetworkFactory,
             new Hrot.EcsNode.Hosting.SpawningSpec
             {
                 IsBroadcastArbiter   = false,   // CGF is the one arbiter (Q65 §1)
                 SkipWithoutAllocator = true,    // headless rails with SkipAllocatorRouting, as on Stride
-                Order                = Hrot.EcsNode.Hosting.SpawningOrder.CapabilitiesThenPack,
             },
             () => RegisterCapabilities(context));
 

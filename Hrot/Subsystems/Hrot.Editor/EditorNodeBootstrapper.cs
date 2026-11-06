@@ -387,7 +387,6 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
                     new StagingEntityExtractor(reuseStagingWorld: true),   // ⭐ CE-2396 one staging world, emptied per expansion
                     ScenarioSerializer,
                     Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(BehaviorRegistry)),
-                Order = Hrot.EcsNode.Hosting.SpawningOrder.PackThenCapabilities,
             },
             () => RegisterCapabilities(context));
 

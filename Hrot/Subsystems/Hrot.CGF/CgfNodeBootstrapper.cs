@@ -253,7 +253,6 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
                     new Hrot.CGF.Orchestration.StagingEntityExtractor(reuseStagingWorld: true),
                     ScenarioSerializer,
                     Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(BehaviorRegistry)),
-                Order = Hrot.EcsNode.Hosting.SpawningOrder.PackThenCapabilities,
             },
             () => RegisterCapabilities(context));
 
