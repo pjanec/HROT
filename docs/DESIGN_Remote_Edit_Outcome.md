@@ -8,6 +8,7 @@ known-rot: (2026-11-06, R-4126) "CreateUpdateDeleteEntityAck / RequireAck stay a
 known-rot: §2 says EditOutcomeLog is a 'singleton' and RespondingNode a node id — as built it is a per-world ConditionalWeakTable service and RespondingNode is a plain int (§5)
 known-conflict: none
 related-designs:
+  - UX/DESIGN_Details_Forms.md — E2: the forms are the main new caller of the ticket and outcome
   - docs/UX/DESIGN_Edit_Framework.md — EXTENDS this framework (2026-11-06 top-level design): one Edits.Submit for every kind of edit, bridges from the existing acks, a per-station journal
   - docs/UX/DESIGN_Editing_UX.md — §4.3a D10: this framework is to become the ONE path for every user edit (structural edits too), feeding the Messages list and Edit-mode undo — its own design first (R-4122)
   - docs/DESIGN_Cgf_AxisB_Rotation_Slice.md — OWNS the write router (§11.3: apply here or ask the owner) that every remote edit goes through; this design adds the ANSWER

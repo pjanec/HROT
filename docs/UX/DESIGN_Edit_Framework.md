@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - DESIGN_Details_Forms.md — E2: the shared form-row helper (§2.5) is its FormView; every form commit is one Write
   - DESIGN_Map_Interaction.md — E8: a finished map edit (placement, shape, group move / rotate) is one Submit
   - DESIGN_Edit_Mode_Undo.md — reads this framework's step boundary (one user action = one step); world steps are snapshots, not inverse ops
   - DESIGN_Mission_Plan_Editor.md — the plan Commit (F6) is that editor's Live path

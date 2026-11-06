@@ -19,6 +19,8 @@ stale-below: ⛔ §3's "6-tuple" is SUPERSEDED by §7.2 — it is TWO tuples joi
   ⛔ §4's Q59-A1 (6 fields) and Q59-C2 (adopt ATTR-DESIGN Phase 6) are SUPERSEDED by §7.4/§7.5.
 known-conflict: none. §5 F3 is a NEW defect this investigation found; it has no prior design record.
 known-rot: ⛔ SUPERSEDED 2026-10-28 (R-4095): `BdcReplicationModule`, `BdcNetworkFactory` and `BdcWorldPosTranslator` (named as live parallels of the NED modules) were removed with the BDC stack.
+related-designs:
+  - ../UX/DESIGN_Details_Forms.md — E2: every form field is an attribute; stage D2 adds Health, ammunition, StanceIntent, Playable, SpawnArea and weather rows
 -->
 
 > ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** `BdcReplicationModule`, `BdcNetworkFactory` and `BdcWorldPosTranslator` (named as live parallels of the NED modules) were removed with the BDC stack. The reasoning below is kept as the record of that stack; do not read it as a live host.

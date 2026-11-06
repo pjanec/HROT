@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: AQ26-B says a registration omits checked / icon / shortcut — the built menus use all three; §3 row 1 resolves it. UX_Feature_Entity_Action_Vocabulary / Cross_Surface_Actions STATUS lines predate the built HostActions path — §3 rows 3–4
 related-designs:
+  - DESIGN_Details_Forms.md — E2: a form row declares the same Requires / Modes / Level as an action
   - DESIGN_Map_Interaction.md — E8: the drawing menu (Finish · Remove last point · Cancel) as catalogue actions targeting the armed tool
   - DESIGN_Input_And_Commands.md — every key binds to an action id; an action declares its default key, scope and kind (press / hold / axis)
   - DESIGN_Seats_And_Hats.md — an action's Level and side scope are read against the station's seat; its availability also by the active hat
