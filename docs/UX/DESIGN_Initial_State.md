@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — top-level, for the user's review (R-4122); backend saves the state, ui builds the rows (R-4123)
-updated: 2026-11-06 (§3a the AI character overrides — user: "overriding the AI brain setting like the skill level or aggressivity"; measured; Q8–Q9) · 2026-11-06 (first version — coordinator; editing-UX design queue 7b: E15)
+build-state: DESIGN — top-level, ✅ APPROVED Q1–Q9 by the user 2026-11-06 (R-4137); backend saves the state, ui builds the rows (R-4123)
+updated: 2026-11-06 (✅ Q1–Q9 approved — R-4137) · 2026-11-06 (§3a the AI character overrides — user: "overriding the AI brain setting like the skill level or aggressivity"; measured; Q8–Q9) · 2026-11-06 (first version — coordinator; editing-UX design queue 7b: E15)
 current-answer: §2 the model · §3 the rows · §4 stages · §5 questions with leans
 stale-below: nothing
 known-rot: none
@@ -175,7 +175,7 @@ tune it. That conflicts with R-4119 (gated by the entity, not the node) and with
 | **S6** | the Character settings become attribute writes (Proficiency, the four temperament fields, and their reset) applied on the brain's node; the Brain tab's Character section offered on every station that may edit the unit (R-4119); Weapons control / Reactions as plain choices through `SetRoeEvent` | backend (attributes) + ui | bravery set from a CGF station that does not run the brain reaches it; *Reset to type* restores the type's value with its spread |
 | **S5** | the Unit form rows (Aboard, Carried by, Carries, Weapon, In hand, Knows about, Damage) and the Crew & cargo seat roles | ui | each from the form, Edit and Live, survives save and reload |
 
-## 5. Questions — leans for the user
+## 5. Questions — ✅ all nine APPROVED (R-4137, user `2026-11-06`: *"Approved."*)
 
 | # | question | lean | rejected |
 |---|---|---|---|

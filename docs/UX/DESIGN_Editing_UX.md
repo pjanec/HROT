@@ -571,7 +571,7 @@ this chat"* — R-4123.
 | 5 | ✅ [DESIGN_Edit_Mode_Undo.md](DESIGN_Edit_Mode_Undo.md), approved (R-4133) — **D1 — undo in Edit mode** (unifying `EditHistory`, `GizmoUndoStack`, the director's stack) | needs E0 |
 | 6 | ✅ [DESIGN_Map_Interaction.md](DESIGN_Map_Interaction.md), approved (R-4134) — **E8 — map interaction** (conventions, picks, placement with level / airborne, gizmo looks) | needs E9 for the right-click menu |
 | 7 | ✅ E2 [DESIGN_Details_Forms.md](DESIGN_Details_Forms.md), approved (R-4136) · **E5 condition templates · E7 review · E2b sim / types**; ✅ E12 [DESIGN_New_Scenario_And_Recipe.md](DESIGN_New_Scenario_And_Recipe.md), approved (R-4135) | smaller, mostly independent |
-| 7b | ✍ written 2026-11-06: [DESIGN_Initial_State.md](DESIGN_Initial_State.md), for review — **E15 — initial state** (§1.8: seats and carrying, carried weapons, weapon posture, a named / oriented point, lying weapons, other start states) | after E2; reuses its forms |
+| 7b | ✅ [DESIGN_Initial_State.md](DESIGN_Initial_State.md), approved (R-4137) — **E15 — initial state** (§1.8: seats and carrying, carried weapons, weapon posture, a named / oriented point, lying weapons, other start states) | after E2; reuses its forms |
 
 ### 4.4 Slices — proposed handoffs, once D1–D9 are approved
 
