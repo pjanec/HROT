@@ -4,7 +4,7 @@ updated: 2026-11-03 (§7 the rule editor designed; RV-4 built by behaviors; R3 a
 build-state: DESIGN
 current-answer: §3 (decisions) · §4 (phases) · §7 (the rule editor, RE-1 … RE-10)
 stale-below: nothing
-known-rot: (2026-11-06) RV-6 puts the selected rule's detail in the window's right pane — R-4118 moves it to the Details panel (docs/UX/DESIGN_Rule_Editor_UX.md §2.2, for review)
+known-rot: the as-built deviation ① ("Tabs are a strip of buttons — ImGui's tab bar cannot be set from a rail and its BeginTabItem overload shows a close box") no longer holds: DetailsWindow.BeginTab draws a tab without a close box and ImGuiTabItemFlags.SetSelected selects one from code — CE-4286 (2026-11-06) · (2026-11-06) RV-6 puts the selected rule's detail in the window's right pane — R-4118 moves it to the Details panel (docs/UX/DESIGN_Rule_Editor_UX.md §2.2, for review)
 related-designs:
   - docs/UX/DESIGN_Edit_Mode_Undo.md — the one EditHistory gains world steps (snapshots) in the network-less editor; the take editor moves onto it (CE-4219 ②)
   - docs/UX/DESIGN_Rule_Editor_UX.md — the UX review of this view and editor (2026-11-06): a List of sentences, the detail in Details (R-4118), condition templates over the one language, actions as sentences, entry points, every host

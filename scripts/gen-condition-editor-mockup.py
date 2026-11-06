@@ -16,6 +16,14 @@ def fa(cp,x,y,col,sz=13,op=1):
 def t(x,y,s,c=TXT,sz=13,anchor="start"):
     s=s.replace("&","&amp;").replace("<","&lt;")
     o.append(f"<text x='{x}' y='{y}' fill='{c}' font-size='{sz}' {FONT} text-anchor='{anchor}'>{s}</text>")
+def tabbar(x,y,w_total,names,selected,TABC="#2B4F80",SELC="#3369AD"):
+    """ImGui's tab bar: rounded top corners, flat bottom, a line under the bar in the selected colour."""
+    cx=x
+    for i,name in enumerate(names):
+        w=22+sum(8.6 if ch.isupper() else (3.6 if ch==' ' else (4.0 if ch in 'il&' else 6.9)) for ch in name); c=SELC if i==selected else TABC; rr=4; h=21
+        o.append(f"<path d='M{cx} {y+h} L{cx} {y+rr} Q{cx} {y} {cx+rr} {y} L{cx+w-rr} {y} Q{cx+w} {y} {cx+w} {y+rr} L{cx+w} {y+h} Z' fill='{c}'/>")
+        t(cx+8,y+15,name); cx+=w+2
+    o.append(f"<rect x='{x}' y='{y+21}' width='{w_total}' height='1.5' fill='{SELC}'/>")
 def r(x,y,w,h,f,stroke=None,rx=0,sw=1,dash=None):
     st=f" stroke='{stroke}' stroke-width='{sw}'" if stroke else ""
     d=f" stroke-dasharray='{dash}'" if dash else ""
@@ -53,9 +61,7 @@ t(20,44,"Annotations in grey are not drawn by the app.","#8A8A96",sz=11.5)
 PX,PY,PW,PH=20,60,760,540
 r(PX,PY,PW,PH,BG,stroke=BORDER)
 r(PX,PY,PW,20,TITLE); t(PX+8,PY+14,"Details — Rule \"Phase 2: assault\"")
-tx=PX+8
-for name,sel in [("When",True),("Do",False),("Settings",False),("Results",False)]:
-    w=14+len(name)*7; r(tx,PY+26,w,20,TABSEL if sel else TAB,rx=3); t(tx+7,PY+40,name); tx+=w+4
+tabbar(PX+8,PY+25,PW-16,["When","Do","Settings","Results"],0)
 # expert switch + live chip
 r(PX+PW-200,PY+27,84,18,"#163A24",rx=9); fa(0xf111,PX+PW-192,PY+30,GREEN,11); t(PX+PW-176,PY+40,"Live",  "#7FD69A",sz=11.5)
 r(PX+PW-108,PY+27,100,18,FRAME,rx=3); t(PX+PW-100,PY+40,"Expert view",DIS,sz=11.5); r(PX+PW-24,PY+31,10,10,"#2A2A33",stroke=SEP)

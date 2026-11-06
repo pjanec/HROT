@@ -246,6 +246,7 @@ notification, because the form may not be in view.
 
 | element | ImGui | rule |
 |---|---|---|
+| the Details tabs (Unit · Crew & cargo · …) | a real `BeginTabBar` + the shared no-close-box tab (as `DetailsWindow` already draws them; CE-4286 makes the helper shared) — ⛔ never a strip of buttons |
 | the form | `BeginTable("form", 3)`: label column (fixed, the widest label), control (stretch), **status slot (fixed 18 px)** | the slot is always there |
 | a group header | `SeparatorText("State")`, coloured text | no bold available |
 | the value at rest | the control drawn from a **cached formatted string** (D1, CE-4285) — `Selectable` look-alike in a frame, or the control itself when it allocates nothing | 0 B per frame |

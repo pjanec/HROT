@@ -5,16 +5,17 @@
 <rect x='20' y='60' width='520' height='560' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
 <rect x='20' y='60' width='520' height='20' fill='#294A7A' rx='0' opacity='1'/>
 <text x='28' y='74' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' >Details — Alpha 1-1 (Rifleman, Friend)</text>
-<rect x='28' y='86' width='40' height='20' fill='#3369AD' rx='3' opacity='1'/>
-<text x='34' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' >Unit</text>
-<rect x='72' y='86' width='96' height='20' fill='#1F3A5C' rx='3' opacity='1'/>
-<text x='78' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' >Crew &amp; cargo</text>
-<rect x='172' y='86' width='54' height='20' fill='#1F3A5C' rx='3' opacity='1'/>
-<text x='178' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' >Orders</text>
-<rect x='230' y='86' width='47' height='20' fill='#1F3A5C' rx='3' opacity='1'/>
-<text x='236' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' >Brain</text>
-<rect x='281' y='86' width='82' height='20' fill='#1F3A5C' rx='3' opacity='1'/>
-<text x='287' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' >Components</text>
+<path d='M28 106 L28 89 Q28 85 32 85 L72.4 85 Q76.4 85 76.4 89 L76.4 106 Z' fill='#3369AD'/>
+<text x='36' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' >Unit</text>
+<path d='M78.4 106 L78.4 89 Q78.4 85 82.4 85 L171.4 85 Q175.4 85 175.4 89 L175.4 106 Z' fill='#2B4F80'/>
+<text x='86.4' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' >Crew &amp; cargo</text>
+<path d='M177.4 106 L177.4 89 Q177.4 85 181.4 85 L238.5 85 Q242.5 85 242.5 89 L242.5 106 Z' fill='#2B4F80'/>
+<text x='185.4' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' >Orders</text>
+<path d='M244.5 106 L244.5 89 Q244.5 85 248.5 85 L295.8 85 Q299.8 85 299.8 89 L299.8 106 Z' fill='#2B4F80'/>
+<text x='252.5' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' >Brain</text>
+<path d='M301.8 106 L301.8 89 Q301.8 85 305.8 85 L390.5 85 Q394.5 85 394.5 89 L394.5 106 Z' fill='#2B4F80'/>
+<text x='309.8' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' >Components</text>
+<rect x='28' y='106' width='504' height='1.5' fill='#3369AD'/>
 <rect x='432' y='87' width='100' height='18' fill='#163A24' rx='9' opacity='1'/>
 <text x='482' y='100' fill='#7FD69A' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' >Edit mode</text>
 <text x='34' y='134' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' >Identity</text>

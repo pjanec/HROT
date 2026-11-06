@@ -5,14 +5,15 @@
 <rect x='20' y='60' width='760' height='540' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1'/>
 <rect x='20' y='60' width='760' height='20' fill='#294A7A' rx='0'/>
 <text x='28' y='74' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Details — Rule "Phase 2: assault"</text>
-<rect x='28' y='86' width='42' height='20' fill='#3369AD' rx='3'/>
-<text x='35' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>When</text>
-<rect x='74' y='86' width='28' height='20' fill='#1F3A5C' rx='3'/>
-<text x='81' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Do</text>
-<rect x='106' y='86' width='70' height='20' fill='#1F3A5C' rx='3'/>
-<text x='113' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Settings</text>
-<rect x='180' y='86' width='63' height='20' fill='#1F3A5C' rx='3'/>
-<text x='187' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Results</text>
+<path d='M28 106 L28 89 Q28 85 32 85 L75.3 85 Q79.3 85 79.3 89 L79.3 106 Z' fill='#3369AD'/>
+<text x='36' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>When</text>
+<path d='M81.3 106 L81.3 89 Q81.3 85 85.3 85 L114.8 85 Q118.8 85 118.8 89 L118.8 106 Z' fill='#2B4F80'/>
+<text x='89.3' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Do</text>
+<path d='M120.8 106 L120.8 89 Q120.8 85 124.8 85 L192.8 85 Q196.8 85 196.8 89 L196.8 106 Z' fill='#2B4F80'/>
+<text x='128.8' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Settings</text>
+<path d='M198.8 106 L198.8 89 Q198.8 85 202.8 85 L263.9 85 Q267.9 85 267.9 89 L267.9 106 Z' fill='#2B4F80'/>
+<text x='206.8' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Results</text>
+<rect x='28' y='106' width='744' height='1.5' fill='#3369AD'/>
 <rect x='580' y='87' width='84' height='18' fill='#163A24' rx='9'/>
 <path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64Z' fill='#5BD06A' fill-opacity='1' transform='translate(588,99.861328125) scale(0.021484375,-0.021484375)'/>
 <text x='604' y='100' fill='#7FD69A' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Live</text>

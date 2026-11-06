@@ -149,6 +149,7 @@ one x.
 
 | element | ImGui |
 |---|---|
+| the rule's tabs (When · Do · Settings · Results) | a real `BeginTabBar` with the shared no-close-box tab (CE-4286) — ✏ user: *"is there any reason why the top row buttons … are not a usual tab controls?"* |
 | a row | `SameLine` sequence of chips and words — ✏ **no leading icon** (user, `2026-11-06`: *"the skull is not about the rule itself, it is about whether the entity is destroyed … having two icons next to each other … feels visually wrong"*); wraps to the next line when `GetContentRegionAvail` runs out |
 | icons | ⭐ **inside the chip they describe** (R-4141 colours): the WHO chip (unit, side, objective, rule, time), the fact chip (skull on *destroyed*, heart on *strength*, flame on *under fire*, bolt on *has fired*), the value chip (crosshair on an area, tick on *achieved*) — never a row-level icon |
 | a chip (a blank) | a frame-coloured `Button` sized by `CalcTextSize` + arrow, opening a `BeginPopup` with the list / the map pick / a typed field (`ScalarEditBox`, Details forms D1) |
