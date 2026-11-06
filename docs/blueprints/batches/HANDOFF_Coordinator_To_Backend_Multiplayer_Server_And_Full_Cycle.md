@@ -1,6 +1,6 @@
 <!--STATUS
-state: LIVE — RE-DISPATCHED 2026-11-06 (rule 1a: the first dispatch `ef9fc92dd` was never merged by backend); scope frozen at the new stamp
-updated: 2026-11-06
+state: LIVE — RE-DISPATCHED 2026-11-06 twice (rule 1a: neither `ef9fc92dd` nor `194705487` was merged by backend); scope frozen at the newest stamp
+updated: 2026-11-06 (amended before start, rule 1a: ① built through ONE parametrized shared loader — user)
 current-answer: the whole file
 stale-below: nothing
 known-rot: none
@@ -15,7 +15,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: a FUSED multiplayer server host, one audio device per process, and the full player cycle (CE-4270, CE-4269)
 
-**For:** the backend lane (`backend`). **From:** the coordinator lane. **Dispatched at `194705487`** (re-dispatch; the first stamp `ef9fc92dd` was never merged). ⭐ Scope FROZEN
+**For:** the backend lane (`backend`). **From:** the coordinator lane. **Dispatched at** the commit that adds this file. ⭐ Scope FROZEN
 there; later documents are FYI. A later document that invalidates an item ⇒ STOP that item, report it (R-106), keep the rest. Questions ⇒
 a NOTE to coordinator. Merge `coordinator` first.
 
@@ -39,6 +39,24 @@ and orchestrator and network into a single host"* · *"backend haven't started. 
 | **②** | 🔴 **CE-4269 — ONE process-wide audio device**: a shared, refcounted owner of raylib's audio device that every map host's `AudioLayer` uses (opened once, closed when the last host lets go). ⭐ Still needed with ①: `-m all` and any other multi-host process keep several map hosts. Reproduce here first by giving the VM an audio sink (PulseAudio null sink / ALSA dummy) — the crash should then appear with two map hosts in one process | the CE-4269 row | a rail with two map hosts in one process (open, both play, one disposes, the other keeps playing); the user's `run_Server.bat` stays up WITHOUT `HROT_AUDIO=0` |
 | **③** | ⭐ **The FULL player cycle as ONE scripted acceptance** (`scripts/multiplayer-cycle.py`, or extend the existing HTTP tooling — ⛔ not a second harness), against the fused server, **runnable unchanged on Windows** (plain `subprocess` or `--attach` to processes started from the `.bat` files; no `xvfb-run`, no `killpg`): server up → P1 joins, deploys into a placed unit, drives it → P2 joins late, sees it moving, is refused P1's unit, takes a role → P2 dies, respawns → **P1 leaves by Esc** → **P1 quits** (slot disposed, S1-d) → P1 rejoins and deploys → P2 quits → server keeps running → final check: no orphan slot / reservation / ghost entity on the wire (reuse CE-4000/4007's check). PASS/FAIL per step with the reason | UC-17…32; Player Join S1-d | passes on the VM (report in the Use Cases doc); the one command for Windows is in the RUNBOOK |
 | **④** | **Player Join §9.5's open item** — a `Playing` unit released with Esc keeps its reservation; decide the transition (lean: Esc returns to the deploy screen and frees the unit) and build it as ③'s "leaves by Esc" step | Player Join §9.5, D-7 | the design records it; ③ proves it |
+
+## ⭐⭐ ① is built SHARED — one parametrized composition, not a seventh bootstrapper
+
+🔒 User, `2026-11-06`: *"and we should unify and share as always. minimal duplications in bootstrap code. parametrizing some shared
+loader."* (R-174: *"unify and share, never duplicate — especially in node bootstrap code"*).
+
+| what exists (graph `.*(NodeBootstrapper|NodeBuilder|BootPlan|ApplicationBootstrapper|LoadPhaseChain)$` Class) | |
+|---|---|
+| the shared base `SharedApplicationBootstrapper` + `HrotNodeBuilder` + `NodeBootPlan` + `LoadPhaseChain` (composed per role set) | `Hrot.Common/Infrastructure`, `Hrot.Core/Services/LoadPhase` |
+| one subclass PER HOST: `EditorNodeBootstrapper`, `CgfNodeBootstrapper`, `SimHostNodeBootstrapper`, `IgNodeBootstrapper`, `TrafficNodeBootstrapper`, `StrideNodeBootstrapper` (+ `Hrot.EcsNode.NodeBootstrapper`) | each its own composition of packs |
+
+⭐ **The rule for ①:** the fused host is the SHARED loader given a PARAMETER — the role set (Brain | MuscleGround | Perception |
+NavigationSolver), whether the network translator packs are installed, the gameplay / traffic packs — ⛔ not a new
+`ServerNodeBootstrapper` that copies the editor's and CGF's / SimHost's pack lists. ⭐ Where today's subclasses repeat the same pack
+choices for the same role (the editor's Brain + Muscle halves vs CGF's and SimHost's), the design moves that choice INTO the shared loader
+keyed by role, so the editor, CGF, SimHost and the fused server all get their packs from ONE table — and the editor becomes "the fused
+composition, network off" by construction. ⭐ The design's module diagram shows the ONE place each pack is chosen; the report counts the
+bootstrap lines removed vs added (the measure of "minimal duplication").
 
 ⭐ Order: ② and ④ need no approval — build them while ①'s design waits for the user. ③ runs against `-m server` as it is first, then
 against the fused host once ① is built.
