@@ -318,36 +318,16 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         PostSimGroup = postSimGroup;
 
         _nodeBootstrapper = new NodeBootstrapper(NetworkFactory);
-        return _nodeBootstrapper.BuildOrchestration(
-            BootRole,
-            context.Kernel,
-            context.World,
-            context.NodeId,
-            participant:         context.Participant,
-            subsystemName:       BootConfig!.SubsystemName,
-            eventBus:            context.EventBus,
-            features:             () => context.Features,   // ⭐ P-7 F-28 — this caller HAS the node's features, so the scenario step can hand it the header's preset
-            // CE-279 — pass the serializer this override already receives (was null): the Stride SimHost saves
-            //   its owned slice via the shared serializer like every ECS host. Load handlers stay off here.
-            scenarioSerializer:  serializer,
-            localTempRoot:       BootConfig.LocalTempRoot,
-            // ⭐ CE-4013 D4 — this caller HAS the node's catalogue: without it the knowledge-base step loaded the scenario's TKB into a
-            //   throwaway (NodeBootstrapper's `tkbDb ?? CreateTkb()`), so the node's spawning never saw it.
-            tkbDb:               context.TkbDb,
-            simGroup:            simGroup,
-            postSimGroup:        postSimGroup,
-            lifecycleGroup:      context.NedReplication?.NetworkLifecycleGroup,
-            ghostCreationSystem: context.GhostCreationSystem,
-            eventAccumulator:    context.EventAccumulator,
-            afterSeek:           context.NedReplication?.AfterSeekCallback,
-            // ⭐ HN-018 — this caller HAS the ELM, so it passes it (the silent-default rule).
-            elm:                 context.BaseModules?
-                                     .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>()
-                                     .FirstOrDefault(),
-            terrainContent:       context.TerrainContent,   // ⭐ CE-4013 — this caller HAS the node's registry, so it passes it
-            // ⭐ CE-4013 D15 — the node's ONE slave and ONE slave translator, from HrotNodeBuilder: no second pair.
-            clusterSlave:         context.ClusterSlave,
-            slaveTranslator:      context.SlaveTranslator);
+        // ⭐ CE-4270 B11 — the ONE orchestration step (HostOrchestration).
+        return Hrot.EcsNode.Hosting.HostOrchestration.Build(_nodeBootstrapper, BootRole, context,
+            new Hrot.EcsNode.Hosting.OrchestrationSpec
+            {
+                SubsystemName = BootConfig!.SubsystemName,
+                LocalTempRoot = BootConfig.LocalTempRoot,
+                Serializer    = serializer,
+                SimGroup      = simGroup,
+                PostSimGroup  = postSimGroup,
+            });
     }
 
     /// <inheritdoc/>

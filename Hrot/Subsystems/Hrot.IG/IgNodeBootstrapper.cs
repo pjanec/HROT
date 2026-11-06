@@ -312,34 +312,25 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             ? _hrotConfig.LogDirectory
             : System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs");
 
-        var slave = _nodeBootstrapper.BuildOrchestration(
-            BootRole, context.Kernel, context.World, _effectiveInstanceId,
-            participant:         context.Participant,
-            subsystemName:       _hrotConfig.SubsystemName,
-            eventBus:            context.EventBus,
-            features:             () => context.Features,   // ⭐ P-7 F-28 — this caller HAS the node's features, so the scenario step can hand it the header's preset
-            scenarioSerializer:  serializer,   // CE-275 ③ — IG saves its owned slice through the shared handler
-            localTempRoot:       storageDirectory,
-            tkbDb:               context.TkbDb,
-            simGroup:            simGroup,
-            postSimGroup:        postSimGroup,
-            lifecycleGroup:      context.NedReplication?.NetworkLifecycleGroup,
-            ghostCreationSystem: context.GhostCreationSystem,
-            eventAccumulator:    context.EventAccumulator,
-            afterSeek:           (context.NedReplication as Hrot.Common.Abstractions.INedReplicationModule)?.AfterSeekCallback,
-            // MD-002 — IG's diagnostics dump (its event history, architecture, entities, logs).
-            diagnosticsDumpHandler: new DiagnosticsDumpClusterOpHandler(
-                _eventHistoryService!,
-                new ArchitectureDiagnosticsService(context.Kernel),
-                new EntityStateExtractionService(context.World, context.EntityMap),
-                new LogArchiveExtractionService(logDirectory, _hrotConfig.SubsystemName, context.NodeId),
-                _hrotConfig),
-            elm:                 context.BaseModules?.OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>().FirstOrDefault(),
-            terrainContent:      context.TerrainContent,
-            clusterSlave:        context.ClusterSlave,
-            slaveTranslator:     context.SlaveTranslator,
-            profileLoadParts:    ProfileLoadParts,
-            mapBuildStatus:      MapBuildStatus);
+        // ⭐ CE-4270 B11 — the ONE orchestration step (HostOrchestration).
+        var slave = Hrot.EcsNode.Hosting.HostOrchestration.Build(_nodeBootstrapper, BootRole, context,
+            new Hrot.EcsNode.Hosting.OrchestrationSpec
+            {
+                SubsystemName    = _hrotConfig.SubsystemName,
+                NodeId           = _effectiveInstanceId,
+                LocalTempRoot    = storageDirectory,
+                Serializer       = serializer,   // CE-275 ③ — IG saves its owned slice through the shared handler
+                SimGroup         = simGroup,
+                PostSimGroup     = postSimGroup,
+                DiagnosticsDump  = new DiagnosticsDumpClusterOpHandler(
+                    _eventHistoryService!,
+                    new ArchitectureDiagnosticsService(context.Kernel),
+                    new EntityStateExtractionService(context.World, context.EntityMap),
+                    new LogArchiveExtractionService(logDirectory, _hrotConfig.SubsystemName, context.NodeId),
+                    _hrotConfig),
+                ProfileLoadParts = ProfileLoadParts,
+                MapBuildStatus   = MapBuildStatus,
+            });
 
         RecordReplayController = _nodeBootstrapper.RecordReplayController;   // P5a — the same controller every ECS host composes
         return slave;

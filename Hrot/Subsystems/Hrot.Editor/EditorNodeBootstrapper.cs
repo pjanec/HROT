@@ -330,33 +330,24 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
                 LogDirectory = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs"),
             });
 
-        return _nodeBootstrapper.BuildOrchestration(
-            BootRole, context.Kernel, context.World, context.NodeId,
-            participant:          null,   // ⛔ decision B: the editor has a Brain and NO DDS participant — and none is faked
-            subsystemName:        "Editor",
-            eventBus:             context.EventBus,
-            features:             () => context.Features,   // ⭐ P-7 F-28 — this caller HAS the node's features, so the scenario step can hand it the header's preset
-            scenarioSerializer:   serializer,
-            scenarioExtractor:    extractor,
-            scenarioSource:       context.World.Bus,
-            scenarioIdAllocator:  context.IdAllocator,
-            localTempRoot:        _isolatedTempRoot,
-            tkbDb:                context.TkbDb,
-            simGroup:             simGroup,
-            inputGroup:           InputGroup,
-            postSimGroup:         postSimGroup,
-            eventAccumulator:     context.EventAccumulator,   // CE-3314 — a restore restarts the step window (D4)
-            diagnosticsDumpHandler: diagnosticsDump,
-            elm:                  Elm,
-            terrainContent:       context.TerrainContent,
-            clusterSlave:         context.ClusterSlave,       // ONE slave — the builder's
-            slaveTranslator:      null,                       // offline: none
-            scenarioHandlers:     Array.Empty<IClusterStateHandler>(),   // the editor registers no episode handler
-            behaviorRemapper:     behaviorRemapper,
-            offline:              true,
-            entityMap:            context.EntityMap,          // CE-2101 — the world boundary clears it
-            dryRunIncludesTransient: true,                    // the editor's dry run copied Transient components (HN-016)
-            mapBuildStatus:       MapBuildStatus);            // ⭐ CE-3354 ③ — the editor HAS a map (EditorSubsystem wires it), so it passes it
+        // ⭐ CE-4270 B11 — the ONE orchestration step (HostOrchestration). Offline (decision B): no participant, no network half — none is faked.
+        return Hrot.EcsNode.Hosting.HostOrchestration.Build(_nodeBootstrapper, BootRole, context,
+            new Hrot.EcsNode.Hosting.OrchestrationSpec
+            {
+                SubsystemName           = "Editor",
+                LocalTempRoot           = _isolatedTempRoot,
+                Serializer              = serializer,
+                ScenarioExtractor       = extractor,
+                SimGroup                = simGroup,
+                InputGroup              = InputGroup,
+                PostSimGroup            = postSimGroup,
+                DiagnosticsDump         = diagnosticsDump,
+                ScenarioHandlers        = Array.Empty<IClusterStateHandler>(),   // the editor registers no episode handler
+                BehaviorRemapper        = behaviorRemapper,
+                Offline                 = true,
+                DryRunIncludesTransient = true,   // the editor's dry run copied Transient components (HN-016)
+                MapBuildStatus          = MapBuildStatus,   // ⭐ CE-3354 ③ — the editor HAS a map (EditorSubsystem wires it)
+            });
     }
 
     // ── phase 6a: the spawning pipeline ──────────────────────────────────────────────────────

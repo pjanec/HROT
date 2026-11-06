@@ -98,6 +98,9 @@ namespace Hrot.SimHost.Tests
                 // ⭐ CE-4270 (§4.1ag) — a host that builds its pack through the ONE shared spawning step wires what that step wires.
                 if (code.Contains("HostSpawning.Register(", System.StringComparison.Ordinal))
                     Follow(HostSpawningFile);
+                // ⭐ CE-4270 B11 — a host that builds its orchestration through the ONE shared step wires what that step wires.
+                if (code.Contains("HostOrchestration.Build(", System.StringComparison.Ordinal))
+                    Follow(HostOrchestrationFile);
                 // ⭐ CE-4270 B9 — a host that resolves the ONE role table composes what that table composes.
                 if (code.Contains("RoleCapabilityTable.Plan(", System.StringComparison.Ordinal))
                     Follow(RoleTableFile);
@@ -108,6 +111,9 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>⭐ CE-4270 — the ONE shared spawning step (where the pack is built and scheduled for every host that calls it).</summary>
         internal const string HostSpawningFile = "Hrot/Engine/Hrot.EcsNode/Hosting/HostSpawning.cs";
+
+        /// <summary>⭐ CE-4270 B11 — the ONE orchestration step (the node's slave and its handlers, for every host that calls it).</summary>
+        internal const string HostOrchestrationFile = "Hrot/Engine/Hrot.EcsNode/Hosting/HostOrchestration.cs";
 
         /// <summary>⭐ CE-4270 B9 — the ONE role table (SimHost, CGF, the fused server and the editor resolve their declared role against it).</summary>
         internal const string RoleTableFile = "Hrot/Subsystems/Hrot.SimHost/RoleCapabilityTable.cs";

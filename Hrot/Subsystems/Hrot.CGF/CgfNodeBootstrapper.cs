@@ -246,36 +246,22 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
             BootConfig.SubsystemName, BootConfig.NodeId);
         var diagnosticsDump = new DiagnosticsDumpClusterOpHandler(_eventHistory, archService, entityService, logService, BootConfig);
 
-        return _nodeBootstrapper.BuildOrchestration(
-            BootRole, context.Kernel, context.World, context.NodeId,
-            participant:          context.Participant,
-            subsystemName:        "CGF",
-            eventBus:             context.EventBus,
-            features:             () => context.Features,   // ⭐ P-7 F-28 — this caller HAS the node's features, so the scenario step can hand it the header's preset
-            scenarioSerializer:   serializer,
-            scenarioExtractor:    extractor,
-            scenarioSource:       context.World.Bus,
-            scenarioIdAllocator:  context.IdAllocator,
-            localTempRoot:        _isolatedTempRoot,
-            tkbDb:                context.TkbDb,
-            simGroup:             simGroup,
-            inputGroup:           InputGroup,
-            postSimGroup:         null,   // decision D: none
-            // ⭐ Decision A: the replay load gates the network lifecycle systems and bypasses ghost lifecycle, as on SimHost.
-            lifecycleGroup:       context.NedReplication?.NetworkLifecycleGroup,
-            ghostCreationSystem:  context.GhostCreationSystem,
-            eventAccumulator:     context.EventAccumulator,
-            afterSeek:            context.NedReplication?.AfterSeekCallback,
-            diagnosticsDumpHandler: diagnosticsDump,
-            elm:                  context.BaseModules?.OfType<EntityLifecycleModule>().FirstOrDefault(),
-            terrainContent:       context.TerrainContent,
-            // ⭐ ONE slave, ONE slave translator — the builder's (the second `new ClusterSlave` and the context swap are gone).
-            clusterSlave:         context.ClusterSlave,
-            slaveTranslator:      context.SlaveTranslator,
-            scenarioHandlers:     new IClusterStateHandler[] { episodeHandler },
-            behaviorRemapper:     behaviorRemapper,
-            entityMap:            context.EntityMap,   // CE-2101 — the world boundary clears it
-            mapBuildStatus:       MapBuildStatus);     // ⭐ CE-3354 ③ — this host HAS a map (CgfSubsystem attaches it), so it passes it
+        // ⭐ CE-4270 B11 — the ONE orchestration step (HostOrchestration).
+        return Hrot.EcsNode.Hosting.HostOrchestration.Build(_nodeBootstrapper, BootRole, context,
+            new Hrot.EcsNode.Hosting.OrchestrationSpec
+            {
+                SubsystemName     = "CGF",
+                LocalTempRoot     = _isolatedTempRoot,
+                Serializer        = serializer,
+                ScenarioExtractor = extractor,
+                SimGroup          = simGroup,
+                InputGroup        = InputGroup,
+                PostSimGroup      = null,   // decision D: none
+                DiagnosticsDump   = diagnosticsDump,
+                ScenarioHandlers  = new IClusterStateHandler[] { episodeHandler },
+                BehaviorRemapper  = behaviorRemapper,
+                MapBuildStatus    = MapBuildStatus,   // ⭐ CE-3354 ③ — this host HAS a map (CgfSubsystem attaches it)
+            });
     }
 
     /// <summary>⭐ CE-4270 B7b — after Kernel.Initialize: the navigation module's providers, when the role composed the solver (the ONE shared step, CE-197 guard).</summary>

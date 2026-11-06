@@ -356,32 +356,17 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         MigrationServices = _nodeBootstrapper.RegisterMigrationServices(
             _role,
             writerIdentifier: _role.HasFlag(NodeRole.Brain) ? "Hrot.CGF" : "Hrot.SimHost");
-        var slave = _nodeBootstrapper.BuildOrchestration(
-            _role, context.Kernel, context.World, context.NodeId,
-            participant:          context.Participant,
-            subsystemName:        "SimHost",
-            eventBus:             context.EventBus,
-            features:             () => context.Features,   // ⭐ P-7 F-28 — this caller HAS the node's features, so the scenario step can hand it the header's preset
-            // CE-279 — pass the serializer this override already receives (was null); every ECS host saves
-            //   its owned slice via the shared serializer. Load handlers stay off (no authoring deps here).
-            scenarioSerializer:   serializer,
-            localTempRoot:        _localTempRoot,
-            tkbDb:                _tkbDb,         // TKB-020
-            simGroup:             simGroup,
-            lifecycleGroup:       context.NedReplication?.NetworkLifecycleGroup,
-            ghostCreationSystem:  context.GhostCreationSystem,
-            eventAccumulator:     context.EventAccumulator,
-            afterSeek:            (context.NedReplication as Hrot.Common.Abstractions.INedReplicationModule)?.AfterSeekCallback,
-            diagnosticsDumpHandler: diagHandler,
-            // ⭐ HN-018 — this caller HAS the ELM, so it passes it (the silent-default rule).
-            elm:                  context.BaseModules?
-                                      .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>()
-                                      .FirstOrDefault(),
-            terrainContent:       context.TerrainContent,   // ⭐ CE-4013 — this caller HAS the node's registry, so it passes it
-            // ⭐ CE-4013 D15 — the node's ONE slave and ONE slave translator, from HrotNodeBuilder: no second pair.
-            clusterSlave:         context.ClusterSlave,
-            slaveTranslator:      context.SlaveTranslator,
-            mapBuildStatus:       MapBuildStatus);   // ⭐ CE-3354 ③ — this host HAS a map when it shows one (SimHostApp wires it), so it passes it
+        // ⭐ CE-4270 B11 — the ONE orchestration step (HostOrchestration). ⚠ No input or post-simulation group (as before, §4.1ag B11 drift table).
+        var slave = Hrot.EcsNode.Hosting.HostOrchestration.Build(_nodeBootstrapper, _role, context,
+            new Hrot.EcsNode.Hosting.OrchestrationSpec
+            {
+                SubsystemName   = "SimHost",
+                LocalTempRoot   = _localTempRoot,
+                Serializer      = serializer,
+                SimGroup        = simGroup,
+                DiagnosticsDump = diagHandler,
+                MapBuildStatus  = MapBuildStatus,   // ⭐ CE-3354 ③ — this host HAS a map when it shows one (SimHostApp wires it)
+            });   // ⭐ CE-3354 ③ — this host HAS a map when it shows one (SimHostApp wires it), so it passes it
 
         SlaveTranslator = _nodeBootstrapper.SlaveTranslator;
         return slave;
