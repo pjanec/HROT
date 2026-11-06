@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level, for the user's review (R-4122); ui builds the forms, backend the attributes (R-4123)
-updated: 2026-11-06 (first version — coordinator; editing-UX design queue item 8: E2, D3 / D7 and the raw inspector fixes)
+updated: 2026-11-06 (revised after the user's review: the raw editor is local BY DESIGN — CE-4283 refuted; every open point measured: the leaf editors through ScalarEditBox, ammunition, posture, weather, routes (CE-4284), embarkation; Q5 replaced, Q7–Q8 added) · 2026-11-06 (first version — coordinator; editing-UX design queue item 8: E2, D3 / D7 and the raw inspector fixes)
 current-answer: §2 the model · §3 the four forms · §4 stages · §5 questions with leans
 stale-below: nothing
 known-rot: none
@@ -17,6 +17,8 @@ related-designs:
   - ../DESIGN_Semantic_Value_Types.md — OWNS the typed values (SV-1 time, SV-4 angle) that choose a row's editor and its unit
   - ../blueprints/Architect_Question_59_Attribute_Vocabulary_Single_Source.md — OWNS AttributeVocabulary, "a row HERE FIRST"; every form field is an attribute
   - ../DESIGN_Remote_Edit_Outcome.md — the ticket and outcome a form commit carries
+  - ../designs/weather/DESIGN_Weather_And_Time.md — §2: weather edits were meant to be attribute requests; the Scenario form's weather rows are those attributes
+  - ../DESIGN_Entity_Interactions.md — §7 OWNS EmbarkEntityCommand / EmbarkationSystem, which the Crew & cargo form raises
 -->
 
 # DESIGN — the Details forms: Unit, Crew & cargo, Shape, Scenario
@@ -28,6 +30,13 @@ related-designs:
 
 Today a user changes side, name, health, ammunition or spawn facing through the raw **Components** tab. It shows engine names, indices
 and TKB numbers (programme §1.1). This design gives the common fields forms, and keeps the raw tab as the debugging tool.
+
+🔒 *"Unowned component edit is not replicated. This is what it should be doing, because this is raw component edit. It's not a
+user-faced editing mechanism. This is a debug tool. For whatever serious entity editing, we cannot rely on raw component edits.
+Basically anything what the user should be able to edit … requires a well-designed form, because it might span across many different
+components."* (user, `2026-11-06`) ⇒ a form is THE user-facing editor; one form spans many components, and one attribute's handler may
+write several (§3: ammunition writes the mount's `WeaponState`, a different entity per mount). 🔒 *"Please measure whatever you do not
+know … we should design with all the available knowledge we have."* — §1.2 is that measurement.
 
 ## 1. INVENTORY *(2026-11-06)*
 
@@ -46,9 +55,21 @@ Coverage could not be checked (the CLI has no `check_index_coverage`).
 | **the write** — `EditRequests.Write / WriteJson` → `EntityWriteRouter` (apply here, or ask the owner) | `Replication/Edits/EditRequests.cs:22,37` | the edit framework's `Write` op wraps it (F1) |
 | **the field editors** — `IImGuiFieldDrawer` + StructEdit leaf editors (pickable links, angles, quaternion-as-euler, type, utility curve) | `Fdp.Presentation/ImGui/Editing/IImGuiFieldDrawer.cs` | ⭐ a form row draws its value with the SAME drawer StructEdit picks for that type ⇒ a typed value edits the same everywhere |
 | **the field-mark hook** — `Func<FieldPath, FieldMark?>` + `FieldMarks.Draw(entity, path)` (approved, not built) | Edit framework §2.5 (R-4127) | *"the new dedicated forms are built from a shared form-row helper that does it once"* — this design IS that helper |
-| **the raw Components tab's write** — `ComponentEditWindow.ExecuteOkLogic` → `ls.SetComponent(...)` | `ComponentEditWindow.cs:157-170` | ⛔ **a LOCAL write**: on a station that does not own the entity it writes the replica and is lost — the CE-4274 shape. Filed **CE-4283** |
+| **the raw Components tab's write** — `ComponentEditWindow.ExecuteOkLogic` → `ls.SetComponent(...)` | `ComponentEditWindow.cs:157-170` | ✅ **local by design** — a debugging tool (user; CE-4283 refuted) |
 | **the components** | `EntityInfo` (`Fdp.Core`), `Health`, `WeaponState`, `WeaponAmmo`, `StanceIntent`, `CarrierSeats`, `PassengerBuffer` (`Fdp.Toolkits`), `Playable`, `SpawnArea`, `EditablePolyline`, `RoutePlan` (`Hrot.Core`), `WeatherConditions` | each form row reads one of these |
 | **the tabs** — `EntityDetailsBundle` gives every host Components, Summary, Objectives, Brain; the editor adds Scenario, Zones, Macro, Playable, Mission | `EntityDetailsBundle.cs:59-96`, `EditorSubsystem.cs:3295-3370` | D2 (approved): every tab in the shared bundle with `Requires` |
+
+### 1.2 Measured for this revision *(`2026-11-06`)*
+
+| question | measured | consequence |
+|---|---|---|
+| where ammunition lives | `WeaponAmmo` is a **replicated mirror** (`[DataPolicy(NoScenario)]`, written only by `WeaponAmmoMirrorSystem` on the brain, `WeaponAmmo.cs:12-15`); the real rounds are `WeaponState.Ammo` (saved, `CombatComponents.cs:14`) — mount 0 on the unit, mounts 1–3 on mount child entities (`WeaponMountInfo.MountIndex`, `WeaponAmmoMirrorSystem.cs:37-56`) | the row READS the mirror (works on every station) and WRITES attribute `Ammo.<mount>`, whose handler on the owner writes that mount's `WeaponState.Ammo` (clamped to `MaxAmmo`) — one attribute, two entities. Saved, because `WeaponState` is |
+| whether a posture at start can be authored | `StanceIntent` is `NoScenario` (`StanceComponents.cs`) and is written by the BRAIN every tick through `StanceRequest.Set` (behaviours: `CivilianBehavior`, the utility `CombatPosture` with its own params DTO) | ⛔ a stance field would be overwritten by the first decision ⇒ **not a Unit form field**; posture is the unit's behaviour / orders (Q7) |
+| how weather is meant to be edited | the weather design: *"UpdateEntityAttributeCommand: a new scenario start time (or a weather edit)"* (`DESIGN_Weather_And_Time.md` §2) — but the vocabulary has no weather rows, so today it writes locally (edit framework §1) | adding the weather attributes IS the designed path |
+| how passengers aboard at start are authored | `EmbarkEntityCommand` / `DisembarkEntityCommand`, applied at once by `EmbarkationSystem` on the vehicle's owner — the designed authoring path (`DESIGN_Entity_Interactions.md` §7); saved through `PassengerBufferTranslator` → `InitialPassengersIntent` | Crew & cargo raises the commands (the edit framework's `Command` op); no live interaction needed in Edit mode |
+| how a route edit reaches the owner | ⛔ it does not: local `RoutePlan` set + `UpdateEntityCommand`, which the egress forwards only for `EditablePolyline`; the route egress needs authority (`MapRouteEgressTranslator.cs:92`) | **CE-4284** filed; an area's points DO reach the owner (`UpdateEntityDescriptorRequest`) ⇒ the route goes the same way (Q8) |
+| `Playable`, `SpawnArea` | `Playable { ForceId Side; FixedString32 SlotName }`, `SpawnArea { ForceId Side; float FacingDeg }`, both saved (`Default`) | four attributes; adding / removing `Playable` is edit framework F3 |
+| strength | `Health { float Current; float Max }`, saved | attribute `Health.Current`; the row shows % of `Max` |
 
 ### 1.1 Claim table
 
@@ -56,7 +77,8 @@ Coverage could not be checked (the CLI has no `check_index_coverage`).
 |---|---|---|
 | an attribute field writes on any node | ✅ `EntityWriteRouter` (local or a request to the owner) | ✅ Remote_Edit_Outcome, Edit framework F1 |
 | a non-attribute field cannot be written remotely today | ✅ the router speaks attribute ids only (`IEntityComponentWriter.Write(entity, attributeId, value)`); the raw window writes locally | ✅ Q59 §7.2 (the vocabulary is the list) |
-| a form row can reuse StructEdit's leaf editors | ⚠ `IImGuiFieldDrawer` is the seam the drawers implement — whether every leaf editor is reachable through it without a StructEdit session is **not measured**; stage D1's first step | Edit framework §2.5 |
+| a form row can reuse StructEdit's leaf editors | ✅ **measured**: `IImGuiFieldDrawer.DrawInput(ref object, EditNode)` needs a StructEdit node, so not alone — but **`ScalarEditBox<T>`** (`Hrot.Editor.AiShared/Inspector/ScalarEditBox.cs`, built for BP-356 and used by `DefaultValueAuthoring`) wraps ONE value as a bound StructEdit document ⇒ a row is a one-field session and gets every leaf editor and picker | Edit framework §2.5; BP-356 |
+| a session draws without allocating per frame | ⛔ **measured FALSE** (throwaway probe, not committed: `ImGuiTestFixture`, 100 steady frames): a frame drawing nothing **0 B**; one `float` through `ComponentEditDrawer` **64 B/frame**; five scalar fields **160 B/frame** — ~24 B per field, one boxed value each. **CE-4285** filed | ⇒ a row must NOT draw through a session every frame: it shows a **cached, typed, formatted value** (refreshed when the component's value changes) and opens its `ScalarEditBox<T>` session **only while that row is being edited** (click or Enter on the row) — the steady frame allocates nothing, whatever CE-4285's fix |
 | the attributes needed are cheap to add | ✅ the rule and its rails exist (`TheFourRoutingTablesAgreeTests`); each is one row + a JSON setter + a binary handler | ✅ Q59 |
 
 ## 2. The model
@@ -88,7 +110,9 @@ classDiagram
   }
   class FormCatalogue { <<★ new>> Unit · CrewAndCargo · Shape · Scenario }
   class AttributeVocabulary { <<existing · AttributeVocabulary.cs:45>> +new rows ★ }
+  class ScalarEditBox { <<existing · AiShared/Inspector/ScalarEditBox.cs>> one value as a StructEdit document }
   class IImGuiFieldDrawer { <<existing>> the editor per type }
+  class ValueFormatter { <<★ new>> typed display text, cached, refreshed on change }
   class FieldMarks { <<approved · R-4127>> busy / error mark per field }
   class Edits { <<approved · R-4128>> Submit(Write) }
   class EntityDetailsBundle { <<existing · EntityDetailsBundle.cs>> one tab per FormDecl, by Requires }
@@ -100,13 +124,16 @@ classDiagram
   FormRow --> AttributeVocabulary : names its attribute
   EntityDetailsBundle --> FormCatalogue : a tab per form
   EntityDetailsBundle --> FormView
-  FormView --> IImGuiFieldDrawer : draws each value
+  FormView --> ValueFormatter : every frame (0 B)
+  FormView --> ScalarEditBox : only the row being edited
+  ScalarEditBox --> IImGuiFieldDrawer
   FormView --> FieldMarks
   FormView --> ExpertSwitch
   FormView ..> Edits : commit
 ```
 
-*What the picture shows that the prose hid:* a form owns no write and no editor. Each row names an attribute, and the attribute already
+*What the picture shows that the prose hid:* a form owns no write and no editor, and only ONE row at a time pays for an editing session — the
+rest show cached text (CE-4285 measured the session at ~24 B per field per frame). A form owns no write and no editor. Each row names an attribute, and the attribute already
 knows how to reach the owner. The row's type picks the editor StructEdit would pick. The only new things are the declarations and the
 view that lays them out. The forms are therefore one mechanism across every host, never four hand-drawn panels.
 
@@ -151,32 +178,32 @@ network-less editor (applied at once, one undo step) and on a cluster.
 
 | form | offered when (`Requires`) | rows (common · ⚙ expert) | attributes to add ★ |
 |---|---|---|---|
-| **Unit** — replaces Summary and Playable, and the raw trip for the common fields | `EntityInfo` | name / callsign · side · type (read-only, see Q4) · posture at start · strength % · ammunition per weapon · playable + slot · ⚙ entity id, owner node, TKB template | ★ `Health.Current`, `WeaponAmmo.<n>.Rounds`, `StanceIntent` (and it must be SAVED — E2b), `Playable.Side`, `Playable.Slot` (+ the add / remove of `Playable` = edit framework F3) |
-| **Crew & cargo** | `CarrierSeats` or `PassengerBuffer` | each seat: who, mounted weapon · passengers · loadout · actions *Embark… / Disembark* (Interact ops) | ★ none for the view; seat changes are interactions (edit framework `Interact`) |
-| **Shape** | `EditablePolyline`, `RoutePlan`, `SpawnArea` or a weather region | kind · name · point count, length / area (read-only; the geometry is edited on the map, E8) · spawn area: side, facing · weather region: conditions · route: speed per leg · ⚙ the raw points | ★ `SpawnArea.Side`, `SpawnArea.Facing`, route leg speed, the region's weather fields |
+| **Unit** — replaces Summary and Playable, and the raw trip for the common fields | `EntityInfo` | name / callsign · side · type (read-only, Q4) · strength % · rounds per mount (read from the `WeaponAmmo` mirror) · playable + slot · ⚙ entity id, owner node, TKB template, loaded round per mount | ★ `Health.Current`, `Ammo.<mount>` (→ the mount's `WeaponState.Ammo`), `Playable.Side`, `Playable.SlotName` (+ add / remove `Playable` = edit framework F3). ⛔ no posture (Q7) |
+| **Crew & cargo** | `CarrierSeats` or `PassengerBuffer` | each seat: role, who sits there, its mounted weapon · *Put aboard…* (pick a unit) · *Take off* | ★ none: `EmbarkEntityCommand` / `DisembarkEntityCommand` (the edit framework's `Command` op), applied at once on the vehicle's owner, in Edit and Live |
+| **Shape** | `EditablePolyline`, `RoutePlan`, `SpawnArea` or a weather region | kind · name · point count, length / area (read-only; the geometry is edited on the map, E8) · spawn area: side, facing · weather region: conditions · route: speed per leg · ⚙ the raw points | ★ `SpawnArea.Side`, `SpawnArea.FacingDeg`, the weather fields; a route's legs travel as the whole `RoutePlan` to the owner (CE-4284, Q8) — a list is not a scalar attribute |
 | **Scenario** (nothing selected) | the world environment | General: name, description, *Capture picture* · Time: start, offset (attributes exist) · Weather: a form · Terrain: read-only (R-4135) · Parameters · ⚙ subsystem type, schema | ★ the global weather fields; name / description are file header (a document step, undo design §1.1) |
 
 ⏸ Not in E2, as the programme lists them: Sides & relations, Traffic, Civilians & crowds, Gameplay (respawn, deploy) and Checks. Each
 gets a row in this Scenario form when its own design lands.
 
-### 3.1 The raw Components tab — kept, fixed, and honest
+### 3.1 The raw Components tab — kept as the debugging tool
 
-| fix | why |
+| | |
 |---|---|
 | nested structs expand, inline arrays draw, a typed field uses its formatter | programme §1.1 findings |
-| on a station that does not own the entity, *Edit* is greyed: *"debugging edits apply only on the owner (node N)"* (**CE-4283**) | today the write lands on the replica and is lost |
-| last in the tab order, behind the forms | R-4120: a debugging tool |
+| it writes the local copy, on any station — **by design** (user; CE-4283 refuted) | a debugging tool, never the user's way to edit |
+| last in the tab order, behind the forms | R-4120 |
 
 ## 4. Stages
 
 | stage | what | owner | rails |
 |---|---|---|---|
-| **D1** | `FormDecl` / `FormRow` / `FormView` / `FormCatalogue`; ① **measure that every leaf editor is reachable through `IImGuiFieldDrawer`**; field marks; multi-select; the expert expander and switch; zero allocation per frame | ui | a declared form draws and commits through `Edits.Submit`; mixed values; 0 bytes per steady frame |
-| **D2** | the attributes: `Health.Current`, `WeaponAmmo.<n>.Rounds`, `StanceIntent`, `Playable.Side` / `Slot`, `SpawnArea.Side` / `Facing`, the weather fields — each a vocabulary row + setter + handler | backend | `TheFourRoutingTablesAgreeTests` green; each written from a non-owner reaches the owner (a two-node rail) |
+| **D1** | `FormDecl` / `FormRow` / `FormView` / `FormCatalogue`; a row shows a cached, typed, formatted value and opens a one-field `ScalarEditBox<T>` session only while it is edited (CE-4285: a session allocates ~24 B per field per frame); field marks; multi-select; the expert expander and switch | ui | a declared form draws and commits through `Edits.Submit`; mixed values; **0 B per steady frame with the form open and no row in edit** (the probe's shape as a rail) |
+| **D2** | the attributes: `Health.Current`, `Ammo.<mount>`, `Playable.Side` / `SlotName`, `SpawnArea.Side` / `FacingDeg`, the weather fields — each a vocabulary row + setter + handler; and CE-4284 (the route to the owner) | backend | `TheFourRoutingTablesAgreeTests` green; each written from a non-owner reaches the owner (a two-node rail) |
 | **D3** | the Unit form (replaces Summary, Playable) | ui | side, name, strength, ammo, posture, playable from the form, in Edit and Live; read-only in Review |
 | **D4** | the Scenario form (time, weather, terrain read-only, parameters, capture picture) | ui | weather set in Live reaches every node |
-| **D5** | the Shape and Crew & cargo forms | ui | — |
-| **D6** | the raw tab fixes + CE-4283 | ui | a non-owner sees the reason, not a lost write |
+| **D5** | the Shape and Crew & cargo forms | ui | a route's leg speed set on a non-owner reaches the owner; a unit put aboard in Edit mode is aboard after save and reload |
+| **D6** | the raw tab fixes | ui | — |
 
 Order: D1 and D2 in parallel → D3 → D4 → D5 → D6. D1 needs edit framework F1 (`Edits.Submit` + `Write`).
 
@@ -188,5 +215,7 @@ Order: D1 and D2 in parallel → D3 → D4 → D5 → D6. D1 needs edit framewor
 | **Q2** | what a field writes | **an attribute, always** — missing ones are added to the vocabulary first | a direct component write: lost on a non-owner, no ticket, no rules / HTTP reach |
 | **Q3** | when a value commits | **on Enter, on leaving the field, or on a pick** — one undo step per field edit | per keystroke: hundreds of requests and steps · an Apply button per form: one more click on every change |
 | **Q4** | changing a unit's type | **read-only in E2**; a later *Replace with…* action (new type, same place, side and name; references re-pointed) gets its own small design | editable in the form: it changes the entity's identity, which a field edit must not do |
-| **Q5** | the raw Components tab on a non-owner | **greyed with the reason (CE-4283)**; it stays a local debugging tool | send whole components to the owner: a new wire request for a debugging tool |
+| **Q5** | the raw Components tab on a non-owner | ✏ **settled by the user: local by design**, a debugging tool; no change | — |
 | **Q6** | what the Unit form replaces | **Summary and Playable** (their content moves into it); Components stays, last | keep Summary beside it: two tabs saying the same |
+| **Q7** | posture at start | **not a form field** — the brain sets the stance every tick (`StanceRequest`), so posture belongs to the unit's orders and behaviour (e.g. the `CombatPosture` parameters in the Orders tab) | a saved `StanceIntent`: overwritten by the first decision · a new start-posture component: a second owner of the stance |
+| **Q8** | a route edited on a non-owner (CE-4284) | **the route travels to the owner as `UpdateEntityDescriptorRequest`, the way an area's points already do** — the edit framework's `Write` of a structured value | a scalar attribute per waypoint: a list is not a scalar, and 64 attributes per route would be the raw editor again |

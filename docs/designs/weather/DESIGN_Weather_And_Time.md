@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: ⚠ C-3's "saved next time" as an ENTITY is to change — the saved form moves to `header.world` (Scenario Rules SR-71, CE-4154, not built yet) · §3 C-1 and C-2 (the save rewriting the clock to "UTC at save", the owner re-anchoring a target UTC) — SUPERSEDED the same day by the user's W-8: the clock is an AUTHORED scenario start time, saved as is, and a runtime change sets a new start time.
 known-conflict: docs/designs/cgf-1/CGF-1-DESIGN.md (~line 1113) — the Orchestrator writes a "global weather descriptor" to Orchestrator.json and publishes it on OrchestratorContextTopic. Never built (the save arm was retired, CE-278); SUPERSEDED by §1 here — weather is scenario ENTITIES, not orchestrator context.
 related-designs:
+  - ../../UX/DESIGN_Details_Forms.md — E2: the Scenario form edits the weather through new weather attributes (the edit §2 meant: "UpdateEntityAttributeCommand … or a weather edit")
   - docs/DESIGN_Scenario_Rules.md — SR-71 (CE-4154): the World Environment's SAVED form moves to the scenario header (`header.world`); its runtime entity (W-0) and C-3's defaults are unchanged
   - ../../DESIGN_Scenario_Rules.md — the World Environment entity also carries the scenario's RuleSet and RuleState (SR-7, SR-8)
   - docs/DESIGN_Sensors_And_Doctrine.md — §5.7 AQ-2: the acquisition dwell S2 leaves unchanged (§8.3 S2-1)

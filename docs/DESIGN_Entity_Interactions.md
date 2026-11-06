@@ -8,6 +8,7 @@ known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file
   §7.1b's first host-deviation row said Stage B for the UrbanCombatNew applier — corrected in place to Stage A (CE-2126, 2026-10-12)
 known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
 related-designs:
+  - UX/DESIGN_Details_Forms.md — E2: the Crew & cargo form raises EmbarkEntityCommand / DisembarkEntityCommand (§7) to put units aboard in Edit and Live
   - docs/UX/DESIGN_Edit_Framework.md — observes an interaction's answer (the target's state) with a time-out; proposes a refusal-reason field on that state, never a reply topic
   - OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/DESIGN_Civilians_And_Crowd_Control.md — §5h AW-13 (R-2025): a person gets several carry stations (Hands, Back, Hidden — concealment is the station's), beside §7.4's one.
