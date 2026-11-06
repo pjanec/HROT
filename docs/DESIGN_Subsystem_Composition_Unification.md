@@ -1,5 +1,6 @@
 <!--STATUS
 state: LIVE
+⏳ NEW 2026-11-06: §4.1ag (CE-4270) — A HOST IS DATA (HostDescription rows; the fused server its first new row): DESIGN, awaiting the user's approval (decisions D1–D5); no code moves before it.
 build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
   ✅✅ NEW 2026-09-04: §4.1m — ROLE-COMPOSITION **B1 IS BUILT** ([SingleInstance] + the scheduler guard +
   SystemComposition.DistinctByType + root ④ fixed). ⛔⛔ READ §4.1m BEFORE QUOTING §4.1j's B1 ROW: the
@@ -6731,3 +6732,117 @@ graph TD
 | **B1** | `CgfNodeBootstrapper`; `CgfSubsystem` calls it; ONE slave; decision A | `CgfSubsystemHeadlessTests` (both), `CgfSubsystemTests`, `CgfComponentRegistryTests`, `TheRunChoiceIsOnEveryHostTests`, `TheClusterAiDebugSurfaceAnswersTests`, `BreakpointSubsystemWiringTests`, `DebugApiCompositionTests`, `TheViewportInteractionIsSharedTests` ✅ **BUILT `2026-10-29`** (as-built: `Hrot.CGF/CgfNodeBootstrapper.cs` supplies CGF's inputs to the base — `GetBehaviorRegistry` (lazy, loads the AI assembly), `BuildContext`→`BuildReplicatedNode` (Slave), components, serializer (WarnAndSkip), the capability plan, `BuildOrchestration`→`NodeBootstrapper.BuildOrchestration` on the builder's ONE slave (+ `CgfEpisodeLoadHandler`, remapper, entity map), spawning pipeline (creation pack, genesis tail), translators; `BuildsPostSimGroup=false`; the participant stays caller-side; host glue = `CgfSubsystem.RegisterHostSystems` (the registrar, phase 6d). Base gained a protected `InputGroup`; `NodeBootstrapper` gained `entityMap` + `TerrainResidency`. ⚠ Measured drift fixed: each configured `NedNetworkFactory` made its OWN cluster cache while the node's replication module filled another — `ConfigureForNode(context)` now adopts the module's (`NedReplicationModule.ClusterCache`). Frame order: same 72 systems, different order inside a phase (base order) — pinned by `CgfSubsystemTests.CE1446_TheKernelRunsItsSystemsInTheSharedBootstrappersOrder`) |
 | **B2** | `EditorNodeBootstrapper`; `EditorSubsystem` calls it; decisions B, C | `EditorSubsystemBootTests`, `TheEditorRunsTheOrchestratorCoreTests`, `EditorCapabilitiesTests` (`ResolvedSet_ProducesTheSameSystemSequences…`), the MVP rail, `TheRunChoiceIsOnEveryHostTests` ✅ **BUILT `2026-10-29`** (as-built: `Hrot.Editor/EditorNodeBootstrapper.cs` — `BuildContext` is the PLAIN builder (offline: no replication, Standalone time, `OrchestratorEventRegistry`, Deterministic start, allocator reset), `TimeRole=Standalone`, `DeduplicateSystemsByType` (new opt-in base input, CE-165), a `TrajectoryPoolProvider` resource (the capability walk's `Needs` check demanded it), the capability plan (both arms), `GetAdditionalModules`=BehaviorDiagnostics, `BuildOrchestration`→`NodeBootstrapper.BuildOrchestration(offline:true, participant:null)` on the builder's ONE slave with `scenarioHandlers` empty + `dryRunIncludesTransient` (new input) + the dump handler, the creation pack/genesis/blueprint events in the pipeline, `PostInitialize` nav providers; host glue = `EditorSubsystem.RegisterHostSystems`. Frame (decision C): `HrotNodeContext.Tick` with the editor's per-frame work in `afterKernel`, then `OrchestratorCore.Tick`; `OrchestrationLogicPack` is no longer registered by the editor. Decision A: the Geographic module and the lifecycle module now come from `BaseModules` (the editor registered neither the builder's ELM nor Geographic before); 5 systems added — Geographic ×2 and the time-sync translators' Cyclone ingress/egress/cleanup (no-ops, no participant); the ScenarioLoadStep now gets the terrain service. `NodeBootstrapper` gained `dryRunIncludesTransient` and `Handlers`. Order pinned by `TheEditorRunsTheOrchestratorCoreTests.CE1446B2_*`) |
 | **B3** | the rail: every ECS host's node is built by a `SharedApplicationBootstrapper` subclass (no inline `HrotNodeBuilder` in a host) | new, in `SharedApplicationBootstrapperTests` ✅ **BUILT `2026-10-30`** (as-built: `SharedApplicationBootstrapperTests.CE1446_EveryEcsHostBuildsItsNodeThroughASharedBootstrapperSubclass_AndNoneInline` — a SOURCE scan (Stride is net8.0-windows): the six hosts (CGF, SimHost, IG, Editor, Traffic, Stride) are named and each entry file calls `.BootstrapNode(` on a `: SharedApplicationBootstrapper` class; no production `.cs` outside `*NodeBootstrapper.cs` / `HrotNodeBuilder.cs` / `HrotNodeBuilderReplicationExtensions.cs` / `SharedApplicationBootstrapper.cs` (comments ignored) contains `new HrotNodeBuilder(` or `BuildReplicatedNode(`; it fails if fewer than 500 production files are scanned or HROT.sln is not found. ⚠ Stride needs NO allow-list entry: its node IS built by `StrideNodeBootstrapper` (`StrideNodeShell.cs:238`); CE-1449 is its hand-built RUN CONTROLS, not a node build) |
+
+## ⭐⭐⭐ §4.1ag — **`CE-4270`: A HOST IS DATA, NOT A CLASS — one bootstrapper fed a `HostDescription`; the FUSED SERVER is its first new description** `build-state: DESIGN` *(stage A, `2026-11-06`, backend — ⏳ awaiting the user's approval; NO code moves before it)*
+
+🔒 User, `2026-11-06`: *"we should unify and share across all host types to minimize duplication … I do not want to create one extra loader which
+is for the server only"* · *"be careful. This has the potential to break a lot of stuff."* · *"a special host type … combining brain and muscle and
+orchestrator and network into a single host"*. Handoff: `batches/HANDOFF_Coordinator_To_Backend_Multiplayer_Server_And_Full_Cycle.md` item ①, safety rules S0–S5.
+This finishes §4.1e ③ (*"what stays truly host-unique shrinks to near nothing — each survivor named with a reason"*), on top of §4.1af (CE-1446: six subclasses, one base).
+
+### INVENTORY — measured `2026-11-06` at `8e908e760`
+
+Queries: `search_graph .*NodeBootstrapper.*` (Class) → IG, SimHost, Stride, Traffic, `NodeBootstrapper` + their tests — ⚠ **CGF's and the editor's bootstrappers are
+not in the index** (built after it, CE-1446); grep `NodeBootstrapper\.cs$` finds all six. Every override body extracted and compared line by line (comments stripped).
+⚠ `check_index_coverage` is unavailable through the CLI.
+
+| hook (base `SharedApplicationBootstrapper`) | Traffic | IG | Stride | SimHost | CGF | editor | what actually differs |
+|---|---|---|---|---|---|---|---|
+| `RegisterSpawningPipeline` | private `RegisterEntityCreationPack` (*"UNIFY: identical to Stride…"*) | inline | inline, skipped without allocator | inline + `PhysicsToolkitModule` | inline + physics + macros + blueprint genesis | inline + `EditorSystemsModule` + macros + blueprint genesis + 2 events | ONE `EntityCreationPack.Build` — values: `IsBroadcastArbiter` (CGF, editor), `ExtraTranslators` (SimHost/CGF: AI diagnostics + animation; editor: animation or placements), `Macros` (CGF, editor), `JsonAttributeCompiler` (editor). ⚠ **ORDER differs**: IG, Stride, Traffic register capabilities BEFORE the pack; SimHost, CGF, editor AFTER — it moves system order (the S0 snapshot pins it) |
+| `BuildOrchestration` | one `NodeBootstrapper.BuildOrchestration` | + migration (`BuildIg`), diag dump, `profileLoadParts`, `mapBuildStatus` | + keeps the groups | + migration (writer by role), navmesh attach, diag dump, `mapBuildStatus`; ⚠ passes NO `postSimGroup` | its own (§4.1af B1) | offline + `OrchestratorCore` (§4.1af B2) | ONE call — values: migration kind, diag dump on/off, the extras. ⚠ drift: diag dump and migration are on SimHost/IG only |
+| `ResolveCapabilities` | `Traffic` | `Presentation` set | `_capabilities` (injected) | MuscleGround · Perception · NavSolver · UnitHierarchy · EqsResult · Interactions · ReportInbox · AnimationMuscle · Traffic **Mirroring** | Brain · UnitHierarchy · EqsResult · Interactions · Traffic Mirroring · **GameplayServerPack** | `EditorCapabilities.BuildDefault` (Brain + Muscle + Traffic **Serving**) or injected muscle | ⭐ already ONE TYPE (`NodeCompositionPlan.Capability(role, cap)`): what differs is which ENTRIES each host writes + 3 values (`gateOnAuthority`: CGF true, editor false; Traffic Mirroring vs Serving; the muscle implementation) |
+| `BuildContext` | replicated, slave | replicated + IG view parts | replicated | replicated + resources | replicated | **offline**, **standalone** time | network on/off, time role (§4.1af input) |
+| `RegisterDomainComponents` · `BuildSerializer` · `PopulateSystems` · `RegisterNetworkTranslators` | small | IG translators (63) | Stride components (95), translators (66) | small | small | small | mostly per-ROLE data; IG/Stride translator and component sets are role packs in disguise |
+| `PostInitialize` · `HostFeatures` · `GetBehaviorRegistry` · resources | — | features | — | features, resources, post-init | features, registry | features, registry, resources, post-init | values / per-role |
+
+### The design
+
+```mermaid
+classDiagram
+  class HostDescription {
+    <<NEW, a record>>
+    Name · Roles : NodeRole flags
+    Network : On | Offline
+    Time : Slave | Standalone
+    Traffic : None | Mirroring | Serving
+    Gameplay : Server | Client | None
+    BrainGatesOnAuthority : bool
+    Implementations : IImplementationFactory?
+  }
+  class HostCatalog { <<NEW>> Editor · Cgf · SimHost · Ig · Traffic · Stride · FusedServer — the descriptions, one place }
+  class RoleCapabilityTable { <<NEW, one>> role → capabilities, written ONCE; resolves Roles (dedupe by key, R-B1) }
+  class SharedApplicationBootstrapper { <<existing, becomes concrete: HostBootstrapper>> phases 1..7 read the description }
+  class SpawningPipeline { <<NEW static>> Register(context, description) — the ONE EntityCreationPack.Build }
+  class OrchestrationRecipe { <<NEW static>> the ONE NodeBootstrapper.BuildOrchestration call + the described extras }
+  class IImplementationFactory { <<existing axis ③, §4.1h>> Stride's muscle · the Player's view }
+  HostCatalog --> HostDescription
+  SharedApplicationBootstrapper --> HostDescription : reads
+  SharedApplicationBootstrapper ..> RoleCapabilityTable
+  SharedApplicationBootstrapper ..> SpawningPipeline
+  SharedApplicationBootstrapper ..> OrchestrationRecipe
+  HostDescription --> IImplementationFactory
+```
+*What the picture shows that prose hid:* no host-named class is left — a host is a ROW of `HostCatalog`; the three duplicated blocks (spawning, orchestration,
+capabilities) each become ONE implementation fed by the row. The fused server costs one new row, not a loader.
+
+```mermaid
+sequenceDiagram
+  participant R as ClusterRunner (-m server)
+  participant O as OrchestratorSubsystem (master, unchanged)
+  participant B as HostBootstrapper
+  participant T as RoleCapabilityTable
+  R->>O: start (time master, cluster master — as today)
+  R->>B: Boot(HostCatalog.FusedServer)
+  B->>B: BuildContext — replicated, Slave time
+  B->>T: Resolve(Brain | MuscleGround | Perception | NavigationSolver)
+  T-->>B: one deduped set (the editor's union, R-D2 Role Affinity)
+  B->>B: SpawningPipeline.Register(arbiter = Brain in Roles)
+  B->>B: OrchestrationRecipe.Build(the ONE slave)
+  loop every frame
+    R->>B: HrotNodeContext.Tick (translator, slave, kernel, swap)
+  end
+```
+*What it shows:* the fused server is the editor's ONE-world fusion PLUS the network and a real slave — the orchestrator stays its own node in the same
+process (S3: orchestration and time authority do not move here).
+
+```mermaid
+graph TD
+  RUN[ClusterRunner — every mode] -->|Boot description| HB[HostBootstrapper]
+  ED[EditorSubsystem] -->|Boot Editor| HB
+  HB --> TBL[RoleCapabilityTable]
+  HB --> SP[SpawningPipeline]
+  HB --> ORC[OrchestrationRecipe]
+  HB --> HNC[HrotNodeContext — ticked by the runner each frame]
+  EDT[editor: OrchestratorCore.Tick appended — §4.1af C] --> HNC
+  OLD[the six *NodeBootstrapper subclasses]:::dead -.->|removed one per stage, only after their row passes S0–S4| HB
+  classDef dead fill:#fdd,stroke:#c00
+```
+*Red:* the subclasses go one at a time, each only after its row reproduces its S0 snapshot byte-identical (S2, S5).
+
+### Survivors — named, with the reason (§4.1e ③)
+
+| difference | stays as | why it cannot be a value |
+|---|---|---|
+| Stride's muscle (its own modules) | `IImplementationFactory` on its row | a different IMPLEMENTATION of the same role, in a `net8.0-windows` assembly (§4.1k) |
+| the Player's view (IG presentation packs) | the IG row's `Presentation` capability set | per-role data already (§4.1t); stays a capability, not a class |
+| the editor's in-process `OrchestratorCore` and frame tail | the editor row (`Network: Offline`) + the §4.1af C tick tail | a one-node cluster by design (R-1043) — measured in §4.1af |
+
+### Decisions — ⏳ for the user (lean per row)
+
+| # | question | ⭐ lean | rejected |
+|---|---|---|---|
+| **D1** | one concrete `HostBootstrapper` + `HostCatalog` rows, or keep the six subclasses as thin rows | ⭐ **one class + rows**; each subclass deleted only after its row passes S0–S4 and is merged once (S5) | thin subclasses — the per-host class stays the place drift grows (the spawning order difference above is exactly that) |
+| **D2** | the fused server's orchestrator: in-process `OrchestratorCore` (the editor's) or the existing orchestrator NODE in the same process | ⭐ **the existing orchestrator node** — Players join over DDS and the master already serves them; S3 says orchestration moves last | the editor's `OrchestratorCore.ForOneNodeCluster` — a one-node cluster cannot admit Players |
+| **D3** | traffic in the fused server | ⭐ **`TrafficPack.Serving()` in the one world**, as the editor (no traffic node) | a separate traffic node — a second world the fusion exists to remove |
+| **D4** | `-m server` becomes the fused host | ⭐ **yes, behind a switch first** (`-m server-fused`, then the default once ③ passes on it); the four-node server stays bootable until then | replace at once — no fallback if the fused host misbehaves live |
+| **D5** | the capability-before/after-spawning ORDER difference | ⭐ **keep each host's order as a row value until its S0 snapshot is reviewed**; unify the order only as a separate, approved change | pick one order now — changes three hosts' schedules inside a refactor (S0 forbids it) |
+
+### Stages (each a commit; S0 rail identical + the host's own suite + the cluster tests that boot it + a live HTTP run + `--verify`)
+
+| stage | what |
+|---|---|
+| S0 | the composition snapshot rail + goldens (every host, `--mode all`) — ⏳ building now (test only, no production code) |
+| B0 | `HostDescription`, `HostCatalog`, `RoleCapabilityTable`, `SpawningPipeline`, `OrchestrationRecipe` — added, NOT used |
+| B1 → B6 | Traffic → IG → Stride → SimHost → CGF → editor: each row replaces its subclass's hooks (S2: one host per commit) |
+| B7 | `HostCatalog.FusedServer` + `-m server-fused` (D4); ③'s cycle on it |
+| B8 | delete the subclasses (S5: each merged once on its row first) |
