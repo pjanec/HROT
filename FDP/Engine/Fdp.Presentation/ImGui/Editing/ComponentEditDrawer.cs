@@ -151,8 +151,10 @@ public sealed class ComponentEditDrawer
         ImGuiApi.TableSetColumnIndex(0);
         ImGuiApi.PushID(node.Id.Value);
 
+        // ⭐ U-7 ①② (Condition editor §8.2) — the row's name is the field's display name; a polymorphic list element is named by its KIND
+        //   (never "[0]"), the kind picker stays in column 2
         bool opened = ImGuiApi.TreeNodeEx(
-            node.Name,
+            ContainerLabelOf(node, elementIndex),
             ImGuiTreeNodeFlags.SpanAvailWidth | ImGuiTreeNodeFlags.DefaultOpen);
 
         ImGuiApi.TableSetColumnIndex(1);
@@ -161,12 +163,14 @@ public sealed class ComponentEditDrawer
         var containerBinding = node.Binding as IContainerBinding;
         if (containerBinding != null)
         {
-            ImGuiApi.TextDisabled($"[{containerBinding.Count}]");
+            ImGuiApi.TextDisabled(CountLabel(containerBinding.Count));
 
             if (containerBinding.CanResize)
             {
-                ImGuiApi.SameLine(ImGuiApi.GetContentRegionAvail().X - 60f);
-                if (ImGuiApi.SmallButton("+Add"))
+                // ⭐ U-7 ⑦ — "Add <element>" named by its element type, at the right of the row
+                string add = AddLabelOf(node);
+                ImGuiApi.SameLine(ImGuiApi.GetContentRegionAvail().X - ImGuiApi.CalcTextSize(add).X - 36f);
+                if (ImGuiApi.SmallButton(add))
                 {
                     containerBinding.Resize(containerBinding.Count + 1);
                     _session.MarkStructuralChange();
@@ -174,8 +178,7 @@ public sealed class ComponentEditDrawer
             }
             if (canDelete)
             {
-                ImGuiApi.SameLine(ImGuiApi.GetContentRegionAvail().X - 30f);
-                if (ImGuiApi.SmallButton($"X##del_{node.Id.Value}"))
+                if (TrashButton(node))
                 {
                     RemoveElementAtIndex(parentContainer!, elementIndex);
                     _session.MarkStructuralChange();
@@ -185,7 +188,7 @@ public sealed class ComponentEditDrawer
         else if (node.ClrType.IsAbstract || node.ClrType.IsInterface)
         {
             object? currentObj = node.Binding?.GetBoxed();
-            string preview = currentObj != null ? currentObj.GetType().Name : "(null)";
+            string preview = currentObj != null ? StructEdit.Core.Attributes.DisplayNames.Of(currentObj.GetType()) : "(none)";   // ⭐ U-7 ① — the kind by name
 
             float comboWidth = ImGuiApi.GetContentRegionAvail().X;
             if (canDelete) comboWidth -= 30f;
@@ -199,7 +202,7 @@ public sealed class ComponentEditDrawer
 
                 if (currentObj != null)
                 {
-                    if (ImGuiApi.Selectable("(null)", false))
+                    if (ImGuiApi.Selectable("(none)", false))
                     {
                         node.Binding?.SetBoxed(null);
                         _session.MarkStructuralChange();
@@ -212,7 +215,7 @@ public sealed class ComponentEditDrawer
                     {
                         var t = attr.DerivedType;
                         bool isSelected = currentObj != null && currentObj.GetType() == t;
-                        if (ImGuiApi.Selectable(t.Name, isSelected))
+                        if (ImGuiApi.Selectable(StructEdit.Core.Attributes.DisplayNames.Of(t), isSelected))
                         {
                             if (!isSelected)
                             {
@@ -227,8 +230,7 @@ public sealed class ComponentEditDrawer
             }
             if (canDelete)
             {
-                ImGuiApi.SameLine();
-                if (ImGuiApi.SmallButton($"X##del_{node.Id.Value}"))
+                if (TrashButton(node))
                 {
                     RemoveElementAtIndex(parentContainer!, elementIndex);
                     _session.MarkStructuralChange();
@@ -239,13 +241,21 @@ public sealed class ComponentEditDrawer
         {
             if (canDelete)
             {
-                ImGuiApi.SameLine(ImGuiApi.GetContentRegionAvail().X - 30f);
-                if (ImGuiApi.SmallButton($"X##del_{node.Id.Value}"))
+                if (TrashButton(node))
                 {
                     RemoveElementAtIndex(parentContainer!, elementIndex);
                     _session.MarkStructuralChange();
                 }
             }
+        }
+
+        // ⭐ U-7 ⑥ — a COLLAPSED node shows its one-line summary, dimmed, in column 2 (the ONE hook: EditSummaries; the condition
+        //   kinds fill it from ConditionSentence in U-14)
+        if (!opened && node.Binding?.GetBoxed() is { } collapsedValue && EditSummaries.Of(collapsedValue) is { } summary)
+        {
+            ImGuiApi.TableSetColumnIndex(1);
+            ImGuiApi.SameLine();
+            ImGuiApi.TextDisabled(summary);
         }
 
         if (opened)
@@ -255,8 +265,10 @@ public sealed class ComponentEditDrawer
             try
             {
                 int i = 0;
+                object? parentValue = node.Binding?.GetBoxed();
                 foreach (var child in node.Children)
                 {
+                    if (HidesChild(parentValue, child)) { i++; continue; }   // ⭐ U-7 ③
                     DrawEditNode(child, containerBinding, i);
                     i++;
                 }
@@ -282,7 +294,7 @@ public sealed class ComponentEditDrawer
         bool hoverTint = bind.Bindable && _hoveredRows.Contains(node.Id.Value);
         if (hoverTint) ImGuiApi.PushStyleColor(ImGuiCol.Text, BindTint);
         ImGuiApi.TreeNodeEx(
-            node.Name,
+            LabelOf(node),   // ⭐ U-7 ① — the display name ([EditDisplayName], else the humanized field name)
             ImGuiTreeNodeFlags.Leaf |
             ImGuiTreeNodeFlags.NoTreePushOnOpen |
             ImGuiTreeNodeFlags.SpanAvailWidth);
@@ -341,8 +353,7 @@ public sealed class ComponentEditDrawer
         // Delete button for resizable array elements.
         if (canDelete)
         {
-            ImGuiApi.SameLine();
-            if (ImGuiApi.SmallButton($"X##del_{node.Id.Value}"))
+            if (TrashButton(node))
             {
                 RemoveElementAtIndex(parentContainer!, elementIndex);
                 _session.MarkStructuralChange();
@@ -443,7 +454,7 @@ public sealed class ComponentEditDrawer
         ImGuiApi.PushID(node.Id.Value);
 
         ImGuiApi.TreeNodeEx(
-            node.Name,
+            LabelOf(node),
             ImGuiTreeNodeFlags.Leaf |
             ImGuiTreeNodeFlags.NoTreePushOnOpen |
             ImGuiTreeNodeFlags.SpanAvailWidth);
@@ -492,7 +503,7 @@ public sealed class ComponentEditDrawer
             float v = value is float f ? f : 0f;
             bool ok = (meta.Min.HasValue && meta.Max.HasValue)
                 ? ImGuiApi.SliderFloat("##v", ref v, (float)meta.Min.Value, (float)meta.Max.Value)
-                : ImGuiApi.InputFloat("##v", ref v, 0f, 0f);
+                : NumberInput.Float(ref v, UnitOf(node));   // ⭐ U-7 ⑤ — shortest form + unit; MaxValue = "no limit"
             if (ok) value = v;
             return ok;
         }
@@ -502,7 +513,7 @@ public sealed class ComponentEditDrawer
             int v = value is int i ? i : 0;
             bool ok = (meta.Min.HasValue && meta.Max.HasValue)
                 ? ImGuiApi.SliderInt("##v", ref v, (int)meta.Min.Value, (int)meta.Max.Value)
-                : ImGuiApi.InputInt("##v", ref v);
+                : NumberInput.Int(ref v, UnitOf(node));   // ⭐ U-7 ⑤
             if (ok) value = v;
             return ok;
         }
@@ -510,7 +521,7 @@ public sealed class ComponentEditDrawer
         if (type == typeof(double))
         {
             double v = value is double d ? d : 0.0;
-            bool ok = ImGuiApi.InputDouble("##v", ref v);
+            bool ok = NumberInput.Double(ref v, UnitOf(node));   // ⭐ U-7 ⑤
             if (ok) value = v;
             return ok;
         }
@@ -677,5 +688,85 @@ public sealed class ComponentEditDrawer
         var list = registry.Entries.ToList();
         list.Sort((a, b) => string.CompareOrdinal(a.Def.DebugName, b.Def.DebugName));
         return list;
+    }
+
+    // ── ⭐ U-7 (docs/UX/DESIGN_Condition_Editor.md §8.2) — names, add / delete, units: cached, 0 B per steady frame ─────────────────
+
+    private static readonly Dictionary<string, (string Label, string? Unit)> FieldNames = new(StringComparer.Ordinal);
+    private static readonly Dictionary<Type, string> AddLabels = new();
+    private static readonly string[] CountLabels = BuildCountLabels(64);
+
+    /// <summary>The row's name: the field's <c>[EditDisplayName]</c> (copied into the node's metadata), else the ONE humanizer
+    /// (<see cref="StructEdit.Core.Attributes.DisplayNames"/>); a list element keeps its <c>[i]</c>.</summary>
+    internal static string LabelOf(EditNode node)
+    {
+        if (node.Metadata.DisplayName is { Length: > 0 } dn) return dn;
+        return FieldEntry(node.Name).Label;
+    }
+
+    /// <summary>The unit a number shows after it: <c>[EditUnit]</c>, else a unit word the field's name ended with; null for none.</summary>
+    internal static string? UnitOf(EditNode node) => node.Metadata.Unit ?? FieldEntry(node.Name).Unit;
+
+    private static (string Label, string? Unit) FieldEntry(string name)
+    {
+        if (FieldNames.TryGetValue(name, out var e)) return e;
+        e = name.Length > 0 && name[0] == '[' ? (name, null)
+          : (StructEdit.Core.Attributes.DisplayNames.Humanize(name, out var unit), unit);
+        FieldNames[name] = e;
+        return e;
+    }
+
+    private static string ContainerLabelOf(EditNode node, int elementIndex)
+    {
+        if (elementIndex >= 0 && (node.ClrType.IsAbstract || node.ClrType.IsInterface) && node.Binding?.GetBoxed() is { } v)
+            return StructEdit.Core.Attributes.DisplayNames.Of(v.GetType());
+        return LabelOf(node);
+    }
+
+    private static string AddLabelOf(EditNode node)
+    {
+        var element = ElementTypeOf(node.ClrType) ?? typeof(object);
+        if (AddLabels.TryGetValue(element, out var label)) return label;
+        string name = element == typeof(object) ? "item" : StructEdit.Core.Attributes.DisplayNames.Of(element).ToLowerInvariant();
+        label = Fdp.Presentation.Fonts.IconsFontAwesome6.Plus + " Add " + name;
+        AddLabels[element] = label;
+        return label;
+    }
+
+    private static Type? ElementTypeOf(Type t)
+    {
+        if (t.IsArray) return t.GetElementType();
+        foreach (var i in t.GetInterfaces())
+            if (i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEnumerable<>)) return i.GetGenericArguments()[0];
+        return null;
+    }
+
+    private static string CountLabel(int n) => n >= 0 && n < CountLabels.Length ? CountLabels[n] : $"{n} items";
+
+    private static string[] BuildCountLabels(int n)
+    {
+        var a = new string[n];
+        for (int i = 0; i < n; i++) a[i] = i == 1 ? "1 item" : $"{i} items";
+        return a;
+    }
+
+    /// <summary>⭐ U-7 ③ — a <see cref="Fdp.Toolkit.Scenario.BindableNode"/>'s <c>Bind</c> map is not a field: a binding shows through the
+    /// field's own bind affordance, so the map is never drawn as a row.</summary>
+    internal static bool HidesChild(object? parentValue, EditNode child)
+        => parentValue is Fdp.Toolkit.Scenario.BindableNode && child.Name == nameof(Fdp.Toolkit.Scenario.BindableNode.Bind);
+
+    /// <summary>⭐ U-7 ⑦ — the delete of a list element: a trash glyph, right-aligned at one x on every row.</summary>
+    private bool TrashButton(EditNode node)
+    {
+        float w = ImGuiApi.CalcTextSize(Fdp.Presentation.Fonts.IconsFontAwesome6.TrashCan).X + ImGuiApi.GetStyle().FramePadding.X * 2f;
+        ImGuiApi.SameLine();
+        float avail = ImGuiApi.GetContentRegionAvail().X;   // right-aligned in the cell: every trash glyph at one x
+        if (avail > w) ImGuiApi.SetCursorPosX(ImGuiApi.GetCursorPosX() + avail - w);
+        ImGuiApi.PushID(node.Id.Value);
+        bool clicked = ImGuiApi.SmallButton(Fdp.Presentation.Fonts.IconsFontAwesome6.TrashCan + "##del");
+        bool hovered = ImGuiApi.IsItemHovered();
+        ImGuiApi.PopID();
+        if (hovered) ImGuiApi.SetTooltip("Delete");
+        return clicked;
     }
 }
