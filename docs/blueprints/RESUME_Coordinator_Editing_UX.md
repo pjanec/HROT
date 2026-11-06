@@ -40,7 +40,8 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 4. ✍ **Design 3 WRITTEN `2026-11-06`: [DESIGN_Mission_Plan_Editor.md](../UX/DESIGN_Mission_Plan_Editor.md)** (E11) — ✅ approved, Q3 (expert conditions, rule editor one click away) and Q4 (phases on events) revised (R-4129).
 5. ✍ **Design 3b WRITTEN `2026-11-06`: [DESIGN_Rule_Editor_UX.md](../UX/DESIGN_Rule_Editor_UX.md)** (E13) — ✅ approved, Q3 revised: the condition editor refactored (R-4130).
 6. ✍ **Design 4 WRITTEN `2026-11-06`: [DESIGN_Seats_And_Hats.md](../UX/DESIGN_Seats_And_Hats.md)** (E10 + D4) — ✅ APPROVED (R-4131), with §2.5 (HTTP seats, the camera, the director sharing it); stages H1–H7; CE-4279 (a Player can place units and command any side) and CE-4280 filed.
-7. ▶ NOW (queue §4.5): E14 (input and commands, app-wide — user), D1 (undo — reads the edit framework's journal), then E8 (map interaction), then the smaller ones. Previously listed after hats:, D1 (undo — reads the edit framework's journal), E8 (map), then the smaller ones (queue §4.5).
+7. ✍ **Design 4b WRITTEN `2026-11-06`: [DESIGN_Input_And_Commands.md](../UX/DESIGN_Input_And_Commands.md)** (E14) — awaiting the user's review of §4 Q1–Q7 and stages K1–K6; CE-4281, CE-4282 filed.
+8. ▶ NEXT (queue §4.5): D1 (undo — reads the edit framework's journal), then E8 (map interaction), then the smaller ones. Previously listed after hats:, D1 (undo — reads the edit framework's journal), E8 (map), then the smaller ones (queue §4.5).
 4. Before each design: INVENTORY with graph queries, UML (class + sequence + module), and a claim table in the chat.
 
 ## 3. The other lanes at writing *(fetched `2026-11-06`)*
@@ -53,6 +54,6 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 | **behaviors** | performance programme (§11f, 1000 soldiers load) | nothing dispatched |
 | **backend** | late-joiner ghosts (CE-4000 / 4007) — dispatch in backend | check its report |
 
-Ids: coordinator next free **CE-4281**, **R-4132**.
+Ids: coordinator next free **CE-4283**, **R-4132**.
 
 ⚠ All lanes are PAUSED by the user while the editing-UX designs are discussed (`2026-11-06`).

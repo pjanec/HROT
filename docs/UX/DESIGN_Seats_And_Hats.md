@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: DESIGN_Entity_Control.md C-8 ("one operator per node — the station id is the node id") holds; a fused server hosts several compute roles in one node, but still ONE seat (one person) — §2.1
 related-designs:
+  - DESIGN_Input_And_Commands.md — each hat is a keymap scope; central Esc
   - DESIGN_Editing_UX.md — the programme: D17 (the hats), D4 (editing levels per node — folded into the seat here), R-4119 (gated by the entity, not the node), R-4121
   - DESIGN_Action_Catalogue.md — an action's Level / Modes / side scope are read against the station's seat and active hat
   - DESIGN_Edit_Framework.md — the Gate refuses an edit the seat does not allow, with the reason

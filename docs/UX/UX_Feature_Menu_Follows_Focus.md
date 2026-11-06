@@ -8,6 +8,7 @@ current-answer: PARTIAL. Mechanism built + railed (GlobalMenuRegistry.ResolveBin
 updated: 2026-10-22
 known-rot: the "Out of scope" rows "Consolidating the four blocks" and "RenderPerspectiveMenu() and the host-menu DTOs" are SUPERSEDED by §MB (consolidating is now the scope). MB.1's bar order ("Perspective ranked after the leading menus", top-level Settings) is SUPERSEDED by §MB.2 (CE-4085); MB.2's "unlisted menu before Windows" + top-level Windows are SUPERSEDED by §MB.3 (CE-4114).
 related-designs:
+  - DESIGN_Input_And_Commands.md — main-bar items name action ids; their shortcuts come from the one keymap
   - DESIGN_Action_Catalogue.md — context menus from one catalogue; main-bar items that are actions reference the action id (§3 row 8)
   - ../designs/win-mgr-1/DESIGN.md — §4.3 the menu tree, §4.4.1 the shell's fixed Windows / Perspective / Help (what §MB folds into the tree)
   - ../designs/gizmos-1/canvas-context-menu-design.md — the map's context menu (the other user of ImGuiMenuRenderer's DTO walk; §MB keeps it)
