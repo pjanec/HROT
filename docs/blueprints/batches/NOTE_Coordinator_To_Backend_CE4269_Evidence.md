@@ -1,5 +1,6 @@
 <!--STATUS
-state: LIVE
+state: SUPERSEDED 2026-11-06 — folded into HANDOFF_Coordinator_To_Backend_Multiplayer_Server_And_Full_Cycle.md (re-dispatched)
+superseded-by: docs/blueprints/batches/HANDOFF_Coordinator_To_Backend_Multiplayer_Server_And_Full_Cycle.md
 updated: 2026-11-06
 current-answer: the whole file
 stale-below: nothing
