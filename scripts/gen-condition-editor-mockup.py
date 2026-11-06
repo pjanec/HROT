@@ -35,7 +35,6 @@ def row(x,y,parts,live=None,measured=None,bad=False,icon=None):
     # parts: list of ("chip",label,glyph,gcol,opts) or ("word",text)
     if bad: r(x-6,y-3,700,26,"#2A1416")
     cx=x
-    if icon: fa(icon[0],cx,y+3.5,icon[1],13); cx+=20
     for p in parts:
         if p[0]=="word": cx+=word(cx,y,p[1])+4
         else:
@@ -65,13 +64,13 @@ t(X,y+14.5,"When"); cw=chip(X+40,y,"all"); t(X+40+cw+6,y+14.5,"of these are true
 y+=34
 row(X,y,[("chip","Alpha 1-1",0xf007,BLUE),("chip","is inside",None,None),("chip","OBJ BLUE",0xf05b,GREEN)],live=True,icon=(0xf3c5,GREEN))
 yA=y; y+=30
-row(X,y,[("chip","at least 3",None,None),("word","of"),("chip","Red side",0xf024,RED),("chip","are destroyed",None,None)],live=False,measured="1 of 3",icon=(0xf54c,RED))
+row(X,y,[("chip","at least 3",None,None),("word","of"),("chip","Red side",0xf024,RED),("chip","are destroyed",0xf54c,RED)],live=False,measured="1 of 3",icon=(0xf54c,RED))
 yB=y; y+=30
-row(X,y,[("chip","Objective",0xf140,GREEN),("chip","Seize the bridge",None,None),("chip","is",None,None),("chip","achieved",None,None)],live=True,icon=(0xf140,GREEN))
+row(X,y,[("chip","Objective",0xf140,GREEN),("chip","Seize the bridge",None,None),("chip","is",None,None),("chip","achieved",0xf00c,GREEN)],live=True,icon=(0xf140,GREEN))
 yC=y; y+=30
-row(X,y,[("chip","Alpha 1-1",0xf007,BLUE),("chip","strength",None,None),("chip","is below",None,None),("chip","50 %",None,None,{"arrow":False})],live=False,measured="62 %",icon=(0xf21e,RED))
+row(X,y,[("chip","Alpha 1-1",0xf007,BLUE),("chip","strength",0xf21e,RED),("chip","is below",None,None),("chip","50 %",None,None,{"arrow":False})],live=False,measured="62 %",icon=(0xf21e,RED))
 yD=y; y+=30
-row(X,y,[("chip","Alpha 1-1",0xf007,BLUE),("chip","is not",None,None),("chip","under fire",None,None)],live=True,icon=(0xf06d,ORANGE))
+row(X,y,[("chip","Alpha 1-1",0xf007,BLUE),("chip","is not",None,None),("chip","under fire",0xf06d,ORANGE)],live=True,icon=(0xf06d,ORANGE))
 yE=y; y+=30
 row(X,y,[("chip","Bravo 1",0xf0c0,BLUE),("chip","is inside",None,None),("chip","pick an area…",0xf05b,GREEN,{"border":ERR,"hint":True})],bad=True,icon=(0xf3c5,GREEN))
 t(X+20,y+40,"Choose an area — the rule cannot be applied until every blank is filled",ERR,sz=11.5)
@@ -82,7 +81,7 @@ t(X+12,y+14.5,"Any"); cw=chip(X+42,y,"of",arrow=True); t(X+42+cw+6,y+14.5,"these
 y+=30
 row(X+12,y,[("chip","Time",0xf017,BLUE),("chip","is after",None,None),("chip","00:12:00",None,None,{"arrow":False})],live=True,icon=(0xf017,BLUE))
 y+=30
-row(X+12,y,[("chip","Rule",0xf0e7,AMBER),("chip","Ambush at the ford",None,None),("chip","has fired",None,None)],live=False,icon=(0xf0e7,AMBER))
+row(X+12,y,[("chip","Rule",0xf0e7,AMBER),("chip","Ambush at the ford",None,None),("chip","has fired",0xf0e7,AMBER)],live=False,icon=(0xf0e7,AMBER))
 yG=y; y+=46
 # custom (expert) row
 r(X-2,y-3,690,24,"#1A1A22",stroke=SEP,rx=3,dash="4 3"); fa(0xf121,X+4,y+2,GREY,13)
@@ -102,7 +101,7 @@ CXT=PX+PW+18
 def callout(yy,lines,ax=PX+PW-6):
     o.append(f"<path d='M{ax} {yy+10} L{CXT-6} {yy+8}' stroke='#5A5A66' stroke-dasharray='3 3' fill='none'/>")
     for i,l in enumerate(lines): t(CXT,yy+12+i*14,l,"#C8C8D0",sz=11.5)
-callout(yA,["A ROW = WHO · IS / HAS · VALUE, read as a sentence.","Blanks are pickers (map ⌖, a list, a typed field)."])
+callout(yA,["A ROW = WHO · IS / HAS · VALUE, as a sentence; an icon only","INSIDE the chip it describes (skull on destroyed …)."])
 callout(yB,["WHO can be a group: any / at least N / all / none","of a side or of a unit's men  ⇒ CountMatching."])
 callout(yD,["Friendly facts, not component paths: strength,","ammunition, under fire … (registered readers)."])
 callout(yE,["NOT is a choice of the verb: is / is not —","no separate operator to place."])

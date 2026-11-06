@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — detailed design under the approved top level (Rule Editor UX §2.3, R-4130); for the user's review (R-4122)
-updated: 2026-11-06 (first version — coordinator; the user: "go to condition editor, this is non trivial to be easy to use")
+build-state: DESIGN — detailed design under the approved top level (Rule Editor UX §2.3, R-4130); ✅ APPROVED Q-C1…Q-C6 (R-4142)
+updated: 2026-11-06 (✅ approved — R-4142; row icons removed, icons inside their chips — user) · 2026-11-06 (first version — coordinator; the user: "go to condition editor, this is non trivial to be easy to use")
 current-answer: §2 the model · §3 the vocabulary (friendly row ↔ the language) · §4 the visual design · §5 the four language additions · §6 stages · §7 questions
 stale-below: nothing
 known-rot: none
@@ -149,7 +149,8 @@ one x.
 
 | element | ImGui |
 |---|---|
-| a row | `SameLine` sequence: the row's coloured category glyph (R-4141) · chips · words; wraps to the next line when `GetContentRegionAvail` runs out |
+| a row | `SameLine` sequence of chips and words — ✏ **no leading icon** (user, `2026-11-06`: *"the skull is not about the rule itself, it is about whether the entity is destroyed … having two icons next to each other … feels visually wrong"*); wraps to the next line when `GetContentRegionAvail` runs out |
+| icons | ⭐ **inside the chip they describe** (R-4141 colours): the WHO chip (unit, side, objective, rule, time), the fact chip (skull on *destroyed*, heart on *strength*, flame on *under fire*, bolt on *has fired*), the value chip (crosshair on an area, tick on *achieved*) — never a row-level icon |
 | a chip (a blank) | a frame-coloured `Button` sized by `CalcTextSize` + arrow, opening a `BeginPopup` with the list / the map pick / a typed field (`ScalarEditBox`, Details forms D1) |
 | a group | All / Any / None as a chip; a tinted `BeginChild` box; one nesting level |
 | an unfilled blank | the forms' invalid style: red border + the reason under the row; **Apply** disabled until complete |
@@ -177,11 +178,11 @@ one x.
 | **C4** | the timing line on the rule; the Live column from `LiveLeafOverlay` by sentence | ui | the live ✓ / ✗ and measured value per row |
 | **C5** | the same editor in the mission task's Advanced condition, the replay search and breakpoints (Contexts) | ui | each host shows only its kinds |
 
-## 7. Questions — leans for the user
+## 7. Questions — ✅ APPROVED (R-4142, user `2026-11-06`: *"Otherwise, very good."* — with the icons moved into the chips)
 
 | # | question | lean | rejected |
 |---|---|---|---|
-| **Q-C1** | the shape of a row | **WHO · IS/HAS · VALUE**, every blank a chip, the whole row a sentence | a form per kind: the technical tree again |
+| **Q-C1** | the shape of a row | **WHO · IS/HAS · VALUE**, every blank a chip, the whole row a sentence; ✏ icons only inside the chip they describe, no row icon (user) | a form per kind: the technical tree again |
 | **Q-C2** | how "not" is said | **in the verb** (*is / is not*, *above / below*, *achieved / not achieved*), built as `None` | a separate NOT button: users miss it, and it reads backwards |
 | **Q-C3** | groups | **one nesting level**, All / Any / None, more only in the Expert view | free nesting: the reason the current editor is hard |
 | **Q-C4** | what the friendly view cannot draw | **one dashed Custom row, kept unchanged**, opened in the Expert view | refuse to open, or simplify it: loses the author's work |

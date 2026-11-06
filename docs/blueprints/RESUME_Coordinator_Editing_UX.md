@@ -49,7 +49,7 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 13. ✍ **Design 9 WRITTEN `2026-11-06`: [DESIGN_Initial_State.md](../UX/DESIGN_Initial_State.md)** (E15) — one start-state rule (saved · start in it · at once while paused · a request at run time · the brain may change it); carry mode + assistant saved; WeaponPosture saved; SeedTargetCommand on every brain node; a Point map graphic via PointLink's entity form; §3a the AI character (skill, bravery, obedience, nerve, resolve, ROE) — the model exists, the writes are local to the brain's node (R-1036) ⇒ Q8 make them attributes; stages S1–S6; ✅ Q1–Q9 APPROVED (R-4137, narrows R-1036).
 14. ✍ **Forms visual design WRITTEN `2026-11-06`** — [DESIGN_Details_Forms.md](../UX/DESIGN_Details_Forms.md) §6 + `docs/UX/details-forms-visual.svg` (user: forms first); stage D0; ✅ APPROVED (R-4138) — marks are coloured FontAwesome glyphs (R-4139); §6.6 fidelity (a mockup is an acceptance spec; CLAUDE.md rule); generator `scripts/gen-details-forms-mockup.py`.
 15. ✍ **E16 colourful icons WRITTEN `2026-11-06`: [DESIGN_Colour_Icons.md](../UX/DESIGN_Colour_Icons.md)** — REVISED by the user: FontAwesome glyphs stay, IN COLOUR by meaning (R-4139; Silk rejected — a 16 px bitmap at the 0.5–3× UI scale), ONE key → (glyph, colour) map generalising ModeGlyph; 12 files; colours approved per surface from a rendered strip (I1–I3); R-4140: Silk bitmaps and the time controls STAY; five monochrome surfaces (ORBAT relation switch, Details header buttons, AI document tabs, Blueprint attachment pills, mission task state) — ✅ Q-I1, Q-I2 APPROVED (R-4141).
-16. ✍ **E5 condition editor WRITTEN `2026-11-06`: [DESIGN_Condition_Editor.md](../UX/DESIGN_Condition_Editor.md)** — rows WHO · IS/HAS · VALUE projected to/from SearchPredicateDto (Custom row for the rest), ONE sentence renderer, four language additions (None, InUnit, InTheFight, E11's PhaseBegins); mockup `condition-editor-visual.svg`; stages C1–C5; awaiting Q-C1…Q-C6.
+16. ✍ **E5 condition editor WRITTEN `2026-11-06`: [DESIGN_Condition_Editor.md](../UX/DESIGN_Condition_Editor.md)** — rows WHO · IS/HAS · VALUE projected to/from SearchPredicateDto (Custom row for the rest), ONE sentence renderer, four language additions (None, InUnit, InTheFight, E11's PhaseBegins); mockup `condition-editor-visual.svg`; stages C1–C5; ✅ APPROVED (R-4142) — no row icon, icons inside their chips (user).
 17. ▶ NEXT (queue §4.5): E5 condition templates · E7 review · E2b sim / types. (Was 8: D1 (undo — reads the edit framework's journal), then E8 (map interaction), then the smaller ones. Previously listed after hats:, D1 (undo — reads the edit framework's journal), E8 (map), then the smaller ones (queue §4.5).
 4. Before each design: INVENTORY with graph queries, UML (class + sequence + module), and a claim table in the chat.
 
@@ -63,6 +63,6 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 | **behaviors** | performance programme (§11f, 1000 soldiers load) | nothing dispatched |
 | **backend** | late-joiner ghosts (CE-4000 / 4007) — dispatch in backend | check its report |
 
-Ids: coordinator next free **CE-4286**, **R-4142**.
+Ids: coordinator next free **CE-4286**, **R-4143**.
 
 ⚠ All lanes are PAUSED by the user while the editing-UX designs are discussed (`2026-11-06`).
