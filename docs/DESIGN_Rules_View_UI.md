@@ -4,8 +4,9 @@ updated: 2026-11-03 (§7 the rule editor designed; RV-4 built by behaviors; R3 a
 build-state: DESIGN
 current-answer: §3 (decisions) · §4 (phases) · §7 (the rule editor, RE-1 … RE-10)
 stale-below: nothing
-known-rot: none
+known-rot: (2026-11-06) RV-6 puts the selected rule's detail in the window's right pane — R-4118 moves it to the Details panel (docs/UX/DESIGN_Rule_Editor_UX.md §2.2, for review)
 related-designs:
+  - docs/UX/DESIGN_Rule_Editor_UX.md — the UX review of this view and editor (2026-11-06): a List of sentences, the detail in Details (R-4118), condition templates over the one language, actions as sentences, entry points, every host
   - docs/DESIGN_Evaluation_Cost_And_Cadence.md — OWNS how often the rules model is built (RulesFrame: only when a drawn view asks, once per frame) and RV-7's cost fix (CE-4259)
   - docs/DESIGN_Remote_Edit_Outcome.md — OWNS the answer to a remote edit; RE-7's refusal under the field comes from it (R-2082)
   - docs/DESIGN_Scenario_Rules.md — OWNS the decisions this builds: SR-56 (objectives view), SR-103 (rules lanes), SR-105 / SR-109 / SR-110 (the rules view), SR-111 (mission summary), SR-112 (debrief / HUD — later here)

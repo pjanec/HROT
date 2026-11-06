@@ -26,6 +26,7 @@ design-basis:
     entity-related, network agnostic. In contrary, descriptors are a NED network concept." → transfer is a
     NED-level, per-descriptor operation.
 related-designs:
+  - docs/UX/DESIGN_Edit_Framework.md — ownership transfer left outside the edit framework until this design's consolidate flow exists
   - docs/blueprints/Architect_Question_79_One_Ownership_Truth.md — owns how a SENDER turns the component claim into "may I publish" (one derived gate; CE-500).
   - DESIGN_Distributed_Scenario_Persistence.md — owns the SAVE GATE (reads NetworkAuthority.PrimaryOwnerId)
     and the RECEIVE side of a transfer (§6c, OQ12); THIS doc owns the INITIATION side. Reciprocal.

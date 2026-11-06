@@ -26,6 +26,12 @@
 | 10 | [MCP_PORT_PLAN.md](MCP_PORT_PLAN.md) | Description of the stranded **AI Debug API + MCP server** on `feat/ai-debug-api` and how to port it. Infrastructure, not UX — but it is a headless harness for the golden path and evidence for the shell's seams. |
 | 11 | [handoffs/](handoffs/) | One doc per implementation session. Template: [HANDOFF_TEMPLATE.md](handoffs/HANDOFF_TEMPLATE.md). |
 
+## ⭐ Standing direction — the editing UX review *(user, `2026-11-06`)*
+
+🔒 *"the UI is now using the details panel and its tabs to provide a detail of anything what can be selected in the editor, and I would like to keep that. I do not want many special standalone panels for editing details if  something If it can go to the detail panel."* · *"There is also many existing stuff in this detail panel tabs, which were created during the feature development without much emphasis to the UX and to make it actually practical. So this is another place for improvement."* — R-4118. ⭐ Planned: an editable-capabilities inventory (CAPABILITIES.md), a target editing-UX design (prior art first), then a gap map — offline edit, live exercise and replay review sharing one surface; ▶ started `2026-11-06`: [DESIGN_Editing_UX.md](DESIGN_Editing_UX.md) (step 1, the inventory, written; summary in [CAPABILITIES §14](../CAPABILITIES.md)).
+
+🔒 User, same day: *"the editing capabilities are by no way limited to the editor node. Also cgf is an editor, and editing capabilities per entity should be gated by what components are present on the entity, not by what node it is."* — R-4119. ⭐ It sharpens [AQ26](Architect_Question_26_Entity_Action_Model.md)'s two-axis resolution (*"all map hosts share the full set of gizmos and tools and decide by data availability"*): what a Details tab or an action offers for an entity is decided by the entity's components; the node is not the gate (R-204: CGF == editor; R-1045: one bootstrapper). A node may still lack the AUTHORITY to apply an edit — that is the remote-edit path, not a reason to hide the editor.
+
 ## Two audiences
 
 | | Path A — Authoring | Path B — Runtime intervention |

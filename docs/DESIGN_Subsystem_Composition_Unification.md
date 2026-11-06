@@ -223,6 +223,7 @@ known-conflict: ⛔ the dispatched frame handoff is stale on TWO points — its 
   a ruling violation). ⚠ The handoff is deliberately NOT edited — rule 1 forbids amending a dispatched
   handoff; the divergence is declared here and in the report instead.
 related-designs:
+  - docs/UX/DESIGN_Seats_And_Hats.md — a HostDescription row gains a DefaultSeat (the person's role at that station); NodeRole stays what the node computes
   - docs/DESIGN_Director_Timeline_Editor.md — TE-12: the Replay Browser makes its TKB the way §4.1ae.1 makes every node's (R-4069)
   - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md §12.1 — OWNS the SUMO traffic pack; the first capability that hit the walk gaps §4.1ae closes, and the first user of the per-node terrain content
   - docs/DESIGN_Entity_Interactions.md §7.1d — OWNS entity interactions; its CoreInfrastructureCapabilities.Interactions (doors + embarkation) is the third cross-role infrastructure capability (§4.1ad)

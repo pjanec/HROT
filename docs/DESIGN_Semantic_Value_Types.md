@@ -7,6 +7,7 @@ stale-below: nothing yet
 known-rot: none
 known-conflict: none
 related-designs:
+  - docs/UX/DESIGN_Editing_UX.md — §0a: the editing-UX review counts on these types to give every field its editor and display by type (user, 2026-11-06)
   - docs/DESIGN_Scenario_Rules.md — §9.8.0 / §9.8.9 / §9.8.10 OWN the first semantic types (WorldPoint, WorldRotation, Bearing, EntityLink / PointLink / AreaLink); this document applies the same pattern elsewhere
   - docs/blueprints/DESIGN_Entity_Reference.md — D5 "the TYPE makes a field pickable" — the rule every type here follows
   - docs/blueprints/DESIGN_Map_Picking_Unification.md — P5, the same rule for locations

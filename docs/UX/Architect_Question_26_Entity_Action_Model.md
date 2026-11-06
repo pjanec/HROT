@@ -1,3 +1,13 @@
+<!--STATUS
+state: LIVE
+updated: 2026-11-06 (STATUS block added — coordinator; content unchanged)
+current-answer: the Answers table and the resolutions (Q26-E is still a lean)
+stale-below: nothing marked
+known-rot: the banner's "awaiting the architect" — the answers are filled in
+known-conflict: none
+related-designs:
+  - DESIGN_Action_Catalogue.md — BUILDS this model (2026-11-06 top-level design): declarations as data in one catalogue, bindings on the existing GlobalActionRegistry; §3 reconciles B (checked/shortcut) and D (run state as a declared condition)
+-->
 # Architect question #26 — One entity-action vocabulary across surfaces and modes
 
 > **Drafted 2026-08-10 · awaiting the architect.** Claude cannot reach the architect; the user relays.

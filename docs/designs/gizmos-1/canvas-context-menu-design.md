@@ -12,6 +12,7 @@ known-rot: ⚠ The ENTITY menu projects items nothing handles. 📐 Measured 202
   disables "Move Here" with a tooltip for a DEGRADED unit, which is what a deliberately unavailable item
   looks like ⇒ the healthy one is meant to work.
 related-designs:
+  - ../../UX/DESIGN_Action_Catalogue.md — replaces MenuJsonFor's if-chain with declared actions behind the same output (stage A1); empty ground becomes target kind Ground (§3 row 5)
   - ../../blueprints/DESIGN_Details_Panel_View_Switching.md — the Details shell §8 (tabs / stacked, RequestView); §12 here opens it from Properties… on every host
   - global-action-system-design.md — §5.3 / §5.6: one registry per host, populated at the composition root (§12 HA-1)
   - ../../DESIGN_Subsystem_Composition_Unification.md — §5c.7 DiagnosticsWindowsBundle: registers the inspector window and, since §10 here, the map menu on it

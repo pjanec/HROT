@@ -32,6 +32,7 @@ current-answer: ⭐ 2026-10-25 — §3.4e (CE-3323, AQ107) is BUILT: EntityConst
   ⚠ ALSO: §3.4's TWO-METHOD API shape is SUPERSEDED by docs/DESIGN_Entity_Authoring_Surface.md
   (READY-TO-BUILD, ONE method RequestEntityCreation with an owner parameter). See this block's
   'supersedes' note in that file.
+known-rot: (2026-11-06, R-4126) every statement that CreateUpdateDeleteEntityAck stays (R-2082) — SUPERSEDED: merged into EntityEditOutcome (docs/UX/DESIGN_Edit_Framework.md §2.4, stage F2)
 known-rot: §2.3's Role-selected HALVES are SUPERSEDED — Architect_Question_65 §4 resolved the question
   and there is ONE uniform pipeline. §2.3 is kept only as HISTORY. §3's Role invariant (item 4) still says
   "role decides which half"; that wording is stale and must be read against Q65 §4. · ⛔ SUPERSEDED 2026-10-28 (R-4095): the BDC stack, its `BdcNodeId` (the byte-identical duplicate of the shared node id, §6/§9) and `BdcReplicationModule` were removed; the duplicate closed by deletion.
@@ -98,6 +99,7 @@ mechanism: §3.4a (new 2026-08-31) explains WHY double consumption is possible �
   broadcast double-buffer (ManagedEventStream.Read() returns _front; only Swap() clears), so every
   reader of an event type gets the full list. Read it before touching any order-consuming system.
 related-designs:
+  - docs/UX/DESIGN_Edit_Framework.md — bridges this design's creation acks into the one edit outcome stream under the request id (kept, R-2082)
   - FDP/Docs/projects/toolkits/FDP.Toolkit.Lifecycle.md — owns the lifecycle module's handshake events (9001–9004) and, since §3.4e,
     lists the two notifications (9005/9006) it publishes; §3.4e here owns WHY and what they carry
   - DESIGN_Add_Entity_Picker.md — the map "Add Entity" picker; creates through this pipeline
