@@ -4,7 +4,7 @@ build-state: DESIGN — top-level; ✅ Q1–Q7 APPROVED by the user 2026-11-06 (
 updated: 2026-11-06 (Q1–Q7 approved, R-4131; the director shares the camera with the user) · 2026-11-06 (§2.5 the user's review: HTTP sessions take seats, seat = a node feature preset while the hat is local UI state, the camera keeps the view on leaving a hat, keys → E14) · 2026-11-06 (first version — coordinator; editing-UX design queue item 4: E10 / D17, with D4's editing levels)
 current-answer: §2 the model (seat × hat) · §3 stages · §4 questions with leans
 stale-below: nothing
-known-rot: none
+known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
 known-conflict: DESIGN_Entity_Control.md C-8 ("one operator per node — the station id is the node id") holds; a fused server hosts several compute roles in one node, but still ONE seat (one person) — §2.1
 related-designs:
   - DESIGN_New_Scenario_And_Recipe.md — E12: New Scenario is the Author seat's

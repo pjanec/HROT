@@ -4,7 +4,7 @@ build-state: DESIGN — top-level, ✅ APPROVED Q1–Q7 by the user 2026-11-06 (
 updated: 2026-11-06 (✅ Q1–Q7 approved — R-4133) · 2026-11-06 (§1.1 what a world snapshot misses — authored NoPreview components, singletons, files, version-compare caches, pure UI state; §2.3 the restore = the dry run's sequence, not a raw SyncFrom) · 2026-11-06 (first version — coordinator; editing-UX design queue item 5: D1)
 current-answer: §2 the model · §3 stages · §4 questions with leans
 stale-below: nothing
-known-rot: none
+known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
 known-conflict: R-1047 deferred entity undo because editing is shared with live changes — R-4120 limits undo to Edit mode, which removes that reason; this design is the deferred CE-1462
 related-designs:
   - DESIGN_Map_Interaction.md — E8: one finished map edit = one step
