@@ -4,7 +4,7 @@ updated: 2026-11-06
 current-answer: the whole file
 stale-below: nothing
 known-rot: none
-known-conflict: none
+known-conflict: item ③ WITHDRAWN AND REPLACED 2026-11-06 by STEER_Coordinator_To_Ui_Thumbnail_Atlas_Scenarios_In_Git.md (scenario stills go in git; user, after dispatch)
 related-designs:
   - docs/DESIGN_Add_Entity_Picker.md — §2j OWNS this work (READY-TO-BUILD, with its class and sequence diagrams); §2i the capture pipeline it reuses
   - docs/blueprints/Architect_Question_108_Run_Mode_Picker.md — D26 P5 owns the shared picker image cache that gains the resident path
@@ -29,7 +29,7 @@ and a documented way … to add a new entity type into that."* — ruling **R-41
 |---|---|---|
 | **①** | **Runtime:** `AtlasIndex` (pure, Fdp.Presentation) · `IconAtlas.GetUvForRect` · `ThumbnailAtlas` (Hrot.Presentation, pages embedded by a wildcard, uploaded on first use) · `ThumbnailMap` step ④ (`atlas:entities/<stem>`, after the loose file) · `PickerImage.Uv0/Uv1` passed by the three draw sites · the cache's resident lookup (no budget, never evicted) · wired once in `EntityAuthoring.CreatePickers` and `GalleryData.Shipped` | §2j's acceptance rails green, a forwarding rail per caller, a `…FrameRail` under `xvfb-run -a` that a tile draws its own cell |
 | **②** | **The packer and the documented way:** `scripts/thumbnails.py --pack · --add-image <file> --name <Type> · --atlas-list · --atlas-remove`; fixed slots, only changed pages re-encoded, sorted index; a RUNBOOK "thumbnails" section with the Windows commands | packing the 75 pictures of `2026-11-05` (they are on the NAS / regenerate with `--types`) gives 2 pages ≈ 0.54 MB, committed with the index (R-4117's exception — only these files); `--add-image` round-trip rail |
-| **③** | **Scenario stills:** `--scenarios` writes `preview.jpg` 320 × 180 q85; both readers look for `.jpg` then `.png`; a generated NAS `preview.png` is removed when the repo has none | the scenario pane shows a `.jpg`; no scenario image in git |
+| **③** | ⚠ **WITHDRAWN AND REPLACED `2026-11-06`** — see [the steer](STEER_Coordinator_To_Ui_Thumbnail_Atlas_Scenarios_In_Git.md) (scenario stills now go in git). *Original text:* **Scenario stills:** `--scenarios` writes `preview.jpg` 320 × 180 q85; both readers look for `.jpg` then `.png`; a generated NAS `preview.png` is removed when the repo has none | the scenario pane shows a `.jpg`; no scenario image in git |
 | **④** | ⚠ **Measure first:** does a RUNNING editor's picker see a picture just written (catalog re-resolve on open; the cache's remembered failure)? Only if not: `POST /thumbnails/reload` | the measurement in §2j; the route only if needed |
 
 ⚠ Fences: hot path R-2084 (no allocation per frame after the first page upload); no C# encoder (the packer is Python only); ⛔ no other

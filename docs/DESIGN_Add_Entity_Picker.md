@@ -4,6 +4,7 @@ updated: 2026-11-06 (§2j the entity thumbnail atlas, embedded; scenario stills 
 build-state: BUILT — all slices on Editor, CGF, SimHost and IG; Stride mode 2 deferred (CE-1030). Approved by the user 2026-10-07 (all leans, §2–§2e); CE-1031 is the terrain owner's follow-up; §2f–§2h the thumbnail gallery (CE-4142) BUILT `2026-11-03` GL1–GL4 — ⏳ the PNG snapshots (director stills) and G8 smart tactical symbols (CE-4169) are later
 current-answer: §2 every decision D1–D10 in its final wording (+ retired ids) · §2a–§2e the measured basis and the shapes (SpawnHeight, wire fields) · ⭐ §2f THE THUMBNAIL GALLERY G1–G10 (mockup docs/designs/add-entity-picker/) · §2h the gallery AS BUILT (read it before §2g: it lists where the build deviates) · ⭐ §2j THE ENTITY THUMBNAIL ATLAS (overrides §2i on where entity pictures and scenario stills live) · §3 diagrams · §5 slices and as-built
 stale-below: nothing — superseded revisions removed 2026-11-01; full history at commit de422e11b (`git show de422e11b:docs/DESIGN_Add_Entity_Picker.md`)
+known-rot: (2026-11-06, CE-4271) §2j's first scenario rule (stills on the NAS only) — SUPERSEDED the same day: scenario stills are committed beside scenario.json (user)
 known-rot: (2026-11-06, CE-4271) §2i "the PNGs go into the NAS root only — never the repository" — SUPERSEDED for ENTITY pictures by §2j (JPEG atlas pages in git, embedded; R-4117) and for scenario stills by preview.jpg 320×180; capture and resolve ①–③ unchanged
 known-rot: (2026-10-19, CE-3271) §2e / §5 "NetworkSpawningSystem resolves" — SUPERSEDED: 8b now only ASKS (a replicated SpawnLevelRequest) and SpawnLevelSystem resolves it on the node that owns the position (Q94 D, R-3018) — docs/blueprints/Architect_Question_94_Brain_Geometry_Sites.md §5.2a. The rule (SpawnHeight.Apply, level 0 = ground) is unchanged.
 known-rot: (2026-10-31, CE-259ax) §2e's "eleven direct SpawnEntityCommand publishers" was measured 2026-10-07; CE-259ax routed them through CreateEntityRequestSystem (docs/DESIGN_Scenario_Entity_Keys.md §00c)
@@ -460,7 +461,7 @@ leans: *"ok jpeg, approve all three leans, write the design. No atlas for scenar
 Git, and a documented way maybe with some  script or http support built in the apps that to add a new entity type into that."* (R-4117)
 
 ⭐ **Changes §2i in two places only:** the entity pictures move from 75 loose PNGs on the NAS into JPEG atlas pages **committed to git and
-embedded** (a named exception to *"no screenshots in git"*, R-4117); a scenario's generated still becomes a small `preview.jpg`. Capture
+embedded** (a named exception to *"no screenshots in git"*, R-4117); a scenario's generated still becomes a small `preview.jpg` **committed beside its `scenario.json`** (R-4117, amended the same day). Capture
 (§2i's `scripts/thumbnails.py`) and the resolve order ①–③ are unchanged.
 
 ### INVENTORY (`2026-11-06`)
@@ -513,6 +514,8 @@ atlas page is shared by 66 pictures and must never be unloaded by the LRU.*
 |---|---|
 | `Hrot/Engine/Hrot.Presentation/Thumbnails/entities.atlas.json` | `{ "version": 1, "cell": [320, 180], "page": [2048, 2048], "pages": ["entities-0.jpg", …], "items": { "<stem>": [page, col, row], … } }` — keys sorted, so a diff shows exactly the names added |
 | `…/Thumbnails/entities-<n>.jpg` | 2048 × 2048, JPEG q85, 6 × 11 = **66 cells**; an empty cell is black |
+
+⭐ **Seeded `2026-11-06` (coordinator):** the 75 pictures of `2026-11-05` are packed in this format and committed (`entities-0.jpg`, `entities-1.jpg`, `entities.atlas.json`; slots in sorted stem order) — the packer extends them, nothing is re-shot.
 
 ⭐ **The index is NOT a user-facing file** (user, `2026-11-06`: *"keep JSON, Embed it in the executable."*): it is a source file in git, compiled in as an embedded resource with the pages, written only by `thumbnails.py`; ⛔ nothing reads an index or a page from disk or the NAS at run time, and there is no override file. (The only on-disk layer is ③, the loose `generated/<stem>.png`.)
 
@@ -584,14 +587,19 @@ The capture already runs over the editor's HTTP; the one gap is a RUNNING editor
 the Add Entity picker re-resolves `EntityTypeCatalog` on open and whether a remembered failure in `PickerImageCache` hides the new file —
 only if it does, add `POST /thumbnails/reload` (re-resolve + `Images.Invalidate`), nothing more.
 
-### Scenarios — a small JPEG, no atlas
+### Scenarios — a small JPEG beside `scenario.json`, IN GIT, no atlas
 
-| ⭐ decision | why |
+🔒 User, `2026-11-06`: *"The thumbnails for the scenarios can of course be saved to the Git next to where the scenario JSONs are located. They do
+not change much. And the same applies to the entity atlas textures. Just we need to make sure that the orchestrator deploys those scenario JPEGs
+together with the scenarios."* ⭐ **SUPERSEDES** this section's first version (*"scenario stills stay out of git"*, written the same day).
+
+| ⭐ decision | why / measured |
 |---|---|
-| `thumbnails.py --scenarios` writes `<NasRoot>/scenarios/<name>/preview.jpg`, **320 × 180, q85** (~7 KB; was a 512 × 288 PNG, ~220 KB) | 🔒 *"No atlas for scenarios, Small JPEG is exactly right."* — a scenario folder is what people copy; its picture travels with it |
-| readers (`ScenarioPaneFacts.cs:75`, `AssetPickerLauncher.cs:121`) look for `preview.jpg`, then `preview.png` | a hand-made repo `preview.png` still works; the script skips a scenario whose repo folder has either |
-| when the script writes a `preview.jpg` it deletes the NAS `preview.png` only if the repo has none (it was generated) | ⛔ otherwise two producers for one slot (R-132) |
-| scenario stills stay out of git | §2i unchanged for scenarios |
+| `scenarios/<name>/preview.jpg`, **320 × 180, q85**, committed beside `scenario.json` — ⭐ **seeded `2026-11-06`: all 127 scenarios** (1.1 MB in total) | 🔒 the user; a scenario folder is what people copy — its picture travels with it |
+| `thumbnails.py --scenarios` writes into the REPOSITORY folder and skips a scenario that already has a `preview.jpg` / `preview.png`, unless `--force` | a committed picture is the source; re-shooting one is deliberate |
+| readers (`ScenarioPaneFacts.cs:75`, `AssetPickerLauncher.cs:121`) look for `preview.jpg`, then `preview.png` | a hand-made `.png` still works |
+| ✅ **it deploys with the scenario — measured, no code change needed:** ① a dev start seeds it to the NAS — `ContentSeed.SeedTreeFrom` copies every file of a curated scenario folder (`ContentSeed.cs`, `CopyTree`); ② a load's prefetch delivers it to every node's staging — `StorageGatewayModule.PrefetchScenarioCoreAsync` sends EVERY top-level file (`Directory.GetFiles(sourceDir)`), and the terrain-name check reads only `*.json` (`CheckTerrainNameConsensus`), so a JPEG is safe; ③ an exercise's snapshot copies the whole folder (`CopyScenarioFiles`); ④ a distributed save rewrites only `scenario.json` (+ `foreign/`) in place (`StorageProcessManager`), so the picture survives a save | ⚠ ② sends ~7 KB per node per load that only the editor's picker reads — accepted (one file, skipped when the node already holds it: same length + mtime) |
+| ⚠ a scenario SAVED AS a new name starts with no picture | the next `--scenarios` run fills it; not built now |
 
 ### Acceptance (rails in the picker's and the presentation's suites)
 
@@ -604,7 +612,7 @@ scenario pane shows `preview.jpg`.
 ⛔ **Rejected:** PNG pages (3.6 MB vs 0.54 MB on photographic renders, no alpha needed) · WebP (raylib cannot decode it) · a page per
 gallery group (groups are display data in `groups.json` — regrouping would move pictures) · tight rectangle packing (one add reshuffles
 every page) · fetching the pages from the NAS at build time (a build depending on a share) · a C# packer behind an HTTP route (a second
-encoder; the app never writes build inputs) · an atlas for scenarios (user).
+encoder; the app never writes build inputs) · an atlas for scenarios (user) · scenario stills only on the NAS (superseded by the user the same day: they go in git).
 
 
 ## 3. Diagrams
