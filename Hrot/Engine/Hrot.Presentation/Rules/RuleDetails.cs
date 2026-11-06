@@ -72,6 +72,7 @@ public sealed class RuleDetails
     private string? _pending;
     private RuleTab? _requestTab;
     private readonly Dictionary<int, RuleTab> _tabOf = new();
+    private readonly Dictionary<int, RuleTab> _shownTab = new();   // ⭐ CE-4286 — the tab ImGui's bar was last told to show, per rule (a different one in a frame is a click)
     private readonly Dictionary<int, LiveEdit> _liveEdits = new();
     private int _editSeq;
     private bool _liveValuesOn;
@@ -329,18 +330,27 @@ public sealed class RuleDetails
         if (ro != null) ImGui.TextColored(new Vector4(0.9f, 0.7f, 0.3f, 1f), ro);
         if (row.Macro != null && row.MacroInstance != 0 && ImGui.SmallButton("Go to the macro instance")) _selectEntity(row.MacroInstance);
 
-        // the tab strip: one button per tab, the current one lit (a plain strip — ImGui's tab bar cannot be set from a rail)
+        // ⭐ CE-4286 / U-2 — a real tab bar on the shared icon tab (no close box, neutral palette, a coloured icon each). ImGui keeps its own selected tab: when the MODEL's tab changed from outside (a request, another row)
+        //   it is pushed with SetSelected; a frame where ImGui shows a different tab WITHOUT a push is the user's click.
         var cur = CurrentTab(row);
         if (_requestTab is { } req && RuleTabs.TabsFor(row.Status.Role).Contains(req)) { _tabOf[row.NetworkId] = req; cur = req; _requestTab = null; }
-        foreach (var tab in RuleTabs.TabsFor(row.Status.Role))
+        bool push = !_shownTab.TryGetValue(row.NetworkId, out var shown) || shown != cur;
+        RuleTab? clicked = null;
+        if (NodeEditor.Core.Widgets.IconTab.BeginBar("##rule-tabs"))
         {
-            bool on = tab == cur;
-            if (on) ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(ImGuiCol.ButtonActive));
-            if (ImGui.Button(RuleTabs.TitleOf(tab) + "##rt" + tab)) { _tabOf[row.NetworkId] = tab; cur = tab; }
-            if (on) ImGui.PopStyleColor();
-            ImGui.SameLine();
+            foreach (var tab in RuleTabs.TabsFor(row.Status.Role))
+            {
+                var flags = push && tab == cur ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None;
+                if (NodeEditor.Core.Widgets.IconTab.Begin(RuleTabs.IdOf(tab), RuleTabs.TitleOf(tab), NodeEditor.Core.Widgets.Icons.Get(RuleTabs.IconKeyOf(tab)), flags))
+                {
+                    if (!push && tab != cur) clicked = tab;
+                    ImGui.EndTabItem();
+                }
+            }
+            NodeEditor.Core.Widgets.IconTab.EndBar();
         }
-        ImGui.NewLine();
+        if (clicked is { } c) { _tabOf[row.NetworkId] = c; cur = c; }
+        _shownTab[row.NetworkId] = cur;
         SetLiveValues(WantsLiveValues(row, cur));                 // ⭐ RE-3 live: on while a When tab of a live trigger is open
         ImGui.BeginChild("##rule-tab-body", new Vector2(0, Math.Max(120f, ImGui.GetContentRegionAvail().Y - ApplyBarHeight(row, ro))), ImGuiChildFlags.None, ImGuiWindowFlags.None);
         DrawTab(row, cur, type, ro, now);

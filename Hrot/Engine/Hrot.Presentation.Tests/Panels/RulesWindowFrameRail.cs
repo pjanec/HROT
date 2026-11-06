@@ -245,6 +245,23 @@ public sealed class RulesWindowFrameRail : IDisposable
         Assert.Equal("When", window.Probe.Editor!.Tab);
         Assert.Equal(new[] { "Common", "When" }, window.Probe.Editor.Fields.ToArray());
         frame.Screenshot(ShotPath("rules-4-when.png"));
+        {   // ⭐ CE-4286 / U-2 — the rule editor's tabs are a real tab bar (the neutral palette: the selected tab #3A3A48 with the blue overline), not a strip of buttons
+            var shot = Raylib.LoadImageFromScreen();
+            try
+            {
+                int selected = 0, overline = 0;
+                for (int x = 0; x < shot.Width; x += 2)
+                    for (int y = 0; y < shot.Height; y += 2)
+                    {
+                        var p = Raylib.GetImageColor(shot, x, y);
+                        if (Math.Abs(p.R - 0x3A) <= 3 && Math.Abs(p.G - 0x3A) <= 3 && Math.Abs(p.B - 0x48) <= 3) selected++;
+                        else if (Math.Abs(p.R - 0x4D) <= 6 && Math.Abs(p.G - 0x99) <= 6 && p.B > 0xF0) overline++;
+                    }
+                Assert.True(selected > 40, $"the rule editor draws a tab bar: the selected tab's neutral fill is on screen ({selected} samples)");
+                Assert.True(overline > 5, $"...with the blue top line ({overline} samples)");
+            }
+            finally { Raylib.UnloadImage(shot); }
+        }
         window.Details.RequestTab(RuleTab.Rules); Step(null, 4);
         Assert.Equal(new[] { "Common", "HoldFor", "Delay", "Cooldown", "Repeat", "MaxFires", "FireIfTrueWhenArmed", "WhileTrue" }, window.Probe.Editor!.Fields.ToArray());
         frame.Screenshot(ShotPath("rules-5-rules.png"));

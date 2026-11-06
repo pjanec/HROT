@@ -674,18 +674,18 @@ public sealed class DetailsWindow
         DetailsViewDescriptor? shown = null;
         float barLeft = ImGuiNET.ImGui.GetCursorScreenPos().X, barTop = ImGuiNET.ImGui.GetCursorScreenPos().Y;
         float barWidth = ImGuiNET.ImGui.GetContentRegionAvail().X;
-        if (ImGuiNET.ImGui.BeginTabBar($"##{Id}_tabs", ImGuiNET.ImGuiTabBarFlags.FittingPolicyScroll))
+        if (NodeEditor.Core.Widgets.IconTab.BeginBar($"##{Id}_tabs", ImGuiNET.ImGuiTabBarFlags.FittingPolicyScroll))   // ⭐ U-2: the shared neutral-palette tab bar
         {
             foreach (var d in frame.Choice.Offered)
             {
                 var flags = push && ReferenceEquals(d, chosen) ? ImGuiNET.ImGuiTabItemFlags.SetSelected : ImGuiNET.ImGuiTabItemFlags.None;
-                if (BeginTab($"{d.Title}##{Id}_tab_{d.Id}", flags))
+                if (NodeEditor.Core.Widgets.IconTab.Begin(d.Id, d.Title, null, flags))   // ⭐ U-2/CE-4286: the ONE no-close-box tab (icons per the Details forms design, later)
                 {
                     shown = d;
                     ImGuiNET.ImGui.EndTabItem();
                 }
             }
-            ImGuiNET.ImGui.EndTabBar();
+            NodeEditor.Core.Widgets.IconTab.EndBar();
         }
 
         // ⭐ DS-5 — the buttons RIGHT-ALIGNED on the tab bar's row (ImGui's "trailing" tab buttons would sit right after the tabs):
@@ -765,16 +765,6 @@ public sealed class DetailsWindow
             StackedInstanceFor(d).Draw(frame.Context, _drawId);
             ImGuiNET.ImGui.PopID();
         }
-    }
-
-    /// <summary>A tab with flags and NO close button — ImGui.NET's managed overload with flags takes a <c>p_open</c>, which would add one.</summary>
-    private static unsafe bool BeginTab(string label, ImGuiNET.ImGuiTabItemFlags flags)
-    {
-        int count = System.Text.Encoding.UTF8.GetByteCount(label);
-        byte* utf8 = stackalloc byte[count + 1];
-        fixed (char* chars = label) System.Text.Encoding.UTF8.GetBytes(chars, label.Length, utf8, count);
-        utf8[count] = 0;
-        return ImGuiNET.ImGuiNative.igBeginTabItem(utf8, null, flags) != 0;
     }
 
     /// <summary>⭐ <c>BP-515</c> — the real draw, for a frame rail inside a live ImGui frame (the window manager is not needed).</summary>

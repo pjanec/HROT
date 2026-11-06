@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — top-level, ✅ APPROVED (R-4141); FontAwesome glyphs used as icons get colour by meaning (R-4139); Silk bitmaps and the time controls stay (R-4140); colours approved per surface from a rendered strip
+build-state: BUILDING — I1 BUILT (U-2, §4 as-built); I3 open. Design ✅ APPROVED (R-4141); FontAwesome glyphs used as icons get colour by meaning (R-4139); Silk bitmaps and the time controls stay (R-4140); colours approved per surface from a rendered strip
 updated: 2026-11-06 (§3.1 tabs with a coloured icon, neutral tab palette — user; Q-I4 for review) · 2026-11-06 (§3 the five monochrome surfaces measured; Silk and the time controls stay — user, R-4140) · 2026-11-06 (REVISED by the user: FontAwesome glyphs stay, in colour — not the Silk atlas; R-4139) · 2026-11-06 (first version — Silk atlas; superseded the same day)
 current-answer: §2 the model · §3 the surfaces · §3.1 tabs with an icon · §4 stages · §5 questions
 stale-below: §⛔ HISTORY (the Silk version)
@@ -123,6 +123,22 @@ under the bar. Docked-window tabs, which ImGui draws itself, are untouched (Q-I4
 | **I1** | `IconGlyph`, `IconPalette`, `Icons` in `Fdp.Presentation`; `ModeGlyph` folded in; `GlyphButton` / `GlyphToggle` and the **icon tab** (§3.1, with CE-4286's shared no-close-box tab) in `IconWidgets` | ui | the mode indicator unchanged on screen; a tab's icon drawn at its item rect, in its colour, the id stable when the label changes |
 | **I2** | ✅ the colours of §3 approved from the rendered sheet (R-4141); a strip again only for a colour the build changes | ui | — |
 | **I3** | the approved surfaces drawn through `Icons` | ui | a frame rail per surface under `xvfb-run` asserts glyph and colour; a side-by-side with the approved strip (forms §6.6) |
+
+### §4 I1 AS BUILT (ui, `2026-11-06`, U-2)
+
+All in `FDP/ExtDeps/NodeEdit/src/NodeEditor.Core/Widgets/` (namespace `NodeEditor.Core.Widgets`) — ⭐ deviation: NOT `Fdp.Presentation` (Q-C1, R-4145: the pickers must reach them). INVENTORY: `search_graph name_pattern=".*(ModeGlyph|IconWidgets|GlyphButton|GlyphToggle|RuleEditor).*"` → `IconWidgets` (Fdp.Presentation Silk widgets, untouched), `ModeGlyph` (folded), no glyph button/toggle/tab helper.
+
+| piece | as built |
+|---|---|
+| `IconGlyph`, `IconPalette` | U-1 created them; U-2 gives `IconPalette` the approved hues (`Grey Violet Green Amber Blue Teal Orange Pink Red`, the first five being the mode indicator's exact floats) and the forms' status tokens (`Error Pending Info Muted Ok`, Details forms §6.3) |
+| `Icons` | `TryGet(key, out IconGlyph)` / `Get(key)` — a static `switch` (no allocation), `Unknown` = grey `?`, `Keys[]` (54): `mode/*` (5) · `orbat/{command,structure,scenario}` · `details/{layout-stacked,layout-tabs,float,pin}` · `doc/*` (8 AI-document kinds) · `bp/*` (4 pills) · `task/*` (5) · `form/{error,pending,locked,reset,warning,info,pick}` · `tab/*` (18, §3.1). The glyphs are copies of `IconsFontAwesome6` code points (Core cannot reference Fdp.Presentation); a rail pins every one to a named constant. 14 glyphs were missing from `IconsFontAwesome6` (Check, HourglassHalf, Lock, RotateLeft, Crosshairs, User, VanShuttle, Route, Brain, ScaleBalanced, DrawPolygon, EarthEurope, Filter, FlagCheckered) and were added (code points verified against `fa-solid-900.ttf`) |
+| `ModeGlyph` | folded: `MainToolbarTimeControlSection.ModeGlyph(mode)` reads the `mode/*` keys (built once, cached); glyph and colour equal the pre-fold values — pinned by the existing `ModeGlyph_IsTheFontAwesomeGlyphAndColourPerMode` and a new rail |
+| `GlyphWidgets` | `bool GlyphButton(string id, in IconGlyph, string? tooltip = null)` · `bool GlyphToggle(string id, in IconGlyph, bool selected, string? tooltip = null)`: neutral `#1C1C22` (hover `#2A2A32`), selected `#34343E` + a light frame; a toggle's unselected option draws at 60 % (`UnselectedAlpha`) in ITS colour |
+| `IconTab` | `bool BeginBar(string id, flags)` / `EndBar()` (pushes the neutral palette: tab `#24242C`, hovered `#30303C`, selected `#3A3A48`, blue `TabSelectedOverline`, and the Dimmed variants) · `bool Begin(string id, string label, IconGlyph? icon, ImGuiTabItemFlags)` — the no-close-box tab lifted from `DetailsWindow.BeginTab` (native `igBeginTabItem`; ⚠ the ONE `unsafe` file, `AllowUnsafeBlocks` set on NodeEditor.Core for it), the label reserves the icon's width with spaces, the glyph is painted at the item rect |
+
+⭐ Deviations: (1) the id is `"###"+id`, not `##id` — `##` still hashes the label text, so the id would change with it; `###` does not (rail); (2) the label, spaces and id are encoded into a stack buffer: 0 B per tab (the design's "spaces before the text" without a per-frame string); (3) `DetailsWindow` and the rule editor now draw through `IconTab`; Details' tabs carry no icon yet (their titles do not match §3.1's table — the Details forms slice maps them), the rule editor's tabs carry theirs (`RuleTabs.IconKeyOf`); (4) §3's surfaces (ORBAT switch, Details header buttons, AI tabs, pills, mission glyphs) are NOT yet drawn through `Icons` — that is I3.
+⭐ CE-4286: `RuleDetails.Draw` is a real tab bar now. The model's tab stays the source: when it changes from outside (a request, another row) the tab is pushed with `SetSelected`; a frame where ImGui shows another tab without a push is the user's click. `RuleTabs.TabsFor`/`TitleOf` no longer allocate.
+⭐ Rails: `Hrot.Presentation.Tests/Panels/ColourIconsFrameRail.cs` (real fonts via `EditorFontService`, xvfb) — the map and the mode colours; a tab's icon inside its item rect in its colour, left of the label, the id and the selection surviving a label change, the neutral palette, 0 B; the switch (backgrounds, frame, selected full / others 60 %, 0 B); a sheet of all 54 keys; and `RulesWindowFrameRail` asserts the rule editor draws the tab bar.
 
 ## 5. Questions — ✅ Q-I1 and Q-I2 APPROVED with the rendered colours (R-4141, user `2026-11-06`: *"i definitely want the colored ones they are so much easier to recognize"*); Q-I3 decided by the user (Silk stays)
 

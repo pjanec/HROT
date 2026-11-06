@@ -104,13 +104,21 @@ public sealed class MainToolbarTimeControlSection
     /// <summary>DAR §9a — the indicator per mode: Edit grey pen, Preview violet half circle, Live green circle, Review amber clock-back, Replay blue play; Idle none (<see langword="null"/>).</summary>
     public static ModeIndicator? ModeGlyph(TransportMode mode) => mode switch
     {
-        TransportMode.Edit    => new(Fdp.Presentation.Fonts.IconsFontAwesome6.Pen, new Vector4(0.60f, 0.60f, 0.60f, 1f), "Edit"),
-        TransportMode.Preview => new(Fdp.Presentation.Fonts.IconsFontAwesome6.CircleHalfStroke, new Vector4(0.66f, 0.45f, 0.92f, 1f), "Preview"),
-        TransportMode.Live    => new(Fdp.Presentation.Fonts.IconsFontAwesome6.Circle, new Vector4(0.25f, 0.80f, 0.30f, 1f), "Live"),
-        TransportMode.Review  => new(Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft, new Vector4(1.00f, 0.70f, 0.20f, 1f), "DAR"),
-        TransportMode.Replay  => new(Fdp.Presentation.Fonts.IconsFontAwesome6.Play, new Vector4(0.30f, 0.60f, 1.00f, 1f), "AAR"),
+        TransportMode.Edit    => EditIndicator,
+        TransportMode.Preview => PreviewIndicator,
+        TransportMode.Live    => LiveIndicator,
+        TransportMode.Review  => ReviewIndicator,
+        TransportMode.Replay  => ReplayIndicator,
         _ => null,
     };
+
+    // ⭐ U-2 — folded into the ONE icon map (NodeEditor.Core `Icons`, keys "mode/…"): the glyph and the colour come from there, only the word is this section's. Built once.
+    private static ModeIndicator Indicator(string key, string name) { var g = NodeEditor.Core.Widgets.Icons.Get(key); return new ModeIndicator(g.Glyph, g.Color, name); }
+    private static readonly ModeIndicator EditIndicator    = Indicator("mode/edit", "Edit");
+    private static readonly ModeIndicator PreviewIndicator = Indicator("mode/preview", "Preview");
+    private static readonly ModeIndicator LiveIndicator    = Indicator("mode/live", "Live");
+    private static readonly ModeIndicator ReviewIndicator  = Indicator("mode/review", "DAR");
+    private static readonly ModeIndicator ReplayIndicator  = Indicator("mode/replay", "AAR");
 
     /// <summary>The mode indicator's FontAwesome 6 Solid glyph (merged into the UI font): Edit Pen, Preview CircleHalfStroke, Live Circle,
     /// Review ClockRotateLeft, Replay Play; Idle none (<see langword="null"/>).</summary>

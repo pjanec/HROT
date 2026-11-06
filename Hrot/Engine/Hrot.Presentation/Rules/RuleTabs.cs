@@ -23,12 +23,27 @@ public static class RuleTabs
     // only here for nameof: the trigger DTO's three named fields
     private static class TriggerFieldNames { public const string Common = "Common", When = "When", Do = "Do"; }
 
-    public static IReadOnlyList<RuleTab> TabsFor(ObjectiveRole role)
-        => role == ObjectiveRole.Trigger
-            ? new[] { RuleTab.Overview, RuleTab.When, RuleTab.Rules, RuleTab.Do, RuleTab.Bindings, RuleTab.History }
-            : new[] { RuleTab.Status, RuleTab.Settings, RuleTab.Results, RuleTab.History };
+    private static readonly RuleTab[] TriggerTabs = { RuleTab.Overview, RuleTab.When, RuleTab.Rules, RuleTab.Do, RuleTab.Bindings, RuleTab.History };
+    private static readonly RuleTab[] ObjectiveTabs = { RuleTab.Status, RuleTab.Settings, RuleTab.Results, RuleTab.History };
 
-    public static string TitleOf(RuleTab tab) => tab == RuleTab.Do ? "Do" : tab.ToString();
+    /// <summary>The tabs of a role (cached arrays — no allocation per call; the editor asks several times a frame).</summary>
+    public static IReadOnlyList<RuleTab> TabsFor(ObjectiveRole role) => role == ObjectiveRole.Trigger ? TriggerTabs : ObjectiveTabs;
+
+    private static readonly string[] Titles = System.Enum.GetNames(typeof(RuleTab));
+    private static readonly string[] Ids = System.Array.ConvertAll(Titles, n => "rt" + n);
+
+    public static string TitleOf(RuleTab tab) => Titles[(int)tab];
+
+    /// <summary>⭐ U-2 / CE-4286 — the constant ImGui id of the tab (stable when the title text changes).</summary>
+    public static string IdOf(RuleTab tab) => Ids[(int)tab];
+
+    /// <summary>⭐ U-2 (Colour Icons §3.1) — the key in <c>NodeEditor.Core.Widgets.Icons</c> of the tab's coloured icon.</summary>
+    public static string IconKeyOf(RuleTab tab) => tab switch
+    {
+        RuleTab.Overview => "tab/overview", RuleTab.Status => "tab/status", RuleTab.When => "tab/when", RuleTab.Rules => "tab/rules", RuleTab.Do => "tab/do",
+        RuleTab.Bindings => "tab/bindings", RuleTab.History => "tab/history", RuleTab.Settings => "tab/settings", RuleTab.Results => "tab/results",
+        _ => "doc/other",
+    };
 
     /// <summary>The members of <paramref name="paramsType"/> that are fields of the document: public instance fields and properties, by CLR name.</summary>
     public static IReadOnlyList<string> MembersOf(Type paramsType)
