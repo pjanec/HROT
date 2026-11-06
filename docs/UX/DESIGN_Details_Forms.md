@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level, ✅ APPROVED Q1–Q8 by the user 2026-11-06 (R-4136); ui builds the forms, backend the attributes (R-4123)
-updated: 2026-11-06 (marks are COLOURED FontAwesome glyphs, not Silk — user, R-4139) · 2026-11-06 (§6 approved, R-4138; §6.6 fidelity) · 2026-11-06 (§6 the visual design — every row state, multi-select, read-only, conflict, notifications; ImGui-feasible; for review) · 2026-11-06 (Q7 revised by the user: posture is a Unit form row — StanceIntent saved, seeded at load, set at once while paused) · 2026-11-06 (revised after the user's review: the raw editor is local BY DESIGN — CE-4283 refuted; every open point measured: the leaf editors through ScalarEditBox, ammunition, posture, weather, routes (CE-4284), embarkation; Q5 replaced, Q7–Q8 added) · 2026-11-06 (first version — coordinator; editing-UX design queue item 8: E2, D3 / D7 and the raw inspector fixes)
-current-answer: §2 the model · §3 the four forms · §4 stages · §5 questions (approved) · §6 the visual design (approved, R-4138) with §6.6 fidelity
+updated: 2026-11-06 (§2.4 the forms in every host, read-only in the replay browser — user, R-4148) · 2026-11-06 (marks are COLOURED FontAwesome glyphs, not Silk — user, R-4139) · 2026-11-06 (§6 approved, R-4138; §6.6 fidelity) · 2026-11-06 (§6 the visual design — every row state, multi-select, read-only, conflict, notifications; ImGui-feasible; for review) · 2026-11-06 (Q7 revised by the user: posture is a Unit form row — StanceIntent saved, seeded at load, set at once while paused) · 2026-11-06 (revised after the user's review: the raw editor is local BY DESIGN — CE-4283 refuted; every open point measured: the leaf editors through ScalarEditBox, ammunition, posture, weather, routes (CE-4284), embarkation; Q5 replaced, Q7–Q8 added) · 2026-11-06 (first version — coordinator; editing-UX design queue item 8: E2, D3 / D7 and the raw inspector fixes)
+current-answer: §2 the model (§2.4 every host, read-only in the replay browser — R-4148) · §3 the four forms · §4 stages · §5 questions (approved) · §6 the visual design (approved, R-4138) with §6.6 fidelity
 stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - ../designs/replay-browser-2/DESIGN.md — the replay browser; §2.4: it composes this design's EntityDetailsBundle, so the forms show there read-only (R-4148)
   - DESIGN_UI_Conventions.md — takes the LAYOUT half of this design's row helper house-wide (FormGrid, §3); FormView draws its rows through it
   - DESIGN_Initial_State.md — E15 adds the Aboard / Carried by / Carries / Weapon / In hand / Knows about / Damage rows to the Unit form, by the posture rule (Q7)
   - DESIGN_Editing_UX.md — §1.8 / slice E15: the initial state beyond these forms (seats and carry modes, carried weapons, weapon posture, a named point, lying items) — E15 adds rows to these forms
@@ -178,6 +179,26 @@ network-less editor (applied at once, one undo step) and on a cluster.
 | **multi-select** | the rows common to all selected entities; a value that differs shows *mixed*; setting it writes all (one Submit per entity, ONE undo step) |
 | **expert detail** | rows flagged `Expert` sit in one *Details for experts* expander at the bottom; the panel's Expert switch opens it by default; saved per panel in the user settings (D7) |
 | **hot path** | `FormDecl` and rows are built once; `Draw` allocates nothing in a steady frame (no LINQ, cached labels) — a rail measures it |
+
+### 2.4 Every host — read-only in the replay browser *(user, `2026-11-06`, R-4148)*
+
+🔒 *"the forms and everything about the entity state should work also in the replay browser, in read-only mode, not just in the editor or CGF or
+SIM host or usual ECS enabled hosts."*
+
+📐 **Measured — the replay browser already composes the SAME Details bundle:** `ReplayBrowserSubsystem.cs:1026-1036` builds
+`EntityDetailsBundle` with `World: () => _activeRepo` (the recording's world) and `RunState: VariableRunState.Replay`. ⇒ ⭐ the forms reach it
+**by construction** — they live in that bundle, not in an editor-only window. What must hold:
+
+| ⭐ the rule | |
+|---|---|
+| **editable = ONE function** of (run state, edit mode, authority): `Replay` ⇒ read-only, like Review | ⛔ no host-specific "if replay" in a form; the same function the Brain view already applies (`EntityBrainView.cs:463-468`) |
+| **read-only looks like §6's read-only state**: the banner *"Recording — read-only"*, the form in `BeginDisabled`, no marks, no pickers, no Apply | the values still update as the replay plays and seeks (the form reads the world each frame, 0 B) |
+| **a row reads only the world** (components, the attribute vocabulary's READ side) — never a live-only service | ⭐ that is what makes it work on a recording |
+| **a row whose source is not in the recording says so**: *"not recorded"*, dimmed | ⛔ never a blank or a default that looks like a value. 📐 Sampled sources all record (`DataPolicy.Default`: `Health`, `PassengerBuffer`, `CombatProficiency`, `CombatTemperament`, `Playable`, `SpawnArea`; `NoScenario` only skips the save: `StanceIntent`, `WeaponPosture`) |
+| **the same for everything about entity state** — the Initial-state rows (E15), the Brain tab's Character, the Shape form | the hosts list is the bundle's, not each form's |
+
+⭐ **Acceptance:** a frame rail composes the bundle over a recorded world with `RunState.Replay`: every form row drawn, every control disabled,
+the banner shown, zero writes reach any write seam, and a seek changes the shown values.
 
 ## 3. The four forms
 

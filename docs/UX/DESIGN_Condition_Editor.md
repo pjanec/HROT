@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — detailed design under the approved top level (Rule Editor UX §2.3, R-4130); ✅ APPROVED Q-C1…Q-C6 (R-4142)
-updated: 2026-11-06 (§8 the Expert view redesigned from a measured frame of today's editor — user: "the original condition editor … deserves also some review. And visual redesign") · 2026-11-06 (✅ approved — R-4142; row icons removed, icons inside their chips — user) · 2026-11-06 (first version — coordinator; the user: "go to condition editor, this is non trivial to be easy to use")
-current-answer: §2 the model · §3 the vocabulary (friendly row ↔ the language) · §4 the visual design · §5 the four language additions · §6 stages · §7 questions · §8 the Expert view redesigned (Q-X1…Q-X4, for review)
+updated: 2026-11-06 (§8 approved, R-4149; Q-X3 revised by the user: names from a C# attribute, a default humanizer otherwise — §8.4) · 2026-11-06 (§8 the Expert view redesigned from a measured frame of today's editor — user: "the original condition editor … deserves also some review. And visual redesign") · 2026-11-06 (✅ approved — R-4142; row icons removed, icons inside their chips — user) · 2026-11-06 (first version — coordinator; the user: "go to condition editor, this is non trivial to be easy to use")
+current-answer: §2 the model · §3 the vocabulary (friendly row ↔ the language) · §4 the visual design · §5 the four language additions · §6 stages · §7 questions · §8 the Expert view redesigned (✅ X1–X4 approved, R-4149; names from attributes + one humanizer, §8.4)
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -193,7 +193,7 @@ one x.
 | **Q-C6** | an incomplete row | **red blank + the reason; Apply disabled** | save it and let it never fire: a silent rule |
 
 
-## 8. The Expert view, redesigned *(2026-11-06 — for review, Q-X1…Q-X4)*
+## 8. The Expert view, redesigned *(2026-11-06 — ✅ X1–X4 APPROVED, R-4149)*
 
 🔒 *"What about the original condition editor? I think it deserves also some review. And visual redesign. As what was programmed was pretty much
 programmer-only style"* (user, `2026-11-06`).
@@ -235,15 +235,29 @@ inspector, every params form, the replay search and breakpoints get them too; �
 | ⑦ | **add and delete**: *Add condition* at the end of a list (named by its element type); a trash glyph per element, at one x | struct editor |
 | ⑧ | **the When tab holds the condition and its timing**; title, scoring and visibility move to Settings | `RuleDetails` / `RuleTabs` |
 
-### 8.3 Questions — leans
+### 8.3 Questions — ✅ approved (R-4149); Q-X3 revised by the user (§8.4)
 
 | # | question | lean | rejected |
 |---|---|---|---|
 | **Q-X1** | fix the struct editor for everyone, or style only the condition tree | **the struct editor, for everyone** — every raw inspector and params form reads as badly today; one fix, one look | a condition-only tree: a second tree drawer beside the generic one (R-174) |
 | **Q-X2** | names when a type has no `[EditDisplayName]` | **humanise the field name** (split PascalCase, drop a unit word into the unit) | show raw names until each type is annotated: hundreds of fields stay programmer-only |
-| **Q-X3** | where a condition kind's name and glyph live | **in `FactCatalogue`** — the friendly view's table; the Expert combo reads the same rows | `[EditDisplayName]` on each DTO class: the friendly view would hold a second copy |
+| **Q-X3** ✏ | where a condition kind's name and glyph live | ✏ **REVISED by the user: a C# attribute on the type / enum member, a default humanizer when none** (§8.4); `FactCatalogue` READS the same attribute — no second copy | ~~in `FactCatalogue`~~ (the first lean) — names in a table beside the code drift from it |
 | **Q-X4** | the rule header on the When tab | **only on Settings** (and the title on Overview) | keep it on every tab: pushes the condition off the first screen |
 
 **Stages:** **X1** the struct editor fixes ①②③⑤⑥⑦ (ui; rails: the frame of §8.1 again, measured — no class names, no `Bind` rows, one x
 for every control, 0 B on a steady frame; the builder compares the frame with the mockup itself, R-4146). **X2** names, glyphs and units on the
 condition types via `FactCatalogue` (ui, after C2). **X3** the entity-link chip ④ (ui). **X4** the rule tabs ⑧ (ui).
+
+### 8.4 Display names — a C# attribute first, ONE humanizer otherwise *(user, `2026-11-06`, R-4149)*
+
+🔒 *"The alternative texts for different enums or class names, I think they should come from some kind of C# attribute and using some default
+parsers or humanizers. Only if the display name is not explicitly defined by C# attribute."*
+
+| ⭐ the rule | |
+|---|---|
+| **one resolver** — `DisplayNames.Of(member)` in `StructEdit.Core`, for a field, a property, a type and an enum member | ⛔ no drawer, combo or catalogue spells a name its own way |
+| **① `[EditDisplayName("…")]`** — already exists (`EditAttributes.cs:17`) for fields and properties (an enum member is a field); ⭐ **widened to classes and structs** | the condition kinds: `[EditDisplayName("All of these")]` on `CompoundPredicateDto` … |
+| **② the humanizer** when there is no attribute: split PascalCase into words, sentence case, drop a type suffix (`Dto`, `PredicateDto`), move a unit word to the unit (`DeadlineSeconds` → *Deadline* · `s`; `EntryOrExit` → *Entry or exit*) | ⭐ one function; ⛔ the local copies fold into it — 📐 `EntityRoleLine.Words` (`EntityRoleLine.cs:73`, *TankGun → Tank gun*) and `AiPrimitiveNaming.DisplayNameFromTickCoreFqn` are two found |
+| **the glyph** is an attribute too — `[EditIcon("<key>")]`, a key into Colour Icons' ONE key → (glyph, colour) table | ⛔ never a colour in the attribute — the palette stays one table |
+| **cached per member**, built once | 0 B per frame (R-2084) |
+| **who reads it**: the struct editor (field labels, enum combos, the kind picker), the friendly view's `FactCatalogue`, the sentence renderer, every form row's label | ⭐ one name per thing, everywhere |
