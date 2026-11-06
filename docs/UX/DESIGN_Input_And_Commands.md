@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — top-level, for the user's review (R-4122); the building lanes detail it (R-4123)
-updated: 2026-11-06 (first version — coordinator; editing-UX design queue item 4b: E14)
+build-state: DESIGN — top-level; ✅ approved by the user 2026-11-06 with the dumb-terminal split and hard-coded defaults (R-4132); the building lanes detail it (R-4123)
+updated: 2026-11-06 (§2.4 the map is a dumb terminal: map keys resolved on the backend, ImGui routing for the ImGui side only; hard-coded defaults complete, the overrides file optional — R-4132) · 2026-11-06 (first version — coordinator; editing-UX design queue item 4b: E14)
 current-answer: §2 the model · §3 stages · §4 questions with leans
 stale-below: nothing
 known-rot: none
 known-conflict: UX_Feature_Tool_Model.md:302 "No keyboard shortcut activates any tool" — kept for TOOLS armed by a key? §4 Q5 decides (lean: a key may run the ACTION that arms a tool)
 related-designs:
+  - ../designs/gizmos-1/gizmo-input-focus-design.md — OWNS the dumb terminal (raw events, backend focus); the map scopes of the keymap are resolved on its backend side
   - DESIGN_Action_Catalogue.md — every key binds to an ACTION ID from the catalogue; the action declares its default key and scope (design 1, R-4125)
   - DESIGN_Seats_And_Hats.md — each hat is a keymap scope; Esc = one level out (R-4131 Q6)
   - DESIGN_Editing_UX.md — the programme: E14; §3.7 the expected basics (Esc, Enter, Ctrl+Z, copy / paste, Delete asks)
@@ -103,9 +104,9 @@ ACTIVE HAT's keys come before the map's general ones — so free-fly (Observe) A
 | **focus is ImGui's, one truth** | a focused ImGui window gets its scope; **clicking the map takes focus to the map** (ImGui window focus cleared) — ⛔ no longer "the mouse is over it" (CE-4282) |
 | **held inputs are not commands** | W A S D, Shift sprint, Ctrl crouch, T wheel, RMB look: bindings of kind **Hold / Axis**, READ by the active hat each frame (rebindable and shown like the rest), never dispatched as actions |
 | **ImGui's own routing** | panel and global scopes use ImGui 1.91's key routing (`Shortcut()` with route flags) underneath — ⛔ no second focus arbitration of our own |
-| **Esc — central** | one chain: text field cancels → modal closes → the armed tool cancels → the hat steps out → nothing (Tool Model step 6; seats-and-hats Q6). Gizmos stop handling Esc themselves |
+| **Esc — central** | one chain: text field cancels → modal closes → the armed tool cancels → the hat steps out → nothing (Tool Model step 6; seats-and-hats Q6) — split between the local app and the backend, §2.4 |
 | **declared, checked, shown** | an action declares its default key and scope (design 1); the keymap REFUSES at start-up a chord bound twice in overlapping scopes (a rail); menus, tooltips and a **Keyboard shortcuts** window (searchable, per scope, F1) show the SAME binding ⛔ no auto-derived letters |
-| **rebinding** | the user's overrides in a settings file (per user); a rebind UI in the shortcuts window later |
+| **defaults and rebinding** | ⭐ **the hard-coded defaults declared on the actions are the keymap** — the app works fully with NO settings file (user, `2026-11-06`: *"settings file presence should not be necessary, the app must work well with hard coded defaults"*); an OPTIONAL per-user overrides file, applied on top when present; a rebind UI later |
 | **debug keys** | F-keys of the audio / performance overlays are actions in the Global scope, behind Expert — ⛔ never raw reads |
 
 ### 2.3 Commands — every entry point names an action
@@ -119,6 +120,48 @@ ACTIVE HAT's keys come before the map's general ones — so free-fly (Observe) A
 | keys calling methods (`_gizmoUndoStack.Undo()`, `cursor.TogglePlay()`, `ToggleMessageLog()`) | key → action id |
 | `IShellCommandRegistrar.RegisterShortcut` (no caller) | deleted |
 
+### 2.4 The map is a dumb terminal — two key worlds, one keymap *(user, `2026-11-06`)*
+
+🔒 *"from gizmo perspective the keys are provided by "remote dumb terminal" (like in remote viewer app) and our map just happens to be an
+"remote dumb terminal" for gizmos - not sure how well that play with imgui shortcuts"* — ⭐ it does not, and must not: the gizmo design
+(`designs/gizmos-1/gizmo-input-focus-design.md`) rules a **stateless dumb terminal** that *"blindly reflects hardware events declared by data
+on the wire"*, with every meaning and the focus on the BACKEND (it names the terminal's hard-coded `Escape == Cancel` as the defect).
+
+```mermaid
+graph TD
+  subgraph LOCAL["the local app (ImGui)"]
+    PANELS["ImGui panels and the main bar — TextField · Modal · FocusedWindow · Global scopes — ImGui's own Shortcut routing"]
+    FOCUS["who has the keyboard: a focused ImGui window, or the map (clicked)"]
+  end
+  subgraph TERM["the map = a dumb terminal (local OR a remote viewer)"]
+    RAW["forwards raw key events while IT has the keyboard — no meaning"]
+  end
+  subgraph BACK["the backend (gizmos + host actions)"]
+    CAP["1 · a gizmo that captured raw input (an armed tool) gets the key"]
+    HAT["2 · the active hat's bindings"]
+    MAPS["3 · the map scope's bindings"]
+    ACT["→ action id → HostActions"]
+  end
+  FOCUS -->|the map has it| RAW
+  FOCUS -->|a window has it| PANELS
+  RAW -->|key events on the wire| CAP
+  CAP -->|not consumed| HAT
+  HAT -->|not bound| MAPS
+  HAT --> ACT
+  MAPS --> ACT
+  PANELS --> ACT
+```
+*What the picture shows that prose hid: ONE keymap (one declaration per action, one settings source), but it is RESOLVED in two places —
+the local app resolves the ImGui scopes with ImGui's routing; the map scopes are resolved on the BACKEND from the raw events any terminal
+forwards, so a remote viewer gets exactly the same map keys as the local map, and the terminal stays dumb.*
+
+| | rule |
+|---|---|
+| **the terminal's only job** | forward raw key events while it holds the keyboard (the local app: the map was clicked and no ImGui window is focused; a remote viewer: its window is focused) — ⛔ no binding, no meaning, no Esc |
+| **the backend resolves map keys** | 1 · a gizmo that captured raw input (the existing `InputCaptureBinding`, an armed tool) — the tool interprets its own keys, Esc included (cancel → the tool controller pops it) · 2 · the active hat's bindings · 3 · the map scope's bindings → an action id |
+| **central Esc, correctly split** | panels / modals: the local app (ImGui); on the map: the backend's chain (the armed tool's gizmo cancels → the hat steps out). ⛔ The earlier wording "gizmos stop handling Esc themselves" is SUPERSEDED: a gizmo keeps receiving Esc as a raw event — what is centralised is that Esc on the map always reaches ONE resolver on the backend, never the terminal |
+| **ImGui `Shortcut()` routing** | only for the ImGui side (Q7) |
+
 ## 3. Stages *(ui owns it; each stage keeps today's keys working unless it says otherwise)*
 
 | stage | what |
@@ -130,14 +173,14 @@ ACTIVE HAT's keys come before the map's general ones — so free-fly (Observe) A
 | **K5** | `IEditorCommands` and `RegisterItem` closures as actions; buttons and keys call action ids; the dead seam deleted |
 | **K6** | the Keyboard shortcuts window; user overrides in a settings file; rebind UI later |
 
-## 4. Questions — leans for the user
+## 4. Questions — ✅ approved as revised *(🔒 user, `2026-11-06`: "otherwise it looks good")*
 
 | # | question | ⭐ lean | rejected |
 |---|---|---|---|
 | **Q1** | one keymap, keys → action ids | **yes**: an action declares its default key and scope; the keymap holds bindings and the user's overrides | per-feature key handling — today's twelve mechanisms |
 | **Q2** | the scope order | **TextField → Modal → focused window → active hat → Map → Global**, first enabled match wins | a flat global table — the same letter cannot mean two things in two contexts |
-| **Q3** | focus | **ImGui's focus is the one truth; clicking the map focuses it** | mouse-over gives the map the keys — today's leak |
+| **Q3** | focus | **ImGui's focus is the one truth on the local app; clicking the map focuses it** — then the map (a dumb terminal, local or remote) forwards raw keys and the BACKEND resolves them (§2.4) | mouse-over gives the map the keys — today's leak; ImGui shortcuts for map keys — breaks the dumb terminal and remote viewers |
 | **Q4** | held keys (WASD, sprint, wheel) | **Hold / Axis bindings read by the active hat**, rebindable and shown, not actions | making movement keys actions |
 | **Q5** | a key that arms a tool | **allowed** — the key runs the ACTION that arms the tool (supersedes "no keyboard shortcut activates any tool") | keep tools key-less — R (rotate) already arms a tool through the menu letter |
-| **Q6** | rebinding | **settings file now, rebind UI later**; conflicts refused at start-up | rebind UI first |
-| **Q7** | ImGui key routing | **use ImGui 1.91's `Shortcut()` routing for panel and global scopes** underneath our router | our own focus arbitration beside ImGui's |
+| **Q6** | rebinding | **hard-coded defaults are complete; an optional overrides file**, a rebind UI later; conflicts refused at start-up | a settings file required |
+| **Q7** | ImGui key routing | **ImGui 1.91's `Shortcut()` routing for the ImGui side only** (panels, modals, the main bar, global); the map's keys are resolved on the backend from terminal events | one router for both — the terminal would have to know ImGui |
