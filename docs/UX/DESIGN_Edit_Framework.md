@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level, for the user's review (R-4122); the building lanes detail it (R-4123)
-updated: 2026-11-06 (§2.4 the old acknowledgement merged into EntityEditOutcome — R-4126) · 2026-11-06 (first version — coordinator; editing-UX design queue item 2: E0 / D10)
+updated: 2026-11-06 (Q1 and Q2 revised: orders answer acceptance only; interactions send the generic outcome with a request id) · 2026-11-06 (§2.4 the old acknowledgement merged into EntityEditOutcome — R-4126) · 2026-11-06 (first version — coordinator; editing-UX design queue item 2: E0 / D10)
 current-answer: §2 the model (diagrams) · §3 each kind of edit, today → in the framework · §4 stages · §5 questions with leans
 stale-below: nothing
 known-rot: none
@@ -173,8 +173,8 @@ writers and one reader moved (a rail: no `CreateUpdateDeleteEntityAck` symbol le
 | create (Add Entity, area, route, insert a composition) | creation request + double ack + `EntityConstructionCompleted`, no UI reader (CE-4278) | `Create`; answered by `EntityEditOutcome` (the old ack merged in, §2.4); `EntityConstructionCompleted` stays (a lifecycle event, not an answer); a refusal gets its reason text | **F2** |
 | delete | `DestroyEntityCommand`, fresh id per send, ghost teardown (CE-4276) | `Delete` carrying the request id end to end; answered by `EntityEditOutcome` (§2.4) | **F2** |
 | add / remove a component (Playable toggle, ORBAT detach) | no request type anywhere | `AddComponent` / `RemoveComponent` — a new owner-side request | **F3** |
-| embark, disembark, possess, release | interactions answered by the target's state, no reason (⛔ ruled: no reply topic) | `Interact`; the bridge WATCHES the target's state (`IsEmbarkedTag`, `PossessedBy`) → Applied, or Lost after the time-out; the owner's refusal reason is added to the existing state (a field, not a reply topic) | **F4** |
-| orders | sender-side `OrderResult` only | `Command`; Applied = accepted by the sender's checks and sent; a refusal by the brain's owner reported later is a follow-on | **F5** |
+| embark, disembark, possess, release | interactions answered by the target's state, no reason; 📐 the payloads carry NO request id today (`InteractionMessages.cs:51-62` — `StationNodeId`, `Mode` only) | ⭐ **revised `2026-11-06` (user: "why not sending the generic edit outcome for them as well?")**: `Interact` — APPEND a `Guid RequestId` to each interaction payload (the wire rule: append only) and the owner's executor reports `EditOutcomes.Report` where it accepts or refuses today (`EmbarkationSystem.cs:85` `Refused++`, `Possession.cs:213`) ⇒ the ONE `EntityEditOutcome` answers, with the reason. ⭐ Not the rejected per-interaction reply topic (`DESIGN_Entity_Interactions.md:136`) — the generic outcome already exists. Lost only if no answer comes | **F4** |
+| orders | sender-side `OrderResult` only; on the brain's owner `TacticalIntentResolutionSystem` gates by authority and by ORIGIN RANK (`BehaviorOrigin`: SOP < Superior < Operator — *"a lower origin cannot end a higher one"*), then the order REPLACES the running behaviour (last wins — no queue; the queue is the mission plan); a refusal is only a log line (`TacticalIntentResolutionSystem.cs:139-141`) | ⭐ **revised (user: orders come from many sides; "executing" is not a state of the entity)**: `Command` — the outcome answers **ACCEPTANCE ONLY**: Applied = the brain's owner accepted it and started the behaviour; Refused + reason ("no behaviour for this unit's class", "a higher-ranked order is running", "the unit is dead"). ⛔ It never tracks execution or completion — what the unit is doing now, and who ordered it, is the Brain tab's *Doing* / *Orders* (Brain View) | **F5** |
 | mission plan commit | `MissionControlIntent`, local, version check, "Force Commit" (CE-4277) | `Commit` with a version precondition → **Conflict** with Reload / Overwrite; routed to the brain's owner | **F6** |
 | the Messages list and field marks (D8) | rules only | read the journal | **F7** |
 | ownership transfer | giver-only push, no ack | out of scope until the consolidate flow is designed (its own design owns it) | — |
@@ -187,8 +187,8 @@ writers and one reader moved (a rail: no `CreateUpdateDeleteEntityAck` symbol le
 | **F1** | `Edits.Submit` + `Gate` + `EditJournal`; every attribute-shaped edit goes through `Write` (fixes CE-4274, CE-4275) | per kind: a non-owner's edit reaches the owner and reports Applied (a two-node rail); a Review-mode or observer edit is Refused with its reason |
 | **F2** | `Create` / `Delete` with the request id end to end, answered by `EntityEditOutcome`; `CreateUpdateDeleteEntityAck` retired (§2.4); the log record's responder typed `NodeId` (fixes CE-4276, CE-4278) | a refused placement shows its reason; a delete from a non-owner leaves no ghost torn down early |
 | **F3** | `AddComponent` / `RemoveComponent` owner-side | Playable toggle and ORBAT detach from a non-owner |
-| **F4** | `Interact` bridges (state watch + time-out + a reason field) | embark refused shows why |
-| **F5** | `Command` (orders) | — |
+| **F4** | `Interact`: a `RequestId` appended to the interaction payloads, the owner reports `EntityEditOutcome` | embark refused shows why |
+| **F5** | `Command`: the order's request id carried to the brain's owner; `TacticalIntentResolutionSystem` reports accepted / refused with the reason | a lower-ranked order refused with "a higher-ranked order is running" |
 | **F6** | `Commit` with `Conflict` (fixes CE-4277); the Force Commit modal goes | two stations editing one plan |
 | **F7** | Messages + field marks read the journal | — |
 
@@ -196,8 +196,8 @@ writers and one reader moved (a rail: no `CreateUpdateDeleteEntityAck` symbol le
 
 | # | question | ⭐ lean | rejected |
 |---|---|---|---|
-| **Q1** | are orders "edits" in this framework? | **yes, as kind `Command`** — the user sees one Messages list for everything they did; Applied means accepted and sent for now | a separate order feedback channel — two lists |
-| **Q2** | interactions (embark, possess) keep the state-as-answer ruling? | **yes** — the bridge observes the target's state with a time-out; the owner's refusal reason becomes a field on that state, not a reply topic | a reply topic — ruled out before (`DESIGN_Entity_Interactions.md:136`) |
+| **Q1** | are orders "edits" in this framework? | **yes, as kind `Command`, answering ACCEPTANCE only** (revised `2026-11-06`): the brain's owner says accepted / refused + why; execution and completion are NOT tracked here (they are the Brain tab's *Doing* / *Orders*) | tracking "is executing / finished" — orders come from many sides, the last accepted one replaces the running behaviour, and a unit may change its mind: not a state the framework can own |
+| **Q2** | interactions (embark, possess): how they answer | **revised `2026-11-06`: the generic `EntityEditOutcome`** — a `RequestId` appended to the payloads, the owner reports where it accepts / refuses today; small effort (one field per payload, one report call per site), no new topic | watching the target's state with a time-out — slower, no reason; a per-interaction reply topic — ruled out (`DESIGN_Entity_Interactions.md:136`) |
 | **Q3** | conflict UX | **Conflict** status with *Reload* / *Overwrite* in Messages and on the form — no modal | keep "Force Commit (Overwrite)" — engine vocabulary, a modal |
 | **Q4** | scenario parameters | **outside** — a document edit with its own undo (already on `EditHistory`) | wrapping a document edit as an entity edit |
 | **Q5** | the journal | **per station, UI state, not recorded, not on the wire**; it holds the before-state only in Edit mode (for undo) | recording the journal — the recording already holds the world |
