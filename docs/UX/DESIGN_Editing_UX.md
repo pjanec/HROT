@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — the programme frame; D2–D9 and D11–D16 (first iteration) approved 2026-11-06; the design queue is §4.5; D1 (undo) and D10 (one edit framework) each get their own design; every slice E0–E7 starts with its own design reviewed by the user (R-4122)
 updated: 2026-11-06 (E5: the condition editor detailed — DESIGN_Condition_Editor.md) · 2026-11-06 (queue 7c: forms visual design R-4138, E16 colourful icons) · 2026-11-06 (queue 7b E15 written: DESIGN_Initial_State.md) · 2026-11-06 (§1.8 initial state — the user's topics, measured; slice E15, queue 7b) · 2026-11-06 (queue 7 E2 written: DESIGN_Details_Forms.md) · 2026-11-06 (queue 6 E8 approved R-4134; queue 7 E12 written: DESIGN_New_Scenario_And_Recipe.md) · 2026-11-06 (queue 5 undo approved R-4133; queue 6 E8 written: DESIGN_Map_Interaction.md) · 2026-11-06 (queue 3b: E13 the rule editor UX review — user) · 2026-11-06 (D19 the terrain is chosen at creation, never changed — R-4124; E12 in the queue; point ⑩ dropped) · 2026-11-06 (§4.3c D11–D16 approved as a first iteration; top-level designs written here, lanes detail them — R-4123; §4.5 the design queue; §1.4 rows 11–13 from the sweeps) · 2026-11-06 (the user's corrections to §1.5: multi-select exists, centre-handle move exists; §1.7 new topics — hats, mission plan editor, unified menus; §3.12 finish / level / airborne aircraft / gizmo look; D11 revised, D16–D18, E10–E11) · 2026-11-06 (§1.5 map interaction and §1.6 context menus inventoried; §3.12–§3.13 targets; D11–D15; slices E8–E9) · 2026-11-06 (§4.3a the user's verdict: D2–D9 approved, D1 and D10 own designs, design-first per slice — R-4122) · 2026-11-06 (§4 gap map, decisions D1–D9 with leans, slices E1–E7) · 2026-11-06 (§0b the user's review of §2–§3: pickers filtered by applicability, condition templates, expert detail kept, scarce confirmations, editing levels per node — R-4121) · 2026-11-06 (§2 prior art, §3 the target UX: layout wireframe, the tab set, modes, actions, the expected basics) · 2026-11-06 (§0a the user's review of §1: raw editor = debugging tool, semantic types, undo in Edit mode only, dedicated forms, the expected basics — R-4120) · 2026-11-06 (first version: the direction, and the inventory of what a user can edit today — coordinator)
-current-answer: §0 the direction (user rulings) · §0a the user's review of §1 · §3 the target UX · §4 the decisions D1–D9 (for approval) and the slices · §1 the inventory (what exists, where it is edited, what is wrong with it; §1.5 map interaction, §1.6 context menus)
+current-answer: §4.6 graphical designs (the mockup list) · §0 the direction (user rulings) · §0a the user's review of §1 · §3 the target UX · §4 the decisions D1–D9 (for approval) and the slices · §1 the inventory (what exists, where it is edited, what is wrong with it; §1.5 map interaction, §1.6 context menus)
 stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
 known-conflict: AQ26's two-axis resolution lets a HOST supply the isApplicable rule; R-4119 narrows it — for an entity, the rule reads the entity's components (§0)
@@ -575,6 +575,28 @@ this chat"* — R-4123.
 | 7 | ✅ E2 [DESIGN_Details_Forms.md](DESIGN_Details_Forms.md), approved (R-4136) · ✅ **E5** [DESIGN_Condition_Editor.md](DESIGN_Condition_Editor.md), approved (R-4142) · **E7 review · E2b sim / types**; ✅ E12 [DESIGN_New_Scenario_And_Recipe.md](DESIGN_New_Scenario_And_Recipe.md), approved (R-4135) | smaller, mostly independent |
 | 7b | ✅ [DESIGN_Initial_State.md](DESIGN_Initial_State.md), approved (R-4137) — **E15 — initial state** (§1.8: seats and carrying, carried weapons, weapon posture, a named / oriented point, lying weapons, other start states) | after E2; reuses its forms |
 | 7c | ✍ [DESIGN_Details_Forms.md](DESIGN_Details_Forms.md) §6 the forms' visual design ✅ (R-4138) · [DESIGN_Colour_Icons.md](DESIGN_Colour_Icons.md) **E16 — colourful icons** (coloured FontAwesome, R-4139; colours approved per surface) | the forms' marks are E16's first users |
+
+### 4.6 Graphical designs — every UI design gets a mockup before it is built *(user, `2026-11-06`, R-4143)*
+
+🔒 *"we should add a graphical design for basically every UI related design we did today, just to avoid surprises. What it will look like
+after coding as it is way cheaper to define and change now than once it's coded."*
+
+⭐ House style: ImGui default dark, real FontAwesome glyphs in their meaning's colour, neutral icon tabs, the forms' status slot and
+palette; drawn by a generator in `scripts/` over the ONE kit `scripts/mockup_kit.py` (never by hand), rendered to the scratchpad for the
+chat, committed as SVG beside its design. It is the acceptance spec (R-4138 / Details forms §6.6).
+
+| design | mockup | state |
+|---|---|---|
+| Details forms (E2) + notifications (edit framework §2.5) | `details-forms-visual.svg` | ✅ approved |
+| Condition editor (E5) | `condition-editor-visual.svg` | ✅ approved |
+| Colour icons (E16) | the before / after strips (chat) | ✅ approved |
+| Mission plan editor (E11) | `mission-plan-editor.svg` — an early sketch, not the house style | ⏳ redraw |
+| Map interaction (E8): hint line, pick banner, drawing menu, placement ghost + level / airborne | `map-interaction-visual.svg` | ✍ drawn, for review |
+| New scenario on a terrain (E12): the New Scenario picker | `new-scenario-visual.svg` | ✍ drawn, for review |
+| Initial state (E15): the Unit form's Aboard / Carried by / Carries / Weapon / Knows about rows; the Brain tab's Character | — | ⏳ |
+| Rule editor UX (E13): the rule list as sentences, the gallery | — | ⏳ |
+| Seats and hats (E10): the seat and hat indicator and switch | — | ⏳ |
+| Action catalogue (E9) + input (E14) + undo (D1): a context menu (groups, greyed with the reason, shortcuts), the Edit menu's undo / redo | — | ⏳ |
 
 ### 4.4 Slices — proposed handoffs, once D1–D9 are approved
 

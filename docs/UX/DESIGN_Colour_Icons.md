@@ -129,7 +129,7 @@ under the bar. Docked-window tabs, which ImGui draws itself, are untouched (Q-I4
 |---|---|---|---|
 | **Q-I1** | where a FontAwesome glyph is used as an icon | **drawn in a colour by meaning**, one key → (glyph, colour) map — ⭐ Silk bitmaps stay where they are (Q-I3) | replace the glyphs with Silk — the user keeps the glyphs, in colour |
 | **Q-I2** | a switch's options | **each always in its own colour**; the selected one framed and full-strength | selected coloured, others grey: what the user called hard to read |
-| **Q-I4** | the palette of a content tab bar | **neutral** (dark grey tabs, the selected one lighter with a blue top line) so the coloured icons read; docked-window tabs untouched | ImGui's default blue tabs: blue and violet icons vanish on them |
+| **Q-I4** | the palette of a content tab bar | ✅ **APPROVED (R-4143)** — **neutral** (dark grey tabs, the selected one lighter with a blue top line) so the coloured icons read; docked-window tabs untouched | ImGui's default blue tabs: blue and violet icons vanish on them |
 | **Q-I3** | the Silk icons that exist (window icons, perspective toolbar, AI node kinds) | ✏ **DECIDED by the user: they stay** — a properly drawn Silk icon reads well, its slight upscaling blur looks natural | — |
 
 ## ⛔ HISTORY — the Silk version *(superseded the same day, R-4139; do not quote)*
