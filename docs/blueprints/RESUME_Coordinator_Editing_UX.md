@@ -42,7 +42,7 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 6. ✍ **Design 4 WRITTEN `2026-11-06`: [DESIGN_Seats_And_Hats.md](../UX/DESIGN_Seats_And_Hats.md)** (E10 + D4) — ✅ APPROVED (R-4131), with §2.5 (HTTP seats, the camera, the director sharing it); stages H1–H7; CE-4279 (a Player can place units and command any side) and CE-4280 filed.
 7. ✍ **Design 4b WRITTEN `2026-11-06`: [DESIGN_Input_And_Commands.md](../UX/DESIGN_Input_And_Commands.md)** (E14) — ✅ APPROVED as revised (R-4132: the map is a dumb terminal, map keys resolved on the backend; hard-coded defaults complete); CE-4281, CE-4282 filed.
 8. ✍ **Design 5 WRITTEN `2026-11-06`: [DESIGN_Edit_Mode_Undo.md](../UX/DESIGN_Edit_Mode_Undo.md)** (D1) — ✅ Q1–Q7 APPROVED (R-4133); §1.1 what a snapshot misses, §2.3 the restore = the dry run's sequence.
-9. ✍ **Design 6 WRITTEN `2026-11-06`: [DESIGN_Map_Interaction.md](../UX/DESIGN_Map_Interaction.md)** (E8 — D11 / D12 / D16) — one drawing core (`ShapeEditSession`), the armed tool and a pending pick visible on every terminal, airborne aircraft by `Mobility` (CE-4272 measured first), 2-D level choice from `SurfacesAt`, group rotate, the gizmo-look review; stages P1–P7; awaiting the user's review of §4 Q1–Q8.
+9. ✍ **Design 6 WRITTEN `2026-11-06`: [DESIGN_Map_Interaction.md](../UX/DESIGN_Map_Interaction.md)** (E8 — D11 / D12 / D16) — one drawing core (`ShapeEditSession`), the armed tool and a pending pick visible on every terminal, airborne aircraft by `Mobility` (CE-4272 measured first), 2-D level choice from `SurfacesAt`, group rotate, the gizmo-look review; stages P1–P7; ✅ Q1–Q8 APPROVED (R-4134).
 10. ▶ NEXT (queue §4.5): the smaller ones — E2 forms · E5 condition templates · E7 review · E2b sim / types · E12 new scenario / recipe (D19). (Was 8: D1 (undo — reads the edit framework's journal), then E8 (map interaction), then the smaller ones. Previously listed after hats:, D1 (undo — reads the edit framework's journal), E8 (map), then the smaller ones (queue §4.5).
 4. Before each design: INVENTORY with graph queries, UML (class + sequence + module), and a claim table in the chat.
 
@@ -56,6 +56,6 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 | **behaviors** | performance programme (§11f, 1000 soldiers load) | nothing dispatched |
 | **backend** | late-joiner ghosts (CE-4000 / 4007) — dispatch in backend | check its report |
 
-Ids: coordinator next free **CE-4283**, **R-4134**.
+Ids: coordinator next free **CE-4283**, **R-4135**.
 
 ⚠ All lanes are PAUSED by the user while the editing-UX designs are discussed (`2026-11-06`).

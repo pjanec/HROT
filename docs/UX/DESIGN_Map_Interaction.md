@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — top-level, for the user's review (R-4122); the building lane (ui, backend for the gizmo side) details it (R-4123)
-updated: 2026-11-06 (first version — coordinator; editing-UX design queue item 6: E8, D11 / D12 / D16)
+build-state: DESIGN — top-level, ✅ APPROVED Q1–Q8 by the user 2026-11-06 (R-4134); the building lane (ui, backend for the gizmo side) details it (R-4123)
+updated: 2026-11-06 (✅ Q1–Q8 approved — R-4134) · 2026-11-06 (first version — coordinator; editing-UX design queue item 6: E8, D11 / D12 / D16)
 current-answer: §2 the model · §3 stages · §4 questions with leans
 stale-below: nothing
 known-rot: none
@@ -297,7 +297,7 @@ toolkit undo stack, which nothing calls and which this design does not revive.
 Order: P1 → P2 → P3 (P3's measurement can start at once) → P4 → P5 → P6 → P7. P2 depends on the action catalogue's first stage (A1),
 because the drawing menu reads it.
 
-## 4. Questions — leans for the user
+## 4. Questions — ✅ all eight APPROVED as leaned (R-4134, user `2026-11-06`: *"Okay, accept it."*)
 
 | # | question | lean | rejected |
 |---|---|---|---|
