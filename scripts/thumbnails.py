@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the pickers' thumbnails by driving an EDITOR over its existing HTTP routes — nothing new renders (CE-4268, docs/DESIGN_Add_Entity_Picker.md §2i).
 
-  scripts/thumbnails.py --scenarios                      every scenario of the repo (skips one with a hand-made preview.png)
+  scripts/thumbnails.py --scenarios                      every scenario of the repo that has no still yet (writes scenarios/<name>/preview.jpg IN THE REPOSITORY)
   scripts/thumbnails.py --scenarios ua-tank-ammo hill-attack
   scripts/thumbnails.py --types 1001 1101                these TKB type ids (GET /tkb/types lists them); --types with no ids = every type
   scripts/thumbnails.py --scenarios a b --types 1001 --port 5195
@@ -11,8 +11,18 @@ A scenario's still = its START as the editor shows it: POST /scenario/load/edit 
 {eye, target} looking down ~45 degrees over them -> POST /film/capture {path, 512x288} -> DELETE /film/shot.
 A type's still = one entity spawned (POST /entities/spawn) in a bare studio scenario (--studio, default test-move: no terrain), framed by distance, captured, removed (DELETE /entities/{id}).
 
-⛔ Output goes into the NAS root ONLY (--nas, default the runtime shared root /tmp/FDP_Temp/shared): scenarios/<name>/preview.png, assets/thumbnails/generated/<typeName>.png.
-⛔ Never into the repository, never an edit of map.json. A hand-made repo preview.png wins (the scenario is skipped); ThumbnailMap's third step uses generated/<typeName>.png only for a type no hand-made rule covers.
+⭐ CE-4271 (§2j) — THE ENTITY ATLAS (the only picture files allowed in git, R-4117): the type pictures are packed into JPEG pages embedded in Hrot.Presentation.
+  scripts/thumbnails.py --pack                                  fold every loose <nas>/assets/thumbnails/generated/*.png into the atlas (a name already in it is replaced in its slot)
+  scripts/thumbnails.py --types <id> --pack                     capture the type(s) (needs a running editor, below) AND pack them
+  scripts/thumbnails.py --add-image <file> --name <TypeName>    a hand-made / downloaded picture: centre-crop to 16:9, scale to 320x180, pack — no editor needed
+  scripts/thumbnails.py --atlas-list                            stems with page/col/row
+  scripts/thumbnails.py --atlas-remove <TypeName>               free a slot (its cell goes black; the next add reuses it)
+  Pages are 2048x2048 JPEG q85 of 320x180 cells (6 x 11 = 66 per page); a name keeps its slot; only a page whose pixels changed is re-encoded; the index (entities.atlas.json) has sorted keys.
+  Needs Pillow (`py -3 -m pip install pillow` on Windows). Then commit the changed page(s) + the index and rebuild: they are embedded (step 4 of ThumbnailMap).
+  Scenario stills are NOT in the atlas: --scenarios writes the REPOSITORY scenarios/<name>/preview.jpg (320x180 q85); a scenario with a preview.jpg/.png is skipped unless --force.
+
+⛔ Types go into the NAS root (--nas, default /tmp/FDP_Temp/shared): assets/thumbnails/generated/<typeName>.png, then --pack folds them into the atlas.
+⭐ Scenario stills go into the REPOSITORY (scenarios/<name>/preview.jpg); one that has a preview.jpg/.png is skipped unless --force. Never an edit of map.json.
 The file stem of a type is its TKB Name sanitized exactly as ThumbnailMap.GeneratedFileName does: letters, digits . _ - kept, anything else _ (a name holding ".." is refused).
 """
 import argparse, importlib.util, json, math, os, re, sys, time
@@ -309,10 +319,11 @@ def scenario_names(requested):
     return have
 
 
-def do_scenarios(names, nas, rows):
+def do_scenarios(names, rows, force=False):
     for name in names:
-        if os.path.isfile(os.path.join(REPO, "scenarios", name, "preview.png")):
-            rows.append((name, "skipped hand-made", "preview.png in the repository")); continue
+        hand = next((f for f in ("preview.jpg", "preview.png") if os.path.isfile(os.path.join(REPO, "scenarios", name, f))), None)
+        if hand and not force:
+            rows.append((name, "skipped (has a still)", f"{hand} in the repository; --force re-shoots")); continue
         good, why = load_edit(name)
         if not good:
             rows.append((name, "failed", why)); continue
@@ -328,8 +339,20 @@ def do_scenarios(names, nas, rows):
             near = min(rest, key=lambda p: math.hypot(p[0] - c[0], p[1] - c[1]))
             yaw = math.degrees(math.atan2(near[1] - c[1], near[0] - c[0]))
         eye, target = frame_scene(cast, pitch_deg=-28.0, yaw_deg=yaw) if len(cast) <= 2 else frame_scene(cast)
-        out = os.path.join(nas, "scenarios", name, "preview.png")
-        good, why = shoot(out, eye, target)
+        folder = os.path.join(REPO, "scenarios", name)
+        out = os.path.join(folder, "preview.jpg")
+        shot = os.path.join(folder, "preview.capture.png")            # the capture route writes PNG; the still is a small JPEG (§2j): 320x180 q85
+        good, why = shoot(shot, eye, target)
+        if good:
+            try:
+                cell_image(shot).save(out, "JPEG", quality=JPEG_Q, optimize=True)
+            except OSError as e:
+                good, why = False, f"jpeg: {e}"
+            finally:
+                try:
+                    os.remove(shot)
+                except OSError:
+                    pass
         rows.append((name, "ok" if good else "failed", out if good else why))
 
 
@@ -442,20 +465,200 @@ def positions_near(origin, radius=60.0):
     return [p for p in positions() if math.hypot(p[0] - origin[0], p[1] - origin[1]) <= radius]
 
 
+# ── ⭐ CE-4271 — the entity ATLAS packer (Pillow only; no C# encoder) ─────────────────────────────────────────────────────────────────
+ATLAS_DIR = os.path.join(REPO, "Hrot", "Engine", "Hrot.Presentation", "Thumbnails")
+INDEX_NAME = "entities.atlas.json"
+PAGE_W = PAGE_H = 2048
+CELL_W, CELL_H = 320, 180
+COLS, ROWS = PAGE_W // CELL_W, PAGE_H // CELL_H            # 6 x 11 = 66 cells a page
+JPEG_Q = 85
+SAME_MAE = 6.0          # a cell whose mean absolute pixel difference from the page's is below this is "unchanged" (a JPEG round trip is never bit-exact)
+
+
+def need_pillow():
+    try:
+        from PIL import Image  # noqa: F401
+        return Image
+    except ImportError:
+        sys.exit("the atlas packer needs Pillow:  py -3 -m pip install pillow   (Linux: python3 -m pip install pillow)")
+
+
+def cell_image(path):
+    """A picture as a 320x180 RGB cell: centre-cropped to 16:9, scaled with Lanczos."""
+    Image = need_pillow()
+    with Image.open(path) as src:
+        im = src.convert("RGB")
+    w, h = im.size
+    want = CELL_W / CELL_H
+    if w / h > want:                      # too wide: crop the sides
+        nw = round(h * want); x0 = (w - nw) // 2; im = im.crop((x0, 0, x0 + nw, h))
+    elif w / h < want:                    # too tall: crop top and bottom
+        nh = round(w / want); y0 = (h - nh) // 2; im = im.crop((0, y0, w, y0 + nh))
+    return im.resize((CELL_W, CELL_H), Image.LANCZOS)
+
+
+class Atlas:
+    """The index and pages of one atlas directory. Slots are FIXED: a name keeps its [page, col, row] forever."""
+
+    def __init__(self, directory):
+        self.dir = directory
+        self.index_path = os.path.join(directory, INDEX_NAME)
+        self.items = {}                   # stem -> [page, col, row]
+        self.pages = []                   # page file names
+        self._img = {}                    # page number -> PIL image (RGB), loaded lazily
+        self._dirty = set()
+        if os.path.isfile(self.index_path):
+            with open(self.index_path, encoding="utf-8") as fh:
+                doc = json.load(fh)
+            if doc.get("version") != 1 or doc.get("cell") != [CELL_W, CELL_H] or doc.get("page") != [PAGE_W, PAGE_H]:
+                sys.exit(f"{self.index_path}: not a version 1 atlas of {CELL_W}x{CELL_H} cells on {PAGE_W}x{PAGE_H} pages")
+            self.items = {k: list(v) for k, v in doc.get("items", {}).items()}
+            self.pages = list(doc.get("pages", []))
+
+    def page(self, n):
+        Image = need_pillow()
+        if n not in self._img:
+            path = os.path.join(self.dir, self.pages[n])
+            if os.path.isfile(path):
+                with Image.open(path) as im:
+                    self._img[n] = im.convert("RGB")
+            else:
+                self._img[n] = Image.new("RGB", (PAGE_W, PAGE_H), (0, 0, 0))
+        return self._img[n]
+
+    def free_slot(self):
+        taken = {tuple(v) for v in self.items.values()}
+        for n in range(len(self.pages)):
+            for row in range(ROWS):
+                for col in range(COLS):
+                    if (n, col, row) not in taken:
+                        return [n, col, row]
+        n = len(self.pages)                # every cell is taken: open a page
+        self.pages.append(f"entities-{n}.jpg")
+        return [n, 0, 0]
+
+    @staticmethod
+    def box(slot):
+        _, col, row = slot
+        return (col * CELL_W, row * CELL_H, (col + 1) * CELL_W, (row + 1) * CELL_H)
+
+    def put(self, stem, cell):
+        """Place a 320x180 cell under `stem`. Returns 'added' | 'replaced' | 'unchanged'."""
+        Image = need_pillow()
+        had = stem in self.items
+        slot = self.items[stem] if had else self.free_slot()
+        page = self.page(slot[0])
+        box = self.box(slot)
+        if had:
+            old = page.crop(box)
+            diff = sum(abs(a - b) for a, b in zip(old.tobytes(), cell.tobytes())) / (CELL_W * CELL_H * 3)
+            if diff <= SAME_MAE:
+                return "unchanged"
+        page.paste(cell, box)
+        self._dirty.add(slot[0])
+        self.items[stem] = slot
+        return "replaced" if had else "added"
+
+    def remove(self, stem):
+        slot = self.items.pop(stem, None)
+        if slot is None:
+            return False
+        Image = need_pillow()
+        self.page(slot[0]).paste(Image.new("RGB", (CELL_W, CELL_H), (0, 0, 0)), self.box(slot))
+        self._dirty.add(slot[0])
+        return True
+
+    def index_text(self):
+        """Sorted keys, ONE item a line: a diff shows exactly the names added."""
+        lines = [f'    {json.dumps(k)}: [{v[0]}, {v[1]}, {v[2]}]' for k, v in sorted(self.items.items())]
+        return ('{\n  "version": 1,\n  "cell": [%d, %d],\n  "page": [%d, %d],\n  "pages": %s,\n  "items": {\n%s\n  }\n}\n'
+                % (CELL_W, CELL_H, PAGE_W, PAGE_H, json.dumps(self.pages), ",\n".join(lines)))
+
+    def save(self):
+        """Writes ONLY the pages whose pixels changed, then the index when its text changed. Returns the files written."""
+        os.makedirs(self.dir, exist_ok=True)
+        written = []
+        for n in sorted(self._dirty):
+            path = os.path.join(self.dir, self.pages[n])
+            self._img[n].save(path, "JPEG", quality=JPEG_Q, optimize=True, subsampling=0)
+            written.append(path)
+        text = self.index_text()
+        old = None
+        if os.path.isfile(self.index_path):
+            with open(self.index_path, encoding="utf-8", newline="") as fh:
+                old = fh.read()
+        if old != text:
+            with open(self.index_path, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(text)
+            written.append(self.index_path)
+        self._dirty.clear()
+        return written
+
+
+def pack_files(atlas, files):
+    """files: [(stem, path)] -> table rows."""
+    rows = []
+    for stem, path in files:
+        try:
+            result = atlas.put(stem, cell_image(path))
+        except OSError as e:
+            rows.append((stem, "failed", str(e))); continue
+        slot = atlas.items[stem]
+        rows.append((stem, result, f"page {slot[0]} col {slot[1]} row {slot[2]}"))
+    return rows
+
+
+def loose_generated(nas, only=None):
+    """[(stem, path)] of the loose generated/*.png on the NAS (only those stems when given)."""
+    folder = os.path.join(nas, "assets", "thumbnails", "generated")
+    if not os.path.isdir(folder):
+        return []
+    out = []
+    for f in sorted(os.listdir(folder)):
+        if f.lower().endswith(".png") and (only is None or f[:-4] in only):
+            out.append((f[:-4], os.path.join(folder, f)))
+    return out
+
+
+def print_table(rows, header="item"):
+    width = max((len(r[0]) for r in rows), default=len(header))
+    print(f"{header.ljust(width)}  result             detail")
+    for item, result, detail in rows:
+        print(f"{item.ljust(width)}  {result.ljust(18)} {detail}")
+
+
+def atlas_report(atlas, written):
+    for path in written:
+        print(f"   wrote {path}  ({os.path.getsize(path)} bytes)")
+    total = sum(os.path.getsize(os.path.join(atlas.dir, f)) for f in atlas.pages + [INDEX_NAME] if os.path.isfile(os.path.join(atlas.dir, f)))
+    print(f"   atlas: {len(atlas.items)} pictures on {len(atlas.pages)} page(s), {total} bytes with the index")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--scenarios", nargs="*", default=None, metavar="NAME", help="scenario names (none given = every repository scenario)")
     ap.add_argument("--types", nargs="*", type=int, default=None, metavar="ID", help="TKB type ids (none given = every type)")
     ap.add_argument("--port", type=int, default=8111)
+    ap.add_argument("--force", action="store_true", help="⭐ CE-4271 — with --scenarios: re-shoot a scenario that already has a preview.jpg/.png (the repo file is overwritten; commit it only on purpose)")
     ap.add_argument("--attach", action="store_true", help="use an editor already listening on --port (do not launch or stop one)")
     ap.add_argument("--nas", default=DEFAULT_NAS, help=f"the NAS root the pictures go into (default {DEFAULT_NAS})")
     ap.add_argument("--studio", default="test-move", help="the bare scenario types are spawned in (default test-move: no terrain)")
+    ap.add_argument("--pack", action="store_true", help="⭐ CE-4271 — pack the loose generated/*.png on the NAS (with --types: just those just captured) into the entity atlas")
+    ap.add_argument("--add-image", metavar="FILE", help="⭐ CE-4271 — pack this picture under --name (centre-cropped to 16:9, 320x180); no editor needed")
+    ap.add_argument("--name", metavar="TypeName", help="the TKB type name --add-image / --atlas-remove names")
+    ap.add_argument("--atlas-list", action="store_true", help="⭐ CE-4271 — list the atlas: stem, page, col, row")
+    ap.add_argument("--atlas-remove", metavar="TypeName", help="⭐ CE-4271 — free a type's slot (its cell goes black, the next add reuses it)")
+    ap.add_argument("--atlas-dir", default=ATLAS_DIR, help=f"the atlas directory (default {ATLAS_DIR}); a test passes a temp one")
     args = ap.parse_args()
-    if args.scenarios is None and args.types is None:
-        sys.exit("say what: --scenarios [names] and/or --types [ids]")
+    atlas_only = args.atlas_list or args.atlas_remove or args.add_image or (args.pack and args.types is None and args.scenarios is None)
+    if args.scenarios is None and args.types is None and not atlas_only:
+        sys.exit("say what: --scenarios [names] and/or --types [ids], or --pack · --add-image F --name T · --atlas-list · --atlas-remove T")
     nas = os.path.abspath(args.nas)
     if os.path.commonpath([nas, REPO]) == REPO:
         sys.exit("⛔ --nas is inside the repository: generated pictures are never written there")
+
+    if atlas_only:
+        return atlas_main(args, nas)
 
     udc.BASE = f"http://localhost:{args.port}"
     proc, rows = None, []
@@ -463,16 +666,54 @@ def main():
         if not args.attach:
             proc = udc.launch(args.port, "editor")
         if args.scenarios is not None:
-            do_scenarios(scenario_names(args.scenarios), nas, rows)
+            do_scenarios(scenario_names(args.scenarios), rows, args.force)
         if args.types is not None:
             do_types(args.types, nas, args.studio, rows)
     finally:
         if proc is not None:
             udc.stop(proc)
-    width = max((len(r[0]) for r in rows), default=10)
-    print(f"{'item'.ljust(width)}  result             detail")
-    for item, result, detail in rows:
-        print(f"{item.ljust(width)}  {result.ljust(18)} {detail}")
+    print_table(rows)
+    if args.pack and args.types is not None:        # capture then pack: just the stems this run captured
+        stems = {os.path.basename(r[2])[:-4] for r in rows if r[1] == "ok" and r[2].endswith(".png")}
+        pack_rows(args, nas, loose_generated(nas, stems))
+    sys.exit(1 if any(r[1] == "failed" for r in rows) else 0)
+
+
+def pack_rows(args, nas, files):
+    atlas = Atlas(args.atlas_dir)
+    rows = pack_files(atlas, files)
+    written = atlas.save()
+    print_table(rows, "stem")
+    atlas_report(atlas, written)
+    return rows
+
+
+def atlas_main(args, nas):
+    """The editor-free atlas commands."""
+    atlas = Atlas(args.atlas_dir)
+    if args.atlas_list:
+        rows = [(stem, "slot", f"page {v[0]} col {v[1]} row {v[2]}") for stem, v in sorted(atlas.items.items())]
+        print_table(rows, "stem")
+        print(f"   {len(atlas.items)} pictures on {len(atlas.pages)} page(s)")
+        return
+    if args.atlas_remove:
+        stem = generated_name(args.atlas_remove)
+        if not stem or not atlas.remove(stem):
+            sys.exit(f"{args.atlas_remove!r} is not in the atlas (--atlas-list)")
+        atlas_report(atlas, atlas.save())
+        return
+    if args.add_image:
+        stem = generated_name(args.name)
+        if not stem:
+            sys.exit("--add-image needs --name <TypeName> (a name without '..')")
+        if not os.path.isfile(args.add_image):
+            sys.exit(f"no such file: {args.add_image}")
+        rows = pack_files(atlas, [(stem, args.add_image)])
+        written = atlas.save()
+        print_table(rows, "stem")
+        atlas_report(atlas, written)
+        sys.exit(1 if rows[0][1] == "failed" else 0)
+    rows = pack_rows(args, nas, loose_generated(nas))
     sys.exit(1 if any(r[1] == "failed" for r in rows) else 0)
 
 

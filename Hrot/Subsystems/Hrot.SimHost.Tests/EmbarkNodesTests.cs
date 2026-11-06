@@ -876,6 +876,41 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(hit, p.Point);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1299</c> (§8r.2) — the crosshair on a MAN 30 m away: the gun converges THERE (on the look ray, at the hit's distance), so a
+        /// muzzle below the eye puts the round on him, not at his feet. The old fixed 300 m point, seen from a muzzle 2 m below the eye, passes
+        /// ~1.8 m under the crosshair at 30 m. 🔴 Red-proof: <c>SightPoint</c> ignoring the hit (always the zero range) ⇒ the Point assertion fails.
+        /// </summary>
+        [Fact]
+        public void CE1299_SightOnATurretGun_ConvergesWhereTheCrosshairIs_SoTheRoundIsNotAtHisFeet()
+        {
+            var op = TurretMgOperator();
+            var ws = default(OperatorControlBehavior.ManualControlState);
+            var eye = new Vector3(0f, 0f, 3.5f);
+            var dir = Vector3.Normalize(new Vector3(0f, 30f, -2.5f));          // looking at a man's chest 30 m out, from a pickup's bed
+            var chest = eye + dir * 30.1f;
+            ref var input = ref _w.GetComponentRW<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op);
+            input.Seq++; input.Mount = 0; input.ShotSeq = 1; input.Trigger = 1; input.AimPoint = chest;
+            input.LookFrom = eye; input.LookDir = dir;
+            Tick(op, ref ws);
+
+            var p = ParamsOf(op);
+            Assert.Equal(Fdp.Toolkit.Combat.Executors.AimAndFireParams.OperatorAlongBarrel, p.Operator);
+            Assert.True(Vector3.Distance(chest, p.Point) < 0.01f, $"converges at {p.Point}, the crosshair is on {chest}");
+
+            // the round from a muzzle 2 m below the eye, along the barrel to that point, crosses the man's range AT the crosshair
+            var muzzle = eye - new Vector3(0f, 0f, 2f);
+            var along = Vector3.Normalize(p.Point - muzzle);
+            var atHisRange = muzzle + along * ((chest.Y - muzzle.Y) / along.Y);
+            Assert.True(System.MathF.Abs(atHisRange.Z - chest.Z) < 0.05f, $"the round is {chest.Z - atHisRange.Z:F2} m under the crosshair");
+
+            // the far terrain behind (leading a car, CE-4143) keeps the 300 m zero
+            ref var far = ref _w.GetComponentRW<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op);
+            far.Seq++; far.AimPoint = eye + dir * 900f;
+            Tick(op, ref ws);
+            Assert.True(Vector3.Distance(eye + dir * OperatorFireModes.SightZeroMetres, ParamsOf(op).Point) < 0.01f);
+        }
+
         /// <summary>⭐ <c>CE-4143</c> — a frame with no look ray (an older station: <c>LookDir</c> zero) keeps today's SIGHT: the crosshair's
         /// point and the on-target gate, never a point at the zero range of nothing.</summary>
         [Fact]

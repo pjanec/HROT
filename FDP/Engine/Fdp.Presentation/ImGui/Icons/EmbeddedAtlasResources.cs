@@ -35,6 +35,16 @@ public static class EmbeddedAtlasResources
     /// <summary>⭐ <c>CE-4112</c> — the raw PNG bytes of the HROT wallpaper, read through the same loader as the silk atlas.</summary>
     public static byte[] GetWallpaperPngBytes() => Read(WallpaperResourceName);
 
+    /// <summary>⭐ CE-4271 — the bytes of a resource embedded in ANOTHER assembly (the entity thumbnail atlas lives in Hrot.Presentation), through the same reader; null when it is not there.</summary>
+    public static byte[]? TryRead(System.Reflection.Assembly assembly, string resourceName)
+    {
+        using var stream = assembly.GetManifestResourceStream(resourceName);
+        if (stream is null) return null;
+        using var ms = new MemoryStream();
+        stream.CopyTo(ms);
+        return ms.ToArray();
+    }
+
     private static byte[] Read(string resourceName)
     {
         var asm    = typeof(EmbeddedAtlasResources).Assembly;

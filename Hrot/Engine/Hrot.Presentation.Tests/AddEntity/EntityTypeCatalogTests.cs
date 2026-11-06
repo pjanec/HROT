@@ -1,4 +1,5 @@
 using Fdp.Core;
+using Fdp.Presentation.Icons;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Tkb;
@@ -271,6 +272,118 @@ public sealed class EntityTypeCatalogTests
         Assert.Null(map.Resolve(null, null, "  "));
         Assert.Equal(Path.Combine("/th", "generated", "a_b_c.png"), map.Resolve(null, null, "a/b c"));
         Assert.Null(ThumbnailMap.GeneratedFileName(null));
+    }
+
+    // ── ⭐ CE-4271 (docs/DESIGN_Add_Entity_Picker.md §2j) — step ④: the EMBEDDED atlas ─────────────────────────────────────────────────────────
+
+    private const string AtlasJson = """{ "version": 1, "cell": [320,180], "page": [2048,2048], "pages": ["entities-0.jpg"], "items": { "Tank_X": [0, 2, 1], "Other": [0, 0, 0] } }""";
+
+    private static ThumbnailAtlas AtlasOf(Func<string, (IntPtr tex, int w, int h)?>? upload = null) => new(AtlasIndex.Parse(AtlasJson), upload ?? (_ => ((IntPtr)5, 2048, 2048)));
+
+    private static GalleryData GalleryWithAtlas(ThumbnailAtlas? atlas, params string[] existingFiles)
+    {
+        var map = ThumbnailMap.Parse("""{ "thumbnails": [ { "mask": "1.1.*.1", "file": "tank.png" } ] }""", "/th", p => existingFiles.Contains(Path.GetFileName(p)), atlas);
+        return new GalleryData(ShippedGallery().Groups, map);
+    }
+
+    /// <summary>④ fills the last gap: with no ① / ② / ③ the type shows <c>atlas:entities/&lt;stem&gt;</c>; ③ (a loose generated file — a fresh capture) wins over ④; ① and ② win over both; a type the atlas lacks, or a map built with no atlas, gives null.
+    /// 🔴 Red-proof (compiles): step ④ answering BEFORE ③ ⇒ the "loose wins" row goes red.</summary>
+    [Fact]
+    public void CE4271_TheAtlas_IsStepFour_AfterTheLooseFile_ThroughTheMask_AndTheExplicitName()
+    {
+        var atlas = AtlasOf();
+        Assert.Equal("atlas:entities/Tank_X", Of(EntityTypeCatalog.Build(OneTank(null), gallery: GalleryWithAtlas(atlas)), 90100).Thumbnail);
+        Assert.Equal(Path.Combine("/th", "generated", "Tank_X.png"), Of(EntityTypeCatalog.Build(OneTank(null), gallery: GalleryWithAtlas(atlas, "Tank_X.png")), 90100).Thumbnail);   // ③ beats ④
+        Assert.Equal(Path.Combine("/th", "tank.png"), Of(EntityTypeCatalog.Build(OneTank(null), gallery: GalleryWithAtlas(atlas, "tank.png")), 90100).Thumbnail);                      // ② beats ④
+        Assert.Equal(Path.Combine("/th", "mine.png"), Of(EntityTypeCatalog.Build(OneTank("mine"), gallery: GalleryWithAtlas(atlas, "mine.png")), 90100).Thumbnail);                     // ① beats ④
+        Assert.Null(Of(EntityTypeCatalog.Build(OneTank(null), gallery: GalleryWithAtlas(null)), 90100).Thumbnail);                                                                       // no atlas passed ⇒ nothing from it
+        Assert.Null(Of(EntityTypeCatalog.Build(OneTank(null), gallery: GalleryWithAtlas(new ThumbnailAtlas(AtlasIndex.Empty, _ => null))), 90100).Thumbnail);                            // not in the atlas ⇒ glyph
+    }
+
+    /// <summary>The atlas's resident image: a page is decoded and uploaded ONCE, on the first ask for any of its pictures; the picture is the page texture with its CELL's UV rectangle (not the whole page); an unknown key and a page
+    /// that will not load answer null (the failure remembered, not retried each frame); after the first upload the lookup allocates nothing (R-2084). 🔴 Red-proof: the whole page's UV (0,0)–(1,1) returned ⇒ the cell row goes red.</summary>
+    [Fact]
+    public void CE4271_ThumbnailAtlas_UploadsAPageOnce_ServesTheCellsUv_AndAllocatesNothingAfterwards()
+    {
+        int uploads = 0;
+        var atlas = AtlasOf(name => { uploads++; return ((IntPtr)5, 2048, 2048); });
+        Assert.Equal(0, uploads);                                         // nothing is uploaded until a picture is asked for
+        Assert.True(atlas.Contains("Tank_X") && !atlas.Contains("Nope"));   // the pure half never touches the GPU
+        Assert.Equal(0, uploads);
+
+        var img = atlas.TryGetImage("atlas:entities/Tank_X")!.Value;      // col 2, row 1 of 320 x 180 cells
+        Assert.Equal(((IntPtr)5, 320, 180), (img.Texture, img.Width, img.Height));
+        Assert.Equal(new System.Numerics.Vector2(640f / 2048f, 180f / 2048f), img.Uv0);
+        Assert.Equal(new System.Numerics.Vector2(960f / 2048f, 360f / 2048f), img.Uv1);
+        Assert.NotNull(atlas.TryGetImage("atlas:entities/Other"));
+        Assert.Equal(1, uploads);                                         // two pictures, one page, one upload
+        Assert.Null(atlas.TryGetImage("atlas:entities/Nope"));
+        Assert.Null(atlas.TryGetImage(Path.Combine("/th", "x.png")));     // a file path is not an atlas key
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 1000; i++) { _ = atlas.TryGetImage("atlas:entities/Tank_X"); _ = atlas.TryGetImage("atlas:entities/Other"); }
+        Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);   // the steady frame allocates nothing
+
+        int failed = 0;
+        var broken = AtlasOf(_ => { failed++; return null; });
+        Assert.Null(broken.TryGetImage("atlas:entities/Tank_X"));
+        Assert.Null(broken.TryGetImage("atlas:entities/Other"));
+        Assert.Equal(1, failed);                                          // a page that will not load is remembered, not retried
+    }
+
+    /// <summary>⭐ CE-4271 — round trip over the SHIPPED files (<c>Thumbnails/entities.atlas.json</c> + its pages, embedded in the assembly): the index parses,
+    /// holds the 75 committed pictures sorted by stem with slot == position (6 x 11 cells per page, row-major), every page is an embedded JPEG
+    /// well under 1 MB, and <see cref="ThumbnailAtlas.Shared"/> serves the same set. 🔴 Red-proof: a packer that re-orders slots or drops a page ⇒ red.</summary>
+    [Fact]
+    public void CE4271_TheShippedAtlas_RoundTrips_SortedStems_SlotIsPosition_PagesAreEmbeddedJpegs()
+    {
+        var asm  = typeof(ThumbnailAtlas).Assembly;
+        var json = System.Text.Encoding.UTF8.GetString(EmbeddedAtlasResources.TryRead(asm, ThumbnailAtlas.IndexResourceName) ?? Array.Empty<byte>());
+        var idx  = AtlasIndex.Parse(json);
+        Assert.Equal(75, idx.Count);
+        Assert.Equal(75, ThumbnailAtlas.Shared.Count);
+
+        var names = idx.Names.ToList();
+        Assert.Equal(names.OrderBy(n => n, StringComparer.Ordinal).ToList(), names);
+        int perPage = idx.Columns * idx.Rows;
+        for (int i = 0; i < names.Count; i++)
+        {
+            Assert.True(idx.TryGet(names[i], out int page, out int x, out int y, out int w, out int h));
+            int slot = i % perPage;
+            Assert.Equal(i / perPage, page);
+            Assert.Equal(slot % idx.Columns * idx.CellW, x);
+            Assert.Equal(slot / idx.Columns * idx.CellH, y);
+            Assert.Equal((idx.CellW, idx.CellH), (w, h));
+            Assert.True(ThumbnailAtlas.Shared.Contains(names[i]));
+        }
+        long total = 0;
+        foreach (var pg in idx.Pages)
+        {
+            var bytes = EmbeddedAtlasResources.TryRead(asm, "Thumbnails/" + pg);
+            Assert.NotNull(bytes);
+            Assert.True(bytes!.Length > 1000 && bytes[0] == 0xFF && bytes[1] == 0xD8, pg + " is not a JPEG");
+            total += bytes.Length;
+        }
+        Assert.True(total < 1_000_000, "the shipped atlas grew to " + total + " bytes");
+    }
+
+    /// <summary>⭐ The silent-default rule — a forwarding rail PER production caller of <see cref="ThumbnailAtlas.Shared"/>, asserted on the CONSTRUCTED object: <c>GalleryData.Shipped</c> (its one build, <c>ShippedOver</c>) hands the shared atlas to the
+    /// thumbnail map it builds, and <c>EntityAuthoring.CreatePickers</c> wires the same atlas as the image cache's RESIDENT lookup. 🔴 Red-proof: either caller dropping the argument ⇒ red.</summary>
+    [Fact]
+    public void CE4271_EveryProductionCaller_PassesTheSharedAtlas()
+    {
+        var shipped = GalleryData.ShippedOver(ContentLayout.ThumbnailAssets(ContentLayout.TryFindSourceTree()!));
+        Assert.NotNull(shipped);
+        Assert.Same(ThumbnailAtlas.Shared, shipped!.Thumbnails.Atlas);
+
+        var pickers = Hrot.UI.Common.AddEntity.EntityAuthoring.CreatePickers(recent: new NodeEditor.UI.Picker.RecentStore());
+        var resident = pickers.Images.Resident;
+        Assert.NotNull(resident);
+        Assert.Same(ThumbnailAtlas.Shared, resident!.Target);             // the delegate IS ThumbnailAtlas.Shared.TryGetImage
+
+        // and the source says so, in the one place each is built (a second `new ThumbnailMap(` / `new PickerImageCache(` in production would be a path round the rail)
+        string pack = File.ReadAllText(Path.Combine(Fdp.Testing.TestRepo.Root, "Hrot/Engine/Hrot.Presentation/AddEntity/ThumbnailMap.cs"));
+        Assert.Contains("TryLoad(folder, out _, ThumbnailAtlas.Shared)", pack);
     }
 
     [Fact]

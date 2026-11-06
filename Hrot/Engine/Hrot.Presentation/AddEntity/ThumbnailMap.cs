@@ -20,23 +20,29 @@ public sealed class ThumbnailMap
     private readonly string _folder;
     private readonly IReadOnlyList<ThumbnailRule> _rules;
     private readonly Func<string, bool> _exists;
+    private readonly ThumbnailAtlas? _atlas;
 
-    /// <summary>A map over <paramref name="folder"/> with <paramref name="rules"/>; <paramref name="exists"/> (default: the file system) decides whether a file is there.</summary>
-    public ThumbnailMap(string folder, IReadOnlyList<ThumbnailRule> rules, Func<string, bool>? exists = null)
+    /// <summary>A map over <paramref name="folder"/> with <paramref name="rules"/>; <paramref name="exists"/> (default: the file system) decides whether a file is there.
+    /// ⭐ CE-4271 — <paramref name="atlas"/> is the embedded entity atlas step ④ asks (null: no step ④). ⛔ A production caller that HAS <see cref="ThumbnailAtlas.Shared"/> must pass it.</summary>
+    public ThumbnailMap(string folder, IReadOnlyList<ThumbnailRule> rules, Func<string, bool>? exists = null, ThumbnailAtlas? atlas = null)
     {
+        _atlas = atlas;
         _folder = folder ?? throw new ArgumentNullException(nameof(folder));
         _rules = rules ?? throw new ArgumentNullException(nameof(rules));
         _exists = exists ?? File.Exists;
     }
 
     /// <summary>No rules: every tile without an explicit name draws its glyph.</summary>
-    public static ThumbnailMap Empty(string folder) => new(folder, Array.Empty<ThumbnailRule>());
+    public static ThumbnailMap Empty(string folder, ThumbnailAtlas? atlas = null) => new(folder, Array.Empty<ThumbnailRule>(), null, atlas);
+
+    /// <summary>⭐ CE-4271 — the atlas step ④ asks (null: none).</summary>
+    public ThumbnailAtlas? Atlas => _atlas;
 
     /// <summary>The rules, in file order.</summary>
     public IReadOnlyList<ThumbnailRule> Rules => _rules;
 
     /// <summary>Parses <c>map.json</c>; throws <see cref="FormatException"/> naming a bad mask or a row with no file.</summary>
-    public static ThumbnailMap Parse(string json, string folder, Func<string, bool>? exists = null)
+    public static ThumbnailMap Parse(string json, string folder, Func<string, bool>? exists = null, ThumbnailAtlas? atlas = null)
     {
         JsonDocument doc;
         try { doc = JsonDocument.Parse(json, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true }); }
@@ -54,18 +60,18 @@ public sealed class ThumbnailMap
                     if (string.IsNullOrWhiteSpace(file)) throw new FormatException($"map.json: the mask '{mask}' names no file.");
                     rules.Add(new ThumbnailRule(parsed, file));
                 }
-            return new ThumbnailMap(folder, rules, exists);
+            return new ThumbnailMap(folder, rules, exists, atlas);
         }
     }
 
     /// <summary>Reads <paramref name="path"/> (the folder is its directory); an absent file is an empty map, an unreadable one null.</summary>
-    public static ThumbnailMap? TryLoad(string path, out string? error)
+    public static ThumbnailMap? TryLoad(string path, out string? error, ThumbnailAtlas? atlas = null)
     {
         error = null;
         string folder = Path.GetDirectoryName(path) ?? "";
         try
         {
-            return File.Exists(path) ? Parse(File.ReadAllText(path), folder) : Empty(folder);
+            return File.Exists(path) ? Parse(File.ReadAllText(path), folder, null, atlas) : Empty(folder, atlas);
         }
         catch (Exception e) when (e is FormatException or IOException or UnauthorizedAccessException)
         {
@@ -92,7 +98,10 @@ public sealed class ThumbnailMap
                     best = r;
             if (best is not null) return FileIn(best.File);
         }
-        return GeneratedFileName(typeName) is { } g ? FileIn(g, GeneratedFolder) : null;   // ③
+        var stem = GeneratedFileName(typeName);
+        if (stem is null) return null;
+        if (FileIn(stem, GeneratedFolder) is { } loose) return loose;                                     // ③ a loose generated/<stem>.png (a fresh capture shows at once)
+        return _atlas is { } a && a.Contains(stem) ? ThumbnailAtlas.KeyOf(stem) : null;                    // ④ ⭐ CE-4271 — the embedded atlas picture's key (the cache serves it resident)
     }
 
     /// <summary>The sub-folder of the generated pictures (beside <c>map.json</c>).</summary>
@@ -126,16 +135,18 @@ public sealed record GalleryData(GalleryGroups Groups, ThumbnailMap Thumbnails)
     public const string GroupsFile = "groups.json";
     public const string MapFile = "map.json";
 
-    /// <summary>Loads <paramref name="folder"/>; <paramref name="error"/> says what failed when the result is null.</summary>
-    public static GalleryData? TryLoad(string folder, out string? error)
+    /// <summary>Loads <paramref name="folder"/>; <paramref name="error"/> says what failed when the result is null. ⭐ CE-4271 — <paramref name="atlas"/> feeds the thumbnail map's step ④.</summary>
+    public static GalleryData? TryLoad(string folder, out string? error, ThumbnailAtlas? atlas = null)
     {
         var groups = GalleryGroups.TryLoad(Path.Combine(folder, GroupsFile), out error);
         if (groups is null) return null;
-        var map = ThumbnailMap.TryLoad(Path.Combine(folder, MapFile), out error);
+        var map = ThumbnailMap.TryLoad(Path.Combine(folder, MapFile), out error, atlas);
         return map is null ? null : new GalleryData(groups, map);
     }
 
     /// <summary>The shipped gallery: the NAS's <c>assets/thumbnails</c> (a dev start seeds it from the repository's).</summary>
-    public static GalleryData? Shipped()
-        => TryLoad(Fdp.Toolkit.Orchestration.ContentLayout.ThumbnailAssets(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot), out _);
+    public static GalleryData? Shipped() => ShippedOver(Fdp.Toolkit.Orchestration.ContentLayout.ThumbnailAssets(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot));
+
+    /// <summary>⭐ CE-4271 — <see cref="Shipped"/> over a given folder: the ONE place the shipped gallery is built, and it PASSES <see cref="ThumbnailAtlas.Shared"/> (the forwarding rail builds one over a temp folder).</summary>
+    public static GalleryData? ShippedOver(string folder) => TryLoad(folder, out _, ThumbnailAtlas.Shared);
 }

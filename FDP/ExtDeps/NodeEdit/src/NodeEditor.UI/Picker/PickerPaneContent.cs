@@ -25,7 +25,7 @@ internal static class PickerPaneContent
         if (entry.ImageKey is { Length: > 0 } key && images.TryGet(key, out var img))
         {
             var size = PickerImageCache.FitToWidth(img.Width, img.Height, width - ImGui.GetStyle().WindowPadding.X);
-            ImGui.Image(img.Texture, size);
+            ImGui.Image(img.Texture, size, img.Uv0, img.Uv1);
         }
         else if (entry.IconKey is { Length: > 0 } iconKey && ctx.Icons.TryGet(iconKey, out var icon))
         {

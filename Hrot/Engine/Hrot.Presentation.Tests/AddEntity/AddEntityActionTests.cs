@@ -110,6 +110,31 @@ public sealed class AddEntityActionTests
         Assert.DoesNotContain(rows, e => e.Category!.StartsWith("Areas"));
     }
 
+    /// <summary>
+    /// ⭐ CE-4271 ④ (docs/DESIGN_Add_Entity_Picker.md §2j) — THE MEASUREMENT: does a RUNNING editor's Add Entity picker show a picture written after it started? ✅ <b>Yes, with no reload route.</b> 📐 The catalogue is re-resolved on EVERY open
+    /// (<c>AddEntityAction.RequestFor</c> → <c>BuildGalleryRequest</c> → <c>EntityTypeCatalog.Build</c> → <c>ThumbnailMap.Resolve</c>'s <c>File.Exists</c>), and a loose <c>generated/&lt;stem&gt;.png</c> that did not exist at the first open
+    /// was never OFFERED as a key, so the image cache holds no remembered failure for it. ⚠ The one thing a running picker does NOT see is a file REPLACED at the same path (the cache keeps its texture by key until restart).
+    /// </summary>
+    [Fact]
+    public void CE4271_ARunningPicker_SeesAPictureWrittenAfterItStarted_TheCatalogIsReResolvedOnEveryOpen()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "hrot-ce4271-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var rig = new Rig(new GalleryData(EntityTypeCatalogTests.ShippedGallery().Groups, ThumbnailMap.Empty(dir)));
+            Assert.True(rig.Action.Open(GlobalActionIds.AddEntityHostile));
+            Assert.Null(rig.Request!.ItemsProvider().Single(e => e.Name == "T-72").ImageKey);        // nothing yet: the glyph
+
+            Directory.CreateDirectory(Path.Combine(dir, "generated"));
+            File.WriteAllBytes(Path.Combine(dir, "generated", "T-72.png"), new byte[] { 1 });          // a capture lands while the editor runs
+
+            Assert.True(rig.Action.Open(GlobalActionIds.AddEntityHostile));                            // the next open of the SAME running action
+            Assert.EndsWith("T-72.png", rig.Request!.ItemsProvider().Single(e => e.Name == "T-72").ImageKey);
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
     [Fact]
     public void CE4142_GL4_PlaceOnMap_ArmsExactlyAsTheTreePickDid_AnotherActionDoesNot()
     {

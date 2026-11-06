@@ -553,6 +553,37 @@ public sealed class AssetPickerLauncherTests
         Assert.Equal("Pick a scenario first", withChoice.GoLiveDisabledReason(EntryFor(new StubAsset { Kind = AssetKind.BTree, Name = "p" })));
     }
 
+    /// <summary>
+    /// ⭐ CE-4271 (§2j) — a scenario's still is a small <c>preview.jpg</c> (generated, 320 × 180): BOTH readers — the picker's tile (<c>AssetPickerLauncher</c>) and the pane — go through <c>ScenarioPaneFacts.PreviewOf</c>, which tries <c>preview.jpg</c>
+    /// first and then <c>preview.png</c> (a hand-made one still works), and gives null when neither is there. 🔴 Red-proof (compiles): the order reversed (png first) ⇒ the "both present" row goes red.
+    /// </summary>
+    [Fact]
+    public void CE4271_AScenarioPicture_IsPreviewJpg_ThenPreviewPng()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "pk4271-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            string Dir(string n) { var d = Path.Combine(root, n); Directory.CreateDirectory(d); File.WriteAllText(Path.Combine(d, "scenario.json"), "{}"); return d; }
+            File.WriteAllBytes(Path.Combine(Dir("jpg"), "preview.jpg"), new byte[] { 1 });
+            File.WriteAllBytes(Path.Combine(Dir("png"), "preview.png"), new byte[] { 1 });
+            var both = Dir("both"); File.WriteAllBytes(Path.Combine(both, "preview.jpg"), new byte[] { 1 }); File.WriteAllBytes(Path.Combine(both, "preview.png"), new byte[] { 1 });
+            Dir("none");
+            string Json(string n) => Path.Combine(root, n, "scenario.json");
+
+            Assert.EndsWith("preview.jpg", ScenarioPaneFacts.PreviewOf(Json("jpg")));
+            Assert.EndsWith("preview.png", ScenarioPaneFacts.PreviewOf(Json("png")));        // a hand-made png still shows
+            Assert.EndsWith("preview.jpg", ScenarioPaneFacts.PreviewOf(Json("both")));       // the generated jpg first
+            Assert.Null(ScenarioPaneFacts.PreviewOf(Json("none")));
+
+            // and the picker's tile asks the same function (one reader)
+            var catalog = new FakeCatalog(new StubAsset { Kind = AssetKind.Scenario, Name = "both", SourceFilePath = Json("both") });
+            var picker = new FakeOpenPicker();
+            new AssetPickerLauncher(picker.OpenPicker, catalog, MakeRouter(), baseFolderResolver: _ => "").Open(AssetKindFilter.Scenario);
+            Assert.EndsWith("preview.jpg", picker.CapturedRequest!.ItemsProvider().Single().ImageKey);
+        }
+        finally { try { Directory.Delete(root, true); } catch (IOException) { } }
+    }
+
     [Fact]
     public void CE4141_ARemoteHost_HasNoFileToRead_SoItsPaneSaysSo()
     {
