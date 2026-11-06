@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level, for the user's review (R-4122); the building lanes detail it (R-4123)
-updated: 2026-11-06 (first version — coordinator; editing-UX design queue item 5: D1)
+updated: 2026-11-06 (§1.1 what a world snapshot misses — authored NoPreview components, singletons, files, version-compare caches, pure UI state; §2.3 the restore = the dry run's sequence, not a raw SyncFrom) · 2026-11-06 (first version — coordinator; editing-UX design queue item 5: D1)
 current-answer: §2 the model · §3 stages · §4 questions with leans
 stale-below: nothing
 known-rot: none
@@ -35,8 +35,25 @@ Queries: `search_graph .*(Snapshot|Restore|Checkpoint|DeltaFrame|Keyframe).*` Cl
 | **`EditHistory`** — a linear list of named `(Redo, Undo)` closures; THE one editor history (CE-4218) | `Hrot.Presentation/Edits/EditHistory.cs`; users: the Parameters window (`HeaderParamsSchemaSource`), the rule editor (`RuleDetails`), the AI section (`EntityAiDetailsView`), held once by `EditorSubsystem` |
 | **`GizmoUndoStack`** (Fdp.Toolkits) — records replayed through an ECS command buffer, depth 50 | users: `DataDrivenGizmoSystem`, IG (`IgApplication.cs:812`, Ctrl+Z / Y on the Player's map), the director's take editor (`TakeEditor.cs:53`, `DirectorTakeSession.cs:38`, "the known wart"); ⚠ NOT wired by `MapInteractionPack` ⇒ no map edit is undoable in the editor |
 | a second `GizmoUndoStack` in `GizmoMap.Presentation` | no user; a separate library's public API (CE-4219 ②: classified, not deleted) |
-| ⭐ **world snapshot / restore exists and is used live** | `EntityRepository.SyncFrom(source, mask?, includeTransient?, excludeTypes?)` (`EntityRepository.Sync.cs:23`) copies a whole world; per component table **only the chunks whose version changed** (`ComponentTable.SyncFrom` → `SyncDirtyChunks`); the breakpoint manager REWINDS the live editor world with it (`DataBreakpointManager.cs:586-589`: `_liveRepo.SyncFrom(_preTickSnapshot)`) |
+| ⚠ **world snapshot / restore exists** (see §1.1: the right one is `WorldKeyframes`) | `EntityRepository.SyncFrom(source, mask?, includeTransient?, excludeTypes?)` (`EntityRepository.Sync.cs:23`) copies a whole world; per component table **only the chunks whose version changed** (`ComponentTable.SyncFrom` → `SyncDirtyChunks`); the breakpoint manager REWINDS the live editor world with it (`DataBreakpointManager.cs:586-589`: `_liveRepo.SyncFrom(_preTickSnapshot)`) |
 | ⭐ managed components are immutable records (the CLAUDE.md rule) | so a snapshot's shallow copy of a managed chunk is CORRECT — an old instance is never mutated under it |
+
+### 1.1 What a world snapshot would MISS — measured *(user, `2026-11-06`: "what about the pure ui state (not in ECS repo), i believe there some cases like that, can you analyze")*
+
+Queries: `search_graph` `Scenario.*(Save|Serializer|Resident)` (17), `.*(Selection|Pin|Camera|Layout|Recent).*State` (10),
+`.*(EntityMap|GuidIndex|…|SpatialGrid).*` (18), `.*Undo.*`; grep `ConditionalWeakTable<EntityRepository` (**33 declarations in 30 files**),
+`DataPolicy(… NoPreview …)` (24, of which **9 are saved** with the scenario).
+
+| class | what | measured | ⇒ in the undo |
+|---|---|---|---|
+| **⚠ raw `SyncFrom` is the wrong tool** | its default mask copies only "snapshotable" types and STRIPS the rest from the live entities; it shares managed instances (`ManagedComponentTable.cs:324-327`); it moves `GlobalVersion` and the tick BACK; it never touches singletons, the bus, the lifecycle stream | `EntityRepository.Sync.cs:42, :63, :117-128, :155-156`; the dry run LEFT `SyncFrom` for this reason (`ReferencePreviewHandler.cs:53-55`: `AirPath` mutated) | ⭐ use the EXISTING world-restore sequence instead — §2.3 |
+| **(A) authored, saved, but NOT in the copied tables** | **9 saved components marked `NoPreview`** — `RoutePlan`, `ActiveMissionPlan`, `PositionGeodetic`, `ChildMap`, `SimCombatDef`, `TkbCompositionDef` … — and the behaviour slots' sources (`BehaviorStartRecord`, `SopState`) | `RoutePlan.cs:69`, `DomainMissionPlan.cs:46`, `BehaviorStartRecord.cs:28`, `SopState.cs:85` | ⭐ the capture uses an **AUTHORED mask** (every component saved with the scenario, i.e. not `NoScenario`), not the preview mask |
+| (A) singletons | the **scenario header** (`ScenarioDescriptionResident`: description, name, args, the macro header — replaced whole by `Stamp`), the terrain name, the terrain objects (door states, `TerrainWorld`) | `ScenarioDescription.cs:16-41, :87, :109`; `TerrainObjectsSection.cs:31-35` | the header's edits are already **document steps** (Parameters window); door edits become a document step on `TerrainWorld`; the terrain name never changes (R-4124) |
+| (A) files | `checks.json`, `preview.jpg`, director takes, macro files | `ScenarioChecks.cs:65`; `TakeStore.cs:25`; `MacroLibrary.cs:12` | takes → document steps (U4); writing a file (a preview capture, a macro save) is NOT undone — it says so |
+| **(B) beside the world** | the network-id ↔ entity map, the id allocator, the lifecycle queues, `WorldEpoch`, egress dirty marks | `WorldKeyframes.cs:166-176`, `PreviewParticipants.cs:31-82` | restored by the existing sequence (§2.3) |
+| (B) caches that compare a VERSION | `PartIndex`, `RuleTree`, `LiveRefScope` (250 ms throttle), the rules reader's scopes (`AuthoredRules.Scopes`) | `PartIndex.cs:58`, `RuleTree.cs:45,63`, `LiveRefScope.cs:56` | ⭐ **a restore never moves the version backwards** — it advances it (and the restored chunks carry the new version), so every version-compare cache sees a change by construction; the ones with a throttle get `Invalidate` |
+| (B) per-world logs | `EditOutcomeLog`, `RuleRequestIds`, `ShotLog`, `KillFeed` … (run-time logs) | 33 CWTs | untouched — run-time only, empty in Edit mode; `RuleRequestIds` holds entity handles ⇒ cleared on a restore |
+| **(C) pure UI state** | selection (`SelectionStore`, a transient singleton), gizmo pins (`UnitDebugSettings`), the rubber band, RTS mode, the map canvas view, the camera, the window layout, the Details tab, panel filters, picker recents, the active tool / hat | `SelectionStore.cs:16-18`, `UnitDebugSettings.cs:21-22`, `MapUiStates.cs:16-18`, `AssetRecents.cs` | ⭐ **never undone** — the user's ruling: *"selection is … a UI state having nothing to do with simulation and recording"* (`UX_Feature_Selection.md:1902-1905`); after an undo, a selected entity that no longer exists drops out of the selection |
 
 ## 2. The model
 
@@ -54,15 +71,15 @@ classDiagram
   class WorldSnapshotRing {
     <<NEW>>
     Slots : EntityRepository[] (depth bounded by a memory budget)
-    Capture(live) : SyncFrom — dirty chunks only
-    Restore(live, slot) : live.SyncFrom(slot)
+    Capture(live) : WorldKeyframes, the AUTHORED mask, dirty chunks only
+    Restore(live, slot) : the dry run's sequence (§2.3)
   }
-  class EntityRepository { <<existing>> SyncFrom · SyncDirtyChunks }
+  class WorldKeyframes { <<existing, the dry run's>> Capture · Apply · AfterRestore }
   class Edits { <<design 2>> Submit — opens / closes a step }
   class RestoreListeners { <<NEW hook>> caches derived from the world rebuild after a restore }
   EditHistory "1" o-- "*" HistoryStep
   HistoryStep ..> WorldSnapshotRing : WorldStep
-  WorldSnapshotRing ..> EntityRepository
+  WorldSnapshotRing ..> WorldKeyframes
   Edits ..> EditHistory : one user action = one step
   WorldSnapshotRing ..> RestoreListeners : after Restore
 ```
@@ -102,11 +119,19 @@ exactly what it was, entity ids included, so selection and links stay valid.*
 | **lifetime** | the history survives Preview (Stop returns to the authored state — checked: the world equals the last state); cleared when a scenario is opened / created or the station goes Live; **Save marks the clean point** (dirty = the history position ≠ the saved one) |
 | **outside the editor's network-less Edit mode** | no world steps; Undo greyed with the reason. ⛔ No inverse-operation machinery for the distributed case (the user: *"we do not need to force it"*) |
 
+### 2.3 The restore — the dry run's sequence, not a raw `SyncFrom` *(revised `2026-11-06`)*
+
+⭐ The project already has ONE way to put a world back: the dry run's exit (`ReferencePreviewHandler.cs:225-233`): **`WorldKeyframes.Apply`**
+(no shared managed instances) → **`PreviewStateBracket.Restore()`** (the id allocator, the network-id map, the lifecycle participants —
+registered at `EcsHostClusterHandlers.cs:131-139`) → **`AfterRestore.Run`** (map rebuild, `WorldEpoch.Restored`, republish). ⭐ Undo reuses
+it, with two differences: the capture mask is the AUTHORED set (§1.1 A), and the version moves FORWARD (§1.1 B). `RestoreListeners` (§2.1)
+is `AfterRestore`'s list, extended with the throttled caches' `Invalidate` and the `RuleRequestIds` clear. ⛔ No second restore path (R-174).
+
 ## 3. Stages *(ui; backend for the restore listeners in the shared nodes)*
 
 | stage | what |
 |---|---|
-| **U1** | measure: one capture's size and time on the largest scenario; which derived caches survive a `SyncFrom` restore (the breakpoint rewind's precedent) |
+| **U1** | measure: one AUTHORED-mask capture's size and time on the largest scenario through `WorldKeyframes`; confirm §1.1's list of what the dry run's restore sequence already covers |
 | **U2** | `WorldSnapshotRing` + `WorldStep` in `EditHistory`; step brackets from the edit framework (F1) and from the map gizmos' begin / commit; Ctrl+Z / Ctrl+Y as actions (the keymap, design 4b) |
 | **U3** | restore listeners for the caches U1 names |
 | **U4** | the take editor onto `EditHistory`; `GizmoUndoStack` (Fdp.Toolkits) left with no user — its removal is a separate, later decision |
@@ -116,7 +141,7 @@ exactly what it was, entity ids included, so selection and links stay valid.*
 
 | # | question | ⭐ lean | rejected |
 |---|---|---|---|
-| **Q1** | how world edits are undone | **world snapshots** (`SyncFrom`, dirty chunks only) in a bounded ring — every write path covered by construction | inverse operations per kind of edit — code per kind, misses bypassing writes, the distributed complexity the user does not want |
+| **Q1** | how world edits are undone | **world snapshots** through the dry run's existing capture / restore sequence (`WorldKeyframes` + bracket + `AfterRestore`), with the authored mask and a forward-moving version, in a bounded ring — every write path covered by construction | inverse operations per kind of edit — code per kind, misses bypassing writes, the distributed complexity the user does not want |
 | **Q2** | where undo works | **the editor's network-less composition, in Edit mode**; greyed with the reason elsewhere | undo on CGF / a cluster — not forced (user) |
 | **Q3** | one history | **`EditHistory` holds both** document steps (closures) and world steps (snapshots), in one order | two histories — two Ctrl+Z meanings |
 | **Q4** | step boundaries | **one user action = one step** (opened / closed by the edit framework and the gizmo begin / commit); typing coalesces | a step per write — a drag would be hundreds |
