@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: AQ26's two-axis resolution lets a HOST supply the isApplicable rule; R-4119 narrows it — for an entity, the rule reads the entity's components (§0)
 related-designs:
+  - DESIGN_Mission_Plan_Editor.md — design queue item 3 (E11 / D18): the mission plan editor
   - DESIGN_Edit_Framework.md — design queue item 2 (E0 / D10): one edit framework across stations
   - DESIGN_Action_Catalogue.md — design queue item 1 (E9 + E1 core): one catalogue of declared actions builds every menu and tab offer
   - ../blueprints/RESUME_Coordinator_Editing_UX.md — the programme's resume doc (where we are, what next)
@@ -531,7 +532,7 @@ this chat"* — R-4123.
 |---|---|---|
 | 1 | **E9 + E1 core — the action catalogue and the tab / action `Requires` + mode model** — ✅ [DESIGN_Action_Catalogue.md](DESIGN_Action_Catalogue.md), Q1–Q5 approved (R-4125) | every menu, tab, tool and the editing levels read it |
 | 2 | **E0 — one edit framework across nodes** (extending DESIGN_Remote_Edit_Outcome) — ✅ [DESIGN_Edit_Framework.md](DESIGN_Edit_Framework.md), Q1–Q6 approved as revised (R-4128) | every edit, Messages, and undo read it |
-| 3 | **E11 — the mission plan editor** | the user's "most used tool" |
+| 3 | **E11 — the mission plan editor** — ✍ written 2026-11-06: [DESIGN_Mission_Plan_Editor.md](DESIGN_Mission_Plan_Editor.md), for review | the user's "most used tool" |
 | 4 | **E10 — the hats** (RTS, FPS / possession, instructor, game master, editor, observer) with D4's editing levels | decides what one person at one station sees |
 | 5 | **D1 — undo in Edit mode** (unifying `EditHistory`, `GizmoUndoStack`, the director's stack) | needs E0 |
 | 6 | **E8 — map interaction** (conventions, picks, placement with level / airborne, gizmo looks) | needs E9 for the right-click menu |
