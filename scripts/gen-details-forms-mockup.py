@@ -1,98 +1,29 @@
 # Generates docs/UX/details-forms-visual.svg - an ImGui-default-dark mockup of the Details forms and their states.
-# Regenerate: python3 scripts/gen-details-forms-mockup.py docs/UX/details-forms-visual.svg  (needs Pillow + fonttools; reads FDP/Data/Fonts/fa-solid-900.ttf)
+# Regenerate: python3 scripts/gen-details-forms-mockup.py docs/UX/details-forms-visual.svg  (needs fonttools; draws through scripts/mockup_kit.py)
 import sys
-import base64, io
-from PIL import Image
-import os
-_A=Image.open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"..","FDP","Data","Icons","famfamfam-silk.png")).convert("RGBA")
-def _cell(c):
-    r=c.rstrip("0123456789"); col=int(c[len(r):])-1
-    ri=ord(r)-97 if len(r)==1 else 26+ord(r[1])-97
-    b=io.BytesIO(); _A.crop((col*16,ri*16,col*16+16,ri*16+16)).save(b,"PNG"); return base64.b64encode(b.getvalue()).decode()
-from fontTools.ttLib import TTFont
-from fontTools.pens.svgPathPen import SVGPathPen
-_FA=TTFont(os.path.join(os.path.dirname(os.path.abspath(__file__)),"..","FDP","Data","Fonts","fa-solid-900.ttf"))
-_FAGS=_FA.getGlyphSet(); _FACMAP=_FA.getBestCmap(); _FAUPM=_FA["head"].unitsPerEm
-def fa(cp,x,y,color,sz=14):
-    """Draw the real FontAwesome 6 glyph `cp` (code point) at (x,y) top-left, sz px tall, in `color`."""
-    name=_FACMAP[cp]; pen=SVGPathPen(_FAGS); _FAGS[name].draw(pen)
-    k=sz/_FAUPM; asc=_FA["hhea"].ascent
-    o.append(f"<path d='{pen.getCommands()}' fill='{color}' transform='translate({x},{y+asc*k}) scale({k},{-k})'/>")
-_SILK={k:_cell(k) for k in ["i14","v6","a24","h1","t9","c23"]}
-def silk(cell,x,y,sz=16):
-    o.append(f"<image x='{x}' y='{y}' width='{sz}' height='{sz}' href='data:image/png;base64,{_SILK[cell]}' style='image-rendering:pixelated'/>")
+from mockup_kit import Svg, C, FA
 W,H=1240,900
-o=[]
-def a(s): o.append(s)
-# ImGui default dark (flattened over WindowBg #0F0F0F)
-BG="#0F0F0F"; TITLE="#294A7A"; FRAME="#1D2F48"; FRAMEH="#2A4D7A"; BTN="#23415F"; HDR="#1C344F"
-TXT="#FFFFFF"; DIS="#808080"; BORDER="#3A3A44"; SEP="#4A4A55"; TAB="#1F3A5C"; TABSEL="#3369AD"; ACC="#4296FA"
-ERR="#E65555"; ERRBG="#3A1A1A"; PEND="#F2C033"; PENDBG="#3A3112"; INFO="#6AB0FF"; LOCK="#9A9AA6"
-FONT="font-family='Roboto, Segoe UI, Arial, sans-serif'"
-def t(x,y,s,c=TXT,sz=13,anchor="start",w="normal",st=""):
-    s=s.replace("&","&amp;").replace("<","&lt;")
-    a(f"<text x='{x}' y='{y}' fill='{c}' font-size='{sz}' {FONT} text-anchor='{anchor}' font-weight='{w}' {st}>{s}</text>")
-def tabbar(x,y,w_total,names,selected,TABC="#24242C",SELC="#3A3A48",icons=None,LINE="#3369AD"):
-    """ImGui's tab bar: rounded top corners, flat bottom, a line under the bar in the selected colour."""
-    cx=x
-    for i,name in enumerate(names):
-        ic=icons[i] if icons else None
-        w=22+(19 if ic else 0)+sum(8.6 if ch.isupper() else (3.6 if ch==' ' else (4.0 if ch in 'il&' else 6.9)) for ch in name); c=SELC if i==selected else TABC; rr=4; h=21
-        o.append(f"<path d='M{cx} {y+h} L{cx} {y+rr} Q{cx} {y} {cx+rr} {y} L{cx+w-rr} {y} Q{cx+w} {y} {cx+w} {y+rr} L{cx+w} {y+h} Z' fill='{c}'/>")
-        if i==selected: o.append(f"<rect x='{cx+2}' y='{y}' width='{w-4}' height='2' fill='{LINE}'/>")
-        if ic: fa(ic[0],cx+8,y+4,ic[1],12.5)
-        t(cx+8+(19 if ic else 0),y+15,name); cx+=w+2
-    o.append(f"<rect x='{x}' y='{y+21}' width='{w_total}' height='1.5' fill='{LINE}'/>")
-def r(x,y,w,h,f,stroke=None,rx=0,sw=1,op=1):
-    st=f" stroke='{stroke}' stroke-width='{sw}'" if stroke else ""
-    a(f"<rect x='{x}' y='{y}' width='{w}' height='{h}' fill='{f}' rx='{rx}'{st} opacity='{op}'/>")
-# icons (stand-ins for the FontAwesome 6 glyphs the app has merged)
-def hourglass(x,y,c=PEND):
-    return fa(0xf252,x,y-1,c)
-def _old_hourglass(x,y,c=PEND):
-    a(f"<path d='M{x} {y} h10 M{x} {y+13} h10 M{x+1} {y} L{x+9} {y+13} M{x+9} {y} L{x+1} {y+13}' stroke='{c}' stroke-width='1.6' fill='none'/>")
-def xcircle(x,y,c=ERR):
-    return fa(0xf057,x-1,y-1,c)
-def _old_xcircle(x,y,c=ERR):
-    a(f"<circle cx='{x+6}' cy='{y+6}' r='6.5' fill='{c}'/><path d='M{x+3} {y+3} L{x+9} {y+9} M{x+9} {y+3} L{x+3} {y+9}' stroke='#1A0A0A' stroke-width='1.8'/>")
-def lock(x,y,c=LOCK):
-    return fa(0xf023,x,y-1,c)
-def _old_lock(x,y,c=LOCK):
-    a(f"<rect x='{x}' y='{y+5}' width='11' height='8' rx='1.5' fill='{c}'/><path d='M{x+2.5} {y+5} v-2 a3 3 0 0 1 6 0 v2' stroke='{c}' stroke-width='1.6' fill='none'/>")
-def reset(x,y,c=INFO):
-    return fa(0xf2ea,x-1,y-1,c)
-def _old_reset(x,y,c=INFO):
-    a(f"<path d='M{x+10} {y+6} a5 5 0 1 1 -2 -4' stroke='{c}' stroke-width='1.6' fill='none'/><path d='M{x+6} {y-1} l3 2 l-3 2' stroke='{c}' stroke-width='1.6' fill='none'/>")
-def warn(x,y,c=PEND):
-    return fa(0xf071,x-1,y-1,c)
-def _old_warn(x,y,c=PEND):
-    a(f"<path d='M{x+6} {y} L{x+12.5} {y+12} L{x-0.5} {y+12} Z' fill='{c}'/><rect x='{x+5.2}' y='{y+4}' width='1.6' height='4.5' fill='#1A1400'/><rect x='{x+5.2}' y='{y+9.3}' width='1.6' height='1.6' fill='#1A1400'/>")
-def combo(x,y,w,txt,c=TXT,hint=False):
-    r(x,y,w,19,FRAME); r(x+w-19,y,19,19,BTN)
-    a(f"<path d='M{x+w-14} {y+7} l4.5 5 l4.5 -5 z' fill='{TXT}'/>")
-    t(x+5,y+14,txt,DIS if hint else c)
-def field(x,y,w,txt,c=TXT,border=None,hint=False):
-    r(x,y,w,19,FRAME,stroke=border,sw=1.2)
-    t(x+5,y+14,txt,DIS if hint else c)
-def slider(x,y,w,val,label,dis=False):
-    r(x,y,w,19,FRAME,op=0.55 if dis else 1)
-    gx=x+2+val*(w-14); r(gx,y+2,10,15,ACC if not dis else "#3B4C63",rx=1)
-    t(x+w/2,y+14,label,DIS if dis else TXT,anchor="middle")
-def checkbox(x,y,on,dis=False,mixed=False):
-    r(x,y,19,19,FRAME,op=0.55 if dis else 1)
-    if on: a(f"<path d='M{x+4} {y+10} l4 4 l7 -9' stroke='{ACC}' stroke-width='2.2' fill='none'/>")
-    if mixed: r(x+5,y+8.5,9,2.2,ACC)
-def button(x,y,w,txt,c=BTN):
-    r(x,y,w,19,c); t(x+w/2,y+14,txt,anchor="middle")
-def callout(x1,y1,x2,y2,lines,c="#C8C8D0"):
-    a(f"<path d='M{x1} {y1} L{x2-6} {y2}' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>")
-    for i,l in enumerate(lines): t(x2,y2+4+i*14,l,c,sz=11.5)
-def tooltip(x,y,w,lines,edge=SEP):
-    h=10+16*len(lines); r(x,y,w,h,"#141418",stroke=edge,rx=3)
-    for i,l in enumerate(lines): t(x+8,y+16+i*16,l,sz=12)
-# canvas
-a(f"<svg xmlns='http://www.w3.org/2000/svg' width='{W}' height='{H}' viewBox='0 0 {W} {H}'>")
-r(0,0,W,H,"#1B1B1F")
+_s=Svg(W,H,title=None)
+o=_s.o
+def a(x): o.append(x)
+BG=C.BG; TITLE=C.TITLE; FRAME=C.FRAME; BTN=C.BTN; HDR=C.HDR; TXT=C.TXT; DIS=C.DIS; BORDER=C.BORDER; SEP=C.SEP; ACC=C.ACC
+ERR=C.ERR; ERRBG=C.ERRROW; PEND=C.PEND; PENDBG=C.PENDROW; INFO=C.INFO; LOCK="#9A9AA6"
+def t(x,y,s,c=TXT,sz=13,anchor="start",w="normal",st=""): _s.text(x,y,s,c,sz,anchor,w)
+def r(x,y,w,h,f,stroke=None,rx=0,sw=1,op=1): _s.rect(x,y,w,h,f,stroke=stroke,rx=rx,sw=sw,op=op)
+def fa(cp,x,y,color,sz=14): _s.glyph(cp,x,y,color,sz)
+def tabbar(x,y,w_total,names,selected,icons=None): _s.tabs(x,y,w_total,[(n,(icons[i][0] if icons else None),(icons[i][1] if icons else None)) for i,n in enumerate(names)],selected)
+def hourglass(x,y,c=PEND): fa(FA.HOURGLASS,x,y-1,c)
+def xcircle(x,y,c=ERR): fa(FA.CIRCLE_XMARK,x-1,y-1,c)
+def lock(x,y,c=LOCK): fa(FA.LOCK,x,y-1,c)
+def reset(x,y,c=INFO): fa(FA.ROTATE_LEFT,x-1,y-1,c)
+def warn(x,y,c=PEND): fa(FA.WARNING,x-1,y-1,c)
+def combo(x,y,w,txt,c=TXT,hint=False): _s.combo(x,y,w,txt,hint=hint)
+def field(x,y,w,txt,c=TXT,border=None,hint=False): _s.field(x,y,w,txt,c=c,border=border,hint=hint)
+def slider(x,y,w,val,label,dis=False): _s.slider(x,y,w,val,label,dis)
+def checkbox(x,y,on,dis=False,mixed=False): _s.checkbox(x,y,on,dis,mixed)
+def button(x,y,w,txt,c=BTN): _s.button(x,y,w,txt,fill=c)
+def callout(x1,y1,x2,y2,lines,c="#C8C8D0"): _s.callout(x1,y1,x2,y2,lines)
+def tooltip(x,y,w,lines,edge=SEP): _s.tooltip(x,y,w,lines,edge)
 t(20,26,"Details forms — visual design (ImGui default dark; icons are the real FontAwesome 6 glyphs, coloured by meaning; every element is one ImGui call — design §6.2)","#E8E8EE",sz=14,w="bold")
 t(20,44,"Annotations in grey are not drawn by the app.","#8A8A96",sz=11.5)
 # ---------- panel A: the Unit form, every row state ----------
@@ -191,5 +122,5 @@ def note(y,col,icon,title,body,btns):
 note(DY+40,ERR,xcircle,"Strength not changed","Alpha 1-1 is a player's unit (node 3)",["Show"])
 note(DY+110,PEND,warn,"Orders changed on node 2","while you were editing Bravo's plan",["Show","Reload","Overwrite"])
 t(DX,DY+192,"+ 2 more…  (stack shows 3; the Messages panel keeps the history)",DIS,sz=11.5)
-a("</svg>")
-open(sys.argv[1],"w",encoding="utf-8").write("\n".join(o))
+
+_s.save(sys.argv[1])

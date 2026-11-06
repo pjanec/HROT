@@ -1,46 +1,19 @@
 # Generates docs/UX/condition-editor-visual.svg - an ImGui-default-dark mockup of the friendly condition editor.
-# Regenerate: python3 scripts/gen-condition-editor-mockup.py docs/UX/condition-editor-visual.svg  (needs fonttools; reads FDP/Data/Fonts/fa-solid-900.ttf)
-import os, sys
-from fontTools.ttLib import TTFont
-from fontTools.pens.svgPathPen import SVGPathPen
-_F=TTFont(os.path.join(os.path.dirname(os.path.abspath(__file__)),"..","FDP","Data","Fonts","fa-solid-900.ttf"))
-_G=_F.getGlyphSet(); _C=_F.getBestCmap(); _U=_F["head"].unitsPerEm; _A=_F["hhea"].ascent
-o=[]
-BG="#0F0F0F"; TITLE="#294A7A"; FRAME="#1D2F48"; BTN="#23415F"; HDR="#1C344F"; TXT="#FFFFFF"; DIS="#808080"; BORDER="#3A3A44"; SEP="#4A4A55"
-TAB="#1F3A5C"; TABSEL="#3369AD"; ACC="#4296FA"; ERR="#E65555"; PEND="#F2C033"; INFO="#6AB0FF"; OK="#5BD06A"
-TEAL,ORANGE,VIOLET,BLUE,AMBER,GREEN,RED,GREY="#3EC6B0","#F29B38","#B07CF0","#5AA9FF","#F2C033","#5BD06A","#E65555","#A0A0AA"
-FONT="font-family='Roboto, Segoe UI, Arial, sans-serif'"
-def fa(cp,x,y,col,sz=13,op=1):
-    pen=SVGPathPen(_G); _G[_C[cp]].draw(pen); k=sz/_U
-    o.append(f"<path d='{pen.getCommands()}' fill='{col}' fill-opacity='{op}' transform='translate({x},{y+_A*k}) scale({k},{-k})'/>")
-def t(x,y,s,c=TXT,sz=13,anchor="start"):
-    s=s.replace("&","&amp;").replace("<","&lt;")
-    o.append(f"<text x='{x}' y='{y}' fill='{c}' font-size='{sz}' {FONT} text-anchor='{anchor}'>{s}</text>")
-def tabbar(x,y,w_total,names,selected,TABC="#24242C",SELC="#3A3A48",icons=None,LINE="#3369AD"):
-    """ImGui's tab bar: rounded top corners, flat bottom, a line under the bar in the selected colour."""
-    cx=x
-    for i,name in enumerate(names):
-        ic=icons[i] if icons else None
-        w=22+(19 if ic else 0)+sum(8.6 if ch.isupper() else (3.6 if ch==' ' else (4.0 if ch in 'il&' else 6.9)) for ch in name); c=SELC if i==selected else TABC; rr=4; h=21
-        o.append(f"<path d='M{cx} {y+h} L{cx} {y+rr} Q{cx} {y} {cx+rr} {y} L{cx+w-rr} {y} Q{cx+w} {y} {cx+w} {y+rr} L{cx+w} {y+h} Z' fill='{c}'/>")
-        if i==selected: o.append(f"<rect x='{cx+2}' y='{y}' width='{w-4}' height='2' fill='{LINE}'/>")
-        if ic: fa(ic[0],cx+8,y+4,ic[1],12.5)
-        t(cx+8+(19 if ic else 0),y+15,name); cx+=w+2
-    o.append(f"<rect x='{x}' y='{y+21}' width='{w_total}' height='1.5' fill='{LINE}'/>")
-def r(x,y,w,h,f,stroke=None,rx=0,sw=1,dash=None):
-    st=f" stroke='{stroke}' stroke-width='{sw}'" if stroke else ""
-    d=f" stroke-dasharray='{dash}'" if dash else ""
-    o.append(f"<rect x='{x}' y='{y}' width='{w}' height='{h}' fill='{f}' rx='{rx}'{st}{d}/>")
-def tw(s,sz=13): return len(s)*sz*0.56
-# a sentence blank: a small combo-looking chip, optional coloured glyph; returns its width
-def chip(x,y,label,glyph=None,gcol=None,border=None,hint=False,arrow=True):
-    w=tw(label)+ (26 if glyph else 10) + (16 if arrow else 0)
-    r(x,y,w,20,FRAME,stroke=border,rx=3,sw=1.3)
-    tx=x+6
-    if glyph: fa(glyph,x+5,y+3.5,gcol,12); tx=x+21
-    t(tx,y+14.5,label,DIS if hint else TXT)
-    if arrow: o.append(f"<path d='M{x+w-12} {y+8} l3.5 4 l3.5 -4 z' fill='{DIS}'/>")
-    return w
+# Regenerate: python3 scripts/gen-condition-editor-mockup.py docs/UX/condition-editor-visual.svg  (needs fonttools; draws through scripts/mockup_kit.py)
+import sys
+from mockup_kit import Svg, C, FA, text_width
+W,H=1240,826
+_s=Svg(W,H,title=None)
+o=_s.o
+BG=C.BG; TITLE=C.TITLE; FRAME=C.FRAME; BTN=C.BTN; HDR=C.HDR; TXT=C.TXT; DIS=C.DIS; BORDER=C.BORDER; SEP=C.SEP
+ACC=C.ACC; ERR=C.ERR; PEND=C.PEND; INFO=C.INFO; OK=C.OK
+TEAL,ORANGE,VIOLET,BLUE,AMBER,GREEN,RED,GREY=C.TEAL,C.ORANGE,C.VIOLET,C.BLUE,C.AMBER,C.GREEN,C.RED,C.GREY
+def fa(cp,x,y,col,sz=13,op=1): _s.glyph(cp,x,y,col,sz,op)
+def t(x,y,s,c=TXT,sz=13,anchor="start"): _s.text(x,y,s,c,sz,anchor)
+def r(x,y,w,h,f,stroke=None,rx=0,sw=1,dash=None): _s.rect(x,y,w,h,f,stroke=stroke,rx=rx,sw=sw,dash=dash)
+def tabbar(x,y,w_total,names,selected,icons=None): _s.tabs(x,y,w_total,[(n,(icons[i][0] if icons else None),(icons[i][1] if icons else None)) for i,n in enumerate(names)],selected)
+def tw(s,sz=13): return text_width(s,sz)
+def chip(x,y,label,glyph=None,gcol=None,border=None,hint=False,arrow=True): return _s.chip(x,y,label,glyph,gcol,border,hint,arrow)
 def word(x,y,s,c="#C8C8D0"): t(x,y+14.5,s,c); return tw(s)+2
 def row(x,y,parts,live=None,measured=None,bad=False,icon=None):
     # parts: list of ("chip",label,glyph,gcol,opts) or ("word",text)
@@ -56,8 +29,6 @@ def row(x,y,parts,live=None,measured=None,bad=False,icon=None):
         if measured: t(x+630,y+14.5,measured,DIS,sz=12)
     fa(0xf142,x+694,y+3.5,DIS,13)   # ellipsis-vertical: the row menu
 W,H=1240,826
-o.append(f"<svg xmlns='http://www.w3.org/2000/svg' width='{W}' height='{H}' viewBox='0 0 {W} {H}'>")
-r(0,0,W,H,"#1B1B1F")
 t(20,26,"Condition editor — the friendly view (ImGui default dark; real FontAwesome glyphs; every element is one ImGui call — design §4)","#E8E8EE",sz=14)
 t(20,44,"Annotations in grey are not drawn by the app.","#8A8A96",sz=11.5)
 # ---- the Details window, rule "Phase 2: assault", When tab
@@ -135,5 +106,5 @@ for title,g,gc,items in cols:
     for i,it in enumerate(items): t(cx+18,MY+62+i*17,it,"#C8C8D0" if not it.startswith("PRESET") else VIOLET,sz=12)
     cx+=290
 t(MX+10,MY+188,"Debugging kinds (trace buffer, ring entry, hit tag) appear only in the replay search and breakpoints — a kind's Contexts decides.",DIS,sz=11.5)
-o.append("</svg>")
-open(sys.argv[1],"w",encoding="utf-8").write("\n".join(o))
+
+_s.save(sys.argv[1])

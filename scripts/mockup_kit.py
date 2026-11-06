@@ -62,9 +62,9 @@ class Svg:
     # ── primitives ──────────────────────────────────────────────────────
     def raw(self, s): self.o.append(s)
 
-    def text(self, x, y, s, c=C.TXT, sz=13, anchor="start"):
+    def text(self, x, y, s, c=C.TXT, sz=13, anchor="start", weight="normal"):
         s = str(s).replace("&", "&amp;").replace("<", "&lt;").replace("  ", "\u00a0\u00a0")   # keep runs of spaces (SVG collapses them)
-        self.o.append(f"<text x='{x}' y='{y}' fill='{c}' font-size='{sz}' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='{anchor}' xml:space='preserve'>{s}</text>")
+        self.o.append(f"<text x='{x}' y='{y}' fill='{c}' font-size='{sz}' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='{anchor}' font-weight='{weight}' xml:space='preserve'>{s}</text>")
 
     def rect(self, x, y, w, h, fill, stroke=None, rx=0, sw=1, dash=None, op=1):
         st = f" stroke='{stroke}' stroke-width='{sw}'" if stroke else ""
