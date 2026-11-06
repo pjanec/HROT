@@ -189,6 +189,17 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             };
         }
 
+        private static Func<EntityRepository, Entity, bool> CompileInUnit(InUnitPredicateDto dto)
+        {
+            var reference = dto.Unit.Ref;
+            bool includeSelf = dto.IncludeSelf;
+            return (repo, e) =>
+            {
+                var unit = reference.Resolve(repo);
+                return !unit.IsNull && Fdp.Toolkit.Squad.UnitTree.Contains(repo, unit, e, includeSelf);
+            };
+        }
+
         private static Func<EntityRepository, Entity, bool> CompileScenarioTime(ScenarioTimePredicateDto dto)
         {
             double from = dto.FromSeconds, to = dto.ToSeconds;

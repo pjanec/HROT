@@ -172,6 +172,17 @@ one x.
 | **InTheFight** `{}` | `CombatEffective.IsInTheFight` on the entity (a man by injury, a unit by roster) | ⛔ `Lifecycle` = "exists", which a dead man still does |
 | **PhaseBegins** `{ Phase }` | E11's phase state | owned by E11; listed here so the catalogue has it |
 
+### 5.1 ⭐ AS-BUILT — C1 *(backend, `2026-11-06`, B-1)*
+
+| addition | where | as built |
+|---|---|---|
+| `LogicalOperator.None` | `SearchPredicateDto.cs` (appended after `And`, `Or` — stored numbers unchanged) · `PredicateCompiler.CompileCompound` | true when no child holds; demands no component of the entity (`ExtractMandatoryComponents` recurses only into `And`) |
+| `InUnitPredicateDto { Unit: EntityLink, IncludeSelf = true }` · `"InUnit"` | `PredicateCompiler.Level.cs` `CompileInUnit` | ⭐ the walk is **`Fdp.Toolkit.Squad.UnitTree`** (`Contains` / `Collect`, 0 B, ≤ `CombatEffective.MaxDepth`) — lifted from `ObjectiveCensus.RosterOf`, which now calls `UnitTree.Collect` (one walker) |
+| `InTheFightPredicateDto {}` · `"InTheFight"` | `PredicateCompiler.Compile` | `CombatEffective.IsInTheFight(repo, e)` |
+| the readers that assumed two operators | `BreakpointConditionSummarizer` (`NOR`), `DataBreakpointManager` (a one-child `None` remainder is not collapsed to the child), `RuleLeafPlan.LabelOf` (`In <ref>`, `InTheFight`) | `TriggerBehavior`'s wake plan treats `None` like `Or` (earliest change) — correct as is |
+
+Rails: `PredicateCompilerLevelTests.C1_*` (3; red-proved: `None` compiled as `Or` and a non-recursive walk ⇒ all 3 red). PhaseBegins stays E11's.
+
 ## 6. Stages
 
 | stage | what | owner | rails |

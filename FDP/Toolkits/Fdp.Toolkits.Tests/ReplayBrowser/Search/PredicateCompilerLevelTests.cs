@@ -287,6 +287,88 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             var round = JsonSerializer.Deserialize<SearchPredicateDto>(JsonSerializer.Serialize<SearchPredicateDto>(Leaf("HealthFraction", 0.25f)));
             Assert.Equal((0.25f, "HealthFraction"), (((InputAbovePredicateDto)round!).Threshold, ((InputAbovePredicateDto)round).Input));
         }
+        // ── ⭐ condition editor C1 (docs/UX/DESIGN_Condition_Editor.md §5, R-4142): None · InUnit · InTheFight ───────────────────────────
+
+        private static PropertyMatchDto TagIs(int v) => new()
+        {
+            ComponentType = typeof(LvlTag), PropertyPath = "Value", Operator = SearchOperator.Equals,
+            Predicate = new NumericPredicateDto { MinValue = v, MaxValue = v },
+        };
+
+        /// <summary>None is true when no child holds; a one-child None is NOT; in both modes. ✅ Red-proof: None compiled as Or ⇒ every assert flips.</summary>
+        [Fact]
+        public void C1_None_IsTrueWhenNoChildHolds_AndOfOneChildIsNot()
+        {
+            var e = At(0, 0); _w.AddComponent(e, new LvlTag { Value = 3 });
+            var not3 = new CompoundPredicateDto { Operator = LogicalOperator.None, Conditions = { TagIs(3) } };
+            var not5 = new CompoundPredicateDto { Operator = LogicalOperator.None, Conditions = { TagIs(5) } };
+            var neither = new CompoundPredicateDto { Operator = LogicalOperator.None, Conditions = { TagIs(1), TagIs(2) } };
+            var one = new CompoundPredicateDto { Operator = LogicalOperator.None, Conditions = { TagIs(1), TagIs(3) } };
+            Assert.False(Level(not3)(_w, e));
+            Assert.True(Level(not5)(_w, e));
+            Assert.True(Level(neither)(_w, e));
+            Assert.False(Level(one)(_w, e));
+            Assert.False(Search(not3)(_w, e));
+            Assert.True(Search(not5)(_w, e));
+            Assert.Empty(_c.ExtractMandatoryComponents(not3));   // its children must NOT hold: it demands nothing
+            var opts = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+            var back = Assert.IsType<CompoundPredicateDto>(JsonSerializer.Deserialize<SearchPredicateDto>(JsonSerializer.Serialize<SearchPredicateDto>(not3, opts), opts));
+            Assert.Equal(LogicalOperator.None, back.Operator);
+        }
+
+        private Entity Unit(int net, params Entity[] members)
+        {
+            if (!_w.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitRoster>()) _w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+            if (!_w.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitEntity>()) _w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
+            var u = _w.CreateEntity();
+            _w.AddComponent(u, new NetworkIdentity(net));
+            _w.AddComponent(u, new Fdp.Core.CommandHierarchy.UnitEntity());
+            var roster = new Fdp.Core.CommandHierarchy.UnitRoster();
+            foreach (var m in members) Fdp.Core.CommandHierarchy.UnitRoster.Add(ref roster, m);
+            _w.AddComponent(u, roster);
+            return u;
+        }
+
+        /// <summary>InUnit: the unit itself (unless IncludeSelf is off), anyone under it at any depth, nobody else; unresolved ⇒ false.
+        /// ✅ Red-proof: the walk not recursing ⇒ the platoon's man red.</summary>
+        [Fact]
+        public void C1_InUnit_IsTheUnitOrAnyoneUnderIt_DownTheRoster()
+        {
+            var a = At(0, 0); var b = At(1, 1); var stranger = At(2, 2);
+            var squad = Unit(700, a, b);
+            var platoon = Unit(701, squad);
+            var inPlatoon = new InUnitPredicateDto { Unit = new EntityLink(new EntityRef(701)) };
+            Assert.True(Level(inPlatoon)(_w, a));            // two levels down
+            Assert.True(Level(inPlatoon)(_w, squad));
+            Assert.True(Level(inPlatoon)(_w, platoon));      // IncludeSelf defaults on
+            Assert.False(Level(inPlatoon)(_w, stranger));
+            Assert.True(Search(inPlatoon)(_w, b));           // both modes
+            Assert.False(Level(new InUnitPredicateDto { Unit = new EntityLink(new EntityRef(701)), IncludeSelf = false })(_w, platoon));
+            Assert.False(Level(new InUnitPredicateDto { Unit = default })(_w, a));   // unresolved
+            Assert.Empty(_c.ExtractMandatoryComponents(inPlatoon));
+            var census = new List<Entity>();                 // the census reads the SAME walk (lifted, never a second one)
+            Fdp.Toolkit.Squad.UnitTree.Collect(_w, platoon, census);
+            Assert.Equal(new[] { platoon, squad, a, b }, census);
+        }
+
+        /// <summary>InTheFight: a man by his injury state (a dead man still EXISTS — Lifecycle holds, InTheFight does not), a unit by its roster.
+        /// ✅ Red-proof: the arm compiled as IsAlive ⇒ the dead man red.</summary>
+        [Fact]
+        public void C1_InTheFight_ADeadManStillExistsButIsNotInTheFight_AUnitByItsRoster()
+        {
+            _w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            var alive = At(0, 0, net: 710); _w.AddComponent(alive, new Fdp.Toolkit.Combat.Components.Health { Current = 80, Max = 100 });
+            var dead = At(1, 0, net: 711); _w.AddComponent(dead, new Fdp.Toolkit.Combat.Components.Health { Current = 0, Max = 100 });
+            var fight = new InTheFightPredicateDto();
+            Assert.True(Level(fight)(_w, alive));
+            Assert.False(Level(fight)(_w, dead));
+            Assert.True(Level(new LifecyclePredicateDto { IdentifierType = EntityIdentifierType.NetworkId, TargetValue = "711" })(_w, dead));   // ⛔ "exists" ≠ "in the fight"
+            Assert.False(Search(fight)(_w, dead));
+            var wiped = Unit(712, dead);
+            Assert.False(Level(fight)(_w, wiped));
+            Assert.True(Level(fight)(_w, Unit(713, alive)));
+            Assert.True(Level(new CompoundPredicateDto { Operator = LogicalOperator.None, Conditions = { fight } })(_w, wiped));   // "destroyed" as the editor writes it
+        }
     }
 
     /// <summary>A predicate DTO the compiler has no arm for.</summary>

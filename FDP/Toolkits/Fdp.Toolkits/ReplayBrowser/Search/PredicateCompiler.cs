@@ -88,6 +88,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 case ScenarioTimePredicateDto time: return CompileScenarioTime(time);
                 case CountMatchingPredicateDto count: return CompileCountMatching(count, mode);
                 case InputAbovePredicateDto inputAbove: return CompileInputAbove(inputAbove);
+                case InUnitPredicateDto inUnit: return CompileInUnit(inUnit);
+                case InTheFightPredicateDto: return static (repo, e) => Fdp.Toolkit.Squad.CombatEffective.IsInTheFight(repo, e);
 
                 // Specialized loop predicates: SEARCH mode passes through; handled by the service (edge / loop scanners).
                 case StructuralPredicateDto _:
@@ -126,6 +128,16 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 {
                     for (int i = 0; i < childFuncs.Length; i++)
                         if (!childFuncs[i](repo, entity)) return false;
+                    return true;
+                };
+            }
+            else if (compound.Operator == LogicalOperator.None)
+            {
+                // ⭐ C1 (R-4142) — true when no child holds; a one-child None is NOT.
+                return (repo, entity) =>
+                {
+                    for (int i = 0; i < childFuncs.Length; i++)
+                        if (childFuncs[i](repo, entity)) return false;
                     return true;
                 };
             }
@@ -572,6 +584,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         {
             // ⭐ CE-4164 — OnEntity / CountMatching evaluate OTHER entities (ScenarioTime none), so they contribute nothing to THIS entity's mandatory set.
             if (dto is OnEntityPredicateDto or ScenarioTimePredicateDto or CountMatchingPredicateDto or InputAbovePredicateDto) return;
+            // ⭐ C1 — InUnit reads the unit's roster, InTheFight works with or without Health (a unit by its roster): neither demands a component of THIS entity.
+            //   A None compound demands nothing either (its children must NOT hold) — only And recurses below.
+            if (dto is InUnitPredicateDto or InTheFightPredicateDto) return;
             if (dto is CompoundPredicateDto compound && compound.Operator == LogicalOperator.And)
             {
                 foreach (var condition in compound.Conditions)

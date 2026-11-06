@@ -72,6 +72,8 @@ namespace Fdp.Toolkit.ScenarioRules
             OnEntityPredicateDto o => $"{RefText(o.Ref)} {(o.Predicate is null ? "?" : LabelOf(o.Predicate))}",
             ScenarioTimePredicateDto => "ScenarioTime",
             InputAbovePredicateDto i => $"Input {i.Input}",
+            InUnitPredicateDto u => $"In {RefText(u.Unit)}",
+            InTheFightPredicateDto => "InTheFight",
             CountMatchingPredicateDto c => $"Count {(c.Predicate is null ? "?" : LabelOf(c.Predicate))}",
             SpatialBoundingPredicateDto => "Spatial",
             LifecyclePredicateDto => "Lifecycle",
