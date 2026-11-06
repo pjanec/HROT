@@ -186,7 +186,7 @@ internal static class GridLayout
             float scale = Math.Min(tSize.X / img.Width, tSize.Y / img.Height);
             var d = new Vector2(img.Width * scale, img.Height * scale);
             var p0 = tMin + (tSize - d) * 0.5f;
-            dl.AddImage(img.Texture, p0, p0 + d, Vector2.Zero, Vector2.One, ImGui.GetColorU32(new Vector4(1f, 1f, 1f, alpha)));
+            dl.AddImage(img.Texture, p0, p0 + d, img.Uv0, img.Uv1, ImGui.GetColorU32(new Vector4(1f, 1f, 1f, alpha)));
         }
         else
         {
@@ -294,7 +294,7 @@ internal static class GridLayout
                 float scale = Math.Min(thumbSize.X / img.Width, thumbSize.Y / img.Height);
                 var drawSize = new Vector2(img.Width * scale, img.Height * scale);
                 ImGui.SetCursorScreenPos(thumbPos + (thumbSize - drawSize) * 0.5f);
-                ImGui.Image(img.Texture, drawSize);
+                ImGui.Image(img.Texture, drawSize, img.Uv0, img.Uv1);
             }
             else if (re.Entry.IconTextureId is IntPtr texId)
             {

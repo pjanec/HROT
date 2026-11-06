@@ -549,6 +549,39 @@ public sealed class StorageGatewayTkbConsensusTests
         }
     }
 
+    /// <summary>
+    /// ⭐ CE-4271 — a scenario folder holding the committed still (<c>preview.jpg</c>, a JPEG, not a PNG) prefetches
+    /// cleanly: the consensus check ignores it and the JPEG, byte for byte, lands in the node's staging.
+    /// </summary>
+    [Fact]
+    public async Task CE4271_AScenarioFolderWithAPreviewJpg_PrefetchesCleanly_AndTheJpegLandsInTheNodesStaging()
+    {
+        var nasDir     = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var scenarioId = "with_still";
+        var srcDir     = MakeScenarioDir(nasDir, scenarioId);
+        var destDir    = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(destDir);
+        try
+        {
+            WriteJson(Path.Combine(srcDir, "Hrot.SimHost.json"), "{\"Header\":{\"SubsystemType\":\"Hrot.SimHost\"},\"Entities\":{}}");
+            var jpeg = new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0xFF, 0xD9 };
+            File.WriteAllBytes(Path.Combine(srcDir, "preview.jpg"), jpeg);
+
+            var targets = new List<NodeDistributionTarget> { new NodeDistributionTarget { NodeId = (Fdp.Core.NodeId)(1), DestinationPath = destDir } };
+            var result  = await new StorageGatewayModule().PrefetchScenarioAsync(scenarioId, targets, nasDir);
+
+            Assert.True(result.IsFullSuccess);
+            var staged = Directory.GetFiles(destDir, "preview.jpg", SearchOption.AllDirectories);
+            Assert.Single(staged);
+            Assert.Equal(jpeg, File.ReadAllBytes(staged[0]));
+        }
+        finally
+        {
+            if (Directory.Exists(nasDir))  Directory.Delete(nasDir,  recursive: true);
+            if (Directory.Exists(destDir)) Directory.Delete(destDir, recursive: true);
+        }
+    }
+
     // ── CE-280 — foreign-slice routing on load ──────────────────────────────────
 
     /// <summary>

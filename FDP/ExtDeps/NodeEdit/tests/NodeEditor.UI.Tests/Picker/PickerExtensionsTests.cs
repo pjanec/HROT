@@ -306,6 +306,34 @@ public sealed class PickerExtensionsTests : IDisposable
         l.Loaded.Should().Equal("k1", "k2", "k3", "k4");
     }
 
+    /// <summary>
+    /// ⭐ CE-4271 (§2j) — the RESIDENT path: a key the resident lookup answers is served with NO load budget, never enters the LRU, is never evicted past capacity and never unloaded
+    /// (Invalidate / Clear leave it alone) — an atlas page is one texture shared by many pictures. 🔴 Red-proof (compiles): the resident hit entered into the LRU (or counted against the budget) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void The_resident_path_has_no_budget_is_never_evicted_and_is_never_unloaded()
+    {
+        var l = new Loader();
+        var page = (IntPtr)777;
+        PickerImage? Resident(string k) => k.StartsWith("atlas:") ? new PickerImage(page, 320, 180, new System.Numerics.Vector2(0.1f, 0.2f), new System.Numerics.Vector2(0.3f, 0.4f)) : null;
+        var cache = new PickerImageCache(l.Load, l.Unloaded.Add, capacity: 1, maxLoadsPerFrame: 1, resident: Resident);
+
+        cache.Get("a.png").Should().NotBeNull();               // spends the frame's only load
+        for (int i = 0; i < 20; i++)                            // twenty resident pictures in the same frame: not one costs a load
+        {
+            cache.TryGet("atlas:entities/T" + i, out var img).Should().BeTrue();
+            (img.Texture, img.Uv0.X, img.Uv1.Y).Should().Be((page, 0.1f, 0.4f));
+        }
+        l.Loaded.Should().Equal("a.png");
+        cache.Count.Should().Be(1, "a resident picture is not an entry of the cache");
+
+        cache.Get("b.png").Should().BeNull("the file path still obeys the budget");
+        cache.Invalidate("atlas:entities/T1");
+        cache.Clear();
+        l.Unloaded.Should().NotContain(page, "the shared page texture is never unloaded");
+        cache.TryGet("atlas:entities/T1", out _).Should().BeTrue("still resident after Clear");
+    }
+
     [Fact]
     public void A_failed_load_is_remembered_and_not_retried_until_invalidated()
     {

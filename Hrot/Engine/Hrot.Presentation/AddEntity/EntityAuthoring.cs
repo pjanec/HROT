@@ -109,7 +109,7 @@ public sealed class EntityAuthoring
         };
         // ⭐ CE-4141 / CE-4168 P5 — THE shared lazy image cache of every shell picker, wired ONCE here with the Raylib loader (a scenario's preview.png today; an entity's picture next).
         //   Loaded on demand on the render thread, bounded, a missing file is remembered as failed.
-        pickers.Images = new PickerImageCache(LoadPickerImage, UnloadPickerImage);
+        pickers.Images = new PickerImageCache(LoadPickerImage, UnloadPickerImage, resident: ThumbnailAtlas.Shared.TryGetImage);   // ⭐ CE-4271 — the embedded entity atlas is RESIDENT: no budget, never evicted or unloaded
         var icons = new EntityIconLibrary(hostIcons);
         if (theme is not null) pickers.SetServices(icons, theme);
         else pickers.SetIcons(icons);
