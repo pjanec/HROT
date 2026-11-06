@@ -6841,7 +6841,7 @@ graph TD
 
 | stage | what |
 |---|---|
-| S0 | the composition snapshot rail + goldens (every host, `--mode all`) — ⏳ building now (test only, no production code) |
+| S0 | ✅ **BUILT `2026-11-06`** — `Hrot.ClusterRunner.Integration.Tests/CompositionSnapshots/TheHostCompositionIsFrozenTests` (editor · Stride node · the cluster nodes SimHost, IG, CGF, Traffic + the `--mode all` roster); goldens `CompositionSnapshots/<host>.json` — modules, systems in phase order (group members nested), translators, capabilities, resource providers, singletons, component types, time role, slave count; nothing run-varying. `HROT_COMPOSITION_CAPTURE=1` re-captures — ⛔ only for a REVIEWED intended change. Red-proved: one extra system in Traffic ⇒ *"[traffic] section 'systems': expected 50 rows, got 51 + …S0MutationSystem"*. Deterministic (two compare runs green). ⚠ Not booted: the orchestrator (not an ECS node — roster only) and the `net8.0-windows` Stride app layer (the net8.0 `StrideNodeBootstrapper` is) |
 | B0 | `HostDescription`, `HostCatalog`, `RoleCapabilityTable`, `SpawningPipeline`, `OrchestrationRecipe` — added, NOT used |
 | B1 → B6 | Traffic → IG → Stride → SimHost → CGF → editor: each row replaces its subclass's hooks (S2: one host per commit) |
 | B7 | `HostCatalog.FusedServer` + `-m server-fused` (D4); ③'s cycle on it |
