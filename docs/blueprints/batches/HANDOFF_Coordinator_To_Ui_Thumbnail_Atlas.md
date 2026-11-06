@@ -12,7 +12,7 @@ related-designs:
 
 # HANDOFF — coordinator → ui: the entity thumbnail atlas, embedded; scenario stills a small JPEG (CE-4271)
 
-**For:** the ui lane (`ui`). **From:** the coordinator lane. **Dispatched at `<stamped below>`**. ⭐ Scope FROZEN there; later documents
+**For:** the ui lane (`ui`). **From:** the coordinator lane. **Dispatched at `47a12fb5f`**. ⭐ Scope FROZEN there; later documents
 are FYI. A later document that invalidates an item ⇒ STOP that item, report it (R-106), keep the rest. Questions ⇒ a NOTE to coordinator.
 Merge `coordinator` first. Order it after your current queue (the November batch's 🔴s, the director, mounted guns).
 
