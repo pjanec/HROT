@@ -8,6 +8,7 @@ known-rot: §13's closing line ("port the same GizmoInteractionManager into FDP 
   DataDrivenGizmoSystem over it") and §9's "DataDrivenGizmoSystem shrinks dramatically" describe a
   port that DID NOT HAPPEN. ⛔ Do not quote either as a description of the code.
 related-designs:
+  - ../../UX/DESIGN_Map_Interaction.md — E8: the hint and pick banner are gizmo primitives so every terminal draws them
   - ../../UX/DESIGN_Input_And_Commands.md — the one keymap: the map's scopes are resolved on the backend from the terminal's raw key events; the terminal stays dumb (§2.4)
   - docs/DESIGN_Map_Rendering_And_Interaction.md — OWNS the MapCanvas input pipeline, the one reader of the key queue (§6.2d)
   - docs/DESIGN_Entity_Control.md §8 — where CE-3175 (no key press reached a gizmo) was found, by reading

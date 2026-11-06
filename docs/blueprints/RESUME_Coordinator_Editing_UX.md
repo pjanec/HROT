@@ -23,7 +23,7 @@ RELEARN — then read §1. Everything decided is in [DESIGN_Editing_UX.md](../UX
 | ① inventory | ✅ done — Details tabs, standalone windows, node-gated tabs, units, AI, world, run / review, map interaction, context menus | design §1 (§1.1–§1.7) · CAPABILITIES §14 |
 | ② prior art + target | ✅ done — Eden, DCS, VBS4, Unreal / Unity, ArcGIS / QGIS (finish conventions); layout wireframe `docs/UX/editing-ux-layout.svg` | design §2, §3 |
 | ③ gap map + decisions | ✅ D2–D9 approved; D11–D16 approved as a FIRST iteration; D1 (undo), D10 (one edit framework), D17 (hats), D18 (mission plan editor) each need their own design | design §4, §4.3a, §4.3c |
-| ④ top-level designs, one per slice | ⏳ **next** — written HERE with the user (R-4123); lanes detail them while building; nothing built before the user reviews (R-4122) | design §4.5 (the queue) |
+| ④ top-level designs, one per slice | ⏳ **in progress — 6 of the queue written** — written HERE with the user (R-4123); lanes detail them while building; nothing built before the user reviews (R-4122) | design §4.5 (the queue) |
 
 Rulings of this programme: R-4118 (Details is the one home) · R-4119 (gated by the entity's components, not the node) · R-4120 (forms
 for the common; raw editor = debugging; undo in Edit only; the expected basics) · R-4121 (pickers filtered, condition templates, expert
@@ -41,8 +41,9 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 5. ✍ **Design 3b WRITTEN `2026-11-06`: [DESIGN_Rule_Editor_UX.md](../UX/DESIGN_Rule_Editor_UX.md)** (E13) — ✅ approved, Q3 revised: the condition editor refactored (R-4130).
 6. ✍ **Design 4 WRITTEN `2026-11-06`: [DESIGN_Seats_And_Hats.md](../UX/DESIGN_Seats_And_Hats.md)** (E10 + D4) — ✅ APPROVED (R-4131), with §2.5 (HTTP seats, the camera, the director sharing it); stages H1–H7; CE-4279 (a Player can place units and command any side) and CE-4280 filed.
 7. ✍ **Design 4b WRITTEN `2026-11-06`: [DESIGN_Input_And_Commands.md](../UX/DESIGN_Input_And_Commands.md)** (E14) — ✅ APPROVED as revised (R-4132: the map is a dumb terminal, map keys resolved on the backend; hard-coded defaults complete); CE-4281, CE-4282 filed.
-8. ✍ **Design 5 WRITTEN `2026-11-06`: [DESIGN_Edit_Mode_Undo.md](../UX/DESIGN_Edit_Mode_Undo.md)** (D1) — world snapshots in the network-less editor; awaiting the user's review of §4 Q1–Q7.
-9. ▶ NEXT (queue §4.5): E8 (map interaction), then the smaller ones. (Was 8: D1 (undo — reads the edit framework's journal), then E8 (map interaction), then the smaller ones. Previously listed after hats:, D1 (undo — reads the edit framework's journal), E8 (map), then the smaller ones (queue §4.5).
+8. ✍ **Design 5 WRITTEN `2026-11-06`: [DESIGN_Edit_Mode_Undo.md](../UX/DESIGN_Edit_Mode_Undo.md)** (D1) — ✅ Q1–Q7 APPROVED (R-4133); §1.1 what a snapshot misses, §2.3 the restore = the dry run's sequence.
+9. ✍ **Design 6 WRITTEN `2026-11-06`: [DESIGN_Map_Interaction.md](../UX/DESIGN_Map_Interaction.md)** (E8 — D11 / D12 / D16) — one drawing core (`ShapeEditSession`), the armed tool and a pending pick visible on every terminal, airborne aircraft by `Mobility` (CE-4272 measured first), 2-D level choice from `SurfacesAt`, group rotate, the gizmo-look review; stages P1–P7; awaiting the user's review of §4 Q1–Q8.
+10. ▶ NEXT (queue §4.5): the smaller ones — E2 forms · E5 condition templates · E7 review · E2b sim / types · E12 new scenario / recipe (D19). (Was 8: D1 (undo — reads the edit framework's journal), then E8 (map interaction), then the smaller ones. Previously listed after hats:, D1 (undo — reads the edit framework's journal), E8 (map), then the smaller ones (queue §4.5).
 4. Before each design: INVENTORY with graph queries, UML (class + sequence + module), and a claim table in the chat.
 
 ## 3. The other lanes at writing *(fetched `2026-11-06`)*
@@ -55,6 +56,6 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 | **behaviors** | performance programme (§11f, 1000 soldiers load) | nothing dispatched |
 | **backend** | late-joiner ghosts (CE-4000 / 4007) — dispatch in backend | check its report |
 
-Ids: coordinator next free **CE-4283**, **R-4133**.
+Ids: coordinator next free **CE-4283**, **R-4134**.
 
 ⚠ All lanes are PAUSED by the user while the editing-UX designs are discussed (`2026-11-06`).

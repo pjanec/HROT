@@ -12,6 +12,8 @@ updated: 2026-09-20 — ⭐ THE PREREQUISITE LANDED. UXI-11 is ☑ COMPLETE (S-1
   left-click inside a multi-selection still narrows it to one — read UX_Feature_Selection.md §2.7.14
   before designing the modifier rules.
 current-answer: NOT-BUILT (design only; the map half). SelectionInteractionSystem map additive-click is still a TODO; no modifier plumbing. Only the pre-existing inspector-list ctrl/shift exists.
+related-designs:
+  - DESIGN_Map_Interaction.md — E8 stage P5 builds this design's open half (map Shift / Ctrl, fan-out of move / rotate / delete / order over the selection)
 -->
 # Feature design — multi-select
 

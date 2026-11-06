@@ -154,6 +154,7 @@ known-conflict: none open. ✅ "Who owns selection" is RULED (2026-09-10): the g
   Either an R-134 shape or a deliberate DDS-client architecture — §2.6's last subsection; not measured.
 updated: 2026-09-20
 related-designs:
+  - DESIGN_Map_Interaction.md — E8 stage P5: the map Shift / Ctrl / Alt modifiers and GroupTransform over ISelectionState
   - ../blueprints/Architect_Question_73_Canvas_Interaction_Scope.md — asks what scopes a CANVAS
     (entity-less) map interaction to its target node, i.e. how §2.7.14's local-only empty-space
     clear would reach other nodes. OPEN; nothing built.

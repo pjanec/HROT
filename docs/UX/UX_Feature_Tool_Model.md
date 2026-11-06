@@ -54,6 +54,7 @@ known-rot: the line citations in the body are pre-CE-051 and mostly MOVED. 0b ca
   therefore structural on FIVE hosts, not one; EditorSpawnAdapter no longer exists (it is the SHARED
   ScenarioSpawnAdapter); and the D-prime duplicate has a SECOND instance on IG that this document never named.
 related-designs:
+  - DESIGN_Map_Interaction.md — E8: adds ToolDescriptor.Hint, the toolbar reader of ActiveModal (Migration step 5), the pick banner in PickerToolHost, one drawing core (ShapeEditSession)
   - DESIGN_Input_And_Commands.md — central Escape (migration step 6) built as the keymap's Esc chain; a key may run the action that arms a tool (Q5)
   - DESIGN_Action_Catalogue.md — actions declare CancelsModalTool and Shortcut once; an action activates a tool
   - ../DESIGN_Add_Entity_Picker.md — Shift-pick in the Add Entity picker arms this doc's placement tool

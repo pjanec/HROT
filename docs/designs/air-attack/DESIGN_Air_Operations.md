@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_FPV_Drone.md §2 draws FpvAttackNodes as its own behaviour — SUPERSEDED by B5 (the FPV attack is AirAttack's Dive profile); its Muscle half stands.
 related-designs:
+  - ../../UX/DESIGN_Map_Interaction.md — E8: places a Mobility = Air type airborne at its route / hover height (SpawnHeight.AboveLevel); CE-4272
   - docs/OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md — §8d OWNS the armed search (`AirArmedSearch`, HQ-9, `CE-2311`, built on this design's `AirAttackNodes.Run` and `FlyTo`) and the headquarters that sends aircraft on a report (`SupportCommand`, HQ-6…HQ-8)
   - docs/designs/airborne/DESIGN_Airborne_Insertion.md — OWNS fast-rope and parachute insertion from the helicopter (the Rope / Drop holds, Roping / Dropping phases, D-7) and slice 2's ejecting pilot (spawned before the kill, R-2021)

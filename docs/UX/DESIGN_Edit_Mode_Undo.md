@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — top-level, for the user's review (R-4122); the building lanes detail it (R-4123)
-updated: 2026-11-06 (§1.1 what a world snapshot misses — authored NoPreview components, singletons, files, version-compare caches, pure UI state; §2.3 the restore = the dry run's sequence, not a raw SyncFrom) · 2026-11-06 (first version — coordinator; editing-UX design queue item 5: D1)
+build-state: DESIGN — top-level, ✅ APPROVED Q1–Q7 by the user 2026-11-06 (R-4133); the building lanes detail it (R-4123)
+updated: 2026-11-06 (✅ Q1–Q7 approved — R-4133) · 2026-11-06 (§1.1 what a world snapshot misses — authored NoPreview components, singletons, files, version-compare caches, pure UI state; §2.3 the restore = the dry run's sequence, not a raw SyncFrom) · 2026-11-06 (first version — coordinator; editing-UX design queue item 5: D1)
 current-answer: §2 the model · §3 stages · §4 questions with leans
 stale-below: nothing
 known-rot: none
 known-conflict: R-1047 deferred entity undo because editing is shared with live changes — R-4120 limits undo to Edit mode, which removes that reason; this design is the deferred CE-1462
 related-designs:
+  - DESIGN_Map_Interaction.md — E8: one finished map edit = one step
   - DESIGN_Editing_UX.md — the programme: D1, R-4120 (undo in Edit mode only)
   - DESIGN_Edit_Framework.md — the journal and the step boundary (one user action = one Submit scope); an undo is itself applied through it
   - ../DESIGN_Rules_View_UI.md — §7.5 / §7.5a OWN the shared EditHistory (CE-4218) and the classified duplicates (CE-4219: the gizmo stacks, the director's)
@@ -137,7 +138,7 @@ is `AfterRestore`'s list, extended with the throttled caches' `Invalidate` and t
 | **U4** | the take editor onto `EditHistory`; `GizmoUndoStack` (Fdp.Toolkits) left with no user — its removal is a separate, later decision |
 | **U5** | the dirty flag from the saved point; *Edit ▸ History* (the list of steps, click to go back) |
 
-## 4. Questions — leans for the user
+## 4. Questions — ✅ all seven APPROVED as leaned (R-4133, user `2026-11-06`: *"Q1-Q7 approved, go on with the map interaction design"*)
 
 | # | question | ⭐ lean | rejected |
 |---|---|---|---|
