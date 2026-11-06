@@ -81,7 +81,7 @@ namespace Fdp.Toolkit.Orchestration
             TransactionId  = Guid.NewGuid(),
             TargetState    = ClusterState.OperatingLive,
             ScenarioId     = scenario,
-            ExerciseId     = Guid.NewGuid(),
+            ExerciseId     = Fdp.Core.ExerciseId.NewId(),
             TimeMode       = startPaused ? "Deterministic" : null,
             ForceRecording = forceRecording,
         };
@@ -93,7 +93,7 @@ namespace Fdp.Toolkit.Orchestration
             TransactionId = Guid.NewGuid(),
             TargetState   = ClusterState.OperatingEdit,
             ScenarioId    = scenario,
-            ExerciseId    = Guid.Empty,
+            ExerciseId    = Fdp.Core.ExerciseId.Empty,
         };
 
         /// <summary>⭐ CE-4101 — sends <see cref="UnloadIntent"/> through this sequence's sender (does not touch a waiting load).</summary>

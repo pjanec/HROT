@@ -166,7 +166,7 @@ public sealed class ClusterFactsIngress : IDisposable
     internal static ClusterStateUpdateEvent StateOf(in ClusterStateTopic topic) => new()
     {
         CurrentState = (FdpClusterState)(int)topic.CurrentState,
-        ExerciseId   = topic.ExerciseId,
+        ExerciseId   = (Fdp.Core.ExerciseId)topic.ExerciseId,
         SessionId    = topic.SessionId,   // ⭐ C2
         ReplayAxis   = (Fdp.Toolkit.Orchestration.ReplayAxis)topic.ReplayAxis,   // ⭐ CE-3329 R-3058
         RunNotRecorded = topic.RunNotRecorded != 0,   // ⭐ CE-4090 D14

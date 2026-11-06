@@ -59,7 +59,7 @@ public sealed class ThePanelAsksTheOneRunSurfacesTests
         var session = new FakeSession();
         var unsaved = new CountingUnsaved();
         var choice = adapter.AttachRunChoice(session, unsaved);
-        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = RunId });
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = (Fdp.Core.ExerciseId)(RunId) });
         bus.SwapBuffers(); view.Update(); adapter.Update(); bus.SwapBuffers();
         return new Rig(new ClusterPanelRunControls(adapter, choice, session), adapter, bus, session, unsaved, choice, view);
     }

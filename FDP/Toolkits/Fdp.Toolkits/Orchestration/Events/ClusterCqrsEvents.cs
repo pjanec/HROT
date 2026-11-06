@@ -12,8 +12,8 @@ namespace Fdp.Toolkit.Orchestration
     /// <param name="BranchWallTicks">⭐ The branch point in the metadata's own unit: the parent's WALL time at the frame the branch left it
     /// (<c>RecordingMetadata.BranchWallTicks</c>; 0 when not a branch). A host converts it to the replay axis as
     /// <c>atSeconds = (BranchWallTicks − zero) / 1e7</c> with the replay's zero (<c>ReplayPosition</c>) — no sim-seconds twin.</param>
-    public record struct ExerciseInventoryItem(Guid ExerciseId, DateTime StartTimeUtc, TimeSpan Duration, string? ScenarioId,
-                                               Guid ParentExerciseId = default, long BranchWallTicks = 0);
+    public record struct ExerciseInventoryItem(ExerciseId ExerciseId, DateTime StartTimeUtc, TimeSpan Duration, string? ScenarioId,
+                                               ExerciseId ParentExerciseId = default, long BranchWallTicks = 0);
 
     /// <summary>
     /// Published by <c>ClusterMaster</c> when a top-level cluster operation completes
@@ -139,7 +139,7 @@ namespace Fdp.Toolkit.Orchestration
         public ClusterState NewStateId;
         /// <summary>"Cluster" — identifies the global cluster state machine.</summary>
         public string SubsystemName;
-        public Guid ExerciseId;
+        public ExerciseId ExerciseId;
         /// <summary>⭐ C2 (R-4006 I5) — the master's cluster session.</summary>
         public Guid SessionId;
         /// <summary>⭐ C4 (R-4006 I4) — telemetry: completed rounds so far.</summary>
@@ -238,7 +238,7 @@ namespace Fdp.Toolkit.Orchestration
     {
         /// <summary>New cluster state.</summary>
         public ClusterState CurrentState;
-        public Guid ExerciseId;
+        public ExerciseId ExerciseId;
         /// <summary>⭐ C2 (R-4006 I5) — the master's cluster session (empty from a sender that does not set it).</summary>
         public Guid SessionId;
         /// <summary>⭐ C2 — the master's cluster-state writer is GONE (its instance went not-alive): the session has ended.</summary>

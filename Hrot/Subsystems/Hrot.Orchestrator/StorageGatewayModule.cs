@@ -779,7 +779,7 @@ public sealed class StorageGatewayModule
 
             var startTime = Directory.GetCreationTimeUtc(d);
             var (parent, branchTicks) = ExerciseBranch.Of(ReadSidecars(d));   // ⭐ CE-4097 — the recording's own sidecar
-            result.Add(new ExerciseInventoryItem(exerciseId, startTime, TimeSpan.Zero, null, parent, branchTicks));
+            result.Add(new ExerciseInventoryItem((Fdp.Core.ExerciseId)(exerciseId), startTime, TimeSpan.Zero, null, parent, branchTicks));
         }
         return result;
     }
@@ -839,7 +839,7 @@ public sealed class StorageGatewayModule
             }
             var (parent, branchTicks) = ExerciseBranch.Of(metas);
 
-            result.Add(new ExerciseInventoryItem(exerciseId, startTime, duration, scenarioId, parent, branchTicks));
+            result.Add(new ExerciseInventoryItem((Fdp.Core.ExerciseId)(exerciseId), startTime, duration, scenarioId, parent, branchTicks));
         }
         return result;
     }

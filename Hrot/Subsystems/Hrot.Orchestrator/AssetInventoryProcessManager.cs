@@ -85,7 +85,7 @@ public sealed class AssetInventoryProcessManager
             {
                 var parent = _pendingBranch?.Parent ?? Guid.Empty;
                 _currentRecording = new RecordingLedgerEntry(ev.ExerciseId, _pendingScenarioId, DateTime.UtcNow, TimeSpan.Zero,
-                    parent, _pendingBranch?.Ticks ?? 0);
+                    (Fdp.Core.ExerciseId)(parent), _pendingBranch?.Ticks ?? 0);
                 _pendingBranch = null;
                 SnapshotScenario(ev.ExerciseId, _pendingScenarioId, parent, _currentRecording.StartTimeUtc);
             }

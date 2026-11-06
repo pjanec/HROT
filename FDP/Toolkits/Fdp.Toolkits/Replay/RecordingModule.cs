@@ -101,7 +101,7 @@ namespace Fdp.Toolkit.Replay
         public CheckpointMark[] Checkpoints => _recorder?.Metadata.Checkpoints.ToArray() ?? System.Array.Empty<CheckpointMark>();
 
         /// <summary>⭐ B4 — the exercise this module records.</summary>
-        public Guid ExerciseId => _config.ExerciseId;
+        public ExerciseId ExerciseId => _config.ExerciseId;
 
         /// <summary>⭐ B4 — waits until every frame captured so far is on disk (<see cref="AsyncRecorder.WaitForWrites"/>).</summary>
         public void WaitForWrites() => _recorder?.WaitForWrites();

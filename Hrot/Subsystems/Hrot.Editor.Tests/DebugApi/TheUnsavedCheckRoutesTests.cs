@@ -251,7 +251,7 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
     [Fact(Timeout = 90_000)]
     public async Task LoadEdit_OfARecording_LoadsItsCopyUnderTheRecordedName_AndTouchesNothingElse()
     {
-        var known = new ExerciseInventoryItem(Guid.NewGuid(), new DateTime(2026, 10, 2, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(3), "town-raid");
+        var known = new ExerciseInventoryItem((Fdp.Core.ExerciseId)(Guid.NewGuid()), new DateTime(2026, 10, 2, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(3), "town-raid");
         var (host, queue, url) = Start(exercises: new[] { known });
         using var h = host;
 

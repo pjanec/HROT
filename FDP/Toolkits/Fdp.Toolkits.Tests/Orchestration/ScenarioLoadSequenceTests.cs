@@ -19,7 +19,7 @@ public class ScenarioLoadSequenceTests
         => new(_sent.Add, () => _state, beforeLoad);
 
     private static TransitionStateIntent Load(string scenario, ClusterState target = ClusterState.OperatingLive)
-        => new() { TransactionId = Guid.NewGuid(), TargetState = target, ScenarioId = scenario, ExerciseId = Guid.NewGuid() };
+        => new() { TransactionId = Guid.NewGuid(), TargetState = target, ScenarioId = scenario, ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()) };
 
     [Fact]
     public void FromIdle_TheLoadGoesOutAtOnce()

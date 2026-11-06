@@ -52,7 +52,7 @@ namespace Fdp.Core.FlightRecorder.Metadata
         /// Distributed exercise identifier shared by all nodes participating in one exercise session.
         /// Defaults to <see cref="Guid.Empty"/> for legacy recordings that pre-date federation support.
         /// </summary>
-        public Guid ExerciseId { get; set; } = Guid.Empty;
+        public ExerciseId ExerciseId { get; set; } = ExerciseId.Empty;
 
         /// <summary>
         /// Identifier of the distributed node that produced this recording.
@@ -111,7 +111,7 @@ namespace Fdp.Core.FlightRecorder.Metadata
         /// <c>Guid.Empty</c> for a recording that began at a load. Its first frames are a copy of that exercise's up to
         /// <see cref="BranchWallTicks"/>.
         /// </summary>
-        public Guid ParentExerciseId { get; set; } = Guid.Empty;
+        public ExerciseId ParentExerciseId { get; set; } = ExerciseId.Empty;
 
         /// <summary>
         /// ⭐ Node Features F-15/F-24 — the effective FULL config (JSON object) of every AtLoad feature this node had when the run was loaded

@@ -42,7 +42,7 @@ public sealed class AssetInventoryProcessManagerTests
             var ledgerDir = Path.Combine(
                 OrchestrationConstants.GetNodeStagingRoot(staging, nodeId), "recording_ledger");
             Directory.CreateDirectory(ledgerDir);
-            var entry = new RecordingLedgerEntry(exerciseId, scenarioId, start, duration);
+            var entry = new RecordingLedgerEntry((Fdp.Core.ExerciseId)(exerciseId), scenarioId, start, duration);
             File.WriteAllText(
                 Path.Combine(ledgerDir, $"{exerciseId}.json"),
                 JsonSerializer.Serialize(entry, FdpJsonOptionsRegistry.Indented));
@@ -64,7 +64,7 @@ public sealed class AssetInventoryProcessManagerTests
             {
                 RequestId  = requestId,
                 Operation  = StorageOpType.Export,
-                ExerciseId = exerciseId,
+                ExerciseId = (Fdp.Core.ExerciseId)(exerciseId),
             });
             bus.SwapBuffers();
             manager.Tick();
@@ -125,8 +125,8 @@ public sealed class AssetInventoryProcessManagerTests
             var bus     = new FdpEventBus();
             var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, 400);
 
-            bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = "town-raid", ExerciseId = exerciseId });
-            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = exerciseId });
+            bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = "town-raid", ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) });
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) });
             bus.SwapBuffers();
             manager.Tick();                                                    // the first scan publishes at once
             bus.SwapBuffers();
@@ -164,12 +164,12 @@ public sealed class AssetInventoryProcessManagerTests
             var bus     = new FdpEventBus();
             var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, 400, TimeSpan.Zero);
 
-            bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = "town-raid", ExerciseId = exerciseId });
-            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = exerciseId });
+            bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = "town-raid", ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) });
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) });
             bus.SwapBuffers(); manager.Tick(); bus.SwapBuffers();
 
             // the Brain is lost: the master announces Degraded WITH the error (the run's world stays, nothing goes to Idle)
-            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Degraded, ExerciseId = exerciseId, ErrorReason = "Brain (CGF, node 3) lost at sim 00:12:31" });
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Degraded, ExerciseId = (Fdp.Core.ExerciseId)(exerciseId), ErrorReason = "Brain (CGF, node 3) lost at sim 00:12:31" });
             bus.SwapBuffers(); manager.Tick(); bus.SwapBuffers();
 
             AssetInventoryUpdateEvent? inventory = null;
@@ -207,14 +207,14 @@ public sealed class AssetInventoryProcessManagerTests
             var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, nodeId);
 
             // The exercise goes live from the scenario.
-            bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = scenarioId, ExerciseId = exerciseId });
-            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = exerciseId });
+            bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = scenarioId, ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) });
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) });
             bus.SwapBuffers();
             manager.Tick();
 
             // The scenario is saved over during the run, then the exercise stops.
             File.WriteAllText(Path.Combine(scenarioDir, "SimHost.json"), "saved-over");
-            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, ExerciseId = exerciseId });
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) });
             bus.SwapBuffers();
             manager.Tick();
 
@@ -223,7 +223,7 @@ public sealed class AssetInventoryProcessManagerTests
             Directory.CreateDirectory(nasExerciseDir);
             File.WriteAllText(Path.Combine(nasExerciseDir, "rec_node_400.fdp"), "fdp-bytes");
             var requestId = Guid.NewGuid();
-            bus.PublishManaged(new ExecuteStorageOpIntent { RequestId = requestId, Operation = StorageOpType.Export, ExerciseId = exerciseId });
+            bus.PublishManaged(new ExecuteStorageOpIntent { RequestId = requestId, Operation = StorageOpType.Export, ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) });
             bus.SwapBuffers();
             manager.Tick();
             bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = requestId, StatusCode = OrchestrationStatusCode.Success });
@@ -267,13 +267,13 @@ public sealed class AssetInventoryProcessManagerTests
             var ledgerDir = Path.Combine(OrchestrationConstants.GetNodeStagingRoot(staging, nodeId), "recording_ledger");
             Directory.CreateDirectory(ledgerDir);
             File.WriteAllText(Path.Combine(ledgerDir, $"{exerciseId}.json"), JsonSerializer.Serialize(
-                new RecordingLedgerEntry(exerciseId, scenarioId, DateTime.UtcNow.AddMinutes(-2), TimeSpan.FromSeconds(60)),
+                new RecordingLedgerEntry((Fdp.Core.ExerciseId)(exerciseId), scenarioId, DateTime.UtcNow.AddMinutes(-2), TimeSpan.FromSeconds(60)),
                 FdpJsonOptionsRegistry.Indented));
 
             var bus     = new FdpEventBus();
             var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, nodeId);
             var requestId = Guid.NewGuid();
-            bus.PublishManaged(new ExecuteStorageOpIntent { RequestId = requestId, Operation = StorageOpType.Export, ExerciseId = exerciseId });
+            bus.PublishManaged(new ExecuteStorageOpIntent { RequestId = requestId, Operation = StorageOpType.Export, ExerciseId = (Fdp.Core.ExerciseId)(exerciseId) });
             bus.SwapBuffers();
             manager.Tick();
             bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = requestId, StatusCode = OrchestrationStatusCode.Success });
@@ -315,15 +315,15 @@ public sealed class AssetInventoryProcessManagerTests
             {
                 var bus     = new FdpEventBus();
                 var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, nodeId);
-                bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = scenarioId, ExerciseId = exercise });
-                bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = exercise, RunNotRecorded = notRecorded });
+                bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = scenarioId, ExerciseId = (Fdp.Core.ExerciseId)(exercise) });
+                bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = (Fdp.Core.ExerciseId)(exercise), RunNotRecorded = notRecorded });
                 bus.SwapBuffers();
                 manager.Tick();                                   // the live run in progress (the first scan publishes at once)
                 bus.SwapBuffers();
                 AssetInventoryUpdateEvent? during = null;
                 foreach (var ev in bus.ReadManaged<AssetInventoryUpdateEvent>()) during = ev;
 
-                bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, ExerciseId = exercise, RunNotRecorded = notRecorded });
+                bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, ExerciseId = (Fdp.Core.ExerciseId)(exercise), RunNotRecorded = notRecorded });
                 bus.SwapBuffers();
                 manager.Tick();                                   // the run ends
                 return during;
@@ -369,22 +369,22 @@ public sealed class AssetInventoryProcessManagerTests
         var answer  = new ClusterOpCompletedEvent
         {
             RequestId = Guid.NewGuid(), StatusCode = OrchestrationStatusCode.Success,
-            ResultPayload = new LiveBranchResult(new GlobalTime { TotalWallTicks = 42 }, true, parent ?? Guid.Empty, point),
+            ResultPayload = new LiveBranchResult(new GlobalTime { TotalWallTicks = 42 }, true, (Fdp.Core.ExerciseId)(parent ?? Guid.Empty), point),
         };
         if (parent != null && answerBeforeState)
         {
             bus.PublishManaged(answer);
             bus.SwapBuffers(); manager.Tick();                        // the nodes answered the branch; the cluster is not live yet
         }
-        bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = "town-raid", ExerciseId = exercise });
-        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = exercise });
+        bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = "town-raid", ExerciseId = (Fdp.Core.ExerciseId)(exercise) });
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = (Fdp.Core.ExerciseId)(exercise) });
         if (parent != null && !answerBeforeState) bus.PublishManaged(answer);   // the answer lands with / after the state
         bus.SwapBuffers();
         manager.Tick();
         bus.SwapBuffers();
         var live = LastInventory(bus) is { } inv ? inv.LocalExercises!.FirstOrDefault(e => e.ExerciseId == exercise) : (ExerciseInventoryItem?)null;
 
-        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, ExerciseId = exercise });
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, ExerciseId = (Fdp.Core.ExerciseId)(exercise) });
         bus.SwapBuffers();
         manager.Tick();                                               // the run ends: the ledger entry is written
         return live;
@@ -454,16 +454,16 @@ public sealed class AssetInventoryProcessManagerTests
             bus.PublishManaged(new ClusterOpCompletedEvent
             {
                 RequestId = Guid.NewGuid(), StatusCode = OrchestrationStatusCode.Success,
-                ResultPayload = new LiveBranchResult(new GlobalTime { TotalWallTicks = 42 }, true, Guid.NewGuid(), 77),
+                ResultPayload = new LiveBranchResult(new GlobalTime { TotalWallTicks = 42 }, true, (Fdp.Core.ExerciseId)(Guid.NewGuid()), 77),
             });
             bus.SwapBuffers(); manager.Tick();                                                                 // the nodes answered …
             bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingReplay });   // … and the branch fell back
             bus.SwapBuffers(); manager.Tick();
 
             var load = Guid.NewGuid();
-            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = load });
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = (Fdp.Core.ExerciseId)(load) });
             bus.SwapBuffers(); manager.Tick();
-            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, ExerciseId = load });
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, ExerciseId = (Fdp.Core.ExerciseId)(load) });
             bus.SwapBuffers(); manager.Tick();
             var item = FromLedger(nasRoot, staging, load);
             Assert.Equal((Guid.Empty, 0L), (item.ParentExerciseId, item.BranchWallTicks));
@@ -501,7 +501,7 @@ public sealed class AssetInventoryProcessManagerTests
             var plain    = Guid.NewGuid();
             var meta = new Fdp.Core.FlightRecorder.Metadata.RecordingMetadata
             {
-                ExerciseId = branched, ParentExerciseId = parent, BranchWallTicks = 639_000_000_000_000_000L, Duration = TimeSpan.FromSeconds(90),
+                ExerciseId = (Fdp.Core.ExerciseId)(branched), ParentExerciseId = (Fdp.Core.ExerciseId)(parent), BranchWallTicks = 639_000_000_000_000_000L, Duration = TimeSpan.FromSeconds(90),
             };
             void Write(Guid exercise, string node, Fdp.Core.FlightRecorder.Metadata.RecordingMetadata m)
             {
@@ -513,9 +513,9 @@ public sealed class AssetInventoryProcessManagerTests
             Write(branched, "node_1", meta);
             Write(branched, "node_2", new Fdp.Core.FlightRecorder.Metadata.RecordingMetadata
             {
-                ExerciseId = branched, ParentExerciseId = parent, BranchWallTicks = meta.BranchWallTicks + 5_000, Duration = TimeSpan.FromSeconds(90),
+                ExerciseId = (Fdp.Core.ExerciseId)(branched), ParentExerciseId = (Fdp.Core.ExerciseId)(parent), BranchWallTicks = meta.BranchWallTicks + 5_000, Duration = TimeSpan.FromSeconds(90),
             });
-            Write(plain, "node_1", new Fdp.Core.FlightRecorder.Metadata.RecordingMetadata { ExerciseId = plain, Duration = TimeSpan.FromSeconds(30) });
+            Write(plain, "node_1", new Fdp.Core.FlightRecorder.Metadata.RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)(plain), Duration = TimeSpan.FromSeconds(30) });
 
             foreach (var scanned in new[] { gateway.ScanNasExercises(root), gateway.ScanLocalExercises(root) })
             {
@@ -551,7 +551,7 @@ public sealed class AssetInventoryProcessManagerTests
             foreach (var id in new[] { doomed, kept })
             {
                 File.WriteAllText(Path.Combine(ledgerDir, $"{id}.json"), JsonSerializer.Serialize(
-                    new RecordingLedgerEntry(id, "hill-attack", DateTime.UtcNow.AddMinutes(-2), TimeSpan.FromSeconds(60)), FdpJsonOptionsRegistry.Indented));
+                    new RecordingLedgerEntry((Fdp.Core.ExerciseId)(id), "hill-attack", DateTime.UtcNow.AddMinutes(-2), TimeSpan.FromSeconds(60)), FdpJsonOptionsRegistry.Indented));
                 // the recordings: one directory in the shared exercises folder and one in each node's
                 foreach (var dir in new[]
                 {
@@ -621,8 +621,8 @@ public sealed class AssetInventoryProcessManagerTests
 
     private static void GoLive(AssetInventoryProcessManager manager, FdpEventBus bus, Guid exercise, string? scenario)
     {
-        bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = scenario, ExerciseId = exercise });
-        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = exercise });
+        bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = scenario, ExerciseId = (Fdp.Core.ExerciseId)(exercise) });
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = (Fdp.Core.ExerciseId)(exercise) });
         bus.SwapBuffers();
         manager.Tick();
     }
@@ -693,13 +693,13 @@ public sealed class AssetInventoryProcessManagerTests
                 Assert.True(ledgerCopy.ContainsKey(must), $"{must} is part of the scenario");
 
             // the run ends and is exported: the archive's copy is the same, stamp included
-            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, ExerciseId = exercise });
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, ExerciseId = (Fdp.Core.ExerciseId)(exercise) });
             bus.SwapBuffers(); manager.Tick();
             var nasExercise = Path.Combine(nasRoot, OrchestrationConstants.ExercisesDirectoryName, exercise.ToString());
             Directory.CreateDirectory(nasExercise);
             File.WriteAllText(Path.Combine(nasExercise, "rec_node_400.fdp"), "bytes");
             var requestId = Guid.NewGuid();
-            bus.PublishManaged(new ExecuteStorageOpIntent { RequestId = requestId, Operation = StorageOpType.Export, ExerciseId = exercise });
+            bus.PublishManaged(new ExecuteStorageOpIntent { RequestId = requestId, Operation = StorageOpType.Export, ExerciseId = (Fdp.Core.ExerciseId)(exercise) });
             bus.SwapBuffers(); manager.Tick();
             bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = requestId, StatusCode = OrchestrationStatusCode.Success });
             bus.SwapBuffers(); manager.Tick();
@@ -759,7 +759,7 @@ public sealed class AssetInventoryProcessManagerTests
             bus.PublishManaged(new ClusterOpCompletedEvent
             {
                 RequestId = Guid.NewGuid(), StatusCode = OrchestrationStatusCode.Success,
-                ResultPayload = new LiveBranchResult(new GlobalTime { TotalWallTicks = 42 }, true, parent, 9),
+                ResultPayload = new LiveBranchResult(new GlobalTime { TotalWallTicks = 42 }, true, (Fdp.Core.ExerciseId)(parent), 9),
             });
             bus.SwapBuffers(); manager.Tick();
             GoLive(manager, bus, branch, null);   // a branch names no scenario

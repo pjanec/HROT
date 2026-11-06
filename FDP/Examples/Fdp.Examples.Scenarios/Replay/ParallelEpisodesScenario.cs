@@ -204,7 +204,7 @@ namespace Fdp.Examples.Scenarios.Replay
             using var recordingModule = new RecordingModule(new RecordingConfiguration
             {
                 FilePath = recFilePath,
-                ExerciseId  = Guid.NewGuid(),
+                ExerciseId  = (Fdp.Core.ExerciseId)(Guid.NewGuid()),
                 NodeId = (Fdp.Core.NodeId)(0),
                 Blocking = true    // prevents delta-frame drops in CPU-bound tight loop
             });

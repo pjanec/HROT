@@ -87,7 +87,7 @@ public record TransitionPayloadDto(
         TransactionId        = requestId,
         TargetState          = (Fdp.Toolkit.Orchestration.ClusterState)(int)TargetState!.Value,
         ScenarioId           = ScenarioId,
-        ExerciseId           = ExerciseId,
+        ExerciseId           = (Fdp.Core.ExerciseId)ExerciseId,
         TimeMode             = TimeMode,
         CheckpointingSeconds = CheckpointingSeconds,   // D17
         TargetWallTicks      = TargetWallTicks,

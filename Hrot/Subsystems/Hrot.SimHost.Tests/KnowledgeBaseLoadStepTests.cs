@@ -65,7 +65,7 @@ public class KnowledgeBaseLoadStepTests : IDisposable
             TargetState:   ClusterState.LoadingLive,
             ScenarioId:    "scn",
             TerrainName:   null,
-            ExerciseId:    Guid.Empty,
+            ExerciseId:    (Fdp.Core.ExerciseId)(Guid.Empty),
             IsNewScenario: false);
 
     /// <summary>

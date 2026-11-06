@@ -267,6 +267,11 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-4200 SV-3 — a cluster node id: the SHAPE is an int's; the type NAME survives so a tool shows the node's role and name through the cluster view.
             if (type == typeof(Fdp.Core.NodeId))
                 return new JsonObject { ["type"] = "integer", ["format"] = "nodeId", ["description"] = "the id of a cluster node (a SimHost, a Brain, an Player, the editor); a tool shows its role and name through the cluster view" };
+            // ⭐ CE-4204 SV-6 — an exercise / episode id: the SHAPE is a Guid's (a string); the type NAME survives so a tool can OPEN the exercise inventory entry / the recording.
+            if (type == typeof(Fdp.Core.ExerciseId))
+                return new JsonObject { ["type"] = "string", ["format"] = "exerciseId", ["description"] = "the id of an exercise (a GUID); a tool opens its inventory entry and recordings" };
+            if (type == typeof(Fdp.Core.EpisodeId))
+                return new JsonObject { ["type"] = "string", ["format"] = "episodeId", ["description"] = "the id of an episode (a GUID); a tool opens its recording" };
             if (type == typeof(Fdp.Core.Bearing))
                 return new JsonObject { ["type"] = "number", ["format"] = "bearing", ["picker"] = "bearing", ["description"] = "a compass bearing in degrees: 0 = north (+Y), 90 = east (+X), clockwise" };
             if (type == typeof(Fdp.Core.WorldRotation))

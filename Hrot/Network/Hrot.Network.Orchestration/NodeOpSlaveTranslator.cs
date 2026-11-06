@@ -220,7 +220,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                     ScenarioId:    dto?.ScenarioId,
                     IsNewScenario: false,
                     TargetState:   dto?.TargetState.HasValue == true ? (FdpClusterState)(int)dto.TargetState.Value : default,
-                    ExerciseId:    dto?.ExerciseId ?? Guid.Empty,
+                    ExerciseId:    (Fdp.Core.ExerciseId)(dto?.ExerciseId ?? Guid.Empty),
                     // ⭐ L1 — null when the sender omitted it (an older peer, or a scenario naming none).
                     //   The load steps treat a null name as "this scenario names none", which is legal.
                     TerrainName:   dto?.TerrainName,
@@ -239,7 +239,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                 if (!hasPayload) return null;
                 var dto = JsonSerializer.Deserialize<NodeEpisodePayloadDto>(payloadJson!, OrchestrationJsonOptions.Default);
                 return new EpisodeHandlerPayload(
-                    EpisodeId:  dto?.EpisodeId ?? Guid.Empty,
+                    EpisodeId:  (Fdp.Core.EpisodeId)(dto?.EpisodeId ?? Guid.Empty),
                     ScenarioId: dto?.ScenarioId,
                     IsStart:    dto?.IsStart ?? false);
             }
@@ -260,7 +260,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                 var dto = JsonSerializer.Deserialize<NodeTransitionPayloadDto>(payloadJson!, OrchestrationJsonOptions.Default);
                 if (!string.IsNullOrWhiteSpace(dto?.ScenarioId))
                     return new Fdp.Toolkit.Orchestration.Handlers.ScenarioSaveHandlerPayload(dto!.ScenarioId!, dto.OnlyGuids is { Count: > 0 } ? dto.OnlyGuids : null, string.IsNullOrWhiteSpace(dto.MacroHeaderJson) ? null : dto.MacroHeaderJson);   // ⭐ CE-4210 MA-9
-                return new ArchiveHandlerPayload(dto?.ExerciseId ?? Guid.Empty);
+                return new ArchiveHandlerPayload((Fdp.Core.ExerciseId)(dto?.ExerciseId ?? Guid.Empty));
             }
 
             case NedNodeOpType.CommitState:

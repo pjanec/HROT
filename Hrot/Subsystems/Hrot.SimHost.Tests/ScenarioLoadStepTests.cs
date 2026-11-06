@@ -78,7 +78,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
         string? scenarioId = "scn1",
         bool isNew = false)
         => new(txId, target, scenarioId, TerrainName: null,
-               ExerciseId: Guid.Empty, IsNewScenario: isNew);
+               ExerciseId: (Fdp.Core.ExerciseId)(Guid.Empty), IsNewScenario: isNew);
 
     private string SerializeGold()
         => _serializer.Serialize(_goldRepo, new ScenarioHeader(SubsystemType)).ToJsonString();

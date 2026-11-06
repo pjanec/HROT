@@ -126,7 +126,7 @@ namespace Hrot.Editor.DebugApi
                 TargetState     = target,
                 TargetWallTicks = wallTicks,
                 ScenarioId      = body?["scenario"]?.ToString(),
-                ExerciseId      = exerciseId,
+                ExerciseId      = (Fdp.Core.ExerciseId)(exerciseId),
                 TimeMode        = body?["timeMode"]?.ToString(),
                 CheckpointingSeconds = checkpointingSeconds,
             };

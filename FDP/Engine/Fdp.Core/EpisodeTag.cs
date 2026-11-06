@@ -26,6 +26,6 @@ namespace Fdp.Core
     public struct EpisodeTag
     {
         /// <summary>Identifier of the episode this entity belongs to.</summary>
-        public Guid EpisodeId;
+        public EpisodeId EpisodeId;
     }
 }

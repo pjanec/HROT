@@ -293,7 +293,7 @@ namespace Hrot.SimHost.Modules.Orchestration
                 FeatureConfigsAtLoad = branch == null ? features?.AtLoadConfigs() : null,
                 FilePath     = filePath,
                 EntityFilter = null,   // record all entities above MinRecordableId
-                ExerciseId      = exerciseId,
+                ExerciseId      = (Fdp.Core.ExerciseId)exerciseId,
                 NodeId = _nodeId,
                 Branch = branch,
                 CheckpointingSeconds = branch == null ? SessionCheckpointingSeconds : 0,   // D17 — a branch reads its parent's (StartBranch)
@@ -348,7 +348,7 @@ namespace Hrot.SimHost.Modules.Orchestration
             {
                 FilePath     = filePath,
                 EntityFilter = BuildEpisodeFilter(episodeId),
-                ExerciseId      = episodeId,
+                ExerciseId      = (Fdp.Core.ExerciseId)episodeId,
                 NodeId = (Fdp.Core.NodeId)(0),
             };
             var module = new EpisodeRecorderModule(config);

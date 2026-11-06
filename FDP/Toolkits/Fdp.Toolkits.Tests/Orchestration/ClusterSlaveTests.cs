@@ -342,7 +342,7 @@ public sealed class ClusterSlaveTests
         {
             CurrentState = ClusterState.OperatingEdit, SessionId = Guid.NewGuid(), ReplayAxis = ReplayAxis.Wall, RunNotRecorded = true, RecordLiveRunsOff = true, AskToKeepRecordings = true,
         });
-        var ex = new ExerciseInventoryItem(Guid.NewGuid(), DateTime.UtcNow, TimeSpan.FromSeconds(1), "s");
+        var ex = new ExerciseInventoryItem((Fdp.Core.ExerciseId)(Guid.NewGuid()), DateTime.UtcNow, TimeSpan.FromSeconds(1), "s");
         Hear(new AssetInventoryUpdateEvent { LocalExercises = new[] { ex } });
         var check = Guid.NewGuid();
         Hear(new ClusterOpCompletedEvent { RequestId = check, StatusCode = OrchestrationStatusCode.Success, ResultPayload = new UnsavedCheckResult(true, new[] { 2 }) });

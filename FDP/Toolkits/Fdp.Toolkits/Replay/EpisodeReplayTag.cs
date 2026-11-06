@@ -13,7 +13,7 @@ namespace Fdp.Toolkit.Replay
     public struct EpisodeReplayTag
     {
         /// <summary>Identifier of the episode being replayed.</summary>
-        public Guid EpisodeId;
+        public EpisodeId EpisodeId;
 
         /// <summary>Entity ID from the original recorded session.</summary>
         public int OriginalEntityId;

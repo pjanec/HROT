@@ -54,7 +54,7 @@ public sealed class RBF_P5T2_TimelinePanelTests : IDisposable
     {
         var path = Path.Combine(_tempDir, $"node{nodeId}.fdp");
         var exerciseId = Guid.NewGuid();
-        var meta = new RecordingMetadata { ExerciseId = exerciseId, NodeId = (Fdp.Core.NodeId)(nodeId) };
+        var meta = new RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)(exerciseId), NodeId = (Fdp.Core.NodeId)(nodeId) };
         using var repo = new EntityRepository();
         using var recorder = new Fdp.Core.FlightRecorder.AsyncRecorder(path, meta);
         recorder.CaptureKeyframe(repo, 1_000_000L, blocking: true, eventBus: repo.Bus);

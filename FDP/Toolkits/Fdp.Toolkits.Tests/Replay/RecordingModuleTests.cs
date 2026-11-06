@@ -49,7 +49,7 @@ namespace Fdp.Toolkit.Replay.Tests
             var config = new RecordingConfiguration
             {
                 FilePath = Path.Combine(_tempDir, "test.fdp"),
-                ExerciseId  = Guid.NewGuid(),
+                ExerciseId  = (Fdp.Core.ExerciseId)(Guid.NewGuid()),
                 NodeId = (Fdp.Core.NodeId)(0),
             };
             using var world  = CreateWorld();
@@ -153,7 +153,7 @@ namespace Fdp.Toolkit.Replay.Tests
             var config = new RecordingConfiguration
             {
                 FilePath = Path.Combine(_tempDir, "blocking_test.fdp"),
-                ExerciseId  = Guid.NewGuid(),
+                ExerciseId  = (Fdp.Core.ExerciseId)(Guid.NewGuid()),
                 Blocking = true,
                 NodeId = (Fdp.Core.NodeId)(0),
             };
@@ -191,7 +191,7 @@ namespace Fdp.Toolkit.Replay.Tests
             var config = new RecordingConfiguration
             {
                 FilePath = Path.Combine(_tempDir, "sc_install.fdp"),
-                ExerciseId  = Guid.NewGuid(),
+                ExerciseId  = (Fdp.Core.ExerciseId)(Guid.NewGuid()),
                 NodeId = (Fdp.Core.NodeId)(0),
             };
             var module   = new RecordingModule(config);
@@ -225,7 +225,7 @@ namespace Fdp.Toolkit.Replay.Tests
             var config = new RecordingConfiguration
             {
                 FilePath = Path.Combine(_tempDir, "sc_uninstall.fdp"),
-                ExerciseId  = Guid.NewGuid(),
+                ExerciseId  = (Fdp.Core.ExerciseId)(Guid.NewGuid()),
                 NodeId = (Fdp.Core.NodeId)(0),
             };
             var module   = new RecordingModule(config);
@@ -240,7 +240,7 @@ namespace Fdp.Toolkit.Replay.Tests
             // ⭐ CE-3299 B4 / D18 ③ — on a NEW file: the exercise recorder never reopens a recording (that was a truncation).
             var module2   = new RecordingModule(new RecordingConfiguration
             {
-                FilePath = Path.Combine(_tempDir, "sc_uninstall_2.fdp"), ExerciseId = Guid.NewGuid(), NodeId = (Fdp.Core.NodeId)(0),
+                FilePath = Path.Combine(_tempDir, "sc_uninstall_2.fdp"), ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()), NodeId = (Fdp.Core.NodeId)(0),
             });
             var registry2 = new CapturingSystemRegistry();
             module2.RegisterSystems(registry2);
@@ -275,7 +275,7 @@ namespace Fdp.Toolkit.Replay.Tests
         // A recording module driven by hand: one call = one frame at the given wall time.
         private (RecordingModule Module, Action<long> Frame, string Path) Recording(EntityRepository world, string name = "ck.fdp")
         {
-            var config = new RecordingConfiguration { FilePath = Path.Combine(_tempDir, name), ExerciseId = Guid.NewGuid(), NodeId = (Fdp.Core.NodeId)(3) };
+            var config = new RecordingConfiguration { FilePath = Path.Combine(_tempDir, name), ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()), NodeId = (Fdp.Core.NodeId)(3) };
             var module = new RecordingModule(config);
             var captured = new CapturingSystemRegistry();
             module.RegisterSystems(captured);
@@ -450,7 +450,7 @@ namespace Fdp.Toolkit.Replay.Tests
                 var path = Path.Combine(_tempDir, name);
                 var module = new RecordingModule(new RecordingConfiguration
                 {
-                    FilePath = path, ExerciseId = id, NodeId = (Fdp.Core.NodeId)(3), Blocking = true,
+                    FilePath = path, ExerciseId = (Fdp.Core.ExerciseId)(id), NodeId = (Fdp.Core.NodeId)(3), Blocking = true,
                     Branch = branch, FeatureConfigsAtLoad = features,
                 });
                 var captured = new CapturingSystemRegistry();
@@ -472,7 +472,7 @@ namespace Fdp.Toolkit.Replay.Tests
             var parentMeta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(MetaOf(parentPath));
             Assert.Equal("{\"Enabled\":false}", parentMeta.FeatureConfigsAtLoad["gameplay.team-kill"]);
 
-            var branchPath = Record("feat-branch.fdp", new RecordingBranch(parentPath, 2, parentId, 0), null, Guid.NewGuid());
+            var branchPath = Record("feat-branch.fdp", new RecordingBranch(parentPath, 2, (Fdp.Core.ExerciseId)(parentId), 0), null, Guid.NewGuid());
             var branchMeta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(MetaOf(branchPath));
             Assert.Equal("{\"Enabled\":false}", branchMeta.FeatureConfigsAtLoad["gameplay.team-kill"]);
         }
@@ -506,7 +506,7 @@ namespace Fdp.Toolkit.Replay.Tests
             var branchPath = Path.Combine(_tempDir, "branch.fdp");
             var branch = new RecordingModule(new RecordingConfiguration
             {
-                FilePath = branchPath, ExerciseId = branchId, NodeId = (Fdp.Core.NodeId)(3),
+                FilePath = branchPath, ExerciseId = (Fdp.Core.ExerciseId)(branchId), NodeId = (Fdp.Core.NodeId)(3),
                 Branch = new RecordingBranch(parentPath, mark.Frame + 1, parentId, mark.WallTicks),
             });
             var captured = new CapturingSystemRegistry();
@@ -548,7 +548,7 @@ namespace Fdp.Toolkit.Replay.Tests
         {
             var path = Path.Combine(_tempDir, "taken.fdp");
             File.WriteAllText(path, "an earlier recording");
-            var module = new RecordingModule(new RecordingConfiguration { FilePath = path, ExerciseId = Guid.NewGuid(), NodeId = (Fdp.Core.NodeId)(1) });
+            var module = new RecordingModule(new RecordingConfiguration { FilePath = path, ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()), NodeId = (Fdp.Core.NodeId)(1) });
             Assert.Throws<IOException>(() => module.RegisterSystems(new CapturingSystemRegistry()));
             Assert.Equal("an earlier recording", File.ReadAllText(path));
         }
@@ -579,7 +579,7 @@ namespace Fdp.Toolkit.Replay.Tests
             Fdp.Toolkit.Orchestration.ExecuteNodeOpIntent Op(Fdp.Toolkit.Orchestration.NodeOpType op, Guid tx, string label = "x") => new()
             {
                 TransactionId = tx, Operation = op,
-                DomainPayload = new Fdp.Toolkit.Orchestration.RestoreCheckpointPayload(label, exercise),
+                DomainPayload = new Fdp.Toolkit.Orchestration.RestoreCheckpointPayload(label, (Fdp.Core.ExerciseId)(exercise)),
             };
 
             // a node without the mark fails phase 1; nothing staged
@@ -638,7 +638,7 @@ namespace Fdp.Toolkit.Replay.Tests
         {
             var config = new RecordingConfiguration
             {
-                FilePath = Path.Combine(_tempDir, name), ExerciseId = Guid.NewGuid(), NodeId = (Fdp.Core.NodeId)(3),
+                FilePath = Path.Combine(_tempDir, name), ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()), NodeId = (Fdp.Core.NodeId)(3),
                 CheckpointingSeconds = checkpointingSeconds, Branch = branch,
                 Blocking = true,   // a non-blocking recorder drops a frame while its writer is busy — the rails count frames
                 SlotRunInFlight = slotRunInFlight,
@@ -711,7 +711,7 @@ namespace Fdp.Toolkit.Replay.Tests
             finally { parent.Dispose(); }
 
             var (branch, bframe, branchPath) = TimedRecording(world, "cp-branch.fdp", checkpointingSeconds: 0,   // the request says FULL...
-                new RecordingBranch(parentPath, 2, Guid.NewGuid(), 200));
+                new RecordingBranch(parentPath, 2, (Fdp.Core.ExerciseId)(Guid.NewGuid()), 200));
             try { bframe(2.5, 300); bframe(3.0, 310); bframe(4.5, 320); }
             finally { branch.Dispose(); }
 
@@ -825,7 +825,7 @@ namespace Fdp.Toolkit.Replay.Tests
             {
                 Module = new RecordingModule(new RecordingConfiguration
                 {
-                    FilePath = Path.Combine(storageDirectory, $"{exerciseId:N}.fdp"), ExerciseId = exerciseId, NodeId = (Fdp.Core.NodeId)(3), Branch = branch,
+                    FilePath = Path.Combine(storageDirectory, $"{exerciseId:N}.fdp"), ExerciseId = (Fdp.Core.ExerciseId)(exerciseId), NodeId = (Fdp.Core.NodeId)(3), Branch = branch,
                     CheckpointingSeconds = checkpointingSeconds,
                 });
                 Module.RegisterSystems(_systems = new CapturingSystemRegistry());
@@ -889,7 +889,7 @@ namespace Fdp.Toolkit.Replay.Tests
         {
             using var world = CreateWorld();
             world.AddComponent(world.CreateEntity(), new SimTransform());
-            var config = new RecordingConfiguration { FilePath = Path.Combine(_tempDir, "ce4118.fdp"), ExerciseId = Guid.NewGuid(), NodeId = (Fdp.Core.NodeId)(3), Blocking = true };
+            var config = new RecordingConfiguration { FilePath = Path.Combine(_tempDir, "ce4118.fdp"), ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()), NodeId = (Fdp.Core.NodeId)(3), Blocking = true };
             var module = new RecordingModule(config);
             var captured = new CapturingSystemRegistry();
             module.RegisterSystems(captured);

@@ -1,4 +1,5 @@
 using System;
+using Fdp.Core;
 using System.Collections.Generic;
 using Fdp.Core.FlightRecorder.Metadata;
 
@@ -13,7 +14,7 @@ namespace Fdp.Toolkit.Orchestration
     public static class ExerciseBranch
     {
         /// <summary>The parent and branch point (wall ticks) of the exercise whose sidecars are <paramref name="metas"/>; <c>(Empty, 0)</c> when none branched.</summary>
-        public static (Guid ParentExerciseId, long BranchWallTicks) Of(IEnumerable<RecordingMetadata?> metas)
+        public static (ExerciseId ParentExerciseId, long BranchWallTicks) Of(IEnumerable<RecordingMetadata?> metas)
         {
             Guid parent = Guid.Empty;
             long ticks = 0;
@@ -26,7 +27,7 @@ namespace Fdp.Toolkit.Orchestration
                     ticks = m.BranchWallTicks;
                 }
             }
-            return (parent, ticks);
+            return ((ExerciseId)parent, ticks);
         }
     }
 }

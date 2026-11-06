@@ -336,7 +336,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                     history == null ? "none (listener)" : $"{history.FrameCount} frame(s) of {history.ParentExerciseId}");
 
                 // ⭐ CE-4097 (AQ108 D5) — the branch's parent and point ride the answer: the SAME RecordingBranch the sidecar is written from.
-                return new LiveBranchResult(historicalTime, fromRecording, history?.ParentExerciseId ?? Guid.Empty, history?.BranchWallTicks ?? 0);
+                return new LiveBranchResult(historicalTime, fromRecording, history?.ParentExerciseId ?? Fdp.Core.ExerciseId.Empty, history?.BranchWallTicks ?? 0);
             }
 
             return null;

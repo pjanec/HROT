@@ -49,7 +49,7 @@ namespace Fdp.Toolkit.Orchestration
         public bool MasterGone { get; private set; }
 
         /// <summary>The exercise the master's last broadcast named (empty when none).</summary>
-        public Guid ExerciseId { get; private set; }
+        public ExerciseId ExerciseId { get; private set; }
 
         /// <summary>⭐ <c>CE-3329</c> R-3058 — the replay session's time axis, as the last broadcast said (Sim until one arrives).</summary>
         public ReplayAxis ReplayAxis { get; private set; } = ReplayAxis.Sim;

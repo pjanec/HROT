@@ -119,7 +119,7 @@ public sealed class DistributedScenarioSaveTests : IDisposable
         //   (a direct HandleClusterOpRequestAsync call bypasses the bus, so the inventory would see a live run with no scenario named)
         harness.OrchestratorSvc.TimeBusForTest!.PublishManaged(new Fdp.Toolkit.Orchestration.TransitionStateIntent
         {
-            TransactionId = Guid.NewGuid(), TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive, ScenarioId = _name, ExerciseId = exercise,
+            TransactionId = Guid.NewGuid(), TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive, ScenarioId = _name, ExerciseId = (Fdp.Core.ExerciseId)(exercise),
         });
         Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == (int)ClusterState.OperatingLive, timeoutFrames: 6000), "the cluster must go live");
         harness.PumpFrames(30);

@@ -268,12 +268,12 @@ public sealed class LoadPhaseChainTests
         await chain.PrepareAsync(new ExecuteNodeOpIntent
         {
             Operation = NodeOpType.PrepareLive, TransactionId = Guid.NewGuid(),
-            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.LoadingLive, ExerciseId: exercise, RecordingOff: recordingOff),
+            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.LoadingLive, ExerciseId: (Fdp.Core.ExerciseId)(exercise), RecordingOff: recordingOff),
         }, CancellationToken.None);
         var hold = chain.PrepareAsync(new ExecuteNodeOpIntent
         {
             Operation = NodeOpType.PrepareState, TransactionId = Guid.NewGuid(),
-            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.OperatingLive, ExerciseId: exercise, RecordingOff: recordingOff),
+            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.OperatingLive, ExerciseId: (Fdp.Core.ExerciseId)(exercise), RecordingOff: recordingOff),
         }, CancellationToken.None);
         chain.DrainDeferredAcks();
         await hold;

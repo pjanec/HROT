@@ -278,7 +278,7 @@ public sealed partial class ClusterMaster : IDisposable
     /// Exposed for UI panels (CGF1-S0106) and time-mode consumers.
     /// </summary>
     public ClusterState CurrentClusterState => _currentDsmState;
-    public Guid ActiveExerciseId => _activeExerciseId;
+    public ExerciseId ActiveExerciseId => (ExerciseId)_activeExerciseId;
 
     /// <summary>
     /// <c>true</c> when a distributed transaction is currently in flight.
@@ -980,7 +980,7 @@ public sealed partial class ClusterMaster : IDisposable
         }
 
         PublishClusterPause();   // a restore replaces the world: nothing may run under it
-        var payload = new RestoreCheckpointPayload(label!, Guid.NewGuid());
+        var payload = new RestoreCheckpointPayload(label!, (Fdp.Core.ExerciseId)(Guid.NewGuid()));
         var roundTx = Guid.NewGuid();   // ONE id for both phases — the nodes stage under it (the zone round's rule)
         FanOutNodeOp(NodeOpType.PrepareRestore, roundTx, payload, targets);
         _pendingTransactions[roundTx] = new GenericTransactionTracker
@@ -1406,7 +1406,7 @@ public sealed partial class ClusterMaster : IDisposable
                 return;
             }
             FdpLog<ClusterMaster>.Info("[Orchestrator] R-3055: the replay names no exercise — the master picks {0}.", resolved);
-            intent.ExerciseId = resolved;
+            intent.ExerciseId = (Fdp.Core.ExerciseId)(resolved);
         }
 
         // ⭐ CE-3329 R11 — a replay entered at a RECORDED sim time: resolved when the prepare round brings the nodes' maps
@@ -1438,7 +1438,7 @@ public sealed partial class ClusterMaster : IDisposable
             if (_runNotRecorded) { RefuseNotRecorded(requestId, "review (DAR)"); return; }
             _replayEntrySimSeconds = intent.TargetSimSeconds;
             _reviewEntryWallTicks  = intent.TargetWallTicks != 0 || intent.TargetSimSeconds != null ? intent.TargetWallTicks : long.MaxValue;
-            if (intent.ExerciseId == Guid.Empty) intent.ExerciseId = _currentExerciseId;   // the run being reviewed
+            if (intent.ExerciseId == Guid.Empty) intent.ExerciseId = (Fdp.Core.ExerciseId)(_currentExerciseId);   // the run being reviewed
         }
 
         // ⭐⭐ L8 §7.2c — AT MOST ONE parked transition. ⛔ Rejected, not queued: the master tracks a single
@@ -1600,7 +1600,7 @@ public sealed partial class ClusterMaster : IDisposable
         if (capturedSourceState == ClusterState.OperatingReplay
             && trajectory.OfType<TransitionStep>().Any(t => t.TargetState == ClusterState.LoadingLive))
         {
-            exerciseId = Guid.NewGuid();
+            exerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid());
             if (intent.ExerciseId != Guid.Empty)
                 FdpLog<ClusterMaster>.Info(
                     "[Orchestrator] D18: the branch records exercise {0}; the request's id {1} is ignored (the master mints a branch's id).",
@@ -1614,7 +1614,7 @@ public sealed partial class ClusterMaster : IDisposable
         //   the exercise it named).
         else if (exerciseId == Guid.Empty && LoadsLiveFromIdle(capturedSourceState, trajectory))
         {
-            exerciseId = Guid.NewGuid();
+            exerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid());
             FdpLog<ClusterMaster>.Info("[Orchestrator] CE-3310: the live load names no exercise — the master mints {0}.", exerciseId);
             _activeExerciseId  = exerciseId;
             _currentExerciseId = exerciseId;
@@ -2304,7 +2304,7 @@ public sealed partial class ClusterMaster : IDisposable
         {
             NewStateId       = (Fdp.Toolkit.Orchestration.ClusterState)(int)state,
             SubsystemName    = "Cluster",
-            ExerciseId       = _activeExerciseId,
+            ExerciseId       = (Fdp.Core.ExerciseId)(_activeExerciseId),
             SessionId        = SessionId,          // ⭐ C2
             TransactionEpoch = _transactionEpoch,  // ⭐ C4 — telemetry
             ReplayAxis       = _replayAxis,        // ⭐ CE-3329 R-3058
@@ -2324,7 +2324,7 @@ public sealed partial class ClusterMaster : IDisposable
         _eventBus.PublishManaged(new ClusterStateUpdateEvent
         {
             CurrentState = (Fdp.Toolkit.Orchestration.ClusterState)(int)state,
-            ExerciseId   = _activeExerciseId,
+            ExerciseId   = (Fdp.Core.ExerciseId)(_activeExerciseId),
             SessionId    = SessionId,
             ReplayAxis   = _replayAxis,
             RunNotRecorded = _runNotRecorded,   // ⭐ CE-4090 D14

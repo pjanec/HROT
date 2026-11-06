@@ -107,7 +107,7 @@ internal static class ClusterOpRequestAdapter
         {
             TransactionId = req.RequestId,
             IsStart       = dto.IsStart,
-            EpisodeId     = episodeId,
+            EpisodeId     = (Fdp.Core.EpisodeId)(episodeId),
             ScenarioId    = dto.ScenarioId,
         };
     }
@@ -151,7 +151,7 @@ internal static class ClusterOpRequestAdapter
         {
             RequestId    = req.RequestId,
             Operation    = opType,
-            ExerciseId   = exerciseId,
+            ExerciseId   = (Fdp.Core.ExerciseId)(exerciseId),
             ScenarioName = scenarioName,
             OnlyGuids    = onlyGuids,
             HeaderJson   = headerJson,

@@ -121,7 +121,7 @@ public sealed class TerrainLoadStepTests : IDisposable
         TargetState:   ClusterState.LoadingLive,
         ScenarioId:    "scn",
         TerrainName:   terrainName,
-        ExerciseId:    Guid.Empty,
+        ExerciseId:    (Fdp.Core.ExerciseId)(Guid.Empty),
         IsNewScenario: false);
 
     /// <summary>

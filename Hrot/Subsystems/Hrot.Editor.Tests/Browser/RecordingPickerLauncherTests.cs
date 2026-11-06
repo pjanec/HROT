@@ -34,7 +34,7 @@ public sealed class RecordingPickerLauncherTests : IDisposable
     private readonly List<Guid> _opened = new();
 
     private static ExerciseInventoryItem Ex(Guid id, int day, string? scenario = "uc-urban-battle")
-        => new(id, new DateTime(2026, 10, day, 9, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(5), scenario);
+        => new((Fdp.Core.ExerciseId)(id), new DateTime(2026, 10, day, 9, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(5), scenario);
 
     private RecordingPickerLauncher Make(PickerRegistry registry, params ExerciseInventoryItem[] inventory)
         => new(registry.OpenPicker, () => inventory, id => _opened.Add(id));

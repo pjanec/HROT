@@ -12,7 +12,7 @@ namespace Hrot.Orchestrator;
 /// </summary>
 public sealed class EpisodeConsensusPayload
 {
-    public Guid EpisodeId { get; init; }
+    public Fdp.Core.EpisodeId EpisodeId { get; init; }
     public bool IsStart   { get; init; }
 }
 

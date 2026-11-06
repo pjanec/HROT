@@ -4,7 +4,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     /// Payload for <see cref="ReferenceEpisodeLoadHandler"/> episode operations.
     /// Used for both <c>StartEpisode</c> and <c>StopEpisode</c> intents.
     /// </summary>
-    public record struct EpisodeHandlerPayload(System.Guid EpisodeId, string? ScenarioId, bool IsStart);
+    public record struct EpisodeHandlerPayload(Fdp.Core.EpisodeId EpisodeId, string? ScenarioId, bool IsStart);
 
     /// <summary>
     /// Reference implementation of the episode-load Cluster handler.

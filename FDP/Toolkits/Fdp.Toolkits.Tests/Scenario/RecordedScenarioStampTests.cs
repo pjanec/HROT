@@ -23,7 +23,7 @@ namespace Fdp.Toolkits.Tests.Scenario
             if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
         }
 
-        private static RecordingMetadata Meta(Guid id) => new() { ExerciseId = id, ScenarioName = "s", ScenarioHash = ScenarioDescription.HashOf(Loaded) };
+        private static RecordingMetadata Meta(Guid id) => new() { ExerciseId = (Fdp.Core.ExerciseId)(id), ScenarioName = "s", ScenarioHash = ScenarioDescription.HashOf(Loaded) };
 
         private string Archived(Guid id) => OrchestrationConstants.GetArchivedScenarioDirectory(OrchestrationConstants.GetSharedRoot(_root), id);
 

@@ -329,7 +329,7 @@ public sealed class ClusterMasterCheckpointTests
     public void CE3299_B4_TheRestoreAggregator_ReportsTheEarliestNodeTime()
     {
         string Json(long ticks) => System.Text.Json.JsonSerializer.Serialize(
-            new CheckpointRestoreResult(new GlobalTime { TotalWallTicks = ticks }, Guid.Empty), Hrot.Network.Orchestration.OrchestrationJsonOptions.Default);
+            new CheckpointRestoreResult(new GlobalTime { TotalWallTicks = ticks }, (Fdp.Core.ExerciseId)(Guid.Empty)), Hrot.Network.Orchestration.OrchestrationJsonOptions.Default);
         var answers = new System.Collections.Generic.Dictionary<int, System.Collections.Generic.Dictionary<FdpNodeOpType, string>>
         {
             [1] = new() { [FdpNodeOpType.RestoreSnapshot] = Json(9_000) },
@@ -380,7 +380,7 @@ public sealed class ClusterMasterCheckpointTests
     {
         var parent = Guid.NewGuid();
         string Json(long clock, Guid p, long point, bool rec) => System.Text.Json.JsonSerializer.Serialize(
-            new LiveBranchResult(new GlobalTime { TotalWallTicks = clock }, rec, p, point), Hrot.Network.Orchestration.OrchestrationJsonOptions.Default);
+            new LiveBranchResult(new GlobalTime { TotalWallTicks = clock }, rec, (Fdp.Core.ExerciseId)(p), point), Hrot.Network.Orchestration.OrchestrationJsonOptions.Default);
         var answers = new System.Collections.Generic.Dictionary<int, System.Collections.Generic.Dictionary<FdpNodeOpType, string>>
         {
             [1] = new() { [FdpNodeOpType.PrepareLive] = Json(100, Guid.Empty, 0, rec: false) },   // a listener: earliest clock, no history

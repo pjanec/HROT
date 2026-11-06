@@ -185,7 +185,7 @@ public sealed class ClusterOpMasterTranslator
                 {
                     TransactionId = req.RequestId,
                     IsStart       = epDto.IsStart,
-                    EpisodeId     = epDto.EpisodeId.Value,
+                    EpisodeId     = (Fdp.Core.EpisodeId)epDto.EpisodeId.Value,
                     ScenarioId    = epDto.ScenarioId,
                 });
                 break;
@@ -225,7 +225,7 @@ public sealed class ClusterOpMasterTranslator
                 {
                     RequestId  = req.RequestId,
                     Operation  = StorageOpType.Export,
-                    ExerciseId = archDto?.ExerciseId ?? Guid.Empty,
+                    ExerciseId = (Fdp.Core.ExerciseId)(archDto?.ExerciseId ?? Guid.Empty),
                 });
                 break;
             }
@@ -237,7 +237,7 @@ public sealed class ClusterOpMasterTranslator
                 {
                     RequestId  = req.RequestId,
                     Operation  = StorageOpType.Delete,
-                    ExerciseId = delDto?.ExerciseId ?? Guid.Empty,
+                    ExerciseId = (Fdp.Core.ExerciseId)(delDto?.ExerciseId ?? Guid.Empty),
                 });
                 break;
             }
@@ -249,7 +249,7 @@ public sealed class ClusterOpMasterTranslator
                 {
                     RequestId  = req.RequestId,
                     Operation  = StorageOpType.Import,
-                    ExerciseId = impDto?.ExerciseId ?? Guid.Empty,
+                    ExerciseId = (Fdp.Core.ExerciseId)(impDto?.ExerciseId ?? Guid.Empty),
                 });
                 break;
             }
@@ -268,7 +268,7 @@ public sealed class ClusterOpMasterTranslator
                 {
                     RequestId    = req.RequestId,
                     Operation    = StorageOpType.SaveScenario,
-                    ExerciseId   = Guid.Empty,
+                    ExerciseId   = Fdp.Core.ExerciseId.Empty,
                     ScenarioName = scenarioName,
                     OnlyGuids    = onlyGuids,
                     HeaderJson   = headerJson,

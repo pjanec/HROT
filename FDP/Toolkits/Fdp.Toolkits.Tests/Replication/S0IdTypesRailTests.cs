@@ -180,5 +180,75 @@ namespace Fdp.Toolkits.Tests.Replication
             Assert.Equal(new NodeId(3), tc.ConvertFromInvariantString("3"));
             Assert.Equal("3", tc.ConvertToInvariantString(new NodeId(3)));
         }
+
+        // ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        // ⭐⭐ CE-4204 SV-6 — an EXERCISE / EPISODE id is a type a tool can OPEN: <see cref="ExerciseId"/> / <see cref="EpisodeId"/>, a Guid's memory
+        // and JSON. Correlation tokens (RequestId, TransactionId, SessionId) stay Guid — the rail keys on the name containing Exercise / Episode.
+        // ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+        /// <summary><c>Type.Member</c> → why it is NOT an exercise / episode id. ⭐ A decision each; never a silencer. (The DDS wire types are skipped by <see cref="Wire"/>.)</summary>
+        internal static readonly Dictionary<string, string> NotAnExerciseOrEpisodeId = new(StringComparer.Ordinal)
+        {
+        };
+
+        private static bool LooksLikeAnExerciseOrEpisodeId(string name)
+            => name.EndsWith("Id", StringComparison.Ordinal)
+               && (name.Contains("Exercise", StringComparison.OrdinalIgnoreCase) || name.Contains("Episode", StringComparison.OrdinalIgnoreCase));
+
+        [Fact]
+        public void S0_EveryExerciseOrEpisodeIdMember_IsTyped()
+        {
+            var types = AllPublicNonWire().ToList();
+            Assert.True(types.Count >= 1000, $"only {types.Count} public types found — the scan lost its assemblies");
+            var offences = new List<string>();
+            foreach (var t in types)
+                foreach (var (owner, member, type) in Members(t))
+                    if (Strip(type) == typeof(Guid) && LooksLikeAnExerciseOrEpisodeId(member) && !NotAnExerciseOrEpisodeId.ContainsKey(owner + "." + member))
+                        offences.Add($"{t.FullName}.{member} ({type.Name}) — an exercise id is an ExerciseId, an episode id an EpisodeId (or say what it is)");
+            var sb = new StringBuilder();
+            foreach (var o in offences.OrderBy(x => x, StringComparer.Ordinal)) sb.AppendLine(o);
+            Assert.True(offences.Count == 0, $"{offences.Count} members look like an exercise / episode id but are a bare Guid:\n{sb}");
+        }
+
+        [Fact]
+        public void S0_EveryNotAnExerciseOrEpisodeIdEntry_StillNamesAMember()
+        {
+            var live = new HashSet<string>(AllPublicNonWire().SelectMany(t => Members(t).Select(m => m.Owner + "." + m.Member)));
+            var stale = NotAnExerciseOrEpisodeId.Keys.Where(k => !live.Contains(k)).ToList();
+            Assert.True(stale.Count == 0, "NotAnExerciseOrEpisodeId entries name no member any more: " + string.Join(", ", stale));
+        }
+
+        /// <summary>The types — a Guid's memory, a plain JSON GUID string, implicit OUT, explicit IN; and the serialised recordings keep their JSON.</summary>
+        [Fact]
+        public void ExerciseId_And_EpisodeId_AreAGuidsMemory_AndAPlainJsonGuid_AndExplicitIn()
+        {
+            var g = Guid.Parse("11111111-2222-3333-4444-555555555555");
+            Assert.Equal(16, System.Runtime.CompilerServices.Unsafe.SizeOf<ExerciseId>());
+            Assert.Equal(16, System.Runtime.CompilerServices.Unsafe.SizeOf<EpisodeId>());
+            Assert.Equal(System.Text.Json.JsonSerializer.Serialize(g), System.Text.Json.JsonSerializer.Serialize(new ExerciseId(g)));
+            Assert.Equal(System.Text.Json.JsonSerializer.Serialize(g), System.Text.Json.JsonSerializer.Serialize(new EpisodeId(g)));
+            Assert.Equal(new ExerciseId(g), System.Text.Json.JsonSerializer.Deserialize<ExerciseId>(System.Text.Json.JsonSerializer.Serialize(g)));
+            Assert.Equal(new EpisodeId(g), System.Text.Json.JsonSerializer.Deserialize<EpisodeId>(System.Text.Json.JsonSerializer.Serialize(g)));
+            Guid asGuid = new ExerciseId(g);                      // implicit out
+            Assert.Equal(g, asGuid);
+            Assert.Equal(new EpisodeId(g), (EpisodeId)g);         // explicit in
+            Assert.Equal(g.ToString(), new ExerciseId(g).ToString());
+            foreach (var t in new[] { typeof(ExerciseId), typeof(EpisodeId) })
+            {
+                var ops = t.GetMethods(BindingFlags.Public | BindingFlags.Static).Where(m => m.Name == "op_Implicit").ToList();
+                Assert.Single(ops);
+                Assert.Equal(typeof(Guid), ops[0].ReturnType);
+                var tc = System.ComponentModel.TypeDescriptor.GetConverter(t);
+                Assert.Equal(g.ToString(), tc.ConvertToInvariantString(Activator.CreateInstance(t, g)));
+            }
+            // ⚠ recordings: RecordingMetadata's JSON is byte-identical whether its ids are typed or a bare Guid
+            var meta = new Fdp.Core.FlightRecorder.Metadata.RecordingMetadata { ExerciseId = new ExerciseId(g), ParentExerciseId = new ExerciseId(Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")) };
+            var json = System.Text.Json.JsonSerializer.Serialize(meta);
+            Assert.Contains("\"" + g + "\"", json);
+            Assert.Equal(g, (Guid)System.Text.Json.JsonSerializer.Deserialize<Fdp.Core.FlightRecorder.Metadata.RecordingMetadata>(json)!.ExerciseId);
+            Assert.Equal("{\"EpisodeId\":\"" + g + "\"}", System.Text.Json.JsonSerializer.Serialize(new { EpisodeId = new EpisodeId(g) }));
+            // the recorded component keeps its bytes: EpisodeTag is 16 bytes, the Guid's
+            Assert.Equal(16, System.Runtime.CompilerServices.Unsafe.SizeOf<EpisodeTag>());
+        }
     }
 }

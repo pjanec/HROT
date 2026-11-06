@@ -27,7 +27,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             File.WriteAllText(fdp, "fdp");
             File.WriteAllText(fdp + ".meta.json", MetadataSerializer.Serialize(new RecordingMetadata
             {
-                ExerciseId = exercise, NodeId = (Fdp.Core.NodeId)(node), ParentExerciseId = parent, BranchWallTicks = branchTicks, Duration = TimeSpan.FromSeconds(10),
+                ExerciseId = (Fdp.Core.ExerciseId)(exercise), NodeId = (Fdp.Core.NodeId)(node), ParentExerciseId = (Fdp.Core.ExerciseId)(parent), BranchWallTicks = branchTicks, Duration = TimeSpan.FromSeconds(10),
                 ScenarioName = scenario ?? "",
             }));
         }
@@ -74,9 +74,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             var metas = new RecordingMetadata?[]
             {
                 null,
-                new RecordingMetadata { ParentExerciseId = Guid.Empty, BranchWallTicks = 5 },   // not a branch: its ticks mean nothing
-                new RecordingMetadata { ParentExerciseId = parent, BranchWallTicks = 700 },
-                new RecordingMetadata { ParentExerciseId = parent, BranchWallTicks = 600 },
+                new RecordingMetadata { ParentExerciseId = (Fdp.Core.ExerciseId)(Guid.Empty), BranchWallTicks = 5 },   // not a branch: its ticks mean nothing
+                new RecordingMetadata { ParentExerciseId = (Fdp.Core.ExerciseId)(parent), BranchWallTicks = 700 },
+                new RecordingMetadata { ParentExerciseId = (Fdp.Core.ExerciseId)(parent), BranchWallTicks = 600 },
             };
             Assert.Equal((parent, 600L), ExerciseBranch.Of(metas));
         }

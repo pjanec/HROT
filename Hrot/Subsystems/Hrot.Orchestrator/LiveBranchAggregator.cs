@@ -55,6 +55,6 @@ public sealed class LiveBranchAggregator : INodeResponseAggregator
                 // Malformed JSON -- skip without throwing.
             }
         }
-        return earliest is { } e ? e with { ParentExerciseId = parent, BranchWallTicks = branchTicks } : null;
+        return earliest is { } e ? e with { ParentExerciseId = (Fdp.Core.ExerciseId)(parent), BranchWallTicks = branchTicks } : null;
     }
 }

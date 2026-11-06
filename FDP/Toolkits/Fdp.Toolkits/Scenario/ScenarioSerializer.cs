@@ -531,7 +531,7 @@ namespace Fdp.Toolkit.Scenario
                 // Stamp Fdp.Core.EpisodeTag if requested.
                 if (asEpisode)
                 {
-                    repo.SetComponent(entity, new Fdp.Core.EpisodeTag { EpisodeId = episodeId!.Value });
+                    repo.SetComponent(entity, new Fdp.Core.EpisodeTag { EpisodeId = (Fdp.Core.EpisodeId)episodeId!.Value });
                 }
             }
         }

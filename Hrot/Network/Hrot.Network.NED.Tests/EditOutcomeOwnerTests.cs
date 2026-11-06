@@ -47,6 +47,8 @@ public sealed class EditOutcomeOwnerTests
         private readonly UpdateEntityAttributeRequestSystem _system;
 
         /// <param name="owns">true = this node owns the entity (primary owner, SimTransform authoritative); false = a bystander.</param>
+        public readonly NetworkEntityMap Map;
+
         public Node(bool owns, int localNode)
         {
             Hrot.Map.Common.HrotSharedComponentRegistry.RegisterAll(World);
@@ -61,6 +63,7 @@ public sealed class EditOutcomeOwnerTests
             World.SetAuthority<SimTransform>(Entity, owns);
             var map = new NetworkEntityMap();
             map.Register(NetId, Entity);
+            Map = map;
             _system = new UpdateEntityAttributeRequestSystem(Source, Acks, map);
         }
 
@@ -195,5 +198,131 @@ public sealed class EditOutcomeOwnerTests
         var again = new CapturingWriter();
         new EditOutcomeEgressTranslator(again).ScanAndPublish(requester.World);
         Assert.Empty(again.Written);
+    }
+    // ── ⭐ edit framework F1 (docs/UX/DESIGN_Edit_Framework.md §2.2, §4 F1): Edits.Submit end to end, a non-owner and the owner ──────────────────────
+
+    /// <summary>The requester's commands as the egress writes them to the wire.</summary>
+    private static UpdateEntityAttributeRequest SentBy(Node requester)
+    {
+        requester.World.Bus.SwapBuffers();
+        var writer = new CapturingRequestWriter();
+        new Hrot.Map.Common.Replication.Egress.UpdateEntityAttributeCommandEgressTranslator(writer).ScanAndPublish(requester.World);
+        return Assert.Single(writer.Written);
+    }
+
+    private sealed class CapturingRequestWriter : Hrot.Map.Common.Dds.IDdsWriter<UpdateEntityAttributeRequest>
+    {
+        public readonly List<UpdateEntityAttributeRequest> Written = new();
+        public void Write(UpdateEntityAttributeRequest sample) => Written.Add(sample);
+        public void DisposeInstance(UpdateEntityAttributeRequest key) { }
+    }
+
+    /// <summary>The owner's answer back on the requester (egress → wire → ingress), then the requester's journal.</summary>
+    private static EditJournalEntry AnswerBack(Node owner, Node requester, Guid id)
+    {
+        var writer = new CapturingWriter();
+        new EditOutcomeEgressTranslator(writer).ScanAndPublish(owner.World);
+        var ingress = new EditOutcomeIngressTranslator(null);
+        foreach (var w in writer.Written) ingress.ProcessSample(in w, requester.World);
+        var journal = EditJournal.Of(requester.World);
+        journal.Refresh(requester.World);
+        return journal.Find(id)!;
+    }
+
+    /// <summary>⭐ CE-4274 — a RENAME submitted on a station that does not own the unit reaches the owner, is applied THERE (never to the replica), and the
+    /// requester's journal reads Applied. ✅ Red-proof: the modal's old path (a local write) leaves the owner's name unchanged ⇒ red.</summary>
+    [Fact]
+    public void F1_ARenameOnANonOwner_IsAppliedByTheOwner_AndTheJournalReadsApplied()
+    {
+        var owner = new Node(owns: true, OwnerNode);
+        var requester = new Node(owns: false, OtherNode);
+        owner.World.AddComponent(owner.Entity, new EntityInfo { Name = new FixedString64("Alpha") });
+        requester.World.AddComponent(requester.Entity, new EntityInfo { Name = new FixedString64("Alpha") });
+
+        var ticket = Edits.Submit(requester.World, EditOp.Write(requester.Entity,
+            new Fdp.Toolkit.Replication.Patching.EntityAttributeChange
+            {
+                AttributeId = Fdp.Toolkit.Replication.Patching.AttributeIds.Name,
+                Value = Fdp.Toolkit.Replication.Patching.AttributeValue.FromString("Bravo"),
+            }, "Rename to Bravo"));
+        Assert.Equal(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Requested, ticket.Route);
+        Assert.Equal("Alpha", requester.World.GetComponent<EntityInfo>(requester.Entity).Name.ToString());   // the replica is NOT written
+        Assert.Equal(EditStatus.Pending, EditJournal.Of(requester.World).Find(ticket.RequestId)!.Status);
+
+        var req = SentBy(requester);
+        Assert.Equal((ticket.RequestId, true), (req.RequestId, req.WantOutcome));
+        owner.Run(req);
+        Assert.Equal("Bravo", owner.World.GetComponent<EntityInfo>(owner.Entity).Name.ToString());
+
+        var entry = AnswerBack(owner, requester, ticket.RequestId);
+        Assert.Equal((EditStatus.Applied, "Rename to Bravo"), (entry.Status, entry.Label));
+    }
+
+    /// <summary>⭐ CE-4275 — an ORBAT re-parent on a non-owner goes to the owner as "CommanderId": the OWNER publishes the assignment and answers Applied; the
+    /// requester publishes NO local assignment (which wrote the replica). ✅ Red-proof: the adapter's old local CmdAssignSubordinate ⇒ the requester's bus holds one ⇒ red.</summary>
+    [Fact]
+    public void F1_AnOrbatAssignOnANonOwner_IsAppliedByTheOwner()
+    {
+        const int CmdNet = 4712;
+        var owner = new Node(owns: true, OwnerNode);
+        var requester = new Node(owns: false, OtherNode);
+        Entity Commander(Node n)
+        {
+            var c = n.World.CreateEntity();
+            n.World.AddComponent(c, new NetworkIdentity { Value = CmdNet });
+            n.Map.Register(CmdNet, c);
+            return c;
+        }
+        var ownerCmd = Commander(owner);
+        var reqCmd = Commander(requester);
+
+        var ticket = Edits.Submit(requester.World, EditOp.SetCommander(requester.Entity, reqCmd, "Assign to a commander"));
+        Assert.Equal(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Requested, ticket.Route);
+        var req = SentBy(requester);
+        Assert.Empty(requester.World.Bus.Read<Fdp.Core.CommandHierarchy.CmdAssignSubordinate>().ToArray());
+        Assert.Contains("\"CommanderId\":4712", req.AttributePatchJson);
+
+        owner.Run(req);
+        var assigned = Assert.Single(owner.World.Bus.Read<Fdp.Core.CommandHierarchy.CmdAssignSubordinate>().ToArray());
+        Assert.Equal((owner.Entity, ownerCmd), (assigned.Subordinate, assigned.Commander));
+        Assert.Equal(EditStatus.Applied, AnswerBack(owner, requester, ticket.RequestId).Status);
+    }
+
+    /// <summary>⭐ The gate — a replaying world refuses every edit on every host (Review mode), and an installed gate refuses with ITS reason; nothing is sent
+    /// either way and the journal holds the reason. ✅ Red-proof: the ReplayState check removed ⇒ the first edit is Requested ⇒ red.</summary>
+    [Fact]
+    public void F1_AReviewOrObserverEdit_IsRefusedWithTheReason_AndNothingIsSent()
+    {
+        var requester = new Node(owns: false, OtherNode);
+        var op = EditOp.WritePatch(requester.Entity, "{\"Heading\":90}", "Turn");
+
+        Fdp.Toolkit.Replay.ReplayState.Enter(requester.World);
+        var review = Edits.Submit(requester.World, op);
+        Fdp.Toolkit.Replay.ReplayState.Leave(requester.World);
+        Assert.Equal(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused, review.Route);
+        var r = EditJournal.Of(requester.World).Find(review.RequestId)!;
+        Assert.Equal((EditStatus.Refused, Edits.ReplayRefusal, "Review"), (r.Status, r.Reason, r.Mode));
+
+        Hrot.Common.Editing.HrotEditGate.Install(requester.World, () => Hrot.Common.Editing.EditingMode.Live, () => Hrot.Common.Editing.EditingLevel.Observer);
+        var observer = Edits.Submit(requester.World, op);
+        var o = EditJournal.Of(requester.World).Find(observer.RequestId)!;
+        Assert.Equal((EditStatus.Refused, "this station is an observer", "Live"), (o.Status, o.Reason, o.Mode));
+        Assert.True(EditOutcomeLog.Of(requester.World).TryGet(observer.RequestId, out var logged) && logged.Status == EditStatus.Refused);
+
+        requester.World.Bus.SwapBuffers();
+        Assert.Empty(requester.World.Bus.ReadManaged<Fdp.Toolkit.Replication.Events.UpdateEntityAttributeCommand>());
+    }
+
+    /// <summary>An edit the owner never answers becomes Lost after the time-out (the journal's local status). ✅ Red-proof: the Lost branch removed ⇒ red.</summary>
+    [Fact]
+    public void F1_AnUnansweredEdit_IsLost_AfterTheTimeOut()
+    {
+        var requester = new Node(owns: false, OtherNode);
+        var t = Edits.Submit(requester.World, EditOp.WritePatch(requester.Entity, "{\"Heading\":90}", "Turn"));
+        var journal = EditJournal.Of(requester.World);
+        journal.Refresh(EditOutcomeLog.Of(requester.World), DateTime.UtcNow);
+        Assert.Equal(EditStatus.Pending, journal.Find(t.RequestId)!.Status);
+        journal.Refresh(EditOutcomeLog.Of(requester.World), DateTime.UtcNow + EditJournal.LostAfter + TimeSpan.FromSeconds(1));
+        Assert.Equal(EditStatus.Lost, journal.Find(t.RequestId)!.Status);
     }
 }

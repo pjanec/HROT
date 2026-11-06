@@ -504,7 +504,7 @@ public sealed class ClusterMasterSeekTests
         {
             TransactionId   = Guid.NewGuid(),
             TargetState     = Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay,
-            ExerciseId      = Guid.NewGuid(),
+            ExerciseId      = (Fdp.Core.ExerciseId)(Guid.NewGuid()),
             TargetWallTicks = 30_000_000L,
         });
         bus.SwapBuffers();
@@ -865,7 +865,7 @@ public sealed class ClusterMasterSeekTests
         {
             TransactionId    = Guid.NewGuid(),
             TargetState      = Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay,
-            ExerciseId       = Guid.NewGuid(),
+            ExerciseId       = (Fdp.Core.ExerciseId)(Guid.NewGuid()),
             TargetSimSeconds = targetSimSeconds,
         });
         bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();

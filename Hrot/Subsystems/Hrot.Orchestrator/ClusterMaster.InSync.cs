@@ -194,7 +194,7 @@ public sealed partial class ClusterMaster
 
         FanOutLoadPrepare(live ? NodeOpType.PrepareLive : NodeOpType.PrepareEdit, c.TransactionId,   // ⭐ CE-3354 ③ — a joiner named in the map-in-load set waits for its map too
             new EditLoadHandlerPayload(null, false, loading,
-                ExerciseId: _currentExerciseId, TerrainName: names.TerrainName,
+                ExerciseId: (Fdp.Core.ExerciseId)(_currentExerciseId), TerrainName: names.TerrainName,
                 // ⛔ NOT a world boundary. 📐 Measured live 2026-10-15: a joiner takes in the current world in the frames before it
                 //   learns the master's session (its gate is not closed yet); a boundary clear here destroyed that entity and DDS
                 //   never re-delivers a taken sample — the joiner lost entity 1000. A joiner already in Idle holds only the CURRENT
@@ -204,7 +204,7 @@ public sealed partial class ClusterMaster
         FanOutNodeOp(NodeOpType.CommitState, c.TransactionId, new CommitStatePayload(loading), targets);
 
         FanOutNodeOp(NodeOpType.PrepareState, c.TransactionId,
-            new EditLoadHandlerPayload(null, false, c.Operating, ExerciseId: _currentExerciseId), targets);
+            new EditLoadHandlerPayload(null, false, c.Operating, ExerciseId: (Fdp.Core.ExerciseId)(_currentExerciseId)), targets);
         FanOutNodeOp(NodeOpType.CommitState, c.TransactionId, new CommitStatePayload(c.Operating), targets);
 
         c.Expected = 3;   // one answer per prepare; CommitState sends none
