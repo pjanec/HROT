@@ -14,6 +14,7 @@ known-conflict: ⭐ RESOLVED 2026-10-17 (CE-2235) — docs/TUTORIAL_Behaviour_Co
   Tier 0 is for entities that only move (traffic) and civilians run one CivilianHsm (R-263). ⚠ AQ93 §8 P5 named a single "PanickedCivilian" type — SUPERSEDED here by CV-1
   (one civilian family whose panic is a MODE, not a type).
 related-designs:
+  - UX/DESIGN_Initial_State.md — E15: carry stations and HeldItem authored as start state (the Unit form)
   - UX/DESIGN_Editing_UX.md — §1.8 / E15: the carry stations (Hands / Back / Hidden) and WeaponPosture / HeldItem as authored start state
   - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — (behaviors) I-3: a soldier throws a landed frag back through RoundPickUp (AW-8, B-13)
   - docs/blueprints/Architect_Question_97_Default_Reflexes_Soldiers_And_Civilians.md — ASKED 2026-10-20 (D): fear created by CivilianFearSystem for every civilian; a CivilianSop reacts when his task is not CivilianHsm (measured: an ordered civilian has no fear at all today)

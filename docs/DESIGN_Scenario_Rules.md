@@ -19,6 +19,7 @@ known-conflict: none
 ui-mockup: ⭐ docs/designs/rules-view/ (4 standalone HTML boards + README) — the rules view, trigger / objective detail tabs, editing while live (SR-109); also on the claude.ai canvas https://claude.ai/artifact/VLfa5GxVGh3Z7nYsGbf65k (the committed copy wins)
 proof-of-concept: ⭐⭐ FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/TriggerPoc/ — 38 rails PROVING the trigger machinery (runtime binding of shared actions, per-step occurrence slots, RunActions, BTree host, the when, restore); findings SR-108; the build rows CE-4160…CE-4166. ⛔ A builder STARTS FROM IT — lift its code into production, keep its rails; do not re-derive
 related-designs:
+  - UX/DESIGN_Initial_State.md — E15 S4: a Point map-graphic type that PointLink's entity form (SR-130 / SR-131) references
   - docs/UX/DESIGN_Seats_And_Hats.md — the Instructor seat (= the game master, SR-13 / SR-104) on the fused server and CGF; Z7 remote GM station
   - docs/UX/DESIGN_Rule_Editor_UX.md — condition templates that compile to / recognise the one condition language (SR-95); actions as sentences; a new Begin phase action
   - docs/UX/DESIGN_Mission_Plan_Editor.md — operation phases (named moments tasks wait for; begun by time, a rule, or the instructor) — not a step engine (U5 stays rejected)

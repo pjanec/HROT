@@ -1,3 +1,14 @@
+<!--STATUS
+state: LIVE
+updated: 2026-11-06 (STATUS block added by the coordinator when linking E15)
+current-answer: as the document states
+stale-below: as the document states
+known-rot: none recorded
+known-conflict: none recorded
+related-designs:
+  - ../../UX/DESIGN_Initial_State.md — E15 S3: SeedTargetCommand applied on every brain node, behind a "Knows about" row
+-->
+
 # DESIGN.md — Shared UI Library & Hrot.Editor Feature Completion (`edit-1`)
 
 ## Background and Vision

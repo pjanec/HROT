@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — top-level, for the user's review (R-4122); ui builds the forms, backend the attributes (R-4123)
+build-state: DESIGN — top-level, ✅ APPROVED Q1–Q8 by the user 2026-11-06 (R-4136); ui builds the forms, backend the attributes (R-4123)
 updated: 2026-11-06 (Q7 revised by the user: posture is a Unit form row — StanceIntent saved, seeded at load, set at once while paused) · 2026-11-06 (revised after the user's review: the raw editor is local BY DESIGN — CE-4283 refuted; every open point measured: the leaf editors through ScalarEditBox, ammunition, posture, weather, routes (CE-4284), embarkation; Q5 replaced, Q7–Q8 added) · 2026-11-06 (first version — coordinator; editing-UX design queue item 8: E2, D3 / D7 and the raw inspector fixes)
 current-answer: §2 the model · §3 the four forms · §4 stages · §5 questions with leans
 stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - DESIGN_Initial_State.md — E15 adds the Aboard / Carried by / Carries / Weapon / In hand / Knows about / Damage rows to the Unit form, by the posture rule (Q7)
   - DESIGN_Editing_UX.md — §1.8 / slice E15: the initial state beyond these forms (seats and carry modes, carried weapons, weapon posture, a named point, lying items) — E15 adds rows to these forms
   - DESIGN_Editing_UX.md — the programme: §3.3 the target tab set, D2 (tabs in the shared bundle with Requires), D3 (the Unit form's fields), D7 (expert detail), §3.7 the expected basics
   - DESIGN_Edit_Framework.md — OWNS the write: every form commit is one Edits.Submit(Write …); §2.5 the field-mark hook and the shared form-row helper this design builds
@@ -208,7 +209,7 @@ gets a row in this Scenario form when its own design lands.
 
 Order: D1 and D2 in parallel → D3 → D4 → D5 → D6. D1 needs edit framework F1 (`Edits.Submit` + `Write`).
 
-## 5. Questions — leans for the user
+## 5. Questions — ✅ all eight APPROVED (R-4136, user `2026-11-06`: *"Q1-Q8 approved, go on with E15"*)
 
 | # | question | lean | rejected |
 |---|---|---|---|

@@ -1,0 +1,162 @@
+<!--STATUS
+state: LIVE
+build-state: DESIGN — top-level, for the user's review (R-4122); backend saves the state, ui builds the rows (R-4123)
+updated: 2026-11-06 (first version — coordinator; editing-UX design queue 7b: E15)
+current-answer: §2 the model · §3 the rows · §4 stages · §5 questions with leans
+stale-below: nothing
+known-rot: none
+known-conflict: none
+related-designs:
+  - DESIGN_Editing_UX.md — §1.8 OWNS the user's topics and the first measurement; slice E15
+  - DESIGN_Details_Forms.md — the forms these rows join (R-4136); the start-state pattern was first set there for posture (Q7)
+  - DESIGN_Map_Interaction.md — placing; airborne aircraft get their height from placement, not from a row (§1.2 here)
+  - DESIGN_Edit_Framework.md — every row commits through Edits.Submit (Write / Command)
+  - ../DESIGN_Entity_Interactions.md — §7 OWNS embarkation (EmbarkEntityCommand, EmbarkationSystem) and §7.5 team carry
+  - ../DESIGN_Civilians_And_Crowd_Control.md — §7.13 OWNS the carry stations (Hands / Back / Hidden) and HeldItem
+  - ../DESIGN_Entity_Control.md — §8m OWNS taking and dropping lying weapons and stones at run time
+  - ../DESIGN_Scenario_Rules.md — SR-130 / SR-131 OWN PointLink's "an entity's position, resolved once", which the Point type plugs into
+  - ../designs/edit-1/DESIGN.md — SeedTargetCommand (EDIT1-E002) and the retired "Mark Target…" menu
+  - ../DESIGN_Weapon_Layers.md — W-13 OWNS WeaponPosture (the weapon brain writes it)
+-->
+
+# DESIGN — initial state: where a unit sits, what it carries, how it holds its weapon, what it knows, and named points
+
+## 0. Why, and what the user asked
+
+🔒 *"What about placing [a unit] as a passenger in a car or to a driver's seat of a technical or being carried by another soldier. How can
+we edit the things that can be mounted on a character? We will also need some kind of a named point entity, and it might be also oriented
+point. How can we define initial weapon state, like being aimed or hidden or at ease? How can we edit a freely lying weapon entities or
+stones or basically anything the player can pick up … Maybe there is some other … state of a character or entity that we might need to
+define as initial state."* — and for posture: *"the first tick of a real behavior will override it, but who cares? Sometimes the idle is
+the first one."* (user, `2026-11-06`)
+
+## 1. INVENTORY *(2026-11-06)*
+
+Queries:
+
+- `search_graph ".*(Seat|Carried|Carry|Stretcher|Casualty|Mounted|Attachment|Holster|Readiness|WeaponPosture|Aim|Slung|LaidDown|Pickup|Pickable|Item|Loose|Inventory|Kit|Prop|Waypoint|NamedPoint|Marker|Anchor|Point)$" Class`: 77 results, with no point, item or loose-object type.
+- A sweep of every `[DataPolicy]` declaration for state-like names: 23 results.
+- grep and reads as cited below.
+
+Coverage could not be checked.
+
+| state | mechanism that exists | saved? (measured) | authored today? |
+|---|---|---|---|
+| **in a vehicle, in a seat** (driver, gunner, commander, passenger) | `EmbarkEntityCommand { Passenger, Vehicle, Role, Mode, Assistant }` (`Behavior/Events/EmbarkEntityCommand.cs:14-32`) → `EmbarkationSystem` on the vehicle's owner | ✅ vehicle and seat: `PassengerBufferTranslator` (`Hrot.EcsNode/Serializers/PassengerBufferTranslator.cs:64-100`), rail `WS4_TheSeats_SurviveASaveAndLoad` | the map menu's Embark, no seat choice |
+| **carried / dragged / on a stretcher** | the same command, `Mode = Carried · Dragged · Stretcher`, `Assistant` = the rear handle | ⛔ **no**: `PassengerBuffer.Modes` and `.Assistant` are `[ScenarioIgnore]`, *"genesis boards seated"* (`InteractionComponents.cs:33-50`) | no |
+| **what a man carries, and where** | a carried weapon sits in a slot of the MAN'S `PassengerBuffer`; the slot is a carry station: Hands (drawn), Back (slung), Hidden (concealed) (`CarryStations.cs:28-31`); a station takes a weapon, never a man (`Embarkation.cs:150`); `LaidDownWeapons` for built-in mounts | ✅ the slot is saved by the same translator as a seat | only through a behaviour (`StationWeapon`) at run time |
+| **weapon posture and what is in his hand** | `WeaponPosture { Kind: AtEase · Ready · Aimed, Target, Point, ActiveMount, HeldItem: Weapon · Throwable · Phone · Binoculars, IdleSeconds }` (`Combat/Components/WeaponPosture.cs`), written only by the weapon brain; its idle branch lowers the weapon after `IdleSeconds` | ⛔ `NoScenario` | no |
+| **body posture** | `StanceIntent` | ⛔ `NoScenario` — being fixed by E2 (R-4136, Q7) | no |
+| **what a unit knows** | `TargetMemory` (saved, `TargetMemoryTranslator`; `tt-convoy-ambush` authors an empty one); `SeedTargetCommand { Perceiver, Target, ScoreBoost }` (EDIT1-E002) | ✅ | ⛔ the command is applied only by `EditorPerceptionSetupSystem` (`Hrot.Editor/Systems/EditorPerceptionSetupSystem.cs:22`) — editor-only, against R-4119; its *Mark Target…* menu went with ExCon |
+| **alerted** | `Alerted`: up to four leases a TASK renews (AQ104 D, R-2079); brain-local | ⛔ `NoScenario`, by design | — |
+| **airborne** | `FlightState { Airborne, VerticalSpeed }`; every flyer is born `Airborne = 1` (`Motion/Flight.cs:86`) | ⛔ `NoScenario` — and not needed: a saved aircraft reloads airborne at its saved height | E8 (placement height) |
+| **damage** | `Health` (saved), `PartDamage`, `MobilityKill` (saved) | ✅ | raw editor only |
+| **a named / oriented point** | ⛔ no point type (map graphics end at `DeployRole` 8815, `TkbEntityTypes.cs:142`); **`PointLink` already accepts "an entity's position", resolved once when assigned** (`Replication/Links.cs:77-92`, SR-130 / SR-131) | — | no |
+| **a lying weapon** | weapon systems 600–608 are separable types *"a host's station, a soldier or the ground holds"* (`NedTkbCatalog.cs`); Add Entity has a **Weapon systems** group (`assets/thumbnails/groups.json:9`) | ✅ as any entity | ✅ placeable today |
+| **lying stones and rounds** | a lying round is a `LightweightRound` (`NoScenario \| NoPreview`); the authored form is a **Stone Source** area (8812) | ⛔ a single round never | the Stone Source area |
+
+### 1.1 Claim table
+
+| claim | code | design basis |
+|---|---|---|
+| a seat and a carry station survive a save | ✅ `PassengerBufferTranslator` + the WS-4 rail; a station IS a slot of that list | ✅ Weapon Systems WS-4, Civilians §7.13 |
+| a carry mode does not | ✅ `[ScenarioIgnore]` + the comment *"genesis boards seated"* | ⛔ no design says it must stay unsaved — it was left out when the seat was (the seat was added later, WS-4) |
+| a point picked from a Point entity needs no new parameter type | ✅ `PointLink(local, RefSpec)` with an entity spec | ✅ SR-130 / SR-131 |
+| knowledge can be seeded on any node | ⛔ only the editor applies `SeedTargetCommand` | R-4119 (gated by the entity, not the node) |
+
+## 2. The model
+
+### 2.1 One pattern for a start state
+
+```mermaid
+classDiagram
+  class StartStateRule {
+    <<★ the pattern, documented once — not a class hierarchy>>
+    ① the component is SAVED
+    ② at load the entity STARTS in it (no transition)
+    ③ in a paused world an edit applies AT ONCE
+    ④ at run time it is an ordinary request
+    ⑤ the brain's first decision may change it
+  }
+  class StanceIntent { <<existing · E2 Q7>> body posture }
+  class WeaponPosture { <<existing · NoScenario → saved ★>> Kind · HeldItem · ActiveMount · Point · Target }
+  class PassengerBuffer { <<existing>> slots (saved) · +Modes, Assistant saved ★ }
+  class TargetMemory { <<existing · saved>> }
+  class SeedTargetCommand { <<existing · editor-only → every brain node ★>> }
+  class EmbarkEntityCommand { <<existing>> Role · Mode · Assistant }
+  class PointGraphic { <<★ new TKB type, next free 88xx (8816 today)>> EntityInfo name · SimTransform position + heading }
+  class PointLink { <<existing · Links.cs:85>> coordinates or an entity's position }
+  class UnitForm { <<E2>> +Aboard · Carried by · Carries · Weapon · In hand · Knows about ★ }
+
+  StartStateRule <.. StanceIntent
+  StartStateRule <.. WeaponPosture
+  StartStateRule <.. PassengerBuffer
+  UnitForm ..> EmbarkEntityCommand : Aboard / Carried by / Carries
+  UnitForm ..> WeaponPosture : Weapon, In hand (attributes ★)
+  UnitForm ..> SeedTargetCommand : Knows about
+  SeedTargetCommand --> TargetMemory
+  PointLink ..> PointGraphic : picked → its position, resolved once
+```
+
+*What the picture shows that the prose hid:* only three things are new. They are a save flag on two existing components, one new map-graphic
+type, and moving one command off the editor. Everything else (seats, stations, carry modes, knowledge, point references) already has a
+mechanism; it lacks only the save or the row. The five-step rule is the same one E2 set for posture, so each start state behaves the same.
+
+### 2.2 A casualty carried at start — authored, saved, reloaded
+
+```mermaid
+sequenceDiagram
+  actor A as author (Edit)
+  participant F as Unit form (casualty)
+  participant E as Edits
+  participant V as EmbarkationSystem (carrier's owner)
+  participant S as save
+  participant G as genesis (load)
+  A->>F: Carried by: [pick Sgt. B on the map] · as Stretcher · second man [pick Pvt. C]
+  F->>E: Submit Command EmbarkEntityCommand - Passenger casualty, Vehicle Sgt. B, Mode Stretcher, Assistant Pvt. C
+  E->>V: applied at once (one undo step)
+  V-->>F: the casualty rides on the stretcher, the map shows it
+  A->>S: Save
+  S->>S: PassengerBufferTranslator writes the slot, the seat ★ and the MODE ★ and the ASSISTANT ★
+  G->>G: reload: InitialPassengersIntent boards the casualty in that seat WITH that mode and assistant ★
+```
+
+*What the picture shows that the prose hid:* the authoring path exists end to end. The only break is in the save: the mode and the
+assistant are dropped, so the reload boards the casualty seated. The fix sits in one translator and one genesis step.
+
+## 3. The rows
+
+| where | row | writes | new |
+|---|---|---|---|
+| **Unit form** | **Aboard**: [vehicle] · seat [Driver ▾ · Gunner · Commander · Passenger] — or *(none)* | `EmbarkEntityCommand { Role }` / `DisembarkEntityCommand` | — |
+| **Unit form** | **Carried by**: [soldier] · as [Carried · Dragged · Stretcher] · second man [soldier] (stretcher only) | `EmbarkEntityCommand { Mode, Assistant }` | ★ saved mode and assistant |
+| **Unit form** | **Carries**: one line per carried weapon — [weapon] in [Hands · Back · Hidden]; *Add…* picks a weapon from the map or Add Entity's Weapon systems | `EmbarkEntityCommand` into the station slot (`CarryStations.Hands / Back / Hidden`) | — |
+| **Unit form** | **Weapon**: [At ease · Ready · Aimed] · aimed at [a point or a unit, picked] · **In hand**: [Weapon · Throwable · Phone · Binoculars] | attributes `Weapon.Posture`, `Weapon.AimPoint` / `Weapon.AimTarget`, `Weapon.HeldItem` (the brain's owner applies them) | ★ `WeaponPosture` saved (its `Target` through the entity-reference remap) |
+| **Unit form** ⚙ | **Knows about**: units picked on the map (*Add…*, multi-select fans out) | `SeedTargetCommand` | ★ applied on every brain node, not only the editor |
+| **Unit form** ⚙ | **Damage**: strength per part (vehicles: `PartDamage`), mobility kill | attributes | ★ the attributes |
+| **Crew & cargo** (vehicle) | each seat: role, who sits there (*Put aboard…* names the seat) | `EmbarkEntityCommand { Role }` | — |
+| **Point** (new type) | name, position, **heading** (optional — *oriented*), on the map with the point tool; listed under *Areas & routes ▸ Point* | `Name`, `Position.*`, `Heading` (existing attributes) | ★ the type |
+| every point picker (orders, rules, Go here) | also offers **named points**; picking one stores `PointLink` with the point's reference (resolved once — SR-130) | — | the picker lists Point entities |
+| — | **alerted**: not a row — a task's lease (by design); **airborne**: not a row — from placement height (E8); **a single lying stone**: not offered — the Stone Source area is the authored form | — | — |
+
+## 4. Stages
+
+| stage | what | owner | rails |
+|---|---|---|---|
+| **S1** | save `PassengerBuffer.Modes` and `.Assistant`; genesis boards with them | backend | the WS-4 rail extended: a stretcher casualty and its assistant survive a save and load |
+| **S2** | `WeaponPosture` saved and seeded (the E2 Q7 rule); the four `Weapon.*` attributes | backend | *Aimed at a point* and *Phone in hand* survive a reload; set in a paused world, shown at once |
+| **S3** | `SeedTargetCommand` applied on every brain node (moved out of `EditorPerceptionSetupSystem`) | backend | seeded from a CGF station, the knowledge lands on the brain's node |
+| **S4** | the Point map graphic (next free 88xx) + the point tool + pickers listing it | ui (+ backend for the type id) | a rule's point picked from *LZ Alpha* resolves to its position |
+| **S5** | the Unit form rows (Aboard, Carried by, Carries, Weapon, In hand, Knows about, Damage) and the Crew & cargo seat roles | ui | each from the form, Edit and Live, survives save and reload |
+
+## 5. Questions — leans for the user
+
+| # | question | lean | rejected |
+|---|---|---|---|
+| **Q1** | one rule for every start state | **the five-step rule of §2.1** (saved · start in it · at once while paused · a request at run time · the brain may change it), as set for posture | a "start" copy of each component: two records of one state |
+| **Q2** | carry mode and assistant | **save them** (S1) | keep them unsaved: a carried casualty reloads seated |
+| **Q3** | weapon posture and held item | **save them**; aimed at a point or a unit | leave to behaviours: an idle unit could never start aimed or holding binoculars |
+| **Q4** | "knows about" | **a Unit form row through the existing `SeedTargetCommand`, applied on every brain node** | a TargetMemory editor: its scores and freshness are engine detail |
+| **Q5** | the named point | **a new map-graphic type *Point* (name, position, optional heading), referenced through the existing `PointLink` entity form** | a point list in the scenario header: not on the map, not pickable |
+| **Q6** | alerted, airborne, single stones | **no rows**: alerted is a task's lease, airborne comes from placement height, stones come from a Stone Source | rows for each: state the engine owns elsewhere |
+| **Q7** | where these rows live | **the Unit form** (the person's view: where he is, what he carries, how he holds it) **and Crew & cargo** (the vehicle's view of the same seats) | a separate "Start state" tab: the same fields in two places |
