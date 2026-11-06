@@ -1,3 +1,14 @@
+<!--STATUS
+state: LIVE
+updated: 2026-11-06 (STATUS block added by the coordinator when linking E16)
+current-answer: as the document states
+stale-below: as the document states
+known-rot: none recorded
+known-conflict: none recorded
+related-designs:
+  - ../../UX/DESIGN_Colour_Icons.md — E16: the perspective toolbar's Silk keys fold into the ONE IconKeys map
+-->
+
 # Main Toolbar, Generic Asset Browser & Unified Asset Creation — Detailed Design
 
 **Status:** Draft v2 · **Date:** 2026-06-10 · **Repo:** `IOS-IG-SimHost-FDP`

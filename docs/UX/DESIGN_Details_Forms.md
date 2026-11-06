@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level, ✅ APPROVED Q1–Q8 by the user 2026-11-06 (R-4136); ui builds the forms, backend the attributes (R-4123)
-updated: 2026-11-06 (§6 the visual design — every row state, multi-select, read-only, conflict, notifications; ImGui-feasible; for review) · 2026-11-06 (Q7 revised by the user: posture is a Unit form row — StanceIntent saved, seeded at load, set at once while paused) · 2026-11-06 (revised after the user's review: the raw editor is local BY DESIGN — CE-4283 refuted; every open point measured: the leaf editors through ScalarEditBox, ammunition, posture, weather, routes (CE-4284), embarkation; Q5 replaced, Q7–Q8 added) · 2026-11-06 (first version — coordinator; editing-UX design queue item 8: E2, D3 / D7 and the raw inspector fixes)
-current-answer: §2 the model · §3 the four forms · §4 stages · §5 questions (approved) · §6 the visual design (for review)
+updated: 2026-11-06 (§6 approved, R-4138; marks are Silk atlas cells; §6.6 fidelity) · 2026-11-06 (§6 the visual design — every row state, multi-select, read-only, conflict, notifications; ImGui-feasible; for review) · 2026-11-06 (Q7 revised by the user: posture is a Unit form row — StanceIntent saved, seeded at load, set at once while paused) · 2026-11-06 (revised after the user's review: the raw editor is local BY DESIGN — CE-4283 refuted; every open point measured: the leaf editors through ScalarEditBox, ammunition, posture, weather, routes (CE-4284), embarkation; Q5 replaced, Q7–Q8 added) · 2026-11-06 (first version — coordinator; editing-UX design queue item 8: E2, D3 / D7 and the raw inspector fixes)
+current-answer: §2 the model · §3 the four forms · §4 stages · §5 questions (approved) · §6 the visual design (approved, R-4138) with §6.6 fidelity
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -18,6 +18,7 @@ related-designs:
   - DESIGN_Seats_And_Hats.md — a row's Level greys it for a seat that may not change it
   - ../DESIGN_Semantic_Value_Types.md — OWNS the typed values (SV-1 time, SV-4 angle) that choose a row's editor and its unit
   - ../blueprints/Architect_Question_59_Attribute_Vocabulary_Single_Source.md — OWNS AttributeVocabulary, "a row HERE FIRST"; every form field is an attribute
+  - DESIGN_Colour_Icons.md — E16: the Silk atlas as THE icon set; §6's marks are its first users
   - ../blueprints/DESIGN_Variable_Details_And_Editing.md — §1b uses yellow = pending, red = changed this tick; §6 here makes red mean error everywhere (Q-V4)
   - ../DESIGN_Remote_Edit_Outcome.md — the ticket and outcome a form commit carries
   - ../designs/weather/DESIGN_Weather_And_Time.md — §2: weather edits were meant to be attribute requests; the Scenario form's weather rows are those attributes
@@ -223,7 +224,7 @@ Order: D1 and D2 in parallel → D3 → D4 → D5 → D6. D1 needs edit framewor
 | **Q7** | posture | ✏ **REVISED after the user's correction: a Posture row on the Unit form.** `StanceIntent` becomes saved; a loaded unit starts in that stance with no transition; in Edit mode the change shows at once (the transition system does not run while paused); in Live it is a `StanceRequest` with the normal blend; the first real behaviour decision overrides it — like any start state | ⛔ first lean *"posture belongs to orders"* — wrong: an idle unit has no behaviour that sets posture (user) · a separate start-posture component: a second record of the same stance |
 | **Q8** | a route edited on a non-owner (CE-4284) | **the route travels to the owner as `UpdateEntityDescriptorRequest`, the way an area's points already do** — the edit framework's `Write` of a structured value | a scalar attribute per waypoint: a list is not a scalar, and 64 attributes per route would be the raw editor again |
 
-## 6. The visual design *(user, `2026-11-06`: "as the forms are quite often used and important UI, we should first create the visual design for them. Including the error/conflict indication (respecting the imgui capabilities)") — for review*
+## 6. The visual design — ✅ Q-V1…Q-V5 APPROVED (R-4138) *(user, `2026-11-06`: "as the forms are quite often used and important UI, we should first create the visual design for them. Including the error/conflict indication (respecting the imgui capabilities)") — for review*
 
 ![The Details forms, every row state, multi-select, read-only, conflict and the notification stack](details-forms-visual.svg)
 
@@ -236,7 +237,8 @@ notification, because the form may not be in view.
 | question | measured | consequence |
 |---|---|---|
 | the app's theme | no global style: no `StyleColors*` call and no style setup outside a few local `PushStyleColor` (`StartSurfaceWindow.cs:152`, `IconButtonChrome.cs:23`) ⇒ **ImGui's default dark** | the mockup uses the default dark colours; the forms add only the four status colours below |
-| the fonts | **Roboto Regular** + **FontAwesome 6 solid** merged + DejaVu symbols (`EmbeddedFontResources.cs:13-15`, `IconsFontAwesome6.cs`) | ⛔ **no bold, no italic** — headers are `SeparatorText` at normal weight, set apart by colour; every mark is a FontAwesome glyph (hourglass-half, circle-xmark, lock, rotate-left, triangle-exclamation, crosshairs) |
+| the fonts | **Roboto Regular** + **FontAwesome 6 solid** merged + DejaVu symbols (`EmbeddedFontResources.cs:13-15`, `IconsFontAwesome6.cs`) | ⛔ **no bold, no italic** — headers are `SeparatorText` at normal weight, set apart by colour |
+| the icons | ✏ **user, `2026-11-06`: colourful icons, not monochrome** — the **FamFamFam Silk** atlas (16 × 16, 32 × 32 cells, `FDP/Data/Icons/famfamfam-silk.png`, embedded by `EmbeddedAtlasResources.cs:12`, loaded on every map host by `RaylibPresentationShell.LoadIconAtlas`) | ⭐ every mark is a **Silk cell**, drawn with `ImGui.Image` (16 px fits the 18 px slot): error **i14** · pending **v6** · lock **a24** · reset **h1** · warning **t9** · info **c23** — the mockup embeds those exact pixels (`scripts/gen-details-forms-mockup.py`) |
 | the API this ImGui.NET has (1.91.6.1, the DLL's exported names) | ✅ `InputTextWithHint`, `SetItemTooltip`, `BeginItemTooltip`, `BeginDisabled` + `ImGuiHoveredFlags.AllowWhenDisabled`, `SeparatorText`, `TableSetBgColor`, `FrameBorderSize` (style var), `PushItemFlag`; ⛔ **no `MixedValue` item flag** | the mixed checkbox is drawn by hand (a bar in the box); every other state is a stock call |
 | status colours that exist | `EditorColors { Error, Warning, Info }` — **Blueprints editor only** (`Hrot.Blueprints.Editor/NodeDrawers/EditorColors.cs`); the variable views use **yellow = pending** and **red = changed this tick** (`DESIGN_Variable_Details_And_Editing.md` §1b) | ⭐ lift the palette into `Fdp.Presentation` as the ONE status palette (R-174); ⚠ red must mean ERROR everywhere (Q-V4) |
 
@@ -250,13 +252,13 @@ notification, because the form may not be in view.
 | a value being edited | the row's one `ScalarEditBox<T>` session (D1) | one row at a time |
 | units | inside the control's format (`"%.0f %%"`, `"%.0f m"`) | from the semantic type |
 | **invalid input** | `PushStyleVar(FrameBorderSize, 1)` + `PushStyleColor(Border, Error)` around the control; the reason as `TextColored(Error)` UNDER it | visible while typing; nothing commits while invalid |
-| **pending** (> 1 s) | FontAwesome hourglass in the slot, `Pending` colour; `SetItemTooltip("Waiting for node 3 (Brain)…")` | the new value shows at once (optimistic) |
-| **refused / lost** | circle-xmark in the slot, `Error`; `TableSetBgColor(RowBg0, ErrorRowTint)`; tooltip = the reason; clicking it clears the mark | the value returns to the real one; + a notification |
-| **not allowed for this seat / level** | `BeginDisabled()` on the row; lock in the slot; tooltip with `AllowWhenDisabled`: *"Your seat (Observer) cannot change Skill"* | never hidden (R-4119: greyed with the reason) |
-| **authored ≠ type** (skill, temperament) | rotate-left in the slot, `Info`; `SmallButton` look; tooltip *"Type 0.50 — reset"*; click = the reset attribute | the label shows the type value too |
+| **pending** (> 1 s) | Silk **v6** (hourglass) in the slot; `SetItemTooltip("Waiting for node 3 (Brain)…")` | the new value shows at once (optimistic) |
+| **refused / lost** | Silk **i14** in the slot; `TableSetBgColor(RowBg0, ErrorRowTint)`; tooltip = the reason; clicking it clears the mark | the value returns to the real one; + a notification |
+| **not allowed for this seat / level** | `BeginDisabled()` on the row; Silk **a24** (lock) in the slot; tooltip with `AllowWhenDisabled`: *"Your seat (Observer) cannot change Skill"* | never hidden (R-4119: greyed with the reason) |
+| **authored ≠ type** (skill, temperament) | Silk **h1** (back arrow) in the slot as an `ImageButton`; tooltip *"Type 0.50 — reset"*; click = the reset attribute | the label shows the type value too |
 | **mixed** (multi-select) | an un-ticked `Checkbox` before the label; the control disabled with `InputTextWithHint("", "— mixed (3 values) —")`; a combo's preview the same hint; a checkbox value ⇒ a hand-drawn bar | Eden's rule (programme §3.3): tick ⇒ one value for all, ONE undo step |
 | **read-only** (Review, AAR) | a banner (`Info` text on a dim band) + the whole form in `BeginDisabled()` | no marks, no pickers |
-| **conflict** (precondition edits only) | a band at the top of the committing form: triangle-exclamation, `Pending` colour, `Reload` · `Overwrite` buttons | + a notification |
+| **conflict** (precondition edits only) | a band at the top of the committing form: Silk **t9**, `Pending` text, `Reload` · `Overwrite` buttons | + a notification |
 | **expert detail** | `CollapsingHeader("Details for experts")` at the bottom; the panel's Expert switch opens it (D7) | — |
 | **a sticky notification** | a stack of small windows pinned top-right of the main viewport (`SetNextWindowPos` + `NoDecoration`, `NoFocusOnAppearing`), each a coloured left bar, the glyph, a title line, a body line, buttons (*Show*, *Reload*, *Overwrite*), × to dismiss; at most 3 shown, *+N more* | stays until dismissed (R-4127); the Messages panel keeps the history |
 
@@ -270,7 +272,7 @@ notification, because the form may not be in view.
 | `Info` | 0.42 · 0.69 · 1.00 (ImGui's accent family) | reset-to-type, read-only banner | errors |
 | `Muted` | ImGui `TextDisabled` | locked rows, hints, units | — |
 
-⭐ **No state is shown by colour alone** — each has its own glyph shape (✗ · hourglass · lock · arrow · triangle), so a colour-blind user
+⭐ **No state is shown by colour alone** — each has its own icon shape (cross · hourglass · lock · arrow · triangle), so a colour-blind user
 reads them too.
 
 ### 6.4 Stage
@@ -288,3 +290,14 @@ reads them too.
 | **Q-V3** | refused | **✗ in the slot + a faint red row + the reason as a tooltip + a sticky notification**; the value returns to the real one | keep the refused value shown: the form would lie about the world |
 | **Q-V4** | red elsewhere | **red means error everywhere**: the variable views' "changed this tick" moves to a short `Info` flash | two meanings for red on one screen |
 | **Q-V5** | multi-select | **Eden's tick per row** (programme §3.3, approved), mixed shown as a hint | edit any field directly: one stray keystroke writes every selected unit |
+
+### 6.6 Fidelity — the build must LOOK like the mockup *(user, `2026-11-06`: "I wish the result really looked like that design (nicely aligned edit controls, colored icons etc.) … some explicit requirement for fidelity would be nice")*
+
+⭐ The mockup is an **acceptance spec**, not an illustration (R-4138).
+
+| # | requirement | how it is checked |
+|---|---|---|
+| ① | the same layout: label column, controls starting at ONE x on every row, one frame height, the status slot at ONE x | a frame rail per state measures the item rectangles (`GetItemRectMin/Max`): every control's left edge equal, every slot equal — ⛔ not by eye |
+| ② | the same icons: the Silk cells named in §6.2, coloured, never a FontAwesome stand-in | the rail asserts the cell drawn per state |
+| ③ | the same states: every state in the mockup has a rail that renders it (`xvfb-run`, `HROT_RAIL_SHOTS=<dir>`) | — |
+| ④ | ⭐ **a side-by-side to the user before the slice is called done**: the real frame of each state next to the mockup, rendered to the scratchpad and sent in chat (never into git) | the user signs off; a deviation is either fixed or argued — and then the mockup is updated to the as-built (obligation ⑤) |

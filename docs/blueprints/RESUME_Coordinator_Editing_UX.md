@@ -47,8 +47,9 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 11. ✍ **Design 8 WRITTEN `2026-11-06`: [DESIGN_Details_Forms.md](../UX/DESIGN_Details_Forms.md)** (E2 / D3, D7) — forms as declarations (`FormDecl` rows naming an attribute) drawn by ONE `FormView`; every field is an attribute (backend adds Health, ammo, StanceIntent, Playable, SpawnArea, weather); revised after the user's review: the raw editor is local BY DESIGN (CE-4283 refuted); every open point measured (§1.2): ammunition = the mount's WeaponState, posture IS a Unit form row (Q7 revised by the user: StanceIntent saved, seeded at load, set at once while paused), weather attributes are the designed path, embark by command, routes lost on a non-owner (CE-4284), a StructEdit session allocates ~24 B per field per frame (CE-4285) so a row edits through a session only while being edited; stages D1–D6; ✅ Q1–Q8 APPROVED (R-4136).
 12. ✍ **§1.8 initial state recorded `2026-11-06`** (the user's topics: seats and carrying, carried weapons, weapon posture, named / oriented point, lying weapons and stones, other start states — each measured) ⇒ slice **E15**, queue 7b, after E2.
 13. ✍ **Design 9 WRITTEN `2026-11-06`: [DESIGN_Initial_State.md](../UX/DESIGN_Initial_State.md)** (E15) — one start-state rule (saved · start in it · at once while paused · a request at run time · the brain may change it); carry mode + assistant saved; WeaponPosture saved; SeedTargetCommand on every brain node; a Point map graphic via PointLink's entity form; §3a the AI character (skill, bravery, obedience, nerve, resolve, ROE) — the model exists, the writes are local to the brain's node (R-1036) ⇒ Q8 make them attributes; stages S1–S6; ✅ Q1–Q9 APPROVED (R-4137, narrows R-1036).
-14. ✍ **Forms visual design WRITTEN `2026-11-06`** — [DESIGN_Details_Forms.md](../UX/DESIGN_Details_Forms.md) §6 + `docs/UX/details-forms-visual.svg` (user: forms first); stage D0; awaiting the user's review of Q-V1…Q-V5.
-15. ▶ NEXT (queue §4.5): E5 condition templates · E7 review · E2b sim / types. (Was 8: D1 (undo — reads the edit framework's journal), then E8 (map interaction), then the smaller ones. Previously listed after hats:, D1 (undo — reads the edit framework's journal), E8 (map), then the smaller ones (queue §4.5).
+14. ✍ **Forms visual design WRITTEN `2026-11-06`** — [DESIGN_Details_Forms.md](../UX/DESIGN_Details_Forms.md) §6 + `docs/UX/details-forms-visual.svg` (user: forms first); stage D0; ✅ APPROVED (R-4138) — marks are Silk cells; §6.6 fidelity (a mockup is an acceptance spec; CLAUDE.md rule); generator `scripts/gen-details-forms-mockup.py`.
+15. ✍ **E16 colourful icons WRITTEN `2026-11-06`: [DESIGN_Colour_Icons.md](../UX/DESIGN_Colour_Icons.md)** — the Silk atlas for every icon button / switch / mark, ONE IconKeys map; 12 files use FontAwesome today; picks per surface approved from a rendered sheet (I1–I3).
+16. ▶ NEXT (queue §4.5): E5 condition templates · E7 review · E2b sim / types. (Was 8: D1 (undo — reads the edit framework's journal), then E8 (map interaction), then the smaller ones. Previously listed after hats:, D1 (undo — reads the edit framework's journal), E8 (map), then the smaller ones (queue §4.5).
 4. Before each design: INVENTORY with graph queries, UML (class + sequence + module), and a claim table in the chat.
 
 ## 3. The other lanes at writing *(fetched `2026-11-06`)*
@@ -61,6 +62,6 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 | **behaviors** | performance programme (§11f, 1000 soldiers load) | nothing dispatched |
 | **backend** | late-joiner ghosts (CE-4000 / 4007) — dispatch in backend | check its report |
 
-Ids: coordinator next free **CE-4286**, **R-4138**.
+Ids: coordinator next free **CE-4286**, **R-4139**.
 
 ⚠ All lanes are PAUSED by the user while the editing-UX designs are discussed (`2026-11-06`).

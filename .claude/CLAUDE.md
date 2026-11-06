@@ -747,6 +747,15 @@ ever considered, which is what obligation ① exists to prevent.
   (JPEG q85, ~270 KB each) and their index are committed, because they are embedded in the executable. Only `scripts/thumbnails.py --pack` /
   `--add-image` writes them (`docs/DESIGN_Add_Entity_Picker.md` §2j) — ⭐ **and each scenario's `scenarios/<name>/preview.jpg`** (320 × 180, ~7 KB,
   beside its `scenario.json`; user, same day). ⭐ **And each terrain's `assets/terrain/<name>/preview.jpg`** (small JPEG, by the same script; user, R-4135). ⛔ Every other render (rail frames, live stills, before/after) stays out of git.
+- ### ⭐⭐ A VISUAL MOCKUP IS AN ACCEPTANCE SPEC — **the build must LOOK like it** *(user, `2026-11-06`, R-4138)*
+  > 🔒 **User, verbatim:** *"I wish the result really looked liked that design (nicely aligned edit controls, colored icons etc.) Usually the result
+  > after coding is different and not so nice so some explicit requirement for fidelity would be nice."*
+
+  | ⭐ the rule — for any UI slice that has a mockup in its design | |
+  |---|---|
+  | ⭐⭐ **layout is MEASURED, not eyeballed** — a frame rail reads the item rectangles (`GetItemRectMin/Max`) and asserts the mockup's alignment (controls at one x, one frame height, fixed slots) | ⛔ "looks about right" |
+  | ⭐⭐ **the named icons and colours are asserted** — the cell / token the design names, never a stand-in | 📌 icons are the colourful Silk atlas (`docs/UX/DESIGN_Colour_Icons.md`) |
+  | ⭐⭐⭐ **a side-by-side to the user before "done"** — the real frame of each mockup state next to the mockup, rendered to the scratchpad and sent in chat (never into git) | ⭐ a deviation is fixed, or argued and the mockup updated to the as-built |
 - **Keep documentation prose short.** Lead with visuals and terse tables; no long prose walls — they go unread. ⭐⭐⭐ **For DESIGN documents this is not a preference but an obligation — see *"DIAGRAM FIRST — the diagrams ARE the design; the prose SUPPORTS them"*** in the `NO IMPLEMENTATION WITHOUT UML` section: draw after the inventory and before you write, let the prose carry only *why*, and apply the deletion test to your own draft.
 
 ## ⛔⛔⛔ NO IMPLEMENTATION WITHOUT UML — **the design must name the CLASSES and the SEQUENCES** *(user, `2026-08-20`)*
