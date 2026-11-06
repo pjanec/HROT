@@ -32,6 +32,7 @@ current-answer: ⭐ 2026-10-25 — §3.4e (CE-3323, AQ107) is BUILT: EntityConst
   ⚠ ALSO: §3.4's TWO-METHOD API shape is SUPERSEDED by docs/DESIGN_Entity_Authoring_Surface.md
   (READY-TO-BUILD, ONE method RequestEntityCreation with an owner parameter). See this block's
   'supersedes' note in that file.
+known-rot: (2026-11-06, R-4126) every statement that CreateUpdateDeleteEntityAck stays (R-2082) — SUPERSEDED: merged into EntityEditOutcome (docs/UX/DESIGN_Edit_Framework.md §2.4, stage F2)
 known-rot: §2.3's Role-selected HALVES are SUPERSEDED — Architect_Question_65 §4 resolved the question
   and there is ONE uniform pipeline. §2.3 is kept only as HISTORY. §3's Role invariant (item 4) still says
   "role decides which half"; that wording is stale and must be read against Q65 §4. · ⛔ SUPERSEDED 2026-10-28 (R-4095): the BDC stack, its `BdcNodeId` (the byte-identical duplicate of the shared node id, §6/§9) and `BdcReplicationModule` were removed; the duplicate closed by deletion.

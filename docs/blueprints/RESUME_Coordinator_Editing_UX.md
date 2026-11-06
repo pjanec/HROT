@@ -36,7 +36,7 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 2. ✍ **Design 1 WRITTEN `2026-11-06`: [DESIGN_Action_Catalogue.md](../UX/DESIGN_Action_Catalogue.md)** — ✅ Q1–Q5 APPROVED (R-4125). (Was: write design 1 of the queue (§4.5): the action catalogue + the tab / action `Requires` + mode model (E9 + E1 core).) Start from
    AQ26, `UX_Feature_Entity_Action_Vocabulary.md`, `UX_Feature_Cross_Surface_Actions.md`, `UX_Feature_Menu_Follows_Focus.md`,
    `designs/gizmos-1/canvas-context-menu-design.md`, `DESIGN_Details_Panel_View_Switching.md` — extend them, ⛔ never a sixth menu mechanism.
-3. ✍ **Design 2 WRITTEN `2026-11-06`: [DESIGN_Edit_Framework.md](../UX/DESIGN_Edit_Framework.md)** (E0) — awaiting the user's review of §5 Q1–Q6 and stages F1–F7; five defects filed on the way (CE-4274…4278).
+3. ✍ **Design 2 WRITTEN `2026-11-06`: [DESIGN_Edit_Framework.md](../UX/DESIGN_Edit_Framework.md)** (E0) — awaiting the user's review of §5 Q1–Q6 and stages F1–F7; five defects filed on the way (CE-4274…4278); ✅ the old ack merged into EntityEditOutcome (R-4126, §2.4).
 4. ▶ NEXT: E11 (mission plan editor), then E10 (hats), D1 (undo — reads the edit framework's journal), E8 (map), then the smaller ones (queue §4.5).
 4. Before each design: INVENTORY with graph queries, UML (class + sequence + module), and a claim table in the chat.
 
@@ -50,6 +50,6 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 | **behaviors** | performance programme (§11f, 1000 soldiers load) | nothing dispatched |
 | **backend** | late-joiner ghosts (CE-4000 / 4007) — dispatch in backend | check its report |
 
-Ids: coordinator next free **CE-4279**, **R-4126**.
+Ids: coordinator next free **CE-4279**, **R-4127**.
 
 ⚠ All lanes are PAUSED by the user while the editing-UX designs are discussed (`2026-11-06`).

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level, for the user's review (R-4122); the building lanes detail it (R-4123)
-updated: 2026-11-06 (first version — coordinator; editing-UX design queue item 2: E0 / D10)
+updated: 2026-11-06 (§2.4 the old acknowledgement merged into EntityEditOutcome — R-4126) · 2026-11-06 (first version — coordinator; editing-UX design queue item 2: E0 / D10)
 current-answer: §2 the model (diagrams) · §3 each kind of edit, today → in the framework · §4 stages · §5 questions with leans
 stale-below: nothing
 known-rot: none
@@ -10,7 +10,7 @@ related-designs:
   - ../DESIGN_Remote_Edit_Outcome.md — the framework this EXTENDS (built 2026-11-04: EntityWriteRouter + EditRequests ticket + EditOutcomeLog for component writes); this design adds the other kinds of edit, the bridges and the journal
   - DESIGN_Editing_UX.md — the programme: D10 (one edit framework), D8 (Messages), D1 (undo, which reads this design's journal), D4 (station levels)
   - DESIGN_Action_Catalogue.md — an action's handler submits its edit here; the catalogue decides what is offered, this design decides what happens to it
-  - ../DESIGN_Entity_Creation_Unification.md — OWNS the creation request (§3.4d) and its acks (§3.4e); bridged here, never replaced (R-2082)
+  - ../DESIGN_Entity_Creation_Unification.md — OWNS the creation request (§3.4d) and its lifecycle events (§3.4e); its CreateUpdateDeleteEntityAck is MERGED into EntityEditOutcome here (R-4126, supersedes R-2082's "stays")
   - ../DESIGN_Entity_Interactions.md — OWNS embark / possess as interactions answered by the target's own state (a reply topic was rejected, :136); observed here, never replaced
   - ../DESIGN_Entity_Ownership_Transfer.md — OWNS ownership transfer (giver-initiated; the consolidate flow unbuilt)
   - ../DESIGN_Entity_Hierarchy_Views.md — OWNS the ORBAT re-parent (CommanderId) and its refusal pre-check
@@ -142,14 +142,36 @@ graph TD
 *Who runs each frame: only the bridges, reading acks that are already read today (no new per-frame scan; zero allocation, R-2084).
 `Submit` runs per user action. The journal is UI state: not recorded, not on the wire (`NoReplay`).*
 
+### 2.4 One answer message — the old acknowledgement merged in *(user, `2026-11-06`, R-4126, supersedes R-2082's "the existing ack stays")*
+
+🔒 *"We can merge into EntityEditOutcome, no one depend on the CreateUpdateDeleteEntityAck too much."*
+
+| field | `EntityEditOutcome` today | after the merge |
+|---|---|---|
+| `Guid RequestId` | ✅ | ✅ — the ticket of EVERY kind of edit (create and delete included) |
+| `int EntityId` | ✅ | ✅ — for a create, the NEW entity's id (what the old ack carried) |
+| `int Status` | 1 Applied · 2 Pending · 3 Refused (`EditStatus`) | + **4 Conflict** · **5 Lost** is local only (a time-out, never sent) |
+| `int RespondingNode` | ✅ plain `int` on the wire (SV-3: *"the DDS wire stays plain primitives … the type stops at the topic boundary"*) | ✅ unchanged on the wire; ⭐ the in-engine log record becomes `Fdp.Core.NodeId` (today a plain `int`, Remote Edit Outcome §5) |
+| `string Reason` | ✅ ≤ 1000 characters | ✅ |
+
+| retired with `CreateUpdateDeleteEntityAck` | measured | instead |
+|---|---|---|
+| the message and its old `Hrot.NED.Common.NodeId {AppDomainId, AppInstanceId}` responder | written by `UpdateEntityAttributeRequestSystem.cs:480-491` (when `RequireAck`) and `NedCgfEntityLifecycleAdapters.cs:138` (create / delete); read by `NedCommandGateway`'s `DdsCommandClient<CreateEntityRequest, CreateUpdateDeleteEntityAck>` (`NedCommandGateway.cs:45,62,88`) | every writer reports `EditOutcomes.Report` → `EntityEditOutcome`; the gateway's create client waits for `EntityEditOutcome` under its request id |
+| `RequireAck` on the requests | — | `WantOutcome` only |
+| the 512-bit applied-components mask (`OpaqueData`) | ⭐ **no production reader** (grep: written only, `UpdateEntityAttributeRequestSystem.cs:277,351,491`) | dropped |
+| statuses `0 Success / 1 InProgress / ≥2 error code` | — | Applied / Pending / Refused + the reason TEXT (the error code's name at least) |
+
+⇒ ⭐ this is part of stage **F2** (backend): create and delete answer with `EntityEditOutcome`; the old topic is removed in the same stage, after its two
+writers and one reader moved (a rail: no `CreateUpdateDeleteEntityAck` symbol left).
+
 ## 3. Each kind of edit — today → in the framework
 
 | kind | today | in the framework | stage |
 |---|---|---|---|
 | attribute / component write (side, name, weather, clock, drag, rotate, Playable side / slot) | ticket only for rules and HTTP; rename lost on a non-owner (CE-4274); clock sends without an id; weather and Playable write locally | `Write` through `EditRequests` — the outcome already exists | **F1** |
 | ORBAT assign | local command, replica written (CE-4275) | `Write` of the existing `CommanderId` attribute | **F1** |
-| create (Add Entity, area, route, insert a composition) | creation request + double ack + `EntityConstructionCompleted`, no UI reader (CE-4278) | `Create`; the bridge maps the existing acks (⛔ kept, R-2082) to the request id; a refusal gets its reason text | **F2** |
-| delete | `DestroyEntityCommand`, fresh id per send, ghost teardown (CE-4276) | `Delete` carrying the request id end to end; the bridge maps `DeleteEntityRequest`'s ack + `EntityDestructionCompleted` | **F2** |
+| create (Add Entity, area, route, insert a composition) | creation request + double ack + `EntityConstructionCompleted`, no UI reader (CE-4278) | `Create`; answered by `EntityEditOutcome` (the old ack merged in, §2.4); `EntityConstructionCompleted` stays (a lifecycle event, not an answer); a refusal gets its reason text | **F2** |
+| delete | `DestroyEntityCommand`, fresh id per send, ghost teardown (CE-4276) | `Delete` carrying the request id end to end; answered by `EntityEditOutcome` (§2.4) | **F2** |
 | add / remove a component (Playable toggle, ORBAT detach) | no request type anywhere | `AddComponent` / `RemoveComponent` — a new owner-side request | **F3** |
 | embark, disembark, possess, release | interactions answered by the target's state, no reason (⛔ ruled: no reply topic) | `Interact`; the bridge WATCHES the target's state (`IsEmbarkedTag`, `PossessedBy`) → Applied, or Lost after the time-out; the owner's refusal reason is added to the existing state (a field, not a reply topic) | **F4** |
 | orders | sender-side `OrderResult` only | `Command`; Applied = accepted by the sender's checks and sent; a refusal by the brain's owner reported later is a follow-on | **F5** |
@@ -163,7 +185,7 @@ graph TD
 | stage | what | proof |
 |---|---|---|
 | **F1** | `Edits.Submit` + `Gate` + `EditJournal`; every attribute-shaped edit goes through `Write` (fixes CE-4274, CE-4275) | per kind: a non-owner's edit reaches the owner and reports Applied (a two-node rail); a Review-mode or observer edit is Refused with its reason |
-| **F2** | `Create` / `Delete` with the request id end to end and their bridges (fixes CE-4276, CE-4278) | a refused placement shows its reason; a delete from a non-owner leaves no ghost torn down early |
+| **F2** | `Create` / `Delete` with the request id end to end, answered by `EntityEditOutcome`; `CreateUpdateDeleteEntityAck` retired (§2.4); the log record's responder typed `NodeId` (fixes CE-4276, CE-4278) | a refused placement shows its reason; a delete from a non-owner leaves no ghost torn down early |
 | **F3** | `AddComponent` / `RemoveComponent` owner-side | Playable toggle and ORBAT detach from a non-owner |
 | **F4** | `Interact` bridges (state watch + time-out + a reason field) | embark refused shows why |
 | **F5** | `Command` (orders) | — |

@@ -4,6 +4,7 @@ updated: 2026-11-04
 build-state: BUILT — part 1 (d63b51668) + part 2 (CE-2380 part 2); §5 is the as-built
 current-answer: §5 AS BUILT (diagrams + what deviated) · §4 the approved leans
 stale-below: §2's diagrams are the DESIGN-time picture; §5 supersedes them where they differ (see its table)
+known-rot: (2026-11-06, R-4126) "CreateUpdateDeleteEntityAck / RequireAck stay as they are" (R-2082) — SUPERSEDED by the user: the ack is merged into EntityEditOutcome (docs/UX/DESIGN_Edit_Framework.md §2.4); also the log record's RespondingNode becomes Fdp.Core.NodeId
 known-rot: §2 says EditOutcomeLog is a 'singleton' and RespondingNode a node id — as built it is a per-world ConditionalWeakTable service and RespondingNode is a plain int (§5)
 known-conflict: none
 related-designs:
