@@ -599,7 +599,8 @@ chat, committed as SVG beside its design. It is the acceptance spec (R-4138 / De
 | Seats and hats (E10): the seat and hat indicator and switch | `seats-hats-visual.svg` | ✍ drawn, for review |
 | Action catalogue (E9) + input (E14) + undo (D1): a context menu (groups, greyed with the reason, shortcuts), the Edit menu's undo / redo | `menus-visual.svg` | ✍ drawn, for review |
 | UI conventions (E17): trees (chevron · icon · label), label-first forms, slate collapsing headers — today vs after; what is not a form row, node editors, the label width | `ui-conventions-visual.svg` · `ui-conventions-details-visual.svg` | ✅ approved (R-4144…R-4147) |
-| Condition editor's Expert view (E5 §8): the struct editor readable — names, kinds as rows, no Bind rows, things by name | `condition-expert-visual.svg` | ✍ drawn, for review |
+| Condition editor's Expert view (E5 §8): the struct editor readable — names, kinds as rows, no Bind rows, things by name | `condition-expert-visual.svg` | ✅ approved (R-4149) |
+| Forms in the Replay Browser, read-only (forms §2.4, R-4148): the Recording chip and banner, disabled rows, not recorded, seek tint, copy | `replay-forms-visual.svg` | ✍ drawn, for review (Q-R1…Q-R3) |
 
 ### 4.4 Slices — proposed handoffs, once D1–D9 are approved
 
