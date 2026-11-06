@@ -119,6 +119,61 @@ namespace Hrot.UI.Common.Audio
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4269</c> — raylib has ONE audio device per PROCESS; every map host's <see cref="RaylibAudioOutput"/> shares it. 📐 Root cause
+    /// (confirmed by the user on Windows, <c>c0000005</c> in <c>raylib.DLL</c>; reproduced on the VM with a PulseAudio null sink): each output
+    /// called <c>InitAudioDevice</c> on open and <c>CloseAudioDevice</c> on dispose, so a second map host in one process (<c>-m server</c>,
+    /// <c>-m all</c>) closing ITS output tore the device out from under the other's sounds. ⭐ Reference-counted: opened by the first acquire,
+    /// closed by the last release. The master volume is the device's, so it is process-wide too (the last host to set it wins).
+    /// </summary>
+    public static class RaylibAudioDevice
+    {
+        private static readonly object Gate = new();
+        private static int _users;
+        private static bool _ready;
+
+        /// <summary>The device's open / ready / close — raylib's own; a rail swaps them to count calls without a sound card.</summary>
+        internal static Action Init = Raylib.InitAudioDevice;
+        internal static Func<bool> IsReady = () => Raylib.IsAudioDeviceReady();
+        internal static Action Close = Raylib.CloseAudioDevice;
+
+        /// <summary>How many outputs hold the device now.</summary>
+        public static int Users { get { lock (Gate) return _users; } }
+
+        /// <summary>Takes a share of the device, opening it on the first share. False when no device could be opened (nothing is held then).</summary>
+        public static bool Acquire()
+        {
+            lock (Gate)
+            {
+                if (_users == 0)
+                {
+                    Init();
+                    _ready = IsReady();
+                    if (!_ready) { Close(); return false; }
+                }
+                _users++;
+                return true;
+            }
+        }
+
+        /// <summary>Gives a share back; the last one closes the device.</summary>
+        public static void Release()
+        {
+            lock (Gate)
+            {
+                if (_users == 0) return;
+                if (--_users == 0 && _ready) { Close(); _ready = false; }
+            }
+        }
+
+        /// <summary>A rail's reset of the counters (and the device hooks back to raylib's).</summary>
+        internal static void ResetForTests()
+        {
+            lock (Gate) { _users = 0; _ready = false; }
+            Init = Raylib.InitAudioDevice; IsReady = () => Raylib.IsAudioDeviceReady(); Close = Raylib.CloseAudioDevice;
+        }
+    }
+
+    /// <summary>
     /// ⭐ CE-1120 (AU-1) — raylib's audio (raudio = miniaudio, inside the raylib native library on Windows and Linux): a one-shot is an
     /// ALIAS of the clip's sound (each its own gain / pan / pitch, freed when it ends); a loop is a MUSIC stream read from the clip's WAV
     /// bytes, kept in native memory for as long as the clip lives (the stream reads it while playing). ⚠ raylib's pan is 0…1 with 0.5 the
@@ -151,8 +206,7 @@ namespace Hrot.UI.Common.Audio
             if (IsOpen) return true;
             try
             {
-                Raylib.InitAudioDevice();
-                IsOpen = Raylib.IsAudioDeviceReady();
+                IsOpen = RaylibAudioDevice.Acquire();   // ⭐ CE-4269 — the ONE process-wide device, shared by every map host
                 if (IsOpen) Raylib.SetMasterVolume(_master);
             }
             catch (Exception) { IsOpen = false; }   // a missing native backend must never stop the host (AU-6)
@@ -282,8 +336,8 @@ namespace Hrot.UI.Common.Audio
             _sounds.Clear();
             foreach (var (data, _) in _wav.Values) Marshal.FreeHGlobal(data);
             _wav.Clear();
-            Raylib.CloseAudioDevice();
             IsOpen = false;
+            RaylibAudioDevice.Release();   // ⭐ CE-4269 — closed only when the LAST map host lets go
         }
     }
 }

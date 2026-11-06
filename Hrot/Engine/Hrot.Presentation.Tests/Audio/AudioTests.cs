@@ -614,6 +614,73 @@ public sealed class AudioTests
         Assert.False(output.IsPlaying(loop));
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-4269</c> — raylib's audio device is ONE per process: the first output opens it, the last one closes it, and an output
+    /// disposed in between leaves it open for the rest. (The real-device run below proves the outcome on an actual device.) 🔴 Red-proof:
+    /// make <see cref="RaylibAudioDevice.Release"/> close on every release ⇒ the device closes while the first host still holds it.
+    /// </summary>
+    [Fact]
+    public void CE4269_TheAudioDevice_OpensOnce_AndClosesOnlyWhenTheLastHostLetsGo()
+    {
+        int inits = 0, closes = 0;
+        try
+        {
+            RaylibAudioDevice.ResetForTests();
+            RaylibAudioDevice.Init = () => inits++;
+            RaylibAudioDevice.IsReady = () => true;
+            RaylibAudioDevice.Close = () => closes++;
+
+            Assert.True(RaylibAudioDevice.Acquire());   // map host 1
+            Assert.True(RaylibAudioDevice.Acquire());   // map host 2, same process
+            Assert.Equal(1, inits);
+            RaylibAudioDevice.Release();                // host 2 goes away
+            Assert.Equal(0, closes);
+            Assert.Equal(1, RaylibAudioDevice.Users);
+            RaylibAudioDevice.Release();                // the last one
+            Assert.Equal(1, closes);
+            RaylibAudioDevice.Release();                // an extra release is harmless
+            Assert.Equal(1, closes);
+            Assert.True(RaylibAudioDevice.Acquire());   // a later host opens it again
+            Assert.Equal(2, inits);
+            RaylibAudioDevice.Release();
+
+            RaylibAudioDevice.IsReady = () => false;    // no device here: declined, nothing held, nothing left open
+            Assert.False(RaylibAudioDevice.Acquire());
+            Assert.Equal(0, RaylibAudioDevice.Users);
+        }
+        finally { RaylibAudioDevice.ResetForTests(); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4269</c> — the REAL device, opt-in (<c>HROT_AUDIO_SMOKE=1</c>; the VM needs a sink — a PulseAudio null sink): two map hosts'
+    /// outputs in ONE process; the second is disposed; the first keeps playing. 📐 Before the fix the second's dispose called
+    /// <c>CloseAudioDevice</c> and the first played on a closed device — the user's native <c>c0000005</c> in <c>raylib.DLL</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE4269_TwoMapHostsInOneProcess_OneDisposes_TheOtherKeepsPlaying()
+    {
+        Skip.IfNot(Environment.GetEnvironmentVariable("HROT_AUDIO_SMOKE") == "1", "opt-in: HROT_AUDIO_SMOKE=1");
+        RaylibAudioDevice.ResetForTests();
+        using var first = new RaylibAudioOutput();
+        Skip.IfNot(first.Open(), "no audio device here (declined cleanly)");
+        var second = new RaylibAudioOutput();
+        Assert.True(second.Open());
+        Assert.Equal(2, RaylibAudioDevice.Users);
+        foreach (var o in new[] { first, second })
+            o.Define(SoundTkbCatalog.Wind, SoundSynthesizer.Make(SoundTkbCatalog.BuiltIn[SoundTkbCatalog.Wind].Sound.Synth), SoundSynthesizer.SampleRate);
+        int a = first.Loop(SoundTkbCatalog.Wind, 0.1f, 0f, 1f);
+        int b = second.Loop(SoundTkbCatalog.Wind, 0.1f, 0f, 1f);
+        Assert.True(a > 0 && b > 0);
+
+        second.Dispose();                                // map host 2 goes away
+        Assert.Equal(1, RaylibAudioDevice.Users);
+        Assert.True(Raylib_cs.Raylib.IsAudioDeviceReady(), "the device was closed under the first host");
+        var until = DateTime.UtcNow.AddSeconds(1);
+        while (DateTime.UtcNow < until) { first.Tick(); System.Threading.Thread.Sleep(20); }
+        Assert.True(first.IsPlaying(a), "the first host's loop stopped");
+        Assert.Equal(1, first.Play(SoundTkbCatalog.Wind, 0.1f, 0f, 1f) > 0 ? 1 : 0);
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
     private static NullAudioOutput Opened()

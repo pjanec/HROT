@@ -300,3 +300,15 @@ same line on every map host and once per utterance, never per frame.*
 Rails (`Hrot.Presentation.Tests` `AudioTests`): `CE2372_ANewUtterance_PlaysItsLineOnce_AtTheSpeaker_InHisSidesVoice`,
 `CE2372_EveryLineIsAShout_KeyedByTheKindsName_AContactNamesItsSide`; `HROT_EXPORT_SOUNDS=<dir>` writes the voice lines too, to listen.
 
+## CE-4269 — ONE audio device per process *(AS-BUILT `2026-11-06`, backend)*
+
+📐 Root cause (confirmed by the user on Windows: native `c0000005` in `raylib.DLL`; `HROT_AUDIO=0` keeps the server up): every map host's
+`AudioLayer` made its own `RaylibAudioOutput`, and each one called `InitAudioDevice` on open and `CloseAudioDevice` on dispose. Raylib has ONE
+device per process, so in a multi-host process (`-m server`, `-m all`) one host closing its output closed the device under the others' sounds.
+⭐ Fixed: `RaylibAudioDevice` (`Hrot.Presentation/Audio/AudioOutput.cs`) is the ONE process-wide owner — reference-counted, opened by the first
+`Acquire`, closed by the last `Release`; every `RaylibAudioOutput` goes through it. The master volume is the device's, so it is process-wide too.
+Rails: `AudioTests.CE4269_TheAudioDevice_OpensOnce_AndClosesOnlyWhenTheLastHostLetsGo` (always runs; the device hooks swapped for counters) and
+`AudioTests.CE4269_TwoMapHostsInOneProcess_OneDisposes_TheOtherKeepsPlaying` (opt-in `HROT_AUDIO_SMOKE=1`, the REAL device — run on the VM against a
+PulseAudio null sink: before the fix it reports *"the device was closed under the first host"*). ⚠ On the VM PulseAudio's `module-suspend-on-idle`
+must be unloaded, or a sound never ends (the A0 smoke `CE1120` then fails on its click). ⏳ The user's Windows check: `run_Server.bat` without `HROT_AUDIO=0`.
+

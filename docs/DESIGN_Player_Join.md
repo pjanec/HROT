@@ -408,7 +408,13 @@ component on the unit* — the server would write a unit it may not own (D-8). *
 3. `PlayerSlotTopic.Name` is the unit's `Playable.SlotName` (the request carries no player name); an observer's is empty.
 
 **Rails** — `Hrot.SimHost.Tests/GameplayDeployServerTests` (10, real DDS, each red-proved by a compiling mutation): accept · refusals by name (wrong side, not playable, missing, dead, held, reserved) · Playing · the 30 s lapse · departure · observe · reader fills / clears · the election · ⭐ the WIRE rail: feature OFF ⇒ `CreatedCount == 0` and a peer holding the opposite ends matches nothing; ON ⇒ they match.
-⚠ **Open:** a `Playing` slot whose unit is released (Esc) keeps the reservation until the station leaves — S2 (death → deploy screen) decides the transitions after Playing.
+✅ **Decided and built `2026-11-06` (handoff item ④, CE-4270 batch) — Esc from `Playing` returns the Player to the deploy screen and frees the unit.**
+The S2 transition already does it: Esc releases the possession (`PossessionStation.Release` → `EntityOrders.Unpossess`); the server sees the holder change
+(`DeployProcessorSystem.Progress`, `Playing` and `HolderOf(unit) != station`) and sets the slot `Choosing` with unit 0, which clears the station's
+reservation (`SetSlot` → `StationReservations.Set(station, side, 0)`); the flow follows the slot (`Playing → Choosing`). Rails:
+`GameplayDeployServerTests.AReleasedUnit_SendsThePlayingSlotBackToChoosing_AndFreesTheUnit`, `GameplayDeployFlowTests.AReleasedUnit_SendsThePlayerBackToChoosing`;
+proved live by the full-cycle script's "P1 leaves by Esc" step (UC-17…32). ⛔ was: *"⚠ Open: a `Playing` slot whose unit is released (Esc) keeps the
+reservation until the station leaves."*
 
 ### 9.5 AS BUILT — S1 part B, the Player side, and S1 LIVE *(backend, `2026-11-05`; S1 `build-state`: BUILT)*
 
