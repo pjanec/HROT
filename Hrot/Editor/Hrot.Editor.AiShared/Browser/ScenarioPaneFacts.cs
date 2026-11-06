@@ -65,15 +65,24 @@ public static class ScenarioPaneFacts
     private static string? Text(System.Text.Json.Nodes.JsonObject o, string name)
         => o[name] is System.Text.Json.Nodes.JsonValue v && v.TryGetValue<string>(out var s) && s.Length > 0 ? s : null;
 
-    /// <summary>The preview picture of a scenario folder (<c>preview.png</c> beside <c>scenario.json</c>) when it exists; else <see langword="null"/>.</summary>
+    /// <summary>The preview file names of a scenario folder, in the order they are tried: ⭐ CE-4271 <c>preview.jpg</c> (a generated 320 × 180 JPEG, §2j) first, then <c>preview.png</c> (a hand-made one).</summary>
+    public static readonly string[] PreviewFileNames = { "preview.jpg", "preview.png" };
+
+    /// <summary>The preview picture of a scenario folder (<c>preview.jpg</c>, else <c>preview.png</c>, beside <c>scenario.json</c>) when one exists; else <see langword="null"/>.
+    /// ⭐ The ONE reader — the pane (here) and the picker's tile (<c>AssetPickerLauncher</c>) both call it.</summary>
     public static string? PreviewOf(string scenarioJsonPath)
     {
         if (string.IsNullOrEmpty(scenarioJsonPath)) return null;
         try
         {
             var dir = Path.GetDirectoryName(scenarioJsonPath);
-            var png = dir == null ? null : Path.Combine(dir, "preview.png");
-            return png != null && File.Exists(png) ? png : null;
+            if (dir == null) return null;
+            foreach (var name in PreviewFileNames)
+            {
+                var path = Path.Combine(dir, name);
+                if (File.Exists(path)) return path;
+            }
+            return null;
         }
         catch (Exception) { return null; }
     }

@@ -261,7 +261,7 @@ namespace Hrot.AI.Behaviors.Brains
             bool alongBarrel = mode == OperatorFireMode.Sight && input.LookDir.LengthSquared() > 0.5f
                 && Fdp.Toolkit.Combat.WeaponBrainProfiles.For(mountDto?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown)
                        .UsesTurretTask(world, platform, mountDto);
-            var lookPoint = input.LookFrom + input.LookDir * OperatorFireModes.SightZeroMetres;
+            var lookPoint = OperatorFireModes.SightPoint(input.LookFrom, input.LookDir, input.AimPoint);   // ⭐ CE-1299 — zero at the crosshair's own distance
             if (input.ShotSeq != ws.ShotSeq)
             {
                 ws.ShotSeq = input.ShotSeq;

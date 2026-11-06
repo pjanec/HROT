@@ -2,8 +2,15 @@ using System.Numerics;
 
 namespace NodeEditor.UI.Picker;
 
-/// <summary>A loaded picker image: the host texture handle and its pixel size.</summary>
-public readonly record struct PickerImage(IntPtr Texture, int Width, int Height);
+/// <summary>
+/// A loaded picker image: the host texture handle and its pixel size. ⭐ CE-4271 — <see cref="Uv0"/>/<see cref="Uv1"/> are the part of the texture the image IS: a whole file is (0,0)–(1,1), a picture in an
+/// atlas page is its cell (then <see cref="Width"/>/<see cref="Height"/> are the cell's size, not the page's).
+/// </summary>
+public readonly record struct PickerImage(IntPtr Texture, int Width, int Height, Vector2 Uv0, Vector2 Uv1)
+{
+    /// <summary>A whole-texture image.</summary>
+    public PickerImage(IntPtr texture, int width, int height) : this(texture, width, height, Vector2.Zero, Vector2.One) { }
+}
 
 /// <summary>
 /// ⭐ CE-4168 (AQ108 D26 P5) — THE shared lazy image cache of every picker: a thumbnail grid and a side pane ask it for
@@ -27,6 +34,13 @@ public sealed class PickerImageCache
 
     private sealed record Entry(string Key, PickerImage? Image);
 
+    /// <summary>
+    /// ⭐ CE-4271 (DESIGN_Add_Entity_Picker §2j) — the RESIDENT lookup, asked FIRST by <see cref="TryGet"/>: a key it answers is served with no load budget, is never entered into the LRU, never evicted and never unloaded
+    /// (<see cref="Invalidate"/>/<see cref="Clear"/> leave it alone) — an atlas page is one texture shared by many pictures, so an eviction of one picture would free the other 65's. It must not allocate per call
+    /// (the render thread asks per tile per frame). Null: no resident images.
+    /// </summary>
+    public Func<string, PickerImage?>? Resident { get; init; }
+
     /// <summary>A cache that loads nothing (a host without images): every <see cref="Get"/> is null.</summary>
     public PickerImageCache() : this(_ => null) { }
 
@@ -34,9 +48,11 @@ public sealed class PickerImageCache
     /// <param name="unloader">Frees a texture the cache evicts or invalidates; optional.</param>
     /// <param name="capacity">Most images kept (LRU eviction beyond it).</param>
     /// <param name="maxLoadsPerFrame">Most loader calls per <see cref="BeginFrame"/> window.</param>
+    /// <param name="resident">⭐ CE-4271 — the <see cref="Resident"/> lookup (null: none).</param>
     public PickerImageCache(Func<string, (IntPtr tex, int w, int h)?> loader, Action<IntPtr>? unloader = null,
-                            int capacity = DefaultCapacity, int maxLoadsPerFrame = 2)
+                            int capacity = DefaultCapacity, int maxLoadsPerFrame = 2, Func<string, PickerImage?>? resident = null)
     {
+        Resident = resident;
         _loader = loader ?? throw new ArgumentNullException(nameof(loader));
         _unloader = unloader;
         Capacity = Math.Max(1, capacity);
@@ -63,6 +79,8 @@ public sealed class PickerImageCache
     {
         image = default;
         if (string.IsNullOrEmpty(key)) return false;
+
+        if (Resident is { } resident && resident(key) is { } resolved) { image = resolved; return true; }   // ⭐ CE-4271 — shared page textures: no budget, no LRU, never unloaded
 
         if (_map.TryGetValue(key, out var node))
         {

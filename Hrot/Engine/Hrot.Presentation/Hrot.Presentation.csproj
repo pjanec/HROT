@@ -27,6 +27,10 @@
     </AssemblyAttribute>
   </ItemGroup>
   <ItemGroup>
+    <!-- ⭐ CE-4271 (DESIGN_Add_Entity_Picker §2j) — the entity thumbnail atlas: the JPEG pages and their index, embedded by a WILDCARD so a new page needs no edit here. LogicalName = "Thumbnails/<file>" -->
+    <EmbeddedResource Include="Thumbnails\*.jpg;Thumbnails\*.atlas.json" LogicalName="Thumbnails/%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Hrot.Core\Hrot.Core.csproj" />
     <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj" />   <!-- CE-259ax: the shared spawn adapter calls EntityCreation.RequestEntityCreation (already reached transitively via Hrot.Traffic; stated here) -->
     <ProjectReference Include="..\Hrot.Gameplay\Hrot.Gameplay.csproj" />   <!-- Player Join §9: the DeployScreen draws a DeployFlowSystem -->

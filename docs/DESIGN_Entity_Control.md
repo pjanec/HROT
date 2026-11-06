@@ -2320,6 +2320,26 @@ muscle on two nodes.
 
 📐 **Rails:** `AimAndFireExecutorTests.CE4143_ARapidFireTurretGun_DefaultsToSight_…` (a) · `EmbarkNodesTests.CE4143_SightOnATurretMachineGun_…` + `CE4143_AFrameWithNoLookRay_…` (b) · `WeaponTaskDispatcherTests.CE4143_AlongBarrel_FiresWhileSlewing_…` (c) · `EntityTurretPoseTranslatorTests.WL2b_…` (AlongBarrel 1 and 0 over DDS) and `InteractionTransportTests` (look ray + `FirePref` on the wire) (d) · `PossessionStationTests.CE4143_L_SwitchesSightAndLock_…` (e).
 
+### 8r.2 AS-BUILT — the zero is the crosshair's own distance (`CE-1299`), and a held weapon says why (`CE-2317`) *(ui, `2026-11-06`)*
+
+```mermaid
+graph LR
+  EYE["camera eye (LookFrom)"] -- "look ray" --> HIT["what the crosshair is on (AimPoint)"]
+  MUZ["muzzle, below the eye"] -- "barrel to SightPoint" --> HIT
+  MUZ -. "⛔ was: barrel to the ray at 300 m — passes under HIT" .-> FAR["LookFrom + LookDir × 300"]
+```
+*What the picture shows that prose hid: the eye and the muzzle are two points, so a barrel aimed at a point on the eye's ray crosses that ray
+only AT the point. A fixed 300 m point leaves the round (eye − muzzle) × (1 − r / 300) under the crosshair at range r — ~1.8 m at 30 m with
+the eye 2 m up: "always to the feet" (CE-1299). A rifle hides it because its sight sits on its barrel.*
+
+| §8r said | built | why |
+|---|---|---|
+| SIGHT on a turret aims at `LookFrom + LookDir × SightZeroMetres` | ⭐ `OperatorFireModes.SightPoint(lookFrom, lookDir, aimPoint)`: on the look ray, at the crosshair hit's distance when it is nearer than 300 m (and ≥ 3 m), else 300 m | the round meets the crosshair where the crosshair is; still a point ON the ray, re-read every tick — no lock, so CE-4143's "lead a car against far terrain" keeps the 300 m zero |
+| — | ⭐ CE-2317: the HUD's `WEAPON HOLD: …` line — the unit's `ActionStatus` weapon row when it is a hold (`ActionStatusOf.IsHold` / `Label`, the gizmo's amber set, amber here too) | 🔒 *"i can aim but no way to shoot, something is blocking it"* — the executor already names the gate (`SystemHold`: not controlled · no gunner · not deployed · out of arc …); ⚠ `ActionStatus` is brain-local, so a remote Player client does not see it (the editor and a brain node do) |
+
+📐 **Rails:** `EmbarkNodesTests.CE1299_SightOnATurretGun_ConvergesWhereTheCrosshairIs_SoTheRoundIsNotAtHisFeet` · `PossessionStationTests.CE2317_TheHud_SaysWhyTheWeaponHolds` (both red-proven).
+⏭ CE-2317's blocking gate itself is not yet named: a live possessed `Technical_Zu23` with the HUD line on is the next measurement.
+
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 
 | design said | built | why |

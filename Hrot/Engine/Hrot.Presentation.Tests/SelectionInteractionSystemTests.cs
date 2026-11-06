@@ -114,6 +114,43 @@ public class SelectionInteractionSystemTests
         Assert.True(state.IsPrimarySelection);
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-1300 (user, 2026-10-23: <i>"I am able to select the gun and the gunner independently … only the carrier vehicle can be selected"</i>) — a click on an entity ATTACHED to a vehicle selects the CARRIER:
+    /// a weapon system in a host's station and a man in a seat both carry <c>IsEmbarkedTag</c> (<c>VehicleEntity</c> = the host); the anchor resolves to the top carrier in the ONE anchor rule
+    /// (<c>NetworkIdResolver.ResolveAnchorId</c>), so the selection — and every other consumer of a pick — gets the vehicle by construction. An unattached unit gives itself.
+    /// 🔴 Red-proof (compiles): <c>ResolveAnchorId</c> returning the entity without <c>CarrierOf</c> ⇒ the gun and the gunner rows select themselves ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1300_AClickOnAMountedGunOrASeatedGunner_SelectsTheCarrier_AnUnattachedUnitSelectsItself()
+    {
+        if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()) _world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+        var carrier = CreateSelectableEntity();
+        var vehicle = CreateSelectableEntity();
+        var gun = CreateSelectableEntity();
+        var gunner = CreateSelectableEntity();
+        var free = CreateSelectableEntity();
+        _world.AddComponent(vehicle, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = carrier, Seat = 1 });   // the vehicle is itself aboard the carrier (nested)
+        _world.AddComponent(gun, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = vehicle, Seat = 0 });
+        _world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = vehicle, Seat = 2 });
+
+        bool Selected(Entity e) => _world.GetComponent<SelectionState>(e).IsSelected;
+
+        PublishStartedEvent(gun);
+        _system.Tick(0f); ServeRequests();
+        Assert.True(Selected(carrier), "the gun resolves up to the TOP carrier");
+        Assert.False(Selected(gun)); Assert.False(Selected(vehicle));
+
+        PublishStartedEvent(gunner);
+        _system.Tick(0f); ServeRequests();
+        Assert.True(Selected(carrier), "a seated gunner selects the carrier too");
+        Assert.False(Selected(gunner));
+
+        PublishStartedEvent(free);
+        _system.Tick(0f); ServeRequests();
+        Assert.True(Selected(free), "an unattached unit gives itself");
+        Assert.False(Selected(carrier));
+    }
+
     // SIS-002: After null-entity GizmoInteractionStartedEvent, selection is NOT cleared immediately.
     // A tiny-drag commit (GizmoInteractionCommitEvent without intervening GizmoDragUpdateEvent) clears all.
     [Fact]

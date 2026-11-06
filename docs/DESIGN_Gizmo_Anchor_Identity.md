@@ -663,6 +663,10 @@ badge-placement decision *(`Space = EntityLocal` + the offset-8 key)*. ⇒ filed
 
 ---
 
+### 6.7a As built — CE-1300: an attached / seated entity resolves to its CARRIER *(ui, `2026-11-06`)*
+
+🔒 User, `2026-10-23`: *"I am able to select the gun and the gunner independently … only the carrier vehicle can be selected"*. ⭐ The anchor rule gained one step: `NetworkIdResolver.ResolveAnchorId` = `CarrierOf(ResolveNetworkId(anchor))` — the TOP carrier an `IsEmbarkedTag` chain names (a weapon system in a host's station AND a man in a seat both carry it, `VehicleEntity` = the host; depth-capped at 8), the entity itself when it is not aboard anything. Because every consumer of a pick's anchor already resolves through this one method (selection, the per-entity gizmos' drag / menu routing in `DataDrivenGizmoSystem`, the mission picks), none has its own carrier rule and a mounted gun cannot be dragged off its vehicle. G seat switching (CE-1210) is not a pick and is untouched. Rails: `SelectionInteractionSystemTests.CE1300_*` (click → carrier, nested, unattached = itself) · `DataDrivenGizmoSystemRoutingTests.CE1300_*` (an interaction on the gun reaches the vehicle's gizmo, never the gun's).
+
 ### 6.8 ⭐⭐⭐ THE IDENTITY INVARIANT — **"how comes there could be a gizmo with no identity?"**
 
 🔒 **User ruling, `2026-09-11`, verbatim:** *"how comes there could be gizmo with no identity? this

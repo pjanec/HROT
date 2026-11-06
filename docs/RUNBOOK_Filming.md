@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 doc-type: runbook (how to film the 3-D map — not a design; the design and its UML are Map 3D Mode §6ab)
-updated: 2026-10-30 (§0b — CE-3354: one-call load-and-run, the filming node's 3-D map in its load) · 2026-10-30 (§0b traps from the film pilot: paused live load, launch order, wait for the index, CE-4118 / CE-4119) · 2026-10-29 (§0b record a live run in the editor, film it in the Replay Browser — the HTTP sequence, measured CE-4102) · 2026-10-21 (§0a the film director, CE-4038 — takes, reels, /director/*, film.py --take; the shot math is the engine's) · 2026-10-21 (§0 --mode editor; R-3034 — runs are not repeatable, load again for each)
+updated: 2026-11-06 (§8 thumbnails — CE-4268 / CE-4271) · 2026-10-30 (§0b — CE-3354: one-call load-and-run, the filming node's 3-D map in its load) · 2026-10-30 (§0b traps from the film pilot: paused live load, launch order, wait for the index, CE-4118 / CE-4119) · 2026-10-29 (§0b record a live run in the editor, film it in the Replay Browser — the HTTP sequence, measured CE-4102) · 2026-10-21 (§0a the film director, CE-4038 — takes, reels, /director/*, film.py --take; the shot math is the engine's) · 2026-10-21 (§0 --mode editor; R-3034 — runs are not repeatable, load again for each)
 current-answer: this whole file — ⭐ §0a the film director (takes, reels, live or to film); ⭐ §0b record an exercise in the editor and film it in the Replay Browser; §0 film in --mode editor; §1 the quick start, §2 shots, §3 a plan with cuts, §4 finding when things happen, §5 checking the
   film, §6 the traps.
 stale-below: nothing.
@@ -240,3 +240,19 @@ composition. 📐 A muzzle flash scores ~0.01, a cut ~0.07–0.17.
 
 ⭐ `--mode editor` films the same way (§0) — every map host carries the film layer. The code:
 `Hrot/Engine/Hrot.Presentation/Map3D/Film.cs`, `MapCanvas.DrawScene`, the routes in `DebugApiHost`; rails `FilmTests`, `FilmFrameRail`.
+
+## 8. ⭐ Thumbnails — the pickers' pictures *(CE-4268 / CE-4271, `docs/DESIGN_Add_Entity_Picker.md` §2i–§2j)*
+
+`scripts/thumbnails.py` films ONE scenario or ONE entity type through the routes above and files the picture where the pickers read it. Needs a running **editor** (`--attach --port N`, or it launches one under Xvfb) and, for the atlas, **Pillow**
+(`py -3 -m pip install pillow` · Linux `python3 -m pip install pillow`).
+
+| what | command (Linux · Windows `py -3 scripts\thumbnails.py …`) | where it lands |
+|---|---|---|
+| a **scenario's** still | `python3 scripts/thumbnails.py --scenarios ua-tank-ammo hill-attack --attach --port 5195` (no names = every repository scenario WITHOUT a still; one with a `preview.jpg` / `preview.png` is skipped unless `--force`) | `scenarios/<name>/preview.jpg` **in the repository** — 320 × 180 JPEG q85, committed beside `scenario.json`; commit a re-shot one only on purpose |
+| an **entity type's** picture | `python3 scripts/thumbnails.py --types 103 200 --attach --port 5195` (ids from `GET /tkb/types`) | `<NasRoot>/assets/thumbnails/generated/<TypeName>.png` — the picker shows it at the next open |
+| … and put it in the **atlas** | add `--pack` to the line above, or `python3 scripts/thumbnails.py --pack` later (folds every loose `generated/*.png`) | `Hrot/Engine/Hrot.Presentation/Thumbnails/entities-<n>.jpg` + `entities.atlas.json` — **commit these** (R-4117: the only pictures allowed in git) and rebuild: they are embedded |
+| a **hand-made / downloaded** picture | `python3 scripts/thumbnails.py --add-image C:\pics\a10.png --name A-10C` (no editor needed; centre-cropped to 16:9, 320 × 180) | the atlas, as above |
+| see / free a slot | `python3 scripts/thumbnails.py --atlas-list` · `--atlas-remove A-10C` | the atlas |
+
+`<NasRoot>` is the runtime shared root: `/tmp/FDP_Temp/shared` on Linux, `C:\FDP_Temp\shared` on Windows (`--nas` overrides). ⭐ A name keeps its slot; only a page whose pixels changed is re-encoded; the index has sorted keys — a diff shows exactly the names
+added. ⛔ Nothing else renders into git;. Rails: `scripts/test_thumbnails_atlas.py` (the packer), `AtlasIndex` / `ThumbnailAtlas` / `ThumbnailAtlasTileFrameRail` (the reader).
