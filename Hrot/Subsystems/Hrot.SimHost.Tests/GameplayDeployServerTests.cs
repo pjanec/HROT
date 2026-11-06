@@ -175,8 +175,8 @@ namespace Hrot.SimHost.Tests
         {
             var e = _w.CreateEntity();
             _w.AddComponent(e, new NetworkIdentity { Value = netId });
-            _w.AddComponent(e, new DeployRole { Side = side, PersonTkbType = tkb, Name = new FixedString32(name), MaxCount = max,
-                Kit1Tkb = kit1, Kit1Name = new FixedString32(kit1Name), Kit2Tkb = kit2, Kit3Tkb = kit3 });
+            _w.AddComponent(e, new DeployRole { Side = side, PersonTkbType = (Fdp.Core.TkbTypeId)(tkb), Name = new FixedString32(name), MaxCount = max,
+                Kit1Tkb = (Fdp.Core.TkbTypeId)(kit1), Kit1Name = new FixedString32(kit1Name), Kit2Tkb = (Fdp.Core.TkbTypeId)(kit2), Kit3Tkb = (Fdp.Core.TkbTypeId)(kit3) });
             _map.Register(netId, e);
             return e;
         }
@@ -676,8 +676,8 @@ namespace Hrot.SimHost.Tests
             using var repo = new EntityRepository();
             repo.RegisterComponent<DeployRole>();
             var e = repo.CreateEntity();
-            repo.AddComponent(e, new DeployRole { Side = ForceId.Hostile, PersonTkbType = 2003, Name = new FixedString32("Insurgent"), MaxCount = 3,
-                Kit1Tkb = 2004, Kit1Name = new FixedString32("Grenadier"), Kit2Tkb = 2005, Kit2Name = new FixedString32("Mortar"), Kit3Tkb = 2006, Kit3Name = new FixedString32("Javelin") });
+            repo.AddComponent(e, new DeployRole { Side = ForceId.Hostile, PersonTkbType = (Fdp.Core.TkbTypeId)(2003), Name = new FixedString32("Insurgent"), MaxCount = 3,
+                Kit1Tkb = (Fdp.Core.TkbTypeId)(2004), Kit1Name = new FixedString32("Grenadier"), Kit2Tkb = (Fdp.Core.TkbTypeId)(2005), Kit2Name = new FixedString32("Mortar"), Kit3Tkb = (Fdp.Core.TkbTypeId)(2006), Kit3Name = new FixedString32("Javelin") });
             var serializer = new Fdp.Toolkit.Scenario.ScenarioSerializerBuilder("Hrot.SimHost").Build();
             var dom = serializer.Serialize(repo, new Fdp.Toolkit.Scenario.ScenarioHeader("Hrot.SimHost"));
             using var fresh = new EntityRepository();

@@ -328,7 +328,7 @@ namespace Hrot.SimHost.Tests
             _server.RegisterComponent<DeployRole>(); _server.RegisterComponent<SpawnArea>(); _server.RegisterComponent<EntityInfo>();
             var role = _server.CreateEntity();
             _server.AddComponent(role, new NetworkIdentity { Value = 300 });
-            _server.AddComponent(role, new DeployRole { Side = ForceId.Friend, PersonTkbType = 2002, Name = new FixedString32("Rifleman"), MaxCount = 4, Kit1Tkb = 2004, Kit1Name = new FixedString32("Grenadier") });
+            _server.AddComponent(role, new DeployRole { Side = ForceId.Friend, PersonTkbType = (Fdp.Core.TkbTypeId)(2002), Name = new FixedString32("Rifleman"), MaxCount = 4, Kit1Tkb = (Fdp.Core.TkbTypeId)(2004), Kit1Name = new FixedString32("Grenadier") });
             _serverMap.Register(300, role);
             var area = _server.CreateEntity();
             _server.AddComponent(area, new NetworkIdentity { Value = 400 });

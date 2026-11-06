@@ -12,6 +12,6 @@ public static class GameplayBirth
     public static void BornWith(long tkbType, List<object> components)
     {
         if (tkbType != TkbEntityTypes.DeployRole || components.Exists(c => c is Hrot.Common.DeployRole)) return;
-        components.Add(new Hrot.Common.DeployRole { Side = Fdp.Core.ForceId.Friend, PersonTkbType = 0, Name = new Fdp.Core.FixedString32("Role"), MaxCount = 0 });
+        components.Add(new Hrot.Common.DeployRole { Side = Fdp.Core.ForceId.Friend, PersonTkbType = default, Name = new Fdp.Core.FixedString32("Role"), MaxCount = 0 });
     }
 }
