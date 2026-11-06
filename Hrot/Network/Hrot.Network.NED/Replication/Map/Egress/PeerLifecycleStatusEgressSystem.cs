@@ -27,12 +27,10 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class PeerLifecycleStatusEgressSystem : IDescriptorTranslator
     {
-        private readonly DdsWriter<EntityLifecycleStatusDescriptor> _writer;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published (one instance per net id: Constructing, then Active overwrites it).
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityLifecycleStatusDescriptor> _instances;
         private readonly NetworkEntityMap _entityMap;
         private readonly NodeId _localNodeId;
-        private readonly HashSet<int> _reported = new();               // phase-2 Active published
-        private readonly HashSet<int> _reportedConstructing = new();   // CE-288 (C2): phase-1 Constructing published
-        private int _worldEpoch;   // ⭐ CE-3076 — per-id bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityLifecycleStatusDescriptor>();
         public long DescriptorOrdinal => -3; // not a per-entity descriptor; distinct from EntityMaster (-2)
@@ -45,9 +43,10 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public PeerLifecycleStatusEgressSystem(DdsParticipant participant, NetworkEntityMap entityMap, int localNodeId)
         {
-            _writer = new DdsWriter<EntityLifecycleStatusDescriptor>(participant);
             _entityMap = entityMap;
             _localNodeId = (Fdp.Core.NodeId)((int)localNodeId);
+            var node = _localNodeId;
+            _instances = new(new DdsWriter<EntityLifecycleStatusDescriptor>(participant), key => new EntityLifecycleStatusDescriptor { EntityId = (int)key, NodeId = node });   // captures the node id once, at construction
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
@@ -56,13 +55,8 @@ namespace Hrot.Map.Common.Replication.Egress
         {
             // ⭐ CE-3076 (CE-2101's rule) — "reported once per net id": a reused id's new ghost would never report
             //   Constructing / Active, and the creator's reliable-init barrier would wait out its timeout.
-            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch))
-            {
-                // ⭐⭐ CE-4007 (Q91 §4-M) — a wiped world: DELETE every instance this node wrote, so a late joiner never receives a dead run (the topic is TransientLocal). Keyed by what THIS writer published — not by entity ownership: a descriptor owner may not be the entity's primary owner.
-                foreach (var id in _reported.Union(_reportedConstructing))
-                    _writer.DisposeInstance(new EntityLifecycleStatusDescriptor { EntityId = id, NodeId = _localNodeId });
-                _reported.Clear(); _reportedConstructing.Clear();
-            }
+            // (CE-3076/CE-2101's rule: a reused id's new ghost must report again — OnFrame forgets what the last world published.)
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
 
             var repo = view as EntityRepository;
             long ts = repo != null ? repo.GlobalVersion : 0;
@@ -79,15 +73,14 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var entity in constructing)
             {
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
-                if (_reportedConstructing.Contains(netId.Value)) continue;
-                _writer.Write(new EntityLifecycleStatusDescriptor
+                if (_instances.TryGetLast(netId.Value, out _)) continue;   // Constructing (or already Active) reported for this id
+                _instances.Write(netId.Value, new EntityLifecycleStatusDescriptor
                 {
                     EntityId   = netId.Value,
                     NodeId     = _localNodeId,
                     StateValue = (int)EntityLifecycle.Constructing,
                     Timestamp  = ts,
                 });
-                _reportedConstructing.Add(netId.Value);
                 SentSampleCount++;
                 FdpLog<PeerLifecycleStatusEgressSystem>.Debug(
                     "[Node-{0}] reliable-init: published Constructing (phase-1) for NetID={1}", _localNodeId, netId.Value);
@@ -103,10 +96,10 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var entity in query)
             {
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
-                if (_reported.Contains(netId.Value))
+                if (_instances.TryGetLast(netId.Value, out var reported) && reported.StateValue == (int)EntityLifecycle.Active)
                     continue;
 
-                _writer.Write(new EntityLifecycleStatusDescriptor
+                _instances.Write(netId.Value, new EntityLifecycleStatusDescriptor
                 {
                     EntityId   = netId.Value,
                     NodeId     = _localNodeId,
@@ -114,7 +107,6 @@ namespace Hrot.Map.Common.Replication.Egress
                     Timestamp  = ts,
                 });
 
-                _reported.Add(netId.Value);
                 SentSampleCount++;
                 FdpLog<PeerLifecycleStatusEgressSystem>.Debug(
                     "[Node-{0}] reliable-init: published Active status for NetID={1}", _localNodeId, netId.Value);
@@ -123,10 +115,6 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        public void Dispose(int networkEntityId)
-        {
-            _reported.Remove(networkEntityId);
-            _reportedConstructing.Remove(networkEntityId);
-        }
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
     }
 }

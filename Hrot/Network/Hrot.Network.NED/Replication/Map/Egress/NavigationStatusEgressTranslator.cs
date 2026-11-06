@@ -24,7 +24,9 @@ namespace Hrot.Map.Common.Replication.Egress
     {
         // â”€â”€ DDS writer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-        private readonly DdsWriter<Hrot.NED.Descriptors.NavigationStatus> _writer;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the instances it deletes on a destruction, a wipe or (as an
+        //   unregister) a hand-over. The change cache below stays: it compares (IntentId, Result, Phase), finer than the wire sample.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<Hrot.NED.Descriptors.NavigationStatus> _instances;
         private readonly NetworkEntityMap _entityMap;
         private readonly NodeId _localNodeId;
 
@@ -43,8 +45,6 @@ namespace Hrot.Map.Common.Replication.Egress
         // Keyed by Entity; value is the last-published (IntentId, Result, Phase).
         // ProgressS is omitted from the key — it is included unconditionally
         // in the publish payload but does not trigger a new publish on its own.
-        private readonly System.Collections.Generic.HashSet<int> _publishedIds = new();   // ⭐ CE-4007
-        private int _worldEpoch;
         private readonly Dictionary<Entity, (uint IntentId, EcsNavResult Result, NavigationPhase Phase)> _lastPublished = new();
 
         // Heartbeat: republish ProgressS every 5 s even when nothing has changed,
@@ -56,7 +56,7 @@ namespace Hrot.Map.Common.Replication.Egress
             NetworkEntityMap entityMap,
             int localNodeId)
         {
-            _writer    = new DdsWriter<Hrot.NED.Descriptors.NavigationStatus>(dds);
+            _instances = new(new DdsWriter<Hrot.NED.Descriptors.NavigationStatus>(dds), static key => new Hrot.NED.Descriptors.NavigationStatus { EntityId = (int)key });
             _entityMap = entityMap ?? throw new System.ArgumentNullException(nameof(entityMap));
             _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
@@ -71,17 +71,11 @@ namespace Hrot.Map.Common.Replication.Egress
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
-            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch))
-            {
-                // ⭐⭐ CE-4007 (Q91 §4-M) — a wiped world: DELETE every instance this node wrote, so a late joiner never receives a dead run (the topic is TransientLocal). Keyed by what THIS writer published — not by entity ownership: a descriptor owner may not be the entity's primary owner.
-                foreach (var id in _publishedIds) _writer.DisposeInstance(new Hrot.NED.Descriptors.NavigationStatus { EntityId = id });
-                _publishedIds.Clear();
-                _lastPublished.Clear();
-            }
+            if (_instances.OnFrame(view)) _lastPublished.Clear();   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3); the change cache restarts with it
             var query = view.Query()
                 .With<EcsNavigationStatus>()
                 .DefaultRoutePublishable()
-                .WithLifecycle(EntityLifecycle.All)
+                .WithLifecycle(EntityLifecycle.AllButTearDown)
                 .Build();
 
             long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
@@ -111,8 +105,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
 
-                _publishedIds.Add(netId.Value);   // ⭐ CE-4007 — what this writer must delete on a wipe
-                _writer.Write(new Hrot.NED.Descriptors.NavigationStatus
+                _instances.Write(netId.Value, new Hrot.NED.Descriptors.NavigationStatus
                 {
                     EntityId              = netId.Value,
                     IntentId              = status.IntentId,
@@ -141,14 +134,14 @@ namespace Hrot.Map.Common.Replication.Egress
         {
             if (_entityMap.TryGetEntity(networkEntityId, out var entity))
                 _lastPublished.Remove(entity);
+            _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
         }
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget what was published so a reclaim republishes.</summary>
         public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_entityMap.TryGetEntity(networkEntityId, out var entity)) _lastPublished.Remove(entity);
-            if (_publishedIds.Remove(networkEntityId))
-                _writer.UnregisterInstance(new Hrot.NED.Descriptors.NavigationStatus { EntityId = networkEntityId });
+            _instances.Release(networkEntityId);
         }
 
         // â”€â”€ Enum mapping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

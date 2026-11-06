@@ -21,9 +21,9 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityScenarioClockEgressTranslator : IDescriptorTranslator
     {
-        private readonly DdsWriter<EntityScenarioClock>? _writer;
-        private readonly Dictionary<int, EntityScenarioClock> _last = new();
-        private int _worldEpoch;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
+        //   destruction, a wipe or (as an unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityScenarioClock> _instances;
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.ScenarioClock };
 
@@ -37,18 +37,13 @@ namespace Hrot.Map.Common.Replication.Egress
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityScenarioClockEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityScenarioClock>(participant) : null;
+            => _instances = new(participant is not null ? new DdsWriter<EntityScenarioClock>(participant) : null, static key => new EntityScenarioClock { EntityId = (int)key });
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
         public void ScanAndPublish(ISimulationView view)
         {
-            if (WorldEpoch.Moved(view, ref _worldEpoch))
-            {
-                // ⭐⭐ CE-4007 (Q91 §4-M) — a wiped world: DELETE every instance this node wrote, so a late joiner never receives a dead run (the topic is TransientLocal).
-                foreach (var id in _last.Keys) _writer?.DisposeInstance(new EntityScenarioClock { EntityId = id });
-                _last.Clear();
-            }
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<ScenarioClock>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             foreach (var env in view.Query().With<ScenarioClock>().DefaultRoutePublishable().Build())
@@ -56,9 +51,8 @@ namespace Hrot.Map.Common.Replication.Egress
                 if (!view.HasAuthority(env, packedKey)) continue;
                 int netId = view.GetComponentRO<NetworkIdentity>(env).Value;
                 var sample = ToSample(netId, view.GetComponentRO<ScenarioClock>(env));
-                if (_last.TryGetValue(netId, out var prev) && Fdp.Network.Cyclone.Translators.SampleEquality.Same(prev, sample)) continue;
-                _last[netId] = sample;
-                _writer?.Write(sample);
+                if (_instances.Unchanged(netId, sample)) continue;
+                _instances.Write(netId, sample);
                 SentSampleCount++;
             }
         }
@@ -67,13 +61,10 @@ namespace Hrot.Map.Common.Replication.Egress
         internal static EntityScenarioClock ToSample(int netId, in ScenarioClock c)
             => new() { EntityId = netId, StartUtcTicks = c.StartUtcTicks, DisplayUtcOffsetSeconds = WireUnits.MinutesToSeconds(c.DisplayUtcOffsetMinutes) };   // ⭐ AQ107 I — SI: seconds on the wire
 
-        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(int networkEntityId, long instanceId)
-        {
-            if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityScenarioClock { EntityId = networkEntityId });
-        }
+        public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
     }
 }

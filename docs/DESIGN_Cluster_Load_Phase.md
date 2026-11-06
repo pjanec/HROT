@@ -960,6 +960,83 @@ chain (`IgNodeBootstrapper.cs:413`, `CgfApplication.cs:206`, `CgfSubsystem.cs:12
 | ⚠ accepted cost | after Stop the final world can no longer be inspected — only replay shows it (the user's F2 trade) |
 | ⭐⭐ **and every WRITER deletes what it wrote** *(`CE-4007`, added after the live run)* | 📐 measured live: with only the owned-entity `DisposeAll`, seven TransientLocal topics still carried the dead run and a late Player built ghosts from them — their `Dispose` dropped a cache only, and several are written by a node that is not the entity's primary owner. ⇒ `EntityDamage`, `EntityWeaponAmmo`, `EntityWeaponPosture`, `NavigationIntent`, `NavigationStatus`, `EntityBrainIntent` egress, `PeerLifecycleStatusEgressSystem` — and, since the `backend` merge, the World Environment's `EntityScenarioClock` / `EntityWeather` egress (`CE-3216`, built in parallel) — each `DisposeInstance` every key they published when their `WorldEpoch` moves |
 
+### 8.3 ⭐⭐⭐ `CE-4007` / `CE-4000` residual — **EVERY WRITER DELETES WHAT IT WROTE, ON A DESTRUCTION AS ON A WIPE — one shared path** *(design `2026-11-05`, backend; `build-state: BUILT` — the as-built closes the section)*
+
+🔒 Coordinator handoff `HANDOFF_Coordinator_To_Backend_Late_Joiner_Ghosts.md` (user: *"approved this as next"*): *"dispose in each durable
+translator — ⭐ one shared path (R-174), not 20 copies"* · done when *"after a reload and after an in-game destruction no durable topic holds a
+dead entity's sample"*.
+
+📐 **Measured `2026-11-05`** (`-m server`, domain 71, `hill-attack`: destroy 1003 in game, then reload `test-move`; a `ddsmonitor` started
+afterwards IS a late joiner — it receives exactly the durable history a late Player gets):
+
+| what the late joiner received | cause (measured) |
+|---|---|
+| ⛔⛔ **`EntityMaster` 1003 ALIVE after the destruction AND after the reload** ⇒ a late Player builds a ghost of a dead unit | the dispose went out (`Detected entity destruction 1003, sending dispose`, ×5 nodes) and **65 ms later `[Node-400] Egress: Writing EntityMaster for NetID=1003`**: the egress query is `Lifecycle.All` (so a CONSTRUCTING entity announces itself) — that includes TEARDOWN, and `Dispose` had just cleared the exactly-once set. The cleanup system no longer tracks 1003, so the reload's wipe does not delete it either |
+| after the destruction: 1003 alive on `EntityBrainIntent`, `EntityLifecycleStatusDescriptor`, `EntityStableGuid`, `EntityWeaponAmmo`, `EntityWeaponPosture`, `EqsResultTopic`, `NavigationIntent`, `NavigationStatus` | `Dispose(id)` only drops a send-on-change cache in ~160 egress translators (9 write a delete); the §8.2 wipe code then misses those ids too — the cache entry it walks is already gone |
+| after the reload: every old id on `EntityStableGuid`; five on `EqsResultTopic` | those two writers write no delete at all |
+
+```mermaid
+classDiagram
+  class PublishedInstances~T~ { <<NEW, Fdp.Network.Cyclone>> +PublishedInstances(DdsWriter~T~?, Func~int,T~ keyOf)
+    +OnFrame(view) bool : WorldEpoch moved ⇒ DisposeInstance every key, forget
+    +Unchanged(id, in sample) bool
+    +Write(id, in sample)
+    +Dispose(id) : DisposeInstance when this writer wrote it
+    +Release(id) : UnregisterInstance (a hand-over, F7) }
+  class IDescriptorTranslator { <<existing>> Dispose(netId) · ReleaseInstance(netId, inst) }
+  class EntityLeanEgressTranslator { <<existing, converted>> _instances : PublishedInstances~EntityLean~ }
+  class EntityMasterEgressTranslator { <<existing, fixed>> never (re)announces an entity in TearDown }
+  class CycloneNetworkCleanupSystem { <<existing, unchanged>> DisposeAll(netId) on destruction · sweep · wipe }
+  CycloneNetworkCleanupSystem ..> IDescriptorTranslator : Dispose(netId)
+  EntityLeanEgressTranslator ..|> IDescriptorTranslator
+  EntityLeanEgressTranslator *-- PublishedInstances~T~
+```
+*What the picture shows that prose hid:* the delete needs no new caller — `CycloneNetworkCleanupSystem` already calls `Dispose(netId)` on every
+translator for a destroyed, swept or wiped entity; what was missing is ONE implementation behind that call. The ~62 copies of the §8.2
+"epoch moved ⇒ dispose what I wrote" block collapse into `OnFrame`.
+
+```mermaid
+sequenceDiagram
+  participant E as ELM (owner)
+  participant X as CycloneNetworkCleanupSystem
+  participant T as an egress translator
+  participant P as PublishedInstances
+  participant W as DdsWriter (TransientLocal)
+  E->>X: DestructionOrder(entity 1003)
+  X->>T: Dispose(1003)
+  T->>P: Dispose(1003)
+  P->>W: DisposeInstance(key 1003) — only if THIS writer wrote it
+  Note over T: the entity lingers in TearDown while modules ack — an Active-only egress never sees it, and the EntityMaster scan now skips TearDown
+```
+
+| ⭐ decision | why · rejected |
+|---|---|
+| one class owns "what this writer published" — the cache, the delete, the wipe, the hand-over | ⭐ R-174 / ruling 9. ⛔ rejected: keep 62 copies and add a 63rd line to each `Dispose` — the same drift that produced this defect |
+| `Dispose(id)` writes the delete only for an instance THIS writer wrote | a descriptor owner that is not the entity's primary owner deletes its own sample (the 5-node log line shows each owner gets the call); a node that never wrote it writes nothing |
+| `Release` stays an unregister, never a delete | a hand-over (F7, CE-4079 ②) must not erase the grantee's instance |
+| `EntityMaster` skips TearDown in its scan | the one egress that queries `Lifecycle.All`; a dying entity is never (re)announced. ⛔ rejected: keep the id in the exactly-once set after `Dispose` — an in-place restore (seek) that brings the id back must announce it again |
+| no allocation on the egress frame (R-2084) | the dictionary is the translator's existing cache, moved; `keyOf` is a static lambda |
+
+#### ✅ §8.3 AS-BUILT `2026-11-05` (backend) — and what the first build measured wrong
+
+| built | where |
+|---|---|
+| `PublishedInstances<T>` — the cache, the delete, the wipe, the hand-over; key a `long` (a composite with `entityOf` deletes every instance of the entity); a `DdsWriter<T>` constructor and a delegate one for writer seams (`IDdsWriter<T>` adapters) | `Fdp.Network.Cyclone/Translators/PublishedInstances.cs` |
+| ⭐ **`OnFrame` also deletes on THIS world's `DestructionOrder`** — owner or not | 📐 the first build only answered `Dispose` from the cleanup system, which disposes OWNED entities; the live re-measure still found 1003's lifecycle status (every peer writes its own) and its EQS result (the solver's node) alive. A non-owner writer hears the destruction from its own world's event |
+| ⭐ **`EntityLifecycle.AllButTearDown`** — a query filter: every state but TearDown, applied in `EntityQuery`'s enumerator and `Matches` | 📐 the first build fixed `EntityMaster` alone; the re-measure found stable GUID, navigation status and brain intent re-written the same way. All 18 egress queries that read `Lifecycle.All` (to announce CONSTRUCTING entities) now read `AllButTearDown`; `EntityMaster`'s hand-written check is gone |
+| `PublishedInstances.IsTearingDown(view, entity)` — the guard for EVENT-driven writers (EQS result, world survey, danger area) | they write from an event, not a query |
+| 53 egress translators converted (45 + 8 through the delegate constructor) — every per-translator epoch block, cache and `Dispose` that only forgot | NED `Replication/Map/**`, `SimHost/**`, `Translators/BrainIntentTranslators.cs` |
+| ⛔ not converted, with reason | `EntityMaster` (exactly-once, not a cache; its `Dispose` already deletes) · `EntityMission` (cache holds plan progress; already deletes) · `EqsSensorConfig` (already deletes; orphan sweep by design) · the four `Hrot.Animation.Replication` translators (`IAnimDdsWriter` has no dispose; none leaked in either capture) · the Deploy / orchestration / schema topics (not entity data) |
+
+📐 **LIVE re-measure `2026-11-05`** (same run as the table above, `ddsmonitor` as the late joiner): **after the destruction of 1003 — no durable
+topic holds it alive (was 9); after the reload — no old-run id alive (was `EntityMaster` 1003, every old `EntityStableGuid`, five `EqsResultTopic`)**.
+⚠ The third pass found one more: an EQS result written one frame late, for a parent already gone from the map — event-driven writers now skip a
+parent that is gone OR in TearDown.
+
+Rails (red-proved): `PublishedInstancesTests` ×5 (`Fdp.Network.Cyclone.Tests` — a late reader after a destruction and after a wipe; a hand-over; a
+composite key; a non-owner writer on `DestructionOrder`; 0 bytes on the steady frame) · `EntityMasterEgressTranslatorTests.CE4000_AnEntityInTearDown_*` ·
+`EntityQueryLifecycleTests.EntityQuery_AllButTearDown_*`.
+
 ## 9. ⭐⭐⭐ `CE-295` — **A LOAD OVER A LOADED CLUSTER UNLOADS FIRST — the caller asks** *(AS-BUILT `2026-10-05`, backend)*
 
 🔒 **User, `2026-10-05`:** *"the planner is correct, empty path if we already are in the target state is fine"* ·

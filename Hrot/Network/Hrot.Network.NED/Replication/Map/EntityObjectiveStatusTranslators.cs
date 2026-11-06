@@ -30,9 +30,10 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <summary>A progress-only change is sent at most this often (sim s): two a second (SR-120).</summary>
         public const double ProgressRefreshSeconds = 0.5;
 
-        private readonly IDdsWriter<EntityObjectiveStatus>? _writer;
-        private readonly Dictionary<int, (EntityObjectiveStatus Sample, double SentAt)> _last = new();
-        private int _worldEpoch;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
+        //   destruction, a wipe or (as an unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityObjectiveStatus> _instances;
+        private readonly Dictionary<int, double> _sentAt = new();   // sim time of the last send: the progress-only refresh throttle (the instances hold the sample)
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.ObjectiveStatus, GlobalComponentIds.ObjectiveLinks };
 
@@ -47,18 +48,15 @@ namespace Hrot.Map.Common.Replication.Egress
             : this(participant is not null ? new DdsWriterAdapter<EntityObjectiveStatus>(participant) : null) { }
 
         /// <summary>The test seam: a capturing writer instead of a live participant.</summary>
-        internal EntityObjectiveStatusEgressTranslator(IDdsWriter<EntityObjectiveStatus>? writer) => _writer = writer;
+        internal EntityObjectiveStatusEgressTranslator(IDdsWriter<EntityObjectiveStatus>? writer)
+            => _instances = new(writer is null ? null : s => writer.Write(s), writer is null ? null : s => writer.DisposeInstance(s),
+                writer is null ? null : s => writer.UnregisterInstance(s), static key => new EntityObjectiveStatus { EntityId = (int)key });
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
         public void ScanAndPublish(ISimulationView view)
         {
-            if (WorldEpoch.Moved(view, ref _worldEpoch))
-            {
-                // ⭐⭐ CE-4007 (Q91 §4-M) — a wiped world: DELETE every instance this node wrote, so a late joiner never receives a dead run (TransientLocal).
-                foreach (var id in _last.Keys) _writer?.DisposeInstance(new EntityObjectiveStatus { EntityId = id });
-                _last.Clear();
-            }
+            if (_instances.OnFrame(view)) _sentAt.Clear();   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<ObjectiveStatus>()) return;
             bool links = view is not EntityRepository lr || lr.IsComponentTypeRegistered<ObjectiveLinks>();
             double now = view.Time;   // sim seconds
@@ -71,13 +69,13 @@ namespace Hrot.Map.Common.Replication.Egress
                 int netId = view.GetComponentRO<NetworkIdentity>(env).Value;
                 var l = links && view.HasComponent<ObjectiveLinks>(env) ? view.GetComponentRO<ObjectiveLinks>(env) : default;
                 var sample = ToSample(netId, view.GetComponentRO<ObjectiveStatus>(env), in l);
-                if (_last.TryGetValue(netId, out var prev))
+                if (_instances.TryGetLast(netId, out var prev))
                 {
-                    if (SameWire(in prev.Sample, in sample)) continue;
-                    if (SameDisplayAndState(in prev.Sample, in sample) && now >= prev.SentAt && now - prev.SentAt < ProgressRefreshSeconds) continue;   // progress only, too soon
+                    if (SameWire(in prev, in sample)) continue;
+                    if (_sentAt.TryGetValue(netId, out double sentAt) && SameDisplayAndState(in prev, in sample) && now >= sentAt && now - sentAt < ProgressRefreshSeconds) continue;   // progress only, too soon
                 }
-                _last[netId] = (sample, now);
-                _writer?.Write(sample);
+                _sentAt[netId] = now;
+                _instances.Write(netId, sample);
                 SentSampleCount++;
             }
         }
@@ -129,13 +127,10 @@ namespace Hrot.Map.Common.Replication.Egress
                && a.ProgressCur == b.ProgressCur && a.ProgressNeed == b.ProgressNeed && a.Value == b.Value && a.Target == b.Target
                && a.Score == b.Score && a.Points == b.Points && a.ChangedAt == b.ChangedAt && a.Reason == b.Reason && a.LastFired == b.LastFired;
 
-        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) { _sentAt.Remove(networkEntityId); _instances.Dispose(networkEntityId); }   // ⭐ CE-4007 — the delete goes on the wire
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(int networkEntityId, long instanceId)
-        {
-            if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityObjectiveStatus { EntityId = networkEntityId });
-        }
+        public void ReleaseInstance(int networkEntityId, long instanceId) { _sentAt.Remove(networkEntityId); _instances.Release(networkEntityId); }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
     }
 }

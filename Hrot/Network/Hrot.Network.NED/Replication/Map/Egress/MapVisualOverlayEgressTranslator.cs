@@ -28,7 +28,8 @@ namespace Hrot.Map.Common.Replication.Egress
     {
         private const long OrdinalValue = (long)EDescriptorType.dtMapVisualOverlay;
 
-        private readonly DdsWriter<MapVisualOverlay> _writer;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the instances it deletes on a destruction or a wipe.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<MapVisualOverlay> _instances;
         private readonly NetworkEntityMap _entityMap;
         private readonly HashSet<int> _tracedNetIds = new();
         private readonly NodeId _localNodeId;
@@ -49,7 +50,7 @@ namespace Hrot.Map.Common.Replication.Egress
             NetworkEntityMap entityMap,
             int localNodeId)
         {
-            _writer = new DdsWriter<MapVisualOverlay>(participant);
+            _instances = new(new DdsWriter<MapVisualOverlay>(participant), static key => new MapVisualOverlay { EntityId = (int)key });
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _localNodeId = (Fdp.Core.NodeId)(localNodeId);
         }
@@ -62,11 +63,12 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ScanAndPublish(ISimulationView view)
         {
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
             var query = view.Query()
                 .DefaultRoutePublishable()
                 .With<SimTransform>()
                 .WithManaged<EditablePolyline>()
-                .WithLifecycle(EntityLifecycle.All)
+                .WithLifecycle(EntityLifecycle.AllButTearDown)
                 .Build();
 
             long packedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
@@ -102,7 +104,7 @@ namespace Hrot.Map.Common.Replication.Egress
                     styleJson = style.ToJson();
                 }
 
-                _writer.Write(new MapVisualOverlay
+                _instances.Write(netId.Value, new MapVisualOverlay
                 {
                     EntityId        = netId.Value,
                     PersistenceMode = PersistenceMode.MODE_PERSISTENT,
@@ -126,9 +128,6 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        public void Dispose(int networkEntityId)
-        {
-            _writer.DisposeInstance(new MapVisualOverlay { EntityId = networkEntityId });
-        }
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);
     }
 }

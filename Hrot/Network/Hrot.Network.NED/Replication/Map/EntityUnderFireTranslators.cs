@@ -24,9 +24,9 @@ namespace Hrot.Map.Common.Replication.Egress
         // ⭐ CE-2407 (DESIGN_Egress_Change_Detection §5, E1) — skips the entities none of these inputs changed for; NetworkIdentity is implied
         private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(UnderFire));
 
-        private readonly IDdsWriter<EntityUnderFire>? _writer;
-        private readonly Dictionary<int, EntityUnderFire> _last = new();
-        private int _worldEpoch;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
+        //   destruction, a wipe or (as an unregister) a hand-over.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityUnderFire> _instances;
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.UnderFire };
 
@@ -44,18 +44,15 @@ namespace Hrot.Map.Common.Replication.Egress
             : this(participant is not null ? new DdsWriterAdapter<EntityUnderFire>(participant) : null) { }
 
         /// <summary>The test seam: a capturing writer instead of a live participant.</summary>
-        internal EntityUnderFireEgressTranslator(IDdsWriter<EntityUnderFire>? writer) => _writer = writer;
+        internal EntityUnderFireEgressTranslator(IDdsWriter<EntityUnderFire>? writer)
+            => _instances = new(writer is null ? null : s => writer.Write(s), writer is null ? null : s => writer.DisposeInstance(s),
+                writer is null ? null : s => writer.UnregisterInstance(s), static key => new EntityUnderFire { EntityId = (int)key });
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
         public void ScanAndPublish(ISimulationView view)
         {
-            if (WorldEpoch.Moved(view, ref _worldEpoch))
-            {
-                // ⭐⭐ CE-4007 (Q91 §4-M) — a wiped world: DELETE every instance this node wrote, so a late joiner never receives a dead run (TransientLocal).
-                foreach (var id in _last.Keys) _writer?.DisposeInstance(new EntityUnderFire { EntityId = id });
-                _last.Clear();
-            }
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<UnderFire>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             _gate.Begin(view);
@@ -67,10 +64,9 @@ namespace Hrot.Map.Common.Replication.Egress
                 var sample = ToSample(netId, view.GetComponentRO<UnderFire>(e));
                 // ⭐ a man under a machine gun is re-stamped by every near miss: a stamp within RefreshSeconds of the last one sent changes
                 //   no remote window by more than that (HitModel.UnderFireSeconds is 5 s), so it is not sent — never a sample per round
-                if (_last.TryGetValue(netId, out var prev)
+                if (_instances.TryGetLast(netId, out var prev)
                     && sample.LastTime >= prev.LastTime && sample.LastTime - prev.LastTime < RefreshSeconds) continue;
-                _last[netId] = sample;
-                _writer?.Write(sample);
+                _instances.Write(netId, sample);
                 SentSampleCount++;
             }
         }
@@ -78,13 +74,10 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <summary>The wire form (the test seam).</summary>
         internal static EntityUnderFire ToSample(int netId, in UnderFire c) => new() { EntityId = netId, LastTime = c.LastTime };
 
-        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(int networkEntityId, long instanceId)
-        {
-            if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityUnderFire { EntityId = networkEntityId });
-        }
+        public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
     }
 }

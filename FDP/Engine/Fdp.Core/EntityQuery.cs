@@ -189,11 +189,8 @@ namespace Fdp.Core
                     if (!meta.IsActive) continue;
 
                     // 3. COLD: lifecycle filter
-                    if (_lifecycleFilter != EntityLifecycle.All)
-                    {
-                        if (meta.LifecycleState != _lifecycleFilter)
-                            continue;
-                    }
+                    if (_lifecycleFilter != EntityLifecycle.All && !LifecyclePasses(_lifecycleFilter, meta.LifecycleState))
+                        continue;
 
                     // 4. COLD: authority mask
                     if (!BitMask512.HasAll(meta.AuthorityMask, _authorityIncludeMask)) continue;
@@ -289,6 +286,11 @@ namespace Fdp.Core
             return Entity.Null;
         }
 
+        /// <summary>The lifecycle filter (not <see cref="EntityLifecycle.All"/>, which callers test first): one state, or every state but TearDown.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool LifecyclePasses(EntityLifecycle filter, EntityLifecycle state)
+            => filter == EntityLifecycle.AllButTearDown ? state != EntityLifecycle.TearDown : state == filter;
+
         /// <summary>
         /// Checks if an entity's component mask and metadata match this query.
         /// </summary>
@@ -296,11 +298,8 @@ namespace Fdp.Core
         public bool Matches(in BitMask512 componentMask, in EntityMetadataCold meta)
         {
             // Lifecycle Filter
-            if (_lifecycleFilter != EntityLifecycle.All)
-            {
-                if (meta.LifecycleState != _lifecycleFilter)
-                    return false;
-            }
+            if (_lifecycleFilter != EntityLifecycle.All && !LifecyclePasses(_lifecycleFilter, meta.LifecycleState))
+                return false;
 
             // Component Mask
             if (!BitMask512.HasAll(componentMask, _includeMask)) return false;

@@ -60,6 +60,38 @@ namespace Hrot.SimHost.Tests
             Assert.True(found, "Expected EntityMaster sample for locally-owned entity.");
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4000</c> residual (docs/DESIGN_Cluster_Load_Phase.md §8.3) — a dying entity is never announced again. 📐 Measured live
+        /// 2026-11-05: the cleanup disposed 1003, then this translator (it scans <c>Lifecycle.All</c>, for constructing entities) wrote its master
+        /// again while it lingered in TearDown — every late Player built a ghost, and the next reload did not delete it. 🔴 Red-proof: drop the
+        /// TearDown skip in <c>ScanAndPublish</c> ⇒ a second sample is sent.
+        /// </summary>
+        [Fact]
+        [Trait("Category", "Integration")]
+        public void CE4000_AnEntityInTearDown_IsNotAnnouncedAgainAfterItsDispose()
+        {
+            using var participant = new DdsParticipant(176u);
+            var translator = new EntityMasterEgressTranslator(participant, new NetworkEntityMap(), localNodeId: 1);
+            var repo = CreateWorld();
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new NetworkIdentity(1003));
+            repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(100) });
+
+            translator.ScanAndPublish(repo);
+            Assert.Equal(1, translator.SentSampleCount);
+
+            repo.SetLifecycleState(entity, EntityLifecycle.TearDown);   // destroyed in game: modules are still acking
+            translator.Dispose(1003);                                    // the cleanup system's delete
+            translator.ScanAndPublish(repo);
+            translator.ScanAndPublish(repo);
+            Assert.Equal(1, translator.SentSampleCount);
+
+            repo.SetLifecycleState(entity, EntityLifecycle.Active);      // an in-place restore brings the id back: announced again
+            translator.ScanAndPublish(repo);
+            Assert.Equal(2, translator.SentSampleCount);
+        }
+
         [Fact]
         [Trait("Category", "Integration")]
         public void ScanAndPublish_RemotelyOwnedEntity_DoesNotPublish()

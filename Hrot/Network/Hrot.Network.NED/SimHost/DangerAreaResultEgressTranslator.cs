@@ -19,7 +19,9 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class DangerAreaResultEgressTranslator : IDescriptorTranslator
     {
-        private readonly DdsWriter<DangerAreaResultTopic>? _writer;
+        // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: one instance per (parent network id, child index), packed
+        //   into the key; the instances it deletes when the parent is destroyed or the world is wiped.
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<DangerAreaResultTopic> _instances;
         private readonly NetworkEntityMap _entityMap;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DangerAreaResultTopic>();
@@ -32,17 +34,21 @@ namespace Hrot.Network.NED.SimHost
         {
             if (participant == null) throw new ArgumentNullException(nameof(participant));
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _writer    = new DdsWriter<DangerAreaResultTopic>(participant);
+            _instances = new(new DdsWriter<DangerAreaResultTopic>(participant),
+                static key => new DangerAreaResultTopic { ParentNetworkId = (int)(key >> 32), LocalChildIndex = (int)(uint)key },
+                static key => (int)(key >> 32));
         }
 
         /// <inheritdoc/>
         public void ScanAndPublish(ISimulationView view)
         {
-            if (_writer is null) return;
+            _instances.OnFrame(view);   // a wiped world: every instance this writer published is deleted (CE-4007, §8.3)
             foreach (var evt in view.ReadManagedEvents<DangerAreaResultEvent>())
             {
                 if (evt.ParentNetworkId == 0) continue;      // a local-only sensor is never on the wire
                 if (!evt.Observer.IsNull) continue;          // an answer that ARRIVED from the wire (a Brain-role node)
+                // ⭐ CE-4007 (Cluster Load Phase §8.3) — a parent gone or in TearDown: its results' deletes may be out already; never write them again (📐 live: a result one frame late re-published a destroyed unit's EQS result).
+                if (!_entityMap.TryGetEntity(evt.ParentNetworkId, out var dying) || !view.IsAlive(dying) || Fdp.Network.Cyclone.Translators.PublishedInstances.IsTearingDown(view, dying)) continue;
                 if (_entityMap.TryGetEntity(evt.ParentNetworkId, out var parent) && view.IsAlive(parent) &&
                     !Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(
                         view, parent, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, evt.LocalChildIndex)))
@@ -50,7 +56,7 @@ namespace Hrot.Network.NED.SimHost
 
                 var areas = new List<DangerAreaWire>(evt.Count);
                 for (int i = 0; i < evt.Count && i < evt.Areas.Length; i++) areas.Add(DangerAreaWireMap.ToWire(in evt.Areas[i]));
-                _writer.Write(new DangerAreaResultTopic
+                _instances.Write(((long)evt.ParentNetworkId << 32) | (uint)evt.LocalChildIndex, new DangerAreaResultTopic
                 {
                     ParentNetworkId = evt.ParentNetworkId,
                     LocalChildIndex = evt.LocalChildIndex,
@@ -69,6 +75,6 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(int networkEntityId) { }
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the parent is gone: delete its result instances on the wire
     }
 }
