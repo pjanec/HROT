@@ -23,29 +23,27 @@ namespace Hrot.Editor.AiShared.Browser;
 /// host's draw pass, so a headless node simply never constructs the modal — ⭐ ruling 49's *"absent, not
 /// broken"*, the same rule the E2 picker follows.</para>
 ///
-/// <para>⚠ <b>The commit goes through an injected seam, not through <c>EntityRepository</c> directly.</b>
-/// 📐 The editor's inline version called <c>IEditorLogic.CommitPropertyEdit</c>, which publishes an
-/// <c>UpdateEntityCommand</c> — ⛔ NOT a direct component write. That distinction is load-bearing on a host
-/// that does not own the entity *(the `AX-005b` lesson)*, so the seam is preserved rather than shortcut.</para>
+/// <para>⭐ <b>The commit is an edit-framework Write of the <c>"Name"</c> attribute</b> (CE-4274): ⛔ never a direct component write, which on a
+/// host that does not own the entity would rename the replica only *(the `AX-005b` lesson)*.</para>
 /// </summary>
 public sealed class EntityRenameModal
 {
     private const string PopupId = "Rename Entity";
 
-    private readonly Action<int, IReadOnlyList<object>> _commitPropertyEdit;
+    private readonly Func<EntityRepository, Fdp.Toolkit.Replication.Edits.EditOp, Fdp.Toolkit.Replication.Edits.EditTicket> _submit;
 
     private int   _targetNetworkId;
     private string _buffer = string.Empty;
     private bool   _openThisFrame;
 
-    /// <param name="commitPropertyEdit">
-    /// Commits the edited components for a network id. ⭐ Production wires
-    /// <c>IEditorLogic.CommitPropertyEdit</c> on the editor and the equivalent publish on CGF; a rail
-    /// injects a recorder. ⛔ Never <see langword="null"/> — a modal that cannot commit is a control that
-    /// looks like it works.
+    /// <param name="submit">
+    /// ⭐ CE-4274 (edit framework F1, 📄 docs/UX/DESIGN_Edit_Framework.md §3) — submits the rename as the <c>"Name"</c> attribute write. Production passes
+    /// nothing: <c>Edits.Submit</c> (the owner writes it; a non-owner asks the owner, with an outcome). A rail injects a recorder.
+    /// ⛔ HISTORY: <c>IEditorLogic.CommitPropertyEdit</c> → <c>UpdateEntityCommand</c>, applied locally with no authority check — on a station that
+    /// did not own the unit it renamed the REPLICA and was lost.
     /// </param>
-    public EntityRenameModal(Action<int, IReadOnlyList<object>> commitPropertyEdit)
-        => _commitPropertyEdit = commitPropertyEdit ?? throw new ArgumentNullException(nameof(commitPropertyEdit));
+    public EntityRenameModal(Func<EntityRepository, Fdp.Toolkit.Replication.Edits.EditOp, Fdp.Toolkit.Replication.Edits.EditTicket>? submit = null)
+        => _submit = submit ?? Fdp.Toolkit.Replication.Edits.Edits.Submit;
 
     /// <summary>True while the modal is waiting to be opened or is open.</summary>
     public bool IsPending => _openThisFrame;
@@ -124,12 +122,14 @@ public sealed class EntityRenameModal
     /// </summary>
     public void Commit(EntityRepository world)
     {
-        EntityInfo updated = default;
         var target = NetworkIdResolver.FindEntityByNetworkId(world, _targetNetworkId);
-        if (!target.IsNull && world.HasComponent<EntityInfo>(target))
-            updated = world.GetComponent<EntityInfo>(target);
-
-        updated.Name = new FixedString64(_buffer.Trim());
-        _commitPropertyEdit(_targetNetworkId, new List<object> { updated });
+        string name = _buffer.Trim();
+        _submit(world, Fdp.Toolkit.Replication.Edits.EditOp.Write(target,
+            new Fdp.Toolkit.Replication.Patching.EntityAttributeChange
+            {
+                AttributeId = Fdp.Toolkit.Replication.Patching.AttributeIds.Name,
+                Value = Fdp.Toolkit.Replication.Patching.AttributeValue.FromString(name),
+            },
+            $"Rename to {name}"));
     }
 }

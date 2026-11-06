@@ -39,6 +39,7 @@ public sealed class ScenarioClockEditTests : IDisposable
     public void CE1161_TheOwner_WritesTheStartTimeAndOffset_Directly_AsTyped()
     {
         var env = Environment();
+        _w.SetAuthority<ScenarioClock>(env, true);   // ⭐ edit framework F1: the router applies where this world owns the COMPONENT (the ownership systems set it in production)
         Assert.True(ScenarioClockEdit.TryParse("2025-10-01 05:30", out var utc));
         Assert.True(ScenarioClockEdit.SetStartUtc(_w, utc));
         Assert.True(ScenarioClockEdit.SetOffsetMinutes(_w, 120));
@@ -62,7 +63,12 @@ public sealed class ScenarioClockEditTests : IDisposable
         _w.Bus.SwapBuffers();
         var ask = Assert.Single(_w.Bus.ReadManaged<UpdateEntityAttributeCommand>());
         Assert.Equal(5, ask.NetworkId);
-        Assert.Contains("\"ScenarioStartUtcTicks\":" + new DateTime(2025, 10, 1, 5, 30, 0, DateTimeKind.Utc).Ticks, ask.AttributePatchJson);
+        // ⭐ edit framework F1 — a BINARY attribute write with a request id and an outcome wanted (was: an id-less JSON patch)
+        var change = Assert.Single(ask.AttributeChanges!);
+        Assert.Equal((Fdp.Toolkit.Replication.Patching.AttributeIds.ScenarioStartUtcTicks, new DateTime(2025, 10, 1, 5, 30, 0, DateTimeKind.Utc).Ticks),
+                     (change.AttributeId, change.Value.LongValue));
+        Assert.True(ask.WantOutcome);
+        Assert.NotEqual(Guid.Empty, ask.RequestId);
     }
 
     [Fact]

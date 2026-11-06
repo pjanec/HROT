@@ -2,6 +2,8 @@ using System;
 using System.Globalization;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Attributes;
+using Fdp.Toolkit.Replication.Edits;
+using Fdp.Toolkit.Replication.Patching;
 using Fdp.Toolkit.Replication.Extensions;
 using Fdp.Toolkit.Weather;
 
@@ -11,9 +13,9 @@ namespace Hrot.UI.Common.Weather;
 /// ⭐ CE-1161 (docs/designs/weather/DESIGN_Weather_And_Time.md §7, E-2) — reads and edits the scenario's START TIME on the World
 /// Environment (<see cref="ScenarioClock"/>, W-8: an authored value, saved as is, never the wall clock).
 /// <para>⭐ The owner writes directly (the CE-1047 rule, <c>MapCameraLayer</c>); any other node asks the owner with the
-/// <c>"ScenarioStartUtcTicks"</c> / <c>"ScenarioUtcOffsetMinutes"</c> attribute patch. 📐 Measured: the patch is only PUBLISHED — the
-/// networkless editor has no system that applies it (<c>OfflineNetworkFactory.CreateSimHostAttributeUpdateSystems</c> is empty), so
-/// a patch-only edit would silently do nothing there.</para>
+/// <c>"ScenarioStartUtcTicks"</c> / <c>"ScenarioUtcOffsetMinutes"</c> attribute. ⭐ Edit framework F1: both go through <c>Edits.Submit</c> as BINARY
+/// attribute writes (the router writes directly on the owner — the networkless editor included — and asks the owner elsewhere, with an outcome).
+/// ⛔ HISTORY: a hand-written direct-or-JSON-patch branch, the patch sent with no request id.</para>
 /// </summary>
 public static class ScenarioClockEdit
 {
@@ -43,15 +45,10 @@ public static class ScenarioClockEdit
     {
         if (!TryRead(world, out var s)) return false;
         long ticks = DateTime.SpecifyKind(utc, DateTimeKind.Utc).Ticks;
-        if (s.Direct)
-        {
-            var clock = s.Clock;
-            clock.StartUtcTicks = ticks;
-            world.SetComponent(s.Environment, clock);
-            return true;
-        }
-        return EntityAttributeChangeRequests.TryPublishJsonPatch(world, s.Environment,
-            "{\"ScenarioStartUtcTicks\":" + ticks.ToString(CultureInfo.InvariantCulture) + "}");
+        // ⭐ edit framework F1 (docs/UX/DESIGN_Edit_Framework.md §3): ONE path — the router writes here when this node owns the clock, else asks the owner, with an outcome.
+        var ticket = Edits.Submit(world, EditOp.Write(s.Environment,
+            new EntityAttributeChange { AttributeId = AttributeIds.ScenarioStartUtcTicks, Value = AttributeValue.FromLong(ticks) }, "Set the scenario start time"));
+        return ticket.Route != EntityWriteRoute.Refused;
     }
 
     /// <summary>Sets the display offset (minutes from UTC to the theatre's local time). Display only (nothing derives from it).</summary>
@@ -59,15 +56,9 @@ public static class ScenarioClockEdit
     {
         if (!TryRead(world, out var s)) return false;
         minutes = Math.Clamp(minutes, -14 * 60, 14 * 60);
-        if (s.Direct)
-        {
-            var clock = s.Clock;
-            clock.DisplayUtcOffsetMinutes = (short)minutes;
-            world.SetComponent(s.Environment, clock);
-            return true;
-        }
-        return EntityAttributeChangeRequests.TryPublishJsonPatch(world, s.Environment,
-            "{\"ScenarioUtcOffsetMinutes\":" + minutes.ToString(CultureInfo.InvariantCulture) + "}");
+        var ticket = Edits.Submit(world, EditOp.Write(s.Environment,
+            new EntityAttributeChange { AttributeId = AttributeIds.ScenarioUtcOffsetMinutes, Value = AttributeValue.FromInt(minutes) }, "Set the local time offset"));
+        return ticket.Route != EntityWriteRoute.Refused;
     }
 
     /// <summary>The text format the view edits ("yyyy-MM-dd HH:mm", UTC).</summary>

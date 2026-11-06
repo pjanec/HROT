@@ -1792,11 +1792,9 @@ namespace Hrot.Editor
                 _fdpEntityInspector.RequestSelectionChange =
                     req => _world!.Bus.PublishManaged(req);
 
-                // ⭐⭐ CE-051 — the shared rename modal. ⭐ Commits through IEditorLogic.CommitPropertyEdit,
-                //    which publishes an UpdateEntityCommand — ⛔ NOT a direct component write, which is what
-                //    keeps it correct on a host that does not own the entity (the AX-005b lesson).
-                _entityRenameModal = new Hrot.Editor.AiShared.Browser.EntityRenameModal(
-                    (netId, components) => _editorLogic?.CommitPropertyEdit(netId, components));
+                // ⭐⭐ CE-051 — the shared rename modal. ⭐ CE-4274: it submits the "Name" attribute through Edits.Submit (the owner writes it,
+                //    a non-owner asks the owner) — ⛔ HISTORY: IEditorLogic.CommitPropertyEdit's local UpdateEntityCommand, lost on a non-owner.
+                _entityRenameModal = new Hrot.Editor.AiShared.Browser.EntityRenameModal();
                 _orbatAdapter     = new ScenarioOrbatAdapter(_world, _world.Bus, _spawnAdapter)
                 {
                     PickOffer = e => _mapPickAdapter?.TryOfferEntity(e) == true,   // ⭐ CE-1346 — an ORBAT row answers a map entity pick

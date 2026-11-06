@@ -318,12 +318,9 @@ namespace Hrot.UI.Common.Adapters
             }
 
             if (Refused(sub, cmd)) return;
-            _bus.Publish(new CmdAssignSubordinate
-            {
-                Subordinate = sub,
-                Commander   = cmd,
-                Designation = TacticalDesignation.Undefined,
-            });
+            // ⭐ CE-4275 (edit framework F1) — the owner of the subordinate's hierarchy applies it; a non-owner asks it ("CommanderId"), with an outcome.
+            //   ⛔ HISTORY: a local CmdAssignSubordinate, which wrote the REPLICA on a non-owner.
+            Fdp.Toolkit.Replication.Edits.Edits.Submit(_world, Fdp.Toolkit.Replication.Edits.EditOp.SetCommander(sub, cmd, "Assign to a commander"));
         }
 
         /// <inheritdoc/>
@@ -339,7 +336,7 @@ namespace Hrot.UI.Common.Adapters
             }
 
             if (Refused(sub, Entity.Null)) return;
-            _bus.Publish(new CmdRemoveSubordinate { Subordinate = sub });
+            Fdp.Toolkit.Replication.Edits.Edits.Submit(_world, Fdp.Toolkit.Replication.Edits.EditOp.SetCommander(sub, Entity.Null, "Detach from its commander"));   // ⭐ CE-4275 ("CommanderId" 0)
         }
     }
 }

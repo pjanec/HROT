@@ -237,6 +237,7 @@ public sealed class EditOutcomeOwnerTests
         var owner = new Node(owns: true, OwnerNode);
         var requester = new Node(owns: false, OtherNode);
         owner.World.AddComponent(owner.Entity, new EntityInfo { Name = new FixedString64("Alpha") });
+        owner.World.SetAuthority<EntityInfo>(owner.Entity, true);   // the owner owns its descriptor (the Name handler is gated on CanWrite<EntityInfo>)
         requester.World.AddComponent(requester.Entity, new EntityInfo { Name = new FixedString64("Alpha") });
 
         var ticket = Edits.Submit(requester.World, EditOp.Write(requester.Entity,
