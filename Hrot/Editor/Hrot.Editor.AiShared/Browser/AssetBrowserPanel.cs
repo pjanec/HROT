@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Fdp.Diagnostics.Contracts.Panels;
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 using Hrot.Editor.AiShared.Catalog;
 using NodeEditor.Core.Interfaces;
 
@@ -220,6 +221,9 @@ public sealed class AssetBrowserPanel
 
     // Expanded folder paths per kind (initial reveal from InitialFullPath / last-opened).
     private readonly Dictionary<AssetKind, HashSet<string>> _expandedFolders = new();
+
+    /// <summary>⭐ U-4 — the tree's open state, owned here (the shared <c>TreeRow</c> takes <c>ref open</c>): per kind, folder path → open. A folder not yet seen takes the initial-reveal default.</summary>
+    private readonly Dictionary<AssetKind, Dictionary<string, bool>> _folderOpen = new();
 
     /// <summary>
     /// The permitted kinds derived from <see cref="AssetBrowserPanelOptions.Kinds"/>.
@@ -777,74 +781,57 @@ public sealed class AssetBrowserPanel
         }
 
         var expandedSet = _expandedFolders.TryGetValue(kind, out var set) ? set : null;
+        if (!_folderOpen.TryGetValue(kind, out var openFor)) _folderOpen[kind] = openFor = new Dictionary<string, bool>(StringComparer.Ordinal);
         foreach (var child in tree.Children)
         {
-            DrawTreeNode(kind, child, expandedSet);
+            DrawTreeNode(kind, child, expandedSet, openFor, 0);
         }
     }
 
-    private void DrawTreeNode(AssetKind kind, FolderTreeNode node, HashSet<string>? expandedSet)
+    private void DrawTreeNode(AssetKind kind, FolderTreeNode node, HashSet<string>? expandedSet, Dictionary<string, bool> openFor, int depth)
     {
         if (node.IsLeaf)
         {
-            DrawLeafRow(kind, node);
+            DrawLeafRow(kind, node, depth);
             return;
         }
 
-        // Folder node: DefaultOpen if in expanded set, or if expanded set is null (no
-        // initial reveal — backward-compatible "open all" behavior).
-        bool defaultOpen = expandedSet == null || expandedSet.Contains(node.FullPath);
-        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags.OpenOnArrow
-                                   | ImGuiTreeNodeFlags.OpenOnDoubleClick;
-        if (defaultOpen)
-            flags |= ImGuiTreeNodeFlags.DefaultOpen;
+        // Folder node: open if in the expanded set, or if there is none (no initial reveal — backward-compatible "open all" behavior);
+        // after that the user's toggles are remembered here.
+        bool open = openFor.TryGetValue(node.FullPath, out var remembered)
+            ? remembered
+            : expandedSet == null || expandedSet.Contains(node.FullPath);
 
-        bool isOpen = ImGui.TreeNodeEx(node.Name, flags);
+        // ⭐ U-4 (DESIGN_UI_Conventions §2) — the shared TreeRow: chevron · icon · label.
+        var folderIcon = _icons.TryGet(open ? "folder_open" : "folder", out var fh) || _icons.TryGet("folder", out fh) ? RowIcon.Image(fh) : RowIcon.None;
+        TreeRow.Draw(node.FullPath, node.Name, folderIcon, depth, hasChildren: true, ref open, selected: false);
+        openFor[node.FullPath] = open;
 
-        if (isOpen)
+        if (open)
         {
             foreach (var child in node.Children)
             {
-                DrawTreeNode(kind, child, expandedSet);
+                DrawTreeNode(kind, child, expandedSet, openFor, depth + 1);
             }
-            ImGui.TreePop();
         }
     }
 
-    private void DrawLeafRow(AssetKind kind, FolderTreeNode leaf)
+    private void DrawLeafRow(AssetKind kind, FolderTreeNode leaf, int depth)
     {
         var asset = AssetForLeaf(kind, leaf);
         if (asset == null)
             return;
 
         var iconKey = RowIconKey(asset);
-        var hasIcon = _icons.TryGet(iconKey, out var icon);
+        var icon = _icons.TryGet(iconKey, out var handle) ? RowIcon.Image(handle) : RowIcon.None;
 
-        // Selection highlight
+        // ⭐ U-4 — a leaf is the same TreeRow without an arrow: it keeps the chevron's slot, so its label shares the x of its depth.
+        bool noOpen = false;
         bool isSelected = ReferenceEquals(Selection, asset);
-        if (isSelected)
-        {
-            var selectColor = ImGui.GetColorU32(ImGuiCol.Header);
-            var cursorPos = ImGui.GetCursorScreenPos();
-            var rowWidth = ImGui.GetContentRegionAvail().X;
-            ImGui.GetWindowDrawList().AddRectFilled(
-                cursorPos,
-                cursorPos + new System.Numerics.Vector2(rowWidth, ImGui.GetFrameHeight()),
-                selectColor);
-        }
-
-        // Icon (16x16 alongside text) — fall back to text if no icon.
-        if (hasIcon)
-        {
-            ImGui.Text(" * " + leaf.Name);
-        }
-        else
-        {
-            ImGui.Text("   " + leaf.Name);
-        }
+        bool clicked = TreeRow.Draw(leaf.FullPath, leaf.Name, icon, depth, hasChildren: false, ref noOpen, isSelected);
 
         // Click handling
-        if (ImGui.IsItemClicked(ImGuiMouseButton.Left))
+        if (clicked)
         {
             SelectAsset(asset);
         }
@@ -988,7 +975,12 @@ public sealed class AssetBrowserPanel
         // Compute ancestor folder paths for expansion.
         var ancestors = GetAncestorPaths(targetPath);
         if (ancestors.Count > 0)
+        {
             _expandedFolders[targetKind] = new HashSet<string>(ancestors);
+            // ⭐ U-4: the reveal opens the path (the open state is remembered here, not by ImGui)
+            if (!_folderOpen.TryGetValue(targetKind, out var openFor)) _folderOpen[targetKind] = openFor = new Dictionary<string, bool>(StringComparer.Ordinal);
+            foreach (var a in ancestors) openFor[a] = true;
+        }
 
         // Set selection to the target asset.
         if (_leafMap.TryGetValue(targetKind, out var map)

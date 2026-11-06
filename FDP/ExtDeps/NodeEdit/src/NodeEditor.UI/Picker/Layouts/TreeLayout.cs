@@ -1,5 +1,6 @@
 using ImGuiNET;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.Core.Widgets;
 using System.Numerics;
 
 namespace NodeEditor.UI.Picker.Layouts;
@@ -181,42 +182,28 @@ internal static class TreeLayout
         int visualRowIndex = state.VisualRows.Count;
         bool isFocused = state.TreeFocusRow == visualRowIndex;
 
-        // Determine tree flags.
-        var treeFlags = baseFlags | ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.SpanFullWidth;
-        if (isFocused)
-            treeFlags |= ImGuiTreeNodeFlags.Selected;
+        // ⭐ U-4 (DESIGN_UI_Conventions §2) — ONE row for every tree: chevron · icon · label (the shared TreeRow; the icon follows the folder's open state).
+        //   The open state is the picker's own (PickerState.FolderOpen); default open only while searching so matches are visible.
+        bool open = state.FolderOpen.TryGetValue(fullPath, out var remembered) ? remembered : isSearching;
 
-        // Draw folder icon if available. Pick closed/open glyph from the node's
-        // persisted open state (1-frame lag is acceptable); the icon must be
-        // drawn BEFORE TreeNodeEx.
-        uint nodeId = ImGui.GetID(fullPath);
-        int defaultOpenInt = (baseFlags & ImGuiTreeNodeFlags.DefaultOpen) != 0 ? 1 : 0;
-        bool wasOpen = ImGui.GetStateStorage().GetInt(nodeId, defaultOpenInt) != 0;
-
-        string folderKey = wasOpen ? "folder_open" : "folder";
-        bool hasIcon = ctx.Icons.TryGet(folderKey, out var folderIcon)
-                       || ctx.Icons.TryGet("folder", out folderIcon);
-        if (hasIcon)
-        {
-            ImGui.Image(folderIcon.TextureId, IconSize, folderIcon.Uv0, folderIcon.Uv1);
-            ImGui.SameLine();
-        }
-
-        // Drive open state via one-shot request; otherwise let ImGui remember natively.
-        // During search, DefaultOpen flag auto-expands; do not also force via pending path.
+        // Drive open state via one-shot request; otherwise remembered. (During search the default opens everything.)
         if (!isSearching && state.PendingToggleFolderPath == fullPath)
         {
-            ImGui.SetNextItemOpen(state.PendingToggleOpen, ImGuiCond.Always);
+            open = state.PendingToggleOpen;
             state.PendingToggleFolderPath = null;
         }
         else if (state.RevealCategory is { } reveal
                  && (reveal == fullPath || reveal.StartsWith(fullPath + "/", StringComparison.Ordinal)))
         {
             // Initial selection: open every folder on the pre-selected entry's path.
-            ImGui.SetNextItemOpen(true, ImGuiCond.Always);
+            open = true;
         }
 
-        bool open = ImGui.TreeNodeEx(folder.Name, treeFlags);
+        string folderKey = open ? "folder_open" : "folder";
+        var icon = ctx.Icons.TryGet(folderKey, out var folderIcon) || ctx.Icons.TryGet("folder", out folderIcon)
+            ? RowIcon.Image(folderIcon) : RowIcon.None;
+        NodeEditor.Core.Widgets.TreeRow.Draw(fullPath, folder.Name, icon, depth, hasChildren: true, ref open, isFocused);
+        state.FolderOpen[fullPath] = open;
 
         // Record this folder as a visual row.
         state.VisualRows.Add(new PickerState.TreeRow(
@@ -248,8 +235,6 @@ internal static class TreeLayout
 
             foreach (var leaf in folder.Leaves)
                 DrawLeafItem(state, ctx, leaf.FilteredIndex, state.Filtered[leaf.FilteredIndex], depth + 1);
-
-            ImGui.TreePop();
         }
     }
 
@@ -265,20 +250,21 @@ internal static class TreeLayout
         int visualRowIndex = state.VisualRows.Count;
         bool isFocused = state.TreeFocusRow == visualRowIndex;
 
-        var treeFlags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.SpanFullWidth;
-        if (isFocused)
-            treeFlags |= ImGuiTreeNodeFlags.Selected;
-        if (node.Children.Count == 0)
-            treeFlags |= ImGuiTreeNodeFlags.Leaf;
+        bool hasChildren = node.Children.Count > 0;
+        bool open = state.FolderOpen.TryGetValue(fullPath, out var remembered) && remembered;
 
-        // Drive open state via one-shot request; otherwise let ImGui remember natively.
+        // Drive open state via one-shot request; otherwise remembered.
         if (state.PendingToggleFolderPath == fullPath)
         {
-            ImGui.SetNextItemOpen(state.PendingToggleOpen, ImGuiCond.Always);
+            open = state.PendingToggleOpen;
             state.PendingToggleFolderPath = null;
         }
 
-        bool open = ImGui.TreeNodeEx(node.Name, treeFlags);
+        string folderKey = open ? "folder_open" : "folder";
+        var icon = ctx.Icons.TryGet(folderKey, out var folderIcon) || ctx.Icons.TryGet("folder", out folderIcon)
+            ? RowIcon.Image(folderIcon) : RowIcon.None;
+        NodeEditor.Core.Widgets.TreeRow.Draw(fullPath, node.Name, icon, depth, hasChildren, ref open, isFocused);
+        if (hasChildren) state.FolderOpen[fullPath] = open;
 
         // Record this folder as a visual row.
         state.VisualRows.Add(new PickerState.TreeRow(
@@ -306,8 +292,6 @@ internal static class TreeLayout
         {
             foreach (var child in node.Children)
                 DrawExplicitFolderNode(state, ctx, child, fullPath, depth + 1);
-
-            ImGui.TreePop();
         }
     }
 
@@ -333,6 +317,10 @@ internal static class TreeLayout
             state.TreeFocusRow = visualRowIndex;
             state.FocusLeafOnDraw = -1;
         }
+
+        // ⭐ U-4 — the depth is the indent (TreeRow's rule: no TreePush any more), and the leaf keeps the chevron's slot.
+        float leafIndent = depth * ImGui.GetStyle().IndentSpacing;
+        if (leafIndent > 0f) ImGui.Indent(leafIndent);
 
         ImGui.PushID(filteredIdx);
 
@@ -363,26 +351,27 @@ internal static class TreeLayout
         if (focus)
             dl.AddRect(pos, pos + size, ImGui.GetColorU32(ctx.Theme.TextDefault with { W = 0.5f }), 2f);
 
-        float textX = pos.X + 4f;
+        float textX = pos.X + ImGui.GetTreeNodeToLabelSpacing();   // ⭐ U-4: the chevron's slot — the same x a TreeRow's icon starts at
         float textY = pos.Y + (size.Y - ImGui.GetTextLineHeight()) * 0.5f;
 
         // Draw type icon if available.
+        float iconSz = ImGui.GetFontSize();   // ⭐ U-4: the icon is the font's height, as in TreeRow
         float iconPadLeft = 0f;
         if (re.Entry.IconKey is { Length: > 0 } iconKey &&
             ctx.Icons.TryGet(iconKey, out var leafIcon))
         {
-            float iconY = pos.Y + (size.Y - IconSize.Y) * 0.5f;
+            float iconY = pos.Y + (size.Y - iconSz) * 0.5f;
             dl.AddImage(leafIcon.TextureId,
                 new Vector2(textX, iconY),
-                new Vector2(textX + IconSize.X, iconY + IconSize.Y),
+                new Vector2(textX + iconSz, iconY + iconSz),
                 leafIcon.Uv0, leafIcon.Uv1);
-            textX += IconSize.X + 4f;
-            iconPadLeft = IconSize.X + 4f;
+            textX += iconSz + ImGui.GetStyle().ItemInnerSpacing.X;
+            iconPadLeft = iconSz + 4f;
         }
         else
         {
             // Left-pad when no icon so text aligns with icon-bearing leaves.
-            textX += IconSize.X + 4f;
+            textX += iconSz + ImGui.GetStyle().ItemInnerSpacing.X;
         }
 
         // Render name with match highlights.
@@ -430,5 +419,6 @@ internal static class TreeLayout
         }
 
         ImGui.PopID();
+        if (leafIndent > 0f) ImGui.Unindent(leafIndent);
     }
 }

@@ -105,7 +105,7 @@ public sealed class TheDiagnosticsBundleEmitsWhatEachHostEmittedTests
         Assert.True(closed.TryGetWindow("cgf_fdp_events", out var b)); Assert.False(b!.IsOpen);   // registered, not open
 
         // the silent-default rule: CGF HAS the choice and must make it
-        string root = AppContext.BaseDirectory; while (!System.IO.File.Exists(System.IO.Path.Combine(root, "HROT.sln")) && System.IO.Directory.GetParent(root) != null) root = System.IO.Directory.GetParent(root)!.FullName;
+        string root = Fdp.Testing.TestRepo.Root;   // CE-3343: the ONE test-side repository-root walk-up
         var cgf = System.IO.File.ReadAllText(System.IO.Path.Combine(root, "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs"));
         Assert.Contains("EventBrowserOpenByDefault: false", cgf);
     }

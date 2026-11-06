@@ -293,4 +293,66 @@ public sealed class TheSharedOrbatPanelDrawsTests : IDisposable
         }
         finally { Raylib.UnloadImage(image); }
     }
+
+    /// <summary>⭐ U-4 (docs/UX/DESIGN_UI_Conventions.md §2 + §6 C2, mockup §①) — the ORBAT rows are the shared <c>TreeRow</c>: ImGui's own arrow (the framed <c>ArrowButton</c> is gone), then the label; a LEAF keeps the arrow's slot so a
+    /// unit and its commander's subordinates share one label x per depth, and the depth is the indent. Read off a real frame (real fonts). 🔴 Red-proof (compiles): the panel passing <c>hasChildren: false</c> for a node that has them ⇒ no arrow ⇒ red.
+    /// Render (never in git): <c>HROT_FRAME_SCREENSHOTS</c> ⇒ <c>tree-rows-orbat.png</c>.</summary>
+    [SkippableFact]
+    public void U4_TheOrbatRows_AreTreeRows_ChevronThenLabel_ALeafKeepsTheSlot_DepthIsTheIndent()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var adapter = new ScenarioOrbatAdapter(_world, _world.Bus, _spawn.Object);
+        var panel = new SharedOrbatPanel();
+        panel.Expand(_leader.Index);
+        using var frame = UiFrameHarness.Begin(640, 300);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        long bytes = -1;
+        for (int i = 0; i < 8; i++)
+            frame.Step(() =>
+            {
+                ImGui.SetNextWindowPos(new Vector2(10, 10), ImGuiNET.ImGuiCond.Always);
+                ImGui.SetNextWindowSize(new Vector2(420, 260), ImGuiNET.ImGuiCond.Always);
+                ImGui.Begin("ORBAT##u4");
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                panel.DrawContent(adapter, adapter);
+                bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+                ImGui.End();
+            });
+        string path = Shot("tree-rows-orbat.png");
+        frame.Screenshot(path);
+        Console.WriteLine($"U4 orbat steady-frame bytes: {bytes}");
+        var image = Raylib.LoadImage(path);
+        try
+        {
+            var leader = panel.DrawnRows.Single(r => r.Text == "Platoon leader");
+            var riflemanA = panel.DrawnRows.Single(r => r.Text == "Rifleman A");
+            var riflemanB = panel.DrawnRows.Single(r => r.Text == "Rifleman B");
+            float slot = ImGui.GetTreeNodeToLabelSpacing(), indent = ImGui.GetStyle().IndentSpacing;
+
+            (int ChevronMax, int LabelMin) Read(SharedOrbatPanel.DrawnRow r)
+            {
+                var bg = Raylib.GetImageColor(image, (int)r.Max.X - 6, (int)((r.Min.Y + r.Max.Y) / 2));
+                int chevron = -1, label = -1;
+                for (int x = (int)r.Min.X; x < (int)r.Min.X + 260; x++)
+                {
+                    bool ink = false;
+                    for (int y = (int)r.Min.Y; y < (int)r.Max.Y && !ink; y++)
+                    {
+                        var c = Raylib.GetImageColor(image, x, y);
+                        ink = Math.Abs(c.R - bg.R) + Math.Abs(c.G - bg.G) + Math.Abs(c.B - bg.B) > 120;
+                    }
+                    if (!ink) continue;
+                    if (x < r.Min.X + slot - 1) chevron = x; else if (label < 0) label = x;
+                }
+                return (chevron, label);
+            }
+            var l = Read(leader); var a = Read(riflemanA); var b = Read(riflemanB);
+            Assert.True(l.ChevronMax >= 0 && l.ChevronMax < l.LabelMin, $"a commander has ImGui's own arrow ({l.ChevronMax}) left of its label ({l.LabelMin})");
+            Assert.True(a.ChevronMax < 0 && b.ChevronMax < 0, "a unit with no subordinates draws no arrow...");
+            Assert.True(Math.Abs(a.LabelMin - b.LabelMin) <= 1, "...its siblings share one label x");
+            Assert.True(Math.Abs((a.LabelMin - l.LabelMin) - indent) <= 1.5f, $"...and depth is the indent: {a.LabelMin - l.LabelMin} == IndentSpacing {indent}");
+            Assert.True(Math.Abs(l.LabelMin - (leader.Min.X + slot)) <= 4, "the label starts after the chevron's slot");
+        }
+        finally { Raylib.UnloadImage(image); }
+    }
 }

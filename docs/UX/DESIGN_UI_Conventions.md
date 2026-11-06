@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — C1 BUILT (U-1, §6 as-built); C2–C4 open. Q-C1, Q-C2, Q-C5 approved (R-4145); Q-C6 revised by the user (a capped width, R-4145); Q-C3 approved (R-4147, §3.1); Q-C4 withdrawn (a wrong premise, §3.2); fidelity checked by the builder, never a stop (R-4146)
+build-state: BUILDING — C1 (U-1) and C2 (U-4) BUILT, §6 as-built; C3–C4 open. Q-C1, Q-C2, Q-C5 approved (R-4145); Q-C6 revised by the user (a capped width, R-4145); Q-C3 approved (R-4147, §3.1); Q-C4 withdrawn (a wrong premise, §3.2); fidelity checked by the builder, never a stop (R-4146)
 updated: 2026-11-06 (Q-C3 approved, R-4147 — every question settled) · 2026-11-06 (the user's review: Q-C1/2/5 approved; Q-C6 → capped width §3.3; Q-C3 drawn §3.1; Q-C4 withdrawn §3.2; §6.1 autonomous fidelity) · 2026-11-06 (first version — the user's review of the New Scenario mockup: chevron before the icon, one chevron, label-first forms, slate collapsing headers with an icon)
 current-answer: §2 trees · §3 label-first forms (§3.1 not form rows · §3.2 node editors · §3.3 the label width) · §4 collapsing headers · §5 the classes · §6 stages · §7 questions
 stale-below: none
@@ -210,6 +210,22 @@ All in `FDP/ExtDeps/NodeEdit/src/NodeEditor.Core/Widgets/` (namespace `NodeEdito
 
 ⭐ Deviations: (1) the mockup's row indent is 18 px, the helper uses the style's `IndentSpacing` (ImGui default 21) — the app's one style decides, no second constant; (2) the glyph test of the ellipsis compares the `…` width with the fallback `?` width (no `unsafe`); (3) a row with no icon (`RowIcon.None`) puts its label directly after the arrow — callers mixing icon and icon-less rows at one depth pass a transparent glyph.
 ⭐ Rails: `Hrot.Presentation.Tests/Panels/UiConventionsFrameRail.cs` (xvfb): the rects are read off the rendered pixels — chevron < icon < label, a leaf keeps the slot (icon and label x equal to its sibling with children), depth = `IndentSpacing`, header background slate and an override keeps its colour, no global `ImGuiCol.Header` change, the form column = widest + 14 and the 25 % cap, every control at one x, the cut label ends before column 2, and 0 bytes allocated on a steady frame for all three.
+
+### §6 C2 AS BUILT (ui, `2026-11-06`, U-4) — the trees onto `TreeRow`
+
+INVENTORY: `search_graph name_pattern=".*(TreeLayout|SaveAsBrowser|FolderTreePicker|BehaviorPickerTree|AssetBrowserPanel|MyBlueprintPanel|TreeNodeEx).*"` + `grep TreeNodeEx` over `FDP/ Hrot/` → the drawers below; `FolderTreePicker` is a pure model (no ImGui) — `AssetBrowserPanel` is its drawer. Other `TreeNodeEx` callers (`ComponentEditDrawer`, `ImGuiPropertyTree`, `EntityBrainView`, `FindResultsWindow` …) are property / detail trees, not the navigation trees of C2 — untouched.
+
+| drawer | as built | open state now owned by |
+|---|---|---|
+| **`TreeLayout`** (every picker's Tree layout) | folders: `TreeRow.Draw(fullPath, name, folder icon from `ctx.Icons`, depth, …)` (the icon follows open / closed); leaves keep their `Selectable` (match highlights) but start at `pos.X + GetTreeNodeToLabelSpacing()` and are indented by hand (`depth × IndentSpacing`), the icon is the font's height | `PickerState.FolderOpen` (new; default open only while searching; the one-shot reveal and `PendingToggle` write it) |
+| **`SaveAsBrowserDialog`** folder tree | `TreeRow` per folder, `_folderDepth` is the indent | its own `_collapsedFolders` (unchanged) |
+| **`SharedOrbatPanel`** | the framed `ArrowButton` + `Selectable` is gone: `TreeRow` (arrow, label), flat visible-node list and `_expandedNodes` unchanged; select / double-click centre / drag source / drop target / row menu run on the row's item; a Scenario group row is the same row with no select | `_expandedNodes` + `ctrl.ToggleExpanded` |
+| **`AssetBrowserPanel`** per-kind tree | folders and assets are `TreeRow`s (folder icon, asset icon from `RowIconKey`); the fake `" * name"` text row and hand-drawn highlight are gone | `_folderOpen[kind][path]` (the initial reveal opens its path) |
+| **`MyBlueprintPanel`** category folders | `TreeRow` (no icon); its items are indented one level by hand (`MyBlueprintItemRenderer` rows are unchanged) | `_sectionExpanded` (unchanged) |
+| **`BehaviorPickerTree`** (the combo's folders) | `TreeRow` per folder; a choice keeps the chevron's slot | a static dictionary cleared when the popup appears (what `SetNextItemOpen(Appearing)` did) |
+
+⭐ Deviations: (1) **ImGui no longer remembers a tree's open state** — every drawer passes `ref open`, so each owns a dictionary (above); (2) a picker LEAF is not a `TreeRow` (it needs the match-highlight runs) but is placed by the same geometry, so its label shares the x of a sibling folder at that depth; (3) the ORBAT's row rect is now the whole row (the item `TreeRow` spans), its depth indent is `IndentSpacing` (was 12 px); (4) no screen-wide zero-allocation claim: the pickers rebuild their folder model and the ORBAT its node list every frame (pre-existing, measured 2 240 B for the ORBAT frame) — the rows themselves add none (`TreeRow`'s own rail, U-1). `PickerState.TreeRow` (a data row) keeps its name; the helper is always written `NodeEditor.Core.Widgets.TreeRow`.
+⭐ Rails (real drawers, real fonts, Xvfb; chevron < icon < label, a leaf at its depth's x, depth = indent): `Hrot.Presentation.Tests/Panels/TreeRowsFrameRail` (picker Tree layout, Save-As folder tree), `TheSharedOrbatPanelDrawsTests.U4_…`, `TheAssetBrowserTreeDrawsTreeRowsTests`; the probe `Hrot.Editor.UiFrameRail/TreeRowProbe`. ⚠ `MyBlueprintPanel` and `BehaviorPickerTree` have no frame rail of their own (the first needs a whole graph host, the second a popup): their feature suites pass and the shared row is the one proven above.
 
 ### 6.1 Fidelity is the builder's job — never a stop *(user, `2026-11-06`, R-4146)*
 
