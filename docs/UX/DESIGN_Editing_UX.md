@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — step 1 (the INVENTORY, §1) written 2026-11-06; step 2 (prior art + the target UX, §2–§3) and step 3 (the gap map, §4) not written yet
-updated: 2026-11-06 (§0a the user's review of §1: raw editor = debugging tool, semantic types, undo in Edit mode only, dedicated forms, the expected basics — R-4120) · 2026-11-06 (first version: the direction, and the inventory of what a user can edit today — coordinator)
-current-answer: §0 the direction (user rulings) · §0a the user's review of §1 · §1 the inventory (what exists, where it is edited, what is wrong with it)
+build-state: DESIGN — steps 1–2 written 2026-11-06 (§1 inventory, §2 prior art, §3 target UX, for the user's review); step 3 (the gap map, §4) not written yet
+updated: 2026-11-06 (§2 prior art, §3 the target UX: layout wireframe, the tab set, modes, actions, the expected basics) · 2026-11-06 (§0a the user's review of §1: raw editor = debugging tool, semantic types, undo in Edit mode only, dedicated forms, the expected basics — R-4120) · 2026-11-06 (first version: the direction, and the inventory of what a user can edit today — coordinator)
+current-answer: §0 the direction (user rulings) · §0a the user's review of §1 · §3 the target UX (for review) · §1 the inventory (what exists, where it is edited, what is wrong with it)
 stale-below: nothing
 known-rot: none
 known-conflict: AQ26's two-axis resolution lets a HOST supply the isApplicable rule; R-4119 narrows it — for an entity, the rule reads the entity's components (§0)
@@ -129,8 +129,159 @@ The editor then adds its own tabs (`EditorSubsystem.cs:3295-3370`); AI perspecti
 | 9 | **Path B (the live instructor's path) was never walked** | `UX_Golden_Path.md:317-340` |
 | 10 | **docs out of step**: Entity Commanding still NOT-BUILT though built; Zones READY-TO-BUILD though the tools exist | AI sweep |
 
-## 2. Prior art *(step 2 — not written yet)*
+## 2. Prior art *(2026-11-06)*
 
-## 3. The target UX *(step 2 — not written yet)*
+What the products this audience already knows do, and what we take. Sources: the BI wiki on Eden ([Introduction](https://community.bistudio.com/wiki/Eden_Editor:_Introduction),
+[Layer](https://community.bistudio.com/wiki/Eden_Editor:_Layer), [Configuring Attributes](https://community.bistudio.com/wiki/Eden_Editor:_Configuring_Attributes),
+[Actions](https://community.bistudio.com/wiki/Eden_Editor:_Actions)); the Hoggit wiki on [DCS triggers](https://wiki.hoggitworld.com:443/view/DCS_editor_triggerBasics);
+BISim's product pages for [VBS4](https://bisimulations.com/?p=735) (Prepare – Execute – Assess; *"allow administrators to change any aspect of the scenario"*)
+— ⚠ VBS4's editor manual is not public, so its run-time details are from product material only; Unreal / Unity from general knowledge.
+
+| product | pattern | ⭐ take / ⛔ skip |
+|---|---|---|
+| **Arma 3 Eden** | modes per object family (objects, compositions, triggers, waypoints, markers); one **Attributes** window per selection, grouped in sections | ⭐ one detail surface per selection, sections by topic — our Details tabs |
+| Eden | **multi-select attributes**: a field whose values differ is disabled; a checkbox re-enables it to apply one value to all | ⭐ take as is — our multi-edit model |
+| Eden | **layers**: group, hide, lock against accidental moves | ⭐ take — Outliner ▸ Layers |
+| Eden | **compositions** (save a selection, drag it in) | ⭐ already ours (macros) |
+| Eden | **editing history** beside undo / redo | ⭐ take for Edit mode |
+| Eden | attributes exist only in the editor, not in preview | ⛔ skip — our edits work in Live too (the user's sharing rule) |
+| **DCS** | triggers in three columns: type (once / repeat / at start) · conditions (AND / OR) · actions; flags carry state | ⭐ already ours (when → do, with timing); ⭐ take the plain-language condition rows with pickers (unit, zone, %) |
+| DCS | groups named by the author drive every trigger | ⭐ names and callsigns are first-class in our forms |
+| DCS | conditions polled every second, costly | ⛔ ours are event-driven where possible |
+| **VBS4** | Prepare – Execute – Assess; the administrator can change anything during Execute; a separate plan tool draws military symbols on 2-D / 3-D | ⭐ Edit – Live – Review with one surface; ⭐ an instructor's changes are first-class |
+| **Unreal / Unity** | Outliner (hierarchy, search) · Details / Inspector (typed fields, custom drawers per type) · viewport gizmos · play-in-editor with live tweaking | ⭐ the layout; ⭐ **custom drawers per TYPE** = our semantic value types; ⭐ play in editor = Preview |
+| Unreal / Unity | the inspector shows every serialized field | ⛔ for a training author — that is our debugging Components tab only |
+| all of them | Esc cancels, Enter confirms, Ctrl+C / V / Z / Y, Delete asks, F focuses the selection | ⭐ the expected basics (§3.7) |
+
+## 3. The target UX *(2026-11-06 — DESIGN, for review)*
+
+### 3.1 The layout
+
+![the editing layout — wireframe](editing-ux-layout.svg)
+
+*What the picture shows that prose hid: everything you can select (a unit in the Outliner, a symbol on the map, an event on the timeline)
+lands in ONE Details panel; the mode is a single control at the top; results of edits (applied, refused, pending) have one place to appear.*
+
+| region | role | today |
+|---|---|---|
+| **toolbar** | the mode indicator (Edit / Preview / Live / Review), transport, the tool palette (select, place, route, area, draw, rotate) | ✅ mode indicator and transport exist; tools are scattered over menus |
+| **Outliner** | the ORBAT (command / structure), search, **layers** (show, hide, lock) | 🟡 ORBAT exists; no layers, no search |
+| **map** | select, drag, right-click = the actions of what is under the cursor | ✅ |
+| **Details** | the tabs of the selection (§3.3) | 🟡 exists, tabs to be reworked |
+| **timeline** | events, bookmarks, notes, the director's tracks when in use | ✅ timeline; ⏳ bookmarks, notes |
+| **messages** | one list of what happened to my edits (✓ applied · ✗ refused, why · ⏳ pending) and other notices | ⏳ (only the rules window shows outcomes) |
+
+⭐ The same layout on **every station with the UI** — the editor, CGF, the Replay Browser (R-4119); a station that cannot do something
+greys it with the reason, it does not lack the panel.
+
+### 3.2 One model: a tab and an action each declare what they need
+
+```mermaid
+classDiagram
+  direction LR
+  class DetailsViewDescriptor { <<existing>> Id Title Rank AppliesTo Create }
+  class Requires { <<NEW on the descriptor>> components needed on the entity }
+  class ModeRule { <<NEW>> Edit: edit · Live: edit+confirm · Review: view }
+  class FormTab { <<NEW kind>> fields by semantic type, plain labels }
+  class ComponentsTab { <<existing>> raw fields — debugging, last tab }
+  class EntityAction { <<existing AQ26>> isApplicable isEnabled execute }
+  class EditPath { <<existing>> local write · request to owner · EditOutcomeLog }
+  class EditHistory { <<existing>> undo — Edit mode only }
+  DetailsViewDescriptor --> Requires
+  DetailsViewDescriptor --> ModeRule
+  FormTab --|> DetailsViewDescriptor
+  ComponentsTab --|> DetailsViewDescriptor
+  EntityAction --> Requires
+  EntityAction --> ModeRule
+  FormTab --> EditPath : every write
+  EntityAction --> EditPath : every write
+  EditPath --> EditHistory : Edit mode
+```
+*What the picture shows: availability is DATA on each tab and action — the components it needs and what it does per mode — so every
+station offers the same thing by construction (R-4119), and every write takes ONE path that decides local vs owner, records the outcome,
+and is undoable only in Edit mode.* (The descriptor and the action registry exist; `Requires` and `ModeRule` are the new declarations.)
+
+### 3.3 The Details tabs — target set
+
+| tab | offered when the selection has | Edit | Live | Review | contents |
+|---|---|:-:|:-:|:-:|---|
+| **Unit** *(NEW, a form)* | an entity with identity (`EntityInfo`) | edit | edit + confirm | view | name / callsign, side, type (change), symbol, posture at start, strength, ammunition (Resupply…, Heal…, Damage… as Live actions), playable + slot — replaces Summary, Playable and the raw trip for the common fields |
+| **Crew & cargo** *(NEW)* | seats or passengers (`CarrierSeats`, `PassengerBuffer`) | edit | edit + confirm | view | who sits where, passengers, mounted weapons, loadout |
+| **Orders** *(Mission + Waypoint merged)* | a brain (`BehaviorState`) | edit | edit + confirm | view | the plan as phases → tasks, each with a plain behaviour name, its form and a trigger picked from a list; the selected waypoint's detail inline |
+| **Brain** *(kept, shortened)* | `BehaviorState` | edit | edit | view | Doing · Why · Knows · Character; "Assign: task, SOP, ROE" becomes **Behaviour** with plain names (Hold fire / Return fire / Fire at will) |
+| **Rules** *(Objectives widened)* | the subject of a rule, or a rule entity | edit | edit (pending → applied) | view | the selection's rules and objectives; a selected rule's detail opens HERE (the Rules window stays as the list) |
+| **Composition** *(Macro)* | `MacroInstance` | edit | – | view | macro, arguments |
+| **Shape** *(NEW, areas / routes / zones)* | an area, route or zone entity | edit | edit + confirm | view | geometry, kind; spawn area side + facing; a weather region's conditions as a form |
+| **Scenario** *(nothing selected)* | the World Environment | edit | edit + confirm | view | General (name, description, **capture picture**), Time (clock, offset), Weather (a form), Terrain, **Sides & relations**, Traffic, Civilians & crowds, Gameplay (respawn, deploy), Parameters, Checks |
+| **Event** | a timeline event | view | view | view + bookmark / note | the event, links |
+| graph tabs | an AI asset or node | edit | edit (hot reload) | view | as today; Node Properties and Blueprint Node unified |
+| **Components** *(debugging, last)* | any entity | edit | edit | view | raw fields — fixed: nested structs expand, inline arrays draw, typed fields use their formatter |
+
+⭐ **Multi-select (Eden's rule):** a tab shows the fields common to all; a field whose values differ is greyed, a tick re-enables it to set
+one value for all; one commit, one undo step.
+
+### 3.4 The three modes
+
+```mermaid
+stateDiagram-v2
+  [*] --> EditMode
+  EditMode --> Preview : play
+  Preview --> EditMode : stop (back to the authored state)
+  EditMode --> Live : go live
+  Live --> ReviewDuringRun : review (DAR)
+  ReviewDuringRun --> Live : back to live
+  Live --> AfterAction : stop, keep recording
+  AfterAction --> Live : go live from here (branch)
+  note right of EditMode : edits = the initial state, undoable, saved
+  note right of Live : edits change the running world, confirmed, not undoable, outcome shown
+  note right of AfterAction : read-only; bookmarks and notes are the only writes
+```
+*What the picture shows: what an edit MEANS changes with the state, not the surface — the same tab is a form in Edit, an inject in Live
+and a read-out in Review.* (The modes and transitions exist — AQ108; the per-mode meaning of an edit is the new rule.)
+
+### 3.5 What an edit does, per mode
+
+| | Edit (initial state) | Preview | Live | Review |
+|---|---|---|---|---|
+| applies to | the scenario as authored | a throw-away run | the running exercise | nothing (a recording) |
+| saved | yes, on Save | no — Stop returns to the authored state | only as a checkpoint / *save as* | bookmarks and notes only |
+| undo | ⭐ **yes — to investigate** (R-4120; R-1047 deferred it) | no | no | – |
+| confirm | destructive only (delete, change type) | destructive only | **every change** (one click, can be turned off per session) | – |
+| feedback | immediate | immediate | ✓ / ✗ / ⏳ in Messages and inline on the field | – |
+
+### 3.6 Actions (right-click, tool palette, Details buttons)
+
+One catalogue (AQ26), each entry with **Requires** (components) and **Modes**. The common ones:
+
+| action | requires | Edit | Live | Review |
+|---|---|:-:|:-:|:-:|
+| place, delete, duplicate, copy / paste | — | ● | ● (confirm) | – |
+| move, rotate | a position | ● | ● | – |
+| change type | a TKB identity | ● | – | – |
+| order (move, engage, hold …), possess | a brain / a vehicle | – | ● | – |
+| heal, damage, resupply, repair | health / ammunition | ● (as starting state) | ● | – |
+| embark, disembark, attach to commander | seats / a command chain | ● | ● | – |
+| fire a rule now, disarm, re-arm | a rule | – | ● | – |
+| bookmark, note | — | – | ● | ● |
+| branch (go live from here) | — | – | – | ● |
+
+### 3.7 The expected basics — a checklist every surface meets *(R-4120)*
+
+| | rule |
+|---|---|
+| **keys** | Esc cancels the current tool / closes a dialog without applying; Enter confirms; Ctrl+Z / Ctrl+Y (Edit mode); Delete asks; F focuses the camera on the selection; Ctrl+C / Ctrl+V on units and in every edit box |
+| **dialogs** | every dialog has Cancel; the default button is safe; a modal never traps (Esc always works) |
+| **messages** | a message box says what happened and what to do — never an engine id; non-blocking notices go to Messages |
+| **edit boxes** | units shown (m, °, s, %); ranges enforced; invalid input shown red with the reason, not silently clamped; copy / paste work |
+| **pickers** | a reference (unit, area, type, time) is picked from a list or the map, never typed as a number |
+| **state** | a disabled control says why (tooltip); nothing silently does nothing |
+| **words** | plain military / training language; engine names only in the Components tab and debugging windows |
+
+### 3.8 Review mode
+
+Bookmarks and notes on the timeline (designed as TE-4, not built) are the writes of Review; the Replay Browser's separate windows (search,
+compare components, federation, export) fold into the same layout — search as an Outliner filter, compare as a Review-mode Details tab,
+export in File.
+
 
 ## 4. Gap map, decisions, handoffs *(step 3 — not written yet)*
