@@ -77,6 +77,10 @@ public sealed class MapPickBroker : IMapPickContext
     /// <inheritdoc/>
     public bool CanShowOnMap => _pickService()?.CanShowOnMap ?? false;
 
+    private Fdp.Presentation.Editing.MapPreview? _preview;
+    /// <summary>⭐ U-10 (DESIGN_Show_On_Map §2) — the map's preview service: the pick service's (its canvas'), or one set here (a rail).</summary>
+    public Fdp.Presentation.Editing.MapPreview? Preview { get => _preview ?? _pickService()?.Preview; set => _preview = value; }
+
     /// <inheritdoc/>
     public void ShowOnMap(EntityRef entity) => _pickService()?.ShowOnMap(entity);
 

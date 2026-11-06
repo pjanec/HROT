@@ -226,7 +226,7 @@ public sealed class RulesWindowFrameRail : IDisposable
                 _world.AddComponent(e, new EntityInfo { Name = new FixedString64("Hold the bridge") });
                 _world.AddComponent(e, new TkbIdentity { TkbType = (TkbTypeId)AuthoredRules.TkbObjective });
             }
-        var picks = new Hrot.Presentation.Facades.MapPickBroker(() => null) { References = AuthoredRules.ScopeOf(_world) };
+        var picks = new Hrot.Presentation.Facades.MapPickBroker(() => null) { References = AuthoredRules.ScopeOf(_world), Preview = new Fdp.Presentation.Editing.MapPreview() };   // ⭐ U-10 — the Thing row draws its ⌖
         Assert.Equal("Objective: Hold the bridge", AuthoredRules.ScopeOf(_world).ChipLabelOf(new EntityRef(10)));
         Assert.Equal("Objective: Hold the bridge", Fdp.Presentation.Editing.ReferenceLeafDrawers.ChipLabel(new EntityLink(new EntityRef(10), default), picks.References));
         var history = new Hrot.Presentation.Edits.EditHistory();

@@ -74,6 +74,7 @@ namespace Fdp.Presentation.Editing
         public void RequestEntityListPick(string jsonPath, string[]? filterPresets) => _inner.RequestEntityListPick(Path(jsonPath), filterPresets);
         public Fdp.Toolkit.Scenario.LiveRefScope? References => _inner.References;
         public bool CanShowOnMap => _inner.CanShowOnMap;   // ⭐ CE-4206 R3
+        public MapPreview? Preview => _inner.Preview;   // ⭐ U-10 — a form's view shares the host's preview
         public void ShowOnMap(Fdp.Toolkit.Replication.EntityRef entity) => _inner.ShowOnMap(entity);
         public void ShowOnMap(Fdp.Core.WorldPoint point) => _inner.ShowOnMap(point);
         public void RequestAreaEdit(string jsonPath, Fdp.Toolkit.Replication.AreaLink start) => _inner.RequestAreaEdit(Path(jsonPath), start);   // ⭐ CE-4206 R2
