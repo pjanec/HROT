@@ -162,7 +162,7 @@ public sealed class RuleDetails
         _strip = LiveStripOf(row, type, tab);
         FeedStepContext(row);
         _probe = new RuleDetailsProbe(tab.ToString(), RuleTabs.TabsFor(row.Status.Role).Select(RuleTabs.TitleOf).ToList(),
-            (type != null ? new[] { RuleTabs.HeaderField } : Array.Empty<string>()).Concat(fields).ToList(), ro == null, ro, dirty, Message,
+            (type != null && tab == RuleTab.Settings ? new[] { RuleTabs.HeaderField } : Array.Empty<string>()).Concat(fields).ToList(), ro == null, ro, dirty, Message,
             tab == RuleTab.History ? _svc.Journal(row.Entity).Select(j => $"{j.At:0.0}s {j.Text}").ToList() : (IReadOnlyList<string>)Array.Empty<string>(),
             tab == RuleTab.Results && _world() is { } w ? MissionSummaryModel.Build(w, new SummaryOptions(SummarySide.Both), null, now).Why(row.NetworkId).Select(x => $"{x.Title} | {(x.Go is { } g ? (g ? "pass" : "fail") : "—")}").ToList() : (IReadOnlyList<string>)Array.Empty<string>(),
             Steps: tab == RuleTab.Do ? _steps.Probe.Rows : null, StepMarker: tab == RuleTab.Do ? _steps.Probe.MarkerText : null,
@@ -358,6 +358,8 @@ public sealed class RuleDetails
         DrawApplyBar(row, ro);
     }
 
+    private static readonly HashSet<string> HeaderFields = new() { RuleTabs.HeaderField };
+
     private void DrawTab(RuleRow row, RuleTab tab, Type? type, string? ro, double now)
     {
         switch (tab)
@@ -380,9 +382,12 @@ public sealed class RuleDetails
         if (type == null || _editor.Session is not { } session) { ImGui.TextDisabled(ro ?? "no params form"); return; }
         var picks = _svc.Picks?.Invoke();
         if (ro != null) ImGui.BeginDisabled();
-        ImGui.TextDisabled("Header");
-        BehaviorParamsForm.DrawFields(session, picks, "##rule-common", null, new HashSet<string> { RuleTabs.HeaderField });
-        ImGui.Spacing();
+        if (tab == RuleTab.Settings)
+        {
+            // ⭐ U-9 (§8.2 ⑧) — title, scoring and visibility live on Settings only; the When tab is the condition and its timing
+            BehaviorParamsForm.DrawFields(session, picks, "##rule-common", null, HeaderFields);
+            ImGui.Spacing();
+        }
         BehaviorParamsForm.DrawFields(session, picks, "##rule-" + tab, null, RuleTabs.FieldsOf(type, tab).ToHashSet(), new IImGuiFieldDrawer[] { _steps });
         if (ro != null) ImGui.EndDisabled();
         if (tab == RuleTab.When && WantsLiveValues(row, tab)) DrawLiveStrip();

@@ -247,6 +247,14 @@ inspector, every params form, the replay search and breakpoints get them too; �
 | ⑦ | **add and delete**: *Add condition* at the end of a list (named by its element type); a trash glyph per element, at one x | struct editor |
 | ⑧ | **the When tab holds the condition and its timing**; title, scoring and visibility move to Settings | `RuleDetails` / `RuleTabs` |
 
+⭐ **AS BUILT — U-7 / U-9** *(ui, `2026-11-06`)*: ①②③⑤⑥⑦ in `ComponentEditDrawer` (`1bd842128`, `52f8bf2d3`): labels via `DisplayNames` (cached),
+a kind with `[EditIcon]` drawn as its node's row through `TreeRow` (chevron · glyph · name), the `Bind` map hidden (`HidesChild`), numbers through
+`NumberInput` (`%g` + unit; `MaxValue` = *no limit*), *Add <element>* + a trash glyph at one x, collapsed nodes asking `EditSummaries`. The
+five kinds the mockup names carry `[EditDisplayName]` + `[EditIcon("kind/…")]`; the rest are humanized (none invented). ⑧: trigger tabs are now
+*Overview · When · Do · Settings · Bindings · History* — When = the condition + its timing (the former *Rules* tab's fields), the header
+(`Common`) is drawn on Settings only (`RuleTabs`, `RuleDetails`). ⛔ SUPERSEDED: *Overview · When · Rules · Do · …* with the header on every tab.
+⏳ Still open in U-7: the §8.1 frame re-measured side-by-side with `condition-expert-visual.svg`; ④ is U-8.
+
 ### 8.3 Questions — ✅ approved (R-4149); Q-X3 revised by the user (§8.4)
 
 | # | question | lean | rejected |

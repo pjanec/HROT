@@ -23,7 +23,9 @@ public static class RuleTabs
     // only here for nameof: the trigger DTO's three named fields
     private static class TriggerFieldNames { public const string Common = "Common", When = "When", Do = "Do"; }
 
-    private static readonly RuleTab[] TriggerTabs = { RuleTab.Overview, RuleTab.When, RuleTab.Rules, RuleTab.Do, RuleTab.Bindings, RuleTab.History };
+    // ⭐ U-9 (DESIGN_Condition_Editor.md §8.2 ⑧, R-4149) — the When tab holds the condition AND its timing (hold for, delay, cooldown …,
+    //   the former Rules tab); the header (title, scoring, visibility) moves to Settings. ⛔ SUPERSEDED: Overview · When · Rules · Do · …
+    private static readonly RuleTab[] TriggerTabs = { RuleTab.Overview, RuleTab.When, RuleTab.Do, RuleTab.Settings, RuleTab.Bindings, RuleTab.History };
     private static readonly RuleTab[] ObjectiveTabs = { RuleTab.Status, RuleTab.Settings, RuleTab.Results, RuleTab.History };
 
     /// <summary>The tabs of a role (cached arrays — no allocation per call; the editor asks several times a frame).</summary>
@@ -57,7 +59,7 @@ public static class RuleTabs
         if (member == TriggerFieldNames.Common) return null;
         bool trigger = IsTrigger(paramsType);
         if (!trigger) return RuleTab.Settings;
-        return member == TriggerFieldNames.When ? RuleTab.When : member == TriggerFieldNames.Do ? RuleTab.Do : RuleTab.Rules;
+        return member == TriggerFieldNames.Do ? RuleTab.Do : RuleTab.When;   // ⭐ U-9 — the condition and its timing share When
     }
 
     public static bool IsTrigger(Type paramsType) => paramsType.GetMember(TriggerFieldNames.When).Length > 0 && paramsType.GetMember(TriggerFieldNames.Do).Length > 0;

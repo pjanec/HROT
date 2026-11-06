@@ -239,11 +239,11 @@ public sealed class RulesWindowFrameRail : IDisposable
         window.SelectNetworkId(20);
         Step(null, 4);
         var ed = window.Probe.Editor!;
-        Assert.Equal(new[] { "Overview", "When", "Rules", "Do", "Bindings", "History" }, ed.Tabs);
+        Assert.Equal(new[] { "Overview", "When", "Do", "Settings", "Bindings", "History" }, ed.Tabs);   // ⭐ U-9 (§8.2 ⑧)
         Assert.True(ed.Editable);
         window.Details!.RequestTab(RuleTab.When); Step(null, 4);
         Assert.Equal("When", window.Probe.Editor!.Tab);
-        Assert.Equal(new[] { "Common", "When" }, window.Probe.Editor.Fields.ToArray());
+        Assert.Equal(new[] { "When", "HoldFor", "Delay", "Cooldown", "Repeat", "MaxFires", "FireIfTrueWhenArmed", "WhileTrue" }, window.Probe.Editor.Fields.ToArray());   // ⭐ U-9 — the condition and its timing, no header
         frame.Screenshot(ShotPath("rules-4-when.png"));
         {   // ⭐ CE-4286 / U-2 — the rule editor's tabs are a real tab bar (the neutral palette: the selected tab #3A3A48 with the blue overline), not a strip of buttons
             var shot = Raylib.LoadImageFromScreen();
@@ -262,11 +262,14 @@ public sealed class RulesWindowFrameRail : IDisposable
             }
             finally { Raylib.UnloadImage(shot); }
         }
-        window.Details.RequestTab(RuleTab.Rules); Step(null, 4);
-        Assert.Equal(new[] { "Common", "HoldFor", "Delay", "Cooldown", "Repeat", "MaxFires", "FireIfTrueWhenArmed", "WhileTrue" }, window.Probe.Editor!.Fields.ToArray());
-        frame.Screenshot(ShotPath("rules-5-rules.png"));
+        // ⭐ U-9 (§8.2 ⑧) — the When tab holds the condition and its timing, no header; the header is on Settings alone
+        window.Details.RequestTab(RuleTab.When); Step(null, 4);
+        Assert.Equal(new[] { "When", "HoldFor", "Delay", "Cooldown", "Repeat", "MaxFires", "FireIfTrueWhenArmed", "WhileTrue" }.OrderBy(x => x), window.Probe.Editor!.Fields.OrderBy(x => x).ToArray());
+        frame.Screenshot(ShotPath("rules-5-when.png"));
+        window.Details.RequestTab(RuleTab.Settings); Step(null, 3);
+        Assert.Equal(new[] { "Common" }, window.Probe.Editor!.Fields.ToArray());
         window.Details.RequestTab(RuleTab.Do); Step(null, 3);
-        Assert.Equal(new[] { "Common", "Do" }, window.Probe.Editor!.Fields.ToArray());   // the tab OWNS `do`; its list editor is R5b, so the tab draws a placeholder
+        Assert.Equal(new[] { "Do" }, window.Probe.Editor!.Fields.ToArray());   // the tab OWNS `do`; its list editor is R5b, so the tab draws a placeholder
 
         // ⭐ found LIVE: clicking Undo changed CanUndo between BeginDisabled and EndDisabled and ImGui asserted (the editor died). Apply, then CLICK Undo in the frame.
         window.SelectNetworkId(20);
@@ -377,7 +380,7 @@ public sealed class RulesWindowFrameRail : IDisposable
         Assert.True(window.Probe.Editor!.LiveValuesWanted);
         Assert.Contains(window.Probe.Editor.LiveStrip!, t => t.StartsWith("yes | ") && t.EndsWith("| 2"));
         frame.Screenshot(ShotPath("rules-9-when-live.png"));
-        window.Details.RequestTab(RuleTab.Rules); Step(null, 3);
+        window.Details.RequestTab(RuleTab.Settings); Step(null, 3);
         Assert.Equal(new[] { true, false }, liveValues);
 
         // Part 0 a — a SHORT pane: the Apply bar (note + verdict + message lines) still ends inside it, never clipped by a fixed reserve
