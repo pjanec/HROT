@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — steps 1–2 written 2026-11-06 (§1 inventory, §2 prior art, §3 target UX, for the user's review); step 3 (the gap map, §4) not written yet
-updated: 2026-11-06 (§0b the user's review of §2–§3: pickers filtered by applicability, condition templates, expert detail kept, scarce confirmations, editing levels per node — R-4121) · 2026-11-06 (§2 prior art, §3 the target UX: layout wireframe, the tab set, modes, actions, the expected basics) · 2026-11-06 (§0a the user's review of §1: raw editor = debugging tool, semantic types, undo in Edit mode only, dedicated forms, the expected basics — R-4120) · 2026-11-06 (first version: the direction, and the inventory of what a user can edit today — coordinator)
-current-answer: §0 the direction (user rulings) · §0a the user's review of §1 · §3 the target UX (for review) · §1 the inventory (what exists, where it is edited, what is wrong with it)
+build-state: DESIGN — steps 1–3 written 2026-11-06 (§1 inventory, §2 prior art, §3 target UX, §4 gap map + decisions D1–D9 + slices E1–E7); awaiting the user's approval of D1–D9
+updated: 2026-11-06 (§4 gap map, decisions D1–D9 with leans, slices E1–E7) · 2026-11-06 (§0b the user's review of §2–§3: pickers filtered by applicability, condition templates, expert detail kept, scarce confirmations, editing levels per node — R-4121) · 2026-11-06 (§2 prior art, §3 the target UX: layout wireframe, the tab set, modes, actions, the expected basics) · 2026-11-06 (§0a the user's review of §1: raw editor = debugging tool, semantic types, undo in Edit mode only, dedicated forms, the expected basics — R-4120) · 2026-11-06 (first version: the direction, and the inventory of what a user can edit today — coordinator)
+current-answer: §0 the direction (user rulings) · §0a the user's review of §1 · §3 the target UX · §4 the decisions D1–D9 (for approval) and the slices · §1 the inventory (what exists, where it is edited, what is wrong with it)
 stale-below: nothing
 known-rot: none
 known-conflict: AQ26's two-axis resolution lets a HOST supply the isApplicable rule; R-4119 narrows it — for an entity, the rule reads the entity's components (§0)
@@ -338,4 +338,62 @@ default **full**, reducible per node for the person expected to sit there.
 ⭐ A blocked edit is shown greyed with the reason ("this station is an observer"), never hidden; ⚠ the levels are a first proposal for §4,
 the mechanism (a node feature with a config) is the decision.
 
-## 4. Gap map, decisions, handoffs *(step 3 — not written yet)*
+## 4. Gap map, decisions, slices *(2026-11-06 — for the user's approval)*
+
+### 4.1 Measured for the decisions
+
+| question | measured |
+|---|---|
+| the undo that exists | `EditHistory` (`Hrot.Presentation/Edits/EditHistory.cs`): a linear list of named steps, each a `(Redo, Undo)` pair — used by Parameters, the rule editor and the AI section; nothing else records |
+| why entity undo was deferred | R-1047 (`2026-11-05`): *"Editing functions are shared with live exercise changes where no undo possible"* — ⭐ R-4120 removes exactly that reason by limiting undo to Edit mode |
+| the one write seam | `EntityWriteRouter.For(repo)` → `IEntityComponentWriter` (`FDP/Toolkits/Fdp.Toolkits/Replication/Attributes/EntityWriteRouter.cs:26-32`): local apply when this node owns the component, a request to the owner otherwise; map drag and rotate use it. ⚠ Not every write does — `EntityPlayableView` writes `GetComponentRW` directly (§1.1) |
+| picker adoption | 48 call sites open the generic picker; 43 UI files still use `ImGui.Combo` — mostly short lists (fine), but the long ones (`DirectorWindow` 11, `ClusterScenarioPanel` 7, the `WhenNodeDrawer`, `SopOrderNodeDrawer`, `EntityAiDetailsView`, `WaypointEditorPanel`, `RulesWindow`) are the adoption list |
+| per-node switches | `DESIGN_Node_Features.md` — three tiers, a switch plus a config per feature, carried in the recording; the editing level is one more feature |
+
+### 4.2 The gap map
+
+| target (§3) | today | gap |
+|---|---|---|
+| tabs declare `Requires` + per-mode behaviour; every host offers the same | 7 entity tabs editor-only; tabs keyed on host services (§1.3) | **L** — move the entity tabs into the shared `EntityDetailsBundle`, add the declarations |
+| Unit form · Crew & cargo · Shape · Scenario forms | raw Components for the common fields | **L** — forms; posture-at-start needs `StanceIntent` saved (backend) |
+| Orders tab (mission + waypoint, phases, pickers) | Mission tab + Mission window + Waypoint window; trigger as text | **M** |
+| Messages (✓ ✗ ⏳) + inline field status | only the rules window reads `EditOutcomeLog` | **M** |
+| undo in Edit mode | none for entities | **M** — D1 |
+| pickers filtered by applicability, long lists on the generic picker | search + category tree exist; no applicability; long combos remain | **M** |
+| condition templates | predicate editor only | **M** |
+| expert expanders / switch | debug data mixed into forms | **S** per tab |
+| editing levels per node | none | **M** |
+| the expected basics (Esc, Cancel, confirm, copy / paste, units, reasons) | uneven | **M** — a sweep, then a rail per surface |
+| live actions heal / damage / resupply / repair | reserved menu ids, no handler | **M** (backend handlers + ui) |
+| Review: bookmarks, notes; Replay Browser windows folded in | back/forward history only; separate windows | **M** |
+| raw inspector fixes (nested structs, inline arrays, typed formatters) + semantic types SV-1 / SV-4 / SV-5 / SV-6 | defects; types not built | **M** (ui) + **M** (backend, CE-4201…4204) |
+| world editors: traffic, description + picture capture, terrain change, sides and relations, crowd settings | file only / missing | **S–L** each; sides and relations is its own design |
+
+### 4.3 Decisions — leans for approval
+
+| # | decision | ⭐ lean | rejected (one line each) |
+|---|---|---|---|
+| **D1** | how Edit-mode undo works | **record at the one write seam**: in Edit mode, the writer stores each component's before / after (bytes for unmanaged, the old instance for an immutable managed record), spawn and delete capture the entity; each user action is ONE step in the existing `EditHistory`; outside Edit mode the writer records nothing. Writes that bypass the seam (Playable …) are moved onto it | world snapshots per edit — heavy, and an edit may land on another node · per-editor undo stacks — what R-174 forbids · undo in Preview — R-4120 |
+| **D2** | where entity tabs are registered | **all in the shared `EntityDetailsBundle`**, each with `Requires`; host services (event focus, open rule, mission service) become capabilities every host passes or the tab greys | keep per-host registration — R-4119 |
+| **D3** | the Unit form's first fields | name / callsign, side (Friend / Hostile / Neutral), type (Edit only), posture at start, strength, ammunition, playable + slot — each through the write seam | a form per component — that is the raw inspector again |
+| **D4** | editing levels | a node feature `editing` with a config `{ level: full \| instructor \| controller \| observer }`, **full by default**; a blocked edit greys with the reason | a per-user login role — no users in the engine yet; it can map onto this later |
+| **D5** | condition templates | **data** — a small catalogue (~10 to start: inside area, strength below %, time passed, objective state, unit dead, detected by, …), each compiling to `SearchPredicateDto` (R-4077) | templates in C# per rule kind — a second condition model |
+| **D6** | picker applicability | `PickerEntry` gains an optional applicability test against the request's selection; hidden by default with "show all (n)" | filter in each caller — N copies |
+| **D7** | expert detail | a shared "Details for experts" expander + a per-panel Expert switch saved in the user settings | a global expert mode — the user asked per panel |
+| **D8** | Messages | one notice list fed by `EditOutcomeLog` and local results, and a field-level ✓ / ✗ / ⏳ | toasts only — they vanish before they are read |
+| **D9** | the order | foundation first (D2, D8, the basics sweep), then forms (D3) with semantic types in parallel, then Orders + pickers (D6), then undo (D1), templates (D5), levels (D4) | forms first — they would be built per host and redone |
+
+### 4.4 Slices — proposed handoffs, once D1–D9 are approved
+
+| slice | lane | what | needs |
+|---|---|---|---|
+| **E1 foundation** | ui | D2 (entity tabs shared, `Requires`, mode behaviour) · D8 Messages · the expected-basics sweep (§3.7) with rails · Playable onto the write seam and gated | — |
+| **E2 forms** | ui | Unit, Crew & cargo, Shape, Scenario (weather and clock as forms) · D7 expert expanders · the raw inspector fixes | SV-1 / SV-4 (backend, parallel) |
+| **E2b types and sim** | backend | semantic types SV-1, SV-4, SV-5, SV-6 · `StanceIntent` saved (posture at start) · heal / damage / resupply / repair handlers · traffic as an editable entity | — |
+| **E3 orders and pickers** | ui | the Orders tab (mission + waypoint merged, phases, trigger pickers, plain behaviour names) · D6 applicability · the long combos onto the picker | E1 |
+| **E4 undo** | ui (+ backend for the seam in Fdp.Toolkits) | D1 | E1 |
+| **E5 conditions** | ui | D5 templates in the rule editor | — |
+| **E6 levels** | backend + ui | D4 | E1 |
+| **E7 review** | ui | bookmarks and notes (TE-4) · the Replay Browser windows folded into the layout | — |
+| later, own designs | — | sides and relations · terrain change · crowd-level settings · scenario description / picture capture in the editor · scenario checks editor | — |
+
