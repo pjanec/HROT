@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — steps 1–2 written 2026-11-06 (§1 inventory, §2 prior art, §3 target UX, for the user's review); step 3 (the gap map, §4) not written yet
-updated: 2026-11-06 (§2 prior art, §3 the target UX: layout wireframe, the tab set, modes, actions, the expected basics) · 2026-11-06 (§0a the user's review of §1: raw editor = debugging tool, semantic types, undo in Edit mode only, dedicated forms, the expected basics — R-4120) · 2026-11-06 (first version: the direction, and the inventory of what a user can edit today — coordinator)
+updated: 2026-11-06 (§0b the user's review of §2–§3: pickers filtered by applicability, condition templates, expert detail kept, scarce confirmations, editing levels per node — R-4121) · 2026-11-06 (§2 prior art, §3 the target UX: layout wireframe, the tab set, modes, actions, the expected basics) · 2026-11-06 (§0a the user's review of §1: raw editor = debugging tool, semantic types, undo in Edit mode only, dedicated forms, the expected basics — R-4120) · 2026-11-06 (first version: the direction, and the inventory of what a user can edit today — coordinator)
 current-answer: §0 the direction (user rulings) · §0a the user's review of §1 · §3 the target UX (for review) · §1 the inventory (what exists, where it is edited, what is wrong with it)
 stale-below: nothing
 known-rot: none
@@ -18,6 +18,8 @@ related-designs:
   - ../DESIGN_Rules_View_UI.md — OWNS the rules window and the rule editor
   - ../DESIGN_Director_Timeline_Editor.md — OWNS the shared timeline
   - ../DESIGN_Add_Entity_Picker.md — OWNS placing entities (the gallery)
+  - ../DESIGN_Node_Features.md — OWNS per-node switchable features; §3.11's editing levels are one of them
+  - ../DESIGN_Scenario_Regression.md — OWNS the one condition model (R-4077) that §3.9's templates compile to
   - ../DESIGN_Semantic_Value_Types.md — OWNS the typed values (SV-1…SV-6) that give a field its editor and display by type
 -->
 
@@ -54,6 +56,17 @@ into account as they have a great effect on the user experience."* — R-4120.
 | **undo: Edit mode only** | ⛔ not in Live or Preview (a running world cannot be taken back — R-1047's reason); ⭐ investigate undo of the INITIAL STATE edits (place, move, rotate, delete, ORBAT, forms) before a run — R-1047 / CE-1462 deferred it, this is the question to answer in §4 |
 | **dedicated forms on Details tabs** for the most common entity parameters | side, name/callsign, type, health, ammunition, posture, deploy kits, spawn-area side/facing, weather … — never a trip to the raw fields for these |
 | **the expected basics** | a checklist every surface meets (§3): Esc closes / cancels, Enter confirms, a Cancel button on every dialog, confirmation for destructive actions, message boxes that say what happened, copy / paste in every edit box, consistent edit boxes (units, ranges, validation) — ⚠ small, but they decide the experience |
+
+### 0b. The user's review of §2–§3 *(`2026-11-06`)*
+
+🔒 *"the behavior pickers and various other pickers might need extending by incremental filter fields and categorized tree views and to
+have filters preventing showing stuff which is unapplicable to currently selected entity. This is a generic consideration everywhere"* ·
+*"we now have a pretty low level predicate condition editor, ok for technical users, but not always fine for the non technical one."* ·
+*"The forms/tabs should support showing also lower level debug data (we should not plainly remove those from all over the UI - we could
+hide them to some "expert" ui mode (per panel likely) or to by-default-collapsed expanders."* · *"for live mode edits the confirmation should
+be scarce to avoid annoying the user. maybe the editing capabilities should be gated similarly like the other features are, by default ON,
+but possible to reduce for a given node depending on what kind user is expected to work with that (god mode vs observer mode and all in
+between)."* — R-4121. Folded into §3.7 (pickers), §3.9 (conditions), §3.10 (expert detail), §3.5 and §3.11 (confirmations, editing levels).
 
 The plan: **① inventory** (§1, this version) → **② prior art and the target UX** (§2–§3) → **③ gap map, decisions with leans, handoffs** (§4).
 Three modes throughout: **Edit** (offline), **Live** (an exercise running), **Review** (DAR during a run, AAR on a recording, the Replay Browser).
@@ -205,14 +218,14 @@ and is undoable only in Edit mode.* (The descriptor and the action registry exis
 
 | tab | offered when the selection has | Edit | Live | Review | contents |
 |---|---|:-:|:-:|:-:|---|
-| **Unit** *(NEW, a form)* | an entity with identity (`EntityInfo`) | edit | edit + confirm | view | name / callsign, side, type (change), symbol, posture at start, strength, ammunition (Resupply…, Heal…, Damage… as Live actions), playable + slot — replaces Summary, Playable and the raw trip for the common fields |
-| **Crew & cargo** *(NEW)* | seats or passengers (`CarrierSeats`, `PassengerBuffer`) | edit | edit + confirm | view | who sits where, passengers, mounted weapons, loadout |
-| **Orders** *(Mission + Waypoint merged)* | a brain (`BehaviorState`) | edit | edit + confirm | view | the plan as phases → tasks, each with a plain behaviour name, its form and a trigger picked from a list; the selected waypoint's detail inline |
+| **Unit** *(NEW, a form)* | an entity with identity (`EntityInfo`) | edit | edit | view | name / callsign, side, type (change), symbol, posture at start, strength, ammunition (Resupply…, Heal…, Damage… as Live actions), playable + slot — replaces Summary, Playable and the raw trip for the common fields |
+| **Crew & cargo** *(NEW)* | seats or passengers (`CarrierSeats`, `PassengerBuffer`) | edit | edit | view | who sits where, passengers, mounted weapons, loadout |
+| **Orders** *(Mission + Waypoint merged)* | a brain (`BehaviorState`) | edit | edit | view | the plan as phases → tasks, each with a plain behaviour name, its form and a trigger picked from a list; the selected waypoint's detail inline |
 | **Brain** *(kept, shortened)* | `BehaviorState` | edit | edit | view | Doing · Why · Knows · Character; "Assign: task, SOP, ROE" becomes **Behaviour** with plain names (Hold fire / Return fire / Fire at will) |
 | **Rules** *(Objectives widened)* | the subject of a rule, or a rule entity | edit | edit (pending → applied) | view | the selection's rules and objectives; a selected rule's detail opens HERE (the Rules window stays as the list) |
 | **Composition** *(Macro)* | `MacroInstance` | edit | – | view | macro, arguments |
-| **Shape** *(NEW, areas / routes / zones)* | an area, route or zone entity | edit | edit + confirm | view | geometry, kind; spawn area side + facing; a weather region's conditions as a form |
-| **Scenario** *(nothing selected)* | the World Environment | edit | edit + confirm | view | General (name, description, **capture picture**), Time (clock, offset), Weather (a form), Terrain, **Sides & relations**, Traffic, Civilians & crowds, Gameplay (respawn, deploy), Parameters, Checks |
+| **Shape** *(NEW, areas / routes / zones)* | an area, route or zone entity | edit | edit | view | geometry, kind; spawn area side + facing; a weather region's conditions as a form |
+| **Scenario** *(nothing selected)* | the World Environment | edit | edit | view | General (name, description, **capture picture**), Time (clock, offset), Weather (a form), Terrain, **Sides & relations**, Traffic, Civilians & crowds, Gameplay (respawn, deploy), Parameters, Checks |
 | **Event** | a timeline event | view | view | view + bookmark / note | the event, links |
 | graph tabs | an AI asset or node | edit | edit (hot reload) | view | as today; Node Properties and Blueprint Node unified |
 | **Components** *(debugging, last)* | any entity | edit | edit | view | raw fields — fixed: nested structs expand, inline arrays draw, typed fields use their formatter |
@@ -233,10 +246,10 @@ stateDiagram-v2
   Live --> AfterAction : stop, keep recording
   AfterAction --> Live : go live from here (branch)
   note right of EditMode : edits = the initial state, undoable, saved
-  note right of Live : edits change the running world, confirmed, not undoable, outcome shown
+  note right of Live : edits change the running world at once, not undoable, outcome shown
   note right of AfterAction : read-only; bookmarks and notes are the only writes
 ```
-*What the picture shows: what an edit MEANS changes with the state, not the surface — the same tab is a form in Edit, an inject in Live
+*What the picture shows: what an edit MEANS changes with the state, not the surface — the same tab is a form in Edit, a live change in Live
 and a read-out in Review.* (The modes and transitions exist — AQ108; the per-mode meaning of an edit is the new rule.)
 
 ### 3.5 What an edit does, per mode
@@ -246,7 +259,7 @@ and a read-out in Review.* (The modes and transitions exist — AQ108; the per-m
 | applies to | the scenario as authored | a throw-away run | the running exercise | nothing (a recording) |
 | saved | yes, on Save | no — Stop returns to the authored state | only as a checkpoint / *save as* | bookmarks and notes only |
 | undo | ⭐ **yes — to investigate** (R-4120; R-1047 deferred it) | no | no | – |
-| confirm | destructive only (delete, change type) | destructive only | **every change** (one click, can be turned off per session) | – |
+| confirm | destructive only (delete, change type) | destructive only | ⭐ **scarce** — only what cannot be taken back AND is not obvious (delete, end exercise, a change to many units); everything else applies at once and shows its outcome (R-4121) | – |
 | feedback | immediate | immediate | ✓ / ✗ / ⏳ in Messages and inline on the field | – |
 
 ### 3.6 Actions (right-click, tool palette, Details buttons)
@@ -255,7 +268,7 @@ One catalogue (AQ26), each entry with **Requires** (components) and **Modes**. T
 
 | action | requires | Edit | Live | Review |
 |---|---|:-:|:-:|:-:|
-| place, delete, duplicate, copy / paste | — | ● | ● (confirm) | – |
+| place, delete, duplicate, copy / paste | — | ● | ● (delete confirms) | – |
 | move, rotate | a position | ● | ● | – |
 | change type | a TKB identity | ● | – | – |
 | order (move, engage, hold …), possess | a brain / a vehicle | – | ● | – |
@@ -273,7 +286,7 @@ One catalogue (AQ26), each entry with **Requires** (components) and **Modes**. T
 | **dialogs** | every dialog has Cancel; the default button is safe; a modal never traps (Esc always works) |
 | **messages** | a message box says what happened and what to do — never an engine id; non-blocking notices go to Messages |
 | **edit boxes** | units shown (m, °, s, %); ranges enforced; invalid input shown red with the reason, not silently clamped; copy / paste work |
-| **pickers** | a reference (unit, area, type, time) is picked from a list or the map, never typed as a number |
+| **pickers** | a reference (unit, area, type, behaviour, time) is picked from a list or the map, never typed as a number; every list longer than a screen is the ONE generic picker (§3.8a): type-to-filter, a category tree, and only what applies to the selection |
 | **state** | a disabled control says why (tooltip); nothing silently does nothing |
 | **words** | plain military / training language; engine names only in the Components tab and debugging windows |
 
@@ -283,5 +296,46 @@ Bookmarks and notes on the timeline (designed as TE-4, not built) are the writes
 compare components, federation, export) fold into the same layout — search as an Outliner filter, compare as a Review-mode Details tab,
 export in File.
 
+
+### 3.8a Pickers — one picker, filtered by what applies *(R-4121)*
+
+The generic picker (NodeEdit `PickerWindow`, AQ108 D26) already has **type-to-filter** (`PickerState.SearchText`) and a **category tree**
+(`PickerRequest.CategoryRoot`, Tree / Wide / Grid layouts, the thumbnail gallery). ⭐ Two things are missing, everywhere:
+
+| | target |
+|---|---|
+| **applicability** | a picker request carries the SELECTION; an entry declares what it needs (the same `Requires` as a tab — a behaviour for a man is not offered for a tank; a mounted-gun task only for a unit with a weapon station). Hidden by default, with a "show all (n not applicable)" switch so nothing is mysteriously missing |
+| **adoption** | every long list uses it — the behaviour / SOP / task pickers in Brain and Orders, the trigger and action pickers in Rules, type pickers, unit and area references. ⚠ To measure in §4: which of today's lists are still plain combo boxes |
+
+### 3.9 Conditions — plain-language templates over the ONE condition model *(R-4121, R-4077)*
+
+Today's condition editor builds predicates directly (`SearchPredicateDto` / `PredicateCompiler`, R-4077 — one condition model shared by
+rules, regression checks and replay search). ⭐ For a non-technical author, **condition templates** sit on top: a sentence with blanks
+picked from lists — *"[unit] is inside [area]"*, *"[group] strength below [50] %"*, *"[time] has passed"*, *"[objective] is taken"*
+(DCS's rows). A template COMPILES to the same predicate; ⛔ never a second condition model. The predicate editor stays — opened from a
+template with "Edit as expression" (the expert view, §3.10). A predicate that matches no template shows in expert form only.
+
+### 3.10 Expert detail — kept, not removed *(R-4121)*
+
+Low-level data (ids, raw fields, owner node, component versions, timings, faults) is **not deleted** from the forms. Two places for it:
+| | |
+|---|---|
+| **a collapsed "Details for experts" expander** at the bottom of a tab | default for a form tab — one click away, out of the way |
+| **an Expert switch per panel** (remembered per user) | for a panel whose whole presentation changes — the Brain tab's debug sections, the Rules window's raw predicates, the Outliner showing technical entities (markers, triggers, environment) |
+
+### 3.11 Editing levels per node — a node feature, ON by default *(R-4121)*
+
+What a station may change is switched like any other node capability ([DESIGN_Node_Features.md](../DESIGN_Node_Features.md), R-4108):
+default **full**, reducible per node for the person expected to sit there.
+
+| level | may change | typical station |
+|---|---|---|
+| **full** *(default)* | everything (god mode) | the scenario author, the exercise director |
+| **instructor** | orders, injects, rules, weather and time, heal / damage / resupply — not the force structure or types | the instructor station |
+| **controller** | orders to its own side's units | a white-cell or side controller |
+| **observer** | nothing — view, select, bookmarks and notes | a visitor, a trainee debrief |
+
+⭐ A blocked edit is shown greyed with the reason ("this station is an observer"), never hidden; ⚠ the levels are a first proposal for §4,
+the mechanism (a node feature with a config) is the decision.
 
 ## 4. Gap map, decisions, handoffs *(step 3 — not written yet)*
