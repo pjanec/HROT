@@ -1030,7 +1030,7 @@ R-3067 | docs/blueprints/Architect_Question_109_Retire_ExCon.md | approved, reti
 R-3065 | docs/blueprints/DESIGN_Behavior_Self_Registration.md | it is still the same btree having the same parameters and variables
 R-3075 | docs/DESIGN_Cluster_Load_Phase.md | he's the one who runs the scenario clock only after all the nodes have responded with success
 R-3076 | docs/DESIGN_Player_Join.md | rather put the 'next man' to something else
-R-3077 | docs/DESIGN_Subsystem_Composition_Unification.md | the more we unify, including the order, the better
+R-3077 | docs/DESIGN_Subsystem_Composition_Unification.md | unify, including the order, the better
 R-3063 | docs/DESIGN_Replay_Time_Axis_And_Review.md | Of course full checkpoint necessary.
 R-3000 | docs/DESIGN_Orders_Params_Entity_Classes.md | So approved, B3a now; A2 (CE-2132) converts straight to the B3a form after it lands
 R-1000 | docs/DESIGN_Terrain_Combat_Tuning.md | I would like to turn most of them off by default or make them less intrusive
