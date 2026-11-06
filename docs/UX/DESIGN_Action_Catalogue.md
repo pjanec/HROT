@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: AQ26-B says a registration omits checked / icon / shortcut — the built menus use all three; §3 row 1 resolves it. UX_Feature_Entity_Action_Vocabulary / Cross_Surface_Actions STATUS lines predate the built HostActions path — §3 rows 3–4
 related-designs:
+  - DESIGN_Edit_Framework.md — an action's handler submits its edit there (one request, one outcome)
   - DESIGN_Editing_UX.md — the programme: §3.2 (Requires + mode on tabs and actions), §3.6 (the action table), §3.13 (menus per surface and mode), D2, D4, D13–D15
   - Architect_Question_26_Entity_Action_Model.md — the action model this design BUILDS (RegisterAction(descriptor, isApplicable, isEnabled, execute), AND over the selection, C1 on GlobalActionRegistry, the two axes)
   - UX_Feature_Entity_Action_Vocabulary.md — the descriptor / binding split, ActionConcurrency, CancelsModalTool (UXI-03)

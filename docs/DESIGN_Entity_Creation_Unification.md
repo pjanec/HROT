@@ -98,6 +98,7 @@ mechanism: §3.4a (new 2026-08-31) explains WHY double consumption is possible �
   broadcast double-buffer (ManagedEventStream.Read() returns _front; only Swap() clears), so every
   reader of an event type gets the full list. Read it before touching any order-consuming system.
 related-designs:
+  - docs/UX/DESIGN_Edit_Framework.md — bridges this design's creation acks into the one edit outcome stream under the request id (kept, R-2082)
   - FDP/Docs/projects/toolkits/FDP.Toolkit.Lifecycle.md — owns the lifecycle module's handshake events (9001–9004) and, since §3.4e,
     lists the two notifications (9005/9006) it publishes; §3.4e here owns WHY and what they carry
   - DESIGN_Add_Entity_Picker.md — the map "Add Entity" picker; creates through this pipeline
