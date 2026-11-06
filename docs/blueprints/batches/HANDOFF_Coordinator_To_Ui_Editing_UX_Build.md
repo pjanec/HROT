@@ -13,7 +13,7 @@ related-designs:
 
 # HANDOFF — coordinator → ui: build today's approved editing-UX designs (long list, runs until done)
 
-**For:** the ui lane (`ui`). **From:** the coordinator lane. **Dispatched at `RESTAMP`** *(re-dispatched before any start, rule 1a: + R-4156 skip-on-user-decision, + Q-B4 in U-17; first stamp `d98efb832`)*. ⭐ Scope FROZEN there; later documents are FYI.
+**For:** the ui lane (`ui`). **From:** the coordinator lane. **Dispatched at `16886365f`** *(re-dispatched before any start, rule 1a: + R-4156 skip-on-user-decision, + Q-B4 in U-17; first stamp `d98efb832`)*. ⭐ Scope FROZEN there; later documents are FYI.
 Merge `coordinator` first, push `chore: started HANDOFF_Coordinator_To_Ui_Editing_UX_Build at <sha>`, then follow
 [the protocol](PROTOCOL_Two_Lanes_Self_Coordinating.md) — ⭐ **after every item: push, status file, fetch, merge `backend`, answer its notes.**
 Work top to bottom; skip a blocked item and come back. ⛔⛔ **Nobody to ask — anything that needs the user's decision is SKIPPED, never blocking (R-4156):** a QUESTION note to Coordinator with your lean, the item (or just that part) marked *SKIPPED — needs user*, and on to the next item.
