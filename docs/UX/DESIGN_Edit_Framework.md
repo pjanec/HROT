@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level, for the user's review (R-4122); the building lanes detail it (R-4123)
-updated: 2026-11-06 (Q1 and Q2 revised: orders answer acceptance only; interactions send the generic outcome with a request id) · 2026-11-06 (§2.4 the old acknowledgement merged into EntityEditOutcome — R-4126) · 2026-11-06 (first version — coordinator; editing-UX design queue item 2: E0 / D10)
+updated: 2026-11-06 (§2.5 outcome on forms through the shared field row; Q3 narrowed) · 2026-11-06 (Q1 and Q2 revised: orders answer acceptance only; interactions send the generic outcome with a request id) · 2026-11-06 (§2.4 the old acknowledgement merged into EntityEditOutcome — R-4126) · 2026-11-06 (first version — coordinator; editing-UX design queue item 2: E0 / D10)
 current-answer: §2 the model (diagrams) · §3 each kind of edit, today → in the framework · §4 stages · §5 questions with leans
 stale-below: nothing
 known-rot: none
@@ -164,6 +164,16 @@ graph TD
 ⇒ ⭐ this is part of stage **F2** (backend): create and delete answer with `EntityEditOutcome`; the old topic is removed in the same stage, after its two
 writers and one reader moved (a rail: no `CreateUpdateDeleteEntityAck` symbol left).
 
+### 2.5 How an outcome shows on a form — without touching each field *(user, `2026-11-06`: "the message on form may affect practically ANY edit control. how will we make it possible without changing many fields on many forms?")*
+
+| | rule |
+|---|---|
+| **Conflict is rare by construction** | an ordinary field edit is an attribute write — **last write wins**, there is nothing to reload or overwrite. Only an edit that carries a PRECONDITION ("I change version N") can conflict: today only the mission plan commit (`MissionPlanQueue.Version`). ⇒ Reload / Overwrite is **one bar per committing form** (the Orders tab's header), never a per-field control |
+| **the field mark lives in the ONE shared field-drawing path** | forms draw their fields through shared per-type editors — StructEdit's field editors (params DTOs, `BehaviorParamsForm`), `ComponentEditDrawer` (components), the fixed-string / reference leaf drawers. ⭐ The shared row looks up the journal by **(entity, attribute or field path)** and draws a small mark after the control: ⏳ pending · ✗ refused (tooltip = the reason) · nothing once applied. One change in the shared row ⇒ every form that uses it. ⚠ To confirm in E2's design: StructEdit's per-field loop is the single chokepoint (`search_graph`: 33 field editor / drawer classes, `ComponentEditDrawer`, `StructEdit.Reflection.Editors.*`) |
+| **a form that draws by hand** (raw ImGui) | gets no mark until it moves onto the shared rows — which the forms direction requires anyway (R-4120: dedicated forms built from the shared editors) |
+| **Messages is the always-present place** | every outcome is listed there (D8); the field mark is a convenience, never the only signal |
+| **the journal entry carries the field path** | `EditOp.Payload` already names the attribute (`EntityAttributeChange.AttributeId`) or the JSON path — the journal keeps it, so the lookup needs nothing from the form |
+
 ## 3. Each kind of edit — today → in the framework
 
 | kind | today | in the framework | stage |
@@ -198,7 +208,7 @@ writers and one reader moved (a rail: no `CreateUpdateDeleteEntityAck` symbol le
 |---|---|---|---|
 | **Q1** | are orders "edits" in this framework? | **yes, as kind `Command`, answering ACCEPTANCE only** (revised `2026-11-06`): the brain's owner says accepted / refused + why; execution and completion are NOT tracked here (they are the Brain tab's *Doing* / *Orders*) | tracking "is executing / finished" — orders come from many sides, the last accepted one replaces the running behaviour, and a unit may change its mind: not a state the framework can own |
 | **Q2** | interactions (embark, possess): how they answer | **revised `2026-11-06`: the generic `EntityEditOutcome`** — a `RequestId` appended to the payloads, the owner reports where it accepts / refuses today; small effort (one field per payload, one report call per site), no new topic | watching the target's state with a time-out — slower, no reason; a per-interaction reply topic — ruled out (`DESIGN_Entity_Interactions.md:136`) |
-| **Q3** | conflict UX | **Conflict** status with *Reload* / *Overwrite* in Messages and on the form — no modal | keep "Force Commit (Overwrite)" — engine vocabulary, a modal |
+| **Q3** | conflict UX | **Conflict** only for edits with a precondition (today: the mission plan commit) — *Reload* / *Overwrite* in Messages and in that form's header bar, no modal; every other field gets only the shared ⏳ / ✗ mark (§2.5) | keep "Force Commit (Overwrite)" — engine vocabulary, a modal · a conflict control on every field — no other edit can conflict |
 | **Q4** | scenario parameters | **outside** — a document edit with its own undo (already on `EditHistory`) | wrapping a document edit as an entity edit |
 | **Q5** | the journal | **per station, UI state, not recorded, not on the wire**; it holds the before-state only in Edit mode (for undo) | recording the journal — the recording already holds the world |
 | **Q6** | where `Edits` lives | **Fdp.Toolkits, beside `EditRequests`** (one home for the framework) — backend owns it | Hrot.Presentation — the HTTP API and rules need it too |
