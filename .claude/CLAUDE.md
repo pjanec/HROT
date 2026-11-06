@@ -746,7 +746,7 @@ ever considered, which is what obligation ① exists to prevent.
   ⭐ **The ONE exception (user, `2026-11-06`, R-4117): the entity thumbnail ATLAS pages** — `Hrot/Engine/Hrot.Presentation/Thumbnails/entities-<n>.jpg`
   (JPEG q85, ~270 KB each) and their index are committed, because they are embedded in the executable. Only `scripts/thumbnails.py --pack` /
   `--add-image` writes them (`docs/DESIGN_Add_Entity_Picker.md` §2j) — ⭐ **and each scenario's `scenarios/<name>/preview.jpg`** (320 × 180, ~7 KB,
-  beside its `scenario.json`; user, same day). ⛔ Every other render (rail frames, live stills, before/after) stays out of git.
+  beside its `scenario.json`; user, same day). ⭐ **And each terrain's `assets/terrain/<name>/preview.jpg`** (small JPEG, by the same script; user, R-4135). ⛔ Every other render (rail frames, live stills, before/after) stays out of git.
 - **Keep documentation prose short.** Lead with visuals and terse tables; no long prose walls — they go unread. ⭐⭐⭐ **For DESIGN documents this is not a preference but an obligation — see *"DIAGRAM FIRST — the diagrams ARE the design; the prose SUPPORTS them"*** in the `NO IMPLEMENTATION WITHOUT UML` section: draw after the inventory and before you write, let the prose carry only *why*, and apply the deletion test to your own draft.
 
 ## ⛔⛔⛔ NO IMPLEMENTATION WITHOUT UML — **the design must name the CLASSES and the SEQUENCES** *(user, `2026-08-20`)*

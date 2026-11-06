@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — top-level, for the user's review (R-4122); the building lanes (ui for the picker, backend for the blank create) detail it (R-4123)
-updated: 2026-11-06 (first version — coordinator; editing-UX design queue item 7: E12 / D19)
+build-state: DESIGN — top-level, ✅ APPROVED by the user 2026-11-06 with Q4 revised and Q5 yes (R-4135); the building lanes (ui for the picker, backend for the blank create) detail it (R-4123)
+updated: 2026-11-06 (✅ approved — R-4135: Q4 revised = updating a recipe is a plain Save As over its name, the ONE Save-As dialog offers Replace for every kind; Q5 = terrain thumbnails in git) · 2026-11-06 (first version — coordinator; editing-UX design queue item 7: E12 / D19)
 current-answer: §2 the model · §3 stages · §4 questions with leans
 stale-below: nothing
 known-rot: none
@@ -82,7 +82,9 @@ classDiagram
     +CreateBlankScenario(name, terrain) ★
   }
   class ScenarioDoor { <<existing · AQ108>> the one guarded load }
-  class ScenarioMenuCommands { <<existing>> scenario.saveAsRecipe → +Replace recipe ★ }
+  class ScenarioMenuCommands { <<existing>> scenario.saveAsRecipe }
+  class SaveAsDialog { <<existing · AiShared/Recipes/SaveAsDialog.cs>> +an existing name ⇒ Replace? ★ (every kind) }
+  ScenarioMenuCommands --> SaveAsDialog
   class ScenarioHeaderFacts { <<★ Details · Scenario>> Terrain: name (fixed at creation) }
   class DebugApi { <<existing>> +POST /scenario/new ★ }
 
@@ -128,7 +130,7 @@ consensus never meet a terrain that did not come from a load.
 |---|---|---|
 | a new recipe on any terrain | New ▸ Blank, on a terrain → author it → **File ▸ Save Scenario as Recipe…** | the second half is built (B2c) |
 | a new recipe from another recipe | New ▸ From a recipe → change it → Save Scenario as Recipe… | built |
-| **update an existing recipe** | the scenario remembers the recipe it came from; *Save Scenario as Recipe…* offers **Replace recipe 'x'** (one confirmation, R-4121: it overwrites a shared template) beside a new name | ★ new: today it never overwrites (*name (2)*) |
+| **update an existing recipe** | ✏ **user, `2026-11-06`:** *"Isn't updating a recipe always just saving the currently loaded asset under a given name, which could be the recipe folders and a recipe name? Do we need update recipe, menu item, or option at all?"* ⇒ **no recipe-specific option**: Save Scenario as Recipe… (or Save As… into the recipes folder) under the existing name. 📐 Today the ONE Save-As dialog **refuses** an existing name (`SaveAsDialog.cs:187`) and the recipe save forks *name (2)* ⇒ ★ the dialog offers **Replace?** (one confirmation) for **every kind**, not only recipes | ★ the Replace confirmation in the one dialog |
 | the recipe's terrain | always the scenario's, which was fixed at creation | built (W14) |
 
 ⛔ No separate *New Recipe…* item. A recipe is a scenario saved into the recipes folder. A second creation flow for the same content
@@ -148,17 +150,18 @@ would be a duplicate (R-174).
 |---|---|---|---|
 | **N1** | the New picker gains the group *Blank, on a terrain* from `TerrainCatalog.List()`; the pane shows the terrain's facts (name, origin, road networks from `terrain.json`) | ui | the picker lists all 8 terrains and the 10 recipes, live (a terrain folder added appears on the next open) |
 | **N2** | `CreateBlankScenario(name, terrain)`: ① **measure where the master writes a new scenario folder**; ② write the header-only file; ③ the ordinary load by name. `ScenarioNewAssetService`'s H3 comment updated | backend | a blank on `highway-rest` loads with zero entities, saves, and reopens on `highway-rest`; an unknown terrain name is refused with the reason |
-| **N3** | *Replace recipe 'x'* in Save Scenario as Recipe (the scenario carries the recipe it came from) | ui | replacing asks once; a new name never asks |
+| **N3** | the ONE `SaveAsDialog`: an existing name ⇒ *Replace?* (one confirmation) for every kind; the recipe save stops forking *name (2)* | ui | a scenario, a BTree and a recipe each replaced after one confirmation; a new name never asks |
 | **N4** | the terrain read-only in Details and the title | ui | — |
 | **N5** | `POST /scenario/new {name, recipe | terrain}` on the same service | backend | the AI debug API creates both kinds |
+| **N6** | terrain thumbnails: `assets/terrain/<name>/preview.jpg` (small JPEG, like the scenario stills, R-4135 extends R-4117), captured by `scripts/thumbnails.py`; the New picker's terrain rows show it | ui | every terrain folder has its still; the pane shows it |
 
-## 4. Questions — leans for the user
+## 4. Questions — ✅ APPROVED (R-4135; Q4 revised, Q5 yes; user `2026-11-06`: *"otherwise accepted"*)
 
 | # | question | lean | rejected |
 |---|---|---|---|
 | **Q1** | how a blank gets its terrain | **the backend writes a header-only `scenario.json` naming the terrain, then the ordinary load** — one load path, every node gets the terrain by the existing consensus | load the terrain into the open world and save (the old W13 picker): a terrain change outside a load, which is what R-3073 removed |
 | **Q2** | one picker or two | **one New Scenario picker with two groups**: *Blank, on a terrain* and *From a recipe* | a separate New on Terrain item: a second entry point for one action |
 | **Q3** | a New Recipe item | **none**: a recipe is a scenario saved with *Save Scenario as Recipe…* | its own creation flow: duplicates New Scenario |
-| **Q4** | updating a recipe | ***Replace recipe 'x'*** offered when the scenario came from recipe x, with one confirmation | never overwrite (today): every edit of a recipe forks it as *name (2)* |
-| **Q5** | terrain previews in the picker | **text facts only for now**; a terrain still (`assets/terrain/<name>/preview.jpg`, like the scenario stills of R-4117) only if you want it in git — your call, lean **yes, small JPEG**, captured by the same thumbnail script | — |
+| **Q4** | updating a recipe | ✏ **REVISED by the user:** a plain Save As over the recipe's name — the one Save-As dialog offers *Replace?* for every kind | a recipe-specific *Replace recipe* option — unnecessary (user) · never overwrite (today) — every edit forks *name (2)* |
+| **Q5** | terrain previews in the picker | ✅ **yes** (user: *"Terrain thumbnails is for sure another good and desired exception from the no pictures in Git rule"*) — `assets/terrain/<name>/preview.jpg`, small JPEG, by the thumbnail script (N6) | text only |
 | **Q6** | the HTTP route | **yes, `POST /scenario/new`**, through the same service, so the AI debug API can create both kinds | none: tests and agents could not create a scenario |

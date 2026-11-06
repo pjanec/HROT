@@ -43,7 +43,7 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 7. ✍ **Design 4b WRITTEN `2026-11-06`: [DESIGN_Input_And_Commands.md](../UX/DESIGN_Input_And_Commands.md)** (E14) — ✅ APPROVED as revised (R-4132: the map is a dumb terminal, map keys resolved on the backend; hard-coded defaults complete); CE-4281, CE-4282 filed.
 8. ✍ **Design 5 WRITTEN `2026-11-06`: [DESIGN_Edit_Mode_Undo.md](../UX/DESIGN_Edit_Mode_Undo.md)** (D1) — ✅ Q1–Q7 APPROVED (R-4133); §1.1 what a snapshot misses, §2.3 the restore = the dry run's sequence.
 9. ✍ **Design 6 WRITTEN `2026-11-06`: [DESIGN_Map_Interaction.md](../UX/DESIGN_Map_Interaction.md)** (E8 — D11 / D12 / D16) — one drawing core (`ShapeEditSession`), the armed tool and a pending pick visible on every terminal, airborne aircraft by `Mobility` (CE-4272 measured first), 2-D level choice from `SurfacesAt`, group rotate, the gizmo-look review; stages P1–P7; ✅ Q1–Q8 APPROVED (R-4134).
-10. ✍ **Design 7 WRITTEN `2026-11-06`: [DESIGN_New_Scenario_And_Recipe.md](../UX/DESIGN_New_Scenario_And_Recipe.md)** (E12 / D19) — New Scenario gains *Blank, on a terrain* (`TerrainCatalog.List`, a header-only file then the ordinary load); recipes stay scenarios saved with Save as Recipe, plus *Replace recipe*; `POST /scenario/new`; stages N1–N5; awaiting the user's review of §4 Q1–Q6.
+10. ✍ **Design 7 WRITTEN `2026-11-06`: [DESIGN_New_Scenario_And_Recipe.md](../UX/DESIGN_New_Scenario_And_Recipe.md)** (E12 / D19) — New Scenario gains *Blank, on a terrain* (`TerrainCatalog.List`, a header-only file then the ordinary load); recipes stay scenarios saved with Save as Recipe, updating a recipe = a plain Save As (the one Save-As dialog offers Replace for every kind); terrain thumbnails in git; `POST /scenario/new`; stages N1–N6; ✅ APPROVED (R-4135, Q4 revised, Q5 yes).
 11. ▶ NEXT (queue §4.5): E2 forms · E5 condition templates · E7 review · E2b sim / types. (Was 8: D1 (undo — reads the edit framework's journal), then E8 (map interaction), then the smaller ones. Previously listed after hats:, D1 (undo — reads the edit framework's journal), E8 (map), then the smaller ones (queue §4.5).
 4. Before each design: INVENTORY with graph queries, UML (class + sequence + module), and a claim table in the chat.
 
@@ -57,6 +57,6 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 | **behaviors** | performance programme (§11f, 1000 soldiers load) | nothing dispatched |
 | **backend** | late-joiner ghosts (CE-4000 / 4007) — dispatch in backend | check its report |
 
-Ids: coordinator next free **CE-4283**, **R-4135**.
+Ids: coordinator next free **CE-4283**, **R-4136**.
 
 ⚠ All lanes are PAUSED by the user while the editing-UX designs are discussed (`2026-11-06`).
