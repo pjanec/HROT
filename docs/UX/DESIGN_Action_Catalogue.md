@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — top-level, for the user's review (R-4122); the building lanes detail it during implementation (R-4123)
+build-state: DESIGN — top-level; ✅ §5 Q1–Q5 APPROVED by the user 2026-11-06 (R-4125); the building lanes detail it during implementation (R-4123)
 updated: 2026-11-06 (first version — coordinator; editing-UX design queue item 1: E9 + E1 core)
 current-answer: §2 the model (diagrams) · §3 how it reconciles the earlier designs · §4 the stages · §5 questions with leans
 stale-below: nothing
@@ -205,7 +205,7 @@ offer (hot path R-2084: the per-frame cost is zero). The graph editors' menus (d
 | **A8** | station levels (D4) read by the composer | needs the node feature (E10 / D4 design) |
 | later | graph editors' menus through the composer (§5 Q3) | — |
 
-## 5. Questions — leans for the user
+## 5. Questions — ✅ all five leans APPROVED *(🔒 user, `2026-11-06`: "Q1-Q5 approved, go on with the next design")*
 
 | # | question | ⭐ lean | what would change it |
 |---|---|---|---|
