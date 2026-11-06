@@ -1,3 +1,4 @@
+using Fdp.Presentation.Forms;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
@@ -187,7 +188,7 @@ internal sealed class ReturnNodeSession : INodeEditSession
     {
         if (_graph == null)
         {
-            ImGui.TextColored(EditorColors.Warning, "(containing graph not found — cannot edit outputs)");
+            ImGui.TextColored(StatusPalette.Warning, "(containing graph not found — cannot edit outputs)");
             return;
         }
 

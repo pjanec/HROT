@@ -1,3 +1,4 @@
+using Fdp.Presentation.Forms;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Host;
@@ -173,7 +174,7 @@ internal sealed class FunctionCallNodeSession : INodeEditSession
 
         if (functionGraphs.Count == 0)
         {
-            ImGui.TextColored(EditorColors.Warning, "(no function graphs in this blueprint)");
+            ImGui.TextColored(StatusPalette.Warning, "(no function graphs in this blueprint)");
             return;
         }
 
@@ -203,7 +204,7 @@ internal sealed class FunctionCallNodeSession : INodeEditSession
         }
 
         if (string.IsNullOrEmpty(_node.TargetGraphId))
-            ImGui.TextColored(EditorColors.Warning, "(no function graph selected)");
+            ImGui.TextColored(StatusPalette.Warning, "(no function graph selected)");
     }
 
     private void DrawClrMethodForm()

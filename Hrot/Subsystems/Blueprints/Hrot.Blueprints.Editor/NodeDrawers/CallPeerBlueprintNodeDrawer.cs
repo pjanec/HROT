@@ -1,3 +1,4 @@
+using Fdp.Presentation.Forms;
 using System.Linq;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
@@ -195,7 +196,7 @@ internal sealed class CallPeerBlueprintNodeSession : INodeEditSession
         DrawFunctionPicker();
 
         if (string.IsNullOrEmpty(_node.PeerBlueprintId) || string.IsNullOrEmpty(_node.FunctionRef))
-            ImGui.TextColored(EditorColors.Warning,
+            ImGui.TextColored(StatusPalette.Warning,
                 "(both a peer and a function are required — untyped exec+Return pins until then)");
     }
 
@@ -207,7 +208,7 @@ internal sealed class CallPeerBlueprintNodeSession : INodeEditSession
 
         if (all.Count == 0 && !unresolved)
         {
-            ImGui.TextColored(EditorColors.Warning,
+            ImGui.TextColored(StatusPalette.Warning,
                 "(no peer Blueprints discovered — check the blueprint asset root)");
             return;
         }
@@ -238,7 +239,7 @@ internal sealed class CallPeerBlueprintNodeSession : INodeEditSession
         }
 
         if (unresolved)
-            ImGui.TextColored(EditorColors.Warning,
+            ImGui.TextColored(StatusPalette.Warning,
                 $"(no discovered Blueprint has id {_node.PeerBlueprintId} — kept as-is)");
     }
 
@@ -258,7 +259,7 @@ internal sealed class CallPeerBlueprintNodeSession : INodeEditSession
 
         if (peer.ExportedFunctions.Count == 0)
         {
-            ImGui.TextColored(EditorColors.Warning,
+            ImGui.TextColored(StatusPalette.Warning,
                 $"({PeerLabel(peer)} exports no functions — nothing to call)");
             return;
         }
@@ -287,7 +288,7 @@ internal sealed class CallPeerBlueprintNodeSession : INodeEditSession
         }
 
         if (unresolved)
-            ImGui.TextColored(EditorColors.Warning,
+            ImGui.TextColored(StatusPalette.Warning,
                 $"({PeerLabel(peer)} does not export '{current}' — kept as-is; pins fall back to untyped)");
     }
 

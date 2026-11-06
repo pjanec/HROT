@@ -1,3 +1,4 @@
+using Fdp.Presentation.Forms;
 using System.Linq;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
@@ -132,7 +133,7 @@ internal sealed class CallCustomEventNodeSession : INodeEditSession
 
         if (events.Count == 0)
         {
-            ImGui.TextColored(EditorColors.Warning,
+            ImGui.TextColored(StatusPalette.Warning,
                 "(this Blueprint declares no custom events — add one in the My Blueprint panel)");
             return;
         }
@@ -161,7 +162,7 @@ internal sealed class CallCustomEventNodeSession : INodeEditSession
         }
 
         if (unresolved)
-            ImGui.TextColored(EditorColors.Warning,
+            ImGui.TextColored(StatusPalette.Warning,
                 $"(no custom event on this Blueprint matches '{_node.EventId}' — kept as-is)");
         else if (current is { Parameters.Count: > 0 })
             ImGui.TextDisabled($"({current.Parameters.Count} argument pin(s) projected from the declaration)");

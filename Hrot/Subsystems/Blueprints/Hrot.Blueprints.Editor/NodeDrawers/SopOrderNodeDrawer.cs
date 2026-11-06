@@ -1,3 +1,4 @@
+using Fdp.Presentation.Forms;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Host;
@@ -144,9 +145,9 @@ internal sealed class SopOrderNodeSession : INodeEditSession
         }
 
         if (string.IsNullOrWhiteSpace(_node.BehaviorName))
-            ImGui.TextColored(EditorColors.Warning, "(no behaviour picked — this order does not compile, BP1688)");
+            ImGui.TextColored(StatusPalette.Warning, "(no behaviour picked — this order does not compile, BP1688)");
         else if (IsUnlisted())
-            ImGui.TextColored(EditorColors.Warning, $"(not registered on this host now — kept: {_node.BehaviorName})");
+            ImGui.TextColored(StatusPalette.Warning, $"(not registered on this host now — kept: {_node.BehaviorName})");
 
         if (!string.IsNullOrWhiteSpace(_node.ParamsTypeId))
             ImGui.TextDisabled($"Params: {_node.ParamsTypeId} — unwired sends the behaviour's defaults.");

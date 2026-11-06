@@ -1,3 +1,4 @@
+using Fdp.Presentation.Forms;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 
@@ -37,7 +38,7 @@ internal sealed class ReadEqsResultNodeSession : INodeEditSession
 
         if (_parent.Dispatch != BlueprintDispatchKind.Instance)
         {
-            ImGui.TextColored(EditorColors.Error,
+            ImGui.TextColored(StatusPalette.Error,
                 "⚠ ReadEqsResultNode is only allowed in Instance Blueprints.");
             ImGui.Separator();
         }

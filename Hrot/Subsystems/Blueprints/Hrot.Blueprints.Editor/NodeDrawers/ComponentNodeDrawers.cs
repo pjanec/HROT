@@ -1,3 +1,4 @@
+using Fdp.Presentation.Forms;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 
@@ -184,7 +185,7 @@ internal sealed class GetComponentNodeSession : INodeEditSession
 
         ImGui.TextDisabled("(self, or an optional Target entity -- BlueprintSharedState is NOT involved: reads view.GetComponentRO<T>)");
         if (string.IsNullOrEmpty(_node.ComponentTypeFqn))
-            ImGui.TextColored(EditorColors.Warning, "(pick a Component Type)");
+            ImGui.TextColored(StatusPalette.Warning, "(pick a Component Type)");
     }
 
     /// <summary>See <see cref="GetSharedNodeSession.DrawSharedTypePicker"/> for the rationale.</summary>
@@ -216,7 +217,7 @@ internal sealed class GetComponentNodeSession : INodeEditSession
         }
 
         if (unlisted)
-            ImGui.TextColored(EditorColors.Warning,
+            ImGui.TextColored(StatusPalette.Warning,
                 $"(current value not in the discovered type list — kept as-is: {current})");
     }
 
@@ -241,7 +242,7 @@ internal sealed class GetComponentNodeSession : INodeEditSession
         ImGui.TextDisabled($"({fields.Count} field pin(s) + Target(in)/Found(out))");
 
         if (_node.IsManaged)
-            ImGui.TextColored(EditorColors.Warning,
+            ImGui.TextColored(StatusPalette.Warning,
                 "  managed component — all fields are read-only: cannot be stored in a Variable/" +
                 "WorkingState/Shared, pass to a library/function call only");
 
@@ -249,7 +250,7 @@ internal sealed class GetComponentNodeSession : INodeEditSession
         if (reflected is null) return;
 
         foreach (var f in reflected.Where(f => f.IsManaged))
-            ImGui.TextColored(EditorColors.Warning,
+            ImGui.TextColored(StatusPalette.Warning,
                 $"  {f.Name} ({f.TypeId}): managed — read/pass-through only, never persisted or mutated");
     }
 
@@ -425,7 +426,7 @@ internal sealed class SetComponentNodeSession : INodeEditSession
         else
             ImGui.TextDisabled("(self only, write-if-present -- writes view.GetComponentRW<T>, guarded by HasComponent<T>; no implicit add)");
         if (string.IsNullOrEmpty(_node.ComponentTypeFqn))
-            ImGui.TextColored(EditorColors.Warning, "(pick a Component Type)");
+            ImGui.TextColored(StatusPalette.Warning, "(pick a Component Type)");
     }
 
     /// <summary>See <see cref="GetComponentNodeSession.DrawComponentTypePicker"/> for the rationale.</summary>
@@ -457,7 +458,7 @@ internal sealed class SetComponentNodeSession : INodeEditSession
         }
 
         if (unlisted)
-            ImGui.TextColored(EditorColors.Warning,
+            ImGui.TextColored(StatusPalette.Warning,
                 $"(current value not in the discovered type list — kept as-is: {current})");
     }
 
@@ -489,7 +490,7 @@ internal sealed class SetComponentNodeSession : INodeEditSession
         if (reflected is null) return;
 
         foreach (var f in reflected.Where(f => f.IsManaged))
-            ImGui.TextColored(EditorColors.Warning,
+            ImGui.TextColored(StatusPalette.Warning,
                 $"  {f.Name} ({f.TypeId}): managed — write path not yet wired (CA-06); this pin has no effect until then");
     }
 

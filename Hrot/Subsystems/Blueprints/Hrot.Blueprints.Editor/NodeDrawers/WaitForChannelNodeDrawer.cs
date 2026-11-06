@@ -1,3 +1,4 @@
+using Fdp.Presentation.Forms;
 using System.Linq;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
@@ -121,7 +122,7 @@ internal sealed class WaitForChannelNodeSession : INodeEditSession
 
         ImGui.TextDisabled("(latent — resumes when the channel's action instance completes)");
         if (string.IsNullOrEmpty(_node.ChannelType))
-            ImGui.TextColored(EditorColors.Warning, "(no channel selected — this node will never resume)");
+            ImGui.TextColored(StatusPalette.Warning, "(no channel selected — this node will never resume)");
     }
 
     /// <summary>
@@ -157,7 +158,7 @@ internal sealed class WaitForChannelNodeSession : INodeEditSession
         }
 
         if (unlisted)
-            ImGui.TextColored(EditorColors.Warning,
+            ImGui.TextColored(StatusPalette.Warning,
                 $"(current channel not in the catalog — kept as-is: {current})");
     }
 

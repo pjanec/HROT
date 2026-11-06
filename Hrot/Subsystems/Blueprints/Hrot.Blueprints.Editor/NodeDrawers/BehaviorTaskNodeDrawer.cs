@@ -1,3 +1,4 @@
+using Fdp.Presentation.Forms;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Host;
@@ -119,9 +120,9 @@ internal sealed class BehaviorTaskNodeSession : INodeEditSession
         }
 
         if (string.IsNullOrWhiteSpace(_node.BehaviorName))
-            ImGui.TextColored(EditorColors.Warning, "(no behaviour picked — this task does not compile, BP1659)");
+            ImGui.TextColored(StatusPalette.Warning, "(no behaviour picked — this task does not compile, BP1659)");
         else if (IsUnlisted())
-            ImGui.TextColored(EditorColors.Warning, $"(not registered on this host now — kept: {_node.BehaviorName})");
+            ImGui.TextColored(StatusPalette.Warning, $"(not registered on this host now — kept: {_node.BehaviorName})");
 
         if (!string.IsNullOrWhiteSpace(_node.ParamsTypeId))
             ImGui.TextDisabled($"Params: {_node.ParamsTypeId} — wire it to start the child with these values.");

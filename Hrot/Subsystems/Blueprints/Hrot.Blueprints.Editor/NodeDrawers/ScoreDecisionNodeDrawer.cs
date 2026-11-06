@@ -1,3 +1,4 @@
+using Fdp.Presentation.Forms;
 using ImGuiNET;
 using Fdp.Toolkit.Utility;
 using Hrot.Blueprints.Core.Assets;
@@ -121,9 +122,9 @@ internal sealed class ScoreDecisionNodeSession : INodeEditSession
         }
 
         if (string.IsNullOrWhiteSpace(_node.AssetId))
-            ImGui.TextColored(EditorColors.Warning, "(no decision picked)");
+            ImGui.TextColored(StatusPalette.Warning, "(no decision picked)");
         else if (IsUnlisted())
-            ImGui.TextColored(EditorColors.Warning, $"(not in the decision catalog — kept: {_node.AssetId})");
+            ImGui.TextColored(StatusPalette.Warning, $"(not in the decision catalog — kept: {_node.AssetId})");
 
         ImGui.TextDisabled("Scores the decision's options for this entity each time it runs; Winner is the chosen option.");
     }
