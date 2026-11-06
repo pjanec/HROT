@@ -25,6 +25,7 @@ known-rot: ⭐ RESOLVED 2026-09-21 — §4's closed question Q-iii ("RuntimeInsp
   IRuntimeInspectorPane.Draw a DetailsContext — which is what lets a pinned runtime view honour
   its frozen entity. As-built in DESIGN_Editor_Entity_Selection_Source.md §12.
 related-designs:
+  - ../UX/DESIGN_Action_Catalogue.md — DetailsViewDescriptor gains the catalogue's Requires / Modes / Level (stage A7); DetailsContext carries EditingMode (Q1)
   - ../UX/DESIGN_Editing_UX.md — OWNS which tabs exist, what goes in them and their UX (the editing-UX review, R-4118/R-4119); this doc owns the machinery
   - docs/DESIGN_Behaviour_Debugging.md — registers the per-node Runtime view and the Variables view (DBG-4, DBG-5)
   - ../DESIGN_Entity_Brain_View.md — adds the details.brain view to every host's bundle

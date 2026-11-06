@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: AQ26's two-axis resolution lets a HOST supply the isApplicable rule; R-4119 narrows it — for an entity, the rule reads the entity's components (§0)
 related-designs:
+  - DESIGN_Action_Catalogue.md — design queue item 1 (E9 + E1 core): one catalogue of declared actions builds every menu and tab offer
   - ../blueprints/RESUME_Coordinator_Editing_UX.md — the programme's resume doc (where we are, what next)
   - ../CAPABILITIES.md — §14 is the product-facing summary of §1 (what a user can change, per mode)
   - ../blueprints/DESIGN_Details_Panel_View_Switching.md — OWNS the Details panel machinery (DetailsViewRegistry, descriptors, AppliesTo, the offer set); this design owns WHICH tabs, what goes in them, and their UX
@@ -527,7 +528,7 @@ this chat"* — R-4123.
 
 | order | design | why this order |
 |---|---|---|
-| 1 | **E9 + E1 core — the action catalogue and the tab / action `Requires` + mode model** | every menu, tab, tool and the editing levels read it |
+| 1 | **E9 + E1 core — the action catalogue and the tab / action `Requires` + mode model** — ✍ written 2026-11-06: [DESIGN_Action_Catalogue.md](DESIGN_Action_Catalogue.md), for review | every menu, tab, tool and the editing levels read it |
 | 2 | **E0 — one edit framework across nodes** (extending DESIGN_Remote_Edit_Outcome) | every edit, Messages, and undo read it |
 | 3 | **E11 — the mission plan editor** | the user's "most used tool" |
 | 4 | **E10 — the hats** (RTS, FPS / possession, instructor, game master, editor, observer) with D4's editing levels | decides what one person at one station sees |

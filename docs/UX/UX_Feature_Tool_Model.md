@@ -54,6 +54,7 @@ known-rot: the line citations in the body are pre-CE-051 and mostly MOVED. 0b ca
   therefore structural on FIVE hosts, not one; EditorSpawnAdapter no longer exists (it is the SHARED
   ScenarioSpawnAdapter); and the D-prime duplicate has a SECOND instance on IG that this document never named.
 related-designs:
+  - DESIGN_Action_Catalogue.md — actions declare CancelsModalTool and Shortcut once; an action activates a tool
   - ../DESIGN_Add_Entity_Picker.md — Shift-pick in the Add Entity picker arms this doc's placement tool
   - ../DESIGN_Entity_Control.md — OWNS RtsCommandTool and PossessionTool, two exclusive-focus tools
 -->

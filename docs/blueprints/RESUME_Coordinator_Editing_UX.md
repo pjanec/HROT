@@ -33,7 +33,7 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 ## 2. Next — in order
 
 1. ~~Point ⑩~~ — dropped by the user.
-2. **Write design 1 of the queue (§4.5): the action catalogue + the tab / action `Requires` + mode model** (E9 + E1 core). Start from
+2. ✍ **Design 1 WRITTEN `2026-11-06`: [DESIGN_Action_Catalogue.md](../UX/DESIGN_Action_Catalogue.md)** — awaiting the user's review of §5 Q1–Q5 and the stages A1–A8. (Was: write design 1 of the queue (§4.5): the action catalogue + the tab / action `Requires` + mode model (E9 + E1 core).) Start from
    AQ26, `UX_Feature_Entity_Action_Vocabulary.md`, `UX_Feature_Cross_Surface_Actions.md`, `UX_Feature_Menu_Follows_Focus.md`,
    `designs/gizmos-1/canvas-context-menu-design.md`, `DESIGN_Details_Panel_View_Switching.md` — extend them, ⛔ never a sixth menu mechanism.
 3. Then E0 (one edit framework, extending `DESIGN_Remote_Edit_Outcome.md`), E11 (mission plan editor), E10 (hats), D1 (undo), E8 (map).

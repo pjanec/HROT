@@ -3,6 +3,8 @@ state: LIVE
 build-state: NOT-BUILT
 verified: 2026-08-28 (coordinator source scan)
 current-answer: NOT-BUILT (design only; Q26-gated). No EntityActionDescriptor/registry; SharedContextMenuPopulator still ExCon-only (1 of 5).
+related-designs:
+  - DESIGN_Action_Catalogue.md — the catalogue that carries this vocabulary forward (2026-11-06); this doc's STATUS predates the built HostActions path
 -->
 # Feature design — the shared entity-action vocabulary
 
