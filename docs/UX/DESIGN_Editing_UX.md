@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — the programme frame; D2–D9 approved 2026-11-06; D1 (undo) and D10 (one edit framework) each get their own design; every slice E0–E7 starts with its own design reviewed by the user (R-4122)
-updated: 2026-11-06 (§4.3a the user's verdict: D2–D9 approved, D1 and D10 own designs, design-first per slice — R-4122) · 2026-11-06 (§4 gap map, decisions D1–D9 with leans, slices E1–E7) · 2026-11-06 (§0b the user's review of §2–§3: pickers filtered by applicability, condition templates, expert detail kept, scarce confirmations, editing levels per node — R-4121) · 2026-11-06 (§2 prior art, §3 the target UX: layout wireframe, the tab set, modes, actions, the expected basics) · 2026-11-06 (§0a the user's review of §1: raw editor = debugging tool, semantic types, undo in Edit mode only, dedicated forms, the expected basics — R-4120) · 2026-11-06 (first version: the direction, and the inventory of what a user can edit today — coordinator)
-current-answer: §0 the direction (user rulings) · §0a the user's review of §1 · §3 the target UX · §4 the decisions D1–D9 (for approval) and the slices · §1 the inventory (what exists, where it is edited, what is wrong with it)
+updated: 2026-11-06 (§1.5 map interaction and §1.6 context menus inventoried; §3.12–§3.13 targets; D11–D15; slices E8–E9) · 2026-11-06 (§4.3a the user's verdict: D2–D9 approved, D1 and D10 own designs, design-first per slice — R-4122) · 2026-11-06 (§4 gap map, decisions D1–D9 with leans, slices E1–E7) · 2026-11-06 (§0b the user's review of §2–§3: pickers filtered by applicability, condition templates, expert detail kept, scarce confirmations, editing levels per node — R-4121) · 2026-11-06 (§2 prior art, §3 the target UX: layout wireframe, the tab set, modes, actions, the expected basics) · 2026-11-06 (§0a the user's review of §1: raw editor = debugging tool, semantic types, undo in Edit mode only, dedicated forms, the expected basics — R-4120) · 2026-11-06 (first version: the direction, and the inventory of what a user can edit today — coordinator)
+current-answer: §0 the direction (user rulings) · §0a the user's review of §1 · §3 the target UX · §4 the decisions D1–D9 (for approval) and the slices · §1 the inventory (what exists, where it is edited, what is wrong with it; §1.5 map interaction, §1.6 context menus)
 stale-below: nothing
 known-rot: none
 known-conflict: AQ26's two-axis resolution lets a HOST supply the isApplicable rule; R-4119 narrows it — for an entity, the rule reads the entity's components (§0)
@@ -141,6 +141,49 @@ The editor then adds its own tabs (`EditorSubsystem.cs:3295-3370`); AI perspecti
 | 8 | **missing editors**: traffic (file only), scenario description and picture, terrain change, sides and relations, crowd-level settings, scenario checks, utility weights, EQS, phases/phase lines, bookmarks and notes on recordings, copy/paste, multi-edit, empty groups | CAPABILITIES §14 ⏳ rows |
 | 9 | **Path B (the live instructor's path) was never walked** | `UX_Golden_Path.md:317-340` |
 | 10 | **docs out of step**: Entity Commanding still NOT-BUILT though built; Zones READY-TO-BUILD though the tools exist | AI sweep |
+
+### 1.5 Working on the map — placing, drawing, picking, shapes *(added `2026-11-06`, user: "how entities get placed on the map, how various areas are edited, how points are picked … it deserves a review")*
+
+Queries: `search_graph ".*(Tool|Gizmo)$"` (92), `".*(Tool|Pick|Picker|Placement|Shape|Snap).*"` (339, mostly type pickers), `".*(Snap|Undo|Hint).*"` (90 — no snap class, no tool-hint class; only `GizmoUndoStack`); `search_code "MapKeyboardKey.Escape"` (41). Tools: `ScenarioToolRegistrations.cs:78-133`, armed through `ToolController`; built for every map host by `MapInteractionPack`.
+
+| interaction | today | key findings |
+|---|---|---|
+| place an entity | `EntityPlacementGizmo`: click per entity, tool stays armed; right-click / Esc ends; ghost + hint | heading always north; level not choosable in 2-D; no snap. ⭐ The only tool with an on-map hint |
+| draw area, route, zone, spawn area, weather region | `PointSequenceGizmo`: click adds a point, **right-click finishes**, Esc discards | no remove-last-point (Backspace); under the minimum points finish silently cancels; no hint; Fire Line listed but disabled |
+| edit a shape / a route | `VertexEditGizmo`, `RouteWaypointGizmo` + `WaypointEditorPanel` | no move-whole-shape; insert / delete only in a handle's right-click menu; each drag commits at once; ROUTES1 §11.1 (click-on-segment insert, Delete key, right-click commits, Esc cancels) ≠ the code; handles are 2-D only |
+| an area field "Edit on map" | `AreaShapeGizmo`: Enter / on-map Done commits, right-click / Esc cancels | a third finish convention |
+| pick a point / an entity for a form or order | `FdpLocationPickerGizmo`, `EntityPickerGizmo` through `CanvasMapPickAdapter`; the form shows "[Picking...]" | ⛔ **no cue on the map** (no cursor change, no text); no Cancel in the form; a second pick silently replaces the first; a rejected entity click gives no feedback |
+| pick entities in an area | `ModalBoxSelectionGizmo` — editor only | returns empty, silently, on CGF / IG / SimHost |
+| select | click replaces; rubber band replaces; right-click inside keeps | Shift / Ctrl do nothing (`SelectionInteractionSystem.cs:170` TODO); no cycling through overlapped units |
+| drag, rotate | `EntityDragGizmo` (no CGF registration found), `EntityRotatorGizmo` (single commit, live degrees label) | no snap; rotate ends after one commit, Edit Shape stays armed |
+| delete | Delete key on the whole selection | no confirmation, no undo |
+| active tool | — | no current-tool indicator anywhere; no status-line hints (Tool_Model migration step 5 / UXR-84 open); Esc implemented per gizmo (step 6 open) |
+| undo | `GizmoUndoStack` exists — ⚠ **not wired by `MapInteractionPack`** (only IG creates one, `IgApplication.cs:812`; the director keeps its own, `DirectorTakeSession.cs:38`) | three undo mechanisms (`EditHistory`, `GizmoUndoStack`, the director's) — D1's design must make them one |
+
+**Ranked:** ① no undo for any map edit · ② right-click / Esc / Enter mean different things per tool · ③ a pending pick is invisible on the map · ④ no current-tool display or hints · ⑤ no map multi-select · ⑥ weak shape and route editing · ⑦ no heading / level / snap while placing · ⑧ host differences · ⑨ 3-D gaps (handles, entity picking to re-verify) · ⑩ the shortcut E means two things.
+
+### 1.6 Context menus — what is offered where, in which mode *(added `2026-11-06`, user: "what to show in context menus for various stuff. Including the context menu on the timeline … what makes sense in what mode")*
+
+Queries: `search_graph ".*ContextMenu.*"` (44, some stale ExCon); `search_code "BeginPopupContext"` (48); grep `EntityActionContext` (**0** — the AQ26 action model is not built).
+
+**Six separate mechanisms build menus:** the map entity menu as JSON (`ContextMenuProjectorGizmo.MenuJsonFor`, shared by map, inspector and ORBAT) · the empty-map menu (`CanvasMenuUpdateSystem`) · per-host inspector extras (`LambdaEntityContextMenuHandler` in each subsystem) · the timeline (`TimelinePanel.MenuItems` = mode items + director drafts + track items) · the mode indicator (`RunModeChoice.Moves`) · graph editors (NodeEdit `CanvasRenderer` + host providers). Mode is checked in ONE place: `ReplayState.IsActive`.
+
+| surface | what it offers today | findings |
+|---|---|---|
+| map, on a unit | orders (one per order kind), Order with options, Designate ▸, Possess, Embark / Disembark, Center, Follow, Select, Properties…, Save selection as macro…, Rotate, Pin gizmos ▸, AI trace ▸ | ~25 rows; no Delete, Rename, Copy, Paste; orders offered in offline Edit (ruling needed); hidden in Review |
+| map, on a graphic | Center, Select, Properties…, Edit Shape / Edit Route, Delete, Load zone | ⛔ waypoint, spawn area, weather region fall into the UNIT menu (`ContextMenuProjectorGizmo.cs:225`); Delete / Edit Shape not gated in Review |
+| map, empty ground | Add Entity ▸ (greyed in Review), Measurement Tool | no Paste, Center here, Add waypoint here, Select all |
+| several selected | menu of the clicked entity only; inspector multi menu is EMPTY (separators + Copy JSON) | AQ26's AND-over-selection not built |
+| inspector / Details rows | the unit menu filtered to this host's handlers + "Inspect…" + host extras: Rename (editor), Delete / "Delete entity" (worded per host), Edit overlay (IG), Mark Target… | Rename editor-only; Delete and Rename not gated in Review; double separators |
+| ORBAT rows | the unit menu, filtered | editor and CGF only; no ORBAT items (expand, add subordinate) |
+| component header | Edit in new window, Copy (JSON) | no Paste, Reset, Remove |
+| timeline | DAR from / AAR from / Go live from · Take checkpoint here · Seek / Play from here · previous / next event · Seek to live · zoom / loop range · Copy the time · Draft a shot sequence · rule row: Fire now / Disarm / Re-arm / Reset · director tracks: add / update / delete keys, view changes | a flat list, no separators; the playhead has no menu of its own; run-mode moves duplicated in the mode menu with different words; director-track edits not mode-gated; disabled reasons as "— reason" here, tooltips on the map |
+| mode indicator | DAR choices, the moves (Stop preview, End live, Go live from here, Open the recorded version…) | duplicates the timeline's moves |
+| graph editors | canvas: Add Node, Paste, Frame All …; node: Copy, Cut, Duplicate, Delete, Breakpoint …; pin / link | placeholders always greyed (Split / Recombine Struct Pin, Watch this Value, Convert to Reroute, Hide Wire); Get / Set / Call / Bind vocabulary |
+| rules window | no menu — buttons | the same actions are a menu on the timeline's rule track |
+| Add Entity picker row | Copy ID | developer vocabulary |
+
+**Ranked:** ① ⛔ **the map popup shows items that do nothing on this host** — it does not filter by registered handler (`ContextMenuAdapter.cs`), the inspector does (`MapEntityMenuHandler.cs:96`): Rotate, Save as macro, Edit Shape, Delete, Load zone, Measure off the editor · ② edits not gated by mode (Delete, Edit Shape, Rotate, Rename, director keys live in Review; orders live in offline Edit) · ③ no multi-selection menu · ④ Delete / Rename host-gated and worded per host · ⑤ non-unit entities get the unit menu · ⑥ the unit menu is too long · ⑦ "unavailable" shown three ways · ⑧ one action, different words on different surfaces · ⑨ placeholders · ⑩ engine words (Copy ID, Copy to JSON, Inspect…, Pin gizmos); a debug `Console.WriteLine` every frame while the map popup is open (`ContextMenuAdapter.cs:65`); `SharedContextMenuPopulator` has no production caller (ExCon is gone).
 
 ## 2. Prior art *(2026-11-06)*
 
@@ -338,6 +381,49 @@ default **full**, reducible per node for the person expected to sit there.
 ⭐ A blocked edit is shown greyed with the reason ("this station is an observer"), never hidden; ⚠ the levels are a first proposal for §4,
 the mechanism (a node feature with a config) is the decision.
 
+### 3.12 Working on the map — one set of conventions *(target)*
+
+| convention | rule (every tool, every station, 2-D and 3-D) |
+|---|---|
+| **finish / cancel** | **Enter or double-click = finish**, **Esc = cancel**, **right-click = the context menu** (never finish, never cancel) — one meaning per key everywhere; the drawing tools' "right-click finishes" and the picks' "right-click cancels" go |
+| **while drawing** | Backspace removes the last point; a minimum-points hint; too few points ⇒ the tool says so instead of silently cancelling |
+| **the active tool is visible** | the toolbar shows which tool is armed; a one-line hint follows the cursor or sits in the status line ("click to place · Shift: rotate · Enter: done · Esc: cancel") |
+| **a pending pick is visible on the map** | crosshair cursor, a banner "Pick a point for *Move to*" with a Cancel button, the requesting field highlighted; a second request queues or replaces with a notice; a rejected click flashes the reason |
+| **placing** | heading set by drag-after-click (or Shift + mouse); level picked in 2-D from the levels under the cursor; snap toggles (ground, grid, 15° angles) in the toolbar |
+| **shapes and routes** | move the whole shape by dragging inside it; click a segment to insert a point; Delete removes the selected point; ROUTES1 §11.1's specification is the target (code to follow) |
+| **selection** | Shift adds, Ctrl toggles, Shift-drag adds a band; Alt-click cycles through overlapped units |
+| **undo** | every map edit is one undo step in Edit mode (D1) |
+| **the same on every station** | a tool that cannot run here is greyed with the reason (R-4119) — not missing, not silently empty |
+
+### 3.13 Context menus — one action catalogue, decided by the target and the mode *(target)*
+
+⭐ **One mechanism builds every menu**: the action catalogue (§3.6, AQ26's `RegisterAction(descriptor, isApplicable, isEnabled, execute)`),
+with `Requires` (components) and per-mode availability. A surface (map, Outliner, Details, timeline) only says what was clicked; the
+catalogue answers what to offer. ⛔ An item with no handler on this station is never shown as clickable.
+
+| rule | |
+|---|---|
+| **order of groups** | the most likely action first: *Edit* in Edit mode (Rename, Duplicate, Delete …), *Orders* in Live, *Review* actions in Review; *View* (Center, Follow) and *Properties* always; *Debug* (Pin gizmos, AI trace) last, behind Expert (§3.10) |
+| **length** | at most ~12 visible rows; longer groups become submenus (Orders ▸ when there are many) |
+| **unavailable** | greyed with the reason as a tooltip, everywhere (not "— reason" in the label, not hidden) — hidden only when it can never apply to this kind of target |
+| **wording** | one action, one label on every surface (Delete, Rename, Center, Edit shape) |
+| **multi-selection** | an item is offered when it applies to all selected (AQ26); acts on all, one undo step |
+| **every kind of target has its own menu** | unit · graphic (area, route, zone) · waypoint · spawn area · weather region · empty ground · timeline event · timeline range · playhead · Outliner row · Details field |
+
+**What makes sense in which mode — the target per surface:**
+
+| surface | Edit | Preview | Live | Review (DAR / AAR) |
+|---|---|---|---|---|
+| unit | Rename, Duplicate, Copy / Paste, Delete, Change type…, Embark, Rotate, Center, Properties | Center, Follow, Properties, Orders | Orders ▸, Possess, Embark, Heal / Resupply ▸, Delete, Center, Follow, Properties | Center, Follow, Properties, Bookmark here, Show trace |
+| graphic / waypoint | Edit shape, Rename, Duplicate, Delete, Properties | Center, Properties | Edit shape, Delete, Properties | Center, Properties |
+| empty ground | Add ▸ (unit, graphic, composition), Paste, Center here, Measure | Center here, Measure | Add ▸, Paste, Center here, Measure | Center here, Measure, Bookmark here |
+| timeline event | Show unit, Properties | Show unit | Show unit, Review from here (DAR) | Seek here, Play from here, Show unit, Bookmark / Note, Draft a shot here |
+| timeline range / ruler | — | — | Review from here, Take checkpoint (at the live edge) | Seek, Play from here, Loop / Zoom range, Go live from here (AAR), Copy the time |
+| playhead | — | — | Take checkpoint | Bookmark here, Note here, Go live from here |
+| rule (row or track) | Edit, Disable, Delete | — | Fire now, Disarm, Re-arm, Reset | Show on map, Show history |
+
+⭐ The run-mode moves live in the mode indicator; the timeline offers only the ones tied to a moment ("from here"), with the same words.
+
 ## 4. Gap map, decisions, slices *(2026-11-06 — for the user's approval)*
 
 ### 4.1 Measured for the decisions
@@ -383,6 +469,16 @@ the mechanism (a node feature with a config) is the decision.
 | **D8** | Messages | one notice list fed by `EditOutcomeLog` and local results, and a field-level ✓ / ✗ / ⏳ | toasts only — they vanish before they are read |
 | **D9** | the order | foundation first (D2, D8, the basics sweep), then forms (D3) with semantic types in parallel, then Orders + pickers (D6), then undo (D1), templates (D5), levels (D4) | forms first — they would be built per host and redone |
 
+### 4.3b Decisions for §1.5 / §1.6 *(map interaction, context menus — leans for approval)*
+
+| # | decision | ⭐ lean | rejected |
+|---|---|---|---|
+| **D11** | one convention for finish / cancel / menus on the map | Enter / double-click finish, Esc cancel, right-click = menu, everywhere (§3.12); a central Esc → cancel (Tool_Model migration step 6) | keep per-tool conventions — users cannot learn them |
+| **D12** | how a pending pick shows | crosshair + banner with Cancel + highlighted field; a second request queues | the form-only "[Picking…]" — invisible when scrolled away |
+| **D13** | one action catalogue builds every menu | build AQ26's catalogue (designed, never built) with `Requires` and per-mode availability; map, Outliner, Details and timeline menus all read it; items without a handler here are greyed with the reason | patch the six mechanisms one by one — they would keep drifting |
+| **D14** | what each surface offers per mode | §3.13's table as the starting set, adjusted in E9's design | — |
+| **D15** | orders in offline Edit | **not offered in Edit** — in Edit a unit's plan is its Orders tab (the mission); map orders are a Live (and Preview) action | offer them in Edit — they act on a world that is not running |
+
 ### 4.3a The user's verdict on §4 *(`2026-11-06`)*
 
 🔒 *"looks good. Regarding the multi-node editing request/response, this likely needs some unified framework, not ad hoc per edited feature.
@@ -408,6 +504,8 @@ with my review."* — R-4122.
 | **E4 undo** | ui (+ backend for the seam in Fdp.Toolkits) | D1 — its own design | E0, E1 |
 | **E5 conditions** | ui | D5 templates in the rule editor | — |
 | **E6 levels** | backend + ui | D4 | E1 |
+| **E8 map interaction** | ui | D11, D12, §3.12 — design first | E1 |
+| **E9 context menus** | ui | D13–D15, §3.13 — design first (the action catalogue is the core; it is also E1's tab / action `Requires` model) | E1 |
 | **E7 review** | ui | bookmarks and notes (TE-4) · the Replay Browser windows folded into the layout | — |
 | later, own designs | — | sides and relations · terrain change · crowd-level settings · scenario description / picture capture in the editor · scenario checks editor | — |
 
