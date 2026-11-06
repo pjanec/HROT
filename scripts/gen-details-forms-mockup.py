@@ -98,7 +98,7 @@ t(BX+12,yy+27,"A differing checkbox shows ▬ (drawn by hand).",DIS,sz=11.5)
 # ---------- panel C: read-only + conflict ----------
 CX0,CY0,CW0,CH0=426,640,400,240
 r(CX0,CY0,CW0,CH0,BG,stroke=BORDER); r(CX0,CY0,CW0,20,TITLE); t(CX0+8,CY0+14,"Details — Alpha 1-1")
-r(CX0+8,CY0+28,CW0-16,22,"#22283A",rx=2); fa(0xf05a,CX0+16,CY0+32,INFO); t(CX0+36,CY0+43,"Review — read-only · values at 00:12:34",INFO,sz=12)
+t(CX0+14,CY0+42,"Review mode: grey only — no banner, no tooltip (R-4150)",DIS,sz=11.5)
 yy=CY0+60
 for lab,txt in [("Name","Alpha 1-1"),("Side","Friend")]:
     t(CX0+14,yy+14,lab,DIS); r(CX0+110,yy,CW0-130,19,FRAME,op=0.5); t(CX0+115,yy+14,txt,DIS); yy+=25

@@ -147,9 +147,7 @@
 <rect x='426' y='640' width='400' height='240' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
 <rect x='426' y='640' width='400' height='20' fill='#294A7A' rx='0' opacity='1'/>
 <text x='434' y='654' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Details — Alpha 1-1</text>
-<rect x='434' y='668' width='384' height='22' fill='#22283A' rx='2' opacity='1'/>
-<path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64ZM216 112H240H216H240V176H216Q194 178 192 200Q194 222 216 224H264Q286 222 288 200V112H296Q318 110 320 88Q318 66 296 64H216Q194 66 192 88Q194 110 216 112ZM256 320Q270 320 279 311Q288 302 288 288Q288 274 279 265Q270 256 256 256Q242 256 233 265Q224 274 224 288Q224 302 233 311Q242 320 256 320Z' fill='#6AB0FF' fill-opacity='1' transform='translate(442,684.55078125) scale(0.02734375,-0.02734375)'/>
-<text x='462' y='683' fill='#6AB0FF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Review — read-only · values at 00:12:34</text>
+<text x='440' y='682' fill='#808080' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Review mode: grey only — no banner, no tooltip (R-4150)</text>
 <text x='440' y='714' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Name</text>
 <rect x='536' y='700' width='270' height='19' fill='#1D2F48' rx='0' opacity='0.5'/>
 <text x='541' y='714' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Alpha 1-1</text>

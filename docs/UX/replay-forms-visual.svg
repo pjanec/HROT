@@ -1,5 +1,5 @@
-<svg xmlns='http://www.w3.org/2000/svg' width='1240' height='790' viewBox='0 0 1240 790'>
-<rect x='0' y='0' width='1240' height='790' fill='#1B1B1F' rx='0' opacity='1'/>
+<svg xmlns='http://www.w3.org/2000/svg' width='1240' height='740' viewBox='0 0 1240 740'>
+<rect x='0' y='0' width='1240' height='740' fill='#1B1B1F' rx='0' opacity='1'/>
 <text x='20' y='26' fill='#E8E8EE' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Entity forms in the Replay Browser — read-only (house style; DESIGN_Details_Forms.md §2.4, R-4148)</text>
 <text x='20' y='44' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Annotations in grey are not drawn by the app.</text>
 <text x='20' y='76' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>A · The Replay Browser's Details panel — the SAME forms, read-only</text>
@@ -10,7 +10,7 @@
 <rect x='120' y='105' width='440' height='4' fill='#2A2A33' rx='2' opacity='1'/>
 <rect x='120' y='105' width='190' height='4' fill='#4296FA' rx='2' opacity='1'/>
 <rect x='307' y='100' width='6' height='14' fill='#FFFFFF' rx='1' opacity='1'/>
-<rect x='20' y='134' width='560' height='365' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='20' y='134' width='560' height='337' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
 <rect x='20' y='134' width='560' height='20' fill='#294A7A' rx='0' opacity='1'/>
 <text x='28' y='148' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Details — Alpha 1-1 (Rifleman, Friend)</text>
 <rect x='486.46923076923076' y='136' width='85.53076923076924' height='16' fill='#3A2E4A' rx='8' opacity='1'/>
@@ -33,57 +33,52 @@
 <path d='M393 447Q380 450 368 444Q357 438 353 425L225 -23Q222 -36 228 -48Q234 -59 247 -63Q260 -66 272 -60Q283 -54 287 -41L415 407Q418 420 412 432Q406 443 393 447ZM473 327Q464 317 464 304Q464 291 473 281L563 192L473 103Q464 93 464 80Q464 67 473 57Q483 48 496 48Q509 48 519 57L631 169Q640 179 640 192Q640 205 631 215L519 327Q509 336 496 336Q483 336 473 327ZM167 327Q157 336 144 336Q131 336 121 327L9 215Q0 205 0 192Q0 179 9 169L121 57Q131 48 144 48Q157 48 167 57Q176 67 176 80Q176 93 167 103L77 192L167 281Q176 291 176 304Q176 317 167 327Z' fill='#A0A0AA' fill-opacity='1' transform='translate(391.40000000000003,175.2060546875) scale(0.0244140625,-0.0244140625)'/>
 <text x='410.40000000000003' y='175' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Components</text>
 <rect x='28' y='181' width='544' height='1.5' fill='#3369AD' rx='0' opacity='1'/>
-<rect x='28' y='188' width='544' height='22' fill='#22283A' rx='2' opacity='1'/>
-<path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64ZM216 112H240H216H240V176H216Q194 178 192 200Q194 222 216 224H264Q286 222 288 200V112H296Q318 110 320 88Q318 66 296 64H216Q194 66 192 88Q194 110 216 112ZM256 320Q270 320 279 311Q288 302 288 288Q288 274 279 265Q270 256 256 256Q242 256 233 265Q224 274 224 288Q224 302 233 311Q242 320 256 320Z' fill='#6AB0FF' fill-opacity='1' transform='translate(36,203.654296875) scale(0.025390625,-0.025390625)'/>
-<text x='56' y='203' fill='#6AB0FF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Recording — read-only · values at 00:12:34</text>
-<text x='34' y='232' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Identity</text>
-<line x1='96.0' y1='228' x2='566' y2='228' stroke='#4A4A55' stroke-width='1'/>
-<text x='34' y='258' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Name</text>
-<rect x='164' y='244' width='380' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
-<text x='169' y='258' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Alpha 1-1</text>
-<text x='34' y='283' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Side</text>
-<rect x='164' y='269' width='380' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
-<rect x='525' y='269' width='19' height='19' fill='#23415F' rx='0' opacity='0.55'/>
-<path d='M530 276 l4.5 5 l4.5 -5 z' fill='#808080'/>
-<path d='M256 448Q263 448 269 445L458 365Q475 358 485 343Q496 328 496 308Q497 257 479 188Q461 119 414 54Q368 -12 282 -55Q256 -67 230 -55Q144 -12 98 54Q51 119 33 188Q15 257 16 308Q16 328 27 343Q37 358 54 365L243 445Q249 448 256 448ZM256 381V3V381V3Q324 38 363 92Q401 146 417 203Q432 261 432 307L256 381Z' fill='#5AA9FF' fill-opacity='1' transform='translate(169,282.7578125) scale(0.0234375,-0.0234375)'/>
-<text x='186' y='283' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Friend</text>
-<text x='34' y='308' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Type</text>
-<rect x='164' y='294' width='380' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
-<text x='169' y='308' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Rifleman (US)</text>
-<text x='34' y='331' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>State</text>
-<line x1='78.2' y1='327' x2='566' y2='327' stroke='#4A4A55' stroke-width='1'/>
-<text x='34' y='357' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Posture</text>
-<rect x='164' y='343' width='380' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
-<rect x='525' y='343' width='19' height='19' fill='#23415F' rx='0' opacity='0.55'/>
-<path d='M530 350 l4.5 5 l4.5 -5 z' fill='#808080'/>
-<text x='169' y='357' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Crouched</text>
-<text x='34' y='382' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Strength</text>
-<rect x='164' y='368' width='380' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
-<rect x='440.5' y='370' width='10' height='15' fill='#3B4C63' rx='1' opacity='1'/>
-<text x='354.0' y='382' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>75 %</text>
-<text x='34' y='407' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Rounds, M4</text>
-<text x='168' y='407' fill='#6E6E78' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>not recorded</text>
-<path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64ZM175 273Q192 287 209 273L256 226L303 273Q320 287 337 273Q351 256 337 239L290 192L337 145Q351 128 337 111Q320 97 303 111L256 158L209 111Q192 97 175 111Q161 128 175 145L222 192L175 239Q161 256 175 273Z' fill='#55555E' fill-opacity='1' transform='translate(248,405.361328125) scale(0.021484375,-0.021484375)'/>
-<text x='34' y='432' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Weapon</text>
-<rect x='164' y='418' width='380' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
-<rect x='525' y='418' width='19' height='19' fill='#23415F' rx='0' opacity='0.55'/>
-<path d='M530 425 l4.5 5 l4.5 -5 z' fill='#808080'/>
-<text x='169' y='432' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Aimed</text>
-<text x='34' y='457' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Aboard</text>
-<rect x='164' y='443' width='380' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
-<text x='169' y='457' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Truck 2 · seat 3 (passenger)</text>
-<text x='34' y='482' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Playable</text>
-<rect x='164' y='468' width='19' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
-<path d='M168 478 l4 4 l7 -9' stroke='#4296FA' stroke-width='2.2' fill='none'/>
-<rect x='240' y='471' width='250' height='26' fill='#141418' rx='3' stroke='#4A4A55' stroke-width='1' opacity='1'/>
-<text x='248' y='487' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Read-only — this is a recording.</text>
-<text x='20' y='519' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>No Apply / Revert / Undo, no pickers, no field marks (§6 read-only state).</text>
-<text x='20' y='533' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Hovering a control says why it is disabled (SetItemTooltip + AllowWhenDisabled).</text>
-<text x='20' y='547' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>'not recorded': the row's source is not in this recording (DataPolicy) —</text>
-<text x='20' y='561' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>never a blank or a default that looks like a value.</text>
+<text x='34' y='204' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Identity</text>
+<line x1='96.0' y1='200' x2='566' y2='200' stroke='#4A4A55' stroke-width='1'/>
+<text x='34' y='230' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Name</text>
+<rect x='164' y='216' width='380' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
+<text x='169' y='230' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Alpha 1-1</text>
+<text x='34' y='255' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Side</text>
+<rect x='164' y='241' width='380' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
+<rect x='525' y='241' width='19' height='19' fill='#23415F' rx='0' opacity='0.55'/>
+<path d='M530 248 l4.5 5 l4.5 -5 z' fill='#808080'/>
+<path d='M256 448Q263 448 269 445L458 365Q475 358 485 343Q496 328 496 308Q497 257 479 188Q461 119 414 54Q368 -12 282 -55Q256 -67 230 -55Q144 -12 98 54Q51 119 33 188Q15 257 16 308Q16 328 27 343Q37 358 54 365L243 445Q249 448 256 448ZM256 381V3V381V3Q324 38 363 92Q401 146 417 203Q432 261 432 307L256 381Z' fill='#5AA9FF' fill-opacity='1' transform='translate(169,254.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='186' y='255' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Friend</text>
+<text x='34' y='280' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Type</text>
+<rect x='164' y='266' width='380' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
+<text x='169' y='280' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Rifleman (US)</text>
+<text x='34' y='303' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>State</text>
+<line x1='78.2' y1='299' x2='566' y2='299' stroke='#4A4A55' stroke-width='1'/>
+<text x='34' y='329' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Posture</text>
+<rect x='164' y='315' width='380' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
+<rect x='525' y='315' width='19' height='19' fill='#23415F' rx='0' opacity='0.55'/>
+<path d='M530 322 l4.5 5 l4.5 -5 z' fill='#808080'/>
+<text x='169' y='329' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Crouched</text>
+<text x='34' y='354' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Strength</text>
+<rect x='164' y='340' width='380' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
+<rect x='440.5' y='342' width='10' height='15' fill='#3B4C63' rx='1' opacity='1'/>
+<text x='354.0' y='354' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>75 %</text>
+<text x='34' y='379' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Rounds, M4</text>
+<text x='168' y='379' fill='#6E6E78' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>not recorded</text>
+<path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64ZM175 273Q192 287 209 273L256 226L303 273Q320 287 337 273Q351 256 337 239L290 192L337 145Q351 128 337 111Q320 97 303 111L256 158L209 111Q192 97 175 111Q161 128 175 145L222 192L175 239Q161 256 175 273Z' fill='#55555E' fill-opacity='1' transform='translate(248,377.361328125) scale(0.021484375,-0.021484375)'/>
+<text x='34' y='404' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Weapon</text>
+<rect x='164' y='390' width='380' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
+<rect x='525' y='390' width='19' height='19' fill='#23415F' rx='0' opacity='0.55'/>
+<path d='M530 397 l4.5 5 l4.5 -5 z' fill='#808080'/>
+<text x='169' y='404' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Aimed</text>
+<text x='34' y='429' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Aboard</text>
+<rect x='164' y='415' width='380' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
+<text x='169' y='429' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Truck 2 · seat 3 (passenger)</text>
+<text x='34' y='454' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Playable</text>
+<rect x='164' y='440' width='19' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
+<path d='M168 450 l4 4 l7 -9' stroke='#4296FA' stroke-width='2.2' fill='none'/>
+<text x='20' y='491' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Grey says it: no banner, no tooltip (R-4150) — the Recording chip, the time axis and</text>
+<text x='20' y='505' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the main bar's clock already say where and when. No Apply / Revert / Undo, no pickers.</text>
+<text x='20' y='519' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>'not recorded': the row's source is not in this recording (DataPolicy) —</text>
+<text x='20' y='533' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>never a blank or a default that looks like a value.</text>
 <text x='640' y='76' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>B · Seek — the values follow the playhead</text>
 <line x1='899.0' y1='72' x2='1220' y2='72' stroke='#4A4A55' stroke-width='1'/>
-<rect x='640' y='92' width='580' height='216' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='640' y='92' width='580' height='188' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
 <rect x='640' y='92' width='580' height='20' fill='#294A7A' rx='0' opacity='1'/>
 <text x='648' y='106' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Details — Alpha 1-1 (Rifleman, Friend)</text>
 <rect x='1126.4692307692308' y='94' width='85.53076923076924' height='16' fill='#3A2E4A' rx='8' opacity='1'/>
@@ -106,42 +101,39 @@
 <path d='M393 447Q380 450 368 444Q357 438 353 425L225 -23Q222 -36 228 -48Q234 -59 247 -63Q260 -66 272 -60Q283 -54 287 -41L415 407Q418 420 412 432Q406 443 393 447ZM473 327Q464 317 464 304Q464 291 473 281L563 192L473 103Q464 93 464 80Q464 67 473 57Q483 48 496 48Q509 48 519 57L631 169Q640 179 640 192Q640 205 631 215L519 327Q509 336 496 336Q483 336 473 327ZM167 327Q157 336 144 336Q131 336 121 327L9 215Q0 205 0 192Q0 179 9 169L121 57Q131 48 144 48Q157 48 167 57Q176 67 176 80Q176 93 167 103L77 192L167 281Q176 291 176 304Q176 317 167 327Z' fill='#A0A0AA' fill-opacity='1' transform='translate(1011.4,133.2060546875) scale(0.0244140625,-0.0244140625)'/>
 <text x='1030.4' y='133' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Components</text>
 <rect x='648' y='139' width='564' height='1.5' fill='#3369AD' rx='0' opacity='1'/>
-<rect x='648' y='146' width='564' height='22' fill='#22283A' rx='2' opacity='1'/>
-<path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64ZM216 112H240H216H240V176H216Q194 178 192 200Q194 222 216 224H264Q286 222 288 200V112H296Q318 110 320 88Q318 66 296 64H216Q194 66 192 88Q194 110 216 112ZM256 320Q270 320 279 311Q288 302 288 288Q288 274 279 265Q270 256 256 256Q242 256 233 265Q224 274 224 288Q224 302 233 311Q242 320 256 320Z' fill='#6AB0FF' fill-opacity='1' transform='translate(656,161.654296875) scale(0.025390625,-0.025390625)'/>
-<text x='676' y='161' fill='#6AB0FF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Recording — read-only · values at 00:14:02</text>
-<text x='654' y='190' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>State</text>
-<line x1='698.2' y1='186' x2='1206' y2='186' stroke='#4A4A55' stroke-width='1'/>
-<rect x='646' y='199' width='568' height='25' fill='#1E2A3E' rx='0' opacity='1'/>
-<text x='654' y='216' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Posture</text>
-<rect x='784' y='202' width='400' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
-<rect x='1165' y='202' width='19' height='19' fill='#23415F' rx='0' opacity='0.55'/>
-<path d='M1170 209 l4.5 5 l4.5 -5 z' fill='#808080'/>
-<text x='789' y='216' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Prone</text>
-<path d='M75 373 41 407 75 373 41 407Q29 418 15 412Q1 407 0 390V280Q2 258 24 256H134Q151 257 156 271Q162 285 151 297L120 328Q174 382 256 384Q338 382 392 328Q446 274 448 192Q446 110 392 56Q338 2 256 0Q194 1 146 34Q135 42 122 40Q110 37 102 26Q94 15 96 3Q99 -10 110 -18Q173 -63 256 -64Q328 -63 385 -29Q443 5 477 63Q511 120 512 192Q511 264 477 321Q443 379 385 413Q328 447 256 448Q203 448 156 428Q110 408 75 373ZM256 320Q234 318 232 296V192Q232 182 239 175L311 103Q328 89 345 103Q359 120 345 137L280 202V296Q278 318 256 320Z' fill='#6AB0FF' fill-opacity='1' transform='translate(1190,213.861328125) scale(0.021484375,-0.021484375)'/>
-<rect x='646' y='224' width='568' height='25' fill='#1E2A3E' rx='0' opacity='1'/>
-<text x='654' y='241' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Strength</text>
-<rect x='784' y='227' width='400' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
-<rect x='940.4' y='229' width='10' height='15' fill='#3B4C63' rx='1' opacity='1'/>
-<text x='984.0' y='241' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>40 %</text>
-<path d='M75 373 41 407 75 373 41 407Q29 418 15 412Q1 407 0 390V280Q2 258 24 256H134Q151 257 156 271Q162 285 151 297L120 328Q174 382 256 384Q338 382 392 328Q446 274 448 192Q446 110 392 56Q338 2 256 0Q194 1 146 34Q135 42 122 40Q110 37 102 26Q94 15 96 3Q99 -10 110 -18Q173 -63 256 -64Q328 -63 385 -29Q443 5 477 63Q511 120 512 192Q511 264 477 321Q443 379 385 413Q328 447 256 448Q203 448 156 428Q110 408 75 373ZM256 320Q234 318 232 296V192Q232 182 239 175L311 103Q328 89 345 103Q359 120 345 137L280 202V296Q278 318 256 320Z' fill='#6AB0FF' fill-opacity='1' transform='translate(1190,238.861328125) scale(0.021484375,-0.021484375)'/>
-<rect x='646' y='249' width='568' height='25' fill='#1E2A3E' rx='0' opacity='1'/>
-<text x='654' y='266' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Weapon</text>
-<rect x='784' y='252' width='400' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
-<rect x='1165' y='252' width='19' height='19' fill='#23415F' rx='0' opacity='0.55'/>
-<path d='M1170 259 l4.5 5 l4.5 -5 z' fill='#808080'/>
-<text x='789' y='266' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>At ease</text>
-<path d='M75 373 41 407 75 373 41 407Q29 418 15 412Q1 407 0 390V280Q2 258 24 256H134Q151 257 156 271Q162 285 151 297L120 328Q174 382 256 384Q338 382 392 328Q446 274 448 192Q446 110 392 56Q338 2 256 0Q194 1 146 34Q135 42 122 40Q110 37 102 26Q94 15 96 3Q99 -10 110 -18Q173 -63 256 -64Q328 -63 385 -29Q443 5 477 63Q511 120 512 192Q511 264 477 321Q443 379 385 413Q328 447 256 448Q203 448 156 428Q110 408 75 373ZM256 320Q234 318 232 296V192Q232 182 239 175L311 103Q328 89 345 103Q359 120 345 137L280 202V296Q278 318 256 320Z' fill='#6AB0FF' fill-opacity='1' transform='translate(1190,263.861328125) scale(0.021484375,-0.021484375)'/>
-<rect x='646' y='274' width='568' height='25' fill='#1E2A3E' rx='0' opacity='1'/>
-<text x='654' y='291' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Aboard</text>
-<rect x='784' y='277' width='400' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
-<text x='789' y='291' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>—</text>
-<path d='M75 373 41 407 75 373 41 407Q29 418 15 412Q1 407 0 390V280Q2 258 24 256H134Q151 257 156 271Q162 285 151 297L120 328Q174 382 256 384Q338 382 392 328Q446 274 448 192Q446 110 392 56Q338 2 256 0Q194 1 146 34Q135 42 122 40Q110 37 102 26Q94 15 96 3Q99 -10 110 -18Q173 -63 256 -64Q328 -63 385 -29Q443 5 477 63Q511 120 512 192Q511 264 477 321Q443 379 385 413Q328 447 256 448Q203 448 156 428Q110 408 75 373ZM256 320Q234 318 232 296V192Q232 182 239 175L311 103Q328 89 345 103Q359 120 345 137L280 202V296Q278 318 256 320Z' fill='#6AB0FF' fill-opacity='1' transform='translate(1190,288.861328125) scale(0.021484375,-0.021484375)'/>
-<text x='640' y='328' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>After a seek, each row whose value changed is tinted for ~1 s and shows</text>
-<text x='640' y='342' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the clock glyph (Q-R1) — the eye finds what the jump changed.</text>
-<text x='640' y='356' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>During normal play nothing flashes: values just update (0 B per frame).</text>
+<text x='654' y='162' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>State</text>
+<line x1='698.2' y1='158' x2='1206' y2='158' stroke='#4A4A55' stroke-width='1'/>
+<rect x='646' y='171' width='568' height='25' fill='#1E2A3E' rx='0' opacity='1'/>
+<text x='654' y='188' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Posture</text>
+<rect x='784' y='174' width='400' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
+<rect x='1165' y='174' width='19' height='19' fill='#23415F' rx='0' opacity='0.55'/>
+<path d='M1170 181 l4.5 5 l4.5 -5 z' fill='#808080'/>
+<text x='789' y='188' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Prone</text>
+<path d='M75 373 41 407 75 373 41 407Q29 418 15 412Q1 407 0 390V280Q2 258 24 256H134Q151 257 156 271Q162 285 151 297L120 328Q174 382 256 384Q338 382 392 328Q446 274 448 192Q446 110 392 56Q338 2 256 0Q194 1 146 34Q135 42 122 40Q110 37 102 26Q94 15 96 3Q99 -10 110 -18Q173 -63 256 -64Q328 -63 385 -29Q443 5 477 63Q511 120 512 192Q511 264 477 321Q443 379 385 413Q328 447 256 448Q203 448 156 428Q110 408 75 373ZM256 320Q234 318 232 296V192Q232 182 239 175L311 103Q328 89 345 103Q359 120 345 137L280 202V296Q278 318 256 320Z' fill='#6AB0FF' fill-opacity='1' transform='translate(1190,185.861328125) scale(0.021484375,-0.021484375)'/>
+<rect x='646' y='196' width='568' height='25' fill='#1E2A3E' rx='0' opacity='1'/>
+<text x='654' y='213' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Strength</text>
+<rect x='784' y='199' width='400' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
+<rect x='940.4' y='201' width='10' height='15' fill='#3B4C63' rx='1' opacity='1'/>
+<text x='984.0' y='213' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>40 %</text>
+<path d='M75 373 41 407 75 373 41 407Q29 418 15 412Q1 407 0 390V280Q2 258 24 256H134Q151 257 156 271Q162 285 151 297L120 328Q174 382 256 384Q338 382 392 328Q446 274 448 192Q446 110 392 56Q338 2 256 0Q194 1 146 34Q135 42 122 40Q110 37 102 26Q94 15 96 3Q99 -10 110 -18Q173 -63 256 -64Q328 -63 385 -29Q443 5 477 63Q511 120 512 192Q511 264 477 321Q443 379 385 413Q328 447 256 448Q203 448 156 428Q110 408 75 373ZM256 320Q234 318 232 296V192Q232 182 239 175L311 103Q328 89 345 103Q359 120 345 137L280 202V296Q278 318 256 320Z' fill='#6AB0FF' fill-opacity='1' transform='translate(1190,210.861328125) scale(0.021484375,-0.021484375)'/>
+<rect x='646' y='221' width='568' height='25' fill='#1E2A3E' rx='0' opacity='1'/>
+<text x='654' y='238' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Weapon</text>
+<rect x='784' y='224' width='400' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
+<rect x='1165' y='224' width='19' height='19' fill='#23415F' rx='0' opacity='0.55'/>
+<path d='M1170 231 l4.5 5 l4.5 -5 z' fill='#808080'/>
+<text x='789' y='238' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>At ease</text>
+<path d='M75 373 41 407 75 373 41 407Q29 418 15 412Q1 407 0 390V280Q2 258 24 256H134Q151 257 156 271Q162 285 151 297L120 328Q174 382 256 384Q338 382 392 328Q446 274 448 192Q446 110 392 56Q338 2 256 0Q194 1 146 34Q135 42 122 40Q110 37 102 26Q94 15 96 3Q99 -10 110 -18Q173 -63 256 -64Q328 -63 385 -29Q443 5 477 63Q511 120 512 192Q511 264 477 321Q443 379 385 413Q328 447 256 448Q203 448 156 428Q110 408 75 373ZM256 320Q234 318 232 296V192Q232 182 239 175L311 103Q328 89 345 103Q359 120 345 137L280 202V296Q278 318 256 320Z' fill='#6AB0FF' fill-opacity='1' transform='translate(1190,235.861328125) scale(0.021484375,-0.021484375)'/>
+<rect x='646' y='246' width='568' height='25' fill='#1E2A3E' rx='0' opacity='1'/>
+<text x='654' y='263' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Aboard</text>
+<rect x='784' y='249' width='400' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
+<text x='789' y='263' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>—</text>
+<path d='M75 373 41 407 75 373 41 407Q29 418 15 412Q1 407 0 390V280Q2 258 24 256H134Q151 257 156 271Q162 285 151 297L120 328Q174 382 256 384Q338 382 392 328Q446 274 448 192Q446 110 392 56Q338 2 256 0Q194 1 146 34Q135 42 122 40Q110 37 102 26Q94 15 96 3Q99 -10 110 -18Q173 -63 256 -64Q328 -63 385 -29Q443 5 477 63Q511 120 512 192Q511 264 477 321Q443 379 385 413Q328 447 256 448Q203 448 156 428Q110 408 75 373ZM256 320Q234 318 232 296V192Q232 182 239 175L311 103Q328 89 345 103Q359 120 345 137L280 202V296Q278 318 256 320Z' fill='#6AB0FF' fill-opacity='1' transform='translate(1190,260.861328125) scale(0.021484375,-0.021484375)'/>
+<text x='640' y='300' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>After a seek, each row whose value changed is tinted for ~1 s and shows</text>
+<text x='640' y='314' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the clock glyph (Q-R1) — the eye finds what the jump changed.</text>
+<text x='640' y='328' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>During normal play nothing flashes: values just update (0 B per frame).</text>
 <text x='640' y='384' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>C · The Brain tab's Character, and copying a value</text>
 <line x1='955.6' y1='380' x2='1220' y2='380' stroke='#4A4A55' stroke-width='1'/>
-<rect x='640' y='400' width='580' height='205' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='640' y='400' width='580' height='175' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
 <rect x='640' y='400' width='580' height='20' fill='#294A7A' rx='0' opacity='1'/>
 <text x='648' y='414' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Details — Alpha 1-1 (Rifleman, Friend)</text>
 <path d='M648 447 L648 430 Q648 426 652 426 L711.4 426 Q715.4 426 715.4 430 L715.4 447 Z' fill='#24242C'/>
@@ -161,36 +153,33 @@
 <path d='M393 447Q380 450 368 444Q357 438 353 425L225 -23Q222 -36 228 -48Q234 -59 247 -63Q260 -66 272 -60Q283 -54 287 -41L415 407Q418 420 412 432Q406 443 393 447ZM473 327Q464 317 464 304Q464 291 473 281L563 192L473 103Q464 93 464 80Q464 67 473 57Q483 48 496 48Q509 48 519 57L631 169Q640 179 640 192Q640 205 631 215L519 327Q509 336 496 336Q483 336 473 327ZM167 327Q157 336 144 336Q131 336 121 327L9 215Q0 205 0 192Q0 179 9 169L121 57Q131 48 144 48Q157 48 167 57Q176 67 176 80Q176 93 167 103L77 192L167 281Q176 291 176 304Q176 317 167 327Z' fill='#A0A0AA' fill-opacity='1' transform='translate(1011.4,441.2060546875) scale(0.0244140625,-0.0244140625)'/>
 <text x='1030.4' y='441' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Components</text>
 <rect x='648' y='447' width='564' height='1.5' fill='#3369AD' rx='0' opacity='1'/>
-<rect x='648' y='454' width='564' height='22' fill='#22283A' rx='2' opacity='1'/>
-<path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64ZM216 112H240H216H240V176H216Q194 178 192 200Q194 222 216 224H264Q286 222 288 200V112H296Q318 110 320 88Q318 66 296 64H216Q194 66 192 88Q194 110 216 112ZM256 320Q270 320 279 311Q288 302 288 288Q288 274 279 265Q270 256 256 256Q242 256 233 265Q224 274 224 288Q224 302 233 311Q242 320 256 320Z' fill='#6AB0FF' fill-opacity='1' transform='translate(656,469.654296875) scale(0.025390625,-0.025390625)'/>
-<text x='676' y='469' fill='#6AB0FF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Recording — read-only · values at 00:12:34</text>
-<text x='654' y='498' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Character</text>
-<line x1='725.8' y1='494' x2='1206' y2='494' stroke='#4A4A55' stroke-width='1'/>
-<text x='654' y='526' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Skill</text>
-<rect x='784' y='512' width='410' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
-<rect x='1003.8' y='514' width='10' height='15' fill='#3B4C63' rx='1' opacity='1'/>
-<text x='989.0' y='526' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Regular · from the unit</text>
-<text x='654' y='551' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Aggressiveness</text>
-<rect x='784' y='537' width='410' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
-<rect x='1063.2' y='539' width='10' height='15' fill='#3B4C63' rx='1' opacity='1'/>
-<text x='989.0' y='551' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Bold</text>
-<text x='654' y='576' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Doing</text>
-<rect x='784' y='562' width='410' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
-<text x='789' y='576' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Move to OBJ Bridge · step 2 of 4</text>
-<rect x='1010' y='548' width='180' height='83' fill='#141418' rx='3' stroke='#4A4A55' stroke-width='1' opacity='1'/>
-<path d='M208 448H332H208H332Q352 448 366 434L434 366Q448 352 448 332V112Q447 92 434 78Q420 65 400 64H208Q188 65 174 78Q161 92 160 112V400Q161 420 174 434Q188 447 208 448ZM48 320H128H48H128V256H64V0H256V32H320V-16Q319 -36 306 -50Q292 -63 272 -64H48Q28 -63 14 -50Q1 -36 0 -16V272Q1 292 14 306Q28 319 48 320Z' fill='#A0A0AA' fill-opacity='1' transform='translate(1020,567.2060546875) scale(0.0244140625,-0.0244140625)'/>
-<text x='1040' y='567' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Copy value</text>
-<text x='1180' y='567' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>Ctrl+C</text>
-<path d='M160 448Q123 446 105 416H48Q28 415 14 402Q1 388 0 368V48Q1 28 14 14Q28 1 48 0H192V272Q193 306 215 329Q238 351 272 352H320V368Q319 388 306 402Q292 415 272 416H215Q197 446 160 448ZM272 320Q252 319 238 306Q225 292 224 272V0V-16Q225 -36 238 -50Q252 -63 272 -64H464Q484 -63 498 -50Q511 -36 512 -16V204Q512 224 498 238L430 306Q416 320 396 320H320ZM160 408Q182 406 184 384Q182 362 160 360Q138 362 136 384Q138 406 160 408Z' fill='#A0A0AA' fill-opacity='1' transform='translate(1020,589.2060546875) scale(0.0244140625,-0.0244140625)'/>
-<text x='1040' y='589' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Copy the whole form</text>
-<line x1='1016' y1='600' x2='1184' y2='600' stroke='#4A4A55' stroke-width='1'/>
-<path d='M363 429 314 380 363 429 314 380 444 250 493 299Q511 318 511 344Q511 369 493 389L453 429Q434 447 408 447Q383 447 363 429ZM292 358 59 124 292 358 59 124Q43 109 36 87L1 -33Q-3 -47 7 -57Q17 -67 31 -63L151 -28Q172 -21 188 -6L422 228L292 358Z' fill='#A0A0AA' fill-opacity='0.45' transform='translate(1020,620.2060546875) scale(0.0244140625,-0.0244140625)'/>
-<text x='1040' y='620' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Edit…</text>
-<text x='1083.3' y='620' fill='#6E6E78' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>— a recording</text>
-<text x='640' y='648' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Right-click a row: Copy value / Copy the whole form (text, for a report) — the only</text>
-<text x='640' y='662' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>actions in read-only (Q-R3). Edit is listed greyed with its reason, like every menu (R-4132).</text>
-<text x='20' y='724' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>D · One rule, every host</text>
-<line x1='174.70000000000002' y1='720' x2='1220' y2='720' stroke='#4A4A55' stroke-width='1'/>
-<text x='20' y='738' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Editable = ONE function of (run state, edit mode, authority): Replay ⇒ read-only, the same as the editor's Review mode.</text>
-<text x='20' y='752' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The chip names the reason: Edit mode (green) · Live (amber) · Review (blue) · Recording (violet). The form has no 'if replay'.</text>
+<text x='654' y='470' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Character</text>
+<line x1='725.8' y1='466' x2='1206' y2='466' stroke='#4A4A55' stroke-width='1'/>
+<text x='654' y='498' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Skill</text>
+<rect x='784' y='484' width='410' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
+<rect x='1003.8' y='486' width='10' height='15' fill='#3B4C63' rx='1' opacity='1'/>
+<text x='989.0' y='498' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Regular · from the unit</text>
+<text x='654' y='523' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Aggressiveness</text>
+<rect x='784' y='509' width='410' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
+<rect x='1063.2' y='511' width='10' height='15' fill='#3B4C63' rx='1' opacity='1'/>
+<text x='989.0' y='523' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Bold</text>
+<text x='654' y='548' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Doing</text>
+<rect x='784' y='534' width='410' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
+<text x='789' y='548' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Move to OBJ Bridge · step 2 of 4</text>
+<rect x='1010' y='520' width='180' height='83' fill='#141418' rx='3' stroke='#4A4A55' stroke-width='1' opacity='1'/>
+<path d='M208 448H332H208H332Q352 448 366 434L434 366Q448 352 448 332V112Q447 92 434 78Q420 65 400 64H208Q188 65 174 78Q161 92 160 112V400Q161 420 174 434Q188 447 208 448ZM48 320H128H48H128V256H64V0H256V32H320V-16Q319 -36 306 -50Q292 -63 272 -64H48Q28 -63 14 -50Q1 -36 0 -16V272Q1 292 14 306Q28 319 48 320Z' fill='#A0A0AA' fill-opacity='1' transform='translate(1020,539.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='1040' y='539' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Copy value</text>
+<text x='1180' y='539' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>Ctrl+C</text>
+<path d='M160 448Q123 446 105 416H48Q28 415 14 402Q1 388 0 368V48Q1 28 14 14Q28 1 48 0H192V272Q193 306 215 329Q238 351 272 352H320V368Q319 388 306 402Q292 415 272 416H215Q197 446 160 448ZM272 320Q252 319 238 306Q225 292 224 272V0V-16Q225 -36 238 -50Q252 -63 272 -64H464Q484 -63 498 -50Q511 -36 512 -16V204Q512 224 498 238L430 306Q416 320 396 320H320ZM160 408Q182 406 184 384Q182 362 160 360Q138 362 136 384Q138 406 160 408Z' fill='#A0A0AA' fill-opacity='1' transform='translate(1020,561.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='1040' y='561' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Copy the whole form</text>
+<line x1='1016' y1='572' x2='1184' y2='572' stroke='#4A4A55' stroke-width='1'/>
+<path d='M363 429 314 380 363 429 314 380 444 250 493 299Q511 318 511 344Q511 369 493 389L453 429Q434 447 408 447Q383 447 363 429ZM292 358 59 124 292 358 59 124Q43 109 36 87L1 -33Q-3 -47 7 -57Q17 -67 31 -63L151 -28Q172 -21 188 -6L422 228L292 358Z' fill='#A0A0AA' fill-opacity='0.45' transform='translate(1020,592.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<text x='1040' y='592' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Edit…</text>
+<text x='1083.3' y='592' fill='#6E6E78' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>— a recording</text>
+<text x='640' y='616' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Right-click a row: Copy value / Copy the whole form (text, for a report) — the only</text>
+<text x='640' y='630' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>actions in read-only (Q-R3). Edit is listed greyed with its reason, like every menu (R-4132).</text>
+<text x='20' y='692' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>D · One rule, every host</text>
+<line x1='174.70000000000002' y1='688' x2='1220' y2='688' stroke='#4A4A55' stroke-width='1'/>
+<text x='20' y='706' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Editable = ONE function of (run state, edit mode, authority): Replay ⇒ read-only, the same as the editor's Review mode.</text>
+<text x='20' y='720' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The chip names the reason: Edit mode (green) · Live (amber) · Review (blue) · Recording (violet). The form has no 'if replay'.</text>
 </svg>

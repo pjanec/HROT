@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level, ✅ APPROVED Q1–Q8 by the user 2026-11-06 (R-4136); ui builds the forms, backend the attributes (R-4123)
-updated: 2026-11-06 (§2.4 the forms in every host, read-only in the replay browser — user, R-4148) · 2026-11-06 (marks are COLOURED FontAwesome glyphs, not Silk — user, R-4139) · 2026-11-06 (§6 approved, R-4138; §6.6 fidelity) · 2026-11-06 (§6 the visual design — every row state, multi-select, read-only, conflict, notifications; ImGui-feasible; for review) · 2026-11-06 (Q7 revised by the user: posture is a Unit form row — StanceIntent saved, seeded at load, set at once while paused) · 2026-11-06 (revised after the user's review: the raw editor is local BY DESIGN — CE-4283 refuted; every open point measured: the leaf editors through ScalarEditBox, ammunition, posture, weather, routes (CE-4284), embarkation; Q5 replaced, Q7–Q8 added) · 2026-11-06 (first version — coordinator; editing-UX design queue item 8: E2, D3 / D7 and the raw inspector fixes)
+updated: 2026-11-06 (read-only = grey only: no banner, no tooltip — user, R-4150; §2.4 mockup) · 2026-11-06 (§2.4 the forms in every host, read-only in the replay browser — user, R-4148) · 2026-11-06 (marks are COLOURED FontAwesome glyphs, not Silk — user, R-4139) · 2026-11-06 (§6 approved, R-4138; §6.6 fidelity) · 2026-11-06 (§6 the visual design — every row state, multi-select, read-only, conflict, notifications; ImGui-feasible; for review) · 2026-11-06 (Q7 revised by the user: posture is a Unit form row — StanceIntent saved, seeded at load, set at once while paused) · 2026-11-06 (revised after the user's review: the raw editor is local BY DESIGN — CE-4283 refuted; every open point measured: the leaf editors through ScalarEditBox, ammunition, posture, weather, routes (CE-4284), embarkation; Q5 replaced, Q7–Q8 added) · 2026-11-06 (first version — coordinator; editing-UX design queue item 8: E2, D3 / D7 and the raw inspector fixes)
 current-answer: §2 the model (§2.4 every host, read-only in the replay browser — R-4148) · §3 the four forms · §4 stages · §5 questions (approved) · §6 the visual design (approved, R-4138) with §6.6 fidelity
 stale-below: nothing
 known-rot: none
@@ -192,7 +192,7 @@ SIM host or usual ECS enabled hosts."*
 | ⭐ the rule | |
 |---|---|
 | **editable = ONE function** of (run state, edit mode, authority): `Replay` ⇒ read-only, like Review | ⛔ no host-specific "if replay" in a form; the same function the Brain view already applies (`EntityBrainView.cs:463-468`) |
-| **read-only looks like §6's read-only state**: the banner *"Recording — read-only"*, the form in `BeginDisabled`, no marks, no pickers, no Apply | the values still update as the replay plays and seeks (the form reads the world each frame, 0 B) |
+| **read-only looks like §6's read-only state**: the form in `BeginDisabled` (grey), no marks, no pickers, no Apply — ✏ **no banner, no tooltip** (R-4150: grey says it; the Recording chip, the time axis and the main bar's clock say where and when) | the values still update as the replay plays and seeks (the form reads the world each frame, 0 B) |
 | **a row reads only the world** (components, the attribute vocabulary's READ side) — never a live-only service | ⭐ that is what makes it work on a recording |
 | **a row whose source is not in the recording says so**: *"not recorded"*, dimmed | ⛔ never a blank or a default that looks like a value. 📐 Sampled sources all record (`DataPolicy.Default`: `Health`, `PassengerBuffer`, `CombatProficiency`, `CombatTemperament`, `Playable`, `SpawnArea`; `NoScenario` only skips the save: `StanceIntent`, `WeaponPosture`) |
 | **the same for everything about entity state** — the Initial-state rows (E15), the Brain tab's Character, the Shape form | the hosts list is the bundle's, not each form's |
@@ -204,9 +204,9 @@ SIM host or usual ECS enabled hosts."*
 | element | ImGui |
 |---|---|
 | the title-bar chip | **Recording** (violet, `Video` glyph) — one chip per reason: Edit mode (green) · Live (amber) · Review (blue) · Recording (violet) |
-| the banner | `Info` glyph + *"Recording — read-only · values at <playhead time>"*, the §6 read-only band; the time follows the playhead |
+| ~~the banner~~ | ⛔ **none** (R-4150) — *"no need for the blue banner saying that we are in read-only replaying mode and at what time"* |
 | a row | §6's row inside `BeginDisabled`; the label in the disabled text colour; no status slot marks, no pickers, no Apply / Revert / Undo |
-| hover | `SetItemTooltip` with `AllowWhenDisabled`: *"Read-only — this is a recording."* |
+| ~~hover~~ | ⛔ **no tooltip** on a control disabled by the run state (R-4150) — ⭐ a row disabled for a reason the screen does NOT show (a seat's rights, §6.2) keeps its reason tooltip |
 | not recorded | dim text *"not recorded"* + a dim `CircleXmark`; tooltip names the reason (the component's `DataPolicy`) |
 | after a seek | each row whose value changed is tinted (`Info` at low alpha) for ~1 s with a `ClockRotateLeft` glyph in the status slot (Q-R1); normal play does not flash |
 | row menu | right-click: *Copy value* (Ctrl+C) · *Copy the whole form* (text) · *Edit…* greyed with *"a recording"* (Q-R3, R-4132's greyed-with-reason) |
@@ -218,7 +218,7 @@ SIM host or usual ECS enabled hosts."*
 | **Q-R3** | actions in read-only | **Copy value / Copy the whole form**, Edit listed greyed with the reason | no menu — copying a value into a report is the common need |
 
 ⭐ **Acceptance:** a frame rail composes the bundle over a recorded world with `RunState.Replay`: every form row drawn, every control disabled,
-the banner shown, zero writes reach any write seam, and a seek changes the shown values.
+no banner drawn, zero writes reach any write seam, and a seek changes the shown values.
 
 ## 3. The four forms
 
@@ -300,7 +300,7 @@ notification, because the form may not be in view.
 | **not allowed for this seat / level** | `BeginDisabled()` on the row; `Lock` in `Muted` in the slot; tooltip with `AllowWhenDisabled`: *"Your seat (Observer) cannot change Skill"* | never hidden (R-4119: greyed with the reason) |
 | **authored ≠ type** (skill, temperament) | `RotateLeft` in `Info` in the slot, a frameless button; tooltip *"Type 0.50 — reset"*; click = the reset attribute | the label shows the type value too |
 | **mixed** (multi-select) | an un-ticked `Checkbox` before the label; the control disabled with `InputTextWithHint("", "— mixed (3 values) —")`; a combo's preview the same hint; a checkbox value ⇒ a hand-drawn bar | Eden's rule (programme §3.3): tick ⇒ one value for all, ONE undo step |
-| **read-only** (Review, AAR) | a banner (`Info` text on a dim band) + the whole form in `BeginDisabled()` | no marks, no pickers |
+| **read-only** (Review, AAR, the Replay Browser) | the whole form in `BeginDisabled()` — grey only; ✏ **no banner, no tooltip** (R-4150: the mode chip, the time axis and the main bar already say it) | no marks, no pickers |
 | **conflict** (precondition edits only) | a band at the top of the committing form: `TriangleExclamation` in `Pending`, `Reload` · `Overwrite` buttons | + a notification |
 | **expert detail** | `CollapsingHeader("Details for experts")` at the bottom; the panel's Expert switch opens it (D7) | — |
 | **a sticky notification** | a stack of small windows pinned top-right of the main viewport (`SetNextWindowPos` + `NoDecoration`, `NoFocusOnAppearing`), each a coloured left bar, the glyph, a title line, a body line, buttons (*Show*, *Reload*, *Overwrite*), × to dismiss; at most 3 shown, *+N more* | stays until dismissed (R-4127); the Messages panel keeps the history |
@@ -312,7 +312,7 @@ notification, because the form may not be in view.
 | `Error` | 0.90 · 0.33 · 0.33 | refused, lost, invalid input | "changed" (Q-V4) |
 | `ErrorRowTint` | Error at 18 % | the refused row's background | — |
 | `Pending` | 0.95 · 0.75 · 0.20 | pending, conflict band | warnings that are not about an edit |
-| `Info` | 0.42 · 0.69 · 1.00 (ImGui's accent family) | reset-to-type, read-only banner | errors |
+| `Info` | 0.42 · 0.69 · 1.00 (ImGui's accent family) | reset-to-type | errors |
 | `Muted` | ImGui `TextDisabled` | locked rows, hints, units | — |
 
 ⭐ **No state is shown by colour alone** — each has its own icon shape (cross · hourglass · lock · arrow · triangle), so a colour-blind user
