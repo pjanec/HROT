@@ -37,6 +37,10 @@ namespace Fdp.Toolkit.Replication.Edits
         /// <summary>What the user did, in their words ("Rename Alpha 1-1").</summary>
         public string Label { get; init; } = string.Empty;
 
+        /// <summary><see cref="EditKind.Create"/>: the host's creation affordance, called once with the request id <see cref="Edits.Submit"/> minted
+        /// (Hrot: <c>EntityCreation.RequestEntityCreation(…, requestId: id)</c>). ⭐ The toolkit knows no creation request; the host's affordance stays the ONE author path (R-145).</summary>
+        public Action<Guid>? Send { get; init; }
+
         /// <summary>True for <see cref="SetCommander"/>'s op.</summary>
         public bool IsCommanderWrite { get; init; }
 
@@ -44,6 +48,14 @@ namespace Fdp.Toolkit.Replication.Edits
             => new() { Kind = EditKind.Write, Target = target, Changes = changes ?? throw new ArgumentNullException(nameof(changes)), Label = label ?? string.Empty };
 
         public static EditOp Write(Entity target, EntityAttributeChange change, string label) => Write(target, new[] { change }, label);
+
+        /// <summary>⭐ F2 — a creation: <paramref name="send"/> publishes the request under the id it is given; the processing node answers with <c>EntityEditOutcome</c>.</summary>
+        public static EditOp Create(Action<Guid> send, string label)
+            => new() { Kind = EditKind.Create, Send = send ?? throw new ArgumentNullException(nameof(send)), Label = label ?? string.Empty };
+
+        /// <summary>⭐ F2 (CE-4276) — a deletion, carrying its request id end to end; the owner tears it down and answers.</summary>
+        public static EditOp Delete(Entity target, string label)
+            => new() { Kind = EditKind.Delete, Target = target, Label = label ?? string.Empty };
 
         public static EditOp WritePatch(Entity target, string patchJson, string label)
             => new() { Kind = EditKind.Write, Target = target, PatchJson = patchJson ?? throw new ArgumentNullException(nameof(patchJson)), Label = label ?? string.Empty };

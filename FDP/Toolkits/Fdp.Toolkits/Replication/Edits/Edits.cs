@@ -11,7 +11,8 @@ namespace Fdp.Toolkit.Replication.Edits
     /// ⭐⭐ Edit framework F1 (📄 docs/UX/DESIGN_Edit_Framework.md §2.1–§2.3, R-4126…R-4128) — the ONE entry point for a user's edit, on every station:
     /// the gate (<see cref="EditGate"/>) may refuse it here, else it goes to the kind's existing route with a request id and the outcome arrives in the ONE
     /// stream (<see cref="EditOutcomeLog"/>), and the station's <see cref="EditJournal"/> records it. ⭐ The caller never knows whether the owner is local.
-    /// <para>F1 builds the <see cref="EditKind.Write"/> kind (through <see cref="EditRequests"/>); the other kinds arrive with F2–F6 — ⛔ never a second path.</para>
+    /// <para>F1 builds <see cref="EditKind.Write"/> (through <see cref="EditRequests"/>), F2 <see cref="EditKind.Create"/> / <see cref="EditKind.Delete"/>; the
+    /// other kinds arrive with F3–F6 — ⛔ never a second path.</para>
     /// </summary>
     public static class Edits
     {
@@ -45,6 +46,8 @@ namespace Fdp.Toolkit.Replication.Edits
                 EditKind.Write when op.Changes != null => EditRequests.Write(repo, op.Target, op.Changes),
                 EditKind.Write when op.PatchJson != null => EditRequests.WriteJson(repo, op.Target, op.PatchJson),
                 EditKind.Write => throw new ArgumentException("A Write op carries Changes, a PatchJson or a commander.", nameof(op)),
+                EditKind.Create => Create(op),
+                EditKind.Delete => Delete(repo, op, netId),
                 _ => throw new NotSupportedException($"Edits.Submit: the {op.Kind} kind is not built yet (edit framework F2–F6)."),
             };
 
@@ -54,6 +57,44 @@ namespace Fdp.Toolkit.Replication.Edits
                 e.Status = known.Status; e.Reason = known.Reason ?? string.Empty;
             }
             return ticket;
+        }
+
+        /// <summary>⭐ F2 — the host's creation affordance sends the request under a fresh id; the processing node's request system answers (Pending, then
+        /// Applied with the new entity's id, or Refused with the reason).</summary>
+        private static EditTicket Create(EditOp op)
+        {
+            var id = Guid.NewGuid();
+            op.Send!(id);
+            return new EditTicket(id, EntityWriteRoute.Requested);
+        }
+
+        /// <summary>
+        /// ⭐ F2 (CE-4276) — a deletion with the request id end to end: a <c>DestroyEntityCommand</c> carrying it. On the owner it is torn down here
+        /// (Applied at once); elsewhere the egress asks the owner and the replica stays until the owner's dispose removes it.
+        /// </summary>
+        private static EditTicket Delete(EntityRepository repo, EditOp op, int netId)
+        {
+            var id = Guid.NewGuid();
+            int node = EditOutcomes.LocalNodeOf(repo, op.Target);
+            if (!repo.IsAlive(op.Target))
+            {
+                EditOutcomes.Report(repo, id, netId, EditStatus.Refused, "the entity is gone", node);
+                return new EditTicket(id, EntityWriteRoute.Refused);
+            }
+            if (netId <= 0)
+            {
+                EditOutcomes.Report(repo, id, netId, EditStatus.Refused, "the entity is not replicated — delete it locally", node);
+                return new EditTicket(id, EntityWriteRoute.Refused);
+            }
+            if (!repo.Bus.IsRegisteredManaged<Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand>())
+                repo.Bus.RegisterManaged<Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand>();
+            repo.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand { NetworkId = netId, RequestId = id, Reason = op.Label });
+            if (Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(repo, op.Target))
+            {
+                EditOutcomes.Report(repo, id, netId, EditStatus.Applied, "deleted on this node", node);
+                return new EditTicket(id, EntityWriteRoute.Direct);
+            }
+            return new EditTicket(id, EntityWriteRoute.Requested);
         }
 
         /// <summary>

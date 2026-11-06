@@ -86,13 +86,17 @@ namespace Hrot.Common.Systems
             try
             {
                 // Validate the entity is currently known to this node.
-                if (!_entityMap.TryGetEntity(request.EntityId, out _))
+                if (!_entityMap.TryGetEntity(request.EntityId, out var target))
                 {
                     FdpLog<DeleteEntityRequestSystem>.Warn(
                         $"[Node-{_localNodeId}] DeleteEntity {request.RequestId}: EntityId={request.EntityId} not found. Rejecting.");
                     _ackSink.WriteAck(request.RequestId, request.EntityId, EntityOperationStatus.EntityNotFound);
                     return;
                 }
+
+                // ⭐ CE-4276 (edit framework F2) — a BYSTANDER is silent: only the entity's owner tears it down and answers (its dispose removes every
+                //   replica). ⛔ Was: every node that knew the entity tore its copy down and acked (several answers, a replica gone before the owner agreed).
+                if (!Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(view, target)) return;
 
                 // Phase 1: send InProgress ACK — client unblocks immediately.
                 _ackSink.WriteAck(request.RequestId, request.EntityId, EntityOperationStatus.InProgress);

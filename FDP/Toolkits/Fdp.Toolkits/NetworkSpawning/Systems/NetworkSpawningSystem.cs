@@ -291,6 +291,11 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
                 return;
             }
 
+            // ⭐ CE-4276 (edit framework F2) — a user's delete on a node that does not own the entity: the egress asks the owner (with the request id);
+            //   ⛔ the replica is NOT torn down here — the owner's dispose removes it. (Was: the local ghost torn down at once, before any answer.)
+            if (cmd.RequestId != Guid.Empty && !cmd.IsRemote && !Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(world, entity))
+                return;
+
             // Mark TearDown in lifecycle state so queries / other systems see the intent
             // immediately (before ACK round-trip completes).
             cmdBuffer.SetLifecycleState(entity, EntityLifecycle.TearDown);

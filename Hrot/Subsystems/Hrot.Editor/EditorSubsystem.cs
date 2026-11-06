@@ -1823,8 +1823,10 @@ namespace Hrot.Editor
                     if (networkId != 0)
                         builder.AddItem("Rename...", () => _editorLogic?.OpenRenameDialog(networkId));
                     if (!hasPolyline && !hasRoute)
-                        builder.AddItem("Delete", () => _world?.Bus.PublishManaged(
-                            new DestroyEntityCommand { NetworkId = networkId, Reason = "EditorContextMenu" }));
+                        builder.AddItem("Delete", () =>   // ⭐ CE-4276 — through the edit framework (the request id end to end)
+                        {
+                            if (_world != null) Fdp.Toolkit.Replication.Edits.Edits.Submit(_world, Fdp.Toolkit.Replication.Edits.EditOp.Delete(entity, "Delete"));
+                        });
                 }));
                 // 3) Perception seeding actions (mark target memory entries for selected perceivers).
                 _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
@@ -2533,7 +2535,7 @@ namespace Hrot.Editor
                     ? view.GetComponentRO<NetworkIdentity>(target).Value
                     : 0;
                 if (netId != 0)
-                    _world!.Bus.PublishManaged(new DestroyEntityCommand { NetworkId = netId, Reason = "ContextMenu" });
+                    Fdp.Toolkit.Replication.Edits.Edits.Submit(_world!, Fdp.Toolkit.Replication.Edits.EditOp.Delete(target, "Delete"));   // ⭐ CE-4276
                 else
                     _world!.DestroyEntity(target);
             });

@@ -227,12 +227,8 @@ public sealed class SelectionInteractionSystem
                 if (!_world.IsAlive(e)) continue;
                 if (_world.HasComponent<NetworkIdentity>(e))
                 {
-                    ref readonly var netId = ref _world.GetComponentRO<NetworkIdentity>(e);
-                    _world.Bus.PublishManaged(new DestroyEntityCommand
-                    {
-                        NetworkId = netId.Value,
-                        Reason    = "user-deleted",
-                    });
+                    // ⭐ CE-4276 (edit framework F2) — the request id end to end; a non-owner asks the owner and keeps the replica until it is disposed.
+                    Fdp.Toolkit.Replication.Edits.Edits.Submit(_world, Fdp.Toolkit.Replication.Edits.EditOp.Delete(e, "Delete"));
                 }
                 else
                 {
