@@ -475,8 +475,8 @@ public sealed class EditorScenarioSessionLoadTests
         var facade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(bus, () => ViewOf(bus));
         facade.AttachRunChoice(session);
         var run = Guid.NewGuid();
-        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = run });
-        bus.PublishManaged(new AssetInventoryUpdateEvent { LocalExercises = new[] { new ExerciseInventoryItem(run, DateTime.UtcNow, TimeSpan.Zero, "hill-attack") } });
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = (Fdp.Core.ExerciseId)(run) });
+        bus.PublishManaged(new AssetInventoryUpdateEvent { LocalExercises = new[] { new ExerciseInventoryItem((Fdp.Core.ExerciseId)(run), DateTime.UtcNow, TimeSpan.Zero, "hill-attack") } });
         bus.SwapBuffers();
         ViewOf(bus).Update(); session.Update();
         facade.Update();
@@ -511,7 +511,7 @@ public sealed class EditorScenarioSessionLoadTests
         session.LoadForLive("hill-attack");                                     // names the scenario (and the load itself is not what is under test)
         bus.SwapBuffers();
 
-        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = Guid.NewGuid() });
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()) });
         bus.SwapBuffers(); ViewOf(bus).Update(); session.Update(); facade.Update(); bus.SwapBuffers();
         session.SaveCurrent();
         bus.SwapBuffers();

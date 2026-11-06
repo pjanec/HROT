@@ -66,7 +66,7 @@ internal static class RunChoiceRig
         var rig = new Rig(facade, bus, control, unsaved, choice, view);
         bus.Publish(new SwitchTimeModeEvent { TargetMode = running ? Fdp.ModuleHost.Time.TimeMode.Continuous : Fdp.ModuleHost.Time.TimeMode.Deterministic });
         if (inventoryScenario != null)
-            bus.PublishManaged(new AssetInventoryUpdateEvent { LocalExercises = new[] { new ExerciseInventoryItem(RunId, DateTime.UtcNow, TimeSpan.Zero, inventoryScenario) } });
+            bus.PublishManaged(new AssetInventoryUpdateEvent { LocalExercises = new[] { new ExerciseInventoryItem((Fdp.Core.ExerciseId)(RunId), DateTime.UtcNow, TimeSpan.Zero, inventoryScenario) } });
         Hear(rig, state, runNotRecorded, recordLiveRunsOff, armed: Enum.Parse<ClusterArmedMode>(initialArmed.ToString()));   // the master's bootstrap armed mode, as its first broadcast says it
         return rig;
     }
@@ -99,8 +99,8 @@ internal static class RunChoiceRig
         var control = new FakeControl { LoadedScenarioName = loadedName };
         var reads = new FakeReads { Observes = observes };
         var choice = facade.AttachRunChoice(control, unsavedReads: reads.Reads);
-        bus.PublishManaged(new AssetInventoryUpdateEvent { LocalExercises = new[] { new ExerciseInventoryItem(RunId, DateTime.UtcNow, TimeSpan.Zero, "hill-attack") } });
-        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = RunId, ArmedMode = Enum.Parse<ClusterArmedMode>(initialArmed.ToString()) });   // CE-1443: the master's bootstrap armed mode
+        bus.PublishManaged(new AssetInventoryUpdateEvent { LocalExercises = new[] { new ExerciseInventoryItem((Fdp.Core.ExerciseId)(RunId), DateTime.UtcNow, TimeSpan.Zero, "hill-attack") } });
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = (Fdp.Core.ExerciseId)(RunId), ArmedMode = Enum.Parse<ClusterArmedMode>(initialArmed.ToString()) });   // CE-1443: the master's bootstrap armed mode
         bus.SwapBuffers(); view.Update(); facade.Update(); bus.SwapBuffers();
         return new CheckRig(facade, bus, control, choice, reads, view);
     }
@@ -112,7 +112,7 @@ internal static class RunChoiceRig
     /// <remarks>⭐ CE-3341 — <paramref name="armed"/> is the cluster's armed mode the broadcast carries; <see langword="null"/> repeats what the view last held (a state change alone never moves it).</remarks>
     internal static void Hear(Rig rig, ClusterState state, bool runNotRecorded = false, bool recordLiveRunsOff = false, ClusterArmedMode? armed = null, ClusterArmedMode? lastLoad = null)
     {
-        rig.Bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = RunId, RunNotRecorded = runNotRecorded, RecordLiveRunsOff = recordLiveRunsOff, ArmedMode = armed ?? rig.View.ArmedMode,
+        rig.Bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = (Fdp.Core.ExerciseId)(RunId), RunNotRecorded = runNotRecorded, RecordLiveRunsOff = recordLiveRunsOff, ArmedMode = armed ?? rig.View.ArmedMode,
                                                              LastLoadMode = lastLoad ?? rig.View.LastLoadMode });
         rig.Bus.SwapBuffers();
         rig.View.Update();
@@ -123,7 +123,7 @@ internal static class RunChoiceRig
     /// <summary>⭐ CE-1442 — the master's broadcast with the readiness facts the run gate reads (the view folds them as in production), then the facade's frame.</summary>
     internal static void HearGate(Rig rig, ClusterState state, string waitingFor = "", string errorReason = "", string loadProgress = "", bool clusterPlayReady = false)
     {
-        rig.Bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = RunId, ArmedMode = rig.View.ArmedMode,
+        rig.Bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = (Fdp.Core.ExerciseId)(RunId), ArmedMode = rig.View.ArmedMode,
             WaitingFor = waitingFor, ErrorReason = errorReason, LoadProgress = loadProgress, ClusterPlayReady = clusterPlayReady });
         rig.Bus.SwapBuffers();
         rig.View.Update();

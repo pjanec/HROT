@@ -23,8 +23,8 @@ public sealed class TheClusterControlRoutesTests
     private readonly RecordingMasterControl _master = new();
     private ClusterState _state = ClusterState.Idle;
 
-    private static readonly ExerciseInventoryItem Older = new(Guid.NewGuid(), new DateTime(2026, 10, 1, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(5), "a");
-    private static readonly ExerciseInventoryItem Newer = new(Guid.NewGuid(), new DateTime(2026, 10, 2, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(3), "b");
+    private static readonly ExerciseInventoryItem Older = new((Fdp.Core.ExerciseId)(Guid.NewGuid()), new DateTime(2026, 10, 1, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(5), "a");
+    private static readonly ExerciseInventoryItem Newer = new((Fdp.Core.ExerciseId)(Guid.NewGuid()), new DateTime(2026, 10, 2, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(3), "b");
 
     private DebugApiService Host(bool withMaster = true)
         => new(new PerspectiveScopedDispatcher(
@@ -458,7 +458,7 @@ public sealed class TheClusterControlRoutesTests
     public void CE4097_The_inventory_wire_carries_the_parent_and_point_and_GET_exercises_shows_them()
     {
         var parent = Guid.NewGuid();
-        var branched = new ExerciseInventoryItem(Guid.NewGuid(), new DateTime(2026, 10, 3, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(2), "c", parent, 638_900_000_000_000_000L);
+        var branched = new ExerciseInventoryItem((Fdp.Core.ExerciseId)(Guid.NewGuid()), new DateTime(2026, 10, 3, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(2), "c", (Fdp.Core.ExerciseId)(parent), 638_900_000_000_000_000L);
         var json = System.Text.Json.JsonSerializer.Serialize(new[] { branched, Older }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
         var topic = new Hrot.NED.Descriptors.Orchestration.AssetInventoryTopic { LocalExercisesJson = json };
 
@@ -596,7 +596,7 @@ public sealed class TheClusterControlRoutesTests
         repo.AddComponent(unit, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 1042 });
         repo.AddComponent(unit, new Fdp.Toolkit.Combat.Components.Health { Current = 100, Max = 100 });
         using var rec = new Fdp.Core.FlightRecorder.AsyncRecorder(path,
-            new Fdp.Core.FlightRecorder.Metadata.RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = (Fdp.Core.NodeId)(1) });
+            new Fdp.Core.FlightRecorder.Metadata.RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()), NodeId = (Fdp.Core.NodeId)(1) });
         repo.Tick();
         rec.CaptureKeyframe(repo, Zero, blocking: true, eventBus: repo.Bus);
         uint prev = repo.GlobalVersion;

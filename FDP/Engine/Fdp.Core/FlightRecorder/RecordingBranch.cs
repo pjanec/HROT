@@ -13,5 +13,5 @@ namespace Fdp.Core.FlightRecorder
     /// <param name="FrameCount">How many of its frames to copy — the branch point's frame index + 1.</param>
     /// <param name="ParentExerciseId">The parent's exercise (provenance in the new <c>.meta.json</c>).</param>
     /// <param name="BranchWallTicks">The wall time of the branch point (provenance).</param>
-    public sealed record RecordingBranch(string SourcePath, int FrameCount, Guid ParentExerciseId, long BranchWallTicks);
+    public sealed record RecordingBranch(string SourcePath, int FrameCount, ExerciseId ParentExerciseId, long BranchWallTicks);
 }

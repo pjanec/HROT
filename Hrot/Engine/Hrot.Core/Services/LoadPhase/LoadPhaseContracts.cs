@@ -66,7 +66,7 @@ public readonly record struct LoadPhaseContext(
     ClusterState TargetState,
     string? ScenarioId,
     string? TerrainName,
-    Guid ExerciseId,
+    ExerciseId ExerciseId,
     bool IsNewScenario,
     bool IsWorldBoundary = false,
     bool IsCatchUp = false,

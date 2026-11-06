@@ -42,7 +42,7 @@ public sealed class ClusterUiCache : IDisposable
 
     /// <summary>⭐ CE-3329 R-3058 — the replay session's time axis, as the master's last cluster-state broadcast said.</summary>
     public Fdp.Toolkit.Orchestration.ReplayAxis ReplayAxis => _view.ReplayAxis;
-    public Guid        ActiveExerciseId       => _view.ExerciseId;
+    public ExerciseId  ActiveExerciseId       => _view.ExerciseId;
 
     /// <summary>⭐ CE-4090 (AQ108 D14) — the run the cluster shows was started with recording OFF, as the master's last cluster-state broadcast said.</summary>
     public bool        RunNotRecorded         => _view.RunNotRecorded;

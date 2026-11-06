@@ -55,7 +55,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             // Overwrite the .meta.json with federation metadata
             var meta = new RecordingMetadata
             {
-                ExerciseId = exerciseId,
+                ExerciseId = (Fdp.Core.ExerciseId)(exerciseId),
                 NodeId     = (Fdp.Core.NodeId)(nodeId),
             };
             var json = MetadataSerializer.Serialize(meta);
@@ -66,7 +66,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
         /// <summary>Creates a .meta.json at <paramref name="fdpPath"/> + ".meta.json" only (no .fdp).</summary>
         private static void WriteMeta(string fdpPath, Guid exerciseId, int nodeId)
         {
-            var meta = new RecordingMetadata { ExerciseId = exerciseId, NodeId = (Fdp.Core.NodeId)(nodeId) };
+            var meta = new RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)(exerciseId), NodeId = (Fdp.Core.NodeId)(nodeId) };
             File.WriteAllText(fdpPath + ".meta.json", MetadataSerializer.Serialize(meta));
         }
 
@@ -365,7 +365,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
                 var harnessPath = harness.BuildToTempFile();
                 File.Copy(harnessPath, path, overwrite: true);
             }
-            var meta = new RecordingMetadata { ExerciseId = exerciseId, NodeId = (Fdp.Core.NodeId)(nodeId) };
+            var meta = new RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)(exerciseId), NodeId = (Fdp.Core.NodeId)(nodeId) };
             File.WriteAllText(path + ".meta.json", MetadataSerializer.Serialize(meta));
             return path;
         }

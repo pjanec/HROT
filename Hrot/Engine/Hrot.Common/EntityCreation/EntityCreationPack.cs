@@ -160,7 +160,8 @@ namespace Hrot.Common.EntityCreation
             if (networkRequestSource != null) sources.Add(networkRequestSource);
             var requestSource = new CompositeEntityCreationRequestSource(sources);
 
-            IEntityAckSink ackSink = (adapters != null ? adapters.AckSink : ctx.AckSink) ?? new NullEntityAckSink();
+            // ⭐ Edit framework F2 — every ack is ALSO the one edit outcome (EntityEditOutcome), on every host by construction.
+            IEntityAckSink ackSink = new EditOutcomeEntityAckSink(ctx.World, ctx.NodeId, adapters != null ? adapters.AckSink : ctx.AckSink);
 
             var finalization = new EntityRequestFinalizationSystem(ackSink, ctx.EntityMap);
 

@@ -15,7 +15,7 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>Target wall-clock tick; 0 = not specified.</summary>
         public long TargetWallTicks;
         public string? ScenarioId;
-        public Guid ExerciseId;
+        public ExerciseId ExerciseId;
         public string? TimeMode;
         /// <summary>⭐ CE-3299 D17 (R-3045) — the live session's recording mode: 0 = FULL, N &gt; 0 = a keyframe every N s of sim time.</summary>
         public double CheckpointingSeconds;
@@ -41,7 +41,7 @@ namespace Fdp.Toolkit.Orchestration
     {
         public Guid TransactionId;
         public bool IsStart;
-        public Guid EpisodeId;
+        public EpisodeId EpisodeId;
         public string? ScenarioId;
     }
 
@@ -195,7 +195,7 @@ namespace Fdp.Toolkit.Orchestration
     {
         public Guid RequestId;
         public StorageOpType Operation;
-        public Guid ExerciseId;
+        public ExerciseId ExerciseId;
 
         /// <summary>
         /// The relative scenario name / subfolder under the NAS scenarios root to write to. Used ONLY by

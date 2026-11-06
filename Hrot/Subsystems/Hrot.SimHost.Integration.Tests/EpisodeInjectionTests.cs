@@ -223,7 +223,7 @@ public sealed class EpisodeInjectionTests : IDisposable
         {
             TransactionId = Guid.NewGuid(),
             IsStart       = true,
-            EpisodeId     = Guid.NewGuid(),
+            EpisodeId     = (Fdp.Core.EpisodeId)(Guid.NewGuid()),
             ScenarioId    = "scenario_01",
         };
 
@@ -302,7 +302,7 @@ public sealed class EpisodeInjectionTests : IDisposable
             TransactionId = Guid.NewGuid(),
             TargetNodeId  = (Fdp.Core.NodeId)(0),
             Operation     = (Fdp.Toolkit.Orchestration.NodeOpType)op,
-            DomainPayload = new EpisodeHandlerPayload(episodeId, scenarioId, IsStart: true),
+            DomainPayload = new EpisodeHandlerPayload((Fdp.Core.EpisodeId)(episodeId), scenarioId, IsStart: true),
         };
 
     private static ExecuteNodeOpIntent MakeStopCmd(Guid episodeId) =>
@@ -311,6 +311,6 @@ public sealed class EpisodeInjectionTests : IDisposable
             TransactionId = Guid.NewGuid(),
             TargetNodeId  = (Fdp.Core.NodeId)(0),
             Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StopEpisode,
-            DomainPayload = new EpisodeHandlerPayload(episodeId, ScenarioId: null, IsStart: false),
+            DomainPayload = new EpisodeHandlerPayload((Fdp.Core.EpisodeId)(episodeId), ScenarioId: null, IsStart: false),
         };
 }

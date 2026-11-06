@@ -344,8 +344,8 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
     {
         var inv = new[]
         {
-            new ExerciseInventoryItem(RecordingA, new DateTime(2026, 10, 1, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(3), "alpha"),
-            new ExerciseInventoryItem(RecordingB, new DateTime(2026, 10, 2, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(4), "beta"),
+            new ExerciseInventoryItem((Fdp.Core.ExerciseId)(RecordingA), new DateTime(2026, 10, 1, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(3), "alpha"),
+            new ExerciseInventoryItem((Fdp.Core.ExerciseId)(RecordingB), new DateTime(2026, 10, 2, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(4), "beta"),
         };
         var (session, commands, menu, pending, request) = RecordingShape(() => inv);
 

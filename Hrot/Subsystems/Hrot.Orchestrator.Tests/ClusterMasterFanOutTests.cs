@@ -284,7 +284,7 @@ public sealed class ClusterMasterFanOutTests
             TransactionId = Guid.NewGuid(),
             TargetState   = target,
             ScenarioId    = scenarioId,
-            ExerciseId    = Guid.NewGuid(),
+            ExerciseId    = (Fdp.Core.ExerciseId)(Guid.NewGuid()),
         });
         bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
         UnparkIfNamed(bus, master, scenarioId);
@@ -409,7 +409,7 @@ public sealed class ClusterMasterFanOutTests
             bus.PublishManaged(new TransitionStateIntent
             {
                 TransactionId = Guid.NewGuid(), TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive,
-                ScenarioId = "s1", ExerciseId = Guid.NewGuid(),
+                ScenarioId = "s1", ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()),
             });
             bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
             UnparkIfNamed(bus, master, "s1");

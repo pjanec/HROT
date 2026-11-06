@@ -48,7 +48,7 @@ namespace Fdp.Toolkit.Replay.Tests
             {
                 FilePath     = Path.Combine(_tempDir, "episode.fdp"),
                 EntityFilter = filter,
-                ExerciseId      = episodeId,
+                ExerciseId      = (Fdp.Core.ExerciseId)(episodeId),
                 NodeId = (Fdp.Core.NodeId)(0),
             };
 
@@ -81,7 +81,7 @@ namespace Fdp.Toolkit.Replay.Tests
 
             var entity  = world.CreateEntity();
             var episodeId = Guid.NewGuid();
-            world.AddComponent(entity, new EpisodeTag { EpisodeId = episodeId });
+            world.AddComponent(entity, new EpisodeTag { EpisodeId = (Fdp.Core.EpisodeId)(episodeId) });
 
             ref readonly var tag = ref world.GetComponentRO<EpisodeTag>(entity);
             Assert.Equal(episodeId, tag.EpisodeId);
@@ -94,7 +94,7 @@ namespace Fdp.Toolkit.Replay.Tests
             world.RegisterComponent<EpisodeReplayTag>();
 
             var entity = world.CreateEntity();
-            world.AddComponent(entity, new EpisodeReplayTag { EpisodeId = Guid.NewGuid(), OriginalEntityId = 7 });
+            world.AddComponent(entity, new EpisodeReplayTag { EpisodeId = (Fdp.Core.EpisodeId)(Guid.NewGuid()), OriginalEntityId = 7 });
 
             ref readonly var tag = ref world.GetComponentRO<EpisodeReplayTag>(entity);
             Assert.Equal(7, tag.OriginalEntityId);
@@ -117,11 +117,11 @@ namespace Fdp.Toolkit.Replay.Tests
 
             var moduleA = new EpisodeRecorderModule(new RecordingConfiguration
             {
-                FilePath = pathA, ExerciseId = episodeA, NodeId = (Fdp.Core.NodeId)(0),
+                FilePath = pathA, ExerciseId = (Fdp.Core.ExerciseId)(episodeA), NodeId = (Fdp.Core.NodeId)(0),
             });
             var moduleB = new EpisodeRecorderModule(new RecordingConfiguration
             {
-                FilePath = pathB, ExerciseId = episodeB, NodeId = (Fdp.Core.NodeId)(0),
+                FilePath = pathB, ExerciseId = (Fdp.Core.ExerciseId)(episodeB), NodeId = (Fdp.Core.NodeId)(0),
             });
 
             var registryA = new CapturingSystemRegistry();

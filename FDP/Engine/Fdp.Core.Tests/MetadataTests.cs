@@ -45,7 +45,7 @@ namespace Fdp.Tests
         public void RBF_P1T1_Metadata_RoundTripsExerciseId()
         {
             var expected = Guid.NewGuid();
-            var meta = new RecordingMetadata { ExerciseId = expected };
+            var meta = new RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)(expected) };
             var json = MetadataSerializer.Serialize(meta);
             var result = MetadataSerializer.Deserialize(json);
             Assert.Equal(expected, result.ExerciseId);
@@ -123,7 +123,7 @@ namespace Fdp.Tests
                 var config = new RecordingConfiguration
                 {
                     FilePath   = fdpPath,
-                    ExerciseId = exerciseId,
+                    ExerciseId = (Fdp.Core.ExerciseId)(exerciseId),
                     NodeId     = (Fdp.Core.NodeId)(0),
                 };
                 var module = new RecordingModule(config);
@@ -162,7 +162,7 @@ namespace Fdp.Tests
                 var config = new RecordingConfiguration
                 {
                     FilePath   = fdpPath,
-                    ExerciseId = Guid.NewGuid(),
+                    ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()),
                     NodeId     = (Fdp.Core.NodeId)(7),
                 };
                 var module = new RecordingModule(config);

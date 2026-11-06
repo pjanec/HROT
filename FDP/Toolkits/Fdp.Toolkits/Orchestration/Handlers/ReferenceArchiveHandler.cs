@@ -10,7 +10,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers;
 /// <summary>
 /// Payload for <see cref="ReferenceArchiveHandler"/> commands.
 /// </summary>
-public record struct ArchiveHandlerPayload(Guid ExerciseId);
+public record struct ArchiveHandlerPayload(ExerciseId ExerciseId);
 
 /// <summary>
 /// Result published by a <see cref="NodeOpType.SerializeLocal"/> handler after writing its local file(s).

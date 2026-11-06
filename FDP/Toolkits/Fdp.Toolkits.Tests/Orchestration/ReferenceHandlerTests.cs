@@ -372,7 +372,7 @@ public sealed class ReferenceHandlerTests
 
             var recording = new Fdp.Toolkit.Replay.RecordingModule(new Fdp.Toolkit.Replay.RecordingConfiguration
             {
-                FilePath = Path.Combine(dir, "node.fdp"), ExerciseId = Guid.NewGuid(), NodeId = (Fdp.Core.NodeId)(1), Blocking = true,
+                FilePath = Path.Combine(dir, "node.fdp"), ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()), NodeId = (Fdp.Core.NodeId)(1), Blocking = true,
             });
             var registry = new CapturingRegistry();
             recording.RegisterSystems(registry);
@@ -464,7 +464,7 @@ public sealed class ReferenceHandlerTests
 
             var recording = new Fdp.Toolkit.Replay.RecordingModule(new Fdp.Toolkit.Replay.RecordingConfiguration
             {
-                FilePath = Path.Combine(dir, "node.fdp"), ExerciseId = Guid.NewGuid(), NodeId = (Fdp.Core.NodeId)(1), Blocking = true,
+                FilePath = Path.Combine(dir, "node.fdp"), ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()), NodeId = (Fdp.Core.NodeId)(1), Blocking = true,
             });
             var registry = new CapturingRegistry();
             recording.RegisterSystems(registry);
@@ -574,7 +574,7 @@ public sealed class ReferenceHandlerTests
         var result = await handler.PrepareAsync(new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(1), Operation = NodeOpType.PrepareLive,
-            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.LoadingLive, ExerciseId: Guid.NewGuid(), RecordingOff: recordingOff),
+            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.LoadingLive, ExerciseId: (Fdp.Core.ExerciseId)(Guid.NewGuid()), RecordingOff: recordingOff),
         }, CancellationToken.None);
 
         Assert.IsType<LiveBranchResult>(result);                 // the branch itself happened either way
@@ -596,14 +596,14 @@ public sealed class ReferenceHandlerTests
         var parent = Guid.NewGuid();
         var controller = new SeekCapturingController
         {
-            Branch = hasHistory ? new Fdp.Core.FlightRecorder.RecordingBranch("parent.fdp", 301, parent, 123_456_789L) : null,
+            Branch = hasHistory ? new Fdp.Core.FlightRecorder.RecordingBranch("parent.fdp", 301, (Fdp.Core.ExerciseId)(parent), 123_456_789L) : null,
         };
         var handler = new ReferenceReplayLoadHandler(controller, null, null, null, null, null, ".", world: world);
 
         var result = await handler.PrepareAsync(new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(1), Operation = NodeOpType.PrepareLive,
-            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.LoadingLive, ExerciseId: Guid.NewGuid()),
+            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.LoadingLive, ExerciseId: (Fdp.Core.ExerciseId)(Guid.NewGuid())),
         }, CancellationToken.None);
 
         var branch = Assert.IsType<LiveBranchResult>(result);
@@ -626,12 +626,12 @@ public sealed class ReferenceHandlerTests
         await handler.PrepareAsync(new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(1), Operation = NodeOpType.PrepareLive,
-            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.LoadingLive, ExerciseId: exercise, RecordingOff: recordingOff),
+            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.LoadingLive, ExerciseId: (Fdp.Core.ExerciseId)(exercise), RecordingOff: recordingOff),
         }, CancellationToken.None);
         await handler.PrepareAsync(new ExecuteNodeOpIntent
         {
             TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(1), Operation = NodeOpType.PrepareState,
-            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.OperatingLive, ExerciseId: exercise, RecordingOff: recordingOff),
+            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.OperatingLive, ExerciseId: (Fdp.Core.ExerciseId)(exercise), RecordingOff: recordingOff),
         }, CancellationToken.None);
 
         Assert.Equal(recorders, controller.RecordingsStarted);

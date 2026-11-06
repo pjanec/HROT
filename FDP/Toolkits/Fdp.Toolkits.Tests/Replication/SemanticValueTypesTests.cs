@@ -90,7 +90,7 @@ namespace Fdp.Toolkits.Tests.Replication
         public void TheStaticTypeRegistry_HasAKeyForEverySemanticType()
         {
             var keys = FdpCoreLiterals(StringNamingSites[1]);
-            foreach (var t in new[] { typeof(WorldPoint), typeof(WorldRotation), typeof(Bearing), typeof(TkbTypeId), typeof(NodeId) })
+            foreach (var t in new[] { typeof(WorldPoint), typeof(WorldRotation), typeof(Bearing), typeof(TkbTypeId), typeof(NodeId), typeof(ExerciseId), typeof(EpisodeId) })
             {
                 Assert.True(SemanticValueTypes.IsSemantic(t));
                 Assert.True(keys.Contains(t.FullName!), $"StaticTypeRegistry has no \"{t.FullName}\" key");

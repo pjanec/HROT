@@ -250,7 +250,7 @@ public sealed class CqrsOrchestrationIntegrationTests
         {
             TransactionId = Guid.NewGuid(),
             IsStart       = true,
-            EpisodeId     = episodeId,
+            EpisodeId     = (Fdp.Core.EpisodeId)(episodeId),
             ScenarioId    = "test_episode_scenario",  // required when IsStart = true
         });
 

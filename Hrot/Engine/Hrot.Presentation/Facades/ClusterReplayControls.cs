@@ -28,7 +28,7 @@ public static class ReplaySessionIntents
     {
         TransactionId    = Guid.NewGuid(),
         TargetState      = ClusterState.OperatingReplay,
-        ExerciseId       = exerciseId,
+        ExerciseId       = (Fdp.Core.ExerciseId)exerciseId,
         TargetWallTicks  = wallSeconds is { } w ? SecondsToTicks(w) : 0,   // 0 + no sim target = the start
         TargetSimSeconds = simSeconds,
     };

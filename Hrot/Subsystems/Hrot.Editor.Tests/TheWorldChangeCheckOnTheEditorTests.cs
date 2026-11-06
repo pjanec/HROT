@@ -158,13 +158,18 @@ public sealed class TheWorldChangeCheckOnTheEditorTests
         throw new InvalidOperationException("the scenario loaded no named unit");
     }
 
-    /// <summary>The rename dialog's own path (EntityRenameModal → IEditorLogic.CommitPropertyEdit → UpdateEntityCommand, applied by the spawning pack). ⚠ A raw
-    /// write of a unit's <c>SimTransform</c> is put back by the next frame — it is no edit.</summary>
+    /// <summary>The rename dialog's own path (⭐ CE-4274: <c>EntityRenameModal</c> → <c>Edits.Submit</c> → the "Name" attribute write, applied by the owner — this
+    /// networkless editor). ⚠ A raw write of a unit's <c>SimTransform</c> is put back by the next frame — it is no edit.</summary>
     private static void Rename(EditorSubsystem editor, EntityRepository world, (Entity Unit, int NetworkId) unit, string to)
     {
-        var info = world.GetComponent<EntityInfo>(unit.Unit);
-        info.Name = new FixedString64(to);
-        editor.EditorLogic.CommitPropertyEdit(unit.NetworkId, new object[] { info });
+        var ticket = Fdp.Toolkit.Replication.Edits.Edits.Submit(world, Fdp.Toolkit.Replication.Edits.EditOp.Write(unit.Unit,
+            new Fdp.Toolkit.Replication.Patching.EntityAttributeChange
+            {
+                AttributeId = Fdp.Toolkit.Replication.Patching.AttributeIds.Name,
+                Value = Fdp.Toolkit.Replication.Patching.AttributeValue.FromString(to),
+            }, "rename"));
+        Assert.Equal(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct, ticket.Route);
+        Assert.Equal(to, world.GetComponent<EntityInfo>(unit.Unit).Name.ToString());   // applied here, at once (the editor owns it)
         Frames(editor, 3);
     }
 
@@ -265,6 +270,11 @@ public sealed class TheWorldChangeCheckOnTheEditorTests
             reference = PerType(world);
             Rename(editor, world, unit, "ce4093-second");
             Expect(editor, world, reference, "changed", "a unit renamed again after the save");
+
+            // ⭐ edit framework F1 — the scenario clock goes through Edits.Submit too; on the networkless editor (the owner) it is applied HERE, at once.
+            var start = new DateTime(2024, 3, 4, 5, 6, 0, DateTimeKind.Utc);
+            Assert.True(Hrot.UI.Common.Weather.ScenarioClockEdit.SetStartUtc(world, start));
+            Assert.True(Hrot.UI.Common.Weather.ScenarioClockEdit.TryRead(world, out var clock) && clock.StartUtc == start, "the clock edit was not applied on the editor");
         });
     }
 

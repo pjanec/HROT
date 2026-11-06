@@ -222,6 +222,22 @@ is read. A sticky, non-modal notification is the established middle (VS Code, Un
 | **F6** | `Commit` with `Conflict` (fixes CE-4277); the Force Commit modal goes | two stations editing one plan |
 | **F7** | Messages + field marks read the journal | — |
 
+### 4.1 ⭐ AS-BUILT — F1 *(backend, `2026-11-06`, B-2)*
+
+| piece | where | as built |
+|---|---|---|
+| `Edits.Submit(repo, EditOp)` | `Fdp.Toolkits/Replication/Edits/Edits.cs` | the gate, then the kind's route, then the journal. F1 routes `Write` only (binary `Changes` → `EditRequests.Write`, `PatchJson` → `EditRequests.WriteJson`, the ORBAT commander → below); other kinds throw `NotSupported` until F2–F6 |
+| `EditOp` (record) + `EditKind` | `EditOp.cs` | factories `Write` · `WritePatch` · `SetCommander(subordinate, commander, label)` |
+| `EditStatus` | `EditStatus.cs` | + `Conflict = 4`, `Lost = 5` (Lost is local, the journal's) |
+| the gate | `IEditGate` / `EditGate.Install` (toolkit, a per-world slot) · `HrotEditGate` + `EditingMode` + `EditingLevel` (`Hrot.Common/Editing`) | ⭐ **deviation:** the toolkit cannot see Hrot's modes or seats, so the gate is an interface the host installs. ⭐ **Review is refused on EVERY host by construction** — `Edits.Submit` reads `ReplayState.IsActive` itself (the R-3064 flag), gate or not. `HrotEditGate` adds the seat's level (Observer / None refuse); ⚠ no host installs it until the seat exists (H1/H2) — every station edits at level Full until then |
+| `EditJournal` | `EditJournal.cs` | per world, `NoReplay`, a ring of 256: request id · kind · label · mode · latest status + reason · `Before` (undo's slot) · `Dismissed`. `Refresh` (once a frame by its reader) folds the log in and marks Lost after 5 s; a deferred Pending re-arms the wait. 0 B steady |
+| ORBAT (CE-4275) | `ScenarioOrbatAdapter` assign / detach → `SetCommander` | the owner of the subordinate's HIERARCHY (the intercept's own authority key) applies it locally — ⚠ not `WriteJson` alone: a networkless host has no system that applies a JSON patch; a non-owner sends `"CommanderId"` (0 = detach — so detach needs no F3 op) |
+| rename (CE-4274) | `EntityRenameModal` → `Write(Name)` | the binary `"Name"` attribute; `IEditorLogic.CommitPropertyEdit` stays for other callers |
+| scenario clock | `ScenarioClockEdit` | both setters are binary writes through `Submit` (the hand-written direct-or-patch branch and its id-less patch are gone) |
+| weather, Playable side / slot | — | ⏭ **B-4** — they become attributes there (D2), then go through `Write` |
+
+Rails: `EditOutcomeOwnerTests.F1_*` (NED suite, two nodes over the real egress / ingress translators): rename and ORBAT on a non-owner applied by the owner and read Applied; Review and an observer refused with the reason and nothing sent; an unanswered edit Lost.
+
 ## 5. Questions — ✅ APPROVED as revised *(🔒 user, `2026-11-06`: "approved")*
 
 | # | question | ⭐ lean | rejected |

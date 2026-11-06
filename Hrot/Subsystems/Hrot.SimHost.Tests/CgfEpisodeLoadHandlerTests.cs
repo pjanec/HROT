@@ -72,7 +72,7 @@ namespace Hrot.SimHost.Tests
                 TransactionId = txId,
                 TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = NodeOpType.StartEpisode,
-                DomainPayload = new EpisodeHandlerPayload(episodeId, scenarioId, IsStart: true),
+                DomainPayload = new EpisodeHandlerPayload((Fdp.Core.EpisodeId)(episodeId), scenarioId, IsStart: true),
             };
 
         private static ExecuteNodeOpIntent MakeStopIntent(Guid txId, Guid episodeId)
@@ -81,7 +81,7 @@ namespace Hrot.SimHost.Tests
                 TransactionId = txId,
                 TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = NodeOpType.StopEpisode,
-                DomainPayload = new EpisodeHandlerPayload(episodeId, null, IsStart: false),
+                DomainPayload = new EpisodeHandlerPayload((Fdp.Core.EpisodeId)(episodeId), null, IsStart: false),
             };
 
         private string SerializeGold()
@@ -139,18 +139,18 @@ namespace Hrot.SimHost.Tests
 
             // Create 2 episode entities in the world with NetworkIdentity.
             var e1 = _world.CreateEntity();
-            _world.SetComponent(e1, new EpisodeTag { EpisodeId = episodeId });
+            _world.SetComponent(e1, new EpisodeTag { EpisodeId = (Fdp.Core.EpisodeId)(episodeId) });
             _world.SetComponent(e1, new NetworkIdentity(101));
 
             var e2 = _world.CreateEntity();
-            _world.SetComponent(e2, new EpisodeTag { EpisodeId = episodeId });
+            _world.SetComponent(e2, new EpisodeTag { EpisodeId = (Fdp.Core.EpisodeId)(episodeId) });
             _world.SetComponent(e2, new NetworkIdentity(102));
 
             // Create 3 entities NOT belonging to the episode.
             for (int i = 0; i < 3; i++)
             {
                 var e = _world.CreateEntity();
-                _world.SetComponent(e, new EpisodeTag { EpisodeId = Guid.NewGuid() });
+                _world.SetComponent(e, new EpisodeTag { EpisodeId = (Fdp.Core.EpisodeId)(Guid.NewGuid()) });
                 _world.SetComponent(e, new NetworkIdentity(999 + i));
             }
 

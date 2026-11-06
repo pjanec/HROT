@@ -6,9 +6,9 @@ namespace Hrot.Orchestrator;
 /// written before this field — it reads as not-a-branch).</param>
 /// <param name="BranchWallTicks">⭐ the branch point, in the recording metadata's own unit (<c>RecordingMetadata.BranchWallTicks</c>).</param>
 public sealed record RecordingLedgerEntry(
-    Guid ExerciseId,
+    Fdp.Core.ExerciseId ExerciseId,
     string? ScenarioId,
     DateTime StartTimeUtc,
     TimeSpan Duration,
-    Guid ParentExerciseId = default,
+    Fdp.Core.ExerciseId ParentExerciseId = default,
     long BranchWallTicks = 0);

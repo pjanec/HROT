@@ -91,7 +91,7 @@ public sealed class ClusterScenarioPanel
                 {
                     RequestId  = req.RequestId,
                     Operation  = StorageOpType.Export,
-                    ExerciseId = ExtractGuidField(req.PayloadJson),
+                    ExerciseId = (Fdp.Core.ExerciseId)(ExtractGuidField(req.PayloadJson)),
                 });
                 break;
 
@@ -100,7 +100,7 @@ public sealed class ClusterScenarioPanel
                 {
                     RequestId  = req.RequestId,
                     Operation  = StorageOpType.Import,
-                    ExerciseId = ExtractGuidField(req.PayloadJson),
+                    ExerciseId = (Fdp.Core.ExerciseId)(ExtractGuidField(req.PayloadJson)),
                 });
                 break;
 
@@ -195,7 +195,7 @@ public sealed class ClusterScenarioPanel
             {
                 TransactionId = req.RequestId,
                 IsStart       = dto?.IsStart ?? false,
-                EpisodeId     = dto?.EpisodeId ?? Guid.Empty,
+                EpisodeId     = (Fdp.Core.EpisodeId)(dto?.EpisodeId ?? Guid.Empty),
                 ScenarioId    = dto?.ScenarioId,
             };
         }

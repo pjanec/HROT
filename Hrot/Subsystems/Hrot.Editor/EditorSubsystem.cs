@@ -1792,11 +1792,9 @@ namespace Hrot.Editor
                 _fdpEntityInspector.RequestSelectionChange =
                     req => _world!.Bus.PublishManaged(req);
 
-                // ⭐⭐ CE-051 — the shared rename modal. ⭐ Commits through IEditorLogic.CommitPropertyEdit,
-                //    which publishes an UpdateEntityCommand — ⛔ NOT a direct component write, which is what
-                //    keeps it correct on a host that does not own the entity (the AX-005b lesson).
-                _entityRenameModal = new Hrot.Editor.AiShared.Browser.EntityRenameModal(
-                    (netId, components) => _editorLogic?.CommitPropertyEdit(netId, components));
+                // ⭐⭐ CE-051 — the shared rename modal. ⭐ CE-4274: it submits the "Name" attribute through Edits.Submit (the owner writes it,
+                //    a non-owner asks the owner) — ⛔ HISTORY: IEditorLogic.CommitPropertyEdit's local UpdateEntityCommand, lost on a non-owner.
+                _entityRenameModal = new Hrot.Editor.AiShared.Browser.EntityRenameModal();
                 _orbatAdapter     = new ScenarioOrbatAdapter(_world, _world.Bus, _spawnAdapter)
                 {
                     PickOffer = e => _mapPickAdapter?.TryOfferEntity(e) == true,   // ⭐ CE-1346 — an ORBAT row answers a map entity pick
@@ -1825,8 +1823,10 @@ namespace Hrot.Editor
                     if (networkId != 0)
                         builder.AddItem("Rename...", () => _editorLogic?.OpenRenameDialog(networkId));
                     if (!hasPolyline && !hasRoute)
-                        builder.AddItem("Delete", () => _world?.Bus.PublishManaged(
-                            new DestroyEntityCommand { NetworkId = networkId, Reason = "EditorContextMenu" }));
+                        builder.AddItem("Delete", () =>   // ⭐ CE-4276 — through the edit framework (the request id end to end)
+                        {
+                            if (_world != null) Fdp.Toolkit.Replication.Edits.Edits.Submit(_world, Fdp.Toolkit.Replication.Edits.EditOp.Delete(entity, "Delete"));
+                        });
                 }));
                 // 3) Perception seeding actions (mark target memory entries for selected perceivers).
                 _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
@@ -2535,7 +2535,7 @@ namespace Hrot.Editor
                     ? view.GetComponentRO<NetworkIdentity>(target).Value
                     : 0;
                 if (netId != 0)
-                    _world!.Bus.PublishManaged(new DestroyEntityCommand { NetworkId = netId, Reason = "ContextMenu" });
+                    Fdp.Toolkit.Replication.Edits.Edits.Submit(_world!, Fdp.Toolkit.Replication.Edits.EditOp.Delete(target, "Delete"));   // ⭐ CE-4276
                 else
                     _world!.DestroyEntity(target);
             });

@@ -473,7 +473,10 @@ namespace Hrot.UI.Common.Adapters
             if (cmd.InitialVelocity.HasValue)
                 (components ??= new System.Collections.Generic.List<object>()).Add(cmd.InitialVelocity.Value);
 
-            _creation.RequestEntityCreation(
+            // ⭐ Edit framework F2 (CE-4278) — the creation is a journalled edit: Submit mints the id, the affordance sends the request under it, and the
+            //   processing node's answer (Pending → Applied with the new id, or Refused with why) lands in the journal. A caller's own id (cmd.RequestId)
+            //   is kept when it names one.
+            void Send(System.Guid id) => _creation.RequestEntityCreation(
                 tkbType:               cmd.TkbType,
                 transform:             cmd.InitialTransform,
                 initialComponents:     components,
@@ -482,9 +485,11 @@ namespace Hrot.UI.Common.Adapters
                 initialAttributesJson: cmd.InitialAttributesJson,
                 isTransient:           cmd.IsTransient,
                 disType:               cmd.DisType,
-                requestId:             cmd.RequestId,
+                requestId:             id,
                 reliableInitTimeout:   cmd.ReliableInitTimeout,
                 spawnHeight:           cmd.SpawnHeight);
+            if (cmd.RequestId != System.Guid.Empty) { Send(cmd.RequestId); return; }
+            Fdp.Toolkit.Replication.Edits.Edits.Submit(_creation.World, Fdp.Toolkit.Replication.Edits.EditOp.Create(Send, "Place an entity"));
         }
     }
 }

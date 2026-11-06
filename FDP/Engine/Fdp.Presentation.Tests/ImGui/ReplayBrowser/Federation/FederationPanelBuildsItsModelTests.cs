@@ -38,7 +38,7 @@ public sealed class FederationPanelBuildsItsModelTests : IDisposable
     private string MakeMinimalRecording(int nodeId, Guid exerciseId)
     {
         string path = Path.Combine(_tempDir, $"node{nodeId}_{Guid.NewGuid():N}.fdp");
-        var meta = new RecordingMetadata { ExerciseId = exerciseId, NodeId = (Fdp.Core.NodeId)(nodeId) };
+        var meta = new RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)(exerciseId), NodeId = (Fdp.Core.NodeId)(nodeId) };
         using var repo = new EntityRepository();
         using (var rec = new AsyncRecorder(path, meta))
             rec.CaptureKeyframe(repo, 1_000_000L, blocking: true, eventBus: repo.Bus);

@@ -220,7 +220,7 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
             TransactionId = Guid.NewGuid(),
             TargetState   = ClusterState.OperatingEdit,
             ScenarioId    = scenarioName,
-            ExerciseId    = Guid.NewGuid(),
+            ExerciseId    = Fdp.Core.ExerciseId.NewId(),
         });
     }
 

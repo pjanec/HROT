@@ -208,7 +208,7 @@ public sealed class ClusterMasterBranchTests
                     TransactionId = intent.TransactionId, Operation = intent.Operation, NodeId = (Fdp.Core.NodeId)(nodeId),
                     StatusCode = OrchestrationStatusCode.Success, IsParticipating = true,
                     ResultPayload = intent.Operation == FdpNodeOpType.PrepareLive
-                        ? (object?)new LiveBranchResult(new Fdp.Core.GlobalTime { TotalWallTicks = 7777L, TotalTime = 3.0 }, true, parent, point)
+                        ? (object?)new LiveBranchResult(new Fdp.Core.GlobalTime { TotalWallTicks = 7777L, TotalTime = 3.0 }, true, (Fdp.Core.ExerciseId)(parent), point)
                         : null,
                 });
 

@@ -363,7 +363,7 @@ public sealed class IntegrationTests
             var config = new RecordingConfiguration
             {
                 FilePath   = tempFile,
-                ExerciseId = Guid.NewGuid(),
+                ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()),
                 Blocking   = true,
                 NodeId = (Fdp.Core.NodeId)(0),
             };

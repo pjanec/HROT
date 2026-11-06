@@ -86,7 +86,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 var request = new DeleteEntityRequest
                 {
-                    RequestId = Guid.NewGuid(),
+                    RequestId = destroyCmd.RequestId != Guid.Empty ? destroyCmd.RequestId : Guid.NewGuid(),   // ⭐ CE-4276 — the user's id end to end
                     EntityId  = destroyCmd.NetworkId,
                 };
 

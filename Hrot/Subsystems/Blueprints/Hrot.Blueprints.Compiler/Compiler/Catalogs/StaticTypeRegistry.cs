@@ -65,6 +65,8 @@ public sealed class StaticTypeRegistry : ITypeRegistry
             ["Fdp.Core.WorldRotation"]             = Unmanaged("Fdp.Core.WorldRotation", 16),   // S0 item 6: a world orientation — a Quaternion's memory
             ["Fdp.Core.TkbTypeId"]                 = Unmanaged("Fdp.Core.TkbTypeId", 8),   // ⭐ CE-4200 SV-2: a template id — a long's memory
             ["Fdp.Core.NodeId"]                    = Unmanaged("Fdp.Core.NodeId", 4),   // ⭐ CE-4200 SV-3: a cluster node id — an int's memory
+            ["Fdp.Core.ExerciseId"]                = Unmanaged("Fdp.Core.ExerciseId", 16),   // ⭐ CE-4204 SV-6: an exercise id — a Guid's memory
+            ["Fdp.Core.EpisodeId"]                 = Unmanaged("Fdp.Core.EpisodeId", 16),   // ⭐ CE-4204 SV-6: an episode id — a Guid's memory
 
             // EQS sensor handle -- wraps Entity (8 bytes), unmanaged value type
             ["FDP.Eqs.EqsSensorHandle"] = new IrTypeRef

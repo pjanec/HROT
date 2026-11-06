@@ -587,7 +587,7 @@ public class MainToolbarTimeControlTests
         var rig = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, clock: 754);
         Assert.False(rig.Choice.AskToKeep());                                       // nothing broadcast: keep silently
 
-        rig.Bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = RunChoiceRig.RunId, ArmedMode = rig.View.ArmedMode, AskToKeepRecordings = true });
+        rig.Bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = (Fdp.Core.ExerciseId)(RunChoiceRig.RunId), ArmedMode = rig.View.ArmedMode, AskToKeepRecordings = true });
         rig.Bus.SwapBuffers(); rig.View.Update(); rig.F.Update(); rig.Bus.SwapBuffers();
         Assert.True(rig.Choice.AskToKeep());
 

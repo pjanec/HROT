@@ -34,7 +34,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         string? ScenarioId,
         bool IsNewScenario = false,
         ClusterState TargetState = ClusterState.LoadingEdit,
-        System.Guid ExerciseId = default,
+        Fdp.Core.ExerciseId ExerciseId = default,
         string? TerrainName = null,
         // ⭐ CE-2101 — true on the load step entered FROM Idle: the world boundary, where every node clears its world
         //   before the load builds the new one (docs/DESIGN_Deterministic_Network_Ids.md §11b, §11g.4). Set by the

@@ -184,7 +184,7 @@ namespace Fdp.Toolkit.Replay
         public string FilePath => _filePath;
 
         /// <summary>⭐ <c>D18</c> — the exercise the replayed recording belongs to (from its <c>.meta.json</c>; empty when none).</summary>
-        public Guid RecordedExerciseId => _playback?.Metadata.ExerciseId ?? Guid.Empty;
+        public ExerciseId RecordedExerciseId => _playback?.Metadata.ExerciseId ?? ExerciseId.Empty;
 
         /// <summary>
         /// Wall-clock duration of the recording, as stored in

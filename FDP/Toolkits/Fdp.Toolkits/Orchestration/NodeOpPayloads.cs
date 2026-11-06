@@ -33,13 +33,13 @@ namespace Fdp.Toolkit.Orchestration
     /// <see cref="NodeOpType.RestoreSnapshot"/>): restore checkpoint <paramref name="Label"/> and record on as the exercise
     /// <paramref name="NewExerciseId"/>, which the master minted (D18).
     /// </summary>
-    public readonly record struct RestoreCheckpointPayload(string Label, Guid NewExerciseId);
+    public readonly record struct RestoreCheckpointPayload(string Label, ExerciseId NewExerciseId);
 
     /// <summary>
     /// ⭐ <c>CE-3299</c> B4 — a node's answer to <see cref="NodeOpType.RestoreSnapshot"/>: the clock its checkpoint was written at
     /// (D5 — the master snaps the cluster to the earliest one) and the exercise it records now.
     /// </summary>
-    public readonly record struct CheckpointRestoreResult(GlobalTime RestoredTime, Guid ExerciseId);
+    public readonly record struct CheckpointRestoreResult(GlobalTime RestoredTime, ExerciseId ExerciseId);
 
     /// <summary>
     /// Result payload returned by a completed <see cref="NodeOpType.NodeReplaySeek"/> operation.
@@ -63,7 +63,7 @@ namespace Fdp.Toolkit.Orchestration
     /// inventory carries it for the live run — no second record of the branch.</param>
     /// <param name="BranchWallTicks">⭐ the same <c>RecordingBranch.BranchWallTicks</c> (the sidecar's <c>BranchWallTicks</c>); 0 when none.</param>
     public readonly record struct LiveBranchResult(GlobalTime HistoricalTime, bool FromRecording = false,
-                                                   Guid ParentExerciseId = default, long BranchWallTicks = 0);
+                                                   ExerciseId ParentExerciseId = default, long BranchWallTicks = 0);
 
     /// <summary>
     /// Payload for <see cref="NodeOpType.AbortTransaction"/> intents.

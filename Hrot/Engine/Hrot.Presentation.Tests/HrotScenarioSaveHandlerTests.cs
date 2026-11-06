@@ -115,7 +115,7 @@ public sealed class HrotScenarioSaveHandlerTests : IDisposable
         {
             Operation     = NodeOpType.SerializeLocal,
             TransactionId = Guid.NewGuid(),
-            DomainPayload = new ArchiveHandlerPayload(Guid.NewGuid()),   // the .fdp checkpoint payload
+            DomainPayload = new ArchiveHandlerPayload((Fdp.Core.ExerciseId)(Guid.NewGuid())),   // the .fdp checkpoint payload
         };
 
         var result = handler.PrepareAsync(intent, CancellationToken.None).GetAwaiter().GetResult();

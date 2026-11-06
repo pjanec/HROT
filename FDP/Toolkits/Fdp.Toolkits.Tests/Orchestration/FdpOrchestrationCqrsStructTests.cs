@@ -189,7 +189,7 @@ public sealed class FdpOrchestrationCqrsStructTests
         Assert.Equal(typeof(bool), isStartType);
 
         Assert.True(fields.TryGetValue("EpisodeId", out var episodeIdType));
-        Assert.Equal(typeof(Guid), episodeIdType);
+        Assert.Equal(typeof(EpisodeId), episodeIdType);
 
         Assert.True(fields.TryGetValue("ScenarioId", out var scenarioIdType));
         Assert.Equal(typeof(string), scenarioIdType);

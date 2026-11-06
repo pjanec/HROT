@@ -380,7 +380,7 @@ namespace Hrot.CGF.Orchestration
 
                     // Append EpisodeTag last when an episode ID is provided.
                     if (episodeId.HasValue)
-                        comps.Add(new EpisodeTag { EpisodeId = episodeId.Value });
+                        comps.Add(new EpisodeTag { EpisodeId = (Fdp.Core.EpisodeId)(episodeId.Value) });
 
                     // Attach harvested child component overrides (null when none).
                     IReadOnlyDictionary<int, (int PreAllocatedId, IReadOnlyList<object> Components)>?

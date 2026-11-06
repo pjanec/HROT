@@ -28,7 +28,7 @@ public sealed class TheRunRecordingGatesAnswer409Tests : IDisposable
     private readonly HttpClient _client = new() { Timeout = TimeSpan.FromSeconds(10) };
     public void Dispose() => _client.Dispose();
 
-    private static readonly ExerciseInventoryItem Known = new(Guid.NewGuid(), new DateTime(2026, 10, 2, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(3), "a");
+    private static readonly ExerciseInventoryItem Known = new((Fdp.Core.ExerciseId)(Guid.NewGuid()), new DateTime(2026, 10, 2, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(3), "a");
 
     private readonly RecordingMasterControl _master = new();
     private ClusterState _state = ClusterState.OperatingLive;

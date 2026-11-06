@@ -281,7 +281,7 @@ namespace Hrot.Editor.DebugApi
             if (items is null) return (null, "No subsystem on this host keeps the cluster's exercise inventory.", DebugApiHints.Panel, 503);
             if (!items.Any(x => x.ExerciseId == id))
                 return (null, $"No unarchived exercise {id} (GET /exercises lists them); a kept exercise is not deleted here.", DebugApiHints.Scenario, 404);
-            var intent = new ExecuteStorageOpIntent { RequestId = Guid.NewGuid(), Operation = StorageOpType.Delete, ExerciseId = id };
+            var intent = new ExecuteStorageOpIntent { RequestId = Guid.NewGuid(), Operation = StorageOpType.Delete, ExerciseId = (Fdp.Core.ExerciseId)(id) };
             master.Storage(intent);
             return (new JsonObject { ["published"] = true, ["requestId"] = intent.RequestId.ToString(), ["exerciseId"] = id.ToString() }, null, null, 200);
         }
@@ -430,7 +430,7 @@ namespace Hrot.Editor.DebugApi
                 if (items is not { Count: > 0 }) return (null, "No exercise to keep: the inventory is empty (list_exercises).", DebugApiHints.Scenario);
                 id = items[0].ExerciseId;
             }
-            var intent = new ExecuteStorageOpIntent { RequestId = Guid.NewGuid(), Operation = StorageOpType.Export, ExerciseId = id };
+            var intent = new ExecuteStorageOpIntent { RequestId = Guid.NewGuid(), Operation = StorageOpType.Export, ExerciseId = (Fdp.Core.ExerciseId)(id) };
             master.Storage(intent);
             return (new JsonObject
             {

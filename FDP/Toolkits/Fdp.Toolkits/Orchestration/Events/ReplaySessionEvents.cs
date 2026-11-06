@@ -22,7 +22,7 @@ namespace Fdp.Toolkit.Orchestration
         public Guid SessionId { get; set; }
 
         /// <summary>The exercise shown (a replay's, or the live run's in a review).</summary>
-        public Guid ExerciseId { get; set; }
+        public ExerciseId ExerciseId { get; set; }
 
         /// <summary>⭐ F18 — the review open now (minted at its entry); <see cref="Guid.Empty"/> outside a review.</summary>
         public Guid ReviewId { get; set; }

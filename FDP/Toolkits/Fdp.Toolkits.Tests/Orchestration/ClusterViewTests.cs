@@ -42,7 +42,7 @@ public sealed class ClusterViewTests
         var exercise = Guid.NewGuid();
         HearStruct(bus, view, new ClusterStateUpdateEvent
         {
-            CurrentState = ClusterState.OperatingLive, ExerciseId = exercise, ReplayAxis = ReplayAxis.Wall, RunNotRecorded = true, RecordLiveRunsOff = true,
+            CurrentState = ClusterState.OperatingLive, ExerciseId = (Fdp.Core.ExerciseId)(exercise), ReplayAxis = ReplayAxis.Wall, RunNotRecorded = true, RecordLiveRunsOff = true,
         });
         Assert.True(view.HasFollowedState);
         Assert.Equal((ClusterState.OperatingLive, exercise, ReplayAxis.Wall, true, true),
@@ -52,7 +52,7 @@ public sealed class ClusterViewTests
         Assert.Equal(ClusterArmedMode.Live, view.ArmedMode);
         HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit, ArmedMode = ClusterArmedMode.Preview });
         Assert.Equal(ClusterArmedMode.Preview, view.ArmedMode);
-        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = exercise, ReplayAxis = ReplayAxis.Wall, RunNotRecorded = true, RecordLiveRunsOff = true });   // a sender that does not set it
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = (Fdp.Core.ExerciseId)(exercise), ReplayAxis = ReplayAxis.Wall, RunNotRecorded = true, RecordLiveRunsOff = true });   // a sender that does not set it
         Assert.Equal(ClusterArmedMode.Live, view.ArmedMode);
 
         // R-1043 - LastLoadMode is the same kind of fold
@@ -101,7 +101,7 @@ public sealed class ClusterViewTests
         var (bus, view) = Rig();
         Assert.False(view.HasInventory);
 
-        var ex = new ExerciseInventoryItem(Guid.NewGuid(), DateTime.UtcNow, TimeSpan.FromSeconds(5), "scn");
+        var ex = new ExerciseInventoryItem((Fdp.Core.ExerciseId)(Guid.NewGuid()), DateTime.UtcNow, TimeSpan.FromSeconds(5), "scn");
         HearStruct(bus, view, new AssetInventoryUpdateEvent { LocalScenarios = new[] { "a", "b" }, LocalExercises = new[] { ex } });
 
         Assert.True(view.HasInventory);

@@ -13,7 +13,7 @@ public struct DeployRole
     public ForceId Side;
 
     /// <summary>The TKB type of the person this role spawns (an infantry type).</summary>
-    public long PersonTkbType;
+    public TkbTypeId PersonTkbType;
 
     /// <summary>The role's name; the men are named "&lt;name&gt; &lt;n&gt;".</summary>
     public FixedString32 Name;
@@ -23,9 +23,9 @@ public struct DeployRole
 
     // ⭐ Player Join S3-a (D-10, kits) — up to THREE extra kits beside the role's own (kit 0 = PersonTkbType / Name): another person type the SAME role may spawn, sharing its count and max (S3-b).
     //   Fixed fields, not a list: an unmanaged component cannot hold one. Tkb 0 = the kit is not offered; Name "" = "Kit n".
-    public long Kit1Tkb;
-    public long Kit2Tkb;
-    public long Kit3Tkb;
+    public TkbTypeId Kit1Tkb;
+    public TkbTypeId Kit2Tkb;
+    public TkbTypeId Kit3Tkb;
     public FixedString32 Kit1Name;
     public FixedString32 Kit2Name;
     public FixedString32 Kit3Name;

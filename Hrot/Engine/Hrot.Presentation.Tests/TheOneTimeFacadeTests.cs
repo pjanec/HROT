@@ -1030,7 +1030,7 @@ public sealed class TheOneTimeFacadeTests
         var parent = Guid.Parse("00000000-0000-0000-0000-0000000000b9");
         const long zero = 5_000_000_000, branch = zero + 70_000_000;     // 7 s into the parent
         var rig = With(ClusterState.OperatingLive, RunArmed.Live, inventoryScenario: null);
-        rig.Bus.PublishManaged(new AssetInventoryUpdateEvent { LocalExercises = new[] { new ExerciseInventoryItem(RunId, DateTime.UtcNow, TimeSpan.Zero, "hill-attack", parent, branch) } });
+        rig.Bus.PublishManaged(new AssetInventoryUpdateEvent { LocalExercises = new[] { new ExerciseInventoryItem((Fdp.Core.ExerciseId)(RunId), DateTime.UtcNow, TimeSpan.Zero, "hill-attack", (Fdp.Core.ExerciseId)(parent), branch) } });
         Hear(rig, ClusterState.OperatingLive);
 
         rig.F.Stop();
@@ -1116,11 +1116,11 @@ public sealed class TheOneTimeFacadeTests
         var facade = new ClusterTimeTransportAdapter(bus, () => view, () => 0);
         var parent = Guid.Parse("00000000-0000-0000-0000-0000000000b9");
         var session = new ReplaySession { Active = true, ZeroWallTicks = 5_000_000_000 };
-        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = RunId, ReplayAxis = ReplayAxis.Wall, RunNotRecorded = true });
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = (Fdp.Core.ExerciseId)(RunId), ReplayAxis = ReplayAxis.Wall, RunNotRecorded = true });
         bus.PublishManaged(new AssetInventoryUpdateEvent
         {
-            LocalExercises = new[] { new ExerciseInventoryItem(Guid.NewGuid(), DateTime.UtcNow, TimeSpan.Zero, "other") },
-            ArchivedExercises = new[] { new ExerciseInventoryItem(RunId, DateTime.UtcNow, TimeSpan.Zero, "hill-attack", parent, 5_070_000_000) },   // the run is listed in the ARCHIVED scope
+            LocalExercises = new[] { new ExerciseInventoryItem((Fdp.Core.ExerciseId)(Guid.NewGuid()), DateTime.UtcNow, TimeSpan.Zero, "other") },
+            ArchivedExercises = new[] { new ExerciseInventoryItem((Fdp.Core.ExerciseId)(RunId), DateTime.UtcNow, TimeSpan.Zero, "hill-attack", (Fdp.Core.ExerciseId)(parent), 5_070_000_000) },   // the run is listed in the ARCHIVED scope
         });
         bus.PublishManaged(new ReplaySessionUpdateEvent { Session = session });
         bus.SwapBuffers(); view.Update(); facade.Update(); bus.SwapBuffers();
@@ -1145,12 +1145,12 @@ public sealed class TheOneTimeFacadeTests
     {
         var nodeBus = new FdpEventBus();
         var view = new ClusterView(nodeBus);
-        nodeBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = RunId, RecordLiveRunsOff = true });
+        nodeBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = (Fdp.Core.ExerciseId)(RunId), RecordLiveRunsOff = true });
         nodeBus.SwapBuffers(); view.Update();
 
         var ownBus = new FdpEventBus();                                        // what the adapter's own bus carries is NOT the view's input
         var facade = new ClusterTimeTransportAdapter(ownBus, () => view, () => 0);
-        ownBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit, ExerciseId = Guid.NewGuid() });
+        ownBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit, ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()) });
         ownBus.SwapBuffers(); facade.Update(); ownBus.SwapBuffers();
 
         Assert.Equal(TransportMode.Live, facade.Mode);                         // the view's state, not the bus's

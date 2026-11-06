@@ -458,7 +458,7 @@ public class TheStartGateIsComposedOnceTests
             orch.PickerOpenerOverride = (request, onChosen) => { opened.Add(request); callbacks.Add(onChosen); };
 
             // the master's inventory reaches the host's cache (and so the pickers' lists) the way it does in a run: on the host's bus, folded by its frame
-            var exercise = new ExerciseInventoryItem(Guid.Parse("00000000-0000-0000-0000-0000000000c1"), DateTime.UtcNow, TimeSpan.FromMinutes(3), "harbour");
+            var exercise = new ExerciseInventoryItem((Fdp.Core.ExerciseId)(Guid.Parse("00000000-0000-0000-0000-0000000000c1")), DateTime.UtcNow, TimeSpan.FromMinutes(3), "harbour");
             orch.TimeBusForTest!.PublishManaged(new AssetInventoryUpdateEvent { LocalScenarios = new[] { "harbour" }, LocalExercises = new[] { exercise } });
             orch.TimeBusForTest!.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle });   // ⭐ CE-1442 — the run gate is closed until the master's state has reached the host (its Start actions read it)
             orch.Update(0.016f);

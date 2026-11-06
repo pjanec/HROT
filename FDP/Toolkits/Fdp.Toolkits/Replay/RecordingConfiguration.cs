@@ -34,7 +34,7 @@ namespace Fdp.Toolkit.Replay
         /// <summary>
         /// Exercise or Episode identifier embedded in the recording header metadata.
         /// </summary>
-        public required Guid ExerciseId { get; init; }
+        public required ExerciseId ExerciseId { get; init; }
 
         /// <summary>
         /// Node identifier embedded in the recording metadata.

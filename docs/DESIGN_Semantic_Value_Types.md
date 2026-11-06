@@ -89,6 +89,23 @@ name, a unit — and the instant / duration pair has the arithmetic built in (an
 | ⛔ | speeds, distances | **NO** | one SI convention, no measured confusion — 300 fields of churn for nothing a tool needs | — |
 | ⛔ | ratios / scores 0..1 | **NO** | 19 fields, range is documentation-level; the evaluation `Score` (SR-75) is one field | — |
 
+### 2.2 ⭐ AS-BUILT — SV-6 `ExerciseId` and `EpisodeId` *(CE-4204, `2026-11-06`)*
+
+| | `ExerciseId` | `EpisodeId` |
+|---|---|---|
+| type | `Fdp.Core/World/ExerciseId.cs` — over `Guid`, 16 B | `Fdp.Core/World/EpisodeId.cs` — over `Guid`, 16 B |
+| JSON · schema | a plain GUID string · `{type: string, format: exerciseId}` | a plain GUID string · `{type: string, format: episodeId}` |
+| conversions | implicit OUT to `Guid`; explicit IN from `Guid`; `==` / `!=` also mixed with a raw `Guid`; `Empty`, `NewId()` | the same |
+| seams | `SemanticValueTypes`, `DtoJsonSchemaExtractor`, `StaticTypeRegistry` (unmanaged 16 B) | the same three |
+| typed members | `RecordingConfiguration` / `RecordingModule` / `ReplayModule.RecordedExerciseId` / `ClusterView` / `ClusterOpIntents` ×2 / `ClusterCqrsEvents` ×2 + `ExerciseInventoryItem` / `ReplaySession` / `NodeOpPayloads` ×3 / handler payloads / `FederatedReplayManager` / `RecordingGroup` / `RecordingBranch` / `RecordingMetadata` ×2 (recorded, JSON identical) / `ExerciseBranch.Of` / `LoadPhaseContext` / `RecordingLedgerEntry` / `ClusterMaster.ActiveExerciseId` / `ClusterUiCache.ActiveExerciseId` | `EpisodeTag` (recorded, 16 B) / `EpisodeReplayTag` / `ManageEpisodeIntent` / `EpisodeHandlerPayload` / `EpisodeConsensusAggregator` |
+| rail | `S0IdTypesRailTests.S0_EveryExerciseOrEpisodeIdMember_IsTyped` (every public non-wire type of the four assemblies; allow-list `NotAnExerciseOrEpisodeId` empty) + `ExerciseId_And_EpisodeId_AreAGuidsMemory_…` (size, JSON round-trip of `RecordingMetadata`) | same rail |
+
+⚠ **Where the build DEVIATES from §2 — the prior statement is SUPERSEDED:**
+- **Constructor parameters, locals and private fields stay `Guid`** (a `(ExerciseId)` cast sits at the assignment), as §2.1.
+- **The DDS wire stays plain `Guid`**: `OrchestrationMessages` topic structs, and the JSON payload DTOs that ride them (`OrchestrationPayloadDtos`) — the type stops at that boundary, the cast sits in the translators (`ClusterOpMasterTranslator`, `NodeOpSlaveTranslator`, `ClusterFactsIngress`, `EcsRecordReplayController`).
+- **Left `Guid`, outside the rail's four assemblies:** `RecordingName.ExerciseId` (Hrot.Presentation), `IRunModeHost.ActiveExercise` / `ClusterTimeTransportAdapter.ActiveExercise` (no `Id` suffix), `RunModeChoice.LastExercise`.
+- ⛔ **Not done here:** "render them as links" — a clickable link in an inspector / the debug API is UI work; the type, `ToString` and the schema `format` are what a tool now keys on.
+
 ## 3. The shared pattern *(the one every accepted type follows — `WorldPoint` is the model, `DESIGN_Scenario_Rules.md` §9.8.9)*
 
 | ⭐ rule | |

@@ -194,7 +194,7 @@ public sealed class LiveBranchProcessManagerTests
         {
             RequestId     = Guid.NewGuid(),
             StatusCode    = OrchestrationStatusCode.Success,
-            ResultPayload = new CheckpointRestoreResult(new Fdp.Core.GlobalTime { TotalWallTicks = 77L, TotalTime = 4.25, FrameNumber = 255 }, Guid.NewGuid()),
+            ResultPayload = new CheckpointRestoreResult(new Fdp.Core.GlobalTime { TotalWallTicks = 77L, TotalTime = 4.25, FrameNumber = 255 }, (Fdp.Core.ExerciseId)(Guid.NewGuid())),
         });
         bus.SwapBuffers();
         mgr.Tick();

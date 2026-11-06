@@ -32,7 +32,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         public IReadOnlyDictionary<int, ReplayBrowserContext> Contexts { get; }
 
         /// <summary>Distributed exercise identifier shared by all loaded nodes.</summary>
-        public Guid ExerciseId { get; }
+        public ExerciseId ExerciseId { get; }
 
         /// <summary>Base wall-clock tick origin applied to every node seek.</summary>
         public long BaseWallTicks { get; private set; }
@@ -58,7 +58,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
             _nodeOffsets = new Dictionary<int, long>();
             Contexts = _contexts;
             NodeOffsets = _nodeOffsets;
-            ExerciseId = exerciseId;
+            ExerciseId = (Fdp.Core.ExerciseId)exerciseId;
             LocalEntitiesProviderNodeId = (Fdp.Core.NodeId)(lowestNodeId);
         }
 

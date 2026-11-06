@@ -25,7 +25,7 @@ public sealed class ReferenceArchiveHandlerTests
             //   (ClusterSlave.Tick's TargetNodeId filter) — the pre-existing reason Commit saw an empty result.
             TargetNodeId  = (Fdp.Core.NodeId)(0),
             Operation     = NodeOpType.SerializeLocal,
-            DomainPayload = new ArchiveHandlerPayload(exerciseId),
+            DomainPayload = new ArchiveHandlerPayload((Fdp.Core.ExerciseId)(exerciseId)),
         };
 
     // ── CGF1-S0505 Success Condition 2 ────────────────────────────────────────
@@ -241,7 +241,7 @@ public sealed class ReferenceArchiveHandlerTests
         Assert.True(archive.CanHandle(new ExecuteNodeOpIntent
         {
             Operation = NodeOpType.SerializeLocal,
-            DomainPayload = new ArchiveHandlerPayload(Guid.NewGuid()),
+            DomainPayload = new ArchiveHandlerPayload((Fdp.Core.ExerciseId)(Guid.NewGuid())),
         }), "archive handler must still claim its OWN archive payload");
         Assert.True(scenario.CanHandle(new ExecuteNodeOpIntent
         {

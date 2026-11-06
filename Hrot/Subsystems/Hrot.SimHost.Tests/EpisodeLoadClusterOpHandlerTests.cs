@@ -57,7 +57,7 @@ namespace Hrot.SimHost.Tests
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StartEpisode,
-                DomainPayload = new EpisodeHandlerPayload(Guid.Empty, "s1", IsStart: true),  // EpisodeId is Guid.Empty -> not valid
+                DomainPayload = new EpisodeHandlerPayload((Fdp.Core.EpisodeId)(Guid.Empty), "s1", IsStart: true),  // EpisodeId is Guid.Empty -> not valid
             };
 
             await handler.PrepareAsync(cmd, CancellationToken.None);
@@ -85,7 +85,7 @@ namespace Hrot.SimHost.Tests
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StartEpisode,
-                DomainPayload = new EpisodeHandlerPayload(Guid.NewGuid(), ScenarioId: null, IsStart: true),  // no ScenarioId
+                DomainPayload = new EpisodeHandlerPayload((Fdp.Core.EpisodeId)(Guid.NewGuid()), ScenarioId: null, IsStart: true),  // no ScenarioId
             };
 
             await handler.PrepareAsync(cmd, CancellationToken.None);
@@ -124,7 +124,7 @@ namespace Hrot.SimHost.Tests
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StartEpisode,
-                DomainPayload = new EpisodeHandlerPayload(episodeId, scenarioId, IsStart: true),
+                DomainPayload = new EpisodeHandlerPayload((Fdp.Core.EpisodeId)(episodeId), scenarioId, IsStart: true),
             };
 
             await handlerNoWorld.PrepareAsync(cmd, CancellationToken.None);
@@ -149,7 +149,7 @@ namespace Hrot.SimHost.Tests
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StopEpisode,
-                DomainPayload = new EpisodeHandlerPayload(Guid.Empty, ScenarioId: null, IsStart: false),  // empty EpisodeId
+                DomainPayload = new EpisodeHandlerPayload((Fdp.Core.EpisodeId)(Guid.Empty), ScenarioId: null, IsStart: false),  // empty EpisodeId
             };
 
             await handler.PrepareAsync(cmd, CancellationToken.None);
@@ -175,7 +175,7 @@ namespace Hrot.SimHost.Tests
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = (Fdp.Core.NodeId)(0),
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StopEpisode,
-                DomainPayload = new EpisodeHandlerPayload(episodeId, ScenarioId: null, IsStart: false),
+                DomainPayload = new EpisodeHandlerPayload((Fdp.Core.EpisodeId)(episodeId), ScenarioId: null, IsStart: false),
             };
 
             await handlerNoWorld.PrepareAsync(cmd, CancellationToken.None);

@@ -140,7 +140,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                 if (type != FrameType.Keyframe)
                     throw new InvalidDataException($"checkpoint '{payload.Label}' (frame {mark.Frame}) is not a keyframe");
                 _staged = new Staged(intent.TransactionId, payload, mark, WorldKeyframe.FromRecordedFrame(frame),
-                    new RecordingBranch(source, mark.Frame + 1, parent, mark.WallTicks));
+                    new RecordingBranch(source, mark.Frame + 1, (Fdp.Core.ExerciseId)parent, mark.WallTicks));
                 FdpLog<ReferenceCheckpointHandler>.Info("[Checkpoint] restore of '{0}' staged ({1} bytes, frame {2}).",
                     payload.Label, frame.Length, mark.Frame);
                 return (object?)null;   // ⚠ a bare null picks Task.Run's Func<Task> overload, and a null inner task CANCELS

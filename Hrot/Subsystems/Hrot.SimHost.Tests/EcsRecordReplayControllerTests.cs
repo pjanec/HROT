@@ -67,7 +67,7 @@ namespace Hrot.SimHost.Tests
             }
 
             var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => controller.PrepareRecordingAsync(
-                Guid.NewGuid(), _tempDir, new Fdp.Core.FlightRecorder.RecordingBranch(Parent("gone.feature"), 10, Guid.NewGuid(), 0)));
+                Guid.NewGuid(), _tempDir, new Fdp.Core.FlightRecorder.RecordingBranch(Parent("gone.feature"), 10, (Fdp.Core.ExerciseId)(Guid.NewGuid()), 0)));
             Assert.Contains("gone.feature", refused.Message);
             Assert.Null(controller.ActiveRecordingModule);   // nothing was installed
 
