@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — top-level, for the user's review (R-4122); the building lanes detail it (R-4123)
-updated: 2026-11-06 (§2.5 the user's review: HTTP sessions take seats, seat = a node feature preset while the hat is local UI state, the camera keeps the view on leaving a hat, keys → E14) · 2026-11-06 (first version — coordinator; editing-UX design queue item 4: E10 / D17, with D4's editing levels)
+build-state: DESIGN — top-level; ✅ Q1–Q7 APPROVED by the user 2026-11-06 (R-4131); the building lanes detail it (R-4123)
+updated: 2026-11-06 (Q1–Q7 approved, R-4131; the director shares the camera with the user) · 2026-11-06 (§2.5 the user's review: HTTP sessions take seats, seat = a node feature preset while the hat is local UI state, the camera keeps the view on leaving a hat, keys → E14) · 2026-11-06 (first version — coordinator; editing-UX design queue item 4: E10 / D17, with D4's editing levels)
 current-answer: §2 the model (seat × hat) · §3 stages · §4 questions with leans
 stale-below: nothing
 known-rot: none
@@ -170,6 +170,7 @@ features"*
 | **the HTTP API takes a seat** | ⭐ an HTTP session is a **virtual station** with its own seat and hat: `POST /session/seat {seat, side}` and `POST /session/hat {hat}`; every route it calls then passes the SAME catalogue / gate checks a person's station would — so an automated test can play a Player, a side controller or the instructor and see the same refusals. It generalises today's `/orders/side-lock` (C-10, `DebugApiHost.cs:1434`), which becomes the session seat's side scope. No seat set ⇒ Author (today's behaviour) |
 | **seat = a node feature; hat ≠ feature settings** | the **seat** is ONE node feature (`station.seat`, config `{seat, side}`) — cluster-visible, kept in the recording, rarely changed; it works as a PRESET: it sets the defaults of the features it implies (`hud.*`, `gm.palette`, the editing level D4 — one setting, not two). ⭐ The **hat is NOT feature settings**: it is this station's UI state, changed every few seconds (like the selection — local, not on the wire, not recorded). Flipping cluster features on each hat switch would put UI clicks on the wire and in the recording. What the cluster must know about a hat is already its own state (possession is the replicated `PossessedBy` claim) |
 | **"one camera owner" — what changes** | today each driver (FPS, Follow, director take, free) grabs the camera and restores — or not — on its own, unaware of the others. ⭐ Target: **leaving a hat hands control back; the VIEW stays where it is** — after a director take, Observe's free-fly starts from the director's last shot (the user's wish); after releasing a unit, from the unit's eye. An explicit **Back to my view** (a key) returns to the view the previous hat had remembered. ⛔ No snap-back by default |
+| **the director and the user share the camera** *(user, `2026-11-06`: "while director is playing, i still like to move around (director overrides whenever he wants but if i pause the playback or even while it is running i still want to be able to operate the camera to watch stuff from different angles)")* | ⭐ the director's playback is a camera SOURCE, not an exclusive owner: **any camera input from the user takes the camera at once** (free-fly from the current shot), during playback or paused; the director **takes it back at its next shot** (its next camera key / cut); a toggle **Director camera on / off** keeps the user in control for the rest of the playback; pausing the playback leaves the camera with the user. The take's other overrides (layers, view) are unaffected |
 | **keys and commands** | ⭐ a whole-app concern, not this design's — filed as **E14 (Editing UX queue)**: ONE keymap with scopes (global · map · active hat · focused window · text field), keys bound to ACTION IDS from the catalogue (design 1), never to direct calls. 📐 today ~62 files read keys directly, plus `EditorHotkeyDispatcher` (graph editors), `MenuShortcuts` (map menu letters), the FPS station's own keys — no shared keymap |
 
 ## 3. Stages
@@ -184,7 +185,7 @@ features"*
 | **H6** | the Side controller seat; the Observer seat's camera | ui |
 | **H7** | the HTTP session seat and hat (`/session/seat`, `/session/hat`); `/orders/side-lock` folded in | backend + ui |
 
-## 4. Questions — leans for the user
+## 4. Questions — ✅ all seven leans APPROVED *(🔒 user, `2026-11-06`: "Q1–Q7 of seats and hats approved")*
 
 | # | question | ⭐ lean | rejected |
 |---|---|---|---|
