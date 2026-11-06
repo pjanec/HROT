@@ -1,0 +1,230 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='1240' height='826' viewBox='0 0 1240 826'>
+<rect x='0' y='0' width='1240' height='826' fill='#1B1B1F' rx='0'/>
+<text x='20' y='26' fill='#E8E8EE' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Condition editor — the friendly view (ImGui default dark; real FontAwesome glyphs; every element is one ImGui call — design §4)</text>
+<text x='20' y='44' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Annotations in grey are not drawn by the app.</text>
+<rect x='20' y='60' width='760' height='540' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1'/>
+<rect x='20' y='60' width='760' height='20' fill='#294A7A' rx='0'/>
+<text x='28' y='74' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Details — Rule "Phase 2: assault"</text>
+<rect x='28' y='86' width='42' height='20' fill='#3369AD' rx='3'/>
+<text x='35' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>When</text>
+<rect x='74' y='86' width='28' height='20' fill='#1F3A5C' rx='3'/>
+<text x='81' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Do</text>
+<rect x='106' y='86' width='70' height='20' fill='#1F3A5C' rx='3'/>
+<text x='113' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Settings</text>
+<rect x='180' y='86' width='63' height='20' fill='#1F3A5C' rx='3'/>
+<text x='187' y='100' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Results</text>
+<rect x='580' y='87' width='84' height='18' fill='#163A24' rx='9'/>
+<path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64Z' fill='#5BD06A' fill-opacity='1' transform='translate(588,99.861328125) scale(0.021484375,-0.021484375)'/>
+<text x='604' y='100' fill='#7FD69A' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Live</text>
+<rect x='672' y='87' width='100' height='18' fill='#1D2F48' rx='3'/>
+<text x='680' y='100' fill='#808080' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Expert view</text>
+<rect x='756' y='91' width='10' height='10' fill='#2A2A33' rx='0' stroke='#4A4A55' stroke-width='1'/>
+<text x='36' y='138.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>When</text>
+<rect x='76' y='124' width='47.84' height='20' fill='#1D2F48' rx='3'/>
+<text x='82' y='138.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>all</text>
+<path d='M111.84 132 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<text x='129.84' y='138.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>of these are true:</text>
+<path d='M216 -51Q243 -18 282 38Q321 93 352 152Q382 211 384 256Q382 338 328 392Q274 446 192 448Q110 446 56 392Q2 338 0 256Q2 211 32 152Q63 93 102 38Q141 -18 168 -51Q178 -63 192 -63Q206 -63 216 -51ZM192 320Q228 319 247 288Q265 256 247 224Q228 193 192 192Q156 193 137 224Q119 256 137 288Q156 319 192 320Z' fill='#5BD06A' fill-opacity='1' transform='translate(36,173.154296875) scale(0.025390625,-0.025390625)'/>
+<rect x='56' y='158' width='107.52000000000001' height='20' fill='#1D2F48' rx='3'/>
+<path d='M224 192Q259 192 288 209Q317 226 335 256Q352 286 352 320Q352 354 335 384Q317 414 288 431Q259 448 224 448Q189 448 160 431Q131 414 113 384Q96 354 96 320Q96 286 113 256Q131 226 160 209Q189 192 224 192ZM178 144Q103 142 52 92Q2 41 0 -34Q0 -47 9 -55Q17 -64 30 -64H418Q431 -64 439 -55Q448 -47 448 -34Q446 41 396 92Q345 142 270 144H178Z' fill='#5AA9FF' fill-opacity='1' transform='translate(61,172.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='77' y='172.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Alpha 1-1</text>
+<path d='M151.52 166 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<rect x='169.52' y='158' width='91.52000000000001' height='20' fill='#1D2F48' rx='3'/>
+<text x='175.52' y='172.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>is inside</text>
+<path d='M249.04000000000002 166 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<rect x='267.04' y='158' width='100.24000000000001' height='20' fill='#1D2F48' rx='3'/>
+<path d='M256 448Q270 448 279 439Q288 430 288 416V406Q360 394 409 345Q458 295 470 224H480Q494 224 503 215Q512 206 512 192Q512 178 503 169Q494 160 480 160H470Q458 88 409 39Q359 -10 288 -22V-32Q288 -46 279 -55Q270 -64 256 -64Q242 -64 233 -55Q224 -46 224 -32V-22Q152 -10 103 39Q54 88 42 160H32Q18 160 9 169Q0 178 0 192Q0 206 9 215Q18 224 32 224H42Q54 296 103 345Q152 394 224 406V416Q224 430 233 439Q242 448 256 448ZM107 160Q117 116 149 85Q180 53 224 43V64Q224 78 233 87Q242 96 256 96Q270 96 279 87Q288 78 288 64V43Q332 53 363 85Q395 116 405 160H384Q370 160 361 169Q352 178 352 192Q352 206 361 215Q370 224 384 224H405Q395 268 363 299Q332 331 288 341V320Q288 306 279 297Q270 288 256 288Q242 288 233 297Q224 306 224 320V341Q180 331 149 299Q117 268 107 224H128Q142 224 151 215Q160 206 160 192Q160 178 151 169Q142 160 128 160H107ZM256 224Q270 224 279 215Q288 206 288 192Q288 178 279 169Q270 160 256 160Q242 160 233 169Q224 178 224 192Q224 206 233 215Q242 224 256 224Z' fill='#5BD06A' fill-opacity='1' transform='translate(272.04,172.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='288.04' y='172.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>OBJ BLUE</text>
+<path d='M355.28000000000003 166 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<path d='M439 343Q448 333 448 320Q448 307 439 297L183 41Q173 32 160 32Q147 32 137 41L9 169Q0 179 0 192Q0 205 9 215Q19 224 32 224Q45 224 55 215L160 109L393 343Q403 352 416 352Q429 352 439 343Z' fill='#5BD06A' fill-opacity='1' transform='translate(648,173.154296875) scale(0.025390625,-0.025390625)'/>
+<path d='M64 88Q32 87 16 60Q0 32 16 4Q32 -23 64 -24Q96 -23 112 4Q128 32 112 60Q96 87 64 88ZM64 248Q32 247 16 220Q0 192 16 164Q32 137 64 136Q96 137 112 164Q128 192 112 220Q96 247 64 248ZM120 352Q119 384 92 400Q64 416 36 400Q9 384 8 352Q9 320 36 304Q64 288 92 304Q119 320 120 352Z' fill='#808080' fill-opacity='1' transform='translate(730,173.154296875) scale(0.025390625,-0.025390625)'/>
+<path d='M416 49Q460 80 486 125Q511 170 512 224Q511 287 477 337Q443 388 385 417Q328 447 256 448Q184 447 127 417Q69 388 35 337Q1 287 0 224Q1 171 26 125Q52 80 96 49Q96 49 96 49Q96 48 96 48V-16Q97 -36 110 -50Q124 -63 144 -64H192V-16Q193 -1 208 0Q223 -1 224 -16V-64H288V-16Q289 -1 304 0Q319 -1 320 -16V-64H368Q388 -63 402 -50Q415 -36 416 -16V48Q416 48 416 49Q416 49 416 49ZM96 192Q97 228 128 247Q160 265 192 247Q223 228 224 192Q223 156 192 137Q160 119 128 137Q97 156 96 192ZM352 256Q388 255 407 224Q425 192 407 160Q388 129 352 128Q316 129 297 160Q279 192 297 224Q316 255 352 256Z' fill='#E65555' fill-opacity='1' transform='translate(36,203.154296875) scale(0.025390625,-0.025390625)'/>
+<rect x='56' y='188' width='98.80000000000001' height='20' fill='#1D2F48' rx='3'/>
+<text x='62' y='202.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>at least 3</text>
+<path d='M142.8 196 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<text x='160.8' y='202.5' fill='#C8C8D0' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>of</text>
+<rect x='181.36' y='188' width='100.24000000000001' height='20' fill='#1D2F48' rx='3'/>
+<path d='M64 416Q64 430 55 439Q46 448 32 448Q18 448 9 439Q0 430 0 416V384V80V-32Q0 -46 9 -55Q18 -64 32 -64Q46 -64 55 -55Q64 -46 64 -32V96L128 112Q192 127 251 99Q320 65 393 91L427 104Q447 113 448 134V382Q447 400 433 408Q420 417 403 410L394 405Q358 387 320 387Q282 387 247 405Q192 431 133 417L64 400V416Z' fill='#E65555' fill-opacity='1' transform='translate(186.36,202.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='202.36' y='202.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Red side</text>
+<path d='M269.6 196 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<rect x='287.6' y='188' width='120.64000000000001' height='20' fill='#1D2F48' rx='3'/>
+<text x='293.6' y='202.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>are destroyed</text>
+<path d='M396.24 196 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<path d='M343 297Q352 307 352 320Q352 333 343 343Q333 352 320 352Q307 352 297 343L192 237L87 343Q77 352 64 352Q51 352 41 343Q32 333 32 320Q32 307 41 297L147 192L41 87Q32 77 32 64Q32 51 41 41Q51 32 64 32Q77 32 87 41L192 147L297 41Q307 32 320 32Q333 32 343 41Q352 51 352 64Q352 77 343 87L237 192L343 297Z' fill='#E65555' fill-opacity='1' transform='translate(648,203.154296875) scale(0.025390625,-0.025390625)'/>
+<text x='666' y='202.5' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>1 of 3</text>
+<path d='M64 88Q32 87 16 60Q0 32 16 4Q32 -23 64 -24Q96 -23 112 4Q128 32 112 60Q96 87 64 88ZM64 248Q32 247 16 220Q0 192 16 164Q32 137 64 136Q96 137 112 164Q128 192 112 220Q96 247 64 248ZM120 352Q119 384 92 400Q64 416 36 400Q9 384 8 352Q9 320 36 304Q64 288 92 304Q119 320 120 352Z' fill='#808080' fill-opacity='1' transform='translate(730,203.154296875) scale(0.025390625,-0.025390625)'/>
+<path d='M448 192Q448 244 422 288Q397 332 352 358Q307 384 256 384Q205 384 160 358Q115 332 90 288Q64 244 64 192Q64 140 90 96Q115 52 160 26Q205 0 256 0Q307 0 352 26Q397 52 422 96Q448 140 448 192ZM0 192Q1 262 34 320Q68 378 128 414Q189 448 256 448Q323 448 384 414Q444 378 478 320Q511 262 512 192Q511 122 478 64Q444 6 384 -30Q323 -64 256 -64Q189 -64 128 -30Q68 6 34 64Q1 122 0 192ZM256 112Q301 113 325 152Q347 192 325 232Q301 271 256 272Q211 271 187 232Q165 192 187 152Q211 113 256 112ZM256 336Q295 336 328 317Q361 298 381 264Q400 230 400 192Q400 154 381 120Q361 86 328 67Q295 48 256 48Q217 48 184 67Q151 86 131 120Q112 154 112 192Q112 230 131 264Q151 298 184 317Q217 336 256 336ZM224 192Q224 206 233 215Q242 224 256 224Q270 224 279 215Q288 206 288 192Q288 178 279 169Q270 160 256 160Q242 160 233 169Q224 178 224 192Z' fill='#5BD06A' fill-opacity='1' transform='translate(36,233.154296875) scale(0.025390625,-0.025390625)'/>
+<rect x='56' y='218' width='107.52000000000001' height='20' fill='#1D2F48' rx='3'/>
+<path d='M448 192Q448 244 422 288Q397 332 352 358Q307 384 256 384Q205 384 160 358Q115 332 90 288Q64 244 64 192Q64 140 90 96Q115 52 160 26Q205 0 256 0Q307 0 352 26Q397 52 422 96Q448 140 448 192ZM0 192Q1 262 34 320Q68 378 128 414Q189 448 256 448Q323 448 384 414Q444 378 478 320Q511 262 512 192Q511 122 478 64Q444 6 384 -30Q323 -64 256 -64Q189 -64 128 -30Q68 6 34 64Q1 122 0 192ZM256 112Q301 113 325 152Q347 192 325 232Q301 271 256 272Q211 271 187 232Q165 192 187 152Q211 113 256 112ZM256 336Q295 336 328 317Q361 298 381 264Q400 230 400 192Q400 154 381 120Q361 86 328 67Q295 48 256 48Q217 48 184 67Q151 86 131 120Q112 154 112 192Q112 230 131 264Q151 298 184 317Q217 336 256 336ZM224 192Q224 206 233 215Q242 224 256 224Q270 224 279 215Q288 206 288 192Q288 178 279 169Q270 160 256 160Q242 160 233 169Q224 178 224 192Z' fill='#5BD06A' fill-opacity='1' transform='translate(61,232.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='77' y='232.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Objective</text>
+<path d='M151.52 226 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<rect x='169.52' y='218' width='142.48000000000002' height='20' fill='#1D2F48' rx='3'/>
+<text x='175.52' y='232.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Seize the bridge</text>
+<path d='M300.0 226 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<rect x='318.0' y='218' width='40.56' height='20' fill='#1D2F48' rx='3'/>
+<text x='324.0' y='232.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>is</text>
+<path d='M346.56 226 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<rect x='364.56' y='218' width='84.24000000000001' height='20' fill='#1D2F48' rx='3'/>
+<text x='370.56' y='232.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>achieved</text>
+<path d='M436.8 226 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<path d='M439 343Q448 333 448 320Q448 307 439 297L183 41Q173 32 160 32Q147 32 137 41L9 169Q0 179 0 192Q0 205 9 215Q19 224 32 224Q45 224 55 215L160 109L393 343Q403 352 416 352Q429 352 439 343Z' fill='#5BD06A' fill-opacity='1' transform='translate(648,233.154296875) scale(0.025390625,-0.025390625)'/>
+<path d='M64 88Q32 87 16 60Q0 32 16 4Q32 -23 64 -24Q96 -23 112 4Q128 32 112 60Q96 87 64 88ZM64 248Q32 247 16 220Q0 192 16 164Q32 137 64 136Q96 137 112 164Q128 192 112 220Q96 247 64 248ZM120 352Q119 384 92 400Q64 416 36 400Q9 384 8 352Q9 320 36 304Q64 288 92 304Q119 320 120 352Z' fill='#808080' fill-opacity='1' transform='translate(730,233.154296875) scale(0.025390625,-0.025390625)'/>
+<path d='M228 -21 48 148 228 -21 48 148Q41 153 36 160H123Q159 162 174 194L185 220L234 110Q241 97 256 96Q270 96 278 109L320 194L322 191Q338 161 372 160H476Q471 153 464 147L284 -21Q272 -32 256 -32Q240 -32 228 -21ZM504 208H372H504H372Q367 208 365 212L341 259Q334 271 320 272Q305 271 298 259L257 176L206 290Q199 304 184 304Q168 303 162 289L130 213Q128 208 123 208H16Q12 208 9 207Q0 231 0 257V263Q1 317 34 355Q67 394 119 404Q154 409 187 399Q219 389 244 364L256 352L268 364Q293 389 325 399Q358 409 393 404Q445 394 478 355Q511 317 512 263V257Q512 232 504 208Z' fill='#E65555' fill-opacity='1' transform='translate(36,263.154296875) scale(0.025390625,-0.025390625)'/>
+<rect x='56' y='248' width='107.52000000000001' height='20' fill='#1D2F48' rx='3'/>
+<path d='M224 192Q259 192 288 209Q317 226 335 256Q352 286 352 320Q352 354 335 384Q317 414 288 431Q259 448 224 448Q189 448 160 431Q131 414 113 384Q96 354 96 320Q96 286 113 256Q131 226 160 209Q189 192 224 192ZM178 144Q103 142 52 92Q2 41 0 -34Q0 -47 9 -55Q17 -64 30 -64H418Q431 -64 439 -55Q448 -47 448 -34Q446 41 396 92Q345 142 270 144H178Z' fill='#5AA9FF' fill-opacity='1' transform='translate(61,262.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='77' y='262.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Alpha 1-1</text>
+<path d='M151.52 256 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<rect x='169.52' y='248' width='84.24000000000001' height='20' fill='#1D2F48' rx='3'/>
+<text x='175.52' y='262.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>strength</text>
+<path d='M241.76000000000002 256 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<rect x='259.76' y='248' width='84.24000000000001' height='20' fill='#1D2F48' rx='3'/>
+<text x='265.76' y='262.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>is below</text>
+<path d='M332.0 256 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<rect x='350.0' y='248' width='39.120000000000005' height='20' fill='#1D2F48' rx='3'/>
+<text x='356.0' y='262.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>50 %</text>
+<path d='M343 297Q352 307 352 320Q352 333 343 343Q333 352 320 352Q307 352 297 343L192 237L87 343Q77 352 64 352Q51 352 41 343Q32 333 32 320Q32 307 41 297L147 192L41 87Q32 77 32 64Q32 51 41 41Q51 32 64 32Q77 32 87 41L192 147L297 41Q307 32 320 32Q333 32 343 41Q352 51 352 64Q352 77 343 87L237 192L343 297Z' fill='#E65555' fill-opacity='1' transform='translate(648,263.154296875) scale(0.025390625,-0.025390625)'/>
+<text x='666' y='262.5' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>62 %</text>
+<path d='M64 88Q32 87 16 60Q0 32 16 4Q32 -23 64 -24Q96 -23 112 4Q128 32 112 60Q96 87 64 88ZM64 248Q32 247 16 220Q0 192 16 164Q32 137 64 136Q96 137 112 164Q128 192 112 220Q96 247 64 248ZM120 352Q119 384 92 400Q64 416 36 400Q9 384 8 352Q9 320 36 304Q64 288 92 304Q119 320 120 352Z' fill='#808080' fill-opacity='1' transform='translate(730,263.154296875) scale(0.025390625,-0.025390625)'/>
+<path d='M159 443Q173 454 187 442Q228 404 265 358Q281 381 302 401Q316 413 330 401Q356 376 377 345Q399 315 414 283Q430 252 439 223Q448 194 448 171Q447 107 418 54Q388 1 337 -31Q287 -63 224 -64Q161 -63 110 -31Q60 1 30 54Q1 107 0 171Q2 231 45 303Q88 376 159 443ZM226 32Q263 32 295 53Q326 76 334 114Q341 151 323 187Q313 201 300 189L275 160Q262 149 250 161Q237 177 219 200Q201 223 187 240Q175 252 163 241Q137 209 125 186Q112 163 112 141Q113 89 145 61Q177 32 226 32Z' fill='#F29B38' fill-opacity='1' transform='translate(36,293.154296875) scale(0.025390625,-0.025390625)'/>
+<rect x='56' y='278' width='107.52000000000001' height='20' fill='#1D2F48' rx='3'/>
+<path d='M224 192Q259 192 288 209Q317 226 335 256Q352 286 352 320Q352 354 335 384Q317 414 288 431Q259 448 224 448Q189 448 160 431Q131 414 113 384Q96 354 96 320Q96 286 113 256Q131 226 160 209Q189 192 224 192ZM178 144Q103 142 52 92Q2 41 0 -34Q0 -47 9 -55Q17 -64 30 -64H418Q431 -64 439 -55Q448 -47 448 -34Q446 41 396 92Q345 142 270 144H178Z' fill='#5AA9FF' fill-opacity='1' transform='translate(61,292.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='77' y='292.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Alpha 1-1</text>
+<path d='M151.52 286 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<rect x='169.52' y='278' width='69.68' height='20' fill='#1D2F48' rx='3'/>
+<text x='175.52' y='292.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>is not</text>
+<path d='M227.20000000000002 286 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<rect x='245.20000000000002' y='278' width='98.80000000000001' height='20' fill='#1D2F48' rx='3'/>
+<text x='251.20000000000002' y='292.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>under fire</text>
+<path d='M332.0 286 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<path d='M439 343Q448 333 448 320Q448 307 439 297L183 41Q173 32 160 32Q147 32 137 41L9 169Q0 179 0 192Q0 205 9 215Q19 224 32 224Q45 224 55 215L160 109L393 343Q403 352 416 352Q429 352 439 343Z' fill='#5BD06A' fill-opacity='1' transform='translate(648,293.154296875) scale(0.025390625,-0.025390625)'/>
+<path d='M64 88Q32 87 16 60Q0 32 16 4Q32 -23 64 -24Q96 -23 112 4Q128 32 112 60Q96 87 64 88ZM64 248Q32 247 16 220Q0 192 16 164Q32 137 64 136Q96 137 112 164Q128 192 112 220Q96 247 64 248ZM120 352Q119 384 92 400Q64 416 36 400Q9 384 8 352Q9 320 36 304Q64 288 92 304Q119 320 120 352Z' fill='#808080' fill-opacity='1' transform='translate(730,293.154296875) scale(0.025390625,-0.025390625)'/>
+<rect x='30' y='305' width='700' height='26' fill='#2A1416' rx='0'/>
+<path d='M216 -51Q243 -18 282 38Q321 93 352 152Q382 211 384 256Q382 338 328 392Q274 446 192 448Q110 446 56 392Q2 338 0 256Q2 211 32 152Q63 93 102 38Q141 -18 168 -51Q178 -63 192 -63Q206 -63 216 -51ZM192 320Q228 319 247 288Q265 256 247 224Q228 193 192 192Q156 193 137 224Q119 256 137 288Q156 319 192 320Z' fill='#5BD06A' fill-opacity='1' transform='translate(36,323.154296875) scale(0.025390625,-0.025390625)'/>
+<rect x='56' y='308' width='92.96000000000001' height='20' fill='#1D2F48' rx='3'/>
+<path d='M144 448Q189 447 213 408Q235 368 213 328Q189 289 144 288Q99 289 75 328Q53 368 75 408Q99 447 144 448ZM512 448Q557 447 581 408Q603 368 581 328Q557 289 512 288Q467 289 443 328Q421 368 443 408Q467 447 512 448ZM0 149Q1 195 31 225Q61 255 107 256H149Q173 256 194 246Q192 235 192 224Q194 165 235 128Q235 128 235 128Q235 128 235 128H21Q2 130 0 149ZM405 128Q405 128 405 128Q405 128 405 128Q446 165 448 224Q448 235 446 246Q467 256 491 256H533Q579 255 609 225Q639 195 640 149Q638 130 619 128H405ZM224 224Q224 250 237 272Q250 294 272 307Q295 320 320 320Q345 320 368 307Q390 294 403 272Q416 250 416 224Q416 198 403 176Q390 154 368 141Q345 128 320 128Q295 128 272 141Q250 154 237 176Q224 198 224 224ZM128 -37Q129 19 167 57Q205 95 261 96H379Q435 95 473 57Q511 19 512 -37Q510 -62 485 -64H155Q130 -62 128 -37Z' fill='#5AA9FF' fill-opacity='1' transform='translate(61,322.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='77' y='322.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Bravo 1</text>
+<path d='M136.96 316 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<rect x='154.96' y='308' width='91.52000000000001' height='20' fill='#1D2F48' rx='3'/>
+<text x='160.96' y='322.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>is inside</text>
+<path d='M234.48000000000002 316 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<rect x='252.48000000000002' y='308' width='136.64000000000001' height='20' fill='#1D2F48' rx='3' stroke='#E65555' stroke-width='1.3'/>
+<path d='M256 448Q270 448 279 439Q288 430 288 416V406Q360 394 409 345Q458 295 470 224H480Q494 224 503 215Q512 206 512 192Q512 178 503 169Q494 160 480 160H470Q458 88 409 39Q359 -10 288 -22V-32Q288 -46 279 -55Q270 -64 256 -64Q242 -64 233 -55Q224 -46 224 -32V-22Q152 -10 103 39Q54 88 42 160H32Q18 160 9 169Q0 178 0 192Q0 206 9 215Q18 224 32 224H42Q54 296 103 345Q152 394 224 406V416Q224 430 233 439Q242 448 256 448ZM107 160Q117 116 149 85Q180 53 224 43V64Q224 78 233 87Q242 96 256 96Q270 96 279 87Q288 78 288 64V43Q332 53 363 85Q395 116 405 160H384Q370 160 361 169Q352 178 352 192Q352 206 361 215Q370 224 384 224H405Q395 268 363 299Q332 331 288 341V320Q288 306 279 297Q270 288 256 288Q242 288 233 297Q224 306 224 320V341Q180 331 149 299Q117 268 107 224H128Q142 224 151 215Q160 206 160 192Q160 178 151 169Q142 160 128 160H107ZM256 224Q270 224 279 215Q288 206 288 192Q288 178 279 169Q270 160 256 160Q242 160 233 169Q224 178 224 192Q224 206 233 215Q242 224 256 224Z' fill='#5BD06A' fill-opacity='1' transform='translate(257.48,322.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='273.48' y='322.5' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>pick an area…</text>
+<path d='M377.12 316 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<path d='M64 88Q32 87 16 60Q0 32 16 4Q32 -23 64 -24Q96 -23 112 4Q128 32 112 60Q96 87 64 88ZM64 248Q32 247 16 220Q0 192 16 164Q32 137 64 136Q96 137 112 164Q128 192 112 220Q96 247 64 248ZM120 352Q119 384 92 400Q64 416 36 400Q9 384 8 352Q9 320 36 304Q64 288 92 304Q119 320 120 352Z' fill='#808080' fill-opacity='1' transform='translate(730,323.154296875) scale(0.025390625,-0.025390625)'/>
+<text x='56' y='348' fill='#E65555' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Choose an area — the rule cannot be applied until every blank is filled</text>
+<rect x='38' y='362' width='690' height='96' fill='#141A24' rx='4' stroke='#2A3550' stroke-width='1'/>
+<text x='48' y='380.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Any</text>
+<rect x='78' y='366' width='40.56' height='20' fill='#1D2F48' rx='3'/>
+<text x='84' y='380.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>of</text>
+<path d='M106.56 374 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<text x='124.56' y='380.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>these:</text>
+<path d='M256 448Q326 447 384 414Q442 380 478 320Q512 259 512 192Q512 125 478 64Q442 4 384 -30Q326 -63 256 -64Q186 -63 128 -30Q70 4 34 64Q0 125 0 192Q0 259 34 320Q70 380 128 414Q186 447 256 448ZM232 328V192V328V192Q232 179 243 172L339 108Q358 97 372 115Q383 134 365 148L280 205V328Q278 350 256 352Q234 350 232 328Z' fill='#5AA9FF' fill-opacity='1' transform='translate(48,411.154296875) scale(0.025390625,-0.025390625)'/>
+<rect x='68' y='396' width='71.12' height='20' fill='#1D2F48' rx='3'/>
+<path d='M256 448Q326 447 384 414Q442 380 478 320Q512 259 512 192Q512 125 478 64Q442 4 384 -30Q326 -63 256 -64Q186 -63 128 -30Q70 4 34 64Q0 125 0 192Q0 259 34 320Q70 380 128 414Q186 447 256 448ZM232 328V192V328V192Q232 179 243 172L339 108Q358 97 372 115Q383 134 365 148L280 205V328Q278 350 256 352Q234 350 232 328Z' fill='#5AA9FF' fill-opacity='1' transform='translate(73,410.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='89' y='410.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Time</text>
+<path d='M127.12 404 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<rect x='145.12' y='396' width='84.24000000000001' height='20' fill='#1D2F48' rx='3'/>
+<text x='151.12' y='410.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>is after</text>
+<path d='M217.36 404 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<rect x='235.36' y='396' width='68.24000000000001' height='20' fill='#1D2F48' rx='3'/>
+<text x='241.36' y='410.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>00:12:00</text>
+<path d='M439 343Q448 333 448 320Q448 307 439 297L183 41Q173 32 160 32Q147 32 137 41L9 169Q0 179 0 192Q0 205 9 215Q19 224 32 224Q45 224 55 215L160 109L393 343Q403 352 416 352Q429 352 439 343Z' fill='#5BD06A' fill-opacity='1' transform='translate(660,411.154296875) scale(0.025390625,-0.025390625)'/>
+<path d='M64 88Q32 87 16 60Q0 32 16 4Q32 -23 64 -24Q96 -23 112 4Q128 32 112 60Q96 87 64 88ZM64 248Q32 247 16 220Q0 192 16 164Q32 137 64 136Q96 137 112 164Q128 192 112 220Q96 247 64 248ZM120 352Q119 384 92 400Q64 416 36 400Q9 384 8 352Q9 320 36 304Q64 288 92 304Q119 320 120 352Z' fill='#808080' fill-opacity='1' transform='translate(742,411.154296875) scale(0.025390625,-0.025390625)'/>
+<path d='M349 403Q358 426 339 442Q318 455 299 440L43 216Q27 201 34 181Q43 161 64 160H176L99 -19Q90 -42 109 -58Q130 -71 149 -56L405 168Q421 183 414 203Q406 223 384 224H273L349 403Z' fill='#F2C033' fill-opacity='1' transform='translate(48,441.154296875) scale(0.025390625,-0.025390625)'/>
+<rect x='68' y='426' width='71.12' height='20' fill='#1D2F48' rx='3'/>
+<path d='M349 403Q358 426 339 442Q318 455 299 440L43 216Q27 201 34 181Q43 161 64 160H176L99 -19Q90 -42 109 -58Q130 -71 149 -56L405 168Q421 183 414 203Q406 223 384 224H273L349 403Z' fill='#F2C033' fill-opacity='1' transform='translate(73,440.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='89' y='440.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Rule</text>
+<path d='M127.12 434 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<rect x='145.12' y='426' width='157.04000000000002' height='20' fill='#1D2F48' rx='3'/>
+<text x='151.12' y='440.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Ambush at the ford</text>
+<path d='M290.16 434 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<rect x='308.16' y='426' width='91.52000000000001' height='20' fill='#1D2F48' rx='3'/>
+<text x='314.16' y='440.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>has fired</text>
+<path d='M387.68000000000006 434 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<path d='M343 297Q352 307 352 320Q352 333 343 343Q333 352 320 352Q307 352 297 343L192 237L87 343Q77 352 64 352Q51 352 41 343Q32 333 32 320Q32 307 41 297L147 192L41 87Q32 77 32 64Q32 51 41 41Q51 32 64 32Q77 32 87 41L192 147L297 41Q307 32 320 32Q333 32 343 41Q352 51 352 64Q352 77 343 87L237 192L343 297Z' fill='#E65555' fill-opacity='1' transform='translate(660,441.154296875) scale(0.025390625,-0.025390625)'/>
+<path d='M64 88Q32 87 16 60Q0 32 16 4Q32 -23 64 -24Q96 -23 112 4Q128 32 112 60Q96 87 64 88ZM64 248Q32 247 16 220Q0 192 16 164Q32 137 64 136Q96 137 112 164Q128 192 112 220Q96 247 64 248ZM120 352Q119 384 92 400Q64 416 36 400Q9 384 8 352Q9 320 36 304Q64 288 92 304Q119 320 120 352Z' fill='#808080' fill-opacity='1' transform='translate(742,441.154296875) scale(0.025390625,-0.025390625)'/>
+<rect x='34' y='469' width='690' height='24' fill='#1A1A22' rx='3' stroke='#4A4A55' stroke-width='1' stroke-dasharray='4 3'/>
+<path d='M393 447Q380 450 368 444Q357 438 353 425L225 -23Q222 -36 228 -48Q234 -59 247 -63Q260 -66 272 -60Q283 -54 287 -41L415 407Q418 420 412 432Q406 443 393 447ZM473 327Q464 317 464 304Q464 291 473 281L563 192L473 103Q464 93 464 80Q464 67 473 57Q483 48 496 48Q509 48 519 57L631 169Q640 179 640 192Q640 205 631 215L519 327Q509 336 496 336Q483 336 473 327ZM167 327Q157 336 144 336Q131 336 121 327L9 215Q0 205 0 192Q0 179 9 169L121 57Q131 48 144 48Q157 48 167 57Q176 67 176 80Q176 93 167 103L77 192L167 281Q176 291 176 304Q176 317 167 327Z' fill='#A0A0AA' fill-opacity='1' transform='translate(40,485.654296875) scale(0.025390625,-0.025390625)'/>
+<text x='60' y='485.5' fill='#808080' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Custom condition (Expert) — Blueprint variable of "Sniper team"  ·  Open in Expert view</text>
+<rect x='36' y='506' width='128' height='22' fill='#23415F' rx='3'/>
+<path d='M256 368Q256 382 247 391Q238 400 224 400Q210 400 201 391Q192 382 192 368V224H48Q34 224 25 215Q16 206 16 192Q16 178 25 169Q34 160 48 160H192V16Q192 2 201 -7Q210 -16 224 -16Q238 -16 247 -7Q256 2 256 16V160H400Q414 160 423 169Q432 178 432 192Q432 206 423 215Q414 224 400 224H256V368Z' fill='#5BD06A' fill-opacity='1' transform='translate(44,521.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='60' y='521.5' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Add condition ▾</text>
+<rect x='172' y='506' width='104' height='22' fill='#23415F' rx='3'/>
+<path d='M32 329Q2 347 0 384Q1 411 19 429Q37 447 64 448Q101 446 119 416H457Q475 446 512 448Q539 447 557 429Q575 411 576 384Q574 347 544 329V55Q574 37 576 0Q575 -27 557 -45Q539 -63 512 -64Q475 -62 457 -32H119Q101 -62 64 -64Q37 -63 19 -45Q1 -27 0 0Q2 37 32 55V329ZM457 352H119H457H119Q111 337 96 329V55Q111 47 119 32H457Q465 47 480 55V329Q465 337 457 352ZM128 288Q128 302 137 311Q146 320 160 320H288Q302 320 311 311Q320 302 320 288V192Q320 178 311 169Q302 160 288 160H160Q146 160 137 169Q128 178 128 192V288ZM256 128H288H256H288Q315 129 333 147Q351 165 352 192V224H416Q430 224 439 215Q448 206 448 192V96Q448 82 439 73Q430 64 416 64H288Q274 64 265 73Q256 82 256 96V128Z' fill='#5AA9FF' fill-opacity='1' transform='translate(180,521.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='196' y='521.5' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Add group</text>
+<rect x='284' y='506' width='118' height='22' fill='#23415F' rx='3'/>
+<path d='M14 -15Q0 -1 0 19Q0 38 14 53L395 434Q410 448 429 448Q448 448 463 434L498 399Q512 385 512 365Q512 346 498 331L117 -50Q102 -64 83 -64Q63 -64 49 -50L14 -15ZM348 260 453 365 348 260 453 365 429 389 324 284 348 260Z' fill='#B07CF0' fill-opacity='1' transform='translate(292,521.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='308' y='521.5' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>From preset ▾</text>
+<line x1='36' y1='538' x2='764' y2='538' stroke='#4A4A55'/>
+<text x='36' y='560.5' fill='#C8C8D0' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>…and it stays true for</text>
+<rect x='202.16000000000003' y='546' width='39.120000000000005' height='20' fill='#1D2F48' rx='3'/>
+<text x='208.16000000000003' y='560.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>30 s</text>
+<text x='249.28000000000003' y='560.5' fill='#C8C8D0' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>, then wait</text>
+<rect x='335.36' y='546' width='31.840000000000003' height='20' fill='#1D2F48' rx='3'/>
+<text x='341.36' y='560.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>0 s</text>
+<text x='375.20000000000005' y='560.5' fill='#C8C8D0' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>.  Fire</text>
+<rect x='432.1600000000001' y='546' width='55.120000000000005' height='20' fill='#1D2F48' rx='3'/>
+<text x='438.1600000000001' y='560.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>once</text>
+<path d='M475.2800000000001 554 l3.5 4 l3.5 -4 z' fill='#808080'/>
+<path d='M774 168 L792 166' stroke='#5A5A66' stroke-dasharray='3 3' fill='none'/>
+<text x='798' y='170' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>A ROW = WHO · IS / HAS · VALUE, read as a sentence.</text>
+<text x='798' y='184' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Blanks are pickers (map ⌖, a list, a typed field).</text>
+<path d='M774 198 L792 196' stroke='#5A5A66' stroke-dasharray='3 3' fill='none'/>
+<text x='798' y='200' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>WHO can be a group: any / at least N / all / none</text>
+<text x='798' y='214' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>of a side or of a unit's men  ⇒ CountMatching.</text>
+<path d='M774 258 L792 256' stroke='#5A5A66' stroke-dasharray='3 3' fill='none'/>
+<text x='798' y='260' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Friendly facts, not component paths: strength,</text>
+<text x='798' y='274' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>ammunition, under fire … (registered readers).</text>
+<path d='M774 288 L792 286' stroke='#5A5A66' stroke-dasharray='3 3' fill='none'/>
+<text x='798' y='290' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>NOT is a choice of the verb: is / is not —</text>
+<text x='798' y='304' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>no separate operator to place.</text>
+<path d='M774 318 L792 316' stroke='#5A5A66' stroke-dasharray='3 3' fill='none'/>
+<text x='798' y='320' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>An unfilled blank: red frame + the reason;</text>
+<text x='798' y='334' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Apply stays disabled until the rule is complete.</text>
+<path d='M774 406 L792 404' stroke='#5A5A66' stroke-dasharray='3 3' fill='none'/>
+<text x='798' y='408' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>One nesting level: a group says All / Any / None,</text>
+<text x='798' y='422' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>drawn as a tinted box.</text>
+<path d='M774 482 L792 480' stroke='#5A5A66' stroke-dasharray='3 3' fill='none'/>
+<text x='798' y='484' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Anything the friendly view cannot draw is ONE</text>
+<text x='798' y='498' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>dashed row — kept, never rewritten (Expert view).</text>
+<path d='M774 516 L792 514' stroke='#5A5A66' stroke-dasharray='3 3' fill='none'/>
+<text x='798' y='518' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Add condition opens the menu on the right;</text>
+<text x='798' y='532' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>From preset inserts pre-filled rows.</text>
+<path d='M774 556 L792 554' stroke='#5A5A66' stroke-dasharray='3 3' fill='none'/>
+<text x='798' y='558' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Timing belongs to the rule (holdFor · delay ·</text>
+<text x='798' y='572' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>repeat), written as the end of the sentence.</text>
+<text x='798' y='106' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>LIVE: ✓ / ✗ per row and the number behind it</text>
+<text x='798' y='120' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>(the existing Live strip, matched by the same sentence)</text>
+<rect x='20' y='616' width='1200' height='196' fill='#141418' rx='3' stroke='#4A4A55' stroke-width='1'/>
+<text x='30' y='634' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Add condition — grouped, filtered to what fits a rule; type to search</text>
+<path d='M224 192Q259 192 288 209Q317 226 335 256Q352 286 352 320Q352 354 335 384Q317 414 288 431Q259 448 224 448Q189 448 160 431Q131 414 113 384Q96 354 96 320Q96 286 113 256Q131 226 160 209Q189 192 224 192ZM178 144Q103 142 52 92Q2 41 0 -34Q0 -47 9 -55Q17 -64 30 -64H418Q431 -64 439 -55Q448 -47 448 -34Q446 41 396 92Q345 142 270 144H178Z' fill='#5AA9FF' fill-opacity='1' transform='translate(30,657.654296875) scale(0.025390625,-0.025390625)'/>
+<text x='48' y='658' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>A unit</text>
+<text x='48' y='678' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>is inside an area</text>
+<text x='48' y='695' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>is alive / destroyed</text>
+<text x='48' y='712' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>strength is above / below</text>
+<text x='48' y='729' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>ammunition is above / below</text>
+<text x='48' y='746' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>is under fire</text>
+<text x='48' y='763' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>sees / knows about a unit</text>
+<text x='48' y='780' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>was hit (an event)</text>
+<path d='M144 448Q189 447 213 408Q235 368 213 328Q189 289 144 288Q99 289 75 328Q53 368 75 408Q99 447 144 448ZM512 448Q557 447 581 408Q603 368 581 328Q557 289 512 288Q467 289 443 328Q421 368 443 408Q467 447 512 448ZM0 149Q1 195 31 225Q61 255 107 256H149Q173 256 194 246Q192 235 192 224Q194 165 235 128Q235 128 235 128Q235 128 235 128H21Q2 130 0 149ZM405 128Q405 128 405 128Q405 128 405 128Q446 165 448 224Q448 235 446 246Q467 256 491 256H533Q579 255 609 225Q639 195 640 149Q638 130 619 128H405ZM224 224Q224 250 237 272Q250 294 272 307Q295 320 320 320Q345 320 368 307Q390 294 403 272Q416 250 416 224Q416 198 403 176Q390 154 368 141Q345 128 320 128Q295 128 272 141Q250 154 237 176Q224 198 224 224ZM128 -37Q129 19 167 57Q205 95 261 96H379Q435 95 473 57Q511 19 512 -37Q510 -62 485 -64H155Q130 -62 128 -37Z' fill='#5AA9FF' fill-opacity='1' transform='translate(320,657.654296875) scale(0.025390625,-0.025390625)'/>
+<text x='338' y='658' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>A group of units</text>
+<text x='338' y='678' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>any of a side is inside …</text>
+<text x='338' y='695' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>at least N of … are destroyed</text>
+<text x='338' y='712' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>all of a unit's men are …</text>
+<text x='338' y='729' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>none of … is …</text>
+<path d='M448 192Q448 244 422 288Q397 332 352 358Q307 384 256 384Q205 384 160 358Q115 332 90 288Q64 244 64 192Q64 140 90 96Q115 52 160 26Q205 0 256 0Q307 0 352 26Q397 52 422 96Q448 140 448 192ZM0 192Q1 262 34 320Q68 378 128 414Q189 448 256 448Q323 448 384 414Q444 378 478 320Q511 262 512 192Q511 122 478 64Q444 6 384 -30Q323 -64 256 -64Q189 -64 128 -30Q68 6 34 64Q1 122 0 192ZM256 112Q301 113 325 152Q347 192 325 232Q301 271 256 272Q211 271 187 232Q165 192 187 152Q211 113 256 112ZM256 336Q295 336 328 317Q361 298 381 264Q400 230 400 192Q400 154 381 120Q361 86 328 67Q295 48 256 48Q217 48 184 67Q151 86 131 120Q112 154 112 192Q112 230 131 264Q151 298 184 317Q217 336 256 336ZM224 192Q224 206 233 215Q242 224 256 224Q270 224 279 215Q288 206 288 192Q288 178 279 169Q270 160 256 160Q242 160 233 169Q224 178 224 192Z' fill='#5BD06A' fill-opacity='1' transform='translate(610,657.654296875) scale(0.025390625,-0.025390625)'/>
+<text x='628' y='658' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Objectives &amp; rules</text>
+<text x='628' y='678' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>objective is achieved / failed</text>
+<text x='628' y='695' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>objective is active</text>
+<text x='628' y='712' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>rule has fired (n times)</text>
+<text x='628' y='729' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>phase has begun (E11)</text>
+<path d='M256 448Q326 447 384 414Q442 380 478 320Q512 259 512 192Q512 125 478 64Q442 4 384 -30Q326 -63 256 -64Q186 -63 128 -30Q70 4 34 64Q0 125 0 192Q0 259 34 320Q70 380 128 414Q186 447 256 448ZM232 328V192V328V192Q232 179 243 172L339 108Q358 97 372 115Q383 134 365 148L280 205V328Q278 350 256 352Q234 350 232 328Z' fill='#5AA9FF' fill-opacity='1' transform='translate(900,657.654296875) scale(0.025390625,-0.025390625)'/>
+<text x='918' y='658' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Time &amp; presets</text>
+<text x='918' y='678' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>time is after / before / between</text>
+<text x='918' y='695' fill='#B07CF0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>PRESET  Take and hold an area</text>
+<text x='918' y='712' fill='#B07CF0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>PRESET  Reach an area</text>
+<text x='918' y='729' fill='#B07CF0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>PRESET  Side has lost N men</text>
+<text x='918' y='746' fill='#B07CF0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>PRESET  Strength below …</text>
+<text x='30' y='804' fill='#808080' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start'>Debugging kinds (trace buffer, ring entry, hit tag) appear only in the replay search and breakpoints — a kind's Contexts decides.</text>
+</svg>

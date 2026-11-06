@@ -1,0 +1,189 @@
+<!--STATUS
+state: LIVE
+build-state: DESIGN — detailed design under the approved top level (Rule Editor UX §2.3, R-4130); for the user's review (R-4122)
+updated: 2026-11-06 (first version — coordinator; the user: "go to condition editor, this is non trivial to be easy to use")
+current-answer: §2 the model · §3 the vocabulary (friendly row ↔ the language) · §4 the visual design · §5 the four language additions · §6 stages · §7 questions
+stale-below: nothing
+known-rot: none
+known-conflict: none
+related-designs:
+  - DESIGN_Rule_Editor_UX.md — §2.3 OWNS the top-level shape this details (R-4130: one friendly editor + presets, Expert view, Contexts, PropertyNames)
+  - DESIGN_Mission_Plan_Editor.md — a task's plain "then" conditions stay its own short list; its Advanced condition opens THIS editor (R-4129 Q3); PhaseBegins is its leaf (§5)
+  - ../DESIGN_Scenario_Rules.md — OWNS SearchPredicateDto as the ONE condition language (SR-95), the level compiler (S2-b) and the trigger's holdFor / delay / repeat (§10.11)
+  - DESIGN_Details_Forms.md — §6 the visual language (status colours, fidelity §6.6) this editor follows
+  - DESIGN_Colour_Icons.md — the coloured glyphs on each row (R-4141)
+  - ../designs/breakpoints-1/DESIGN.md — breakpoints use the same language (PredicateBuilderState); the one sentence renderer replaces BreakpointConditionSummarizer
+-->
+
+# DESIGN — the condition editor: sentences anyone can read and write
+
+## 0. Why
+
+🔒 *"Pls go to condition editor, this is non trivial to be easy to use"* (user, `2026-11-06`), under R-4130: *"the condition editor needs
+refactor, it is very technical now, ok for a debug tool … a combination of more friendly UI and friendly templates as a shortcut"*.
+
+## 1. INVENTORY *(2026-11-06)*
+
+Queries:
+
+- `search_graph ".*(Predicate|Condition)(Dto|Editor|Kind|Evaluator|Compiler|Phrase|Preset|Template|Builder|Model|View|Row|Tree).*" Class`: 38 results.
+- grep for the `[JsonDerivedType]` list, `[UtilityInput("…")]`, `IsInTheFight`, `ObjectiveState`, and the editors that draw a `SearchPredicateDto`.
+
+Coverage could not be checked.
+
+| what exists | where | for this design |
+|---|---|---|
+| **the ONE condition language** — `SearchPredicateDto`, 19 kinds: Compound (And / Or), PropertyMatch (+ Numeric / String values), TransientEvent, Lifecycle, SpatialBounding, Structural, BehaviorParam, TraceBufferScan, BlueprintVariable, ExternalHitTag, BehaviourStep, RingEntry, ValueChange, **OnEntity, ScenarioTime, CountMatching, InputAbove** | `Fdp.Toolkits/ReplayBrowser/Search/SearchPredicateDto.cs:35-55` | the editor edits this — ⛔ never a second language (SR-95) |
+| **a trigger evaluates its When on ITSELF** — a positionless rule entity | `TriggerBehavior.cs:284,335` (`TriggerWhen.Get(json)(world, self)`) | ⭐ a bare leaf ("inside an area") means nothing at the top: it must be wrapped — `OnEntity` (one named thing) or `CountMatching` (any / at least N / none of a set). ⭐ **This is THE thing the friendly view hides** |
+| **timing lives on the trigger**, not in the condition: `holdFor` · `delay` · `repeat` · `cooldown` · `maxFires` | `TriggerParams` (Scenario Rules S2-c, §10.11) | the sentence's ending: *"…and it stays true for 30 s, then wait 0 s. Fire once"* |
+| **friendly facts already registered** — `[UtilityInput]` readers: `HealthFraction`, `AmmoFraction`, `UnderFire`, `HasLineOfSight`, `ThreatInSight`, `SquadStrengthRatio`, … (40+) read by `InputAbove` | `UtilityInputReaderStore` (the one registry, SR-20) | ⭐ *strength*, *ammunition*, *under fire* need no component path |
+| **objectives and rules** carry `ObjectiveStatus { State: Pending · Active · Achieved · Failed · Inactive · Skipped; TriggerState; FireCount }` | `ScenarioRules/ObjectiveStatus.cs:10-16` | *"objective X is achieved"*, *"rule Y has fired"* = `OnEntity` + a property match |
+| **"in the fight"** — ONE definition: a man by his injury state, a unit by its roster (`CombatEffective.IsInTheFight`) | `Combat/Injury.cs:65`, `Squad/CombatEffective.cs:32` | ⛔ a dead soldier STAYS in the world: `Lifecycle` ("the entity exists") is **not** "destroyed" (§5) |
+| **today's editors** | the rule's When: the generic struct editor over `TriggerParams` (`RuleDetails.cs:376`, `BehaviorParamsForm.DrawFields`); the replay search (`ReplaySearchPanel`, a struct-editor session); breakpoints (`PredicateBuilderState`); the brain's Stop-when combos (`BrainStopWhen`) | four ways to edit one language — this design makes ONE |
+| **text for a condition** | `BreakpointConditionSummarizer.Summarize` (breakpoints only: *"Compound[And](2): …"*); the Live strip matches leaves by **label** (`LiveLeafOverlay`, `LiveLeaf(Label, Holds, Measured)`) | ⭐ one sentence renderer serves the editor, the rule list, the Live strip and breakpoints |
+
+### 1.1 What the language cannot say today — measured
+
+| a user wants | why it fails | addition (§5) |
+|---|---|---|
+| *"Alpha 1-1 is **not** under fire"*, *"strength **below** 50 %"* | `LogicalOperator` is `{ And, Or }` only; `InputAbove` only tests above | **negation** |
+| *"any of **2nd platoon's men** is inside OBJ"* | no leaf says "this unit or anyone under it" (the objectives do it in C#, S1-d) | **InUnit** |
+| *"at least 3 of Red are **destroyed**"* | `Lifecycle` tests existence; a dead man still exists | **InTheFight** |
+| *"Phase 2 has begun"* | phases are E11's new state | **PhaseBegins** (E11) |
+
+## 2. The model
+
+```mermaid
+classDiagram
+  class SearchPredicateDto { <<existing · the ONE language>> 19 kinds + §5's four }
+  class ConditionRow {
+    <<★ the friendly view's row — a PROJECTION, not stored>>
+    Subject (who)
+    Fact (is / has what, incl. the negated verb)
+    Values (the blanks)
+  }
+  class Subject {
+    <<★>>
+    One(EntityLink) → OnEntity
+    Any / AtLeast(n) / All / None of a Set → CountMatching
+    World → no wrapper (time, a phase)
+  }
+  class FactCatalogue {
+    <<★ data: the ConditionPhrase list of R-4130>>
+    sentence · blanks + their pickers · the leaf it builds · Contexts · Expert
+  }
+  class RowProjection {
+    <<★>>
+    ToDto(rows, group op) → SearchPredicateDto
+    FromDto(dto) → rows, or a Custom row
+  }
+  class ConditionSentence { <<★ ONE renderer>> the text of a row / a whole condition }
+  class ConditionEditor { <<★ the ONE editor, every host>> friendly view · Expert view (the struct editor, as today) }
+  class LiveLeafOverlay { <<existing>> matches by label = the sentence }
+  class BreakpointConditionSummarizer { <<existing>> folds into ConditionSentence }
+  ConditionEditor --> RowProjection
+  RowProjection --> FactCatalogue
+  RowProjection --> SearchPredicateDto
+  ConditionRow --> Subject
+  ConditionRow --> FactCatalogue
+  ConditionSentence --> FactCatalogue
+  LiveLeafOverlay ..> ConditionSentence
+  BreakpointConditionSummarizer ..> ConditionSentence : folded in
+```
+
+*What the picture shows that the prose hid:* the friendly view stores nothing of its own. The DTO stays the only truth. Rows are a
+projection, rebuilt from the DTO every time it opens. A shape the catalogue does not recognise becomes one **Custom** row, so nothing is
+ever lost or rewritten. The same catalogue entry gives the row its blanks, its sentence and its leaf, so the editor, the rule list, the
+Live strip and breakpoints all say the same words.
+
+```mermaid
+sequenceDiagram
+  actor A as author
+  participant E as ConditionEditor (friendly)
+  participant P as RowProjection
+  participant C as FactCatalogue
+  participant R as the rule (TriggerParams.When)
+  A->>E: Add condition ▸ A group of units ▸ "at least N of … are destroyed"
+  E->>C: the entry's blanks: N · a set (side / a unit's men) · —
+  A->>E: 3 · Red side
+  E->>P: ToDto(rows, All)
+  P-->>R: Compound(And, [ CountMatching(Min 3, And(side = Hostile, None(InTheFight))) , … ])
+  Note over E,R: Apply writes the rule (Edits.Submit) — one undo step
+  R-->>E: reopened later: FromDto rebuilds the same rows (rail: ToDto ∘ FromDto = identity)
+```
+
+## 3. The vocabulary — every friendly row and the leaf it builds
+
+| row (as the user reads it) | built as |
+|---|---|
+| **[unit]** is / is not **inside [area]** | `OnEntity(unit, SpatialBounding(area))` · negated: `None(…)` |
+| **[unit]** is / is not **in the fight** · **is destroyed** | `OnEntity(unit, InTheFight)` · destroyed = `None(InTheFight)` |
+| **[unit]** **strength** is above / below **[%]** | `OnEntity(unit, InputAbove("HealthFraction", %))` · below = `None(…)` |
+| **[unit]** **ammunition** is above / below **[%]** | `InputAbove("AmmoFraction")` |
+| **[unit]** is / is not **under fire** | `InputAbove("UnderFire", 0.5)` |
+| **[unit]** **side** is **[side]** | `PropertyMatch(EntityInfo.ForceId = side)` |
+| **[unit]** **was hit** (an event) | `TransientEvent(DamageAssessedEvent naming it)` |
+| **[unit]** **[property]** **[op]** **[value]** | `PropertyMatch` through **PropertyNames** (friendly name → component + path) |
+| **any / at least N / all / none** of **[set]** + any unit fact | `CountMatching(Min, Max, And(set, fact))` — all = `Max 0` of the negated fact |
+| **[set]** = **[side]** · **[unit]'s men** | `PropertyMatch(ForceId)` · `InUnit(unit)` |
+| **objective [X]** is **achieved / failed / active** | `OnEntity(X, PropertyMatch(ObjectiveStatus.State = …))` |
+| **rule [X]** **has fired** (n times) | `OnEntity(X, PropertyMatch(ObjectiveStatus.FireCount ≥ n))` |
+| **time** is after / before / between **[mm:ss]** | `ScenarioTime(From, To)` |
+| **phase [X]** has begun | `PhaseBegins(X)` (E11) |
+| **Custom condition (Expert)** | anything else — the Expert view's tree |
+
+**Contexts** (R-4130): a rule and a mission task see only the rows above. The replay search and breakpoints also see the debugging kinds
+(TraceBufferScan, RingEntry, ExternalHitTag, BehaviourStep, BlueprintVariable, Structural, BehaviorParam, ValueChange).
+
+**Presets** (shortcuts that insert rows, never a second model): *Take and hold an area* (unit inside area, holdFor) · *Reach an area* ·
+*Side has lost N men* (at least N of side are destroyed) · *Strength below …* · *Objective achieved* · *Phase has begun* · *N minutes after
+the start*.
+
+## 4. The visual design *(acceptance spec — Details forms §6.6)*
+
+![The condition editor's friendly view: sentence rows, a group, an invalid blank, a Custom row, the add menu and the timing line](condition-editor-visual.svg)
+
+*What the picture shows that the prose hid:* every row has the same three parts in the same order, and the first two are always chips.
+The eye therefore reads down a column of WHO and a column of IS/HAS. Live results sit in one right-hand column, and the row menu sits at
+one x.
+
+| element | ImGui |
+|---|---|
+| a row | `SameLine` sequence: the row's coloured category glyph (R-4141) · chips · words; wraps to the next line when `GetContentRegionAvail` runs out |
+| a chip (a blank) | a frame-coloured `Button` sized by `CalcTextSize` + arrow, opening a `BeginPopup` with the list / the map pick / a typed field (`ScalarEditBox`, Details forms D1) |
+| a group | All / Any / None as a chip; a tinted `BeginChild` box; one nesting level |
+| an unfilled blank | the forms' invalid style: red border + the reason under the row; **Apply** disabled until complete |
+| live | `CircleCheck` / `CircleXmark` in Ok / Error + the measured value (`LiveLeaf.Measured`), at one x |
+| row menu | `EllipsisVertical` → *Duplicate · Move into a group · Delete · Show in Expert view* |
+| the timing line | words + chips for `holdFor`, `delay`, `repeat` — shown only where the host has them (a rule; a mission task has its own) |
+| Expert view | a checkbox per panel (D7); shows today's tree for the same DTO |
+
+## 5. The four language additions — small, each in the ONE compiler (both entries, S2-b)
+
+| addition | shape | why this and not another |
+|---|---|---|
+| **negation** | `LogicalOperator.None` — true when no child holds (so a one-child `None` is NOT) | one enum value covers *is not*, *below*, *all* (= none fail) and *destroyed*; ⛔ a `Not` wrapper kind would be a 20th kind for the same thing |
+| **InUnit** `{ Unit: EntityLink, IncludeSelf }` | the entity is the unit or anyone under it down `UnitSubordinate` | the objectives' S1-d walker, lifted so a condition can say it; ⛔ never a second walker |
+| **InTheFight** `{}` | `CombatEffective.IsInTheFight` on the entity (a man by injury, a unit by roster) | ⛔ `Lifecycle` = "exists", which a dead man still does |
+| **PhaseBegins** `{ Phase }` | E11's phase state | owned by E11; listed here so the catalogue has it |
+
+## 6. Stages
+
+| stage | what | owner | rails |
+|---|---|---|---|
+| **C1** | the four additions in `SearchPredicateDto` + both compiler entries | backend | each leaf true / false on a crafted world; `None` of one child = not |
+| **C2** | `FactCatalogue` (data) + `RowProjection` (`ToDto` / `FromDto`) + `ConditionSentence` (and `BreakpointConditionSummarizer` folded into it) | ui | **round trip**: every catalogue row `FromDto(ToDto(x)) = x`; an unknown DTO ⇒ one Custom row, the DTO unchanged byte for byte |
+| **C3** | `ConditionEditor` friendly view + the add menu + presets; the rule's When tab uses it | ui | the mockup's states as frame rails; a side-by-side to the user (§4) |
+| **C4** | the timing line on the rule; the Live column from `LiveLeafOverlay` by sentence | ui | the live ✓ / ✗ and measured value per row |
+| **C5** | the same editor in the mission task's Advanced condition, the replay search and breakpoints (Contexts) | ui | each host shows only its kinds |
+
+## 7. Questions — leans for the user
+
+| # | question | lean | rejected |
+|---|---|---|---|
+| **Q-C1** | the shape of a row | **WHO · IS/HAS · VALUE**, every blank a chip, the whole row a sentence | a form per kind: the technical tree again |
+| **Q-C2** | how "not" is said | **in the verb** (*is / is not*, *above / below*, *achieved / not achieved*), built as `None` | a separate NOT button: users miss it, and it reads backwards |
+| **Q-C3** | groups | **one nesting level**, All / Any / None, more only in the Expert view | free nesting: the reason the current editor is hard |
+| **Q-C4** | what the friendly view cannot draw | **one dashed Custom row, kept unchanged**, opened in the Expert view | refuse to open, or simplify it: loses the author's work |
+| **Q-C5** | the four additions | **all four**, in the one compiler | work around with PropertyMatch on injury enums: brittle, and the replay search would differ |
+| **Q-C6** | an incomplete row | **red blank + the reason; Apply disabled** | save it and let it never fire: a silent rule |

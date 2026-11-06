@@ -6,6 +6,7 @@ stale-below: nothing marked
 known-rot: none recorded
 known-conflict: none recorded
 related-designs:
+  - ../../UX/DESIGN_Condition_Editor.md — one condition editor and ONE sentence renderer (BreakpointConditionSummarizer folds into it)
   - docs/DESIGN_Behaviour_Debugging.md — OWNS the debugging workflow built on this (CE-1270)
   - docs/Predicate-Infrastructure-Capabilities.md — the reuse surface of the predicate model these breakpoints evaluate
   - docs/DESIGN_Director_Timeline_Editor.md — R-4072: film anchors are the same predicates, edited by the same editor; it plans the polygon / line extensions
