@@ -514,6 +514,8 @@ atlas page is shared by 66 pictures and must never be unloaded by the LRU.*
 | `Hrot/Engine/Hrot.Presentation/Thumbnails/entities.atlas.json` | `{ "version": 1, "cell": [320, 180], "page": [2048, 2048], "pages": ["entities-0.jpg", …], "items": { "<stem>": [page, col, row], … } }` — keys sorted, so a diff shows exactly the names added |
 | `…/Thumbnails/entities-<n>.jpg` | 2048 × 2048, JPEG q85, 6 × 11 = **66 cells**; an empty cell is black |
 
+⭐ **The index is NOT a user-facing file** (user, `2026-11-06`: *"keep JSON, Embed it in the executable."*): it is a source file in git, compiled in as an embedded resource with the pages, written only by `thumbnails.py`; ⛔ nothing reads an index or a page from disk or the NAS at run time, and there is no override file. (The only on-disk layer is ③, the loose `generated/<stem>.png`.)
+
 ⭐ `<stem>` = `ThumbnailMap.GeneratedFileName(typeName)` — the SAME name the loose `generated/<stem>.png` has, so nothing about how a type
 finds its picture changes. ⭐ **Fixed cells, not tight packing**: a name keeps its slot forever; adding takes the next free slot (or opens a
 page); only a page whose pixels changed is re-encoded, so adding one type rewrites one ~270 KB file.
