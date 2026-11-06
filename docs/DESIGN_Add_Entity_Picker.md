@@ -1,9 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-05 (§2i entity framing by the drawn pixels — coordinator) · 2026-11-05 (§2i one thumbnail pipeline for both pickers, CE-4268 — DESIGN) · 2026-11-03 (§2h the gallery as built, CE-4142; §2f accepted 2026-11-01)
+updated: 2026-11-06 (§2j the entity thumbnail atlas, embedded; scenario stills a small JPEG — CE-4271, R-4117, READY-TO-BUILD — coordinator) · 2026-11-05 (§2i entity framing by the drawn pixels — coordinator) · 2026-11-05 (§2i one thumbnail pipeline for both pickers, CE-4268 — DESIGN) · 2026-11-03 (§2h the gallery as built, CE-4142; §2f accepted 2026-11-01)
 build-state: BUILT — all slices on Editor, CGF, SimHost and IG; Stride mode 2 deferred (CE-1030). Approved by the user 2026-10-07 (all leans, §2–§2e); CE-1031 is the terrain owner's follow-up; §2f–§2h the thumbnail gallery (CE-4142) BUILT `2026-11-03` GL1–GL4 — ⏳ the PNG snapshots (director stills) and G8 smart tactical symbols (CE-4169) are later
-current-answer: §2 every decision D1–D10 in its final wording (+ retired ids) · §2a–§2e the measured basis and the shapes (SpawnHeight, wire fields) · ⭐ §2f THE THUMBNAIL GALLERY G1–G10 (mockup docs/designs/add-entity-picker/) · §2h the gallery AS BUILT (read it before §2g: it lists where the build deviates) · §3 diagrams · §5 slices and as-built
+current-answer: §2 every decision D1–D10 in its final wording (+ retired ids) · §2a–§2e the measured basis and the shapes (SpawnHeight, wire fields) · ⭐ §2f THE THUMBNAIL GALLERY G1–G10 (mockup docs/designs/add-entity-picker/) · §2h the gallery AS BUILT (read it before §2g: it lists where the build deviates) · ⭐ §2j THE ENTITY THUMBNAIL ATLAS (overrides §2i on where entity pictures and scenario stills live) · §3 diagrams · §5 slices and as-built
 stale-below: nothing — superseded revisions removed 2026-11-01; full history at commit de422e11b (`git show de422e11b:docs/DESIGN_Add_Entity_Picker.md`)
+known-rot: (2026-11-06, CE-4271) §2i "the PNGs go into the NAS root only — never the repository" — SUPERSEDED for ENTITY pictures by §2j (JPEG atlas pages in git, embedded; R-4117) and for scenario stills by preview.jpg 320×180; capture and resolve ①–③ unchanged
 known-rot: (2026-10-19, CE-3271) §2e / §5 "NetworkSpawningSystem resolves" — SUPERSEDED: 8b now only ASKS (a replicated SpawnLevelRequest) and SpawnLevelSystem resolves it on the node that owns the position (Q94 D, R-3018) — docs/blueprints/Architect_Question_94_Brain_Geometry_Sites.md §5.2a. The rule (SpawnHeight.Apply, level 0 = ground) is unchanged.
 known-rot: (2026-10-31, CE-259ax) §2e's "eleven direct SpawnEntityCommand publishers" was measured 2026-10-07; CE-259ax routed them through CreateEntityRequestSystem (docs/DESIGN_Scenario_Entity_Keys.md §00c)
 known-conflict: none
@@ -438,7 +439,7 @@ exist; the only engine change is ThumbnailMap's third, lowest step (a generated 
 
 | ⭐ decision | why |
 |---|---|
-| the PNGs go into the **NAS root** only — scenarios `<NasRoot>/scenarios/<name>/preview.png`, types `ContentLayout.ThumbnailAssets(NasRoot)/generated/<type>.png` — ⛔ never the repository | the user's "no screenshots in git"; `ContentSeed` copies repo → NAS file by file and **never deletes** an extra file, so a generated image survives restarts |
+| ⚠ **SUPERSEDED `2026-11-06` by §2j** (entity pictures → an atlas in git, embedded; scenario stills → `preview.jpg`) — the PNGs go into the **NAS root** only — scenarios `<NasRoot>/scenarios/<name>/preview.png`, types `ContentLayout.ThumbnailAssets(NasRoot)/generated/<type>.png` — ⛔ never the repository | the user's "no screenshots in git"; `ContentSeed` copies repo → NAS file by file and **never deletes** an extra file, so a generated image survives restarts |
 | a **hand-made** image wins: the script skips a scenario whose repo folder has a `preview.png`; `ThumbnailMap.Resolve` = ① the TKB's explicit `ThumbnailName` → ② the most specific `map.json` mask → ③ ⭐ NEW `generated/<type>.png` → glyph | R-132 (one producer per slot); ⛔ the script never edits `map.json` (seeded from the repo — an edit on the NAS would be overwritten) |
 | a scenario's still = its START on the editor: `/scenario/load/edit` → the entities' bounds (`GET /entities`) → `/film/shot {eye, target}` looking down at ~45° over them → `/film/capture` | ⛔ **§2f's `/director/stills` is refused on the editor** (📐 its route doc: *"refused on a host that cannot seek (the editor)"* — it needs a recording); the editor's own camera and capture routes are what CE-3289's `film.py` already drives |
 | an entity type's still = one entity spawned (`/entities/spawn`) on flat ground in a studio scenario, framed by its size, captured, removed — ⭐ **SUPERSEDED `2026-11-05` (coordinator, user: *"the entities are not shown as a few pixels in the middle but they fill the thumbnail with just a little margin"*) by the row below** | the same four routes; ⛔ no offscreen renderer |
@@ -449,6 +450,162 @@ exist; the only engine change is ThumbnailMap's third, lowest step (a generated 
 second offscreen renderer · `/director/stills` (Replay Browser only) · writing generated rules into `map.json` (the seed owns it).
 
 **As built `2026-11-05` (ui):** `ThumbnailMap.Resolve(explicit, dis, typeName)` step ③ = `generated/<GeneratedFileName(typeName)>.png` (letters, digits `. _ -` kept, anything else `_`; a name holding `..` refused; same `FileIn` guard). The name passed is the TKB template's **`Name`** (what `GET /tkb/types` lists; stable — `CustomName` is a label that may repeat). `scripts/thumbnails.py` writes the same stem. Measured on the editor: `POST /entities/spawn` is a REQUEST the sim serves — the script enters preview paused (`/preview/enter`), steps until the new entity appears (diff of `GET /entities`), frames it, captures, `DELETE /entities/{id}`. A scenario's bounds use the CAST (entities with `EntityInfo`, else `EntityGuid`) — scenery and the scenario camera entity (Z 120+) would otherwise throw the frame off. The studio for types is `test-move` (no terrain). The unit cards (`Units.Labels`, a toggled gizmo row) ARE filmed when on — so `POST /film/shot {spec:{eye, target, layers:{}}}` applies the shot's own layers through the director's one `MapLayerOverride` (a transient clean start: the scene rows only; `DELETE /film/shot` clears it; never the user's file) and the script sends it (measured: `layers:{}` alone suffices). A type is framed by its REAL size: `PhysicsCollider.Height` + `VehicleParams.Length/Width` of the spawned entity (a Pedestrian is 1.8 m), a low pitch (-15 deg), so it fills ~60% of the tile height; a type's eye is IN FRONT of it, 30 degrees off its heading (measured: identity rotation faces +X). A scenario is framed on its FIRST cast entity and the cast within 30 m of it (all of the cast if that is one entity and the rest are within 60 m), the bounds have a minimum radius and are fitted to the tile width; a lone figure or pair is shot lower (-28 degrees) from the side of the rest of the cast (a camera behind a house frames its wall).
+
+## 2j. The ENTITY THUMBNAIL ATLAS — embedded in the executable; scenarios a small JPEG — CE-4271 *(coordinator, `2026-11-06`; build-state: READY-TO-BUILD; owner: ui)*
+
+🔒 User, `2026-11-06`: *"how to make them part of the executable, meaning to avoid distributing them as hundreds small PNG files. Maybe
+something like Icon Atlas, but with larger icons … It should also allow adding new entities later by simply adding new thumbnails into the
+atlas … we will need some kind of mapping coming together with the atlas, which maps the name into the atlas coordinates"* — then, on the
+leans: *"ok jpeg, approve all three leans, write the design. No atlas for scenarios, Small JPEG is exactly right. Entity thumbnails atlas to
+Git, and a documented way maybe with some  script or http support built in the apps that to add a new entity type into that."* (R-4117)
+
+⭐ **Changes §2i in two places only:** the entity pictures move from 75 loose PNGs on the NAS into JPEG atlas pages **committed to git and
+embedded** (a named exception to *"no screenshots in git"*, R-4117); a scenario's generated still becomes a small `preview.jpg`. Capture
+(§2i's `scripts/thumbnails.py`) and the resolve order ①–③ are unchanged.
+
+### INVENTORY (`2026-11-06`)
+
+| query | total | what it found |
+|---|---|---|
+| `search_graph name_pattern=".*(Atlas\|Thumbnail).*" label=Class` | **4** | `IconAtlas` (Fdp.Presentation, the silk grid: one texture, square cells, `"a1"` coordinates → UV), `EmbeddedAtlasResources` (reads an embedded image), `IconAtlasAdapter` (GizmoMap), `IconAtlasTests` |
+| grep `ImageKey` / `PickerImage` | 1 cache, 3 draw sites | `PickerImageCache` (LRU, per-frame load budget, unloads on eviction); `GridLayout.cs:189`, `:297`; `PickerPaneContent.cs:28` — all draw the WHOLE texture (UV 0..1) |
+| grep `SilkIconProvider` | name → cell map | `SilkIconProvider(IconAtlas, IReadOnlyDictionary<string,string> cellMap)` → `IconHandle(texture, w, h, uv0, uv1)` — ⭐ the name → cell idea already works for icons |
+| grep `preview.png` | 2 readers | `ScenarioPaneFacts.cs:75`, `AssetPickerLauncher.cs:121` |
+| raylib's JPEG decoder | present | `strings` on Raylib-cs 7.0.2's `libraylib.so` and `raylib.dll`: `JFIF`, `bad huffman code`, `.jpg` (decode only is needed — the packer is Python) |
+
+📐 **Measured on the 75 entity pictures of `2026-11-05`:** 75 loose 512 × 288 PNGs = **7.6 MB** · 2 pages of 320 × 180 cells as PNG = 3.6 MB ·
+⭐ **as JPEG q85 = 0.54 MB**. A tile is at most 320 px wide (`PickerState.MaxTileWidth`), so a 320 × 180 cell is drawn 1:1 at the largest.
+
+### The classes
+
+```mermaid
+classDiagram
+  direction LR
+  class IconAtlas { <<existing, Fdp.Presentation>> +TextureId +GetUvCoordinates(cell) +GetUvForRect(x,y,w,h) NEW }
+  class AtlasIndex { <<NEW, Fdp.Presentation, pure>> +Cell(w,h) +Pages +Parse(json) +Contains(name) +TryGet(name, page, rect) }
+  class EmbeddedAtlasResources { <<existing>> +Read(resourceName) }
+  class ThumbnailAtlas { <<NEW, Hrot.Presentation>> +Shared +Contains(name) +TryGetImage(name) PickerImage }
+  class ThumbnailMap { <<existing>> +Resolve(explicit, dis, typeName) key }
+  class PickerImage { <<existing record struct>> Texture Width Height +Uv0 +Uv1 NEW }
+  class PickerImageCache { <<existing>> +resident lookup NEW +TryGet(key) }
+  class GridLayout { <<existing>> draws with Uv0 Uv1 }
+  class PickerPaneContent { <<existing>> draws with Uv0 Uv1 }
+  class EntityAuthoring { <<existing>> +CreatePickers() wires resident }
+  class ScenarioPaneFacts { <<existing>> preview.jpg then preview.png }
+  class thumbnails_py { <<existing script>> --pack --add-image --atlas-list --atlas-remove NEW }
+  ThumbnailAtlas --> AtlasIndex : parses the embedded index
+  ThumbnailAtlas --> EmbeddedAtlasResources : page bytes
+  ThumbnailAtlas --> "1..*" IconAtlas : one per page, uploaded on first use
+  ThumbnailMap --> ThumbnailAtlas : Contains(stem) — no GPU
+  EntityAuthoring --> PickerImageCache : resident = ThumbnailAtlas.TryGetImage
+  PickerImageCache --> PickerImage
+  GridLayout --> PickerImageCache
+  PickerPaneContent --> PickerImageCache
+  thumbnails_py ..> AtlasIndex : writes the same JSON
+```
+*What the picture shows that prose hid: no second atlas class — a page IS an `IconAtlas`, and the only new UV math is a rectangle lookup on
+it; the index is pure (no GPU), so `ThumbnailMap` can ask "is it in the atlas?" on any thread; the cache gains a RESIDENT path, because an
+atlas page is shared by 66 pictures and must never be unloaded by the LRU.*
+
+### The files — one atlas, `entities`
+
+| file (in git, embedded by a wildcard `EmbeddedResource` so a new page needs no `.csproj` edit) | content |
+|---|---|
+| `Hrot/Engine/Hrot.Presentation/Thumbnails/entities.atlas.json` | `{ "version": 1, "cell": [320, 180], "page": [2048, 2048], "pages": ["entities-0.jpg", …], "items": { "<stem>": [page, col, row], … } }` — keys sorted, so a diff shows exactly the names added |
+| `…/Thumbnails/entities-<n>.jpg` | 2048 × 2048, JPEG q85, 6 × 11 = **66 cells**; an empty cell is black |
+
+⭐ **The index is NOT a user-facing file** (user, `2026-11-06`: *"keep JSON, Embed it in the executable."*): it is a source file in git, compiled in as an embedded resource with the pages, written only by `thumbnails.py`; ⛔ nothing reads an index or a page from disk or the NAS at run time, and there is no override file. (The only on-disk layer is ③, the loose `generated/<stem>.png`.)
+
+⭐ `<stem>` = `ThumbnailMap.GeneratedFileName(typeName)` — the SAME name the loose `generated/<stem>.png` has, so nothing about how a type
+finds its picture changes. ⭐ **Fixed cells, not tight packing**: a name keeps its slot forever; adding takes the next free slot (or opens a
+page); only a page whose pixels changed is re-encoded, so adding one type rewrites one ~270 KB file.
+
+### Resolving and drawing a picture
+
+```mermaid
+sequenceDiagram
+  participant Cat as EntityTypeCatalog
+  participant Map as ThumbnailMap
+  participant Atl as ThumbnailAtlas
+  participant Grid as GridLayout (render thread)
+  participant Cache as PickerImageCache
+  Cat->>Map: Resolve(explicit, dis, typeName)
+  Note over Map: ① explicit file → ② map.json mask → ③ loose generated/<stem>.png (a path)
+  Map->>Atl: ④ NEW Contains(stem)
+  Atl-->>Map: true
+  Map-->>Cat: key "atlas:entities/<stem>" (else null ⇒ glyph)
+  Grid->>Cache: TryGet(key)
+  Cache->>Atl: resident lookup TryGetImage(stem) — no load budget, not in the LRU
+  Note over Atl: first use of the page: LoadImageFromMemory(".jpg") → LoadTextureFromImage → bilinear → new IconAtlas(page)
+  Atl-->>Cache: PickerImage(page texture, 320, 180, uv0, uv1)
+  Cache-->>Grid: image
+  Grid->>Grid: AddImage(texture, p0, p1, uv0, uv1)
+```
+*What it shows: the loose file (③) still wins over the atlas (④) — that is how a new picture shows at once, before anyone rebuilds; and a
+page is uploaded once, lazily, on the render thread, then shared — a scroll over every type costs at most two texture uploads.*
+
+| ⭐ decision | why |
+|---|---|
+| resolve order ① explicit → ② `map.json` → ③ loose `generated/<stem>.png` → ④ **atlas** → glyph | R-132: a hand-made picture always wins; ③ before ④ so a fresh capture or a replaced picture shows without a rebuild |
+| an atlas key is `atlas:entities/<stem>`; a file key stays a path | the picker's `ImageKey` is a string already — the key, not a new field, says where the picture lives |
+| `PickerImage` gains `Uv0`/`Uv1`; a whole-file image is `(0,0)–(1,1)` | the same shape as `IconHandle`; the three draw sites pass them (today they hard-code 0..1) |
+| the cache's NEW **resident** lookup is consulted first: no load budget, never evicted, never unloaded | ⛔ an LRU eviction of one picture would unload the page texture the other 65 share |
+| pages are uploaded on first use, kept for the process | ≤ 2 textures of 16 MB GPU each; the hot path allocates nothing after the first frame (R-2084) |
+| `ThumbnailAtlas.Shared` is built once from the embedded index; `GalleryData.Shipped()` and `CreatePickers()` both PASS it | ⛔ the silent-default pattern: a `ThumbnailMap` built without it resolves nothing from the atlas and looks fine — a forwarding rail per caller |
+| ⛔ no runtime writing of the atlas | the atlas is a build input in git; the running app only reads it |
+
+### Adding a new entity type's picture — the documented way
+
+```mermaid
+sequenceDiagram
+  actor Dev as developer
+  participant Py as scripts/thumbnails.py
+  participant Ed as running editor (HTTP)
+  participant NAS as NAS generated/
+  participant Repo as Thumbnails/ in git
+  Dev->>Py: --types <TypeName> --pack
+  Py->>Ed: existing routes: /scenario/load/edit, /entities/spawn, /film/shot, /film/capture (§2i)
+  Ed-->>NAS: generated/<stem>.png — the picker shows it at once (step ③)
+  Py->>Repo: pack: slot of <stem> (kept, or the next free), re-encode that page, update the index
+  Dev->>Repo: commit the changed page + index, rebuild ⇒ embedded (step ④)
+```
+*What it shows: one command, against a running editor, over routes that already exist — no new app route and no second packer.*
+
+| command | what it does |
+|---|---|
+| `python scripts/thumbnails.py --types <TypeName> --pack` | capture the type (§2i, needs a running editor) **and** pack it into the atlas |
+| `python scripts/thumbnails.py --add-image <file> --name <TypeName>` | a hand-made or downloaded picture: centre-crop to 16:9, scale to 320 × 180, pack — no editor needed |
+| `python scripts/thumbnails.py --pack` | fold every loose `generated/*.png` on the NAS into the atlas (a name already in it is replaced in its slot) |
+| `python scripts/thumbnails.py --atlas-list` · `--atlas-remove <TypeName>` | list stems with page/col/row; free a slot (the cell is blacked, the slot reused by the next add) |
+
+⭐ The packer lives ONLY in `thumbnails.py` (PIL — the script already needs it for the crop); ⛔ no C# encoder. ⭐ The RUNBOOK section
+"thumbnails" carries these commands for Windows (`py -3` and the NAS root `C:\FDP_Temp\shared`). ⚖️ **HTTP in the apps — lean: none new.**
+The capture already runs over the editor's HTTP; the one gap is a RUNNING editor seeing a picture just written: ⚠ **measure first** whether
+the Add Entity picker re-resolves `EntityTypeCatalog` on open and whether a remembered failure in `PickerImageCache` hides the new file —
+only if it does, add `POST /thumbnails/reload` (re-resolve + `Images.Invalidate`), nothing more.
+
+### Scenarios — a small JPEG, no atlas
+
+| ⭐ decision | why |
+|---|---|
+| `thumbnails.py --scenarios` writes `<NasRoot>/scenarios/<name>/preview.jpg`, **320 × 180, q85** (~7 KB; was a 512 × 288 PNG, ~220 KB) | 🔒 *"No atlas for scenarios, Small JPEG is exactly right."* — a scenario folder is what people copy; its picture travels with it |
+| readers (`ScenarioPaneFacts.cs:75`, `AssetPickerLauncher.cs:121`) look for `preview.jpg`, then `preview.png` | a hand-made repo `preview.png` still works; the script skips a scenario whose repo folder has either |
+| when the script writes a `preview.jpg` it deletes the NAS `preview.png` only if the repo has none (it was generated) | ⛔ otherwise two producers for one slot (R-132) |
+| scenario stills stay out of git | §2i unchanged for scenarios |
+
+### Acceptance (rails in the picker's and the presentation's suites)
+
+`AtlasIndex` parses / rejects a malformed index; `IconAtlas.GetUvForRect` math · `ThumbnailMap` step ④ and that ③ wins over ④ · the
+resident path: no budget used, never unloaded on eviction · a forwarding rail per production caller of `ThumbnailAtlas.Shared` · a
+`…FrameRail` under `xvfb-run -a` that a tile draws its own cell (not the page) · `thumbnails.py --add-image` round-trip: the index names the
+stem, the page pixel at its cell matches · the shipped atlas holds the 75 pictures of `2026-11-05` (A-10C and Car still excluded) ·
+scenario pane shows `preview.jpg`.
+
+⛔ **Rejected:** PNG pages (3.6 MB vs 0.54 MB on photographic renders, no alpha needed) · WebP (raylib cannot decode it) · a page per
+gallery group (groups are display data in `groups.json` — regrouping would move pictures) · tight rectangle packing (one add reshuffles
+every page) · fetching the pages from the NAS at build time (a build depending on a share) · a C# packer behind an HTTP route (a second
+encoder; the app never writes build inputs) · an atlas for scenarios (user).
+
 
 ## 3. Diagrams
 
