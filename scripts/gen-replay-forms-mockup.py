@@ -36,16 +36,22 @@ def details(x, y, w, t_label, rows, tab=0, chip=True, seek_mark=()):
 # ───────────── A: the Replay Browser's Details, read-only ─────────────
 s.separator_text(20, 64, "A · The Replay Browser's Details panel — the SAME forms, read-only", W - 20)
 # a slim replay timeline above it (the browser's own; drawn only for context)
-TX, TY = 20, 92
-s.rect(TX, TY, 560, 30, "#16161B", stroke=C.BORDER)
-s.glyph(FA.PLAY, TX + 10, TY + 8, C.GREEN, 12); s.text(TX + 32, TY + 20, "00:12:34", C.TXT, 12)
-s.rect(TX + 100, TY + 13, 440, 4, "#2A2A33", rx=2); s.rect(TX + 100, TY + 13, 190, 4, C.ACC, rx=2); s.rect(TX + 287, TY + 8, 6, 14, C.TXT, rx=1)
+TX, TY = 20, 88
+# the Replay Browser's MAIN BAR transport — REAL (ReplayTimelinePanel.DrawTransport, measured from a headless frame): drawn for context, UNCHANGED
+s.rect(TX, TY, 560, 32, "#141418", stroke=C.BORDER)
+bx = TX + 10
+for cp, col in [(0xf060, "#3EC6B0"), (0xf061, "#3EC6B0"), (0xf049, C.GREY), (FA.PLAY, C.GREEN)]:
+    s.glyph(cp, bx, TY + 9, col, 13); bx += 26
+s.rect(bx, TY + 7, 52, 19, C.FRAME); s.text(bx + 6, TY + 21, "1.0x", C.TXT, 12); s.rect(bx + 34, TY + 7, 18, 19, C.BTN)
+s.o.append(f"<path d='M{bx + 38} {TY + 14} l5 5 l5 -5 z' fill='{C.TXT}'/>"); bx += 62
+for cp in (0xf048, 0xf051): s.glyph(cp, bx, TY + 9, C.GREY, 13); bx += 26
+s.text(bx + 12, TY + 21, "main bar: the browser's transport — unchanged, context only", C.NOTE, 11.5)
 rowsA = [("#", "Identity"), ("Name", "field", "Alpha 1-1"), ("Side", "glyphcombo", ("Friend", FA.SHIELD, C.BLUE)), ("Type", "field", "Rifleman (US)"),
          ("#", "State"), ("Posture", "combo", "Crouched"), ("Strength", "slider", (0.75, "75 %")), ("Rounds, M4", "none", None),
          ("Weapon", "combo", "Aimed"), ("Aboard", "field", "Truck 2 · seat 3 (passenger)"), ("Playable", "check", True)]
 end = details(20, 134, 560, "00:12:34", rowsA)
 s.note(20, end + 26, ["Grey says it: no banner, no tooltip (R-4150) — the Recording chip, the time axis and",
-                      "the main bar's clock already say where and when. No Apply / Revert / Undo, no pickers.",
+                      "the main bar's transport already say where and when. No Apply / Revert / Undo, no pickers.",
                       "'not recorded': the row's source is not in this recording (DataPolicy) —",
                       "never a blank or a default that looks like a value."], C.SUB, 12)
 

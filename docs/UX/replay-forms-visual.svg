@@ -4,12 +4,18 @@
 <text x='20' y='44' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Annotations in grey are not drawn by the app.</text>
 <text x='20' y='76' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>A · The Replay Browser's Details panel — the SAME forms, read-only</text>
 <line x1='447.5' y1='72' x2='1220' y2='72' stroke='#4A4A55' stroke-width='1'/>
-<rect x='20' y='92' width='560' height='30' fill='#16161B' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
-<path d='M73 409Q49 423 25 410Q1 396 0 368V16Q1 -12 25 -26Q49 -39 73 -25L361 151Q383 165 384 192Q383 218 361 233L73 409Z' fill='#5BD06A' fill-opacity='1' transform='translate(30,110.7578125) scale(0.0234375,-0.0234375)'/>
-<text x='52' y='112' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>00:12:34</text>
-<rect x='120' y='105' width='440' height='4' fill='#2A2A33' rx='2' opacity='1'/>
-<rect x='120' y='105' width='190' height='4' fill='#4296FA' rx='2' opacity='1'/>
-<rect x='307' y='100' width='6' height='14' fill='#FFFFFF' rx='1' opacity='1'/>
+<rect x='20' y='88' width='560' height='32' fill='#141418' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<path d='M9 215Q0 205 0 192Q0 179 9 169L169 9Q179 0 192 0Q205 0 215 9Q224 19 224 32Q224 45 215 55L109 160H416Q430 160 439 169Q448 178 448 192Q448 206 439 215Q430 224 416 224H109L215 329Q224 339 224 352Q224 365 215 375Q205 384 192 384Q179 384 169 375L9 215Z' fill='#3EC6B0' fill-opacity='1' transform='translate(30,108.654296875) scale(0.025390625,-0.025390625)'/>
+<path d='M439 169Q448 179 448 192Q448 205 439 215L279 375Q269 384 256 384Q243 384 233 375Q224 365 224 352Q224 339 233 329L339 224H32Q18 224 9 215Q0 206 0 192Q0 178 9 169Q18 160 32 160H339L233 55Q224 45 224 32Q224 19 233 9Q243 0 256 0Q269 0 279 9L439 169Z' fill='#3EC6B0' fill-opacity='1' transform='translate(56,108.654296875) scale(0.025390625,-0.025390625)'/>
+<path d='M494 3Q475 -5 460 7L288 150V32Q287 12 270 3Q251 -5 236 7L64 150V32Q64 18 55 9Q46 0 32 0Q18 0 9 9Q0 18 0 32V352Q0 366 9 375Q18 384 32 384Q46 384 55 375Q64 366 64 352V234L236 377Q251 389 270 381Q287 372 288 352V234L460 377Q475 389 494 381Q511 372 512 352V32Q511 12 494 3Z' fill='#A0A0AA' fill-opacity='1' transform='translate(82,108.654296875) scale(0.025390625,-0.025390625)'/>
+<path d='M73 409Q49 423 25 410Q1 396 0 368V16Q1 -12 25 -26Q49 -39 73 -25L361 151Q383 165 384 192Q383 218 361 233L73 409Z' fill='#5BD06A' fill-opacity='1' transform='translate(108,108.654296875) scale(0.025390625,-0.025390625)'/>
+<rect x='134' y='95' width='52' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='140' y='109' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>1.0x</text>
+<rect x='168' y='95' width='18' height='19' fill='#23415F' rx='0' opacity='1'/>
+<path d='M172 102 l5 5 l5 -5 z' fill='#FFFFFF'/>
+<path d='M268 7Q283 -5 302 3Q319 12 320 32V352Q319 372 302 381Q283 389 268 377L76 217L64 207V352Q64 366 55 375Q46 384 32 384Q18 384 9 375Q0 366 0 352V32Q0 18 9 9Q18 0 32 0Q46 0 55 9Q64 18 64 32V177L76 167L268 7Z' fill='#A0A0AA' fill-opacity='1' transform='translate(196,108.654296875) scale(0.025390625,-0.025390625)'/>
+<path d='M53 7Q37 -5 18 3Q1 12 0 32V352Q1 372 18 381Q37 389 53 377L245 217L256 207V352Q256 366 265 375Q274 384 288 384Q302 384 311 375Q320 366 320 352V32Q320 18 311 9Q302 0 288 0Q274 0 265 9Q256 18 256 32V177L245 167L53 7Z' fill='#A0A0AA' fill-opacity='1' transform='translate(222,108.654296875) scale(0.025390625,-0.025390625)'/>
+<text x='260' y='109' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>main bar: the browser's transport — unchanged, context only</text>
 <rect x='20' y='134' width='560' height='337' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
 <rect x='20' y='134' width='560' height='20' fill='#294A7A' rx='0' opacity='1'/>
 <text x='28' y='148' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Details — Alpha 1-1 (Rifleman, Friend)</text>
@@ -73,7 +79,7 @@
 <rect x='164' y='440' width='19' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
 <path d='M168 450 l4 4 l7 -9' stroke='#4296FA' stroke-width='2.2' fill='none'/>
 <text x='20' y='491' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Grey says it: no banner, no tooltip (R-4150) — the Recording chip, the time axis and</text>
-<text x='20' y='505' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the main bar's clock already say where and when. No Apply / Revert / Undo, no pickers.</text>
+<text x='20' y='505' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the main bar's transport already say where and when. No Apply / Revert / Undo, no pickers.</text>
 <text x='20' y='519' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>'not recorded': the row's source is not in this recording (DataPolicy) —</text>
 <text x='20' y='533' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>never a blank or a default that looks like a value.</text>
 <text x='640' y='76' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>B · Seek — the values follow the playhead</text>
