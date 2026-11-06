@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - DESIGN_Editing_UX.md — §1.8 / slice E15: the initial state beyond these forms (seats and carry modes, carried weapons, weapon posture, a named point, lying items) — E15 adds rows to these forms
   - DESIGN_Editing_UX.md — the programme: §3.3 the target tab set, D2 (tabs in the shared bundle with Requires), D3 (the Unit form's fields), D7 (expert detail), §3.7 the expected basics
   - DESIGN_Edit_Framework.md — OWNS the write: every form commit is one Edits.Submit(Write …); §2.5 the field-mark hook and the shared form-row helper this design builds
   - DESIGN_Action_Catalogue.md — OWNS Requires / Modes / Level; a form row declares the same three
