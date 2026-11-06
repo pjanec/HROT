@@ -53,6 +53,7 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 17. ✍ **Tabs:** CE-4286 (the rule editor's tabs are buttons → a real tab bar, one shared no-close-box tab) · Colour Icons §3.1: every content tab gets a coloured icon via that helper, neutral tab palette (Q-I4 for review).
 18. ✍ **Graphical designs (R-4143)**: every UI design now has a house-style mockup generated over `scripts/mockup_kit.py` — map interaction, New Scenario, initial state, rule list + gallery, seats and hats, menus / shortcuts / undo, mission plan (redrawn); the forms and condition editor generators moved onto the kit. List and states: [DESIGN_Editing_UX.md](../UX/DESIGN_Editing_UX.md) §4.6; the seven new ones await the user's review.
 19. ✍ **E17 UI conventions WRITTEN `2026-11-06`: [DESIGN_UI_Conventions.md](../UX/DESIGN_UI_Conventions.md)** (R-4144, CE-4287) — trees CHEVRON · ICON · LABEL with ImGui's one arrow (`TreeRow`), label-first forms (`FormGrid`, the layout half of FormView), slate collapsing headers with a coloured icon (`SectionHeader`); all three in `NodeEditor.Core` (the one assembly the pickers and the panels both reach). Mockup `ui-conventions-visual.svg`. Q-C1/2/5 ✅ R-4145, Q-C6 capped width R-4145, Q-C4 withdrawn (node drawers are Details forms), Q-C3 ✅ R-4147 — E17 fully settled, ready for a ui handoff; fidelity checked by the builder, no stop (R-4146 — also in CLAUDE.md).
+20. ✍ **Condition editor's Expert view — §8 of [DESIGN_Condition_Editor.md](../UX/DESIGN_Condition_Editor.md)** (CE-4288): measured from a real headless frame of today's rule When tab; fixes go into the ONE struct editor (names, kind-as-row, no empty Bind rows, numbers with units, collapsed sentence, add/trash) + names/glyphs from FactCatalogue + entity-link chip + When tab without the header. Mockup `condition-expert-visual.svg`. ⏳ Q-X1…Q-X4 with the user.
 19. ▶ NEXT (queue §4.5): E5 condition templates · E7 review · E2b sim / types. (Was 8: D1 (undo — reads the edit framework's journal), then E8 (map interaction), then the smaller ones. Previously listed after hats:, D1 (undo — reads the edit framework's journal), E8 (map), then the smaller ones (queue §4.5).
 4. Before each design: INVENTORY with graph queries, UML (class + sequence + module), and a claim table in the chat.
 
@@ -66,6 +67,6 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 | **behaviors** | performance programme (§11f, 1000 soldiers load) | nothing dispatched |
 | **backend** | late-joiner ghosts (CE-4000 / 4007) — dispatch in backend | check its report |
 
-Ids: coordinator next free **CE-4288**, **R-4148**.
+Ids: coordinator next free **CE-4289**, **R-4148**.
 
 ⚠ All lanes are PAUSED by the user while the editing-UX designs are discussed (`2026-11-06`).

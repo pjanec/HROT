@@ -598,7 +598,8 @@ chat, committed as SVG beside its design. It is the acceptance spec (R-4138 / De
 | Rule editor UX (E13): the rule list as sentences, the gallery | `rule-list-visual.svg` | ✍ drawn, for review |
 | Seats and hats (E10): the seat and hat indicator and switch | `seats-hats-visual.svg` | ✍ drawn, for review |
 | Action catalogue (E9) + input (E14) + undo (D1): a context menu (groups, greyed with the reason, shortcuts), the Edit menu's undo / redo | `menus-visual.svg` | ✍ drawn, for review |
-| UI conventions (E17): trees (chevron · icon · label), label-first forms, slate collapsing headers — today vs after | `ui-conventions-visual.svg` | ✍ drawn, for review |
+| UI conventions (E17): trees (chevron · icon · label), label-first forms, slate collapsing headers — today vs after; what is not a form row, node editors, the label width | `ui-conventions-visual.svg` · `ui-conventions-details-visual.svg` | ✅ approved (R-4144…R-4147) |
+| Condition editor's Expert view (E5 §8): the struct editor readable — names, kinds as rows, no Bind rows, things by name | `condition-expert-visual.svg` | ✍ drawn, for review |
 
 ### 4.4 Slices — proposed handoffs, once D1–D9 are approved
 
