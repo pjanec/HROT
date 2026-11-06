@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level, for the user's review (R-4122); the building lanes detail it (R-4123)
-updated: 2026-11-06 (first version — coordinator; editing-UX design queue item 4: E10 / D17, with D4's editing levels)
+updated: 2026-11-06 (§2.5 the user's review: HTTP sessions take seats, seat = a node feature preset while the hat is local UI state, the camera keeps the view on leaving a hat, keys → E14) · 2026-11-06 (first version — coordinator; editing-UX design queue item 4: E10 / D17, with D4's editing levels)
 current-answer: §2 the model (seat × hat) · §3 stages · §4 questions with leans
 stale-below: nothing
 known-rot: none
@@ -137,8 +137,8 @@ tool INSIDE Embodied, not a second hat.*
 |---|---|
 | **the arbiter disarms** | entering a hat disarms the previous hat's tools (no RTS armed under the FPS view, no placement tool while possessing) |
 | **Esc = one level out** | a tool inside the hat → the hat → Observe; ⛔ never two meanings at once |
-| **one camera owner** | the active hat owns the camera; each hat REMEMBERS its view, so leaving Embodied returns to where Observe was (fixes R-260) |
-| **keys per hat** | the map shortcuts (P, R, C, Space) belong to Edit / Command / Observe; the FPS keys (R, Q, E, F, G) to Embodied — no overlap in one hat |
+| **one camera owner** | the active hat owns the camera; leaving a hat hands control back and KEEPS the view (free-fly from the director's last shot); *Back to my view* restores the previous hat's remembered view (fixes R-260) — §2.5 |
+| **keys per hat** | each hat is a keymap SCOPE (E14): the map shortcuts (P, R, C, Space) in Edit / Command / Observe, the FPS keys (R, Q, E, F, G) in Embodied — no overlap in one hat |
 | **the mode indicator** | shows the run mode, the seat and the hat: *● LIVE · Instructor · Command* — one click switches hat |
 | **run mode is not a hat** | Edit / Preview / Live / Review (design 1's `EditingMode`) bounds the hats too: Edit hat only in Edit mode; Embodied / Command only while running |
 
@@ -157,6 +157,21 @@ graph TD
 *What it shows: one value, set once per station from the host row / a flag / the scenario, read by the three things that enforce it — so a
 Player station cannot place units by construction (CE-4279), not by every tool remembering to check.*
 
+### 2.5 The user's review *(`2026-11-06`)* — the HTTP API, seat vs hat, the camera, keys
+
+🔒 *"note the HTTP ai debug api should be able to play the roles too if it wants too, for automatic testing purposes"* · *"is the hat just a
+dynamic change of feature settings? (i imagine it like that)"* · *"what the "one camera owner" would change from today? … i like the
+posibility of free flying the scene after director has changed the camera position."* · *"the key map to app functions scoped to concrete
+context should be solved on whole app level … same the unification of how command/actions are registered … no ad hoc direct calls to
+features"*
+
+| | answer |
+|---|---|
+| **the HTTP API takes a seat** | ⭐ an HTTP session is a **virtual station** with its own seat and hat: `POST /session/seat {seat, side}` and `POST /session/hat {hat}`; every route it calls then passes the SAME catalogue / gate checks a person's station would — so an automated test can play a Player, a side controller or the instructor and see the same refusals. It generalises today's `/orders/side-lock` (C-10, `DebugApiHost.cs:1434`), which becomes the session seat's side scope. No seat set ⇒ Author (today's behaviour) |
+| **seat = a node feature; hat ≠ feature settings** | the **seat** is ONE node feature (`station.seat`, config `{seat, side}`) — cluster-visible, kept in the recording, rarely changed; it works as a PRESET: it sets the defaults of the features it implies (`hud.*`, `gm.palette`, the editing level D4 — one setting, not two). ⭐ The **hat is NOT feature settings**: it is this station's UI state, changed every few seconds (like the selection — local, not on the wire, not recorded). Flipping cluster features on each hat switch would put UI clicks on the wire and in the recording. What the cluster must know about a hat is already its own state (possession is the replicated `PossessedBy` claim) |
+| **"one camera owner" — what changes** | today each driver (FPS, Follow, director take, free) grabs the camera and restores — or not — on its own, unaware of the others. ⭐ Target: **leaving a hat hands control back; the VIEW stays where it is** — after a director take, Observe's free-fly starts from the director's last shot (the user's wish); after releasing a unit, from the unit's eye. An explicit **Back to my view** (a key) returns to the view the previous hat had remembered. ⛔ No snap-back by default |
+| **keys and commands** | ⭐ a whole-app concern, not this design's — filed as **E14 (Editing UX queue)**: ONE keymap with scopes (global · map · active hat · focused window · text field), keys bound to ACTION IDS from the catalogue (design 1), never to direct calls. 📐 today ~62 files read keys directly, plus `EditorHotkeyDispatcher` (graph editors), `MenuShortcuts` (map menu letters), the FPS station's own keys — no shared keymap |
+
 ## 3. Stages
 
 | stage | what | lane |
@@ -167,6 +182,7 @@ Player station cannot place units by construction (CE-4279), not by every tool r
 | **H4** | one camera owner with per-hat views (FPS, Follow, director, free) | ui |
 | **H5** | the Instructor seat's windows on the fused server and CGF (rules, game master, End) — SR-104 Z7 | ui |
 | **H6** | the Side controller seat; the Observer seat's camera | ui |
+| **H7** | the HTTP session seat and hat (`/session/seat`, `/session/hat`); `/orders/side-lock` folded in | backend + ui |
 
 ## 4. Questions — leans for the user
 
