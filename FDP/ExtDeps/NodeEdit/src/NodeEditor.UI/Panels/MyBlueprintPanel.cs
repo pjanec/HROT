@@ -173,10 +173,10 @@ public sealed class MyBlueprintPanel
         List<(MyBlueprintItem item, FuzzyMatcher.Result match)>? searchResults)
     {
         bool expanded = _sectionExpanded.GetValueOrDefault(section.Id, true);
-        string label  = $"{section.DisplayName} ({items.Count})##sec_{section.Id}";
+        string label  = $"{section.DisplayName} ({items.Count})";
         var flags = expanded ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None;
         flags |= ImGuiTreeNodeFlags.AllowOverlap;
-        bool isOpen = ImGui.CollapsingHeader(label, flags);
+        bool isOpen = NodeEditor.Core.Widgets.SectionHeader.Draw($"sec_{section.Id}", label, "doc/blueprint", flags);
 
         if (section.CanCreateItems && section.CreateCommandId is not null)
         {

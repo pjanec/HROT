@@ -629,7 +629,7 @@ public sealed class EntityBrainView : IDetailsViewInstance
     private static bool Section(string label, string id)
     {
         if (ExpandForRail) ImGui.SetNextItemOpen(true, ImGuiCond.Once);
-        return ImGui.CollapsingHeader($"{label}###brain.{id}");
+        return NodeEditor.Core.Widgets.SectionHeader.Draw($"brain.{id}", label, "tab/brain");
     }
 
     private readonly BrainSettingRegistry _settings = BrainSettingRegistry.Default;

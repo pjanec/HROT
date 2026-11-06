@@ -712,7 +712,7 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow, IVariableOutline
             : Hrot.Editor.AiShared.Blackboard.BlackboardTypeHelper.ResolveClrType(asset.ParamsDtoTypeId!);
         _paramsDefaults.Sync(dto, asset.ParamsDefaultJson);
         if (_paramsDefaults.Session != null
-            && ImGuiNET.ImGui.CollapsingHeader($"Params defaults — {Hrot.Editor.AiShared.Blackboard.ParamsDtoChooser.SimpleName(asset.ParamsDtoTypeId!)}##bp_pd", ImGuiNET.ImGuiTreeNodeFlags.DefaultOpen)
+            && NodeEditor.Core.Widgets.SectionHeader.Draw("bp_pd", $"Params defaults — {Hrot.Editor.AiShared.Blackboard.ParamsDtoChooser.SimpleName(asset.ParamsDtoTypeId!)}", "section/params", ImGuiNET.ImGuiTreeNodeFlags.DefaultOpen)
             && Hrot.Presentation.Behavior.ParamsDefaultsForm.Draw("##bp_pdf", _paramsDefaults) is { } commit)
             Host.BlueprintParamsDto.Run(asset, asset.ParamsDtoTypeId, commit.Json, commit.Label, _view?.Undo, MarkDirtyAction());
     }

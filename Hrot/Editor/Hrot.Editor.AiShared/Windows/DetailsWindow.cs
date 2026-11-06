@@ -742,7 +742,7 @@ public sealed class DetailsWindow
             if (string.Equals(reveal, d.Id, StringComparison.Ordinal)) ImGuiNET.ImGui.SetNextItemOpen(true, ImGuiNET.ImGuiCond.Always);
             else ImGuiNET.ImGui.SetNextItemOpen(ReferenceEquals(d, frame.Choice.View), ImGuiNET.ImGuiCond.Once);
             ImGuiNET.ImGui.SetNextItemAllowOverlap();
-            bool open = ImGuiNET.ImGui.CollapsingHeader($"{d.Title}##{Id}_hdr_{d.Id}", ImGuiNET.ImGuiTreeNodeFlags.AllowOverlap);
+            bool open = NodeEditor.Core.Widgets.SectionHeader.Draw($"{Id}_hdr_{d.Id}", d.Title, TabIconOf(d.Title) is { } ti ? NodeEditor.Core.Widgets.RowIcon.OfGlyph(ti) : NodeEditor.Core.Widgets.RowIcon.None, ImGuiNET.ImGuiTreeNodeFlags.AllowOverlap);
             bool opened = open && ImGuiNET.ImGui.IsItemToggledOpen();
             if (string.Equals(reveal, d.Id, StringComparison.Ordinal)) ImGuiNET.ImGui.SetScrollHereY(0f);
             if (buttons && _windowManager is { } wm)

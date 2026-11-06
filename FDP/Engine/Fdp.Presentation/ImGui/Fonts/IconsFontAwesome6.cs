@@ -104,4 +104,13 @@ public static class IconsFontAwesome6
     public const string Clock               = "\uf017"; // U-7 condition kind: Time
     public const string Users               = "\uf0c0"; // U-7 condition kind: At least N of
     public const string FlagCheckered       = "\uf11e"; // U-2 colour-icon key glyph
+    public const string Stethoscope         = "\uf0f1"; // U-5 section-header key glyph
+    public const string Mountain            = "\uf6fc"; // U-5 section-header key glyph
+    public const string BoxesStacked        = "\uf468"; // U-5 section-header key glyph
+    public const string BoxArchive          = "\uf187"; // U-5 section-header key glyph
+    public const string Film                = "\uf008"; // U-5 section-header key glyph
+    public const string Sliders             = "\uf1de"; // U-5 section-header key glyph
+    public const string Memory              = "\uf538"; // U-5 section-header key glyph
+    public const string Image               = "\uf03e"; // U-5 section-header key glyph
+    public const string List                = "\uf03a"; // U-5 section-header key glyph
 }

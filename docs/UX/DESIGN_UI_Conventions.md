@@ -227,6 +227,15 @@ INVENTORY: `search_graph name_pattern=".*(TreeLayout|SaveAsBrowser|FolderTreePic
 ⭐ Deviations: (1) **ImGui no longer remembers a tree's open state** — every drawer passes `ref open`, so each owns a dictionary (above); (2) a picker LEAF is not a `TreeRow` (it needs the match-highlight runs) but is placed by the same geometry, so its label shares the x of a sibling folder at that depth; (3) the ORBAT's row rect is now the whole row (the item `TreeRow` spans), its depth indent is `IndentSpacing` (was 12 px); (4) no screen-wide zero-allocation claim: the pickers rebuild their folder model and the ORBAT its node list every frame (pre-existing, measured 2 240 B for the ORBAT frame) — the rows themselves add none (`TreeRow`'s own rail, U-1). `PickerState.TreeRow` (a data row) keeps its name; the helper is always written `NodeEditor.Core.Widgets.TreeRow`.
 ⭐ Rails (real drawers, real fonts, Xvfb; chevron < icon < label, a leaf at its depth's x, depth = indent): `Hrot.Presentation.Tests/Panels/TreeRowsFrameRail` (picker Tree layout, Save-As folder tree), `TheSharedOrbatPanelDrawsTests.U4_…`, `TheAssetBrowserTreeDrawsTreeRowsTests`; the probe `Hrot.Editor.UiFrameRail/TreeRowProbe`. ⚠ `MyBlueprintPanel` and `BehaviorPickerTree` have no frame rail of their own (the first needs a whole graph host, the second a popup): their feature suites pass and the shared row is the one proven above.
 
+**C3 AS-BUILT (U-5, `2026-11-06`)** — *the row above is the plan.* **35 production headers moved** onto `SectionHeader.Draw` (found 45 by grep + `search_code`; the other **10 stay on plain ImGui by ruling — demos and examples are context, not product UI**, an allowed list the rail names: `FDP/ExtDeps/NodeEdit/src/NodeEditor.Demo/` (1) · `FDP/ExtDeps/FastHSM/demos/` (5) · `FDP/ExtDeps/FastBTree/demos/` (1) · `FDP/Examples/` (3)).
+
+| as built | |
+|---|---|
+| icon by KEY: `SectionHeader.Draw(id, label, "iconKey", flags, colors?)` overload; 14 new `section/*` keys (health · time · terrain · assets · checkpoint · episodes · archive · spawn · params · allocations · render · list · search · selection) + 9 FA constants; the rest reuse `tab/*`, `doc/*`, `mode/*`, `orbat/*`, `form/warning` | `Icons.cs`, `IconsFontAwesome6.cs` |
+| **overrides that keep a meaning (Q-C5):** the raw editor's authority green (`ComponentReflector.AuthorityHeader`) and `VariableTableControl`'s changed / pending tints (`ChangedHeader`, `PendingHeader`) | |
+| ids are explicit and stable (the label no longer carries `##id` / `###id`; `ComponentReflector`'s labels dropped their `###TypeName` suffix) | |
+| rail: `SectionHeaderMigrationRail` — a source scan (no raw `CollapsingHeader` outside the allowed list; ≥ 35 `SectionHeader.Draw` sites) + a frame rail on the raw component editor (slate, coloured icon; authority = the green override). Red-proofed by dropping the authority override | |
+
 ### 6.1 Fidelity is the builder's job — never a stop *(user, `2026-11-06`, R-4146)*
 
 🔒 *"I would again emphasize the need for implementing the forms in the same shape as in the design … that shouldn't need me when implementing.

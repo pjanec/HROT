@@ -272,7 +272,7 @@ public sealed class VariablesPanelControl
         var dto = string.IsNullOrWhiteSpace(asset.ParamsDtoTypeId) ? null : BlackboardTypeHelper.ResolveClrType(asset.ParamsDtoTypeId!);
         _paramsDefaults.Sync(dto, asset.CurrentParamsDefaults);
         if (_paramsDefaults.Session == null) return;
-        if (!ImGui.CollapsingHeader($"Params defaults — {ParamsDtoChooser.SimpleName(asset.ParamsDtoTypeId!)}##pd_{tableId}", ImGuiTreeNodeFlags.DefaultOpen)) return;
+        if (!NodeEditor.Core.Widgets.SectionHeader.Draw($"pd_{tableId}", $"Params defaults — {ParamsDtoChooser.SimpleName(asset.ParamsDtoTypeId!)}", "section/params", ImGuiTreeNodeFlags.DefaultOpen)) return;
         if (Hrot.Presentation.Behavior.ParamsDefaultsForm.Draw($"##pdf_{tableId}", _paramsDefaults, null, readOnly) is { } commit)
             CommitParamsDefaults(asset, commit.Json, commit.Label);
     }
@@ -320,13 +320,13 @@ public sealed class VariablesPanelControl
     public void DrawDual(VariablesPanelSection topSection, VariablesPanelSection bottomSection,
         Func<string, FieldDecoration?>? rowDecoration = null)
     {
-        if (ImGui.CollapsingHeader($"{topSection.SectionName} ({topSection.TotalInlineBytes} B)", ImGuiTreeNodeFlags.DefaultOpen))
+        if (NodeEditor.Core.Widgets.SectionHeader.Draw($"hdr.top_{topSection.SectionName}", $"{topSection.SectionName} ({topSection.TotalInlineBytes} B)", "doc/blackboard", ImGuiTreeNodeFlags.DefaultOpen))
             DrawSection(topSection, rowDecoration);
 
         ImGui.Separator();
         ImGui.Spacing();
 
-        if (ImGui.CollapsingHeader($"{bottomSection.SectionName} ({bottomSection.TotalInlineBytes} B)", ImGuiTreeNodeFlags.DefaultOpen))
+        if (NodeEditor.Core.Widgets.SectionHeader.Draw($"hdr.bottom_{bottomSection.SectionName}", $"{bottomSection.SectionName} ({bottomSection.TotalInlineBytes} B)", "doc/blackboard", ImGuiTreeNodeFlags.DefaultOpen))
             DrawSection(bottomSection, rowDecoration);
 
         DrawPopups();
@@ -414,7 +414,7 @@ public sealed class VariablesPanelControl
         if (nodeOwnedVars.Count > 0)
         {
             ImGui.Spacing();
-            if (ImGui.CollapsingHeader($"Node-Owned Allocations ({nodeOwnedVars.Count})##no_{section.TableId}",
+            if (NodeEditor.Core.Widgets.SectionHeader.Draw($"no_{section.TableId}", $"Node-Owned Allocations ({nodeOwnedVars.Count})", "section/allocations",
                 ImGuiTreeNodeFlags.DefaultOpen))
             {
                 DrawNodeOwnedTable(section, nodeOwnedVars);
@@ -424,7 +424,7 @@ public sealed class VariablesPanelControl
         if (section.AliasingEnabled && section.Schema.UnboundRequirements.Count > 0)
         {
             ImGui.Separator();
-            if (ImGui.CollapsingHeader("UNBOUND SUB-TREE REQUIREMENTS", ImGuiTreeNodeFlags.DefaultOpen))
+            if (NodeEditor.Core.Widgets.SectionHeader.Draw("hdr.unbound", "UNBOUND SUB-TREE REQUIREMENTS", "form/warning", ImGuiTreeNodeFlags.DefaultOpen))
             {
                 for (int i = 0; i < schema.UnboundRequirements.Count; i++)
                 {

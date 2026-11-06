@@ -15,6 +15,7 @@ using Fdp.Toolkit.Serialization;
 using FixedString32 = Fdp.Core.FixedString32;
 using FixedString64 = Fdp.Core.FixedString64;
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 using StructEdit.Core;
 using StructEdit.Core.UnionSupport;
 using StructEdit.Reflection;
@@ -252,16 +253,9 @@ public class ComponentReflector
             //    this component. Uses the EntityHeader.AuthorityMask as the canonical
             //    source of truth, queried via IInspectableSession.HasAuthority.
             bool hasAuthority = session.HasAuthority(e, type);
-            if (hasAuthority)
-            {
-                ImGuiApi.PushStyleColor(ImGuiCol.Header,        new Vector4(0.15f, 0.45f, 0.15f, 0.8f));
-                ImGuiApi.PushStyleColor(ImGuiCol.HeaderHovered, new Vector4(0.20f, 0.55f, 0.20f, 0.8f));
-                ImGuiApi.PushStyleColor(ImGuiCol.HeaderActive,  new Vector4(0.25f, 0.65f, 0.25f, 0.8f));
-                popColors += 3;
-            }
-
-            // Headers are collapsed by default (no DefaultOpen flag)
-            bool open = ImGuiApi.CollapsingHeader(label);
+            // ⭐ U-5 (Q-C5): slate like every header, EXCEPT authority — green means something here, so it is the HeaderColors override.
+            // Headers are collapsed by default (no DefaultOpen flag). The id is the type name (stable while the summary text changes).
+            bool open = SectionHeader.Draw(type.Name, label, "tab/components", ImGuiTreeNodeFlags.None, hasAuthority ? AuthorityHeader : null);
 
             if (popColors > 0)
                 ImGuiApi.PopStyleColor(popColors);
@@ -448,6 +442,9 @@ public class ComponentReflector
         _inPlaceEditErrorMessage = null;
     }
 
+    /// <summary>The raw editor's authority green (this node owns the component) — the one header colour that keeps its meaning (U-5, Q-C5).</summary>
+    private static readonly HeaderColors AuthorityHeader = new(new Vector4(0.15f, 0.45f, 0.15f, 0.8f), new Vector4(0.20f, 0.55f, 0.20f, 0.8f), new Vector4(0.25f, 0.65f, 0.25f, 0.8f));
+
     private static string BuildHeaderLabel(IInspectableSession session, Entity entity, Type type, object? data)
     {
         if (data == null) return type.Name;
@@ -461,11 +458,11 @@ public class ComponentReflector
 
         if (!string.IsNullOrEmpty(summary))
             // Append ###{type.Name} to lock the ID
-            return $"{type.Name}  [{summary}]###{type.Name}";
+            return $"{type.Name}  [{summary}]";
 
         string? auto = GetAutoSummary(data, type);
         // Append ###{type.Name} to lock the ID
-        return auto != null ? $"{type.Name}  {auto}###{type.Name}" : type.Name;
+        return auto != null ? $"{type.Name}  {auto}" : type.Name;
     }
 
     private static string? GetAutoSummary(object data, Type type)

@@ -7,6 +7,7 @@ using Hrot.Editor.AiShared.Shell;
 using Hrot.Presentation.Zones;
 using Hrot.UI.Common.Weather;
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 
 namespace Hrot.Editor.Scenario;
 
@@ -52,7 +53,7 @@ public sealed class ScenarioEnvironmentView : IDetailsViewInstance
         if (_parameters is null) return;
         ImGui.Separator();
         if (_parameters.ConsumeOpenRequest()) ImGui.SetNextItemOpen(true, ImGuiCond.Always);
-        ParametersHeaderOpen = ImGui.CollapsingHeader("Parameters");
+        ParametersHeaderOpen = SectionHeader.Draw("hdr.parameters", "Parameters", "section/params");
         if (ParametersHeaderOpen) _parameters.Draw();
     }
 

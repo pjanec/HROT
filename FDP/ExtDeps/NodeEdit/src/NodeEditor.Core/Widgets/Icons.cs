@@ -83,6 +83,20 @@ public static class Icons
             case "tab/status": icon = new("\uf05a", IconPalette.Blue); return true;   // CircleInfo
             case "tab/bindings": icon = new("\uf0c1", IconPalette.Blue); return true;   // Link
             case "tab/history": icon = new("\uf1da", IconPalette.Grey); return true;   // ClockRotateLeft
+            case "section/health": icon = new("\uf0f1", IconPalette.Green); return true;   // Stethoscope
+            case "section/time": icon = new("\uf017", IconPalette.Amber); return true;   // Clock
+            case "section/terrain": icon = new("\uf6fc", IconPalette.Teal); return true;   // Mountain
+            case "section/assets": icon = new("\uf468", IconPalette.Orange); return true;   // BoxesStacked
+            case "section/checkpoint": icon = new("\uf024", IconPalette.Amber); return true;   // Flag
+            case "section/episodes": icon = new("\uf008", IconPalette.Pink); return true;   // Film
+            case "section/archive": icon = new("\uf187", IconPalette.Grey); return true;   // BoxArchive
+            case "section/spawn": icon = new("\uf067", IconPalette.Green); return true;   // Plus
+            case "section/params": icon = new("\uf1de", IconPalette.Blue); return true;   // Sliders
+            case "section/allocations": icon = new("\uf538", IconPalette.Violet); return true;   // Memory
+            case "section/render": icon = new("\uf03e", IconPalette.Pink); return true;   // Image
+            case "section/list": icon = new("\uf03a", IconPalette.Teal); return true;   // List
+            case "section/search": icon = new("\uf002", IconPalette.Blue); return true;   // MagnifyingGlass
+            case "section/selection": icon = new("\uf0ae", IconPalette.Blue); return true;   // ListCheck
             default: icon = Unknown; return false;
         }
     }
@@ -155,6 +169,20 @@ public static class Icons
         "tab/overview",
         "tab/status",
         "tab/bindings",
-        "tab/history"
+        "tab/history",
+        "section/health",
+        "section/time",
+        "section/terrain",
+        "section/assets",
+        "section/checkpoint",
+        "section/episodes",
+        "section/archive",
+        "section/spawn",
+        "section/params",
+        "section/allocations",
+        "section/render",
+        "section/list",
+        "section/search",
+        "section/selection"
     };
 }

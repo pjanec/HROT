@@ -8,6 +8,7 @@ using Fdp.ModuleHost.Diagnostics;
 using Fdp.ModuleHost.Resilience;
 using Fdp.ModuleHost.Scheduling;
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 using ImGuiApi = ImGuiNET.ImGui;
 
 namespace Fdp.Presentation.Panels;
@@ -74,17 +75,17 @@ public sealed class ArchitectureDiagnosticsPanel
     {
         var snapshot = _service.GetSnapshot();
 
-        if (ImGuiApi.CollapsingHeader("Modules", ImGuiTreeNodeFlags.DefaultOpen))
+        if (SectionHeader.Draw("hdr.modules", "Modules", "orbat/structure", ImGuiTreeNodeFlags.DefaultOpen))
         {
             DrawModulesTable(snapshot.Modules);
         }
 
-        if (ImGuiApi.CollapsingHeader("Systems", ImGuiTreeNodeFlags.DefaultOpen))
+        if (SectionHeader.Draw("hdr.systems", "Systems", "doc/utility", ImGuiTreeNodeFlags.DefaultOpen))
         {
             DrawSystemsTable(snapshot.Systems);
         }
 
-        if (ImGuiApi.CollapsingHeader("Translators", ImGuiTreeNodeFlags.DefaultOpen))
+        if (SectionHeader.Draw("hdr.translators", "Translators", "section/list", ImGuiTreeNodeFlags.DefaultOpen))
         {
             DrawTranslatorsTable(snapshot.Translators);
         }

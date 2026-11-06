@@ -9,6 +9,7 @@ using Hrot.Orchestrator;
 using Fdp.Core;
 using Fdp.Toolkit.Time.Domain;
 using ImGuiNET;
+using NodeEditor.Core.Widgets;
 using FdpClusterOpType        = Fdp.Toolkit.Orchestration.ClusterOpType;
 using FdpClusterState         = Fdp.Toolkit.Orchestration.ClusterState;
 using TransitionStateIntent   = Fdp.Toolkit.Orchestration.TransitionStateIntent;
@@ -364,7 +365,7 @@ public sealed class ClusterScenarioPanel
 
     private void RenderNodeHealthTable()
     {
-        if (!ImGui.CollapsingHeader("Node Health", ImGuiTreeNodeFlags.DefaultOpen)) return;
+        if (!SectionHeader.Draw("hdr.health", "Node Health", "section/health", ImGuiTreeNodeFlags.DefaultOpen)) return;
 
         double nowSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
         if (ImGui.BeginTable("NodeHealth", 5,
@@ -418,7 +419,7 @@ public sealed class ClusterScenarioPanel
 
     private void RenderTimeControl(bool disableAll)
     {
-        if (!ImGui.CollapsingHeader("Time Control", ImGuiTreeNodeFlags.DefaultOpen)) return;
+        if (!SectionHeader.Draw("hdr.time", "Time Control", "section/time", ImGuiTreeNodeFlags.DefaultOpen)) return;
 
         long   wallTicks   = DateTimeOffset.UtcNow.Ticks;
         string wallTimeStr = new DateTime(wallTicks, DateTimeKind.Utc).ToString("HH:mm:ss.fff");
@@ -465,7 +466,7 @@ public sealed class ClusterScenarioPanel
 
     private void RenderTxHistory()
     {
-        if (!ImGui.CollapsingHeader("2PC History")) return;
+        if (!SectionHeader.Draw("hdr.2pc", "2PC History", "tab/history")) return;
 
         var history    = EffectiveTxHistory;
         float rowHeight = ImGui.GetTextLineHeightWithSpacing();
@@ -612,7 +613,7 @@ public sealed class ClusterScenarioPanel
 
     private void RenderClusterControl(bool disableAll)
     {
-        if (!ImGui.CollapsingHeader("Cluster Control", ImGuiTreeNodeFlags.DefaultOpen)) return;
+        if (!SectionHeader.Draw("hdr.cluster", "Cluster Control", "tab/settings", ImGuiTreeNodeFlags.DefaultOpen)) return;
 
         if (ImGui.BeginChild("##OrcClusterControl", AutoSize, ImGuiChildFlags.Borders | ImGuiChildFlags.AutoResizeY))
         {
@@ -666,7 +667,7 @@ public sealed class ClusterScenarioPanel
     /// </summary>
     private void RenderTerrainSection(bool disableAll)
     {
-        if (!ImGui.CollapsingHeader("Terrain")) return;
+        if (!SectionHeader.Draw("hdr.terrain", "Terrain", "section/terrain")) return;
 
         if (ImGui.BeginChild("##OrcTerrain", AutoSize, ImGuiChildFlags.Borders | ImGuiChildFlags.AutoResizeY))
         {
@@ -727,7 +728,7 @@ public sealed class ClusterScenarioPanel
     /// </summary>
     private void RenderAssetsSection(bool disableAll)
     {
-        if (!ImGui.CollapsingHeader("Assets")) return;
+        if (!SectionHeader.Draw("hdr.assets", "Assets", "section/assets")) return;
 
         if (_bus != null) _assetOp.Observe(_bus.ReadManaged<Fdp.Toolkit.Orchestration.ClusterOpCompletedEvent>());
 
@@ -800,7 +801,7 @@ public sealed class ClusterScenarioPanel
 
     private void RenderCheckpointSection(ClusterState currentState, bool disableAll)
     {
-        if (!ImGui.CollapsingHeader("Checkpoint")) return;
+        if (!SectionHeader.Draw("hdr.checkpoint", "Checkpoint", "section/checkpoint")) return;
 
         if (ImGui.BeginChild("##OrcCheckpoint", AutoSize, ImGuiChildFlags.Borders | ImGuiChildFlags.AutoResizeY))
         {
@@ -826,7 +827,7 @@ public sealed class ClusterScenarioPanel
 
     private void RenderScenarioSection(bool disableAll)
     {
-        if (!ImGui.CollapsingHeader("Scenario")) return;
+        if (!SectionHeader.Draw("hdr.scenario", "Scenario", "tab/scenario")) return;
 
         if (ImGui.BeginChild("##OrcScenario", AutoSize, ImGuiChildFlags.Borders | ImGuiChildFlags.AutoResizeY))
         {
@@ -859,7 +860,7 @@ public sealed class ClusterScenarioPanel
 
     private void RenderReplaySection(bool disableAll)
     {
-        if (!ImGui.CollapsingHeader("AAR (After Action Review)##OrcReplay")) return;   // ⭐ AQ108 D17 — the user's word is AAR (the code keeps Replay)
+        if (!SectionHeader.Draw("OrcReplay", "AAR (After Action Review)", "mode/replay")) return;   // ⭐ AQ108 D17 — the user's word is AAR (the code keeps Replay)
 
         if (ImGui.BeginChild("##OrcReplay", AutoSize, ImGuiChildFlags.Borders | ImGuiChildFlags.AutoResizeY))
         {
@@ -918,7 +919,7 @@ public sealed class ClusterScenarioPanel
 
     private void RenderEpisodesSection(bool disableAll)
     {
-        if (!ImGui.CollapsingHeader("Episodes")) return;
+        if (!SectionHeader.Draw("hdr.episodes", "Episodes", "section/episodes")) return;
 
         if (ImGui.BeginChild("##OrcEpisodes", new Vector2(-1, 180), ImGuiChildFlags.Borders))
         {
@@ -977,7 +978,7 @@ public sealed class ClusterScenarioPanel
 
     private void RenderArchiveSection(bool disableAll)
     {
-        if (!ImGui.CollapsingHeader("Archive Management##OrcArchive")) return;
+        if (!SectionHeader.Draw("OrcArchive", "Archive Management", "section/archive")) return;
 
         // Auto-clear archive op ID once the operation has completed (SysOpStatus terminal arrived).
         if (_activeArchiveOpId != Guid.Empty && !_uiCache.HasInFlightTransaction)
