@@ -968,6 +968,40 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             Assert.Equal(0, def2.Instances[0].InteractionStartedCount);
         }
 
+        // CE-1300 — a drag (or a menu) started on an entity ATTACHED to a vehicle is routed to the CARRIER's gizmo, never the attached entity's own: the interaction's anchor resolves
+        // through the one anchor rule (NetworkIdResolver.ResolveAnchorId → CarrierOf), so a mounted gun cannot be dragged off its vehicle. An unattached entity still gets its own.
+        // 🔴 Red-proof: ResolveAnchorId without CarrierOf ⇒ the gun's own gizmo receives it ⇒ red.
+        [Fact]
+        public void CE1300_AnInteractionOnAMountedGun_ReachesItsCarriersGizmo_NeverTheGuns()
+        {
+            var (repo, sys, def1, _, vehicle, bus) = CreateRoutingFixture();   // the vehicle (NetId 7041): def1's instance 0
+            repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            var gun = GizmoTestRepo.CreateNetworkedEntity(repo, 7042);
+            repo.AddComponent(gun, new GizmoTestCompA { Value = 1 });
+            repo.AddComponent(gun, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = vehicle, Seat = 0 });
+            var free = GizmoTestRepo.CreateNetworkedEntity(repo, 7043);
+            repo.AddComponent(free, new GizmoTestCompA { Value = 1 });
+            foreach (var e in new[] { gun, free })
+            {
+                repo.Bus.Publish(new Fdp.Toolkit.Lifecycle.Events.ConstructionOrder { Entity = e });
+                repo.Bus.SwapBuffers();
+                sys.Execute(repo, 0f);
+                repo.Bus.SwapBuffers();
+            }
+            Assert.Equal(3, def1.Instances.Count);   // vehicle, gun, free — each has its own gizmo instance
+
+            bus.Publish(new GizmoInteractionStartedEvent { Token = new PickToken { AnchorId = 7042, GizmoTypeId = 0xAA01u } });
+            bus.SwapBuffers();
+            sys.Execute(repo, 0f);
+            Assert.Equal(1, def1.Instances[0].InteractionStartedCount);   // the vehicle's
+            Assert.Equal(0, def1.Instances[1].InteractionStartedCount);   // never the gun's
+
+            bus.Publish(new GizmoInteractionStartedEvent { Token = new PickToken { AnchorId = 7043, GizmoTypeId = 0xAA01u } });
+            bus.SwapBuffers();
+            sys.Execute(repo, 0f);
+            Assert.Equal(1, def1.Instances[2].InteractionStartedCount);   // an unattached entity: its own
+        }
+
         // SC-GZ066-2: GizmoStructUpdateEvent with def2's GizmoTypeId reaches def2 only.
         // ⭐⭐⭐ REWRITTEN 2026-09-11 (§6.7) — AND THIS RAIL WAS ASSERTING THE DEFECT.
         //   ⛔ It published `AnchorId = entity.Index` and its comment read "Fixed (D-6): index-only

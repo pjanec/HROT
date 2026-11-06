@@ -1,4 +1,5 @@
 using Fdp.Core;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Replication.Components;
 
 namespace Fdp.Toolkit.Replication.Services;
@@ -152,9 +153,36 @@ public static class NetworkIdResolver
     // DESIGN_Gizmo_Renderer_Seam §6.1). A network id is 32-bit, so an anchor outside the int range can only be a tool id: it
     // names no entity. ONE place owns that rule — every consumer of a token's anchor resolves through these two.
 
-    /// <summary><see cref="ResolveNetworkId"/> for a 64-bit gizmo anchor id; <see cref="Entity.Null"/> when it does not fit a network id.</summary>
+    /// <summary>
+    /// <see cref="ResolveNetworkId"/> for a 64-bit gizmo anchor id; <see cref="Entity.Null"/> when it does not fit a network id.
+    /// ⭐⭐ <b>CE-1300 (user, <c>2026-10-23</c>) — and an entity ATTACHED to a vehicle is resolved to its CARRIER</b> (<see cref="CarrierOf"/>): a mounted gun and a seated gunner are not selected, dragged or
+    /// given a menu apart from their vehicle. ⭐ Here, because every consumer of a pick's anchor — selection, the per-entity gizmos' drag and menu routing, the mission picks — resolves through THIS method
+    /// (the rule above), so none of them needs its own carrier rule and none can differ. Seat switching (G, CE-1210) is not a pick and is untouched.
+    /// </summary>
     public static Entity ResolveAnchorId(EntityRepository? repo, long anchorId)
-        => anchorId is >= int.MinValue and <= int.MaxValue ? ResolveNetworkId(repo, (int)anchorId) : Entity.Null;
+        => anchorId is >= int.MinValue and <= int.MaxValue ? CarrierOf(repo, ResolveNetworkId(repo, (int)anchorId)) : Entity.Null;
+
+    /// <summary>The most carriers one entity is followed through (a gun on a vehicle aboard a ship …); a cycle in the data stops here rather than looping.</summary>
+    private const int MaxCarrierDepth = 8;
+
+    /// <summary>
+    /// ⭐ CE-1300 — the TOP carrier of <paramref name="entity"/>: the vehicle an <see cref="IsEmbarkedTag"/> names, followed upward while that vehicle is itself aboard something; the entity itself when it is not
+    /// aboard anything (or its carrier is gone). <see cref="IsEmbarkedTag"/> is the ONE marker of "attached / seated": a man in a seat AND a weapon system in a host's station both carry it
+    /// (<c>WeaponSystems.ControllerOf</c> reads a mounted weapon's host from it), with <see cref="IsEmbarkedTag.VehicleEntity"/> the host.
+    /// </summary>
+    public static Entity CarrierOf(EntityRepository? repo, Entity entity)
+    {
+        if (repo == null || entity.IsNull || !repo.IsComponentTypeRegistered<IsEmbarkedTag>()) return entity;
+        var top = entity;
+        for (int depth = 0; depth < MaxCarrierDepth; depth++)
+        {
+            if (!repo.IsAlive(top) || !repo.HasComponent<IsEmbarkedTag>(top)) break;
+            var host = repo.GetComponentRO<IsEmbarkedTag>(top).VehicleEntity;
+            if (host.IsNull || !repo.IsAlive(host) || host == top) break;
+            top = host;
+        }
+        return top;
+    }
 
     /// <summary><see cref="IsKnownDeadAnchor"/> for a 64-bit gizmo anchor id; <see langword="false"/> when it does not fit a network id.</summary>
     public static bool IsKnownDeadAnchorId(EntityRepository? repo, long anchorId)
