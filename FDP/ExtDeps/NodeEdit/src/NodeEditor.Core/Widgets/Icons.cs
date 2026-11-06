@@ -54,6 +54,12 @@ public static class Icons
             case "form/warning": icon = new("\uf071", IconPalette.Pending); return true;   // TriangleExclamation
             case "form/info": icon = new("\uf05a", IconPalette.Info); return true;   // CircleInfo
             case "form/pick": icon = new("\uf05b", IconPalette.Blue); return true;   // Crosshairs
+            // ⭐ U-7 (Condition editor §8.2 ①, condition-expert-visual.svg) — the condition kinds, as the mockup draws them
+            case "kind/all": icon = new("\uf0b0", IconPalette.Teal); return true;   // Filter — All of these
+            case "kind/on-entity": icon = new("\uf05b", IconPalette.Blue); return true;   // Crosshairs — On one thing
+            case "kind/property": icon = new("\uf0ae", IconPalette.Green); return true;   // ListCheck — A property
+            case "kind/time": icon = new("\uf017", IconPalette.Amber); return true;   // Clock — Time
+            case "kind/count": icon = new("\uf0c0", IconPalette.Orange); return true;   // Users — At least N of
             case "tab/unit": icon = new("\uf007", IconPalette.Blue); return true;   // User
             case "tab/crew": icon = new("\uf5b6", IconPalette.Orange); return true;   // VanShuttle
             case "tab/orders": icon = new("\uf4d7", IconPalette.Green); return true;   // Route
@@ -118,6 +124,11 @@ public static class Icons
         "form/warning",
         "form/info",
         "form/pick",
+        "kind/all",
+        "kind/on-entity",
+        "kind/property",
+        "kind/time",
+        "kind/count",
         "tab/unit",
         "tab/crew",
         "tab/orders",

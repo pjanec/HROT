@@ -98,5 +98,8 @@ public static class IconsFontAwesome6
     public const string DrawPolygon         = "\uf5ee"; // U-2 colour-icon key glyph
     public const string EarthEurope         = "\uf7a2"; // U-2 colour-icon key glyph
     public const string Filter              = "\uf0b0"; // U-2 colour-icon key glyph
+    public const string ListCheck           = "\uf0ae"; // U-7 condition kind: A property
+    public const string Clock               = "\uf017"; // U-7 condition kind: Time
+    public const string Users               = "\uf0c0"; // U-7 condition kind: At least N of
     public const string FlagCheckered       = "\uf11e"; // U-2 colour-icon key glyph
 }

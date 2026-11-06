@@ -51,9 +51,24 @@ public sealed class StructEditorReadableTests
     [Fact]
     public void U7_TheKinds_AreNamed_NotTheirClrNames()
     {
-        Assert.Equal("Compound", StructEdit.Core.Attributes.DisplayNames.Of(typeof(CompoundPredicateDto)));
-        Assert.Equal("Scenario time", StructEdit.Core.Attributes.DisplayNames.Of(typeof(ScenarioTimePredicateDto)));
-        Assert.DoesNotContain("Dto", StructEdit.Core.Attributes.DisplayNames.Of(typeof(OnEntityPredicateDto)));
+        // the five the mockup names (condition-expert-visual.svg) carry [EditDisplayName]; the rest are humanized, never a C# name
+        Assert.Equal("All of these", StructEdit.Core.Attributes.DisplayNames.Of(typeof(CompoundPredicateDto)));
+        Assert.Equal("On one thing", StructEdit.Core.Attributes.DisplayNames.Of(typeof(OnEntityPredicateDto)));
+        Assert.Equal("A property", StructEdit.Core.Attributes.DisplayNames.Of(typeof(PropertyMatchDto)));
+        Assert.Equal("Time", StructEdit.Core.Attributes.DisplayNames.Of(typeof(ScenarioTimePredicateDto)));
+        Assert.Equal("At least N of", StructEdit.Core.Attributes.DisplayNames.Of(typeof(CountMatchingPredicateDto)));
+        Assert.Equal("Transient event", StructEdit.Core.Attributes.DisplayNames.Of(typeof(TransientEventPredicateDto)));
+    }
+
+    [Fact]
+    public void U7_AKindIsTheNodesOwnRow_WithItsGlyphInColour()
+    {
+        var all = ComponentEditDrawer.KindIconOf(Doc(new CompoundPredicateDto()));
+        Assert.NotNull(all);
+        Assert.Equal("\uf0b0", all!.Value.Glyph);                                     // Filter
+        Assert.Equal(NodeEditor.Core.Widgets.IconPalette.Teal, all.Value.Color);
+        Assert.Equal(NodeEditor.Core.Widgets.IconPalette.Amber, ComponentEditDrawer.KindIconOf(Doc(new ScenarioTimePredicateDto()))!.Value.Color);
+        Assert.Null(ComponentEditDrawer.KindIconOf(Doc(new TransientEventPredicateDto())));   // no [EditIcon] ⇒ the plain tree node
     }
 
     [Fact]

@@ -153,9 +153,21 @@ public sealed class ComponentEditDrawer
 
         // ⭐ U-7 ①② (Condition editor §8.2) — the row's name is the field's display name; a polymorphic list element is named by its KIND
         //   (never "[0]"), the kind picker stays in column 2
-        bool opened = ImGuiApi.TreeNodeEx(
-            ContainerLabelOf(node, elementIndex),
-            ImGuiTreeNodeFlags.SpanAvailWidth | ImGuiTreeNodeFlags.DefaultOpen);
+        bool opened;
+        if (KindIconOf(node) is { } kindIcon)
+        {
+            // ⭐ U-7 ② — a kind with a glyph is the node's own row: chevron · coloured glyph · name, through the ONE TreeRow (E17)
+            bool open = !_collapsed.Contains(node.Id.Value);
+            NodeEditor.Core.Widgets.TreeRow.Draw(RowId(node.Id.Value), ContainerLabelOf(node, elementIndex),
+                NodeEditor.Core.Widgets.RowIcon.OfGlyph(kindIcon), 0, hasChildren: true, ref open, selected: false);
+            if (open) _collapsed.Remove(node.Id.Value); else _collapsed.Add(node.Id.Value);
+            if (open) ImGuiApi.TreePush(RowId(node.Id.Value));
+            opened = open;
+        }
+        else
+            opened = ImGuiApi.TreeNodeEx(
+                ContainerLabelOf(node, elementIndex),
+                ImGuiTreeNodeFlags.SpanAvailWidth | ImGuiTreeNodeFlags.DefaultOpen);
 
         ImGuiApi.TableSetColumnIndex(1);
         bool canDelete = parentContainer != null && parentContainer.CanResize && elementIndex >= 0;
@@ -748,6 +760,32 @@ public sealed class ComponentEditDrawer
         var a = new string[n];
         for (int i = 0; i < n; i++) a[i] = i == 1 ? "1 item" : $"{i} items";
         return a;
+    }
+
+    private readonly HashSet<int> _collapsed = new();
+    private static readonly Dictionary<int, string> RowIds = new();
+    private static readonly Dictionary<Type, NodeEditor.Core.Widgets.IconGlyph?> KindIcons = new();
+
+    private static string RowId(int id)
+    {
+        if (!RowIds.TryGetValue(id, out var s)) RowIds[id] = s = "kind" + id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return s;
+    }
+
+    /// <summary>⭐ U-7 ② — the glyph of the node's KIND (<c>[EditIcon]</c> on its value's type, a key into the ONE <c>Icons</c> table);
+    /// null for a node whose type names none — it keeps the plain tree node.</summary>
+    internal static NodeEditor.Core.Widgets.IconGlyph? KindIconOf(EditNode node)
+    {
+        // the value's runtime type (a polymorphic slot); a concrete node with no value bound (the document's root) is its declared type
+        var t = node.Binding?.GetBoxed()?.GetType()
+                ?? (node.ClrType.IsAbstract || node.ClrType.IsInterface ? null : node.ClrType);
+        if (t is null) return null;
+        if (!KindIcons.TryGetValue(t, out var icon))
+        {
+            icon = StructEdit.Core.Attributes.DisplayNames.IconOf(t) is { } key && NodeEditor.Core.Widgets.Icons.TryGet(key, out var g) ? g : null;
+            KindIcons[t] = icon;
+        }
+        return icon;
     }
 
     /// <summary>⭐ U-7 ③ — a <see cref="Fdp.Toolkit.Scenario.BindableNode"/>'s <c>Bind</c> map is not a field: a binding shows through the
