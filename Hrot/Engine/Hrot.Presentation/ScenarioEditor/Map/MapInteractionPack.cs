@@ -356,6 +356,8 @@ namespace Hrot.ScenarioEditor.Map
             Hrot.Presentation.Orders.OrderForm? orderForm = null;
             // ⭐ §6x (DESIGN_Map_3D_Mode FX-1..FX-3) — the fire mission's aim points: drawn from what each gun publishes, so a replay too
             globalManager.Register(GlobalGizmoManager.NewId(), new Hrot.Presentation.Orders.FireMissionOverlayGizmo(() => selection.SelectedEntities));
+            // ⭐ W-1 / P-8 8d (Mission plan M3 / E2) — the selected unit's plan on the map: numbered task markers and the route, on every map host
+            globalManager.Register(GlobalGizmoManager.NewId(), new Hrot.Presentation.Orders.MissionPlanOverlayGizmo(() => selection.SelectedEntities));
             // ⭐ DAR F7 (D-E) — built on every map: whether they are OFFERED is decided each frame from the world's ReplayState (the menu
             //   projector, the RTS tool's activation, Add Entity's suspension). ⛔ SUPERSEDED (R-3064): a build-time IsReplayActive
             //   predicate — a host that entered a review after its map was built (the editor, CGF) kept offering orders.

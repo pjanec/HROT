@@ -547,3 +547,32 @@ thousand units one row, built once; a real frame beside another owner's tracks �
 Rails: `TheTasksLaneTests.P8c_*` (Fdp.Toolkits.Tests — a plan's starts and ends with how each ended, red-proved by `LatestOutcome` reading the
 current task; a halt and a new plan; a thousand units, one lane, the unit filter) · `TimelineIndexTests.CE3330_Node_TheShippedCatalog…` (19 lanes).
 
+**8d-1 — the plan ON THE MAP, read-only (M3 / E2) — BUILT; 8d-2 (drag a marker = edit its field, right-click *Add task ▸*) ⏳:**
+
+```mermaid
+classDiagram
+  class MissionPlanOverlayGizmo { <<NEW, Hrot.Presentation/Orders>> UpdateAndDraw · PlacesOf(plan) · LastRoute · MarkersDrawn }
+  class ActiveMissionPlan { <<existing record>> Plan.Tasks (BehaviorName, BehaviorParams) }
+  class MapPreviews { <<existing>> Has(type) + PlaceOf(value, refs) }
+  class OrderMenu { <<existing>> TryGetByName(kind) Dto }
+  class MapInteractionPack { <<existing>> registers it beside FireMissionOverlayGizmo (every map host) }
+  MissionPlanOverlayGizmo ..> ActiveMissionPlan : the selected units' plans (cached per plan value)
+  MissionPlanOverlayGizmo ..> OrderMenu : an Order.* task's DTO
+  MissionPlanOverlayGizmo ..> MapPreviews : the FIRST place field's position
+  MapInteractionPack --> MissionPlanOverlayGizmo
+```
+*What the picture shows: no new "task place" field (E2's rejected `[TaskPlace]`): the order's DTO type already says which fields are places,
+and the one show-on-map table resolves them — so the map, the forms' ⌖ and this overlay agree by construction.*
+
+| decision | why |
+|---|---|
+| the place is the order DTO's FIRST field (declaration order) whose type has a place; a task with none sits at the previous task's place; a behaviour task (not `Order.*`) has none yet | E2 |
+| the route from the unit: solid to task 1, dashed after, in the unit's side colour; markers done green / running amber / planned grey (`MissionPlanQueue.CurrentTask`) | mockup `mission-plan-editor.svg` |
+| `MapPreviews.PlaceOf` extracted from `MapPreviews.Draw` | ONE resolution of "where is this value" |
+| ⚠ deviation: the number sits just BELOW its marker, not inside it | map text anchors at its top-left (no centring); the show-on-map labels sit the same way |
+| ⏳ 8d-2 — drag / *Add task ▸* write the plan | they must go through the Orders tab's draft and its commit (D9), which ui is reworking in P-7 7c (undo, conflict); built after 7c lands so there is ONE edit path |
+
+Rails: `MenuOrdersTests.P8d_TheSelectedUnitsPlan_IsNumberedMarkersAndItsRoute` (places, Hold at the previous place — red-proved by placing it at
+the unit; three lines, three markers; registered on every map host) · `MissionPlanOverlayFrameRail` (`mission-plan-map.png` — the amber and green
+markers on a real 2-D frame).
+

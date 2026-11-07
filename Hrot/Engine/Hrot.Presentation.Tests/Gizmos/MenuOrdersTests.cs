@@ -1,5 +1,6 @@
 using Fdp.Testing;
 using System;
+using Fdp.Toolkit.Behavior.Components;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -658,6 +659,51 @@ public sealed class MenuOrdersTests : IDisposable
         int registered = pack.IndexOf("new Hrot.Presentation.Orders.FireMissionOverlayGizmo(", StringComparison.Ordinal);
         Assert.True(registered > 0 && registered < pack.IndexOf("menuOrders.RegisterOn(actions)", StringComparison.Ordinal),
             "registered on every map host, before the orders (a replay draws the marks too)");
+    }
+
+    /// <summary>
+    /// ⭐ W-1 / P-8 8d (Mission plan M3 / E2) — the SELECTED unit's plan on the map: a numbered marker at each task's FIRST place field, a task with no
+    /// place (<i>Hold</i>) at the previous one's, the route from the unit (solid to task 1, dashed after); the markers coloured by the queue — done
+    /// green, running amber, planned grey; registered on every map host; nothing drawn for an unselected unit. 🔴 Red-proof: <c>PlacesOf</c> taking
+    /// the LAST place field instead of the first ⇒ … (one field here) — the Hold-at-previous rule instead: a placeless task at the unit ⇒ red.
+    /// </summary>
+    [Fact]
+    public void P8d_TheSelectedUnitsPlan_IsNumberedMarkersAndItsRoute()
+    {
+        _w.RegisterManagedComponent<ActiveMissionPlan>();
+        _w.RegisterComponent<MissionPlanQueue>();
+        Assert.True(OrderMenu.TryGetByName("Move", out var move));
+        string MoveTo(float x, float y)
+        {
+            var dto = Activator.CreateInstance(move.Dto)!;
+            var field = (System.Reflection.MemberInfo?)move.Dto.GetField("Location") ?? move.Dto.GetProperty("Location")!;
+            if (field is System.Reflection.FieldInfo fi) fi.SetValue(dto, new Fdp.Toolkit.Replication.PointLink(new Vector3(x, y, 0)));
+            else ((System.Reflection.PropertyInfo)field).SetValue(dto, new Fdp.Toolkit.Replication.PointLink(new Vector3(x, y, 0)));
+            return Hrot.Presentation.Behavior.BehaviorParamsForm.ToJson(dto, move.Dto);
+        }
+        var plan = new DomainMissionPlan();
+        plan.Tasks.Add(new DomainMissionTask { TaskId = Guid.NewGuid(), BehaviorName = "Order.Move", BehaviorParams = MoveTo(100, 200) });
+        plan.Tasks.Add(new DomainMissionTask { TaskId = Guid.NewGuid(), BehaviorName = "Order.Hold", BehaviorParams = "{}" });
+        plan.Tasks.Add(new DomainMissionTask { TaskId = Guid.NewGuid(), BehaviorName = "Order.Move", BehaviorParams = MoveTo(300, 50) });
+        _w.SetManagedComponent(_unit, new ActiveMissionPlan { Plan = plan });
+        _w.AddComponent(_unit, new MissionPlanQueue { CurrentTask = 1, TaskCount = 3 });
+
+        var overlay = new Hrot.Presentation.Orders.MissionPlanOverlayGizmo(() => new[] { _unit });
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(capacity: 64);
+        overlay.UpdateAndDraw(_w, 0f, buffer);
+        Assert.Equal(3, overlay.MarkersDrawn);
+        Assert.Equal(new[] { new Vector3(100, 200, 0), new Vector3(100, 200, 0), new Vector3(300, 50, 0) }, overlay.LastRoute);   // Hold sits at task 1's place
+        var frame = buffer.GetFrame().ToArray();
+        var lines = frame.Where(p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Line).ToArray();
+        Assert.Equal(3, lines.Length);   // unit → 1 (solid), 1 → 2, 2 → 3 (dashed)
+        Assert.Equal(3, frame.Count(p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Sphere));
+
+        var none = new Hrot.Presentation.Orders.MissionPlanOverlayGizmo(() => Array.Empty<Entity>());
+        none.UpdateAndDraw(_w, 0f, new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(capacity: 8));
+        Assert.Equal(0, none.MarkersDrawn);
+
+        string pack = System.IO.File.ReadAllText(System.IO.Path.Combine(TestRepo.Root, "Hrot/Engine/Hrot.Presentation/ScenarioEditor/Map/MapInteractionPack.cs"));
+        Assert.Contains("new Hrot.Presentation.Orders.MissionPlanOverlayGizmo(", pack);   // every map host
     }
 
     /// <summary>⭐ O5 / O6 / O7 — "Order with options › Move" opens the form for the SELECTION the clicked unit is in; Send publishes
