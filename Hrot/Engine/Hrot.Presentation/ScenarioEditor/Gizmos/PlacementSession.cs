@@ -83,6 +83,22 @@ public sealed class PlacementSession
     /// The click released at <paramref name="at"/> (<paramref name="shift"/> held?): the position to send, the birth height and the facing.
     /// <paramref name="levelOf3D"/> is the level a 3-D click hit (null for a 2-D click).
     /// </summary>
+    /// <summary>⭐ A5 (📄 docs/UX/DESIGN_Entity_Copy_Paste.md §3) — where a release at <paramref name="cursor"/> WOULD place, and the drag's heading (math yaw,
+    /// radians; null = no drag past the threshold): the press point while dragging, else the cursor. PURE (it reads the press, never clears it), so the
+    /// preview a tool draws each frame and the release agree by construction.</summary>
+    public (Vector3 At, float? DragYawRad) Pending(Vector3 cursor)
+    {
+        if (_pressAt is { } p)
+        {
+            var d = new Vector2(cursor.X - p.X, cursor.Y - p.Y);
+            if (d.Length() >= DragThresholdM) return (p, MathF.Atan2(d.Y, d.X));
+        }
+        return (cursor, null);
+    }
+
+    /// <summary>Forgets a press (a cancelled tool).</summary>
+    public void ClearPress() => _pressAt = null;
+
     public (Vector3 Position, SpawnHeight Height, Quaternion Rotation) Resolve(Vector3 at, bool shift, int? levelOf3D)
     {
         var place = at;

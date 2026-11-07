@@ -124,5 +124,10 @@ namespace Hrot.Common.Constants
         //     ⚠ 547 / 548 measured free 2026-11-07.
         public const int CopyPlan  = 547;
         public const int PastePlan = 548;
+
+        // --- ⭐ A5 / LC-3 (DESIGN_Entity_Copy_Paste) — the entities themselves copied, pasted (the placement gesture), duplicated. ⚠ 549–551 measured free 2026-11-07.
+        public const int CopyEntities      = 549;
+        public const int PasteEntities     = 550;
+        public const int DuplicateEntities = 551;
     }
 }

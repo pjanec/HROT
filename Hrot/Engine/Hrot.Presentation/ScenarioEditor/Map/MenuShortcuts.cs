@@ -46,8 +46,8 @@ namespace Hrot.ScenarioEditor.Map
             if (!_bus.IsRegistered<MapShortcutKeyEvent>()) return;
             foreach (ref readonly var k in _bus.Read<MapShortcutKeyEvent>())
             {
-                if (k.Modified || Blocked()) continue;
-                if (Resolve(k.Key) is not { } hit) continue;
+                if (Blocked()) continue;
+                if (Resolve(k.Key, k.Modified) is not { } hit) continue;   // ⭐ A5 — a modified press matches only a "Ctrl+X" shortcut; a plain one only a plain letter
                 _bus.Publish(new GizmoMenuActionEvent { AnchorId = hit.NetworkId, ActionId = hit.ActionId });
                 Fired++;
             }
@@ -59,7 +59,7 @@ namespace Hrot.ScenarioEditor.Map
 
         /// <summary>The unit a shortcut means (the primary selection, else the only selected one) and the action its menu binds to
         /// <paramref name="key"/>; null when there is none.</summary>
-        public (int NetworkId, int ActionId)? Resolve(int key)
+        public (int NetworkId, int ActionId)? Resolve(int key, bool modified = false)
         {
             var unit = _selection.PrimarySelected;
             if (unit is null || unit.Value.IsNull)
@@ -75,32 +75,37 @@ namespace Hrot.ScenarioEditor.Map
             if (net == 0) return null;
             var items = JsonSerializer.Deserialize<ContextMenuItemDto[]>(
                 Hrot.Common.Diagnostics.Gizmos.ContextMenuProjectorGizmo.MenuJsonFor(_world, target), Options);
-            return items != null && ActionFor(items, key) is int action ? (net, action) : null;
+            return items != null && ActionFor(items, key, modified) is int action ? (net, action) : null;
         }
 
         private static readonly JsonSerializerOptions Options = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
 
         /// <summary>The first ENABLED item (submenus searched too) whose shortcut is <paramref name="key"/>.</summary>
-        public static int? ActionFor(IEnumerable<ContextMenuItemDto> items, int key)
+        public static int? ActionFor(IEnumerable<ContextMenuItemDto> items, int key, bool modified = false)
         {
             foreach (var item in items)
             {
                 if (item.IsSeparator == true) continue;
                 if (item.Children is { Length: > 0 } children)
                 {
-                    if (ActionFor(children, key) is int inner) return inner;
+                    if (ActionFor(children, key, modified) is int inner) return inner;
                     continue;
                 }
-                if (item.Enabled != false && item.Id != 0 && KeyOf(item.Shortcut) == key) return item.Id;
+                if (item.Enabled != false && item.Id != 0 && KeyOf(item.Shortcut, out bool ctrl) == key && ctrl == modified) return item.Id;
             }
             return null;
         }
 
         /// <summary>The key a menu's shortcut text names: one letter or digit ("M"), or a key name ("Space", "Delete", "F2").</summary>
-        public static int? KeyOf(string? shortcut)
+        public static int? KeyOf(string? shortcut) => KeyOf(shortcut, out bool ctrl) is int k && !ctrl ? k : null;
+
+        /// <summary>⭐ A5 — as <see cref="KeyOf(string?)"/>, also reading a <c>"Ctrl+"</c> prefix (<paramref name="ctrl"/>): <c>"Ctrl+C"</c> → C, true.</summary>
+        public static int? KeyOf(string? shortcut, out bool ctrl)
         {
+            ctrl = false;
             if (string.IsNullOrWhiteSpace(shortcut)) return null;
             var s = shortcut.Trim();
+            if (s.StartsWith("Ctrl+", StringComparison.OrdinalIgnoreCase)) { ctrl = true; s = s.Substring(5).Trim(); if (s.Length == 0) return null; }
             if (s.Length == 1 && char.IsLetterOrDigit(s[0])) return char.ToUpperInvariant(s[0]);
             if (s.Equals("Esc", StringComparison.OrdinalIgnoreCase)) return (int)VisKey.Escape;
             if (s.Equals("Del", StringComparison.OrdinalIgnoreCase)) return (int)VisKey.Delete;

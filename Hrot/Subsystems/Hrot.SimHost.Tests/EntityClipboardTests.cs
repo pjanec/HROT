@@ -140,5 +140,81 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("30", copy.Plan.Tasks[1].Triggers[0].Params);
             Assert.Equal(t1, plan.Plan.Tasks[0].TaskId);                                                // the original untouched
         }
+
+        // ── C3: the paste tool, the actions, the keys ─────────────────────────────────────────────────────────────────────────────
+
+        private static (Rig Rig, Hrot.ScenarioEditor.Gizmos.PasteGizmo Gizmo, int[] Removed) Tool()
+        {
+            var rig = new Rig();
+            if (!rig.World.Bus.IsRegisteredManaged<EntityCreationRequest>()) rig.World.RegisterManagedEvent<EntityCreationRequest>();
+            rig.Clipboard.Copy(rig.World, new[] { rig.ByGuid[Hq], rig.ByGuid[Leader] }, rig.ByGuid[Hq]);
+            var removed = new int[1];
+            return (rig, new Hrot.ScenarioEditor.Gizmos.PasteGizmo(rig.Clipboard, rig.World, () => removed[0]++), removed);
+        }
+
+        /// <summary>🔴 Red-proof (compiles): <c>PendingAt</c> ignoring the drag (always the copied heading) ⇒ the dragged heading is not 0 ⇒ red.</summary>
+        [Fact]
+        public void A5_ThePasteTool_FollowsTheCursor_ThenAPressAndDragTurnsAboutThePress_AReleasePastesOnce()
+        {
+            var (rig, tool, removed) = Tool();
+            using var _ = rig;
+            var copied = rig.Clipboard.Heading.Degrees;
+
+            tool.OnDragUpdate(new System.Numerics.Vector3(300, 300, 0));
+            var (at, heading) = tool.PendingAt(new System.Numerics.Vector3(300, 300, 0));
+            Assert.Equal(new System.Numerics.Vector3(300, 300, 0), at);                 // follows the cursor
+            Assert.Equal(copied, heading, 3);                                          // keeps its own heading
+
+            tool.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, true, new System.Numerics.Vector3(300, 300, 0));
+            (at, heading) = tool.PendingAt(new System.Numerics.Vector3(300, 320, 0));   // dragged 20 m north
+            Assert.Equal(new System.Numerics.Vector3(300, 300, 0), at);                 // the anchor stays at the press
+            Assert.Equal(0f, heading, 3);                                              // facing the drag: north
+
+            tool.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, new System.Numerics.Vector3(300, 320, 0));
+            Assert.Equal(1, tool.Pasted);
+            Assert.Equal(1, removed[0]);                                               // one paste per arming
+        }
+
+        [Fact]
+        public void A5_ThePasteToolsFrame_AllocatesNothing_EscCancelsWithoutPasting()
+        {
+            var (rig, tool, removed) = Tool();
+            using var _ = rig;
+            var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(256);
+            tool.OnDragUpdate(new System.Numerics.Vector3(10, 10, 0));
+            for (int i = 0; i < 5; i++) { tool.UpdateAndDraw(rig.World, 0f, buffer); buffer.Clear(); }   // warm: one frame does not settle the one-time costs (measured: 88 B on the 2nd)
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            tool.UpdateAndDraw(rig.World, 0f, buffer);
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);          // R-2084: a steady frame
+            tool.OnKeyEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey.Escape, true);
+            Assert.Equal(1, removed[0]);
+            Assert.Equal(0, tool.Pasted);
+        }
+
+        [Fact]
+        public void A5_CopyTakesTheSelection_WhenTheClickedOneIsInIt_ElseTheClickedOneAlone()
+        {
+            using var rig = new Rig();
+            var selection = new Fdp.Toolkit.Vis2D.Defaults.DefaultSelectionState();
+            selection.Add(rig.ByGuid[Hq]); selection.Add(rig.ByGuid[Leader]);
+            var actions = new Hrot.UI.Common.AddEntity.CopyPasteActions(() => null, selection);
+            Assert.Equal(2, actions.TargetsOf(rig.ByGuid[Leader]).Count);
+            selection.Clear(); selection.Add(rig.ByGuid[Hq]);
+            Assert.Equal(new[] { rig.ByGuid[Leader] }, actions.TargetsOf(rig.ByGuid[Leader]));
+        }
+
+        [Fact]
+        public void A5_ACtrlShortcut_MatchesOnlyAModifiedPress_APlainLetterOnlyAPlainOne()
+        {
+            Assert.Equal('C', Hrot.ScenarioEditor.Map.MenuShortcuts.KeyOf("Ctrl+C", out bool ctrl)); Assert.True(ctrl);
+            Assert.Null(Hrot.ScenarioEditor.Map.MenuShortcuts.KeyOf("Ctrl+C"));                       // the plain reading: not a plain letter
+            var items = new[]
+            {
+                new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = 1, Label = "Center", Shortcut = "C" },
+                new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = 2, Label = "Copy", Shortcut = "Ctrl+C" },
+            };
+            Assert.Equal(1, Hrot.ScenarioEditor.Map.MenuShortcuts.ActionFor(items, 'C', modified: false));
+            Assert.Equal(2, Hrot.ScenarioEditor.Map.MenuShortcuts.ActionFor(items, 'C', modified: true));
+        }
     }
 }

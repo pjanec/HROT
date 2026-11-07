@@ -106,6 +106,14 @@ public sealed class EntityClipboard
         return into;
     }
 
+    /// <summary>⭐ A5 — the ghosts of the copy, relative to its anchor and in its OWN heading (the paste tool turns them by the drag): computed through the
+    /// same expansion a paste makes, so what is drawn is what would be created. Null when nothing is copied or this host cannot expand.</summary>
+    public MacroPreviewResult? Preview(EntityRepository world)
+    {
+        try { return Requests(world, _anchor, _anchorHeading, Guid.Empty) is { } r ? MacroPreview.FromRequests("paste", r, (Vector3)_anchor) : null; }
+        catch (SliceExpander.NoKey ex) { return new MacroPreviewResult("paste", Array.Empty<MacroGhost>(), ex.Message); }
+    }
+
     /// <summary>Pastes at <paramref name="at"/> facing <paramref name="heading"/>: ONE step (Edit mode's undo), each entity one journalled creation. Returns how
     /// many were sent (0 when nothing is copied, the host cannot expand, or the slice is refused).</summary>
     public int Paste(EntityRepository world, WorldPoint at, Bearing heading)
