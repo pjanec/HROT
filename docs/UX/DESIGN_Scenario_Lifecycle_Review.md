@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: AQ108 D20 ("no dirty indicator", on purpose) vs DESIGN_Edit_Mode_Undo U5 (a dirty flag) — LC-12 · R-4162 ("Save in Preview takes a checkpoint") vs a Preview is never recorded — LC-8
 related-designs:
+  - docs/UX/DESIGN_Entity_Copy_Paste.md — the build design of LC-3 (Copy / Paste / Duplicate over the shared slice expansion)
   - DESIGN_Editing_UX.md — the programme this walks through end to end
   - DESIGN_New_Scenario_And_Recipe.md · ../DESIGN_Add_Entity_Picker.md · DESIGN_Map_Interaction.md — steps 1–2
   - DESIGN_Mission_Plan_Editor.md · DESIGN_Rule_Editor_UX.md · DESIGN_Initial_State.md · DESIGN_Details_Forms.md — steps 3–5
