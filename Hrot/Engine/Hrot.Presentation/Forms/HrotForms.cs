@@ -26,6 +26,7 @@ public static class HrotForms
             _registered = true;
             FormCatalogue.Register(Unit);
             FormCatalogue.Register(Shape);
+            FormCatalogue.Register(Scenario);
         }
     }
 
@@ -124,7 +125,7 @@ public static class HrotForms
     {
         Id = "form.shape", Title = "Shape", Order = 30,
         Offers = (w, e) => HasSpawn(w, e) || HasWeather(w, e),
-        Fields = new[]
+        Fields = Join(new[]
         {
             new FormField
             {
@@ -133,6 +134,13 @@ public static class HrotForms
                 ChoiceValue = i => AttributeValue.FromInt(i >= 0 && i < SideForces.Length ? (int)SideForces[i] : 0),
             },
             new FormField { Label = "Facing", Attribute = "SpawnArea.FacingDeg", Unit = "°", Min = 0, Max = 360, Has = HasSpawn, ReadNumber = (w, e) => w.GetComponentRO<Hrot.Common.SpawnArea>(e).FacingDeg },
+            // the region's weather: the ONE weather row set (WeatherRows), shared with the Scenario form
+        }, WeatherRows()),
+    };
+
+    /// <summary>The authored weather scalars as form rows — ONE set, used by the Shape form (a weather region) and the Scenario form (the global weather).</summary>
+    private static FormField[] WeatherRows() => new[]
+    {
             WeatherNumber("Temperature", "Weather.GroundTemperatureC", "°C", (w, e) => Weather(w, e).GroundTemperatureC, -80, 70),
             WeatherNumber("Pressure", "Weather.SeaLevelPressureHpa", "hPa", (w, e) => Weather(w, e).SeaLevelPressureHpa, 800, 1100),
             WeatherNumber("Humidity", "Weather.RelativeHumidity", "(0-1)", (w, e) => Weather(w, e).RelativeHumidity, 0, 1),   // stored 0…1 (W-7)
@@ -147,6 +155,53 @@ public static class HrotForms
             WeatherNumber("Fog visibility", "Weather.FogVisibilityM", "m", (w, e) => Weather(w, e).FogVisibilityM, 0),
             WeatherNumber("Edge fade", "Weather.FeatherM", "m", (w, e) => Weather(w, e).FeatherM, 0),
             WeatherNumber("Lapse rate", "Weather.LapseRateKPerKm", "K/km", (w, e) => Weather(w, e).LapseRateKPerKm, expert: true),
-        },
+    };
+
+    private static FormField[] Join(FormField[] a, FormField[] b)
+    {
+        var r = new FormField[a.Length + b.Length];
+        a.CopyTo(r, 0); b.CopyTo(r, a.Length);
+        return r;
+    }
+
+    // ── the Scenario form: nothing selected — the World Environment (its clock and the global weather) ───────────────────────
+
+    private static Entity WorldEnvironment(EntityRepository w)
+    {
+        Fdp.Toolkit.Weather.WeatherField.GlobalOf(w, out var env);
+        return env;
+    }
+
+    private static long _startTicks = long.MinValue;
+    private static FixedString64 _startText;
+
+    /// <summary>The start as people read it (<c>2026-06-01 06:00 UTC</c>), cached by its ticks — a frame reading it allocates nothing.</summary>
+    private static FixedString64 StartText(long ticks)
+    {
+        if (ticks != _startTicks)
+        {
+            _startTicks = ticks;
+            _startText = new FixedString64(ticks <= 0 ? "(not set)" : new DateTime(ticks, DateTimeKind.Utc).ToString("yyyy-MM-dd HH:mm 'UTC'", System.Globalization.CultureInfo.InvariantCulture));
+        }
+        return _startText;
+    }
+
+    private static bool HasClock(EntityRepository w, Entity e) => w.IsComponentTypeRegistered<Fdp.Toolkit.Weather.ScenarioClock>() && w.HasComponent<Fdp.Toolkit.Weather.ScenarioClock>(e);
+
+    /// <summary>
+    /// ⭐ D5 — the <b>Scenario</b> form (§3), drawn when nothing is selected: Time (the start, read-only here; the display offset) and the GLOBAL weather (the
+    /// same rows as a region's). ⏳ Not yet: name / description (the file header — a document step, not an attribute), *Capture picture*, editing the start
+    /// (a date field kind), Terrain (read-only), Parameters.
+    /// </summary>
+    public static readonly FormDecl Scenario = new()
+    {
+        Id = "form.scenario", Title = "Scenario", Order = 5,
+        WorldTarget = WorldEnvironment,
+        Fields = Join(new[]
+        {
+            new FormField { Label = "Start", Kind = FieldKind.Text, Has = HasClock, ReadText = (w, e) => StartText(w.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(e).StartUtcTicks) },
+            new FormField { Label = "Clock offset", Attribute = "ScenarioUtcOffsetMinutes", Unit = "min", Min = -720, Max = 840, Has = HasClock,
+                            ReadNumber = (w, e) => w.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(e).DisplayUtcOffsetMinutes },
+        }, WeatherRows()),
     };
 }

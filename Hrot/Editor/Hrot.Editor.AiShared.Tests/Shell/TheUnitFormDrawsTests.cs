@@ -74,4 +74,24 @@ public sealed class TheUnitFormDrawsTests
         Assert.Equal("90 °", FormView.Format(HrotForms.Shape.Fields[1], 90, default));
         Assert.All(HrotForms.Shape.Fields, f => Assert.False(f.Attribute != null && f.Definition == null));   // every field names a vocabulary attribute
     }
+
+    /// <summary>⭐ U-23 / D5 — the <b>Scenario</b> form is the WORLD form: its target is the World Environment (the clock + the global weather); the start reads as a
+    /// date, the global weather through the SAME rows as a region's. 🔴 Red-proof (compiles): <c>WorldTarget</c> returning <c>Entity.Null</c> ⇒ red.</summary>
+    [Fact]
+    public void U23_TheScenarioForm_TargetsTheWorldEnvironment()
+    {
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Weather.ScenarioClock>(); world.RegisterComponent<Fdp.Toolkit.Weather.WeatherConditions>();
+        var env = world.CreateEntity();
+        world.AddComponent(env, new Fdp.Toolkit.Weather.ScenarioClock { StartUtcTicks = new DateTime(2026, 6, 1, 6, 0, 0, DateTimeKind.Utc).Ticks, DisplayUtcOffsetMinutes = 120 });
+        world.AddComponent(env, new Fdp.Toolkit.Weather.WeatherConditions { GroundTemperatureC = 21, VisibilityM = 8000 });
+        HrotForms.EnsureRegistered();
+        Assert.Equal(env, HrotForms.Scenario.WorldTarget!(world));
+        var f = HrotForms.Scenario.Fields;
+        Assert.Equal("2026-06-01 06:00 UTC", f[0].ReadText!(world, env).ToString());
+        Assert.Equal(120.0, f[1].ReadNumber!(world, env));
+        Assert.Contains(f, x => x.Label == "Temperature" && x.ReadNumber!(world, env) == 21);
+        Assert.Contains(HrotForms.Shape.Fields, x => x.Label == "Temperature");   // the ONE weather row set, on both forms
+    }
 }

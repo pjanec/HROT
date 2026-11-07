@@ -281,6 +281,11 @@ Scenario next.
 side* (`SpawnArea.Side`), *Facing* (`SpawnArea.FacingDeg`, 0–360 °), and the region's authored weather scalars (temperature, pressure, humidity 0–1,
 visibility, precipitation kind + rate, fog top / visibility, edge fade; ⚙ lapse rate). ⏳ Not yet: kind / name / point count / length, a route's legs
 (CE-4284), the wind levels and cloud layers (lists, not attributes).
+**Part 3 — Scenario** *(same day)*: `HrotForms.Scenario`, a WORLD form (`FormDecl.WorldTarget`): drawn when NOTHING is selected, for the World Environment
+(`WeatherField.GlobalOf` — the clock + the global weather): *Start* (read-only, a cached date text), *Clock offset* (`ScenarioUtcOffsetMinutes`), and the
+global weather through the SAME rows as a region's (`WeatherRows()` — one set, two forms). ⏳ Not yet: editing the start (a date field kind), name / description
+(the file header — a document step), *Capture picture*, Terrain (read-only), Parameters; ⏳ **Crew & cargo** (D4: seats + *Put aboard* / *Take off* — the
+edit framework's command op) remains.
 
 ### 4.1 AS-BUILT — D2 *(B-4, `2026-11-06`)*
 

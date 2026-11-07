@@ -80,6 +80,8 @@ public sealed class FormDecl
     public required IReadOnlyList<FormField> Fields { get; init; }
     /// <summary>When the form is offered for an entity, if not by <see cref="Requires"/> alone (an any-of: the Shape form is offered for a spawn area OR a weather region).</summary>
     public Func<EntityRepository, Entity, bool>? Offers { get; init; }
+    /// <summary>A WORLD form (the Scenario form): drawn when NOTHING is selected, for the entity this returns (<see cref="Entity.Null"/> = not offered).</summary>
+    public Func<EntityRepository, Entity>? WorldTarget { get; init; }
 
     /// <summary>The labels of the common rows, then the expert rows (built once — the label column's widest).</summary>
     public string[] Labels => _labels ??= BuildLabels();

@@ -25,9 +25,20 @@ public sealed class FormDetailsView : IDetailsViewInstance
     public static bool Editable(VariableRunState mode, EntityRepository world)
         => mode != VariableRunState.Replay && !Fdp.Toolkit.Replay.ReplayState.IsActive(world);
 
+    private readonly Entity[] _target = new Entity[1];
+
     public void Draw(DetailsContext context, string idScope)
     {
-        if (_world() is not { } world || context.Entities.Count == 0) return;
+        if (_world() is not { } world) return;
+        if (_form.WorldTarget != null)
+        {
+            // a WORLD form (Scenario): nothing selected — the world's own entity (one reused array: 0 B)
+            _target[0] = _form.WorldTarget(world);
+            if (_target[0].IsNull) return;
+            _view.Draw(_form, world, _target, Editable(context.Mode, world));
+            return;
+        }
+        if (context.Entities.Count == 0) return;
         _view.Draw(_form, world, context.Entities, Editable(context.Mode, world));
     }
 
@@ -46,7 +57,9 @@ public static class FormDetailsViewDescriptor
             Id:        "details." + form.Id,
             Title:     form.Title,
             Rank:      34,
-            AppliesTo: ctx => world() is { } w && ctx.Entities.Count > 0 && OffersAll(form, w, ctx),
+            AppliesTo: ctx => world() is { } w && (form.WorldTarget != null
+                ? ctx.Entities.Count == 0 && !form.WorldTarget(w).IsNull                 // the Scenario form: nothing selected
+                : ctx.Entities.Count > 0 && OffersAll(form, w, ctx)),
             Create:    () => instance);
     }
 
