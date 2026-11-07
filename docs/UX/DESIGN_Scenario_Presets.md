@@ -189,6 +189,7 @@ row model (it already serves three hosts and the declaration table), with the DT
 | ⭐⭐⭐ the §5a look is built INTO the shared `VariablesPanelControl` (and the one value form, §5d) — not into a Parameters-only copy | ⭐ the blackboard ×3 and the scenario parameters all get it; ⛔ a second, nicer table beside the old one is the duplicate R-174 forbids |
 | ⭐⭐ the look is an acceptance spec (R-4138): aligned value column, the amber override bar + ↺, the grey *default*, FontAwesome glyphs in their colours (R-4139), slate headers | ⭐ a frame rail measures it, and the builder compares a real render with the mockup itself (R-4146) |
 | ⭐ the host's words, not the blackboard's | 📐 today the Parameters host still says *"[+] Add variable…"* and *"Not referenced by any node — consider removing"* (frame render `2026-11-07`) — the words come from the source, like the columns (`DeclarationFeatures`) |
+| ⭐ the host's differences are SETTINGS of the shared table (`DeclarationFeatures`) | 🔒 user: substructures in the generic editor, *"while for scenario parameters … plain data types, so this is a setting"* — [`DESIGN_Field_Declaration_Editor.md`](../DESIGN_Field_Declaration_Editor.md) §6. ⭐ The Parameters host turns struct fields OFF |
 | ⛔ out of scope here | a behaviour's params TYPE defined as a JSON asset — **CE-3376**, for the user + coordinator |
 
 ## 6. Decisions — ✅ ALL APPROVED (user, `2026-11-07`: *"Approved."*)

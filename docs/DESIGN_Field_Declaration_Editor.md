@@ -2,11 +2,12 @@
 state: LIVE
 build-state: BUILT 2026-11-05 (approved by the user 2026-11-05: "CE-4254 approved."; as-built in §5)
 updated: 2026-11-05
-current-answer: §2 (decision) and §3 (the two defects first)
+current-answer: §2 (decision) and §3 (the two defects first) · §6 PLANNED: substructures + host settings (2026-11-07)
 stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - docs/UX/DESIGN_Scenario_Presets.md — §5e: the presets' look is built into THIS shared table for every host
   - docs/DESIGN_Macro_Authoring_Editor.md — the scenario / macro PARAMETERS (MA-5): the declarations this editor edits for one host
   - docs/DESIGN_Rules_View_UI.md — §7.5a: the shared EditHistory every host's edits push to (CE-4218 / CE-4219)
   - docs/DESIGN_Orders_Params_Entity_Classes.md — R-3001: StructEdit edits a params DTO's default VALUES (the leaf editors the default cell reuses)
@@ -112,3 +113,16 @@ size, no *Remove unused*, a *used by N* column; the three blackboard hosts draw 
 | `DeclarationFeatures` has `Exposure` | the control branches on no exposure affordance, so the record carries what it DOES branch on: `MemoryBudget · ByteSize · LiveValue · DefaultValueCell · UsedByColumn · RemoveUnused` (`Blackboard` / `Parameters` presets); `MemoryBudget` was added — the parameters table also drew *Memory: 0 / 0 B*. |
 | the default cell is the StructEdit leaf, via the ParamArgsTable path | `ParamArgsTable.DrawCell(row, onSet)` — the one-cell form sharing `PrepareRow` / `CommitIfDirty` with the table row; the control owns one table built from an `IComponentEditService` provider (`ParametersDrawer` is handed the editor's, else builds the shared facet service). |
 | Ctrl+Z / Ctrl+Y | `ParametersDrawer.HandleUndoChords` — while the drawer's window is focused and no text field is active; Ctrl+Shift+Z = redo. Buttons removed; the refusal line stays. |
+
+## 6. ⭐⭐ Planned — SUBSTRUCTURES, and the differences are host SETTINGS *(user, `2026-11-07`; not built)*
+
+> 🔒 *"the shared parameters editor in its generic form needs to support substructures, so the fields are not just plain data types but also another
+> structures. While for scenario parameters apparently we are limiting the parameter list to plain data types, so this is a setting for the shared
+> editor, and there might be other differences."*
+
+| ⭐ rule | |
+|---|---|
+| ⭐⭐ a field whose type is a STRUCTURE is a row that EXPANDS (chevron) into its own fields — values, defaults, overrides and ↺ per nested field, at any depth | 📐 today the table is flat: a struct-typed field is one row, its fields cannot be seen or edited there |
+| ⭐⭐ what a host allows is a SETTING on `DeclarationFeatures`, like the columns — e.g. `AllowStructFields`, and the type list the *Type* combo offers | ⭐ scenario parameters: off (plain values, enums and map references — `ParamTypes.All`); a params-asset host (CE-3376): on |
+| ⭐ further differences go the same way — one setting per difference, never a per-host copy of the table | ⛔ a host name tested in the control is the defect §2 removed |
+| ⭐ the look is the presets mockup (`docs/UX/scenario-presets-visual.svg`, presets design §5e) for every host | |
