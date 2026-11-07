@@ -1217,3 +1217,11 @@ reader of `Presence` / `Positions` appears.*
 
 Rails (to write): edit-load a scenario with `Presence` / `Positions` / a one-of-N → save → the file holds all three as authored; move the
 entity → the chosen place moves; load with `$variant: 3` → `CanSave` false, naming the variant.
+
+**As built** *(backend, `2026-11-07`, CE-3374)*: `VariantForms` (id **449**, managed record, `NoReplay`: `Variant · Presence · PositionsJson · PositionChosen ·
+MacroChoicesJson · MacroChosen`) — `ScenarioVariants.Apply` writes it onto the entity JSON (key `VariantForms`) before it strips, only on an entity that has a
+form; `VariantFormsTranslator` (registered in `HrotScenarioSerializerFactory`) injects it and SAVES `Presence` and `Positions` (the chosen entry's place = the
+entity's `SimTransform.Position`; heading / weight kept); ⭐ **M1 answered:** `MacroInstanceTranslator` stays the ONE writer of `MacroInstance` and writes the
+list (`VariantForms.MacroListWith(current)`) when the holder exists. `ScenarioSaveGate.CanSave` reads `Variant`. Rails `VariantFormsTests` (4: the copy, the
+save + a move, the macro list + a Change…, the gate at variants 0 / 3). ⚠ M2 (the SR-168 end-to-end binding rail) and M3 (a macro FILE through `Apply`) not
+measured here — `Apply`'s one call site is `ScenarioParams.Prepare` (grep), so a macro file prepared there is covered by construction.

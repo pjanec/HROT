@@ -220,3 +220,14 @@ row model (it already serves three hosts and the declaration table), with the DT
 
 ⚠ **Measure before building:** M1–M3 in macros §17.1; whether `ScenarioDescription.ArgsOf(world)` (the resident args the recorder reads) names the
 loaded preset well enough for *"The map holds: …"* (match by args) or the load should stamp the preset name.
+
+## 8. As-built *(backend, `2026-11-07`, the struct editor overnight N-7)*
+
+| item | as built | deviation |
+|---|---|---|
+| **CE-3374** | `VariantForms` (macros §17.1 — see its as-built) | — |
+| **CE-3375** data | `ScenarioPreset(Name, PresetVariant, Args)` + `PresetVariant(Kind: AsAuthored · Random · Number, n)` in `ScenarioHeader.cs`; `header.Presets` read / written by `ScenarioHeaderJson` (`"Variant": "AsAuthored" \| "Random" \| n`, a stored "Default" ignored); `ScenarioPresets` — THE resolver (`Of(header)` Default first · `HeaderOf(path)` · `TryArgs(header, name, random)` · `ToJson`); `ScenarioPreset.ArgsJson(random)` = the overrides + `$variant` when not as authored. `ScenarioSaveCore.HeaderOf` keeps `Presets` (and `Features` — an edit save had dropped them). Rail `ScenarioPresetsHeaderTests` (3) | ⭐ the resolver lives in `Fdp.Toolkit.Scenario` (one for HTTP and every ui surface), not in `RunSetup` |
+| **CE-3389** | `ScenarioSaveGate.CanSave(world)` — null or *"this world was built with variant N — a variant is preview only; load the scenario as authored to save"*; reads `VariantForms.Variant`. Rail in `VariantFormsTests` | — |
+| **CE-3388** | `IRunScenarioControl.OpenForEdit(name, argsJson)` (default member → the plain open; the editor session overrides it onto the edit intent's `ScenarioArgsJson`); `ScenarioDoor.Open(…, argsJson)` | the session keeps its own edit intent (fresh `ExerciseId`) rather than `ScenarioLoadSequence.EditLoadIntent` (empty id) — unchanged from today |
+| **CE-3390** | `GET /scenario/presets?name=` → `{scenario, presets:[{name, variant, saveable, changed}]}`; `POST /scenario/load/edit\|live {name, preset}` (400 with args / variant, 404 naming the presets there are); `/status` `canSave` + `cannotSave`. Route docs + `EveryRouteIsDocumentedTests` | — |
+
