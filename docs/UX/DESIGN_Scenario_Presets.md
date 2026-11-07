@@ -179,6 +179,18 @@ every state where it is off.
 ⇒ the preset value column uses ONE of them, and the other folds into it (ui; a tracker row when the presets are built). ⭐ Lean: `ParamArgsTable`'s
 row model (it already serves three hosts and the declaration table), with the DTO's fields as its rows for a behaviour asset.
 
+### 5e. ⭐⭐ ONE shared editor, and it looks like the mockup *(user, `2026-11-07`)*
+
+> 🔒 *"The graphical design you made for scenario parameter editing is a nice one, while … the real look of the shared parameter editor … is ugly.
+> So it is desired to have one shared editor which looks nice."*
+
+| ⭐ rule | |
+|---|---|
+| ⭐⭐⭐ the §5a look is built INTO the shared `VariablesPanelControl` (and the one value form, §5d) — not into a Parameters-only copy | ⭐ the blackboard ×3 and the scenario parameters all get it; ⛔ a second, nicer table beside the old one is the duplicate R-174 forbids |
+| ⭐⭐ the look is an acceptance spec (R-4138): aligned value column, the amber override bar + ↺, the grey *default*, FontAwesome glyphs in their colours (R-4139), slate headers | ⭐ a frame rail measures it, and the builder compares a real render with the mockup itself (R-4146) |
+| ⭐ the host's words, not the blackboard's | 📐 today the Parameters host still says *"[+] Add variable…"* and *"Not referenced by any node — consider removing"* (frame render `2026-11-07`) — the words come from the source, like the columns (`DeclarationFeatures`) |
+| ⛔ out of scope here | a behaviour's params TYPE defined as a JSON asset — **CE-3376**, for the user + coordinator |
+
 ## 6. Decisions — ✅ ALL APPROVED (user, `2026-11-07`: *"Approved."*)
 
 | # | question | ⭐ lean | why / rejected |
