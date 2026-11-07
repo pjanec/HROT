@@ -22,7 +22,7 @@ using ImGuiApi = ImGuiNET.ImGui;
 /// </summary>
 public sealed partial class ComponentEditDrawer
 {
-    private enum ListShape { Chips, List, Grid }
+    private enum ListShape { Chips, List, Grid, FixedLeaves }
 
     /// <summary>One list node's drawing state (kept by node id): its form, cached text, kit options and the key target.</summary>
     private sealed class ListForm : IStructTableTarget
@@ -37,6 +37,8 @@ public sealed partial class ComponentEditDrawer
         public string[] GridHeaders = Array.Empty<string>();
         public Type[] Derived = Array.Empty<Type>();
         public bool HasOps;
+        public readonly List<string> RowLabels = new();   // FixedLeaves: "Slot 1" … (the field name's singular + the 1-based index; "[i]" when it cannot be singularised)
+        public string Footer = "";
         public int SelectedChip = -1;
         public string? Error;
         public ListOp Pending;
@@ -77,9 +79,13 @@ public sealed partial class ComponentEditDrawer
     /// <summary>For rails: the bytes the last list form drawn this frame allocated (R-2084: 0 in a steady frame).</summary>
     public long ListFormBytes { get; private set; }
 
+    /// <summary>For rails: how many element rows the last fixed leaf buffer drew.</summary>
+    public int LeafRowsDrawn { get; private set; }
+    private string? _rowLabel;   // a fixed buffer names its element rows ("Slot 1"); DrawLeafNode reads it once
+
     /// <summary>For rails: which form a list node draws as — <c>chips</c> · <c>list</c> · <c>grid</c>, <c>fixed</c> appended for a fixed-size one; null before it was drawn.</summary>
     public string? ListFormOf(EditNode node)
-        => _lists.TryGetValue(node.JsonPath, out var f) ? (f.Shape == ListShape.Chips ? "chips" : f.Shape == ListShape.Grid ? "grid" : "list") + (f.Fixed ? " fixed" : "") : null;
+        => _lists.TryGetValue(node.JsonPath, out var f) ? (f.Shape == ListShape.Chips ? "chips" : f.Shape == ListShape.Grid ? "grid" : f.Shape == ListShape.FixedLeaves ? "leaves" : "list") + (f.Fixed ? " fixed" : "") : null;
 
     /// <summary>For rails: the refused-paste message under a list, or null.</summary>
     public string? ListErrorOf(EditNode node) => _lists.TryGetValue(node.JsonPath, out var f) ? f.Error : null;
@@ -106,7 +112,7 @@ public sealed partial class ComponentEditDrawer
         var ops = container as IContainerOps;
         f.HasOps = ops != null;
         f.Fixed = node.Kind != EditNodeKind.DynamicArray || container == null || !(ops?.CanInsertRemove ?? container.CanResize);
-        f.Shape = f.Fixed ? ListShape.List : IsShortLeaf(f.Element) ? ListShape.Chips : WantsGrid(node, f.Element) ? ListShape.Grid : ListShape.List;
+        f.Shape = f.Fixed ? (IsShortLeaf(f.Element) ? ListShape.FixedLeaves : ListShape.List) : IsShortLeaf(f.Element) ? ListShape.Chips : WantsGrid(node, f.Element) ? ListShape.Grid : ListShape.List;
 
         if (f.Element.IsAbstract || f.Element.IsInterface)
         {
@@ -157,6 +163,21 @@ public sealed partial class ComponentEditDrawer
             f.Kinds.Add(poly && v != null ? KindIconOf(child) : null);
         }
         if (f.Shape == ListShape.Grid) f.GridHeaders = GridHeadersOf(f, node);
+        if (f.Shape == ListShape.FixedLeaves)
+        {
+            f.RowLabels.Clear();
+            string? singular = SingularOf(LabelOf(node));
+            for (int i = 0; i < n; i++) f.RowLabels.Add(singular != null ? singular + " " + (i + 1).ToString() : node.Children[i].Name);
+            f.Footer = n.ToString() + " / " + n.ToString() + " — fixed size";
+        }
+    }
+
+    /// <summary>The singular of a field label for the row names of a fixed buffer (<c>Slots</c> → <c>Slot</c>, <c>Entries</c> → <c>Entry</c>); null when it does not end in a plural s — the rows keep <c>[i]</c>.</summary>
+    private static string? SingularOf(string label)
+    {
+        if (label.Length > 3 && label.EndsWith("ies", StringComparison.Ordinal)) return label.Substring(0, label.Length - 3) + "y";
+        if (label.Length > 1 && label.EndsWith("s", StringComparison.Ordinal) && !label.EndsWith("ss", StringComparison.Ordinal)) return label.Substring(0, label.Length - 1);
+        return null;
     }
 
     private string ChipLabel(object? v)
@@ -230,6 +251,7 @@ public sealed partial class ComponentEditDrawer
         ListOp op = default;
         switch (f.Shape)
         {
+            case ListShape.FixedLeaves: ImGuiApi.TextDisabled(f.Footer); break;
             case ListShape.Chips: op = DrawChips(f, node); break;
             case ListShape.Grid: op = DrawGrid(f, node); break;
             default: op = DrawListBlock(f, node); break;
@@ -239,6 +261,17 @@ public sealed partial class ComponentEditDrawer
         ListFormBytes = GC.GetAllocatedBytesForCurrentThread() - bytesBefore;
 
         if (op.Kind != ListOpKind.None) ApplyListOp(f, node, container, op);
+
+        // B4: a fixed buffer of LEAVES — one row per element, "Slot 1" in the label column and the element's own cell in the value column (no summary rows, no arrows)
+        LeafRowsDrawn = 0;
+        if (f.Shape == ListShape.FixedLeaves)
+            for (int i = 0; i < node.Children.Count && i < f.RowLabels.Count; i++)
+            {
+                _rowLabel = f.RowLabels[i];
+                DrawEditNode(node.Children[i]);
+                _rowLabel = null;
+                LeafRowsDrawn++;
+            }
 
         // B1: the clicked chip's element, edited through its normal leaf cell on the row below
         if (f.Shape == ListShape.Chips && f.SelectedChip >= 0 && f.SelectedChip < node.Children.Count)

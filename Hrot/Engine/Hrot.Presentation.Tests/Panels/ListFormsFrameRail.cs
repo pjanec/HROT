@@ -41,6 +41,9 @@ public sealed class ListFormsFrameRail
     public sealed class BigDoc { public List<Step> Many = Enumerable.Range(1, 60).Select(i => new Step { Name = "Item " + i, Seconds = i }).ToList(); }
     [InlineArray(4)] public struct Slots4 { private float _e0; }
     public struct SlotsComp { public Slots4 Slots; }
+    public struct Pt { public float X; public float Y; }
+    [InlineArray(2)] public struct Pts2 { private Pt _e0; }
+    public struct PtsComp { public Pts2 Pts; }
 
     private sealed class Pressing : IInputSource
     {
@@ -260,7 +263,7 @@ public sealed class ListFormsFrameRail
     // ── B4 fixed ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
     [SkippableFact]
-    public void B4_AnInlineBuffer_IsAFixedSizeList_NoInsertNoDelete_MovesRoundTrip()
+    public void B4_AFixedBufferOfLeaves_IsOneRowPerElement_SlotNOnTheLeft_NoSummaryRows_AndAllocatesNothing()
     {
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         var comp = new SlotsComp();
@@ -268,15 +271,32 @@ public sealed class ListFormsFrameRail
         using var r = new Rig(comp, typeof(SlotsComp));
         r.Steady();
         Shot(r, "forms-b4-fixed.png");
-        Assert.Equal("list fixed", r.Drawer.ListFormOf(r.Field("Slots")));
-        Assert.True(r.Drawer.ListFormBytes == 0, $"a steady fixed-size form allocates nothing ({r.Drawer.ListFormBytes} bytes)");
+        Assert.Equal("leaves fixed", r.Drawer.ListFormOf(r.Field("Slots")));
+        Assert.Equal(4, r.Drawer.LeafRowsDrawn);                                   // N leaf cells, one per element …
+        Assert.True(r.Drawer.ListFormBytes == 0, $"a steady fixed-leaves form allocates nothing ({r.Drawer.ListFormBytes} bytes)");
+        // … and no ListBlock rows: the kit drew no list row for this form (its probe still holds an EARLIER test's rows, so the form name is the proof) — no menu, no handles
+        Assert.DoesNotContain("list", r.Drawer.ListFormOf(r.Field("Slots")) ?? "", StringComparison.Ordinal);
         string Slots() { var c = (SlotsComp)r.Session.Commit(); return string.Join(",", Enumerable.Range(0, 4).Select(i => c.Slots[i])); }
-        r.Click(MenuOf(r, 3, 4)); r.Frame.StepN(2, r.Draw);
-        r.Click(C(KitProbe.MenuRow + 8)); r.Steady();                        // Delete: greyed in a fixed-size list
         Assert.Equal("1,2,3,4", Slots());
-        r.Click(MenuOf(r, 3, 4)); r.Frame.StepN(2, r.Draw);
+    }
+
+    [SkippableFact]
+    public void B4_AFixedBufferOfStructs_KeepsTheSummaryRows_NoInsertNoDelete_MovesRoundTrip()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var comp = new PtsComp();
+        for (int i = 0; i < 2; i++) comp.Pts[i] = new Pt { X = i + 1, Y = 10 };
+        using var r = new Rig(comp, typeof(PtsComp));
+        r.Steady();
+        Shot(r, "forms-b4-fixed-structs.png");
+        Assert.Equal("list fixed", r.Drawer.ListFormOf(r.Field("Pts")));
+        string Pts() { var c = (PtsComp)r.Session.Commit(); return c.Pts[0].X + "," + c.Pts[1].X; }
+        r.Click(MenuOf(r, 1, 2)); r.Frame.StepN(2, r.Draw);
+        r.Click(C(KitProbe.MenuRow + 8)); r.Steady();                        // Delete: greyed in a fixed-size list
+        Assert.Equal("1,2", Pts());
+        r.Click(MenuOf(r, 1, 2)); r.Frame.StepN(2, r.Draw);
         r.Click(C(KitProbe.MenuRow + 3)); r.Steady();                        // Move up is allowed
-        Assert.Equal("1,2,4,3", Slots());
+        Assert.Equal("2,1", Pts());
     }
 
     // ── B6 paging ─────────────────────────────────────────────────────────────────────────────────────────────────────────

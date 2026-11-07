@@ -315,7 +315,7 @@ public sealed partial class ComponentEditDrawer
         bool hoverTint = bind.Bindable && _hoveredRows.Contains(node.Id.Value);
         if (hoverTint) ImGuiApi.PushStyleColor(ImGuiCol.Text, BindTint);
         ImGuiApi.TreeNodeEx(
-            LabelOf(node),   // ⭐ U-7 ① — the display name ([EditDisplayName], else the humanized field name)
+            _rowLabel ?? LabelOf(node),   // ⭐ U-7 ① — the display name ([EditDisplayName], else the humanized field name); a fixed buffer's element rows are named "Slot 1" (N-2 B4)
             ImGuiTreeNodeFlags.Leaf |
             ImGuiTreeNodeFlags.NoTreePushOnOpen |
             ImGuiTreeNodeFlags.SpanAvailWidth);
