@@ -249,7 +249,8 @@ another side by construction (CE-4279), not because each surface remembered to c
 | the catalogue | `ActionDecl.Level` (default by group: View anyone · Orders, Embark a Controller · Edit, Destructive, Run the Instructor · Debug the Author, Q7) and `SideScoped` (Orders, Embark); *Save selection as macro…* the Author. `ActionContext.Level / Side / UnitSide` + `SeatRefusal(decl)` — the ONE rule; the composer **greys** with the reason, never hides (§2.6). The menu cache key carries level + side mismatch |
 | the tools | the RTS tool refuses to arm below Controller; Add Entity greys with the gate's own reason (Player, observer, controller, instructor in Edit) |
 | orders | `EntityOrders` starts with `SideLock = StationMode.SideOf(world)` — every order this station sends is side-locked by construction; the HTTP session (H7) sets its own |
-| CE-4305 ① | CGF, the fused server and SimHost drop their `DefaultSeat => Instructor` — the shared default, **Author** (§2.2a). ② the config file's `features` layer is not here |
+| CE-4305 ① | CGF, the fused server and SimHost drop their `DefaultSeat => Instructor` — the shared default, **Author** (§2.2a) |
+| CE-4305 ② | the runner's `--config` JSON takes `"features": { "<id>": {partial config} \| "on" \| "off" }` (`HrotRunnerConfiguration.FeaturesOf`, read as `--feature` reads a value); its entries go FIRST in the node override list, so `--feature` wins over the file and both win over the scenario's preset (the order §2.2a rules). Rail `RunnerConfigurationTests.CE4305_TheConfigFilesFeatures_AreANodeOverride_BelowTheCommandLine` |
 
 ⏭ **Not here:** the timeline's / toolbar's moment menus (`ActionContext.ForMoment`) carry no seat yet — the Run group is greyed on the map only ·
 `RuleEditorServicesFactory` still lets an Instructor edit rules in Edit mode (the gate refuses the edit itself) · H3 the arbiter, H4 the camera.

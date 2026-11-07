@@ -65,20 +65,20 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 |---|---:|---:|
 | `WIRING` | 12 | 97 |
 | `RW-XS` | 5 | 15 |
-| `RW-S` | 191 | 892 |
+| `RW-S` | 190 | 893 |
 | `RW-L` | 150 | 260 |
 | `RW-M` | 233 | 843 |
 | `RW-H` | 23 | 87 |
 | `RW-XL` | 0 | 1 |
 | `OTHER` | 2 | 9 |
-| **Total** | **616** | **2204** |
+| **Total** | **615** | **2205** |
 | *(refuted on verification)* | | *17* |
 
 | Id family | Open | Done |
 |---|---:|---:|
 | `AX-` | 4 | 23 |
 | `BP-` | 105 | 386 |
-| `CE-` | 451 | 1637 |
+| `CE-` | 452 | 1638 |
 | `HN-` | 11 | 41 |
 | `MA-` | 2 | 21 |
 | `MD-` | 0 | 7 |
@@ -4755,7 +4755,7 @@ collides with work in flight.
 - [ ] **CE-4302** · `RW-S` 📋 **OPEN `2026-11-07` (coordinator, dispatched in [HANDOFF_Coordinator_To_Lanes_Mission_Plan.md](batches/HANDOFF_Coordinator_To_Lanes_Mission_Plan.md), R-4160 / R-4161) — MISSION PLAN P-6 / M6 runtime — `"phase": n` in `ObjectiveCommon` (E3), Begin now = Fire, *when Phase N begins*.** Design: [`DESIGN_Mission_Plan_Editor.md`](../UX/DESIGN_Mission_Plan_Editor.md) §5.2 D5, §5.8 E3.
 - [ ] **CE-4303** · `RW-S` 📋 **OPEN `2026-11-07` (coordinator, dispatched in [HANDOFF_Coordinator_To_Lanes_Mission_Plan.md](batches/HANDOFF_Coordinator_To_Lanes_Mission_Plan.md), R-4160 / R-4161) — MISSION PLAN P-7 / M2 + M4 UI — the Orders tab replaces `MissionPanel` (D8), the *then* picker with WHO = *this unit* (E5), give up (D4), Wait first (E9), a group's commander plan (E6), undo / Live Commit / Conflict (D9).** Design: [`DESIGN_Mission_Plan_Editor.md`](../UX/DESIGN_Mission_Plan_Editor.md) §5.2 D8, D9, §5.6, §5.8 E5, E6.
 - [ ] **CE-4304** · `RW-S` 📋 **OPEN `2026-11-07` (coordinator, dispatched in [HANDOFF_Coordinator_To_Lanes_Mission_Plan.md](batches/HANDOFF_Coordinator_To_Lanes_Mission_Plan.md), R-4160 / R-4161) — MISSION PLAN P-8 / M3 + M5/M6 UI — the plan on the map (E2), the picker's rule entries, the Rules window's Phases group, ONE Tasks timeline lane (E4).** Design: [`DESIGN_Mission_Plan_Editor.md`](../UX/DESIGN_Mission_Plan_Editor.md) §5.5 M3, M5, M6, §5.8 E2, E4.
-- [ ] **CE-4305** · `RW-S` 🔨 **① DONE `2026-11-07` (ui, with B-16 H2: CGF / SimHost drop `DefaultSeat => Instructor` ⇒ Author; the gate refuses an Instructor in Edit mode) · ② the config file's `features` layer OPEN** — was 📋 **OPEN `2026-11-07` (coordinator, R-4164) — SERVER STATIONS DEFAULT TO AUTHOR; THE SEAT FROM THE NODE CONFIG FILE.** ① `CgfNodeBootstrapper.DefaultSeat` and `SimHostNodeBootstrapper.DefaultSeat` → `Seat.Author` (the fused server follows CGF) · ② the runner's `--config` JSON gains `"features": { "<id>": {partial config} }`, layered below `--feature` (Node Features F-7; today `MergeFromJsonFile` reads no features) · rails: a CGF node with no config is Author and its gate accepts an Edit-mode edit; with `features.station.seat.Seat = Instructor` the same edit is refused; `--feature` beats the file; the file AND `--feature` beat a scenario's `station.seat` preset, which beats only the hard-coded default. Design: [`DESIGN_Seats_And_Hats.md`](../UX/DESIGN_Seats_And_Hats.md) §2.2a.
+- [x] **CE-4305** · `RW-S` ✅ **DONE `2026-11-07` (ui) — ① with B-16 H2: CGF / SimHost drop `DefaultSeat => Instructor` ⇒ Author; the gate refuses an Instructor in Edit mode · ② the runner's `--config` `features` object is a node override below `--feature` (`HrotRunnerConfiguration.FeaturesOf`; rail `RunnerConfigurationTests.CE4305_*`)** — was 📋 **OPEN `2026-11-07` (coordinator, R-4164) — SERVER STATIONS DEFAULT TO AUTHOR; THE SEAT FROM THE NODE CONFIG FILE.** ① `CgfNodeBootstrapper.DefaultSeat` and `SimHostNodeBootstrapper.DefaultSeat` → `Seat.Author` (the fused server follows CGF) · ② the runner's `--config` JSON gains `"features": { "<id>": {partial config} }`, layered below `--feature` (Node Features F-7; today `MergeFromJsonFile` reads no features) · rails: a CGF node with no config is Author and its gate accepts an Edit-mode edit; with `features.station.seat.Seat = Instructor` the same edit is refused; `--feature` beats the file; the file AND `--feature` beat a scenario's `station.seat` preset, which beats only the hard-coded default. Design: [`DESIGN_Seats_And_Hats.md`](../UX/DESIGN_Seats_And_Hats.md) §2.2a.
 - [x] **CE-4306** · `RW-S` ✅ **DONE `2026-11-07` (behaviors, `4e24c2ef7`) — orders answer acceptance through `EntityEditOutcome` (edit framework §4.4; rails `*.F5_*`). Was: OPEN `2026-11-07` (coordinator, dispatched to behaviors in [HANDOFF_Coordinator_To_Behaviors_Editing_UX_Remainder.md](batches/HANDOFF_Coordinator_To_Behaviors_Editing_UX_Remainder.md)) — EDIT FRAMEWORK F5 — an order carries its request id to the brain's owner; `TacticalIntentResolutionSystem` answers accepted / refused WITH THE REASON (`EntityEditOutcome`).** Design: [`DESIGN_Edit_Framework.md`](../UX/DESIGN_Edit_Framework.md) F5.
 - [x] **CE-4307** · `RW-S` ✅ **DONE `2026-11-07` (behaviors) — actions as sentences (`ActionSentence`, the ONE step renderer for the List line and the Do tab) and Order by order kind (`Order.<kind>`, the Do tab's *order* combo over `OrderMenu.Orders`; the verb resolves by the target's class) BUILT; ⭐ *Begin phase* — the `BeginPhase` verb fires a phase trigger (RuleRequest.Fire, origin Rule) — built after P-6 landed. Design: Rule Editor UX §2.4 as-built. Was: OPEN `2026-11-07` (coordinator, dispatched to behaviors in [HANDOFF_Coordinator_To_Behaviors_Editing_UX_Remainder.md](batches/HANDOFF_Coordinator_To_Behaviors_Editing_UX_Remainder.md)) — RULE EDITOR RX5 — a rule's actions as sentences; *Order* by order kind (`OrderMenu.OfferedFor`); *Begin phase*.** Design: [`DESIGN_Rule_Editor_UX.md`](../UX/DESIGN_Rule_Editor_UX.md) §2.4, RX5.
 - [x] **CE-4308** · `RW-S` ✅ **DONE `2026-11-07` (behaviors) — the gallery (`RuleGallery`, + Add opens it, every kind under *More…*) and the map entries *Add rule about this unit…* / *When someone enters this area…* (`RuleMenuActions`, ids 545/546, bound by the RulesBundle on every host); the task and timeline entries are ui's (P-7 7c, A6) and call `RulesWindow.OpenGallery`. Rule Editor UX §2.5 as-built. Was: OPEN `2026-11-07` (coordinator, dispatched to behaviors in [HANDOFF_Coordinator_To_Behaviors_Editing_UX_Remainder.md](batches/HANDOFF_Coordinator_To_Behaviors_Editing_UX_Remainder.md)) — RULE EDITOR RX6 — rules reachable from tasks, units, areas and the timeline; the gallery.** Design: [`DESIGN_Rule_Editor_UX.md`](../UX/DESIGN_Rule_Editor_UX.md) §2.5, RX6.

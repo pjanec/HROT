@@ -45,7 +45,7 @@
 | 3 | A4 selection rules | ✅ | (this commit) | `ActionDecl.Execution` (`Selection` default · `PerEntity`: Delete, Disembark) fanned out by `ContextActionIngressSystem` for a click on a selected entity; a plain order (`MenuOrders.Begin`) goes to every selected unit; right-click on empty space keeps the selection. As-built: [DESIGN_Action_Catalogue](../../UX/DESIGN_Action_Catalogue.md) A4. Rails red-proved by mutation |
 | 4 | B-16 seats H2–H4 | ✅ H2 · H3 · H4b · ⏸ H4a (user) | `84191f5d3` · `ccd68e550` · `3c6fa370d` | see the B-16 row above; H4a (no snap-back after possession) is a question for the user — Seats and hats §3.4 |
 | 5 | B-10 rest K2, K3, K7 | ⏳ (K2's hat scope: ⚠ the map letters stand down for ANY camera driver — FPS, follow, director — while the hats name only Embodied / Direct, so moving the stand-down onto the `HatArbiter` would start firing letters while following a unit: needs a decision, not a swap) | — | |
-| 6 | CE-4305 server seat config | 🔨 ① ✅ (with H2: CGF / SimHost default Author) · ② the config file's `features` layer ⏳ | `84191f5d3` | ② unclaimed by backend so far |
+| 6 | CE-4305 server seat config | ✅ ① (with H2: CGF / SimHost default Author) · ② the config file's `features` layer below `--feature` | `84191f5d3` · (this commit) | Seats and hats §3.2 |
 | 7 | P-8 (CE-4304) | ➡ moved to behaviors | — | coordinator `NOTE_Coordinator_To_Ui_Items_Moved_To_Behaviors.md` (not started by ui) |
 
 ## Fourth handoff — [Lifecycle fixes](HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md) (dispatched `f523103e`; ui started at `f1e4c8048`)
