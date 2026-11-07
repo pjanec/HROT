@@ -415,6 +415,8 @@ namespace Hrot.ScenarioEditor.Map
                 authoring.AddEntity.RegisterOn(actions);
                 authoring.CopyPaste = new Hrot.UI.Common.AddEntity.CopyPasteActions(() => authoring.Spawn, selection);   // ⭐ A5 — one clipboard per map, beside Add Entity
                 authoring.CopyPaste.RegisterOn(actions);
+                var clipboard = authoring.CopyPaste.Clipboard;
+                authoring.CanvasMenu.CanPaste = () => clipboard.HasCopy;   // ⭐ A5 C3 — the empty map's Paste
                 authoringRef = authoring;
                 authoringForForm = authoring;   // ⭐ CE-1059 — the order form's entity list opens in the same picker registry
             }

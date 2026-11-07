@@ -280,6 +280,26 @@ public sealed class AddEntityActionTests
         Assert.Contains("suspended in Preview", add.GetProperty("label").GetString());
     }
 
+    /// <summary>⭐ A5 C3 (docs/UX/DESIGN_Entity_Copy_Paste.md §4) — the empty map offers <i>Paste</i> (the ONE paste action) once the map's clipboard holds a copy,
+    /// greyed with Add Entity's reason (the seat, a recording); no copy ⇒ no row. 🔴 Red-proof (compiles): the row added without <c>CanPaste</c> ⇒ the
+    /// empty-clipboard assertion fails.</summary>
+    [Fact]
+    public void A5_TheEmptyMap_OffersPaste_OnceSomethingIsCopied_GreyedLikeAddEntity()
+    {
+        bool copied = false;
+        var menu = new CanvasMenuUpdateSystem(new Rig().Action) { CanPaste = () => copied };
+        bool HasPaste(string json) => Items(json).Any(i => i.TryGetProperty("id", out var id) && id.GetInt32() == GlobalActionIds.PasteEntities);
+        Assert.False(HasPaste(menu.CurrentJson()));
+        copied = true;
+        var paste = Items(menu.CurrentJson()).Single(i => i.TryGetProperty("id", out var id) && id.GetInt32() == GlobalActionIds.PasteEntities);
+        Assert.Equal("Paste", paste.GetProperty("label").GetString());
+
+        var greyed = Items(new CanvasMenuUpdateSystem(new Rig { Suspended = "a recording is shown" }.Action) { CanPaste = () => true }.CurrentJson())
+            .Single(i => i.TryGetProperty("id", out var id) && id.GetInt32() == GlobalActionIds.PasteEntities);
+        Assert.False(greyed.GetProperty("enabled").GetBoolean());
+        Assert.Contains("a recording is shown", greyed.GetProperty("label").GetString());
+    }
+
     [Fact]
     public void CE1017_CanvasMenu_OmitsAddEntity_OnAHostThatCannotServiceIt()
     {
