@@ -266,6 +266,17 @@ public sealed class RunModeChoice
     }
 
     /// <summary>
+    /// ⭐ W-4 (LC-10 <i>Run to …</i> from Edit) — the dry run, PAUSED at its first frame, whatever is armed (Run to is a Preview by definition,
+    /// R-4166; ⛔ the armed mode is not changed, R1). False when a question is open, the gate is closed or a run is already on.
+    /// </summary>
+    public bool EnterPreviewPaused()
+    {
+        if (Busy || ClosedReason is not null || _transport.Mode != TransportMode.Edit) return false;
+        _transport.EnterDryRun(true);
+        return true;
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-4097</c> part two (AQ108 §3 "Preview → AAR, or File › Open Recording", D20) — opens a recording into AAR (at its start, or at
     /// <paramref name="atSimSeconds"/>). ⭐ A move that LEAVES EDITING asks the cluster's check round first: unsaved edits → <i>Save / Discard / Cancel</i>,
     /// a never-saved scenario → <i>Discard / Cancel</i>. ⛔ Asked ONLY from editing (the master refuses a round elsewhere, and a run holds nothing of the scenario).

@@ -405,6 +405,7 @@ namespace Hrot.Editor
         private Hrot.UI.Common.RunMode.RunToController? _runTo;
         /// <summary>⭐ CE-4316 — Run to …, for the debug API and the mode menu.</summary>
         internal Hrot.UI.Common.RunMode.RunToController? RunTo => _runTo;
+        Hrot.UI.Common.RunMode.RunToController? Hrot.UI.Common.RunMode.IProvidesRunControls.RunTo => _runTo;   // ⭐ W-4 — the toolbar's Run to … (the silent-default rule: a host that HAS one hands it)
         private MapViewConfig?                  _mapViewConfig;
 
         // ?? UI panels (legacy, always created) ????????????????????????????????
@@ -1486,7 +1487,9 @@ namespace Hrot.Editor
                 inPreview:   () => _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview,
                 world:       () => _world,
                 // ⭐⭐ the TURBO strategy (DESIGN_Time_Architecture.md §20) — only on a NETWORKLESS node: no ACK leaves the process, so a step can land in place
-                turbo:       _networkFactory is OfflineNetworkFactory ? TurboStep : null);
+                turbo:       _networkFactory is OfflineNetworkFactory ? TurboStep : null,
+                // ⭐ W-4 — Run to … from Edit: the run choice's dry run, paused at its first frame, then the run (one door into Preview)
+                enterPreview: () => _timeTransport?.RunChoice?.EnterPreviewPaused() ?? false);
             // ⭐ CE-1439 (AQ108 §2.12) — the cluster-control panel (the monitor window) asks through THIS host's transport, run choice and session: a caller that HAS them passes them,
             //   so the panel builds none of its own and its Pause / Load / Open AAR / Checkpoint are the toolbar's and the File menu's, not a second surface.
             if (_orchestratorCore != null && _timeTransport.RunChoice is { } panelChoice && _editorApp?.ScenarioSession is { } panelSession)

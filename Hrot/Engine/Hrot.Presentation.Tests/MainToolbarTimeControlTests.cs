@@ -873,4 +873,136 @@ public class MainToolbarTimeControlTests
         }
         fixture.Render();
     }
+
+    // ── ⭐ W-4 — Run to … in the mode menu (LC-10, 📄 DESIGN_Scenario_Lifecycle_Review.md §2.8; mockup run-to-visual.svg) ─────────
+
+    private static RunToController RunToOver(ITimeTransportFacade f, RunModeChoice? choice, Func<bool>? inPreview = null)
+        => new(f, () => false, inPreview ?? (() => f.Mode == TransportMode.Preview), () => new Fdp.Core.EntityRepository(),
+               enterPreview: choice is null ? null : choice.EnterPreviewPaused);
+
+    /// <summary>
+    /// ⭐ W-4 — the mode menu offers <i>Run to …</i> in Edit (the host can start a Preview) and in Preview, under a separator, with the
+    /// hourglass in Preview's violet; never in Live, DAR or AAR, nor in Edit on a host that cannot start a Preview. A click opens the popup.
+    /// 🔴 Red-proof: <c>OffersRunTo</c> true in every mode ⇒ the Live row fails.
+    /// </summary>
+    [Fact]
+    public void W4_TheModeMenuOffersRunTo_InEditAndPreview_Only()
+    {
+        var edit = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview);
+        var section = new MainToolbarTimeControlSection(edit.F, choice: edit.Choice, runTo: RunToOver(edit.F, edit.Choice));
+        var items = section.ModeMenu()!.Items;
+        var item = items.Single(i => i.Label == "Run to …");
+        Assert.True(items[items.ToList().IndexOf(item) - 1].IsSeparator);
+        Assert.Equal(Fdp.Presentation.Fonts.IconsFontAwesome6.HourglassHalf, item.Glyph);
+        Assert.Equal(MainToolbarTimeControlSection.ModeGlyph(TransportMode.Preview)!.Color, item.GlyphColor);
+        item.Invoke!();
+        Assert.True(section.RunToOpenRequested);
+
+        var preview = In(TransportMode.Preview, total: 30);
+        Assert.Contains(new MainToolbarTimeControlSection(preview, runTo: RunToOver(preview, null)).ModeMenu()!.Items, i => i.Label == "Run to …");
+
+        foreach (var mode in new[] { TransportMode.Live, TransportMode.Review, TransportMode.Replay })
+        {
+            var f = In(mode, livePoint: 100);
+            var menu = new MainToolbarTimeControlSection(f, runTo: RunToOver(f, null)).ModeMenu();
+            Assert.True(menu is null || menu.Items.All(i => i.Label != "Run to …"), mode.ToString());
+        }
+        var noDoor = In(TransportMode.Edit);
+        Assert.Null(new MainToolbarTimeControlSection(noDoor, runTo: RunToOver(noDoor, null)).ModeMenu());
+        Assert.Null(new MainToolbarTimeControlSection(In(TransportMode.Edit)).ModeMenu());   // a host with none: nothing changes
+    }
+
+    /// <summary>
+    /// ⭐ W-4 — <b>from Edit, <i>Run to 10:00</i> starts the Preview PAUSED</b> (the dry run's deterministic entry) whatever is armed, and ⛔ never
+    /// changes the armed mode (R1); while it starts or runs, the menu shows its status and <i>Stop Run to</i>, which cancels it.
+    /// 🔴 Red-proof: <c>EnterPreviewPaused</c> entering the dry run RUNNING ⇒ the TimeMode row fails.
+    /// </summary>
+    [Fact]
+    public void W4_RunToFromEdit_StartsThePreviewPaused_KeepsTheArmedMode_AndTheMenuOffersStop()
+    {
+        var rig = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live, UnsavedAnswer.Unchanged);
+        var run = RunToOver(rig.F, rig.Choice);
+        var section = new MainToolbarTimeControlSection(rig.F, choice: rig.Choice, runTo: run);
+
+        Assert.Null(section.RunToTimeProblem("10:00", out double t));
+        Assert.Equal(600, t);
+        Assert.True(section.RunToTime("10:00"));
+        var enter = RunChoiceRig.Sent<TransitionStateIntent>(rig).Single();
+        Assert.Equal(ClusterState.OperatingPreview, enter.TargetState);
+        Assert.Equal("Deterministic", enter.TimeMode);            // paused at the first frame
+        Assert.Equal(RunArmed.Live, rig.Choice.Armed);            // R1: the armed mode stays
+        Assert.Empty(rig.C.Calls);                                // never the Live load
+        Assert.True(run.IsStarting);
+
+        var items = section.ModeMenu()!.Items;
+        Assert.Contains(items, i => i.Label == "starting the Preview…" && !i.Enabled);
+        var stop = items.Single(i => i.Label == "Stop Run to");
+        Assert.Equal(Fdp.Presentation.Fonts.IconsFontAwesome6.Xmark, stop.Glyph);
+        Assert.DoesNotContain(items, i => i.Label == "Run to …");
+        stop.Invoke!();
+        Assert.False(run.IsStarting);
+        Assert.Contains(section.ModeMenu()!.Items, i => i.Label == "Run to …");
+    }
+
+    /// <summary>⭐ W-4 — the typed time: not a time, or not ahead of the clock in a Preview, is refused with the reason (the Run button greys).</summary>
+    [Fact]
+    public void W4_TheTypedTime_IsCheckedAgainstTheClock()
+    {
+        var f = In(TransportMode.Preview, total: 300);
+        var section = new MainToolbarTimeControlSection(f, runTo: RunToOver(f, null));
+        Assert.Equal("type a time: m:ss, h:mm:ss, or minutes", section.RunToTimeProblem("soon", out _));
+        Assert.Equal("4:00 is not ahead of the clock (5:00)", section.RunToTimeProblem("4:00", out _));
+        Assert.Null(section.RunToTimeProblem("10:00", out _));
+    }
+
+    /// <summary>⭐ W-4 — the popup's presets: each phase (by number) and each other trigger (by title), read from the world when it opens.</summary>
+    [Fact]
+    public void W4_ThePresets_AreThePhasesAndTheRulesThatFire()
+    {
+        var w = new Fdp.Core.EntityRepository();
+        w.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        void Rule(int id, string kind, string title, byte phase)
+        {
+            var e = w.CreateEntity();
+            w.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = id });
+            w.AddComponent(e, new Fdp.Toolkit.ScenarioRules.ObjectiveStatus { Kind = new(kind), Title = new(title), Phase = phase });
+        }
+        Rule(11, "Trigger", "Assault", 2);
+        Rule(12, "Trigger", "Approach", 1);
+        Rule(13, "Trigger", "Brief Blue", 0);
+        Rule(14, "HoldArea", "Hold the bridge", 0);   // an objective: it does not fire
+        var phases = new System.Collections.Generic.List<RunToChoices.Choice>();
+        var rules = new System.Collections.Generic.List<RunToChoices.Choice>();
+        RunToChoices.Collect(w, phases, rules);
+        Assert.Equal(new[] { "Phase 1 · Approach", "Phase 2 · Assault" }, phases.Select(p => p.Label));
+        Assert.Equal(new[] { "Brief Blue" }, rules.Select(r => r.Label));
+    }
+
+    /// <summary>⭐ W-4 — the menu and the popup on a real frame (fidelity: <c>HROT_RAIL_SHOTS</c> renders <c>runto-menu.png</c> and <c>runto-popup.png</c>).</summary>
+    [Xunit.SkippableFact]
+    public void W4_TheMenuAndThePopup_OnARealFrame()
+    {
+        Xunit.Skip.IfNot(Hrot.Editor.UiFrameRail.UiFrameHarness.IsAvailable(), Hrot.Editor.UiFrameRail.UiFrameHarness.UnavailableReason);
+        var rig = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview);
+        var section = new MainToolbarTimeControlSection(rig.F, choice: rig.Choice, runTo: RunToOver(rig.F, rig.Choice));
+        using var frame = Hrot.Editor.UiFrameRail.UiFrameHarness.Begin(720, 360);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        bool openMenu = true;
+        void Draw()
+        {
+            ImGuiNET.ImGui.SetNextWindowPos(System.Numerics.Vector2.Zero); ImGuiNET.ImGui.SetNextWindowSize(new System.Numerics.Vector2(720, 40));
+            ImGuiNET.ImGui.Begin("##toolbar", ImGuiNET.ImGuiWindowFlags.NoDecoration);
+            if (openMenu) { ImGuiNET.ImGui.OpenPopup("##mt_mode_popup"); openMenu = false; }
+            section.Render();
+            ImGuiNET.ImGui.End();
+        }
+        for (int i = 0; i < 3; i++) frame.Step(Draw);
+        var dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS");
+        if (dir is { Length: > 0 }) frame.Screenshot(System.IO.Path.Combine(dir, "runto-menu.png"));
+        section.OpenRunTo();
+        for (int i = 0; i < 3; i++) frame.Step(Draw);
+        if (dir is { Length: > 0 }) frame.Screenshot(System.IO.Path.Combine(dir, "runto-popup.png"));
+        Assert.False(section.RunToOpenRequested);   // the popup took the request
+    }
 }

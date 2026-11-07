@@ -209,8 +209,58 @@ sequenceDiagram
 
 *What the pictures show: nothing new runs on the nodes — the run is the same deterministic ACK-gated step a ▶ at 1× is made of; only how often
 the editor draws a frame changes.* Entry points: `POST /sim/run-to {seconds | condition | cancel, step}` (tool `run_to`) and `GET /sim/state` `runTo {running, status, step, turbo}`.
-⏳ the mode-menu item (*Run to …*, a time field and the *when Phase N begins* / *when a rule fires* presets) is ui's — it calls
-`EditorSubsystem.RunTo.Start(...)`. Rails: `RunToControllerTests` (unit, red-proven), `PreviewLifecycleRails.Run_to_stops_the_preview_at_the_time_paused` (the real editor; prints the measured rate).
+Rails: `RunToControllerTests` (unit, red-proven), `PreviewLifecycleRails.Run_to_stops_the_preview_at_the_time_paused` (the real editor; prints the measured rate).
+⛔ SUPERSEDED: *"the mode-menu item is ui's — it calls `EditorSubsystem.RunTo.Start(...)`"* — built by behaviors (W-4, below), through `Request`, so it also runs from Edit.
+
+#### 2.8a W-4 — the mode menu's *Run to …*, as built *(behaviors, `2026-11-07`; mockup [`run-to-visual.svg`](run-to-visual.svg), `scripts/gen-run-to-mockup.py`)*
+
+```mermaid
+classDiagram
+  class MainToolbarTimeControlSection { <<existing>> ModeMenu() + Run to … / status / Stop Run to · OpenRunTo() · RunToTime(text) · RunToChoice(c) }
+  class RunToController { <<existing>> + Request(at?, until?, step?) · IsStarting · CanStartFromEdit · World }
+  class RunToChoices { <<NEW, pure>> TryParseTime(text) · Collect(world, phases, rules) }
+  class RunModeChoice { <<existing>> + EnterPreviewPaused() }
+  class IProvidesRunControls { <<existing>> + RunTo (default null) }
+  class ShellTimeControlToolbar { <<existing>> Register(..., runTo) }
+  class PlanConditionCache { <<existing>> PhaseBegins(link) }
+  IProvidesRunControls <|.. EditorSubsystem : RunTo = its controller
+  ShellTimeControlToolbar --> MainToolbarTimeControlSection : runTo (LocalWindowController passes owner.RunTo)
+  MainToolbarTimeControlSection --> RunToController : Request
+  MainToolbarTimeControlSection ..> RunToChoices : on the popup's open only
+  RunToChoices ..> PlanConditionCache : a phase / a rule = FireCount > 0
+  RunToController --> RunModeChoice : enterPreview = EnterPreviewPaused (the editor wires it)
+```
+*What the picture shows that prose hid: the menu adds no second way into Preview or into the run — from Edit it is the run choice's own
+dry run (paused, deterministic), and the run is backend's controller; the presets are the condition language's one "has fired" shape, read
+once when the popup opens.*
+
+```mermaid
+sequenceDiagram
+  participant U as the user (mode menu ▸ Run to … ▸ 10:00 ▸ Run)
+  participant S as MainToolbarTimeControlSection
+  participant R as RunToController
+  participant C as RunModeChoice
+  U->>S: RunToTime("10:00")
+  S->>R: Request(600, null)
+  R->>C: EnterPreviewPaused() (Edit only, armed mode unchanged)
+  loop every frame (Tick)
+    R->>R: waiting: the Preview up and paused? (gives up after 1800 frames)
+  end
+  R->>R: Start(600) — then the run as in §2.8, paused at 10:00
+```
+
+| decision | why |
+|---|---|
+| from Edit through `RunModeChoice.EnterPreviewPaused` (the dry run's deterministic entry), whatever is armed | Run to is a Preview by definition (R-4166); ⛔ the armed mode is not changed (R1) and never a Live load |
+| the wait lives in `RunToController.Request` (one owner), not in the menu | the HTTP route can take the same path; the menu only asks |
+| a bare number is MINUTES; `m:ss` / `h:mm:ss` as the clock shows | *"Run to 10:00"* reads as the clock; greyed with the reason when not ahead of the clock |
+| *When a rule fires* lists triggers only (`ObjectiveStatus.Kind == Trigger`, phase 0); phases are listed by number | an objective does not fire; a phase IS a trigger (P-6) |
+| ⚠ deviation from the mockup: the popup's title is a drawn strip, not a window title bar | an ImGui popup has none; it opens under the mode indicator as drawn |
+
+Rails: `RunToControllerTests.W4_*` (from Edit: Preview asked once, nothing steps until it is up, then the same 6-step run; cancel while
+starting; the refusals; give-up after `EnterPreviewFrames`; the time parse) · `MainToolbarTimeControlTests.W4_*` (offered in Edit / Preview
+only, under a separator, the violet hourglass; from Edit the dry-run Enter is `Deterministic`, armed Live stays Live, no Live load; the
+status + *Stop Run to*; the time checked against the clock; the presets; the menu and the popup on a real frame — `HROT_RAIL_SHOTS`).
 
 ## 3. For the user — the decisions — ✅ ALL APPROVED (R-4166, user `2026-11-07`: *"Otherwise, all approved."*), Q9 as revised
 

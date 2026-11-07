@@ -26,7 +26,7 @@ Started at `6d361486a` (merged coordinator; then backend `1dfb2d2d9`, ui `e713ec
 
 | item | state | sha | notes |
 |---|---|---|---|
-| W-4 Run to … (LC-10, over backend's `RunToController`) | ⏳ CLAIMED | — | first: smallest, backend half built |
+| W-4 Run to … (LC-10, over backend's `RunToController`) — closes CE-4316 | DONE | (this commit) | ⭐ the mode menu's *Run to …* in Edit and Preview: a time (m:ss / h:mm:ss / minutes), *when Phase N begins*, *when a rule fires*; from Edit `RunToController.Request` → `RunModeChoice.EnterPreviewPaused` (armed mode untouched), then the run. ⭐ **ui:** `IProvidesRunControls.RunTo` reaches the toolbar through `ShellTimeControlToolbar.Register(..., runTo)`; `ModeMenuItem` now carries `Glyph` / `GlyphColor` / `IsSeparator`. Mockup `run-to-visual.svg`; design Lifecycle §2.8a |
 | W-3 A6 (timeline + mode indicator as catalogue targets) | ⏳ CLAIMED | — | |
 | W-1 P-8 CE-4304 (mission plan on the map, Phases group, ONE Tasks lane) | ⏳ CLAIMED | — | |
 | W-2 B-17 (map interaction P1, P2, P4–P6) | ⏳ CLAIMED | — | |
@@ -34,6 +34,7 @@ Started at `6d361486a` (merged coordinator; then backend `1dfb2d2d9`, ui `e713ec
 ## Gates
 | item | command | result |
 |---|---|---|
+| W-4 | Presentation.Tests MainToolbarTimeControl + RunToController + TheOneTimeFacade (xvfb, frame rail rendered) · build Hrot.Editor, Hrot.ClusterRunner | 189/0/0 · 0 errors ×2; 4 + 4 new rails (+ theories); `W4_TheModeMenuOffersRunTo` red-proved (OffersRunTo true in every mode ⇒ red); fidelity: runto-menu / runto-popup frames match the mockup (deviation: the popup's title is a drawn strip; ▶ in Run is white, not violet) |
 | V-6 | Fdp.Presentation.Tests (inspector / reflector / renderer / panels / forms / editing subsets) · Hrot.Editor.AiShared.Tests (whole) · Hrot.Blueprints.Tests (Details / ScenarioComponentsView / Editor) | 175/0 · 2264/0 · 1242/1 — the 1 red is CE-2422 (CE1161 start-time form), PRE-EXISTING: red with V-6's production files reverted; a 2nd red (CycloneDDS TypeLoad) was the stale restore, green after restore. ⚠ the full Fdp.Presentation.Tests run crashes its test host (also with the new tests excluded; not proved at base). 5 new rails + 1 guard, each red-proved |
 | V-5 | Presentation.Tests EntityPlacementGizmoTests+ScenarioSpawnAdapter+Placement · the live probe (`--mode all`, A-10C at z 300) | 18/0; 3 new rails, the airborne one red-proved (Resolve ignoring the height ⇒ red); live: 300 m · 150 m/s · health 600/600 for 30 s |
 | V-4 | Presentation.Tests R5c+R5b+TheMenusAreGolden+TheActionCatalogue · AiShared.Tests TheRulesBundleTests · build Hrot.Editor / Hrot.CGF / Hrot.ReplayBrowser | 45/0 · 8/0 · 0 errors ×3; goldens regenerated, diff = only rows 545/546 (12 lines, scripted check); gallery rail red-proved (no common.subject ⇒ 1/2) |
