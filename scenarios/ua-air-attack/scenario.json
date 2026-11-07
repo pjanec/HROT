@@ -33,7 +33,7 @@
    },
    "Behavior": {
     "Name": "AirPlatformStrike",
-    "Params": "{\"Location\":[-400,-550,0],\"TargetKind\":\"Fortification\"}",
+    "Params": {"Location":[-400,-550,0],"TargetKind":"Fortification"},
     "Origin": "Superior"
    },
    "Health": {
@@ -64,7 +64,7 @@
    },
    "Behavior": {
     "Name": "AirPlatformAttack",
-    "Params": "{\"Target\":\"a2173600-0000-4000-8000-000000000003\"}",
+    "Params": {"Target":"a2173600-0000-4000-8000-000000000003"},
     "Origin": "Superior"
    },
    "Health": {
@@ -153,7 +153,7 @@
    },
    "Behavior": {
     "Name": "AirPlatformStrike",
-    "Params": "{\"Location\":[500,400,0],\"TargetKind\":\"Vehicles\"}",
+    "Params": {"Location":[500,400,0],"TargetKind":"Vehicles"},
     "Origin": "Superior"
    },
    "Health": {
@@ -213,7 +213,7 @@
    },
    "Behavior": {
     "Name": "AirPlatformAttack",
-    "Params": "{\"Target\":\"a2173600-0000-4000-8000-000000000008\"}",
+    "Params": {"Target":"a2173600-0000-4000-8000-000000000008"},
     "Origin": "Superior"
    },
    "Health": {

@@ -11,7 +11,9 @@ Re-run after editing; the files are generated, edit this script, not them.
   macros/forces/red-outpost/scenario.json       a 2-man Red outpost that defends its anchor — placed at one of 3 places (variant)
   macros/inject/civilian-car/scenario.json      a civilian car + driver that drives 150 m along its heading — the checkpoint inject
 """
-import json, math, os
+import json, math, os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from scenario_json_readable import readable  # CE-4295 — params written as the objects they hold
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 
@@ -25,7 +27,7 @@ def write(path, doc):
     full = os.path.join(ROOT, path)
     os.makedirs(os.path.dirname(full), exist_ok=True)
     with open(full, "w") as f:
-        json.dump(doc, f, indent=1)
+        f.write(readable(json.dumps(doc, indent=1)))
         f.write("\n")
 
 

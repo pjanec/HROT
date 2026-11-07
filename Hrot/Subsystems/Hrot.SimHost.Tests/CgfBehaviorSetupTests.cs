@@ -30,6 +30,17 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("\"targetNetworkId\":1999", result);
         }
 
+        /// <summary>⭐⭐ <c>CE-4298</c> (mission plan G1, §5.7) — an ORDER task's params (<c>Order.Attack</c>) are walked by the order's own DTO: before it
+        /// no contract was found (an order is not a behaviour), the JSON passed unchanged, and a saved target resolved to nobody.</summary>
+        [Fact]
+        public void CE4298_AnOrderTasksParams_AreRemappedByTheOrdersDto()
+        {
+            var remapper = CgfBehaviorSetup.CreateBehaviorRemapper();
+            var result = remapper.RemapJson("Order.Attack", "{\"Target\":999}", new Dictionary<int, int> { { 999, 1999 } });
+            Assert.NotNull(result);
+            Assert.Contains("1999", result);
+        }
+
         // ── CE-2054 (S8o): a blueprint behaviour's nested id is remapped through the registry ─────────
 
         /// <summary>

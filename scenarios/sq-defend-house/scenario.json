@@ -33,12 +33,12 @@
       },
       "Behavior": {
         "Name": "SquadDefend",
-        "Params": "{\"Position\": [120.9, 157, 0], \"SearchRadius\": 14, \"Speed\": 2}",
+        "Params": {"Position": [120.9, 157, 0], "SearchRadius": 14, "Speed": 2},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "BasicSquadSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Roe": {
@@ -309,7 +309,7 @@
       },
       "Behavior": {
         "Name": "AdvanceTo",
-        "Params": "{\"Objective\": [114, 128, 0], \"Speed\": 1.5, \"ArrivalRadius\": 2}",
+        "Params": {"Objective": [114, 128, 0], "Speed": 1.5, "ArrivalRadius": 2},
         "Origin": "Superior"
       },
       "Roe": {
@@ -320,7 +320,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -354,7 +354,7 @@
       },
       "Behavior": {
         "Name": "AdvanceTo",
-        "Params": "{\"Objective\": [118, 128, 0], \"Speed\": 1.5, \"ArrivalRadius\": 2}",
+        "Params": {"Objective": [118, 128, 0], "Speed": 1.5, "ArrivalRadius": 2},
         "Origin": "Superior"
       },
       "Roe": {
@@ -365,7 +365,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -399,7 +399,7 @@
       },
       "Behavior": {
         "Name": "AdvanceTo",
-        "Params": "{\"Objective\": [122, 128, 0], \"Speed\": 1.5, \"ArrivalRadius\": 2}",
+        "Params": {"Objective": [122, 128, 0], "Speed": 1.5, "ArrivalRadius": 2},
         "Origin": "Superior"
       },
       "Roe": {
@@ -410,7 +410,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -444,7 +444,7 @@
       },
       "Behavior": {
         "Name": "AdvanceTo",
-        "Params": "{\"Objective\": [126, 128, 0], \"Speed\": 1.5, \"ArrivalRadius\": 2}",
+        "Params": {"Objective": [126, 128, 0], "Speed": 1.5, "ArrivalRadius": 2},
         "Origin": "Superior"
       },
       "Roe": {
@@ -455,7 +455,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     }

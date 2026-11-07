@@ -33,7 +33,7 @@
       },
       "Behavior": {
         "Name": "FollowRoute",
-        "Params": "{\"routeEntityId\":\"a1118200-0000-4000-8000-000000000002\",\"Speed\":35}",
+        "Params": {"routeEntityId":"a1118200-0000-4000-8000-000000000002","Speed":35},
         "Origin": "Superior"
       },
       "Health": {
@@ -87,7 +87,7 @@
       },
       "Sop": {
         "Name": "BasicSquadSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },

@@ -83,7 +83,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -374,7 +374,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -665,7 +665,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -956,7 +956,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -1247,7 +1247,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -1538,7 +1538,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -1829,7 +1829,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -2120,7 +2120,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -2411,7 +2411,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -2702,7 +2702,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -2993,7 +2993,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -3284,7 +3284,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -3575,7 +3575,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -3866,7 +3866,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -4157,7 +4157,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -4448,7 +4448,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -4739,7 +4739,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -5030,7 +5030,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -5321,7 +5321,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -5612,7 +5612,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -5903,7 +5903,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -6194,7 +6194,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -6485,7 +6485,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -6776,7 +6776,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -7067,7 +7067,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -7358,7 +7358,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -7649,7 +7649,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -7940,7 +7940,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -8231,7 +8231,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -8522,7 +8522,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -8813,7 +8813,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -9104,7 +9104,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -9395,7 +9395,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -9686,7 +9686,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -9977,7 +9977,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -10268,7 +10268,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -10559,7 +10559,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -10850,7 +10850,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -11141,7 +11141,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -11432,7 +11432,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -11723,7 +11723,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -12014,7 +12014,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -12305,7 +12305,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -12596,7 +12596,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -12887,7 +12887,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -13178,7 +13178,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -13469,7 +13469,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -13760,7 +13760,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -14051,7 +14051,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -14342,7 +14342,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -14633,7 +14633,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -14924,7 +14924,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -15215,7 +15215,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -15506,7 +15506,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -15797,7 +15797,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -16088,7 +16088,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -16379,7 +16379,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -16670,7 +16670,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -16961,7 +16961,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -17252,7 +17252,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -17543,7 +17543,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -17834,7 +17834,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -18125,7 +18125,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -18416,7 +18416,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -18707,7 +18707,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -18998,7 +18998,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -19289,7 +19289,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -19580,7 +19580,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -19871,7 +19871,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -20162,7 +20162,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -20453,7 +20453,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -20744,7 +20744,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -21035,7 +21035,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -21326,7 +21326,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -21617,7 +21617,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -21908,7 +21908,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -22199,7 +22199,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -22490,7 +22490,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -22781,7 +22781,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -23072,7 +23072,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -23363,7 +23363,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -23654,7 +23654,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -23945,7 +23945,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -24236,7 +24236,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -24527,7 +24527,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -24818,7 +24818,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -25109,7 +25109,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -25400,7 +25400,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -25691,7 +25691,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -25982,7 +25982,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -26273,7 +26273,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -26564,7 +26564,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -26855,7 +26855,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -27146,7 +27146,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -27437,7 +27437,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -27728,7 +27728,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -28019,7 +28019,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -28310,7 +28310,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -28601,7 +28601,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -28892,7 +28892,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -29183,7 +29183,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -29474,7 +29474,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -29765,7 +29765,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -30056,7 +30056,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -30347,7 +30347,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -30638,7 +30638,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -30929,7 +30929,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -31220,7 +31220,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -31511,7 +31511,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -31802,7 +31802,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -32093,7 +32093,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -32384,7 +32384,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -32675,7 +32675,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -32966,7 +32966,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -33257,7 +33257,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -33548,7 +33548,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -33839,7 +33839,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -34130,7 +34130,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -34421,7 +34421,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -34712,7 +34712,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -35003,7 +35003,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 525, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 525, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -35294,7 +35294,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -35585,7 +35585,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -35876,7 +35876,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -36154,7 +36154,7 @@
    },
    "Behavior": {
     "Name": "HoldArea",
-    "Params": "{\"common\": {\"title\": \"Point 1\", \"subject\": \"5e550000-0000-4000-8000-000000000001\", \"scored\": false}, \"area\": {\"circle\": {\"center\": [400, 400, 0], \"radius\": 15}}, \"minMen\": 1, \"capture\": true, \"captureSeconds\": 10}",
+    "Params": {"common": {"title": "Point 1", "subject": "5e550000-0000-4000-8000-000000000001", "scored": false}, "area": {"circle": {"center": [400, 400, 0], "radius": 15}}, "minMen": 1, "capture": true, "captureSeconds": 10},
     "Origin": "Superior"
    }
   },
@@ -36168,7 +36168,7 @@
    },
    "Behavior": {
     "Name": "HoldArea",
-    "Params": "{\"common\": {\"title\": \"Point 2\", \"subject\": \"5e550000-0000-4000-8000-000000000001\", \"scored\": false}, \"area\": {\"circle\": {\"center\": [525, 400, 0], \"radius\": 15}}, \"minMen\": 1, \"capture\": true, \"captureSeconds\": 10}",
+    "Params": {"common": {"title": "Point 2", "subject": "5e550000-0000-4000-8000-000000000001", "scored": false}, "area": {"circle": {"center": [525, 400, 0], "radius": 15}}, "minMen": 1, "capture": true, "captureSeconds": 10},
     "Origin": "Superior"
    }
   },
@@ -36182,7 +36182,7 @@
    },
    "Behavior": {
     "Name": "HoldArea",
-    "Params": "{\"common\": {\"title\": \"Point 3\", \"subject\": \"5e550000-0000-4000-8000-000000000001\", \"scored\": false}, \"area\": {\"circle\": {\"center\": [650, 400, 0], \"radius\": 15}}, \"minMen\": 1, \"capture\": true, \"captureSeconds\": 10}",
+    "Params": {"common": {"title": "Point 3", "subject": "5e550000-0000-4000-8000-000000000001", "scored": false}, "area": {"circle": {"center": [650, 400, 0], "radius": 15}}, "minMen": 1, "capture": true, "captureSeconds": 10},
     "Origin": "Superior"
    }
   },
@@ -36196,7 +36196,7 @@
    },
    "Behavior": {
     "Name": "HoldArea",
-    "Params": "{\"common\": {\"title\": \"Point 4\", \"subject\": \"5e550000-0000-4000-8000-000000000001\", \"scored\": false}, \"area\": {\"circle\": {\"center\": [400, 525, 0], \"radius\": 15}}, \"minMen\": 1, \"capture\": true, \"captureSeconds\": 10}",
+    "Params": {"common": {"title": "Point 4", "subject": "5e550000-0000-4000-8000-000000000001", "scored": false}, "area": {"circle": {"center": [400, 525, 0], "radius": 15}}, "minMen": 1, "capture": true, "captureSeconds": 10},
     "Origin": "Superior"
    }
   },
@@ -36210,7 +36210,7 @@
    },
    "Behavior": {
     "Name": "HoldArea",
-    "Params": "{\"common\": {\"title\": \"Point 5\", \"subject\": \"5e550000-0000-4000-8000-000000000001\", \"scored\": false}, \"area\": {\"circle\": {\"center\": [525, 525, 0], \"radius\": 15}}, \"minMen\": 1, \"capture\": true, \"captureSeconds\": 10}",
+    "Params": {"common": {"title": "Point 5", "subject": "5e550000-0000-4000-8000-000000000001", "scored": false}, "area": {"circle": {"center": [525, 525, 0], "radius": 15}}, "minMen": 1, "capture": true, "captureSeconds": 10},
     "Origin": "Superior"
    }
   },
@@ -36224,7 +36224,7 @@
    },
    "Behavior": {
     "Name": "HoldArea",
-    "Params": "{\"common\": {\"title\": \"Point 6\", \"subject\": \"5e550000-0000-4000-8000-000000000001\", \"scored\": false}, \"area\": {\"circle\": {\"center\": [650, 525, 0], \"radius\": 15}}, \"minMen\": 1, \"capture\": true, \"captureSeconds\": 10}",
+    "Params": {"common": {"title": "Point 6", "subject": "5e550000-0000-4000-8000-000000000001", "scored": false}, "area": {"circle": {"center": [650, 525, 0], "radius": 15}}, "minMen": 1, "capture": true, "captureSeconds": 10},
     "Origin": "Superior"
    }
   },
@@ -36238,7 +36238,7 @@
    },
    "Behavior": {
     "Name": "Counter",
-    "Params": "{\"common\": {\"title\": \"Blue losses\", \"subject\": \"5e550000-0000-4000-8000-000000000001\", \"scored\": false}, \"start\": 0, \"floor\": -100000, \"deaths\": [{\"side\": \"Friend\", \"per\": -1}]}",
+    "Params": {"common": {"title": "Blue losses", "subject": "5e550000-0000-4000-8000-000000000001", "scored": false}, "start": 0, "floor": -100000, "deaths": [{"side": "Friend", "per": -1}]},
     "Origin": "Superior"
    }
   },
@@ -36252,7 +36252,7 @@
    },
    "Behavior": {
     "Name": "Counter",
-    "Params": "{\"common\": {\"title\": \"Red losses\", \"subject\": \"5e550000-0000-4000-8000-000000000002\", \"scored\": false}, \"start\": 0, \"floor\": -100000, \"deaths\": [{\"side\": \"Hostile\", \"per\": -1}]}",
+    "Params": {"common": {"title": "Red losses", "subject": "5e550000-0000-4000-8000-000000000002", "scored": false}, "start": 0, "floor": -100000, "deaths": [{"side": "Hostile", "per": -1}]},
     "Origin": "Superior"
    }
   },
@@ -36267,7 +36267,7 @@
    "Behavior": {
     "Name": "Trigger",
     "Origin": "Superior",
-    "Params": "{\"common\": {\"title\": \"Kick-off\", \"subject\": \"5e550000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 3}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Stress run\", \"seconds\": 5}}]}"
+    "Params": {"common": {"title": "Kick-off", "subject": "5e550000-0000-4000-8000-000000000001"}, "when": {"$type": "ScenarioTime", "fromSeconds": 3}, "do": [{"act": "Message", "args": {"toKind": "All", "text": "Stress run", "seconds": 5}}]}
    }
   },
   "5e550000-0000-4000-8000-000000001128": {

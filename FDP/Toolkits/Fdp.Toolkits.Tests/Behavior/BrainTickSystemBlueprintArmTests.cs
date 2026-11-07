@@ -492,7 +492,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             if (!world.TryGetTable(typeof(ActiveMissionPlan), out _)) world.RegisterManagedComponent<ActiveMissionPlan>();
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState());
-            world.AddComponent(e, new MissionPlanQueue { PhaseCount = 2, CurrentPhase = 1 });     // the director just advanced
+            world.AddComponent(e, new MissionPlanQueue { TaskCount = 2, CurrentTask = 1 });     // the director just advanced
             world.SetManagedComponent(e, new ActiveMissionPlan
             {
                 Plan = new DomainMissionPlan

@@ -33,7 +33,7 @@
       },
       "Behavior": {
         "Name": "SupportCommand",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -96,7 +96,7 @@
       },
       "Behavior": {
         "Name": "FollowRoute",
-        "Params": "{\"routeEntityId\":\"d0cf0000-0000-4000-8000-000000009803\",\"Speed\":120}",
+        "Params": {"routeEntityId":"d0cf0000-0000-4000-8000-000000009803","Speed":120},
         "Origin": "Superior"
       }
     },
@@ -340,7 +340,7 @@
       },
       "Behavior": {
         "Name": "PlatoonConvoy",
-        "Params": "{\"Route\":\"d0cf0000-0000-4000-8000-000000009811\",\"Speed\":8}",
+        "Params": {"Route":"d0cf0000-0000-4000-8000-000000009811","Speed":8},
         "Origin": "Superior"
       }
     },
@@ -411,12 +411,12 @@
       },
       "Behavior": {
         "Name": "FollowRoute",
-        "Params": "{\"routeEntityId\":\"d0cf0000-0000-4000-8000-000000009811\",\"Speed\":8}",
+        "Params": {"routeEntityId":"d0cf0000-0000-4000-8000-000000009811","Speed":8},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "BasicVehicleSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -447,12 +447,12 @@
       },
       "Behavior": {
         "Name": "SquadHold",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "BasicSquadSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -662,12 +662,12 @@
       },
       "Behavior": {
         "Name": "FollowRoute",
-        "Params": "{\"routeEntityId\":\"d0cf0000-0000-4000-8000-000000009811\",\"Speed\":8}",
+        "Params": {"routeEntityId":"d0cf0000-0000-4000-8000-000000009811","Speed":8},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "BasicVehicleSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -698,12 +698,12 @@
       },
       "Behavior": {
         "Name": "SquadHold",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "BasicSquadSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -939,12 +939,12 @@
       },
       "Behavior": {
         "Name": "TriggerIed",
-        "Params": "{\"Charge\":\"d0cf0000-0000-4000-8000-000000009860\",\"KillZoneMetres\":10}",
+        "Params": {"Charge":"d0cf0000-0000-4000-8000-000000009860","KillZoneMetres":10},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -978,12 +978,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\": {\"Objective\": [690, 147, 0], \"Speed\": 2, \"ArrivalRadius\": 3}, \"stay\": true, \"post\": {\"point\": [690, 147, 0], \"radius\": 6}, \"watchTowards\": [652, 150, 0]}",
+        "Params": {"advance": {"Objective": [690, 147, 0], "Speed": 2, "ArrivalRadius": 3}, "stay": true, "post": {"point": [690, 147, 0], "radius": 6}, "watchTowards": [652, 150, 0]},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -1017,12 +1017,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\": {\"Objective\": [696, 153, 0], \"Speed\": 2, \"ArrivalRadius\": 3}, \"stay\": true, \"post\": {\"point\": [696, 153, 0], \"radius\": 6}, \"watchTowards\": [652, 150, 0]}",
+        "Params": {"advance": {"Objective": [696, 153, 0], "Speed": 2, "ArrivalRadius": 3}, "stay": true, "post": {"point": [696, 153, 0], "radius": 6}, "watchTowards": [652, 150, 0]},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -1056,12 +1056,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\": {\"Objective\": [702, 147, 0], \"Speed\": 2, \"ArrivalRadius\": 3}, \"stay\": true, \"post\": {\"point\": [702, 147, 0], \"radius\": 6}, \"watchTowards\": [652, 150, 0]}",
+        "Params": {"advance": {"Objective": [702, 147, 0], "Speed": 2, "ArrivalRadius": 3}, "stay": true, "post": {"point": [702, 147, 0], "radius": 6}, "watchTowards": [652, 150, 0]},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -1143,7 +1143,7 @@
       },
       "Behavior": {
         "Name": "ManWeapon",
-        "Params": "{\"weapon\":\"d0cf0000-0000-4000-8000-000000009871\"}",
+        "Params": {"weapon":"d0cf0000-0000-4000-8000-000000009871"},
         "Origin": "Superior"
       }
     },
@@ -1203,7 +1203,7 @@
       },
       "Behavior": {
         "Name": "ManWeapon",
-        "Params": "{\"weapon\":\"d0cf0000-0000-4000-8000-000000009872\"}",
+        "Params": {"weapon":"d0cf0000-0000-4000-8000-000000009872"},
         "Origin": "Superior"
       }
     },
@@ -1237,12 +1237,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\": {\"Objective\": [796, 784, 0], \"Speed\": 2, \"ArrivalRadius\": 3}, \"stay\": true, \"post\": {\"point\": [796, 784, 0], \"radius\": 6}, \"watchTowards\": [652, 150, 0]}",
+        "Params": {"advance": {"Objective": [796, 784, 0], "Speed": 2, "ArrivalRadius": 3}, "stay": true, "post": {"point": [796, 784, 0], "radius": 6}, "watchTowards": [652, 150, 0]},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -1276,12 +1276,12 @@
       },
       "Behavior": {
         "Name": "SpotForFire",
-        "Params": "{\"Battery\":\"d0cf0000-0000-4000-8000-000000009870\",\"Rounds\":2}",
+        "Params": {"Battery":"d0cf0000-0000-4000-8000-000000009870","Rounds":2},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -1340,7 +1340,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -1374,7 +1374,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -1408,7 +1408,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -1442,7 +1442,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -1476,7 +1476,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -1510,7 +1510,7 @@
       },
       "Behavior": {
         "Name": "CivilianHsm",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     }

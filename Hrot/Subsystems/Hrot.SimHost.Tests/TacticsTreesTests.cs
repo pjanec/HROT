@@ -842,22 +842,22 @@ namespace Hrot.SimHost.Tests
             var w = new World();
             Assert.True(w.Registry.TryGetId("Sentry", out int sentry));
             Assert.True(w.Registry.TryGetId("FallBack", out int next));
-            var queue = new MissionPlanQueue { PhaseCount = 2 };
-            queue.Phases[0] = new MissionPhase { BehaviorId = sentry, Trigger = MissionTrigger.BehaviorFinished };
-            queue.Phases[1] = new MissionPhase { BehaviorId = next,   Trigger = MissionTrigger.BehaviorFinished };
+            var queue = new MissionPlanQueue { TaskCount = 2 };
+            queue.Tasks[0] = new MissionTaskSlot { BehaviorId = sentry, Trigger = MissionTrigger.BehaviorFinished };
+            queue.Tasks[1] = new MissionTaskSlot { BehaviorId = next,   Trigger = MissionTrigger.BehaviorFinished };
             w.Repo.AddComponent(w.Unit, queue);
             var director = new MissionDirectorSystem();
             SentryAt(w, 0f, 30f);                                     // a contact already near
             w.Order("Sentry");
 
             int ticks = 0;
-            while (w.Repo.GetComponentRO<MissionPlanQueue>(w.Unit).CurrentPhase == 0 && ticks < 2000)
+            while (w.Repo.GetComponentRO<MissionPlanQueue>(w.Unit).CurrentTask == 0 && ticks < 2000)
             {
                 w.Tick();
                 director.Execute(w.Repo, 0.016f);
                 ticks++;
             }
-            Assert.Equal(1, w.Repo.GetComponentRO<MissionPlanQueue>(w.Unit).CurrentPhase);
+            Assert.Equal(1, w.Repo.GetComponentRO<MissionPlanQueue>(w.Unit).CurrentTask);
             Assert.True(ticks * 0.016 >= 14.9, $"task 2 only after the Sentry's wait; advanced after {ticks * 0.016:F1} s");
         }
 

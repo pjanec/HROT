@@ -67,7 +67,7 @@
       "Behavior": {
         "Name": "CombatPosture",
         "Origin": "Superior",
-        "Params": "{\"Advance\": {\"Objective\": [270, 300, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [270, 300, 0], \"Radius\": 2.0}, \"watchTowards\": [270, 180, 0]}"
+        "Params": {"Advance": {"Objective": [270, 300, 0], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [270, 300, 0], "Radius": 2.0}, "watchTowards": [270, 180, 0]}
       },
       "Roe": {
         "Fire": "FireAtWill",
@@ -111,11 +111,11 @@
       "Behavior": {
         "Name": "FireAtPoint",
         "Origin": "Superior",
-        "Params": "{\"x\": 270, \"y\": 310, \"z\": 4, \"mount\": 0, \"rounds\": 40, \"cooldownSeconds\": 1.3}"
+        "Params": {"x": 270, "y": 310, "z": 4, "mount": 0, "rounds": 40, "cooldownSeconds": 1.3}
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -150,7 +150,7 @@
       "Behavior": {
         "Name": "CombatPosture",
         "Origin": "Superior",
-        "Params": "{\"Advance\": {\"Objective\": [250, 250, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [250, 250, 0], \"Radius\": 2.0}, \"watchTowards\": [270, 300, 0]}"
+        "Params": {"Advance": {"Objective": [250, 250, 0], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [250, 250, 0], "Radius": 2.0}, "watchTowards": [270, 300, 0]}
       },
       "Roe": {
         "Fire": "FireAtWill",
@@ -216,7 +216,7 @@
       "Behavior": {
         "Name": "CombatPosture",
         "Origin": "Superior",
-        "Params": "{\"Advance\": {\"Objective\": [340, 300, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [340, 300, 0], \"Radius\": 2.0}, \"watchTowards\": [340, 180, 0]}"
+        "Params": {"Advance": {"Objective": [340, 300, 0], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [340, 300, 0], "Radius": 2.0}, "watchTowards": [340, 180, 0]}
       },
       "Roe": {
         "Fire": "FireAtWill",
@@ -260,11 +260,11 @@
       "Behavior": {
         "Name": "FireAtPoint",
         "Origin": "Superior",
-        "Params": "{\"x\": 340, \"y\": 310, \"z\": 4, \"mount\": 0, \"rounds\": 40, \"cooldownSeconds\": 1.3}"
+        "Params": {"x": 340, "y": 310, "z": 4, "mount": 0, "rounds": 40, "cooldownSeconds": 1.3}
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -299,7 +299,7 @@
       "Behavior": {
         "Name": "CombatPosture",
         "Origin": "Superior",
-        "Params": "{\"Advance\": {\"Objective\": [320, 250, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [320, 250, 0], \"Radius\": 2.0}, \"watchTowards\": [340, 300, 0]}"
+        "Params": {"Advance": {"Objective": [320, 250, 0], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [320, 250, 0], "Radius": 2.0}, "watchTowards": [340, 300, 0]}
       },
       "Roe": {
         "Fire": "FireAtWill",
@@ -365,7 +365,7 @@
       "Behavior": {
         "Name": "CombatPosture",
         "Origin": "Superior",
-        "Params": "{\"Advance\": {\"Objective\": [520, 300, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [520, 300, 0], \"Radius\": 2.0}, \"watchTowards\": [520, 180, 0]}"
+        "Params": {"Advance": {"Objective": [520, 300, 0], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [520, 300, 0], "Radius": 2.0}, "watchTowards": [520, 180, 0]}
       },
       "Roe": {
         "Fire": "FireAtWill",
@@ -410,11 +410,11 @@
       "Behavior": {
         "Name": "FireAtPoint",
         "Origin": "Superior",
-        "Params": "{\"x\": 520, \"y\": 310, \"z\": 4, \"mount\": 0, \"rounds\": 40, \"cooldownSeconds\": 1.3}"
+        "Params": {"x": 520, "y": 310, "z": 4, "mount": 0, "rounds": 40, "cooldownSeconds": 1.3}
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     }

@@ -40,7 +40,7 @@
       },
       "Behavior": {
         "Name": "FireAtPoint",
-        "Params": "{\"x\": 280, \"y\": 380, \"z\": 0, \"mount\": 1, \"rounds\": 1, \"cooldownSeconds\": 30}",
+        "Params": {"x": 280, "y": 380, "z": 0, "mount": 1, "rounds": 1, "cooldownSeconds": 30},
         "Origin": "Superior"
       }
     },

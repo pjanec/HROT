@@ -494,13 +494,13 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         {
             var queue = new MissionPlanQueue
             {
-                CurrentPhase = 0,
-                PhaseElapsedSeconds = 0f,
-                PhaseCount = (byte)Math.Min(plan.Tasks?.Count ?? 0, MissionPlanQueue.MaxPhases)
+                CurrentTask = 0,
+                TaskElapsedSeconds = 0f,
+                TaskCount = (byte)Math.Min(plan.Tasks?.Count ?? 0, MissionPlanQueue.MaxTasks)
             };
 
             var tasks = plan.Tasks ?? new List<NedMissionTask>();
-            int count = Math.Min(tasks.Count, MissionPlanQueue.MaxPhases);
+            int count = Math.Min(tasks.Count, MissionPlanQueue.MaxTasks);
 
             for (int i = 0; i < count; i++)
             {
@@ -510,7 +510,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 
                 System.Console.WriteLine($"[SimHostInstance] task {i}: trigger={trigger}, param={param}");
 
-                queue.Phases[i] = new MissionPhase
+                queue.Tasks[i] = new MissionTaskSlot
                 {
                     BehaviorId   = behaviorId,
                     Trigger      = trigger,
@@ -518,7 +518,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 };
             }
 
-            queue.PhaseCount = (byte)count;
+            queue.TaskCount = (byte)count;
             return queue;
         }
 

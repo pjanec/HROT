@@ -40,7 +40,7 @@
             },
             "Behavior": {
                 "Name": "CivilianHsm",
-                "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0],\"Attitude\":0.6}",
+                "Params": {"Protest":true,"ProtestAt":[224,265,0],"Attitude":0.6},
                 "Origin": "Superior"
             }
         },
@@ -74,7 +74,7 @@
             },
             "Behavior": {
                 "Name": "CivilianHsm",
-                "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0],\"Attitude\":-1}",
+                "Params": {"Protest":true,"ProtestAt":[224,265,0],"Attitude":-1},
                 "Origin": "Superior"
             }
         },
@@ -108,7 +108,7 @@
             },
             "Behavior": {
                 "Name": "CivilianHsm",
-                "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0],\"Attitude\":0.2}",
+                "Params": {"Protest":true,"ProtestAt":[224,265,0],"Attitude":0.2},
                 "Origin": "Superior"
             }
         },
@@ -142,7 +142,7 @@
             },
             "Behavior": {
                 "Name": "CivilianHsm",
-                "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0],\"Attitude\":0}",
+                "Params": {"Protest":true,"ProtestAt":[224,265,0],"Attitude":0},
                 "Origin": "Superior"
             }
         },
@@ -176,7 +176,7 @@
             },
             "Behavior": {
                 "Name": "CivilianHsm",
-                "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0],\"Attitude\":-1}",
+                "Params": {"Protest":true,"ProtestAt":[224,265,0],"Attitude":-1},
                 "Origin": "Superior"
             }
         },
@@ -210,7 +210,7 @@
             },
             "Behavior": {
                 "Name": "CivilianHsm",
-                "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0],\"Attitude\":0.8}",
+                "Params": {"Protest":true,"ProtestAt":[224,265,0],"Attitude":0.8},
                 "Origin": "Superior"
             }
         },
@@ -244,7 +244,7 @@
             },
             "Behavior": {
                 "Name": "CivilianHsm",
-                "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0],\"Attitude\":-1}",
+                "Params": {"Protest":true,"ProtestAt":[224,265,0],"Attitude":-1},
                 "Origin": "Superior"
             }
         },
@@ -278,7 +278,7 @@
             },
             "Behavior": {
                 "Name": "CivilianHsm",
-                "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0],\"Attitude\":0.4}",
+                "Params": {"Protest":true,"ProtestAt":[224,265,0],"Attitude":0.4},
                 "Origin": "Superior"
             }
         },
@@ -312,7 +312,7 @@
             },
             "Behavior": {
                 "Name": "CivilianHsm",
-                "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0],\"Attitude\":-0.4}",
+                "Params": {"Protest":true,"ProtestAt":[224,265,0],"Attitude":-0.4},
                 "Origin": "Superior"
             }
         },
@@ -346,7 +346,7 @@
             },
             "Behavior": {
                 "Name": "CivilianHsm",
-                "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0],\"Attitude\":-1}",
+                "Params": {"Protest":true,"ProtestAt":[224,265,0],"Attitude":-1},
                 "Origin": "Superior"
             }
         },
@@ -380,7 +380,7 @@
             },
             "Behavior": {
                 "Name": "CivilianHsm",
-                "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0],\"Attitude\":0}",
+                "Params": {"Protest":true,"ProtestAt":[224,265,0],"Attitude":0},
                 "Origin": "Superior"
             }
         },
@@ -414,7 +414,7 @@
             },
             "Behavior": {
                 "Name": "CivilianHsm",
-                "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0],\"Attitude\":-0.6}",
+                "Params": {"Protest":true,"ProtestAt":[224,265,0],"Attitude":-0.6},
                 "Origin": "Superior"
             }
         },
@@ -454,7 +454,7 @@
                             "taskId": "c2410002-0000-4000-8000-000000000100",
                             "executingEngine": "",
                             "behaviorName": "MoveToLocation",
-                            "behaviorParams": "{\"speed\":1.5,\"arrivalRadius\":1,\"target\":[194,259,0]}",
+                            "behaviorParams": {"speed":1.5,"arrivalRadius":1,"target":[194,259,0]},
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",
@@ -466,7 +466,7 @@
                             "taskId": "c2410002-0000-4000-8000-000000000103",
                             "executingEngine": "",
                             "behaviorName": "HoldTheLine",
-                            "behaviorParams": "{}",
+                            "behaviorParams": {},
                             "triggers": [
                                 {
                                     "type": "TimerElapsed",
@@ -478,7 +478,7 @@
                             "taskId": "c2410002-0000-4000-8000-000000000101",
                             "executingEngine": "",
                             "behaviorName": "BatonCharge",
-                            "behaviorParams": "{\"x\":212,\"y\":265,\"z\":0,\"Reach\":8,\"Seconds\":12}",
+                            "behaviorParams": {"x":212,"y":265,"z":0,"Reach":8,"Seconds":12},
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",
@@ -490,7 +490,7 @@
                             "taskId": "c2410002-0000-4000-8000-000000000102",
                             "executingEngine": "",
                             "behaviorName": "HoldTheLine",
-                            "behaviorParams": "{}",
+                            "behaviorParams": {},
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",
@@ -544,7 +544,7 @@
                             "taskId": "c2410002-0000-4000-8000-000000000110",
                             "executingEngine": "",
                             "behaviorName": "MoveToLocation",
-                            "behaviorParams": "{\"speed\":1.5,\"arrivalRadius\":1,\"target\":[194,265,0]}",
+                            "behaviorParams": {"speed":1.5,"arrivalRadius":1,"target":[194,265,0]},
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",
@@ -556,7 +556,7 @@
                             "taskId": "c2410002-0000-4000-8000-000000000113",
                             "executingEngine": "",
                             "behaviorName": "HoldTheLine",
-                            "behaviorParams": "{}",
+                            "behaviorParams": {},
                             "triggers": [
                                 {
                                     "type": "TimerElapsed",
@@ -568,7 +568,7 @@
                             "taskId": "c2410002-0000-4000-8000-000000000111",
                             "executingEngine": "",
                             "behaviorName": "BatonCharge",
-                            "behaviorParams": "{\"x\":212,\"y\":265,\"z\":0,\"Reach\":8,\"Seconds\":12}",
+                            "behaviorParams": {"x":212,"y":265,"z":0,"Reach":8,"Seconds":12},
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",
@@ -580,7 +580,7 @@
                             "taskId": "c2410002-0000-4000-8000-000000000112",
                             "executingEngine": "",
                             "behaviorName": "HoldTheLine",
-                            "behaviorParams": "{}",
+                            "behaviorParams": {},
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",
@@ -634,7 +634,7 @@
                             "taskId": "c2410002-0000-4000-8000-000000000120",
                             "executingEngine": "",
                             "behaviorName": "MoveToLocation",
-                            "behaviorParams": "{\"speed\":1.5,\"arrivalRadius\":1,\"target\":[194,271,0]}",
+                            "behaviorParams": {"speed":1.5,"arrivalRadius":1,"target":[194,271,0]},
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",
@@ -646,7 +646,7 @@
                             "taskId": "c2410002-0000-4000-8000-000000000123",
                             "executingEngine": "",
                             "behaviorName": "HoldTheLine",
-                            "behaviorParams": "{}",
+                            "behaviorParams": {},
                             "triggers": [
                                 {
                                     "type": "TimerElapsed",
@@ -658,7 +658,7 @@
                             "taskId": "c2410002-0000-4000-8000-000000000121",
                             "executingEngine": "",
                             "behaviorName": "BatonCharge",
-                            "behaviorParams": "{\"x\":212,\"y\":265,\"z\":0,\"Reach\":8,\"Seconds\":12}",
+                            "behaviorParams": {"x":212,"y":265,"z":0,"Reach":8,"Seconds":12},
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",
@@ -670,7 +670,7 @@
                             "taskId": "c2410002-0000-4000-8000-000000000122",
                             "executingEngine": "",
                             "behaviorName": "HoldTheLine",
-                            "behaviorParams": "{}",
+                            "behaviorParams": {},
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",

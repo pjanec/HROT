@@ -40,7 +40,7 @@
             },
             "Behavior": {
                 "Name": "Idle",
-                "Params": "{}",
+                "Params": {},
                 "Origin": "Superior"
             }
         },
@@ -74,7 +74,7 @@
             },
             "Behavior": {
                 "Name": "CivilianHsm",
-                "Params": "{\"Protest\":true,\"ProtestAt\":[108,200,0],\"Instigator\":true}",
+                "Params": {"Protest":true,"ProtestAt":[108,200,0],"Instigator":true},
                 "Origin": "Superior"
             }
         }

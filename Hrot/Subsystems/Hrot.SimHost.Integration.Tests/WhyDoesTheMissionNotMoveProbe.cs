@@ -105,9 +105,9 @@ namespace Hrot.SimHost.Integration.Tests
             if (world.HasComponent<MissionPlanQueue>(e))
             {
                 var q = world.GetComponent<MissionPlanQueue>(e);
-                _out.WriteLine($"    PhaseCount={q.PhaseCount} CurrentPhase={q.CurrentPhase} "
-                             + $"Phases[0].BehaviorId={q.Phases[0].BehaviorId} "
-                             + $"Trigger={q.Phases[0].Trigger} TriggerParam={q.Phases[0].TriggerParam}");
+                _out.WriteLine($"    PhaseCount={q.TaskCount} CurrentPhase={q.CurrentTask} "
+                             + $"Phases[0].BehaviorId={q.Tasks[0].BehaviorId} "
+                             + $"Trigger={q.Tasks[0].Trigger} TriggerParam={q.Tasks[0].TriggerParam}");
             }
             var plan = world.GetComponent<ActiveMissionPlan>(e);
             _out.WriteLine($"  ActiveMissionPlan present = {plan != null}");

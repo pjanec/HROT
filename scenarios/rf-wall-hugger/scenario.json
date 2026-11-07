@@ -33,12 +33,12 @@
       },
       "Sop": {
         "Name": "BasicSquadSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Behavior": {
         "Name": "SquadDefend",
-        "Params": "{\"Position\": [120, 157, 0], \"SearchRadius\": 10, \"Speed\": 2}",
+        "Params": {"Position": [120, 157, 0], "SearchRadius": 10, "Speed": 2},
         "Origin": "Superior"
       },
       "TargetMemory": {
@@ -214,12 +214,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"stay\": true, \"post\": {\"point\": [120, 122, 0], \"radius\": 2}}",
+        "Params": {"stay": true, "post": {"point": [120, 122, 0], "radius": 2}},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -253,12 +253,12 @@
       },
       "Behavior": {
         "Name": "HoldStance",
-        "Params": "{\"stance\": \"Crouched\"}",
+        "Params": {"stance": "Crouched"},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     }

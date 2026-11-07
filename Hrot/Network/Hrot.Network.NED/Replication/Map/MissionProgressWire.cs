@@ -24,11 +24,11 @@ namespace Hrot.Map.Common.Replication
                 case MissionPhaseOutcome.Done:   return eTaskState.TASK_DONE;
                 case MissionPhaseOutcome.Failed: return eTaskState.TASK_FAILED;
             }
-            return index == queue.CurrentPhase && queue.Halted == 0 ? eTaskState.TASK_ACTIVE : eTaskState.TASK_PLANNED;
+            return index == queue.CurrentTask && queue.Halted == 0 ? eTaskState.TASK_ACTIVE : eTaskState.TASK_PLANNED;
         }
 
         /// <summary>
-        /// W3: restore <see cref="MissionPlanQueue.Outcomes"/>, <see cref="MissionPlanQueue.CurrentPhase"/> and
+        /// W3: restore <see cref="MissionPlanQueue.Outcomes"/>, <see cref="MissionPlanQueue.CurrentTask"/> and
         /// <see cref="MissionPlanQueue.Halted"/> from the received task states (the first <c>PhaseCount</c> of them).
         /// <list type="bullet">
         ///   <item>an <c>ACTIVE</c> task is the current phase;</item>
@@ -40,7 +40,7 @@ namespace Hrot.Map.Common.Replication
         /// </summary>
         public static void Decode(IReadOnlyList<eTaskState> states, ref MissionPlanQueue queue)
         {
-            int count = queue.PhaseCount;
+            int count = queue.TaskCount;
             int active = -1, haltedOn = -1;
             for (int i = 0; i < count && i < states.Count; i++)
             {
@@ -56,19 +56,19 @@ namespace Hrot.Map.Common.Replication
                     haltedOn = i;
             }
 
-            if (active >= 0)        { queue.CurrentPhase = (byte)active;   queue.Halted = 0; }
-            else if (haltedOn >= 0) { queue.CurrentPhase = (byte)haltedOn; queue.Halted = 1; }
-            else                    { queue.CurrentPhase = (byte)count;    queue.Halted = 0; }
+            if (active >= 0)        { queue.CurrentTask = (byte)active;   queue.Halted = 0; }
+            else if (haltedOn >= 0) { queue.CurrentTask = (byte)haltedOn; queue.Halted = 1; }
+            else                    { queue.CurrentTask = (byte)count;    queue.Halted = 0; }
         }
 
         /// <summary>W2: the progress that decides whether the egress must re-publish — current phase, phase count, halt,
-        /// and the eight outcomes packed into one value.</summary>
+        /// and the outcomes packed into one value (2 bits each, CE-4299).</summary>
         public static (ulong Outcomes, int Head) ProgressOf(in MissionPlanQueue queue)
         {
             ulong outcomes = 0;
-            for (int i = 0; i < MissionPlanQueue.MaxPhases; i++)
-                outcomes |= (ulong)(byte)queue.Outcomes[i] << (8 * i);
-            return (outcomes, queue.CurrentPhase | queue.PhaseCount << 8 | queue.Halted << 16);
+            for (int i = 0; i < MissionPlanQueue.MaxTasks; i++)
+                outcomes |= (ulong)((byte)queue.Outcomes[i] & 3) << (2 * i);   // ⭐ CE-4299 — 2 bits each (None / Done / Failed): 16 tasks fit
+            return (outcomes, queue.CurrentTask | queue.TaskCount << 8 | queue.Halted << 16);
         }
     }
 }

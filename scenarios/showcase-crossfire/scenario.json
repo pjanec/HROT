@@ -62,7 +62,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [400, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -221,7 +221,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -405,7 +405,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [650, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -564,7 +564,7 @@
    },
    "Behavior": {
     "Name": "SquadDefend",
-    "Params": "{\"Position\": [525, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
+    "Params": {"Position": [525, 400, 0], "SearchRadius": 12, "Speed": 3},
     "Origin": "Superior"
    }
   },
@@ -710,7 +710,7 @@
    },
    "Behavior": {
     "Name": "HoldArea",
-    "Params": "{\"common\": {\"title\": \"Point A\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"scored\": false}, \"area\": {\"circle\": {\"center\": [400, 400, 0], \"radius\": 15}}, \"minMen\": 1, \"capture\": true, \"captureSeconds\": 10}",
+    "Params": {"common": {"title": "Point A", "subject": "cf6e0000-0000-4000-8000-000000000001", "scored": false}, "area": {"circle": {"center": [400, 400, 0], "radius": 15}}, "minMen": 1, "capture": true, "captureSeconds": 10},
     "Origin": "Superior"
    },
    "RefKey": {
@@ -727,7 +727,7 @@
    },
    "Behavior": {
     "Name": "HoldArea",
-    "Params": "{\"common\": {\"title\": \"Point B\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"scored\": false}, \"area\": {\"circle\": {\"center\": [525, 400, 0], \"radius\": 15}}, \"minMen\": 1, \"capture\": true, \"captureSeconds\": 10}",
+    "Params": {"common": {"title": "Point B", "subject": "cf6e0000-0000-4000-8000-000000000001", "scored": false}, "area": {"circle": {"center": [525, 400, 0], "radius": 15}}, "minMen": 1, "capture": true, "captureSeconds": 10},
     "Origin": "Superior"
    },
    "RefKey": {
@@ -744,7 +744,7 @@
    },
    "Behavior": {
     "Name": "HoldArea",
-    "Params": "{\"common\": {\"title\": \"Point C\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"scored\": false}, \"area\": {\"circle\": {\"center\": [650, 400, 0], \"radius\": 15}}, \"minMen\": 1, \"capture\": true, \"captureSeconds\": 10}",
+    "Params": {"common": {"title": "Point C", "subject": "cf6e0000-0000-4000-8000-000000000001", "scored": false}, "area": {"circle": {"center": [650, 400, 0], "radius": 15}}, "minMen": 1, "capture": true, "captureSeconds": 10},
     "Origin": "Superior"
    },
    "RefKey": {
@@ -761,7 +761,7 @@
    },
    "Behavior": {
     "Name": "Counter",
-    "Params": "{\"common\": {\"title\": \"Blue tickets\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"scored\": false}, \"start\": 150, \"deaths\": [{\"side\": \"Friend\", \"per\": -1}]}",
+    "Params": {"common": {"title": "Blue tickets", "subject": "cf6e0000-0000-4000-8000-000000000001", "scored": false}, "start": 150, "deaths": [{"side": "Friend", "per": -1}]},
     "Origin": "Superior"
    },
    "RefKey": {
@@ -778,7 +778,7 @@
    },
    "Behavior": {
     "Name": "Counter",
-    "Params": "{\"common\": {\"title\": \"Red tickets\", \"subject\": \"cf6e0000-0000-4000-8000-000000000012\", \"scored\": false}, \"start\": 150, \"deaths\": [{\"side\": \"Hostile\", \"per\": -1}]}",
+    "Params": {"common": {"title": "Red tickets", "subject": "cf6e0000-0000-4000-8000-000000000012", "scored": false}, "start": 150, "deaths": [{"side": "Hostile", "per": -1}]},
     "Origin": "Superior"
    },
    "RefKey": {
@@ -795,7 +795,7 @@
    },
    "Behavior": {
     "Name": "Counter",
-    "Params": "{\"common\": {\"title\": \"Blue lead\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"scored\": false}, \"start\": 0, \"floor\": -1000, \"deaths\": [{\"side\": \"Hostile\", \"per\": 1}, {\"side\": \"Friend\", \"per\": -1}]}",
+    "Params": {"common": {"title": "Blue lead", "subject": "cf6e0000-0000-4000-8000-000000000001", "scored": false}, "start": 0, "floor": -1000, "deaths": [{"side": "Hostile", "per": 1}, {"side": "Friend", "per": -1}]},
     "Origin": "Superior"
    },
    "RefKey": {
@@ -812,7 +812,7 @@
    },
    "Behavior": {
     "Name": "Points",
-    "Params": "{\"common\": {\"title\": \"All players\", \"group\": \"score\", \"scored\": false}}",
+    "Params": {"common": {"title": "All players", "group": "score", "scored": false}},
     "Origin": "Superior"
    },
    "RefKey": {
@@ -829,7 +829,7 @@
    },
    "Behavior": {
     "Name": "MemberEvaluation",
-    "Params": "{\"common\": {\"title\": \"Blue score\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"parent\": \"cf6e0000-0000-4000-8000-000000000029\", \"group\": \"score\", \"scored\": false}, \"library\": \"macros/game/score\", \"members\": \"side\", \"aggregate\": \"points\"}",
+    "Params": {"common": {"title": "Blue score", "subject": "cf6e0000-0000-4000-8000-000000000001", "parent": "cf6e0000-0000-4000-8000-000000000029", "group": "score", "scored": false}, "library": "macros/game/score", "members": "side", "aggregate": "points"},
     "Origin": "Superior"
    }
   },
@@ -843,7 +843,7 @@
    },
    "Behavior": {
     "Name": "MemberEvaluation",
-    "Params": "{\"common\": {\"title\": \"Red score\", \"subject\": \"cf6e0000-0000-4000-8000-000000000012\", \"parent\": \"cf6e0000-0000-4000-8000-000000000029\", \"group\": \"score\", \"scored\": false}, \"library\": \"macros/game/score\", \"members\": \"side\", \"aggregate\": \"points\"}",
+    "Params": {"common": {"title": "Red score", "subject": "cf6e0000-0000-4000-8000-000000000012", "parent": "cf6e0000-0000-4000-8000-000000000029", "group": "score", "scored": false}, "library": "macros/game/score", "members": "side", "aggregate": "points"},
     "Origin": "Superior"
    }
   },
@@ -884,7 +884,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Kick-off\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 3}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Take the points!\", \"seconds\": 5}}]}",
+    "Params": {"common": {"title": "Kick-off", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "ScenarioTime", "fromSeconds": 3}, "do": [{"act": "Message", "args": {"toKind": "All", "text": "Take the points!", "seconds": 5}}]},
     "Origin": "Superior"
    }
   },
@@ -898,7 +898,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"A drains Red\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000023\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000027\", \"amount\": -1}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": 1}}], \"repeat\": true, \"whileTrue\": true, \"cooldown\": 10}",
+    "Params": {"common": {"title": "A drains Red", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000023", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 1, "maxValue": 1}}}, "do": [{"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000027", "amount": -1}}, {"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000028", "amount": 1}}], "repeat": true, "whileTrue": true, "cooldown": 10},
     "Origin": "Superior"
    }
   },
@@ -912,7 +912,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"A drains Red (sudden death)\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"startActive\": false}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000023\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000027\", \"amount\": -1}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": 1}}], \"repeat\": true, \"whileTrue\": true, \"cooldown\": 10}",
+    "Params": {"common": {"title": "A drains Red (sudden death)", "subject": "cf6e0000-0000-4000-8000-000000000001", "startActive": false}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000023", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 1, "maxValue": 1}}}, "do": [{"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000027", "amount": -1}}, {"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000028", "amount": 1}}], "repeat": true, "whileTrue": true, "cooldown": 10},
     "Origin": "Superior"
    }
   },
@@ -926,7 +926,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"A drains Blue\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000023\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000026\", \"amount\": -1}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": -1}}], \"repeat\": true, \"whileTrue\": true, \"cooldown\": 10}",
+    "Params": {"common": {"title": "A drains Blue", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000023", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 2, "maxValue": 2}}}, "do": [{"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000026", "amount": -1}}, {"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000028", "amount": -1}}], "repeat": true, "whileTrue": true, "cooldown": 10},
     "Origin": "Superior"
    }
   },
@@ -940,7 +940,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"A drains Blue (sudden death)\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"startActive\": false}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000023\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000026\", \"amount\": -1}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": -1}}], \"repeat\": true, \"whileTrue\": true, \"cooldown\": 10}",
+    "Params": {"common": {"title": "A drains Blue (sudden death)", "subject": "cf6e0000-0000-4000-8000-000000000001", "startActive": false}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000023", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 2, "maxValue": 2}}}, "do": [{"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000026", "amount": -1}}, {"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000028", "amount": -1}}], "repeat": true, "whileTrue": true, "cooldown": 10},
     "Origin": "Superior"
    }
   },
@@ -954,7 +954,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"B drains Red\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000024\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000027\", \"amount\": -1}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": 1}}], \"repeat\": true, \"whileTrue\": true, \"cooldown\": 10}",
+    "Params": {"common": {"title": "B drains Red", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000024", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 1, "maxValue": 1}}}, "do": [{"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000027", "amount": -1}}, {"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000028", "amount": 1}}], "repeat": true, "whileTrue": true, "cooldown": 10},
     "Origin": "Superior"
    }
   },
@@ -968,7 +968,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"B drains Red (sudden death)\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"startActive\": false}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000024\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000027\", \"amount\": -1}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": 1}}], \"repeat\": true, \"whileTrue\": true, \"cooldown\": 10}",
+    "Params": {"common": {"title": "B drains Red (sudden death)", "subject": "cf6e0000-0000-4000-8000-000000000001", "startActive": false}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000024", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 1, "maxValue": 1}}}, "do": [{"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000027", "amount": -1}}, {"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000028", "amount": 1}}], "repeat": true, "whileTrue": true, "cooldown": 10},
     "Origin": "Superior"
    }
   },
@@ -982,7 +982,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"B drains Blue\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000024\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000026\", \"amount\": -1}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": -1}}], \"repeat\": true, \"whileTrue\": true, \"cooldown\": 10}",
+    "Params": {"common": {"title": "B drains Blue", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000024", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 2, "maxValue": 2}}}, "do": [{"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000026", "amount": -1}}, {"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000028", "amount": -1}}], "repeat": true, "whileTrue": true, "cooldown": 10},
     "Origin": "Superior"
    }
   },
@@ -996,7 +996,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"B drains Blue (sudden death)\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"startActive\": false}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000024\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000026\", \"amount\": -1}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": -1}}], \"repeat\": true, \"whileTrue\": true, \"cooldown\": 10}",
+    "Params": {"common": {"title": "B drains Blue (sudden death)", "subject": "cf6e0000-0000-4000-8000-000000000001", "startActive": false}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000024", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 2, "maxValue": 2}}}, "do": [{"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000026", "amount": -1}}, {"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000028", "amount": -1}}], "repeat": true, "whileTrue": true, "cooldown": 10},
     "Origin": "Superior"
    }
   },
@@ -1010,7 +1010,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"C drains Red\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000025\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000027\", \"amount\": -1}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": 1}}], \"repeat\": true, \"whileTrue\": true, \"cooldown\": 10}",
+    "Params": {"common": {"title": "C drains Red", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000025", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 1, "maxValue": 1}}}, "do": [{"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000027", "amount": -1}}, {"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000028", "amount": 1}}], "repeat": true, "whileTrue": true, "cooldown": 10},
     "Origin": "Superior"
    }
   },
@@ -1024,7 +1024,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"C drains Red (sudden death)\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"startActive\": false}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000025\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000027\", \"amount\": -1}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": 1}}], \"repeat\": true, \"whileTrue\": true, \"cooldown\": 10}",
+    "Params": {"common": {"title": "C drains Red (sudden death)", "subject": "cf6e0000-0000-4000-8000-000000000001", "startActive": false}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000025", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 1, "maxValue": 1}}}, "do": [{"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000027", "amount": -1}}, {"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000028", "amount": 1}}], "repeat": true, "whileTrue": true, "cooldown": 10},
     "Origin": "Superior"
    }
   },
@@ -1038,7 +1038,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"C drains Blue\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000025\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000026\", \"amount\": -1}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": -1}}], \"repeat\": true, \"whileTrue\": true, \"cooldown\": 10}",
+    "Params": {"common": {"title": "C drains Blue", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000025", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 2, "maxValue": 2}}}, "do": [{"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000026", "amount": -1}}, {"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000028", "amount": -1}}], "repeat": true, "whileTrue": true, "cooldown": 10},
     "Origin": "Superior"
    }
   },
@@ -1052,7 +1052,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"C drains Blue (sudden death)\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"startActive\": false}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000025\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000026\", \"amount\": -1}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": -1}}], \"repeat\": true, \"whileTrue\": true, \"cooldown\": 10}",
+    "Params": {"common": {"title": "C drains Blue (sudden death)", "subject": "cf6e0000-0000-4000-8000-000000000001", "startActive": false}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000025", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 2, "maxValue": 2}}}, "do": [{"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000026", "amount": -1}}, {"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000028", "amount": -1}}], "repeat": true, "whileTrue": true, "cooldown": 10},
     "Origin": "Superior"
    }
   },
@@ -1066,7 +1066,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Sudden death\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 720}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Sudden death - points count double\", \"seconds\": 6}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000035\", \"active\": true}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000037\", \"active\": true}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000039\", \"active\": true}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000041\", \"active\": true}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000043\", \"active\": true}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000045\", \"active\": true}}]}",
+    "Params": {"common": {"title": "Sudden death", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "ScenarioTime", "fromSeconds": 720}, "do": [{"act": "Message", "args": {"toKind": "All", "text": "Sudden death - points count double", "seconds": 6}}, {"act": "SetObjectiveActive", "args": {"target": "cf6e0000-0000-4000-8000-000000000035", "active": true}}, {"act": "SetObjectiveActive", "args": {"target": "cf6e0000-0000-4000-8000-000000000037", "active": true}}, {"act": "SetObjectiveActive", "args": {"target": "cf6e0000-0000-4000-8000-000000000039", "active": true}}, {"act": "SetObjectiveActive", "args": {"target": "cf6e0000-0000-4000-8000-000000000041", "active": true}}, {"act": "SetObjectiveActive", "args": {"target": "cf6e0000-0000-4000-8000-000000000043", "active": true}}, {"act": "SetObjectiveActive", "args": {"target": "cf6e0000-0000-4000-8000-000000000045", "active": true}}]},
     "Origin": "Superior"
    }
   },
@@ -1171,7 +1171,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Crate 1 announced\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 150}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Supply drop in 30 s\", \"seconds\": 6}}]}",
+    "Params": {"common": {"title": "Crate 1 announced", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "ScenarioTime", "fromSeconds": 150}, "do": [{"act": "Message", "args": {"toKind": "All", "text": "Supply drop in 30 s", "seconds": 6}}]},
     "Origin": "Superior"
    }
   },
@@ -1185,7 +1185,7 @@
    },
    "Behavior": {
     "Name": "HoldArea",
-    "Params": "{\"common\": {\"title\": \"Crate 1\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"scored\": false, \"startActive\": false}, \"area\": \"@CrateSpot1\", \"minMen\": 1, \"capture\": true, \"captureSeconds\": 20}",
+    "Params": {"common": {"title": "Crate 1", "subject": "cf6e0000-0000-4000-8000-000000000001", "scored": false, "startActive": false}, "area": "@CrateSpot1", "minMen": 1, "capture": true, "captureSeconds": 20},
     "Origin": "Superior"
    }
   },
@@ -1199,7 +1199,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Crate drop 1\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 180}, \"do\": [{\"act\": \"InsertMacro\", \"args\": {\"macro\": \"game/supply-crate\", \"at\": \"@CrateSpot1\", \"heading\": 0}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000049\", \"active\": true}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Supply crate down\", \"seconds\": 5}}]}",
+    "Params": {"common": {"title": "Crate drop 1", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "ScenarioTime", "fromSeconds": 180}, "do": [{"act": "InsertMacro", "args": {"macro": "game/supply-crate", "at": "@CrateSpot1", "heading": 0}}, {"act": "SetObjectiveActive", "args": {"target": "cf6e0000-0000-4000-8000-000000000049", "active": true}}, {"act": "Message", "args": {"toKind": "All", "text": "Supply crate down", "seconds": 5}}]},
     "Origin": "Superior"
    }
   },
@@ -1213,7 +1213,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Crate 1 to Blue\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000049\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000026\", \"amount\": 15}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": 15}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Blue secured a crate: +15 tickets\", \"seconds\": 5}}]}",
+    "Params": {"common": {"title": "Crate 1 to Blue", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000049", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 1, "maxValue": 1}}}, "do": [{"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000026", "amount": 15}}, {"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000028", "amount": 15}}, {"act": "Message", "args": {"toKind": "All", "text": "Blue secured a crate: +15 tickets", "seconds": 5}}]},
     "Origin": "Superior"
    }
   },
@@ -1227,7 +1227,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Crate 1 to Red\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000049\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000027\", \"amount\": 15}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": -15}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Red secured a crate: +15 tickets\", \"seconds\": 5}}]}",
+    "Params": {"common": {"title": "Crate 1 to Red", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000049", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 2, "maxValue": 2}}}, "do": [{"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000027", "amount": 15}}, {"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000028", "amount": -15}}, {"act": "Message", "args": {"toKind": "All", "text": "Red secured a crate: +15 tickets", "seconds": 5}}]},
     "Origin": "Superior"
    }
   },
@@ -1332,7 +1332,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Crate 2 announced\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 330}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Supply drop in 30 s\", \"seconds\": 6}}]}",
+    "Params": {"common": {"title": "Crate 2 announced", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "ScenarioTime", "fromSeconds": 330}, "do": [{"act": "Message", "args": {"toKind": "All", "text": "Supply drop in 30 s", "seconds": 6}}]},
     "Origin": "Superior"
    }
   },
@@ -1346,7 +1346,7 @@
    },
    "Behavior": {
     "Name": "HoldArea",
-    "Params": "{\"common\": {\"title\": \"Crate 2\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"scored\": false, \"startActive\": false}, \"area\": \"@CrateSpot2\", \"minMen\": 1, \"capture\": true, \"captureSeconds\": 20}",
+    "Params": {"common": {"title": "Crate 2", "subject": "cf6e0000-0000-4000-8000-000000000001", "scored": false, "startActive": false}, "area": "@CrateSpot2", "minMen": 1, "capture": true, "captureSeconds": 20},
     "Origin": "Superior"
    }
   },
@@ -1360,7 +1360,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Crate drop 2\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 360}, \"do\": [{\"act\": \"InsertMacro\", \"args\": {\"macro\": \"game/supply-crate\", \"at\": \"@CrateSpot2\", \"heading\": 0}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000055\", \"active\": true}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Supply crate down\", \"seconds\": 5}}]}",
+    "Params": {"common": {"title": "Crate drop 2", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "ScenarioTime", "fromSeconds": 360}, "do": [{"act": "InsertMacro", "args": {"macro": "game/supply-crate", "at": "@CrateSpot2", "heading": 0}}, {"act": "SetObjectiveActive", "args": {"target": "cf6e0000-0000-4000-8000-000000000055", "active": true}}, {"act": "Message", "args": {"toKind": "All", "text": "Supply crate down", "seconds": 5}}]},
     "Origin": "Superior"
    }
   },
@@ -1374,7 +1374,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Crate 2 to Blue\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000055\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000026\", \"amount\": 15}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": 15}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Blue secured a crate: +15 tickets\", \"seconds\": 5}}]}",
+    "Params": {"common": {"title": "Crate 2 to Blue", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000055", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 1, "maxValue": 1}}}, "do": [{"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000026", "amount": 15}}, {"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000028", "amount": 15}}, {"act": "Message", "args": {"toKind": "All", "text": "Blue secured a crate: +15 tickets", "seconds": 5}}]},
     "Origin": "Superior"
    }
   },
@@ -1388,7 +1388,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Crate 2 to Red\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000055\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000027\", \"amount\": 15}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": -15}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Red secured a crate: +15 tickets\", \"seconds\": 5}}]}",
+    "Params": {"common": {"title": "Crate 2 to Red", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000055", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 2, "maxValue": 2}}}, "do": [{"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000027", "amount": 15}}, {"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000028", "amount": -15}}, {"act": "Message", "args": {"toKind": "All", "text": "Red secured a crate: +15 tickets", "seconds": 5}}]},
     "Origin": "Superior"
    }
   },
@@ -1493,7 +1493,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Crate 3 announced\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 510}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Supply drop in 30 s\", \"seconds\": 6}}]}",
+    "Params": {"common": {"title": "Crate 3 announced", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "ScenarioTime", "fromSeconds": 510}, "do": [{"act": "Message", "args": {"toKind": "All", "text": "Supply drop in 30 s", "seconds": 6}}]},
     "Origin": "Superior"
    }
   },
@@ -1507,7 +1507,7 @@
    },
    "Behavior": {
     "Name": "HoldArea",
-    "Params": "{\"common\": {\"title\": \"Crate 3\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"scored\": false, \"startActive\": false}, \"area\": \"@CrateSpot3\", \"minMen\": 1, \"capture\": true, \"captureSeconds\": 20}",
+    "Params": {"common": {"title": "Crate 3", "subject": "cf6e0000-0000-4000-8000-000000000001", "scored": false, "startActive": false}, "area": "@CrateSpot3", "minMen": 1, "capture": true, "captureSeconds": 20},
     "Origin": "Superior"
    }
   },
@@ -1521,7 +1521,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Crate drop 3\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 540}, \"do\": [{\"act\": \"InsertMacro\", \"args\": {\"macro\": \"game/supply-crate\", \"at\": \"@CrateSpot3\", \"heading\": 0}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000061\", \"active\": true}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Supply crate down\", \"seconds\": 5}}]}",
+    "Params": {"common": {"title": "Crate drop 3", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "ScenarioTime", "fromSeconds": 540}, "do": [{"act": "InsertMacro", "args": {"macro": "game/supply-crate", "at": "@CrateSpot3", "heading": 0}}, {"act": "SetObjectiveActive", "args": {"target": "cf6e0000-0000-4000-8000-000000000061", "active": true}}, {"act": "Message", "args": {"toKind": "All", "text": "Supply crate down", "seconds": 5}}]},
     "Origin": "Superior"
    }
   },
@@ -1535,7 +1535,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Crate 3 to Blue\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000061\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000026\", \"amount\": 15}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": 15}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Blue secured a crate: +15 tickets\", \"seconds\": 5}}]}",
+    "Params": {"common": {"title": "Crate 3 to Blue", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000061", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 1, "maxValue": 1}}}, "do": [{"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000026", "amount": 15}}, {"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000028", "amount": 15}}, {"act": "Message", "args": {"toKind": "All", "text": "Blue secured a crate: +15 tickets", "seconds": 5}}]},
     "Origin": "Superior"
    }
   },
@@ -1549,7 +1549,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Crate 3 to Red\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000061\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000027\", \"amount\": 15}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": -15}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Red secured a crate: +15 tickets\", \"seconds\": 5}}]}",
+    "Params": {"common": {"title": "Crate 3 to Red", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000061", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 2, "maxValue": 2}}}, "do": [{"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000027", "amount": 15}}, {"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000028", "amount": -15}}, {"act": "Message", "args": {"toKind": "All", "text": "Red secured a crate: +15 tickets", "seconds": 5}}]},
     "Origin": "Superior"
    }
   },
@@ -1654,7 +1654,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Crate 4 announced\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 690}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Supply drop in 30 s\", \"seconds\": 6}}]}",
+    "Params": {"common": {"title": "Crate 4 announced", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "ScenarioTime", "fromSeconds": 690}, "do": [{"act": "Message", "args": {"toKind": "All", "text": "Supply drop in 30 s", "seconds": 6}}]},
     "Origin": "Superior"
    }
   },
@@ -1668,7 +1668,7 @@
    },
    "Behavior": {
     "Name": "HoldArea",
-    "Params": "{\"common\": {\"title\": \"Crate 4\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"scored\": false, \"startActive\": false}, \"area\": \"@CrateSpot4\", \"minMen\": 1, \"capture\": true, \"captureSeconds\": 20}",
+    "Params": {"common": {"title": "Crate 4", "subject": "cf6e0000-0000-4000-8000-000000000001", "scored": false, "startActive": false}, "area": "@CrateSpot4", "minMen": 1, "capture": true, "captureSeconds": 20},
     "Origin": "Superior"
    }
   },
@@ -1682,7 +1682,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Crate drop 4\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 720}, \"do\": [{\"act\": \"InsertMacro\", \"args\": {\"macro\": \"game/supply-crate\", \"at\": \"@CrateSpot4\", \"heading\": 0}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000067\", \"active\": true}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Supply crate down\", \"seconds\": 5}}]}",
+    "Params": {"common": {"title": "Crate drop 4", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "ScenarioTime", "fromSeconds": 720}, "do": [{"act": "InsertMacro", "args": {"macro": "game/supply-crate", "at": "@CrateSpot4", "heading": 0}}, {"act": "SetObjectiveActive", "args": {"target": "cf6e0000-0000-4000-8000-000000000067", "active": true}}, {"act": "Message", "args": {"toKind": "All", "text": "Supply crate down", "seconds": 5}}]},
     "Origin": "Superior"
    }
   },
@@ -1696,7 +1696,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Crate 4 to Blue\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000067\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000026\", \"amount\": 15}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": 15}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Blue secured a crate: +15 tickets\", \"seconds\": 5}}]}",
+    "Params": {"common": {"title": "Crate 4 to Blue", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000067", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 1, "maxValue": 1}}}, "do": [{"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000026", "amount": 15}}, {"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000028", "amount": 15}}, {"act": "Message", "args": {"toKind": "All", "text": "Blue secured a crate: +15 tickets", "seconds": 5}}]},
     "Origin": "Superior"
    }
   },
@@ -1710,7 +1710,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Crate 4 to Red\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000067\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, \"do\": [{\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000027\", \"amount\": 15}}, {\"act\": \"AddToCounter\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000028\", \"amount\": -15}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Red secured a crate: +15 tickets\", \"seconds\": 5}}]}",
+    "Params": {"common": {"title": "Crate 4 to Red", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000067", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 2, "maxValue": 2}}}, "do": [{"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000027", "amount": 15}}, {"act": "AddToCounter", "args": {"target": "cf6e0000-0000-4000-8000-000000000028", "amount": -15}}, {"act": "Message", "args": {"toKind": "All", "text": "Red secured a crate: +15 tickets", "seconds": 5}}]},
     "Origin": "Superior"
    }
   },
@@ -1724,7 +1724,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Comeback Red over\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"startActive\": false}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -1000000.0, \"maxValue\": 19.999}}}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Hostile\", \"tiers\": 0}}], \"repeat\": true, \"cooldown\": 120}",
+    "Params": {"common": {"title": "Comeback Red over", "subject": "cf6e0000-0000-4000-8000-000000000001", "startActive": false}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000028", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Value", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": -1000000.0, "maxValue": 19.999}}}, "do": [{"act": "SetSkillAmplifier", "args": {"side": "Hostile", "tiers": 0}}], "repeat": true, "cooldown": 120},
     "Origin": "Superior"
    }
   },
@@ -1738,7 +1738,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Comeback Blue over\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"startActive\": false}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -19.999, \"maxValue\": 1000000.0}}}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Friend\", \"tiers\": 0}}], \"repeat\": true, \"cooldown\": 120}",
+    "Params": {"common": {"title": "Comeback Blue over", "subject": "cf6e0000-0000-4000-8000-000000000001", "startActive": false}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000028", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Value", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": -19.999, "maxValue": 1000000.0}}}, "do": [{"act": "SetSkillAmplifier", "args": {"side": "Friend", "tiers": 0}}], "repeat": true, "cooldown": 120},
     "Origin": "Superior"
    }
   },
@@ -1752,7 +1752,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Comeback Red\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 40, \"maxValue\": 1000000.0}}}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Hostile\", \"tiers\": 1}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Reinforcements: Red's squads are sharper\", \"seconds\": 6}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000071\", \"active\": true}}], \"repeat\": true, \"cooldown\": 120, \"holdFor\": 30}",
+    "Params": {"common": {"title": "Comeback Red", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000028", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Value", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 40, "maxValue": 1000000.0}}}, "do": [{"act": "SetSkillAmplifier", "args": {"side": "Hostile", "tiers": 1}}, {"act": "Message", "args": {"toKind": "All", "text": "Reinforcements: Red's squads are sharper", "seconds": 6}}, {"act": "SetObjectiveActive", "args": {"target": "cf6e0000-0000-4000-8000-000000000071", "active": true}}], "repeat": true, "cooldown": 120, "holdFor": 30},
     "Origin": "Superior"
    }
   },
@@ -1766,7 +1766,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Comeback Blue\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -1000000.0, \"maxValue\": -40}}}, \"do\": [{\"act\": \"SetSkillAmplifier\", \"args\": {\"side\": \"Friend\", \"tiers\": 1}}, {\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Reinforcements: Blue's squads are sharper\", \"seconds\": 6}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000072\", \"active\": true}}], \"repeat\": true, \"cooldown\": 120, \"holdFor\": 30}",
+    "Params": {"common": {"title": "Comeback Blue", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000028", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Value", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": -1000000.0, "maxValue": -40}}}, "do": [{"act": "SetSkillAmplifier", "args": {"side": "Friend", "tiers": 1}}, {"act": "Message", "args": {"toKind": "All", "text": "Reinforcements: Blue's squads are sharper", "seconds": 6}}, {"act": "SetObjectiveActive", "args": {"target": "cf6e0000-0000-4000-8000-000000000072", "active": true}}], "repeat": true, "cooldown": 120, "holdFor": 30},
     "Origin": "Superior"
    }
   },
@@ -1780,7 +1780,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Blue respawn\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"CountMatching\", \"predicate\": {\"$type\": \"Compound\", \"operator\": \"And\", \"conditions\": [{\"$type\": \"PropertyMatch\", \"componentType\": \"EntityInfo\", \"propertyPath\": \"ForceId\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}, {\"$type\": \"PropertyMatch\", \"componentType\": \"Health\", \"propertyPath\": \"Current\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 0.001, \"maxValue\": 1000000000.0}}]}, \"min\": 0, \"max\": 7, \"withComponent\": \"Health\"}, \"do\": [{\"act\": \"InsertMacro\", \"args\": {\"macro\": \"game/bot\", \"at\": [650, 275, 0], \"heading\": 0, \"params\": {\"side\": \"Friend\", \"name\": \"Blue bot\"}}}], \"repeat\": true, \"whileTrue\": true, \"cooldown\": 15, \"fireIfTrueWhenArmed\": true}",
+    "Params": {"common": {"title": "Blue respawn", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "CountMatching", "predicate": {"$type": "Compound", "operator": "And", "conditions": [{"$type": "PropertyMatch", "componentType": "EntityInfo", "propertyPath": "ForceId", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 1, "maxValue": 1}}, {"$type": "PropertyMatch", "componentType": "Health", "propertyPath": "Current", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 0.001, "maxValue": 1000000000.0}}]}, "min": 0, "max": 7, "withComponent": "Health"}, "do": [{"act": "InsertMacro", "args": {"macro": "game/bot", "at": [650, 275, 0], "heading": 0, "params": {"side": "Friend", "name": "Blue bot"}}}], "repeat": true, "whileTrue": true, "cooldown": 15, "fireIfTrueWhenArmed": true},
     "Origin": "Superior"
    }
   },
@@ -1794,7 +1794,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Red respawn\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"CountMatching\", \"predicate\": {\"$type\": \"Compound\", \"operator\": \"And\", \"conditions\": [{\"$type\": \"PropertyMatch\", \"componentType\": \"EntityInfo\", \"propertyPath\": \"ForceId\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}, {\"$type\": \"PropertyMatch\", \"componentType\": \"Health\", \"propertyPath\": \"Current\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 0.001, \"maxValue\": 1000000000.0}}]}, \"min\": 0, \"max\": 7, \"withComponent\": \"Health\"}, \"do\": [{\"act\": \"InsertMacro\", \"args\": {\"macro\": \"game/bot\", \"at\": [650, 525, 0], \"heading\": 180, \"params\": {\"side\": \"Hostile\", \"name\": \"Red bot\"}}}], \"repeat\": true, \"whileTrue\": true, \"cooldown\": 15, \"fireIfTrueWhenArmed\": true}",
+    "Params": {"common": {"title": "Red respawn", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "CountMatching", "predicate": {"$type": "Compound", "operator": "And", "conditions": [{"$type": "PropertyMatch", "componentType": "EntityInfo", "propertyPath": "ForceId", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 2, "maxValue": 2}}, {"$type": "PropertyMatch", "componentType": "Health", "propertyPath": "Current", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 0.001, "maxValue": 1000000000.0}}]}, "min": 0, "max": 7, "withComponent": "Health"}, "do": [{"act": "InsertMacro", "args": {"macro": "game/bot", "at": [650, 525, 0], "heading": 180, "params": {"side": "Hostile", "name": "Red bot"}}}], "repeat": true, "whileTrue": true, "cooldown": 15, "fireIfTrueWhenArmed": true},
     "Origin": "Superior"
    }
   },
@@ -1808,7 +1808,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Domination Blue\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"Compound\", \"operator\": \"And\", \"conditions\": [{\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000023\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000024\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}, {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000025\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 1, \"maxValue\": 1}}}]}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Blue dominates!\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"Blue held all three points for 60 s\", \"winner\": \"Friend\"}}], \"holdFor\": 60}",
+    "Params": {"common": {"title": "Domination Blue", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "Compound", "operator": "And", "conditions": [{"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000023", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 1, "maxValue": 1}}}, {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000024", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 1, "maxValue": 1}}}, {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000025", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 1, "maxValue": 1}}}]}, "do": [{"act": "Message", "args": {"toKind": "All", "text": "Blue dominates!", "seconds": 8}}, {"act": "EndExercise", "args": {"reason": "Blue held all three points for 60 s", "winner": "Friend"}}], "holdFor": 60},
     "Origin": "Superior"
    }
   },
@@ -1822,7 +1822,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Domination Red\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"Compound\", \"operator\": \"And\", \"conditions\": [{\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000023\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000024\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}, {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000025\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Owner\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 2, \"maxValue\": 2}}}]}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Red dominates!\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"Red held all three points for 60 s\", \"winner\": \"Hostile\"}}], \"holdFor\": 60}",
+    "Params": {"common": {"title": "Domination Red", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "Compound", "operator": "And", "conditions": [{"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000023", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 2, "maxValue": 2}}}, {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000024", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 2, "maxValue": 2}}}, {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000025", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Owner", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 2, "maxValue": 2}}}]}, "do": [{"act": "Message", "args": {"toKind": "All", "text": "Red dominates!", "seconds": 8}}, {"act": "EndExercise", "args": {"reason": "Red held all three points for 60 s", "winner": "Hostile"}}], "holdFor": 60},
     "Origin": "Superior"
    }
   },
@@ -1836,7 +1836,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Blue wins\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"Compound\", \"operator\": \"Or\", \"conditions\": [{\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000027\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -1000000.0, \"maxValue\": 0}}}, {\"$type\": \"Compound\", \"operator\": \"And\", \"conditions\": [{\"$type\": \"ScenarioTime\", \"fromSeconds\": 900}, {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 0.5, \"maxValue\": 1000000.0}}}]}]}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Blue wins!\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"Red out of tickets, or Blue ahead at time\", \"winner\": \"Friend\"}}]}",
+    "Params": {"common": {"title": "Blue wins", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "Compound", "operator": "Or", "conditions": [{"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000027", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Value", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": -1000000.0, "maxValue": 0}}}, {"$type": "Compound", "operator": "And", "conditions": [{"$type": "ScenarioTime", "fromSeconds": 900}, {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000028", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Value", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 0.5, "maxValue": 1000000.0}}}]}]}, "do": [{"act": "Message", "args": {"toKind": "All", "text": "Blue wins!", "seconds": 8}}, {"act": "EndExercise", "args": {"reason": "Red out of tickets, or Blue ahead at time", "winner": "Friend"}}]},
     "Origin": "Superior"
    }
   },
@@ -1850,7 +1850,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Red wins\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"Compound\", \"operator\": \"Or\", \"conditions\": [{\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000026\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -1000000.0, \"maxValue\": 0}}}, {\"$type\": \"Compound\", \"operator\": \"And\", \"conditions\": [{\"$type\": \"ScenarioTime\", \"fromSeconds\": 900}, {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -1000000.0, \"maxValue\": -0.5}}}]}]}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Red wins!\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"Blue out of tickets, or Red ahead at time\", \"winner\": \"Hostile\"}}]}",
+    "Params": {"common": {"title": "Red wins", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "Compound", "operator": "Or", "conditions": [{"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000026", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Value", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": -1000000.0, "maxValue": 0}}}, {"$type": "Compound", "operator": "And", "conditions": [{"$type": "ScenarioTime", "fromSeconds": 900}, {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000028", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Value", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": -1000000.0, "maxValue": -0.5}}}]}]}, "do": [{"act": "Message", "args": {"toKind": "All", "text": "Red wins!", "seconds": 8}}, {"act": "EndExercise", "args": {"reason": "Blue out of tickets, or Red ahead at time", "winner": "Hostile"}}]},
     "Origin": "Superior"
    }
   },
@@ -1864,7 +1864,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Draw\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"Compound\", \"operator\": \"And\", \"conditions\": [{\"$type\": \"ScenarioTime\", \"fromSeconds\": 900}, {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -0.5, \"maxValue\": 0.5}}}]}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Draw!\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"level at time\", \"winner\": \"Draw\"}}]}",
+    "Params": {"common": {"title": "Draw", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "Compound", "operator": "And", "conditions": [{"$type": "ScenarioTime", "fromSeconds": 900}, {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000028", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Value", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": -0.5, "maxValue": 0.5}}}]}, "do": [{"act": "Message", "args": {"toKind": "All", "text": "Draw!", "seconds": 8}}, {"act": "EndExercise", "args": {"reason": "level at time", "winner": "Draw"}}]},
     "Origin": "Superior"
    }
   },
@@ -1878,7 +1878,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Instructor end: Blue ahead\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"startActive\": false}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": 0.5, \"maxValue\": 1000000.0}}}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Blue wins!\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"Instructor ended\", \"winner\": \"Friend\"}}], \"fireIfTrueWhenArmed\": true}",
+    "Params": {"common": {"title": "Instructor end: Blue ahead", "subject": "cf6e0000-0000-4000-8000-000000000001", "startActive": false}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000028", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Value", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": 0.5, "maxValue": 1000000.0}}}, "do": [{"act": "Message", "args": {"toKind": "All", "text": "Blue wins!", "seconds": 8}}, {"act": "EndExercise", "args": {"reason": "Instructor ended", "winner": "Friend"}}], "fireIfTrueWhenArmed": true},
     "Origin": "Superior"
    }
   },
@@ -1892,7 +1892,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Instructor end: Red ahead\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"startActive\": false}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -1000000.0, \"maxValue\": -0.5}}}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Red wins!\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"Instructor ended\", \"winner\": \"Hostile\"}}], \"fireIfTrueWhenArmed\": true}",
+    "Params": {"common": {"title": "Instructor end: Red ahead", "subject": "cf6e0000-0000-4000-8000-000000000001", "startActive": false}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000028", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Value", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": -1000000.0, "maxValue": -0.5}}}, "do": [{"act": "Message", "args": {"toKind": "All", "text": "Red wins!", "seconds": 8}}, {"act": "EndExercise", "args": {"reason": "Instructor ended", "winner": "Hostile"}}], "fireIfTrueWhenArmed": true},
     "Origin": "Superior"
    }
   },
@@ -1906,7 +1906,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Instructor end: level\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\", \"startActive\": false}, \"when\": {\"$type\": \"OnEntity\", \"ref\": \"cf6e0000-0000-4000-8000-000000000028\", \"predicate\": {\"$type\": \"PropertyMatch\", \"componentType\": \"ObjectiveStatus\", \"propertyPath\": \"Value\", \"operator\": \"Equals\", \"predicate\": {\"$type\": \"Numeric\", \"minValue\": -0.5, \"maxValue\": 0.5}}}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"Draw!\", \"seconds\": 8}}, {\"act\": \"EndExercise\", \"args\": {\"reason\": \"Instructor ended\", \"winner\": \"Draw\"}}], \"fireIfTrueWhenArmed\": true}",
+    "Params": {"common": {"title": "Instructor end: level", "subject": "cf6e0000-0000-4000-8000-000000000001", "startActive": false}, "when": {"$type": "OnEntity", "ref": "cf6e0000-0000-4000-8000-000000000028", "predicate": {"$type": "PropertyMatch", "componentType": "ObjectiveStatus", "propertyPath": "Value", "operator": "Equals", "predicate": {"$type": "Numeric", "minValue": -0.5, "maxValue": 0.5}}}, "do": [{"act": "Message", "args": {"toKind": "All", "text": "Draw!", "seconds": 8}}, {"act": "EndExercise", "args": {"reason": "Instructor ended", "winner": "Draw"}}], "fireIfTrueWhenArmed": true},
     "Origin": "Superior"
    }
   },
@@ -1920,7 +1920,7 @@
    },
    "Behavior": {
     "Name": "Trigger",
-    "Params": "{\"common\": {\"title\": \"Instructor end\", \"subject\": \"cf6e0000-0000-4000-8000-000000000001\"}, \"when\": {\"$type\": \"ScenarioTime\", \"fromSeconds\": 1000000000.0}, \"do\": [{\"act\": \"Message\", \"args\": {\"toKind\": \"All\", \"text\": \"The instructor ends the round\", \"seconds\": 6}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000082\", \"active\": true}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000083\", \"active\": true}}, {\"act\": \"SetObjectiveActive\", \"args\": {\"target\": \"cf6e0000-0000-4000-8000-000000000084\", \"active\": true}}]}",
+    "Params": {"common": {"title": "Instructor end", "subject": "cf6e0000-0000-4000-8000-000000000001"}, "when": {"$type": "ScenarioTime", "fromSeconds": 1000000000.0}, "do": [{"act": "Message", "args": {"toKind": "All", "text": "The instructor ends the round", "seconds": 6}}, {"act": "SetObjectiveActive", "args": {"target": "cf6e0000-0000-4000-8000-000000000082", "active": true}}, {"act": "SetObjectiveActive", "args": {"target": "cf6e0000-0000-4000-8000-000000000083", "active": true}}, {"act": "SetObjectiveActive", "args": {"target": "cf6e0000-0000-4000-8000-000000000084", "active": true}}]},
     "Origin": "Superior"
    },
    "RefKey": {

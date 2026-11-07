@@ -33,7 +33,7 @@
       },
       "Behavior": {
         "Name": "PlatoonBound",
-        "Params": "{\"SupportPoint\": [225, 110, 0], \"Objective\": [195, 170, 0], \"ArrivalRadius\": 10, \"SitrepEverySeconds\": 15}",
+        "Params": {"SupportPoint": [225, 110, 0], "Objective": [195, 170, 0], "ArrivalRadius": 10, "SitrepEverySeconds": 15},
         "Origin": "Superior"
       }
     },
@@ -383,7 +383,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -417,7 +417,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -451,7 +451,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     }

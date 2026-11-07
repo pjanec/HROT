@@ -180,12 +180,12 @@ namespace Fdp.Examples.Scenarios.Cognitive
                 ref var queue   = ref world.GetComponentRW<MissionPlanQueue>(_commander);
                 var     behavior = world.GetComponent<BehaviorState>(_commander);
 
-                Phase3CurrentPhase = queue.CurrentPhase;
+                Phase3CurrentPhase = queue.CurrentTask;
                 Phase3BehaviorHash = behavior.ActiveBehaviorHash;
 
-                if (queue.CurrentPhase != 1)
+                if (queue.CurrentTask != 1)
                     throw new ScenarioFailureException(3,
-                        $"Phase 3 FAILED at tick {tick}: CurrentPhase={queue.CurrentPhase} expected 1");
+                        $"Phase 3 FAILED at tick {tick}: CurrentPhase={queue.CurrentTask} expected 1");
 
                 if (behavior.ActiveBehaviorHash != CombatBehaviorId)
                     throw new ScenarioFailureException(3,
@@ -234,15 +234,15 @@ namespace Fdp.Examples.Scenarios.Cognitive
 
             // Build the 2-phase mission plan using the Span<MissionPhase> pattern to avoid
             // the C# [InlineArray] defensive-copy mutation trap.
-            var queue = new MissionPlanQueue { PhaseCount = 2 };
-            Span<MissionPhase> phases = queue.Phases;
-            phases[0] = new MissionPhase
+            var queue = new MissionPlanQueue { TaskCount = 2 };
+            Span<MissionTaskSlot> phases = queue.Tasks;
+            phases[0] = new MissionTaskSlot
             {
                 BehaviorId   = PatrolBehaviorId,
                 Trigger      = MissionTrigger.UnderAttack,
                 TriggerParam = 0f,
             };
-            phases[1] = new MissionPhase
+            phases[1] = new MissionTaskSlot
             {
                 BehaviorId   = CombatBehaviorId,
                 Trigger      = MissionTrigger.TimerElapsed,

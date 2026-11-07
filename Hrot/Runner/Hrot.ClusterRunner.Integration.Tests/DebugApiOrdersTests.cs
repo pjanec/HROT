@@ -137,12 +137,12 @@ public sealed class DebugApiOrdersTests
         using var h = new EditorHarness(productionBehaviors: true);
         var svc = h.BuildDebugApiService();
         var unit = Unit(h, UnitId, ForceId.Friend, Vector3.Zero);
-        h.Repo.AddComponent(unit, new MissionPlanQueue { PhaseCount = 2 });
+        h.Repo.AddComponent(unit, new MissionPlanQueue { TaskCount = 2 });
 
         svc.PostOrder(UnitId, new JsonObject { ["kind"] = "move", ["x"] = 30f, ["y"] = 0f });
         h.PumpFrames(4);
 
-        Assert.Equal(0, h.Repo.GetComponentRO<MissionPlanQueue>(unit).PhaseCount);
+        Assert.Equal(0, h.Repo.GetComponentRO<MissionPlanQueue>(unit).TaskCount);
         // The move ran as the operator's order — still running, or already ended (this world drives no navigation), and then
         // its outcome is the recorded one (OperatorOrderOutcome).
         var order = svc.GetOrder(UnitId);

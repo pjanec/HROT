@@ -1,4 +1,5 @@
 using Fdp.Core;
+using Fdp.Core.Serialization.Converters;
 
 namespace Fdp.Toolkit.Behavior.Components
 {
@@ -7,8 +8,8 @@ namespace Fdp.Toolkit.Behavior.Components
     {
         /// <summary>The registered behaviour name.</summary>
         public string Name { get; set; } = "";
-        /// <summary>The params JSON it was started with (R-191 — never bytes).</summary>
-        public string Params { get; set; } = "{}";
+        /// <summary>The params JSON it was started with (R-191 — never bytes). ⭐ CE-4295: written to a file as the object it holds.</summary>
+        [JsonText] public string Params { get; set; } = "{}";
         /// <summary>Who ordered it — the reload carries the same rank.</summary>
         public BehaviorOrigin Origin { get; set; } = BehaviorOrigin.Superior;
     }

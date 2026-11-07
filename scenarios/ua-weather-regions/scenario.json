@@ -365,7 +365,7 @@
       },
       "Behavior": {
         "Name": "MoveToLocation",
-        "Params": "{\"speed\":6,\"arrivalRadius\":5,\"target\":[580,300,0]}",
+        "Params": {"speed":6,"arrivalRadius":5,"target":[580,300,0]},
         "Origin": "Superior"
       }
     },
@@ -399,7 +399,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     }

@@ -538,7 +538,7 @@ namespace Hrot.SimHost.Tests
                 var dom = (JsonObject)JsonNode.Parse(file)!;
                 ScenarioParams.Prepare(dom, ScenarioHeaderJson.Read(dom), args, null, "macro 'control/counter-attack'", 0, Guid.NewGuid());
                 var trig = (JsonObject)((JsonObject)dom["entities"]!).Single().Value!;
-                var p = JsonNode.Parse(trig["Behavior"]!["Params"]!.GetValue<string>())!;
+                var p = JsonNode.Parse(Fdp.Core.Serialization.Converters.JsonTextConverter.TextOf(trig["Behavior"]!["Params"])!)!;
                 Assert.Equal("Trigger", trig["Behavior"]!["Name"]!.GetValue<string>());
                 return p["when"]!["fromSeconds"]!.GetValue<double>();
             }

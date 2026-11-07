@@ -33,7 +33,7 @@
       },
       "Behavior": {
         "Name": "FireAndMovement",
-        "Params": "{\"Objective\": [200, 285, 0], \"RushMetres\": 15, \"ArrivalRadius\": 25, \"Pairs\": true}",
+        "Params": {"Objective": [200, 285, 0], "RushMetres": 15, "ArrivalRadius": 25, "Pairs": true},
         "Origin": "Superior"
       }
     },
@@ -265,7 +265,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -299,7 +299,7 @@
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     }

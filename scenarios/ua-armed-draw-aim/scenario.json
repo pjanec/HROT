@@ -55,7 +55,7 @@
                             "taskId": "c2380004-0000-4000-8000-000000000010",
                             "executingEngine": "",
                             "behaviorName": "CivilianHsm",
-                            "behaviorParams": "{}",
+                            "behaviorParams": {},
                             "triggers": [
                                 {
                                     "type": "TimerElapsed",
@@ -67,7 +67,7 @@
                             "taskId": "c2380004-0000-4000-8000-000000000011",
                             "executingEngine": "",
                             "behaviorName": "StationWeapon",
-                            "behaviorParams": "{\"Station\":\"Hands\",\"Seconds\":10}",
+                            "behaviorParams": {"Station":"Hands","Seconds":10},
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",
@@ -79,7 +79,7 @@
                             "taskId": "c2380004-0000-4000-8000-000000000012",
                             "executingEngine": "",
                             "behaviorName": "PersonAttack",
-                            "behaviorParams": "{\"Target\":\"c2380004-0000-4000-8000-000000000002\"}",
+                            "behaviorParams": {"Target":"c2380004-0000-4000-8000-000000000002"},
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",
@@ -121,12 +121,12 @@
             },
             "Behavior": {
                 "Name": "CombatPosture",
-                "Params": "{}",
+                "Params": {},
                 "Origin": "Superior"
             },
             "Sop": {
                 "Name": "InertSop",
-                "Params": "{}",
+                "Params": {},
                 "Origin": "Superior"
             }
         },

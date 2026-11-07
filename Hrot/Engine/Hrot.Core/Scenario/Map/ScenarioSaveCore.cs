@@ -158,11 +158,14 @@ public static class ScenarioSaveCore
 
     private static bool RebindBlob(JsonObject holder, string nameKey, string paramsKey, ScenarioBehaviorRemapper remapper, LeafApplier applier)
     {
-        if (holder[nameKey] is not JsonValue nv || !nv.TryGetValue<string>(out var name)
-            || holder[paramsKey] is not JsonValue pv || !pv.TryGetValue<string>(out var json)) return false;
+        if (holder[nameKey] is not JsonValue nv || !nv.TryGetValue<string>(out var name)) return false;
+        // ⭐ CE-4295 — the params are an object in a new file ([JsonText]), an escaped string in an old one: both are walked, each written back in its own form
+        var held = holder[paramsKey];
+        string? json = Fdp.Core.Serialization.Converters.JsonTextConverter.TextOf(held);
+        if (json is null) return false;
         var after = remapper.ApplyJson(name, json, applier);
         if (after is null || after == json) return false;
-        holder[paramsKey] = after;
+        holder[paramsKey] = held is JsonValue ? JsonValue.Create(after) : Fdp.Core.Serialization.Converters.JsonTextConverter.NodeOf(after);
         return true;
     }
 

@@ -33,7 +33,7 @@
       },
       "Behavior": {
         "Name": "PlatoonAttack",
-        "Params": "{\"Position\": [125, 161, 0], \"SearchRadius\": 20, \"Preset\": \"AttackPosition\", \"Speed\": 2}",
+        "Params": {"Position": [125, 161, 0], "SearchRadius": 20, "Preset": "AttackPosition", "Speed": 2},
         "Origin": "Superior"
       }
     },

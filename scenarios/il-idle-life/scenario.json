@@ -157,7 +157,7 @@
       "Behavior": {
         "Name": "CombatPosture",
         "Origin": "Superior",
-        "Params": "{\"Advance\": {\"Objective\": [310, 300, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [310, 300, 0], \"Radius\": 2.0}, \"watchTowards\": [400, 300, 0]}"
+        "Params": {"Advance": {"Objective": [310, 300, 0], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [310, 300, 0], "Radius": 2.0}, "watchTowards": [400, 300, 0]}
       }
     },
     "a1030001-0000-4000-8000-000000000006": {
@@ -190,7 +190,7 @@
       },
       "Behavior": {
         "Name": "Idle",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -250,7 +250,7 @@
       },
       "Behavior": {
         "Name": "Idle",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },

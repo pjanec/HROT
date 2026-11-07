@@ -36,7 +36,7 @@
       },
       "Behavior": {
         "Name": "WeaponSystemHold",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -70,12 +70,12 @@
       },
       "Behavior": {
         "Name": "MoveToLocation",
-        "Params": "{\"target\":[60,120,0]}",
+        "Params": {"target":[60,120,0]},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -135,12 +135,12 @@
       },
       "Behavior": {
         "Name": "SetUpWeapon",
-        "Params": "{\"weapon\":\"a2222d00-0000-4000-8000-000000000003\"}",
+        "Params": {"weapon":"a2222d00-0000-4000-8000-000000000003"},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     },
@@ -200,12 +200,12 @@
       },
       "Behavior": {
         "Name": "CarryWeapon",
-        "Params": "{\"weapon\":\"a2222d00-0000-4000-8000-000000000005\"}",
+        "Params": {"weapon":"a2222d00-0000-4000-8000-000000000005"},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       }
     }

@@ -193,7 +193,7 @@ namespace Hrot.SimHost.Tests
             var registry = Production();
             var a = new Node(registry);
             var unit = a.Unit();
-            a.Repo.AddComponent(unit, new MissionPlanQueue { PhaseCount = 2, CurrentPhase = 0 });
+            a.Repo.AddComponent(unit, new MissionPlanQueue { TaskCount = 2, CurrentTask = 0 });
             a.Repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = unit, BehaviorName = "Idle", JsonParams = "{}", Origin = BehaviorOrigin.Superior });
             a.Frame();
 

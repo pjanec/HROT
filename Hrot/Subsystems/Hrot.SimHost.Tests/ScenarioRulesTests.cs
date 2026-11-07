@@ -522,7 +522,7 @@ namespace Hrot.SimHost.Tests
             string root = objectives.First(kv => (string)kv.Value!["Behavior"]!["Name"]! == "WeightedMean").Key;
             foreach (var (guid, e) in objectives)
             {
-                string name = (string)e!["Behavior"]!["Name"]!, json = (string)e["Behavior"]!["Params"]!;
+                string name = (string)e!["Behavior"]!["Name"]!, json = Fdp.Core.Serialization.Converters.JsonTextConverter.TextOf(e["Behavior"]!["Params"])!;   // ⭐ CE-4295 — the params are an object in the file
                 Assert.True(registry.TryGetId(name, out _), name);
                 ObjectiveCommon common = name switch
                 {

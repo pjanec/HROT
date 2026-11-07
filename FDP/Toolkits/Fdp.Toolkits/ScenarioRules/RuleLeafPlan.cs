@@ -74,6 +74,7 @@ namespace Fdp.Toolkit.ScenarioRules
             InputAbovePredicateDto i => $"Input {i.Input}",
             InUnitPredicateDto u => $"In {RefText(u.Unit)}",
             InTheFightPredicateDto => "InTheFight",
+            TaskFinishedPredicateDto t => t.Task > 0 ? $"Task {t.Task} finished" : "Task finished",   // ⭐ CE-4298
             CountMatchingPredicateDto c => $"Count {(c.Predicate is null ? "?" : LabelOf(c.Predicate))}",
             SpatialBoundingPredicateDto => "Spatial",
             LifecyclePredicateDto => "Lifecycle",

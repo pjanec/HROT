@@ -33,12 +33,12 @@
       },
       "Behavior": {
         "Name": "ClearBuilding",
-        "Params": "{\"Building\": [47, 105, 0], \"Speed\": 2}",
+        "Params": {"Building": [47, 105, 0], "Speed": 2},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "BasicSquadSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Roe": {
@@ -277,12 +277,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"Advance\": {\"Objective\": [46.3, 109.3, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [46.3, 109.3, 0], \"Radius\": 2.0}}",
+        "Params": {"Advance": {"Objective": [46.3, 109.3, 0], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [46.3, 109.3, 0], "Radius": 2.0}},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Roe": {
@@ -327,12 +327,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"Advance\": {\"Objective\": [52.5, 105.0, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [52.5, 105.0, 0], \"Radius\": 1.0}}",
+        "Params": {"Advance": {"Objective": [52.5, 105.0, 0], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [52.5, 105.0, 0], "Radius": 1.0}},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Roe": {
@@ -376,12 +376,12 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"Advance\": {\"Objective\": [53.3, 100.7, 0], \"ArrivalRadius\": 1}, \"Stay\": true, \"Post\": {\"Point\": [53.3, 100.7, 0], \"Radius\": 1.0}}",
+        "Params": {"Advance": {"Objective": [53.3, 100.7, 0], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [53.3, 100.7, 0], "Radius": 1.0}},
         "Origin": "Superior"
       },
       "Sop": {
         "Name": "InertSop",
-        "Params": "{}",
+        "Params": {},
         "Origin": "Superior"
       },
       "Roe": {
