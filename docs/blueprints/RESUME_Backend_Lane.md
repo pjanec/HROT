@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-07
-current-answer: ⭐⭐⭐ §MISSION PLAN (2026-11-07, later) below — backend's share P-1…P-6 DONE; nothing in flight. Older: ⭐⭐ §EDITING-UX BUILD (2026-11-07) below — its 'Continued (later session)' block: everything done, only blocked items left — the handoff Editing_UX_Build: what is done (with shas), what is next, the traps. Older: ⭐ NOW (2026-11-03) — the per-player game score S7 (HANDOFF_Coordinator_To_Backend_Player_Score): BUILT + live (DESIGN_Scenario_Rules §00.13, CE-3363); open CE-3364 (one kill authority — needs the user), CE-3365, the bounty P-8. Before that (2026-11-02 night) — §SHOWCASE below: the showcase scenarios Bridgehead + Crossfire v1, S6, the RefKey wire fix — what is built, what is open. (2026-10-30, kept below: the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
+current-answer: ⭐⭐⭐ §LIFECYCLE FIXES (2026-11-07, latest) below — L-4, L-6, L-8, L-9 DONE; L-7 waits on the user (QUESTION note). Then §MISSION PLAN — P-1…P-6 DONE. Older: ⭐⭐ §EDITING-UX BUILD (2026-11-07) below — its 'Continued (later session)' block: everything done, only blocked items left — the handoff Editing_UX_Build: what is done (with shas), what is next, the traps. Older: ⭐ NOW (2026-11-03) — the per-player game score S7 (HANDOFF_Coordinator_To_Backend_Player_Score): BUILT + live (DESIGN_Scenario_Rules §00.13, CE-3363); open CE-3364 (one kill authority — needs the user), CE-3365, the bounty P-8. Before that (2026-11-02 night) — §SHOWCASE below: the showcase scenarios Bridgehead + Crossfire v1, S6, the RefKey wire fix — what is built, what is open. (2026-10-30, kept below: the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
   - docs/SHOWCASE_Scenarios.md — §1.7 / §2.8 Bridgehead and Crossfire v1 AS BUILT (this lane, 2026-11-02)
@@ -16,6 +16,22 @@ related-designs:
   - docs/DESIGN_Subsystem_Composition_Unification.md — B5 (not started) gates CE-3006 / CE-524 / CE-513.
 -->
 # RESUME — backend lane
+
+## ⭐⭐⭐ LIFECYCLE FIXES (`2026-11-07`, latest) — user: *"The handoff: HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md. Merge coordinator first, then follow the handoff."*
+
+📄 [handoff](batches/HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md) (frozen at `f523103e`) · [status rows](batches/STATUS_Editing_UX_Build_Backend.md) (§Lifecycle fixes) · [design](../UX/DESIGN_Scenario_Lifecycle_Review.md) §2.7 + the LC-2 note
+
+| item | sha | what |
+|---|---|---|
+| L-8 CE-4324 | `251bf7836` | `ResolveStagingRoot`: `FDP_STAGING_ROOT` · else `<repo>/data` (dev, git-ignored) · else `%LOCALAPPDATA%/HROT/data`; retention still prunes the dev `data/` |
+| L-9 CE-4323 | `37076d028` | Replay Browser `File ▸ Open Exercise Recording…` = the editor's `RecordingPickerLauncher` over its disk inventory, its one opener |
+| L-6 CE-4318 | `683149039` | `ScenarioProblems.Collect` (5 kinds); the WINDOW + toolbar count are ui's (unclaimed) |
+| L-4 CE-4312 | `b728fb8ac` | `EntityNames.Next` — placed units numbered by type, unique in the scenario |
+| L-7 CE-4316 | `2462e37c9` | ⏭ SKIPPED — [QUESTION](batches/NOTE_Backend_To_Coordinator_Run_To_Question.md): how fast *Run to* goes is a clock decision on every node; lean A (ACK-gated stepped run + frame cap lifted) |
+
+⏭ **Next:** the user's answer on L-7 → build it (+ a cluster rail, row 8). L-3 / L-5 are unclaimed but are behaviors' (rules / run modes) — left for that lane.
+⚠ **Not merged:** `origin/behaviors` conflicts with `ui` in `TheRulesBundleTests.cs` (theirs, not mine) — only ui + coordinator merged.
+⚠ **Pre-existing reds:** ReplayBrowser.Tests 4 (window / catalogue counts stale since ui's additions).
 
 ## ⭐⭐⭐ MISSION PLAN (`2026-11-07`, later) — user: *"Merge coordinator and follow HANDOFF_Coordinator_To_Lanes_Mission_Plan.md"*
 
