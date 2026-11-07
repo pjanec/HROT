@@ -4129,6 +4129,11 @@ namespace Hrot.Editor
 
             // ⭐ New scenario N1 (R-4135) — a BLANK scenario on a terrain: the same Save-As naming as a recipe's, then ScenarioNewAssetService.CreateBlank
             //   (the guarded open, then the master writes the header-only file — N2). The terrain is chosen here and never changes (R-4124).
+            // ⭐ New scenario N1 — the terrains of the master's catalog (the NAS), read live; ONE place builds it (the list, the pane's facts and its still all ask it)
+            static Fdp.Toolkit.Terrain.TerrainCatalog NewScenarioTerrains()
+                => Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null,
+                       Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedRoot(Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot()));
+
             void ShowNewBlankDialog(string terrain)
             {
                 if (_newAssetServices == null || !_newAssetServices.TryGetValue(Hrot.Editor.AiShared.AssetKind.Scenario, out var svc) || svc is not ScenarioNewAssetService scenarios) return;
@@ -4228,8 +4233,9 @@ namespace Hrot.Editor
                     recipeCategory:     Hrot.Blueprints.Editor.RecipeMetadataAdapter.RecipeCategory,
                     showNewMacroDialog: ShowNewMacroDialog,   // ⭐ CE-4210 MA-6
                     // ⭐ New scenario N1 — the terrains of the master's catalog (the NAS), read live per open; the same catalog the master's create checks
-                    terrains:           () => Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null,
-                                              Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedRoot(Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot())).List(),
+                    terrains:           () => NewScenarioTerrains().List(),
+                    // ⭐ B-9 N1 pane — the same catalog locates the terrain's terrain.json (facts) and preview.jpg (still)
+                    terrainDefinition:  name => NewScenarioTerrains().ResolveDefinition(name),
                     showNewBlankDialog: ShowNewBlankDialog)
                 : null;
 

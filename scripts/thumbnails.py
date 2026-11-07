@@ -3,6 +3,8 @@
 
   scripts/thumbnails.py --scenarios                      every scenario of the repo that has no still yet (writes scenarios/<name>/preview.jpg IN THE REPOSITORY)
   scripts/thumbnails.py --scenarios ua-tank-ammo hill-attack
+  scripts/thumbnails.py --terrains                       ⭐ B-9 N6 — every terrain folder under assets/terrain that has no still yet (writes assets/terrain/<name>/preview.jpg IN THE REPOSITORY)
+  scripts/thumbnails.py --terrains berlin test-town --force
   scripts/thumbnails.py --types 1001 1101                these TKB type ids (GET /tkb/types lists them); --types with no ids = every type
   scripts/thumbnails.py --scenarios a b --types 1001 --port 5195
   scripts/thumbnails.py --attach --port 5195 ...         use an editor already listening there (do not launch or stop one)
@@ -356,6 +358,54 @@ def do_scenarios(names, rows, force=False):
         rows.append((name, "ok" if good else "failed", out if good else why))
 
 
+TERRAIN_STILL_PREFIX = "_terrain-still/"   # the throwaway blank scenario the still is shot in (written to the NAS the editor runs against, deleted after)
+TERRAIN_EYE_HEIGHT_M = 600.0               # a terrain's still: straight down over its origin from this height (no API reports a terrain's extent; --terrain-height overrides)
+
+
+def terrain_names(requested):
+    """Every terrain folder under the repository's assets/terrain (a folder at any depth holding terrain.json), or the requested ones."""
+    root = os.path.join(REPO, "assets", "terrain")
+    have = sorted(os.path.relpath(d, root).replace(os.sep, "/") for d, _, files in os.walk(root) if "terrain.json" in files and d != root)
+    if requested:
+        missing = [n for n in requested if n not in have]
+        if missing:
+            sys.exit(f"no such terrain in the repository: {missing}")
+        return requested
+    return have
+
+
+def do_terrains(names, rows, force=False, height=TERRAIN_EYE_HEIGHT_M):
+    """⭐ B-9 N6 — a terrain's still: a blank scenario on it (POST /scenario/new, B-8) opened for edit, the camera straight down over the origin, 320x180 q85 JPEG
+    into assets/terrain/<name>/preview.jpg (the one picture exception for terrains, R-4135). A terrain with a preview.jpg/.png is skipped unless --force."""
+    for name in names:
+        folder = os.path.join(REPO, "assets", "terrain", *name.split("/"))
+        hand = next((f for f in ("preview.jpg", "preview.png") if os.path.isfile(os.path.join(folder, f))), None)
+        if hand and not force:
+            rows.append((name, "skipped (has a still)", f"{hand} in the repository; --force re-shoots")); continue
+        scen = TERRAIN_STILL_PREFIX + name.replace("/", "_")
+        r = udc.call("POST", "/scenario/new", {"name": scen, "terrain": name})
+        if not ok(r):
+            rows.append((name, "failed", "new: " + say(r))); continue
+        good, why = load_edit(scen)
+        if not good:
+            rows.append((name, "failed", why)); continue
+        out = os.path.join(folder, "preview.jpg")
+        shot = os.path.join(folder, "preview.capture.png")
+        # looking straight down: the yaw is free, the target is the origin at ground level (a tiny horizontal offset keeps the look vector off the vertical singularity)
+        good, why = shoot(shot, [0.0, -1.0, height], [0.0, 0.0, 0.0])
+        if good:
+            try:
+                cell_image(shot).save(out, "JPEG", quality=JPEG_Q, optimize=True)
+            except OSError as e:
+                good, why = False, f"jpeg: {e}"
+            finally:
+                try:
+                    os.remove(shot)
+                except OSError:
+                    pass
+        rows.append((name, "ok" if good else "failed", out if good else why))
+
+
 def type_table():
     rows = body_of(udc.call("GET", "/tkb/types")) or []
     return {int(r["tkbType"]): r["name"] for r in rows}
@@ -637,6 +687,8 @@ def atlas_report(atlas, written):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--scenarios", nargs="*", default=None, metavar="NAME", help="scenario names (none given = every repository scenario)")
+    ap.add_argument("--terrains", nargs="*", default=None, metavar="NAME", help="⭐ B-9 N6 — terrain names under assets/terrain (none given = every terrain folder); needs a running editor like --scenarios")
+    ap.add_argument("--terrain-height", type=float, default=TERRAIN_EYE_HEIGHT_M, help="the camera height (m) over a terrain's origin for --terrains")
     ap.add_argument("--types", nargs="*", type=int, default=None, metavar="ID", help="TKB type ids (none given = every type)")
     ap.add_argument("--port", type=int, default=8111)
     ap.add_argument("--force", action="store_true", help="⭐ CE-4271 — with --scenarios: re-shoot a scenario that already has a preview.jpg/.png (the repo file is overwritten; commit it only on purpose)")
@@ -650,9 +702,9 @@ def main():
     ap.add_argument("--atlas-remove", metavar="TypeName", help="⭐ CE-4271 — free a type's slot (its cell goes black, the next add reuses it)")
     ap.add_argument("--atlas-dir", default=ATLAS_DIR, help=f"the atlas directory (default {ATLAS_DIR}); a test passes a temp one")
     args = ap.parse_args()
-    atlas_only = args.atlas_list or args.atlas_remove or args.add_image or (args.pack and args.types is None and args.scenarios is None)
-    if args.scenarios is None and args.types is None and not atlas_only:
-        sys.exit("say what: --scenarios [names] and/or --types [ids], or --pack · --add-image F --name T · --atlas-list · --atlas-remove T")
+    atlas_only = args.atlas_list or args.atlas_remove or args.add_image or (args.pack and args.types is None and args.scenarios is None and args.terrains is None)
+    if args.scenarios is None and args.types is None and args.terrains is None and not atlas_only:
+        sys.exit("say what: --scenarios [names] and/or --terrains [names] and/or --types [ids], or --pack · --add-image F --name T · --atlas-list · --atlas-remove T")
     nas = os.path.abspath(args.nas)
     if os.path.commonpath([nas, REPO]) == REPO:
         sys.exit("⛔ --nas is inside the repository: generated pictures are never written there")
@@ -667,6 +719,8 @@ def main():
             proc = udc.launch(args.port, "editor")
         if args.scenarios is not None:
             do_scenarios(scenario_names(args.scenarios), rows, args.force)
+        if args.terrains is not None:
+            do_terrains(terrain_names(args.terrains), rows, args.force, args.terrain_height)
         if args.types is not None:
             do_types(args.types, nas, args.studio, rows)
     finally:
