@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — top-level; ✅ approved by the user 2026-11-06 with the dumb-terminal split and hard-coded defaults (R-4132); the building lanes detail it (R-4123)
+build-state: DESIGN — top-level; §5 the BUILD design for K1 (ui, 2026-11-07, READY-TO-BUILD); ✅ approved by the user 2026-11-06 with the dumb-terminal split and hard-coded defaults (R-4132); the building lanes detail it (R-4123)
 updated: 2026-11-06 (§2.4 the map is a dumb terminal: map keys resolved on the backend, ImGui routing for the ImGui side only; hard-coded defaults complete, the overrides file optional — R-4132) · 2026-11-06 (first version — coordinator; editing-UX design queue item 4b: E14)
-current-answer: §2 the model · §3 stages · §4 questions with leans
+current-answer: §2 the model · §3 stages · §4 questions with leans · §5 the K1 build design (homes, the chord, the id, the per-frame call)
 stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
 known-conflict: UX_Feature_Tool_Model.md:302 "No keyboard shortcut activates any tool" — kept for TOOLS armed by a key? §4 Q5 decides (lean: a key may run the ACTION that arms a tool)
@@ -193,3 +193,99 @@ forwards, so a remote viewer gets exactly the same map keys as the local map, an
 | **Q5** | a key that arms a tool | **allowed** — the key runs the ACTION that arms the tool (supersedes "no keyboard shortcut activates any tool") | keep tools key-less — R (rotate) already arms a tool through the menu letter |
 | **Q6** | rebinding | **hard-coded defaults are complete; an optional overrides file**, a rebind UI later; conflicts refused at start-up | a settings file required |
 | **Q7** | ImGui key routing | **ImGui 1.91's `Shortcut()` routing for the ImGui side only** (panels, modals, the main bar, global); the map's keys are resolved on the backend from terminal events | one router for both — the terminal would have to know ImGui |
+
+
+## 5. ⭐ The K1 build design *(ui, `2026-11-07`; `build-state: READY-TO-BUILD` for K1 — K2/K3/K5/K6 detailed when reached)*
+
+INVENTORY: the worker's [`INVENTORY_Input_Keys.md`](INVENTORY_Input_Keys.md) (`ui@66bf0989e`: 207 key readers / 45 files, 41 Esc readers, 4
+command registries in 3 id spaces, 5–6 key enums) + `scripts/cbm.sh search_graph .*(Hotkey|Shortcut|Keymap|KeyBinding|KeyRouter|InputScope|KeyChord|ActionDecl|ActionCatalogue).*`
+(⇒ `EditorHotkeyDispatcher` (AiShared), NodeEdit's demo `HotkeyDispatcher`, `MapShortcutKeyEvent`, `MenuShortcuts`; ⛔ no Keymap / KeyRouter /
+ActionDecl / ActionCatalogue; coverage could not be checked). Measured homes: `KeyBinding(EditorKey, KeyModifiers)` is a record in
+`NodeEditor.Core` (`IEditorCommands.cs:46`), which pulls ImGui.NET; `EditorKey` / `KeyModifiers` live in **`NodeEditor.Primitives`** (net8.0,
+**no references** — a leaf); `Hrot.Common` references `Fdp.Toolkits`, not NodeEdit; `Fdp.Presentation` references `Fdp.Toolkits` and
+`NodeEditor.Core`; every managed window opens in ONE place, `ManagedWindow.cs:214` (`Gui.Begin`); `HostActions.Request(int, Entity)` publishes
+`GlobalActionRequestedEvent` (`HostActions.cs:30`).
+
+```mermaid
+classDiagram
+  direction LR
+  class KeyBinding { <<existing, MOVED to NodeEditor.Primitives, namespace kept>> Key : EditorKey · Modifiers : KeyModifiers }
+  class ActionRef { <<NEW, Fdp.Toolkits.Input>> Global(int GlobalActionIds) | Command(string IEditorCommands id) }
+  class InputScope { <<NEW enum>> TextField · Modal · FocusedWindow · Hat · Map · Global }
+  class KeymapEntry { <<NEW record>> Chord : KeyBinding · Scope · WindowKind? · Action : ActionRef · Kind : Press|Hold|Axis }
+  class Keymap { <<NEW, Fdp.Toolkits.Input, one per process>> Declare(entry) · Validate() conflicts · Find(scope, kind, chord) · ApplyOverrides(file?) }
+  class IKeyScopeWindow { <<NEW, Fdp.Presentation>> WindowKind · TryInvoke(ActionRef) }
+  class KeyRouter { <<NEW, Fdp.Presentation, per frame>> NoteFocused(window) · MapHasKeyboard · Dispatch() }
+  class ManagedWindow { <<existing>> Begin at :214 → router.NoteFocused when IsWindowFocused }
+  class EditorHotkeyDispatcher { <<existing, becomes the keymap's Command source>> }
+  class HostActions { <<existing>> Request(int, Entity) }
+  class MapCanvas { <<existing>> key drain gated by router.MapHasKeyboard }
+  Keymap "1" o-- "*" KeymapEntry
+  KeymapEntry --> KeyBinding
+  KeymapEntry --> ActionRef
+  KeymapEntry --> InputScope
+  KeyRouter --> Keymap
+  ManagedWindow ..> KeyRouter : focus, read from ImGui
+  KeyRouter ..> IKeyScopeWindow : Command refs
+  KeyRouter ..> HostActions : Global refs
+  EditorHotkeyDispatcher ..> Keymap : declares the graph commands' DefaultKey
+  MapCanvas ..> KeyRouter : only when the map has the keyboard
+```
+*What the picture shows that the prose hid: one chord type already exists and only has to move one assembly down to be reachable from the
+action declarations (Hrot.Common) and the map's backend resolver; the keymap holds BOTH id spaces honestly until K5 folds the graph commands
+into the catalogue — no sixth key enum, no premature id migration.*
+
+```mermaid
+sequenceDiagram
+  participant W as each ManagedWindow (Begin, :214)
+  participant R as KeyRouter
+  participant K as Keymap
+  participant T as the focused window (IKeyScopeWindow)
+  participant H as HostActions
+  W->>R: NoteFocused(this) when ImGui says it is focused (RootAndChildWindows)
+  Note over R: after every window drew (end of WindowManager.Render)
+  R->>R: WantTextInput? → stop (text field owns keys)
+  R->>R: a modal popup open? → Modal scope only
+  loop each chord pressed this frame
+    R->>K: Find(FocusedWindow + its kind) then Find(Global)
+    K-->>R: the first entry
+    alt Command ref
+      R->>T: TryInvoke(ref) — its own IEditorCommands, enabled?
+    else Global ref
+      R->>H: Request(id, the selection)
+    end
+  end
+```
+*What it shows: ONE resolver per frame, after all windows drew; focus is read from ImGui (the one truth, Q3); a graph canvas only gets its
+keys while focused — the CE-4282 Esc / Delete / Ctrl+Z firing in every drawn canvas ends here.*
+
+```mermaid
+graph TD
+  WM["WindowManager.Render (every host's one frame)"] -->|each window| MW["ManagedWindow Begin :214 — NoteFocused"]
+  WM -->|last| KR["KeyRouter.Dispatch — once per frame"]
+  KR --> GC["the focused graph canvas: TryInvoke (replaces AiGraphCanvasWindow's own pump :445-472)"]
+  KR --> SH["Global: the shell's commands (Ctrl+S) — replaces EditorSubsystem's pump :2808"]
+  MC["MapCanvas.ProcessInputPipeline :232 — key drain"] -->|reads| MF["KeyRouter.MapHasKeyboard"]
+  CLICK["a click on the map with no ImGui window hovered"] -->|"SetWindowFocus null, map takes the keyboard"| MF
+  FOC["any ImGui window focused"] -->|map loses the keyboard| MF
+```
+*What it shows: who calls the router each frame (only the window manager, on every host by construction) and the one place the map's key
+drain asks for the keyboard — the "mouse over an ImGui window" gate stays for the MOUSE only.*
+
+| decision | why |
+|---|---|
+| ① the chord is NodeEdit's `KeyBinding(EditorKey, KeyModifiers)`, MOVED from `NodeEditor.Core` to the leaf `NodeEditor.Primitives`, namespace unchanged | reachable from `Fdp.Toolkits` / `Hrot.Common` without ImGui; zero call-site churn (project references are transitive); ⛔ no sixth key enum. `MapKeyboardKey` / Raylib keys map onto `EditorKey` at their adapters (`ImGuiInputSource.cs:194` already maps `EditorKey` ↔ `ImGuiKey`) |
+| ② the keymap entry names the design's binding `KeymapEntry` | NodeEdit already owns the name `KeyBinding` for the chord |
+| ③ `ActionRef` = `Global(int)` or `Command(string)` | the two id spaces exist today; B-11's catalogue owns the id unification (K5) — K1 binds both, honestly |
+| ④ core types in `Fdp.Toolkits.Input`; the router in `Fdp.Presentation` | `Hrot.Common` (action declarations, K2's backend map scope) and `Fdp.Presentation` (ImGui) both reference `Fdp.Toolkits` |
+| ⑤ focus read in ONE place: `ManagedWindow` after `Gui.Begin` (`:214`) asks ImGui `IsWindowFocused(RootAndChildWindows)` and notes itself | ⚠ **deviation from Q7's lean** ("ImGui `Shortcut()` routing underneath"): `Shortcut()` must be called inside each window's Begin/End, which would scatter the keymap lookup into every window; reading ImGui's focus once per window keeps ImGui the one truth AND one resolver. Same outcome Q7 wanted (no second focus arbitration) |
+| ⑥ map focus = a click on the map with no ImGui window hovered → `ImGui.SetWindowFocus(null)` and `MapHasKeyboard = true`; any focused window clears it | the inventory's finding G1: "the map has the keyboard" does not exist today |
+| ⑦ the Global scope keeps today's shell keys working (Ctrl+S regardless of focus — rail `SaveCommandsTests.Hotkey_CtrlS_InvokesSave_RegardlessOfFocusedWindow`) | K1 keeps every key working |
+
+*Rejected:* **a new chord struct** — a sixth key type beside five · **string-only ids now** — B-11's call, not K1's · **ImGui `Shortcut()` per
+window** — ⑤ · **the router inside `Hrot.Presentation`** — the window manager (FDP) could not call it, so a host could lack it.
+
+**K1 acceptance (rails):** ① a text field focused ⇒ no keymap action fires · ② two graph canvases drawn, one focused ⇒ Ctrl+Z / Delete / Esc
+reach ONLY the focused one (CE-4282) · ③ a focused panel ⇒ the map's key drain gets nothing; a click on the map ⇒ it gets the keys · ④ Ctrl+S
+fires from any focus (the existing rail stays green) · ⑤ `Keymap.Validate` refuses the same chord twice in overlapping scopes · ⑥ every graph
+command's `DefaultKey` appears in the keymap (one declaration source).

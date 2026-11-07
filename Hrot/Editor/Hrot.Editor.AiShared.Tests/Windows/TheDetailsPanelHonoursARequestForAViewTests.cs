@@ -175,6 +175,9 @@ public sealed class TheDetailsPanelHonoursARequestForAViewTests : IDisposable
 
         Assert.True(windows.TryGetWindow("details_ce1150_b", out var w) && ReferenceEquals(w, bundle.Window));
         Assert.Contains(bundle.Workspace.DetailsViews.All, d => d.Id == Hrot.Editor.Scenario.ScenarioComponentsViewDescriptor.ViewId);
-        Assert.False(windows.GlobalMenu.Root.Children.ContainsKey("View"), "no actions ⇒ no View ▸ Details items");
+        // ⚠ Since CE-4085 every WindowManager registers View ▸ Settings itself, so "View" always exists: compare with a bare one instead.
+        static string[] ViewItems(WindowManager wm) => wm.GlobalMenu.Root.Children.TryGetValue("View", out var view)
+            ? view.Children.Keys.OrderBy(k => k).ToArray() : System.Array.Empty<string>();
+        Assert.Equal(ViewItems(new WindowManager(new IconAtlas(nint.Zero, 1, 1, 16f))), ViewItems(windows));   // no actions ⇒ no View ▸ Details items
     }
 }
