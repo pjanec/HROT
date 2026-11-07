@@ -251,6 +251,19 @@ Rails: `EditOutcomeOwnerTests.F1_*` (NED suite, two nodes over the real egress /
 
 Gates: NED 190/0 (+1 red is the worker's in-flight B-4 test) · SimHost creation / delete / attribute 107/0 · NodeComposition 66/0 · SimHost integration 49/1 (`MissionExecutionFlow`, pre-existing, CE-3369) · ClusterRunner integration spawn-with-gateway 5/0 over real DDS.
 
+### 4.3 ⭐ AS-BUILT — F4 and F6 *(backend, `2026-11-07`, B-6)*
+
+| piece | as built |
+|---|---|
+| F4 the id | `Guid RequestId` APPENDED to `EmbarkEntityCommand`, `DisembarkEntityCommand`, `PossessRequestEvent`, `ReleasePossessionEvent` and their wire payloads (per payload, as §3 says); the codecs carry it |
+| F4 the answer | `InteractionOutcomes.Applied / Refused` where the executors accept or refuse today — `EmbarkationSystem` (*"the vehicle has no free seat"*, *"not aboard"*), `PossessionSystem` (held by another station · another side's player · reserved · out of the fight), release. ⭐ No id ⇒ nothing answered (the AI's own commands cost nothing) |
+| F4 the callers | `EditOp.Interact(target, send, label)`; `EmbarkOrders.Embark / Disembark` (map + ORBAT) and `EntityOrders.Possess / Unpossess` are journalled |
+| F6 the answer | `MissionControlExecutionSystem` reports every ack as the outcome too: Success ⇒ Applied, `VersionConflict` ⇒ **Conflict** (*"the plan was changed by someone else since you opened it"*), the rest ⇒ Refused |
+| F6 the route (CE-4277) | ⭐ the tactical-intent rule, mirrored: `MissionControlEgressTranslator` on every node forwards a LOCAL commit for a unit whose brain another node owns (`MissionControlIntent.IsRemote` stops a loop); the executor applies only where it `OwnsBrain` (a bare / networkless world is local). `ScenarioMissionService.CommitMissionAsync` is a journalled `Commit`; a remote answer resolves the pending task from the outcome log |
+| ⏭ not here | the Force-Commit modal reading the Conflict (Reload / Overwrite) — UI (B-12 / U-26) |
+
+Rails: `InteractionTransportTests.F4_*`, `MissionControlExecutionSystemTests.ReplaceMission_WrongBaseVersion_…` (Conflict) and `F6_*` — each red-proved.
+
 ## 5. Questions — ✅ APPROVED as revised *(🔒 user, `2026-11-06`: "approved")*
 
 | # | question | ⭐ lean | rejected |

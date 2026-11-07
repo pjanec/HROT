@@ -249,6 +249,25 @@ namespace Hrot.Map.Common.Systems
             //     This key was removed from EntityInfo (CS009) so the reflection compiler
             //     would silently drop it. We must handle it explicitly.
             //     Runs even when no JsonAttributeCompiler is present.
+            // 3-. ⭐ Edit framework F3 — {"$component":{"add"|"remove":"<Name>"}}: the OWNER adds / removes a form component (ComponentEdits — the one
+            //     helper Edits.Submit uses where it owns the entity); a bystander is silent. A standalone patch, like CommanderId.
+            if (!string.IsNullOrEmpty(req.AttributePatchJson) && req.AttributePatchJson.Contains(Fdp.Toolkit.Replication.Edits.ComponentEdits.PatchKey, StringComparison.Ordinal))
+            {
+                if (!Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(view, entity)) return;
+                string? why;
+                try
+                {
+                    using var doc = JsonDocument.Parse(req.AttributePatchJson);
+                    var op = doc.RootElement.GetProperty(Fdp.Toolkit.Replication.Edits.ComponentEdits.PatchKey);
+                    bool add = op.TryGetProperty("add", out var name);
+                    if (!add && !op.TryGetProperty("remove", out name)) why = "a component edit names neither add nor remove";
+                    else why = Fdp.Toolkit.Replication.Edits.ComponentEdits.Apply(repo, entity, name.GetString() ?? string.Empty, add);
+                }
+                catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException) { why = "a malformed component edit: " + ex.Message; }
+                if (req.WantOutcome) ReportOutcome(repo, entity, req, why is null ? EditStatus.Applied : EditStatus.Refused, why ?? "applied");
+                return;
+            }
+
             bool commanderIntercepted = false;
             if (!string.IsNullOrEmpty(req.AttributePatchJson))
             {

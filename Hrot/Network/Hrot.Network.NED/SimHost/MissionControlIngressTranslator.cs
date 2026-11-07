@@ -86,6 +86,7 @@ namespace Hrot.Network.NED.SimHost
                     TargetEntityId = req.TargetEntityId,
                     BaseVersion    = req.BaseVersion,
                     Payload        = MapToNeutralPayload(req.Payload),
+                    IsRemote       = true,   // ⭐ F6 — never forwarded again
                 });
             }
         }
