@@ -2154,7 +2154,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// </summary>
     private void OpenScenarioSaveAsDialog(
         Hrot.Editor.AiShared.Catalog.AssetCatalog catalog,
-        Action<string> onNamed)
+        Action<string> onNamed,
+        bool asRecipe = false)
     {
         if (_saveAsBrowser == null || _scenarioSession == null) return;
 
@@ -2170,6 +2171,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var request = Hrot.Editor.AiShared.Browser.AssetSaveAsRequests.Build(
             catalog, Hrot.Editor.AiShared.AssetKind.Scenario, "Save Scenario As",
             initialName, "", "Save", folderPicker);
+        if (asRecipe) request = Hrot.Editor.AiShared.Recipes.RecipeFiles.AsScenarioRecipeRequest(request);   // ⭐ B-9 N3 — Replace? asks about the recipe
 
         _saveAsBrowser.Open(request, result =>
         {
@@ -2475,6 +2477,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     : null,
                 openSaveAsDialog: _saveAsBrowser != null
                     ? onNamed => OpenScenarioSaveAsDialog(catalog, onNamed)
+                    : null,
+                openSaveAsRecipeDialog: _saveAsBrowser != null
+                    ? onNamed => OpenScenarioSaveAsDialog(catalog, onNamed, asRecipe: true)
                     : null,
                 // ⭐ CE-4140 — New Scenario… is new FROM A SCENARIO RECIPE, which needs ScenarioNewAssetService — and this host composes none (WireAssetCreation: it takes an IEditorLogic adapter, CGF has no IEditorLogic).
                 //   Said here, not defaulted: the item is greyed with its reason (ruling 49). ⚠ The day CGF gains the Scenario kind in _newAssetServices it passes () => _newAssetLauncher.Open(AssetKind.Scenario).

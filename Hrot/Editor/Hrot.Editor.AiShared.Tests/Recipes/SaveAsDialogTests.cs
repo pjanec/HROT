@@ -794,6 +794,45 @@ public sealed class SaveAsDialogTests
         Assert.Equal(new[] { "Alpha" }, saved);
     }
 
+    /// <summary>
+    /// ⭐ B-9 N3 — <i>Save Scenario as Recipe…</i>: the scenario browser's request, turned by <c>RecipeFiles.AsScenarioRecipeRequest</c>, asks Replace? about the RECIPE
+    /// (<c>recipes/scenarios/&lt;folder&gt;/&lt;name&gt;</c>, the list New Scenario reads): an existing recipe ⇒ <c>NameExists</c>; a scenario of that name with no recipe ⇒ it does not ask;
+    /// a recipe with no such scenario ⇒ it asks. ✅ Red-proof: <c>NameExists</c> left as the scenario catalog's ⇒ the scenario-only arm asks ⇒ red.
+    /// </summary>
+    [Fact]
+    public void N3_ScenarioAsRecipe_AsksAboutTheRecipe_NotAboutAScenarioOfTheSameName()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "n3scr_" + Guid.NewGuid().ToString("N"));
+        var saved = AssetRoots.ConfiguredRoot;
+        Directory.CreateDirectory(root);
+        AssetRoots.Configure(root);
+        try
+        {
+            var seed = Path.Combine(AssetRoots.ScenariosRecipesRoot, "combat", "mine");
+            Directory.CreateDirectory(seed);
+            File.WriteAllText(Path.Combine(seed, Fdp.Toolkit.Orchestration.ContentLayout.ScenarioFileName), "{}");
+
+            // the catalog holds a SCENARIO "combat/dup" (no recipe of that name); the recipe "combat/mine" has no scenario
+            var scenario = new FakeAsset { AssetId = Guid.NewGuid(), Name = "dup", Kind = AssetKind.Scenario };
+            var plain = AssetSaveAsRequests.Build(new StubCatalog(scenario), AssetKind.Scenario, "Save Scenario As", "x", "", "Save", new FolderPickerState(Array.Empty<string>()));
+            var asRecipe = RecipeFiles.AsScenarioRecipeRequest(plain);
+
+            Assert.True(plain.NameExists!("dup", ""));                  // the scenario Save-As asks about the scenario ...
+            Assert.False(asRecipe.NameExists!("dup", ""));              // ... the recipe Save-As does not
+            Assert.True(asRecipe.NameExists!("mine", "combat"));        // an existing recipe asks (once, in the browser) ...
+            Assert.True(asRecipe.NameExists!("mine", "/combat"));
+            Assert.False(asRecipe.NameExists!("mine", ""));             // ... only at its own path
+            Assert.False(asRecipe.NameExists!("fresh", "combat"));
+            Assert.Equal(new[] { "mine" }, asRecipe.GetFolderContents!("combat").Select(i => i.Name));
+            Assert.Contains("Recipe", asRecipe.Title);
+        }
+        finally
+        {
+            AssetRoots.Configure(saved);
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
     private sealed class StubCatalog : Hrot.Editor.AiShared.Catalog.IAssetCatalog
     {
         private readonly IReadOnlyList<IEditableAsset> _all;

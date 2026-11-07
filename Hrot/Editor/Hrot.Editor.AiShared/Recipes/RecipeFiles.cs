@@ -61,6 +61,42 @@ public static class RecipeFiles
                                        : null,
         };
 
+    /// <summary>
+    /// ⭐ B-9 N3 — the scenario recipes, read LIVE by the ONE lister <i>New Scenario</i> uses (<c>ContentSeed.CuratedRelPaths</c> over <see cref="AssetRoots.ScenariosRecipesRoot"/>):
+    /// forward-slashed paths relative to <c>recipes/scenarios</c>, e.g. <c>combat/mine</c>.
+    /// </summary>
+    public static IReadOnlyList<string> ScenarioRecipes()
+        => Fdp.Toolkit.Orchestration.ContentSeed.CuratedRelPaths(AssetRoots.ScenariosRecipesRoot);
+
+    /// <summary>Does the scenario recipe <c>recipes/scenarios/&lt;relName&gt;</c> exist (<paramref name="relName"/> = <c>folder/name</c>)? A scenario of that name is irrelevant.</summary>
+    public static bool ScenarioRecipeExists(string relName)
+        => ScenarioRecipes().Contains(relName.Replace('\\', '/').Trim('/'), StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// ⭐ B-9 N3 — turns a scenario Save-As browser request into the one for <i>Save Scenario as Recipe…</i>: the name the user types lands at
+    /// <c>recipes/scenarios/&lt;folder&gt;/&lt;name&gt;</c>, so <c>NameExists</c> (⇒ Replace?) asks about THAT recipe — never about a scenario of the same name —
+    /// and the folder listing shows the recipes there. Both hosts call it; the save itself stays the session's.
+    /// </summary>
+    public static NodeEditor.UI.Dialogs.SaveAsRequest AsScenarioRecipeRequest(NodeEditor.UI.Dialogs.SaveAsRequest scenarioRequest)
+    {
+        static string Rel(string name, string dest) { dest = (dest ?? "").Trim('/'); return dest.Length == 0 ? name : dest + "/" + name; }
+        return new NodeEditor.UI.Dialogs.SaveAsRequest
+        {
+            Title              = scenarioRequest.Title.Replace(" As", " as Recipe"),
+            InitialName        = scenarioRequest.InitialName,
+            InitialDestination = scenarioRequest.InitialDestination,
+            ConfirmLabel       = scenarioRequest.ConfirmLabel,
+            GetFolderTree      = scenarioRequest.GetFolderTree,
+            GetFolderContents  = folder => ScenarioRecipes()
+                .Where(r => (r.LastIndexOf('/') is var i && i >= 0 ? r.Substring(0, i) : "") == (folder ?? "").Trim('/'))
+                .Select(r => new NodeEditor.UI.Dialogs.SaveAsContentItem(r.Substring(r.LastIndexOf('/') + 1), AssetKindIcons.GetIconKey(AssetKind.Scenario)))
+                .ToList(),
+            OnCreateFolder     = scenarioRequest.OnCreateFolder,
+            NameExists         = (name, dest) => ScenarioRecipeExists(Rel(name, dest)),
+            ValidateName       = scenarioRequest.ValidateName,
+        };
+    }
+
     /// <summary>The recipes of <paramref name="kind"/> read by <paramref name="read"/>; a file that does not read (null or a throw) is skipped.</summary>
     public static IEnumerable<T> Read<T>(AssetKind kind, Func<string, T?> read) where T : class
     {
