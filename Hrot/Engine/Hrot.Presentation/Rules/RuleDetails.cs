@@ -117,13 +117,7 @@ public sealed class RuleDetails
     public void RequestTab(RuleTab tab) => _requestTab = tab;
 
     /// <summary>The entity's authored behaviour name and params JSON (its <c>BehaviorStartRecord</c>), or null.</summary>
-    public (string Name, string Json)? ParamsOf(RuleRow row)
-    {
-        var w = _world();
-        if (w == null || !w.IsAlive(row.Entity) || !w.TryGetTable(typeof(BehaviorStartRecord), out _) || !w.HasManagedComponent<BehaviorStartRecord>(row.Entity)) return null;
-        var rec = ((Fdp.ModuleHost.Abstractions.ISimulationView)w).GetManagedComponentRO<BehaviorStartRecord>(row.Entity);
-        return rec == null ? null : (rec.BehaviorName, rec.JsonParams);
-    }
+    public (string Name, string Json)? ParamsOf(RuleRow row) => RuleSentence.ParamsOf(_world(), row.Entity);   // ⭐ U-18 — the ONE reader, shared with the List view
 
     /// <summary>A row with a run behind it: its <c>ObjectiveStatus</c> is replicated (an authored row, before any run, has none).</summary>
     public static bool IsLive(RuleRow row) => !row.Authored;

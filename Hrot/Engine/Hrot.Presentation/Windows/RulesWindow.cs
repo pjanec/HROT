@@ -302,7 +302,8 @@ public sealed class RulesWindow : ManagedWindow
         var avail = ImGui.GetContentRegionAvail();
         float details = Math.Min(_details != null ? 560f : 340f, avail.X * (_details != null ? 0.5f : 0.4f));
         ImGui.BeginChild("##rules-timeline", new Vector2(avail.X - details - 6f, avail.Y), ImGuiChildFlags.None, ImGuiWindowFlags.None);
-        _panel.Draw(_source(), _cursor, Array.Empty<TimelineLaneDescriptor>());
+        if (ListView) DrawList();   // ⭐ U-18 / RX3 — the List view: one sentence per rule
+        else _panel.Draw(_source(), _cursor, Array.Empty<TimelineLaneDescriptor>());
         ImGui.EndChild();
         ImGui.SameLine();
         ImGui.BeginChild("##rules-details", new Vector2(0, avail.Y), ImGuiChildFlags.Borders, ImGuiWindowFlags.None);
@@ -310,8 +311,86 @@ public sealed class RulesWindow : ManagedWindow
         ImGui.EndChild();
     }
 
+    // ── ⭐ U-18 / RX3 (DESIGN_Rule_Editor_UX §2.1) — the List view ───────────────────────────────────────────────────────────
+
+    private bool? _listView;
+
+    /// <summary>List (one sentence per rule — the authoring default in edit mode) or Timeline (the default with a live run or a recording). The person's pick sticks.</summary>
+    public bool ListView
+    {
+        get => _listView ?? AllAuthored();
+        set => _listView = value;
+    }
+
+    /// <summary>No live or recorded row (index loops — the getter runs every frame, 0 B).</summary>
+    private bool AllAuthored()
+    {
+        var gs = _view.Groups;
+        for (int i = 0; i < gs.Count; i++) { var rs = gs[i].Rows; for (int j = 0; j < rs.Count; j++) if (!rs[j].Authored) return false; }
+        return true;
+    }
+
+    private readonly Dictionary<int, (string Json, string Text, bool Incomplete)> _sentences = new();
+
+    /// <summary>A rule's line, re-built only when its params change (the list draws every frame).</summary>
+    internal (string Text, bool Incomplete) SentenceOf(RuleRow row)
+    {
+        var p = RuleSentence.ParamsOf(_world(), row.Entity);
+        if (p is not { } prm) return (row.Title, false);
+        if (_sentences.TryGetValue(row.NetworkId, out var c) && ReferenceEquals(c.Json, prm.Json)) return (c.Text, c.Incomplete);
+        var refs = _world() is { } w ? AuthoredRules.ScopeOf(w) : null;
+        var (text, incomplete) = RuleSentence.Of(prm.Name, prm.Json, row.Title, row.Status.Required != 0, refs);
+        _sentences[row.NetworkId] = (prm.Json, text, incomplete);
+        return (text, incomplete);
+    }
+
+    /// <summary>What the List view shows, line by line (rails, the panel probe).</summary>
+    internal IReadOnlyList<string> ListRows => _view.Rows.Select(r => SentenceOf(r).Text).ToList();
+
+    /// <summary>Whether the List marks rule <paramref name="networkId"/> incomplete (rails).</summary>
+    internal bool IncompleteOf(int networkId) => _view.Find(networkId) is { } r && SentenceOf(r).Incomplete;
+
+    private void DrawList()
+    {
+        var gs = _view.Groups;
+        bool any = false;
+        for (int gi = 0; gi < gs.Count; gi++)
+        {
+            var g = gs[gi];
+            if (g.Name.Length > 0) ImGui.TextDisabled(g.Name);
+            var rs = g.Rows;
+            for (int ri = 0; ri < rs.Count; ri++)
+            {
+                var row = rs[ri];
+                any = true;
+                var (text, incomplete) = SentenceOf(row);
+                ImGui.PushID(row.NetworkId);
+                float indent = 10f + row.Depth * 14f;
+                ImGui.Indent(indent);
+                if (incomplete)
+                {
+                    var warn = NodeEditor.Core.Widgets.Icons.Get("form/warning");
+                    ImGui.TextColored(warn.Color, warn.Glyph);
+                    if (ImGui.IsItemHovered()) ImGui.SetTooltip("incomplete — a blank is not filled yet");
+                    ImGui.SameLine();
+                }
+                if (ImGui.Selectable(text, _selected == row.NetworkId)) Select(row);
+                ImGui.Unindent(indent);
+                ImGui.PopID();
+            }
+            ImGui.Spacing();
+        }
+        if (!any) ImGui.TextDisabled("No rules yet.");
+    }
+
     private void DrawToolbar()
     {
+        // ⭐ U-18 / RX3 — List | Timeline (two views of the same rows)
+        bool list = ListView;
+        if (NodeEditor.Core.Widgets.GlyphWidgets.GlyphToggle("##rules-list", new NodeEditor.Core.Widgets.IconGlyph("\uf03a", NodeEditor.Core.Widgets.IconPalette.Blue), list, "List: one sentence per rule")) _listView = true;   // List
+        ImGui.SameLine(0f, 2f);
+        if (NodeEditor.Core.Widgets.GlyphWidgets.GlyphToggle("##rules-timeline", new NodeEditor.Core.Widgets.IconGlyph("\uf1da", NodeEditor.Core.Widgets.IconPalette.Amber), !list, "Timeline")) _listView = false;   // ClockRotateLeft
+        ImGui.SameLine();
         ImGui.SetNextItemWidth(90f);
         ImGui.Combo("##rules-group", ref _groupBy, GroupNames, GroupNames.Length);
         if (ImGui.IsItemHovered()) ImGui.SetTooltip("Group by");
