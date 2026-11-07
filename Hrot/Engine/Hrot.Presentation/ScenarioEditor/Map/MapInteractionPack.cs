@@ -406,6 +406,8 @@ namespace Hrot.ScenarioEditor.Map
                 };
                 authoring = new Hrot.UI.Common.AddEntity.EntityAuthoring(inputs, ctx.World.Bus, globalManager, tools);
                 authoring.AddEntity.RegisterOn(actions);
+                authoring.CopyPaste = new Hrot.UI.Common.AddEntity.CopyPasteActions(() => authoring.Spawn, selection);   // ⭐ A5 — one clipboard per map, beside Add Entity
+                authoring.CopyPaste.RegisterOn(actions);
                 authoringRef = authoring;
                 authoringForForm = authoring;   // ⭐ CE-1059 — the order form's entity list opens in the same picker registry
             }

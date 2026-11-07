@@ -40,8 +40,9 @@ namespace Fdp.Core
             ref byte start = ref Unsafe.As<FixedString32, byte>(ref this);
             Span<byte> buffer = MemoryMarshal.CreateSpan(ref start, 32);
 
-            var encoder = Encoding.UTF8.GetEncoder();
-            encoder.Convert(str, buffer.Slice(0, MaxLength), true, out _, out int bytesUsed, out _);
+            // ⛔ R-2084 (measured 2026-11-07, A5) — Utf8.FromUtf16 is static: an Encoder per construction allocated 48 B, i.e. every gizmo label every frame.
+            //   It stops at a whole character when the buffer is full, as the encoder did.
+            System.Text.Unicode.Utf8.FromUtf16(str, buffer.Slice(0, MaxLength), out _, out int bytesUsed, replaceInvalidSequences: true, isFinalBlock: true);
             buffer[bytesUsed] = 0;
         }
         

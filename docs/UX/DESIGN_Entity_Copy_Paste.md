@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-07
-build-state: BUILDING
+build-state: BUILT
 current-answer: §2 (the one path) and §3 (placement)
 stale-below: nothing
 known-rot: none
@@ -158,6 +158,7 @@ graph TD
 | | |
 |---|---|
 | ✅ as built `2026-11-07` | **C1** `SliceExpander` (`Hrot.Common/Macros`) carries the extract + relocate + derived GUID + request build; `MacroExpander.Flatten` calls it (its origin, parameter binding and nested flattening as the per-child hook); `ScenarioRefScope.Fallback` + `ExtractionPasses.Outside`. **C2** `EntityClipboard` (`Hrot.Common/Macros` — it needs nothing above `Hrot.Common`) over `MacroExpander.Slices` with `MacroExpansionSystem.IdAllocator`; a command link is carried as the load's own `InitialUnitSubordinateIntent` (an `EntityLink` by GUID), so a copied subordinate's commander lands on the copied HQ's PRE-ALLOCATED id, and a subordinate copied alone keeps the ORIGINAL commander (measured: 2 vs 9001); `ActiveMissionPlan.WithNewTaskIds()` (a new record, CE-4046). Rails: `EntityClipboardTests` 4/4 + the 38 macro rails unchanged |
+| ✅ as built `2026-11-07` | **C3** actions *Copy* / *Paste* / *Duplicate* (549–551, Edit group, Edit + Live, units and graphics, `Ctrl+C` / `Ctrl+V` / `Ctrl+D`) — `CopyPasteActions`, built by the map pack beside Add Entity (`EntityAuthoring.CopyPaste`, one clipboard per map, every authoring host); Copy takes the selection when the clicked entity is in it, else the clicked one (the anchor = the clicked one). The paste tool is `PasteGizmo` (`ScenarioSpawnAdapter.ArmPaste`): the ONE `PlacementSession` (+ `Pending` — the pure query the draw and the release share) over the copy's ghosts (`MacroPreview.FromRequests`, the macro preview's own routine; `MacroGhostDraw` turned by the drag); one paste per arming. The map's menu shortcuts read `"Ctrl+X"` (a modified press matches only it) — one key mechanism. ⭐ Hot path, measured: the shared ghost drawing allocated every frame (a boxed `foreach`, a per-frame interpolated line) and **every `FixedString32` / `64` / `128` built anywhere allocated 48 B** (`Encoding.UTF8.GetEncoder()` per construction — every gizmo label every frame); fixed with an index loop, cached lines and `Utf8.FromUtf16` (static) in all four fixed-string types. ⏭ not built: *Paste here* on the empty map's menu; a paste with nothing selected by key (the map's shortcuts resolve through the selected unit's menu) |
 | **C1** | `SliceExpander` extracted from `MacroExpander.Flatten`; `ExtractionPasses.Outside`; the macro rails stay green (`MacroExpansion*`, `MacroInsertion*`) |
 | **C2** | `EntityClipboard` Copy / Paste over it; rails: one unit, a commander + subordinates (inside refs to the copies), a subordinate alone (outside ref kept), positions relocated + turned, fresh GUIDs, new task ids, not transient |
 | **C3** | actions Copy / Paste / Duplicate (Edit + Live) + the paste tool (PlacementSession + ghosts) + *Paste here* |

@@ -109,6 +109,10 @@ namespace Hrot.Common.Actions
             catalogue.Declare(new ActionDecl(GlobalActionIds.SaveSelectionAsMacro, "Save selection as macro…", ActionGroup.View, First + 4, Unit) { Modes = ActionModes.InEdit });   // ⭐ CE-4210 MA-9 · R-4162: authoring only
 
             // ── Edit ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+            // ⭐ A5 / LC-3 — Copy / Paste / Duplicate (units and graphics): one path in Edit and Live (DESIGN_Entity_Copy_Paste §2); the paste is the placement gesture
+            catalogue.Declare(new ActionDecl(GlobalActionIds.CopyEntities, "Copy", ActionGroup.Edit, First + 2, Everything) { Shortcut = "Ctrl+C", Modes = ActionModes.InEdit | ActionModes.InLive });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.PasteEntities, "Paste", ActionGroup.Edit, First + 3, Everything) { Shortcut = "Ctrl+V", Modes = ActionModes.InEdit | ActionModes.InLive });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.DuplicateEntities, "Duplicate", ActionGroup.Edit, First + 4, Everything) { Shortcut = "Ctrl+D", Modes = ActionModes.InEdit | ActionModes.InLive });
             catalogue.Declare(new ActionDecl(GlobalActionIds.Rotate, "Rotate", ActionGroup.Edit, First, Unit) { Shortcut = "R", Modes = ActionModes.InEdit | ActionModes.InLive });   // ⭐ R-4162 — the same modes as moving by drag and drop
             catalogue.Declare(new ActionDecl(GlobalActionIds.EditOverlay, "Edit Shape", ActionGroup.Edit, First, ActionTarget.Area | ActionTarget.Zone) { Shortcut = "E", Modes = ActionModes.InEdit | ActionModes.InLive });
             catalogue.Declare(new ActionDecl(GlobalActionIds.LoadZone, "Load zone", ActionGroup.Edit, First + 1, ActionTarget.Zone) { Shortcut = "L", Modes = ActionModes.InEdit | ActionModes.InLive });   // ⭐ CE-3024 (E2) — always enabled: the load is cluster-wide

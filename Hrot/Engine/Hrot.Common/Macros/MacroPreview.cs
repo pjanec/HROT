@@ -15,6 +15,14 @@ public sealed record MacroGhost(long TkbType, string Name, Vector3 Offset, Force
 public sealed record MacroPreviewResult(string Macro, IReadOnlyList<MacroGhost> Ghosts, string? Failure, int Hidden = 0)
 {
     public bool Ok => Failure is null;
+
+    private string? _summary, _failureText;
+
+    /// <summary>The line a drawn preview shows, built once (R-2084: a preview is drawn every frame).</summary>
+    public string Summary => _summary ??= $"preview: {Macro} - {Ghosts.Count} to create";
+
+    /// <summary>The failure line a drawn preview shows, built once.</summary>
+    public string FailureText => _failureText ??= $"preview: {Failure}";
 }
 
 /// <summary>
@@ -32,9 +40,15 @@ public static class MacroPreview
         var instance = new MacroInstance { Macro = macroPath, ArgsJson = string.IsNullOrWhiteSpace(argsJson) ? "{}" : argsJson };
         var result = expander.Expand(instance, int.MaxValue, Guid.Empty, NodeId.None, anchor, outside, new Hrot.Core.Network.SequentialIdAllocator());
         if (!result.Ok) return new(macroPath, Array.Empty<MacroGhost>(), result.Failure);
+        return FromRequests(macroPath, result.Children, anchor.Position);
+    }
 
+    /// <summary>⭐ A5 — the ghosts of <paramref name="children"/> relative to <paramref name="anchor"/>: the ONE routine a macro preview and the paste tool
+    /// draw from (what a creation would make: its type, name, offset, side; rules, scores and nested markers counted as hidden).</summary>
+    public static MacroPreviewResult FromRequests(string label, IReadOnlyList<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest> children, Vector3 anchor)
+    {
         var ghosts = new List<MacroGhost>(); int hidden = 0;
-        foreach (var c in result.Children)
+        foreach (var c in children)
         {
             long type = c.TkbType;
             if (type == Hrot.Map.Common.TkbEntityTypes.ScenarioMacro || type == Hrot.Map.Common.TkbEntityTypes.Objective || type == Hrot.Map.Common.TkbEntityTypes.Trigger) { hidden++; continue; }
@@ -42,9 +56,9 @@ public static class MacroPreview
             var tf = comps?.OfType<SimTransform>().Select(t => (SimTransform?)t).FirstOrDefault();
             if (tf == null) { hidden++; continue; }   // positionless: nothing to draw
             var info = comps!.OfType<EntityInfo>().Select(i => (EntityInfo?)i).FirstOrDefault();
-            ghosts.Add(new MacroGhost(type, info?.Name.ToString() is { Length: > 0 } n ? n : $"#{type}", tf.Value.Position - anchor.Position, info?.ForceId ?? ForceId.Neutral));
+            ghosts.Add(new MacroGhost(type, info?.Name.ToString() is { Length: > 0 } n ? n : $"#{type}", (Vector3)tf.Value.Position - anchor, info?.ForceId ?? ForceId.Neutral));
         }
-        return new(macroPath, ghosts, null, hidden);
+        return new(label, ghosts, null, hidden);
     }
 
     /// <summary>The preview of one <c>InsertMacro</c> step, with what an <i>Insert now</i> would ask for (the macro, where, heading, args).</summary>
