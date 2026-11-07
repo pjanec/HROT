@@ -80,6 +80,10 @@ namespace Hrot.SimHost.Modules.Orchestration
         Fdp.Toolkit.Replay.WorldChangeCheck ChangeCheck,
         ClusterView View)
     {
+        /// <summary>⭐ B-14 / Edit-mode undo (📄 docs/UX/DESIGN_Edit_Mode_Undo.md §2.3, R-174) — the world states an undo goes back to, over the SAME
+        /// participants the dry run brackets (built here from the one list, so the two can never differ). Empty until a host records steps (the editor).</summary>
+        public Fdp.Toolkit.Replay.WorldSnapshotRing UndoRing { get; init; } = new();
+
         /// <summary>
         /// ⭐⭐⭐ <c>D16</c> (<c>R-3046</c>) — <b>THE cluster handlers of an ECS host, composed in ONE place.</b> The recording
         /// controller, replay load, checkpoint, dry run, prefetch, terrain/zone ops, the host's scenario handlers, the load
@@ -182,7 +186,7 @@ namespace Hrot.SimHost.Modules.Orchestration
             // 9. Live load — LAST: FinalizeLive, and a cold PrepareLive nothing above claimed.
             slave.RegisterHandler(new ReferenceLiveLoadHandler(controller, h.StagingRoot));
 
-            return new EcsHostClusterHandlers(controller, dryRun, changeCheck, slave.View);   // ⭐ CE-1436 — the node's ONE cluster read model (the slave owns it, so no host can lack it)
+            return new EcsHostClusterHandlers(controller, dryRun, changeCheck, slave.View) { UndoRing = new Fdp.Toolkit.Replay.WorldSnapshotRing(rewindables) };   // ⭐ CE-1436 — the node's ONE cluster read model (the slave owns it, so no host can lack it)
         }
     }
 }

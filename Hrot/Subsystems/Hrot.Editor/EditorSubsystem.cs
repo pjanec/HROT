@@ -310,6 +310,30 @@ namespace Hrot.Editor
         /// <summary>⭐ CE-4216 (R2) — Window ▸ Rules; kept so the Details panel's Objectives tab can open a rule in it (RV-7).</summary>
         /// <summary>⭐ CE-4218 (R5a) — THE editor undo history: the Parameters window and the rule editor push to it.</summary>
         internal Hrot.Presentation.Edits.EditHistory EditHistory { get; } = new();
+
+        private bool _undoRecorderInstalled, _undoSessionWired;
+
+        /// <summary>⭐ B-14 / Edit-mode undo U2 + U5 (📄 docs/UX/DESIGN_Edit_Mode_Undo.md §2.2) — the world's step recorder writes world steps onto the ONE
+        /// <see cref="EditHistory"/> (Edit mode only); the session's Save marks the clean point and an open / create / clear (or a Live load) starts over.
+        /// Called where the world + ring and where the session come into being (either order); each half once.</summary>
+        private void WireWorldUndo()
+        {
+            if (!_undoRecorderInstalled && _world is { } world && _clusterHandlers is { } handlers)
+            {
+                _undoRecorderInstalled = true;
+                Fdp.Toolkit.Replication.Edits.EditSteps.Install(world, UndoRecorder = new Hrot.Presentation.Edits.WorldUndoRecorder(EditHistory, handlers.UndoRing,
+                    recording: () => Hrot.Common.Editing.StationMode.Of(world) == Hrot.Common.Editing.EditingMode.Edit));
+            }
+            if (!_undoSessionWired && _editorApp?.ScenarioSession is Hrot.Editor.AiShared.Scenarios.EditorScenarioSession session)
+            {
+                _undoSessionWired = true;
+                session.Saved  += EditHistory.MarkSaved;
+                session.Opened += () => { EditHistory.Clear(); _clusterHandlers?.UndoRing.Clear(); };
+            }
+        }
+
+        /// <summary>⭐ B-14 — the world's step recorder (null until the world exists); a rail reads it.</summary>
+        internal Hrot.Presentation.Edits.WorldUndoRecorder? UndoRecorder { get; private set; }
         private Hrot.Presentation.Windows.RulesWindow? _rulesWindow;
         private Hrot.Editor.AiShared.Rules.RulesBundle? _rulesBundle;
         /// <summary>⭐ CE-4292 — the rules bundle this host composed (forwarding rails).</summary>
@@ -1378,6 +1402,7 @@ namespace Hrot.Editor
                 leaveRun: () => _previewController?.ForgetPreview());
             _editorLogic = app;
             _editorApp   = app;
+            WireWorldUndo();   // ⭐ B-14 — the session exists now
 
             // ⭐⭐ CE-1321 (BV-68) — THE C# behaviour rebuild (toolbar button and POST /ai/reload): build, copy into the watched
             //   directory, await the swap. The signal subscribes to the coordinator only when a rebuild runs, so it fires AFTER the
@@ -1906,6 +1931,7 @@ namespace Hrot.Editor
             _trafficPack = bootstrapper.TrafficPack;
             _capabilities = bootstrapper.ResolvedCapabilities;
             _clusterHandlers = bootstrapper.Orchestration.Handlers;
+            WireWorldUndo();   // ⭐ B-14 — the world and the ring exist now
             TerrainResidency = bootstrapper.Orchestration.TerrainResidency;
 
             // Expose the registry to the diagnostic renderers so the entity inspector
@@ -2682,7 +2708,7 @@ namespace Hrot.Editor
         }
 
         /// <summary>⭐ CE-1290 — the loaded scenario's name, for the window title (null after New / clear).</summary>
-        public string? WindowTitleDetail => EditorWindowTitle.Detail(_editorLogic?.LoadedScenarioName, _world is { } w ? Fdp.Toolkit.Terrain.TerrainDefinition.LoadedName(w) : null);   // ⭐ CE-4210 MA-6 — "Macro: <path>" · N4 the terrain
+        public string? WindowTitleDetail => EditorWindowTitle.Detail(_editorLogic?.LoadedScenarioName, _world is { } w ? Fdp.Toolkit.Terrain.TerrainDefinition.LoadedName(w) : null, dirty: EditHistory.IsDirty);   // ⭐ B-14 / U5 — the dirty dot   // ⭐ CE-4210 MA-6 — "Macro: <path>" · N4 the terrain
 
         /// <inheritdoc/>
         /// <remarks>
@@ -3838,6 +3864,10 @@ namespace Hrot.Editor
             Action openScenarioSaveAs = () => openScenarioSaveAsThen(null);
             if (_timeTransport?.RunChoice is { } runChoice) runChoice.SaveAsPrompt = onNamed => openScenarioSaveAsThen(onNamed);
 
+            // ⭐ B-14 / undo U2 — Edit ▸ Undo / Redo (Ctrl+Z / Ctrl+Y) over the ONE history, Edit mode only
+            Hrot.Editor.AiShared.Documents.EditUndoCommands.Register(windowManager.ShellCommands.Register, EditHistory,
+                inEdit: () => _world is { } uw && Hrot.Common.Editing.StationMode.Of(uw) == Hrot.Common.Editing.EditingMode.Edit);
+
             Hrot.Editor.AiShared.Documents.ShellSaveCommands.Register(
                 register:          windowManager.ShellCommands.Register,
                 docManager:        _aiDocumentManager,
@@ -4852,6 +4882,13 @@ namespace Hrot.Editor
             if (windowManager.ShellCommands.Get(Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveAllId) != null)
                 MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
                     Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveAllId, "File/Save All");
+
+            // ⭐ B-14 — the Edit menu names the step it undoes / redoes (design §2.9)
+            if (windowManager.ShellCommands.Get(Hrot.Editor.AiShared.Documents.EditUndoCommands.UndoId) != null)
+            {
+                MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands, Hrot.Editor.AiShared.Documents.EditUndoCommands.UndoId, "Edit/Undo");
+                MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands, Hrot.Editor.AiShared.Documents.EditUndoCommands.RedoId, "Edit/Redo");
+            }
 
             // ─────────────────────────────────────────────────────────────────────────
 
