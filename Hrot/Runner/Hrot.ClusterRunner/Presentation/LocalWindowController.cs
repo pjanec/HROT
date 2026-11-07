@@ -283,6 +283,7 @@ internal sealed class LocalWindowController
         // Message log
         var messageLogRegistry = new MessageLogRegistry();
         messageLogRegistry.RegisterSource(NLogMessageLogTarget.SharedInstance);
+        messageLogRegistry.RegisterSource(Hrot.Presentation.Edits.EditHistoryMessageLogSource.Shared);   // ⭐ F7 (B-12) — the edit history, every host by construction
         var msgLogWindow = new MessageLogWindow(messageLogRegistry);
         wm.RegisterWindow(msgLogWindow);
         wm.MessageLogRegistry = messageLogRegistry;
