@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN (2026-11-07, backend — decisions S1–S12 carry leans, awaiting the user)
+build-state: READY-TO-BUILD — ✅ S1–S12 + K1–K6 APPROVED by the user 2026-11-07 ("Apprived."); the field-declaration D0 / D1–D11 are folded in by S1
 updated: 2026-11-07
 current-answer: the whole file — §1 what exists (measured) · §2 the library (UML) · §3 the type registration · §4 the list forms · §5 entities
-  and places · §6 the decisions · §7 the build order · §8 ONE widget kit for every form (K1–K6)
+  and places · §6 the decisions · §7 the build order · §8 ONE widget kit for every form (K1–K6) · §9 the entity inspector is a host
 stale-below: nothing
 known-rot: none
 known-conflict: DESIGN_UI_Conventions.md C4 (move the 2-column tables onto FormGrid) — S11 reconciles: the struct editor's table IS FormGrid's label
@@ -139,7 +139,7 @@ form (`[JsonText]`, CE-4295) is the FILE's text, not the cell's — Parse/Format
 | **the picker** (▾) | type-ahead over names · side · kind · distance from the selection; then *Pick on the map · By key (@name) · Clear*; `[MapPickableEntity]` narrows it |
 | **places** | WorldPoint = ONE field *"x · y · z"* (Parse accepts the same text) + ⌖ ⊕; PointLink = a chip (*@RallyA · 668 · 427 m*) whose ▾ switches coordinates / entity / key — ⛔ no radio buttons in the cell |
 
-## 6. Decisions — each with a lean; the user approves
+## 6. Decisions — ✅ APPROVED (user, `2026-11-07`)
 
 | # | question | ⭐ lean | rejected |
 |---|---|---|---|
@@ -225,3 +225,22 @@ over one kit. A widget is improved once and every form gets it.*
 
 ⇒ **Build order gains a step 0:** move the chip into the kit and add `ChipRow`, `ListBlock`, `GridBlock`, `RowMarks`, `EntityField` with their
 rails; then §7's steps use them, and `FormView` moves onto them (with its frame rails, e.g. `TheUnitFormDrawsTests`, unchanged in content).
+
+## 9. The entity inspector — the C# case is ONE shape source, not a second editor *(user, `2026-11-07`)*
+
+> 🔒 User: *"the older part of the engine, like the entity inspector, is using the struct edit, which is inlined for editing the component
+> values. Will that fit as well to the new refactored unified struct edit? I hope so. And … the original struct edit, which passes there a C#
+> structure, is basically just a special case of the generic one, I guess."*
+
+**Yes, on both counts — measured:** the inspector (`FDP/Engine/Fdp.Presentation/ImGui/Utils/ComponentReflector.cs`) opens a StructEdit session
+over the component's C# type, either IN PLACE for one field (`EditScope.ForField`, a double-click; drawn inside `FormGrid.BeginTree`, `:378-397`)
+or in a `ComponentEditWindow` for the whole component, writing back through the edit framework's interceptor with a baseline (ruling 14,
+`:357-366`). It passes its own drawer dictionary (`_fieldDrawers`, `:77`) — one of the two hosts that draws Quaternion / Guid today.
+
+| what the inspector keeps | what it gains | what goes |
+|---|---|---|
+| the C# shape (`ReflectionEditDocumentBuilder`) — ⭐ the C# case is one SHAPE SOURCE beside the declared one (S2); both make the same `EditNode` tree for the one table | the catalogue (every type drawn), the list forms and item menu, per-field errors, changed marks, the entity chip | `_fieldDrawers` — the catalogue replaces it |
+| single-field scope, the in-place / window choice, native buffers (unmanaged components, fixed buffers, unions) | read-only = the whole table grey when the session is read-only (S8) | its private error line (`ComponentEditWindow.cs:173-179`) → RowMarks |
+| the write path: interceptor + baseline (the edit framework, R-4127) — ⛔ the library never writes the world | | |
+
+⚠ It stays a DEBUG tool (R-4120) — users edit entities through the forms (S10, K2); it simply draws with the same library, so it costs nothing extra.
