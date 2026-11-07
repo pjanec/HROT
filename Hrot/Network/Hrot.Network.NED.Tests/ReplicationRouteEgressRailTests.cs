@@ -25,12 +25,16 @@ public sealed class ReplicationRouteEgressRailTests
         var routed = repo.CreateEntity();
         repo.AddComponent(routed, new NetworkIdentity(2));
         repo.AddComponent(routed, new ReplicationRoute(ReplicationRoute.SumoSharp));
+        var gateway = repo.CreateEntity();   // ⭐ an external gateway's replica (CE-4293's extension route)
+        repo.AddComponent(gateway, new NetworkIdentity(3));
+        repo.AddComponent(gateway, new ReplicationRoute(ReplicationRoute.ExternalGateway));
         var local = repo.CreateEntity();   // no network id at all
 
         var found = new System.Collections.Generic.List<Entity>();
         repo.Query().DefaultRoutePublishable().Build().ForEach(found.Add);
 
         Assert.Equal(new[] { plain }, found);
+        Assert.NotEqual(ReplicationRoute.SumoSharp, ReplicationRoute.ExternalGateway);
     }
 
     /// <summary>

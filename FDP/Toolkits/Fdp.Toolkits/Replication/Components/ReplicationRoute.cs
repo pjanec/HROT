@@ -21,6 +21,12 @@ namespace Fdp.Toolkit.Replication.Components
         /// <summary>The SumoSharp traffic transport (AQ93 R-4020).</summary>
         public const byte SumoSharp = 1;
 
+        /// <summary>
+        /// ⭐ An external protocol gateway loaded as a node extension (CE-4293): the replicas it creates for entities of another
+        /// simulation protocol. Like <see cref="SumoSharp"/>, NED never publishes them (the default egress skips any route).
+        /// </summary>
+        public const byte ExternalGateway = 2;
+
         /// <summary>Which publishing mechanism carries this entity (never 0 — absent is the default route).</summary>
         public byte RouteId;
 
