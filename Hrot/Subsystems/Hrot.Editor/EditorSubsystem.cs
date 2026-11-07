@@ -4115,6 +4115,22 @@ namespace Hrot.Editor
                 });
             }
 
+            // ⭐ New scenario N1 (R-4135) — a BLANK scenario on a terrain: the same Save-As naming as a recipe's, then ScenarioNewAssetService.CreateBlank
+            //   (the guarded open, then the master writes the header-only file — N2). The terrain is chosen here and never changes (R-4124).
+            void ShowNewBlankDialog(string terrain)
+            {
+                if (_newAssetServices == null || !_newAssetServices.TryGetValue(Hrot.Editor.AiShared.AssetKind.Scenario, out var svc) || svc is not ScenarioNewAssetService scenarios) return;
+                var request = BuildSaveAsRequest(Hrot.Editor.AiShared.AssetKind.Scenario, "New Scenario", terrain, "", "Create",
+                    new Hrot.Editor.AiShared.Browser.FolderPickerState(Hrot.Editor.AiShared.Browser.AssetFolderDerivation.KnownSubfolders(
+                        catalog.All, Hrot.Editor.AiShared.AssetKind.Scenario, baseFolderFor)));
+                _saveAsBrowser?.Open(request, result =>
+                {
+                    if (!result.Confirmed) return;
+                    try { scenarios.CreateBlank(terrain, result.Name, result.DestinationPath ?? ""); _saveAllStatus = $"Creating '{result.Name}' on {terrain}…"; }
+                    catch (ArgumentException ex) { _saveAllStatus = ex.Message; }
+                });
+            }
+
             // ⭐ CE-4210 MA-6 — New macro…: the same dialog, the name lands under macros/ (ContentLayout.MacroName), and ScenarioNewAssetService.CreateNew stamps the macro header (IsMacroName).
             void ShowNewMacroDialog(Hrot.Editor.AiShared.AssetKind kind, Hrot.Editor.AiShared.IEditableAsset recipe)
             {
@@ -4198,7 +4214,11 @@ namespace Hrot.Editor
                     // ⭐ CE-4140 — a scenario recipe's description is its scenario.json header's (the Blueprint seam knows only blueprints)
                     describe:           a => Hrot.Blueprints.Editor.RecipeMetadataAdapter.DescribeRecipe(a) ?? ScenarioNewAssetService.DescribeRecipe(a),
                     recipeCategory:     Hrot.Blueprints.Editor.RecipeMetadataAdapter.RecipeCategory,
-                    showNewMacroDialog: ShowNewMacroDialog)   // ⭐ CE-4210 MA-6
+                    showNewMacroDialog: ShowNewMacroDialog,   // ⭐ CE-4210 MA-6
+                    // ⭐ New scenario N1 — the terrains of the master's catalog (the NAS), read live per open; the same catalog the master's create checks
+                    terrains:           () => Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null,
+                                              Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedRoot(Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot())).List(),
+                    showNewBlankDialog: ShowNewBlankDialog)
                 : null;
 
             // ⭐ CE-4210 MA-6 — File ▸ New ▸ Macro…  (a macro starts from a scenario recipe's terrain, like New Scenario…) — ⭐ CE-4253/4255: it was Scenario/New Macro…

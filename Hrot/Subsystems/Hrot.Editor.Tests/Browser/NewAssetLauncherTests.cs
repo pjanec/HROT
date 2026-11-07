@@ -130,6 +130,43 @@ public sealed class NewAssetLauncherTests
     }
 
     /// <summary>
+    /// ⭐ New scenario N1 (docs/UX/DESIGN_New_Scenario_And_Recipe.md §2.2, R-4135) — File ▸ New Scenario… is ONE picker with TWO groups: every terrain under
+    /// <i>Blank, on a terrain</i> (read LIVE per open — a terrain folder added appears on the next open), the recipes under <i>From a recipe</i>; a terrain's pick goes to
+    /// the host's blank naming, a recipe's to the ordinary one. ✅ Red-proof: the launcher without the terrain group ⇒ no BlankTerrainChoice ⇒ red.
+    /// </summary>
+    [Fact]
+    public void N1_NewScenario_OffersEveryTerrainBlank_AndTheRecipes_InOnePicker()
+    {
+        var recipe = new StubRecipe { Kind = AssetKind.Scenario, Name = "sop-demo" };
+        var services = new Dictionary<AssetKind, INewAssetService> { [AssetKind.Scenario] = new FakeNewAssetService(AssetKind.Scenario, recipe) };
+        var picker = new FakeOpenPicker();
+        var terrains = new List<string> { "basic-desert", "berlin" };
+        string? blank = null; IEditableAsset? fromRecipe = null;
+        var launcher = new NewAssetLauncher(picker.OpenPicker, services, (_, r) => fromRecipe = r,
+            terrains: () => terrains, showNewBlankDialog: t => blank = t);
+
+        launcher.Open(AssetKind.Scenario);
+        var entries = picker.CapturedRequest!.ItemsProvider().ToList();
+        Assert.Equal(new[] { "basic-desert", "berlin" }, entries.Where(e => e.Category == NewAssetLauncher.BlankGroup).Select(e => e.Name));
+        Assert.All(entries.Where(e => e.Category == NewAssetLauncher.BlankGroup), e => Assert.IsType<BlankTerrainChoice>(e.Tag));
+        Assert.Contains(entries, e => e.Category == NewAssetLauncher.RecipeGroup && e.Tag is RecipeChoice);
+        Assert.Equal(NewAssetLauncher.BlankTerrainText, entries[1].Description);
+
+        picker.InvokeHandler(ConfirmResult(entries[1]));
+        Assert.Equal("berlin", blank);
+        Assert.Null(fromRecipe);
+        picker.InvokeHandler(ConfirmResult(entries.Single(e => e.Tag is RecipeChoice)));
+        Assert.Same(recipe, fromRecipe);
+
+        terrains.Add("test-town");                                     // live: the next open lists it
+        launcher.Open(AssetKind.Scenario);
+        Assert.Contains(picker.CapturedRequest!.ItemsProvider(), e => e.Name == "test-town");
+
+        launcher.Open();                                               // the general New Asset picker has no terrain rows
+        Assert.DoesNotContain(picker.CapturedRequest!.ItemsProvider(), e => e.Tag is BlankTerrainChoice);
+    }
+
+    /// <summary>
     /// Confirming a pick invokes showNewAssetDialog with the picked (kind, recipe).
     /// </summary>
     [Fact]
