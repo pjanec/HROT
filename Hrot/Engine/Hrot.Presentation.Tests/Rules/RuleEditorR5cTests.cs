@@ -172,7 +172,7 @@ public sealed class RuleEditorR5cTests : IDisposable
         Rule(10, "ReachArea", """{"common":{"title":"Reach"}}""");
         Rule(20, "Trigger", "{\"common\":{\"title\":\"Counter\"},\"when\":" + Dep(10) + ",\"do\":[{\"act\":\"SetObjectiveActive\",\"args\":{\"Target\":{\"NetworkId\":30},\"Active\":true}}]}");
         Rule(30, "HoldArea", """{"common":{"title":"Hold"}}""");
-        var window = new RulesWindow(() => _world, () => null, null, "r5c_links", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 0d);
+        var window = new RulesWindow(() => _world, () => null, null, "r5c_links", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 0d) { ListView = false };   // U-18: these rails drive the Timeline
         window.Rebuild();
         var tracks = window.TracksForRail.OfType<RuleTrack>().Where(t => t.Row != null).ToDictionary(t => t.Row!.NetworkId);
         var from10 = Assert.Single(tracks[10].Links);
@@ -223,7 +223,7 @@ public sealed class RuleEditorR5cTests : IDisposable
         var asked = new List<(long Tkb, string Kind, string Json)>();
         var svc = new RuleEditorServices(() => ComponentEditServices.CreateBuilder().Build(), () => null, (_, _, _) => true, _history, _ => Array.Empty<RuleJournalEntry>(),
             CreateRule: (tkb, kind, json) => { asked.Add((tkb, kind, json)); return true; });
-        var window = new RulesWindow(() => _world, () => null, null, "r5c_add", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 0d, editor: svc);
+        var window = new RulesWindow(() => _world, () => null, null, "r5c_add", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 0d, editor: svc) { ListView = false };   // U-18: these rails drive the Timeline
         window.SelectNetworkId(10); window.Rebuild();
         Assert.Null(window.AddRefusal());
         Assert.True(window.AddRule("Trigger"));

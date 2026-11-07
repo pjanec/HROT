@@ -62,6 +62,9 @@ public sealed class MissionSummaryWindow : ManagedWindow
     }
 
     /// <summary>⭐ R-4156 — <i>"at 0:39 of 1:06"</i>: the playhead's place in a recording (its extent and the cursor's now, in wall-clock ticks), m:ss — h:mm:ss past an hour.</summary>
+    private long _positionKey = long.MinValue;
+    private string? _position;
+
     public static string RecordingPosition(long from, long to, long now)
     {
         static string T(TimeSpan t) => t.TotalHours >= 1 ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}" : $"{(int)t.TotalMinutes}:{t.Seconds:00}";
@@ -165,7 +168,12 @@ public sealed class MissionSummaryWindow : ManagedWindow
             ImGui.SameLine();
         }
         // ⭐ Replay Browser UX ⑤ (R-4156) — on a RECORDING the phase is not news (it ran to its end): say WHERE in it we are, "at 0:39 of 1:06"
-        if (_end.ShowsARecording && _cursor != null) ImGui.TextDisabled($"  {RecordingPosition(_cursor.ExtentFrom, _cursor.ExtentTo, _cursor.Now)}");
+        if (_end.ShowsARecording && _cursor != null)
+        {
+            long key = _cursor.Now / TimeSpan.TicksPerSecond ^ (_cursor.ExtentTo - _cursor.ExtentFrom) / TimeSpan.TicksPerSecond << 32;   // the label moves once a second
+            if (key != _positionKey || _position == null) { _positionKey = key; _position = "  " + RecordingPosition(_cursor.ExtentFrom, _cursor.ExtentTo, _cursor.Now); }
+            ImGui.TextDisabled(_position);
+        }
         else ImGui.TextDisabled($"  {_summary.Phase} · {RulesModel.Clock(_summary.Now)}");
         ImGui.SameLine();
         _end.Draw("ms-end");

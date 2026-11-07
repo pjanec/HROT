@@ -29,7 +29,7 @@ public sealed record RulesWindowViewModel(string PanelId, string PanelKind, Rule
 /// Overview of the selected row on the right with the instructor's actions. Rows come from <see cref="RulesModel"/> over the replicated rule tree, the past from the timeline source's lanes (<see cref="IndexRulesHistory"/>) — so it opens on a LIVE node and on a RECORDING
 /// alike (the source seam). A click on a row selects the row AND its subject (the ONE selection); an action is written through <see cref="RuleCommands"/> — the same path the DebugApi uses. Nothing here owns state the world does not.
 /// </summary>
-public sealed class RulesWindow : ManagedWindow
+public sealed class RulesWindow : ManagedWindow, IRuleDetailsHost
 {
     /// <summary>The panel kind in the snapshot.</summary>
     public const string Kind = "rules-view";
@@ -121,7 +121,8 @@ public sealed class RulesWindow : ManagedWindow
     public void Select(RuleRow row)
     {
         _selected = row.NetworkId;
-        if (row.SubjectNetworkId != 0) _selectEntity(row.SubjectNetworkId);
+        if (_detailsInPanel) _selectEntity(row.NetworkId);   // ⭐ U-18 / RX2 — the Details panel shows what is selected: the RULE
+        else if (row.SubjectNetworkId != 0) _selectEntity(row.SubjectNetworkId);
     }
 
     /// <summary>⭐ R3 — <i>Show the moments on the timeline →</i>: only this rule and everything under it (by <c>Parent</c>); <c>0</c> clears. The toolbar shows the filter and a way out.</summary>
@@ -129,7 +130,46 @@ public sealed class RulesWindow : ManagedWindow
     public int SubtreeOf => _subtree;
 
     /// <summary>⭐ RV-7 — the Details panel's Objectives tab opens a rule here: the row is selected (its subject already is the Details' unit).</summary>
-    public void SelectNetworkId(int networkId) { _selected = networkId; IsOpen = true; }
+    public void SelectNetworkId(int networkId) { _selected = networkId; IsOpen = true; if (_detailsInPanel) _selectEntity(networkId); }
+
+    // ── ⭐ U-18 / RX2 (DESIGN_Rule_Editor_UX §2.2.1) — the detail in the Details panel, through the ONE RuleDetails ─────────────────────────────
+
+    private bool _detailsInPanel;
+    private int _builtFrame = -1;
+
+    /// <summary>Whether the Details panel hosts the rule detail (the window then draws no pane of its own).</summary>
+    public bool DetailsInPanel => _detailsInPanel;
+
+    public void AttachToDetailsPanel() => _detailsInPanel = true;
+
+    /// <summary>The view is current for this frame — the window may be closed while Details shows a rule (a rule opened from a unit's Objectives tab).</summary>
+    private void EnsureBuilt()
+    {
+        int f = ImGui.GetCurrentContext() == IntPtr.Zero ? -2 : ImGui.GetFrameCount();
+        if (f == _builtFrame && f >= 0) return;
+        Rebuild();
+        _builtFrame = f;
+    }
+
+    private RuleRow? RowOf(Entity e)
+    {
+        if (_world() is not { } w || !w.IsAlive(e)) return null;
+        int net = Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(w, e);
+        return net == 0 ? null : _view.Find(net);
+    }
+
+    public bool Offers(Entity e)
+    {
+        EnsureBuilt();
+        return RowOf(e) != null;
+    }
+
+    public void DrawDetails(Entity e)
+    {
+        if (RowOf(e) is not { } row) { EnsureBuilt(); if (RowOf(e) is not { } again) return; row = again; }
+        if (_selected != row.NetworkId) { _selected = row.NetworkId; _builtFrame = -1; EnsureBuilt(); row = _view.Find(row.NetworkId) ?? row; }   // Prepare runs for the selected row
+        if (_details != null) _details.Draw(row, _view.Now); else DrawOverviewBody(row);
+    }
 
     private (Guid Id, string Request)? _control;
 
@@ -200,11 +240,13 @@ public sealed class RulesWindow : ManagedWindow
         return true;
     }
 
+    private RuleRow? AddedRow(string title, HashSet<int> known) => _view.Rows.FirstOrDefault(r => r.Title == title && !known.Contains(r.NetworkId));
+
     /// <summary>The entity a <see cref="AddRule"/> asked for has appeared (a new row with the new title): select it and open its form on the tab that matters (a trigger's When, an objective's Settings).</summary>
     private void WatchAdded()
     {
         if (_addWatch is not { } w) return;
-        var row = _view.Rows.FirstOrDefault(r => r.Title == w.Title && !w.Known.Contains(r.NetworkId));
+        var row = AddedRow(w.Title, w.Known);   // ⛔ no lambda over `w` here: its closure would be allocated on EVERY call, watch or not (CE-1465)
         if (row != null)
         {
             Select(row);
@@ -233,17 +275,74 @@ public sealed class RulesWindow : ManagedWindow
         }
     }
 
-    /// <summary>⭐ Test hook — the BUILD (view, tracks, probe) with no ImGui context.</summary>
+    // ── CE-1465: rebuild only when something changed ────────────────────────────────────────────────────────────────────────
+    // The tables the model reads (RulesModel.Build and the sentence texts): a write bumps the table's chunk version to the world's GlobalVersion, so "changed since the last build" is HasChanges(that GlobalVersion).
+    private static readonly Type[] KeyTables =
+    {
+        typeof(ObjectiveStatus), typeof(ObjectiveLinks), typeof(Fdp.Toolkit.Behavior.Components.BehaviorStartRecord), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity),
+        typeof(Fdp.Core.EntityInfo), typeof(Fdp.Toolkit.Scenario.MacroOrigin), typeof(Fdp.Toolkit.Scenario.MacroInstance),
+    };
+    private bool _keyValid;
+    private EntityRepository? _keyWorld;
+    private readonly bool[] _keyPresent = new bool[KeyTables.Length];
+    private uint _keyVersion;
+    private int _keyEntities, _keyGroup, _keySide, _keySubtree, _keyMessages;
+    private double _keyNow;
+    private string _keySearch = "", _keyBlock = "";
+    private bool _keyBlocked;
+    private int? _keySelected;
+    private object? _keyMessageStore;
+
+    /// <summary>⭐ CE-1465 — true when anything the BUILD reads differs from the last build (world · the tables' versions · entity count · time · the toolbar's choices · selection · the blocked reason · the history index · the sent-message count).
+    /// ⚠ The edit-outcome log is NOT in the key: nothing the build reads comes from it (<see cref="PollControl"/> reads it every frame). ⚠ A table write inside the SAME <c>GlobalVersion</c> as the last build is seen once the world ticks.</summary>
+    private bool KeyChanged(EntityRepository? world, double now, TimelineIndex? index, string? block)
+    {
+        // ⭐ HasChanges is strictly '>': a write stamped with the build's OWN version (an Apply inside the frame's draw, after the build) is caught by checking
+        //   from one below once the world has ticked past it — at most one redundant rebuild per write; a world that never ticks stays steady (0 B).
+        uint since = world != null && world.GlobalVersion > _keyVersion && _keyVersion > 0 ? _keyVersion - 1 : _keyVersion;
+        if (!_keyValid || !ReferenceEquals(world, _keyWorld) || now != _keyNow || _groupBy != _keyGroup || _side != _keySide || _subtree != _keySubtree || _selected != _keySelected
+            || !string.Equals(_search, _keySearch, StringComparison.Ordinal) || (block != null) != _keyBlocked || (block != null && !string.Equals(block, _keyBlock, StringComparison.Ordinal))) return true;
+        if (index != null ? (!ReferenceEquals(index, _historyOf) || index.FrameTicks.Count != _historyFrames) : _historyOf != null) return true;
+        if (world == null) return false;
+        if (world.EntityCount != _keyEntities) return true;
+        for (int i = 0; i < KeyTables.Length; i++)
+        {
+            bool present = world.TryGetTable(KeyTables[i], out var t);
+            if (present != _keyPresent[i] || (present && t.HasChanges(since))) return true;   // a table missing at build and present now counts as a change
+        }
+        var store = Hrot.UI.Common.Map3D.PlayerMessages.Of(world);
+        return !ReferenceEquals(store, _keyMessageStore) || (store != null && store.All.Count != _keyMessages);
+    }
+
+    private void RememberKey(EntityRepository? world, double now, string? block)
+    {
+        _keyValid = true; _keyWorld = world; _keyNow = now; _keyGroup = _groupBy; _keySide = _side; _keySubtree = _subtree; _keySelected = _selected; _keySearch = _search;
+        _keyBlocked = block != null; _keyBlock = block ?? "";
+        if (world == null) return;
+        _keyEntities = world.EntityCount; _keyVersion = world.GlobalVersion;
+        for (int i = 0; i < KeyTables.Length; i++) _keyPresent[i] = world.TryGetTable(KeyTables[i], out _);
+        var store = Hrot.UI.Common.Map3D.PlayerMessages.Of(world);
+        _keyMessageStore = store; _keyMessages = store?.All.Count ?? 0;
+    }
+
+    /// <summary>⭐ Test hook — the BUILD (view, tracks, probe) with no ImGui context. ⭐ CE-1465: it builds only when <see cref="KeyChanged"/> says something did; the per-frame bits (the added-rule watch, the control poll, the open form's Prepare) always run.</summary>
     internal void Rebuild()
     {
         var world = _world();
         double now = _now?.Invoke() ?? (world == null ? 0d : CommandPictureOps.Now(world));
         var index = _source()?.Index;
+        string? block0 = _blocked();
+        if (!KeyChanged(world, now, index, block0))
+        {
+            WatchAdded(); PollControl();
+            RefreshPerFrame(now);
+            return;
+        }
         if (index != null && (!ReferenceEquals(index, _historyOf) || index.FrameTicks.Count != _historyFrames))
         { _history = new IndexRulesHistory(index); _historyOf = index; _historyFrames = index.FrameTicks.Count; }
         else if (index == null) { _history = null; _historyOf = null; _historyFrames = -1; }
         _view = world == null ? new RulesView(Array.Empty<RuleGroup>(), now) : RulesModel.Build(world, new RulesOptions(GroupBy, Side, _search, _subtree), _history, now);
-        string? block = _blocked();
+        string? block = block0;
         var hooks = block == null ? _hooks : _hooks with { Blocked = block };
         var tracks = new List<ITimelineTrack>();
         foreach (var g in _view.Groups)
@@ -268,12 +367,25 @@ public sealed class RulesWindow : ManagedWindow
         _probe = new RulesWindowProbe(_view.Rows.Select(r => $"{new string(' ', r.Depth * 2)}{r.Title} | {r.StateWords}").ToList(), _selected, details, buttons, GroupNames[_groupBy], SideNames[_side], _search, null,
             _panel.LastConnectors.Select(c => $"{c.FromTrack} -> {c.ToTrack}").ToList(), _panel.LastComingUp.Select(c => $"{c.At:0} {c.TrackLabel} {c.ItemLabel}").ToList());   // ⭐ CE-4221 — what the last frame drew (an agent reads it)
         if (_details != null && sel != null) { _details.Prepare(sel, now); _probe = _probe with { Editor = _details.Probe }; }
+        RememberKey(world, now, block);
     }
+
+    /// <summary>What a steady frame still does: the open form's Prepare (it holds the person's edit state) and the arrows / coming-up lists the timeline drew last frame (they appear after the first draw).</summary>
+    private void RefreshPerFrame(double now)
+    {
+        var sel = _selected is { } s ? _view.Find(s) : null;
+        if (_details != null && sel != null) { _details.Prepare(sel, now); _probe = _probe with { Editor = _details.Probe }; }
+        if (_panel.LastConnectors.Count != (_probe.Arrows?.Count ?? 0) || _panel.LastComingUp.Count != (_probe.ComingUp?.Count ?? 0))
+            _probe = _probe with { Arrows = _panel.LastConnectors.Select(c => $"{c.FromTrack} -> {c.ToTrack}").ToList(), ComingUp = _panel.LastComingUp.Select(c => $"{c.At:0} {c.TrackLabel} {c.ItemLabel}").ToList() };
+    }
+
+    private RulesWindowViewModel? _vm;
 
     private RulesWindowViewModel BuildAndPublish()
     {
         Rebuild();
-        var vm = new RulesWindowViewModel(Id, Kind, _probe, Message);
+        // ⭐ CE-1465 — the view model is reused while the probe and the message are the same objects
+        var vm = _vm is { } v && ReferenceEquals(v.Shown, _probe) && string.Equals(v.Message, Message, StringComparison.Ordinal) ? v : (_vm = new RulesWindowViewModel(Id, Kind, _probe, Message));
         if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
         return vm;
     }
@@ -298,20 +410,101 @@ public sealed class RulesWindow : ManagedWindow
     protected override void DrawClientArea()
     {
         BuildAndPublish();
+        _builtFrame = ImGui.GetFrameCount();
         DrawToolbar();
         var avail = ImGui.GetContentRegionAvail();
-        float details = Math.Min(_details != null ? 560f : 340f, avail.X * (_details != null ? 0.5f : 0.4f));
-        ImGui.BeginChild("##rules-timeline", new Vector2(avail.X - details - 6f, avail.Y), ImGuiChildFlags.None, ImGuiWindowFlags.None);
-        _panel.Draw(_source(), _cursor, Array.Empty<TimelineLaneDescriptor>());
+        float details = _detailsInPanel ? 0f : Math.Min(_details != null ? 560f : 340f, avail.X * (_details != null ? 0.5f : 0.4f));
+        ImGui.BeginChild("##rules-timeline", new Vector2(_detailsInPanel ? avail.X : avail.X - details - 6f, avail.Y), ImGuiChildFlags.None, ImGuiWindowFlags.None);
+        if (ListView) DrawList();   // ⭐ U-18 / RX3 — the List view: one sentence per rule
+        else _panel.Draw(_source(), _cursor, Array.Empty<TimelineLaneDescriptor>());
         ImGui.EndChild();
+        if (_detailsInPanel) return;   // ⭐ U-18 / RX2 — the detail lives in the Details panel (⛔ two copies of the form)
         ImGui.SameLine();
         ImGui.BeginChild("##rules-details", new Vector2(0, avail.Y), ImGuiChildFlags.Borders, ImGuiWindowFlags.None);
         DrawDetails();
         ImGui.EndChild();
     }
 
+    // ── ⭐ U-18 / RX3 (DESIGN_Rule_Editor_UX §2.1) — the List view ───────────────────────────────────────────────────────────
+
+    private bool? _listView;
+
+    /// <summary>List (one sentence per rule — the authoring default in edit mode) or Timeline (the default with a live run or a recording). The person's pick sticks.</summary>
+    public bool ListView
+    {
+        get => _listView ?? AllAuthored();
+        set => _listView = value;
+    }
+
+    /// <summary>No live or recorded row (index loops — the getter runs every frame, 0 B).</summary>
+    private bool AllAuthored()
+    {
+        var gs = _view.Groups;
+        for (int i = 0; i < gs.Count; i++) { var rs = gs[i].Rows; for (int j = 0; j < rs.Count; j++) if (!rs[j].Authored) return false; }
+        return true;
+    }
+
+    private readonly Dictionary<int, (string Json, string Text, bool Incomplete)> _sentences = new();
+
+    /// <summary>A rule's line, re-built only when its params change (the list draws every frame).</summary>
+    internal (string Text, bool Incomplete) SentenceOf(RuleRow row)
+    {
+        var p = RuleSentence.ParamsOf(_world(), row.Entity);
+        if (p is not { } prm) return (row.Title, false);
+        if (_sentences.TryGetValue(row.NetworkId, out var c) && ReferenceEquals(c.Json, prm.Json)) return (c.Text, c.Incomplete);
+        var refs = _world() is { } w ? AuthoredRules.ScopeOf(w) : null;
+        var (text, incomplete) = RuleSentence.Of(prm.Name, prm.Json, row.Title, row.Status.Required != 0, refs);
+        _sentences[row.NetworkId] = (prm.Json, text, incomplete);
+        return (text, incomplete);
+    }
+
+    /// <summary>What the List view shows, line by line (rails, the panel probe).</summary>
+    internal IReadOnlyList<string> ListRows => _view.Rows.Select(r => SentenceOf(r).Text).ToList();
+
+    /// <summary>Whether the List marks rule <paramref name="networkId"/> incomplete (rails).</summary>
+    internal bool IncompleteOf(int networkId) => _view.Find(networkId) is { } r && SentenceOf(r).Incomplete;
+
+    private void DrawList()
+    {
+        var gs = _view.Groups;
+        bool any = false;
+        for (int gi = 0; gi < gs.Count; gi++)
+        {
+            var g = gs[gi];
+            if (g.Name.Length > 0) ImGui.TextDisabled(g.Name);
+            var rs = g.Rows;
+            for (int ri = 0; ri < rs.Count; ri++)
+            {
+                var row = rs[ri];
+                any = true;
+                var (text, incomplete) = SentenceOf(row);
+                ImGui.PushID(row.NetworkId);
+                float indent = 10f + row.Depth * 14f;
+                ImGui.Indent(indent);
+                if (incomplete)
+                {
+                    var warn = NodeEditor.Core.Widgets.Icons.Get("form/warning");
+                    ImGui.TextColored(warn.Color, warn.Glyph);
+                    if (ImGui.IsItemHovered()) ImGui.SetTooltip("incomplete — a blank is not filled yet");
+                    ImGui.SameLine();
+                }
+                if (ImGui.Selectable(text, _selected == row.NetworkId)) Select(row);
+                ImGui.Unindent(indent);
+                ImGui.PopID();
+            }
+            ImGui.Spacing();
+        }
+        if (!any) ImGui.TextDisabled("No rules yet.");
+    }
+
     private void DrawToolbar()
     {
+        // ⭐ U-18 / RX3 — List | Timeline (two views of the same rows)
+        bool list = ListView;
+        if (NodeEditor.Core.Widgets.GlyphWidgets.GlyphToggle("##rules-list", new NodeEditor.Core.Widgets.IconGlyph("\uf03a", NodeEditor.Core.Widgets.IconPalette.Blue), list, "List: one sentence per rule")) _listView = true;   // List
+        ImGui.SameLine(0f, 2f);
+        if (NodeEditor.Core.Widgets.GlyphWidgets.GlyphToggle("##rules-timeline", new NodeEditor.Core.Widgets.IconGlyph("\uf1da", NodeEditor.Core.Widgets.IconPalette.Amber), !list, "Timeline")) _listView = false;   // ClockRotateLeft
+        ImGui.SameLine();
         ImGui.SetNextItemWidth(90f);
         ImGui.Combo("##rules-group", ref _groupBy, GroupNames, GroupNames.Length);
         if (ImGui.IsItemHovered()) ImGui.SetTooltip("Group by");

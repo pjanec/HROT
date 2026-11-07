@@ -1034,7 +1034,8 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
                     Host:        () => HostActions,
                     OpenRule:    OpenRuleInRulesView,   // ⭐ CE-4216 RV-7
                     EventFocus:  _eventFocus,           // ⭐ CE-4263 — Details ▸ Event for a clicked timeline event
-                    SelectNetworkEntity: n => SelectNetworkEntity(n))),
+                    SelectNetworkEntity: n => SelectNetworkEntity(n),
+                    Rules:       () => _rulesWindow)),   // ⭐ U-18 / RX2 — read-only on a recording (the window's blocked reason)
             },
             new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
     }

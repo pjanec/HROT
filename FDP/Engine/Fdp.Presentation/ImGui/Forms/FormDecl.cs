@@ -40,7 +40,12 @@ public sealed class FormField
     /// <summary>The vocabulary row this field writes (resolved once), or null for a read-only field.</summary>
     public AttributeDefinition? Definition => _definition ??= Attribute == null ? null : FormCatalogue.AttributeOf(Attribute);
     private AttributeDefinition? _definition;
-    public bool ReadOnly => Definition == null;
+    public bool ReadOnly => Definition == null && Apply == null;
+
+    /// <summary>⭐ U-23 part 5 (docs/UX/DESIGN_Details_Forms.md §4.0a) — a field whose write is a DOMAIN op instead of an attribute (the Unit form's <i>Playable</i>
+    /// toggle = the edit framework's owner-side add / remove of the component): called per selected entity with the new value; returns the refusal, or null.
+    /// ⛔ Only for a value no attribute can carry — an attribute field writes through <see cref="ChangeFor"/>.</summary>
+    public Func<EntityRepository, Entity, double, string?, string?>? Apply { get; init; }
 
     /// <summary>The change this field writes for <paramref name="number"/> / <paramref name="text"/> — by the attribute's declared kind (§2.1: "the attribute already knows").</summary>
     public EntityAttributeChange? ChangeFor(double number, string? text)
@@ -69,6 +74,29 @@ public sealed class FormField
         => v < Min ? $"at least {Min:0.##}{(Unit == null ? "" : " " + Unit)}" : v > Max ? $"at most {Max:0.##}{(Unit == null ? "" : " " + Unit)}" : null;
 }
 
+/// <summary>⭐ U-23 / D4 — one row of a <see cref="FormList"/>: the item's role word (cached by the declarer), who it is, and the entity the row's action acts on.</summary>
+public readonly record struct FormListItem(string Role, FixedString64 Who, Entity Item);
+
+/// <summary>
+/// ⭐ U-23 / D4 (docs/UX/DESIGN_Details_Forms.md §4.0a part 4) — a form's LIST of things with actions (the Crew &amp; cargo form's seats): <see cref="Fill"/> writes
+/// this frame's rows into a reused buffer (0 B), each row carries <see cref="RemoveLabel"/>; <see cref="AddLabel"/> picks an entity through the one pick context
+/// and hands it to <see cref="Add"/>. ⛔ A list declares no write path of its own — its actions call the domain's one path (the embark orders).
+/// </summary>
+public sealed class FormList
+{
+    public required string Label { get; init; }
+    /// <summary>This frame's rows for <c>entity</c>, into the caller's reused list (cleared by the caller).</summary>
+    public required Action<EntityRepository, Entity, List<FormListItem>> Fill { get; init; }
+    /// <summary>A line under the rows (e.g. <i>3 passenger seats free</i>), or null.</summary>
+    public Func<EntityRepository, Entity, string?>? Footer { get; init; }
+    public string? RemoveLabel { get; init; }
+    /// <summary>The row's action (e.g. take the item off); null = no per-row action.</summary>
+    public Action<EntityRepository, FormListItem>? Remove { get; init; }
+    public string? AddLabel { get; init; }
+    /// <summary>The add action for a picked entity; returns the refusal reason, or null when sent.</summary>
+    public Func<EntityRepository, Entity, Entity, string?>? Add { get; init; }
+}
+
 /// <summary>⭐ U-12 / D1 — one form: a title, what an entity must carry to be offered it, and its fields (common first, experts last). A declaration, like an ActionDecl.</summary>
 public sealed class FormDecl
 {
@@ -78,6 +106,8 @@ public sealed class FormDecl
     /// <summary>The components an entity must carry for this form to be offered (§3 <i>Requires</i>); empty = the world form (nothing selected).</summary>
     public IReadOnlyList<Type> Requires { get; init; } = Array.Empty<Type>();
     public required IReadOnlyList<FormField> Fields { get; init; }
+    /// <summary>⭐ U-23 / D4 — the form's lists with actions, drawn after the rows (empty for most forms).</summary>
+    public IReadOnlyList<FormList> Lists { get; init; } = Array.Empty<FormList>();
     /// <summary>When the form is offered for an entity, if not by <see cref="Requires"/> alone (an any-of: the Shape form is offered for a spawn area OR a weather region).</summary>
     public Func<EntityRepository, Entity, bool>? Offers { get; init; }
     /// <summary>A WORLD form (the Scenario form): drawn when NOTHING is selected, for the entity this returns (<see cref="Entity.Null"/> = not offered).</summary>

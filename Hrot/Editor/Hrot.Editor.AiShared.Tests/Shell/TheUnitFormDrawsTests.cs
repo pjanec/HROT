@@ -75,6 +75,128 @@ public sealed class TheUnitFormDrawsTests
         Assert.All(HrotForms.Shape.Fields, f => Assert.False(f.Attribute != null && f.Definition == null));   // every field names a vocabulary attribute
     }
 
+    /// <summary>⭐ U-24 / S5 (DESIGN_Initial_State §3) — the Unit form's start-state rows in a real frame: <i>Weapon</i> (posture) and <i>In hand</i> read the
+    /// saved <c>WeaponPosture</c> (B-5 S2), <i>Aboard</i> lists the vehicle and the seat's role. 🔴 Red-proof (compiles): <c>FillAboard</c> returning nothing ⇒ red.</summary>
+    [SkippableFact]
+    public void U24_S5_TheUnitForm_ShowsTheWeaponStateAndWhereHeRides()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(); world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
+        world.RegisterComponent<NetworkIdentity>();
+        var enemy = world.CreateEntity();
+        world.AddComponent(enemy, new EntityInfo { Name = new FixedString64("Enemy 1") });
+        world.AddComponent(enemy, new NetworkIdentity(9));
+        var bmp = world.CreateEntity();
+        world.AddComponent(bmp, new EntityInfo { Name = new FixedString64("BMP 1") });
+        var seats = new Fdp.Toolkit.Behavior.Components.CarrierSeats { SeatCount = 4 };
+        seats.Roles[0] = Fdp.Toolkit.Behavior.Components.SeatRole.Driver;
+        world.AddComponent(bmp, seats);
+        var man = world.CreateEntity();
+        world.AddComponent(man, new EntityInfo { Name = new FixedString64("Alpha 1-1"), ForceId = ForceId.Friend });
+        world.AddComponent(man, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed, Target = enemy, HeldItem = Fdp.Toolkit.Combat.Components.HeldItemKind.Binoculars });
+        world.AddComponent(man, new NetworkIdentity(7));
+        world.AddComponent(man, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = bmp, Seat = 0 });
+
+        HrotForms.EnsureRegistered();
+        var view = new FormView { Pick = new OnePick(new Fdp.Toolkit.Replication.EntityRef(7), "form.unit.list1") };   // he picks HIMSELF to aim at
+        using var frame = UiFrameHarness.Begin(700, 420);
+        frame.StepN(3, () =>
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10)); ImGui.SetNextWindowSize(new System.Numerics.Vector2(460, 320));
+            ImGui.Begin("Details##unit-s5");
+            view.Draw(HrotForms.Unit, world, new[] { man }, editable: true);
+            ImGui.End();
+        });
+        Assert.Contains("Weapon = Aimed", view.Rows);
+        Assert.Contains("In hand = Binoculars", view.Rows);
+        Assert.Equal(new[] { "Driver", "BMP 1", "Target", "Enemy 1" }, view.ListRows);
+        Assert.Equal("he cannot aim at himself", view.ListProblem(1));   // the Aim at… pick came back through the one context and was refused with the reason
+        Assert.NotNull(HrotForms.Unit.Fields.First(f => f.Label == "Weapon").Definition);   // the row writes a vocabulary attribute (Weapon.Posture)
+        Assert.NotNull(HrotForms.Unit.Fields.First(f => f.Label == "In hand").Definition);
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "unit-form-s5.png"));
+    }
+
+    /// <summary>⭐ U-23 part 5 — the Unit form's <b>Playable</b> toggle is the ONE make-playable op (it replaced the Playable tab where the form is offered):
+    /// on adds the component with the unit's side and name, off removes it. 🔴 Red-proof (compiles): the field's <c>Apply</c> removed ⇒ read-only ⇒ nothing written ⇒ red.</summary>
+    [Fact]
+    public void U23_P5_TheUnitFormsPlayableToggle_AddsAndRemovesTheComponent()
+    {
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<Hrot.Common.Playable>();
+        var e = world.CreateEntity();
+        world.AddComponent(e, new EntityInfo { Name = new FixedString64("Alpha 1"), ForceId = ForceId.Friend });
+        HrotForms.EnsureRegistered();
+        int toggle = -1;
+        for (int i = 0; i < HrotForms.Unit.Fields.Count; i++) if (HrotForms.Unit.Fields[i].Label == "Playable") toggle = i;
+        Assert.True(toggle >= 0);
+        Assert.False(HrotForms.Unit.Fields[toggle].ReadOnly);
+        var view = new FormView();
+        view.CommitForTest(HrotForms.Unit, toggle, world, new[] { e }, 1);
+        Assert.True(world.HasComponent<Hrot.Common.Playable>(e));
+        Assert.Equal("Alpha 1", world.GetComponentRO<Hrot.Common.Playable>(e).SlotName.ToString());
+        view.CommitForTest(HrotForms.Unit, toggle, world, new[] { e }, 0);
+        Assert.False(world.HasComponent<Hrot.Common.Playable>(e));
+    }
+
+    /// <summary>⭐ U-23 / D4 — the <b>Crew &amp; cargo</b> form in a real frame: offered for a carrier, not for a man; one row per OCCUPIED seat (role, who), the free
+    /// seats as a count; <i>Put aboard…</i> picks through the one pick context and a vehicle picking itself is refused with the reason.
+    /// 🔴 Red-proof (compiles): <c>FillSeats</c> skipping the seat-role lookup (always Passenger) ⇒ "Driver" missing ⇒ red.</summary>
+    [SkippableFact]
+    public void U23_D4_TheCrewAndCargoForm_ListsTheSeats_AndPutAboardPicksThroughTheOnePickContext()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(); world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
+        var bmp = world.CreateEntity();
+        world.AddComponent(bmp, new EntityInfo { Name = new FixedString64("BMP 1") });
+        world.AddComponent(bmp, new NetworkIdentity(50));
+        var seats = new Fdp.Toolkit.Behavior.Components.CarrierSeats { SeatCount = 4 };
+        seats.Roles[0] = Fdp.Toolkit.Behavior.Components.SeatRole.Driver;
+        world.AddComponent(bmp, seats);
+        var driver = world.CreateEntity();
+        world.AddComponent(driver, new EntityInfo { Name = new FixedString64("Alpha 1-1") });
+        var buf = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = 1 };
+        buf.Passengers[0] = driver;
+        world.AddComponent(bmp, buf);
+
+        HrotForms.EnsureRegistered();
+        Assert.True(HrotForms.CrewAndCargo.OffersFor(world, bmp));
+        Assert.False(HrotForms.CrewAndCargo.OffersFor(world, driver));
+
+        var pick = new OnePick(new Fdp.Toolkit.Replication.EntityRef(50));   // the person picks the vehicle itself
+        var view = new FormView { Pick = pick };
+        using var frame = UiFrameHarness.Begin(700, 420);
+        frame.StepN(3, () =>
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10)); ImGui.SetNextWindowSize(new System.Numerics.Vector2(460, 300));
+            ImGui.Begin("Details##crew-form");
+            view.Draw(HrotForms.CrewAndCargo, world, new[] { bmp }, editable: true);
+            ImGui.End();
+        });
+        Assert.Equal(new[] { "Driver", "Alpha 1-1" }, view.ListRows);
+        Assert.Equal("a vehicle cannot board itself", view.ListProblem(0));   // the pick came back through the one context and was refused with the reason
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "crew-form.png"));
+    }
+
+    /// <summary>A pick context that hands back one entity at once (the person picked it).</summary>
+    private sealed class OnePick : Fdp.Presentation.Editing.IMapPickContext
+    {
+        private Fdp.Toolkit.Replication.EntityRef _next;
+        private readonly string? _path;
+        public OnePick(Fdp.Toolkit.Replication.EntityRef next, string? path = null) { _next = next; _path = path; }
+        public bool IsPickPendingFor(string jsonPath) => false;
+        public void RequestEntityPick(string jsonPath, string[]? filterPresets) { }
+        public void RequestLocationPick(string jsonPath) { }
+        public bool TryConsumeEntityPick(string jsonPath, out Fdp.Toolkit.Replication.EntityRef picked) { picked = default; if (_path != null && jsonPath != _path) return false; picked = _next; bool had = !_next.IsNone; _next = default; return had; }
+        public bool TryConsumeLocationPick(string jsonPath, out Fdp.Toolkit.Replication.PointLink location) { location = default; return false; }
+    }
+
     /// <summary>⭐ U-23 / D5 — the <b>Scenario</b> form is the WORLD form: its target is the World Environment (the clock + the global weather); the start reads as a
     /// date, the global weather through the SAME rows as a region's. 🔴 Red-proof (compiles): <c>WorldTarget</c> returning <c>Entity.Null</c> ⇒ red.</summary>
     [Fact]

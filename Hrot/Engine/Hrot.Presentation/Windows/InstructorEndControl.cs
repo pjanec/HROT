@@ -46,20 +46,24 @@ public sealed class InstructorEndControl
     }
 
     /// <summary>Draws the button (always) and, when asked, the modal. <paramref name="id"/> keeps two windows' popups apart.</summary>
+    private string? _labelsOf; private string _button = "", _modal = "", _endNow = "", _cancel = "";
+
     public void Draw(string id)
     {
         if (ShowsARecording) { _open = false; return; }   // ⭐ Q-B4 — not drawn on a recording
+        if (!string.Equals(_labelsOf, id, StringComparison.Ordinal))   // ⭐ CE-1465 — the labels are built once per id, not per frame (0 B steady)
+        { _labelsOf = id; _button = $"End exercise##{id}"; _modal = $"End the exercise now?##{id}"; _endNow = $"End now##{id}"; _cancel = $"Cancel##{id}"; }
         var offer = Offer;
         if (!offer.Available) ImGui.BeginDisabled();
-        if (ImGui.Button($"End exercise##{id}")) { Ask(); ImGui.OpenPopup($"End the exercise now?##{id}"); }
+        if (ImGui.Button(_button)) { Ask(); ImGui.OpenPopup(_modal); }
         if (!offer.Available) { ImGui.EndDisabled(); if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(offer.DisabledReason); }
         bool open = _open;
-        if (ImGui.BeginPopupModal($"End the exercise now?##{id}", ref open, ImGuiWindowFlags.AlwaysAutoResize))
+        if (ImGui.BeginPopupModal(_modal, ref open, ImGuiWindowFlags.AlwaysAutoResize))
         {
             ImGui.TextUnformatted("The exercise ends as if its own end had fired: every objective is closed, the result is written.");
-            if (ImGui.Button($"End now##{id}")) { Fire(); ImGui.CloseCurrentPopup(); }
+            if (ImGui.Button(_endNow)) { Fire(); ImGui.CloseCurrentPopup(); }
             ImGui.SameLine();
-            if (ImGui.Button($"Cancel##{id}")) { Cancel(); ImGui.CloseCurrentPopup(); }
+            if (ImGui.Button(_cancel)) { Cancel(); ImGui.CloseCurrentPopup(); }
             ImGui.EndPopup();
         }
         if (!open) _open = false;

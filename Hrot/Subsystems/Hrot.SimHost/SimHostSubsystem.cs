@@ -345,7 +345,8 @@ namespace Hrot.SimHost
                         RunState:    Hrot.Editor.AiShared.Variables.RunStateSource.For(
                                          () => vis.GetRepo() != null,
                                          () => Fdp.Toolkit.Time.SimClock.Of(vis.GetRepo()).IsHalted),
-                        Host:        () => _app?.HostActions)),
+                        Host:        () => _app?.HostActions,
+                        Pick:        () => vis.GetMapPickBroker())),   // ⭐ U-23 / D4 — Put aboard… picks on the map
                 },
                 new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 

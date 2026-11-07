@@ -49,6 +49,10 @@ public sealed class LabelFirstFormsFrameRail
         ("ClusterScenarioPanel.cs", "Select Scenario", "selector + Load buttons on one line"), ("ClusterScenarioPanel.cs", "Select Exercise", "selector + Open AAR on one line"),
         ("SimHostControlPanels.cs", "Speed", "transport row"), ("ReportsWindow.cs", "Unit", "filter row"), ("ReportsWindow.cs", "Kind", "filter row"),
         ("MissionPanel.cs", "Behavior", "a task-list row (index · behaviour · buttons)"),
+        // the condition editor's hosts (U-15 / U-16) — the Expert view tick is a view option; the sentence rows' inline inputs sit INSIDE the sentence (DESIGN_Condition_Editor §4)
+        ("DataBreakpointManagerPanel.cs", "Expert view", "view option"), ("RuleDetails.cs", "Expert view", "view option"), ("ReplaySearchPanel.cs", "Expert view", "view option"),
+        ("RuleDetails.cs", "times at most", "inline in the timing sentence"),
+        ("ConditionEditor.cs", "N##n", "inline in a sentence row"), ("ConditionEditor.cs", "times", "inline in a sentence row"), ("ConditionEditor.cs", "no end", "inline in a sentence row"),
         // search / filter boxes — the hint is the label (Q-C3)
         ("AssetBrowserPanel.cs", "Filter", "search box"), ("SpawnerPanel.cs", "Search", "search box"),
         // a field made of several flags — label in column 1, each flag keeps its text inside column 2 (§3.1)

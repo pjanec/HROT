@@ -54,6 +54,18 @@ returned nothing usable (stale index). Coverage not checkable.
 | ⭐ **List** *(NEW, the authoring default in Edit mode)* | writing and reading rules | one line per rule as a sentence — *"**When** Alpha 1-1 is inside OBJ BLUE **for** 30 s → **Begin** Phase 2, **Message** Blue: 'Phase 2'"* · objectives as *"**Take and hold** OBJ BLUE with 4 men for 5 min — required"*; grouped as today (macro / subject / side), searchable, the same tree |
 | **Timeline** *(built, the default in Live and Review)* | watching and reviewing | unchanged — the row states, arrows, *Coming up* |
 
+#### 2.1.1 As-built — RX3, the List view *(ui, 2026-11-07)*
+
+| piece | where | what |
+|---|---|---|
+| the line | `Hrot.Presentation/Rules/RuleSentence.cs` — `Of(kind, json, title, required, refs)` | a trigger: *When {condition} [for N s] → {acts}*; the condition's words are `ConditionSentence.Of`'s — the ONE renderer the condition editor uses, so list and editor say the same. An objective: *{kind, humanized}: {title} [— required]*. No condition / no step ⇒ *(no condition yet)* / *(nothing to do yet)* and **Incomplete** |
+| the one params reader | `RuleSentence.ParamsOf(world, entity)` | the rule's `BehaviorStartRecord` — `RuleDetails.ParamsOf` routes through it (one reader) |
+| the view | `RulesWindow.DrawList` + the toolbar's List / Timeline glyph toggles | the same groups and tree depth as the Timeline; an incomplete rule carries the `form/warning` mark with its reason; a click selects as on the Timeline. ⭐ Default: **List when every row is authored** (edit mode), Timeline once a row is live or recorded; the person's pick sticks |
+| hot path | the sentence is cached per rule against its params string's reference; index loops | ✅ **0 B on a steady frame (CE-1465, built):** `Rebuild` runs only when its key changes (world · table versions · entity count · `now` · toolbar choices · selection · blocked reason · history index · sent-message count); a live run changes `now` every frame and still rebuilds per frame. Rail `RulesWindowFrameRail.U18_…` |
+| rail | `RulesWindowFrameRail.U18_InEditMode_TheListReadsOneSentencePerRule_AndTheTimelineIsAToggleAway` | the default, the lines, the incomplete mark, the toggle |
+
+⚠ Not yet: objectives in their richer words (*Take and hold OBJ BLUE with 4 men for 5 min*) — today the kind's humanized name and the title; the sentence for each objective kind belongs with its params form (RX4's gallery names). Actions read as their humanized act names (*Message*, *Begin phase*), not yet with their arguments.
+
 ### 2.1a The graphical design *(R-4143 — the acceptance spec)*
 
 ![The Rules window's List view and the New rule gallery](rule-list-visual.svg)
@@ -65,6 +77,75 @@ returned nothing usable (stale index). Coverage not checkable.
 Selecting a rule — in the List, on the Timeline, from a unit's Objectives tab, from a mission task — shows its tabs **in the Details panel**
 (the same `RuleDetails` content, re-hosted as Details tabs offered for a rule entity). The Rules window keeps the list / timeline, the
 toolbar (*+ New rule*, group by, side, search) and the instructor's *End*. ⛔ No second copy of the form.
+
+#### 2.2.1 RX2 — the detail in Details *(ui, 2026-11-07; built as drawn)*
+
+```mermaid
+classDiagram
+    class IRuleDetailsHost {
+        <<interface>>
+        +Offers(Entity e) bool
+        +DrawDetails(Entity e)
+    }
+    class RulesWindow {
+        existing — the list / timeline, the toolbar
+        -RuleDetails _details  (the ONE form)
+        +Offers(e) the entity is a row of the view
+        +DrawDetails(e) _details.Draw(row) or the overview
+        -EnsureBuilt() rebuild once per frame, open or closed
+    }
+    class RuleDetails {
+        existing — tabs, one params form, Apply / Undo
+    }
+    class RuleDetailsTab {
+        NEW · IDetailsViewInstance
+        +Draw(ctx) host.DrawDetails(ctx.Entities[0])
+    }
+    class EntityDetailsBundle {
+        existing — registers a tab per form
+        +registers RuleDetailsTab when Rules is passed
+    }
+    class EntityDetailsHostServices {
+        existing
+        +Rules : Func~IRuleDetailsHost?~  NEW
+    }
+    IRuleDetailsHost <|.. RulesWindow
+    RulesWindow *-- RuleDetails
+    RuleDetailsTab --> IRuleDetailsHost : draws through
+    EntityDetailsBundle ..> RuleDetailsTab : registers
+    EntityDetailsBundle --> EntityDetailsHostServices
+```
+
+*What the picture shows that the prose hid:* the Details tab owns NO form — it draws through the window's one `RuleDetails`, so editor,
+CGF and Replay Browser cannot get different rule details by construction; the window's right pane goes away (⛔ two copies).
+
+```mermaid
+sequenceDiagram
+    participant U as author
+    participant W as RulesWindow (List / Timeline)
+    participant H as host selection (SelectNetworkEntity)
+    participant D as Details panel
+    participant T as RuleDetailsTab
+    U->>W: click a rule
+    W->>H: select the RULE entity (was: its subject)
+    D->>T: AppliesTo: one entity, host.Offers(e)
+    T->>W: DrawDetails(e)
+    W->>W: EnsureBuilt() (the window may be closed)
+    W-->>D: RuleDetails.Draw(row) — tabs, form, Apply / Undo
+```
+
+| decision | lean | why |
+|---|---|---|
+| a pick selects the **rule** entity, not its subject | ✅ (§2.2 as approved) | the Details panel shows what is selected; the subject stays one click away (*Show on map*, the Overview's subject line) |
+| the window's right pane | removed when the host passes `Rules` (every host with the window does) | ⛔ two copies of the form |
+| rank | 33 — just above the forms (34) | a rule has no other form |
+
+**As-built:** `IRuleDetailsHost` (`Hrot.Presentation/Rules`) implemented by `RulesWindow` (`Offers` · `DrawDetails` · `AttachToDetailsPanel`;
+`EnsureBuilt` rebuilds once per ImGui frame, so the tab works with the window closed); `RuleDetailsTab` + `RuleDetailsTabDescriptor`
+(`Hrot.Editor.AiShared/Shell`, id `details.rule`, rank 33); `EntityDetailsHostServices.Rules` — passed by the editor, CGF and the Replay Browser (every
+host with the window). ⚠ Attachment happens on the panel's first `AppliesTo` (idempotent); a window never asked keeps its own pane (the rails' hosts).
+⚠ A rule hidden by the window's filter (side / search / subtree) is not offered — the tab reads the window's view. Rails:
+`TheRuleDetailsTabTests` (AiShared) · `RulesWindowFrameRail.U18_…` (attached ⇒ a pick selects the rule).
 
 ### 2.3 The condition editor, refactored — one friendly editor, templates as shortcuts *(revised `2026-11-06`)*
 
@@ -145,6 +226,13 @@ timing* (Begin phase when … · End the exercise when …), *Reinforcements* (B
 |---|---|
 | **every host with the UI** | the Rules window, its List and the Details tabs on the editor, **CGF**, the Replay Browser (read-only on a recording) — R-4119 |
 | **the expected basics** | CE-4245 (focus lost while typing) fixed before anything else; Esc / Cancel / undo as everywhere (Editing UX §3.7) |
+
+**As-built — RX1** *(ui, 2026-11-07)*: Window ▸ Rules on **CGF** — `CgfSubsystem.RegisterWindows` registers the same `RulesWindow` (`cgf_rules`) over
+`HrotNodeContext.World` / `ShownTimeline` (the editor's source), driven by the operator toolbar's `ClusterTimeTransportAdapter`; a pick selects through
+`SelectionChangeRequest.ReplaceWith` (the one request seam), *Show on map* publishes `CenterOnEntityCommand`; CGF now passes `OpenRule` and
+`SelectNetworkEntity` to its Details bundle (the silent-default rule — it holds both). ⚠ CGF has no `RuleEditorServices` yet ⇒ it reads and controls rules
+(*Fire now · Disarm …*), live edits stay on the editor. CE-4245 was refuted on verification (no focus loss). Rail: `TheRunChoiceIsOnEveryHostTests` (CGF windowed).
+⭐ Three hosts still construct the window each in their own lines — a shared factory is the next step if a fourth host appears.
 
 ## 3. Stages *(top level; ui owns the editor, behaviors the condition / action vocabulary where it touches the runtime)*
 

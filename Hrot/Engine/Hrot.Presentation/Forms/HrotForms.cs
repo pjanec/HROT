@@ -25,6 +25,7 @@ public static class HrotForms
             if (_registered) return;
             _registered = true;
             FormCatalogue.Register(Unit);
+            FormCatalogue.Register(CrewAndCargo);
             FormCatalogue.Register(Shape);
             FormCatalogue.Register(Scenario);
         }
@@ -48,6 +49,10 @@ public static class HrotForms
     }
 
     private static readonly string[] Stances = { "Standing", "Crouched", "Prone" };
+
+    // ⭐ before Unit: static fields initialise in textual order
+    private static readonly string[] WeaponPostures = { "At ease", "Ready", "Aimed" };
+    private static readonly string[] HeldItems = { "Nothing", "Weapon", "Throwable", "Phone", "Binoculars" };
 
     /// <summary>
     /// ⭐ D3 — the <b>Unit</b> form (§3): name · side · posture · strength · playable side / slot; ⚙ the entity's network id and TKB template.
@@ -73,11 +78,32 @@ public static class HrotForms
                 ReadNumber = (w, e) => (int)w.GetComponentRO<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(e).TargetStance,
                 ChoiceValue = i => AttributeValue.FromInt(i),
             },
+            // ⭐ U-24 / S5 (DESIGN_Initial_State §3) — the weapon's start state: posture and what is in hand (B-5 S2 attributes 70 / 73; the brain's owner applies them)
+            new FormField
+            {
+                Label = "Weapon", Kind = FieldKind.Choice, Attribute = "Weapon.Posture", Choices = WeaponPostures,
+                Has = HasWeaponPosture,
+                ReadNumber = (w, e) => (int)w.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponPosture>(e).Kind,
+            },
+            new FormField
+            {
+                Label = "In hand", Kind = FieldKind.Choice, Attribute = "Weapon.HeldItem", Choices = HeldItems,
+                Has = HasWeaponPosture,
+                ReadNumber = (w, e) => (int)w.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponPosture>(e).HeldItem,
+            },
             new FormField
             {
                 Label = "Strength", Attribute = "Health.Current", Min = 0,
                 Has = (w, e) => w.IsComponentTypeRegistered<Health>() && w.HasComponent<Health>(e),
                 ReadNumber = (w, e) => w.GetComponentRO<Health>(e).Current,
+            },
+            new FormField
+            {
+                // ⭐ U-23 part 5 — the make-playable toggle (was the Playable tab's): an owner-side add / remove, the ONE op (PlayableOps)
+                Label = "Playable", Kind = FieldKind.Toggle,
+                Has = (w, e) => w.IsComponentTypeRegistered<Hrot.Common.Playable>(),
+                ReadNumber = (w, e) => w.HasComponent<Hrot.Common.Playable>(e) ? 1 : 0,
+                Apply = (w, e, v, _) => PlayableOps.SetPlayable(w, e, v != 0) ? null : "not available",
             },
             new FormField
             {
@@ -105,7 +131,73 @@ public static class HrotForms
                 ReadNumber = (w, e) => (long)w.GetComponentRO<TkbIdentity>(e).TkbType,
             },
         },
+        // ⭐ U-24 / S5 — Aboard: the vehicle and seat he rides in, Take off; Board… picks a vehicle — the ONE embark path (EmbarkOrders), as Crew & cargo
+        Lists = new[]
+        {
+            new FormList
+            {
+                Label = "Aboard",
+                Fill = FillAboard,
+                Footer = (w, e) => IsAboard(w, e) ? null : "not aboard",
+                RemoveLabel = "Take off",
+                Remove = (w, it) => Hrot.Common.Orders.EmbarkOrders.Disembark(w, it.Item),
+                AddLabel = "Board…",
+                Add = (w, unit, vehicle) => IsAboard(w, unit) ? "already aboard — take him off first" : PutAboard(w, vehicle, unit),
+            },
+            // ⭐ U-24 / S5 — aimed at: the unit his weapon points at (Weapon.AimTarget, 72 — the target's network id, 0 clears; resolved on the applying node)
+            new FormList
+            {
+                Label = "Aimed at",
+                Fill = FillAimTarget,
+                RemoveLabel = "Clear",
+                Remove = (w, it) => WriteAimTarget(w, it.Item, 0, "Clear the aim"),
+                AddLabel = "Aim at…",
+                Add = AimAt,
+            },
+        },
     };
+
+    /// <summary>One row when his weapon has a live target: the target's name; the row's item is HIM (Clear writes his attribute).</summary>
+    private static void FillAimTarget(EntityRepository w, Entity e, System.Collections.Generic.List<FormListItem> into)
+    {
+        if (!HasWeaponPosture(w, e)) return;
+        var t = w.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponPosture>(e).Target;
+        if (t.IsNull || !w.IsAlive(t)) return;
+        var name = w.IsComponentTypeRegistered<EntityInfo>() && w.HasComponent<EntityInfo>(t) ? w.GetComponentRO<EntityInfo>(t).Name : new FixedString64("(a unit)");
+        into.Add(new FormListItem("Target", name, e));
+    }
+
+    private static string? AimAt(EntityRepository w, Entity unit, Entity target)
+    {
+        if (!HasWeaponPosture(w, unit)) return "he has no weapon posture";
+        if (target == unit) return "he cannot aim at himself";
+        int net = Fdp.Toolkit.Replication.EntityRef.Of(w, target).NetworkId;
+        if (net == 0) return "that has no network identity — pick a unit";
+        WriteAimTarget(w, unit, net, "Aim at");
+        return null;
+    }
+
+    private static void WriteAimTarget(EntityRepository w, Entity unit, int networkId, string label)
+        => Fdp.Toolkit.Replication.Edits.Edits.Submit(w, Fdp.Toolkit.Replication.Edits.EditOp.Write(unit,
+               new EntityAttributeChange { AttributeId = AttributeIds.WeaponAimTarget, Value = AttributeValue.FromInt(networkId) }, label));
+
+    private static bool HasWeaponPosture(EntityRepository w, Entity e)
+        => w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponPosture>() && w.HasComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>(e);
+
+    private static bool IsAboard(EntityRepository w, Entity e)
+        => w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>() && w.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e);
+
+    /// <summary>One row when he is aboard: the seat's role, the vehicle's name; the row's item is HIM (Take off disembarks him).</summary>
+    private static void FillAboard(EntityRepository w, Entity e, System.Collections.Generic.List<FormListItem> into)
+    {
+        if (!IsAboard(w, e)) return;
+        ref readonly var tag = ref w.GetComponentRO<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e);
+        var v = tag.VehicleEntity;
+        if (v.IsNull || !w.IsAlive(v)) return;
+        var name = w.IsComponentTypeRegistered<EntityInfo>() && w.HasComponent<EntityInfo>(v) ? w.GetComponentRO<EntityInfo>(v).Name : new FixedString64("(a vehicle)");
+        int seat = tag.Seat;
+        into.Add(new FormListItem(seat < Fdp.Toolkit.Behavior.Components.PassengerBuffer.Capacity ? RoleOf(w, v, seat) : RoleWords[0], name, e));
+    }
 
     private static bool HasSpawn(EntityRepository w, Entity e) => w.IsComponentTypeRegistered<Hrot.Common.SpawnArea>() && w.HasComponent<Hrot.Common.SpawnArea>(e);
     private static bool HasWeather(EntityRepository w, Entity e) => w.IsComponentTypeRegistered<Fdp.Toolkit.Weather.WeatherConditions>() && w.HasComponent<Fdp.Toolkit.Weather.WeatherConditions>(e);
@@ -115,6 +207,83 @@ public static class HrotForms
 
     private static FormField WeatherNumber(string label, string attribute, string unit, Func<EntityRepository, Entity, double> read, double min = double.MinValue, double max = double.MaxValue, bool expert = false)
         => new() { Label = label, Attribute = attribute, Unit = unit, Min = min, Max = max, Expert = expert, Has = HasWeather, ReadNumber = read };
+
+    /// <summary>
+    /// ⭐ D4 — the <b>Crew &amp; cargo</b> form (§3; §4.0a part 4): offered for a carrier (<c>PassengerBuffer</c>). One row per OCCUPIED seat — its role
+    /// (Driver · Gunner · Commander · Weapon station · Passenger) and who sits there, with <i>Take off</i>; then the free seats as a count; <i>Put aboard…</i>
+    /// picks a unit. ⭐ Both actions are <see cref="Hrot.Common.Orders.EmbarkOrders"/> — the ONE embark path (the map menu, the ORBAT drag): the vehicle's owner
+    /// answers. ⛔ No write path of its own.
+    /// </summary>
+    public static readonly FormDecl CrewAndCargo = new()
+    {
+        Id = "form.crew", Title = "Crew & cargo", Order = 20,
+        Requires = new[] { typeof(Fdp.Toolkit.Behavior.Components.PassengerBuffer) },
+        Fields = Array.Empty<FormField>(),
+        Lists = new[]
+        {
+            new FormList
+            {
+                Label = "Seats",
+                Fill = FillSeats,
+                Footer = FreeSeatsText,
+                RemoveLabel = "Take off",
+                Remove = (w, it) => Hrot.Common.Orders.EmbarkOrders.Disembark(w, it.Item),
+                AddLabel = "Put aboard…",
+                Add = PutAboard,
+            },
+        },
+    };
+
+    private static readonly string[] RoleWords = { "Passenger", "Driver", "Gunner", "Commander", "Weapon station" };
+    private static readonly string[] FreeWords = BuildFreeWords();
+    private static string[] BuildFreeWords()
+    {
+        var w = new string[Fdp.Toolkit.Behavior.Components.PassengerBuffer.Capacity + 1];
+        w[0] = "no seat free";
+        for (int i = 1; i < w.Length; i++) w[i] = i == 1 ? "1 seat free" : i + " seats free";
+        return w;
+    }
+
+    private static int SeatCountOf(EntityRepository w, Entity e)
+        => w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.CarrierSeats>() && w.HasComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>(e)
+            ? Math.Min((int)w.GetComponentRO<Fdp.Toolkit.Behavior.Components.CarrierSeats>(e).SeatCount, Fdp.Toolkit.Behavior.Components.PassengerBuffer.Capacity)
+            : Fdp.Toolkit.Behavior.Components.PassengerBuffer.UndeclaredSeats;
+
+    private static string RoleOf(EntityRepository w, Entity e, int seat)
+    {
+        if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.CarrierSeats>() || !w.HasComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>(e)) return RoleWords[0];
+        int r = (int)w.GetComponentRO<Fdp.Toolkit.Behavior.Components.CarrierSeats>(e).Roles[seat];
+        return r >= 0 && r < RoleWords.Length ? RoleWords[r] : RoleWords[0];
+    }
+
+    private static void FillSeats(EntityRepository w, Entity e, System.Collections.Generic.List<FormListItem> into)
+    {
+        ref readonly var buf = ref w.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(e);
+        int seats = SeatCountOf(w, e);
+        bool named = w.IsComponentTypeRegistered<EntityInfo>();
+        for (int i = 0; i < seats; i++)
+        {
+            var p = buf.Passengers[i];
+            if (p.IsNull || !w.IsAlive(p)) continue;
+            var who = named && w.HasComponent<EntityInfo>(p) ? w.GetComponentRO<EntityInfo>(p).Name : new FixedString64("(unnamed)");
+            into.Add(new FormListItem(RoleOf(w, e, i), who, p));
+        }
+    }
+
+    private static string? FreeSeatsText(EntityRepository w, Entity e)
+    {
+        ref readonly var buf = ref w.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(e);
+        int seats = SeatCountOf(w, e), free = 0;
+        for (int i = 0; i < seats; i++) if (buf.Passengers[i].IsNull) free++;
+        return FreeWords[Math.Min(free, FreeWords.Length - 1)];
+    }
+
+    private static string? PutAboard(EntityRepository w, Entity vehicle, Entity unit)
+    {
+        if (unit == vehicle) return "a vehicle cannot board itself";
+        if (!Hrot.Common.Orders.EmbarkOrders.CanOffer(w, unit)) return "this cannot be put aboard (already aboard, a vehicle or a weapon)";
+        return Hrot.Common.Orders.EmbarkOrders.Embark(w, unit, vehicle) ? null : "not sent";
+    }
 
     /// <summary>
     /// ⭐ D5 — the <b>Shape</b> form (§3): offered for a spawn area or a weather region. Spawn area: side, facing. Weather region: the authored scalars of

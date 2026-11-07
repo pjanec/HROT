@@ -32,27 +32,8 @@ public static class EntityPlayableModel
     }
 
     /// <summary>Toggles the unit's playability. On: the side defaults to the unit's <c>EntityInfo.ForceId</c> (Friend when it has none) and the slot name to its name. Returns false when not available.</summary>
-    public static bool SetPlayable(EntityRepository world, Entity unit, bool playable)
-    {
-        if (!Available(world, unit)) return false;
-        bool has = world.HasComponent<Playable>(unit);
-        // ⭐ Edit framework F3 (docs/UX/DESIGN_Edit_Framework.md §3) — the toggle is an owner-side add / remove (then the two attributes), with an
-        //   outcome; ⛔ was a local AddComponent / RemoveComponent, which on a station that does not own the unit changed the replica only.
-        if (playable && !has)
-        {
-            var side = ForceId.Friend; var name = "";
-            if (world.IsComponentTypeRegistered<EntityInfo>() && world.HasComponent<EntityInfo>(unit))
-            {
-                var info = world.GetComponentRO<EntityInfo>(unit);
-                if (info.ForceId is ForceId.Friend or ForceId.Hostile) side = info.ForceId;
-                name = info.Name.ToString();
-            }
-            Edits.Submit(world, EditOp.AddComponent(unit, typeof(Playable), "Make playable"));
-            Edits.Submit(world, EditOp.Write(unit, new[] { SideChange(side), SlotChange(name) }, "Set the playable side and slot"));
-        }
-        else if (!playable && has) Edits.Submit(world, EditOp.RemoveComponent(unit, typeof(Playable), "Make not playable"));
-        return true;
-    }
+    /// <summary>Toggles the unit's playability — ⭐ U-23 part 5: the ONE op, <see cref="Hrot.Presentation.Forms.PlayableOps.SetPlayable"/> (the Unit form's toggle calls it too).</summary>
+    public static bool SetPlayable(EntityRepository world, Entity unit, bool playable) => Hrot.Presentation.Forms.PlayableOps.SetPlayable(world, unit, playable);
 
     public static bool SetSide(EntityRepository world, Entity unit, ForceId side)
     {
@@ -68,11 +49,9 @@ public static class EntityPlayableModel
         return true;
     }
 
-    private static EntityAttributeChange SideChange(ForceId side)
-        => new() { AttributeId = AttributeIds.PlayableSide, Value = AttributeValue.FromInt((int)side) };
+    private static EntityAttributeChange SideChange(ForceId side) => Hrot.Presentation.Forms.PlayableOps.SideChange(side);
 
-    private static EntityAttributeChange SlotChange(string name)
-        => new() { AttributeId = AttributeIds.PlayableSlotName, Value = AttributeValue.FromString(name) };
+    private static EntityAttributeChange SlotChange(string name) => Hrot.Presentation.Forms.PlayableOps.SlotChange(name);
 }
 
 /// <summary>The Playable view's dump — what a frame showed.</summary>
@@ -146,7 +125,8 @@ public static class EntityPlayableViewDescriptor
             Id:        ViewId,
             Title:     "Playable",
             Rank:      Rank,
-            AppliesTo: ctx => DetailsViewPredicates.ExactlyOneEntity(ctx) && world() is { } w && w.IsComponentTypeRegistered<Playable>() && w.IsAlive(ctx.Entities[0]),
+            AppliesTo: ctx => DetailsViewPredicates.ExactlyOneEntity(ctx) && world() is { } w && w.IsComponentTypeRegistered<Playable>() && w.IsAlive(ctx.Entities[0])
+                       && !Hrot.Presentation.Forms.HrotForms.Unit.OffersFor(w, ctx.Entities[0]),   // ⭐ U-23 part 5 — the Unit form's Playable toggle replaces this tab where the form is offered
             Create:    () => instance);
     }
 }

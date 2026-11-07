@@ -107,6 +107,11 @@ public sealed class TheRunChoiceIsOnEveryHostTests
             HearTheCluster(cgf.NodeForTest!);                      // CE-1442: a fresh host is closed until its view has heard the cluster
             Assert.Null(choice.PlayDisabledReason);                // the session is passed: Live-armed ▶ is enabled
             AssertTheHostOffersItsTransport_AndTheCompositionPutsItOnTheToolbar(windows, cgf, "Scenario");   // ⭐ CE-4083 + CE-1437
+
+            // ⭐ U-18 / RX1 (R-4119) — Window ▸ Rules on CGF: the one window, registered, over the node's world. 🔴 Red-proof: the registration removed ⇒ red.
+            Assert.True(windows.TryGetWindow("cgf_rules", out var rules));
+            Assert.Same(cgf.RulesWindowForTest, rules);
+            Assert.False(cgf.SelectNetworkEntity(987_654));   // an unknown network id selects nothing
         }
         finally
         {

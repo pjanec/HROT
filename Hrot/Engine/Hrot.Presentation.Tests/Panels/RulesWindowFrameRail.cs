@@ -70,7 +70,7 @@ public sealed class RulesWindowFrameRail : IDisposable
         Add(13, "Hold the ridge", 10, 0, ObjectiveState.Failed, changedAt: 30);
 
         var picked = new List<int>(); var centred = new List<int>();
-        var window = new RulesWindow(() => _world, () => null, null, "rail_rules", "Scenario", Vector4.One, picked.Add, centred.Add, now: () => 120d);
+        var window = new RulesWindow(() => _world, () => null, null, "rail_rules", "Scenario", Vector4.One, picked.Add, centred.Add, now: () => 120d) { ListView = false };   // U-18: these rails drive the Timeline
         using var frame = UiFrameHarness.Begin(1280, 420);
 
         void Step(Action<ImGuiIOPtr>? input = null, int n = 1)
@@ -141,7 +141,7 @@ public sealed class RulesWindowFrameRail : IDisposable
     public void OnARecording_EveryActionIsDisabledWithTheReason_AndAskingWritesNothing()
     {
         Add(12, "Fire at target", 0, 900, ObjectiveState.Active, ObjectiveRole.Trigger, trig: TriggerState.Armed);
-        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_rec", "Scenario", Vector4.One, _ => { }, _ => { }, blocked: () => "a recording is read-only", now: () => 5d);
+        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_rec", "Scenario", Vector4.One, _ => { }, _ => { }, blocked: () => "a recording is read-only", now: () => 5d) { ListView = false };   // U-18: these rails drive the Timeline
         window.SelectNetworkId(12);
         window.Rebuild();
         Assert.All(window.Probe.Buttons.Where(b => b.Label != "Show on map"), b => Assert.Equal("a recording is read-only", b.Reason));
@@ -168,7 +168,7 @@ public sealed class RulesWindowFrameRail : IDisposable
         Rule(11, "Trigger", """{"common":{"title":"Counter-attack","parent":10,"subject":900},"when":{"$type":"OnEntity","ref":{"NetworkId":10}}}""");
 
         var picked = new List<int>();
-        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_edit", "Scenario", Vector4.One, picked.Add, _ => { });
+        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_edit", "Scenario", Vector4.One, picked.Add, _ => { }) { ListView = false };   // U-18: these rails drive the Timeline
         using var frame = UiFrameHarness.Begin(1280, 300);
         void Step(Action<ImGuiIOPtr>? input = null, int n = 1)
         {
@@ -202,6 +202,75 @@ public sealed class RulesWindowFrameRail : IDisposable
     }
 
     /// <summary>
+    /// ⭐ U-18 / RX3 (docs/UX/DESIGN_Rule_Editor_UX.md §2.1) — in EDIT MODE the Rules window opens on the LIST: one sentence per rule, an incomplete rule says so;
+    /// the Timeline is one toggle away and the pick sticks.
+    /// 🔴 Red-proof (compiles): <c>ListView</c>'s default <c>false</c> ⇒ the timeline draws ⇒ <c>ListView</c> false ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void U18_InEditMode_TheListReadsOneSentencePerRule_AndTheTimelineIsAToggleAway()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        void Rule(int id, string kind, string json)
+        {
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new NetworkIdentity(id));
+            _world.SetManagedComponent(e, new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = kind, JsonParams = json, InstanceId = 1 });
+        }
+        Rule(10, "WeightedMean", """{"common":{"title":"Mission","subject":900}}""");
+        Rule(11, "Trigger", """{"common":{"title":"Counter-attack","parent":10,"subject":900}}""");
+
+        var picked = new List<int>();
+        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_list", "Scenario", Vector4.One, picked.Add, _ => { });
+        using var frame = UiFrameHarness.Begin(1280, 300);
+        Action draw = () =>   // ONE delegate: a lambda made per Step would itself allocate under the 0 B check
+        {
+            ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(1280, 300));
+            ImGui.Begin("Rules", ImGuiWindowFlags.NoCollapse);
+            window.DrawContent();
+            ImGui.End();
+        };
+        void Step(int n = 1) { for (int i = 0; i < n; i++) frame.Step(draw); }
+        Step(5);
+        Assert.True(window.ListView, "edit mode (every row authored) opens on the List");
+        Assert.Equal(new[] { "Weighted mean: Mission", "When (no condition yet) → (nothing to do yet)" }, window.ListRows);
+        Assert.True(window.IncompleteOf(11));
+        Assert.False(window.IncompleteOf(10));
+        Assert.Equal(0, window.Panel.LastTrackHits.Count);   // the timeline did not draw
+        // ⭐ CE-1465 — a steady frame (nothing changed) rebuilds nothing: no model, tracks or probe — 0 B over three frames
+        Step(2);   // warm: the first steady frames settle caches
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        Step(3);
+        Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+        // ... and a change to a rule's params shows after ONE step (the table's version moved with the tick)
+        Entity mission = default;
+        foreach (var e in _world.Query().WithManaged<Fdp.Toolkit.Behavior.Components.BehaviorStartRecord>().Build()) if (_world.GetComponentRO<NetworkIdentity>(e).Value == 10) mission = e;
+        _world.Tick();
+        _world.SetManagedComponent(mission, new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = "WeightedMean", InstanceId = 1, JsonParams = """{"common":{"title":"Mission renamed","subject":900}}""" });
+        _world.Tick();
+        Step();
+        Assert.Contains("Weighted mean: Mission renamed", window.ListRows);
+        // ... and a write stamped with the SAME version as the last build (no tick in between — an Apply inside the frame's draw) is still seen once the world ticks
+        _world.SetManagedComponent(mission, new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = "WeightedMean", InstanceId = 1, JsonParams = """{"common":{"title":"Mission again","subject":900}}""" });
+        _world.Tick();
+        Step();
+        Assert.Contains("Weighted mean: Mission again", window.ListRows);
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 }) frame.Screenshot(ShotPath("rules-list.png"));
+
+        window.ListView = false;
+        Step(3);
+        Assert.False(window.ListView);   // the pick sticks
+        Assert.Equal(2, window.Panel.LastTrackHits.Count);   // each row's anchor key — the Timeline drew
+
+        // ⭐ U-18 / RX2 — attached to the Details panel: opening a rule picks the RULE (Details shows what is selected), not its subject; the pane is not drawn
+        Assert.Empty(picked);
+        window.AttachToDetailsPanel();
+        window.SelectNetworkId(11);
+        Step(2);
+        Assert.Equal(new[] { 11 }, picked);
+        Assert.True(window.DetailsInPanel);
+    }
+
+    /// <summary>
     /// ⭐ CE-4218 (R5a) — the RULE EDITOR in a real frame, EDIT MODE: a trigger's tab set (Overview · When · Rules · Do · Bindings · History) and an objective's (Status · Settings · Results · History), each tab's fields drawn from the ONE params form (the When tab through the
     /// standard predicate leaf), the header above them, Apply / Revert / Undo on the bar. ✅ Red-proof: <c>RuleTabs.FieldsOf</c> returning nothing for the Rules tab ⇒ its fields vanish ⇒ red.
     /// </summary>
@@ -232,7 +301,7 @@ public sealed class RulesWindowFrameRail : IDisposable
         var history = new Hrot.Presentation.Edits.EditHistory();
         var svc = new RuleEditorServices(() => Fdp.Presentation.Editing.ComponentEditServices.CreateBuilder().Build(), () => null,
             (e, n, j) => true, history, _ => Array.Empty<RuleJournalEntry>(), Picks: () => picks);
-        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_ed", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 5d, editor: svc);
+        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_ed", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 5d, editor: svc) { ListView = false };   // U-18: these rails drive the Timeline
         using var frame = UiFrameHarness.Begin(1400, 700);
         void Step(Action<ImGuiIOPtr>? input = null, int n = 1)
         {
@@ -338,7 +407,7 @@ public sealed class RulesWindowFrameRail : IDisposable
         var svc = new RuleEditorServices(() => Fdp.Presentation.Editing.ComponentEditServices.CreateBuilder().Build(), () => null, (e, n, j) => true, new Hrot.Presentation.Edits.EditHistory(), _ => Array.Empty<RuleJournalEntry>(),
             OpenPicker: () => (req, answer) => { asked = req; answer(new NodeEditor.UI.Picker.PickerResult(new[] { req.ItemsProvider().First(x => x.Name == "Message") })); },
             Live: new RuleLiveServices(k => null, on => liveValues.Add(on)));
-        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_do", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 5d, editor: svc);
+        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_do", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 5d, editor: svc) { ListView = false };   // U-18: these rails drive the Timeline
         window.Details!.LiveWriter = (EntityRepository w, Entity e, string j, int o, ref int last, out int seq, out Guid rid) => { seq = ++last; rid = Guid.NewGuid(); written.Add(j); return Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct; };
         float winH = 1900f;
         using var frame = UiFrameHarness.Begin(1400, 1900);
@@ -430,7 +499,7 @@ public sealed class RulesWindowFrameRail : IDisposable
         var svc = new RuleEditorServices(() => Fdp.Presentation.Editing.ComponentEditServices.CreateBuilder().Build(), () => null,
             (e, n, j) => { _world.SetManagedComponent(e, new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = n, JsonParams = j, InstanceId = 1 }); return true; },
             history, _ => Array.Empty<RuleJournalEntry>());
-        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_conn", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 0d, editor: svc);
+        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_conn", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 0d, editor: svc) { ListView = false };   // U-18: these rails drive the Timeline
         using var frame = UiFrameHarness.Begin(1400, 900);
         void Step(Action<ImGuiIOPtr>? input = null, int n = 1)
         {
@@ -502,7 +571,7 @@ public sealed class RulesWindowFrameRail : IDisposable
             JsonParams = """{"common":{"title":"Reach"},"when":{"$type":"OnEntity","ref":{"NetworkId":12},"predicate":{"$type":"SpatialBounding"}}}""" });
         var svc = new RuleEditorServices(() => Fdp.Presentation.Editing.ComponentEditServices.CreateBuilder().Build(), () => null,
             (x, n, j) => true, new Hrot.Presentation.Edits.EditHistory(), _ => Array.Empty<RuleJournalEntry>());
-        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_u15", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 5d, editor: svc);
+        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_u15", "Scenario", Vector4.One, _ => { }, _ => { }, now: () => 5d, editor: svc) { ListView = false };   // U-18: these rails drive the Timeline
         using var frame = UiFrameHarness.Begin(1400, 700);
         void Step(int n = 1)
         {

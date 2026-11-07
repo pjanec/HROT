@@ -230,6 +230,16 @@ Rails: `PredicateCompilerLevelTests.C1_*` (3; red-proved: `None` compiled as `Or
 | **C4** | the timing line on the rule; the Live column from `LiveLeafOverlay` by sentence | ui | the live ✓ / ✗ and measured value per row |
 | **C5** | the same editor in the mission task's Advanced condition, the replay search and breakpoints — ⭐ the Replay Browser's data breakpoints included (R-4155) (Contexts) | ui | each host shows only its kinds |
 
+⭐ **C5 as built (U-16).** Each host takes the ONE `ConditionEditor` + an *Expert view* tick (the rule When tab's pattern); the friendly view is the default, the Expert view is the host's old surface, and the ONE condition travels between them.
+
+| host | context | how it binds | Expert view | Apply / commit holds on a blank |
+|---|---|---|---|---|
+| **replay search** (`ReplaySearchPanel`) | `Search` | `ref _friendly` directly — the panel edits a DTO of its own (a struct-editor session per mode, no predicate node) | the mode radio + struct editor; into Expert the friendly DTO opens in the session (mode follows its type), back to friendly the session's DTO becomes the value (⚠ a Lifecycle search has no sentence and stays Expert-only) | *Execute Search* disabled, tooltip = the blank |
+| **data breakpoints** (`DataBreakpointManagerPanel` — ONE panel for the editor's and the Replay Browser's breakpoints) | `Breakpoint` | a draft of the selected breakpoint's condition; *Apply* → `IDataBreakpointManager.UpdateCondition` (the grid used to show the condition read-only) | today's read-only listing; ⛔ a compound with LOCKED children (a node's link to its visual node) stays on it, the tick disabled | *Apply* disabled + the blank beside it |
+| **mission task *Advanced condition*** | `Mission` | ⏳ not built: the Mission plan editor's M5 (`DESIGN_Mission_Plan_Editor` §M5) has no such control yet — it opens THIS editor when it lands | — | — |
+
+The map overlay of a spatial search box (`ActiveSpatialBounds`) is Expert-only; the friendly area chip uses the map-pick preview (U-10). `DataBreakpointManagerPanel.PickContext` is a seam the host may fill; unset ⇒ the chips take no map pick. Rails: `ConditionEditorHostsFrameRail` (3).
+
 ## 7. Questions — ✅ APPROVED (R-4142, user `2026-11-06`: *"Otherwise, very good."* — with the icons moved into the chips)
 
 | # | question | lean | rejected |

@@ -68,7 +68,11 @@ public sealed class ThePlayableViewTests : IDisposable
         var unit = Unit(w, ForceId.Friend);
         var d = EntityPlayableViewDescriptor.For(() => w);
         var ctx = DetailsContext.Empty("Scenario") with { Entities = new[] { unit } };
-        Assert.True(d.AppliesTo(ctx));
+        // ⭐ U-23 part 5 — a unit the Unit form is offered for gets the form's Playable toggle, not this tab; an entity with no EntityInfo still gets the tab
+        Hrot.Presentation.Forms.HrotForms.EnsureRegistered();
+        Assert.False(d.AppliesTo(ctx));
+        var thing = w.CreateEntity();
+        Assert.True(d.AppliesTo(DetailsContext.Empty("Scenario") with { Entities = new[] { thing } }));
         Assert.False(d.AppliesTo(DetailsContext.Empty("Scenario")));
         Assert.False(EntityPlayableViewDescriptor.For(() => bare).AppliesTo(DetailsContext.Empty("Scenario") with { Entities = new[] { e } }));
     }

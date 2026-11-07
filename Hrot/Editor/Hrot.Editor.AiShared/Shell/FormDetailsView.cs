@@ -15,8 +15,9 @@ public sealed class FormDetailsView : IDetailsViewInstance
     private readonly FormDecl _form;
     private readonly Func<EntityRepository?> _world;
     private readonly FormView _view = new();
+    private readonly Func<Fdp.Presentation.Editing.IMapPickContext?>? _pick;
 
-    public FormDetailsView(FormDecl form, Func<EntityRepository?> world) { _form = form; _world = world; }
+    public FormDetailsView(FormDecl form, Func<EntityRepository?> world, Func<Fdp.Presentation.Editing.IMapPickContext?>? pick = null) { _form = form; _world = world; _pick = pick; }
 
     /// <summary>The one view (rails, the panel probe).</summary>
     public FormView View => _view;
@@ -30,6 +31,7 @@ public sealed class FormDetailsView : IDetailsViewInstance
     public void Draw(DetailsContext context, string idScope)
     {
         if (_world() is not { } world) return;
+        _view.Pick = _pick?.Invoke();   // ⭐ U-23 / D4 — a list's add picks through the host's one pick context
         if (_form.WorldTarget != null)
         {
             // a WORLD form (Scenario): nothing selected — the world's own entity (one reused array: 0 B)
@@ -48,11 +50,11 @@ public sealed class FormDetailsView : IDetailsViewInstance
 /// <summary>⭐ U-23 — the descriptor of a form's tab: ranked just above Summary (35) by the form's <c>Order</c>.</summary>
 public static class FormDetailsViewDescriptor
 {
-    public static DetailsViewDescriptor For(FormDecl form, Func<EntityRepository?> world)
+    public static DetailsViewDescriptor For(FormDecl form, Func<EntityRepository?> world, Func<Fdp.Presentation.Editing.IMapPickContext?>? pick = null)
     {
         ArgumentNullException.ThrowIfNull(form);
         ArgumentNullException.ThrowIfNull(world);
-        var instance = new FormDetailsView(form, world);
+        var instance = new FormDetailsView(form, world, pick);
         return new DetailsViewDescriptor(
             Id:        "details." + form.Id,
             Title:     form.Title,

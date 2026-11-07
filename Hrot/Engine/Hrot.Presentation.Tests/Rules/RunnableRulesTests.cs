@@ -246,7 +246,7 @@ public sealed class RunnableRulesTests : IDisposable
     public void TheRulesAndSummaryWindows_BothCarryTheSameEndControl()
     {
         EndTrigger();
-        var rules = new RulesWindow(() => _world, () => null, null, "t_rules", "Scenario", System.Numerics.Vector4.One, _ => { }, _ => { }, now: () => 0d);
+        var rules = new RulesWindow(() => _world, () => null, null, "t_rules", "Scenario", System.Numerics.Vector4.One, _ => { }, _ => { }, now: () => 0d) { ListView = false };   // U-18: these rails drive the Timeline
         var summary = new MissionSummaryWindow(() => _world, () => null, null, "t_sum", "Scenario", System.Numerics.Vector4.One, _ => { }, now: () => 0d);
         Assert.True(rules.End.Offer.Available);
         Assert.True(summary.End.Offer.Available);

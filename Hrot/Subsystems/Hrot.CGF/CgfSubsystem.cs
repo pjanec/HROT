@@ -1288,6 +1288,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         MapPickBroker? cgfPickBroker = cgfCanvasAdapter != null
             ? new MapPickBroker(cgfCanvasAdapter)
             : null;
+        _cgfPickBroker = cgfPickBroker;   // ⭐ U-23 / D4 — also the Details forms' pick context
 
         // ⭐⭐ A9 — the helper's third argument is the PERSPECTIVE (see its own doc); the spawned watch
         //    windows' id prefix is cgf_watch_* → scenario_watch_* and that is harmless (those ids embed a
@@ -1330,6 +1331,19 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         windowManager.RegisterWindow(new Hrot.Presentation.Windows.WaypointEditorWindow(
             Hrot.UI.Common.Panels.WaypointEditorPanelFactory.Create(() => _context?.World, () => _entityMap),   // CE-4214
             Hrot.Presentation.Windows.ScenarioPanelWindowIds.CgfWaypoint, "Scenario", TitleBarColor));
+
+        // ⭐⭐ U-18 / RX1 (DESIGN_Rule_Editor_UX §2.6, R-4119) — Window ▸ Rules on CGF: the SAME window the editor and the Replay Browser register, over this node's
+        //   world and its shown timeline (HrotNodeContext.ShownTimeline — the editor's source), driven by the operator toolbar's transport. A pick selects through
+        //   the one request seam; Show on map is the shared CenterOnEntityCommand. ⚠ No rule editor services yet: CGF reads and controls rules (Fire now, Disarm …),
+        //   live edits stay on the editor (follow-up in the as-built).
+        _rulesWindowManager = windowManager;
+        _rulesWindow = new Hrot.Presentation.Windows.RulesWindow(
+            () => _context?.World, () => _context?.ShownTimeline,
+            new Hrot.UI.Common.Adapters.ClusterTimelineCursor(() => _clusterTimeAdapter, () => _context?.ShownTimeline),
+            "cgf_rules", "Scenario", TitleBarColor,
+            selectEntity: n => SelectNetworkEntity(n),
+            showOnMap: n => _context?.World.Bus.Publish(new Hrot.Common.Events.CenterOnEntityCommand { NetworkId = n })) { IsOpen = false };
+        windowManager.RegisterWindow(_rulesWindow);
 
         // ⭐⭐⭐ PHASE 2 SLICE ② — the FIVE diagnostics sites (inspector, the "Inspect…" wiring, event
         //    browser, architecture diagnostics, system profiler) are now ONE shared bundle,
@@ -1640,7 +1654,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     Inspector:   () => _fdpEntityInspector,
                     Session:     () => _fdpRepoAdapter,
                     RunState:    Hrot.Editor.AiShared.Variables.RunStateSource.For(isSimUpSignal, isFrozenSignal),
-                    Host:        () => HostActions)),
+                    Host:        () => HostActions,
+                    OpenRule:    OpenRuleInRulesView,                 // ⭐ U-18 / RX1 — CGF has the Rules window now: the Objectives tab opens a rule in it (RV-7)
+                    SelectNetworkEntity: n => SelectNetworkEntity(n),   // ⭐ the host's ONE selection by network id
+                    Rules:       () => _rulesWindow,                  // ⭐ U-18 / RX2 — the rule's detail in Details
+                    Pick:        () => _cgfPickBroker)),               // ⭐ U-23 / D4 — Put aboard… picks on the map
             },
             new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
@@ -2709,6 +2727,27 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ClearAll("Cgf.DeleteEntity"));
             _fdpInspectorState.SelectedEntity = null;
         }
+    }
+
+    private Hrot.Presentation.Windows.RulesWindow? _rulesWindow;
+    private MapPickBroker? _cgfPickBroker;
+    /// <summary>⭐ U-18 / RX1 — the Rules window (rails).</summary>
+    internal Hrot.Presentation.Windows.RulesWindow? RulesWindowForTest => _rulesWindow;
+
+    /// <summary>⭐ U-18 / RX1 — RV-7: the Details panel's Objectives tab opens a rule in the Rules window.</summary>
+    private void OpenRuleInRulesView(int networkId)
+    {
+        _rulesWindow?.SelectNetworkId(networkId);
+        if (_rulesWindow != null) _rulesWindowManager?.FocusWindow(_rulesWindow.Id);
+    }
+    private Fdp.Presentation.WindowManager.WindowManager? _rulesWindowManager;
+
+    /// <summary>⭐ U-18 / RX1 — a rules-view pick: the network id's entity becomes THE selection, through the one request seam (UXI-11 — only the request system writes).</summary>
+    internal bool SelectNetworkEntity(int networkId)
+    {
+        if (networkId <= 0 || _context?.World is not { } world || _entityMap is not { } map || !map.TryGetEntity(networkId, out var entity) || !world.IsAlive(entity)) return false;
+        world.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(entity, "Cgf.Rules"));
+        return true;
     }
 
     /// <inheritdoc/>

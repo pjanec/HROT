@@ -227,7 +227,8 @@ namespace Hrot.Player
                         RunState:    Hrot.Editor.AiShared.Variables.RunStateSource.For(
                                          () => _app.World != null,
                                          () => Fdp.Toolkit.Time.SimClock.Of(_app.World).IsHalted),
-                        Host:        () => _app.HostActions)),
+                        Host:        () => _app.HostActions,
+                        Pick:        () => _app.GetMapPickBroker())),   // ⭐ U-23 / D4 — Put aboard… picks on the map
                 },
                 new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
             // Signal IgApplication that these panels must not be double-rendered.
