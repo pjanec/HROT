@@ -85,6 +85,10 @@ namespace Hrot.NED.Descriptors.Orchestration
         //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-28 — the next free value in BOTH enums. No payload; the answer is UnsavedCheckResult.
         //   ⚠ Named CheckUnsavedChanges, not CheckUnsaved: IDL scopes enum members by module, and NodeOpType.CheckUnsaved (35) is in the same module.
         CheckUnsavedChanges = 26,
+
+        // ⭐ New scenario N2 (docs/UX/DESIGN_New_Scenario_And_Recipe.md, R-4135) — write a BLANK scenario (header only, naming its terrain) at the master, from any host.
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-11-07 — the next free value in BOTH enums. Payload: SaveScenarioRequestJson (name + header {"terrainName": …}).
+        CreateBlankScenario = 27,
     }
 
     /// <summary>Wire value 13 is replay seek on nodes; C# name avoids IDL literal clash with <see cref="ClusterOpType.ReplaySeek"/>.</summary>

@@ -15,11 +15,11 @@ namespace Hrot.Editor;
 /// <b>FromSeed</b> → load the seed scenario then <c>SaveScenarioAs</c> under the new name.
 /// Uses <see cref="IScenarioCreationSession"/> as a narrow testable seam.
 ///
-/// <para>⛔⛔ <b><c>H3</c> — this kind offers NO BLANK TEMPLATE, deliberately</b> (design §2.1e ⑤c
-/// <c>G3</c>). 📐 The measured reason: <c>Header.TerrainName</c> is stamped at save from the terrain the node has
-/// RESIDENT, so a blank scenario has no way to acquire a terrain at all. ⇒ every new scenario starts from a SEED that
-/// carries the terrain name, and <c>"Empty"</c> is gone rather than left as a trap. ⛔ <c>R-4018</c>: the TKB is no
-/// longer part of this — a scenario never names one.</para>
+/// <para>⭐ <b><c>H3</c>, revised by New scenario N2 (R-4135)</b> — this kind still offers no blank RECIPE (<see cref="IsBlankTemplate"/> is always
+/// false, and <see cref="CreateNew"/> with no recipe still refuses): a blank is a different entry, <see cref="CreateBlank"/>, which NAMES the
+/// terrain in the file the master writes before the ordinary load. 📐 The old reason — <c>Header.TerrainName</c> is stamped at save from the
+/// RESIDENT terrain, so a blank minted with none could never acquire one — is answered by the file carrying the terrain, so the load makes it
+/// resident. ⛔ <c>R-4018</c>: the TKB is not part of this — a scenario never names one. 📄 docs/UX/DESIGN_New_Scenario_And_Recipe.md §2.2.</para>
 /// </remarks>
 public sealed class ScenarioNewAssetService : INewAssetService
 {
@@ -136,6 +136,21 @@ public sealed class ScenarioNewAssetService : INewAssetService
         // in the scenarios root (managed by IEditorLogic/NAS).
         return new ScenarioEditableAssetAdapter(
             Guid.NewGuid(), name, string.Empty, isRecipe: false);
+    }
+
+    /// <summary>
+    /// ⭐ New scenario N2 (📄 docs/UX/DESIGN_New_Scenario_And_Recipe.md §2.2, R-4135) — a BLANK scenario on <paramref name="terrainName"/>, saved as
+    /// <paramref name="relPath"/>/<paramref name="name"/>: the guarded open of the new name goes out, then (in the same frame) the master is asked to
+    /// write the header-only file; the master runs the create BEFORE the frame's loads, so the load finds it. ⛔ A cancelled open creates nothing.
+    /// The master refuses an existing name or an unknown terrain (the load then fails with the scenario missing).
+    /// </summary>
+    public string CreateBlank(string terrainName, string name, string relPath = "")
+    {
+        if (string.IsNullOrWhiteSpace(terrainName)) throw new ArgumentException("a terrain is required.", nameof(terrainName));
+        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("name must not be empty.", nameof(name));
+        var fullName = string.IsNullOrEmpty(relPath) ? name : relPath + "/" + name;
+        _session.LoadScenarioByName(fullName, () => _session.CreateBlankScenario(fullName, terrainName));
+        return fullName;
     }
 
     /// <inheritdoc />

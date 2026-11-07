@@ -1547,6 +1547,21 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{}",
             ExampleGist: "ask whether the open scenario has unsaved changes"),
 
+        [("POST", "/scenario/new")] = new RouteDoc(
+            Tool:    "new_scenario",
+            Group:   "E — Scenario",
+            Summary: "⭐ New scenario N5 — create a scenario and open it for editing: blank on a terrain (the master writes a header-only file naming it), or from a recipe (the New-Asset path).",
+            Returns: "blank: {created, terrain, requestId, loading}; recipe: the POST /assets answer.",
+            Hint:    "Req: name and exactly one of terrain or recipe. The terrain is fixed at creation and never changes. Answers 409 for an existing name or an unknown terrain (with the terrains the master offers). Example: new_scenario({name:\"Berlin/Checkpoint\", terrain:\"basic-desert\"})",
+            Params: new RouteParam[]
+            {
+                new("name", "string", true, "The new scenario's name (may hold subfolders, e.g. Berlin/Checkpoint)"),
+                new("terrain", "string", false, "A blank scenario on this terrain (a name the master's terrain catalog lists)"),
+                new("recipe", "string", false, "Start from this recipe (a name from GET /assets/recipes) instead"),
+            },
+            ExampleArgsJson: "{\"name\":\"Berlin/Checkpoint\",\"terrain\":\"basic-desert\"}",
+            ExampleGist: "a blank scenario on basic-desert"),
+
         [("POST", "/scenario/save")] = new RouteDoc(
             Tool:    "save_scenario",
             Group:   "E — Scenario",

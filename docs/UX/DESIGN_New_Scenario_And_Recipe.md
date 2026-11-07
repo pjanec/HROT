@@ -5,7 +5,7 @@ updated: 2026-11-06 (✅ approved — R-4135: Q4 revised = updating a recipe is 
 current-answer: §2 the model · §3 stages · §4 questions with leans
 stale-below: nothing
 known-rot: none
-known-conflict: ScenarioNewAssetService's remark "this kind offers NO BLANK TEMPLATE, deliberately" (H3) — its reason (a blank has no way to get a terrain) is answered here by naming the terrain in the created file; the class comment changes with stage N2
+known-conflict: none — ScenarioNewAssetService's H3 remark was revised with N2 (2026-11-07, §3.1)
 related-designs:
   - DESIGN_UI_Conventions.md — the tree in §2.5's mockup is the model the user chose for every tree (chevron · icon · label)
   - DESIGN_Details_Forms.md — E2: the Scenario form shows the terrain read-only
@@ -162,6 +162,42 @@ would be a duplicate (R-174).
 | **N4** | the terrain read-only in Details and the title | ui | — |
 | **N5** | `POST /scenario/new {name, recipe | terrain}` on the same service | backend | the AI debug API creates both kinds |
 | **N6** | terrain thumbnails: `assets/terrain/<name>/preview.jpg` (small JPEG, like the scenario stills, R-4135 extends R-4117), captured by `scripts/thumbnails.py`; the New picker's terrain rows show it | ui | every terrain folder has its still; the pane shows it |
+
+### 3.1 ⭐ AS-BUILT — N2 and N5 *(backend, `2026-11-07`, B-8)*
+
+**① Measured — where the master writes a scenario folder:** `StorageProcessManager` (Hrot.Orchestrator, master only) merges every save into
+`ContentLayout.ResolveScenarioDirectory(nasBasePath, name)/scenario.json` (`MergeScenarioSlices`), and every load resolves the name through the
+same resolver. ⇒ the blank is written there, by the master, through the storage-op door a save uses.
+
+```mermaid
+sequenceDiagram
+  participant S as ScenarioNewAssetService.CreateBlank / POST /scenario/new
+  participant E as EditorScenarioSession (any host)
+  participant W as ClusterOpEgressTranslator (remote master only)
+  participant M as ClusterMaster
+  participant P as StorageProcessManager
+  S->>E: LoadScenarioByName(name, then: CreateBlankScenario) — the guarded door
+  E->>M: TransitionStateIntent (edit load of name)
+  E->>M: ExecuteStorageOpIntent CreateBlankScenario {name, header {terrainName}}
+  Note over W: the egress writes a CreateBlankScenario (wire value 27) BEFORE the frame's loads
+  M->>P: ProcessBlankScenarioIntents — BEFORE ProcessTransitionStateIntents
+  P-->>M: WriteBlankScenario: null, or the refusal (exists · unknown terrain + the list · climbs out)
+  M-->>S: ClusterOpCompletedEvent Success / Rejected(reason)
+  M->>M: the ordinary edit load finds the file
+```
+
+*What the picture shows that the prose hid:* the create and the load go out in ONE frame and in either publication order; the master's bus is
+read without consuming, so a pre-pass runs the create before the loads by construction — no waiting on the create's answer in the editor.
+
+| piece | as built |
+|---|---|
+| the op | `StorageOpType.CreateBlankScenario` · `ClusterOpType.CreateBlankScenario = 27` in BOTH enums (R-42) · payload `SaveScenarioRequestJson` (name + header `{terrainName}`) |
+| the writer | `StorageProcessManager.WriteBlankScenario(name, terrain)` — the `basic-desert` shape (`$meta`, header `subsystemType`/`schemaVersion`/`terrainName`, `entities: []`); the terrain must be in `TerrainCatalog.ForNode(null, nas)` (the catalog the master reads a load's origin from); never overwrites. Wired by `OrchestratorCore` (`ClusterMaster.BlankScenarioWriter`, like `ExerciseDeleter`) |
+| the editor | `ScenarioNewAssetService.CreateBlank(terrain, name, relPath)` — the open goes through the guarded door; ⛔ a cancelled open creates nothing. H3's comment revised (no blank RECIPE still). The picker (N1, B-9) calls it |
+| N5 | `POST /scenario/new {name, terrain}` sends the create, waits for its answer (409 with the master's reason), then the ordinary edit load; `{name, recipe}` is the New-Asset path (`POST /assets {kind: Scenario}`) — one creator each |
+| ⚠ deviation | the classDiagram's `IScenarioCreationSession.CreateBlankScenario` exists, but ⛔ there is no `CreateBlankScenario(name, terrain)` that LOADS: create and load are two calls joined by the door's `then`, so the door's guard (unsaved edits, a run) runs before anything is written |
+
+Rails: `ClusterMasterNewScenarioTests` (order in one frame, refusals, the wire op, the file), `ScenarioNewBlankTests`.
 
 ## 4. Questions — ✅ APPROVED (R-4135; Q4 revised, Q5 yes; user `2026-11-06`: *"otherwise accepted"*)
 

@@ -99,6 +99,10 @@ public interface IScenarioSession
     /// header fields <paramref name="headerJson"/> — and changing nothing of the open scenario (not its name, not its unsaved baseline). A host with no cluster save refuses.</summary>
     void SaveSelectionAs(string scenarioName, System.Guid[] onlyGuids, string? headerJson) => throw new System.NotSupportedException("This host cannot save a selection as a macro.");
 
+    /// <summary>⭐ New scenario N2 (R-4135) — asks the master to write a BLANK scenario <paramref name="scenarioName"/> on <paramref name="terrainName"/>
+    /// (header only); the master runs it before the frame's loads, so a load of the same name sent in the same frame finds it.</summary>
+    void CreateBlank(string scenarioName, string terrainName) => throw new System.NotSupportedException("This host cannot create a scenario.");
+
     /// <summary>Serializes the world to an explicit file path *(the raw round-trip seam)*.</summary>
     void SaveTo(string filePath);
 

@@ -182,6 +182,11 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐ CE-4090 (AQ108 D15) — discard an UNARCHIVED recording: <see cref="ExecuteStorageOpIntent.ExerciseId"/>'s ledger entry and
         /// its staging copies (<c>ExerciseRetention.Delete</c>, CE-3218). ⛔ Not a kept (archived) exercise, and not the run still recording.</summary>
         Delete,
+
+        /// <summary>⭐ New scenario N2 (R-4135) — write a BLANK scenario at the master: <see cref="ExecuteStorageOpIntent.ScenarioName"/>, its terrain in
+        /// <see cref="ExecuteStorageOpIntent.HeaderJson"/> (<c>{"terrainName": …}</c>). ⭐ The master runs it BEFORE the frame's load transitions, so a
+        /// create and the load of the same name sent together are ordered by construction. Refused: an existing name, an unknown terrain.</summary>
+        CreateBlankScenario,
     }
 
     /// <summary>

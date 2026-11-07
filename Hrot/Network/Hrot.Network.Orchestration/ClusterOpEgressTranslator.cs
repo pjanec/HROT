@@ -88,6 +88,17 @@ public sealed class ClusterOpEgressTranslator : IDisposable
                     OrchestrationJsonOptions.Default),
             });
 
+        // ⭐ New scenario N2 — a blank create goes out BEFORE this frame's load requests (the master runs it before the loads too), so
+        //   "create X, then load X" sent in one frame reaches a remote master in that order by construction.
+        foreach (var intent in _bus.ReadManaged<ExecuteStorageOpIntent>())
+            if (intent.Operation == StorageOpType.CreateBlankScenario)
+                _writer.Write(new ClusterOpRequest
+                {
+                    RequestId     = intent.RequestId,
+                    OperationType = NedClusterOpType.CreateBlankScenario,
+                    PayloadJson   = SaveScenarioRequestJson.Encode(intent.ScenarioName, null, intent.HeaderJson),
+                });
+
         foreach (var intent in _bus.ReadManaged<TransitionStateIntent>())
             _writer.Write(new ClusterOpRequest
             {
@@ -106,6 +117,7 @@ public sealed class ClusterOpEgressTranslator : IDisposable
 
         foreach (var intent in _bus.ReadManaged<ExecuteStorageOpIntent>())
         {
+            if (intent.Operation == StorageOpType.CreateBlankScenario) continue;   // ⭐ N2 — sent above, before the loads
             NedClusterOpType opType = intent.Operation switch
             {
                 StorageOpType.Export           => NedClusterOpType.ExportArchive,

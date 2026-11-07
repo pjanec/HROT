@@ -306,6 +306,20 @@ public sealed class ClusterOpMasterTranslator
                 break;
             }
 
+            case NedClusterOpType.CreateBlankScenario:   // ⭐ New scenario N2
+            {
+                var (blankName, _, blankHeader) = SaveScenarioRequestJson.Decode(req.PayloadJson);
+                _bus.PublishManaged(new ExecuteStorageOpIntent
+                {
+                    RequestId    = req.RequestId,
+                    Operation    = StorageOpType.CreateBlankScenario,
+                    ExerciseId   = Fdp.Core.ExerciseId.Empty,
+                    ScenarioName = blankName,
+                    HeaderJson   = blankHeader,
+                });
+                break;
+            }
+
             case NedClusterOpType.CheckUnsavedChanges:   // ⭐ CE-4093 D20
                 _bus.PublishManaged(new CheckUnsavedIntent { RequestId = req.RequestId });
                 break;
