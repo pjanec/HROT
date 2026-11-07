@@ -45,6 +45,7 @@ namespace Fdp.Toolkit.Scenario
         private uint _version;
         private long _builtAt;
         private bool _invalid;
+        private int _epoch;   // ⭐ Undo U3 — the world's epoch the index was built in (a restore moves it)
 
         /// <param name="world">The running world.</param>
         /// <param name="nowTicks">A monotonic clock in <see cref="Stopwatch"/> ticks (tests inject one); default: wall clock.</param>
@@ -85,7 +86,10 @@ namespace Fdp.Toolkit.Scenario
 
         private void Refresh()
         {
-            bool structural = !_built || _invalid || _world.EntityCount != _count || _world.MaxEntityIndex != _maxIndex;
+            // ⭐ Undo U3 (📄 docs/UX/DESIGN_Edit_Mode_Undo.md §1.1 B) — a RESTORE (undo, a dry-run exit, a checkpoint) replaces the world in place:
+            //   rebuild at once, never after the 250 ms throttle (the entity count can be unchanged while every position moved back)
+            bool restored = Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(_world, ref _epoch);
+            bool structural = restored || !_built || _invalid || _world.EntityCount != _count || _world.MaxEntityIndex != _maxIndex;
             if (!structural && _world.GlobalVersion != _version)
             {
                 double elapsedMs = (_nowTicks() - _builtAt) * 1000.0 / Stopwatch.Frequency;

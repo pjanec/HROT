@@ -71,6 +71,16 @@ a `WorldKeyframes` capture serialises the WHOLE authored world, not "only the di
 At these sizes that is affordable; a dirty-chunk delta is an optimisation to take only if a scene ever needs more depth. The 6–22 ms capture is
 paid once per user action (the step's start), never per frame.
 
+### 1.3 ⭐ AS-BUILT — the ring and U3 *(backend, `2026-11-07`, B-13)*
+
+| piece | as built |
+|---|---|
+| `WorldSnapshotRing` (`Fdp.Toolkits/Replay/WorldSnapshotRing.cs`) | `Capture(world)` → an opaque slot id: one `CaptureOptions.Undo` keyframe + a `PreviewStateBracket` over the SAME `IPreviewRewindable` participants the dry run uses (passed in). `Restore(world, slot)` = the dry run's exit verbatim (`WorldKeyframes.Apply` · the bracket's restore · `AfterRestore.Run`); `false` for an evicted slot (the history greys that step). `DropFrom(slot)` drops the redo branch; `Clear()` on open / create / Live. Budget 256 MB, depth 100: the oldest goes first, the newest is always kept |
+| U3 — which caches already cope | ✅ version-compared (`PartIndex`, `RuleTree`) and epoch-keyed caches: covered by construction (a restore advances the version and moves `WorldEpoch`). ⚠ two were not: **`LiveRefScope`** (the editor's 250 ms throttle — a restore could leave links stale for up to 250 ms with an unchanged entity count) now rebuilds at once on `WorldEpoch.Moved`; **`RuleRequestIds`** (entity HANDLES, never version-checked) forgets its ids when the epoch moves. ⛔ No new listener hook was needed: `WorldEpoch` already is it |
+| ⏭ B-14 | `EditHistory`'s world step holds a slot; Ctrl+Z / Y, the dirty flag and *Edit ▸ History* are the ui side |
+
+Rails: `WorldSnapshotRingTests` (restore with participants, eviction, redo branch, the two U3 caches).
+
 ## 2. The model
 
 ### 2.1 Classes
