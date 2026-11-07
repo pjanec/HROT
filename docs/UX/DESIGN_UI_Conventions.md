@@ -85,6 +85,17 @@ uses `NoTreePushOnOpen`, so a flat drawer and a recursive one call the same row.
 | a **row of filter checkboxes** (the asset browser's kinds) | each box is an option, not a field — forced label-first, one line becomes a column of rows (panel A, right) |
 | a **row of buttons** | — |
 | ⭐ **a field made of several flags** (a When node's *Edges: Rising / Falling*) | the field's label goes in column 1; each flag keeps its text after its box, INSIDE column 2 |
+| ⭐ **a toolbar or option checkbox** (Pause · Loop shot · Follow now · a dialog's opt-out footer) *(U-13, user-approved)* | an option of the surface, not a field of a record — same family as the filter-checkbox row |
+| ⭐ **a selector on the same line as its action buttons** (*Select Scenario ▾ [Load]*, the transport rows' Step / Speed) *(U-13, user-approved)* | it is a toolbar row; splitting it into label + control would detach the buttons from what they act on |
+| ⭐ **the StructEdit field drawers** (`ImGuiPropertyTreeAdapter`, `ComponentEditDrawer`, `QuaternionEulerFieldDrawer`) *(U-13, user-approved)* | they already draw INSIDE a form's value cell — the label is the row's, the drawer owns only the control |
+
+⭐ **As built (U-13).** The allowed list is the `Allowed` table of `LabelFirstFormsFrameRail` (file · label prefix · one-line reason); the source scan fails on any other
+visible-label input widget in production code and on a stale exception. Moved onto `FormGrid`: the panels (Config, Spawner, Waypoint/Zone editors, Director, the cluster
+scenario and diagnostics panels, SimHost controls, Player debug, OrderForm, VerifyTab, the entity AI details and scenario environment views, the replay browser panels),
+the ~18 Blueprint node drawers, the promote-to-variable and Save-As dialogs, the file dialog's name field and the reflector trio. New `FormGrid` members:
+`BeginField(form, label)` / `EndField()` — ONE labelled row as its own one-row form; every field of one `form` id shares the learned widest label, so rows drawn by separate
+calls (a drawer's methods) line up on one column (⛔ never `return`/`break` between the pair) · `BeginTree(id, flags)` + `Note(width)` — a caller-laid-out tree table
+(`ImGuiPropertyTree`, `ComponentReflector`) on the same §3.3 width rule. Fix: a learning form with nothing measured yet starts at the 25 % cap, not a 14 px sliver.
 
 ### 3.2 Node editors — Q-C4 *withdrawn: the premise was wrong*
 

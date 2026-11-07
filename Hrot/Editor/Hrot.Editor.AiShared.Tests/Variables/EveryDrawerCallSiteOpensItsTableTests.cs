@@ -117,9 +117,9 @@ public sealed class EveryDrawerCallSiteOpensItsTableTests
                 if (!IsCallSite(lines[i])) continue;
 
                 bool opened = Enumerable.Range(Math.Max(0, i - Window), Math.Min(Window, i))
-                    .Any(j => lines[j].Contains("BeginTable(", StringComparison.Ordinal));
+                    .Any(j => lines[j].Contains("BeginTable(", StringComparison.Ordinal) || lines[j].Contains("FormGrid.BeginTree(", StringComparison.Ordinal));   // ⭐ U-13: FormGrid.BeginTree is a table
                 bool closed = Enumerable.Range(i + 1, Math.Min(Window, lines.Length - i - 1))
-                    .Any(j => lines[j].Contains("EndTable(", StringComparison.Ordinal));
+                    .Any(j => lines[j].Contains("EndTable(", StringComparison.Ordinal) || lines[j].Contains("FormGrid.End(", StringComparison.Ordinal));
 
                 if (!opened || !closed)
                     failures.Add($"{file}:{i + 1} — " +
