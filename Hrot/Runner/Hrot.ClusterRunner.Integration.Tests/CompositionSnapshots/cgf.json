@@ -8,7 +8,7 @@
   },
   "counts": {
     "modules": 9,
-    "systems": 148,
+    "systems": 149,
     "translators": 158,
     "capabilities": 7,
     "providers": 0,
@@ -128,7 +128,8 @@
     "Simulation 000.049 Fdp.Toolkit.Behavior.CarryStationSystem | module=CGFSim",
     "Simulation 000.050 Fdp.Toolkit.Combat.ChargeSystem | module=CGFSim",
     "Simulation 000.051 Fdp.Toolkit.Civilians.CustodySystem | module=CGFSim",
-    "Simulation 000.052 Hrot.Traffic.TrafficShadowFollowSystem | module=CGFSim",
+    "Simulation 000.052 Fdp.Toolkit.Perception.Systems.SeedTargetSystem | module=CGFSim",
+    "Simulation 000.053 Hrot.Traffic.TrafficShadowFollowSystem | module=CGFSim",
     "PostSimulation 000 Fdp.Toolkit.Replication.Systems.LightweightRoundIdentitySystem | module=Global",
     "PostSimulation 001 Hrot.Common.Systems.EntityRequestFinalizationSystem | module=Global",
     "PostSimulation 002 Fdp.Toolkit.NetworkSpawning.Systems.SpawnLevelSystem | module=Global",

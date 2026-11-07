@@ -8,7 +8,7 @@
   },
   "counts": {
     "modules": 15,
-    "systems": 197,
+    "systems": 198,
     "translators": 177,
     "capabilities": 11,
     "providers": 1,
@@ -158,7 +158,8 @@
     "Simulation 000.061 Fdp.Toolkit.Behavior.CarryStationSystem | module=CGFSim",
     "Simulation 000.062 Fdp.Toolkit.Combat.ChargeSystem | module=CGFSim",
     "Simulation 000.063 Fdp.Toolkit.Civilians.CustodySystem | module=CGFSim",
-    "Simulation 000.064 Hrot.Traffic.TrafficShadowFollowSystem | module=CGFSim",
+    "Simulation 000.064 Fdp.Toolkit.Perception.Systems.SeedTargetSystem | module=CGFSim",
+    "Simulation 000.065 Hrot.Traffic.TrafficShadowFollowSystem | module=CGFSim",
     "Simulation 001 Hrot.MuscleCharacter.Animation.Systems.AnimationDispatcherSystem | module=AnimationMuscle",
     "Simulation 002 Hrot.MuscleCharacter.Animation.Systems.LookAtDispatcherSystem | module=AnimationMuscle",
     "Simulation 003 Hrot.MuscleCharacter.Animation.Systems.MontageQueueAdvanceSystem | module=AnimationMuscle",

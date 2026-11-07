@@ -395,7 +395,7 @@ All source files live under `Hrot/Subsystems/Hrot.Editor/`. Namespace root is
 | File                              | Type(s)                                    | Description                                                                  |
 |-----------------------------------|--------------------------------------------|------------------------------------------------------------------------------|
 | `EditorCargoSystem.cs`            | `EditorCargoSystem` (sealed)               | Processes `EmbarkEntityCommand` / `DisembarkEntityCommand`; manages `PassengerBuffer`. |
-| `EditorPerceptionSetupSystem.cs`  | `EditorPerceptionSetupSystem` (sealed, unsafe) | Processes `SeedTargetCommand`; injects manual target-memory entries.     |
+| ~~`EditorPerceptionSetupSystem.cs`~~ | ⛔ retired (B-5 S3) | `SeedTargetCommand` is applied by `Fdp.Toolkit.Perception.Systems.SeedTargetSystem` (the `Interactions` capability, every node). |
 | `EditorZoneAuthoringSystem.cs`    | `EditorZoneAuthoringSystem` (sealed)       | Processes `SpawnZoneObstacleCommand` and `UpdateZoneConfigCommand`.          |
 
 ### `Hrot.Editor.UI`
@@ -602,11 +602,7 @@ Processes `EmbarkEntityCommand` and `DisembarkEntityCommand` to manage
 `PassengerBuffer` and `IsEmbarkedTag`. Strips/restores movement and combat
 capabilities (`ActorCapabilities.CanMove | CanShoot`) when units embark/disembark.
 
-**`EditorPerceptionSetupSystem`** (implements `IEcsModuleSystem`, phase `Simulation`, `unsafe`)
-
-Processes `SeedTargetCommand` events. For each valid perceiver/target pair, calls
-`TargetMemory.AddOrUpdateTarget()` with the target's current `SimTransform` position
-and score boost.
+**`EditorPerceptionSetupSystem`** — ⛔ retired (B-5 S3, R-4137): `SeedTargetCommand` is applied by `Fdp.Toolkit.Perception.Systems.SeedTargetSystem` (the `Interactions` capability, every node) on the node that owns the perceiver's `TargetMemory`.
 
 **`EditorZoneAuthoringSystem`** (implements `IEcsModuleSystem`, phase `Simulation`)
 

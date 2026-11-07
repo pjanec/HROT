@@ -289,8 +289,20 @@ namespace Hrot.Map.Common.Replication.Interactions
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
                 => new Fdp.Toolkit.Civilians.CustodyEvent { Man = target, By = actor, Verb = (Fdp.Toolkit.Civilians.CustodyVerb)p.Custody.Verb, IsRemote = true });
 
+        /// <summary>⭐ B-5 S3 (R-4137, docs/UX/DESIGN_Initial_State.md §3a) — make a unit know of another: to the node that owns the perceiver's
+        /// <c>TargetMemory</c> (its brain). The seeded unit crosses as the actor network id.</summary>
+        public static readonly IInteractionCodec SeedTarget = new InteractionCodec<Fdp.Toolkit.Perception.Events.SeedTargetCommand>(
+            EInteractionKind.SeedTarget,
+            target:      static (in Fdp.Toolkit.Perception.Events.SeedTargetCommand e) => e.Perceiver,
+            actor:       static (in Fdp.Toolkit.Perception.Events.SeedTargetCommand e) => e.Target,
+            isRemote:    static (in Fdp.Toolkit.Perception.Events.SeedTargetCommand e) => e.IsRemote,
+            ownsTarget:  static (repo, perceiver) => Fdp.Toolkit.Perception.Systems.SeedTargetSystem.Owns(repo, perceiver),
+            toPayload:   static (in Fdp.Toolkit.Perception.Events.SeedTargetCommand e) => new InteractionPayload { SeedTarget = new SeedTargetInteractionPayload { ScoreBoost = e.ScoreBoost, RequestId = e.RequestId } },
+            fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
+                => new Fdp.Toolkit.Perception.Events.SeedTargetCommand { Perceiver = target, Target = actor, ScoreBoost = p.SeedTarget.ScoreBoost, RequestId = p.SeedTarget.RequestId, IsRemote = true });
+
         public static IReadOnlyList<IInteractionCodec> All { get; } =
-            new[] { Door, Embark, Disembark, EjectPassengers, Possess, ReleasePossession, ControlFrame, StartDescent, PickUpRound, PickUpGrant, Restation, DetonateCharge, Custody };
+            new[] { Door, Embark, Disembark, EjectPassengers, Possess, ReleasePossession, ControlFrame, StartDescent, PickUpRound, PickUpGrant, Restation, DetonateCharge, Custody, SeedTarget };
     }
 
     /// <summary>

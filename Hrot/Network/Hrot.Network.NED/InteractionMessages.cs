@@ -34,6 +34,9 @@ namespace Hrot.NED.Messages
         // ⭐ CE-3256 (BR-4, Building Clearing CB-19; docs/DESIGN_Entity_Interactions.md §7.6) — search / detain / restrain / release a man (target =
         //   the man, actor = the soldier; applied by the node that owns his dtCustody).
         Custody         = 13,
+        // ⭐ B-5 S3 (R-4137; docs/UX/DESIGN_Initial_State.md §3a) — make a unit know of another (target = the perceiver, actor = the seeded unit; applied by
+        //   the node that owns the perceiver's TargetMemory).
+        SeedTarget      = 14,
     }
 
     /// <summary>⭐ The <see cref="EInteractionKind.Door"/> case: what the actor does to the door.</summary>
@@ -196,6 +199,16 @@ namespace Hrot.NED.Messages
         public byte Verb;
     }
 
+    /// <summary>⭐ B-5 S3 — the <see cref="EInteractionKind.SeedTarget"/> case (target = the perceiver, actor = the seeded unit): the score boost and the request id.</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct SeedTargetInteractionPayload
+    {
+        public float ScoreBoost;
+        /// <summary>⭐ Edit framework F4 — the user's request id (empty = nobody asked); the applying node answers with <c>EntityEditOutcome</c>.</summary>
+        public System.Guid RequestId;
+    }
+
     /// <summary>⭐ CE-3235 — the <see cref="EInteractionKind.PickUpGrant"/> case (target = the man): what he now holds.</summary>
     [DdsStruct]
     [DdsIdlFile("hrot-sim-msgs")]
@@ -269,6 +282,9 @@ namespace Hrot.NED.Messages
 
         [DdsCase(EInteractionKind.Custody)]
         public CustodyInteractionPayload Custody;   // ⭐ CE-3256 (BR-4)
+
+        [DdsCase(EInteractionKind.SeedTarget)]
+        public SeedTargetInteractionPayload SeedTarget;   // ⭐ B-5 S3
     }
 
     /// <summary>

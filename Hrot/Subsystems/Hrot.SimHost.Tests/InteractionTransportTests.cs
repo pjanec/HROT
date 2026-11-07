@@ -428,6 +428,83 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ B-5 S3 (R-4137, docs/UX/DESIGN_Initial_State.md §3a) — a "knows about" seed asked at a station that does NOT own the perceiver's brain crosses
+        /// as <c>SeedTarget</c> and is applied by the OWNER (<c>SeedTargetSystem</c>): the knowledge lands in ITS <c>TargetMemory</c>, the answer is Applied under
+        /// the request id; the station's own memory is untouched. A unit that remembers nothing is answered Refused with why. ✅ Red-proof: the codec left out
+        /// of <c>InteractionCodecs.All</c> ⇒ nothing is written ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void S3_ASeedAskedAtAStationThatDoesNotOwnTheBrain_IsAppliedByTheOwner_AndAnswered()
+        {
+            static EntityRepository Node()
+            {
+                var w = new EntityRepository();
+                w.RegisterComponent<NetworkAuthority>();
+                w.RegisterComponent<NetworkIdentity>();
+                w.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>();
+                w.RegisterComponent<SimTransform>();
+                w.RegisterEvent<Fdp.Toolkit.Perception.Events.SeedTargetCommand>();
+                return w;
+            }
+            using var station = Node();
+            var map = new NetworkEntityMap();
+            var man = station.CreateEntity();
+            station.AddComponent(man, new Fdp.Toolkit.Perception.Components.TargetMemory());
+            station.AddComponent(man, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));   // node 2's brain
+            station.SetAuthority<Fdp.Toolkit.Perception.Components.TargetMemory>(man, false);
+            var enemy = station.CreateEntity();
+            station.AddComponent(enemy, new SimTransform { Position = new System.Numerics.Vector3(30f, 40f, 0f) });
+            map.Register(900, man); map.Register(901, enemy);
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            var egress = new InteractionEgressTranslator(writer, map);
+
+            Assert.True(Hrot.Common.Orders.KnowledgeOrders.SeedTarget(station, man, enemy, 7f));
+            var journal = Fdp.Toolkit.Replication.Edits.EditJournal.Of(station);
+            var asked = journal[journal.Count - 1];
+            station.Bus.SwapBuffers();
+            var stationApplier = new Fdp.Toolkit.Perception.Systems.SeedTargetSystem();
+            stationApplier.Execute(station, 0f);                       // the station applies nothing — it does not own the memory
+            egress.ScanAndPublish(station);
+            var sample = Assert.Single(writer.Written);
+            Assert.Equal((EInteractionKind.SeedTarget, 900L, 901L, 7f), (sample.Payload.Kind, sample.TargetId, sample.ActorId, sample.Payload.SeedTarget.ScoreBoost));
+            Assert.Equal(asked.RequestId, sample.Payload.SeedTarget.RequestId);
+            Assert.Equal(0, station.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(man).Count);
+
+            using var owner = Node();
+            var ownerMap = new NetworkEntityMap();
+            var ownersMan = owner.CreateEntity();
+            owner.AddComponent(ownersMan, new Fdp.Toolkit.Perception.Components.TargetMemory());
+            owner.SetAuthority<Fdp.Toolkit.Perception.Components.TargetMemory>(ownersMan, true);
+            var ownersEnemy = owner.CreateEntity();
+            owner.AddComponent(ownersEnemy, new SimTransform { Position = new System.Numerics.Vector3(30f, 40f, 0f) });
+            var rock = owner.CreateEntity();   // a unit that remembers nothing
+            owner.AddComponent(rock, new SimTransform());
+            ownerMap.Register(900, ownersMan); ownerMap.Register(901, ownersEnemy); ownerMap.Register(902, rock);
+            var ingress = new InteractionIngressTranslator(participant: null, ownerMap);
+            var applier = new Fdp.Toolkit.Perception.Systems.SeedTargetSystem();
+            void Deliver(EntityInteractionRequest r)
+            {
+                using var cmd = new EntityCommandBuffer();
+                ingress.ProcessSample(in r, cmd);
+                cmd.Playback(owner);
+                owner.Bus.SwapBuffers();
+                applier.Execute(owner, 0f);
+            }
+            Deliver(sample);
+            ref readonly var mem = ref owner.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(ownersMan);
+            Assert.Equal(1, mem.Count);
+            Assert.Equal((long)ownersEnemy.PackedValue, mem.EntityIds[0]);
+            var log = Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(owner);
+            Assert.True(log.TryGet(asked.RequestId, out var o) && o.Status == Fdp.Toolkit.Replication.Edits.EditStatus.Applied);
+
+            var rockId = System.Guid.NewGuid();
+            Deliver(new EntityInteractionRequest { TargetId = 902, ActorId = 901, Payload = new InteractionPayload
+                { Kind = EInteractionKind.SeedTarget, SeedTarget = new SeedTargetInteractionPayload { ScoreBoost = 1f, RequestId = rockId } } });
+            Assert.True(log.TryGet(rockId, out o) && o.Status == Fdp.Toolkit.Replication.Edits.EditStatus.Refused);
+            Assert.Contains("remembers targets", o.Reason);
+        }
+
+        /// <summary>
         /// ⭐⭐ Airborne insertion B-4 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §7a — CE-3059 closed for a descent) — the BRAIN
         /// node (it owns the helicopter's passenger list, not the man's position) applies a rope exit: the man leaves the list, and a
         /// <c>StartDescentCommand</c> crosses as its union case (target = the man, actor = the helicopter, the exit and the rope index) to
