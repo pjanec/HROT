@@ -1,5 +1,5 @@
-<svg xmlns='http://www.w3.org/2000/svg' width='1280' height='1380' viewBox='0 0 1280 1380'>
-<rect x='0' y='0' width='1280' height='1380' fill='#1B1B1F' rx='0' opacity='1'/>
+<svg xmlns='http://www.w3.org/2000/svg' width='1280' height='1720' viewBox='0 0 1280 1720'>
+<rect x='0' y='0' width='1280' height='1720' fill='#1B1B1F' rx='0' opacity='1'/>
 <text x='20' y='26' fill='#E8E8EE' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The struct editor — every kind of field, the list forms, entities, errors (DESIGN_Struct_Editor.md)</text>
 <text x='20' y='44' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Scope: the value side of the one table (Fill mode). Define mode adds Name / Type cells — field-editor-visual.svg. Grey notes are not drawn.</text>
 <rect x='20' y='60' width='620' height='940' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
@@ -371,4 +371,88 @@
 <text x='952' y='1266' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>⛔ today: two registries (StructEdit</text>
 <text x='952' y='1280' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>node + host ImGui drawer) — most</text>
 <text x='952' y='1294' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>hosts forget the second.</text>
+<rect x='20' y='1390' width='620' height='300' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='20' y='1390' width='620' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='28' y='1404' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Details — Unit — Alpha 1-1   (an entity FORM: FormDecl rows, the SAME widgets)</text>
+<rect x='26' y='1422' width='608' height='28' fill='#0F0F0F' rx='0' opacity='1'/>
+<text x='36' y='1440' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Name</text>
+<rect x='210' y='1425' width='4' height='22' fill='#F2C033' rx='0' opacity='1'/>
+<rect x='216' y='1425' width='200' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='221' y='1439' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Alpha 1-1</text>
+<path d='M49 224H40H49H40Q18 226 16 248V376Q17 392 31 398Q45 404 57 393L99 351Q143 395 200 409Q257 423 313 409Q370 394 414 350Q458 306 473 249Q487 192 473 135Q458 78 414 34Q370 -10 313 -25Q256 -39 199 -25Q142 -10 98 34Q88 43 88 56Q88 69 98 79Q107 88 120 88Q133 88 143 79Q192 32 256 32Q320 32 369 79Q416 128 416 192Q416 256 369 305Q320 352 257 352Q193 352 144 306L185 265Q196 253 190 239Q184 225 168 224H49Z' fill='#F2C033' fill-opacity='1' transform='translate(424,1439.7578125) scale(0.0234375,-0.0234375)'/>
+<rect x='26' y='1450' width='608' height='28' fill='#151519' rx='0' opacity='1'/>
+<text x='36' y='1468' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Side</text>
+<circle cx='224' cy='1464' r='5' fill='#5AA9FF'/>
+<rect x='234' y='1453' width='140' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<rect x='355' y='1453' width='19' height='19' fill='#23415F' rx='0' opacity='1'/>
+<path d='M360 1460 l4.5 5 l4.5 -5 z' fill='#FFFFFF'/>
+<text x='239' y='1467' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Friend</text>
+<rect x='26' y='1478' width='608' height='28' fill='#0F0F0F' rx='0' opacity='1'/>
+<text x='36' y='1496' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Commander</text>
+<rect x='216' y='1481' width='160.66923076923078' height='22' fill='#1D2F48' rx='11' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<path d='M144 448Q189 447 213 408Q235 368 213 328Q189 289 144 288Q99 289 75 328Q53 368 75 408Q99 447 144 448ZM512 448Q557 447 581 408Q603 368 581 328Q557 289 512 288Q467 289 443 328Q421 368 443 408Q467 447 512 448ZM0 149Q1 195 31 225Q61 255 107 256H149Q173 256 194 246Q192 235 192 224Q194 165 235 128Q235 128 235 128Q235 128 235 128H21Q2 130 0 149ZM405 128Q405 128 405 128Q405 128 405 128Q446 165 448 224Q448 235 446 246Q467 256 491 256H533Q579 255 609 225Q639 195 640 149Q638 130 619 128H405ZM224 224Q224 250 237 272Q250 294 272 307Q295 320 320 320Q345 320 368 307Q390 294 403 272Q416 250 416 224Q416 198 403 176Q390 154 368 141Q345 128 320 128Q295 128 272 141Q250 154 237 176Q224 198 224 224ZM128 -37Q129 19 167 57Q205 95 261 96H379Q435 95 473 57Q511 19 512 -37Q510 -62 485 -64H155Q130 -62 128 -37Z' fill='#5AA9FF' fill-opacity='1' transform='translate(224,1495.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='242' y='1496' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>1st Platoon</text>
+<text x='316.6538461538462' y='1496' fill='#808080' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Friend</text>
+<text x='364.6692307692308' y='1495' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>▾</text>
+<path d='M216 -51Q243 -18 282 38Q321 93 352 152Q382 211 384 256Q382 338 328 392Q274 446 192 448Q110 446 56 392Q2 338 0 256Q2 211 32 152Q63 93 102 38Q141 -18 168 -51Q178 -63 192 -63Q206 -63 216 -51ZM192 320Q228 319 247 288Q265 256 247 224Q228 193 192 192Q156 193 137 224Q119 256 137 288Q156 319 192 320Z' fill='#3EC6B0' fill-opacity='1' transform='translate(386.6692307692308,1496.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<path d='M256 448Q270 448 279 439Q288 430 288 416V406Q360 394 409 345Q458 295 470 224H480Q494 224 503 215Q512 206 512 192Q512 178 503 169Q494 160 480 160H470Q458 88 409 39Q359 -10 288 -22V-32Q288 -46 279 -55Q270 -64 256 -64Q242 -64 233 -55Q224 -46 224 -32V-22Q152 -10 103 39Q54 88 42 160H32Q18 160 9 169Q0 178 0 192Q0 206 9 215Q18 224 32 224H42Q54 296 103 345Q152 394 224 406V416Q224 430 233 439Q242 448 256 448ZM107 160Q117 116 149 85Q180 53 224 43V64Q224 78 233 87Q242 96 256 96Q270 96 279 87Q288 78 288 64V43Q332 53 363 85Q395 116 405 160H384Q370 160 361 169Q352 178 352 192Q352 206 361 215Q370 224 384 224H405Q395 268 363 299Q332 331 288 341V320Q288 306 279 297Q270 288 256 288Q242 288 233 297Q224 306 224 320V341Q180 331 149 299Q117 268 107 224H128Q142 224 151 215Q160 206 160 192Q160 178 151 169Q142 160 128 160H107ZM256 224Q270 224 279 215Q288 206 288 192Q288 178 279 169Q270 160 256 160Q242 160 233 169Q224 178 224 192Q224 206 233 215Q242 224 256 224Z' fill='#A0A0AA' fill-opacity='1' transform='translate(406.6692307692308,1496.2060546875) scale(0.0244140625,-0.0244140625)'/>
+<rect x='26' y='1506' width='608' height='28' fill='#151519' rx='0' opacity='1'/>
+<text x='36' y='1524' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Strength</text>
+<rect x='216' y='1509' width='80' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='221' y='1523' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>80</text>
+<text x='306' y='1524' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>/ 100</text>
+<rect x='26' y='1534' width='608' height='28' fill='#0F0F0F' rx='0' opacity='1'/>
+<path d='M36 1545 l10 0 -5 6 z' fill='#FFFFFF'/>
+<text x='52' y='1552' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Knows about</text>
+<text x='216' y='1552' fill='#808080' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>2 entities</text>
+<rect x='26' y='1562' width='608' height='26' fill='#0F0F0F' rx='0' opacity='1'/>
+<line x1='41' y1='1562' x2='41' y2='1588' stroke='#34343E' stroke-width='1'/>
+<text x='50' y='1579' fill='#808080' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>⋮⋮</text>
+<rect x='70' y='1564' width='153.57307692307694' height='22' fill='#1D2F48' rx='11' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<path d='M224 192Q259 192 288 209Q317 226 335 256Q352 286 352 320Q352 354 335 384Q317 414 288 431Q259 448 224 448Q189 448 160 431Q131 414 113 384Q96 354 96 320Q96 286 113 256Q131 226 160 209Q189 192 224 192ZM178 144Q103 142 52 92Q2 41 0 -34Q0 -47 9 -55Q17 -64 30 -64H418Q431 -64 439 -55Q448 -47 448 -34Q446 41 396 92Q345 142 270 144H178Z' fill='#E65555' fill-opacity='1' transform='translate(78,1578.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='96' y='1579' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Bravo 2-3</text>
+<text x='160.17307692307693' y='1579' fill='#808080' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Hostile</text>
+<text x='211.57307692307694' y='1578' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>▾</text>
+<text x='350' y='1579' fill='#5BD06A' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>applied</text>
+<path d='M64 88Q32 87 16 60Q0 32 16 4Q32 -23 64 -24Q96 -23 112 4Q128 32 112 60Q96 87 64 88ZM64 248Q32 247 16 220Q0 192 16 164Q32 137 64 136Q96 137 112 164Q128 192 112 220Q96 247 64 248ZM120 352Q119 384 92 400Q64 416 36 400Q9 384 8 352Q9 320 36 304Q64 288 92 304Q119 320 120 352Z' fill='#A0A0AA' fill-opacity='1' transform='translate(610,1577.861328125) scale(0.021484375,-0.021484375)'/>
+<rect x='26' y='1588' width='608' height='26' fill='#0F0F0F' rx='0' opacity='1'/>
+<line x1='41' y1='1588' x2='41' y2='1614' stroke='#34343E' stroke-width='1'/>
+<text x='50' y='1605' fill='#808080' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>⋮⋮</text>
+<rect x='70' y='1590' width='140.30384615384617' height='22' fill='#1D2F48' rx='11' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<path d='M224 192Q259 192 288 209Q317 226 335 256Q352 286 352 320Q352 354 335 384Q317 414 288 431Q259 448 224 448Q189 448 160 431Q131 414 113 384Q96 354 96 320Q96 286 113 256Q131 226 160 209Q189 192 224 192ZM178 144Q103 142 52 92Q2 41 0 -34Q0 -47 9 -55Q17 -64 30 -64H418Q431 -64 439 -55Q448 -47 448 -34Q446 41 396 92Q345 142 270 144H178Z' fill='#E65555' fill-opacity='1' transform='translate(78,1604.7578125) scale(0.0234375,-0.0234375)'/>
+<text x='96' y='1605' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Bravo 2</text>
+<text x='146.90384615384616' y='1605' fill='#808080' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Hostile</text>
+<text x='198.30384615384617' y='1604' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>▾</text>
+<text x='350' y='1605' fill='#F2C033' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>pending</text>
+<path d='M64 88Q32 87 16 60Q0 32 16 4Q32 -23 64 -24Q96 -23 112 4Q128 32 112 60Q96 87 64 88ZM64 248Q32 247 16 220Q0 192 16 164Q32 137 64 136Q96 137 112 164Q128 192 112 220Q96 247 64 248ZM120 352Q119 384 92 400Q64 416 36 400Q9 384 8 352Q9 320 36 304Q64 288 92 304Q119 320 120 352Z' fill='#A0A0AA' fill-opacity='1' transform='translate(610,1603.861328125) scale(0.021484375,-0.021484375)'/>
+<rect x='50' y='1620' width='120' height='20' fill='#23415F' rx='3' opacity='1'/>
+<path d='M256 368Q256 382 247 391Q238 400 224 400Q210 400 201 391Q192 382 192 368V224H48Q34 224 25 215Q16 206 16 192Q16 178 25 169Q34 160 48 160H192V16Q192 2 201 -7Q210 -16 224 -16Q238 -16 247 -7Q256 2 256 16V160H400Q414 160 423 169Q432 178 432 192Q432 206 423 215Q414 224 400 224H256V368Z' fill='#5BD06A' fill-opacity='1' transform='translate(57,1634.2578125) scale(0.0234375,-0.0234375)'/>
+<text x='74' y='1634.5' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Add ▾</text>
+<text x='32' y='1654' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the SAME FormGrid rows · the SAME entity chip and picker · the SAME list block, item menu and error line —</text>
+<text x='32' y='1668' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>FormView keeps its declared rows (R-4120); only its hand-made buttons go</text>
+<rect x='660' y='1390' width='600' height='300' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='660' y='1390' width='600' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='668' y='1404' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The ONE widget kit (NodeEditor.Core.Widgets) — and its ImGui cost</text>
+<text x='674' y='1426' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>FormGrid</text>
+<text x='772' y='1426' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>label | value | status</text>
+<text x='772' y='1441' fill='#808080' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>exists (C1)</text>
+<text x='674' y='1462' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Chip</text>
+<text x='772' y='1462' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>glyph · text · ▾ / ✕ / toggle</text>
+<text x='772' y='1477' fill='#808080' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>exists (U-8): InvisibleButton + rounded DrawList rect</text>
+<text x='674' y='1498' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>ChipRow</text>
+<text x='772' y='1498' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>B1 chips, wrap, ⊕, drag</text>
+<text x='772' y='1513' fill='#808080' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>cursor wrap + ImGui drag-drop (used 3× already)</text>
+<text x='674' y='1534' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>ListBlock</text>
+<text x='772' y='1534' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>B2 B5 B6 summary rows, ⋮, Add ▾</text>
+<text x='772' y='1549' fill='#808080' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Selectable rows + BeginPopupContextItem</text>
+<text x='674' y='1570' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>GridBlock</text>
+<text x='772' y='1570' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>B3 columns = fields</text>
+<text x='772' y='1585' fill='#808080' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>BeginTable</text>
+<text x='674' y='1606' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>RowMarks</text>
+<text x='772' y='1606' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>changed bar + ↺ · error line · set box</text>
+<text x='772' y='1621' fill='#808080' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>DrawList rect + one text row</text>
+<text x='674' y='1642' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>EntityField</text>
+<text x='772' y='1642' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the chip + picker popup</text>
+<text x='772' y='1657' fill='#808080' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>InputText + filtered Selectables (Fdp.Presentation)</text>
+<text x='674' y='1680' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>drag is a BONUS: the ⋮ menu and Alt+↑/↓ always move an item</text>
 </svg>
