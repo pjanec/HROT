@@ -35,3 +35,15 @@
 | B-16 | ⏳ | — | seats H2–H4 (after B-11) |
 | B-17 | ⏳ | — | map interaction P1, P2, P4–P6 |
 | U-23/24/25 rest | ✅ (worker; finished and committed by Opus after the worker was stopped) | (this commit) | combined rows · carry mode + Damage rows · Knows about seeds only (R-4157) · named-point list. Gates: Fdp.Presentation.Tests Form* 33/33 · Hrot.Presentation.Tests (NamedPointGizmo, MenuOrders, PickBroker, EntityList …) 40/40 · AiShared TheUnitFormDraws/LabelFirstForms/Details 96/97 — the 1 red `CE1150_TheBundle_BuildsThePanelWithTheComponentsView…` is PRE-EXISTING (red with this work stashed, at `6b012f9fb`), open. Red-proofs: carry mode, Damage refusal, SubIndex write, combined rows, Knows-about-seeds, the named-point list pick |
+
+## Third handoff — [Today's rulings](HANDOFF_Coordinator_To_Ui_Todays_Rulings.md) (dispatched `b3c6c99a`; started `428f681b5`)
+
+| # | item | state | sha | notes |
+|---|---|---|---|---|
+| 1 | A3 corrections (R-4162) | ✅ (Save in Preview: backend) | (this commit) | Rotate Edit + Live; *Save selection as macro…* Edit only; goldens regenerated (only those rows moved). Save measured: Edit writes, Live checkpoints, a recording refuses ✅; ⚠ Preview refuses instead of checkpointing — [NOTE_Ui_To_Backend_Preview_Checkpoint](NOTE_Ui_To_Backend_Preview_Checkpoint.md) |
+| 2 | P-7 (CE-4303) Orders tab | ⏳ | — | |
+| 3 | A4 selection rules | ⏳ | — | |
+| 4 | B-16 seats H2–H4 | ⏳ | — | |
+| 5 | B-10 rest K2, K3, K7 | ⏳ | — | |
+| 6 | CE-4305 server seat config | ⏳ | — | only if backend has not claimed it |
+| 7 | P-8 (CE-4304) | ⏳ | — | after backend P-5 / P-6 |
