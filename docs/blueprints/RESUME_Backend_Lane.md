@@ -1,9 +1,11 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-07
-current-answer: ⭐⭐⭐ §LIFECYCLE FIXES (2026-11-07, latest) below — L-4, L-6, L-8, L-9 DONE; L-7 waits on the user (QUESTION note). Then §MISSION PLAN — P-1…P-6 DONE. Older: ⭐⭐ §EDITING-UX BUILD (2026-11-07) below — its 'Continued (later session)' block: everything done, only blocked items left — the handoff Editing_UX_Build: what is done (with shas), what is next, the traps. Older: ⭐ NOW (2026-11-03) — the per-player game score S7 (HANDOFF_Coordinator_To_Backend_Player_Score): BUILT + live (DESIGN_Scenario_Rules §00.13, CE-3363); open CE-3364 (one kill authority — needs the user), CE-3365, the bounty P-8. Before that (2026-11-02 night) — §SHOWCASE below: the showcase scenarios Bridgehead + Crossfire v1, S6, the RefKey wire fix — what is built, what is open. (2026-10-30, kept below: the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
+current-answer: ⭐⭐⭐ §SCENARIO PRESETS + THE SHARED FIELD EDITOR (2026-11-07, LATEST) below — CE-3374 next. Then §LIFECYCLE FIXES (2026-11-07) — L-4, L-6, L-8, L-9 DONE; L-7 waits on the user (QUESTION note). Then §MISSION PLAN — P-1…P-6 DONE. Older: ⭐⭐ §EDITING-UX BUILD (2026-11-07) below — its 'Continued (later session)' block: everything done, only blocked items left — the handoff Editing_UX_Build: what is done (with shas), what is next, the traps. Older: ⭐ NOW (2026-11-03) — the per-player game score S7 (HANDOFF_Coordinator_To_Backend_Player_Score): BUILT + live (DESIGN_Scenario_Rules §00.13, CE-3363); open CE-3364 (one kill authority — needs the user), CE-3365, the bounty P-8. Before that (2026-11-02 night) — §SHOWCASE below: the showcase scenarios Bridgehead + Crossfire v1, S6, the RefKey wire fix — what is built, what is open. (2026-10-30, kept below: the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
+  - docs/UX/DESIGN_Scenario_Presets.md — the CURRENT programme: scenario presets (D1–D12 approved), CE-3375
+  - docs/DESIGN_Field_Declaration_Editor.md — §6 the shared field editor (designed, confirm with the user)
   - docs/SHOWCASE_Scenarios.md — §1.7 / §2.8 Bridgehead and Crossfire v1 AS BUILT (this lane, 2026-11-02)
   - docs/DESIGN_Scenario_Rules.md — §00.12 S6 the game profile v1 (this lane)
   - docs/DESIGN_Replay_Time_Axis_And_Review.md — the NEXT build (handoff HANDOFF_Backend_Replay_Review_Build.md): sim axis, During Action Review, §12 the wire
@@ -17,7 +19,27 @@ related-designs:
 -->
 # RESUME — backend lane
 
-## ⭐⭐⭐ LIFECYCLE FIXES (`2026-11-07`, latest) — user: *"The handoff: HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md. Merge coordinator first, then follow the handoff."*
+## ⭐⭐⭐ SCENARIO PRESETS + THE SHARED FIELD EDITOR (`2026-11-07`, LATEST) — start here
+
+**Where it stands:** L-7 *Run to …* BUILT (turbo + per-run step); then, with the user in chat, three DESIGNS — nothing of them is built yet.
+
+| what | state | doc |
+|---|---|---|
+| **L-7 CE-4316** *Run to …* | ✅ BUILT: turbo on the networkless editor node (`RunToController` + `EditorSubsystem.TurboStep`, the ONE documented clock exception), the step a per-run setting (0, 1/6] s; real editor **0.9× at 1/60, 1.9× at 1/20** (`ead190b51`, `53a86be87`) | `DESIGN_Time_Architecture.md` §20 · lifecycle §2.8 |
+| **CE-3374** — the variant gap: an edit load + save LOSES `Presence` / `Positions` / one-of-N | 📐 DESIGNED, ✅ approved (*"Accept it, we need to design and fix the gap first"*) — ⏭ **BUILD THIS FIRST** | `DESIGN_Scenario_Macros.md` §17.1 (the `VariantForms` holder, M1–M3 to measure) |
+| **CE-3375** — scenario presets (named run setups in `header.presets`; preview with a preset; `CanSave` + reason; eye replaces ◐; pen only when Save is on; split ▶) | 📐 DESIGNED, ✅ **D1–D12 APPROVED** (*"Approved."*) — backend half after CE-3374; ui's half via the note | `docs/UX/DESIGN_Scenario_Presets.md` + `scenario-presets-visual.svg` |
+| **the shared field editor** — one table, Define / Fill modes, substructures + lists as rows, semantic types with ⌖ show + ⊕ pick, types as coloured text, blackboard = the same table (no bytes / budget), hosts differ only by settings | 📐 DESIGNED with the user, D1–D11 (*"Looks great"*). ⭐ **OPEN: D0 (§6.0) — merge into StructEdit** (a declared-shape document builder + Define columns in `ComponentEditDrawer`; `VariablesPanelControl` shrinks to a host adapter) — the user asked *"shouldn't we … extend the struct edit … one solution … defining and filling?"*; lean MERGE, **awaiting the user's answer** | `DESIGN_Field_Declaration_Editor.md` §6.0 + §6 + `field-editor-visual.svg` |
+| **CE-3376** — parameter ASSETS (a params type defined as JSON, not C#) | 📋 RECORDED only — ⛔ for the user + coordinator, not this lane | tracker row |
+
+⏭ **Next session, in order:**
+1. **CE-3374** — first the missing end-to-end rail (load a scenario with params → save → every binding still there; SR-168 says so, no rail found), then M1–M3, then `VariantForms` + its translator + rails (§17.1).
+2. **CE-3375 backend half** — `ScenarioPreset` / `PresetVariant` in `Fdp.Toolkit.Scenario`, `header.presets` read / write, `IRunScenarioControl.OpenForEdit(name, args)`, `SaveGate.CanSave` + reason, HTTP. Measure first: whether `ScenarioDescription.ArgsOf(world)` can name the loaded preset.
+3. Get the user's answer on **D0 (merge into StructEdit)** and confirm D1–D11 before anyone builds §6. Measured already: `ComponentEditDrawer` draws rows into a HOST's table (so extra columns are possible); `IEditDocumentBuilder` is pluggable (one builder today, reflection). Still to measure: an `EditNode` with a JSON-backed binding and no owning C# object.
+
+📨 **Notes:** to ui — `batches/NOTE_Backend_To_Ui_Scenario_Presets.md` (CE-4317 / LC-11 superseded by D8; ui builds the preset editor, load dialog, split ▶, icons). From ui (answered by the presets design) — `NOTE_Ui_To_Backend_Preview_Run_Setup.md`.
+⚠ **Open, not chased:** CE-3156 — after Stop Preview the clock reads 3.3 s, not 0 (`PreviewLifecycleRails.Exiting_preview_returns_the_clock_to_where_the_preview_started` red alone) · `origin/behaviors` + `origin/ui` are ahead (22 / 25 commits at 2026-11-07) and NOT merged here — merge at the start of the next session · the `design-digest.py --check` gate fails on other lanes' docs (pre-existing).
+
+## ⭐⭐⭐ LIFECYCLE FIXES (`2026-11-07`) — user: *"The handoff: HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md. Merge coordinator first, then follow the handoff."*
 
 📄 [handoff](batches/HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md) (frozen at `f523103e`) · [status rows](batches/STATUS_Editing_UX_Build_Backend.md) (§Lifecycle fixes) · [design](../UX/DESIGN_Scenario_Lifecycle_Review.md) §2.7 + the LC-2 note
 

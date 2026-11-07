@@ -2,7 +2,7 @@
 state: LIVE
 build-state: BUILT 2026-11-05 (approved by the user 2026-11-05: "CE-4254 approved."; as-built in §5)
 updated: 2026-11-05
-current-answer: §2 (decision) and §3 (the two defects first) · §6 DESIGN: the shared field editor — one table, two modes, substructures, settings + mockup (2026-11-07, awaiting the user)
+current-answer: §2 (decision) and §3 (the two defects first) · §6.0 D0 merge into StructEdit (lean, awaiting the user) · §6 DESIGN: the shared field editor — one table, two modes, substructures, settings + mockup (2026-11-07)
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -157,6 +157,47 @@ classDiagram
 ```
 *What the picture shows that prose hid: the table adds the DECLARATION columns (name, type, used by, bytes) around StructEdit's tree — it does not
 walk a type itself. So a structure or a list expands the same way in every host, and in the unit's Details ▸ AI it already does.*
+
+
+### 6.0 ⭐⭐⭐ D0 — ONE solution: **StructEdit gains the DEFINE view** *(user question `2026-11-07`; lean — awaits the user)*
+
+> 🔒 User: *"How does it all relate to the struct edit … one of them is used for editing the values, the struct edit, while this … is allowing for
+> defining the structures. But I feel there is an overlap … shouldn't we actually extend the struct edit or somehow unify and merge both so we have
+> just one solution which allows editing structures from both point of views, like defining and filling?"*
+
+| measured `2026-11-07` | StructEdit | the declaration table (`VariablesPanelControl`) |
+|---|---|---|
+| edits | VALUES of a typed object | the LIST of fields (name · type · default · comment) |
+| shape from | the C# type — `EditNode.ClrType`, one builder `ReflectionEditDocumentBuilder` behind the pluggable `IEditDocumentBuilder` | the declarations (no C# type) |
+| draws | ROWS into a table the HOST opens (`ComponentEditDrawer.cs:55`, *"inside a two-column BeginTable"*) | its OWN table (`VariablesPanelControl.cs:483`) — and one StructEdit session PER ROW for the default cell (`DefaultValueAuthoring`) |
+| nesting · lists · leaves per type · ⌖ · bind chips | ✅ | ⛔ flat |
+| add / rename / retype / remove · used-by · refactor | ⛔ | ✅ (`IVariablesSchemaSource`) |
+
+```mermaid
+classDiagram
+    direction LR
+    class ComponentEditDrawer { <<StructEdit, existing — becomes THE table>> rows · tree · leaves · ⌖ · bind chip · NEW: declaration columns in Define }
+    class ReflectionEditDocumentBuilder { <<existing>> shape from a C# type (Fill: unit params, asset defaults) }
+    class DeclaredEditDocumentBuilder { <<NEW, IEditDocumentBuilder>> shape from a declaration list; leaves typed by ParamTypes; values in JSON }
+    class IFieldDeclarations { <<the existing IVariablesSchemaSource, as the Define callbacks>> add · rename · retype · move · remove · used-by }
+    class FieldEditorSettings { <<§6>> mode · structs · lists · columns · words }
+    class VariablesPanelControl { <<existing — shrinks to a host adapter>> refactor service · validation · undo }
+    ComponentEditDrawer --> ReflectionEditDocumentBuilder : Fill a C# type
+    ComponentEditDrawer --> DeclaredEditDocumentBuilder : Define / Fill a declared type
+    ComponentEditDrawer --> IFieldDeclarations : Define edits
+    ComponentEditDrawer --> FieldEditorSettings
+    VariablesPanelControl --> ComponentEditDrawer : hosts
+```
+*What it shows: one row-drawer for both views. Define is StructEdit drawing a document whose SHAPE comes from declarations, with the name and type
+cells editable; Fill is today's StructEdit. The declaration table stops being a table.*
+
+| | ⭐ lean | rejected |
+|---|---|---|
+| **D0** | ⭐ **merge into StructEdit**: a second document builder (`DeclaredEditDocumentBuilder`, shape from declarations) + declaration columns in `ComponentEditDrawer` driven by callbacks (the existing schema seam) — StructEdit stays generic (no Hrot logic: used-by and refactor are callbacks) | ⛔ **leave both** — two tables, two looks, the ugly one stays · ⛔ **the field table wraps StructEdit** (the first §6 draft) — two components would still each own "a row" |
+| order | ① the declared builder + Define columns in StructEdit, rails · ② scenario parameters on it (the presets editor) · ③ the blackboards · ④ `ParamArgsTable` / `ParamsDefaultsForm` / `BehaviorParamsForm` become plain StructEdit hosts · ⑤ `VariablesPanelControl`'s table deleted | each step keeps its hosts' frame rails green |
+
+⇒ D1–D11 below are unchanged in WHAT they ask; "the table" in them now means StructEdit's drawer. ⚠ Measure first: whether an `EditNode`
+can carry a JSON-backed binding for a leaf with no owning C# object (the declared builder's one hard question).
 
 | # | ⭐ decision — lean | why / rejected |
 |---|---|---|
