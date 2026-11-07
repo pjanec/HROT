@@ -143,7 +143,7 @@ public sealed class TheUnitFormDrawsTests
         world.AddComponent(bare, new EntityInfo { Name = new FixedString64("Bravo 2") });
 
         HrotForms.EnsureRegistered();
-        int list = HrotForms.Unit.Lists.Count - 1;
+        int list = 2;
         Assert.Equal("Knows about", HrotForms.Unit.Lists[list].Label);
         Assert.Null(HrotForms.Unit.Lists[list].Remove);   // nothing in the engine forgets a target on request
         var pick = new OnePick(new Fdp.Toolkit.Replication.EntityRef(7), "form.unit.list" + list);   // he is picked as HIS OWN known unit
@@ -234,6 +234,59 @@ public sealed class TheUnitFormDrawsTests
         Assert.False(summary.AppliesTo(DetailsContext.Empty("Scenario") with { Entities = new[] { e } }));
         var bare = world.CreateEntity();
         Assert.True(summary.AppliesTo(DetailsContext.Empty("Scenario") with { Entities = new[] { bare } }));
+    }
+
+    /// <summary>⭐ U-24 / S5 (DESIGN_Initial_State §3) — the Unit form's <b>Carried by</b> list in a real frame: a man a SOLDIER drags reads <c>["Dragged", "&lt;carrier&gt;"]</c> and <i>Aboard</i> (vehicles) shows nothing for him; a pick of something that is no
+    /// soldier is refused with the reason; the 4-argument <c>EmbarkOrders.Embark</c> publishes the command with the carry mode. ⏳ Changing the mode of a man already aboard is not offered: <c>Embarkation.TryEmbark</c> answers
+    /// <i>AlreadyAboard</i> without touching the mode (set at boarding only), so a "Carried as" field would need a backend op — recorded, not built. 🔴 Red-proof (compiles): <c>FillAboard</c> not skipping a person carrier ⇒ a second row ⇒ red.</summary>
+    [SkippableFact]
+    public void U24_S5_CarriedBy_ReadsTheCarrierAndMode_AndAboardLeavesHimAlone()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<NetworkIdentity>(); world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(); world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
+        var thing = world.CreateEntity();   // not a soldier
+        world.AddComponent(thing, new EntityInfo { Name = new FixedString64("Crate") });
+        world.AddComponent(thing, new NetworkIdentity(9));
+        var soldier = world.CreateEntity();
+        world.AddComponent(soldier, new EntityInfo { Name = new FixedString64("Bravo 2") });
+        world.AddComponent(soldier, new Fdp.Toolkit.Behavior.Components.PersonCarrier());
+        var man = world.CreateEntity();
+        world.AddComponent(man, new EntityInfo { Name = new FixedString64("Alpha 1-1"), ForceId = ForceId.Friend });
+        world.AddComponent(man, new NetworkIdentity(7));
+        var buf = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = 1 };
+        buf.Passengers[0] = man;
+        buf.SetMode(0, Fdp.Toolkit.Behavior.Components.CarryMode.Dragged);
+        world.AddComponent(soldier, buf);
+        world.AddComponent(man, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = soldier, Seat = 0 });
+
+        HrotForms.EnsureRegistered();
+        const int list = 3;
+        Assert.Equal("Carried by", HrotForms.Unit.Lists[list].Label);
+        var view = new FormView { Pick = new OnePick(new Fdp.Toolkit.Replication.EntityRef(9), "form.unit.list" + list) };   // he is told to be carried by a crate
+        using var frame = UiFrameHarness.Begin(700, 420);
+        frame.StepN(3, () =>
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10)); ImGui.SetNextWindowSize(new System.Numerics.Vector2(460, 360));
+            ImGui.Begin("Details##unit-carried");
+            view.Draw(HrotForms.Unit, world, new[] { man }, editable: true);
+            ImGui.End();
+        });
+        Assert.Equal(new[] { "Dragged", "Bravo 2" }, view.ListRows);   // the Aboard list (vehicles) draws nothing for him
+        Assert.Equal("only a soldier carries a man", view.ListProblem(list));
+        Assert.Equal("he cannot carry himself", HrotForms.Unit.Lists[list].Add!(world, man, man));
+        Assert.Equal("already aboard — put him down first", HrotForms.Unit.Lists[list].Add!(world, man, soldier));
+
+        var other = world.CreateEntity();
+        Assert.True(Hrot.Common.Orders.EmbarkOrders.Embark(world, other, soldier, Fdp.Toolkit.Behavior.Components.CarryMode.Dragged));
+        world.Bus.SwapBuffers();
+        var sent = world.Bus.Read<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
+        Assert.Equal(1, sent.Length);
+        Assert.Equal(Fdp.Toolkit.Behavior.Components.CarryMode.Dragged, sent[0].Mode);   // the order carries how he rides
+        Assert.Equal(other, sent[0].Passenger); Assert.Equal(soldier, sent[0].Vehicle);
     }
 
     /// <summary>⭐ U-24 / S6 (DESIGN_Initial_State §4.2) — the Unit form's <b>Character</b> section in a real frame: Skill and Bravery / Obedience / Nerve / Resolve read the EFFECTIVE values; an authored value that differs from the type's

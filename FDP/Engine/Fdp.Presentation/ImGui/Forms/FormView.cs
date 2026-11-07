@@ -130,7 +130,7 @@ public sealed class FormView
                 FormGrid.Row(it.Role);
                 ImGui.AlignTextToFramePadding();
                 ImGui.TextUnformatted(who);
-                if (list.Remove != null && list.RemoveLabel != null)
+                if (list.Remove != null && list.RemoveLabel != null && !it.Passive)   // a Passive row (a second man) names someone, it has no action of its own
                 {
                     ImGui.SameLine();
                     if (ImGui.SmallButton(list.RemoveLabel) && editable) { list.Remove(world, it); _listProblem[li] = null; }

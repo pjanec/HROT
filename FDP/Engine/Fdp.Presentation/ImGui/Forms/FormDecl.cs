@@ -86,7 +86,7 @@ public sealed class FormField
 }
 
 /// <summary>⭐ U-23 / D4 — one row of a <see cref="FormList"/>: the item's role word (cached by the declarer), who it is, and the entity the row's action acts on.</summary>
-public readonly record struct FormListItem(string Role, FixedString64 Who, Entity Item);
+public readonly record struct FormListItem(string Role, FixedString64 Who, Entity Item, bool Passive = false);
 
 /// <summary>
 /// ⭐ U-23 / D4 (docs/UX/DESIGN_Details_Forms.md §4.0a part 4) — a form's LIST of things with actions (the Crew &amp; cargo form's seats): <see cref="Fill"/> writes

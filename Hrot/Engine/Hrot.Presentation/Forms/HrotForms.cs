@@ -211,10 +211,59 @@ public static class HrotForms
                 AddLabel = "Add...",
                 Add = SeedKnown,
             },
+            // ⭐ U-24 / S5 — carried by: a soldier carries him (Carried · Dragged · Stretcher + the second man of a stretcher). Put down → the ONE disembark; Carried by… → the ONE embark with a carry mode.
+            //   ⏳ not yet: changing HOW he is carried (Embarkation treats an embark of a man already aboard as idempotent — the mode is set at boarding only) and naming the second man
+            new FormList
+            {
+                Label = "Carried by", RowLabels = CarryWords,
+                Fill = FillCarried,
+                Footer = (w, e) => IsCarried(w, e) ? null : "not carried",
+                RemoveLabel = "Put down",
+                Remove = (w, it) => Hrot.Common.Orders.EmbarkOrders.Disembark(w, it.Item),
+                AddLabel = "Carried by...",
+                Add = CarriedBy,
+            },
         },
     };
 
     private static readonly string[] UnitWords = { "Unit" };
+    private static readonly string[] CarryWords = { "Carried", "Carried", "Dragged", "Stretcher", "Second man" };   // by CarryMode (Seated reads as Carried), then the assistant
+
+    private static bool IsPersonCarrier(EntityRepository w, Entity v)
+        => w.IsAlive(v) && w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.PersonCarrier>() && w.HasComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>(v);
+
+    private static bool IsCarried(EntityRepository w, Entity e)
+        => IsAboard(w, e) && IsPersonCarrier(w, w.GetComponentRO<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e).VehicleEntity);
+
+    /// <summary>One row when a PERSON carries him: how (the carry mode), the carrier's name; a second row for his stretcher's second man (no action of its own). The row's item is HIM (Put down disembarks him).</summary>
+    private static void FillCarried(EntityRepository w, Entity e, System.Collections.Generic.List<FormListItem> into)
+    {
+        if (!IsCarried(w, e)) return;
+        ref readonly var tag = ref w.GetComponentRO<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e);
+        var carrier = tag.VehicleEntity;
+        if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.PassengerBuffer>() || !w.HasComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(carrier)) return;
+        ref readonly var buf = ref w.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(carrier);
+        int seat = tag.Seat;
+        int mode = seat < Fdp.Toolkit.Behavior.Components.PassengerBuffer.Capacity ? (int)buf.ModeOf(seat) : 0;
+        into.Add(new FormListItem(CarryWords[mode], NameOf(w, carrier, "(a soldier)"), e));
+        if (!buf.Assistant.IsNull && w.IsAlive(buf.Assistant)) into.Add(new FormListItem(CarryWords[4], NameOf(w, buf.Assistant, "(a soldier)"), buf.Assistant, Passive: true));
+    }
+
+    private static FixedString64 NameOf(EntityRepository w, Entity e, string fallback)
+        => w.IsComponentTypeRegistered<EntityInfo>() && w.HasComponent<EntityInfo>(e) ? w.GetComponentRO<EntityInfo>(e).Name : new FixedString64(fallback);
+
+    private static string? CarriedBy(EntityRepository w, Entity unit, Entity carrier)
+    {
+        if (unit == carrier) return "he cannot carry himself";
+        if (!IsPersonCarrier(w, carrier)) return "only a soldier carries a man";
+        if (IsAboard(w, unit)) return "already aboard — put him down first";
+        return Fdp.Toolkit.Behavior.Embarkation.CanEmbark(w, unit, carrier, Fdp.Toolkit.Behavior.Components.SeatRole.Passenger, Fdp.Toolkit.Behavior.Components.CarryMode.Carried) switch
+        {
+            Fdp.Toolkit.Behavior.EmbarkResult.Applied => Hrot.Common.Orders.EmbarkOrders.Embark(w, unit, carrier, Fdp.Toolkit.Behavior.Components.CarryMode.Carried) ? null : "not sent",
+            Fdp.Toolkit.Behavior.EmbarkResult.Full => "his arms are full",
+            _ => "he can only carry a man who is down, while he is himself in the fight",
+        };
+    }
     private const int KnowsCap = 8;
     private static readonly string[] MoreWords = BuildMoreWords();
     private static string[] BuildMoreWords() { var w = new string[Fdp.Toolkit.Perception.PerceptionConstants.MaxTrackedTargets + 1]; for (int i = 0; i < w.Length; i++) w[i] = "+" + i + " more"; return w; }
@@ -290,7 +339,7 @@ public static class HrotForms
         if (!IsAboard(w, e)) return;
         ref readonly var tag = ref w.GetComponentRO<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e);
         var v = tag.VehicleEntity;
-        if (v.IsNull || !w.IsAlive(v)) return;
+        if (v.IsNull || !w.IsAlive(v) || IsPersonCarrier(w, v)) return;   // ⭐ a person carrying him is the Carried by list's row, not a vehicle seat
         var name = w.IsComponentTypeRegistered<EntityInfo>() && w.HasComponent<EntityInfo>(v) ? w.GetComponentRO<EntityInfo>(v).Name : new FixedString64("(a vehicle)");
         int seat = tag.Seat;
         into.Add(new FormListItem(seat < Fdp.Toolkit.Behavior.Components.PassengerBuffer.Capacity ? RoleOf(w, v, seat) : RoleWords[0], name, e));

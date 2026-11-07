@@ -13,11 +13,15 @@ namespace Hrot.Common.Orders
     {
         /// <summary><paramref name="passenger"/> boards <paramref name="vehicle"/>. False when either is not alive or they are one.</summary>
         public static bool Embark(EntityRepository world, Entity passenger, Entity vehicle)
+            => Embark(world, passenger, vehicle, CarryMode.Seated);
+
+        /// <summary>⭐ U-24 / S5 — the SAME order with how he rides (<see cref="CarryMode"/>: Carried · Dragged · Stretcher) and his named second man (a stretcher only): <c>EmbarkationSystem</c> passes both to <c>Embarkation.TryEmbark</c>. ONE path; the 3-argument form is this with the default mode.</summary>
+        public static bool Embark(EntityRepository world, Entity passenger, Entity vehicle, CarryMode mode, Entity assistant = default)
         {
             if (passenger == vehicle || !world.IsAlive(passenger) || !world.IsAlive(vehicle)) return false;
             // ⭐ edit framework F4 — a journalled interaction: the vehicle's owner answers accepted or refused + why
             Fdp.Toolkit.Replication.Edits.Edits.Submit(world, Fdp.Toolkit.Replication.Edits.EditOp.Interact(vehicle,
-                id => world.Bus.Publish(new EmbarkEntityCommand { Passenger = passenger, Vehicle = vehicle, RequestId = id }), "Embark"));
+                id => world.Bus.Publish(new EmbarkEntityCommand { Passenger = passenger, Vehicle = vehicle, Mode = mode, Assistant = assistant, RequestId = id }), "Embark"));
             return true;
         }
 
