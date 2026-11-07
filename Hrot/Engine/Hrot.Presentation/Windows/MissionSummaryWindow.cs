@@ -61,6 +61,15 @@ public sealed class MissionSummaryWindow : ManagedWindow
         PanelSnapshot.DeclareInstrumented(Id);
     }
 
+    /// <summary>⭐ R-4156 — <i>"at 0:39 of 1:06"</i>: the playhead's place in a recording (its extent and the cursor's now, in wall-clock ticks), m:ss — h:mm:ss past an hour.</summary>
+    public static string RecordingPosition(long from, long to, long now)
+    {
+        static string T(TimeSpan t) => t.TotalHours >= 1 ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}" : $"{(int)t.TotalMinutes}:{t.Seconds:00}";
+        long length = Math.Max(0, to - from);
+        long at = Math.Clamp(now - from, 0, length);
+        return $"at {T(TimeSpan.FromTicks(at))} of {T(TimeSpan.FromTicks(length))}";
+    }
+
     public SummarySide Side { get => _side; set => _side = value; }
     public int? SelectedNetworkId { get => _selected; set => _selected = value; }
     public int Level { get => _level; set => _level = Math.Clamp(value, 0, LevelNames.Length - 1); }
@@ -155,7 +164,9 @@ public sealed class MissionSummaryWindow : ManagedWindow
             if (on) ImGui.PopStyleColor();
             ImGui.SameLine();
         }
-        ImGui.TextDisabled($"  {_summary.Phase} · {RulesModel.Clock(_summary.Now)}");
+        // ⭐ Replay Browser UX ⑤ (R-4156) — on a RECORDING the phase is not news (it ran to its end): say WHERE in it we are, "at 0:39 of 1:06"
+        if (_end.ShowsARecording && _cursor != null) ImGui.TextDisabled($"  {RecordingPosition(_cursor.ExtentFrom, _cursor.ExtentTo, _cursor.Now)}");
+        else ImGui.TextDisabled($"  {_summary.Phase} · {RulesModel.Clock(_summary.Now)}");
         ImGui.SameLine();
         _end.Draw("ms-end");
         if (_end.Message != null) { ImGui.SameLine(); ImGui.TextDisabled(_end.Message); }

@@ -94,6 +94,16 @@ sequenceDiagram
 | **B-3** | ⑤ live-only actions hidden on a recording | ui | Rules / Mission summary on a recording: no *End exercise* |
 | **B-4** | CE-4290: the Event Timeline's lanes vs the index | ui | the measured counts drawn |
 
+### 2a ⭐ AS-BUILT — ⑤ Q-B4 *(backend, `2026-11-07`, B-7)*
+
+| | as built |
+|---|---|
+| *End exercise* | `InstructorEndControl.ShowsARecording` (the WORLD's `ReplayState.IsActive` — so the Replay Browser AND an AAR in the editor agree, by construction); `Draw` draws nothing then — ⛔ not greyed. Both windows that hold the control (Rules toolbar, Mission summary) inherit it |
+| Mission summary | on a recording the toolbar reads `MissionSummaryWindow.RecordingPosition(extent, now)` from the window's own timeline cursor — *"at 0:39 of 1:06"* (h:mm:ss past an hour) — instead of the phase |
+| ⏭ ① the main-bar seek bar · ② the Replay Timeline's parts routed | next |
+
+Rails: `RunnableRulesTests.QB4_*`.
+
 ## 3. Questions — leans
 
 | # | question | lean | rejected |
