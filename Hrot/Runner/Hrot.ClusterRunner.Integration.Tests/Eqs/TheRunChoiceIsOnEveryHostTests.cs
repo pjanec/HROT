@@ -42,6 +42,10 @@ public sealed class TheRunChoiceIsOnEveryHostTests
             editor.Initialize(new SubsystemConfig { Headless = true });
             var windows = MakeWindowManager();
             editor.RegisterWindows(windows);
+            // ⭐ CE-4292 (Rules bundle R3) — the editor's rules windows unchanged (same ids), now from the ONE bundle; its ONE undo history passed through
+            foreach (var id in new[] { "editor_rules", "editor_game_master", "editor_mission_summary", "editor_trainee_debrief", "editor_game_summary" })
+                Assert.True(windows.TryGetWindow(id, out _), id + " is registered on the editor");
+            Assert.Same(editor.EditHistory, editor.RulesBundleForTest!.Editor!.History);
 
             var choice = editor.RunChoiceForTest;
             Assert.NotNull(choice);
@@ -112,6 +116,23 @@ public sealed class TheRunChoiceIsOnEveryHostTests
             Assert.True(windows.TryGetWindow("cgf_rules", out var rules));
             Assert.Same(cgf.RulesWindowForTest, rules);
             Assert.False(cgf.SelectNetworkEntity(987_654));   // an unknown network id selects nothing
+
+            // ⭐ CE-4292 (Rules bundle R3 / R4; Seats and hats H5) — CGF composes the ONE rules bundle: the instructor's windows join (the window-set
+            //   change), and every capability CGF HAS reaches the rule editor (a forwarding rail per dependency, on the constructed object)
+            foreach (var id in new[] { "cgf_game_master", "cgf_mission_summary", "cgf_trainee_debrief", "cgf_game_summary" })
+                Assert.True(windows.TryGetWindow(id, out _), id + " is registered on CGF");
+            var bundle = cgf.RulesBundleForTest;
+            Assert.NotNull(bundle?.Editor);                          // the editing half — CGF used to pass none
+            Assert.Null(bundle!.Editor!.SeatRefusal!());              // CGF's seat (Instructor) may edit
+            Assert.NotNull(bundle.Editor.Picks);                      // its map pick
+            Assert.NotNull(bundle.Editor.OpenPicker);                 // its pickers
+            Assert.NotNull(bundle.Editor.CreateRule);                 // its entity creation
+            Assert.NotNull(bundle.GameMaster);                        // the Game master (it can create)
+
+            // ⭐ CE-4292 R4 — a LIVE edit from CGF's own Rules window: a running trigger on CGF's world is editable for CGF's seat, and Apply sends it
+            //   through the ONE write path (RuleCommands.Edit → the router) to the rule's owner; the owner half (RuleEditSystem, which CgfLogicPack
+            //   registers, applies it and journals Applied) is ScenarioRulesTests.LiveEdit's (SimHost.Tests) — the content is RuleEditorR5bTests'.
+            AssertALiveRuleEditFromTheRulesWindowReachesTheRule(cgf.World!, bundle.Rules);
         }
         finally
         {
@@ -194,6 +215,37 @@ public sealed class TheRunChoiceIsOnEveryHostTests
     }
 
     /// <summary>A node's frame hearing a cluster state (CE-1442's gate opens on it) — for a host with no in-process master to pump.</summary>
+    private const string LiveTriggerJson = """{"common":{"title":"Counter-attack","subject":{"NetworkId":900}},"cooldown":10,"do":[{"act":"Message","args":{"Text":"hello"}}]}""";
+
+    private static void AssertALiveRuleEditFromTheRulesWindowReachesTheRule(EntityRepository world, Hrot.Presentation.Windows.RulesWindow window)
+    {
+        const int Net = 77_001;
+        // a composed-but-not-yet-running CGF has not registered the rule components a loaded scenario brings (the pack's modules do at start)
+        if (!world.TryGetTable(typeof(Fdp.Toolkit.Behavior.Components.BehaviorStartRecord), out _)) world.RegisterManagedComponent<Fdp.Toolkit.Behavior.Components.BehaviorStartRecord>();
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>()) world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>();
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.ScenarioRules.ObjectiveLinks>()) world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveLinks>();
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()) world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        var e = world.CreateEntity();
+        world.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(Net));
+        world.SetManagedComponent(e, new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = "Trigger", JsonParams = LiveTriggerJson, InstanceId = 1 });
+        world.AddComponent(e, new Fdp.Toolkit.ScenarioRules.ObjectiveStatus { Role = Fdp.Toolkit.ScenarioRules.ObjectiveRole.Trigger, State = Fdp.Toolkit.ScenarioRules.ObjectiveState.Active,
+            Title = new FixedString64("Counter-attack"), TriggerState = Fdp.Toolkit.ScenarioRules.TriggerState.Armed });
+        world.AddComponent(e, new Fdp.Toolkit.ScenarioRules.ObjectiveLinks());
+        var row = Hrot.UI.Common.Rules.RulesModel.Build(world, new Hrot.UI.Common.Rules.RulesOptions(), null, 10).Find(Net);
+        Assert.NotNull(row);
+        var details = window.Details;
+        Assert.NotNull(details);                                                          // CGF's window has the editing half
+        details!.Prepare(row!, 10);
+        Assert.True(details.Probe.Editable, details.Probe.ReadOnlyReason);                // live, a kind with a keeper, a seat that may edit
+        string edited = LiveTriggerJson.Replace("\"cooldown\":10", "\"cooldown\":25");
+        details.StagePending(edited); details.Prepare(row!, 10);
+        Assert.True(details.Apply(row!));
+        details.Prepare(row!, 11);
+        // ⭐ the edit left on the ONE write path (RuleCommands.Edit → EditRequests → the router) as a request to the rule's owner — not refused, no
+        //   host-specific path; this test rule is not owned here, so the owner (CGF's own RuleEditSystem for a CGF-owned rule) answers later
+        Assert.Equal("sent - waiting for the owner", details.Probe.LiveEdit);
+    }
+
     private static void HearTheCluster(HrotNodeContext node, ClusterState state = ClusterState.OperatingEdit)
     {
         node.EventBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state });
