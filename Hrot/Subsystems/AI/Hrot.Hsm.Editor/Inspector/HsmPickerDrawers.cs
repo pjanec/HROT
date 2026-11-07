@@ -121,7 +121,9 @@ public sealed class HsmEventPickerDrawer : IImGuiFieldDrawer, IPickerListSource
     /// <summary>⭐ CE-1008 — the choice field (the forwarding rail reads it).</summary>
     public PickerField Field => _field;
 
-    public Type TargetType => typeof(string);
+    /// <summary>⭐ CE-3398 — the event fields are <c>ushort EventId</c> (the facets); the drawer maps the picked NAME back to its id. It was <c>string</c>, so the rule never matched
+    /// and the <c>ushort</c> sync-group entry drew a transition's event as a sync-group combo.</summary>
+    public Type TargetType => typeof(ushort);
 
     public IReadOnlyList<string> GetItems()
         => Choices().Select(c => c.Name).OrderBy(n => n).ToList();
@@ -223,7 +225,7 @@ public static class HsmPickerDrawerFactory
     ///   <item>⭐ <c>CE-417</c> slice 4b — the ONE <see cref="ActionBindingDrawer"/> for every binding (state entry/exit/
     ///         activity/timer, transition and global-transition guard/action), a TYPE entry on <see cref="BehaviorActionBindingFacet"/>;
     ///         the HSM host supplies only its method list (<see cref="HsmBindingMethods"/>).</item>
-    ///   <item>FIELD RULES on <c>string</c>: <see cref="HsmStateSelectorAttribute"/>, <see cref="HsmEventPickerAttribute"/>, the SOP behaviour picker and the asset picker
+    ///   <item>FIELD RULES: <see cref="HsmStateSelectorAttribute"/> on <c>string</c>, <see cref="HsmEventPickerAttribute"/> on <c>ushort</c> (CE-3398), the SOP behaviour picker and the asset picker
     ///         (<see cref="Hrot.Editor.AiShared.Inspector.AiAssetPickerRuleEditor"/>, per KIND — CE-396).</item>
     ///   <item>a <see cref="HsmSyncGroupPickerDrawer"/> as the TYPE entry for <c>ushort</c> (sync-group fields).</item>
     /// </list>
@@ -253,7 +255,7 @@ public static class HsmPickerDrawerFactory
             new FieldTypeEditor(typeof(ushort), null, new HsmSyncGroupPickerDrawer(asset)),
             new FieldTypeEditor(typeof(BehaviorActionBindingFacet), null, bindingDrawer));
         types.AddRule(typeof(HsmStateSelectorAttribute), new FieldTypeEditor(typeof(string), null, new HsmStateSelectorDrawer(asset, field)));
-        types.AddRule(typeof(HsmEventPickerAttribute), new FieldTypeEditor(typeof(string), null, new HsmEventPickerDrawer(asset, field)));
+        types.AddRule(typeof(HsmEventPickerAttribute), new FieldTypeEditor(typeof(ushort), null, new HsmEventPickerDrawer(asset, field)));   // ⭐ CE-3398 — on the ushort EventId (a rule wins over the ushort sync-group entry)
         // ⭐ CE-2083 — the SOP order's behaviour picker (the BTree's drawer); only with a registry to list, as the catalogue rule.
         if (behaviourNames is not null)
             types.AddRule(typeof(Hrot.Editor.AiShared.Inspector.AiBehaviorPickerAttribute),

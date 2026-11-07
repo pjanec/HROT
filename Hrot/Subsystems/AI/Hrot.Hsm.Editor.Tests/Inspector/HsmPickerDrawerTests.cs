@@ -305,14 +305,25 @@ public sealed class HsmPickerDrawerTests
 #pragma warning restore 67
     }
 
-    private static StructEdit.Core.EditNode NodeWithAttribute(Attribute attr)
+    private static StructEdit.Core.EditNode NodeWithAttribute(Attribute attr, Type? type = null)
         => new StructEdit.Core.EditNode(
                id:       new StructEdit.Core.EditNodeId(0),
                name:     "F",
                jsonPath: "$.F",
-               kind:     StructEdit.Core.EditNodeKind.String,
-               clrType:  typeof(string),
+               kind:     type == typeof(ushort) ? StructEdit.Core.EditNodeKind.Scalar : StructEdit.Core.EditNodeKind.String,
+               clrType:  type ?? typeof(string),
                metadata: new StructEdit.Core.EditNodeMetadata { CustomAttributes = new[] { attr } });
+
+    /// <summary>⭐ CE-3398 — a transition's <c>[HsmEventPicker] ushort EventId</c> draws the EVENT picker (it drew the sync-group combo: the rule was keyed on <c>string</c>), and a
+    /// plain <c>ushort</c> still gets the sync-group drawer. Red-proof: the rule back on <c>string</c> ⇒ the first assert fails.</summary>
+    [Fact]
+    public void CE3398_AUshortEventId_DrawsTheEventPicker_APlainUshortTheSyncGroup()
+    {
+        var types = HsmPickerDrawerFactory.BuildCatalogue(MakeAsset());
+        types.DrawerFor(NodeWithAttribute(new HsmEventPickerAttribute(), typeof(ushort))).Should().BeOfType<HsmEventPickerDrawer>();
+        typeof(TransitionFacet).GetField(nameof(TransitionFacet.EventId))!.FieldType.Should().Be(typeof(ushort));
+        types.DrawerOf(typeof(ushort)).Should().BeOfType<HsmSyncGroupPickerDrawer>();
+    }
 
     /// <summary>⭐ CE-1008 (AI_Editor_Shared_Infrastructure §7.1b) — the HSM factory forwards the host's picker to the binding, the state
     /// and the event pickers — one shared choice field.</summary>
@@ -323,7 +334,7 @@ public sealed class HsmPickerDrawerTests
         var types   = HsmPickerDrawerFactory.BuildCatalogue(MakeAsset(), openPicker: open);
         var binding   = (ActionBindingDrawer)types.DrawerOf(typeof(BehaviorActionBindingFacet))!;
         var state = (HsmStateSelectorDrawer)types.DrawerFor(NodeWithAttribute(new HsmStateSelectorAttribute()))!;
-        var ev    = (HsmEventPickerDrawer)types.DrawerFor(NodeWithAttribute(new HsmEventPickerAttribute()))!;
+        var ev    = (HsmEventPickerDrawer)types.DrawerFor(NodeWithAttribute(new HsmEventPickerAttribute(), typeof(ushort)))!;
         binding.Field.CanSearch.Should().BeTrue();
         state.Field.Should().BeSameAs(binding.Field);
         ev.Field.Should().BeSameAs(binding.Field);

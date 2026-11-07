@@ -88,6 +88,16 @@ public sealed class SE2_PickerDrawerRebuildTests
             clrType:  typeof(string),
             metadata: new EditNodeMetadata { CustomAttributes = attrs });
 
+    /// <summary>⭐ CE-3398 — the HSM event fields are <c>ushort EventId</c>.</summary>
+    private static EditNode UshortWithAttr(params Attribute[] attrs) =>
+        new EditNode(
+            id:       new EditNodeId(0),
+            name:     "Field",
+            jsonPath: "$.Field",
+            kind:     EditNodeKind.Scalar,
+            clrType:  typeof(ushort),
+            metadata: new EditNodeMetadata { CustomAttributes = attrs });
+
     // ═════════════════════════════════════════════════════════════════════════
     // BTree factory tests
     // ═════════════════════════════════════════════════════════════════════════
@@ -255,7 +265,7 @@ public sealed class SE2_PickerDrawerRebuildTests
         var asset   = MakeHsmAsset();
         var types = HsmPickerDrawerFactory.BuildCatalogue(asset);
 
-        var node      = NodeWithAttr(new HsmEventPickerAttribute());
+        var node      = UshortWithAttr(new HsmEventPickerAttribute());
         var resolved  = types.DrawerFor(node);
 
         resolved.Should().NotBeNull("must resolve [HsmEventPicker]");
@@ -282,7 +292,7 @@ public sealed class SE2_PickerDrawerRebuildTests
         var asset2 = HsmAssetProjector.Project(blob2, meta2, null, Guid.NewGuid(), "Machine2", "", false, "");
         var types2 = HsmPickerDrawerFactory.BuildCatalogue(asset2);
 
-        var evNode = NodeWithAttr(new HsmEventPickerAttribute());
+        var evNode = UshortWithAttr(new HsmEventPickerAttribute());
 
         // types1: event picker returns "Fire".
         var evPickerD1 = types1.DrawerFor(evNode)
