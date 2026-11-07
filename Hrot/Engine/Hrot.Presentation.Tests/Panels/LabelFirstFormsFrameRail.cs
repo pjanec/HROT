@@ -43,7 +43,7 @@ public sealed class LabelFirstFormsFrameRail
         ("ReplaySearchPanel.cs", "Filter by Target Entity", "option beside its 'Fill from Selected' button"),
         ("MigrationAlertManager.cs", "Don't show", "a dialog's opt-out footer"), ("BrainStopWhen.cs", "only this unit", "option inside a toolbar row"),
         ("EntityBrainView.cs", "on map", "a per-row pin toggle"), ("ExportDeliveryModal.cs", "Show full export", "a dialog option"), ("RulesWindow.cs", "Follow now", "toolbar option"),
-        ("DirectorWindow.cs", "Loop shot", "transport-row option"), ("DirectorWindow.cs", "Pilot view", "toolbar option"), ("DirectorWindow.cs", "replace", "option beside the Promote button"),
+        ("DirectorWindow.cs", "Loop shot", "transport-row option"), ("DirectorWindow.cs", "Pilot view", "toolbar option"), ("DirectorWindow.cs", "Director camera", "toolbar option"), ("DirectorWindow.cs", "replace", "option beside the Promote button"),
         // a selector on the same line as its action buttons — a toolbar row
         ("ClusterScenarioPanel.cs", "Step (s)", "transport row"), ("ClusterScenarioPanel.cs", "Speed", "transport row"),
         ("ClusterScenarioPanel.cs", "Select Scenario", "selector + Load buttons on one line"), ("ClusterScenarioPanel.cs", "Select Exercise", "selector + Open AAR on one line"),

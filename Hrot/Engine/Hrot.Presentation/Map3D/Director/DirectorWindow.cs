@@ -239,6 +239,13 @@ namespace Hrot.UI.Common.Map3D.Director
             if (ImGui.Checkbox("Pilot view", ref pilot)) FilmStudio.Pilot = pilot;
             ImGui.EndDisabled();
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("On: you fly the map camera while the take plays (the program keeps running). Off: the director's camera.");
+            // ⭐ Seats H4 (§3.4) — the director shares the camera: a camera gesture takes it, the director retakes it at its next shot unless this is off
+            ImGui.SameLine();
+            bool directorCamera = FilmStudio.DirectorCamera;
+            if (ImGui.Checkbox("Director camera", ref directorCamera)) FilmStudio.DirectorCamera = directorCamera;
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("On: when you move the camera during the playback, the director takes it back at its next shot. Off: it never takes it back.");
+            if (FilmStudio.UserHoldsCamera)
+                ImGui.TextDisabled(FilmStudio.DirectorCamera ? "You have the camera — the director retakes it at its next shot" : "You have the camera");
             DrawSelected(editor!, tracks);
         }
 

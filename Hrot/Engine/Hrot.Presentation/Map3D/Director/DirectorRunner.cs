@@ -368,7 +368,7 @@ namespace Hrot.UI.Common.Map3D.Director
             Error = null;
             MoviePath = null;
             _paused = false;
-            if (request.Capture != null) { Directory.CreateDirectory(FramesDir); FilmStudio.Pilot = false; }   // ⭐ P2b — a capture films the program
+            if (request.Capture != null) { Directory.CreateDirectory(FramesDir); FilmStudio.Pilot = false; FilmStudio.CameraLocked = true; }   // ⭐ Seats H4 — a capture films the program   // ⭐ P2b — a capture films the program
             // ⭐ CE-1304 P6 (§11t V5) — the map's 2-D ⇄ 3-D switch animates on screen; a capture CUTS (its frames are film frames, not wall-clock ones)
             FilmStudio.AnimateViewSwitch = request.Capture == null;
             if (request.Mode == DirectorMode.Capture) _sound?.BeginLog();
@@ -1052,6 +1052,8 @@ namespace Hrot.UI.Common.Map3D.Director
         /// the camera is what <see cref="TakeTimeline.ProgramAt"/> says over the take's KEYS (<see cref="CameraKeys.Played"/> — its own, else its shots
         /// read as keys where the layout put them), and the dip's black is the same frame's fade; the shots here only gate WHEN the film runs (captions, layers, speed).
         /// </summary>
+        private CameraKey? _cutKey;   // ⭐ Seats H4 — the key on screen, to tell a cut
+
         private void DirectUpcoming(double rel)
         {
             var inShot = _timeline!.At(rel);
@@ -1062,6 +1064,7 @@ namespace Hrot.UI.Common.Map3D.Director
             // ⭐ CE-4059 / CR-7 (§11q K1) — the keys of the segment on screen: the unscoped ones, and its own from its first on (none playing: unscoped only)
             var keys = CameraKeys.OnScreenIn(_keys, Segment?.Id, anchors);
             var frame = TakeTimeline.ProgramAt(keys, anchors, at);
+            if (frame != null && !ReferenceEquals(frame.Key, _cutKey)) { _cutKey = frame.Key; FilmStudio.NextCut(); }   // ⭐ Seats H4 — a new key on screen is the director's next shot
             if (frame != null && ShotEvaluator.Evaluate(frame, _units) is { } fs) FilmStudio.Direct(fs);
             FilmStudio.Fade = (at == rel ? frame : TakeTimeline.ProgramAt(keys, anchors, rel))?.Fade ?? 0f;   // the black is of NOW, the camera may be the next shot's
         }

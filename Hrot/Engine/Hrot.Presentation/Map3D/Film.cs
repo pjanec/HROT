@@ -96,7 +96,39 @@ public static class FilmStudio
     }
 
     /// <summary>Gives the view back (the free camera keeps the last pose; the black clears; ⭐ CE-1304 / CE-1305 — the 3-D map and no graphics again).</summary>
-    public static void Release() { lock (Gate) { _shot = null; _fade = 0f; _twoD = false; _graphics = Array.Empty<Director.GraphicFrame>(); } }
+    public static void Release() { lock (Gate) { _shot = null; _fade = 0f; _twoD = false; _graphics = Array.Empty<Director.GraphicFrame>(); _userHolds = false; _locked = false; } }
+
+    private static bool _directorCamera = true, _userHolds, _locked;
+    private static int _cut, _cutAtTake;
+
+    /// <summary>
+    /// ⭐ Seats H4 (📄 docs/UX/DESIGN_Seats_And_Hats.md §3.4; 🔒 user, 2026-11-06: "while director is playing, i still like to move around (director overrides
+    /// whenever he wants …)") — the <i>Director camera</i> toggle: true (the default) = the director takes the camera back at its next shot after the user grabbed
+    /// it; false = it never takes it back for the rest of the playback.
+    /// </summary>
+    public static bool DirectorCamera { get { lock (Gate) return _directorCamera; } set { lock (Gate) _directorCamera = value; } }
+
+    /// <summary>⭐ Seats H4 — the user holds the camera during a playback (they moved it); false again at the director's next cut while <see cref="DirectorCamera"/> is on.</summary>
+    public static bool UserHoldsCamera
+    {
+        get
+        {
+            lock (Gate)
+            {
+                if (_userHolds && _directorCamera && _cut != _cutAtTake) _userHolds = false;   // the next shot: the director retakes it
+                return _userHolds;
+            }
+        }
+    }
+
+    /// <summary>⭐ Seats H4 — the user moved the camera during a playback (refused while a capture films the program).</summary>
+    public static bool UserTakesCamera() { lock (Gate) { if (_locked) return false; _userHolds = true; _cutAtTake = _cut; return true; } }
+
+    /// <summary>⭐ Seats H4 — the director cut to a new camera key (the runner calls it when the key on screen changes).</summary>
+    public static void NextCut() { lock (Gate) _cut++; }
+
+    /// <summary>⭐ Seats H4 — a capture is filming the program: the user cannot take the camera (the runner sets it with the capture, <see cref="Release"/> clears it).</summary>
+    public static bool CameraLocked { get { lock (Gate) return _locked; } set { lock (Gate) { _locked = value; if (value) _userHolds = false; } } }
 
     private static bool _pilot;
 
@@ -146,6 +178,7 @@ public static class FilmStudio
             _twoD = false;
             _animateViewSwitch = true;
             _graphics = Array.Empty<Director.GraphicFrame>();
+            _directorCamera = true; _userHolds = false; _locked = false; _cut = _cutAtTake = 0;
             while (Waiting.Count > 0) Waiting.Dequeue().Done.TrySetCanceled();
         }
     }
@@ -184,7 +217,19 @@ public sealed class FilmDirector : ICameraDriver
         _fovBefore = null;
     }
 
-    public bool HandleInput(MapCamera3D camera, IInputProvider input) => false;
+    /// <summary>
+    /// ⭐ Seats H4 (§3.4) — the director is a camera SOURCE, not an exclusive owner: any camera gesture of the user (the wheel, the right button's look,
+    /// the middle button's pan) takes the camera at once — the free camera flies on from the current shot; the director retakes it at its next shot
+    /// (<see cref="FilmStudio.DirectorCamera"/>). ⛔ A left click stays the map's (select). ⛔ Not while a capture films the program.
+    /// </summary>
+    public bool HandleInput(MapCamera3D camera, IInputProvider input)
+    {
+        if (input.IsMouseCaptured) return false;
+        bool grab = input.MouseWheelMove != 0f || input.IsMouseButtonPressed(MapMouseButton.Right) || input.IsMouseButtonPressed(MapMouseButton.Middle)
+                    || input.IsMouseButtonDown(MapMouseButton.Middle);
+        if (grab && FilmStudio.UserTakesCamera()) camera.Driver = null;   // the free camera takes the gesture from the next frame
+        return false;
+    }
 
     /// <summary>Puts the camera on the shot; false (the camera left where it was) when there is none or the followed unit is not here.</summary>
     public bool Place(MapCamera3D camera)
@@ -261,7 +306,7 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
     private void Direct()
     {
         var camera = _view.Camera3D;
-        if (FilmStudio.Shot is { } shot && !FilmStudio.Pilot)   // ⭐ CE-1303 P2b — the pilot view leaves the camera to the operator
+        if (FilmStudio.Shot is { } shot && !FilmStudio.Pilot && !FilmStudio.UserHoldsCamera)   // ⭐ CE-1303 P2b — the pilot view leaves the camera to the operator; ⭐ Seats H4 — so does a user who took it
         {
             _personsMap ??= _view.Is3D;   // ⭐ CE-1304 P6 (§11t V7) — the person's map mode, taken when the film first holds the view
             _director.Shot = shot;

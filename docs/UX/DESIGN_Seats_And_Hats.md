@@ -206,7 +206,7 @@ features"*
 | **H1** | the `station.seat` node feature + `HostDescription.DefaultSeat` (the fused server = Instructor, the Player = Player, the editor = Author, the Replay Browser = Reviewer); the mode indicator shows it | backend + ui |
 | **H2** | the catalogue and the gate read the seat: level and side scope (fixes CE-4279: a Player gets no Add Entity, no RTS, no other side's orders) | ui + backend |
 | **H3** | the `HatArbiter`: one hat, disarm on switch, Esc one level, the hat in the indicator | ui |
-| **H4** | one camera owner with per-hat views (FPS, Follow, director, free) | ui |
+| **H4** | one camera owner with per-hat views (FPS, Follow, director, free) — ✅ H4b the director shares the camera (§3.4); ⏸ H4a no snap-back after possession, held for the user | ui |
 | **H5** | the Instructor seat's windows on the fused server and CGF (rules, game master, End) — SR-104 Z7 | ui |
 | **H6** | the Side controller seat; the Observer seat's camera | ui |
 | **H7** | the HTTP session seat and hat (`/session/seat`, `/session/hat`); `/orders/side-lock` folded in | backend + ui |
@@ -315,6 +315,42 @@ sequenceDiagram
 | **RTS sticky** (R-4163, Input §6b) | Esc no longer leaves the RTS tool — it drops a half-done right-press; only *View ▸ RTS command mode* leaves. Possessing stands it down; release returns to it |
 | **the indicator** | one line beside the mode glyph: *Instructor · Command* (the seat · the hat), composed ONCE with the toolbar time control |
 | ⏭ not here | the hat menu in the indicator (the mockup's clicks) · central Esc (K3) · the hat as the keymap scope (K2) · H4 the camera |
+
+### 3.4 ⭐ H4 — one camera owner *(ui, `2026-11-07`)*
+
+INVENTORY (grep `Camera3D.Driver =`, 4 drivers): `PossessionStation` (FPS + the fall screen) · `FollowCameraDriver` (`MapViewModeLayer`) · `FilmDirector`
+(`FilmCaptureLayer.Direct`) — and the free camera (no driver). ⭐ The camera already has ONE driver slot (`MapCamera3D.Driver`, replacing one detaches
+the other) — so "one owner" is structural today; what §2.5 asks for is HOW control passes between them.
+
+```mermaid
+sequenceDiagram
+  participant U as the user
+  participant D as FilmDirector (the driver)
+  participant S as FilmStudio
+  participant C as MapCamera3D
+  participant R as DirectorRunner
+  U->>D: wheel / right-look / middle-pan (HandleInput)
+  D->>S: UserTakesCamera() (refused while a capture films)
+  D->>C: Driver = null — the free camera flies on from the shot
+  R->>S: NextCut() when the key on screen changes
+  S-->>R: UserHoldsCamera false at the next cut (Director camera on)
+  Note over C: FilmCaptureLayer.Direct puts the director back on the camera
+```
+*What it shows that prose hid: the director stays the camera's SOURCE every frame — the user's gesture only suspends it until the next cut, so no second
+camera state exists; the cut is the runner's own key change.*
+
+| piece | as built — **H4b, the director shares the camera** (🔒 user, `2026-11-06`) |
+|---|---|
+| the grab | `FilmDirector.HandleInput`: the wheel, the right button (look), the middle button (pan) ⇒ `FilmStudio.UserTakesCamera()` and the driver lets go. ⛔ A left click stays the map's (select) |
+| the retake | `DirectorRunner` calls `FilmStudio.NextCut()` when the program's key changes; `UserHoldsCamera` turns false at the next cut while *Director camera* is on |
+| the toggle | *Director camera* (Director window, beside *Pilot view*): off ⇒ never taken back for the rest of the playback; the window says *"You have the camera — the director retakes it at its next shot"* |
+| a capture | `CameraLocked` (set with a capture, cleared by `Release`) — a captured film is always the program |
+
+⏸ **H4a — HELD for the user (R-4156):** §2.5 also says *"after releasing a unit, from the unit's eye … ⛔ no snap-back by default"* with *Back to my view*.
+⚠ That reverses possession's measured behaviour, pinned by ~8 rails (`PossessionStationTests` — *"back to the 2-D map it was in"*, *"the map as he had it"*),
+and the user's own words in §2.5 are about the DIRECTOR. ⇒ **Question:** should releasing a unit keep the view at the unit's eye (+ a *Back to my view* key),
+or keep today's return to the map you had? ⭐ Lean: **keep today's return** for possession (a trainee expects to come back to the map) and offer *Back to my
+view* only after a director take — the case the user named. Rails: `FilmTests.H4_AGesture_TakesTheCameraFromTheDirector_WhichRetakesItAtItsNextCut`.
 
 ## 4. Questions — ✅ all seven leans APPROVED *(🔒 user, `2026-11-06`: "Q1–Q7 of seats and hats approved")*
 
