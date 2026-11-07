@@ -100,7 +100,8 @@ sequenceDiagram
 |---|---|
 | *End exercise* | `InstructorEndControl.ShowsARecording` (the WORLD's `ReplayState.IsActive` — so the Replay Browser AND an AAR in the editor agree, by construction); `Draw` draws nothing then — ⛔ not greyed. Both windows that hold the control (Rules toolbar, Mission summary) inherit it |
 | Mission summary | on a recording the toolbar reads `MissionSummaryWindow.RecordingPosition(extent, now)` from the window's own timeline cursor — *"at 0:39 of 1:06"* (h:mm:ss past an hour) — instead of the phase |
-| ⏭ ① the main-bar seek bar · ② the Replay Timeline's parts routed | next |
+| ① the seek bar | `ReplayTimelinePanel.DrawTransport` draws it after the transport (the ONE drawer, CE-4261): the current time · a bar filling the free width (drag = scrub, click = jump; ⛔ no ticks) · the end time; hover = *"0:50.1 · frame 2 640"*. Times on the ACTIVE axis: `SimAtWall` (the host's `ReplayTimeMap.SimAt`) while the axis is S, else the recording's wall clock; labels cached per frame / axis (0 B steady). Rails `ReplayBrowserSubsystemTests.RBUX1_*` (a real frame under xvfb: the bar fills the main bar, the playhead at the frame; red-proved) |
+| ⏭ ② the Replay Timeline window retired, its parts routed (tooltip, *File ▸ Recording info*, Frame Diff) | next |
 
 Rails: `RunnableRulesTests.QB4_*`.
 

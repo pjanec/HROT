@@ -170,7 +170,104 @@ public sealed class ReplayTimelinePanel
     /// ⭐ CE-4261 — the replay TRANSPORT bar (history back / forward · rewind · play-pause · rate · axis · step back / forward, with the hold-to-scrub), drawn by the main toolbar's replay entry
     /// (<c>ReplayBrowserSubsystem</c> registers it) — the ONE drawer: the timeline panel no longer draws a copy. <paramref name="iconSize"/> ≤ 0 ⇒ the frame height (the editor's time control's size).
     /// </summary>
-    public void DrawTransport(float iconSize = 0f) => DrawRow1_Transport(iconSize);
+    public void DrawTransport(float iconSize = 0f)
+    {
+        DrawRow1_Transport(iconSize);
+        DrawSeekBar();   // ⭐ Replay Browser UX ① (R-4153) — the seek bar fills the main bar after the transport
+    }
+
+    /// <summary>⭐ Replay Browser UX ① — the recording's sim seconds at a wall tick (the host's time map, <c>ReplayTimeMap.SimAt</c>); used while
+    /// <see cref="AxisIsSim"/> says the sim axis is active and <see cref="HasSimAxis"/> allows it. Null ⇒ the wall axis only.</summary>
+    public Func<long, double>? SimAtWall { get; set; }
+
+    /// <summary>The seek bar's least width; below it the bar is not drawn (a narrow window keeps the transport).</summary>
+    public const float SeekBarMinWidth = 80f;
+
+    private int _seekLabelFrame = -1, _seekEndFrames = -1, _seekHoverFrame = -1;
+    private bool _seekLabelsSim;
+    private string _seekNow = "", _seekEnd = "", _seekHover = "";
+
+    /// <summary>The seconds of <paramref name="frame"/> on the active axis.</summary>
+    public double SecondsOf(int frame)
+    {
+        var pb = ActiveContext?.Playback;
+        if (pb == null || pb.TotalFrames <= 0) return 0d;
+        frame = Math.Clamp(frame, 0, pb.TotalFrames - 1);
+        long wall = pb.GetFrameMetadata(frame).WallClockTicks, first = pb.GetFrameMetadata(0).WallClockTicks;
+        if (SimAxisActive) return SimAtWall!(wall) - SimAtWall!(first);
+        return (wall - first) / (double)TimeSpan.TicksPerSecond;
+    }
+
+    /// <summary>⭐ A probe for the frame rails (R-4138: layout is measured): the seek bar's screen rect and the playhead's fraction as last drawn; null when not drawn.</summary>
+    public (System.Numerics.Vector2 Min, System.Numerics.Vector2 Max, float Fraction, string Now, string End)? LastSeekBar { get; private set; }
+
+    private bool SimAxisActive => SimAtWall != null && (AxisIsSim?.Invoke() ?? false) && (HasSimAxis?.Invoke() ?? true);
+
+    /// <summary>"0:39.9" / "1:02:05.3" — the seek bar's time.</summary>
+    public static string SeekTime(double seconds)
+    {
+        var t = TimeSpan.FromSeconds(Math.Max(0d, seconds));
+        int tenths = t.Milliseconds / 100;
+        return t.TotalHours >= 1 ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}.{tenths}" : $"{(int)t.TotalMinutes}:{t.Seconds:00}.{tenths}";
+    }
+
+    /// <summary>The frame at <paramref name="fraction"/> (0..1) of the bar.</summary>
+    public static int FrameAt(float fraction, int maxFrame) => (int)Math.Round(Math.Clamp(fraction, 0f, 1f) * Math.Max(0, maxFrame));
+
+    /// <summary>⭐ R-4153 / R-4155 — the main bar's seek bar: the current time, the bar (drag = scrub, click = jump, hover = "0:50.1 · frame 2 640"), the end time.
+    /// ⛔ No ticks (the events are in the Event Timeline). Labels are cached per frame, so a steady frame allocates nothing.</summary>
+    private void DrawSeekBar()
+    {
+        LastSeekBar = null;
+        var pb = ActiveContext?.Playback;
+        if (pb == null || pb.TotalFrames <= 0) return;
+        int max = pb.TotalFrames - 1;
+        int current = Math.Clamp(ActiveContext!.CurrentFrame, 0, max);
+        bool sim = SimAxisActive;
+        if (sim != _seekLabelsSim) { _seekLabelsSim = sim; _seekLabelFrame = _seekEndFrames = _seekHoverFrame = -1; }   // the axis toggled: relabel
+        if (current != _seekLabelFrame) { _seekLabelFrame = current; _seekNow = SeekTime(SecondsOf(current)); }
+        if (pb.TotalFrames != _seekEndFrames) { _seekEndFrames = pb.TotalFrames; _seekEnd = SeekTime(SecondsOf(max)); }
+
+        var style = Gui.GetStyle();
+        float endW = Gui.CalcTextSize(_seekEnd).X;
+        Gui.SameLine(0f, style.ItemSpacing.X * 2f);
+        float avail = Gui.GetContentRegionAvail().X;
+        float nowW = Gui.CalcTextSize(_seekNow).X;
+        float barW = avail - nowW - endW - style.ItemSpacing.X * 4f;
+        if (barW < SeekBarMinWidth) return;
+
+        Gui.AlignTextToFramePadding();
+        Gui.TextUnformatted(_seekNow);
+        Gui.SameLine();
+        float h = Gui.GetFrameHeight();
+        var p0 = Gui.GetCursorScreenPos();
+        Gui.InvisibleButton("##rb_seekbar", new System.Numerics.Vector2(barW, h));
+        bool hovered = Gui.IsItemHovered(), active = Gui.IsItemActive();
+        float fx = Gui.GetIO().MousePos.X;
+        if (active)
+        {
+            int target = FrameAt((fx - p0.X) / barW, max);
+            if (target != current) { IsPlaying = false; SeekToFrame(target); current = target; }
+        }
+
+        var dl = Gui.GetWindowDrawList();
+        float cy = p0.Y + h * 0.5f, track = 4f, knob = 6f;
+        float px = p0.X + (max > 0 ? (float)current / max : 0f) * barW;
+        dl.AddRectFilled(new System.Numerics.Vector2(p0.X, cy - track * 0.5f), new System.Numerics.Vector2(p0.X + barW, cy + track * 0.5f), Gui.GetColorU32(ImGuiCol.FrameBg), track * 0.5f);
+        dl.AddRectFilled(new System.Numerics.Vector2(p0.X, cy - track * 0.5f), new System.Numerics.Vector2(px, cy + track * 0.5f), Gui.GetColorU32(ImGuiCol.SliderGrabActive), track * 0.5f);
+        dl.AddCircleFilled(new System.Numerics.Vector2(px, cy), hovered || active ? knob + 1f : knob, Gui.GetColorU32(ImGuiCol.Text));
+        LastSeekBar = (p0, new System.Numerics.Vector2(p0.X + barW, p0.Y + h), max > 0 ? (float)current / max : 0f, _seekNow, _seekEnd);
+
+        if (hovered && !active)
+        {
+            int at = FrameAt((fx - p0.X) / barW, max);
+            if (at != _seekHoverFrame) { _seekHoverFrame = at; _seekHover = $"{SeekTime(SecondsOf(at))} · frame {at:N0}".Replace(',', ' '); }
+            Gui.SetTooltip(_seekHover);
+        }
+        Gui.SameLine();
+        Gui.AlignTextToFramePadding();
+        Gui.TextDisabled(_seekEnd);
+    }
 
     /// <summary>⭐ CE-4261 — File ▸ Load .fdp…: the same load the button ran (the file dialog, then <see cref="OnLoadGroup"/>).</summary>
     public void RequestLoadFdp() => _ = LoadFdpAsync();

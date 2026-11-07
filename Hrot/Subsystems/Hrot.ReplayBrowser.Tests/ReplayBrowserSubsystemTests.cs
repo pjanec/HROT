@@ -1490,6 +1490,87 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.Equal(1, dialog.OpenMultipleCalls);   // the same dialog the Load button opened
     }
 
+    /// <summary>⭐ Replay Browser UX ① (R-4153) — the seek bar's pure parts: the time it prints, the frame a place on it means, the sim axis through the host's time map.</summary>
+    [Fact]
+    public void RBUX1_TheSeekBar_TimeFrameAndAxis()
+    {
+        Assert.Equal("0:39.9", Fdp.Presentation.Panels.ReplayBrowser.ReplayTimelinePanel.SeekTime(39.95));
+        Assert.Equal("1:06.8", Fdp.Presentation.Panels.ReplayBrowser.ReplayTimelinePanel.SeekTime(66.8));
+        Assert.Equal("1:02:05.3", Fdp.Presentation.Panels.ReplayBrowser.ReplayTimelinePanel.SeekTime(3725.3));
+        Assert.Equal(50, Fdp.Presentation.Panels.ReplayBrowser.ReplayTimelinePanel.FrameAt(0.5f, 100));
+        Assert.Equal(0, Fdp.Presentation.Panels.ReplayBrowser.ReplayTimelinePanel.FrameAt(-0.2f, 100));
+        Assert.Equal(100, Fdp.Presentation.Panels.ReplayBrowser.ReplayTimelinePanel.FrameAt(1.7f, 100));
+
+        var (manager, panel) = SeekBarRecording(frames: 61);
+        using var _m = manager;
+        Assert.Equal(60d, panel.SecondsOf(60), 3);                                   // the wall axis: 1 s a frame, from the first
+        bool sim = true;
+        panel.AxisIsSim = () => sim;
+        panel.SimAtWall = wall => wall / (double)TimeSpan.TicksPerSecond / 2d;     // a host time map: sim runs at half the wall rate
+        Assert.Equal(30d, panel.SecondsOf(60), 3);
+        sim = false;
+        Assert.Equal(60d, panel.SecondsOf(60), 3);
+    }
+
+    /// <summary>A recording of <paramref name="frames"/> frames one wall second apart, loaded, and a timeline panel on it (node 1).</summary>
+    private (Fdp.Toolkit.ReplayBrowser.Federation.FederatedReplayManager, Fdp.Presentation.Panels.ReplayBrowser.ReplayTimelinePanel) SeekBarRecording(int frames)
+    {
+        string root = Path.Combine(_tempDir, "seekbar_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        string path = Path.Combine(root, "node_1.fdp");
+        using (var repo = new EntityRepository())
+        {
+            using var rec = new AsyncRecorder(path, new RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)(Guid.NewGuid()), NodeId = (Fdp.Core.NodeId)(1) });
+            for (int f = 0; f < frames; f++)
+            {
+                long t = TimeSpan.FromSeconds(1 + f).Ticks;
+                if (f == 0) rec.CaptureKeyframe(repo, t, blocking: true, eventBus: repo.Bus);
+                else rec.CaptureFrame(repo, (uint)(f - 1), t, blocking: true, eventBus: repo.Bus);
+                repo.Bus.SwapBuffers();
+            }
+        }
+        var manager = Fdp.Toolkit.ReplayBrowser.Federation.FederatedReplayManager.LoadGroup(new[] { path });
+        var panel = new Fdp.Presentation.Panels.ReplayBrowser.ReplayTimelinePanel(
+            manager, () => 1, new StubExportService(), new StubFileDialogService(),
+            new Fdp.Toolkit.ReplayBrowser.PlaybackHistoryTracker(), new InspectorState());
+        return (manager, panel);
+    }
+
+    /// <summary>
+    /// ⭐ Replay Browser UX ① (R-4153, R-4138: layout MEASURED) — the main bar in a REAL frame (<c>xvfb-run -a</c>): the seek bar follows the transport and FILLS the free width
+    /// (the end time at the right edge), the playhead at the shown frame's place, the times printed either side. Screenshot: <c>HROT_FRAME_SCREENSHOTS</c>.
+    /// ✅ Red-proof: DrawTransport without DrawSeekBar ⇒ no bar ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void RBUX1_TheSeekBar_FillsTheMainBar_AtTheShownFrame()
+    {
+        Skip.IfNot(Hrot.Editor.UiFrameRail.UiFrameHarness.IsAvailable(), Hrot.Editor.UiFrameRail.UiFrameHarness.UnavailableReason);
+        var (manager, panel) = SeekBarRecording(frames: 61);
+        using var _m = manager;
+        manager.Contexts[1].SeekToFrame(40);
+        using var frame = Hrot.Editor.UiFrameRail.UiFrameHarness.Begin(1240, 120);
+        frame.StepN(3, () =>
+        {
+            if (ImGuiNET.ImGui.BeginMainMenuBar())
+            {
+                ImGuiNET.ImGui.TextUnformatted("File  View");
+                ImGuiNET.ImGui.SameLine();
+                panel.DrawTransport();
+                ImGuiNET.ImGui.EndMainMenuBar();
+            }
+        });
+        var bar = Assert.IsType<(System.Numerics.Vector2 Min, System.Numerics.Vector2 Max, float Fraction, string Now, string End)>(panel.LastSeekBar);
+        float width = bar.Max.X - bar.Min.X;
+        Assert.True(width > 1240 * 0.4f, $"the bar fills the free width: {width} px of 1240");
+        Assert.True(bar.Max.X > 1240 - 120, $"the bar runs to near the right edge (only the end time after it): ends at {bar.Max.X}");
+        Assert.Equal(40f / 60f, bar.Fraction, 3);
+        Assert.Equal("0:40.0", bar.Now);
+        Assert.Equal("1:00.0", bar.End);
+        string dir = Environment.GetEnvironmentVariable("HROT_FRAME_SCREENSHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-frames");
+        Directory.CreateDirectory(dir);
+        frame.Screenshot(Path.Combine(dir, "rbux1-seek-bar.png"));
+    }
+
     /// <summary>
     /// ⭐ CE-4261 — the toolbar's transport and the export window, drawn in a REAL ImGui frame (under <c>xvfb-run -a</c>; a skip is not a pass): both put pixels on the frame, and the timeline panel itself no longer
     /// draws the transport row (<see cref="Fdp.Presentation.Panels.ReplayBrowser.ReplayTimelinePanel.DrawTransport"/> is the one drawer). Screenshots: <c>HROT_FRAME_SCREENSHOTS</c>.
