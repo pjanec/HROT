@@ -292,7 +292,7 @@ sequenceDiagram
   S->>E: Command(unit, send(id), "Order X to Y")
   E->>S: send(id) → AssignTacticalIntentEvent{RequestId}
   S->>W: brain elsewhere: TacticalIntentRequest{…, RequestId}
-  W->>R: AssignTacticalIntentEvent{RequestId} (every node; only the owner passes the authority gate)
+  W->>R: AssignTacticalIntentEvent{RequestId} (every node, only the owner passes the authority gate)
   alt no behaviour of this unit's class fulfils the order
     R->>L: Refused (OrderResolver's detail)
   else resolved
