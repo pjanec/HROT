@@ -63,18 +63,24 @@ namespace Fdp.Toolkit.Scenario
             if (position is { } p) _positions[entity.NetworkId] = p;
         }
 
+        /// <summary>⭐ A5 / copy-paste (📄 docs/UX/DESIGN_Entity_Copy_Paste.md §1) — where a reference this scope does not hold resolves: the world OUTSIDE the
+        /// slice (a pasted squad's commander that was not copied, a macro child's reference to the host scenario). Null = this scope only (a whole-scenario load).</summary>
+        public IRefScope? Fallback { get; set; }
+
         public bool TryResolve(in RefSpec spec, out EntityRef entity)
         {
             entity = EntityRef.None;
-            return spec.Form switch
+            bool found = spec.Form switch
             {
                 RefForm.Key   => TryKey(spec.KeyText, out entity),
                 RefForm.Exact => _byGuid.TryGetValue(spec.Exact, out entity),
                 _             => false,
             };
+            return found || (Fallback != null && Fallback.TryResolve(spec, out entity));
         }
 
-        public bool TryPositionOf(EntityRef entity, out WorldPoint position) => _positions.TryGetValue(entity.NetworkId, out position);
+        public bool TryPositionOf(EntityRef entity, out WorldPoint position)
+            => _positions.TryGetValue(entity.NetworkId, out position) || (Fallback != null && Fallback.TryPositionOf(entity, out position));
 
         private bool TryKey(string key, out EntityRef entity)
         {

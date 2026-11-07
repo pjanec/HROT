@@ -68,5 +68,25 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <c>MissionControlExecutionSystem</c>: a checkpoint restored into a fresh system jumped every request to phase 0.
         /// 📄 docs/DESIGN_System_State_Inventory.md §6 #7.</summary>
         public IReadOnlyList<Guid> TaskOrder { get; init; } = System.Array.Empty<Guid>();
+
+        /// <summary>⭐ A5 (📄 docs/UX/DESIGN_Entity_Copy_Paste.md §2.4) — the same plan as ANOTHER unit's own: a NEW record (CE-4046, never mutated in place)
+        /// whose every task has a new id, the active task and <see cref="TaskOrder"/> mapped to them. Triggers name no task id, so they copy as they are.</summary>
+        public ActiveMissionPlan WithNewTaskIds()
+        {
+            var map = new System.Collections.Generic.Dictionary<Guid, Guid>(Plan.Tasks.Count);
+            var plan = new DomainMissionPlan();
+            foreach (var t in Plan.Tasks)
+            {
+                var id = Guid.NewGuid();
+                if (t.TaskId != Guid.Empty) map[t.TaskId] = id;
+                var nt = new DomainMissionTask { TaskId = id, ExecutingEngine = t.ExecutingEngine, BehaviorName = t.BehaviorName, BehaviorParams = t.BehaviorParams };
+                foreach (var trig in t.Triggers) nt.Triggers.Add(new DomainMissionTrigger { Type = trig.Type, Params = trig.Params });
+                plan.Tasks.Add(nt);
+            }
+            plan.ActiveTaskId = map.TryGetValue(Plan.ActiveTaskId, out var active) ? active : Guid.Empty;
+            var order = new Guid[TaskOrder.Count];
+            for (int i = 0; i < order.Length; i++) order[i] = map.TryGetValue(TaskOrder[i], out var o) ? o : TaskOrder[i];
+            return new ActiveMissionPlan { Plan = plan, TaskOrder = order };
+        }
     }
 }

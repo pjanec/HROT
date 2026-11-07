@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-07
-build-state: READY-TO-BUILD
+build-state: BUILDING
 current-answer: §2 (the one path) and §3 (placement)
 stale-below: nothing
 known-rot: none
@@ -44,7 +44,7 @@ we can drag, which rotates."* · *"Cool if we can refactor to reuse the same cod
 
 ⚠ **The gap, measured:** the extractor's reference scope holds ONLY the slice's entities — a reference to one OUTSIDE (a copied squad's
 commander) resolves to nothing. The expander resolves outside references for its PARAMETERS only (`ScenarioParams.Prepare(…, outside)`).
-⇒ the shared step gains an OUTSIDE scope that the extractor falls back to — and macros gain it too.
+⇒ the shared step gains an OUTSIDE scope that the extractor falls back to. ⛔ Macros do NOT pass one (as built): a macro reaches the world outside ONLY through its args (SR-58), so a file reference to it stays refused — the scope is an OPTION of the shared step, Paste passes the live world (`LiveRefScope`).
 
 ## 2. The one path
 
@@ -157,6 +157,7 @@ graph TD
 
 | | |
 |---|---|
+| ✅ as built `2026-11-07` | **C1** `SliceExpander` (`Hrot.Common/Macros`) carries the extract + relocate + derived GUID + request build; `MacroExpander.Flatten` calls it (its origin, parameter binding and nested flattening as the per-child hook); `ScenarioRefScope.Fallback` + `ExtractionPasses.Outside`. **C2** `EntityClipboard` (`Hrot.Common/Macros` — it needs nothing above `Hrot.Common`) over `MacroExpander.Slices` with `MacroExpansionSystem.IdAllocator`; a command link is carried as the load's own `InitialUnitSubordinateIntent` (an `EntityLink` by GUID), so a copied subordinate's commander lands on the copied HQ's PRE-ALLOCATED id, and a subordinate copied alone keeps the ORIGINAL commander (measured: 2 vs 9001); `ActiveMissionPlan.WithNewTaskIds()` (a new record, CE-4046). Rails: `EntityClipboardTests` 4/4 + the 38 macro rails unchanged |
 | **C1** | `SliceExpander` extracted from `MacroExpander.Flatten`; `ExtractionPasses.Outside`; the macro rails stay green (`MacroExpansion*`, `MacroInsertion*`) |
 | **C2** | `EntityClipboard` Copy / Paste over it; rails: one unit, a commander + subordinates (inside refs to the copies), a subordinate alone (outside ref kept), positions relocated + turned, fresh GUIDs, new task ids, not transient |
 | **C3** | actions Copy / Paste / Duplicate (Edit + Live) + the paste tool (PlacementSession + ghosts) + *Paste here* |

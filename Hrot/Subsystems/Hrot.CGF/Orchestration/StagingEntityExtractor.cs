@@ -303,6 +303,7 @@ namespace Hrot.CGF.Orchestration
                 //   RefKey and EntityGuid → the id it will have, and its position (a point written as a reference takes it). Built
                 //   after Pass 1 so the answers are the NEW ids; a duplicate key throws here, before anything is created.
                 var refScope = BuildRefScope(stagingRepo, maxIdx, newIdByIndex);
+                refScope.Fallback = passes?.Outside;   // ⭐ A5 — a slice (a macro, a paste) resolves what it does not hold in the world outside
 
                 // ── Pass 2: Classification and extraction ──────────────────────────
                 // Root entities (no PartMetadata) are extracted into requests.

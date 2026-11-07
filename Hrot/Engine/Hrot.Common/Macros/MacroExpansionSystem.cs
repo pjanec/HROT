@@ -63,6 +63,9 @@ namespace Hrot.Common.Macros
         /// <summary>⭐ CE-4244 (MA-10) — THE expander this node expands with: a PREVIEW asks this same instance (⛔ no second expander), so its ghosts are exactly what an insert will create.</summary>
         public MacroExpander? Expander => _expander;
 
+        /// <summary>⭐ A5 — the network ids this node's expansions take (Copy / Paste expands through the same expander with the same ids).</summary>
+        public INetworkIdAllocator IdAllocator => _idAllocator;
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // a replay: the recording owns the world
