@@ -161,6 +161,39 @@ namespace Hrot.SimHost.Tests
             var old = _repo.CreateEntity();
             new PassengerBufferTranslator().Inject(_repo, old, older, resolver);
             Assert.Empty(((ISimulationView)_repo).GetManagedComponentRO<InitialPassengersIntent>(old)!.Seats);
+            Assert.Empty(((ISimulationView)_repo).GetManagedComponentRO<InitialPassengersIntent>(old)!.Modes);
+        }
+
+        /// <summary>
+        /// ⭐ Initial state S1 (docs/UX/DESIGN_Initial_State.md §2.2, R-4137) — a casualty on a STRETCHER survives a save and load with its carry
+        /// mode and its second man: the save writes each seat's mode and the assistant (a link), the load's intent carries them. A seated
+        /// passenger keeps Seated. ✅ Red-proof: Extract without "Modes" ⇒ the intent carries no modes ⇒ red.
+        /// </summary>
+        [Fact]
+        public void S1_AStretcherCasualty_AndItsSecondMan_SurviveASaveAndLoad()
+        {
+            var casualty = _repo.CreateEntity();
+            var rear = _repo.CreateEntity();
+            var carrier = _repo.CreateEntity();
+            var buffer = new PassengerBuffer();
+            buffer.Passengers[0] = casualty;
+            buffer.SetMode(0, CarryMode.Stretcher);
+            buffer.Count = 1;
+            buffer.Assistant = rear;
+            _repo.SetComponent(carrier, buffer);
+            var resolver = new StubResolver();
+            resolver.Register(casualty, "0a1f1260-379b-5ad2-b3ea-2ee258695232");
+            resolver.Register(rear, "1cbfa0d1-2250-5f93-b4e0-ee1ee846183f");
+
+            var dom = new PassengerBufferTranslator().Extract(_repo, carrier, resolver);
+            var loaded = _repo.CreateEntity();
+            new PassengerBufferTranslator().Inject(_repo, loaded, dom, resolver);
+
+            var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialPassengersIntent>(loaded)!;
+            Assert.Equal(new[] { 0 }, intent.Seats);
+            Assert.Equal(new[] { (byte)CarryMode.Stretcher }, intent.Modes);
+            Assert.False(intent.Assistant.IsNone);
+            Assert.Equal(FileLinks.FromGuidText("1cbfa0d1-2250-5f93-b4e0-ee1ee846183f"), intent.Assistant);
         }
     }
 }

@@ -56,6 +56,31 @@ Queries: `search_graph` `Scenario.*(Save|Serializer|Resident)` (17), `.*(Selecti
 | (B) per-world logs | `EditOutcomeLog`, `RuleRequestIds`, `ShotLog`, `KillFeed` … (run-time logs) | 33 CWTs | untouched — run-time only, empty in Edit mode; `RuleRequestIds` holds entity handles ⇒ cleared on a restore |
 | **(C) pure UI state** | selection (`SelectionStore`, a transient singleton), gizmo pins (`UnitDebugSettings`), the rubber band, RTS mode, the map canvas view, the camera, the window layout, the Details tab, panel filters, picker recents, the active tool / hat | `SelectionStore.cs:16-18`, `UnitDebugSettings.cs:21-22`, `MapUiStates.cs:16-18`, `AssetRecents.cs` | ⭐ **never undone** — the user's ruling: *"selection is … a UI state having nothing to do with simulation and recording"* (`UX_Feature_Selection.md:1902-1905`); after an undo, a selected entity that no longer exists drops out of the selection |
 
+### 1.2 ⭐ MEASURED — U1, one undo capture *(backend, `2026-11-07`, B-13; Debug build, the real headless editor)*
+
+`WorldKeyframes.Capture(world, CaptureOptions.Undo)` — the NEW `KeyframeTypes.Authored` mask (`ComponentTypeRegistry.IsSaveable`: every type not
+`NoScenario`, the saved `NoPreview` ones included; no singletons). Rail `TheWorldChangeCheckOnTheEditorTests.U1_OneUndoCapture_SizeAndTime`.
+
+| scenario | entities in the editor | one undo capture | capture | apply | the recorder's mask | a 256 MB ring holds |
+|---|---|---|---|---|---|---|
+| `showcase-crossfire` (the largest showcase) | 157 | **2.3 MiB** | **6 ms** | 15 ms | 6.0 MiB | 100 steps (the cap) |
+| `perf-stress` (1128 authored, the stress scene) | 5 604 | **9.6 MiB** | **22 ms** | 54 ms | 56 MiB | 26 steps |
+
+⇒ ⭐ the budget (Q5: 256 MB, depth ≤ 100) HOLDS for every showcase; only the stress scene trims the depth. ⚠ **Correction to §2.2's "memory" row:**
+a `WorldKeyframes` capture serialises the WHOLE authored world, not "only the dirty chunks" (that was `SyncFrom`'s behaviour, which §2.3 rejected).
+At these sizes that is affordable; a dirty-chunk delta is an optimisation to take only if a scene ever needs more depth. The 6–22 ms capture is
+paid once per user action (the step's start), never per frame.
+
+### 1.3 ⭐ AS-BUILT — the ring and U3 *(backend, `2026-11-07`, B-13)*
+
+| piece | as built |
+|---|---|
+| `WorldSnapshotRing` (`Fdp.Toolkits/Replay/WorldSnapshotRing.cs`) | `Capture(world)` → an opaque slot id: one `CaptureOptions.Undo` keyframe + a `PreviewStateBracket` over the SAME `IPreviewRewindable` participants the dry run uses (passed in). `Restore(world, slot)` = the dry run's exit verbatim (`WorldKeyframes.Apply` · the bracket's restore · `AfterRestore.Run`); `false` for an evicted slot (the history greys that step). `DropFrom(slot)` drops the redo branch; `Clear()` on open / create / Live. Budget 256 MB, depth 100: the oldest goes first, the newest is always kept |
+| U3 — which caches already cope | ✅ version-compared (`PartIndex`, `RuleTree`) and epoch-keyed caches: covered by construction (a restore advances the version and moves `WorldEpoch`). ⚠ two were not: **`LiveRefScope`** (the editor's 250 ms throttle — a restore could leave links stale for up to 250 ms with an unchanged entity count) now rebuilds at once on `WorldEpoch.Moved`; **`RuleRequestIds`** (entity HANDLES, never version-checked) forgets its ids when the epoch moves. ⛔ No new listener hook was needed: `WorldEpoch` already is it |
+| ⏭ B-14 | `EditHistory`'s world step holds a slot; Ctrl+Z / Y, the dirty flag and *Edit ▸ History* are the ui side |
+
+Rails: `WorldSnapshotRingTests` (restore with participants, eviction, redo branch, the two U3 caches).
+
 ## 2. The model
 
 ### 2.1 Classes
@@ -115,7 +140,7 @@ exactly what it was, entity ids included, so selection and links stay valid.*
 |---|---|
 | **a step = one user action** | the edit framework opens it when an action begins and closes it when it ends: a drag is one step, a form Apply is one, a multi-select change is one, a composition insert is one; typing in one field coalesces (the same field within ~1 s) |
 | **document edits** | the Parameters window, the rule form, the director's takes stay closures (`DocumentStep`) — they are not in the world. The take editor moves OFF `GizmoUndoStack` onto `EditHistory` (CE-4219 ②'s "the one consumer that could move") |
-| **memory** | a ring bounded by a budget (lean: 256 MB, depth up to 100); each capture copies only the dirty chunks into a slot; ⚠ to MEASURE in U1 — the size of one capture on the largest showcase scenario |
+| **memory** | a ring bounded by a budget (256 MB, depth up to 100); each capture is one authored-mask keyframe — ⭐ MEASURED in §1.2: 2.3 MiB / 6 ms on the largest showcase (⛔ SUPERSEDED: "copies only the dirty chunks") |
 | **derived caches** | a restore notifies `RestoreListeners` (spatial index, navigation, terrain attachments, the rules reader's index …) — ⚠ to measure in U1 which caches already cope (the breakpoint rewind is the precedent) |
 | **lifetime** | the history survives Preview (Stop returns to the authored state — checked: the world equals the last state); cleared when a scenario is opened / created or the station goes Live; **Save marks the clean point** (dirty = the history position ≠ the saved one) |
 | **outside the editor's network-less Edit mode** | no world steps; Undo greyed with the reason. ⛔ No inverse-operation machinery for the distributed case (the user: *"we do not need to force it"*) |

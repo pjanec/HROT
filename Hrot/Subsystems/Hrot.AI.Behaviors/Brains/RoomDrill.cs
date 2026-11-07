@@ -562,7 +562,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>A PROGRESS report from the squad commander, sent after the report delay.</summary>
         public static void Report(in SquadPlayContext ctx, Vector3 at, ProgressKind kind)
         {
-            float now = (float)ctx.Now;
+            SimInstant now = (SimInstant)ctx.Now;
             ReportQueue.Enqueue(ctx.World, ctx.Commander, new CommandReport
             {
                 Kind = ReportKind.Progress, Subtype = (byte)kind, At = at, ObservedAt = now,

@@ -65,7 +65,7 @@ public sealed class CommandPictureGizmo : IStatelessGizmo
         if (!draw.IsLayerActive(DebugTraceLayers.SquadCommand)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-3): a hidden layer costs no work
         var at = view.GetComponentRO<SimTransform>(entity).Position;
         ref readonly var pic = ref view.GetComponentRO<CommandPicture>(entity);
-        float now = CommandPictureOps.Now(view);
+        SimInstant now = CommandPictureOps.Now(view);
 
         for (int i = 0; i < pic.Elements.Count && i < CommandPicture.MaxElements; i++)
         {

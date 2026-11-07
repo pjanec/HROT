@@ -26,7 +26,7 @@ public sealed record BrainChoice(int DecisionId, long Winner, long PreviousWinne
 public sealed record BrainRegion(int Region, int StateIndex, string State);
 
 /// <summary>One journal entry, decoded.</summary>
-public sealed record BrainChange(uint Seq, float At, string Kind, string Text);
+public sealed record BrainChange(uint Seq, double At, string Kind, string Text);
 
 /// <summary>⭐ <c>CE-1327</c> — one contact in the unit's memory (<see cref="TargetMemory"/>): who (an identified unit, or a heard "something"),
 /// how it was sensed, where (sim metres), how far, how fresh, and how long since it was last perceived (null when the host has no tick

@@ -324,5 +324,85 @@ namespace Fdp.Toolkits.Tests.Replication
             Assert.Equal(typeof(float), ops[0].ReturnType);
             Assert.Equal("0.5", System.ComponentModel.TypeDescriptor.GetConverter(typeof(Angle)).ConvertToInvariantString(new Angle(0.5f)));
         }
+
+        // ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        // ⭐⭐ CE-4201 SV-1 (first slice) — a POINT in sim time is a <see cref="SimInstant"/> (a double: a float resolves ~4 ms at 10 h), a length a <see cref="SimDuration"/>.
+        // The scan: a bare FLOAT whose last camel-case word is At / Since / Until. (The double instants and the bare-float durations are the rest of SV-1.)
+        // ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+        /// <summary><c>Type.Member</c> → why it is NOT an instant in sim time. ⭐ A decision each; never a silencer.</summary>
+        internal static readonly Dictionary<string, string> NotAnInstant = new(StringComparer.Ordinal)
+        {
+            ["TerrainOpening.At"] = "metres ALONG a wall panel (its doc says so), not a time",
+            ["CivilianParams.AlarmAt"] = "a stress / attitude LEVEL (0..1) at which a civilian is alarmed — a threshold named *At, not a time",
+            ["CivilianParams.PanicAt"] = "the stress level at which a civilian panics — a threshold, not a time",
+            ["CivilianParams.RiotAt"] = "the attitude level at which a civilian riots — a threshold, not a time",
+            ["CivilianParamsJsonDto.AlarmAt"] = "the authored form of CivilianParams.AlarmAt (a level)",
+            ["CivilianParamsJsonDto.PanicAt"] = "the authored form of CivilianParams.PanicAt (a level)",
+            ["CivilianParamsJsonDto.RiotAt"] = "the authored form of CivilianParams.RiotAt (a level)",
+            ["Vars.StartedAt"] = "a variable of a GENERATED demo blueprint (SubordinateForEachDemo, authored with the blueprint scalar Flt); blueprint variables are the compiler's scalar set, not a component field",
+        };
+
+        private static bool LooksLikeAnInstant(string name)
+        {
+            var w = Words(name);
+            return w.Length > 0 && w[^1] is "At" or "Since" or "Until";
+        }
+
+        [Fact]
+        public void S0_EveryAtSinceUntilMember_IsNotABareFloat()
+        {
+            var types = AllPublicNonWire().ToList();
+            Assert.True(types.Count >= 1000, $"only {types.Count} public types found — the scan lost its assemblies");
+            var offences = new List<string>();
+            foreach (var t in types)
+                foreach (var (owner, member, type) in Members(t))
+                    if (Strip(type) == typeof(float) && LooksLikeAnInstant(member) && !NotAnInstant.ContainsKey(owner + "." + member))
+                        offences.Add($"{t.FullName}.{member} ({type.Name}) — a point in sim time is a SimInstant (a float resolves ~4 ms at 10 h); say what it is if it is not one");
+            var sb = new StringBuilder();
+            foreach (var o in offences.OrderBy(x => x, StringComparer.Ordinal)) sb.AppendLine(o);
+            Assert.True(offences.Count == 0, $"{offences.Count} members look like an instant but are a bare float:\n{sb}");
+        }
+
+        [Fact]
+        public void S0_EveryNotAnInstantEntry_StillNamesAMember()
+        {
+            var live = new HashSet<string>(AllPublicNonWire().SelectMany(t => Members(t).Select(m => m.Owner + "." + m.Member)));
+            var stale = NotAnInstant.Keys.Where(k => !live.Contains(k)).ToList();
+            Assert.True(stale.Count == 0, "NotAnInstant entries name no member any more: " + string.Join(", ", stale));
+        }
+
+        /// <summary>SimInstant — a double's memory and plain JSON number, implicit OUT, explicit IN; instant − instant = duration; instant ± duration = instant.
+        /// SimDuration — a float's memory and plain JSON number, implicit both ways.</summary>
+        [Fact]
+        public void SimInstant_AndSimDuration_AreTheirPrimitivesMemoryAndJson_WithTheRightArithmetic()
+        {
+            Assert.Equal(8, System.Runtime.CompilerServices.Unsafe.SizeOf<SimInstant>());
+            Assert.Equal(4, System.Runtime.CompilerServices.Unsafe.SizeOf<SimDuration>());
+            Assert.Equal(System.Text.Json.JsonSerializer.Serialize(36000.125d), System.Text.Json.JsonSerializer.Serialize(new SimInstant(36000.125d)));
+            Assert.Equal(System.Text.Json.JsonSerializer.Serialize(1.5f), System.Text.Json.JsonSerializer.Serialize(new SimDuration(1.5f)));
+            Assert.Equal(new SimInstant(36000.125d), System.Text.Json.JsonSerializer.Deserialize<SimInstant>("36000.125"));
+            Assert.Equal(new SimDuration(2.5f), System.Text.Json.JsonSerializer.Deserialize<SimDuration>("2.5"));
+            Assert.Equal("{\"T\":12.5,\"D\":3}", System.Text.Json.JsonSerializer.Serialize(new { T = new SimInstant(12.5), D = new SimDuration(3f) }));
+            double asDouble = new SimInstant(7.25); Assert.Equal(7.25, asDouble);             // implicit out
+            float asFloat = new SimDuration(0.5f); Assert.Equal(0.5f, asFloat);               // implicit out
+            SimDuration fromFloat = 2f; Assert.Equal(new SimDuration(2f), fromFloat);          // implicit in (a duration is just seconds)
+            Assert.Equal(new SimInstant(1d), (SimInstant)1d);                                  // explicit in
+            SimDuration d = new SimInstant(100.5) - new SimInstant(100.0);
+            Assert.Equal(new SimDuration(0.5f), d);
+            Assert.Equal(new SimInstant(103d), new SimInstant(100d) + new SimDuration(3f));
+            Assert.Equal(new SimInstant(97d), new SimInstant(100d) - new SimDuration(3f));
+            Assert.True(new SimInstant(2d) > new SimInstant(1d));
+            Assert.Equal("1 min 12 s", new SimDuration(72f).ToString());
+            Assert.Equal("t=12.5 s", new SimInstant(12.5).ToString());
+            // ⛔ instant + instant is an [Obsolete(error)] operator, not a quiet trip through double
+            var add = typeof(SimInstant).GetMethods(BindingFlags.Public | BindingFlags.Static)
+                .Single(m => m.Name == "op_Addition" && m.GetParameters()[1].ParameterType == typeof(SimInstant));
+            Assert.True(add.GetCustomAttribute<ObsoleteAttribute>()!.IsError);
+            // ⭐ no implicit conversion INTO an instant
+            Assert.DoesNotContain(typeof(SimInstant).GetMethods(BindingFlags.Public | BindingFlags.Static), m => m.Name == "op_Implicit" && m.ReturnType == typeof(SimInstant));
+            Assert.Equal("36000.5", System.ComponentModel.TypeDescriptor.GetConverter(typeof(SimInstant)).ConvertToInvariantString(new SimInstant(36000.5)));
+            Assert.Equal("0.5", System.ComponentModel.TypeDescriptor.GetConverter(typeof(SimDuration)).ConvertToInvariantString(new SimDuration(0.5f)));
+        }
     }
 }

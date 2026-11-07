@@ -85,7 +85,7 @@ namespace Hrot.Network.Translators
                 FromUnit = from, ToUnit = to, OriginNodeId = origin, Subject = subject, Building = n.Building, SentAt = n.SentAt,
                 Kind = (byte)r.Kind, Subtype = r.Subtype, AtX = r.At.X, AtY = r.At.Y, AtZ = r.At.Z, Radius = r.Radius, Count = r.Count,
                 Size = (byte)r.Size, Activity = (byte)r.Activity, Equipment = (byte)r.Equipment, Strength = (byte)r.Strength,
-                Ammo = (byte)r.Ammo, Wia = r.Wia, Kia = r.Kia, Phase = r.Phase, ObservedAt = r.ObservedAt, Seq = r.Seq, Synthetic = r.Synthetic,
+                Ammo = (byte)r.Ammo, Wia = r.Wia, Kia = r.Kia, Phase = r.Phase, ObservedAt = r.ObservedAt.Seconds, Seq = r.Seq, Synthetic = r.Synthetic,
             };
         }
 
@@ -95,7 +95,7 @@ namespace Hrot.Network.Translators
             Kind = (ReportKind)w.Kind, Subtype = w.Subtype, At = new Vector3(w.AtX, w.AtY, w.AtZ), Radius = w.Radius, Count = w.Count,
             Size = (ElementSize)w.Size, Activity = (ElementActivity)w.Activity, Equipment = (ElementEquipment)w.Equipment,
             Strength = (StatusColour)w.Strength, Ammo = (StatusColour)w.Ammo, Wia = w.Wia, Kia = w.Kia, Phase = w.Phase,
-            ObservedAt = w.ObservedAt, Seq = w.Seq, Synthetic = w.Synthetic,
+            ObservedAt = (Fdp.Core.SimInstant)w.ObservedAt, Seq = w.Seq, Synthetic = w.Synthetic,
         };
 
         /// <inheritdoc/>

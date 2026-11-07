@@ -92,6 +92,23 @@ public static class FormAttributes
         }
     }
 
+    // ── Weapon posture (Initial state S2) ────────────────────────────────────────────────────────────────
+
+    /// <summary>A token of enum <typeparamref name="T"/>: a whole number or its name; <c>false</c> for anything the enum does not define.</summary>
+    public static bool TryEnum<T>(in AttributeValue v, out T value) where T : struct, Enum
+    {
+        if (v.Kind == AttributeValueKind.CsString && !double.TryParse(v.StringValue, out _))
+            return Enum.TryParse(v.StringValue, ignoreCase: true, out value) && Enum.IsDefined(value);
+        double d = AsDouble(v);
+        value = (T)Enum.ToObject(typeof(T), (byte)Math.Clamp((int)d, 0, 255));
+        return d == Math.Floor(d) && d >= 0 && Enum.IsDefined(value);
+    }
+
+    /// <summary>The same token read from JSON.</summary>
+    public static bool TryEnum<T>(ref Utf8JsonReader r, out T value) where T : struct, Enum
+        => TryEnum(r.TokenType == JsonTokenType.Number ? AttributeValue.FromDouble(r.GetDouble()) : AttributeValue.FromString(r.GetString()), out value);
+
+
     // ── Stance ───────────────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>A stance token: a number (0 Standing · 1 Crouched · 2 Prone) or its name. <c>false</c> for anything that is not a <see cref="StanceId"/>.</summary>

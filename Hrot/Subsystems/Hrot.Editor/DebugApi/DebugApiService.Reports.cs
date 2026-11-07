@@ -25,7 +25,7 @@ namespace Hrot.Editor.DebugApi
         {
             if (!_entityMap.TryGetEntity(networkId, out var unit) || !_world.IsAlive(unit))
                 return new JsonObject { ["error"] = $"Entity {networkId} not found." };
-            float now = CommandPictureOps.Now(_world);
+            double now = CommandPictureOps.Now(_world);
             var node = new JsonObject { ["networkId"] = networkId, ["now"] = now };
             if (_world.IsComponentTypeRegistered<BehaviorState>() && _world.HasComponent<BehaviorState>(unit))
                 node["onBrainNode"] = _world.HasAuthority<BehaviorState>(unit);
@@ -41,7 +41,7 @@ namespace Hrot.Editor.DebugApi
                     {
                         ["from"] = e.FromNetId, ["size"] = e.Size.ToString(), ["count"] = e.Count, ["activity"] = e.Activity.ToString(),
                         ["equipment"] = e.Equipment.ToString(), ["at"] = V3(e.At), ["radius"] = e.Radius,
-                        ["observedAt"] = e.ObservedAt, ["ageSeconds"] = now - e.ObservedAt, ["receivedAt"] = e.ReceivedAt,
+                        ["observedAt"] = e.ObservedAt.Seconds, ["ageSeconds"] = now - e.ObservedAt, ["receivedAt"] = e.ReceivedAt.Seconds,
                         ["seq"] = e.Seq, ["synthetic"] = e.Synthetic != 0,
                     });
                 }
@@ -49,14 +49,14 @@ namespace Hrot.Editor.DebugApi
                 for (int i = 0; i < pic.Subordinates.Count; i++)
                 {
                     var r = pic.Subordinates.Items[i];
-                    float age = r.LastReportAt > 0f ? now - r.LastReportAt : float.PositiveInfinity;
+                    double age = r.LastReportAt > 0d ? now - r.LastReportAt : double.PositiveInfinity;
                     var row = new JsonObject
                     {
                         ["networkId"] = r.UnitNetId, ["progress"] = r.Progress.ToString(), ["strength"] = r.Strength.ToString(),
                         ["ammo"] = r.Ammo.ToString(), ["phase"] = r.Phase, ["lastSeq"] = r.LastSeq,
-                        ["lastReportAt"] = r.LastReportAt > 0f ? r.LastReportAt : null,
-                        ["orderedAt"] = r.OrderedAt > 0f ? r.OrderedAt : null,
-                        ["ageSeconds"] = float.IsInfinity(age) ? null : age, ["overdue"] = age > ReportOverdueSeconds,
+                        ["lastReportAt"] = r.LastReportAt > 0d ? r.LastReportAt.Seconds : (double?)null,
+                        ["orderedAt"] = r.OrderedAt > 0d ? r.OrderedAt.Seconds : (double?)null,
+                        ["ageSeconds"] = double.IsInfinity(age) ? null : age, ["overdue"] = age > ReportOverdueSeconds,
                     };
                     if (_entityMap.TryGetEntity(r.UnitNetId, out var sub) && CommandReportText.UnitName(_world, sub) is { } subName)
                         row["name"] = subName;   // ⭐ CE-1191 — the shared name lookup (also the Reports window's)
@@ -66,7 +66,7 @@ namespace Hrot.Editor.DebugApi
                 for (int i = 0; i < pic.Requests.Count; i++)
                 {
                     var q = pic.Requests.Items[i];
-                    reqs.Add(new JsonObject { ["from"] = q.FromNetId, ["kind"] = q.Kind.ToString(), ["at"] = V3(q.At), ["receivedAt"] = q.ReceivedAt, ["seq"] = q.Seq });
+                    reqs.Add(new JsonObject { ["from"] = q.FromNetId, ["kind"] = q.Kind.ToString(), ["at"] = V3(q.At), ["receivedAt"] = q.ReceivedAt.Seconds, ["seq"] = q.Seq });
                 }
                 node["picture"] = new JsonObject { ["elements"] = elements, ["subordinates"] = subs, ["requests"] = reqs };
             }
@@ -89,7 +89,7 @@ namespace Hrot.Editor.DebugApi
                 node["outbox"] = new JsonObject
                 {
                     ["queued"] = queued, ["nextSeq"] = ob.NextSeq, ["posture"] = ob.Posture.ToString(),
-                    ["muted"] = ob.MutedUntil > now, ["mutedUntil"] = ob.MutedUntil > now ? ob.MutedUntil : null,
+                    ["muted"] = ob.MutedUntil > now, ["mutedUntil"] = ob.MutedUntil > now ? ob.MutedUntil.Seconds : (double?)null,
                 };
             }
             if (node.Count <= 3) node["note"] = "No picture, requirements or outbox here — not a commander, or not its brain node (read on the Scenario perspective on a cluster).";
@@ -157,7 +157,7 @@ namespace Hrot.Editor.DebugApi
             if (log == null)
                 return new JsonObject { ["count"] = 0, ["reports"] = new JsonArray(), ["note"] = "no report has reached this node's inbox (the staff runs on brain nodes)" };
             long? Id(Entity e) => !e.IsNull && _entityMap.TryGetNetworkId(e, out var id) ? id : null;
-            float now = CommandPictureOps.Now(_world);
+            double now = CommandPictureOps.Now(_world);
             var arr = new JsonArray();
             foreach (var e in log.Recent(SquadReportLog.Capacity))
             {
@@ -173,13 +173,13 @@ namespace Hrot.Editor.DebugApi
             return new JsonObject { ["count"] = log.Count, ["returned"] = arr.Count, ["reports"] = arr };
         }
 
-        private static JsonObject ReportNode(in CommandReport r, float now, float? dueAt)
+        private static JsonObject ReportNode(in CommandReport r, double now, SimInstant? dueAt)
         {
             var n = new JsonObject
             {
                 ["kind"] = r.Kind.ToString(),
                 ["subtype"] = CommandReportText.SubtypeName(r),   // ⭐ CE-1191 — shared with the Reports window
-                ["at"] = V3(r.At), ["observedAt"] = r.ObservedAt, ["ageSeconds"] = now - r.ObservedAt, ["seq"] = r.Seq,
+                ["at"] = V3(r.At), ["observedAt"] = r.ObservedAt.Seconds, ["ageSeconds"] = now - r.ObservedAt, ["seq"] = r.Seq,
                 ["synthetic"] = r.Synthetic != 0,
             };
             if (CommandReportText.CarriesElementFields(r))
@@ -189,7 +189,7 @@ namespace Hrot.Editor.DebugApi
             }
             if (r.Kind is ReportKind.Sitrep or ReportKind.Lace) { n["strength"] = r.Strength.ToString(); n["ammo"] = r.Ammo.ToString(); n["phase"] = r.Phase; }
             if (r.Kind == ReportKind.Progress && (ProgressKind)r.Subtype == ProgressKind.PhaseLine) n["phaseLine"] = r.Count;
-            if (dueAt is float d) n["dueAt"] = d;
+            if (dueAt is SimInstant d) n["dueAt"] = d.Seconds;
             return n;
         }
 

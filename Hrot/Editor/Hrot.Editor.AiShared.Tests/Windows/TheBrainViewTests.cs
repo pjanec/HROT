@@ -482,15 +482,15 @@ public sealed unsafe class TheBrainViewTests : IDisposable
         var sqd = w.CreateEntity();
         Fdp.Toolkit.Squad.Command.CommandHistoryOf.Report(w, sqd, hq,
             new Fdp.Toolkit.Squad.Command.CommandReport { Kind = Fdp.Toolkit.Squad.Command.ReportKind.Progress, Subtype = (byte)Fdp.Toolkit.Squad.Command.ProgressKind.Set },
-            10f, Fdp.Toolkit.Squad.Command.ReportFate.Folded);
+            (Fdp.Core.SimInstant)10d, Fdp.Toolkit.Squad.Command.ReportFate.Folded);
         ref var oh = ref w.GetComponentRW<Fdp.Toolkit.Squad.Command.CommandOrderHistory>(hq);
         Fdp.Toolkit.Squad.Command.CommandHistoryOf.Push(ref oh, new Fdp.Toolkit.Squad.Command.CommandOrderEntry
         {
-            At = 5f, Traffic = Fdp.Toolkit.Squad.Command.CommandTraffic.Incoming, CounterpartNetId = 900, Behaviour = Fight,
+            At = (Fdp.Core.SimInstant)5d, Traffic = Fdp.Toolkit.Squad.Command.CommandTraffic.Incoming, CounterpartNetId = 900, Behaviour = Fight,
         });
         Fdp.Toolkit.Squad.Command.CommandHistoryOf.Push(ref oh, new Fdp.Toolkit.Squad.Command.CommandOrderEntry
         {
-            At = 12f, Traffic = Fdp.Toolkit.Squad.Command.CommandTraffic.Outgoing, CounterpartNetId = 1001, Behaviour = Fight,
+            At = (Fdp.Core.SimInstant)12d, Traffic = Fdp.Toolkit.Squad.Command.CommandTraffic.Outgoing, CounterpartNetId = 1001, Behaviour = Fight,
             CauseKind = BrainJournalKind.PlayPhase, Cause = (byte)Fdp.Toolkit.Squad.Primitives.PhaseEventKind.DefiladeReached,
         });
 
@@ -561,16 +561,16 @@ public sealed unsafe class TheBrainViewTests : IDisposable
         var sqd = w.CreateEntity();
         Fdp.Toolkit.Squad.Command.CommandHistoryOf.Report(w, sqd, hq,
             new Fdp.Toolkit.Squad.Command.CommandReport { Kind = Fdp.Toolkit.Squad.Command.ReportKind.Spot, Count = 3, At = new Vector3(455, -90, 0) },
-            4f, Fdp.Toolkit.Squad.Command.ReportFate.Folded);
+            (Fdp.Core.SimInstant)4d, Fdp.Toolkit.Squad.Command.ReportFate.Folded);
         Fdp.Toolkit.Squad.Command.CommandHistoryOf.Report(w, sqd, hq,
             new Fdp.Toolkit.Squad.Command.CommandReport { Kind = Fdp.Toolkit.Squad.Command.ReportKind.Progress, Subtype = (byte)Fdp.Toolkit.Squad.Command.ProgressKind.Set },
-            10f, Fdp.Toolkit.Squad.Command.ReportFate.Folded);
+            (Fdp.Core.SimInstant)10d, Fdp.Toolkit.Squad.Command.ReportFate.Folded);
         ref var oh = ref w.GetComponentRW<Fdp.Toolkit.Squad.Command.CommandOrderHistory>(hq);
         Fdp.Toolkit.Squad.Command.CommandHistoryOf.Push(ref oh, new Fdp.Toolkit.Squad.Command.CommandOrderEntry
-            { At = 2f, Traffic = Fdp.Toolkit.Squad.Command.CommandTraffic.Incoming, CounterpartNetId = 900, Behaviour = Fight });
+            { At = (Fdp.Core.SimInstant)2d, Traffic = Fdp.Toolkit.Squad.Command.CommandTraffic.Incoming, CounterpartNetId = 900, Behaviour = Fight });
         Fdp.Toolkit.Squad.Command.CommandHistoryOf.Push(ref oh, new Fdp.Toolkit.Squad.Command.CommandOrderEntry
         {
-            At = 12f, Traffic = Fdp.Toolkit.Squad.Command.CommandTraffic.Outgoing, CounterpartNetId = 1001, Behaviour = Fight,
+            At = (Fdp.Core.SimInstant)12d, Traffic = Fdp.Toolkit.Squad.Command.CommandTraffic.Outgoing, CounterpartNetId = 1001, Behaviour = Fight,
             CauseKind = BrainJournalKind.PlayPhase, Cause = (byte)Fdp.Toolkit.Squad.Primitives.PhaseEventKind.DefiladeReached,
         });
         return hq;

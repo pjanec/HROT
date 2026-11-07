@@ -118,7 +118,7 @@ public sealed class CommandDisplayGizmoTests : IDisposable
         void Add(Vector3 at, ElementSize size, ElementEquipment eq, float observedAt, byte count)
         {
             ref var e = ref pic.Elements.Items[pic.Elements.Count++];
-            e.At = at; e.Size = size; e.Equipment = eq; e.ObservedAt = observedAt; e.Count = count;
+            e.At = at; e.Size = size; e.Equipment = eq; e.ObservedAt = (Fdp.Core.SimInstant)observedAt; e.Count = count;
         }
         Add(new Vector3(50, 0, 0), ElementSize.Team, ElementEquipment.MachineGun, 100f, 3);                // fresh
         Add(new Vector3(0, 80, 0), ElementSize.Individual, ElementEquipment.Sniper, 40f, 1);                // a minute old

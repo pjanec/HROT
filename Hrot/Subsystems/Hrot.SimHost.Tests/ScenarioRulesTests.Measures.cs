@@ -106,7 +106,7 @@ namespace Hrot.SimHost.Tests
             w.Run(1);
             Assert.Equal((0f, 60f, 0f), (w.S(rl).Value, w.S(rl).Target, w.S(rl).Score));   // nothing reported yet is not a pass
             if (!w.Repo.Bus.IsRegisteredManaged<SquadReportNotification>()) w.Repo.Bus.RegisterManaged<SquadReportNotification>();
-            void Report(Entity from, double sent, float observed) => w.Repo.Bus.PublishManaged(new SquadReportNotification { FromUnit = from, SentAt = sent, Report = new CommandReport { ObservedAt = observed } });
+            void Report(Entity from, double sent, double observed) => w.Repo.Bus.PublishManaged(new SquadReportNotification { FromUnit = from, SentAt = sent, Report = new CommandReport { ObservedAt = (Fdp.Core.SimInstant)observed } });
             Report(squad, 100, 70); Report(squad, 200, 110); Report(stranger, 300, 0);
             w.Tick();
             Assert.Equal(60f, w.S(rl).Value, 3);       // (30 + 90) / 2

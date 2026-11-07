@@ -68,14 +68,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             repo.AddComponent(soldier, new NetworkIdentity(Soldier));
             repo.AddComponent(soldier, new SimTransform { Position = new Vector3(30, 40, 0) });
             repo.AddComponent(soldier, default(UtilityDecisionLog));
-            CommandHistoryOf.Order(repo, commander, soldier, 0x1111, 0f);                                     // before the recording: a baseline, not an event
+            CommandHistoryOf.Order(repo, commander, soldier, 0x1111, (Fdp.Core.SimInstant)0d);                                     // before the recording: a baseline, not an event
             harness.Tick().RecordKeyframe(100_000L); afterFrame?.Invoke(100_000L);                                                          // frame 0
 
             harness.FireUnmanagedEvent(new WeaponFireNotification { Shooter = soldier, Target = commander, Origin = new Vector3(30, 40, 1), Quantity = 3 });
             harness.FireUnmanagedEvent(new WeaponFireNotification { Shooter = soldier, Refusal = FireRefusal.TooFar });
             harness.FireUnmanagedEvent(new HitEvent { HitEntity = commander });
-            CommandHistoryOf.Order(repo, commander, soldier, 0x5A11, 1f);
-            CommandHistoryOf.Order(repo, commander, soldier, 0x7777, 1f);                                     // a second order the same frame: two events (TE-22 ②)
+            CommandHistoryOf.Order(repo, commander, soldier, 0x5A11, (Fdp.Core.SimInstant)1d);
+            CommandHistoryOf.Order(repo, commander, soldier, 0x7777, (Fdp.Core.SimInstant)1d);                                     // a second order the same frame: two events (TE-22 ②)
             harness.Tick().RecordDelta(200_000L); afterFrame?.Invoke(200_000L);                                                             // frame 1
 
             harness.FireUnmanagedEvent(new DetonationNotification { Shooter = soldier, HitX = 5, HitY = 6, Damage = 0.5f });
@@ -83,7 +83,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             slot.DecisionId = 0x2067; slot.SwitchCount = 1; slot.Winner = 7;
             ref var idle = ref repo.GetComponentRW<UtilityDecisionLog>(soldier).SlotsRW()[1];
             idle.DecisionId = 0x3001; idle.SwitchCount = 0; idle.Winner = 9;                                 // a decision that ran but never switched: not news
-            CommandHistoryOf.Order(repo, commander, soldier, 0x7777, 2f);                                     // the same order REPEATED: counted, still news
+            CommandHistoryOf.Order(repo, commander, soldier, 0x7777, (Fdp.Core.SimInstant)2d);                                     // the same order REPEATED: counted, still news
             BrainJournalOf.Write(repo, commander, BrainJournalKind.TaskStarted, point: new Vector3(1, 2, 0));
             harness.Tick().RecordDelta(300_000L); afterFrame?.Invoke(300_000L);                                                             // frame 2
 

@@ -53,6 +53,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 Expression access = e;
                 foreach (string seg in path.Split('.'))
                     access = Expression.PropertyOrField(access, seg);
+                if (SemanticValueTypes.IsSemantic(access.Type) && SemanticValueTypes.StorageTypeOf(access.Type).IsPrimitive)   // ⭐ CE-4201: an Angle / SimInstant keys as its storage number
+                    access = Expression.Convert(access, SemanticValueTypes.StorageTypeOf(access.Type));
                 Expression asLong = access.Type switch
                 {
                     var t when t == typeof(float) => Expression.Call(typeof(RingEntryScanner).GetMethod(nameof(Bits), BindingFlags.NonPublic | BindingFlags.Static, new[] { typeof(float) })!, access),

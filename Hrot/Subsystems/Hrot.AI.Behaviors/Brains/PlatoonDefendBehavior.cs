@@ -728,7 +728,7 @@ namespace Hrot.AI.Behaviors.Brains
             slot = -1; at = default;
             if (p.Area.ArcSet == 0 || !world.HasComponent<CommandPicture>(self)) return false;
             ref readonly var picture = ref world.GetComponentRO<CommandPicture>(self);
-            float now = CommandPictureOps.Now(world);
+            SimInstant now = CommandPictureOps.Now(world);
             int n = Math.Min(RosterCount(world, self), PlatoonDefencePlan.Capacity);
             for (int i = 0; i < picture.Elements.Count; i++)
             {
@@ -782,7 +782,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (!world.HasComponent<CommandPicture>(self)) return false;
             ref readonly var picture = ref world.GetComponentRO<CommandPicture>(self);
-            float now = CommandPictureOps.Now(world);
+            SimInstant now = CommandPictureOps.Now(world);
             for (int i = 0; i < picture.Elements.Count; i++)
             {
                 ref readonly var e = ref picture.Elements.Items[i];
@@ -854,7 +854,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (!world.HasComponent<CommandPicture>(self)) return false;
             ref readonly var picture = ref world.GetComponentRO<CommandPicture>(self);
-            float now = CommandPictureOps.Now(world);
+            SimInstant now = CommandPictureOps.Now(world);
             bool hasArea = p.Area.ArcSet != 0 || p.Area.AllowArea != 0;
             var area = p.Area;
             for (int i = 0; i < picture.Elements.Count; i++)

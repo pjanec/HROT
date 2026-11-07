@@ -80,7 +80,7 @@ namespace Fdp.Toolkit.Squad.Command
             var superior = world.GetComponentRO<UnitSubordinate>(unit).Commander;
             if (superior.IsNull || !world.IsAlive(superior)) return "the unit's superior is gone";
             if (!world.Bus.IsRegisteredManaged<SquadReportNotification>()) return "this node carries no reports (SquadReportNotification unregistered)";
-            float now = CommandPictureOps.Now(world);
+            SimInstant now = CommandPictureOps.Now(world);
             report.ObservedAt = now - System.Math.Max(0f, observedAgoSeconds);
             report.Synthetic = 1;
             report.Seq = 0;   // CC-14: the sender's counter lives on its brain node — a fake never guesses it
@@ -95,7 +95,7 @@ namespace Fdp.Toolkit.Squad.Command
             if (!world.IsAlive(unit)) return "the unit does not exist";
             if (!world.IsComponentTypeRegistered<ReportOutbox>()) return "this node keeps no outboxes (not a brain node)";
             if (!world.HasComponent<ReportOutbox>(unit)) world.AddComponent(unit, new ReportOutbox());
-            world.GetComponentRW<ReportOutbox>(unit).MutedUntil = seconds > 0f ? CommandPictureOps.Now(world) + seconds : 0f;
+            world.GetComponentRW<ReportOutbox>(unit).MutedUntil = seconds > 0f ? CommandPictureOps.Now(world) + seconds : SimInstant.Zero;
             return null;
         }
     }

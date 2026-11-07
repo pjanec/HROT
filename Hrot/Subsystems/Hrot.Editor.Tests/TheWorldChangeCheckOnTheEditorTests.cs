@@ -362,4 +362,36 @@ public sealed class TheWorldChangeCheckOnTheEditorTests
             Assert.True(median < 5_000, $"one check round took {median:F0} ms");
         }, httpPort: port);
     }
+
+    /// <summary>
+    /// ⭐ Edit-mode undo U1 (📄 docs/UX/DESIGN_Edit_Mode_Undo.md §2.2 "memory", §3 U1) — MEASURES one undo capture (<see cref="CaptureOptions.Undo"/>, the
+    /// AUTHORED mask) on real scenarios in the real headless editor: its size and time, beside the recorder's mask, and the depth a 256 MB ring holds.
+    /// ⭐ Writes the numbers to the test output (the design's §1 records them); asserts only what the ring needs — that a capture is a fraction of the budget
+    /// and carries at least what the dry run's editor mask leaves out (the saved NoPreview types).
+    /// </summary>
+    [Theory(Timeout = 240_000)]
+    [InlineData("showcase-crossfire")]
+    [InlineData("perf-stress")]
+    public void U1_OneUndoCapture_SizeAndTime(string scenario)
+    {
+        WithTheScenarioLoaded(scenario, (editor, world) =>
+        {
+            Frames(editor, 5);
+            WorldKeyframes.Capture(world, CaptureOptions.Undo);   // warm-up (JIT, first registration)
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            const int runs = 5;
+            WorldKeyframe undo = null!;
+            for (int i = 0; i < runs; i++) undo = WorldKeyframes.Capture(world, CaptureOptions.Undo);
+            double captureMs = sw.Elapsed.TotalMilliseconds / runs;
+            var recorded = WorldKeyframes.Capture(world, CaptureOptions.Recording);
+            sw.Restart();
+            WorldKeyframes.Apply(world, undo);
+            double applyMs = sw.Elapsed.TotalMilliseconds;
+            int depth = (int)Math.Min(100, 256L * 1024 * 1024 / Math.Max(1, undo.SizeBytes));
+            _out.WriteLine($"U1 {scenario}: {world.EntityCount} entities · undo capture {undo.SizeBytes / 1024.0:F0} KiB in {captureMs:F1} ms · apply {applyMs:F1} ms · " +
+                           $"recorder mask {recorded.SizeBytes / 1024.0:F0} KiB · a 256 MB ring holds {depth} steps (cap 100)");
+            Assert.True(world.EntityCount > 0);
+            Assert.True(undo.SizeBytes < 256L * 1024 * 1024 / 10, $"one capture ({undo.SizeBytes} B) is over a tenth of the 256 MB budget");
+        });
+    }
 }

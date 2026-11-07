@@ -13,7 +13,7 @@ namespace Fdp.Toolkit.Squad.Command
         /// <c>CE-2304</c> — a full outbox drops its OLDEST report for the new one (newest wins, CB-32): an outbox the staff never empties
         /// (a unit with no superior, a Silent posture, a mute) kept the first eight and refused every later one — measured live, a defending
         /// squad's eight Displacing reports silently swallowed its PROGRESS Set. ⭐ <c>CE-2305</c> RQ-2 — <paramref name="subject"/> is what the report is about (a Casevac's casualty).</summary>
-        public static bool Enqueue(EntityRepository world, Entity commander, CommandReport report, float dueAt, Entity subject = default)
+        public static bool Enqueue(EntityRepository world, Entity commander, CommandReport report, SimInstant dueAt, Entity subject = default)
         {
             if (!world.IsComponentTypeRegistered<ReportOutbox>() || !world.IsAlive(commander)) return false;
             if (!world.HasComponent<ReportOutbox>(commander)) world.AddComponent(commander, new ReportOutbox());

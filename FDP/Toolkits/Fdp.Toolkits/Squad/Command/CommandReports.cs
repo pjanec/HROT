@@ -2,6 +2,8 @@ using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
+using Fdp.Core;
+
 namespace Fdp.Toolkit.Squad.Command
 {
     // ⭐⭐ CE-2291 CC-A (R-2043…R-2046, R-2050) — the vocabulary of a report: the CLOSED set (Building Clearing CB-43) — six kinds, closed
@@ -165,7 +167,7 @@ namespace Fdp.Toolkit.Squad.Command
         /// <summary>SITREP: the sender's phase (its play's own numbering).</summary>
         public ushort Phase;
         /// <summary>CB-31 — when the reported fact was OBSERVED; a report ages from it, not from its arrival.</summary>
-        public float ObservedAt;
+        public SimInstant ObservedAt;
         /// <summary>CB-32 — per-sender sequence: the newest wins, a late older one is dropped.</summary>
         public uint Seq;
         /// <summary>CC-14 — faked over the debug HTTP (<c>ReportInjection</c>): it bypasses the newest-per-sender drop, and the sender's next

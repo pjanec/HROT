@@ -61,7 +61,7 @@ public sealed class ReportsWindow : ManagedWindow
     {
         var world = _world();
         var log = world == null ? null : SquadReportLog.Peek(world);
-        float now = world == null ? 0f : CommandPictureOps.Now(world);
+        double now = world == null ? 0d : CommandPictureOps.Now(world);
         var rows = ReportsWindowModel.Rows(world, log, now, _unit, _kind);
         string? empty = (log == null || log.Count == 0) ? ReportsWindowModel.EmptyText
                       : rows.Count == 0 ? ReportsWindowModel.NoMatchText

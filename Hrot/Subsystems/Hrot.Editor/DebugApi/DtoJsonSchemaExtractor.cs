@@ -275,6 +275,11 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-4202 SV-4 — a relative angle: the SHAPE is a float's (radians); the type NAME survives so a tool shows and edits it in degrees.
             if (type == typeof(Fdp.Core.Angle))
                 return new JsonObject { ["type"] = "number", ["format"] = "angle", ["description"] = "a relative angle in radians (a steering angle, a turret traverse, a head turn); a tool shows it in degrees" };
+            // ⭐ CE-4201 SV-1 — a point in sim time / a length of sim time: the SHAPE is a number (seconds); the type NAME survives so a tool shows the scenario clock / "1 min 12 s".
+            if (type == typeof(Fdp.Core.SimInstant))
+                return new JsonObject { ["type"] = "number", ["format"] = "simInstant", ["description"] = "a point in simulation time, seconds since the exercise started; a tool shows it as the scenario clock" };
+            if (type == typeof(Fdp.Core.SimDuration))
+                return new JsonObject { ["type"] = "number", ["format"] = "simDuration", ["description"] = "a length of simulation time in seconds (a timeout, a cooldown, an age); a tool shows it as 1 min 12 s" };
             if (type == typeof(Fdp.Core.Bearing))
                 return new JsonObject { ["type"] = "number", ["format"] = "bearing", ["picker"] = "bearing", ["description"] = "a compass bearing in degrees: 0 = north (+Y), 90 = east (+X), clockwise" };
             if (type == typeof(Fdp.Core.WorldRotation))

@@ -43,6 +43,9 @@ namespace Fdp.Toolkit.Replay
         Snapshotable,
         /// <summary>Every registered type (the editor's dry run — it copied <c>Transient</c> too, HN-016).</summary>
         All,
+        /// <summary>⭐ Edit-mode undo U1 (📄 docs/UX/DESIGN_Edit_Mode_Undo.md §1.1 A) — what an AUTHOR edits: every type saved with the scenario (no
+        /// <c>NoScenario</c>), including the saved <c>NoPreview</c> ones a dry run's mask leaves out.</summary>
+        Authored,
     }
 
     /// <summary>⭐ B2 — what <see cref="WorldKeyframes.Capture(EntityRepository, CaptureOptions, long)"/> writes.</summary>
@@ -54,11 +57,14 @@ namespace Fdp.Toolkit.Replay
         public static readonly CaptureOptions Recording = new();
         public static readonly CaptureOptions NodeDryRun = new(KeyframeTypes.Snapshotable, Singletons: false);
         public static readonly CaptureOptions EditorDryRun = new(KeyframeTypes.All, Singletons: false);
+        /// <summary>⭐ Undo U1 — one undo step's before-state: the authored types, no singletons (the header's edits are document steps, §1.1 A).</summary>
+        public static readonly CaptureOptions Undo = new(KeyframeTypes.Authored, Singletons: false);
 
         internal Func<int, bool>? Filter => Types switch
         {
             KeyframeTypes.Recorded => null,
             KeyframeTypes.Snapshotable => ComponentTypeRegistry.IsSnapshotable,
+            KeyframeTypes.Authored => ComponentTypeRegistry.IsSaveable,
             _ => static _ => true,
         };
     }

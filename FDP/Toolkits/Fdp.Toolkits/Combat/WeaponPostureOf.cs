@@ -73,6 +73,38 @@ namespace Fdp.Toolkit.Combat
             Fdp.Toolkit.Civilians.HostileActs.Commit(world, unit, Fdp.Toolkit.Civilians.HostileActKind.Lethal);
         }
 
+        /// <summary>
+        /// ⭐ Initial state S2 (📄 docs/UX/DESIGN_Initial_State.md §3, R-4137) — an AUTHORED posture (the <c>Weapon.Posture</c> attribute, on the brain's
+        /// node): the kind, the idle clock restarted so the brain does not lower it at once. ⛔ Not a hostile act (an author sets the start, the
+        /// brain's own aim commits one through <see cref="Report"/>). Aiming keeps the authored target / point.
+        /// </summary>
+        public static void Author(EntityRepository world, Entity unit, WeaponPostureKind kind)
+        {
+            if (!world.IsComponentTypeRegistered<WeaponPosture>() || !world.HasComponent<WeaponPosture>(unit)) return;
+            ref var p = ref world.GetComponentRW<WeaponPosture>(unit);
+            p.Kind = kind;
+            p.IdleSeconds = 0f;
+        }
+
+        /// <summary>⭐ S2 — the authored aim POINT, one axis (0 x · 1 y · 2 z, world metres): aims at a point, not a unit.</summary>
+        public static void AuthorAimPoint(ref WeaponPosture p, int axis, float value)
+        {
+            if (axis < 0 || axis > 2) return;
+            var pt = p.Point;
+            if (axis == 0) pt.X = value; else if (axis == 1) pt.Y = value; else pt.Z = value;
+            p.Point = pt;
+            p.Target = Entity.Null;
+        }
+
+        /// <summary>⭐ S2 — the authored aim TARGET (a unit): aims at it, not at a point. <see cref="Entity.Null"/> clears it.</summary>
+        public static void AuthorAimTarget(EntityRepository world, Entity unit, Entity target)
+        {
+            if (!world.IsComponentTypeRegistered<WeaponPosture>() || !world.HasComponent<WeaponPosture>(unit) || target == unit) return;
+            ref var p = ref world.GetComponentRW<WeaponPosture>(unit);
+            p.Target = target;
+            if (!target.IsNull) p.Point = default;
+        }
+
         /// <summary>⭐ ui handoff P4 (W-13e) — the weapon brain names the mount it fires with this frame (written only when it changes).</summary>
         public static void SetActiveMount(EntityRepository world, Entity unit, int mountIndex)
         {
