@@ -1283,6 +1283,19 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{}",
             ExampleGist: "discover loadable scenario names"),
 
+        [("GET", "/scenario/presets")] = new RouteDoc(
+            Tool:    "list_scenario_presets",
+            Group:   "E — Scenario",
+            Summary: "⭐ CE-3375 — a scenario's PRESETS (named run setups kept in its file), Default first.",
+            Returns: "{scenario, presets: [{name, variant: \"AsAuthored\"|\"Random\"|n, saveable, changed: [param names]}]} — Default is implicit (the declared defaults, as authored).",
+            Hint:    "Req: name (string). Then load_scenario_edit / load_scenario_live with {name, preset}. Example: list_scenario_presets({name:\"showcase/crossfire\"})",
+            Params: new RouteParam[]
+            {
+                new("name", "string", true, "Scenario name (relative path)."),
+            },
+            ExampleArgsJson: "{\"name\":\"test-move\"}",
+            ExampleGist: "what presets can this scenario be loaded with"),
+
         [("GET", "/events")] = new RouteDoc(
             Tool:    "get_event_history",
             Group:   "C — Event history",
@@ -1504,6 +1517,7 @@ namespace Hrot.Editor.DebugApi
                     DefaultJson: "false"),
                 new("discardUnsaved", "boolean", false, "Load even though the open scenario has unsaved changes (they are lost). Without it a load of ANOTHER scenario over unsaved edits answers 409.",
                     DefaultJson: "false"),
+                new("preset", "string", false, "⭐ CE-3375 — load with this preset (list_scenario_presets): its param overrides and its variant. Not with args / variant. A preset that is not as authored loads a world that cannot be saved (status canSave:false)."),
             },
             Notes: new[]
             {
@@ -1537,6 +1551,7 @@ namespace Hrot.Editor.DebugApi
                     DefaultJson: "false"),
                 new("discardUnsaved", "boolean", false, "Go live even though the scenario open for editing has unsaved changes (they are lost). Without it such a load answers 409.",
                     DefaultJson: "false"),
+                new("preset", "string", false, "⭐ CE-3375 — go live with this preset (list_scenario_presets): its param overrides and its variant (Random ⇒ a fresh one). Not with args / variant."),
             },
             Notes: new[]
             {

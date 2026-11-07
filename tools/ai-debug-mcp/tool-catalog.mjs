@@ -660,6 +660,12 @@ export const TOOLS_CATALOG = [
         "required": false,
         "description": "Load even though the open scenario has unsaved changes (they are lost). Without it a load of ANOTHER scenario over unsaved edits answers 409.",
         "default": false
+      },
+      {
+        "name": "preset",
+        "type": "string",
+        "required": false,
+        "description": "⭐ CE-3375 — load with this preset (list_scenario_presets): its param overrides and its variant. Not with args / variant. A preset that is not as authored loads a world that cannot be saved (status canSave:false)."
       }
     ],
     "returns": "ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor, stoppedRun (CE-1025: \"a live run\" / \"a dry run\" / null).",
@@ -711,6 +717,12 @@ export const TOOLS_CATALOG = [
         "required": false,
         "description": "Go live even though the scenario open for editing has unsaved changes (they are lost). Without it such a load answers 409.",
         "default": false
+      },
+      {
+        "name": "preset",
+        "type": "string",
+        "required": false,
+        "description": "⭐ CE-3375 — go live with this preset (list_scenario_presets): its param overrides and its variant (Random ⇒ a fresh one). Not with args / variant."
       }
     ],
     "returns": "ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor, stoppedRun (CE-1025: \"a live run\" / \"a dry run\" / null).",
@@ -769,6 +781,33 @@ export const TOOLS_CATALOG = [
       "gist": "a blank scenario on basic-desert"
     },
     "hint": "Req: name and exactly one of terrain or recipe. The terrain is fixed at creation and never changes. Answers 409 for an existing name or an unknown terrain (with the terrains the master offers). Example: new_scenario({name:\"Berlin/Checkpoint\", terrain:\"basic-desert\"})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "list_scenario_presets",
+    "group": "E — Scenario",
+    "summary": "⭐ CE-3375 — a scenario's PRESETS (named run setups kept in its file), Default first.",
+    "http": {
+      "method": "GET",
+      "path": "/scenario/presets"
+    },
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "description": "Scenario name (relative path)."
+      }
+    ],
+    "returns": "{scenario, presets: [{name, variant: \"AsAuthored\"|\"Random\"|n, saveable, changed: [param names]}]} — Default is implicit (the declared defaults, as authored).",
+    "example": {
+      "args": {
+        "name": "test-move"
+      },
+      "gist": "what presets can this scenario be loaded with"
+    },
+    "hint": "Req: name (string). Then load_scenario_edit / load_scenario_live with {name, preset}. Example: list_scenario_presets({name:\"showcase/crossfire\"})",
     "manualVerify": false
   },
 
@@ -1444,14 +1483,20 @@ export const TOOLS_CATALOG = [
         "type": "boolean",
         "required": false,
         "description": "Stop the run going on, where it is"
+      },
+      {
+        "name": "step",
+        "type": "number",
+        "required": false,
+        "description": "Seconds per step, in (0, 1/6]. Default 1/60 on the editor's turbo, 1/6 on a networked cluster. Bigger = faster, a little less like the live 1/60 run"
       }
     ],
     "returns": "the sim state, with runTo {running, status}; poll get_sim_state until runTo.running is false.",
     "notes": [
-      "Preview only. The ACK-gated stepped run (deterministic, 1/60 s per step, one step per frame) with the window's frame cap lifted — CE-4316, lifecycle LC-10, option A.",
+      "Preview only. Deterministic fixed steps (CE-4316, lifecycle LC-10). On the networkless editor node: TURBO — many steps per rendered frame, as fast as the node steps (DESIGN_Time_Architecture.md §20). Networked: one ACK-gated step per frame.",
       "Answers at once; the run goes on across frames. GET /sim/state's runTo.status says why it stopped (reached · the condition held · left Preview · stopped)."
     ],
-    "hint": "One of seconds / condition. Example: run_to({seconds:600}) · run_to({condition:{...a condition...}}) · run_to({cancel:true})",
+    "hint": "One of seconds / condition; optional step. Example: run_to({seconds:600}) · run_to({seconds:600, step:0.05}) · run_to({condition:{...a condition...}}) · run_to({cancel:true})",
     "manualVerify": false
   },
 

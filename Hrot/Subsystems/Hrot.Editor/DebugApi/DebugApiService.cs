@@ -743,6 +743,9 @@ namespace Hrot.Editor.DebugApi
                 ["scenarioDirty"] = ScenarioDirtyOrNull,
                 // ⭐⭐ CE-4097 part two (AQ108 D22) — what ▶ would run from editing on this host: preview | live | aar (null: this host has no run choice). Read-only; POST /run-mode sets it.
                 ["armedMode"]    = TryRead(() => (JsonNode?)ArmedModeText()),
+                // ⭐ CE-3375 (presets D10) — may the loaded world be saved: true, or false + `cannotSave` (the ONE gate, ScenarioSaveGate — the pen and the Save button ask it too)
+                ["canSave"]      = TryRead(() => (JsonNode?)(Fdp.Toolkit.Scenario.ScenarioSaveGate.CanSave(_world) is null)),
+                ["cannotSave"]   = TryRead(() => (JsonNode?)Fdp.Toolkit.Scenario.ScenarioSaveGate.CanSave(_world)),
                 // ⭐⭐ CE-3344 (R-3069) — cluster READY from this host (ClusterView.CanOperate): true = the cluster routes work; false + `notOperable` = they answer 409 with that reason;
                 //   absent when this host keeps no cluster read model. ⭐ What a test harness polls before it drives the cluster.
                 ["canOperate"]   = ClusterNotOperableReasonKnown() is { } known ? (JsonNode?)(known.Reason is null) : null,
@@ -1244,6 +1247,30 @@ namespace Hrot.Editor.DebugApi
                 arr.Add(s);
             return arr;
         }
+
+        /// <summary>
+        /// ⭐ CE-3375 (📄 docs/UX/DESIGN_Scenario_Presets.md §1, §4) — <c>GET /scenario/presets?name=X</c>: the scenario's presets in order, Default first
+        /// (<c>ScenarioPresets</c> — the ONE resolver), each <c>{name, variant, saveable, changed}</c>.
+        /// </summary>
+        public JsonNode ScenarioPresetsOf(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("name is required.", nameof(name));
+            var header = Fdp.Toolkit.Scenario.ScenarioPresets.HeaderOf(ScenarioJsonPath(name));
+            var arr = new JsonArray();
+            foreach (var p in Fdp.Toolkit.Scenario.ScenarioPresets.Of(header)) arr.Add(Fdp.Toolkit.Scenario.ScenarioPresets.ToJson(p));
+            return new JsonObject { ["scenario"] = name, ["presets"] = arr };
+        }
+
+        /// <summary>⭐ CE-3375 — a preset's load args (null = Default), or why the name is unknown.</summary>
+        public (string? ArgsJson, string? Error) PresetArgs(string scenario, string preset)
+        {
+            var header = Fdp.Toolkit.Scenario.ScenarioPresets.HeaderOf(ScenarioJsonPath(scenario));
+            return Fdp.Toolkit.Scenario.ScenarioPresets.TryArgs(header, preset, Fdp.Toolkit.Scenario.ScenarioPresets.RandomVariant, out var args, out var error)
+                ? (args, null) : (null, error);
+        }
+
+        private static string ScenarioJsonPath(string name)
+            => System.IO.Path.Combine(Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedScenariosRoot(), name, Fdp.Toolkit.Orchestration.ContentLayout.ScenarioFileName);
 
         /// <summary>
         /// <c>POST /scenario/load {name, waitForReady?}</c>. Initiates the load. When

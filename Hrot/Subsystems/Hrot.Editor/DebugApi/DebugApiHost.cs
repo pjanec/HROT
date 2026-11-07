@@ -710,6 +710,13 @@ namespace Hrot.Editor.DebugApi
             //    to `load/edit` explicitly instead. ⚠ An old client calling `/scenario/load` now gets a clean
             //    404, which is the honest answer — ⛔ better than silently choosing a mode for it.
             _routes.Add(new("POST", "/scenario/load/edit", ctx => HandleScenarioLoad(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit)));
+            _routes.Add(new("GET",  "/scenario/presets", ctx =>   // ⭐ CE-3375 — the scenario's presets, Default first
+            {
+                var pn = ctx.Query("name");
+                return string.IsNullOrWhiteSpace(pn)
+                    ? Task.FromResult(Fail(400, "name is required: GET /scenario/presets?name=<scenario>", DebugApiHints.Scenario))
+                    : RunMain(sv => sv.ScenarioPresetsOf(pn!));
+            }));
             _routes.Add(new("POST", "/scenario/load/live", ctx => HandleScenarioLoad(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive)));
             // ⭐⭐ CE-4093 (AQ108 D20) — the CHECK ROUND: every node compares its whole world with its baseline; the master answers {changed, changedNodes}.
             //    ⛔ Runs a round each time it is called — GET /status.scenarioDirty only reports the last one.
@@ -2226,6 +2233,15 @@ namespace Hrot.Editor.DebugApi
             bool waitForReady = ctx.Body?["waitForReady"]?.GetValue<bool>() ?? false;
             bool startPaused  = ctx.Body?["startPaused"]?.GetValue<bool>() ?? true;   // Q86 §4-G: a property of the load
             string? scenarioArgs = ctx.Body?["args"] is System.Text.Json.Nodes.JsonObject argsObj ? argsObj.ToJsonString() : null;   // ⭐ macros S3a ⑦ / debt A5 (SR-41) — a live AND an edit load
+            // ⭐ CE-3375 (presets §4) — {"preset": "Night attack"}: the preset's args (its overrides + $variant) through the ONE resolver; ⛔ not with args / variant
+            if (ctx.Body?["preset"] is System.Text.Json.Nodes.JsonValue presetNode && presetNode.TryGetValue<string>(out var presetName) && !string.IsNullOrWhiteSpace(presetName))
+            {
+                if (scenarioArgs is not null || ctx.Body?["variant"] is not null)
+                    return Fail(400, "send either preset or args / variant, not both: a preset IS a set of args and a variant.", DebugApiHints.Scenario);
+                var (presetArgs, presetError) = await _jobQueue.RunOnMainThread(() => Service().PresetArgs(name!, presetName)).ConfigureAwait(false);
+                if (presetError is not null) return Fail(404, presetError, DebugApiHints.Scenario);
+                scenarioArgs = presetArgs;
+            }
             // ⭐ AQ108 D22/D24 — {"variant": n | "random"}: a number is the run's variant ($variant, 0 = as authored); "random" or absent leaves it to the
             //   live intent's default draw (ScenarioLoadSequence.LiveLoadIntent). It overrides a $variant inside args.
             switch (ctx.Body?["variant"])
