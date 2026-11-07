@@ -234,6 +234,10 @@ name, a unit — and the instant / duration pair has the arithmetic built in (an
 
 **Gates** — `HROT.sln` 0 errors; touched suites vs the S-b baseline: `Fdp.Toolkits.Tests` 4639 / 1 red (pre-existing `S0ComponentTypesRail`; a `WeaponMountTests.CE2410` flake, green alone) · `Hrot.SimHost.Tests` 2480 / 5 (the 4 pre-existing + `LoadPhaseChain…CE3345`, the known order flake) · `Hrot.Blueprints.Tests` 4237 / 4 (pre-existing) · `Hrot.Editor.Tests` 820 / 2 · `Hrot.Editor.AiShared.Tests` 2208 / 1 · `Hrot.Core.Tests` 345 / 0 · `Hrot.Network.NED.Tests` 195 / 0 · `Hrot.Presentation.Tests` 1462 / 0 — the reds are exactly the S-b set.
 
+#### ⭐ AS-BUILT — SV-1 S-d: the authored DTOs *(B-18, `2026-11-07`)* — ⛔ STOPPED, left primitive (R-106)
+
+The DTO families (`Hrot.Core` `*ParamsJsonDto` ~41 `float` duration fields + `FireAtPointParamsJsonDto.FireAt`; `Fdp.Toolkits` TKB `*Dto` ~24; `Hrot.AI.Behaviors` 1) were **not converted**. Premise that failed: the JSON itself does round-trip (`SimDurationJsonConverter` / `SimInstantJsonConverter` read and write a plain number), but the rule asks it be PROVEN by an existing per-family TKB / scenario load rail, and (a) the `*ParamsJsonDto` fields are also read by the debug API's parameter advertising and the editor's schema extraction, whose rail (`ABehaviourAdvertisesItsRealParametersTests`) is already red at the base and so cannot gate the change, and (b) no per-DTO-family load rail was found for the TKB DTOs. Each DTO field stays in the `NotADuration` / `NotAnInstant` allow-list with the reason *"the authored form of <Component>.<Field>"*; converting them is a follow-up that first adds the per-family round-trip rail.
+
 ## 3. The shared pattern *(the one every accepted type follows — `WorldPoint` is the model, `DESIGN_Scenario_Rules.md` §9.8.9)*
 
 | ⭐ rule | |
