@@ -706,4 +706,41 @@ public sealed class TheUnitFormDrawsTests
         Assert.True(row.Has!(world, env));
         Assert.Equal("highway-rest", row.ReadText!(world, env).ToString());
     }
+
+    /// <summary>⭐ L-13 / CE-4313 (LC-5) — the Unit form's <b>Commander</b> row: his commander's name, <i>no commander</i> when none; <i>Commander…</i> takes
+    /// only a unit that commands (a <c>UnitRoster</c>, the ORBAT's drop rule) and never himself. 🔴 Red-proof (compiles): <c>AssignCommander</c> skipping the
+    /// roster test ⇒ the "a man is not a commander" row ⇒ red.</summary>
+    [Fact]
+    public void L13_TheCommanderRow_ShowsHisCommander_AndTakesOnlyAUnitThatCommands()
+    {
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>();
+        world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+        world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+        var platoon = world.CreateEntity();
+        world.AddComponent(platoon, new EntityInfo { Name = new FixedString64("1st Platoon") });
+        world.AddComponent(platoon, new Fdp.Core.CommandHierarchy.UnitRoster());
+        var man = world.CreateEntity();
+        world.AddComponent(man, new EntityInfo { Name = new FixedString64("Alpha 1-1") });
+        var other = world.CreateEntity();
+        world.AddComponent(other, new EntityInfo { Name = new FixedString64("Bravo 2") });
+
+        HrotForms.EnsureRegistered();
+        int list = ListIdx("Commander");
+        Assert.True(list >= 0);
+        var decl = HrotForms.Unit.Lists[list];
+        var rows = new System.Collections.Generic.List<FormListItem>();
+        decl.Fill(world, man, rows);
+        Assert.Empty(rows);
+        Assert.Equal("no commander", decl.Footer!(world, man));
+
+        world.AddComponent(man, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = platoon });
+        decl.Fill(world, man, rows);
+        Assert.Equal(("Commander", "1st Platoon"), (Assert.Single(rows).Role, rows[0].Who.ToString()));
+        Assert.Null(decl.Footer!(world, man));
+
+        Assert.Equal("he cannot command himself", decl.Add!(world, man, man));
+        Assert.Equal("only a unit commands (a platoon, a squad, an HQ)", decl.Add!(world, man, other));   // a man is not a commander
+    }
 }
+
