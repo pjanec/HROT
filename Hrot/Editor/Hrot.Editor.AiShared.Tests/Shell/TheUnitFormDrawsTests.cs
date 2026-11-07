@@ -119,6 +119,58 @@ public sealed class TheUnitFormDrawsTests
         if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "unit-form-s5.png"));
     }
 
+    /// <summary>⭐ U-24 / S6 (DESIGN_Initial_State §4.2) — the Unit form's <b>Character</b> section in a real frame: Skill and Bravery / Obedience / Nerve / Resolve read the EFFECTIVE values; an authored value that differs from the type's
+    /// carries the blue reset arrow (<c>FormMark.DiffersFromType</c>, tooltip <i>type 0.5 — reset</i>), one that does not carries none; the reset writes a NEGATIVE value to the attribute (81) through the one <c>Submit</c> seam.
+    /// Skill is a SLIDER row (not the tier word — the optional part of the S6 row). 🔴 Red-proof (compiles): <c>FormView.RefreshType</c> never setting <c>Differs</c> ⇒ no mark ⇒ red. Renders: <c>unit-form-s5.png</c>.</summary>
+    [SkippableFact]
+    public void U24_S6_TheCharacterSection_ReadsTheEffectiveValues_MarksAnAuthoredOverTheType_AndResetWritesNegative()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<Health>(); world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatProficiency>(); world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatTemperament>();
+        var e = world.CreateEntity();
+        world.AddComponent(e, new EntityInfo { Name = new FixedString64("Alpha 1-1"), ForceId = ForceId.Friend });
+        world.AddComponent(e, new Health { Current = 80, Max = 100 });
+        world.AddComponent(e, new NetworkIdentity(42));
+        world.AddComponent(e, new Fdp.Toolkit.Behavior.Components.CombatProficiency { Authored = 0.8f, TypeDefault = 0.5f, Set = (byte)(Fdp.Toolkit.Behavior.Components.CombatProficiency.AuthoredSet | Fdp.Toolkit.Behavior.Components.CombatProficiency.TypeDefaultSet) });
+        world.AddComponent(e, new Fdp.Toolkit.Behavior.Components.CombatTemperament { RiskAcceptance = 0.8f, Set = Fdp.Toolkit.Behavior.Components.CombatTemperament.RiskAcceptanceSet, TypeRiskAcceptance = 0.5f, TypeSet = Fdp.Toolkit.Behavior.Components.CombatTemperament.RiskAcceptanceSet });
+
+        HrotForms.EnsureRegistered();
+        int Idx(string label) { for (int i = 0; i < HrotForms.Unit.Fields.Count; i++) if (HrotForms.Unit.Fields[i].Label == label) return i; return -1; }
+        int skill = Idx("Skill"), bravery = Idx("Bravery"), obedience = Idx("Obedience");
+        Assert.True(skill >= 0 && bravery >= 0 && obedience >= 0 && Idx("Nerve") >= 0 && Idx("Resolve") >= 0);
+        Assert.Equal("Character", HrotForms.Unit.Fields[skill].Section);
+
+        var sent = new System.Collections.Generic.List<Fdp.Toolkit.Replication.Edits.EditOp>();
+        var view = new FormView { Submit = (w, op) => { sent.Add(op); return new Fdp.Toolkit.Replication.Edits.EditTicket(Guid.NewGuid(), Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct); } };
+        using var frame = UiFrameHarness.Begin(700, 420);
+        frame.StepN(4, () =>
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10));
+            ImGui.SetNextWindowSize(new System.Numerics.Vector2(460, 360));
+            ImGui.Begin("Details##unit-s6");
+            view.Draw(HrotForms.Unit, world, new[] { e }, editable: true);
+            ImGui.End();
+        });
+        Assert.Contains("Skill = 0.8", view.Rows); Assert.Contains("Bravery = 0.8", view.Rows);
+        Assert.Contains("Obedience = 0.8", view.Rows);   // not authored: the default, no mark
+        Assert.Contains("Nerve = 0.5", view.Rows); Assert.Contains("Resolve = 0.5", view.Rows);
+        Assert.Equal(FormMark.DiffersFromType, view.MarkOf(skill));
+        Assert.Equal(FormMark.DiffersFromType, view.MarkOf(bravery));
+        Assert.Equal(FormMark.None, view.MarkOf(obedience));
+        Assert.Equal("type 0.5 — reset", view.TypeTipOf(bravery));
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "unit-form-s5.png"));
+
+        view.CommitForTest(HrotForms.Unit, bravery, world, new[] { e }, HrotForms.Unit.Fields[bravery].ResetValue);   // what a click on the arrow commits
+        var op = Assert.Single(sent);
+        var change = Assert.Single(op.Changes!);
+        Assert.Equal(Fdp.Toolkit.Replication.Patching.AttributeIds.TemperamentRiskAcceptance, change.AttributeId);
+        Assert.Equal(-1.0, change.Value.DoubleValue);
+        Assert.Null(HrotForms.Unit.Fields[bravery].RangeProblem(0.5));   // a typed value is range-checked; the reset is not a typed value
+    }
+
     /// <summary>⭐ U-23 part 5 — the Unit form's <b>Playable</b> toggle is the ONE make-playable op (it replaced the Playable tab where the form is offered):
     /// on adds the component with the unit's side and name, off removes it. 🔴 Red-proof (compiles): the field's <c>Apply</c> removed ⇒ read-only ⇒ nothing written ⇒ red.</summary>
     [Fact]

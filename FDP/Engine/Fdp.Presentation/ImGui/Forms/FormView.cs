@@ -40,6 +40,10 @@ public sealed class FormView
         public string? Problem;
         public readonly List<Guid> Tickets = new();
         public string? Refusal;
+        public bool Differs;              // ⭐ U-24 / S6 — authored over the type, and different from it
+        public double TypeNumber;
+        public string SliderFormat = "%.2f";   // "0.80  (type 0.50)" while it differs — cached with the tip
+        public string? TypeTip;           // "type 0.5 — reset", rebuilt only when the type's value changes (0 B steady)
     }
 
     private FormDecl? _decl;
@@ -218,10 +222,23 @@ public sealed class FormView
             }
             s.Has = has && sel.Count > 0;
             if (!s.Has) continue;
+            if (field.TypeValue != null) RefreshType(field, s, world, sel);
             if (s.Known && s.Mixed == mixed && (field.Kind == FieldKind.Text ? s.Text.Equals(text) : s.Number == num)) continue;
             s.Known = true; s.Mixed = mixed; s.Number = num; s.Text = text;
             s.Shown = mixed ? "mixed" : Format(field, num, text);
         }
+    }
+
+    /// <summary>⭐ U-24 / S6 — does any selected entity carry an authored value that differs from its type's? Numbers only per frame; the tooltip string is rebuilt when the type's value moves.</summary>
+    private static void RefreshType(FormField field, FieldState s, EntityRepository world, IReadOnlyList<Entity> sel)
+    {
+        bool differs = false; double typeNum = 0;
+        for (int i = 0; i < sel.Count && !differs; i++)
+            if (field.TypeValue!(world, sel[i]) is { } t && Math.Abs(t - field.ReadNumber!(world, sel[i])) > 1e-4) { differs = true; typeNum = t; }
+        if (differs == s.Differs && (!differs || typeNum == s.TypeNumber)) return;
+        s.Differs = differs; s.TypeNumber = typeNum;
+        s.SliderFormat = differs ? "%.2f  (type " + typeNum.ToString("0.00", CultureInfo.InvariantCulture) + ")" : "%.2f";
+        s.TypeTip = !differs ? null : sel.Count == 1 ? "type " + typeNum.ToString("0.##", CultureInfo.InvariantCulture) + " — reset" : "type differs — reset";
     }
 
     /// <summary>The value as people read it: <c>60 s</c> · <c>62 %</c> · the choice's word · <c>yes / no</c> · the text.</summary>
@@ -262,7 +279,9 @@ public sealed class FormView
                 break;
         }
         if (ro) ImGui.EndDisabled();
-        if (FormRow.End(in rowState) == FormMark.Refused) { s.Refusal = null; s.Tickets.Clear(); }
+        var clicked = FormRow.End(in rowState);
+        if (clicked == FormMark.Refused) { s.Refusal = null; s.Tickets.Clear(); }
+        else if (clicked == FormMark.DiffersFromType && editable) Commit(i, world, sel, field.ResetValue, null);   // ⭐ U-24 / S6 — back to the type: the attribute's reset value, never range-checked
     }
 
     private void DrawNumber(int i, FormField field, FieldState s, EntityRepository world, IReadOnlyList<Entity> sel)
@@ -273,7 +292,13 @@ public sealed class FormView
             return;
         }
         double v = _editing == i ? _editNumber : s.Number;
-        ImGui.InputDouble("##n", ref v, 0, 0, NumberInput.FormatFor(field.Unit));
+        if (field.Slider)
+        {
+            float f = (float)v;
+            ImGui.SliderFloat("##n", ref f, (float)field.Min, (float)field.Max, s.SliderFormat);
+            v = f;
+        }
+        else ImGui.InputDouble("##n", ref v, 0, 0, NumberInput.FormatFor(field.Unit));
         if (ImGui.IsItemActivated()) { _editing = i; _editNumber = s.Number; }
         if (_editing == i)
         {
@@ -315,6 +340,7 @@ public sealed class FormView
             if (s.Refusal != null) return new FormRowState(Refused: true, RefusedReason: s.Refusal);
             if (pending) return new FormRowState(Pending: true, PendingTip: "sent to the owner — waiting for its answer");
         }
+        if (s.Differs) return new FormRowState(DiffersFromType: true, TypeTip: s.TypeTip);   // ⭐ U-24 / S6 — the blue reset arrow
         return default;
     }
 
@@ -360,6 +386,17 @@ public sealed class FormView
             return l;
         }
     }
+
+    /// <summary>⭐ U-24 / S6 — the mark the last drawn row of field <paramref name="field"/> carries (rails): refused · pending · the reset arrow · none.</summary>
+    public FormMark MarkOf(int field)
+    {
+        if (field < 0 || field >= _state.Length) return FormMark.None;
+        var s = _state[field];
+        return s.Refusal != null ? FormMark.Refused : s.Tickets.Count > 0 ? FormMark.Pending : s.Differs ? FormMark.DiffersFromType : FormMark.None;
+    }
+
+    /// <summary>The reset arrow's tooltip of field <paramref name="field"/> (rails), or null.</summary>
+    public string? TypeTipOf(int field) => field >= 0 && field < _state.Length ? _state[field].TypeTip : null;
 
     /// <summary>⭐ U-23 / D4 — the last drawn lists' rows, role then who (rails).</summary>
     public IReadOnlyList<string> ListRows => _listRows.ToArray();

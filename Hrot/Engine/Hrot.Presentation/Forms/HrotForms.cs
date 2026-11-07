@@ -120,6 +120,25 @@ public static class HrotForms
                 Has = (w, e) => w.IsComponentTypeRegistered<Hrot.Common.Playable>() && w.HasComponent<Hrot.Common.Playable>(e),
                 ReadText = (w, e) => Widen(w.GetComponentRO<Hrot.Common.Playable>(e).SlotName),
             },
+            // ⭐ U-24 / S6 (DESIGN_Initial_State §4.2) — the Character section: the EFFECTIVE value shown, a blue reset arrow when an authored value differs from the type's (a NEGATIVE write clears the authored bit)
+            Character("Skill", "Proficiency", "Character",
+                Has: (w, e) => w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.CombatProficiency>() && w.HasComponent<Fdp.Toolkit.Behavior.Components.CombatProficiency>(e),
+                read: (w, e) => Fdp.Toolkit.Behavior.Components.ProficiencyOf.Value(w, e),
+                type: (w, e) =>
+                {
+                    var p = w.GetComponentRO<Fdp.Toolkit.Behavior.Components.CombatProficiency>(e);
+                    if ((p.Set & Fdp.Toolkit.Behavior.Components.CombatProficiency.AuthoredSet) == 0) return null;
+                    return (p.Set & Fdp.Toolkit.Behavior.Components.CombatProficiency.UnitSet) != 0 ? p.Unit
+                         : (p.Set & Fdp.Toolkit.Behavior.Components.CombatProficiency.TypeDefaultSet) != 0 ? p.TypeDefault : Fdp.Toolkit.Behavior.Components.ProficiencyOf.Regular;
+                }),
+            Trait("Bravery", "Temperament.RiskAcceptance", Fdp.Toolkit.Behavior.Components.CombatTemperament.RiskAcceptanceSet, Fdp.Toolkit.Behavior.Components.TemperamentOf.RiskAcceptance,
+                Fdp.Toolkit.Behavior.Components.TemperamentOf.DefaultRiskAcceptance, t => t.TypeRiskAcceptance),
+            Trait("Obedience", "Temperament.Obedience", Fdp.Toolkit.Behavior.Components.CombatTemperament.ObedienceSet, Fdp.Toolkit.Behavior.Components.TemperamentOf.Obedience,
+                Fdp.Toolkit.Behavior.Components.TemperamentOf.DefaultObedience, t => t.TypeObedience),
+            Trait("Nerve", "Temperament.Nerve", Fdp.Toolkit.Behavior.Components.CombatTemperament.NerveSet, Fdp.Toolkit.Behavior.Components.TemperamentOf.Nerve,
+                Fdp.Toolkit.Behavior.Components.TemperamentOf.DefaultNerve, t => t.TypeNerve),
+            Trait("Resolve", "Temperament.Resolve", Fdp.Toolkit.Behavior.Components.CombatTemperament.ResolveSet, Fdp.Toolkit.Behavior.Components.TemperamentOf.Resolve,
+                Fdp.Toolkit.Behavior.Components.TemperamentOf.DefaultResolve, t => t.TypeResolve),
             new FormField
             {
                 Label = "Entity id", Expert = true,
@@ -374,4 +393,18 @@ public static class HrotForms
                             ReadNumber = (w, e) => w.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(e).DisplayUtcOffsetMinutes },
         }, WeatherRows()),
     };
+
+    private static FormField Character(string label, string attribute, string? section, Func<EntityRepository, Entity, bool> Has, Func<EntityRepository, Entity, double> read, Func<EntityRepository, Entity, double?> type)
+        => new FormField { Label = label, Section = section, Attribute = attribute, Min = 0, Max = 1, Slider = true, Has = Has, ReadNumber = read, TypeValue = type };
+
+    private static FormField Trait(string label, string attribute, byte bit, Func<Fdp.ModuleHost.Abstractions.ISimulationView, Entity, float> effective, float dflt, Func<Fdp.Toolkit.Behavior.Components.CombatTemperament, float> typeOf)
+        => Character(label, attribute, null,
+            (w, e) => w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.CombatTemperament>() && w.HasComponent<Fdp.Toolkit.Behavior.Components.CombatTemperament>(e),
+            (w, e) => effective(w, e),
+            (w, e) =>
+            {
+                var t = w.GetComponentRO<Fdp.Toolkit.Behavior.Components.CombatTemperament>(e);
+                if ((t.Set & bit) == 0) return null;                          // nothing authored over the type ⇒ no mark
+                return (t.TypeSet & bit) != 0 ? typeOf(t) : dflt;             // the type's value (with its spread), else the default
+            });
 }

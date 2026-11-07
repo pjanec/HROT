@@ -38,6 +38,13 @@ public sealed class FormField
     public bool Expert { get; init; }
     /// <summary>⭐ U-23 fidelity (details-forms-visual.svg) — this field STARTS a captioned section (<i>Identity</i>, <i>State</i>, <i>Character</i>); null = continues the current one.</summary>
     public string? Section { get; init; }
+    /// <summary>⭐ U-24 / S6 — the value this field's TYPE gives the entity, or null when nothing is authored over it (no mark): when it differs from the shown value the row's status slot shows the blue reset arrow
+    /// (<see cref="FormMark.DiffersFromType"/>, the tooltip <i>type 0.50 — reset</i>) and a click writes <see cref="ResetValue"/> through <see cref="ChangeFor"/>. Called per entity per frame: 0 B.</summary>
+    public Func<EntityRepository, Entity, double?>? TypeValue { get; init; }
+    /// <summary>What the reset writes (the attribute's own "back to the type" value — the Character attributes: a NEGATIVE number clears the authored bit). ⛔ Not range-checked: it is not a typed value.</summary>
+    public double ResetValue { get; init; } = -1;
+    /// <summary>A bounded number drawn as a slider (the mockup's Character rows) instead of an input; written when the drag ends.</summary>
+    public bool Slider { get; init; }
 
     /// <summary>The vocabulary row this field writes (resolved once), or null for a read-only field.</summary>
     public AttributeDefinition? Definition => _definition ??= Attribute == null ? null : FormCatalogue.AttributeOf(Attribute);

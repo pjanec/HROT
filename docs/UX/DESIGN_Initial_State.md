@@ -204,6 +204,8 @@ Rails: `PassengerBufferTranslatorTests.S1_*`, `PersonCarrierTests.S1_*`, `Weapon
 
 Rail `TheUnitFormDrawsTests.U24_S5_…` (a real frame).
 
+⭐ **S6, the Unit form's Character section *(ui, `2026-11-07`, U-24)*:** five number rows under a *Character* caption — **Skill** (`Proficiency`, 80) · **Bravery** (`Temperament.RiskAcceptance`, 81) · **Obedience** (82) · **Nerve** (83) · **Resolve** (84) — each a 0..1 **slider** reading the EFFECTIVE value (`ProficiencyOf` / `TemperamentOf`). Skill is a number slider, not the mockup's tier word (the optional part). New generic seam on `FormField`: `TypeValue` (the type's value, null when nothing is authored over it) + `ResetValue` (−1, the Character attributes' "back to the type"). When an authored value differs from the type's the row shows `0.80  (type 0.50)` and the blue reset arrow in the status slot (`FormMark.DiffersFromType`, tooltip *type 0.5 — reset*); a click commits `ResetValue` through `ChangeFor` (never range-checked). Strings cached per change (0 B steady). ⏳ not yet: *Weapons control / Reactions* as plain choices (`SetRoeEvent`); the Character section on the Brain tab is still the old surface. Rail `TheUnitFormDrawsTests.U24_S6_…` (a real frame, red-proven).
+
 ## 5. Questions — ✅ all nine APPROVED (R-4137, user `2026-11-06`: *"Approved."*)
 
 | # | question | lean | rejected |
