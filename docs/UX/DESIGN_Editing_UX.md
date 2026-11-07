@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
 known-conflict: AQ26's two-axis resolution lets a HOST supply the isApplicable rule; R-4119 narrows it — for an entity, the rule reads the entity's components (§0)
 related-designs:
+  - DESIGN_Scenario_Lifecycle_Review.md — the whole author → live → DAR → AAR cycle walked for usability (LC-1…LC-21, 2026-11-07)
   - DESIGN_UI_Conventions.md — slice E17: trees, label-first forms, collapsing headers, house-wide
   - DESIGN_Condition_Editor.md — E5 condition templates, detailed: the friendly condition editor (presets are its shortcuts)
   - DESIGN_Initial_State.md — design queue 7b (E15): seats and carrying, carried weapons, weapon posture, knows about, the Point type
