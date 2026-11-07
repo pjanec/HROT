@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: §3 M5's "a task-owned rule evaluated by the rules runner" is SUPERSEDED by §5 D3 (one Condition trigger, the one compiler); §2.2's PhaseBegins leaf and OperationPhase class by §5 D5 / D6 (a phase IS a trigger)
 known-conflict: the code calls a plan's task slot a "phase" (MissionPlanQueue.Phases); this design uses "phase" for the MILITARY phase of an operation (§2.4) — Q6 renames the code's word
 related-designs:
+  - ../DESIGN_Readable_Scenario_Json.md — the task params and its then / give-up conditions written as JSON objects on disk, not escaped strings
   - DESIGN_Condition_Editor.md — the editor a task's Advanced condition opens; PhaseBegins is listed there as this design's leaf
   - DESIGN_Rule_Editor_UX.md — where a task's advanced condition goes (New rule… from the task) and the Begin phase action
   - DESIGN_Editing_UX.md — the programme: D18 (the mission plan editor, unit-agnostic orders first), E11, the Orders tab (§3.3)
@@ -309,7 +310,7 @@ group only.*
 | the wire | `MissionTrigger { string Type; string Params /* JSON */ }` (`MissionDescriptors.cs:28-31`, `[DdsManaged]`) | the same two strings, unbounded |
 | the parse | `MissionTriggerHelper.cs:15-45` switches the type over 5 names; an unknown type throws, and **more than one entry throws** ("a phase holds ONE trigger") | the only place the format is enforced |
 
-⭐ **The new entries use the same two strings:** `{ "type": "Then", "params": "<condition JSON>" }` and an optional `{ "type": "GiveUp", "params": "<condition JSON>" }`
+⭐ ✏ **On disk readable (`DESIGN_Readable_Scenario_Json.md`):** the `params` string is written as the JSON object it holds. **The new entries use the same two fields:** `{ "type": "Then", "params": "<condition JSON>" }` and an optional `{ "type": "GiveUp", "params": "<condition JSON>" }`
 — the condition JSON-in-a-string like `behaviorParams` already is. The meaning is in the TYPE, never the position.
 
 | direction | result |

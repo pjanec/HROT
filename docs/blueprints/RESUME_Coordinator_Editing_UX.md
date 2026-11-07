@@ -73,6 +73,6 @@ detail hidden not removed, scarce live confirmations, editing levels per node) �
 | **behaviors** | performance programme (§11f, 1000 soldiers load) | nothing dispatched |
 | **backend** | late-joiner ghosts (CE-4000 / 4007) — dispatch in backend | check its report |
 
-Ids: coordinator next free **CE-4295**, **R-4159** (CE-4293, CE-4294 and R-4158 taken by the gateway session).
+Ids: coordinator next free **CE-4296**, **R-4159**.
 
 ⚠ All lanes are PAUSED by the user while the editing-UX designs are discussed (`2026-11-06`).
