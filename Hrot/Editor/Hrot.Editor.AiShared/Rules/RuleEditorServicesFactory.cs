@@ -34,7 +34,8 @@ public sealed record RulesHostServices(
     Hrot.Presentation.Edits.EditHistory? History = null,
     bool Recording = false,                                        // a recording host: read-only by construction, no Game master
     Func<(int NetworkId, ForceId Side)?>? Selection = null,        // the Game master's "for the selected unit"
-    Func<bool>? GamePaletteEnabled = null);                        // the Game master's feature gate (HudFeatures.GamePalette)
+    Func<bool>? GamePaletteEnabled = null,                         // the Game master's feature gate (HudFeatures.GamePalette)
+    Func<Hrot.Common.Interactions.HostActions?>? Actions = null);  // ⭐ CE-4308 (RX6) — the host's action registry: the map's "Add rule about this unit…" / "When someone enters this area…" land on the bundle
 
 /// <summary>
 /// ⭐ CE-4292 / R2 — THE rule editor services, built ONCE for every host (was the editor's private <c>BuildRuleEditorServices</c> /

@@ -970,7 +970,8 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
             ShowOnMap:      n => _activeRepo?.Bus.Publish(new Hrot.Common.Events.CenterOnEntityCommand { NetworkId = n }),
             Seat:           () => Hrot.Common.Infrastructure.Seat.Reviewer,
             Blocked:        () => "a recording is read-only",
-            Recording:      true));
+            Recording:      true,
+            Actions:        () => HostActions));   // ⭐ CE-4308 — passed as every host does (the rule entries are Edit-mode only, so a recording never offers them)
         _rulesWindow = rules.Rules;
         Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { rules }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 

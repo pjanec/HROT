@@ -4915,7 +4915,8 @@ namespace Hrot.Editor
                     if (_world is not { } w || _selectionState?.PrimarySelected is not { } sel || !w.IsAlive(sel) || !w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(sel)) return null;
                     return (w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(sel).Value, w.HasComponent<EntityInfo>(sel) ? w.GetComponentRO<EntityInfo>(sel).ForceId : ForceId.Neutral);
                 },
-                GamePaletteEnabled: () => Hrot.Common.Infrastructure.HudFeatures.IsOn(_node?.Features, Hrot.Common.Infrastructure.HudFeatures.GamePalette)));
+                GamePaletteEnabled: () => Hrot.Common.Infrastructure.HudFeatures.IsOn(_node?.Features, Hrot.Common.Infrastructure.HudFeatures.GamePalette),
+                Actions: () => HostActions));   // ⭐ CE-4308 — the map menu's rule entries (silent-default rule: the editor holds them)
             _rulesWindow = rules.Rules; _rulesBundle = rules;
             Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { rules }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 

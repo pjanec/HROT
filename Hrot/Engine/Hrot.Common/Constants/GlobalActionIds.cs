@@ -114,5 +114,10 @@ namespace Hrot.Common.Constants
         // --- ⭐ CE-4210 MA-9 — Save selection as macro… (the editor registers it; a host with no handler offers no such item). ⚠ 544 measured free 2026-11-03 (480–543 are the order-form range).
         public const int SaveSelectionAsMacro = 544;
         public const int OrderWithOptionsMax  = 64;
+
+        // --- ⭐ CE-4308 (RX6, DESIGN_Rule_Editor_UX §2.5) — rules reachable from where the author is: the Rules gallery opened with the unit / area filled in
+        //     (the rules bundle binds them on every host that composes it). ⚠ 545 / 546 measured free 2026-11-07.
+        public const int AddRuleAboutUnit = 545;
+        public const int AddRuleForArea   = 546;
     }
 }

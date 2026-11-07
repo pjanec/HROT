@@ -1368,7 +1368,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 if (_context?.World is not { } w || _selectionState?.PrimarySelected is not { } sel || !w.IsAlive(sel) || !w.HasComponent<NetworkIdentity>(sel)) return null;
                 return (w.GetComponentRO<NetworkIdentity>(sel).Value, w.HasComponent<EntityInfo>(sel) ? w.GetComponentRO<EntityInfo>(sel).ForceId : ForceId.Neutral);
             },
-            GamePaletteEnabled: () => Hrot.Common.Infrastructure.HudFeatures.IsOn(_context?.Features, Hrot.Common.Infrastructure.HudFeatures.GamePalette)));
+            GamePaletteEnabled: () => Hrot.Common.Infrastructure.HudFeatures.IsOn(_context?.Features, Hrot.Common.Infrastructure.HudFeatures.GamePalette),
+            Actions: () => HostActions));   // ⭐ CE-4308 — the map menu's rule entries
         _rulesWindow = rules.Rules; _rulesBundle = rules;
         Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { rules }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
