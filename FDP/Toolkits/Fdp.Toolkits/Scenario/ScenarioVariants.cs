@@ -156,6 +156,8 @@ namespace Fdp.Toolkit.Scenario
             foreach (var (key, node) in entities)
             {
                 if (node is not JsonObject entity) continue;
+                // ⭐ CE-3374 (§17.1) — the AUTHORED forms, copied BEFORE they are stripped (the ONE writer of VariantForms); a save writes them back
+                double? presence = null; string? positionsJson = null; int positionChosen = 0; string? macroJson = null; int macroChosen = 0;
                 string? pk = FindKey(entity, PresenceKey);
                 if (pk != null)
                 {
@@ -163,6 +165,7 @@ namespace Fdp.Toolkit.Scenario
                              : throw new ScenarioParams.ArgsRefused($"{here}: entity {key}'s Presence must be a number 0..1");
                     if (p < 0 || p > 1) throw new ScenarioParams.ArgsRefused($"{here}: entity {key}'s Presence {p} is not within 0..1");
                     entity.Remove(pk);
+                    presence = p;
                     if (variant != 0 && Roll(variant, salt, key, "presence") >= p) { absent.Add(key); continue; }
                 }
                 string? posKey = FindKey(entity, PositionsKey);
@@ -171,8 +174,10 @@ namespace Fdp.Toolkit.Scenario
                     var places = PositionsOf(entity[posKey]);
                     if (places == null || places.Count == 0)
                         throw new ScenarioParams.ArgsRefused($"{here}: entity {key}'s Positions must be a non-empty list of [x, y, z] or {{\"at\": [x, y, z], \"heading\", \"weight\"}}");
+                    positionsJson = entity[posKey]!.ToJsonString();
                     entity.Remove(posKey);
-                    var place = places[Pick(places.ConvertAll(p => p.Weight), variant, salt, key, "position")];
+                    positionChosen = Pick(places.ConvertAll(p => p.Weight), variant, salt, key, "position");
+                    var place = places[positionChosen];
                     string tk = FindKey(entity, "SimTransform") ?? "SimTransform";
                     if (entity[tk] is not JsonObject t) entity[tk] = t = new JsonObject { ["Rotation"] = new JsonArray(0, 0, 0, 1) };
                     t[FindKey(t, "Position") ?? "Position"] = new JsonArray(place.At[0], place.At[1], place.At[2]);
@@ -187,8 +192,18 @@ namespace Fdp.Toolkit.Scenario
                 {
                     var choices = ChoicesOf(mi[macroKey]);
                     if (choices.Count == 0) throw new ScenarioParams.ArgsRefused($"{here}: entity {key}'s macro choice list is empty");
-                    mi[macroKey] = Choose(choices, variant, salt, key);
+                    macroJson = mi[macroKey]!.ToJsonString();
+                    var weights = new List<double>(choices.Count);
+                    foreach (var c in choices) weights.Add(c.Weight);
+                    macroChosen = Pick(weights, variant, salt, key, "macro");
+                    mi[macroKey] = choices[macroChosen].Macro;
                 }
+                if (presence != null || positionsJson != null || macroJson != null)
+                    entity[VariantForms.ComponentName] = new VariantForms
+                    {
+                        Variant = variant, Presence = presence, PositionsJson = positionsJson, PositionChosen = positionChosen,
+                        MacroChoicesJson = macroJson, MacroChosen = macroChosen,
+                    }.ToJson();
             }
             foreach (var key in absent) entities.Remove(key);
         }

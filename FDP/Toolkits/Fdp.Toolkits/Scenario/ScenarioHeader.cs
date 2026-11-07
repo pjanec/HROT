@@ -61,6 +61,10 @@ namespace Fdp.Toolkit.Scenario
         /// <summary>⭐ SR-182 — <c>"Placement": {"MaxShift": m}</c>, the farthest the expander may shift a relocated placement; null = <see cref="DefaultMaxShift"/>.</summary>
         public float? MaxShift { get; init; }
 
+        /// <summary>⭐ CE-3375 (📄 docs/UX/DESIGN_Scenario_Presets.md D1) — the scenario's named RUN SETUPS (<c>"Presets": [{"Name", "Variant", "Args"}]</c>), in order;
+        /// <b>Default</b> is NOT stored (it is the declarations' defaults, as authored, always first). Null = none.</summary>
+        public IReadOnlyList<ScenarioPreset>? Presets { get; init; }
+
         /// <summary>⭐ SR-156 — <c>false</c> = the macro's content is pinned to its authored place (it is not relocated). Written only when false.</summary>
         public bool Relocatable { get; init; } = true;
 
@@ -75,6 +79,43 @@ namespace Fdp.Toolkit.Scenario
     /// <paramref name="Default"/> value (JSON; null = none) and a <paramref name="Comment"/>.</summary>
     public sealed record ScenarioParamDecl(string Name, string TypeId, JsonNode? Default = null, string? Comment = null);
 
+    /// <summary>⭐ CE-3375 (presets D4) — how a preset picks the run's variant: <see cref="AsAuthored"/> (variant 0 — the world is editable and saveable, the
+    /// pen) · <see cref="Random"/> (a new variant each run) · <see cref="Number"/> (that variant). Anything but as-authored is preview only (the eye).</summary>
+    public enum PresetVariantKind { AsAuthored = 0, Random = 1, Number = 2 }
+
+    /// <summary>⭐ CE-3375 — a preset's variant choice; <paramref name="Number"/> matters only for <see cref="PresetVariantKind.Number"/>.</summary>
+    public readonly record struct PresetVariant(PresetVariantKind Kind, int Number = 0)
+    {
+        public static PresetVariant AsAuthored => new(PresetVariantKind.AsAuthored);
+        public static PresetVariant RandomEachRun => new(PresetVariantKind.Random);
+
+        /// <summary>True when a world loaded with this choice can be saved (variant 0 — presets §2).</summary>
+        public bool Saveable => Kind == PresetVariantKind.AsAuthored || (Kind == PresetVariantKind.Number && Number == 0);
+
+        /// <summary>The variant a load uses: 0 · <paramref name="random"/> (a fresh non-zero number, the caller's) · the number.</summary>
+        public int Resolve(Func<int> random) => Kind switch { PresetVariantKind.Random => random(), PresetVariantKind.Number => Number, _ => 0 };
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-3375 (📄 docs/UX/DESIGN_Scenario_Presets.md §1, D1) — a NAMED RUN SETUP kept in the scenario file: a variant choice and the params it CHANGES
+    /// (<paramref name="Args"/>: name → value, only the overrides — a param not listed takes its declared default). What <c>RunSetup</c> holds, with a name.
+    /// </summary>
+    public sealed record ScenarioPreset(string Name, PresetVariant Variant, JsonObject? Args = null)
+    {
+        /// <summary>The name of the implicit first preset (the declarations' defaults, as authored) — never stored.</summary>
+        public const string DefaultName = "Default";
+
+        /// <summary>The scenario args a load with this preset applies: its overrides plus <c>"$variant"</c> when not as authored (presets §3 — the load path every
+        /// node already reads). <paramref name="random"/> draws a variant for <see cref="PresetVariantKind.Random"/>.</summary>
+        public string ArgsJson(Func<int> random)
+        {
+            var o = Args?.DeepClone() as JsonObject ?? new JsonObject();
+            int v = Variant.Resolve(random);
+            if (v != 0) o[ScenarioVariants.ArgName] = v;
+            return o.ToJsonString();
+        }
+    }
+
     /// <summary>⭐ SR-152 — a macro's authoring anchor: the <paramref name="Position"/> and <paramref name="Heading"/> its content is authored around.</summary>
     public readonly record struct MacroAnchor(WorldPoint Position, Bearing Heading);
 
@@ -85,7 +126,7 @@ namespace Fdp.Toolkit.Scenario
     public static class ScenarioHeaderJson
     {
         public static bool HasAny(ScenarioHeader h)
-            => h.Kind != null || h.Params is { Count: > 0 } || h.Anchor != null || h.MaxShift != null || !h.Relocatable || h.Features is { Count: > 0 };
+            => h.Kind != null || h.Params is { Count: > 0 } || h.Anchor != null || h.MaxShift != null || !h.Relocatable || h.Features is { Count: > 0 } || h.Presets is { Count: > 0 };
 
         public static void Write(JsonObject headerNode, ScenarioHeader h)
         {
@@ -121,6 +162,23 @@ namespace Fdp.Toolkit.Scenario
                     f[kv.Key] = v;
                 }
                 headerNode["Features"] = f;
+            }
+            if (h.Presets is { Count: > 0 })   // ⭐ CE-3375 — "Variant": "AsAuthored" | "Random" | n
+            {
+                var arr = new JsonArray();
+                foreach (var p in h.Presets)
+                {
+                    var row = new JsonObject { ["Name"] = p.Name };
+                    row["Variant"] = p.Variant.Kind switch
+                    {
+                        PresetVariantKind.Random => JsonValue.Create("Random"),
+                        PresetVariantKind.Number => JsonValue.Create(p.Variant.Number),
+                        _ => JsonValue.Create("AsAuthored"),
+                    };
+                    if (p.Args is { Count: > 0 }) row["Args"] = p.Args.DeepClone();
+                    arr.Add(row);
+                }
+                headerNode["Presets"] = arr;
             }
         }
 
@@ -166,6 +224,25 @@ namespace Fdp.Toolkit.Scenario
                 }
             }
 
+            List<ScenarioPreset>? presets = null;
+            if (Get(h, "Presets") is JsonArray prows)
+            {
+                presets = new List<ScenarioPreset>(prows.Count);
+                foreach (var r in prows)
+                {
+                    if (r is not JsonObject ro) continue;
+                    var name = Str(ro, "Name");
+                    if (string.IsNullOrWhiteSpace(name) || string.Equals(name, ScenarioPreset.DefaultName, StringComparison.OrdinalIgnoreCase)) continue;   // Default is implicit
+                    var variant = Get(ro, "Variant") switch
+                    {
+                        JsonValue nv when nv.TryGetValue(out int n) => new PresetVariant(PresetVariantKind.Number, n),
+                        JsonValue sv when sv.TryGetValue(out string? w) && string.Equals(w, "Random", StringComparison.OrdinalIgnoreCase) => PresetVariant.RandomEachRun,
+                        _ => PresetVariant.AsAuthored,
+                    };
+                    presets.Add(new ScenarioPreset(name, variant, Get(ro, "Args") is JsonObject ao2 ? (JsonObject)ao2.DeepClone() : null));
+                }
+            }
+
             return new ScenarioHeader(Str(h, "SubsystemType") ?? subsystemType, Str(h, "TerrainName"), Str(h, "Description"))
             {
                 Kind = Str(h, "Kind"),
@@ -174,6 +251,7 @@ namespace Fdp.Toolkit.Scenario
                 MaxShift = maxShift,
                 Relocatable = relocatable,
                 Features = features,
+                Presets = presets,
             };
 
             static string? Str(JsonObject o, string key) => Get(o, key) is JsonValue v && v.TryGetValue(out string? s) ? s : null;

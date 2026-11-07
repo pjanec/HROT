@@ -1240,6 +1240,11 @@ namespace Fdp.Core
         /// four lanes 2026-11-02.</summary>
         public const int MacroInstance = 470;
 
+        /// <summary><c>VariantForms</c> — ⭐ CE-3374 (docs/DESIGN_Scenario_Macros.md §17.1): the AUTHORED variant forms of an entity (Presence, Positions,
+        /// a one-of-N macro list) and the variant that built the world, so an edit load followed by a save keeps them. Managed, NoReplay. ⚠ 449 (the backend
+        /// block's last) measured free on backend, ui, behaviors and coordinator 2026-11-07.</summary>
+        public const int VariantForms = 449;
+
         /// <summary><c>MacroExpansionStatus</c> — ⭐ macros S3a ③ (SR-175): the expander's state on the instance. Unmanaged, NoScenario, recorded;
         /// wire <c>dtMacroExpansionStatus</c> 159. ⚠ 471 measured free on all four lanes 2026-11-02.</summary>
         public const int MacroExpansionStatus = 471;

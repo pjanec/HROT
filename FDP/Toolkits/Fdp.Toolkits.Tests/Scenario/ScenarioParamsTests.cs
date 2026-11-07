@@ -93,7 +93,7 @@ namespace Fdp.Toolkits.Tests.Scenario
             var e = (JsonObject)dom["entities"]!;
             Assert.Equal(4, e.Count);
             Assert.Equal("forces/A", MacroOf(dom));
-            Assert.DoesNotContain("Presence", dom.ToJsonString());
+            foreach (var (_, n) in e) Assert.False(((JsonObject)n!).ContainsKey("Presence"));   // stripped from every entity (CE-3374: the authored value moves into VariantForms)
         }
 
         /// <summary>⭐ B2 — a variant decides presence and the choice ALONE: the same variant twice is the same file, the run records it, Presence 0
@@ -167,7 +167,7 @@ namespace Fdp.Toolkits.Tests.Scenario
             var dom = PreparePlaces(0);
             Assert.Equal(new double[] { 10, 20, 0 }, PositionOf(dom, "dddd0000-0000-4000-8000-000000000001"));
             Assert.Equal(new double[] { 1, 2, 3 }, PositionOf(dom, "dddd0000-0000-4000-8000-000000000002"));
-            Assert.DoesNotContain("Positions", dom.ToJsonString());
+            foreach (var (_, n) in (JsonObject)dom["entities"]!) Assert.False(((JsonObject)n!).ContainsKey("Positions"));   // stripped (CE-3374: the authored list moves into VariantForms)
         }
 
         /// <summary>⭐ SR-101 ④ — a variant decides the place ALONE (the same variant twice ⇒ the same place, 30 times), a weight of 0 is never

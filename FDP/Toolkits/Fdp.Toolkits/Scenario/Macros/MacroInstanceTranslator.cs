@@ -30,9 +30,15 @@ namespace Fdp.Toolkit.Scenario
             JsonNode args;
             try { args = JsonNode.Parse(string.IsNullOrWhiteSpace(mi.ArgsJson) ? "{}" : mi.ArgsJson) ?? new JsonObject(); }
             catch (System.Text.Json.JsonException) { args = new JsonObject(); }
+            // ⭐ CE-3374 (§17.1 M1) — a one-of-N macro is saved as its authored LIST (the chosen entry replaced by the current macro); this translator stays
+            //   the ONE writer of the MacroInstance key
+            JsonNode macro = mi.Macro;
+            if (repo.HasManagedComponent<VariantForms>(entity)
+                && ((ISimulationView)repo).GetManagedComponentRO<VariantForms>(entity).MacroListWith(mi.Macro) is { } list)
+                macro = list;
             return new Dictionary<string, object>
             {
-                [MacroInstance.ComponentName] = new JsonObject { ["Macro"] = mi.Macro, ["Args"] = args },
+                [MacroInstance.ComponentName] = new JsonObject { ["Macro"] = macro, ["Args"] = args },
             };
         }
 

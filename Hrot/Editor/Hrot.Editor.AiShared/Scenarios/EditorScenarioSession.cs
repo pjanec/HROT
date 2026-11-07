@@ -220,16 +220,20 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
 
     // ── ⭐ CE-4101 — the RAW verbs: explicit IRunScenarioControl members, reached only through the door (after it decided) or the run choice (after its own confirmation) ──────────
 
-    void IRunScenarioControl.OpenForEdit(string scenarioName)
+    void IRunScenarioControl.OpenForEdit(string scenarioName) => ((IRunScenarioControl)this).OpenForEdit(scenarioName, null);
+
+    /// <summary>⭐ CE-3375 — the edit open with a preset's args (null ⇒ the plain open, exactly as before).</summary>
+    void IRunScenarioControl.OpenForEdit(string scenarioName, string? argsJson)
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
         _leaveRun?.Invoke();
         _loads.Request(new TransitionStateIntent
         {
-            TransactionId = Guid.NewGuid(),
-            TargetState   = ClusterState.OperatingEdit,
-            ScenarioId    = scenarioName,
-            ExerciseId    = Fdp.Core.ExerciseId.NewId(),
+            TransactionId    = Guid.NewGuid(),
+            TargetState      = ClusterState.OperatingEdit,
+            ScenarioId       = scenarioName,
+            ExerciseId       = Fdp.Core.ExerciseId.NewId(),
+            ScenarioArgsJson = string.IsNullOrWhiteSpace(argsJson) ? null : argsJson,
         });
     }
 

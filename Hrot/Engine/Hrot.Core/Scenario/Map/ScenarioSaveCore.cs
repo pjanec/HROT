@@ -62,6 +62,10 @@ public static class ScenarioSaveCore
             Anchor      = resident?.Anchor,
             MaxShift    = resident?.MaxShift,
             Relocatable = resident?.Relocatable ?? true,
+            // ⭐ CE-3375 — the presets and (found the same day, P-7) the feature preset are the SCENARIO's: an edit save keeps them. ⛔ They were not copied, so a
+            //   save dropped header.Features. A macro header (Save selection as macro) carries neither.
+            Features    = over is null ? resident?.Features : null,
+            Presets     = over is null ? resident?.Presets : null,
         };
     }
 

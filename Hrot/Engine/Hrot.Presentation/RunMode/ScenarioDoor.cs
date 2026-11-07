@@ -249,13 +249,14 @@ public sealed class ScenarioDoor
     /// Opens <paramref name="scenarioName"/> for EDITING. <paramref name="asker"/> (default: the host's UI asker) answers the questions; <paramref name="answered"/> is a check round the caller already ran (HTTP's);
     /// <paramref name="then"/> runs once the open went out.
     /// </summary>
-    public void Open(string scenarioName, IDoorAsker? asker = null, UnsavedAnswer? answered = null, Action? then = null)
+    /// <remarks>⭐ CE-3375 — <paramref name="argsJson"/>: a preset's load args (<c>ScenarioPreset.ArgsJson</c>); null ⇒ as authored, the plain open.</remarks>
+    public void Open(string scenarioName, IDoorAsker? asker = null, UnsavedAnswer? answered = null, Action? then = null, string? argsJson = null)
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
         var raw = Raw;
         Admit(DoorMove.OpeningScenario(scenarioName), asker, answered, () =>
         {
-            raw.OpenForEdit(scenarioName);
+            if (argsJson is null) raw.OpenForEdit(scenarioName); else raw.OpenForEdit(scenarioName, argsJson);
             then?.Invoke();
         });
     }

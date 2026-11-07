@@ -53,6 +53,13 @@ public interface IRunScenarioControl
     void OpenForEdit(string scenarioName);
 
     /// <summary>
+    /// ⭐ CE-3375 (📄 docs/UX/DESIGN_Scenario_Presets.md §3) — the same open WITH a preset's args (its overrides and, when not as authored, <c>$variant</c>): they ride the
+    /// edit intent's <c>ScenarioArgsJson</c>, the route every node's load reads (an edit load already binds params, macros debt A5). A control that cannot carry args keeps
+    /// the plain open — ⛔ the editor session overrides it.
+    /// </summary>
+    void OpenForEdit(string scenarioName, string? argsJson) => OpenForEdit(scenarioName);
+
+    /// <summary>
     /// ⭐⭐ <b>CE-4098 (AQ108 D16) — open a RECORDING, cluster-wide</b> (<c>File › Open Recording</c>): publishes the ONE replay intent
     /// (<c>ReplaySessionIntents.EnterReplay(exerciseId)</c>, the same construction <c>POST /replay {exerciseId}</c> ends in) — the master
     /// plans the unload and the replay from ANY state, so the session adds no Idle hop. ⛔ Not a second open path: the recording's own
