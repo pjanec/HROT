@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
 known-conflict: DESIGN_Entity_Control.md C-8 ("one operator per node — the station id is the node id") holds; a fused server hosts several compute roles in one node, but still ONE seat (one person) — §2.1
 related-designs:
+  - DESIGN_Rules_Bundle.md — every host composes the rules windows as ONE bundle; editing decided by the seat (CE-4292)
   - DESIGN_New_Scenario_And_Recipe.md — E12: New Scenario is the Author seat's
   - DESIGN_Map_Interaction.md — E8: the map tools of the Edit hat (and the Instructor's live placement)
   - DESIGN_Input_And_Commands.md — each hat is a keymap scope; central Esc

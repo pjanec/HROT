@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
 known-conflict: R-1047 deferred entity undo because editing is shared with live changes — R-4120 limits undo to Edit mode, which removes that reason; this design is the deferred CE-1462
 related-designs:
+  - DESIGN_Rules_Bundle.md — every host composes the rules windows as ONE bundle; editing decided by the seat (CE-4292)
   - DESIGN_Map_Interaction.md — E8: one finished map edit = one step
   - DESIGN_Editing_UX.md — the programme: D1, R-4120 (undo in Edit mode only)
   - DESIGN_Edit_Framework.md — the journal and the step boundary (one user action = one Submit scope); an undo is itself applied through it
