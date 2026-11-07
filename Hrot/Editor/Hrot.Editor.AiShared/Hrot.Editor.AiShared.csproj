@@ -37,6 +37,8 @@
     <!-- CE-046 (Axis-C E1): EditorScenarioSession saves through ScenarioFileService, which lives here.
          ⭐ Measured acyclic: Hrot.Presentation references Hrot.Core / Fdp.* only — never AiShared. -->
     <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
+    <!-- ⭐ CE-4292 R2 — the ONE rule editor services factory (MacroInsertion, the state keepers, the live-values feature); no cycle: Hrot.AI.Behaviors does not reference AiShared -->
+    <ProjectReference Include="..\..\Subsystems\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastBTree\src\Fbt.Kernel\Fbt.Kernel.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.Kernel\Fhsm.Kernel.csproj" />

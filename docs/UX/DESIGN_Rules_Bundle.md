@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — every decision is an existing ruling (R-174, R-4131 H5, R-4133 Q2, R-4119, R-4128); no open question
-updated: 2026-11-07 (first version — the user: "How can be something built just for an editor when the bootstrap is unified and shared and features are available everywhere by role and suppressed just by feature settings or role settings?" — CE-4292)
-current-answer: §1 what is there · §2 the design (diagrams) · §3 rules · §4 stages
+build-state: BUILDING — R1–R3 BUILT (§5 as-built); R4 next
+updated: 2026-11-07 (R1–R3 as-built folded in, §5; first version — the user: "How can be something built just for an editor when the bootstrap is unified and shared and features are available everywhere by role and suppressed just by feature settings or role settings?" — CE-4292)
+current-answer: §1 what is there · §2 the design (diagrams, as-built) · §3 rules · §4 stages · §5 as-built and deviations
 stale-below: nothing
-known-rot: none
+known-rot: none (the first version's "the factory returns null for a seat that may not edit" is SUPERSEDED by §5 ①)
 known-conflict: none
 related-designs:
   - DESIGN_Rule_Editor_UX.md — OWNS what the rule editor shows (RX1–RX6, the List view, the Details tabs); this design only makes every host compose it the same way
@@ -54,13 +54,16 @@ classDiagram
     <<★ new record>>
     World · TimelineSource · Cursor · IdPrefix · Perspective · Colour
     SelectEntity · ShowOnMap · Blocked?
-    Seat · EntityCreation? · MacroExpander? · TimeTransport? · Pickers? · MapPicks? · History?
+    Seat · Registry? · Blueprints? · EntityCreation? · SpawnAdapter? · TimeTransport? · Pickers? · MapPicks? · History?
+    Recording · Selection? · GamePaletteEnabled?
   }
   class RuleEditorServicesFactory {
     <<★ new · Hrot.Editor.AiShared>>
     Build(RulesHostServices) RuleEditorServices?
+    MayEdit(Seat) bool
+    SeatRefusal(Seat) string?
   }
-  class RuleEditorServices { <<existing record · Hrot.Presentation>> }
+  class RuleEditorServices { <<existing record · Hrot.Presentation>> +SeatRefusal: Func~string?~ (new, read every frame) }
   class EntityAiEditModel { <<existing · MOVED Hrot.Editor → Hrot.Editor.AiShared>> ApplyTask · ApplySop }
   class RulesWindow { <<existing>> }
   class GameMasterWindow { <<existing>> }
@@ -69,7 +72,7 @@ classDiagram
   IUiBundle <|.. EntityDetailsBundle
   RulesBundle --> RulesHostServices
   RulesBundle --> RuleEditorServicesFactory
-  RuleEditorServicesFactory --> RuleEditorServices : null when the seat may not edit
+  RuleEditorServicesFactory --> RuleEditorServices : null only on a recording
   RuleEditorServicesFactory --> EntityAiEditModel : the edit-mode apply
   RuleEditorServicesFactory --> StationSeat
   RulesBundle --> RulesWindow
@@ -88,13 +91,17 @@ sequenceDiagram
   participant W as RulesWindow
   H->>B: Compose(new RulesHostServices(world, cursor, seat, entityCreation, ...))
   B->>F: Build(host services)
-  F->>S: may this seat edit rules? (Author, Instructor)
-  alt allowed and not Blocked
-    F-->>B: RuleEditorServices - writes through Edits.Submit, History only with Edit mode
-  else any other seat or a recording
-    F-->>B: null - the windows read and control as today
+  alt a recording
+    F-->>B: null - the windows read only, no Game master
+  else a live host
+    F-->>B: RuleEditorServices - writes through Edits.Submit, History = the host's or a window-local one
   end
   B->>W: new RulesWindow(..., editor) and the four other windows
+  loop every frame
+    W->>F: SeatRefusal(host.Seat())
+    F->>S: may this seat edit rules? (Author, Instructor)
+    F-->>W: null, or "your seat (X) cannot edit rules" - editing greyed with it
+  end
 ```
 
 ```mermaid
@@ -129,7 +136,21 @@ exercise sits there) — the dashed edges are deliberate, not a gap.*
 
 | # | what | acceptance |
 |---|---|---|
-| **R1** | move `EntityAiEditModel` (+ its `EntityAiDetailsView` if it must travel with it) to `Hrot.Editor.AiShared`; the editor's AI section unchanged | the AI section's own suite green; nothing else moved |
-| **R2** | `RulesHostServices` + `RuleEditorServicesFactory` (the body of `BuildRuleEditorServices` / `BuildMacroPreviewServices` / `BuildRuleLiveServices`, host pieces passed in, seat-gated) | a rail per seat: Author / Instructor get services, Reviewer / Player / Observer / Side controller get null |
-| **R3** | `RulesBundle` registering the five windows; Editor, CGF and the Replay Browser compose it; the hand-written sites deleted | the window-set golden per host: Editor and Replay Browser unchanged; CGF gains Mission summary, Trainee debrief, Game summary, Game master (H5) |
+| **R1** ✅ | move `EntityAiEditModel` (+ its `EntityAiDetailsView` if it must travel with it) to `Hrot.Editor.AiShared`; the editor's AI section unchanged | the AI section's own suite green; nothing else moved |
+| **R2** ✅ | `RulesHostServices` + `RuleEditorServicesFactory` (the body of `BuildRuleEditorServices` / `BuildMacroPreviewServices` / `BuildRuleLiveServices`, host pieces passed in, seat-gated) | a rail per seat: Author / Instructor edit, Reviewer / Player / Observer / Side controller get the seat refusal (§5 ①) — `TheRulesBundleTests` |
+| **R3** ✅ | `RulesBundle` registering the five windows; Editor, CGF and the Replay Browser compose it; the hand-written sites deleted | the window-set golden per host: Editor and Replay Browser unchanged; CGF gains Mission summary, Trainee debrief, Game summary, Game master (H5) |
 | **R4** | a CGF live edit end to end | from CGF's Rules window a rule's param changed live reaches the owner and the journal says Applied (`RuleEditorR5bTests` + one cluster rail); a forwarding rail per dependency on CGF |
+
+## 5. As-built (R1–R3, `2026-11-07`) and the deviations
+
+| # | as built | why it differs from §2's first version |
+|---|---|---|
+| ① | ⭐ the factory gives **every live host** services; **the seat is read every frame** through `RuleEditorServices.SeatRefusal` and greys editing with *"your seat (X) cannot edit rules"* (`RuleDetails.ReadOnlyReason`, after `Blocked`) | ⛔ a compose-time gate is wrong twice: a host composes its windows **before its node exists** (`_node?.Features` is null ⇒ `StationSeat.Of` answers Author), and a seat can change while live. Greyed with its reason, never hidden (R-4119). *Superseded: "null when the seat may not edit"* |
+| ② | **null services only on a recording** (`RulesHostServices.Recording`) — and then no Game master | a recording is read-only by construction (R-4148) |
+| ③ | a host with no Edit mode gets a **window-local** `EditHistory` (CGF); the editor passes its ONE `EditHistory` | the window's undo entries need a home; they never reach a shell undo menu that does not exist (R-4133 Q2) |
+| ④ | Game master only where the host can create entities (`EntityCreation` passed) and is live | its one-shot actions create a transient trigger entity |
+| ⑤ | the editor composes the bundle **before its headless guard** (`EditorSubsystem.RegisterWindows`, as the breakpoint manager) | so a headless editor has its rules windows too and the composition is railed (`TheRunChoiceIsOnEveryHostTests`) |
+| ⑥ | `EntityAiEditModel` moved file-only (`Hrot.Editor.AiShared/Scenario/`), its namespace kept; `Hrot.Editor.AiShared` gained a reference to `Hrot.AI.Behaviors` (no cycle) | a move, not a rename |
+
+Rails: `TheRulesBundleTests` (the seat theory; recording / live / no-creation) · `TheRunChoiceIsOnEveryHostTests` (Editor: five ids + its ONE history
+forwarded; CGF: the four new windows + a forwarding row per capability — picks, pickers, entity creation, Game master).

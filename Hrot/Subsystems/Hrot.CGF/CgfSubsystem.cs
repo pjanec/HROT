@@ -1344,18 +1344,33 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             Hrot.UI.Common.Panels.WaypointEditorPanelFactory.Create(() => _context?.World, () => _entityMap),   // CE-4214
             Hrot.Presentation.Windows.ScenarioPanelWindowIds.CgfWaypoint, "Scenario", TitleBarColor));
 
-        // ⭐⭐ U-18 / RX1 (DESIGN_Rule_Editor_UX §2.6, R-4119) — Window ▸ Rules on CGF: the SAME window the editor and the Replay Browser register, over this node's
-        //   world and its shown timeline (HrotNodeContext.ShownTimeline — the editor's source), driven by the operator toolbar's transport. A pick selects through
-        //   the one request seam; Show on map is the shared CenterOnEntityCommand. ⚠ No rule editor services yet: CGF reads and controls rules (Fire now, Disarm …),
-        //   live edits stay on the editor (follow-up in the as-built).
+        // ⭐⭐ CE-4292 (Rules bundle R3; Seats and hats H5) — the rules windows on CGF / the fused server: the ONE bundle the editor and the Replay Browser
+        //   compose (Rules · Game master · Mission summary · Trainee debrief · Game summary), over this node's world and shown timeline. ⭐ Editing is the
+        //   SEAT's (Instructor here: live edits through the one write path); no Edit-mode history on this host (R-4133 Q2).
         _rulesWindowManager = windowManager;
-        _rulesWindow = new Hrot.Presentation.Windows.RulesWindow(
-            () => _context?.World, () => _context?.ShownTimeline,
-            new Hrot.UI.Common.Adapters.ClusterTimelineCursor(() => _clusterTimeAdapter, () => _context?.ShownTimeline),
-            "cgf_rules", "Scenario", TitleBarColor,
-            selectEntity: n => SelectNetworkEntity(n),
-            showOnMap: n => _context?.World.Bus.Publish(new Hrot.Common.Events.CenterOnEntityCommand { NetworkId = n })) { IsOpen = false };
-        windowManager.RegisterWindow(_rulesWindow);
+        var rules = new Hrot.Editor.AiShared.Rules.RulesBundle(new Hrot.Editor.AiShared.Rules.RulesHostServices(
+            World:          () => _context?.World,
+            TimelineSource: () => _context?.ShownTimeline,
+            Cursor:         () => new Hrot.UI.Common.Adapters.ClusterTimelineCursor(() => _clusterTimeAdapter, () => _context?.ShownTimeline),
+            IdPrefix:       "cgf_", Perspective: "Scenario", Colour: TitleBarColor,
+            SelectEntity:   n => SelectNetworkEntity(n),
+            ShowOnMap:      n => _context?.World.Bus.Publish(new Hrot.Common.Events.CenterOnEntityCommand { NetworkId = n }),
+            Seat:           () => Hrot.Common.Infrastructure.StationSeat.Of(_context?.Features),
+            Registry:       () => _behaviorRegistry,
+            Blueprints:     () => _blueprintRegistry,
+            EntityCreation: () => EntityCreation,
+            SpawnAdapter:   () => _spawnAdapter,
+            TimeTransport:  () => _clusterTimeAdapter,
+            Pickers:        () => _shellPickers,
+            MapPicks:       () => _cgfMapPick,
+            Selection:      () =>
+            {
+                if (_context?.World is not { } w || _selectionState?.PrimarySelected is not { } sel || !w.IsAlive(sel) || !w.HasComponent<NetworkIdentity>(sel)) return null;
+                return (w.GetComponentRO<NetworkIdentity>(sel).Value, w.HasComponent<EntityInfo>(sel) ? w.GetComponentRO<EntityInfo>(sel).ForceId : ForceId.Neutral);
+            },
+            GamePaletteEnabled: () => Hrot.Common.Infrastructure.HudFeatures.IsOn(_context?.Features, Hrot.Common.Infrastructure.HudFeatures.GamePalette)));
+        _rulesWindow = rules.Rules; _rulesBundle = rules;
+        Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { rules }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
         // ⭐⭐⭐ PHASE 2 SLICE ② — the FIVE diagnostics sites (inspector, the "Inspect…" wiring, event
         //    browser, architecture diagnostics, system profiler) are now ONE shared bundle,
@@ -2748,6 +2763,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     }
 
     private Hrot.Presentation.Windows.RulesWindow? _rulesWindow;
+    private Hrot.Editor.AiShared.Rules.RulesBundle? _rulesBundle;
+    /// <summary>⭐ CE-4292 — the rules bundle this host composed (forwarding rails).</summary>
+    internal Hrot.Editor.AiShared.Rules.RulesBundle? RulesBundleForTest => _rulesBundle;
     private MapPickBroker? _cgfPickBroker;
     /// <summary>⭐ U-18 / RX1 — the Rules window (rails).</summary>
     internal Hrot.Presentation.Windows.RulesWindow? RulesWindowForTest => _rulesWindow;
