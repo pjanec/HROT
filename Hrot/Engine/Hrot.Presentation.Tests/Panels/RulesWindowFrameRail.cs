@@ -258,6 +258,8 @@ public sealed class RulesWindowFrameRail : IDisposable
         // ⭐ U-15 / C3 — the When tab reads as SENTENCES (the friendly view): the objective by its kind and name, no component path; nothing blank ⇒ Apply may run
         Assert.Equal(new[] { "Objective: Hold the bridge is achieved" }, window.Details!.ConditionRows);
         Assert.Null(window.Details.ConditionProblem);
+        // ⭐ C4 — the timing is the END OF THE SENTENCE (cooldown 10 on a once-trigger: "once")
+        Assert.Equal("...and it stays true for 0 s, then wait 0 s. Fire once", window.Details.TimingSentence);
         frame.Screenshot(ShotPath("rules-4-when.png"));
         {   // ⭐ CE-4286 / U-2 — the rule editor's tabs are a real tab bar (the neutral palette: the selected tab #3A3A48 with the blue overline), not a strip of buttons
             var shot = Raylib.LoadImageFromScreen();
@@ -393,6 +395,7 @@ public sealed class RulesWindowFrameRail : IDisposable
         Assert.Equal(new[] { true }, liveValues);
         Assert.True(window.Probe.Editor!.LiveValuesWanted);
         Assert.Contains(window.Probe.Editor.LiveStrip!, t => t.StartsWith("yes | ") && t.EndsWith("| 2"));
+        Assert.Equal(new string?[] { "yes 2" }, window.Details.ConditionLive);   // ⭐ C4 — the row's own live column (✓ + the number), not a strip under the form
         frame.Screenshot(ShotPath("rules-9-when-live.png"));
         window.Details.RequestTab(RuleTab.Settings); Step(null, 3);
         Assert.Equal(new[] { true, false }, liveValues);

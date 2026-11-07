@@ -192,8 +192,13 @@ one x.
 
 Rails: `RulesWindowFrameRail` — the When tab reads *Objective: Hold the bridge is achieved* (no blank), and `U15_…_AnUnfilledBlankHoldsApply` (red-proven:
 `ProblemOf` returning null). ⚠ **Deviations / still open:** the group is one line, not a tinted box (one nesting level reads back as a Custom row); no row
-icon (as approved) but the fact chip carries its fact's glyph; ⏳ **C4** — the timing line as the end of the sentence and the Live column per row
-(`LiveLeafOverlay` matched by sentence) — is next.
+icon (as approved) but the fact chip carries its fact's glyph; **C4 AS BUILT** *(same day)*: the timing is the END OF THE SENTENCE on the When tab — *…and it stays true for [30 s], then wait [0 s]. Fire [once /
+each time it becomes true, at most every N s, up to N times / every N s while it holds]* — chips over the session's `HoldFor`, `Delay`, `Repeat`,
+`Cooldown`, `MaxFires`, `WhileTrue` (the form below keeps *fire if true when armed*). The **Live column**: `ConditionEditor.Live` takes the owner's samples
+of the form's leaves (the existing strip, matched BY LABEL — unchanged on the wire); each row owns its next n leaves of the ONE flattening
+(`RuleLeafPlan.LeavesOf` — a row never splits a leaf), shown as ✓ / ✗ + the number at one x; ⚠ a negated WORLD row flattens to its bare leaf, so its sample
+is inverted. The strip under the form now only lists what the form does not hold (an applied edit). Rails: `RulesWindowFrameRail` (the timing sentence; the
+live row `yes 2`, red-proven).
 
 ## 5. The four language additions — small, each in the ONE compiler (both entries, S2-b)
 

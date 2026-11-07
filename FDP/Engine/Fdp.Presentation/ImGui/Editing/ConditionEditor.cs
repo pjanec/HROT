@@ -38,6 +38,36 @@ public sealed class ConditionEditor
     /// <summary>The person asked for the Expert view (a Custom row's <i>Open in Expert view</i>, a row menu's <i>Show in Expert view</i>).</summary>
     public bool ExpertRequested { get; set; }
 
+    /// <summary>⭐ U-15 / C4 — one sampled leaf of the owner's plan (<c>RuleLeafPlan</c>'s flattening, in order): whether it was sampled, holds, and the number behind it.</summary>
+    public readonly record struct LiveSample(bool Sampled, bool Holds, float Measured);
+
+    /// <summary>⭐ U-15 / C4 (§4 <i>live</i>) — the owner's samples for this condition's leaves, in flattening order; null = not live (no column).</summary>
+    public IReadOnlyList<LiveSample>? Live { get; set; }
+
+    private readonly List<int> _leafCounts = new();
+
+    /// <summary>⭐ C4 — each row's live text (<c>yes 62</c> · <c>no 0.4</c> · <c>-</c> not sampled · null without a sample for it) — rails, the panel probe.</summary>
+    public IReadOnlyList<string?> RowLive
+    {
+        get { var l = new List<string?>(_rows.Count); for (int i = 0; i < _rows.Count; i++) l.Add(LiveOf(i, out _)); return l; }
+    }
+
+    /// <summary>A row's live state: its leaves are whole leaves of the owner's plan (a row never splits one), so the k-th row owns the next n_k samples.
+    /// ⚠ A negated WORLD row flattens to its bare leaf (the <c>None</c> is a compound the plan descends through) ⇒ its sample is inverted here.</summary>
+    private string? LiveOf(int row, out bool holds)
+    {
+        holds = false;
+        if (Live is not { } live || row >= _leafCounts.Count || _rows[row].IsCustom || _leafCounts[row] != 1) return null;
+        int at = 0;
+        for (int i = 0; i < row; i++) at += _leafCounts[i];
+        if (at >= live.Count) return null;
+        var s = live[at];
+        if (!s.Sampled) return "-";
+        var r = _rows[row];
+        holds = r.Who.Kind == SubjectKind.World && r.Negated ? !s.Holds : s.Holds;
+        return (holds ? "yes " : "no ") + FactCatalogue.Num(s.Measured);
+    }
+
     /// <summary>The sentence rows as drawn (rails, the panel probe).</summary>
     public IReadOnlyList<string> Sentences { get { var l = new List<string>(_views.Count); foreach (var v in _views) l.Add(v.Sentence); return l; } }
 
@@ -112,6 +142,7 @@ public sealed class ConditionEditor
     private void RebuildViews(LiveRefScope? refs, string id)
     {
         _views.Clear();
+        _leafCounts.Clear();
         Problem = null;
         for (int i = 0; i < _rows.Count; i++)
         {
@@ -133,6 +164,7 @@ public sealed class ConditionEditor
                 Problem ??= v.Problem;
             }
             _views.Add(v);
+            _leafCounts.Add(Fdp.Toolkit.ScenarioRules.RuleLeafPlan.LeavesOf(RowProjection.ToDto(r), out _).Count);
         }
     }
 
@@ -181,6 +213,8 @@ public sealed class ConditionEditor
         var r = _rows[i];
         var v = _views[i];
         bool changed = false;
+        _rowStart = ImGuiApi.GetCursorPosX();
+        _rowWidth = ImGuiApi.GetContentRegionAvail().X;
         if (r.IsCustom)
         {
             ImGuiApi.TextDisabled("Custom condition (Expert): " + v.Sentence);
@@ -218,9 +252,28 @@ public sealed class ConditionEditor
         return changed;
     }
 
+    private float _rowStart, _rowWidth;
+
+    /// <summary>Where the last item ended, in the window's local x (what <c>SameLine(x)</c> takes): a column never overlaps a long row, it moves right.</summary>
+    private static float LastItemEnd() => ImGuiApi.GetItemRectMax().X - ImGuiApi.GetWindowPos().X + ImGuiApi.GetScrollX();
+
     private bool RowMenu(int i, ref int remove, ref int duplicate)
     {
-        ImGuiApi.SameLine();
+        // ⭐ C4 — the live result at ONE x, then the row menu at ONE x (§4: "live … at one x", "row menu at one x")
+        float frame = ImGuiApi.GetFrameHeight();
+        if (LiveOf(i, out bool holds) is { } live)
+        {
+            ImGuiApi.SameLine(Math.Max(LastItemEnd() + 8f, _rowStart + _rowWidth - frame - 110f));
+            if (live == "-") ImGuiApi.TextDisabled("not sampled");
+            else
+            {
+                var glyph = holds ? new IconGlyph("\uf058", IconPalette.Green) : NodeEditor.Core.Widgets.Icons.Get("form/error");   // CircleCheck / CircleXmark
+                ImGuiApi.TextColored(glyph.Color, glyph.Glyph);
+                ImGuiApi.SameLine();
+                ImGuiApi.TextUnformatted(live.Substring(live.IndexOf(' ') + 1));
+            }
+        }
+        ImGuiApi.SameLine(Math.Max(LastItemEnd() + 8f, _rowStart + _rowWidth - frame));
         if (GlyphWidgets.GlyphButton("##rowmenu", new IconGlyph("", IconPalette.Grey), "Row menu")) ImGuiApi.OpenPopup("rowmenu");   // EllipsisVertical
         if (!ImGuiApi.BeginPopup("rowmenu")) return false;
         if (ImGuiApi.Selectable("Duplicate")) duplicate = i;

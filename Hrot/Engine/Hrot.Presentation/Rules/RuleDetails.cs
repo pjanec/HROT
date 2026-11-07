@@ -398,16 +398,22 @@ public sealed class RuleDetails
             ImGui.Checkbox("Expert view", ref _expert);
             if (!_expert && WhenNode(session) is { } when)
             {
+                // ⭐ C4 — the Live column: the owner's samples of the form's own leaves, in the plan's order (RE-3, matched by label)
+                _conditions.Live = WantsLiveValues(row, tab) ? LiveSamples() : null;
                 var dto = when.Binding?.GetBoxed() as Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto;
                 if (_conditions.Draw("rule-when", ref dto, picks)) { when.Binding?.SetBoxed(dto); session.MarkStructuralChange(); }
                 if (_conditions.ExpertRequested) { _expert = true; _conditions.ExpertRequested = false; }
                 tabFields.Remove(RuleTabs.WhenField);
                 ImGui.Spacing();
+                // ⭐ C4 — the timing as the END OF THE SENTENCE (§4): "…and it stays true for 30 s, then wait 0 s. Fire once"
+                DrawTimingLine(session);
+                foreach (var f in TimingFields) tabFields.Remove(f);
+                ImGui.Spacing();
             }
         }
         BehaviorParamsForm.DrawFields(session, picks, "##rule-" + tab, null, tabFields, new IImGuiFieldDrawer[] { _steps });
         if (ro != null) ImGui.EndDisabled();
-        if (tab == RuleTab.When && WantsLiveValues(row, tab)) DrawLiveStrip();
+        if (tab == RuleTab.When && WantsLiveValues(row, tab)) DrawLiveStrip(onlyOutOfForm: !_expert);
     }
 
     // ── R5c: the Bindings tab (MA-1 / MA-2, third home) ──────────────────────────────────────────────────────────────────
@@ -458,6 +464,90 @@ public sealed class RuleDetails
         return null;
     }
 
+    private readonly List<Fdp.Presentation.Editing.ConditionEditor.LiveSample> _liveSamples = new();
+
+    /// <summary>⭐ C4 — the strip's in-form leaves as the editor's samples (the strip is already laid over the form's leaves, in order).</summary>
+    private IReadOnlyList<Fdp.Presentation.Editing.ConditionEditor.LiveSample> LiveSamples()
+    {
+        _liveSamples.Clear();
+        foreach (var r in _strip) if (r.InForm) _liveSamples.Add(new(r.Sampled, r.Holds, r.Measured));
+        return _liveSamples;
+    }
+
+    /// <summary>⭐ C4 — the trigger's timing fields the sentence's ending edits (the form below keeps the rest, e.g. <i>fire if true when armed</i>).</summary>
+    private static readonly string[] TimingFields = { "HoldFor", "Delay", "Cooldown", "Repeat", "MaxFires", "WhileTrue" };
+
+    private static StructEdit.Core.EditNode? FieldNode(StructEdit.Core.IEditSession session, string name)
+    {
+        var root = session.Document.Root;
+        if (root.Kind == StructEdit.Core.EditNodeKind.SelectionRoot && root.Children.Count == 1) root = root.Children[0];
+        foreach (var c in root.Children) if (c.Name == name) return c;
+        return null;
+    }
+
+    /// <summary>⭐ C4 — <i>…and it stays true for [30 s], then wait [0 s]. Fire [once]</i>: words + chips over the session's own fields (one undo through Apply).</summary>
+    private void DrawTimingLine(StructEdit.Core.IEditSession session)
+    {
+        var hold = FieldNode(session, "HoldFor"); var delay = FieldNode(session, "Delay"); var cool = FieldNode(session, "Cooldown");
+        var repeat = FieldNode(session, "Repeat"); var max = FieldNode(session, "MaxFires"); var whileTrue = FieldNode(session, "WhileTrue");
+        if (hold == null || delay == null || repeat == null) return;
+        float F(StructEdit.Core.EditNode? n) => n?.Binding?.GetBoxed() is float f ? f : 0f;
+        bool B(StructEdit.Core.EditNode? n) => n?.Binding?.GetBoxed() is bool b && b;
+        int I(StructEdit.Core.EditNode? n) => n?.Binding?.GetBoxed() is int i ? i : 0;
+        ImGui.PushID("timing");
+        ImGui.TextUnformatted("...and it stays true for");
+        ImGui.SameLine(); SecondsChip("##hold", hold, F(hold));
+        ImGui.SameLine(0f, 2f); ImGui.TextUnformatted(", then wait");
+        ImGui.SameLine(); SecondsChip("##delay", delay, F(delay));
+        ImGui.SameLine(0f, 2f); ImGui.TextUnformatted(". Fire");
+        ImGui.SameLine();
+        TimingSentence = $"...and it stays true for {F(hold):0.##} s, then wait {F(delay):0.##} s. Fire {FireWords(B(repeat), B(whileTrue), F(cool), I(max))}";
+        if (Fdp.Presentation.Editing.ReferenceLeafDrawers.DrawChip("##fire", FireWords(B(repeat), B(whileTrue), F(cool), I(max)), null, 360f)) ImGui.OpenPopup("fire");
+        if (ImGui.BeginPopup("fire"))
+        {
+            if (ImGui.Selectable("once", !B(repeat))) repeat.Binding?.SetBoxed(false);
+            if (ImGui.Selectable("each time it becomes true", B(repeat) && !B(whileTrue))) { repeat.Binding?.SetBoxed(true); whileTrue?.Binding?.SetBoxed(false); }
+            if (whileTrue != null && ImGui.Selectable("again and again while it holds", B(repeat) && B(whileTrue))) { repeat.Binding?.SetBoxed(true); whileTrue.Binding?.SetBoxed(true); }
+            if (B(repeat))
+            {
+                ImGui.Separator();
+                float c = F(cool);
+                ImGui.SetNextItemWidth(140f);
+                if (cool != null && Fdp.Presentation.Editing.NumberInput.Float(ref c, "s")) cool.Binding?.SetBoxed(Math.Max(0f, c));
+                ImGui.SameLine(); ImGui.TextDisabled("at most every");
+                int m = I(max);
+                ImGui.SetNextItemWidth(140f);
+                if (max != null && ImGui.InputInt("times at most (0 = no limit)", ref m)) max.Binding?.SetBoxed(Math.Max(0, m));
+            }
+            ImGui.EndPopup();
+        }
+        ImGui.PopID();
+    }
+
+    private static void SecondsChip(string id, StructEdit.Core.EditNode node, float seconds)
+    {
+        if (Fdp.Presentation.Editing.ReferenceLeafDrawers.DrawChip(id, $"{seconds:0.##} s", null, 120f)) ImGui.OpenPopup(id + "p");
+        if (!ImGui.BeginPopup(id + "p")) return;
+        float v = seconds;
+        ImGui.SetNextItemWidth(140f);
+        if (Fdp.Presentation.Editing.NumberInput.Float(ref v, "s")) node.Binding?.SetBoxed(Math.Max(0f, v));
+        ImGui.EndPopup();
+    }
+
+    /// <summary><i>once</i> · <i>each time it becomes true, at most every 10 s, up to 3 times</i> · <i>every 10 s while it holds</i>.</summary>
+    internal static string FireWords(bool repeat, bool whileTrue, float cooldown, int maxFires)
+    {
+        if (!repeat) return "once";
+        string s = whileTrue ? $"every {cooldown:0.##} s while it holds" : "each time it becomes true" + (cooldown > 0 ? $", at most every {cooldown:0.##} s" : "");
+        return maxFires > 0 ? $"{s}, up to {maxFires} times" : s;
+    }
+
+    /// <summary>⭐ C4 — the timing sentence as drawn (rails).</summary>
+    internal string? TimingSentence { get; private set; }
+
+    /// <summary>⭐ C4 — each condition row's live text (rails).</summary>
+    internal IReadOnlyList<string?> ConditionLive => _conditions.RowLive;
+
     /// <summary>⭐ U-15 — the friendly view's sentence rows (rails, the panel probe).</summary>
     internal IReadOnlyList<string> ConditionRows => _conditions.Sentences;
 
@@ -465,13 +555,21 @@ public sealed class RuleDetails
     internal string? ConditionProblem => _expert ? null : _conditions.Problem;
 
     /// <summary>RE-3 live — the Live strip under the When form: each leaf, whether it holds and the number behind it, matched by label.</summary>
-    private void DrawLiveStrip()
+    private void DrawLiveStrip(bool onlyOutOfForm = false)
     {
+        if (onlyOutOfForm)
+        {
+            // ⭐ C4 — the friendly view shows each row's live result in its own column; only what the form does not hold (an applied edit) remains here
+            bool any = false;
+            foreach (var r in _strip) any |= !r.InForm;
+            if (!any) { if (_strip.Count == 0) ImGui.TextDisabled("Live: waiting for the owner's samples (about twice a second)..."); return; }
+        }
         ImGui.Spacing();
         ImGui.TextDisabled("Live");
         if (_strip.Count == 0) { ImGui.TextDisabled("waiting for the owner's samples (about twice a second)..."); return; }
         foreach (var r in _strip)
         {
+            if (onlyOutOfForm && r.InForm) continue;
             if (!r.Sampled) { ImGui.TextDisabled($"-    {r.Label}   not sampled yet"); continue; }
             ImGui.TextColored(ImGui.ColorConvertU32ToFloat4(r.Holds ? RulesModel.Achieved : RulesModel.Failed), r.Holds ? "yes" : "no ");
             ImGui.SameLine();
