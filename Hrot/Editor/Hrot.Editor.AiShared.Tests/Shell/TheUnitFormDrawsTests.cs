@@ -85,6 +85,10 @@ public sealed class TheUnitFormDrawsTests
         using var world = new EntityRepository();
         world.RegisterComponent<EntityInfo>(); world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(); world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
+        world.RegisterComponent<NetworkIdentity>();
+        var enemy = world.CreateEntity();
+        world.AddComponent(enemy, new EntityInfo { Name = new FixedString64("Enemy 1") });
+        world.AddComponent(enemy, new NetworkIdentity(9));
         var bmp = world.CreateEntity();
         world.AddComponent(bmp, new EntityInfo { Name = new FixedString64("BMP 1") });
         var seats = new Fdp.Toolkit.Behavior.Components.CarrierSeats { SeatCount = 4 };
@@ -92,11 +96,12 @@ public sealed class TheUnitFormDrawsTests
         world.AddComponent(bmp, seats);
         var man = world.CreateEntity();
         world.AddComponent(man, new EntityInfo { Name = new FixedString64("Alpha 1-1"), ForceId = ForceId.Friend });
-        world.AddComponent(man, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready, HeldItem = Fdp.Toolkit.Combat.Components.HeldItemKind.Binoculars });
+        world.AddComponent(man, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed, Target = enemy, HeldItem = Fdp.Toolkit.Combat.Components.HeldItemKind.Binoculars });
+        world.AddComponent(man, new NetworkIdentity(7));
         world.AddComponent(man, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = bmp, Seat = 0 });
 
         HrotForms.EnsureRegistered();
-        var view = new FormView();
+        var view = new FormView { Pick = new OnePick(new Fdp.Toolkit.Replication.EntityRef(7), "form.unit.list1") };   // he picks HIMSELF to aim at
         using var frame = UiFrameHarness.Begin(700, 420);
         frame.StepN(3, () =>
         {
@@ -105,9 +110,10 @@ public sealed class TheUnitFormDrawsTests
             view.Draw(HrotForms.Unit, world, new[] { man }, editable: true);
             ImGui.End();
         });
-        Assert.Contains("Weapon = Ready", view.Rows);
+        Assert.Contains("Weapon = Aimed", view.Rows);
         Assert.Contains("In hand = Binoculars", view.Rows);
-        Assert.Equal(new[] { "Driver", "BMP 1" }, view.ListRows);
+        Assert.Equal(new[] { "Driver", "BMP 1", "Target", "Enemy 1" }, view.ListRows);
+        Assert.Equal("he cannot aim at himself", view.ListProblem(1));   // the Aim at… pick came back through the one context and was refused with the reason
         Assert.NotNull(HrotForms.Unit.Fields.First(f => f.Label == "Weapon").Definition);   // the row writes a vocabulary attribute (Weapon.Posture)
         Assert.NotNull(HrotForms.Unit.Fields.First(f => f.Label == "In hand").Definition);
         if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "unit-form-s5.png"));
@@ -182,11 +188,12 @@ public sealed class TheUnitFormDrawsTests
     private sealed class OnePick : Fdp.Presentation.Editing.IMapPickContext
     {
         private Fdp.Toolkit.Replication.EntityRef _next;
-        public OnePick(Fdp.Toolkit.Replication.EntityRef next) => _next = next;
+        private readonly string? _path;
+        public OnePick(Fdp.Toolkit.Replication.EntityRef next, string? path = null) { _next = next; _path = path; }
         public bool IsPickPendingFor(string jsonPath) => false;
         public void RequestEntityPick(string jsonPath, string[]? filterPresets) { }
         public void RequestLocationPick(string jsonPath) { }
-        public bool TryConsumeEntityPick(string jsonPath, out Fdp.Toolkit.Replication.EntityRef picked) { picked = _next; bool had = !_next.IsNone; _next = default; return had; }
+        public bool TryConsumeEntityPick(string jsonPath, out Fdp.Toolkit.Replication.EntityRef picked) { picked = default; if (_path != null && jsonPath != _path) return false; picked = _next; bool had = !_next.IsNone; _next = default; return had; }
         public bool TryConsumeLocationPick(string jsonPath, out Fdp.Toolkit.Replication.PointLink location) { location = default; return false; }
     }
 

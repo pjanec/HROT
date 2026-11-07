@@ -144,8 +144,42 @@ public static class HrotForms
                 AddLabel = "Board…",
                 Add = (w, unit, vehicle) => IsAboard(w, unit) ? "already aboard — take him off first" : PutAboard(w, vehicle, unit),
             },
+            // ⭐ U-24 / S5 — aimed at: the unit his weapon points at (Weapon.AimTarget, 72 — the target's network id, 0 clears; resolved on the applying node)
+            new FormList
+            {
+                Label = "Aimed at",
+                Fill = FillAimTarget,
+                RemoveLabel = "Clear",
+                Remove = (w, it) => WriteAimTarget(w, it.Item, 0, "Clear the aim"),
+                AddLabel = "Aim at…",
+                Add = AimAt,
+            },
         },
     };
+
+    /// <summary>One row when his weapon has a live target: the target's name; the row's item is HIM (Clear writes his attribute).</summary>
+    private static void FillAimTarget(EntityRepository w, Entity e, System.Collections.Generic.List<FormListItem> into)
+    {
+        if (!HasWeaponPosture(w, e)) return;
+        var t = w.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponPosture>(e).Target;
+        if (t.IsNull || !w.IsAlive(t)) return;
+        var name = w.IsComponentTypeRegistered<EntityInfo>() && w.HasComponent<EntityInfo>(t) ? w.GetComponentRO<EntityInfo>(t).Name : new FixedString64("(a unit)");
+        into.Add(new FormListItem("Target", name, e));
+    }
+
+    private static string? AimAt(EntityRepository w, Entity unit, Entity target)
+    {
+        if (!HasWeaponPosture(w, unit)) return "he has no weapon posture";
+        if (target == unit) return "he cannot aim at himself";
+        int net = Fdp.Toolkit.Replication.EntityRef.Of(w, target).NetworkId;
+        if (net == 0) return "that has no network identity — pick a unit";
+        WriteAimTarget(w, unit, net, "Aim at");
+        return null;
+    }
+
+    private static void WriteAimTarget(EntityRepository w, Entity unit, int networkId, string label)
+        => Fdp.Toolkit.Replication.Edits.Edits.Submit(w, Fdp.Toolkit.Replication.Edits.EditOp.Write(unit,
+               new EntityAttributeChange { AttributeId = AttributeIds.WeaponAimTarget, Value = AttributeValue.FromInt(networkId) }, label));
 
     private static bool HasWeaponPosture(EntityRepository w, Entity e)
         => w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponPosture>() && w.HasComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>(e);
