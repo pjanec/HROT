@@ -117,6 +117,7 @@ namespace Hrot.Network.NED.SimHost
                 Origin     = (Fdp.Toolkit.Behavior.Components.BehaviorOrigin)request.Origin,   // ⭐ CE-3034
                 Kind       = (TacticalIntentKind)request.Kind,                                    // ⭐ CE-3167
                 ClearsPriorIntent = (request.Flags & TacticalIntentFlags.ClearsPriorIntent) != 0,
+                RequestId  = request.RequestId,   // ⭐ CE-4306 (F5)
             });
         }
 

@@ -69,6 +69,23 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         ParseFailed,
     }
 
+    /// <summary>⭐ CE-4306 (edit framework F5) — the user's words for a <see cref="BrainRefusal"/>: the ONE text an order's refusal outcome carries.</summary>
+    public static class BrainRefusalText
+    {
+        public static string Of(BrainRefusal r) => r switch
+        {
+            BrainRefusal.LowerRank => "a higher-ranked order is running",
+            BrainRefusal.LowerUrgency => "a more urgent reaction is running",
+            BrainRefusal.StayOnTask => "the ROE says stay on task",
+            BrainRefusal.Possessed => "the unit is possessed",
+            BrainRefusal.ReactionRunning => "a reaction is running",
+            BrainRefusal.SameAsTask => "it is the task it would pause",
+            BrainRefusal.IsTheSop => "it is the unit's SOP",
+            BrainRefusal.ParseFailed => "its parameters did not parse",
+            _ => "refused",
+        };
+    }
+
     /// <summary>⭐ <c>CE-1250</c> (BV-12) — why a unit moves, carried by its <see cref="BrainJournalKind.MoveStarted"/> entry's
     /// <c>Cause</c>. ⚠ Not on <c>MoveToParams</c> as BV-12 first said: that struct is at its 32-byte limit and every Flags bit is taken —
     /// the issuer notes it with <see cref="BrainJournalOf.NoteMoveSource"/> instead.</summary>

@@ -7,7 +7,7 @@ namespace Fdp.Toolkit.ScenarioRules
     public enum RuleRequest : byte { NoRequest = 0, Fire = 1, Disarm = 2, Rearm = 3, Reset = 4, Activate = 5, Deactivate = 6 }
 
     /// <summary>⭐ rules V-4 — who asked, for the journal text ("Disarm by instructor").</summary>
-    public enum RuleOrigin : byte { Unknown = 0, DebugApi = 1, Instructor = 2 }
+    public enum RuleOrigin : byte { Unknown = 0, DebugApi = 1, Instructor = 2, /** ⭐ CE-4307 — another rule's step (BeginPhase) */ Rule = 3 }
 
     /// <summary>
     /// ⭐ rules V-4 (📄 docs/DESIGN_Scenario_Rules.md §00.10) — a runtime request to a rule entity, written through the EXISTING attribute path

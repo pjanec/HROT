@@ -279,6 +279,46 @@ Gates: NED 190/0 (+1 red is the worker's in-flight B-4 test) · SimHost creation
 
 Rails: `InteractionTransportTests.F4_*`, `MissionControlExecutionSystemTests.ReplaceMission_WrongBaseVersion_…` (Conflict) and `F6_*` — each red-proved.
 
+### 4.4 F5 — an order answers ACCEPTANCE *(behaviors, `2026-11-07`, CE-4306 — detail as building)*
+
+```mermaid
+sequenceDiagram
+  participant S as station: EntityOrders.Order / Behavior
+  participant E as Edits.Submit (EditOp.Command)
+  participant W as TacticalIntentEgress / Ingress
+  participant R as owner: TacticalIntentResolutionSystem
+  participant I as owner: BehaviorIngressSystem (THE gate)
+  participant L as EditOutcomes.Report
+  S->>E: Command(unit, send(id), "Order X to Y")
+  E->>S: send(id) → AssignTacticalIntentEvent{RequestId}
+  S->>W: brain elsewhere: TacticalIntentRequest{…, RequestId}
+  W->>R: AssignTacticalIntentEvent{RequestId} (every node, only the owner passes the authority gate)
+  alt no behaviour of this unit's class fulfils the order
+    R->>L: Refused (OrderResolver's detail)
+  else resolved
+    R->>I: AssignBehaviorEvent{RequestId} (next frame)
+    alt gate refuses (BrainRefusal)
+      I->>L: Refused (BrainRefusalText: "a higher-ranked order is running", …)
+    else unknown name / Start refused
+      I->>L: Refused ("no behaviour named X" / the refusal's text)
+    else started
+      I->>L: Applied
+    end
+  end
+  L-->>S: EntityEditOutcome under the id → EditJournal → EditNotifications
+```
+
+*What the picture shows that prose hid:* the verdict is given in TWO places a frame apart — the class resolution and the rank gate — so the id must
+ride from the intent onto the `AssignBehaviorEvent`; neither place alone can answer every case. Bystanders never answer: the resolution system's
+authority gate (`HasAuthority<BehaviorState>`) already drops the order on every node but the brain's owner.
+
+| piece | detail |
+|---|---|
+| the id | `Guid RequestId` on `AssignTacticalIntentEvent`, `AssignBehaviorEvent` (both managed classes) and APPENDED to the wire `TacticalIntentRequest`; the egress / ingress copy it |
+| the answer | ⭐ reuses `InteractionOutcomes.Applied / Refused` (no id ⇒ nothing: the AI's own orders and the SOP cost nothing). The reason text for a `BrainRefusal` is ONE function, `BrainRefusalText.Of`, beside the enum |
+| the callers | `EntityOrders.Order` / `Behavior` (every station path: HTTP, menus, the Orders tab) submit `EditOp.Command`; ⛔ rule steps and commanders (`CommandVerbs`, commander nodes) send no id |
+| ⏭ not in F5 | `Release` (a Clear intent): its verdict is given by `ClearBehaviorEvent`, an unmanaged RECORDED event — carrying an id there changes a recorded layout, so Release stays unjournalled for now |
+
 ## 5. Questions — ✅ APPROVED as revised *(🔒 user, `2026-11-06`: "approved")*
 
 | # | question | ⭐ lean | rejected |

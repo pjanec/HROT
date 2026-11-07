@@ -91,6 +91,7 @@ namespace Hrot.Network.NED.SimHost
                     Origin         = (byte)evt.Origin,   // ⭐ CE-3034 — the origin crosses the wire
                     Kind           = (byte)evt.Kind,     // ⭐ CE-3167 — assign or clear
                     Flags          = evt.ClearsPriorIntent ? TacticalIntentFlags.ClearsPriorIntent : (byte)0,
+                    RequestId      = evt.RequestId,      // ⭐ CE-4306 (F5) — the order's edit id crosses
                 });
                 SentSampleCount++;
             }

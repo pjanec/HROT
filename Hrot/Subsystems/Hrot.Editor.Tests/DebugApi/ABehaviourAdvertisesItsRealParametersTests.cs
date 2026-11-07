@@ -575,6 +575,12 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         foreach (var key in new[] { "Common", "When", "HoldFor", "Delay", "Cooldown", "Repeat", "MaxFires", "FireIfTrueWhenArmed", "Do" })
             Assert.Contains(key, advertised);
         Assert.Equal("object", (string?)schema["properties"]!["When"]!["type"]);
-        Assert.Equal("json", (string?)schema["properties"]!["Do"]!["format"]);   // a free-form JSON list — described, not reflected (a JsonNode's members loop back into the tree)
+        // ⭐ S2-d (task 17, DESIGN_Scenario_Rules.md "S2-d AS BUILT") — `do` is TYPED: a list of ActionStep (act + args + bind). Only a step's
+        //   `args` stays free-form JSON — described, not reflected (a JsonNode's members loop back into the tree).
+        var doSchema = schema["properties"]!["Do"]!;
+        Assert.Equal("array", (string?)doSchema["type"]);
+        var step = doSchema["items"]!["properties"]!;
+        Assert.Equal("string", (string?)step["Act"]!["type"]);
+        Assert.Equal("json", (string?)step["Args"]!["format"]);
     }
 }

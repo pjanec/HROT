@@ -626,5 +626,120 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("SelfPropelledArtilleryStrike", Assert.Single(Order(repo, system, m109, "Strike", strike)).BehaviorName);
             Assert.DoesNotContain(Order(repo, system, rifleman, "Strike", strike), e => e.BehaviorName is "ArtilleryUnitStrike" or "SelfPropelledArtilleryStrike");
         }
+        // ── CE-4306 (edit framework F5) — an order's request id: refused here, or carried to the gate ───────────
+
+        private static AssignBehaviorEvent[] OrderWithId(EntityRepository repo, TacticalIntentResolutionSystem system, Entity e, string order, System.Guid id)
+        {
+            repo.Bus.PublishManaged(new AssignTacticalIntentEvent { Entity = e, IntentId = "Order." + order, JsonParams = "{}", Origin = BehaviorOrigin.Operator, RequestId = id });
+            repo.Bus.SwapBuffers();
+            system.Execute(repo, 0.016f);
+            repo.Bus.SwapBuffers();
+            return repo.Bus.ReadManaged<AssignBehaviorEvent>().ToArray();
+        }
+
+        /// <summary>F5 — an order no class of the unit fulfils answers Refused with the resolver's detail (the station that asked is told why).
+        /// ✅ Red-proof: the <c>InteractionOutcomes.Refused</c> in the unresolved branch removed ⇒ no outcome ⇒ red.</summary>
+        [Fact]
+        public void F5_AnOrderNoClassFulfils_AnswersRefused_WithTheResolversDetail()
+        {
+            using var repo = CreateTestWorld();
+            var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), Behaviours("MoveToLocation", "InfantrySquadMove"));
+            var squad = Typed(repo, Hrot.Core.Tkb.UnitDis.Land(Hrot.Core.Tkb.UnitArm.Infantry, Hrot.Core.Tkb.UnitEchelon.Squad, 225).Value);
+            var id = System.Guid.NewGuid();
+
+            Assert.Empty(OrderWithId(repo, system, squad, "Hold", id));
+
+            Assert.True(Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(repo).TryGet(id, out var o));
+            Assert.Equal(Fdp.Toolkit.Replication.Edits.EditStatus.Refused, o.Status);
+            Assert.False(string.IsNullOrEmpty(o.Reason));
+            Assert.Contains("Hold", o.Reason);
+            // no id ⇒ nothing is answered
+            int count = Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(repo).Count;
+            Assert.Empty(OrderWithId(repo, system, squad, "Hold", System.Guid.Empty));
+            Assert.Equal(count, Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(repo).Count);
+        }
+
+        /// <summary>F5 — a resolved order's <c>AssignBehaviorEvent</c> carries the request id on to the gate (and a mapped / pass-through one too). ✅ Red-proof: the copy next to <c>behaviorEvent.Origin</c> removed ⇒ red.</summary>
+        [Fact]
+        public void F5_AResolvedOrders_AssignBehaviorEvent_CarriesTheRequestId()
+        {
+            using var repo = CreateTestWorld();
+            var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), Behaviours("TankMove", "MoveToLocation"));
+            var tank = Typed(repo, Dis(1, 1, 225, 1, 1, 3));
+            var id = System.Guid.NewGuid();
+
+            var a = Assert.Single(OrderWithId(repo, system, tank, "Move", id));
+
+            Assert.Equal(("TankMove", id), (a.BehaviorName, a.RequestId));
+            Assert.False(Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(repo).TryGet(id, out _));   // resolved ⇒ the gate answers, not this system
+        }
+        /// <summary>
+        /// ⭐ CE-4306 (F5, docs/UX/DESIGN_Edit_Framework.md §4.4) — the whole road of a person's order across two nodes, no DDS: <c>EntityOrders.Hold</c> on a STATION whose unit's brain another node
+        /// owns journals the order Pending under an id → the intent egress writes it on the wire with that id → the OWNER's ingress raises it, <c>TacticalIntentResolutionSystem</c> resolves the
+        /// class behaviour and <c>BehaviorIngressSystem</c> (the gate) starts it → the owner's <c>EditOutcomeLog</c> holds Applied under the SAME id. ✅ Red-proof: the egress not copying RequestId ⇒
+        /// the owner's id is empty ⇒ no verdict ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void F5_AnOrderGivenAtAStation_IsAnsweredByTheBrainsOwner_UnderItsId()
+        {
+            var squadDis = Hrot.Core.Tkb.UnitDis.Land(Hrot.Core.Tkb.UnitArm.Infantry, Hrot.Core.Tkb.UnitEchelon.Squad, 225);
+            var resolved = Hrot.Common.Orders.OrderMenu.Resolve(squadDis, "Hold");
+            Assert.Equal(Hrot.Core.Tkb.OrderResolution.Resolved, resolved.Outcome);
+
+            static EntityRepository Node()
+            {
+                var w = new EntityRepository();
+                w.RegisterComponent<BehaviorState>();
+                w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+                return w;
+            }
+            // the station: the unit's replica, the brain is elsewhere
+            using var station = Node();
+            var stationMap = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+            var replica = station.CreateEntity();
+            station.AddComponent(replica, new BehaviorState());
+            station.AddComponent(replica, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 77 });
+            station.SetDisType(replica, squadDis);
+            stationMap.Register(77, replica);
+
+            var result = new Hrot.Common.Orders.EntityOrders(station, stationMap, geo: null).Hold(77);
+            Assert.True(result.Accepted, result.Detail);
+            var journal = Fdp.Toolkit.Replication.Edits.EditJournal.Of(station);
+            var asked = journal[journal.Count - 1];
+            Assert.Equal(("Order Hold", Fdp.Toolkit.Replication.Edits.EditStatus.Pending), (asked.Label, asked.Status));
+
+            station.Bus.SwapBuffers();
+            var writer = new CapturedIntents();
+            new Hrot.Network.NED.SimHost.TacticalIntentEgressTranslator(writer, stationMap).ScanAndPublish(station);
+            var sample = Assert.Single(writer.Written);
+            Assert.Equal(asked.RequestId, sample.RequestId);
+
+            // the owner: the brain's node
+            using var owner = Node();
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(owner);
+            var ownerMap = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+            var unit = CreateAuthorityEntity(owner);
+            owner.SetDisType(unit, squadDis);
+            ownerMap.Register(77, unit);
+            var behaviours = new BehaviorRegistry();
+            behaviours.Register(resolved.Behaviour, new BehaviorDefinition { Name = resolved.Behaviour, BrainTier = BehaviorConstants.BrainTierBTree });
+            new Hrot.Network.NED.SimHost.TacticalIntentIngressTranslator(null, ownerMap).ProcessSample(in sample, owner);
+            owner.Bus.SwapBuffers();
+            var resolution = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), behaviours);
+            resolution.Execute(owner, 0.016f);
+            owner.Bus.SwapBuffers();
+            new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(behaviours).Execute(owner, 0.016f);
+
+            Assert.True(Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(owner).TryGet(asked.RequestId, out var verdict));
+            Assert.Equal(Fdp.Toolkit.Replication.Edits.EditStatus.Applied, verdict.Status);
+            Assert.Equal(BehaviorOrigin.Operator, owner.GetComponent<BehaviorState>(unit).Origin);
+        }
+
+        private sealed class CapturedIntents : Hrot.Map.Common.Dds.IDdsWriter<Hrot.NED.Messages.TacticalIntentRequest>
+        {
+            public readonly List<Hrot.NED.Messages.TacticalIntentRequest> Written = new();
+            public void Write(Hrot.NED.Messages.TacticalIntentRequest sample) => Written.Add(sample);
+            public void DisposeInstance(Hrot.NED.Messages.TacticalIntentRequest key) { }
+        }
     }
 }
