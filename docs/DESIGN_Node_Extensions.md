@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-07
-build-state: BUILT (CE-4293, as-built notes in section 6)
+build-state: BUILT (sections 1-6); section 7 teardown READY-TO-BUILD (CE-4296) (CE-4293, as-built notes in section 6)
 current-answer: whole document; section 6 (as-built) overrides anything above it where they differ
 stale-below: none
 related-designs:
@@ -169,3 +169,42 @@ Built as designed (6 files: `Infrastructure/NodeExtensions.cs` with `INodeExtens
 | 6.8 | ⛔ **SUPERSEDED 2026-11-07 by CE-4294 (fixed): a feature on a group member now switches it off - the rule "gate a feature through a module" no longer applies.** Original finding: `[NodeFeature]` on a system contributed through `PopulateSystems` (a group member) does NOT switch it off.** Measured on the editor: after `SetNodeOverride(feature, {"Enabled":false})` the system kept running (6 -> 11 executions). A `[NodeFeature]` on a **module** returned by `ProvideModules` does (rail 5 asserts that, and that the extension's other system keeps running). Cause read in `SystemScheduler`: `RegisterStepReader` stores the system's tick policy first, so the first-sight `ReadFeature` in `ExecuteSystem` (`SystemScheduler.cs:236-239`) never runs for group members. **Rule for extension authors: gate a feature through a module.** Open question for the owner of F-13: do production group members with `[NodeFeature]` (e.g. `ExercisePauseOnEndSystem`, a `CgfLogicPack` group member) switch off at all? Not verified for them. | found while writing rail 5 |
 | 6.9 | Authoring rules the sample hit: every system and module declares `[TickMode]` (CE-3293); a system needs `[UpdateInPhase]` when a module registers it; an `IEcsModule` must implement `Policy` (the interface's default `Policy`/`Tier` pair recurse into each other: stack overflow). | learned by running it |
 | 6.10 | Test seams: `NodeExtensions.ResetForTests()` / `Add(Type, folder)` (internal), `InternalsVisibleTo Hrot.NodeComposition.Tests` on `Hrot.Common`, `EditorSubsystem.CapabilitiesForTest` (ui lane's file, one property). Rails: `Hrot.Common.Tests/NodeExtensions/NodeExtensionsTests` (1, 2, 3), `SharedApplicationBootstrapperTests.CE4293_*` (4 at the base), `Hrot.Editor.Tests/TheEditorComposesNodeExtensionsTests` (4, 5). Tests that load an extension run in a non-parallel collection (`NodeExtensions` is process state). | |
+
+## 7. Teardown (CE-4296, user 2026-11-07: "Fix the teardown") - READY-TO-BUILD
+
+Measured: the kernel never disposes modules or systems (`ModuleHostKernel.cs:450-457`); a node's one teardown is the base's
+`DisposeResources()` (`SharedApplicationBootstrapper.cs:698`), called by the editor (`EditorSubsystem.Shutdown`, `:5116`), CGF
+(`CgfSubsystem.cs:2806`), SimHost (`SimHostApp.cs:698`) and the traffic node (`TrafficNodeBootstrapper.cs:56`) - but NOT by the
+Player (`PlayerApplication.Shutdown`, `:1483`) or Stride (`StrideNodeBootstrapper.Dispose`, `:158`). An extension's capability
+therefore lives until the process exits (its sockets and threads included).
+
+```mermaid
+sequenceDiagram
+    participant H as host shutdown (all six hosts)
+    participant B as SharedApplicationBootstrapper.DisposeResources
+    participant X as extension capabilities (IDisposable)
+    participant P as resource providers
+    H->>B: DisposeResources()
+    B->>X: Dispose, reverse composition order, each once, a throw reported and the rest continue
+    B->>P: Dispose, reverse allocation order (existing)
+```
+
+Caption: the base disposes what the base created (the extensions' capabilities, through `NodeExtensions.CapabilitiesFor`), before
+the resources they borrow; a host-created capability stays the host's to free (the owner frees, CE-197).
+
+1. **Owner frees**: the base records the capabilities `NodeExtensions.CapabilitiesFor` added (not the host's), and
+   `DisposeResources()` disposes those that implement `IDisposable`, in reverse order, BEFORE the resource providers; idempotent
+   (a second call does nothing); a throwing `Dispose` is one line in `NodeExtensions.Report` and the next one still runs.
+   Rejected: disposing every `IDisposable` capability (a host-created one, e.g. the traffic node's `TrafficPack`, would be
+   disposed twice); a new `INodeExtension.Shutdown` hook (a second lifetime contract next to `IDisposable`).
+2. **Every host tears down**: `PlayerApplication.Shutdown` and `StrideNodeBootstrapper.Dispose` call `DisposeResources()` too
+   (harmless today: they allocate no provider), so all six hosts end a node the same way.
+3. **Contract for extension authors**: a capability that owns threads, sockets or files implements `IDisposable`; it disposes
+   what it created (its systems' resources); the kernel does not.
+4. **Found, not fixed here**: the editor never disposes its `TrafficPack` (`EditorSubsystem.cs:226`, built by
+   `EditorNodeBootstrapper.cs:267`; `TrafficPack.Dispose` at `TrafficPack.cs:106`) - filed as CE-4297.
+
+Rails: an extension capability that is `IDisposable` is disposed once by `DisposeResources()`, after the host's systems stop and
+before the providers (order observed); not disposed twice on a second call; a throwing one is reported and the next still
+disposed; a host capability is NOT disposed; the headless editor's `Shutdown` disposes the sample extension's capability; the
+Player and Stride paths call `DisposeResources()` (a forwarding rail on the constructed host, CLAUDE.md silent-default rule).
