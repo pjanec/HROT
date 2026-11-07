@@ -40,7 +40,14 @@ namespace Fdp.Toolkit.Replication.Edits
                 return new EditTicket(refusedId, EntityWriteRoute.Refused);
             }
 
-            EditTicket ticket = op.Kind switch
+            // ⭐ Edit-mode undo U2 — an accepted authoring edit is one undo step (nested inside a bracket a gizmo opened, it joins that step).
+            //    Orders and interactions are not world authoring (and are refused in Edit mode anyway).
+            bool step = op.Kind is not (EditKind.Command or EditKind.Interact);
+            if (step) EditSteps.Begin(repo, op.Label);
+            EditTicket ticket;
+            try
+            {
+            ticket = op.Kind switch
             {
                 EditKind.Write when op.IsCommanderWrite => WriteCommander(repo, op, netId),
                 EditKind.Write when op.Changes != null => EditRequests.Write(repo, op.Target, op.Changes),
@@ -55,6 +62,11 @@ namespace Fdp.Toolkit.Replication.Edits
                 EditKind.RemoveComponent => ComponentEdit(repo, op, netId, add: false),
                 _ => throw new NotSupportedException($"Edits.Submit: the {op.Kind} kind is not built yet (edit framework F2–F6)."),
             };
+            }
+            finally
+            {
+                if (step) EditSteps.End(repo);
+            }
 
             var e = EditJournal.Of(repo).Append(ticket.RequestId, op, netId, mode);
             if (EditOutcomeLog.Of(repo).TryGet(ticket.RequestId, out var known))   // what this node already knows (Applied here, Refused, a deferred Pending)

@@ -31,7 +31,7 @@
 | T-1 | ✅ R1–R4 | `70778164c` + (this commit) | CE-4292 the rules windows as one bundle — `RulesBundle` composed by Editor, CGF, Replay Browser; editing decided by the seat every frame (deviation folded into `DESIGN_Rules_Bundle.md` §5) |
 | B-10 | 🔨 K1 ✅ K2-slice ✅ | `2026-11-07` | K1 BUILT (CE-4282); K2: CE-4281 built, hat scopes wait for seats-and-hats H3 (design §6); K3 central Esc needs H3 too; K5, K6 after B-11 |
 | B-11 | 🔨 A1 ✅ A2 ✅ A3 ✅ (goldens for user review) | `2026-11-07` | A1 catalogue (§6) · A2 greyed "not available on this station" (§7) · A3 the ONE station mode + offers per mode (§8); A4, A5, A7 next |
-| B-14 | ⏳ | — | undo UI U2–U5 (after B-10) |
+| B-14 | 🔨 U2 + U5 ✅ · *Edit ▸ History*, U4 next | `2026-11-07` | world steps through `EditSteps` (Submit + the drag / rotate gizmos) onto the ONE `EditHistory`, Edit ▸ Undo / Redo (Ctrl+Z / Ctrl+Y), the dirty dot in the title (LC-12). As built: `DESIGN_Edit_Mode_Undo.md` §1.4 |
 | B-16 | ⏳ | — | seats H2–H4 (after B-11) |
 | B-17 | ⏳ | — | map interaction P1, P2, P4–P6 |
 | U-23/24/25 rest | ✅ (worker; finished and committed by Opus after the worker was stopped) | (this commit) | combined rows · carry mode + Damage rows · Knows about seeds only (R-4157) · named-point list. Gates: Fdp.Presentation.Tests Form* 33/33 · Hrot.Presentation.Tests (NamedPointGizmo, MenuOrders, PickBroker, EntityList …) 40/40 · AiShared TheUnitFormDraws/LabelFirstForms/Details 96/97 — the 1 red `CE1150_TheBundle_BuildsThePanelWithTheComponentsView…` is PRE-EXISTING (red with this work stashed, at `6b012f9fb`), open. Red-proofs: carry mode, Damage refusal, SubIndex write, combined rows, Knows-about-seeds, the named-point list pick |

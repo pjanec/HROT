@@ -4,6 +4,6 @@ namespace Hrot.Editor;
 /// the terrain it is on. ⭐ The rule is <see cref="Hrot.Common.Scenarios.ScenarioWindowTitle"/>, shared with CGF.</summary>
 public static class EditorWindowTitle
 {
-    public static string? Detail(string? loadedScenarioName, string? terrain = null)
-        => Hrot.Common.Scenarios.ScenarioWindowTitle.Detail(loadedScenarioName, terrain);
+    public static string? Detail(string? loadedScenarioName, string? terrain = null, bool dirty = false)
+        => Hrot.Common.Scenarios.ScenarioWindowTitle.Detail(loadedScenarioName, terrain, dirty);
 }

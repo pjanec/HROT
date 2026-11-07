@@ -9,16 +9,21 @@ namespace Hrot.Common.Scenarios;
 public static class ScenarioWindowTitle
 {
     private static string? _name, _terrain, _detail;
+    private static bool _dirty;
 
-    /// <summary>The title detail for <paramref name="loadedName"/> on <paramref name="terrain"/> (either may be null; no name ⇒ null).</summary>
-    public static string? Detail(string? loadedName, string? terrain)
+    /// <summary>⭐ B-14 / Edit-mode undo U5 (LC-12, supersedes AQ108 D20) — what leads the title while there are unsaved changes.</summary>
+    public const string DirtyMark = "\u25CF ";
+
+    /// <summary>The title detail for <paramref name="loadedName"/> on <paramref name="terrain"/> (either may be null; no name ⇒ null); <paramref name="dirty"/> ⇒ the dot first.</summary>
+    public static string? Detail(string? loadedName, string? terrain, bool dirty = false)
     {
         if (string.IsNullOrWhiteSpace(loadedName)) return null;
-        if (string.Equals(loadedName, _name) && string.Equals(terrain, _terrain)) return _detail;
-        _name = loadedName; _terrain = terrain;
+        if (string.Equals(loadedName, _name) && string.Equals(terrain, _terrain) && dirty == _dirty) return _detail;
+        _name = loadedName; _terrain = terrain; _dirty = dirty;
         string detail = Fdp.Toolkit.Orchestration.ContentLayout.IsMacroName(loadedName)
             ? "Macro: " + loadedName.Replace('\\', '/').Substring(Fdp.Toolkit.Orchestration.ContentLayout.MacroNamePrefix.Length)
             : loadedName;
+        if (dirty) detail = DirtyMark + detail;
         return _detail = string.IsNullOrWhiteSpace(terrain) ? detail : detail + " · on " + terrain;
     }
 }

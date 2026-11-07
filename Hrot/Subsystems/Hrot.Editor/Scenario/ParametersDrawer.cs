@@ -89,21 +89,7 @@ public sealed class ParametersDrawer
         ImGui.Separator();
         if (_source.IsReadOnly) { ImGui.TextDisabled("No scenario is loaded."); return; }
         _control.DrawSingle(_section);
-        HandleUndoChords(ImGui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows));
+        // ⛔ B-14 — Ctrl+Z / Ctrl+Y are the shell's Edit ▸ Undo / Redo now (the ONE key mechanism over the SAME history): the drawer's own chord would undo twice.
     }
 
-    /// <summary>
-    /// ⭐ CE-4254 — Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z over the source's ONE history (the buttons are gone; the timeline panel's chord precedent). Only while the panel's window is focused and no text field is
-    /// being typed into (a field's own text-undo is ImGui's). Returns what it did, for the rails.
-    /// </summary>
-    internal string? HandleUndoChords(bool focused)
-    {
-        var io = ImGui.GetIO();
-        if (!focused || !io.KeyCtrl || io.WantTextInput) return null;
-        var h = _source.History;
-        bool z = ImGui.IsKeyPressed(ImGuiKey.Z), y = ImGui.IsKeyPressed(ImGuiKey.Y);
-        if (y || (z && io.KeyShift)) { if (h.CanRedo) { h.Redo(); return "redo"; } }
-        else if (z) { if (h.CanUndo) { h.Undo(); return "undo"; } }
-        return null;
-    }
 }

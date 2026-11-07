@@ -118,4 +118,48 @@ namespace Fdp.Toolkit.Replication.Edits
         /// <summary>The gate of <paramref name="repo"/>, or null.</summary>
         public static IEditGate? Of(EntityRepository repo) => PerWorld.TryGetValue(repo, out var g) ? g : null;
     }
+
+    /// <summary>
+    /// ⭐ Edit-mode undo U2 (📄 docs/UX/DESIGN_Edit_Mode_Undo.md §2.2, R-4133) — what brackets ONE user action as one undo step. A host installs one per
+    /// world (<see cref="EditSteps.Install"/>); ⛔ the toolkit knows no history — the host's recorder does (Hrot: <c>WorldUndoRecorder</c>).
+    /// <para>Steps NEST: only the outermost <see cref="Begin"/> / <see cref="End"/> pair is the step (a drag that commits through
+    /// <see cref="Edits.Submit"/> is ONE step).</para>
+    /// </summary>
+    public interface IEditStepRecorder
+    {
+        /// <summary>A user action begins, BEFORE anything is written (the world as it is now is the step's "before").</summary>
+        void Begin(EntityRepository repo, string label);
+
+        /// <summary>The action is done: the step is recorded.</summary>
+        void End(EntityRepository repo);
+
+        /// <summary>The action was abandoned (a cancelled drag): nothing is recorded.</summary>
+        void Cancel(EntityRepository repo);
+    }
+
+    /// <summary>The step recorder a world has (none installed ⇒ every bracket is a no-op: no host but the editor records steps).</summary>
+    public static class EditSteps
+    {
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<EntityRepository, IEditStepRecorder> PerWorld = new();
+
+        /// <summary>Installs <paramref name="recorder"/> for <paramref name="repo"/> (replacing any earlier one).</summary>
+        public static void Install(EntityRepository repo, IEditStepRecorder recorder)
+        {
+            ArgumentNullException.ThrowIfNull(repo);
+            ArgumentNullException.ThrowIfNull(recorder);
+            PerWorld.AddOrUpdate(repo, recorder);
+        }
+
+        /// <summary>The recorder of <paramref name="repo"/>, or null.</summary>
+        public static IEditStepRecorder? Of(EntityRepository repo) => PerWorld.TryGetValue(repo, out var r) ? r : null;
+
+        /// <summary><see cref="IEditStepRecorder.Begin"/> on <paramref name="repo"/>'s recorder, if any.</summary>
+        public static void Begin(EntityRepository? repo, string label) { if (repo != null && Of(repo) is { } r) r.Begin(repo, label); }
+
+        /// <summary><see cref="IEditStepRecorder.End"/> on <paramref name="repo"/>'s recorder, if any.</summary>
+        public static void End(EntityRepository? repo) { if (repo != null && Of(repo) is { } r) r.End(repo); }
+
+        /// <summary><see cref="IEditStepRecorder.Cancel"/> on <paramref name="repo"/>'s recorder, if any.</summary>
+        public static void Cancel(EntityRepository? repo) { if (repo != null && Of(repo) is { } r) r.Cancel(repo); }
+    }
 }

@@ -98,7 +98,10 @@ namespace Hrot.ScenarioEditor.Gizmos
             _currentCursorPos = worldPos;
             if (button == MapMouseButton.Left && !isPressed)
             {
-                CommitRotation();
+                // ⭐ B-14 / undo U2 — the rotation is ONE step (it writes once, at the release)
+                Fdp.Toolkit.Replication.Edits.EditSteps.Begin(_repo, "Rotate");
+                try { CommitRotation(); }
+                finally { Fdp.Toolkit.Replication.Edits.EditSteps.End(_repo); }
                 RequestRemove();
             }
             else if (button == MapMouseButton.Right && isPressed)
