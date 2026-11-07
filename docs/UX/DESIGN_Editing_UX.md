@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
 known-conflict: AQ26's two-axis resolution lets a HOST supply the isApplicable rule; R-4119 narrows it — for an entity, the rule reads the entity's components (§0)
 related-designs:
+  - DESIGN_Scenario_Lifecycle_Review.md — the whole author → live → DAR → AAR cycle walked for usability (LC-1…LC-21, 2026-11-07)
   - DESIGN_UI_Conventions.md — slice E17: trees, label-first forms, collapsing headers, house-wide
   - DESIGN_Condition_Editor.md — E5 condition templates, detailed: the friendly condition editor (presets are its shortcuts)
   - DESIGN_Initial_State.md — design queue 7b (E15): seats and carrying, carried weapons, weapon posture, knows about, the Point type
@@ -350,7 +351,7 @@ and a read-out in Review.* (The modes and transitions exist — AQ108; the per-m
 | | Edit (initial state) | Preview | Live | Review |
 |---|---|---|---|---|
 | applies to | the scenario as authored | a throw-away run | the running exercise | nothing (a recording) |
-| saved | yes, on Save | no scenario save — Save takes a **checkpoint**; Stop returns to the authored state | no scenario save — Save takes a **checkpoint** (R-4162; ⛔ SUPERSEDED: *save as* in Live) | not offered; bookmarks and notes only |
+| saved | yes, on Save | no scenario save — Save is refused: *"Preview — changes are thrown away on Stop"* (R-4166); Stop returns to the authored state | no scenario save — Save takes a **checkpoint** (R-4162; ⛔ SUPERSEDED: *save as* in Live) | not offered; bookmarks and notes only |
 | undo | ⭐ **yes — to investigate** (R-4120; R-1047 deferred it) | no | no | – |
 | confirm | destructive only (delete, change type) | destructive only | ⭐ **scarce** — only what cannot be taken back AND is not obvious (delete, end exercise, a change to many units); everything else applies at once and shows its outcome (R-4121) | – |
 | feedback | immediate | immediate | ✓ / ✗ / ⏳ in Messages and inline on the field | – |
