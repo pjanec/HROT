@@ -2882,7 +2882,14 @@ namespace Hrot.Editor
             // BATCH-42 (MTB2-T8b): Draw the Save-As browser dialog (New flow).
             if (_saveAsBrowser != null && _iconProvider != null)
                 _saveAsBrowser.DrawFrame(_iconProvider);
+
+            // ⭐ Edit framework F7 (B-12) — the sticky notification stack for a refused / lost / conflicting edit, LAST so it is on top. It also folds the journal's outcomes in
+            //   (EditJournal.Refresh — this is its one caller). Reload / Overwrite (a mission-plan Conflict) are not wired here: the plan's conflict state is MissionPanel's own.
+            _editNotifications ??= new Hrot.Presentation.Edits.EditNotificationOverlay(show: id => SelectNetworkEntity(id));
+            _editNotifications.Draw(_world);
         }
+
+        private Hrot.Presentation.Edits.EditNotificationOverlay? _editNotifications;
 
         /// <inheritdoc/>
         public void RegisterWindows(Fdp.Presentation.WindowManager.WindowManager windowManager)

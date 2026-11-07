@@ -1249,7 +1249,17 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _cgfMapInteraction?.DrawOperatorUi();   // ⭐ CE-1059 — the map's order form
         if (_saveAsBrowser != null && _shellIconProvider != null)
             _saveAsBrowser.DrawFrame(_shellIconProvider);
+
+        // ⭐ Edit framework F7 (B-12) — the sticky notification stack for a refused / lost / conflicting edit, last (on top); it also folds the journal's outcomes in.
+        _editNotifications ??= new Hrot.Presentation.Edits.EditNotificationOverlay(show: id =>
+        {
+            var e = Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(_context?.World, id);
+            if (_selectionState != null && _context?.World is { } w && w.IsAlive(e)) _selectionState.PrimarySelected = e;
+        });
+        _editNotifications.Draw(_context?.World);
     }
+
+    private Hrot.Presentation.Edits.EditNotificationOverlay? _editNotifications;
 
     /// <inheritdoc/>
     public MapCameraView? GetCameraView() => _canvas?.Camera?.GetCameraView();
