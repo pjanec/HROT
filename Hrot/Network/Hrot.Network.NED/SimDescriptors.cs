@@ -234,6 +234,8 @@ namespace Hrot.NED.Descriptors
         public double ExpectedAt;
         /// <summary>⭐ rules S4 E-3: the evaluation group (mission · fire · reports · conduct …); "" = none. A display field, goes at once.</summary>
         public string Group;
+        /// <summary>⭐ CE-4302 — the phase order of a trigger marked as an operation phase (0 = none).</summary>
+        public byte Phase;
         /// <summary>⭐ rules S4 ②: the pass mark (0..1) — GO / NO-GO is <c>Score ≥ Pass</c>. A display field, goes at once.</summary>
         public float Pass;
         /// <summary>⭐ rule editor ①: a trigger's running <c>do</c> step (1-based) and the list's length; 0 / 0 when not acting. A state field, goes at once.</summary>

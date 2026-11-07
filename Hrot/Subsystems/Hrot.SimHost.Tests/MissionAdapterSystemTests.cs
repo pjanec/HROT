@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
@@ -261,6 +262,38 @@ namespace Hrot.SimHost.Tests
             long before = System.GC.GetAllocatedBytesForCurrentThread();
             for (int i = 0; i < 50; i++) { repo.Bus.SwapBuffers(); director.Execute(repo, 0.1f); adapter.Execute(repo, 0.1f); }
             Assert.Equal(0, System.GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
+        /// <summary>⭐⭐ <c>CE-4302</c> — mission plan D5 / M6 acceptance: a phase (a trigger marked <c>common.phase</c>) begun — it FIRED, as the instructor's
+        /// <i>Begin now</i> (<c>RuleRequest.Fire</c>) makes it — releases two units' waiting tasks the same frame; before it, both hold their SOP.
+        /// The phase number travels from the authored block to the replicated status.</summary>
+        [Fact]
+        public void CE4302_APhaseBegun_ReleasesTwoUnitsWaitingTasks()
+        {
+            using var repo = CreateWorld();
+            repo.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>();
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            var director = new Fdp.Toolkit.Behavior.Systems.MissionDirectorSystem();
+            var adapter = new MissionAdapterSystem();
+
+            var block = Fdp.Toolkit.ScenarioRules.ObjectiveCommonBlock.From(new Fdp.Toolkit.ScenarioRules.ObjectiveCommon { Title = "Phase 2 - assault", Phase = 2 });
+            var status = new Fdp.Toolkit.ScenarioRules.ObjectiveStatus();
+            Fdp.Toolkit.ScenarioRules.ObjectiveRules.Display(ref status, in block, "Trigger", Fdp.Toolkit.ScenarioRules.ObjectiveRole.Trigger);
+            Assert.Equal(2, status.Phase);
+            var phase = repo.CreateEntity();
+            repo.AddComponent(phase, new Fdp.Toolkit.Replication.Components.NetworkIdentity(900));
+            repo.AddComponent(phase, status);
+
+            string begins = Fdp.Toolkit.ReplayBrowser.Search.ConditionCache.ToJson(
+                Fdp.Toolkit.Behavior.Systems.PlanConditionCache.PhaseBegins(new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(900))));
+            List<DomainMissionTrigger> Wait() => new() { new() { Type = "Then", Params = begins } };
+            PlanOf(repo, ("", Wait()), ("Order.Move", null));
+            PlanOf(repo, ("", Wait()), ("Order.Attack", null));
+
+            for (int i = 0; i < 3; i++) Assert.Empty(Frame(repo, director, adapter).Intents);   // the phase has not begun
+            repo.GetComponentRW<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>(phase).FireCount = 1;   // it fires (Begin now)
+            var f = Frame(repo, director, adapter);
+            Assert.Equal(new[] { "Order.Attack", "Order.Move" }, f.Intents.OrderBy(x => x, StringComparer.Ordinal).ToArray());
         }
     }
 }

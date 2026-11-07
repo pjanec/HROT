@@ -45,6 +45,10 @@ namespace Fdp.Toolkit.ScenarioRules
         [JsonPropertyName("group")] public string? Group;
         /// <summary>⭐ rules S4 ② — the pass mark (0..1) a verdict reads as <c>Score ≥ Pass</c>; 0 = the kind's default (<see cref="ObjectiveRules.PassOf"/>). A composite's own <c>passScore</c> wins over it.</summary>
         [JsonPropertyName("pass")] public float Pass;
+        /// <summary>⭐⭐ <c>CE-4302</c> — mission plan D5 / E3 (📄 docs/UX/DESIGN_Mission_Plan_Editor.md §5.2, §5.8, R-4160/R-4161): a trigger MARKED AS AN
+        /// OPERATION PHASE and its order (1, 2, …); 0 = not a phase. A phase IS a trigger: it begins when it fires (its <c>when</c>, or the instructor's
+        /// <i>Begin now</i> = <c>RuleRequest.Fire</c>), and a task waits on it with <c>PlanConditionCache.PhaseBegins</c>.</summary>
+        [JsonPropertyName("phase")] public byte Phase;
     }
 
     /// <summary>⭐ rules S1 — the unmanaged twin of <see cref="ObjectiveCommon"/> a blackboard can hold (defaults applied).</summary>
@@ -60,6 +64,8 @@ namespace Fdp.Toolkit.ScenarioRules
         public SimDuration DeadlineSeconds;
         /// <summary>⭐ rules S4 ② — see <see cref="ObjectiveCommon.Pass"/> (0 = the kind's default).</summary>
         public float Pass;
+        /// <summary>⭐ <c>CE-4302</c> — see <see cref="ObjectiveCommon.Phase"/> (0 = not a phase).</summary>
+        public byte Phase;
 
         public static ObjectiveCommonBlock From(in ObjectiveCommon c) => new()
         {
@@ -72,6 +78,7 @@ namespace Fdp.Toolkit.ScenarioRules
             Weight = c.Weight == 0f ? 1f : c.Weight,
             Points = c.Points, DeadlineSeconds = c.DeadlineSeconds,
             Pass = Math.Clamp(c.Pass, 0f, 1f),
+            Phase = c.Phase,
         };
     }
 
@@ -110,6 +117,7 @@ namespace Fdp.Toolkit.ScenarioRules
         {
             s.Title = c.Title; s.Group = c.Group; s.Required = c.Required; s.Scored = c.Scored; s.Weight = c.Weight; s.Points = c.Points; s.VisibleSides = c.VisibleSides;
             s.Pass = PassOf(kind, role, c.Pass);
+            s.Phase = c.Phase;   // ⭐ CE-4302 — every station groups the phases (the Rules window's Phases)
         }
 
         /// <summary>The pass mark a weighted composite (<c>WeightedMean</c>, <c>MemberEvaluation</c>, <c>SelectionMean</c>) uses when none is authored.</summary>
