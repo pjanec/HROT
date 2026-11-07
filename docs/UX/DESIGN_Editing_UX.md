@@ -602,7 +602,8 @@ chat, committed as SVG beside its design. It is the acceptance spec (R-4138 / De
 | Condition editor's Expert view (E5 §8): the struct editor readable — names, kinds as rows, no Bind rows, things by name | `condition-expert-visual.svg` | ✅ approved (R-4149) |
 | Forms in the Replay Browser, read-only (forms §2.4, R-4148): grey rows, not recorded, seek tint, copy | `replay-forms-visual.svg` | ✍ Q-R3 ✅ (R-4152), Q-R1 for review |
 | Replay Browser review (DESIGN_Replay_Browser_UX): main-bar seek bar, default layout | `replay-browser-visual.svg` | ✍ drawn, for review (Q-B1…Q-B6) |
-| Show on map (DESIGN_Show_On_Map): the ⌖, preview, pin, row menu, the raw inspector | `show-on-map-visual.svg` | ✍ drawn, for review (Q-M1…Q-M4) |
+| Show on map (DESIGN_Show_On_Map): the ⌖, preview, pin, row menu, the raw inspector | `show-on-map-visual.svg` | ✅ approved (R-4155) |
+| Mission plan editor detail (§5): the task form, the then-picker, give up, phases as triggers, the Tasks timeline | `mission-plan-detail-visual.svg` | ✍ drawn, for review (D1–D9) |
 
 ### 4.4 Slices — proposed handoffs, once D1–D9 are approved
 

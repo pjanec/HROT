@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — top-level; ✅ Q1, Q2, Q5, Q6, Q7 approved and Q3, Q4 revised by the user 2026-11-06 (R-4129); the building lanes detail it (R-4123)
-updated: 2026-11-07 (§1: orders and plan tasks already share one intent channel; M1's engine part is small — measured) · 2026-11-06 (Q3 expert conditions + the rule editor one click from a task; Q4 phases begin on events, time only a no-later-than — R-4129) · 2026-11-06 (first version — coordinator; editing-UX design queue item 3: E11 / D18)
-current-answer: §2 the target (wireframe + model) · §3 stages · §4 questions with leans
+build-state: DESIGN — §5 detailed design written 2026-11-07, D1–D9 awaiting the user; then READY-TO-BUILD · top level: ✅ Q1, Q2, Q5, Q6, Q7 approved and Q3, Q4 revised by the user 2026-11-06 (R-4129); the building lanes detail it (R-4123)
+updated: 2026-11-07 (§5 detailed design: D1–D9, classes, sequences, module map, the then-picker table, mission-plan-detail-visual.svg) · 2026-11-07 (§1: orders and plan tasks already share one intent channel; M1's engine part is small — measured) · 2026-11-06 (Q3 expert conditions + the rule editor one click from a task; Q4 phases begin on events, time only a no-later-than — R-4129) · 2026-11-06 (first version — coordinator; editing-UX design queue item 3: E11 / D18)
+current-answer: ⭐ §5 the detailed design (measured; D1–D9 for the user) · §2 the target (wireframe + model) · §3 stages (lanes superseded by §5.5) · §4 questions
 stale-below: nothing
-known-rot: none
+known-rot: §3 M5's "a task-owned rule evaluated by the rules runner" is SUPERSEDED by §5 D3 (one Condition trigger, the one compiler); §2.2's PhaseBegins leaf and OperationPhase class by §5 D5 / D6 (a phase IS a trigger)
 known-conflict: the code calls a plan's task slot a "phase" (MissionPlanQueue.Phases); this design uses "phase" for the MILITARY phase of an operation (§2.4) — Q6 renames the code's word
 related-designs:
   - DESIGN_Condition_Editor.md — the editor a task's Advanced condition opens; PhaseBegins is listed there as this design's leaf
@@ -42,7 +42,7 @@ a synchronisation matrix.
 | **advance triggers** | five: `TimerElapsed`, `BehaviorFinished`, `UnderAttack`, `HealthCritical`, `ReachedDestination` (obsolete = BehaviorFinished); exactly one per task; ⛔ none can name another unit (`MissionTriggerHelper.cs:15-49`) |
 | **running it** | `MissionControlExecutionSystem` (replace with a version check; jump; abort; append / insert DEAD) → `MissionDirectorSystem` advances (origin Superior) → CGF `MissionAdapterSystem` → the intent path; an immediate order with `ClearsPriorIntent` DISCARDS the plan (rulings 50, 52); a loaded scenario restarts every plan at task 0 |
 | **orders** | five kinds — Move, Attack, Hold, Strike, ObserveFire — each a unit-agnostic DTO resolved BY THE RECEIVER'S CLASS (`OrderResolver`, R-273); `OrderMenu.OfferedFor(dis)` offers only what the class can do. ⚠ **No editor puts an order into a plan**, and a task named `Order.Move` would resolve to behaviour id 0 (`MissionControlExecutionSystem.cs:~347-366`) — latent |
-| ✏ **orders and plan tasks share ONE channel** *(measured `2026-11-07`, corrects the row above)* | a plan task already reaches the unit as a tactical intent whose id is the task's name (`MissionAdapterSystem.cs:110-117`, origin Superior); an immediate order is the same intent with the id `Order.<Kind>` (`OrderAttribute.IntentPrefix`, `OrderAttribute.cs:31`); `TacticalIntentResolutionSystem.cs:135-150` sends `Order.*` to `OrderResolver` (`<Class><Kind>` by the receiver's class) and any other id straight to the behaviour registry. ⇒ a task named `Order.Move` would ALREADY be resolved correctly; the "id 0" is only the queue's stored id (`MissionControlExecutionSystem.ResolveBehaviorId`, `:371-403`: a warning + 0), used in the adapter's change hash — `BehaviorFinished` fires on any finish of that entity (`MissionDirectorSystem.cs:200`). No behaviour name starts with `Order.` ⇒ the two names never collide; existing behaviour tasks are untouched |
+| ✏ **orders and plan tasks share ONE channel** *(measured `2026-11-07`, corrects the row above)* | a plan task already reaches the unit as a tactical intent whose id is the task's name (`MissionAdapterSystem.cs:110-117`, origin Superior); an immediate order is the same intent with the id `Order.<Kind>` (`OrderAttribute.IntentPrefix`, `OrderAttribute.cs:31`); `TacticalIntentResolutionSystem.cs:135-150` sends `Order.*` to `OrderResolver` (`<Class><Kind>` by the receiver's class) and any other id straight to the behaviour registry. ⇒ a task named `Order.Move` would ALREADY be resolved correctly; ⚠ **but a task is STARTED TWICE**: on an advance the director publishes `AssignBehaviorHashEvent` with the queue's stored id (`MissionDirectorSystem.cs:~218-224`), and the adapter then publishes the intent by name (`MissionAdapterSystem.cs:110-117`) — for an `Order.*` task the stored id is 0 (`MissionControlExecutionSystem.ResolveBehaviorId`, `:386-403`), so the director first starts Idle, then the adapter the resolved behaviour (§5 D2). `BehaviorFinished` fires on any finish of that entity (`MissionDirectorSystem.cs:200`). No behaviour name starts with `Order.` ⇒ the two names never collide; existing behaviour tasks are untouched |
 | **groups** | a plan goes on a commander (a body-less unit entity); a squad / platoon is ordered through its commander (AQ29 §H); drills are behaviours of the commander |
 | **editing today** | `MissionPanel` (761 lines) — behaviour names not order kinds, the obsolete trigger offered, a raw-text trigger parameter, "+ Add Trigger" though only one is allowed, Force Commit, one unit at a time, nothing on the map; a second instance in the Details tab on a different selection model; HTTP `add_mission_task` rewrites the whole plan |
 | **across units** | only scenario rules: a trigger's *when* → `MissionCommand` jumps another unit's plan (SR-90). No phases, phase lines or timing; U5 ("the plan as a shared step engine") REJECTED in Scenario Rules |
@@ -162,3 +162,142 @@ order — so the plan stays unit-agnostic and a re-classed unit still works.*
 | **Q5** | the plan length | **16 tasks** (the unmanaged queue doubles; still allocation-free) | unlimited — a managed list per frame; 8 — too short for a real plan |
 | **Q6** | vocabulary | user words: **plan · task · order · phase**; ⭐ rename the code's `MissionPlanQueue.Phases` → `Tasks` (a Roslyn rename) so "phase" means the military phase only | keep the code's "phase" for task slots — two meanings of one word |
 | **Q7** | an immediate order in Live | **still replaces the plan** (rulings 50, 52), the menu says so, and *Add to the plan* is offered beside it | silently replacing |
+
+## 5. Detailed design *(2026-11-07 — measured; decisions D1–D9 for the user)*
+
+⭐ Written so a lane can build it unattended (R-4156). Every load-bearing fact below was measured on `coordinator` at `ae4b72f0`+.
+
+### 5.1 Measured for this pass
+
+| fact | where | ⇒ |
+|---|---|---|
+| 33 of 127 scenarios carry a plan, on 44 units; at most **6** tasks; triggers used: `BehaviorFinished` (80), `TimerElapsed` (17); every task names a behaviour; none starts with `Order.` | `scenarios/*/scenario.json` (`MissionPlan.PlanData.tasks[].behaviorName / triggers[]`) | every change below is additive for them |
+| a plan task and an immediate order travel the SAME way: a tactical intent, the order's id `Order.<Kind>` | `MissionAdapterSystem.cs:110-117` · `OrderAttribute.cs:31` · `TacticalIntentResolutionSystem.cs:135-150` | an order task needs no new channel |
+| ⚠ a task is **started twice**: the director by stored id, the adapter by name; an `Order.*` task's stored id is 0 | `MissionDirectorSystem.cs:~218-224` · `MissionControlExecutionSystem.cs:371, 386-403` | D2 |
+| the director and the adapter run on the SAME host: `MissionControlModule` (director + execution) and `MissionAdapterSystem`, both composed by the CGF pack | `CgfLogicPack.cs:154` · `MissionControlModule.cs:49` | one start path is safe |
+| the director's built-in triggers: `TimerElapsed`, `UnderAttack`, `HealthCritical` (a fraction), `BehaviorFinished` (`ReachedDestination` obsolete); ONE per task | `MissionComponents.cs:11-30`, `MissionDirectorSystem.cs:150-205` | *under fire* and *strength below* already exist |
+| the ONE condition compiler: `PredicateCompiler.CompileLevelPredicate(dto)` → `Func<EntityRepository, Entity, bool>` | `ReplayBrowser/Search/PredicateCompiler.cs:42` (same assembly as the director) | D3 needs no new evaluator |
+| a rule can be **fired** on request (`RuleRequest.Fire`), its state is replicated (`ObjectiveStatus.TriggerState`, `FireCount`) | `RuleControl.cs:7` · `ObjectiveStatus.cs` | D5: a phase can BE a trigger |
+| a task's outcome per slot is replicated (`MissionPlanQueue.Outcomes`, CE-483) | `MissionComponents.cs:164-193` | D6 |
+| the queue is an unmanaged `[InlineArray(8)]`, `[DataPolicy(NoScenario)]` — rebuilt from the saved plan on load | `MissionComponents.cs:112, 138-143` | D7 changes no scenario |
+
+### 5.2 Decisions — leans for the user
+
+| # | decision | ⭐ lean | rejected — one line |
+|---|---|---|---|
+| **D1** | how an order task is stored | the existing `behaviorName` = `Order.<Kind>`, the order DTO as `behaviorParams` — the file format does not change | a new `Kind` field: a format change for a fact the name already says |
+| **D2** | how a task starts | **ONE path**: the director only ADVANCES the queue; the adapter starts every task by name through the intent (orders, mappers and plain names alike) | keep both: an order task starts Idle for a frame, and every task is assigned twice |
+| **D3** | the "then" | the built-in triggers stay for the task's own lifecycle (*when done · after N min · under fire · strength below X %*); ONE new trigger kind **`Condition`** carries a condition-language predicate (JSON in its params) for everything about OTHER things — compiled once per plan version on the brain's node, evaluated each frame without allocation | a hidden task-owned RULE entity (§3 M5's first wording): a second runtime object per task where the one compiler already does it ⇒ **M5's "task-owned rule" is SUPERSEDED by D3** |
+| **D4** | *give up after* | an optional second entry in the task's `triggers` list, type `GiveUpAfter` (seconds); on elapse the task ends **Failed** and the plan advances | a field on the task: a format change |
+| **D5** | what an operation phase is | ⭐ **a trigger rule marked as a phase** (`common.phase` = its order, 1, 2, …): it *begins* = it fires; its *when* is the begin condition, *no later than* = `when OR ScenarioTime ≥ T`; the instructor's *Begin now* = `RuleRequest.Fire`; it is listed, edited and shown by the rules UI that exists | a separate phase list + its own evaluator + a *Begin phase* action: a second store and a second "when" engine for what a trigger already is |
+| **D6** | *when Phase 2 begins* / *when Bravo 1-2 finishes task 3* | *phase begins* = the existing *"rule X has fired"* condition on that phase's trigger (no new leaf); **one new leaf `TaskFinished { Unit, Task }`** reads the unit's replicated `Outcomes` | `PhaseBegins` as its own leaf: redundant once a phase is a trigger |
+| **D7** | the queue | 8 → **16** slots; the Roslyn renames `MissionPhase` → `MissionTaskSlot`, `Phases` → `Tasks`, `PhaseCount` → `TaskCount`, `CurrentPhase` → `CurrentTask`, `MaxPhases` → `MaxTasks`, `PhaseElapsedSeconds` → `TaskElapsedSeconds` (Q6) | renaming only `Phases`: "phase" would still mean a task slot in five other names |
+| **D8** | where the plan is edited | the **Orders** tab of Details (`EntityDetailsBundle`) from forms and the condition editor; `MissionPanel` (766 lines), `MissionPanelWindow` and its second instance retired — their parts routed (Jump / Stop, progress, Commit) | keep the window beside the tab: two surfaces (R-4118) |
+| **D9** | an edit's path | Edit mode: the authored plan changes with ONE undo step per user action (`EditHistory`, R-4133); Live: a **Commit** with the plan's version through `Edits.Submit` (built, B-6) — *Conflict → Reload / Overwrite* wired in the Orders tab; *Add to the plan* builds plan + 1 task and commits (append mode stays dead) | a live append command: the dead `append` path revived |
+
+### 5.3 The classes
+
+```mermaid
+classDiagram
+  direction LR
+  class DomainMissionTask { <<existing, saved>> behaviorName · behaviorParams · triggers[] }
+  class DomainMissionTrigger { <<existing>> Type · Params }
+  class MissionTrigger { <<existing enum>> TimerElapsed · UnderAttack · HealthCritical · BehaviorFinished · Condition NEW · GiveUpAfter NEW }
+  class MissionTaskSlot { <<renamed MissionPhase>> BehaviorId · Trigger · TriggerParam · GiveUpSeconds NEW · ConditionSlot NEW }
+  class MissionPlanQueue { <<existing, renamed fields>> Tasks[16] · TaskCount · CurrentTask · Outcomes[16] · Version }
+  class PlanConditionCache { <<NEW, brain node, not recorded>> per entity + version: compiled predicates }
+  class PredicateCompiler { <<existing>> CompileLevelPredicate(dto) }
+  class TaskFinishedPredicateDto { <<NEW leaf>> Unit : EntityLink · Task : int }
+  class MissionDirectorSystem { <<existing>> advances only (D2) }
+  class MissionAdapterSystem { <<existing>> the ONE start: intent by name }
+  class OrdersTab { <<NEW, replaces MissionPanel>> FormView rows · ConditionEditor · Jump / Stop · Commit }
+  DomainMissionTask "1" o-- "1..2" DomainMissionTrigger : then + give up
+  MissionPlanQueue "1" o-- "16" MissionTaskSlot
+  MissionDirectorSystem --> MissionPlanQueue
+  MissionDirectorSystem --> PlanConditionCache : Condition triggers
+  PlanConditionCache --> PredicateCompiler
+  PredicateCompiler ..> TaskFinishedPredicateDto
+  MissionAdapterSystem --> MissionPlanQueue : starts CurrentTask
+  OrdersTab --> DomainMissionTask : edits the authored plan
+```
+
+*What the picture shows that prose hid: the saved plan does not change shape — two new trigger TYPES ride in the existing list; everything new
+at runtime is either a renamed field, a cache of compiled predicates, or one new leaf; the phase never appears as a class because it is a
+trigger (D5).*
+
+### 5.4 Sequences
+
+```mermaid
+sequenceDiagram
+  participant D as MissionDirectorSystem
+  participant C as PlanConditionCache
+  participant Q as MissionPlanQueue
+  participant A as MissionAdapterSystem
+  participant T as TacticalIntentResolutionSystem
+  D->>Q: the current task's trigger
+  alt Condition
+    D->>C: the compiled predicate for this entity and plan version
+    C-->>D: true or false, no allocation
+  else built-in, or GiveUpAfter elapsed
+    D->>D: today's checks, give up means Outcome Failed
+  end
+  D->>Q: CurrentTask + 1 (no assign - D2)
+  A->>Q: CurrentTask changed
+  A->>T: intent by name (Order.Move, a mapper id or a behaviour name)
+  T-->>A: the behaviour started, or refused with the reason
+```
+
+```mermaid
+sequenceDiagram
+  actor I as Instructor
+  participant R as the phase trigger (a rule, common.phase = 2)
+  participant D as MissionDirectorSystem (each unit)
+  I->>R: Begin now (RuleRequest.Fire) - or its when / no-later-than holds
+  R-->>R: fires, TriggerState and FireCount replicated
+  D->>D: a task waiting on rule fired (Phase 2) sees it next frame and advances
+```
+
+```mermaid
+graph TD
+  CGF["CGF pack (the brain's node)"] --> MCM["MissionControlModule: execution + MissionDirectorSystem"]
+  CGF --> MAS["MissionAdapterSystem - the ONE start"]
+  MCM --> PCC["PlanConditionCache"]
+  RULES["the rules runner (rules' node)"] --> PH["phase triggers - plain triggers"]
+  ED["Editor / CGF / Replay Browser"] --> DET["EntityDetailsBundle - the Orders tab"]
+  ED --> RB["RulesBundle - phases listed with the rules"]
+  PH -. "TriggerState replicated" .-> MCM
+```
+
+*Called each frame: the director and the adapter by the CGF pack's module host; the phases by the rules runner; the Orders tab and the phase
+rows by each host's bundles. The dashed edge is replication, not a call — the director never reaches into the rules runner.*
+
+### 5.5 Stages, refined *(supersede §3's lane column — roles are not honoured, user `2026-11-07`)*
+
+| # | what | acceptance |
+|---|---|---|
+| **M1** | D1 + D2: `Order.*` accepted without the warning; the director advances only, the adapter starts every task | a plan of `Order.Move` → `Order.Hold` runs on a tank and on a rifleman (each its own class behaviour); no Idle frame between tasks; the 33 scenarios' plan suites unchanged |
+| **M1b** | D7: 16 slots + the Roslyn renames | builds; the plan suites unchanged |
+| **M2** | D8: the Orders tab — task rows as sentences, the order form (`OrderMenu.OfferedFor`), the *then* picker (§5.6), *give up after* (D4), progress, Jump / Stop; `MissionPanel` retired | side-by-side with `mission-plan-editor.svg` + `mission-plan-detail-visual.svg` |
+| **M3** | the plan on the map: a numbered marker at each task's first place field (`MapPreviews` shapes by semantic type), the route, drag a marker = edit that field, right-click *Add task ▸* (catalogue actions) | ⏳ action catalogue (B-11) |
+| **M4** | D9: Live Commit, Conflict → Reload / Overwrite, *Add to the plan* | a two-station conflict rail |
+| **M5** | D3 + D6: the `Condition` trigger, `PlanConditionCache`, the `TaskFinished` leaf; *Advanced condition…*, *When a rule fires…*, *New rule…* in the picker | a unit waits on another's task 3; 0 B per steady frame |
+| **M6** | D5: phases — `common.phase` on a trigger, the Rules window's *Phases* group, *Begin now* in Live, *when Phase N begins* in the picker; the Timeline's **Tasks** group (one lane per unit, its tasks as bars, phase triggers' fire times as columns) | a phase begun by the instructor releases two units' waiting tasks |
+
+### 5.6 The *then* picker — the plain list and what each stores
+
+| the user picks | stored as |
+|---|---|
+| *when done* · *when there* | `BehaviorFinished` |
+| *after N min* | `TimerElapsed` (seconds) |
+| *when under fire* | `UnderAttack` |
+| *when strength below X %* | `HealthCritical` (fraction) |
+| *when Phase N begins* | `Condition`: *rule fired* on that phase's trigger |
+| *when <unit> finishes task N* | `Condition`: `TaskFinished` |
+| *when a rule fires…* | `Condition`: *rule fired* |
+| *Advanced condition…* | `Condition`: any predicate from the condition editor |
+| *give up after N min* (optional, beside any of the above) | `GiveUpAfter` (seconds) |
+
+![the then picker, give up, phases in the rules list, the Tasks timeline](mission-plan-detail-visual.svg)
+
+*Generated by `scripts/gen-mission-plan-detail-mockup.py`; the acceptance spec for the picker, the give-up row, the phase rows and the Tasks
+group only.*
