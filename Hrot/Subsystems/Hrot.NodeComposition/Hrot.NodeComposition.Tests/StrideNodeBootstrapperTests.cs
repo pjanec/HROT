@@ -281,7 +281,6 @@ public sealed class StrideNodeBootstrapperTests
         public int PollCount;
         public IEntityCreationRequestSource RequestSource { get; } = new NoRequests();
         public IEntityDeletionRequestSource DeleteSource  { get; } = new NoRequests();
-        public IEntityAckSink AckSink                     { get; } = new NoAcks();
         public IEntityCreationRequestEgress? RequestEgress { get; } = new NoEgress();
         public Fdp.Toolkit.Replication.Abstractions.IOwnershipDistributionStrategy? OwnershipStrategy { get; } = new NoGrants();
         public Fdp.Toolkit.Replication.Patching.JsonAttributeCompiler? JsonCompiler => null;
@@ -292,10 +291,6 @@ public sealed class StrideNodeBootstrapperTests
         {
             public void ProcessRequests(Action<EntityCreationRequest> handler) { }
             public void ProcessRequests(Action<EntityDeletionRequest> handler) { }
-        }
-        private sealed class NoAcks : IEntityAckSink
-        {
-            public void WriteAck(Guid requestId, int entityId, EntityOperationStatus status) { }
         }
         private sealed class NoEgress : IEntityCreationRequestEgress
         {

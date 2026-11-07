@@ -161,7 +161,7 @@ namespace Hrot.Common.EntityCreation
             var requestSource = new CompositeEntityCreationRequestSource(sources);
 
             // ⭐ Edit framework F2 — every ack is ALSO the one edit outcome (EntityEditOutcome), on every host by construction.
-            IEntityAckSink ackSink = new EditOutcomeEntityAckSink(ctx.World, ctx.NodeId, adapters != null ? adapters.AckSink : ctx.AckSink);
+            IEntityAckSink ackSink = new EditOutcomeEntityAckSink(ctx.World, ctx.NodeId, adapters != null ? null : ctx.AckSink);
 
             var finalization = new EntityRequestFinalizationSystem(ackSink, ctx.EntityMap);
 

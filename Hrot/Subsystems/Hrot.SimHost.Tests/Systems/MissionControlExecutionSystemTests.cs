@@ -262,6 +262,12 @@ public class MissionControlExecutionSystemTests
         var ack = FindAck(repo, conflictId);
         Assert.NotNull(ack);
         Assert.NotEqual(0, ack!.Value.ErrorCode);
+
+        // ⭐ Edit framework F6 (CE-4277, Q3) — the same answer in the ONE outcome stream: a failed version precondition is a CONFLICT with its words
+        //   (the notification offers Reload / Overwrite), not a plain refusal. ✅ Red-proof: VersionConflict mapped to Refused ⇒ red.
+        Assert.True(Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(repo).TryGet(conflictId, out var outcome));
+        Assert.Equal(Fdp.Toolkit.Replication.Edits.EditStatus.Conflict, outcome.Status);
+        Assert.Contains("changed by someone else", outcome.Reason);
     }
 
     // â”€â”€ SC-3: Unknown entity queues for retry, eventually NACKs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

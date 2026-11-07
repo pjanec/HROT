@@ -222,6 +222,67 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             Assert.True(repo.HasAuthority<TestPositionComponent>(entity));
         }
 
+        /// <summary>⭐ B-4 (Details forms D2, Q7): a SAVED stance. The scenario's StanceIntent overrides the type's default and the body starts IN it: the status (the template's default, Standing, ack 0)
+        /// is seeded from the intent and acknowledged — no stand-up-then-drop transition. ✅ Red-proof: the seed removed from NetworkSpawningSystem ⇒ status Standing, Ack 0 ⇒ red.</summary>
+        [Fact]
+        public void Spawn_WithASavedStance_StartsTheBodyInIt()
+        {
+            var repo        = CreateWorld();
+            repo.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            repo.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceStatus>();
+            var tkb         = CreateTkb();
+            var elm         = CreateElm(tkb);
+            var networkMap  = new NetworkEntityMap();
+            var idAllocator = new StubIdAllocator();
+            var system      = CreateSystem(repo, networkMap, idAllocator, tkb, elm);
+
+            RunSpawn(repo, system, new SpawnEntityCommand
+            {
+                NetworkId   = 21,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
+                OwnerNodeId = (Fdp.Core.NodeId)(1),
+                InitialComponents = new List<object>
+                {
+                    new Hrot.MuscleCharacter.Animation.Components.StanceStatus { CurrentStance = Fdp.Toolkit.Tkb.Domain.StanceId.Standing, AckVersion = 0 },   // what the type's translator leaves
+                    new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = Fdp.Toolkit.Tkb.Domain.StanceId.Prone, BlendTime = 0.3f, Version = 4 },   // what the scenario saved
+                }
+            });
+
+            Assert.True(networkMap.TryGetEntity(21, out var entity));
+            var intent = repo.GetComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(entity);
+            var status = repo.GetComponent<Hrot.MuscleCharacter.Animation.Components.StanceStatus>(entity);
+            Assert.Equal((Fdp.Toolkit.Tkb.Domain.StanceId.Prone, 4u), (intent.TargetStance, intent.Version));
+            Assert.Equal((Fdp.Toolkit.Tkb.Domain.StanceId.Prone, 4u, Hrot.MuscleCharacter.Animation.Components.StanceTransitionPhase.Idle), (status.CurrentStance, status.AckVersion, status.Phase));
+        }
+
+        /// <summary>⭐ B-4: StanceIntent is SAVED (the scenario keeps a Prone unit prone) and StanceStatus is not (derived from it at load). ✅ Red-proof: StanceIntent back to NoScenario ⇒ not serialised ⇒ red.</summary>
+        [Fact]
+        public void AStanceIntent_RoundTripsThroughTheScenario_AndTheStatusDoesNot()
+        {
+            using var src = new EntityRepository();
+            src.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            src.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceStatus>();
+            var e = src.CreateEntity();
+            src.AddComponent(e, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = Fdp.Toolkit.Tkb.Domain.StanceId.Prone, BlendTime = 0.3f, Version = 4 });
+            src.AddComponent(e, new Hrot.MuscleCharacter.Animation.Components.StanceStatus { CurrentStance = Fdp.Toolkit.Tkb.Domain.StanceId.Prone, AckVersion = 4 });
+            var serializer = new Fdp.Toolkit.Scenario.ScenarioSerializerBuilder("Fdp.Toolkits.Tests").Build();
+            var dom = serializer.Serialize(src, new Fdp.Toolkit.Scenario.ScenarioHeader("Fdp.Toolkits.Tests"));
+
+            using var fresh = new EntityRepository();
+            fresh.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            fresh.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceStatus>();
+            serializer.Deserialize(fresh, dom);
+            Entity back = default; bool found = false;
+            for (int i = 0; i <= fresh.MaxEntityIndex && !found; i++)
+            {
+                var c = new Entity(i, fresh.GetEntityIndex().GetMetadata(i).Generation);
+                if (fresh.IsAlive(c) && fresh.HasComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(c)) { back = c; found = true; }
+            }
+            Assert.True(found);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, fresh.GetComponentRO<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(back).TargetStance);
+            Assert.False(fresh.HasComponent<Hrot.MuscleCharacter.Animation.Components.StanceStatus>(back));   // NoScenario: not saved
+        }
+
         [Fact]
         public void Spawn_WithInitialComponents_AppliesOverridesOnTopOfTemplate()
         {

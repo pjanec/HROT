@@ -79,7 +79,7 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         var playerApp = harness.Player.App;
 
         using var observerParticipant = new DdsParticipant((uint)domainId);
-        using var ackReader = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant);
+        using var ackReader = new DdsReader<EntityEditOutcome>(observerParticipant);
         using var navIntentReader = new DdsReader<Hrot.NED.Descriptors.NavigationIntent>(observerParticipant);
 
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
@@ -91,15 +91,15 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         _out.WriteLine("[A1] gateway spawn+wander fired.");
 
         // ── 2. Capture the CreateEntityAck ───────────────────────────────────
-        CreateUpdateDeleteEntityAck spawnAck = default;
+        EntityEditOutcome spawnAck = default;
         bool ackObserved = harness.PumpUntil(
             () => TryTakeAnyCreateAck(ackReader, out spawnAck),
             GatewayTimeoutFrames);
         Assert.True(ackObserved,
-            "CreateUpdateDeleteEntityAck did not arrive in time. " +
+            "EntityEditOutcome did not arrive in time. " +
             "CreateEntityRequestSystem on CGF may not have processed the request.");
         Assert.True(spawnAck.EntityId > 0,
-            "CreateUpdateDeleteEntityAck returned a zero/negative entity ID.");
+            "EntityEditOutcome returned a zero/negative entity ID.");
 
         int networkId = spawnAck.EntityId;
         _out.WriteLine($"[A2] ACK received. networkId={networkId}.");
@@ -195,8 +195,8 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
     // ── Assertion helpers ─────────────────────────────────────────────────────
 
     private static bool TryTakeAnyCreateAck(
-        DdsReader<CreateUpdateDeleteEntityAck> reader,
-        out CreateUpdateDeleteEntityAck ack)
+        DdsReader<EntityEditOutcome> reader,
+        out EntityEditOutcome ack)
     {
         using var loan = reader.Take(1);
         foreach (var sample in loan)

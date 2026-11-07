@@ -257,7 +257,7 @@ namespace Hrot.NED.Messages
     // GENERIC - reusable across any SST application (map, radio, weather, etc.)
     // Used ONLY for updating attributes indescriptors owned by other participants
     // For own descriptors: write directly to DDS topics
-    // Acknowledged by CreateUpdateDeleteEntityAck 
+    // Answered by EntityEditOutcome when WantOutcome is set (edit framework F2).
     [DdsTopic]
     [DdsIdlFile("hrot-generic-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
@@ -273,10 +273,6 @@ namespace Hrot.NED.Messages
         [DdsManaged]
         public string AttributePatchJson;
 
-        // When true, the processing node must send a CreateUpdateDeleteEntityAck after applying
-        // the patch.  When false (default), the message is fire-and-forget.
-        public bool RequireAck;
-
         /// <summary>
         /// Optional binary attribute patch applied alongside <see cref="AttributePatchJson"/>.
         /// Each <see cref="AttributeRecord"/> carries a strongly-typed value keyed by a 16-bit
@@ -287,14 +283,14 @@ namespace Hrot.NED.Messages
         public List<AttributeRecord>? AttributeRecords;
 
         /// <summary>
-        /// ⭐ CE-2380 part 1 (R-2082) — the requester wants an <see cref="EntityEditOutcome"/> from the owner. Separate from <see cref="RequireAck"/> (which
-        /// stays as it is): false (default) = no outcome is sent. Appended LAST so the field order of the older members is untouched.
+        /// ⭐ CE-2380 part 1 (R-2082) — the requester wants an <see cref="EntityEditOutcome"/> from the owner. false (default) = no outcome is sent.
+        /// ⭐ Edit framework F2 (R-4126): the old <c>RequireAck</c> and its <c>CreateUpdateDeleteEntityAck</c> are retired. Appended LAST so the field order of the older members is untouched.
         /// </summary>
         public bool WantOutcome;
     }
 
     // ⭐ CE-2380 part 1 (R-2082, 📄 docs/DESIGN_Remote_Edit_Outcome.md §2) — the outcome of a remote edit, owner → every node: applied / pending / refused, with the reason.
-    // Answers an UpdateEntityAttributeRequest that had WantOutcome set (or, later, a judge's final verdict under the same RequestId). ⛔ Not CreateUpdateDeleteEntityAck — that stays as it is.
+    // Answers an UpdateEntityAttributeRequest that had WantOutcome set (or, later, a judge's final verdict under the same RequestId). ⭐ Edit framework F2 (R-4126): it is ALSO the answer to a create and a delete — the old CreateUpdateDeleteEntityAck is retired.
     [DdsTopic]
     [DdsIdlFile("hrot-generic-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
@@ -315,32 +311,6 @@ namespace Hrot.NED.Messages
         public string Reason;
     }
 
-    // Unified acknowledgment for entity creation, descriptor update, and deletion.
-    [DdsTopic]
-    [DdsIdlFile("hrot-generic-msgs")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
-    public partial struct CreateUpdateDeleteEntityAck
-    {
-        public Guid RequestId;
-
-        /// <summary>The affected entity. For creation requests this holds the newly allocated ID.</summary>
-        public int EntityId;
-
-        /// <summary>Maps to NedStatusCode: 0=Success, 1=InProgress, >=2=Error.</summary>
-        public int StatusCode;
-
-        /// <summary>Identifies which node is sending this acknowledgment.</summary>
-        public NodeId RespondingNode;
-
-        /// <summary>
-        /// Optional engine-specific execution receipt — 64 bytes (512 bits) from FDP nodes (⭐ CE-1047; was 32 / 256).
-        /// FDP nodes pack a component-mutation bitmask here: bit N is set when ECS component
-        /// type ID N was authorised and written during this request.
-        /// Non-FDP nodes may use this field for custom flags or leave it null/zeroed.
-        /// Serialized as an unbounded DDS octet sequence.
-        /// </summary>
-        public byte[] OpaqueData;
-    }
 
     // ===================================================================================
     // ENTITY ATTRIBUTE SCHEMA (GZ052)

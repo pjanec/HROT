@@ -358,6 +358,76 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ Edit framework F4 (docs/UX/DESIGN_Edit_Framework.md §3, Q2) — a person's embark (<c>EmbarkOrders</c> → <c>Edits.Submit</c>) carries its request
+        /// id in the payload; the vehicle's OWNER applies it and answers Applied under that id; a disembark of a man who is not aboard is answered
+        /// Refused with why. The AI's own commands (no id) answer nothing. ✅ Red-proof: the codec not copying RequestId ⇒ the owner's log has no entry ⇒ red.
+        /// </summary>
+        [Fact]
+        public void F4_AnEmbarkAskedByAPerson_IsAnsweredByTheVehiclesOwner_UnderItsId()
+        {
+            static EntityRepository Node()
+            {
+                var w = new EntityRepository();
+                w.RegisterComponent<NetworkAuthority>();
+                w.RegisterComponent<NetworkIdentity>();
+                w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+                w.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+                w.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
+                w.RegisterEvent<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>();
+                return w;
+            }
+            using var station = Node();
+            var map = new NetworkEntityMap();
+            var apc = station.CreateEntity();
+            station.AddComponent(apc, new Fdp.Toolkit.Behavior.Components.PassengerBuffer());
+            station.AddComponent(apc, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+            var soldier = station.CreateEntity();
+            map.Register(810, apc); map.Register(53, soldier);
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            var egress = new InteractionEgressTranslator(writer, map);
+
+            Assert.True(Hrot.Common.Orders.EmbarkOrders.Embark(station, soldier, apc));
+            var journal = Fdp.Toolkit.Replication.Edits.EditJournal.Of(station);
+            var asked = journal[journal.Count - 1];
+            Assert.Equal(("Embark", Fdp.Toolkit.Replication.Edits.EditStatus.Pending), (asked.Label, asked.Status));
+            station.Bus.SwapBuffers();
+            egress.ScanAndPublish(station);
+            var sample = Assert.Single(writer.Written);
+            Assert.Equal(asked.RequestId, sample.Payload.Embark.RequestId);
+
+            using var owner = Node();
+            var ownerMap = new NetworkEntityMap();
+            var ownersApc = owner.CreateEntity();
+            owner.AddComponent(ownersApc, new Fdp.Toolkit.Behavior.Components.PassengerBuffer());
+            var ownersSoldier = owner.CreateEntity();
+            var stranger = owner.CreateEntity();
+            ownerMap.Register(810, ownersApc); ownerMap.Register(53, ownersSoldier); ownerMap.Register(54, stranger);
+            var ingress = new InteractionIngressTranslator(participant: null, ownerMap);
+            var applier = new Fdp.Toolkit.Behavior.Systems.EmbarkationSystem();
+            void Deliver(EntityInteractionRequest r)
+            {
+                using var cmd = new EntityCommandBuffer();
+                ingress.ProcessSample(in r, cmd);
+                cmd.Playback(owner);
+                owner.Bus.SwapBuffers();
+                applier.Execute(owner, 0f);
+            }
+            Deliver(sample);
+            var log = Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(owner);
+            Assert.True(log.TryGet(asked.RequestId, out var o) && o.Status == Fdp.Toolkit.Replication.Edits.EditStatus.Applied);
+
+            var notAboardId = System.Guid.NewGuid();
+            Deliver(new EntityInteractionRequest { TargetId = 810, ActorId = 54, Payload = new InteractionPayload
+                { Kind = EInteractionKind.Disembark, Disembark = new DisembarkInteractionPayload { RequestId = notAboardId } } });
+            Assert.True(log.TryGet(notAboardId, out o) && o.Status == Fdp.Toolkit.Replication.Edits.EditStatus.Refused);
+            Assert.Contains("not aboard", o.Reason);
+
+            int before = log.Count;
+            Deliver(new EntityInteractionRequest { TargetId = 810, ActorId = 54, Payload = new InteractionPayload { Kind = EInteractionKind.Disembark, Disembark = new DisembarkInteractionPayload() } });
+            Assert.Equal(before, log.Count);   // nobody asked ⇒ nothing answered (the AI's commands cost nothing)
+        }
+
+        /// <summary>
         /// ⭐⭐ Airborne insertion B-4 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §7a — CE-3059 closed for a descent) — the BRAIN
         /// node (it owns the helicopter's passenger list, not the man's position) applies a rope exit: the man leaves the list, and a
         /// <c>StartDescentCommand</c> crosses as its union case (target = the man, actor = the helicopter, the exit and the rope index) to

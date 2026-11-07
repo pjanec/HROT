@@ -191,12 +191,6 @@ public sealed class TheWriteRoutesAskTheOwnerTests
         }
     }
 
-    private sealed class NoAckSink : Hrot.Map.Common.Systems.IUpdateEntityAttributeAckSink
-    {
-        public void WriteAck(System.Guid requestId, int errorCode, Hrot.NED.Common.NodeId respondingNode, System.ReadOnlySpan<byte> opaqueData) { }
-        public void WriteErrorAck(System.Guid requestId, int errorCode) { }
-    }
-
     private sealed class CapturedWire : Hrot.Map.Common.Dds.IDdsWriter<Hrot.NED.Messages.EntityEditOutcome>
     {
         public readonly System.Collections.Generic.List<Hrot.NED.Messages.EntityEditOutcome> Written = new();
@@ -229,7 +223,7 @@ public sealed class TheWriteRoutesAskTheOwnerTests
                 RequestId = cmd.RequestId, EntityId = cmd.NetworkId, AttributePatchJson = cmd.AttributePatchJson, WantOutcome = cmd.WantOutcome,
             },
         };
-        var system = new Hrot.Map.Common.Systems.UpdateEntityAttributeRequestSystem(source, new NoAckSink(), owner.EntityMap);
+        var system = new Hrot.Map.Common.Systems.UpdateEntityAttributeRequestSystem(source, owner.EntityMap);
         system.Execute(owner.World, 0f);
         owner.World.Bus.SwapBuffers();
 

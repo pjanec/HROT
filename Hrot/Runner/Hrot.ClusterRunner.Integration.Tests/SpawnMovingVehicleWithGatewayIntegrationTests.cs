@@ -66,9 +66,9 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
 
         var playerApp = harness.Player.App;
 
-        // Observe CreateUpdateDeleteEntityAck to learn the allocated network ID.
+        // Observe EntityEditOutcome to learn the allocated network ID.
         using var observerParticipant = new DdsParticipant((uint)harness.DomainId);
-        using var ackReader           = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant);
+        using var ackReader           = new DdsReader<EntityEditOutcome>(observerParticipant);
 
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
 
@@ -80,15 +80,15 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
 
         // ── 2. Capture the CreateEntityAck to get the allocated network ID ───
         // CGF (in the default harness) is the default processor so it sends the ACK.
-        CreateUpdateDeleteEntityAck spawnAck = default;
+        EntityEditOutcome spawnAck = default;
         bool ackObserved = harness.PumpUntil(
             () => TryTakeAnyCreateAck(ackReader, out spawnAck),
             GatewayTimeoutFrames);
         Assert.True(ackObserved,
-            "CreateUpdateDeleteEntityAck did not arrive in time. " +
+            "EntityEditOutcome did not arrive in time. " +
             "CreateEntityRequestSystem on CGF may not have processed the broadcast request.");
         Assert.True(spawnAck.EntityId > 0,
-            "CreateUpdateDeleteEntityAck returned a zero/negative entity ID.");
+            "EntityEditOutcome returned a zero/negative entity ID.");
 
         int networkId = spawnAck.EntityId;
         _out.WriteLine($"[G2] ACK received. networkId={networkId}.");
@@ -136,8 +136,8 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static bool TryTakeAnyCreateAck(
-        DdsReader<CreateUpdateDeleteEntityAck> reader,
-        out CreateUpdateDeleteEntityAck ack)
+        DdsReader<EntityEditOutcome> reader,
+        out EntityEditOutcome ack)
     {
         using var loan = reader.Take(1);
         foreach (var sample in loan)

@@ -43,6 +43,9 @@ namespace Fdp.Toolkit.Behavior.Possession
         /// <summary>The station — its node id (C-8: one operator per node).</summary>
         public NodeId StationNodeId;
         public bool IsRemote;
+        /// <summary>⭐ Edit framework F4 (📄 docs/UX/DESIGN_Edit_Framework.md §3, Q2) — the user's request id (<c>Edits.Submit</c>); the applying node answers with
+        /// <c>EntityEditOutcome</c> under it (accepted or refused + why). <see cref="System.Guid.Empty"/> = nobody asked. APPENDED.</summary>
+        public System.Guid RequestId;
     }
 
     /// <summary>⭐ <c>CE-3172</c> — the station lets the unit go; its earlier task resumes (C-4).</summary>
@@ -53,6 +56,9 @@ namespace Fdp.Toolkit.Behavior.Possession
         public Entity Unit;
         public NodeId StationNodeId;
         public bool IsRemote;
+        /// <summary>⭐ Edit framework F4 (📄 docs/UX/DESIGN_Edit_Framework.md §3, Q2) — the user's request id (<c>Edits.Submit</c>); the applying node answers with
+        /// <c>EntityEditOutcome</c> under it (accepted or refused + why). <see cref="System.Guid.Empty"/> = nobody asked. APPENDED.</summary>
+        public System.Guid RequestId;
     }
 
     /// <summary>
@@ -210,9 +216,24 @@ namespace Fdp.Toolkit.Behavior.Possession
                     {
                         // ⭐ R-4096 (C-3′) — NEVER a take-over: a unit another live station holds stays with it, and a vehicle carrying a player
                         //   of another side is not for this station. The station answers 409 first; this is the arbiter for the race of two.
-                        if (StationClaims.ForPossess(repo, req.Unit, req.StationNodeId, out _) != ClaimRefusal.None) { Refused++; continue; }
+                        var claim = StationClaims.ForPossess(repo, req.Unit, req.StationNodeId, out _);
+                        if (claim != ClaimRefusal.None)
+                        {
+                            Refused++;
+                            Fdp.Toolkit.Replication.Edits.InteractionOutcomes.Refused(repo, req.RequestId, req.Unit, claim switch
+                            {
+                                ClaimRefusal.HeldByAnotherStation => "another station holds this unit",
+                                ClaimRefusal.OtherSide => "the unit carries a player of another side",
+                                ClaimRefusal.ReservedForAnother => "the unit is reserved for another player",
+                                _ => claim.ToString(),
+                            });
+                            continue;
+                        }
                         Possess(repo, req.Unit, req.StationNodeId, req.Mode);
+                        Fdp.Toolkit.Replication.Edits.InteractionOutcomes.Applied(repo, req.RequestId, req.Unit);   // ⭐ edit framework F4
                     }
+                    else if (OwnsBrain(repo, req.Unit))
+                        Fdp.Toolkit.Replication.Edits.InteractionOutcomes.Refused(repo, req.RequestId, req.Unit, "the unit is out of the fight");
 
             if (repo.Bus.IsRegistered<OperatorControlFrameEvent>())
                 foreach (ref readonly var f in repo.ReadEvents<OperatorControlFrameEvent>())
@@ -236,7 +257,11 @@ namespace Fdp.Toolkit.Behavior.Possession
 
             if (repo.Bus.IsRegistered<ReleasePossessionEvent>())
                 foreach (ref readonly var rel in repo.ReadEvents<ReleasePossessionEvent>())
-                    if (OwnsBrain(repo, rel.Unit) && HeldBy(repo, rel.Unit, rel.StationNodeId)) Release(repo, rel.Unit);
+                    if (OwnsBrain(repo, rel.Unit) && HeldBy(repo, rel.Unit, rel.StationNodeId))
+                    {
+                        Release(repo, rel.Unit);
+                        Fdp.Toolkit.Replication.Edits.InteractionOutcomes.Applied(repo, rel.RequestId, rel.Unit);   // ⭐ edit framework F4
+                    }
 
             LetGoOfManual(repo);
         }

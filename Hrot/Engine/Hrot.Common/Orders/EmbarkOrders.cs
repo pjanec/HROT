@@ -15,7 +15,9 @@ namespace Hrot.Common.Orders
         public static bool Embark(EntityRepository world, Entity passenger, Entity vehicle)
         {
             if (passenger == vehicle || !world.IsAlive(passenger) || !world.IsAlive(vehicle)) return false;
-            world.Bus.Publish(new EmbarkEntityCommand { Passenger = passenger, Vehicle = vehicle });
+            // ⭐ edit framework F4 — a journalled interaction: the vehicle's owner answers accepted or refused + why
+            Fdp.Toolkit.Replication.Edits.Edits.Submit(world, Fdp.Toolkit.Replication.Edits.EditOp.Interact(vehicle,
+                id => world.Bus.Publish(new EmbarkEntityCommand { Passenger = passenger, Vehicle = vehicle, RequestId = id }), "Embark"));
             return true;
         }
 
@@ -24,7 +26,9 @@ namespace Hrot.Common.Orders
         public static bool Disembark(EntityRepository world, Entity passenger)
         {
             if (!world.IsAlive(passenger)) return false;
-            world.Bus.Publish(new DisembarkEntityCommand { Passenger = passenger, Vehicle = VehicleOf(world, passenger) });
+            var vehicle = VehicleOf(world, passenger);
+            Fdp.Toolkit.Replication.Edits.Edits.Submit(world, Fdp.Toolkit.Replication.Edits.EditOp.Interact(vehicle.IsNull ? passenger : vehicle,
+                id => world.Bus.Publish(new DisembarkEntityCommand { Passenger = passenger, Vehicle = vehicle, RequestId = id }), "Disembark"));   // ⭐ F4
             return true;
         }
 

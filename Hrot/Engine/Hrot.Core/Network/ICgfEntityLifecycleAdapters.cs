@@ -16,8 +16,8 @@ public interface ICgfEntityLifecycleAdapters
     /// <summary>Source of incoming entity-deletion requests from the network.</summary>
     IEntityDeletionRequestSource DeleteSource { get; }
 
-    /// <summary>Sink for entity lifecycle ACK messages sent back to requesters.</summary>
-    IEntityAckSink AckSink { get; }
+    // ⭐ Edit framework F2 (R-4126): no ack sink here any more — the creation pack reports every create / delete answer as the ONE EntityEditOutcome
+    //   (EditOutcomeEntityAckSink); the DDS CreateUpdateDeleteEntityAck it wrote is retired.
 
     /// <summary>
     /// ⭐⭐ Sends a creation request OUTWARD, to the node that should service it — the mirror of

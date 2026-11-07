@@ -238,6 +238,19 @@ is read. A sticky, non-modal notification is the established middle (VS Code, Un
 
 Rails: `EditOutcomeOwnerTests.F1_*` (NED suite, two nodes over the real egress / ingress translators): rename and ORBAT on a non-owner applied by the owner and read Applied; Review and an observer refused with the reason and nothing sent; an unanswered edit Lost.
 
+### 4.2 ⭐ AS-BUILT — F2 *(backend, `2026-11-06`, B-3)*
+
+| piece | as built |
+|---|---|
+| `EditOp.Create(send, label)` | ⭐ **deviation:** the toolkit cannot see Hrot's creation request, so the op carries the host's affordance (`send(id)`); `Submit` mints the id and journals it. The map's placement (`ScenarioSpawnAdapter.Request`) is the caller (a caller that names its own id keeps it) |
+| `EditOp.Delete(target, label)` | publishes `DestroyEntityCommand { RequestId }`; owner ⇒ torn down here, Applied at once; non-owner ⇒ the egress carries the id to the owner (`DestroyEntityCommandEgressTranslator`) and `NetworkSpawningSystem` leaves the replica (CE-4276) |
+| the owner's delete | `DeleteEntityRequestSystem`: ⭐ a bystander (not the owner) is silent — was: every node tore its copy down and acked |
+| the one answer | `EditOutcomeEntityAckSink` (Hrot.Common) wraps every host's lifecycle ack sink in the creation pack: InProgress ⇒ Pending, Success ⇒ Applied (the entity's id), errors ⇒ Refused + reason — by construction on every host |
+| retired (§2.4) | `CreateUpdateDeleteEntityAck` (the DDS struct), `RequireAck`, `IUpdateEntityAttributeAckSink` + its DDS sink, `NedEntityAckSink`, `ICgfEntityLifecycleAdapters.AckSink`, the 512-bit applied mask; `NedCommandGateway.CreateEntityAsync` answers with the first `EntityEditOutcome` (Pending + the new id, or Refused). Rail `GenericMessageFieldTests.F2_TheOldAckIsRetired_…` |
+| the log's responder | `EditOutcome.RespondingNode` is `Fdp.Core.NodeId` (the wire stays `int`) |
+
+Gates: NED 190/0 (+1 red is the worker's in-flight B-4 test) · SimHost creation / delete / attribute 107/0 · NodeComposition 66/0 · SimHost integration 49/1 (`MissionExecutionFlow`, pre-existing, CE-3369) · ClusterRunner integration spawn-with-gateway 5/0 over real DDS.
+
 ## 5. Questions — ✅ APPROVED as revised *(🔒 user, `2026-11-06`: "approved")*
 
 | # | question | ⭐ lean | rejected |

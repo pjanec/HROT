@@ -207,8 +207,16 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
 
             // Fallback: rare/managed components via reflection.
             if (cmd.InitialComponents != null)
+            {
+                bool savedStance = false;
                 foreach (var component in cmd.InitialComponents)
+                {
                     EntityComponentReflector.SetComponent(world, entity, component);
+                    savedStance |= component is Hrot.MuscleCharacter.Animation.Components.StanceIntent;
+                }
+                // ⭐ B-4 (Details forms D2, Q7) — a SAVED stance: the body starts IN it (status = intent, acknowledged) — no stand-up-then-drop transition
+                if (savedStance) Fdp.Toolkit.Replication.Attributes.FormAttributes.SeedStatus(world, entity);
+            }
 
             // 8b. ⭐ CE-1017 S2 — the birth-height request, AFTER every override so it wins over a transform carried in
             //   InitialComponents too. 📄 docs/DESIGN_Add_Entity_Picker.md §2e (here, not in CreateEntityRequestSystem: eleven

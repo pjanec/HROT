@@ -34,14 +34,7 @@ public struct DeployRole
     public readonly long KitTkb(int kit) => kit switch { 0 => PersonTkbType, 1 => Kit1Tkb, 2 => Kit2Tkb, 3 => Kit3Tkb, _ => 0L };
 }
 
-/// <summary>⭐ Player Join S2-b (D-11) — marks an AREA entity (TKB "Spawn Area", outline as any area) a role's man may spawn inside, for <see cref="Side"/>, facing <see cref="FacingDeg"/> (compass-free yaw, degrees about Z, 0 = +X).</summary>
-[ComponentId(GlobalComponentIds.SpawnArea)]
-[DataPolicy(DataPolicy.Default)]
-public struct SpawnArea
-{
-    public ForceId Side;
-    public float FacingDeg;
-}
+// ⭐ B-4 (Details forms D2): SpawnArea moved to Fdp.Toolkits/Gameplay/SpawnArea.cs (same namespace) — its two fields are attributes, and the vocabulary lives in Fdp.Toolkits.
 
 /// <summary>⭐ Player Join S2-d (D-14) — the scenario's gameplay settings, on the World Environment entity. Absent ⇒ the server uses <see cref="DefaultRespawnDelaySeconds"/>. 0 ⇒ a dead Player observes for good.</summary>
 [ComponentId(GlobalComponentIds.GameplaySettings)]

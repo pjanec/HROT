@@ -119,9 +119,9 @@ namespace Hrot.Map.Common.Replication.Interactions
             isRemote:    static (in PossessRequestEvent e) => e.IsRemote,
             ownsTarget:  static (repo, unit) => PossessionSystem.OwnsBrain(repo, unit),
             toPayload:   static (in PossessRequestEvent e) => new InteractionPayload
-                { Possess = new PossessInteractionPayload { StationNodeId = e.StationNodeId, Mode = (byte)e.Mode } },
+                { Possess = new PossessInteractionPayload { StationNodeId = e.StationNodeId, Mode = (byte)e.Mode, RequestId = e.RequestId } },   // ⭐ F4
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new PossessRequestEvent
-                { Unit = target, StationNodeId = (Fdp.Core.NodeId)(p.Possess.StationNodeId), Mode = (PossessionMode)p.Possess.Mode, IsRemote = true });
+                { Unit = target, StationNodeId = (Fdp.Core.NodeId)(p.Possess.StationNodeId), Mode = (PossessionMode)p.Possess.Mode, IsRemote = true, RequestId = p.Possess.RequestId });
 
         /// <summary>⭐ CE-3172 S4e — a station lets its unit go.</summary>
         public static readonly IInteractionCodec ReleasePossession = new InteractionCodec<ReleasePossessionEvent>(
@@ -131,9 +131,9 @@ namespace Hrot.Map.Common.Replication.Interactions
             isRemote:    static (in ReleasePossessionEvent e) => e.IsRemote,
             ownsTarget:  static (repo, unit) => PossessionSystem.OwnsBrain(repo, unit),
             toPayload:   static (in ReleasePossessionEvent e) => new InteractionPayload
-                { ReleasePossession = new ReleasePossessionInteractionPayload { StationNodeId = e.StationNodeId } },
+                { ReleasePossession = new ReleasePossessionInteractionPayload { StationNodeId = e.StationNodeId, RequestId = e.RequestId } },   // ⭐ F4
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new ReleasePossessionEvent
-                { Unit = target, StationNodeId = (Fdp.Core.NodeId)(p.ReleasePossession.StationNodeId), IsRemote = true });
+                { Unit = target, StationNodeId = (Fdp.Core.NodeId)(p.ReleasePossession.StationNodeId), IsRemote = true, RequestId = p.ReleasePossession.RequestId });
 
         /// <summary>⭐ CE-3172 / CE-3173 S4e — one frame of a station's controls.</summary>
         public static readonly IInteractionCodec ControlFrame = new InteractionCodec<OperatorControlFrameEvent>(
@@ -179,10 +179,10 @@ namespace Hrot.Map.Common.Replication.Interactions
             actor:       static (in EmbarkEntityCommand e) => e.Passenger,
             isRemote:    static (in EmbarkEntityCommand e) => e.IsRemote,
             ownsTarget:  static (repo, vehicle) => Embarkation.OwnsVehicle(repo, vehicle),
-            toPayload:   static (in EmbarkEntityCommand e) => new InteractionPayload { Embark = new EmbarkInteractionPayload { Role = (byte)e.Role, Mode = (byte)e.Mode } },   // ⭐ CE-2151 B-b
+            toPayload:   static (in EmbarkEntityCommand e) => new InteractionPayload { Embark = new EmbarkInteractionPayload { Role = (byte)e.Role, Mode = (byte)e.Mode, RequestId = e.RequestId } },   // ⭐ CE-2151 B-b · F4
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
                 => new EmbarkEntityCommand { Vehicle = target, Passenger = actor, IsRemote = true, Role = (Fdp.Toolkit.Behavior.Components.SeatRole)p.Embark.Role,
-                                               Mode = (Fdp.Toolkit.Behavior.Components.CarryMode)p.Embark.Mode },
+                                               Mode = (Fdp.Toolkit.Behavior.Components.CarryMode)p.Embark.Mode, RequestId = p.Embark.RequestId },
             // ⭐ T-a (R-2017 T1) — the team load's second man rides as a network id
             idsOut:      static (in EmbarkEntityCommand e, NetworkEntityMap map, ref InteractionPayload p)
                 => p.Embark.Assistant = !e.Assistant.IsNull && map.TryGetNetworkId(e.Assistant, out int id) ? id : 0,
@@ -198,11 +198,11 @@ namespace Hrot.Map.Common.Replication.Interactions
             ownsTarget:  static (repo, vehicle) => Embarkation.OwnsVehicle(repo, vehicle),
             toPayload:   static (in DisembarkEntityCommand e) => new InteractionPayload
                 { Disembark = new DisembarkInteractionPayload { Exit = (byte)e.Exit, AnchorIndex = e.AnchorIndex,   // ⭐ airborne insertion B-4
-                                                                TargetX = e.Target.X, TargetY = e.Target.Y, TargetZ = e.Target.Z } },   // ⭐ H-1 (D-18)
+                                                                TargetX = e.Target.X, TargetY = e.Target.Y, TargetZ = e.Target.Z, RequestId = e.RequestId } },   // ⭐ H-1 (D-18) · F4
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
                 => new DisembarkEntityCommand { Vehicle = target, Passenger = actor, IsRemote = true,
                                                 Exit = (Fdp.Toolkit.Motion.ExitKind)p.Disembark.Exit, AnchorIndex = p.Disembark.AnchorIndex,
-                                                Target = new System.Numerics.Vector3(p.Disembark.TargetX, p.Disembark.TargetY, p.Disembark.TargetZ) });
+                                                Target = new System.Numerics.Vector3(p.Disembark.TargetX, p.Disembark.TargetY, p.Disembark.TargetZ), RequestId = p.Disembark.RequestId });
 
         /// <summary>⭐ Airborne insertion B-4 — a man out of a carrier's rope or door starts his descent; the node owning his POSITION
         /// applies it (the carrier's owner decided it — CE-3059's split, closed for a descent).</summary>

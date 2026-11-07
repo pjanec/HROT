@@ -34,7 +34,7 @@ namespace Hrot.MuscleCharacter.Animation.Components
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.StanceIntent)]
-    [DataPolicy(DataPolicy.NoScenario)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ B-4 (Details forms D2, Q7): SAVED — a unit may start crouched / prone; at load the body is seeded IN it (StanceStatus is derived, NoScenario)
     public struct StanceIntent
     {
         /// <summary>Target stance (Standing, Crouched, Prone).</summary>

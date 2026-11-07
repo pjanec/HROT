@@ -53,6 +53,16 @@ namespace Fdp.Toolkit.Replication.Edits
         public static EditOp Create(Action<Guid> send, string label)
             => new() { Kind = EditKind.Create, Send = send ?? throw new ArgumentNullException(nameof(send)), Label = label ?? string.Empty };
 
+        /// <summary>⭐ F4 — an interaction (embark, disembark, possess, release): <paramref name="send"/> publishes the interaction's command carrying the id it
+        /// is given; the node that applies it answers (accepted, or refused + why — <see cref="InteractionOutcomes"/>).</summary>
+        public static EditOp Interact(Entity target, Action<Guid> send, string label)
+            => new() { Kind = EditKind.Interact, Target = target, Send = send ?? throw new ArgumentNullException(nameof(send)), Label = label ?? string.Empty };
+
+        /// <summary>⭐ F6 (CE-4277) — a document commit with a version precondition (the mission plan): <paramref name="send"/> publishes it under the id;
+        /// its executor answers Applied, or <see cref="EditStatus.Conflict"/> when the base version moved.</summary>
+        public static EditOp Commit(Entity target, Action<Guid> send, string label)
+            => new() { Kind = EditKind.Commit, Target = target, Send = send ?? throw new ArgumentNullException(nameof(send)), Label = label ?? string.Empty };
+
         /// <summary>⭐ F2 (CE-4276) — a deletion, carrying its request id end to end; the owner tears it down and answers.</summary>
         public static EditOp Delete(Entity target, string label)
             => new() { Kind = EditKind.Delete, Target = target, Label = label ?? string.Empty };

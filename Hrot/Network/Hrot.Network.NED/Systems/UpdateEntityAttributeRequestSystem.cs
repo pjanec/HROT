@@ -22,7 +22,6 @@ using NodeId = Hrot.NED.Common.NodeId;
 
 namespace Hrot.Map.Common.Systems
 {
-    using NedStatusCode = Hrot.NED.Messages.NedStatusCode;
 
     /// <summary>
     /// Consumes <see cref="UpdateEntityAttributeRequest"/> messages and applies
@@ -43,12 +42,10 @@ namespace Hrot.Map.Common.Systems
     ///
     /// <para><b>Silent bystander rule:</b> if this node did not apply any component
     /// mutations (either because it has no authority or the JSON matched no routes),
-    /// no acknowledgment is sent regardless of <c>RequireAck</c>.</para>
+    /// nothing is answered — except by the OWNER of an edit that asked for an outcome (<c>WantOutcome</c>).</para>
     ///
-    /// <para><b>Opt-in ACK:</b> a <see cref="CreateUpdateDeleteEntityAck"/> is sent only
-    /// when the request specifies <c>RequireAck = true</c> AND this node applied at least
-    /// one mutation.  The returned <c>OpaqueData</c> is a 512-bit bitmask (<see cref="AckMaskBytes"/>) where
-    /// bit N encodes that ECS component type ID N was applied.</para>
+    /// <para>⭐ <b>The answer is <c>EntityEditOutcome</c></b> (edit framework F2, R-4126). ⛔ The old opt-in <c>CreateUpdateDeleteEntityAck</c>
+    /// (<c>RequireAck</c> + a 512-bit applied-components mask with no production reader) is retired.</para>
     ///
     /// <para>
     /// Two constructors are provided:
@@ -63,23 +60,7 @@ namespace Hrot.Map.Common.Systems
     public sealed class UpdateEntityAttributeRequestSystem : IEcsModuleSystem, IDisposable
     {
         private readonly IUpdateEntityAttributeRequestSource _requestSource;
-        private readonly IUpdateEntityAttributeAckSink       _ackSink;
 
-        /// <summary>
-        /// ⭐ <c>CE-1047</c> — the ack receipt's size: one bit per component type the engine can have (<see cref="Fdp.Core.BitMask512"/>,
-        /// 512 ⇒ 64 bytes). 🔴 It was 32 bytes (256 bits), so an attribute writing a component id ≥ 256 — <c>EntityAppearance</c>
-        /// is 348 — threw <c>IndexOutOfRangeException</c> whenever the request asked for an ack.
-        /// </summary>
-        public const int AckMaskBytes = 512 / 8;
-
-        /// <summary>⭐ <c>CE-1047</c> — sets bit N of <paramref name="mask"/> for every applied component id N (an id past the
-        /// mask is left out rather than thrown on). The ONE builder both ack sites use.</summary>
-        public static void FillAckMask(IReadOnlyCollection<int> appliedComponentIds, Span<byte> mask)
-        {
-            foreach (int compId in appliedComponentIds)
-                if ((uint)compId < (uint)mask.Length * 8u)
-                    mask[compId >> 3] |= (byte)(1 << (compId & 7));
-        }
         private readonly NetworkEntityMap                    _entityMap;
         private JsonAttributeCompiler?                       _jsonCompiler;
         private BinaryInterpreter<EntityAttributeChange>?               _binaryInterpreter;
@@ -91,13 +72,11 @@ namespace Hrot.Map.Common.Systems
         /// Creates a new system instance using injectable source and sink abstractions.
         /// </summary>
         /// <param name="requestSource">Source of incoming <see cref="UpdateEntityAttributeRequest"/> messages.</param>
-        /// <param name="ackSink">Sink for writing <see cref="CreateUpdateDeleteEntityAck"/> responses.</param>
         /// <param name="entityMap">Shared net-ID → entity lookup service.</param>
         /// <param name="jsonAttributeCompiler">
         /// Optional zero-allocation JSON attribute compiler.  When non-null, incoming
         /// <c>AttributePatchJson</c> is applied to live ECS components.  When <c>null</c>,
-        /// every request with <c>RequireAck=true</c> is acknowledged with <c>Success</c>
-        /// without modifying ECS state.
+        /// it is resolved from the world on the first Execute.
         /// </param>
         /// <param name="localNodeId">
         /// This node's <see cref="NodeId"/>, embedded in every ACK as <c>RespondingNode</c>.
@@ -110,14 +89,12 @@ namespace Hrot.Map.Common.Systems
         /// </param>
         public UpdateEntityAttributeRequestSystem(
             IUpdateEntityAttributeRequestSource requestSource,
-            IUpdateEntityAttributeAckSink       ackSink,
             NetworkEntityMap                    entityMap,
             JsonAttributeCompiler?              jsonAttributeCompiler = null,
             NodeId                              localNodeId = default,
             BinaryInterpreter<EntityAttributeChange>?    binaryInterpreter = null)
         {
             _requestSource     = requestSource ?? throw new ArgumentNullException(nameof(requestSource));
-            _ackSink           = ackSink       ?? throw new ArgumentNullException(nameof(ackSink));
             _entityMap         = entityMap     ?? throw new ArgumentNullException(nameof(entityMap));
             _jsonCompiler      = jsonAttributeCompiler;
             _localNodeId       = localNodeId;
@@ -164,7 +141,6 @@ namespace Hrot.Map.Common.Systems
             BinaryInterpreter<EntityAttributeChange>? binaryInterpreter = null)
             : this(
                 new DdsUpdateEntityAttributeRequestSource(participant),
-                new DdsUpdateEntityAttributeAckSink(participant),
                 entityMap,
                 // ⭐⭐ AX-016 — like the binary arm, resolved from the WORLD on first Execute, not built
                 //    here. ⭐ AX-014's requirement (both arms sourced the SAME way) is what keeps them
@@ -199,7 +175,6 @@ namespace Hrot.Map.Common.Systems
         public void Dispose()
         {
             (_requestSource as IDisposable)?.Dispose();
-            (_ackSink       as IDisposable)?.Dispose();
         }
 
         // ── Request handling ───────────────────────────────────────────────────
@@ -212,9 +187,6 @@ namespace Hrot.Map.Common.Systems
                 FdpLog<UpdateEntityAttributeRequestSystem>.Warn(
                     "[UpdAttrReq] Entity {0} not found. RequestId={1}",
                     req.EntityId, req.RequestId);
-                // Only ACK if the requester asked for one.
-                if (req.RequireAck)
-                    _ackSink.WriteErrorAck(req.RequestId, (int)NedStatusCode.EntityNotFound);
                 return;
             }
 
@@ -270,14 +242,6 @@ namespace Hrot.Map.Common.Systems
                     if (binaryCtx.Deferred) ReportOutcome(repo, entity, req, EditStatus.Pending, "taken by the owner; its verdict follows");
                     else ReportOutcome(repo, entity, req, EditStatus.Applied, "applied");
                 }
-
-                // OPT-IN ACK.
-                if (req.RequireAck)
-                {
-                    Span<byte> opaqueMask = stackalloc byte[AckMaskBytes];
-                    FillAckMask(ecsPatchCtx.AppliedComponentIds, opaqueMask);
-                    _ackSink.WriteAck(req.RequestId, (int)NedStatusCode.Success, _localNodeId, opaqueMask);
-                }
                 return;
             }
 
@@ -300,14 +264,6 @@ namespace Hrot.Map.Common.Systems
                     "[UpdAttrReq] No JsonAttributeCompiler injected. Acknowledging no-op. " +
                     "EntityId={0}, RequestId={1}",
                     req.EntityId, req.RequestId);
-                if (req.RequireAck)
-                {
-                    // If CommanderId was the only payload, send a success ACK.
-                    if (commanderIntercepted)
-                        _ackSink.WriteAck(req.RequestId, (int)NedStatusCode.Success, _localNodeId, ReadOnlySpan<byte>.Empty);
-                    else
-                        _ackSink.WriteErrorAck(req.RequestId, (int)NedStatusCode.Success);
-                }
                 if (req.WantOutcome && commanderIntercepted) ReportOutcome(repo, entity, req, EditStatus.Applied, "applied");   // ⭐ CE-2380
                 return;
             }
@@ -334,25 +290,8 @@ namespace Hrot.Map.Common.Systems
                 return;
             }
             if (req.WantOutcome) ReportOutcome(repo, entity, req, EditStatus.Applied, "applied");   // ⭐ CE-2380 (also the CommanderId-only patch)
-
-            // 7a. CommanderId-only patch: applied via event bus but no ECS mutations.
-            //     Send ACK with empty mask to confirm receipt.
-            if (!context.HasAppliedAny && commanderIntercepted)
-            {
-                if (req.RequireAck)
-                    _ackSink.WriteAck(req.RequestId, (int)NedStatusCode.Success, _localNodeId, ReadOnlySpan<byte>.Empty);
-                return;
-            }
-
-            // 8. OPT-IN ACK — send only when the requester asked for a response.
-            if (req.RequireAck)
-            {
-                // Bitmask: bit N = ECS component type ID N was mutated.
-                Span<byte> opaqueMask = stackalloc byte[AckMaskBytes];
-                FillAckMask(context.AppliedComponentIds, opaqueMask);
-
-                _ackSink.WriteAck(req.RequestId, (int)NedStatusCode.Success, _localNodeId, opaqueMask);
-            }
+            // ⭐ Edit framework F2 (R-4126) — the answer is the EntityEditOutcome above; ⛔ the old opt-in CreateUpdateDeleteEntityAck (RequireAck + a
+            //   512-bit applied-components mask nobody read) is retired.
         }
 
         /// <summary>⭐ CE-2380 part 1 — this node's answer to an edit that asked for one (<see cref="EditOutcomes.Report"/>: the local log and the bus; the egress sends it).</summary>
@@ -473,32 +412,5 @@ namespace Hrot.Map.Common.Systems
         public void Dispose() => _reader.Dispose();
     }
 
-    /// <summary>DDS-backed <see cref="IUpdateEntityAttributeAckSink"/>.</summary>
-    internal sealed class DdsUpdateEntityAttributeAckSink
-        : IUpdateEntityAttributeAckSink, IDisposable
-    {
-        private readonly DdsWriter<CreateUpdateDeleteEntityAck> _writer;
-
-        public DdsUpdateEntityAttributeAckSink(DdsParticipant participant)
-            => _writer = new DdsWriter<CreateUpdateDeleteEntityAck>(participant);
-
-        public void WriteAck(Guid requestId, int errorCode, NodeId respondingNode, ReadOnlySpan<byte> opaqueData)
-            => _writer.Write(new CreateUpdateDeleteEntityAck
-            {
-                RequestId      = requestId,
-                StatusCode     = errorCode,
-                RespondingNode = respondingNode,
-                OpaqueData     = opaqueData.ToArray(),
-            });
-
-        public void WriteErrorAck(Guid requestId, int errorCode)
-            => _writer.Write(new CreateUpdateDeleteEntityAck
-            {
-                RequestId  = requestId,
-                StatusCode = errorCode,
-            });
-
-        public void Dispose() => _writer.Dispose();
-    }
 }
 

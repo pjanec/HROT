@@ -50,7 +50,7 @@ namespace Hrot.Editor.DebugApi
             return (new JsonObject
             {
                 ["requestId"] = o.RequestId.ToString(), ["networkId"] = o.NetworkId, ["status"] = o.Status.ToString(), ["reason"] = o.Reason,
-                ["respondingNode"] = o.RespondingNode, ["at"] = o.At, ["fromNetwork"] = o.FromNetwork,
+                ["respondingNode"] = (int)o.RespondingNode, ["at"] = o.At, ["fromNetwork"] = o.FromNetwork,
             }, null);
         }
 
