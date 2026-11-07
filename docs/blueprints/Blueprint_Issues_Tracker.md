@@ -65,13 +65,13 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 |---|---:|---:|
 | `WIRING` | 12 | 97 |
 | `RW-XS` | 5 | 15 |
-| `RW-S` | 168 | 879 |
+| `RW-S` | 167 | 880 |
 | `RW-L` | 148 | 260 |
 | `RW-M` | 233 | 840 |
 | `RW-H` | 23 | 87 |
 | `RW-XL` | 0 | 1 |
 | `OTHER` | 2 | 9 |
-| **Total** | **591** | **2188** |
+| **Total** | **590** | **2189** |
 | *(refuted on verification)* | | *16* |
 
 | Id family | Open | Done |
@@ -4732,7 +4732,7 @@ collides with work in flight.
 - [ ] **CE-4287** · `RW-S` 📋 **OPEN `2026-11-06` (coordinator, the user's review of the New Scenario mockup; owner: ui) — THREE HOUSE-WIDE UI CONVENTIONS, NONE SHARED TODAY.** ① Trees draw the icon BEFORE the chevron (`TreeLayout.cs:197-219`, `SaveAsBrowserDialog.cs:345-359`: `Image` · `SameLine` · `TreeNodeEx`) and the ORBAT uses a framed `ArrowButton` (`SharedOrbatPanel.cs:175`) — three views, two chevron shapes. ② 156 input widgets in ~45 files put the label RIGHT of the control (ImGui default); no shared label-first row helper exists. ③ 45 `CollapsingHeader` calls share ImGui's one blue with buttons, frames and selection (no theme is set). Design: [`DESIGN_UI_Conventions.md`](../UX/DESIGN_UI_Conventions.md) (slice E17, stages C1–C4, Q-C1…Q-C6 for review) — `TreeRow` / `SectionHeader` / `FormGrid` in `NodeEditor.Core`.
 - [ ] **CE-4288** · `RW-M` 📋 **OPEN `2026-11-06` (coordinator, the user: *"the original condition editor … programmer-only style"*; owner: ui) — THE STRUCT EDITOR (`ComponentEditDrawer`) SHOWS THE CODE, NOT THE MEANING.** 📐 Measured on a real frame of the rule When tab: C# class names as kinds (`CompoundPredicateDto`, `:195-226`), raw field names although `[EditDisplayName]`/`[EditUnit]` reach `EditNodeMetadata` and are never drawn, `[0]` index rows, an empty `Bind` row under every condition (`BindableNode.Bind`), `60.000000` / `1000000000.000000`, entity refs as `Exact · Key #10`, `+Add`/`X` text buttons, the rule header on every tab. Design: [`DESIGN_Condition_Editor.md`](../UX/DESIGN_Condition_Editor.md) §8 (stages X1–X4, Q-X1…Q-X4 for review) — the fixes go into the ONE struct editor, so every raw inspector and params form gets them.
 - [ ] **CE-4289** · `RW-M` 📋 **OPEN `2026-11-06` (coordinator, the user's review of the Replay Browser; owner: ui) — THE REPLAY BROWSER HAS NO TIME ON ITS MAIN BAR, A "TIMELINE" WINDOW THAT IS A FRAME SLIDER WITH RAW TICKS, AND SEVEN WINDOWS OPENING STACKED.** 📐 Measured on a real 60 s recording: the main bar holds only the transport buttons; *Replay Timeline* shows `Wall Ticks: 639295995934853590` and an empty meta row; seven default windows open at one corner, four at ~90 × 50 px; *End exercise* drawn (greyed) on a recording. Design: [`DESIGN_Replay_Browser_UX.md`](../UX/DESIGN_Replay_Browser_UX.md) (stages B-1…B-3, Q-B1…Q-B6; R-4153 the main-bar seek).
-- [ ] **CE-4290** · `RW-S` 📋 **OPEN `2026-11-06` (coordinator; owner: ui) — THE EVENT TIMELINE'S LANES LOOKED EMPTY WHILE THE INDEX HELD EVENTS.** 📐 Seen once on a real recording at 0:40: `GET /timeline/lanes` reported Spawned 9, Side 7, Health 6, yet no marker was drawn and the *State* group (Side, Health) was not among the drawn groups. ⚠ Not root-caused (one observation; the Spawned events sit at ~0:00 and may be clipped at the ruler's edge). Start: `EventTimelineWindow` / `TimelinePanel` lane filtering vs `RecordingTimelineSource`. [`DESIGN_Replay_Browser_UX.md`](../UX/DESIGN_Replay_Browser_UX.md) B3.
+- [x] **CE-4290** · `RW-S` 📋 **OPEN `2026-11-06` (coordinator; owner: ui) — THE EVENT TIMELINE'S LANES LOOKED EMPTY WHILE THE INDEX HELD EVENTS.** 📐 Seen once on a real recording at 0:40: `GET /timeline/lanes` reported Spawned 9, Side 7, Health 6, yet no marker was drawn and the *State* group (Side, Health) was not among the drawn groups. ⚠ Not root-caused (one observation; the Spawned events sit at ~0:00 and may be clipped at the ruler's edge). Start: `EventTimelineWindow` / `TimelinePanel` lane filtering vs `RecordingTimelineSource`. [`DESIGN_Replay_Browser_UX.md`](../UX/DESIGN_Replay_Browser_UX.md) B3. ✅ **ROOT-CAUSED + FIXED `2026-11-07` (ui):** the window had no first size, so ImGui AUTO-FITTED it to its content on a fresh layout — measured **107 × 48 px** (the observed ~90 × 50), which clips every lane row: the lanes and the State group were there, just not visible. `EventTimelineWindow.BeforeBegin` → `SetNextWindowSize(FirstSize 1100 × 320, FirstUseEver)` (the Rules window's CE-4216 cure). Rail `EventTimelineFirstSizeRail` (red-proved: without it the window opens at 107 × 48).
 - [ ] **CE-4291** · `RW-M` 📋 **OPEN `2026-11-06` (coordinator, the user: show on map for debugging; owner: ui) — NO FIELD CAN BE SHOWN ON THE MAP FROM A FORM OR INSPECTOR.** Design: [`DESIGN_Show_On_Map.md`](../UX/DESIGN_Show_On_Map.md) — `MapPreviews.For(type)` + one `MapPreview` over a local `DebugPrimitiveBuffer`; the ⌖ in the struct editor and `FormGrid` (stages M1–M3, Q-M1…Q-M4; R-4154).
 
 ## Out of scope

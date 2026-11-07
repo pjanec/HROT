@@ -38,9 +38,12 @@ times); a test project not restored after a merge (ClusterRunner.Tests). ⇒ eve
 |---|---|
 | U-25: a LIST of named points beside the map pick (the map click snaps today) | [Initial state §4.3](../../UX/DESIGN_Initial_State.md) |
 | U-24: Carried by / Carries, Damage, aim at a POINT, the seat chooser, Weapons control / Reactions | Initial state §4.2 |
-| U-23: retire **Summary** once the Unit form carries position / kind / DIS / shown-as (retiring it now loses them); the combined rows the mockup draws | [Details forms §4.0a](../../UX/DESIGN_Details_Forms.md) parts 5 + fidelity |
+| U-23: the combined rows the mockup draws (Weapon + aimed at, Playable + slot) | [Details forms §4.0a](../../UX/DESIGN_Details_Forms.md) parts 5 + fidelity |
 | U-18: live edits on CGF (it reads and controls rules; no `RuleEditorServices` yet); richer objective sentences (RX4's gallery) | [Rule editor §2.6, §2.1.1](../../UX/DESIGN_Rule_Editor_UX.md) |
-| CE-4290 (the Event Timeline's lanes drawn empty) — not started | tracker |
+
+## 3a. Also done
+
+⭐ **CE-4290** (the Event Timeline's lanes looked empty) — root-caused: no first size ⇒ auto-fit to 107 × 48 px, clipping every lane; fixed with a first-use size (rail red-proved). ⭐ **U-23 Summary** retired into the Unit form (`ba4c411e9`, worker).
 
 ## 4. Ids
 

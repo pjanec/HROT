@@ -5,6 +5,7 @@ using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.Panels.Timeline;
 using Fdp.Presentation.WindowManager;
 using Fdp.Toolkit.ReplayBrowser.Timeline;
+using ImGuiNET;
 
 namespace Fdp.Presentation.Windows.Timeline;
 
@@ -52,8 +53,19 @@ public sealed class EventTimelineWindow : ManagedWindow
     /// <summary>⭐ Test hook — the BUILD + CAPTURE portion, with no live ImGui context.</summary>
     internal TimelinePanelViewModel SimulateDrawClientArea() => BuildAndPublish();
 
+    /// <summary>⭐ CE-4290 — the first open at a usable size. It opened AUTO-SIZED to its content (~90 × 50 px on a fresh layout), which clips every lane
+    /// row: the lanes "looked empty" and the State group was "not among the drawn groups" while the index held the events (Replay Browser UX B3). The Rules
+    /// window had the same cause (CE-4216). <see cref="ImGuiCond.FirstUseEver"/>: a size the person dragged is kept.</summary>
+    public static readonly System.Numerics.Vector2 FirstSize = new(1100f, 320f);
+
+    protected override void BeforeBegin() => ImGui.SetNextWindowSize(FirstSize, ImGuiCond.FirstUseEver);
+
+    /// <summary>The window's size at the last draw (rails).</summary>
+    public System.Numerics.Vector2 LastWindowSize { get; private set; }
+
     protected override void DrawClientArea()
     {
+        LastWindowSize = ImGui.GetWindowSize();
         BuildAndPublish();
         _panel.Draw(_source(), _cursor, _lanes());
     }
