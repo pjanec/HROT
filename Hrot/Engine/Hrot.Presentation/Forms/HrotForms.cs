@@ -53,6 +53,8 @@ public static class HrotForms
     // ⭐ before Unit: static fields initialise in textual order
     private static readonly string[] WeaponPostures = { "At ease", "Ready", "Aimed" };
     private static readonly string[] HeldItems = { "Nothing", "Weapon", "Throwable", "Phone", "Binoculars" };
+    private static readonly string[] RoleWords = { "Passenger", "Driver", "Gunner", "Commander", "Weapon station" };
+    private static readonly string[] TargetWords = { "Target" };
 
     /// <summary>
     /// ⭐ D3 — the <b>Unit</b> form (§3): name · side · posture · strength · playable side / slot; ⚙ the entity's network id and TKB template.
@@ -64,7 +66,7 @@ public static class HrotForms
         Id = "form.unit", Title = "Unit", Order = 10, Requires = new[] { typeof(EntityInfo) },
         Fields = new[]
         {
-            new FormField { Label = "Name", Kind = FieldKind.Text, Attribute = "Name", ReadText = (w, e) => w.GetComponentRO<EntityInfo>(e).Name },
+            new FormField { Label = "Name", Section = "Identity", Kind = FieldKind.Text, Attribute = "Name", ReadText = (w, e) => w.GetComponentRO<EntityInfo>(e).Name },
             new FormField
             {
                 Label = "Side", Kind = FieldKind.Choice, Attribute = "Affiliation", Choices = Sides,
@@ -73,7 +75,7 @@ public static class HrotForms
             },
             new FormField
             {
-                Label = "Posture", Kind = FieldKind.Choice, Attribute = "Stance", Choices = Stances,
+                Label = "Posture", Section = "State", Kind = FieldKind.Choice, Attribute = "Stance", Choices = Stances,
                 Has = (w, e) => w.IsComponentTypeRegistered<Hrot.MuscleCharacter.Animation.Components.StanceIntent>() && w.HasComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(e),
                 ReadNumber = (w, e) => (int)w.GetComponentRO<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(e).TargetStance,
                 ChoiceValue = i => AttributeValue.FromInt(i),
@@ -136,22 +138,22 @@ public static class HrotForms
         {
             new FormList
             {
-                Label = "Aboard",
+                Label = "Aboard", RowLabels = RoleWords,
                 Fill = FillAboard,
                 Footer = (w, e) => IsAboard(w, e) ? null : "not aboard",
                 RemoveLabel = "Take off",
                 Remove = (w, it) => Hrot.Common.Orders.EmbarkOrders.Disembark(w, it.Item),
-                AddLabel = "Board…",
+                AddLabel = "Board...",
                 Add = (w, unit, vehicle) => IsAboard(w, unit) ? "already aboard — take him off first" : PutAboard(w, vehicle, unit),
             },
             // ⭐ U-24 / S5 — aimed at: the unit his weapon points at (Weapon.AimTarget, 72 — the target's network id, 0 clears; resolved on the applying node)
             new FormList
             {
-                Label = "Aimed at",
+                Label = "Aimed at", RowLabels = TargetWords,
                 Fill = FillAimTarget,
                 RemoveLabel = "Clear",
                 Remove = (w, it) => WriteAimTarget(w, it.Item, 0, "Clear the aim"),
-                AddLabel = "Aim at…",
+                AddLabel = "Aim at...",
                 Add = AimAt,
             },
         },
@@ -164,7 +166,7 @@ public static class HrotForms
         var t = w.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponPosture>(e).Target;
         if (t.IsNull || !w.IsAlive(t)) return;
         var name = w.IsComponentTypeRegistered<EntityInfo>() && w.HasComponent<EntityInfo>(t) ? w.GetComponentRO<EntityInfo>(t).Name : new FixedString64("(a unit)");
-        into.Add(new FormListItem("Target", name, e));
+        into.Add(new FormListItem(TargetWords[0], name, e));
     }
 
     private static string? AimAt(EntityRepository w, Entity unit, Entity target)
@@ -223,18 +225,17 @@ public static class HrotForms
         {
             new FormList
             {
-                Label = "Seats",
+                Label = "Seats", RowLabels = RoleWords,
                 Fill = FillSeats,
                 Footer = FreeSeatsText,
                 RemoveLabel = "Take off",
                 Remove = (w, it) => Hrot.Common.Orders.EmbarkOrders.Disembark(w, it.Item),
-                AddLabel = "Put aboard…",
+                AddLabel = "Put aboard...",
                 Add = PutAboard,
             },
         },
     };
 
-    private static readonly string[] RoleWords = { "Passenger", "Driver", "Gunner", "Commander", "Weapon station" };
     private static readonly string[] FreeWords = BuildFreeWords();
     private static string[] BuildFreeWords()
     {

@@ -49,7 +49,8 @@ public sealed class FormView
     private string _editText = "";
     private int _selectionStamp;
     private string _expertId = "", _expertGridId = "";
-    private string[] _listIds = Array.Empty<string>();
+    private string[] _gridIds = Array.Empty<string>();
+    private string[] _listIds = Array.Empty<string>(), _listGridIds = Array.Empty<string>();
     private string?[] _listProblem = Array.Empty<string?>();
     private readonly List<FormListItem> _items = new();
     private readonly Dictionary<long, (FixedString64 Who, string Shown)> _who = new();   // a row's name, built once per change (0 B steady)
@@ -64,12 +65,26 @@ public sealed class FormView
         Refresh(world, selection);
 
         if (!editable) ImGui.BeginDisabled();
-        if (decl.Fields.Count > 0 && FormGrid.Begin(decl.Id, decl.Labels, statusSlot: true))
+        // ⭐ U-23 fidelity — the common rows in captioned sections (Identity · State · …): a field with a Section closes the grid, draws the caption and opens the
+        //   next grid on the SAME labels, so the label column never moves
+        bool open = false;
+        string? pending = null;   // a skipped field's section passes to the next drawn one
+        for (int i = 0; i < decl.Fields.Count; i++)
         {
-            for (int i = 0; i < decl.Fields.Count; i++)
-                if (!decl.Fields[i].Expert && _state[i].Has) DrawField(i, world, selection, editable);
-            FormGrid.End();
+            var f = decl.Fields[i];
+            if (f.Expert) continue;
+            if (!_state[i].Has) { pending = f.Section ?? pending; continue; }
+            string? section = f.Section ?? pending;
+            pending = null;
+            if (section != null || !open)
+            {
+                if (open) { FormGrid.End(); open = false; }
+                if (section != null) Caption(section);
+                open = FormGrid.Begin(_gridIds[i], decl.Labels, statusSlot: true);
+            }
+            if (open) DrawField(i, world, selection, editable);
         }
+        if (open) FormGrid.End();
         bool anyExpert = false;
         for (int i = 0; i < decl.Fields.Count; i++) anyExpert |= decl.Fields[i].Expert && _state[i].Has;
         if (anyExpert && SectionHeader.Draw(_expertId, "Details for experts", "form/info", ExpertOpen ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None))
@@ -97,36 +112,50 @@ public sealed class FormView
         _items.Clear();
         list.Fill(world, e, _items);
         ImGui.PushID(id);
-        ImGui.Spacing();
-        ImGui.TextDisabled(list.Label);
-        for (int j = 0; j < _items.Count; j++)
+        Caption(list.Label);
+        if (FormGrid.Begin(_listGridIds[li], _decl!.Labels, statusSlot: true))
         {
-            var it = _items[j];
-            string who = WhoOf(it);
-            _listRows.Add(it.Role); _listRows.Add(who);
-            ImGui.PushID(j);
-            ImGui.TextUnformatted(it.Role);
-            ImGui.SameLine(120f);
-            ImGui.TextUnformatted(who);
-            if (list.Remove != null && list.RemoveLabel != null)
+            for (int j = 0; j < _items.Count; j++)
             {
-                ImGui.SameLine();
-                if (ImGui.SmallButton(list.RemoveLabel) && editable) { list.Remove(world, it); _listProblem[li] = null; }
+                var it = _items[j];
+                string who = WhoOf(it);
+                _listRows.Add(it.Role); _listRows.Add(who);
+                ImGui.PushID(j);
+                FormGrid.Row(it.Role);
+                ImGui.AlignTextToFramePadding();
+                ImGui.TextUnformatted(who);
+                if (list.Remove != null && list.RemoveLabel != null)
+                {
+                    ImGui.SameLine();
+                    if (ImGui.SmallButton(list.RemoveLabel) && editable) { list.Remove(world, it); _listProblem[li] = null; }
+                }
+                ImGui.PopID();
             }
-            ImGui.PopID();
-        }
-        if (list.Footer?.Invoke(world, e) is { } footer) ImGui.TextDisabled(footer);
-        if (list.Add != null && list.AddLabel != null && Pick != null)
-        {
-            if (Pick.IsPickPendingFor(id)) ImGui.TextDisabled("pick on the map…");
-            else
+            if (list.Footer?.Invoke(world, e) is { } footer) { FormGrid.Row(""); ImGui.TextDisabled(footer); }
+            if (list.Add != null && list.AddLabel != null && Pick != null)
             {
-                if (ImGui.Button(list.AddLabel)) { Pick.RequestEntityPick(id, null); _listProblem[li] = null; }
-                if (Pick.CanListEntities) { ImGui.SameLine(); if (ImGui.Button("List…")) { Pick.RequestEntityListPick(id, null); _listProblem[li] = null; } }
+                FormGrid.Row("");
+                if (Pick.IsPickPendingFor(id)) ImGui.TextDisabled("pick on the map...");
+                else
+                {
+                    if (ImGui.Button(list.AddLabel)) { Pick.RequestEntityPick(id, null); _listProblem[li] = null; }
+                    if (Pick.CanListEntities) { ImGui.SameLine(); if (ImGui.Button("List...")) { Pick.RequestEntityListPick(id, null); _listProblem[li] = null; } }
+                }
             }
+            if (_listProblem[li] is { } problem) { FormGrid.Row(""); ImGui.TextColored(new System.Numerics.Vector4(0.9f, 0.4f, 0.35f, 1f), problem); }
+            FormGrid.End();
         }
-        if (_listProblem[li] is { } problem) ImGui.TextColored(new System.Numerics.Vector4(0.9f, 0.4f, 0.35f, 1f), problem);
         ImGui.PopID();
+    }
+
+    /// <summary>A section caption as the forms' mockup draws it: the words in the accent blue, then a rule line (ImGui's SeparatorText).</summary>
+    private static void Caption(string text)
+    {
+        ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(0.55f, 0.72f, 0.95f, 1f));
+        ImGui.PushStyleVar(ImGuiStyleVar.SeparatorTextPadding, new System.Numerics.Vector2(0f, 3f));   // the caption starts flush left, the rule follows (the mockup)
+        ImGui.SeparatorText(text);
+        ImGui.PopStyleVar();
+        ImGui.PopStyleColor();
     }
 
     private string WhoOf(in FormListItem it)
@@ -144,8 +173,11 @@ public sealed class FormView
         _expertId = decl.Id + "-expert"; _expertGridId = decl.Id + "-x";   // built once per form, never per frame
         _state = new FieldState[decl.Fields.Count];
         for (int i = 0; i < _state.Length; i++) _state[i] = new FieldState { Id = decl.Id + "." + i };
+        _gridIds = new string[decl.Fields.Count];
+        for (int i = 0, sec = 0; i < _gridIds.Length; i++) { if (decl.Fields[i].Section != null) sec++; _gridIds[i] = decl.Id + "/s" + sec; }
         _listIds = new string[decl.Lists.Count]; _listProblem = new string?[decl.Lists.Count];
-        for (int i = 0; i < _listIds.Length; i++) _listIds[i] = decl.Id + ".list" + i;
+        _listGridIds = new string[decl.Lists.Count];
+        for (int i = 0; i < _listIds.Length; i++) { _listIds[i] = decl.Id + ".list" + i; _listGridIds[i] = _listIds[i] + "/g"; }
         _editing = -1;
     }
 

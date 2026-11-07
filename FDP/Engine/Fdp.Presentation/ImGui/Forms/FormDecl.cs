@@ -36,6 +36,8 @@ public sealed class FormField
     public Func<int, AttributeValue>? ChoiceValue { get; init; }
     /// <summary>A row for experts: drawn inside <i>Details for experts</i> (§2.3).</summary>
     public bool Expert { get; init; }
+    /// <summary>⭐ U-23 fidelity (details-forms-visual.svg) — this field STARTS a captioned section (<i>Identity</i>, <i>State</i>, <i>Character</i>); null = continues the current one.</summary>
+    public string? Section { get; init; }
 
     /// <summary>The vocabulary row this field writes (resolved once), or null for a read-only field.</summary>
     public AttributeDefinition? Definition => _definition ??= Attribute == null ? null : FormCatalogue.AttributeOf(Attribute);
@@ -85,6 +87,8 @@ public readonly record struct FormListItem(string Role, FixedString64 Who, Entit
 public sealed class FormList
 {
     public required string Label { get; init; }
+    /// <summary>Every label a row of this list can carry (static) — folded into the form's label column so the rows line up with the fields.</summary>
+    public IReadOnlyList<string>? RowLabels { get; init; }
     /// <summary>This frame's rows for <c>entity</c>, into the caller's reused list (cleared by the caller).</summary>
     public required Action<EntityRepository, Entity, List<FormListItem>> Fill { get; init; }
     /// <summary>A line under the rows (e.g. <i>3 passenger seats free</i>), or null.</summary>
@@ -116,7 +120,13 @@ public sealed class FormDecl
     /// <summary>The labels of the common rows, then the expert rows (built once — the label column's widest).</summary>
     public string[] Labels => _labels ??= BuildLabels();
     private string[]? _labels;
-    private string[] BuildLabels() { var l = new string[Fields.Count]; for (int i = 0; i < l.Length; i++) l[i] = Fields[i].Label; return l; }
+    private string[] BuildLabels()
+    {
+        var l = new List<string>(Fields.Count);
+        for (int i = 0; i < Fields.Count; i++) l.Add(Fields[i].Label);
+        for (int i = 0; i < Lists.Count; i++) if (Lists[i].RowLabels is { } rl) for (int j = 0; j < rl.Count; j++) l.Add(rl[j]);
+        return l.ToArray();
+    }
 
     public bool OffersFor(EntityRepository world, Entity e)
     {
