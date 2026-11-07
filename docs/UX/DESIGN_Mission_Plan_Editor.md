@@ -396,3 +396,38 @@ fresh world (new network ids) and still points at the same three entities — an
 **M1b (P-3, CE-4299) as built:** D7 exactly — 16 slots (`MissionPlanQueue.MaxTasks`, the one size the two inline buffers read); the six Roslyn renames (the names above in §5.10 are now `TaskElapsedSeconds`, `CurrentTask`, …). One consequence found: `MissionProgressWire.ProgressOf` packed 8 outcomes × 8 bits into a `ulong` — now 2 bits each.
 
 **M4 runtime (P-4, CE-4300) as built:** E1 exactly as §5.8 says, in `MissionControlExecutionSystem.CarryProgress` (by `TaskId`; "unchanged" = same name, params and condition entries). ⭐ One thing E1 needed that §5.8 did not name: the ADAPTER decided "already started" by the slot INDEX, so a task kept running but moved by an insert would have been restarted; it now keys on the task (id, name, params — the index only for an id-less task). E7 and E8 need no code of their own: both commit plan + 1 with the version, and E1 keeps the progress. D9's version precondition was already there (B-6); the two-station rail pins it.
+
+### 5.11 P-7 (M2 + M4 UI) — the build plan *(ui, `2026-11-07`; claimed in `STATUS_Editing_UX_Build_Ui.md`)*
+
+INVENTORY (graph `search_graph .*(OrdersTab|MissionPanel|MissionPlan).*` Class + grep `new MissionPanel`): no Orders tab exists; **three**
+`MissionPanel` instances (710 lines, `Hrot.Presentation/Panels/MissionPanel.cs`) — the editor's Mission window (`EditorSubsystem.cs:1866`,
+registered `:4931`), the editor-only Details view **Mission** (`ScenarioMissionView`, `details.mission`, `EditorSubsystem.cs:3250`) and CGF's
+Mission window (`CgfSubsystem.cs:1102`, `:1327`). They all read and write through ONE facade, `IMissionEditorService`
+(`GetMissionSnapshot` · `CommitMissionAsync(plan, baseVersion)` · `SendControlCommandAsync(Jump / Abort)` · `GetAvailableBehaviorChoices`),
+implemented by `ScenarioMissionService` — ⇒ the tab reuses it; nothing new on the write path.
+
+```mermaid
+classDiagram
+  direction LR
+  class IMissionEditorService { <<existing facade>> GetMissionSnapshot · CommitMissionAsync · SendControlCommandAsync }
+  class EntityDetailsBundle { <<existing>> + Missions : Func~IMissionEditorService?~ }
+  class OrdersTab { <<NEW · Hrot.Editor.AiShared.Shell · details.orders>> rows = sentences · progress · Jump / Stop · + Add task · Commit }
+  class OrdersPlanModel { <<NEW, headless>> draft plan · base version · RowsOf(plan, queue) · Add / Remove / Move · ThenOf / GiveUpOf }
+  class OrderForm { <<existing>> the order DTO form (OrderMenu.OfferedFor) }
+  class ConditionEditor { <<existing, U-15>> context Mission task (E5: WHO = this unit) }
+  class MissionPanel { <<RETIRED — three instances>> }
+  EntityDetailsBundle --> OrdersTab : registers (every host)
+  OrdersTab --> OrdersPlanModel
+  OrdersPlanModel --> IMissionEditorService
+  OrdersTab ..> OrderForm : a task's order
+  OrdersTab ..> ConditionEditor : then / give up
+```
+*What it shows: one tab on the ONE Details bundle replaces three panels on two hosts, and it writes through the facade they already share —
+so P-7 adds a surface and deletes three, without a new write path.*
+
+| slice | what | acceptance |
+|---|---|---|
+| **7a** | `OrdersPlanModel` (headless) + `OrdersTab` READ: one row per task as a sentence (*"Move to Bridge, then when there"*, a Wait reads *"Wait — until …"*), the running task marked from `MissionPlanQueue` (`CurrentTask`, `Outcomes`), Jump / Stop; offered when ONE selected unit has a plan or can take one (E6: a group shows its commander's) | the model's rows rail; the tab registered on Editor, CGF (the bundle's forwarding rail) |
+| **7b** | EDIT: *+ Add task* (Wait first, E9; orders from `OrderMenu.OfferedFor`; behaviours), the order form, the *then* picker §5.6 (presets → `{type: Then, params}`), *give up after* (D4), remove / reorder; a Wait with no *then* refused; nothing written for *when done* (P-2) | the stored JSON per preset (§5.6 table) rail; side-by-side with `mission-plan-editor.svg` + `mission-plan-detail-visual.svg` |
+| **7c** | D9: Edit mode = one `EditHistory` step per action; Live = **Commit** with the base version, Conflict → *Reload* / *Overwrite*; `TaskId` kept across edits (P-4) | the two-station conflict rail; an edit of task 4 while task 2 runs leaves task 2 running |
+| **7d** | retire the three `MissionPanel` instances (+ `MissionPanelWindow`, `ScenarioMissionView`); re-home `MissionPanelTests` / `MissionPanelRegistryTests` claims onto the model | the window-set rail per host (Mission window gone, Orders tab present) |
