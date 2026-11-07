@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-07
-current-answer: ⭐⭐ §EDITING-UX BUILD (2026-11-07) below — its 'Continued (later session)' block: everything done, only blocked items left — the handoff Editing_UX_Build: what is done (with shas), what is next, the traps. Older: ⭐ NOW (2026-11-03) — the per-player game score S7 (HANDOFF_Coordinator_To_Backend_Player_Score): BUILT + live (DESIGN_Scenario_Rules §00.13, CE-3363); open CE-3364 (one kill authority — needs the user), CE-3365, the bounty P-8. Before that (2026-11-02 night) — §SHOWCASE below: the showcase scenarios Bridgehead + Crossfire v1, S6, the RefKey wire fix — what is built, what is open. (2026-10-30, kept below: the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
+current-answer: ⭐⭐⭐ §MISSION PLAN (2026-11-07, later) below — backend's share P-1…P-6 DONE; nothing in flight. Older: ⭐⭐ §EDITING-UX BUILD (2026-11-07) below — its 'Continued (later session)' block: everything done, only blocked items left — the handoff Editing_UX_Build: what is done (with shas), what is next, the traps. Older: ⭐ NOW (2026-11-03) — the per-player game score S7 (HANDOFF_Coordinator_To_Backend_Player_Score): BUILT + live (DESIGN_Scenario_Rules §00.13, CE-3363); open CE-3364 (one kill authority — needs the user), CE-3365, the bounty P-8. Before that (2026-11-02 night) — §SHOWCASE below: the showcase scenarios Bridgehead + Crossfire v1, S6, the RefKey wire fix — what is built, what is open. (2026-10-30, kept below: the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
   - docs/SHOWCASE_Scenarios.md — §1.7 / §2.8 Bridgehead and Crossfire v1 AS BUILT (this lane, 2026-11-02)
@@ -16,6 +16,23 @@ related-designs:
   - docs/DESIGN_Subsystem_Composition_Unification.md — B5 (not started) gates CE-3006 / CE-524 / CE-513.
 -->
 # RESUME — backend lane
+
+## ⭐⭐⭐ MISSION PLAN (`2026-11-07`, later) — user: *"Merge coordinator and follow HANDOFF_Coordinator_To_Lanes_Mission_Plan.md"*
+
+📄 [handoff](batches/HANDOFF_Coordinator_To_Lanes_Mission_Plan.md) (frozen at `9f2cd761`) · [status rows P-1…P-6](batches/STATUS_Editing_UX_Build_Backend.md) · design [§5.10 as-built](../UX/DESIGN_Mission_Plan_Editor.md) · [readable JSON §4](../DESIGN_Readable_Scenario_Json.md)
+
+| item | sha | what |
+|---|---|---|
+| P-1 CE-4295 | `2b50f0b92` | `[JsonText]` / `JsonTextConverter` (Fdp.Core); 129 scenario + recipe files rewritten (`scripts/scenario_json_readable.py`, also in every generator); tree readers use `JsonTextConverter.TextOf` / `NodeOf` |
+| P-2 CE-4298 | `15267294b` | no condition = when done; `MissionTaskStart.ByName` (one start path); Wait task; G1 (orders in the remapper); `PlanConditionCache` + `TaskFinished` leaf; `ConditionCache` (Fdp.Toolkits) is THE compiled-condition cache (`TriggerWhen` delegates) |
+| P-3 CE-4299 | `dfed12228` | 16 slots; Roslyn renames Phase→Task (`MissionTaskSlot`, `Tasks`, `TaskCount`, `CurrentTask`, `MaxTasks`, `TaskElapsedSeconds`) — done over STDIO (`scratchpad/rs/cli.py` pattern, CLAUDE.md ②a) |
+| P-4 CE-4300 | `3c80cb963` | E1 `CarryProgress` by task id; adapter keys on the task, not the index |
+| P-5 CE-4301 | `cb42c87a9` | G2 `ResolveConditionJson`; ⚠ fixed `EntityRefRemap.WalkJson` (a polymorphic ROOT was never dispatched); `WeaponPosture.Point` → `WorldPoint` (S0 rail, my B-5 red) |
+| P-6 CE-4302 | `c33666773` | `common.phase` → status → wire; `PlanConditionCache.PhaseBegins` |
+
+⏭ **Next:** nothing of backend's in this handoff. P-7 is CLAIMED by ui (its build plan is design §5.11); P-8 is ui's. ⏳ Left open: the load WARNING for a Wait task with no *then* (the editor refuses it in P-7).
+⚠ **Pre-existing reds (unchanged by this work):** SimHost 6 (`TheDescriptorMapIsWired`, `CE1159` weather demo, `CE4208`, `NodeRolePersistenceRails`, `CE1431`, `CE3345`); Editor `TriggerAdvertisesItsAuthoredKeys`; SimHost.Integration `EntityMission_MovesEntity` (same "moved 0.0m" at `2b50f0b92`, measured in a clean worktree). `CivilianHsmTests.CE2322` flaked once.
+⚠ **Traps met:** P-1 + P-2 in one tree ⇒ split by saving P-2 as a patch, revert, gate, commit, re-apply; a reflection lookup `GetMethod("Register")` broke when an overload was added (`BehaviorSchemaDiscovery` now calls the overload); after a lane merge, `dotnet restore` the test project first (the editor test project had no assets).
 
 ## ⭐⭐ EDITING-UX BUILD (`2026-11-07`) — user: *"Merge coordinator. Follow its handoff Editing_UX_Build. Work autonomously overnight, use warm sonnet where suitable."* · then *"Once you finish a task, pls stop and write a resumption document."*
 
