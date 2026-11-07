@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level, ✅ APPROVED Q1–Q9 by the user 2026-11-06 (R-4137); backend saves the state, ui builds the rows (R-4123)
-updated: 2026-11-06 (✅ Q1–Q9 approved — R-4137) · 2026-11-06 (§3a the AI character overrides — user: "overriding the AI brain setting like the skill level or aggressivity"; measured; Q8–Q9) · 2026-11-06 (first version — coordinator; editing-UX design queue 7b: E15)
+updated: 2026-11-07 (Q4a: the current knowledge is Brain-tab monitoring on the brain's node only — user, R-4157) · 2026-11-06 (✅ Q1–Q9 approved — R-4137) · 2026-11-06 (§3a the AI character overrides — user: "overriding the AI brain setting like the skill level or aggressivity"; measured; Q8–Q9) · 2026-11-06 (first version — coordinator; editing-UX design queue 7b: E15)
 current-answer: §2 the model · §3 the rows · §4 stages · §5 questions with leans
 stale-below: nothing
 known-rot: none
@@ -137,6 +137,7 @@ assistant are dropped, so the reload boards the casualty seated. The fix sits in
 | **Unit form** | **Carries**: one line per carried weapon — [weapon] in [Hands · Back · Hidden]; *Add…* picks a weapon from the map or Add Entity's Weapon systems | `EmbarkEntityCommand` into the station slot (`CarryStations.Hands / Back / Hidden`) | — |
 | **Unit form** | **Weapon**: [At ease · Ready · Aimed] · aimed at [a point or a unit, picked] · **In hand**: [Weapon · Throwable · Phone · Binoculars] | attributes `Weapon.Posture`, `Weapon.AimPoint` / `Weapon.AimTarget`, `Weapon.HeldItem` (the brain's owner applies them) | ★ `WeaponPosture` saved (its `Target` through the entity-reference remap) |
 | **Unit form** ⚙ | **Knows about**: units picked on the map (*Add…*, multi-select fans out) | `SeedTargetCommand` | ★ applied on every brain node, not only the editor |
+| **Brain tab** (monitoring) | ✏ **what the unit knows NOW** (`TargetMemory`) — shown only on the node running its brain; elsewhere one line: *"available on the node running this unit's brain (<node>)"* (R-4157) | — | ⛔ never replicated; the Unit form's *Knows about* row only SEEDS and shows this station's own pending seeds (`EditJournal`) |
 | **Unit form** ⚙ | **Damage**: strength per part (vehicles: `PartDamage`), mobility kill | attributes | ★ the attributes |
 | **Crew & cargo** (vehicle) | each seat: role, who sits there (*Put aboard…* names the seat) | `EmbarkEntityCommand { Role }` | — |
 | **Point** (new type) | name, position, **heading** (optional — *oriented*), on the map with the point tool; listed under *Areas & routes ▸ Point* | `Name`, `Position.*`, `Heading` (existing attributes) | ★ the type |
@@ -230,6 +231,7 @@ Rails `NamedPointGizmoTests` (both red-proved), `EntityTypeCatalogTests` (the go
 | **Q2** | carry mode and assistant | **save them** (S1) | keep them unsaved: a carried casualty reloads seated |
 | **Q3** | weapon posture and held item | **save them**; aimed at a point or a unit | leave to behaviours: an idle unit could never start aimed or holding binoculars |
 | **Q4** | "knows about" | **a Unit form row through the existing `SeedTargetCommand`, applied on every brain node** | a TargetMemory editor: its scores and freshness are engine detail |
+| **Q4a** ✅ R-4157 | where the CURRENT knowledge is shown | ✏ **user: on the Brain tab, on the brain's node only** — *"monitoring only, kind of debug info, it is not even the 'public' report from subordinate"*; other nodes say where it is | read it on demand from the brain's node (backend's lean): a remote read for debug info |
 | **Q5** | the named point | **a new map-graphic type *Point* (name, position, optional heading), referenced through the existing `PointLink` entity form** | a point list in the scenario header: not on the map, not pickable |
 | **Q6** | alerted, airborne, single stones | **no rows**: alerted is a task's lease, airborne comes from placement height, stones come from a Stone Source | rows for each: state the engine owns elsewhere |
 | **Q8** | who may tune a unit's character | **any station whose seat and level allow it** — the Character settings become attribute writes applied on the brain's node. ⚠ This **narrows R-1036's "settings are LOCAL there"**: the debugging half of the Brain tab (running behaviours, variables) stays full only on the brain's node, as R-1036 says; the Character settings travel | keep R-1036 as is: an instructor cannot make a unit braver or worse unless his station happens to run that brain |
