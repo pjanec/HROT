@@ -157,7 +157,9 @@ namespace Hrot.UI.Common.Adapters
 
             var amp  = _repo.GetComponent<ActiveMissionPlan>(entity);
             var plan = MapDomainPlanToNeutral(amp.Plan);
-            return (plan, 0); // Version not stored in ECS; starts at 0.
+            // ⭐ P-7 7c — the REAL version (the executor's one definition), so a commit carries its precondition and a stale one is a CONFLICT.
+            //   ⛔ It used to be a constant 0 ("not stored in ECS") — and a base of 0 means "no precondition", so two stations silently overwrote each other.
+            return (plan, Hrot.Common.Systems.MissionControlExecutionSystem.VersionOf(_repo, entity));
         }
 
         /// <inheritdoc/>
@@ -222,10 +224,12 @@ namespace Hrot.UI.Common.Adapters
                 {
                     _pendingCommits.Remove(ack.RequestId);
                     bool success = ack.ErrorCode == 0;
+                    bool conflict = ack.ErrorCode == Hrot.Common.Systems.MissionControlExecutionSystem.VersionConflictCode;
                     tcs.TrySetResult(new MissionCommitResult(
                         Success:      success,
                         NewVersion:   ack.NewVersion,
-                        ErrorMessage: success ? null : $"ErrorCode={ack.ErrorCode}"));
+                        ErrorMessage: success ? null : conflict ? ConflictText : $"ErrorCode={ack.ErrorCode}",
+                        Conflict:     conflict));
                 }
             }
 
@@ -238,7 +242,8 @@ namespace Hrot.UI.Common.Adapters
             {
                 if (!log.TryGet(id, out var o) || !o.FromNetwork || o.Status == Fdp.Toolkit.Replication.Edits.EditStatus.Pending) continue;
                 bool ok = o.Status == Fdp.Toolkit.Replication.Edits.EditStatus.Applied;
-                tcs.TrySetResult(new MissionCommitResult(Success: ok, NewVersion: 0, ErrorMessage: ok ? null : o.Reason));
+                tcs.TrySetResult(new MissionCommitResult(Success: ok, NewVersion: 0, ErrorMessage: ok ? null : o.Reason,
+                                                         Conflict: o.Status == Fdp.Toolkit.Replication.Edits.EditStatus.Conflict));
                 _resolved.Add(id);
             }
             foreach (var id in _resolved) _pendingCommits.Remove(id);
@@ -246,7 +251,17 @@ namespace Hrot.UI.Common.Adapters
 
         private readonly List<Guid> _resolved = new();
 
+        /// <summary>What a conflicted commit says (the executor's own words for it).</summary>
+        public const string ConflictText = "the plan was changed by someone else since you opened it";
+
         // ── Private helpers ───────────────────────────────────────────────────
+
+        private static List<Hrot.Core.Mission.MissionTrigger> TriggersOf(DomainMissionTask task)
+        {
+            var list = new List<Hrot.Core.Mission.MissionTrigger>(task.Triggers.Count);
+            foreach (var t in task.Triggers) list.Add(new Hrot.Core.Mission.MissionTrigger { Type = t.Type, Params = t.Params });
+            return list;
+        }
 
         private static Hrot.Core.Mission.MissionPlan MapDomainPlanToNeutral(DomainMissionPlan domain)
         {
@@ -260,7 +275,7 @@ namespace Hrot.UI.Common.Adapters
                     BehaviorParams  = dt.BehaviorParams,
                     ExecutingEngine = dt.ExecutingEngine,
                     State           = Hrot.Core.Mission.eTaskState.TASK_PLANNED,
-                    Triggers        = new List<Hrot.Core.Mission.MissionTrigger>(),
+                    Triggers        = TriggersOf(dt),   // ⭐ P-7 7c — the task's then / give up: a snapshot without them showed "when done" and an Apply WIPED them
                 });
             }
             return new Hrot.Core.Mission.MissionPlan

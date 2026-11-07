@@ -135,4 +135,18 @@ public sealed class WorldUndoTests
         Assert.Equal(0, rig.History.Count);
         Assert.False(rig.History.IsDirty);
     }
+
+    /// <summary>⭐ P-7 7c (D9) — an Orders-tab Apply in Edit mode is ONE undo step by construction: the mission commit is an <c>EditOp.Commit</c> through
+    /// <c>Edits.Submit</c>, which brackets it; an ORDER (a Command) is not a world edit and takes no step.</summary>
+    [Fact]
+    public void P7c_ACommitIsAnUndoStep_AnOrderIsNot()
+    {
+        using var rig = new Rig();
+        Fdp.Toolkit.Replication.Edits.Edits.Submit(rig.World, EditOp.Commit(rig.Unit, _ => { }, "Commit the mission plan"));
+        Assert.Equal(1, rig.History.Count);
+        Assert.Equal("Commit the mission plan", rig.History.UndoLabel);
+        rig.Now = 10;
+        Fdp.Toolkit.Replication.Edits.Edits.Submit(rig.World, EditOp.Command(rig.Unit, _ => { }, "Move"));
+        Assert.Equal(1, rig.History.Count);
+    }
 }

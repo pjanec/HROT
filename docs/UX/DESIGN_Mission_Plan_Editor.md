@@ -436,6 +436,16 @@ so P-7 adds a surface and deletes three, without a new write path.*
 | **7c** | D9: Edit mode = one `EditHistory` step per action; Live = **Commit** with the base version, Conflict → *Reload* / *Overwrite*; `TaskId` kept across edits (P-4) | the two-station conflict rail; an edit of task 4 while task 2 runs leaves task 2 running |
 | **7d** | retire the three `MissionPanel` instances (+ `MissionPanelWindow`, `ScenarioMissionView`); re-home `MissionPanelTests` / `MissionPanelRegistryTests` claims onto the model | the window-set rail per host (Mission window gone, Orders tab present) |
 
+**7c as built (ui, `2026-11-07`):** ⭐ **Edit mode — one undo step per Apply, BY CONSTRUCTION:** the commit is an `EditOp.Commit` through `Edits.Submit`
+(`ScenarioMissionService.cs:185`), which B-14 brackets (rail `WorldUndoTests.P7c_ACommitIsAnUndoStep_AnOrderIsNot`). **Live — Conflict → Reload /
+Overwrite:** `MissionCommitResult.Conflict` (set from the ack's `VersionConflictCode` and from a network outcome `EditStatus.Conflict`); the Orders tab
+keeps the draft and offers *Reload* (drop it, re-read) / *Overwrite* (re-send over the CURRENT version). ⛔ Two defects found and fixed on the way:
+(1) the facade's snapshot reported a CONSTANT version 0 — a base of 0 is "no precondition", so a conflict could never happen; it now reads
+`MissionControlExecutionSystem.VersionOf` (the one definition); (2) the snapshot mapped every task's triggers to an EMPTY list — the Orders tab
+showed every task as *when done* and an Apply WIPED the *then* / *give up* conditions. ⚠ Not closed in ui: the version is not on the wire, so a
+REPLICA (the editor in Live over CGF's units) still sends base 0 — asked of backend in `NOTE_Ui_To_Backend_Mission_Plan_Version_On_The_Wire.md`.
+Rails: `EditorMissionServiceTests.P7c_*` (2), `TheOrdersTabEditsTests.P7c_AConflict_*`, both red-proved.
+
 **7a + 7b as built (ui, `2026-11-07`):** `Hrot.Editor.AiShared.Shell` — `OrdersPlanModel` (rows as sentences, the queue's states), `OrdersPlanEdits`
 (new Wait / order / behaviour, the *then* presets, give up, move, `RefusalOf`, `Copy`) and `OrdersTab` (`details.orders`; a draft per unit,
 ↑ ↓ ✕, *+ Add task* — Wait first, then `OrderMenu.OfferedFor(dis)`, then the facade's behaviours — Apply = the whole plan with its base version
