@@ -1,4 +1,5 @@
 using Fdp.Presentation.Forms;
+using NodeEditor.Core.Widgets;
 using System.Linq;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
@@ -115,21 +116,20 @@ internal sealed class WhenNodeSession : INodeEditSession
     {
         int modeIdx = (int)_node.Mode;
         string[] labels = { "Value Changed", "Event Fired", "Condition Met", "EQS Result", "Sensor Result" };
-        if (ImGui.Combo("Mode", ref modeIdx, labels, labels.Length))
+        FormGrid.BeginField("bp.node", "Mode"); if (ImGui.Combo("##Mode", ref modeIdx, labels, labels.Length))
         {
             _node.Mode = (WhenMode)modeIdx;
             IsDirty = true;
-        }
+        } FormGrid.EndField();
     }
 
     private void DrawEdgeSelector()
     {
-        ImGui.Text("Edges:");
-        ImGui.SameLine();
-
         bool rising  = _node.Edges.HasFlag(WhenEdge.RisingEdge);
         bool falling = _node.Edges.HasFlag(WhenEdge.FallingEdge);
 
+        // §3.1 — a field made of several flags: the field's label in column 1, each flag keeps its text after its box INSIDE column 2
+        FormGrid.BeginField("bp.node", "Edges");
         if (ImGui.Checkbox("Rising",  ref rising))
         {
             _node.Edges = rising
@@ -145,6 +145,7 @@ internal sealed class WhenNodeSession : INodeEditSession
                 : _node.Edges & ~WhenEdge.FallingEdge;
             IsDirty = true;
         }
+        FormGrid.EndField();
 
         if (_node.Edges == WhenEdge.None)
             ImGui.TextColored(StatusPalette.Warning, "(no edge selected — WhenNode will never fire)");
@@ -283,7 +284,7 @@ internal sealed class WhenNodeSession : INodeEditSession
                        : unlisted            ? $"{payload.EventTypeId} (unlisted)"
                        : "(none)";
 
-        if (ImGui.BeginCombo("Event", comboLabel))
+        FormGrid.BeginField("bp.node", "Event"); if (ImGui.BeginCombo("##Event", comboLabel))
         {
             ImGui.InputTextWithHint("##WhenEventFilter", "Filter...", ref _eventFilterText, 256);
 
@@ -302,7 +303,7 @@ internal sealed class WhenNodeSession : INodeEditSession
             }
 
             ImGui.EndCombo();
-        }
+        } FormGrid.EndField();
 
         if (unlisted)
         {
@@ -319,10 +320,13 @@ internal sealed class WhenNodeSession : INodeEditSession
             if (!string.IsNullOrEmpty(current.TargetFieldName))
             {
                 bool selfOnly = payload.TargetFilter == EventTargetFilter.Self;
-                if (ImGui.Checkbox("Only when it targets me", ref selfOnly))
+                FormGrid.BeginField("bp.node", "Targets me");
+                if (ImGui.Checkbox("##targetsme", ref selfOnly))
                     ApplyTargetFilter(selfOnly ? EventTargetFilter.Self : EventTargetFilter.None);
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Only when the event targets this entity");
                 ImGui.SameLine();
                 ImGui.TextDisabled($"(via {current.TargetFieldName})");
+                FormGrid.EndField();
             }
             else
             {
@@ -349,7 +353,7 @@ internal sealed class WhenNodeSession : INodeEditSession
         // ⭐ CE-3054 D — the sensor: a variable, or the unit's own sensor of a kind (one picker with ReadEqsResult).
         string name = er.SensorVariableName;
         byte kind = er.UnitSensorKind;
-        if (EqsSensorSourcePicker.Draw("Sensor##WhenEqsSensor", _parent, ref name, ref kind))
+        if (EqsSensorSourcePicker.Draw("Sensor", _parent, ref name, ref kind))
         {
             er.SensorVariableName = name;
             er.UnitSensorKind = kind;
@@ -359,21 +363,21 @@ internal sealed class WhenNodeSession : INodeEditSession
         var triggers = (EqsTrigger[])System.Enum.GetValues(typeof(EqsTrigger));
         var labels = System.Array.ConvertAll(triggers, t => t.ToString());
         int ti = System.Array.IndexOf(triggers, er.Trigger);
-        if (ImGui.Combo("Trigger##WhenEqsTrigger", ref ti, labels, labels.Length))
+        FormGrid.BeginField("bp.node", "Trigger"); if (ImGui.Combo("##WhenEqsTrigger", ref ti, labels, labels.Length))
         {
             er.Trigger = triggers[ti];
             IsDirty = true;
-        }
+        } FormGrid.EndField();
 
         if (er.Trigger == EqsTrigger.ScoreCrossed)
         {
             float t = er.ScoreThreshold;
-            if (ImGui.InputFloat("Score threshold##WhenEqsScore", ref t)) { er.ScoreThreshold = t; IsDirty = true; }
+            FormGrid.BeginField("bp.node", "Score threshold"); if (ImGui.InputFloat("##WhenEqsScore", ref t)) { er.ScoreThreshold = t; IsDirty = true; } FormGrid.EndField();
         }
         else if (er.Trigger == EqsTrigger.BecomesStale)
         {
             float a = er.MaxAgeSeconds;
-            if (ImGui.InputFloat("Max age (s)##WhenEqsAge", ref a)) { er.MaxAgeSeconds = a; IsDirty = true; }
+            FormGrid.BeginField("bp.node", "Max age (s)"); if (ImGui.InputFloat("##WhenEqsAge", ref a)) { er.MaxAgeSeconds = a; IsDirty = true; } FormGrid.EndField();
         }
     }
 
@@ -387,29 +391,30 @@ internal sealed class WhenNodeSession : INodeEditSession
             .Where(i => i.Kind != Fdp.Toolkit.Perception.Sensors.SensorKindRegistry.EqsQuery).Select(i => i.Kind).ToArray();
         var kindLabels = kinds.Select(SensorKindBaker.KindName).ToArray();
         int ki = sr.Decl is null ? -1 : System.Array.FindIndex(kinds, k => (byte)k == sr.Decl.Kind);
-        if (ImGui.Combo("Sensor kind##WhenSensorKind", ref ki, kindLabels, kindLabels.Length) && ki >= 0)
+        FormGrid.BeginField("bp.node", "Sensor kind"); if (ImGui.Combo("##WhenSensorKind", ref ki, kindLabels, kindLabels.Length) && ki >= 0)
         {
             sr.Decl = SensorKindBaker.Bake(kinds[ki]);
             sr.Trigger = sr.Decl is null ? "" : SensorPaletteEntries.UsableTriggers(sr.Decl).FirstOrDefault()?.Name ?? "";
             IsDirty = true;
-        }
+        } FormGrid.EndField();
         if (sr.Decl is null) { ImGui.TextColored(StatusPalette.Warning, "Pick a sensor kind."); return; }
 
         var triggers = SensorPaletteEntries.UsableTriggers(sr.Decl).ToArray();
         var labels = triggers.Select(t => t.Name).ToArray();
         int ti = System.Array.FindIndex(triggers, t => t.Name == sr.Trigger);
-        if (ImGui.Combo("Trigger##WhenSensorTrigger", ref ti, labels, labels.Length) && ti >= 0) { sr.Trigger = triggers[ti].Name; IsDirty = true; }
+        FormGrid.BeginField("bp.node", "Trigger"); if (ImGui.Combo("##WhenSensorTrigger", ref ti, labels, labels.Length) && ti >= 0) { sr.Trigger = triggers[ti].Name; IsDirty = true; } FormGrid.EndField();
 
         var current = triggers.FirstOrDefault(t => t.Name == sr.Trigger);
         if (current?.Shape == "FieldCrossed")
         {
             float t = sr.Threshold;
-            if (ImGui.InputFloat($"{current.ElementField} threshold##WhenSensorThreshold", ref t)) { sr.Threshold = t; IsDirty = true; }
+            FormGrid.BeginField("bp.node", "Threshold"); if (ImGui.InputFloat("##WhenSensorThreshold", ref t)) { sr.Threshold = t; IsDirty = true; }
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip($"{current.ElementField} threshold"); FormGrid.EndField();
         }
         else if (current?.Name == "BecomesStale")
         {
             float a = sr.MaxAgeSeconds;
-            if (ImGui.InputFloat("Max age (s)##WhenSensorAge", ref a)) { sr.MaxAgeSeconds = a; IsDirty = true; }
+            FormGrid.BeginField("bp.node", "Max age (s)"); if (ImGui.InputFloat("##WhenSensorAge", ref a)) { sr.MaxAgeSeconds = a; IsDirty = true; } FormGrid.EndField();
         }
     }
 

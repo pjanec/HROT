@@ -1,4 +1,5 @@
 using System;
+using NodeEditor.Core.Widgets;
 using System.Linq;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
@@ -53,7 +54,10 @@ internal static class EqsSensorSourcePicker
         var variables = SensorVariables(asset);
         var items = Items(variables);
         int idx = IndexOf(variables, variableName, unitKind);
-        if (!ImGui.Combo(label, ref idx, items, items.Length)) return false;
+        FormGrid.BeginField("bp.node", label);   // R-2084: the label is the caller's constant (no id suffix, no Substring per frame)
+        bool changed = ImGui.Combo("##sensor", ref idx, items, items.Length);
+        FormGrid.EndField();
+        if (!changed) return false;
         Apply(variables, idx, ref variableName, ref unitKind);
         return true;
     }

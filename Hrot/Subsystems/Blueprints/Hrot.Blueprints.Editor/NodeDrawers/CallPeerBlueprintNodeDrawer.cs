@@ -1,4 +1,5 @@
 using Fdp.Presentation.Forms;
+using NodeEditor.Core.Widgets;
 using System.Linq;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
@@ -217,7 +218,7 @@ internal sealed class CallPeerBlueprintNodeSession : INodeEditSession
                        : unresolved          ? $"{_node.PeerBlueprintId} (unresolved)"
                        : "(none)";
 
-        if (ImGui.BeginCombo("Peer Blueprint", comboLabel))
+        FormGrid.BeginField("bp.node", "Peer Blueprint"); if (ImGui.BeginCombo("##Peer_Blueprint", comboLabel))
         {
             ImGui.InputTextWithHint("##CallPeerFilter", "Filter...", ref _peerFilterText, 256);
 
@@ -236,7 +237,7 @@ internal sealed class CallPeerBlueprintNodeSession : INodeEditSession
             }
 
             ImGui.EndCombo();
-        }
+        } FormGrid.EndField();
 
         if (unresolved)
             ImGui.TextColored(StatusPalette.Warning,
@@ -268,7 +269,7 @@ internal sealed class CallPeerBlueprintNodeSession : INodeEditSession
         var unresolved = IsCurrentFunctionUnresolvedForTest();
         var comboLabel = current.Length > 0 ? current : "(none)";
 
-        if (ImGui.BeginCombo("Function", comboLabel))
+        FormGrid.BeginField("bp.node", "Function"); if (ImGui.BeginCombo("##Function", comboLabel))
         {
             if (unresolved)
             {
@@ -285,7 +286,7 @@ internal sealed class CallPeerBlueprintNodeSession : INodeEditSession
             }
 
             ImGui.EndCombo();
-        }
+        } FormGrid.EndField();
 
         if (unresolved)
             ImGui.TextColored(StatusPalette.Warning,

@@ -1,4 +1,5 @@
 using Fdp.Presentation.Forms;
+using NodeEditor.Core.Widgets;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
@@ -294,12 +295,14 @@ internal sealed class ReturnNodeSession : INodeEditSession
     {
         var names      = Enum.GetNames(typeof(NodeStatus));
         int currentIdx = (int)_node.Status;
+        FormGrid.BeginField("bp.node", "Status");
         if (ImGui.Combo("##return_status", ref currentIdx, names, names.Length))
         {
             var chosen = (NodeStatus)currentIdx;
             if (chosen != _node.Status)
                 ApplyStatus(chosen);
         }
+        FormGrid.EndField();
     }
 
     public void ResetDirty() => IsDirty = false;

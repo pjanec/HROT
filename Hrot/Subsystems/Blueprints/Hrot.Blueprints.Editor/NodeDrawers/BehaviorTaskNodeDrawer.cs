@@ -1,4 +1,5 @@
 using Fdp.Presentation.Forms;
+using NodeEditor.Core.Widgets;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Host;
@@ -107,7 +108,7 @@ internal sealed class BehaviorTaskNodeSession : INodeEditSession
         ImGui.Separator();
 
         var current = string.IsNullOrWhiteSpace(_node.BehaviorName) ? "(none)" : _node.BehaviorName;
-        if (ImGui.BeginCombo("Behaviour", current))
+        FormGrid.BeginField("bp.node", "Behaviour"); if (ImGui.BeginCombo("##Behaviour", current))
         {
             ImGui.InputTextWithHint("##BehaviourTaskFilter", "Filter...", ref _filter, 256);
             foreach (var name in Filtered(_filter))
@@ -117,7 +118,7 @@ internal sealed class BehaviorTaskNodeSession : INodeEditSession
                 if (selected) ImGui.SetItemDefaultFocus();
             }
             ImGui.EndCombo();
-        }
+        } FormGrid.EndField();
 
         if (string.IsNullOrWhiteSpace(_node.BehaviorName))
             ImGui.TextColored(StatusPalette.Warning, "(no behaviour picked — this task does not compile, BP1659)");

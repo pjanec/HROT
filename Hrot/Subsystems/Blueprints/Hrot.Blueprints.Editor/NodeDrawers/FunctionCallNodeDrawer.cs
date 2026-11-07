@@ -1,4 +1,5 @@
 using Fdp.Presentation.Forms;
+using NodeEditor.Core.Widgets;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Host;
@@ -144,7 +145,7 @@ internal sealed class FunctionCallNodeSession : INodeEditSession
         // Purity is fixed by the chosen function (set once at add-time) — read-only display.
         ImGui.BeginDisabled();
         bool isPure = _node.IsPure;
-        ImGui.Checkbox("Pure (no exec pins)", ref isPure);
+        FormGrid.BeginField("bp.node", "Pure (no exec pins)"); ImGui.Checkbox("##Pure_no_exec_pins", ref isPure); FormGrid.EndField();
         ImGui.EndDisabled();
 
         ImGui.Separator();
@@ -191,7 +192,7 @@ internal sealed class FunctionCallNodeSession : INodeEditSession
             }
         }
 
-        if (ImGui.Combo("Function Graph", ref currentIdx, names, names.Length))
+        FormGrid.BeginField("bp.node", "Function Graph"); if (ImGui.Combo("##Function_Graph", ref currentIdx, names, names.Length))
         {
             if (currentIdx >= 0)
             {
@@ -201,7 +202,7 @@ internal sealed class FunctionCallNodeSession : INodeEditSession
                     ApplyFunctionGraphSelection(chosen.Id);
                 }
             }
-        }
+        } FormGrid.EndField();
 
         if (string.IsNullOrEmpty(_node.TargetGraphId))
             ImGui.TextColored(StatusPalette.Warning, "(no function graph selected)");
@@ -213,10 +214,10 @@ internal sealed class FunctionCallNodeSession : INodeEditSession
         // is immutable afterward — designers never type an FQN. Fields are ReadOnly (still selectable /
         // copyable). To call a different method, add a new node.
         var typeId = _node.TargetTypeId ?? "";
-        ImGui.InputText("Type ID", ref typeId, 256, ImGuiInputTextFlags.ReadOnly);
+        FormGrid.BeginField("bp.node", "Type ID"); ImGui.InputText("##Type_ID", ref typeId, 256, ImGuiInputTextFlags.ReadOnly); FormGrid.EndField();
 
         var methodName = _node.MethodName ?? "";
-        ImGui.InputText("Method Name", ref methodName, 256, ImGuiInputTextFlags.ReadOnly);
+        FormGrid.BeginField("bp.node", "Method Name"); ImGui.InputText("##Method_Name", ref methodName, 256, ImGuiInputTextFlags.ReadOnly); FormGrid.EndField();
 
         ImGui.TextDisabled("Read-only — pick from the Add-Node picker; add a new node to change it.");
 

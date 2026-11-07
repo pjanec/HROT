@@ -1,4 +1,5 @@
 using Fdp.Presentation.Forms;
+using NodeEditor.Core.Widgets;
 using System.Linq;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
@@ -142,7 +143,7 @@ internal sealed class CallCustomEventNodeSession : INodeEditSession
                        : unresolved          ? $"{_node.EventId} (unresolved)"
                        : "(none)";
 
-        if (ImGui.BeginCombo("Event", comboLabel))
+        FormGrid.BeginField("bp.node", "Event"); if (ImGui.BeginCombo("##Event", comboLabel))
         {
             if (unresolved)
             {
@@ -159,7 +160,7 @@ internal sealed class CallCustomEventNodeSession : INodeEditSession
             }
 
             ImGui.EndCombo();
-        }
+        } FormGrid.EndField();
 
         if (unresolved)
             ImGui.TextColored(StatusPalette.Warning,

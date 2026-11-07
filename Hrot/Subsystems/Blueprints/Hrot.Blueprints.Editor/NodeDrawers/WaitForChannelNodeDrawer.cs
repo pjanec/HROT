@@ -1,4 +1,5 @@
 using Fdp.Presentation.Forms;
+using NodeEditor.Core.Widgets;
 using System.Linq;
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
@@ -136,7 +137,7 @@ internal sealed class WaitForChannelNodeSession : INodeEditSession
         var unlisted   = IsCurrentChannelUnlistedForTest();
         var comboLabel = current.Length > 0 ? current : "(none)";
 
-        if (ImGui.BeginCombo("Channel", comboLabel))
+        FormGrid.BeginField("bp.node", "Channel"); if (ImGui.BeginCombo("##Channel", comboLabel))
         {
             ImGui.InputTextWithHint("##WaitForChannelFilter", "Filter...", ref _filterText, 256);
 
@@ -155,7 +156,7 @@ internal sealed class WaitForChannelNodeSession : INodeEditSession
             }
 
             ImGui.EndCombo();
-        }
+        } FormGrid.EndField();
 
         if (unlisted)
             ImGui.TextColored(StatusPalette.Warning,
