@@ -504,4 +504,26 @@ public sealed class TheUnitFormDrawsTests
         Assert.Contains(f, x => x.Label == "Temperature" && x.ReadNumber!(world, env) == 21);
         Assert.Contains(HrotForms.Shape.Fields, x => x.Label == "Temperature");   // the ONE weather row set, on both forms
     }
+
+    /// <summary>⭐ New scenario N4 (docs/UX/DESIGN_New_Scenario_And_Recipe.md §4, R-4124) — the Scenario form shows the terrain READ-ONLY: the name the scenario
+    /// resolved by (<c>TerrainDefinition.ResolvedName</c>), no attribute to write; absent when no terrain is loaded. 🔴 Red-proof (compiles): <c>TerrainNameOf</c>
+    /// reading the asset's own <c>Name</c> first ⇒ "asset-self-name" ⇒ red.</summary>
+    [Fact]
+    public void N4_TheScenarioForm_ShowsTheTerrain_ReadOnly()
+    {
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Weather.ScenarioClock>(); world.RegisterComponent<Fdp.Toolkit.Weather.WeatherConditions>();
+        var env = world.CreateEntity();
+        world.AddComponent(env, new Fdp.Toolkit.Weather.ScenarioClock { StartUtcTicks = 1 });
+        HrotForms.EnsureRegistered();
+        var row = Assert.Single(HrotForms.Scenario.Fields, x => x.Label == "Terrain");
+        Assert.Null(row.Attribute);                                  // read-only: nothing to write
+        Assert.False(row.Has!(world, env));                          // no terrain loaded: no row
+
+        world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainDefinition>();
+        world.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainDefinition { Name = "asset-self-name", ResolvedName = "highway-rest" });
+        Assert.True(row.Has!(world, env));
+        Assert.Equal("highway-rest", row.ReadText!(world, env).ToString());
+    }
 }

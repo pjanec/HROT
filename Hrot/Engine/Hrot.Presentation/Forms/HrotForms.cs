@@ -546,12 +546,34 @@ public static class HrotForms
         return _startText;
     }
 
+    private static string? _terrainName;
+    private static FixedString64 _terrainText;
+
+    /// <summary>⭐ N4 — the loaded terrain's name (<c>TerrainDefinition.ResolvedName</c>, else the asset's own <c>Name</c>), or null when none is loaded.</summary>
+    public static string? TerrainNameOf(EntityRepository w)
+    {
+        if (!w.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainDefinition>()) return null;
+        var d = w.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainDefinition>();
+        if (d is null) return null;
+        return !string.IsNullOrEmpty(d.ResolvedName) ? d.ResolvedName : string.IsNullOrEmpty(d.Name) ? null : d.Name;
+    }
+
+    private static bool HasTerrain(EntityRepository w, Entity e) => TerrainNameOf(w) != null;
+
+    /// <summary>The terrain row's text, cached by the name — a frame reading it allocates nothing.</summary>
+    private static FixedString64 TerrainText(EntityRepository w)
+    {
+        var name = TerrainNameOf(w);
+        if (!ReferenceEquals(name, _terrainName)) { _terrainName = name; _terrainText = new FixedString64(name ?? ""); }
+        return _terrainText;
+    }
+
     private static bool HasClock(EntityRepository w, Entity e) => w.IsComponentTypeRegistered<Fdp.Toolkit.Weather.ScenarioClock>() && w.HasComponent<Fdp.Toolkit.Weather.ScenarioClock>(e);
 
     /// <summary>
     /// ⭐ D5 — the <b>Scenario</b> form (§3), drawn when nothing is selected: Time (the start, read-only here; the display offset) and the GLOBAL weather (the
     /// same rows as a region's). ⏳ Not yet: name / description (the file header — a document step, not an attribute), *Capture picture*, editing the start
-    /// (a date field kind), Terrain (read-only), Parameters.
+    /// (a date field kind), Parameters. ✅ Terrain (read-only, N4).
     /// </summary>
     public static readonly FormDecl Scenario = new()
     {
@@ -562,6 +584,9 @@ public static class HrotForms
             new FormField { Label = "Start", Kind = FieldKind.Text, Has = HasClock, ReadText = (w, e) => StartText(w.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(e).StartUtcTicks) },
             new FormField { Label = "Clock offset", Attribute = "ScenarioUtcOffsetMinutes", Unit = "min", Min = -720, Max = 840, Has = HasClock,
                             ReadNumber = (w, e) => w.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(e).DisplayUtcOffsetMinutes },
+            // ⭐ New scenario N4 (📄 docs/UX/DESIGN_New_Scenario_And_Recipe.md §4, R-4124 / R-4135) — the terrain, READ-ONLY (no attribute): chosen when the
+            //   scenario was created, never changed. Read from the TerrainDefinition singleton every host's terrain commit publishes (the name the scenario resolved by).
+            new FormField { Label = "Terrain", Kind = FieldKind.Text, Has = HasTerrain, ReadText = (w, _) => TerrainText(w) },
         }, WeatherRows()),
     };
 
