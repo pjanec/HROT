@@ -239,4 +239,36 @@ public sealed class EditNotificationOverlayFrameRail
         Assert.Equal(3, overlay.ShownCount);
         Assert.True(bytes == 0, $"a steady frame of three cards allocates nothing ({bytes} bytes)");
     }
+
+    /// <summary>⭐ F7 (B-12, DESIGN_Edit_Framework §2.5 "the history") — the Message Log's <b>Edits</b> tab: ONE line per edit when it reaches its FINAL answer
+    /// (applied ones too — the history, not the signal), none while pending, never twice; a sync with nothing moved walks nothing. No display needed.
+    /// ✅ Red-proof: Sync without the IsFinal test ⇒ the pending Embark is logged ⇒ red.</summary>
+    [Fact]
+    public void F7_TheEditsTab_LogsEachFinalAnswerOnce_NotWhilePending()
+    {
+        using var world = World(out _);
+        var history = new EditHistoryMessageLogSource();
+        var journal = EditJournal.Of(world);
+        var now = DateTime.UtcNow;
+        journal.Refresh(EditOutcomeLog.Of(world), now);
+        history.Sync(journal);
+        var lines = new List<Fdp.Core.Logging.MessageLogEntry>();
+        history.CopyMessagesTo(lines);
+        Assert.Equal(4, lines.Count);                                                       // Rename, Possess, Commit, Delete — not the pending Embark
+        Assert.Contains(lines, l => l.Message.StartsWith("Delete refused — Alpha 1-1 is a player's unit · #9", StringComparison.Ordinal));
+        Assert.All(lines, l => Assert.Equal(Fdp.Core.Logging.LogSeverity.Warning, l.Severity));
+
+        history.Sync(journal);                                                              // nothing moved: nothing new
+        history.CopyMessagesTo(lines);
+        Assert.Equal(4, lines.Count);
+
+        journal.Refresh(EditOutcomeLog.Of(world), now + TimeSpan.FromSeconds(6));         // the Embark times out to Lost
+        history.Sync(journal);
+        history.CopyMessagesTo(lines);
+        Assert.Equal(5, lines.Count);
+        Assert.StartsWith("Embark got no answer", lines[4].Message, StringComparison.Ordinal);
+        history.Sync(journal);
+        history.CopyMessagesTo(lines);
+        Assert.Equal(5, lines.Count);                                                       // never twice
+    }
 }

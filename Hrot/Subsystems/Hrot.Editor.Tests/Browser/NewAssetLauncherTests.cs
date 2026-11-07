@@ -150,7 +150,7 @@ public sealed class NewAssetLauncherTests
         Assert.Equal(new[] { "basic-desert", "berlin" }, entries.Where(e => e.Category == NewAssetLauncher.BlankGroup).Select(e => e.Name));
         Assert.All(entries.Where(e => e.Category == NewAssetLauncher.BlankGroup), e => Assert.IsType<BlankTerrainChoice>(e.Tag));
         Assert.Contains(entries, e => e.Category == NewAssetLauncher.RecipeGroup && e.Tag is RecipeChoice);
-        Assert.Equal(NewAssetLauncher.BlankTerrainText, entries[1].Description);
+        Assert.Null(entries[1].Description);   // B-9 N1 pane: the default text is drawn UNDER the facts (DrawTerrainFacts), not as the description
 
         picker.InvokeHandler(ConfirmResult(entries[1]));
         Assert.Equal("berlin", blank);
@@ -164,6 +164,39 @@ public sealed class NewAssetLauncherTests
 
         launcher.Open();                                               // the general New Asset picker has no terrain rows
         Assert.DoesNotContain(picker.CapturedRequest!.ItemsProvider(), e => e.Tag is BlankTerrainChoice);
+    }
+
+    /// <summary>
+    /// ⭐ B-9 N1 pane — a terrain row's ImageKey is the <c>preview.jpg</c> beside its terrain.json (found through the catalog's definition locator, the SAME reader as a scenario's still), absent when it has none;
+    /// the New Scenario request carries the wide side pane and a pane-draw callback. ✅ Red-proof: ImageKey left null ⇒ red.
+    /// </summary>
+    [Fact]
+    public void B9_TerrainRows_CarryTheirStill_AndTheRequestHasTheSidePane()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "b9img-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(dir, "berlin")); Directory.CreateDirectory(Path.Combine(dir, "test-town"));
+        File.WriteAllText(Path.Combine(dir, "berlin", "terrain.json"), "{}"); File.WriteAllText(Path.Combine(dir, "test-town", "terrain.json"), "{}");
+        File.WriteAllBytes(Path.Combine(dir, "berlin", "preview.jpg"), new byte[] { 1 });
+        try
+        {
+            var services = new Dictionary<AssetKind, INewAssetService> { [AssetKind.Scenario] = new FakeNewAssetService(AssetKind.Scenario) };
+            var picker = new FakeOpenPicker();
+            var launcher = new NewAssetLauncher(picker.OpenPicker, services, (_, _) => { },
+                terrains: () => new[] { "berlin", "test-town" }, showNewBlankDialog: _ => { },
+                terrainDefinition: t => Path.Combine(dir, t, "terrain.json"));
+            launcher.Open(AssetKind.Scenario);
+            var request = picker.CapturedRequest!;
+            var rows = request.ItemsProvider().Where(e => e.Tag is BlankTerrainChoice).ToList();
+            Assert.EndsWith(Path.Combine("berlin", "preview.jpg"), rows.Single(r => r.Name == "berlin").ImageKey);
+            Assert.Null(rows.Single(r => r.Name == "test-town").ImageKey);
+            Assert.True(request.ShowSidePane);
+            Assert.NotNull(request.DrawPane);
+            Assert.True(request.DrawPaneAfterDefault);
+
+            launcher.Open();                                           // the general picker: no pane
+            Assert.Null(picker.CapturedRequest!.DrawPane);
+        }
+        finally { try { Directory.Delete(dir, true); } catch { } }
     }
 
     /// <summary>

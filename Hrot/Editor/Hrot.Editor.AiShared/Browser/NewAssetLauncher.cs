@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Recipes;
 using NodeEditor.Core.Interfaces;
@@ -39,6 +40,7 @@ public sealed class NewAssetLauncher
     private readonly Func<IReadOnlyList<string>>? _terrains;
     private readonly Action<string>? _showNewBlankDialog;
     private readonly Func<string, string?>? _describeTerrain;
+    private readonly Func<string, string?>? _terrainDefinition;   // ⭐ B-9 N1 pane — terrain name → its terrain.json (the catalog that lists it): the pane's facts and still come from there
 
     /// <summary>The group names of the New Scenario picker (§2.5's mockup).</summary>
     public const string BlankGroup = "Blank, on a terrain", RecipeGroup = "From a recipe";
@@ -78,8 +80,10 @@ public sealed class NewAssetLauncher
         Action<AssetKind, IEditableAsset>? showNewMacroDialog = null,
         Func<IReadOnlyList<string>>? terrains = null,
         Action<string>? showNewBlankDialog = null,
-        Func<string, string?>? describeTerrain = null)
+        Func<string, string?>? describeTerrain = null,
+        Func<string, string?>? terrainDefinition = null)
     {
+        _terrainDefinition = terrainDefinition;
         _showNewMacroDialog = showNewMacroDialog;
         _openPicker = openPicker ?? throw new ArgumentNullException(nameof(openPicker));
         _services = services ?? throw new ArgumentNullException(nameof(services));
@@ -136,6 +140,12 @@ public sealed class NewAssetLauncher
             Layout = PickerLayout.Tree,
             SelectionMode = PickerSelectionMode.Single,
             ItemsProvider = blanks ? () => ScenarioEntries(source) : () => source.BuildEntries("", null),
+            // ⭐ B-9 N1 pane — the same wide side pane as the Open Scenario picker (D25); a terrain row draws its facts under the default pane (still, name)
+            ShowSidePane = blanks,
+            DrawPaneAfterDefault = blanks,
+            DrawPane = blanks ? DrawTerrainFacts : null,
+            DefaultSize = blanks ? new System.Numerics.Vector2(AssetPickerLauncher.ScenarioPickerWidth, AssetPickerLauncher.ScenarioPickerHeight) : null,
+            SidePaneWidth = blanks ? AssetPickerLauncher.ScenarioPaneWidth : 280f,
         };
 
         _openPicker(request, result =>
@@ -153,13 +163,67 @@ public sealed class NewAssetLauncher
         });
     }
 
+    /// <summary>Where the pane's value column starts (px from the pane's left) — the mockup's label / value alignment.</summary>
+    public const float PaneValueX = 124f;
+
+    private sealed record PaneText(object Source, string? Origin, string? Roads, string Recipes);
+    private readonly Dictionary<string, PaneText> _paneTexts = new(StringComparer.Ordinal);
+
+    /// <summary>The pane lines of terrain <paramref name="terrain"/>, built once per change of its facts (never per frame).</summary>
+    private PaneText? TextOf(string terrain)
+    {
+        if (_terrainDefinition?.Invoke(terrain) is not { } def || ScenarioPaneFacts.GetTerrain(def) is not { } f) return null;
+        if (_paneTexts.TryGetValue(terrain, out var hit) && ReferenceEquals(hit.Source, f)) return hit;
+        string? origin = f.Lat is { } lat && f.Lon is { } lon
+            ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{Math.Abs(lat):0.000}° {(lat < 0 ? 'S' : 'N')}, {Math.Abs(lon):0.000}° {(lon < 0 ? 'W' : 'E')}") : null;
+        string? roads = f.RoadNetworks.Count > 0 ? string.Join(", ", f.RoadNetworks) + " · " + f.RoadNetworks.Count + (f.RoadNetworks.Count == 1 ? " network" : " networks") : null;
+        var on = ScenarioPaneFacts.RecipesOn(terrain);
+        var text = new PaneText(f, origin, roads, on.Count == 0 ? "none" : string.Join(", ", on));
+        _paneTexts[terrain] = text;
+        return text;
+    }
+
+    private readonly List<float> _lastValueOffsets = new();
+
+    /// <summary>A probe for the frame rail (R-4138): for each label / value row the last terrain pane drew, how far the value's left edge is from its label's (px). The mockup's is <see cref="PaneValueX"/> for every row.</summary>
+    public IReadOnlyList<float> LastPaneValueOffsets => _lastValueOffsets;
+
+    /// <summary>⭐ B-9 N1 pane (docs/UX/new-scenario-visual.svg) — a terrain row's facts under the default pane: Origin · Roads · Recipes on it as label / value rows, then the default text. A recipe row draws nothing extra.</summary>
+    private void DrawTerrainFacts(PickerEntry entry, PickerPaneContext pane)
+    {
+        if (entry.Tag is not BlankTerrainChoice choice) return;
+        _lastValueOffsets.Clear();
+        void Row(string label, string value)
+        {
+            ImGuiNET.ImGui.PushStyleColor(ImGuiNET.ImGuiCol.Text, pane.Theme.TextMuted); ImGuiNET.ImGui.TextUnformatted(label); ImGuiNET.ImGui.PopStyleColor();
+            float labelX = ImGuiNET.ImGui.GetItemRectMin().X;
+            ImGuiNET.ImGui.SameLine(ImGuiNET.ImGui.GetCursorStartPos().X + PaneValueX);
+            ImGuiNET.ImGui.PushTextWrapPos(0f); ImGuiNET.ImGui.TextUnformatted(PickerText.Drawable(value)); ImGuiNET.ImGui.PopTextWrapPos();
+            _lastValueOffsets.Add(ImGuiNET.ImGui.GetItemRectMin().X - labelX);
+        }
+        var t = TextOf(choice.Terrain);
+        if (t != null)
+        {
+            if (t.Origin != null) Row("Origin", t.Origin);
+            if (t.Roads != null) Row("Roads", t.Roads);
+            Row("Recipes on it", t.Recipes);
+        }
+        if (string.IsNullOrEmpty(entry.Description))
+        {
+            ImGuiNET.ImGui.Spacing();
+            ImGuiNET.ImGui.PushTextWrapPos(0f); ImGuiNET.ImGui.TextUnformatted(PickerText.Drawable(BlankTerrainText)); ImGuiNET.ImGui.PopTextWrapPos();
+        }
+    }
+
     /// <summary>⭐ N1 — the New Scenario picker's TWO groups in ONE tree (Q2): every terrain (live), then the recipes.</summary>
     public IReadOnlyList<PickerEntry> ScenarioEntries(RecipePickerSource recipes)
     {
         var list = new List<PickerEntry>();
         foreach (var t in _terrains?.Invoke() ?? Array.Empty<string>())
-            list.Add(new PickerEntry(Id: "terrain:" + t, Name: t, Description: _describeTerrain?.Invoke(t) ?? BlankTerrainText, Category: BlankGroup,
-                Keywords: null, IconTextureId: null, Tag: new BlankTerrainChoice(t), IconKey: null));
+            // ⭐ B-9 N1 pane — the terrain's still (preview.jpg beside its terrain.json) is the row's ImageKey, as a scenario row's is; the default text is drawn UNDER the facts (DrawTerrainFacts)
+            list.Add(new PickerEntry(Id: "terrain:" + t, Name: t, Description: _describeTerrain?.Invoke(t), Category: BlankGroup,
+                Keywords: null, IconTextureId: null, Tag: new BlankTerrainChoice(t), IconKey: null,
+                ImageKey: _terrainDefinition?.Invoke(t) is { } def ? ScenarioPaneFacts.TerrainPreviewOf(def) : null));
         foreach (var e in recipes.BuildEntries("", null))
             list.Add(e with { Category = RecipeGroup });
         return list;

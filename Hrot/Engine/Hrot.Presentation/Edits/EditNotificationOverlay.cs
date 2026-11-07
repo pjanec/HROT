@@ -45,11 +45,16 @@ public sealed class EditNotificationOverlay
     /// <param name="show">Selects the unit with this NETWORK id (the host's existing selection path); null ⇒ no Show button.</param>
     /// <param name="reload">A Conflict's Reload (the mission plan's reload); with <paramref name="overwrite"/> both or neither is drawn.</param>
     /// <param name="overwrite">A Conflict's Overwrite (the mission plan's force-commit).</param>
-    public EditNotificationOverlay(Action<int>? show = null, Action<EditJournalEntry>? reload = null, Action<EditJournalEntry>? overwrite = null, Func<DateTime>? utcNow = null)
+    /// <param name="history">⭐ F7 — the Message Log's Edits tab this overlay feeds after each fold (default <see cref="EditHistoryMessageLogSource.Shared"/>, the one every host registers).</param>
+    public EditNotificationOverlay(Action<int>? show = null, Action<EditJournalEntry>? reload = null, Action<EditJournalEntry>? overwrite = null, Func<DateTime>? utcNow = null,
+        EditHistoryMessageLogSource? history = null)
     {
         _show = show; _reload = reload; _overwrite = overwrite;
         _utcNow = utcNow ?? (() => DateTime.UtcNow);
+        _history = history ?? EditHistoryMessageLogSource.Shared;
     }
+
+    private readonly EditHistoryMessageLogSource _history;
 
     /// <summary>Reload / Overwrite are drawn on a Conflict only when the host wired BOTH.</summary>
     public bool ConflictButtonsWired => _reload != null && _overwrite != null;
@@ -78,6 +83,7 @@ public sealed class EditNotificationOverlay
         var journal = EditJournal.Of(world);
         _journal = journal;
         journal.Refresh(EditOutcomeLog.Of(world), _utcNow());                 // ⭐ the one caller: outcomes fold in, an unanswered edit times out to Lost
+        _history.Sync(journal);                                                // ⭐ F7 — the history (Message Log ▸ Edits) gets every final answer
         TotalCount = EditNotifications.Collect(journal, _shown, MaxShown);
         ShownCount = _shown.Count;
         if (ShownCount == 0) return;

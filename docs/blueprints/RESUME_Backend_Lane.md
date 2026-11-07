@@ -50,7 +50,7 @@ Branch `backend` at `0603f5300` (+ this doc), clean, pushed; `ui` merged at `911
 1. ✅ **B-7 ② retire the Replay Timeline window** — DONE (the patch is applied, verified and deleted; as-built in [`DESIGN_Replay_Browser_UX.md`](../UX/DESIGN_Replay_Browser_UX.md) §2a, row in [`STATUS_Editing_UX_Build_Backend.md`](batches/STATUS_Editing_UX_Build_Backend.md)). The "group rejected" modal was drawn only by the retired window and moved into `DrawTransport`; no route / MCP tool opens the window. Four ReplayBrowser.Tests reds are PRE-EXISTING at `0d0453df1` (window-count and catalogue lists went stale when the ui lane added windows / state columns).
 2. **B-9** the rest: the pane's terrain facts (origin, size, roads, recipes on it) + the still (N6), N3 the ONE Save-As *Replace?*, N4 terrain read-only. Mockup `docs/UX/new-scenario-visual.svg`.
 3. **B-12** the Messages history reading the journal; ⚠ the overlay's Reload/Overwrite are NOT wired (the mission plan's conflict state is private to `MissionPanel`).
-4. **B-10 keymap · B-11 action catalogue · B-14 undo UI side (EditHistory world steps on `WorldSnapshotRing`) · B-16 seats H2–H4 · B-17 map interaction** — all large, UI-heavy; each has a design + mockup.
+4. ⛔ ~~B-10 · B-11 · B-14 · B-16 · B-17~~ — **MOVED to ui** (coordinator, `2026-11-07`). Knows-about QUESTION answered: no remote read (R-4157), nothing to build.
 5. **B-18** SV-1's remainder (~270 double instants / durations, CE-4201), SV-5 (waits on SR-76a).
 
 ### Open questions / notes sent

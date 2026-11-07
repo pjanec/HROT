@@ -482,6 +482,49 @@ public sealed class AssetPickerLauncherTests
         finally { Directory.Delete(root, true); }
     }
 
+    /// <summary>
+    /// ⭐ B-9 N1 pane — a TERRAIN's facts come from its terrain.json through the same cached reader as a scenario's (parsed by the ONE <c>TerrainDefinitionParser</c>, never per frame); its still
+    /// is the same <c>PreviewOf</c> rule; "recipes on it" are the recipes (the lister New Scenario reads) whose header names that terrain. ✅ Red-proof: <c>RecipesOn</c> comparing the wrong field ⇒ red.
+    /// </summary>
+    [Fact]
+    public void B9_TerrainFacts_AreReadFromTerrainJson_Cached_AndRecipesOnItAreCounted()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "b9t-" + Guid.NewGuid().ToString("N"));
+        var saved = AssetRoots.ConfiguredRoot;
+        Directory.CreateDirectory(root);
+        AssetRoots.Configure(root);
+        try
+        {
+            var terrain = Path.Combine(root, "assets", "terrain", "berlin");
+            Directory.CreateDirectory(terrain);
+            var json = Path.Combine(terrain, "terrain.json");
+            File.WriteAllText(json, "{\"schemaVersion\":2,\"name\":\"berlin\",\"origin\":{\"lat\":52.52,\"lon\":13.405,\"alt\":34.0},\"roadNetworks\":[\"roads.json\"]}");
+            int before = ScenarioPaneFacts.Parses;
+            var f = ScenarioPaneFacts.GetTerrain(json, nowMs: 1_000)!;
+            Assert.Equal(("berlin", 52.52, 13.405, 34.0), (f.Name, f.Lat, f.Lon, f.Alt));
+            Assert.Equal(new[] { "roads.json" }, f.RoadNetworks);
+            Assert.Same(f, ScenarioPaneFacts.GetTerrain(json, nowMs: 1_500));
+            Assert.Same(f, ScenarioPaneFacts.GetTerrain(json, nowMs: 9_000));
+            Assert.Equal(before + 1, ScenarioPaneFacts.Parses);                  // parsed once
+            Assert.Null(ScenarioPaneFacts.TerrainPreviewOf(json));
+            File.WriteAllBytes(Path.Combine(terrain, "preview.jpg"), new byte[] { 1 });
+            Assert.EndsWith("preview.jpg", ScenarioPaneFacts.TerrainPreviewOf(json));
+
+            File.WriteAllText(Path.Combine(terrain, "bad.json"), "{ nope");
+            Assert.Null(ScenarioPaneFacts.GetTerrain(Path.Combine(terrain, "bad.json")));   // malformed ⇒ no facts, no throw
+            Assert.Null(ScenarioPaneFacts.GetTerrain(Path.Combine(terrain, "missing.json")));
+
+            foreach (var (name, on) in new[] { ("sop-demo", "berlin"), ("other", "test-town"), ("mine", "berlin") })
+            {
+                Directory.CreateDirectory(Path.Combine(AssetRoots.ScenariosRecipesRoot, name));
+                File.WriteAllText(Path.Combine(AssetRoots.ScenariosRecipesRoot, name, "scenario.json"), "{\"header\":{\"terrainName\":\"" + on + "\"},\"entities\":{}}");
+            }
+            Assert.Equal(new[] { "mine", "sop-demo" }, ScenarioPaneFacts.RecipesOn("berlin").OrderBy(n => n, StringComparer.Ordinal));
+            Assert.Empty(ScenarioPaneFacts.RecipesOn("basic-desert"));
+        }
+        finally { AssetRoots.Configure(saved); try { Directory.Delete(root, true); } catch { } }
+    }
+
     [Fact]
     public void CE4141_OpenAndGoLive_RoutesToTheRunChoice_AndOpenStaysTheRouter()
     {
