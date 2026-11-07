@@ -2305,6 +2305,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //   nothing here either — so this stays null. ⚠ NOT the same thing as the scenario SESSION
             //   seams below, which is what CE-046 supplies.
             saveScenario:  null,
+            openSaveAsBrowser: (req, onChosen) => _saveAsBrowser?.Open(req, onChosen),   // ⭐ B-9 N3 — "Save … as Recipe…" asks Replace? through the browser
             // ⚠ Save-As needs a modal browser this host does not compose. ⛔ It must still be a
             //   NO-OP-WITH-A-REASON rather than a crash: the shared command is registered either way,
             //   and a headless node reaching it says so instead of throwing.

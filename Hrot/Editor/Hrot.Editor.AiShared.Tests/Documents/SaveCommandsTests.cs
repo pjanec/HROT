@@ -640,6 +640,7 @@ public sealed class SaveCommandsTests
     /// ⭐ CE-1443 B2 (AQ108 §2.15) — <i>Save BTree 'x' as Recipe…</i> writes the focused document into its kind's recipes folder (<see cref="Hrot.Editor.AiShared.Recipes.RecipeFiles"/>,
     /// the one lister New BTree reads), never over an existing recipe, and does NOT mark the document clean (its own file was not saved). Not offered for a kind with no recipe writer.
     /// 🔴 Mutation: <c>RecipeFiles.PathFor</c> without the "(n)" loop ⇒ the second save overwrites ⇒ red.
+    /// ⭐ B-9 N3 — this is the rule of a host with NO Save-As browser (no <c>openSaveAsBrowser</c> seam): it keeps the fork. Both real hosts pass the browser — see <c>N3_SaveAsRecipe_ThroughTheBrowser_…</c>.
     /// </summary>
     [Fact]
     public void CE1443_B2_SaveAsRecipe_WritesIntoTheKindsRecipes_NeverOverAnExistingOne_AndNamesIt()
@@ -676,6 +677,65 @@ public sealed class SaveCommandsTests
             ShellSaveCommands.Register(register: RecordingRegister(d2, a2), docManager: mgr, saveBlueprint: null, saveBTree: null, saveHsm: null, saveScenario: null,
                                        requestSaveAs: _ => { }, report: null, resolveActiveDocument: () => hsm);
             Assert.False(FindDescriptor(d2, ShellSaveCommands.SaveAsRecipeId).IsEnabled());   // no HSM writer on this host ⇒ not offered
+        }
+        finally
+        {
+            AssetRoots.Configure(saved);
+            if (System.IO.Directory.Exists(root)) System.IO.Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ B-9 N3 (docs/UX/DESIGN_New_Scenario_And_Recipe.md: "updating a recipe = a plain Save As over its name") — with a Save-As browser the recipe save is that
+    /// browser: a NEW name never asks (<c>NameExists</c> false) and writes exactly <c>name.&lt;ext&gt;</c>; an existing recipe's name asks Replace? (<c>NameExists</c> true) and,
+    /// once confirmed, is written OVER — one file, no <i>name (2)</i> fork; a cancelled browser writes nothing. Same for a BTree and a Blueprint.
+    /// ✅ Red-proof: <c>ExactPathFor</c> replaced by <c>PathFor</c> in the handler ⇒ the second save forks ⇒ red; <c>NameExists</c> always false ⇒ the Replace? arm is red.
+    /// </summary>
+    [Theory]
+    [InlineData(AssetKind.BTree)]
+    [InlineData(AssetKind.Blueprint)]
+    public void N3_SaveAsRecipe_ThroughTheBrowser_ReplacesAnExistingRecipe_AfterOneConfirmation_AndNeverForks(AssetKind kind)
+    {
+        var root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "n3recipes_" + Guid.NewGuid().ToString("N"));
+        var saved = AssetRoots.ConfiguredRoot;
+        System.IO.Directory.CreateDirectory(root);
+        AssetRoots.Configure(root);
+        try
+        {
+            var mgr = MakeManager();
+            var doc = mgr.Open(new FakeAsset(kind, "Patrol", "/fake/patrol"));
+            var (descriptors, actions) = MakeRecordingRegister();
+            int version = 0;
+            NodeEditor.UI.Dialogs.SaveAsRequest? lastRequest = null;
+            Action<NodeEditor.UI.Dialogs.SaveAsResult>? answer = null;
+            SaveAllAiDocumentsCommand.SaveDelegate write = (a, path) => { System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!); System.IO.File.WriteAllText(path, "v" + (++version)); };
+            ShellSaveCommands.Register(
+                register: RecordingRegister(descriptors, actions), docManager: mgr,
+                saveBlueprint: null, saveHsm: null, saveScenario: null, requestSaveAs: _ => { }, report: null,
+                saveBTree: kind == AssetKind.BTree ? write : null,
+                saveBlueprintRecipe: kind == AssetKind.Blueprint ? write : null,
+                resolveActiveDocument: () => doc,
+                openSaveAsBrowser: (req, cb) => { lastRequest = req; answer = cb; });
+
+            // a NEW name: no Replace?, written at exactly that path
+            InvokeAction(descriptors, actions, ShellSaveCommands.SaveAsRecipeId);
+            Assert.False(lastRequest!.NameExists!("Patrol", ""));
+            answer!(new NodeEditor.UI.Dialogs.SaveAsResult(true, "Patrol", "", false));
+            var file = Hrot.Editor.AiShared.Recipes.RecipeFiles.ExactPathFor(kind, "Patrol");
+            Assert.Equal("v1", System.IO.File.ReadAllText(file));
+
+            // the same name again: the browser asks Replace?; confirmed ⇒ replaced in place
+            InvokeAction(descriptors, actions, ShellSaveCommands.SaveAsRecipeId);
+            Assert.True(lastRequest!.NameExists!("Patrol", ""));
+            Assert.Contains("Patrol", lastRequest.GetFolderContents!("").Select(i => i.Name));
+            answer!(new NodeEditor.UI.Dialogs.SaveAsResult(true, "Patrol", "", true));
+            Assert.Equal("v2", System.IO.File.ReadAllText(file));
+            Assert.Single(Hrot.Editor.AiShared.Recipes.RecipeFiles.Files(kind));   // no "Patrol (2)"
+
+            // cancelled ⇒ nothing written
+            InvokeAction(descriptors, actions, ShellSaveCommands.SaveAsRecipeId);
+            answer!(new NodeEditor.UI.Dialogs.SaveAsResult(false, "Patrol", "", false));
+            Assert.Equal(2, version);
         }
         finally
         {

@@ -684,6 +684,129 @@ public sealed class SaveAsDialogTests
         }
     }
 
+    // ── ⭐ B-9 N3 — Replace? answered in the browser ⇒ the exact-path refusal steps aside ─────────────
+
+    /// <summary>
+    /// ⭐ B-9 N3 — a BTree Save-As over an EXISTING file, after the user confirmed Replace? (<see cref="SaveAsDialog.Overwrite"/>), writes over it with a fresh
+    /// AssetId; without the flag the same call is still refused. ✅ Red-proof: the <c>!Overwrite &amp;&amp;</c> guard removed from the File.Exists refusal ⇒ the refused arm is red;
+    /// the refusal kept unconditional ⇒ the replaced arm is red.
+    /// </summary>
+    [Fact]
+    public void N3_BTree_SaveAsOverAnExistingFile_IsReplaced_OnlyAfterTheUserConfirmed()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"N3_BT_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+        try
+        {
+            var existing = CreateSourceBTreeAsset(tempRoot, "Existing");
+            var targetPath = Path.Combine(tempRoot, "Existing.btree.json");
+            var before = File.ReadAllText(targetPath);
+            var source = CreateSourceBTreeAsset(tempRoot, "Source");
+            var svc = new BTreeNewAssetService(tempRoot);
+
+            var asked = MakeDialog(source, svc, fileLister: _ => new[] { targetPath }, assetRootOverride: tempRoot);
+            asked.Name = "Existing";
+            Assert.False(asked.Confirm().IsSuccess);                      // nobody confirmed Replace?: still refused
+            Assert.Equal(before, File.ReadAllText(targetPath));
+
+            var confirmed = MakeDialog(source, svc, fileLister: _ => new[] { targetPath }, assetRootOverride: tempRoot);
+            confirmed.Name = "Existing";
+            confirmed.Overwrite = true;
+            var result = confirmed.Confirm();
+            Assert.True(result.IsSuccess, result.Error ?? "Expected success");
+            Assert.NotEqual(before, File.ReadAllText(targetPath));        // written over (a fresh AssetId)
+            Assert.NotEqual(existing.AssetId, result.Asset!.AssetId);
+        }
+        finally { try { Directory.Delete(tempRoot, recursive: true); } catch { /* best-effort */ } }
+    }
+
+    /// <summary>⭐ B-9 N3 — the same for a Blueprint (mint-only: the dialog's save delegate writes the path) and an HSM: Replace? confirmed ⇒ saved to the existing path; not confirmed ⇒ refused.
+    /// ✅ Red-proof: as above.</summary>
+    [Theory]
+    [InlineData(AssetKind.Blueprint, "Taken.bp.json")]
+    [InlineData(AssetKind.Hsm, "Taken.hsm.json")]
+    public void N3_BlueprintAndHsm_SaveAsOverAnExistingFile_IsReplaced_OnlyAfterTheUserConfirmed(AssetKind kind, string file)
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"N3_{kind}_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+        try
+        {
+            var targetPath = Path.Combine(tempRoot, file);
+            File.WriteAllText(targetPath, "old");
+            var source = new FakeAsset { AssetId = Guid.NewGuid(), Name = "Source", Kind = kind };
+            var service = new FakeNewAssetService(kind);
+            string? savedTo = null;
+
+            var refused = MakeDialog(source, service, fileLister: _ => new[] { targetPath }, saveMintAsset: (_, p) => savedTo = p, assetRootOverride: tempRoot);
+            refused.Name = "Taken";
+            Assert.Contains("already exists", refused.Confirm().Error!);
+            Assert.Null(savedTo);
+
+            var confirmed = MakeDialog(source, service, fileLister: _ => new[] { targetPath }, saveMintAsset: (_, p) => savedTo = p, assetRootOverride: tempRoot);
+            confirmed.Name = "Taken";
+            confirmed.Overwrite = true;
+            Assert.True(confirmed.Confirm().IsSuccess);
+            if (kind == AssetKind.Blueprint) Assert.Equal(targetPath, savedTo);   // the mint-only kinds are saved by the dialog; BTree / HSM by their service
+            Assert.Equal(1, service.CreateCallCount);
+        }
+        finally { try { Directory.Delete(tempRoot, recursive: true); } catch { /* best-effort */ } }
+    }
+
+    /// <summary>⭐ B-9 N3 — Overwrite does NOT lift the D5 CS↔JSON base-name guard: a Replace? over <c>Foo.bp.json</c> is still refused while <c>Foo.cs</c> sits beside it.
+    /// ✅ Red-proof: the guard skipped when Overwrite ⇒ red.</summary>
+    [Fact]
+    public void N3_Overwrite_DoesNotLiftTheD5BaseNameGuard()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"N3_D5_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+        try
+        {
+            var json = Path.Combine(tempRoot, "Foo.bp.json"); var cs = Path.Combine(tempRoot, "Foo.cs");
+            File.WriteAllText(json, "old"); File.WriteAllText(cs, "// x");
+            var dialog = MakeDialog(new FakeAsset { AssetId = Guid.NewGuid(), Name = "Source", Kind = AssetKind.Blueprint }, new FakeNewAssetService(AssetKind.Blueprint),
+                fileLister: _ => new[] { json, cs }, assetRootOverride: tempRoot);
+            dialog.Name = "Foo";
+            dialog.Overwrite = true;
+            var result = dialog.Confirm();
+            Assert.False(result.IsSuccess);
+            Assert.Contains("D5", result.Error!);
+        }
+        finally { try { Directory.Delete(tempRoot, recursive: true); } catch { /* best-effort */ } }
+    }
+
+    /// <summary>
+    /// ⭐ B-9 N3 ③ — a SCENARIO Save-As needs no <c>Overwrite</c> plumbing: the browser's request says <c>NameExists</c> for a scenario already in the catalog (so it asks Replace? once)
+    /// and for a new name does not; the dialog's scenario arm has no file refusal and saves under the chosen name either way. ✅ Red-proof: the scenario arm given the File.Exists refusal ⇒ red.
+    /// </summary>
+    [Fact]
+    public void N3_ScenarioSaveAs_AsksOnlyForAnExistingName_AndSavesOverIt()
+    {
+        var existing = new FakeAsset { AssetId = Guid.NewGuid(), Name = "Alpha", Kind = AssetKind.Scenario };
+        var catalog = new StubCatalog(existing);
+        var request = AssetSaveAsRequests.Build(catalog, AssetKind.Scenario, "Save Scenario As", "Alpha", "", "Save", new FolderPickerState(Array.Empty<string>()));
+        Assert.True(request.NameExists!("Alpha", ""));
+        Assert.False(request.NameExists!("Beta", ""));
+
+        var saved = new List<string>();
+        var dialog = MakeDialog(existing, new FakeNewAssetService(AssetKind.Scenario), saveScenarioAs: saved.Add);
+        dialog.Name = "Alpha";
+        Assert.True(dialog.Confirm().IsSuccess);
+        Assert.Equal(new[] { "Alpha" }, saved);
+    }
+
+    private sealed class StubCatalog : Hrot.Editor.AiShared.Catalog.IAssetCatalog
+    {
+        private readonly IReadOnlyList<IEditableAsset> _all;
+        public StubCatalog(params IEditableAsset[] all) => _all = all;
+        public IReadOnlyList<IEditableAsset> All => _all;
+        public IEditableAsset? FindByAssetId(Guid assetId) => _all.FirstOrDefault(a => a.AssetId == assetId);
+        public IEditableAsset? FindByName(string name) => _all.FirstOrDefault(a => a.Name == name);
+        public IReadOnlyList<IEditableAsset> WhereDependsOn(Guid assetId) => Array.Empty<IEditableAsset>();
+#pragma warning disable CS0067
+        public event Action<AssetKind>? Changed;
+#pragma warning restore CS0067
+    }
+
     // ── Test infrastructure helpers ───────────────────────────────────────
 
     private static (List<EditorCommandDescriptor> descriptors,

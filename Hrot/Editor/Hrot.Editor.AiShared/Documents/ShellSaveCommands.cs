@@ -127,7 +127,8 @@ public static class ShellSaveCommands
         Action?                                                   requestScenarioSaveAs = null,
         Func<string?>?                                            scenarioName = null,
         Func<AiDocument?>?                                        resolveActiveDocument = null,
-        SaveAllAiDocumentsCommand.SaveDelegate?                   saveBlueprintRecipe = null)
+        SaveAllAiDocumentsCommand.SaveDelegate?                   saveBlueprintRecipe = null,
+        Action<NodeEditor.UI.Dialogs.SaveAsRequest, Action<NodeEditor.UI.Dialogs.SaveAsResult>>? openSaveAsBrowser = null)
     {
         if (register       is null) throw new ArgumentNullException(nameof(register));
         if (docManager     is null) throw new ArgumentNullException(nameof(docManager));
@@ -259,6 +260,21 @@ public static class ShellSaveCommands
             _ =>
             {
                 if (isScenarioContext?.Invoke() == true || Target() is not { } doc || doc.IsReadOnly || RecipeWriter(doc.Kind) is not { } write) return;
+                // ⭐ B-9 N3 — with a Save-As browser the user names the recipe and is asked Replace? when it exists; the file is EXACTLY the chosen path (no "name (2)" fork).
+                //   A host that cannot show the browser keeps the old behaviour (a new file, forked when the name is taken).
+                if (openSaveAsBrowser != null)
+                {
+                    var asset = doc.Asset; var kind = doc.Kind;
+                    openSaveAsBrowser(Recipes.RecipeFiles.SaveAsRequest(kind, SaveLabels.For("Save", doc) + " as Recipe", asset.Name), result =>
+                    {
+                        if (!result.Confirmed) return;
+                        var chosen = Recipes.RecipeFiles.ExactPathFor(kind, result.Name);
+                        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(chosen)!);
+                        write(asset, chosen);
+                        report?.Invoke($"[OK] Saved {SaveLabels.KindName(kind)} recipe '{System.IO.Path.GetFileName(chosen)}'.");
+                    });
+                    return;
+                }
                 var path = Recipes.RecipeFiles.PathFor(doc.Kind, doc.Asset.Name);
                 write(doc.Asset, path);
                 report?.Invoke($"[OK] Saved {SaveLabels.KindName(doc.Kind)} recipe '{System.IO.Path.GetFileName(path)}'.");

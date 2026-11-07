@@ -3923,6 +3923,7 @@ namespace Hrot.Editor
                 saveBTree:         saveBTreeDelegate,
                 saveHsm:           saveHsmDelegate,
                 saveScenario:      null, // Scenario saved via IEditorLogic, not file delegate
+                openSaveAsBrowser: (req, onChosen) => _saveAsBrowser?.Open(req, onChosen),   // ⭐ B-9 N3 — "Save … as Recipe…" asks Replace? through the same browser (assigned later, hence the lambda)
                 requestSaveAs:     doc =>
                 {
                     // BATCH-43 (MTB2-T8b): open the SaveAsBrowserDialog;
@@ -3950,6 +3951,7 @@ namespace Hrot.Editor
 
                         dialog.Name = result.Name;
                         dialog.FolderPicker.SelectedRelPath = result.DestinationPath;
+                        dialog.Overwrite = result.Overwrite;   // ⭐ B-9 N3 — the browser already asked Replace?
                         var r = dialog.Confirm();
                         _saveAllStatus = r.IsSuccess
                             ? $"[OK] Saved as '{result.Name}'."
