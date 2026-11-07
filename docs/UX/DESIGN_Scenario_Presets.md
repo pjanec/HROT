@@ -210,7 +210,7 @@ row model (it already serves three hosts and the declaration table), with the DT
 | **D11** | the armed preset is remembered | ⭐ per scenario, per mode, in the editor's user settings (persisted) | ⭐ fixes the session-only `LastRunSetupOf` gap (the picker's mockup promised *"Remembered for this scenario"*). ⛔ not in the scenario file — it is a person's choice, not the scenario's |
 | **D12** | a field bound to a parameter, edited in the world | ⭐ unchanged (the literal is edited, the binding wins on load) — the chip's tooltip says *"from parameter `speed` — set its value in Parameters"* | ⚠ measured, not changed here |
 
-## 7. The work
+## 7. The work *(split 2026-11-07 into CE-3375 data · CE-3388 load · CE-3389 CanSave · CE-3390 HTTP · CE-3391 preset editor · CE-3392 load dialog · CE-3393 split ▶ · CE-3394 glyphs — the coordinator assigns lanes: `batches/NOTE_Backend_To_Coordinator_Presets_And_Struct_Editor.md`)*
 
 | item | lane | what | depends on |
 |---|---|---|---|

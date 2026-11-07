@@ -156,7 +156,7 @@ form (`[JsonText]`, CE-4295) is the FILE's text, not the cell's — Parse/Format
 | **S11** | layout | ⭐ the table IS FormGrid's label-first column (one label width, the slate headers, chevron · icon · label) | reconciles UI Conventions C4 |
 | **S12** | where the code lives | ⭐ model + list ops + declared builder in **StructEdit.Core** (generic, network-free); table + catalogue in **Fdp.Presentation**; domain types (AI pickers, action lists, predicates) registered from Hrot | AQ21 D-p, R-4127: StructEdit references no host code |
 
-## 7. The build order — each step keeps its hosts' frame rails green
+## 7. The build order — each step keeps its hosts' frame rails green *(tracked: step 0 CE-3377 · 1 CE-3378 · 2 CE-3379 · 3 CE-3380 · 4 CE-3381 · 5 CE-3382 · 6 CE-3383 · 7 CE-3384 · entity forms CE-3385 · inspector CE-3386 · field words CE-3387)*
 
 | step | what | proves it |
 |---|---|---|
