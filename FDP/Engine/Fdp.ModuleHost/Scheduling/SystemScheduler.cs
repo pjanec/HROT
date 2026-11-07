@@ -30,6 +30,20 @@ namespace Fdp.ModuleHost.Scheduling
         /// <summary>⭐ Node Features F-13 — what a [NodeFeature] system is asked against. Set by the kernel before systems register.</summary>
         public IFeatureGate? FeatureGate { get; set; }
 
+        /// <summary>
+        /// ⭐ CE-4294 — a system's FIRST SIGHT: its <see cref="TickPolicy"/> and its feature, read TOGETHER, by every path that can see a
+        /// system first (registration, the step-reader walk into groups, a first run). Before this, the step-reader walk recorded the
+        /// policy alone; it walks group members before they first run, so a member's <c>[NodeFeature]</c> was never read and a
+        /// switched-off feature never stopped it. Returns the policy.
+        /// </summary>
+        private TickPolicy FirstSight(IEcsModuleSystem system, Type? ownerModule)
+        {
+            if (_tickPolicies.TryGetValue(system, out var policy)) return policy;
+            _tickPolicies[system] = policy = TickModes.OfSystem(system.GetType());
+            ReadFeature(system, ownerModule);
+            return policy;
+        }
+
         private void ReadFeature(IEcsModuleSystem system, Type? ownerModule)
         {
             var attr = (NodeFeatureAttribute?)Attribute.GetCustomAttribute(system.GetType(), typeof(NodeFeatureAttribute), inherit: true)
@@ -79,8 +93,7 @@ namespace Fdp.ModuleHost.Scheduling
                 foreach (var member in group.GetSystems()) RegisterStepReader(member, history);
                 return;
             }
-            if (!_tickPolicies.TryGetValue(system, out var policy))
-                _tickPolicies[system] = policy = TickModes.OfSystem(system.GetType());
+            var policy = FirstSight(system, null);   // ⭐ CE-4294 — the feature too, not the policy alone
             if (policy != TickPolicy.WhenTimeAdvances) return;
             if (_eventReaders.TryGetValue(system, out var have) && ReferenceEquals(have.History, history)) return;
             _eventReaders[system] = new EventReader(history);
@@ -233,10 +246,7 @@ namespace Fdp.ModuleHost.Scheduling
         internal void ExecuteSystem(IEcsModuleSystem system, ISimulationView view, float deltaTime, bool advancing, bool moduleGoverns)
         {
             if (!_tickPolicies.TryGetValue(system, out var policy))
-            {
-                _tickPolicies[system] = policy = TickModes.OfSystem(system.GetType());   // CE-3293: first sight of a system registered no other way
-                ReadFeature(system, null);
-            }
+                policy = FirstSight(system, null);   // CE-3293: first sight of a system registered no other way (CE-4294: one helper)
 
             // ⭐ F-13 — a system of a feature that is off is skipped, like a paused WhenTimeAdvances system.
             if (!_featureOf.IsEmpty && _featureOf.TryGetValue(system, out var featureHandle) && !FeatureGate!.On(featureHandle)) return;

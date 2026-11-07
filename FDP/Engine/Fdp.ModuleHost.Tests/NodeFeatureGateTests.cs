@@ -91,4 +91,56 @@ public sealed class NodeFeatureGateTests
         Assert.Throws<InvalidOperationException>(() => new SystemScheduler { FeatureGate = gate }.RegisterSystem(new Undeclared()));
         Assert.Throws<InvalidOperationException>(() => new SystemScheduler().RegisterSystem(new Featured()));
     }
+    // ⭐ CE-4294 — a [NodeFeature] system INSIDE a group. The kernel walks every group's members for their step readers before the
+    //   first frame (RegisterStepReaders); that walk used to record a member's tick policy alone, so its feature was never read.
+
+    [UpdateInPhase(SystemPhase.Simulation)]
+    private sealed class Group : ISystemGroup
+    {
+        private readonly IEcsModuleSystem[] _members;
+        public Group(params IEcsModuleSystem[] members) => _members = members;
+        public string Name => "group";
+        public IReadOnlyList<IEcsModuleSystem> GetSystems() => _members;
+        public void Execute(ISimulationView view, float deltaTime) { }
+    }
+
+    [UpdateInPhase(SystemPhase.Simulation), TickMode(TickPolicy.WhenTimeAdvances), NodeFeature("hud.x")]
+    private sealed class FeaturedStep : IEcsModuleSystem
+    {
+        public int Runs;
+        public void Execute(ISimulationView view, float deltaTime) => Runs++;
+    }
+
+    [Theory]
+    [InlineData(true)]    // the kernel's order: step readers registered before the first frame
+    [InlineData(false)]   // no step readers: the member is first seen at its first run
+    public void CE4294_AFeatureSystemInsideAGroup_IsSkippedWhileOff_AndRunsWhenOn(bool stepReadersFirst)
+    {
+        // FdpConfig.TickModeGate is ON by default (FdpConfig.cs:138); with it off the step-reader walk is skipped and only the
+        // first-run path is exercised - both rows still hold.
+        {
+            var gate = new Gate(); gate.State["hud.x"] = false;
+            var sch = new SystemScheduler { FeatureGate = gate };
+            var every = new Featured(); var step = new FeaturedStep(); var plain = new Plain();
+            sch.RegisterSystem(new Group(every, step, plain));
+            if (stepReadersFirst) sch.RegisterStepReaders(new EventAccumulator());
+            Run(sch, every);
+            Assert.Equal(0, every.Runs); Assert.Equal(0, step.Runs); Assert.Equal(1, plain.Runs);
+            gate.State["hud.x"] = true;
+            Run(sch, every);
+            Assert.Equal(1, every.Runs); Assert.Equal(1, step.Runs); Assert.Equal(2, plain.Runs);
+            gate.State["hud.x"] = false;
+            Run(sch, every);
+            Assert.Equal(1, every.Runs); Assert.Equal(1, step.Runs); Assert.Equal(3, plain.Runs);
+        }
+    }
+
+    [Fact]
+    public void CE4294_AnUndeclaredFeatureInsideAGroup_ThrowsBeforeTheFirstFrame()
+    {
+        if (!FdpConfig.TickModeGate) return;   // only under FDP_TICKMODE_GATE=0 (a bisect): the step-reader walk does not run at all
+        var sch = new SystemScheduler { FeatureGate = new Gate() };
+        sch.RegisterSystem(new Group(new Plain(), new Undeclared()));
+        Assert.Throws<InvalidOperationException>(() => sch.RegisterStepReaders(new EventAccumulator()));
+    }
 }
