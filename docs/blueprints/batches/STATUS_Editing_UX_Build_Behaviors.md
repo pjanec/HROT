@@ -17,7 +17,7 @@ Started at `6d361486a` (merged coordinator; then backend `1dfb2d2d9`, ui `e713ec
 | item | state | sha | notes |
 |---|---|---|---|
 | L-3 CE-4322 | started (behaviors) | — | End exercise always works for Instructor / Author |
-| L-4 CE-4312 | started (behaviors) | — | numbered unit names by type and side |
+| L-4 CE-4312 | DONE by backend | — | not ours: backend built it (`EntityNames.Next`, their status row) before this claim — claim withdrawn |
 | L-5 CE-4321 | started (behaviors) | — | ⏪ Review button; the Player's REVIEW banner |
 | RX6 (LC-7) | DONE | V-4 | + Add shows the gallery first; every kind under More… |
 
