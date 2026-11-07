@@ -52,7 +52,7 @@
 
 | # | id | state | sha | notes |
 |---|---|---|---|---|
-| L-1 | CE-4315 | started (ui) | — | Preview's status note + Save refused with the same reason |
+| L-1 | CE-4315 | ✅ DONE | (this commit) | the Preview note *"Preview — changes are thrown away on Stop"* (`RunNoteStatusBarSection.PreviewText`); a Save in Preview refused with that same reason (`RunModeChoice.TryCheckpointInsteadOfSave`). R-4166 corrects R-4162 (a checkpoint is Live only) ⇒ the Preview-checkpoint note to backend WITHDRAWN. Gate: Presentation.Tests CE4097/CE4250/TheOneTimeFacade/RunModeChoice 117/117 (+2 skip) |
 | L-2 | CE-4320 | started (ui) | — | the RulesBundle opens Mission summary at Live start / exercise end on every host; the Player's Trainee debrief at the end |
 | L-10 | CE-4317 | started (ui) | — | the Run setup on the mode menu, Preview AND Live |
 | L-11 | CE-4319 | started (ui) | — | ▶ in its mode's colour |

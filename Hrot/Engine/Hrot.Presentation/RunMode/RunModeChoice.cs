@@ -367,7 +367,7 @@ public sealed class RunModeChoice
     private bool TryCheckpointInsteadOfSave()
     {
         // ⭐ CE-4250 (ui half) — a Preview runs a COPY of the edit world (Stop restores the authored one): saving then would serialise the previewed world (spawned entities, a unit's target memory pointing at one — it killed the editor). Not saved, and it says why
-        if (_transport.Mode == TransportMode.Preview) { Notify("Not saved: stop the preview to save"); return true; }
+        if (_transport.Mode == TransportMode.Preview) { Notify("Not saved: " + Hrot.UI.Common.Panels.RunNoteStatusBarSection.PreviewText); return true; }   // ⭐ L-1 (R-4166): the status bar's own reason; a checkpoint is Live only
         if (_transport.Mode is not (TransportMode.Live or TransportMode.Review or TransportMode.Replay)) return false;
         TakeCheckpoint();
         return true;

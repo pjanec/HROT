@@ -795,16 +795,16 @@ public class MainToolbarTimeControlTests
 
     /// <summary>⭐ D11 — the status-bar note shows while a Preview or a Live run goes, and only then.</summary>
     [Theory]
-    [InlineData(TransportMode.Preview, true)]
-    [InlineData(TransportMode.Live, true)]
-    [InlineData(TransportMode.Edit, false)]
-    [InlineData(TransportMode.Idle, false)]
-    [InlineData(TransportMode.Review, false)]
-    [InlineData(TransportMode.Replay, false)]
-    public void CE4097_TheStatusBarNote_ShowsWhileAPreviewOrLiveRunGoes(TransportMode mode, bool shown)
+    [InlineData(TransportMode.Preview, "Preview — changes are thrown away on Stop")]   // ⭐ L-1 (LC-8, R-4166): a Preview keeps nothing
+    [InlineData(TransportMode.Live, "Running — edits are not saved unless you save")]
+    [InlineData(TransportMode.Edit, null)]
+    [InlineData(TransportMode.Idle, null)]
+    [InlineData(TransportMode.Review, null)]
+    [InlineData(TransportMode.Replay, null)]
+    public void CE4097_TheStatusBarNote_ShowsWhileAPreviewOrLiveRunGoes(TransportMode mode, string? expected)
     {
         var note = new RunNoteStatusBarSection(new FakeTimeTransportFacade { Mode = mode }).NoteNow();
-        Assert.Equal(shown ? "Running — edits are not saved unless you save" : null, note);
+        Assert.Equal(expected, note);
     }
 
     /// <summary>The draw with a pending confirmation and a toast does not throw (the modal and the note render headless).</summary>
