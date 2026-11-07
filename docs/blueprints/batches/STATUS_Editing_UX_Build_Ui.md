@@ -41,7 +41,7 @@
 | # | item | state | sha | notes |
 |---|---|---|---|---|
 | 1 | A3 corrections (R-4162) | ✅ (Save in Preview: backend) | (this commit) | Rotate Edit + Live; *Save selection as macro…* Edit only; goldens regenerated (only those rows moved). Save measured: Edit writes, Live checkpoints, a recording refuses ✅; ⚠ Preview refuses instead of checkpointing — [NOTE_Ui_To_Backend_Preview_Checkpoint](NOTE_Ui_To_Backend_Preview_Checkpoint.md) |
-| 2 | P-7 (CE-4303) Orders tab | 🔨 CLAIMED by ui | — | the Orders tab replaces `MissionPanel` (built on backend P-1…P-4) |
+| 2 | P-7 (CE-4303) Orders tab | 🔨 7a ✅ · 7b–7d next | `c7139739e` (plan, design §5.11) · (this commit) 7a | ⭐ **7a:** `Hrot.Editor.AiShared.Shell.OrdersPlanModel` (a plan as sentences, the queue's state) + `OrdersTab` (`details.orders`, rank 32, Jump / Stop) on the ONE Details bundle via `EntityDetailsHostServices.Missions` — passed by Editor and CGF. Read-only: the three `MissionPanel`s still edit until 7d |
 | 3 | A4 selection rules | ⏳ | — | |
 | 4 | B-16 seats H2–H4 | ⏳ | — | |
 | 5 | B-10 rest K2, K3, K7 | ⏳ | — | |
