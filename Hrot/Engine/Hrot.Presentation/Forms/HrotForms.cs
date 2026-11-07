@@ -549,14 +549,8 @@ public static class HrotForms
     private static string? _terrainName;
     private static FixedString64 _terrainText;
 
-    /// <summary>⭐ N4 — the loaded terrain's name (<c>TerrainDefinition.ResolvedName</c>, else the asset's own <c>Name</c>), or null when none is loaded.</summary>
-    public static string? TerrainNameOf(EntityRepository w)
-    {
-        if (!w.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainDefinition>()) return null;
-        var d = w.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainDefinition>();
-        if (d is null) return null;
-        return !string.IsNullOrEmpty(d.ResolvedName) ? d.ResolvedName : string.IsNullOrEmpty(d.Name) ? null : d.Name;
-    }
+    /// <summary>⭐ N4 — the loaded terrain's name: the ONE reader, <see cref="Fdp.Toolkit.Terrain.TerrainDefinition.LoadedName"/> (the window title uses it too).</summary>
+    public static string? TerrainNameOf(EntityRepository w) => Fdp.Toolkit.Terrain.TerrainDefinition.LoadedName(w);
 
     private static bool HasTerrain(EntityRepository w, Entity e) => TerrainNameOf(w) != null;
 

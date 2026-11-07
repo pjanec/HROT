@@ -27,6 +27,17 @@ namespace Fdp.Toolkit.Terrain
     [ComponentId(GlobalComponentIds.TerrainDefinition)]
     public sealed class TerrainDefinition
     {
+        /// <summary>
+        /// ⭐ New scenario N4 (📄 docs/UX/DESIGN_New_Scenario_And_Recipe.md §4, R-4124) — the loaded terrain's name as a person reads it (the Scenario
+        /// form's Terrain row, the window title): <see cref="ResolvedName"/>, else the asset's own <see cref="Name"/>; null when no terrain is loaded.
+        /// ONE reader for every surface. Allocates nothing.
+        /// </summary>
+        public static string? LoadedName(EntityRepository world)
+        {
+            if (!world.HasSingletonManaged<TerrainDefinition>() || world.GetSingletonManaged<TerrainDefinition>() is not { } d) return null;
+            return !string.IsNullOrEmpty(d.ResolvedName) ? d.ResolvedName : string.IsNullOrEmpty(d.Name) ? null : d.Name;
+        }
+
         /// <summary>The schema version this code writes and understands.</summary>
         public const int CurrentSchemaVersion = 2;
 

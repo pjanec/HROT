@@ -2759,7 +2759,7 @@ namespace Hrot.Editor
         }
 
         /// <summary>⭐ CE-1290 — the loaded scenario's name, for the window title (null after New / clear).</summary>
-        public string? WindowTitleDetail => EditorWindowTitle.Detail(_editorLogic?.LoadedScenarioName);   // ⭐ CE-4210 MA-6 — "Macro: <path>"
+        public string? WindowTitleDetail => EditorWindowTitle.Detail(_editorLogic?.LoadedScenarioName, _world is { } w ? Fdp.Toolkit.Terrain.TerrainDefinition.LoadedName(w) : null);   // ⭐ CE-4210 MA-6 — "Macro: <path>" · N4 the terrain
 
         /// <inheritdoc/>
         /// <remarks>

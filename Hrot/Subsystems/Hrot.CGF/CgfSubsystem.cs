@@ -79,7 +79,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     Hrot.UI.Common.RunMode.IProvidesRunControls
 {
     /// <summary>⭐ CE-1290 — the loaded scenario's name, for the window title (null after New / clear).</summary>
-    public string? WindowTitleDetail => _scenarioSession?.LoadedScenarioName;
+    /// ⭐ The ONE title rule (<see cref="Hrot.Common.Scenarios.ScenarioWindowTitle"/>, shared with the editor): a macro's path, N4 the terrain.
+    public string? WindowTitleDetail => Hrot.Common.Scenarios.ScenarioWindowTitle.Detail(_scenarioSession?.LoadedScenarioName,
+        _context?.World is { } w ? Fdp.Toolkit.Terrain.TerrainDefinition.LoadedName(w) : null);
 
     /// <summary>⭐ CE-515 — this node's entity-creation pack (null until initialised).</summary>
     public Hrot.Common.EntityCreation.EntityCreation? EntityCreation { get; private set; }
