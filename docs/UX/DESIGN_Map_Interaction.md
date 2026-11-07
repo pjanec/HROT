@@ -70,7 +70,7 @@ Coverage could not be checked (the CLI has no `check_index_coverage`).
 | nothing displays the armed tool | ✅ `ShowOnToolbar` read by 0 (Map Rendering §4.2, measured `2026-09-19`) | ✅ Tool Model Migration step 5 (open) |
 | a pick can interrupt a drawing and give it back | ✅ `PickerToolHost` → `PushModal` | ✅ Q27-F |
 | airborne spawn needs no wire change | ✅ `SpawnHeightMode.AboveLevel` on `SpawnEntityCommand` and the DDS message (`GenericMessages.cs:197`) | ✅ CE-1017 S2 (D6b) |
-| a fixed-wing placed in the air flies on at cruise | ⚠ **assumed from the design**, not run: `FixedWingModel` "overflies, never stops" (Air Ops §6a) | ✅ Air Ops §6a. ⛔ **CE-4272 must measure it** (stage P3's first step) — if a plane spawned in the air also falls, the fix is in the motion model, not here |
+| a fixed-wing placed in the air flies on at cruise | ✅ **MEASURED `2026-11-07` (behaviors, CE-4272, P3 step ①):** an A-10C (TKB 405) spawned through `POST /entities/spawn` at z = 300 on `test-move` (`--mode all`, live) holds **300 m at 150 m/s with full health for 30 s** (x 72 → 4638 m). ⇒ the motion model is fine; airborne placement IS the fix | ✅ Air Ops §6a |
 | the centre handle moves a whole shape only on some shapes | ⚠ from the user's correction; the measured split: an `EditablePolyline` stores points relative to its entity (ROUTES1 §11), so dragging the entity moves the shape; a `RoutePlan` stores absolute waypoints, so it does not | ROUTES1 §11 |
 | the map's keys are resolved on the backend | ✅ the input design §2.4 (approved R-4132) | ✅ gizmo-input-focus-design |
 
@@ -302,6 +302,16 @@ toolkit undo stack, which nothing calls and which this design does not revive.
 | **P7** | the gizmo look review (§2.6), approved by the user before it is built | ui | the frame rails under `xvfb-run` |
 
 Order: P1 → P2 → P3 (P3's measurement can start at once) → P4 → P5 → P6 → P7. P2 depends on the action catalogue's first stage (A1),
+
+### ⭐ AS-BUILT — P3 *(behaviors, `2026-11-07`, CE-4309)*
+
+| step | as built |
+|---|---|
+| ① CE-4272 | ✅ **measured live** (`--mode all`, `test-move`): an A-10C spawned at z = 300 holds 300 m at 150 m/s, full health, for 30 s ⇒ the aircraft is fine; the crash was the GROUND start. §1.1's claim row updated |
+| ② `PlacementSession` | `Hrot.Presentation/ScenarioEditor/Gizmos/PlacementSession.cs` — PURE, fed by `EntityPlacementGizmo`. ⭐ **deviation:** "flies" is read from the TKB **flight descriptor** (`FlightParamsDto.HoverHeightM`: 300 m fixed-wing, 30 m helicopter), not `SimVehicleDef.Mobility` — the descriptor carries the height the design wants, and every flying type has one (the type that has no flight descriptor cannot fly in the sim either). Airborne = `AboveLevel(level)` + that height; **Shift** = on the ground. 2-D level: `SurfacesAt` under the cursor; PgUp / PgDn (raylib 266 / 267 — the map streams every key press to a raw-input tool) step it; the hint *"level 0 of 3 · PgUp / PgDn"* / *"airborne 300 m (Shift: on the ground)"* is rebuilt only when a choice moves (0 B steady). A 3-D click keeps its own level (CE-1033). Heading: press, drag ≥ 3 m, release ⇒ placed at the press point facing the drag; a click faces north |
+| ③ Create through `Edits.Submit` | ✅ already built by backend's F2: `ScenarioSpawnAdapter.Request` submits `EditOp.Create` ("Place an entity") |
+
+Rails: `EntityPlacementGizmoTests.CE4309_*` (airborne + Shift, the level choice on a 3-storey stack, the heading drag).
 because the drawing menu reads it.
 
 ## 4. Questions — ✅ all eight APPROVED as leaned (R-4134, user `2026-11-06`: *"Okay, accept it."*)
