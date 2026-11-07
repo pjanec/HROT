@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — for the user (Q1–Q4)
+build-state: READY-TO-BUILD — ✅ Q1–Q4 approved as leaned (R-4159)
 updated: 2026-11-07 (first version — the user: "Storing JSON strings inside a JSON string type seems weird … it reads very badly by human because it's double quoted")
 current-answer: §1 measured · §2 the design · §3 questions
 stale-below: nothing
@@ -89,7 +89,7 @@ graph TD
 | **a value that is not valid JSON** is written as the string it is | never lose an author's text |
 | **the 117 files rewritten once** by loading and saving them through the serializer (a script, one commit) — or left to migrate on their next save (Q2) | a round-trip rail per marked field: string → object → the same string, and old file → load → identical world |
 
-## 3. Questions — leans
+## 3. Questions — ✅ approved (R-4159, user `2026-11-07`: *"Good, let's use this."*)
 
 | # | question | ⭐ lean | rejected |
 |---|---|---|---|

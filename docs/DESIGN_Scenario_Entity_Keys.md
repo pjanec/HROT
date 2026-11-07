@@ -7,6 +7,7 @@ stale-below: nothing — superseded revisions removed 2026-11-01; full history a
 known-rot: none
 known-conflict: none
 related-designs:
+  - UX/DESIGN_Mission_Plan_Editor.md — §5.7: a mission plan's order targets and conditions follow S9′; G1 (Order.* params) and G2 (trigger params) are the load-path gaps it closes
   - blueprints/DESIGN_Map_Picking_Unification.md — §6 F3 (CE-4206): the editor's entity pick writes the picked entity's EntityGuid (Exact), the form S9′ saves
   - docs/DESIGN_Scenario_Macros.md — OWNS scenario macros (the expander, macro files, params + bindings, RefKey scoping); derived GUIDs for macro-made entities (G2) and RefKey scoping are used by the expander
   - docs/DESIGN_Scenario_Rules.md — §9.3 SR-50 asked for this (scenario macros need short, remappable entity keys; SR-45 remaps macro-local ids)

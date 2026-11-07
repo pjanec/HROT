@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — §5 detailed design written 2026-11-07, D1–D9 awaiting the user; then READY-TO-BUILD · top level: ✅ Q1, Q2, Q5, Q6, Q7 approved and Q3, Q4 revised by the user 2026-11-06 (R-4129); the building lanes detail it (R-4123)
-updated: 2026-11-07 (§5.7 storage and compatibility, measured; one unmeasured gate for M5) · 2026-11-07 (D3 / D4 revised by the user's question: every then / give-up is ONE shared condition; old trigger types translated on compile) · 2026-11-07 (§5 detailed design: D1–D9, classes, sequences, module map, the then-picker table, mission-plan-detail-visual.svg) · 2026-11-07 (§1: orders and plan tasks already share one intent channel; M1's engine part is small — measured) · 2026-11-06 (Q3 expert conditions + the rule editor one click from a task; Q4 phases begin on events, time only a no-later-than — R-4129) · 2026-11-06 (first version — coordinator; editing-UX design queue item 3: E11 / D18)
+updated: 2026-11-07 (§5.7 entity references: the GUID / @Key rule exists (S9′); two load-path gaps G1, G2 named) · 2026-11-07 (§5.7 storage and compatibility, measured; one unmeasured gate for M5) · 2026-11-07 (D3 / D4 revised by the user's question: every then / give-up is ONE shared condition; old trigger types translated on compile) · 2026-11-07 (§5 detailed design: D1–D9, classes, sequences, module map, the then-picker table, mission-plan-detail-visual.svg) · 2026-11-07 (§1: orders and plan tasks already share one intent channel; M1's engine part is small — measured) · 2026-11-06 (Q3 expert conditions + the rule editor one click from a task; Q4 phases begin on events, time only a no-later-than — R-4129) · 2026-11-06 (first version — coordinator; editing-UX design queue item 3: E11 / D18)
 current-answer: ⭐ §5 the detailed design (measured; D1–D9 for the user) · §2 the target (wireframe + model) · §3 stages (lanes superseded by §5.5) · §4 questions
 stale-below: nothing
 known-rot: §3 M5's "a task-owned rule evaluated by the rules runner" is SUPERSEDED by §5 D3 (one Condition trigger, the one compiler); §2.2's PhaseBegins leaf and OperationPhase class by §5 D5 / D6 (a phase IS a trigger)
 known-conflict: the code calls a plan's task slot a "phase" (MissionPlanQueue.Phases); this design uses "phase" for the MILITARY phase of an operation (§2.4) — Q6 renames the code's word
 related-designs:
+  - ../DESIGN_Scenario_Entity_Keys.md — OWNS S9′ / S10: a reference in a file is the target's GUID or @Key; §5.7 G1 / G2 close the plan's two load-path gaps
   - ../DESIGN_Readable_Scenario_Json.md — the task params and its then / give-up conditions written as JSON objects on disk, not escaped strings
   - DESIGN_Condition_Editor.md — the editor a task's Advanced condition opens; PhaseBegins is listed there as this design's leaf
   - DESIGN_Rule_Editor_UX.md — where a task's advanced condition goes (New rule… from the task) and the Begin phase action
@@ -271,12 +272,12 @@ rows by each host's bundles. The dashed edge is replication, not a call — the 
 
 | # | what | acceptance |
 |---|---|---|
-| **M1** | D1 + D2: `Order.*` accepted without the warning; the director advances only, the adapter starts every task; D3's translation of the old trigger types into conditions (the director's trigger switch replaced by `PlanConditionCache`) | a plan of `Order.Move` → `Order.Hold` runs on a tank and on a rifleman (each its own class behaviour); no Idle frame between tasks; the 33 scenarios' plan suites unchanged |
+| **M1** | D1 + D2: `Order.*` accepted without the warning; **G1** (an order task's params resolved on load); the director advances only, the adapter starts every task; D3's translation of the old trigger types into conditions (the director's trigger switch replaced by `PlanConditionCache`) | a plan of `Order.Move` → `Order.Hold` runs on a tank and on a rifleman (each its own class behaviour); no Idle frame between tasks; the 33 scenarios' plan suites unchanged |
 | **M1b** | D7: 16 slots + the Roslyn renames | builds; the plan suites unchanged |
 | **M2** | D8: the Orders tab — task rows as sentences, the order form (`OrderMenu.OfferedFor`), the *then* picker (§5.6), *give up after* (D4), progress, Jump / Stop; `MissionPanel` retired | side-by-side with `mission-plan-editor.svg` + `mission-plan-detail-visual.svg` |
 | **M3** | the plan on the map: a numbered marker at each task's first place field (`MapPreviews` shapes by semantic type), the route, drag a marker = edit that field, right-click *Add task ▸* (catalogue actions) | ⏳ action catalogue (B-11) |
 | **M4** | D9: Live Commit, Conflict → Reload / Overwrite, *Add to the plan* | a two-station conflict rail |
-| **M5** | D6: the `TaskFinished` leaf; *Advanced condition…*, *When a rule fires…*, *New rule…* in the picker | a unit waits on another's task 3; 0 B per steady frame |
+| **M5** | D6: the `TaskFinished` leaf; **G2** (the conditions' references resolved on load); *Advanced condition…*, *When a rule fires…*, *New rule…* in the picker | a unit waits on another's task 3; 0 B per steady frame |
 | **M6** | D5: phases — `common.phase` on a trigger, the Rules window's *Phases* group, *Begin now* in Live, *when Phase N begins* in the picker; the Timeline's **Tasks** group (one lane per unit, its tasks as bars, phase triggers' fire times as columns) | a phase begun by the instructor releases two units' waiting tasks |
 
 ### 5.6 The *then* picker — the plain list and what each stores
@@ -320,7 +321,16 @@ group only.*
 | new file → an older build | ⛔ "unknown trigger type" — a newer file, expected |
 | the wire | ✅ the same two strings; a cluster runs one build |
 
-⚠ **Unmeasured — a gate for M1 / M5:** a condition naming ANOTHER unit holds its network id inside the JSON string. Rules keep their conditions
-the same way (`BehaviorStartRecord.JsonParams`, links like `{"NetworkId":20,"Ref":"@P"}`), so a link mechanism inside JSON strings exists —
-⛔ whether the plan's `params` passes through it on save / reload is NOT yet measured. ⭐ First rail of M5: a plan whose *then* names another unit
-survives save and reload pointing at the same unit.
+⭐ **Entity references — never a network id in the file** *(measured `2026-11-07`; the user: "it cannot be saved to scenario as such. It needs
+to be converted to something permanent like scenario GUID or the ref key")*. The rule EXISTS and is built — [`DESIGN_Scenario_Entity_Keys.md`](../DESIGN_Scenario_Entity_Keys.md)
+S9′ / S10: an authored reference is an `EntityLink` whose FILE form is the target's **GUID** (`Exact`) or an **`@Key`**; the editor's pick writes
+the GUID (`ReferenceLeafDrawers.PickToLink`, `:47-49`, F3); at load `RefResolve` turns it into the new network id and refuses a bare legacy id
+(`EntityRefRemap.cs:432-433, 607`). ⛔ **Two gaps on the plan's load path** (`StagingEntityExtractor.cs:454-466`):
+
+| gap | measured | fix (in M1 / M5) |
+|---|---|---|
+| **G1** an `Order.*` task's params are never resolved | the pass looks the contract up BY BEHAVIOUR NAME (`ScenarioBehaviorRemapper.ContractOf`, `:100-110`) — `Order.Move` is not a behaviour ⇒ no contract ⇒ the JSON passes unchanged ⇒ a target saved as a GUID resolves to nobody | `ContractOf` also answers an `Order.<Kind>` with that order's DTO type (the `[Order]` registry) — one lookup, both kinds |
+| **G2** a task's trigger params are never walked | the pass walks `task.BehaviorParams` only; the `triggers[].params` (today plain numbers) are not touched | the same pass walks each `Then` / `GiveUp` entry with the contract `SearchPredicateDto` (`EntityRefRemap.WalkJson`, `RefResolve`) — the walker already handles the polymorphic tree |
+
+⭐ **The rail, first in M1 / M5:** a plan whose ORDER targets a unit and whose *then* names ANOTHER unit and a phase trigger is saved, loaded into a
+fresh world (new network ids) and still points at the same three entities — and the file holds their GUIDs, never a number.
