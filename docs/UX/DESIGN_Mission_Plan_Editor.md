@@ -391,4 +391,6 @@ fresh world (new network ids) and still points at the same three entities — an
 | ③ the old `HealthCritical X` is **`Health.Max > 0` AND NOT `HealthFraction > X`** | the old trigger never fired without a `Health`; `None(InputAbove …)` alone would fire at once there. `PlanConditionCache` registers the standard inputs once so a node with no utility system still reads `HealthFraction` |
 | ④ a RAW queue (no `ActiveMissionPlan` beside it — the FDP examples, hand-built queues) is still started by the director by its stored id | it has no name to start by, and no adapter runs there (the examples compose the director alone). `MissionTaskStart.ByName` makes the two paths DISJOINT by construction, so no task is ever started twice |
 
-⏳ Not in M1: the load warning for a Wait with no *then* (the editor refuses it, P-7); E1 progress carry-over (P-4); D7 renames (P-3).
+⏳ Not in M1: the load warning for a Wait with no *then* (the editor refuses it, P-7); E1 progress carry-over (P-4).
+
+**M1b (P-3, CE-4299) as built:** D7 exactly — 16 slots (`MissionPlanQueue.MaxTasks`, the one size the two inline buffers read); the six Roslyn renames (the names above in §5.10 are now `TaskElapsedSeconds`, `CurrentTask`, …). One consequence found: `MissionProgressWire.ProgressOf` packed 8 outcomes × 8 bits into a `ulong` — now 2 bits each.

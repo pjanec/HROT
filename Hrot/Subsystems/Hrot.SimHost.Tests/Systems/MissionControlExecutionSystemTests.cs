@@ -106,8 +106,8 @@ public class MissionControlExecutionSystemTests
 
         // Verify MissionPlanQueue updated.
         ref var queue = ref repo.GetComponentRW<MissionPlanQueue>(entity);
-        Assert.Equal(1, queue.PhaseCount);
-        Assert.Equal(0, queue.CurrentPhase);
+        Assert.Equal(1, queue.TaskCount);
+        Assert.Equal(0, queue.CurrentTask);
 
         // Verify ACK event published with ErrorCode 0 (Success).
         repo.Bus.SwapBuffers();
@@ -153,7 +153,7 @@ public class MissionControlExecutionSystemTests
         Assert.NotNull(ack);
         Assert.NotEqual(0, ack!.Value.ErrorCode);
         var queue = repo.GetComponentRO<MissionPlanQueue>(entity);
-        Assert.Equal((1, versionBefore), (queue.PhaseCount, queue.Version));   // the first plan is still there
+        Assert.Equal((1, versionBefore), (queue.TaskCount, queue.Version));   // the first plan is still there
     }
 
     /// <summary>
@@ -189,7 +189,7 @@ public class MissionControlExecutionSystemTests
             RequestId = Guid.NewGuid(), TargetEntityId = 1,
             Payload = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_JUMP_TO_TASK, TargetTaskId = c },
         });
-        Assert.Equal(2, fresh.GetComponent<MissionPlanQueue>(entity).CurrentPhase);
+        Assert.Equal(2, fresh.GetComponent<MissionPlanQueue>(entity).CurrentTask);
 
         var replace = Guid.NewGuid();
         sys.TestHook_ProcessIntent(fresh, new MissionControlIntent
@@ -236,7 +236,7 @@ public class MissionControlExecutionSystemTests
         });
 
         // Snapshot phase count after first mission.
-        int phaseCountAfterFirst = repo.GetComponent<MissionPlanQueue>(entity).PhaseCount;
+        int phaseCountAfterFirst = repo.GetComponent<MissionPlanQueue>(entity).TaskCount;
         Assert.Equal(1, phaseCountAfterFirst);
 
         // Second mission with wrong BaseVersion (should be 1, but using 99).
@@ -255,7 +255,7 @@ public class MissionControlExecutionSystemTests
         });
 
         // Queue must NOT be mutated.
-        Assert.Equal(phaseCountAfterFirst, repo.GetComponent<MissionPlanQueue>(entity).PhaseCount);
+        Assert.Equal(phaseCountAfterFirst, repo.GetComponent<MissionPlanQueue>(entity).TaskCount);
 
         // NACK with non-zero ErrorCode.
         repo.Bus.SwapBuffers();
@@ -441,10 +441,10 @@ public class MissionControlExecutionSystemTests
 
         // SC1: PhaseCount == 3.
         var queue = repo.GetComponent<MissionPlanQueue>(entity);
-        Assert.Equal(3, queue.PhaseCount);
+        Assert.Equal(3, queue.TaskCount);
 
         // SC2: Each phase has the MoveToLocation behavior ID (101).
-        Span<MissionPhase> phases = queue.Phases;
+        Span<MissionTaskSlot> phases = queue.Tasks;
         for (int i = 0; i < 3; i++)
             Assert.Equal(101, phases[i].BehaviorId);
     }
@@ -475,7 +475,7 @@ public class MissionControlExecutionSystemTests
         });
 
         var queue = repo.GetComponent<MissionPlanQueue>(entity);
-        Assert.Equal(0, queue.PhaseCount);
+        Assert.Equal(0, queue.TaskCount);
     }
 
     // ── CE-3167: an immediate order clears the plan through IIntentClearProvider ─────────────────
@@ -499,19 +499,19 @@ public class MissionControlExecutionSystemTests
             RequestId = Guid.NewGuid(), TargetEntityId = 1, BaseVersion = 0,
             Payload = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_REPLACE_MISSION, FullMissionData = MakePlan(Guid.NewGuid(), Guid.NewGuid()) },
         });
-        Assert.Equal(2, repo.GetComponentRO<MissionPlanQueue>(entity).PhaseCount);
+        Assert.Equal(2, repo.GetComponentRO<MissionPlanQueue>(entity).TaskCount);
         repo.Bus.SwapBuffers();
 
         IIntentClearProvider provider = system;
         provider.ClearFor(entity, repo);
 
-        Assert.Equal(0, repo.GetComponentRO<MissionPlanQueue>(entity).PhaseCount);
+        Assert.Equal(0, repo.GetComponentRO<MissionPlanQueue>(entity).TaskCount);
         Assert.False(repo.HasManagedComponent<ActiveMissionPlan>(entity));
         repo.Bus.SwapBuffers();
         Assert.Empty(repo.Bus.Read<Fdp.Toolkit.Behavior.Events.ClearBehaviorEvent>().ToArray());
 
         provider.ClearFor(entity, repo);   // idempotent: no plan, nothing to do
-        Assert.Equal(0, repo.GetComponentRO<MissionPlanQueue>(entity).PhaseCount);
+        Assert.Equal(0, repo.GetComponentRO<MissionPlanQueue>(entity).TaskCount);
     }
 
     // ── ⭐ Edit framework F6 (CE-4277): only the BRAIN's owner applies a commit; a commit for a unit owned elsewhere goes there ─────────────────
@@ -547,7 +547,7 @@ public class MissionControlExecutionSystemTests
 
         var toReplica = Commit(1);
         system.TestHook_ProcessIntent(repo, toReplica);
-        Assert.False(repo.HasComponent<MissionPlanQueue>(replica) && repo.GetComponent<MissionPlanQueue>(replica).PhaseCount > 0);
+        Assert.False(repo.HasComponent<MissionPlanQueue>(replica) && repo.GetComponent<MissionPlanQueue>(replica).TaskCount > 0);
         repo.Bus.SwapBuffers();
         Assert.Null(FindAck(repo, toReplica.RequestId));                                      // the owner answers, not this node
 

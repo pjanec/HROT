@@ -96,7 +96,7 @@ namespace Hrot.Common.Systems
         public void ClearFor(Entity entity, EntityRepository repo)
         {
             bool hasQueue = repo.IsComponentTypeRegistered<MissionPlanQueue>() && repo.HasComponent<MissionPlanQueue>(entity)
-                && repo.GetComponentRO<MissionPlanQueue>(entity).PhaseCount > 0;
+                && repo.GetComponentRO<MissionPlanQueue>(entity).TaskCount > 0;
             bool hasPlan = repo.HasManagedComponent<ActiveMissionPlan>(entity);
             if (!hasQueue && !hasPlan) return;
             if (!_entityMap.TryGetNetworkId(entity, out int networkId)) networkId = 0;
@@ -109,7 +109,7 @@ namespace Hrot.Common.Systems
         private void EmptyPlan(EntityRepository repo, Entity entity, int networkId)
         {
             // ⭐ R-3039 S1 — the version outlives the plan (it is on the queue); the task order goes with the plan (ActiveMissionPlan).
-            repo.SetComponent(entity, new MissionPlanQueue { PhaseCount = 0, CurrentPhase = 0, PhaseElapsedSeconds = 0f, Version = VersionOf(repo, entity) });
+            repo.SetComponent(entity, new MissionPlanQueue { TaskCount = 0, CurrentTask = 0, TaskElapsedSeconds = 0f, Version = VersionOf(repo, entity) });
             repo.SetManagedComponent<ActiveMissionPlan>(entity, null!);
             SmartEgressUtil.MarkDirty(repo, entity, EntityMissionDescriptorOrdinal);
         }
@@ -263,11 +263,11 @@ namespace Hrot.Common.Systems
                         repo.AddComponent(entity, new MissionPlanQueue());
 
                     ref var queue = ref repo.GetComponentRW<MissionPlanQueue>(entity);
-                    queue.CurrentPhase = (byte)targetIndex;
-                    queue.PhaseElapsedSeconds = 0f;
+                    queue.CurrentTask = (byte)targetIndex;
+                    queue.TaskElapsedSeconds = 0f;
                     // ⭐ CE-483 — the operator's answer to a halted (faulted) plan: run from the target phase again.
                     queue.Halted = 0;
-                    if (targetIndex < MissionPlanQueue.MaxPhases)
+                    if (targetIndex < MissionPlanQueue.MaxTasks)
                     {
                         Span<MissionPhaseOutcome> outcomes = queue.Outcomes;
                         outcomes[targetIndex] = MissionPhaseOutcome.None;
@@ -345,21 +345,21 @@ namespace Hrot.Common.Systems
 
             queue = new MissionPlanQueue
             {
-                CurrentPhase = 0,
-                PhaseElapsedSeconds = 0f
+                CurrentTask = 0,
+                TaskElapsedSeconds = 0f
             };
 
             var tasks = plan.Tasks ?? new List<MissionTask>();
-            int count = Math.Min(tasks.Count, MissionPlanQueue.MaxPhases);
+            int count = Math.Min(tasks.Count, MissionPlanQueue.MaxTasks);
 
-            if (tasks.Count > MissionPlanQueue.MaxPhases)
+            if (tasks.Count > MissionPlanQueue.MaxTasks)
             {
                 FdpLog<MissionControlExecutionSystem>.Warn(
                     "[MissionControl] Mission has {0} tasks; truncating to {1}.",
-                    tasks.Count, MissionPlanQueue.MaxPhases);
+                    tasks.Count, MissionPlanQueue.MaxTasks);
             }
 
-            Span<MissionPhase> phases = queue.Phases;
+            Span<MissionTaskSlot> phases = queue.Tasks;
             for (int i = 0; i < count; i++)
             {
                 var task = tasks[i];
@@ -371,7 +371,7 @@ namespace Hrot.Common.Systems
                 int behaviorId = ResolveBehaviorId(task.BehaviorId);
                 var (trigger, param) = ResolveTrigger(task.Triggers, $"{task.BehaviorId} ({task.TaskId})");
 
-                phases[i] = new MissionPhase
+                phases[i] = new MissionTaskSlot
                 {
                     BehaviorId = behaviorId,
                     Trigger = trigger,
@@ -379,7 +379,7 @@ namespace Hrot.Common.Systems
                 };
             }
 
-            queue.PhaseCount = (byte)count;
+            queue.TaskCount = (byte)count;
             return true;
         }
 

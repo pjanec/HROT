@@ -32,9 +32,9 @@ namespace Hrot.SimHost.Tests
             var entity = repo.CreateEntity();
 
             // Add the struct components
-            var queue = new MissionPlanQueue { PhaseCount = 1, CurrentPhase = 0 };
-            Span<MissionPhase> phases = queue.Phases;
-            phases[0] = new MissionPhase { BehaviorId = 0 };
+            var queue = new MissionPlanQueue { TaskCount = 1, CurrentTask = 0 };
+            Span<MissionTaskSlot> phases = queue.Tasks;
+            phases[0] = new MissionTaskSlot { BehaviorId = 0 };
             repo.AddComponent(entity, queue);
 
             repo.AddComponent(entity, new BehaviorState());
@@ -93,7 +93,7 @@ namespace Hrot.SimHost.Tests
         {
             using var repo = CreateWorld();
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new MissionPlanQueue { PhaseCount = (byte)phaseCount, CurrentPhase = (byte)currentPhase });
+            repo.AddComponent(entity, new MissionPlanQueue { TaskCount = (byte)phaseCount, CurrentTask = (byte)currentPhase });
             repo.AddComponent(entity, new BehaviorState());
 
             new MissionAdapterSystem().Execute(repo, 0.016f);
@@ -150,14 +150,14 @@ namespace Hrot.SimHost.Tests
         private static Entity PlanOf(EntityRepository repo, params (string Name, List<DomainMissionTrigger>? Triggers)[] tasks)
         {
             var entity = repo.CreateEntity();
-            var queue = new MissionPlanQueue { PhaseCount = (byte)tasks.Length, CurrentPhase = 0 };
-            Span<MissionPhase> phases = queue.Phases;
+            var queue = new MissionPlanQueue { TaskCount = (byte)tasks.Length, CurrentTask = 0 };
+            Span<MissionTaskSlot> phases = queue.Tasks;
             var domain = new List<DomainMissionTask>();
             for (int i = 0; i < tasks.Length; i++)
             {
                 var hrot = tasks[i].Triggers?.ConvertAll(t => new Hrot.Core.Mission.MissionTrigger { Type = t.Type, Params = t.Params });
                 var (kind, param) = Hrot.Core.Mission.MissionTriggerHelper.ResolveTrigger(hrot, tasks[i].Name);
-                phases[i] = new MissionPhase { BehaviorId = 0, Trigger = kind, TriggerParam = param };
+                phases[i] = new MissionTaskSlot { BehaviorId = 0, Trigger = kind, TriggerParam = param };
                 domain.Add(new DomainMissionTask { TaskId = System.Guid.NewGuid(), BehaviorName = tasks[i].Name, BehaviorParams = "{}", Triggers = tasks[i].Triggers ?? new() });
             }
             repo.AddComponent(entity, queue);
@@ -208,7 +208,7 @@ namespace Hrot.SimHost.Tests
             var f3 = Frame(repo, director, adapter, finished: Done(e));
             Assert.Empty(f3.Intents);
             Assert.Equal(1, f3.Clears);                                    // the plan ran out: ONE clear (the adapter's), not two
-            Assert.Equal(3, repo.GetComponentRO<MissionPlanQueue>(e).CurrentPhase);
+            Assert.Equal(3, repo.GetComponentRO<MissionPlanQueue>(e).CurrentTask);
         }
 
         [Fact]
@@ -247,7 +247,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(new[] { "Order.Hold" }, Frame(repo, director, adapter, dt: 1.5f).Intents);   // gave up at 2 s, long before its then
             var q = repo.GetComponentRO<MissionPlanQueue>(e);
             Assert.Equal(MissionPhaseOutcome.Failed, q.Outcomes[0]);
-            Assert.Equal(0f, (float)q.PhaseElapsedSeconds, 3);
+            Assert.Equal(0f, (float)q.TaskElapsedSeconds, 3);
         }
 
         [Fact]

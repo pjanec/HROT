@@ -61,16 +61,16 @@ namespace Hrot.CGF.Systems
                 //   first frame — wiping the template's default behaviour (CE-3047) and a scenario-restored order alike (the
                 //   ingress takes the same frame's assigns BEFORE its clears). ⭐ A plan that ran out still clears (PhaseCount > 0);
                 //   an abort publishes its own clear (MissionControlExecutionSystem CMD_ABORT_ALL).
-                if (queue.PhaseCount == 0) continue;
+                if (queue.TaskCount == 0) continue;
 
                 // Detect exhaustion: publish ClearBehaviorEvent once, then cache so that
                 // re-committing the same mission from phase 0 is correctly detected.
-                if (queue.CurrentPhase >= queue.PhaseCount)
+                if (queue.CurrentTask >= queue.TaskCount)
                 {
-                    if (adapterState.LastPhase != queue.CurrentPhase)
+                    if (adapterState.LastPhase != queue.CurrentTask)
                     {
                         repo.Bus.Publish(new ClearBehaviorEvent { Entity = entity, Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior });   // ⭐ CE-3034 — a mission plan (R-193)
-                        adapterState.LastPhase = queue.CurrentPhase;
+                        adapterState.LastPhase = queue.CurrentTask;
                         adapterState.LastPlanVersion = 0;
                     }
                     continue;
@@ -85,13 +85,13 @@ namespace Hrot.CGF.Systems
                     continue;
                 }
 
-                Span<MissionPhase> phases = queue.Phases;
-                var phase = phases[queue.CurrentPhase];
+                Span<MissionTaskSlot> phases = queue.Tasks;
+                var phase = phases[queue.CurrentTask];
 
                 string jsonParams = "{}";
-                if (MissionTaskStart.ByName(repo, entity, queue.CurrentPhase))   // ⭐ CE-4298 (D2) — the ONE answer the director reads too
+                if (MissionTaskStart.ByName(repo, entity, queue.CurrentTask))   // ⭐ CE-4298 (D2) — the ONE answer the director reads too
                 {
-                    var task = activePlan!.Plan.Tasks[queue.CurrentPhase];
+                    var task = activePlan!.Plan.Tasks[queue.CurrentTask];
                     jsonParams = task.BehaviorParams ?? "{}";
 
                     // ⭐ CE-4043 — a STABLE hash: string.GetHashCode() is randomised per process, so this component differed in every
@@ -100,11 +100,11 @@ namespace Hrot.CGF.Systems
                     uint currentDefHash = Fdp.Toolkit.Utility.In.Fnv1a32(jsonParams) ^ (uint)phase.BehaviorId;
 
                     // Skip if nothing changed
-                    if (adapterState.LastPhase == queue.CurrentPhase && adapterState.LastPlanVersion == currentDefHash)
+                    if (adapterState.LastPhase == queue.CurrentTask && adapterState.LastPlanVersion == currentDefHash)
                         continue;
 
                     bool startedBefore = adapterState.LastPhase != byte.MaxValue;
-                    adapterState.LastPhase = queue.CurrentPhase;
+                    adapterState.LastPhase = queue.CurrentTask;
                     adapterState.LastPlanVersion = currentDefHash;
 
                     // ⭐⭐ CE-4298 (mission plan E9, §5.9) — a WAIT task (no order, no behaviour) starts nothing: the unit does its own standing
@@ -132,10 +132,10 @@ namespace Hrot.CGF.Systems
                     uint currentDefHash = (uint)phase.BehaviorId;
 
                     // Skip if nothing changed
-                    if (adapterState.LastPhase == queue.CurrentPhase && adapterState.LastPlanVersion == currentDefHash)
+                    if (adapterState.LastPhase == queue.CurrentTask && adapterState.LastPlanVersion == currentDefHash)
                         continue;
 
-                    adapterState.LastPhase = queue.CurrentPhase;
+                    adapterState.LastPhase = queue.CurrentTask;
                     adapterState.LastPlanVersion = currentDefHash;
                 }
             }

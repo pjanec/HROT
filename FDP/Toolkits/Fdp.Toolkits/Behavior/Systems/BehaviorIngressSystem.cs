@@ -545,7 +545,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (!repo.IsComponentTypeRegistered<MissionPlanQueue>() || !repo.HasComponent<MissionPlanQueue>(entity)
                 || !repo.HasManagedComponent<ActiveMissionPlan>(entity))
                 return "{}";
-            int phase = repo.GetComponentRO<MissionPlanQueue>(entity).CurrentPhase;
+            int phase = repo.GetComponentRO<MissionPlanQueue>(entity).CurrentTask;
             var tasks = ((ISimulationView)repo).GetManagedComponentRO<ActiveMissionPlan>(entity)?.Plan?.Tasks;
             if (tasks == null || phase >= tasks.Count) return "{}";
             var task = tasks[phase];

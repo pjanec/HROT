@@ -6,11 +6,11 @@ using Fdp.Core;
 namespace Fdp.Toolkit.Behavior.Components
 {
     /// <summary>
-    /// Condition that must be met for a <see cref="MissionPhase"/> to advance to the next phase.
+    /// Condition that must be met for a <see cref="MissionTaskSlot"/> to advance to the next phase.
     /// </summary>
     public enum MissionTrigger : byte
     {
-        /// <summary>Advances when <see cref="MissionPlanQueue.PhaseElapsedSeconds"/> >= <see cref="MissionPhase.TriggerParam"/>.</summary>
+        /// <summary>Advances when <see cref="MissionPlanQueue.TaskElapsedSeconds"/> >= <see cref="MissionTaskSlot.TriggerParam"/>.</summary>
         TimerElapsed       = 0,
         /// <summary>
         /// Previously advanced when the entity’s <c>NavState.HasArrived</c> == 1 (Muscle-tier
@@ -27,13 +27,13 @@ namespace Fdp.Toolkit.Behavior.Components
         ReachedDestination = 1,
         /// <summary>Advances when the entity's <c>TargetMemory</c> contains at least one entry with ThreatScore > 0.</summary>
         UnderAttack        = 2,
-        /// <summary>Advances when <c>Health.Current / Health.Max</c> &lt;= <see cref="MissionPhase.TriggerParam"/>.</summary>
+        /// <summary>Advances when <c>Health.Current / Health.Max</c> &lt;= <see cref="MissionTaskSlot.TriggerParam"/>.</summary>
         HealthCritical     = 3,
         /// <summary>Advances when a <see cref="Events.BehaviorFinishedEvent"/> is received for this entity,
         /// indicating the behavior's BTree root evaluated to Success or Failure.</summary>
         BehaviorFinished   = 4,
         /// <summary>⭐ <c>CE-4298</c> (mission plan D3) — the task's <i>then</i> is a stored CONDITION (a <c>Then</c> entry of the saved
-        /// plan, compiled by <c>PlanConditionCache</c>); <see cref="MissionPhase.TriggerParam"/> is unused.</summary>
+        /// plan, compiled by <c>PlanConditionCache</c>); <see cref="MissionTaskSlot.TriggerParam"/> is unused.</summary>
         Condition          = 5,
     }
 
@@ -42,7 +42,7 @@ namespace Fdp.Toolkit.Behavior.Components
     /// Layout: int(4) + byte(1) + pad(3) + float(4) = 12 bytes.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    public struct MissionPhase
+    public struct MissionTaskSlot
     {
         /// <summary>Behavior hash to activate when this phase becomes current.</summary>
         public int BehaviorId;
@@ -112,19 +112,19 @@ namespace Fdp.Toolkit.Behavior.Components
     /// </code>
     /// </para>
     /// </remarks>
-    [InlineArray(8)]
+    [InlineArray(MissionPlanQueue.MaxTasks)]   // ⭐ CE-4299 (mission plan D7) — the one size
     public struct MissionPhaseBuffer
     {
-        private MissionPhase _element;
+        private MissionTaskSlot _element;
     }
 
     /// <inheritdoc cref="MissionPhaseBuffer"/>
     /// <remarks>
     /// <para>
-    /// <b>⚠ MUTATION WARNING — <c>[InlineArray]</c> Defensive-Copy Trap on <see cref="Phases"/></b>
+    /// <b>⚠ MUTATION WARNING — <c>[InlineArray]</c> Defensive-Copy Trap on <see cref="Tasks"/></b>
     /// </para>
     /// <para>
-    /// The <see cref="Phases"/> field is a <c>[InlineArray]</c> struct. Writing to its elements
+    /// The <see cref="Tasks"/> field is a <c>[InlineArray]</c> struct. Writing to its elements
     /// via an index expression on a <c>GetComponentRW</c> ref may silently fail because the
     /// C# compiler can emit an <c>ldobj</c> that copies the buffer to a temporary before
     /// applying <c>[i]</c>. The mutation hits the temporary, not ECS chunk memory.
@@ -143,9 +143,9 @@ namespace Fdp.Toolkit.Behavior.Components
     public struct MissionPlanQueue
     {
         /// <summary>Maximum number of phases in a mission plan.</summary>
-        public const int MaxPhases = 8;
+        public const int MaxTasks = 16;   // ⭐ CE-4299 (mission plan D7, R-4160): 8 → 16 tasks
 
-        /// <summary>Inline storage for up to <see cref="MaxPhases"/> phases.</summary>
+        /// <summary>Inline storage for up to <see cref="MaxTasks"/> phases.</summary>
         /// <remarks>
         /// <b>⚠ Do not write to this field's elements via a bare <c>GetComponentRW</c> ref.</b>
         /// The <c>[InlineArray]</c> indexer may produce a JIT defensive copy, silently discarding
@@ -153,19 +153,19 @@ namespace Fdp.Toolkit.Behavior.Components
         /// Get ➔ Mutate ➔ <c>SetComponent</c> pattern instead.
         /// See the type-level remarks on <see cref="MissionPhaseBuffer"/> for details.
         /// </remarks>
-        public MissionPhaseBuffer Phases;
+        public MissionPhaseBuffer Tasks;
 
         /// <summary>Index of the currently active phase (0-based).</summary>
-        public byte CurrentPhase;
+        public byte CurrentTask;
 
-        /// <summary>Total number of defined phases (&lt;= <see cref="MaxPhases"/>).</summary>
-        public byte PhaseCount;
+        /// <summary>Total number of defined phases (&lt;= <see cref="MaxTasks"/>).</summary>
+        public byte TaskCount;
 
         /// <summary>Elapsed simulation time (seconds) for the current phase's <see cref="MissionTrigger.TimerElapsed"/> trigger.</summary>
-        public SimDuration PhaseElapsedSeconds;
+        public SimDuration TaskElapsedSeconds;
 
         /// <summary>⭐ <c>CE-483</c>: how each phase ended (index = phase). Read with a <c>Span&lt;MissionPhaseOutcome&gt;</c>
-        /// cast — the same InlineArray rule as <see cref="Phases"/>. 📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D3.</summary>
+        /// cast — the same InlineArray rule as <see cref="Tasks"/>. 📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D3.</summary>
         public MissionPhaseOutcomeBuffer Outcomes;
 
         /// <summary>⭐ <c>CE-483</c>: non-zero when the current phase's behaviour FAULTED — the plan waits for an operator command
@@ -192,7 +192,7 @@ namespace Fdp.Toolkit.Behavior.Components
 
     /// <summary>⭐ <c>CE-483</c>: one <see cref="MissionPhaseOutcome"/> per phase. ⚠ Same defensive-copy rule as
     /// <see cref="MissionPhaseBuffer"/> — mutate through a <c>Span</c> cast or Get ➔ Mutate ➔ SetComponent.</summary>
-    [InlineArray(MissionPlanQueue.MaxPhases)]
+    [InlineArray(MissionPlanQueue.MaxTasks)]
     public struct MissionPhaseOutcomeBuffer
     {
         private MissionPhaseOutcome _element;

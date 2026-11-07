@@ -212,8 +212,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 var unit = self ? e : reference.Resolve(repo);
                 if (unit.IsNull || !repo.IsAlive(unit) || !repo.HasComponent<MissionPlanQueue>(unit)) return false;
                 ref readonly var q = ref repo.GetComponentRO<MissionPlanQueue>(unit);
-                int i = task > 0 ? task - 1 : q.CurrentPhase;
-                if (i >= q.PhaseCount || i >= MissionPlanQueue.MaxPhases) return false;
+                int i = task > 0 ? task - 1 : q.CurrentTask;
+                if (i >= q.TaskCount || i >= MissionPlanQueue.MaxTasks) return false;
                 return q.Outcomes[i] != MissionPhaseOutcome.None;
             };
         }

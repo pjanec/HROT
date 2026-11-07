@@ -39,7 +39,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             public readonly Slot[] Slots = NewSlots();
             private static Slot[] NewSlots()
             {
-                var s = new Slot[MissionPlanQueue.MaxPhases];
+                var s = new Slot[MissionPlanQueue.MaxTasks];
                 for (int i = 0; i < s.Length; i++) s[i] = new Slot();
                 return s;
             }
@@ -57,7 +57,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// The compiled <paramref name="then"/> (never null) and <paramref name="giveUp"/> (null when the task has none) of task <paramref name="task"/>
         /// of <paramref name="entity"/>, whose queue slot is <paramref name="slot"/>.
         /// </summary>
-        public void Get(EntityRepository repo, Entity entity, int task, in MissionPhase slot,
+        public void Get(EntityRepository repo, Entity entity, int task, in MissionTaskSlot slot,
             out Func<EntityRepository, Entity, bool> then, out Func<EntityRepository, Entity, bool>? giveUp)
         {
             if (!_byEntity.TryGetValue(entity.Index, out var entry))
@@ -81,7 +81,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <summary>Forgets every entity (a world move: the next frame recompiles what it meets).</summary>
         public void Clear() => _byEntity.Clear();
 
-        private static void Build(Slot c, ActiveMissionPlan? plan, int task, in MissionPhase slot)
+        private static void Build(Slot c, ActiveMissionPlan? plan, int task, in MissionTaskSlot slot)
         {
             c.Plan = plan; c.Kind = slot.Trigger; c.Param = slot.TriggerParam; c.Built = true;
             c.Then = null; c.GiveUp = null;
@@ -116,7 +116,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     return new PropertyMatchDto
                     {
                         ComponentType = typeof(MissionPlanQueue),
-                        PropertyPath = nameof(MissionPlanQueue.PhaseElapsedSeconds) + "." + nameof(SimDuration.Seconds),
+                        PropertyPath = nameof(MissionPlanQueue.TaskElapsedSeconds) + "." + nameof(SimDuration.Seconds),
                         Operator = SearchOperator.Equals,
                         Predicate = new NumericPredicateDto { MinValue = param, MaxValue = double.MaxValue },
                     };

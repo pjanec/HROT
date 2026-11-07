@@ -7,7 +7,7 @@ namespace Fdp.Toolkit.Behavior
     /// <see cref="BehaviorRegistry.Register(int, string, BehaviorDefinition)"/>
     /// and are stored in
     /// <see cref="Components.BehaviorState.ActiveBehaviorHash"/> and in
-    /// <see cref="Components.MissionPhase.BehaviorId"/>.
+    /// <see cref="Components.MissionTaskSlot.BehaviorId"/>.
     ///
     /// <b>Rules:</b>
     /// <list type="bullet">

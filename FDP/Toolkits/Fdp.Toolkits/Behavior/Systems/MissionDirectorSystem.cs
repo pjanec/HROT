@@ -11,10 +11,10 @@ using Fdp.ModuleHost.Abstractions;
 namespace Fdp.Toolkit.Behavior.Systems
 {
     /// <summary>
-    /// Evaluates the trigger condition of the current <see cref="MissionPhase"/> for every entity
+    /// Evaluates the trigger condition of the current <see cref="MissionTaskSlot"/> for every entity
     /// that has a <see cref="MissionPlanQueue"/> and a <see cref="BehaviorState"/>.
-    /// When a trigger fires the system advances <see cref="MissionPlanQueue.CurrentPhase"/>,
-    /// resets <see cref="MissionPlanQueue.PhaseElapsedSeconds"/>, and updates
+    /// When a trigger fires the system advances <see cref="MissionPlanQueue.CurrentTask"/>,
+    /// resets <see cref="MissionPlanQueue.TaskElapsedSeconds"/>, and updates
     /// <see cref="BehaviorState.ActiveBehaviorHash"/> + increments
     /// <see cref="BehaviorState.InstanceId"/> so that <see cref="ChannelArbitrationSystem"/>
     /// preempts stale action channels naturally.
@@ -117,7 +117,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 var behavior  = repo.GetComponent<BehaviorState>(entity);
 
                 // Mission complete — nothing left to do.
-                if (queue.CurrentPhase >= queue.PhaseCount) continue;
+                if (queue.CurrentTask >= queue.TaskCount) continue;
 
                 // ⭐ CE-483 — a halted plan waits for an operator command (a jump or a new plan). 📄
                 //   DESIGN_Behaviour_Fault_And_Teardown.md §1 D3.
@@ -125,15 +125,15 @@ namespace Fdp.Toolkit.Behavior.Systems
 
                 // Safe access to the inline Phases buffer: cast to Span to avoid the
                 // C#/[InlineArray] defensive-copy trap when indexing a nested value-type.
-                Span<MissionPhase> phases = queue.Phases;
+                Span<MissionTaskSlot> phases = queue.Tasks;
                 Span<MissionPhaseOutcome> outcomes = queue.Outcomes;
-                var phase = phases[queue.CurrentPhase];
+                var phase = phases[queue.CurrentTask];
 
                 // ⭐ CE-483 — record how this phase's run ended: Succeeded ⇒ Done · Failed ⇒ Failed, and the plan goes on (3a) ·
                 //   Faulted ⇒ Failed AND HALT — the run told us it could not do its job; ⛔ do not quietly start the next phase.
                 if (_outcomeThisFrame.TryGetValue(entity.Index, out var outcome))
                 {
-                    outcomes[queue.CurrentPhase] = outcome == BehaviorOutcome.Succeeded ? MissionPhaseOutcome.Done : MissionPhaseOutcome.Failed;
+                    outcomes[queue.CurrentTask] = outcome == BehaviorOutcome.Succeeded ? MissionPhaseOutcome.Done : MissionPhaseOutcome.Failed;
                     if (outcome == BehaviorOutcome.Faulted)
                     {
                         queue.Halted = 1;
@@ -144,30 +144,30 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // ⭐⭐ CE-4298 (mission plan D3/D4, R-4160) — the task's then and give-up are ONE shared condition each (PlanConditionCache: a stored
                 //   condition, or the old trigger type translated to the condition it means), compiled once, evaluated here with no allocation. The
                 //   give-up is asked FIRST: it ends the task Failed. ⛔ SUPERSEDED: the switch over five built-in trigger kinds.
-                queue.PhaseElapsedSeconds += dt;   // every task's elapsed time ("after N s" reads it, whatever its condition)
-                _conditions.Get(repo, entity, queue.CurrentPhase, phase, out var then, out var giveUp);
+                queue.TaskElapsedSeconds += dt;   // every task's elapsed time ("after N s" reads it, whatever its condition)
+                _conditions.Get(repo, entity, queue.CurrentTask, phase, out var then, out var giveUp);
                 bool gaveUp = giveUp != null && giveUp(repo, entity);
                 bool triggered = gaveUp || then(repo, entity);
-                if (gaveUp) outcomes[queue.CurrentPhase] = MissionPhaseOutcome.Failed;
+                if (gaveUp) outcomes[queue.CurrentTask] = MissionPhaseOutcome.Failed;
 
                 if (triggered)
                 {
                     // A phase advanced by its trigger (a timer, a health threshold) while nothing reported an end ⇒ Done.
-                    if (outcomes[queue.CurrentPhase] == MissionPhaseOutcome.None)
-                        outcomes[queue.CurrentPhase] = MissionPhaseOutcome.Done;
-                    queue.CurrentPhase++;
-                    queue.PhaseElapsedSeconds = 0f;
+                    if (outcomes[queue.CurrentTask] == MissionPhaseOutcome.None)
+                        outcomes[queue.CurrentTask] = MissionPhaseOutcome.Done;
+                    queue.CurrentTask++;
+                    queue.TaskElapsedSeconds = 0f;
 
                     // ⭐⭐ CE-4298 (D2) — the director only ADVANCES a named plan: the adapter starts the next task by name (and clears at the end, and
                     //   for a Wait task) — ⛔ never both. Only a RAW queue (no plan beside it) is started here, by its stored id. MissionTaskStart.ByName.
-                    if (MissionTaskStart.ByName(repo, entity, queue.CurrentPhase - 1)) { }
-                    else if (queue.CurrentPhase < queue.PhaseCount)
+                    if (MissionTaskStart.ByName(repo, entity, queue.CurrentTask - 1)) { }
+                    else if (queue.CurrentTask < queue.TaskCount)
                     {
                         // More phases remain: tell BehaviorIngressSystem which behavior to activate.
                         repo.Bus.Publish(new AssignBehaviorHashEvent
                         {
                             Entity       = entity,
-                            BehaviorHash = phases[queue.CurrentPhase].BehaviorId,
+                            BehaviorHash = phases[queue.CurrentTask].BehaviorId,
                             Origin       = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior,   // ⭐ CE-3034 — a mission plan (R-193)
                         });
                     }
