@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-07
-current-answer: ⭐⭐⭐ 2026-11-07 — START AT "SESSION 2026-11-07 — EDITING-UX BUILD + RULES BUNDLE" directly below this STATUS block.
+current-answer: ⭐⭐⭐ 2026-11-07 (b) — START AT "SESSION 2026-11-07 (b) — B-10 KEYS + B-11 ACTION CATALOGUE" directly below this STATUS block.
+  ⛔ OLDER: ⭐⭐⭐ 2026-11-07 — START AT "SESSION 2026-11-07 — EDITING-UX BUILD + RULES BUNDLE" directly below this STATUS block.
   ⛔ OLDER: ⭐⭐⭐ 2026-10-30 — START AT "SESSION 2026-10-30 — THE PLAYER, THE 3-D MAP IN THE LOAD, THE MODE SWITCHES" directly below this STATUS block.
   ⛔ OLDER: ⭐⭐⭐ 2026-10-29 (b) — START AT "SESSION 2026-10-29 (b) — THE UNIFICATION PAUSE (R-3066)", then "SESSION 2026-10-28/29 — RUN MODES + EDITOR FIXES" directly below this STATUS block (the run-modes batch built, what waits on backend, the next item).
   ⛔ OLDER: ⭐⭐⭐ 2026-10-26 (c) — START AT "SESSION 2026-10-26 (c) — THE REVIEW UI + THE DIRECTOR'S TRACKS", then (b) "THE REVIEW TIMELINE" (the timeline's next steps), then "SESSION 2026-10-26 — RESUME HERE" directly below this STATUS block (state at ui@8d85ea7ba,
@@ -171,6 +172,74 @@ related-designs:
   The dead text was MOVED VERBATIM to "## ⛔ HISTORY — older STATUS strands" at the foot of this file.
   Nothing was deleted.
 -->
+
+## ⭐⭐⭐ SESSION 2026-11-07 (b) — B-10 KEYS + B-11 ACTION CATALOGUE *(state at `ui@7ce4a4458` + this doc commit, pushed, tree clean)*
+
+🔒 User: *"Update from your branch and continue from the resumption doc"* · *"All pauses lifted. Do the complex stuff yourself, as claude.md
+says"* (⇒ no Sonnet worker; Opus builds) · *"Approved go on"* (the K1 Q7 deviation and the K2/K3-after-H3 order) · *"Pls write resumption
+document"*.
+
+### ⭐ The situation in one paragraph
+
+The editing-UX bundle ([handoff](batches/HANDOFF_Coordinator_To_Ui_Rules_Bundle_And_Takeover.md)) is being built in order B-10 → B-11 → B-14 →
+B-16 → B-17. **B-10 K1 is built** (one key router; focus decides who gets keys). **B-10 K2 is partly built** (CE-4281); its hat scopes and
+**K3 central Esc wait for the `HatArbiter`** (seats-and-hats H3, part of B-16), by the user-approved order. **B-11 A1, A2, A3 are built** (the
+action catalogue composes every map menu; greyed when the station cannot run it; the ONE station mode decides what is offered). ⏸ **Two things
+wait for the user:** the A3 menu review (three leans) and the **O6 vs A4 conflict** (multi-selection orders) — below. Next: **A7** (does not
+touch either), then A5, then A4 once O6 is ruled.
+
+### Done this session *(all pushed to `ui`)*
+
+| item | sha | what · design |
+|---|---|---|
+| CE1150 rail fixed | `a6a58e5c0` | stale since CE-4085 (View ▸ Settings exists on every WindowManager) |
+| **B-10 K1** — keymap, router, focus, map focus | `650b1ccd9` (design) · `db9696ffc` | `Keymap`/`KeymapEntry`/`ActionRef` (Fdp.Toolkits.Input), `KeyRouter` + `IKeyScopeWindow` + `KeyboardFocus` (Fdp.Presentation.Input), one per `WindowManager`; `ManagedWindow.HasKeyFocus`; `KeyBinding` moved to NodeEditor.Primitives; `ImGuiInputSource` moved to Fdp.Presentation.Input; `EditorHotkeyDispatcher` deleted. **CE-4282 fixed.** [Input §5/§5a](../UX/DESIGN_Input_And_Commands.md) |
+| **B-10 K2 slice** | `bc626e089` | `MapCamera3D.IsFlying` ⇒ menu letters stand down while free-flying (**CE-4281 fixed**); the gizmo terminal's own key polls follow map focus. [Input §6](../UX/DESIGN_Input_And_Commands.md) |
+| EventDetailsView via the one resolver | `bfddc9ac6` | `ThereIsOneNetworkIdResolverTests` red since CE-4263 |
+| **B-11 A1** — the catalogue | `f768aa019` (golden first) · `79e461e1c` | `Hrot.Common/Actions`: `ActionDecl`, `ActionCatalogue.Shared`, `MenuComposer` (separator only between non-empty groups), `MapMenuActions` (today's items); `MenuJsonFor` is one line; 3 dead pieces deleted; golden byte-identical. [Catalogue §6/§6a](../UX/DESIGN_Action_Catalogue.md) |
+| **B-11 A2** — greyed "Not available on this station" | `efec53ec6` | `HostActions.For(bus)` (registered at construction), `MenuComposer.ForStation`; the map's `MenuResolver` greys by construction. [§7](../UX/DESIGN_Action_Catalogue.md) |
+| **B-11 A3** — the ONE station mode | `7ce4a4458` | `Hrot.Common.Editing.StationMode` (component id **461**) installed by `SharedApplicationBootstrapper` from `ClusterView.State` + `ReplayState`; `HrotEditGate` reads it; `ActionDecl.Modes`; group order per mode; the duplicate `Actions.EditingMode` deleted. [§8](../UX/DESIGN_Action_Catalogue.md) |
+
+**Gates measured:** Fdp.Presentation.Tests 364/364 (xvfb) · Hrot.Editor.AiShared.Tests 2221/2221 · menu + catalogue rails 56/56 ·
+Hrot.Editor.Tests 822/845 (22 skipped, **1 red, not ours** — below) · Hrot.Player.Tests 342/343 (1 skip) · NED edit-outcome 23/23.
+
+### ⏸ WAITING FOR THE USER
+
+| | the question | lean |
+|---|---|---|
+| **A3 review** | the menus per mode (table in [§8](../UX/DESIGN_Action_Catalogue.md); golden `Hrot.Presentation.Tests/Gizmos/Goldens/menus.golden.txt`) — ⚠ the editor no longer offers map orders / Possess in Edit (D15) | ① keep **Follow** + **Select** in every mode (§3.13 omits them in Edit) · ② Rotate Edit-only · ③ keep *Save as macro…* in Review |
+| **O6 vs A4** | [Orders §13.12 O6](../DESIGN_Orders_Params_Entity_Classes.md) (*plain menu orders stay one unit*, explicitly rejecting *"every menu order on the selection"*) vs A4 / Editing UX §3.13 (*"acts on all"*, MenuShortcuts on all selected) | **A4**: a plain order goes to every selected unit when the clicked unit is in the selection; clicking a unit outside it orders that unit alone (O6's escape hatch kept); mark O6 SUPERSEDED |
+
+### Open — check first
+
+| | |
+|---|---|
+| 🔴 not ours | `Hrot.Editor.Tests` `ABehaviourAdvertisesItsRealParametersTests.TriggerAdvertisesItsAuthoredKeys` — the Trigger behaviour's `Do` has no `"format":"json"` (rules S2, `4302e2d97` / `6a886f82b`); came with the coordinator merge. Tell the owning lane / leave |
+| ⏭ K2 rest + K3 | hat scopes and central Esc need the `HatArbiter` (seats-and-hats **H3**, B-16) — ⛔ do not invent a second hat state |
+| ⏭ declared letters | an order's letter is still its first letter (`MapMenuActions.OrderItem`) — K5 / catalogue |
+| ⏭ inspector / ORBAT | `MapEntityMenuHandler` still HIDES a row with no handler (A2 greys only on the map) — unify in A5 |
+| ⏭ waypoint / spawn area / weather region | still get the unit menu — their own targets are the rest of A3 |
+| one unexplained red | `MissionSummaryWindowFrameRail` failed once in a combined run, passed alone — re-check in the next full xvfb run |
+| R4 | CGF's rules live edit railed only on SimHost; a running-CGF rail still open (from the earlier session) |
+
+### Next *(in order)*
+
+1. **A7** — Details tabs carry `Requires` / `Modes` / `Level` (the same model as `ActionDecl`), registered once in `EntityDetailsBundle`; the
+   tab offer per entity kind × host is a golden. ⚠ Use `Hrot.Common.Editing.EditingMode` + `StationMode.Of`, never a third mode vocabulary
+   (`DetailsContext.Mode : VariableRunState` is §3 row 9's target).
+2. **A5** — inspector closures → actions (Rename, Delete one wording); the canvas menu as target `Ground`; the inspector greys like the map.
+3. **A4** — once O6 is ruled.
+4. Then B-14 (undo U2–U5), B-16 (H2–H4 — H3 unblocks K2/K3), B-17.
+
+### Traps measured this session
+
+| trap | |
+|---|---|
+| ⛔ **two public enums in one Hrot.Common file break the build** | the CycloneDDS code generator writes one IDL per source file and IDL enumerators share one scope (`ActionGroup.Edit` vs `EditingMode.Edit`) ⇒ **one enum per file** |
+| ⛔ a managed world singleton needs `[ComponentId]` | registered in `GlobalComponentIds.cs`, from the lane's block (ui 460–475; 461 used) |
+| ⛔ unrestored test projects | `Hrot.Player`, `Hrot.Player.Tests`, `Hrot.Network.NED.Tests` had no `project.assets.json` (the rename) ⇒ the build fails and `--no-build` runs a STALE binary that "passes" — restore first |
+| ⭐ every map's bus IS its host's bus | `MapInteraction.InteractionBus` = `HostActions.InteractionBus` ⇒ `HostActions.For(bus)` reaches the host from anything holding the bus |
+| ⭐ goldens | `MENU_GOLDEN_CAPTURE=1` rewrites `Goldens/*.golden.txt`; capture BEFORE a refactor, commit the capture alone |
 
 ## ⭐⭐⭐ SESSION 2026-11-07 — EDITING-UX BUILD + RULES BUNDLE *(state at `ui@621110fc5`, pushed, tree clean; the user said STOP — nothing new started)*
 

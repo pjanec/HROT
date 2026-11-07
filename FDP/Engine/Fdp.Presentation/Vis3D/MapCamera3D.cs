@@ -83,6 +83,13 @@ namespace Fdp.Toolkit.Vis3D
         private float _dt;
         private Vector2 _lastMouse;
         private bool _looking, _panning;
+
+        /// <summary>
+        /// ⭐ B-10 K2 (docs/UX/DESIGN_Input_And_Commands.md §6, CE-4281) — the free-fly camera is FLYING (the right button held): W A S D E Q are
+        /// its HOLD keys this frame, so the map's menu letters (A Attack, S Strike, E Edit) stand down. The Observe hat's movement keys, in the
+        /// design's words; ⏭ the HatArbiter (seats-and-hats H3) makes it a declared hat scope.
+        /// </summary>
+        public bool IsFlying => _looking;
         private float _wheelTravel;                  // ⭐ CE-1072 — metres of eye travel along the view the wheel still owes (+ = in)
         private Vector3 _flyVelocity;               // ⭐ CE-1072 — the eased W/A/S/D velocity (m/s)
         private float _flyHeld;                     // ⭐ CE-1142 — seconds a move key has been held (the acceleration)

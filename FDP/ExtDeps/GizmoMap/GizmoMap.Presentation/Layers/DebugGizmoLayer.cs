@@ -128,7 +128,8 @@ namespace GizmoMap.Presentation
             Action<GizmoPickToken, GizmoInteractionEventKind, Vector3, int, byte>? onInteraction = null,
             Func<Vector2, bool, Vector3>? screenToWorld = null,
             Func<Vector3, float>? zoomAt = null,
-            Func<int>? nextTypedKey = null)
+            Func<int>? nextTypedKey = null,
+            bool? keyboardCaptured = null)
         {
             var screenPos = Raylib.GetMousePosition();
             // ⭐ CE-1033 S2 (M19) — a host camera that knows height (the 3-D map) answers screen → world itself: the PICK point for
@@ -144,7 +145,9 @@ namespace GizmoMap.Presentation
             
             // FIX: Respect ImGui hardware capture state
             bool isMouseCaptured = ImGuiNET.ImGui.GetIO().WantCaptureMouse;
-            bool isKeyboardCaptured = ImGuiNET.ImGui.GetIO().WantCaptureKeyboard;
+            // ⭐ B-10 K1 (HROT docs/UX/DESIGN_Input_And_Commands.md §5a) — a host that knows who has the keyboard (the map, or a focused
+            //   panel) says so; standalone, ImGui's own capture.
+            bool isKeyboardCaptured = keyboardCaptured ?? ImGuiNET.ImGui.GetIO().WantCaptureKeyboard;
 
             // ⭐⭐⭐ S5 (DESIGN_Gizmo_Anchor_Identity.md §6) — THE CAPTURE BINDING IS KEYED BY ONE ID.
             //   ⛔ HISTORY, and it is why the generation is no longer read here. S0 first patched the

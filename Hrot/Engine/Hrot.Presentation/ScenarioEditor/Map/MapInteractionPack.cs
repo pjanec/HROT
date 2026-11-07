@@ -473,8 +473,11 @@ namespace Hrot.ScenarioEditor.Map
                 worldProvider: worldProvider)
             {
                 // ⭐ CE-2387 (T6) — the entity menu is built on right-click, from the world, by the ONE builder the inspector and the ORBAT already use
+                // ⭐ B-11 A2 — as THIS station offers it: the host found from the map's bus (HostActions.For), so a row it binds no handler for is
+                //   greyed "Not available on this station" — by construction, no host passes anything
                 MenuResolver = net => worldProvider() is { } w && net > 0 && net <= int.MaxValue
-                    ? Hrot.UI.Common.Menus.MapEntityMenuHandler.MenuJsonOf(w, Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(w, (int)net))
+                    ? Hrot.UI.Common.Menus.MapEntityMenuHandler.MenuJsonOf(w, Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(w, (int)net),
+                        Hrot.Common.Interactions.HostActions.For(bus) is { } host ? host.Actions.Has : null)
                     : null,
             };
         }

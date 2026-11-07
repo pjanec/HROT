@@ -26,7 +26,7 @@ namespace Hrot.Editor.AiShared.Shell;
 /// <para>⚠ <b>The draw is deliberately thin.</b> The interesting logic — the state per row, including
 /// derived staleness — lives in <see cref="ZoneStatusReader"/>, which makes no ImGui calls and is
 /// therefore assertable without a render frame. Same split, same reason, as
-/// <c>SharedContextMenuPopulator</c>.</para>
+/// the former <c>SharedContextMenuPopulator</c> (deleted by B-11 A1).</para>
 ///
 /// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §9.5, §9.4, §9.6, §9.3, §9.1.
 /// </summary>

@@ -41,7 +41,7 @@ public readonly record struct ZoneStatusRow(string ZoneId, Entity Entity, ZoneLo
 /// <summary>
 /// ⭐⭐⭐ <c>E3</c>'s testable core: turns the world's zone entities into rows with a load state.
 ///
-/// <para>⭐⭐ <b>Deliberately free of ImGui</b>, exactly as <c>SharedContextMenuPopulator</c> is: the
+/// <para>⭐⭐ <b>Deliberately free of ImGui</b>, exactly as the former <c>SharedContextMenuPopulator</c> was (deleted by B-11 A1): the
 /// interesting logic here is the STATE COMPUTATION — particularly <see cref="ZoneLoadState.Stale"/>,
 /// which is derived rather than stored — and that can then be asserted without an active render
 /// frame.</para>

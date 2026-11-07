@@ -273,19 +273,24 @@ namespace Fdp.Toolkit.Vis2D.Layers
                 _typedKeys.Clear();
                 return;
             }
+            // ⭐ B-10 K1 (docs/UX/DESIGN_Input_And_Commands.md §5a, CE-4282) — the terminal's own key polls (Esc / Enter releases, a local
+            //   drag tool's Esc) follow the keyboard focus like the canvas' drain: ⛔ not while a panel has the keyboard.
+            bool keyboardCaptured = ImGuiNET.ImGui.GetIO().WantCaptureKeyboard || !Fdp.Presentation.Input.KeyboardFocus.MapHasKeyboard;
             if (live != null)
                 _innerTerminal.HandleInput(
                     _buffer.GetFrame(), _buffer.InternMap, _camera, OnInteraction,
                     screenToWorld: (screen, forDrag) => live.ScreenToWorld3D(screen, forDrag),
                     zoomAt: live.ZoomAt,
-                    nextTypedKey: _nextTypedKey);
+                    nextTypedKey: _nextTypedKey,
+                    keyboardCaptured: keyboardCaptured);
             else
                 _innerTerminal.HandleInput(
                     _buffer.GetFrame(),
                     _buffer.InternMap,
                     _camera,
                     OnInteraction,
-                    nextTypedKey: _nextTypedKey);
+                    nextTypedKey: _nextTypedKey,
+                    keyboardCaptured: keyboardCaptured);
             _typedKeys.Clear();   // a key the terminal did not stream (no raw route this frame) is not carried to the next
         }
 

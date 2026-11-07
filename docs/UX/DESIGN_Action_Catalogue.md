@@ -227,3 +227,172 @@ offer (hot path R-2084: the per-frame cost is zero). The graph editors' menus (d
 | **Q3** | graph editors (BTree / HSM / Blueprint node menus) | outside stage 1 — they are NodeEdit's generic menus (AQ26 constraint 1: no engine concept in a generic component); later the same composer behind NodeEdit's provider seam | — |
 | **Q4** | where declarations come from | each feature pack declares its actions at composition (orders by the orders pack, Embark by the embark pack …) — never one central list; the catalogue only holds them | — |
 | **Q5** | the order of groups per mode | Edit: Edit · View · Properties · Debug — Preview / Live: Orders · Edit · View · Properties · Debug — Review: Review · View · Properties · Debug; Destructive last in every group | the user's practice |
+
+## 6. ⭐ A1 build design *(ui, `2026-11-07`; `build-state: READY-TO-BUILD` for A1)*
+
+INVENTORY (re-measured for the build): `ContextMenuProjectorGizmo.MenuJsonFor` (`Hrot.Common/Diagnostics/Gizmos/ContextMenuProjectorGizmo.cs:209`) is
+the one menu builder — four menus: area, terrain zone, route (static JSON) and the unit menu (`UnitMenu`, cached by a flag key). Its callers:
+the map terminal's `MenuResolver`, `MapEntityMenuHandler` (inspector, ORBAT), `MenuShortcuts` (keys). The three dead pieces —
+`SharedContextMenuPopulator`, `IEntityActionController`, `MapContextActionController` — have **0 code references** outside their own files
+(grep: two doc-comment mentions in `ZonesDetailsView.cs`, `ZoneStatusReader.cs`; no test references). The golden:
+`Hrot.Presentation.Tests/Gizmos/TheMenusAreGoldenTests.cs` → `Goldens/menus.golden.txt` (8 entity kinds × 3 modes), captured from the
+code BEFORE A1.
+
+📐 **The finding that makes A1 data-driven, measured on today's four menus:** every separator sits exactly between two non-empty GROUPS —
+unit: *Orders (+ Possess) │ Embark │ View (Center, Follow, Select, Properties, Macro) │ Edit (Rotate) │ Debug (pins, AI trace)*; area / zone /
+route: *View │ Edit │ Destructive*. ⇒ the composer emits the groups in their fixed order and a separator between non-empty ones; ⛔ no
+hand-placed separators.
+
+```mermaid
+classDiagram
+  direction LR
+  class ActionGroup { <<NEW enum>> Orders · Embark · View · Edit · Debug · Destructive }
+  class ActionTarget { <<NEW flags>> Unit · Area · Zone · Route }
+  class EditingMode { <<NEW enum>> Edit · Preview · Live · Review }
+  class ActionDecl {
+    <<NEW record, Hrot.Common.Actions>>
+    Id : int · Label · Group · Order
+    Targets : ActionTarget · Shortcut · Style
+    Offer : Func~ActionContext, ContextMenuItemDto?~  (optional: dynamic label / enabled / tooltip / children / hidden)
+    Expand : Func~ActionContext, IEnumerable~ContextMenuItemDto~~  (optional: one declaration, many rows — the orders)
+  }
+  class ActionCatalogue {
+    <<NEW, one per process: Shared>>
+    Declare(ActionDecl) · All
+  }
+  class ActionContext {
+    <<NEW readonly struct>>
+    View · Entity · Target · Mode
+    UnitFacts (degraded, brain, orders, dis, isUnit, form, manned, embark, pins, traceOn) — computed once
+  }
+  class MenuComposer { <<NEW static, Hrot.Common>> Compose(ActionContext) ContextMenuItemDto[] · Json(ActionContext) }
+  class MapMenuActions { <<NEW>> DeclareInto(ActionCatalogue) — TODAY's items, exactly }
+  class ContextMenuProjectorGizmo { <<existing>> MenuJsonFor → MenuComposer.Json (delegates) }
+  ActionCatalogue "1" o-- "*" ActionDecl
+  MapMenuActions ..> ActionCatalogue : declares at first use
+  MenuComposer --> ActionCatalogue
+  MenuComposer ..> ActionContext
+  ContextMenuProjectorGizmo ..> MenuComposer
+```
+*What the picture shows that the prose hid: the catalogue holds DECLARATIONS; what varies per entity (an order disabled on a damaged unit,
+the checked pins) stays a declaration's `Offer`, not a host's code — and `MenuJsonFor` keeps its signature, so the map, the inspector, the
+ORBAT and the keys need no change.*
+
+```mermaid
+sequenceDiagram
+  participant S as caller (map MenuResolver · inspector · ORBAT · MenuShortcuts)
+  participant G as ContextMenuProjectorGizmo.MenuJsonFor
+  participant C as MenuComposer
+  participant K as ActionCatalogue.Shared
+  S->>G: MenuJsonFor(view, entity)
+  G->>C: Json(ActionContext.For(view, entity))
+  C->>K: All (declared once, at first use)
+  loop group in fixed order
+    loop decl in group, by Order, whose Targets has the context's target
+      C->>C: Expand(ctx) rows, or Offer(ctx) row (null = hidden), or the plain row
+    end
+    C->>C: a separator before a non-empty group that follows a non-empty one
+  end
+  C-->>G: JSON (cached by the context's key, as UnitMenus was)
+  G-->>S: the same JSON as before (the golden)
+```
+*What it shows: one walk over one catalogue; the per-entity facts are read once into the context, exactly the facts `MenuJsonFor` read.*
+
+| decision | why |
+|---|---|
+| `MenuComposer` in **Hrot.Common**, not Hrot.Presentation (§2.3 drew it there) | `MenuJsonFor` lives in Hrot.Common and must delegate; ⚠ a deviation from §2.3, folded here |
+| `EditingMode` derived in A1 as **Review** (the world shows a recording) · **Live** (orders offered) · **Edit** (otherwise) | today's menus only distinguish those; A3 derives it from `RunModeChoice` (§3 row 9) and separates Preview |
+| the orders: ONE `Expand` declaration over `OrderMenu.OfferedFor(dis)` | the order vocabulary is data already (behaviour assemblies); ⛔ not 20 hand-copied declarations |
+| the JSON cached per context key (the old `UnitMenus` key) | `MenuShortcuts` asks per key press, the map per right-click — never per frame (R-2084) |
+| the three dead pieces deleted | §4 A1; measured 0 references |
+
+*Rejected:* **hand-placed separators as declarations** — the group rule reproduces all four menus · **one declaration per order** — the
+vocabulary is hot-reloaded data · **the composer in Presentation with a callback from Common** — a second path for one menu.
+
+### 6a. ⭐ A1 as built *(ui, `2026-11-07`)*
+
+| | as built |
+|---|---|
+| homes | `Hrot.Common/Actions/`: `ActionCatalogue.cs` (`ActionDecl`, `ActionCatalogue.Shared`, `ActionContext`, `UnitFacts`, `MenuComposer`), `MapMenuActions.cs` (today's items + `ContextFor` + the cache), and ⚠ ONE ENUM PER FILE — `ActionGroup.cs`, `ActionTarget.cs`, `EditingMode.cs`, `EmbarkOffer.cs`: the CycloneDDS code generator writes one IDL per source file and IDL enumerators share one scope (`ActionGroup.Edit` vs `EditingMode.Edit` failed the build) |
+| `MenuJsonFor` | one line: `MapMenuActions.JsonFor(view, entity)`; `ContextMenuProjectorGizmo.OrderItem` forwards to `MapMenuActions.OrderItem` |
+| deleted | `SharedContextMenuPopulator`, `MapContextActionController`, `IEntityActionController` |
+| ⏭ still derived | an order's letter (its first letter) — A3 / K5 declare it |
+
+**Rails:** `TheMenusAreGoldenTests` (24 cases, byte-identical before and after — captured at `f768aa019`, the commit before the refactor) ·
+`TheActionCatalogueComposesMenusTests` (a duplicate declaration throws; separators only between non-empty groups).
+
+## 7. ⭐ A2 — a row this station cannot run is GREYED *(ui, `2026-11-07`, built)*
+
+```mermaid
+sequenceDiagram
+  participant T as map terminal (right-click)
+  participant R as MenuResolver (MapInteractionPack.BuildRenderLayer)
+  participant H as HostActions.For(bus)
+  participant M as MapMenuActions.JsonFor(view, entity, runsHere)
+  participant C as MenuComposer
+  T->>R: the clicked entity's network id
+  R->>H: the host whose InteractionBus this map was handed
+  R->>M: runsHere = host.Actions.Has
+  M->>C: Compose(context) then ForStation(rows, runsHere)
+  C-->>T: a row with no handler here: enabled false, "Not available on this station"
+```
+*What it shows: no host passes anything — every map is handed its host's `InteractionBus` (`MapInteraction.InteractionBus` IS
+`HostActions.InteractionBus`), and `HostActions` registers itself under that bus at construction, so the map finds what runs here by
+construction.*
+
+| | as built |
+|---|---|
+| the rule | `MenuComposer.ForStation(rows, runsHere)`: an id the host does not run → `Enabled = false`, `Tooltip = "Not available on this station"`; a row already greyed keeps its own reason; submenus walked |
+| where | the map popup (`MenuResolver`); `MenuJsonFor` (station-free) unchanged for `MenuShortcuts` and the A1 golden |
+| ⏭ the inspector / ORBAT | `MapEntityMenuHandler` still HIDES a row with no handler (its builder has no tooltip) — unified in **A5** (inspector closures → actions) |
+| golden movement | `Goldens/menus.station.golden.txt` (the shared map pack's host): exactly two rows greyed — **Save selection as macro…** (only the editor registers it: a real gap on the other hosts) and **Properties…** (registered by `EntityDetailsBundle`, which the pack-only test host lacks — on every real ECS host it runs) |
+
+**Rails:** `TheMenusAreGoldenTests.A2_*` — the station golden; it differs from the A1 golden only in rows the host cannot run (red-proof: grey
+everything ⇒ fails); the map's own resolver greys *Save selection as macro…* end to end through the bus lookup.
+
+## 8. ⭐ A3 — the mode decides what is offered *(ui, `2026-11-07`, built — the goldens are for the user's review)*
+
+INVENTORY: `scripts/cbm.sh search_graph .*(EditingMode|RunPhase|WorldMode|SessionMode|PlanningState|EditMode).*` ⇒ no world mode type; grep
+`enum EditingMode` ⇒ **two**: `Hrot.Common.Editing.EditingMode` (backend, edit framework F1, documented *"read by the action catalogue (B-11) and
+the edit gate"*) and the one A1 added in `Hrot.Common.Actions` — ⛔ a duplicate, **deleted**; the catalogue uses the gate's. The gate's mode was
+*"a replay is Review, else Edit — Live / Preview from the action catalogue, B-11"* (`SharedApplicationBootstrapper`). `OrdersOffered` is set on
+EVERY map host (`MapInteractionPack.cs:364`) ⇒ the editor offered map orders while authoring — what D15 forbids.
+
+```mermaid
+graph TD
+  BOOT["SharedApplicationBootstrapper (every bootstrapped host)"] -->|installs| SM["StationMode (world singleton)<br/>From(cluster state, ReplayState)"]
+  CV["ClusterSlave.View.State"] --> SM
+  RS["ReplayState.IsActive(world)"] --> SM
+  SM -->|Current| GATE["HrotEditGate (Edits.Submit)"]
+  SM -->|"StationMode.Of(view)"| CAT["MapMenuActions.ContextFor → MenuComposer"]
+  FB["no source installed (a rail, a host outside the bootstrapper)"] -.->|"Fallback: Review if a recording, Live if orders offered, else Edit"| CAT
+```
+*What it shows: ONE mode, derived in ONE place, read by the gate and the menus — so a menu can never offer what the gate would refuse for
+being in the wrong mode. Everything that is not the bootstrapper falls back to A1's behaviour.*
+
+| `ClusterState` (+ replay) | `EditingMode` |
+|---|---|
+| a world showing a recording (any state) · `*Replay` | Review |
+| `LoadingPreview` · `OperatingPreview` · `UnloadingPreview` | Preview |
+| `LoadingLive` · `OperatingLive` · `UnloadingLive` | Live |
+| `Idle` · `*Edit` | Edit |
+
+**What each existing action is offered in** (Editing UX §3.13; hidden elsewhere — ⭐ new actions Rename, Duplicate, Heal… are A5):
+
+| action | Edit | Preview | Live | Review |
+|---|---|---|---|---|
+| orders, Order with options, Designate, Possess | — | ✓ | ✓ | — |
+| Embark… / Disembark | ✓ | — | ✓ | — |
+| Center View, Follow, Select, Properties…, Save selection as macro…, Pin gizmos, AI trace | ✓ | ✓ | ✓ | ✓ |
+| Rotate | ✓ | — | — | — |
+| Edit Shape, Edit Route, Load zone, Delete (graphics) | ✓ | — | ✓ | — |
+
+**Group order:** Edit mode — *Edit, Embark, View, Debug, Destructive*; Preview / Live — *Orders, Embark, View, Edit, Debug, Destructive*
+(A1's); Review — *View, Debug*.
+
+*Rejected:* **the mode from `RunModeChoice` (Presentation)** — the gate is in Hrot.Common and could not read it; the cluster state it reflects
+is already on the bootstrapper's slave · **keeping a second `EditingMode`** — ruling 9 · **hiding Follow / Select in Edit** (§3.13's table omits
+them) — they are navigation, harmless in every mode; ⚠ flagged for the user's review.
+
+**Rails:** `TheActionCatalogueComposesMenusTests` (the mode rule per cluster state; hidden-in-mode + group order) · `TheMenusAreGoldenTests`
+— the golden now covers edit / preview / live / review (moved for review: `Goldens/menus.golden.txt`).
