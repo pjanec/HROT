@@ -13,7 +13,7 @@ related-designs:
 
 # HANDOFF — coordinator → behaviors: the editing-UX remainder
 
-**For:** the behaviors lane (`behaviors`, idle). **From:** the coordinator lane. **Dispatched at `<sha of the commit adding this file>`**. ⭐ Scope
+**For:** the behaviors lane (`behaviors`, idle). **From:** the coordinator lane. **Dispatched at `b76ddfb4`**. ⭐ Scope
 FROZEN there; later documents are FYI.
 
 🔒 User, `2026-11-07`: *"There is the behavior lane, which is idle now. So if it can take some of these tasks in parallel to the UI lane and
