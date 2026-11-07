@@ -47,7 +47,8 @@ namespace Fdp.Toolkit.Replication.Edits
                 EditKind.Write when op.PatchJson != null => EditRequests.WriteJson(repo, op.Target, op.PatchJson),
                 EditKind.Write => throw new ArgumentException("A Write op carries Changes, a PatchJson or a commander.", nameof(op)),
                 EditKind.Create => Create(op),
-                EditKind.Interact => Create(op),   // ⭐ F4: the same shape — the host's command sent under a fresh id; its executor answers
+                EditKind.Interact => Create(op),
+                EditKind.Commit => Create(op),     // ⭐ F6: likewise; the version precondition rides in the host's command   // ⭐ F4: the same shape — the host's command sent under a fresh id; its executor answers
                 EditKind.Delete => Delete(repo, op, netId),
                 _ => throw new NotSupportedException($"Edits.Submit: the {op.Kind} kind is not built yet (edit framework F2–F6)."),
             };

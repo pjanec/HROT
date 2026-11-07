@@ -152,7 +152,7 @@ namespace Hrot.Common.Systems
                     FdpLog<MissionControlExecutionSystem>.Warn(
                         "[MissionControl] Entity {0} not found after {1} retry frames; rejecting request {2}.",
                         intent.TargetEntityId, MaxEntityWaitFrames, intent.RequestId);
-                    PublishAck(repo, intent.RequestId, NedStatusCode.EntityNotFound, newVersion: 0);
+                    PublishAck(repo, intent, NedStatusCode.EntityNotFound, newVersion: 0);
                 }
             }
 
@@ -183,14 +183,14 @@ namespace Hrot.Common.Systems
                 {
                     if (intent.BaseVersion > 0 && intent.BaseVersion != currentVersion)
                     {
-                        PublishAck(repo, intent.RequestId, NedStatusCode.VersionConflict, newVersion: 0);
+                        PublishAck(repo, intent, NedStatusCode.VersionConflict, newVersion: 0);
                         return;
                     }
 
                     var plan = intent.Payload.FullMissionData;
                     if (plan == null)
                     {
-                        PublishAck(repo, intent.RequestId, NedStatusCode.NotSupported, newVersion: 0);
+                        PublishAck(repo, intent, NedStatusCode.NotSupported, newVersion: 0);
                         return;
                     }
                     plan.Tasks ??= new List<MissionTask>();
@@ -202,7 +202,7 @@ namespace Hrot.Common.Systems
                     {
                         // ⭐ CE-4157 — refuse the whole request: no queue is applied, the entity keeps its plan
                         FdpLog<MissionControlExecutionSystem>.Error("[MissionControl] Request {0} refused: {1}", intent.RequestId, ex.Message);
-                        PublishAck(repo, intent.RequestId, NedStatusCode.ValidationFailed, newVersion: 0);
+                        PublishAck(repo, intent, NedStatusCode.ValidationFailed, newVersion: 0);
                         return;
                     }
                     if (!built)
@@ -239,7 +239,7 @@ namespace Hrot.Common.Systems
                     });
                     SmartEgressUtil.MarkDirty(repo, entity, EntityMissionDescriptorOrdinal);
 
-                    PublishAck(repo, intent.RequestId, NedStatusCode.Success, newVersion: currentVersion);
+                    PublishAck(repo, intent, NedStatusCode.Success, newVersion: currentVersion);
                     return;
                 }
 
@@ -270,7 +270,7 @@ namespace Hrot.Common.Systems
                     currentVersion++;
                     queue.Version = currentVersion;
 
-                    PublishAck(repo, intent.RequestId, NedStatusCode.Success, newVersion: currentVersion);
+                    PublishAck(repo, intent, NedStatusCode.Success, newVersion: currentVersion);
                     return;
                 }
 
@@ -283,12 +283,12 @@ namespace Hrot.Common.Systems
                     currentVersion++;
                     repo.GetComponentRW<MissionPlanQueue>(entity).Version = currentVersion;   // EmptyPlan left the queue on
 
-                    PublishAck(repo, intent.RequestId, NedStatusCode.Success, newVersion: currentVersion);
+                    PublishAck(repo, intent, NedStatusCode.Success, newVersion: currentVersion);
                     return;
                 }
 
                 default:
-                    PublishAck(repo, intent.RequestId, NedStatusCode.NotSupported, newVersion: 0);
+                    PublishAck(repo, intent, NedStatusCode.NotSupported, newVersion: 0);
                     return;
             }
         }
@@ -303,14 +303,26 @@ namespace Hrot.Common.Systems
             repo.GetComponentRW<MissionPlanQueue>(entity).Version++;
         }
 
-        private void PublishAck(EntityRepository repo, Guid requestId, NedStatusCode errorCode, long newVersion)
+        private void PublishAck(EntityRepository repo, MissionControlIntent intent, NedStatusCode errorCode, long newVersion)
         {
             repo.Bus.Publish(new MissionControlAckEvent
             {
-                RequestId = requestId,
+                RequestId = intent.RequestId,
                 ErrorCode = (int)errorCode,
                 NewVersion = newVersion,
             });
+            // ⭐ Edit framework F6 (📄 docs/UX/DESIGN_Edit_Framework.md §2.1, §3, Q3) — the commit's answer is ALSO the one edit outcome: a failed version
+            //   precondition is a CONFLICT (the user picks Reload or Overwrite), not a plain refusal.
+            var (status, reason) = errorCode switch
+            {
+                NedStatusCode.Success => (Fdp.Toolkit.Replication.Edits.EditStatus.Applied, "the plan is in force"),
+                NedStatusCode.VersionConflict => (Fdp.Toolkit.Replication.Edits.EditStatus.Conflict, "the plan was changed by someone else since you opened it"),
+                NedStatusCode.EntityNotFound => (Fdp.Toolkit.Replication.Edits.EditStatus.Refused, "the unit is not known on its owner"),
+                NedStatusCode.NotSupported => (Fdp.Toolkit.Replication.Edits.EditStatus.Refused, "this mission command is not supported"),
+                NedStatusCode.ValidationFailed => (Fdp.Toolkit.Replication.Edits.EditStatus.Refused, "the plan did not validate"),
+                _ => (Fdp.Toolkit.Replication.Edits.EditStatus.Refused, errorCode.ToString()),
+            };
+            Fdp.Toolkit.Replication.Edits.EditOutcomes.Report(repo, intent.RequestId, intent.TargetEntityId, status, reason);
         }
 
         private bool TryBuildQueue(
@@ -415,7 +427,7 @@ namespace Hrot.Common.Systems
                 }
                 else
                 {
-                    PublishAck(repo, intent.RequestId, NedStatusCode.EntityNotFound, newVersion: 0);
+                    PublishAck(repo, intent, NedStatusCode.EntityNotFound, newVersion: 0);
                 }
             }
         }
