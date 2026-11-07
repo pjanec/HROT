@@ -535,15 +535,23 @@ namespace Fdp.Toolkit.Behavior
         /// fight, and not himself aboard something. Called wherever a list empties (the deciding node and every node deriving from the list).
         /// ⚠ It grants <c>CanShoot</c>; the person-carrier profile is declared only on soldier types, which have it.
         /// </summary>
+        /// <summary>⭐ Is <paramref name="carrier"/> a PERSON with his hands full — a casualty or a team load (T-a)? ⭐ WS-2 — a weapon he carries (his carry
+        /// station) does not fill them. The ONE test: <see cref="ReleaseCarrier"/> and <c>CombatLife.RestoreHitCapabilities</c> both ask it.</summary>
+        public static bool HandsFull(EntityRepository repo, Entity carrier)
+        {
+            if (!IsPersonCarrier(repo, carrier) || !Has<PassengerBuffer>(repo, carrier)) return false;
+            ref readonly var list = ref repo.GetComponentRO<PassengerBuffer>(carrier);
+            if (!list.Assistant.IsNull) return true;
+            for (int i = 0; i < PassengerBuffer.Capacity; i++)
+                if (!list.Passengers[i].IsNull && !IsWeaponSystem(repo, list.Passengers[i])) return true;
+            return false;
+        }
+
         public static void ReleaseCarrier(EntityRepository repo, Entity carrier)
         {
             if (!IsPersonCarrier(repo, carrier) || !Has<ActorCapabilityState>(repo, carrier) || !Has<PassengerBuffer>(repo, carrier)) return;
             if (Has<IsEmbarkedTag>(repo, carrier)) return;
-            // ⭐ WS-2 — only a CASUALTY fills his hands: a weapon he carries (his carry station) does not keep his fire off
-            ref readonly var list = ref repo.GetComponentRO<PassengerBuffer>(carrier);
-            if (!list.Assistant.IsNull) return;   // ⭐ T-a — a team load still in his hands
-            for (int i = 0; i < PassengerBuffer.Capacity; i++)
-                if (!list.Passengers[i].IsNull && !IsWeaponSystem(repo, list.Passengers[i])) return;
+            if (HandsFull(repo, carrier)) return;
             if (!Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, carrier)) return;
             repo.GetComponentRW<ActorCapabilityState>(carrier).Capabilities |= ActorCapabilities.CanShoot;
         }

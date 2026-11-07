@@ -96,7 +96,7 @@ namespace Fdp.Toolkit.Combat
             var give = ActorCapabilities.None;
             var granted = TypeGrants(repo, entity);
             if (!HitStopsMove(repo, entity, in health)) give |= ActorCapabilities.CanMove & granted;
-            if (!Fdp.Toolkit.Physics.BodyParts.Wounds.Has(repo, entity, Fdp.Toolkit.Tkb.Domain.WoundEffect.Firepower) && !CarriesCasualty(repo, entity))
+            if (!Fdp.Toolkit.Physics.BodyParts.Wounds.Has(repo, entity, Fdp.Toolkit.Tkb.Domain.WoundEffect.Firepower) && !Fdp.Toolkit.Behavior.Embarkation.HandsFull(repo, entity))
                 give |= ActorCapabilities.CanShoot & granted;
             if (give != ActorCapabilities.None) repo.GetComponentRW<ActorCapabilityState>(entity).Capabilities |= give;
         }
@@ -111,18 +111,6 @@ namespace Fdp.Toolkit.Combat
                 || !db.TryGetByType(repo.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity).TkbType, out var template)
                 || template?.GetDescriptor<Fdp.Toolkit.Tkb.Domain.BehaviorProfileDto>() is not { } dto) return both;
             return (dto.CanMove ? ActorCapabilities.CanMove : 0) | (dto.CanShoot ? ActorCapabilities.CanShoot : 0);
-        }
-
-        /// <summary>Is <paramref name="entity"/> a person carrier with his hands full — a casualty or a team load (not a carried weapon)? The test
-        /// <c>Embarkation.ReleaseCarrier</c> applies before giving fire back.</summary>
-        private static bool CarriesCasualty(EntityRepository repo, Entity entity)
-        {
-            if (!Fdp.Toolkit.Behavior.Embarkation.IsPersonCarrier(repo, entity) || !repo.IsComponentTypeRegistered<PassengerBuffer>() || !repo.HasComponent<PassengerBuffer>(entity)) return false;
-            ref readonly var list = ref repo.GetComponentRO<PassengerBuffer>(entity);
-            if (!list.Assistant.IsNull) return true;
-            for (int i = 0; i < PassengerBuffer.Capacity; i++)
-                if (!list.Passengers[i].IsNull && !Fdp.Toolkit.Behavior.Embarkation.IsWeaponSystem(repo, list.Passengers[i])) return true;
-            return false;
         }
     }
 }
