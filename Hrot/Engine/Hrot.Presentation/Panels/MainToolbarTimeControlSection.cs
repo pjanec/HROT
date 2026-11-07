@@ -212,25 +212,38 @@ public sealed class MainToolbarTimeControlSection
         return new(header, items);
     }
 
+    /// <summary>
+    /// ⭐ The DAR choices of a live run — ONE list for the mode menu and ⭐ CE-4321 (L-5, LC-16) the ⏪ Review button beside ▶: the last N minutes, from the start;
+    /// greyed with the reason when the run is not recorded (D14). Empty outside Live.
+    /// </summary>
+    public IReadOnlyList<ModeMenuItem> ReviewChoices()
+    {
+        var items = new List<ModeMenuItem>();
+        if (_facade.Mode != TransportMode.Live) return items;
+        // ⭐ D14 — a run that was not recorded has nothing to look back at: DAR is greyed with the reason (the master refuses it too)
+        var darWhy = _choice?.DarDisabledReason;
+        string Dar(string label) => darWhy is null ? label : $"{label} — {darWhy}";
+        foreach (var d in ReviewWindows)
+        {
+            var window = d;
+            items.Add(new(Dar($"DAR — the last {WindowLabel(window)}"),
+                () => _facade.EnterReviewAtSim(Math.Max(0, _facade.TotalTime - window)), Enabled: darWhy is null));
+        }
+        items.Add(new(Dar("DAR from the start"), () => _facade.EnterReviewAtSim(0), Enabled: darWhy is null));
+        return items;
+    }
+
+    /// <summary>⭐ CE-4321 — the ⏪ Review button shows in a live run only.</summary>
+    public bool ShowsReviewButton => _facade.Mode == TransportMode.Live;
+
+    private IReadOnlyList<ModeMenuItem>? _reviewOpen;   // the choices while the button's popup is up (built on the click, not per frame)
+
     private ModeMenuModel? LegacyModeMenu()
     {
         switch (_facade.Mode)
         {
             case TransportMode.Live:
-            {
-                var items = new List<ModeMenuItem>();
-                // ⭐ D14 — a run that was not recorded has nothing to look back at: DAR is greyed with the reason (the master refuses it too)
-                var darWhy = _choice?.DarDisabledReason;
-                string Dar(string label) => darWhy is null ? label : $"{label} — {darWhy}";
-                foreach (var d in ReviewWindows)
-                {
-                    var window = d;
-                    items.Add(new(Dar($"DAR — the last {WindowLabel(window)}"),
-                        () => _facade.EnterReviewAtSim(Math.Max(0, _facade.TotalTime - window)), Enabled: darWhy is null));
-                }
-                items.Add(new(Dar("DAR from the start"), () => _facade.EnterReviewAtSim(0), Enabled: darWhy is null));
-                return new($"Live · {TransportIcons.FormatTime(_facade.TotalTime)}", items);
-            }
+                return new($"Live · {TransportIcons.FormatTime(_facade.TotalTime)}", ReviewChoices());
             case TransportMode.Review:
             {
                 var items = new List<ModeMenuItem>();
@@ -381,6 +394,29 @@ public sealed class MainToolbarTimeControlSection
                 : PlayTooltip(isPaused));    // what a press does, by the mode
 
         ImGui.SameLine();
+
+        // ── [⏪ Review] — ⭐ CE-4321 (L-5, LC-16): the DAR choices one click away, beside ▶ (the mode menu keeps them too) ──
+        if (ShowsReviewButton)
+        {
+            if (TransportIcons.DrawTransportButton("##mt_review", iconSize, TransportIcons.BtnShape.Rewind, enabled: true))
+            {
+                _reviewOpen = ReviewChoices();
+                ImGui.OpenPopup("##mt_review_menu");
+            }
+            if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip("Review (DAR): look back at the live run");
+            if (ImGui.BeginPopup("##mt_review_menu"))
+            {
+                if (_reviewOpen != null)
+                    foreach (var item in _reviewOpen)
+                    {
+                        if (!item.Enabled) ImGui.BeginDisabled();
+                        if (ImGui.MenuItem(item.Label)) item.Invoke?.Invoke();
+                        if (!item.Enabled) ImGui.EndDisabled();
+                    }
+                ImGui.EndPopup();
+            }
+            ImGui.SameLine();
+        }
 
         // ── [Step] ─────────────────────────────────────────────────────
         if (TransportIcons.DrawTransportButton("##mt_step", iconSize,

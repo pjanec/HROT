@@ -89,6 +89,12 @@ Status column: **built** · **queued** (designed and in a running handoff) · **
 | LC-20 | ⭐ **no bookmarks or notes during Live** (TE-4 not built) — the instructor's "remember this for the AAR" has nowhere to go | none (E7, not designed) | design E7: *Bookmark* (one key, a name optional) and *Note* on the timeline in Live, listed in DAR and AAR |
 | LC-21 | recordings default to a TEMP folder (`$TMP/FDP_Temp`, `C:\FDP_Temp`, `OrchestrationConstants.cs:16-20`) | built | a fixed data folder by default (beside the scenarios); temp only when asked |
 
+**LC-16 as built (L-5, CE-4321, behaviors):** ⏪ **Review** — `MainToolbarTimeControlSection.ReviewChoices()` is the ONE list of a live run's DAR choices
+(the mode menu's Live items now come from it); in Live the toolbar draws ⏪ (`TransportIcons.BtnShape.Rewind`, DAR amber) beside ▶ and its popup offers
+those choices (greyed with the reason when the run is not recorded, D14). The Player's banner — `RunMode.ReviewBanner` — *"REVIEW — the exercise is
+paused"*, amber, across the top on the foreground draw list whenever the node's run transport is in `TransportMode.Review`; drawn from
+`PlayerApplication.DrawUI` (the Player's time bar stays suppressed). Rails: `MainToolbarTimeControlTests.CE4321_*`, `ColourIconsFrameRail.L5_*` (a real frame).
+
 **LC-17 as built (L-3, CE-4322, behaviors):** `InstructorEnd.Of(world, blocked, withoutRule)` — with no `instructor-end` rule the End is AVAILABLE where the
 station can create a one-shot and its seat may edit rules (`RuleEditorServicesFactory.SeatRefusal`: Instructor / Author); it runs `InstructorEnd.EndStep()`
 (`EndExercise { reason: "Ended by the instructor" }`) through the Game master's one path (`GmOneShot.TriggerParamsJson` → the bundle's `CreateOneShot`). The
