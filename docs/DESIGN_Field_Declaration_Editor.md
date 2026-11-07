@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - docs/DESIGN_Struct_Editor.md — OWNS the one struct-editor library; §6 Define mode is folded there, D0 decided there (S1)
   - docs/UX/DESIGN_Scenario_Presets.md — §5e: the presets' look is built into THIS shared table for every host
   - docs/DESIGN_Macro_Authoring_Editor.md — the scenario / macro PARAMETERS (MA-5): the declarations this editor edits for one host
   - docs/DESIGN_Rules_View_UI.md — §7.5a: the shared EditHistory every host's edits push to (CE-4218 / CE-4219)
@@ -71,7 +72,7 @@ cannot inherit a blackboard column it never asked for.*
 | **one `DeclarationFeatures` record on `IVariablesSchemaSource`, no default body** | the seam's own rule (`:44`: *"no default body — every implementer answers"*); the control draws a column or button only when its feature is on |
 | blackboard sources = today's set (byte size, live value, remove unused, exposure) | ⛔ no behaviour change for BTree / HSM / Blueprint |
 | parameters = **default-value cell** + a read-only **used by N** column (`ParamUsage.CountAll`) — no byte size, no live value, no *Remove unused* | the user's list; *used by N* answers *"which is not used"* without a bulk delete |
-| the default cell is the **StructEdit leaf** for the field's type (the `ParamArgsTable` / `DefaultValueAuthoring` path, CE-4141) | one editor per type everywhere (R-3001), committed through `UpdateVariableDefaultValueJson` |
+| the default cell is the **StructEdit leaf** for the field's type (the `ParamArgsTable` / `DefaultValueAuthoring` path, CE-4141) | one editor per type everywhere (R-174; ⚠ was mis-cited as R-3001, which is the per-asset params-default overrides), committed through `UpdateVariableDefaultValueJson` |
 | **Ctrl+Z / Ctrl+Y** on the focused panel over the source's history; the buttons go | the user's ask; the timeline panel's chord precedent (CE-1364 T3) |
 
 **Rejected:** a new `FieldDeclarationPanel` — the inventory shows the generic control exists; a second table would be the duplicate.
@@ -159,7 +160,7 @@ classDiagram
 walk a type itself. So a structure or a list expands the same way in every host, and in the unit's Details ▸ AI it already does.*
 
 
-### 6.0 ⭐⭐⭐ D0 — ONE solution: **StructEdit gains the DEFINE view** *(user question `2026-11-07`; lean — awaits the user)*
+### 6.0 ⭐⭐⭐ D0 — ONE solution: **StructEdit gains the DEFINE view** *(user question `2026-11-07`; ⭐ the user then asked to merge — designed in [`DESIGN_Struct_Editor.md`](DESIGN_Struct_Editor.md) S1, awaiting approval there)*
 
 > 🔒 User: *"How does it all relate to the struct edit … one of them is used for editing the values, the struct edit, while this … is allowing for
 > defining the structures. But I feel there is an overlap … shouldn't we actually extend the struct edit or somehow unify and merge both so we have

@@ -9,6 +9,7 @@ known-conflict: AQ108 D24 (the Live default variant is RANDOM) — reconciled by
   DESIGN_Colour_Icons.md "Not touched: the mode indicator" — the user replaced ◐ with an eye on 2026-11-07 (D9); fold into AQ108 §1a with the old rule
   under HISTORY when built · LC-11 / CE-4317 (the Run setup on the mode menu, ui, started) — re-scoped by D8 (one picker: the split ▶)
 related-designs:
+  - docs/DESIGN_Struct_Editor.md — the library the preset editor is built on (step 6)
   - docs/DESIGN_Scenario_Macros.md — §17.1 OWNS the VariantForms holder (CE-3374) that makes a variant-0 world saveable; §5 / §14 SR-168 OWN the bindings that keep a parameter's binding across a save; SR-32 owns MACRO presets (a different concept, D1)
   - docs/UX/DESIGN_Scenario_Lifecycle_Review.md — LC-11 (a Preview that takes the run setup) is answered HERE; §2.8 Run to … runs on any of these worlds
   - docs/blueprints/Architect_Question_108_Run_Mode_Picker.md — D24 (the run setup, the picker's expander), R1 (only the indicator changes mode), D17 (the glyphs); this design replaces D24's expander with presets
