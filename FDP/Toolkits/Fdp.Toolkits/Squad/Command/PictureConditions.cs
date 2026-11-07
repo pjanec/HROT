@@ -97,9 +97,9 @@ namespace Fdp.Toolkit.Squad.Command
             return -1;
         }
 
-        /// <summary>Sim seconds now (the world clock), 0 when none.</summary>
-        public static float Now(ISimulationView view)
-            => view is EntityRepository repo && repo.HasSingletonUnmanaged<GlobalTime>() ? (float)repo.GetSingletonUnmanaged<GlobalTime>().TotalTime : 0f;
+        /// <summary>The sim clock now (the world clock, a double — CE-4201), time zero when none.</summary>
+        public static SimInstant Now(ISimulationView view)
+            => view is EntityRepository repo && repo.HasSingletonUnmanaged<GlobalTime>() ? (SimInstant)repo.GetSingletonUnmanaged<GlobalTime>().TotalTime : SimInstant.Zero;
     }
 
     /// <summary>Params of <see cref="PictureConditions.ProgressReached"/>.</summary>
@@ -183,7 +183,7 @@ namespace Fdp.Toolkit.Squad.Command
             if (!world.HasComponent<CommandPicture>(self)) return false;
             ref readonly var picture = ref world.GetComponentRO<CommandPicture>(self);
             var at = world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position : WorldPoint.Zero;
-            float now = CommandPictureOps.Now(world);
+            SimInstant now = CommandPictureOps.Now(world);
             for (int i = 0; i < picture.Elements.Count; i++)
             {
                 ref readonly var e = ref picture.Elements.Items[i];

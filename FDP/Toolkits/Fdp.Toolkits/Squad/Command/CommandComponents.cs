@@ -26,9 +26,9 @@ namespace Fdp.Toolkit.Squad.Command
         /// <summary>The reporting subordinate's network id.</summary>
         public int FromNetId;
         /// <summary>CB-31 — when it was observed (sim s); the element ages from it.</summary>
-        public float ObservedAt;
+        public SimInstant ObservedAt;
         /// <summary>When the report arrived here (sim s) — CC-12 shows both.</summary>
-        public float ReceivedAt;
+        public SimInstant ReceivedAt;
         public uint Seq;
         public byte Synthetic;
     }
@@ -57,13 +57,13 @@ namespace Fdp.Toolkit.Squad.Command
         public StatusColour Ammo;
         public ushort Phase;
         /// <summary>When its last report of any kind arrived (sim s) — "overdue" is measured from it (CC-12).</summary>
-        public float LastReportAt;
-        public float LastSitrepAt;
+        public SimInstant LastReportAt;
+        public SimInstant LastSitrepAt;
         /// <summary>The newest sequence taken in from it (CB-32: an older one arriving late is dropped).</summary>
         public uint LastSeq;
         /// <summary>⭐ <c>CE-2294</c> CC-D — when the commander last gave it a fresh order (sim s): a PROGRESS observed before it belongs to
         /// the previous order and is not taken (a Set still on its way when a play re-orders must not satisfy the new wait).</summary>
-        public float OrderedAt;
+        public SimInstant OrderedAt;
     }
 
     [InlineArray(CommandPicture.MaxSubordinates)]
@@ -84,7 +84,7 @@ namespace Fdp.Toolkit.Squad.Command
         public int FromNetId;
         public RequestKind Kind;
         public Vector3 At;
-        public float ReceivedAt;
+        public SimInstant ReceivedAt;
         public uint Seq;
         /// <summary>⭐ <c>CE-2305</c> RQ-2 — what it is about (the casualty of a Casevac): a network id, since the picture is replicated (0 = none).</summary>
         public int SubjectNetId;
@@ -151,7 +151,7 @@ namespace Fdp.Toolkit.Squad.Command
     {
         public CommandReport Report;
         /// <summary>When it may go (sim s) — the send delay (R-2031: 3 s by default).</summary>
-        public float DueAt;
+        public SimInstant DueAt;
         /// <summary>⭐ <c>CE-2305</c> RQ-2 — what it is about (the casualty of a Casevac); the flush puts it on the notification.</summary>
         public Entity Subject;
     }
@@ -189,31 +189,31 @@ namespace Fdp.Toolkit.Squad.Command
         public uint NextSeq;
         public ReportingPosture Posture;
         /// <summary>CC-15 — lost comms: nothing is sent before this sim time.</summary>
-        public float MutedUntil;
+        public SimInstant MutedUntil;
         /// <summary>⭐ CE-2293 — the composer's memory of the element it last SPOTted (1 = one is reported and not yet lost), where, and
         /// its size class: a new SPOT goes only when the element is new, changes size or moves.</summary>
         public byte SpotSent;
         public System.Numerics.Vector3 SpotAt;
         public ElementSize SpotSize;
         /// <summary>⭐ CE-2293 — when the composer last queued a routine SITREP (sim s; 0 = never).</summary>
-        public float LastSitrepAt;
+        public SimInstant LastSitrepAt;
         /// <summary>⭐ CE-2294 — when the composer last queued a SPOT of the element (sim s): it re-reports a still-held element every
         /// <c>SpotRefreshSeconds</c> (CB-33: a reported contact is forgotten "unless re-reported").</summary>
-        public float SpotSentAt;
+        public SimInstant SpotSentAt;
         /// <summary>⭐ <c>CE-2305</c> RQ-1, RQ-5 — one bit per roster slot: that man's Casevac has been asked for (once per man).</summary>
         public ushort CasevacAsked;
         /// <summary>⭐ CE-2309 (HQ-2) — the equipment of the element it last SPOTted: a change is news.</summary>
         public ElementEquipment SpotEquipment;
         /// <summary>⭐ CE-2309 (HQ-1) — the last heard launch it SPOTted, and when (0 = none).</summary>
         public System.Numerics.Vector3 LaunchAt;
-        public float LaunchSentAt;
+        public SimInstant LaunchSentAt;
         /// <summary>⭐ CE-2310 (HQ-3) — the support elements it relayed up (where, which flag, when), newest replacing the oldest.</summary>
         public RelayedElementList Relayed;
         /// <summary>⭐ CE-2310 (HQ-4) — where and when it last asked for fire support (0 = never).</summary>
         public System.Numerics.Vector3 SupportAskedAt;
-        public float SupportAskedTime;
+        public SimInstant SupportAskedTime;
         /// <summary>⭐ CE-2310 (HQ-5) — when it last asked to be reinforced (0 = never).</summary>
-        public float ReinforceAskedTime;
+        public SimInstant ReinforceAskedTime;
     }
 
     /// <summary>⭐ CE-2310 (HQ-3) — one element a commander relayed up.</summary>
@@ -222,7 +222,7 @@ namespace Fdp.Toolkit.Squad.Command
     {
         public System.Numerics.Vector3 At;
         public ElementEquipment Flag;
-        public float SentAt;
+        public SimInstant SentAt;
     }
 
     [InlineArray(RelayedElementList.Capacity)]

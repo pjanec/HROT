@@ -77,7 +77,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (!world.HasComponent<CommandPicture>(self)) return NodeStatus.Running;
             var json = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
-            float now = CommandPictureOps.Now(world);
+            SimInstant now = CommandPictureOps.Now(world);
 
             int fire = CommandPictureOps.FirstRequest(world, self, RequestKind.FireSupport);
             if (fire >= 0)
@@ -145,7 +145,7 @@ namespace Hrot.AI.Behaviors.Brains
             => !world.HasComponent<BehaviorState>(self) || world.GetComponentRO<BehaviorState>(self).ActiveBehaviorHash != SupportCommandHash;
 
         /// <summary>HQ-7 — a fresh AirDefence element within <paramref name="metres"/> of <paramref name="point"/>, the nearest.</summary>
-        private static bool AirDefenceNear(EntityRepository world, Entity self, Vector3 point, float metres, float freshSeconds, float now, out Vector3 at)
+        private static bool AirDefenceNear(EntityRepository world, Entity self, Vector3 point, float metres, float freshSeconds, SimInstant now, out Vector3 at)
         {
             at = default;
             ref readonly var picture = ref world.GetComponentRO<CommandPicture>(self);

@@ -323,7 +323,7 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Jumped;
         public byte StickCount;
         /// <summary>Seconds after the play went that the last man was told to jump (−1 = none yet).</summary>
-        public float LastJumpAt;
+        public SimDuration LastJumpAt;
         /// <summary>The Drop leg: its first point and its flat direction (X, Y).</summary>
         public Vector3 LegStart;
         public Vector2 LegAlong;

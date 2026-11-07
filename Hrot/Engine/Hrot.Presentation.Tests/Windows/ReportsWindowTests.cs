@@ -40,7 +40,7 @@ public sealed class ReportsWindowTests : IDisposable
             var kind = kinds[i % kinds.Length];
             var report = new CommandReport
             {
-                Kind = kind, ObservedAt = Now - (i + 1) * 10f, At = new Vector3(100f + i, 200f + i, 0f),
+                Kind = kind, ObservedAt = (Fdp.Core.SimInstant)(Now - (i + 1) * 10f), At = new Vector3(100f + i, 200f + i, 0f),
                 Subtype = kind == ReportKind.Progress ? (byte)ProgressKind.Set : kind == ReportKind.Request ? (byte)RequestKind.Casevac : (byte)0,
                 Count = 6, Size = ElementSize.SquadSize, Activity = ElementActivity.Moving, Equipment = ElementEquipment.MachineGun,
                 Synthetic = (byte)(i == 7 ? 1 : 0),

@@ -286,7 +286,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus SendReport(ref SendReportParams p, Entity self, EntityRepository world)
         {
             if (p.Kind != ReportKind.Progress && p.Kind != ReportKind.Request) return NodeStatus.Failure;
-            float now = CommandPictureOps.Now(world);
+            SimInstant now = CommandPictureOps.Now(world);
             var at = world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position : Fdp.Core.WorldPoint.Zero;
             return ReportQueue.Enqueue(world, self, new CommandReport
             {

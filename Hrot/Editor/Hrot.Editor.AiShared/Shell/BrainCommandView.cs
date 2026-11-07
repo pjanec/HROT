@@ -11,7 +11,7 @@ namespace Hrot.Editor.AiShared.Shell;
 
 /// <summary>One row of a commander's report or order history, newest first.</summary>
 /// <param name="At">Sim seconds.</param>
-public sealed record BrainHistoryRow(float At, string Text, int CounterpartNetId);
+public sealed record BrainHistoryRow(double At, string Text, int CounterpartNetId);
 
 /// <summary>
 /// ⭐⭐ <c>CE-1312</c> (Brain View §12d BV-56…BV-58, §12f's commander) — what a COMMANDER's Brain tab shows, from recorded components
@@ -30,7 +30,7 @@ public sealed record BrainCommandView(
     IReadOnlyList<BrainHistoryRow> OrdersSent)
 {
     /// <summary>The unit's commander view, or null when it is no commander (no roster, picture, pool or history).</summary>
-    public static BrainCommandView? Read(ISimulationView view, Entity unit, Func<int, string?> behaviourName, float now)
+    public static BrainCommandView? Read(ISimulationView view, Entity unit, Func<int, string?> behaviourName, double now)
     {
         bool picture = Has<CommandPicture>(view, unit), pool = Has<SquadCognitiveState>(view, unit) && Has<UnitRoster>(view, unit);
         bool reports = Has<CommandReportHistory>(view, unit), orders = Has<CommandOrderHistory>(view, unit);
@@ -135,7 +135,7 @@ public sealed record BrainCommandView(
     private static string Colours(StatusColour strength, StatusColour ammo)
         => (Convert.ToInt32(strength) == 0 ? "" : $"  strength {strength}") + (Convert.ToInt32(ammo) == 0 ? "" : $"  ammo {ammo}");
 
-    private static string Age(float now, float at) => at <= 0 ? "" : $"{Math.Max(0f, now - at):0} s ago";
+    private static string Age(double now, double at) => at <= 0 ? "" : $"{Math.Max(0d, now - at):0} s ago";
 
     private static bool Has<T>(ISimulationView view, Entity e) where T : unmanaged
         => (view is not EntityRepository r || r.IsComponentTypeRegistered<T>()) && view.HasComponent<T>(e);

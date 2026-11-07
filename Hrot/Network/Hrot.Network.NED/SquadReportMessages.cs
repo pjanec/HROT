@@ -47,7 +47,7 @@ namespace Hrot.NED.Messages
         public byte Kia;
         public ushort Phase;
         /// <summary>When the sender saw it (sim s) — the report ages from it (CB-31).</summary>
-        public float ObservedAt;
+        public double ObservedAt;
         /// <summary>When the sender published it (sim s).</summary>
         public double SentAt;
         /// <summary>Per sender, increasing (CB-32).</summary>

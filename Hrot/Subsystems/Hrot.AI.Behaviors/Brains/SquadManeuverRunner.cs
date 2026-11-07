@@ -282,13 +282,13 @@ namespace Hrot.AI.Behaviors.Brains
         public float LeadWalked;
         /// <summary>The current lead's best distance to the objective, and when it last got 0.5 m closer.</summary>
         public float LeadBest;
-        public float LeadProgressAt;
+        public SimDuration LeadProgressAt;
         /// <summary>1 = at the last tick every follower stood within 3 m of its slot.</summary>
         public byte AllAtSlots;
-        public float HaltSince;
-        public float HaltsAllowedAt;
+        public SimDuration HaltSince;
+        public SimDuration HaltsAllowedAt;
         /// <summary>When the lead arrived (−1 = not yet).</summary>
-        public float LeadArrivedAt;
+        public SimDuration LeadArrivedAt;
         /// <summary>When member i last got 0.5 m closer to its point.</summary>
         public fixed float ProgressAt[UnitRoster.Capacity];
         /// <summary>Member i's best distance to its current point.</summary>

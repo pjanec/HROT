@@ -19,7 +19,7 @@ using StructEdit.Reflection;
 namespace Hrot.UI.Common.Rules;
 
 /// <summary>One entry of a rule entity's brain journal (the Brain tab's own text — <c>BrainJournalText</c>).</summary>
-public sealed record RuleJournalEntry(uint Seq, float At, string Kind, string Text);
+public sealed record RuleJournalEntry(uint Seq, double At, string Kind, string Text);
 
 /// <summary>
 /// ⭐ CE-4220 (R5b, RE-7 live) — what a host with a LIVE run gives the rule editor: why a kind cannot be edited live (null = it can — the owner has a state keeper for it, <c>BehaviorRegistry.TryGetKeeper</c>), and the switch of the node feature

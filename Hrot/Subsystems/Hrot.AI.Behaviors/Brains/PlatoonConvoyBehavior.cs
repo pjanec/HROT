@@ -41,7 +41,7 @@ namespace Hrot.AI.Behaviors.Brains
         public float ClearSeconds;
         public byte Made;
         public byte Phase;
-        public float PhaseAt;
+        public SimInstant PhaseAt;
         /// <summary>The vehicle each slot's squad rides (<see cref="Entity.PackedValue"/>; 0 = none).</summary>
         public fixed ulong Vehicle[Capacity];
         /// <summary>1 = the squad follows on foot (no vehicle that can take it).</summary>
@@ -376,7 +376,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static unsafe bool InContact(ref ConvoyPlan p, Entity self, EntityRepository world)
         {
             if (p.Made == 0) return false;
-            if (AnyEngaged(world, self) || ElementSeen(world, self, ContactFreshSeconds, float.NegativeInfinity)) return true;
+            if (AnyEngaged(world, self) || ElementSeen(world, self, ContactFreshSeconds, (SimInstant)double.NegativeInfinity)) return true;
             int n = Math.Min(RosterCount(world, self), ConvoyPlan.Capacity);
             for (int s = 0; s < n; s++)
             {
@@ -411,7 +411,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// and no squad in its contact drill.</summary>
         [SharedAiCondition]
         public static bool Quiet(ref ConvoyPlan p, Entity self, EntityRepository world)
-            => !AnyEngaged(world, self) && !ElementSeen(world, self, p.ClearSeconds, float.NegativeInfinity);
+            => !AnyEngaged(world, self) && !ElementSeen(world, self, p.ClearSeconds, (SimInstant)double.NegativeInfinity);
 
         /// <summary>CSecure / CRemount → CContact: a squad in its contact drill, or an element seen since the phase began.</summary>
         [SharedAiCondition]
@@ -469,12 +469,12 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>A live element in the platoon's picture within <see cref="ContactMetres"/> of the platoon, observed within
         /// <paramref name="freshSeconds"/> and after <paramref name="since"/>.</summary>
-        public static bool ElementSeen(EntityRepository world, Entity self, float freshSeconds, float since)
+        public static bool ElementSeen(EntityRepository world, Entity self, float freshSeconds, SimInstant since)
         {
             if (!world.HasComponent<CommandPicture>(self)) return false;
             ref readonly var picture = ref world.GetComponentRO<CommandPicture>(self);
             var at = StaffComposerSystem.CentreOf(world, self);
-            float now = CommandPictureOps.Now(world);
+            SimInstant now = CommandPictureOps.Now(world);
             for (int i = 0; i < picture.Elements.Count; i++)
             {
                 ref readonly var e = ref picture.Elements.Items[i];

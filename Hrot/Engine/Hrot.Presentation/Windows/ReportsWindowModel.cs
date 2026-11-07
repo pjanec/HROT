@@ -66,7 +66,7 @@ public static class ReportsWindowModel
     /// <param name="unitFilter">Keeps a report whose FROM or TO is this unit; null = all.</param>
     /// <param name="kindFilter">Keeps this kind only; null = all.</param>
     public static IReadOnlyList<ReportRow> Rows(
-        EntityRepository? world, SquadReportLog? log, float now, Entity? unitFilter, ReportKind? kindFilter)
+        EntityRepository? world, SquadReportLog? log, double now, Entity? unitFilter, ReportKind? kindFilter)
     {
         var rows = new List<ReportRow>();
         if (log == null) return rows;
@@ -101,7 +101,7 @@ public static class ReportsWindowModel
         return string.IsNullOrEmpty(name) ? $"#{unit.Index}" : name;
     }
 
-    private static ReportRow Row(EntityRepository? world, SquadReportLogEntry e, float now)
+    private static ReportRow Row(EntityRepository? world, SquadReportLogEntry e, double now)
     {
         var r = e.Report;
         ReportSpot? spot = CommandReportText.CarriesElementFields(r)
@@ -110,6 +110,6 @@ public static class ReportsWindowModel
         return new ReportRow(
             e.Serial, e.SeenAt, r.Kind.ToString(), CommandReportText.SubtypeName(r),
             NameOf(world, e.FromUnit), NameOf(world, e.ToUnit),
-            spot, now - r.ObservedAt, r.Synthetic != 0, e.Verdict);
+            spot, (float)(now - r.ObservedAt), r.Synthetic != 0, e.Verdict);
     }
 }

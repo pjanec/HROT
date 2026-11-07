@@ -235,14 +235,14 @@ namespace Fdp.Toolkit.Squad.Systems
         }
 
         /// <summary>The CONTACT the squad sends up: an element firing at <paramref name="at"/> (its staff delay applies).</summary>
-        private static void ReportUp(EntityRepository repo, Entity commander, Vector3 at, float now)
+        private static void ReportUp(EntityRepository repo, Entity commander, Vector3 at, double now)
         {
             if (!repo.IsComponentTypeRegistered<Command.ReportOutbox>() || !repo.HasComponent<Command.ReportOutbox>(commander)) return;
             Command.ReportQueue.Enqueue(repo, commander, new Command.CommandReport
             {
                 Kind = Command.ReportKind.Contact, At = at, Count = 1, Size = Command.ElementSize.Individual,
-                Activity = Command.ElementActivity.Firing, ObservedAt = now,
-            }, now + Command.StaffComposerSystem.ReportDelaySeconds);
+                Activity = Command.ElementActivity.Firing, ObservedAt = (SimInstant)now,
+            }, (SimInstant)now + Command.StaffComposerSystem.ReportDelaySeconds);
         }
 
         /// <summary>Where the man places the shooter: the nearest heard SHOT within <see cref="SourceMetres"/> (its circle), else the nearest

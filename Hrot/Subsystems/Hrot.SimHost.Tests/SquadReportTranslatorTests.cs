@@ -49,7 +49,7 @@ namespace Hrot.SimHost.Tests
         {
             FromUnit = from, ToUnit = to, Subject = subject, Building = 7, SentAt = 44.0,
             Report = new CommandReport { Kind = ReportKind.Spot, At = new Vector3(120f, 80f, 3f), Count = 2, Radius = 15f,
-                Size = ElementSize.Team, Activity = ElementActivity.Firing, Equipment = ElementEquipment.MachineGun, ObservedAt = 41f, Seq = 5 },
+                Size = ElementSize.Team, Activity = ElementActivity.Firing, Equipment = ElementEquipment.MachineGun, ObservedAt = (Fdp.Core.SimInstant)41d, Seq = 5 },
         };
 
         private static SquadReportNotification Of(Entity from, Entity to, CommandReport report) => new() { FromUnit = from, ToUnit = to, Report = report };
@@ -81,7 +81,7 @@ namespace Hrot.SimHost.Tests
             var r = got.Report;
             Assert.Equal((ReportKind.Spot, 7, new Vector3(120f, 80f, 3f), (byte)2, 15f), (r.Kind, got.Building, r.At, r.Count, r.Radius));
             Assert.Equal((ElementSize.Team, ElementActivity.Firing, ElementEquipment.MachineGun), (r.Size, r.Activity, r.Equipment));
-            Assert.Equal((41f, 44.0, 5u, 3L), (r.ObservedAt, got.SentAt, r.Seq, got.OriginNodeId));
+            Assert.Equal((41d, 44.0, 5u, 3L), ((double)r.ObservedAt, got.SentAt, r.Seq, got.OriginNodeId));
             Assert.True(r.ObservedAt < got.SentAt, "a report held 3 s arrives with ObservedAt before SentAt");
         }
 

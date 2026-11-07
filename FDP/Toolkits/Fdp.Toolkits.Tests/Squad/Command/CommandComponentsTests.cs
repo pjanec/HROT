@@ -135,7 +135,7 @@ namespace Fdp.Toolkits.Tests.Squad.Command
         {
             int row = CommandPictureOps.EnsureRow(world, platoon, CommandPictureOps.NetIdOf(world, sub));
             ref var r = ref world.GetComponentRW<CommandPicture>(platoon).Subordinates.Items[row];
-            r.Progress = progress; r.Strength = strength; r.LastReportAt = at;
+            r.Progress = progress; r.Strength = strength; r.LastReportAt = (Fdp.Core.SimInstant)at;
         }
 
         /// <summary>⭐ CC-B — <c>ProgressReached</c> names the subordinate by roster SLOT and is true for its latest progress; a NEW order
@@ -176,7 +176,7 @@ namespace Fdp.Toolkits.Tests.Squad.Command
             Assert.False(PictureConditions.SubordinateFresh(ref fresh5, platoon, world));   // overdue
 
             ref var pic = ref world.GetComponentRW<CommandPicture>(platoon);
-            pic.Elements.Items[pic.Elements.Count++] = new ReportedElement { At = new Vector3(0, 300, 0), Size = ElementSize.Team, ObservedAt = 95f };
+            pic.Elements.Items[pic.Elements.Count++] = new ReportedElement { At = new Vector3(0, 300, 0), Size = ElementSize.Team, ObservedAt = (Fdp.Core.SimInstant)95d };
             var near = new ElementReportedParams { MinSize = ElementSize.Team, WithinMetres = 400f, FreshSeconds = 30f };
             var squad = new ElementReportedParams { MinSize = ElementSize.SquadSize, WithinMetres = 400f };
             var close = new ElementReportedParams { MinSize = ElementSize.Individual, WithinMetres = 200f };
@@ -203,8 +203,8 @@ namespace Fdp.Toolkits.Tests.Squad.Command
         {
             var (world, platoon, _, _) = Platoon();
             for (int i = 0; i < ReportOutbox.MaxQueued; i++)
-                Assert.True(ReportQueue.Enqueue(world, platoon, new CommandReport { Kind = ReportKind.Progress }, 3f));
-            Assert.True(ReportQueue.Enqueue(world, platoon, new CommandReport { Kind = ReportKind.Progress, Subtype = (byte)ProgressKind.Set }, 3f));
+                Assert.True(ReportQueue.Enqueue(world, platoon, new CommandReport { Kind = ReportKind.Progress }, (Fdp.Core.SimInstant)3d));
+            Assert.True(ReportQueue.Enqueue(world, platoon, new CommandReport { Kind = ReportKind.Progress, Subtype = (byte)ProgressKind.Set }, (Fdp.Core.SimInstant)3d));
             var outbox = world.GetComponentRO<ReportOutbox>(platoon);
             Assert.Equal((ReportOutbox.MaxQueued, (uint)ReportOutbox.MaxQueued + 1, 2u, (uint)ReportOutbox.MaxQueued + 1, (byte)ProgressKind.Set),
                          (outbox.Queued.Count, outbox.NextSeq, outbox.Queued.Items[0].Report.Seq,
@@ -234,12 +234,12 @@ namespace Fdp.Toolkits.Tests.Squad.Command
             repo.AddComponent(squad, default(Fdp.Toolkit.Utility.UtilityDecisionLog));
 
             harness.Tick().RecordKeyframe(100_000L);                                                     // frame 0: empty
-            CommandHistoryOf.Report(repo, squad, platoon, new CommandReport { Kind = ReportKind.Progress, Subtype = (byte)ProgressKind.Set }, 1f, ReportFate.Folded);
-            CommandHistoryOf.Order(repo, platoon, squad, 0x5A11, 1f);
+            CommandHistoryOf.Report(repo, squad, platoon, new CommandReport { Kind = ReportKind.Progress, Subtype = (byte)ProgressKind.Set }, (Fdp.Core.SimInstant)1d, ReportFate.Folded);
+            CommandHistoryOf.Order(repo, platoon, squad, 0x5A11, (Fdp.Core.SimInstant)1d);
             repo.GetComponentRW<Fdp.Toolkit.Utility.UtilityDecisionLog>(squad).SlotsRW()[0].DecisionId = 0x2067;
             Fdp.Toolkit.Squad.SquadDrillTrace.Started(repo, platoon, kind: 7, phase: 2, now: 1.0);             // a play, through the real writer
             harness.Tick().RecordDelta(200_000L);                                                        // frame 1: one of each
-            CommandHistoryOf.Order(repo, platoon, squad, 0x0C4A, 2f);
+            CommandHistoryOf.Order(repo, platoon, squad, 0x0C4A, (Fdp.Core.SimInstant)2d);
             Fdp.Toolkit.Squad.SquadDrillTrace.PhaseChanged(repo, platoon, kind: 7, phase: 3, evt: 0, now: 2.0);
             harness.Tick().RecordDelta(300_000L);                                                        // frame 2: a second order
             harness.BuildToTempFile(out var path);

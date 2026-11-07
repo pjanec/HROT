@@ -275,7 +275,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (p.Asked == 0 && p.Preset == (byte)PlatoonAttackPreset.ReactToFireFromBuilding && p.Position == Vector3.Zero)
             {
                 // UM-12 — the reaction answers the newest firing element; none (it went stale) ⇒ nothing to attack
-                if (!FiringElement(world, self, (float)now, out var at, out p.Reporter)) { p.Made = 1; p.Objectives = 0; return NodeStatus.Running; }
+                if (!FiringElement(world, self, (Fdp.Core.SimInstant)now, out var at, out p.Reporter)) { p.Made = 1; p.Objectives = 0; return NodeStatus.Running; }
                 p.Position = at;
             }
             if (p.Asked == 0)
@@ -290,7 +290,7 @@ namespace Hrot.AI.Behaviors.Brains
             bool ready = read.Ready && !read.Stale && read.Payload != null;
             if (!ready && now - p.AskedAt < SurveyTimeoutSeconds) return NodeStatus.Running;
             p.Start = StaffComposerSystem.CentreOf(world, self);
-            var objectives = AttackObjectives.Plan(ready ? read.Payload : null, Elements(world, self, (float)now), p.Position, p.SearchRadius,
+            var objectives = AttackObjectives.Plan(ready ? read.Payload : null, Elements(world, self, (Fdp.Core.SimInstant)now), p.Position, p.SearchRadius,
                                                    p.Start, PlatoonAttackPlan.MaxObjectives);
             WorldSurveyChildSensor.Release(world, child);
             if (objectives.Count == 0) objectives.Add(new AttackObjectives.Objective(p.Position, false));   // nothing known: the area's middle
@@ -336,12 +336,12 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>⭐ UM-12 — the newest element in the picture reported FIRING within <see cref="ReactFreshSeconds"/> (a squad's CONTACT, CE-2283
         /// M-2), and the roster slot of the squad that sent it (−1 = not one of ours).</summary>
-        public static bool FiringElement(EntityRepository world, Entity self, float now, out Vector3 at, out int slot)
+        public static bool FiringElement(EntityRepository world, Entity self, SimInstant now, out Vector3 at, out int slot)
         {
             at = default; slot = -1;
             if (!world.HasComponent<CommandPicture>(self)) return false;
             ref readonly var picture = ref world.GetComponentRO<CommandPicture>(self);
-            float newest = float.NegativeInfinity;
+            SimInstant newest = (SimInstant)double.NegativeInfinity;
             long from = 0;
             for (int i = 0; i < picture.Elements.Count; i++)
             {
@@ -349,14 +349,14 @@ namespace Hrot.AI.Behaviors.Brains
                 if (e.Count == 0 || e.Activity != ElementActivity.Firing || now - e.ObservedAt > ReactFreshSeconds || e.ObservedAt <= newest) continue;
                 newest = e.ObservedAt; at = e.At; from = e.FromNetId;
             }
-            if (float.IsNegativeInfinity(newest)) return false;
+            if (double.IsNegativeInfinity(newest)) return false;
             int n = RosterCount(world, self);
             for (int s = 0; s < n; s++)
                 if (CommandPictureOps.NetIdOf(world, CommandPictureOps.Subordinate(world, self, s)) == from) { slot = s; break; }
             return true;
         }
 
-        private static List<Vector3> Elements(EntityRepository world, Entity self, float now)
+        private static List<Vector3> Elements(EntityRepository world, Entity self, SimInstant now)
         {
             var list = new List<Vector3>();
             if (!world.HasComponent<CommandPicture>(self)) return list;

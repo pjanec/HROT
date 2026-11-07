@@ -85,7 +85,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.True(w.HasComponent<BrainJournal>(u));
         }
 
-        /// <summary>⭐ The entry stays 32 bytes (BV-15: ~0.8 KB per unit).</summary>
+        /// <summary>⭐ The entry is 40 bytes since CE-4201 (the instant is a double; BV-15: ~1 KB per unit).</summary>
         /// <summary>⭐ <c>CE-1250</c> — a move's source is noted for ITS command instance only: the next command reads Unknown.
         /// 🔴 Red-proof: drop the instance check in <c>MoveSourceOf</c> ⇒ red.</summary>
         [Fact]
@@ -98,6 +98,6 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         [Fact]
-        public unsafe void AnEntry_Is32Bytes() => Assert.Equal(32, sizeof(BrainJournalEntry));
+        public unsafe void AnEntry_Is40Bytes() => Assert.Equal(40, sizeof(BrainJournalEntry));
     }
 }

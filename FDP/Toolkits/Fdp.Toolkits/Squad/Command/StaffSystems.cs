@@ -69,7 +69,7 @@ namespace Fdp.Toolkit.Squad.Command
             if (view is not EntityRepository repo) return;
             if (!repo.IsComponentTypeRegistered<ReportOutbox>() || !repo.IsComponentTypeRegistered<UnitSubordinate>()
                 || !repo.IsComponentTypeRegistered<UnitRoster>() || !repo.Bus.IsRegisteredManaged<SquadReportNotification>()) return;
-            float now = CommandPictureOps.Now(repo);
+            SimInstant now = CommandPictureOps.Now(repo);
 
             // PROGRESS on the end of a commander's TASK (CC-5)
             if (repo.Bus.IsRegistered<BehaviorFinishedEvent>())
@@ -120,7 +120,7 @@ namespace Fdp.Toolkit.Squad.Command
             => count <= 0 ? ElementSize.SizeUnknown : count == 1 ? ElementSize.Individual : count <= 4 ? ElementSize.Team
              : count <= 12 ? ElementSize.SquadSize : ElementSize.PlatoonSize;
 
-        private static void ComposeSpot(EntityRepository repo, Entity unit, float now)
+        private static void ComposeSpot(EntityRepository repo, Entity unit, SimInstant now)
         {
             if (!repo.HasComponent<SquadCognitiveState>(unit)) return;
             ref readonly var squad = ref repo.GetComponentRO<SquadCognitiveState>(unit);
@@ -198,7 +198,7 @@ namespace Fdp.Toolkit.Squad.Command
 
         /// <summary>⭐ CE-2309 (HQ-1) — a launch one of the unit's men heard is SPOTted: Count 1, its estimate and radius, IndirectFire; the
         /// same launch (within <see cref="LaunchSameMetres"/>, <see cref="LaunchSameSeconds"/>) once.</summary>
-        private void ComposeLaunch(EntityRepository repo, Entity unit, float now)
+        private void ComposeLaunch(EntityRepository repo, Entity unit, SimInstant now)
         {
             foreach (var (commander, heard) in _launches)
             {
@@ -208,7 +208,7 @@ namespace Fdp.Toolkit.Squad.Command
                 if (outbox.LaunchSentAt > 0f && now - outbox.LaunchSentAt < LaunchSameSeconds && Vector3.Distance(outbox.LaunchAt, at) <= LaunchSameMetres)
                     continue;
                 outbox.LaunchAt = at;
-                outbox.LaunchSentAt = MathF.Max(now, 1e-3f);
+                outbox.LaunchSentAt = (SimInstant)Math.Max(now, 1e-3);
                 ReportQueue.Enqueue(repo, unit, new CommandReport
                 {
                     Kind = ReportKind.Spot, At = at, Radius = heard.Radius, Count = 1, Size = ElementSize.Individual,
@@ -223,7 +223,7 @@ namespace Fdp.Toolkit.Squad.Command
         /// (once per <see cref="SupportAgainSeconds"/> within <see cref="SupportAgainMetres"/>); asks to be REINFORCED when its strength is Red
         /// or worse with an element near (once per <see cref="ReinforceAgainSeconds"/>).
         /// </summary>
-        private static void ComposeSupport(EntityRepository repo, Entity unit, float now)
+        private static void ComposeSupport(EntityRepository repo, Entity unit, SimInstant now)
         {
             if (!repo.IsComponentTypeRegistered<CommandPicture>() || !repo.HasComponent<CommandPicture>(unit)) return;
             ref readonly var picture = ref repo.GetComponentRO<CommandPicture>(unit);
@@ -246,7 +246,7 @@ namespace Fdp.Toolkit.Squad.Command
                     if (outbox.SupportAskedTime > 0f && now - outbox.SupportAskedTime < SupportAgainSeconds
                         && Vector3.Distance(outbox.SupportAskedAt, e.At) <= SupportAgainMetres) continue;
                     outbox.SupportAskedAt = e.At;
-                    outbox.SupportAskedTime = MathF.Max(now, 1e-3f);
+                    outbox.SupportAskedTime = (SimInstant)Math.Max(now, 1e-3);
                     ReportQueue.Enqueue(repo, unit, new CommandReport
                     {
                         Kind = ReportKind.Request, Subtype = (byte)RequestKind.FireSupport, At = e.At, Count = 1, ObservedAt = e.ObservedAt,
@@ -257,7 +257,7 @@ namespace Fdp.Toolkit.Squad.Command
             if (!near || (strength != StatusColour.Red && strength != StatusColour.Black)) return;
             ref var box = ref repo.GetComponentRW<ReportOutbox>(unit);
             if (box.ReinforceAskedTime > 0f && now - box.ReinforceAskedTime < ReinforceAgainSeconds) return;
-            box.ReinforceAskedTime = MathF.Max(now, 1e-3f);
+            box.ReinforceAskedTime = (SimInstant)Math.Max(now, 1e-3);
             ReportQueue.Enqueue(repo, unit, new CommandReport
             {
                 Kind = ReportKind.Request, Subtype = (byte)RequestKind.Reinforce, At = centre, Count = 1, Strength = strength, ObservedAt = now,
@@ -267,7 +267,7 @@ namespace Fdp.Toolkit.Squad.Command
         private static readonly ElementEquipment[] s_relayed = { ElementEquipment.IndirectFire, ElementEquipment.AirDefence };
 
         /// <summary>⭐ CE-2310 (HQ-3) — SPOT <paramref name="e"/> up, once per element place and flag.</summary>
-        private static void Relay(EntityRepository repo, Entity unit, in ReportedElement e, ElementEquipment flag, float now)
+        private static void Relay(EntityRepository repo, Entity unit, in ReportedElement e, ElementEquipment flag, SimInstant now)
         {
             ref var outbox = ref repo.GetComponentRW<ReportOutbox>(unit);
             ref var list = ref outbox.Relayed;
@@ -278,7 +278,7 @@ namespace Fdp.Toolkit.Squad.Command
                 for (int i = 1; i < list.Count; i++) list.Items[i - 1] = list.Items[i];
                 list.Count--;
             }
-            list.Items[list.Count++] = new RelayedElement { At = e.At, Flag = flag, SentAt = MathF.Max(now, 1e-3f) };
+            list.Items[list.Count++] = new RelayedElement { At = e.At, Flag = flag, SentAt = (SimInstant)Math.Max(now, 1e-3) };
             ReportQueue.Enqueue(repo, unit, new CommandReport
             {
                 Kind = ReportKind.Spot, At = e.At, Radius = e.Radius, Count = e.Count, Size = e.Size, Activity = e.Activity,
@@ -302,14 +302,14 @@ namespace Fdp.Toolkit.Squad.Command
             return n > 0 ? sum / n : Vector3.Zero;
         }
 
-        private static void ComposeSitrep(EntityRepository repo, Entity unit, float now)
+        private static void ComposeSitrep(EntityRepository repo, Entity unit, SimInstant now)
         {
             float every = repo.IsComponentTypeRegistered<ReportingRequirements>() && repo.HasComponent<ReportingRequirements>(unit)
                 ? repo.GetComponentRO<ReportingRequirements>(unit).SitrepEverySeconds : 0f;
             if (every <= 0f) return;
             ref var outbox = ref repo.GetComponentRW<ReportOutbox>(unit);
             if (outbox.LastSitrepAt > 0f && now - outbox.LastSitrepAt < every) return;
-            outbox.LastSitrepAt = MathF.Max(now, 1e-3f);
+            outbox.LastSitrepAt = (SimInstant)Math.Max(now, 1e-3);
             ushort phase = repo.HasComponent<SquadCognitiveState>(unit) ? repo.GetComponentRO<SquadCognitiveState>(unit).PhaseId : (ushort)0;
             ReportQueue.Enqueue(repo, unit, new CommandReport
             {
@@ -320,7 +320,7 @@ namespace Fdp.Toolkit.Squad.Command
         /// <summary>⭐ <c>CE-2305</c> RQ-1, RQ-5 — the 9-line as a standing procedure: a member down and ALIVE (incapacitated) is asked for
         /// once — REQUEST Casevac at where he lies, the man as its subject. A man back in the fight frees his slot's bit; a dead man is not
         /// asked for (and keeps it). The squad's own buddy aid goes on regardless; the answer takes him from there.</summary>
-        private static void ComposeCasevac(EntityRepository repo, Entity unit, float now)
+        private static void ComposeCasevac(EntityRepository repo, Entity unit, SimInstant now)
         {
             ref readonly var roster = ref repo.GetComponentRO<UnitRoster>(unit);
             int n = Math.Min(roster.Count, 16);
@@ -358,7 +358,7 @@ namespace Fdp.Toolkit.Squad.Command
             return f >= GreenFraction ? StatusColour.Green : f >= AmberFraction ? StatusColour.Amber : StatusColour.Red;
         }
 
-        private void Flush(EntityRepository repo, Entity unit, float now)
+        private void Flush(EntityRepository repo, Entity unit, SimInstant now)
         {
             ref var outbox = ref repo.GetComponentRW<ReportOutbox>(unit);
             if (outbox.Queued.Count == 0) return;
@@ -423,7 +423,7 @@ namespace Fdp.Toolkit.Squad.Command
             // ⭐ CE-2301 ① (R-2058) — the log is every node's; only the fold needs the picture (§8b)
             bool canFold = repo.IsComponentTypeRegistered<CommandPicture>();
             bool brainHere = repo.IsComponentTypeRegistered<BehaviorState>();
-            float now = CommandPictureOps.Now(repo);
+            SimInstant now = CommandPictureOps.Now(repo);
             SquadReportLog? log = null;
             foreach (var n in repo.ReadManagedEvents<SquadReportNotification>())
             {
@@ -450,7 +450,7 @@ namespace Fdp.Toolkit.Squad.Command
 
         /// <summary>What a report does to the addressee's picture, NOW (the inbox and the HTTP fake share it). <c>false</c> = dropped.
         /// ⭐ <c>CE-2305</c> RQ-2 — a REQUEST keeps <paramref name="subject"/> (the notification's) as its network id.</summary>
-        public static bool Fold(EntityRepository repo, Entity fromUnit, Entity toUnit, CommandReport r, float now, Entity subject = default)
+        public static bool Fold(EntityRepository repo, Entity fromUnit, Entity toUnit, CommandReport r, SimInstant now, Entity subject = default)
         {
             int from = CommandPictureOps.NetIdOf(repo, fromUnit);
             int row = CommandPictureOps.EnsureRow(repo, toUnit, from);
@@ -461,7 +461,7 @@ namespace Fdp.Toolkit.Squad.Command
                 ref var sub = ref picture.Subordinates.Items[row];
                 if (r.Synthetic == 0 && r.Seq != 0 && r.Seq <= sub.LastSeq) return false;   // CB-32: a late older report
                 if (r.Synthetic == 0) sub.LastSeq = Math.Max(sub.LastSeq, r.Seq);
-                sub.LastReportAt = MathF.Max(now, 1e-3f);
+                sub.LastReportAt = (SimInstant)Math.Max(now, 1e-3);
                 switch (r.Kind)
                 {
                     case ReportKind.Progress:
@@ -491,7 +491,7 @@ namespace Fdp.Toolkit.Squad.Command
             return true;
         }
 
-        private static void FoldElement(ref CommandPicture picture, int from, in CommandReport r, float now)
+        private static void FoldElement(ref CommandPicture picture, int from, in CommandReport r, SimInstant now)
         {
             int same = -1;
             float best = SameElementMetres;

@@ -126,6 +126,28 @@ name, a unit — and the instant / duration pair has the arithmetic built in (an
 - `WorldSurveyModel.HalfArc` (a radians half-width on a view model, not a component or DTO) and `SoundDto.PitchJitter` (a pitch ratio, not an angle).
 - **the DDS wire stays `float`** (`SimDescriptors` Azimuth / Elevation / HeadYaw / Steer / Yaw, `DangerAreaDdsTopics.AngleRad`, the interaction messages): the cast sits in the translators.
 
+### 2.4 ⭐ AS-BUILT — SV-1 first slice: `SimInstant` + `SimDuration` and the `float` instants *(CE-4201, `2026-11-07`)*
+
+| | `SimInstant` | `SimDuration` |
+|---|---|---|
+| type | `Fdp.Core/World/SimTime.cs` — over `double`, 8 B, seconds of sim time | same file — over `float`, 4 B, seconds |
+| JSON · schema | a plain number · `{type: number, format: simInstant}` | a plain number · `{type: number, format: simDuration}` |
+| conversions | implicit OUT to `double`; **explicit IN** from `double` (a raw number becomes an instant only on purpose) | implicit both ways with `float` |
+| arithmetic | `instant − instant = SimDuration`; `instant ± SimDuration = SimInstant`; ⛔ `instant + instant` is declared **`[Obsolete(error)]`** | `±`, unary `−` stay a `SimDuration` |
+| seams | `SemanticValueTypes` (storage `double` / `float`), `DtoJsonSchemaExtractor`, `StaticTypeRegistry` (unmanaged 8 B / 4 B), `RingEntryScanner.CompileKey` (a key field of a semantic type keys as its storage number — found by the replay-browser rails) | same |
+| rail | `S0IdTypesRailTests.S0_EveryAtSinceUntilMember_IsNotABareFloat` (a bare `float` whose last word is `At` / `Since` / `Until`, outside the wire types; allow-list `NotAnInstant` with a reason each) + `SimInstant_AndSimDuration_AreTheirPrimitivesMemoryAndJson_WithTheRightArithmetic` | same |
+
+⚠ **Why `instant + instant` needed the `[Obsolete(error)]` operator:** with the implicit conversion to `double`, `a + b` quietly binds to the predefined `double + double`. A declared `+(SimInstant, SimInstant)` wins overload resolution and is an error; making the conversion TO `SimInstant` explicit alone would not have stopped it.
+
+**Classified (30 bare-`float` `*At` / `*Since` / `*Until` members the rail found):**
+- ⭐ **17 instants → `SimInstant`** (widened to 8 B; recordings change layout, accepted): `BrainJournalEntry.At` (entry 32 → 40 B) · `CommandOrderEntry.At` · `CommandReportEntry.At` · `CommandReport.ObservedAt` · `ReportedElement.ObservedAt` / `ReceivedAt` · `PendingRequest.ReceivedAt` · `QueuedReport.DueAt` · `RelayedElement.SentAt` · `ReportOutbox.LastSitrepAt` / `LaunchSentAt` / `MutedUntil` / `SpotSentAt` · `SubordinateRow.LastReportAt` / `LastSitrepAt` / `OrderedAt` · `ConvoyPlan.PhaseAt`. Beside them, outside the rail's name pattern: `ReportOutbox.SupportAskedTime` / `ReinforceAskedTime`.
+- ⭐ **5 play-relative offsets → `SimDuration`** (seconds since the PLAY started, not absolute sim time): `MarchMemory.LeadProgressAt` / `HaltSince` / `HaltsAllowedAt` / `LeadArrivedAt`, `SquadAirborneExitParams.LastJumpAt`.
+- ⛔ **8 not time (allow-list):** `TerrainOpening.At` (metres along a wall) · `CivilianParams.AlarmAt` / `PanicAt` / `RiotAt` and their `CivilianParamsJsonDto` twins (stress / attitude LEVELS) · `Vars.StartedAt` of the generated `SubordinateForEachDemo` blueprint (a blueprint scalar variable).
+- **Wire:** `SquadReport.ObservedAt` (DDS) widened `float` → `double`; the translators cast at the boundary. Display copies (`BrainChange.At`, `BrainHistoryRow.At`, `RuleJournalEntry.At`, the Reports window and debug-API `now`) are `double`.
+- `CommandPictureOps.Now` returns a `SimInstant` (it was a `float` cast of `GlobalTime.TotalTime`); every `float now` in the squad command stack is a `SimInstant`.
+
+**Left for the rest of SV-1:** the ~270 other time fields — the `double` instants (`SentAt`, `EndedAt`, `PlayAt` …) and the bare-`float` durations (`*Seconds`, `*Timeout`, `Cooldown` …) — and the private UI clocks in `Hrot.Presentation` (`PossessionStation._hoSince` …, `FallScreen.Since`, outside the rail's public-member scan). Tools do not yet show a `SimInstant` as scenario-clock time (the schema `format` is what a tool keys on).
+
 ## 3. The shared pattern *(the one every accepted type follows — `WorldPoint` is the model, `DESIGN_Scenario_Rules.md` §9.8.9)*
 
 | ⭐ rule | |

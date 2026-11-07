@@ -1976,7 +1976,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, c.Composer.SentCount);                                       // not yet 15 s
 
             ref var outbox = ref c.S.Repo.GetComponentRW<Fdp.Toolkit.Squad.Command.ReportOutbox>(c.S.Commander);
-            outbox.MutedUntil = (float)c.S.Repo.GetSingletonUnmanaged<GlobalTime>().TotalTime + 60f;
+            outbox.MutedUntil = (Fdp.Core.SimInstant)(c.S.Repo.GetSingletonUnmanaged<GlobalTime>().TotalTime + 60d);
             c.S.Pause(11); c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
             Assert.Equal(1, c.Composer.SentCount);                                       // muted: queued, not sent
             Assert.True(c.S.Repo.GetComponentRO<Fdp.Toolkit.Squad.Command.ReportOutbox>(c.S.Commander).Queued.Count > 0);
@@ -1988,7 +1988,7 @@ namespace Hrot.SimHost.Tests
         public void CE2293_TheInbox_DropsALateOlderReport_TakesASyntheticOne()
         {
             var c = new Chain(members: 2);
-            float now = 10f;
+            Fdp.Core.SimInstant now = (Fdp.Core.SimInstant)10d;
             Fdp.Toolkit.Squad.Command.CommandReport R(Fdp.Toolkit.Squad.Command.ProgressKind p, uint seq, byte synthetic = 0)
                 => new() { Kind = Fdp.Toolkit.Squad.Command.ReportKind.Progress, Subtype = (byte)p, Seq = seq, Synthetic = synthetic };
             Assert.True(Fdp.Toolkit.Squad.Command.StaffInboxSystem.Fold(c.S.Repo, c.S.Commander, c.Platoon, R(Fdp.Toolkit.Squad.Command.ProgressKind.Foothold, 5), now));
@@ -3172,7 +3172,7 @@ namespace Hrot.SimHost.Tests
 
             public void Report(Entity from, Fdp.Toolkit.Squad.Command.CommandReport r, float observedAgo = 0f, Entity subject = default)
             {
-                float now = Fdp.Toolkit.Squad.Command.CommandPictureOps.Now(S.Repo);
+                Fdp.Core.SimInstant now = Fdp.Toolkit.Squad.Command.CommandPictureOps.Now(S.Repo);
                 r.ObservedAt = now - observedAgo;
                 S.Repo.Bus.PublishManaged(new Fdp.Toolkit.Squad.Command.SquadReportNotification
                 {
@@ -3356,7 +3356,7 @@ namespace Hrot.SimHost.Tests
             c.S.PoolMany(3, new Vector3(0f, 200f, 0f));
             c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
             int sent = c.Composer.SentCount;
-            float first = c.Picture.Elements.Items[0].ObservedAt;
+            double first = c.Picture.Elements.Items[0].ObservedAt;
             c.S.Pause(8); c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
             Assert.Equal(sent, c.Composer.SentCount);                    // ~11 s: not yet
             c.S.Pause(5); c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);

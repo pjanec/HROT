@@ -102,12 +102,12 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         Casualty,
     }
 
-    /// <summary>One change, numbers only (32 bytes) — names are resolved when it is shown.</summary>
+    /// <summary>One change, numbers only (40 bytes since CE-4201: the instant is a double) — names are resolved when it is shown.</summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct BrainJournalEntry
     {
         /// <summary>Sim seconds.</summary>
-        public float At;
+        public SimInstant At;
         /// <summary>The unit's running count when this was written (<see cref="BrainJournal.Seq"/>).</summary>
         public uint Seq;
         public BrainJournalKind Kind;
@@ -183,7 +183,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         {
             if (!world.IsComponentTypeRegistered<BrainJournal>() || !world.HasComponent<BrainJournal>(unit)) return;
             ref var j = ref world.GetComponentRW<BrainJournal>(unit);
-            float now = world.HasSingleton<GlobalTime>() ? (float)world.GetSingleton<GlobalTime>().TotalTime : 0f;
+            SimInstant now = world.HasSingleton<GlobalTime>() ? (SimInstant)world.GetSingleton<GlobalTime>().TotalTime : SimInstant.Zero;
 
             if (kind == BrainJournalKind.TaskRefused && j.Count > 0)
             {

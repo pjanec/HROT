@@ -788,12 +788,12 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             var commander = repo.CreateEntity();
             var member = repo.CreateEntity();
             repo.AddComponent(commander, default(Fdp.Toolkit.Squad.Command.CommandOrderHistory));
-            Fdp.Toolkit.Squad.Command.CommandHistoryOf.Order(repo, commander, member, 0x1111, 0f);   // before the recording
+            Fdp.Toolkit.Squad.Command.CommandHistoryOf.Order(repo, commander, member, 0x1111, (Fdp.Core.SimInstant)0d);   // before the recording
             h.Tick(); h.RecordKeyframe();                                                            // frame 0
-            Fdp.Toolkit.Squad.Command.CommandHistoryOf.Order(repo, commander, member, 0x5A11, 1f);
-            Fdp.Toolkit.Squad.Command.CommandHistoryOf.Order(repo, commander, member, 0x7777, 1f);
+            Fdp.Toolkit.Squad.Command.CommandHistoryOf.Order(repo, commander, member, 0x5A11, (Fdp.Core.SimInstant)1d);
+            Fdp.Toolkit.Squad.Command.CommandHistoryOf.Order(repo, commander, member, 0x7777, (Fdp.Core.SimInstant)1d);
             h.Tick(); h.RecordDelta();                                                               // frame 1: two
-            Fdp.Toolkit.Squad.Command.CommandHistoryOf.Order(repo, commander, member, 0x7777, 2f);   // repeated
+            Fdp.Toolkit.Squad.Command.CommandHistoryOf.Order(repo, commander, member, 0x7777, (Fdp.Core.SimInstant)2d);   // repeated
             h.Tick(); h.RecordDelta();                                                               // frame 2: one
             string path = h.BuildToTempFile();
 

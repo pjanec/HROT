@@ -41,7 +41,7 @@ namespace Fdp.Toolkit.Squad.Command
     public struct CommandReportEntry
     {
         /// <summary>When the inbox took it in (sim s).</summary>
-        public float At;
+        public SimInstant At;
         public CommandTraffic Traffic;
         public ReportFate Fate;
         /// <summary>The sender's network id.</summary>
@@ -70,7 +70,7 @@ namespace Fdp.Toolkit.Squad.Command
     public struct CommandOrderEntry
     {
         /// <summary>When it was (last) given (sim s).</summary>
-        public float At;
+        public SimInstant At;
         public CommandTraffic Traffic;
         /// <summary>⭐ The WHY, COPIED from the giver's brain journal (BV-60) so it survives the 24-entry journal's eviction: the newest
         /// change before the order — its kind (a <see cref="BrainJournalKind"/>), its cause byte and its A (the play, the behaviour…).</summary>
@@ -107,7 +107,7 @@ namespace Fdp.Toolkit.Squad.Command
     public static class CommandHistoryOf
     {
         /// <summary>Records <paramref name="report"/> on the addressee (incoming) and on the sender (outgoing), whichever is a commander here.</summary>
-        public static void Report(EntityRepository world, Entity from, Entity to, in CommandReport report, float now, ReportFate fate)
+        public static void Report(EntityRepository world, Entity from, Entity to, in CommandReport report, SimInstant now, ReportFate fate)
         {
             if (!world.IsComponentTypeRegistered<CommandReportHistory>()) return;
             var entry = new CommandReportEntry
@@ -129,7 +129,7 @@ namespace Fdp.Toolkit.Squad.Command
 
         /// <summary>Records an order <paramref name="giver"/> gave <paramref name="member"/>: outgoing on the giver, incoming on the member
         /// when the member is itself a commander. The cause is copied from the giver's journal.</summary>
-        public static void Order(EntityRepository world, Entity giver, Entity member, int behaviourHash, float now)
+        public static void Order(EntityRepository world, Entity giver, Entity member, int behaviourHash, SimInstant now)
         {
             if (!world.IsComponentTypeRegistered<CommandOrderHistory>()) return;
             var entry = new CommandOrderEntry { At = now, Behaviour = behaviourHash };
