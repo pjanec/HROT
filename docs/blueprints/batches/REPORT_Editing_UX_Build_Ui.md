@@ -9,7 +9,7 @@ per-item state and shas: [STATUS_Editing_UX_Build_Ui.md](STATUS_Editing_UX_Build
 | | items |
 |---|---|
 | ✅ done | U-1 … U-16, U-18 (RX1 – RX3), U-25 |
-| 🟡 most of it | **U-23** (Unit · Crew & cargo · Shape · Scenario forms; Playable folded; ⏸ Summary kept — §3) · **U-24** (S5 Weapon · In hand · Aboard · Aimed at · Knows about (`6eb8e519e`) · S6 Character; ⏳ Carried by / Carries, Damage) |
+| 🟡 most of it | **U-23** (Unit · Crew & cargo · Shape · Scenario forms; Playable folded; ⏸ Summary kept — §3) · **U-24** (S5 Weapon · In hand · Aboard · Aimed at · Knows about (`6eb8e519e`) · Carried by (`bac6e1e6a`) · S6 Character; ⏳ Carries, Damage, the carry mode change) |
 | ➡ moved to backend by the handoff | U-17 · U-19 · U-20 · U-21 · U-22 · U-26 · U-27 · U-28 |
 
 ⭐ Fidelity (R-4146): the List view and the Details forms were rendered by their rails and compared with `rule-list-visual.svg` and
@@ -37,7 +37,7 @@ times); a test project not restored after a merge (ClusterRunner.Tests). ⇒ eve
 | open | where |
 |---|---|
 | U-25: a LIST of named points beside the map pick (the map click snaps today) | [Initial state §4.3](../../UX/DESIGN_Initial_State.md) |
-| U-24: Carried by / Carries, Damage, aim at a POINT, the seat chooser, Weapons control / Reactions | Initial state §4.2 |
+| U-24: Carries, the carry-mode change and Damage (REQUEST to backend: [NOTE_Ui_To_Backend_Carry_Mode_And_Damage](NOTE_Ui_To_Backend_Carry_Mode_And_Damage.md)), Damage, aim at a POINT, the seat chooser, Weapons control / Reactions | Initial state §4.2 |
 | U-23: the combined rows the mockup draws (Weapon + aimed at, Playable + slot) | [Details forms §4.0a](../../UX/DESIGN_Details_Forms.md) parts 5 + fidelity |
 | U-18: live edits on CGF (it reads and controls rules; no `RuleEditorServices` yet); richer objective sentences (RX4's gallery) | [Rule editor §2.6, §2.1.1](../../UX/DESIGN_Rule_Editor_UX.md) |
 
