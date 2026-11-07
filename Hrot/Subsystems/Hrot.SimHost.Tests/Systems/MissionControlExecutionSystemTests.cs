@@ -537,8 +537,6 @@ public class MissionControlExecutionSystemTests
         entityMap.Register(1, replica);
         var owned = repo.CreateEntity();
         repo.AddComponent(owned, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
-        repo.AddComponent(owned, new BehaviorState());
-        repo.SetAuthority<BehaviorState>(owned, true);
         entityMap.Register(2, owned);
         var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
         MissionControlIntent Commit(int target) => new()
