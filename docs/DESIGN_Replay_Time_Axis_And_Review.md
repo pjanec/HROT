@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: §11d's D-A lean (wire-silent) is OVERTURNED — §12. §1's claim rows and §2's INVENTORY predate §11 / §12 (the wire and checkpoint rows are in §12c with their file:line). replay-and-modules §2.2 / §2.3 ("IG nodes … do not record and do not replay") are SUPERSEDED — every recording node replays (R-4010) · ⛔ SUPERSEDED 2026-10-28 (R-4095): `BdcReplicationModule` (named beside `NedReplicationModule` as a mixed module) was removed with the BDC stack.
 known-conflict: UX/DESIGN_Replay_Browser_UX.md moves §9c's Replay Browser slider to the main bar (R-4153, `2026-11-06`) · DESIGN_Director_Timeline_Editor.md TL-4 (time = frame index + wall ticks) and TE-19 (a live host never seeks) — this design ADDS a sim axis and makes a seek on a live host ENTER a review (R10); both stand until the user approves §5
 related-designs:
+  - UX/DESIGN_Scenario_Lifecycle_Review.md — the whole author → live → DAR → AAR cycle walked for usability (LC-1…LC-21, 2026-11-07)
   - UX/DESIGN_Replay_Browser_UX.md — moves the Replay Browser's seek slider to the MAIN BAR and retires its Replay Timeline window (R-4153); supersedes §9c's "keeps its own … slider"
   - UX/DESIGN_Colour_Icons.md — E16: the mode indicator's coloured glyphs (R-3061, ModeGlyph) are the precedent E16 generalises to every icon
   - DESIGN_Evaluation_Cost_And_Cadence.md — OWNS §5b C7 (CE-2392): a delta writes a changed chunk's used prefix; §12q/§12s's comparison now keeps a full buffer + the length last written
