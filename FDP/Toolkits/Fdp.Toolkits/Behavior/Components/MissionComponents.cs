@@ -177,6 +177,23 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <c>MissionControlExecutionSystem</c>: a checkpoint restored into a fresh system reset it to 0 and accepted a stale draft.
         /// 📄 docs/DESIGN_System_State_Inventory.md §6 #7.</summary>
         public long Version;
+
+        /// <summary>
+        /// ⭐ W-1 / P-8 8c (Mission plan §5.8 E4) — how the most recently ENDED task ended: the task before <see cref="CurrentTask"/> (the director
+        /// advances past a finished one), or the current one when the plan is <see cref="Halted"/> on it; <see cref="MissionPhaseOutcome.None"/> before
+        /// any task ended. A READ-ONLY projection of <see cref="Outcomes"/> (no stored field, nothing on the wire): the timeline's ONE Tasks lane
+        /// projects it (<c>BehaviourTimelineLanes.Tasks</c>).
+        /// </summary>
+        public readonly MissionPhaseOutcome LatestOutcome
+        {
+            get
+            {
+                ReadOnlySpan<MissionPhaseOutcome> o = Outcomes;
+                if (Halted != 0 && CurrentTask < TaskCount && CurrentTask < MaxTasks) return o[CurrentTask];
+                int ended = Math.Min((int)CurrentTask, MaxTasks) - 1;
+                return ended >= 0 ? o[ended] : MissionPhaseOutcome.None;
+            }
+        }
     }
 
     /// <summary>⭐ <c>CE-483</c>: how a mission phase ended (maps onto the wire's <c>eTaskState</c>).</summary>

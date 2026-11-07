@@ -483,7 +483,7 @@ views agree, and Begin now is the instructor's existing Fire.*
 | ⚠ deviations | ▶ in *Begin now* is white, not green (ImGui buttons draw one text colour); the mockup's *latest H+20* reads *latest 20:00* (the window's one clock format) |
 
 Rails: `RulesModelTests.W1_*` (the group first by number, authored too — red-proved by dropping the authored projection; the right side; the words) ·
-`RulesWindowFrameRail.W1_ThePhasesGroup_OnARealFrame` (`rules-phases.png`). ⏳ next: the ONE Tasks lane (8c, E4), the plan on the map (8d, M3 / E2).
+`RulesWindowFrameRail.W1_ThePhasesGroup_OnARealFrame` (`rules-phases.png`). ⏳ next: the plan on the map (8d, M3 / E2).
 
 **8b — the *then* picker's phase, rule and unit entries, *New rule…* — BUILT:**
 
@@ -503,3 +503,32 @@ Rails: `RulesModelTests.W1_*` (the group first by number, authored too — red-p
 
 Rails: `TheOrdersTabTests.P8b_*` (read back as themselves with the target — red-proved by dropping the target read; the phases first, authored too;
 the descriptor forwards the host).
+
+**8c — the ONE Tasks lane (E4) — the DATA BUILT; its drawing (glyph per kind, the selection's bars row, the phase columns) ⏳ 8c-2:**
+
+```mermaid
+classDiagram
+  class MissionPlanQueue { <<existing, recorded>> CurrentTask · TaskCount · Outcomes · Halted + LatestOutcome (read-only property) }
+  class BehaviourTimelineLanes { <<existing, Behavior toolkit>> + Tasks "mission.tasks" (group Tasks) }
+  class TasksLane { <<NEW, pure>> Markers(index, into, unitFilter) · Bars(markers, unit, lastFrame, into) }
+  class TaskMarker { <<NEW>> Frame · Unit · Task (1-based) · Started / Done / Failed }
+  class ShippedTimelineLanes { <<existing>> the ONE catalogue — every host's timeline }
+  BehaviourTimelineLanes ..> MissionPlanQueue : value change, Value CurrentTask · X LatestOutcome · Y TaskCount
+  ShippedTimelineLanes --> BehaviourTimelineLanes
+  TasksLane ..> BehaviourTimelineLanes : reads the lane's entries
+  TasksLane --> TaskMarker
+```
+*What the picture shows: no new store and nothing on the wire — the lane is a value-change projection of the recorded queue (R-4078: the
+toolkit that owns the data registers it), so the live timeline, a recording and a replica read one history; a thousand units are ONE lane
+because every marker carries its unit.*
+
+| decision | why |
+|---|---|
+| `LatestOutcome` a read-only PROPERTY (the task before `CurrentTask`, or the current one when halted) | the projection reads properties; ⛔ no stored field, no translator change (replicas already get `Outcomes`) |
+| one entry per plan move; the reader expands a jump of several tasks into Done markers and the latest's own outcome | a value-change lane sees states, not events |
+| a new plan (task back to 1 or a new count) and a halt read as Started / Failed once | E1 / CE-483 |
+| ⏳ 8c-2 | the timeline panel draws a lane's entries in its one colour: the ▶ / ✓ / ✕ per kind, the hover *"Bravo 1-1 · task 2 Overwatch · Failed"*, the selection's bars (`TasksLane.Bars`) and the phase columns (the `rules.fired` lane's phase triggers) need a per-lane renderer seam in the FDP panel |
+
+Rails: `TheTasksLaneTests.P8c_*` (Fdp.Toolkits.Tests — a plan's starts and ends with how each ended, red-proved by `LatestOutcome` reading the
+current task; a halt and a new plan; a thousand units, one lane, the unit filter) · `TimelineIndexTests.CE3330_Node_TheShippedCatalog…` (19 lanes).
+
