@@ -60,13 +60,22 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// (<c>SimTransform</c>: "yaw: 0=X axis direction (east), +90=Y axis direction (north)"), so the
         /// <c>Quaternion.Identity</c> used before faced every placed entity east.
         /// </summary>
-        internal static readonly Quaternion FacingNorth = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);
+        internal static readonly Quaternion FacingNorth = PlacementSession.FacingNorth;
 
         /// <summary>The hint shown under the ghost while the tool stays armed (always-multi, D5 rev 3).</summary>
         internal const string MultiPlacementHint = "click: place  ·  right-click/Esc: done";
 
         private Vector3 _cursorWorld;
         private Fdp.Toolkit.World.IWorldQuery? _world;
+
+        // ⭐ CE-4309 (Map Interaction P3) — airborne by type, the 2-D level, the heading drag: decided here, built into the command below
+        private readonly PlacementSession _session = new();
+        private bool _typeKnown;
+        private (float? Air, int Level, int Count) _hintKey = (null, -1, -1);
+        private (string First, string? Second) _hint = (MultiPlacementHint, null);
+
+        /// <summary>The placement's choices (rails).</summary>
+        internal PlacementSession Session => _session;
 
         /// <summary>
         /// Raised after a <see cref="SpawnEntityCommand"/> has been constructed and passed
@@ -147,6 +156,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw)
         {
             _world = Fdp.Toolkit.World.WorldQuery.Of(view);   // ⭐ CE-1033 S2 — for the clicked level (M20)
+            EnsureType(view);
             var ghostColor = GetAffiliationColor(_affiliationForDisplay);
             ghostColor.A = GhostAlpha;
 
@@ -160,8 +170,24 @@ namespace Hrot.ScenarioEditor.Gizmos
                 _cursorWorld.Y - GhostLabelOffsetY,   // ⭐ CE-1040 (N5) — north-up: below the cursor is world −Y
                 string.IsNullOrWhiteSpace(_displayName) ? _tkbType.ToString() : _displayName!,
                 Rgba32.White);
-            if (!_autoPopOnPlace)
-                draw.DrawTextLong(_cursorWorld.X, _cursorWorld.Y - 2 * GhostLabelOffsetY, MultiPlacementHint, Rgba32.White);
+            var key = (_session.AirborneHeight, _session.Level, _session.LevelCount);
+            if (key != _hintKey) { _hintKey = key; _hint = _session.Hint(_autoPopOnPlace ? "click: place" : MultiPlacementHint); }   // ⭐ CE-4309 — rebuilt only when a choice moves (0 B steady)
+            if (!_autoPopOnPlace || _hint.Second != null)
+            {
+                draw.DrawTextLong(_cursorWorld.X, _cursorWorld.Y - 2 * GhostLabelOffsetY, _hint.First, Rgba32.White);
+                if (_hint.Second != null) draw.DrawTextLong(_cursorWorld.X, _cursorWorld.Y - 3 * GhostLabelOffsetY, _hint.Second, Rgba32.White);
+            }
+        }
+
+        /// <summary>⭐ CE-4309 — once: does this type fly? Its TKB flight descriptor's height (the A-10C 300 m, a helicopter 30 m), else a ground type.</summary>
+        private void EnsureType(ISimulationView view)
+        {
+            if (_typeKnown || view is not Fdp.Core.EntityRepository repo || !repo.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()) return;
+            var tkb = repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+            if (tkb == null || !tkb.TryGetByType(_tkbType, out var template) || template == null) return;
+            var flight = template.GetDescriptor<Fdp.Toolkit.Tkb.Domain.FlightParamsDto>();
+            _session.SetType(flight?.HoverHeightM, flight is null ? 0f : (flight.CruiseSpeedMps > 0f ? flight.CruiseSpeedMps : flight.MaxSpeedMps));
+            _typeKnown = true;
         }
 
         /// <summary>
@@ -193,6 +219,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         public void OnDragUpdate(Vector3 worldPos)
         {
             _cursorWorld = worldPos;
+            _session.Hover(_world, worldPos);   // ⭐ CE-4309 — the surfaces stacked under the cursor (2-D)
         }
 
         /// <inheritdoc/>
@@ -204,10 +231,12 @@ namespace Hrot.ScenarioEditor.Gizmos
         {
             // ⭐ CE-1017 S2: modifiers ride in the high bits (MapMouseButton.ShiftMask …); a Shift+click IS a
             //   left click. 📐 The exact compare used before made a modified click do nothing at all.
+            bool shift = (button & MapMouseButton.ShiftMask) != 0;   // ⭐ CE-4309 — Shift places an aircraft parked on the ground
             button &= ~(MapMouseButton.ShiftMask | MapMouseButton.CtrlMask | MapMouseButton.AltMask);
+            if (button == MapMouseButton.Left && isPressed) _session.Press(worldPos);   // ⭐ CE-4309 — a drag from here sets the heading
             if (button == MapMouseButton.Left && !isPressed)
             {
-                BuildAndPublishSpawnCommand(worldPos);
+                BuildAndPublishSpawnCommand(worldPos, shift);
                 if (_autoPopOnPlace)
                     Remove();
             }
@@ -222,6 +251,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         {
             if (key == MapKeyboardKey.Escape && isPressed)
                 Remove();
+            else if (isPressed) _session.Key((int)key);   // ⭐ CE-4309 — PgUp / PgDn: the level under the cursor
         }
 
         // Unused IEntityStatefulGizmo methods — empty body (no interaction handle for placement)
@@ -250,12 +280,17 @@ namespace Hrot.ScenarioEditor.Gizmos
             _onRemove();
         }
 
-        private void BuildAndPublishSpawnCommand(Vector3 worldPos)
+        private void BuildAndPublishSpawnCommand(Vector3 worldPos, bool shift = false)
         {
             // The canvas worldPos is in flat-earth Cartesian space (X = east meters, Y = north meters).
             // Store it verbatim as the InitialTransform. The ACL egress translator
             // (SpawnEntityCommandEgressTranslator) converts this position to geodetic lat/lon
             // via the IGeographicTransform when building the DDS CreateEntityRequest.
+            //
+            // ⭐ CE-4309 (P3) — the session decides the rest: a FLYING type is born in the air (AboveLevel + its height; Shift: on the ground),
+            //   a 2-D click on a stacked place takes the chosen level, a 3-D click its own level (CE-1033 M20), a drag sets the heading.
+            int? levelOf3D = worldPos.Z != 0f && _world != null ? Fdp.Toolkit.World.Levels.LevelOf(_world, worldPos) : null;
+            var (position, height, rotation) = _session.Resolve(worldPos, shift, levelOf3D);
 
             var cmd = new SpawnEntityCommand
             {
@@ -265,17 +300,10 @@ namespace Hrot.ScenarioEditor.Gizmos
                 InitType          = ReliableInitType.AllPeers,
                 InitialTransform  = new SimTransform
                 {
-                    Position = new Vector3(worldPos.X, worldPos.Y, 0f),
-                    Rotation = FacingNorth,
+                    Position = position,
+                    Rotation = rotation,
                 },
-                // ⭐ CE-1017 S2 (D6b rev 5): stand on the GROUND (level 0) at this point — the creating node
-                //   resolves the Z from its terrain (NetworkSpawningSystem), ignoring the 0 sent above.
-                // ⭐ CE-1033 S2 (M20) — a 3-D click on a roof or an upper floor carries its height: spawn on THAT level. A 2-D click
-                //   (Z = 0) stays on the ground, as before.
-                SpawnHeight           = worldPos.Z != 0f && _world != null
-                    ? new Fdp.Toolkit.NetworkSpawning.SpawnHeight(Fdp.Toolkit.NetworkSpawning.SpawnHeightMode.OnLevel,
-                                                                 (short)Fdp.Toolkit.World.Levels.LevelOf(_world, worldPos))
-                    : Fdp.Toolkit.NetworkSpawning.SpawnHeight.OnGround,
+                SpawnHeight           = height,
                 InitialAttributesJson = _initialPropertiesJson,
                 RequestId             = Guid.NewGuid(),
             };

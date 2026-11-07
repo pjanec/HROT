@@ -388,6 +388,33 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.NotEqual("Alpha-7", info.Name.ToString());
         }
 
+        /// <summary>⭐⭐ <c>CE-4312</c> (lifecycle LC-2) — placed units are NUMBERED by their type's name, unique in the scenario: two clicks give
+        /// "&lt;type&gt; 2" and "&lt;type&gt; 3" when "&lt;type&gt; 1" already exists (the names handed out in one placement count before the entities
+        /// exist); a resolver's name is never numbered (the rail above). ✅ Red-proof: the numbering removed ⇒ both names are the bare type name.</summary>
+        [Fact]
+        public void CE4312_PlacedUnits_AreNumberedByType_UniqueInTheScenario()
+        {
+            var manager = MakeManager();
+            var adapter = new ScenarioSpawnAdapter(_creation, tkbDb: _tkb, globalGizmoManager: manager);
+            Assert.True(_tkb.TryGetByType(TkbEntityTypes.Tank_M1Abrams, out var template));
+            string type = template.Name;
+            var world = _creation.World;
+            if (!world.IsComponentTypeRegistered<EntityInfo>()) world.RegisterComponent<EntityInfo>();
+            var existing = world.CreateEntity();
+            world.AddComponent(existing, new EntityInfo { Name = new Fdp.Core.FixedString64(type + " 1") });
+
+            adapter.StartPlacementMode(TkbEntityTypes.Tank_M1Abrams, null);
+            string NameOfLast() => Requests().Last().InitialComponents!.OfType<EntityInfo>().Single().Name.ToString();
+            Click(manager, Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, 1f, 2f);
+            string first = NameOfLast();
+            Click(manager, Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, 5f, 6f);   // its entity not created yet: still unique
+            var names = new[] { first, NameOfLast() };
+            Assert.Equal(new[] { type + " 2", type + " 3" }, names);
+            Assert.Equal(type + " 1", Hrot.Common.EntityCreation.EntityNames.Next(null, type));
+            Assert.Null(Hrot.Common.EntityCreation.EntityNames.NumberOf(type + " 0", type));
+            Assert.Null(Hrot.Common.EntityCreation.EntityNames.NumberOf(type + "s 4", type));
+        }
+
         /// <summary>
         /// Acceptance ⑧ as a source guard: the adapter builds NO request and publishes NO order — its only tail is the affordance.
         /// ⚠ A text rail (it cannot see a renamed bus), so it pairs with the behavioural rails above.
