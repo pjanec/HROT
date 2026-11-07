@@ -39,7 +39,8 @@ public sealed record EntityDetailsHostServices(
     TimelineEventFocus? EventFocus = null,          // ⭐ CE-4263 — the host's clicked timeline event (null = no event view)
     Action<int>? SelectNetworkEntity = null,       // ⭐ CE-4263 — the host's ONE entity selection by network id (the event view's Subject / Other links); ⛔ a host that passes the focus must pass this   // ⭐ CE-4216 (RV-7) — opens a rule in the host's rules view; ⛔ a host that registers the Rules window must pass it (null = the Objectives tab lists without links)
     Func<Hrot.UI.Common.Rules.IRuleDetailsHost?>? Rules = null,   // ⭐ U-18 / RX2 — the host's Rules window: a rule's detail as the Rule Details tab (⛔ a host with the window must pass it)
-    Func<Fdp.Presentation.Editing.IMapPickContext?>? Pick = null);   // ⭐ U-23 / D4 — the host's pick context: a form list's add (Put aboard…) picks through it (⛔ a host with a pick broker must pass it)
+    Func<Fdp.Presentation.Editing.IMapPickContext?>? Pick = null,
+    Func<Hrot.UI.Common.Facades.IMissionEditorService?>? Missions = null);   // ⭐ P-7 / CE-4303 — the host's mission facade: the Orders tab (a host that edits plans passes it)   // ⭐ U-23 / D4 — the host's pick context: a form list's add (Put aboard…) picks through it (⛔ a host with a pick broker must pass it)
 
 /// <summary>
 /// ⭐⭐⭐ <c>CE-1150</c> (canvas-context-menu-design §12) — <b>the Details panel of an ECS host, and the actions that open it.</b>
@@ -82,6 +83,7 @@ public sealed class EntityDetailsBundle : IUiBundle
         Hrot.Presentation.Forms.HrotForms.EnsureRegistered();
         foreach (var form in Fdp.Presentation.Forms.FormCatalogue.All) Workspace.DetailsViews.Add(FormDetailsViewDescriptor.For(form, host.World, host.Pick));
         if (host.Rules != null) Workspace.DetailsViews.Add(RuleDetailsTabDescriptor.For(host.Rules));   // ⭐ U-18 / RX2
+        if (host.Missions != null) Workspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.OrdersTabDescriptor.For(host.Missions, host.World));   // ⭐ P-7 / 7a — the Orders tab
         if (host.EventFocus is { } focus)   // ⭐ CE-4263 — a clicked timeline event shows the EVENT (rank 1: first among the entity views)
             Workspace.DetailsViews.Add(EventDetailsViewDescriptor.For(host.World, focus, host.SelectNetworkEntity ?? (_ => { })));
         Workspace.DetailsViews.Add(EntityObjectivesViewDescriptor.For(host.World, host.OpenRule));   // ⭐ CE-4216 RV-7 — objectives about this unit, every host   // ⭐ CE-1247 — the IG's former card, every host
