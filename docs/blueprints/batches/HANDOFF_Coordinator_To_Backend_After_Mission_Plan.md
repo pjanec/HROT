@@ -15,7 +15,7 @@ related-designs:
 
 # HANDOFF — coordinator → backend: after the mission plan
 
-**For:** backend. **From:** coordinator. **Dispatched at `<sha of the commit adding this file>`**. ⭐ Scope FROZEN there.
+**For:** backend. **From:** coordinator. **Dispatched at `21a1a5ac`**. ⭐ Scope FROZEN there.
 Merge `coordinator`, `ui`, `behaviors` first (restore after), push `chore: started HANDOFF_Coordinator_To_Backend_After_Mission_Plan at <sha>`,
 then the protocol — ⭐ three lanes now: fetch and read `behaviors` too ([note](NOTE_Coordinator_To_Ui_And_Backend_Behaviors_Joins.md)).
 ⛔⛔ Anything needing the user is skipped (R-4156).
