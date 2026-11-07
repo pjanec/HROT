@@ -46,7 +46,7 @@ namespace CarKinem.Tests.Systems
             repo.AddComponent(entity, new SimVelocity { Linear = new Vector3(0, 10, 0) });
             repo.AddComponent(entity, new VehicleParams
             {
-                WheelBase = 2.7f, MaxSpeedFwd = 30f, MaxAccel = 3f, MaxDecel = 6f, MaxSteerAngle = 0.6f,
+                WheelBase = 2.7f, MaxSpeedFwd = 30f, MaxAccel = 3f, MaxDecel = 6f, MaxSteerAngle = (Fdp.Core.Angle)(0.6f),
                 LookaheadTimeMin = 2f, LookaheadTimeMax = 10f, AccelGain = 2.0f, AvoidanceRadius = 2.5f,
             });
             repo.AddComponent(entity, new NavState { Mode = KinematicsMode.None });
@@ -86,7 +86,7 @@ namespace CarKinem.Tests.Systems
             repo.AddComponent(e, new SimVelocity { Linear = velocity });
             repo.AddComponent(e, new VehicleParams
             {
-                WheelBase = 2.7f, MaxSpeedFwd = 30f, MaxAccel = 3f, MaxDecel = 6f, MaxSteerAngle = 0.6f,
+                WheelBase = 2.7f, MaxSpeedFwd = 30f, MaxAccel = 3f, MaxDecel = 6f, MaxSteerAngle = (Fdp.Core.Angle)(0.6f),
                 LookaheadTimeMin = 2f, LookaheadTimeMax = 10f, AccelGain = 2.0f, AvoidanceRadius = 2.5f,
             });
             repo.AddComponent(e, new NavState { Mode = KinematicsMode.None });
@@ -221,7 +221,7 @@ namespace CarKinem.Tests.Systems
                 MaxSpeedFwd = 30f,
                 MaxAccel = 3f,
                 MaxDecel = 6f,
-                MaxSteerAngle = 0.6f,
+                MaxSteerAngle = (Fdp.Core.Angle)(0.6f),
                 LookaheadTimeMin = 2f,
                 LookaheadTimeMax = 10f,
                 AccelGain = 2.0f,
@@ -289,7 +289,7 @@ namespace CarKinem.Tests.Systems
 
             repo.AddComponent(entA, new NavState { Mode = KinematicsMode.None }); // Move straight
             repo.AddComponent(entA, new VehicleParams { 
-                WheelBase = 2.0f, MaxSpeedFwd=10f, MaxAccel=10f, MaxDecel=10f, MaxSteerAngle=1f, 
+                WheelBase = 2.0f, MaxSpeedFwd=10f, MaxAccel=10f, MaxDecel=10f, MaxSteerAngle=(Fdp.Core.Angle)(1f), 
                 LookaheadTimeMin=1f, LookaheadTimeMax=2f, AccelGain=1f, AvoidanceRadius=2.0f
             });
             repo.SetAuthority<SimTransform>(entA, true); // mark as locally-owned so WithOwned filter passes
@@ -356,7 +356,7 @@ namespace CarKinem.Tests.Systems
             
             repo.AddComponent(entity, new NavState { Mode = KinematicsMode.CustomTrajectory, TrajectoryId = trajId, ProgressS = 0f });
             repo.AddComponent(entity, new VehicleParams { 
-                WheelBase = 2.0f, MaxSpeedFwd=20f, MaxAccel=10f, MaxDecel=10f, MaxSteerAngle=1f, 
+                WheelBase = 2.0f, MaxSpeedFwd=20f, MaxAccel=10f, MaxDecel=10f, MaxSteerAngle=(Fdp.Core.Angle)(1f), 
                 LookaheadTimeMin=1f, LookaheadTimeMax=2f, AccelGain=1f, AvoidanceRadius=2.0f 
             });
 
@@ -436,7 +436,7 @@ namespace CarKinem.Tests.Systems
                 MaxSpeedFwd      = 20f,
                 MaxAccel         = 2.5f,
                 MaxDecel         = MaxDecel,
-                MaxSteerAngle    = 0.8f,
+                MaxSteerAngle    = (Fdp.Core.Angle)(0.8f),
                 MaxLatAccel      = 6f,
                 LookaheadTimeMin = 0.8f,
                 LookaheadTimeMax = 2.5f,
@@ -516,7 +516,7 @@ namespace CarKinem.Tests.Systems
             repo.AddComponent(e, new SimVelocity { Linear = new Vector3(startSpeed, 0, 0) });
             repo.AddComponent(e, vehicle ?? new VehicleParams
             {
-                WheelBase = 4.758f, MaxSpeedFwd = 20f, MaxAccel = 2.5f, MaxDecel = 4f, MaxSteerAngle = 0.8f,
+                WheelBase = 4.758f, MaxSpeedFwd = 20f, MaxAccel = 2.5f, MaxDecel = 4f, MaxSteerAngle = (Fdp.Core.Angle)(0.8f),
                 MaxLatAccel = 6f, LookaheadTimeMin = 0.8f, LookaheadTimeMax = 2.5f, AccelGain = 1.8f, AvoidanceRadius = 2.5f,
             });
             repo.AddComponent(e, new NavState
@@ -2137,7 +2137,7 @@ namespace CarKinem.Tests.Systems
         private static VehicleParams Bradley() => new()
         {
             Class = VehicleClass.Tank, Length = 6.55f, Width = 3.6f, WheelBase = 3.93f, MaxSpeedFwd = 18f, MaxSpeedRev = 8f, MaxAccel = 3f,
-            MaxDecel = 4f, MaxSteerAngle = 0.8f, MaxSteerRate = 0.34906584f, MaxLatAccel = 6f, AvoidanceRadius = 5f,
+            MaxDecel = 4f, MaxSteerAngle = (Fdp.Core.Angle)(0.8f), MaxSteerRate = 0.34906584f, MaxLatAccel = 6f, AvoidanceRadius = 5f,
             LookaheadTimeMin = 0.8f, LookaheadTimeMax = 2.5f, AccelGain = 1.8f,
         };
 

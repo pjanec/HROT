@@ -250,5 +250,79 @@ namespace Fdp.Toolkits.Tests.Replication
             // the recorded component keeps its bytes: EpisodeTag is 16 bytes, the Guid's
             Assert.Equal(16, System.Runtime.CompilerServices.Unsafe.SizeOf<EpisodeTag>());
         }
+
+        // ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+        // ⭐⭐ CE-4202 SV-4 — a RELATIVE angle says its unit by its TYPE: <see cref="Angle"/>, a float's memory and JSON, RADIANS. The world compass stays <see cref="Bearing"/>.
+        // The scan keys on the NAME (a camel-case word Yaw / Pitch / Elevation / Azimuth / Roll, or a last word Angle / Rad) on a bare float, outside the DDS wire types.
+        // A field whose last word is Deg / Degrees names its own unit and is skipped.
+        // ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+        /// <summary><c>Type.Member</c> → why it is NOT a relative angle in radians. ⭐ A decision each; never a silencer.</summary>
+        internal static readonly Dictionary<string, string> NotARelativeAngle = new(StringComparer.Ordinal)
+        {
+            ["ManualDrive.Yaw"] = "an ABSOLUTE world yaw (radians) — a world direction, not a relative angle; the world-direction-in-radians type is a later decision",
+            ["OperatorInput.Yaw"] = "the same absolute world yaw, as the control frame carries it to ManualDrive.Yaw",
+            ["OperatorControlFrameEvent.Yaw"] = "the same absolute world yaw, on the control-frame event",
+            ["AirFollower.OrbitAngle"] = "the polar angle of a plane's circle about OrbitCenter in the WORLD frame (atan2 of world offsets), not an offset from anything",
+            ["DangerAreaDescriptor.AngleRad"] = "the OBB's WORLD yaw (radians) — an orientation of the footprint in the world",
+            ["Solution.Elevation"] = "DEGREES above the horizontal (its doc says so) — a unit of its own, like the *Deg fields",
+            ["VehicleKit.RestElevation"] = "radians relative, but a record parameter filled by the GENERATED VehicleBody.WeaponKits.g.cs with float literals — it changes with its generator",
+            ["SoundDto.PitchJitter"] = "the pitch of a SOUND (a ratio), not an angle",
+        };
+
+        private static string[] Words(string name)
+            => System.Text.RegularExpressions.Regex.Matches(name, "[A-Z]+(?![a-z])|[A-Z]?[a-z]+|[0-9]+").Select(m => m.Value).ToArray();
+
+        private static bool LooksLikeARelativeAngle(string name)
+        {
+            var w = Words(name);
+            if (w.Length == 0) return false;
+            string last = w[^1];
+            if (last is "Deg" or "Degrees" or "Sec" || w.Contains("Rate")) return false;   // a unit of its own, or an angular RATE
+            return last is "Angle" or "Rad" || w.Any(x => x is "Yaw" or "Pitch" or "Elevation" or "Azimuth" or "Roll");
+        }
+
+        [Fact]
+        public void S0_EveryRelativeAngleMember_IsAnAngle()
+        {
+            var types = AllPublicNonWire().ToList();
+            Assert.True(types.Count >= 1000, $"only {types.Count} public types found — the scan lost its assemblies");
+            var offences = new List<string>();
+            foreach (var t in types)
+                foreach (var (owner, member, type) in Members(t))
+                    if (Strip(type) == typeof(float) && LooksLikeARelativeAngle(member) && !NotARelativeAngle.ContainsKey(owner + "." + member))
+                        offences.Add($"{t.FullName}.{member} ({type.Name}) — a relative angle in radians is an Angle (or say what it is)");
+            var sb = new StringBuilder();
+            foreach (var o in offences.OrderBy(x => x, StringComparer.Ordinal)) sb.AppendLine(o);
+            Assert.True(offences.Count == 0, $"{offences.Count} members look like a relative angle but are a bare float:\n{sb}");
+        }
+
+        [Fact]
+        public void S0_EveryNotARelativeAngleEntry_StillNamesAMember()
+        {
+            var live = new HashSet<string>(AllPublicNonWire().SelectMany(t => Members(t).Select(m => m.Owner + "." + m.Member)));
+            var stale = NotARelativeAngle.Keys.Where(k => !live.Contains(k)).ToList();
+            Assert.True(stale.Count == 0, "NotARelativeAngle entries name no member any more: " + string.Join(", ", stale));
+        }
+
+        /// <summary>The type — a float's memory, a plain JSON number (radians), implicit OUT, explicit IN, shown in degrees.</summary>
+        [Fact]
+        public void Angle_IsAFloatsMemory_AndAPlainJsonNumber_AndExplicitIn_AndShownInDegrees()
+        {
+            Assert.Equal(4, System.Runtime.CompilerServices.Unsafe.SizeOf<Angle>());
+            Assert.Equal(System.Text.Json.JsonSerializer.Serialize(0.5f), System.Text.Json.JsonSerializer.Serialize(new Angle(0.5f)));
+            Assert.Equal(new Angle(0.25f), System.Text.Json.JsonSerializer.Deserialize<Angle>("0.25"));
+            Assert.Equal("{\"Steer\":0.5}", System.Text.Json.JsonSerializer.Serialize(new { Steer = new Angle(0.5f) }));
+            float asFloat = new Angle(1.5f);                      // implicit out
+            Assert.Equal(1.5f, asFloat);
+            Assert.Equal(new Angle(2f), (Angle)2f);               // explicit in
+            Assert.Equal("90.0°", Angle.FromDegrees(90f).ToString());
+            Assert.Equal(180f, new Angle(MathF.PI).Degrees, 3);
+            Assert.Equal(new Angle(1f), new Angle(3f) - new Angle(2f));
+            var ops = typeof(Angle).GetMethods(BindingFlags.Public | BindingFlags.Static).Where(m => m.Name == "op_Implicit").ToList();
+            Assert.Single(ops);
+            Assert.Equal(typeof(float), ops[0].ReturnType);
+            Assert.Equal("0.5", System.ComponentModel.TypeDescriptor.GetConverter(typeof(Angle)).ConvertToInvariantString(new Angle(0.5f)));
+        }
     }
 }

@@ -110,7 +110,7 @@ namespace Hrot.AI.Behaviors.Brains
                                                           solution.High ? ArcPreference.High : ArcPreference.Low, ammo);
             var pose = world.HasComponent<TurretPose>(part)
                 ? world.GetComponentRO<TurretPose>(part)
-                : new TurretPose { Azimuth = TurretSlew.Wrap(azimuth + MathF.PI), Elevation = elevation };
+                : new TurretPose { Azimuth = (Fdp.Core.Angle)(TurretSlew.Wrap(azimuth + MathF.PI)), Elevation = (Fdp.Core.Angle)(elevation) };
             float seconds = TurretSlew.SecondsTo(pose, azimuth, elevation, turret);
             return float.IsFinite(seconds) ? seconds : 0f;
         }

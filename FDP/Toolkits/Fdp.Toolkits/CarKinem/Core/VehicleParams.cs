@@ -41,7 +41,7 @@ namespace CarKinem.Core
         public float MaxAccel;       // Max acceleration (m/s²)
         public float MaxDecel;       // Max braking deceleration (m/s²)
         
-        public float MaxSteerAngle;  // Max steering angle (radians)
+        public Angle MaxSteerAngle;  // Max steering angle (radians)
         public float MaxSteerRate;   // Max steering rate (rad/s)
         
         public float MaxLatAccel;    // Max lateral acceleration for curvature limits

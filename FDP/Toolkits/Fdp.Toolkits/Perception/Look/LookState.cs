@@ -40,7 +40,7 @@ namespace Fdp.Toolkit.Perception.Look
         /// <summary>Who decides the look now.</summary>
         public LookSource Source;
         /// <summary>The head's turn off the body (radians, + = to his left, within ±<see cref="LookOf.MaxHeadYaw"/>).</summary>
-        public float HeadYaw;
+        public Angle HeadYaw;
         /// <summary>LD-C — when the current glance began (sim s; 0 = none). ⛔ Not on the wire.</summary>
         public double GlanceSince;
         /// <summary>LD-C — no glance before this (sim s): the head rests on the way between glances. ⛔ Not on the wire.</summary>

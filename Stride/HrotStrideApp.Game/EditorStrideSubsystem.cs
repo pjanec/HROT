@@ -1225,7 +1225,7 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
         if (World.IsComponentTypeRegistered<VehicleState>() && World.HasComponent<VehicleState>(entity))
         {
             var vs = World.GetComponent<VehicleState>(entity);
-            vs.Speed = 0f; vs.SteerAngle = 0f;           // route-drop does NOT zero this — do it here
+            vs.Speed = 0f; vs.SteerAngle = (Fdp.Core.Angle)(0f);           // route-drop does NOT zero this — do it here
             World.SetComponent(entity, vs);
         }
 

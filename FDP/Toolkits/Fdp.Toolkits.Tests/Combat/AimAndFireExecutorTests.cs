@@ -3319,7 +3319,7 @@ namespace Fdp.Toolkit.Combat.Tests
             const float D = MathF.PI / 180f;
             var own = new Fdp.Toolkit.Tkb.Domain.TurretDto { TraverseMinDeg = -180f, TraverseMaxDeg = 180f, ElevationMinDeg = -60f, ElevationMaxDeg = 30f };
             StationSeat Door(float min, float max, float facing) => new()
-                { HasArc = 1, TraverseMin = min * D, TraverseMax = max * D, ElevationMin = -90f * D, ElevationMax = 90f * D, Facing = facing * D };
+                { HasArc = 1, TraverseMin = (Fdp.Core.Angle)(min * D), TraverseMax = (Fdp.Core.Angle)(max * D), ElevationMin = (Fdp.Core.Angle)(-90f * D), ElevationMax = (Fdp.Core.Angle)(90f * D), Facing = facing * D };
             var left = CombatTkb.WithinStation(own, Door(20f, 160f, 90f));
             Assert.Equal((-70f, 70f), (MathF.Round(left.TraverseMinDeg, 3), MathF.Round(left.TraverseMaxDeg, 3)));
             var right = CombatTkb.WithinStation(own, Door(-160f, -20f, -90f));

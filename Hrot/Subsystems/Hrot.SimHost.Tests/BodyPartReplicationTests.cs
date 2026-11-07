@@ -423,7 +423,7 @@ namespace Hrot.SimHost.Tests
         {
             var look = new Fdp.Toolkit.Perception.Look.LookState
             {
-                Target = new Vector3(4f, 5f, 1.5f), HasTarget = 1, Source = Fdp.Toolkit.Perception.Look.LookSource.LookGlance, HeadYaw = 0.6f,
+                Target = new Vector3(4f, 5f, 1.5f), HasTarget = 1, Source = Fdp.Toolkit.Perception.Look.LookSource.LookGlance, HeadYaw = (Fdp.Core.Angle)(0.6f),
                 GlanceSince = 12.0, RestUntil = 3.0,   // the muscle's own timers — not on the wire
             };
             var sample = Hrot.Map.Common.Replication.Egress.EntityLookStateEgressTranslator.ToSample(46, look);

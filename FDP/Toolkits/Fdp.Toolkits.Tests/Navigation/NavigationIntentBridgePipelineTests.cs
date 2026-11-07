@@ -83,7 +83,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             _repo.AddComponent(entity, new VehicleState());
             _repo.AddComponent(entity, new VehicleParams
             {
-                WheelBase = 2.7f, MaxSpeedFwd = 30f, MaxAccel = 3f, MaxDecel = 6f, MaxSteerAngle = 0.6f,
+                WheelBase = 2.7f, MaxSpeedFwd = 30f, MaxAccel = 3f, MaxDecel = 6f, MaxSteerAngle = (Fdp.Core.Angle)(0.6f),
                 LookaheadTimeMin = 2f, LookaheadTimeMax = 10f, AccelGain = 2.0f, AvoidanceRadius = 2.5f,
             });
             _repo.AddComponent(entity, new NavState());
@@ -130,7 +130,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             _repo.AddComponent(entity, new VehicleState());
             _repo.AddComponent(entity, new VehicleParams
             {
-                WheelBase = 2.7f, MaxSpeedFwd = 30f, MaxAccel = 3f, MaxDecel = 6f, MaxSteerAngle = 0.6f,
+                WheelBase = 2.7f, MaxSpeedFwd = 30f, MaxAccel = 3f, MaxDecel = 6f, MaxSteerAngle = (Fdp.Core.Angle)(0.6f),
                 LookaheadTimeMin = 2f, LookaheadTimeMax = 10f, AccelGain = 2.0f, AvoidanceRadius = 2.5f,
             });
             _repo.AddComponent(entity, new NavState());

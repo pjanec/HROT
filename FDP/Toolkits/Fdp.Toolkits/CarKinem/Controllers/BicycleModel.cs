@@ -66,7 +66,7 @@ namespace CarKinem.Controllers
             pos += fwd * state.Speed * dt;
             
             // 5. Update state metadata
-            state.SteerAngle = steerAngle;
+            state.SteerAngle = (Fdp.Core.Angle)(steerAngle);
             state.Accel = accel;
         }
     }

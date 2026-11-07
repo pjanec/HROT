@@ -542,7 +542,7 @@ namespace Fdp.Toolkit.Physics.Tests
             _world.GetComponentRW<PhysicsCollider>(tank).Height = 2.4f;
             _world.AddComponent(tank, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TankType) });
             var turret = Fdp.Toolkit.Combat.TurretParts.Ensure(_world, tank, 0);
-            _world.GetComponentRW<Fdp.Toolkit.Combat.Components.TurretPose>(turret).Azimuth = azimuth;
+            _world.GetComponentRW<Fdp.Toolkit.Combat.Components.TurretPose>(turret).Azimuth = (Fdp.Core.Angle)(azimuth);
             return tank;
         }
 

@@ -75,7 +75,7 @@ namespace Fdp.ModuleHost.Benchmarks
                 _repo.AddComponent(entity, new VehicleState
                 {
                     Speed = speed,
-                    SteerAngle = 0
+                    SteerAngle = (Fdp.Core.Angle)(0)
                 });
                 
                 _repo.AddComponent(entity, new VehicleParams
@@ -84,7 +84,7 @@ namespace Fdp.ModuleHost.Benchmarks
                     MaxSpeedFwd = 30f,
                     MaxAccel = 3f,
                     MaxDecel = 6f,
-                    MaxSteerAngle = 0.6f,
+                    MaxSteerAngle = (Fdp.Core.Angle)(0.6f),
                     LookaheadTimeMin = 2f,
                     LookaheadTimeMax = 10f,
                     AccelGain = 2.0f,

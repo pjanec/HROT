@@ -11,6 +11,6 @@ namespace CarKinem.Formation
     {
         public float ForwardOffset;   // Longitudinal offset (+ = ahead, - = behind)
         public float LateralOffset;   // Lateral offset (+ = right, - = left)
-        public float HeadingOffset;   // Heading offset relative to leader (radians)
+        public Fdp.Core.Angle HeadingOffset;   // Heading offset relative to leader (radians)
     }
 }

@@ -119,7 +119,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(WeaponTaskState.OnTarget, Status(limited).State);
 
             var (_, full) = Tank(1);
-            _world.SetComponent(full, new TurretPose { Azimuth = 170f * Deg });
+            _world.SetComponent(full, new TurretPose { Azimuth = (Fdp.Core.Angle)(170f * Deg) });
             Order(full, new Vector3(-100, -17.6f, 2));   // ≈ −170°: 20° away the short way, 340° the long way
             Run(30);   // half a second at 24°/s = 12° — through ±180
             Assert.True(MathF.Abs(TurretSlew.Wrap(Pose(full).Azimuth - 182f * Deg)) < 0.5f * Deg, $"azimuth {Pose(full).Azimuth / Deg}°");
@@ -141,9 +141,9 @@ namespace Fdp.Toolkit.Combat.Tests
                                       ElevationMaxDeg = 10f };
 
             // a full circle: 170° → −170° is 20° the short way through ±180
-            Near(S(20f, 24f), TurretSlew.SecondsTo(new TurretPose { Azimuth = 170f * Deg }, -170f * Deg, 0f, full));
+            Near(S(20f, 24f), TurretSlew.SecondsTo(new TurretPose { Azimuth = (Fdp.Core.Angle)(170f * Deg) }, -170f * Deg, 0f, full));
             // a limited arc: 160° → −160° goes 320° the long way inside it, never 40° through its dead zone
-            Near(S(320f, 30f), TurretSlew.SecondsTo(new TurretPose { Azimuth = 160f * Deg }, -160f * Deg, 0f, arc));
+            Near(S(320f, 30f), TurretSlew.SecondsTo(new TurretPose { Azimuth = (Fdp.Core.Angle)(160f * Deg) }, -160f * Deg, 0f, arc));
             // the slower axis decides: 12° of traverse (0.5 s) and 12° of elevation (2 s)
             Near(S(12f, 6f), TurretSlew.SecondsTo(default, 12f * Deg, 12f * Deg, full));
             // an elevation past the limit is laid to the limit, as Step lays it
@@ -152,12 +152,12 @@ namespace Fdp.Toolkit.Combat.Tests
             var frozen = new TurretDto { TraverseRateDegPerSec = 0f, ElevationRateDegPerSec = 5f, ElevationMaxDeg = 45f };
             Assert.True(float.IsPositiveInfinity(TurretSlew.SecondsTo(default, 10f * Deg, 0f, frozen)));
             Near(S(10f, 5f), TurretSlew.SecondsTo(default, 0f, 10f * Deg, frozen));
-            Assert.Equal(0f, TurretSlew.SecondsTo(new TurretPose { Azimuth = 0.1f * Deg }, 0f, 0f, full));
+            Assert.Equal(0f, TurretSlew.SecondsTo(new TurretPose { Azimuth = (Fdp.Core.Angle)(0.1f * Deg) }, 0f, 0f, full));
 
             // and Step agrees: stepping at 60 Hz reaches OnTarget within a frame of SecondsTo
             foreach (var (t, from, az, el) in new[] { (full, 170f, -170f, 20f), (arc, 160f, -160f, 5f), (full, -90f, 45f, -4f) })
             {
-                var pose = new TurretPose { Azimuth = from * Deg };
+                var pose = new TurretPose { Azimuth = (Fdp.Core.Angle)(from * Deg) };
                 float want = TurretSlew.SecondsTo(pose, az * Deg, el * Deg, t);
                 int frames = 0;
                 while (!TurretSlew.OnTarget(pose, az * Deg, el * Deg) && frames < 60 * 60) { pose = TurretSlew.Step(pose, az * Deg, el * Deg, t, Dt); frames++; }
@@ -198,7 +198,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(WeaponTaskFailure.NoTurret, Status(orphan).Reason);
 
             var (_, idle) = Tank(1);
-            _world.SetComponent(idle, new TurretPose { Azimuth = 0.3f });
+            _world.SetComponent(idle, new TurretPose { Azimuth = (Fdp.Core.Angle)(0.3f) });
             _world.AddOrSet(idle, new WeaponTask { Mode = WeaponTaskMode.Idle, Epoch = 7 });
             Run(60);
             Assert.Equal(0.3f, Pose(idle).Azimuth);

@@ -287,7 +287,7 @@ namespace Fdp.Toolkit.Behavior.Components
         public byte NeedsGunner;
         /// <summary>1 when it states its own arc (<see cref="TraverseMin"/>…<see cref="ElevationMax"/>).</summary>
         public byte HasArc;
-        public float TraverseMin, TraverseMax, ElevationMin, ElevationMax;
+        public Angle TraverseMin, TraverseMax, ElevationMin, ElevationMax;
         /// <summary>Where the weapon stands, metres in the host's frame (x forward, y left, z up), and which way it faces (radians, CCW).</summary>
         public float X, Y, Z, Facing;
     }

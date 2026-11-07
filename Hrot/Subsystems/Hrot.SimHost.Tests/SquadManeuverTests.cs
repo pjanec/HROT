@@ -6946,7 +6946,7 @@ namespace Hrot.SimHost.Tests
             if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.TurretPose>()) s.Repo.RegisterComponent<Fdp.Toolkit.Combat.Components.TurretPose>();
             var parts = s.Members.Select(g => Fdp.Toolkit.Combat.TurretParts.Ensure(s.Repo, g, 0)).ToArray();
             Assert.All(parts, p => Assert.False(p.IsNull));
-            s.Repo.SetComponent(parts[2], new Fdp.Toolkit.Combat.Components.TurretPose { Azimuth = MathF.PI });   // the farthest gun (it fires first) faces away
+            s.Repo.SetComponent(parts[2], new Fdp.Toolkit.Combat.Components.TurretPose { Azimuth = (Fdp.Core.Angle)(MathF.PI) });   // the farthest gun (it fires first) faces away
 
             double t0 = s.Repo.GetSingleton<GlobalTime>().TotalTime;
             Strike(s, point, Hrot.AI.Behaviors.Orders.FireMissionControl.TimeOnTarget);

@@ -82,7 +82,7 @@ namespace Fdp.Toolkit.Tkb.Domain
 
     /// <summary>Where a body resting on its contacts sits: the reference point's height, and its pitch (nose up +) and roll
     /// (left side up +), radians.</summary>
-    public readonly record struct RestingPose(float Z, float Pitch, float Roll);
+    public readonly record struct RestingPose(float Z, Fdp.Core.Angle Pitch, Fdp.Core.Angle Roll);
 
     /// <summary>
     /// ⭐ CE-1041 — the one implementation of "where does this body sit on the ground" (<c>DESIGN_Body_Geometry_And_Ground_Contact.md</c>
@@ -115,7 +115,7 @@ namespace Fdp.Toolkit.Tkb.Domain
             float h = RestingHeight(geometry);
             var contacts = geometry.GroundContacts;
             if (geometry.ReferencePoint == ReferencePointKind.GroundCentre || contacts.Count < 3)
-                return new RestingPose(groundHeightAt(xy.X, xy.Y) + h, 0f, 0f);
+                return new RestingPose(groundHeightAt(xy.X, xy.Y) + h, (Fdp.Core.Angle)(0f), (Fdp.Core.Angle)(0f));
 
             // Least-squares plane g = a + b·u + c·v in BODY-horizontal axes (u forward, v left) through the ground under each contact.
             float cos = MathF.Cos(yaw), sin = MathF.Sin(yaw);
@@ -131,7 +131,7 @@ namespace Fdp.Toolkit.Tkb.Domain
             double[,] m = { { n, su, sv }, { su, suu, suv }, { sv, suv, svv } };
             double det = Det(m);
             if (Math.Abs(det) < 1e-9)
-                return new RestingPose(groundHeightAt(xy.X, xy.Y) + h, 0f, 0f);   // collinear contacts: no plane
+                return new RestingPose(groundHeightAt(xy.X, xy.Y) + h, (Fdp.Core.Angle)(0f), (Fdp.Core.Angle)(0f));   // collinear contacts: no plane
             double a = Det(new double[,] { { sg, su, sv }, { sug, suu, suv }, { svg, suv, svv } }) / det;
             double b = Det(new double[,] { { n, sg, sv }, { su, sug, suv }, { sv, svg, svv } }) / det;
             double cc = Det(new double[,] { { n, su, sg }, { su, suu, sug }, { sv, suv, svg } }) / det;
@@ -141,7 +141,7 @@ namespace Fdp.Toolkit.Tkb.Domain
             // The reference point sits h above the plane along the plane's normal; for these slopes its height over the plane
             // at the reference XY is h / cos(tilt).
             float tilt = MathF.Atan(MathF.Sqrt((float)(b * b + cc * cc)));
-            return new RestingPose((float)a + h / MathF.Cos(tilt), pitch, roll);
+            return new RestingPose((float)a + h / MathF.Cos(tilt), (Fdp.Core.Angle)(pitch), (Fdp.Core.Angle)(roll));
         }
 
         /// <summary>The rotation of a resting pose: yaw about up, then pitch (nose up), then roll (left side up), body axes.</summary>

@@ -53,7 +53,7 @@ namespace CarKinem.Systems
                 repo.AddComponent(entity, new VehicleState
                 {
                     Speed = 0f,
-                    SteerAngle = 0f,
+                    SteerAngle = (Fdp.Core.Angle)(0f),
                     Accel = 0f,
                     CurrentLaneIndex = -1
                 });

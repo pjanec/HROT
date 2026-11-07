@@ -155,7 +155,7 @@ public sealed class KinematicVehicleMotorTests : IDisposable
         var entity = _world.CreateEntity();
         _world.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(BoxTkbType) });
         _world.AddComponent(entity, new SimTransform { Position = pos, Rotation = Quaternion.Identity });
-        _world.AddComponent(entity, new VehicleState { Speed = speed, SteerAngle = steerAngle });
+        _world.AddComponent(entity, new VehicleState { Speed = speed, SteerAngle = (Fdp.Core.Angle)(steerAngle) });
         _world.AddComponent(entity, new VehicleParams { WheelBase = wheelBase });
         _world.AddComponent(entity, new SimVelocity());
         _world.SetAuthority<SimTransform>(entity, true);

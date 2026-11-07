@@ -523,7 +523,7 @@ namespace Fdp.Toolkit.Physics.Tests
             if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.TurretPose>()) _world.RegisterComponent<Fdp.Toolkit.Combat.Components.TurretPose>();
             var tank = Body(Tank, health: 1000f);
             var turret = _world.CreateEntity();
-            _world.AddComponent(turret, new Fdp.Toolkit.Combat.Components.TurretPose { Azimuth = float.NaN, Elevation = float.NaN });
+            _world.AddComponent(turret, new Fdp.Toolkit.Combat.Components.TurretPose { Azimuth = (Fdp.Core.Angle)(float.NaN), Elevation = (Fdp.Core.Angle)(float.NaN) });
 
             // the premise: a NaN azimuth really does pose boxes at NaN (else this rail proves nothing)
             var shape = VehicleBody.Of(_world, tank)!;

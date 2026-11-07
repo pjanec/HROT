@@ -706,10 +706,10 @@ namespace Fdp.Toolkit.Navigation.Tests
             repo.RegisterComponent<global::CarKinem.Core.VehicleParams>();
             var tank = repo.CreateEntity();
             repo.AddComponent(tank, new global::CarKinem.Core.VehicleParams
-                { Class = global::CarKinem.Core.VehicleClass.Tank, WheelBase = 3.93f, MaxSteerAngle = 0.8f });
+                { Class = global::CarKinem.Core.VehicleClass.Tank, WheelBase = 3.93f, MaxSteerAngle = (Fdp.Core.Angle)(0.8f) });
             var soldier = repo.CreateEntity();
             repo.AddComponent(soldier, new global::CarKinem.Core.VehicleParams
-                { Class = global::CarKinem.Core.VehicleClass.Pedestrian, WheelBase = 0.5f, MaxSteerAngle = 1f });
+                { Class = global::CarKinem.Core.VehicleClass.Pedestrian, WheelBase = 0.5f, MaxSteerAngle = (Fdp.Core.Angle)(1f) });
             var bare = repo.CreateEntity();
             Assert.Equal(3.93f / MathF.Tan(0.8f), PathRequests.TurnRadiusOf(repo, tank), 3);
             Assert.Equal(0f, PathRequests.TurnRadiusOf(repo, soldier));

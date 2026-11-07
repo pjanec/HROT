@@ -417,7 +417,7 @@ namespace Fdp.Toolkit.Motion
             float sink = p.SinkMps / MathF.Pow(cos, 1.5f) * (1f - (1f - p.BrakeSinkFactor) * b);
             if (flaring) sink = sink + (1f - sink) * b;   // the flare: ≈ 1 m/s at full brakes
             var ground = new Vector2(MathF.Cos(psi), MathF.Sin(psi)) * speed + wind + slip;
-            f.Transform.Rotation = BodyGeometry.Rotation(psi, new RestingPose(0f, 0f, roll));
+            f.Transform.Rotation = BodyGeometry.Rotation(psi, new RestingPose(0f, (Fdp.Core.Angle)(0f), (Fdp.Core.Angle)(roll)));
             Step(ref f, new Vector3(ground, -sink), dt, surface, ref d, now);
         }
 

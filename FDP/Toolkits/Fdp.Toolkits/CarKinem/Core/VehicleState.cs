@@ -14,7 +14,7 @@ namespace CarKinem.Core
     public struct VehicleState
     {
         public float Speed;         // Scalar forward speed (m/s, >= 0)
-        public float SteerAngle;    // Current wheel angle (radians)
+        public Angle SteerAngle;    // Current wheel angle (radians)
         public float Accel;         // Longitudinal acceleration (m/s²)
         
         // Metadata

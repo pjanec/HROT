@@ -50,7 +50,7 @@ namespace CarKinem.Tkb
                 repo.AddComponent(entity, BuildVehicleParams(dto));
 
             if (repo.IsComponentTypeRegistered<VehicleState>() && !repo.HasComponent<VehicleState>(entity))
-                repo.AddComponent(entity, new VehicleState { Speed = 0, SteerAngle = 0 });
+                repo.AddComponent(entity, new VehicleState { Speed = 0, SteerAngle = (Fdp.Core.Angle)(0) });
 
             if (repo.IsComponentTypeRegistered<NavState>() && !repo.HasComponent<NavState>(entity))
                 repo.AddComponent(entity, new NavState { Mode = KinematicsMode.None });

@@ -12,7 +12,7 @@ namespace Fdp.Toolkit.Combat.Components
     [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct TurretPose
     {
-        public float Azimuth;
-        public float Elevation;
+        public Angle Azimuth;
+        public Angle Elevation;
     }
 }

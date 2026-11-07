@@ -106,6 +106,26 @@ name, a unit — and the instant / duration pair has the arithmetic built in (an
 - **Left `Guid`, outside the rail's four assemblies:** `RecordingName.ExerciseId` (Hrot.Presentation), `IRunModeHost.ActiveExercise` / `ClusterTimeTransportAdapter.ActiveExercise` (no `Id` suffix), `RunModeChoice.LastExercise`.
 - ⛔ **Not done here:** "render them as links" — a clickable link in an inspector / the debug API is UI work; the type, `ToString` and the schema `format` are what a tool now keys on.
 
+### 2.3 ⭐ AS-BUILT — SV-4 `Angle` *(CE-4202, `2026-11-07`)*
+
+| | `Angle` |
+|---|---|
+| type | `Fdp.Core/World/Angle.cs` — over `float`, 4 B, **radians** |
+| JSON · schema | a plain number (radians) · `{type: number, format: angle}` |
+| conversions | implicit OUT to `float`; explicit IN from `float`; `Angle ± Angle`, `−Angle` stay an `Angle`; `FromDegrees`, `Degrees`; `ToString` = degrees (`12.5°`) |
+| seams | `SemanticValueTypes` (storage `float`), `DtoJsonSchemaExtractor`, `StaticTypeRegistry` (unmanaged 4 B); ⛔ no compiler coercion rung (as §2.1) |
+| rail | `S0IdTypesRailTests.S0_EveryRelativeAngleMember_IsAnAngle` (a bare `float` named `Yaw` / `Pitch` / `Elevation` / `Azimuth` / `Roll`, or ending `Angle` / `Rad`, outside the wire types; skips a last word `Deg` / `Degrees` / `Sec` and any `Rate`) |
+
+⭐ **Typed (measured radians AND relative):** `TurretPose.Azimuth` / `Elevation` · `LookState.HeadYaw` · `AirFollower.Pitch` / `Roll` · `VehicleState.SteerAngle` · `VehicleParams.MaxSteerAngle` · `FormationParams.WedgeAngleRad` · `FormationSlot.HeadingOffset` (relative to the leader) · `StationSeat.TraverseMin` / `Max` / `ElevationMin` / `Max` · `BodyBox.FaceYaw` · `RestingPose.Pitch` / `Roll`. Layout is unchanged (4 B each).
+
+⚠ **Left, and why (the rail's `NotARelativeAngle` names each):**
+- **world direction, radians** — `ManualDrive.Yaw`, `OperatorInput.Yaw`, `OperatorControlFrameEvent.Yaw` (an ABSOLUTE yaw), `AirFollower.OrbitAngle` (polar angle in the world frame), `DangerAreaDescriptor.AngleRad` (the footprint's world yaw). They want a world-direction-in-radians type, not decided here.
+- **a unit of its own** — every `*Deg` / `*Degrees` field (`TurnRateDeg`, `MaxBankDeg`, `MinElevationDeg`, `FieldOfViewDegrees`, `DiveAngleDeg` …) and `FireSolution.Solution.Elevation` (degrees); rates (`MaxSteerRate`, `*DegPerSec`).
+- **world compass** — `LookNodes.LookParams.Bearing` is compass DEGREES (its doc says so): a `Bearing`, not converted here. `EngagementArea.LeftBearing` / `RightBearing` / `WatchBearing` and `WorldSurveyModel.Bearing` carry no unit in code or doc — left untouched, to be measured when `Bearing` is applied to them.
+- **generated** — `VehicleKit.RestElevation` is filled with float literals by the generated `VehicleBody.WeaponKits.g.cs`; it moves with its generator.
+- `WorldSurveyModel.HalfArc` (a radians half-width on a view model, not a component or DTO) and `SoundDto.PitchJitter` (a pitch ratio, not an angle).
+- **the DDS wire stays `float`** (`SimDescriptors` Azimuth / Elevation / HeadYaw / Steer / Yaw, `DangerAreaDdsTopics.AngleRad`, the interaction messages): the cast sits in the translators.
+
 ## 3. The shared pattern *(the one every accepted type follows — `WorldPoint` is the model, `DESIGN_Scenario_Rules.md` §9.8.9)*
 
 | ⭐ rule | |
