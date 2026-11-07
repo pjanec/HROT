@@ -27,6 +27,7 @@ public static class RowMarks
     {
         ImGui.SameLine(0f, 4f);
         bool clicked = GlyphWidgets.GlyphButton(id, new IconGlyph(KitGlyph.Reset, IconPalette.Amber), tooltip);
+        KitProbe.Set(KitProbe.ResetMark, ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
         return clicked;
     }
 
@@ -41,5 +42,10 @@ public static class RowMarks
     }
 
     /// <summary>The <i>set</i> box of an optional field (unchecked = not set, the control after it is disabled by the caller). True on the frame it was toggled.</summary>
-    public static bool SetBox(string id, ref bool isSet) => ImGui.Checkbox(id, ref isSet);
+    public static bool SetBox(string id, ref bool isSet)
+    {
+        bool toggled = ImGui.Checkbox(id, ref isSet);
+        KitProbe.Set(KitProbe.SetBox, ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        return toggled;
+    }
 }

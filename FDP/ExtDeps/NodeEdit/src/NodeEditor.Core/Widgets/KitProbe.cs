@@ -23,8 +23,11 @@ public static class KitProbe
     /// <summary>The long list's header: 59 = filter box · 60 = ‹ · 61 = › · 62 = the ▸/▾ fold button.</summary>
     public const int HeaderFilter = 59, HeaderPrev = 60, HeaderNext = 61, HeaderFold = 62;
 
-    private static readonly Vector4[] Rects = new Vector4[64];
-    private static readonly bool[] Has = new bool[64];
+    /// <summary>The struct table's cells: 64 = the last text cell · 65 … 72 = flag chips · 73 = the nullable's set box · 74 = the last ↺ · 75 = the last show-on-map glyph.</summary>
+    public const int TextCell = 64, FlagChip = 65, SetBox = 73, ResetMark = 74, ShowOnMap = 75;
+
+    private static readonly Vector4[] Rects = new Vector4[80];
+    private static readonly bool[] Has = new bool[80];
 
     public static void Set(int slot, Vector2 min, Vector2 max) { Rects[slot] = new Vector4(min.X, min.Y, max.X, max.Y); Has[slot] = true; }
 

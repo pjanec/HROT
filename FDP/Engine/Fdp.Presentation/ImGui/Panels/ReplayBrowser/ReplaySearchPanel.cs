@@ -328,7 +328,8 @@ public sealed class ReplaySearchPanel
     private ComponentEditDrawer BuildDrawer(IEditSession session)
     {
         var types = _mode == SearchPredicateMode.Event ? (_eventTypes ??= BuildCatalogue(TypeComboMode.Event)) : (_componentTypes ??= BuildCatalogue(TypeComboMode.Component));
-        return new ComponentEditDrawer(session, PickContext, types: types, services: _drawServices ??= new Fdp.Presentation.Editing.Types.ServiceBag().With(_behaviorRegistry));
+        return new ComponentEditDrawer(session, PickContext, types: types, services: _drawServices ??= new Fdp.Presentation.Editing.Types.ServiceBag().With(_behaviorRegistry),
+            defaults: TypeDefaults.For(session.Document.Root.ClrType));
     }
 
     private void DrawModeRadio()

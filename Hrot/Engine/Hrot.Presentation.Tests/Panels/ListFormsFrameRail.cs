@@ -45,7 +45,7 @@ public sealed class ListFormsFrameRail
     [InlineArray(2)] public struct Pts2 { private Pt _e0; }
     public struct PtsComp { public Pts2 Pts; }
 
-    private sealed class Pressing : IInputSource
+    internal sealed class Pressing : IInputSource
     {
         public EditorKey Key = EditorKey.F12;
         public KeyModifiers Modifiers { get; set; }
@@ -62,7 +62,7 @@ public sealed class ListFormsFrameRail
         public ReadOnlySpan<char> TextThisFrame => ReadOnlySpan<char>.Empty;
     }
 
-    private sealed class Keyed : IKeyScopeWindow
+    internal sealed class Keyed : IKeyScopeWindow
     {
         public int Runs;
         public Keyed()
@@ -75,7 +75,7 @@ public sealed class ListFormsFrameRail
         public IEditorCommands? KeyCommands { get; }
     }
 
-    private sealed class Rig : IDisposable
+    internal sealed class Rig : IDisposable
     {
         public readonly UiFrameSession Frame;
         public readonly WidgetKitFrameRail.Sim Sim = new();
@@ -88,13 +88,14 @@ public sealed class ListFormsFrameRail
         public readonly Keyed Window = new();
         public bool Route;
 
-        public Rig(object doc, Type type)
+        public Rig(object doc, Type type, StructEdit.Core.Defaults.IFieldDefaults? defaults = null, bool readOnly = false, IMapPickContext? picks = null)
         {
             Frame = UiFrameHarness.Begin(760, 560);
             new EditorFontService().Initialize(1f, 1f);
             Session = ComponentEditServices.CreateBuilder().Build().Open(doc, type);
-            Drawer = new ComponentEditDrawer(Session, null);
+            Drawer = new ComponentEditDrawer(Session, picks, defaults: defaults, readOnly: readOnly);
             Router = new KeyRouter(Input);
+            ImGui.GetIO().MouseDoubleClickTime = 5f;   // the harness clicks slowly (several frames each): a double-click is two clicks in the same place
         }
 
         public void Draw()
@@ -132,6 +133,10 @@ public sealed class ListFormsFrameRail
             Frame.StepN(4, Draw);
             Route = false;
         }
+        /// <summary>Types <paramref name="text"/> into the focused text box.</summary>
+        public void Type(string text) { ImGui.GetIO().AddInputCharactersUTF8(text); Frame.StepN(4, Draw); }
+        /// <summary>Selects the whole word under a double-click at <paramref name="p"/> (a number or a name is one word).</summary>
+        public void DoubleClick(Vector2 p) { Click(p); Click(p); }
         public EditNode Field(string name) => ComponentEditDrawer.FieldsOwner(Session.Document.Root)!.Children.First(c => c.Name == name);
         public void Dispose() => Frame.Dispose();
     }

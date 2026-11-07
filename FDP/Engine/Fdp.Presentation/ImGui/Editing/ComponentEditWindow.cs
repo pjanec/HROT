@@ -80,7 +80,8 @@ internal sealed class ComponentEditWindow : ManagedWindow
         IMutationInterceptor? interceptor = null,
         object? baseline = null,
         IParamBindContext? paramBindContext = null,
-        Types.TypeCatalogue? types = null)
+        Types.TypeCatalogue? types = null,
+        StructEdit.Core.Defaults.IFieldDefaults? defaults = null)
         : base(id, title, owningPerspective, WindowScope.PerspectiveBound)
     {
         _baseline      = baseline;
@@ -89,7 +90,7 @@ internal sealed class ComponentEditWindow : ManagedWindow
         _componentType = componentType;
         _sessionGetter = sessionGetter;
         _interceptor   = interceptor;
-        _drawer        = new ComponentEditDrawer(session, pickerCtx, paramBindContext, types);
+        _drawer        = new ComponentEditDrawer(session, pickerCtx, paramBindContext, types, defaults: defaults);
 
         IsVolatile = true;
         ShowInMenu = false;

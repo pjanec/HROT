@@ -254,7 +254,7 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
                 if (ImGui.BeginTable("##args", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
                 {
                     if (session.RebuildState == EditRebuildState.RebuildRequired) session.RebuildDocument();
-                    if (row.Drawer == null || !ReferenceEquals(row.DrawerPicks, _ctx.Picks)) { row.Drawer = new ComponentEditDrawer(session, _ctx.Picks); row.DrawerPicks = _ctx.Picks; }
+                    if (row.Drawer == null || !ReferenceEquals(row.DrawerPicks, _ctx.Picks)) { row.Drawer = new ComponentEditDrawer(session, _ctx.Picks, defaults: row.Entry != null ? TypeDefaults.For(row.Entry.ParamsType) : null); row.DrawerPicks = _ctx.Picks; }
                     row.Drawer.DrawRoot(session.Document.Root);
                     ImGui.EndTable();
                 }

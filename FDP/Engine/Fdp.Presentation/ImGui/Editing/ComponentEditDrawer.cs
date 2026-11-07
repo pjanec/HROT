@@ -34,14 +34,26 @@ public sealed partial class ComponentEditDrawer
         IMapPickContext? pickerCtx,
         IParamBindContext? paramBindContext = null,
         Types.TypeCatalogue? types = null,
-        IServiceProvider? services = null)
+        IServiceProvider? services = null,
+        StructEdit.Core.Defaults.IFieldDefaults? defaults = null,
+        bool readOnly = false)
     {
         _session            = session;
         _pickerCtx          = pickerCtx;
         _bindCtx            = paramBindContext;
         _types              = types ?? Types.TypeCatalogue.Standard;
         _services           = services;
+        _defaults           = defaults;
+        ReadOnly            = readOnly;
     }
+
+    /// <summary>⭐ N-4 (CE-3381, S7) — where each field's DEFAULT comes from (a document over <c>new T()</c>, a host's Fill source); null ⇒ no default marks. A leaf equal to its default draws its value grey; a changed one an amber bar and a ↺ that writes the default back.
+    /// ⛔ A host that HAS a default source must pass it (the silent-default rule).</summary>
+    public StructEdit.Core.Defaults.IFieldDefaults? Defaults => _defaults;
+    private readonly StructEdit.Core.Defaults.IFieldDefaults? _defaults;
+
+    /// <summary>⭐ N-4 (S8) — the whole table read-only (a host in Live / Replay): every value cell draws disabled and refuses input; a node's own <c>[EditReadOnly]</c> does the same for its subtree. The show-on-map glyph is not an edit and stays live.</summary>
+    public bool ReadOnly { get; set; }
 
     /// <summary>⭐ S3 — the catalogue this table draws its cells from (the forwarding rails assert on the CONSTRUCTED object).</summary>
     public Types.TypeCatalogue Catalogue => _types;
@@ -114,6 +126,13 @@ public sealed partial class ComponentEditDrawer
     {
         if (_session.RebuildState == EditRebuildState.RebuildRequired)
             return;
+
+        // ⭐ N-3 — a Nullable<T> of a built-in is ONE cell (a "set" box and the value), whatever kind the builder gave it
+        if (Nullable.GetUnderlyingType(node.ClrType) is { } nullableOf && StructEdit.Core.Text.ValueText.Handles(nullableOf) && node.Kind != EditNodeKind.SelectionRoot)
+        {
+            DrawLeafNode(node, parentContainer, elementIndex);
+            return;
+        }
 
         switch (node.Kind)
         {
@@ -303,9 +322,22 @@ public sealed partial class ComponentEditDrawer
 
     // ── Leaf nodes ────────────────────────────────────────────────────────────
 
+    /// <summary>For rails: the bytes the last leaf row allocated (R-2084: 0 in a steady frame).</summary>
+    public long LeafRowBytes { get; private set; }
+
     private void DrawLeafNode(EditNode node, IContainerBinding? parentContainer, int elementIndex)
     {
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        DrawLeafNodeCore(node, parentContainer, elementIndex);
+        LeafRowBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+    }
+
+    private void DrawLeafNodeCore(EditNode node, IContainerBinding? parentContainer, int elementIndex)
+    {
         ImGuiApi.TableNextRow();
+        // ⭐ N-3 — a refused value tints its row (the mockup's error row)
+        if (_cells.TryGetValue(node.Id.Value, out var errCell) && errCell.Error != null)
+            ImGuiApi.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGuiApi.GetColorU32(NodeEditor.Core.Widgets.IconPalette.Error with { W = 0.18f }));
         ImGuiApi.TableSetColumnIndex(0);
         ImGuiApi.PushID(node.Id.Value);
 
@@ -326,6 +358,11 @@ public sealed partial class ComponentEditDrawer
         ImGuiApi.TableSetColumnIndex(1);
         bool canDelete = parentContainer != null && parentContainer.CanResize && elementIndex >= 0;
 
+        // ⭐ N-4 — the changed bar (its slot is reserved only where a default source exists) and the read-only state of this row
+        bool ro = ReadOnly || node.IsReadOnly;
+        bool changedFromDefault = _defaults != null && IsChangedFromDefault(node);
+        if (_defaults != null) NodeEditor.Core.Widgets.RowMarks.ChangedBar(changedFromDefault && !ro);
+
         // the chip of a bound field sits in front of the value; the faint button of an unbound bindable one at the right edge
         var parentValue = _containers.Count > 0 ? _containers.Peek() : null;
         if (bind.ShowsChip) { _chipRows++; if (bind.ChipIsRed) _redRows++; }
@@ -335,6 +372,7 @@ public sealed partial class ComponentEditDrawer
         float inputWidth = ImGuiApi.GetContentRegionAvail().X;
         if (canDelete) inputWidth -= 30f;
         inputWidth -= buttonReserve;
+        if (changedFromDefault && !ro) inputWidth -= ImGuiApi.GetFrameHeight() + 8f;   // room for the ↺
 
         bool changed;
         if (ReferenceLeafDrawers.Handles(node.ClrType))
@@ -342,7 +380,8 @@ public sealed partial class ComponentEditDrawer
             // ⭐ CE-4206 R1 (F1) — the reference types (EntityLink, PointLink, EntityRef, WorldPoint) are drawn by ONE class, one method per type:
             //   the TYPE makes the field pickable (DESIGN_Entity_Reference D5, DESIGN_Map_Picking_Unification P5); the attribute only narrows the pick.
             string? boundBefore = bind.Home == BindHome.RefParamForm ? bind.BoundParam : null;
-            changed = ReferenceLeafDrawers.Draw(node, (canDelete ? 30f : 0f) + buttonReserve, _pickerCtx, _refState);
+            changed = ReferenceLeafDrawers.Draw(node, (canDelete ? 30f : 0f) + buttonReserve + (changedFromDefault && !ro ? ImGuiApi.GetFrameHeight() + 8f : 0f), _pickerCtx, _refState, ro);
+            if (changed) _epoch++;
             // ⭐ CE-4210 — editing the LITERAL of a bound link keeps its binding (SR-168: the literal is the value used when the macro is opened alone)
             if (changed && boundBefore is not null && ParamBindModel.BoundParamOfLink(node.Binding?.GetBoxed()) is null)
                 node.Binding?.SetBoxed(ParamBindModel.LinkWithParam(node.Binding.GetBoxed(), boundBefore));
@@ -352,18 +391,28 @@ public sealed partial class ComponentEditDrawer
             if (inputWidth < 60f) inputWidth = 60f;
             ImGuiApi.SetNextItemWidth(inputWidth);
 
-            object value = node.Binding?.GetBoxed() ?? GetDefaultForType(node.ClrType);
-            changed = DrawPrimitiveInput(node.ClrType, ref value, node);
-
-            if (changed)
+            // ⭐ N-3 / N-4 — a text / number / nullable / flags cell parses through ValueText (a refusal keeps the typed text and the old value, with its line under the row);
+            //   a value at its default draws grey, a read-only row disabled
+            if (ro) ImGuiApi.BeginDisabled();
+            if (_defaults != null && !changedFromDefault) ImGuiApi.PushStyleColor(ImGuiCol.Text, ImGuiApi.GetColorU32(ImGuiCol.TextDisabled));
+            object? value = null;
+            if (DrawCellNode(node, inputWidth, out bool cellChanged)) changed = cellChanged;
+            else
             {
-                node.Binding?.SetBoxed(value);
-                _epoch++;   // ⭐ N-2 — cached list text is rebuilt
+                value = node.Binding?.GetBoxed() ?? GetDefaultForType(node.ClrType);
+                changed = DrawPrimitiveInput(node.ClrType, ref value!, node);
+                if (changed && !ro) node.Binding?.SetBoxed(value);
             }
+            if (_defaults != null && !changedFromDefault) ImGuiApi.PopStyleColor();
+            if (ro) ImGuiApi.EndDisabled();
+            if (changed) _epoch++;   // ⭐ N-2 — cached list / cell text is rebuilt
             // ⭐ CE-4206 R3 F7 — a WorldRotation keeps its Y/P/R editor and gains a muted read-out line through OrientationText
             if (node.ClrType == typeof(Fdp.Core.WorldRotation))
-                ImGuiApi.TextDisabled(ReferenceLeafDrawers.RotationReadout(changed ? value : node.Binding?.GetBoxed()));
+                ImGuiApi.TextDisabled(ReferenceLeafDrawers.RotationReadout(changed && value != null ? value : node.Binding?.GetBoxed()));
         }
+
+        // ⭐ N-4 — ↺: write the default back (ONE Set ⇒ one undo step where the host has undo)
+        if (changedFromDefault && !ro && NodeEditor.Core.Widgets.RowMarks.ResetButton("##reset")) ResetToDefault(node);
 
         // ⭐ CE-4210 MA-1 — the faint ⛓ button, always drawn on an unbound bindable row (left of the array X)
         bool openPopup = labelRightClicked;

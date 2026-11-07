@@ -76,7 +76,7 @@ public static class BehaviorParamsForm
         if (session.RebuildState == EditRebuildState.RebuildRequired) session.RebuildDocument();
         // ⭐ CE-4218 — the value leaf of a property match (RE-3) and the Type combo are STANDARD types now (CE-3378, N-1): no per-frame dictionary. ⭐ `only` = a tab's fields (RuleTabs): the root's fields by name, the rest of the document untouched
         // ⭐ CE-4220 — `types`: a host's own cells (the rule editor's do-list drawer holds the step sessions, so it lives across frames), an overlay it built ONCE on TypeCatalogue.Standard; it wins for its type
-        var drawer = new ComponentEditDrawer(session, picks, paramBindContext: binds, types: types, services: services);
+        var drawer = new ComponentEditDrawer(session, picks, paramBindContext: binds, types: types, services: services, defaults: Fdp.Presentation.Editing.TypeDefaults.For(session.Document.Root.ClrType));   // ⭐ N-4: the params type's own defaults
         if (only != null && ComponentEditDrawer.FieldsOwner(session.Document.Root) is { } owner)
         {
             foreach (var child in owner.Children) if (only.Contains(child.Name)) drawer.DrawEditNode(child);

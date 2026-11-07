@@ -211,7 +211,7 @@ public sealed class NodePropertiesDetailsView : IDetailsViewInstance
         if (_facetSession.RebuildState == EditRebuildState.RebuildRequired)
             _facetSession.RebuildDocument();
 
-        var drawer  = new ComponentEditDrawer(_facetSession, pickerCtx: null, types: _source.Catalogue);
+        var drawer  = new ComponentEditDrawer(_facetSession, pickerCtx: null, types: _source.Catalogue, defaults: TypeDefaults.For(facetType));
 
         // Two-column "Property | Value" table (matches ComponentEditWindow layout).
         if (ImGuiNET.ImGui.BeginTable($"##{idScope}_facet_edit", 2,

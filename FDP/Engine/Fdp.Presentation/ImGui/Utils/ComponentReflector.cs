@@ -367,7 +367,8 @@ public class ComponentReflector
                 //   nothing to supply and is the only thing that makes the staged write surgical.
                 baseline: data,
                 paramBindContext: BindContextFactory?.Invoke(e, type),
-                types: Types));
+                types: Types,
+                defaults: TypeDefaults.For(type)));   // ⭐ N-4: grey at the default, amber + ↺ when changed
         }
     }
 
@@ -385,7 +386,7 @@ public class ComponentReflector
 
         _inPlaceEditSession = _editService.Open(data, type, scope, editContext);
         _inPlaceEditComponentType = type;
-        _inPlaceEditDrawer = new ComponentEditDrawer(_inPlaceEditSession, EditPickerContext, BindContextFactory?.Invoke(e, type), Types);
+        _inPlaceEditDrawer = new ComponentEditDrawer(_inPlaceEditSession, EditPickerContext, BindContextFactory?.Invoke(e, type), Types, defaults: TypeDefaults.For(type));
         _inPlaceEditErrorMessage = null;
     }
 

@@ -285,8 +285,10 @@ public static class ReferenceLeafDrawers
 
         ImGuiApi.SameLine(0f, 4f);
         ImGuiApi.PushID(path);
-        if (NodeEditor.Core.Widgets.GlyphWidgets.GlyphToggle("##showmap", ShowGlyph, pinned || preview == null,
-                preview != null ? "Show on map — hover to preview, click to pin" : "Show on map"))
+        bool showClicked = NodeEditor.Core.Widgets.GlyphWidgets.GlyphToggle("##showmap", ShowGlyph, pinned || preview == null,
+                preview != null ? "Show on map — hover to preview, click to pin" : "Show on map");
+        NodeEditor.Core.Widgets.KitProbe.Set(NodeEditor.Core.Widgets.KitProbe.ShowOnMap, ImGuiApi.GetItemRectMin(), ImGuiApi.GetItemRectMax());
+        if (showClicked)
         {
             if (preview != null) preview.TogglePin(st, path, value, LabelFor(node));
             else ShowOnMap(value, ctx);
@@ -403,18 +405,23 @@ public static class ReferenceLeafDrawers
 
     /// <summary>Draws the whole value cell of one reference field (the form switch, the value, the pick buttons); <c>true</c> when it wrote the binding.</summary>
     /// <param name="reserveRight">Pixels to leave free at the right (a delete button).</param>
-    public static bool Draw(EditNode node, float reserveRight, IMapPickContext? ctx, State state)
+    public static bool Draw(EditNode node, float reserveRight, IMapPickContext? ctx, State state, bool readOnly = false)
     {
         float width = Math.Max(ImGuiApi.GetContentRegionAvail().X - reserveRight, 60f);
-        if (node.ClrType == typeof(EntityLink)) { bool c = DrawEntityLink(node, width, ctx, state); DrawShowOnMap(node, ctx, state); return c; }
-        if (node.ClrType == typeof(PointLink)) { bool c = DrawPointLink(node, width, ctx, state); DrawShowOnMap(node, ctx, state); return c; }
-        if (node.ClrType == typeof(Bearing)) return DrawBearing(node, width);
-        if (node.ClrType == typeof(RefKey)) return DrawRefKey(node, width, ctx, state);
-        bool changed = node.ClrType == typeof(AreaLink) ? DrawAreaLink(node, width, ctx, state)
+        // ⭐ N-4 (CE-3381) — a READ-ONLY value draws disabled (grey, nothing writes), but the show-on-map glyph is not an edit and stays live
+        bool showOnMap = node.ClrType != typeof(Bearing) && node.ClrType != typeof(RefKey);
+        if (readOnly) ImGuiApi.BeginDisabled();
+        bool changed;
+        if (node.ClrType == typeof(EntityLink)) changed = DrawEntityLink(node, width, ctx, state);
+        else if (node.ClrType == typeof(PointLink)) changed = DrawPointLink(node, width, ctx, state);
+        else if (node.ClrType == typeof(Bearing)) changed = DrawBearing(node, width);
+        else if (node.ClrType == typeof(RefKey)) changed = DrawRefKey(node, width, ctx, state);
+        else changed = node.ClrType == typeof(AreaLink) ? DrawAreaLink(node, width, ctx, state)
                      : node.ClrType == typeof(EntityRef) ? DrawEntityRef(node, width, ctx)
                      : DrawWorldPoint(node, width, ctx);
-        DrawShowOnMap(node, ctx, state);
-        return changed;
+        if (readOnly) ImGuiApi.EndDisabled();
+        if (showOnMap) DrawShowOnMap(node, ctx, state);
+        return changed && !readOnly;
     }
 
     private static string[]? Presets(EditNode node)
