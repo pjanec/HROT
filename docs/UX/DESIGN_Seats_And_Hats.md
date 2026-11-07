@@ -255,6 +255,67 @@ another side by construction (CE-4279), not because each surface remembered to c
 `RuleEditorServicesFactory` still lets an Instructor edit rules in Edit mode (the gate refuses the edit itself) · H3 the arbiter, H4 the camera.
 Rails: `TheActionCatalogueComposesMenusTests.H2_*` (2), `RtsCommandToolTests.H2_APlayerCannotArmTheTool_ASideControllerOrdersOnlyItsSide`.
 
+### 3.3 ⭐ H3 — the `HatArbiter` *(ui, `2026-11-07`; build design → as built)*
+
+**As built (same day):** exactly the diagrams below, plus one measured deviation: ⚠ the arbiter's FIRST frame records the hat and is not a change (the first
+build disarmed a tool armed before the arbiter ever ran — caught by its own rail). `Hat` lives in its own file (`Hrot.Common/Editing/Hat.cs`): the DDS
+code generator emits one IDL per source file and `Hat.Edit` collided with `EditingMode.Edit`. Rails: `HatArbiterTests` (9, red-proved by mutation) and
+`RtsCommandToolTests` — the Esc rail flipped (R-4163: Esc no longer leaves RTS).
+
+INVENTORY: `scripts/cbm.sh search_graph .*(Hat|ToolController|ToolArbiter|ModeIndicator|Possession(Station|State)|RtsModeState).*` (Class) ⇒ 19,
+⛔ **no hat type**; the parts it joins: `ToolController` (the modal stack), `RtsModeState` (armed while the RTS gizmo lives, `MapUiStates`),
+`PossessionStation.Enter / Leave` (the FPS camera driver), the ONE toolbar time control (`LocalWindowController.ComposeRunControls`). Esc: 41 readers
+(Input §5 inventory) — central Esc stays **K3**.
+
+```mermaid
+classDiagram
+  direction LR
+  class Hat { <<NEW enum, Hrot.Common.Editing>> Observe · Edit · Command · Embodied · Direct }
+  class HatArbiter {
+    <<NEW, one per map world, a system in MapInteraction.InteractionSystems>>
+    Active : Hat  (derived: Embodied > Direct > Command > Edit > Observe)
+    Embodied : bool  (set by PossessionStation)
+    Directing : bool  (H4: the director owns the camera)
+    Execute() — on a change: disarm, RTS stands down
+    Of(world)
+  }
+  class RtsModeState { <<existing>> Armed · ForceAttack · + StoodDown }
+  class ToolController { <<existing>> ActiveModal · Cancel() }
+  class StationMode { <<existing, H2>> Current · Seat }
+  class PossessionStation { <<existing>> Enter / Leave }
+  class MainToolbarTimeControlSection { <<existing>> + StationLine "Instructor · Command" }
+  HatArbiter --> StationMode : the run mode
+  HatArbiter --> RtsModeState : armed? / stand down
+  HatArbiter --> ToolController : disarms the other hats' tools
+  PossessionStation ..> HatArbiter : Embodied on Enter / Leave
+  MainToolbarTimeControlSection ..> HatArbiter : shows Active
+```
+*What the picture shows that prose hid: the hat is DERIVED from facts that already exist (the run mode, the RTS tool, possession) — R-4164 "the hat
+follows the run mode, never picked by hand" — so the arbiter adds no second state to keep in step; its only actions are disarming on a change and
+standing RTS down under the FPS view.*
+
+```mermaid
+sequenceDiagram
+  participant P as PossessionStation
+  participant A as HatArbiter (system, each frame)
+  participant T as ToolController
+  participant R as RtsModeState
+  P->>A: Embodied = true (Enter)
+  A->>A: Active: Command → Embodied
+  A->>T: Cancel() while the top tool is not RTS (placement, paste, pick …)
+  A->>R: StoodDown = true (RTS stays checked, its gizmo ignores input)
+  P->>A: Embodied = false (Leave)
+  A->>R: StoodDown = false — back in Command (R-4163: release returns to it)
+```
+
+| rule | |
+|---|---|
+| **derived, one precedence** | Embodied (this station drives a unit) > Direct (the director owns the camera — set by H4) > Command (RTS armed, Preview / Live) > Edit (Edit mode) > Observe |
+| **disarm on a change** | every armed tool except RTS is cancelled (no placement tool under the FPS view, no Edit tool after ▶) |
+| **RTS sticky** (R-4163, Input §6b) | Esc no longer leaves the RTS tool — it drops a half-done right-press; only *View ▸ RTS command mode* leaves. Possessing stands it down; release returns to it |
+| **the indicator** | one line beside the mode glyph: *Instructor · Command* (the seat · the hat), composed ONCE with the toolbar time control |
+| ⏭ not here | the hat menu in the indicator (the mockup's clicks) · central Esc (K3) · the hat as the keymap scope (K2) · H4 the camera |
+
 ## 4. Questions — ✅ all seven leans APPROVED *(🔒 user, `2026-11-06`: "Q1–Q7 of seats and hats approved")*
 
 | # | question | ⭐ lean | rejected |

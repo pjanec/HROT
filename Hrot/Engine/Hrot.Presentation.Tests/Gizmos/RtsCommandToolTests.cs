@@ -146,7 +146,7 @@ public sealed class RtsCommandToolTests : IDisposable
         Assert.False(removed, "RMB commands; it does not cancel the tool");
 
         gizmo.OnKeyEvent(MapKeyboardKey.Escape, isPressed: true);
-        Assert.True(removed);
+        Assert.False(removed, "R-4163 — RTS is sticky: Esc never leaves it (only View ▸ RTS command mode does)");
     }
 
     /// <summary>

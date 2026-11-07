@@ -419,6 +419,8 @@ namespace Hrot.ScenarioEditor.Map
             }
             var canvasMenu = authoring?.CanvasMenu ?? new Hrot.Presentation.Systems.CanvasMenuUpdateSystem();
 
+            var hats = new HatArbiter(ctx.World, tools);
+            MapUiStates.Set(ctx.World, hats);
             var map = new MapInteraction(
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,
                 globalManager, dataDriven, stateless, group, gate, selfCheck, tools,
@@ -427,6 +429,7 @@ namespace Hrot.ScenarioEditor.Map
             {
                 MenuOrders     = menuOrders,
                 MenuShortcuts  = new MenuShortcuts(ctx.World, bus, selection, tools),   // ⭐ CE-1076
+                Hats           = hats,   // ⭐ Seats H3 — one hat per map, by construction
                 OrderForm      = orderForm,
                 Host           = host,   // ⭐ CE-1150
             };

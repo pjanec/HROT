@@ -16,6 +16,11 @@ namespace Hrot.ScenarioEditor.Map
         private static readonly ConditionalWeakTable<EntityRepository, RubberBandState> Bands = new();
         private static readonly ConditionalWeakTable<EntityRepository, RtsModeState> Rts = new();
         private static readonly ConditionalWeakTable<EntityRepository, Fdp.Toolkit.Vis2D.MapCanvas> Canvases = new();
+        private static readonly ConditionalWeakTable<EntityRepository, HatArbiter> Hats = new();
+
+        /// <summary>⭐ Seats H3 — the map's ONE hat arbiter.</summary>
+        public static void Set(EntityRepository world, HatArbiter hats) => Hats.AddOrUpdate(world, hats);
+        public static HatArbiter? HatsOf(EntityRepository? world) => world != null && Hats.TryGetValue(world, out var h) ? h : null;
 
         public static void Set(EntityRepository world, RubberBandState band) => Bands.AddOrUpdate(world, band);
         public static void Set(EntityRepository world, RtsModeState mode) => Rts.AddOrUpdate(world, mode);
