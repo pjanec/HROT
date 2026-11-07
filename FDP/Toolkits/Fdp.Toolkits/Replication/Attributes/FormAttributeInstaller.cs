@@ -47,7 +47,7 @@ public sealed class FormAttributeInstaller : IBinaryAttributeInstaller<EntityAtt
             var repo = ctx.Repo;
             if (repo == null) return;   // a target is a live unit: no world, nothing to aim at
             long id = (long)FormAttributes.AsDouble(r.Value);
-            var target = FormAttributes.ByNetworkId(repo, id);
+            var target = id is > 0 and <= int.MaxValue ? Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(repo, (int)id) : Entity.Null;   // ⭐ the ONE resolver (BP-508)
             if (id != 0 && target.IsNull) return;   // ⛔ an unknown unit is refused (nothing applied)
             ctx.PatchContext.GetUnmanagedComponent<WeaponPosture>();
             Fdp.Toolkit.Combat.WeaponPostureOf.AuthorAimTarget(repo, ctx.Entity, target);

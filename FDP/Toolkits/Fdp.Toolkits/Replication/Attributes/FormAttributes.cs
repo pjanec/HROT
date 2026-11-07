@@ -108,14 +108,6 @@ public static class FormAttributes
     public static bool TryEnum<T>(ref Utf8JsonReader r, out T value) where T : struct, Enum
         => TryEnum(r.TokenType == JsonTokenType.Number ? AttributeValue.FromDouble(r.GetDouble()) : AttributeValue.FromString(r.GetString()), out value);
 
-    /// <summary>The live entity whose network id is <paramref name="networkId"/> (edit-time lookup); <see cref="Entity.Null"/> for 0 or none.</summary>
-    public static Entity ByNetworkId(EntityRepository repo, long networkId)
-    {
-        if (networkId == 0 || !repo.IsComponentTypeRegistered<NetworkIdentity>()) return Entity.Null;
-        foreach (var e in repo.Query().With<NetworkIdentity>().Build())
-            if (repo.GetComponentRO<NetworkIdentity>(e).Value == networkId) return e;
-        return Entity.Null;
-    }
 
     // ── Stance ───────────────────────────────────────────────────────────────────────────────────────────
 

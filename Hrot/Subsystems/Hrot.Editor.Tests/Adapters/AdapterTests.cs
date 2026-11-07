@@ -1002,6 +1002,10 @@ namespace Hrot.Editor.Tests.Adapters
             _world.CreateEntity(); // burn index 0
             var entity = _world.CreateEntity();
             _world.AddComponent(entity, new EntityInfo { Name = new Fdp.Core.FixedString64("SUB") });
+            // ⭐ B-2 (edit framework F1, CE-4275) — the detach goes through Edits.Submit(SetCommander(sub, null)), which detaches only a unit that HAS a commander
+            //   (a unit with none has nothing to detach and sends nothing) ⇒ the subordinate is one here.
+            if (!_world.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitSubordinate>()) _world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            _world.AddComponent(entity, default(Fdp.Core.CommandHierarchy.UnitSubordinate));
 
             var adapter = CreateAdapter();
             adapter.GetVisibleNodes("", new HashSet<int>()); // populate cache
