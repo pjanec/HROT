@@ -53,8 +53,87 @@ public static class HrotForms
     // ⭐ before Unit: static fields initialise in textual order
     private static readonly string[] WeaponPostures = { "At ease", "Ready", "Aimed" };
     private static readonly string[] HeldItems = { "Nothing", "Weapon", "Throwable", "Phone", "Binoculars" };
+    private static readonly string[] CarriedAsWords = { "Carried", "Dragged", "Stretcher" };   // CarryMode.Carried / Dragged / Stretcher, minus the Seated offset
+    private static readonly string[] SeedWords = { "Pending", "Applied", "Refused", "Sent" };   // by outcome; "Sent" = the journal no longer holds the request
     private static readonly string[] RoleWords = { "Passenger", "Driver", "Gunner", "Commander", "Weapon station" };
-    private static readonly string[] TargetWords = { "Target" };
+
+    // ── ⭐ U-24 / S5 (DESIGN_Initial_State §4.2) — Damage: one number row per PART of his body (Damage.Part.*, attribute 85, the part id as the sub-index) and the mobility kill as a switch (86) ─────────────
+
+    private static bool HasBody(EntityRepository w, Entity e)
+        => w.IsComponentTypeRegistered<Fdp.Toolkit.Physics.BodyParts.PartDamage>() && w.IsComponentTypeRegistered<Health>() && w.HasComponent<Health>(e)
+           && Fdp.Toolkit.Physics.BodyParts.BodyZones.Of(w, e) != null;   // a unit that can be damaged: PartDamage is added by the owner on the first write
+
+    private static bool HasPart(EntityRepository w, Entity e, int part)
+    {
+        if (!HasBody(w, e)) return false;
+        var zones = Fdp.Toolkit.Physics.BodyParts.BodyZones.Of(w, e)!.Zones;
+        for (int k = 0; k < zones.Count; k++) if (zones[k].Has((byte)part)) return true;
+        return false;
+    }
+
+    private static double PartLevel(EntityRepository w, Entity e, int part)
+        => w.HasComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>(e) ? w.GetComponentRO<Fdp.Toolkit.Physics.BodyParts.PartDamage>(e).LevelOf((byte)part) : 0;
+
+    private static string PartName(EntityRepository w, Entity e, int part)
+    {
+        var plan = Fdp.Toolkit.Physics.BodyParts.BodyZones.Of(w, e)?.Plan ?? Fdp.Toolkit.Physics.BodyParts.BodyPlan.None;
+        byte p = (byte)part;
+        return plan switch
+        {
+            Fdp.Toolkit.Physics.BodyParts.BodyPlan.Person => Fdp.Toolkit.Physics.BodyParts.PersonPart.NameOf(p),
+            Fdp.Toolkit.Physics.BodyParts.BodyPlan.TrackedVehicle or Fdp.Toolkit.Physics.BodyParts.BodyPlan.WheeledVehicle => Fdp.Toolkit.Physics.BodyParts.VehiclePart.NameOf(p),
+            Fdp.Toolkit.Physics.BodyParts.BodyPlan.Rotorcraft or Fdp.Toolkit.Physics.BodyParts.BodyPlan.FixedWing => Fdp.Toolkit.Physics.BodyParts.AircraftPart.NameOf(p),
+            Fdp.Toolkit.Physics.BodyParts.BodyPlan.WeaponSystem => Fdp.Toolkit.Physics.BodyParts.WeaponPart.NameOf(p),
+            _ => PartWords[part],
+        };
+    }
+    private static readonly string[] PartWords = BuildPartWords();
+    private static string[] BuildPartWords() { var a = new string[Fdp.Toolkit.Physics.BodyParts.PartDamage.MaxParts]; for (int i = 0; i < a.Length; i++) a[i] = "Damage " + i; return a; }
+
+    private static FormField DamagePart(int part) => new()
+    {
+        Label = PartWords[part], Expert = true, Attribute = "Damage.Part.*", SubIndex = (short)part, Min = 0, Max = 255,
+        Has = (w, e) => HasPart(w, e, part),
+        ReadNumber = (w, e) => PartLevel(w, e, part),
+        LabelFor = (w, e) => PartName(w, e, part),
+    };
+
+    private static bool HasMobilityZone(EntityRepository w, Entity e)
+    {
+        if (!HasBody(w, e)) return false;
+        var zones = Fdp.Toolkit.Physics.BodyParts.BodyZones.Of(w, e)!.Zones;
+        for (int k = 0; k < zones.Count; k++) if (zones[k].Effect == WoundEffect.Mobility) return true;
+        return false;
+    }
+
+    /// <summary>1 when every part of every Mobility zone is at (or past) the zone's wounded threshold — what the switch sets; 0 otherwise.</summary>
+    private static double MobilityKilled(EntityRepository w, Entity e)
+    {
+        var zones = Fdp.Toolkit.Physics.BodyParts.BodyZones.Of(w, e)!.Zones;
+        bool any = false;
+        for (int k = 0; k < zones.Count; k++)
+        {
+            var z = zones[k];
+            if (z.Effect != WoundEffect.Mobility) continue;
+            for (int p = 0; p < Fdp.Toolkit.Physics.BodyParts.PartDamage.MaxParts; p++)
+            {
+                if (!z.Has((byte)p)) continue;
+                any = true;
+                if (PartLevel(w, e, p) < Math.Clamp(z.WoundedAt, 0, 255)) return 0;
+            }
+        }
+        return any ? 1 : 0;
+    }
+
+    private static readonly FormField[] DamageFields = BuildDamageFields();
+    private static FormField[] BuildDamageFields()
+    {
+        var f = new FormField[Fdp.Toolkit.Physics.BodyParts.PartDamage.MaxParts + 1];
+        for (int i = 0; i < Fdp.Toolkit.Physics.BodyParts.PartDamage.MaxParts; i++) f[i] = DamagePart(i);
+        f[^1] = new FormField { Label = "Mobility kill", Kind = FieldKind.Toggle, Expert = true, Attribute = "Damage.MobilityKill", Has = HasMobilityZone, ReadNumber = MobilityKilled };
+        return f;
+    }
+
 
     /// <summary>
     /// ⭐ D3 — the <b>Unit</b> form (§3): name · side · posture · strength · playable side / slot; ⚙ the entity's network id and TKB template.
@@ -64,7 +143,7 @@ public static class HrotForms
     public static readonly FormDecl Unit = new()
     {
         Id = "form.unit", Title = "Unit", Order = 10, Requires = new[] { typeof(EntityInfo) },
-        Fields = new[]
+        Fields = Concat(new[]
         {
             new FormField { Label = "Name", Section = "Identity", Kind = FieldKind.Text, Attribute = "Name", ReadText = (w, e) => w.GetComponentRO<EntityInfo>(e).Name },
             new FormField
@@ -86,6 +165,15 @@ public static class HrotForms
                 Label = "Weapon", Kind = FieldKind.Choice, Attribute = "Weapon.Posture", Choices = WeaponPostures,
                 Has = HasWeaponPosture,
                 ReadNumber = (w, e) => (int)w.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponPosture>(e).Kind,
+            },
+            // ⭐ U-24 / S5 (details-forms-visual.svg) — Weapon [Aimed ▾] at [pick] on ONE row: the unit his weapon points at (Weapon.AimTarget, 72 — the target's network id, 0 clears; resolved on the applying node)
+            new FormField
+            {
+                Label = "Aimed at", Kind = FieldKind.Pick, Inline = true, InlineCaption = "at",
+                Has = HasWeaponPosture,
+                ReadText = AimTargetName,
+                PickApply = AimAt,
+                Apply = (w, e, v, _) => { WriteAimTarget(w, e, 0, "Clear the aim"); return null; },
             },
             new FormField
             {
@@ -110,16 +198,25 @@ public static class HrotForms
             },
             new FormField
             {
+                Label = "Slot", Kind = FieldKind.Text, Inline = true, InlineCaption = "slot", Attribute = "Playable.SlotName",
+                Has = (w, e) => w.IsComponentTypeRegistered<Hrot.Common.Playable>() && w.HasComponent<Hrot.Common.Playable>(e),
+                ReadText = (w, e) => Widen(w.GetComponentRO<Hrot.Common.Playable>(e).SlotName),
+            },
+            new FormField
+            {
                 Label = "Playable for", Kind = FieldKind.Choice, Attribute = "Playable.Side", Choices = Sides,
                 Has = (w, e) => w.IsComponentTypeRegistered<Hrot.Common.Playable>() && w.HasComponent<Hrot.Common.Playable>(e),
                 ReadNumber = (w, e) => SideIndex(w.GetComponentRO<Hrot.Common.Playable>(e).Side),
                 ChoiceValue = i => AttributeValue.FromInt(i >= 0 && i < SideForces.Length ? (int)SideForces[i] : 0),
             },
+            // ⭐ U-24 / S5 (DESIGN_Initial_State §4.2) — Carried as: HOW the soldier carries him (Carried · Dragged · Stretcher). Shown only for a man a PERSON carries. Not an attribute: it re-issues the ONE embark
+            //   (EmbarkOrders.Embark) with the new mode — Embarkation.TryEmbark re-carries a man already in his seat (backend NOTE_Backend_To_Ui_Carry_Mode_And_Damage_Built ①).
             new FormField
             {
-                Label = "Slot", Kind = FieldKind.Text, Attribute = "Playable.SlotName",
-                Has = (w, e) => w.IsComponentTypeRegistered<Hrot.Common.Playable>() && w.HasComponent<Hrot.Common.Playable>(e),
-                ReadText = (w, e) => Widen(w.GetComponentRO<Hrot.Common.Playable>(e).SlotName),
+                Label = "Carried as", Kind = FieldKind.Choice, Choices = CarriedAsWords,
+                Has = IsCarried,
+                ReadNumber = (w, e) => CarriedAsIndex(w, e),
+                Apply = (w, e, v, _) => CarriedAs(w, e, (int)v),
             },
             // ⭐ U-24 / S6 (DESIGN_Initial_State §4.2) — the Character section: the EFFECTIVE value shown, a blue reset arrow when an authored value differs from the type's (a NEGATIVE write clears the authored bit)
             Character("Skill", "Proficiency", "Character",
@@ -177,7 +274,7 @@ public static class HrotForms
                 Has = (w, e) => w.IsComponentTypeRegistered<TkbIdentity>() && w.HasComponent<TkbIdentity>(e),
                 ReadNumber = (w, e) => (long)w.GetComponentRO<TkbIdentity>(e).TkbType,
             },
-        },
+        }, DamageFields),
         // ⭐ U-24 / S5 — Aboard: the vehicle and seat he rides in, Take off; Board… picks a vehicle — the ONE embark path (EmbarkOrders), as Crew & cargo
         Lists = new[]
         {
@@ -191,28 +288,18 @@ public static class HrotForms
                 AddLabel = "Board...",
                 Add = (w, unit, vehicle) => IsAboard(w, unit) ? "already aboard — take him off first" : PutAboard(w, vehicle, unit),
             },
-            // ⭐ U-24 / S5 — aimed at: the unit his weapon points at (Weapon.AimTarget, 72 — the target's network id, 0 clears; resolved on the applying node)
+            // ⭐ U-24 / S5 + R-4157 — knows about: the SEEDS this station sent for him (Add… seeds a target through the ONE order, KnowledgeOrders.SeedTarget → Edits.Submit(Interact), applied on the node that runs his brain), each with its
+            //   outcome — pending · applied · refused. ⛔ Not what he knows NOW: that is TargetMemory, shown on the Brain tab where the brain runs. ⛔ no Remove: nothing in the engine forgets a target on request.
             new FormList
             {
-                Label = "Aimed at", RowLabels = TargetWords,
-                Fill = FillAimTarget,
-                RemoveLabel = "Clear",
-                Remove = (w, it) => WriteAimTarget(w, it.Item, 0, "Clear the aim"),
-                AddLabel = "Aim at...",
-                Add = AimAt,
-            },
-            // ⭐ U-24 / S5 — knows about: what his TargetMemory holds (read only where his brain runs — the component is on the brain's node alone); Add… seeds a target through the ONE order
-            //   (KnowledgeOrders.SeedTarget → Edits.Submit(Interact), applied on the brain's node). ⛔ no Remove: nothing in the engine forgets a target on request
-            new FormList
-            {
-                Label = "Knows about", RowLabels = UnitWords,
-                Fill = FillKnows,
-                Footer = KnowsFooter,
+                Label = "Knows about", RowLabels = SeedWords,
+                Fill = FillSeeds,
+                Footer = SeedsFooter,
                 AddLabel = "Add...",
                 Add = SeedKnown,
             },
             // ⭐ U-24 / S5 — carried by: a soldier carries him (Carried · Dragged · Stretcher + the second man of a stretcher). Put down → the ONE disembark; Carried by… → the ONE embark with a carry mode.
-            //   ⏳ not yet: changing HOW he is carried (Embarkation treats an embark of a man already aboard as idempotent — the mode is set at boarding only) and naming the second man
+            //   how he is carried is the Carried as field; the second man of a stretcher is the Second man list
             new FormList
             {
                 Label = "Carried by", RowLabels = CarryWords,
@@ -235,8 +322,21 @@ public static class HrotForms
                 AddLabel = "Add...",
                 Add = AddWeapon,
             },
+            // ⭐ U-24 / S5 — second man: the man at the other end of a stretcher. Add… re-carries him as a stretcher with that man (the ONE embark); Let go → carried by one man again. Only for a man a person carries.
+            new FormList
+            {
+                Label = "Second man", RowLabels = CarryWords,
+                Fill = FillSecondMan,
+                Footer = (w, e) => IsCarried(w, e) ? null : "not carried",
+                RemoveLabel = "Let go",
+                Remove = (w, it) => CarriedAs(w, it.Item, 0),
+                AddLabel = "Second man...",
+                Add = SecondMan,
+            },
         },
     };
+
+    private static FormField[] Concat(FormField[] a, FormField[] b) { var r = new FormField[a.Length + b.Length]; a.CopyTo(r, 0); b.CopyTo(r, a.Length); return r; }
 
     private static readonly string[] UnitWords = { "Unit" };
     private static readonly string[] CarryWords = { "Carried", "Carried", "Dragged", "Stretcher", "Second man" };   // by CarryMode (Seated reads as Carried), then the assistant
@@ -292,7 +392,66 @@ public static class HrotForms
         int seat = tag.Seat;
         int mode = seat < Fdp.Toolkit.Behavior.Components.PassengerBuffer.Capacity ? (int)buf.ModeOf(seat) : 0;
         into.Add(new FormListItem(CarryWords[mode], NameOf(w, carrier, "(a soldier)"), e));
-        if (!buf.Assistant.IsNull && w.IsAlive(buf.Assistant)) into.Add(new FormListItem(CarryWords[4], NameOf(w, buf.Assistant, "(a soldier)"), buf.Assistant, Passive: true));
+    }
+
+    private static Entity CarrierOf(EntityRepository w, Entity e) => IsCarried(w, e) ? w.GetComponentRO<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e).VehicleEntity : Entity.Null;
+
+    private static int CarriedAsIndex(EntityRepository w, Entity e)
+    {
+        var carrier = CarrierOf(w, e);
+        if (carrier.IsNull || !w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.PassengerBuffer>() || !w.HasComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(carrier)) return 0;
+        int seat = w.GetComponentRO<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e).Seat;
+        if (seat >= Fdp.Toolkit.Behavior.Components.PassengerBuffer.Capacity) return 0;
+        int mode = (int)w.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(carrier).ModeOf(seat);
+        return mode <= 1 ? 0 : mode - 1;   // Seated reads as Carried
+    }
+
+    private static Entity AssistantOf(EntityRepository w, Entity carrier)
+    {
+        if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.PassengerBuffer>() || !w.HasComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(carrier)) return Entity.Null;
+        var a = w.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(carrier).Assistant;
+        return !a.IsNull && w.IsAlive(a) ? a : Entity.Null;
+    }
+
+    /// <summary>Re-carries <paramref name="unit"/> in the way <paramref name="index"/> (<see cref="CarriedAsWords"/>) names — the ONE embark, asked first (<c>CanEmbark</c> predicts the re-carry without writing). A stretcher keeps the second man he has.</summary>
+    private static string? CarriedAs(EntityRepository w, Entity unit, int index)
+    {
+        var carrier = CarrierOf(w, unit);
+        if (carrier.IsNull) return "he is not carried";
+        if (index < 0 || index >= CarriedAsWords.Length) return "not a way to carry him";
+        var mode = (Fdp.Toolkit.Behavior.Components.CarryMode)(index + 1);
+        var assistant = mode == Fdp.Toolkit.Behavior.Components.CarryMode.Stretcher ? AssistantOf(w, carrier) : Entity.Null;
+        if (mode == Fdp.Toolkit.Behavior.Components.CarryMode.Stretcher && assistant.IsNull) return "a stretcher needs a fit second man — add the second man first";
+        return Fdp.Toolkit.Behavior.Embarkation.CanEmbark(w, unit, carrier, Fdp.Toolkit.Behavior.Components.SeatRole.Passenger, mode, assistant) switch
+        {
+            Fdp.Toolkit.Behavior.EmbarkResult.Applied => Hrot.Common.Orders.EmbarkOrders.Embark(w, unit, carrier, mode, assistant) ? null : "not sent",
+            Fdp.Toolkit.Behavior.EmbarkResult.AlreadyAboard => null,   // already carried that way
+            _ => "he cannot be carried that way (a stretcher needs a fit second man beside the carrier; one man carries or drags alone)",
+        };
+    }
+
+    /// <summary>The second man of a stretcher: <paramref name="helper"/> takes the rear — the same re-carry, as a stretcher.</summary>
+    private static string? SecondMan(EntityRepository w, Entity unit, Entity helper)
+    {
+        var carrier = CarrierOf(w, unit);
+        if (carrier.IsNull) return "he is not carried";
+        if (helper == unit || helper == carrier) return "that man cannot hold the other end";
+        if (!IsPersonCarrier(w, helper)) return "only a soldier holds the other end";
+        const Fdp.Toolkit.Behavior.Components.CarryMode m = Fdp.Toolkit.Behavior.Components.CarryMode.Stretcher;
+        return Fdp.Toolkit.Behavior.Embarkation.CanEmbark(w, unit, carrier, Fdp.Toolkit.Behavior.Components.SeatRole.Passenger, m, helper) switch
+        {
+            Fdp.Toolkit.Behavior.EmbarkResult.Applied => Hrot.Common.Orders.EmbarkOrders.Embark(w, unit, carrier, m, helper) ? null : "not sent",
+            Fdp.Toolkit.Behavior.EmbarkResult.AlreadyAboard => "he already holds that end",
+            _ => "he cannot hold the other end (he must be fit, and not busy)",
+        };
+    }
+
+    private static void FillSecondMan(EntityRepository w, Entity e, System.Collections.Generic.List<FormListItem> into)
+    {
+        var carrier = CarrierOf(w, e);
+        if (carrier.IsNull) return;
+        var a = AssistantOf(w, carrier);
+        if (!a.IsNull) into.Add(new FormListItem(CarryWords[4], NameOf(w, a, "(a soldier)"), e));
     }
 
     private static FixedString64 NameOf(EntityRepository w, Entity e, string fallback)
@@ -312,52 +471,65 @@ public static class HrotForms
     }
     private const int KnowsCap = 8;
     private static readonly string[] MoreWords = BuildMoreWords();
-    private static string[] BuildMoreWords() { var w = new string[Fdp.Toolkit.Perception.PerceptionConstants.MaxTrackedTargets + 1]; for (int i = 0; i < w.Length; i++) w[i] = "+" + i + " more"; return w; }
+    private static string[] BuildMoreWords() { var w = new string[Hrot.Common.Orders.Seeds.Capacity + 1]; for (int i = 0; i < w.Length; i++) w[i] = "+" + i + " more"; return w; }
     private static readonly FixedString64 UnknownName = new("(unknown)");
+    private const string WhereKnownNote = "what he knows now: the Brain tab, where his brain runs";
 
-    private static bool HasMemory(EntityRepository w, Entity e)
-        => w.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Components.TargetMemory>() && w.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(e);
-
-    /// <summary>One row per remembered, IDENTIFIED target (the first <see cref="KnowsCap"/>): the target's name, or <i>(unknown)</i>; the row's item is the TARGET. No LINQ, no per-frame string.</summary>
-    private static void FillKnows(EntityRepository w, Entity e, System.Collections.Generic.List<FormListItem> into)
+    private static int SeedWord(EntityRepository w, in Hrot.Common.Orders.SeededTarget s, out string? reason)
     {
-        if (!HasMemory(w, e)) return;
-        ref readonly var m = ref w.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(e);
-        int shown = 0;
-        for (int i = 0; i < m.Count && shown < KnowsCap; i++)
+        reason = null;
+        var entry = Fdp.Toolkit.Replication.Edits.EditJournal.Of(w).Find(s.RequestId);
+        if (entry == null) return 3;
+        if (entry.Status is Fdp.Toolkit.Replication.Edits.EditStatus.Refused or Fdp.Toolkit.Replication.Edits.EditStatus.Conflict or Fdp.Toolkit.Replication.Edits.EditStatus.Lost) { reason = entry.Reason.Length > 0 ? entry.Reason : entry.Status.ToString(); return 2; }
+        return entry.Status == Fdp.Toolkit.Replication.Edits.EditStatus.Applied ? 1 : 0;
+    }
+
+    /// <summary>One row per seed THIS station sent for him (the newest <see cref="KnowsCap"/>, oldest first): the outcome, the target's name; the row's item is the TARGET. No LINQ, no per-frame string.</summary>
+    private static void FillSeeds(EntityRepository w, Entity e, System.Collections.Generic.List<FormListItem> into)
+    {
+        var seeds = Hrot.Common.Orders.KnowledgeOrders.SeedsOf(w);
+        if (seeds.Count == 0) return;
+        Fdp.Toolkit.Replication.Edits.EditJournal.Of(w).Refresh(w);   // fold in the outcomes that arrived (idempotent, 0 B)
+        int mine = 0;
+        for (int i = 0; i < seeds.Count; i++) if (seeds[i].Perceiver == e) mine++;
+        int skip = Math.Max(0, mine - KnowsCap);
+        for (int i = 0; i < seeds.Count; i++)
         {
-            if (Fdp.Toolkit.Perception.Components.TargetMemory.IsAnonymous(in m, i)) continue;   // a heard, unidentified contact has no entity
-            var t = new Entity((ulong)KnowsId(in m, i));
-            var name = w.IsAlive(t) && w.IsComponentTypeRegistered<EntityInfo>() && w.HasComponent<EntityInfo>(t) ? w.GetComponentRO<EntityInfo>(t).Name : UnknownName;
-            into.Add(new FormListItem(UnitWords[0], name, t));
-            shown++;
+            var s = seeds[i];
+            if (s.Perceiver != e) continue;
+            if (skip > 0) { skip--; continue; }
+            var name = w.IsAlive(s.Target) && w.IsComponentTypeRegistered<EntityInfo>() && w.HasComponent<EntityInfo>(s.Target) ? w.GetComponentRO<EntityInfo>(s.Target).Name : UnknownName;
+            into.Add(new FormListItem(SeedWords[SeedWord(w, in s, out _)], name, s.Target));
         }
     }
 
-    private static unsafe long KnowsId(in Fdp.Toolkit.Perception.Components.TargetMemory m, int i) => m.EntityIds[i];
-
-    /// <summary>The footer: <i>+N more</i> past the cap, or — where the component is absent (a station that does not run his brain) — where the answer lives.</summary>
-    private static string? KnowsFooter(EntityRepository w, Entity e)
+    /// <summary>The footer: the last refusal's reason when a seed was refused, else <i>+N more</i> past the cap, else where what he knows NOW is shown.</summary>
+    private static string? SeedsFooter(EntityRepository w, Entity e)
     {
-        if (!HasMemory(w, e)) return "(known only where his brain runs)";
-        ref readonly var m = ref w.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(e);
-        int identified = 0;
-        for (int i = 0; i < m.Count; i++) if (!Fdp.Toolkit.Perception.Components.TargetMemory.IsAnonymous(in m, i)) identified++;
-        return identified > KnowsCap ? MoreWords[Math.Min(identified - KnowsCap, MoreWords.Length - 1)] : null;
+        var seeds = Hrot.Common.Orders.KnowledgeOrders.SeedsOf(w);
+        int mine = 0; string? refusal = null;
+        for (int i = 0; i < seeds.Count; i++)
+        {
+            var s = seeds[i];
+            if (s.Perceiver != e) continue;
+            mine++;
+            if (SeedWord(w, in s, out var why) == 2) refusal = why;
+        }
+        if (refusal != null) return refusal;
+        return mine > KnowsCap ? MoreWords[Math.Min(mine - KnowsCap, MoreWords.Length - 1)] : WhereKnownNote;
     }
 
     private static string? SeedKnown(EntityRepository w, Entity unit, Entity target)
         => unit == target ? "he cannot know of himself" : Hrot.Common.Orders.KnowledgeOrders.SeedTarget(w, unit, target) ? null : "not sent";
 
-    /// <summary>One row when his weapon has a live target: the target's name; the row's item is HIM (Clear writes his attribute).</summary>
-    private static void FillAimTarget(EntityRepository w, Entity e, System.Collections.Generic.List<FormListItem> into)
+    /// <summary>The name of the unit his weapon points at, or empty (none / dead): the <i>Aimed at</i> pick's shown text. 0 B.</summary>
+    private static FixedString64 AimTargetName(EntityRepository w, Entity e)
     {
-        if (!HasWeaponPosture(w, e)) return;
         var t = w.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponPosture>(e).Target;
-        if (t.IsNull || !w.IsAlive(t)) return;
-        var name = w.IsComponentTypeRegistered<EntityInfo>() && w.HasComponent<EntityInfo>(t) ? w.GetComponentRO<EntityInfo>(t).Name : new FixedString64("(a unit)");
-        into.Add(new FormListItem(TargetWords[0], name, e));
+        if (t.IsNull || !w.IsAlive(t)) return default;
+        return w.IsComponentTypeRegistered<EntityInfo>() && w.HasComponent<EntityInfo>(t) ? w.GetComponentRO<EntityInfo>(t).Name : AUnitName;
     }
+    private static readonly FixedString64 AUnitName = new("(a unit)");
 
     private static string? AimAt(EntityRepository w, Entity unit, Entity target)
     {

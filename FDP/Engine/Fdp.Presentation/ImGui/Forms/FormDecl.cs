@@ -7,7 +7,7 @@ using Fdp.Toolkit.Replication.Patching;
 namespace Fdp.Presentation.Forms;
 
 /// <summary>How a field's value is read, shown and edited.</summary>
-public enum FieldKind : byte { Number, Text, Choice, Toggle }
+public enum FieldKind : byte { Number, Text, Choice, Toggle, Pick }
 
 /// <summary>
 /// ⭐ U-12 / D1 (docs/UX/DESIGN_Details_Forms.md §2.1 — the design's <i>FormRow</i>; named <c>FormField</c> here because D0's row DRAWER already owns the name
@@ -45,6 +45,19 @@ public sealed class FormField
     public double ResetValue { get; init; } = -1;
     /// <summary>⭐ U-23 part 5 — a number shown as <i>value / max</i> (Strength: <c>80 / 100</c>); the write stays on <see cref="Attribute"/>. Single selection only (a multi-selection shows the plain value / <i>mixed</i>). Cached per change: 0 B.</summary>
     public Func<EntityRepository, Entity, double>? MaxOf { get; init; }
+    /// <summary>⭐ U-24 / S5 — the attribute's SUB-INDEX this field writes (<c>Damage.Part.*</c>: the part id; <c>Ammo.*</c>: the mount): carried into <see cref="EntityAttributeChange.SubIndex1"/> by <see cref="ChangeFor"/>. 0 = none.</summary>
+    public short SubIndex { get; init; }
+    /// <summary>⭐ U-24 / S5 — the label SHOWN for the first selected entity when it depends on the entity (the damage rows name the PART of this body: <i>Torso</i>, <i>Hull</i>); null = <see cref="Label"/>.
+    /// Must return a cached string (called per frame: 0 B). <see cref="Label"/> stays the declaration's key and the label column's width.</summary>
+    public Func<EntityRepository, Entity, string>? LabelFor { get; init; }
+    /// <summary>⭐ U-24 / S5 (details-forms-visual.svg) — this field is drawn on the SAME row as the one before it, after a small <see cref="InlineCaption"/> (<i>Weapon</i> [Aimed] <i>at</i> [pick]; <i>Playable</i> ☑ <i>slot</i> [..]):
+    /// generic — the view knows no field by label. The row's mark slot, label and status belong to the first field.</summary>
+    public bool Inline { get; init; }
+    /// <summary>⭐ U-24 / S5 — a <see cref="FieldKind.Pick"/> field's picked entity (map pick or the entity list, through the form's one pick context): returns the refusal, or null. The field shows <see cref="ReadText"/> (the picked one's name; empty = none, the button reads <i>Pick on map…</i>) and clears through <see cref="Apply"/>.</summary>
+    public Func<EntityRepository, Entity, Entity, string?>? PickApply { get; init; }
+    /// <summary>The small caption drawn before an <see cref="Inline"/> field (<i>at</i>, <i>slot</i>).</summary>
+    public string? InlineCaption { get; init; }
+
     /// <summary>A bounded number drawn as a slider (the mockup's Character rows) instead of an input; written when the drag ends.</summary>
     public bool Slider { get; init; }
 
@@ -68,7 +81,7 @@ public sealed class FormField
             FieldKind.Text => AttributeValue.FromString(text),
             FieldKind.Choice when ChoiceValue != null => ChoiceValue((int)number),
             FieldKind.Choice when d.Kind == AttributeValueKind.CsString => AttributeValue.FromString(Choices != null && (int)number >= 0 && (int)number < Choices.Count ? Choices[(int)number] : null),
-            FieldKind.Toggle => AttributeValue.FromBool(number != 0),
+            FieldKind.Toggle => d.Kind == AttributeValueKind.CsInt32 ? AttributeValue.FromInt(number != 0 ? 1 : 0) : AttributeValue.FromBool(number != 0),   // a switch attribute declared Int32 (1 / 0) takes the int
             _ => d.Kind switch
             {
                 AttributeValueKind.CsInt32 => AttributeValue.FromInt((int)Math.Round(number)),
@@ -77,7 +90,7 @@ public sealed class FormField
                 _ => AttributeValue.FromDouble(number),
             },
         };
-        return new EntityAttributeChange { AttributeId = d.AttributeId, Value = v };
+        return new EntityAttributeChange { AttributeId = d.AttributeId, SubIndex1 = SubIndex, Value = v };
     }
 
     /// <summary>Out of range ⇒ the reason (§2.3: red with the reason, ⛔ never silently clamped); null = fine.</summary>
