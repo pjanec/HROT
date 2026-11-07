@@ -444,19 +444,24 @@ public sealed class RulesWindow : ManagedWindow, IRuleDetailsHost
         return true;
     }
 
-    private readonly Dictionary<int, (string Json, string Text, bool Incomplete)> _sentences = new();
+    private readonly Dictionary<int, (string Key, string Text, bool Incomplete, RuleSentence.Seg[] Segs)> _sentences = new();
+    private static readonly RuleSentence.Seg[] NoSegs = Array.Empty<RuleSentence.Seg>();
 
-    /// <summary>A rule's line, re-built only when its params change (the list draws every frame).</summary>
-    internal (string Text, bool Incomplete) SentenceOf(RuleRow row)
+    /// <summary>A rule's line (text + segments), re-built only when its params change (the list draws every frame).</summary>
+    internal (string Text, bool Incomplete, RuleSentence.Seg[] Segs) LineOf(RuleRow row)
     {
         var p = RuleSentence.ParamsOf(_world(), row.Entity);
-        if (p is not { } prm) return (row.Title, false);
-        if (_sentences.TryGetValue(row.NetworkId, out var c) && ReferenceEquals(c.Json, prm.Json)) return (c.Text, c.Incomplete);
+        string key = p is { } k ? k.Json : row.Title;
+        if (_sentences.TryGetValue(row.NetworkId, out var c) && ReferenceEquals(c.Key, key)) return (c.Text, c.Incomplete, c.Segs);
+        if (p is not { } prm) { var plain = (key, row.Title, false, new[] { new RuleSentence.Seg(row.Title, false) }); _sentences[row.NetworkId] = plain; return (plain.Item2, false, plain.Item4); }
         var refs = _world() is { } w ? AuthoredRules.ScopeOf(w) : null;
-        var (text, incomplete) = RuleSentence.Of(prm.Name, prm.Json, row.Title, row.Status.Required != 0, refs);
-        _sentences[row.NetworkId] = (prm.Json, text, incomplete);
-        return (text, incomplete);
+        var (text, incomplete, segs) = RuleSentence.Parts(prm.Name, prm.Json, row.Title, row.Status.Required != 0, refs);
+        _sentences[row.NetworkId] = (key, text, incomplete, segs);
+        return (text, incomplete, segs);
     }
+
+    /// <summary>A rule's line, re-built only when its params change (the list draws every frame).</summary>
+    internal (string Text, bool Incomplete) SentenceOf(RuleRow row) { var l = LineOf(row); return (l.Text, l.Incomplete); }
 
     /// <summary>What the List view shows, line by line (rails, the panel probe).</summary>
     internal IReadOnlyList<string> ListRows => _view.Rows.Select(r => SentenceOf(r).Text).ToList();
@@ -464,35 +469,90 @@ public sealed class RulesWindow : ManagedWindow, IRuleDetailsHost
     /// <summary>Whether the List marks rule <paramref name="networkId"/> incomplete (rails).</summary>
     internal bool IncompleteOf(int networkId) => _view.Find(networkId) is { } r && SentenceOf(r).Incomplete;
 
+    /// <summary>What the last List frame drew for one row — the kind glyph and its colour, the muted <i>required</i>, the incomplete ✖ and where the text and the mark started (rails: the mockup's measurable points).</summary>
+    internal readonly record struct ListMark(int NetworkId, string Glyph, Vector4 Colour, bool Required, bool Incomplete, float TextX, float MarkX);
+    private readonly List<ListMark> _listMarks = new();
+    internal IReadOnlyList<ListMark> ListMarks => _listMarks;
+
+    // the kind glyph in front of a rule (rule-list-visual.svg): trigger = bolt amber · objective = bullseye green · measure = flag amber · else a neutral dot
+    private static (string Glyph, Vector4 Colour) KindGlyph(ObjectiveRole role) => role switch
+    {
+        ObjectiveRole.Trigger   => ("\uf0e7", NodeEditor.Core.Widgets.IconPalette.Amber),
+        ObjectiveRole.Objective => ("\uf140", NodeEditor.Core.Widgets.IconPalette.Green),
+        ObjectiveRole.Measure   => ("\uf11e", NodeEditor.Core.Widgets.IconPalette.Amber),
+        _                       => ("\uf111", NodeEditor.Core.Widgets.IconPalette.Muted),
+    };
+    private const string ArrowDrawn = " \uf061 ";   // Font Awesome arrow-right: the UI font has no U+2192
+    private readonly Dictionary<int, string> _countText = new();
+    private readonly List<string> _groupIds = new();
+
+    private string CountText(int n)
+    {
+        if (!_countText.TryGetValue(n, out var t)) _countText[n] = t = n == 1 ? "1 rule" : $"{n} rules";
+        return t;
+    }
+
     private void DrawList()
     {
+        _listMarks.Clear();
         var gs = _view.Groups;
         bool any = false;
+        float fs = ImGui.GetFontSize(), scale = fs / 13f;
+        var dl = ImGui.GetWindowDrawList();
+        uint muted = ImGui.GetColorU32(NodeEditor.Core.Widgets.IconPalette.Muted);
         for (int gi = 0; gi < gs.Count; gi++)
         {
             var g = gs[gi];
-            if (g.Name.Length > 0) ImGui.TextDisabled(g.Name);
             var rs = g.Rows;
+            if (g.Name.Length > 0)
+            {
+                // the shared collapsible header bar (U-5), the count right-aligned and muted
+                while (_groupIds.Count <= gi) _groupIds.Add("rules-group-" + _groupIds.Count);
+                bool open = NodeEditor.Core.Widgets.SectionHeader.Draw(_groupIds[gi], g.Name, "tab/rules", ImGuiTreeNodeFlags.DefaultOpen);
+                string count = CountText(rs.Count);
+                var hmin = ImGui.GetItemRectMin(); var hmax = ImGui.GetItemRectMax();
+                dl.AddText(new Vector2(hmax.X - ImGui.CalcTextSize(count).X - 8f * scale, hmin.Y + (hmax.Y - hmin.Y - fs) * 0.5f), muted, count);
+                if (!open) { any |= rs.Count > 0; continue; }
+            }
             for (int ri = 0; ri < rs.Count; ri++)
             {
                 var row = rs[ri];
                 any = true;
-                var (text, incomplete) = SentenceOf(row);
+                var (text, incomplete, segs) = LineOf(row);
                 ImGui.PushID(row.NetworkId);
-                float indent = 10f + row.Depth * 14f;
-                ImGui.Indent(indent);
+                // ONE click target over the whole row; the sentence is drawn over it (no widget of its own steals the click)
+                if (ImGui.Selectable("##row", _selected == row.NetworkId, ImGuiSelectableFlags.AllowOverlap)) Select(row);
+                var rmin = ImGui.GetItemRectMin(); var rmax = ImGui.GetItemRectMax();
+                float x = rmin.X + (8f + row.Depth * 14f) * scale, textX = x + 22f * scale;
+                var (glyph, glyphColour) = KindGlyph(row.Status.Role);
+                ImGui.SetCursorScreenPos(new Vector2(x, rmin.Y));
+                ImGui.TextColored(glyphColour, glyph);
+                ImGui.SetCursorScreenPos(new Vector2(textX, rmin.Y));
+                for (int si = 0; si < segs.Length; si++)
+                {
+                    if (si > 0) ImGui.SameLine(0f, 0f);
+                    var seg = segs[si];
+                    string shown = seg.Grammar && ReferenceEquals(seg.Text, RuleSentence.Arrow) ? ArrowDrawn : seg.Text;
+                    if (seg.Grammar) ImGui.TextColored(NodeEditor.Core.Widgets.IconPalette.Info, shown); else ImGui.TextUnformatted(shown);
+                }
+                float right = rmax.X - 10f * scale;
+                float markX = 0f;
                 if (incomplete)
                 {
-                    var warn = NodeEditor.Core.Widgets.Icons.Get("form/warning");
-                    ImGui.TextColored(warn.Color, warn.Glyph);
-                    if (ImGui.IsItemHovered()) ImGui.SetTooltip("incomplete — a blank is not filled yet");
-                    ImGui.SameLine();
+                    var mark = NodeEditor.Core.Widgets.Icons.Get("form/error");   // the red ✖ on the RIGHT
+                    var msz = ImGui.CalcTextSize(mark.Glyph);
+                    markX = right - msz.X;
+                    dl.AddText(new Vector2(markX, rmin.Y), ImGui.GetColorU32(mark.Color), mark.Glyph);
+                    if (ImGui.IsMouseHoveringRect(new Vector2(markX, rmin.Y), new Vector2(right, rmax.Y))) ImGui.SetTooltip("incomplete — a blank is not filled yet");
+                    right = markX - 10f * scale;
                 }
-                if (ImGui.Selectable(text, _selected == row.NetworkId)) Select(row);
-                ImGui.Unindent(indent);
+                bool required = row.Status.Required != 0;
+                if (required) dl.AddText(new Vector2(right - ImGui.CalcTextSize("required").X, rmin.Y), muted, "required");
+                _listMarks.Add(new ListMark(row.NetworkId, glyph, glyphColour, required, incomplete, textX, markX));
+                ImGui.SetCursorScreenPos(new Vector2(rmin.X, rmax.Y));
+                ImGui.Dummy(Vector2.Zero);   // ImGui asserts when the cursor was moved and no item follows; this also puts the next row one ItemSpacing down
                 ImGui.PopID();
             }
-            ImGui.Spacing();
         }
         if (!any) ImGui.TextDisabled("No rules yet.");
     }

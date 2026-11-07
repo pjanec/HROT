@@ -271,6 +271,48 @@ public sealed class RulesWindowFrameRail : IDisposable
     }
 
     /// <summary>
+    /// ⭐ U-18 fidelity (docs/UX/rule-list-visual.svg, R-4138 / R-4146) — the List view reads like its mockup: a coloured KIND glyph first (trigger bolt amber · objective bullseye green · measure flag amber), the group as the shared header bar,
+    /// <i>required</i> muted on the right, the incomplete ✖ on the RIGHT of the text, the Font Awesome arrow (the font has no U+2192). 🔴 Red-proof (compiles): <c>KindGlyph</c> giving a trigger the objective's glyph ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void U18_TheListFrame_MatchesTheMockup_KindGlyphs_RequiredMark_IncompleteOnTheRight()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        void Rule(int id, string kind, string json)
+        {
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new NetworkIdentity(id));
+            _world.SetManagedComponent(e, new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = kind, JsonParams = json, InstanceId = 1 });
+        }
+        Rule(20, "Trigger", """{"common":{"title":"Push","subject":900},"holdFor":30,"when":{"$type":"ScenarioTime","FromSeconds":60},"do":[{"act":"Message","args":{"Text":"Phase 2"}}]}""");
+        Rule(21, "Protect", """{"common":{"title":"OBJ BLUE","subject":900,"required":true}}""");
+        Rule(22, "Trigger", """{"common":{"title":"Bravo","subject":900},"do":[{"act":"Message"}]}""");
+        Rule(23, "HitRatio", """{"common":{"title":"Blue hit ratio","subject":900}}""");
+        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_fidelity", "Scenario", Vector4.One, _ => { }, _ => { });
+        using var frame = UiFrameHarness.Begin(1280, 300);
+        Action draw = () =>
+        {
+            ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(1280, 300));
+            ImGui.Begin("Rules", ImGuiWindowFlags.NoCollapse);
+            window.DrawContent();
+            ImGui.End();
+        };
+        for (int i = 0; i < 6; i++) frame.Step(draw);
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 }) frame.Screenshot(ShotPath("rules-list-fidelity.png"));
+        var marks = new Dictionary<int, RulesWindow.ListMark>();
+        foreach (var m in window.ListMarks) marks[m.NetworkId] = m;
+        Assert.Equal(4, marks.Count);
+        Assert.Equal("\uf0e7", marks[20].Glyph); Assert.Equal(NodeEditor.Core.Widgets.IconPalette.Amber, marks[20].Colour);   // trigger: bolt, amber
+        Assert.Equal("\uf140", marks[21].Glyph); Assert.Equal(NodeEditor.Core.Widgets.IconPalette.Green, marks[21].Colour);   // objective: bullseye, green
+        Assert.Equal("\uf11e", marks[23].Glyph); Assert.Equal(NodeEditor.Core.Widgets.IconPalette.Amber, marks[23].Colour);   // measure: flag, amber
+        Assert.True(marks[21].Required); Assert.False(marks[20].Required);                                                      // *required* on the objective only
+        Assert.True(marks[22].Incomplete); Assert.False(marks[20].Incomplete);
+        Assert.True(marks[22].MarkX > marks[22].TextX + 100f, "the incomplete mark sits on the RIGHT of the text");
+        Assert.Equal(0f, marks[20].MarkX);                                                                                      // a complete rule draws no mark
+        Assert.Contains("for 30 s → Message", window.ListRows[0]);                                                              // the text keeps the arrow; the frame draws the Font Awesome one
+    }
+
+    /// <summary>
     /// ⭐ CE-4218 (R5a) — the RULE EDITOR in a real frame, EDIT MODE: a trigger's tab set (Overview · When · Rules · Do · Bindings · History) and an objective's (Status · Settings · Results · History), each tab's fields drawn from the ONE params form (the When tab through the
     /// standard predicate leaf), the header above them, Apply / Revert / Undo on the bar. ✅ Red-proof: <c>RuleTabs.FieldsOf</c> returning nothing for the Rules tab ⇒ its fields vanish ⇒ red.
     /// </summary>

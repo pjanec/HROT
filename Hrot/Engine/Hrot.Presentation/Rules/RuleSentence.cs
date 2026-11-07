@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using Fdp.Toolkit.ReplayBrowser.Search.Conditions;
 using Fdp.Toolkit.Scenario;
@@ -14,30 +15,47 @@ namespace Hrot.UI.Common.Rules;
 /// </summary>
 public static class RuleSentence
 {
-    /// <summary>The line for a rule of kind <paramref name="kind"/> (its behaviour name) with params <paramref name="json"/>.</summary>
+    /// <summary>One run of the line: <see cref="Grammar"/> words (<i>When · for · s · →</i>, an act name, an objective's kind words) draw in the grammar blue; the rest is the author's content (the condition, the title) in the default colour.</summary>
+    public readonly record struct Seg(string Text, bool Grammar);
+
+    /// <summary>The arrow's text in <see cref="Of"/>'s <c>Text</c> and in the segments — ⚠ the UI font has no U+2192, so the List view draws the Font Awesome arrow where a segment is exactly this.</summary>
+    public const string Arrow = " → ";
+
+    /// <summary>The line for a rule of kind <paramref name="kind"/> (its behaviour name) with params <paramref name="json"/> — text only (rails, <c>ListRows</c>).</summary>
     public static (string Text, bool Incomplete) Of(string kind, string json, string title, bool required, LiveRefScope? refs)
     {
+        var (text, incomplete, _) = Parts(kind, json, title, required, refs);
+        return (text, incomplete);
+    }
+
+    /// <summary>⭐ The same line as SEGMENTS (text, isGrammar), for the List view's two-colour drawing. The condition's own words stay ONE content segment (<see cref="ConditionSentence"/> has no grammar split). ⚠ An objective's <i>required</i> is NOT a segment: the list draws it right-aligned and muted.</summary>
+    public static (string Text, bool Incomplete, Seg[] Segments) Parts(string kind, string json, string title, bool required, LiveRefScope? refs)
+    {
+        var segs = new List<Seg>(8);
         if (kind == "Trigger")
         {
             TriggerParamsJsonDto t;
             try { t = (TriggerParamsJsonDto)Hrot.Presentation.Behavior.BehaviorParamsForm.Hydrate(typeof(TriggerParamsJsonDto), json); }
-            catch (Exception ex) when (ex is InvalidCastException or NullReferenceException or System.Text.Json.JsonException) { return ($"{title}: (its params do not read)", true); }
-            var sb = new StringBuilder("When ");
+            catch (Exception ex) when (ex is InvalidCastException or NullReferenceException or System.Text.Json.JsonException)
+            { return ($"{title}: (its params do not read)", true, new[] { new Seg(title, false), new Seg(": (its params do not read)", false) }); }
+            var sb = new StringBuilder();
+            void Add(string text, bool grammar) { sb.Append(text); segs.Add(new Seg(text, grammar)); }
+            Add("When ", true);
             bool incomplete = t.When == null;
-            sb.Append(t.When == null ? "(no condition yet)" : Lower(ConditionSentence.Of(t.When, refs)));
-            if (t.HoldFor > 0) sb.Append(" for ").Append(FactCatalogue.Num(t.HoldFor)).Append(" s");
-            sb.Append(" → ");
-            if (t.Do is not { Count: > 0 }) { sb.Append("(nothing to do yet)"); incomplete = true; }
+            Add(t.When == null ? "(no condition yet)" : Lower(ConditionSentence.Of(t.When, refs)), false);
+            if (t.HoldFor > 0) { Add(" for ", true); Add(FactCatalogue.Num(t.HoldFor), false); Add(" s", true); }
+            Add(Arrow, true);
+            if (t.Do is not { Count: > 0 }) { Add("(nothing to do yet)", false); incomplete = true; }
             else
                 for (int i = 0; i < t.Do.Count; i++)
                 {
-                    if (i > 0) sb.Append(", ");
-                    sb.Append(StructEdit.Core.Attributes.DisplayNames.Humanize(t.Do[i].Act));
+                    if (i > 0) Add(", ", true);
+                    Add(StructEdit.Core.Attributes.DisplayNames.Humanize(t.Do[i].Act), true);
                 }
-            return (sb.ToString(), incomplete);
+            return (sb.ToString(), incomplete, segs.ToArray());
         }
         string what = StructEdit.Core.Attributes.DisplayNames.Humanize(kind);
-        return ($"{what}: {title}{(required ? " — required" : "")}", false);
+        return ($"{what}: {title}{(required ? " — required" : "")}", false, new[] { new Seg(what, true), new Seg(": ", true), new Seg(title, false) });
     }
 
     /// <summary>A sentence inside a sentence starts lower-case (<i>When at least 3 of Red side…</i>) — ⚠ but a name keeps its case (it starts the WHO).</summary>
