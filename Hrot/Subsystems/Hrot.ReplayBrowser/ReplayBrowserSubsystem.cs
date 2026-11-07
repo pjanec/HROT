@@ -956,42 +956,23 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
             onSelect: e => SelectTimelineEvent(e),        // ⭐ CE-3330 (R-4087 addendum 5) — the ONE selection, RB-7's path
             rowMenu: _timelineLanes.MenuItems));          // ⭐ CE-3330 (addendum 4) — the row's provider's items
 
-        // ⭐⭐ CE-4216 (rules view R2) — Window ▸ Rules on a RECORDING: the rule tree of the shown world, the past from the recording's lanes; asking a rule is blocked (a recording is read-only)
+        // ⭐⭐ CE-4292 (Rules bundle R3) — the rules windows on a RECORDING: the ONE bundle every host composes (Rules · Mission summary · Trainee debrief ·
+        //   Game summary; no Game master on a recording); read-only by construction, the moments seeking the recording through the viewer's cursor
         _rulesWindowManager = windowManager;
-        _rulesWindow = new Hrot.Presentation.Windows.RulesWindow(
-            () => _activeRepo, () => _timelineSource,
-            new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager, () => _manager?.LocalEntitiesProviderNodeId ?? 0,
-                isPlaying: () => !Transport.IsPaused, togglePlay: () => Transport.TogglePlayPause(),
-                timeMap: () => CachedTimeMap, simAxis: () => Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim),
-            "rb_rules", perspective, color,
-            selectEntity: n => SelectNetworkEntity(n),   // ⭐ CE-4263 — a plain pick: no event is focused
-            showOnMap: n => _activeRepo?.Bus.Publish(new Hrot.Common.Events.CenterOnEntityCommand { NetworkId = n }),
-            blocked: () => "a recording is read-only") { IsOpen = false };
-        windowManager.RegisterWindow(_rulesWindow);
-
-        // ⭐⭐ CE-4217 (rules view R3) — Window ▸ Mission summary on a RECORDING: the debrief; its key events seek the recording through the viewer's cursor
-        windowManager.RegisterWindow(new Hrot.Presentation.Windows.MissionSummaryWindow(
-            () => _activeRepo, () => _timelineSource,
-            new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager, () => _manager?.LocalEntitiesProviderNodeId ?? 0,
-                isPlaying: () => !Transport.IsPaused, togglePlay: () => Transport.TogglePlayPause(),
-                timeMap: () => CachedTimeMap, simAxis: () => Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim),
-            "rb_mission_summary", perspective, color,
-            showMoments: n => { _rulesWindow?.ShowSubtree(n); if (_rulesWindow != null) windowManager.FocusWindow(_rulesWindow.Id); },
-            blocked: () => "a recording is read-only") { IsOpen = false });
-
-        // ⭐⭐ CE-4231 (D1 / G1) — the trainee debrief and the game summary on a RECORDING, their moments seeking it through the viewer's cursor
-        windowManager.RegisterWindow(new Hrot.Presentation.Windows.TraineeDebriefWindow(
-            () => _activeRepo, () => _timelineSource,
-            new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager, () => _manager?.LocalEntitiesProviderNodeId ?? 0,
-                isPlaying: () => !Transport.IsPaused, togglePlay: () => Transport.TogglePlayPause(),
-                timeMap: () => CachedTimeMap, simAxis: () => Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim),
-            "rb_trainee_debrief", perspective, color) { IsOpen = false });
-        windowManager.RegisterWindow(new Hrot.Presentation.Windows.GameSummaryWindow(
-            () => _activeRepo, () => _timelineSource,
-            new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager, () => _manager?.LocalEntitiesProviderNodeId ?? 0,
-                isPlaying: () => !Transport.IsPaused, togglePlay: () => Transport.TogglePlayPause(),
-                timeMap: () => CachedTimeMap, simAxis: () => Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim),
-            "rb_game_summary", perspective, color) { IsOpen = false });
+        var rules = new Hrot.Editor.AiShared.Rules.RulesBundle(new Hrot.Editor.AiShared.Rules.RulesHostServices(
+            World:          () => _activeRepo,
+            TimelineSource: () => _timelineSource,
+            Cursor:         () => new Fdp.Presentation.Panels.Timeline.FederatedReplayCursor(() => _manager, () => _manager?.LocalEntitiesProviderNodeId ?? 0,
+                                isPlaying: () => !Transport.IsPaused, togglePlay: () => Transport.TogglePlayPause(),
+                                timeMap: () => CachedTimeMap, simAxis: () => Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim),
+            IdPrefix:       "rb_", Perspective: perspective, Colour: color,
+            SelectEntity:   n => SelectNetworkEntity(n),   // ⭐ CE-4263 — a plain pick: no event is focused
+            ShowOnMap:      n => _activeRepo?.Bus.Publish(new Hrot.Common.Events.CenterOnEntityCommand { NetworkId = n }),
+            Seat:           () => Hrot.Common.Infrastructure.Seat.Reviewer,
+            Blocked:        () => "a recording is read-only",
+            Recording:      true));
+        _rulesWindow = rules.Rules;
+        Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { rules }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
         windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.ComponentDiffWindow(
             "rb_diff", "Frame Diff Viewer", perspective, diffPanel, color));

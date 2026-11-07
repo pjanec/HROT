@@ -35,7 +35,8 @@ public sealed record RuleEditorServices(
     Func<Entity, string, string, bool> ApplyEditMode, EditHistory History,
     Func<Entity, IReadOnlyList<RuleJournalEntry>> Journal, Func<IMapPickContext?>? Picks = null,
     Func<Action<PickerRequest, Action<PickerResult>>?>? OpenPicker = null, RuleLiveServices? Live = null,
-    Func<long, string, string, bool>? CreateRule = null, MacroPreviewServices? MacroPreview = null);
+    Func<long, string, string, bool>? CreateRule = null, MacroPreviewServices? MacroPreview = null,
+    Func<string?>? SeatRefusal = null);   // ⭐ CE-4292 (Rules bundle §3) — why THIS station's seat may not edit rules (null = it may); read every frame (the seat is a live feature)
 
 /// <summary>⭐ CE-4244 (MA-10 MP-2 b) — what the host gives the Do tab's <i>Preview</i> of an <c>InsertMacro</c> step: show the ghosts of the step of rule <c>Entity</c> (returns the bar text, null = nothing to show), the bar text while open,
 /// <i>Insert now</i> (null = done, else why not), <i>Close</i>, and why <i>Insert now</i> is not offered (null = it is: a live exercise).</summary>
@@ -126,6 +127,7 @@ public sealed class RuleDetails
     public string? ReadOnlyReason(RuleRow row)
     {
         if (_blocked() is { } b) return b;
+        if (_svc.SeatRefusal?.Invoke() is { } seat) return seat;                                                // ⭐ CE-4292 — who may edit is the SEAT, greyed with the reason (R-4119)
         if (row.Macro != null) return $"from macro {row.Macro} — edit the macro or its args";                 // A1
         if (ParamsOf(row) is not { } p) return IsLive(row) && _svc.Live != null ? "the rule's params are not on this node" : IsLive(row) ? LiveReadOnly : "this rule has no authored params on this node";
         if (BehaviorParamsForm.ParamsTypeOf(p.Name, _svc.Registry()) is null) return $"{p.Name} has no params form";

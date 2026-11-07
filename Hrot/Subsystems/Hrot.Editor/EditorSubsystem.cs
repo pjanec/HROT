@@ -290,85 +290,7 @@ namespace Hrot.Editor
 
         /// <summary>⭐ CE-4216 — the ONE selection by network id (a timeline event's subject, a rules-view row's subject).</summary>
         /// <summary>⭐ CE-4218 (R5a) — what the rule editor needs: the params form's service, the behaviour registry, the AI section's own apply (edit mode = AssignNow), the shared undo, the brain journal's text.</summary>
-        private Hrot.UI.Common.Rules.RuleEditorServices BuildRuleEditorServices()
-        {
-            var editService = Hrot.Editor.AiShared.Inspector.ActionBinding.AiFacetEditService.Build();
-            var aiModel = new Hrot.Editor.Scenario.EntityAiEditModel(() => _world, () => _behaviorRegistry, () => _blueprintRegistry);   // the AI section's model: ApplyTask
-            var picks = new Hrot.Presentation.Facades.MapPickBroker(() => _mapPickAdapter);
-            return new Hrot.UI.Common.Rules.RuleEditorServices(
-                () => editService, () => _behaviorRegistry,
-                (entity, behaviour, json) => aiModel.ApplyTask(entity, behaviour, json, running: false),
-                EditHistory,
-                entity =>
-                {
-                    if (_world is not { } w || !w.IsAlive(entity)) return System.Array.Empty<Hrot.UI.Common.Rules.RuleJournalEntry>();
-                    string? Name(int hash) => _behaviorRegistry is { } r && r.TryGetName(hash, out var n) ? n : null;
-                    var snap = Hrot.Editor.AiShared.Shell.BrainSnapshot.Read(w, entity, Name, hash => _behaviorRegistry is { } r && r.TryGetDefinition(hash, out var d) ? d : null);
-                    return snap?.Changes.Select(c => new Hrot.UI.Common.Rules.RuleJournalEntry(c.Seq, c.At, c.Kind, c.Text)).ToList() ?? (System.Collections.Generic.IReadOnlyList<Hrot.UI.Common.Rules.RuleJournalEntry>)System.Array.Empty<Hrot.UI.Common.Rules.RuleJournalEntry>();
-                },
-                () => new Fdp.Presentation.Editing.ScopedMapPickContext(picks, "$.rule"),
-                OpenPicker: () => _shellPickers is { } pickers ? pickers.OpenPicker : null,   // ⭐ CE-4220 — "+ Add step" opens the ONE generic picker
-                Live: BuildRuleLiveServices(),
-                MacroPreview: BuildMacroPreviewServices(),
-                // ⭐ CE-4222 RE-8 — a new rule entity is requested through the ONE creation path every author uses (the pack's RequestEntityCreation): the TKB type, no transform (a rule has no body), its authored params as a BehaviorStartRecord
-                CreateRule: (tkb, kind, json) =>
-                {
-                    if (EntityCreation is not { } creation) return false;
-                    creation.RequestEntityCreation(tkb, initialComponents: new object[] { new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = kind, JsonParams = json, InstanceId = 1 } });
-                    return true;
-                });
-        }
-
-        private string? _macroPreviewBar;
-
-        /// <summary>
-        /// ⭐ CE-4244 (MA-10 MP-2 b; DESIGN_Macro_Authoring_Editor §10) — the Do tab's <i>Preview</i> of an <c>InsertMacro</c> step: the ghosts come from THIS node's one expander through the spawn adapter (nothing is created); <i>Insert now</i> (live only) asks the
-        /// creation path through <c>MacroInsertion.Request</c> — the very call the <c>InsertMacro</c> verb makes; <i>Close</i> removes the ghosts.
-        /// </summary>
-        private Hrot.UI.Common.Rules.MacroPreviewServices BuildMacroPreviewServices()
-        {
-            string? LiveRefusal() => _world is { } w && w.IsComponentTypeRegistered<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>() && w.Query().With<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>().Build().Any()
-                ? null : "inserting changes a running exercise: start it first";
-            return new Hrot.UI.Common.Rules.MacroPreviewServices(
-                Preview: (rule, step) =>
-                {
-                    if (_world is not { } w || _spawnAdapter is not { } spawn || spawn.ExpanderOrNull is not { } ex) { _macroPreviewBar = "this host cannot expand macros"; return _macroPreviewBar; }
-                    var pv = Hrot.Common.Macros.MacroPreview.OfStep(ex, w, step.Args);
-                    spawn.ShowPreview(pv.Result, pv.Anchor);
-                    _macroPreviewBar = pv.Result.Ok ? $"{pv.Result.Ghosts.Count} to create at {pv.Anchor.X:0},{pv.Anchor.Y:0}" : pv.Result.Failure;
-                    return _macroPreviewBar;
-                },
-                Bar: () => _macroPreviewBar,
-                InsertNow: (rule, step) =>
-                {
-                    if (LiveRefusal() is { } r) return r;
-                    if (_world is not { } w || _spawnAdapter is not { } spawn || spawn.ExpanderOrNull is not { } ex) return "this host cannot expand macros";
-                    var pv = Hrot.Common.Macros.MacroPreview.OfStep(ex, w, step.Args);
-                    if (!pv.Result.Ok) return pv.Result.Failure;
-                    string? refused = Hrot.AI.Behaviors.Brains.Objectives.Verbs.MacroInsertion.Request(w, rule, pv.Macro, new Fdp.Core.WorldPoint(pv.Anchor), new Fdp.Core.Bearing(pv.HeadingDeg), pv.ArgsJson, out _, salt: "preview");
-                    spawn.ClosePreview(); _macroPreviewBar = null;
-                    return refused;
-                },
-                Close: () => { _spawnAdapter?.ClosePreview(); _macroPreviewBar = null; },
-                InsertNowRefusal: LiveRefusal);
-        }
-
-        /// <summary>
-        /// ⭐ CE-4220 (R5b, RE-7 / RE-3 live) — a live run's edit and live-values services. A kind is editable live when the owner has a state keeper for it: the editor's registry does not load the AI assembly
-        /// (<c>BindKeepers</c> runs in CGF's loader), so the keepers' names are DISCOVERED from it — the same scan, nothing bound. The live leaf values are the node feature <c>ui.rules-live-values</c>, switched cluster-wide.
-        /// </summary>
-        private Hrot.UI.Common.Rules.RuleLiveServices BuildRuleLiveServices()
-        {
-            System.Collections.Generic.HashSet<string>? keepers = null;
-            string? Refusal(string kind)
-            {
-                if (_behaviorRegistry is { } r && r.TryGetKeeper(kind, out _)) return null;
-                keepers ??= Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.KeeperNames(typeof(Hrot.AI.Behaviors.Brains.Objectives.ObjectiveStateKeepers).Assembly).ToHashSet();
-                return keepers.Contains(kind) ? null : "not editable live, restart the rule";
-            }
-            return new Hrot.UI.Common.Rules.RuleLiveServices(Refusal,
-                on => _timeTransport?.SetFeatureOverride(Hrot.AI.Behaviors.Brains.Objectives.RuleLeafSampler.FeatureId, on));
-        }
+        // ⭐ CE-4292 — the rule editor services are built by the ONE RuleEditorServicesFactory (Hrot.Editor.AiShared.Rules), through the RulesBundle below
 
         internal bool SelectNetworkEntity(int networkId)
         {
@@ -384,6 +306,9 @@ namespace Hrot.Editor
         /// <summary>⭐ CE-4218 (R5a) — THE editor undo history: the Parameters window and the rule editor push to it.</summary>
         internal Hrot.Presentation.Edits.EditHistory EditHistory { get; } = new();
         private Hrot.Presentation.Windows.RulesWindow? _rulesWindow;
+        private Hrot.Editor.AiShared.Rules.RulesBundle? _rulesBundle;
+        /// <summary>⭐ CE-4292 — the rules bundle this host composed (forwarding rails).</summary>
+        internal Hrot.Editor.AiShared.Rules.RulesBundle? RulesBundleForTest => _rulesBundle;
         private Fdp.Toolkit.ScenarioRules.ExercisePhase _lastExercisePhase = Fdp.Toolkit.ScenarioRules.ExercisePhase.Running;
         /// <summary>⭐ CE-4240 — Running → Ended seen on this node's world: opens Window ▸ Mission summary once (the debrief / game summary stay one click away in the Window menu).</summary>
         private void OpenSummaryWhenTheExerciseEnds()
@@ -4967,6 +4892,37 @@ namespace Hrot.Editor
             if (_bpManager != null)
                 _fdpEntityInspector.Reflector.MutationInterceptor = _bpManager;
 
+            // ⭐⭐ CE-4216 (rules view R2; DESIGN_Rules_View_UI RV-3/5/6) — Window ▸ Rules: the scenario's rule tree on the ONE timeline panel, over this node's world and its shown timeline (live, or a recording)
+            // ⭐⭐ CE-4292 (Rules bundle R3) — Rules · Game master · Mission summary · Trainee debrief · Game summary: the ONE bundle every host composes
+            //   (was hand-built here, on CGF and on the Replay Browser); editing is the SEAT's (Author here), the editor passes its ONE undo history
+            //   ⭐ Composed BEFORE the headless guard (as the breakpoint manager above): a headless editor has its rules windows too, so the composition is railed
+            Func<Fdp.Toolkit.ReplayBrowser.Timeline.ITimelineSource?> rulesTimeline = () => _node?.ShownTimeline;
+            _rulesWindowManager = windowManager;
+            var rules = new Hrot.Editor.AiShared.Rules.RulesBundle(new Hrot.Editor.AiShared.Rules.RulesHostServices(
+                World:          () => _world,
+                TimelineSource: rulesTimeline,
+                Cursor:         () => new Hrot.UI.Common.Adapters.ClusterTimelineCursor(() => _timeTransport, rulesTimeline),
+                IdPrefix:       "editor_", Perspective: "Scenario", Colour: EditorWindowColor.TitleBar,
+                SelectEntity:   n => SelectNetworkEntity(n),
+                ShowOnMap:      n => _editorLogic?.CenterOnEntity(n),
+                Seat:           () => Hrot.Common.Infrastructure.StationSeat.Of(_node?.Features),
+                Registry:       () => _behaviorRegistry,
+                Blueprints:     () => _blueprintRegistry,
+                EntityCreation: () => EntityCreation,
+                SpawnAdapter:   () => _spawnAdapter,
+                TimeTransport:  () => _timeTransport,
+                Pickers:        () => _shellPickers,
+                MapPicks:       () => _mapPickAdapter,
+                History:        EditHistory,
+                Selection:      () =>
+                {
+                    if (_world is not { } w || _selectionState?.PrimarySelected is not { } sel || !w.IsAlive(sel) || !w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(sel)) return null;
+                    return (w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(sel).Value, w.HasComponent<EntityInfo>(sel) ? w.GetComponentRO<EntityInfo>(sel).ForceId : ForceId.Neutral);
+                },
+                GamePaletteEnabled: () => Hrot.Common.Infrastructure.HudFeatures.IsOn(_node?.Features, Hrot.Common.Infrastructure.HudFeatures.GamePalette)));
+            _rulesWindow = rules.Rules; _rulesBundle = rules;
+            Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { rules }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
+
             if (_headless) return;
 
             // ?? Shared UI panels ??????????????????????????????????????????????
@@ -5012,32 +4968,6 @@ namespace Hrot.Editor
                 onSelect: e => SelectTimelineEvent(e), rowMenu: menuContext => _node?.TimelineLanes.MenuItems(menuContext) ?? Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineMenuItem>())
             { IsOpen = false });
 
-            // ⭐⭐ CE-4216 (rules view R2; DESIGN_Rules_View_UI RV-3/5/6) — Window ▸ Rules: the scenario's rule tree on the ONE timeline panel, over this node's world and its shown timeline (live, or a recording)
-            _rulesWindowManager = windowManager;
-            _rulesWindow = new Hrot.Presentation.Windows.RulesWindow(
-                () => _world, timelineSource, new Hrot.UI.Common.Adapters.ClusterTimelineCursor(() => timelineTransport, timelineSource),
-                "editor_rules", "Scenario", EditorWindowColor.TitleBar,
-                selectEntity: n => SelectNetworkEntity(n), showOnMap: n => _editorLogic?.CenterOnEntity(n),
-                editor: BuildRuleEditorServices()) { IsOpen = false };
-            windowManager.RegisterWindow(_rulesWindow);
-
-            // ⭐⭐ CE-4243 (SR-104 Z3; rules view §8) — Window ▸ Game master: a hand-run action / a side's skill = a TRANSIENT ONE-SHOT TRIGGER through the ONE creation path (nothing else is written)
-            windowManager.RegisterWindow(new Hrot.Presentation.Windows.GameMasterWindow(
-                () => _world, "editor_game_master", "Scenario", EditorWindowColor.TitleBar, BuildRuleEditorServices(),
-                createOneShot: json =>
-                {
-                    if (EntityCreation is not { } creation) return false;
-                    creation.RequestEntityCreation(Hrot.UI.Common.Rules.RuleAdd.TkbOf(Hrot.UI.Common.Rules.RuleAdd.TriggerKind), isTransient: true,
-                        initialComponents: new object[] { new Fdp.Toolkit.Behavior.Components.InitialBrainIntent { Behavior = new Fdp.Toolkit.Behavior.Components.SavedBrainSlot { Name = Hrot.UI.Common.Rules.RuleAdd.TriggerKind, Params = json } } });   // ⭐ the GENESIS intent (what a macro's children carry): the ingress STARTS the behaviour; a bare BehaviorStartRecord is only the record of a start (measured: 1301 sat with ActiveBehaviorHash 0)
-                    return true;
-                },
-                selection: () =>
-                {
-                    if (_world is not { } w || _selectionState?.PrimarySelected is not { } sel || !w.IsAlive(sel) || !w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(sel)) return null;
-                    return (w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(sel).Value, w.HasComponent<EntityInfo>(sel) ? w.GetComponentRO<EntityInfo>(sel).ForceId : ForceId.Neutral);
-                },
-                enabled: () => Hrot.Common.Infrastructure.HudFeatures.IsOn(_node?.Features, Hrot.Common.Infrastructure.HudFeatures.GamePalette)) { IsOpen = false });
-
             // ⭐⭐ CE-4247 (rules runnable ⑨c; Node Features F-11 / S2) — Window ▸ Features: nodes × features from the master's roster; a tick replaces the cluster's override list through the run settings
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.FeatureGridWindow("editor_feature_grid", "Scenario", EditorWindowColor.TitleBar,
                 nodes: () => _clusterMaster?.NodeRoster.ActiveNodes.Values.OrderBy(p => p.NodeName, StringComparer.Ordinal).Select(p => new Hrot.Presentation.Windows.FeatureGridNode(p.NodeName, p.Roles.ToString(),
@@ -5046,19 +4976,6 @@ namespace Hrot.Editor
                 overrides: () => _orchestratorCore?.UiCache.View.FeatureOverrides ?? (IReadOnlyList<Fdp.Toolkit.Orchestration.FeatureOverrideSpec>)Array.Empty<Fdp.Toolkit.Orchestration.FeatureOverrideSpec>(),
                 send: list => ClusterMasterControl?.SetRunSettings(new Fdp.Toolkit.Orchestration.SetRunSettingsIntent { RequestId = Guid.NewGuid(), FeatureOverrides = list })) { IsOpen = false });
 
-            // ⭐⭐ CE-4217 (rules view R3; RV-8) — Window ▸ Mission summary: read-only, over the same world and the same shown timeline; its key events seek that timeline
-            windowManager.RegisterWindow(new Hrot.Presentation.Windows.MissionSummaryWindow(
-                () => _world, timelineSource, new Hrot.UI.Common.Adapters.ClusterTimelineCursor(() => timelineTransport, timelineSource),
-                "editor_mission_summary", "Scenario", EditorWindowColor.TitleBar,
-                showMoments: n => { _rulesWindow?.ShowSubtree(n); if (_rulesWindow != null) windowManager.FocusWindow(_rulesWindow.Id); }) { IsOpen = false });
-
-            // ⭐⭐ CE-4231 (D1 / G1; DESIGN_Player_HUD_And_Debrief PH-6 / PH-7) — Window ▸ Trainee debrief and Window ▸ Game summary: read-only, over the same world and the same shown timeline
-            windowManager.RegisterWindow(new Hrot.Presentation.Windows.TraineeDebriefWindow(
-                () => _world, timelineSource, new Hrot.UI.Common.Adapters.ClusterTimelineCursor(() => timelineTransport, timelineSource),
-                "editor_trainee_debrief", "Scenario", EditorWindowColor.TitleBar) { IsOpen = false });
-            windowManager.RegisterWindow(new Hrot.Presentation.Windows.GameSummaryWindow(
-                () => _world, timelineSource, new Hrot.UI.Common.Adapters.ClusterTimelineCursor(() => timelineTransport, timelineSource),
-                "editor_game_summary", "Scenario", EditorWindowColor.TitleBar) { IsOpen = false });
 
             // ⭐ CE-1191 (UI-6, DESIGN_Command_Display §6 D3) — the Reports window over this node's SquadReportLog (filled where the staff runs)
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.ReportsWindow(

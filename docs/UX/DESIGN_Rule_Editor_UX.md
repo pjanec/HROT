@@ -235,6 +235,8 @@ timing* (Begin phase when … · End the exercise when …), *Reinforcements* (B
 `SelectionChangeRequest.ReplaceWith` (the one request seam), *Show on map* publishes `CenterOnEntityCommand`; CGF now passes `OpenRule` and
 `SelectNetworkEntity` to its Details bundle (the silent-default rule — it holds both). ⚠ CGF has no `RuleEditorServices` yet ⇒ it reads and controls rules
 (*Fire now · Disarm …*), live edits stay on the editor. CE-4245 was refuted on verification (no focus loss). Rail: `TheRunChoiceIsOnEveryHostTests` (CGF windowed).
+⭐ **SUPERSEDED by CE-4292** (`DESIGN_Rules_Bundle.md` §5, `2026-11-07`): every host now composes the ONE `RulesBundle`; CGF gets the rule editor services
+(its seat, Instructor, may edit) and the Game master, Mission summary, Trainee debrief and Game summary windows — the *"live edits stay on the editor"* above is history.
 ⭐ Three hosts still construct the window each in their own lines — a shared factory is the next step if a fourth host appears.
 
 ## 3. Stages *(top level; ui owns the editor, behaviors the condition / action vocabulary where it touches the runtime)*
