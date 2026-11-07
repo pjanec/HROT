@@ -47,7 +47,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         /// the entries as markers (started · Done · Failed, each naming the unit and the task).
         /// </summary>
         public const string TasksGroup = "Tasks";
-        public static readonly TimelineLaneDescriptor Tasks = new("mission.tasks", "all units", Group: TasksGroup, Priority: 2, Color: 0xFFFAA95A);
+        public static readonly TimelineLaneDescriptor Tasks = new("mission.tasks", "all units", Group: TasksGroup, Priority: 2, Color: 0xFFFAA95A, Hidden: true);   // ⭐ 8c-2: drawn by the Tasks TRACK (glyph per kind, the selection's bars), not as plain dots
 
         private static readonly IndexedLaneDefinition[] Definitions =
         {

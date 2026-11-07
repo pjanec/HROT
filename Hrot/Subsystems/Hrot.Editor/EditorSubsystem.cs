@@ -276,6 +276,8 @@ namespace Hrot.Editor
         //   lanes, the live index and the lane context are the ones every ECS node has (HrotNodeContext.Timeline); the editor runs its own
         //   frame, so it steps the index itself (StepTimeline) where the context's Tick would. Drawn by the shared TimelinePanel.
         private readonly Fdp.Presentation.Panels.Timeline.TimelinePanel _eventTimeline = new();
+        /// <summary>⭐ W-1 / P-8 8c-2 — the Event Timeline's Tasks rows (forwarding rails).</summary>
+        internal Hrot.Presentation.Orders.TasksTimelineTracks? TasksTracks { get; private set; }
 
         /// <summary>⭐ CE-3330 — the live event timeline's index: the node context's (null before Initialize / after Shutdown).</summary>
         internal Fdp.Toolkit.ReplayBrowser.Timeline.LiveTimelineSource? LiveTimeline => _node?.Timeline;
@@ -5042,6 +5044,13 @@ namespace Hrot.Editor
                 () => _node?.TimelineLanes.Lanes(_node.ShownTimelineContext) ?? Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneDescriptor>(), EditorWindowColor.TitleBar,
                 onSelect: e => SelectTimelineEvent(e), rowMenu: menuContext => _node?.TimelineLanes.MenuItems(menuContext) ?? Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineMenuItem>())
             { IsOpen = false });
+            // ⭐ W-1 / P-8 8c-2 (Mission plan E4) — the ONE Tasks row (all units) + the selection's task bars, over the same shown timeline
+            if (TasksTracks == null)
+            {
+                TasksTracks = new Hrot.Presentation.Orders.TasksTimelineTracks(timelineSource, () => _world,
+                    () => Hrot.Presentation.Orders.TasksTimelineTracks.NetIdOf(_world, _selectionState?.PrimarySelected), n => SelectNetworkEntity(n));
+                _eventTimeline.AddTracks(TasksTracks.Tracks);
+            }
 
             // ⭐⭐ CE-4247 (rules runnable ⑨c; Node Features F-11 / S2) — Window ▸ Features: nodes × features from the master's roster; a tick replaces the cluster's override list through the run settings
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.FeatureGridWindow("editor_feature_grid", "Scenario", EditorWindowColor.TitleBar,
