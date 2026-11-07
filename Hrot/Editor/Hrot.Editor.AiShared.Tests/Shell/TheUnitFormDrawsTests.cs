@@ -53,4 +53,25 @@ public sealed class TheUnitFormDrawsTests
         Assert.Equal(new[] { "Name = Alpha 1-1", "Side = Blue", "Strength = 80", "Entity id = 42" }, view.View.Rows);
         if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "unit-form.png"));
     }
+
+    /// <summary>⭐ U-23 / D5 — the <b>Shape</b> form is offered for a spawn area OR a weather region (an any-of), and a spawn area's rows read the world.
+    /// 🔴 Red-proof (compiles): <c>FormDecl.OffersFor</c> ignoring <c>Offers</c> ⇒ not offered (no Requires) ⇒ red.</summary>
+    [Fact]
+    public void U23_TheShapeForm_IsOfferedForASpawnArea_AndReadsIt()
+    {
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<Hrot.Common.SpawnArea>(); world.RegisterComponent<Fdp.Toolkit.Weather.WeatherConditions>();
+        var spawn = world.CreateEntity();
+        world.AddComponent(spawn, new Hrot.Common.SpawnArea { Side = ForceId.Hostile, FacingDeg = 90 });
+        var unit = world.CreateEntity();
+        world.AddComponent(unit, new EntityInfo { Name = new FixedString64("Alpha") });
+        HrotForms.EnsureRegistered();
+        Assert.True(HrotForms.Shape.OffersFor(world, spawn));
+        Assert.False(HrotForms.Shape.OffersFor(world, unit));
+        Assert.Equal(1.0, HrotForms.Shape.Fields[0].ReadNumber!(world, spawn));   // Red
+        Assert.Equal(90.0, HrotForms.Shape.Fields[1].ReadNumber!(world, spawn));
+        Assert.Equal("90 °", FormView.Format(HrotForms.Shape.Fields[1], 90, default));
+        Assert.All(HrotForms.Shape.Fields, f => Assert.False(f.Attribute != null && f.Definition == null));   // every field names a vocabulary attribute
+    }
 }

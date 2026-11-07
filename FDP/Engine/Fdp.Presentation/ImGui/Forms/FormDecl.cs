@@ -78,6 +78,8 @@ public sealed class FormDecl
     /// <summary>The components an entity must carry for this form to be offered (§3 <i>Requires</i>); empty = the world form (nothing selected).</summary>
     public IReadOnlyList<Type> Requires { get; init; } = Array.Empty<Type>();
     public required IReadOnlyList<FormField> Fields { get; init; }
+    /// <summary>When the form is offered for an entity, if not by <see cref="Requires"/> alone (an any-of: the Shape form is offered for a spawn area OR a weather region).</summary>
+    public Func<EntityRepository, Entity, bool>? Offers { get; init; }
 
     /// <summary>The labels of the common rows, then the expert rows (built once — the label column's widest).</summary>
     public string[] Labels => _labels ??= BuildLabels();
@@ -86,6 +88,7 @@ public sealed class FormDecl
 
     public bool OffersFor(EntityRepository world, Entity e)
     {
+        if (Offers != null) return world.IsAlive(e) && Offers(world, e);
         for (int i = 0; i < Requires.Count; i++)
         {
             int id = ComponentTypeRegistry.GetId(Requires[i]);

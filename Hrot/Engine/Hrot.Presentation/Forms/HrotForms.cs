@@ -25,6 +25,7 @@ public static class HrotForms
             if (_registered) return;
             _registered = true;
             FormCatalogue.Register(Unit);
+            FormCatalogue.Register(Shape);
         }
     }
 
@@ -102,6 +103,50 @@ public static class HrotForms
                 Has = (w, e) => w.IsComponentTypeRegistered<TkbIdentity>() && w.HasComponent<TkbIdentity>(e),
                 ReadNumber = (w, e) => (long)w.GetComponentRO<TkbIdentity>(e).TkbType,
             },
+        },
+    };
+
+    private static bool HasSpawn(EntityRepository w, Entity e) => w.IsComponentTypeRegistered<Hrot.Common.SpawnArea>() && w.HasComponent<Hrot.Common.SpawnArea>(e);
+    private static bool HasWeather(EntityRepository w, Entity e) => w.IsComponentTypeRegistered<Fdp.Toolkit.Weather.WeatherConditions>() && w.HasComponent<Fdp.Toolkit.Weather.WeatherConditions>(e);
+    private static ref readonly Fdp.Toolkit.Weather.WeatherConditions Weather(EntityRepository w, Entity e) => ref w.GetComponentRO<Fdp.Toolkit.Weather.WeatherConditions>(e);
+
+    private static readonly string[] Precipitations = { "None", "Drizzle", "Rain", "Snow", "Sleet", "Hail" };   // Weather.PrecipitationKind
+
+    private static FormField WeatherNumber(string label, string attribute, string unit, Func<EntityRepository, Entity, double> read, double min = double.MinValue, double max = double.MaxValue, bool expert = false)
+        => new() { Label = label, Attribute = attribute, Unit = unit, Min = min, Max = max, Expert = expert, Has = HasWeather, ReadNumber = read };
+
+    /// <summary>
+    /// ⭐ D5 — the <b>Shape</b> form (§3): offered for a spawn area or a weather region. Spawn area: side, facing. Weather region: the authored scalars of
+    /// <c>WeatherConditions</c> (the global weather's form is the Scenario form's). ⏳ Not yet: kind / name / point count / length (read-only), a route's legs
+    /// (CE-4284, a list — not a scalar attribute), the wind levels and cloud layers (lists, not attributes yet).
+    /// </summary>
+    public static readonly FormDecl Shape = new()
+    {
+        Id = "form.shape", Title = "Shape", Order = 30,
+        Offers = (w, e) => HasSpawn(w, e) || HasWeather(w, e),
+        Fields = new[]
+        {
+            new FormField
+            {
+                Label = "Spawn side", Kind = FieldKind.Choice, Attribute = "SpawnArea.Side", Choices = Sides, Has = HasSpawn,
+                ReadNumber = (w, e) => SideIndex(w.GetComponentRO<Hrot.Common.SpawnArea>(e).Side),
+                ChoiceValue = i => AttributeValue.FromInt(i >= 0 && i < SideForces.Length ? (int)SideForces[i] : 0),
+            },
+            new FormField { Label = "Facing", Attribute = "SpawnArea.FacingDeg", Unit = "°", Min = 0, Max = 360, Has = HasSpawn, ReadNumber = (w, e) => w.GetComponentRO<Hrot.Common.SpawnArea>(e).FacingDeg },
+            WeatherNumber("Temperature", "Weather.GroundTemperatureC", "°C", (w, e) => Weather(w, e).GroundTemperatureC, -80, 70),
+            WeatherNumber("Pressure", "Weather.SeaLevelPressureHpa", "hPa", (w, e) => Weather(w, e).SeaLevelPressureHpa, 800, 1100),
+            WeatherNumber("Humidity", "Weather.RelativeHumidity", "(0-1)", (w, e) => Weather(w, e).RelativeHumidity, 0, 1),   // stored 0…1 (W-7)
+            WeatherNumber("Visibility", "Weather.VisibilityM", "m", (w, e) => Weather(w, e).VisibilityM, 0),
+            new FormField
+            {
+                Label = "Precipitation", Kind = FieldKind.Choice, Attribute = "Weather.Precipitation", Choices = Precipitations, Has = HasWeather,
+                ReadNumber = (w, e) => Weather(w, e).Precipitation, ChoiceValue = i => AttributeValue.FromInt(i),
+            },
+            WeatherNumber("Rate", "Weather.PrecipitationMmPerHour", "mm/h", (w, e) => Weather(w, e).PrecipitationMmPerHour, 0),
+            WeatherNumber("Fog top", "Weather.FogTopM", "m", (w, e) => Weather(w, e).FogTopM, 0),
+            WeatherNumber("Fog visibility", "Weather.FogVisibilityM", "m", (w, e) => Weather(w, e).FogVisibilityM, 0),
+            WeatherNumber("Edge fade", "Weather.FeatherM", "m", (w, e) => Weather(w, e).FeatherM, 0),
+            WeatherNumber("Lapse rate", "Weather.LapseRateKPerKm", "K/km", (w, e) => Weather(w, e).LapseRateKPerKm, expert: true),
         },
     };
 }

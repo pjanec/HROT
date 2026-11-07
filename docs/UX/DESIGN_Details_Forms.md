@@ -276,7 +276,11 @@ attribute's `FORCE_*` words) · *Posture* (`Stance`, when the unit has `StanceIn
 and `FormDetailsView.Editable(mode, world)` is the ONE §2.4 rule (Replay ⇒ read-only). Rail `TheUnitFormDrawsTests` (a real frame; red-proven).
 ⚠ **Deviations / still open:** *Summary* and *Playable* tabs stay for now (the Unit form REPLACES them per §3 — a removal is its own step, ⛔ not
 folded into this one); not yet on the Unit form: the type's name, rounds per mount (`Ammo.*` with a sub-index), owner node, loaded round. ⏳ Crew & cargo,
-Shape, Scenario (D4–D5) next.
+Scenario next.
+**Part 2 — Shape** *(same day)*: `HrotForms.Shape`, offered for a spawn area OR a weather region (`FormDecl.Offers`, an any-of beside `Requires`): *Spawn
+side* (`SpawnArea.Side`), *Facing* (`SpawnArea.FacingDeg`, 0–360 °), and the region's authored weather scalars (temperature, pressure, humidity 0–1,
+visibility, precipitation kind + rate, fog top / visibility, edge fade; ⚙ lapse rate). ⏳ Not yet: kind / name / point count / length, a route's legs
+(CE-4284), the wind levels and cloud layers (lists, not attributes).
 
 ### 4.1 AS-BUILT — D2 *(B-4, `2026-11-06`)*
 
