@@ -20,7 +20,7 @@ specified in that config."* (R-4164, [Seats and Hats §2.2a](../../UX/DESIGN_Sea
 |---|---|
 | ① | `CgfNodeBootstrapper.DefaultSeat` (`:209`) and `SimHostNodeBootstrapper.DefaultSeat` (`:332`) → `Seat.Author` (the fused server follows CGF) |
 | ② | the runner's `--config <file.json>` gains `"features": { "<id>": {partial config JSON} }` — the same shape `--feature id={json}` takes; layer order: hard-coded default < config file < `--feature`. Today `HrotRunnerConfiguration.MergeFromJsonFile` reads no features (measured) |
-| rails | a CGF node with no config is Author and its gate accepts an Edit-mode edit · `"features": {"station.seat": {"Seat": "Instructor"}}` ⇒ the same edit refused · `--feature station.seat=…` beats the file · a typo'd id in the file is refused like a typo'd `--feature` (F-18) |
+| rails | a CGF node with no config is Author and its gate accepts an Edit-mode edit · `"features": {"station.seat": {"Seat": "Instructor"}}` ⇒ the same edit refused · `--feature station.seat=…` beats the file · the file and `--feature` both beat a scenario's `station.seat` preset (the user: the scenario is the lowest override) · a typo'd id in the file is refused like a typo'd `--feature` (F-18) |
 
 Claim it in your status file like a handoff item. Tracker: CE-4305.
 

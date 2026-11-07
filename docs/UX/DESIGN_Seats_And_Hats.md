@@ -124,7 +124,9 @@ time, owning the input and the camera). Neither is `NodeRole`: that stays what a
 | **Instructor (cannot edit) is chosen per node in its CONFIG FILE** | the runner's `--config <file.json>` gains a `features` object — the same partial JSON as `--feature`: `"features": { "station.seat": { "Seat": "Instructor" } }`. Layers: the hard-coded default (Author) < the config file < `--feature` on the command line ([Node Features F-7](../DESIGN_Node_Features.md)). An Instructor in Edit mode sees the scenario but cannot change it |
 | the game-master window stays ON for Author too | it is the feature `gm.palette`, not part of the seat — R-4107 holds |
 
-*Rejected — one line each:* a Zeus-vs-Instructor hat switch — they are the same seat · keeping Instructor as the default — an authoring server would need a flag in the common case · the scenario choosing the seat — a seat belongs to the deployment, not to what is loaded (⚠ the built scenario preset layer still CAN set it: leave as is, flagged here)
+*Rejected — one line each:* a Zeus-vs-Instructor hat switch — they are the same seat · keeping Instructor as the default — an authoring server would need a flag in the common case · blocking the scenario preset for the seat — the layer order already makes it harmless (below)
+
+⭐ **The scenario MAY preset the seat, as the LOWEST override** (user `2026-11-07`: *"we can keep it if it is the lowest priority and the node settings and command line wins over that"*): hard-coded default (Author) < **scenario preset** < node config file < `--feature` (Node Features F-22). ⇒ a node whose config or command line names a seat is never changed by a scenario; a scenario only moves an unconfigured node off Author
 
 ⭐ A seat can be changed on a station only to a seat its host allows (an editor may switch Author ↔ Instructor; a Player station cannot
 become Author). ⚖️ Trust: stations are on a trusted exercise network — the seat is enforced at the station (catalogue + gate), not as
