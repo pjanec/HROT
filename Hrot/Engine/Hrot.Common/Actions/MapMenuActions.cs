@@ -157,8 +157,12 @@ namespace Hrot.Common.Actions
         /// facts its rows depend on, read once; composed from the catalogue; cached per (target, facts) and rebuilt when the order vocabulary
         /// changes (a hot-reloaded behaviour assembly).
         /// </summary>
-        public static string JsonFor(ISimulationView view, Entity entity)
+        public static string JsonFor(ISimulationView view, Entity entity, System.Func<int, bool>? runsHere = null)
         {
+            // ⭐ B-11 A2 — a station's view of the menu (greyed where it binds no handler): composed per right-click, not cached (the cache
+            //   holds the station-free menu, which MenuShortcuts and the goldens read)
+            if (runsHere != null) return MenuComposer.Json(ContextFor(view, entity), runsHere);
+
             var vocabulary = Hrot.Common.Orders.OrderMenu.Orders;
             if (!ReferenceEquals(vocabulary, System.Threading.Volatile.Read(ref _menusBuiltFor)))
             {

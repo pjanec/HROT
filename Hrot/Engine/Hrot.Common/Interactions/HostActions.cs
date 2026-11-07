@@ -15,7 +15,15 @@ namespace Hrot.Common.Interactions
             InteractionBus = new FdpEventBus();
             InteractionEventRegistry.RegisterAll(InteractionBus);
             Dispatch = new GlobalActionDispatchSystem(Actions, InteractionBus);
+            ByBus.AddOrUpdate(InteractionBus, this);
         }
+
+        // ⭐ B-11 A2 (docs/UX/DESIGN_Action_Catalogue.md §7) — the host whose InteractionBus this is. Every map is handed its host's bus
+        //   (MapInteraction.InteractionBus IS HostActions.InteractionBus), so the map's menu finds what runs here by construction.
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<FdpEventBus, HostActions> ByBus = new();
+
+        // The host that owns <paramref name="bus"/>, or null for a bus no host made.
+        public static HostActions? For(FdpEventBus? bus) => bus != null && ByBus.TryGetValue(bus, out var host) ? host : null;
 
         // The host's action registry (action id -> handler).
         public GlobalActionRegistry Actions { get; } = new();

@@ -110,8 +110,39 @@ namespace Hrot.Common.Actions
             return items.ToArray();
         }
 
+        /// <summary>⭐ B-11 A2 — the reason a row this station cannot run is greyed with.</summary>
+        public const string NotOnThisStation = "Not available on this station";
+
+        /// <summary>
+        /// ⭐⭐ B-11 A2 (design §2.1 "binding", §7) — the rows as THIS station offers them: a row whose action <paramref name="runsHere"/> says no is
+        /// GREYED with <see cref="NotOnThisStation"/> (a gap to fix, R-4119 — ⛔ never silently clickable, never silently hidden); a row already greyed
+        /// keeps its own reason; submenus are walked. Returns new rows; the input is untouched.
+        /// </summary>
+        public static ContextMenuItemDto[] ForStation(ContextMenuItemDto[] rows, Func<int, bool> runsHere)
+        {
+            var result = new ContextMenuItemDto[rows.Length];
+            for (int i = 0; i < rows.Length; i++)
+            {
+                var r = rows[i];
+                bool grey = r.Id != 0 && r.IsSeparator != true && !runsHere(r.Id) && r.Enabled != false;
+                var children = r.Children is { } c ? ForStation(c, runsHere) : null;
+                result[i] = !grey && children == null ? r : new ContextMenuItemDto
+                {
+                    Id = r.Id, Label = r.Label, Icon = r.Icon, Style = r.Style, Shortcut = r.Shortcut, IsSeparator = r.IsSeparator,
+                    AllowedInIdle = r.AllowedInIdle, Priority = r.Priority, IsChecked = r.IsChecked, Children = children,
+                    Enabled = grey ? false : r.Enabled,
+                    Tooltip = grey ? NotOnThisStation : r.Tooltip,
+                };
+            }
+            return result;
+        }
+
         /// <summary>The menu JSON for <paramref name="context"/> — what <c>ContextMenuProjectorGizmo.MenuJsonFor</c> returns.</summary>
         public static string Json(ActionContext context, ActionCatalogue? catalogue = null)
             => JsonSerializer.Serialize(Compose(context, catalogue), Options);
+
+        /// <summary>⭐ B-11 A2 — the menu JSON as this station offers it (<see cref="ForStation"/>).</summary>
+        public static string Json(ActionContext context, Func<int, bool> runsHere, ActionCatalogue? catalogue = null)
+            => JsonSerializer.Serialize(ForStation(Compose(context, catalogue), runsHere), Options);
     }
 }

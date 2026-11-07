@@ -65,11 +65,15 @@ public sealed class MapEntityMenuHandler : IEntityContextMenuHandler
     /// <summary>The map's menu for <paramref name="entity"/> on this node — what this node's map binds for it
     /// (<see cref="Hrot.Common.Diagnostics.Gizmos.ContextMenuProjectorGizmo.MenuJsonFor"/>). Null for an entity the map gives no menu
     /// (dead, or no network id).</summary>
-    public static string? MenuJsonOf(EntityRepository world, Entity entity)
+    /// <param name="runsHere">⭐ B-11 A2 — the station's actions: a row it cannot run comes back greyed ("Not available on this station");
+    /// null — the station-free menu.</param>
+    public static string? MenuJsonOf(EntityRepository world, Entity entity, Func<int, bool>? runsHere = null)
     {
         if (entity.IsNull || !world.IsAlive(entity)) return null;
         if (Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(world, entity) <= 0) return null;   // BP-508 — the ONE resolver
-        return Hrot.Common.Diagnostics.Gizmos.ContextMenuProjectorGizmo.MenuJsonFor(world, entity);
+        return runsHere != null
+            ? Hrot.Common.Actions.MapMenuActions.JsonFor(world, entity, runsHere)
+            : Hrot.Common.Diagnostics.Gizmos.ContextMenuProjectorGizmo.MenuJsonFor(world, entity);
     }
 
     private static void AddAll(IContextMenuBuilder builder, JsonElement items, Entity entity, Hrot.Common.Interactions.HostActions host)

@@ -320,3 +320,32 @@ vocabulary is hot-reloaded data · **the composer in Presentation with a callbac
 
 **Rails:** `TheMenusAreGoldenTests` (24 cases, byte-identical before and after — captured at `f768aa019`, the commit before the refactor) ·
 `TheActionCatalogueComposesMenusTests` (a duplicate declaration throws; separators only between non-empty groups).
+
+## 7. ⭐ A2 — a row this station cannot run is GREYED *(ui, `2026-11-07`, built)*
+
+```mermaid
+sequenceDiagram
+  participant T as map terminal (right-click)
+  participant R as MenuResolver (MapInteractionPack.BuildRenderLayer)
+  participant H as HostActions.For(bus)
+  participant M as MapMenuActions.JsonFor(view, entity, runsHere)
+  participant C as MenuComposer
+  T->>R: the clicked entity's network id
+  R->>H: the host whose InteractionBus this map was handed
+  R->>M: runsHere = host.Actions.Has
+  M->>C: Compose(context) then ForStation(rows, runsHere)
+  C-->>T: a row with no handler here: enabled false, "Not available on this station"
+```
+*What it shows: no host passes anything — every map is handed its host's `InteractionBus` (`MapInteraction.InteractionBus` IS
+`HostActions.InteractionBus`), and `HostActions` registers itself under that bus at construction, so the map finds what runs here by
+construction.*
+
+| | as built |
+|---|---|
+| the rule | `MenuComposer.ForStation(rows, runsHere)`: an id the host does not run → `Enabled = false`, `Tooltip = "Not available on this station"`; a row already greyed keeps its own reason; submenus walked |
+| where | the map popup (`MenuResolver`); `MenuJsonFor` (station-free) unchanged for `MenuShortcuts` and the A1 golden |
+| ⏭ the inspector / ORBAT | `MapEntityMenuHandler` still HIDES a row with no handler (its builder has no tooltip) — unified in **A5** (inspector closures → actions) |
+| golden movement | `Goldens/menus.station.golden.txt` (the shared map pack's host): exactly two rows greyed — **Save selection as macro…** (only the editor registers it: a real gap on the other hosts) and **Properties…** (registered by `EntityDetailsBundle`, which the pack-only test host lacks — on every real ECS host it runs) |
+
+**Rails:** `TheMenusAreGoldenTests.A2_*` — the station golden; it differs from the A1 golden only in rows the host cannot run (red-proof: grey
+everything ⇒ fails); the map's own resolver greys *Save selection as macro…* end to end through the bus lookup.
