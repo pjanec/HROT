@@ -167,7 +167,7 @@ public sealed class TheMenusAreGoldenTests
     [Fact]
     public void A2_TheMapsMenuResolver_GreysWhatItsHostCannotRun_ByConstruction()
     {
-        using var w = new World(orders: true);
+        using var w = new World(orders: true, mode: Hrot.Common.Editing.EditingMode.Edit);   // ⭐ R-4162: Save selection as macro… is offered in Edit only
         var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
         w.W.SetSingletonManaged(map);
         var mi = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(new Hrot.ScenarioEditor.Map.MapInteractionContext { World = w.W });

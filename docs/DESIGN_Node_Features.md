@@ -181,7 +181,7 @@ the same path `MapInLoad` takes today — so a run cannot change outcome-affecti
 | **F-4** | the only reader | `NodeFeatures.On(id)` — no system reads a run setting, a flag or a host kind for a feature |
 | **F-5** | precedence | **cluster override ▸ node override ▸ composition default** |
 | **F-6** | the composition default | declared by the feature (`DefaultOn(composition)`): e.g. `hud.kill-cam` ON for `-m player`, OFF elsewhere; `map3d.in-load` ON for the Player (today's R-1046) |
-| **F-7** | the node override | `--feature <id>=on|off` (repeatable) and the node config file |
+| **F-7** | the node override | `--feature <id>=on|off` (repeatable) and the node config file — ⚠ measured `2026-11-07`: only `--feature` is built; the runner's `--config` file (`HrotRunnerConfiguration.MergeFromJsonFile`) reads no features. ⏳ CE-4305 adds `"features": { "<id>": {partial config} }` there, below `--feature` (R-4164, first user: `station.seat`) |
 | **F-8** | the cluster override | the run settings carry `FeatureOverrides: [(feature, nodes by name or all, on/off)]`; the master REFUSES an override for a node that does not advertise the feature. `MapInLoadNodes` becomes `(map3d.in-load, nodes, on)` |
 | **F-9** | when a switch takes effect | each feature declares **Live** (now — a HUD element) or **AtLoad** (at the next load — anything that changes simulation outcomes, e.g. `gameplay.team-kill`) |
 | **F-10** | replays | the effective switches of AtLoad features are part of the run's recorded settings, so a replay reproduces the run (S1 measures where run settings are recorded) |

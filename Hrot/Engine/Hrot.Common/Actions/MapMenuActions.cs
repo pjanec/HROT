@@ -100,10 +100,10 @@ namespace Hrot.Common.Actions
             catalogue.Declare(new ActionDecl(GlobalActionIds.FollowUnit, "Follow with the camera", ActionGroup.View, First + 1, Unit));   // ⭐ CE-1293 (UC-2)
             catalogue.Declare(new ActionDecl(GlobalActionIds.Select, "Select", ActionGroup.View, First + 2, Everything) { Shortcut = "Space" });
             catalogue.Declare(new ActionDecl(GlobalActionIds.Properties, "Properties…", ActionGroup.View, First + 3, Everything));   // ⭐ CE-1135
-            catalogue.Declare(new ActionDecl(GlobalActionIds.SaveSelectionAsMacro, "Save selection as macro…", ActionGroup.View, First + 4, Unit));   // ⭐ CE-4210 MA-9
+            catalogue.Declare(new ActionDecl(GlobalActionIds.SaveSelectionAsMacro, "Save selection as macro…", ActionGroup.View, First + 4, Unit) { Modes = ActionModes.InEdit });   // ⭐ CE-4210 MA-9 · R-4162: authoring only
 
             // ── Edit ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-            catalogue.Declare(new ActionDecl(GlobalActionIds.Rotate, "Rotate", ActionGroup.Edit, First, Unit) { Shortcut = "R", Modes = ActionModes.InEdit });   // ⭐ A3 — authoring
+            catalogue.Declare(new ActionDecl(GlobalActionIds.Rotate, "Rotate", ActionGroup.Edit, First, Unit) { Shortcut = "R", Modes = ActionModes.InEdit | ActionModes.InLive });   // ⭐ R-4162 — the same modes as moving by drag and drop
             catalogue.Declare(new ActionDecl(GlobalActionIds.EditOverlay, "Edit Shape", ActionGroup.Edit, First, ActionTarget.Area | ActionTarget.Zone) { Shortcut = "E", Modes = ActionModes.InEdit | ActionModes.InLive });
             catalogue.Declare(new ActionDecl(GlobalActionIds.LoadZone, "Load zone", ActionGroup.Edit, First + 1, ActionTarget.Zone) { Shortcut = "L", Modes = ActionModes.InEdit | ActionModes.InLive });   // ⭐ CE-3024 (E2) — always enabled: the load is cluster-wide
             catalogue.Declare(new ActionDecl(GlobalActionIds.EditRoute, "Edit Route", ActionGroup.Edit, First, ActionTarget.Route) { Shortcut = "E", Modes = ActionModes.InEdit | ActionModes.InLive });
