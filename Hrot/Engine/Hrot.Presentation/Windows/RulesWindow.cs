@@ -227,17 +227,42 @@ public sealed class RulesWindow : ManagedWindow, IRuleDetailsHost
     /// ⭐ CE-4222 RE-8 — creates a rule of <paramref name="kind"/> through the host's ONE creation path (<c>EntityCreation.RequestEntityCreation</c>): <c>common.title</c> = <i>New &lt;kind&gt;</i>, <c>common.parent</c> = the selected row. The entity arrives a few frames later;
     /// the window then selects it and opens its form (<see cref="WatchAdded"/>). False (and a message) when refused.
     /// </summary>
-    public bool AddRule(string kind)
+    public bool AddRule(string kind) => Create(kind, RuleAdd.TitleOf(kind), parent => RuleAdd.NewParamsJson(kind, parent));
+
+    /// <summary>⭐ CE-4308 (RX6) — creates the gallery's starting point <paramref name="t"/> for <paramref name="c"/> through the same ONE path as <see cref="AddRule"/>.</summary>
+    public bool AddFromGallery(RuleGallery.Template t, RuleGallery.Context c)
+        => Create(t.Kind, RuleGallery.TitleOf(t, c), parent => RuleGallery.ParamsJson(t, c, parent));
+
+    private bool Create(string kind, string title, Func<System.Text.Json.Nodes.JsonNode?, string> paramsFor)
     {
         if (AddRefusal() is { } why) { Message = why; return false; }
 
         var known = _view.Rows.Select(r => r.NetworkId).ToHashSet();
         var parent = _selected is { } sel && _view.Find(sel) is { } parentRow && _world() is { } w ? RuleConnect.LinkOf(parentRow, AuthoredRules.ScopeOf(w)) : null;   // ⭐ CE-4225 — the STABLE link (the entity's GUID), not a bare network id
-        string json = RuleAdd.NewParamsJson(kind, parent);
+        string json = paramsFor(parent);
         if (!_editorSvc!.CreateRule!(RuleAdd.TkbOf(kind), kind, json)) { Message = $"the host could not create a {kind}"; return false; }
-        _addWatch = (RuleAdd.TitleOf(kind), known, kind, 0);
-        Message = $"adding {RuleAdd.TitleOf(kind)}…";
+        _addWatch = (title, known, kind, 0);
+        Message = $"adding {title}…";
         return true;
+    }
+
+    /// <summary>⭐ CE-4308 (RX6) — what the gallery is pre-filled with (the unit / area a map menu came from); reset when the gallery closes.</summary>
+    private RuleGallery.Context _galleryCtx = RuleGallery.Context.Empty;
+    private bool _openGallery;
+    private string _gallerySearch = string.Empty;
+
+    /// <summary>The gallery's context while open (rails).</summary>
+    public RuleGallery.Context GalleryContext => _galleryCtx;
+
+    /// <summary>⭐ CE-4308 (RX6, §2.5) — opens the gallery on the next frame, pre-filled with the unit (<paramref name="subjectNetworkId"/>, the rule's subject) and / or the
+    /// area (<paramref name="areaNetworkId"/>) the author came from (0 = none). The map's <i>Add rule about this unit…</i> / <i>When someone enters this area…</i> land here.</summary>
+    public void OpenGallery(int subjectNetworkId = 0, int areaNetworkId = 0)
+    {
+        var scope = _world() is { } w ? AuthoredRules.ScopeOf(w) : null;
+        int phases = _view.Rows.Count(r => r.Status.Phase > 0);
+        _galleryCtx = new RuleGallery.Context(RuleGallery.LinkTo(subjectNetworkId, scope), RuleGallery.LinkTo(areaNetworkId, scope), phases + 1);
+        _gallerySearch = string.Empty;
+        _openGallery = true;
     }
 
     private RuleRow? AddedRow(string title, HashSet<int> known) => _view.Rows.FirstOrDefault(r => r.Title == title && !known.Contains(r.NetworkId));
@@ -579,13 +604,11 @@ public sealed class RulesWindow : ManagedWindow, IRuleDetailsHost
             ImGui.SameLine();
             string? refusal = AddRefusal();
             if (refusal != null) ImGui.BeginDisabled();
-            if (ImGui.Button("+ Add##rules-add")) ImGui.OpenPopup("##rules-add-menu");
+            if (ImGui.Button("+ Add##rules-add")) OpenGallery();
             if (refusal != null) { ImGui.EndDisabled(); if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(refusal); }
-            if (ImGui.BeginPopup("##rules-add-menu"))
-            {
-                foreach (var kind in RuleAdd.Kinds()) if (ImGui.MenuItem(kind)) AddRule(kind);
-                ImGui.EndPopup();
-            }
+            if (_openGallery) { _openGallery = false; ImGui.OpenPopup("##rules-add-menu"); }
+            if (ImGui.BeginPopup("##rules-add-menu")) { DrawGallery(); ImGui.EndPopup(); }
+            else if (!_galleryCtx.Equals(RuleGallery.Context.Empty) && !_openGallery) _galleryCtx = RuleGallery.Context.Empty;
         }
         ImGui.SameLine();
         _end.Draw("rules-end");   // ⭐ CE-4240 — never hidden: disabled with the reason when the scenario has no instructor-end trigger
@@ -595,6 +618,34 @@ public sealed class RulesWindow : ManagedWindow, IRuleDetailsHost
             if (ImGui.SmallButton($"only #{_subtree} and below  ✕##rules-subtree")) _subtree = 0;   // ⭐ R3 — the filter the summary set, with its way out
         }
     }
+
+    /// <summary>⭐ CE-4308 (RX6, rule-list-visual.svg "New rule — choose a starting point") — the gallery: a search, the groups, each starting point; the engine's
+    /// kinds under <i>More…</i> (nothing removed). The rows drawn last frame, for rails: <see cref="GalleryRows"/>.</summary>
+    private void DrawGallery()
+    {
+        ImGui.TextDisabled("New rule - choose a starting point");
+        ImGui.SetNextItemWidth(260f);
+        ImGui.InputTextWithHint("##rules-gallery-search", "search", ref _gallerySearch, 48);
+        var shown = RuleGallery.For(_galleryCtx, _gallerySearch);
+        _galleryRows.Clear();
+        string? group = null;
+        foreach (var t in shown)
+        {
+            if (t.Group != group) { group = t.Group; ImGui.SeparatorText(group); }
+            _galleryRows.Add(t.Label);
+            if (ImGui.MenuItem(t.Label)) { AddFromGallery(t, _galleryCtx); ImGui.CloseCurrentPopup(); }
+        }
+        ImGui.Separator();
+        if (ImGui.BeginMenu("More... (every kind)"))
+        {
+            foreach (var kind in RuleAdd.Kinds()) if (ImGui.MenuItem(kind)) { AddRule(kind); ImGui.CloseCurrentPopup(); }
+            ImGui.EndMenu();
+        }
+    }
+
+    private readonly List<string> _galleryRows = new();
+    /// <summary>The gallery rows drawn last frame (rails).</summary>
+    public IReadOnlyList<string> GalleryRows => _galleryRows;
 
     private void DrawDetails()
     {

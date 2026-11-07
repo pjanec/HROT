@@ -236,6 +236,33 @@ Rails: `RuleEditorR5bTests.ADoStep_ReadsAsASentence_…`, `TheListLine_SaysWhatE
 timing* (Begin phase when … · End the exercise when …), *Reinforcements* (Bring in … when …), *Messages* (Brief Blue when …), *Scoring*
 (measures — hit ratio, report latency … — a separate group, for exercise designers). Each opens pre-filled in Details.
 
+**As-built — RX6** *(behaviors, `2026-11-07`, CE-4308)*:
+
+```mermaid
+sequenceDiagram
+  participant M as map menu (unit / area, Edit mode)
+  participant H as HostActions (the host's registry)
+  participant B as RulesBundle (every host)
+  participant W as RulesWindow
+  participant G as RuleGallery (pure)
+  participant C as EntityCreation (the ONE path)
+  M->>H: AddRuleAboutUnit (545) / AddRuleForArea (546)
+  H->>B: the handler the bundle bound at construction
+  B->>W: IsOpen, OpenGallery(subject or area)
+  W->>G: For(context, search)
+  W->>C: AddFromGallery → CreateRule(TKB, kind, ParamsJson)
+  C-->>W: the new row appears → selected, its tab opened
+```
+
+*What the picture shows that prose hid:* the map never knows the Rules window — the menu row is a catalogue DECLARATION (`RuleMenuActions`, beside
+`MapMenuActions`; Action Catalogue Q4) and the BINDING is the rules bundle's, so every host that composes the bundle has it and a host that does not
+greys the row (A2). **+ Add** opens the same gallery (the mockup's groups and labels, `RuleGallery.All`; an area adds *When someone enters this
+area…* first, its *when* built with the condition editor's own row — *any of Blue side is inside the area*); the engine's kinds stay under
+*More… (every kind)* — nothing removed. A unit becomes the rule's `common.subject` (and *Destroy / Protect / Survive*'s target); *Begin a phase when …*
+takes the next phase number (CE-4302). ⚠ *Survive* = *Protect* of the unit itself (no separate kind exists). ⏭ **Not here:** the mission task's
+*New rule…* (ui's Orders tab, P-7 7c) and the timeline's *Add rule at this moment…* (ui's A6 timeline targets) — both call `RulesWindow.OpenGallery`.
+Rails: `RuleEditorR5cTests.CE4308_*`, `TheRulesBundleTests.CE4308_*`; the menu goldens gained the two rows.
+
 ### 2.6 Where it runs
 
 | | rule |

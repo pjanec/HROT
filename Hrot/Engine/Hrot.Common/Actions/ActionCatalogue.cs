@@ -65,7 +65,7 @@ namespace Hrot.Common.Actions
         private static class SharedHolder
         {
             internal static readonly ActionCatalogue Instance = Build();
-            private static ActionCatalogue Build() { var c = new ActionCatalogue(); MapMenuActions.DeclareInto(c); return c; }
+            private static ActionCatalogue Build() { var c = new ActionCatalogue(); MapMenuActions.DeclareInto(c); RuleMenuActions.DeclareInto(c); return c; }   // ⭐ CE-4308 — each feature declares its own (Q4)
         }
 
         /// <summary>Every declaration, in declaration order.</summary>

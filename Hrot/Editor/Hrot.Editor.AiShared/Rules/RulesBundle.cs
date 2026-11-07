@@ -26,7 +26,7 @@ public sealed class RulesBundle : IUiBundle
             showMoments: n => { Rules.ShowSubtree(n); _windows?.FocusWindow(Rules.Id); }, blocked: host.Blocked) { IsOpen = false };
         TraineeDebrief = new TraineeDebriefWindow(host.World, host.TimelineSource, host.Cursor(), p + "trainee_debrief", host.Perspective, host.Colour) { IsOpen = false };
         GameSummary = new GameSummaryWindow(host.World, host.TimelineSource, host.Cursor(), p + "game_summary", host.Perspective, host.Colour) { IsOpen = false };
-        if (!host.Recording && Editor != null && host.EntityCreation != null)
+        if (!host.Recording && !host.TraineeOnly && Editor != null && host.EntityCreation != null)
             GameMaster = new GameMasterWindow(host.World, p + "game_master", host.Perspective, host.Colour, Editor,
                 createOneShot: json =>
                 {
@@ -36,6 +36,7 @@ public sealed class RulesBundle : IUiBundle
                     return true;
                 },
                 selection: host.Selection, blocked: blocked, enabled: host.GamePaletteEnabled) { IsOpen = false };
+        BindMenuActions();
     }
 
     private Fdp.Presentation.WindowManager.WindowManager? _windows;
@@ -57,6 +58,13 @@ public sealed class RulesBundle : IUiBundle
     {
         ArgumentNullException.ThrowIfNull(ctx);
         _windows = ctx.Windows;
+        if (_host.TraineeOnly)
+        {
+            // ⭐ L-2 (LC-18) — the Player: its own Trainee debrief only (no rules, no summaries), opened when the exercise ends
+            ctx.Windows.RegisterWindow(TraineeDebrief);
+            ctx.Windows.RegisterFrameOverlay(WatchTheRun);
+            return;
+        }
         ctx.Windows.RegisterWindow(Rules);
         if (GameMaster != null) ctx.Windows.RegisterWindow(GameMaster);
         ctx.Windows.RegisterWindow(MissionSummary);
@@ -83,7 +91,8 @@ public sealed class RulesBundle : IUiBundle
         var phase = PhaseOf(w);
         bool started = _lastMode is { } was && was != Hrot.Common.Editing.EditingMode.Live && mode == Hrot.Common.Editing.EditingMode.Live;
         bool ended = phase == Fdp.Toolkit.ScenarioRules.ExercisePhase.Ended && _lastPhase != Fdp.Toolkit.ScenarioRules.ExercisePhase.Ended;
-        if (started || ended) { _windows?.FocusWindow(MissionSummary.Id); SummaryOpenings++; }
+        if (_host.TraineeOnly) { if (ended) { _windows?.FocusWindow(TraineeDebrief.Id); SummaryOpenings++; } }   // the Player: its debrief, at the end only
+        else if (started || ended) { _windows?.FocusWindow(MissionSummary.Id); SummaryOpenings++; }
         _lastMode = mode;
         _lastPhase = phase;
     }
@@ -95,6 +104,26 @@ public sealed class RulesBundle : IUiBundle
         { _resultWorld = w; _results = w.Query().With<Fdp.Toolkit.ScenarioRules.ExerciseResult>().WithLifecycle(Fdp.Core.EntityLifecycle.All).Build(); }
         foreach (var e in _results!) return w.GetComponentRO<Fdp.Toolkit.ScenarioRules.ExerciseResult>(e).Phase;   // the one result entity (ExerciseResult.PhaseOf's rule)
         return Fdp.Toolkit.ScenarioRules.ExercisePhase.Running;
+    }
+
+    /// <summary>⭐ CE-4308 (RX6, DESIGN_Rule_Editor_UX §2.5) — the rules' map-menu entries (declared by <c>RuleMenuActions</c>) bound HERE, once for every host that composes the
+    /// bundle: each opens the Rules window's gallery with the unit as the rule's subject / the area filled in. A host that passes no <see cref="RulesHostServices.Actions"/> has no
+    /// handler, so its map greys the row (A2).</summary>
+    private void BindMenuActions()
+    {
+        if (_host.Actions?.Invoke() is not { } actions) return;
+        actions.Actions.RegisterLocal(Hrot.Common.Constants.GlobalActionIds.AddRuleAboutUnit, (view, target) => OpenGalleryFor(view, target, area: false));
+        actions.Actions.RegisterLocal(Hrot.Common.Constants.GlobalActionIds.AddRuleForArea, (view, target) => OpenGalleryFor(view, target, area: true));
+    }
+
+    /// <summary>Opens the Rules window on its gallery, pre-filled with <paramref name="target"/> (a unit as the subject, or an area).</summary>
+    internal void OpenGalleryFor(Fdp.ModuleHost.Abstractions.ISimulationView view, Fdp.Core.Entity target, bool area)
+    {
+        int net = !target.IsNull && view.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(target)
+            ? view.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(target).Value : 0;
+        Rules.IsOpen = true;
+        Rules.OpenGallery(subjectNetworkId: area ? 0 : net, areaNetworkId: area ? net : 0);
+        _windows?.FocusWindow(Rules.Id);
     }
 
     /// <summary>RV-7 — the Details panel's Objectives tab opens a rule in the Rules window.</summary>
