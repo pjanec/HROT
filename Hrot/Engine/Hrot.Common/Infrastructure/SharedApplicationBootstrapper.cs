@@ -53,6 +53,9 @@ public abstract class SharedApplicationBootstrapper
     /// <summary>The running plan's values. Null until the <c>node-resources</c> step runs.</summary>
     private NodeBootValues? _bootValues;
 
+    /// <summary>⭐ CE-4296 — the capabilities <see cref="NodeExtensions.CapabilitiesFor"/> ADDED (not the host's), in composition order: the ones the base created, so the base frees them in <see cref="DisposeResources"/>.</summary>
+    private IReadOnlyList<INodeCapability> _extensionCapabilities = Array.Empty<INodeCapability>();
+
     /// <summary>⭐ CE-4013 — the ONE walk over this node's capabilities; the base owns it for every subclass. Null until <c>capabilities</c>.</summary>
     private NodeCapabilityWalk? _walk;
 
@@ -206,8 +209,14 @@ public abstract class SharedApplicationBootstrapper
             {
                 // ⭐ CE-4293 (R-4158) — the host's list, then the extensions' capabilities LAST: every node by construction, stripped by role
                 //   (null from CreateCapability) or by feature (F-2). No extensions folder ⇒ the very same list instance. 📄 docs/DESIGN_Node_Extensions.md.
-                _walk = new NodeCapabilityWalk(NodeExtensions.CapabilitiesFor(
-                    new NodeExtensionContext(role, config.Headless, config.SubsystemName), ResolveCapabilities(context, role), declaredResourceKeys));
+                var hostCapabilities = ResolveCapabilities(context, role);
+                var composedCapabilities = NodeExtensions.CapabilitiesFor(
+                    new NodeExtensionContext(role, config.Headless, config.SubsystemName), hostCapabilities, declaredResourceKeys);
+                // ⭐ CE-4296 — what was appended after the host's list is the base's own creation (owner frees): remembered for DisposeResources.
+                _extensionCapabilities = ReferenceEquals(composedCapabilities, hostCapabilities)
+                    ? Array.Empty<INodeCapability>()
+                    : composedCapabilities.Skip(hostCapabilities.Count).ToArray();
+                _walk = new NodeCapabilityWalk(composedCapabilities);
 
                 // ⭐ Node Features — the registry of the composed capabilities' declarations, and the node's ONE reader (F-4).
                 //   An id declared by two capabilities throws here (F-2). 📄 docs/DESIGN_Node_Features.md §6.3.
@@ -697,6 +706,18 @@ public abstract class SharedApplicationBootstrapper
     /// </remarks>
     public void DisposeResources()
     {
+        // ⭐ CE-4296 (R-4158 teardown) — the extensions' capabilities first, in REVERSE composition order, BEFORE the providers they may borrow from.
+        //   Owner frees: only what NodeExtensions added (a host-created capability is its host's to free). A throwing Dispose is one NodeExtensions.Report
+        //   line and the next one still runs. Idempotent: the list is emptied, so a second call does nothing.
+        var extensionCapabilities = _extensionCapabilities;
+        _extensionCapabilities = Array.Empty<INodeCapability>();
+        for (int i = extensionCapabilities.Count - 1; i >= 0; i--)
+        {
+            if (extensionCapabilities[i] is not IDisposable disposable) continue;
+            try { disposable.Dispose(); }
+            catch (Exception e) { NodeExtensions.ReportTeardownFailure(extensionCapabilities[i].Key, e); }
+        }
+
         for (int i = _resourceProviders.Count - 1; i >= 0; i--)
             _resourceProviders[i].Dispose();
 

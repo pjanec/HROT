@@ -157,6 +157,7 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
     /// <inheritdoc/>
     public void Dispose()
     {
+        DisposeResources();   // ⭐ CE-4296 — the node's one teardown (extension capabilities, then providers), as on every other host
         Context?.Participant?.Dispose();
     }
 

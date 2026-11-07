@@ -159,7 +159,7 @@ public sealed class SharedApplicationBootstrapperTests
         }
 
         /// <summary>⭐ CE-4013 — the capabilities the base walks.</summary>
-        public IReadOnlyList<INodeCapability> TestCapabilities { get; init; } = Array.Empty<INodeCapability>();
+        public IReadOnlyList<INodeCapability> TestCapabilities { get; set; } = Array.Empty<INodeCapability>();
 
         /// <summary>⭐ CE-4013 — models a subclass that forgets the Register phase.</summary>
         public bool SkipRegisterCapabilities { get; init; }
@@ -399,6 +399,70 @@ public sealed class SharedApplicationBootstrapperTests
             Assert.Equal(NodeRole.None, last.Role);
             Assert.True(last.Offline);       // HeadlessConfig: Headless = true
             Assert.Equal("TestNode", last.HostName);
+        }
+        finally { Hrot.Common.Infrastructure.NodeExtensions.ResetForTests(); }
+    }
+
+    // ── ⭐ CE-4296 — teardown: the base frees the capabilities it ADDED, before the providers ─────────────────────────────────────
+
+    private static readonly List<string> TeardownLog = new();
+
+    private sealed class LoggingCapability : INodeCapability, IDisposable
+    {
+        private readonly string _name;
+        public LoggingCapability(string name) => _name = name;
+        public string Key => "cap:teardown-" + _name;
+        public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
+        public void Dispose() { lock (TeardownLog) TeardownLog.Add("dispose:" + _name); }
+    }
+
+    private sealed class ThrowingDisposeCapability : INodeCapability, IDisposable
+    {
+        public string Key => "cap:teardown-throwing";
+        public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
+        public void Dispose() { lock (TeardownLog) TeardownLog.Add("dispose:throwing"); throw new InvalidOperationException("dispose-boom"); }
+    }
+
+    public sealed class TeardownExtA : INodeExtension { public string Name => "A"; public INodeCapability? CreateCapability(NodeExtensionContext c) => new LoggingCapability("A"); }
+    public sealed class TeardownExtThrowing : INodeExtension { public string Name => "T"; public INodeCapability? CreateCapability(NodeExtensionContext c) => new ThrowingDisposeCapability(); }
+    public sealed class TeardownExtB : INodeExtension { public string Name => "B"; public INodeCapability? CreateCapability(NodeExtensionContext c) => new LoggingCapability("B"); }
+
+    private sealed class LoggingProvider : Hrot.Common.Infrastructure.INodeResourceProvider
+    {
+        public string Key => Hrot.Common.Infrastructure.ResourceKeys.TrajectoryPool;
+        public void Allocate(HrotNodeContext context, Hrot.Common.Infrastructure.NodeBootValues values) => values.Set(Key, new object());
+        public void Dispose() { lock (TeardownLog) TeardownLog.Add("dispose:provider"); }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4296 (design section 7) — <c>DisposeResources()</c> frees the capabilities the extensions ADDED, each once, in REVERSE composition order,
+    /// BEFORE the resource providers; a throwing one is one report line and the next still runs; a HOST-created disposable capability is not touched;
+    /// a second call does nothing. 🔴 Red-proofs: no dispose · after the providers · host capabilities too · stop on the first throw.
+    /// </summary>
+    [Fact]
+    public void CE4296_DisposeResources_FreesTheExtensionsCapabilitiesInReverse_BeforeTheProviders_AndOnlyThose()
+    {
+        Hrot.Common.Infrastructure.NodeExtensions.ResetForTests();
+        lock (TeardownLog) TeardownLog.Clear();
+        try
+        {
+            Hrot.Common.Infrastructure.NodeExtensions.Add(typeof(TeardownExtA), "");
+            Hrot.Common.Infrastructure.NodeExtensions.Add(typeof(TeardownExtThrowing), "");
+            Hrot.Common.Infrastructure.NodeExtensions.Add(typeof(TeardownExtB), "");
+            var factory = new Hrot.Editor.OfflineNetworkFactory();
+            var host = TestBootstrapper.WithResources(factory, new[] { Hrot.Common.Infrastructure.ResourceKeys.TrajectoryPool }, new LoggingProvider());
+            host.TestCapabilities = host.TestCapabilities.Append(new LoggingCapability("host")).ToArray();   // a host-created disposable
+            host.BootstrapNode(HeadlessConfig(), NodeRole.None, factory);
+            Assert.Equal(5, host.Capabilities.Count);   // borrowing, host, A, throwing, B
+
+            host.DisposeResources();
+            string[] first;
+            lock (TeardownLog) first = TeardownLog.ToArray();
+            Assert.Equal(new[] { "dispose:B", "dispose:throwing", "dispose:A", "dispose:provider" }, first);   // reverse; the throw did not stop A; providers LAST; no "host"
+            Assert.Contains(Hrot.Common.Infrastructure.NodeExtensions.Report, l => l.Contains("cap:teardown-throwing") && l.Contains("dispose-boom"));
+
+            host.DisposeResources();   // idempotent
+            lock (TeardownLog) Assert.Equal(first, TeardownLog.ToArray());
         }
         finally { Hrot.Common.Infrastructure.NodeExtensions.ResetForTests(); }
     }

@@ -33,6 +33,7 @@ public sealed class TheEditorComposesNodeExtensionsTests
         Assert.DoesNotContain("sample.extension", baseline);
 
         NodeExtensions.LoadAll(SampleExtensionStaging.SharedBaseDirectory);
+        bool shutDown = false;
         var editor = new EditorSubsystem();
         editor.Initialize(new SubsystemConfig { Headless = true });
         try
@@ -59,10 +60,17 @@ public sealed class TheEditorComposesNodeExtensionsTests
             for (int i = 0; i < 5; i++) { editor.Update(0.016f); System.Threading.Thread.Sleep(20); }
             Assert.Equal(off, (int)gated.GetValue(null)!);                        // the featured module system is gone ...
             Assert.True((int)executions.GetValue(null)! > groupOff);             // ... the rest of the node and the extension's other system run on
+
+            // ⭐ CE-4296 — the editor's Shutdown (DisposeResources) frees the capability the base added, once.
+            var disposals = NodeExtensions.Discovered[0].GetType().GetField("Disposals")!;
+            int disposedBefore = (int)disposals.GetValue(null)!;
+            editor.Shutdown();
+            shutDown = true;
+            Assert.Equal(disposedBefore + 1, (int)disposals.GetValue(null)!);
         }
         finally
         {
-            editor.Shutdown();
+            if (!shutDown) editor.Shutdown();
             NodeExtensions.ResetForTests();
         }
     }

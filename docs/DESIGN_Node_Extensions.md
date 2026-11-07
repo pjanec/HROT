@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-07
-build-state: BUILT (sections 1-6); section 7 teardown READY-TO-BUILD (CE-4296) (CE-4293, as-built notes in section 6)
+build-state: BUILT (sections 1-6, CE-4293; section 7 teardown, CE-4296; as-built notes in sections 6 and 7.1)
 current-answer: whole document; section 6 (as-built) overrides anything above it where they differ
 stale-below: none
 related-designs:
@@ -170,7 +170,7 @@ Built as designed (6 files: `Infrastructure/NodeExtensions.cs` with `INodeExtens
 | 6.9 | Authoring rules the sample hit: every system and module declares `[TickMode]` (CE-3293); a system needs `[UpdateInPhase]` when a module registers it; an `IEcsModule` must implement `Policy` (the interface's default `Policy`/`Tier` pair recurse into each other: stack overflow). | learned by running it |
 | 6.10 | Test seams: `NodeExtensions.ResetForTests()` / `Add(Type, folder)` (internal), `InternalsVisibleTo Hrot.NodeComposition.Tests` on `Hrot.Common`, `EditorSubsystem.CapabilitiesForTest` (ui lane's file, one property). Rails: `Hrot.Common.Tests/NodeExtensions/NodeExtensionsTests` (1, 2, 3), `SharedApplicationBootstrapperTests.CE4293_*` (4 at the base), `Hrot.Editor.Tests/TheEditorComposesNodeExtensionsTests` (4, 5). Tests that load an extension run in a non-parallel collection (`NodeExtensions` is process state). | |
 
-## 7. Teardown (CE-4296, user 2026-11-07: "Fix the teardown") - READY-TO-BUILD
+## 7. Teardown (CE-4296, user 2026-11-07: "Fix the teardown") - BUILT
 
 Measured: the kernel never disposes modules or systems (`ModuleHostKernel.cs:450-457`); a node's one teardown is the base's
 `DisposeResources()` (`SharedApplicationBootstrapper.cs:698`), called by the editor (`EditorSubsystem.Shutdown`, `:5116`), CGF
@@ -208,3 +208,15 @@ Rails: an extension capability that is `IDisposable` is disposed once by `Dispos
 before the providers (order observed); not disposed twice on a second call; a throwing one is reported and the next still
 disposed; a host capability is NOT disposed; the headless editor's `Shutdown` disposes the sample extension's capability; the
 Player and Stride paths call `DisposeResources()` (a forwarding rail on the constructed host, CLAUDE.md silent-default rule).
+
+### 7.1 As-built (CE-4296)
+
+Built as designed; the sequence diagram above matches. Where and how:
+
+| # | as built | note |
+|---|---|---|
+| 7.1.1 | `SharedApplicationBootstrapper` records `composed.Skip(hostList.Count)` when `CapabilitiesFor` returned a new list (nothing when it returned the host's own instance); `DisposeResources()` empties that list first (idempotent), disposes the `IDisposable` ones in reverse order, each in its own `try`, THEN the providers (unchanged). | host-created capabilities are never in the list |
+| 7.1.2 | **A throwing `Dispose` is reported through `NodeExtensions.Report`** (new internal `ReportTeardownFailure`, line `extension capability '<key>': Dispose threw ...`), not a second report: the base has no report of its own, and one place is where an operator already looks. | the next capability is still disposed |
+| 7.1.3 | `PlayerApplication.Shutdown` calls `_playerBootstrapper?.DisposeResources()` right after the cluster slave is disposed and before the network adapter and the node context - the order `SimHostApp.Shutdown` uses (providers before the context, whose resources they are). `StrideNodeBootstrapper.Dispose` calls `DisposeResources()` before the participant. | Stride IS the bootstrapper |
+| 7.1.4 | Rails: `SharedApplicationBootstrapperTests.CE4296_*` (order observed with a logging provider: B, throwing, A, provider; no host capability; second call no-op; report line), `StrideNodeBootstrapperTests.CE4296_*`, `TheEditorComposesNodeExtensionsTests` (the editor's `Shutdown` frees the sample's capability, once), `ThePlayerTearsDownNodeExtensionsTests` (a headless embedded Player, domain 228; DDS domain ids above 232 fail to create a participant). The sample extension's capability is `IDisposable` with a static `Disposals` counter. | both Player and Stride rails are on the CONSTRUCTED host |
+| 7.1.5 | Still open and untouched: CE-4297 (the editor's `TrafficPack` is never disposed). | |
