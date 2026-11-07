@@ -158,6 +158,52 @@ public sealed class MenuOrdersTests : IDisposable
         Assert.Empty(bus.Read<Hrot.Common.Interactions.MapShortcutKeyEvent>().ToArray());
     }
 
+    /// <summary>
+    /// ⭐ B-10 K2 (docs/UX/DESIGN_Input_And_Commands.md §6, CE-4281) — while the free-fly camera FLIES (the right button held), its W A S D E Q
+    /// are movement keys: A / S / E must not also fire Attack / Strike / Edit on the selected unit. Released, the letters work again.
+    /// ✅ Red-proof: the layer not asking <c>IsFlying</c> ⇒ 'A' is published while flying.
+    /// </summary>
+    [Fact]
+    public void CE4281_WhileTheFreeFlyCameraFlies_TheMenuLettersStandDown()
+    {
+        var bus = new Fdp.Core.FdpEventBus();
+        Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(bus);
+        var camera = new Fdp.Toolkit.Vis3D.MapCamera3D { ViewportOverride = new Vector2(640, 480) };
+        var layer = new MenuShortcutKeyLayer(bus, () => camera, () => false);
+        var rmb = new RightButton { Down = true };
+
+        camera.HandleInput(rmb);
+        camera.HandleInput(rmb);
+        Assert.True(camera.IsFlying);
+        layer.HandleKeyInput((Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey)'A');
+        bus.SwapBuffers();
+        Assert.Empty(bus.Read<Hrot.Common.Interactions.MapShortcutKeyEvent>().ToArray());
+
+        rmb.Down = false;
+        camera.HandleInput(rmb);
+        Assert.False(camera.IsFlying);
+        layer.HandleKeyInput((Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey)'A');
+        bus.SwapBuffers();
+        Assert.Equal('A', (char)Assert.Single(bus.Read<Hrot.Common.Interactions.MapShortcutKeyEvent>().ToArray()).Key);
+    }
+
+    private sealed class RightButton : Fdp.Toolkit.Vis2D.Abstractions.IInputProvider
+    {
+        public bool Down;
+        public Vector2 MousePosition => new(320, 240);
+        public Vector2 MouseDelta => Vector2.Zero;
+        public float MouseWheelMove => 0f;
+        public bool IsMouseButtonPressed(Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton b) => false;
+        public bool IsMouseButtonDown(Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton b) => Down && b == Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton.Right;
+        public bool IsMouseButtonReleased(Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton b) => false;
+        public bool IsKeyPressed(Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey k) => false;
+        public bool IsKeyDown(Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey k) => false;
+        public bool IsKeyReleased(Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey k) => false;
+        public int GetKeyPressed() => 0;
+        public bool IsMouseCaptured => false;
+        public bool IsKeyboardCaptured => false;
+    }
+
     private sealed class NoDriver : Fdp.Toolkit.Vis3D.ICameraDriver
     {
         public void Update(Fdp.Toolkit.Vis3D.MapCamera3D camera, float dt) { }

@@ -307,3 +307,32 @@ command's `DefaultKey` appears in the keymap (one declaration source).
 `WindowManager.Render`: only the focused window gets Ctrl+F; a click on the void gives the map the keys) · `MapCanvasTests.B10_K1_…` (keys
 follow focus, not the mouse) · `BcpBatch02FixCanvasTests.Router_*` (two canvases, one focused; typing; popups; the keymap declares the
 canvas commands) · `SaveCommandsTests.Hotkey_CtrlS_…` (Global from any focus).
+
+## 6. ⭐ K2 — the map scope *(ui, `2026-11-07`; partly built — the hat scopes wait for the HatArbiter)*
+
+INVENTORY: `scripts/cbm.sh search_graph .*Hat.*` (Class) ⇒ **10, none a hat** (case-insensitive: Chat / That) — ⛔ no hat type exists; the
+`HatArbiter` is [seats-and-hats](DESIGN_Seats_And_Hats.md) **H3** (B-16, after B-11). The map's letters today: `MenuShortcutKeyLayer`
+(Hrot.Presentation, a map layer fed by the canvas's key drain) → `MapShortcutKeyEvent` → `MenuShortcuts` (backend system) resolves the
+letter against the primary unit's menu (`ContextMenuProjectorGizmo.MenuJsonFor`) — ⭐ already the dumb-terminal split §2.4 asks for.
+
+```mermaid
+graph TD
+  DRAIN["MapCanvas key drain — only while the map has the keyboard (K1)"] --> LAYER["MenuShortcutKeyLayer.HandleKeyInput"]
+  LAYER -->|"camera driver set (Embodied) — stand down"| X1["nothing"]
+  LAYER -->|"free-fly camera flying (Observe, RMB held) — stand down (K2, CE-4281)"| X2["nothing"]
+  LAYER -->|"otherwise"| EV["MapShortcutKeyEvent (the terminal's raw key)"]
+  EV --> MS["MenuShortcuts (backend) — the unit menu's letter → GizmoMenuActionEvent"]
+  H3["HatArbiter (H3, not built)"] -.->|"later: the active hat's scope decides, not the camera's state"| LAYER
+```
+*What it shows: the two stand-downs are hat facts read off the camera today (a driver = Embodied, flying = Observe's movement keys); once the
+`HatArbiter` exists they become the hat's declared scope, in the same place.*
+
+| piece | state |
+|---|---|
+| CE-4281 — free-fly W A S D E Q fired Attack / Strike / Edit | ✅ **built**: `MapCamera3D.IsFlying` (RMB held), `MenuShortcutKeyLayer` stands down while it is true; rail `MenuOrdersTests.CE4281_…` |
+| the hat scopes before the map scope | ⏭ with **H3** (`HatArbiter`) — ⛔ not invented here: a second hat state beside the arbiter would be the duplicate ruling 9 forbids |
+| the map letters declared on the actions (no auto-derived letters) | ⏭ with **B-11 / K5** — the letter belongs to the catalogue's `ActionDecl.Shortcut`; today it is derived from the order name (`ContextMenuProjectorGizmo.cs:149`) |
+| `MenuShortcuts` as the router's map scope | ✅ already the shape §2.4 wants: the backend resolves the terminal's raw key; the router does not see map keys (Q7) |
+
+*Rejected:* **a hat enum in the router now** — the HatArbiter owns it (H3) · **stopping the camera reading W A S D while a unit is
+selected** — free-fly would stop working with a selection.

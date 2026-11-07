@@ -113,7 +113,7 @@ namespace Hrot.ScenarioEditor.Map
     /// <summary>
     /// ⭐ CE-1076 — the canvas' half: every key typed on the map (the canvas routes only keys no panel took) becomes a
     /// <see cref="MapShortcutKeyEvent"/> for <see cref="MenuShortcuts"/>. Silent while a camera driver (first person) holds the map —
-    /// there W, A, S, D and C drive the unit. Consumes nothing.
+    /// there W, A, S, D and C drive the unit — and while the free-fly camera is flying (B-10 K2, CE-4281). Consumes nothing.
     /// </summary>
     public sealed class MenuShortcutKeyLayer : IMapLayer
     {
@@ -135,6 +135,8 @@ namespace Hrot.ScenarioEditor.Map
         public bool HandleKeyInput(VisKey key)
         {
             if (_camera() is Fdp.Toolkit.Vis3D.MapCamera3D { Driver: not null }) return false;
+            // ⭐ B-10 K2 (CE-4281) — nor while the free-fly camera is flying: its W A S D E Q are held movement keys, never Attack / Strike / Edit
+            if (_camera() is Fdp.Toolkit.Vis3D.MapCamera3D { IsFlying: true }) return false;
             if (_bus.IsRegistered<MapShortcutKeyEvent>())
                 _bus.Publish(new MapShortcutKeyEvent { Key = (int)key, Modified = _modified() });
             return false;
