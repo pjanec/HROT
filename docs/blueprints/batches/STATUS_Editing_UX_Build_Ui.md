@@ -56,6 +56,6 @@
 | L-2 | CE-4320 | started (ui) | — | the RulesBundle opens Mission summary at Live start / exercise end on every host; the Player's Trainee debrief at the end |
 | L-10 | CE-4317 | started (ui) | — | the Run setup on the mode menu, Preview AND Live |
 | L-11 | CE-4319 | ✅ DONE | (this commit) | ▶ in the colour of the mode a press plays — `MainToolbarTimeControlSection.PlayColour(mode, armed)` from the ONE indicator table (Edit: the armed mode; a run: its own — DAR amber), `TransportIcons.DrawTransportButton(…, playTint)`. Fidelity: the real frame rendered and read (`ColourIconsFrameRail.L11_…`, `play-colours.png`: green / violet / blue); red-proved (the tint dropped ⇒ red). Gates: MainToolbarTimeControl 82/82, ColourIconsFrameRail 5/5 (xvfb) |
-| L-12 | CE-4311 | started (ui) | — | an empty scenario's map hint |
+| L-12 | CE-4311 | ✅ DONE | (this commit) | `Hrot.UI.Common.Map2D.EmptyScenarioHintLayer` — *"Empty scenario — right-click the map ▸ Add Entity"* in the map's centre while a terrain is loaded, the station edits (`StationMode`) and no `EntityInfo` exists; added in `MapInteractionPack` beside the framing ⇒ every map host. 0 B per steady check (railed). ⚠ Deviation: LC-1's *"or press A"* left out — no A key is bound (it comes with the keymap, B-10). Red-proved. Gate: Presentation.Tests EmptyScenarioHint/TerrainFraming/MapInteractionPack 18/18 |
 | L-13 | CE-4313 | started (ui) | — | ORBAT: New group here, the Commander row, the drop says what it does |
 | L-14 | CE-4314 | started (ui) | — | Copy plan / Paste plan (after P-7) |
