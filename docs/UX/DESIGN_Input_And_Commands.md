@@ -180,6 +180,7 @@ forwards, so a remote viewer gets exactly the same map keys as the local map, an
 | **K3** | central Esc (Tool Model step 6); gizmos stop reading Esc |
 | **K4** | the FPS station, the timeline, IG pan / zoom / undo, debug F-keys onto bindings (Hold / Axis kinds for the held ones) |
 | **K5** | `IEditorCommands` and `RegisterItem` closures as actions; buttons and keys call action ids; the dead seam deleted |
+| **K7** *(R-4163)* | **every user input, not only keys**: mouse gestures on the map (left / right click on an entity, on ground, a drag, Shift / Ctrl variants) become bindings in the same scope chain; the map scope binds the selection rules (Action Catalogue §8) and *right click = the menu*; the **RTS scope** overrides only what it changes (§6b); `RtsCommandGizmo`'s hand-written mouse handling becomes its bindings | a rail per scope: the same click resolves to the menu in the map scope and to Move / Attack in the RTS scope; an unbound key (2-D / 3-D, Ctrl+S) still works in RTS |
 | **K6** | the Keyboard shortcuts window; user overrides in a settings file; rebind UI later |
 
 ## 4. Questions — ✅ approved as revised *(🔒 user, `2026-11-06`: "otherwise it looks good")*
@@ -336,3 +337,26 @@ graph TD
 
 *Rejected:* **a hat enum in the router now** — the HatArbiter owns it (H3) · **stopping the camera reading W A S D while a unit is
 selected** — free-fly would stop working with a selection.
+
+### 6b. ⭐ The scope covers ALL input — keys AND mouse gestures; RTS is one scope *(R-4163, user `2026-11-07`)*
+
+🔒 *"the scope definitely needs to cover both key presses and mouse gestures. It's not just something about key presses, it's about all user inputs."* · *"If it is selected, then there is no escape that could come out of it. You would need to go to the same menu and uncheck the item. So the RTS mode redefines the meaning of the gestures like mouse clicks and some keys, and keeping, for example, the map 2D / 3D switching"*
+
+| rule | |
+|---|---|
+| **a binding is any user input** | a key, a chord, a mouse button on a TARGET (an entity — selected or not —, ground, a gizmo handle), a drag, with modifiers — one `KeyBinding` shape grown to an `InputBinding` (K7) |
+| **RTS = a scope, switched ONLY by its checked menu item** (*View ▸ RTS command mode*, action 254) | stays checked across Edit → Preview → Live; active only in Preview / Live (no effect in Edit); ⛔ **Esc never leaves it** — Esc cancels a half-done gesture inside it (a target pick) and stops; possessing a unit overrides it for the duration, release returns to it |
+| **override, never duplicate** | the RTS scope declares only what it changes (left click = select, right click on ground = Move, on a hostile = Attack, its letters); everything else (2-D / 3-D, camera, Ctrl+S) falls through to the map / global scopes by the existing first-enabled-wins rule |
+
+```mermaid
+graph TD
+  IN["a key or a mouse gesture on the map"] --> RTS{"RTS scope (checked AND Preview / Live)"}
+  RTS -->|"bound: RMB ground = Move, RMB hostile = Attack"| ACT["the action"]
+  RTS -->|"not bound here"| MAP{"map scope: RMB = the menu, LMB = select, M = 2-D / 3-D"}
+  MAP -->|bound| ACT
+  MAP -->|"not bound here"| GLOB["global scope: Ctrl+S ..."]
+  GLOB --> ACT
+```
+*What it shows: RTS changes the meaning of a click by sitting IN FRONT of the map scope — the map's own bindings are never copied, and keys and mouse share one chain.*
+
+⛔ SUPERSEDED: Entity Control §8a's *"Esc leaves"* RTS tool and Seats and Hats Q6's *Esc → out of Command*.

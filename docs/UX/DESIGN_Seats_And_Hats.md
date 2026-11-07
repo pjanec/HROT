@@ -218,5 +218,5 @@ Rails: `NodeFeaturesTests.H1_*`, `EditOutcomeOwnerTests.H1_*`, `TheWriteRoutesAs
 | **Q3** | the hats | **Edit · Command · Embodied · Observe · Direct**, Observe the home hat; the squad wheel inside Embodied | RTS and FPS as independent toggles — today's stacking |
 | **Q4** | where the seat lives | a **node feature with a config**, defaulted by the host row, overridable by a launch flag and the scenario; D4's editing level becomes the seat's | a new per-user login — no users in the engine |
 | **Q5** | enforcement | **at the station** (catalogue + edit gate), trusted network; owner-side checks later if ever needed | anti-cheat now — out of scope |
-| **Q6** | Esc | **one level out** (tool → hat → Observe), everywhere | Esc as "release the unit" and "leave RTS" at once |
+| **Q6** | Esc | **one level out** (tool → hat → Observe), everywhere — ✏ EXCEPT RTS (R-4163): Command is a sticky mode switched only by its checked menu item; Esc stops at it ([Input §6b](DESIGN_Input_And_Commands.md)) | Esc as "release the unit" and "leave RTS" at once |
 | **Q7** | the debugger | **not a seat** — the Author's Expert switches (R-4121) | a Developer seat |

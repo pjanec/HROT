@@ -201,7 +201,7 @@ the resources they borrow; a host-created capability stays the host's to free (t
    (harmless today: they allocate no provider), so all six hosts end a node the same way.
 3. **Contract for extension authors**: a capability that owns threads, sockets or files implements `IDisposable`; it disposes
    what it created (its systems' resources); the kernel does not.
-4. **Found, not fixed here**: the editor never disposes its `TrafficPack` (`EditorSubsystem.cs:226`, built by
+4. ⛔ **REFUTED 2026-11-07 (CE-4297)**: the editor DOES dispose its `TrafficPack` (`EditorSubsystem.cs:5171`, since 994f49bf9); a case-sensitive grep missed the field `_trafficPack`. Original claim: **Found, not fixed here**: the editor never disposes its `TrafficPack` (`EditorSubsystem.cs:226`, built by
    `EditorNodeBootstrapper.cs:267`; `TrafficPack.Dispose` at `TrafficPack.cs:106`) - filed as CE-4297.
 
 Rails: an extension capability that is `IDisposable` is disposed once by `DisposeResources()`, after the host's systems stop and
@@ -219,4 +219,4 @@ Built as designed; the sequence diagram above matches. Where and how:
 | 7.1.2 | **A throwing `Dispose` is reported through `NodeExtensions.Report`** (new internal `ReportTeardownFailure`, line `extension capability '<key>': Dispose threw ...`), not a second report: the base has no report of its own, and one place is where an operator already looks. | the next capability is still disposed |
 | 7.1.3 | `PlayerApplication.Shutdown` calls `_playerBootstrapper?.DisposeResources()` right after the cluster slave is disposed and before the network adapter and the node context - the order `SimHostApp.Shutdown` uses (providers before the context, whose resources they are). `StrideNodeBootstrapper.Dispose` calls `DisposeResources()` before the participant. | Stride IS the bootstrapper |
 | 7.1.4 | Rails: `SharedApplicationBootstrapperTests.CE4296_*` (order observed with a logging provider: B, throwing, A, provider; no host capability; second call no-op; report line), `StrideNodeBootstrapperTests.CE4296_*`, `TheEditorComposesNodeExtensionsTests` (the editor's `Shutdown` frees the sample's capability, once), `ThePlayerTearsDownNodeExtensionsTests` (a headless embedded Player, domain 228; DDS domain ids above 232 fail to create a participant). The sample extension's capability is `IDisposable` with a static `Disposals` counter. | both Player and Stride rails are on the CONSTRUCTED host |
-| 7.1.5 | Still open and untouched: CE-4297 (the editor's `TrafficPack` is never disposed). | |
+| 7.1.5 | CE-4297 REFUTED 2026-11-07: the editor already disposes its `TrafficPack` (`EditorSubsystem.cs:5171`). |

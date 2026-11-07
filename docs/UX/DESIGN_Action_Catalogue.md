@@ -383,9 +383,26 @@ being in the wrong mode. Everything that is not the bootstrapper falls back to A
 |---|---|---|---|---|
 | orders, Order with options, Designate, Possess | — | ✓ | ✓ | — |
 | Embark… / Disembark | ✓ | — | ✓ | — |
-| Center View, Follow, Select, Properties…, Save selection as macro…, Pin gizmos, AI trace | ✓ | ✓ | ✓ | ✓ |
-| Rotate | ✓ | — | — | — |
+| Center View, Follow, Select, Properties…, Pin gizmos, AI trace | ✓ | ✓ | ✓ | ✓ |
+| Save selection as macro… | ✓ | — | — | — |
+| Rotate *(the same modes as moving by drag and drop)* | ✓ | — | ✓ | — |
 | Edit Shape, Edit Route, Load zone, Delete (graphics) | ✓ | — | ✓ | — |
+
+⭐ **USER RULING R-4162 (`2026-11-07`) — this table as corrected by the user** (the A3 review): 🔒 *"Rotate should be possible in life as well, the same way as drag and drop is. Save as macro makes sense only in edit mode."* ⛔ SUPERSEDED: the built golden had Rotate Edit-only and *Save selection as macro…* in every mode. Follow and Select stay in every mode (the lean, not objected to). ⭐ **Save** (the toolbar icon, Ctrl+S, File ▸ Save) writes the scenario ONLY in Edit; in Preview and Live it takes a **checkpoint**; in Review it is not offered — 🔒 *"saving scenario in live mode or in replay mode or elsewhere than the edit is not desired, The save Icon Should work as save only in edit mode, and if used during preview or live, it should create a checkpoint. This was already planned like that."*
+
+⭐ **A4 — WHOM a menu command acts on (R-4162):** 🔒 *"Right-clicking an unselected entity should indeed select just that entity"* · *"if we are right clicking an entity which is already part of the selection, then the menu command should go to all selected ones. Doesn't matter which one was right clicked."*
+
+| you right-click | the selection | the command goes to |
+|---|---|---|
+| an entity **in** the selection | unchanged | **every selected entity**, whichever was clicked |
+| an entity **not** in the selection | becomes **that entity alone** | that entity |
+| empty ground | unchanged | ✏ **the empty-space menu only** (measure, add entity here, centre view …) — never the selection's commands (R-4163) |
+| *left* click an unselected entity | becomes **that entity alone** | — (R-4163) |
+| *left* click empty ground | **cleared** | — (R-4163) |
+
+✏ **R-4163 (`2026-11-07`):** 🔒 *"if there are entities selected and I right click the empty space, the menu should be for the empty space only, not for the selection. If I want it to be applied to the selection, I would click one of the selected entities. Imagine I would like to measure something on the map"*. ⛔ SUPERSEDED: the row *empty ground → the selection (e.g. Move here)*. ⇒ moving the selection = right-click one of them → Move → click the point. ⭐ These rows are the **map scope's mouse bindings** (Input and Commands §6b); in RTS mode the RTS scope overrides them
+
+The click that FOLLOWS a menu command (a target point, a target entity) is the command's parameter, never a command. ⇒ ONE rule for every menu command, orders included; ⛔ SUPERSEDES [Orders §13.12 O6](../DESIGN_Orders_Params_Entity_Classes.md) (*"plain menu orders stay one unit"*).
 
 **Group order:** Edit mode — *Edit, Embark, View, Debug, Destructive*; Preview / Live — *Orders, Embark, View, Edit, Debug, Destructive*
 (A1's); Review — *View, Debug*.
