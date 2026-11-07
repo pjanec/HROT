@@ -225,6 +225,22 @@ public static class OrdersPlanEdits
         return null;
     }
 
+    /// <summary>⭐ L-14 / CE-4314 (LC-6) — the plan as ANOTHER unit's own copy: every task a NEW id (the active one mapped to its new id),
+    /// every task planned again. Triggers name no task id, so they copy as they are.</summary>
+    public static MissionPlan CopyAsNew(MissionPlan plan)
+    {
+        var c = new MissionPlan();
+        foreach (var t in plan.Tasks)
+        {
+            var nt = new MissionTask { TaskId = Guid.NewGuid(), ExecutingEngine = t.ExecutingEngine, BehaviorId = t.BehaviorId, BehaviorParams = t.BehaviorParams, State = Hrot.Core.Mission.eTaskState.TASK_PLANNED };
+            foreach (var trig in t.Triggers) nt.Triggers.Add(new MissionTrigger { Type = trig.Type, Params = trig.Params });
+            if (t.TaskId == plan.ActiveTaskId) c.ActiveTaskId = nt.TaskId;
+            c.Tasks.Add(nt);
+        }
+        if (c.ActiveTaskId == Guid.Empty && c.Tasks.Count > 0) c.ActiveTaskId = c.Tasks[0].TaskId;
+        return c;
+    }
+
     /// <summary>A deep copy (the draft the tab edits; the snapshot stays untouched).</summary>
     public static MissionPlan Copy(MissionPlan plan)
     {

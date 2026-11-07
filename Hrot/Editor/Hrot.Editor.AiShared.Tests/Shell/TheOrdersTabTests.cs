@@ -142,6 +142,59 @@ public sealed class TheOrdersTabEditsTests
             => System.Threading.Tasks.Task.FromResult(new Hrot.UI.Common.Models.MissionCommitResult(true, Version));
     }
 
+    private sealed class FixedSelection(params Fdp.Core.Entity[] e) : IEntitySelectionSource
+    {
+        public IReadOnlyList<Fdp.Core.Entity> Selected() => e;
+    }
+
+    /// <summary>⭐ L-14 / CE-4314 (LC-6) — <i>Copy plan</i> / <i>Paste plan</i>, through the host's actions: a paste on a unit inside the selection
+    /// gives EACH selected unit its own copy (new task ids, all planned, the active one mapped), at its own base version; outside it, that unit alone.
+    /// 🔴 Red-proof (compiles): <c>Paste</c> sending <c>Copy</c> (the same ids) instead of <c>CopyAsNew</c> ⇒ red.</summary>
+    [Fact]
+    public void L14_PastePlan_GivesEachSelectedUnitItsOwnCopy_NewTaskIds_AllPlanned()
+    {
+        using var world = new Fdp.Core.EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        Fdp.Core.Entity Unit(int net) { var e = world.CreateEntity(); world.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(net)); return e; }
+        var (a, b, c, d) = (Unit(1), Unit(2), Unit(3), Unit(4));
+
+        var t1 = Guid.NewGuid(); var t2 = Guid.NewGuid();
+        var svc = new FakeMissions { Plan = new MissionPlan { ActiveTaskId = t2, Tasks =
+        {
+            new MissionTask { TaskId = t1, BehaviorId = "Order.Move", State = eTaskState.TASK_DONE },
+            new MissionTask { TaskId = t2, BehaviorId = "Patrol", State = eTaskState.TASK_ACTIVE, Triggers = { new MissionTrigger { Type = "TimerElapsed", Params = "30" } } },
+        } } };
+        var host = new Hrot.Common.Interactions.HostActions();
+        var plans = new PlanClipboard(() => svc);
+        Hrot.Editor.AiShared.Windows.EntityDetailsBundle.RegisterPlanClipboard(host, plans, new FixedSelection(b, c));
+        Assert.True(host.Actions.TryGetHandler(Hrot.Common.Constants.GlobalActionIds.CopyPlan, out var copy));
+        Assert.True(host.Actions.TryGetHandler(Hrot.Common.Constants.GlobalActionIds.PastePlan, out var paste));
+
+        paste(world, b);
+        Assert.Empty(svc.Commits);                                                         // nothing copied yet ⇒ nothing sent
+        copy(world, a);
+        Assert.Equal(2, plans.TaskCount);
+
+        paste(world, c);                                                                   // c is in the selection ⇒ b AND c
+        Assert.Equal(new[] { 2, 3 }, svc.Commits.ConvertAll(x => x.Net));
+        Assert.All(svc.Commits, x => Assert.Equal(7L, x.Base));
+        var sb = svc.Commits[0].Plan; var sc = svc.Commits[1].Plan;
+        Assert.NotSame(sb, sc);
+        Assert.All(new[] { sb, sc }, p =>
+        {
+            Assert.Equal(new[] { "Order.Move", "Patrol" }, p.Tasks.ConvertAll(t => t.BehaviorId));
+            Assert.DoesNotContain(p.Tasks, t => t.TaskId == t1 || t.TaskId == t2);       // each its own task ids
+            Assert.All(p.Tasks, t => Assert.Equal(eTaskState.TASK_PLANNED, t.State));
+            Assert.Equal(p.Tasks[1].TaskId, p.ActiveTaskId);                               // the active task, mapped
+            Assert.Equal("30", p.Tasks[1].Triggers[0].Params);
+        });
+        Assert.NotEqual(sb.Tasks[0].TaskId, sc.Tasks[0].TaskId);
+
+        paste(world, d);                                                                   // d is not selected ⇒ d alone
+        Assert.Equal(4, svc.Commits[^1].Net);
+        Assert.Equal(3, svc.Commits.Count);
+    }
+
     [Fact]
     public void P7b_ApplySendsTheWholePlanWithItsBaseVersion_AndRefusesAnEmptyWait()
     {

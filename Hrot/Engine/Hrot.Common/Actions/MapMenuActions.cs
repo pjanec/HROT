@@ -83,6 +83,12 @@ namespace Hrot.Common.Actions
                         : new ContextMenuItemDto { Id = GlobalActionIds.Possess, Label = "Possess (FPS)", Shortcut = "P" },
             });
 
+            // ⭐ L-14 / CE-4314 (LC-6) — a plan copied onto other units: planned in Edit, re-planned in Live (the Orders tab's modes).
+            catalogue.Declare(new ActionDecl(GlobalActionIds.CopyPlan,  "Copy plan",  ActionGroup.Orders, First + 4, Unit) { Modes = ActionModes.InEdit | ActionModes.InLive,
+                Offer = ctx => ctx.Unit.Orders ? new ContextMenuItemDto { Id = GlobalActionIds.CopyPlan, Label = "Copy plan" } : null });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.PastePlan, "Paste plan", ActionGroup.Orders, First + 5, Unit) { Modes = ActionModes.InEdit | ActionModes.InLive,
+                Offer = ctx => ctx.Unit.Orders ? new ContextMenuItemDto { Id = GlobalActionIds.PastePlan, Label = "Paste plan" } : null });
+
             // ── Embark (⭐ CE-1230 OM-2, OM-3, R-1019 — the ONE place a unit is embarked / disembarked by hand) ─────────────────────────
             catalogue.Declare(new ActionDecl(GlobalActionIds.Disembark, "Disembark", ActionGroup.Embark, First, Unit)
             {

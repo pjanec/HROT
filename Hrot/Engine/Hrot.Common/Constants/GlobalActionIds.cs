@@ -119,5 +119,10 @@ namespace Hrot.Common.Constants
         //     (the rules bundle binds them on every host that composes it). ⚠ 545 / 546 measured free 2026-11-07.
         public const int AddRuleAboutUnit = 545;
         public const int AddRuleForArea   = 546;
+
+        // --- ⭐ L-14 / CE-4314 (LC-6, DESIGN_Scenario_Lifecycle_Review) — a unit's mission plan copied onto others (each gets its own copy, new task ids).
+        //     ⚠ 547 / 548 measured free 2026-11-07.
+        public const int CopyPlan  = 547;
+        public const int PastePlan = 548;
     }
 }
