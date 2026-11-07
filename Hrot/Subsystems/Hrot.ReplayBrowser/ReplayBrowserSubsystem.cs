@@ -143,7 +143,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
 
     /// <summary>⭐ CE-4148 — this host's feature gate: a Replay Browser builds its own (no cluster node), the editor's defaults (the Player-only HUD aids OFF) plus this process's
     /// <c>--feature</c> overrides. Live features are not recorded, so a replay uses THIS host's settings.</summary>
-    internal Hrot.Common.Infrastructure.NodeFeatures Features => _features ??= Hrot.Common.Infrastructure.HudFeatures.BootGate(playerDefault: false);
+    internal Hrot.Common.Infrastructure.NodeFeatures Features => _features ??= Hrot.Common.Infrastructure.HudFeatures.BootGate(playerDefault: false, seat: Hrot.Common.Infrastructure.Seat.Reviewer);   // ⭐ seats H1 — the Replay Browser is the Reviewer seat
     private Fdp.Toolkit.Time.LifespanSystem? _lifespan;
     private Hrot.UI.Common.Effects.WreckSpawnSystem? _wreckSpawn;
     private Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer? _gizmoLayer;

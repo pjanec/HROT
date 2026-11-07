@@ -2653,11 +2653,11 @@ public sealed class Map3DTests
             for (double t = 0; t < EntityBodyLayer3D.LookAboutCycle; t += 0.5)
                 most = MathF.Max(most, MathF.Abs(EntityBodyLayer3D.IdleMotion(world, man, MotionPose.Still, t).HeadTurn));
             Assert.True(most > 0.4f, "he looks about");
-            world.AddComponent(man, new Fdp.Toolkit.Perception.Look.LookState { HeadYaw = 0.3f });
+            world.AddComponent(man, new Fdp.Toolkit.Perception.Look.LookState { HeadYaw = (Fdp.Core.Angle)(0.3f) });
             for (double t = 0; t < EntityBodyLayer3D.LookAboutCycle; t += 0.5)
                 Assert.Equal(0f, EntityBodyLayer3D.IdleMotion(world, man, MotionPose.Still, t).HeadTurn);   // a real look: no drawn sweep
             // behaviors' idle glance passes STRAIGHT AHEAD (HeadYaw 0): his eyes still own the head — no drawn sweep cutting in
-            world.SetComponent(man, new Fdp.Toolkit.Perception.Look.LookState { HeadYaw = 0f });
+            world.SetComponent(man, new Fdp.Toolkit.Perception.Look.LookState { HeadYaw = (Fdp.Core.Angle)(0f) });
             for (double t = 0; t < EntityBodyLayer3D.LookAboutCycle; t += 0.5)
                 Assert.Equal(0f, EntityBodyLayer3D.IdleMotion(world, man, MotionPose.Still, t).HeadTurn);
 
@@ -3541,7 +3541,7 @@ public sealed class Map3DTests
         var man = world.CreateEntity();
         world.AddComponent(man, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
         Assert.Equal(0f, EntityBodyLayer3D.HeadTurnOf(world, man, 0f));                              // no look: on his body
-        world.AddComponent(man, new Fdp.Toolkit.Perception.Look.LookState { HeadYaw = 0.6f });
+        world.AddComponent(man, new Fdp.Toolkit.Perception.Look.LookState { HeadYaw = (Fdp.Core.Angle)(0.6f) });
         Assert.Equal(0.6f, EntityBodyLayer3D.HeadTurnOf(world, man, 0f), 4);                        // no twist: all of it is the neck
         Assert.Equal(0.4f, EntityBodyLayer3D.HeadTurnOf(world, man, 0.2f), 4);                      // the torso already turned 0.2
         Assert.Equal(-70f * MathF.PI / 180f, EntityBodyLayer3D.HeadTurnOf(world, man, 1.3f - 0.6f + 1.3f), 3);   // within the neck
@@ -4337,7 +4337,7 @@ public sealed class Map3DTests
 
         Assert.Equal(new ArticulationPose(0f, 0f, Published: true), source.PoseOf(w, tank));   // ⭐ CE-1114 — a part's level pose is TRUE, not "none"
         w.GetComponentRW<Fdp.Toolkit.Combat.Components.TurretPose>(turret) =
-            new Fdp.Toolkit.Combat.Components.TurretPose { Azimuth = 0.7f, Elevation = 0.1f };
+            new Fdp.Toolkit.Combat.Components.TurretPose { Azimuth = (Fdp.Core.Angle)(0.7f), Elevation = (Fdp.Core.Angle)(0.1f) };
         Assert.Equal(new ArticulationPose(0.7f, 0.1f, Published: true), source.PoseOf(w, tank));
         Assert.Equal(ArticulationPose.Neutral, source.PoseOf(w, bare));
         w.DestroyEntity(turret);
@@ -4362,13 +4362,13 @@ public sealed class Map3DTests
         float mortarDefault = WeaponKits.DefaultElevation(WeaponKind.Mortar);
 
         w.GetComponentRW<Fdp.Toolkit.Combat.Components.TurretPose>(turret) =
-            new Fdp.Toolkit.Combat.Components.TurretPose { Azimuth = 1.2f, Elevation = 1.3f };   // laid at ~74°, turned left
+            new Fdp.Toolkit.Combat.Components.TurretPose { Azimuth = (Fdp.Core.Angle)(1.2f), Elevation = (Fdp.Core.Angle)(1.3f) };   // laid at ~74°, turned left
         var pose = layer.LaidPose(w, laid, mortarDefault);
         Assert.Equal(1.2f, pose.TurretAzimuth);
         Assert.Equal(1.3f, pose.GunElevation);
 
         w.GetComponentRW<Fdp.Toolkit.Combat.Components.TurretPose>(turret) =
-            new Fdp.Toolkit.Combat.Components.TurretPose { Azimuth = 0.4f, Elevation = 0f };     // a gun laid level (a ZU-23 on the horizon)
+            new Fdp.Toolkit.Combat.Components.TurretPose { Azimuth = (Fdp.Core.Angle)(0.4f), Elevation = (Fdp.Core.Angle)(0f) };     // a gun laid level (a ZU-23 on the horizon)
         Assert.Equal(0f, layer.LaidPose(w, laid, mortarDefault).GunElevation);
 
         Assert.Equal(mortarDefault, layer.LaidPose(w, bare, mortarDefault).GunElevation);        // no turret part: the default lay
@@ -4423,7 +4423,7 @@ public sealed class Map3DTests
         var hullRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.7f) * Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.1f);
         w.SetComponent(tank, new SimTransform { Position = new Vector3(30f, -20f, 4f), Rotation = hullRotation });
         var turret = Fdp.Toolkit.Combat.TurretParts.Find(w, tank, 0);
-        w.SetComponent(turret, new Fdp.Toolkit.Combat.Components.TurretPose { Azimuth = 1.1f, Elevation = 0.15f });
+        w.SetComponent(turret, new Fdp.Toolkit.Combat.Components.TurretPose { Azimuth = (Fdp.Core.Angle)(1.1f), Elevation = (Fdp.Core.Angle)(0.15f) });
 
         var bodies = new EntityBodyLayer3D(() => w, () => tkb, new TurretPoseSource().PoseOf);
         var look = bodies.LookOf(type, tkb);

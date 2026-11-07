@@ -580,7 +580,7 @@ namespace Fdp.Toolkit.Perception.Tests
             var left = Enemy(50f, 86.6f);   // 60° left
 
             Assert.Equal(new[] { ahead }, Selected(world, grid, observer).ToArray());
-            world.AddComponent(observer, new Fdp.Toolkit.Perception.Look.LookState { HasTarget = 1, HeadYaw = MathF.PI / 3f });
+            world.AddComponent(observer, new Fdp.Toolkit.Perception.Look.LookState { HasTarget = 1, HeadYaw = (Fdp.Core.Angle)(MathF.PI / 3f) });
             Assert.Equal(new[] { left }, Selected(world, grid, observer).ToArray());
             grid.Dispose();
         }

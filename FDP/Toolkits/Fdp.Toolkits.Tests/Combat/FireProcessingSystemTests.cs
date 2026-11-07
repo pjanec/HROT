@@ -1305,7 +1305,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var tank = SpawnShooter(at, 1500f);
             _world.AddComponent(tank, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(77) });
             var turret = TurretParts.Ensure(_world, tank, 0);
-            _world.SetComponent(turret, new TurretPose { Azimuth = azimuth, Elevation = elevation });
+            _world.SetComponent(turret, new TurretPose { Azimuth = (Fdp.Core.Angle)(azimuth), Elevation = (Fdp.Core.Angle)(elevation) });
             return (tank, turret);
         }
 

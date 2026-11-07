@@ -72,7 +72,7 @@ namespace CarKinem.Controllers
 
             state.Speed = MathF.Max(0f, state.Speed + (accel * dt));
             pos += fwd * state.Speed * dt;
-            state.SteerAngle = 0f;
+            state.SteerAngle = (Fdp.Core.Angle)(0f);
             state.Accel = accel;
             return dt > 0f ? turned / dt : 0f;
         }
@@ -139,7 +139,7 @@ namespace CarKinem.Controllers
             state.Speed = MathF.Max(0f, state.Speed + (accel * MathF.Max(dt, 0f)));
             planar = travel * state.Speed;
             pos += planar * MathF.Max(dt, 0f);
-            state.SteerAngle = 0f;
+            state.SteerAngle = (Fdp.Core.Angle)(0f);
             state.Accel = accel;
             return dt > 0f ? turned / dt : 0f;
         }

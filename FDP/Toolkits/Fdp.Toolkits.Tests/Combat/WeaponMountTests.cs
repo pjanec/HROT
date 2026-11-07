@@ -350,7 +350,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(2, WeaponMountQuery.EnumerateMounts(_repo, owner, mounts));
 
             var turret = TurretParts.Find(_repo, owner, 0);
-            _repo.GetComponentRW<TurretPose>(turret) = new TurretPose { Azimuth = 0.5f, Elevation = 0.1f };
+            _repo.GetComponentRW<TurretPose>(turret) = new TurretPose { Azimuth = (Fdp.Core.Angle)(0.5f), Elevation = (Fdp.Core.Angle)(0.1f) };
             Assert.Equal(0.5f, TurretParts.PoseOf(_repo, owner, 0).Azimuth);
             Assert.Equal(default, TurretParts.PoseOf(_repo, owner, 1));   // no such turret ⇒ forward and level
         }

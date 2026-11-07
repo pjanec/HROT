@@ -95,8 +95,8 @@ namespace Fdp.Toolkit.Behavior.Translators
                     OperatedBy = (sbyte)Math.Clamp(seat.OperatedBy, -1, PassengerBuffer.Capacity - 1),
                     NeedsGunner = (byte)(seat.NeedsGunner ? 1 : 0),
                     HasArc = (byte)(arc ? 1 : 0),
-                    TraverseMin = (seat.TraverseMinDeg ?? -180f) * deg, TraverseMax = (seat.TraverseMaxDeg ?? 180f) * deg,
-                    ElevationMin = (seat.ElevationMinDeg ?? -90f) * deg, ElevationMax = (seat.ElevationMaxDeg ?? 90f) * deg,
+                    TraverseMin = (Fdp.Core.Angle)((seat.TraverseMinDeg ?? -180f) * deg), TraverseMax = (Fdp.Core.Angle)((seat.TraverseMaxDeg ?? 180f) * deg),
+                    ElevationMin = (Fdp.Core.Angle)((seat.ElevationMinDeg ?? -90f) * deg), ElevationMax = (Fdp.Core.Angle)((seat.ElevationMaxDeg ?? 90f) * deg),
                     X = seat.X, Y = seat.Y, Z = seat.Z, Facing = seat.FacingDegrees * deg,
                 };
             }

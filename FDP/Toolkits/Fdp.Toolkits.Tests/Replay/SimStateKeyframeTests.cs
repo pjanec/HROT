@@ -84,7 +84,7 @@ namespace Fdp.Toolkits.Tests.Replay
             var value = new AirFollower
             {
                 Stage = AirStage.Holding, Progress = 3.3f, SpeedNow = 11f, NextStop = 1, HoldLeft = 1.5f, ReleaseArmed = false,
-                Dropping = true, Pitch = 0.1f, Roll = -0.2f, OrbitCenter = new Vector2(7, 8), OrbitAngle = 1.25f,
+                Dropping = true, Pitch = (Fdp.Core.Angle)(0.1f), Roll = (Fdp.Core.Angle)(-0.2f), OrbitCenter = new Vector2(7, 8), OrbitAngle = 1.25f,
             };
             repo.AddComponent(e, value);
             repo.Tick();

@@ -148,7 +148,7 @@ namespace Fdp.Toolkit.Motion
             float pitch = pitchNow + Math.Clamp(Math.Clamp(pitchTarget, -maxPitch, maxPitch) - pitchNow, -tiltStep, tiltStep);
             float roll = rollNow + Math.Clamp(Math.Clamp(rollTarget, -maxRoll, maxRoll) - rollNow, -tiltStep, tiltStep);
             Fly(ref f, yaw, v, dt);
-            f.Transform.Rotation = BodyGeometry.Rotation(yaw, new RestingPose(0f, pitch, roll));
+            f.Transform.Rotation = BodyGeometry.Rotation(yaw, new RestingPose(0f, (Fdp.Core.Angle)(pitch), (Fdp.Core.Angle)(roll)));
             // a body with gear that comes down onto the ground sets down on it (no crash for a gentle landing)
             if (v.Z < 0f && Geometry(f) is { } geo)
             {
@@ -196,14 +196,14 @@ namespace Fdp.Toolkit.Motion
                 case AirStage.Landing:
                 {
                     var geo = Geometry(f);
-                    var pose = geo != null ? RestOn(ref f, geo, yaw) : new RestingPose(f.Ground(f.Transform.Position.X, f.Transform.Position.Y), 0f, 0f);
+                    var pose = geo != null ? RestOn(ref f, geo, yaw) : new RestingPose(f.Ground(f.Transform.Position.X, f.Transform.Position.Y), (Fdp.Core.Angle)(0f), (Fdp.Core.Angle)(0f));
                     Level(ref fol, dt);
                     float down = MathF.Min(LandingMps, p.ClimbMps);
                     Fly(ref f, yaw, new Vector3(0f, 0f, -MathF.Min(down, MathF.Max(0f, f.Transform.Position.Z - pose.Z) / MathF.Max(dt, 1e-4f))), dt, fol);
                     if (f.Transform.Position.Z <= pose.Z + 1e-3f)
                     {
                         TouchDown(ref f, yaw, pose);
-                        fol.Pitch = fol.Roll = 0f;
+                        fol.Pitch = fol.Roll = (Fdp.Core.Angle)(0f);
                         fol.Stage = BeginHold(ref fol, path.Stops[fol.NextStop]);
                     }
                     Report(ref f, intent, NavigationResult.InProgress, NavigationPhase.Landing, fol.Progress);
@@ -323,8 +323,8 @@ namespace Fdp.Toolkit.Motion
         private static void Tilt(ref AirFollower fol, float pitchTarget, float rollTarget, float dt)
         {
             float maxPitch = MaxPitchDeg * MathF.PI / 180f, maxRoll = MaxBankDeg * MathF.PI / 180f, rate = TiltRateDeg * MathF.PI / 180f * dt;
-            fol.Pitch += Math.Clamp(Math.Clamp(pitchTarget, -maxPitch, maxPitch) - fol.Pitch, -rate, rate);
-            fol.Roll += Math.Clamp(Math.Clamp(rollTarget, -maxRoll, maxRoll) - fol.Roll, -rate, rate);
+            fol.Pitch = (Fdp.Core.Angle)(fol.Pitch + Math.Clamp(Math.Clamp(pitchTarget, -maxPitch, maxPitch) - fol.Pitch, -rate, rate));
+            fol.Roll = (Fdp.Core.Angle)(fol.Roll + Math.Clamp(Math.Clamp(rollTarget, -maxRoll, maxRoll) - fol.Roll, -rate, rate));
         }
 
         private static void Level(ref AirFollower fol, float dt) => Tilt(ref fol, 0f, 0f, dt);

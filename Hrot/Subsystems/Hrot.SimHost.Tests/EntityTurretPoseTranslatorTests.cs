@@ -63,19 +63,19 @@ namespace Hrot.SimHost.Tests
             }
 
             Thread.Sleep(200);
-            owner.SetComponent(ownerTurret, new TurretPose { Azimuth = 1.0f, Elevation = 0.1f });
+            owner.SetComponent(ownerTurret, new TurretPose { Azimuth = (Fdp.Core.Angle)(1.0f), Elevation = (Fdp.Core.Angle)(0.1f) });
             Tick();
-            Assert.Equal(new TurretPose { Azimuth = 1.0f, Elevation = 0.1f }, replica.GetComponentRO<TurretPose>(replicaTurret));
+            Assert.Equal(new TurretPose { Azimuth = (Fdp.Core.Angle)(1.0f), Elevation = (Fdp.Core.Angle)(0.1f) }, replica.GetComponentRO<TurretPose>(replicaTurret));
             Assert.Equal(1, egress.SentSampleCount);
 
-            owner.SetComponent(ownerTurret, new TurretPose { Azimuth = 1.0f + EntityTurretPoseEgressTranslator.AngleThreshold / 2f, Elevation = 0.1f });
+            owner.SetComponent(ownerTurret, new TurretPose { Azimuth = (Fdp.Core.Angle)(1.0f + EntityTurretPoseEgressTranslator.AngleThreshold / 2f), Elevation = (Fdp.Core.Angle)(0.1f) });
             Tick();
             Assert.Equal(1, egress.SentSampleCount);   // below the threshold: not sent
 
-            owner.SetComponent(ownerTurret, new TurretPose { Azimuth = -0.5f, Elevation = 0.2f });
+            owner.SetComponent(ownerTurret, new TurretPose { Azimuth = (Fdp.Core.Angle)(-0.5f), Elevation = (Fdp.Core.Angle)(0.2f) });
             Tick();
             Assert.Equal(2, egress.SentSampleCount);
-            Assert.Equal(new TurretPose { Azimuth = -0.5f, Elevation = 0.2f }, replica.GetComponentRO<TurretPose>(replicaTurret));
+            Assert.Equal(new TurretPose { Azimuth = (Fdp.Core.Angle)(-0.5f), Elevation = (Fdp.Core.Angle)(0.2f) }, replica.GetComponentRO<TurretPose>(replicaTurret));
         }
 
         /// <summary>A node that does not own the hull's pose publishes nothing; a sample for a hull this node has no turret part for
@@ -86,14 +86,14 @@ namespace Hrot.SimHost.Tests
             using var participant = new DdsParticipant(229u);
             using var notOwner = World();
             var (_, turret) = Tank(notOwner, 6100, primaryOwner: 1, localNode: 2);
-            notOwner.SetComponent(turret, new TurretPose { Azimuth = 0.8f });
+            notOwner.SetComponent(turret, new TurretPose { Azimuth = (Fdp.Core.Angle)(0.8f) });
             var quiet = new EntityTurretPoseEgressTranslator(participant);
             quiet.ScanAndPublish(notOwner);
             Assert.Equal(0, quiet.SentSampleCount);
 
             using var owner = World();
             var (_, ownerTurret) = Tank(owner, 6200, primaryOwner: 1, localNode: 1);
-            owner.SetComponent(ownerTurret, new TurretPose { Azimuth = 0.3f });
+            owner.SetComponent(ownerTurret, new TurretPose { Azimuth = (Fdp.Core.Angle)(0.3f) });
             var egress = new EntityTurretPoseEgressTranslator(participant);
 
             using var replica = World();

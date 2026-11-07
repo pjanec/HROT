@@ -45,7 +45,7 @@ namespace CarKinem.Controllers
 
             pos += velocity * dt;
             state.Speed = Vector2.Dot(velocity, fwd);   // signed: backwards is negative
-            state.SteerAngle = 0f;
+            state.SteerAngle = (Fdp.Core.Angle)(0f);
             state.Accel = 0f;
             return turned / dt;
         }
@@ -100,7 +100,7 @@ namespace CarKinem.Controllers
 
             float wantedSteer = steer * p.MaxSteerAngle;
             float slew = p.MaxSteerRate > 0f ? p.MaxSteerRate * dt : float.MaxValue;
-            state.SteerAngle += Math.Clamp(wantedSteer - state.SteerAngle, -slew, slew);
+            state.SteerAngle = (Fdp.Core.Angle)(state.SteerAngle + Math.Clamp(wantedSteer - state.SteerAngle, -slew, slew));
 
             float accel;
             if (throttle > 0f)

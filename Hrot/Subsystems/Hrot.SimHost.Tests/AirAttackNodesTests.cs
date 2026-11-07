@@ -580,10 +580,10 @@ namespace Hrot.SimHost.Tests
             _w.AddComponent(e, new Fdp.Toolkit.Motion.FlightParams { TurnRadiusM = 60f });
             var stations = new CarrierStations { StationMask = (ushort)((1 << 9) | (1 << 11)) };
             float deg = MathF.PI / 180f;
-            stations.Seats[9] = new StationSeat { OperatedBy = 8, NeedsGunner = 1, HasArc = 1, TraverseMin = 20f * deg, TraverseMax = 160f * deg,
-                                                  ElevationMin = -90f * deg, ElevationMax = 90f * deg };
-            stations.Seats[11] = new StationSeat { OperatedBy = 10, NeedsGunner = 1, HasArc = 1, TraverseMin = -160f * deg, TraverseMax = -20f * deg,
-                                                   ElevationMin = -90f * deg, ElevationMax = 90f * deg };
+            stations.Seats[9] = new StationSeat { OperatedBy = 8, NeedsGunner = 1, HasArc = 1, TraverseMin = (Fdp.Core.Angle)(20f * deg), TraverseMax = (Fdp.Core.Angle)(160f * deg),
+                                                  ElevationMin = (Fdp.Core.Angle)(-90f * deg), ElevationMax = (Fdp.Core.Angle)(90f * deg) };
+            stations.Seats[11] = new StationSeat { OperatedBy = 10, NeedsGunner = 1, HasArc = 1, TraverseMin = (Fdp.Core.Angle)(-160f * deg), TraverseMax = (Fdp.Core.Angle)(-20f * deg),
+                                                   ElevationMin = (Fdp.Core.Angle)(-90f * deg), ElevationMax = (Fdp.Core.Angle)(90f * deg) };
             _w.AddComponent(e, stations);
             Entity Rider(byte seat, bool gun)
             {

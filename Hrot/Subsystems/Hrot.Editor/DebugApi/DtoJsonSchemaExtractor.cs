@@ -272,6 +272,9 @@ namespace Hrot.Editor.DebugApi
                 return new JsonObject { ["type"] = "string", ["format"] = "exerciseId", ["description"] = "the id of an exercise (a GUID); a tool opens its inventory entry and recordings" };
             if (type == typeof(Fdp.Core.EpisodeId))
                 return new JsonObject { ["type"] = "string", ["format"] = "episodeId", ["description"] = "the id of an episode (a GUID); a tool opens its recording" };
+            // ⭐ CE-4202 SV-4 — a relative angle: the SHAPE is a float's (radians); the type NAME survives so a tool shows and edits it in degrees.
+            if (type == typeof(Fdp.Core.Angle))
+                return new JsonObject { ["type"] = "number", ["format"] = "angle", ["description"] = "a relative angle in radians (a steering angle, a turret traverse, a head turn); a tool shows it in degrees" };
             if (type == typeof(Fdp.Core.Bearing))
                 return new JsonObject { ["type"] = "number", ["format"] = "bearing", ["picker"] = "bearing", ["description"] = "a compass bearing in degrees: 0 = north (+Y), 90 = east (+X), clockwise" };
             if (type == typeof(Fdp.Core.WorldRotation))

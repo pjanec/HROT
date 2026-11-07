@@ -598,7 +598,7 @@ public static class StridePhysicsHarnessCases
                 if (ctx.World.HasComponent<VehicleState>(target))
                 {
                     ref var vs = ref ctx.World.GetComponentRW<VehicleState>(target);
-                    vs.Speed = 0f; vs.SteerAngle = 0f;
+                    vs.Speed = 0f; vs.SteerAngle = (Fdp.Core.Angle)(0f);
                 }
                 AdvanceWaypoint(ctx, ref currentWpIdx, ref elapsed, ref bestDistThisWp,
                                 ref stuckWindowStartPos, ref windowOpenedAt,
@@ -618,7 +618,7 @@ public static class StridePhysicsHarnessCases
                 if (ctx.World.HasComponent<VehicleState>(target))
                 {
                     ref var vs = ref ctx.World.GetComponentRW<VehicleState>(target);
-                    vs.Speed = 0f; vs.SteerAngle = 0f;
+                    vs.Speed = 0f; vs.SteerAngle = (Fdp.Core.Angle)(0f);
                 }
                 RemoveMarkers(ctx, markerEntities);
                 return false;
@@ -628,7 +628,7 @@ public static class StridePhysicsHarnessCases
             {
                 ref var vs = ref ctx.World.GetComponentRW<VehicleState>(target);
                 vs.Speed      = output.Speed;
-                vs.SteerAngle = output.SteerAngle;
+                vs.SteerAngle = (Fdp.Core.Angle)(output.SteerAngle);
             }
 
             // ── Waypoint arrival ──────────────────────────────────────────
@@ -699,7 +699,7 @@ public static class StridePhysicsHarnessCases
             if (ctx.World.HasComponent<VehicleState>(target))
             {
                 ref var vs = ref ctx.World.GetComponentRW<VehicleState>(target);
-                vs.Speed = 0f; vs.SteerAngle = 0f;
+                vs.Speed = 0f; vs.SteerAngle = (Fdp.Core.Angle)(0f);
             }
             ctx.Log($"[Drive To Waypoint] PROOF COMPLETE — reached {reachedCount}/{totalWaypoints} waypoints " +
                     $"({skippedCount} skipped as blocked) in {totalElapsed:F1}s total. " +
@@ -1028,7 +1028,7 @@ public static class StridePhysicsHarnessCases
             if (!ctx.World.HasComponent<VehicleState>(target))
             {
                 if (ctx.World.IsComponentTypeRegistered<VehicleState>())
-                    ctx.World.AddComponent(target, new VehicleState { Speed = 0f, SteerAngle = 0f });
+                    ctx.World.AddComponent(target, new VehicleState { Speed = 0f, SteerAngle = (Fdp.Core.Angle)(0f) });
                 // If not registered, the motor will silently skip — the log will show no motion.
             }
 
@@ -1039,7 +1039,7 @@ public static class StridePhysicsHarnessCases
                 {
                     ref var vs = ref ctx.World.GetComponentRW<VehicleState>(target);
                     vs.Speed      = DrivingSpeedMps;
-                    vs.SteerAngle = DriveSteerAngleRad;
+                    vs.SteerAngle = (Fdp.Core.Angle)(DriveSteerAngleRad);
 
                     if (!stateSet)
                     {
@@ -1057,7 +1057,7 @@ public static class StridePhysicsHarnessCases
                 {
                     ref var vs = ref ctx.World.GetComponentRW<VehicleState>(target);
                     vs.Speed      = 0f;
-                    vs.SteerAngle = 0f;
+                    vs.SteerAngle = (Fdp.Core.Angle)(0f);
                 }
                 ctx.Log($"[Physics Drive] Drive complete: VehicleState Speed=0. Entity #{target.Index} should stop.");
                 return false;
@@ -1390,7 +1390,7 @@ public static class StridePhysicsHarnessCases
             {
                 ref var vs = ref ctx.World.GetComponentRW<VehicleState>(target);
                 vs.Speed      = output.Speed;
-                vs.SteerAngle = output.SteerAngle;
+                vs.SteerAngle = (Fdp.Core.Angle)(output.SteerAngle);
             }
 
             // ── Corner arrival ────────────────────────────────────────────
@@ -1436,7 +1436,7 @@ public static class StridePhysicsHarnessCases
         if (ctx.World.IsAlive(target) && ctx.World.HasComponent<VehicleState>(target))
         {
             ref var vs = ref ctx.World.GetComponentRW<VehicleState>(target);
-            vs.Speed = 0f; vs.SteerAngle = 0f;
+            vs.Speed = 0f; vs.SteerAngle = (Fdp.Core.Angle)(0f);
         }
     }
 

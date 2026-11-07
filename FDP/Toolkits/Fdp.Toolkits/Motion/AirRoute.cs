@@ -79,8 +79,8 @@ namespace Fdp.Toolkit.Motion
         /// <summary>⭐ Airborne insertion B-3 — past a <see cref="RouteHold.Drop"/> waypoint and not released yet: the leg is flown
         /// reporting <see cref="NavigationPhase.Dropping"/>.</summary>
         [MarshalAs(UnmanagedType.I1)] public bool Dropping;
-        public float Pitch;
-        public float Roll;
+        public Angle Pitch;
+        public Angle Roll;
         /// <summary>⭐ Air Ops slice 4 — a plane's circle after its route's end (<see cref="FixedWingModel"/>).</summary>
         public Vector2 OrbitCenter;
         public float OrbitAngle;

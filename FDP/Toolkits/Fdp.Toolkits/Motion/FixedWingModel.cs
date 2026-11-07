@@ -198,7 +198,7 @@ namespace Fdp.Toolkit.Motion
         private static void Bank(ref AirFollower fol, in FlightParams p, float target, float dt)
         {
             float max = MaxBank(in p), rate = RollRateDeg * MathF.PI / 180f * dt;
-            fol.Roll += Math.Clamp(Math.Clamp(target, -max, max) - fol.Roll, -rate, rate);
+            fol.Roll = (Fdp.Core.Angle)(fol.Roll + Math.Clamp(Math.Clamp(target, -max, max) - fol.Roll, -rate, rate));
         }
 
         private static float EaseRoll(in MotionFrame f, float target, in FlightParams p, float dt)
@@ -213,7 +213,7 @@ namespace Fdp.Toolkit.Motion
             float maxPitch = MaxPitchDeg * MathF.PI / 180f;
             f.Velocity.Linear = (next - f.Transform.Position) / MathF.Max(dt, 1e-4f);
             f.Transform.Position = next;
-            f.Transform.Rotation = BodyGeometry.Rotation(yaw, new RestingPose(0f, Math.Clamp(pitch, -maxPitch, maxPitch), roll));
+            f.Transform.Rotation = BodyGeometry.Rotation(yaw, new RestingPose(0f, (Fdp.Core.Angle)(Math.Clamp(pitch, -maxPitch, maxPitch)), (Fdp.Core.Angle)(roll)));
             if (f.World.IsComponentTypeRegistered<FlightState>() && f.World.HasComponent<FlightState>(f.Self))
                 f.World.GetComponentRW<FlightState>(f.Self).VerticalSpeed = f.Velocity.Linear.Z;
         }

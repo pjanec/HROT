@@ -35,7 +35,7 @@ public sealed class EntityStateLookTests
         world.AddComponent(man, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f) });
         world.AddComponent(man, new LookState
         {
-            Target = new Vector3(-10f, 10f, 0f), HasTarget = 1, Source = LookSource.LookOrdered, HeadYaw = MathF.PI / 4f,
+            Target = new Vector3(-10f, 10f, 0f), HasTarget = 1, Source = LookSource.LookOrdered, HeadYaw = (Fdp.Core.Angle)(MathF.PI / 4f),
         });
         var car = world.CreateEntity();
         map.Register(90_301, car);

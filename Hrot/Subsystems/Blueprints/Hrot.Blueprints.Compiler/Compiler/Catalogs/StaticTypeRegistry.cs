@@ -62,6 +62,7 @@ public sealed class StaticTypeRegistry : ITypeRegistry
             ["Fdp.Toolkit.Replication.AreaLink"]   = new IrTypeRef { FullName = "Fdp.Toolkit.Replication.AreaLink",   IsUnmanaged = true, SizeBytes = 72, SizeReliable = false },
             ["Fdp.Core.WorldPoint"]                = Unmanaged("Fdp.Core.WorldPoint", 12),
             ["Fdp.Core.Bearing"]                   = Unmanaged("Fdp.Core.Bearing", 4),
+            ["Fdp.Core.Angle"]                     = Unmanaged("Fdp.Core.Angle", 4),   // ⭐ CE-4202 SV-4: a relative angle (radians) — a float's memory
             ["Fdp.Core.WorldRotation"]             = Unmanaged("Fdp.Core.WorldRotation", 16),   // S0 item 6: a world orientation — a Quaternion's memory
             ["Fdp.Core.TkbTypeId"]                 = Unmanaged("Fdp.Core.TkbTypeId", 8),   // ⭐ CE-4200 SV-2: a template id — a long's memory
             ["Fdp.Core.NodeId"]                    = Unmanaged("Fdp.Core.NodeId", 4),   // ⭐ CE-4200 SV-3: a cluster node id — an int's memory

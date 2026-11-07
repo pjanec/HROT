@@ -429,7 +429,7 @@ public sealed class FdpMoveOrderIntegrationTests : IDisposable
 
         var entity = _world.CreateEntity();
         _world.AddComponent(entity, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
-        _world.AddComponent(entity, new VehicleState { Speed = 2f, SteerAngle = 0.1f });
+        _world.AddComponent(entity, new VehicleState { Speed = 2f, SteerAngle = (Fdp.Core.Angle)(0.1f) });
         _world.AddComponent(entity, new NavigationIntent
         {
             Mode = NavigationMode.DirectPoint, FinalDestination = new Vector3(5f, 5f, 0f),

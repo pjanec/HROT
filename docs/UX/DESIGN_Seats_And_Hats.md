@@ -194,6 +194,20 @@ features"*
 | **H6** | the Side controller seat; the Observer seat's camera | ui |
 | **H7** | the HTTP session seat and hat (`/session/seat`, `/session/hat`); `/orders/side-lock` folded in | backend + ui |
 
+### 3.1 ⭐ AS-BUILT — H1 and H7 *(backend, `2026-11-07`, B-15)*
+
+| piece | as built |
+|---|---|
+| the seat | `Seat` enum + `SeatConfig {Enabled, Seat, Side: FixedString32}` (unmanaged — a `string` Side is null by default, which the relaxed JSON options omit, so every layer naming `Side` was refused as an unknown key) + `StationSeat` (`station.seat`, `Hrot.Core/Infrastructure/StationSeat.cs`) |
+| ⭐ the default, by construction | ⚠ **deviation:** there is no `HostDescription` row in code; `SharedApplicationBootstrapper` declares `station.seat` for EVERY host with the host's `DefaultSeat` (virtual, Author) — overridden by CGF (the fused server too) and SimHost = Instructor, the Player = Player; the editor and the rest = Author. ⚠ SimHost (no person at it) is not in §2.2's table — Instructor keeps today's behaviour. The Replay Browser has no bootstrapper of this kind: its own feature gate (`HudFeatures.BootGate(…, seat: Reviewer)`) declares the seat as Reviewer, and its Review mode refuses every edit already |
+| reported over HTTP | `GET /features` lists `station.seat` with its effective config and source per subsystem — no new route |
+| the launch flag | the existing `--feature station.seat={"Seat":"Observer","Side":"Blue"}` (Node Features F-7) — no new flag |
+| the gate reads it | the same bootstrapper installs `HrotEditGate` on every host: mode = Review while replaying (Live / Preview: B-11), level = `HrotEditGate.LevelOf(StationSeat.Of(features))`, read live. ⭐ The level bounds EDITING kinds only: an interaction (possess, embark) or an order is never refused for a Player here — the catalogue's per-action level does that (H2) |
+| H7 | `GET /session`, `POST /session/seat {seat, side}` (side = the old `/orders/side-lock`, which stays as an alias), `POST /session/hat {hat}`; the attribute route refuses the session's seat as the station's gate would (no seat ⇒ Author). ⏭ the other write routes adopt it as they move onto `Edits.Submit` |
+| ⏭ not here | the mode indicator showing the seat (H1's UI half), the catalogue reading level and side (H2) — B-16 |
+
+Rails: `NodeFeaturesTests.H1_*`, `EditOutcomeOwnerTests.H1_*`, `TheWriteRoutesAskTheOwnerTests.H7_*`.
+
 ## 4. Questions — ✅ all seven leans APPROVED *(🔒 user, `2026-11-06`: "Q1–Q7 of seats and hats approved")*
 
 | # | question | ⭐ lean | rejected |

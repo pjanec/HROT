@@ -41,8 +41,8 @@ namespace Fdp.Toolkit.Combat
 
             return new TurretPose
             {
-                Azimuth = Wrap(azNow + Math.Clamp(azDelta, -maxAz, maxAz)),
-                Elevation = pose.Elevation + Math.Clamp(elGoal - pose.Elevation, -maxEl, maxEl),
+                Azimuth = (Fdp.Core.Angle)(Wrap(azNow + Math.Clamp(azDelta, -maxAz, maxAz))),
+                Elevation = (Fdp.Core.Angle)(pose.Elevation + Math.Clamp(elGoal - pose.Elevation, -maxEl, maxEl)),
             };
         }
 

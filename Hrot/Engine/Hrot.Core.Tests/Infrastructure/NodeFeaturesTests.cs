@@ -183,4 +183,17 @@ public sealed class NodeFeaturesTests
         Assert.Single(f.Problems);                                                              // malformed JSON: a Problems entry, the rest stands
         Assert.True(f.On("gameplay.team-kill"));
     }
+
+    /// <summary>⭐ Seats H1 — <c>station.seat</c> defaults to the host's seat, and a node override (the launch flag's layer) changes it; an undeclared node reads Author.</summary>
+    [Fact]
+    public void H1_TheSeatFeature_DefaultsToTheHostsSeat_AndTheLaunchFlagOverridesIt()
+    {
+        var f = new NodeFeatures(new FeatureRegistry(new[] { StationSeat.Declaration(Seat.Player) }), Fdp.Core.NodeRole.Map2D);
+        Assert.Equal(Seat.Player, StationSeat.Of(f));
+        f.SetNodeOverride(StationSeat.Id, "{\"Seat\":\"Observer\",\"Side\":\"Blue\"}");
+        Assert.Equal(Seat.Observer, StationSeat.Of(f));
+        Assert.Equal("Blue", f.Config<SeatConfig>(f.Resolve(StationSeat.Id)).Side.ToString());
+        Assert.Empty(f.Problems);
+        Assert.Equal(Seat.Author, StationSeat.Of(null));
+    }
 }

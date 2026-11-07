@@ -304,6 +304,55 @@ namespace Hrot.Editor.DebugApi
             return node;
         }
 
+        // ── ⭐ seats and hats H7 — the HTTP session's seat and hat (docs/UX/DESIGN_Seats_And_Hats.md §2.5) ─────────────
+
+        private Hrot.Common.Infrastructure.Seat? _sessionSeat;
+        private string _sessionHat = "Observe";
+
+        /// <summary>The session's refusal for an edit (its seat's level; a recording is read-only), or null. No seat set ⇒ Author (today's behaviour).</summary>
+        internal string? SessionRefusal()
+        {
+            var mode = Fdp.Toolkit.Replay.ReplayState.IsActive(_world) ? Hrot.Common.Editing.EditingMode.Review : Hrot.Common.Editing.EditingMode.Edit;
+            return Hrot.Common.Editing.HrotEditGate.Reason(mode, Hrot.Common.Editing.HrotEditGate.LevelOf(_sessionSeat ?? Hrot.Common.Infrastructure.Seat.Author));
+        }
+
+        /// <summary><c>POST /session/seat {seat, side}</c> — this session plays a seat (Author · Instructor · SideController · Player · Observer · Reviewer);
+        /// its side (when given) is the side lock (<c>/orders/side-lock</c> folded in). <c>{seat:null}</c> returns to Author.</summary>
+        public (JsonNode? result, string? error) SetSessionSeat(JsonNode? body)
+        {
+            var raw = body?["seat"]?.ToString();
+            if (string.IsNullOrWhiteSpace(raw)) _sessionSeat = null;
+            else if (Enum.TryParse<Hrot.Common.Infrastructure.Seat>(raw, ignoreCase: true, out var seat)) _sessionSeat = seat;
+            else return (null, $"Unknown seat '{raw}'. One of: {string.Join(", ", Enum.GetNames(typeof(Hrot.Common.Infrastructure.Seat)))}.");
+            if (body?["side"] is { } sideNode)
+            {
+                var (_, error) = SetSideLock(new JsonObject { ["side"] = sideNode.DeepClone() });
+                if (error != null) return (null, error);
+            }
+            return (SessionJson(), null);
+        }
+
+        /// <summary><c>POST /session/hat {hat}</c> — the session's hat (Edit · Command · Embodied · Observe · Direct), one at a time (§2.3).</summary>
+        public (JsonNode? result, string? error) SetSessionHat(JsonNode? body)
+        {
+            var raw = body?["hat"]?.ToString();
+            string[] hats = { "Edit", "Command", "Embodied", "Observe", "Direct" };
+            var hat = Array.Find(hats, h => string.Equals(h, raw, StringComparison.OrdinalIgnoreCase));
+            if (hat is null) return (null, $"Unknown hat '{raw}'. One of: {string.Join(", ", hats)}.");
+            _sessionHat = hat;
+            return (SessionJson(), null);
+        }
+
+        /// <summary><c>GET /session</c> — the session's seat, side and hat, and the station's own editing level (its <c>station.seat</c>).</summary>
+        public JsonNode SessionJson() => new JsonObject
+        {
+            ["seat"] = (_sessionSeat ?? Hrot.Common.Infrastructure.Seat.Author).ToString(),
+            ["side"] = _sideLock?.ToString(),
+            ["hat"] = _sessionHat,
+            // the STATION's editing level, from the gate the shared bootstrapper installed from its station.seat feature (no second source)
+            ["stationLevel"] = (Fdp.Toolkit.Replication.Edits.EditGate.Of(_world) as Hrot.Common.Editing.HrotEditGate)?.Level.ToString() ?? "Full",
+        };
+
         // ── the side lock ───────────────────────────────────────────────────
 
         /// <summary><c>POST /orders/side-lock {side}</c> — lock this session to one side (Friend · Hostile · Neutral …), or

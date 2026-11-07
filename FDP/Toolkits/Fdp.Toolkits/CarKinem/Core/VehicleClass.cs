@@ -51,7 +51,7 @@ namespace CarKinem.Core
                     MaxSpeedRev = 6.0f,   // ⭐ CE-2167 (V5) — it can back up (it was 0: no AI car ever reversed)
                     MaxAccel = 3.0f,
                     MaxDecel = 6.0f,
-                    MaxSteerAngle = 0.6f,
+                    MaxSteerAngle = (Fdp.Core.Angle)(0.6f),
                     MaxSteerRate = 1.0f,
                     MaxLatAccel = 8.0f,
                     AvoidanceRadius = 3.0f,
@@ -69,7 +69,7 @@ namespace CarKinem.Core
                     MaxSpeedRev = 4.0f,   // ⭐ CE-2167 (V5)
                     MaxAccel = 1.5f,
                     MaxDecel = 4.0f,
-                    MaxSteerAngle = 0.4f,
+                    MaxSteerAngle = (Fdp.Core.Angle)(0.4f),
                     MaxSteerRate = 0.6f,
                     MaxLatAccel = 5.0f,
                     AvoidanceRadius = 5.0f,
@@ -86,7 +86,7 @@ namespace CarKinem.Core
                     MaxSpeedFwd = 15.0f,
                     MaxAccel = 1.2f,
                     MaxDecel = 3.5f,
-                    MaxSteerAngle = 0.35f,
+                    MaxSteerAngle = (Fdp.Core.Angle)(0.35f),
                     MaxSteerRate = 0.5f,
                     MaxLatAccel = 4.0f,
                     AvoidanceRadius = 7.0f,
@@ -104,7 +104,7 @@ namespace CarKinem.Core
                     MaxSpeedRev = 8.0f,
                     MaxAccel = 2.0f,
                     MaxDecel = 4.0f,
-                    MaxSteerAngle = 0.8f,  // Can turn sharply (tracks)
+                    MaxSteerAngle = (Fdp.Core.Angle)(0.8f),  // Can turn sharply (tracks)
                     MaxSteerRate = 1.2f,
                     MaxLatAccel = 6.0f,
                     AvoidanceRadius = 5.0f,
@@ -121,7 +121,7 @@ namespace CarKinem.Core
                     MaxSpeedFwd = 6.0f,  // ⭐ AQ88 A (R-265) — a person's SPRINT (was 2.0 "walking speed", which clamped every run to a walk); a walk asks its own speed, the stance scales the cap
                     MaxAccel = 2.5f,
                     MaxDecel = 2.0f,
-                    MaxSteerAngle = 1.57f,  // Nearly 90 degrees (can turn in place)
+                    MaxSteerAngle = (Fdp.Core.Angle)(1.57f),  // Nearly 90 degrees (can turn in place)
                     MaxSteerRate = 3.0f,
                     MaxLatAccel = 3.0f,
                     AvoidanceRadius = 0.8f,

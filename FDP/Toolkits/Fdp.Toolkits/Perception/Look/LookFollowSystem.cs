@@ -51,14 +51,14 @@ namespace Fdp.Toolkit.Perception.Look
                 if (Combat.WeaponPostureOf.TryAimPoint(repo, e, out var aim))
                 {
                     look.Source = LookSource.LookAim;
-                    look.HeadYaw = Toward(body, tf.Position, aim, neck);
+                    look.HeadYaw = (Fdp.Core.Angle)(Toward(body, tf.Position, aim, neck));
                     look.GlanceSince = 0;
                     continue;
                 }
                 if (look.HasTarget == 0)
                 {
                     look.Source = LookSource.LookFree;
-                    look.HeadYaw = 0f;
+                    look.HeadYaw = (Fdp.Core.Angle)(0f);
                     look.GlanceSince = 0;
                     continue;
                 }
@@ -67,7 +67,7 @@ namespace Fdp.Toolkit.Perception.Look
                 {
                     // standing: the head leads; CarKinematicsSystem turns the body after it, so the head comes back as it does
                     look.Source = LookSource.LookOrdered;
-                    look.HeadYaw = want;
+                    look.HeadYaw = (Fdp.Core.Angle)(want);
                     look.GlanceSince = 0;
                     continue;
                 }
@@ -75,7 +75,7 @@ namespace Fdp.Toolkit.Perception.Look
                 if (now < look.RestUntil || MathF.Abs(want) < 1e-3f)
                 {
                     look.Source = LookSource.LookOrdered;
-                    look.HeadYaw = 0f;
+                    look.HeadYaw = (Fdp.Core.Angle)(0f);
                     look.GlanceSince = 0;
                     continue;
                 }
@@ -85,11 +85,11 @@ namespace Fdp.Toolkit.Perception.Look
                     look.GlanceSince = 0;
                     look.RestUntil = now + LookOf.RestSeconds;
                     look.Source = LookSource.LookOrdered;
-                    look.HeadYaw = 0f;
+                    look.HeadYaw = (Fdp.Core.Angle)(0f);
                     continue;
                 }
                 look.Source = LookSource.LookGlance;
-                look.HeadYaw = want;
+                look.HeadYaw = (Fdp.Core.Angle)(want);
             }
         }
 

@@ -1431,6 +1431,19 @@ namespace Hrot.Editor.DebugApi
                 });
             }));
 
+            // ⭐ Seats and hats H7 — the HTTP session's seat and hat (a virtual station; §2.5)
+            _routes.Add(new("GET", "/session", ctx => RunMainResult(s => Ok(s.SessionJson()))));
+            _routes.Add(new("POST", "/session/seat", ctx =>
+            {
+                var body = ctx.Body;
+                return RunMainResult(s => { var (r, e) = s.SetSessionSeat(body); return e != null ? Fail(400, e) : Ok(r); });
+            }));
+            _routes.Add(new("POST", "/session/hat", ctx =>
+            {
+                var body = ctx.Body;
+                return RunMainResult(s => { var (r, e) = s.SetSessionHat(body); return e != null ? Fail(400, e) : Ok(r); });
+            }));
+
             _routes.Add(new("POST", "/orders/side-lock", ctx =>
             {
                 var body = ctx.Body;

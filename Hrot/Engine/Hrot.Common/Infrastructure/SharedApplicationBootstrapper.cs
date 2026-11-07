@@ -208,13 +208,21 @@ public abstract class SharedApplicationBootstrapper
 
                 // ⭐ Node Features — the registry of the composed capabilities' declarations, and the node's ONE reader (F-4).
                 //   An id declared by two capabilities throws here (F-2). 📄 docs/DESIGN_Node_Features.md §6.3.
-                context.Features = new NodeFeatures(new FeatureRegistry(_walk.Capabilities.SelectMany(c => c.Features).Concat(HostFeatures)), role,
+                context.Features = new NodeFeatures(new FeatureRegistry(_walk.Capabilities.SelectMany(c => c.Features).Concat(HostFeatures)
+                        .Append(StationSeat.Declaration(DefaultSeat))), role,   // ⭐ seats and hats H1 — the seat on EVERY host, by construction
                     () => context.ClusterSlave.View.NodeName ?? "");
                 // ⭐ F-3 — declared ⇔ available: advertise hrot.feature.<id> on the durable NodeCapabilities descriptor (once, at join), and put the ON set on the heartbeat (F-16).
                 context.ClusterSlave.AppendCapabilities(context.Features.Registry.All.Select(d => FeatureRegistry.TokenOf(d.Id)));
                 context.ClusterSlave.FeaturesOnProvider = context.Features.OnSet;
                 context.ClusterSlave.FeatureErrorsProvider = context.Features.ProblemList;   // F-26 — a refused override layer is reported, not swallowed
                 context.Kernel.FeatureGate = context.Features;   // F-13 — the scheduler's view, set before any system registers
+                // ⭐ Edit framework F1 + seats H1/H2 — the station's edit gate, on every host by construction: the mode (a replay is Review; Live / Preview from
+                //   the action catalogue, B-11) and the SEAT's editing level, read live from station.seat (a launch flag or the scenario may change it).
+                var features = context.Features;
+                var gateWorld = context.World;
+                Hrot.Common.Editing.HrotEditGate.Install(gateWorld,
+                    () => Fdp.Toolkit.Replay.ReplayState.IsActive(gateWorld) ? Hrot.Common.Editing.EditingMode.Review : Hrot.Common.Editing.EditingMode.Edit,
+                    () => Hrot.Common.Editing.HrotEditGate.LevelOf(StationSeat.Of(features)));
                 NodeFeatureOverrides.NoteDeclared(context.Features.Registry.All.Select(d => d.Id));   // F-18 — so the runner can refuse an id NO node declares
                 foreach (var (fid, fjson) in NodeFeatureOverrides.FromCommandLine)   // F-7 — --feature; an id this node does not declare is another node's
                     if (context.Features.Registry.Available(fid)) context.Features.SetNodeOverride(fid, fjson);
@@ -576,6 +584,10 @@ public abstract class SharedApplicationBootstrapper
     /// Declared exactly once, like a capability's; a duplicate id throws.
     /// </summary>
     protected virtual IEnumerable<FeatureDeclaration> HostFeatures => System.Array.Empty<FeatureDeclaration>();
+
+    /// <summary>⭐ Seats and hats H1 (📄 docs/UX/DESIGN_Seats_And_Hats.md §2.2) — this host's default seat (the <c>station.seat</c> feature's composition
+    /// default): Author unless the host says otherwise — the Player is a Player, the fused server / CGF / SimHost an Instructor.</summary>
+    protected virtual Seat DefaultSeat => Seat.Author;
 
     /// <summary>⭐ CE-1446 B1 — the node's togglable INPUT group (built in phase 4a, so readable from <c>BuildOrchestration</c> on): a host's replay load disables network input through it.</summary>
     protected TogglableInputGroup? InputGroup { get; private set; }

@@ -311,7 +311,7 @@ public sealed class VehicleNavigationIntentSystem : IEcsModuleSystem
             // ── Command the vehicle this tick ───────────────────────────────
             ref var vs = ref repo.GetComponentRW<VehicleState>(entity);
             vs.Speed      = output.Speed;
-            vs.SteerAngle = output.SteerAngle;
+            vs.SteerAngle = (Fdp.Core.Angle)(output.SteerAngle);
 
             // Throttled diagnostic (STR-D21 F7 fix confirmation).
             // [VehicleNav] tag: GPU operator should see speed/steer > 0 each ~0.5 s,
@@ -447,7 +447,7 @@ public sealed class VehicleNavigationIntentSystem : IEcsModuleSystem
     {
         ref var vs = ref repo.GetComponentRW<VehicleState>(entity);
         vs.Speed      = 0f;
-        vs.SteerAngle = 0f;
+        vs.SteerAngle = (Fdp.Core.Angle)(0f);
     }
 
     /// <summary>

@@ -59,7 +59,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             var part = PartOf(data, view);
             if (part.IsNull) { DroppedSampleCount++; return; }
             if (view is EntityRepository repo && OwnsThePose(repo, part, data.PartId)) return;
-            cmd.SetComponent(part, new TurretPose { Azimuth = data.Azimuth, Elevation = data.Elevation });
+            cmd.SetComponent(part, new TurretPose { Azimuth = (Fdp.Core.Angle)(data.Azimuth), Elevation = (Fdp.Core.Angle)(data.Elevation) });
         }
 
         private Entity PartOf(in EntityTurretPose data, ISimulationView view)
@@ -72,7 +72,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (data is not EntityTurretPose pose) return;
             var part = PartOf(pose, repo);
             if (part.IsNull || OwnsThePose(repo, part, pose.PartId)) return;
-            repo.SetComponent(part, new TurretPose { Azimuth = pose.Azimuth, Elevation = pose.Elevation });
+            repo.SetComponent(part, new TurretPose { Azimuth = (Fdp.Core.Angle)(pose.Azimuth), Elevation = (Fdp.Core.Angle)(pose.Elevation) });
         }
 
         public void Dispose(int networkEntityId) { }

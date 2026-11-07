@@ -9,7 +9,7 @@
   "counts": {
     "modules": 10,
     "systems": 92,
-    "translators": 137,
+    "translators": 138,
     "capabilities": 7,
     "providers": 0,
     "singletons": 5,
@@ -191,6 +191,7 @@
     "CycloneNetworkIngressSystem | Ingress | Hrot_NED_Messages_PlayerMessage | ordinal=173",
     "CycloneNetworkIngressSystem | Ingress | Fdp_Network_Cyclone_Topics_EntityLifecycleStatusDescriptor | ordinal=-3",
     "CycloneEgressSystem | Egress | Hrot_NED_Messages_TacticalIntentRequest | ordinal=92",
+    "CycloneEgressSystem | Egress | Hrot_NED_Messages_MissionControlRequest | ordinal=90",
     "CycloneEgressSystem | Ingress | Hrot_NED_Descriptors_EntityMission | ordinal=50",
     "CycloneEgressSystem | Ingress | Hrot_NED_Descriptors_GroundClampingOverride | ordinal=66",
     "CycloneEgressSystem | Egress | Hrot_NED_Messages_UpdateEntityDescriptorRequest | ordinal=-1002",

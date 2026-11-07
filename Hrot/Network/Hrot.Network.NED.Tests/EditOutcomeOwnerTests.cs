@@ -504,4 +504,26 @@ public sealed class EditOutcomeOwnerTests
         Assert.Equal(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused, bad.Route);
         Assert.True(EditOutcomeLog.Of(owner.World).TryGet(bad.RequestId, out var o) && o.Reason.Contains("cannot be added"));
     }
+
+    /// <summary>⭐ Seats H1/H2 — the gate reads the SEAT's level: a Player seat refuses an edit with why but lets an interaction (possess, embark) through;
+    /// an Instructor edits; the mapping is §2.2's table. ✅ Red-proof: the Interact exemption removed ⇒ the possess is refused ⇒ red.</summary>
+    [Fact]
+    public void H1_ThePlayerSeatRefusesEdits_ButNotInteractions()
+    {
+        var station = new Node(owns: false, OtherNode);
+        var seat = Hrot.Common.Infrastructure.Seat.Player;
+        Hrot.Common.Editing.HrotEditGate.Install(station.World, () => Hrot.Common.Editing.EditingMode.Live, () => Hrot.Common.Editing.HrotEditGate.LevelOf(seat));
+        var edit = Edits.Submit(station.World, EditOp.WritePatch(station.Entity, "{\"Heading\":90}", "Turn"));
+        Assert.Equal(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused, edit.Route);
+        Assert.Equal("this station's seat does not edit", EditJournal.Of(station.World).Find(edit.RequestId)!.Reason);
+        bool sent = false;
+        var possess = Edits.Submit(station.World, EditOp.Interact(station.Entity, _ => sent = true, "Take control"));
+        Assert.True(sent);
+        Assert.NotEqual(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused, possess.Route);
+        seat = Hrot.Common.Infrastructure.Seat.Instructor;   // the level is read live (a launch flag / the scenario may change the seat)
+        Assert.NotEqual(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused, Edits.Submit(station.World, EditOp.WritePatch(station.Entity, "{\"Heading\":90}", "Turn")).Route);
+        Assert.Equal((Hrot.Common.Editing.EditingLevel.Full, Hrot.Common.Editing.EditingLevel.Observer, Hrot.Common.Editing.EditingLevel.None),
+            (Hrot.Common.Editing.HrotEditGate.LevelOf(Hrot.Common.Infrastructure.Seat.Author), Hrot.Common.Editing.HrotEditGate.LevelOf(Hrot.Common.Infrastructure.Seat.Observer),
+             Hrot.Common.Editing.HrotEditGate.LevelOf(Hrot.Common.Infrastructure.Seat.Reviewer)));
+    }
 }

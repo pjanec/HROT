@@ -303,7 +303,7 @@ namespace Fdp.Toolkit.Physics.BodyParts
                                     r2.X / l2, r2.Y / l2, r2.Z / l2, 0f,
                                     r3.X / l3, r3.Y / l3, r3.Z / l3, 0f,
                                     0f, 0f, 0f, 1f);
-            return new BodyBox(part, centre, new Vector3(l1, l2, l3) * 0.5f, Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(rot)), faceYaw);
+            return new BodyBox(part, centre, new Vector3(l1, l2, l3) * 0.5f, Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(rot)), (Fdp.Core.Angle)(faceYaw));
         }
 
         /// <summary>

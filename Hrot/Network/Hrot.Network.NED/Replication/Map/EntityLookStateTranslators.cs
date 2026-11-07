@@ -127,7 +127,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             cmd.AddComponent(unit, new LookState
             {
                 Target = new Vector3(d.TargetX, d.TargetY, d.TargetZ), HasTarget = d.HasTarget, Source = (LookSource)d.Source,
-                HeadYaw = d.HeadYaw,
+                HeadYaw = (Fdp.Core.Angle)(d.HeadYaw),
             });
         }
 
