@@ -19,8 +19,17 @@ Started at `6d361486a` (merged coordinator; then backend `1dfb2d2d9`, ui `e713ec
 | L-3 CE-4322 | DONE | (this commit) | ⭐ `InstructorEnd` + `InstructorEndControl.CreateOneShot / SeatRefusal` (wired by the RulesBundle on every host): no instructor-end rule ⇒ a one-shot EndExercise "Ended by the instructor"; ⭐ `IExerciseEnder` on `ClusterTimeTransportAdapter.Ender` — ■ in Live asks "End the exercise?" (house Cancel = keep running), leaves Live once the end is in. Gates: Presentation.Tests RunnableRules + TheOneTimeFacade + MainToolbarTimeControl + RulesWindowFrameRail + MissionSummary 219/0; AiShared TheRulesBundleTests 11/0; the ■ rail red-proved. ⚠ no cluster rail run (row 8): the end itself is the existing EndExercise verb through the Game master's path |
 | L-4 CE-4312 | DONE by backend | — | not ours: backend built it (`EntityNames.Next`, their status row) before this claim — claim withdrawn |
 | L-5 CE-4321 | DONE | (this commit) | ⏪ Review beside ▶ in Live (`ReviewChoices()`, the mode menu's list); `RunMode.ReviewBanner` on the Player. Gates: Presentation.Tests MainToolbarTimeControl + TheOneTimeFacade + TransportIcons 174/0, ColourIconsFrameRail 6/0 under Xvfb (rendered, compared); Hrot.Player builds |
-| L-6 CE-4318 (the window) | started (behaviors) | — | the Problems window + the toolbar count over backend's `ScenarioProblems` (unclaimed — taken per the handoff's claiming rule) |
+| L-6 CE-4318 (the window) | DONE | (this commit) | `ProblemsWindow` + the toolbar ⚠ count (editor). Gates: Presentation.Tests TheProblemsWindowTests 3/0 (one under Xvfb, rendered), Hrot.Editor builds; the select rail red-proved |
 | RX6 (LC-7) | DONE | V-4 | + Add shows the gallery first; every kind under More… |
+
+## Taken from ui ([handoff](HANDOFF_Coordinator_To_Behaviors_Taken_From_Ui.md), frozen at `9cce7b4a`) — merged coordinator/ui/backend first; none was started by ui
+
+| item | state | sha | notes |
+|---|---|---|---|
+| W-4 Run to … (LC-10, over backend's `RunToController`) | ⏳ CLAIMED | — | first: smallest, backend half built |
+| W-3 A6 (timeline + mode indicator as catalogue targets) | ⏳ CLAIMED | — | |
+| W-1 P-8 CE-4304 (mission plan on the map, Phases group, ONE Tasks lane) | ⏳ CLAIMED | — | |
+| W-2 B-17 (map interaction P1, P2, P4–P6) | ⏳ CLAIMED | — | |
 
 ## Gates
 | item | command | result |

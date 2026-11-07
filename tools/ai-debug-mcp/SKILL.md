@@ -405,6 +405,8 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 - **`play`** — Enter preview and/or resume if paused. Time advances after this. No params. Returns ok:true envelope.
   Notes: Time advances after play (until pause or a breakpoint fires).; ⭐ CE-4097 (AQ108 D22) — EXPLICIT: from editing play is the DRY RUN (preview) on every host, whatever run mode the host has ARMED (get_status → armedMode). It never loads a live run. The toolbar's ▶ follows the armed mode; this route does not — to go live use load_scenario_live, to change what the toolbar's ▶ does use set_run_mode..
   Example: `play({})` — start or resume simulation.
+- **`run_to`** — Run to … in Preview: step the cluster as fast as it steps until a sim time or a condition holds, then stay paused there. `seconds?` (number), `condition?` (object), `cancel?` (boolean). Returns the sim state, with runTo {running, status}; poll get_sim_state until runTo.running is false.
+  Notes: Preview only. The ACK-gated stepped run (deterministic, 1/60 s per step, one step per frame) with the window's frame cap lifted — CE-4316, lifecycle LC-10, option A.; Answers at once; the run goes on across frames. GET /sim/state's runTo.status says why it stopped (reached · the condition held · left Preview · stopped)..
 - **`get_sim_state`** — Current sim state: isPaused, inPreview, totalTime, timeScale. No params. Returns { isPaused, inPreview, totalTime, timeScale }
   Notes: Check this before driving — most mistakes are run-state mistakes..
   Example: `get_sim_state({})` — check current paused/preview/time state.

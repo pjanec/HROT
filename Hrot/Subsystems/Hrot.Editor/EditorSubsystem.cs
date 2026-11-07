@@ -265,6 +265,11 @@ namespace Hrot.Editor
         private readonly Hrot.Editor.Scenario.HeaderParamsSchemaSource _headerParams;   // ⭐ CE-4210 P2 (MA-5)
         private Hrot.Editor.Scenario.ParametersDrawer? _parametersDrawer;
         private Hrot.Editor.Scenario.SaveSelectionAsMacroWindow? _saveSelectionWindow;   // ⭐ CE-4210 MA-9
+        private Hrot.Presentation.Windows.ProblemsWindow? _problemsWindow;   // ⭐ CE-4318 (L-6)
+        /// <summary>⭐ CE-4318 — the Problems count sits right after the time control group (0) and its separator (10).</summary>
+        internal const int ProblemsCountSortOrder = 15;
+        /// <summary>⭐ CE-4318 — the editor's Problems window (rails).</summary>
+        internal Hrot.Presentation.Windows.ProblemsWindow? ProblemsWindow => _problemsWindow;
         private Action<Action<string>>? _openMacroPicker;   // ⭐ CE-4210 MA-8 — the scenario picker's Macros group, for the instance's "Change…" (set once the picker exists)
 
         // ⭐ CE-3330 (DAR §9e, row 28; DESIGN_Director_Timeline_Editor.md §2d) — the event timeline on the EDITOR is its NODE CONTEXT's: the
@@ -396,6 +401,10 @@ namespace Hrot.Editor
         /// <summary>⭐⭐⭐ CE-3329 row 21 — <b>THE time facade</b>, the one every host uses (user: *"One facade."*): built ONCE, read each
         /// frame beside the cluster cache, handed to the status bar, the toolbar, the timeline, the debug API and the director.</summary>
         private Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter? _timeTransport;
+        /// <summary>⭐ CE-4316 — Run to … (Preview); ticked once per frame in <see cref="Update"/>.</summary>
+        private Hrot.UI.Common.RunMode.RunToController? _runTo;
+        /// <summary>⭐ CE-4316 — Run to …, for the debug API and the mode menu.</summary>
+        internal Hrot.UI.Common.RunMode.RunToController? RunTo => _runTo;
         private MapViewConfig?                  _mapViewConfig;
 
         // ?? UI panels (legacy, always created) ????????????????????????????????
@@ -1471,6 +1480,13 @@ namespace Hrot.Editor
                         () => _orchestratorCore != null,
                         id => _orchestratorCore?.UiCache.UnsavedCheckOutcomeFor(id))),
                 simTime: () => _timeController!.GetCurrentState().TotalTime);   // the editor's readout is on the master's clock (it hosts it)
+            // ⭐⭐ CE-4316 (lifecycle LC-10, option A) — Run to … in Preview: the ACK-gated stepped run on THIS host's transport and master, the frame cap lifted while it runs.
+            _runTo = new Hrot.UI.Common.RunMode.RunToController(_timeTransport,
+                acksPending: () => _timeController?.IsAwaitingStepAcks ?? false,
+                inPreview:   () => _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview,
+                world:       () => _world,
+                // ⭐⭐ the TURBO strategy (DESIGN_Time_Architecture.md §20) — only on a NETWORKLESS node: no ACK leaves the process, so a step can land in place
+                turbo:       _networkFactory is OfflineNetworkFactory ? TurboStep : null);
             // ⭐ CE-1439 (AQ108 §2.12) — the cluster-control panel (the monitor window) asks through THIS host's transport, run choice and session: a caller that HAS them passes them,
             //   so the panel builds none of its own and its Pause / Load / Open AAR / Checkpoint are the toolbar's and the File menu's, not a second surface.
             if (_orchestratorCore != null && _timeTransport.RunChoice is { } panelChoice && _editorApp?.ScenarioSession is { } panelSession)
@@ -1657,6 +1673,7 @@ namespace Hrot.Editor
                     // ⚠ A Func over `_kernel`, the same shape the DiagnosticsDumpClusterOpHandler above
                     //   already uses — the kernel is replaced across a hot reload, so a captured service
                     //   would answer for a dead one.
+                    debugService.RunToControl = _runTo;   // ⭐ CE-4316 — a held dependency is passed (the silent-default rule)
                     debugService.AttachArchitectureDiagnostics(
                         () => _kernel is null
                               ? null
@@ -2529,6 +2546,7 @@ namespace Hrot.Editor
         /// <inheritdoc/>
         public void Update(float deltaTime)
         {
+            _runTo?.Tick();   // ⭐ CE-4316 — Run to …: one ACK-gated step per frame until reached
             // ⭐⭐⭐ MX-006 — THE FRAME BOUNDARY for the panel snapshot. FIRST LINE OF THE FRAME.
             //   📄 DESIGN_UI_Observability_Snapshot.md §"Perf & correctness".
             //   🔴 Why: the snapshot is latest-wins, so a panel whose window the user CLOSED kept
@@ -2628,30 +2646,7 @@ namespace Hrot.Editor
             // ⭐⭐⭐ CE-1446 B2 (decision C) — THE SHARED FRAME, `HrotNodeContext.Tick`: the slave's translator and the slave tick, then the kernel, then the node's live timeline step, then
             //   the orchestration-bus swap — the order every other ECS host runs (the slave used to be ticked INSIDE the kernel as OrchestrationLogicPack, and the swap and timeline step
             //   were spelled out here). The editor's own per-frame work rides the two seams the frame offers. ⚠ The kernel's world-bus swap is its own (Kernel.Update).
-            if (_node != null)
-            {
-                _node.Tick(
-                    beforeKernel: () => PreKernelUpdateHook?.Invoke(deltaTime),
-                    afterKernel: () =>
-                    {
-                        PostKernelUpdateHook?.Invoke();
-
-                        // Drain AI hot-reload callbacks safely on the main thread: any BTreeInterpreter pointer swaps queued by the background ALC worker are applied here, between kernel
-                        // ticks, so no active simulation tick can observe a half-swapped pointer.
-                        _aiCoordinator?.DrainPendingCallbacks();
-                        // ⭐ CE-1317 (BV-48) — disarm the traces of units no Brain tab has drawn for ~1 s
-                        if (_world != null) Hrot.Common.Diagnostics.Gizmos.BrainObservation.Current?.Tick(_world);
-                        // ⭐ CE-1329 (BV-70) — the per-unit debug settings: loaded with a scenario, saved when they change
-                        if (_world != null) _debugSettingsMemory.Tick(_world, _editorLogic?.LoadedScenarioName);
-                        // AIE-026: tick the regeneration scheduler — flushes debounced dirty saves (BTree/HSM emit-on-dirty). Safe in headless mode.
-                        _regenerationScheduler?.Tick();
-                    });
-            }
-
-            // The cluster orchestrator's own order (Q86): it reads the orchestration bus AFTER the frame swapped it, so intents published by the UI this frame are readable by it.
-            _orchestratorCore?.Tick();                 // ⭐ Q86 — the cluster orchestrator's own order
-            _orchestratorCore?.UiCache.Update();
-            _timeTransport?.Update();                  // ⭐ CE-3329 row 21 — the one facade reads what the cache reads
+            TickNodeFrame(deltaTime);   // ⭐ CE-4316 — the node frame, extracted so Run to …'s turbo loop runs the SAME one (EditorSubsystem.TurboStep)
             _editorLogic?.Update();
             _orchestratorCore?.ScenarioPanel.Update(deltaTime);
 
@@ -2688,6 +2683,52 @@ namespace Hrot.Editor
             {
                 _fdpFrameCount++;
             }
+        }
+
+        /// <summary>
+        /// ⭐ CE-4316 — ONE pass of this host's node frame: the shared node tick (<c>HrotNodeContext.Tick</c>: the slave, the kernel, the timeline, the
+        /// bus swap), then the cluster orchestrator and the transport's read-back. <see cref="Update"/> runs it once per frame; Run to …'s turbo loop
+        /// (<see cref="TurboStep"/>) runs it once per step — the SAME frame, never a second copy of it.
+        /// </summary>
+        private void TickNodeFrame(float deltaTime)
+        {
+            if (_node != null)
+            {
+                _node.Tick(
+                    beforeKernel: () => PreKernelUpdateHook?.Invoke(deltaTime),
+                    afterKernel: () =>
+                    {
+                        PostKernelUpdateHook?.Invoke();
+
+                        // Drain AI hot-reload callbacks safely on the main thread: any BTreeInterpreter pointer swaps queued by the background ALC worker are applied here, between kernel
+                        // ticks, so no active simulation tick can observe a half-swapped pointer.
+                        _aiCoordinator?.DrainPendingCallbacks();
+                        // ⭐ CE-1317 (BV-48) — disarm the traces of units no Brain tab has drawn for ~1 s
+                        if (_world != null) Hrot.Common.Diagnostics.Gizmos.BrainObservation.Current?.Tick(_world);
+                        // ⭐ CE-1329 (BV-70) — the per-unit debug settings: loaded with a scenario, saved when they change
+                        if (_world != null) _debugSettingsMemory.Tick(_world, _editorLogic?.LoadedScenarioName);
+                        // AIE-026: tick the regeneration scheduler — flushes debounced dirty saves (BTree/HSM emit-on-dirty). Safe in headless mode.
+                        _regenerationScheduler?.Tick();
+                    });
+            }
+
+            // The cluster orchestrator's own order (Q86): it reads the orchestration bus AFTER the frame swapped it, so intents published by the UI this frame are readable by it.
+            _orchestratorCore?.Tick();                 // ⭐ Q86 — the cluster orchestrator's own order
+            _orchestratorCore?.UiCache.Update();
+            _timeTransport?.Update();                  // ⭐ CE-3329 row 21 — the one facade reads what the cache reads
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-4316 — Run to …'s TURBO step, the ONE documented exception to the shared clock (📄 docs/blueprints/DESIGN_Time_Architecture.md §20):
+        /// on this NETWORKLESS all-in-one node (it always builds with <c>OfflineNetworkFactory</c>) there is no ACK round trip to wait for, so a
+        /// fixed step is taken on the master and the node frame runs at once — many per rendered frame, the map drawn once. Deterministic (every step
+        /// is <paramref name="stepSeconds"/>); used ONLY by <see cref="Hrot.UI.Common.RunMode.RunToController"/>, which passes <paramref name="step"/> =
+        /// false for a frame that only waits for the last step to land. A networked cluster takes the shared ACK-gated step instead.
+        /// </summary>
+        private void TurboStep(float stepSeconds, bool step)
+        {
+            if (step && _timeController is { IsAwaitingStepAcks: false }) _timeController.Step(stepSeconds);   // the controller asks a step only once the last has landed
+            TickNodeFrame(stepSeconds);
         }
 
         /// <inheritdoc/>
@@ -4948,6 +4989,11 @@ namespace Hrot.Editor
                 Actions: () => HostActions));   // ⭐ CE-4308 — the map menu's rule entries (silent-default rule: the editor holds them)
             _rulesWindow = rules.Rules; _rulesBundle = rules;
             Fdp.Toolkit.Runner.UiBundleHost.Compose(new Fdp.Toolkit.Runner.IUiBundle[] { rules }, new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
+
+            // ⭐ CE-4318 (L-6, Scenario Lifecycle LC-13) — the ONE Problems window over backend's ScenarioProblems; its count on the toolbar (nothing when there are none)
+            _problemsWindow = new Hrot.Presentation.Windows.ProblemsWindow(() => _world, n => SelectNetworkEntity(n), "problems", "Scenario", EditorWindowColor.TitleBar);
+            windowManager.RegisterWindow(_problemsWindow);
+            windowManager.MainToolbar?.RegisterEntry("ProblemsCount", sortOrder: ProblemsCountSortOrder, declaredHeight: Fdp.Presentation.WindowManager.MainToolbarManager.DefaultEntryHeight, _problemsWindow.DrawToolbarCount);
 
             if (_headless) return;
 
