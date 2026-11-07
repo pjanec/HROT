@@ -13,7 +13,7 @@ related-designs:
 
 # HANDOFF — coordinator → ui: today's rulings, in one order
 
-**For:** the ui lane. **From:** the coordinator lane. **Dispatched at `<sha of the commit adding this file>`**. ⭐ Scope FROZEN there.
+**For:** the ui lane. **From:** the coordinator lane. **Dispatched at `b3c6c99a`**. ⭐ Scope FROZEN there.
 Merge `coordinator` and `backend` first (backend's P-1…P-4 are what P-7 builds on), push `chore: started HANDOFF_Coordinator_To_Ui_Todays_Rulings
 at <sha>`, then the [protocol](PROTOCOL_Two_Lanes_Self_Coordinating.md) as before. ⛔⛔ Anything needing the user is skipped (R-4156).
 
