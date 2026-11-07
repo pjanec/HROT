@@ -26,6 +26,7 @@ namespace Hrot.NodeComposition.Tests;
 /// Tests for StrideNodeBootstrapper covering all SC_SM003_x and SC_SM005_x
 /// success conditions.
 /// </summary>
+[Collection(NodeExtensionsStaticsCollection.Name)]   // ⭐ CE-4296: one rail here loads an extension (process-wide state)
 public sealed class StrideNodeBootstrapperTests
 {
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -338,5 +339,28 @@ public sealed class StrideNodeBootstrapperTests
             => _base.CreatePlayerEgressTranslators(participant, bus, nodeId);
         public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(FdpEventBus b, int id, bool headless) => _base.CreateGizmoTranslators(b, id, headless);
         public IEcsModuleSystem? CreateGizmoPublisherSystem(DebugPrimitiveBuffer buf, int id) => _base.CreateGizmoPublisherSystem(buf, id);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4296 (design section 7) — Stride IS its bootstrapper, and <c>Dispose()</c> is its teardown: it must end the node the way every host does, through
+    /// <c>DisposeResources()</c> (the silent-default rule: asserted on the CONSTRUCTED host). 🔴 Red-proof: <c>Dispose</c> not calling it ⇒ the extension's capability lives on.
+    /// </summary>
+    [Fact]
+    public void CE4296_Dispose_EndsTheNodeThroughDisposeResources_FreeingTheExtensionsCapability()
+    {
+        Hrot.Common.Infrastructure.NodeExtensions.ResetForTests();
+        try
+        {
+            Hrot.Common.Infrastructure.NodeExtensions.LoadAll(Hrot.Tests.ExtensionStaging.SampleExtensionStaging.SharedBaseDirectory);
+            var bootstrapper = CreateAndBoot();
+            Assert.Contains(bootstrapper.Capabilities, c => c.Key == "sample.extension");
+            var disposals = Hrot.Common.Infrastructure.NodeExtensions.Discovered[0].GetType().GetField("Disposals")!;
+            int before = (int)disposals.GetValue(null)!;
+
+            bootstrapper.Dispose();
+
+            Assert.Equal(before + 1, (int)disposals.GetValue(null)!);
+        }
+        finally { Hrot.Common.Infrastructure.NodeExtensions.ResetForTests(); }
     }
 }

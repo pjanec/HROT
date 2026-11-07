@@ -16,6 +16,9 @@ public sealed class SampleExtension : INodeExtension
     /// <summary>Counts executions of <see cref="SampleGatedSystem"/>, which the capability's MODULE registers under <c>[NodeFeature]</c>.</summary>
     public static int GatedExecutions;
 
+    /// <summary>⭐ CE-4296 — how many times a <see cref="SampleCapability"/> was disposed (the node's teardown frees what the base created).</summary>
+    public static int Disposals;
+
     /// <summary>The last context the extension was asked with.</summary>
     public static NodeExtensionContext? LastContext;
 
@@ -28,8 +31,10 @@ public sealed class SampleExtension : INodeExtension
     }
 }
 
-public sealed class SampleCapability : INodeCapability
+public sealed class SampleCapability : INodeCapability, IDisposable
 {
+    public void Dispose() => Interlocked.Increment(ref SampleExtension.Disposals);
+
     public string Key => SampleExtension.CapabilityKey;
     public IReadOnlyList<string> Needs => Array.Empty<string>();
     public IReadOnlyList<FeatureDeclaration> Features { get; } = new[] { FeatureDeclaration.Switch(SampleExtension.FeatureId, "Test extension feature", FeatureChange.Live, _ => true) };

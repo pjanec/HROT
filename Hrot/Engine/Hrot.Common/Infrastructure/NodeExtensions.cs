@@ -219,6 +219,10 @@ public static class NodeExtensions
         return result ?? host;
     }
 
+    /// <summary>⭐ CE-4296 — a capability's <c>Dispose</c> threw at node teardown: one report line (the base goes on to dispose the next).</summary>
+    internal static void ReportTeardownFailure(string capabilityKey, Exception e)
+        => Refuse($"extension capability '{capabilityKey}': Dispose threw {e.GetType().Name}: {e.Message}");
+
     private static void Refuse(string line)
     {
         lock (Gate)

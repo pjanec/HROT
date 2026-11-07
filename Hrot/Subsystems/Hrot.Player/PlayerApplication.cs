@@ -1494,6 +1494,10 @@ public class PlayerApplication : IDisposable
         _clusterSlave?.Dispose();
         _clusterSlave = null;
 
+        // ⭐ CE-4296 — the node's one teardown, as on every other host (SimHostApp.Shutdown): the extensions' capabilities, then the resource providers.
+        //   After the slave stops, before the adapter and the context they borrow from go.
+        _playerBootstrapper?.DisposeResources();
+
         // _networkAdapter.Dispose() disposes the command gateway and all DDS writers/readers.
         _networkAdapter?.Dispose();
         _networkAdapter = null;
