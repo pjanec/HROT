@@ -26,7 +26,10 @@ public static class TransportIcons
     /// is clicked. When <paramref name="enabled"/> is <c>false</c> the icon is rendered
     /// dimmed and the hit area is replaced by a passive <c>Dummy</c> widget.
     /// </summary>
-    public static bool DrawTransportButton(string id, float size, BtnShape shape, bool enabled)
+    public static bool DrawTransportButton(string id, float size, BtnShape shape, bool enabled) => DrawTransportButton(id, size, shape, enabled, null);
+
+    /// <summary>⭐ L-11 / CE-4319 — the same button, ▶ drawn in <paramref name="playTint"/> (the colour of the mode a press plays; null = the default green).</summary>
+    public static bool DrawTransportButton(string id, float size, BtnShape shape, bool enabled, Vector4? playTint)
     {
         // Capture the top-left screen position BEFORE the hit-area widget so we can
         // draw at that position via the ImDrawList regardless of cursor movement.
@@ -52,7 +55,7 @@ public static class TransportIcons
 
         // Icon shape — shift 1 px down-right when pressed for tactile feedback.
         var drawPos = pressed ? pos + new Vector2(1f, 1f) : pos;
-        DrawShape(dl, shape, drawPos, size, dim: !enabled, hovered: hovered);
+        DrawShape(dl, shape, drawPos, size, dim: !enabled, hovered: hovered, playTint: playTint);
 
         // Shared chrome: inset white hover frame on top (transport has no persistent toggle).
         IconButtonChrome.DrawHoverFrame(dl, pos, new Vector2(size, size), hovered);
@@ -68,7 +71,7 @@ public static class TransportIcons
     /// </summary>
     public static void DrawShape(
         ImDrawListPtr dl, BtnShape shape, Vector2 pos, float size,
-        bool dim, bool hovered)
+        bool dim, bool hovered, Vector4? playTint = null)
     {
         float alpha = dim ? 0.28f : (hovered ? 1.0f : 0.85f);
         float pad   = MathF.Round(size * 0.22f);
@@ -77,8 +80,9 @@ public static class TransportIcons
         {
             case BtnShape.Play:
             {
-                // Green filled triangle pointing right.
-                uint col = ImGui.GetColorU32(new Vector4(0.20f, 0.78f, 0.20f, alpha));
+                // A filled triangle pointing right — in the mode's colour (L-11), green by default.
+                var tint = playTint ?? new Vector4(0.20f, 0.78f, 0.20f, 1f);
+                uint col = ImGui.GetColorU32(new Vector4(tint.X, tint.Y, tint.Z, alpha));
                 var p0 = pos + new Vector2(pad, pad);
                 var p1 = pos + new Vector2(size - pad, size * 0.5f);
                 var p2 = pos + new Vector2(pad, size - pad);

@@ -793,6 +793,20 @@ public class MainToolbarTimeControlTests
         Assert.All(recorded.Items.Where(i => i.Label.StartsWith("DAR")), i => Assert.True(i.Enabled));
     }
 
+    /// <summary>⭐ L-11 / CE-4319 (LC-14) — ▶ is drawn in the colour of the mode a press PLAYS: in Edit the armed mode (Live green, Preview violet, AAR blue),
+    /// in a run the run's own (a DAR amber) — the ONE indicator table's colours. 🔴 Red-proof: <c>PlayColour</c> ignoring the armed mode ⇒ the Edit rows ⇒ red.</summary>
+    [Theory]
+    [InlineData(TransportMode.Edit, RunArmed.Live, TransportMode.Live)]
+    [InlineData(TransportMode.Edit, RunArmed.Preview, TransportMode.Preview)]
+    [InlineData(TransportMode.Idle, RunArmed.AAR, TransportMode.Replay)]
+    [InlineData(TransportMode.Review, RunArmed.Live, TransportMode.Review)]
+    [InlineData(TransportMode.Live, RunArmed.Preview, TransportMode.Live)]
+    public void CE4319_PlayIsDrawnInTheColourOfTheModeItPlays(TransportMode mode, RunArmed armed, TransportMode colourOf)
+    {
+        Assert.Equal(MainToolbarTimeControlSection.ModeGlyph(colourOf)!.Color, MainToolbarTimeControlSection.PlayColour(mode, armed));
+        Assert.NotEqual(MainToolbarTimeControlSection.PlayColour(TransportMode.Edit, RunArmed.Live), MainToolbarTimeControlSection.PlayColour(TransportMode.Edit, RunArmed.Preview));
+    }
+
     /// <summary>⭐ D11 — the status-bar note shows while a Preview or a Live run goes, and only then.</summary>
     [Theory]
     [InlineData(TransportMode.Preview, "Preview — changes are thrown away on Stop")]   // ⭐ L-1 (LC-8, R-4166): a Preview keeps nothing

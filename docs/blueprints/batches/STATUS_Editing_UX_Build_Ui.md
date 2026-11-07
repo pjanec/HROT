@@ -55,7 +55,7 @@
 | L-1 | CE-4315 | ✅ DONE | (this commit) | the Preview note *"Preview — changes are thrown away on Stop"* (`RunNoteStatusBarSection.PreviewText`); a Save in Preview refused with that same reason (`RunModeChoice.TryCheckpointInsteadOfSave`). R-4166 corrects R-4162 (a checkpoint is Live only) ⇒ the Preview-checkpoint note to backend WITHDRAWN. Gate: Presentation.Tests CE4097/CE4250/TheOneTimeFacade/RunModeChoice 117/117 (+2 skip) |
 | L-2 | CE-4320 | started (ui) | — | the RulesBundle opens Mission summary at Live start / exercise end on every host; the Player's Trainee debrief at the end |
 | L-10 | CE-4317 | started (ui) | — | the Run setup on the mode menu, Preview AND Live |
-| L-11 | CE-4319 | started (ui) | — | ▶ in its mode's colour |
+| L-11 | CE-4319 | ✅ DONE | (this commit) | ▶ in the colour of the mode a press plays — `MainToolbarTimeControlSection.PlayColour(mode, armed)` from the ONE indicator table (Edit: the armed mode; a run: its own — DAR amber), `TransportIcons.DrawTransportButton(…, playTint)`. Fidelity: the real frame rendered and read (`ColourIconsFrameRail.L11_…`, `play-colours.png`: green / violet / blue); red-proved (the tint dropped ⇒ red). Gates: MainToolbarTimeControl 82/82, ColourIconsFrameRail 5/5 (xvfb) |
 | L-12 | CE-4311 | started (ui) | — | an empty scenario's map hint |
 | L-13 | CE-4313 | started (ui) | — | ORBAT: New group here, the Commander row, the drop says what it does |
 | L-14 | CE-4314 | started (ui) | — | Copy plan / Paste plan (after P-7) |
