@@ -204,7 +204,10 @@ public abstract class SharedApplicationBootstrapper
             provides: new[] { "capabilities" },
             run: () =>
             {
-                _walk = new NodeCapabilityWalk(ResolveCapabilities(context, role));
+                // ⭐ CE-4293 (R-4158) — the host's list, then the extensions' capabilities LAST: every node by construction, stripped by role
+                //   (null from CreateCapability) or by feature (F-2). No extensions folder ⇒ the very same list instance. 📄 docs/DESIGN_Node_Extensions.md.
+                _walk = new NodeCapabilityWalk(NodeExtensions.CapabilitiesFor(
+                    new NodeExtensionContext(role, config.Headless, config.SubsystemName), ResolveCapabilities(context, role), declaredResourceKeys));
 
                 // ⭐ Node Features — the registry of the composed capabilities' declarations, and the node's ONE reader (F-4).
                 //   An id declared by two capabilities throws here (F-2). 📄 docs/DESIGN_Node_Features.md §6.3.

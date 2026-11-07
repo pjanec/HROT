@@ -630,6 +630,9 @@ namespace Hrot.Editor
 
         /// <summary>CE-3330 test hook: the node context the editor was built from (its world, kernel and timeline).</summary>
         internal HrotNodeContext? NodeForTest => _node;
+        /// <summary>⭐ CE-4293 — the capabilities the editor's shared bootstrap composed (host list, then node extensions).</summary>
+        internal System.Collections.Generic.IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability> CapabilitiesForTest
+            => _bootstrapper?.Capabilities ?? System.Array.Empty<Hrot.Common.Infrastructure.INodeCapability>();
 
         /// <summary>Q86 test hook: the orchestration bus the shared orchestrator core runs on.</summary>
         internal FdpEventBus? OrchestrationBusForTest => _orchestrationBus;

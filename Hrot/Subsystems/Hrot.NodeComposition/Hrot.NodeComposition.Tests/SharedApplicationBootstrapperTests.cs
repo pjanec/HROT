@@ -36,6 +36,7 @@ namespace Hrot.NodeComposition.Tests;
 /// <summary>
 /// Tests for SharedApplicationBootstrapper covering all 10 SC_SM002_x success conditions.
 /// </summary>
+[Collection(NodeExtensionsStaticsCollection.Name)]   // ⭐ CE-4293: NodeExtensions is process-wide state; this class runs alone
 public sealed class SharedApplicationBootstrapperTests
 {
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -371,6 +372,51 @@ public sealed class SharedApplicationBootstrapperTests
 
         var ex = Assert.Throws<InvalidOperationException>(() => sut.BootstrapNode(HeadlessConfig(), NodeRole.None, factory));
         Assert.Contains("DeclaredResourceKeys must match", ex.ToString());
+    }
+
+    /// <summary>
+    /// ⭐ CE-4293 (R-4158; design §5 rail 4 at the base) — with an extension installed, the base's <c>capabilities</c> step appends its capability LAST,
+    /// its feature is declared on the node (F-2), and it is told the node's role, offline flag and host name. 🔴 Red-proofs: appending first; skipping the step.
+    /// </summary>
+    [Fact]
+    public void CE4293_AnInstalledExtensionsCapability_IsAppendedLast_ItsFeatureDeclared_AndItIsToldTheNode()
+    {
+        Hrot.Common.Infrastructure.NodeExtensions.ResetForTests();
+        try
+        {
+            Hrot.Common.Infrastructure.NodeExtensions.LoadAll(Hrot.Tests.ExtensionStaging.SampleExtensionStaging.SharedBaseDirectory);
+            var factory = new Hrot.Editor.OfflineNetworkFactory();
+            var host = new INodeCapability[] { new AllHooksCapability() };
+            var sut = new TestBootstrapper(factory) { TestCapabilities = host };
+
+            var ctx = sut.BootstrapNode(HeadlessConfig(), NodeRole.None, factory);
+
+            Assert.Equal(2, sut.Capabilities.Count);
+            Assert.Same(host[0], sut.Capabilities[0]);
+            Assert.Equal("sample.extension", sut.Capabilities[1].Key);   // LAST
+            Assert.True(ctx.Features.Registry.Available("sample.extension.feature"));
+            var last = (NodeExtensionContext)Hrot.Common.Infrastructure.NodeExtensions.Discovered[0].GetType().GetField("LastContext")!.GetValue(null)!;
+            Assert.Equal(NodeRole.None, last.Role);
+            Assert.True(last.Offline);       // HeadlessConfig: Headless = true
+            Assert.Equal("TestNode", last.HostName);
+        }
+        finally { Hrot.Common.Infrastructure.NodeExtensions.ResetForTests(); }
+    }
+
+    /// <summary>⭐ CE-4293 — WITHOUT any extension the node's capability list is exactly the host's: the same instances in the same order.</summary>
+    [Fact]
+    public void CE4293_WithoutExtensions_TheCapabilityListIsTheHostsListExactly()
+    {
+        Hrot.Common.Infrastructure.NodeExtensions.ResetForTests();
+        var factory = new Hrot.Editor.OfflineNetworkFactory();
+        var host = new INodeCapability[] { new AllHooksCapability(), new PostSimCapability() };
+        var sut = new TestBootstrapper(factory) { TestCapabilities = host };
+
+        sut.BootstrapNode(HeadlessConfig(), NodeRole.None, factory);
+
+        Assert.Equal(host.Length, sut.Capabilities.Count);
+        for (int i = 0; i < host.Length; i++) Assert.Same(host[i], sut.Capabilities[i]);
+        Assert.Empty(Hrot.Common.Infrastructure.NodeExtensions.Report);
     }
 
     /// <summary>
@@ -875,3 +921,7 @@ public sealed class SharedApplicationBootstrapperTests
         Assert.Null(host.ReadBackInPopulateSystems);
     }
 }
+
+/// <summary>⭐ CE-4293 — <c>NodeExtensions</c> is process-wide: the classes that load an extension run alone.</summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class NodeExtensionsStaticsCollection { public const string Name = "NodeExtensionsStatics"; }

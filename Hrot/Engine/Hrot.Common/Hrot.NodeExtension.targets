@@ -1,0 +1,42 @@
+<Project>
+  <!--
+    ⭐ CE-4293 (R-4158) — import this from a NODE EXTENSION project (one built outside HROT's sources that ships in extensions/<name>/):
+
+        <Import Project="<hrot>/Hrot/Engine/Hrot.Common/Hrot.NodeExtension.targets" />
+
+    with a compile-only reference to Hrot.Common (and what it needs to compile against):
+        <ProjectReference Include="<hrot>/Hrot/Engine/Hrot.Common/Hrot.Common.csproj"><Private>false</Private><ExcludeAssets>runtime</ExcludeAssets></ProjectReference>
+
+    It emits [assembly: BuiltAgainstHrot("<the referenced Hrot.Common's informational version, which carries the commit>")], which the running
+    host compares with its own Hrot.Common (NodeExtensions). Ship ONLY your own assemblies in extensions/<name>/: Hrot.*, Fdp.* and CycloneDDS* dlls
+    are refused. 📄 docs/DESIGN_Node_Extensions.md.
+  -->
+  <UsingTask TaskName="HrotReadProductVersion" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <AssemblyPath ParameterType="System.String" Required="true" />
+      <Version ParameterType="System.String" Output="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.Diagnostics" />
+      <Code Type="Fragment" Language="cs"><![CDATA[Version = FileVersionInfo.GetVersionInfo(AssemblyPath).ProductVersion ?? "";]]></Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="HrotStampBuiltAgainst" BeforeTargets="CoreCompile" DependsOnTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <_HrotCommonReference Include="@(ReferencePath)" Condition="'%(Filename)' == 'Hrot.Common'" />
+    </ItemGroup>
+    <Error Condition="'@(_HrotCommonReference)' == ''" Text="HrotStampBuiltAgainst: this project does not reference Hrot.Common." />
+    <HrotReadProductVersion AssemblyPath="%(_HrotCommonReference.FullPath)">
+      <Output TaskParameter="Version" PropertyName="_HrotCommonVersion" />
+    </HrotReadProductVersion>
+    <PropertyGroup>
+      <_HrotStampFile>$(IntermediateOutputPath)BuiltAgainstHrot.g.cs</_HrotStampFile>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(_HrotStampFile)" Lines="[assembly: Hrot.Common.Infrastructure.BuiltAgainstHrot(&quot;$(_HrotCommonVersion)&quot;)]" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <Compile Include="$(_HrotStampFile)" />
+      <FileWrites Include="$(_HrotStampFile)" />
+    </ItemGroup>
+  </Target>
+</Project>

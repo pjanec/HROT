@@ -39,4 +39,10 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- CE-4293: the test-only node extension, built the way a foreign product builds one and staged by path (not referenced) -->
+    <ProjectReference Include="..\..\..\Engine\Hrot.Common.Tests.SampleExtension\SampleNodeExtension.csproj" ReferenceOutputAssembly="false" OutputItemType="SampleExtensionOutput" />
+    <Compile Include="..\..\..\Engine\Hrot.Common.Tests.SampleExtension\Shared\SampleExtensionStaging.cs" Link="Shared\SampleExtensionStaging.cs" />
+  </ItemGroup>
+  <Import Project="..\..\..\Engine\Hrot.Common.Tests.SampleExtension\CopySampleExtension.targets" />
 </Project>

@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-07
-build-state: READY-TO-BUILD (approved, R-4158)
-current-answer: whole document
+build-state: BUILT (CE-4293, as-built notes in section 6)
+current-answer: whole document; section 6 (as-built) overrides anything above it where they differ
 stale-below: none
 related-designs:
   - docs/DESIGN_Subsystem_Composition_Unification.md - owns the shared bootstrap's composition steps and the capability seam (INodeCapability, NodeCompositionPlan, the capabilities step of §4.1ae) that this design appends to; §4.1ag the one role table (unchanged here)
@@ -75,7 +75,8 @@ classDiagram
         +LoadAll(string baseDirectory)
         +Discovered IReadOnlyList~INodeExtension~
         +Report IReadOnlyList~string~
-        +CapabilitiesFor(NodeExtensionContext, IReadOnlyList~INodeCapability~ host) IReadOnlyList~INodeCapability~
+        +RunningVersion string
+        +CapabilitiesFor(NodeExtensionContext, IReadOnlyList~INodeCapability~ host, IReadOnlyCollection~string~ declaredResources) IReadOnlyList~INodeCapability~
     }
     class BuiltAgainstHrotAttribute {
         <<assembly attribute, new>>
@@ -134,7 +135,7 @@ sequenceDiagram
    Rejected: copying into HROT's own folder (not in `deps.json`: silently not loaded, and mixes binaries); an isolated
    load context (shared types must come from the default context anyway; nothing needs unloading).
 4. **Build check** - the extension's assembly carries `[assembly: BuiltAgainstHrot("<informational version of the
-   Hrot.Common it compiled against>")]` (HROT's informational version carries the commit, `Directory.Build.targets`); a
+   Hrot.Common it compiled against>")]` (HROT's informational version carries the commit - measured, section 6.1); a
    mismatch with the running `Hrot.Common` refuses **that extension only**, with one error naming both versions.
    Rejected: failing the process (an editor stays usable); no check (fails late, mid-frame).
 5. **No silent failure** - every refusal (shared assembly shipped, load failure, build mismatch, no public parameterless
@@ -151,3 +152,20 @@ sequenceDiagram
 | ④ | the editor host (headless) with the test extension composes its system and runs it one frame; without the folder its capability list equals the base list | skip the step |
 | ⑤ | the extension's feature (F-2) appears in `context.Features` and switching it off removes its systems | — (existing F-2 machinery) |
 | ⑥ | a DLL copied into HROT's own folder is not loaded by `LoadAll` (documents the `deps.json` fact that motivates §4.3) | — |
+
+## 6. As-built (CE-4293)
+
+Built as designed (6 files: `Infrastructure/NodeExtensions.cs` with `INodeExtension`, `NodeExtensionContext`, `BuiltAgainstHrotAttribute`, `NodeExtensions`; the one-line hook in `DeploymentAssemblies.LoadAll`; the 4-line change in the `capabilities` step of `SharedApplicationBootstrapper`; `Hrot.NodeExtension.targets`). The class and sequence diagrams above match, with the deviations below. Prior statements they supersede are marked.
+
+| # | deviation / finding | why |
+|---|---|---|
+| 6.1 | **Build stamp, measured:** `Hrot.Common`'s informational version is `0.1.1+d9f1cb7e8a8a963480229c03e5968f0c6b3d50c7` (the .NET 8 SDK appends the HEAD commit). SUPERSEDED: section 4.3/4.4 say `Directory.Build.targets` adds it - that file does not exist (the comment in `Directory.Build.props:10` is stale). Consequence: the stamp is HEAD at build time, so **every HROT commit invalidates every installed extension** until it is rebuilt - as designed, but worth knowing. | rail `ABuildStampThatIsNotTheRunningHrotCommon...` asserts the version contains `+` |
+| 6.2 | **Auto-stamp:** an extension project imports `Hrot/Engine/Hrot.Common/Hrot.NodeExtension.targets` (snippet in its header). It reads the referenced `Hrot.Common.dll`'s product version with an inline task and writes `BuiltAgainstHrot.g.cs`. Proven by the test-only `Hrot/Engine/Hrot.Common.Tests.SampleExtension` (assembly `SampleNodeExtension`, built with compile-only references; the stamp equals the running version). | the stamp cannot be hand-typed |
+| 6.3 | The stamp is read from **metadata** (`PEReader`), so a mismatching extension is refused **before it is loaded**. | no half-loaded refused extension |
+| 6.4 | `LoadAll` is idempotent **per base directory** (not literally once per process), under one lock: a second call for the same directory does nothing; another directory is scanned too. `DeploymentAssemblies.LoadAll(directory)` forwards its directory. | tests and a second root need it; same guarantee for the real process |
+| 6.5 | `CapabilitiesFor` takes an optional `declaredResources` and refuses (one report line) an extension whose `Needs` the role does not declare, or whose feature id is already declared. | otherwise the base's D10 equality check or `FeatureRegistry` (F-2) THROWS at boot and the editor is not usable. **An extension's `Needs` must be keys the role declares**; most declare none. |
+| 6.6 | `NodeExtensionContext`: `Offline` = `HrotNodeConfig.Headless`, `HostName` = `HrotNodeConfig.SubsystemName`, `Role` = the role passed to the step, `Folder` = the extension's own folder. | the base has no other offline flag; Headless is "no DDS stack" |
+| 6.7 | **Rail 6 is not an in-process rail.** The test host registers its own resolver for the test folder, so `Assembly.Load` finds a dll copied beside the test binaries (measured: `FileLoadException` for a renamed copy, not `FileNotFoundException`). Measured instead in a plain framework-dependent console app: `Assembly.Load("SampleNodeExtension")` with the dll beside the binary answers `FileNotFoundException`. The motivation of 4.3 stands; the rail was dropped and a comment in `NodeExtensionsTests` says why. | a rail would assert the test host, not HROT |
+| 6.8 | **Finding (not changed): `[NodeFeature]` on a system contributed through `PopulateSystems` (a group member) does NOT switch it off.** Measured on the editor: after `SetNodeOverride(feature, {"Enabled":false})` the system kept running (6 -> 11 executions). A `[NodeFeature]` on a **module** returned by `ProvideModules` does (rail 5 asserts that, and that the extension's other system keeps running). Cause read in `SystemScheduler`: `RegisterStepReader` stores the system's tick policy first, so the first-sight `ReadFeature` in `ExecuteSystem` (`SystemScheduler.cs:236-239`) never runs for group members. **Rule for extension authors: gate a feature through a module.** Open question for the owner of F-13: do production group members with `[NodeFeature]` (e.g. `ExercisePauseOnEndSystem`, a `CgfLogicPack` group member) switch off at all? Not verified for them. | found while writing rail 5 |
+| 6.9 | Authoring rules the sample hit: every system and module declares `[TickMode]` (CE-3293); a system needs `[UpdateInPhase]` when a module registers it; an `IEcsModule` must implement `Policy` (the interface's default `Policy`/`Tier` pair recurse into each other: stack overflow). | learned by running it |
+| 6.10 | Test seams: `NodeExtensions.ResetForTests()` / `Add(Type, folder)` (internal), `InternalsVisibleTo Hrot.NodeComposition.Tests` on `Hrot.Common`, `EditorSubsystem.CapabilitiesForTest` (ui lane's file, one property). Rails: `Hrot.Common.Tests/NodeExtensions/NodeExtensionsTests` (1, 2, 3), `SharedApplicationBootstrapperTests.CE4293_*` (4 at the base), `Hrot.Editor.Tests/TheEditorComposesNodeExtensionsTests` (4, 5). Tests that load an extension run in a non-parallel collection (`NodeExtensions` is process state). | |

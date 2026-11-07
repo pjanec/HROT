@@ -52,6 +52,8 @@ namespace Hrot.Common.Infrastructure
                 }
                 catch { /* not loadable here (e.g. a native or reference-only DLL) — ignore, as the runner always has */ }
             }
+            // ⭐ CE-4293 (R-4158) — the node extensions in <directory>/extensions/<name>/, loaded by path, once per process and directory.
+            NodeExtensions.LoadAll(directory);
             return newlyLoaded;
         }
 
