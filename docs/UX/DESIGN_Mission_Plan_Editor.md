@@ -397,6 +397,8 @@ fresh world (new network ids) and still points at the same three entities — an
 
 **M4 runtime (P-4, CE-4300) as built:** E1 exactly as §5.8 says, in `MissionControlExecutionSystem.CarryProgress` (by `TaskId`; "unchanged" = same name, params and condition entries). ⭐ One thing E1 needed that §5.8 did not name: the ADAPTER decided "already started" by the slot INDEX, so a task kept running but moved by an insert would have been restarted; it now keys on the task (id, name, params — the index only for an id-less task). E7 and E8 need no code of their own: both commit plan + 1 with the version, and E1 keeps the progress. D9's version precondition was already there (B-6); the two-station rail pins it.
 
+**M5 runtime (P-5, CE-4301) as built:** D6's leaf was built in P-2 (§5.10). G2 as §5.7 says — each `Then` / `GiveUp` entry walked with the contract `SearchPredicateDto` (`ScenarioBehaviorRemapper.ResolveConditionJson`). ⚠ §5.7's premise *"the walker already handles the polymorphic tree"* was only HALF true: members typed as a polymorphic node were dispatched (SR-164), but a polymorphic ROOT was planned as its abstract base and walked nothing — fixed in `EntityRefRemap.WalkJson` (one place, every caller).
+
 ### 5.11 P-7 (M2 + M4 UI) — the build plan *(ui, `2026-11-07`; claimed in `STATUS_Editing_UX_Build_Ui.md`)*
 
 INVENTORY (graph `search_graph .*(OrdersTab|MissionPanel|MissionPlan).*` Class + grep `new MissionPanel`): no Orders tab exists; **three**

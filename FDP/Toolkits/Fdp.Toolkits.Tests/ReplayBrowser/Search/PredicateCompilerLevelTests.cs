@@ -329,6 +329,38 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             return u;
         }
 
+        /// <summary>⭐⭐ <c>CE-4298</c> / <c>CE-4301</c> — mission plan D6: <c>TaskFinished</c> reads a unit's replicated task outcome. Another unit's task 3
+        /// (by network id) holds once it ended Done or Failed; no Unit = the asked entity, Task 0 = its CURRENT task (the plan's own <i>when done</i>);
+        /// no plan / a task it lacks ⇒ false; 0 B per steady call. ✅ Red-proof: the leaf reading <c>CurrentTask</c> for every Task ⇒ the "task 3" asserts red.</summary>
+        [Fact]
+        public void D6_TaskFinished_AUnitWaitsOnAnothersTask3_AndTheDefaultIsThisUnitsCurrentTask()
+        {
+            _w.RegisterComponent<Fdp.Toolkit.Behavior.Components.MissionPlanQueue>();
+            var me = At(0, 0);
+            var bravo = At(5, 5, net: 812);
+            var q = new Fdp.Toolkit.Behavior.Components.MissionPlanQueue { TaskCount = 4, CurrentTask = 3 };
+            _w.AddComponent(bravo, q);
+            var task3 = new TaskFinishedPredicateDto { Unit = new EntityLink(new EntityRef(812)), Task = 3 };
+            var current = new TaskFinishedPredicateDto();
+
+            Assert.False(Level(task3)(_w, me));
+            Assert.False(Level(current)(_w, me));                          // no plan
+            ref var rw = ref _w.GetComponentRW<Fdp.Toolkit.Behavior.Components.MissionPlanQueue>(bravo);
+            Span<Fdp.Toolkit.Behavior.Components.MissionPhaseOutcome> o = rw.Outcomes;
+            o[2] = Fdp.Toolkit.Behavior.Components.MissionPhaseOutcome.Done;
+            Assert.True(Level(task3)(_w, me));
+            Assert.False(Level(current)(_w, bravo));                       // its CURRENT task (4) has not ended
+            o[3] = Fdp.Toolkit.Behavior.Components.MissionPhaseOutcome.Failed;
+            Assert.True(Level(current)(_w, bravo));
+            Assert.False(Level(new TaskFinishedPredicateDto { Unit = new EntityLink(new EntityRef(812)), Task = 9 })(_w, me));   // a task it lacks
+
+            var f = Level(task3);
+            f(_w, me);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++) f(_w, me);
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
         /// <summary>InUnit: the unit itself (unless IncludeSelf is off), anyone under it at any depth, nobody else; unresolved ⇒ false.
         /// ✅ Red-proof: the walk not recursing ⇒ the platoon's man red.</summary>
         [Fact]
