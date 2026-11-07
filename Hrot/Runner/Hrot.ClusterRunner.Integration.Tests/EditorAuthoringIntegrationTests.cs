@@ -157,7 +157,7 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
         ref readonly var mem = ref world.GetComponent<TargetMemory>(insurgent);
         Assert.Equal(1, mem.Count);
         Assert.Equal((long)apc.PackedValue, mem.EntityIds[0]);
-        Assert.True(mem.Freshness[0] >= 100f);
+        Assert.True(mem.Freshness[0] >= 90f);   // B-5 S3: the seed (100) is applied in the Simulation phase now, so the threat system decays it one tick before the read (the retired editor system ran last, after the decay)
     }
 
     [Fact]

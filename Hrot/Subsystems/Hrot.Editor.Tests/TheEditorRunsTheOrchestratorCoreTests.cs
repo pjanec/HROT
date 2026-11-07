@@ -269,7 +269,6 @@ public sealed class TheEditorRunsTheOrchestratorCoreTests
         "Hrot.MuscleCharacter.Animation.Systems.MontageQueueAdvanceSystem",
         "Hrot.MuscleCharacter.Animation.Systems.AnimationRuntimeBridgeSystem",
         "Hrot.MuscleCharacter.Animation.Systems.StanceTransitionSystem",
-        "Hrot.Editor.Systems.EditorPerceptionSetupSystem",
         "Hrot.Editor.Systems.EditorZoneAuthoringSystem",
         "Fdp.Toolkit.Perception.Systems.LocalGridBuilderSystem",
         "Hrot.SimHost.Systems.EqsSolverSystem",

@@ -231,4 +231,23 @@ public static class AttributeIds
     /// <summary>⭐ <c>WeaponPosture.HeldItem</c> — a <c>HeldItemKind</c> (0 None · 1 Weapon · 2 Throwable · 3 Phone · 4 Binoculars) as a number or its name; a thing he does not
     /// have is refused (<c>HeldItems.Has</c>). <c>Int32</c>.</summary>
     public const ushort WeaponHeldItem = 73;
+
+    // ── ⭐ Initial state S6 (docs/UX/DESIGN_Initial_State.md §3, R-4137) — the AI character settings, on CombatProficiency / CombatTemperament (applied by the brain's node) ──
+    // ⭐ A NEGATIVE value is the RESET: it clears the field's authored bit, so the unit reads its type's value again (with the spread stamped at creation). The range is 0..1,
+    //   so no real value collides — one id per authored fact, no second "reset" id to keep in step in four routing tables.
+
+    /// <summary>⭐ <c>CombatProficiency.Authored</c> — what he CAN do, 0..1 (sets the authored bit); a negative value clears it. <c>Float64</c>.</summary>
+    public const ushort Proficiency = 80;
+
+    /// <summary>⭐ <c>CombatTemperament.RiskAcceptance</c> (bravery), 0..1; negative = reset. <c>Float64</c>.</summary>
+    public const ushort TemperamentRiskAcceptance = 81;
+
+    /// <summary>⭐ <c>CombatTemperament.Obedience</c>, 0..1; negative = reset. <c>Float64</c>.</summary>
+    public const ushort TemperamentObedience = 82;
+
+    /// <summary>⭐ <c>CombatTemperament.Nerve</c>, 0..1; negative = reset. <c>Float64</c>.</summary>
+    public const ushort TemperamentNerve = 83;
+
+    /// <summary>⭐ <c>CombatTemperament.Resolve</c>, 0..1; negative = reset. <c>Float64</c>.</summary>
+    public const ushort TemperamentResolve = 84;
 }

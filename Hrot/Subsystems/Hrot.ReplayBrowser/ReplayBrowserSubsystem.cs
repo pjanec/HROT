@@ -254,6 +254,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
             _timelinePanel.ToggleAxis = () => Axis = Axis == Fdp.Toolkit.Orchestration.ReplayAxis.Sim
                 ? Fdp.Toolkit.Orchestration.ReplayAxis.Wall : Fdp.Toolkit.Orchestration.ReplayAxis.Sim;
             _timelinePanel.HasSimAxis = () => CachedTimeMap.HasSimTime;
+            _timelinePanel.SimAtWall = wall => CachedTimeMap.SimAt(wall);   // ⭐ Replay Browser UX ① — the seek bar's times on the sim axis
 
             _transientBuilder = new TransientMasterBuilder(_scenarioSerializer);
 

@@ -10,7 +10,7 @@
   "nodeCounts": {
     "simhost": {
       "modules": 11,
-      "systems": 140,
+      "systems": 141,
       "translators": 151,
       "capabilities": 10,
       "providers": 1,
@@ -19,7 +19,7 @@
     },
     "player": {
       "modules": 10,
-      "systems": 92,
+      "systems": 93,
       "translators": 138,
       "capabilities": 7,
       "providers": 0,
@@ -28,7 +28,7 @@
     },
     "cgf": {
       "modules": 9,
-      "systems": 148,
+      "systems": 149,
       "translators": 158,
       "capabilities": 7,
       "providers": 0,

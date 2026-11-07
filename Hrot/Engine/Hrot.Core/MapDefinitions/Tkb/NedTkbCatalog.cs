@@ -1140,6 +1140,10 @@ namespace Hrot.Map.Definitions.Tkb
             tkbDb.Register(spawnArea);
             // ⭐ Player Join S2-a (D-10) — a Deploy Role: a bare template like Traffic's; its DeployRole is added when it is placed.
             tkbDb.Register(new TkbTemplate("Deploy Role", TkbEntityTypes.DeployRole));
+            // ⭐ Initial state S4 — a named / oriented Point: a map graphic, not a body; its name and pose arrive with the creation request.
+            var point = new TkbTemplate("Point", TkbEntityTypes.Point);
+            point.AddDescriptor(new MapGraphicDef());
+            tkbDb.Register(point);
             // ⭐ AQ93 R-4021 — the scenario's traffic settings: a bare template like the World Environment's; its TrafficDemand arrives with
             //   the creation request. No SimTransform: it is nowhere.
             var traffic = new TkbTemplate("Traffic", TkbEntityTypes.TrafficDemand);

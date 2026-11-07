@@ -90,5 +90,12 @@ namespace Fdp.Toolkit.Perception.Events
 
         /// <summary>Additive threat-score boost applied on top of any existing score.</summary>
         public float ScoreBoost;
+
+        /// <summary>⭐ B-5 S3 (R-4137) — set by the interaction ingress: this command came off the network (never sent on again). APPENDED.</summary>
+        public bool IsRemote;
+
+        /// <summary>⭐ B-5 S3 (edit framework F4) — the user's request id (<c>Edits.Submit</c> / <c>EditOp.Interact</c>); the applying node answers with an
+        /// <c>EntityEditOutcome</c> under it. <see cref="System.Guid.Empty"/> = nobody asked. APPENDED.</summary>
+        public System.Guid RequestId;
     }
 }

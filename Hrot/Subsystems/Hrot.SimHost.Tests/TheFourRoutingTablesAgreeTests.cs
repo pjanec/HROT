@@ -87,6 +87,12 @@ public class TheFourRoutingTablesAgreeTests
         ("Weapon.AimPoint.*",  AttributeIds.WeaponAimPoint,     "{\"Weapon\":{\"AimPoint\":{\"0\":12.5}}}"),
         ("Weapon.AimTarget",   AttributeIds.WeaponAimTarget,    "{\"Weapon\":{\"AimTarget\":1}}"),
         ("Weapon.HeldItem",    AttributeIds.WeaponHeldItem,     "{\"Weapon\":{\"HeldItem\":1}}"),
+        // ⭐ Initial state S6 — the AI character settings
+        ("Proficiency",                AttributeIds.Proficiency,                "{\"Proficiency\":0.8}"),
+        ("Temperament.RiskAcceptance", AttributeIds.TemperamentRiskAcceptance, "{\"Temperament\":{\"RiskAcceptance\":0.7}}"),
+        ("Temperament.Obedience",      AttributeIds.TemperamentObedience,      "{\"Temperament\":{\"Obedience\":0.6}}"),
+        ("Temperament.Nerve",          AttributeIds.TemperamentNerve,          "{\"Temperament\":{\"Nerve\":0.5}}"),
+        ("Temperament.Resolve",        AttributeIds.TemperamentResolve,        "{\"Temperament\":{\"Resolve\":0.4}}"),
         ("Weather.GroundTemperatureC",     AttributeIds.WeatherGroundTemperatureC,     "{\"Weather\":{\"GroundTemperatureC\":21.5}}"),
         ("Weather.LapseRateKPerKm",        AttributeIds.WeatherLapseRateKPerKm,        "{\"Weather\":{\"LapseRateKPerKm\":6.0}}"),
         ("Weather.SeaLevelPressureHpa",    AttributeIds.WeatherSeaLevelPressureHpa,    "{\"Weather\":{\"SeaLevelPressureHpa\":1008.0}}"),
@@ -136,6 +142,7 @@ public class TheFourRoutingTablesAgreeTests
                            "\"Fear\":1.0,\"FrightFrom\":{\"X\":10.0,\"Y\":20.0,\"Z\":1.0},\"Rule\":{\"Request\":2,\"Seq\":1,\"Origin\":1,\"Params\":\"{}\",\"EditSeq\":1,\"EditOrigin\":3}," +
                            "\"Health\":{\"Current\":50.0},\"Playable\":{\"Side\":\"FORCE_OPPOSING\",\"SlotName\":\"Alpha\"},\"SpawnArea\":{\"Side\":\"FORCE_FRIENDLY\",\"FacingDeg\":90.0},\"Ammo\":{\"2\":5},\"Stance\":1," +
                            "\"Weapon\":{\"Posture\":2,\"AimPoint\":{\"0\":12.5},\"AimTarget\":1,\"HeldItem\":1}," +
+                           "\"Proficiency\":0.8,\"Temperament\":{\"RiskAcceptance\":0.7,\"Obedience\":0.6,\"Nerve\":0.5,\"Resolve\":0.4}," +
                            "\"Weather\":{\"GroundTemperatureC\":21.5,\"LapseRateKPerKm\":6.0,\"SeaLevelPressureHpa\":1008.0,\"RelativeHumidity\":0.4,\"VisibilityM\":9000.0,\"FogTopM\":300.0,\"FogVisibilityM\":150.0,\"Precipitation\":2,\"PrecipitationMmPerHour\":4.0,\"FeatherM\":500.0}}";
 
         var emitter = Emit(AttributeCompilerFactory.BuildEdgeCompiler(), all);
@@ -463,6 +470,8 @@ public class TheFourRoutingTablesAgreeTests
         AddOwned(repo, e, default(Hrot.MuscleCharacter.Animation.Components.StanceIntent));
         AddOwned(repo, e, default(Fdp.Toolkit.Weather.WeatherConditions));
         AddOwned(repo, e, default(Fdp.Toolkit.Combat.Components.WeaponPosture));   // ⭐ Initial state S2 — the weapon's start state
+        AddOwned(repo, e, default(Fdp.Toolkit.Behavior.Components.CombatProficiency));   // ⭐ Initial state S6 — the AI character settings
+        AddOwned(repo, e, default(Fdp.Toolkit.Behavior.Components.CombatTemperament));
         if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()) repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
         var aimedAt = repo.CreateEntity();   // ⭐ S2 — a unit with network id 1, so Weapon.AimTarget = 1 resolves
         repo.AddComponent(aimedAt, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 1 });

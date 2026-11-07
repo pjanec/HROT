@@ -526,4 +526,39 @@ public sealed class EditOutcomeOwnerTests
             (Hrot.Common.Editing.HrotEditGate.LevelOf(Hrot.Common.Infrastructure.Seat.Author), Hrot.Common.Editing.HrotEditGate.LevelOf(Hrot.Common.Infrastructure.Seat.Observer),
              Hrot.Common.Editing.HrotEditGate.LevelOf(Hrot.Common.Infrastructure.Seat.Reviewer)));
     }
+
+    /// <summary>⭐ B-5 S6 (R-4137, docs/UX/DESIGN_Initial_State.md §3) — bravery set on a station that does NOT own the unit's brain reaches the OWNER, is applied
+    /// THERE (the authored bit set; the replica untouched), and a reset (a negative value) clears the bit again — the type's value is read once more. The requester's
+    /// journal reads Applied both times. ✅ Red-proof: the Temperament.RiskAcceptance binary handler left out ⇒ the owner's bravery stays unauthored ⇒ red.</summary>
+    [Fact]
+    public void S6_BraverySetOnANonOwner_ReachesTheOwner_AndAResetClearsIt()
+    {
+        var owner = new Node(owns: true, OwnerNode);
+        var requester = new Node(owns: false, OtherNode);
+        owner.World.AddComponent(owner.Entity, new Fdp.Toolkit.Behavior.Components.CombatTemperament { TypeRiskAcceptance = 0.3f, TypeSet = Fdp.Toolkit.Behavior.Components.CombatTemperament.RiskAcceptanceSet });
+        owner.World.SetAuthority<Fdp.Toolkit.Behavior.Components.CombatTemperament>(owner.Entity, true);
+        requester.World.AddComponent(requester.Entity, default(Fdp.Toolkit.Behavior.Components.CombatTemperament));
+
+        Fdp.Toolkit.Replication.Edits.EditTicket Ask(double value, string label) => Edits.Submit(requester.World, EditOp.Write(requester.Entity,
+            new Fdp.Toolkit.Replication.Patching.EntityAttributeChange
+            {
+                AttributeId = Fdp.Toolkit.Replication.Patching.AttributeIds.TemperamentRiskAcceptance,
+                Value = Fdp.Toolkit.Replication.Patching.AttributeValue.FromDouble(value),
+            }, label));
+
+        var set = Ask(0.9, "Set bravery");
+        Assert.Equal(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Requested, set.Route);
+        Assert.Equal(0f, requester.World.GetComponent<Fdp.Toolkit.Behavior.Components.CombatTemperament>(requester.Entity).RiskAcceptance);   // the replica is NOT written
+        owner.Run(SentBy(requester));
+        var t = owner.World.GetComponent<Fdp.Toolkit.Behavior.Components.CombatTemperament>(owner.Entity);
+        Assert.Equal((0.9f, Fdp.Toolkit.Behavior.Components.CombatTemperament.RiskAcceptanceSet), (t.RiskAcceptance, (byte)(t.Set & Fdp.Toolkit.Behavior.Components.CombatTemperament.RiskAcceptanceSet)));
+        Assert.Equal(EditStatus.Applied, AnswerBack(owner, requester, set.RequestId).Status);
+
+        var reset = Ask(-1, "Reset bravery to the type's");
+        owner.Run(SentBy(requester));
+        t = owner.World.GetComponent<Fdp.Toolkit.Behavior.Components.CombatTemperament>(owner.Entity);
+        Assert.Equal(0, t.Set & Fdp.Toolkit.Behavior.Components.CombatTemperament.RiskAcceptanceSet);   // the bit cleared: the reader falls back to the type's 0.3
+        Assert.Equal(0.3f, t.TypeRiskAcceptance);
+        Assert.Equal(EditStatus.Applied, AnswerBack(owner, requester, reset.RequestId).Status);
+    }
 }

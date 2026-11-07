@@ -219,6 +219,29 @@ public sealed class RunnableRulesTests : IDisposable
         Assert.False(none.Confirming);
     }
 
+    /// <summary>⭐ Replay Browser UX ⑤ / Q-B4 (R-4156) — on a RECORDING End exercise does not exist: the control says so by the world (the Replay Browser and an AAR
+    /// alike) and its Draw draws nothing. ✅ Red-proof: ShowsARecording false ⇒ red.</summary>
+    [Fact]
+    public void QB4_OnARecording_TheEndControlIsNotDrawn()
+    {
+        EndTrigger();
+        var c = new InstructorEndControl(() => _world, () => null);
+        Assert.False(c.ShowsARecording);
+        Fdp.Toolkit.Replay.ReplayState.Enter(_world);
+        try { Assert.True(c.ShowsARecording); }
+        finally { Fdp.Toolkit.Replay.ReplayState.Leave(_world); }
+    }
+
+    /// <summary>⭐ R-4156 — the Mission summary on a recording says where the playhead is: "at 0:39 of 1:06".</summary>
+    [Fact]
+    public void QB4_TheSummary_SaysWhereInTheRecording()
+    {
+        long s = TimeSpan.TicksPerSecond, from = 1000 * s;
+        Assert.Equal("at 0:39 of 1:06", MissionSummaryWindow.RecordingPosition(from, from + 66 * s, from + 39 * s));
+        Assert.Equal("at 0:00 of 1:06", MissionSummaryWindow.RecordingPosition(from, from + 66 * s, from - 5 * s));      // clamped
+        Assert.Equal("at 1:02:05 of 2:00:00", MissionSummaryWindow.RecordingPosition(0, 7200 * s, 3725 * s));
+    }
+
     [Fact]
     public void TheRulesAndSummaryWindows_BothCarryTheSameEndControl()
     {

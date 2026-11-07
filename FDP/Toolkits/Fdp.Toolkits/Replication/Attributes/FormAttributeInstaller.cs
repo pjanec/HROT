@@ -62,6 +62,17 @@ public sealed class FormAttributeInstaller : IBinaryAttributeInstaller<EntityAtt
             Fdp.Toolkit.Combat.HeldItems.Set(repo, ctx.Entity, item);
         });
 
+        // ⭐ Initial state S6 — the AI character settings; a negative value resets (FormAttributes.SetProficiency / SetTemperament)
+        builder.RegisterHandler<Fdp.Toolkit.Behavior.Components.CombatProficiency>(AttributeIds.Proficiency, (ctx, r) =>
+            FormAttributes.SetProficiency(ref ctx.PatchContext.GetUnmanagedComponent<Fdp.Toolkit.Behavior.Components.CombatProficiency>(), FormAttributes.AsDouble(r.Value)));
+        void Temperament(ushort id, FormAttributes.TemperamentField field)
+            => builder.RegisterHandler<Fdp.Toolkit.Behavior.Components.CombatTemperament>(id, (ctx, r) =>
+                FormAttributes.SetTemperament(ref ctx.PatchContext.GetUnmanagedComponent<Fdp.Toolkit.Behavior.Components.CombatTemperament>(), field, FormAttributes.AsDouble(r.Value)));
+        Temperament(AttributeIds.TemperamentRiskAcceptance, FormAttributes.TemperamentField.RiskAcceptance);
+        Temperament(AttributeIds.TemperamentObedience, FormAttributes.TemperamentField.Obedience);
+        Temperament(AttributeIds.TemperamentNerve, FormAttributes.TemperamentField.Nerve);
+        Temperament(AttributeIds.TemperamentResolve, FormAttributes.TemperamentField.Resolve);
+
         foreach (ushort id in WeatherIds)
         {
             ushort attribute = id;

@@ -24,6 +24,10 @@ public sealed class InstructorEndControl
     public bool Confirming => _open;
     public InstructorEnd.Offer Offer => InstructorEnd.Of(_world(), _blocked());
 
+    /// <summary>⭐ Replay Browser UX ⑤ / Q-B4 (R-4156) — the world shown is a RECORDING (the Replay Browser, an AAR): <i>End exercise</i> does not exist here,
+    /// so it is NOT DRAWN — ⛔ not greyed (a control nothing can ever enable). By the world, so every host that draws this control agrees.</summary>
+    public bool ShowsARecording => _world() is { } w && Fdp.Toolkit.Replay.ReplayState.IsActive(w);
+
     /// <summary>Asks for the confirmation (the button's click). False when the button is disabled.</summary>
     public bool Ask() { if (!Offer.Available) return false; _open = true; return true; }
     public void Cancel() => _open = false;
@@ -46,6 +50,7 @@ public sealed class InstructorEndControl
 
     public void Draw(string id)
     {
+        if (ShowsARecording) { _open = false; return; }   // ⭐ Q-B4 — not drawn on a recording
         if (!string.Equals(_labelsOf, id, StringComparison.Ordinal))   // ⭐ CE-1465 — the labels are built once per id, not per frame (0 B steady)
         { _labelsOf = id; _button = $"End exercise##{id}"; _modal = $"End the exercise now?##{id}"; _endNow = $"End now##{id}"; _cancel = $"Cancel##{id}"; }
         var offer = Offer;

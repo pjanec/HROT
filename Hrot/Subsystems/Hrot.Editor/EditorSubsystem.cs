@@ -1863,12 +1863,7 @@ namespace Hrot.Editor
                             if (!_world.IsAlive(target)) return;
 
                             foreach (var perceiver in _selectionState?.SelectedEntities ?? System.Array.Empty<Entity>())
-                                _world.Bus.Publish(new SeedTargetCommand
-                                {
-                                    Perceiver  = perceiver,
-                                    Target     = target,
-                                    ScoreBoost = 1.0f,
-                                });
+                                Hrot.Common.Orders.KnowledgeOrders.SeedTarget(_world, perceiver, target);
                         });
 
                     builder.AddItem(
@@ -1891,12 +1886,7 @@ namespace Hrot.Editor
                                 {
                                     Entity target = FindEntityByNetworkId(netId);
                                     if (!_world.IsAlive(target)) continue;
-                                    _world.Bus.Publish(new SeedTargetCommand
-                                    {
-                                        Perceiver  = perceiver,
-                                        Target     = target,
-                                        ScoreBoost = 1.0f,
-                                    });
+                                    Hrot.Common.Orders.KnowledgeOrders.SeedTarget(_world, perceiver, target);
                                 }
                         });
                 }));

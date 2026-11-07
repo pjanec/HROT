@@ -92,6 +92,12 @@ public static class AttributeVocabulary
         new("Weapon.AimPoint.*",     AttributeIds.WeaponAimPoint,      AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Combat.Components.WeaponPosture)),
         new("Weapon.AimTarget",      AttributeIds.WeaponAimTarget,     AttributeValueKind.CsInt64,   typeof(Fdp.Toolkit.Combat.Components.WeaponPosture)),
         new("Weapon.HeldItem",       AttributeIds.WeaponHeldItem,      AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.Combat.Components.WeaponPosture)),
+        // ⭐ Initial state S6 (docs/UX/DESIGN_Initial_State.md §3) — the AI character settings; a negative value is the reset (clears the authored bit)
+        new("Proficiency",                AttributeIds.Proficiency,                AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Behavior.Components.CombatProficiency)),
+        new("Temperament.RiskAcceptance", AttributeIds.TemperamentRiskAcceptance, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Behavior.Components.CombatTemperament)),
+        new("Temperament.Obedience",      AttributeIds.TemperamentObedience,      AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Behavior.Components.CombatTemperament)),
+        new("Temperament.Nerve",          AttributeIds.TemperamentNerve,          AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Behavior.Components.CombatTemperament)),
+        new("Temperament.Resolve",        AttributeIds.TemperamentResolve,        AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Behavior.Components.CombatTemperament)),
         // the authored scalars of the GLOBAL weather and of a weather region (one component, DESIGN_Weather_And_Time §2); the wind levels and cloud layers are lists, not scalars — not attributes (yet)
         new("Weather.GroundTemperatureC",     AttributeIds.WeatherGroundTemperatureC,     AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),
         new("Weather.LapseRateKPerKm",        AttributeIds.WeatherLapseRateKPerKm,        AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions)),

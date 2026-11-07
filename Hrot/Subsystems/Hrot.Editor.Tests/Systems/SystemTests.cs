@@ -25,77 +25,9 @@ namespace Hrot.Editor.Tests.Systems;
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// A010 — EditorPerceptionSetupSystem
+// A010 — EditorPerceptionSetupSystem: ⛔ RETIRED (B-5 S3). Its claims are re-homed onto the one applier:
+// FDP/Toolkits/Fdp.Toolkits.Tests/Perception/SeedTargetSystemTests.cs.
 // ═══════════════════════════════════════════════════════════════════════════════
-
-/// <summary>
-/// Tests for <see cref="EditorPerceptionSetupSystem"/>.
-/// </summary>
-public sealed unsafe class EditorPerceptionSetupSystemTests : IDisposable
-{
-    private readonly EntityRepository _world;
-
-    public EditorPerceptionSetupSystemTests()
-    {
-        _world = new EntityRepository();
-        _world.RegisterComponent<TargetMemory>();
-        _world.RegisterComponent<SimTransform>();
-        _world.RegisterEvent<SeedTargetCommand>();
-    }
-
-    public void Dispose() => _world.Dispose();
-
-    // ── Test 1: SeedTargetCommand seeds target into TargetMemory ─────────────
-
-    [Fact]
-    public void SeedTarget_ValidPerceiverAndTarget_AddsToTargetMemory()
-    {
-        var perceiver = _world.CreateEntity();
-        var target    = _world.CreateEntity();
-
-        _world.AddComponent(perceiver, new TargetMemory());
-        _world.AddComponent(target,    new SimTransform { Position = new Vector3(10f, 20f, 0f) });
-
-        _world.Bus.Publish(new SeedTargetCommand
-        {
-            Perceiver  = perceiver,
-            Target     = target,
-            ScoreBoost = 5.0f,
-        });
-
-        var sys = new EditorPerceptionSetupSystem();
-        _world.Bus.SwapBuffers();
-        sys.Execute(_world, 0f);
-
-        ref readonly var mem = ref _world.GetComponent<TargetMemory>(perceiver);
-        Assert.Equal(1, mem.Count);
-        Assert.Equal((long)target.PackedValue, mem.EntityIds[0]);
-    }
-
-    // ── Test 2: Dead perceiver → no exception ────────────────────────────────
-
-    [Fact]
-    public void SeedTarget_DeadPerceiver_SkipsSilently()
-    {
-        var perceiver = _world.CreateEntity();
-        var target    = _world.CreateEntity();
-        _world.AddComponent(target, new SimTransform());
-        _world.DestroyEntity(perceiver);
-
-        _world.Bus.Publish(new SeedTargetCommand
-        {
-            Perceiver  = perceiver,
-            Target     = target,
-            ScoreBoost = 1.0f,
-        });
-
-        var sys = new EditorPerceptionSetupSystem();
-        _world.Bus.SwapBuffers();
-
-        var ex = Record.Exception(() => sys.Execute(_world, 0f));
-        Assert.Null(ex);
-    }
-}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // A011 — EditorZoneAuthoringSystem
