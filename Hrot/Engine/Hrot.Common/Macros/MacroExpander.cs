@@ -43,7 +43,13 @@ namespace Hrot.Common.Macros
             _extractor = extractor ?? throw new ArgumentNullException(nameof(extractor));
             _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
             _behaviorRemapper = behaviorRemapper;
+            _slices = new SliceExpander(extractor, serializer, behaviorRemapper);
         }
+
+        private readonly SliceExpander _slices;   // ⭐ A5 — the ONE slice expansion, shared with Copy / Paste
+
+        /// <summary>⭐ A5 — this host's ONE slice expansion (Copy / Paste reach it here, so they share the macro composition: extractor, serializer, remapper).</summary>
+        public SliceExpander Slices => _slices;
 
         /// <summary>The library this expander reads (a probe for the forwarding rail).</summary>
         public IMacroLibrary Library => _library;
@@ -117,53 +123,28 @@ namespace Hrot.Common.Macros
             else if (Distance2(authored.Position, to) > 0.25f || MathF.Abs(Turn(authored.Heading.Degrees, toHeading.Degrees)) > 1f)
                 throw new Refused($"{here}: macro '{mi.Macro}' is pinned at its anchor ({authored.Position}, {authored.Heading.Degrees:0}°) and may not be placed elsewhere");
 
-            var requests = _extractor.Extract(_serializer, dom.ToJsonString(), ids, _behaviorRemapper,
-                                              new ExtractionPasses(BeforeResolve: new ParamBind(source), AfterResolve: relocate));
-
-            foreach (var r in requests)
-            {
-                var comps = r.InitialComponents is null ? new List<object>() : new List<object>(r.InitialComponents);
-                Guid local = Guid.Empty;
-                for (int i = comps.Count - 1; i >= 0; i--)
+            // ⭐ A5 — the ONE slice expansion (shared with Copy / Paste): ids pre-allocated, references remapped, relocated, child GUIDs derived (SR-167).
+            //   ⛔ No outside scope: a macro reaches the world outside ONLY through its args (SR-58) — a file reference to it stays refused.
+            var options = new SliceExpander.Options(instanceGuid, "macro:", (int)owner, Transient: true,   // SR-169 — a macro child is never saved
+                BeforeResolve: new ParamBind(source),
+                PerChild: (r, comps, local, childGuid) =>
                 {
-                    switch (comps[i])
+                    for (int i = comps.Count - 1; i >= 0; i--)
+                        if (comps[i] is ParamBindings or MacroExpansionStatus) comps.RemoveAt(i);   // SR-168: a transient child never needs them · set below for a nested instance
+                    comps.Add(new MacroOrigin { Instance = new EntityRef(instanceId), Local = local });
+
+                    // a nested instance: flatten it NOW from its file (its transform is already moved, so the transforms compose — SR-155)
+                    if (comps.OfType<MacroInstance>().FirstOrDefault() is { } nested)
                     {
-                        case EntityGuid g: local = g.Value; comps.RemoveAt(i); break;
-                        case ParamBindings: comps.RemoveAt(i); break;          // SR-168: a transient child never needs them
-                        case MacroExpansionStatus: comps.RemoveAt(i); break;    // set below for a nested instance
+                        var nestedAnchor = comps.OfType<SimTransform>().FirstOrDefault();
+                        path.Add(mi.Macro);
+                        try { Flatten(nested, r.PreAllocatedNetworkId, childGuid, owner, nestedAnchor, outside, ids, path, into, top, variant); }
+                        finally { path.RemoveAt(path.Count - 1); }
+                        comps.Add(new MacroExpansionStatus { State = MacroExpansionState.Done });   // E-2: never expanded again
                     }
-                }
-                if (local == Guid.Empty)
-                    throw new Refused($"{here}: an entity of the file has no key (EntityGuid)");
-                var childGuid = EntityGuidDerivation.Derive(instanceGuid, "macro:" + local.ToString("D"));   // SR-167
-                comps.Add(new EntityGuid(childGuid));
-                comps.Add(new MacroOrigin { Instance = new EntityRef(instanceId), Local = local });
-
-                // a nested instance: flatten it NOW from its file (its transform is already moved, so the transforms compose — SR-155)
-                if (comps.OfType<MacroInstance>().FirstOrDefault() is { } nested)
-                {
-                    var nestedAnchor = comps.OfType<SimTransform>().FirstOrDefault();
-                    path.Add(mi.Macro);
-                    try { Flatten(nested, r.PreAllocatedNetworkId, childGuid, owner, nestedAnchor, outside, ids, path, into, top, variant); }
-                    finally { path.RemoveAt(path.Count - 1); }
-                    comps.Add(new MacroExpansionStatus { State = MacroExpansionState.Done });   // E-2: never expanded again
-                }
-
-                into.Add(new EntityCreationRequest
-                {
-                    RequestId               = Guid.NewGuid(),
-                    OwnerAppInstanceId      = (int)owner,
-                    TkbType                 = r.TkbType,
-                    DisType                 = r.DisType,
-                    InitialComponents       = comps,
-                    PreAllocatedNetworkId   = r.PreAllocatedNetworkId,
-                    ChildComponentOverrides = r.ChildComponentOverrides,
-                    IsScenarioLoad          = true,    // a scenario-shaped file: its subordinates are its own entities (CE-3324)
-                    IsTransient             = true,    // SR-169 — a macro child is never saved
-                    SpawnHeight             = r.SpawnHeight,
-                    InitType                = r.InitType,
                 });
-            }
+            try { _slices.Expand(dom.ToJsonString(), relocate, ids, options, into); }
+            catch (SliceExpander.NoKey) { throw new Refused($"{here}: an entity of the file has no key (EntityGuid)"); }
         }
 
         private static float Distance2(WorldPoint a, WorldPoint b) { float dx = a.X - b.X, dy = a.Y - b.Y; return dx * dx + dy * dy; }
