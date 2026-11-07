@@ -129,5 +129,16 @@ namespace Hrot.Common.Constants
         public const int CopyEntities      = 549;
         public const int PasteEntities     = 550;
         public const int DuplicateEntities = 551;
+
+        // --- ⭐ A6 / W-3 (DESIGN_Action_Catalogue §9) — the run-mode moves on a moment (timeline, mode indicator), declared once by RunModeActions.
+        //     ⭐ behaviors' own block 2400–2499 (lanes allocate ids from their own thousand; ⛔ never 552+, the shared low range other lanes take).
+        public const int DarFromHere        = 2401;
+        public const int DarFromEvent       = 2402;
+        public const int AarFromHere        = 2403;
+        public const int GoLiveFromHere     = 2404;
+        public const int TakeCheckpointHere = 2405;
+        public const int DarLastWindow      = 2406;   // the mode indicator's "DAR — the last N" (one declaration, one row per window)
+        public const int DarFromStart       = 2407;
+        public const int RunTo              = 2408;
     }
 }

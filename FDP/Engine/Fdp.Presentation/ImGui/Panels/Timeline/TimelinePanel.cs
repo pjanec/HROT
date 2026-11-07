@@ -863,14 +863,15 @@ public sealed class TimelinePanel
     {
         var items = new List<TimelineMenuItem>();
         var t = index.FrameTicks;
-        if (cursor is { Mode: TimelineMode.Live, CanReview: true })   // ⭐ CE-3330 E2 (R-3059) — a live host seeks by ENTERING A REVIEW
+        if (cursor is { Mode: TimelineMode.Live, CanReview: true, ComposesReviewItems: false })   // ⭐ CE-3330 E2 (R-3059) — a live host seeks by ENTERING A REVIEW; ⭐ A6: unless the host composes it
         {
             // ⭐ AQ108 D17 — the user's word is DAR (During Action Review); the code keeps EnterReview
             items.Add(new TimelineMenuItem($"{Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft} DAR from {time}", () => cursor.EnterReview(at)));
             if (ev is { } re && re.Frame < t.Count)
                 items.Add(new TimelineMenuItem($"{Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft} DAR from this event ({nameOf?.Invoke(re.Lane) ?? re.Lane})", () => cursor.EnterReview(t[re.Frame])));
         }
-        if (cursor != null) items.AddRange(cursor.ModeMenuItems(at, time));   // ⭐ CE-4097 part two (D21) — AAR from here · Go live from here · Take checkpoint here
+        if (cursor != null)   // ⭐ CE-4097 part two (D21) — AAR from here · Go live from here · Take checkpoint here; ⭐ A6 — with the clicked event, for the host's composed DAR rows
+            items.AddRange(cursor.ModeMenuItems(at, time, ev is { } ce && ce.Frame < t.Count ? t[ce.Frame] : null, ev is { } le ? nameOf?.Invoke(le.Lane) ?? le.Lane : null));
         if (cursor is { CanSeek: true })
         {
             items.Add(new TimelineMenuItem($"Seek here ({time})", () => cursor.Seek(at)));

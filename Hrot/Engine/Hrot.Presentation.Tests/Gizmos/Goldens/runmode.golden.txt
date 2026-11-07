@@ -1,0 +1,31 @@
+Moment Edit:
+Moment Preview:
+Moment Live:
+  2401 DAR from 3:12
+  2403 AAR from 3:12
+  2405 Take checkpoint here
+Moment Review:
+  2404 Go live from 3:12
+  2405 Take checkpoint here
+Event Edit:
+Event Preview:
+Event Live:
+  2402 DAR from this event (Fire)
+  2403 AAR from 3:12
+  2405 Take checkpoint here
+Event Review:
+  2404 Go live from 3:12
+  2405 Take checkpoint here
+Playhead Edit:
+  2408 Run to …
+Playhead Preview:
+  2408 Run to …
+Playhead Live:
+  2406 DAR — the last 30 s
+  2406 DAR — the last 2 min
+  2406 DAR — the last 10 min
+  2407 DAR from the start
+  2405 Take checkpoint here
+Playhead Review:
+  2404 Go live from here
+  2405 Take checkpoint here

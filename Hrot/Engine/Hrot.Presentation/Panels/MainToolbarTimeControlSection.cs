@@ -155,7 +155,7 @@ public sealed class MainToolbarTimeControlSection
     /// <summary>The mode menu: the header line (mode + context) and the items.</summary>
     public sealed record ModeMenuModel(string Header, IReadOnlyList<ModeMenuItem> Items);
 
-    private static readonly double[] ReviewWindows = { 30, 120, 600 };
+    private static readonly double[] ReviewWindows = Hrot.Common.Actions.RunModeActions.DarWindows;   // ⭐ A6 — one table of DAR windows
 
     private static string WindowLabel(double seconds) => seconds < 60 ? $"{seconds:0} s" : $"{seconds / 60:0} min";
 
@@ -240,6 +240,17 @@ public sealed class MainToolbarTimeControlSection
 
     private ModeMenuModel? WithRunTo(ModeMenuModel? model)
     {
+        // ⭐ A6 — in an AAR the playhead's move (Go live from here), after the arming moves
+        if (_facade.Mode == TransportMode.Replay && model is not null)
+        {
+            var rows = PlayheadRows();
+            if (rows.Count > 0)
+            {
+                var withRows = new List<ModeMenuItem>(model.Items) { ModeMenuItem.Separator };
+                foreach (var r in rows) withRows.Add(new(r.Shown, r.Run, Enabled: r.Why is null));
+                model = new(model.Header, withRows);
+            }
+        }
         if (_runTo is not { } run) return model;
         bool active = run.IsRunning || run.IsStarting;
         if (!active && !OffersRunTo) return model;
@@ -255,7 +266,9 @@ public sealed class MainToolbarTimeControlSection
         else
         {
             if (run.Status.Length > 0) items.Add(new(run.Status, null, Enabled: false));   // why the last one ended, until the next
-            items.Add(new("Run to …", OpenRunTo, Glyph: hourglass, GlyphColor: ModeGlyph(TransportMode.Preview)?.Color));
+            foreach (var r in PlayheadRows())   // ⭐ A6 — declared and worded once (RunModeActions.RunTo; its modes: Edit, Preview)
+                if (r.Id == Hrot.Common.Constants.GlobalActionIds.RunTo)
+                    items.Add(new(r.Label, r.Run, Glyph: hourglass, GlyphColor: ModeGlyph(TransportMode.Preview)?.Color));
         }
         return new(model.Header, items);
     }
@@ -353,17 +366,43 @@ public sealed class MainToolbarTimeControlSection
     {
         var items = new List<ModeMenuItem>();
         if (_facade.Mode != TransportMode.Live) return items;
-        // ⭐ D14 — a run that was not recorded has nothing to look back at: DAR is greyed with the reason (the master refuses it too)
-        var darWhy = _choice?.DarDisabledReason;
-        string Dar(string label) => darWhy is null ? label : $"{label} — {darWhy}";
-        foreach (var d in ReviewWindows)
-        {
-            var window = d;
-            items.Add(new(Dar($"DAR — the last {WindowLabel(window)}"),
-                () => _facade.EnterReviewAtSim(Math.Max(0, _facade.TotalTime - window)), Enabled: darWhy is null));
-        }
-        items.Add(new(Dar("DAR from the start"), () => _facade.EnterReviewAtSim(0), Enabled: darWhy is null));
+        foreach (var r in PlayheadRows())
+            if (r.Id is Hrot.Common.Constants.GlobalActionIds.DarLastWindow or Hrot.Common.Constants.GlobalActionIds.DarFromStart)
+                items.Add(new(r.Shown, r.Run, Enabled: r.Why is null));
         return items;
+    }
+
+    /// <summary>
+    /// ⭐ A6 (📄 docs/UX/DESIGN_Action_Catalogue.md §9) — the run-mode moves at the PLAYHEAD, composed from the action catalogue
+    /// (<see cref="Hrot.Common.Actions.RunModeActions"/>: declared and worded once) and bound here: in Live the DAR windows, <i>DAR from the start</i>
+    /// (⭐ D14 — greyed with the reason when the run is not recorded) and <i>Take checkpoint here</i>; in an AAR <i>Go live from here</i>; in Edit /
+    /// Preview <i>Run to …</i> (drawn by <see cref="WithRunTo"/>). Built when the menu is built, never cached across modes.
+    /// </summary>
+    public List<RunModeBinding.Row> PlayheadRows()
+    {
+        var ctx = Hrot.Common.Actions.ActionContext.ForMoment(Hrot.Common.Actions.ActionTarget.Playhead, RunModeBinding.ModeOf(_facade.Mode), TransportIcons.FormatTime(_facade.TotalTime));
+        return RunModeBinding.Rows(ctx, BindPlayhead);
+    }
+
+    private RunModeBinding.Binding? BindPlayhead(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto row)
+    {
+        var mode = _facade.Mode;
+        var darWhy = _choice?.DarDisabledReason;   // ⭐ D14 — a run that was not recorded has nothing to look back at (the master refuses it too)
+        switch (row.Id)
+        {
+            case Hrot.Common.Constants.GlobalActionIds.DarLastWindow when mode == TransportMode.Live && row.Priority is int window:
+                return new(() => _facade.EnterReviewAtSim(Math.Max(0, _facade.TotalTime - window)), darWhy);
+            case Hrot.Common.Constants.GlobalActionIds.DarFromStart when mode == TransportMode.Live:
+                return new(() => _facade.EnterReviewAtSim(0), darWhy);
+            case Hrot.Common.Constants.GlobalActionIds.TakeCheckpointHere when mode == TransportMode.Live && _choice is { } c:
+                return new(c.TakeCheckpoint, c.CheckpointDisabledReason);
+            case Hrot.Common.Constants.GlobalActionIds.GoLiveFromHere when mode == TransportMode.Replay && _choice is { } c:
+                return new(() => c.GoLiveFromHere(() => { }), c.GoLiveFromHereDisabledReason);   // the playhead IS the moment: nothing to seek
+            case Hrot.Common.Constants.GlobalActionIds.RunTo when OffersRunTo:
+                return new(OpenRunTo);
+            default:
+                return null;
+        }
     }
 
     /// <summary>⭐ CE-4321 — the ⏪ Review button shows in a live run only.</summary>
@@ -376,7 +415,11 @@ public sealed class MainToolbarTimeControlSection
         switch (_facade.Mode)
         {
             case TransportMode.Live:
-                return new($"Live · {TransportIcons.FormatTime(_facade.TotalTime)}", ReviewChoices());
+            {
+                var items = new List<ModeMenuItem>();   // ⭐ A6 — the playhead's run-mode moves (the DAR choices, Take checkpoint here)
+                foreach (var r in PlayheadRows()) items.Add(new(r.Shown, r.Run, Enabled: r.Why is null));
+                return new($"Live · {TransportIcons.FormatTime(_facade.TotalTime)}", items);
+            }
             case TransportMode.Review:
             {
                 var items = new List<ModeMenuItem>();

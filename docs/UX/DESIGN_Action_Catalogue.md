@@ -421,3 +421,67 @@ them) — they are navigation, harmless in every mode; ⚠ flagged for the user'
 
 **Rails:** `TheActionCatalogueComposesMenusTests` (the mode rule per cluster state; hidden-in-mode + group order) · `TheMenusAreGoldenTests`
 — the golden now covers edit / preview / live / review (moved for review: `Goldens/menus.golden.txt`).
+
+## 9. ⭐ A6 — the run-mode moves on the timeline and the mode indicator *(behaviors, `2026-11-07`, W-3 of `HANDOFF_Coordinator_To_Behaviors_Taken_From_Ui.md`; `build-state: BUILT` for this slice)*
+
+INVENTORY: `scripts/cbm.sh search_graph name_pattern=".*(TimelineMenu|ModeMenu|RunModeMove|TimelineAction).*"` ⇒ **0** (the index predated the
+timeline panel — re-indexed; grep is the source here, ⚠ coverage not checkable). grep: the run-mode words were built **three times** —
+`ClusterTimelineCursor.ModeMenuItems` (*AAR from {t}* · *Go live from {t}* · *Take checkpoint here*), FDP's `TimelinePanel.MenuItems` (*DAR from {t}*
+· *DAR from this event (lane)*, for any cursor that `CanReview`), and the mode indicator (`MainToolbarTimeControlSection.ReviewChoices`: *DAR — the
+last 30 s / 2 min / 10 min* · *DAR from the start*; W-4's *Run to …*). The cursors: `FederatedReplayCursor` (Replay Browser, no run-mode items),
+`AxisCursor` (forwards), `ClusterTimelineCursor` (every cluster host — the only one that `CanReview`).
+
+```mermaid
+classDiagram
+  direction LR
+  class ActionTarget { <<existing flags>> + Event · Moment · Range · Playhead · Rule }
+  class ActionGroup { <<existing enum>> + Run (first in every mode) }
+  class ActionContext { <<existing>> + Time · AtTicks · Lane (init — a moment's target) }
+  class RunModeActions { <<NEW, Hrot.Common/Actions>> DeclareInto(catalogue) · the WORDS: DarFrom(t) · AarFrom(t) · GoLiveFrom(t) · DarLast(s) · DarFromStart · TakeCheckpointHere · RunTo }
+  class RunModeBinding { <<NEW, Hrot.Presentation/RunMode>> Rows(target, mode, time, run(id), why(id)) → items · ModeOf(TransportMode) }
+  class ClusterTimelineCursor { <<existing>> ModeMenuItems → composed · ComposesReviewItems = true }
+  class MainToolbarTimeControlSection { <<existing>> the mode menu's moment items → composed (Playhead) }
+  class TimelinePanel { <<existing, FDP>> its own DAR rows only when the cursor does not compose them }
+  RunModeActions ..> ActionCatalogue : declares (Shared)
+  RunModeBinding --> MenuComposer : Compose(Run group)
+  ClusterTimelineCursor --> RunModeBinding : Moment / Event
+  MainToolbarTimeControlSection --> RunModeBinding : Playhead
+  TimelinePanel ..> ClusterTimelineCursor : ModeMenuItems
+```
+*What the picture shows that prose hid: the DECLARATION (id, words, target, modes) is one catalogue entry; the BINDING (what runs, why it is
+greyed) stays where the run choice already is — the cursor for a clicked moment, the toolbar for the playhead. ⛔ The FDP panel keeps no
+engine concept: it only stops drawing its own DAR rows when the cursor composes them.*
+
+```mermaid
+sequenceDiagram
+  participant P as TimelinePanel (right-click at t)
+  participant C as ClusterTimelineCursor
+  participant B as RunModeBinding
+  participant K as MenuComposer + ActionCatalogue.Shared
+  P->>C: ModeMenuItems(t, "3:12") (ComposesReviewItems: the panel adds no DAR of its own)
+  C->>B: Rows(Moment, mode of the transport, "3:12", run, why)
+  B->>K: Compose(context: Moment, Live, Time "3:12")
+  K-->>B: DAR from 3:12 · AAR from 3:12 · Take checkpoint here (declared words)
+  B-->>C: items: what runs = the cursor's binding, greyed "— reason" from the run choice
+  C-->>P: TimelineMenuItem[]
+```
+
+| target × mode | Edit | Preview | Live | Review (DAR / AAR) |
+|---|---|---|---|---|
+| **Moment** (a click on the ruler / an empty lane) | — | — | DAR from {t} · AAR from {t} · Take checkpoint here | Go live from {t} (AAR; greyed in a DAR) · Take checkpoint here (greyed with the reason) |
+| **Event** | — | — | DAR from this event · AAR from {t} · Take checkpoint here | Go live from {t} · Take checkpoint here |
+| **Playhead** (the mode indicator) | Run to … | Run to … | DAR — the last 30 s / 2 min / 10 min · DAR from the start · Take checkpoint here | Go live from here (AAR) |
+
+| decision | why |
+|---|---|
+| the run-mode moves are a group **Run**, first in every mode | they are the most likely action on a moment (Editing UX §3.13); no unit / graphic declaration is in it ⇒ the A1–A3 goldens do not move |
+| a moment's target carries `Time` / `AtTicks` / `Lane` as `init` members of `ActionContext` | one context type for every surface (§2); the unit menus never set them |
+| the binding is a `run(id)` / `why(id)` pair from the surface that holds the run choice — not `HostActions` | a run-mode move acts on a MOMENT, and `GlobalActionRegistry`'s handler is `(view, entity)`; the moment is the context, so the binding closes over it at the click (never per frame) |
+| greyed rows keep today's *"label — reason"* | `TimelineMenuItem` / `ModeMenuItem` have no tooltip; ⏭ the tooltip form (§2.1 "greyed with the reason") when those carry one |
+| the timeline's VIEWER rows (Seek, Play from here, previous / next, zoom / loop, Copy the time) stay the FDP panel's | they are navigation of a generic component (AQ26 constraint 1 — the same reason as the graph editors, §5 Q3); ⚠ a deviation from "the whole timeline menu composed" |
+| the arming moves (Preview / Live / AAR, with their confirmations) stay `RunModeChoice.Moves` | they choose a MODE, not an action on a target; they are already declared once (the choice) |
+| ⏭ **Rule** (a rule row / track: Fire now · Disarm · Re-arm · Reset — RV-5, `RulesModel`) | the target is declared; its actions are the next slice (tracker CE-2423) |
+
+**Goldens:** `Goldens/runmode.golden.txt` — the composed rows per target × mode (declarations only, `Time` = `3:12`). **Rails:**
+`TheRunModeMovesAreDeclaredOnceTests` (the words are the same on the timeline and the indicator; the panel draws no DAR of its own when the cursor
+composes; the Run group comes first and moves no older golden).

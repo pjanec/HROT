@@ -72,6 +72,16 @@ public interface ITimelineCursor
     /// </summary>
     System.Collections.Generic.IEnumerable<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineMenuItem> ModeMenuItems(long wallTicks, string time)
         => System.Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineMenuItem>();
+
+    /// <summary>
+    /// ⭐ A6 (Action Catalogue §9) — the same, knowing the clicked EVENT (its time in this cursor's ticks, its lane's display name; null = a moment,
+    /// not an event). A host that composes its run-mode moves from its action catalogue overrides this one. Default: the moment's items.
+    /// </summary>
+    System.Collections.Generic.IEnumerable<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineMenuItem> ModeMenuItems(long wallTicks, string time, long? eventTicks, string? eventLane)
+        => ModeMenuItems(wallTicks, time);
+
+    /// <summary>⭐ A6 — the host composes the <i>DAR from …</i> rows itself (with its other run-mode moves): the panel then draws none of its own. Default false.</summary>
+    bool ComposesReviewItems => false;
 }
 
 /// <summary>

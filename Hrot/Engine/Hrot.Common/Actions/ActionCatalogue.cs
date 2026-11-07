@@ -51,7 +51,19 @@ namespace Hrot.Common.Actions
                                             EmbarkOffer Embark, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags Pins, bool TraceOn);
 
     /// <summary>⭐ B-11 A1 — what one menu is composed for: the entity, its target kind, the mode, and (for a unit) its facts.</summary>
-    public readonly record struct ActionContext(ISimulationView View, Entity Entity, ActionTarget Target, EditingMode Mode, UnitFacts Unit);
+    public readonly record struct ActionContext(ISimulationView View, Entity Entity, ActionTarget Target, EditingMode Mode, UnitFacts Unit)
+    {
+        /// <summary>⭐ A6 — a moment's target (timeline, playhead): the clicked time as the timeline labels it ("3:12"); null elsewhere.</summary>
+        public string? Time { get; init; }
+        /// <summary>⭐ A6 — the clicked moment in the timeline's own ticks (the binding seeks / reviews at it).</summary>
+        public long AtTicks { get; init; }
+        /// <summary>⭐ A6 — the lane of a clicked timeline event (its display name), or null.</summary>
+        public string? Lane { get; init; }
+
+        /// <summary>⭐ A6 — a context for a MOMENT (no view, no entity): the timeline's moment / event, the mode indicator's playhead.</summary>
+        public static ActionContext ForMoment(ActionTarget target, EditingMode mode, string? time, long atTicks = 0, string? lane = null)
+            => new(null!, Entity.Null, target, mode, default) { Time = time, AtTicks = atTicks, Lane = lane };
+    }
 
     /// <summary>⭐ B-11 A1 — the ONE catalogue of user actions in this process. Today's map menus are declared into it at first use.</summary>
     public sealed class ActionCatalogue
@@ -65,7 +77,7 @@ namespace Hrot.Common.Actions
         private static class SharedHolder
         {
             internal static readonly ActionCatalogue Instance = Build();
-            private static ActionCatalogue Build() { var c = new ActionCatalogue(); MapMenuActions.DeclareInto(c); RuleMenuActions.DeclareInto(c); return c; }   // ⭐ CE-4308 — each feature declares its own (Q4)
+            private static ActionCatalogue Build() { var c = new ActionCatalogue(); MapMenuActions.DeclareInto(c); RuleMenuActions.DeclareInto(c); RunModeActions.DeclareInto(c); return c; }   // ⭐ CE-4308 — each feature declares its own (Q4)
         }
 
         /// <summary>Every declaration, in declaration order.</summary>
@@ -92,9 +104,10 @@ namespace Hrot.Common.Actions
         private static readonly JsonSerializerOptions Options = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
         // ⭐ B-11 A3 (Editing UX §3.13 "order of groups: the most likely action first") — Edit first in Edit mode, Orders first while running,
         //   View first in Review; Debug and Destructive last. A group hidden in a mode simply offers nothing there (ActionDecl.Modes).
-        private static readonly ActionGroup[] EditOrder = { ActionGroup.Edit, ActionGroup.Embark, ActionGroup.View, ActionGroup.Orders, ActionGroup.Debug, ActionGroup.Destructive };
-        private static readonly ActionGroup[] RunningOrder = { ActionGroup.Orders, ActionGroup.Embark, ActionGroup.View, ActionGroup.Edit, ActionGroup.Debug, ActionGroup.Destructive };
-        private static readonly ActionGroup[] ReviewOrder = { ActionGroup.View, ActionGroup.Orders, ActionGroup.Embark, ActionGroup.Edit, ActionGroup.Debug, ActionGroup.Destructive };
+        //   ⭐ A6 — Run (the run-mode moves on a moment) first in every mode; no unit / graphic declaration is in it, so their menus do not move.
+        private static readonly ActionGroup[] EditOrder = { ActionGroup.Run, ActionGroup.Edit, ActionGroup.Embark, ActionGroup.View, ActionGroup.Orders, ActionGroup.Debug, ActionGroup.Destructive };
+        private static readonly ActionGroup[] RunningOrder = { ActionGroup.Run, ActionGroup.Orders, ActionGroup.Embark, ActionGroup.View, ActionGroup.Edit, ActionGroup.Debug, ActionGroup.Destructive };
+        private static readonly ActionGroup[] ReviewOrder = { ActionGroup.Run, ActionGroup.View, ActionGroup.Orders, ActionGroup.Embark, ActionGroup.Edit, ActionGroup.Debug, ActionGroup.Destructive };
 
         /// <summary>The order the groups appear in, in <paramref name="mode"/>.</summary>
         public static ActionGroup[] GroupOrder(EditingMode mode)

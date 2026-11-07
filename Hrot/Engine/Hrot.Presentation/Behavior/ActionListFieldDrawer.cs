@@ -287,8 +287,11 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
     {
         string? current = ActionListEdit.OrderKindOf(step);
         string? picked = null;
+        ImGui.AlignTextToFramePadding();
+        ImGui.TextUnformatted("Order");   // ⭐ label FIRST (UI conventions §3.1 — LabelFirstFormsFrameRail), the combo after it
+        ImGui.SameLine();
         ImGui.SetNextItemWidth(220f);
-        if (ImGui.BeginCombo("order##kind", current != null ? StructEdit.Core.Attributes.DisplayNames.Humanize(current) : "(a behaviour - Advanced)"))
+        if (ImGui.BeginCombo("##order-kind", current != null ? StructEdit.Core.Attributes.DisplayNames.Humanize(current) : "(a behaviour - Advanced)"))
         {
             foreach (var o in Hrot.Common.Orders.OrderMenu.Orders)
                 if (ImGui.Selectable(StructEdit.Core.Attributes.DisplayNames.Humanize(o.Name), string.Equals(o.Name, current, StringComparison.OrdinalIgnoreCase))) picked = o.Name;

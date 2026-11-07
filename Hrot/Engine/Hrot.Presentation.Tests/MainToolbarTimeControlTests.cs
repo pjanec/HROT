@@ -679,7 +679,7 @@ public class MainToolbarTimeControlTests
         Assert.False(moves.Single(m => m.Target == RunArmed.Preview).IsShown);
         Assert.Equal(1, moves.Count(m => m.IsShown));
         var items = Bar(replay).ModeMenu()!.Items;
-        Assert.Equal(new[] { false, false, true }, items.Select(i => i.Selected));
+        Assert.Equal(new[] { false, false, true }, items.Take(3).Select(i => i.Selected));   // the three moves (⭐ A6: then the playhead's Go live from here — TheRunModeMovesAreDeclaredOnceTests)
         Assert.True(items.Single(i => i.Label == "AAR").Enabled);
 
         var edit = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview);
@@ -966,7 +966,8 @@ public class MainToolbarTimeControlTests
         {
             var e = w.CreateEntity();
             w.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = id });
-            w.AddComponent(e, new Fdp.Toolkit.ScenarioRules.ObjectiveStatus { Kind = new(kind), Title = new(title), Phase = phase });
+            w.AddComponent(e, new Fdp.Toolkit.ScenarioRules.ObjectiveStatus { Kind = new(kind), Title = new(title), Phase = phase,
+                Role = kind == "Trigger" ? Fdp.Toolkit.ScenarioRules.ObjectiveRole.Trigger : Fdp.Toolkit.ScenarioRules.ObjectiveRole.Objective });
         }
         Rule(11, "Trigger", "Assault", 2);
         Rule(12, "Trigger", "Approach", 1);
