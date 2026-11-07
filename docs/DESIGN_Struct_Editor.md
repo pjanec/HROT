@@ -402,6 +402,79 @@ sites, 41 red / orange error lines in ≈30 files. ⭐ None of Chip / ChipRow / 
 `MenuOrders` — the map's own order flow) · layout splits (`EntityInspectorPanel:409`, `DerEntityInspectorPanel:244`) · `FDP/Examples` (low
 priority, examples). ⭐ The coordinator may promote any of these; none blocks the batch.
 
+## 11a. ⭐⭐ N-6 — the Define table, as it will be built *(backend, `2026-11-07`; build-state: READY-TO-BUILD)*
+
+**INVENTORY** *(grep — the graph index returned nothing this session; coverage unchecked)*: the define hosts are the 5 `IVariablesSchemaSource`
+implementers (`HeaderParamsSchemaSource` · `BTreeHsmSchemaSource` · `BlueprintLocalVariableSchemaSource` · the two blueprint windows' sources), all
+drawn by `VariablesPanelControl.DrawTable` (`Hrot.Editor.AiShared/Blackboard/VariablesPanelControl.cs:472`, 861 lines: name / type / bytes / value or
+default / used-by / ✕, rename on double-click, drag reorder, aliasing, the params-DTO sub-rows). The value cells exist (§12 N-2, N-3/N-4); the declared
+document exists (§12 N-6 model). ⇒ **what is NEW is only the declaration columns around the value cell, and one adapter.**
+
+```mermaid
+classDiagram
+    direction LR
+    class FieldTable { <<NEW, Fdp.Presentation/ImGui/Editing>> Draw(decls, settings, picks) · columns Name · Type · Value · Used by · ⋮ }
+    class IFieldDeclarations { <<NEW seam, Fdp.Presentation>> Rows · Version · IsReadOnly · Add · Rename · Retype · Move · Remove · UsedBy · SetValueJson · Refusal }
+    class FieldRow { <<record struct>> Name · TypeId · ClrType · ValueJson · Comment · ReadOnly }
+    class FieldTableSettings { <<NEW>> Words · ValueColumn (Default/Value/Live) · UsedBy · AllowStructs · AllowLists · TypeChoices }
+    class DeclaredEditDocumentBuilder { <<existing, N-6 model>> Build(fields, JsonObject) }
+    class ComponentEditDrawer { <<existing>> NEW DrawValueCell(node) — the value column of ONE node }
+    class SchemaSourceDeclarations { <<NEW adapter, Hrot.Editor.AiShared>> wraps IVariablesSchemaSource }
+    class IVariablesSchemaSource { <<existing>> HeaderParamsSchemaSource · BTreeHsm · Blueprint ×3 }
+    class ParametersDrawer { <<existing host>> Details ▸ Scenario ▸ Parameters }
+    class VariablesPanelControl { <<existing — blackboards keep it tonight>> }
+    FieldTable --> IFieldDeclarations
+    FieldTable --> FieldTableSettings
+    FieldTable --> DeclaredEditDocumentBuilder : once per Version
+    FieldTable --> ComponentEditDrawer : value cells
+    IFieldDeclarations <|.. SchemaSourceDeclarations
+    SchemaSourceDeclarations --> IVariablesSchemaSource
+    ParametersDrawer --> FieldTable : NEW
+    ParametersDrawer ..> VariablesPanelControl : REMOVED
+```
+*What the picture shows that prose hid: the table owns no value drawing and no schema logic — the value column is the struct table's own cell over a
+declared document, and every declaration edit is a callback to the source that already does it (with its one undo history). The adapter is the
+only Hrot code; the blackboards can move onto it later with no new table.*
+
+```mermaid
+sequenceDiagram
+    participant H as ParametersDrawer
+    participant T as FieldTable
+    participant D as IFieldDeclarations
+    participant B as DeclaredEditDocumentBuilder
+    participant C as ComponentEditDrawer
+    H->>T: Draw(decls, settings, picks)
+    T->>D: Version
+    alt Version moved (an add / rename / retype / remove / default write)
+        T->>D: Rows
+        T->>B: Build(fields from Rows, JsonObject of ValueJson)
+    end
+    loop each row
+        T->>T: Name cell (double-click / F2 = rename, error line under the row)
+        T->>T: Type cell (coloured text, click = the ONE type picker)
+        T->>C: DrawValueCell(node of that row)
+        C-->>T: changed
+        opt changed
+            T->>D: SetValueJson(name, member JSON) — one undo step
+        end
+        T->>D: UsedBy(name)
+    end
+```
+*The steady frame does no Build and no JSON: Version is an int compare (R-2084).*
+
+| who calls it each frame | |
+|---|---|
+| `ScenarioEnvironmentView` → `ParametersDrawer.Draw` → `FieldTable.Draw` | only while the Parameters header is open (as today) |
+| `FieldTable` → `ComponentEditDrawer.DrawValueCell` | per row; the drawer is the table's, built once per Version |
+
+| decision | lean | rejected |
+|---|---|---|
+| where the value lives | the declared document over a `JsonObject` of the defaults; a change writes that member back through `SetValueJson` | ⛔ one StructEdit session per row (today's `DefaultValueAuthoring`) — N sessions, N looks |
+| the type picker | ONE popup, groups Values · Enums · References/places · Structures · Lists; a group the settings forbid is GREYED with the reason (D6) | ⛔ a flat combo (today) |
+| errors | a refused name / retype / remove = `RowMarks.ErrorLine` under that row (D7) | ⛔ one line above the table |
+| keys | F2 rename · Del delete · Alt+↑/↓ move through the keymap (the StructTable scope gains the declaration commands); drag ⋮⋮ = ImGui drag-drop, a K7 adopter | ⛔ `IsKeyPressed` in the table |
+| scope tonight | scenario parameters only (step ②); blackboards / blueprint stay on `VariablesPanelControl` (step ③, filed) | ⛔ moving all five hosts in one item |
+
 ## 12. As-built — the overnight build *(backend, `2026-11-07`, folded per item — obligation ⑤)*
 
 | item | as built | deviation from §2–§10 (the prior text above stays as the design; this row wins where they differ) |
