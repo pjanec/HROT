@@ -1309,8 +1309,15 @@ public sealed class CanvasRenderer
         ImGui.Separator();
 
         var inputFlags = ImGuiInputTextFlags.AutoSelectAll | ImGuiInputTextFlags.EnterReturnsTrue;
-        bool inputEnter = ImGui.InputText("Name", ref _promoteVariableName, 128, inputFlags);
-        ImGui.InputText("Category", ref _promoteVariableCategoryPath, 256);
+        bool inputEnter = false;
+        if (NodeEditor.Core.Widgets.FormGrid.Begin("promote.form"))
+        {
+            NodeEditor.Core.Widgets.FormGrid.Row("Name");
+            inputEnter = ImGui.InputText("##promotename", ref _promoteVariableName, 128, inputFlags);
+            NodeEditor.Core.Widgets.FormGrid.Row("Category");
+            ImGui.InputText("##promotecategory", ref _promoteVariableCategoryPath, 256);
+            NodeEditor.Core.Widgets.FormGrid.End();
+        }
 
         bool canPromote = !string.IsNullOrWhiteSpace(_promoteVariableName);
         bool globalEnter = ImGui.IsKeyPressed(ImGuiKey.Enter) || ImGui.IsKeyPressed(ImGuiKey.KeypadEnter);
