@@ -106,7 +106,7 @@ public sealed class MainToolbarTimeControlSection
     /// <summary>The mode indicator of <see cref="ModeGlyph"/>: its FontAwesome 6 glyph (the spec's ✎ ◐ ● ⟲ ▶ — no baked font carries them, CE-1063), the colour.</summary>
     public sealed record ModeIndicator(string Glyph, Vector4 Color, string Name);
 
-    /// <summary>DAR §9a — the indicator per mode: Edit grey pen, Preview violet half circle, Live green circle, Review amber clock-back, Replay blue play; Idle none (<see langword="null"/>).</summary>
+    /// <summary>DAR §9a — the indicator per mode: Edit grey pen, Preview violet eye (CE-3394), Live green circle, Review amber clock-back, Replay blue play; Idle none (<see langword="null"/>).</summary>
     public static ModeIndicator? ModeGlyph(TransportMode mode) => mode switch
     {
         TransportMode.Edit    => EditIndicator,
@@ -141,7 +141,7 @@ public sealed class MainToolbarTimeControlSection
         _ => ModeGlyph(mode)?.Color,
     };
 
-    /// <summary>The mode indicator's FontAwesome 6 Solid glyph (merged into the UI font): Edit Pen, Preview CircleHalfStroke, Live Circle,
+    /// <summary>The mode indicator's FontAwesome 6 Solid glyph (merged into the UI font): Edit Pen, Preview Eye (CE-3394, presets D9), Live Circle,
     /// Review ClockRotateLeft, Replay Play; Idle none (<see langword="null"/>).</summary>
     public static string? ModeIcon(TransportMode mode) => ModeGlyph(mode)?.Glyph;   // ONE table: the indicator's
 

@@ -59,6 +59,12 @@ public interface IScenarioSession
     /// <summary>Saves the world into the scenario most recently loaded. No-op when none is loaded.</summary>
     void SaveCurrent();
 
+    /// <summary>
+    /// ⭐ CE-3394 / CE-3389 (presets D10) — why the loaded world may NOT be saved (<c>ScenarioSaveGate.CanSave</c>: a world built with a variant ≠ 0), null when it may. Every save
+    /// surface reads THIS (File › Save / Save As / as Recipe greyed with it; <see cref="SaveCurrent"/> and <c>SaveAs</c> refuse) — so they cannot disagree. A default member (a fake saves).
+    /// </summary>
+    string? SaveDisabledReason => null;
+
     /// <summary>Saves the live running state — publishes the existing <c>TakeCheckpointIntent</c> to the master.</summary>
     void TakeCheckpoint();
 

@@ -234,7 +234,7 @@ public static class ScenarioMenuCommands
             registerCommand, menu, commands, closedReason,
             SaveId, "Save Scenario", FileMenuLayout.SaveScenario,
             "Save the currently loaded scenario",
-            isEnabled: () => !string.IsNullOrEmpty(session.LoadedScenarioName) || openSaveAsDialog != null,
+            isEnabled: () => session.SaveDisabledReason is null && (!string.IsNullOrEmpty(session.LoadedScenarioName) || openSaveAsDialog != null),
             handler: _ =>
             {
                 if (string.IsNullOrEmpty(session.LoadedScenarioName))
@@ -243,13 +243,15 @@ public static class ScenarioMenuCommands
                     session.SaveCurrent();
             },
             // ⭐ CE-1443 part B (AQ108 §2.15, user: "the save menu item should never be just plain save") — the label names what it saves
-            dynamicDisplayName: () => SaveLabels.Named("Save", "Scenario", session.LoadedScenarioName));
+            dynamicDisplayName: () => session.SaveDisabledReason is { } noSave
+                ? SaveLabels.Named("Save", "Scenario", session.LoadedScenarioName) + " (unavailable — " + noSave + ")"   // ⭐ CE-3394 (presets D10) — greyed WITH its reason
+                : SaveLabels.Named("Save", "Scenario", session.LoadedScenarioName));
 
         RegisterCommand(
             registerCommand, menu, commands, closedReason,
             SaveAsId, "Save Scenario As", FileMenuLayout.SaveScenarioAs,
             "Save the scenario under a new name",
-            isEnabled: () => openSaveAsDialog != null,
+            isEnabled: () => openSaveAsDialog != null && session.SaveDisabledReason is null,   // ⭐ CE-3394
             handler: _ => openSaveAsDialog?.Invoke(session.SaveAs),
             dynamicDisplayName: openSaveAsDialog != null
                 ? () => string.IsNullOrWhiteSpace(session.LoadedScenarioName) ? "Save Scenario As…" : SaveLabels.Named("Save", "Scenario", session.LoadedScenarioName) + " As…"

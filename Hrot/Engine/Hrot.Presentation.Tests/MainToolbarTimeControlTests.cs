@@ -156,7 +156,7 @@ public class MainToolbarTimeControlTests
 
     [Theory]
     [InlineData(TransportMode.Edit,    Fdp.Presentation.Fonts.IconsFontAwesome6.Pen, 0.60f, 0.60f, 0.60f)]
-    [InlineData(TransportMode.Preview, Fdp.Presentation.Fonts.IconsFontAwesome6.CircleHalfStroke, 0.66f, 0.45f, 0.92f)]
+    [InlineData(TransportMode.Preview, Fdp.Presentation.Fonts.IconsFontAwesome6.Eye, 0.66f, 0.45f, 0.92f)]
     [InlineData(TransportMode.Live,    Fdp.Presentation.Fonts.IconsFontAwesome6.Circle, 0.25f, 0.80f, 0.30f)]
     [InlineData(TransportMode.Review,  Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft, 1.00f, 0.70f, 0.20f)]
     [InlineData(TransportMode.Replay,  Fdp.Presentation.Fonts.IconsFontAwesome6.Play, 0.30f, 0.60f, 1.00f)]
@@ -169,7 +169,7 @@ public class MainToolbarTimeControlTests
 
     [Theory]
     [InlineData(TransportMode.Edit,    "")]   // Pen
-    [InlineData(TransportMode.Preview, "")]   // CircleHalfStroke
+    [InlineData(TransportMode.Preview, "")]   // Eye (CE-3394, presets D9)
     [InlineData(TransportMode.Live,    "")]   // Circle
     [InlineData(TransportMode.Review,  "")]   // ClockRotateLeft
     [InlineData(TransportMode.Replay,  "")]   // Play

@@ -1553,6 +1553,9 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         public JsonNode SaveScenario(string name) => SaveScenario(name, null, null);
 
+        /// <summary>⭐ CE-3394 — why this host's world may not be saved as the scenario (<c>ScenarioSaveGate</c>), null when it may.</summary>
+        public string? CannotSave() => Fdp.Toolkit.Scenario.ScenarioSaveGate.CanSave(_world);
+
         /// <summary>⭐ CE-4210 MA-9 — the same save with the optional entity filter and macro header (<c>POST /scenario/save {name, onlyGuids?, header?}</c>).</summary>
         public JsonNode SaveScenario(string name, Guid[]? onlyGuids, string? headerJson)
         {

@@ -273,14 +273,32 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
     {
         if (SaveIntercept?.Invoke() == true) return;
         if (string.IsNullOrEmpty(_loadedScenarioName)) return;
+        if (SaveDisabledReason is not null) return;   // ⭐ CE-3394 — a variant world is never written (the menu says why)
         PublishScenarioSave(_loadedScenarioName!);
         Saved?.Invoke();
     }
 
     /// <inheritdoc/>
+    /// <remarks>Cached per world version (the gate walks the entities): a menu reads it every frame it is open, the world changes only on a load.</remarks>
+    public string? SaveDisabledReason
+    {
+        get
+        {
+            if (_world is null) return null;
+            uint v = _world.GlobalVersion;
+            if (v != _gateVersion || !_gateRead) { _gateVersion = v; _gateRead = true; _gateReason = Fdp.Toolkit.Scenario.ScenarioSaveGate.CanSave(_world); }
+            return _gateReason;
+        }
+    }
+    private uint _gateVersion;
+    private bool _gateRead;
+    private string? _gateReason;
+
+    /// <inheritdoc/>
     public void SaveAs(string scenarioName)
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
+        if (SaveDisabledReason is not null) return;   // ⭐ CE-3394 — under a new name it would lose the absent entities just the same
         PublishScenarioSave(scenarioName);
         CopyTakes(_loadedScenarioName, scenarioName);
         _loadedScenarioName = scenarioName;

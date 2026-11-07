@@ -25,6 +25,29 @@ public sealed class EditorScenarioSessionSaveTests
         return new EditorScenarioSession(fileService, bus, () => new Fdp.Toolkit.Orchestration.ClusterView(bus), new EntityRepository(), () => FakeRoot);
     }
 
+    /// <summary>
+    /// ⭐ CE-3394 (presets D10) — a world built with a variant ≠ 0 is NOT saved: <see cref="IScenarioSession.SaveDisabledReason"/> is the gate's reason (naming the variant; the File menu
+    /// greys Save / Save As with it) and SaveAs / SaveCurrent publish nothing; an as-authored world saves as before.
+    /// 🔴 Red-proof (compiles): <c>SaveDisabledReason</c> answering null ⇒ the intent is published ⇒ red.
+    /// </summary>
+    [Fact]
+    public void AVariantWorld_IsNotSaved_AndTheReasonNamesTheVariant()
+    {
+        var bus = new FdpEventBus();
+        var world = new EntityRepository();
+        var fileService = new ScenarioFileService(new ScenarioSerializerBuilder("Hrot.Scenario").Build());
+        var session = new EditorScenarioSession(fileService, bus, () => new Fdp.Toolkit.Orchestration.ClusterView(bus), world, () => FakeRoot);
+        Assert.Null(((IScenarioSession)session).SaveDisabledReason);
+
+        world.RegisterManagedComponent<VariantForms>();
+        world.SetManagedComponent(world.CreateEntity(), new VariantForms { Variant = 5 });
+        world.Tick();   // a load moves the world's version (the reason is cached per version)
+        Assert.Contains("variant 5", ((IScenarioSession)session).SaveDisabledReason);
+        session.SaveAs("area/variant_copy");
+        bus.SwapBuffers();
+        Assert.Empty(bus.ReadManaged<ExecuteStorageOpIntent>());
+    }
+
     [Fact]
     public void SaveAs_PublishesSaveScenarioJsonIntent_WithTheName_AndWritesNoFile()
     {

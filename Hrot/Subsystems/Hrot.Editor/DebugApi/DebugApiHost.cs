@@ -729,7 +729,9 @@ namespace Hrot.Editor.DebugApi
                 var only = ctx.Body?["onlyGuids"] is JsonArray ga
                     ? ga.Select(n => Guid.TryParse(n?.GetValue<string>(), out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).ToArray() : null;
                 var header = ctx.Body?["header"]?.ToJsonString();
-                return RunMain(s => s.SaveScenario(name!, only, header));
+                return RunMainResult(s => only is null && header is null && s.CannotSave() is { } why
+                    ? Fail(409, why, DebugApiHints.Scenario)   // ⭐ CE-3394 (presets D10) — the ONE gate: a variant world is never saved as the scenario
+                    : Ok(s.SaveScenario(name!, only, header)));
             }));
 
             // ⭐ New scenario N5 (docs/UX/DESIGN_New_Scenario_And_Recipe.md, R-4135) — both kinds of new scenario: from a recipe (the New-Asset path,

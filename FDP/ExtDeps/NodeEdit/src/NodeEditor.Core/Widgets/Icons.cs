@@ -19,7 +19,7 @@ public static class Icons
         switch (key)
         {
             case "mode/edit": icon = new("\uf304", IconPalette.Grey); return true;   // Pen
-            case "mode/preview": icon = new("\uf042", IconPalette.Violet); return true;   // CircleHalfStroke
+            case "mode/preview": icon = new("\uf06e", IconPalette.Violet); return true;   // Eye — ⭐ CE-3394 / presets D9 (user 2026-11-07): the eye replaces ◐ (R-3061 SUPERSEDED)
             case "mode/live": icon = new("\uf111", IconPalette.Green); return true;   // Circle
             case "mode/review": icon = new("\uf1da", IconPalette.Amber); return true;   // ClockRotateLeft
             case "mode/replay": icon = new("\uf04b", IconPalette.Blue); return true;   // Play

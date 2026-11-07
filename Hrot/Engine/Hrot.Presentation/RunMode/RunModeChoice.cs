@@ -706,7 +706,7 @@ public sealed class RunModeChoice
 
     private RunModeIndicator Of(RunArmed mode, IndicatorLevel level) => mode switch
     {
-        RunArmed.Preview => new(IconsFontAwesome6.CircleHalfStroke, ColorOf(TransportMode.Preview), "Preview", level),
+        RunArmed.Preview => new(IconsFontAwesome6.Eye,   /* ⭐ CE-3394 / presets D9 — the eye replaces ◐ */ ColorOf(TransportMode.Preview), "Preview", level),
         RunArmed.Live    => new(IconsFontAwesome6.Circle, _transport.RecordsLiveRuns ? RecordingRed : ColorOf(TransportMode.Live), "Live", level),
         _                => new(IconsFontAwesome6.Play, ColorOf(TransportMode.Replay), "AAR", level),
     };
