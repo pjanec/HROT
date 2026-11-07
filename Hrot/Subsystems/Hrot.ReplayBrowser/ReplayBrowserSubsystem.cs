@@ -557,6 +557,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
 
         _gizmoLayer?.DrawContextMenu();
         _gizmoLayer?.DrawStructInspector();
+        Pickers?.DrawFrame();   // ⭐ CE-4323 — the recording picker
 
         // ⭐ CE-1243 — the map's menus are a contributor of the one menu bar (RegisterWindowsCore).
     }
@@ -913,6 +914,12 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     /// <param name="federationPanel">⭐⭐⭐ U-obs-5 follow-up — <c>null</c> until a replay group has
     /// been loaded (the panel is created lazily); when non-null its window is registered too.</param>
     /// <summary>⭐ CE-4261 — the browser's File items and its main-toolbar entry (one source for the rails).</summary>
+    /// <summary>⭐ CE-4323 — this host's shared pickers (the recording picker draws through them); settable for rails.</summary>
+    internal NodeEditor.UI.Picker.PickerRegistry? Pickers { get; set; }
+
+    /// <summary>⭐ CE-4323 — File ▸ Open Exercise Recording…'s launcher (the editor's class).</summary>
+    internal Hrot.Editor.AiShared.Scenarios.RecordingPickerLauncher? RecordingPicker { get; private set; }
+
     public const string LoadFdpMenuPath = "File/Load .fdp…", JsonExportMenuPath = "File/JSON Export…", RecordingInfoMenuPath = "File/Recording info", TransportEntryId = "ReplayTransport";
 
     internal void RegisterWindowsCore(
@@ -936,6 +943,16 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         var recordingInfo = new Fdp.Presentation.Windows.ReplayBrowser.RecordingInfoWindow(perspective, timelinePanel, color);
         windowManager.RegisterWindow(recordingInfo);
         windowManager.GlobalMenu.RegisterItem(RecordingInfoMenuPath, () => recordingInfo.Show(), perspective);
+
+        // ⭐⭐ CE-4323 (scenario lifecycle LC-19, R-4166) — File ▸ Open Exercise Recording…: the editor's picker (RecordingPickerLauncher — ONE class
+        //   for every host), listing the exercises on this host's disk (the inventory GET /exercises serves) by scenario, start and length; a pick goes
+        //   to this host's ONE opener (ReplayBrowserControl.Open). ⛔ Before: only Load .fdp… over GUID-named per-node folders.
+        Pickers ??= Hrot.UI.Common.AddEntity.EntityAuthoring.CreatePickers();
+        RecordingPicker = new Hrot.Editor.AiShared.Scenarios.RecordingPickerLauncher(
+            openPicker:    Pickers.OpenPicker,
+            listExercises: ExercisesOnDisk,
+            openRecording: id => BrowserControl.Open(Hrot.Presentation.DebugApi.RecordingName.Exercise(id), 0));
+        windowManager.GlobalMenu.RegisterItem(Hrot.Editor.AiShared.Scenarios.FileMenuLayout.OpenExerciseRecording, () => RecordingPicker.Open(), perspective);
 
         // ⭐ CE-4261 — the browser's own toolbar contents and File items (🔒 user, 2026-11-03): the replay transport bar is an entry of the MAIN toolbar (the timeline panel's ONE drawer),
         //   File ▸ Load .fdp… runs the load the timeline's button ran, File ▸ JSON Export… opens the window holding the export options.
