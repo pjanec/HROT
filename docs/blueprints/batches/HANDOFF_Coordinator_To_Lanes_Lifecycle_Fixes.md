@@ -12,7 +12,7 @@ related-designs:
 
 # HANDOFF — coordinator → ui, backend, behaviors: the scenario lifecycle fixes
 
-**For:** all three lanes, AFTER the handoff each is on now. **From:** coordinator. **Dispatched at `<sha of the commit adding this file>`**.
+**For:** all three lanes, AFTER the handoff each is on now. **From:** coordinator. **Dispatched at `f523103e`**.
 ⭐ Scope FROZEN there. ⛔⛔ Anything needing the user is skipped (R-4156).
 
 🔒 User, `2026-11-07`: *"revise the whole process of creation a scenario … focus on the accessibility of user interface, on the practical stuff"*
