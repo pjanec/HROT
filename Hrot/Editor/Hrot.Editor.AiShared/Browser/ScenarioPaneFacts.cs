@@ -17,7 +17,8 @@ public static class ScenarioPaneFacts
 
     /// <summary>The facts of one scenario file.</summary>
     public sealed record Facts(string? Description, string? TerrainName, string? SubsystemType, int EntityCount,
-        IReadOnlyList<Fdp.Toolkit.Scenario.ScenarioParamDecl>? Params = null, bool UsesVariants = false);   // ⭐ AQ108 D24 — what the run setup offers: the header's params and whether the file has any variant content
+        IReadOnlyList<Fdp.Toolkit.Scenario.ScenarioParamDecl>? Params = null, bool UsesVariants = false,
+        IReadOnlyList<Fdp.Toolkit.Scenario.ScenarioPreset>? Presets = null);   // ⭐ CE-3392 — the presets the load dialog offers, Default first (ScenarioPresets.Of)   // ⭐ AQ108 D24 — what the run setup offers: the header's params and whether the file has any variant content
 
     private sealed record Cached(DateTime Written, long CheckedAt, object? Value);
     private static readonly Dictionary<string, Cached> Cache = new(StringComparer.Ordinal);
@@ -98,8 +99,9 @@ public static class ScenarioPaneFacts
             }
             int entities = (root["entities"] ?? root["Entities"]) is System.Text.Json.Nodes.JsonObject e ? e.Count : 0;
             // ⭐ AQ108 D24 — the run setup's facts, read with the ONE header reader and the ONE variant test (the same ones the load uses)
-            var decls = Fdp.Toolkit.Scenario.ScenarioHeaderJson.Read(root)?.Params;
-            return new Facts(desc, terrain, subsystem, entities, decls, Fdp.Toolkit.Scenario.ScenarioVariants.Uses(root));
+            var header = Fdp.Toolkit.Scenario.ScenarioHeaderJson.Read(root);
+            return new Facts(desc, terrain, subsystem, entities, header?.Params, Fdp.Toolkit.Scenario.ScenarioVariants.Uses(root),
+                Fdp.Toolkit.Scenario.ScenarioPresets.Of(header));
         }
         catch (Exception) { return null; }   // unreadable ⇒ no facts, the pane shows the name alone
     }

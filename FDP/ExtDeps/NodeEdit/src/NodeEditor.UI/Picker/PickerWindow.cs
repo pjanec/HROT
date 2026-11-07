@@ -37,6 +37,8 @@ public sealed class PickerWindow
     private float _paneWidth = 280f;
     private Action<PickerEntry, PickerPaneContext>? _drawPane;
     private bool _drawPaneAfterDefault;
+    private Action<PickerEntry, PickerPaneContext>? _drawUnderHeader;
+    private PickerPaneContext? _paneCtx;
     private Func<PickerEntry?, object?>? _capturePaneState;
     private IReadOnlyList<PickerAction>? _actions;
     private IReadOnlyList<PickerLayout>? _layoutChoices;
@@ -114,6 +116,7 @@ public sealed class PickerWindow
         _paneWidth      = View.GetPaneWidth(request.ContextKey) ?? request.SidePaneWidth;
         _drawPane       = request.DrawPane;
         _drawPaneAfterDefault = request.DrawPaneAfterDefault;
+        _drawUnderHeader = request.DrawUnderHeader;
         _capturePaneState = request.CapturePaneState;
         _actions        = request.Actions is { Count: > 0 } ? request.Actions : null;
         _requestEntries = request.ItemsProvider().ToArray();
@@ -391,14 +394,13 @@ public sealed class PickerWindow
         }
 
         float width = ImGui.GetContentRegionAvail().X;
-        void DrawDefault() => PickerPaneContent.DrawDefault(entry, ctx, _state.Images, width);
+        void UnderHeader() => _drawUnderHeader?.Invoke(entry, _paneCtx!);
+        void DrawDefault() => PickerPaneContent.DrawDefault(entry, ctx, _state.Images, width, _drawUnderHeader is null ? null : UnderHeader);
+        _paneCtx = new PickerPaneContext { Width = width, Theme = ctx.Theme, Icons = ctx.Icons, Images = _state.Images, DrawDefault = DrawDefault };
         if (_drawPane is null) { DrawDefault(); return; }
 
         if (_drawPaneAfterDefault) { DrawDefault(); ImGui.Separator(); }
-        _drawPane(entry, new PickerPaneContext
-        {
-            Width = width, Theme = ctx.Theme, Icons = ctx.Icons, Images = _state.Images, DrawDefault = DrawDefault,
-        });
+        _drawPane(entry, _paneCtx);
     }
 
     private void DrawLayout(PickerRenderContext ctx)

@@ -20,7 +20,10 @@ internal static class PickerPaneContent
         ImGui.PopStyleColor();
     }
 
-    public static void DrawDefault(PickerEntry entry, PickerRenderContext ctx, PickerImageCache images, float width)
+    public static void DrawDefault(PickerEntry entry, PickerRenderContext ctx, PickerImageCache images, float width) => DrawDefault(entry, ctx, images, width, null);
+
+    /// <summary>As above; <paramref name="underHeader"/> runs right after the name / category, before the description (CE-3392).</summary>
+    public static void DrawDefault(PickerEntry entry, PickerRenderContext ctx, PickerImageCache images, float width, System.Action? underHeader)
     {
         if (entry.ImageKey is { Length: > 0 } key && images.TryGet(key, out var img))
         {
@@ -40,6 +43,8 @@ internal static class PickerPaneContent
 
         if (entry.Category is { Length: > 0 } cat)
             DrawMuted(ctx.Theme, PickerText.Drawable(cat.Replace("/", PickerTreeBuilder.FoldSeparator)));
+
+        underHeader?.Invoke();
 
         if (entry.Description is { Length: > 0 } desc)
         {

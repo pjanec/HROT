@@ -321,6 +321,14 @@ public sealed class RunModeChoice
 
     private readonly Dictionary<string, string?> _lastRunSetup = new(StringComparer.Ordinal);
 
+    /// <summary>⭐ CE-3392 (presets §5b) — the load dialog's <i>Open</i> with a preset: opens for EDITING with the preset's args through the ONE door (its questions first). An eye preset opens a world
+    /// that cannot be saved (the save gate says so). Null args ⇒ the plain open.</summary>
+    public void OpenForEdit(string scenarioName, string? argsJson)
+    {
+        if (string.IsNullOrWhiteSpace(scenarioName) || _door is null) return;
+        _door.Open(scenarioName, argsJson: argsJson);
+    }
+
     /// <summary>
     /// ⭐ AQ108 D24 — the run setup (the load's args: changed params and a chosen <c>$variant</c>) this scenario was last started with from this session, or <see langword="null"/> (the defaults). ▶ on an already-open scenario reuses it
     /// (<see cref="GoLive"/>); the picker's <i>Run setup</i> expander starts from it. Session memory only — not persisted.

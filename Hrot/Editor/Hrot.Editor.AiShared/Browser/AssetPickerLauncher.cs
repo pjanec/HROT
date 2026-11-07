@@ -33,8 +33,7 @@ public sealed class AssetPickerLauncher
     private readonly Func<IReadOnlyList<string>>? _macroPaths;
     private readonly Func<string?>? _macrosRoot;
     private readonly Hrot.Editor.AiShared.Scenarios.ParamArgsTable? _paramTable;
-    private readonly Dictionary<string, Hrot.UI.Common.RunMode.RunSetup> _runSetups = new(StringComparer.Ordinal);
-    private string? _paramTableFor;
+    private readonly Dictionary<string, int> _presetChosen = new(StringComparer.Ordinal);   // ⭐ CE-3392 — the preset picked per scenario, for one picker session
 
     /// <summary>⭐ CE-4141 (AQ108 D25) — the id of the scenario picker's default footer action (<i>Open</i>).</summary>
     public const string OpenActionId = "open";
@@ -145,7 +144,7 @@ public sealed class AssetPickerLauncher
         };
         if ((kinds & AssetKindFilter.Scenario) != 0) request = ScenarioPane(request, kinds, source);
 
-        _runSetups.Clear();   // ⭐ AQ108 D24 — a run setup lives for one picker session: a fresh picker starts at the defaults
+        _presetChosen.Clear();   // ⭐ CE-3392 — a fresh picker starts at Default
         _openPicker(request, result =>
         {
             if (result.Cancelled)
@@ -156,7 +155,13 @@ public sealed class AssetPickerLauncher
                 // ⭐ CE-4141 — Open and go live: the run choice's door asks D4's questions, then loads for live
                 if (result.ActionId == GoLiveActionId)
                 {
-                    if (asset.Kind == AssetKind.Scenario) _runChoice?.Invoke()?.OpenAndGoLive(asset.Name, RunArgsFor(asset.Name));   // ⭐ D24 — only what the OPEN expander chose; closed ⇒ null
+                    if (asset.Kind == AssetKind.Scenario) _runChoice?.Invoke()?.OpenAndGoLive(asset.Name, RunArgsFor(asset.Name));   // ⭐ CE-3392 — the chosen preset's args; Default ⇒ null
+                    return;
+                }
+                // ⭐ CE-3392 — Open with a preset other than Default: the edit open carries its args (Default ⇒ the plain route, exactly as before)
+                if (asset.Kind == AssetKind.Scenario && onPicked == null && RunArgsFor(asset.Name) is { } presetArgs && _runChoice?.Invoke() is { } rc)
+                {
+                    rc.OpenForEdit(asset.Name, presetArgs);
                     return;
                 }
                 if (onPicked != null)
@@ -204,8 +209,8 @@ public sealed class AssetPickerLauncher
         DefaultSize = new System.Numerics.Vector2(ScenarioPickerWidth, ScenarioPickerHeight),   // ⭐ D25 "the wide picker": big enough to read the preview
         SidePaneWidth = ScenarioPaneWidth,
         DrawPaneAfterDefault = true,
-        // ⭐ AQ108 D24 — the collapsed Run setup expander (variant, scenario params) is drawn under the facts
         DrawPane = (entry, pane) => DrawScenarioFacts(entry, pane),
+        DrawUnderHeader = (entry, pane) => DrawPresetCombo(entry, pane),   // ⭐ CE-3392 (presets §5b) — the preset under the thumbnail and the name, before the description
         Actions = new[]
         {
             new PickerAction(OpenActionId, "Open", IsDefault: true),
@@ -235,59 +240,63 @@ public sealed class AssetPickerLauncher
         if (f.TerrainName is { } terrain) Muted("Terrain: " + NodeEditor.UI.Picker.PickerText.Drawable(terrain));
         if (f.SubsystemType is { } sub) Muted("Subsystem: " + sub);
         if (f.EntityCount > 0) Muted("Entities: " + f.EntityCount);
-        DrawRunSetup(asset.Name, f, Muted);
     }
-
-    /// <summary>The label of the variant row's default choice.</summary>
-    public const string RandomVariantLabel = "random (drawn at start)";
 
     /// <summary>
-    /// ⭐⭐ AQ108 D24 — the <b>Run setup</b> expander, COLLAPSED by default: closed = the defaults (a start needs no interaction). Open: the <b>variant</b> (<i>random (drawn at start)</i> — the default, drawn by the load path, never here — or a number;
-    /// <c>0</c> = as authored; shown only when the file uses variants) and one typed row per <c>header.params</c> entry (the ONE args form, each at its declared default). Only an OPEN expander contributes args: closing it drops the setup.
+    /// ⭐⭐ CE-3392 (📄 docs/UX/DESIGN_Scenario_Presets.md §5b; SUPERSEDES AQ108 D24's Run setup expander here — "its job is the presets") — the <b>Preset</b> combo under the thumbnail and
+    /// the name: Default first, then the file's presets, each with its glyph (pen: as authored, editable · eye: a variant, preview only) and a one-line summary under the combo.
+    /// Drawn only when the scenario has a preset besides Default. <i>Open</i> loads for editing with it; <i>Open and go live</i> starts Live with it.
     /// </summary>
-    private void DrawRunSetup(string name, ScenarioPaneFacts.Facts f, Action<string> muted)
+    private void DrawPresetCombo(PickerEntry entry, NodeEditor.UI.Picker.PickerPaneContext pane)
     {
-        if (!f.UsesVariants && f.Params is not { Count: > 0 }) return;   // nothing to set up: no expander at all
-        var im = NodeEditor.Core.Widgets.SectionHeader.Draw("runsetup", "Run setup", "tab/settings");
-        if (!im) { _runSetups.Remove(name); return; }   // closed ⇒ the defaults, nothing remembered
-        if (!_runSetups.TryGetValue(name, out var setup)) _runSetups[name] = setup = new Hrot.UI.Common.RunMode.RunSetup(f.Params, f.UsesVariants);
-        if (setup.UsesVariants)
+        if (entry.Tag is not IEditableAsset { Kind: AssetKind.Scenario } asset || string.IsNullOrEmpty(asset.SourceFilePath)) return;
+        if (ScenarioPaneFacts.Get(asset.SourceFilePath)?.Presets is not { Count: > 1 } presets) return;
+        int chosen = _presetChosen.TryGetValue(asset.Name, out var c) && c < presets.Count ? c : 0;
+        ImGuiNET.ImGui.AlignTextToFramePadding();
+        ImGuiNET.ImGui.TextUnformatted("Preset");
+        ImGuiNET.ImGui.SameLine();
+        ImGuiNET.ImGui.SetNextItemWidth(MathF.Max(120f, pane.Width - 90f));
+        if (ImGuiNET.ImGui.BeginCombo("##preset", PresetLabel(presets[chosen])))
         {
-            bool random = setup.RandomVariant;
-            if (ImGuiNET.ImGui.RadioButton(RandomVariantLabel + "##variant", random)) setup.RandomVariant = true;
-            ImGuiNET.ImGui.SameLine();
-            if (ImGuiNET.ImGui.RadioButton("number##variant", !random)) setup.RandomVariant = false;
-            if (!setup.RandomVariant)
-            {
-                ImGuiNET.ImGui.SameLine();
-                int v = setup.Variant;
-                ImGuiNET.ImGui.SetNextItemWidth(90f);
-                if (ImGuiNET.ImGui.InputInt("##variantnumber", ref v, 1, 10)) setup.Variant = Math.Max(0, v);
-                muted("0 = as authored");
-            }
+            for (int i = 0; i < presets.Count; i++)
+                if (ImGuiNET.ImGui.Selectable(PresetLabel(presets[i]) + "##p" + i, i == chosen)) _presetChosen[asset.Name] = chosen = i;
+            ImGuiNET.ImGui.EndCombo();
         }
-        if (setup.Params.Count > 0)
-        {
-            if (_paramTable is null) { muted("Scenario params cannot be edited on this host."); return; }
-            if (!string.Equals(_paramTableFor, name, StringComparison.Ordinal)) { _paramTable.Clear(); _paramTableFor = name; }
-            _paramTable.Draw("runsetup-params", Hrot.Editor.AiShared.Scenarios.ParamArgRow.From(setup.Params, setup.Overrides),
-                onSet: (row, json) => setup.Set(row.Name, json),
-                onReset: row => { setup.Reset(row.Name); _paramTable.Clear(); });
-        }
+        ImGuiNET.ImGui.PushStyleColor(ImGuiNET.ImGuiCol.Text, pane.Theme.TextMuted);
+        ImGuiNET.ImGui.TextUnformatted(PresetSummary(presets[chosen]));
+        ImGuiNET.ImGui.PopStyleColor();
     }
 
-    /// <summary>The run setup the OPEN expander holds for <paramref name="scenarioName"/> (null while closed / never drawn) — what the frame rail drives.</summary>
-    public Hrot.UI.Common.RunMode.RunSetup? RunSetupOf(string scenarioName) => _runSetups.TryGetValue(scenarioName, out var s) ? s : null;
+    /// <summary>A preset as the combo lists it: its glyph (pen / eye) and name.</summary>
+    public static string PresetLabel(Fdp.Toolkit.Scenario.ScenarioPreset p)
+        => (p.Variant.Saveable ? Fdp.Presentation.Fonts.IconsFontAwesome6.Pen : Fdp.Presentation.Fonts.IconsFontAwesome6.Eye) + "  " + p.Name;
 
-    /// <summary>How many typed param rows the Run setup drew last frame (the frame rail reads it).</summary>
-    public int RunSetupRowsDrawn => _paramTable?.RowsDrawn ?? 0;
+    /// <summary>The one-line summary under the combo (presets §5a): <i>as authored · 2 changed</i> · <i>variant 3 · preview only</i> · <i>random each run · preview only</i>.</summary>
+    public static string PresetSummary(Fdp.Toolkit.Scenario.ScenarioPreset p)
+    {
+        string variant = p.Variant.Kind switch
+        {
+            Fdp.Toolkit.Scenario.PresetVariantKind.Random => "random each run",
+            Fdp.Toolkit.Scenario.PresetVariantKind.Number when p.Variant.Number != 0 => "variant " + p.Variant.Number,
+            _ => "as authored",
+        };
+        int changed = p.Args?.Count ?? 0;
+        string tail = changed == 0 ? "" : " · " + changed + " changed";
+        return variant + tail + (p.Variant.Saveable ? "" : " · preview only");
+    }
 
-    /// <summary>The Run setup's typed args table (the frame rails edit a row through it).</summary>
-    internal Hrot.Editor.AiShared.Scenarios.ParamArgsTable? RunSetupTable => _paramTable;
+    /// <summary>The preset index picked for <paramref name="scenarioName"/> in this picker session (0 = Default) — the frame rail sets and reads it.</summary>
+    public int PresetChosenOf(string scenarioName) => _presetChosen.TryGetValue(scenarioName, out var i) ? i : 0;
 
-    /// <summary>Where the Run setup drew its last <i>reset</i> button last frame (the frame rail clicks it).</summary>
-    public System.Numerics.Vector2? RunSetupResetButtonAt => _paramTable?.LastResetButtonCenter;
+    /// <summary>Picks preset <paramref name="index"/> for <paramref name="scenarioName"/> (the rail's hand on the combo).</summary>
+    public void ChoosePreset(string scenarioName, int index) => _presetChosen[scenarioName] = Math.Max(0, index);
 
-    /// <summary>The args <i>Open and go live</i> passes for <paramref name="scenarioName"/>: what the open Run setup expander chose, else <see langword="null"/> (a start with nothing chosen passes nothing).</summary>
-    public string? RunArgsFor(string scenarioName) => _runSetups.TryGetValue(scenarioName, out var s) ? s.ArgsJson() : null;
+    /// <summary>The args <i>Open</i> / <i>Open and go live</i> pass for <paramref name="scenarioName"/>: the chosen preset's (<see cref="Fdp.Toolkit.Scenario.ScenarioPreset.ArgsJson"/>), null for Default.</summary>
+    public string? RunArgsFor(string scenarioName)
+    {
+        if (!_presetChosen.TryGetValue(scenarioName, out var i) || i == 0) return null;
+        var asset = _catalog.FindByName(scenarioName);
+        var presets = asset?.SourceFilePath is { Length: > 0 } path ? ScenarioPaneFacts.Get(path)?.Presets : null;
+        return presets is { } ps && i < ps.Count ? ps[i].ArgsJson(Fdp.Toolkit.Scenario.ScenarioPresets.RandomVariant) : null;
+    }
 }

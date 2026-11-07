@@ -88,6 +88,9 @@ public sealed class PickerRequest
     /// <summary>⭐ P1 — draw the default content first and <see cref="DrawPane"/> below it, instead of replacing it.</summary>
     public bool DrawPaneAfterDefault { get; init; }
 
+    /// <summary>⭐ CE-3392 (presets §5b) — drawn INSIDE the default content, right under the image and the name, before the description (the load dialog's preset combo).</summary>
+    public Action<PickerEntry, PickerPaneContext>? DrawUnderHeader { get; init; }
+
     /// <summary>⭐ P2 — called at confirm with the entry chosen (null if none); its result is <see cref="PickerResult.PaneState"/>.</summary>
     public Func<PickerEntry?, object?>? CapturePaneState { get; init; }
 
