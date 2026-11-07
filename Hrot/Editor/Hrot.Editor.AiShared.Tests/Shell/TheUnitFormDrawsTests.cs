@@ -21,6 +21,9 @@ namespace Hrot.Editor.AiShared.Tests.Shell;
 [Collection(Hrot.Editor.AiShared.Tests.PanelSnapshotTestCollection.Name)]
 public sealed class TheUnitFormDrawsTests
 {
+    private static int ListIdx(string label) { for (int i = 0; i < HrotForms.Unit.Lists.Count; i++) if (HrotForms.Unit.Lists[i].Label == label) return i; return -1; }
+    private static int FieldIdx(string label) { for (int i = 0; i < HrotForms.Unit.Fields.Count; i++) if (HrotForms.Unit.Fields[i].Label == label) return i; return -1; }
+
     [SkippableFact]
     public void U23_TheUnitForm_ReadsTheWorld_AndARecordingIsReadOnly()
     {
@@ -101,7 +104,7 @@ public sealed class TheUnitFormDrawsTests
         world.AddComponent(man, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = bmp, Seat = 0 });
 
         HrotForms.EnsureRegistered();
-        var view = new FormView { Pick = new OnePick(new Fdp.Toolkit.Replication.EntityRef(7), "form.unit.list1") };   // he picks HIMSELF to aim at
+        var view = new FormView { Pick = new OnePick(new Fdp.Toolkit.Replication.EntityRef(7), "form.unit.pick" + FieldIdx("Aimed at")) };   // he picks HIMSELF to aim at
         using var frame = UiFrameHarness.Begin(700, 420);
         frame.StepN(3, () =>
         {
@@ -112,16 +115,17 @@ public sealed class TheUnitFormDrawsTests
         });
         Assert.Contains("Weapon = Aimed", view.Rows);
         Assert.Contains("In hand = Binoculars", view.Rows);
-        Assert.Equal(new[] { "Driver", "BMP 1", "Target", "Enemy 1" }, view.ListRows);
-        Assert.Equal("he cannot aim at himself", view.ListProblem(1));   // the Aim at… pick came back through the one context and was refused with the reason
+        Assert.Contains("Aimed at = Enemy 1", view.Rows);   // ⭐ the aim is an inline field on the Weapon row now (U-24 part 4), not a list
+        Assert.Equal(new[] { "Driver", "BMP 1" }, view.ListRows);
+        Assert.Equal(FormMark.Refused, view.MarkOf(FieldIdx("Aimed at")));   // the pick came back through the one context and was refused with the reason
         Assert.NotNull(HrotForms.Unit.Fields.First(f => f.Label == "Weapon").Definition);   // the row writes a vocabulary attribute (Weapon.Posture)
         Assert.NotNull(HrotForms.Unit.Fields.First(f => f.Label == "In hand").Definition);
         if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "unit-form-s5.png"));
     }
 
-    /// <summary>⭐ U-24 / S5 (DESIGN_Initial_State §3) — the Unit form's <b>Knows about</b> list in a real frame: one row per remembered target by name, after the other lists; <i>Add…</i> picks through the one context and seeds the target
+    /// <summary>⭐ U-24 / S5 (DESIGN_Initial_State §3) — the Unit form's <b>Knows about</b> list in a real frame (R-4157): ONLY the seeds this station sent, each with its outcome (pending · applied · refused), never his <c>TargetMemory</c>; <i>Add…</i> picks through the one context and seeds the target
     /// through <c>KnowledgeOrders.SeedTarget</c> (a <c>SeedTargetCommand</c> on the bus); he cannot be asked to know of himself; with no <c>TargetMemory</c> (a station that does not run his brain) the footer says where it is known.
-    /// 🔴 Red-proof (compiles): <c>FillKnows</c> adding nothing ⇒ no row ⇒ red.</summary>
+    /// 🔴 Red-proof (compiles): <c>FillSeeds</c> reading <c>TargetMemory</c> again ⇒ the enemy listed before any seed ⇒ red.</summary>
     [SkippableFact]
     public void U24_S5_KnowsAbout_ListsTheRememberedTargets_AndAddSeedsThroughTheOneOrder()
     {
@@ -143,8 +147,8 @@ public sealed class TheUnitFormDrawsTests
         world.AddComponent(bare, new EntityInfo { Name = new FixedString64("Bravo 2") });
 
         HrotForms.EnsureRegistered();
-        int list = 2;
-        Assert.Equal("Knows about", HrotForms.Unit.Lists[list].Label);
+        int list = ListIdx("Knows about");
+        Assert.True(list >= 0);
         Assert.Null(HrotForms.Unit.Lists[list].Remove);   // nothing in the engine forgets a target on request
         var pick = new OnePick(new Fdp.Toolkit.Replication.EntityRef(7), "form.unit.list" + list);   // he is picked as HIS OWN known unit
         var view = new FormView { Pick = pick };
@@ -157,17 +161,29 @@ public sealed class TheUnitFormDrawsTests
             ImGui.End();
         });
         Draw(man);
-        Assert.Equal(new[] { "Unit", "Enemy 1" }, view.ListRows.Skip(view.ListRows.Count - 2).ToArray());   // after the other lists' rows
-        Assert.Equal("he cannot know of himself", view.ListProblem(list));
-        HrotForms.Unit.Lists[list].Add!(world, man, enemy);   // what the picked enemy sends
+        Assert.Empty(view.ListRows);   // ⭐ R-4157: his TargetMemory holds the enemy, but the form shows only the SEEDS this station sent — what he knows now is the Brain tab's, where the brain runs
+        Assert.Equal("what he knows now: the Brain tab, where his brain runs", HrotForms.Unit.Lists[list].Footer!(world, man));
+        Assert.Equal("he cannot know of himself", HrotForms.Unit.Lists[list].Add!(world, man, man));
+        Assert.Null(HrotForms.Unit.Lists[list].Add!(world, man, enemy));   // what the picked enemy sends
         world.Bus.SwapBuffers();
         var sent = world.Bus.Read<Fdp.Toolkit.Perception.Events.SeedTargetCommand>();
         Assert.Equal(1, sent.Length);
         Assert.Equal(man, sent[0].Perceiver); Assert.Equal(enemy, sent[0].Target);
+        Draw(man);
+        Assert.Equal(new[] { "Pending", "Enemy 1" }, view.ListRows.Skip(view.ListRows.Count - 2).ToArray());   // sent, unanswered
+        var seeds = Hrot.Common.Orders.KnowledgeOrders.SeedsOf(world);
+        Assert.Equal(1, seeds.Count);
+        Fdp.Toolkit.Replication.Edits.EditOutcomes.Report(world, seeds[0].RequestId, 7, Fdp.Toolkit.Replication.Edits.EditStatus.Applied, null, 3);
+        view = new FormView(); Draw(man);
+        Assert.Equal(new[] { "Applied", "Enemy 1" }, view.ListRows.Skip(view.ListRows.Count - 2).ToArray());
+        Assert.Null(HrotForms.Unit.Lists[list].Add!(world, man, bare));   // a second seed, refused by the owner
+        Fdp.Toolkit.Replication.Edits.EditOutcomes.Report(world, seeds[1].RequestId, 7, Fdp.Toolkit.Replication.Edits.EditStatus.Refused, "not his brain", 3);
+        view = new FormView(); Draw(man);
+        Assert.Equal(new[] { "Applied", "Enemy 1", "Refused", "Bravo 2" }, view.ListRows.Skip(view.ListRows.Count - 4).ToArray());
+        Assert.Equal("not his brain", HrotForms.Unit.Lists[list].Footer!(world, man));   // the refusal's reason takes the footer
         view = new FormView();
         Draw(bare);
-        Assert.Empty(view.ListRows);                       // no memory here: no rows ...
-        Assert.Equal("(known only where his brain runs)", HrotForms.Unit.Lists[list].Footer!(world, bare));   // ... and the footer says why
+        Assert.Empty(view.ListRows);                       // nobody seeded anything for him: no rows
         if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) { view = new FormView(); Draw(man); frame.Screenshot(System.IO.Path.Combine(dir, "unit-form-knows.png")); }
     }
 
@@ -264,8 +280,8 @@ public sealed class TheUnitFormDrawsTests
         world.AddComponent(man, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = soldier, Seat = 0 });
 
         HrotForms.EnsureRegistered();
-        const int list = 3;
-        Assert.Equal("Carried by", HrotForms.Unit.Lists[list].Label);
+        int list = ListIdx("Carried by");
+        Assert.True(list >= 0);
         var view = new FormView { Pick = new OnePick(new Fdp.Toolkit.Replication.EntityRef(9), "form.unit.list" + list) };   // he is told to be carried by a crate
         using var frame = UiFrameHarness.Begin(700, 420);
         frame.StepN(3, () =>
@@ -328,8 +344,8 @@ public sealed class TheUnitFormDrawsTests
         world.AddComponent(rifle, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = man, Seat = 0 });
 
         HrotForms.EnsureRegistered();
-        const int list = 4;
-        Assert.Equal("Carries", HrotForms.Unit.Lists[list].Label);
+        int list = ListIdx("Carries");
+        Assert.True(list >= 0);
         var view = new FormView { Pick = new OnePick(new Fdp.Toolkit.Replication.EntityRef(9), "form.unit.list" + list) };   // he is handed a crate
         using var frame = UiFrameHarness.Begin(700, 420);
         void Draw() => frame.StepN(3, () =>
@@ -483,6 +499,170 @@ public sealed class TheUnitFormDrawsTests
         public void RequestLocationPick(string jsonPath) { }
         public bool TryConsumeEntityPick(string jsonPath, out Fdp.Toolkit.Replication.EntityRef picked) { picked = default; if (_path != null && jsonPath != _path) return false; picked = _next; bool had = !_next.IsNone; _next = default; return had; }
         public bool TryConsumeLocationPick(string jsonPath, out Fdp.Toolkit.Replication.PointLink location) { location = default; return false; }
+    }
+
+    /// <summary>⭐ U-24 / S5 (DESIGN_Initial_State §4.2) — the Unit form's <b>Carried as</b> choice: offered only for a man a PERSON carries; picking another way re-issues the ONE embark (<c>EmbarkOrders.Embark</c>, 4-argument) with the new mode — the
+    /// command on the bus carries <c>Dragged</c>; a stretcher with nobody at the other end is refused with the reason and sends nothing; naming a second man (the <i>Second man</i> list's add) sends <c>Stretcher</c> + that man.
+    /// 🔴 Red-proof (compiles): <c>CarriedAs</c> always sending <c>CarryMode.Carried</c> ⇒ the command says Carried ⇒ red.</summary>
+    [Fact]
+    public void U24_S5_CarriedAs_ReissuesTheEmbarkWithTheNewMode_AndAStretcherNeedsASecondMan()
+    {
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<NetworkIdentity>(); world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(); world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
+        var soldier = world.CreateEntity();
+        world.AddComponent(soldier, new EntityInfo { Name = new FixedString64("Bravo 2") });
+        world.AddComponent(soldier, new Fdp.Toolkit.Behavior.Components.PersonCarrier());
+        var helper = world.CreateEntity();
+        world.AddComponent(helper, new EntityInfo { Name = new FixedString64("Bravo 3") });
+        world.AddComponent(helper, new Fdp.Toolkit.Behavior.Components.PersonCarrier());
+        var man = world.CreateEntity();
+        world.AddComponent(man, new EntityInfo { Name = new FixedString64("Alpha 1-1") });
+        var buf = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = 1 };
+        buf.Passengers[0] = man;
+        buf.SetMode(0, Fdp.Toolkit.Behavior.Components.CarryMode.Carried);
+        world.AddComponent(soldier, buf);
+        world.AddComponent(man, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = soldier, Seat = 0 });
+
+        HrotForms.EnsureRegistered();
+        int Idx(string label) { for (int i = 0; i < HrotForms.Unit.Fields.Count; i++) if (HrotForms.Unit.Fields[i].Label == label) return i; return -1; }
+        int field = Idx("Carried as");
+        Assert.True(field >= 0);
+        var f = HrotForms.Unit.Fields[field];
+        Assert.True(f.Has!(world, man));
+        Assert.False(f.Has!(world, soldier));                       // only a man a person carries
+        Assert.Equal(0.0, f.ReadNumber!(world, man));               // Carried
+        Assert.Equal("Dragged", f.Choices![1]);
+
+        var view = new FormView();
+        view.CommitForTest(HrotForms.Unit, field, world, new[] { man }, 1);   // Dragged
+        world.Bus.SwapBuffers();
+        var sent = world.Bus.Read<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
+        Assert.Equal(1, sent.Length);
+        Assert.Equal(Fdp.Toolkit.Behavior.Components.CarryMode.Dragged, sent[0].Mode);
+        Assert.Equal(man, sent[0].Passenger); Assert.Equal(soldier, sent[0].Vehicle);
+
+        view.CommitForTest(HrotForms.Unit, field, world, new[] { man }, 2);   // Stretcher with nobody at the other end
+        Assert.Equal(FormMark.Refused, view.MarkOf(field));
+        world.Bus.SwapBuffers();
+        Assert.Equal(0, world.Bus.Read<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>().Length);
+
+        int second = -1;
+        for (int i = 0; i < HrotForms.Unit.Lists.Count; i++) if (HrotForms.Unit.Lists[i].Label == "Second man") second = i;
+        Assert.True(second >= 0);
+        world.Bus.SwapBuffers();
+        var fit = HrotForms.Unit.Lists[second].Add!(world, man, helper);   // a fit second man beside the carrier
+        world.Bus.SwapBuffers();
+        var sent2 = world.Bus.Read<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
+        if (fit == null)
+        {
+            Assert.Equal(1, sent2.Length);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.CarryMode.Stretcher, sent2[0].Mode);
+            Assert.Equal(helper, sent2[0].Assistant);
+        }
+        else Assert.Equal("he cannot hold the other end (he must be fit, and not busy)", fit);   // no position/health in this bare world: the engine's fitness rule decides — the refusal is the reason, nothing sent
+        Assert.Equal("only a soldier holds the other end", HrotForms.Unit.Lists[second].Add!(world, man, world.CreateEntity()));
+    }
+
+    /// <summary>⭐ U-24 / S5 (DESIGN_Initial_State §4.2) — the Unit form's <b>Damage</b> expert rows: one number row per PART of his body (a person's ten; the label is the part's name, the row key <i>Damage N</i>), reading <c>PartDamage.Levels[part]</c>
+    /// (0 when none yet — the owner adds the component on the first write), and a commit writes attribute 85 with the PART ID as the sub-index (<c>FormField.SubIndex</c> → <c>SubIndex1</c>). A person has no Mobility zone: no <i>Mobility kill</i> row.
+    /// 🔴 Red-proof (compiles): <c>FormField.ChangeFor</c> not copying <c>SubIndex</c> ⇒ every part writes sub-index 0 ⇒ red.</summary>
+    [Fact]
+    public void U24_S5_Damage_RowsReadThePartLevels_AndACommitWritesAttribute85WithThePartAsSubIndex()
+    {
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<Health>(); world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>();
+        var man = world.CreateEntity();
+        world.AddComponent(man, new EntityInfo { Name = new FixedString64("Alpha 1-1"), ForceId = ForceId.Friend });
+        world.AddComponent(man, new Health { Current = 80, Max = 100 });
+        HrotForms.EnsureRegistered();
+
+        int torso = FieldIdx("Damage 4");
+        Assert.True(torso >= 0);
+        var f = HrotForms.Unit.Fields[torso];
+        Assert.True(f.Expert);
+        Assert.Equal("Torso", f.LabelFor!(world, man));
+        Assert.Equal("Head", HrotForms.Unit.Fields[FieldIdx("Damage 5")].LabelFor!(world, man));
+        Assert.True(f.Has!(world, man));                              // a unit that can be damaged shows the rows before the first wound
+        Assert.False(HrotForms.Unit.Fields[FieldIdx("Damage 10")].Has!(world, man));   // a person has ten parts
+        Assert.Equal(0.0, f.ReadNumber!(world, man));
+        Assert.False(HrotForms.Unit.Fields[FieldIdx("Mobility kill")].Has!(world, man));   // no Mobility zone on a person
+
+        var pd = new Fdp.Toolkit.Physics.BodyParts.PartDamage { Plan = Fdp.Toolkit.Physics.BodyParts.BodyPlan.Person };
+        pd.Set(4, 90); pd.Set(5, 200);
+        world.AddComponent(man, pd);
+        Assert.Equal(90.0, f.ReadNumber!(world, man));
+        Assert.Equal(200.0, HrotForms.Unit.Fields[FieldIdx("Damage 5")].ReadNumber!(world, man));
+
+        var sent = new System.Collections.Generic.List<Fdp.Toolkit.Replication.Edits.EditOp>();
+        var view = new FormView { Submit = (w, op) => { sent.Add(op); return new Fdp.Toolkit.Replication.Edits.EditTicket(Guid.NewGuid(), Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct); } };
+        view.CommitForTest(HrotForms.Unit, torso, world, new[] { man }, 120);
+        var op = Assert.Single(sent);
+        var change = Assert.Single(op.Changes!);
+        Assert.Equal(Fdp.Toolkit.Replication.Patching.AttributeIds.DamagePart, change.AttributeId);
+        Assert.Equal((short)4, change.SubIndex1);                     // the part id
+        Assert.Equal(120.0, change.Value.DoubleValue);
+        Assert.Equal(0.0, HrotForms.Unit.Fields[torso].Min); Assert.Equal(255.0, HrotForms.Unit.Fields[torso].Max);
+    }
+
+    /// <summary>⭐ U-24 / S5 — the mobility kill is a TOGGLE on attribute 86 written as the Int32 1 / 0 the handler reads; offered only on a body with a Mobility zone (a vehicle). 🔴 Red-proof (compiles): <c>ChangeFor</c> writing a Bool for an Int32 switch ⇒ red.</summary>
+    [Fact]
+    public void U24_S5_MobilityKill_IsAToggleWrittenAsOneOrZero()
+    {
+        var f = HrotForms.Unit.Fields[FieldIdx("Mobility kill")];
+        Assert.Equal(FieldKind.Toggle, f.Kind);
+        var on = f.ChangeFor(1, null)!.Value;
+        Assert.Equal(Fdp.Toolkit.Replication.Patching.AttributeValueKind.CsInt32, on.Value.Kind);
+        Assert.Equal(1, on.Value.IntValue);
+        var off = f.ChangeFor(0, null)!.Value;
+        Assert.Equal(Fdp.Toolkit.Replication.Patching.AttributeIds.DamageMobilityKill, off.AttributeId);
+        Assert.Equal(0, off.Value.IntValue);
+    }
+
+    /// <summary>⭐ U-24 / S5 (details-forms-visual.svg, DESIGN_Details_Forms §4.0a) — the combined rows are ONE row each, MEASURED: <i>Weapon</i> [Aimed ▾] <i>at</i> [pick] and <i>Playable</i> ☑ <i>slot</i> [..] — the second control shares the first's
+    /// Y, sits to its right, and both start on the form's one control column; the generic <c>FormField.Inline</c> does it (the view knows no label). An inline field whose predecessor is not drawn falls back to its own row.
+    /// 🔴 Red-proof (compiles): <c>IsInlineChild</c> returning false ⇒ the aim and the slot get rows of their own (different Y) ⇒ red.</summary>
+    [SkippableFact]
+    public void U24_S5_TheCombinedRows_ShareOneLine_Measured()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<NetworkIdentity>(); world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>(); world.RegisterComponent<Hrot.Common.Playable>();
+        var enemy = world.CreateEntity();
+        world.AddComponent(enemy, new EntityInfo { Name = new FixedString64("Enemy 1") });
+        world.AddComponent(enemy, new NetworkIdentity(9));
+        var man = world.CreateEntity();
+        world.AddComponent(man, new EntityInfo { Name = new FixedString64("Alpha 1-1"), ForceId = ForceId.Friend });
+        world.AddComponent(man, new NetworkIdentity(7));
+        world.AddComponent(man, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed, Target = enemy });
+        world.AddComponent(man, new Hrot.Common.Playable { SlotName = new FixedString32("Alpha lead") });
+        HrotForms.EnsureRegistered();
+        var view = new FormView { CaptureLayout = true, ExpertOpen = true, Pick = new OnePick(default) };
+        using var frame = UiFrameHarness.Begin(700, 420);
+        frame.StepN(4, () =>
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10)); ImGui.SetNextWindowSize(new System.Numerics.Vector2(560, 380));
+            ImGui.Begin("Details##unit-inline");
+            view.Draw(HrotForms.Unit, world, new[] { man }, editable: true);
+            ImGui.End();
+        });
+        (System.Numerics.Vector2 Min, System.Numerics.Vector2 Max) R(string label) { foreach (var r in view.ItemRects) if (r.Field == FieldIdx(label)) return (r.Min, r.Max); throw new Xunit.Sdk.XunitException("not drawn: " + label); }
+        var weapon = R("Weapon"); var aimed = R("Aimed at");
+        Assert.Equal(weapon.Min.Y, aimed.Min.Y, 1);                  // ONE line
+        Assert.True(aimed.Min.X > weapon.Max.X);                     // after the posture, past the "at" caption
+        var playable = R("Playable"); var slot = R("Slot");
+        Assert.Equal(playable.Min.Y, slot.Min.Y, 1);
+        Assert.True(slot.Min.X > playable.Max.X);
+        var inHand = R("In hand");
+        Assert.True(inHand.Min.Y > weapon.Min.Y);                    // the next field is on the next row
+        Assert.Equal(weapon.Min.X, inHand.Min.X, 1);                 // both rows start on the form's one control column
+        Assert.Contains("Slot = Alpha lead", view.Rows);
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "unit-form-inline.png"));
     }
 
     /// <summary>⭐ U-23 / D5 — the <b>Scenario</b> form is the WORLD form: its target is the World Environment (the clock + the global weather); the start reads as a

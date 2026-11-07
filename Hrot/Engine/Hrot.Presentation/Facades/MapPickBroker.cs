@@ -153,18 +153,33 @@ public sealed class MapPickBroker : IMapPickContext
     /// SR-130); anywhere else, the coordinates as before. ⭐ Here, in the one broker every host's pickers go through, so every point picker offers named points.</summary>
     internal PointLink SnapToNamedPoint(Fdp.Core.WorldPoint at)
     {
-        if (_pickService() is not { } svc || References is not { } refs) return new PointLink(at);
+        if (_pickService() is not { } svc) return new PointLink(at);
         int net = svc.NamedPointAt(new System.Numerics.Vector2(at.X, at.Y));
-        if (net <= 0) return new PointLink(at);
-        var point = new EntityRef(net);
-        if (!refs.TryGuidOf(point, out var guid)) return new PointLink(at);
-        var where = refs.TryPositionOf(point, out var p) ? p : at;
-        return new PointLink(where, Fdp.Core.RefSpec.ByExact(guid));
+        return net > 0 && PointOf(net) is { } link ? link : new PointLink(at);
+    }
+
+    /// <summary>The named Point <paramref name="networkId"/> as a <see cref="PointLink"/> — its position and (when it has one) its GUID, the chip's exact form (resolved once, SR-130); null when it is not in the world. ONE
+    /// conversion for a click on the point (<see cref="SnapToNamedPoint"/>) and a choice from the Points list.</summary>
+    private PointLink? PointOf(int networkId)
+    {
+        if (References is not { } refs) return null;
+        var point = new EntityRef(networkId);
+        if (!refs.TryPositionOf(point, out var where)) return null;
+        return refs.TryGuidOf(point, out var guid) ? new PointLink(where, Fdp.Core.RefSpec.ByExact(guid)) : new PointLink(where);
     }
 
     public bool TryConsumeLocationPick(string jsonPath, out PointLink location)
     {
         location = default;
+        // ⭐ U-25 / S4 — a choice from the Points LIST completes as an ENTITY pick for this path: it is the named point's reference, the same PointLink a click on it gives
+        if (_pendingPath == jsonPath && _entityPickTask is { IsCompleted: true } listed)
+        {
+            _pendingPath    = null;
+            _entityPickTask = null;
+            if (!listed.IsCompletedSuccessfully || listed.Result <= 0 || PointOf(listed.Result) is not { } chosen) return false;
+            location = chosen;
+            return true;
+        }
         if (_pendingPath != jsonPath || _locationPickTask is not { IsCompleted: true } task) return false;
 
         _pendingPath      = null;
