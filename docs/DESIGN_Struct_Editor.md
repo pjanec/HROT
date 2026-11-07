@@ -3,7 +3,7 @@ state: LIVE
 build-state: READY-TO-BUILD — ✅ S1–S12 + K1–K6 APPROVED by the user 2026-11-07 ("Apprived."); the field-declaration D0 / D1–D11 are folded in by S1
 updated: 2026-11-07
 current-answer: the whole file — §1 what exists (measured) · §2 the library (UML) · §3 the type registration · §4 the list forms · §5 entities
-  and places · §6 the decisions · §7 the build order · §8 ONE widget kit for every form (K1–K6) · §9 the entity inspector is a host
+  and places · §6 the decisions · §7 the build order · §8 ONE widget kit for every form (K1–K6) · §9 the entity inspector is a host · §10 sequences, zero allocation, input chain, undo per host, measured gates (G1, G3–G6) · §11 the adoption table (G2)
 stale-below: nothing
 known-rot: none
 known-conflict: DESIGN_UI_Conventions.md C4 (move the 2-column tables onto FormGrid) — S11 reconciles: the struct editor's table IS FormGrid's label
@@ -168,8 +168,7 @@ form (`[JsonText]`, CE-4295) is the FILE's text, not the cell's — Parse/Format
 | **6** | `DeclaredEditDocumentBuilder` + Define cells — scenario parameters move onto it (the presets editor) | presets §5a built on it |
 | **7** | blackboards, `ParamArgsTable`, `ParamsDefaultsForm` → hosts of the table; `VariablesPanelControl`'s table deleted | their frame rails unchanged |
 
-⚠ **Measure first:** a `JsonObject`-backed `IValueBinding` with no owning C# object (step 6); whether `IContainerOps` can keep element bindings
-valid across a move without a full rebuild (step 2; today a resize needs a rebuild).
+✅ **The two gates were MEASURED `2026-11-07` and PASS** — §10.5 (a JSON-backed document draws and takes a pick; a Move needs no rebuild).
 
 ## 8. ⭐⭐ ONE WIDGET KIT for every form — the struct editor, entity forms, presets *(user, `2026-11-07`)*
 
@@ -244,3 +243,116 @@ or in a `ComponentEditWindow` for the whole component, writing back through the 
 | the write path: interceptor + baseline (the edit framework, R-4127) — ⛔ the library never writes the world | | |
 
 ⚠ It stays a DEBUG tool (R-4120) — users edit entities through the forms (S10, K2); it simply draws with the same library, so it costs nothing extra.
+
+## 10. ⭐⭐ Extended for the overnight build — sequences, zero allocation, the input chain, undo per host, the measured gates *(backend, `2026-11-07`, coordinator note G1–G6)*
+
+📄 Asked by [`NOTE_Coordinator_To_Backend_Struct_Editor_Design_Gaps.md`](blueprints/batches/NOTE_Coordinator_To_Backend_Struct_Editor_Design_Gaps.md) — 🔒 user:
+*"Later I would like to give that to one of the lanes for an overnight autonomous batch, including replacing all the forms and many places in
+the current UI where we can benefit from reusing the new library for editing forms."* G2 (the adoption table) is §11.
+
+### 10.1 G1 — a typed value, end to end — and which host writes how
+
+```mermaid
+sequenceDiagram
+    participant U as the user (a cell)
+    participant T as StructTable
+    participant TE as TypeEditor of T
+    participant B as the node's IValueBinding
+    participant H as the HOST's commit
+    participant W as the write path
+    participant UH as undo
+    U->>T: types "3x", Enter
+    T->>TE: Parse("3x")
+    TE-->>T: refused "'3x' is not a whole number"
+    T->>T: the error row, the typed text and the OLD value stay (nothing written)
+    U->>T: types "4", Enter
+    T->>TE: Parse("4") ⇒ 4, then Validate(4) ⇒ no problems
+    T->>B: SetBoxed(4) — the session's copy
+    T->>H: committed (one value)
+    alt a world component (entity forms, behaviour params, rules)
+        H->>W: Edits.Submit(EditOp.Write) / the model's Apply
+        W->>UH: EditHistory — ONE step (Edit mode, B-14)
+    else the scenario header (parameters, presets)
+        H->>UH: EditHistory.Do — ONE step (HeaderParamsSchemaSource)
+    else an asset (BTree / HSM / Blueprint defaults)
+        H->>UH: the asset document's UndoStack (AssetEdits.Run) — its own history
+    else ⛔ DEAD today — the raw inspector, macro instance args
+        H->>W: SetComponent directly — NO undo (ComponentEditWindow.cs:170, MacroArgs.cs:75)
+    end
+```
+*What it shows that prose hid: the table never writes the world — it writes the session's copy and hands ONE committed value to the host; the
+undo is the host's. And two hosts today bypass undo entirely (the dashed-off branch) — §10.4 routes them.*
+
+```mermaid
+sequenceDiagram
+    participant U as the user
+    participant L as ListBlock
+    participant C as IContainerOps (NEW)
+    participant E as the element bindings
+    participant S as the session
+    U->>L: Alt+↓ on item 1 (or ⋮ Move down)
+    L->>C: Move(1, 2)
+    C->>E: swap in the SAME container (GetBoxed / SetBoxed of both)
+    Note over E: measured 2026-11-07 — bindings are index-based and nested ones re-read the parent: rows read the new order, NO rebuild
+    L->>L: the open / selected flag moves WITH the item (ImGui state is per index)
+    U->>L: ⋮ Duplicate item 2
+    L->>C: Insert(3, clone of 2)
+    C->>S: MarkStructuralChange — the count changed ⇒ RebuildDocument next frame
+```
+*What it shows: a MOVE is cheap (no rebuild); an INSERT / DUPLICATE / REMOVE changes the count and rebuilds the document once — the same
+`MarkStructuralChange` the drawer already calls on remove (`ComponentEditDrawer.cs:188-259`).*
+
+### 10.2 G3 — zero allocation per steady frame (R-2084)
+
+📐 Today: `ComponentEditDrawer.cs` has **10** interpolated strings in its draw path, `ReferenceLeafDrawers.cs` **26** — the table allocates every frame.
+⭐ The precedent is `FormView`: **0 B per steady frame** by caching formatted text per row (`FormView.cs:16`, CE-4285, rail in `FormViewTests`).
+
+| rule | |
+|---|---|
+| ⭐⭐ every label, id string, formatted value and summary is CACHED per node (by node id), recomputed only when the value's version changes (a set, a structural change, a rebuild) | `TypeEditor.Format` runs on change, never per frame |
+| ⭐ ImGui ids: `PushID(int)` with the node id — ⛔ no `$"##x{id}"` per frame | |
+| ⭐ the picker's filtered list, the page of a long list: rebuilt on a keystroke / page change, reused otherwise | |
+| ⭐⭐ a rail PER WIDGET (step 0) and PER HOST (each adoption): `GC.GetAllocatedBytesForCurrentThread()` around the 3rd steady frame `== 0` | the CE-2394 rails' shape |
+
+### 10.3 G4 — keys and gestures through the ONE input chain (R-4163, [`DESIGN_Input_And_Commands.md`](UX/DESIGN_Input_And_Commands.md) §2.2, §6b)
+
+| binding | action | scope |
+|---|---|---|
+| Ctrl+D | Duplicate item | ⭐ a new **`InputScope.FocusedWindow` kind `StructTable`** — active while a table row has focus (`Keymap.cs:11`, `KeyRouter.cs:52`) |
+| Alt+↑ / Alt+↓ | Move item up / down | same |
+| Del | Delete item | same |
+| Ctrl+C / Ctrl+V | Copy / Paste value (Format / Parse) | same |
+| Enter / Esc in a cell | commit / revert the typed text | ⭐ `InputScope.TextField` — ImGui's own, the keymap never fires while a field has the keyboard |
+| drag a ⋮⋮ handle or a chip | Move item | a declared GESTURE of the same scope (K7, §6b: one binding shape for keys AND mouse) |
+
+⭐ The scope sits IN FRONT of the window's own scope and behind TextField / Modal — Ctrl+D in a table duplicates the item; outside a table it
+falls through as today. ⛔ No `ImGui.IsKeyPressed` in the table or the kit. ⭐ The ⋮ menu shows the bindings (the keymap's labels, §2.9).
+
+### 10.4 G5 — undo per host
+
+| host | today | after |
+|---|---|---|
+| entity forms (`FormView`) | `Edits.Submit` → `EditHistory` ✅ (`FormView.cs:24`) | unchanged — one step per committed value / list op |
+| behaviour params (`EntityAiDetailsView`) | `EntityAiEditModel` pushes ONE entry in Edit mode ✅ (CE-4219) | unchanged |
+| rules (`RuleDetails`) | pushes to the shared history ✅ | unchanged |
+| scenario parameters, presets | `EditHistory.Do` ✅ (`HeaderParamsSchemaSource`) | presets' data the same way |
+| BTree / HSM / Blueprint defaults | the ASSET's `UndoStack` (`AssetEdits.Run`) ✅ | unchanged — an asset document owns its undo |
+| ⛔ raw inspector | `SetComponent` — NO undo (`ComponentEditWindow.cs:170`) | ⭐ in Edit mode → `Edits.Submit(EditOp.Write)` with the baseline diff ⇒ one step; the paused-debugger staging stays |
+| ⛔ macro instance args | `SetComponent` — NO undo (`MacroArgs.cs:75`) | ⭐ → `Edits.Submit(EditOp.Write)` ⇒ one step |
+| mission panel · orders · game master | Live / Preview | ⛔ no undo (R-4120) — said in the ⋮ menu's greyed Undo |
+| replay search · run setup | not a world edit | no undo |
+
+⭐ A rail per host (Edit mode): edit → Ctrl+Z → the old value; a list op → Ctrl+Z → the old list.
+
+### 10.5 G6 — the two gates, MEASURED `2026-11-07` (scratch tests in `Fdp.Presentation.Tests`, not committed)
+
+| gate | result | what the step does |
+|---|---|---|
+| **step 6** — a `JsonObject`-backed `IValueBinding` with NO C# owner | ✅ **PASS.** A hand-built document (`EditNode` / `EditDocument` constructors are public) over a `JsonObject`, drawn by today's `ComponentEditDrawer` with a minimal `IEditSession` (the drawer uses only `RebuildState` and `MarkStructuralChange`): a map pick wrote `"target":1001` into the JSON | builds as designed (S2). ⚠ the binding serialises each leaf with the type's own JSON converter (EntityRef wrote `1001`) — the declared builder uses `FdpJsonOptionsRegistry` options, as the file does |
+| **step 2** — element bindings valid across a MOVE without a full rebuild | ✅ **PASS** for `List<class>` and `T[]` of structs: after an in-place swap the rows read `[b, a]` / `[y, x]`, `RebuildState` stayed `Stable`, an edit through row 0 landed on the moved element (`b:99`, `y:99`) and Commit kept the order | Move = an in-place swap (no rebuild). ⚠ Insert / Duplicate / Remove change the count ⇒ `MarkStructuralChange` (as Remove does today). ⚠ A POLYMORPHIC list whose two items differ in kind ⇒ the rows' shapes differ ⇒ a Move there also marks a structural change. ⚠ ImGui open-state is per index — the ListBlock moves the flag with the item |
+
+### 10.6 Ordering — confirmed
+
+§7's order stands: step 0 (the kit) and step 1 (the catalogue) first — they are independent; the entity forms (CE-3385) and the inspector (CE-3386)
+LAST; the presets' surfaces (CE-3391 … CE-3394) after step 6 (CE-3383), because the preset editor IS the Define+Fill table. ⭐ One argued
+change: **the two undo routes of §10.4 (inspector, macro args) ride the step that moves each host** (CE-3386, CE-3384) — not a step of their own.
