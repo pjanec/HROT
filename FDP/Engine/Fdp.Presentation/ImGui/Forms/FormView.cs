@@ -27,6 +27,9 @@ public sealed class FormView
     /// <summary>The panel's Expert switch (§2.3, D7): the expert rows open by default. Saved per panel by the host.</summary>
     public bool ExpertOpen { get; set; }
 
+    /// <summary>⭐ U-23 / D4 — THE pick context a list's add action picks through (map pick, and a list where the context offers one); null = no add.</summary>
+    public IMapPickContext? Pick { get; set; }
+
     private sealed class FieldState
     {
         public bool Has, Mixed, Known;
@@ -46,6 +49,11 @@ public sealed class FormView
     private string _editText = "";
     private int _selectionStamp;
     private string _expertId = "", _expertGridId = "";
+    private string[] _listIds = Array.Empty<string>();
+    private string?[] _listProblem = Array.Empty<string?>();
+    private readonly List<FormListItem> _items = new();
+    private readonly Dictionary<long, (FixedString64 Who, string Shown)> _who = new();   // a row's name, built once per change (0 B steady)
+    private readonly List<string> _listRows = new();
 
     /// <summary>Draws <paramref name="decl"/> for <paramref name="selection"/>; <paramref name="editable"/> false ⇒ read-only (the run state / the seat decides — ONE function, §2.4).</summary>
     public void Draw(FormDecl decl, EntityRepository world, IReadOnlyList<Entity> selection, bool editable)
@@ -56,7 +64,7 @@ public sealed class FormView
         Refresh(world, selection);
 
         if (!editable) ImGui.BeginDisabled();
-        if (FormGrid.Begin(decl.Id, decl.Labels, statusSlot: true))
+        if (decl.Fields.Count > 0 && FormGrid.Begin(decl.Id, decl.Labels, statusSlot: true))
         {
             for (int i = 0; i < decl.Fields.Count; i++)
                 if (!decl.Fields[i].Expert && _state[i].Has) DrawField(i, world, selection, editable);
@@ -73,7 +81,61 @@ public sealed class FormView
                 FormGrid.End();
             }
         }
+        _listRows.Clear();
+        if (selection.Count == 1)
+            for (int li = 0; li < decl.Lists.Count; li++) DrawList(li, decl.Lists[li], world, selection[0], editable);
         if (!editable) ImGui.EndDisabled();
+    }
+
+    // ── ⭐ U-23 / D4 — a list with actions (the seats): rows, a per-row action, an add through the one pick context ───────────────────────────
+
+    private void DrawList(int li, FormList list, EntityRepository world, Entity e, bool editable)
+    {
+        string id = _listIds[li];
+        if (editable && Pick != null && list.Add != null && Pick.TryConsumeEntityPick(id, out var picked) && picked.TryResolve(world, out var pickedEntity))
+            _listProblem[li] = list.Add(world, e, pickedEntity);
+        _items.Clear();
+        list.Fill(world, e, _items);
+        ImGui.PushID(id);
+        ImGui.Spacing();
+        ImGui.TextDisabled(list.Label);
+        for (int j = 0; j < _items.Count; j++)
+        {
+            var it = _items[j];
+            string who = WhoOf(it);
+            _listRows.Add(it.Role); _listRows.Add(who);
+            ImGui.PushID(j);
+            ImGui.TextUnformatted(it.Role);
+            ImGui.SameLine(120f);
+            ImGui.TextUnformatted(who);
+            if (list.Remove != null && list.RemoveLabel != null)
+            {
+                ImGui.SameLine();
+                if (ImGui.SmallButton(list.RemoveLabel) && editable) { list.Remove(world, it); _listProblem[li] = null; }
+            }
+            ImGui.PopID();
+        }
+        if (list.Footer?.Invoke(world, e) is { } footer) ImGui.TextDisabled(footer);
+        if (list.Add != null && list.AddLabel != null && Pick != null)
+        {
+            if (Pick.IsPickPendingFor(id)) ImGui.TextDisabled("pick on the map…");
+            else
+            {
+                if (ImGui.Button(list.AddLabel)) { Pick.RequestEntityPick(id, null); _listProblem[li] = null; }
+                if (Pick.CanListEntities) { ImGui.SameLine(); if (ImGui.Button("List…")) { Pick.RequestEntityListPick(id, null); _listProblem[li] = null; } }
+            }
+        }
+        if (_listProblem[li] is { } problem) ImGui.TextColored(new System.Numerics.Vector4(0.9f, 0.4f, 0.35f, 1f), problem);
+        ImGui.PopID();
+    }
+
+    private string WhoOf(in FormListItem it)
+    {
+        long key = ((long)it.Item.Index << 32) | (uint)it.Item.Generation;
+        if (_who.TryGetValue(key, out var c) && c.Who.Equals(it.Who)) return c.Shown;
+        string shown = it.Who.ToString();
+        _who[key] = (it.Who, shown);
+        return shown;
     }
 
     private void Bind(FormDecl decl)
@@ -82,6 +144,8 @@ public sealed class FormView
         _expertId = decl.Id + "-expert"; _expertGridId = decl.Id + "-x";   // built once per form, never per frame
         _state = new FieldState[decl.Fields.Count];
         for (int i = 0; i < _state.Length; i++) _state[i] = new FieldState { Id = decl.Id + "." + i };
+        _listIds = new string[decl.Lists.Count]; _listProblem = new string?[decl.Lists.Count];
+        for (int i = 0; i < _listIds.Length; i++) _listIds[i] = decl.Id + ".list" + i;
         _editing = -1;
     }
 
@@ -256,6 +320,12 @@ public sealed class FormView
             return l;
         }
     }
+
+    /// <summary>⭐ U-23 / D4 — the last drawn lists' rows, role then who (rails).</summary>
+    public IReadOnlyList<string> ListRows => _listRows.ToArray();
+
+    /// <summary>⭐ U-23 / D4 — the reason the last add was refused, per list (rails).</summary>
+    public string? ListProblem(int list) => list < _listProblem.Length ? _listProblem[list] : null;
 
     /// <summary>Commits <paramref name="number"/> / <paramref name="text"/> to field <paramref name="field"/> of the last drawn selection, as a click would (rails).</summary>
     public void CommitForTest(int field, EntityRepository world, IReadOnlyList<Entity> selection, double number, string? text = null)

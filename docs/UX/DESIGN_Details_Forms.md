@@ -287,6 +287,60 @@ global weather through the SAME rows as a region's (`WeatherRows()` — one set,
 (the file header — a document step), *Capture picture*, Terrain (read-only), Parameters; ⏳ **Crew & cargo** (D4: seats + *Put aboard* / *Take off* — the
 edit framework's command op) remains.
 
+**Part 4 — Crew & cargo** *(ui, `2026-11-07`; built as drawn)* — the first form whose rows are a LIST with actions, not attributes.
+
+```mermaid
+classDiagram
+    class FormDecl {
+        existing
+        +Lists : IReadOnlyList~FormList~  NEW, default empty
+    }
+    class FormList {
+        NEW
+        +Label
+        +Fill(world, e, List~FormListItem~ into)  reused buffer, 0 B
+        +RemoveLabel / Remove(world, item)
+        +AddLabel / Add(world, e, picked) string? refusal
+    }
+    class FormListItem {
+        NEW struct
+        +Role : string  (cached word)
+        +Who : FixedString64
+        +Item : Entity
+    }
+    class FormView {
+        existing — rows, expert section
+        +Pick : IMapPickContext?  NEW
+        draws each list after the rows
+    }
+    class IMapPickContext {
+        existing — THE pick context (map + list)
+    }
+    class EmbarkOrders {
+        existing — THE embark path (map menu, ORBAT drag)
+    }
+    FormDecl *-- FormList
+    FormList ..> FormListItem
+    FormView --> IMapPickContext : Put aboard… picks
+    FormList ..> EmbarkOrders : Add / Remove
+```
+
+*What the picture shows that the prose hid:* the form adds NO embark path — *Put aboard…* and *Take off* end in `EmbarkOrders`, the one the
+map menu and the ORBAT drag use, so the vehicle's owner answers (refused + why, F4) exactly as there; and the pick is the one `IMapPickContext`.
+
+| decision | lean |
+|---|---|
+| the seat rows | one per occupied seat: *Driver — Alpha 1-1* · *Take off*; then the free seats as a count (*3 passenger seats free*) — ⛔ no empty rows |
+| *Put aboard…* | a map pick (and *List…* where the context lists), any entity; `EmbarkOrders.CanOffer` decides, else the reason under the list |
+| the pick context | `EntityDetailsHostServices.Pick` (new, optional) → `FormDetailsView` → `FormView.Pick`; ⛔ a host that has a pick broker must pass it (silent-default rule) |
+| run state | Replay ⇒ read-only (the one rule): the buttons are disabled, the rows stay |
+
+**As-built:** `FormList` / `FormListItem` + `FormDecl.Lists` (`Fdp.Presentation/ImGui/Forms/FormDecl.cs`); `FormView.Pick`, `DrawList` (a name cached per
+change — 0 B steady), `ListRows` / `ListProblem` probes; `HrotForms.CrewAndCargo` (Requires `PassengerBuffer`, order 20): role from `CarrierSeats.Roles`
+(8 undeclared seats ⇒ Passenger), *Take off* = `EmbarkOrders.Disembark`, *Put aboard…* = `EmbarkOrders.CanOffer` then `.Embark`; `EntityDetailsHostServices.Pick`
+passed by the editor (its own broker over `_mapPickAdapter`), CGF, SimHost, the Player; the Replay Browser has none (read-only). ⏳ Not yet: the mounted
+weapon per station as its own column, the carry mode (carried / dragged). Rail `TheUnitFormDrawsTests.U23_D4_…`.
+
 ### 4.1 AS-BUILT — D2 *(B-4, `2026-11-06`)*
 
 | attribute (JSON path) | id | component · handler | applies where | notes / deviations |

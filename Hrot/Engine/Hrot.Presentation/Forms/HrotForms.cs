@@ -25,6 +25,7 @@ public static class HrotForms
             if (_registered) return;
             _registered = true;
             FormCatalogue.Register(Unit);
+            FormCatalogue.Register(CrewAndCargo);
             FormCatalogue.Register(Shape);
             FormCatalogue.Register(Scenario);
         }
@@ -115,6 +116,83 @@ public static class HrotForms
 
     private static FormField WeatherNumber(string label, string attribute, string unit, Func<EntityRepository, Entity, double> read, double min = double.MinValue, double max = double.MaxValue, bool expert = false)
         => new() { Label = label, Attribute = attribute, Unit = unit, Min = min, Max = max, Expert = expert, Has = HasWeather, ReadNumber = read };
+
+    /// <summary>
+    /// ⭐ D4 — the <b>Crew &amp; cargo</b> form (§3; §4.0a part 4): offered for a carrier (<c>PassengerBuffer</c>). One row per OCCUPIED seat — its role
+    /// (Driver · Gunner · Commander · Weapon station · Passenger) and who sits there, with <i>Take off</i>; then the free seats as a count; <i>Put aboard…</i>
+    /// picks a unit. ⭐ Both actions are <see cref="Hrot.Common.Orders.EmbarkOrders"/> — the ONE embark path (the map menu, the ORBAT drag): the vehicle's owner
+    /// answers. ⛔ No write path of its own.
+    /// </summary>
+    public static readonly FormDecl CrewAndCargo = new()
+    {
+        Id = "form.crew", Title = "Crew & cargo", Order = 20,
+        Requires = new[] { typeof(Fdp.Toolkit.Behavior.Components.PassengerBuffer) },
+        Fields = Array.Empty<FormField>(),
+        Lists = new[]
+        {
+            new FormList
+            {
+                Label = "Seats",
+                Fill = FillSeats,
+                Footer = FreeSeatsText,
+                RemoveLabel = "Take off",
+                Remove = (w, it) => Hrot.Common.Orders.EmbarkOrders.Disembark(w, it.Item),
+                AddLabel = "Put aboard…",
+                Add = PutAboard,
+            },
+        },
+    };
+
+    private static readonly string[] RoleWords = { "Passenger", "Driver", "Gunner", "Commander", "Weapon station" };
+    private static readonly string[] FreeWords = BuildFreeWords();
+    private static string[] BuildFreeWords()
+    {
+        var w = new string[Fdp.Toolkit.Behavior.Components.PassengerBuffer.Capacity + 1];
+        w[0] = "no seat free";
+        for (int i = 1; i < w.Length; i++) w[i] = i == 1 ? "1 seat free" : i + " seats free";
+        return w;
+    }
+
+    private static int SeatCountOf(EntityRepository w, Entity e)
+        => w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.CarrierSeats>() && w.HasComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>(e)
+            ? Math.Min((int)w.GetComponentRO<Fdp.Toolkit.Behavior.Components.CarrierSeats>(e).SeatCount, Fdp.Toolkit.Behavior.Components.PassengerBuffer.Capacity)
+            : Fdp.Toolkit.Behavior.Components.PassengerBuffer.UndeclaredSeats;
+
+    private static string RoleOf(EntityRepository w, Entity e, int seat)
+    {
+        if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.CarrierSeats>() || !w.HasComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>(e)) return RoleWords[0];
+        int r = (int)w.GetComponentRO<Fdp.Toolkit.Behavior.Components.CarrierSeats>(e).Roles[seat];
+        return r >= 0 && r < RoleWords.Length ? RoleWords[r] : RoleWords[0];
+    }
+
+    private static void FillSeats(EntityRepository w, Entity e, System.Collections.Generic.List<FormListItem> into)
+    {
+        ref readonly var buf = ref w.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(e);
+        int seats = SeatCountOf(w, e);
+        bool named = w.IsComponentTypeRegistered<EntityInfo>();
+        for (int i = 0; i < seats; i++)
+        {
+            var p = buf.Passengers[i];
+            if (p.IsNull || !w.IsAlive(p)) continue;
+            var who = named && w.HasComponent<EntityInfo>(p) ? w.GetComponentRO<EntityInfo>(p).Name : new FixedString64("(unnamed)");
+            into.Add(new FormListItem(RoleOf(w, e, i), who, p));
+        }
+    }
+
+    private static string? FreeSeatsText(EntityRepository w, Entity e)
+    {
+        ref readonly var buf = ref w.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(e);
+        int seats = SeatCountOf(w, e), free = 0;
+        for (int i = 0; i < seats; i++) if (buf.Passengers[i].IsNull) free++;
+        return FreeWords[Math.Min(free, FreeWords.Length - 1)];
+    }
+
+    private static string? PutAboard(EntityRepository w, Entity vehicle, Entity unit)
+    {
+        if (unit == vehicle) return "a vehicle cannot board itself";
+        if (!Hrot.Common.Orders.EmbarkOrders.CanOffer(w, unit)) return "this cannot be put aboard (already aboard, a vehicle or a weapon)";
+        return Hrot.Common.Orders.EmbarkOrders.Embark(w, unit, vehicle) ? null : "not sent";
+    }
 
     /// <summary>
     /// ⭐ D5 — the <b>Shape</b> form (§3): offered for a spawn area or a weather region. Spawn area: side, facing. Weather region: the authored scalars of

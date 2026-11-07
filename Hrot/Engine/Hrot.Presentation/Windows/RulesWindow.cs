@@ -29,7 +29,7 @@ public sealed record RulesWindowViewModel(string PanelId, string PanelKind, Rule
 /// Overview of the selected row on the right with the instructor's actions. Rows come from <see cref="RulesModel"/> over the replicated rule tree, the past from the timeline source's lanes (<see cref="IndexRulesHistory"/>) — so it opens on a LIVE node and on a RECORDING
 /// alike (the source seam). A click on a row selects the row AND its subject (the ONE selection); an action is written through <see cref="RuleCommands"/> — the same path the DebugApi uses. Nothing here owns state the world does not.
 /// </summary>
-public sealed class RulesWindow : ManagedWindow
+public sealed class RulesWindow : ManagedWindow, IRuleDetailsHost
 {
     /// <summary>The panel kind in the snapshot.</summary>
     public const string Kind = "rules-view";
@@ -121,7 +121,8 @@ public sealed class RulesWindow : ManagedWindow
     public void Select(RuleRow row)
     {
         _selected = row.NetworkId;
-        if (row.SubjectNetworkId != 0) _selectEntity(row.SubjectNetworkId);
+        if (_detailsInPanel) _selectEntity(row.NetworkId);   // ⭐ U-18 / RX2 — the Details panel shows what is selected: the RULE
+        else if (row.SubjectNetworkId != 0) _selectEntity(row.SubjectNetworkId);
     }
 
     /// <summary>⭐ R3 — <i>Show the moments on the timeline →</i>: only this rule and everything under it (by <c>Parent</c>); <c>0</c> clears. The toolbar shows the filter and a way out.</summary>
@@ -129,7 +130,46 @@ public sealed class RulesWindow : ManagedWindow
     public int SubtreeOf => _subtree;
 
     /// <summary>⭐ RV-7 — the Details panel's Objectives tab opens a rule here: the row is selected (its subject already is the Details' unit).</summary>
-    public void SelectNetworkId(int networkId) { _selected = networkId; IsOpen = true; }
+    public void SelectNetworkId(int networkId) { _selected = networkId; IsOpen = true; if (_detailsInPanel) _selectEntity(networkId); }
+
+    // ── ⭐ U-18 / RX2 (DESIGN_Rule_Editor_UX §2.2.1) — the detail in the Details panel, through the ONE RuleDetails ─────────────────────────────
+
+    private bool _detailsInPanel;
+    private int _builtFrame = -1;
+
+    /// <summary>Whether the Details panel hosts the rule detail (the window then draws no pane of its own).</summary>
+    public bool DetailsInPanel => _detailsInPanel;
+
+    public void AttachToDetailsPanel() => _detailsInPanel = true;
+
+    /// <summary>The view is current for this frame — the window may be closed while Details shows a rule (a rule opened from a unit's Objectives tab).</summary>
+    private void EnsureBuilt()
+    {
+        int f = ImGui.GetCurrentContext() == IntPtr.Zero ? -2 : ImGui.GetFrameCount();
+        if (f == _builtFrame && f >= 0) return;
+        Rebuild();
+        _builtFrame = f;
+    }
+
+    private RuleRow? RowOf(Entity e)
+    {
+        if (_world() is not { } w || !w.IsAlive(e)) return null;
+        int net = Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(w, e);
+        return net == 0 ? null : _view.Find(net);
+    }
+
+    public bool Offers(Entity e)
+    {
+        EnsureBuilt();
+        return RowOf(e) != null;
+    }
+
+    public void DrawDetails(Entity e)
+    {
+        if (RowOf(e) is not { } row) { EnsureBuilt(); if (RowOf(e) is not { } again) return; row = again; }
+        if (_selected != row.NetworkId) { _selected = row.NetworkId; _builtFrame = -1; EnsureBuilt(); row = _view.Find(row.NetworkId) ?? row; }   // Prepare runs for the selected row
+        if (_details != null) _details.Draw(row, _view.Now); else DrawOverviewBody(row);
+    }
 
     private (Guid Id, string Request)? _control;
 
@@ -298,13 +338,15 @@ public sealed class RulesWindow : ManagedWindow
     protected override void DrawClientArea()
     {
         BuildAndPublish();
+        _builtFrame = ImGui.GetFrameCount();
         DrawToolbar();
         var avail = ImGui.GetContentRegionAvail();
-        float details = Math.Min(_details != null ? 560f : 340f, avail.X * (_details != null ? 0.5f : 0.4f));
-        ImGui.BeginChild("##rules-timeline", new Vector2(avail.X - details - 6f, avail.Y), ImGuiChildFlags.None, ImGuiWindowFlags.None);
+        float details = _detailsInPanel ? 0f : Math.Min(_details != null ? 560f : 340f, avail.X * (_details != null ? 0.5f : 0.4f));
+        ImGui.BeginChild("##rules-timeline", new Vector2(_detailsInPanel ? avail.X : avail.X - details - 6f, avail.Y), ImGuiChildFlags.None, ImGuiWindowFlags.None);
         if (ListView) DrawList();   // ⭐ U-18 / RX3 — the List view: one sentence per rule
         else _panel.Draw(_source(), _cursor, Array.Empty<TimelineLaneDescriptor>());
         ImGui.EndChild();
+        if (_detailsInPanel) return;   // ⭐ U-18 / RX2 — the detail lives in the Details panel (⛔ two copies of the form)
         ImGui.SameLine();
         ImGui.BeginChild("##rules-details", new Vector2(0, avail.Y), ImGuiChildFlags.Borders, ImGuiWindowFlags.None);
         DrawDetails();

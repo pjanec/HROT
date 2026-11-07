@@ -78,7 +78,7 @@ Selecting a rule — in the List, on the Timeline, from a unit's Objectives tab,
 (the same `RuleDetails` content, re-hosted as Details tabs offered for a rule entity). The Rules window keeps the list / timeline, the
 toolbar (*+ New rule*, group by, side, search) and the instructor's *End*. ⛔ No second copy of the form.
 
-#### 2.2.1 Build plan — RX2 *(ui, 2026-11-07; build-state: BUILDING)*
+#### 2.2.1 RX2 — the detail in Details *(ui, 2026-11-07; built as drawn)*
 
 ```mermaid
 classDiagram
@@ -139,6 +139,13 @@ sequenceDiagram
 | a pick selects the **rule** entity, not its subject | ✅ (§2.2 as approved) | the Details panel shows what is selected; the subject stays one click away (*Show on map*, the Overview's subject line) |
 | the window's right pane | removed when the host passes `Rules` (every host with the window does) | ⛔ two copies of the form |
 | rank | 33 — just above the forms (34) | a rule has no other form |
+
+**As-built:** `IRuleDetailsHost` (`Hrot.Presentation/Rules`) implemented by `RulesWindow` (`Offers` · `DrawDetails` · `AttachToDetailsPanel`;
+`EnsureBuilt` rebuilds once per ImGui frame, so the tab works with the window closed); `RuleDetailsTab` + `RuleDetailsTabDescriptor`
+(`Hrot.Editor.AiShared/Shell`, id `details.rule`, rank 33); `EntityDetailsHostServices.Rules` — passed by the editor, CGF and the Replay Browser (every
+host with the window). ⚠ Attachment happens on the panel's first `AppliesTo` (idempotent); a window never asked keeps its own pane (the rails' hosts).
+⚠ A rule hidden by the window's filter (side / search / subtree) is not offered — the tab reads the window's view. Rails:
+`TheRuleDetailsTabTests` (AiShared) · `RulesWindowFrameRail.U18_…` (attached ⇒ a pick selects the rule).
 
 ### 2.3 The condition editor, refactored — one friendly editor, templates as shortcuts *(revised `2026-11-06`)*
 

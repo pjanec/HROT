@@ -449,6 +449,7 @@ namespace Hrot.Editor
         private ScenarioOrbatAdapter?             _orbatAdapter;
         private ScenarioMapConfigAdapter?         _mapConfigAdapter;
         private CanvasMapPickAdapter?           _mapPickAdapter;
+        private Hrot.Presentation.Facades.MapPickBroker? _formsPick;   // ⭐ U-23 / D4 — the Details forms' pick context (a list's add)
         private EditorZoneAdapter?              _zoneAdapter;
         private EditorPreviewController?        _previewController;
 
@@ -3286,7 +3287,9 @@ namespace Hrot.Editor
                 SelectionStore: _aiEditorSelectionStore,
                 OpenRule:       OpenRuleInRulesView,   // ⭐ CE-4216 RV-7
                 EventFocus:     _eventFocus,           // ⭐ CE-4263 — Details ▸ Event for a clicked timeline event
-                SelectNetworkEntity: n => SelectNetworkEntity(n)));
+                SelectNetworkEntity: n => SelectNetworkEntity(n),
+                Rules:          () => _rulesWindow,     // ⭐ U-18 / RX2 — the rule's detail in Details, through the one window
+                Pick:           () => _formsPick ??= new Hrot.Presentation.Facades.MapPickBroker(() => _mapPickAdapter)));   // ⭐ U-23 / D4 — Put aboard… picks on the map
             _scenarioWorkspace = _scenarioDetailsBundle.Workspace;
             ScenarioDetails    = _scenarioDetailsBundle.Window;
 

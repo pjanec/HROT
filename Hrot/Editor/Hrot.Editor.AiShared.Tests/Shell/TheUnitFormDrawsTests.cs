@@ -75,6 +75,60 @@ public sealed class TheUnitFormDrawsTests
         Assert.All(HrotForms.Shape.Fields, f => Assert.False(f.Attribute != null && f.Definition == null));   // every field names a vocabulary attribute
     }
 
+    /// <summary>⭐ U-23 / D4 — the <b>Crew &amp; cargo</b> form in a real frame: offered for a carrier, not for a man; one row per OCCUPIED seat (role, who), the free
+    /// seats as a count; <i>Put aboard…</i> picks through the one pick context and a vehicle picking itself is refused with the reason.
+    /// 🔴 Red-proof (compiles): <c>FillSeats</c> skipping the seat-role lookup (always Passenger) ⇒ "Driver" missing ⇒ red.</summary>
+    [SkippableFact]
+    public void U23_D4_TheCrewAndCargoForm_ListsTheSeats_AndPutAboardPicksThroughTheOnePickContext()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(); world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
+        var bmp = world.CreateEntity();
+        world.AddComponent(bmp, new EntityInfo { Name = new FixedString64("BMP 1") });
+        world.AddComponent(bmp, new NetworkIdentity(50));
+        var seats = new Fdp.Toolkit.Behavior.Components.CarrierSeats { SeatCount = 4 };
+        seats.Roles[0] = Fdp.Toolkit.Behavior.Components.SeatRole.Driver;
+        world.AddComponent(bmp, seats);
+        var driver = world.CreateEntity();
+        world.AddComponent(driver, new EntityInfo { Name = new FixedString64("Alpha 1-1") });
+        var buf = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = 1 };
+        buf.Passengers[0] = driver;
+        world.AddComponent(bmp, buf);
+
+        HrotForms.EnsureRegistered();
+        Assert.True(HrotForms.CrewAndCargo.OffersFor(world, bmp));
+        Assert.False(HrotForms.CrewAndCargo.OffersFor(world, driver));
+
+        var pick = new OnePick(new Fdp.Toolkit.Replication.EntityRef(50));   // the person picks the vehicle itself
+        var view = new FormView { Pick = pick };
+        using var frame = UiFrameHarness.Begin(700, 420);
+        frame.StepN(3, () =>
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10)); ImGui.SetNextWindowSize(new System.Numerics.Vector2(460, 300));
+            ImGui.Begin("Details##crew-form");
+            view.Draw(HrotForms.CrewAndCargo, world, new[] { bmp }, editable: true);
+            ImGui.End();
+        });
+        Assert.Equal(new[] { "Driver", "Alpha 1-1" }, view.ListRows);
+        Assert.Equal("a vehicle cannot board itself", view.ListProblem(0));   // the pick came back through the one context and was refused with the reason
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "crew-form.png"));
+    }
+
+    /// <summary>A pick context that hands back one entity at once (the person picked it).</summary>
+    private sealed class OnePick : Fdp.Presentation.Editing.IMapPickContext
+    {
+        private Fdp.Toolkit.Replication.EntityRef _next;
+        public OnePick(Fdp.Toolkit.Replication.EntityRef next) => _next = next;
+        public bool IsPickPendingFor(string jsonPath) => false;
+        public void RequestEntityPick(string jsonPath, string[]? filterPresets) { }
+        public void RequestLocationPick(string jsonPath) { }
+        public bool TryConsumeEntityPick(string jsonPath, out Fdp.Toolkit.Replication.EntityRef picked) { picked = _next; bool had = !_next.IsNone; _next = default; return had; }
+        public bool TryConsumeLocationPick(string jsonPath, out Fdp.Toolkit.Replication.PointLink location) { location = default; return false; }
+    }
+
     /// <summary>⭐ U-23 / D5 — the <b>Scenario</b> form is the WORLD form: its target is the World Environment (the clock + the global weather); the start reads as a
     /// date, the global weather through the SAME rows as a region's. 🔴 Red-proof (compiles): <c>WorldTarget</c> returning <c>Entity.Null</c> ⇒ red.</summary>
     [Fact]

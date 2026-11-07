@@ -1288,6 +1288,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         MapPickBroker? cgfPickBroker = cgfCanvasAdapter != null
             ? new MapPickBroker(cgfCanvasAdapter)
             : null;
+        _cgfPickBroker = cgfPickBroker;   // ⭐ U-23 / D4 — also the Details forms' pick context
 
         // ⭐⭐ A9 — the helper's third argument is the PERSPECTIVE (see its own doc); the spawned watch
         //    windows' id prefix is cgf_watch_* → scenario_watch_* and that is harmless (those ids embed a
@@ -1655,7 +1656,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     RunState:    Hrot.Editor.AiShared.Variables.RunStateSource.For(isSimUpSignal, isFrozenSignal),
                     Host:        () => HostActions,
                     OpenRule:    OpenRuleInRulesView,                 // ⭐ U-18 / RX1 — CGF has the Rules window now: the Objectives tab opens a rule in it (RV-7)
-                    SelectNetworkEntity: n => SelectNetworkEntity(n))),   // ⭐ the host's ONE selection by network id
+                    SelectNetworkEntity: n => SelectNetworkEntity(n),   // ⭐ the host's ONE selection by network id
+                    Rules:       () => _rulesWindow,                  // ⭐ U-18 / RX2 — the rule's detail in Details
+                    Pick:        () => _cgfPickBroker)),               // ⭐ U-23 / D4 — Put aboard… picks on the map
             },
             new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
@@ -2727,6 +2730,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     }
 
     private Hrot.Presentation.Windows.RulesWindow? _rulesWindow;
+    private MapPickBroker? _cgfPickBroker;
     /// <summary>⭐ U-18 / RX1 — the Rules window (rails).</summary>
     internal Hrot.Presentation.Windows.RulesWindow? RulesWindowForTest => _rulesWindow;
 

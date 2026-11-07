@@ -219,7 +219,8 @@ public sealed class RulesWindowFrameRail : IDisposable
         Rule(10, "WeightedMean", """{"common":{"title":"Mission","subject":900}}""");
         Rule(11, "Trigger", """{"common":{"title":"Counter-attack","parent":10,"subject":900}}""");
 
-        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_list", "Scenario", Vector4.One, _ => { }, _ => { });
+        var picked = new List<int>();
+        var window = new RulesWindow(() => _world, () => null, null, "rail_rules_list", "Scenario", Vector4.One, picked.Add, _ => { });
         using var frame = UiFrameHarness.Begin(1280, 300);
         void Step(int n = 1)
         {
@@ -246,6 +247,14 @@ public sealed class RulesWindowFrameRail : IDisposable
         Step(3);
         Assert.False(window.ListView);   // the pick sticks
         Assert.Equal(2, window.Panel.LastTrackHits.Count);   // each row's anchor key — the Timeline drew
+
+        // ⭐ U-18 / RX2 — attached to the Details panel: opening a rule picks the RULE (Details shows what is selected), not its subject; the pane is not drawn
+        Assert.Empty(picked);
+        window.AttachToDetailsPanel();
+        window.SelectNetworkId(11);
+        Step(2);
+        Assert.Equal(new[] { 11 }, picked);
+        Assert.True(window.DetailsInPanel);
     }
 
     /// <summary>
