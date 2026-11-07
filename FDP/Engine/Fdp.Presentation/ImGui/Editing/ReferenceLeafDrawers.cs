@@ -623,7 +623,8 @@ public static class ReferenceLeafDrawers
         => !link.Ref.IsNone && refs != null && refs.TryKindOf(link.Ref, out var k) && k.IconKey.Length > 0 && NodeEditor.Core.Widgets.Icons.TryGet(k.IconKey, out var g) ? g : null;
 
     /// <summary>A frame-coloured chip — glyph · text · ▾ — sized by its text (capped at <paramref name="maxWidth"/>); true when clicked.</summary>
-    private static bool DrawChip(string id, string label, NodeEditor.Core.Widgets.IconGlyph? icon, float maxWidth)
+    /// <remarks>⭐ The ONE chip (U-8): the entity-link leaf and every blank of the friendly condition editor (U-15) draw through it.</remarks>
+    public static bool DrawChip(string id, string label, NodeEditor.Core.Widgets.IconGlyph? icon, float maxWidth)
     {
         var style = ImGuiApi.GetStyle();
         float h = ImGuiApi.GetFrameHeight(), pad = style.FramePadding.X, arrow = h * 0.55f;
