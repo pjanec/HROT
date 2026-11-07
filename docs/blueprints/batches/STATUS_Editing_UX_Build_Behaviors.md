@@ -15,6 +15,6 @@ Started at `6d361486a` (merged coordinator; then backend `1dfb2d2d9`, ui `e713ec
 ## Gates
 | item | command | result |
 |---|---|---|
-| V-3 | `quick-check.sh Hrot.Presentation.Tests RuleEditorR5bTests` · `xvfb-run … --filter RulesWindowFrameRail\|Rules` | 15/0 · 172/0/0 (display rails ran, not skipped); 3 new rails red-proved by mutation (Message arm, RuleSentence on Humanize, WithOrderKind bare kind); frames compared with rule-list-visual.svg |
+| V-3 | `quick-check.sh Hrot.Presentation.Tests RuleEditorR5bTests` · `xvfb-run … --filter RulesWindowFrameRail\|Rules` | 15/0 · 172/0/0 (display rails ran, not skipped); 3 new rails; the key one red-proved (RuleSentence back on Humanize(act) ⇒ TheListLine red, 14/1) — a visual item, one red-proof (proportionate); frames compared with rule-list-visual.svg |
 | V-2 | Fdp.Toolkits.Tests Behavior+Replication · SimHost.Tests TacticalIntent/InteractionTransport/EntityOrders/Order · NED.Tests TacticalIntent/GenericMessage · SimHost.Integration (whole) | 859/0 · 129/0 · 15/0 · 49/1 (`MissionExecutionFlow`, pre-existing CE-3369); 7 new F5 rails, each red-proved by a mutation |
 | V-1 | `quick-check.sh Hrot.Editor.Tests "ABehaviourAdvertisesItsRealParametersTests"` | 26 / 0 / 0 (was 25 / 1); test-only change, dll newer than the edit |
