@@ -140,6 +140,11 @@ namespace Hrot.Map.Common
 
         // ⛔ PERMANENT WIRE VALUE (as above). ⭐ Player Join S2-a (D-10) — a DEPLOY ROLE: a bare authored entity carrying DeployRole, like the Traffic settings entity (no body, never a unit).
         public const long DeployRole = 8815;
+
+        // ⛔ PERMANENT WIRE VALUE (as above). ⭐ Initial state S4 (docs/UX/DESIGN_Initial_State.md §3, R-4137) — a named, optionally ORIENTED POINT
+        //   (LZ Alpha, a rally point): a map graphic with a name (EntityInfo), a position and a heading (SimTransform, from its request), no body.
+        //   A point picker stores a PointLink to it (resolved once, SR-130). 8816 measured free on all four lanes 2026-11-07.
+        public const long Point = 8816;
         // ⭐ AQ93 — the TRAFFIC block 8850–8859 (SUMO), kept clear of the sequential 88xx run so two lanes cannot collide again:
         //   8812 was allocated twice on 2026-10-17 (the backend's Stone Source kept it, the traffic types moved here).
         // ⛔ PERMANENT WIRE VALUE (as above). ⭐ AQ93 R-4021 — the scenario's TRAFFIC settings: positionless like the World Environment,
