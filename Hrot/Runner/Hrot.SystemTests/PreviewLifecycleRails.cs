@@ -92,6 +92,37 @@ public sealed class PreviewLifecycleRails
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4316</c> — lifecycle LC-10, <b>Run to …</b> (option A): on the REAL editor, Preview paused at its start, <c>run_to(5 s)</c> steps the
+    /// cluster (ACK-gated, 1/60 s per step) and stops AT 5 s, paused. The measured rate (sim seconds per wall second) is printed — the number option
+    /// A said would decide whether the master must retire more than one step per frame (option B).
+    /// </summary>
+    [Fact]
+    public async Task Run_to_stops_the_preview_at_the_time_paused()
+    {
+        (await Mcp.LoadScenarioEditAsync("hill-attack")).EnsureOk();
+        (await Mcp.EnterPreviewIfNeededAsync(startPaused: true)).EnsureOk();
+        double start = (await Mcp.GetSimStateAsync()).Double("totalTime");
+        double target = start + 5.0;
+
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        (await Mcp.RunToAsync(target)).EnsureOk();
+        ApiResult state;
+        do
+        {
+            await Task.Delay(200);
+            state = await Mcp.GetSimStateAsync();
+        } while (state.Field("runTo")?["running"]?.GetValue<bool>() == true && clock.Elapsed < TimeSpan.FromSeconds(120));
+        clock.Stop();
+
+        double reached = state.Double("totalTime");
+        _output.WriteLine($"run to {target - start:F1} s took {clock.Elapsed.TotalSeconds:F1} s wall = {(reached - start) / clock.Elapsed.TotalSeconds:F1}× ({state.Field("runTo")?["status"]})");
+        Assert.False(state.Field("runTo")?["running"]?.GetValue<bool>() ?? true, "the run never stopped");
+        Assert.True(state.Bool("isPaused"));
+        Assert.InRange(reached, target - 0.02, target + 0.05);
+        (await Mcp.ExitPreviewAsync()).EnsureOk();
+    }
+
+    /// <summary>
     /// ⭐ R-3053 — <b>a dry run is never recorded</b>: the API that used to record a preview (<c>/recording/start</c>) is gone, and
     /// <c>/replay/status</c> names no recording on a node that only ran a preview.
     /// </summary>
