@@ -162,6 +162,8 @@ public class ComponentReflector
         }
 
         var allTypes = session.GetAllComponentTypes().OrderBy(t => t.Name).ToList();
+        // ⭐ CE-4310 (D6) — Expand All / Collapse All reach the NESTED nodes too (they used to touch only the component headers)
+        ImGuiPropertyTree.ForceOpen = ForceExpandAll ? true : ForceCollapseAll ? false : null;
 
         int componentIndex = 0;
         int visibleComponents = 0;
@@ -322,6 +324,7 @@ public class ComponentReflector
             ImGuiApi.TextDisabled("No components matched.");
         }
 
+        ImGuiPropertyTree.ForceOpen = null;
         ForceExpandAll   = false;
         ForceCollapseAll = false;
     }
