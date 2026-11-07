@@ -189,13 +189,12 @@ namespace Hrot.Editor.DebugApi
 
         /// <summary>
         /// Builds the task's trigger list from an optional <c>triggers</c> array of <c>{ type, params? }</c>.
-        /// Defaults to a single <c>BehaviorFinished</c> trigger (as <c>MissionPanel.HandleAddTask</c> does)
-        /// so a new task is well-formed and can transition; an explicit empty array leaves it untriggered.
+        /// ⭐ <c>CE-4298</c> — absent or empty ⇒ an empty list: the runtime reads it as <i>when done</i> (mission plan §5.9; one owner of the default).
         /// </summary>
         private static List<MissionTrigger> BuildTriggers(JsonNode? triggersNode)
         {
             if (triggersNode is not JsonArray arr)
-                return new List<MissionTrigger> { new MissionTrigger { Type = "BehaviorFinished" } };
+                return new List<MissionTrigger>();
 
             var triggers = new List<MissionTrigger>(arr.Count);
             foreach (var item in arr)

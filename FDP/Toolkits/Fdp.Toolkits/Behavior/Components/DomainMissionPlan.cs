@@ -39,6 +39,21 @@ namespace Fdp.Toolkit.Behavior.Components
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4298</c> (mission plan D2, R-4160) — WHO starts a task: ONE answer, read by the director and the adapter alike, so the two
+    /// can never both start one (the double start: the director by stored id, the adapter by name — an order's stored id is 0, so an
+    /// <c>Order.*</c> task began with an Idle frame). A task of a NAMED plan (an <see cref="ActiveMissionPlan"/> holds it) is started by the
+    /// adapter, by name, through the tactical intent; a RAW queue (no plan beside it — an example, a hand-built queue) has only its stored
+    /// id, so the director starts it. 📄 <c>docs/UX/DESIGN_Mission_Plan_Editor.md</c> §5.2 D2.
+    /// </summary>
+    public static class MissionTaskStart
+    {
+        /// <summary>Is task <paramref name="index"/> of <paramref name="entity"/>'s plan started by NAME (the adapter), not by its stored id?</summary>
+        public static bool ByName(Fdp.Core.EntityRepository repo, Fdp.Core.Entity entity, int index)
+            => repo.HasManagedComponent<ActiveMissionPlan>(entity)
+               && ((Fdp.ModuleHost.Abstractions.ISimulationView)repo).GetManagedComponentRO<ActiveMissionPlan>(entity) is { Plan.Tasks: { } tasks } && index < tasks.Count;
+    }
+
+    /// <summary>
     /// Managed ECS component holding the current active mission plan for an entity.
     /// Populated by <c>MissionControlExecutionSystem</c> on receipt of a mission intent.
     /// Replaces the DDS-aware <c>EntityMissionHolder</c> and <c>IgMissionHolder</c> components.

@@ -32,6 +32,9 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <summary>Advances when a <see cref="Events.BehaviorFinishedEvent"/> is received for this entity,
         /// indicating the behavior's BTree root evaluated to Success or Failure.</summary>
         BehaviorFinished   = 4,
+        /// <summary>⭐ <c>CE-4298</c> (mission plan D3) — the task's <i>then</i> is a stored CONDITION (a <c>Then</c> entry of the saved
+        /// plan, compiled by <c>PlanConditionCache</c>); <see cref="MissionPhase.TriggerParam"/> is unused.</summary>
+        Condition          = 5,
     }
 
     /// <summary>

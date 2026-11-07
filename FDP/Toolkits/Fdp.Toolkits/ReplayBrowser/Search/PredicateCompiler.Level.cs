@@ -3,6 +3,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using Fdp.Core;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Utility;
 using StructEdit.Core;
 
@@ -197,6 +198,23 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             {
                 var unit = reference.Resolve(repo);
                 return !unit.IsNull && Fdp.Toolkit.Squad.UnitTree.Contains(repo, unit, e, includeSelf);
+            };
+        }
+
+        /// <summary>⭐ <c>CE-4298</c> (mission plan D6) — <see cref="TaskFinishedPredicateDto"/>: the unit's replicated outcome of the task (0 B per call).</summary>
+        private static Func<EntityRepository, Entity, bool> CompileTaskFinished(TaskFinishedPredicateDto dto)
+        {
+            var reference = dto.Unit.Ref;
+            bool self = dto.Unit.Equals(default(Fdp.Toolkit.Replication.EntityLink));
+            int task = dto.Task;
+            return (repo, e) =>
+            {
+                var unit = self ? e : reference.Resolve(repo);
+                if (unit.IsNull || !repo.IsAlive(unit) || !repo.HasComponent<MissionPlanQueue>(unit)) return false;
+                ref readonly var q = ref repo.GetComponentRO<MissionPlanQueue>(unit);
+                int i = task > 0 ? task - 1 : q.CurrentPhase;
+                if (i >= q.PhaseCount || i >= MissionPlanQueue.MaxPhases) return false;
+                return q.Outcomes[i] != MissionPhaseOutcome.None;
             };
         }
 

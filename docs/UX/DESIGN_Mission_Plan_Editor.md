@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — ✅ E1–E9 + §5.9 approved 2026-11-07 (R-4161); dispatched in HANDOFF_Coordinator_To_Lanes_Mission_Plan.md (CE-4298…CE-4304) · §5 ✅ D1–D9 (D3 / D4 as revised) + §5.7 APPROVED 2026-11-07 (R-4160); the remaining detail in §5.8 · top level: ✅ Q1, Q2, Q5, Q6, Q7 approved and Q3, Q4 revised by the user 2026-11-06 (R-4129); the building lanes detail it (R-4123)
+build-state: BUILDING — M1 runtime BUILT (P-2, CE-4298; §5.10 as-built) · ✅ E1–E9 + §5.9 approved 2026-11-07 (R-4161); dispatched in HANDOFF_Coordinator_To_Lanes_Mission_Plan.md (CE-4298…CE-4304) · §5 ✅ D1–D9 (D3 / D4 as revised) + §5.7 APPROVED 2026-11-07 (R-4160); the remaining detail in §5.8 · top level: ✅ Q1, Q2, Q5, Q6, Q7 approved and Q3, Q4 revised by the user 2026-11-06 (R-4129); the building lanes detail it (R-4123)
 updated: 2026-11-07 (E9: the Wait task — a plan that waits before its first task) · 2026-11-07 (E4 / E5 revised by the user: ONE Tasks lane for all units; the WHO chip defaults to 'this unit'; §5.9 the sequencing rule, measured) · 2026-11-07 (§5.8 the remaining detail E1–E8 — E1: a Live edit restarts the plan today) · 2026-11-07 (§5.7 entity references: the GUID / @Key rule exists (S9′); two load-path gaps G1, G2 named) · 2026-11-07 (§5.7 storage and compatibility, measured; one unmeasured gate for M5) · 2026-11-07 (D3 / D4 revised by the user's question: every then / give-up is ONE shared condition; old trigger types translated on compile) · 2026-11-07 (§5 detailed design: D1–D9, classes, sequences, module map, the then-picker table, mission-plan-detail-visual.svg) · 2026-11-07 (§1: orders and plan tasks already share one intent channel; M1's engine part is small — measured) · 2026-11-06 (Q3 expert conditions + the rule editor one click from a task; Q4 phases begin on events, time only a no-later-than — R-4129) · 2026-11-06 (first version — coordinator; editing-UX design queue item 3: E11 / D18)
-current-answer: ⭐ §5 the detailed design (measured; D1–D9 for the user) · §2 the target (wireframe + model) · §3 stages (lanes superseded by §5.5) · §4 questions
+current-answer: ⭐ §5.10 the M1 runtime AS BUILT (read with §5) · §5 the detailed design (measured; D1–D9 for the user) · §2 the target (wireframe + model) · §3 stages (lanes superseded by §5.5) · §4 questions
 stale-below: nothing
 known-rot: §3 M5's "a task-owned rule evaluated by the rules runner" is SUPERSEDED by §5 D3 (one Condition trigger, the one compiler); §2.2's PhaseBegins leaf and OperationPhase class by §5 D5 / D6 (a phase IS a trigger)
 known-conflict: the code calls a plan's task slot a "phase" (MissionPlanQueue.Phases); this design uses "phase" for the MILITARY phase of an operation (§2.4) — Q6 renames the code's word
@@ -369,3 +369,26 @@ fresh world (new network ids) and still points at the same three entities — an
 | **storage** | none new — the existing task shape with an empty name; old files unchanged |
 | **in the editor** | *+ Add task* offers **Wait** first; its row reads *"Wait — until <condition>"*; the *then* is required — a Wait has no behaviour to finish, so an empty one (= *when done*) would end at once; the editor refuses it and the load warns, naming the task |
 | **rejected** | a *Hold* as the first task (the earlier lean): it ORDERS the unit to hold, replacing what it would otherwise do · a separate plan-level "start when": a second gate shape for what a task already is |
+
+### 5.10 M1 runtime — AS BUILT *(2026-11-07, backend, P-2 / CE-4298)* — matches §5.3 / §5.4 with four deviations, each argued
+
+| part | where |
+|---|---|
+| **§5.9** no condition = *when done*, decided ONCE | `MissionTriggerHelper.ResolveTrigger` (empty ⇒ `BehaviorFinished`); the three editor defaults (`MissionPanel`, the debug API, `NedSimHostMissionSender`) write nothing; the rail flipped to `…NoTriggerMeansWhenDone` |
+| **D1** `Order.<Kind>` accepted | `MissionControlExecutionSystem.ResolveBehaviorId` — a declared order's stored id is 0 without the warning (an undeclared one still warns, now naming it) |
+| **D2** ONE start path | `MissionTaskStart.ByName` (beside `ActiveMissionPlan`) — the ONE answer both read: a task of a NAMED plan is started by the adapter, by name; the director only advances it (no `AssignBehaviorHashEvent`, no second clear) |
+| **E9** the Wait task | `MissionAdapterSystem` — an empty name starts nothing; mid-plan it clears the plan's behaviour (Superior) so the SOP takes over; at the plan's start nothing is cleared |
+| **G1** an order task's params resolved on load | `CgfBehaviorSetup.CreateBehaviorRemapper` registers every order's DTO under `Order.<Kind>` (`ScenarioBehaviorRemapper.Register(id, Type)`) — the one remapper factory, so every host has it |
+| **D3 / D4** then and give-up are conditions | `PlanConditionCache` (new, beside the director): per entity and slot, compiled once from a `Then` / `GiveUp` entry (`ConditionCache.Get`) or from the old type (`PlanConditionCache.Translate`); the director asks give-up first (⇒ Failed), then *then*. Entry types `Then` / `GiveUp` accepted by `ResolveTrigger` (one then, at most one give-up, each a parseable condition; the slot kind `MissionTrigger.Condition`) |
+| **D6** the `TaskFinished` leaf | `TaskFinishedPredicateDto { Unit, Task }` + its compiler arm (no Unit = the asked entity; Task 0 = its current task) — built here because *when done* needs it (deviation ①) |
+| the ONE compiled-condition cache | `Fdp.Toolkit.ReplayBrowser.Search.ConditionCache` — moved down from `Hrot.AI.Behaviors.TriggerWhen`, which now delegates (a rule's `when` and a task's *then* share one compiler and one cache) |
+| rails | `MissionAdapterSystemTests.CE4298_*` (three bare tasks one by one, each started once by name; a Wait-first plan; then + give-up; 0 B per steady frame) · `CgfBehaviorSetupTests.CE4298_AnOrderTasksParams_…` · `EntityMissionIngressTranslatorTests` (flipped) |
+
+| deviation | why |
+|---|---|
+| ① *when done* = **`TaskFinished` (this unit, its current task)**, not `TransientEvent BehaviorFinishedEvent` (§5.2 D3, §5.6) | the director ignores a REACTION's or a POSSESSION's end (`BehaviorOriginRank.Pauses`, CE-2078 / CE-3172) — a plain event match would advance the plan when a reaction ends. The director records the TASK's outcome before it asks, so the leaf is the old trigger exactly, and allocation-free |
+| ② the old `UnderAttack` is translated to **`TargetMemory.Count > 0`**, not `InputAbove UnderFire` | a translation keeps an old file's MEANING: `UnderAttack` was "knows an enemy" (`TargetMemory`), not "under fire". The picker's *under fire* preset (§5.6) stays `InputAbove UnderFire` for new plans. (No scenario uses `UnderAttack`.) |
+| ③ the old `HealthCritical X` is **`Health.Max > 0` AND NOT `HealthFraction > X`** | the old trigger never fired without a `Health`; `None(InputAbove …)` alone would fire at once there. `PlanConditionCache` registers the standard inputs once so a node with no utility system still reads `HealthFraction` |
+| ④ a RAW queue (no `ActiveMissionPlan` beside it — the FDP examples, hand-built queues) is still started by the director by its stored id | it has no name to start by, and no adapter runs there (the examples compose the director alone). `MissionTaskStart.ByName` makes the two paths DISJOINT by construction, so no task is ever started twice |
+
+⏳ Not in M1: the load warning for a Wait with no *then* (the editor refuses it, P-7); E1 progress carry-over (P-4); D7 renames (P-3).

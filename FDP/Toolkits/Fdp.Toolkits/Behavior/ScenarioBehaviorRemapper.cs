@@ -60,12 +60,19 @@ namespace Fdp.Toolkit.Behavior
         /// </exception>
         public void Register<TDto>(string behaviorId)
             where TDto : new()   // CE-2023 ③ — a struct contract too ("S8n")
+            => Register(behaviorId, typeof(TDto));
+
+        /// <summary>⭐ <c>CE-4298</c> (mission plan G1) — <see cref="Register{TDto}"/> for a contract known only at run time: an ORDER's DTO
+        /// under its intent id <c>Order.&lt;Kind&gt;</c> (the host reads the order registry, which this assembly cannot see), so an order
+        /// task's references are resolved on load like a behaviour's.</summary>
+        public void Register(string behaviorId, Type contract)
         {
+            if (contract is null) throw new ArgumentNullException(nameof(contract));
             if (_registry.ContainsKey(behaviorId))
                 throw new InvalidOperationException(
                     $"ScenarioBehaviorRemapper: behaviorId '{behaviorId}' is already registered.");
 
-            _registry[behaviorId] = typeof(TDto);
+            _registry[behaviorId] = contract;
         }
 
         /// <summary>

@@ -68,6 +68,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\ExtDeps\StructEdit\src\StructEdit.Core\StructEdit.Core.csproj" />
     <ProjectReference Include="..\..\ExtDeps\StructEdit\src\StructEdit.Json\StructEdit.Json.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\StructEdit\src\StructEdit.Reflection\StructEdit.Reflection.csproj" />   <!-- CE-4298: ConditionCache builds the ONE level-predicate compiler (moved down from TriggerWhen) -->
   </ItemGroup>
 
   <!-- CycloneDDS NuGet package -->

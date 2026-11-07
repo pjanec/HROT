@@ -89,9 +89,9 @@ namespace Hrot.CGF.Systems
                 var phase = phases[queue.CurrentPhase];
 
                 string jsonParams = "{}";
-                if (activePlan?.Plan?.Tasks != null && queue.CurrentPhase < activePlan.Plan.Tasks.Count)
+                if (MissionTaskStart.ByName(repo, entity, queue.CurrentPhase))   // ⭐ CE-4298 (D2) — the ONE answer the director reads too
                 {
-                    var task = activePlan.Plan.Tasks[queue.CurrentPhase];
+                    var task = activePlan!.Plan.Tasks[queue.CurrentPhase];
                     jsonParams = task.BehaviorParams ?? "{}";
 
                     // ⭐ CE-4043 — a STABLE hash: string.GetHashCode() is randomised per process, so this component differed in every
@@ -103,11 +103,20 @@ namespace Hrot.CGF.Systems
                     if (adapterState.LastPhase == queue.CurrentPhase && adapterState.LastPlanVersion == currentDefHash)
                         continue;
 
+                    bool startedBefore = adapterState.LastPhase != byte.MaxValue;
                     adapterState.LastPhase = queue.CurrentPhase;
                     adapterState.LastPlanVersion = currentDefHash;
 
+                    // ⭐⭐ CE-4298 (mission plan E9, §5.9) — a WAIT task (no order, no behaviour) starts nothing: the unit does its own standing
+                    //   behaviour (its SOP). Mid-plan, the plan's previous behaviour is CLEARED (origin Superior) so the SOP takes over again; at
+                    //   the plan's start nothing was ordered, so nothing is cleared (a clear there would wipe a restored order, CE-3042).
+                    if (string.IsNullOrWhiteSpace(task.BehaviorName))
+                    {
+                        if (startedBefore)
+                            repo.Bus.Publish(new ClearBehaviorEvent { Entity = entity, Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior });
+                    }
                     // Publish generic tactical intent; TacticalIntentResolutionSystem resolves it.
-                    if (!string.IsNullOrWhiteSpace(task.BehaviorName))
+                    else
                     {
                         repo.Bus.PublishManaged(new AssignTacticalIntentEvent
                         {

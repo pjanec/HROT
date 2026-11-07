@@ -391,6 +391,12 @@ namespace Hrot.Common.Systems
             if (_behaviorRegistry.TryGetId(behaviorName, out int behaviorId))
                 return behaviorId;
 
+            // ⭐ CE-4298 (mission plan D1, R-4160) — an ORDER task (`Order.<Kind>`) is resolved by the RECEIVER to its own class's behaviour
+            //   (TacticalIntentResolutionSystem); its stored id is 0 by design. An order nobody declares still warns.
+            if (behaviorName.StartsWith(Hrot.Map.Definitions.Behavior.Orders.OrderAttribute.IntentPrefix, StringComparison.Ordinal)
+                && Hrot.Common.Orders.OrderMenu.TryGetByName(behaviorName.Substring(Hrot.Map.Definitions.Behavior.Orders.OrderAttribute.IntentPrefix.Length), out _))
+                return 0;
+
             // Tactical intents (handled by TacticalIntentResolutionSystem) are not in the
             // concrete BehaviorRegistry. Falling back to 0 is correct; suppress the warning.
             if (_mapperRegistry.TryGetMapper(behaviorName, out _) )
@@ -401,7 +407,7 @@ namespace Hrot.Common.Systems
             // We cannot enumerate all valid intent names here, so warn only for truly unknown IDs.
             FdpLog<MissionControlExecutionSystem>.Warn(
                 "[MissionControl] Unknown BehaviorId '{0}'; using behavior 0 (Idle).",
-                behaviorId);
+                behaviorName);   // ⭐ CE-4298 — the NAME (it logged the id it had just failed to find, always 0)
             return 0;
         }
 
