@@ -374,36 +374,43 @@ def terrain_names(requested):
     return have
 
 
-def do_terrains(names, rows, force=False, height=TERRAIN_EYE_HEIGHT_M):
-    """⭐ B-9 N6 — a terrain's still: a blank scenario on it (POST /scenario/new, B-8) opened for edit, the camera straight down over the origin, 320x180 q85 JPEG
-    into assets/terrain/<name>/preview.jpg (the one picture exception for terrains, R-4135). A terrain with a preview.jpg/.png is skipped unless --force."""
+def do_terrains(names, rows, nas, force=False, height=TERRAIN_EYE_HEIGHT_M):
+    """⭐ B-9 N6 — a terrain's still: a header-only scenario on it (the file POST /scenario/new writes — the master is not needed, and an editor-mode host, the one with the film
+    director, does not have one) written under the NAS, opened for edit, the camera straight down over the origin, 320x180 q85 JPEG into assets/terrain/<name>/preview.jpg
+    (the one picture exception for terrains, R-4135). A terrain with a preview.jpg/.png is skipped unless --force. The throwaway scenario is removed after."""
+    import shutil
     for name in names:
         folder = os.path.join(REPO, "assets", "terrain", *name.split("/"))
         hand = next((f for f in ("preview.jpg", "preview.png") if os.path.isfile(os.path.join(folder, f))), None)
         if hand and not force:
             rows.append((name, "skipped (has a still)", f"{hand} in the repository; --force re-shoots")); continue
-        scen = TERRAIN_STILL_PREFIX + name.replace("/", "_")
-        r = udc.call("POST", "/scenario/new", {"name": scen, "terrain": name})
-        if not ok(r):
-            rows.append((name, "failed", "new: " + say(r))); continue
-        good, why = load_edit(scen)
-        if not good:
-            rows.append((name, "failed", why)); continue
-        out = os.path.join(folder, "preview.jpg")
-        shot = os.path.join(folder, "preview.capture.png")
-        # looking straight down: the yaw is free, the target is the origin at ground level (a tiny horizontal offset keeps the look vector off the vertical singularity)
-        good, why = shoot(shot, [0.0, -1.0, height], [0.0, 0.0, 0.0])
-        if good:
-            try:
-                cell_image(shot).save(out, "JPEG", quality=JPEG_Q, optimize=True)
-            except OSError as e:
-                good, why = False, f"jpeg: {e}"
-            finally:
+        scen = TERRAIN_STILL_PREFIX + name.replace("/", "_") + f"-{os.getpid()}"
+        scen_dir = os.path.join(nas, "scenarios", *scen.split("/"))
+        os.makedirs(scen_dir, exist_ok=True)
+        with open(os.path.join(scen_dir, "scenario.json"), "w", encoding="utf-8") as f:
+            json.dump({"$meta": {"docType": "Hrot.Scenario", "schemaVersion": 1},
+                       "header": {"subsystemType": "Hrot.Scenario", "schemaVersion": "1.0", "terrainName": name}, "entities": {}}, f)
+        try:
+            good, why = load_edit(scen)
+            if not good:
+                rows.append((name, "failed", why)); continue
+            out = os.path.join(folder, "preview.jpg")
+            shot = os.path.join(folder, "preview.capture.png")
+            # straight down over the origin (the target is the origin at ground level; the eye is a metre off it so the look vector is not degenerate)
+            good, why = shoot(shot, [0.0, -1.0, height], [0.0, 0.0, 0.0])
+            if good:
                 try:
-                    os.remove(shot)
-                except OSError:
-                    pass
-        rows.append((name, "ok" if good else "failed", out if good else why))
+                    cell_image(shot).save(out, "JPEG", quality=JPEG_Q, optimize=True)
+                except OSError as e:
+                    good, why = False, f"jpeg: {e}"
+                finally:
+                    try:
+                        os.remove(shot)
+                    except OSError:
+                        pass
+            rows.append((name, "ok" if good else "failed", out if good else why))
+        finally:
+            shutil.rmtree(scen_dir, ignore_errors=True)
 
 
 def type_table():
@@ -720,7 +727,7 @@ def main():
         if args.scenarios is not None:
             do_scenarios(scenario_names(args.scenarios), rows, args.force)
         if args.terrains is not None:
-            do_terrains(terrain_names(args.terrains), rows, args.force, args.terrain_height)
+            do_terrains(terrain_names(args.terrains), rows, nas, args.force, args.terrain_height)
         if args.types is not None:
             do_types(args.types, nas, args.studio, rows)
     finally:
