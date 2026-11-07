@@ -703,6 +703,45 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.Equal(1, count);
         }
 
+        /// <summary>⭐ P-7 7c — the snapshot carries each task's then / give-up (it mapped them to an EMPTY list, so an Apply from the Orders tab wiped them)
+        /// and the plan's REAL version (it was a constant 0 = "no precondition": two stations silently overwrote each other).
+        /// 🔴 Red-proof (compiles): <c>TriggersOf</c> returning an empty list ⇒ red.</summary>
+        [Fact]
+        public void P7c_TheSnapshot_CarriesTheTriggers_AndThePlansVersion()
+        {
+            if (!_repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.MissionPlanQueue>()) _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.MissionPlanQueue>();
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new NetworkIdentity { Value = NetIdFor(entity) });
+            _repo.SetManagedComponent(entity, new ActiveMissionPlan { Plan = new DomainMissionPlan { Tasks =
+            {
+                new DomainMissionTask { TaskId = Guid.NewGuid(), BehaviorName = "Patrol",
+                    Triggers = { new DomainMissionTrigger { Type = "TimerElapsed", Params = "30" } } },
+            } } });
+            _repo.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.MissionPlanQueue { Version = 4 });
+
+            var (plan, version) = new ScenarioMissionService(_bus, _repo, _registry).GetMissionSnapshot(NetIdFor(entity));
+            var trigger = Assert.Single(plan!.Tasks[0].Triggers);
+            Assert.Equal(("TimerElapsed", "30"), (trigger.Type, trigger.Params));
+            Assert.Equal(4, version);
+        }
+
+        /// <summary>⭐ P-7 7c — a VERSION CONFLICT ack is a conflict, said so (the Orders tab offers Reload / Overwrite), not a bare error code.</summary>
+        [Fact]
+        public void P7c_AVersionConflictAck_IsAConflict()
+        {
+            var entity = _repo.CreateEntity();
+            var service = new ScenarioMissionService(_bus, _repo, _registry);
+            var task = service.CommitMissionAsync(entity.Index, new Hrot.Core.Mission.MissionPlan(), 3);
+            _bus.SwapBuffers();
+            var id = _bus.ReadManaged<MissionControlIntent>()[0].RequestId;
+            _bus.Publish(new MissionControlAckEvent { RequestId = id, ErrorCode = Hrot.Common.Systems.MissionControlExecutionSystem.VersionConflictCode });
+            _bus.SwapBuffers();
+            service.PollAcks();
+            Assert.False(task.Result.Success);
+            Assert.True(task.Result.Conflict);
+            Assert.Equal(ScenarioMissionService.ConflictText, task.Result.ErrorMessage);
+        }
+
         [Fact]
         public void CommitMissionAsync_PollAcksWithMatchingAck_ResolvesSuccess()
         {

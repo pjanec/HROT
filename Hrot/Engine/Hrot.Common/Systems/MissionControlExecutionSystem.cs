@@ -52,6 +52,9 @@ namespace Hrot.Common.Systems
         private const string EntityNotFoundMessage = "ERR_ENTITY_NOT_FOUND";
         private const string VersionConflictMessage = "ERR_VERSION_CONFLICT";
 
+        /// <summary>⭐ P-7 7c — the ack error code of a stale base version (<c>NedStatusCode.VersionConflict</c>), for a reader that does not see the wire enum.</summary>
+        public const int VersionConflictCode = (int)NedStatusCode.VersionConflict;
+
         /// <summary>
         /// Entity Mission descriptor ordinal — must match
         /// <see cref="Hrot.Map.Common.Replication.Egress.EntityMissionEgressTranslator.DescriptorOrdinal"/>.
@@ -301,7 +304,9 @@ namespace Hrot.Common.Systems
         }
 
         /// <summary>⭐ R-3039 S1 — the mission's version, on its queue (0: none yet).</summary>
-        private static long VersionOf(EntityRepository repo, Entity entity) =>
+        /// <summary>⭐ P-7 7c — the plan's version as THIS node knows it (a commit's precondition): the ONE definition, read by the mission facade's snapshot too.
+        /// ⚠ Only the brain's owner bumps it, and it is not on the wire: a replica reads 0 (= no precondition).</summary>
+        public static long VersionOf(EntityRepository repo, Entity entity) =>
             repo.HasComponent<MissionPlanQueue>(entity) ? repo.GetComponentRO<MissionPlanQueue>(entity).Version : 0;
 
         private static void BumpVersion(EntityRepository repo, Entity entity)

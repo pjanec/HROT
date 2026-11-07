@@ -134,11 +134,16 @@ public sealed class TheOrdersTabEditsTests
     private sealed class FakeMissions : Hrot.UI.Common.Facades.IMissionEditorService
     {
         public MissionPlan? Plan; public long Version = 7;
+        public bool ConflictNext;   // ⭐ 7c — the next commit answers CONFLICT (the plan moved since it was opened)
         public readonly List<(int Net, MissionPlan Plan, long Base)> Commits = new();
         public IReadOnlyList<string> GetAvailableBehaviors(int entityId) => Array.Empty<string>();
         public (MissionPlan? Plan, long Version) GetMissionSnapshot(int entityId) => (Plan, Version);
         public System.Threading.Tasks.Task<Hrot.UI.Common.Models.MissionCommitResult> CommitMissionAsync(int entityId, MissionPlan plan, long baseVersion)
-        { Commits.Add((entityId, plan, baseVersion)); return System.Threading.Tasks.Task.FromResult(new Hrot.UI.Common.Models.MissionCommitResult(true, baseVersion + 1)); }
+        {
+            Commits.Add((entityId, plan, baseVersion));
+            if (ConflictNext) { ConflictNext = false; return System.Threading.Tasks.Task.FromResult(new Hrot.UI.Common.Models.MissionCommitResult(false, 0, "changed", Conflict: true)); }
+            return System.Threading.Tasks.Task.FromResult(new Hrot.UI.Common.Models.MissionCommitResult(true, baseVersion + 1));
+        }
         public System.Threading.Tasks.Task<Hrot.UI.Common.Models.MissionCommitResult> SendControlCommandAsync(int entityId, eMissionCommandType type, Guid taskId)
             => System.Threading.Tasks.Task.FromResult(new Hrot.UI.Common.Models.MissionCommitResult(true, Version));
     }
@@ -194,6 +199,36 @@ public sealed class TheOrdersTabEditsTests
         paste(world, d);                                                                   // d is not selected ⇒ d alone
         Assert.Equal(4, svc.Commits[^1].Net);
         Assert.Equal(3, svc.Commits.Count);
+    }
+
+    /// <summary>⭐ P-7 7c (D9) — a CONFLICT keeps the draft and offers the choice: <i>Overwrite</i> sends it again over the plan's CURRENT version;
+    /// <i>Reload</i> drops it. 🔴 Red-proof (compiles): <c>Overwrite</c> keeping the stale base ⇒ the second commit's base is 7 ⇒ red.</summary>
+    [Fact]
+    public void P7c_AConflict_KeepsTheDraft_OverwriteResendsOverTheCurrentVersion_ReloadDropsIt()
+    {
+        var svc = new FakeMissions { Plan = new MissionPlan { Tasks = { new MissionTask { TaskId = Guid.NewGuid(), BehaviorId = "Order.Move" } } }, ConflictNext = true };
+        var tab = new OrdersTab(() => svc, () => null);
+        var draft = tab.EnsureDraft(42);
+        draft.Tasks.Add(OrdersPlanEdits.NewWait()); tab.Touch();
+        Assert.Null(tab.Apply());
+        tab.PollCommit();
+        Assert.True(tab.Conflicted);
+        Assert.Same(draft, tab.Draft);                                                     // mine is kept
+
+        svc.Version = 9;                                                                   // someone else committed meanwhile
+        Assert.Null(tab.Overwrite());
+        Assert.Equal(9L, svc.Commits[^1].Base);                                            // over the plan as it is NOW
+        Assert.Equal(2, svc.Commits[^1].Plan.Tasks.Count);
+        tab.PollCommit();
+        Assert.False(tab.Conflicted);
+
+        svc.ConflictNext = true;
+        tab.EnsureDraft(42).Tasks.Add(OrdersPlanEdits.NewWait()); tab.Touch();
+        tab.Apply(); tab.PollCommit();
+        Assert.True(tab.Conflicted);
+        tab.Reload();
+        Assert.Null(tab.Draft);                                                            // theirs: re-read on the next frame
+        Assert.False(tab.Conflicted);
     }
 
     [Fact]

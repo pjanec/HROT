@@ -122,7 +122,23 @@ public sealed class OrdersTab : IDetailsViewInstance
         _pending = null;
         var r = done.IsCompletedSuccessfully ? done.Result : null;
         _status = r is null ? "the commit failed" : r.Success ? $"applied (version {r.NewVersion})" : $"not applied — {r.ErrorMessage}";
+        Conflicted = r is { Success: false, Conflict: true };   // ⭐ 7c — the draft is KEPT: the user picks Reload or Overwrite
         if (r is { Success: true }) _draft = null;
+    }
+
+    /// <summary>⭐ P-7 7c (D9) — the last commit was refused because the plan changed since it was opened.</summary>
+    public bool Conflicted { get; private set; }
+
+    /// <summary>⭐ 7c — <i>Reload</i>: drops the draft; the tab re-reads the plan as it is now.</summary>
+    public void Reload() { _draft = null; Conflicted = false; _status = null; }
+
+    /// <summary>⭐ 7c — <i>Overwrite</i>: sends the draft again over the plan as it is NOW (its current version as the base).</summary>
+    public string? Overwrite()
+    {
+        if (!Conflicted || _missions() is not { } svc) return "nothing to overwrite";
+        _baseVersion = svc.GetMissionSnapshot(_draftNet).Version;
+        Conflicted = false;
+        return Apply();
     }
 
     public void Draw(DetailsContext context, string idScope)
@@ -197,7 +213,17 @@ public sealed class OrdersTab : IDetailsViewInstance
         if (ImGui.Button("Revert")) _draft = null;
         ImGui.EndDisabled();
         if (svc != null && queue != null && !_dirty) { ImGui.SameLine(); if (ImGui.Button("Stop the plan")) _ = svc.SendControlCommandAsync(net, eMissionCommandType.CMD_ABORT_ALL, Guid.Empty); }
-        if (_status is { } st) ImGui.TextDisabled(st);
+        if (Conflicted)
+        {
+            // ⭐ 7c (D9) — someone else changed this plan: keep mine over theirs, or take theirs
+            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.55f, 0.2f, 1f), "The plan was changed by someone else since you opened it.");
+            if (ImGui.Button("Reload")) Reload();
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Discard your changes and show the plan as it is now.");
+            ImGui.SameLine();
+            if (ImGui.Button("Overwrite")) Overwrite();
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Apply your plan over theirs.");
+        }
+        else if (_status is { } st) ImGui.TextDisabled(st);
     }
 
     /// <summary>The task's own fields (an order's target / place, a behaviour's params) through the ONE params form; an edit rewrites its params JSON.</summary>

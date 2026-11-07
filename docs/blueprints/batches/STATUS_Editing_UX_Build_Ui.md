@@ -33,7 +33,7 @@
 | B-11 | 🔨 A1 ✅ A2 ✅ A3 ✅ (goldens for user review) | `2026-11-07` | A1 catalogue (§6) · A2 greyed "not available on this station" (§7) · A3 the ONE station mode + offers per mode (§8); A4, A5, A7 next |
 | B-14 | 🔨 U2 + U5 ✅ · *Edit ▸ History*, U4 next | `2026-11-07` | world steps through `EditSteps` (Submit + the drag / rotate gizmos) onto the ONE `EditHistory`, Edit ▸ Undo / Redo (Ctrl+Z / Ctrl+Y), the dirty dot in the title (LC-12). As built: `DESIGN_Edit_Mode_Undo.md` §1.4 |
 | B-16 | ⏳ | — | seats H2–H4 (after B-11) |
-| B-17 | ⏳ | — | map interaction P1, P2, P4–P6 |
+| B-17 | ➡ moved to behaviors | — | map interaction P1, P2, P4–P6 — coordinator `NOTE_Coordinator_To_Ui_Items_Moved_To_Behaviors.md` (not started by ui) |
 | U-23/24/25 rest | ✅ (worker; finished and committed by Opus after the worker was stopped) | (this commit) | combined rows · carry mode + Damage rows · Knows about seeds only (R-4157) · named-point list. Gates: Fdp.Presentation.Tests Form* 33/33 · Hrot.Presentation.Tests (NamedPointGizmo, MenuOrders, PickBroker, EntityList …) 40/40 · AiShared TheUnitFormDraws/LabelFirstForms/Details 96/97 — the 1 red `CE1150_TheBundle_BuildsThePanelWithTheComponentsView…` is PRE-EXISTING (red with this work stashed, at `6b012f9fb`), open. Red-proofs: carry mode, Damage refusal, SubIndex write, combined rows, Knows-about-seeds, the named-point list pick |
 
 ## Third handoff — [Today's rulings](HANDOFF_Coordinator_To_Ui_Todays_Rulings.md) (dispatched `b3c6c99a`; started `428f681b5`)
@@ -41,12 +41,12 @@
 | # | item | state | sha | notes |
 |---|---|---|---|---|
 | 1 | A3 corrections (R-4162) | ✅ (Save in Preview: backend) | (this commit) | Rotate Edit + Live; *Save selection as macro…* Edit only; goldens regenerated (only those rows moved). Save measured: Edit writes, Live checkpoints, a recording refuses ✅; ⚠ Preview refuses instead of checkpointing — [NOTE_Ui_To_Backend_Preview_Checkpoint](NOTE_Ui_To_Backend_Preview_Checkpoint.md) |
-| 2 | P-7 (CE-4303) Orders tab | 🔨 7a ✅ · 7b ✅ (incl. the task's fields + *Advanced condition…*) · 7c (Edit-mode undo, Conflict → Reload / Overwrite) – 7d (retire the 3 MissionPanels) next | `c7139739e` (plan, design §5.11) · (this commit) 7a | ⭐ **7a:** `Hrot.Editor.AiShared.Shell.OrdersPlanModel` (a plan as sentences, the queue's state) + `OrdersTab` (`details.orders`, rank 32, Jump / Stop) on the ONE Details bundle via `EntityDetailsHostServices.Missions` — passed by Editor and CGF. ⭐ **7b:** edits in the tab — `OrdersPlanEdits` (Wait first, orders, behaviours, *then* presets as ONE condition each, *when done* writes nothing, give up, reorder keeping ids, an empty Wait refused), Apply = whole plan + base version; new catalogue fact `task-time` (= the runtime's own `TimerElapsed` translation). As-built: Mission plan §5.11. The three `MissionPanel`s still edit until 7d |
+| 2 | P-7 (CE-4303) Orders tab | 🔨 7a ✅ · 7b ✅ (incl. the task's fields + *Advanced condition…*) · 7c ✅ (Edit undo by construction; Conflict → Reload / Overwrite; snapshot version + triggers FIXED — design §5.11; replica version asked of backend) · 7d (retire the 3 MissionPanels) next | `c7139739e` (plan, design §5.11) · (this commit) 7a | ⭐ **7a:** `Hrot.Editor.AiShared.Shell.OrdersPlanModel` (a plan as sentences, the queue's state) + `OrdersTab` (`details.orders`, rank 32, Jump / Stop) on the ONE Details bundle via `EntityDetailsHostServices.Missions` — passed by Editor and CGF. ⭐ **7b:** edits in the tab — `OrdersPlanEdits` (Wait first, orders, behaviours, *then* presets as ONE condition each, *when done* writes nothing, give up, reorder keeping ids, an empty Wait refused), Apply = whole plan + base version; new catalogue fact `task-time` (= the runtime's own `TimerElapsed` translation). As-built: Mission plan §5.11. The three `MissionPanel`s still edit until 7d |
 | 3 | A4 selection rules | ⏳ | — | |
 | 4 | B-16 seats H2–H4 | ⏳ | — | |
 | 5 | B-10 rest K2, K3, K7 | ⏳ | — | |
 | 6 | CE-4305 server seat config | ⏳ | — | only if backend has not claimed it |
-| 7 | P-8 (CE-4304) | ⏳ | — | after backend P-5 / P-6 |
+| 7 | P-8 (CE-4304) | ➡ moved to behaviors | — | coordinator `NOTE_Coordinator_To_Ui_Items_Moved_To_Behaviors.md` (not started by ui) |
 
 ## Fourth handoff — [Lifecycle fixes](HANDOFF_Coordinator_To_Lanes_Lifecycle_Fixes.md) (dispatched `f523103e`; ui started at `f1e4c8048`)
 
