@@ -240,11 +240,13 @@ public sealed class RulesWindow : ManagedWindow, IRuleDetailsHost
         return true;
     }
 
+    private RuleRow? AddedRow(string title, HashSet<int> known) => _view.Rows.FirstOrDefault(r => r.Title == title && !known.Contains(r.NetworkId));
+
     /// <summary>The entity a <see cref="AddRule"/> asked for has appeared (a new row with the new title): select it and open its form on the tab that matters (a trigger's When, an objective's Settings).</summary>
     private void WatchAdded()
     {
         if (_addWatch is not { } w) return;
-        var row = _view.Rows.FirstOrDefault(r => r.Title == w.Title && !w.Known.Contains(r.NetworkId));
+        var row = AddedRow(w.Title, w.Known);   // ⛔ no lambda over `w` here: its closure would be allocated on EVERY call, watch or not (CE-1465)
         if (row != null)
         {
             Select(row);
@@ -273,17 +275,71 @@ public sealed class RulesWindow : ManagedWindow, IRuleDetailsHost
         }
     }
 
-    /// <summary>⭐ Test hook — the BUILD (view, tracks, probe) with no ImGui context.</summary>
+    // ── CE-1465: rebuild only when something changed ────────────────────────────────────────────────────────────────────────
+    // The tables the model reads (RulesModel.Build and the sentence texts): a write bumps the table's chunk version to the world's GlobalVersion, so "changed since the last build" is HasChanges(that GlobalVersion).
+    private static readonly Type[] KeyTables =
+    {
+        typeof(ObjectiveStatus), typeof(ObjectiveLinks), typeof(Fdp.Toolkit.Behavior.Components.BehaviorStartRecord), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity),
+        typeof(Fdp.Core.EntityInfo), typeof(Fdp.Toolkit.Scenario.MacroOrigin), typeof(Fdp.Toolkit.Scenario.MacroInstance),
+    };
+    private bool _keyValid;
+    private EntityRepository? _keyWorld;
+    private readonly bool[] _keyPresent = new bool[KeyTables.Length];
+    private uint _keyVersion;
+    private int _keyEntities, _keyGroup, _keySide, _keySubtree, _keyMessages;
+    private double _keyNow;
+    private string _keySearch = "", _keyBlock = "";
+    private bool _keyBlocked;
+    private int? _keySelected;
+    private object? _keyMessageStore;
+
+    /// <summary>⭐ CE-1465 — true when anything the BUILD reads differs from the last build (world · the tables' versions · entity count · time · the toolbar's choices · selection · the blocked reason · the history index · the sent-message count).
+    /// ⚠ The edit-outcome log is NOT in the key: nothing the build reads comes from it (<see cref="PollControl"/> reads it every frame). ⚠ A table write inside the SAME <c>GlobalVersion</c> as the last build is seen once the world ticks.</summary>
+    private bool KeyChanged(EntityRepository? world, double now, TimelineIndex? index, string? block)
+    {
+        if (!_keyValid || !ReferenceEquals(world, _keyWorld) || now != _keyNow || _groupBy != _keyGroup || _side != _keySide || _subtree != _keySubtree || _selected != _keySelected
+            || !string.Equals(_search, _keySearch, StringComparison.Ordinal) || (block != null) != _keyBlocked || (block != null && !string.Equals(block, _keyBlock, StringComparison.Ordinal))) return true;
+        if (index != null ? (!ReferenceEquals(index, _historyOf) || index.FrameTicks.Count != _historyFrames) : _historyOf != null) return true;
+        if (world == null) return false;
+        if (world.EntityCount != _keyEntities) return true;
+        for (int i = 0; i < KeyTables.Length; i++)
+        {
+            bool present = world.TryGetTable(KeyTables[i], out var t);
+            if (present != _keyPresent[i] || (present && t.HasChanges(_keyVersion))) return true;   // a table missing at build and present now counts as a change
+        }
+        var store = Hrot.UI.Common.Map3D.PlayerMessages.Of(world);
+        return !ReferenceEquals(store, _keyMessageStore) || (store != null && store.All.Count != _keyMessages);
+    }
+
+    private void RememberKey(EntityRepository? world, double now, string? block)
+    {
+        _keyValid = true; _keyWorld = world; _keyNow = now; _keyGroup = _groupBy; _keySide = _side; _keySubtree = _subtree; _keySelected = _selected; _keySearch = _search;
+        _keyBlocked = block != null; _keyBlock = block ?? "";
+        if (world == null) return;
+        _keyEntities = world.EntityCount; _keyVersion = world.GlobalVersion;
+        for (int i = 0; i < KeyTables.Length; i++) _keyPresent[i] = world.TryGetTable(KeyTables[i], out _);
+        var store = Hrot.UI.Common.Map3D.PlayerMessages.Of(world);
+        _keyMessageStore = store; _keyMessages = store?.All.Count ?? 0;
+    }
+
+    /// <summary>⭐ Test hook — the BUILD (view, tracks, probe) with no ImGui context. ⭐ CE-1465: it builds only when <see cref="KeyChanged"/> says something did; the per-frame bits (the added-rule watch, the control poll, the open form's Prepare) always run.</summary>
     internal void Rebuild()
     {
         var world = _world();
         double now = _now?.Invoke() ?? (world == null ? 0d : CommandPictureOps.Now(world));
         var index = _source()?.Index;
+        string? block0 = _blocked();
+        if (!KeyChanged(world, now, index, block0))
+        {
+            WatchAdded(); PollControl();
+            RefreshPerFrame(now);
+            return;
+        }
         if (index != null && (!ReferenceEquals(index, _historyOf) || index.FrameTicks.Count != _historyFrames))
         { _history = new IndexRulesHistory(index); _historyOf = index; _historyFrames = index.FrameTicks.Count; }
         else if (index == null) { _history = null; _historyOf = null; _historyFrames = -1; }
         _view = world == null ? new RulesView(Array.Empty<RuleGroup>(), now) : RulesModel.Build(world, new RulesOptions(GroupBy, Side, _search, _subtree), _history, now);
-        string? block = _blocked();
+        string? block = block0;
         var hooks = block == null ? _hooks : _hooks with { Blocked = block };
         var tracks = new List<ITimelineTrack>();
         foreach (var g in _view.Groups)
@@ -308,12 +364,25 @@ public sealed class RulesWindow : ManagedWindow, IRuleDetailsHost
         _probe = new RulesWindowProbe(_view.Rows.Select(r => $"{new string(' ', r.Depth * 2)}{r.Title} | {r.StateWords}").ToList(), _selected, details, buttons, GroupNames[_groupBy], SideNames[_side], _search, null,
             _panel.LastConnectors.Select(c => $"{c.FromTrack} -> {c.ToTrack}").ToList(), _panel.LastComingUp.Select(c => $"{c.At:0} {c.TrackLabel} {c.ItemLabel}").ToList());   // ⭐ CE-4221 — what the last frame drew (an agent reads it)
         if (_details != null && sel != null) { _details.Prepare(sel, now); _probe = _probe with { Editor = _details.Probe }; }
+        RememberKey(world, now, block);
     }
+
+    /// <summary>What a steady frame still does: the open form's Prepare (it holds the person's edit state) and the arrows / coming-up lists the timeline drew last frame (they appear after the first draw).</summary>
+    private void RefreshPerFrame(double now)
+    {
+        var sel = _selected is { } s ? _view.Find(s) : null;
+        if (_details != null && sel != null) { _details.Prepare(sel, now); _probe = _probe with { Editor = _details.Probe }; }
+        if (_panel.LastConnectors.Count != (_probe.Arrows?.Count ?? 0) || _panel.LastComingUp.Count != (_probe.ComingUp?.Count ?? 0))
+            _probe = _probe with { Arrows = _panel.LastConnectors.Select(c => $"{c.FromTrack} -> {c.ToTrack}").ToList(), ComingUp = _panel.LastComingUp.Select(c => $"{c.At:0} {c.TrackLabel} {c.ItemLabel}").ToList() };
+    }
+
+    private RulesWindowViewModel? _vm;
 
     private RulesWindowViewModel BuildAndPublish()
     {
         Rebuild();
-        var vm = new RulesWindowViewModel(Id, Kind, _probe, Message);
+        // ⭐ CE-1465 — the view model is reused while the probe and the message are the same objects
+        var vm = _vm is { } v && ReferenceEquals(v.Shown, _probe) && string.Equals(v.Message, Message, StringComparison.Ordinal) ? v : (_vm = new RulesWindowViewModel(Id, Kind, _probe, Message));
         if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
         return vm;
     }

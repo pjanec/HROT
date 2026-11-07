@@ -17,7 +17,7 @@ public static class InstructorEnd
     public const string Ended = "the exercise has already ended";
 
     /// <summary>What the button does now: the trigger to fire (null = none), and why it cannot be (null = it can).</summary>
-    public sealed record Offer(Entity Trigger, string? DisabledReason, string Title)
+    public readonly record struct Offer(Entity Trigger, string? DisabledReason, string Title)
     {
         public bool Available => DisabledReason == null;
     }

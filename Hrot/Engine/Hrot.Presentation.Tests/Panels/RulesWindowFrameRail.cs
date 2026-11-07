@@ -222,25 +222,33 @@ public sealed class RulesWindowFrameRail : IDisposable
         var picked = new List<int>();
         var window = new RulesWindow(() => _world, () => null, null, "rail_rules_list", "Scenario", Vector4.One, picked.Add, _ => { });
         using var frame = UiFrameHarness.Begin(1280, 300);
-        void Step(int n = 1)
+        Action draw = () =>   // ONE delegate: a lambda made per Step would itself allocate under the 0 B check
         {
-            for (int i = 0; i < n; i++)
-                frame.Step(() =>
-                {
-                    ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(1280, 300));
-                    ImGui.Begin("Rules", ImGuiWindowFlags.NoCollapse);
-                    window.DrawContent();
-                    ImGui.End();
-                });
-        }
+            ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(1280, 300));
+            ImGui.Begin("Rules", ImGuiWindowFlags.NoCollapse);
+            window.DrawContent();
+            ImGui.End();
+        };
+        void Step(int n = 1) { for (int i = 0; i < n; i++) frame.Step(draw); }
         Step(5);
         Assert.True(window.ListView, "edit mode (every row authored) opens on the List");
         Assert.Equal(new[] { "Weighted mean: Mission", "When (no condition yet) → (nothing to do yet)" }, window.ListRows);
         Assert.True(window.IncompleteOf(11));
         Assert.False(window.IncompleteOf(10));
         Assert.Equal(0, window.Panel.LastTrackHits.Count);   // the timeline did not draw
-        // ⚠ no 0 B assertion: the WINDOW rebuilds its whole model every frame (RulesModel.Build, the tracks, the probe) — pre-existing, CE-1465. The List itself adds
-        //   no per-frame allocation (the sentence is cached per params string).
+        // ⭐ CE-1465 — a steady frame (nothing changed) rebuilds nothing: no model, tracks or probe — 0 B over three frames
+        Step(2);   // warm: the first steady frames settle caches
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        Step(3);
+        Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+        // ... and a change to a rule's params shows after ONE step (the table's version moved with the tick)
+        Entity mission = default;
+        foreach (var e in _world.Query().WithManaged<Fdp.Toolkit.Behavior.Components.BehaviorStartRecord>().Build()) if (_world.GetComponentRO<NetworkIdentity>(e).Value == 10) mission = e;
+        _world.Tick();
+        _world.SetManagedComponent(mission, new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = "WeightedMean", InstanceId = 1, JsonParams = """{"common":{"title":"Mission renamed","subject":900}}""" });
+        _world.Tick();
+        Step();
+        Assert.Contains("Weighted mean: Mission renamed", window.ListRows);
         if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 }) frame.Screenshot(ShotPath("rules-list.png"));
 
         window.ListView = false;
