@@ -13,7 +13,7 @@ related-designs:
 
 # HANDOFF — coordinator → behaviors: four items taken over from ui's queue
 
-**For:** behaviors (idle). **From:** coordinator. **Dispatched at `<sha of the commit adding this file>`**. ⭐ Scope FROZEN there.
+**For:** behaviors (idle). **From:** coordinator. **Dispatched at `9cce7b4a`**. ⭐ Scope FROZEN there.
 Merge `coordinator`, `ui`, `backend` first (restore after); the [protocol](PROTOCOL_Two_Lanes_Self_Coordinating.md) as before.
 ⛔⛔ Anything needing the user is skipped (R-4156).
 
