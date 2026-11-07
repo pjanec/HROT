@@ -99,8 +99,24 @@ public sealed class ComponentDiffPanel
     /// </summary>
     private static readonly string[] DiffLabels = { "Ignore Epsilon (< 0.001)", "Hide Unchanged" };
 
+    /// <summary>⭐ B-7 part 3 — whether a recording is loaded (the host binds the timeline panel's); drives the meta row below.</summary>
+    public Func<bool>? HasRecording { get; set; }
+
+    /// <summary>
+    /// ⭐ B-7 part 3 (R-4155) — the per-frame debug row that used to sit empty in the retired Replay Timeline window (<c>Tick · SimFrame · SimTime · FrameType · CompressedSize</c>;
+    /// still a placeholder: the values are not read from the recording yet). It belongs with the frame diff, which is per-frame debug.
+    /// </summary>
+    private void DrawMetaRow()
+    {
+        if (!(HasRecording?.Invoke() ?? false))
+            Gui.TextDisabled("Tick: - | SimFrame: - | SimTime: - | Type: - | Size: -");
+        else
+            Gui.TextDisabled("Tick: - | SimFrame: - | SimTime: - | FrameType: - | CompressedSize: -");
+    }
+
     public void DrawContent(IReadOnlyList<DiffNode> diffs)
     {
+        DrawMetaRow();
         if (FormGrid.Begin("diff.options", DiffLabels))
         {
             FormGrid.Row("Ignore Epsilon (< 0.001)"); Gui.Checkbox("##ignoreepsilon", ref _ignoreEpsilon);

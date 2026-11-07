@@ -36,9 +36,16 @@ public sealed record ReplayTimelinePanelViewModel(
     public JsonNode Dump() => PanelDump.Of(this);
 }
 
+/// <summary>⭐ B-7 part 3 — one node's recording file, as <i>File ▸ Recording info</i> lists it.</summary>
+public sealed record RecordingFileInfo(int NodeId, string Path, int Frames, double WallSeconds);
+
+/// <summary>⭐ B-7 part 3 — the loaded group: its exercise id (null when nothing is loaded) and a file per node.</summary>
+public sealed record RecordingInfo(Guid? ExerciseId, IReadOnlyList<RecordingFileInfo> Files);
+
 /// <summary>
 /// Transport control panel for the replay browser.
-/// Renders timeline controls, frame metadata, file loading, and JSON export options.
+/// The replay transport (drawn by the main toolbar's entry: history, rewind, play, rate, axis, step, the seek bar with its frame / wall / sim tooltip) and the JSON export options
+/// (File ▸ JSON Export…). ⭐ B-7 part 3: the Replay Timeline WINDOW is retired — its parts moved (the readout to the seek bar's tooltip, the meta row to the Frame Diff window, the file path to File ▸ Recording info).
 /// </summary>
 public sealed class ReplayTimelinePanel
 {
@@ -121,18 +128,7 @@ public sealed class ReplayTimelinePanel
         int currentFrame = (ActiveContext?.CurrentFrame ?? -1) < 0 ? 0 : ActiveContext!.CurrentFrame;
         int totalFrames = ActiveContext?.Playback?.TotalFrames ?? 1;
 
-        long wallClockTicks = 0;
-        double relativeWallSec = 0.0;
-        double simTimeSec = 0.0;
-        if (hasRecording && (ActiveContext?.CurrentFrame ?? -1) >= 0)
-        {
-            var meta = ActiveContext!.Playback!.GetFrameMetadata(ActiveContext.CurrentFrame);
-            long firstFrameWallTicks = ActiveContext.Playback.GetFrameMetadata(0).WallClockTicks;
-            wallClockTicks = meta.WallClockTicks;
-            relativeWallSec = (meta.WallClockTicks - firstFrameWallTicks) / (double)TimeSpan.TicksPerSecond;
-            if (ActiveContext?.SandboxRepo?.HasSingletonUnmanaged<GlobalTime>() ?? false)
-                simTimeSec = ActiveContext.SandboxRepo.GetSingletonUnmanaged<GlobalTime>().TotalTime;
-        }
+        FrameTimes(out long wallClockTicks, out double relativeWallSec, out double simTimeSec);
 
         return new ReplayTimelinePanelViewModel(
             panelId, panelKind, hasRecording, currentFrame, totalFrames, wallClockTicks,
@@ -140,9 +136,45 @@ public sealed class ReplayTimelinePanel
             ActiveContext?.CurrentFdpPath ?? "(none)", LoadGroupRejectionReason);
     }
 
+    /// <summary>
+    /// ⭐ B-7 part 3 — the current frame's wall ticks, wall seconds since the first frame and sim seconds, read from the active recording: ONE implementation for the panel snapshot
+    /// (<see cref="BuildViewModel"/>) and the seek bar's tooltip on the current-time label. Zeros when nothing is loaded or no frame is current.
+    /// </summary>
+    public void FrameTimes(out long wallClockTicks, out double relativeWallSeconds, out double simSeconds)
+    {
+        wallClockTicks = 0; relativeWallSeconds = 0d; simSeconds = 0d;
+        if (ActiveContext?.Playback == null || (ActiveContext?.CurrentFrame ?? -1) < 0) return;
+        var meta = ActiveContext!.Playback!.GetFrameMetadata(ActiveContext.CurrentFrame);
+        long firstFrameWallTicks = ActiveContext.Playback.GetFrameMetadata(0).WallClockTicks;
+        wallClockTicks = meta.WallClockTicks;
+        relativeWallSeconds = (meta.WallClockTicks - firstFrameWallTicks) / (double)TimeSpan.TicksPerSecond;
+        if (ActiveContext?.SandboxRepo?.HasSingletonUnmanaged<GlobalTime>() ?? false)
+            simSeconds = ActiveContext.SandboxRepo.GetSingletonUnmanaged<GlobalTime>().TotalTime;
+    }
+
+    /// <summary>A recording is loaded on the selected node.</summary>
+    public bool HasRecording => ActiveContext?.Playback != null;
+
+    /// <summary>⭐ B-7 part 3 — what <i>File ▸ Recording info</i> lists: the exercise, and per node its file and length.</summary>
+    public RecordingInfo DescribeRecording()
+    {
+        if (_manager == null || _manager.Contexts.Count == 0) return new RecordingInfo(null, Array.Empty<RecordingFileInfo>());
+        var files = new List<RecordingFileInfo>();
+        foreach (var (node, ctx) in _manager.Contexts.OrderBy(kv => kv.Key))
+        {
+            int frames = ctx.Playback?.TotalFrames ?? 0;
+            double seconds = 0d;
+            if (frames > 1)
+                seconds = (ctx.Playback!.GetFrameMetadata(frames - 1).WallClockTicks - ctx.Playback.GetFrameMetadata(0).WallClockTicks) / (double)TimeSpan.TicksPerSecond;
+            files.Add(new RecordingFileInfo(node, ctx.CurrentFdpPath ?? "(none)", frames, seconds));
+        }
+        return new RecordingInfo(_manager.ExerciseId.Value, files);
+    }
+
     // ── Public draw entry point ───────────────────────────────────────────
 
-    public void DrawContent()
+    /// <summary>The "group rejected" modal — drawn with the transport (the toolbar entry is on screen whenever the replay perspective is), since the timeline window that used to host it is retired.</summary>
+    private void DrawLoadGroupError()
     {
         if (LoadGroupRejectionReason != null)
         {
@@ -158,12 +190,6 @@ public sealed class ReplayTimelinePanel
             }
             Gui.EndPopup();
         }
-        // ⭐ CE-4261 — the transport bar is NOT drawn here any more: the browser registers it as an entry of the MAIN TOOLBAR (DrawTransport, below), the one drawer
-        DrawRow2_TimeInfo();
-        DrawRow3_Slider();
-        DrawRow4_Meta();
-        DrawRow5_FileLoader();
-        // ⭐ CE-4261 — the JSON Export options moved to File ▸ JSON Export… (JsonExportWindow draws DrawExportBody); the Load .fdp… button to File ▸ Load .fdp…
     }
 
     /// <summary>
@@ -172,6 +198,7 @@ public sealed class ReplayTimelinePanel
     /// </summary>
     public void DrawTransport(float iconSize = 0f)
     {
+        DrawLoadGroupError();
         DrawRow1_Transport(iconSize);
         DrawSeekBar();   // ⭐ Replay Browser UX ① (R-4153) — the seek bar fills the main bar after the transport
     }
@@ -180,12 +207,20 @@ public sealed class ReplayTimelinePanel
     /// <see cref="AxisIsSim"/> says the sim axis is active and <see cref="HasSimAxis"/> allows it. Null ⇒ the wall axis only.</summary>
     public Func<long, double>? SimAtWall { get; set; }
 
+    /// <summary>⭐ B-7 part 3 — the tooltip on the current-time label: <c>frame 2 103 · wall 40.602 s · sim 39.997 s</c> (the retired timeline window's readout).</summary>
+    public static string DetailText(int frame, double wallSeconds, double simSeconds)
+        => $"frame {frame:N0} · wall {wallSeconds:0.000} s · sim {simSeconds:0.000} s".Replace(',', ' ');
+
     /// <summary>The seek bar's least width; below it the bar is not drawn (a narrow window keeps the transport).</summary>
     public const float SeekBarMinWidth = 80f;
 
     private int _seekLabelFrame = -1, _seekEndFrames = -1, _seekHoverFrame = -1;
     private bool _seekLabelsSim;
-    private string _seekNow = "", _seekEnd = "", _seekHover = "";
+    private string _seekNow = "", _seekEnd = "", _seekHover = "", _seekDetail = "";
+    private int _detailFrame = -1; private double _detailWall = double.NaN, _detailSim = double.NaN;
+
+    /// <summary>The tooltip on the seek bar's current-time label (frame · wall · sim), as last built — for the rails.</summary>
+    public string SeekDetailText => _seekDetail;
 
     /// <summary>The seconds of <paramref name="frame"/> on the active axis.</summary>
     public double SecondsOf(int frame)
@@ -238,6 +273,17 @@ public sealed class ReplayTimelinePanel
 
         Gui.AlignTextToFramePadding();
         Gui.TextUnformatted(_seekNow);
+        if (Gui.IsItemHovered())
+        {
+            // ⭐ B-7 part 3 (R-4155) — the retired Replay Timeline window's frame / wall / sim readout: "frame 2 103 · wall 40.602 s · sim 39.997 s" (cached, 0 B steady)
+            FrameTimes(out _, out double wallSec, out double simSec);
+            if (current != _detailFrame || wallSec != _detailWall || simSec != _detailSim)
+            {
+                _detailFrame = current; _detailWall = wallSec; _detailSim = simSec;
+                _seekDetail = DetailText(current, wallSec, simSec);
+            }
+            Gui.SetTooltip(_seekDetail);
+        }
         Gui.SameLine();
         float h = Gui.GetFrameHeight();
         var p0 = Gui.GetCursorScreenPos();
@@ -446,66 +492,6 @@ public sealed class ReplayTimelinePanel
             _stepHoldDirection = 0;
             _autoStepAccumulator = 0f;
         }
-    }
-
-    private void DrawRow2_TimeInfo()
-    {
-        if (ActiveContext?.Playback == null || (ActiveContext?.CurrentFrame ?? -1) < 0)
-        {
-            Gui.TextDisabled("Frame: - | Wall Ticks: - | Wall Time: - | Sim Time: -");
-            return;
-        }
-
-        int current = ActiveContext!.CurrentFrame;
-        var meta = ActiveContext.Playback.GetFrameMetadata(current);
-        long firstFrameWallTicks = ActiveContext.Playback.GetFrameMetadata(0).WallClockTicks;
-
-        double relativeWallSec =
-            (meta.WallClockTicks - firstFrameWallTicks) / (double)TimeSpan.TicksPerSecond;
-
-        double simTimeSec = 0.0;
-        if (ActiveContext?.SandboxRepo?.HasSingletonUnmanaged<GlobalTime>() ?? false)
-            simTimeSec = ActiveContext.SandboxRepo.GetSingletonUnmanaged<GlobalTime>().TotalTime;
-
-        Gui.TextUnformatted(
-            $"Frame: {current} | Wall Ticks: {meta.WallClockTicks} | Wall Time: {relativeWallSec:F3}s | Sim Time: {simTimeSec:F3}s");
-    }
-
-    private void DrawRow3_Slider()
-    {
-        int totalFrames = ActiveContext?.Playback?.TotalFrames ?? 1;
-        int current = (ActiveContext?.CurrentFrame ?? -1) < 0 ? 0 : ActiveContext!.CurrentFrame;
-        int max = totalFrames > 0 ? totalFrames - 1 : 0;
-
-        if (Gui.SliderInt("##timeline", ref current, 0, max))
-        {
-            IsPlaying = false;
-            SeekToFrame(current);
-        }
-        Gui.SameLine();
-        Gui.TextUnformatted($"Frame {current} / {max}");
-    }
-                                                                
-    private void DrawRow4_Meta()
-    {
-        // Metadata display (tick, simframe, simtime, frame type, size)
-        // When no recording is loaded, show dashes.
-        if (ActiveContext?.Playback == null)
-        {
-            Gui.TextDisabled("Tick: - | SimFrame: - | SimTime: - | Type: - | Size: -");
-        }
-        else
-        {
-            Gui.TextDisabled(
-                $"Tick: - | SimFrame: - | SimTime: - | FrameType: - | CompressedSize: -");
-        }
-    }
-
-    private void DrawRow5_FileLoader()
-    {
-        // ⭐ CE-4261 — the Load button is File ▸ Load .fdp… now; the row keeps the loaded path
-        string displayPath = ActiveContext?.CurrentFdpPath ?? "(none)";
-        Gui.TextUnformatted(displayPath);
     }
 
     // ── Export expander sub-sections ─────────────────────────────────────

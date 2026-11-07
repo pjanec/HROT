@@ -436,7 +436,7 @@ The project root contains 96 C# source files organized into two major subsystems
 | File | Type | Responsibility |
 |------|------|----------------|
 | `ImGui/Windows/MessageLogWindow.cs` | `sealed class MessageLogWindow : ManagedWindow` | Global-scope window hosting `MessageLogPanel`. Exposes `HasUnobservedAttention` and `FocusFirstAttentionTab` for status bar integration. |
-| `ImGui/Windows/ReplayBrowser/ReplayTimelineWindow.cs` | `sealed class ReplayTimelineWindow : ManagedWindow` | Perspective-bound window hosting `ReplayTimelinePanel`. |
+| `ImGui/Windows/ReplayBrowser/RecordingInfoWindow.cs` | `sealed class RecordingInfoWindow : ManagedWindow` | **File ▸ Recording info** (`rb_recording_info`, closed by default): the files per node, the length, the exercise id, and the `replay-timeline` panel snapshot. ⛔ `ReplayTimelineWindow` (`rb_timeline`) is RETIRED (B-7 part 3, R-4155): `ReplayTimelinePanel` stays as the transport's and the export window's one drawer. |
 | `ImGui/Windows/ReplayBrowser/ReplaySearchWindow.cs` | `sealed class ReplaySearchWindow : ManagedWindow` | Perspective-bound window hosting `ReplaySearchPanel`. |
 | `ImGui/Windows/ReplayBrowser/FdpEventBrowserWindow.cs` | `sealed class FdpEventBrowserWindow : ManagedWindow` | Perspective-bound window hosting `EventBrowserPanel` in replay context. |
 | `ImGui/Windows/ReplayBrowser/FdpEntityInspectorWindow.cs` | `sealed class FdpEntityInspectorWindow : ManagedWindow` | Perspective-bound window hosting `EntityInspectorPanel`. Factory delegates supply session and state on each frame. |
@@ -883,8 +883,8 @@ public sealed class HealthPointsRenderer : IImGuiRenderer
 _wm.RegisterWindow(new EntityInspectorWindow("entity_inspector",
     "Entity Inspector", "Live", inspectorPanel));
 
-_wm.RegisterWindow(new ReplayTimelineWindow("rb_timeline",
-    "Timeline", "Replay", timelinePanel,
+// ⛔ the "rb_timeline" Replay Timeline window is retired (B-7 part 3); File ▸ Recording info is the closed RecordingInfoWindow:
+_wm.RegisterWindow(new RecordingInfoWindow("Replay", timelinePanel,
     new System.Numerics.Vector4(0.2f, 0.1f, 0.3f, 1f)));
 
 // Switch between perspectives
