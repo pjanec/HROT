@@ -552,7 +552,7 @@ public static class ReferenceLeafDrawers
             // ⭐ U-8 (DESIGN_Condition_Editor §8.2 ④, condition-expert-visual.svg) — THE THING BY NAME: one chip — its kind's glyph in colour · "Objective: Hold the
             // bridge" · ▾ — whose menu picks on the map, from a list, by key, or clears; then the map-pick glyph. ⛔ No Exact/Key radio, never "#10" when a name exists.
             int marks = (ctx != null ? 1 : 0) + (ctx is { Preview: not null } or { CanShowOnMap: true } ? 1 : 0) + (NeedsStableIdWarning(link, refs) ? 1 : 0);   // what follows the chip
-            if (DrawChip("##chip", ChipLabel(link, refs), ChipIcon(link, refs), Math.Max(width - marks * (ImGuiApi.GetFrameHeight() + 4f) - 4f, 80f)))
+            if (NodeEditor.Core.Widgets.Chip.Dropdown("##chip", ChipLabel(link, refs), ChipIcon(link, refs), Math.Max(width - marks * (ImGuiApi.GetFrameHeight() + 4f) - 4f, 80f)))
                 ImGuiApi.OpenPopup("thing");
             if (ImGuiApi.BeginPopup("thing"))
             {
@@ -635,29 +635,6 @@ public static class ReferenceLeafDrawers
     /// <summary>⭐ U-8 — the chip's glyph: the thing's kind (<c>thing/objective</c> · <c>thing/trigger</c> · <c>thing/entity</c>), null when none is known.</summary>
     public static NodeEditor.Core.Widgets.IconGlyph? ChipIcon(EntityLink link, LiveRefScope? refs)
         => !link.Ref.IsNone && refs != null && refs.TryKindOf(link.Ref, out var k) && k.IconKey.Length > 0 && NodeEditor.Core.Widgets.Icons.TryGet(k.IconKey, out var g) ? g : null;
-
-    /// <summary>A frame-coloured chip — glyph · text · ▾ — sized by its text (capped at <paramref name="maxWidth"/>); true when clicked.</summary>
-    /// <remarks>⭐ The ONE chip (U-8): the entity-link leaf and every blank of the friendly condition editor (U-15) draw through it.</remarks>
-    public static bool DrawChip(string id, string label, NodeEditor.Core.Widgets.IconGlyph? icon, float maxWidth)
-    {
-        var style = ImGuiApi.GetStyle();
-        float h = ImGuiApi.GetFrameHeight(), pad = style.FramePadding.X, arrow = h * 0.55f;
-        float glyphW = icon is { } ig ? ImGuiApi.CalcTextSize(ig.Glyph).X + 5f : 0f;
-        float w = MathF.Min(maxWidth, pad + glyphW + ImGuiApi.CalcTextSize(label).X + 6f + arrow + pad);
-        var pos = ImGuiApi.GetCursorScreenPos();
-        bool clicked = ImGuiApi.InvisibleButton(id, new Vector2(w, h));
-        bool hovered = ImGuiApi.IsItemHovered();
-        var dl = ImGuiApi.GetWindowDrawList();
-        dl.AddRectFilled(pos, pos + new Vector2(w, h), ImGuiApi.GetColorU32(hovered ? ImGuiNET.ImGuiCol.FrameBgHovered : ImGuiNET.ImGuiCol.FrameBg), style.FrameRounding);
-        float ty = pos.Y + (h - ImGuiApi.GetTextLineHeight()) * 0.5f, x = pos.X + pad;
-        if (icon is { } g) { dl.AddText(new Vector2(x, ty), ImGuiApi.GetColorU32(g.Color), g.Glyph); x += glyphW; }
-        dl.PushClipRect(new Vector2(x, pos.Y), new Vector2(pos.X + w - arrow - pad, pos.Y + h), true);
-        dl.AddText(new Vector2(x, ty), ImGuiApi.GetColorU32(ImGuiNET.ImGuiCol.Text), label);
-        dl.PopClipRect();
-        float ax = pos.X + w - pad - arrow * 0.5f, ay = pos.Y + h * 0.5f, r = arrow * 0.32f;
-        dl.AddTriangleFilled(new Vector2(ax - r, ay - r * 0.6f), new Vector2(ax + r, ay - r * 0.6f), new Vector2(ax, ay + r * 0.6f), ImGuiApi.GetColorU32(ImGuiNET.ImGuiCol.TextDisabled));
-        return clicked;
-    }
 
     // ── PointLink (F5) ───────────────────────────────────────────────────────────────────────────────────────────────────────
 

@@ -499,7 +499,7 @@ public sealed class RuleDetails
         ImGui.SameLine(0f, 2f); ImGui.TextUnformatted(". Fire");
         ImGui.SameLine();
         TimingSentence = $"...and it stays true for {F(hold):0.##} s, then wait {F(delay):0.##} s. Fire {FireWords(B(repeat), B(whileTrue), F(cool), I(max))}";
-        if (Fdp.Presentation.Editing.ReferenceLeafDrawers.DrawChip("##fire", FireWords(B(repeat), B(whileTrue), F(cool), I(max)), null, 360f)) ImGui.OpenPopup("fire");
+        if (NodeEditor.Core.Widgets.Chip.Dropdown("##fire", FireWords(B(repeat), B(whileTrue), F(cool), I(max)), null, 360f)) ImGui.OpenPopup("fire");
         if (ImGui.BeginPopup("fire"))
         {
             if (ImGui.Selectable("once", !B(repeat))) repeat.Binding?.SetBoxed(false);
@@ -523,7 +523,7 @@ public sealed class RuleDetails
 
     private static void SecondsChip(string id, StructEdit.Core.EditNode node, float seconds)
     {
-        if (Fdp.Presentation.Editing.ReferenceLeafDrawers.DrawChip(id, $"{seconds:0.##} s", null, 120f)) ImGui.OpenPopup(id + "p");
+        if (NodeEditor.Core.Widgets.Chip.Dropdown(id, $"{seconds:0.##} s", null, 120f)) ImGui.OpenPopup(id + "p");
         if (!ImGui.BeginPopup(id + "p")) return;
         float v = seconds;
         ImGui.SetNextItemWidth(140f);

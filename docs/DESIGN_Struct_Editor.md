@@ -225,6 +225,19 @@ over one kit. A widget is improved once and every form gets it.*
 ⇒ **Build order gains a step 0:** move the chip into the kit and add `ChipRow`, `ListBlock`, `GridBlock`, `RowMarks`, `EntityField` with their
 rails; then §7's steps use them, and `FormView` moves onto them (with its frame rails, e.g. `TheUnitFormDrawsTests`, unchanged in content).
 
+### 8.1 ⭐ AS-BUILT — step 0 (N-0, CE-3377), `2026-11-07`
+
+| widget | file | API (one op per frame, never a callback) |
+|---|---|---|
+| `Chip` | `NodeEditor.Core/Widgets/Chip.cs` | `Chip.Draw(id, label, icon, maxWidth, ChipEnd, on, tint) → ChipHit {None, Body, Remove}` · `Chip.Dropdown(...) → bool` · `Chip.WidthOf(...)`. Ends: `None · Dropdown ▾ · Removable ✕ · Toggle`. ⭐ the old `ReferenceLeafDrawers.DrawChip` is DELETED (7 callers moved) |
+| `ChipRow` | `ChipRow.cs` | `ChipRow.Draw(id, labels, canRemove, canAdd, icon) → ChipRowOp {Click i · Remove i · Add · Move from→to}` |
+| `ListBlock` | `ListBlock.cs`, `OpenSet.cs` | `Begin(id, summaries, ListOptions, version)` · `VisibleCount / VisibleIndex(v)` · `ItemBegin(i, kind) → open` · `ItemEnd()` · `End() → ListOp`. `ListOptions`: Title, AddLabel, Kinds, FixedSize, Disabled (`ListCmd`), Shortcut labels (the kit reads no keys), LongThreshold/PageSize. `OpenSet` moves the open flag with its item |
+| `GridBlock` | `GridBlock.cs` | `Begin(id, headers, count, opts)` · `Row(i)` · `Cell(c)` · `End() → ListOp`; row menu, Add and footer ARE `ListBlock`'s |
+| `RowMarks` | `RowMarks.cs` | `ChangedBar(changed)` (slot always reserved) · `ResetButton(id)` · `ErrorLine(text)` · `SetBox(id, ref set)`; `FormRow`'s invalid-reason now calls `ErrorLine` (one painter) |
+| `EntityField` | `Fdp.Presentation/ImGui/Editing/EntityField.cs` | `Draw(id, chipLabel, kind, maxWidth, candidates, version, goneText) → EntityFieldOp {Pick id · PickOnMap · ByKey · Clear}`; filter rebuilt only on text / version change. Not wired to hosts yet (N-5) |
+
+Deviations from the text above: ① `ChipEnd.None` and a `tint` (the gone chip) were added to `Chip`. ② ONE shared `KitDrag` (internal) carries the drag-reorder gesture for chips, list handles and grid handles (the K7-adopter comment lives there) — not a function inside `ChipRow`. ③ ImGui.NET's `InputText` allocates a string per call, so `TextBuffer` (pinned UTF-8 buffer, native call) backs the filter / type-ahead boxes. ④ `KitProbe` (rails only) exposes the rectangles of popup rows, which ImGui.NET cannot reach. 📄 Rails: `WidgetKitFrameRail` (one test per widget, 0 B) + `WidgetKitLogicTests`.
+
 ## 9. The entity inspector — the C# case is ONE shape source, not a second editor *(user, `2026-11-07`)*
 
 > 🔒 User: *"the older part of the engine, like the entity inspector, is using the struct edit, which is inlined for editing the component

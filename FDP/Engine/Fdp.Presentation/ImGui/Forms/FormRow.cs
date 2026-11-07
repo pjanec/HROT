@@ -67,7 +67,7 @@ public static class FormRow
         bool overControl = ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled);
         if (s.Locked && overControl && s.LockedReason is not null) ImGui.SetTooltip(s.LockedReason);
         if (s.Locked) ImGui.EndDisabled();
-        if (s.Invalid && s.InvalidReason is not null) ImGui.TextColored(StatusPalette.Error, s.InvalidReason);
+        if (s.Invalid && s.InvalidReason is not null) RowMarks.ErrorLine(s.InvalidReason);   // ⭐ K2: the ONE error-line painter (the kit's)
 
         var clicked = DrawSlot(Strongest(in s), in s);
         ImGui.PopID();

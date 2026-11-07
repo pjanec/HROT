@@ -90,7 +90,7 @@ public sealed class ConditionEditor
         ImGuiApi.TextUnformatted("When");
         ImGuiApi.SameLine();
         string opWord = _op switch { LogicalOperator.Or => "any", LogicalOperator.None => "none", _ => "all" };
-        if (ReferenceLeafDrawers.DrawChip("##op", opWord, null, 80f)) ImGuiApi.OpenPopup("op");
+        if (NodeEditor.Core.Widgets.Chip.Dropdown("##op", opWord, null, 80f)) ImGuiApi.OpenPopup("op");
         if (ImGuiApi.BeginPopup("op"))
         {
             if (ImGuiApi.Selectable("all of these are true", _op == LogicalOperator.And)) { _op = LogicalOperator.And; changed = true; }
@@ -227,13 +227,13 @@ public sealed class ConditionEditor
         // WHO
         if (r.Who.Kind != SubjectKind.World)
         {
-            if (ReferenceLeafDrawers.DrawChip("##who", v.Who, v.WhoIcon, 260f)) ImGuiApi.OpenPopup("who");
+            if (NodeEditor.Core.Widgets.Chip.Dropdown("##who", v.Who, v.WhoIcon, 260f)) ImGuiApi.OpenPopup("who");
             if (WhoPopup(ref r, ctx, v)) changed = true;
             ImGuiApi.SameLine();
         }
         // IS / HAS (the fact and its verb)
         var fact = FactCatalogue.Find(r.Fact)!;
-        if (ReferenceLeafDrawers.DrawChip("##fact", v.Fact, v.FactIcon, 300f)) ImGuiApi.OpenPopup("fact");
+        if (NodeEditor.Core.Widgets.Chip.Dropdown("##fact", v.Fact, v.FactIcon, 300f)) ImGuiApi.OpenPopup("fact");
         if (FactPopup(ref r, fact)) changed = true;
         // VALUE
         if (FactValuePopupChip(ref r, ctx, refs, v)) changed = true;
@@ -351,7 +351,7 @@ public sealed class ConditionEditor
         if (text == null) return false;
         ImGuiApi.SameLine();
         IconGlyph? icon = r.Fact == "inside" ? NodeEditor.Core.Widgets.Icons.Get("form/pick") : null;
-        if (ReferenceLeafDrawers.DrawChip("##value", text, icon, 220f)) ImGuiApi.OpenPopup("value");
+        if (NodeEditor.Core.Widgets.Chip.Dropdown("##value", text, icon, 220f)) ImGuiApi.OpenPopup("value");
         if (!ImGuiApi.BeginPopup("value")) return false;
         bool changed = false;
         var vals = r.Values;
