@@ -267,6 +267,26 @@ the *ExpertOpen* switch saved in user settings (D7), *Copy value* / *Copy the wh
 multi-select commit (each `Submit` is its own journal entry today). Rails: `FormViewTests` (3: common rows + *mixed*; one Submit per entity with the field's
 attribute, range, read-only; 0 B steady frame — red-proven).
 
+### 4.0a AS-BUILT — D3, part 1: the Unit form *(U-23, ui, `2026-11-07`)*
+
+`Hrot.Presentation/Forms/HrotForms.cs` declares **Unit** (Requires `EntityInfo`): *Name* (`Name`) · *Side* (`Affiliation`, Blue / Red / Neutral as the
+attribute's `FORCE_*` words) · *Posture* (`Stance`, when the unit has `StanceIntent`) · *Strength* (`Health.Current`) · *Playable for* / *Slot*
+(`Playable.Side` / `.SlotName`, when playable) · ⚙ *Entity id*, *TKB template* (read-only). ⭐ `EntityDetailsBundle` adds a tab per form in
+`FormCatalogue` (`FormDetailsView`, `Hrot.Editor.AiShared/Shell`), so EVERY host that composes the bundle has it — the Replay Browser included —
+and `FormDetailsView.Editable(mode, world)` is the ONE §2.4 rule (Replay ⇒ read-only). Rail `TheUnitFormDrawsTests` (a real frame; red-proven).
+⚠ **Deviations / still open:** *Summary* and *Playable* tabs stay for now (the Unit form REPLACES them per §3 — a removal is its own step, ⛔ not
+folded into this one); not yet on the Unit form: the type's name, rounds per mount (`Ammo.*` with a sub-index), owner node, loaded round. ⏳ Crew & cargo,
+Scenario next.
+**Part 2 — Shape** *(same day)*: `HrotForms.Shape`, offered for a spawn area OR a weather region (`FormDecl.Offers`, an any-of beside `Requires`): *Spawn
+side* (`SpawnArea.Side`), *Facing* (`SpawnArea.FacingDeg`, 0–360 °), and the region's authored weather scalars (temperature, pressure, humidity 0–1,
+visibility, precipitation kind + rate, fog top / visibility, edge fade; ⚙ lapse rate). ⏳ Not yet: kind / name / point count / length, a route's legs
+(CE-4284), the wind levels and cloud layers (lists, not attributes).
+**Part 3 — Scenario** *(same day)*: `HrotForms.Scenario`, a WORLD form (`FormDecl.WorldTarget`): drawn when NOTHING is selected, for the World Environment
+(`WeatherField.GlobalOf` — the clock + the global weather): *Start* (read-only, a cached date text), *Clock offset* (`ScenarioUtcOffsetMinutes`), and the
+global weather through the SAME rows as a region's (`WeatherRows()` — one set, two forms). ⏳ Not yet: editing the start (a date field kind), name / description
+(the file header — a document step), *Capture picture*, Terrain (read-only), Parameters; ⏳ **Crew & cargo** (D4: seats + *Put aboard* / *Take off* — the
+edit framework's command op) remains.
+
 ### 4.1 AS-BUILT — D2 *(B-4, `2026-11-06`)*
 
 | attribute (JSON path) | id | component · handler | applies where | notes / deviations |
