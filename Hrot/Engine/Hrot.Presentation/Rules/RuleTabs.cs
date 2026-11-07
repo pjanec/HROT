@@ -20,6 +20,9 @@ public static class RuleTabs
     /// <summary>The name of the header field every rule DTO carries (the CLR member, as the params form names its nodes).</summary>
     public const string HeaderField = nameof(TriggerFieldNames.Common);
 
+    /// <summary>⭐ U-15 — the trigger's condition field (the When tab's friendly view edits it).</summary>
+    public const string WhenField = TriggerFieldNames.When;
+
     // only here for nameof: the trigger DTO's three named fields
     private static class TriggerFieldNames { public const string Common = "Common", When = "When", Do = "Do"; }
 

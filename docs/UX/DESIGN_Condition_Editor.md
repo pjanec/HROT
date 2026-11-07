@@ -181,6 +181,20 @@ one x.
 | the timing line | words + chips for `holdFor`, `delay`, `repeat` — shown only where the host has them (a rule; a mission task has its own) |
 | Expert view | a checkbox per panel (D7); shows today's tree for the same DTO |
 
+### 4.1 ⭐ AS BUILT — C3 (U-15) *(ui, `2026-11-07`)*
+
+| piece | where | as built |
+|---|---|---|
+| `ConditionEditor` | `Fdp.Presentation/ImGui/Editing/ConditionEditor.cs` | ⭐ the ONE friendly editor (FDP, so U-16's hosts take it as is): the group line (*When [all ▾] of these are true*), a row per `ConditionRow` as chips — WHO · verb · value — through U-8's `ReferenceLeafDrawers.DrawChip`, a Custom row as one line + *Open in Expert view*, the row menu (*Duplicate · Delete · Show in Expert view*), *Add condition* (grouped: a unit · a group of units · an objective or a rule · time) and *From preset* (reach an area · side has lost N men · strength below 50 % · objective achieved · 5 minutes after the start). ⭐ Stores nothing: it re-projects only when the value's `ConditionSentence.Stamp` moves |
+| the blanks | same | WHO: pick on the map / from the list, or any / at least N / all / none of a side or of a unit's men; the fact chip lists the catalogue's facts for this WHO plus *is / is not*; values: an area (draw it on the map, or pick an area thing), %, side, objective state, times, time from / until. Picks ride the host's `IMapPickContext`, keyed per row |
+| an unfilled blank | same + `RuleDetails` | the reason in the error colour under the row; `Problem` ⇒ the rule's **Apply** stays disabled (Revert stays on) |
+| the When tab | `Hrot.Presentation/Rules/RuleDetails.cs` | the friendly view over the session's `When` node (`SetBoxed` + `MarkStructuralChange`, so the Expert tree stays true); an *Expert view* tick shows the struct editor as before; the timing fields stay the form below it |
+
+Rails: `RulesWindowFrameRail` — the When tab reads *Objective: Hold the bridge is achieved* (no blank), and `U15_…_AnUnfilledBlankHoldsApply` (red-proven:
+`ProblemOf` returning null). ⚠ **Deviations / still open:** the group is one line, not a tinted box (one nesting level reads back as a Custom row); no row
+icon (as approved) but the fact chip carries its fact's glyph; ⏳ **C4** — the timing line as the end of the sentence and the Live column per row
+(`LiveLeafOverlay` matched by sentence) — is next.
+
 ## 5. The four language additions — small, each in the ONE compiler (both entries, S2-b)
 
 | addition | shape | why this and not another |

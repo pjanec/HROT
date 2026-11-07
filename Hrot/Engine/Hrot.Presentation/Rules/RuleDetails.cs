@@ -67,6 +67,9 @@ public sealed class RuleDetails
     private readonly BehaviorParamsEditor _editor;
     private readonly ActionListContext _stepCtx = new();
     private readonly ActionListFieldDrawer _steps;
+    /// <summary>⭐ U-15 / C3 (DESIGN_Condition_Editor §4) — the When tab's friendly view: the ONE condition editor (the Expert view is the struct editor, as before).</summary>
+    private readonly Fdp.Presentation.Editing.ConditionEditor _conditions = new(Fdp.Toolkit.ReplayBrowser.Search.Conditions.ConditionContexts.Rule);
+    private bool _expert;
     private int _boundRule;
     private string? _entityJson;           // the entity's params as the form was last opened from them: the form reopens only when THIS changes (an Apply, an undo, a live edit landing) — never because the form itself was edited
     private string? _pending;
@@ -388,7 +391,21 @@ public sealed class RuleDetails
             BehaviorParamsForm.DrawFields(session, picks, "##rule-common", null, HeaderFields);
             ImGui.Spacing();
         }
-        BehaviorParamsForm.DrawFields(session, picks, "##rule-" + tab, null, RuleTabs.FieldsOf(type, tab).ToHashSet(), new IImGuiFieldDrawer[] { _steps });
+        var tabFields = RuleTabs.FieldsOf(type, tab).ToHashSet();
+        if (tab == RuleTab.When && tabFields.Contains(RuleTabs.WhenField))
+        {
+            // ⭐ U-15 / C3 — the condition as sentence rows (the friendly view); "Expert view" shows today's tree for the same DTO
+            ImGui.Checkbox("Expert view", ref _expert);
+            if (!_expert && WhenNode(session) is { } when)
+            {
+                var dto = when.Binding?.GetBoxed() as Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto;
+                if (_conditions.Draw("rule-when", ref dto, picks)) { when.Binding?.SetBoxed(dto); session.MarkStructuralChange(); }
+                if (_conditions.ExpertRequested) { _expert = true; _conditions.ExpertRequested = false; }
+                tabFields.Remove(RuleTabs.WhenField);
+                ImGui.Spacing();
+            }
+        }
+        BehaviorParamsForm.DrawFields(session, picks, "##rule-" + tab, null, tabFields, new IImGuiFieldDrawer[] { _steps });
         if (ro != null) ImGui.EndDisabled();
         if (tab == RuleTab.When && WantsLiveValues(row, tab)) DrawLiveStrip();
     }
@@ -432,6 +449,21 @@ public sealed class RuleDetails
         if (ro != null) ImGui.EndDisabled();
     }
 
+    /// <summary>The params form's <c>When</c> node (the trigger's condition), or null.</summary>
+    private static StructEdit.Core.EditNode? WhenNode(StructEdit.Core.IEditSession session)
+    {
+        var root = session.Document.Root;
+        if (root.Kind == StructEdit.Core.EditNodeKind.SelectionRoot && root.Children.Count == 1) root = root.Children[0];
+        foreach (var c in root.Children) if (c.Name == RuleTabs.WhenField) return c;
+        return null;
+    }
+
+    /// <summary>⭐ U-15 — the friendly view's sentence rows (rails, the panel probe).</summary>
+    internal IReadOnlyList<string> ConditionRows => _conditions.Sentences;
+
+    /// <summary>⭐ U-15 — the first unfilled blank of the condition (Apply stays disabled while it is set), or null.</summary>
+    internal string? ConditionProblem => _expert ? null : _conditions.Problem;
+
     /// <summary>RE-3 live — the Live strip under the When form: each leaf, whether it holds and the number behind it, matched by label.</summary>
     private void DrawLiveStrip()
     {
@@ -467,9 +499,12 @@ public sealed class RuleDetails
         ImGui.Separator();
         bool live = IsLive(row);
         bool dirty = _probe.Dirty;
-        if (ro != null || !dirty) ImGui.BeginDisabled();
+        bool blank = ConditionProblem != null;   // ⭐ U-15 — an unfilled blank: the rule cannot be applied (§4)
+        if (ro != null || !dirty || blank) ImGui.BeginDisabled();
         if (ImGui.Button(live ? "Apply live" : "Apply")) Apply(row);
+        if (ro != null || !dirty || blank) ImGui.EndDisabled();
         ImGui.SameLine();
+        if (ro != null || !dirty) ImGui.BeginDisabled();
         if (ImGui.Button("Revert")) Revert(row);
         if (ro != null || !dirty) ImGui.EndDisabled();
         if (ro != null && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(ro);
