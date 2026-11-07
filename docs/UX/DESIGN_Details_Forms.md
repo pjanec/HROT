@@ -341,6 +341,13 @@ change — 0 B steady), `ListRows` / `ListProblem` probes; `HrotForms.CrewAndCar
 passed by the editor (its own broker over `_mapPickAdapter`), CGF, SimHost, the Player; the Replay Browser has none (read-only). ⏳ Not yet: the mounted
 weapon per station as its own column, the carry mode (carried / dragged). Rail `TheUnitFormDrawsTests.U23_D4_…`.
 
+**Part 5 — retiring Playable; Summary measured** *(ui, `2026-11-07`)*
+
+| tab | what it has that the Unit form lacks (measured: `EntityPlayableView.cs`, `EntitySummaryView.cs`) | ⭐ step |
+|---|---|---|
+| **Playable** | the *make playable* toggle — `EntityPlayableModel.SetPlayable` (F3: an owner-side add / remove of `Playable`, then side + slot) | ✅ fold: the Unit form gains a *Playable* toggle row whose write is that ONE op (`FormField.Apply`, a field that writes through a domain op instead of an attribute — the same shape as `FormList.Add`); then the Playable tab is not offered where the Unit form is |
+| **Summary** | position, kind, DIS type, *shown as* (a style override), health max; and it is offered for entities with no `EntityInfo` (the Unit form is not) | ⏸ **kept for now** — retiring it loses those rows. ⭐ It retires when the Unit form carries them (position needs a cached text that does not allocate per frame for a moving unit) |
+
 ### 4.1 AS-BUILT — D2 *(B-4, `2026-11-06`)*
 
 | attribute (JSON path) | id | component · handler | applies where | notes / deviations |
