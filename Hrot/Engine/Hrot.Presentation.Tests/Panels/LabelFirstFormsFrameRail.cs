@@ -48,7 +48,9 @@ public sealed class LabelFirstFormsFrameRail
         ("ClusterScenarioPanel.cs", "Step (s)", "transport row"), ("ClusterScenarioPanel.cs", "Speed", "transport row"),
         ("ClusterScenarioPanel.cs", "Select Scenario", "selector + Load buttons on one line"), ("ClusterScenarioPanel.cs", "Select Exercise", "selector + Open AAR on one line"),
         ("SimHostControlPanels.cs", "Speed", "transport row"), ("ReportsWindow.cs", "Unit", "filter row"), ("ReportsWindow.cs", "Kind", "filter row"),
-        ("MissionPanel.cs", "Behavior", "a task-list row (index · behaviour · buttons)"),
+        // the Orders tab's task sentence — "then [preset] [5] min", "give up after [10] min": the inputs sit INSIDE the sentence (DESIGN_Mission_Plan_Editor §5.11, the ConditionEditor family)
+        ("OrdersTab.cs", "then", "the task's then-sentence preset"), ("OrdersTab.cs", "min##", "inline in the task's sentence"), ("OrdersTab.cs", "%##", "inline in the task's sentence"),
+        ("OrdersTab.cs", "give up after", "the task's give-up sentence"),
         // the condition editor's hosts (U-15 / U-16) — the Expert view tick is a view option; the sentence rows' inline inputs sit INSIDE the sentence (DESIGN_Condition_Editor §4)
         ("DataBreakpointManagerPanel.cs", "Expert view", "view option"), ("RuleDetails.cs", "Expert view", "view option"), ("ReplaySearchPanel.cs", "Expert view", "view option"),
         ("RuleDetails.cs", "times at most", "inline in the timing sentence"),

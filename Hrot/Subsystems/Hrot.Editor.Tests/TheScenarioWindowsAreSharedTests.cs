@@ -261,10 +261,11 @@ public sealed class TheScenarioWindowsAreSharedTests
 
     /// <summary>
     /// ⭐ <c>CE-1059</c> — the silent-default rule for the entity LIST: a host that holds a world and a picker registry passes the
-    /// list to every params form it builds (the Editor: the AI view's broker; ⛔ P-7 7d retired the mission panels, CGF has none left). ⛔ Forgetting one leaves that form map-only with no error — this rail is the error.
+    /// list to every params form it builds (the Editor: the AI view's and the Details forms' brokers; CGF: the Details forms' broker — P-7 7d moved the retired mission panels' list there). ⛔ Forgetting one leaves that form map-only with no error — this rail is the error.
     /// </summary>
     [Theory]
-    [InlineData("Hrot.Editor", "EditorSubsystem.cs", 1)]   // ⭐ P-7 7d — the AI view's broker; the two mission panels are gone (⛔ the Orders tab's forms do not get the list yet: see DESIGN_Mission_Plan_Editor §5.11 "7d as built")
+    [InlineData("Hrot.Editor", "EditorSubsystem.cs", 2)]   // ⭐ P-7 7d — the AI view's broker + the Details forms' broker (the Orders tab's task forms)
+    [InlineData("Hrot.CGF",    "CgfSubsystem.cs",    1)]   // ⭐ P-7 7d — the Details forms' broker
     public void EveryParamsFormHostPassesTheEntityList(string project, string file, int forms)
     {
         var text = HostSource.Read(project, file);

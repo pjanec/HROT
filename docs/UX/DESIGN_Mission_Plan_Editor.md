@@ -446,7 +446,7 @@ showed every task as *when done* and an Apply WIPED the *then* / *give up* condi
 REPLICA (the editor in Live over CGF's units) still sends base 0 — asked of backend in `NOTE_Ui_To_Backend_Mission_Plan_Version_On_The_Wire.md`.
 Rails: `EditorMissionServiceTests.P7c_*` (2), `TheOrdersTabEditsTests.P7c_AConflict_*`, both red-proved.
 
-**7d as built (ui, `2026-11-07`) — PARTIAL, two claims stopped (below):** ⭐ **Deleted:** `ScenarioMissionView` (`details.mission`), `MissionPanelWindow`, the ids
+**7d as built (ui, `2026-11-07`) — DONE (the two stopped claims were built the same day, below):** ⭐ **Deleted:** `ScenarioMissionView` (`details.mission`), `MissionPanelWindow`, the ids
 `ScenarioPanelWindowIds.EditorMission` / `CgfMission`, `PanelIds.Mission`, and every host construction — `EditorSubsystem` (the window, the Scenario Details
 view, the per-frame `SelectedEntityId` sync, the `NetworkIdOf` helper) and `CgfSubsystem` (its panel + window). The `ui-baseline-editor` / `-all`
 `registered-windows.json` goldens lose `editor_mission` / `cgf_mission` (a deliberate one-line recapture each). **Acceptance rail:**
@@ -458,10 +458,14 @@ consume-once / location / no-frame-service pick ⇒ `TheMapPickBrokerConsumesAPi
 **Dropped:** "two view instances do not share a panel" and "C010 MissionPanel is in `Hrot.Presentation`" (no subject left); the two dump rails
 (`EditorMissionWindowDumpsItsPlan`, `ScenarioMissionViewDumpsItsPanel`) — ⚠ the Orders tab has **no `PanelSnapshot` dump of its plan** (only `LastRows`), so the
 plan's rows are not observable over the debug API any more; and the real-frame glyph-pixel rail (the tab colours the task number, no glyph, and has no frame rail).
-⛔ **STOPPED — the Orders tab lacks two capabilities the panel had; `MissionPanel` and `MissionPanelRegistryTests` (P4 + CE-1059) stay until they are built:**
-(1) **per-task pick scope** — the tab draws every task's form through the host's `Pick` unscoped (`OrdersTab.DrawFields`), so two tasks with an entity field share one pick key
-(the panel used `ScopedMapPickContext(_picks, "$.tasks[i]")`, `MissionPanel.cs:518`); (2) **the CE-1059 entity LIST** — the hosts' Details brokers (`EditorSubsystem` `_formsPick`,
-CGF `cgfPickBroker`) carry no `EntityList`, so a task's *entity* field is map-pick only. ⚠ Both are user-visible regressions of 7d against the retired window.
+⭐ **The two capabilities the panel had, now on the Orders tab — `MissionPanel` (+ its `PanelConstants` block) and `MissionPanelRegistryTests` DELETED:**
+(1) **per-task pick scope** — `OrdersTab.PickFor(taskId, then)` gives each task's form `ScopedMapPickContext(pick, "$.tasks[<task id>]")` and its *then* condition
+`…".then"`, cached per task (no allocation per frame). ⭐ Deviation, argued: keyed by the task's **id**, not its index (the panel's `$.tasks[i]`), so a pending pick follows its task through ↑ ↓.
+(2) **the CE-1059 entity LIST** — both hosts' Details brokers (`EditorSubsystem` `_formsPick`, CGF `cgfPickBroker`) get `EntityListSource.Opener`. Rails:
+`TheOrdersTabEditsTests.P7d_EachTasksPickIsScopedToThatTask_TheEntityListReachesIt_TheScopeIsCached` (re-homes P4 + CE-1059) and
+`TheScenarioWindowsAreSharedTests.EveryParamsFormHostPassesTheEntityList` (Editor 2, CGF 1). The task-sentence inputs (*then* preset, *min*, *%*, *give up after*) are
+named in `LabelFirstFormsFrameRail` as inline-in-a-sentence, the `ConditionEditor` family.
+⛔ **HISTORY:** 7d first stopped here with both capabilities missing (two user-visible regressions against the retired window).
 
 **7a + 7b as built (ui, `2026-11-07`):** `Hrot.Editor.AiShared.Shell` — `OrdersPlanModel` (rows as sentences, the queue's states), `OrdersPlanEdits`
 (new Wait / order / behaviour, the *then* presets, give up, move, `RefusalOf`, `Copy`) and `OrdersTab` (`details.orders`; a draft per unit,

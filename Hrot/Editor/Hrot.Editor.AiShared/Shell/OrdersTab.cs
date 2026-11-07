@@ -56,6 +56,9 @@ public sealed class OrdersTab : IDetailsViewInstance
     private readonly StructEdit.Core.IComponentEditService _editService = Fdp.Presentation.Editing.ComponentEditServices.CreateBuilder().Build();
     private readonly Dictionary<Guid, Hrot.Presentation.Behavior.BehaviorParamsEditor> _forms = new();
     private readonly Dictionary<Guid, Fdp.Presentation.Editing.ConditionEditor> _conditions = new();
+    /// <summary>⭐ P-7 7d — each task's own view of the shared pick context (<c>$.tasks[&lt;id&gt;]</c> and its <c>.then</c>), cached so a frame allocates nothing.
+    /// ⛔ Unscoped, every task's form keyed its picks on the same <c>$.X</c> ⇒ a pick answered whichever task asked first (the retired panel scoped them).</summary>
+    private readonly Dictionary<Guid, (Fdp.Presentation.Editing.IMapPickContext Inner, Fdp.Presentation.Editing.IMapPickContext Fields, Fdp.Presentation.Editing.IMapPickContext Then)> _scopes = new();
     private readonly HashSet<Guid> _advanced = new();
 
     /// <summary>The rows the last frame drew (a rail reads them).</summary>
@@ -225,6 +228,18 @@ public sealed class OrdersTab : IDetailsViewInstance
         else if (_status is { } st) ImGui.TextDisabled(st);
     }
 
+    /// <summary>⭐ P-7 7d — the pick context scoped to one task (its fields, or its <i>then</i> condition); null when the host gives none.</summary>
+    internal Fdp.Presentation.Editing.IMapPickContext? PickFor(Guid taskId, bool then)
+    {
+        if (_pick?.Invoke() is not { } inner) return null;
+        if (!_scopes.TryGetValue(taskId, out var s) || !ReferenceEquals(s.Inner, inner))
+        {
+            var scope = "$.tasks[" + taskId.ToString("N") + "]";
+            _scopes[taskId] = s = (inner, new Fdp.Presentation.Editing.ScopedMapPickContext(inner, scope), new Fdp.Presentation.Editing.ScopedMapPickContext(inner, scope + ".then"));
+        }
+        return then ? s.Then : s.Fields;
+    }
+
     /// <summary>The task's own fields (an order's target / place, a behaviour's params) through the ONE params form; an edit rewrites its params JSON.</summary>
     private bool DrawFields(MissionTask task)
     {
@@ -232,7 +247,7 @@ public sealed class OrdersTab : IDetailsViewInstance
         if (!_forms.TryGetValue(task.TaskId, out var form)) _forms[task.TaskId] = form = new Hrot.Presentation.Behavior.BehaviorParamsEditor(_editService);
         form.Sync(type, task.BehaviorParams);
         if (form.Session is not { } session) return false;
-        Hrot.Presentation.Behavior.BehaviorParamsForm.DrawFields(session, _pick?.Invoke(), "fields");
+        Hrot.Presentation.Behavior.BehaviorParamsForm.DrawFields(session, PickFor(task.TaskId, then: false), "fields");
         if (form.Edited() is not { } json) return false;
         task.BehaviorParams = json;
         return true;
@@ -337,7 +352,7 @@ public sealed class OrdersTab : IDetailsViewInstance
             // ⭐ Advanced condition… — the ONE condition editor, Mission context (E5: its WHO defaults to this unit)
             if (!_conditions.TryGetValue(task.TaskId, out var editor)) _conditions[task.TaskId] = editor = new Fdp.Presentation.Editing.ConditionEditor(Fdp.Toolkit.ReplayBrowser.Search.Conditions.ConditionContexts.Mission);
             Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto? dto = OrdersPlanEdits.ConditionOf(task);
-            if (editor.Draw("then_condition", ref dto, _pick?.Invoke())) { OrdersPlanEdits.WithThen(task, dto); return true; }
+            if (editor.Draw("then_condition", ref dto, PickFor(task.TaskId, then: true))) { OrdersPlanEdits.WithThen(task, dto); return true; }
             return changed;
         }
         if (shown is ThenItem.PhaseBegins or ThenItem.RuleFires)

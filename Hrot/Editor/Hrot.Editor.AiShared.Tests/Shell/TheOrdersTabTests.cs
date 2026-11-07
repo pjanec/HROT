@@ -457,4 +457,28 @@ public sealed class TheOrdersTabEditsTests
         var plain = new OrdersTab(() => null, () => null);
         Assert.All(declared, d => Assert.Equal(d.ParamsType, plain.ParamsTypeOfTask(d.Name)));
     }
+
+    /// <summary>⭐ P-7 7d (CE-4303; re-homes the retired <c>MissionPanelRegistryTests</c> P4 + CE-1059) — every task's form picks through the host's ONE broker, SCOPED to that
+    /// task (a pick one task asked for is not another's), stable across frames (no allocation per frame), with the host's searchable entity LIST.
+    /// 🔴 Red-proof (compiles): <c>PickFor</c> returning the unscoped context ⇒ task B consumes task A's pick ⇒ red.</summary>
+    [Fact]
+    public void P7d_EachTasksPickIsScopedToThatTask_TheEntityListReachesIt_TheScopeIsCached()
+    {
+        string[]? asked = null;
+        var broker = new Hrot.Presentation.Facades.MapPickBroker(() => null) { EntityList = (presets, chosen) => { asked = presets; chosen(42); return true; } };
+        var tab = new OrdersTab(() => null, () => null, pick: () => broker);
+        Guid a = Guid.NewGuid(), b = Guid.NewGuid();
+
+        var pa = tab.PickFor(a, then: false)!;
+        Assert.Same(pa, tab.PickFor(a, then: false));                                // cached: a frame builds nothing
+        Assert.True(pa.CanListEntities);                                              // CE-1059 — the list reaches a task's form
+        pa.RequestEntityListPick("$.TargetNetworkId", new[] { "units_ground" });
+        Assert.Equal(new[] { "units_ground" }, asked);
+        Assert.False(tab.PickFor(b, then: false)!.TryConsumeEntityPick("$.TargetNetworkId", out _));   // another task's field: not its pick
+        Assert.False(tab.PickFor(a, then: true)!.TryConsumeEntityPick("$.TargetNetworkId", out _));    // nor the same task's then-condition
+        Assert.True(pa.TryConsumeEntityPick("$.TargetNetworkId", out var picked));
+        Assert.Equal(42L, picked.NetworkId);
+
+        Assert.Null(new OrdersTab(() => null, () => null).PickFor(a, then: false));  // no host pick ⇒ no pick
+    }
 }

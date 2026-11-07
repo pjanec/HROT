@@ -3244,7 +3244,7 @@ namespace Hrot.Editor
                 EventFocus:     _eventFocus,           // ⭐ CE-4263 — Details ▸ Event for a clicked timeline event
                 SelectNetworkEntity: n => SelectNetworkEntity(n),
                 Rules:          () => _rulesWindow,     // ⭐ U-18 / RX2 — the rule's detail in Details, through the one window
-                Pick:           () => _formsPick ??= new Hrot.Presentation.Facades.MapPickBroker(() => _mapPickAdapter),   // ⭐ U-23 / D4 — Put aboard… picks on the map
+                Pick:           () => _formsPick ??= new Hrot.Presentation.Facades.MapPickBroker(() => _mapPickAdapter) { EntityList = Hrot.Presentation.Orders.EntityListSource.Opener(() => _world, () => _shellPickers) },   // ⭐ P-7 7d — + the CE-1059 entity list the retired Mission panel had   // ⭐ U-23 / D4 — Put aboard… picks on the map
                 Missions:       () => _missionService,   // ⭐ P-7 / 7a — the Orders tab over the one mission facade
                 ParamsTypeOf:   name => Hrot.Presentation.Behavior.BehaviorParamsForm.ParamsTypeOf(name, _behaviorRegistry)));   // ⭐ P-7 7b — a task's fields
             _scenarioWorkspace = _scenarioDetailsBundle.Workspace;

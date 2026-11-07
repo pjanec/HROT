@@ -1291,7 +1291,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _cgfMapPick = cgfCanvasAdapter;   // ⭐ also the Watch's entity picker (BuildAiShell)
         if (_cgfMapInteraction != null) _cgfMapInteraction.MenuOrders.PickService = () => _cgfMapPick;   // ⭐ CE-3169 — the menu orders' follow-up picks
         MapPickBroker? cgfPickBroker = cgfCanvasAdapter != null
-            ? new MapPickBroker(cgfCanvasAdapter)
+            ? new MapPickBroker(cgfCanvasAdapter) { EntityList = Hrot.Presentation.Orders.EntityListSource.Opener(() => _context?.World, () => _shellPickers) }   // ⭐ P-7 7d — + the CE-1059 entity list the retired Mission panel had
             : null;
         _cgfPickBroker = cgfPickBroker;   // ⭐ U-23 / D4 — also the Details forms' pick context
 
