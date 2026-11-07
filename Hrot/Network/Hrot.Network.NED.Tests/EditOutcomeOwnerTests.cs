@@ -475,4 +475,33 @@ public sealed class EditOutcomeOwnerTests
         Assert.Equal(EditStatus.Refused, FromANonOwner(owner, requester, Change(Fdp.Toolkit.Replication.Patching.AttributeIds.Stance, Fdp.Toolkit.Replication.Patching.AttributeValue.FromInt(9)), "No such stance").Status);
         Assert.Equal(EditStatus.Applied, FromANonOwner(owner, requester, Change(Fdp.Toolkit.Replication.Patching.AttributeIds.Stance, Fdp.Toolkit.Replication.Patching.AttributeValue.FromInt((int)StanceId.Crouched)), "Crouch").Status);   // a declared one is fine
     }
+
+    // ── ⭐ edit framework F3 (docs/UX/DESIGN_Edit_Framework.md §3): add / remove a form component, owner-side ───────────────────────────────
+
+    /// <summary>The Playable toggle on a non-owner: the request reaches the owner, which ADDS the component (and answers Applied); the replica is untouched;
+    /// a remove goes the same way; a component the vocabulary does not target is refused with why. (Not mutation-proved: the owner's add is asserted directly.)</summary>
+    [Fact]
+    public void F3_ThePlayableToggleOnANonOwner_IsAppliedByTheOwner()
+    {
+        var owner = new Node(owns: true, OwnerNode);
+        var requester = new Node(owns: false, OtherNode);
+
+        var add = Edits.Submit(requester.World, EditOp.AddComponent(requester.Entity, typeof(Hrot.Common.Playable), "Make playable"));
+        Assert.Equal(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Requested, add.Route);
+        Assert.False(requester.World.HasComponent<Hrot.Common.Playable>(requester.Entity));
+        owner.Run(SentBy(requester));
+        Assert.True(owner.World.HasComponent<Hrot.Common.Playable>(owner.Entity));
+        Assert.Equal(EditStatus.Applied, AnswerBack(owner, requester, add.RequestId).Status);
+
+        var remove = Edits.Submit(requester.World, EditOp.RemoveComponent(requester.Entity, typeof(Hrot.Common.Playable), "Make not playable"));
+        owner.World.Bus.SwapBuffers();
+        owner.Run(SentBy(requester));
+        Assert.False(owner.World.HasComponent<Hrot.Common.Playable>(owner.Entity));
+        Assert.Equal(EditStatus.Applied, AnswerBack(owner, requester, remove.RequestId).Status);
+
+        // the owner itself, and a component that is not a form component
+        var bad = Edits.Submit(owner.World, EditOp.AddComponent(owner.Entity, typeof(NetworkIdentity), "No"));
+        Assert.Equal(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused, bad.Route);
+        Assert.True(EditOutcomeLog.Of(owner.World).TryGet(bad.RequestId, out var o) && o.Reason.Contains("cannot be added"));
+    }
 }

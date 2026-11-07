@@ -50,6 +50,8 @@ namespace Fdp.Toolkit.Replication.Edits
                 EditKind.Interact => Create(op),
                 EditKind.Commit => Create(op),     // ⭐ F6: likewise; the version precondition rides in the host's command   // ⭐ F4: the same shape — the host's command sent under a fresh id; its executor answers
                 EditKind.Delete => Delete(repo, op, netId),
+                EditKind.AddComponent => ComponentEdit(repo, op, netId, add: true),
+                EditKind.RemoveComponent => ComponentEdit(repo, op, netId, add: false),
                 _ => throw new NotSupportedException($"Edits.Submit: the {op.Kind} kind is not built yet (edit framework F2–F6)."),
             };
 
@@ -95,6 +97,25 @@ namespace Fdp.Toolkit.Replication.Edits
             {
                 EditOutcomes.Report(repo, id, netId, EditStatus.Applied, "deleted on this node", node);
                 return new EditTicket(id, EntityWriteRoute.Direct);
+            }
+            return new EditTicket(id, EntityWriteRoute.Requested);
+        }
+
+        /// <summary>⭐ F3 — the owner adds / removes the component here; a non-owner asks it with the <see cref="ComponentEdits.PatchKey"/> patch (the CommanderId shape).</summary>
+        private static EditTicket ComponentEdit(EntityRepository repo, EditOp op, int netId, bool add)
+        {
+            var id = Guid.NewGuid();
+            int node = EditOutcomes.LocalNodeOf(repo, op.Target);
+            if (Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(repo, op.Target))
+            {
+                string? why = ComponentEdits.Apply(repo, op.Target, op.ComponentName!, add);
+                EditOutcomes.Report(repo, id, netId, why is null ? EditStatus.Applied : EditStatus.Refused, why ?? "applied on this node", node);
+                return new EditTicket(id, why is null ? EntityWriteRoute.Direct : EntityWriteRoute.Refused);
+            }
+            if (netId <= 0 || !EntityAttributeChangeRequests.TryPublishJsonPatch(repo, op.Target, ComponentEdits.Patch(op.ComponentName!, add), id, wantOutcome: true))
+            {
+                EditOutcomes.Report(repo, id, netId, EditStatus.Refused, "the entity is not replicated — nobody to ask", node);
+                return new EditTicket(id, EntityWriteRoute.Refused);
             }
             return new EditTicket(id, EntityWriteRoute.Requested);
         }

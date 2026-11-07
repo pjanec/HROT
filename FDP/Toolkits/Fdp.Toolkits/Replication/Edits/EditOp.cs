@@ -41,6 +41,9 @@ namespace Fdp.Toolkit.Replication.Edits
         /// (Hrot: <c>EntityCreation.RequestEntityCreation(…, requestId: id)</c>). ⭐ The toolkit knows no creation request; the host's affordance stays the ONE author path (R-145).</summary>
         public Action<Guid>? Send { get; init; }
 
+        /// <summary>F3: the component to add / remove (a vocabulary component's name, <see cref="ComponentEdits"/>).</summary>
+        public string? ComponentName { get; init; }
+
         /// <summary>True for <see cref="SetCommander"/>'s op.</summary>
         public bool IsCommanderWrite { get; init; }
 
@@ -62,6 +65,14 @@ namespace Fdp.Toolkit.Replication.Edits
         /// its executor answers Applied, or <see cref="EditStatus.Conflict"/> when the base version moved.</summary>
         public static EditOp Commit(Entity target, Action<Guid> send, string label)
             => new() { Kind = EditKind.Commit, Target = target, Send = send ?? throw new ArgumentNullException(nameof(send)), Label = label ?? string.Empty };
+
+        /// <summary>⭐ F3 — add a form component (the Playable toggle) on its owner, with its default value.</summary>
+        public static EditOp AddComponent(Entity target, Type component, string label)
+            => new() { Kind = EditKind.AddComponent, Target = target, ComponentName = (component ?? throw new ArgumentNullException(nameof(component))).Name, Label = label ?? string.Empty };
+
+        /// <summary>⭐ F3 — remove a form component on its owner.</summary>
+        public static EditOp RemoveComponent(Entity target, Type component, string label)
+            => new() { Kind = EditKind.RemoveComponent, Target = target, ComponentName = (component ?? throw new ArgumentNullException(nameof(component))).Name, Label = label ?? string.Empty };
 
         /// <summary>⭐ F2 (CE-4276) — a deletion, carrying its request id end to end; the owner tears it down and answers.</summary>
         public static EditOp Delete(Entity target, string label)

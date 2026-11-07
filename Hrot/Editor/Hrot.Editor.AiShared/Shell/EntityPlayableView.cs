@@ -1,6 +1,8 @@
 using System;
 using System.Text.Json.Nodes;
 using Fdp.Core;
+using Fdp.Toolkit.Replication.Edits;
+using Fdp.Toolkit.Replication.Patching;
 using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.ModuleHost.Abstractions;
 using Hrot.Common;
@@ -33,6 +35,8 @@ public static class EntityPlayableModel
     {
         if (!Available(world, unit)) return false;
         bool has = world.HasComponent<Playable>(unit);
+        // ⭐ Edit framework F3 (docs/UX/DESIGN_Edit_Framework.md §3) — the toggle is an owner-side add / remove (then the two attributes), with an
+        //   outcome; ⛔ was a local AddComponent / RemoveComponent, which on a station that does not own the unit changed the replica only.
         if (playable && !has)
         {
             var side = ForceId.Friend; var name = "";
@@ -42,25 +46,32 @@ public static class EntityPlayableModel
                 if (info.ForceId is ForceId.Friend or ForceId.Hostile) side = info.ForceId;
                 name = info.Name.ToString();
             }
-            world.AddComponent(unit, new Playable { Side = side, SlotName = new FixedString32(name) });
+            Edits.Submit(world, EditOp.AddComponent(unit, typeof(Playable), "Make playable"));
+            Edits.Submit(world, EditOp.Write(unit, new[] { SideChange(side), SlotChange(name) }, "Set the playable side and slot"));
         }
-        else if (!playable && has) world.RemoveComponent<Playable>(unit);
+        else if (!playable && has) Edits.Submit(world, EditOp.RemoveComponent(unit, typeof(Playable), "Make not playable"));
         return true;
     }
 
     public static bool SetSide(EntityRepository world, Entity unit, ForceId side)
     {
         if (!Available(world, unit) || !world.HasComponent<Playable>(unit)) return false;
-        world.GetComponentRW<Playable>(unit).Side = side;
+        Edits.Submit(world, EditOp.Write(unit, SideChange(side), "Set the playable side"));   // ⭐ F1 — the Playable.Side attribute (B-4)
         return true;
     }
 
     public static bool SetSlotName(EntityRepository world, Entity unit, string name)
     {
         if (!Available(world, unit) || !world.HasComponent<Playable>(unit)) return false;
-        world.GetComponentRW<Playable>(unit).SlotName = new FixedString32(name ?? "");
+        Edits.Submit(world, EditOp.Write(unit, SlotChange(name ?? ""), "Name the playable slot"));   // ⭐ F1 — the Playable.SlotName attribute (B-4)
         return true;
     }
+
+    private static EntityAttributeChange SideChange(ForceId side)
+        => new() { AttributeId = AttributeIds.PlayableSide, Value = AttributeValue.FromInt((int)side) };
+
+    private static EntityAttributeChange SlotChange(string name)
+        => new() { AttributeId = AttributeIds.PlayableSlotName, Value = AttributeValue.FromString(name) };
 }
 
 /// <summary>The Playable view's dump — what a frame showed.</summary>
