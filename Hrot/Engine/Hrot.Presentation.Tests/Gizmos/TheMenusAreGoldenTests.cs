@@ -32,7 +32,7 @@ public sealed class TheMenusAreGoldenTests
     {
         public readonly EntityRepository W = new();
         private int _next = 100;
-        public World(bool orders = false, bool review = false)
+        public World(bool orders = false, bool review = false, Hrot.Common.Editing.EditingMode? mode = null)
         {
             W.RegisterComponent<SimTransform>();
             W.RegisterComponent<NetworkIdentity>();
@@ -43,6 +43,7 @@ public sealed class TheMenusAreGoldenTests
             W.RegisterManagedComponent<RoutePlan>();
             if (orders) W.SetSingletonManaged(new Hrot.Common.Orders.OrdersOffered());
             if (review) Fdp.Toolkit.Replay.ReplayState.Enter(W);
+            if (mode is { } m) Hrot.Common.Editing.StationMode.Install(W, () => m);   // ⭐ B-11 A3 — the station's mode, as the bootstrapper installs it
         }
         public Entity Add(ulong dis = 0)
         {
@@ -59,9 +60,14 @@ public sealed class TheMenusAreGoldenTests
     private static IEnumerable<(string Case, string Json)> Cases(Func<EntityRepository, Entity, string>? menuOf = null)
     {
         menuOf ??= ContextMenuProjectorGizmo.MenuJsonFor;
-        foreach (var (mode, orders, review) in new[] { ("edit", false, false), ("live", true, false), ("review", true, true) })
+        // ⭐ B-11 A3 — every map host offers orders (OrdersOffered) and has a station mode; the mode decides what is offered.
+        foreach (var (mode, review, m) in new[]
+                 {
+                     ("edit", false, Hrot.Common.Editing.EditingMode.Edit), ("preview", false, Hrot.Common.Editing.EditingMode.Preview),
+                     ("live", false, Hrot.Common.Editing.EditingMode.Live), ("review", true, Hrot.Common.Editing.EditingMode.Review),
+                 })
         {
-            using (var w = new World(orders, review))
+            using (var w = new World(orders: true, review, m))
             {
                 var area = w.Add();
                 w.W.SetManagedComponent(area, new EditablePolyline());

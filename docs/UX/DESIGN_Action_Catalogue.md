@@ -349,3 +349,50 @@ construction.*
 
 **Rails:** `TheMenusAreGoldenTests.A2_*` — the station golden; it differs from the A1 golden only in rows the host cannot run (red-proof: grey
 everything ⇒ fails); the map's own resolver greys *Save selection as macro…* end to end through the bus lookup.
+
+## 8. ⭐ A3 — the mode decides what is offered *(ui, `2026-11-07`, built — the goldens are for the user's review)*
+
+INVENTORY: `scripts/cbm.sh search_graph .*(EditingMode|RunPhase|WorldMode|SessionMode|PlanningState|EditMode).*` ⇒ no world mode type; grep
+`enum EditingMode` ⇒ **two**: `Hrot.Common.Editing.EditingMode` (backend, edit framework F1, documented *"read by the action catalogue (B-11) and
+the edit gate"*) and the one A1 added in `Hrot.Common.Actions` — ⛔ a duplicate, **deleted**; the catalogue uses the gate's. The gate's mode was
+*"a replay is Review, else Edit — Live / Preview from the action catalogue, B-11"* (`SharedApplicationBootstrapper`). `OrdersOffered` is set on
+EVERY map host (`MapInteractionPack.cs:364`) ⇒ the editor offered map orders while authoring — what D15 forbids.
+
+```mermaid
+graph TD
+  BOOT["SharedApplicationBootstrapper (every bootstrapped host)"] -->|installs| SM["StationMode (world singleton)<br/>From(cluster state, ReplayState)"]
+  CV["ClusterSlave.View.State"] --> SM
+  RS["ReplayState.IsActive(world)"] --> SM
+  SM -->|Current| GATE["HrotEditGate (Edits.Submit)"]
+  SM -->|"StationMode.Of(view)"| CAT["MapMenuActions.ContextFor → MenuComposer"]
+  FB["no source installed (a rail, a host outside the bootstrapper)"] -.->|"Fallback: Review if a recording, Live if orders offered, else Edit"| CAT
+```
+*What it shows: ONE mode, derived in ONE place, read by the gate and the menus — so a menu can never offer what the gate would refuse for
+being in the wrong mode. Everything that is not the bootstrapper falls back to A1's behaviour.*
+
+| `ClusterState` (+ replay) | `EditingMode` |
+|---|---|
+| a world showing a recording (any state) · `*Replay` | Review |
+| `LoadingPreview` · `OperatingPreview` · `UnloadingPreview` | Preview |
+| `LoadingLive` · `OperatingLive` · `UnloadingLive` | Live |
+| `Idle` · `*Edit` | Edit |
+
+**What each existing action is offered in** (Editing UX §3.13; hidden elsewhere — ⭐ new actions Rename, Duplicate, Heal… are A5):
+
+| action | Edit | Preview | Live | Review |
+|---|---|---|---|---|
+| orders, Order with options, Designate, Possess | — | ✓ | ✓ | — |
+| Embark… / Disembark | ✓ | — | ✓ | — |
+| Center View, Follow, Select, Properties…, Save selection as macro…, Pin gizmos, AI trace | ✓ | ✓ | ✓ | ✓ |
+| Rotate | ✓ | — | — | — |
+| Edit Shape, Edit Route, Load zone, Delete (graphics) | ✓ | — | ✓ | — |
+
+**Group order:** Edit mode — *Edit, Embark, View, Debug, Destructive*; Preview / Live — *Orders, Embark, View, Edit, Debug, Destructive*
+(A1's); Review — *View, Debug*.
+
+*Rejected:* **the mode from `RunModeChoice` (Presentation)** — the gate is in Hrot.Common and could not read it; the cluster state it reflects
+is already on the bootstrapper's slave · **keeping a second `EditingMode`** — ruling 9 · **hiding Follow / Select in Edit** (§3.13's table omits
+them) — they are navigation, harmless in every mode; ⚠ flagged for the user's review.
+
+**Rails:** `TheActionCatalogueComposesMenusTests` (the mode rule per cluster state; hidden-in-mode + group order) · `TheMenusAreGoldenTests`
+— the golden now covers edit / preview / live / review (moved for review: `Goldens/menus.golden.txt`).

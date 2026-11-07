@@ -1256,6 +1256,11 @@ namespace Fdp.Core
         /// ⚠ 474 measured free in backend, ui, behaviors and coordinator 2026-11-02.</summary>
         public const int MacroExpandedWith = 474;
 
+        /// <summary><c>StationMode</c> — ⭐ B-11 A3 (docs/UX/DESIGN_Action_Catalogue.md §8): the station's ONE editing mode (Edit / Preview / Live /
+        /// Review), a managed world singleton the bootstrapper installs from the cluster state; read by the edit gate and the action catalogue.
+        /// Never saved, never sent. (ui block, R-2056.)</summary>
+        public const int StationMode = 461;
+
         /// <summary><c>Playable</c> — ⭐ Player Join D-9 (docs/DESIGN_Player_Join.md §9): a scenario unit a Player may deploy into (its side + slot name). Authored, recorded and saved.
         /// ⚠ 481 measured free in backend, ui, behaviors and coordinator 2026-11-05 (the highest in use was 480).</summary>
         public const int Playable = 481;

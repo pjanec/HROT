@@ -30,7 +30,7 @@
 |---|---|---|---|
 | T-1 | ✅ R1–R4 | `70778164c` + (this commit) | CE-4292 the rules windows as one bundle — `RulesBundle` composed by Editor, CGF, Replay Browser; editing decided by the seat every frame (deviation folded into `DESIGN_Rules_Bundle.md` §5) |
 | B-10 | 🔨 K1 ✅ K2-slice ✅ | `2026-11-07` | K1 BUILT (CE-4282); K2: CE-4281 built, hat scopes wait for seats-and-hats H3 (design §6); K3 central Esc needs H3 too; K5, K6 after B-11 |
-| B-11 | 🔨 A1 ✅ A2 ✅ | `2026-11-07` | A1 (catalogue, golden byte-identical, §6) · A2 (greyed "not available on this station", §7); A3–A5, A7 next |
+| B-11 | 🔨 A1 ✅ A2 ✅ A3 ✅ (goldens for user review) | `2026-11-07` | A1 catalogue (§6) · A2 greyed "not available on this station" (§7) · A3 the ONE station mode + offers per mode (§8); A4, A5, A7 next |
 | B-14 | ⏳ | — | undo UI U2–U5 (after B-10) |
 | B-16 | ⏳ | — | seats H2–H4 (after B-11) |
 | B-17 | ⏳ | — | map interaction P1, P2, P4–P6 |

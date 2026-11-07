@@ -4,6 +4,7 @@ using System.Text.Json;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
+using Hrot.Common.Editing;
 
 namespace Hrot.Common.Actions
 {
@@ -16,6 +17,21 @@ namespace Hrot.Common.Actions
     {
         /// <summary>The key the menu shows and <c>MenuShortcuts</c> answers ("C", "Space"); null = none.</summary>
         public string? Shortcut { get; init; }
+
+        /// <summary>⭐ B-11 A3 — the modes it is offered in (hidden elsewhere); default every mode.</summary>
+        public ActionModes Modes { get; init; } = ActionModes.Always;
+
+        /// <summary>Whether it is offered in <paramref name="mode"/>.</summary>
+        public bool OfferedIn(EditingMode mode) => (Modes & ModeBit(mode)) != 0;
+
+        /// <summary>The <see cref="ActionModes"/> bit of one mode.</summary>
+        public static ActionModes ModeBit(EditingMode mode) => mode switch
+        {
+            EditingMode.Edit => ActionModes.InEdit,
+            EditingMode.Preview => ActionModes.InPreview,
+            EditingMode.Live => ActionModes.InLive,
+            _ => ActionModes.InReview,
+        };
 
         /// <summary>The row's style ("destructive"), or null.</summary>
         public string? Style { get; init; }
@@ -74,7 +90,15 @@ namespace Hrot.Common.Actions
     public static class MenuComposer
     {
         private static readonly JsonSerializerOptions Options = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
-        private static readonly ActionGroup[] Groups = (ActionGroup[])Enum.GetValues(typeof(ActionGroup));
+        // ⭐ B-11 A3 (Editing UX §3.13 "order of groups: the most likely action first") — Edit first in Edit mode, Orders first while running,
+        //   View first in Review; Debug and Destructive last. A group hidden in a mode simply offers nothing there (ActionDecl.Modes).
+        private static readonly ActionGroup[] EditOrder = { ActionGroup.Edit, ActionGroup.Embark, ActionGroup.View, ActionGroup.Orders, ActionGroup.Debug, ActionGroup.Destructive };
+        private static readonly ActionGroup[] RunningOrder = { ActionGroup.Orders, ActionGroup.Embark, ActionGroup.View, ActionGroup.Edit, ActionGroup.Debug, ActionGroup.Destructive };
+        private static readonly ActionGroup[] ReviewOrder = { ActionGroup.View, ActionGroup.Orders, ActionGroup.Embark, ActionGroup.Edit, ActionGroup.Debug, ActionGroup.Destructive };
+
+        /// <summary>The order the groups appear in, in <paramref name="mode"/>.</summary>
+        public static ActionGroup[] GroupOrder(EditingMode mode)
+            => mode == EditingMode.Edit ? EditOrder : mode == EditingMode.Review ? ReviewOrder : RunningOrder;
 
         /// <summary>The menu rows for <paramref name="context"/>.</summary>
         public static ContextMenuItemDto[] Compose(ActionContext context, ActionCatalogue? catalogue = null)
@@ -82,11 +106,11 @@ namespace Hrot.Common.Actions
             var all = (catalogue ?? ActionCatalogue.Shared).All;
             var items = new List<ContextMenuItemDto>();
             var group = new List<(int Order, int Index, ActionDecl Decl)>();
-            foreach (var g in Groups)
+            foreach (var g in GroupOrder(context.Mode))
             {
                 group.Clear();
                 for (int i = 0; i < all.Count; i++)
-                    if (all[i].Group == g && (all[i].Targets & context.Target) != 0) group.Add((all[i].Order, i, all[i]));
+                    if (all[i].Group == g && (all[i].Targets & context.Target) != 0 && all[i].OfferedIn(context.Mode)) group.Add((all[i].Order, i, all[i]));
                 group.Sort((a, b) => a.Order != b.Order ? a.Order.CompareTo(b.Order) : a.Index.CompareTo(b.Index));
                 int before = items.Count;
                 bool needSeparator = before > 0;

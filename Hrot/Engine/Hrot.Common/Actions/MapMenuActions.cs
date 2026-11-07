@@ -6,6 +6,7 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Hrot.Common.Constants;
 using Hrot.Common.Diagnostics.Gizmos;
+using Hrot.Common.Editing;
 using Hrot.Map.Common.Components;
 
 namespace Hrot.Common.Actions
@@ -27,13 +28,16 @@ namespace Hrot.Common.Actions
 
             // ── Orders (a unit, while the map offers orders) ────────────────────────────────────────────────────────────────────────────
             // ⭐⭐ CE-2143 (D4-D) — the orders THIS entity's class fulfils (the receiver's own answer), as data: one declaration, many rows.
+            // ⭐ B-11 A3 (D15) — map orders only while running (Preview, Live): in Edit a unit's plan is its Orders tab; in Review there is no live brain.
             catalogue.Declare(new ActionDecl(0, "Orders", ActionGroup.Orders, First, Unit)
             {
+                Modes = ActionModes.Running,
                 Expand = OrderRows,
             });
             // ⭐ CE-1059 (§13.12 O5) — every offered order through the form, prefilled, to set its optional fields.
             catalogue.Declare(new ActionDecl(0, "Order with options", ActionGroup.Orders, First + 1, Unit)
             {
+                Modes = ActionModes.Running,
                 Offer = ctx =>
                 {
                     if (!ctx.Unit.Orders || !ctx.Unit.Form) return null;
@@ -52,6 +56,7 @@ namespace Hrot.Common.Actions
             // ⭐ CE-2149 (F7 stage 1, §13.3) — the standing target / point / route / sector a later order may take; only on a unit that takes orders.
             catalogue.Declare(new ActionDecl(0, "Designate", ActionGroup.Orders, First + 2, Unit)
             {
+                Modes = ActionModes.Running,
                 Offer = ctx => !HasOrderRows(ctx) ? null : new ContextMenuItemDto
                 {
                     Label = "Designate",
@@ -69,6 +74,7 @@ namespace Hrot.Common.Actions
             // ⭐ CE-3174 — Possess; ⭐ CE-2143 (D4-H) not on a body-less unit; ⭐ CE-1205 (§8m PK-7) a manned weapon keeps it greyed, saying why.
             catalogue.Declare(new ActionDecl(GlobalActionIds.Possess, "Possess (FPS)", ActionGroup.Orders, First + 3, Unit)
             {
+                Modes = ActionModes.Running,
                 Shortcut = "P",
                 Offer = ctx => !ctx.Unit.Orders || ctx.Unit.IsUnit ? null
                     : ctx.Unit.Manned
@@ -80,10 +86,12 @@ namespace Hrot.Common.Actions
             // ── Embark (⭐ CE-1230 OM-2, OM-3, R-1019 — the ONE place a unit is embarked / disembarked by hand) ─────────────────────────
             catalogue.Declare(new ActionDecl(GlobalActionIds.Disembark, "Disembark", ActionGroup.Embark, First, Unit)
             {
+                Modes = ActionModes.InEdit | ActionModes.InLive,   // ⭐ A3 — planned in Edit, ordered in Live; not in a Preview, not in a recording
                 Offer = ctx => ctx.Unit.Embark == EmbarkOffer.Disembark ? new ContextMenuItemDto { Id = GlobalActionIds.Disembark, Label = "Disembark" } : null,
             });
             catalogue.Declare(new ActionDecl(GlobalActionIds.Embark, "Embark…", ActionGroup.Embark, First + 1, Unit)
             {
+                Modes = ActionModes.InEdit | ActionModes.InLive,
                 Offer = ctx => ctx.Unit.Embark == EmbarkOffer.Embark ? new ContextMenuItemDto { Id = GlobalActionIds.Embark, Label = "Embark…" } : null,
             });
 
@@ -95,10 +103,10 @@ namespace Hrot.Common.Actions
             catalogue.Declare(new ActionDecl(GlobalActionIds.SaveSelectionAsMacro, "Save selection as macro…", ActionGroup.View, First + 4, Unit));   // ⭐ CE-4210 MA-9
 
             // ── Edit ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-            catalogue.Declare(new ActionDecl(GlobalActionIds.Rotate, "Rotate", ActionGroup.Edit, First, Unit) { Shortcut = "R" });
-            catalogue.Declare(new ActionDecl(GlobalActionIds.EditOverlay, "Edit Shape", ActionGroup.Edit, First, ActionTarget.Area | ActionTarget.Zone) { Shortcut = "E" });
-            catalogue.Declare(new ActionDecl(GlobalActionIds.LoadZone, "Load zone", ActionGroup.Edit, First + 1, ActionTarget.Zone) { Shortcut = "L" });   // ⭐ CE-3024 (E2) — always enabled: the load is cluster-wide
-            catalogue.Declare(new ActionDecl(GlobalActionIds.EditRoute, "Edit Route", ActionGroup.Edit, First, ActionTarget.Route) { Shortcut = "E" });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.Rotate, "Rotate", ActionGroup.Edit, First, Unit) { Shortcut = "R", Modes = ActionModes.InEdit });   // ⭐ A3 — authoring
+            catalogue.Declare(new ActionDecl(GlobalActionIds.EditOverlay, "Edit Shape", ActionGroup.Edit, First, ActionTarget.Area | ActionTarget.Zone) { Shortcut = "E", Modes = ActionModes.InEdit | ActionModes.InLive });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.LoadZone, "Load zone", ActionGroup.Edit, First + 1, ActionTarget.Zone) { Shortcut = "L", Modes = ActionModes.InEdit | ActionModes.InLive });   // ⭐ CE-3024 (E2) — always enabled: the load is cluster-wide
+            catalogue.Declare(new ActionDecl(GlobalActionIds.EditRoute, "Edit Route", ActionGroup.Edit, First, ActionTarget.Route) { Shortcut = "E", Modes = ActionModes.InEdit | ActionModes.InLive });
 
             // ── Debug (a unit) ────────────────────────────────────────────────────────────────────────────────────────────────────────
             catalogue.Declare(new ActionDecl(0, "Pin gizmos", ActionGroup.Debug, First, Unit)
@@ -111,7 +119,7 @@ namespace Hrot.Common.Actions
             });
 
             // ── Destructive (a graphic) ───────────────────────────────────────────────────────────────────────────────────────────────
-            catalogue.Declare(new ActionDecl(GlobalActionIds.Delete, "Delete", ActionGroup.Destructive, First, Graphic) { Style = "destructive" });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.Delete, "Delete", ActionGroup.Destructive, First, Graphic) { Style = "destructive", Modes = ActionModes.InEdit | ActionModes.InLive });
         }
 
         private static IEnumerable<ContextMenuItemDto> OrderRows(ActionContext ctx)
@@ -171,10 +179,11 @@ namespace Hrot.Common.Actions
             }
             var ctx = ContextFor(view, entity);
             var u = ctx.Unit;
+            int modeBits = (int)ctx.Mode;
             int flags = ctx.Target != ActionTarget.Unit ? 0
                 : (u.Degraded ? 1 : 0) | (u.Brain ? 2 : 0) | (u.Orders ? 4 : 0) | (u.Form ? 8 : 0) | (u.Manned ? 16 : 0)
                   | ((int)u.Embark << 5) | ((int)u.Pins << 8) | (u.TraceOn ? 1 << 24 : 0);
-            var key = (ctx.Target, flags, u.Orders ? u.Dis.Value : 0UL, u.Orders && u.IsUnit);
+            var key = (ctx.Target, flags | (modeBits << 26), u.Orders ? u.Dis.Value : 0UL, u.Orders && u.IsUnit);
             return Menus.GetOrAdd(key, _ => MenuComposer.Json(ctx));
         }
 
@@ -184,7 +193,7 @@ namespace Hrot.Common.Actions
             var repo = view as EntityRepository;
             bool showsRecording = Fdp.Toolkit.Replay.ReplayState.IsActive(view);
             bool orders = Hrot.Common.Orders.OrdersOffered.IsOfferedIn(view);   // ⭐ CE-1363 — the one shared test (the View menu asks it too)
-            var mode = showsRecording ? EditingMode.Review : orders ? EditingMode.Live : EditingMode.Edit;
+            var mode = StationMode.Of(view);   // ⭐ B-11 A3 — the ONE station mode (the gate reads the same)
 
             if (view.HasManagedComponent<EditablePolyline>(entity))
             {
