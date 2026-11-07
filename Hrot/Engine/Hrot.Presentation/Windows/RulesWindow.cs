@@ -297,6 +297,9 @@ public sealed class RulesWindow : ManagedWindow, IRuleDetailsHost
     /// ⚠ The edit-outcome log is NOT in the key: nothing the build reads comes from it (<see cref="PollControl"/> reads it every frame). ⚠ A table write inside the SAME <c>GlobalVersion</c> as the last build is seen once the world ticks.</summary>
     private bool KeyChanged(EntityRepository? world, double now, TimelineIndex? index, string? block)
     {
+        // ⭐ HasChanges is strictly '>': a write stamped with the build's OWN version (an Apply inside the frame's draw, after the build) is caught by checking
+        //   from one below once the world has ticked past it — at most one redundant rebuild per write; a world that never ticks stays steady (0 B).
+        uint since = world != null && world.GlobalVersion > _keyVersion && _keyVersion > 0 ? _keyVersion - 1 : _keyVersion;
         if (!_keyValid || !ReferenceEquals(world, _keyWorld) || now != _keyNow || _groupBy != _keyGroup || _side != _keySide || _subtree != _keySubtree || _selected != _keySelected
             || !string.Equals(_search, _keySearch, StringComparison.Ordinal) || (block != null) != _keyBlocked || (block != null && !string.Equals(block, _keyBlock, StringComparison.Ordinal))) return true;
         if (index != null ? (!ReferenceEquals(index, _historyOf) || index.FrameTicks.Count != _historyFrames) : _historyOf != null) return true;
@@ -305,7 +308,7 @@ public sealed class RulesWindow : ManagedWindow, IRuleDetailsHost
         for (int i = 0; i < KeyTables.Length; i++)
         {
             bool present = world.TryGetTable(KeyTables[i], out var t);
-            if (present != _keyPresent[i] || (present && t.HasChanges(_keyVersion))) return true;   // a table missing at build and present now counts as a change
+            if (present != _keyPresent[i] || (present && t.HasChanges(since))) return true;   // a table missing at build and present now counts as a change
         }
         var store = Hrot.UI.Common.Map3D.PlayerMessages.Of(world);
         return !ReferenceEquals(store, _keyMessageStore) || (store != null && store.All.Count != _keyMessages);

@@ -249,6 +249,11 @@ public sealed class RulesWindowFrameRail : IDisposable
         _world.Tick();
         Step();
         Assert.Contains("Weighted mean: Mission renamed", window.ListRows);
+        // ... and a write stamped with the SAME version as the last build (no tick in between — an Apply inside the frame's draw) is still seen once the world ticks
+        _world.SetManagedComponent(mission, new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = "WeightedMean", InstanceId = 1, JsonParams = """{"common":{"title":"Mission again","subject":900}}""" });
+        _world.Tick();
+        Step();
+        Assert.Contains("Weighted mean: Mission again", window.ListRows);
         if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 }) frame.Screenshot(ShotPath("rules-list.png"));
 
         window.ListView = false;
