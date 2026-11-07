@@ -172,7 +172,7 @@ related-designs:
   Nothing was deleted.
 -->
 
-## ⭐⭐⭐ SESSION 2026-11-07 — EDITING-UX BUILD + RULES BUNDLE *(state at `ui@7fe22dbeb`, pushed; the user said STOP — nothing new started)*
+## ⭐⭐⭐ SESSION 2026-11-07 — EDITING-UX BUILD + RULES BUNDLE *(state at `ui@621110fc5`, pushed, tree clean; the user said STOP — nothing new started)*
 
 🔒 User: *"Merge coordinator, follow HANDOFF_Coordinator_To_Ui_Rules_Bundle_And_Takeover.md"* · then *"Pls do not start anything new"*.
 
@@ -193,13 +193,14 @@ related-designs:
 APPLYING it (`RuleEditSystem`, registered by `CgfLogicPack`) is railed only in `ScenarioRulesTests.LiveEdit` (SimHost.Tests). A one-process rail
 on a RUNNING CGF is still open.
 
-### ⚠ In flight when stopped — CHECK FIRST
+### ⚠ Open when stopped — CHECK FIRST
 
 | | |
 |---|---|
-| ⭐⭐ **the Sonnet worker `a34e57e46a06f52e0`** (U-23 / U-24 / U-25 rest: combined rows, carry-mode change + Damage rows 85/86, *Knows about* seeds only per R-4157, a named-point list) | it was in its final gate run; **14 files uncommitted in the tree are ITS work**: `FormDecl.cs`, `FormView.cs`, `IMapPickContext.cs`, `ReferenceLeafDrawers.cs`, `HrotForms.cs`, `MapPickBroker.cs`, `KnowledgeOrders.cs`, `EntityListSource.cs`, `EntityBrainView.cs`, `TheUnitFormDrawsTests.cs`, `TheBrainViewTests.cs`, `NamedPointGizmoTests.cs`, `DESIGN_Details_Forms.md`, `DESIGN_Initial_State.md`. ⭐ `git log` for its commit first; if they are still uncommitted, `git diff` them, build the touched TEST projects, run its rails, then commit by path — ⛔ never commit them unbuilt |
+| ✅ the worker's U-23 / U-24 / U-25 rest | the worker was stopped by the user's interrupt; its 14 files were verified (every mutant reverted against its backups, gates green) and committed by Opus as `621110fc5`. The worker `a34e57e46a06f52e0` is CANCELLED — it cannot be resumed; a new one only if the user asks |
+| 🔴 one PRE-EXISTING red | `Hrot.Editor.AiShared.Tests` `TheDetailsPanelHonoursARequestForAViewTests.CE1150_TheBundle_BuildsThePanelWithTheComponentsView_AndWithoutActionsRegistersNone` — *"no actions ⇒ no View ▸ Details items"*. Red at `6b012f9fb` with the worker's work stashed ⇒ not the worker's. ⚠ NOT checked whether T-1 (`70778164c`) caused it — first move: run it at `b1b0df819` (before T-1) |
 | one unexplained red | `MissionSummaryWindowFrameRail.TheMissionSummary_DrawsTheCards_…` failed once in a combined run, passed alone (`xvfb-run -a`) — re-check in the next full run |
-| ⭐ **coordinator moved** — NOT merged | `origin/coordinator` has B-9 N1/N6 (terrain pane, terrain stills), B-12 F7 (Messages history), a status note. Merge it (and backend — nothing new at stop) once the tree is clean; restore the test projects after (the third stale-binary trap) |
+| ⭐ **coordinator moved** — NOT merged | `origin/coordinator` has B-9 N1/N6 (terrain pane, terrain stills), B-12 F7 (Messages history), a status note. Merge it (and backend — nothing new at stop); restore the test projects after (the third stale-binary trap) |
 
 ### Next, in handoff order *(none started)*
 
