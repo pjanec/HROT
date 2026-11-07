@@ -267,23 +267,11 @@ public sealed class AssetPickerLauncher
         ImGuiNET.ImGui.PopStyleColor();
     }
 
-    /// <summary>A preset as the combo lists it: its glyph (pen / eye) and name.</summary>
-    public static string PresetLabel(Fdp.Toolkit.Scenario.ScenarioPreset p)
-        => (p.Variant.Saveable ? Fdp.Presentation.Fonts.IconsFontAwesome6.Pen : Fdp.Presentation.Fonts.IconsFontAwesome6.Eye) + "  " + p.Name;
+    /// <summary>A preset as the combo lists it (the ONE wording, <see cref="Hrot.UI.Common.RunMode.PresetText"/>).</summary>
+    public static string PresetLabel(Fdp.Toolkit.Scenario.ScenarioPreset p) => Hrot.UI.Common.RunMode.PresetText.Label(p);
 
-    /// <summary>The one-line summary under the combo (presets §5a): <i>as authored · 2 changed</i> · <i>variant 3 · preview only</i> · <i>random each run · preview only</i>.</summary>
-    public static string PresetSummary(Fdp.Toolkit.Scenario.ScenarioPreset p)
-    {
-        string variant = p.Variant.Kind switch
-        {
-            Fdp.Toolkit.Scenario.PresetVariantKind.Random => "random each run",
-            Fdp.Toolkit.Scenario.PresetVariantKind.Number when p.Variant.Number != 0 => "variant " + p.Variant.Number,
-            _ => "as authored",
-        };
-        int changed = p.Args?.Count ?? 0;
-        string tail = changed == 0 ? "" : " · " + changed + " changed";
-        return variant + tail + (p.Variant.Saveable ? "" : " · preview only");
-    }
+    /// <summary>The one-line summary under the combo (<see cref="Hrot.UI.Common.RunMode.PresetText"/>).</summary>
+    public static string PresetSummary(Fdp.Toolkit.Scenario.ScenarioPreset p) => Hrot.UI.Common.RunMode.PresetText.Summary(p);
 
     /// <summary>The preset index picked for <paramref name="scenarioName"/> in this picker session (0 = Default) — the frame rail sets and reads it.</summary>
     public int PresetChosenOf(string scenarioName) => _presetChosen.TryGetValue(scenarioName, out var i) ? i : 0;

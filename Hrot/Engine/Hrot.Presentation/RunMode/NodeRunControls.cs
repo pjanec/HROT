@@ -50,6 +50,7 @@ public static class NodeRunControls
     {
         var adapter = new ClusterTimeTransportAdapter(bus, view, simTime);
         adapter.AttachRunChoice(profile.Control, unsavedReads: profile.UnsavedReads, gatePolicy: profile.GatePolicy, cancelLoad: profile.IsPlayer ? null : cancelLoad);
+        if (adapter.RunChoice is { } choice) choice.ArmedPresets = ArmedPresets.Shared;   // ⭐ CE-3393 / D11 — every host remembers the armed preset in the user folder, by construction
         return adapter;
     }
 }

@@ -59,6 +59,9 @@ public interface IRunScenarioControl
     /// </summary>
     void OpenForEdit(string scenarioName, string? argsJson) => OpenForEdit(scenarioName);
 
+    /// <summary>⭐ CE-3393 — the args the loaded world was built with (<c>ScenarioDescription.ArgsOf</c>): which preset is loaded. A control with no world answers null (Default).</summary>
+    string? LoadedArgsJson => null;
+
     /// <summary>
     /// ⭐⭐ <b>CE-4098 (AQ108 D16) — open a RECORDING, cluster-wide</b> (<c>File › Open Recording</c>): publishes the ONE replay intent
     /// (<c>ReplaySessionIntents.EnterReplay(exerciseId)</c>, the same construction <c>POST /replay {exerciseId}</c> ends in) — the master

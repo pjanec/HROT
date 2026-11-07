@@ -222,6 +222,9 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
 
     void IRunScenarioControl.OpenForEdit(string scenarioName) => ((IRunScenarioControl)this).OpenForEdit(scenarioName, null);
 
+    /// <summary>⭐ CE-3393 — the args the resident load applied (which preset the world holds).</summary>
+    string? IRunScenarioControl.LoadedArgsJson => _world is null ? null : Fdp.Toolkit.Scenario.ScenarioDescription.ArgsOf(_world);
+
     /// <summary>⭐ CE-3375 — the edit open with a preset's args (null ⇒ the plain open, exactly as before).</summary>
     void IRunScenarioControl.OpenForEdit(string scenarioName, string? argsJson)
     {

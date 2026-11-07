@@ -141,6 +141,33 @@ public sealed class MainToolbarTimeControlSection
         _ => ModeGlyph(mode)?.Color,
     };
 
+    // ── ⭐ CE-3393 (📄 docs/UX/DESIGN_Scenario_Presets.md §5c, D8) — the narrow ▾ at ▶'s right: THE preset picker; it ARMS (✓), never the mode ──────────
+
+    /// <summary>The ▾ is drawn: from Edit, with a run choice, when the loaded scenario has a preset besides Default (Preview / Live armed).</summary>
+    public bool ShowsPresetArrow => _choice is { Armed: RunArmed.Preview or RunArmed.Live } c && _facade.Mode == TransportMode.Edit && c.LoadedPresets.Count > 1;
+
+    private void DrawPresetArrow(float iconSize)
+    {
+        if (!ShowsPresetArrow) return;
+        ImGui.SameLine(0f, 1f);
+        if (ImGui.ArrowButton("##mt_presets", ImGuiDir.Down)) ImGui.OpenPopup("##mt_presets_menu");
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Run with a preset");
+        if (!ImGui.BeginPopup("##mt_presets_menu")) return;
+        var choice = _choice!;
+        var presets = choice.LoadedPresets;
+        var armed = choice.ArmedPreset;
+        for (int i = 0; i < presets.Count; i++)
+        {
+            var p = presets[i];
+            if (ImGui.MenuItem(PresetText.Label(p), null, ReferenceEquals(p, armed) || armed is not null && string.Equals(p.Name, armed.Name, StringComparison.OrdinalIgnoreCase)))
+                choice.ArmPreset(p.Name);
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip(PresetText.Summary(p));
+        }
+        ImGui.Separator();
+        if (ImGui.MenuItem("Edit presets…", null, false, choice.EditPresets is not null)) choice.EditPresets!.Invoke();
+        ImGui.EndPopup();
+    }
+
     /// <summary>The mode indicator's FontAwesome 6 Solid glyph (merged into the UI font): Edit Pen, Preview Eye (CE-3394, presets D9), Live Circle,
     /// Review ClockRotateLeft, Replay Play; Idle none (<see langword="null"/>).</summary>
     public static string? ModeIcon(TransportMode mode) => ModeGlyph(mode)?.Glyph;   // ONE table: the indicator's
@@ -463,13 +490,19 @@ public sealed class MainToolbarTimeControlSection
     {
         var mode = _facade.Mode;
         if (mode == TransportMode.Edit || mode == TransportMode.Idle)
-            return _choice?.Armed switch
+        {
+            string play = _choice?.Armed switch
             {
                 RunArmed.Live    => "Play Live — start the exercise (recorded)",
                 RunArmed.AAR     => "Play AAR — play the recording",
                 RunArmed.Preview => "Play Preview — a dry run of the scenario (nothing recorded)",
                 _                => "Play",
             };
+            // ⭐ CE-3393 (presets §5c) — the tooltip names the ARMED preset too: "▶ Preview — Night attack (variant 3 · preview only)"
+            if (_choice is { Armed: RunArmed.Preview or RunArmed.Live, ArmedPreset: { } p } && !string.Equals(p.Name, Fdp.Toolkit.Scenario.ScenarioPreset.DefaultName, StringComparison.OrdinalIgnoreCase))
+                play += "\nPreset: " + p.Name + " (" + PresetText.Summary(p) + ")";
+            return play;
+        }
         string name = mode switch
         {
             TransportMode.Live    => "Live",
@@ -577,6 +610,7 @@ public sealed class MainToolbarTimeControlSection
             ImGui.SetTooltip(_choice?.PlayDisabledReason is { } playWhy && (_facade.Mode == TransportMode.Edit || _choice.ClosedReason is not null)
                 ? playWhy                    // ⭐ CE-4097 §2.8 ⑥ — Live armed with no scenario session
                 : PlayTooltip(isPaused));    // what a press does, by the mode
+        DrawPresetArrow(iconSize);
 
         ImGui.SameLine();
 

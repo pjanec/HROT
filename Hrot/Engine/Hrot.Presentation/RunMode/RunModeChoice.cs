@@ -40,6 +40,7 @@ public sealed class RunModeChoice
     private RunArmed _localArmed;       // ⭐ CE-3341 — what THIS host last armed; shown only until the cluster's value next CHANGES (see Armed)
     private RunArmed? _seenCluster;     // ⭐ CE-3341 — the cluster's armed mode as last observed (the change detector for _localArmed)
     private bool _resumeWhenLive;      // ▶ in Live armed: the load lands paused (Q86 §4-G); ▶ means run, so the clock resumes once Live is up
+    private bool _previewWhenEdit;     // ⭐ CE-3393 — ▶ in Preview armed with a preset the world does not hold: reopened with it, the dry run starts once editing is back
     private bool _asking;
 
     /// <summary>⭐ <c>CE-4101</c> follow-up — the session's ONE guarded door this choice is bound to (<see langword="null"/> on a host with no scenario session). The window composition builds its exit guard over the PICKED owner's door.</summary>
@@ -253,6 +254,13 @@ public sealed class RunModeChoice
         switch (Armed)
         {
             case RunArmed.Preview:
+                // ⭐ CE-3393 — a preset the world does not hold: reopen with it (the door asks first), the dry run starts once editing is back (presets §3)
+                if (ArmedPreset is { } preset && !IsLoaded(preset) && _door is not null && _control?.LoadedScenarioName is { Length: > 0 } scenario)
+                {
+                    _previewWhenEdit = true;
+                    _door.Open(scenario, argsJson: IsDefault(preset) ? null : preset.ArgsJson(Fdp.Toolkit.Scenario.ScenarioPresets.RandomVariant));
+                    break;
+                }
                 _transport.EnterDryRun(startPaused);
                 break;
             case RunArmed.Live:
@@ -435,9 +443,72 @@ public sealed class RunModeChoice
     private void GoLive(string scenario)
     {
         _resumeWhenLive = true;
-        if (LastRunSetupOf(scenario) is { } setup) _control!.LoadForLive(scenario, setup);   // ⭐ AQ108 D24 — ▶ reuses the scenario's last run setup
+        if (ArmedPresetOf(scenario, RunArmed.Live) is { } armed && !IsDefault(armed))
+            _control!.LoadForLive(scenario, armed.ArgsJson(Fdp.Toolkit.Scenario.ScenarioPresets.RandomVariant));   // ⭐ CE-3393 — ▶ runs the ARMED preset
+        else if (LastRunSetupOf(scenario) is { } setup) _control!.LoadForLive(scenario, setup);   // ⭐ AQ108 D24 — ▶ reuses the scenario's last run setup
         else _control!.LoadForLive(scenario);
     }
+
+    // ── ⭐ CE-3393 (📄 docs/UX/DESIGN_Scenario_Presets.md §5c, D8, D11) — the split ▶: ▾ ARMS a preset (per scenario, per mode, remembered), ▶ plays it ──────────
+
+    /// <summary>Where the armed presets are remembered (the host's: <see cref="ArmedPresets.Shared"/>; a bare choice keeps them in memory).</summary>
+    public ArmedPresets ArmedPresets { get; set; } = ArmedPresets.Open(null);
+
+    /// <summary>The presets of <paramref name="scenario"/>, Default first — read from the scenarios folder by construction (every host), re-read at most every 2 s; none on a host with no local folder.</summary>
+    public Func<string, IReadOnlyList<Fdp.Toolkit.Scenario.ScenarioPreset>> PresetsOf { get; set; } = DefaultPresetsOf;
+
+    private static readonly Dictionary<string, (DateTime ReadAt, IReadOnlyList<Fdp.Toolkit.Scenario.ScenarioPreset> Presets)> PresetCache = new(StringComparer.Ordinal);
+    private static readonly IReadOnlyList<Fdp.Toolkit.Scenario.ScenarioPreset> DefaultOnly = Fdp.Toolkit.Scenario.ScenarioPresets.Of(null);
+
+    private static IReadOnlyList<Fdp.Toolkit.Scenario.ScenarioPreset> DefaultPresetsOf(string scenario)
+    {
+        lock (PresetCache)
+        {
+            var now = DateTime.UtcNow;
+            if (PresetCache.TryGetValue(scenario, out var hit) && (now - hit.ReadAt).TotalSeconds < 2) return hit.Presets;
+            IReadOnlyList<Fdp.Toolkit.Scenario.ScenarioPreset> presets = DefaultOnly;
+            try
+            {
+                var file = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ResolveUnderScenariosRoot(Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedScenariosRoot(), scenario),
+                    Fdp.Toolkit.Orchestration.ContentLayout.ScenarioFileName);
+                presets = Fdp.Toolkit.Scenario.ScenarioPresets.Of(Fdp.Toolkit.Scenario.ScenarioPresets.HeaderOf(file));
+            }
+            catch (Exception) { }   // no scenarios folder on this host ⇒ Default only
+            PresetCache[scenario] = (now, presets);
+            return presets;
+        }
+    }
+
+    private static bool IsDefault(Fdp.Toolkit.Scenario.ScenarioPreset p) => string.Equals(p.Name, Fdp.Toolkit.Scenario.ScenarioPreset.DefaultName, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The presets of the LOADED scenario (Default only when none is loaded).</summary>
+    public IReadOnlyList<Fdp.Toolkit.Scenario.ScenarioPreset> LoadedPresets
+        => _control?.LoadedScenarioName is { Length: > 0 } s ? PresetsOf(s) : DefaultOnly;
+
+    /// <summary>The preset armed for <paramref name="scenario"/> in <paramref name="mode"/> (an armed name the file no longer has ⇒ Default).</summary>
+    public Fdp.Toolkit.Scenario.ScenarioPreset ArmedPresetOf(string scenario, RunArmed mode)
+    {
+        var name = ArmedPresets.Armed(scenario, mode);
+        var all = PresetsOf(scenario);
+        for (int i = 0; i < all.Count; i++) if (string.Equals(all[i].Name, name, StringComparison.OrdinalIgnoreCase)) return all[i];
+        return all[0];
+    }
+
+    /// <summary>The preset ▶ will play now (the loaded scenario, the armed mode); null with no scenario loaded.</summary>
+    public Fdp.Toolkit.Scenario.ScenarioPreset? ArmedPreset
+        => _control?.LoadedScenarioName is { Length: > 0 } s ? ArmedPresetOf(s, Armed) : null;
+
+    /// <summary>▾ — arms <paramref name="preset"/> for the loaded scenario in the armed mode. ⛔ Never the mode (AQ108 R1); nothing loads until ▶.</summary>
+    public void ArmPreset(string preset)
+    {
+        if (_control?.LoadedScenarioName is { Length: > 0 } s) ArmedPresets.Arm(s, Armed, preset);
+    }
+
+    /// <summary>The host's <i>Edit presets…</i> (Details ▸ Scenario ▸ Parameters, CE-3391); null ⇒ the menu item is greyed.</summary>
+    public Action? EditPresets { get; set; }
+
+    /// <summary>True when the world holds <paramref name="preset"/> (its args match the resident load's).</summary>
+    public bool IsLoaded(Fdp.Toolkit.Scenario.ScenarioPreset preset) => PresetText.IsLoaded(preset, _control?.LoadedArgsJson);
 
     // ── ■ (R2) ────────────────────────────────────────────────────────────────────────
 
@@ -682,10 +753,16 @@ public sealed class RunModeChoice
             _resumeWhenLive = false;
             _transport.Resume();
         }
+        else if (state == ClusterState.OperatingEdit && _previewWhenEdit)
+        {
+            _previewWhenEdit = false;   // ⭐ CE-3393 — the reopen with the armed preset landed: the dry run it was asked for
+            _transport.EnterDryRun(false);
+        }
         else if (state == ClusterState.OperatingReplay || state == ClusterState.Idle && previous == ClusterState.OperatingLive)
         {
             _resumeWhenLive = false;
         }
+        if (state is ClusterState.OperatingLive or ClusterState.OperatingReplay) _previewWhenEdit = false;
     }
 
     // ── the indicator ───────────────────────────────────────────────────────────────────

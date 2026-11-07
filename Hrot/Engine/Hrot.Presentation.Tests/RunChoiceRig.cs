@@ -26,6 +26,8 @@ internal static class RunChoiceRig
         public void LoadForLive(string scenarioName) => Calls.Add($"LoadForLive:{scenarioName}");
         public void LoadForLive(string scenarioName, string? argsJson) => Calls.Add($"LoadForLive:{scenarioName}:{argsJson}");   // ⭐ AQ108 D24 — a load WITH a run setup
         public void OpenForEdit(string scenarioName) => Calls.Add($"OpenForEdit:{scenarioName}");
+        public void OpenForEdit(string scenarioName, string? argsJson) => Calls.Add($"OpenForEdit:{scenarioName}:{argsJson}");   // ⭐ CE-3393 — an edit open WITH a preset
+        public string? LoadedArgsJson { get; set; }                                                                                  // ⭐ CE-3393 — which preset the world holds
         public void OpenRecording(Guid exerciseId) => Calls.Add($"OpenRecording:{exerciseId}");
         public void OpenRecording(Guid exerciseId, double? atSimSeconds) => Calls.Add($"OpenRecording:{exerciseId}@{atSimSeconds?.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}");
         public void SaveCurrent() => Calls.Add("SaveCurrent");
