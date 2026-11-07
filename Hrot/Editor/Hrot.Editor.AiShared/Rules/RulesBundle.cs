@@ -26,7 +26,7 @@ public sealed class RulesBundle : IUiBundle
             showMoments: n => { Rules.ShowSubtree(n); _windows?.FocusWindow(Rules.Id); }, blocked: host.Blocked) { IsOpen = false };
         TraineeDebrief = new TraineeDebriefWindow(host.World, host.TimelineSource, host.Cursor(), p + "trainee_debrief", host.Perspective, host.Colour) { IsOpen = false };
         GameSummary = new GameSummaryWindow(host.World, host.TimelineSource, host.Cursor(), p + "game_summary", host.Perspective, host.Colour) { IsOpen = false };
-        if (!host.Recording && Editor != null && host.EntityCreation != null)
+        if (!host.Recording && !host.TraineeOnly && Editor != null && host.EntityCreation != null)
             GameMaster = new GameMasterWindow(host.World, p + "game_master", host.Perspective, host.Colour, Editor,
                 createOneShot: json =>
                 {
@@ -57,6 +57,13 @@ public sealed class RulesBundle : IUiBundle
     {
         ArgumentNullException.ThrowIfNull(ctx);
         _windows = ctx.Windows;
+        if (_host.TraineeOnly)
+        {
+            // ⭐ L-2 (LC-18) — the Player: its own Trainee debrief only (no rules, no summaries), opened when the exercise ends
+            ctx.Windows.RegisterWindow(TraineeDebrief);
+            ctx.Windows.RegisterFrameOverlay(WatchTheRun);
+            return;
+        }
         ctx.Windows.RegisterWindow(Rules);
         if (GameMaster != null) ctx.Windows.RegisterWindow(GameMaster);
         ctx.Windows.RegisterWindow(MissionSummary);
@@ -83,7 +90,8 @@ public sealed class RulesBundle : IUiBundle
         var phase = PhaseOf(w);
         bool started = _lastMode is { } was && was != Hrot.Common.Editing.EditingMode.Live && mode == Hrot.Common.Editing.EditingMode.Live;
         bool ended = phase == Fdp.Toolkit.ScenarioRules.ExercisePhase.Ended && _lastPhase != Fdp.Toolkit.ScenarioRules.ExercisePhase.Ended;
-        if (started || ended) { _windows?.FocusWindow(MissionSummary.Id); SummaryOpenings++; }
+        if (_host.TraineeOnly) { if (ended) { _windows?.FocusWindow(TraineeDebrief.Id); SummaryOpenings++; } }   // the Player: its debrief, at the end only
+        else if (started || ended) { _windows?.FocusWindow(MissionSummary.Id); SummaryOpenings++; }
         _lastMode = mode;
         _lastPhase = phase;
     }

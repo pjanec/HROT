@@ -14,7 +14,7 @@ namespace Hrot.Editor.AiShared.Tests.Rules;
 [Collection(Hrot.Editor.AiShared.Tests.PanelSnapshotTestCollection.Name)]
 public sealed class TheRulesBundleTests
 {
-    private static RulesHostServices Host(Seat seat, bool recording = false, bool canCreate = false, EntityRepository? w = null)
+    private static RulesHostServices Host(Seat seat, bool recording = false, bool canCreate = false, EntityRepository? w = null, bool trainee = false)
     {
         var world = w ?? new EntityRepository();
         return new RulesHostServices(
@@ -23,7 +23,7 @@ public sealed class TheRulesBundleTests
             SelectEntity: _ => { }, ShowOnMap: _ => { }, Seat: () => seat,
             Blocked: recording ? () => "a recording is read-only" : null,
             EntityCreation: canCreate ? () => null : null,
-            Recording: recording);
+            Recording: recording, TraineeOnly: trainee);
     }
 
     [Theory]
@@ -102,5 +102,32 @@ public sealed class TheRulesBundleTests
         var w2 = new Fdp.Presentation.WindowManager.WindowManager(new Fdp.Presentation.Icons.IconAtlas(nint.Zero, 1, 1, 16f));
         onRecording.RegisterInto(new Fdp.Toolkit.Runner.UiBundleContext(w2));
         Assert.DoesNotContain((Action)onRecording.WatchTheRun, w2.FrameOverlays);   // a recording opens nothing
+    }
+
+    /// <summary>⭐ L-2 / CE-4320 (LC-18, PH-6) — the Player's set: the Trainee debrief ALONE (no rules, no summaries, no editing), opened when the exercise
+    /// ENDS — never when Live starts. 🔴 Red-proof: the trainee branch of the watcher dropped ⇒ it opens Mission summary (not registered) ⇒ red.</summary>
+    [Fact]
+    public void L2_ThePlayersSet_IsTheTraineeDebriefAlone_OpenedWhenTheExerciseEnds()
+    {
+        var world = new EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ExerciseResult>();
+        var mode = Hrot.Common.Editing.EditingMode.Edit;
+        Hrot.Common.Editing.StationMode.Install(world, () => mode);
+        var bundle = new RulesBundle(Host(Seat.Player, canCreate: true, w: world, trainee: true));
+        var windows = new Fdp.Presentation.WindowManager.WindowManager(new Fdp.Presentation.Icons.IconAtlas(nint.Zero, 1, 1, 16f));
+        bundle.RegisterInto(new Fdp.Toolkit.Runner.UiBundleContext(windows));
+        Assert.True(windows.TryGetWindow("t_trainee_debrief", out _));
+        foreach (var id in new[] { "t_rules", "t_mission_summary", "t_game_summary", "t_game_master" })
+            Assert.False(windows.TryGetWindow(id, out _), id + " is not a trainee's");
+        Assert.Null(bundle.Editor);
+
+        bundle.WatchTheRun();
+        mode = Hrot.Common.Editing.EditingMode.Live; bundle.WatchTheRun();
+        Assert.False(bundle.TraineeDebrief.IsOpen);                            // Live starting opens nothing for a trainee
+        var result = world.CreateEntity();
+        world.AddComponent(result, new Fdp.Toolkit.ScenarioRules.ExerciseResult { Phase = Fdp.Toolkit.ScenarioRules.ExercisePhase.Ended });
+        bundle.WatchTheRun();
+        Assert.True(bundle.TraineeDebrief.IsOpen);                             // the end: his debrief
+        Assert.Equal(1, bundle.SummaryOpenings);
     }
 }

@@ -229,6 +229,16 @@ namespace Hrot.Player
                                          () => Fdp.Toolkit.Time.SimClock.Of(_app.World).IsHalted),
                         Host:        () => _app.HostActions,
                         Pick:        () => _app.GetMapPickBroker())),   // ⭐ U-23 / D4 — Put aboard… picks on the map
+                    // ⭐ L-2 / CE-4320 (LC-18, PH-6) — the Player's Trainee debrief: the ONE rules bundle in its trainee set (the debrief alone), opened when the exercise ends
+                    new Hrot.Editor.AiShared.Rules.RulesBundle(new Hrot.Editor.AiShared.Rules.RulesHostServices(
+                        World:          () => _app.World,
+                        TimelineSource: () => _app.NodeContext?.ShownTimeline,
+                        Cursor:         () => null,
+                        IdPrefix:       "player_", Perspective: "Player", Colour: TitleBarColor,
+                        SelectEntity:   _ => { },
+                        ShowOnMap:      _ => { },
+                        Seat:           () => Hrot.Common.Infrastructure.Seat.Player,
+                        TraineeOnly:    true)),
                 },
                 new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
             // Signal IgApplication that these panels must not be double-rendered.

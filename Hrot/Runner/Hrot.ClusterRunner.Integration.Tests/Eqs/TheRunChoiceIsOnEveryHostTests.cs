@@ -383,6 +383,12 @@ public sealed class TheRunChoiceIsOnEveryHostTests
             Assert.False(controller.LoadingScreen.CanCancel);
             Assert.Same(choice, controller.ErrorSection!.Choice);
             Assert.Empty(windows.MainToolbar.BuildViewModel(currentPerspective: "Player").Entries.Where(e => e.Id == ShellTimeControlToolbar.EntryId));
+
+            // ⭐ L-2 / CE-4320 (LC-18) — the Player composes the rules bundle's TRAINEE set: its debrief alone (no rules window), opened at the end
+            var playerWindows = MakeWindowManager();
+            player.RegisterWindows(playerWindows);
+            Assert.True(playerWindows.TryGetWindow("player_trainee_debrief", out _), "the Player has its Trainee debrief");
+            Assert.False(playerWindows.TryGetWindow("player_rules", out _), "a trainee gets no Rules window");
         }
         finally
         {
