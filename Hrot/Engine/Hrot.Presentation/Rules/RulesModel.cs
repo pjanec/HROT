@@ -132,6 +132,8 @@ public static class RulesReader
 /// </summary>
 public static class RulesModel
 {
+    /// <summary>⭐ W-1 (P-8) — the group of the phase triggers (first, ordered by phase number).</summary>
+    public const string PhasesGroup = "Phases";
     public const string ScenarioGroup = "Scenario", NoSubjectGroup = "(no subject)", AuthoredWords = "Authored", NotRunning = "not running — start the exercise";
 
     // ABGR (ImGui's packed colour) of the mockup's legend (docs/designs/rules-view/mockup/Main.html)
@@ -226,7 +228,11 @@ public static class RulesModel
             RulesGroupBy.Side => SideName(MissionSummaryModel.SideOfRule(world, e)),
             _ => e.SubjectNetworkId != 0 ? NameOf(world, NetworkIdResolver.ResolveNetworkId(world, e.SubjectNetworkId), e.SubjectNetworkId) : NoSubjectGroup,
         };
-        var members = kept.Select(id => byNet[id]).GroupBy(GroupOf).ToList();
+        // ⭐ W-1 (P-8, Mission plan §5.5 M6, D5) — the phase triggers lead, in their own group ordered by number, whatever the grouping
+        var phaseRows = kept.Select(id => byNet[id]).Where(e => e.Status.Phase > 0 && e.Status.Role == ObjectiveRole.Trigger)
+                            .OrderBy(e => e.Status.Phase).ThenBy(e => e.NetworkId).ToList();
+        var phaseIds = new HashSet<int>(phaseRows.Select(e => e.NetworkId));
+        var members = kept.Where(id => !phaseIds.Contains(id)).Select(id => byNet[id]).GroupBy(GroupOf).ToList();
         int Order(string name) => options.GroupBy switch
         {
             RulesGroupBy.Macro => name == ScenarioGroup ? 0 : name == GmOneShot.GroupName ? 2 : 1,
@@ -250,6 +256,7 @@ public static class RulesModel
         }
 
         var groups = new List<RuleGroup>();
+        if (phaseRows.Count > 0) groups.Add(new RuleGroup(PhasesGroup, phaseRows.Select(e => RowOf(world, e, 0, false, history, now, LinkOf)).ToList()));
         foreach (var g in members.OrderBy(g => Order(g.Key)).ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
         {
             var inGroup = g.ToDictionary(e => e.NetworkId);

@@ -58,6 +58,27 @@ public static class RuleSentence
         return ($"{what}: {title}{(required ? " — required" : "")}", false, new[] { new Seg(what, true), new Seg(": ", true), new Seg(title, false) });
     }
 
+    /// <summary>
+    /// ⭐ W-1 (P-8, mission-plan-detail-visual.svg B) — how a PHASE begins, in the Phases group: <i>"begins when …"</i> (the trigger's <c>when</c>,
+    /// the ONE condition sentence), <i>"begins at the start"</i> for a scenario time of 0, plus <i>" · latest m:ss"</i> when it has a no-later-than.
+    /// </summary>
+    public static string PhaseBegins(string json, float deadlineSeconds, LiveRefScope? refs)
+    {
+        string when;
+        try
+        {
+            var t = (TriggerParamsJsonDto)Hrot.Presentation.Behavior.BehaviorParamsForm.Hydrate(typeof(TriggerParamsJsonDto), json);
+            when = t.When switch
+            {
+                null => "begins when (no condition yet)",
+                Fdp.Toolkit.ReplayBrowser.Search.ScenarioTimePredicateDto { FromSeconds: <= 0 } => "begins at the start",
+                var w => "begins when " + Lower(ConditionSentence.Of(w, refs)),
+            };
+        }
+        catch (Exception ex) when (ex is InvalidCastException or NullReferenceException or System.Text.Json.JsonException) { when = "begins — its params do not read"; }
+        return deadlineSeconds > 0 ? $"{when} · latest {Hrot.UI.Common.Rules.RulesModel.Clock(deadlineSeconds)}" : when;
+    }
+
     /// <summary>A sentence inside a sentence starts lower-case (<i>When at least 3 of Red side…</i>) — ⚠ but a name keeps its case (it starts the WHO).</summary>
     private static string Lower(string s)
         => s.Length > 1 && char.IsUpper(s[0]) && char.IsLower(s[1]) && (s.StartsWith("It ", StringComparison.Ordinal) || s.StartsWith("Any ", StringComparison.Ordinal)

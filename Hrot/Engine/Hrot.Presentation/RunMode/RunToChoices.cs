@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Systems;
-using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using Fdp.Toolkit.ScenarioRules;
 using Hrot.UI.Common.Rules;
@@ -46,17 +45,19 @@ public static class RunToChoices
         seconds = total; return true;
     }
 
-    /// <summary>The phases (ordered by number) and the rules that can fire (triggers, by title) of <paramref name="world"/>, into the two lists (cleared).</summary>
+    /// <summary>
+    /// The phases (ordered by number) and the rules that can fire (triggers, by title) of <paramref name="world"/>, into the two lists (cleared) —
+    /// read through <see cref="RulesReader"/>, so an AUTHORED rule (Edit: no status yet) is offered as well as a running one.
+    /// </summary>
     public static void Collect(EntityRepository world, List<Choice> phases, List<Choice> rules)
     {
         phases.Clear(); rules.Clear();
-        if (!world.IsComponentTypeRegistered<ObjectiveStatus>() || !world.IsComponentTypeRegistered<NetworkIdentity>()) return;
         var scope = AuthoredRules.ScopeOf(world);
-        foreach (var e in world.Query().With<ObjectiveStatus>().With<NetworkIdentity>().Build())
+        foreach (var e in RulesReader.Read(world))
         {
-            ref readonly var s = ref world.GetComponentRO<ObjectiveStatus>(e);
-            if (s.Kind.ToString() != RuleAdd.TriggerKind) continue;   // only a trigger fires
-            var link = RuleGallery.LinkTo(world.GetComponentRO<NetworkIdentity>(e).Value, scope);
+            var s = e.Status;
+            if (s.Role != ObjectiveRole.Trigger) continue;   // only a trigger fires
+            var link = RuleGallery.LinkTo(e.NetworkId, scope);
             if (link.Ref.IsNone && link.Spec.IsNone) continue;
             var until = ConditionCache.Compiler.CompileLevelPredicate(PlanConditionCache.PhaseBegins(link));   // FireCount > 0 — a phase's begin IS its trigger firing (compiled on the popup's open only)
             string title = s.Title.ToString();

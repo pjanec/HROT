@@ -451,3 +451,37 @@ a plan or one that can be ordered. ⭐ Two measured deviations, both argued:
 host's map pick) — an order's type is its DTO from the ONE order registry (`OrderMenu.TryGetByName`, the lookup G1 resolves by), a behaviour's the
 host's `ParamsTypeOf` (new `EntityDetailsHostServices.ParamsTypeOf`, passed by Editor and CGF over their registries); *Advanced condition…* = the
 ONE `ConditionEditor` in the Mission context, opened on the task's current condition (`OrdersPlanEdits.ConditionOf`).
+
+### 5.12 P-8 (M3 + M5 / M6 UI) — as built *(behaviors, `2026-11-07`, W-1 of `HANDOFF_Coordinator_To_Behaviors_Taken_From_Ui.md`; built in slices)*
+
+INVENTORY: `scripts/cbm.sh search_graph .*(Phase|RulesWindow|RulesModel).*` Class + grep `Status.Phase` ⇒ the phase reached the UI in ONE place
+(`RulesWindow.OpenGallery`'s next-number count) — and ⚠ measured broken there: `AuthoredRules.Parse` built the authored status WITHOUT `phase`,
+so before a run every rule read phase 0 (the gallery always offered *Phase 1*; `RunToChoices` listed no phase from Edit).
+
+**8a — the Rules window's Phases group, *Begin now* (mockup B) — BUILT:**
+
+```mermaid
+classDiagram
+  class AuthoredRules { <<existing>> Parse → + Phase from common.phase (the authored twin of ObjectiveRules.Display) }
+  class RulesModel { <<existing>> Build → + group "Phases" FIRST: phase triggers by number, out of their own group }
+  class RulesWindow { <<existing>> DrawList → + DrawPhaseRow · PhaseLineOf · PhaseRightOf }
+  class RuleSentence { <<existing>> + PhaseBegins(json, deadline, refs) }
+  class RuleCommands { <<existing>> Control(..., Fire, Instructor) }
+  RulesModel ..> AuthoredRules : authored rows
+  RulesWindow --> RulesModel
+  RulesWindow ..> RuleSentence : "begins …" (cached per params)
+  RulesWindow --> RuleCommands : Begin now = the trigger's Fire (D5)
+```
+*What the picture shows: no phase store — a phase is a trigger (D5); the group is a VIEW of the rules model, so the List and the Timeline
+views agree, and Begin now is the instructor's existing Fire.*
+
+| decision | why |
+|---|---|
+| the Phases group leads whatever the grouping (Macro / Subject / Side) | the operation's order is read first (mockup B); a phase is shown once — it leaves its own group |
+| right side: nothing before a run · *begun m:ss* (green) once it fired · *▶ Begin now* + *waiting* otherwise; greyed with `RuleCommands.DisabledReason` | D5: *Begin now* IS the trigger's Fire (`RuleOrigin.Instructor`); the mockup's columns |
+| *"begins at the start"* for `ScenarioTime ≥ 0`, else *"begins when …"* (the ONE condition sentence) + *" · latest m:ss"* (`deadlineSeconds`) | E3: the phase's no-later-than is the rule's deadline |
+| ⚠ deviations | ▶ in *Begin now* is white, not green (ImGui buttons draw one text colour); the mockup's *latest H+20* reads *latest 20:00* (the window's one clock format) |
+
+Rails: `RulesModelTests.W1_*` (the group first by number, authored too — red-proved by dropping the authored projection; the right side; the words) ·
+`RulesWindowFrameRail.W1_ThePhasesGroup_OnARealFrame` (`rules-phases.png`). ⏳ next: the picker's *when a phase begins ▸ · when a rule fires ▸ ·
+New rule…* (8b), the ONE Tasks lane (8c, E4), the plan on the map (8d, M3 / E2).
