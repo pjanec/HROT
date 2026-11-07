@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — §5 detailed design written 2026-11-07, D1–D9 awaiting the user; then READY-TO-BUILD · top level: ✅ Q1, Q2, Q5, Q6, Q7 approved and Q3, Q4 revised by the user 2026-11-06 (R-4129); the building lanes detail it (R-4123)
-updated: 2026-11-07 (§5 detailed design: D1–D9, classes, sequences, module map, the then-picker table, mission-plan-detail-visual.svg) · 2026-11-07 (§1: orders and plan tasks already share one intent channel; M1's engine part is small — measured) · 2026-11-06 (Q3 expert conditions + the rule editor one click from a task; Q4 phases begin on events, time only a no-later-than — R-4129) · 2026-11-06 (first version — coordinator; editing-UX design queue item 3: E11 / D18)
+updated: 2026-11-07 (D3 / D4 revised by the user's question: every then / give-up is ONE shared condition; old trigger types translated on compile) · 2026-11-07 (§5 detailed design: D1–D9, classes, sequences, module map, the then-picker table, mission-plan-detail-visual.svg) · 2026-11-07 (§1: orders and plan tasks already share one intent channel; M1's engine part is small — measured) · 2026-11-06 (Q3 expert conditions + the rule editor one click from a task; Q4 phases begin on events, time only a no-later-than — R-4129) · 2026-11-06 (first version — coordinator; editing-UX design queue item 3: E11 / D18)
 current-answer: ⭐ §5 the detailed design (measured; D1–D9 for the user) · §2 the target (wireframe + model) · §3 stages (lanes superseded by §5.5) · §4 questions
 stale-below: nothing
 known-rot: §3 M5's "a task-owned rule evaluated by the rules runner" is SUPERSEDED by §5 D3 (one Condition trigger, the one compiler); §2.2's PhaseBegins leaf and OperationPhase class by §5 D5 / D6 (a phase IS a trigger)
@@ -187,8 +187,8 @@ order — so the plan stays unit-agnostic and a re-classed unit still works.*
 |---|---|---|---|
 | **D1** | how an order task is stored | the existing `behaviorName` = `Order.<Kind>`, the order DTO as `behaviorParams` — the file format does not change | a new `Kind` field: a format change for a fact the name already says |
 | **D2** | how a task starts | **ONE path**: the director only ADVANCES the queue; the adapter starts every task by name through the intent (orders, mappers and plain names alike) | keep both: an order task starts Idle for a frame, and every task is assigned twice |
-| **D3** | the "then" | the built-in triggers stay for the task's own lifecycle (*when done · after N min · under fire · strength below X %*); ONE new trigger kind **`Condition`** carries a condition-language predicate (JSON in its params) for everything about OTHER things — compiled once per plan version on the brain's node, evaluated each frame without allocation | a hidden task-owned RULE entity (§3 M5's first wording): a second runtime object per task where the one compiler already does it ⇒ **M5's "task-owned rule" is SUPERSEDED by D3** |
-| **D4** | *give up after* | an optional second entry in the task's `triggers` list, type `GiveUpAfter` (seconds); on elapse the task ends **Failed** and the plan advances | a field on the task: a format change |
+| **D3** ✏ | the "then" | ✏ **revised (user, `2026-11-07`: "why not using shared condition always?")** — **always ONE shared condition** (the condition language, R-4077): the plain picker writes standard conditions — *when done* = `TransientEvent BehaviorFinishedEvent` on this unit · *after N min* = `PropertyMatch MissionPlanQueue.TaskElapsedSeconds ≥ N` · *under fire* = `InputAbove UnderFire` · *strength below X %* = `None(InputAbove HealthFraction X)` (B-1) — and *Advanced condition…* the full editor. Compiled once per plan version on the brain's node, evaluated each frame without allocation; the director's own trigger switch goes. ⭐ The 97 old entries (`BehaviorFinished`, `TimerElapsed`) are TRANSLATED to those conditions when a plan is compiled — files load unchanged and are written in the new form on the next save | ~~built-in triggers + a `Condition` kind~~ (the first lean): two evaluators and two vocabularies for one idea (R-174) · a hidden task-owned rule entity: a second runtime object per task |
+| **D4** ✏ | *give up after* | a SECOND shared condition on the task (the picker offers *after N min* by default): *then* ends the task Done, *give up* ends it Failed; the director checks give-up first | a separate time-only field: a second shape for what a condition already says |
 | **D5** | what an operation phase is | ⭐ **a trigger rule marked as a phase** (`common.phase` = its order, 1, 2, …): it *begins* = it fires; its *when* is the begin condition, *no later than* = `when OR ScenarioTime ≥ T`; the instructor's *Begin now* = `RuleRequest.Fire`; it is listed, edited and shown by the rules UI that exists | a separate phase list + its own evaluator + a *Begin phase* action: a second store and a second "when" engine for what a trigger already is |
 | **D6** | *when Phase 2 begins* / *when Bravo 1-2 finishes task 3* | *phase begins* = the existing *"rule X has fired"* condition on that phase's trigger (no new leaf); **one new leaf `TaskFinished { Unit, Task }`** reads the unit's replicated `Outcomes` | `PhaseBegins` as its own leaf: redundant once a phase is a trigger |
 | **D7** | the queue | 8 → **16** slots; the Roslyn renames `MissionPhase` → `MissionTaskSlot`, `Phases` → `Tasks`, `PhaseCount` → `TaskCount`, `CurrentPhase` → `CurrentTask`, `MaxPhases` → `MaxTasks`, `PhaseElapsedSeconds` → `TaskElapsedSeconds` (Q6) | renaming only `Phases`: "phase" would still mean a task slot in five other names |
@@ -202,8 +202,7 @@ classDiagram
   direction LR
   class DomainMissionTask { <<existing, saved>> behaviorName · behaviorParams · triggers[] }
   class DomainMissionTrigger { <<existing>> Type · Params }
-  class MissionTrigger { <<existing enum>> TimerElapsed · UnderAttack · HealthCritical · BehaviorFinished · Condition NEW · GiveUpAfter NEW }
-  class MissionTaskSlot { <<renamed MissionPhase>> BehaviorId · Trigger · TriggerParam · GiveUpSeconds NEW · ConditionSlot NEW }
+  class MissionTaskSlot { <<renamed MissionPhase>> BehaviorId · ThenSlot · GiveUpSlot (indices into the cache) }
   class MissionPlanQueue { <<existing, renamed fields>> Tasks[16] · TaskCount · CurrentTask · Outcomes[16] · Version }
   class PlanConditionCache { <<NEW, brain node, not recorded>> per entity + version: compiled predicates }
   class PredicateCompiler { <<existing>> CompileLevelPredicate(dto) }
@@ -211,17 +210,17 @@ classDiagram
   class MissionDirectorSystem { <<existing>> advances only (D2) }
   class MissionAdapterSystem { <<existing>> the ONE start: intent by name }
   class OrdersTab { <<NEW, replaces MissionPanel>> FormView rows · ConditionEditor · Jump / Stop · Commit }
-  DomainMissionTask "1" o-- "1..2" DomainMissionTrigger : then + give up
+  DomainMissionTask "1" o-- "1..2" DomainMissionTrigger : then + give up (type Condition, params = the condition)
   MissionPlanQueue "1" o-- "16" MissionTaskSlot
   MissionDirectorSystem --> MissionPlanQueue
-  MissionDirectorSystem --> PlanConditionCache : Condition triggers
+  MissionDirectorSystem --> PlanConditionCache : every then and give-up
   PlanConditionCache --> PredicateCompiler
   PredicateCompiler ..> TaskFinishedPredicateDto
   MissionAdapterSystem --> MissionPlanQueue : starts CurrentTask
   OrdersTab --> DomainMissionTask : edits the authored plan
 ```
 
-*What the picture shows that prose hid: the saved plan does not change shape — two new trigger TYPES ride in the existing list; everything new
+*What the picture shows that prose hid: the saved plan does not change shape — every then / give-up is a condition riding in the existing triggers list (old types translated on compile); everything new
 at runtime is either a renamed field, a cache of compiled predicates, or one new leaf; the phase never appears as a class because it is a
 trigger (D5).*
 
@@ -235,12 +234,8 @@ sequenceDiagram
   participant A as MissionAdapterSystem
   participant T as TacticalIntentResolutionSystem
   D->>Q: the current task's trigger
-  alt Condition
-    D->>C: the compiled predicate for this entity and plan version
-    C-->>D: true or false, no allocation
-  else built-in, or GiveUpAfter elapsed
-    D->>D: today's checks, give up means Outcome Failed
-  end
+  D->>C: give-up, then the then condition, for this entity and plan version
+  C-->>D: true or false, no allocation - give-up means Outcome Failed
   D->>Q: CurrentTask + 1 (no assign - D2)
   A->>Q: CurrentTask changed
   A->>T: intent by name (Order.Move, a mapper id or a behaviour name)
@@ -275,27 +270,29 @@ rows by each host's bundles. The dashed edge is replication, not a call — the 
 
 | # | what | acceptance |
 |---|---|---|
-| **M1** | D1 + D2: `Order.*` accepted without the warning; the director advances only, the adapter starts every task | a plan of `Order.Move` → `Order.Hold` runs on a tank and on a rifleman (each its own class behaviour); no Idle frame between tasks; the 33 scenarios' plan suites unchanged |
+| **M1** | D1 + D2: `Order.*` accepted without the warning; the director advances only, the adapter starts every task; D3's translation of the old trigger types into conditions (the director's trigger switch replaced by `PlanConditionCache`) | a plan of `Order.Move` → `Order.Hold` runs on a tank and on a rifleman (each its own class behaviour); no Idle frame between tasks; the 33 scenarios' plan suites unchanged |
 | **M1b** | D7: 16 slots + the Roslyn renames | builds; the plan suites unchanged |
 | **M2** | D8: the Orders tab — task rows as sentences, the order form (`OrderMenu.OfferedFor`), the *then* picker (§5.6), *give up after* (D4), progress, Jump / Stop; `MissionPanel` retired | side-by-side with `mission-plan-editor.svg` + `mission-plan-detail-visual.svg` |
 | **M3** | the plan on the map: a numbered marker at each task's first place field (`MapPreviews` shapes by semantic type), the route, drag a marker = edit that field, right-click *Add task ▸* (catalogue actions) | ⏳ action catalogue (B-11) |
 | **M4** | D9: Live Commit, Conflict → Reload / Overwrite, *Add to the plan* | a two-station conflict rail |
-| **M5** | D3 + D6: the `Condition` trigger, `PlanConditionCache`, the `TaskFinished` leaf; *Advanced condition…*, *When a rule fires…*, *New rule…* in the picker | a unit waits on another's task 3; 0 B per steady frame |
+| **M5** | D6: the `TaskFinished` leaf; *Advanced condition…*, *When a rule fires…*, *New rule…* in the picker | a unit waits on another's task 3; 0 B per steady frame |
 | **M6** | D5: phases — `common.phase` on a trigger, the Rules window's *Phases* group, *Begin now* in Live, *when Phase N begins* in the picker; the Timeline's **Tasks** group (one lane per unit, its tasks as bars, phase triggers' fire times as columns) | a phase begun by the instructor releases two units' waiting tasks |
 
 ### 5.6 The *then* picker — the plain list and what each stores
 
 | the user picks | stored as |
 |---|---|
-| *when done* · *when there* | `BehaviorFinished` |
-| *after N min* | `TimerElapsed` (seconds) |
-| *when under fire* | `UnderAttack` |
-| *when strength below X %* | `HealthCritical` (fraction) |
-| *when Phase N begins* | `Condition`: *rule fired* on that phase's trigger |
-| *when <unit> finishes task N* | `Condition`: `TaskFinished` |
-| *when a rule fires…* | `Condition`: *rule fired* |
-| *Advanced condition…* | `Condition`: any predicate from the condition editor |
-| *give up after N min* (optional, beside any of the above) | `GiveUpAfter` (seconds) |
+| *when done* · *when there* | `TransientEvent BehaviorFinishedEvent` on this unit |
+| *after N min* | `PropertyMatch MissionPlanQueue.TaskElapsedSeconds ≥ N·60` |
+| *when under fire* | `InputAbove UnderFire` |
+| *when strength below X %* | `None(InputAbove HealthFraction X)` |
+| *when Phase N begins* | *rule fired* on that phase's trigger (`OnEntity` + `ObjectiveStatus.FireCount > 0`) |
+| *when <unit> finishes task N* | `TaskFinished { Unit, Task }` |
+| *when a rule fires…* | *rule fired* |
+| *Advanced condition…* | any condition from the condition editor |
+| *give up after N min* (optional, beside any of the above) | a second condition, the GiveUp slot (default *after N min*) |
+
+⭐ Every row is ONE shared condition (D3); the picker is a list of presets over the condition language, like the condition editor's.
 
 ![the then picker, give up, phases in the rules list, the Tasks timeline](mission-plan-detail-visual.svg)
 
