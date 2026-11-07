@@ -372,6 +372,10 @@ namespace Hrot.Editor
         /// <summary>⭐⭐⭐ CE-3329 row 21 — <b>THE time facade</b>, the one every host uses (user: *"One facade."*): built ONCE, read each
         /// frame beside the cluster cache, handed to the status bar, the toolbar, the timeline, the debug API and the director.</summary>
         private Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter? _timeTransport;
+        /// <summary>⭐ CE-4316 — Run to … (Preview); ticked once per frame in <see cref="Update"/>.</summary>
+        private Hrot.UI.Common.RunMode.RunToController? _runTo;
+        /// <summary>⭐ CE-4316 — Run to …, for the debug API and the mode menu.</summary>
+        internal Hrot.UI.Common.RunMode.RunToController? RunTo => _runTo;
         private MapViewConfig?                  _mapViewConfig;
 
         // ?? UI panels (legacy, always created) ????????????????????????????????
@@ -1446,6 +1450,11 @@ namespace Hrot.Editor
                         () => _orchestratorCore != null,
                         id => _orchestratorCore?.UiCache.UnsavedCheckOutcomeFor(id))),
                 simTime: () => _timeController!.GetCurrentState().TotalTime);   // the editor's readout is on the master's clock (it hosts it)
+            // ⭐⭐ CE-4316 (lifecycle LC-10, option A) — Run to … in Preview: the ACK-gated stepped run on THIS host's transport and master, the frame cap lifted while it runs.
+            _runTo = new Hrot.UI.Common.RunMode.RunToController(_timeTransport,
+                acksPending: () => _timeController?.IsAwaitingStepAcks ?? false,
+                inPreview:   () => _editorApp?.CurrentClusterState == Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview,
+                world:       () => _world);
             // ⭐ CE-1439 (AQ108 §2.12) — the cluster-control panel (the monitor window) asks through THIS host's transport, run choice and session: a caller that HAS them passes them,
             //   so the panel builds none of its own and its Pause / Load / Open AAR / Checkpoint are the toolbar's and the File menu's, not a second surface.
             if (_orchestratorCore != null && _timeTransport.RunChoice is { } panelChoice && _editorApp?.ScenarioSession is { } panelSession)
@@ -1632,6 +1641,7 @@ namespace Hrot.Editor
                     // ⚠ A Func over `_kernel`, the same shape the DiagnosticsDumpClusterOpHandler above
                     //   already uses — the kernel is replaced across a hot reload, so a captured service
                     //   would answer for a dead one.
+                    debugService.RunToControl = _runTo;   // ⭐ CE-4316 — a held dependency is passed (the silent-default rule)
                     debugService.AttachArchitectureDiagnostics(
                         () => _kernel is null
                               ? null
@@ -2502,6 +2512,7 @@ namespace Hrot.Editor
         /// <inheritdoc/>
         public void Update(float deltaTime)
         {
+            _runTo?.Tick();   // ⭐ CE-4316 — Run to …: one ACK-gated step per frame until reached
             // ⭐⭐⭐ MX-006 — THE FRAME BOUNDARY for the panel snapshot. FIRST LINE OF THE FRAME.
             //   📄 DESIGN_UI_Observability_Snapshot.md §"Perf & correctness".
             //   🔴 Why: the snapshot is latest-wins, so a panel whose window the user CLOSED kept

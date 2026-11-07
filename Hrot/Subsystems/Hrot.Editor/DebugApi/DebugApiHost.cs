@@ -159,7 +159,7 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         internal static readonly HashSet<(string Method, string Template)> ClusterGatedRoutes = new(WorldChangingRoutes)
         {
-            ("POST", "/sim/play"), ("POST", "/sim/pause"), ("POST", "/sim/step"), ("POST", "/sim/timescale"),
+            ("POST", "/sim/play"), ("POST", "/sim/pause"), ("POST", "/sim/step"), ("POST", "/sim/run-to"), ("POST", "/sim/timescale"),
             ("POST", "/run-mode"), ("POST", "/run-settings"), ("POST", "/preview/enter"), ("POST", "/preview/exit"),
             ("POST", "/scenario/load/edit"), ("POST", "/scenario/load/live"), ("POST", "/scenario/new"), ("POST", "/scenario/check-unsaved"),
             ("POST", "/exercises/keep"), ("DELETE", "/exercises/{id}"),
@@ -574,6 +574,19 @@ namespace Hrot.Editor.DebugApi
             // ⭐⭐ Same shape as /sim/step's gate and for the same stated reason (Q54-2: issue where the user
             //    is, confirm where the truth is): the wait cannot live inside Pause() — the drain runs on the
             //    main thread — so it lives here on the HTTP thread and polls across frames.
+            // ⭐ CE-4316 — Run to …: answers at once (the run goes on across frames, one ACK-gated step each); GET /sim/state's runTo says when it stopped.
+            _routes.Add(new("POST", "/sim/run-to",    ctx =>
+            {
+                double? seconds = ctx.Body?["seconds"]?.GetValue<double>();
+                string? condition = Fdp.Core.Serialization.Converters.JsonTextConverter.TextOf(ctx.Body?["condition"]);   // an object, or a string holding one
+                bool cancel = ctx.Body?["cancel"]?.GetValue<bool>() ?? false;
+                return RunMainResult(s =>
+                {
+                    try { return Ok(s.RunTo(seconds, condition, cancel)); }
+                    catch (ArgumentException ex) { return Fail(400, ex.Message); }
+                    catch (InvalidOperationException ex) { return Fail(409, ex.Message); }
+                });
+            }));
             _routes.Add(new("POST", "/sim/pause",     async _ =>
             {
                 var issued = await RunMain(s => s.Pause()).ConfigureAwait(false);

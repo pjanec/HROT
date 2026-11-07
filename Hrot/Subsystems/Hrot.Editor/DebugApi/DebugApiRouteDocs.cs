@@ -1387,6 +1387,24 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{}",
             ExampleGist: "pause the running simulation"),
 
+        [("POST", "/sim/run-to")] = new RouteDoc(
+            Tool:    "run_to",
+            Group:   "D — Sim / preview / time",
+            Summary: "Run to … in Preview: step the cluster as fast as it steps until a sim time or a condition holds, then stay paused there.",
+            Returns: "the sim state, with runTo {running, status}; poll get_sim_state until runTo.running is false.",
+            Hint:    "One of seconds / condition. Example: run_to({seconds:600}) · run_to({condition:{...a condition...}}) · run_to({cancel:true})",
+            Params: new RouteParam[]
+            {
+                new("seconds", "number", false, "Stop at this sim time (seconds since the start); must be ahead of the clock"),
+                new("condition", "object", false, "Stop when this condition (the condition language, as a rule's when) holds — e.g. a phase begins"),
+                new("cancel", "boolean", false, "Stop the run going on, where it is"),
+            },
+            Notes: new[]
+            {
+                "Preview only. The ACK-gated stepped run (deterministic, 1/60 s per step, one step per frame) with the window's frame cap lifted — CE-4316, lifecycle LC-10, option A.",
+                "Answers at once; the run goes on across frames. GET /sim/state's runTo.status says why it stopped (reached · the condition held · left Preview · stopped).",
+            }),
+
         [("POST", "/sim/step")] = new RouteDoc(
             Tool:    "step",
             Group:   "D — Sim / preview / time",

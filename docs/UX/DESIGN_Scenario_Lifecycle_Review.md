@@ -139,6 +139,49 @@ gates Preview or Live.*
 | *"a unit without brain"* is NOT checked yet | whether a unit has a behaviour depends on its TKB template's default (`BehaviorTkbTranslator`), which a world-only reader cannot see; the Preview log already names a unit that starts nothing. ⏳ a later check with the TKB in hand |
 | the Problems WINDOW and the toolbar count | ui's (the handoff: "ui window by whoever claims it"); backend ships the checks (`ScenarioProblems.Collect` / `Text`). ⏳ no HTTP route yet |
 
+### 2.8 LC-10 — *Run to …*, as built *(backend, `2026-11-07`, L-7 / CE-4316 — the user approved option A)*
+
+🔒 User, `2026-11-07`, on the [question](../blueprints/batches/NOTE_Backend_To_Coordinator_Run_To_Question.md): *"A"* — the ACK-gated stepped run
+with the frame cap lifted while it runs (B: several steps per barrier; C: a high time scale — rejected, it changes what happens).
+
+```mermaid
+classDiagram
+  class RunToController { <<NEW · Hrot.Presentation/RunMode>> Start(atSeconds?, until?) · Tick() · Cancel() · IsRunning · Status }
+  class FramePacing { <<NEW>> Register(setTargetFps, normal) · SetUnthrottled(on) }
+  class ITimeTransportFacade { <<existing>> IsPaused · TotalTime · StepBy }
+  class MasterSyncController { <<existing>> IsAwaitingStepAcks }
+  class ConditionCache { <<existing>> Get(json) }
+  class EditorSubsystem { <<existing>> Update ticks it · /sim/run-to }
+  EditorSubsystem --> RunToController
+  RunToController --> ITimeTransportFacade : one 1/60 step per frame
+  RunToController --> MasterSyncController : the last step landed?
+  RunToController --> FramePacing : cap lifted while running
+  RunToController ..> ConditionCache : until (a phase begins, a rule fires)
+```
+
+```mermaid
+sequenceDiagram
+  participant U as the user / POST /sim/run-to
+  participant R as RunToController
+  participant T as the cluster transport
+  participant M as MasterSyncController
+  U->>R: Start(12:00 or a condition)
+  R->>R: frame cap lifted
+  loop every frame
+    R->>M: acks pending? clock moved since the last step?
+    alt landed and not reached
+      R->>T: StepBy(1/60)
+    else reached / the condition holds / left Preview
+      R->>R: stop, paused, cap restored
+    end
+  end
+```
+
+*What the pictures show: nothing new runs on the nodes — the run is the same deterministic ACK-gated step a ▶ at 1× is made of; only how often
+the editor draws a frame changes.* Entry points: `POST /sim/run-to {seconds | condition | cancel}` (tool `run_to`) and `GET /sim/state` `runTo`.
+⏳ the mode-menu item (*Run to …*, a time field and the *when Phase N begins* / *when a rule fires* presets) is ui's — it calls
+`EditorSubsystem.RunTo.Start(...)`. Rails: `RunToControllerTests` (unit, red-proven), `PreviewLifecycleRails.Run_to_stops_the_preview_at_the_time_paused` (the real editor; prints the measured rate).
+
 ## 3. For the user — the decisions — ✅ ALL APPROVED (R-4166, user `2026-11-07`: *"Otherwise, all approved."*), Q9 as revised
 
 | # | question | ⭐ lean |
