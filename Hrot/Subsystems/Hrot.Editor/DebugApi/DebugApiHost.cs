@@ -580,9 +580,10 @@ namespace Hrot.Editor.DebugApi
                 double? seconds = ctx.Body?["seconds"]?.GetValue<double>();
                 string? condition = Fdp.Core.Serialization.Converters.JsonTextConverter.TextOf(ctx.Body?["condition"]);   // an object, or a string holding one
                 bool cancel = ctx.Body?["cancel"]?.GetValue<bool>() ?? false;
+                float? step = ctx.Body?["step"] is { } st ? (float)st.GetValue<double>() : null;
                 return RunMainResult(s =>
                 {
-                    try { return Ok(s.RunTo(seconds, condition, cancel)); }
+                    try { return Ok(s.RunTo(seconds, condition, cancel, step)); }
                     catch (ArgumentException ex) { return Fail(400, ex.Message); }
                     catch (InvalidOperationException ex) { return Fail(409, ex.Message); }
                 });

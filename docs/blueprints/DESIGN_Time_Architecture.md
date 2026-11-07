@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING
-updated: 2026-10-28 (§18: CE-4087 — a resume to a running master is re-announced and logged, never swallowed; the step set admits a node when it is IN SYNC; the reported stuck clock was NOT reproduced, root cause unproven, backend) · 2026-10-21 (§17: stepped mode is deterministic — sim-time cadence and the step wait for background modules, CE-3292, R-3035, backend) · 2026-10-19 (P8 ① superseded: a module's snapshot carries the frame's clock, CE-3267, backend) · 2026-10-07 (§12a: SnapAndPause is the ONE time discontinuity, takes the whole GlobalTime, keeps the slave roster; ResetForLoadedScenario deleted) · 2026-08-22
+updated: 2026-11-07 (§20: CE-4316 Run to …'s TURBO, the one documented exception, the networkless editor node only; the step a per-run setting, backend) · 2026-10-28 (§18: CE-4087 — a resume to a running master is re-announced and logged, never swallowed; the step set admits a node when it is IN SYNC; the reported stuck clock was NOT reproduced, root cause unproven, backend) · 2026-10-21 (§17: stepped mode is deterministic — sim-time cadence and the step wait for background modules, CE-3292, R-3035, backend) · 2026-10-19 (P8 ① superseded: a module's snapshot carries the frame's clock, CE-3267, backend) · 2026-10-07 (§12a: SnapAndPause is the ONE time discontinuity, takes the whole GlobalTime, keeps the slave roster; ResetForLoadedScenario deleted) · 2026-08-22
 merged: T1-T7 + W1/W2 (the drain) are BUILT and MERGED into the coordinator branch. Open per PLAN:
   T4 path-C (debugger->intents) and T5's remaining pause-notion sites. X1/X2 deferred.
 verified: coordinator post-merge run 2026-08-22 (HEAD c7fb299d vs 34deca154^) - TimeControlIntegrationTests
@@ -30,6 +30,7 @@ related-designs:
   - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — D5: a dry-run Stop never restores the clock (§12a), a checkpoint restore does (CE-3299).
   - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — OWNS which systems run on a paused frame (an explicit TickMode on every
     system and module, no default) and the step event window that settles §17's OPEN event-visibility item (CE-3293, R-3036)
+  - docs/UX/DESIGN_Scenario_Lifecycle_Review.md — §2.8 (LC-10, CE-4316) OWNS Run to …; §20 here owns its turbo exception and the per-run step
   - docs/DESIGN_Film_Director.md — a CONSUMER: paces fixed steps (StepOneTick) against the wall clock for deterministic real-time playback (D-1)
   - docs/blueprints/Architect_Question_91_Player_Nodes.md — §4-D: the step-barrier slave roster becomes the AUTHORITATIVE
     (simulation-role) nodes instead of a name match, and a departed node leaves the pending-ACK set.
@@ -1736,6 +1737,58 @@ graph TD
 | `TimeSyncProbeEvent.ClientNodeId` is a `Fdp.Core.NodeId`, not `int` | `S0IdTypesRailTests.S0_EveryNodeIdMember_IsANodeId` forbids a bare int node id; the translator converts to the wire `int` |
 | `HighResUtcClock` became `public` | the moved translators (another assembly) stamp t1/t4 with it; one clock, no copy |
 | tests: translator / wire tests (43) moved to `Fdp.Network.Cyclone.Tests/Time`; controller tests read `TimeSyncProbeEvent`; `ClockSkewDriftTests` feeds `TimeSyncOffsetCalculatedEvent` (the controller never read the wire response) | the claims stay; `TheHaltCannotStopTheClockTests` path list follows the files |
+
+## 20. ⭐⭐ `CE-4316` — **Run to …'s TURBO: the ONE documented exception to the shared clock** *(AS-BUILT `2026-11-07`, backend)*
+
+🔒 User, `2026-11-07`: *"the editor node special time controller would be a documented exception to otherwise unified and shared code. and may
+be used only for these automatic fast skipping of the beginning of the scenario"* · *"CGF and SimHost running separately over the network…
+only that C-mode deterministic 10 times speed fast stepping mode"* · *"be able to set the frame size, the time quantum, not to be limited to
+1/60th … 1/30th or 1/20th … the speed up will be tremendous"*. 📄 The feature: [`DESIGN_Scenario_Lifecycle_Review.md`](../UX/DESIGN_Scenario_Lifecycle_Review.md) §2.8 (LC-10).
+
+```mermaid
+classDiagram
+    direction LR
+    class RunToController { <<Hrot.Presentation, NEW CE-4316>> Start(at, until, stepSeconds) · Tick() once per rendered frame · IsTurbo · Step }
+    class ITimeTransportFacade { <<existing>> IsPaused · TotalTime · StepBy(s) }
+    class MasterSyncController { <<existing, §17>> Step(s) · IsAwaitingStepAcks }
+    class EditorSubsystem { <<existing>> TickNodeFrame(dt) the ONE node frame · TurboStep(s, step) the exception }
+    class FramePacing { <<NEW>> lifts the window's frame cap while a run goes }
+    RunToController --> ITimeTransportFacade : networked, StepBy one per frame
+    RunToController --> EditorSubsystem : turbo delegate (only with OfflineNetworkFactory)
+    EditorSubsystem --> MasterSyncController : Step(s) at once
+    RunToController --> FramePacing
+```
+*What the picture shows that prose hid: the turbo is a DELEGATE the host hands in, not a second controller — a host without it (any networked
+cluster) cannot take the exception, by construction. And the turbo runs the SAME `TickNodeFrame` as `Update`, never a copy of the frame.*
+
+```mermaid
+sequenceDiagram
+    participant F as rendered frame (Update)
+    participant R as RunToController.Tick
+    participant E as EditorSubsystem.TurboStep
+    participant M as MasterSyncController
+    F->>R: Tick()
+    loop until reached or 25 ms of wall spent
+        alt last step landed (paused, no ACKs, clock moved)
+            R->>R: stop? (time within half a step, or the condition on the world)
+            R->>E: TurboStep(step, true)
+            E->>M: Step(step), the clock moves now
+            E->>E: TickNodeFrame(step): slave, kernel, timeline, bus, orchestrator
+        else in flight
+            R->>E: TurboStep(step, false), the frame only, so the ACK lands
+        end
+    end
+    F->>F: the normal frame, the map drawn ONCE
+```
+*What it shows: why turbo is fast — the networked run pays ~4 rendered frames per step (the intent, the master reading it, the ACK, seen
+landed: 0.3× measured, lifecycle §2.8), the turbo pays ~2 cheap node frames and draws once per 25 ms.*
+
+| ⭐ the rule | |
+|---|---|
+| ⭐⭐⭐ **the exception is the turbo DELEGATE only** — `EditorSubsystem` passes it iff `_networkFactory is OfflineNetworkFactory` | ⛔ a networked host never gets it ⇒ CGF / SimHost over DDS keep the shared ACK-gated step |
+| ⭐⭐ **still deterministic** — every step is the run's fixed quantum; a step is never asked while the last is in flight | ✅ rail: `RunToControllerTests.CE4316_Turbo_*` (2 s at 1/60 = 120 steps, never two in flight) |
+| ⭐⭐ **the quantum is a setting of each run**, in (0, 1/6] s — default 1/60 on turbo (the live cadence), 1/6 networked (the 10× fast-forward quantum, option C) | ⚠ a bigger step is a little less like the live 1/60 run (movers and rounds are tuned near 1/60) — the user's call, per run |
+| ⭐ **used ONLY by Run to …** | ⛔ not a play mode, not the ▶ path, not the film director (D-1 paces fixed steps against the wall) |
 
 ## ⭐ WHERE THE TASKS WENT
 

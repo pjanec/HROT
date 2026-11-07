@@ -144,6 +144,13 @@ gates Preview or Live.*
 🔒 User, `2026-11-07`, on the [question](../blueprints/batches/NOTE_Backend_To_Coordinator_Run_To_Question.md): *"A"* — the ACK-gated stepped run
 with the frame cap lifted while it runs (B: several steps per barrier; C: a high time scale — rejected, it changes what happens).
 
+⭐⭐ **SUPERSEDED IN PART, same day — A measured 0.3× (a step costs ~4 rendered frames).** 🔒 The user then ruled: on the NETWORKLESS editor node
+a **TURBO** — many fixed steps per rendered frame, still deterministic, *"a documented exception… used only for these automatic fast skipping of
+the beginning of the scenario"*; over the network the ACK-gated step stays, with a bigger quantum; and *"be able to set the frame size, the time
+quantum, not to be limited to 1/60th"*. ⇒ `Start(at, until, stepSeconds)`: the step is a setting of each run, in (0, 1/6] s — default 1/60 on
+turbo, 1/6 networked. 📄 The exception, its UML and its rule: [`DESIGN_Time_Architecture.md`](../blueprints/DESIGN_Time_Architecture.md) §20.
+The diagrams below are the networked path (A), still the one any networked host takes.
+
 ```mermaid
 classDiagram
   class RunToController { <<NEW · Hrot.Presentation/RunMode>> Start(atSeconds?, until?) · Tick() · Cancel() · IsRunning · Status }
@@ -178,7 +185,7 @@ sequenceDiagram
 ```
 
 *What the pictures show: nothing new runs on the nodes — the run is the same deterministic ACK-gated step a ▶ at 1× is made of; only how often
-the editor draws a frame changes.* Entry points: `POST /sim/run-to {seconds | condition | cancel}` (tool `run_to`) and `GET /sim/state` `runTo`.
+the editor draws a frame changes.* Entry points: `POST /sim/run-to {seconds | condition | cancel, step}` (tool `run_to`) and `GET /sim/state` `runTo {running, status, step, turbo}`.
 ⏳ the mode-menu item (*Run to …*, a time field and the *when Phase N begins* / *when a rule fires* presets) is ui's — it calls
 `EditorSubsystem.RunTo.Start(...)`. Rails: `RunToControllerTests` (unit, red-proven), `PreviewLifecycleRails.Run_to_stops_the_preview_at_the_time_paused` (the real editor; prints the measured rate).
 

@@ -90,8 +90,8 @@ public sealed class McpClient : IDisposable
     public Task<ApiResult> GetSimStateAsync(CancellationToken ct = default) => GetAsync("/sim/state", ct);
 
     /// <summary>⭐ CE-4316 — <c>POST /sim/run-to {seconds}</c>: Run to … in Preview (answers at once; <c>/sim/state</c>'s <c>runTo</c> follows it).</summary>
-    public Task<ApiResult> RunToAsync(double seconds, CancellationToken ct = default)
-        => PostAsync("/sim/run-to", new JsonObject { ["seconds"] = seconds }, ct);
+    public Task<ApiResult> RunToAsync(double seconds, double? step = null, CancellationToken ct = default)
+        => PostAsync("/sim/run-to", step is double st ? new JsonObject { ["seconds"] = seconds, ["step"] = st } : new JsonObject { ["seconds"] = seconds }, ct);
 
     // ⭐ CE-4038 — the film director (docs/DESIGN_Film_Director.md §4)
     public Task<ApiResult> DirectorPlayAsync(JsonNode body, CancellationToken ct = default) => PostAsync("/director/play", body, ct);

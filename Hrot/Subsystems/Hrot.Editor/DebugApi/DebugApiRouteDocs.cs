@@ -1392,16 +1392,17 @@ namespace Hrot.Editor.DebugApi
             Group:   "D — Sim / preview / time",
             Summary: "Run to … in Preview: step the cluster as fast as it steps until a sim time or a condition holds, then stay paused there.",
             Returns: "the sim state, with runTo {running, status}; poll get_sim_state until runTo.running is false.",
-            Hint:    "One of seconds / condition. Example: run_to({seconds:600}) · run_to({condition:{...a condition...}}) · run_to({cancel:true})",
+            Hint:    "One of seconds / condition; optional step. Example: run_to({seconds:600}) · run_to({seconds:600, step:0.05}) · run_to({condition:{...a condition...}}) · run_to({cancel:true})",
             Params: new RouteParam[]
             {
                 new("seconds", "number", false, "Stop at this sim time (seconds since the start); must be ahead of the clock"),
                 new("condition", "object", false, "Stop when this condition (the condition language, as a rule's when) holds — e.g. a phase begins"),
                 new("cancel", "boolean", false, "Stop the run going on, where it is"),
+                new("step", "number", false, "Seconds per step, in (0, 1/6]. Default 1/60 on the editor's turbo, 1/6 on a networked cluster. Bigger = faster, a little less like the live 1/60 run"),
             },
             Notes: new[]
             {
-                "Preview only. The ACK-gated stepped run (deterministic, 1/60 s per step, one step per frame) with the window's frame cap lifted — CE-4316, lifecycle LC-10, option A.",
+                "Preview only. Deterministic fixed steps (CE-4316, lifecycle LC-10). On the networkless editor node: TURBO — many steps per rendered frame, as fast as the node steps (DESIGN_Time_Architecture.md §20). Networked: one ACK-gated step per frame.",
                 "Answers at once; the run goes on across frames. GET /sim/state's runTo.status says why it stopped (reached · the condition held · left Preview · stopped).",
             }),
 
