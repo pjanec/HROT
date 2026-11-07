@@ -81,9 +81,10 @@ public static class HudFeatures
     /// A host that builds NO node of its own (the Replay Browser) builds its gate here: the HUD declarations with <paramref name="playerDefault"/>, the
     /// <c>--feature</c> overrides of this process applied (as <see cref="Map3dInLoadFeature.OnAtBoot"/> does). Live features are not recorded, so a replay uses THIS host's settings.
     /// </summary>
-    public static NodeFeatures BootGate(bool playerDefault, NodeRole role = NodeRole.Map2D)
+    public static NodeFeatures BootGate(bool playerDefault, NodeRole role = NodeRole.Map2D, Seat? seat = null)
     {
         var declarations = Declarations(playerDefault).ToArray();
+        if (seat is Seat s) declarations = declarations.Append(StationSeat.Declaration(s)).ToArray();   // ⭐ seats H1: a non-node host (the Replay Browser) states its seat too
         NodeFeatureOverrides.NoteDeclared(declarations.Select(d => d.Id));
         var gate = new NodeFeatures(new FeatureRegistry(declarations), role);
         foreach (var (id, json) in NodeFeatureOverrides.FromCommandLine)

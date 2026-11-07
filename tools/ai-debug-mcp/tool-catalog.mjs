@@ -78,7 +78,7 @@ export const TOOLS_CATALOG = [
     "returns": "{ mode, host{hasMaster,currentPerspective,routablePerspectives}, endpoints[], matrix{perspective:{capability:bool}}, unclassifiedRoutes[] }",
     "notes": [
       "ASK THIS FIRST when a call answers 501 NOT_SUPPORTED_HERE — the matrix says which capabilities the active perspective offers, so you can switch perspective or pick another endpoint instead of guessing.",
-      "mode tells you how the process was started: \"editor\" (one context, everything local) or a cluster mode such as \"all\" (orchestrator + simhost + ig + excon + cgf).",
+      "mode tells you how the process was started: \"editor\" (one context, everything local) or a cluster mode such as \"all\" (orchestrator + simhost + player + excon + cgf).",
       "The matrix is MEASURED from wired dependencies, not declared — a false cell is a bug, not a stale table.",
       "host.hasMaster:false means a step cannot be confirmed cluster-wide on this host."
     ],
@@ -6163,7 +6163,7 @@ export const TOOLS_CATALOG = [
     "params": [],
     "returns": "{ state (Waiting|Observing|Choosing|Requesting|TakingControl|Playing), reason, lastRefusal, serverExists, station, offers[{unitNetId, side, slotName, holderStation (0 = free), kind (Placed|Role|Area), count, max, kits[] (a role's kit labels by number, \"\" = unset)}], respawnAt, slot{state, unit} }",
     "notes": [
-      "Only a Player (the IG host) composes the client; every other node answers 404 'no deploy flow on this node'.",
+      "Only a Player (the Player host) composes the client; every other node answers 404 'no deploy flow on this node'.",
       "Waiting with reason 'Waiting for the server to load a scenario' = the gate is open but the cluster is not in a Live run."
     ],
     "example": {
@@ -6242,12 +6242,12 @@ export const TOOLS_CATALOG = [
         "name": "subsystem",
         "type": "string",
         "required": false,
-        "description": "Restrict to one subsystem or perspective name (e.g. SimHost, IG, Scenario)"
+        "description": "Restrict to one subsystem or perspective name (e.g. SimHost, Player, Scenario)"
       }
     ],
     "returns": "{ subsystems[{ subsystem, perspective, modules[], systems[{ phase, module, systemName, executions, avgMs, recentAvgMs, maxMs, errors }], translators[], moduleCount, systemCount, translatorCount }], note }",
     "notes": [
-      "Per SUBSYSTEM, not per node: a --mode all node runs SimHost, IG, CGF and the orchestrator side by side and each holds its own kernel, so one snapshot per node would have to drop the rest.",
+      "Per SUBSYSTEM, not per node: a --mode all node runs SimHost, Player, CGF and the orchestrator side by side and each holds its own kernel, so one snapshot per node would have to drop the rest.",
       "Every node hosts its own MCP endpoint. This answers for THIS node only — ask each node's own endpoint for its own architecture.",
       "A subsystem with no ECS kernel (ExCon, an orchestrator-only node) correctly reports nothing; check the 'diagnostics.architecture' cell in get_capabilities rather than reading the absence as a wiring bug.",
       "modules carry lifecycleState and circuitState, so a module stuck open or failing shows up here without reading logs.",
@@ -7262,7 +7262,7 @@ export const TOOLS_CATALOG = [
   {
     "name": "film_capture",
     "group": "Y — node diagnostics",
-    "summary": "⭐ CE-3289 — write the next drawn frame's 3-D SCENE (sky, terrain, bodies, effects, rounds — no panels, gizmos, cards or HUD) as a PNG, at any size.",
+    "summary": "⭐ CE-3289 — write the next drawn frame's 3-D SCENE (sky, terrain, bodies, effects, rounds; no panels or HUD) as a PNG, at any size. ⚠ The map's TOGGLED gizmo rows — unit cards (Units.Labels), unit details, vision cones … — are filmed when they are on in the layer set in force; only a take's or a shot's layer override starts clean (the scene rows only: POST /film/shot {spec:{…, layers:{}}}).",
     "http": {
       "method": "POST",
       "path": "/film/capture"
@@ -7310,7 +7310,7 @@ export const TOOLS_CATALOG = [
   {
     "name": "film_release",
     "group": "Y — node diagnostics",
-    "summary": "⭐ CE-3289 — give the 3-D map's camera back to the operator (it keeps the last pose).",
+    "summary": "⭐ CE-3289 — give the 3-D map's camera back to the operator (it keeps the last pose); ⭐ CE-4268 — and drop the layers a shot's spec set.",
     "http": {
       "method": "DELETE",
       "path": "/film/shot"
@@ -7392,7 +7392,7 @@ export const TOOLS_CATALOG = [
         "name": "spec",
         "type": "object",
         "required": false,
-        "description": "⭐ CE-4038 — a take's shot in its own keys (docs/DESIGN_Film_Director.md §4), units by name"
+        "description": "⭐ CE-4038 — a take's shot in its own keys (docs/DESIGN_Film_Director.md §4), units by name. ⭐ CE-4268 — its `layers` ({on, off}; {} = the take's clean start: the scene rows only, no unit cards) IS honoured, as a transient override through the director's layer override — never the user's file; DELETE /film/shot clears it"
       },
       {
         "name": "t",
@@ -7914,6 +7914,84 @@ export const TOOLS_CATALOG = [
       "gist": "play the Friend side"
     },
     "hint": "Req: side (Friend · Hostile · Neutral …, or null). Example: lock_side({side:'Friend'})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_session",
+    "group": "Z — Entity control (orders)",
+    "summary": "This API session's seat, side and hat (a virtual station), and the station's own editing level (from its station.seat feature).",
+    "http": {
+      "method": "GET",
+      "path": "/session"
+    },
+    "params": [],
+    "returns": "{ seat, side, hat, stationLevel }",
+    "example": {
+      "args": {},
+      "gist": "which seat am I playing"
+    },
+    "hint": "No args. Example: get_session({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "set_session_hat",
+    "group": "Z — Entity control (orders)",
+    "summary": "Wear one hat in this API session (Edit · Command · Embodied · Observe · Direct) — one at a time.",
+    "http": {
+      "method": "POST",
+      "path": "/session/hat"
+    },
+    "params": [
+      {
+        "name": "hat",
+        "type": "string",
+        "required": true,
+        "description": "The hat"
+      }
+    ],
+    "returns": "{ seat, side, hat, stationLevel }",
+    "example": {
+      "args": {
+        "hat": "Command"
+      },
+      "gist": "act as the RTS commander"
+    },
+    "hint": "Req: hat. Example: set_session_hat({hat:'Command'})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "set_session_seat",
+    "group": "Z — Entity control (orders)",
+    "summary": "Play a seat in this API session (Author · Instructor · SideController · Player · Observer · Reviewer): every edit route then passes the same gate a person's station would (an Observer or a Player is refused with why). side is the side lock. seat:null ⇒ Author.",
+    "http": {
+      "method": "POST",
+      "path": "/session/seat"
+    },
+    "params": [
+      {
+        "name": "seat",
+        "type": "string",
+        "required": false,
+        "description": "The seat, or null for Author"
+      },
+      {
+        "name": "side",
+        "type": "string",
+        "required": false,
+        "description": "The side lock (as /orders/side-lock)"
+      }
+    ],
+    "returns": "{ seat, side, hat, stationLevel }",
+    "example": {
+      "args": {
+        "seat": "Observer"
+      },
+      "gist": "test what an observer may do"
+    },
+    "hint": "Opt: seat, side. Example: set_session_seat({seat:'Player', side:'Friend'})",
     "manualVerify": false
   },
 

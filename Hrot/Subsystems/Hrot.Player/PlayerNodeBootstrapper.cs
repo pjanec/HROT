@@ -287,6 +287,9 @@ internal sealed class PlayerNodeBootstrapper : SharedApplicationBootstrapper
     public System.Func<Fdp.Toolkit.Orchestration.IMapBuildStatus?>? MapBuildStatus { get; set; }
 
     /// <summary>⭐ Node Features F-17 — this host supplies a 3-D map status, so it declares `map3d.in-load` (default true here).</summary>
+    /// <summary>⭐ Seats and hats H1 — this host's default seat (§2.2).</summary>
+    protected override Hrot.Common.Infrastructure.Seat DefaultSeat => Hrot.Common.Infrastructure.Seat.Player;
+
     protected override System.Collections.Generic.IEnumerable<Hrot.Common.Infrastructure.FeatureDeclaration> HostFeatures
         => new[] { Hrot.Common.Infrastructure.Map3dInLoadFeature.Declaration(onByDefault: true) }
            .Concat(Hrot.Common.Infrastructure.HudFeatures.Declarations(playerDefault: true));   // ⭐ CE-4148 — the gameplay HUD aids (hud.*), default ON for the Player only

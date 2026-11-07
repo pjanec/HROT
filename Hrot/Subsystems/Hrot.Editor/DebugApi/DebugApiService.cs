@@ -3008,6 +3008,9 @@ namespace Hrot.Editor.DebugApi
             if (string.IsNullOrWhiteSpace(patchJson))
                 return (null, "patchJson is required.");
 
+            // ⭐ Seats H7 — an HTTP session is a virtual station: its seat passes the SAME gate a person's station would (no seat set ⇒ Author).
+            if (SessionRefusal() is { } refused) return (null, refused);
+
             EcsPatchContext ctx;
             try
             {

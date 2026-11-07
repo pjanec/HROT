@@ -99,6 +99,27 @@ public sealed class TheWriteRoutesAskTheOwnerTests
         Assert.Empty(node.PublishedRequests());
     }
 
+    /// <summary>⭐ Seats and hats H7 — an HTTP session that plays the Observer (or a Player) seat is refused the edit with why, as that person's station
+    /// would be; returning to Author (seat:null) edits again; GET /session reports it. ✅ Red-proof: the SessionRefusal check removed ⇒ the observer's edit lands ⇒ red.</summary>
+    [Fact]
+    public void H7_ASessionPlayingTheObserverSeat_IsRefusedTheEdit()
+    {
+        using var node = new Node(ownsSimTransform: true, simTransformIsNetworked: true);
+        var (session, seatError) = node.Service.SetSessionSeat(new System.Text.Json.Nodes.JsonObject { ["seat"] = "Observer" });
+        Assert.Null(seatError);
+        Assert.Equal("Observer", session!["seat"]!.GetValue<string>());
+        var before = node.World.GetComponent<SimTransform>(node.Entity).Rotation;
+
+        var (_, error) = node.Service.PatchEntityAttribute(NetworkId, "{\"Heading\":90}");
+        Assert.Equal("this station is an observer", error);
+        Assert.Equal(before, node.World.GetComponent<SimTransform>(node.Entity).Rotation);
+
+        node.Service.SetSessionSeat(new System.Text.Json.Nodes.JsonObject { ["seat"] = null });
+        Assert.Null(node.Service.PatchEntityAttribute(NetworkId, "{\"Heading\":90}").error);
+        Assert.NotNull(node.Service.SetSessionSeat(new System.Text.Json.Nodes.JsonObject { ["seat"] = "Admiral" }).error);
+        Assert.Equal("Command", node.Service.SetSessionHat(new System.Text.Json.Nodes.JsonObject { ["hat"] = "command" }).result!["hat"]!.GetValue<string>());
+    }
+
     /// <summary>
     /// ⭐⭐⭐ The defect itself: the patch must leave as a request carrying the JSON, addressed by network id, and the
     /// local replica must NOT be edited. ⭐ Red-proof (by inverse edit): drop the <c>TryPublishJsonPatch</c> call — no

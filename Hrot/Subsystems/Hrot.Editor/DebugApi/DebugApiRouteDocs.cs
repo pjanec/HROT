@@ -3147,6 +3147,36 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"side\":\"Friend\"}",
             ExampleGist: "play the Friend side"),
 
+        [("GET", "/session")] = new RouteDoc(
+            Tool:    "get_session",
+            Group:   "Z — Entity control (orders)",
+            Summary: "This API session's seat, side and hat (a virtual station), and the station's own editing level (from its station.seat feature).",
+            Returns: "{ seat, side, hat, stationLevel }",
+            Hint:    "No args. Example: get_session({})",
+            Params: System.Array.Empty<RouteParam>(),
+            ExampleArgsJson: "{}",
+            ExampleGist: "which seat am I playing"),
+
+        [("POST", "/session/seat")] = new RouteDoc(
+            Tool:    "set_session_seat",
+            Group:   "Z — Entity control (orders)",
+            Summary: "Play a seat in this API session (Author · Instructor · SideController · Player · Observer · Reviewer): every edit route then passes the same gate a person's station would (an Observer or a Player is refused with why). side is the side lock. seat:null ⇒ Author.",
+            Returns: "{ seat, side, hat, stationLevel }",
+            Hint:    "Opt: seat, side. Example: set_session_seat({seat:'Player', side:'Friend'})",
+            Params: new RouteParam[] { new("seat", "string", false, "The seat, or null for Author"), new("side", "string", false, "The side lock (as /orders/side-lock)") },
+            ExampleArgsJson: "{\"seat\":\"Observer\"}",
+            ExampleGist: "test what an observer may do"),
+
+        [("POST", "/session/hat")] = new RouteDoc(
+            Tool:    "set_session_hat",
+            Group:   "Z — Entity control (orders)",
+            Summary: "Wear one hat in this API session (Edit · Command · Embodied · Observe · Direct) — one at a time.",
+            Returns: "{ seat, side, hat, stationLevel }",
+            Hint:    "Req: hat. Example: set_session_hat({hat:'Command'})",
+            Params: new RouteParam[] { new("hat", "string", true, "The hat") },
+            ExampleArgsJson: "{\"hat\":\"Command\"}",
+            ExampleGist: "act as the RTS commander"),
+
         [("GET", "/sitrep")] = new RouteDoc(
             Tool:    "get_sitrep",
             Group:   "Z — Entity control (orders)",

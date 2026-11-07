@@ -9,7 +9,7 @@
   "counts": {
     "modules": 6,
     "systems": 50,
-    "translators": 129,
+    "translators": 130,
     "capabilities": 2,
     "providers": 0,
     "singletons": 4,
@@ -141,6 +141,7 @@
     "CycloneNetworkIngressSystem | Ingress | Hrot_NED_Descriptors_NavigationIntent | ordinal=52",
     "CycloneNetworkIngressSystem | Ingress | Fdp_Network_Cyclone_Topics_EntityLifecycleStatusDescriptor | ordinal=-3",
     "CycloneEgressSystem | Egress | Hrot_NED_Messages_TacticalIntentRequest | ordinal=92",
+    "CycloneEgressSystem | Egress | Hrot_NED_Messages_MissionControlRequest | ordinal=90",
     "CycloneEgressSystem | Bidirectional | Fdp_Toolkit_Time_Messages_SwitchTimeModeWireDto | ordinal=201",
     "CycloneEgressSystem | Bidirectional | Fdp_Toolkit_Time_Messages_FrameOrderDescriptor | ordinal=203",
     "CycloneEgressSystem | Bidirectional | Fdp_Toolkit_Time_Messages_TimeSyncResponse | ordinal=206",

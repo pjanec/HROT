@@ -10,7 +10,7 @@ namespace Hrot.Common.Editing
     /// mode from the run state / replay, the level from the seat — seats H1/H2).
     /// <para>F1 rules: Review mode refuses every edit (a recording is read-only — ⭐ and <c>Edits.Submit</c> already refuses it on every host from
     /// <c>ReplayState</c>, gate or not); an Observer or a no-editing seat refuses every edit. ⚠ Installed by the seat (H1/H2, B-15/B-16) — until then no host
-    /// installs it and every station edits at level Full. ⭐ Finer rules (what an
+    /// installed by the shared bootstrapper on every host, the level read from the <c>station.seat</c> feature (H1). ⭐ Finer rules (what an
     /// Instructor or a side Controller may do) belong to the action catalogue's <c>Level</c> per action (B-11, H2), never a second table here.</para>
     /// </summary>
     public sealed class HrotEditGate : IEditGate, IEditGateMode
@@ -29,7 +29,10 @@ namespace Hrot.Common.Editing
         public string ModeText => Mode.ToString();
 
         /// <inheritdoc/>
-        public string? Refuse(EntityRepository repo, EditOp op) => Reason(Mode, Level);
+        /// <remarks>⭐ The level bounds EDITING kinds only — an interaction (possess, embark) or an order is a station's ordinary use, judged by the
+        /// action catalogue's per-action level (H2), never refused here for a Player.</remarks>
+        public string? Refuse(EntityRepository repo, EditOp op)
+            => op.Kind is EditKind.Interact or EditKind.Command ? (Mode == EditingMode.Review ? Edits.ReplayRefusal : null) : Reason(Mode, Level);
 
         /// <summary>The refusal for a station in <paramref name="mode"/> at <paramref name="level"/>; null when it may edit.</summary>
         public static string? Reason(EditingMode mode, EditingLevel level)
@@ -42,6 +45,16 @@ namespace Hrot.Common.Editing
                 _ => null,
             };
         }
+
+        /// <summary>D4 — a seat's editing level (Seats and hats §2.2).</summary>
+        public static EditingLevel LevelOf(Hrot.Common.Infrastructure.Seat seat) => seat switch
+        {
+            Hrot.Common.Infrastructure.Seat.Author => EditingLevel.Full,
+            Hrot.Common.Infrastructure.Seat.Instructor => EditingLevel.Instructor,
+            Hrot.Common.Infrastructure.Seat.SideController => EditingLevel.Controller,
+            Hrot.Common.Infrastructure.Seat.Observer => EditingLevel.Observer,
+            _ => EditingLevel.None,   // Player, Reviewer
+        };
 
         /// <summary>Installs a gate on <paramref name="world"/>.</summary>
         public static HrotEditGate Install(EntityRepository world, Func<EditingMode> mode, Func<EditingLevel>? level = null)
