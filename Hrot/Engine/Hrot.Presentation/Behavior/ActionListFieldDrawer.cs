@@ -157,6 +157,8 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
         public string? Committed;               // the session's value as JSON when last opened / committed
         public string? Problem;
         public string Sentence = "";            // ⭐ CE-4307 (RX5) — the step as words (ActionSentence), built once when the row opens
+        public ComponentEditDrawer? Drawer;     // ⭐ CE-3378 (N-1) — the args table's drawer, built once per row session (it was `new ComponentEditDrawer(session, picks, StandardDrawers(session))` EVERY frame)
+        public IMapPickContext? DrawerPicks;    // the pick context the drawer was built with (rebuilt when the host's changes)
     }
 
     private readonly IComponentEditService _service;
@@ -252,7 +254,8 @@ public sealed class ActionListFieldDrawer : IImGuiFieldDrawer, IDisposable
                 if (ImGui.BeginTable("##args", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
                 {
                     if (session.RebuildState == EditRebuildState.RebuildRequired) session.RebuildDocument();
-                    new ComponentEditDrawer(session, _ctx.Picks, BehaviorParamsForm.StandardDrawers(session)).DrawRoot(session.Document.Root);
+                    if (row.Drawer == null || !ReferenceEquals(row.DrawerPicks, _ctx.Picks)) { row.Drawer = new ComponentEditDrawer(session, _ctx.Picks); row.DrawerPicks = _ctx.Picks; }
+                    row.Drawer.DrawRoot(session.Document.Root);
                     ImGui.EndTable();
                 }
                 if (session.IsDirty && row.Entry != null)

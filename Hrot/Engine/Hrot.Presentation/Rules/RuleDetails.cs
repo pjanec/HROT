@@ -68,6 +68,7 @@ public sealed class RuleDetails
     private readonly BehaviorParamsEditor _editor;
     private readonly ActionListContext _stepCtx = new();
     private readonly ActionListFieldDrawer _steps;
+    private readonly Fdp.Presentation.Editing.Types.TypeCatalogue _types;
     /// <summary>⭐ U-15 / C3 (DESIGN_Condition_Editor §4) — the When tab's friendly view: the ONE condition editor (the Expert view is the struct editor, as before).</summary>
     private readonly Fdp.Presentation.Editing.ConditionEditor _conditions = new(Fdp.Toolkit.ReplayBrowser.Search.Conditions.ConditionContexts.Rule);
     private bool _expert;
@@ -104,12 +105,15 @@ public sealed class RuleDetails
         var service = _svc.EditService() ?? throw new InvalidOperationException("The rule editor needs the params form's edit service.");
         _editor = new BehaviorParamsEditor(service);
         _steps = new ActionListFieldDrawer(service, _stepCtx);
+        _types = Fdp.Presentation.Editing.Types.TypeCatalogue.Standard.With(new Fdp.Presentation.Editing.Types.FieldTypeEditor(typeof(System.Collections.Generic.List<Fdp.Toolkit.ScenarioRules.Actions.ActionStep>), null, _steps));   // ⭐ CE-3378 (N-1): the stateful do-list cell as an overlay, built ONCE
     }
 
     public RuleDetailsProbe Probe => _probe;
 
     /// <summary>The do list's drawer (its probe: rows, marker; the rails read it).</summary>
     internal ActionListFieldDrawer Steps => _steps;
+    /// <summary>⭐ CE-3378 — the catalogue overlay the rule forms draw with (the forwarding rail reads it).</summary>
+    internal Fdp.Presentation.Editing.Types.TypeCatalogue Types => _types;
 
     /// <summary>Where the Undo button was drawn (screen space) — a frame rail clicks it.</summary>
     internal (Vector2 Min, Vector2 Max) UndoRect { get; private set; }
@@ -408,7 +412,7 @@ public sealed class RuleDetails
                 ImGui.Spacing();
             }
         }
-        BehaviorParamsForm.DrawFields(session, picks, "##rule-" + tab, null, tabFields, new IImGuiFieldDrawer[] { _steps });
+        BehaviorParamsForm.DrawFields(session, picks, "##rule-" + tab, null, tabFields, _types);
         if (ro != null) ImGui.EndDisabled();
         if (tab == RuleTab.When && WantsLiveValues(row, tab)) DrawLiveStrip(onlyOutOfForm: !_expert);
     }

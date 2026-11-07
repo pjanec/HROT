@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Fdp.Presentation.Editing;
+using Fdp.Presentation.Editing.Types;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Inspector;
 using Hrot.Editor.AiShared.Inspector.ActionBinding;
@@ -210,22 +211,21 @@ public sealed class HsmSyncGroupPickerDrawer : IImGuiFieldDrawer, IPickerListSou
 }
 
 /// <summary>
-/// Factory: builds the <see cref="IReadOnlyDictionary{Type,IImGuiFieldDrawer}"/> consumed by
-/// <see cref="Hrot.Editor.AiShared.Windows.InspectorWindow.SetFacetEditService"/> for a specific
-/// HSM asset. Called by EditorSubsystem from the <c>ActiveChanged</c> callback whenever the
-/// active HSM document switches (SE2).
+/// ⭐ CE-3378 (N-1) — builds the TYPE CATALOGUE OVERLAY the inspector draws an HSM document's facets with
+/// (<see cref="Hrot.Editor.AiShared.Windows.InspectorWindow.SetFacetEditService"/> / <c>NodePropertiesSource</c>) for a specific HSM asset. Called by the composition root from the
+/// <c>ActiveChanged</c> callback whenever the active HSM document switches (SE2) — ⭐ ONCE per document, the host keeps it; it is never rebuilt per frame.
 /// </summary>
 public static class HsmPickerDrawerFactory
 {
     /// <summary>
-    /// Creates a fresh custom-drawers map for <paramref name="asset"/>:
+    /// Creates the catalogue overlay for <paramref name="asset"/> on <see cref="TypeCatalogue.Standard"/>:
     /// <list type="bullet">
     ///   <item>⭐ <c>CE-417</c> slice 4b — the ONE <see cref="ActionBindingDrawer"/> for every binding (state entry/exit/
-    ///         activity/timer, transition and global-transition guard/action), keyed by <see cref="BehaviorActionBindingFacet"/>;
+    ///         activity/timer, transition and global-transition guard/action), a TYPE entry on <see cref="BehaviorActionBindingFacet"/>;
     ///         the HSM host supplies only its method list (<see cref="HsmBindingMethods"/>).</item>
-    ///   <item>A <see cref="HsmCompositeStringDrawer"/> keyed by <c>typeof(string)</c>, dispatching
-    ///         <see cref="HsmStateSelectorAttribute"/>, <see cref="HsmEventPickerAttribute"/> and the asset pickers.</item>
-    ///   <item>A <see cref="HsmSyncGroupPickerDrawer"/> keyed by <c>typeof(ushort)</c> for sync-group fields.</item>
+    ///   <item>FIELD RULES on <c>string</c>: <see cref="HsmStateSelectorAttribute"/>, <see cref="HsmEventPickerAttribute"/>, the SOP behaviour picker and the asset picker
+    ///         (<see cref="Hrot.Editor.AiShared.Inspector.AiAssetPickerRuleEditor"/>, per KIND — CE-396).</item>
+    ///   <item>a <see cref="HsmSyncGroupPickerDrawer"/> as the TYPE entry for <c>ushort</c> (sync-group fields).</item>
     /// </list>
     /// </summary>
     /// <param name="exporter">⭐⭐ <c>CE-386</c> — the registered activities/guards and every binding's parameter type.</param>
@@ -234,7 +234,7 @@ public static class HsmPickerDrawerFactory
     /// binding drawer's blueprint list. ⚠ Optional so headless fixtures need not supply one; ⛔ a production host HAS one
     /// and must pass it, or the field silently offers nothing — the silent-default shape this codebase keeps paying for.
     /// </param>
-    public static IReadOnlyDictionary<Type, IImGuiFieldDrawer> BuildDrawers(
+    public static TypeCatalogue BuildCatalogue(
         HsmAsset               asset,
         IActionSchemaExporter? exporter = null,
         Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null,
@@ -249,103 +249,25 @@ public static class HsmPickerDrawerFactory
         var bindingDrawer = new ActionBindingDrawer(new ActionBindingSources(
             asset, kind => HsmBindingMethods.For(asset, exporter, kind), exporter, catalog), field);
 
-        var composite = new HsmCompositeStringDrawer()
-            .Register<HsmStateSelectorAttribute>(new HsmStateSelectorDrawer(asset, field))
-            .Register<HsmEventPickerAttribute>(new HsmEventPickerDrawer(asset, field));
+        var types = TypeCatalogue.Standard.With(
+            new FieldTypeEditor(typeof(ushort), null, new HsmSyncGroupPickerDrawer(asset)),
+            new FieldTypeEditor(typeof(BehaviorActionBindingFacet), null, bindingDrawer));
+        types.AddRule(typeof(HsmStateSelectorAttribute), new FieldTypeEditor(typeof(string), null, new HsmStateSelectorDrawer(asset, field)));
+        types.AddRule(typeof(HsmEventPickerAttribute), new FieldTypeEditor(typeof(string), null, new HsmEventPickerDrawer(asset, field)));
         // ⭐ CE-2083 — the SOP order's behaviour picker (the BTree's drawer); only with a registry to list, as the catalogue rule.
         if (behaviourNames is not null)
-            composite.Register<Hrot.Editor.AiShared.Inspector.AiBehaviorPickerAttribute>(
-                new Hrot.Editor.AiShared.Inspector.AiBehaviorPickerDrawer(behaviourNames, field));
+            types.AddRule(typeof(Hrot.Editor.AiShared.Inspector.AiBehaviorPickerAttribute),
+                new FieldTypeEditor(typeof(string), null, new Hrot.Editor.AiShared.Inspector.AiBehaviorPickerDrawer(behaviourNames, field)));
 
         // ⭐⭐ §11.1a — the asset pickers. ⚠ Registered only when a catalogue exists: a drawer over a
         //    null catalogue could only ever draw an empty list, and an empty dropdown reads as
         //    "there are no such assets" rather than "this host wired nothing".
-        // ⭐⭐⭐ CE-396 — ONE drawer PER KIND, chosen from the attribute the field carries, so
+        // ⭐⭐⭐ CE-396 — ONE rule, the drawer PER KIND chosen from the attribute the field carries, so
         //    `[AiAssetPicker(BTree)]` (StateFacet.SubtreeName) and `[AiAssetPicker(Blueprint)]`
-        //    (CE-385's activity/guard fields) each offer their own kind. ⛔ The previous
-        //    registration hard-wired BTree and would have answered for both.
+        //    (CE-385's activity/guard fields) each offer their own kind.
         if (catalog is not null)
-        {
-            var byKind = new Dictionary<Hrot.Editor.AiShared.AssetKind,
-                                        Hrot.Editor.AiShared.Inspector.AiAssetPickerDrawer>();
-            composite.Register<Hrot.Editor.AiShared.Inspector.AiAssetPickerAttribute>(attr =>
-            {
-                if (!byKind.TryGetValue(attr.Kind, out var d))
-                    byKind[attr.Kind] = d =
-                        new Hrot.Editor.AiShared.Inspector.AiAssetPickerDrawer(catalog, attr.Kind, field);
-                return d;
-            });
-        }
-
-        return new Dictionary<Type, IImGuiFieldDrawer>
-        {
-            [typeof(string)]                     = composite,
-            [typeof(ushort)]                     = new HsmSyncGroupPickerDrawer(asset),
-            [typeof(BehaviorActionBindingFacet)] = bindingDrawer,
-        };
-    }
-}
-
-/// <summary>
-/// Composite string drawer for HSM: dispatches to attribute-specific sub-drawers
-/// when a recognised HSM picker attribute is present on the <see cref="EditNode"/>'s field.
-/// Falls through to a plain text input when no marker attribute matches.
-/// </summary>
-internal sealed class HsmCompositeStringDrawer : IImGuiFieldDrawer
-{
-    // ⭐⭐⭐ CE-396 — the registry maps an attribute TYPE to a factory over the attribute INSTANCE,
-    //    not to a fixed drawer.
-    //
-    // 🔴 WHY IT HAD TO CHANGE. `AiAssetPickerAttribute` CARRIES A KIND (`[AiAssetPicker(BTree)]`,
-    //    `[AiAssetPicker(Blueprint)]`), and the old registry keyed by type alone ⇒ whichever kind was
-    //    registered first answered for EVERY kind. With only `StateFacet.SubtreeName` in the tree
-    //    that was invisible; CE-385's blueprint pickers would have silently drawn the BTREE list —
-    //    a dropdown full of plausible, wrong names. ⛔ A picker that offers the wrong asset kind is
-    //    worse than one that offers nothing: nothing is diagnosable.
-    // ⭐ Every other picker here is kind-less and registers through the constant overload unchanged.
-    private readonly Dictionary<Type, Func<Attribute, IImGuiFieldDrawer?>> _byAttribute = new();
-
-    public Type TargetType => typeof(string);
-
-    public HsmCompositeStringDrawer Register<TAttribute>(IImGuiFieldDrawer drawer) where TAttribute : Attribute
-    {
-        _byAttribute[typeof(TAttribute)] = _ => drawer;
-        return this;
-    }
-
-    /// <summary>⭐ <c>CE-396</c> — register a drawer chosen FROM the attribute instance, for marker
-    /// attributes that carry a discriminator (today: <c>AiAssetPickerAttribute.Kind</c>).</summary>
-    public HsmCompositeStringDrawer Register<TAttribute>(Func<TAttribute, IImGuiFieldDrawer?> factory)
-        where TAttribute : Attribute
-    {
-        _byAttribute[typeof(TAttribute)] = a => factory((TAttribute)a);
-        return this;
-    }
-
-    public IImGuiFieldDrawer? Resolve(EditNode node)
-    {
-        if (node is null) return null;
-        foreach (var attr in node.Metadata.CustomAttributes)
-        {
-            if (_byAttribute.TryGetValue(attr.GetType(), out var factory))
-                return factory(attr);
-        }
-        return null;
-    }
-
-    public bool DrawInput(ref object value, EditNode node)
-    {
-        var sub = Resolve(node);
-        if (sub is not null)
-            return sub.DrawInput(ref value, node);
-
-        if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return false;
-        var s = value as string ?? string.Empty;
-        if (ImGuiNET.ImGui.InputText("##str", ref s, 256))
-        {
-            value = s;
-            return true;
-        }
-        return false;
+            types.AddRule(typeof(Hrot.Editor.AiShared.Inspector.AiAssetPickerAttribute),
+                new Hrot.Editor.AiShared.Inspector.AiAssetPickerRuleEditor(catalog, field));
+        return types;
     }
 }

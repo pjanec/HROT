@@ -3,29 +3,32 @@ using System.Reflection;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using StructEdit.Core;
+using StructEdit.Core.Plugins;
 
 namespace Fdp.Presentation.Editing;
 
 using ImGuiApi = ImGuiNET.ImGui;
 
-public sealed class PredicateValueFieldDrawer : IImGuiFieldDrawer
+/// <summary>
+/// ⭐ CE-3378 (N-1) — the value leaf of a search predicate / a property match, as a STANDARD type editor (it was <c>PredicateValueFieldDrawer(session, registry)</c>, built per host per frame): the session it
+/// reads its sibling fields through is <c>ctx.Session</c> and the behaviour registry (for a behaviour-param predicate) is <c>ctx.Get&lt;BehaviorRegistry&gt;()</c> — null where the host passes none — so ONE instance serves every host.
+/// </summary>
+public sealed class PredicateValueTypeEditor : Types.TypeEditor<SearchPredicateDto>
 {
-    private readonly IEditSession _session;
-    private readonly BehaviorRegistry? _behaviorRegistry;
+    public override ICustomFieldEditor? Shape { get; } = new PredicateValueFieldEditor();
+    public override bool CanDraw => true;
 
-    public PredicateValueFieldDrawer(IEditSession session, BehaviorRegistry? behaviorRegistry)
+    public override bool Draw(in Types.TypeDrawContext ctx, ref object value)
     {
-        _session = session;
-        _behaviorRegistry = behaviorRegistry;
+        if (ctx.Session == null) return false;
+        return DrawInput(ref value, ctx.Node, ctx.Session, ctx.Get<BehaviorRegistry>());
     }
 
-    public Type TargetType => typeof(SearchPredicateDto);
-
-    public bool DrawInput(ref object value, EditNode node)
+    private static bool DrawInput(ref object value, EditNode node, IEditSession _session, BehaviorRegistry? _behaviorRegistry)
     {
-        Type? targetType = GetTargetType(node.JsonPath);
-        string? propertyPath = GetSiblingValue<string>(node.JsonPath, nameof(BehaviorParamPredicateDto.PropertyPath));
-        SearchOperator op = GetSiblingValue<SearchOperator>(node.JsonPath, nameof(BehaviorParamPredicateDto.Operator));
+        Type? targetType = GetTargetType(_session, _behaviorRegistry, node.JsonPath);
+        string? propertyPath = GetSiblingValue<string>(_session, node.JsonPath, nameof(BehaviorParamPredicateDto.PropertyPath));
+        SearchOperator op = GetSiblingValue<SearchOperator>(_session, node.JsonPath, nameof(BehaviorParamPredicateDto.Operator));
 
         if (targetType == null || string.IsNullOrEmpty(propertyPath))
         {
@@ -183,7 +186,7 @@ public sealed class PredicateValueFieldDrawer : IImGuiFieldDrawer
             || t == typeof(Fdp.Core.FixedString128));
     }
 
-    private Type? GetTargetType(string jsonPath)
+    private static Type? GetTargetType(IEditSession _session, BehaviorRegistry? _behaviorRegistry, string jsonPath)
     {
         int lastDot = jsonPath.LastIndexOf('.');
         if (lastDot <= 0)
@@ -228,7 +231,7 @@ public sealed class PredicateValueFieldDrawer : IImGuiFieldDrawer
         return null;
     }
 
-    private T? GetSiblingValue<T>(string jsonPath, string siblingName)
+    private static T? GetSiblingValue<T>(IEditSession _session, string jsonPath, string siblingName)
     {
         int lastDot = jsonPath.LastIndexOf('.');
         if (lastDot <= 0)

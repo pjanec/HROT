@@ -236,4 +236,13 @@ public sealed class RuleEditorTests : IDisposable
         Assert.Equal(RuleDetails.LiveReadOnly, Details().ReadOnlyReason(RowOf(20)));
         Assert.Equal("a recording is read-only", Details("a recording is read-only").ReadOnlyReason(RowOf(20)));
     }
+
+    /// <summary>⭐ CE-3378 (N-1) — forwarding rail: the rule forms' catalogue (the do-list overlay on Standard) draws Quaternion, Guid and Type, and its overlay answers the do list's type.</summary>
+    [Fact]
+    public void CE3378_TheRuleFormsCatalogue_DrawsQuaternionGuidAndType_AndOwnsTheDoList()
+    {
+        var types = Details().Types;
+        Assert.Null(Fdp.Presentation.Editing.Types.TypeCatalogueExtensions.MissingStandardLeaf(types));
+        Assert.True(types.TryGet(typeof(List<Fdp.Toolkit.ScenarioRules.Actions.ActionStep>), out var steps) && steps.CanDraw);
+    }
 }

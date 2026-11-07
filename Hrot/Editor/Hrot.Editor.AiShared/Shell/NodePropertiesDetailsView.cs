@@ -211,8 +211,7 @@ public sealed class NodePropertiesDetailsView : IDetailsViewInstance
         if (_facetSession.RebuildState == EditRebuildState.RebuildRequired)
             _facetSession.RebuildDocument();
 
-        var drawers = _source.CustomDrawers ?? new Dictionary<Type, IImGuiFieldDrawer>();
-        var drawer  = new ComponentEditDrawer(_facetSession, pickerCtx: null, drawers);
+        var drawer  = new ComponentEditDrawer(_facetSession, pickerCtx: null, types: _source.Catalogue);
 
         // Two-column "Property | Value" table (matches ComponentEditWindow layout).
         if (ImGuiNET.ImGui.BeginTable($"##{idScope}_facet_edit", 2,
@@ -285,8 +284,7 @@ public sealed class NodePropertiesDetailsView : IDetailsViewInstance
         ImGuiNET.ImGui.Text($"DEFAULT VALUE — {boundVarName}");
         ImGuiNET.ImGui.TextDisabled("the variable this node writes (ExpressionTargetField)");
 
-        var drawers = _source.CustomDrawers ?? new Dictionary<Type, IImGuiFieldDrawer>();
-        var drawer  = new ComponentEditDrawer(_defaultValueSession, pickerCtx: null, drawers);
+        var drawer  = new ComponentEditDrawer(_defaultValueSession, pickerCtx: null, types: _source.Catalogue);
 
         if (ImGuiNET.ImGui.BeginTable($"##{idScope}_defval_edit", 2,
             ImGuiNET.ImGuiTableFlags.SizingStretchProp))

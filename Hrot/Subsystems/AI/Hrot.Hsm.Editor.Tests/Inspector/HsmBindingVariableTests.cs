@@ -1,3 +1,4 @@
+using Fdp.Presentation.Editing.Types;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -61,7 +62,7 @@ public sealed class HsmBindingVariableTests
 
     /// <summary>The sources behind the drawer the PRODUCTION factory registers for the binding facet.</summary>
     private static ActionBindingSources Sources(HsmAsset asset, IActionSchemaExporter? exporter = null)
-        => HsmPickerDrawerFactory.BuildDrawers(asset, exporter)[typeof(BehaviorActionBindingFacet)]
+        => HsmPickerDrawerFactory.BuildCatalogue(asset, exporter).DrawerOf(typeof(BehaviorActionBindingFacet))!
                .Should().BeOfType<ActionBindingDrawer>().Subject.Sources;
 
     private static BehaviorActionBindingFacet Binding(string? fqn, Guid? site = null, string? slot = null) =>

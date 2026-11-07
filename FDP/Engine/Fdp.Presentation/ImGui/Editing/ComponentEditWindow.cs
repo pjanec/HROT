@@ -77,10 +77,10 @@ internal sealed class ComponentEditWindow : ManagedWindow
         Type componentType,
         Func<IInspectableSession?> sessionGetter,
         IMapPickContext? pickerCtx = null,
-        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null,
         IMutationInterceptor? interceptor = null,
         object? baseline = null,
-        IParamBindContext? paramBindContext = null)
+        IParamBindContext? paramBindContext = null,
+        Types.TypeCatalogue? types = null)
         : base(id, title, owningPerspective, WindowScope.PerspectiveBound)
     {
         _baseline      = baseline;
@@ -89,7 +89,7 @@ internal sealed class ComponentEditWindow : ManagedWindow
         _componentType = componentType;
         _sessionGetter = sessionGetter;
         _interceptor   = interceptor;
-        _drawer        = new ComponentEditDrawer(session, pickerCtx, customDrawers, paramBindContext);
+        _drawer        = new ComponentEditDrawer(session, pickerCtx, paramBindContext, types);
 
         IsVolatile = true;
         ShowInMenu = false;
@@ -101,6 +101,9 @@ internal sealed class ComponentEditWindow : ManagedWindow
 
     /// <summary>⭐ <c>U-obs-5</c> — THE KIND. Single host: stays a local literal.</summary>
     internal const string Kind = "component-edit";
+
+    /// <summary>⭐ CE-3378 — the catalogue this window's table draws from (the forwarding rail asks the CONSTRUCTED drawer).</summary>
+    internal Types.TypeCatalogue Catalogue => _drawer.Catalogue;
 
     // ── U-obs-5: BUILD · CAPTURE ─────────────────────────────────────────────
 

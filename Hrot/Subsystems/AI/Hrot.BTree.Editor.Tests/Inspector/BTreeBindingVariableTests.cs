@@ -1,3 +1,4 @@
+using Fdp.Presentation.Editing.Types;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -77,8 +78,8 @@ public sealed class BTreeBindingVariableTests
     /// <summary>The sources behind the drawer the PRODUCTION factory registers for the binding facet.</summary>
     private static ActionBindingSources Sources(BehaviorTreeAsset asset, IActionSchemaExporter? exporter = null)
     {
-        var drawers = BTreePickerDrawerFactory.BuildDrawers(asset, new BehaviorRegistry(), exporter);
-        return drawers[typeof(BehaviorActionBindingFacet)].Should().BeOfType<ActionBindingDrawer>().Subject.Sources;
+        var types = BTreePickerDrawerFactory.BuildCatalogue(asset, new BehaviorRegistry(), exporter);
+        return types.DrawerOf(typeof(BehaviorActionBindingFacet))!.Should().BeOfType<ActionBindingDrawer>().Subject.Sources;
     }
 
     private static BehaviorActionBindingFacet Binding(string? fqn, Guid? site = null) =>

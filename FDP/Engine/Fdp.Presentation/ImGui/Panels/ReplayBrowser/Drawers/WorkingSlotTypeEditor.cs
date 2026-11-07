@@ -24,24 +24,19 @@ using ImGuiApi = ImGuiNET.ImGui;
 /// compiler binds through. ⛔ Offering a slot the compiler cannot bind would produce a search that
 /// silently matches nothing.</para>
 /// </summary>
-internal sealed class WorkingSlotFieldDrawer : IImGuiFieldDrawer
+internal sealed class WorkingSlotTypeEditor : Fdp.Presentation.Editing.Types.TypeEditor<int>
 {
-    private readonly BehaviorRegistry _registry;
-    private readonly IEditSession _session;
+    // ⭐ CE-3378 (N-1) — a FIELD RULE on WorkingSlotPickerAttribute; the session is ctx.Session, the registry ctx.Get<BehaviorRegistry>() (was ctor-bound per search)
+    public override bool CanDraw => true;
 
-    public WorkingSlotFieldDrawer(IEditSession session, BehaviorRegistry registry)
-    {
-        _session  = session  ?? throw new ArgumentNullException(nameof(session));
-        _registry = registry ?? throw new ArgumentNullException(nameof(registry));
-    }
+    public override bool Draw(in Fdp.Presentation.Editing.Types.TypeDrawContext ctx, ref object value)
+        => ctx.Session != null && ctx.Get<BehaviorRegistry>() is { } registry && DrawInput(ref value, ctx.Node, ctx.Session, registry);
 
-    public Type TargetType => typeof(int);
-
-    public bool DrawInput(ref object value, EditNode node)
+    private static bool DrawInput(ref object value, EditNode node, IEditSession _session, BehaviorRegistry _registry)
     {
         int current = value is int i ? i : BehaviorParamSlotResolver.RootParamsSlotKey;
 
-        var def = ResolveSiblingBehavior(node);
+        var def = ResolveSiblingBehavior(node, _session, _registry);
         var choices = BehaviorParamSlotResolver.GetChoices(def);
 
         if (choices.Count == 0)
@@ -79,7 +74,7 @@ internal sealed class WorkingSlotFieldDrawer : IImGuiFieldDrawer
     /// definition. ⚠ Mirrors the sibling walk the two value drawers already do — the predicate's
     /// fields are siblings under one parent node, and a field drawer sees only its own node.
     /// </summary>
-    private BehaviorDefinition? ResolveSiblingBehavior(EditNode node)
+    private static BehaviorDefinition? ResolveSiblingBehavior(EditNode node, IEditSession _session, BehaviorRegistry _registry)
     {
         string jsonPath = node.JsonPath;
         int lastDot = jsonPath.LastIndexOf('.');

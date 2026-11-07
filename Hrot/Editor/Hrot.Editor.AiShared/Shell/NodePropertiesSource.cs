@@ -53,8 +53,8 @@ public sealed class NodePropertiesSource
     /// arm the retired window drew, not a fake editor.</summary>
     public IComponentEditService? EditService { get; private set; }
 
-    /// <summary>⭐ CLR type → field drawer, carrying the HSM and BTree picker drawers.</summary>
-    public IReadOnlyDictionary<Type, IImGuiFieldDrawer>? CustomDrawers { get; private set; }
+    /// <summary>⭐ CE-3378 (N-1) — the catalogue overlay carrying the HSM / BTree picker editors (built ONCE per document by the composition root); null ⇒ <c>TypeCatalogue.Standard</c>.</summary>
+    public Fdp.Presentation.Editing.Types.TypeCatalogue? Catalogue { get; private set; }
 
     /// <summary>⭐ <c>B-3</c> — reads <c>ExpressionTargetField</c> off a boxed facet. ⛔ Injected,
     /// because this assembly must not learn what a BTree action is.</summary>
@@ -76,13 +76,13 @@ public sealed class NodePropertiesSource
         Invalidate();
     }
 
-    /// <summary>⭐ Wires (or replaces) the StructEdit edit service and its custom drawers.</summary>
+    /// <summary>⭐ Wires (or replaces) the StructEdit edit service and its type catalogue overlay.</summary>
     public void SetFacetEditService(
         IComponentEditService? editService,
-        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null)
+        Fdp.Presentation.Editing.Types.TypeCatalogue? catalogue = null)
     {
         EditService   = editService;
-        CustomDrawers = customDrawers;
+        Catalogue     = catalogue;
         Invalidate();
     }
 

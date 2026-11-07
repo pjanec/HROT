@@ -12,21 +12,20 @@ namespace Fdp.Presentation.Panels.ReplayBrowser.Drawers;
 
 using ImGuiApi = ImGuiNET.ImGui;
 
-internal sealed class PropertyPathFieldDrawer : IImGuiFieldDrawer
+/// <summary>
+/// ⭐ CE-3378 (N-1) — the property-path picker as a FIELD RULE on <see cref="PropertyPathPickerAttribute"/> (it was the replay search's <c>typeof(string)</c> drawer, built per search with its session): the session it
+/// reads sibling fields through is <c>ctx.Session</c>, the registry <c>ctx.Get&lt;BehaviorRegistry&gt;()</c>. The combo's filter text is per instance (one combo is open at a time).
+/// </summary>
+internal sealed class PropertyPathTypeEditor : Fdp.Presentation.Editing.Types.TypeEditor<string>
 {
-    private readonly IEditSession _session;
-    private readonly BehaviorRegistry _behaviorRegistry;
     private string _filter = string.Empty;
 
-    public PropertyPathFieldDrawer(IEditSession session, BehaviorRegistry behaviorRegistry)
-    {
-        _session = session;
-        _behaviorRegistry = behaviorRegistry;
-    }
+    public override bool CanDraw => true;
 
-    public Type TargetType => typeof(string);
+    public override bool Draw(in Fdp.Presentation.Editing.Types.TypeDrawContext ctx, ref object value)
+        => ctx.Session != null && DrawInput(ref value, ctx.Node, ctx.Session, ctx.Get<BehaviorRegistry>());
 
-    public bool DrawInput(ref object value, EditNode node)
+    private bool DrawInput(ref object value, EditNode node, IEditSession _session, BehaviorRegistry? _behaviorRegistry)
     {
         string strVal = value as string ?? string.Empty;
         bool isPicker = node.Metadata.CustomAttributes.Any(a => a is PropertyPathPickerAttribute);
@@ -40,7 +39,7 @@ internal sealed class PropertyPathFieldDrawer : IImGuiFieldDrawer
         }
 
         bool valueChanged = false;
-        Type? targetType = GetTargetType(node.JsonPath);
+        Type? targetType = GetTargetType(_session, _behaviorRegistry, node.JsonPath);
 
         if (targetType == null)
         {
@@ -105,7 +104,7 @@ internal sealed class PropertyPathFieldDrawer : IImGuiFieldDrawer
         return valueChanged;
     }
 
-    private Type? GetTargetType(string jsonPath)
+    private static Type? GetTargetType(IEditSession _session, BehaviorRegistry? _behaviorRegistry, string jsonPath)
     {
         int lastDot = jsonPath.LastIndexOf('.');
         if (lastDot <= 0)
@@ -142,7 +141,7 @@ internal sealed class PropertyPathFieldDrawer : IImGuiFieldDrawer
             {
                 if (child.Binding?.GetBoxed() is int hash
                     && hash != 0
-                    && _behaviorRegistry.TryGetDefinition(hash, out var def))
+                    && _behaviorRegistry != null && _behaviorRegistry.TryGetDefinition(hash, out var def))
                 {
                     // ⭐ The SAME resolver the compiler binds through — see CE-308.
                     Type? dtoType = BehaviorParamSlotResolver.ResolveDtoType(def, workingSlotKey);

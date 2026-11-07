@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Fbt;
 using Fdp.Toolkit.Behavior;
+using Fdp.Presentation.Editing.Types;
 using FluentAssertions;
 using Hrot.BTree.Editor.Inspector;
 using Hrot.BTree.Editor.Model;
@@ -44,8 +45,8 @@ public sealed class BTreePickerDrawerTests
     /// (it was the behaviour registry's NAMES, which are not methods).</summary>
     private static ActionBindingSources Sources(BehaviorRegistry registry, BehaviorTreeAsset? asset = null,
                                                 IActionSchemaExporter? exporter = null)
-        => ((ActionBindingDrawer)BTreePickerDrawerFactory.BuildDrawers(asset ?? MakeAsset(EmptyBlob()), registry, exporter)
-               [typeof(BehaviorActionBindingFacet)]).Sources;
+        => ((ActionBindingDrawer)BTreePickerDrawerFactory.BuildCatalogue(asset ?? MakeAsset(EmptyBlob()), registry, exporter)
+               .DrawerOf(typeof(BehaviorActionBindingFacet))!).Sources;
 
     private static void RegisterName(BehaviorRegistry registry, string name, int id)
     {
@@ -182,42 +183,33 @@ public sealed class BTreePickerDrawerTests
         Sources(new BehaviorRegistry()).GetVariables(default).Should().BeEmpty();
     }
 
-    // ── CompositeStringDrawer tests ───────────────────────────────────────────
+    // ── field rules (CE-3378: they replace the composite string drawer) ──────────────────────────────
 
     [Fact]
-    public void CompositeStringDrawer_DispatchesByAttribute()
+    public void TheCatalogue_DispatchesTheAssetPickerRule_ByTheFieldsAttribute()
     {
-        var pickerDrawer = new AiAssetPickerDrawer(new EmptyCatalog(), Hrot.Editor.AiShared.AssetKind.BTree);
-        var composite    = new CompositeStringDrawer()
-            .Register<AiAssetPickerAttribute>(pickerDrawer);
+        var types = BTreePickerDrawerFactory.BuildCatalogue(MakeAsset(EmptyBlob()), new BehaviorRegistry(), catalog: new EmptyCatalog());
 
-        var node     = MakeNodeWithAttr(new AiAssetPickerAttribute(Hrot.Editor.AiShared.AssetKind.BTree));
-        var resolved = composite.Resolve(node);
+        var resolved = types.DrawerFor(MakeNodeWithAttr(new AiAssetPickerAttribute(Hrot.Editor.AiShared.AssetKind.BTree)));
 
-        resolved.Should().BeSameAs(pickerDrawer,
-            "composite drawer must dispatch to the drawer registered for the field's attribute");
+        resolved.Should().BeOfType<AiAssetPickerDrawer>("the field's [AiAssetPicker] attribute dispatches to the asset picker drawer");
     }
 
     [Fact]
-    public void CompositeStringDrawer_NoAttribute_ReturnsNull()
+    public void TheCatalogue_NoAttribute_ResolvesNoFieldRule()
     {
-        var composite = new CompositeStringDrawer()
-            .Register<AiAssetPickerAttribute>(new AiAssetPickerDrawer(new EmptyCatalog(), Hrot.Editor.AiShared.AssetKind.BTree));
+        var types = BTreePickerDrawerFactory.BuildCatalogue(MakeAsset(EmptyBlob()), new BehaviorRegistry(), catalog: new EmptyCatalog());
 
-        // Node with no custom attributes.
-        var resolved = composite.Resolve(MakeNodeWithAttr());
-
-        resolved.Should().BeNull("no registered attribute means no dispatch");
+        types.DrawerFor(MakeNodeWithAttr()).Should().BeNull("no registered attribute means no dispatch — the table's own string cell draws it");
     }
 
     /// <summary>⭐ <c>CE-417</c> slice 4b — the binding facet is drawn by the ONE binding drawer, keyed by its type.</summary>
     [Fact]
     public void TheFactory_RegistersTheBindingDrawer_ForTheBindingFacet()
     {
-        var drawers = BTreePickerDrawerFactory.BuildDrawers(MakeAsset(EmptyBlob()), new BehaviorRegistry());
+        var types = BTreePickerDrawerFactory.BuildCatalogue(MakeAsset(EmptyBlob()), new BehaviorRegistry());
 
-        drawers.Should().ContainKey(typeof(BehaviorActionBindingFacet));
-        drawers[typeof(BehaviorActionBindingFacet)].Should().BeOfType<ActionBindingDrawer>();
+        types.DrawerOf(typeof(BehaviorActionBindingFacet))!.Should().BeOfType<ActionBindingDrawer>();
     }
 
     /// <summary>⭐ CE-1008 (AI_Editor_Shared_Infrastructure §7.1b) — the factory FORWARDS the host's picker to every choice field of the
@@ -226,14 +218,14 @@ public sealed class BTreePickerDrawerTests
     public void CE1008_TheHostsPicker_ReachesTheBindingAndTheBehaviourPicker_OneSharedField()
     {
         Action<NodeEditor.UI.Picker.PickerRequest, Action<NodeEditor.UI.Picker.PickerResult>> open = (_, _) => { };
-        var drawers = BTreePickerDrawerFactory.BuildDrawers(MakeAsset(EmptyBlob()), new BehaviorRegistry(), openPicker: open);
-        var binding = (ActionBindingDrawer)drawers[typeof(BehaviorActionBindingFacet)];
-        var behaviour = (Hrot.Editor.AiShared.Inspector.AiBehaviorPickerDrawer)((CompositeStringDrawer)drawers[typeof(string)])
-            .Resolve(MakeNodeWithAttr(new Hrot.Editor.AiShared.Inspector.AiBehaviorPickerAttribute()))!;
+        var types = BTreePickerDrawerFactory.BuildCatalogue(MakeAsset(EmptyBlob()), new BehaviorRegistry(), openPicker: open);
+        var binding = (ActionBindingDrawer)types.DrawerOf(typeof(BehaviorActionBindingFacet))!;
+        var behaviour = (Hrot.Editor.AiShared.Inspector.AiBehaviorPickerDrawer)types
+            .DrawerFor(MakeNodeWithAttr(new Hrot.Editor.AiShared.Inspector.AiBehaviorPickerAttribute()))!;
         binding.Field.CanSearch.Should().BeTrue();
         behaviour.Field.Should().BeSameAs(binding.Field);
 
-        ((ActionBindingDrawer)BTreePickerDrawerFactory.BuildDrawers(MakeAsset(EmptyBlob()), new BehaviorRegistry())[typeof(BehaviorActionBindingFacet)])
+        ((ActionBindingDrawer)BTreePickerDrawerFactory.BuildCatalogue(MakeAsset(EmptyBlob()), new BehaviorRegistry()).DrawerOf(typeof(BehaviorActionBindingFacet))!)
             .Field.CanSearch.Should().BeFalse();
     }
 

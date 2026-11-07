@@ -131,8 +131,8 @@ public sealed class PerspectiveWorkspaceServices
     /// <summary>Action schema exporter (AIE-053 / DEBT-AIB-009).</summary>
     public IActionSchemaExporter? SchemaExporter { get; init; }
 
-    /// <summary>Attribute-dispatched picker drawers for the Inspector (SE1).</summary>
-    public IReadOnlyDictionary<Type, IImGuiFieldDrawer>? FacetCustomDrawers { get; init; }
+    /// <summary>The Inspector's type catalogue overlay — the attribute-dispatched pickers (SE1, CE-3378).</summary>
+    public Fdp.Presentation.Editing.Types.TypeCatalogue? FacetCatalogue { get; init; }
 
     /// <summary>Extracts <c>ExpressionTargetField</c> from a boxed facet struct (B-3).</summary>
     public Func<object?, string?>? ExpressionTargetFieldAccessor { get; init; }
@@ -225,7 +225,7 @@ public sealed class PerspectiveWorkspaceServices
             aggregatorService:             AggregatorService,
             schemaExporter:                SchemaExporter,
             facetEditService:              FacetEditService,
-            facetCustomDrawers:            FacetCustomDrawers,
+            facetCatalogue:                FacetCatalogue,
             expressionTargetFieldAccessor: ExpressionTargetFieldAccessor,
             liveValueProvider:             liveValueProvider,
             hostKind:                      hostKind,

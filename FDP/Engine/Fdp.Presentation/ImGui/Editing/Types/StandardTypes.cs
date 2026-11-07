@@ -27,7 +27,7 @@ internal static class StandardTypes
         Leaf(c, typeof(Fdp.Toolkit.Scenario.RefKey));
         Leaf(c, typeof(Fdp.Toolkit.Replication.AreaLink));
         Leaf(c, typeof(Fdp.Toolkit.Utility.UtilityDecisionRef));
-        c.Add(new FieldTypeEditor(typeof(Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto), new PredicateValueFieldEditor(), null));
+        c.Add(new PredicateValueTypeEditor());   // N-1: reads ctx.Session / ctx.Get<BehaviorRegistry>()
         c.Add(new FieldTypeEditor(typeof(Type), new TypeFieldEditor(), new FilteredTypeComboFieldDrawer(TypeComboMode.Auto)));
         c.Add(new FieldTypeEditor(typeof(System.Collections.Generic.List<Fdp.Toolkit.ScenarioRules.Actions.ActionStep>), new ActionListFieldEditor(), null));
         c.Add(new FieldTypeEditor(typeof(Guid), new StructEdit.Reflection.Editors.GuidFieldEditor(), new GuidFieldDrawer()));

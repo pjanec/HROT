@@ -74,7 +74,9 @@ public class ComponentReflector
     // ── Edit service ─────────────────────────────────────────────────────────
     private IComponentEditService _editService;
     private readonly List<IBufferViewProvider> _bufferViewProviders = new();
-    private readonly Dictionary<Type, IImGuiFieldDrawer> _fieldDrawers = new();
+
+    /// <summary>⭐ CE-3378 (N-1) — the cells every edit window / in-place editor of this reflector draws from: <see cref="Editing.Types.TypeCatalogue.Standard"/> (Quaternion, WorldRotation, Guid, Type … are in it), or a host's overlay built once.</summary>
+    public Editing.Types.TypeCatalogue Types { get; set; } = Editing.Types.TypeCatalogue.Standard;
 
     /// <summary>
     /// Optional factory invoked before opening an edit window to build a caller-provided
@@ -95,9 +97,6 @@ public class ComponentReflector
     public ComponentReflector()
     {
         _editService = BuildEditService();
-        _fieldDrawers[typeof(Quaternion)] = new QuaternionEulerFieldDrawer();
-        _fieldDrawers[typeof(Fdp.Core.WorldRotation)] = new QuaternionEulerFieldDrawer(typeof(Fdp.Core.WorldRotation));   // ⭐ S0 item 6
-        _fieldDrawers[typeof(Guid)] = new GuidFieldDrawer();
     }
 
     /// <summary>
@@ -362,12 +361,13 @@ public class ComponentReflector
             string title = $"Edit {type.Name} [{e.Index}]";
             EditWindowManager.RegisterWindow(new ComponentEditWindow(
                 winId, title, EditOwningPerspective, editSession,
-                e, type, EditSessionGetter!, EditPickerContext, _fieldDrawers,
+                e, type, EditSessionGetter!, EditPickerContext,
                 interceptor: MutationInterceptor,
                 // ⭐ Ruling 14 — `data` IS the value the session is opened on, so the baseline costs
                 //   nothing to supply and is the only thing that makes the staged write surgical.
                 baseline: data,
-                paramBindContext: BindContextFactory?.Invoke(e, type)));
+                paramBindContext: BindContextFactory?.Invoke(e, type),
+                types: Types));
         }
     }
 
@@ -385,7 +385,7 @@ public class ComponentReflector
 
         _inPlaceEditSession = _editService.Open(data, type, scope, editContext);
         _inPlaceEditComponentType = type;
-        _inPlaceEditDrawer = new ComponentEditDrawer(_inPlaceEditSession, EditPickerContext, _fieldDrawers, BindContextFactory?.Invoke(e, type));
+        _inPlaceEditDrawer = new ComponentEditDrawer(_inPlaceEditSession, EditPickerContext, BindContextFactory?.Invoke(e, type), Types);
         _inPlaceEditErrorMessage = null;
     }
 

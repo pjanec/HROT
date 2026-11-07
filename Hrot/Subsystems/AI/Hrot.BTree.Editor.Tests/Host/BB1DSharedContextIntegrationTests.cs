@@ -1,3 +1,4 @@
+using Fdp.Presentation.Editing.Types;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -32,7 +33,7 @@ file sealed class StubExporterForBB1D : IActionSchemaExporter
 
 /// <summary>
 /// BB1D integration tests: the production dispatcher (<see cref="BTreeSelectionBridgeHelper.BuildFacetDispatcher(BehaviorTreeAsset?)"/>)
-/// and the production drawers (<see cref="BTreePickerDrawerFactory.BuildDrawers"/>), wired together, offer ONLY the
+/// and the production catalogue (<see cref="BTreePickerDrawerFactory.BuildCatalogue"/>), wired together, offer ONLY the
 /// type-compatible variables for the selected node's binding.
 ///
 /// <para>⭐ <c>CE-417</c> slice 4b: BB1D's gap was a side channel (<c>BTreeFacetFqnContext</c>) that the dispatcher wrote and
@@ -76,11 +77,11 @@ public sealed class BB1DSharedContextIntegrationTests
 
     // ── Core integration test: the dispatcher's binding filters the drawer's list ──
 
-    private static ActionBindingSources BindingSources(IReadOnlyDictionary<Type, Fdp.Presentation.Editing.IImGuiFieldDrawer> drawers)
-        => drawers[typeof(BehaviorActionBindingFacet)].Should().BeOfType<ActionBindingDrawer>().Subject.Sources;
+    private static ActionBindingSources BindingSources(TypeCatalogue types)
+        => types.DrawerOf(typeof(BehaviorActionBindingFacet))!.Should().BeOfType<ActionBindingDrawer>().Subject.Sources;
 
     /// <summary>
-    /// CRITICAL: The BB1D wiring test. Build the dispatcher and the drawers the way <c>AiFacetPickerBinder</c> does, drive
+    /// CRITICAL: The BB1D wiring test. Build the dispatcher and the catalogue the way <c>AiFacetPickerBinder</c> does, drive
     /// <c>GetFacet</c> on the action node, and assert the binding drawer offers ONLY the T-typed variable.
     /// </summary>
     [Fact]
@@ -97,7 +98,7 @@ public sealed class BB1DSharedContextIntegrationTests
         exporter.Register(fqn, typeof(float));
 
         var dispatcher = BTreeSelectionBridgeHelper.BuildFacetDispatcher(asset);
-        var drawerMap  = BTreePickerDrawerFactory.BuildDrawers(asset, EmptyRegistry(), exporter);
+        var drawerMap  = BTreePickerDrawerFactory.BuildCatalogue(asset, EmptyRegistry(), exporter);
         dispatcher.Should().NotBeNull("dispatcher must be built from a non-null asset");
 
         var actionNode = asset.Nodes.First(n => n.KernelType == NodeType.Action);
@@ -124,7 +125,7 @@ public sealed class BB1DSharedContextIntegrationTests
         var exporter = new StubExporterForBB1D();
         exporter.Register("Ns.FloatAction", typeof(float));
 
-        BindingSources(BTreePickerDrawerFactory.BuildDrawers(asset, EmptyRegistry(), exporter))
+        BindingSources(BTreePickerDrawerFactory.BuildCatalogue(asset, EmptyRegistry(), exporter))
             .GetVariables(default).Should().HaveCount(2, "no method means no filtering");
     }
 
@@ -162,7 +163,7 @@ public sealed class BB1DSharedContextIntegrationTests
         exporter.Register("Ns.IntAction",   typeof(int));
 
         var dispatcher = BTreeSelectionBridgeHelper.BuildFacetDispatcher(asset)!;
-        var sources    = BindingSources(BTreePickerDrawerFactory.BuildDrawers(asset, EmptyRegistry(), exporter));
+        var sources    = BindingSources(BTreePickerDrawerFactory.BuildCatalogue(asset, EmptyRegistry(), exporter));
         var actions    = asset.Nodes.Where(n => n.KernelType == NodeType.Action).ToArray();
 
         var first  = ((BTreeActionFacet)dispatcher.GetFacet(new BTreeNodeSelection(actions[0].VisualId))!).Action;

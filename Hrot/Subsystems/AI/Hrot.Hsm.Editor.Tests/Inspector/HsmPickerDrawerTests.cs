@@ -4,6 +4,7 @@ using Fhsm.Compiler;
 using Fhsm.Kernel.Data;
 using FluentAssertions;
 using Hrot.Editor.AiShared.Inspector.ActionBinding;
+using Fdp.Presentation.Editing.Types;
 using Hrot.Hsm.Editor.Inspector;
 using Hrot.Hsm.Editor.Model;
 using Xunit;
@@ -46,7 +47,7 @@ public sealed class HsmPickerDrawerTests
         HsmAsset asset,
         Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter? exporter = null,
         Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)
-        => (HsmPickerDrawerFactory.BuildDrawers(asset, exporter, catalog)[typeof(BehaviorActionBindingFacet)]
+        => (HsmPickerDrawerFactory.BuildCatalogue(asset, exporter, catalog).DrawerOf(typeof(BehaviorActionBindingFacet))!
                as ActionBindingDrawer)!.Sources;
 
     // ── HsmEventPickerDrawer tests ────────────────────────────────────────────
@@ -319,11 +320,10 @@ public sealed class HsmPickerDrawerTests
     public void CE1008_TheHostsPicker_ReachesTheBindingStateAndEventPickers_OneSharedField()
     {
         Action<NodeEditor.UI.Picker.PickerRequest, Action<NodeEditor.UI.Picker.PickerResult>> open = (_, _) => { };
-        var drawers   = HsmPickerDrawerFactory.BuildDrawers(MakeAsset(), openPicker: open);
-        var binding   = (ActionBindingDrawer)drawers[typeof(BehaviorActionBindingFacet)];
-        var composite = (HsmCompositeStringDrawer)drawers[typeof(string)];
-        var state = (HsmStateSelectorDrawer)composite.Resolve(NodeWithAttribute(new HsmStateSelectorAttribute()))!;
-        var ev    = (HsmEventPickerDrawer)composite.Resolve(NodeWithAttribute(new HsmEventPickerAttribute()))!;
+        var types   = HsmPickerDrawerFactory.BuildCatalogue(MakeAsset(), openPicker: open);
+        var binding   = (ActionBindingDrawer)types.DrawerOf(typeof(BehaviorActionBindingFacet))!;
+        var state = (HsmStateSelectorDrawer)types.DrawerFor(NodeWithAttribute(new HsmStateSelectorAttribute()))!;
+        var ev    = (HsmEventPickerDrawer)types.DrawerFor(NodeWithAttribute(new HsmEventPickerAttribute()))!;
         binding.Field.CanSearch.Should().BeTrue();
         state.Field.Should().BeSameAs(binding.Field);
         ev.Field.Should().BeSameAs(binding.Field);
@@ -332,9 +332,8 @@ public sealed class HsmPickerDrawerTests
     private static System.Collections.Generic.IReadOnlyList<string> ItemsFor(
         Hrot.Editor.AiShared.Catalog.IAssetCatalog catalog, Hrot.Editor.AiShared.AssetKind kind)
     {
-        var drawers   = HsmPickerDrawerFactory.BuildDrawers(MakeAsset(), catalog: catalog);
-        var composite = (HsmCompositeStringDrawer)drawers[typeof(string)];
-        var resolved  = composite.Resolve(
+        var types   = HsmPickerDrawerFactory.BuildCatalogue(MakeAsset(), catalog: catalog);
+        var resolved  = types.DrawerFor(
             NodeWithAttribute(new Hrot.Editor.AiShared.Inspector.AiAssetPickerAttribute(kind)));
 
         resolved.Should().NotBeNull($"[AiAssetPicker({kind})] must resolve to a drawer");
@@ -344,7 +343,7 @@ public sealed class HsmPickerDrawerTests
     /// <summary>
     /// ⭐⭐⭐ <b><c>CE-396</c> — <c>[AiAssetPicker]</c> offers the kind the FIELD asks for.</b>
     ///
-    /// <para>🔴 <b>The defect this pins.</b> <c>HsmCompositeStringDrawer</c> keyed its registry by
+    /// <para>🔴 <b>The defect this pins.</b> the old composite string drawer keyed its registry by
     /// attribute TYPE and <c>BuildDrawers</c> registered ONE drawer hard-wired to
     /// <c>AssetKind.BTree</c>. With only <c>StateFacet.SubtreeName</c> in the tree that was
     /// invisible; <c>CE-385</c>'s blueprint fields would have silently drawn the BTREE list.
@@ -378,10 +377,9 @@ public sealed class HsmPickerDrawerTests
     [Fact]
     public void WithNoCatalogue_TheAssetPickerIsNotRegisteredAtAll()
     {
-        var drawers   = HsmPickerDrawerFactory.BuildDrawers(MakeAsset());
-        var composite = (HsmCompositeStringDrawer)drawers[typeof(string)];
+        var types   = HsmPickerDrawerFactory.BuildCatalogue(MakeAsset());
 
-        composite.Resolve(NodeWithAttribute(
+        types.DrawerFor(NodeWithAttribute(
             new Hrot.Editor.AiShared.Inspector.AiAssetPickerAttribute(
                 Hrot.Editor.AiShared.AssetKind.Blueprint)))
             .Should().BeNull();

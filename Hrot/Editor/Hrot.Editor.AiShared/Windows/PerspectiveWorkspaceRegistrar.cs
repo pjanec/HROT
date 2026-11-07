@@ -215,8 +215,8 @@ public class PerspectiveWorkspaceRegistrar
     ///   <see cref="InspectorWindow"/> so facet structs render as editable fields (SE1).
     ///   Registered at the composition root with all picker field drawers.
     /// </param>
-    /// <param name="facetCustomDrawers">
-    ///   Optional map of CLR type → <see cref="IImGuiFieldDrawer"/> forwarded to
+    /// <param name="facetCatalogue">
+    ///   Optional type-catalogue overlay (<c>TypeCatalogue.Standard.With(…)</c>, built once) forwarded to
     ///   <see cref="InspectorWindow"/> for attribute-dispatched picker fields (SE1).
     /// </param>
     /// <param name="expressionTargetFieldAccessor">
@@ -262,7 +262,7 @@ public class PerspectiveWorkspaceRegistrar
         BlackboardAggregatorService? aggregatorService = null,
         IActionSchemaExporter? schemaExporter = null,
         IComponentEditService? facetEditService = null,
-        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? facetCustomDrawers = null,
+        Fdp.Presentation.Editing.Types.TypeCatalogue? facetCatalogue = null,
         Func<object?, string?>? expressionTargetFieldAccessor = null,
         ILiveBlackboardValueProvider? liveValueProvider = null,
         BlackboardHostKind? hostKind = null,
@@ -340,7 +340,7 @@ public class PerspectiveWorkspaceRegistrar
         //   remember (R-67). ⚠ The descriptor's predicate asks the source whether it can map the
         //   selection at all, so a perspective with no dispatcher simply never offers the view.
         NodeProperties = new Shell.NodePropertiesSource();
-        NodeProperties.SetFacetEditService(facetEditService, facetCustomDrawers);
+        NodeProperties.SetFacetEditService(facetEditService, facetCatalogue);
         NodeProperties.SetExpressionTargetFieldAccessor(expressionTargetFieldAccessor);
 
         // ⛔⛔ REGISTERED FOR THE FACET-DISPATCHING HOSTS ONLY — and this is NOT §7.3 ③'s mistake

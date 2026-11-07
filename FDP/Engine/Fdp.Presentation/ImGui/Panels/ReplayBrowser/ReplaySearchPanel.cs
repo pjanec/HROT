@@ -282,6 +282,9 @@ public sealed class ReplaySearchPanel
     /// <summary>The friendly view's condition (what Execute searches while the Expert view is off).</summary>
     public SearchPredicateDto? FriendlyCondition { get => _friendly; set => _friendly = value; }
 
+    /// <summary>⭐ CE-3378 — the drawer the Expert view builds for <paramref name="session"/> (the forwarding rail asks its catalogue). For unit testing only.</summary>
+    internal ComponentEditDrawer DrawerFor(IEditSession session) => BuildDrawer(session);
+
     /// <summary>Simulates clicking a seek (Frame N) button. For unit testing only.</summary>
     internal void InvokeSeekRequested(int frameIndex) => _onSeekRequested(frameIndex);
 
@@ -306,22 +309,26 @@ public sealed class ReplaySearchPanel
         return dto;
     }
 
+    // ⭐ CE-3378 (N-1) — the search's cells come from ONE catalogue overlay per mode, built once and kept (the Type combo lists components or events by mode); its session-bound editors read
+    //   ctx.Session / ctx.Get<BehaviorRegistry>(), so nothing is rebuilt per session or per frame
+    private Fdp.Presentation.Editing.Types.TypeCatalogue? _componentTypes, _eventTypes;
+    private Fdp.Presentation.Editing.Types.ServiceBag? _drawServices;
+
+    private Fdp.Presentation.Editing.Types.TypeCatalogue BuildCatalogue(TypeComboMode typeMode)
+    {
+        var types = Fdp.Presentation.Editing.Types.TypeCatalogue.Standard.With(
+            new Fdp.Presentation.Editing.Types.FieldTypeEditor(typeof(Type), null, new FilteredTypeComboFieldDrawer(typeMode)));
+        // ⭐ CE-308: int has TWO pickers — the behaviour-hash combo and the occurrence SLOT combo — routed on their attributes (they were one IntPickerRouterFieldDrawer on the type)
+        types.AddRule(typeof(WorkingSlotPickerAttribute), new WorkingSlotTypeEditor());
+        types.AddRule(typeof(BehaviorHashPickerAttribute), new Fdp.Presentation.Editing.Types.FieldTypeEditor(typeof(int), null, new BehaviorHashFieldDrawer(_behaviorRegistry)));
+        types.AddRule(typeof(PropertyPathPickerAttribute), new PropertyPathTypeEditor());
+        return types;
+    }
+
     private ComponentEditDrawer BuildDrawer(IEditSession session)
     {
-        var typeMode = _mode == SearchPredicateMode.Event ? TypeComboMode.Event : TypeComboMode.Component;
-        var drawers = new Dictionary<Type, IImGuiFieldDrawer>
-        {
-            // ⭐ CE-308: int now has TWO pickers — the behaviour-hash combo and the occurrence
-            //   SLOT combo — and ComponentEditDrawer allows one drawer per type, so they are
-            //   routed on their attributes.
-            [typeof(int)]           = new IntPickerRouterFieldDrawer(
-                                          new WorkingSlotFieldDrawer(session, _behaviorRegistry),
-                                          new BehaviorHashFieldDrawer(_behaviorRegistry)),
-            [typeof(Type)]          = new FilteredTypeComboFieldDrawer(typeMode),
-            [typeof(string)]        = new PropertyPathFieldDrawer(session, _behaviorRegistry),
-            [typeof(SearchPredicateDto)] = new Fdp.Presentation.Editing.PredicateValueFieldDrawer(session, _behaviorRegistry),
-        };
-        return new ComponentEditDrawer(session, PickContext, drawers);
+        var types = _mode == SearchPredicateMode.Event ? (_eventTypes ??= BuildCatalogue(TypeComboMode.Event)) : (_componentTypes ??= BuildCatalogue(TypeComboMode.Component));
+        return new ComponentEditDrawer(session, PickContext, types: types, services: _drawServices ??= new Fdp.Presentation.Editing.Types.ServiceBag().With(_behaviorRegistry));
     }
 
     private void DrawModeRadio()

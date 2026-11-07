@@ -26,7 +26,7 @@ public sealed record AiFacetPickerServices
     /// ⭐ <c>CE-417</c> slice 4b: build it with <c>AiFacetEditService.Build()</c>, or every binding draws read-only.</summary>
     public IComponentEditService? FacetEditService { get; init; }
 
-    /// <summary>⚠ BTree drawers only: <c>BuildDrawers</c> requires a non-null registry.</summary>
+    /// <summary>⚠ BTree drawers only: <c>BuildCatalogue</c> requires a non-null registry.</summary>
     public BehaviorRegistry? BehaviorRegistry { get; init; }
 
     public IActionSchemaExporter? ActionSchema { get; init; }
@@ -88,10 +88,10 @@ public static class AiFacetPickerBinder
             && active.Asset is Hrot.BTree.Editor.Model.BehaviorTreeAsset btreeAsset
             && services.BehaviorRegistry is not null)
         {
-            var drawers = BTreePickerDrawerFactory.BuildDrawers(
+            var types = BTreePickerDrawerFactory.BuildCatalogue(
                 btreeAsset, services.BehaviorRegistry, services.ActionSchema, services.Catalog, services.OpenPicker);   // ⭐ CE-1008
 
-            services.BTreeRegistrar?.NodeProperties.SetFacetEditService(editService, drawers);
+            services.BTreeRegistrar?.NodeProperties.SetFacetEditService(editService, types);
             services.BTreeRegistrar?.NodeProperties.SetFacetDispatcher(
                 BTreeSelectionBridgeHelper.BuildFacetDispatcher(btreeAsset, services.Catalog, services.ActionSchema,   // CE-439, CE-417 4c
                                                                 childInputsTypeOf,
@@ -101,12 +101,12 @@ public static class AiFacetPickerBinder
             && active.Asset is Hrot.Hsm.Editor.Model.HsmAsset hsmAsset)
         {
             var registry = services.BehaviorRegistry;
-            var drawers = HsmPickerDrawerFactory.BuildDrawers(
+            var types = HsmPickerDrawerFactory.BuildCatalogue(
                 hsmAsset, services.ActionSchema, services.Catalog,
                 registry is null ? null : () => registry.GetRegisteredNames(),   // ⭐ CE-2083: the SOP behaviour picker
                 services.OpenPicker);                                            // ⭐ CE-1008: the searchable picker
 
-            services.HsmRegistrar?.NodeProperties.SetFacetEditService(editService, drawers);
+            services.HsmRegistrar?.NodeProperties.SetFacetEditService(editService, types);
             // ⭐ The dispatcher needs the SAME catalogue: it captures the picked asset's Guid at
             //   pick time (§11.1a's sequence), which is what makes a later rename healable.
             // ⭐⭐⭐ CE-414 — AND THE SAME ActionSchema the drawers got two lines above. 🔒 That is the

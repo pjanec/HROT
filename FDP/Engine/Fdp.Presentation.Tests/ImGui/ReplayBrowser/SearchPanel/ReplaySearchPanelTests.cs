@@ -296,4 +296,15 @@ public class ReplaySearchPanelMergedViewTests
         panel.IsMergedViewActive = false;
         Assert.False(panel.IsMergedViewActive);
     }
+
+    /// <summary>⭐ CE-3378 (N-1) — the forwarding rail for the replay search: the drawer the Expert view BUILDS draws Quaternion, Guid and Type (the Type cell is the host's own filtered combo, an overlay entry) — asked of the constructed drawer.</summary>
+    [Fact]
+    public void CE3378_TheExpertViewsDrawer_DrawsQuaternionGuidAndType()
+    {
+        var dto = PredicateModes.CreateDefault(SearchPredicateMode.Component);
+        using var session = Fdp.Presentation.Editing.ComponentEditServices.CreateBuilder().Build().Open(dto, dto.GetType());
+        var catalogue = MakeSearchPanel().DrawerFor(session).Catalogue;
+        Assert.Null(Fdp.Presentation.Editing.Types.TypeCatalogueExtensions.MissingStandardLeaf(catalogue));
+        Assert.NotSame(Fdp.Presentation.Editing.Types.TypeCatalogue.Standard, catalogue);   // the host's overlay (its rules and Type combo), built once
+    }
 }

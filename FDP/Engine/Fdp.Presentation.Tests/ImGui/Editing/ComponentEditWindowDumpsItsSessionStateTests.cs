@@ -116,4 +116,12 @@ public sealed class ComponentEditWindowDumpsItsSessionStateTests : IDisposable
         Assert.NotNull(vm);   // ⭐ the BUILD is unaffected by the flag
         Assert.False(vm.IsDirty);
     }
+
+    /// <summary>⭐ CE-3378 (N-1) — forwarding rail: the window's CONSTRUCTED drawer draws Quaternion, Guid and Type (it used to pass a dictionary only the reflector filled).</summary>
+    [Fact]
+    public void CE3378_TheWindowsDrawer_DrawsQuaternionGuidAndType()
+    {
+        var window = MakeWindow(new FakeEditSession(), default);
+        Assert.Null(Fdp.Presentation.Editing.Types.TypeCatalogueExtensions.MissingStandardLeaf(window.Catalogue));
+    }
 }

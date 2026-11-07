@@ -77,7 +77,7 @@ public abstract class TypeEditor<T> : ITypeEditor
 /// ⭐ The bridge for an editor that still has the two old halves — a StructEdit <see cref="ICustomFieldEditor"/> (the leaf) and an ImGui <see cref="IImGuiFieldDrawer"/> (the cell) —
 /// so they are registered ONCE, together, instead of the leaf in a builder and the cell in a dictionary each host passes.
 /// </summary>
-public sealed class FieldTypeEditor : ITypeEditor
+public sealed class FieldTypeEditor : ITypeEditor, IDrawerSource
 {
     private readonly IImGuiFieldDrawer? _drawer;
 
@@ -91,6 +91,9 @@ public sealed class FieldTypeEditor : ITypeEditor
     public Type TargetType { get; }
     public ICustomFieldEditor? Shape { get; }
     public bool CanDraw => _drawer != null;
+    /// <summary>The old cell this editor bridges (rails read it to prove what a node resolves to).</summary>
+    public IImGuiFieldDrawer? Drawer => _drawer;
+    IImGuiFieldDrawer? IDrawerSource.DrawerFor(EditNode node) => _drawer;
     public bool Draw(in TypeDrawContext ctx, ref object value) => _drawer!.DrawInput(ref value, ctx.Node);
     public string Format(object? value) => ValueText.Format(value);
     public bool TryParse(string text, out object? value, out string? problem)

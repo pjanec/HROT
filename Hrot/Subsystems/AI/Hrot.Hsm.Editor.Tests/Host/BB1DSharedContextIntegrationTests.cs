@@ -1,3 +1,4 @@
+using Fdp.Presentation.Editing.Types;
 using System;
 using Hrot.Editor.AiShared;
 using System.Collections.Generic;
@@ -32,7 +33,7 @@ file sealed class StubExporterForHsmBB1D : IActionSchemaExporter
 }
 
 /// <summary>
-/// BB1D integration tests, HSM: the production dispatcher and the production drawers, wired as
+/// BB1D integration tests, HSM: the production dispatcher and the production catalogue, wired as
 /// <c>AiFacetPickerBinder</c> wires them, offer ONLY the type-compatible variables for the selected binding.
 ///
 /// <para>⭐ <c>CE-417</c> slice 4b: the HSM counterpart of the BTree test. BB1D's gap was the <c>HsmFacetFqnContext</c>
@@ -71,7 +72,7 @@ public sealed class BB1DHsmSharedContextIntegrationTests
     }
 
     private static ActionBindingSources BindingSources(HsmAsset asset, IActionSchemaExporter exporter)
-        => HsmPickerDrawerFactory.BuildDrawers(asset, exporter)[typeof(BehaviorActionBindingFacet)]
+        => HsmPickerDrawerFactory.BuildCatalogue(asset, exporter).DrawerOf(typeof(BehaviorActionBindingFacet))!
                .Should().BeOfType<ActionBindingDrawer>().Subject.Sources;
 
     // ── Core integration test: the dispatcher's binding filters the drawer's list ──

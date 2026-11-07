@@ -35,7 +35,7 @@ public sealed class TheBindAffordanceDrawsTests
     {
         var svc = new ComponentEditServiceBuilder().Build();
         using var session = svc.Open(new Unit { Speed = 2f, Count = 3, Name = "x" }, typeof(Unit));
-        var drawer = new ComponentEditDrawer(session, null, null, ctx);
+        var drawer = new ComponentEditDrawer(session, null, ctx);
         using var frame = UiFrameHarness.Begin();
         frame.StepN(4, () =>
         {
