@@ -242,7 +242,8 @@ namespace Hrot.ScenarioEditor.Map
                 startPlacementMode:  ctx.StartPlacementMode
                                      ?? (ctx.EntityAuthoring is null ? null : () => authoringRef?.Spawn?.ArmPlacement()),
                 reportUnserviceable: ctx.ReportUnserviceableTool,
-                measureUnits:        ctx.MeasureUnits);
+                measureUnits:        ctx.MeasureUnits,
+                services:            ctx.Services);   // ⭐ W-1 / P-8 8d-2 — the Plan tool's mission facade
 
             // 🔴 GZH-003 headless-first, but NOT "disabled for everyone" (§3.2d ①): the only production
             // driver of AddListener() is PerspectiveCoordinatorSystem, so a standalone IG or editor has no

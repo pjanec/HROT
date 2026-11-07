@@ -118,6 +118,9 @@ namespace Hrot.Common.Actions
             catalogue.Declare(new ActionDecl(GlobalActionIds.EditOverlay, "Edit Shape", ActionGroup.Edit, First, ActionTarget.Area | ActionTarget.Zone) { Shortcut = "E", Modes = ActionModes.InEdit | ActionModes.InLive });
             catalogue.Declare(new ActionDecl(GlobalActionIds.LoadZone, "Load zone", ActionGroup.Edit, First + 1, ActionTarget.Zone) { Shortcut = "L", Modes = ActionModes.InEdit | ActionModes.InLive });   // ⭐ CE-3024 (E2) — always enabled: the load is cluster-wide
             catalogue.Declare(new ActionDecl(GlobalActionIds.EditRoute, "Edit Route", ActionGroup.Edit, First, ActionTarget.Route) { Shortcut = "E", Modes = ActionModes.InEdit | ActionModes.InLive });
+            // ⭐ W-1 / P-8 8d-2 (DESIGN_Mission_Plan_Editor §5.8 E2) — drag a task's marker to move its place; the modes the plan is edited in (the Orders tab's)
+            catalogue.Declare(new ActionDecl(GlobalActionIds.EditPlan, "Edit plan on the map", ActionGroup.Edit, First + 1, Unit) { Modes = ActionModes.InEdit | ActionModes.InLive,
+                Offer = ctx => ctx.Unit.Plan ? new ContextMenuItemDto { Id = GlobalActionIds.EditPlan, Label = "Edit plan on the map" } : null });
 
             // ── Debug (a unit) ────────────────────────────────────────────────────────────────────────────────────────────────────────
             catalogue.Declare(new ActionDecl(0, "Pin gizmos", ActionGroup.Debug, First, Unit)
@@ -193,7 +196,7 @@ namespace Hrot.Common.Actions
             int modeBits = (int)ctx.Mode;
             int flags = ctx.Target != ActionTarget.Unit ? 0
                 : (u.Degraded ? 1 : 0) | (u.Brain ? 2 : 0) | (u.Orders ? 4 : 0) | (u.Form ? 8 : 0) | (u.Manned ? 16 : 0)
-                  | ((int)u.Embark << 5) | ((int)u.Pins << 8) | (u.TraceOn ? 1 << 24 : 0);
+                  | ((int)u.Embark << 5) | ((int)u.Pins << 8) | (u.TraceOn ? 1 << 24 : 0) | (u.Plan ? 1 << 25 : 0);
             var key = (ctx.Target, flags | (modeBits << 26), u.Orders ? u.Dis.Value : 0UL, u.Orders && u.IsUnit);
             return Menus.GetOrAdd(key, _ => MenuComposer.Json(ctx));
         }
@@ -237,7 +240,8 @@ namespace Hrot.Common.Actions
                            && Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Peek(repo)?.IsTraceSet(nid) == true;
             // ⭐ as before: form and manned matter only where orders are offered
             return new ActionContext(view, entity, ActionTarget.Unit, mode,
-                new UnitFacts(degraded, brain, orders, dis, isUnit, form && orders, manned && orders, embark, pins, traceOn));
+                new UnitFacts(degraded, brain, orders, dis, isUnit, form && orders, manned && orders, embark, pins, traceOn,
+                    Plan: view.HasManagedComponent<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>(entity)));
         }
     }
 }

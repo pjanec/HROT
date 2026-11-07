@@ -30,6 +30,8 @@ namespace Hrot.ScenarioEditor.Tools
 
         /// <summary>Waypoint edit on a <c>RoutePlan</c>.</summary>
         public const string Route   = "scenario.route";
+        /// <summary>⭐ W-1 / P-8 8d-2 — a unit's mission plan: drag a task's marker to move its place (<c>MissionPlanEditGizmo</c>).</summary>
+        public const string Plan    = "scenario.plan";
 
         /// <summary>Measurement line.</summary>
         public const string Measure = "scenario.measure";
@@ -110,6 +112,7 @@ namespace Hrot.ScenarioEditor.Tools
             EditorTool.Route   => Route,
             EditorTool.Measure => Measure,
             EditorTool.Rotate  => Rotate,
+            EditorTool.Plan    => Plan,
             _                  => tool.ToString(),
         };
     }

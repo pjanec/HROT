@@ -82,5 +82,46 @@ public sealed class MissionPlanOverlayFrameRail
         finally { Raylib.UnloadImage(image); }
         Assert.True(amber > 20, $"the running task's marker is drawn amber ({amber} px)");
         Assert.True(green > 20, $"the done task's marker is drawn green ({green} px)");
+
+        // ⭐ 8d-2 — the same plan with the Plan tool armed, task 3 mid-drag: a white handle on each point task, the dragged marker amber where the
+        //   mouse is, its legs previewed. Renders mission-plan-drag.png.
+        var missions = new NoMissions();
+        var edit = new Hrot.ScenarioEditor.Gizmos.MissionPlanEditGizmo(w, unit, 1, () => { }, missions);
+        edit.SetFocus(true);
+        edit.OnInteractionStarted(new Fdp.Toolkit.Diagnostics.Gizmos.GizmoPickToken { SubElementId = 3 }, new Vector3(80, 90, 0));
+        edit.OnDragUpdate(new Vector3(110, 20, 0));
+        buffer.Clear();
+        new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(new Fdp.Modules.Geographic.Transforms.WGS84Transform(0, 0, 0)).Draw(w, unit, buffer);
+        edit.UpdateAndDraw(w, 0.016f, buffer);
+        gizmos.Update(0.016f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        string drag = Path.Combine(shots, "mission-plan-drag.png");
+        frame.Screenshot(drag);
+        var dragged = Raylib.LoadImage(drag);
+        int amberNear = 0;
+        try
+        {
+            // the dropped place (110, 20) on screen: x = (110 - target.X) * zoom, y = (target.Y - 20) * zoom (north up)
+            int cx = (int)((110 - target.X) * zoom), cy = (int)((target.Y - 20) * zoom);
+            for (int y = Math.Max(0, cy - 14); y < Math.Min(dragged.Height, cy + 14); y++)
+                for (int x = Math.Max(0, cx - 14); x < Math.Min(dragged.Width, cx + 14); x++)
+                {
+                    var c = Raylib.GetImageColor(dragged, x, y);
+                    if (Math.Abs(c.R - 242) + Math.Abs(c.G - 192) + Math.Abs(c.B - 51) < 50) amberNear++;
+                }
+        }
+        finally { Raylib.UnloadImage(dragged); }
+        Assert.True(amberNear > 20, $"the dragged marker is drawn where the mouse is ({amberNear} amber px near it)");
+    }
+
+    private sealed class NoMissions : Hrot.UI.Common.Facades.IMissionEditorService
+    {
+        public System.Collections.Generic.IReadOnlyList<string> GetAvailableBehaviors(int entityId) => Array.Empty<string>();
+        public (Hrot.Core.Mission.MissionPlan? Plan, long Version) GetMissionSnapshot(int entityId) => (null, 0);
+        public System.Threading.Tasks.Task<Hrot.UI.Common.Models.MissionCommitResult> CommitMissionAsync(int entityId, Hrot.Core.Mission.MissionPlan plan, long baseVersion)
+            => System.Threading.Tasks.Task.FromResult(new Hrot.UI.Common.Models.MissionCommitResult(false, 0));
+        public System.Threading.Tasks.Task<Hrot.UI.Common.Models.MissionCommitResult> SendControlCommandAsync(int entityId, Hrot.Core.Mission.eMissionCommandType type, Guid taskId)
+            => System.Threading.Tasks.Task.FromResult(new Hrot.UI.Common.Models.MissionCommitResult(false, 0));
     }
 }

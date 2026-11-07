@@ -2375,7 +2375,7 @@ namespace Hrot.Editor
                     DimTransientEntities = true,   // ⭐ SR-191 — the authoring map shows what a save will NOT write, dimmed
                     Host  = HostActions,   // ⭐ CE-1150 — the map registers its actions on the host's
                     // ⭐ CE-3123 — constructor services for reflected projectors (mission lines, behaviour labels).
-                    Services = Hrot.ScenarioEditor.Map.MapServices.Of(geoTransform, _behaviorRegistry),
+                    Services = Hrot.ScenarioEditor.Map.MapServices.Of(geoTransform, _behaviorRegistry, (System.Func<object?>)(() => _missionService)),   // ⭐ 8d-2 — the mission facade is built after the map: resolved when asked
                     GizmoUiPublisher = _gizmoUiHub,
                     Inspector = () => _fdpInspectorState,
                     // ⭐⭐⭐ CE-300 — the AI editors' entity cell follows the ANNOUNCEMENT, not a map
@@ -2472,6 +2472,8 @@ namespace Hrot.Editor
                 ActivateToolOnEntity(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Edit, target));
             actionRegistry.Register(GlobalActionIds.EditRoute, (_, target) =>
                 ActivateToolOnEntity(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Route, target));
+            actionRegistry.Register(GlobalActionIds.EditPlan, (_, target) =>   // ⭐ W-1 / P-8 8d-2
+                ActivateToolOnEntity(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Plan, target));
             // ⭐ CE-3024 (E2) — "Load zone" on a terrain zone publishes the CLUSTER op on the orchestration bus; the
             //    editor's in-process master drains it and runs the PrepareZone/CommitZone round (design §9.6).
             actionRegistry.Register(GlobalActionIds.LoadZone, (view, target) =>

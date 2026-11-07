@@ -53,7 +53,8 @@ namespace Hrot.Common.Actions
 
     /// <summary>⭐ B-11 A1 — the facts about a unit that its menu depends on, read ONCE per menu (exactly what <c>MenuJsonFor</c> read).</summary>
     public readonly record struct UnitFacts(bool Degraded, bool Brain, bool Orders, DISEntityType Dis, bool IsUnit, bool Form, bool Manned,
-                                            EmbarkOffer Embark, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags Pins, bool TraceOn);
+                                            EmbarkOffer Embark, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags Pins, bool TraceOn,
+                                            bool Plan = false);   // ⭐ W-1 / P-8 8d-2 — the unit has a mission plan (Edit plan on the map)
 
     /// <summary>⭐ B-11 A1 — what one menu is composed for: the entity, its target kind, the mode, and (for a unit) its facts.</summary>
     public readonly record struct ActionContext(ISimulationView View, Entity Entity, ActionTarget Target, EditingMode Mode, UnitFacts Unit)
